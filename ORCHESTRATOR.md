@@ -53,10 +53,18 @@ Two builders, two auditors, **crossed**:
 
 | agent | tmux session | role |
 |---|---|---|
-| codex builder | `codex-dissolve-builder-1` | builds |
-| cursor builder | `cursor-dissolve-1` | builds |
-| codex auditor | `codex-auditor-1` | audits the **cursor** builder |
-| cursor auditor | `cursor-auditor-1` | audits the **codex** builder |
+| codex builder | `codex-v12-builder-1` | builds |
+| cursor builder | `cursor-v12-builder-1` | builds |
+| codex auditor | `codex-v12-auditor-1` | audits the **cursor** builder |
+| cursor auditor | `cursor-v12-auditor-1` | audits the **codex** builder |
+
+> **These are yours. The similarly-named `codex-dissolve-builder-1`,
+> `cursor-dissolve-1`, `codex-auditor-1` and `cursor-auditor-1` are the v11
+> fleet, they are still running, and they are not.** An earlier draft of this
+> file listed the v11 names in this table — a handover document that misidentifies
+> which agents you own is the most expensive kind of error it can contain, so
+> verify the session list yourself before your first dispatch rather than
+> trusting this table.
 
 The crossing is the point: no agent's work is checked by its own vendor. When
 one auditor is unavailable, you may cover with the other — but **record it as a
