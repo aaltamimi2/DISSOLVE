@@ -1824,6 +1824,30 @@ def plan_multistage_separation(
     if lower is not None and upper is not None and upper < lower:
         return tool_error(tool, "temperature_max_c must be at least temperature_min_c.", error_code="invalid_temperature_range")
 
+    # Refuse before planning if no stored temperature node lies inside the
+    # bounds. Without this the recursion below calls screen_polymer_separation,
+    # which correctly refuses with empty_temperature_grid, and then reads
+    # ["data"] off the refusal — turning "nothing was evaluable" into
+    # "these polymers could not be separated".
+    stored_nodes = thermo._grid_nodes()
+    if not thermo._nodes_within(
+        lower if lower is not None else stored_nodes[0],
+        upper if upper is not None else stored_nodes[-1],
+        step_c, bool(strict_maximum),
+    ):
+        return tool_error(
+            tool,
+            "No stored temperature node lies inside the requested bounds.",
+            error_code="empty_temperature_grid",
+            temperature_min_c=lower, temperature_max_c=upper,
+            nearest_stored_nodes_c=[
+                node for node in (
+                    max((n for n in stored_nodes if lower is None or n <= lower), default=None),
+                    min((n for n in stored_nodes if upper is None or n >= upper), default=None),
+                ) if node is not None
+            ],
+        )
+
     screens: dict[tuple[str, ...], dict[str, Any]] = {}
     solved: dict[tuple[str, ...], list[dict[str, Any]]] = {}
 

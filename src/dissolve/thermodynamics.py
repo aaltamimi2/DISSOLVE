@@ -899,15 +899,42 @@ def get_solubility(
     return float(value) if result.get("available") and value is not None else None
 
 
-def _temperature_grid(start: float, end: float, step: float) -> list[float]:
+@lru_cache(maxsize=1)
+def _grid_nodes() -> tuple[float, ...]:
+    """The temperatures the asset actually stores. Read once, never asserted."""
+    return tuple(float(row[0]) for row in get_connection().execute(
+        "SELECT DISTINCT temperature_c FROM solubility_grid ORDER BY 1"
+    ).fetchall())
+
+
+def _nodes_within(start: float, end: float, step: float, strict: bool) -> list[float]:
+    """Return the stored grid nodes inside the requested bounds.
+
+    v12: a sweep may only visit temperatures the grid holds. v11 anchored the
+    sweep to ``start`` and stepped from there, so a bound one degree off a node
+    produced a list of temperatures with no stored value — every point
+    interpolated. With interpolation gone those points return nothing, and a
+    screen that evaluated nothing reported "no candidate qualified" rather than
+    "nothing was evaluable".
+
+    Snapping is inward only: every temperature returned is a node with a stored
+    value, and none lies outside the requested bounds. An empty result is the
+    caller's cue to refuse, which every call site already does.
+    """
     if end < start:
         return []
-    step = max(step, 1.0)
-    count = int(math.floor((end - start + 1e-9) / step))
-    values = [float(start + index * step) for index in range(count + 1)]
-    if not values or not math.isclose(values[-1], end):
-        values.append(float(end))
-    return values
+    lower, upper = float(start), float(end)
+    inside = [
+        node for node in _grid_nodes()
+        if node >= lower - 1e-9
+        and (node < upper - 1e-9 if strict else node <= upper + 1e-9)
+    ]
+    stride = max(1, int(round(float(step) / 5.0)))
+    return inside[::stride]
+
+
+def _temperature_grid(start: float, end: float, step: float) -> list[float]:
+    return _nodes_within(start, end, step, False)
 
 
 def get_solubility_curve(

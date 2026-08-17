@@ -771,15 +771,14 @@ def normalize_feed_composition(
 
 
 def _temperature_grid(start: float, end: float, step: float, strict: bool) -> list[float]:
-    lower = max(float(start), thermo.FITTED_TEMP_MIN_C)
-    upper = min(float(end), thermo.SENSITIVITY_EXTRAPOLATION_MAX_C)
-    values, current = [], lower
-    while current < upper - 1e-9 if strict else current <= upper + 1e-9:
-        values.append(round(current, 6))
-        current += step
-    if not strict and values and values[-1] < upper - 1e-9:
-        values.append(upper)
-    return values
+    """Grid nodes inside the bounds. See thermodynamics._nodes_within.
+
+    The single choke point for every range sweep in the tree — this tool, the
+    two safety screens, and the two separation screens. Bounding it to stored
+    nodes is what stops a screen from evaluating nothing and reporting that
+    nothing qualified.
+    """
+    return thermo._nodes_within(start, end, step, strict)
 
 
 def _screen_direction(
