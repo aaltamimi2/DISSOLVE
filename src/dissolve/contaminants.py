@@ -278,70 +278,6 @@ def _grid_ceiling(maximum: Optional[float], strict: bool) -> Optional[float]:
     return 25.0 + 5.0 * (math.ceil((maximum - 25.0) / 5.0) - 1)
 
 
-def _query_bound(
-    query: str, context: dict[str, Any],
-) -> tuple[Optional[float], bool]:
-    explicit = re.search(
-        r"\b(below|under|less\s+than|through|up\s+to|at(?:\s+or)?\s+below)\b"
-        r"[^.\n]{0,45}?(-?\d+(?:\.\d+)?)\s*(?:°\s*)?[Cc]\b", query, re.I,
-    )
-    if explicit:
-        return (
-            float(explicit.group(2)),
-            explicit.group(1).casefold() in {"below", "under", "less than"},
-        )
-    if references_inherited_bound(query):
-        prior = context.get("last_contaminant") or {}
-        maximum = prior.get("temperature_max_c", context.get("temperature_max_c"))
-        strict = prior.get("strict_maximum", context.get("strict_maximum"))
-        return _finite(maximum), bool(strict)
-    return None, False
-
-
-def _query_threshold_overrides(query: str) -> dict[str, float]:
-    """Extract only explicit contaminant-screen threshold language."""
-    number = r"(\d+(?:\.\d+)?)"
-    range_patterns = (
-        rf"{number}\s*(?:-|–|—|to|through)\s*{number}\s*(?:wt\s*)?%?"
-        r"[^.\n]{0,35}\b(?:swelling\s+)?window\b",
-        r"\b(?:swelling\s+)?window\b[^.\n]{0,35}"
-        rf"{number}\s*(?:-|–|—|to|through)\s*{number}\s*(?:wt\s*)?%?",
-    )
-    result: dict[str, float] = {}
-    for pattern in range_patterns:
-        match = re.search(pattern, query, re.I)
-        if match:
-            result.update({
-                "swelling_min_wt_pct": float(match.group(1)),
-                "swelling_max_wt_pct": float(match.group(2)),
-            })
-            break
-    for key, label in (
-        ("dissolution_min_wt_pct", r"dissolution(?:[- ](?:minimum|threshold))?|dissolving\s+minimum"),
-        ("precipitation_threshold_wt_pct", r"precipitation(?:[- ](?:proxy|threshold))?|cooling\s+proxy"),
-    ):
-        label_match = re.search(rf"\b(?:{label})\b", query, re.I)
-        if label_match is None:
-            continue
-        # Prefer a value in the same clause after the label.  Otherwise use
-        # the nearest percentage before it.  Looking relative to the label is
-        # essential: a whole-query alternation assigned an earlier swelling
-        # endpoint to a later dissolution label.
-        trailing_clause = re.split(
-            r"[,;\n]|(?<!\d)\.(?!\d)",
-            query[label_match.end():label_match.end() + 40], maxsplit=1,
-        )[0]
-        after = re.search(rf"{number}\s*(?:wt\s*)?%", trailing_clause, re.I)
-        if after:
-            result[key] = float(after.group(1))
-            continue
-        leading_context = query[max(0, label_match.start() - 50):label_match.start()]
-        before = list(re.finditer(rf"{number}\s*(?:wt\s*)?%", leading_context, re.I))
-        if before:
-            result[key] = float(before[-1].group(1))
-    return result
-
-
 def _inherited_candidate_solvents(tool: str) -> list[str]:
     state = session.current_tool_session()
     prior = state.last_contaminant if state and state.last_contaminant else {}
@@ -370,13 +306,6 @@ def _inherited_candidate_solvents(tool: str) -> list[str]:
     return list(dict.fromkeys(
         str(item).strip() for item in candidates if str(item).strip()
     ))
-
-
-_CONTAMINANT_REQUEST_TO_TOOL = {
-    "contaminant_leaching": "screen_contaminant_leaching",
-    "contaminant_strap_removal": "screen_contaminant_strap_removal",
-    "contaminant_mode_comparison": "compare_contaminant_removal_modes",
-}
 
 
 def _active_thresholds(
