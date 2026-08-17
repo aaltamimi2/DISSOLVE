@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
+from collections import Counter
 import math
-from typing import Annotated, Any, Literal, Optional, Sequence
+from typing import Annotated, Any, Callable, Literal, Optional, Sequence
 
 from langchain_core.tools import InjectedToolArg
 
@@ -12,6 +13,22 @@ from .contracts import parse_tool_result, tool_error, tool_success
 
 _STRONG_OVERLAP_RATIO = 0.70
 MATERIAL_UNDER_COVERAGE_RATIO = 0.90
+_TOOL = "solubility_query"
+_ORDER_FIELDS = {
+    "solubility": "solubility_pct",
+    "boiling_point_margin": "boiling_point_margin_c",
+    "temperature": "temperature_c",
+}
+
+
+class _InputError(ValueError):
+    """A caller-visible validation failure with structured detail."""
+
+    def __init__(self, code: str, message: str, **detail: Any) -> None:
+        super().__init__(message)
+        self.code = code
+        self.detail = detail
+
 
 def _table(headers: Sequence[str], rows: Sequence[Sequence[object]]) -> str:
     """Render a compact deterministic table artifact, never conversational prose."""
@@ -189,176 +206,453 @@ def _screen_catalog_provenance(
     return provenance
 
 
-def predict_solubility(polymer_name: str, solvent_name: str, temperature_c: float) -> str:
-    """Predict one polymer/solvent solubility at exactly the requested temperature.
+def _finite_optional(value: object, field: str) -> float | None:
+    if value is None:
+        return None
+    if isinstance(value, bool):
+        raise _InputError(
+            f"invalid_{field}", f"{field} must be a finite number or null.",
+            field=field, supplied_value=value,
+        )
+    try:
+        number = float(value)
+    except (TypeError, ValueError) as error:
+        raise _InputError(
+            f"invalid_{field}", f"{field} must be a finite number or null.",
+            field=field, supplied_value=value,
+        ) from error
+    if not math.isfinite(number):
+        raise _InputError(
+            f"non_finite_{field}", f"{field} must be finite.",
+            field=field, supplied_value=value,
+        )
+    return number
 
-    Choose this for one pair at one exact temperature.
-    """
-    tool = "predict_solubility"
-    if error := _temperature_error(tool, temperature_c):
-        return error
-    resolved = _resolve_pair(tool, polymer_name, solvent_name)
-    if isinstance(resolved, str):
-        return resolved
-    polymer, solvent = resolved
-    row = _pair_result(polymer, solvent, float(temperature_c))
-    if row is None:
-        evidence = thermo.get_solubility_result(
-            polymer, solvent, float(temperature_c),
+
+def _page_integer(value: object, field: str, *, minimum: int) -> int:
+    if isinstance(value, bool) or not isinstance(value, int) or value < minimum:
+        qualifier = "positive" if minimum == 1 else "non-negative"
+        raise _InputError(
+            f"invalid_{field}", f"{field} must be a {qualifier} integer.",
+            field=field, supplied_value=value,
         )
-        unavailable_reason = str(
-            evidence.get("unavailable_reason") or "solubility_value_unavailable"
+    return value
+
+
+def _name_axis(
+    values: list[str] | None,
+    *,
+    axis: str,
+    universe: Sequence[str],
+    resolver: Callable[[str], str | None],
+    unresolved_detail: Callable[[str], dict[str, Any]] | None = None,
+) -> tuple[list[str], bool, int]:
+    """Resolve and deduplicate one name axis, or select its whole domain."""
+    if values is None:
+        return list(universe), True, 0
+    if not isinstance(values, list):
+        raise _InputError(
+            f"invalid_{axis}", f"{axis} must be a list of names or null.",
+            field=axis,
         )
-        return tool_error(
-            tool,
-            f"No solubility value for {polymer} in {solvent} at {temperature_c:g} C.",
-            error_code=(
-                "solubility_grid_all_points_filtered"
-                if unavailable_reason == "all_grid_points_filtered" else
-                "solubility_grid_value_unavailable"
-            ),
-            polymer_name=polymer,
-            solvent_name=thermo.canonical_solvent_name(solvent),
-            temperature_c=float(temperature_c),
-            unavailable_reason=unavailable_reason,
-            grid_valid_point_count=evidence.get("grid_valid_point_count"),
-            grid_filtered_point_count=evidence.get("grid_filtered_point_count"),
-            grid_filtered_reasons=evidence.get("grid_filtered_reasons"),
+    if not values:
+        raise _InputError(
+            f"empty_{axis}",
+            f"{axis} cannot be empty; use null to select every {axis[:-1]}.",
+            field=axis,
         )
-    boiling_point = thermo.get_boiling_point(solvent)
-    atmospheric = None if boiling_point is None else float(temperature_c) < boiling_point
-    return tool_success(
-        tool,
-        display=_table(
-            ("Polymer", "Solvent", "T (C)", "Solubility (wt%)"),
-            ((polymer, row["solvent"], f"{float(temperature_c):g}", f"{row['solubility_pct']:.6g}"),),
+
+    resolved: list[str] = []
+    unsupported: list[str] = []
+    duplicate_count = 0
+    seen: set[str] = set()
+    for value in values:
+        if not isinstance(value, str) or not value.strip():
+            unsupported.append(str(value))
+            continue
+        canonical = resolver(value)
+        if canonical is None:
+            unsupported.append(value)
+            continue
+        if canonical in seen:
+            duplicate_count += 1
+            continue
+        seen.add(canonical)
+        resolved.append(canonical)
+    if unsupported:
+        detail: dict[str, Any] = {
+            "field": axis,
+            "unsupported": unsupported,
+            "unsupported_count": len(unsupported),
+            "available_count": len(universe),
+        }
+        if unresolved_detail is not None:
+            detail[f"unsupported_{axis[:-1]}_details"] = [
+                unresolved_detail(item) for item in unsupported
+            ]
+        raise _InputError(
+            f"unknown_{axis}",
+            f"Unsupported {axis}: "
+            + ", ".join(repr(item) for item in unsupported),
+            **detail,
+        )
+    return resolved, False, duplicate_count
+
+
+def _temperature_axis(
+    values: list[float] | None,
+    nodes: Sequence[float],
+) -> tuple[list[float], bool, int]:
+    if values is None:
+        return list(nodes), True, 0
+    if not isinstance(values, list):
+        raise _InputError(
+            "invalid_temperatures",
+            "temperatures must be a list of stored grid nodes or null.",
+            field="temperatures",
+        )
+    if not values:
+        raise _InputError(
+            "empty_temperatures",
+            "temperatures cannot be empty; use null to select every grid node.",
+            field="temperatures",
+        )
+
+    parsed: list[float] = []
+    invalid: list[object] = []
+    for value in values:
+        if isinstance(value, bool):
+            invalid.append(value)
+            continue
+        try:
+            number = float(value)
+        except (TypeError, ValueError):
+            invalid.append(value)
+            continue
+        if not math.isfinite(number):
+            invalid.append(value)
+            continue
+        parsed.append(number)
+    if invalid:
+        raise _InputError(
+            "invalid_temperatures",
+            "Every requested temperature must be a finite number.",
+            field="temperatures", invalid_temperatures=invalid,
+        )
+
+    node_set = set(nodes)
+    off_grid = [temperature for temperature in parsed if temperature not in node_set]
+    if off_grid:
+        raise _InputError(
+            "temperature_off_grid",
+            "Requested temperature(s) are not stored grid nodes: "
+            + ", ".join(f"{temperature:g} C" for temperature in off_grid) + ".",
+            field="temperatures",
+            off_grid_temperatures_c=list(dict.fromkeys(off_grid)),
+            off_grid_temperature_count=len(set(off_grid)),
+            nearest_grid_temperatures_c=[
+                {
+                    "temperature_c": temperature,
+                    "nearest_nodes_c": thermo._nearest_nodes(temperature),
+                }
+                for temperature in dict.fromkeys(off_grid)
+            ],
+            available_grid_temperatures_c=list(nodes),
+        )
+
+    deduplicated = list(dict.fromkeys(parsed))
+    return deduplicated, False, len(parsed) - len(deduplicated)
+
+
+def _fetch_grid_rows(
+    polymers: Sequence[str],
+    solvents: Sequence[str],
+    temperatures: Sequence[float],
+) -> list[tuple[Any, ...]]:
+    filters: list[str] = []
+    parameters: list[object] = []
+    for column, values in (
+        ("polymer", polymers),
+        ("solvent", solvents),
+        ("temperature_c", temperatures),
+    ):
+        placeholders = ", ".join("?" for _ in values)
+        filters.append(f"{column} IN ({placeholders})")
+        parameters.extend(values)
+    return thermo.get_connection().execute(
+        "SELECT polymer, solvent, temperature_c, solubility_pct, is_valid, "
+        "invalid_reason, source_table FROM solubility_grid WHERE "
+        + " AND ".join(filters),
+        parameters,
+    ).fetchall()
+
+
+def _sort_rows(rows: list[dict[str, Any]], field: str, descending: bool) -> None:
+    """Sort null primary values last and use cell identity as a stable tie-break."""
+    def key(row: dict[str, Any]) -> tuple[object, ...]:
+        primary = row[field]
+        missing = primary is None
+        numeric = 0.0 if missing else float(primary)
+        directed = -numeric if descending else numeric
+        return (
+            missing,
+            directed,
+            row["polymer"],
+            row["solvent"],
+            float(row["temperature_c"]),
+        )
+
+    rows.sort(key=key)
+
+
+def _display(rows: Sequence[dict[str, Any]]) -> str:
+    if not rows:
+        return "No solubility cells qualified."
+
+    def value(item: object) -> str:
+        return "—" if item is None else f"{float(item):.6g}"
+
+    return _table(
+        ("Polymer", "Solvent", "T (C)", "Solubility (wt%)", "BP (C)",
+         "BP margin (C)", "GHS", "Clipped"),
+        tuple(
+            (
+                row["polymer"], row["solvent_name"], value(row["temperature_c"]),
+                value(row["solubility_pct"]), value(row["boiling_point_c"]),
+                value(row["boiling_point_margin_c"]), row["ghs_signal_word"],
+                "yes" if row["is_clipped"] else "no",
+            )
+            for row in rows
         ),
-        polymer_name=polymer,
-        solvent_name=row["solvent"],
-        solvent_data_key=solvent,
-        temperature_c=float(temperature_c),
-        source_temperatures_c=row.get("source_temperatures_c"),
-        solubility_pct=row["solubility_pct"],
-        solubility_unit="wt_pct_solution_concentration",
-        screening_reference_wt_pct=5.0,
-        below_screening_reference=row["solubility_pct"] < 5.0,
-        is_clipped=row["is_clipped"],
-        clip_limit_wt_percent=100.0,
-        boiling_point_c=boiling_point,
-        atmospheric_operation=atmospheric,
-        **thermo.get_solvent_hazard_framing(solvent),
-        solvent_catalog_provenance=thermo.get_solvent_catalog_provenance(),
-        source_grid_temperature_range_c=row.get(
-            "source_grid_temperature_range_c",
-        ),
-        recommended_extrapolation_max_c=thermo.RECOMMENDED_EXTRAPOLATION_MAX_C,
-        sensitivity_extrapolation_max_c=thermo.SENSITIVITY_EXTRAPOLATION_MAX_C,
-        model_basis=thermo.SOLUBILITY_MODEL_BASIS,
     )
 
 
-def predict_solubility_range(
-    polymer_name: str,
-    solvent_name: str,
-    t_start_c: float = 25.0,
-    t_end_c: float = 160.0,
-    t_step_c: float = 5.0,
+def solubility_query(
+    polymers: list[str] | None = None,
+    solvents: list[str] | None = None,
+    temperatures: list[float] | None = None,
+    min_solubility_pct: float | None = None,
+    max_solubility_pct: float | None = None,
+    require_atmospheric: bool = False,
+    min_boiling_point_margin_c: float | None = None,
+    order_by: str = "solubility",
+    descending: bool = True,
+    top_k: int = 50,
+    offset: int = 0,
 ) -> str:
-    """Return numeric range data for one pair; visual curve requests use the plot specialist.
-
-    Choose this for a named pair over a temperature range.
-    """
-    tool = "predict_solubility_range"
-    if error := _temperature_error(tool, t_start_c):
-        return error
+    """Query measured solubility cells across any combination of grid axes."""
     try:
-        end, step = float(t_end_c), max(float(t_step_c), 1.0)
-    except (TypeError, ValueError):
-        return tool_error(tool, "Range bounds and step must be numeric.", error_code="invalid_range")
-    if not math.isfinite(end) or not math.isfinite(step):
-        return tool_error(tool, "Range bounds and step must be finite.", error_code="non_finite_range")
-    requested_end = end
-    capped = end > thermo.SENSITIVITY_EXTRAPOLATION_MAX_C
-    end = min(end, thermo.SENSITIVITY_EXTRAPOLATION_MAX_C)
-    resolved = _resolve_pair(tool, polymer_name, solvent_name)
-    if isinstance(resolved, str):
-        return resolved
-    polymer, solvent = resolved
-    predictions: list[dict] = []
-    unavailable_predictions: list[dict] = []
-    source_grid_temperature_range_c = None
-    for temperature in thermo._temperature_grid(
-        float(t_start_c), end, step,
-    )[:200]:
-        evidence = thermo.get_solubility_result(polymer, solvent, temperature)
-        if evidence.get("source_grid_temperature_range_c") is not None:
-            source_grid_temperature_range_c = evidence[
-                "source_grid_temperature_range_c"
-            ]
-        if not evidence.get("available"):
-            unavailable_predictions.append({
-                "temperature_c": temperature,
-                "unavailable_reason": evidence.get("unavailable_reason"),
-            })
-            continue
-        value = float(evidence["solubility_pct"])
-        predictions.append({
-            "temperature_c": temperature,
-            "solubility_pct": value,
-            "source_temperatures_c": evidence.get("source_temperatures_c"),
-            "is_clipped": bool(value >= 100.0),
-        })
-    if not predictions:
-        evidence = thermo.get_solubility_result(
-            polymer, solvent, float(t_start_c),
+        minimum = _finite_optional(min_solubility_pct, "min_solubility_pct")
+        maximum = _finite_optional(max_solubility_pct, "max_solubility_pct")
+        minimum_margin = _finite_optional(
+            min_boiling_point_margin_c, "min_boiling_point_margin_c",
         )
+        if minimum is not None and maximum is not None and minimum > maximum:
+            raise _InputError(
+                "invalid_solubility_range",
+                "min_solubility_pct cannot exceed max_solubility_pct.",
+                min_solubility_pct=minimum, max_solubility_pct=maximum,
+            )
+        if not isinstance(require_atmospheric, bool):
+            raise _InputError(
+                "invalid_require_atmospheric",
+                "require_atmospheric must be true or false.",
+                supplied_value=require_atmospheric,
+            )
+        if not isinstance(descending, bool):
+            raise _InputError(
+                "invalid_descending", "descending must be true or false.",
+                supplied_value=descending,
+            )
+        if not isinstance(order_by, str) or order_by.strip() not in _ORDER_FIELDS:
+            raise _InputError(
+                "invalid_order_by",
+                "order_by must be solubility, boiling_point_margin, or temperature.",
+                supplied_value=order_by, available_orderings=sorted(_ORDER_FIELDS),
+            )
+        ordering = order_by.strip()
+        limit = _page_integer(top_k, "top_k", minimum=1)
+        start = _page_integer(offset, "offset", minimum=0)
+
+        connection = thermo.get_connection()
+        polymer_universe = sorted(thermo.get_available_polymers())
+        solvent_universe = [
+            str(row[0]) for row in connection.execute(
+                "SELECT DISTINCT solvent FROM solubility_grid ORDER BY solvent"
+            ).fetchall()
+        ]
+        temperature_universe = list(thermo._grid_nodes())
+        selected_polymers, all_polymers, duplicate_polymers = _name_axis(
+            polymers,
+            axis="polymers",
+            universe=polymer_universe,
+            resolver=thermo.resolve_polymer,
+        )
+        selected_solvents, all_solvents, duplicate_solvents = _name_axis(
+            solvents,
+            axis="solvents",
+            universe=solvent_universe,
+            resolver=thermo.resolve_solvent,
+            unresolved_detail=_solvent_resolution_detail,
+        )
+        selected_temperatures, all_temperatures, duplicate_temperatures = (
+            _temperature_axis(temperatures, temperature_universe)
+        )
+    except _InputError as error:
         return tool_error(
-            tool,
-            f"No retained grid values for {polymer} in {solvent}.",
-            error_code=(
-                "solubility_grid_all_points_filtered"
-                if evidence.get("unavailable_reason") == "all_grid_points_filtered"
-                else "solubility_range_unavailable"
-            ),
-            polymer_name=polymer,
-            solvent_name=thermo.canonical_solvent_name(solvent),
-            unavailable_reason=evidence.get("unavailable_reason"),
-            grid_filtered_point_count=evidence.get("grid_filtered_point_count"),
-            grid_filtered_reasons=evidence.get("grid_filtered_reasons"),
+            _TOOL,
+            str(error),
+            error_code=error.code,
+            total=0,
+            offset=offset,
+            returned=0,
+            **error.detail,
         )
-    boiling_point = thermo.get_boiling_point(solvent)
+
+    grid_rows = _fetch_grid_rows(
+        selected_polymers, selected_solvents, selected_temperatures,
+    )
+    selected_cell_count = (
+        len(selected_polymers) * len(selected_solvents) * len(selected_temperatures)
+    )
+    stored_cell_count = len(grid_rows)
+    missing_cell_count = selected_cell_count - stored_cell_count
+    assert missing_cell_count >= 0
+
+    rejected_measurements: Counter[str] = Counter()
+    evaluable_rows: list[dict[str, Any]] = []
+    solvent_context: dict[str, tuple[str, float | None, str]] = {}
+    for (
+        polymer, solvent, temperature_c, solubility_pct, is_valid,
+        invalid_reason, source_table,
+    ) in grid_rows:
+        if not is_valid:
+            rejected_measurements[str(invalid_reason or "invalid")] += 1
+            continue
+        polymer_key = str(polymer)
+        solvent_key = str(solvent)
+        if solvent_key not in solvent_context:
+            boiling_point = thermo.get_boiling_point(solvent_key)
+            hazard = thermo.get_solvent_hazard_framing(solvent_key)
+            solvent_context[solvent_key] = (
+                thermo.canonical_solvent_name(solvent_key),
+                None if boiling_point is None else float(boiling_point),
+                str(hazard.get("ghs_signal_word") or "unknown"),
+            )
+        solvent_name, boiling_point, signal_word = solvent_context[solvent_key]
+        temperature = float(temperature_c)
+        solubility = float(solubility_pct)
+        margin = None if boiling_point is None else boiling_point - temperature
+        evaluable_rows.append({
+            "polymer": polymer_key,
+            "solvent": solvent_key,
+            "solvent_name": solvent_name,
+            "temperature_c": temperature,
+            "solubility_pct": solubility,
+            "boiling_point_c": boiling_point,
+            "boiling_point_margin_c": margin,
+            "atmospheric_operation": None if margin is None else margin > 0.0,
+            "ghs_signal_word": signal_word,
+            "is_clipped": solubility >= 100.0,
+            "clip_limit_wt_percent": 100.0,
+            "source_table": str(source_table),
+        })
+
+    exclusion_counts = {
+        "below_min_solubility_pct": 0,
+        "above_max_solubility_pct": 0,
+        "failed_atmospheric_requirement": 0,
+        "unknown_boiling_point_for_atmospheric_requirement": 0,
+        "below_min_boiling_point_margin_c": 0,
+        "unknown_boiling_point_for_margin_requirement": 0,
+        "failed_any_constraint": 0,
+    }
+    qualified: list[dict[str, Any]] = []
+    for row in evaluable_rows:
+        failed = False
+        if minimum is not None and row["solubility_pct"] < minimum:
+            exclusion_counts["below_min_solubility_pct"] += 1
+            failed = True
+        if maximum is not None and row["solubility_pct"] > maximum:
+            exclusion_counts["above_max_solubility_pct"] += 1
+            failed = True
+        if require_atmospheric and row["atmospheric_operation"] is not True:
+            exclusion_counts["failed_atmospheric_requirement"] += 1
+            if row["boiling_point_c"] is None:
+                exclusion_counts[
+                    "unknown_boiling_point_for_atmospheric_requirement"
+                ] += 1
+            failed = True
+        if minimum_margin is not None and (
+            row["boiling_point_margin_c"] is None
+            or row["boiling_point_margin_c"] < minimum_margin
+        ):
+            exclusion_counts["below_min_boiling_point_margin_c"] += 1
+            if row["boiling_point_margin_c"] is None:
+                exclusion_counts[
+                    "unknown_boiling_point_for_margin_requirement"
+                ] += 1
+            failed = True
+        if failed:
+            exclusion_counts["failed_any_constraint"] += 1
+        else:
+            qualified.append(row)
+
+    total = len(qualified)
+    assert total + exclusion_counts["failed_any_constraint"] == len(evaluable_rows)
+    _sort_rows(qualified, _ORDER_FIELDS[ordering], descending)
+    page = qualified[start:start + limit]
+    returned = len(page)
+    assert returned <= limit
+    assert total >= returned
+    has_more = start + returned < total
+
+    measurement_rejected_count = sum(rejected_measurements.values())
+    unavailable_cell_count = missing_cell_count + measurement_rejected_count
+    assert selected_cell_count == len(evaluable_rows) + unavailable_cell_count
+
     return tool_success(
-        tool,
-        display=_table(
-            ("T (C)", "Solubility (wt%)"),
-            tuple((f"{row['temperature_c']:g}", f"{row['solubility_pct']:.6g}") for row in predictions),
-        ),
-        polymer_name=polymer,
-        solvent_name=thermo.canonical_solvent_name(solvent),
-        solvent_data_key=solvent,
-        t_start_c=float(t_start_c),
-        t_end_c=end,
-        requested_t_end_c=requested_end,
-        range_was_capped=capped,
-        t_step_c=step,
-        n_points=len(predictions),
-        predictions=predictions,
-        unavailable_predictions=unavailable_predictions,
-        unavailable_point_count=len(unavailable_predictions),
-        extrapolated_points=0,
-        source_grid_temperature_range_c=source_grid_temperature_range_c,
-        sensitivity_extrapolation_max_c=thermo.SENSITIVITY_EXTRAPOLATION_MAX_C,
-        boiling_point_c=boiling_point,
-        atmospheric_range_exceeds_bp=bool(boiling_point is not None and end >= boiling_point),
+        _TOOL,
+        display=_display(page),
+        results=page,
+        total=total,
+        offset=start,
+        returned=returned,
+        top_k=limit,
+        has_more=has_more,
+        next_offset=(start + returned if has_more else None),
+        order_by=ordering,
+        descending=descending,
+        constraints={
+            "min_solubility_pct": minimum,
+            "max_solubility_pct": maximum,
+            "require_atmospheric": require_atmospheric,
+            "min_boiling_point_margin_c": minimum_margin,
+        },
+        selection={
+            "polymers": None if all_polymers else selected_polymers,
+            "solvents": None if all_solvents else selected_solvents,
+            "temperatures_c": None if all_temperatures else selected_temperatures,
+            "polymer_count": len(selected_polymers),
+            "solvent_count": len(selected_solvents),
+            "temperature_count": len(selected_temperatures),
+            "duplicate_polymers_removed": duplicate_polymers,
+            "duplicate_solvents_removed": duplicate_solvents,
+            "duplicate_temperatures_removed": duplicate_temperatures,
+        },
+        selected_cell_count=selected_cell_count,
+        stored_cell_count=stored_cell_count,
+        evaluable_cell_count=len(evaluable_rows),
+        unavailable_cell_count=unavailable_cell_count,
+        unavailable_counts={
+            "off_grid_temperature": 0,
+            "not_measured": missing_cell_count,
+            "measurement_rejected": measurement_rejected_count,
+            "measurement_rejected_by_reason": dict(sorted(rejected_measurements.items())),
+        },
+        exclusion_counts=exclusion_counts,
+        exclusion_counts_are_independent_predicate_failures=True,
         solubility_unit="wt_pct_solution_concentration",
-        screening_reference_wt_pct=5.0,
-        below_screening_reference=bool(
-            predictions and max(row["solubility_pct"] for row in predictions) < 5.0
-        ),
-        clip_limit_wt_percent=100.0,
-        **thermo.get_solvent_hazard_framing(solvent),
-        solvent_catalog_provenance=thermo.get_solvent_catalog_provenance(),
-        model_basis=thermo.SOLUBILITY_MODEL_BASIS,
     )
 
 
@@ -395,199 +689,6 @@ def _meets_unclipped_threshold(row: dict, threshold: float) -> bool:
     return bool(
         row.get("is_clipped") is not True
         and float(row["solubility_pct"]) >= threshold
-    )
-
-
-def rank_polymers_by_solubility(
-    solvent_name: str,
-    temperature_c: float,
-    top_k: int = 5,
-    min_solubility_pct: float = 5.0,
-    requested_polymers: Optional[list[str]] = None,
-) -> str:
-    """Rank all supported polymers in one solvent at exactly one temperature.
-
-    Choose this for polymers in one fixed solvent at one exact temperature.
-    """
-    tool = "rank_polymers_by_solubility"
-    if error := _temperature_error(tool, temperature_c):
-        return error
-    solvent = thermo.resolve_solvent(solvent_name)
-    if solvent is None:
-        return _solvent_resolution_error(tool, solvent_name)
-    evaluated = [
-        row for polymer in sorted(thermo.get_available_polymers())
-        if (row := _pair_result(polymer, solvent, float(temperature_c))) is not None
-    ]
-    evaluated.sort(key=lambda row: (-row["solubility_pct"], row["polymer"]))
-    _assign_clipped_ceiling_ranks(evaluated)
-    by_polymer = {row["polymer"]: row for row in evaluated}
-    requested_supported, unsupported, unavailable = [], [], []
-    for label in requested_polymers or []:
-        resolved = thermo.resolve_polymer(str(label))
-        if resolved is None:
-            unsupported.append(str(label))
-        elif resolved not in by_polymer:
-            unavailable.append(resolved)
-        elif resolved not in requested_supported:
-            requested_supported.append(resolved)
-    results = (
-        [row for row in evaluated if row["polymer"] in set(requested_supported)]
-        if requested_polymers else evaluated[:_top_k(top_k)]
-    )
-    threshold = max(0.0, float(min_solubility_pct))
-    comparison = results if requested_polymers else evaluated
-    meeting = sum(
-        _meets_unclipped_threshold(row, threshold) for row in comparison
-    )
-    clipped_meeting = sum(
-        row.get("is_clipped") is True
-        and row["solubility_pct"] >= threshold
-        for row in comparison
-    )
-    extrapolated_meeting = 0
-    boiling_point = thermo.get_boiling_point(solvent)
-    return tool_success(
-        tool,
-        display=_table(
-            ("Rank", "Polymer", "Solubility (wt%)"),
-            tuple((row["rank"], row["polymer"], f"{row['solubility_pct']:.6g}") for row in results),
-        ),
-        ranking_axis="polymers",
-        solvent=thermo.canonical_solvent_name(solvent),
-        solvent_data_key=solvent,
-        temperature_c=float(temperature_c),
-        min_solubility_pct=threshold,
-        requested_polymers=[str(item) for item in requested_polymers or []],
-        requested_supported_polymers=requested_supported,
-        unsupported_requested_polymers=unsupported,
-        unavailable_requested_polymers=unavailable,
-        n_supported_candidates=len(evaluated),
-        n_candidates_evaluated=len(evaluated),
-        n_candidates_unavailable=len(unavailable),
-        unavailable_candidates=unavailable,
-        n_meeting_threshold=meeting,
-        n_clipped_meeting_threshold=clipped_meeting,
-        n_extrapolated_meeting_threshold=extrapolated_meeting,
-        n_meeting_threshold_global=sum(
-            _meets_unclipped_threshold(row, threshold) for row in evaluated
-        ),
-        n_clipped_meeting_threshold_global=sum(
-            row.get("is_clipped") is True
-            and row["solubility_pct"] >= threshold
-            for row in evaluated
-        ),
-        threshold_count_excludes_clipped=True,
-        n_extrapolated_meeting_threshold_global=0,
-        threshold_count_excludes_extrapolated=True,
-        best_result_is_weak=(
-            not comparison
-            or not _meets_unclipped_threshold(comparison[0], threshold)
-        ),
-        boiling_point_c=boiling_point,
-        atmospheric_operation=None if boiling_point is None else float(temperature_c) < boiling_point,
-        solvent_catalog_provenance=thermo.get_solvent_catalog_provenance(),
-        model_basis=thermo.SOLUBILITY_MODEL_BASIS,
-        solubility_unit="wt_pct_solution_concentration",
-        results=results,
-    )
-
-
-def rank_solvents_by_solubility(
-    polymer_name: str,
-    temperature_c: float,
-    top_k: int = 5,
-    min_solubility_pct: float = 5.0,
-    require_atmospheric: bool = True,
-) -> str:
-    """Rank all supported solvents for one polymer at exactly one temperature.
-
-    Choose this for solvents for one polymer at one exact temperature.
-    Catalog provenance reports the count this call actually evaluated for the
-    named polymer, rather than inferring coverage from a separate accessor.
-    """
-    tool = "rank_solvents_by_solubility"
-    if error := _temperature_error(tool, temperature_c):
-        return error
-    polymer = thermo.resolve_polymer(polymer_name)
-    if polymer is None:
-        return tool_error(
-            tool,
-            f"Unknown polymer: {polymer_name!r}.",
-            error_code="unknown_polymer",
-            available_polymers=sorted(thermo.get_available_polymers()),
-        )
-    evaluated, eligible, unavailable, excluded = [], [], [], []
-    for solvent in sorted(thermo.get_available_solvents()):
-        row = _pair_result(polymer, solvent, float(temperature_c))
-        if row is None:
-            unavailable.append(thermo.canonical_solvent_name(solvent))
-            continue
-        boiling_point = thermo.get_boiling_point(solvent)
-        row.update({
-            "boiling_point_c": boiling_point,
-            "normal_bp_margin_c": None if boiling_point is None else boiling_point - float(temperature_c),
-            "atmospheric_operation": None if boiling_point is None else float(temperature_c) < boiling_point,
-        })
-        evaluated.append(row)
-        if require_atmospheric and row["atmospheric_operation"] is not True:
-            excluded.append({
-                "solvent": row["solvent"],
-                "boiling_point_c": boiling_point,
-                "solubility_pct": row["solubility_pct"],
-            })
-        else:
-            eligible.append(row)
-    eligible.sort(key=lambda row: (-row["solubility_pct"], row["solvent"]))
-    _assign_clipped_ceiling_ranks(eligible)
-    threshold = max(0.0, float(min_solubility_pct))
-    results = eligible[:_top_k(top_k)]
-    from .safety import condition_operability, merge_condition_operability
-
-    for row in results:
-        merge_condition_operability(
-            row, condition_operability(row["solvent"], float(temperature_c)),
-        )
-    catalog_provenance = _single_polymer_catalog_provenance(len(evaluated))
-    assert catalog_provenance["fitted_solvents_for_polymer"] == len(evaluated)
-    return tool_success(
-        tool,
-        display=_table(
-            ("Rank", "Solvent", "Solubility (wt%)", "BP margin (C)"),
-            tuple((row["rank"], row["solvent"], f"{row['solubility_pct']:.6g}", row["normal_bp_margin_c"]) for row in results),
-        ),
-        ranking_axis="solvents",
-        polymer=polymer,
-        temperature_c=float(temperature_c),
-        min_solubility_pct=threshold,
-        require_atmospheric=bool(require_atmospheric),
-        n_supported_candidates=len(evaluated),
-        n_candidates_evaluated=len(evaluated),
-        n_candidates_ranked=len(eligible),
-        n_candidates_unavailable=len(unavailable),
-        unavailable_candidates=unavailable,
-        n_excluded_atmospheric=len(excluded),
-        excluded_atmospheric=excluded[:5],
-        excluded_atmospheric_was_truncated=len(excluded) > 5,
-        n_meeting_threshold=sum(
-            _meets_unclipped_threshold(row, threshold) for row in eligible
-        ),
-        n_clipped_meeting_threshold=sum(
-            row.get("is_clipped") is True
-            and row["solubility_pct"] >= threshold
-            for row in eligible
-        ),
-        n_extrapolated_meeting_threshold=0,
-        threshold_count_excludes_clipped=True,
-        threshold_count_excludes_extrapolated=True,
-        best_result_is_weak=(
-            not eligible
-            or not _meets_unclipped_threshold(eligible[0], threshold)
-        ),
-        solvent_catalog_provenance=catalog_provenance,
-        model_basis=thermo.SOLUBILITY_MODEL_BASIS,
-        solubility_unit="wt_pct_solution_concentration",
-        results=results,
     )
 
 

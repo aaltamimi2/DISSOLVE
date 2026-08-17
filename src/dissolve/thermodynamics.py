@@ -641,6 +641,23 @@ def _grid_nodes() -> tuple[float, ...]:
     ).fetchall())
 
 
+# ``tools.py`` aliases this live module as ``thermo``; a call there to
+# ``thermo._nearest_nodes`` intentionally lands here, not in legacy ``thermo.py``.
+def _nearest_nodes(temperature: float) -> list[float]:
+    """Return the stored grid nodes immediately bracketing one temperature."""
+    nodes = _grid_nodes()
+    below = [node for node in nodes if node <= temperature]
+    above = [node for node in nodes if node >= temperature]
+    nearest = [
+        node for node in (
+            below[-1] if below else None,
+            above[0] if above else None,
+        )
+        if node is not None
+    ]
+    return list(dict.fromkeys(nearest))
+
+
 def _nodes_within(start: float, end: float, step: float, strict: bool) -> list[float]:
     """Return the stored grid nodes inside the requested bounds.
 
