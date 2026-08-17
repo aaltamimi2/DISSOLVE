@@ -1251,13 +1251,6 @@ def screen_green_solvent_candidates(
                     "limiting_off_target_polymer": limiting,
                     "max_off_target_solubility_pct": limiting_value,
                     "off_target_solubilities_pct": off_targets,
-                    "solubility_method_by_polymer": {
-                        target: target_result["method"],
-                        **{
-                            polymer: result["method"]
-                            for polymer, result in off_target_results.items()
-                        },
-                    },
                     "selectivity_pct": selectivity,
                     "boiling_point_c": boiling,
                     "boiling_point_margin_c": None if boiling is None else boiling - temperature,
@@ -1410,14 +1403,6 @@ def screen_route_solvent_substitutions(
             "target_solubility_pct": float(target_row["solubility_pct"]),
             "max_off_target_solubility_pct": maximum,
             "selectivity_pct": float(target_row["solubility_pct"]) - maximum,
-            "solubility_method_by_polymer": {
-                target: target_row["method"],
-                **{
-                    polymer: row["method"]
-                    for polymer, row in zip(retained, off_target_rows)
-                    if row is not None
-                },
-            },
             "safety": _decision_safety(safety_row),
         })
         remaining.remove(target)
@@ -1448,7 +1433,6 @@ def screen_route_solvent_substitutions(
                 "solvent", "temperature_c", "target_solubility_pct",
                 "max_off_target_solubility_pct", "off_target_solubilities_pct",
                 "limiting_off_target_polymer", "selectivity_pct",
-                "solubility_method_by_polymer",
                 "boiling_point_c", "boiling_point_margin_c", "atmospheric_feasible",
             )},
             "selectivity_loss_points": float(worst["selectivity_pct"]) - candidate_selectivity,
@@ -1539,5 +1523,4 @@ def screen_route_solvent_substitutions(
             "The substituted route remains model-screened and requires experimental validation.",
         ],
     )
-
 
