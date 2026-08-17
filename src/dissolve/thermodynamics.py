@@ -25,7 +25,6 @@ SOLUBILITY_MODEL_BASIS = (
 
 FITTED_TEMP_MIN_C = 25.0
 FITTED_TEMP_MAX_C = 160.0
-GRID_TEMP_MIN_C = 25.0
 GRID_TEMP_MAX_C = 160.0
 RECOMMENDED_EXTRAPOLATION_MAX_C = 180.0
 SENSITIVITY_EXTRAPOLATION_MAX_C = 200.0
@@ -957,12 +956,6 @@ def get_solubility(
     return float(value) if result.get("available") and value is not None else None
 
 
-def get_solubility_batch(
-    pairs: Sequence[tuple[str, str]], temperature_c: float, method: str = AUTO
-) -> dict[tuple[str, str], Optional[float]]:
-    return {pair: get_solubility(*pair, temperature_c, method) for pair in pairs}
-
-
 def _temperature_grid(start: float, end: float, step: float) -> list[float]:
     if end < start:
         return []
@@ -1101,25 +1094,6 @@ def get_all_solvents_selectivity(
         ),
         -item["selectivity"], item["solvent"],
     ))
-
-
-def get_selectivity(
-    target: str,
-    others: list[str],
-    temperature_c: float,
-    used_solvents: Optional[set[str]] = None,
-) -> tuple[str, float, float, float]:
-    if not others:
-        return "N/A", math.inf, 100.0, 0.0
-    used = {resolve_solvent(item) or item.lower() for item in (used_solvents or set())}
-    ranked = [
-        item for item in get_all_solvents_selectivity(target, others, temperature_c)
-        if item["solvent"] not in used
-    ]
-    if not ranked:
-        return "none", -999.0, 0.0, 0.0
-    best = ranked[0]
-    return best["solvent"], best["selectivity"], best["target_sol"], best["max_other_sol"]
 
 
 def _property_identity_key(row: dict) -> tuple[str, str]:
