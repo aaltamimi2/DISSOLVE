@@ -1743,11 +1743,3 @@ screen_pairwise_solubility_overlap.__annotations__["temperature_step_c"] = Annot
     float, InjectedToolArg,
 ]
 
-DIRECT_TOOLS = (
-    predict_solubility,
-    predict_solubility_range,
-    rank_polymers_by_solubility,
-    rank_solvents_by_solubility,
-    screen_polymer_separation,
-    screen_pairwise_solubility_overlap,
-)
