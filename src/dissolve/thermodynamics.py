@@ -101,7 +101,13 @@ POLYMER_IDENTITIES: dict[str, dict[str, tuple[str, ...] | str]] = {
         "identity_kind": "family", "hsp_family": "polyolefins",
     },
     "POLYURETHANES": {
-        "aliases": ("polyurethane", "polyurethanes", "PU family"),
+        # The grid stores one polyurethane row, labelled PU, with 78 solvents
+        # against the other polymers' 990. Registering PU as this family's one
+        # represented member keeps the family framing v11 chose while making the
+        # stored values reachable; a PU answer is a thinner claim than an LDPE
+        # answer and the coverage field says so.
+        "aliases": ("polyurethane", "polyurethanes", "PU family", "PU"),
+        "thermodynamic_members": ("PU",),
         "identity_kind": "family", "hsp_family": "polyurethanes",
     },
     "ACRYLICS": {
@@ -257,8 +263,23 @@ def _resolve_registered_composite_identity(
 
 
 @lru_cache(maxsize=1)
+def _usable_grid_pairs() -> frozenset[tuple[str, str]]:
+    """Pairs holding at least one valid stored value. This is the roster.
+
+    v12: what the system says it has is what the grid actually holds. v11
+    derived both rosters from ``solubility_coefficients``, so a pair without an
+    Apelblat fit was invisible even when its measured grid values existed —
+    which is why PU and 205 solvents could not be reached.
+    """
+    return frozenset(
+        pair for pair, record in _grid_pairs().items()
+        if record["valid_points"]
+    )
+
+
+@lru_cache(maxsize=1)
 def _available_polymers() -> frozenset[str]:
-    return frozenset(polymer for polymer, _ in _coefficients())
+    return frozenset(polymer for polymer, _ in _usable_grid_pairs())
 
 
 def get_available_polymers() -> set[str]:
@@ -268,7 +289,7 @@ def get_available_polymers() -> set[str]:
 @lru_cache(maxsize=1)
 def _available_solvents() -> frozenset[str]:
     return frozenset(
-        solvent for _, solvent in _coefficients()
+        solvent for _, solvent in _usable_grid_pairs()
         if solvent not in EXCLUDED_SOLVENTS
     )
 
@@ -863,8 +884,7 @@ def has_solubility_pair(polymer: str, solvent: str) -> bool:
     resolved_polymer, resolved_solvent = resolve_names(polymer, solvent)
     if not resolved_polymer or not resolved_solvent:
         return False
-    pair = (resolved_polymer, resolved_solvent)
-    return pair in _coefficients() or pair in _grid_pairs()
+    return (resolved_polymer, resolved_solvent) in _usable_grid_pairs()
 
 
 @lru_cache(maxsize=262_144)
@@ -935,17 +955,15 @@ def get_available_solvents_for_polymer(polymer: str) -> set[str]:
     if not resolved:
         return set()
     return {
-        solvent for (candidate, solvent), entry in _coefficients().items()
-        if candidate == resolved
-        and entry["category"] == "fitted"
-        and solvent not in EXCLUDED_SOLVENTS
+        solvent for (candidate, solvent) in _usable_grid_pairs()
+        if candidate == resolved and solvent not in EXCLUDED_SOLVENTS
     }
 
 
 def get_available_pairs() -> set[tuple[str, str]]:
     return {
-        pair for pair, entry in _coefficients().items()
-        if entry["category"] == "fitted" and pair[1] not in EXCLUDED_SOLVENTS
+        pair for pair in _usable_grid_pairs()
+        if pair[1] not in EXCLUDED_SOLVENTS
     }
 
 
