@@ -25,7 +25,7 @@ from typing import Any, Callable, NamedTuple
 
 from . import (
     analysis, contaminants, optimization, research, safety,
-    separation, tea, tools,
+    query, separation, tea, tools,
 )
 
 
@@ -51,6 +51,7 @@ REGISTRY: tuple[Tool, ...] = tuple([
     _t(tools.predict_solubility_range, "thermodynamics"),
     _t(tools.rank_polymers_by_solubility, "thermodynamics"),
     _t(tools.rank_solvents_by_solubility, "thermodynamics"),
+    _t(query.solubility_query, "thermodynamics"),
     _t(tools.screen_polymer_separation, "thermodynamics"),
     _t(tools.screen_pairwise_solubility_overlap, "thermodynamics"),
     _t(tools.normalize_feed_composition, "thermodynamics"),
