@@ -15,7 +15,6 @@ from .session import (
     resolve_candidate_argument,
 )
 from .tools import (
-    UNAVAILABLE_MODELING_METHODS,
     _screen_catalog_provenance, _solvent_resolution_error, _temperature_grid,
     normalize_feed_composition, screen_polymer_separation,
 )
@@ -137,10 +136,6 @@ def resolve_polymer_data_scope(
     )
     capability_inventory = ({
         "available_thermodynamic_solvents": sorted(thermo.canonical_solvent_name(item) for item in thermo.get_available_solvents()), "available_thermodynamic_solvent_count": len(thermo.get_available_solvents()),
-        "unavailable_modeling_methods": [
-            {key: row[key] for key in ("method", "status")}
-            for row in UNAVAILABLE_MODELING_METHODS
-        ],
     } if include_capability_inventory else {})
     return tool_success(
         tool, analysis_type="polymer_data_scope",

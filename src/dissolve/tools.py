@@ -13,19 +13,6 @@ from .contracts import parse_tool_result, tool_error, tool_success
 _STRONG_OVERLAP_RATIO = 0.70
 MATERIAL_UNDER_COVERAGE_RATIO = 0.90
 
-# Methods this system does not implement. The facts are worth stating so nothing
-# claims them; the alias lists that used to sit here were a keyword matcher for
-# v11 routing, no consumer ever read them, and v12 does not route on phrasing.
-UNAVAILABLE_MODELING_METHODS = (
-    {"method": "PC-SAFT", "status": "planned_not_available"},
-    {"method": "Flory-Huggins interaction parameters", "status": "not_available"},
-    {"method": "binodal or spinodal phase diagrams", "status": "not_available"},
-    {"method": "solvent-mixture thermodynamics", "status": "not_available"},
-    {"method": "fractional blend-dissolution simulation", "status": "not_available"},
-    {"method": "COSMO or molecular-dynamics simulation", "status": "not_available"},
-)
-
-
 def _table(headers: Sequence[str], rows: Sequence[Sequence[object]]) -> str:
     """Render a compact deterministic table artifact, never conversational prose."""
     if not rows:
