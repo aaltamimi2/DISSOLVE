@@ -271,3 +271,24 @@ Report faithfully. If a gate is silent about a path, say the gate is silent
 rather than implying coverage. **A clean result from a probe that cannot reach
 the changed reader is silence, not evidence** — and reporting it as evidence is
 how v11 passed two commits that were later objected to.
+
+---
+
+## 10. A hole in corpus isolation you will otherwise rediscover
+
+If you commission a frozen corpus from an agent — and section 5 rule 6 says you
+should — the rows will exist in at least three places: the JSON you protect, the
+agent's session log, and its rollout transcript. In v11 all three frozen corpora
+(197 rows) were recoverable from `~/.codex/logs_2.sqlite` and
+`~/.codex/sessions/<date>/rollout-*.jsonl`, world-readable, while the JSON itself
+sat at `0600`.
+
+Every agent runs as the same uid. **File permissions protect nothing here**, and
+a protection you assert without testing is worse than none, because you will
+report isolation you do not have.
+
+What actually works: tell agents explicitly not to read agent transcripts or
+session logs; **detect** references to those paths as a gate step; and treat any
+corpus a builder has touched as burned and re-derive it. Test your detector
+against your own instruction text — a check that greps a channel you also write
+to will match your own words, which has happened twice in this project.
