@@ -16,7 +16,7 @@ MATERIAL_UNDER_COVERAGE_RATIO = 0.90
 # One product-level registry for scientific methods the current tool surface
 # actually implements. Consumers may render it, but must not expand it in prose.
 MODELING_CAPABILITIES = (
-    {"capability": "temperature-dependent grid and fitted solubility", "tools": (
+    {"capability": "temperature-dependent measured-grid solubility", "tools": (
         "predict_solubility", "predict_solubility_range",
         "rank_polymers_by_solubility", "rank_solvents_by_solubility",
     )},
@@ -97,18 +97,18 @@ def _solvent_resolution_detail(solvent_name: str) -> dict[str, Any]:
 
 
 def _solvent_resolution_error(tool: str, solvent_name: str) -> str:
-    """Keep chemical identity separate from fitted-solubility availability."""
+    """Keep chemical identity separate from stored-grid availability."""
     detail = _solvent_resolution_detail(solvent_name)
     if detail["solvent_identity_status"] == "not_found":
         message = f"Unknown solvent: {solvent_name!r}."
     elif detail["fitted_model_status"] == "excluded_data_quality":
         message = (
-            f"Known solvent with a data-quality-excluded fitted model: "
+            f"Known solvent with data-quality-excluded grid values: "
             f"{solvent_name!r}."
         )
     else:
         message = (
-            f"Known solvent without an available fitted solubility model: "
+            f"Known solvent without available solubility grid values: "
             f"{solvent_name!r}."
         )
     return tool_error(
@@ -162,7 +162,7 @@ def _resolve_pair(tool: str, polymer_name: str, solvent_name: str) -> tuple[str,
     if not thermo.has_solubility_pair(polymer, solvent):
         return tool_error(
             tool,
-            f"No fitted or grid data for {polymer} in {solvent}.",
+            f"No retained grid data for {polymer} in {solvent}.",
             error_code="pair_not_found",
             polymer_name=polymer,
             solvent_name=solvent,
@@ -174,33 +174,20 @@ def _pair_result(
     polymer: str,
     solvent: str,
     temperature_c: float,
-    method: str = thermo.AUTO,
 ) -> Optional[dict]:
-    evidence = thermo.get_solubility_result(
-        polymer, solvent, temperature_c, method,
-    )
+    evidence = thermo.get_solubility_result(polymer, solvent, temperature_c)
     value = evidence.get("solubility_pct")
     if not evidence.get("available") or value is None:
         return None
-    # v12: every served value comes from solubility_grid. The old label was
-    # read from solubility_coefficients, so a grid value reported "fitted".
-    category = "grid_only"
     return {
         "polymer": polymer,
         "solvent": thermo.canonical_solvent_name(solvent),
         "solvent_data_key": solvent,
         "temperature_c": float(temperature_c),
         "solubility_pct": float(value),
-        "category": category,
-        "method": evidence["method"],
-        "grid_point_status": evidence.get("grid_point_status"),
         "source_temperatures_c": evidence.get("source_temperatures_c"),
         "source_grid_temperature_range_c": evidence.get(
             "source_grid_temperature_range_c",
-        ),
-        "extrapolation": evidence.get("extrapolation") or "none",
-        "temperature_use_regime": thermo.temperature_use_regime(
-            temperature_c, evidence["method"],
         ),
         "is_clipped": bool(float(value) >= 100.0),
         "clip_limit_wt_percent": 100.0,
@@ -263,9 +250,7 @@ def predict_solubility(polymer_name: str, solvent_name: str, temperature_c: floa
     if isinstance(resolved, str):
         return resolved
     polymer, solvent = resolved
-    row = _pair_result(
-        polymer, solvent, float(temperature_c), thermo.AUTO,
-    )
+    row = _pair_result(polymer, solvent, float(temperature_c))
     if row is None:
         evidence = thermo.get_solubility_result(
             polymer, solvent, float(temperature_c),
@@ -279,14 +264,11 @@ def predict_solubility(polymer_name: str, solvent_name: str, temperature_c: floa
             error_code=(
                 "solubility_grid_all_points_filtered"
                 if unavailable_reason == "all_grid_points_filtered" else
-                "apelblat_fit_unavailable_above_grid"
-                if unavailable_reason == "apelblat_fit_unavailable_above_grid" else
                 "solubility_grid_value_unavailable"
             ),
             polymer_name=polymer,
             solvent_name=thermo.canonical_solvent_name(solvent),
             temperature_c=float(temperature_c),
-            method=evidence.get("method"),
             unavailable_reason=unavailable_reason,
             grid_valid_point_count=evidence.get("grid_valid_point_count"),
             grid_filtered_point_count=evidence.get("grid_filtered_point_count"),
@@ -304,9 +286,6 @@ def predict_solubility(polymer_name: str, solvent_name: str, temperature_c: floa
         solvent_name=row["solvent"],
         solvent_data_key=solvent,
         temperature_c=float(temperature_c),
-        category=row["category"],
-        method=row["method"],
-        grid_point_status=row.get("grid_point_status"),
         source_temperatures_c=row.get("source_temperatures_c"),
         solubility_pct=row["solubility_pct"],
         solubility_unit="wt_pct_solution_concentration",
@@ -316,14 +295,8 @@ def predict_solubility(polymer_name: str, solvent_name: str, temperature_c: floa
         clip_limit_wt_percent=100.0,
         boiling_point_c=boiling_point,
         atmospheric_operation=atmospheric,
-        extrapolation=row.get("extrapolation") or "none",
-        temperature_extrapolation=thermo.temperature_extrapolation_status(
-            float(temperature_c), row.get("fitted_temperature_range_c"),
-        ),
-        temperature_use_regime=row["temperature_use_regime"],
         **thermo.get_solvent_hazard_framing(solvent),
         solvent_catalog_provenance=thermo.get_solvent_catalog_provenance(),
-        fitted_temperature_range_c=row.get("fitted_temperature_range_c"),
         source_grid_temperature_range_c=row.get(
             "source_grid_temperature_range_c",
         ),
@@ -360,21 +333,13 @@ def predict_solubility_range(
     if isinstance(resolved, str):
         return resolved
     polymer, solvent = resolved
-    # v12: every served value comes from solubility_grid. The old label was
-    # read from solubility_coefficients, so a grid value reported "fitted".
-    category = "grid_only"
     predictions: list[dict] = []
     unavailable_predictions: list[dict] = []
-    fitted_temperature_range_c = None
     source_grid_temperature_range_c = None
     for temperature in thermo._temperature_grid(
         float(t_start_c), end, step,
     )[:200]:
         evidence = thermo.get_solubility_result(polymer, solvent, temperature)
-        if evidence.get("fitted_temperature_range_c") is not None:
-            fitted_temperature_range_c = evidence[
-                "fitted_temperature_range_c"
-            ]
         if evidence.get("source_grid_temperature_range_c") is not None:
             source_grid_temperature_range_c = evidence[
                 "source_grid_temperature_range_c"
@@ -382,7 +347,6 @@ def predict_solubility_range(
         if not evidence.get("available"):
             unavailable_predictions.append({
                 "temperature_c": temperature,
-                "method": evidence.get("method"),
                 "unavailable_reason": evidence.get("unavailable_reason"),
             })
             continue
@@ -390,24 +354,16 @@ def predict_solubility_range(
         predictions.append({
             "temperature_c": temperature,
             "solubility_pct": value,
-            "method": evidence["method"],
-            "grid_point_status": evidence.get("grid_point_status"),
             "source_temperatures_c": evidence.get("source_temperatures_c"),
-            "extrapolation": evidence.get("extrapolation") or "none",
-            "temperature_use_regime": evidence["temperature_use_regime"],
             "is_clipped": bool(value >= 100.0),
         })
-    methods = list(dict.fromkeys(
-        str(row["method"]) for row in predictions
-    ))
-    method = methods[0] if len(methods) == 1 else "mixed"
     if not predictions:
         evidence = thermo.get_solubility_result(
             polymer, solvent, float(t_start_c),
         )
         return tool_error(
             tool,
-            f"No retained grid or fitted values for {polymer} in {solvent}.",
+            f"No retained grid values for {polymer} in {solvent}.",
             error_code=(
                 "solubility_grid_all_points_filtered"
                 if evidence.get("unavailable_reason") == "all_grid_points_filtered"
@@ -415,13 +371,11 @@ def predict_solubility_range(
             ),
             polymer_name=polymer,
             solvent_name=thermo.canonical_solvent_name(solvent),
-            method=evidence.get("method"),
             unavailable_reason=evidence.get("unavailable_reason"),
             grid_filtered_point_count=evidence.get("grid_filtered_point_count"),
             grid_filtered_reasons=evidence.get("grid_filtered_reasons"),
         )
     boiling_point = thermo.get_boiling_point(solvent)
-    extrapolated = sum(row.get("extrapolation") not in {None, "", "none"} for row in predictions)
     return tool_success(
         tool,
         display=_table(
@@ -431,8 +385,6 @@ def predict_solubility_range(
         polymer_name=polymer,
         solvent_name=thermo.canonical_solvent_name(solvent),
         solvent_data_key=solvent,
-        category=category,
-        method=method,
         t_start_c=float(t_start_c),
         t_end_c=end,
         requested_t_end_c=requested_end,
@@ -442,8 +394,7 @@ def predict_solubility_range(
         predictions=predictions,
         unavailable_predictions=unavailable_predictions,
         unavailable_point_count=len(unavailable_predictions),
-        extrapolated_points=extrapolated,
-        fitted_temperature_range_c=fitted_temperature_range_c,
+        extrapolated_points=0,
         source_grid_temperature_range_c=source_grid_temperature_range_c,
         sensitivity_extrapolation_max_c=thermo.SENSITIVITY_EXTRAPOLATION_MAX_C,
         boiling_point_c=boiling_point,
@@ -488,29 +439,10 @@ def _assign_clipped_ceiling_ranks(
             row[rank_key] = ordinal
 
 
-def _is_extrapolated_threshold_row(row: dict) -> bool:
-    """Return whether a modeled value sits outside its admitted data range."""
-    regimes = [row.get("temperature_use_regime")]
-    regimes.extend(
-        (row.get("temperature_use_regime_by_polymer") or {}).values()
-    )
-    return any("extrapolation" in str(regime or "") for regime in regimes)
-
-
 def _meets_unclipped_threshold(row: dict, threshold: float) -> bool:
-    """Require an unclipped, fitted-domain value for threshold evidence."""
+    """Require an unclipped measured value for threshold evidence."""
     return bool(
         row.get("is_clipped") is not True
-        and not _is_extrapolated_threshold_row(row)
-        and float(row["solubility_pct"]) >= threshold
-    )
-
-
-def _extrapolated_meets_threshold(row: dict, threshold: float) -> bool:
-    """Count an above-threshold extrapolation without treating it as evidence."""
-    return bool(
-        row.get("is_clipped") is not True
-        and _is_extrapolated_threshold_row(row)
         and float(row["solubility_pct"]) >= threshold
     )
 
@@ -536,10 +468,7 @@ def rank_polymers_by_solubility(
         row for polymer in sorted(thermo.get_available_polymers())
         if (row := _pair_result(polymer, solvent, float(temperature_c))) is not None
     ]
-    evaluated.sort(key=lambda row: (
-        _is_extrapolated_threshold_row(row),
-        -row["solubility_pct"], row["polymer"],
-    ))
+    evaluated.sort(key=lambda row: (-row["solubility_pct"], row["polymer"]))
     _assign_clipped_ceiling_ranks(evaluated)
     by_polymer = {row["polymer"]: row for row in evaluated}
     requested_supported, unsupported, unavailable = [], [], []
@@ -565,15 +494,13 @@ def rank_polymers_by_solubility(
         and row["solubility_pct"] >= threshold
         for row in comparison
     )
-    extrapolated_meeting = sum(
-        _extrapolated_meets_threshold(row, threshold) for row in comparison
-    )
+    extrapolated_meeting = 0
     boiling_point = thermo.get_boiling_point(solvent)
     return tool_success(
         tool,
         display=_table(
-            ("Rank", "Polymer", "Solubility (wt%)", "Basis"),
-            tuple((row["rank"], row["polymer"], f"{row['solubility_pct']:.6g}", row["method"]) for row in results),
+            ("Rank", "Polymer", "Solubility (wt%)"),
+            tuple((row["rank"], row["polymer"], f"{row['solubility_pct']:.6g}") for row in results),
         ),
         ranking_axis="polymers",
         solvent=thermo.canonical_solvent_name(solvent),
@@ -600,9 +527,7 @@ def rank_polymers_by_solubility(
             for row in evaluated
         ),
         threshold_count_excludes_clipped=True,
-        n_extrapolated_meeting_threshold_global=sum(
-            _extrapolated_meets_threshold(row, threshold) for row in evaluated
-        ),
+        n_extrapolated_meeting_threshold_global=0,
         threshold_count_excludes_extrapolated=True,
         best_result_is_weak=(
             not comparison
@@ -610,10 +535,6 @@ def rank_polymers_by_solubility(
         ),
         boiling_point_c=boiling_point,
         atmospheric_operation=None if boiling_point is None else float(temperature_c) < boiling_point,
-        temperature_use_regime=thermo.aggregate_temperature_use_regimes(
-            float(temperature_c),
-            (row.get("temperature_use_regime") for row in evaluated),
-        ),
         solvent_catalog_provenance=thermo.get_solvent_catalog_provenance(),
         model_basis=thermo.SOLUBILITY_MODEL_BASIS,
         solubility_unit="wt_pct_solution_concentration",
@@ -663,14 +584,10 @@ def rank_solvents_by_solubility(
                 "solvent": row["solvent"],
                 "boiling_point_c": boiling_point,
                 "solubility_pct": row["solubility_pct"],
-                "method": row["method"],
             })
         else:
             eligible.append(row)
-    eligible.sort(key=lambda row: (
-        _is_extrapolated_threshold_row(row),
-        -row["solubility_pct"], row["solvent"],
-    ))
+    eligible.sort(key=lambda row: (-row["solubility_pct"], row["solvent"]))
     _assign_clipped_ceiling_ranks(eligible)
     threshold = max(0.0, float(min_solubility_pct))
     results = eligible[:_top_k(top_k)]
@@ -709,18 +626,12 @@ def rank_solvents_by_solubility(
             and row["solubility_pct"] >= threshold
             for row in eligible
         ),
-        n_extrapolated_meeting_threshold=sum(
-            _extrapolated_meets_threshold(row, threshold) for row in eligible
-        ),
+        n_extrapolated_meeting_threshold=0,
         threshold_count_excludes_clipped=True,
         threshold_count_excludes_extrapolated=True,
         best_result_is_weak=(
             not eligible
             or not _meets_unclipped_threshold(eligible[0], threshold)
-        ),
-        temperature_use_regime=thermo.aggregate_temperature_use_regimes(
-            float(temperature_c),
-            (row.get("temperature_use_regime") for row in evaluated),
         ),
         solvent_catalog_provenance=catalog_provenance,
         model_basis=thermo.SOLUBILITY_MODEL_BASIS,
@@ -788,7 +699,6 @@ def _screen_direction(
     solubility_threshold_pct: float = 5.0,
     common_temperature_counts: Optional[dict[float, dict[str, int]]] = None,
     common_temperature_candidates: Optional[dict[float, list[dict]]] = None,
-    prefer_source_grid_evidence: bool = True,
 ) -> tuple[list[dict], int, int, list[dict]]:
     best_by_solvent, screened, excluded = {}, 0, 0
     for temperature in temperatures:
@@ -798,18 +708,6 @@ def _screen_direction(
                 "solvent_data_key": row["solvent_data_key"],
                 "target_sol": row["solubility_pct"],
                 "max_other_sol": None,
-                "solubility_method_by_polymer": {
-                    target: row["method"],
-                },
-                "temperature_use_regime_by_polymer": {
-                    target: row["temperature_use_regime"],
-                },
-                "fitted_temperature_range_by_polymer": {
-                    target: row.get("fitted_temperature_range_c"),
-                },
-                "source_grid_temperature_range_by_polymer": {
-                    target: row.get("source_grid_temperature_range_c"),
-                },
             } for solvent in sorted(thermo.get_available_solvents())
              if (row := _pair_result(target, solvent, temperature)) is not None]
             if ranking_mode == "absolute_solubility"
@@ -832,19 +730,10 @@ def _screen_direction(
                 excluded += 1
                 continue
             clipped = float(row["target_sol"]) >= 100.0
-            threshold_temperature_regime = thermo.aggregate_temperature_use_regimes(
-                temperature,
-                (row.get("temperature_use_regime_by_polymer") or {}).values(),
-            )
             if common_temperature_counts is not None:
                 counts = common_temperature_counts[temperature]
                 if clipped:
                     counts["clipped"] += 1
-                elif (
-                    "extrapolation" in threshold_temperature_regime
-                    and float(row["target_sol"]) >= solubility_threshold_pct
-                ):
-                    counts["extrapolated"] += 1
                 elif float(row["target_sol"]) >= solubility_threshold_pct:
                     counts["qualifying"] += 1
             off_target_evidence = ({
@@ -889,43 +778,6 @@ def _screen_direction(
                 score = float(row["target_sol"])
                 direction = None
             canonical_solvent = thermo.canonical_solvent_name(solvent_key)
-            solubility_method_by_polymer = {
-                **dict(row.get("solubility_method_by_polymer") or {}),
-                **{
-                    polymer: evidence["method"]
-                    for polymer, evidence in off_target_evidence.items()
-                    if evidence.get("available")
-                },
-            }
-            temperature_use_regime_by_polymer = {
-                **dict(row.get("temperature_use_regime_by_polymer") or {}),
-                **{
-                    polymer: evidence["temperature_use_regime"]
-                    for polymer, evidence in off_target_evidence.items()
-                    if evidence.get("available")
-                },
-            }
-            fitted_temperature_range_by_polymer = {
-                **dict(row.get("fitted_temperature_range_by_polymer") or {}),
-                **{
-                    polymer: evidence.get("fitted_temperature_range_c")
-                    for polymer, evidence in off_target_evidence.items()
-                    if evidence.get("available")
-                },
-            }
-            source_grid_temperature_range_by_polymer = {
-                **dict(
-                    row.get("source_grid_temperature_range_by_polymer") or {}
-                ),
-                **{
-                    polymer: evidence.get("source_grid_temperature_range_c")
-                    for polymer, evidence in off_target_evidence.items()
-                    if evidence.get("available")
-                },
-            }
-            candidate_temperature_regime = thermo.aggregate_temperature_use_regimes(
-                temperature, temperature_use_regime_by_polymer.values(),
-            )
             candidate = {
                 "solvent": canonical_solvent,
                 "temperature_c": temperature,
@@ -937,61 +789,20 @@ def _screen_direction(
                 "max_off_target_solubility_pct": row.get("max_other_sol"),
                 "limiting_off_target_polymer": limiting,
                 "off_target_solubilities_pct": off_targets,
-                "solubility_method_by_polymer": solubility_method_by_polymer,
                 "boiling_point_c": boiling_point,
                 "boiling_point_margin_c": None if boiling_point is None else boiling_point - temperature,
                 "atmospheric_feasible": atmospheric,
-                "temperature_extrapolation": (
-                    "mixed"
-                    if len({
-                        thermo.temperature_extrapolation_status(
-                            temperature,
-                            fitted_range,
-                        )
-                        for fitted_range in (
-                            fitted_temperature_range_by_polymer.values()
-                        )
-                    }) > 1
-                    else thermo.temperature_extrapolation_status(
-                        temperature,
-                        next((
-                            fitted_range for fitted_range in (
-                                fitted_temperature_range_by_polymer.values()
-                            )
-                        ), None),
-                    )
-                ),
-                "temperature_use_regime": candidate_temperature_regime,
                 "meets_selectivity_threshold": (
                     None if ranking_mode == "absolute_solubility" else score >= 5.0
                 ),
                 "meets_solubility_threshold": bool(
                     float(row["target_sol"]) >= solubility_threshold_pct
                     and not clipped
-                    and (
-                        common_temperature_counts is None
-                        or "extrapolation" not in threshold_temperature_regime
-                    )
                 ),
                 "is_clipped": clipped,
                 "clip_limit_wt_percent": 100.0,
                 **thermo.get_solvent_hazard_framing(solvent_key),
             }
-            if (
-                "extrapolation" in candidate_temperature_regime
-                or candidate_temperature_regime == "mixed"
-            ):
-                candidate.update({
-                    "temperature_use_regime_by_polymer": (
-                        temperature_use_regime_by_polymer
-                    ),
-                    "fitted_temperature_range_by_polymer": (
-                        fitted_temperature_range_by_polymer
-                    ),
-                    "source_grid_temperature_range_by_polymer": (
-                        source_grid_temperature_range_by_polymer
-                    ),
-                })
             if ranking_mode == "separation_gap":
                 candidate.update({
                     "minimum_target_off_target_gap_pct": score,
@@ -1006,20 +817,15 @@ def _screen_direction(
             key = candidate["solvent"].casefold()
             existing = best_by_solvent.get(key)
             candidate_priority = (
-                *((not _is_extrapolated_threshold_row(candidate),)
-                  if prefer_source_grid_evidence else ()),
                 candidate["ranking_score"], candidate["target_solubility_pct"],
             )
             existing_priority = (
-                *((not _is_extrapolated_threshold_row(existing),)
-                  if prefer_source_grid_evidence else ()),
                 existing["ranking_score"], existing["target_solubility_pct"],
             ) if existing is not None else None
             if existing_priority is None or candidate_priority > existing_priority:
                 best_by_solvent[key] = candidate
     ranked, ranked_all = _rank_screen_candidates(
         list(best_by_solvent.values()), limit, ranking_mode,
-        prefer_source_grid_evidence=prefer_source_grid_evidence,
     )
     return ranked, screened, excluded, ranked_all
 
@@ -1030,15 +836,11 @@ def _rank_screen_candidates(
     ranking_mode: Literal[
         "target_dissolution", "separation_gap", "absolute_solubility",
     ],
-    *,
-    prefer_source_grid_evidence: bool = True,
 ) -> tuple[list[dict], list[dict]]:
     """Sort and annotate one candidate population without changing its scope."""
     ranked_all = sorted(
         candidates,
         key=lambda item: (
-            *((_is_extrapolated_threshold_row(item),)
-              if prefer_source_grid_evidence else ()),
             -item["ranking_score"], -item["target_solubility_pct"],
             item["solvent"],
         ),
@@ -1092,14 +894,14 @@ def screen_polymer_separation(
 
     Multi-polymer catalog provenance names only polymers whose actual
     pair-screen count at the highest screened temperature is below 90% of the
-    fitted solvent catalog.  A one-polymer screen reports its exact count.
+    stored-grid solvent catalog.  A one-polymer screen reports its exact count.
 
     For a lowest-temperature question about how many solvents clear a modeled
     solubility threshold, pass one feed polymer, the requested
     ``min_solubility_pct``, and ``minimum_qualifying_solvent_count``.  The
     result then reports full-candidate counts at each common grid setpoint;
     never infer that answer from the per-solvent best-temperature shortlist.
-    Clipped 100 wt% ceilings and above-range extrapolations never qualify.
+    Clipped 100 wt% ceilings never qualify.
     """
     tool = "screen_polymer_separation"
     if not isinstance(feed_polymers, (list, tuple)) or not (requested := _unique_names(feed_polymers)):
@@ -1239,14 +1041,6 @@ def screen_polymer_separation(
         extra["shortlist_requested"] = candidate_limit
     else:
         candidate_limit = 5 if single else 3
-    # Inside the standard catalog envelope, newly served pair-fit
-    # extrapolations are fallback evidence rather than silent replacements.
-    # Multi-polymer process choices keep that evidence priority at every
-    # range; only an explicitly extended single-polymer screen ranks the
-    # extrapolation tier directly by the requested scientific metric.
-    prefer_source_grid_evidence = bool(
-        not single or end <= thermo.FITTED_TEMP_MAX_C
-    )
     directions, combined, recommendations = [], [], {}
     screened_conditions = excluded_conditions = 0
     common_temperature_counts = (
@@ -1279,7 +1073,6 @@ def screen_polymer_separation(
             solubility_threshold,
             common_temperature_counts,
             common_temperature_candidates,
-            prefer_source_grid_evidence,
         )
         if (
             common_temperature_counts is not None
@@ -1310,10 +1103,9 @@ def screen_polymer_separation(
                 )
                 candidates, complete_candidates = _rank_screen_candidates(
                     shared_population, shared_limit, ranking_mode,
-                    prefer_source_grid_evidence=False,
                 )
                 ranked_candidate_population = (
-                    "qualifying_fitted_domain_candidates_at_lowest_common_temperature"
+                    "qualifying_stored_grid_candidates_at_lowest_common_temperature"
                 )
                 ranked_candidate_population_count = len(shared_population)
                 ranked_candidate_population_complete = (
@@ -1371,22 +1163,13 @@ def screen_polymer_separation(
                 "signed_target_minus_limiting_off_target_pct",
                 "closest_off_target_solubility_pct", "target_solubility_direction",
                 "meets_solubility_threshold",
-                "boiling_point_margin_c", "temperature_use_regime",
-                "solubility_method_by_polymer",
+                "boiling_point_margin_c",
                 "ghs_signal_word", "typed_safety_evidence",
                 "lower_hazard_search_scope", "lower_hazard_alternative_count",
                 "lower_hazard_alternatives",
                 "lower_hazard_alternatives_truncated", "ghs_danger_unavoidable",
             )},
         } if best else None)
-        if best and recommendations[target] is not None:
-            recommendations[target].update({
-                key: best[key] for key in (
-                    "temperature_use_regime_by_polymer",
-                    "fitted_temperature_range_by_polymer",
-                    "source_grid_temperature_range_by_polymer",
-                ) if key in best
-            })
         directions.append({
             "dissolved_polymer": target,
             "retained_polymers": retained,
@@ -1400,8 +1183,6 @@ def screen_polymer_separation(
             ),
         })
     combined.sort(key=lambda item: (
-        *((_is_extrapolated_threshold_row(item),)
-          if prefer_source_grid_evidence else ()),
         -item["ranking_score"], -item["target_solubility_pct"], item["solvent"],
     ))
     if single or ranking_mode == "absolute_solubility":
@@ -1427,9 +1208,9 @@ def screen_polymer_separation(
     )
     scope = (
         "user_bounded" if supplied_min and supplied_max
-        else "fitted_min_to_user_max" if supplied_max
-        else "user_min_to_fitted_max" if supplied_min
-        else "full_fitted_domain"
+        else "grid_min_to_user_max" if supplied_max
+        else "user_min_to_grid_max" if supplied_min
+        else "full_stored_grid_domain"
     )
     warnings = (
         [
@@ -1459,19 +1240,6 @@ def screen_polymer_separation(
             ),
         ]
     )
-    if prefer_source_grid_evidence:
-        evidence_priority_warning = (
-            "Broad standard-domain scans rank source-grid evidence before "
-            "pair-fit extrapolation."
-        )
-        if single or ranking_mode == "absolute_solubility":
-            warnings[0] = (
-                "Each solvent is reported at its best source-grid temperature "
-                "when available; pair-fit extrapolation is fallback evidence. "
-                "This is not a common-temperature ranking."
-            )
-        else:
-            warnings.append(evidence_priority_warning)
     if any(bool(candidate.get("is_clipped")) for candidate in combined):
         warnings.append("A 100 wt% value is a clipped model ceiling, not a precise prediction.")
     if common_temperature_counts is not None:
@@ -1520,8 +1288,8 @@ def screen_polymer_separation(
             0,
             "Common-temperature threshold counts use all eligible candidates "
             "at each shared grid setpoint and exclude clipped model ceilings "
-            "and extrapolated estimates. The shortlist contains only qualifying "
-            "fitted-domain candidates at the reported shared temperature.",
+            "from the threshold. The shortlist contains only qualifying "
+            "stored-grid candidates at the reported shared temperature.",
         )
     if not resolved_require_atmospheric and any(
         candidate.get("atmospheric_feasible") is False for candidate in combined
@@ -1688,9 +1456,6 @@ def screen_pairwise_solubility_overlap(
                     "solvent": candidate["solvent"],
                     "temperature_c": candidate["temperature_c"],
                     "solubilities_wt_pct": {first: first_value, second: second_value},
-                    "solubility_method_by_polymer": candidate[
-                        "solubility_method_by_polymer"
-                    ],
                     **({"ghs_signal_word": candidate["ghs_signal_word"]}
                        if "ghs_signal_word" in candidate else {}),
                 },
@@ -1735,4 +1500,3 @@ screen_polymer_separation.__annotations__["temperature_step_c"] = Annotated[
 screen_pairwise_solubility_overlap.__annotations__["temperature_step_c"] = Annotated[
     float, InjectedToolArg,
 ]
-

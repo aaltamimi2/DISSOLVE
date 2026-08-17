@@ -67,7 +67,7 @@ def resolve_polymer_data_scope(
     operating_temperature_c: Optional[float] = None,
     include_capability_inventory: bool = False,
 ) -> str:
-    """Resolve labels, then use the HSP ML model only after a fitted-data gap."""
+    """Resolve labels, then use the HSP ML model only after a grid-data gap."""
     tool = "resolve_polymer_data_scope"
     if not isinstance(feed_polymers, (list, tuple)):
         return tool_error(tool, "feed_polymers must be a list", error_code="invalid_feed_polymers")
@@ -113,7 +113,6 @@ def resolve_polymer_data_scope(
                     "solvent": thermo.canonical_solvent_name(solvent_key),
                     "temperature_c": operating_temperature_c,
                     "solubility_wt_pct": evidence["solubility_pct"],
-                    "method": evidence["method"],
                 })
             row["operating_condition_results"] = operating_results
         if not resolved:
@@ -161,7 +160,7 @@ def resolve_polymer_data_scope(
             "Coverage does not establish a feasible route or experimental validation.",
         ],
         model_basis=(
-            "grid-first thermodynamics with labelled Apelblat extrapolation, "
+            "stored-grid thermodynamics, "
             "then checksummed HSP Random Forest fallback"
         ),
     )
@@ -256,7 +255,6 @@ def _full_feed_order_summary(row: dict[str, Any]) -> dict[str, Any]:
         "full_feed_proxy_order_resolved", "meets_full_feed_minimum_window",
         "boiling_point_c", "boiling_point_margin_c", "atmospheric_feasible",
         "dissolution_value_clipped",
-        "dissolution_solubility_method_by_polymer",
         "crossing_method_by_polymer",
         "ghs_signal_word",
     )
@@ -284,46 +282,29 @@ def _threshold_crossing(
             "method": None,
         }
     numeric = [
-        (temperature, float(evidence["solubility_pct"]), evidence["method"])
+        (temperature, float(evidence["solubility_pct"]))
         for temperature, evidence in points
     ]
     if numeric[-1][1] < threshold:
         return {
             "temperature_c": None,
             "status": "below_threshold_at_dissolution",
-            "method": numeric[-1][2],
+            "method": thermo.GRID_EXACT,
         }
     for index in range(len(numeric) - 1, 0, -1):
-        low_t, low_value, low_method = numeric[index - 1]
-        high_t, high_value, high_method = numeric[index]
+        low_t, low_value = numeric[index - 1]
+        high_t, high_value = numeric[index]
         if low_value < threshold <= high_value:
-            if (
-                low_method != high_method
-                and not thermo.methods_share_continuous_basis(
-                    low_method, high_method,
-                )
-            ):
-                return {
-                    "temperature_c": None,
-                    "status": "method_boundary_discontinuity",
-                    "method": None,
-                }
             fraction = (threshold - low_value) / (high_value - low_value)
             return {
                 "temperature_c": round(low_t + fraction * (high_t - low_t), 6),
                 "status": "crossing_within_screen",
-                "method": (
-                    thermo.GRID_INTERPOLATION
-                    if thermo.methods_share_continuous_basis(
-                        low_method, high_method,
-                    )
-                    else low_method
-                ),
+                "method": thermo.GRID_INTERPOLATION,
             }
     return {
         "temperature_c": None,
         "status": "remains_above_threshold_at_temperature_min",
-        "method": numeric[0][2],
+        "method": thermo.GRID_EXACT,
     }
 
 
@@ -357,10 +338,6 @@ def _crossing_states(
             "polymer": crossing_polymer,
             "temperature_c": float(temperature),
             "solubilities_wt_pct": solubilities,
-            "solubility_method_by_polymer": {
-                polymer: result["method"]
-                for polymer, result in evidence.items()
-            },
             "selectivity_ratio": (
                 None if denominator == 0 else round(numerator / denominator, 6)
             ),
@@ -376,18 +353,9 @@ def _crossing_model_warning(
     highest_temperature_c: float,
     *,
     recommended_on_grid_boundary: bool = False,
-    recommended_temperature_use_regime: Optional[str] = None,
 ) -> str:
     """Describe the pair-specific basis without advertising a global boundary."""
     del highest_temperature_c
-    if recommended_temperature_use_regime in {
-        "exploratory_extrapolation",
-        "mixed_source_and_extrapolation",
-    }:
-        return (
-            "Recommended condition includes exploratory extrapolation beyond a "
-            "pair-specific fitted range and requires experimental validation."
-        )
     if recommended_on_grid_boundary:
         return (
             "Recommended condition is on a pair-specific grid boundary; "
@@ -395,8 +363,8 @@ def _crossing_model_warning(
             "require experimental validation."
         )
     return (
-        "Crossings use exact retained-grid nodes or between-node interpolation; "
-        "pair-fit extrapolations are labelled and require experimental validation."
+        "Crossings use exact retained-grid nodes or between-node interpolation "
+        "and require experimental validation."
     )
 
 
@@ -487,7 +455,6 @@ def _unsupported_cycle(
     solvent: object,
     temperatures: dict[str, Any],
     invalid_states: list[dict[str, Any]],
-    available_evidence_methods: Optional[list[str]] = None,
 ) -> str:
     """Return the only failure terminal for an unevaluable process cycle."""
     return tool_error(
@@ -503,7 +470,6 @@ def _unsupported_cycle(
         solvent=str(solvent).strip(),
         requested_temperatures_c=temperatures,
         missing_or_invalid_states=invalid_states,
-        available_evidence_methods=sorted(set(available_evidence_methods or [])),
         recommended_as_literature_getter=False,
         warnings=[
             "The requested cool-then-reheat cycle was not replaced with a single-ramp precipitation screen.",
@@ -512,11 +478,10 @@ def _unsupported_cycle(
 
 
 def _cycle_value_source(evidence: dict[str, Any]) -> dict[str, Any]:
-    """Retain D3 method and point provenance without inventing a second seam."""
+    """Retain stored-point provenance without inventing a second seam."""
     return {
         key: evidence[key] for key in (
-            "method", "source_kind", "grid_point_status",
-            "source_temperatures_c", "extrapolation",
+            "source_temperatures_c",
         ) if evidence.get(key) is not None
     }
 
@@ -566,7 +531,7 @@ def _screen_getter_polymer_catalog(
     getter_disposition: Optional[str],
     reference_cycle_id: Optional[str],
 ) -> str:
-    """Search the fitted polymer catalog for a sacrificial getter."""
+    """Search the stored-grid polymer catalog for a sacrificial getter."""
     recovered = thermo.resolve_polymer(str(recovered_polymer))
     solvent_key = thermo.resolve_solvent(str(solvent))
     temperatures = {
@@ -682,7 +647,7 @@ def _screen_getter_polymer_catalog(
         ),
         analysis_type="cool_then_reheat_getter_discovery",
         process_kind=_COOL_THEN_REHEAT_PROCESS_KIND,
-        getter_search_axis="fitted_polymer_catalog",
+        getter_search_axis="stored_grid_polymer_catalog",
         cycle_evaluation_status=(
             "evaluated_recommended" if recommended else "evaluated_not_recommended"
         ),
@@ -714,7 +679,7 @@ def _screen_getter_polymer_catalog(
             "mass_balance_not_quantified",
         ],
         warnings=[
-            "This search covers the fitted polymer catalog for one named solvent "
+            "This search covers the stored-grid polymer catalog for one named solvent "
             "and never searches the solvent catalog.",
             "Recommended getters are capacity-proxy hits, not literature getters "
             "or proven phase states.",
@@ -742,7 +707,7 @@ def screen_cool_then_reheat_getter(
 
     This operation never searches or ranks the solvent catalog.  A named
     sacrificial getter evaluates that recovered/getter pair.  Omitting the
-    getter searches the fitted polymer catalog for the named recovered
+    getter searches the stored-grid polymer catalog for the named recovered
     polymer, named solvent, and three explicit setpoints.  The canonical
     octane/LDPE/PP reference may omit its three setpoints and getter
     disposition; a catalog search and every other identity must state all
@@ -961,7 +926,6 @@ def screen_cool_then_reheat_getter(
 
     evidence_by_state: dict[str, dict[str, dict[str, Any]]] = {}
     unavailable: list[dict[str, Any]] = []
-    available_methods: list[str] = []
     for state_id in ("dissolve", "cool", "reheat"):
         evidence_by_state[state_id] = {}
         for polymer in (recovered, getter):
@@ -969,16 +933,12 @@ def screen_cool_then_reheat_getter(
                 polymer, solvent_key, temperatures[state_id],
             )
             evidence_by_state[state_id][polymer] = evidence
-            if evidence.get("method"):
-                available_methods.append(str(evidence["method"]))
             if not evidence.get("available"):
                 unavailable.append({
                     "state_id": state_id,
                     "polymer": polymer,
                     "temperature_c": temperatures[state_id],
                     "reason": evidence.get("unavailable_reason") or "value_unavailable",
-                    "method": evidence.get("method"),
-                    "grid_point_status": evidence.get("grid_point_status"),
                 })
     if unavailable:
         return _unsupported_cycle(
@@ -989,7 +949,6 @@ def screen_cool_then_reheat_getter(
             solvent=thermo.canonical_solvent_name(solvent_key),
             temperatures=temperatures,
             invalid_states=unavailable,
-            available_evidence_methods=available_methods,
         )
 
     values = {
@@ -1155,18 +1114,8 @@ def screen_cool_then_reheat_getter(
             "material_accounting": "tracked_sacrificial_process_aid",
         },
     ]
-    all_sources = {
-        evidence_by_state[state_id][polymer].get("source_kind")
-        for state_id in evidence_by_state
-        for polymer in (recovered, getter)
-    }
     reference_temperatures_match = temperatures == (
         _OCTANE_GETTER_REFERENCE_TEMPERATURES_C
-    )
-    decision_basis = (
-        "ground_truth_grid"
-        if all_sources == {"ground_truth_grid"}
-        else "d3_grid_first_selected_methods"
     )
     return tool_success(
         tool,
@@ -1187,7 +1136,7 @@ def screen_cool_then_reheat_getter(
         component_roles=component_roles,
         states=states,
         transitions=transitions,
-        decision_basis=decision_basis,
+        decision_basis="stored_grid_values",
         capacity_proxy_basis="wt_pct_solution_concentration",
         capacity_threshold_wt_pct=threshold,
         dissolution_direction_match=dissolution_match,
@@ -1214,7 +1163,7 @@ def screen_cool_then_reheat_getter(
             "grade_molecular_weight_transfer_requires_validation",
         ],
         warnings=[
-            "D3 grid-first solution capacities and any labeled fit values are not cloud points or observed phase states.",
+            "Stored-grid solution capacities are not cloud points or observed phase states.",
             "The cycle does not calculate phase fractions, recovery, purity, yield, or a mass balance.",
             "Polymer grade, molecular weight, kinetics, filtration, and pigment capture require experimental validation.",
         ],
@@ -1243,7 +1192,7 @@ def screen_precipitation_order(
     include_full_feed_order: bool = False,
     include_pubchem: bool = False,
 ) -> str:
-    """Screen a user-named polymer pair across the fitted solvent catalog.
+    """Screen a user-named polymer pair across the stored-grid solvent catalog.
 
     This tool searches solvents, not polymers.  It requires a user-named
     polymer pair and cannot invent a second polymer.  A question that names
@@ -1271,7 +1220,7 @@ def screen_precipitation_order(
 
     Multi-polymer catalog provenance names only polymers whose actual
     pair-screen count at the highest screened temperature is below 90% of the
-    fitted solvent catalog.
+    stored-grid solvent catalog.
     """
     tool = "screen_precipitation_order"
     names, unsupported = _feed_names(feed_polymers)
@@ -1286,7 +1235,7 @@ def screen_precipitation_order(
         )
     try:
         # A domain referent is never invented by a literal default: an
-        # absent bound resolves to the engine's typed fitted window.
+        # absent bound resolves to the engine's stored-grid window.
         lower = float(
             thermo.FITTED_TEMP_MIN_C
             if temperature_min_c is None else temperature_min_c
@@ -1326,7 +1275,7 @@ def screen_precipitation_order(
         if resolved not in requested_solvents:
             requested_solvents.append(resolved)
     solvent_universe = {
-        "kind": "fitted_thermodynamic_catalog",
+        "kind": "stored_grid_thermodynamic_catalog",
         "modelable_solvent_count": len(available_solvents),
         "modelable_solvents": sorted(
             thermo.canonical_solvent_name(item) for item in available_solvents
@@ -1368,9 +1317,6 @@ def screen_precipitation_order(
         boiling_point = thermo.get_boiling_point(solvent)
         dissolution = None
         dissolution_values: dict[str, float] = {}
-        dissolution_methods: dict[str, str] = {}
-        dissolution_regimes: dict[str, str] = {}
-        dissolution_fitted_ranges: dict[str, list[float] | None] = {}
         dissolution_source_grid_ranges: dict[str, list[float] | None] = {}
         for temperature in temperatures:
             if require_atmospheric and (boiling_point is None or temperature >= boiling_point):
@@ -1391,18 +1337,6 @@ def screen_precipitation_order(
                 dissolution = temperature
                 dissolution_values = {
                     polymer: float(value) for polymer, value in values.items()
-                }
-                dissolution_methods = {
-                    polymer: str(result["method"])
-                    for polymer, result in evidence.items()
-                }
-                dissolution_regimes = {
-                    polymer: str(result["temperature_use_regime"])
-                    for polymer, result in evidence.items()
-                }
-                dissolution_fitted_ranges = {
-                    polymer: result.get("fitted_temperature_range_c")
-                    for polymer, result in evidence.items()
                 }
                 dissolution_source_grid_ranges = {
                     polymer: result.get("source_grid_temperature_range_c")
@@ -1465,10 +1399,6 @@ def screen_precipitation_order(
             "solvent": thermo.canonical_solvent_name(solvent),
             "dissolution_temperature_c": dissolution,
             "dissolution_solubilities_wt_pct": dissolution_values,
-            "dissolution_solubility_method_by_polymer": dissolution_methods,
-            "temperature_use_regime": thermo.aggregate_temperature_use_regimes(
-                dissolution, dissolution_regimes.values(),
-            ),
             "dissolution_on_source_grid_boundary": bool(
                 dissolution_source_grid_ranges
                 and all(
@@ -1517,21 +1447,6 @@ def screen_precipitation_order(
             ),
             **thermo.get_solvent_hazard_framing(solvent),
         }
-        if (
-            "extrapolation" in row["temperature_use_regime"]
-            or row["temperature_use_regime"] == "mixed"
-        ):
-            row.update({
-                "dissolution_temperature_use_regime_by_polymer": (
-                    dissolution_regimes
-                ),
-                "dissolution_fitted_temperature_range_by_polymer": (
-                    dissolution_fitted_ranges
-                ),
-                "dissolution_source_grid_temperature_range_by_polymer": (
-                    dissolution_source_grid_ranges
-                ),
-            })
         if include_full_feed_order:
             row.update({
                 "precipitation_proxy_order": [item[0] for item in ordered_crossings],
@@ -1660,13 +1575,6 @@ def screen_precipitation_order(
         second_polymer=second,
         temperature_min_c=max(lower, thermo.FITTED_TEMP_MIN_C),
         temperature_max_c=min(upper, thermo.SENSITIVITY_EXTRAPOLATION_MAX_C),
-        temperature_use_regime=thermo.aggregate_temperature_use_regimes(
-            highest_supported_temperature,
-            (
-                item.get("temperature_use_regime")
-                for item in (selected or candidates)
-            ),
-        ),
         strict_maximum=bool(strict_maximum),
         precipitation_threshold_wt_pct=threshold,
         min_dissolution_solubility_wt_pct=minimum_dissolution,
@@ -1724,10 +1632,6 @@ def screen_precipitation_order(
                         "dissolution_on_source_grid_boundary"
                     )
                 ),
-                recommended_temperature_use_regime=(
-                    recommended_condition.get("temperature_use_regime")
-                    if recommended_condition else None
-                ),
             ),
             (
                 "NBP margin is operability, not safety; the recommended condition "
@@ -1744,8 +1648,8 @@ def screen_precipitation_order(
             ),
         ],
         model_basis=(
-            "pair-specific exact/interpolated grid plus labelled pair-fit "
-            "extrapolation; shared wt% precipitation proxy"
+            "pair-specific stored-grid values plus between-node threshold "
+            "crossing interpolation; shared wt% precipitation proxy"
         ),
     )
 
@@ -1927,9 +1831,8 @@ def plan_multistage_separation(
                 **{key: candidate.get(key) for key in (
                     "solvent", "temperature_c", "target_solubility_pct",
                     "max_off_target_solubility_pct", "off_target_solubilities_pct",
-                    "solubility_method_by_polymer",
                     "limiting_off_target_polymer", "selectivity_pct", "boiling_point_c",
-                    "boiling_point_margin_c", "atmospheric_feasible", "temperature_use_regime",
+                    "boiling_point_margin_c", "atmospheric_feasible",
                     "is_clipped", "clip_limit_wt_percent",
                     "heating_risk_level", "heating_flags", "catalog_hazard_reference_c",
                     "ghs_signal_word", "g_score", "peroxide_former_class", "flash_point_c",
@@ -1971,9 +1874,9 @@ def plan_multistage_separation(
     root_screen = screens.get(root_subset, {})
     temperature_scope = (
         "user_bounded" if supplied_min and supplied_max
-        else "fitted_min_to_user_max" if supplied_max
-        else "user_min_to_fitted_max" if supplied_min
-        else "full_fitted_domain"
+        else "grid_min_to_user_max" if supplied_max
+        else "user_min_to_grid_max" if supplied_min
+        else "full_stored_grid_domain"
     )
     return tool_success(
         tool,
@@ -2025,11 +1928,10 @@ def plan_multistage_separation(
             "NBP margin is operability, not safety; local flash point was not checked.",
             "Candidates require experimental validation.",
         ],
-        model_basis="recursive application of the grid-first solubility model with fitted extrapolation",
+        model_basis="recursive application of stored-grid solubility values",
     )
 
 
 plan_multistage_separation.__annotations__["temperature_step_c"] = Annotated[
     float, InjectedToolArg,
 ]
-

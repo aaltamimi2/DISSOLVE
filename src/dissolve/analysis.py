@@ -689,7 +689,7 @@ def lookup_hansen_parameters(
     """Look up curated Hansen parameters without predicting temperature behavior.
 
     An empty material_names list with material_type=polymer returns the HSP
-    polymer library roster. That set is not the fitted thermodynamic polymer
+    polymer library roster. That set is not the thermodynamic grid polymer
     roster; report both when both are relevant and never merge them.
     """
     tool = "lookup_hansen_parameters"
@@ -730,7 +730,7 @@ def lookup_hansen_parameters(
             evidence_class="qualitative_hansen_parameters",
             provenance=asset_payload()["provenance"],
             warnings=[
-                "The HSP polymer library and the fitted thermodynamic polymer set are different collections; do not merge them under one heading.",
+                "The HSP polymer library and the thermodynamic grid polymer set are different collections; do not merge them under one heading.",
                 "Hansen parameters are temperature-independent qualitative screening evidence, not wt% solubility.",
             ],
         )
@@ -859,19 +859,8 @@ def screen_hansen_compatibility(
                 "temperature_c": fitted_temperature,
                 "fitted_solubility_wt_pct": fitted,
                 "fitted_evidence_available": fitted is not None,
-                "solubility_method": thermodynamic_result.get("method"),
-                "fitted_temperature_range_c": thermodynamic_result.get(
-                    "fitted_temperature_range_c",
-                ),
                 "source_grid_temperature_range_c": thermodynamic_result.get(
                     "source_grid_temperature_range_c",
-                ),
-                "temperature_use_regime": (
-                    thermodynamic_result.get("temperature_use_regime")
-                    if thermodynamic_result.get("method") in {
-                        thermo.GRID_EXACT, thermo.GRID_INTERPOLATION,
-                        thermo.APELBLAT_FIT,
-                    } else None
                 ),
             })
     family_summaries = _family_summaries(polymers)
@@ -928,15 +917,8 @@ def screen_hansen_compatibility(
         joined_rows=joined_rows,
         joined_pair_count=len(joined_rows),
         fitted_temperature_c=fitted_temperature,
-        fitted_temperature_use_regime=(
-            thermo.aggregate_temperature_use_regimes(
-                fitted_temperature,
-                (row.get("temperature_use_regime") for row in joined_rows),
-            )
-            if fitted_temperature is not None else None
-        ),
         fitted_evidence_class=(
-            "temperature_dependent_fitted_thermodynamics"
+            "temperature_dependent_stored_grid_thermodynamics"
             if fitted_temperature is not None else None
         ),
         polymer_source_record_ids=[item["source_record_id"] for item in polymers],
@@ -958,7 +940,7 @@ def screen_hansen_compatibility(
             ),
             "format": "text",
             "title": (
-                "Hansen RED and fitted-solubility comparison"
+                "Hansen RED and stored-grid solubility comparison"
                 if fitted_temperature is not None else "Hansen RED matrix"
             ),
         },
@@ -969,9 +951,9 @@ def screen_hansen_compatibility(
             "RED is a temperature-independent qualitative compatibility screen, not wt% solubility or recovery.",
             "Inside/outside the Hansen sphere is not proof of solubility or insolubility.",
             "RED does not model crystallinity, kinetics, molecular weight, concentration, or process temperature.",
-            "Use the temperature-dependent SQL thermodynamics engine for process-condition decisions.",
+            "Use the temperature-dependent stored-grid thermodynamics engine for process-condition decisions.",
             *(
-                ["Joined rows preserve both methods; neither method validates or replaces the other."]
+                ["Joined rows preserve both evidence types; neither validates or replaces the other."]
                 if fitted_temperature is not None else []
             ),
         ],
@@ -1362,5 +1344,4 @@ def list_thermal_evidence() -> str:
         provenance=payload["provenance"],
         warnings=["Generated predictive extensions are never equivalent to fitted thermodynamic records."],
     )
-
 

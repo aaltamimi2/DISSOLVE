@@ -406,7 +406,6 @@ def _polymer_status(
         "polymer": resolved,
         "status": status,
         "solubility_wt_pct": float(value),
-        "solubility_method": result["method"],
     }
 
 
@@ -535,7 +534,7 @@ def _base_result(inputs: dict[str, Any], mode: str, rows: list[dict[str, Any]]) 
         "criterion_record_count": len(rows) * len(inputs["supported"]),
         "model_basis": (
             "Zhou workbook miscibility/logD plus grid-first thermodynamic "
-            "screening proxies with labelled fit extrapolation"
+            "screening proxies from stored values"
         ),
         "provenance": _provenance(),
     }
@@ -603,14 +602,6 @@ def _leaching(inputs: dict[str, Any]) -> dict[str, Any]:
             "contaminant_logd_pass": positive, "contaminant_logd_min": minimum,
             "contaminants": contaminants, "target_polymer_status": target["status"],
             "target_polymer_solubility_wt_pct": target["solubility_wt_pct"],
-            "solubility_method_by_polymer": {
-                inputs["target"]: target["solubility_method"],
-                **{
-                    polymer: item["solubility_method"]
-                    for polymer, item in other_status.items()
-                    if item.get("solubility_method") is not None
-                },
-            } if target.get("solubility_method") is not None else {},
             "other_polymer_status": other_status, "caveats": caveats,
         })
     result = _base_result(inputs, "leaching", rows)
@@ -652,10 +643,6 @@ def _precipitation_window(
         return None
     curve = thermo.get_solubility_curve(target, solvent, 25.0, _MAX_T, 5.0)
     values = [(float(row["temperature"]), float(row["solubility"])) for row in curve]
-    methods_by_temperature = {
-        float(row["temperature"]): str(row["method"])
-        for row in curve
-    }
     below_one = [
         temperature for temperature, value in values
         if value < precipitation_threshold_wt_pct
@@ -688,45 +675,16 @@ def _precipitation_window(
             other_status[polymer] = {
                 "status": status,
                 "solubility_wt_pct": other_value,
-                "solubility_method": other_result.get("method"),
-                "temperature_use_regime": other_result.get(
-                    "temperature_use_regime",
-                ),
             }
         if any(item["status"] != "undissolved" for item in other_status.values()):
             continue
-        regime_by_polymer = {
-            target: target_result.get("temperature_use_regime"),
-            **{
-                polymer: item.get("temperature_use_regime")
-                for polymer, item in other_status.items()
-            },
-        }
         candidate = {
             "operating_temperature_c": float(temperature),
             "target_polymer_solubility_wt_pct": float(value),
-            "solubility_method_by_polymer": {
-                target: target_result["method"],
-                **{
-                    polymer: item["solubility_method"]
-                    for polymer, item in other_status.items()
-                    if item.get("solubility_method") is not None
-                },
-            },
             "precipitation_temperature_c": float(precipitation),
-            "precipitation_method": methods_by_temperature[float(precipitation)],
             "cloud_point_c": float(cloud),
-            "cloud_point_method": (
-                methods_by_temperature.get(float(cloud)) if cloud else None
-            ),
             "other_polymer_status": other_status,
-            "temperature_use_regime": thermo.aggregate_temperature_use_regimes(
-                float(temperature), regime_by_polymer.values(),
-            ),
-            "contains_extrapolated_evidence": any(
-                "extrapolation" in str(regime or "")
-                for regime in regime_by_polymer.values()
-            ),
+            "contains_extrapolated_evidence": False,
         }
         candidate_priority = (
             not candidate["contains_extrapolated_evidence"],
@@ -819,9 +777,9 @@ def _strap(inputs: dict[str, Any]) -> dict[str, Any]:
         ],
         "warnings": [
             (
-                "The dissolution and 1 wt% cooling thresholds are fitted-model screening proxies, not validated precipitation recovery."
+                "The dissolution and 1 wt% cooling thresholds are stored-grid screening proxies, not validated precipitation recovery."
                 if configured_defaults else
-                "The active dissolution and cooling thresholds are fitted-model screening proxies, not validated precipitation recovery."
+                "The active dissolution and cooling thresholds are stored-grid screening proxies, not validated precipitation recovery."
             ),
             "Workbook miscibility and logD are screening inputs, not validated process partition coefficients.",
             "A passing screen does not establish kinetics, solvent loading, contaminant removal efficiency, or product purity.",
@@ -963,9 +921,8 @@ def compare_contaminant_removal_modes(
         provenance=_provenance(),
         model_basis=(
             "Zhou workbook miscibility/logD plus grid-first thermodynamic "
-            "screening proxies with labelled fit extrapolation"
+            "screening proxies from stored values"
         ),
         warnings=list(dict.fromkeys(leaching["warnings"] + strap["warnings"])),
     )
-
 

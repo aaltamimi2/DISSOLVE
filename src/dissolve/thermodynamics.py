@@ -8,24 +8,18 @@ import threading
 from functools import lru_cache
 from importlib.resources import files
 from pathlib import Path
-from typing import Callable, Iterable, Optional, Sequence
+from typing import Callable, Optional
 
 import duckdb
 
-AUTO = "auto"
-INTERPOLATION = "interpolation"
-SQL = "sql"
 GRID_EXACT = "grid_exact"
 GRID_INTERPOLATION = "grid_interpolation"
-APELBLAT_FIT = "apelblat_fit"
 SOLUBILITY_MODEL_BASIS = (
-    "stored pair-specific grid values at 5 C nodes from 25 to 160 C; exact "
-    "lookup only, with no interpolation, fit or extrapolation"
+    "stored pair-specific values at 5 C nodes from 25 to 160 C; exact lookup only"
 )
 
 FITTED_TEMP_MIN_C = 25.0
 FITTED_TEMP_MAX_C = 160.0
-GRID_TEMP_MAX_C = 160.0
 RECOMMENDED_EXTRAPOLATION_MAX_C = 180.0
 SENSITIVITY_EXTRAPOLATION_MAX_C = 200.0
 EXTENDED_ADMISSION_MIN_BOILING_POINT_C = 25.0
@@ -41,7 +35,7 @@ def polymer_label_key(value: str) -> str:
 
 # The sole cross-capability polymer identity registry. Evidence availability is
 # intentionally separate: aliases identify a material; thermodynamic_members
-# declares how a generic feed label expands against the fitted database.
+# declares how a generic feed label expands against the stored grid.
 POLYMER_IDENTITIES: dict[str, dict[str, tuple[str, ...] | str]] = {
     "ABS": {"aliases": ("acrylonitrile butadiene styrene",)},
     "EVOH": {"aliases": ("ethylene vinyl alcohol", "ethylene-vinyl alcohol")},
@@ -95,7 +89,7 @@ POLYMER_IDENTITIES: dict[str, dict[str, tuple[str, ...] | str]] = {
     "SAN": {"aliases": ("styrene acrylonitrile", "styrene-acrylonitrile")},
     # Family nouns resolve through the same authority as exact polymer names.
     # They intentionally have no thermodynamic_members: HSP family evidence is
-    # qualitative and must never masquerade as fitted solubility coverage.
+    # qualitative and must never masquerade as measured solubility coverage.
     "POLYOLEFINS": {
         "aliases": ("polyolefin", "polyolefins"),
         "identity_kind": "family", "hsp_family": "polyolefins",
@@ -160,7 +154,7 @@ POLYMER_ALIASES = {
     for alias in _identity_aliases(identity)
 }
 EXCLUDED_SOLVENTS = {"triethylamine"}
-# Source-system labels that identify an existing fitted solvent but are not
+# Source-system labels that identify an existing grid solvent but are not
 # present in the V12-0 alias table. This label is used by the committed Zhou
 # workbook and by the legacy GSK/BioSTEAM registry for methyl ethyl ketone.
 SOURCE_SOLVENT_ALIASES = {"2-butanone": "butanone"}
@@ -253,9 +247,9 @@ def _usable_grid_pairs() -> frozenset[tuple[str, str]]:
     """Pairs holding at least one valid stored value. This is the roster.
 
     v12: what the system says it has is what the grid actually holds. v11
-    derived both rosters from ``solubility_coefficients``, so a pair without an
-    Apelblat fit was invisible even when its measured grid values existed —
-    which is why PU and 205 solvents could not be reached.
+    derived both rosters from ``solubility_coefficients``, so measured grid
+    pairs missing from that table were invisible — which is why PU and 205
+    solvents could not be reached.
     """
     return frozenset(
         pair for pair, record in _grid_pairs().items()
@@ -307,7 +301,7 @@ def hsp_family_for_polymer_query(name: str) -> Optional[str]:
 def expand_polymer_identity(
     name: str, known: Optional[set[str]] = None,
 ) -> tuple[str, ...]:
-    """Return every fitted identity represented by a user-facing feed label."""
+    """Return every stored-grid identity represented by a feed label."""
     candidates = known or _available_polymers()
     identity = resolve_polymer_identity(name)
     if identity is None:
@@ -497,14 +491,14 @@ def resolve_names(polymer: str, solvent: str) -> tuple[Optional[str], Optional[s
 
 
 def canonical_solvent_name(name: str) -> str:
-    """Return the user-facing property-database name for a fitted solvent."""
+    """Return the user-facing property-database name for a grid solvent."""
     resolved = resolve_solvent(name) or name.strip().lower()
     alias = _aliases().get(resolved, {})
     return str(alias.get("property_name") or resolved.title())
 
 
 def solvent_identity_labels(name: str) -> tuple[str, ...]:
-    """Return every registered label for one fitted solvent identity."""
+    """Return every registered label for one grid solvent identity."""
     resolved = resolve_solvent(name)
     if not resolved:
         return ()
@@ -525,146 +519,6 @@ def get_solubility_pair_exclusion_reason(polymer: str, solvent: str) -> Optional
     return "Quarantined from runtime solubility tools pending data-quality review."
 
 
-def predict(entry: dict, temperature_c: float) -> dict:
-    temperature_k = temperature_c + 273.15
-    log_solubility = (
-        entry["A"] + entry["B"] / temperature_k + entry["C"] * math.log(temperature_k)
-    )
-    value = math.exp(max(-745.0, min(math.log(100.0), log_solubility)))
-    extrapolation = ""
-    if temperature_c < entry["t_min_c"]:
-        extrapolation = "below"
-    elif temperature_c > entry["t_max_c"]:
-        extrapolation = "above"
-    return {
-        "solubility_pct": round(value, 6),
-        "temperature_c": temperature_c,
-        "extrapolation": extrapolation,
-        "method": APELBLAT_FIT,
-        "source": entry.get("source", "static"),
-    }
-
-
-def temperature_extrapolation_status(
-    temperature_c: float,
-    fitted_temperature_range_c: Sequence[float] | None = None,
-) -> str:
-    """Locate one temperature against the fitted range for its pair."""
-    lower, upper = _normalized_temperature_range(
-        fitted_temperature_range_c,
-        fallback=(FITTED_TEMP_MIN_C, FITTED_TEMP_MAX_C),
-    )
-    if temperature_c < lower:
-        return "below_fit"
-    if temperature_c > upper:
-        return "above_fit"
-    return "within_fit"
-
-
-def _normalized_temperature_range(
-    value: Sequence[float] | None,
-    *,
-    fallback: tuple[float, float],
-) -> tuple[float, float]:
-    """Return an ordered finite pair range without accepting partial bounds."""
-    if value is not None and len(value) == 2:
-        lower, upper = float(value[0]), float(value[1])
-        if math.isfinite(lower) and math.isfinite(upper) and lower <= upper:
-            return lower, upper
-    return fallback
-
-
-def temperature_use_regime(
-    temperature_c: float,
-    method: str,
-    fitted_temperature_range_c: Sequence[float] | None = None,
-) -> str:
-    """Return the use-regime for one served solubility value.
-
-    The label is derived from the evidence method used on that call. A
-    grid-served value is never labelled ``fitted``.
-    """
-    if method in {GRID_EXACT, GRID_INTERPOLATION}:
-        return "source_grid"
-    if method != APELBLAT_FIT:
-        raise ValueError(f"Unknown solubility method for regime labelling: {method!r}")
-    fitted_min_c, fitted_max_c = _normalized_temperature_range(
-        fitted_temperature_range_c,
-        fallback=(FITTED_TEMP_MIN_C, FITTED_TEMP_MAX_C),
-    )
-    if temperature_c < fitted_min_c:
-        return "below_fit_extrapolation"
-    if temperature_c <= fitted_max_c:
-        return "fitted"
-    if temperature_c <= RECOMMENDED_EXTRAPOLATION_MAX_C:
-        return "exploratory_extrapolation"
-    if temperature_c <= SENSITIVITY_EXTRAPOLATION_MAX_C:
-        return "sensitivity_extrapolation"
-    return "unsupported_extrapolation"
-
-
-def temperature_use_regime_for_methods(
-    temperature_c: float,
-    methods: Iterable[object],
-    fitted_temperature_ranges_c: Iterable[Sequence[float] | None] = (),
-) -> str:
-    """Label one temperature from the methods actually served at that T.
-
-    Mixed grid and Apelblat evidence at the same temperature is ``mixed``.
-    Screens with no served rows fall back to the grid band at or below
-    ``GRID_TEMP_MAX_C`` and to the Apelblat temperature tiers above it.
-    """
-    unique = {
-        str(method)
-        for method in methods
-        if method in {GRID_EXACT, GRID_INTERPOLATION, APELBLAT_FIT}
-    }
-    if not unique:
-        return temperature_use_regime(
-            float(temperature_c),
-            GRID_INTERPOLATION
-            if float(temperature_c) <= GRID_TEMP_MAX_C
-            else APELBLAT_FIT,
-        )
-    has_grid = bool(unique & {GRID_EXACT, GRID_INTERPOLATION})
-    has_fit = APELBLAT_FIT in unique
-    if has_grid and has_fit:
-        return "mixed"
-    if has_grid:
-        return temperature_use_regime(temperature_c, GRID_EXACT)
-    pair_ranges = list(fitted_temperature_ranges_c)
-    if pair_ranges:
-        return aggregate_temperature_use_regimes(
-            temperature_c,
-            (
-                temperature_use_regime(
-                    temperature_c, APELBLAT_FIT, pair_range,
-                )
-                for pair_range in pair_ranges
-            ),
-        )
-    return temperature_use_regime(temperature_c, APELBLAT_FIT)
-
-
-def aggregate_temperature_use_regimes(
-    temperature_c: float,
-    regimes: Iterable[object],
-) -> str:
-    """Combine already pair-aware regimes for one shared temperature."""
-    unique = {str(regime) for regime in regimes if regime}
-    if not unique:
-        return temperature_use_regime_for_methods(temperature_c, ())
-    if len(unique) == 1:
-        return next(iter(unique))
-    return "mixed"
-
-
-def methods_share_continuous_basis(first: object, second: object) -> bool:
-    """Return whether two method labels belong to one continuous grid basis."""
-    methods = {str(first), str(second)}
-    return methods <= {GRID_EXACT, GRID_INTERPOLATION}
-
-
 def _unavailable_grid_result(
     temperature_c: float,
     pair: dict,
@@ -674,23 +528,18 @@ def _unavailable_grid_result(
         "available": False,
         "solubility_pct": None,
         "temperature_c": float(temperature_c),
-        "method": None,
-        "source_kind": "ground_truth_grid",
-        "grid_point_status": "unavailable",
         "unavailable_reason": reason,
         "grid_valid_point_count": len(pair["valid_points"]),
         "grid_filtered_point_count": sum(pair["filtered_reasons"].values()),
         "grid_filtered_reasons": dict(pair["filtered_reasons"]),
         "grid_source_tables": list(pair["source_tables"]),
-        "extrapolation": "none",
     }
 
 
 def _pair_temperature_coverage(
     grid_pair: dict | None,
-    entry: dict | None,
 ) -> dict[str, list[float]]:
-    """Expose independent retained-grid and coefficient-fit pair bounds."""
+    """Expose the retained-grid bounds for one pair."""
     coverage: dict[str, list[float]] = {}
     valid_points = list((grid_pair or {}).get("valid_points") or [])
     if valid_points:
@@ -705,23 +554,17 @@ def get_solubility_result(
     polymer: str,
     solvent: str,
     temperature_c: float,
-    method: str = AUTO,
 ) -> dict:
     """Return one measured grid value, or a typed refusal.
 
-    v12: the only evidence method is ``grid_exact``. There is no fit, no
-    interpolation and no extrapolation, so ``method`` is retained only because
-    downstream readers still key on it.
+    A temperature between stored nodes is refused rather than estimated.
     """
-    if method not in {AUTO, INTERPOLATION, SQL}:
-        raise ValueError(f"Unknown solubility method: {method}")
     requested_temperature_c = float(temperature_c)
     if is_solubility_pair_excluded(polymer, solvent):
         return {
             "available": False,
             "solubility_pct": None,
             "temperature_c": requested_temperature_c,
-            "method": None,
             "unavailable_reason": "excluded_data_quality_pair",
         }
     resolved_polymer, resolved_solvent = resolve_names(polymer, solvent)
@@ -730,13 +573,12 @@ def get_solubility_result(
             "available": False,
             "solubility_pct": None,
             "temperature_c": requested_temperature_c,
-            "method": None,
             "unavailable_reason": "pair_not_found",
         }
     pair_key = (resolved_polymer, resolved_solvent)
 
     grid_pair = _grid_pairs().get(pair_key)
-    coverage = _pair_temperature_coverage(grid_pair, None)
+    coverage = _pair_temperature_coverage(grid_pair)
     if grid_pair is not None:
         valid_points: tuple[tuple[float, float], ...] = grid_pair["valid_points"]
         if not valid_points:
@@ -761,17 +603,12 @@ def get_solubility_result(
                     "available": True,
                     "solubility_pct": exact[1],
                     "temperature_c": requested_temperature_c,
-                    "method": GRID_EXACT,
-                    "source_kind": "ground_truth_grid",
-                    "grid_point_status": "exact",
                     "source_temperatures_c": [exact[0]],
                     "grid_valid_point_count": len(valid_points),
                     "grid_filtered_point_count": sum(
                         grid_pair["filtered_reasons"].values()
                     ),
                     "grid_source_tables": list(grid_pair["source_tables"]),
-                    "extrapolation": "none",
-                    "temperature_use_regime": "source_grid",
                     **coverage,
                 }
             # v12: a temperature between two grid nodes is not a question this
@@ -796,11 +633,7 @@ def get_solubility_result(
         "available": False,
         "solubility_pct": None,
         "temperature_c": requested_temperature_c,
-        "method": None,
-        "source_kind": None,
-        "grid_point_status": "no_grid",
         "unavailable_reason": "pair_not_found",
-        "extrapolation": "none",
         **coverage,
     }
 
@@ -817,9 +650,8 @@ def get_solubility(
     polymer: str,
     solvent: str,
     temperature_c: float,
-    method: str = AUTO,
 ) -> Optional[float]:
-    result = get_solubility_result(polymer, solvent, temperature_c, method)
+    result = get_solubility_result(polymer, solvent, temperature_c)
     value = result.get("solubility_pct")
     return float(value) if result.get("available") and value is not None else None
 
@@ -868,10 +700,7 @@ def get_solubility_curve(
     t_start_c: float = 25.0,
     t_end_c: float = 160.0,
     t_step_c: float = 5.0,
-    method: str = AUTO,
 ) -> list[dict]:
-    if method not in {AUTO, INTERPOLATION, SQL}:
-        raise ValueError(f"Unknown solubility method: {method}")
     if is_solubility_pair_excluded(polymer, solvent):
         return []
     resolved_polymer, resolved_solvent = resolve_names(polymer, solvent)
@@ -881,17 +710,13 @@ def get_solubility_curve(
     rows = []
     for temperature in temperatures:
         result = get_solubility_result(
-            resolved_polymer, resolved_solvent, temperature, method,
+            resolved_polymer, resolved_solvent, temperature,
         )
         if not result.get("available"):
             continue
         rows.append({
             "temperature": temperature,
             "solubility": float(result["solubility_pct"]),
-            "method": result["method"],
-            "grid_point_status": result.get("grid_point_status"),
-            "extrapolation": result.get("extrapolation") or "none",
-            "temperature_use_regime": result.get("temperature_use_regime"),
             "source_grid_temperature_range_c": result.get(
                 "source_grid_temperature_range_c",
             ),
@@ -926,10 +751,10 @@ def get_all_solvents_selectivity(
     results = []
     for solvent in sorted(get_available_solvents()):
         target_result = get_solubility_result(
-            target_name, solvent, temperature_c, AUTO,
+            target_name, solvent, temperature_c,
         )
         other_results = [
-            get_solubility_result(other, solvent, temperature_c, AUTO)
+            get_solubility_result(other, solvent, temperature_c)
             for other in other_names
         ]
         target_value = target_result.get("solubility_pct")
@@ -942,20 +767,6 @@ def get_all_solvents_selectivity(
             "selectivity": target_value - maximum,
             "target_sol": target_value,
             "max_other_sol": maximum,
-            "solubility_method_by_polymer": {
-                target_name: target_result["method"],
-                **{
-                    str(other): result["method"]
-                    for other, result in zip(other_names, other_results)
-                },
-            },
-            "temperature_use_regime_by_polymer": {
-                target_name: target_result["temperature_use_regime"],
-                **{
-                    str(other): result["temperature_use_regime"]
-                    for other, result in zip(other_names, other_results)
-                },
-            },
             "source_grid_temperature_range_by_polymer": {
                 target_name: target_result.get(
                     "source_grid_temperature_range_c",
@@ -969,12 +780,6 @@ def get_all_solvents_selectivity(
             },
         })
     return sorted(results, key=lambda item: (
-        any(
-            "extrapolation" in str(regime or "")
-            for regime in (
-                item.get("temperature_use_regime_by_polymer") or {}
-            ).values()
-        ),
         -item["selectivity"], item["solvent"],
     ))
 
@@ -1056,7 +861,7 @@ def identify_known_solvent(name: str) -> Optional[dict]:
 
 
 def get_fitted_solvent_status(name: str) -> str:
-    """Classify fitted-model availability independently from chemical identity."""
+    """Classify stored-grid availability independently from chemical identity."""
     fitted_solvents = _available_solvents() | EXCLUDED_SOLVENTS
     resolved = resolve_solvent(name, known=fitted_solvents)
     if resolved is None:
@@ -1096,7 +901,7 @@ def _solvent_admission_rows() -> dict[str, dict]:
 
 
 def get_solvent_admission_record(solvent: str) -> dict[str, object]:
-    """Return the governed admission record behind one fitted solvent label."""
+    """Return the governed admission record behind one grid solvent label."""
     resolved = resolve_solvent(solvent) or str(solvent).strip().lower()
     return dict(_solvent_admission_rows().get(resolved, {}))
 
