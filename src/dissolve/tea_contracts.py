@@ -381,24 +381,6 @@ TEA_TOOL_BOUNDARY_BY_MODE = MappingProxyType({
     item.mode: item for item in TEA_TOOL_BOUNDARY_REGISTRY
 })
 
-PARETO_SURFACE_BOUNDARY_REGISTRY = (
-    ParetoSurfaceBoundaryContract(
-        "optimization",
-        "pareto_optimize_stored_route",
-        None,
-        requires_stored_route=True,
-        requires_admitted_records=False,
-    ),
-    ParetoSurfaceBoundaryContract(
-        "visualization",
-        "plot_analysis_results",
-        "tea_pareto",
-        requires_stored_route=False,
-        requires_admitted_records=True,
-    ),
-)
-
-
 @dataclass(frozen=True)
 class TeaRecordCardBoundaryContract:
     """The record field whose distinct values are the coverage boundaries.
@@ -436,19 +418,6 @@ class TeaRecordCardSelectionContract:
 TEA_RECORD_CARD_BOUNDARY = TeaRecordCardBoundaryContract(
     "target_polymer", "target_plastic", "target_polymers",
 )
-
-TEA_RECORD_CARD_SELECTION_RULE = TeaRecordCardSelectionContract(
-    name="one_representative_per_requested_boundary",
-    boundary=TEA_RECORD_CARD_BOUNDARY,
-    energy_case_preference=("C1",),
-    render_cap=3,
-    description=(
-        "one record per requested target-polymer boundary, preferring "
-        "energy case C1 and otherwise stored order; remaining slots are "
-        "filled from the candidate set in stored order"
-    ),
-)
-
 
 def normalize_tea_vocabulary(value: object) -> str:
     """Normalize case and separators without interpreting request prose."""
@@ -502,9 +471,6 @@ CANONICAL_TEA_SENSITIVITY_LEVEL_SELECTORS = tuple(
 CANONICAL_TEA_RECORD_FORMS = tuple(
     item.name for item in TEA_RECORD_FORM_REGISTRY
 )
-CANONICAL_TEA_RECORD_SELECTORS = tuple(
-    item.name for item in TEA_RECORD_SELECTOR_REGISTRY
-)
 TEA_SENSITIVITY_CACHE_TOKEN_BY_AXIS = MappingProxyType({
     item.name: item.cache_label_token
     for item in TEA_SENSITIVITY_AXIS_REGISTRY
@@ -519,20 +485,12 @@ def _canonical(value: object, indexed: MappingProxyType) -> str:
     return contract.name if contract is not None else str(value or "")
 
 
-def canonical_tea_sensitivity_axis(value: object) -> str:
-    return _canonical(value, _SENSITIVITY_AXIS_BY_NAME)
-
-
 def canonical_tea_sensitivity_level_selector(value: object) -> str:
     return _canonical(value, _SENSITIVITY_LEVEL_SELECTOR_BY_NAME)
 
 
 def canonical_tea_record_form(value: object) -> str:
     return _canonical(value, _RECORD_FORM_BY_NAME)
-
-
-def canonical_tea_record_selector(value: object) -> str:
-    return _canonical(value, _RECORD_SELECTOR_BY_NAME)
 
 
 def canonical_tea_energy_case(value: object) -> str:
@@ -741,128 +699,6 @@ def resolve_implicit_tea_record_selectors(
             if len(selected_groups) > 1 or len(set(energy_cases)) > 1
             else "per_record"
         ),
-    )
-
-
-def tea_lookup_arguments_from_boundary(
-    boundary: TeaToolBoundaryDecision,
-) -> dict[str, Any]:
-    """Project one admitted-record boundary into exact typed tool selectors."""
-    selectors = boundary.implicit_selectors
-    arguments: dict[str, Any] = {}
-    if boundary.target_polymers:
-        arguments["target_polymer"] = (
-            boundary.target_polymers[0]
-            if len(boundary.target_polymers) == 1
-            else list(boundary.target_polymers)
-        )
-    if len(boundary.solvents) == 1:
-        arguments["solvent"] = boundary.solvents[0]
-    if selectors.energy_cases:
-        arguments["energy_cases"] = list(selectors.energy_cases)
-    if selectors.sensitivity_axes:
-        arguments["sensitivity_axes"] = list(
-            selectors.sensitivity_axes,
-        )
-    if selectors.processing_capacity_mt_per_yr is not None:
-        arguments["processing_capacity_mt_per_yr"] = (
-            selectors.processing_capacity_mt_per_yr
-        )
-    arguments["record_form"] = selectors.record_form
-    return arguments
-
-
-def resolve_tea_tool_boundary(
-    deliverable: Mapping[str, Any] | None,
-    typed_state: Mapping[str, Any] | None,
-    request_kind: object = None,
-    request_units: Iterable[Mapping[str, Any]] = (),
-) -> TeaToolBoundaryDecision:
-    """Select one TEA tool from manifest and typed-state facts only."""
-    manifest = deliverable or {}
-    state = typed_state or {}
-    implicit = resolve_implicit_tea_record_selectors(
-        manifest,
-        request_units,
-    )
-    polymers = tuple(dict.fromkeys((
-        *_manifest_names(
-            manifest,
-            ("target_polymers", "polymers", "feed_polymers"),
-        ),
-        *implicit.target_polymers,
-    )))
-    solvents = tuple(dict.fromkeys((
-        *declared_solvents(manifest),
-        *implicit.solvents,
-    )))
-    scope = manifest.get("candidate_scope")
-    reference = manifest.get("reference_source")
-    stored_route = state.get("last_route")
-    has_stored_route = isinstance(stored_route, Mapping) and bool(
-        stored_route,
-    )
-    explicit_record_selector = bool(
-        polymers
-        and scope in {"explicit", "none"}
-        and reference in {None, "none"}
-    )
-    route_bound = (
-        scope == "prior_route"
-        or reference == "prior_route"
-    )
-    route_request = request_kind in {
-        "tea_stored_route",
-        "tea_route_variant_comparison",
-        "tea_feed_economics",
-    }
-
-    if explicit_record_selector:
-        contract = TEA_TOOL_BOUNDARY_BY_MODE["admitted_records"]
-        return TeaToolBoundaryDecision(
-            contract.mode, contract.tool_name, polymers, solvents,
-            implicit_selectors=implicit,
-        )
-    if polymers and not has_stored_route:
-        contract = TEA_TOOL_BOUNDARY_BY_MODE["admitted_records"]
-        return TeaToolBoundaryDecision(
-            contract.mode, contract.tool_name, polymers, solvents,
-            implicit_selectors=implicit,
-        )
-    if route_bound and has_stored_route:
-        contract = TEA_TOOL_BOUNDARY_BY_MODE["route_integrated"]
-        return TeaToolBoundaryDecision(
-            contract.mode, contract.tool_name, polymers, solvents,
-            implicit_selectors=implicit,
-        )
-    if route_bound:
-        return TeaToolBoundaryDecision(
-            "clarification_required",
-            None,
-            polymers,
-            solvents,
-            ("referent_id",),
-            implicit,
-        )
-    if route_request and has_stored_route:
-        contract = TEA_TOOL_BOUNDARY_BY_MODE["route_integrated"]
-        return TeaToolBoundaryDecision(
-            contract.mode, contract.tool_name, polymers, solvents,
-            implicit_selectors=implicit,
-        )
-    if polymers:
-        contract = TEA_TOOL_BOUNDARY_BY_MODE["admitted_records"]
-        return TeaToolBoundaryDecision(
-            contract.mode, contract.tool_name, polymers, solvents,
-            implicit_selectors=implicit,
-        )
-    return TeaToolBoundaryDecision(
-        "clarification_required",
-        None,
-        polymers,
-        solvents,
-        ("polymers",),
-        implicit,
     )
 
 
