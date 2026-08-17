@@ -153,18 +153,6 @@ POLYMER_ALIASES = {
     for identity in POLYMER_IDENTITIES
     for alias in _identity_aliases(identity)
 }
-# Empty by decision. The asset quarantines triethylamine in
-# solvent_admission_quarantine with reason `excluded_data_quality` and status
-# `admitted_but_not_in_public_catalog` — a provenance gap, not a values gap. Its
-# 336 grid rows span all 12 polymers, 329 are valid, and the series is ordinary
-# (LDPE rises smoothly from 0.102 pct at 25 C). Only 7 rows carry the
-# exact_100_artifact flag, the same class that trims 4,096 rows elsewhere
-# without excluding any solvent. Suppressing 329 stored values because the
-# solvent could not be traced to a public catalog is a different claim from the
-# one the code made ("pending data-quality review"), and the owner has decided
-# it is not one v12 makes. Row-level is_valid / invalid_reason remains the
-# mechanism for genuine data quality.
-EXCLUDED_SOLVENTS: set[str] = set()
 # Source-system labels that identify an existing grid solvent but are not
 # present in the V12-0 alias table. This label is used by the committed Zhou
 # workbook and by the legacy GSK/BioSTEAM registry for methyl ethyl ketone.
@@ -279,10 +267,7 @@ def get_available_polymers() -> set[str]:
 
 @lru_cache(maxsize=1)
 def _available_solvents() -> frozenset[str]:
-    return frozenset(
-        solvent for _, solvent in _usable_grid_pairs()
-        if solvent not in EXCLUDED_SOLVENTS
-    )
+    return frozenset(solvent for _, solvent in _usable_grid_pairs())
 
 
 def get_available_solvents() -> set[str]:
@@ -518,18 +503,6 @@ def solvent_identity_labels(name: str) -> tuple[str, ...]:
     return tuple(sorted(labels, key=lambda item: (-len(item), item.casefold())))
 
 
-def is_solubility_pair_excluded(polymer: str, solvent: str) -> bool:
-    del polymer
-    normalized = _aliases().get(solvent.strip().lower(), {}).get("interp_key")
-    return (normalized or solvent.strip().lower()) in EXCLUDED_SOLVENTS
-
-
-def get_solubility_pair_exclusion_reason(polymer: str, solvent: str) -> Optional[str]:
-    if not is_solubility_pair_excluded(polymer, solvent):
-        return None
-    return "Quarantined from runtime solubility tools pending data-quality review."
-
-
 def _unavailable_grid_result(
     temperature_c: float,
     pair: dict,
@@ -571,13 +544,6 @@ def get_solubility_result(
     A temperature between stored nodes is refused rather than estimated.
     """
     requested_temperature_c = float(temperature_c)
-    if is_solubility_pair_excluded(polymer, solvent):
-        return {
-            "available": False,
-            "solubility_pct": None,
-            "temperature_c": requested_temperature_c,
-            "unavailable_reason": "excluded_data_quality_pair",
-        }
     resolved_polymer, resolved_solvent = resolve_names(polymer, solvent)
     if not resolved_polymer or not resolved_solvent:
         return {
@@ -712,8 +678,6 @@ def get_solubility_curve(
     t_end_c: float = 160.0,
     t_step_c: float = 5.0,
 ) -> list[dict]:
-    if is_solubility_pair_excluded(polymer, solvent):
-        return []
     resolved_polymer, resolved_solvent = resolve_names(polymer, solvent)
     if not resolved_polymer or not resolved_solvent:
         return []
@@ -741,15 +705,12 @@ def get_available_solvents_for_polymer(polymer: str) -> set[str]:
         return set()
     return {
         solvent for (candidate, solvent) in _usable_grid_pairs()
-        if candidate == resolved and solvent not in EXCLUDED_SOLVENTS
+        if candidate == resolved
     }
 
 
 def get_available_pairs() -> set[tuple[str, str]]:
-    return {
-        pair for pair in _usable_grid_pairs()
-        if pair[1] not in EXCLUDED_SOLVENTS
-    }
+    return set(_usable_grid_pairs())
 
 
 def get_all_solvents_selectivity(
@@ -873,13 +834,7 @@ def identify_known_solvent(name: str) -> Optional[dict]:
 
 def get_fitted_solvent_status(name: str) -> str:
     """Classify stored-grid availability independently from chemical identity."""
-    fitted_solvents = _available_solvents() | EXCLUDED_SOLVENTS
-    resolved = resolve_solvent(name, known=fitted_solvents)
-    if resolved is None:
-        return "unavailable"
-    if resolved in EXCLUDED_SOLVENTS:
-        return "excluded_data_quality"
-    return "available"
+    return "unavailable" if resolve_solvent(name) is None else "available"
 
 
 @lru_cache(maxsize=1)

@@ -53,12 +53,7 @@ def _solvent_resolution_detail(solvent_name: str) -> dict[str, Any]:
     """Describe one unresolved model identity without collapsing its cause."""
     identity = thermo.identify_known_solvent(solvent_name)
     model_status = thermo.get_fitted_solvent_status(solvent_name)
-    if identity is None:
-        identity_status = "not_found"
-    elif model_status == "excluded_data_quality":
-        identity_status = "known_with_excluded_fitted_model"
-    else:
-        identity_status = "known_without_fitted_model"
+    identity_status = "not_found" if identity is None else "known_without_grid_values"
     return {
         "solvent_name": solvent_name,
         "solvent_identity_status": identity_status,
@@ -72,11 +67,6 @@ def _solvent_resolution_error(tool: str, solvent_name: str) -> str:
     detail = _solvent_resolution_detail(solvent_name)
     if detail["solvent_identity_status"] == "not_found":
         message = f"Unknown solvent: {solvent_name!r}."
-    elif detail["fitted_model_status"] == "excluded_data_quality":
-        message = (
-            f"Known solvent with data-quality-excluded grid values: "
-            f"{solvent_name!r}."
-        )
     else:
         message = (
             f"Known solvent without available solubility grid values: "
@@ -120,16 +110,6 @@ def _resolve_pair(tool: str, polymer_name: str, solvent_name: str) -> tuple[str,
     solvent = thermo.resolve_solvent(solvent_name)
     if solvent is None:
         return _solvent_resolution_error(tool, solvent_name)
-    if thermo.is_solubility_pair_excluded(polymer, solvent):
-        reason = thermo.get_solubility_pair_exclusion_reason(polymer, solvent)
-        return tool_error(
-            tool,
-            f"Excluded data-quality pair: {polymer} in {solvent}.",
-            error_code="excluded_data_quality_pair",
-            polymer_name=polymer,
-            solvent_name=solvent,
-            reason=reason,
-        )
     if not thermo.has_solubility_pair(polymer, solvent):
         return tool_error(
             tool,
