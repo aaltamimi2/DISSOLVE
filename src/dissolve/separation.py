@@ -21,37 +21,12 @@ from .tools import (
 )
 
 
-def _declared_deliverable_solvents(typed_deliverable: Any) -> list[str]:
-    """Read named solvents from the typed deliverable.
-
-    Preference lives in ``runtime.declared_solvents``: ``candidate_solvents``
-    wins whenever it is a list, including empty. The legacy ``solvents`` key
-    is only the fallback when the candidate field is absent. Guard, projector,
-    merge, and TEA readers consume that one rule.
-    """
-    return declared_solvents(typed_deliverable)
-
-
 def _context_declared_solvents(context: dict[str, Any]) -> list[str]:
     """Prefer the typed deliverable, then the same dual-key rule on context."""
     declared = context.get("declared_deliverable")
     if has_declared_solvents(declared):
         return declared_solvents(declared)
     return declared_solvents(context)
-
-
-def _bind_declared_solvents(context: dict[str, Any]) -> dict[str, Any]:
-    """Write the preferred solvent list onto ``context['solvents']``."""
-    if not has_declared_solvents(context.get("declared_deliverable")) and (
-        not has_declared_solvents(context)
-    ):
-        return context
-    names = _context_declared_solvents(context)
-    if context.get("solvents") == names:
-        return context
-    projected = dict(context)
-    projected["solvents"] = names
-    return projected
 
 
 def _feed_names(values: object) -> tuple[list[str], list[str]]:
@@ -70,16 +45,6 @@ def _feed_names(values: object) -> tuple[list[str], list[str]]:
     return names, list(dict.fromkeys(unsupported))
 
 
-def _authorized_plan_polymers(
-    original_query: str,
-    typed_context: dict[str, Any],
-) -> set[str]:
-    """User-named identities plus polymers already established in typed state."""
-    return set(thermo.named_polymer_identities(original_query)) | set(
-        thermo.context_polymer_identities(typed_context)
-    )
-
-
 def _argument_polymer_identities(value: object) -> list[str]:
     if isinstance(value, (list, tuple)):
         identities: list[str] = []
@@ -94,24 +59,6 @@ def _argument_polymer_identities(value: object) -> list[str]:
         return list(members)
     resolved = thermo.resolve_polymer(text)
     return [resolved or text]
-
-
-def _invented_polymer_identities(
-    arguments: dict[str, Any],
-    authorized: set[str],
-) -> list[str]:
-    extras: list[str] = []
-    for key in (
-        "first_polymer", "second_polymer", "recovered_polymer",
-        "sacrificial_getter_polymer", "target_polymer", "polymer_name",
-        "polymer", "feed_polymers", "target_polymers", "other_polymers",
-        "polymers",
-    ):
-        extras.extend(
-            item for item in _argument_polymer_identities(arguments.get(key))
-            if item not in authorized
-        )
-    return list(dict.fromkeys(extras))
 
 
 def resolve_polymer_data_scope(
@@ -239,75 +186,6 @@ def _declared_material_labels(context: dict[str, Any]) -> list[str]:
     return labels
 
 
-def _validate_material_membership_plan(
-    membership_call: dict[str, Any] | None,
-    scope_call: dict[str, Any] | None,
-    declared_request_kind: Any,
-    typed_context: dict[str, Any],
-) -> tuple[str, ...]:
-    labels = _declared_material_labels(typed_context)
-    declared = typed_context.get("declared_deliverable")
-    membership_requested = bool(
-        declared_request_kind == "capability_inventory"
-        and isinstance(declared, dict)
-        and "membership" in (declared.get("requested_quantities") or [])
-        and labels
-    )
-    roster_requested = bool(
-        declared_request_kind == "capability_inventory"
-        and isinstance(declared, dict)
-        and not labels
-    )
-    violations: list[str] = []
-    if membership_call is None:
-        if membership_requested:
-            violations.append(
-                "Use lookup_material_database_membership for the declared "
-                f"material labels {labels}; it checks polymer and solvent "
-                "namespaces before answering database membership."
-            )
-        return tuple(violations)
-    if roster_requested:
-        violations.append(
-            "For a capability_inventory with no named material labels, use "
-            "resolve_polymer_data_scope with feed_polymers=[] and "
-            "include_capability_inventory=true; membership lookup requires "
-            "named labels."
-        )
-        return tuple(violations)
-    if not membership_requested:
-        violations.append(
-            "Use lookup_material_database_membership only when the declared "
-            "capability_inventory requests quantity membership."
-        )
-    if scope_call is not None:
-        violations.append(
-            "Use one membership lookup, not a polymer-scope lookup beside it."
-        )
-    arguments = membership_call.get("args")
-    supplied = (
-        list(dict.fromkeys(
-            str(item).strip()
-            for item in arguments.get("material_names", [])
-            if str(item).strip()
-        ))
-        if isinstance(arguments, dict)
-        and isinstance(arguments.get("material_names"), list)
-        else []
-    )
-    if not labels:
-        violations.append(
-            "The declared capability_inventory deliverable must name each "
-            "material whose database membership is being checked."
-        )
-    elif supplied != labels:
-        violations.append(
-            f"Preserve declared material_names exactly: {labels}; "
-            f"received {supplied}."
-        )
-    return tuple(violations)
-
-
 def lookup_material_database_membership(material_names: list[str]) -> str:
     """Check each label independently against polymer and solvent namespaces."""
     tool = "lookup_material_database_membership"
@@ -367,38 +245,6 @@ def lookup_material_database_membership(material_names: list[str]) -> str:
         ],
         model_basis="canonical polymer identity registry and admitted thermodynamic solvent aliases",
     )
-
-
-def _typed_precipitation_value(context: dict[str, Any], key: str) -> Any:
-    declared = context.get("declared_deliverable")
-    return (
-        declared.get(key)
-        if isinstance(declared, dict)
-        else context.get(key)
-    )
-
-
-def _typed_precipitation_full_feed(
-    context: dict[str, Any], original_query: str,
-) -> bool:
-    declared = context.get("declared_deliverable")
-    if isinstance(declared, dict):
-        return (
-            declared.get("kind") == "precipitation_order"
-            and declared.get("candidate_scope") == "full_feed"
-        )
-    return False  # v12: caller declares scope; no prose sniffing
-
-
-def _typed_precipitation_feed(
-    context: dict[str, Any],
-) -> tuple[list[str], bool]:
-    declared = context.get("declared_deliverable")
-    if isinstance(declared, dict):
-        feed, _ = _feed_names(declared.get("feed_polymers"))
-        return feed, True
-    feed, _ = _feed_names(context.get("polymers"))
-    return feed, False
 
 
 def _full_feed_order_summary(row: dict[str, Any]) -> dict[str, Any]:
