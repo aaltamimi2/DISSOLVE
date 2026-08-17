@@ -1,0 +1,1008 @@
+﻿S/N,Solvent name,Solvent name in cosmobase,CAS number,CID,Bp (oC),Th,LogP,Cp (J/g.K),Energy (J/g)
+1,"1,1,1,2-Tetrachloroethane","1,1,1,2-tetrachloroethane",630-20-6,12418,130.5,120,2.70,0.80,75.83
+2,"1,1,1-Trichloroethane","1,1,1-trichloroethane",71-55-6,6278,74,72,2.52,0.90,42.14
+3,"1,1,1-Trifluoroethane","1,1,1-trifluoroethane",420-46-2,9868,-47.5,-48,1.20,1.32,-96.56
+4,"1,1,2,2-Tetrabromoethane","1,1,2,2-tetrabromoethane",79-27-6,6588,243.5,120,2.89,0.41,38.56
+5,"1,1,2,2-Tetrachloroethane","1,1,2,2-tetrachloroethane",79-34-5,6591,146.5,120,2.53,0.80,75.83
+6,"1,1,2-Trichloroethane","1,1,2-trichloroethane",79-00-5,6574,113.8,112,2.05,0.97,84.22
+7,"1,1,2-Trichlorotrifluoroethane (Freon113)","1,1,2-trichloro-1,2,2-trifluoroethane",76-13-1,6428,47.7,46,3.26,0.94,19.71
+8,"1,1,3,3-Tetramethoxypropane","1,1,3,3-tetramethoxypropane",102-52-3,66019,183,120,1.59,2.14,203.02
+9,"1,1-Dibromoethane","1,1-dibromoethane",557-91-5,11201,109,108,2.03,0.71,58.60
+10,"1,1-Dichloro-1-Nitroethane","1,1-dichloro-1-nitroethane",594-72-9,11674,123.5,120,2.60,1.11,105.90
+11,"1,1-Dichloroacetone","1,1-dichloroacetone",513-88-2,10567,120,118,1.88,1.24,114.99
+12,"1,1-Dichloroethane","1,1-dichloroethane",75-34-3,6365,57.4,56,1.76,1.12,34.72
+13,"1,1-Dichloroethylene","1,1-dichloroethylene",75-35-4,6366,31.6,30,2.19,0.83,4.15
+14,"1,1-Dichloropropane","1,1-dichloropropane",78-99-9,6573,88.1,86,2.36,1.39,84.85
+15,"1,1-Dichloropropene","1,1-dichloropropene",563-58-6,11245,76.5,74,2.63,1.17,57.28
+16,"1,1-Diethoxy Ethane","1,1-diethoxyethane",105-57-7,7765,102.2,100,2.33,2.22,166.51
+17,"1,1-Difluoroethane","1,1-difluoroethane",75-37-6,6368,-24.9,-24,0.86,1.62,-79.61
+18,"1,1-Difluoroethylene","1,1-difluoroethene",75-38-7,6369,-85.7,-86,1.47,0.74,-82.03
+19,"1,1-Dimethoxy Ethane","1,1-dimethoxyethane",534-15-6,10795,64.5,62,1.15,2.03,74.93
+20,"1,1-Dimethyl Hydrazine","1,1-dimethylhydrazine",57-14-7,5976,63,62,-0.21,2.16,79.80
+21,"1,2,3,4-Tetramethylbenzene","1,2,3,4-tetramethylbenzene",488-23-3,10263,205,120,3.77,2.24,212.93
+22,"1,2,3,5-Tetramethylbenzene","1,2,3,5-tetramethylbenzene",527-53-7,10695,198,120,3.90,2.24,212.93
+23,"1,2,3-Benzotriazole",1h-benzotriazole,95-14-7,7220,350,120,-0.24,1.70,161.93
+24,"1,2,3-Triazole","1h-1,2,3-triazole",288-36-8,67516,,,-1.81,0.00,0.00
+25,"1,2,3-Trichloro Propene","1,2,3-trichloropropene",96-19-5,5370144,142,120,2.27,1.01,95.78
+26,"1,2,3-Trichloropropane","1,2,3-trichloropropane",96-18-4,7285,157,120,2.05,1.18,112.57
+27,"1,2,4,5-Tetrachlorobenzene","1,2,4,5-tetrachlorobenzene",95-94-3,7270,244.5,120,4.03,0.92,87.09
+28,"1,2,4-Trichlorobenzene","1,2,4-trichlorobenzene",120-82-1,13,213.5,120,3.47,1.18,111.64
+29,"1,2-Butadiene","1,2-butadiene",590-19-2,11535,10.9,8,2.03,2.19,-37.24
+30,"1,2-Chlorobromoethylene",1-bromo-2-chloroethene,3018-09-5,5462544,84.6,82,2.15,0.67,38.18
+31,"1,2-Cyclohexanedione","1,2-cyclohexanedione",765-87-7,13006,194,120,-0.09,1.95,185.65
+32,"1,2-Dibromoethylene",cis-dibromoethene,540-49-8,637929,112.5,110,2.05,0.55,46.54
+33,"1,2-Dichloroethylene (Cis)","cis-1,2-dichloroethene",156-59-2,643833,60.1,58,1.80,0.89,29.47
+34,"1,2-Dichloropropane","1,2-dichloropropane",78-87-5,6564,95.5,94,2.11,1.49,102.85
+35,"1,2-Dichlorotetrafluoroethane (Freon 114)","1,2-dichlorotetrafluoroethane",76-14-2,6429,3.8,2,2.99,0.96,-22.09
+36,"1,2-Diethyl Benzene","1,2-diethylbenzene",135-01-3,8657,184,120,3.84,2.24,212.93
+37,"1,2-Dihydroxybenzene (Catechol)","1,2-benzenediol",120-80-9,289,245,120,1.54,1.80,171.45
+38,"1,2-Dimethoxybenzene","1,2-dimethoxybenzene",91-16-7,7043,206,120,1.79,16.63,1579.42
+39,"1,2-Dinitrobenzene",o-dinitrobenzene,528-29-0,10707,318,120,2.34,1.45,137.63
+40,"1,2-Ethane Dithiol","1,2-ethanedithiol",540-63-6,10902,146,120,1.39,1.58,149.95
+41,"1,2-Methylenedioxybenzene (G.C.)","1,3-benzodioxole",274-09-9,9229,172.5,120,2.07,1.76,167.25
+42,"1,2-Propadiene (Allene)",propadiene,463-49-0,10037,-34.4,-34,1.42,2.21,-130.63
+43,"1,3,5-Trioxane","1,3,5-trioxane",110-88-3,8081,114.5,112,-0.39,1.84,160.24
+44,"1,3-Benzenediol",resorcinol,108-46-3,5054,280,120,0.76,1.80,171.45
+45,"1,3-Bis(Trifluoromethyl)Benzene","1,3-bis-(triflouromethyl)-benzene",402-31-3,223106,116,114,3.36,1.30,115.45
+46,"1,3-Butadiene",butadiene,106-99-0,7845,-4.4,-4,1.89,2.15,-62.37
+47,"1,3-Butadiene-1-Chloro",1-chloroprene,627-22-5,5462923,,,2.26,0.00,0.00
+48,"1,3-Butanediol","1,3-butanediol",107-88-0,7896,207.5,120,0.10,3.07,291.51
+49,"1,3-Dichloro Propane","1,3-dichloropropane",142-28-9,8881,120.9,118,1.77,1.53,142.37
+50,"1,3-Dichloro-2-Butene","1,3-dichloro-2-butene",926-57-8,643911,131,120,2.24,1.46,138.58
+51,"1,3-Dichloro-2-Propanol","1,3-dichloro-2-propanol",96-23-1,7289,176,120,1.29,1.42,135.14
+52,"1,3-Dioxolane",dioxolane,646-06-0,12586,78,76,-0.19,1.86,94.95
+53,"1,3-Pentadiene (Trans)",1-trans-3-pentadiene,2004-70-8,62204,42,40,2.43,2.02,30.32
+54,"1,3-Propane Sultone",propanesultone,1120-71-4,14264,,,-0.59,0.00,0.00
+55,"1,3-Propanediol (Trimethyleneglycol)","1,3-propanediol",504-63-2,10442,214.4,120,-0.48,2.83,268.70
+56,"1,4-Butanediol","1,4-butadiol",110-63-4,8064,235,120,-0.02,2.23,212.10
+57,"1,4-Dichlorobutane","1,4-dichlorobutane",110-56-5,8059,161,120,2.16,1.60,152.45
+58,"1,4-Dihydroxybenzene (1,4-Benzenediol)",hydroquinone,123-31-9,785,287,120,0.55,1.80,171.45
+59,"1,4-Dioxane",dioxane,123-91-1,31275,101.5,100,0.05,2.03,152.12
+60,"1,4-Dioxane (High P)",dioxane,123-91-1,31275,101.5,100,0.05,2.03,152.12
+61,"1,4-Thioxane","1,4-oxathiane",15980-15-1,27596,147,120,0.87,1.88,178.25
+62,"1,5-Dichloropentane","1,5-dichloro-pentane",628-76-2,12353,179,120,2.61,1.69,160.44
+63,"1,8-Cineole (Eucalyptol)","1,8-cineole",470-82-6,2758,176.4,120,3.16,2.30,218.60
+64,"1,9-Nonanediol",1-9-nonanediol,3937-56-2,19835,,,2.15,0.00,0.00
+65,1-Aminocyclopropane Carboxylic Acid,1-aminocyclopropanecarboxylicacid,22059-21-8,535,,,-0.94,0.00,0.00
+66,1-Bromonaphthalene,1-bromonaphthalene,90-11-9,7001,281,120,3.46,1.35,127.89
+67,1-Bromopropane,1-bromopropane,106-94-5,7840,71.1,70,2.14,1.15,51.85
+68,1-Butanethiol,butanethiol,109-79-5,8012,98.5,96,2.47,2.07,147.06
+69,1-Butanol,1-butanol,71-36-3,263,117.7,116,1.12,3.37,306.84
+70,1-Butene,1-butene,106-98-9,7844,-6.2,-6,2.32,2.17,-67.20
+71,1-Chloro Pentane,1-chloropentane,543-59-9,10977,107.8,106,3.06,1.99,161.20
+72,1-Chloro-1-Nitroethane,1-chloro-1-nitroethane,598-92-5,61149,,,1.61,0.00,0.00
+73,1-Chloro-1-Nitropropane,1-chloro-1-nitropropane,600-25-9,11750,142,120,2.09,1.57,148.94
+74,1-Chloro-2-Ethoxy Benzene,1-chloro-2-ethoxybenzene,614-72-2,69197,210,120,3.19,1.74,165.75
+75,1-Chloro-2-Ethyl Benzene,1-chloro-2-ethylbenzene,89-96-3,6995,178.4,120,3.41,1.81,172.28
+76,1-Chloro-2-Methyl Propene,1-chloro-2-methyl-1-propene,513-37-1,10555,68,66,2.46,1.69,69.23
+77,1-Chloro-4-Ethoxy Benzene,1-chloro-4-ethoxybenzene,622-61-7,69326,213,120,3.28,1.74,165.75
+78,1-Chlorobutane,1-chlorobutane,109-69-3,8005,78.6,76,2.54,1.86,94.67
+79,1-Chlorohexane,1-chlorohexane,544-10-5,10992,135,120,3.61,2.06,196.11
+80,1-Chloronaphthalene,1-chloronaphthalene,90-13-1,7003,259,120,3.37,1.30,123.41
+81,1-Chloropropene,1-chloro-1-propene,590-21-6,5284364,,,2.01,0.00,0.00
+82,1-Decanol,1-decanol,112-30-1,8174,231.1,120,4.30,3.02,286.59
+83,1-Decene,1-decene,872-05-9,13381,170.5,120,5.50,2.44,231.80
+84,1-Heptanol,1-heptanol,111-70-6,8129,176.4,120,2.71,3.15,298.93
+85,1-Heptene,1-heptene,592-76-7,11610,93.6,92,3.91,2.41,161.69
+86,1-Hexanol,1-hexanol,111-27-3,8103,157.6,120,2.18,3.22,306.11
+87,1-Hexene,1-hexene,592-41-6,11597,63.4,62,3.38,2.23,82.41
+88,"1-Methoxy-1,3-Butadiene","1-methoxy-1,3-butadiene",3036-66-6,5462719,,,1.92,0.00,0.00
+89,1-Methoxy-2-Nitrobenzene,1-methoxy-2-nitrobenzene,91-23-6,7048,277,120,1.66,1.70,161.95
+90,1-Methyl Cyclohexanol,1-methylcyclohexanol,590-67-0,11550,155,120,2.17,3.21,304.63
+91,1-Methyl Imidazole,1-methylimidazol,616-47-7,1390,198,120,-0.30,2.43,230.76
+92,1-Methyl Naphthalene,1-methylnaphthalene,90-12-0,7002,244.7,120,3.29,2.00,189.89
+93,1-Methyl Vinyl Methyl Ether,2-methoxy-1-propene,116-11-0,8300,34,32,1.72,1.92,13.47
+94,1-Naphthol,1-naphthol,90-15-3,7005,288,120,2.52,1.85,175.85
+95,1-Nitropropane,1-nitropropane,108-03-2,7903,131.1,120,1.40,1.98,188.40
+96,1-Nonanol,1-nonanol,143-08-8,8914,213.3,120,3.79,3.07,292.00
+97,1-Nonene,1-nonene,124-11-8,31285,146.9,120,4.97,2.44,231.80
+98,1-Octanol,1-octanol,111-87-5,957,,,3.26,0.00,0.00
+99,1-Octene,octene,111-66-0,8125,121.2,120,4.44,2.44,231.80
+100,1-Pentanol,1-pentanol,71-41-0,6276,137.9,120,1.65,3.28,311.49
+101,1-Pentene,pentene,109-67-1,8004,29.9,28,2.86,2.23,6.70
+102,1-Propanethiol,1-propanethiol,107-03-9,7848,67.8,66,1.93,1.90,77.82
+103,1-Propanol,propanol,71-23-8,1031,97.2,96,0.57,3.24,230.01
+104,1-Tetradecene,1-tetradecene,1120-36-1,14260,233,120,7.62,2.44,231.80
+105,"2,2',5,5'-Tetrathiafulvalen",tetrathiafulvalene,31366-25-3,99451,,,3.33,0.00,0.00
+106,"2,2,2-Trifluoro Ethanol","2,2,2-trifluoroethanol",75-89-8,6409,74,72,0.46,2.00,93.97
+107,"2,2,4-Trimethylpentane","2,2,4-trimethylpentane",540-84-1,10907,99.2,98,4.35,2.45,178.52
+108,"2,2-Dimethyl-1-Propanol (Neopentyl Alc.)","2,2-dimethyl-1-propanol",75-84-3,6404,113.5,112,1.59,3.44,299.62
+109,"2,3-Benzofuran (Cumaron)",benzofuran,271-89-6,9223,174,120,2.46,1.80,171.29
+110,"2,3-Dichloro-1,3-Butadiene","2,3-dichlorobuta-1,3-diene",1653-19-6,15447,98,96,2.77,1.22,86.85
+111,"2,3-Dichloropropanol","2,3-dichloro-1-propanol",616-23-9,12018,184,120,1.27,1.42,135.14
+112,"2,3-Dichloropropene","2,3-dichloro-1-propene",78-88-6,6565,94,92,1.82,1.21,81.18
+113,"2,4,6-Tribromo Phenol","2,4,6-tribromo-phenol",118-79-6,1483,286,120,3.78,0.67,63.53
+114,"2,4,6-Trichlorophenol","2,4,6-trichlorophenol",88-06-2,6914,246,120,3.50,1.06,101.10
+115,"2,4-Dichloroaniline","2,4-dichloroaniline",554-00-7,11123,245,120,2.27,1.34,127.26
+116,"2,4-Dichlorophenol","2,4-dichlorophenol",120-83-2,8449,210,120,2.93,1.25,119.08
+117,"2,4-Difluoronitrobenzene","2,4-difluoro-1-nitrobenzene",446-35-5,67967,207,120,1.97,1.36,129.18
+118,"2,4-Dimethylaniline","2,4-dimethylaniline",95-68-1,7250,214,120,1.96,2.14,203.47
+119,"2,4-Dinitrotoluene","1-methyl-2,4-dinitrobenzene",121-14-2,8461,300,120,2.55,1.56,147.94
+120,"2,5-Dichlorophenol","2,5-dichlorophenol",583-78-8,66,211,120,3.01,1.25,119.08
+121,"2,5-Dimethoxytetrahydrofuran",dimethoxytetrahydrofuran,696-59-3,79098,145.7,120,1.13,2.09,198.88
+122,"2,5-Dimethyl Pyrrole","2,5-dimethylpyrrole",625-84-3,12265,,,1.59,0.00,0.00
+123,"2,6-Dichlorophenol","2,6-dichlorophenol",87-65-0,6899,220,120,2.85,1.25,119.08
+124,"2,6-Difluorobenzonitrile","2,6-difluorobenzonitrile",1897-52-5,74695,,,1.52,0.00,0.00
+125,"2,6-Dimethoxy Phenol","2,6-dimethoxyphenol",91-10-1,7041,261,120,1.82,1.89,179.92
+126,"2,6-Dimethyl Phenol","2,6-dimethylphenol",576-26-1,11335,201,120,2.46,2.11,200.03
+127,2-(Diethylamino)Ethanol,2-(diethylamino)-ethanol,100-37-8,7497,163,120,2.01,2.82,267.47
+128,2-Acetyl Thiophene,2-acetothiophene,88-15-3,6920,213.5,120,1.14,1.63,155.10
+129,2-Amino Pyridine,2-aminopyridine,504-29-0,10439,,,0.08,0.00,0.00
+130,2-Bromo Propene,2-bromopropene,557-93-7,11202,48.4,46,2.08,1.02,21.38
+131,2-Bromobutane,2-bromobutane,78-76-2,6554,91.2,90,2.51,1.46,94.65
+132,2-Bromopropane,2-bromopropane,75-26-3,6358,59.5,58,2.00,1.22,40.40
+133,2-Bromothiophene,2-bromothiophene,1003-09-4,13851,150,120,2.60,0.95,89.98
+134,2-Butanol,2-butanol,78-92-2,6568,99.5,98,1.21,3.73,272.50
+135,2-Butene (Cis),cis-2-butene,590-18-1,5287573,3.7,2,2.27,2.15,-49.51
+136,2-Butene (Trans),trans-2-butene,624-64-6,62695,0.8,0,2.36,2.22,-55.47
+137,2-Butynedinitrile,2-butynedinitrile,1071-98-3,14068,76.5,74,0.94,1.14,55.96
+138,2-Chloro Propene (Isopropenyl Chloride),2-chloro-1-propene,557-98-2,11203,22.6,20,1.96,1.39,-6.93
+139,2-Chloro-2-Methyl Propane,2-chloro-2-methylpropane,507-20-0,10486,50.9,48,2.21,1.88,43.16
+140,2-Chloro-4-Methylaniline,2-chloro-4-methylbenzenamine,615-65-6,12007,220,120,2.20,1.73,164.49
+141,2-Chloro-5-Methyl Phenol,2-chloro-5-methylphenol,615-74-7,12008,196,120,2.88,1.65,156.43
+142,2-Chloroacetamide,2-chloroacetamide,79-07-2,6580,224.5,120,-1.00,1.46,138.86
+143,2-Chlorobutane,2-chlorobutane,78-86-4,6563,68,66,2.39,1.74,71.27
+144,2-Chlorocyclohexanone,2-chlorocyclohexanone,822-87-7,13203,,,1.01,0.00,0.00
+145,2-Chloroethyl Acetate,2-chloroethanolacetate,542-58-5,10959,145,120,0.79,1.67,158.55
+146,2-Chloroethyl Benzene,b-phenylethylchloride,622-24-2,231496,197,120,2.91,1.81,172.28
+147,2-Chloroethyl Ethyl Ether,2-chloroethylethylether,628-34-2,12341,107,106,1.58,1.87,151.50
+148,2-Chloroethyl Ethyl Sulfide,2-chloroethylethylsulfide,693-07-2,12733,156.5,120,2.42,1.73,164.79
+149,2-Chlorophenol,2-chlorophenol,95-57-8,7245,174.9,120,2.36,1.78,169.42
+150,2-Chlorothiophene,2-chlorothiophene,96-43-5,7299,128.3,120,2.52,1.25,118.75
+151,2-Ethyl Hexyl Acetate,aceticacid-2-ethylhexylester,103-09-3,7635,199,120,4.06,2.29,217.27
+152,2-Ethyl Hexyl Acrylate,2-propenoicacid-2-ethylhexylester,103-11-7,7636,213.5,120,4.58,2.24,213.10
+153,2-Ethyl-1-Butanol,2-ethyl-1-butanol,97-95-0,7358,147,120,2.16,2.40,227.99
+154,2-Ethyl-1-Butene,2-ethyl-1-butene,760-21-4,12970,64.7,62,3.19,2.23,82.41
+155,2-Ethyl-Hexanol,2-ethyl-1-hexanol,104-76-7,7720,184.6,120,3.24,3.46,328.32
+156,2-Furonitrile,2-furancarbonitrile,617-90-3,69245,146,120,0.95,1.59,151.33
+157,2-Heptanol,2-heptanol,543-49-7,10976,159,120,2.83,2.40,228.47
+158,2-Methyl (Cis) Acrylic Acid,(z)-2-butenoicacid,503-64-0,643792,169,120,0.88,1.92,182.76
+159,2-Methyl Cyclohexanol (Mix),2-methylcyclohexanol,583-59-5,11418,164.5,120,2.07,2.33,221.28
+160,2-Methyl Cyclohexanone,2-methylcyclohexanone,583-60-8,11419,162,120,1.51,2.24,212.60
+161,2-Methyl Pyrazine,2-methylpyrazine,109-08-0,7976,137,120,0.43,1.91,181.63
+162,2-Methyl Tetrahydrofuran,2-methyltetrahydrofuran,96-47-9,7301,78,76,1.52,2.13,108.64
+163,"2-Methyl-1,3-Dioxolane",methyldioxolane,497-26-7,10342,81.5,80,0.42,1.96,107.75
+164,2-Methyl-1-Butanol,2-methyl-1-butanol,137-32-6,8723,128,120,1.66,3.93,373.52
+165,2-Methyl-1-Butene,2-methyl-1-butene,563-46-2,11240,31.2,30,2.69,2.10,10.52
+166,2-Methyl-1-Chloro Acrolein,2-chloro-2-butenal,53175-28-3,5355510,,,0.69,0.00,0.00
+167,2-Methyl-1-Pentanol,2-methyl-1-pentanol,105-30-6,7745,149,120,2.21,2.40,227.99
+168,2-Methyl-2-Butanol,2-methyl-2-butanol,75-85-4,6405,102.4,100,1.61,3.45,258.64
+169,2-Methyl-2-Butene,2-methyl-2-butene,513-35-9,10553,38.5,36,2.78,2.13,23.41
+170,2-Methylfuran,2-methylfuran,534-22-5,10797,65,64,1.97,1.80,70.19
+171,2-Nitropropane,2-nitropropane,79-46-9,398,120.2,118,1.49,1.98,183.88
+172,2-Nitrothiophene,2-nitrothiophene,609-40-5,11866,224.5,120,1.57,1.32,125.77
+173,2-Octanol,2-octanol,123-96-6,20083,178.5,120,3.37,2.41,228.85
+174,2-Oxopyrrolidinacetamid,piracetam,7491-74-9,4843,,,-2.31,0.00,0.00
+175,2-Pentanol,2-pentanol,6032-29-7,22386,119.3,118,1.76,3.39,314.83
+176,2-Phenoxy Ethanol,2-phenoxyethanol,122-99-6,31236,245,120,1.64,1.97,187.42
+177,2-Phenyl Ethanol,2-phenylethanol,60-12-8,6054,218.2,120,1.48,2.07,196.25
+178,2-Propanethiol,2-propanethiol,75-33-2,6364,52.6,50,1.88,1.84,45.94
+179,2-Propanol,2-propanol,67-63-0,3776,82.3,80,0.56,3.34,183.81
+180,2-Propyn-1-ol,propynol,107-19-7,7859,113.6,112,-0.13,1.93,167.92
+181,2-Pyrrolidone,2-pyrrolidon,616-45-5,12025,245,120,-1.05,2.04,194.05
+182,2-t-Butyl-4-Methyl Phenol,"2-(1,1-dimethylethyl)-4-methylphenol",2409-55-4,17004,237,120,4.11,2.18,207.34
+183,2-Thiabutane,(methylthio)-ethane,624-89-5,12230,66.7,64,1.78,1.89,73.74
+184,2-Toluidine,2-methyl-benzeneamine,95-53-4,7242,200.3,120,1.44,2.25,213.57
+185,2-Vinyl Toluene,2-vinyltoluene,611-15-4,11904,169.8,120,3.06,2.11,200.30
+186,"3,3,3-Trichloro Propene","3,3,3-trichloro-1-propene",2233-00-3,16690,114.5,112,2.82,1.00,86.59
+187,"3,4-Dichloronitrobenzene","3,4-dichloronitrobenzene",99-54-7,7443,255.5,120,3.06,1.16,110.39
+188,"3,4-Dichlorotoluene","3,4-dichlorotoluene",95-75-0,7256,208.9,120,3.46,1.42,135.28
+189,"3,4-Dimethyl Phenol","3,4-dimethylphenol",95-65-8,7249,227,120,2.24,2.07,196.25
+190,"3,4-Dinitrophenol","3,4-dinitrophenol",577-71-9,11348,,,2.09,0.00,0.00
+191,"3,4-Epoxy-1-Butene",vinyloxirane,930-22-3,13586,65,64,0.80,1.89,73.55
+192,"3,5-Dinitrophenol","3,5-dinitrophenol",586-11-8,11459,,,2.32,0.00,0.00
+193,3-Bromopropyne,3-bromopropyne,106-96-7,7842,89,88,1.38,0.91,57.42
+194,3-Butenenitrile,3-butenenitrile,109-75-1,8009,119,118,0.19,2.00,186.44
+195,3-Chloro-1-Propanol,3-chloro-1-propanol,627-30-5,12313,165,120,0.51,1.80,171.25
+196,3-Chloro-2-Methyl Propene,3-chloro-2-methyl-1-propene,563-47-3,11241,72,70,2.10,1.70,76.60
+197,3-Chlorobenzylchloride,1-chloro-3-(chloromethyl)benzene,620-20-2,12103,216,120,2.81,1.42,135.28
+198,3-Chloropropionitrile,3-chloropropanenitrile,542-76-7,10963,175,120,-0.25,1.51,143.73
+199,3-Chloropropyne,3-chloropropyne,624-65-7,12221,58,56,1.21,1.27,39.33
+200,3-Heptanol,3-heptanol,589-82-2,11520,,,2.93,0.00,0.00
+201,3-Hydroxy Tetrahydrofuran,tetrahydro-3-furanol,453-20-3,9960,181,120,-0.33,2.09,198.88
+202,3-Methoxy Butanol,3-methoxy-1-butanol,2517-43-3,17291,161,120,0.99,2.27,215.23
+203,3-Methoxy-3-Methyl Butanol,3-methoxy-3-methylbutanol,56539-66-3,62118,,,1.29,0.00,0.00
+204,3-Methoxypropionitrile,3-methoxypropanenitrile,110-67-8,61032,163,120,-0.34,2.04,194.05
+205,3-Methyl Cyclohexanol (Mix),3-methylcyclohexanol,591-23-1,11566,167,120,2.16,2.33,221.28
+206,3-Methyl Cyclohexanone,3-methylcyclohexanone,591-24-2,11567,169,120,1.37,2.24,212.60
+207,"3-Methyl-1,2-Butadiene","3-methyl-1,2-butadiene",598-25-4,11714,40.83,38,2.59,2.01,26.17
+208,3-Methyl-1-Butene,3-methyl-1-butene,563-45-1,11239,20.1,18,2.81,2.06,-14.40
+209,3-Methyl-2-Butanol,3-methyl-2-butanol,598-75-4,11732,112,110,1.53,3.12,265.49
+210,3-Nitroaniline,3-aminonitrobenzene,99-09-2,7423,306,120,1.18,1.69,160.20
+211,"4,4'-Methylenebis(Phenylisocyanate)","1,1'-methylenebis4-isocyanatobenzene",101-68-8,7570,,,5.11,0.00,0.00
+212,4-(Trifluoromethyl) Acetophenone,1-[4-(trifluoromethyl)phenyl]ethanone,709-63-7,69731,,,2.26,0.00,0.00
+213,4-Aminopyridine,4-pyridinamine,504-24-5,1727,,,-0.35,0.00,0.00
+214,4-Bromo-1-Butene,4-bromo-1-butene,5162-44-7,21241,98.5,96,2.31,1.32,93.49
+215,"4-Chloro-1,2-Butadiene","4-chloro-1,2-butadiene",25790-55-0,33173,,,1.87,0.00,0.00
+216,4-Chloroanisole,4-chloroanisole,623-12-1,12167,197.5,120,2.66,1.65,156.43
+217,4-Chlorobenzaldehyde,4-chlorobenzaldehyde,104-88-1,7726,213.5,120,1.69,1.50,142.68
+218,4-Chlorobenzonitrile,4-chlorobenzonitrile,623-03-0,12163,223,120,1.58,1.44,136.84
+219,4-Chlorobenzyl Alcohol,p-chlorobenzylalcohol,873-76-7,13397,235,120,1.65,1.65,156.43
+220,4-Chlorothiophenol,4-chlorobenzenethiol,106-54-7,7815,206,120,2.69,1.38,131.43
+221,4-Ethyl Morpholine,n-ethyl-morpholine,100-74-3,7525,138.5,120,1.53,2.26,215.16
+222,4-Ethyl Phenol,4-ethylphenol,123-07-9,31242,217.9,120,2.34,2.07,196.25
+223,"4-Ethyl-1,3-Dioxolane-2-One",butylenecarbonate,4437-85-8,107282,,,0.39,0.00,0.00
+224,4-Fluoro-3-Nitrobenzofluoride,"1,4-difluoro-2-nitrobenzene",364-74-9,67767,206.5,120,2.06,1.36,129.18
+225,4-Hydroxy Benzaldehyde,4-hydroxybenzaldehyde,123-08-0,126,310,120,0.54,1.76,167.25
+226,4-Methoxy Acetophenone,4-methoxyacetophenone,100-06-1,7476,258,120,1.46,1.93,183.15
+227,4-Methoxy Benzonitrile,4-methoxybenzonitrile,874-90-8,70129,256.5,120,1.24,1.81,171.96
+228,4-Nitrophenol,4-nitrophenol,100-02-7,980,279,120,1.32,1.60,151.76
+229,4-Pentenal,4-pentenal,2100-17-6,16418,,,0.96,0.00,0.00
+230,4-Vinyl Pyridine,4-vinylpyridine,100-43-6,7502,121,120,1.33,1.95,185.63
+231,"9,10-Anthraquinone",anthraquinone,84-65-1,6780,377,120,2.55,1.68,159.61
+232,"9,10-Phenanthrenequinone","9,10-phenanthrenedione",84-11-7,6763,,,1.87,0.00,0.00
+233,a-Methyl Styrene,alpha-methylstyrene,98-83-9,7407,165.4,120,3.10,2.08,197.15
+234,Acetaldehyde,acetaldehyde,75-07-0,177,20.1,18,-0.38,1.72,-12.03
+235,Acetaldoxime,acetaldehydeoxime,107-29-9,5324279,115,114,0.02,2.02,179.84
+236,Acetamide,acetamide,60-35-5,178,222,120,-1.88,2.04,193.74
+237,Acetanilide,acetanilide,103-84-4,904,304,120,0.92,1.93,183.80
+238,Acetic Acid,aceticacid,64-19-7,176,117.9,116,-0.27,2.42,219.78
+239,Acetic Anhydride,aceticanhydride,108-24-7,7918,139.5,120,0.43,1.81,171.64
+240,Acetone,propanone,67-64-1,180,56,54,-0.13,2.22,64.46
+241,Acetonecyanhydrin,2-hydroxy-2-methylpropanenitrile,75-86-5,6406,171,120,0.01,2.04,194.05
+242,Acetonitrile,acetonitrile,75-05-8,6342,81.6,80,-0.86,2.30,126.35
+243,Acetophenone,acetophenone,98-86-2,7410,202,120,1.39,1.96,186.05
+244,Acetoxime,2-propanoneoxime,127-06-0,67180,136,120,0.52,2.14,202.83
+245,Acetyl Salicylic Acid,aspirin,50-78-2,2244,,,1.68,0.00,0.00
+246,Acetylacetone,acetylacetone,123-54-6,31261,138,120,0.06,2.38,225.82
+247,Acetylbromide,acetylbromide,506-96-7,10482,76,74,1.41,0.86,42.14
+248,Acetylchloride,acetylchloride,75-36-5,6367,50.7,48,1.21,1.19,27.43
+249,Acetylene (Ethyne),ethine,74-86-2,6326,-28.1,-28,0.46,3.49,-185.15
+250,Acetylfluoride,acetylfluoride,557-99-3,11204,,,0.45,0.00,0.00
+251,Acridine,acridine,260-94-6,9215,345.5,120,2.70,1.82,172.59
+252,Acrolein,acrolein,107-02-8,7847,52.6,50,-0.04,1.72,42.99
+253,Acrylamide,2-propenamide,79-06-1,6579,192.6,120,-1.36,1.94,183.90
+254,Acrylic Acid,acrylicacid,79-10-7,6581,141.2,120,0.33,2.12,201.17
+255,Acrylonitrile,2-propenenitrile,107-13-1,7855,77.3,76,-0.03,1.72,87.56
+256,Acrylylchloride,propenoylchloride,814-68-6,13140,72,70,1.62,1.25,56.03
+257,Adenine,adenine,73-24-5,190,,,-1.75,0.00,0.00
+258,"Adipic Acid (1,6-Hexanedioic)",hexanedioicacid,124-04-9,196,337.5,120,0.17,1.90,180.49
+259,Allyl Acetate,aceticacid-2-propenylester,591-87-7,11584,103.5,102,1.19,1.96,150.98
+260,Allyl Acetic Acid,4-pentenoicacid,591-80-0,61138,83,82,1.18,1.89,107.95
+261,Allyl Acetoacetate,3-oxobutanoicacid-2-propenylester,1118-84-9,70701,196,120,0.80,1.94,183.91
+262,Allyl Alcohol,2-propen-1-ol,107-18-6,7858,97,96,0.37,2.11,150.06
+263,Allyl Amine,2-propen-1-amine,107-11-9,7853,53.3,52,0.46,2.08,56.14
+264,Allyl Bromide (3-Bromoprene),3-bromopropene,106-95-6,7841,70.1,68,1.71,1.07,46.12
+265,Allyl Chloride,3-chloropropene,107-05-1,7850,45.1,44,1.55,1.47,27.99
+266,Allyl Cyanide,3-butenenitrile,109-75-1,8009,119,118,0.19,2.00,186.44
+267,Allyl Ethylether,allylethylether,557-31-3,11191,67.6,66,1.88,2.09,85.79
+268,Allyl Fluoride,allylfluoride,818-92-8,69958,-3,-4,1.04,1.56,-45.15
+269,Allyl Formate,allylformate,1838-59-1,61278,80,78,0.84,1.79,94.92
+270,Allyl Isothiocyanate,isothiocyanatopropene,57-06-7,5971,152,120,2.28,1.63,155.08
+271,Allyl Mercaptan,allylthiol,870-23-5,13367,67,66,1.67,1.71,70.10
+272,Allyl Methacrylate,2-methyl-2-propenoicacid2-propenylester,96-05-9,7274,,,2.35,0.00,0.00
+273,Allyl Methyl Ether,3-methoxy-1-propene,627-40-7,69392,,,1.25,0.00,0.00
+274,Allylacetonitrile (4-Pentenenitrile),4-pentenenitrile,592-51-8,11604,147,120,0.36,2.10,199.92
+275,"Alpha,Alpha,A-Trifluoro Toluene",trifluoromethylbenzene,98-08-8,7368,102.1,100,2.68,1.49,111.61
+276,Ammonia,nh3,7664-41-7,222,-33.35,-34,-1.39,4.46,-263.30
+277,Amyl Acetate,n-pentylacetate,628-63-7,12348,149.2,120,2.60,2.23,211.56
+278,Anethole (Trans),1-methoxy-4-(1-propenyl)-benzene,104-46-1,637563,235,120,3.29,2.06,195.99
+279,Aniline,aniline,62-53-3,6115,184.1,120,0.90,2.25,213.38
+280,Anisaldehyde (2-Methoxy Benzaldehyde),2-methoxybenzaldehyde,135-02-4,8658,243.5,120,1.57,1.86,176.24
+281,Anisidine (2-Methoxyaniline),o-anisidine,90-04-0,7000,224,120,1.47,1.99,188.61
+282,Anisole,anisole,100-66-3,7519,153.7,120,2.13,2.00,190.12
+283,Ascorbic Acid,ascorbicacid,50-81-7,54670067,,,-0.52,0.00,0.00
+284,"Benzal Chloride (Alpha,A-Dichlorobenzene)",(dichloromethyl)-benzene,98-87-3,7411,205,120,2.89,1.42,135.28
+285,Benzaldehyde,benzaldehyde,100-52-7,240,179,120,1.14,1.85,175.97
+286,Benzamide,benzamide,55-21-0,2331,290,120,-0.25,1.85,176.12
+287,Benzene,benzene,71-43-2,241,80,78,1.98,1.90,100.62
+288,Benzimidazole,1h-benzimidazole,51-17-2,5798,360,120,0.13,1.80,171.29
+289,Benzisoxazole,benzisoxazole,271-58-9,67498,215,120,1.16,1.70,161.93
+290,Benzoic Acid,benzoicacid,65-85-0,243,249.2,120,1.51,1.76,167.25
+291,Benzoin,benzoin,119-53-9,8400,344,120,2.63,1.85,175.97
+292,Benzonitrile,benzonitrile,100-47-0,7505,191.1,120,1.09,1.79,170.41
+293,Benzophenone,benzophenone,119-61-9,3102,305.4,120,2.66,1.84,174.36
+294,Benzothiazole,benzothiazole,95-16-9,7222,231,120,1.79,1.55,147.10
+295,Benzotrichloride,(trichloromethyl)-benzene,98-07-7,7367,221,120,3.67,1.21,115.28
+296,Benzoyl Chloride,benzoylchloride,98-88-4,7412,197.2,120,2.72,1.50,142.68
+297,Benzyl Acetate,aceticacidphenylmethylester,140-11-4,8785,213,120,1.92,1.93,183.15
+298,Benzyl Alcohol,benzylalcohol,100-51-6,244,205.3,120,1.17,2.00,190.12
+299,Benzyl Amine,benzylamine,100-46-9,7504,185,120,1.27,2.09,198.68
+300,Benzyl Benzoate,benzoicacidphenylmethylester,120-51-4,2345,323.5,120,3.58,1.85,175.97
+301,Benzyl Butyl Phthalate,butylbenzylphthalate,85-68-7,2347,,,4.88,0.00,0.00
+302,Benzyl Chloride,(chloromethyl)-benzene,100-44-7,7503,179,120,2.32,1.71,162.92
+303,Benzyl Ethyl Ether,(ethoxymethyl)-benzene,539-30-0,10873,186,120,2.60,2.11,200.88
+304,Bicyclohexyl,bicyclohexyl,92-51-3,7094,238,120,5.35,2.39,227.46
+305,Biphenyl,biphenyl,92-52-4,7095,256.1,120,3.44,1.95,185.62
+306,Bis(Chloromethyl)Ether,oxybischloromethane,542-88-1,10967,106,104,1.63,1.20,94.96
+307,Bisphenol A,"4,4'-(1-methylethylidene)bisphenol",80-05-7,6623,,,3.14,0.00,0.00
+308,Biuret,imidodicarbonicdiamide,108-19-0,7913,,,-2.88,0.00,0.00
+309,Boron Trichloride,bcl3,10294-34-5,25135,12.5,10,2.64,0.45,-6.75
+310,Bromine,br2,7726-95-6,24408,58.8,56,1.71,0.20,6.08
+311,Bromobenzene,bromobenzene,108-86-1,7961,156,120,2.57,1.21,114.89
+312,Bromochloromethane,ch2clbr,74-97-5,6333,68,66,1.43,0.59,24.31
+313,Bromoethylene,bromoethene,593-60-2,11641,15.8,14,1.60,0.72,-7.96
+314,Bromoform,chbr3,75-25-2,5558,149.1,120,2.44,0.35,33.16
+315,Bromomethyl Methyl Ether,bromomethylmethylether,13057-17-5,83093,87,86,1.08,1.08,66.07
+316,Bromotrichloro Methane #1,bromotrichloromethane,75-62-7,6383,105,104,3.05,0.43,33.87
+317,Bromotrichloro Methane #2-Gc,bromotrichloromethane,75-62-7,6383,105,104,3.05,0.43,33.87
+318,Bromotrichloro Methane #3,bromotrichloromethane,75-62-7,6383,105,104,3.05,0.43,33.87
+319,Bromotrifluoromethane (Freon 1381),cf3br,75-63-8,6384,-57.8,-58,2.13,0.33,-27.01
+320,Butadiene-4-Cyano,"2,4-pentadienenitrile",1615-70-9,5364328,,,0.64,0.00,0.00
+321,Butadienedioxide,"1,3-butadienediepoxide",1464-53-5,11254,138,120,0.03,1.92,182.76
+322,Butadione,butadione,431-03-8,650,88,86,0.56,1.82,110.89
+323,Butane,butane,106-97-8,7843,-0.5,0,2.84,2.31,-57.80
+324,Butyl Benzoate,benzoicacidbutylester,136-60-7,8698,250.3,120,3.70,2.03,193.03
+325,Butyl Formate,butylformate,592-84-7,11614,106.1,104,1.68,1.96,155.07
+326,Butyl Lactate,butyllactate,138-22-7,8738,186,120,2.49,2.14,202.83
+327,Butyl Stearate,octadecanoicacidbutylester,123-95-5,31278,,,10.70,0.00,0.00
+328,Butyleneoxide,butoxide,106-88-7,7834,63.3,62,1.07,2.04,75.59
+329,Butyraldehyde,butanal,123-72-8,261,74.8,72,0.81,2.08,97.80
+330,Butyric Acid,butyricacid,107-92-6,264,163.7,120,0.96,2.09,198.88
+331,Butyric Anhydride,"butanoicacid,anhydride",106-31-0,7798,200,120,2.78,2.09,198.21
+332,Butyronitrile,butyronitrile,109-74-0,8008,117.6,116,0.45,2.19,199.49
+333,Butyrylchloride,butyrylchloride,141-75-3,8855,107,106,2.39,1.71,138.77
+334,Caffeine,caffeine,58-08-2,2519,,,-0.34,0.00,0.00
+335,Camphene,camphene,79-92-5,6616,160,120,4.00,2.32,220.25
+336,Caprolactone (Epsilon),2-oxepanone,502-44-3,10401,215,120,-0.01,2.08,197.95
+337,Carbazole (Diphenylenimine),carbazole,86-74-8,6854,354.7,120,2.77,1.85,175.65
+338,Carbon Dioxide (Fit = 1.0),co2,124-38-9,280,-78.48,-78,1.24,1.90,-196.12
+339,Carbon Disulfide (0 Dipole Moment),cs2,75-15-0,6348,46,44,2.48,0.57,10.85
+340,Carbon Disulfide (P By Group Cont.),cs2,75-15-0,6348,46,44,2.48,0.57,10.85
+341,Carbon Tetrachloride (0 Dipole Moment),ccl4,56-23-5,5943,76.8,74,3.00,0.51,25.17
+342,Carbon Tetrachloride (P By Group Cont.),ccl4,56-23-5,5943,76.8,74,3.00,0.51,25.17
+343,Carbonyl Sulfide,cos,463-58-1,10039,-50,-50,1.97,1.18,-88.63
+344,Cetyl Alcohol (1-Hexadecanol),1-hexadecanol,36653-82-4,2682,334,120,7.51,2.86,272.16
+345,Chloral,trichloroacetaldehyde,75-87-6,6407,97.8,96,2.45,0.76,54.21
+346,Chlorine,cl2,7782-50-5,24526,-34.05,-34,1.61,0.94,-55.50
+347,Chloro Acetaldehyde,chloroacetaldehyde,107-20-0,33,85.5,84,-0.28,1.29,76.15
+348,Chloro Acetic Acid,chloroaceticacid,79-11-8,300,189.3,120,0.17,1.32,125.14
+349,Chloro Maleic Anhydride,"3-chloro-2,5-furandione",96-02-6,66772,196,120,1.48,1.09,103.87
+350,Chloroacetone,chloroacetone,78-95-5,6571,120,118,-0.03,1.60,148.37
+351,Chloroacetonitrile,chloroacetonitrile,107-14-2,7856,126.5,120,0.13,1.25,118.73
+352,Chloroacetylchloride,chloroacetylchloride,79-04-9,6577,106,104,1.65,0.98,77.66
+353,Chloroacetylene,chloroethyne,593-63-5,68975,,,1.49,0.00,0.00
+354,Chlorobenzene,chlorobenzene,108-90-7,7964,131.7,120,2.45,1.55,147.49
+355,Chlorodifluoromethane (Freon 22),chf2cl,75-45-6,6372,-40.7,-40,1.32,1.09,-70.88
+356,Chloroform,chcl3,67-66-3,6212,61.1,60,2.17,0.63,22.05
+357,Chloronitromethane,chloronitromethane,1794-84-9,74529,,,1.01,0.00,0.00
+358,Chloropicrin (Trichloronitromethane),trichloronitromethane,76-06-2,6423,112,110,3.17,0.71,60.22
+359,Chloroprene,"2-chloro-1,3-butadiene",126-99-8,31369,59.4,58,2.20,1.47,48.67
+360,Chlorotrifluoroethylene (Ctfe),chlorotrifluoroethene,79-38-9,6594,-27.8,-28,2.29,0.57,-30.24
+361,Cis-Decahydronaphthalene,cis-decalin,493-01-6,7044,195.8,120,4.35,2.38,226.52
+362,Citraconic Anhydride,methyl-maleic-anhydride,616-02-4,12012,213.5,120,0.90,1.59,150.93
+363,Coumarin,2h-1-benzopyran-2-one,91-64-5,323,301.7,120,0.99,1.69,160.70
+364,Crotonaldehyde,trans-crotonaldehyde,123-73-9,447466,102.2,100,0.17,2.25,168.95
+365,Crotonic Acid,trans-crotonic-acid,107-93-7,637090,184.7,120,0.61,2.13,202.22
+366,Crotonlactone,2(5h)-furanone,497-23-4,10341,212,120,-0.91,1.72,163.37
+367,Cyanamid (Carbamonitrile),cyanamide,420-04-2,9864,,,-2.19,0.00,0.00
+368,Cyanogen,cyanogen,460-19-5,9999,-21.1,-22,0.45,0.84,-39.65
+369,Cyanogen Bromide,cyanogenbromide,506-68-3,10476,,,0.38,0.00,0.00
+370,Cyanogen Chloride,cyanogenchloride,506-77-4,10477,,,0.33,0.00,0.00
+371,Cyclobutanone,cyclobutanone,1191-95-3,14496,,,0.30,0.00,0.00
+372,Cyclodecanone,cyclodecanone,1502-06-3,73918,,,2.48,0.00,0.00
+373,Cyclododecane,cyclododecane,294-62-2,9268,,,5.32,0.00,0.00
+374,Cycloheptane,cycloheptane,291-64-5,9265,118.4,116,3.57,2.43,220.74
+375,Cycloheptanone,cycloheptanone,502-42-1,10400,179,120,1.26,2.24,212.60
+376,Cyclohexane,cyclohexane,110-82-7,8078,80.7,78,3.15,2.11,112.05
+377,Cyclohexanol,cyclohexanol,108-93-0,7966,160.8,120,1.47,2.98,283.57
+378,Cyclohexanone,cyclohexanone,108-94-1,7967,155.4,120,0.86,2.20,208.66
+379,Cyclohexene,cyclohexene,110-83-8,8079,82.9,80,2.74,2.20,120.89
+380,Cyclohexyl Benzene,cyclohexylbenzene,827-52-1,13229,240.1,120,4.29,2.21,210.24
+381,Cyclohexylamine,cyclohexylamine,108-91-8,7965,134,120,1.81,2.38,226.08
+382,Cyclohexylchloride,chlorocyclohexane,542-18-7,10952,142,120,2.82,1.77,167.96
+383,Cyclooctanone,cyclooctanone,502-49-8,10403,196,120,1.64,2.26,215.12
+384,Cyclopentadiene,cyclopentadiene,542-92-7,7612,41,40,1.81,1.75,26.20
+385,Cyclopentane,cyclopentane,287-92-3,9253,49.3,48,2.84,1.93,44.33
+386,Cyclopentanone,cyclopentanone,120-92-3,8452,130.5,120,0.51,2.11,200.28
+387,Cyclopentene,cyclopentene,142-29-0,8882,44.2,42,2.41,2.03,34.50
+388,Cyclopentyl Methyl Ether (Cpme),cyclopentyl-methyl-ether,5614-37-9,138539,106,104,2.24,2.26,178.21
+389,Cyclopropane,cyclopropane,75-19-4,6351,-32.8,-32,1.75,3.28,-187.17
+390,Cyclopropylmethylketone,1-cyclopropylethanone,765-43-5,13004,111.3,110,0.73,2.12,180.17
+391,Cyclopropylnitrile,cyclopropanecarbonitrile,5500-21-0,79637,135.1,120,0.00,2.01,191.03
+392,DDT,ddt,50-29-3,3036,,,5.76,0.00,0.00
+393,Decamethylcyclopentasiloxane,decamethylcyclopentasiloxane,541-02-6,10913,210,120,6.98,1.84,174.41
+394,Decane,n-decane,124-18-5,15600,174.1,120,6.01,2.58,244.84
+395,Di p-Tolyl Sulfoxide,bis(4-methylphenyl)sulfoxide,1774-35-2,15680,,,3.02,0.00,0.00
+396,Di-(2-Chloro-Isopropyl) Ether,dcip,108-60-1,7944,187,120,2.42,1.76,167.18
+397,Di-(2-Chloroethoxy) Methane,di-(2-chloroethoxy)methane,111-91-1,8147,218,120,1.43,1.62,153.88
+398,Di-(2-Chloroethyl) Ether,bis(2-chloroethyl)ether,111-44-4,8115,178.5,120,1.30,1.56,148.56
+399,Di-(2-Methoxyethyl) Ether,diglyme,111-96-6,8150,162,120,0.57,2.19,207.99
+400,Di-2-Ethylhexyl Amine,2-ethyl-n-(2-ethylhexyl)-1-hexanamine,106-20-7,7791,,,8.00,0.00,0.00
+401,Di-Isobutyl Carbinol,"2,6-dimethyl-4-heptanol",108-82-7,7957,174.5,120,3.80,2.41,229.15
+402,Di-Isobutyl Ketone,"2,6-dimethyl-4-heptanone",108-83-8,7958,169.4,120,3.41,2.35,223.58
+403,Di-Isodecyl Phthalate,diisodecyl-phthalate,26761-40-0,33599,,,11.14,0.00,0.00
+404,Di-Isononyl Phthalate,"1,2-benzenedicarboxylicaciddiisononylester",28553-12-0,590836,,,10.13,0.00,0.00
+405,Di-Isopropyl Sulfoxide,diisopropylsulfoxide,2211-89-4,16645,,,0.90,0.00,0.00
+406,Di-n-Butyl Ether,di-n-butylether,142-96-1,8909,140.2,120,3.93,2.14,203.39
+407,Di-n-Butyl Sulfoxide,"1,1'-sulfinylbisbutane",2168-93-6,16568,,,2.04,0.00,0.00
+408,Di-n-Pentyl Ether,di-n-pentylether,693-65-2,12743,190,120,5.02,2.41,229.39
+409,Di-n-Propyl Ether,di-n-propylether,111-43-3,8114,90,88,2.89,2.28,143.94
+410,Di-n-Propyl Sulfoxide,"1,1'-sulfinylbispropane",4253-91-2,20252,,,0.97,0.00,0.00
+411,Di-sec-Butyl Ether,"2,2'-oxybis-butane",6863-58-7,23294,120.85,118,3.76,2.40,223.37
+412,Diacetone Alcohol,4-oh-4-me-2-pentanone,123-42-2,31256,167.9,120,0.79,2.19,208.52
+413,Diallyl Amine,n-2-propenyl-2-propen-1-amine,124-02-7,31279,111,110,2.40,2.25,191.21
+414,Diallyl Ether,diallylether,557-40-4,11194,94,92,2.01,2.11,141.14
+415,Diazomethane,diazomethane,334-88-3,9550,-23,-24,0.45,1.22,-59.77
+416,Dibenzyl Ether,dibenzylether,103-50-4,7657,298,120,3.48,1.81,172.39
+417,Dibromomethane (Methylene Dibromide),ch2br2,74-95-3,3024,97,96,1.59,0.60,42.62
+418,Dibutyl Amine,dibutylamine,111-92-2,8148,159.6,120,4.07,2.45,232.97
+419,Dibutyl Ketone,5-nonanone,502-56-7,10405,188.4,120,3.35,2.35,223.58
+420,Dibutyl Maleate,(z)-2-butenedioicaciddibutylester,105-76-0,5271569,281,120,4.08,2.08,197.95
+421,Dibutyl Phthalate,dibutylphthalate,84-74-2,3026,,,5.08,0.00,0.00
+422,Dibutyl Sebacate,decanedioicaciddibutylester,109-43-3,7986,,,6.94,0.00,0.00
+423,Dichloroacetaldehyde,dichloroacetaldehyde,79-02-7,6576,89.2,88,1.74,0.95,60.12
+424,Dichloroacetic Acid,dichloroaceticacid,79-43-6,6597,194,120,1.59,1.01,95.99
+425,Dichloroacetonitrile,dichloroacetonitrile,3018-12-0,18177,112,110,1.41,0.89,75.42
+426,Dichlorodifluoromethane (Freon 12),dichlorodifluoromethane,75-71-8,6391,-29.8,-30,2.39,0.89,-48.74
+427,Dichloroethylene (Trans),"trans-1,2-dichloroethene",156-60-5,638186,48.7,46,2.02,0.87,18.20
+428,Dichloromethyl Methyl Ether,dichloromethylmethylether,4885-02-3,21004,,,1.97,0.00,0.00
+429,Dichloromonofluoromethane (Freon21),chfcl2,75-43-4,6370,8.9,6,1.76,1.02,-19.43
+430,Diethanolamine,diethanolamine,111-42-2,8113,268.8,120,-0.57,2.88,273.17
+431,Diethyl Adipate,adipinsaeurediethylester,141-28-6,8844,245,120,2.57,2.09,198.35
+432,Diethyl Amine,diethylamine,109-89-7,8021,55.5,54,1.96,2.22,64.35
+433,Diethyl Carbonate,diethylcarbonate,105-58-8,7766,126,120,1.55,2.13,202.13
+434,Diethyl Ether,diethylether,60-29-7,3283,34.5,32,1.77,2.36,16.51
+435,Diethyl Ketone,3-pentanone,96-22-0,7288,101.9,100,1.23,2.22,166.32
+436,Diethyl Malonate,diethylmalonate,105-53-3,7761,200,120,1.73,2.01,191.18
+437,Diethyl Oxalate,ethyloxalat,95-92-1,7268,185.7,120,1.38,1.90,180.49
+438,Diethyl Phthalate,diethylphthalate,84-66-2,6781,,,2.81,0.00,0.00
+439,Diethyl Succinate,ethylsuccinate,123-25-1,31249,217.7,120,1.98,2.01,191.20
+440,Diethyl Sulfate,diethylsulfate,64-67-5,6163,208,120,2.36,1.76,167.64
+441,Diethyl Sulfide,diethylsulfide,352-93-2,9609,92.1,90,2.20,2.05,133.27
+442,Diethyldisulfide,diethyldisulfide,110-81-6,8077,154.1,120,3.15,1.84,174.99
+443,Diethylene Glycol,diethyleneglycol,111-46-6,8117,245.8,120,-0.16,2.68,254.42
+444,Diethylene Glycol Butyl Ether Acetate,2-(2-butoxyethoxy)ethanolacetate,124-17-4,31288,245,120,2.43,2.15,204.49
+445,Diethylene Glycol Dibutyl Ether,diethyleneglycoldibutylether,112-73-2,8210,256,120,4.18,2.62,249.37
+446,Diethylene Glycol Diethyl Ether,"1,1'-oxybis-2-ethoxy-ethane",112-36-7,8179,188,120,1.79,2.24,212.90
+447,Diethylene Glycol Hexyl Ether,2-2-(hexyloxy)ethoxyethanol,112-59-4,8199,260,120,3.08,2.49,236.88
+448,Diethylene Glycol Monobutyl Ether,diethyleneglycolmonobutylether,112-34-5,8177,231,120,2.01,2.20,208.84
+449,Diethylene Glycol Monoethyl Ether,diethyleneglycolmonoethylether,111-90-0,8146,196,120,0.94,2.22,210.76
+450,Diethylene Glycol Monoethyl Ether Acetate,2-(2-ethoxyethoxy)-ethanolacetate,112-15-2,8165,218.5,120,1.17,2.09,198.88
+451,Diethylene Glycol Monomethyl Ether,2-(2-methoxyethoxy)ethanol,111-77-3,8134,193,120,0.49,2.15,204.50
+452,Diethylene Glycol Monopropyl Ether,2-(2-propoxyethoxy)ethanol,6881-94-3,81313,,,1.48,0.00,0.00
+453,Diethylenetriamine,"n-(2-aminoethyl)-1,2-ethanediamine",111-40-0,8111,207,120,0.06,2.84,269.39
+454,Diethylhexyl Phthalate (Dioctyl Phthalate),di-2-ethylhexylphthalate,117-81-7,8343,,,8.07,0.00,0.00
+455,Dihexyl Ether,di-n-hexylether,112-58-3,8198,223,120,6.09,2.42,229.76
+456,Dihexyl Phthalate,dihexylphthalate,84-75-3,6786,,,7.22,0.00,0.00
+457,Dihydropyran,"2,3-dihydropyran",110-87-2,8080,86,84,1.60,2.03,119.77
+458,Diisobutyl Adipate,rhodiasolv-dib1_cas_141_04_8,141-04-8,8831,,,4.73,0.00,0.00
+459,Diisopropylamine,diisopropylamine,108-18-9,7912,83.9,82,2.87,2.32,132.11
+460,Diketene,4-methylene-2-oxetanone,674-82-8,12661,126.1,120,0.74,1.72,163.37
+461,Dimethoxymethane,dimethoxymethane,109-87-5,8020,42,40,0.57,1.89,28.41
+462,Dimethyl Isosorbide,dimethylisosorbide,5306-85-4,62990,,,0.39,0.00,0.00
+463,Dimethyl Acetylene,2-butyne,503-17-3,10419,26.9,24,1.63,1.92,-1.92
+464,Dimethyl Adipate,dimethyl_adipate,627-93-0,12329,115,114,1.47,1.99,177.48
+465,Dimethyl Amine,dimethylamine,124-40-3,674,6.8,4,0.68,2.04,-42.87
+466,Dimethyl Carbonate,dimethylcarbonate,616-38-6,12021,90.5,88,0.48,1.95,123.04
+467,Dimethyl Cellosolve,"1,2-dimethoxyethane",110-71-4,8071,85,84,0.55,2.29,134.85
+468,Dimethyl Disulfide,dimethyldisulfide,624-92-0,12232,109.8,108,2.12,1.55,128.52
+469,Dimethyl Ethanolamine,2-(dimethylamino)-ethanol,108-01-0,7902,134,120,1.17,2.83,268.51
+470,Dimethyl Ether,dimethylether,115-10-6,8254,-24.8,-24,0.48,2.24,-109.79
+471,Dimethyl Formamide (DMF),dimethylformamide,68-12-2,6228,153,120,-0.66,2.27,215.23
+472,Dimethyl Glutarate,pentanedioicaciddimethylester,1119-40-0,14242,214,120,0.99,1.96,186.43
+473,Dimethyl Ketene,2-methyl-1-propen-1-one(dimethylketene),598-26-5,136395,,,2.25,0.00,0.00
+474,Dimethyl Maleate,dimethylmaleate,624-48-6,5271565,202,120,0.90,1.78,169.27
+475,Dimethyl Phthalate,dimethylphthalate,131-11-3,8554,283.7,120,1.84,1.78,169.22
+476,Dimethyl Succinate,dimethylsuccinate,106-65-0,7820,196.4,120,0.90,1.90,180.49
+477,Dimethyl Sulfate,dimethylsulfate,77-78-1,6497,188,120,1.37,1.54,146.56
+478,Dimethyl Sulfide,dimethylsulfide,75-18-3,1068,37.3,36,1.28,1.68,18.52
+479,Dimethyl Sulfone,dimethylsulfone,67-71-0,6213,238,120,-2.34,1.70,161.25
+480,Dimethyl Sulfoxide (DMSO),dimethylsulfoxide,67-68-5,679,189,120,-1.48,2.09,198.78
+481,Dioctyl Adipate,hexanedioicacid-dioctylester,123-79-5,31271,,,9.05,0.00,0.00
+482,Dipentene (Dl-Limonene),dipentene,138-86-3,22311,176,120,4.18,2.23,211.95
+483,Diphenyl Acetylene (0 Dipole Moment),"1,1'-(1,2-ethynediyl)bisbenzene",501-65-5,10390,300,120,4.14,1.88,178.50
+484,Diphenyl Acetylene (P By Group Cont.),"1,1'-(1,2-ethynediyl)bisbenzene",501-65-5,10390,300,120,4.14,1.88,178.50
+485,Diphenyl Ether,diphenylether,101-84-8,7583,258,120,3.68,1.88,178.93
+486,Diphenyl Sulfone,diphenylsulfone,127-63-9,31386,,,2.09,0.00,0.00
+487,Diphenylamine,n-phenyl-benzeneamine,122-39-4,11487,302,120,3.28,2.45,232.29
+488,Diphenylmethane,diphenylmethane,101-81-5,7580,265,120,3.79,1.88,178.58
+489,Dipropyl Amine,dipropylamine,142-84-7,8902,109.3,108,3.02,2.50,207.36
+490,Dipropyl Ketone,4-heptanone,123-19-3,31246,144,120,2.32,2.33,221.28
+491,Dipropylene Glycol Mono n-Butyl Ether,dipropyleneglycoln-butylether,29911-28-2,24752,,,3.08,0.00,0.00
+492,Dipropylene Glycol Mono n-Propyl Ether,1-(1-methyl-2-propoxyethoxy)-2-propanol,29911-27-1,121752,,,2.24,0.00,0.00
+493,Dipropylene Glycol Monomethyl Ether Acetate,dpg-monomethyl-ether-acetate,88917-22-0,9815489,200,120,1.62,2.13,201.93
+494,Divinylsulfide,"1,1'-thiobisethene",627-51-0,12321,,,2.26,0.00,0.00
+495,Dodecane,dodecane,112-40-3,8182,216.3,120,7.07,2.57,243.80
+496,Dodecanol,dodecanol,112-53-8,8193,259,120,5.37,2.96,280.75
+497,Dopamine,dopamine,51-61-6,681,,,1.19,0.00,0.00
+498,Eicosane,eicosane,112-95-8,8222,343,120,11.30,2.53,240.12
+499,Epichlorohydrin,(chloromethyl)-oxirane,106-89-8,7835,116.11,114,0.50,1.59,141.09
+500,Epsilon-Caprolactam,caprolactam,105-60-2,7768,270,120,-0.16,2.31,219.62
+501,Ethane,ethane,74-84-0,6324,-88.6,-88,1.75,2.44,-275.93
+502,Ethane (Liq. B.P.),ethane,74-84-0,6324,-88.6,-88,1.75,2.44,-275.93
+503,Ethanesulfonylchloride,ethanesulfonylchloride,594-44-5,11667,174,120,1.55,1.33,126.22
+504,Ethanethiol (Ethyl Mercaptan),ethanethiol,75-08-1,6343,35.1,34,1.36,1.68,15.08
+505,Ethanol,ethanol,64-17-5,702,78.2,76,0.00,2.91,148.19
+506,Ethanolamine,ethanolamine,141-43-5,700,171,120,-0.66,2.98,283.09
+507,Ethyl Acetate,ethylacetate,141-78-6,8857,77.1,76,0.90,2.10,107.31
+508,Ethyl Aceto Acetate (Keto),ethylacetoacetate,141-97-9,8868,180.8,120,0.46,2.08,197.65
+509,Ethyl Acetylene,butyne,107-00-6,7846,8,6,1.60,2.43,-46.15
+510,Ethyl Acrylate,2-propenoicacidethylester,140-88-5,8821,99.4,98,1.54,1.95,142.19
+511,Ethyl Amine,ethylamine,75-04-7,6341,16.5,14,0.31,2.88,-31.72
+512,Ethyl Amyl Ketone,3-octanone,106-68-3,246728,167.5,120,2.84,2.34,222.57
+513,Ethyl Benzene,ethylbenzene,100-41-4,7500,136.1,120,3.02,2.08,197.61
+514,Ethyl Benzoate,ethylbenzoate,93-89-0,7165,212,120,2.55,1.88,179.04
+515,Ethyl Bromide,bromoethane,74-96-4,6332,38.5,36,1.54,0.99,10.93
+516,Ethyl Butyl Ether,1-ethoxybutane,628-81-9,12355,92.3,90,2.86,2.29,148.98
+517,Ethyl Butyl Ketone,3-heptanone,106-35-4,7802,147,120,2.29,2.33,221.28
+518,Ethyl Butyrate,ethylbutyrate,105-54-4,7762,121.5,120,2.16,2.19,208.52
+519,Ethyl Capronate,ethylhexanoate,123-66-0,31265,167,120,3.21,2.25,213.88
+520,Ethyl Carbamate,urethane,51-79-6,5641,185,120,-0.38,1.98,188.40
+521,Ethyl Chloride,chloroethane,75-00-3,6337,12.3,10,1.38,1.40,-21.07
+522,Ethyl Chloroformate,carbonochloridicacidethylester,541-41-3,10928,95,94,2.08,1.46,100.58
+523,Ethyl Cyanoacetate,cyanoaceticacidethylester,105-56-6,7764,210,120,0.14,1.86,176.61
+524,Ethyl Ethynylether,ethoxyacetylene,927-80-0,61239,53,52,1.62,1.84,49.70
+525,Ethyl Fluoride,fluoroethane,353-36-6,9620,-37.6,-38,0.81,1.95,-122.66
+526,Ethyl Formate,ethylformate,109-94-4,8025,54.4,52,0.53,2.53,68.29
+527,Ethyl Iodide,iodoethane,75-03-6,6340,72.5,70,1.80,0.74,33.18
+528,Ethyl Isocyanate,ethylisocyanate,109-90-0,8022,60,58,1.63,1.73,57.16
+529,Ethyl Isothiocyanate,ethylisothiocyanate,542-85-8,10966,130,120,2.01,1.67,159.08
+530,Ethyl Lactate,2-hydroxypropanoicacidethylester,97-64-3,7344,154,120,1.36,2.04,193.74
+531,Ethyl Methacrylate,ethylmethacrylate,97-63-2,7343,117,116,2.08,2.07,188.46
+532,Ethyl Methyl Sulfide,(methylthio)-ethane,624-89-5,12230,66.7,64,1.78,1.89,73.74
+533,Ethyl Oleate,ethyl-oleate,111-62-6,5363269,,,9.13,0.00,0.00
+534,Ethyl Propionate,ethylpropionate,105-37-3,7749,99.1,98,1.58,2.08,151.78
+535,Ethyl Thiocyanate,ethylthiocyanate,542-90-5,10968,138,120,0.86,1.67,159.08
+536,Ethyl Vinylether,ethoxy-ethene,109-92-2,8023,35.5,34,1.77,1.93,17.39
+537,Ethyl Vinylketone,1-penten-3-one,1629-58-9,15394,38,36,1.05,1.85,20.32
+538,Ethylene,ethene,74-85-1,6325,-103.7,-104,1.20,2.42,-311.82
+539,Ethylene Carbonate,"1,3-dioxolan-2-one",96-49-1,7303,248,120,-0.81,1.79,170.16
+540,Ethylene Chlorohydrin,2-chloroethanol,107-07-3,34,128.6,120,0.20,1.64,155.98
+541,Ethylene Cyanohydrin,ethylenecyanohydrin,109-78-4,8011,221,120,-1.64,1.94,183.90
+542,Ethylene Dibromide,"1,2-dibromoethane",106-93-4,7839,131.6,120,1.88,0.77,72.90
+543,Ethylene Dichloride,"1,2-dichloroethane",107-06-2,11,83.5,82,1.12,1.36,77.67
+544,Ethylene Dinitrate,"1,2-ethanedioldinitrate",628-96-6,40818,198.5,120,2.58,1.41,134.01
+545,Ethylene Glycol,glycol,107-21-1,174,197.3,120,-1.10,2.85,270.79
+546,Ethylene Glycol Butyl Ether Acetate,2-butoxyethanolacetate,112-07-2,8160,192,120,2.20,2.17,205.97
+547,Ethylene Glycol Diacetate,"1,2-ethanedioldiacetate",111-55-7,8121,190,120,0.51,1.90,180.49
+548,Ethylene Glycol Dibutyl Ether,"1,2-dibutoxyethane",112-48-1,8188,203.3,120,3.93,2.34,222.62
+549,Ethylene Glycol Diethyl Ether,"3,6-dioxaoctane",629-14-1,12375,119.4,118,1.79,2.28,212.30
+550,Ethylene Glycol Dimethyl Ether,"1,2-dimethoxyethane",110-71-4,8071,85,84,0.55,2.29,134.85
+551,Ethylene Glycol Mono 2-Ethyl Hexyl Ether,2-(2-ethylhexyl)oxyethanol,1559-35-9,15260,,,4.03,0.00,0.00
+552,Ethylene Glycol Mono Benzyl Ether,ethylenglycolmonobenzylether,622-08-2,12141,256,120,1.71,2.03,192.73
+553,Ethylene Glycol Mono Ethyl Ether Acrylate,2-ethoxyethylacrylate,106-74-1,7827,174,120,1.70,2.04,193.92
+554,Ethylene Glycol Mono n-Hexyl Ether,2-hexyloxyethanol,112-25-4,8170,208,120,3.14,2.32,220.62
+555,Ethylene Glycol Mono n-Propyl Ether,2-propoxyethanol,2807-30-9,17756,149.8,120,1.54,2.27,215.23
+556,Ethylene Glycol Mono t-Butyl Ether,ethyleneglycoltert-butylether,7580-85-0,24232,,,1.62,0.00,0.00
+557,Ethylene Glycol Monobutyl Ether,2-butoxyethanol,111-76-2,8133,168.4,120,2.05,2.64,250.87
+558,Ethylene Glycol Monoethyl Ether,ethoxyethanol,110-80-5,8076,135,120,0.97,2.73,259.79
+559,Ethylene Glycol Monoethyl Ether Acetate,2-ethoxyethanolacetate,111-15-9,8095,156.4,120,1.09,2.20,208.81
+560,Ethylene Glycol Monoisopropyl Ether,2-isopropoxyethanol,109-59-1,7996,154,120,1.30,2.29,217.89
+561,Ethylene Glycol Monomethyl Ether,2-methoxyethanol,109-86-4,8019,124.1,120,0.32,2.74,259.95
+562,Ethylene Glycol Monomethyl Ether Acetate,ethyleneglycolmonomethyletheracetate,110-49-6,8054,143,120,0.51,1.98,188.14
+563,Ethylene Glycol Sulfite,ethylenesulfite,3741-38-6,77342,,,0.24,0.00,0.00
+564,Ethylene Oxide,ethyleneoxide,75-21-8,6354,10.6,8,-0.06,1.97,-33.51
+565,Ethylene Sulfide,thiirane,420-12-2,9865,55,54,0.93,1.50,43.38
+566,Ethylenediamine,"1,2-diaminoethane",107-15-3,3301,117,116,-1.11,2.36,214.31
+567,Ethyleneimine,aziridine,151-56-4,9033,56,54,-0.21,2.05,59.34
+568,Eugenol,eugenol,97-53-0,3314,253.2,120,3.27,1.99,188.61
+569,Ferulic Acid,ferulic_acid,1135-24-6,445858,,,1.97,0.00,0.00
+570,Fluorene,fluorene,86-73-7,6853,295,120,3.53,1.79,169.61
+571,Fluorobenzene,fluorobenzene,462-06-6,10008,84.7,82,2.07,1.67,95.17
+572,Fluoroethylene,fluoroethene,75-02-5,6339,-72,-72,1.00,1.09,-105.51
+573,Fluoromethane,ch3f,593-53-3,11638,-78.4,-78,0.28,2.07,-213.25
+574,Fluoroprene,"2-fluoro-1,3-butadiene",381-61-3,551655,,,1.87,0.00,0.00
+575,Formaldehyde,formaldehyde,50-00-0,712,-19.1,-20,-0.48,1.36,-61.00
+576,Formamide,formamide,75-12-7,713,,,-2.34,0.00,0.00
+577,Formic Acid,formicacid,64-18-6,284,101,100,-0.57,1.55,116.61
+578,Formyl Fluoride,formylfluoride,1493-02-3,15153,-26.5,-26,0.27,0.89,-45.49
+579,Fumaronitrile,(e)-2-butenedinitrile,764-42-1,637930,186,120,-0.39,1.54,145.89
+580,Furan,furane,110-00-9,8029,31.5,30,1.41,1.55,7.77
+581,Furfural,furfural,98-01-1,7362,161.7,120,0.03,1.95,185.51
+582,Furfuryl Alcohol,2-furanmethanol,98-00-0,7361,171,120,0.59,1.86,176.52
+583,Glycerol,glycerol,56-81-5,753,,,-0.92,0.00,0.00
+584,Glycerol Carbonate,"4-hydroxymethyl-1,3-dioxolan-2-one",931-40-8,97944,353.9,120,-0.92,1.95,184.80
+585,Glycerol Triacetate,glycerol-triacetate,102-76-1,5541,,,0.87,0.00,0.00
+586,Glycerol Tributyrate,glycerol-tributyrate,60-01-5,6050,,,4.29,0.00,0.00
+587,Glycerol Trioleate,triolein,122-32-7,5497163,,,24.38,0.00,0.00
+588,Glycidol,oxiranemethanol,556-52-5,11164,,,-0.51,0.00,0.00
+589,Glycidyl Methacrylate,glycidylmethacrylate,106-91-2,7837,189,120,1.25,1.94,183.91
+590,Glyoxal (Ethandial),ethanedial,107-22-2,7860,50.4,48,0.21,1.34,30.93
+591,HCFC 134a,"1,1,1,2-tetrafluoroethane",811-97-2,13129,-26,-26,1.15,1.28,-65.32
+592,HCFC 141b,"1,1-dichloro-1-fluoroethane",1717-00-6,15586,32,30,2.15,1.16,5.80
+593,HCFC 225ca,"1,1-dichloro-2,2,3,3,3-pentafluoropropane",422-56-0,61112,,,3.08,0.00,0.00
+594,HCFC 225cb,"1,3-dichloro-1,1,2,2,3-pentafluoropropane",507-55-1,62353,,,3.03,0.00,0.00
+595,HCFC 253eb,"3-chloro-1,1,1-trifluoropropane",460-35-5,10000,45.1,44,1.91,1.11,21.13
+596,HCFC123,"1,1-dichloro-2,2,2-trifluoroethane",306-83-2,9385,27,26,2.41,1.02,1.02
+597,Heptane,n-heptane,142-82-5,8900,98.5,96,4.42,2.55,180.85
+598,Hexachlorobenzene,hexachlorobenzene,118-74-1,8370,325,120,4.85,0.71,67.75
+599,Hexachloroethane,hexachloroethane,67-72-1,6214,,,3.85,0.00,0.00
+600,Hexadecane,n-hexadecane,544-76-3,11006,286.8,120,9.20,2.51,238.69
+601,Hexafluoro Isopropanol,hexafluoro-i-propanol,920-66-1,13529,59,58,1.67,1.01,33.40
+602,"Hexafluoro-1,3-Butadiene","hexafluoro-1,3-butadiene",685-63-2,69636,5,4,2.71,0.76,-16.02
+603,Hexafluorobenzene,hexafluorobenzene,392-56-3,9805,80.2,78,2.87,0.97,51.33
+604,Hexamethyl Benzene,hexamethylbenzene,87-85-4,6908,263.4,120,4.49,2.28,216.73
+605,Hexamethylenetetramine,methenamine,100-97-0,4101,,,-0.54,0.00,0.00
+606,Hexamethylphosphoramide,hexamethylphosphoramide,680-31-9,12679,232.5,120,1.84,1.59,151.48
+607,Hexanal,hexanal,66-25-1,6184,131,120,1.88,2.31,219.59
+608,Hexane,hexane,110-54-3,8058,68.7,66,3.89,2.46,100.79
+609,"Hexane 1,6 Diol","1,6-hexanediol",629-11-8,12374,250,120,0.45,2.98,283.45
+610,Hexanoic Acid,n-hexanoicacid,142-62-1,8892,205.2,120,2.04,2.19,208.52
+611,Hexyl Acetate,n-hexylacetate,142-92-7,8908,171.5,120,3.10,2.21,209.48
+612,HFC 245fa,"1,1,1,3,3-pentafluoropropane",460-73-1,68030,,,1.42,0.00,0.00
+613,HFC 338pcc,"1,1,2,2,3,3,4,4-octafluorobutane",377-36-6,67832,,,2.32,0.00,0.00
+614,HFC-365mfc,"1,1,1,3,3-pentafluorobutane",406-58-6,67884,40,38,1.62,1.40,18.24
+615,HFC-43-10mee,"1,1,1,2,2,3,4,5,5,5-decafluoropentane",138495-42-8,86240,,,3.10,0.00,0.00
+616,HFE 7000,heptafluoro-1-methoxypropane,375-03-1,2774943,,,3.05,0.00,0.00
+617,HFE 7100,"1,1,1,2,2,3,3,4,4-nonafluoro-5-oxahexane",163702-07-6,164514,,,3.62,0.00,0.00
+618,Hydrazine,hydrazine,302-01-2,9321,113.5,112,-2.21,3.31,287.80
+619,Hydrogen Cyanide,hcn,74-90-8,768,26,24,-0.61,1.34,-1.34
+620,Hydrogen Peroxide,h2o2,7722-84-1,784,152,120,-1.12,2.63,249.66
+621,Hydrogen Sulfide,h2s,7783-06-4,402,-60.33,-60,0.30,1.99,-169.57
+622,Hydroxyethyl Acrylate,2-propenoicacid-2-hydroxyethylester,818-61-1,13165,191,120,0.32,1.91,181.33
+623,Indene,1h-indene,95-13-6,7219,182,120,2.69,1.99,188.77
+624,Indole,indole,120-72-9,798,254,120,1.72,1.90,180.24
+625,Iodobenzene,iodobenzene,591-50-4,11575,188.4,120,2.76,0.85,81.08
+626,Iodoform,triiodomethane,75-47-8,6374,218,120,2.82,0.23,21.56
+627,Isoamyl Acetate,isoamylacetate,123-92-2,31276,142.5,120,2.46,2.24,212.45
+628,Isoamyl Alcohol (3-Methyl-1-Butanol),isopentanol,123-51-3,31260,131.1,120,1.51,3.65,346.58
+629,Isoamyl Propionate,1-butanol-3-methylpropanoate,105-68-0,7772,160.2,120,3.15,2.25,213.88
+630,Isobutyl Acetate,aceticacid-2-methylpropylester,110-19-0,8038,116.5,114,2.03,2.18,193.58
+631,Isobutyl Acrylate,2-propenoicacid-2-methylpropylester,106-63-8,7819,132,120,2.58,2.13,202.59
+632,Isobutyl Alcohol,isobutanol,78-83-1,6560,107.8,106,1.19,3.41,276.52
+633,Isobutyl Formate,isobutylformate,542-55-2,10957,98.2,96,1.68,2.07,147.13
+634,Isobutyl Isobutyrate,isobutylisobutyrate,97-85-8,7351,148.6,120,3.20,2.25,213.88
+635,Isobutylene,isobutene,115-11-7,8255,-6.9,-6,2.21,2.23,-69.07
+636,Isobutyleneoxide,"2,2-dimethyl-oxirane",558-30-5,11208,52,50,0.90,2.00,49.91
+637,Isobutyric Acid,isobutyricacid,79-31-2,6590,154.4,120,1.00,2.70,256.30
+638,Isocyanic Acid,isocyanicacid,75-13-8,6347,,,0.29,0.00,0.00
+639,Isooctyl Alcohol,isooctanol,26952-21-6,15450,186,120,3.11,2.41,228.85
+640,Isopentane,methylbutane,78-78-4,6556,27.8,26,3.22,2.28,2.28
+641,Isophorone,isophorone,78-59-1,6544,215.2,120,1.45,2.21,209.52
+642,"Isoprene (2-Methyl-1,3-Butadiene)",isoprene,78-79-5,6557,34,32,2.35,1.99,13.92
+643,Isopropyl Acetate,isopropylacetate,108-21-4,7915,88.6,86,1.51,2.04,124.27
+644,Isopropyl Amine (2-Propan Amine),isopropylamine,75-31-0,6363,31.7,30,0.90,2.13,10.66
+645,Isopropyl Benzene (Cumene),isopropylbenzene,98-82-8,7406,152.4,120,3.45,2.10,199.32
+646,Isopropyl Chloride (2-Chloro Propane),2-chloropropane,75-29-6,6361,35.7,34,1.83,1.64,14.73
+647,Isopropyl Ether,diisopropylether,108-20-3,7914,68.5,66,2.65,2.20,90.30
+648,Isopropyl Palmitate,hexadecanoicacidisopropylester,142-91-6,8907,,,9.10,0.00,0.00
+649,Isovaleraldehyde,3-methylbutanal,590-86-3,11552,92.5,90,1.32,2.18,141.81
+650,Isovaleric Acid,isovalericacid,503-74-2,10430,176.5,120,1.46,2.15,204.49
+651,Isoxazole,iso-oxazole,288-14-2,9254,95,94,0.09,1.77,121.82
+652,Ketene,ethenone,463-51-4,10038,-49.8,-50,1.12,1.10,-82.82
+653,l-Tyrosine,tyrosine,60-18-4,6057,,,-3.96,0.00,0.00
+654,Lactic Acid (dl),lacticacid,50-21-5,612,,,-0.74,0.00,0.00
+655,m-Chloroaniline,3-chlorobenzeneamine,108-42-9,7932,230.5,120,1.50,1.62,153.81
+656,m-Cresol,3-hydroxytoluene,108-39-4,342,202.2,120,1.85,2.00,190.12
+657,m-Dichlorobenzene,"1,3-dichlorobenzene",541-73-1,10943,173,120,3.02,1.31,124.42
+658,Maleic Anhydride,maleicanhydride,108-31-6,7923,202,120,0.48,1.41,133.67
+659,Malononitrile,dicyanomethane,109-77-3,8010,218.5,120,-1.05,1.58,149.74
+660,Menthofuran,"4,5,6,7-tetrahydro-3,6-dimethylbenzofuran",494-90-6,329983,,,3.90,0.00,0.00
+661,Mesityl Oxide,4-methyl-3-penten-2-one,141-79-7,8858,130,120,1.38,2.29,217.55
+662,Mesitylene,"1,3,5-trimethylbenzene",108-67-8,7947,164.7,120,3.59,2.21,210.24
+663,Methacrylaldehyde,alpha-methylacrolein,78-85-3,6562,68.4,66,0.63,1.89,77.63
+664,Methacrylamide,2-methyl-2-propenamide,79-39-0,6595,,,-0.82,0.00,0.00
+665,Methacrylic Acid,methacrylicacid,79-41-4,4093,163,120,0.98,1.92,182.76
+666,Methacrylonitrile,2-methyl-2-propenenitrile,126-98-7,31368,90.3,88,0.61,1.91,120.20
+667,Methane (Liquid B.P.),methane,74-82-8,297,-161.5,-162,1.15,3.48,-650.27
+668,Methanol,methanol,67-56-1,887,64.6,62,-0.66,2.80,103.77
+669,Methanol Cluster,methanol,67-56-1,887,64.6,62,-0.66,2.80,103.77
+670,Methoxyhexanone (Pentoxone),4-methoxy-4-methyl-pentan-2-one,107-70-0,7884,160,120,1.07,2.23,211.54
+671,Methyl Acetate,methylacetate,79-20-9,6584,56.8,54,0.36,2.00,57.97
+672,Methyl Aceto Acetate,methylacetoacetate,105-45-3,7757,171.7,120,-0.09,1.91,181.33
+673,Methyl Acetylene,propyne,74-99-7,6335,-23.2,-24,0.97,2.19,-107.24
+674,Methyl Acrylate,methylacrylate,96-33-3,7294,80.2,78,0.97,1.79,94.92
+675,Methyl Amine,methylamine,74-89-5,6329,-6.3,-6,-0.28,2.02,-62.64
+676,Methyl Amyl Acetate,4-methyl-2-pentylacetate,108-84-9,7959,147.5,120,2.98,2.25,213.88
+677,Methyl Benzoate,methylbenzoate,93-58-3,7150,199,120,2.11,1.83,174.22
+678,Methyl Bromide,ch3br,74-83-9,6323,3.5,2,1.05,0.66,-15.08
+679,Methyl Butyl Ketone,2-hexanone,591-78-6,11583,127.6,120,1.62,2.31,219.59
+680,Methyl Chloride,ch3cl,74-87-3,6327,-24,-24,0.84,1.58,-77.47
+681,Methyl Chloroformate,carbonochloridicacidmethylester,79-22-1,6586,70.5,68,1.51,1.20,51.44
+682,Methyl Cyanoacetate,cyanoaceticacidmethylester,105-34-0,7747,200.5,120,-0.41,1.74,165.54
+683,Methyl Cyclohexane,methylcyclohexane,108-87-2,7962,100.9,98,3.63,2.24,163.67
+684,Methyl Cyclopentane,methylcyclopentane,96-37-7,7296,71.8,70,3.32,2.26,101.58
+685,Methyl Ethyl Ether,methylethylether,540-67-0,10903,7.4,6,1.13,1.93,-36.73
+686,Methyl Ethyl Ketone (MEK),butanone,78-93-3,6569,79.5,78,0.55,2.33,123.69
+687,Methyl Ethyl Ketoxime,2-butanoneoxime,96-29-7,7292,152.5,120,1.06,2.19,208.51
+688,Methyl Formate,methylformate,107-31-3,7865,31.7,30,-0.03,1.56,7.82
+689,Methyl Furoate,methyl2-furancarboxylate,611-13-2,11902,181.3,120,1.22,1.72,163.37
+690,Methyl Glyoxal,methylglyoxal,78-98-8,880,72,70,0.36,1.63,73.40
+691,Methyl Hydrazine,methylhydrazine,60-34-4,6061,87.5,86,-1.09,2.22,135.63
+692,Methyl Hydroperoxide,methylhydroperoxide,3031-73-0,18199,86,84,-0.33,1.87,110.10
+693,Methyl Iodide,ch3i,74-88-4,6328,42.5,40,1.33,0.59,8.86
+694,Methyl Isoamyl Ketone,5-methyl-2-hexanone,110-12-3,8034,144,120,2.01,2.33,221.28
+695,Methyl Isobutyl Carbinol,4-methyl-2-pentanol,108-11-2,7910,131.6,120,2.18,2.40,227.99
+696,Methyl Isobutyl Ketone (MIBK),4-methyl-2-pentanone,108-10-1,7909,116.5,114,1.64,2.29,203.88
+697,Methyl Isocyanate,isocyanatomethane,624-83-9,12228,39.5,38,1.00,1.50,19.49
+698,Methyl Isopropenyl Ketone,3-methyl-3-buten-2-one,814-78-8,13143,98,96,0.97,2.07,147.12
+699,Methyl Isothiocyanate,methylisothiocyanate,556-61-6,11167,119,118,1.25,1.45,134.94
+700,Methyl Mercaptan,methanethiol,74-93-1,878,5.9,4,0.77,1.39,-29.12
+701,Methyl Methacrylate,methylmethacrylate,80-62-6,6658,100.5,98,1.55,1.95,142.19
+702,Methyl n-Amyl Ketone,2-heptanone,110-43-0,8051,151,120,2.16,2.33,221.28
+703,Methyl n-Propyl Ketone,2-pentanone,107-87-9,7895,102.2,100,1.09,2.22,166.32
+704,Methyl Nitrate,methylnitrate,598-58-3,11724,65,64,1.44,1.40,54.59
+705,Methyl Oleate,methyloleate,112-62-9,5364509,,,8.48,0.00,0.00
+706,Methyl Phenyl Sulfide,methylthiobenzene,100-68-5,7520,193,120,2.57,1.82,173.05
+707,Methyl Phenyl Sulfone (Uncertain),methylphenylsulfone,3112-85-4,18369,,,0.08,0.00,0.00
+708,Methyl Propionate,methylpropionate,554-12-1,11124,79.8,78,1.03,1.95,103.46
+709,Methyl Salicylate,2-hydroxy-benzoicacidmethylester,119-36-8,4133,222.9,120,2.69,1.78,169.26
+710,Methyl Silane,methylsilane,992-94-9,70434,-57.5,-58,2.07,1.04,-86.58
+711,Methyl Sulfolane,"3-methyl-tetrahydrothiophene-1,1-dioxide",872-93-5,79119,276,120,-0.86,1.87,178.01
+712,Methyl Thiocyanate,methylthiocyanate,556-64-9,11168,132.9,120,0.35,1.46,138.28
+713,Methyl Vinyl Ether,methylvinylether,107-25-5,7861,5.5,4,1.15,1.75,-36.82
+714,Methyl Vinyl Ketone,1-buten-3-one,78-94-4,6570,81.4,80,0.22,1.94,106.92
+715,Methyl-p-Toluate,4-methyl-benzoicacidmethylester,99-75-2,7455,220,120,2.55,1.89,179.37
+716,Methyl-t-Butyl Ether,methyl-t-butylether,1634-04-4,15413,55.2,54,1.90,2.26,65.53
+717,Methylal (Dimethoxy Methane),dimethoxymethane,109-87-5,8020,42,40,0.57,1.89,28.41
+718,Methylene Dichloride (Dichloromethane),ch2cl2,75-09-2,6344,40,38,1.27,0.81,10.55
+719,Methylene Diiodide (Diiodomethane),diiodomethane,75-11-6,6346,182,120,2.04,0.45,42.70
+720,Morpholine,morpholine,110-91-8,8083,128,120,0.10,2.19,208.51
+721,"N,N,N,N-Tetramethylthiourea",tetramethylthiourea,2782-91-4,17725,245,120,0.57,2.03,192.84
+722,"N,N-Dibutyl Formamide","n,n-dibutylformamide",761-65-9,12975,,,2.65,0.00,0.00
+723,"N,N-Dichloroethyl Amine",2-chloro-n-(2-chloroethyl)ethanamine,334-22-5,9533,,,1.80,0.00,0.00
+724,"N,N-Diethyl Acetamide",diethylacetamide,685-91-6,12703,185.5,120,0.87,2.26,215.16
+725,"N,N-Diethyl Formamide","n,n-diethylformamide",617-84-5,12051,177.5,120,0.47,2.24,212.38
+726,"N,N-Dimethyl Acetamide","n,n-dimethylacetamide",127-19-5,31374,165,120,-0.19,2.19,208.51
+727,"N,N-Dimethyl Butyramide","n,n-dimethylbutanamide",760-79-2,12973,186,120,1.16,2.26,215.16
+728,N-(2-Hydroxyethyl)-2-Pyrrolidone,1-(2-hydroxyethyl)-2-pyrrolidinone,3445-11-2,76980,295,120,-0.31,2.06,195.72
+729,N-Acetyl Piperidine,1-acetylpiperidine,618-42-8,12058,226.5,120,0.81,2.20,209.06
+730,N-Acetylmorpholine,4-acetylmorpholine,1696-20-4,15543,245.5,120,-0.59,2.06,195.72
+731,n-Butyl Acetate,n-butylacetate,123-86-4,31272,126.1,120,2.06,2.19,208.52
+732,n-Butyl Aceto Acetate,3-oxobutanoicacidbutylester,591-60-6,11576,,,1.57,0.00,0.00
+733,n-Butyl Acrylate,2-propenoicacidbutylester,141-32-2,8846,145,120,2.66,2.12,200.95
+734,n-Butyl Amine,1-butylamine,109-73-9,8007,77,76,1.41,2.30,117.36
+735,n-Butyl Butyrate,butylbutyrate,109-21-7,7983,166,120,3.28,2.25,213.88
+736,n-Butyl Cyclohexane,butylcyclohexane,1678-93-9,15506,180.9,120,5.16,2.44,231.80
+737,n-Butyl Cyclopentane,butylcyclopentane,2040-95-1,16269,156.6,120,4.87,2.44,231.80
+738,n-Butyl Methacrylate,2-methyl-2-propenoicacidbutylester,97-88-1,7354,160,120,3.20,2.24,212.54
+739,n-Butyl Propionate,n-butylpropionate,590-01-2,11529,146.8,120,2.70,2.23,211.54
+740,n-Butylbenzene,butylbenzene,104-51-8,7705,183.3,120,4.08,2.15,204.61
+741,n-Butyramide,butanamide,541-35-5,10927,,,-0.62,0.00,0.00
+742,N-Ethyl Formamide,n-formylethylamine,627-45-2,12319,,,-0.79,0.00,0.00
+743,N-Ethyl-2-Pyrrolidone,n-ethyl-2-pyrrolidinone,2687-91-4,17595,,,0.45,0.00,0.00
+744,N-Formyl Piperidine,1-piperidinecarboxaldehyde,2591-86-8,17429,222.5,120,0.36,2.16,205.53
+745,n-Heptyl Acetate,aceticacidheptylester,112-06-1,8159,193,120,3.66,2.21,210.00
+746,N-Methyl Acetamide,n-methylacetamide,79-16-3,6582,205,120,-1.01,2.14,202.83
+747,N-Methyl Formamide,methylformamide,123-39-7,31254,199.5,120,-1.50,2.36,224.53
+748,N-Methyl Pyrrolidine,1-methyl-pyrrolidine,120-94-5,8454,81,80,2.22,2.22,122.36
+749,N-Methyl-2-Pyrrolidone (NMP),n-methyl-2-pyrrolidinone,872-50-4,13387,202,120,-0.13,2.11,200.77
+750,N-Methylaniline,n-methylaniline,100-61-8,7515,196.2,120,1.93,2.09,198.68
+751,N-n-Butyl Pyrrolidone,n-butyl-2-pyrrolidinone,3470-98-2,18984,,,1.53,0.00,0.00
+752,n-Pentyl Propionate,amylpropionate,624-54-4,12217,168.6,120,3.25,2.25,213.88
+753,n-Propyl Acetate,n-propylacetate,109-60-4,7997,101.5,100,1.51,2.14,160.55
+754,n-Propyl Nitrate,propylnitrate,627-13-4,12307,110,108,2.65,1.83,151.89
+755,n-Propyl Propanoate,propylpropionate,106-36-5,7803,122.5,120,2.17,2.19,208.52
+756,n-Tetradecane,tetradecane,629-59-4,12389,253.5,120,8.13,2.52,239.27
+757,Naphthalene,naphthalene,91-20-3,931,217.9,120,2.84,1.82,172.77
+758,Nicotine,nicotine,54-11-5,89594,247,120,2.44,2.10,199.92
+759,Nitric Acid,nitricacid,7697-37-2,944,,,1.11,0.00,0.00
+760,Nitrobenzene,nitrobenzene,98-95-3,7416,210.8,120,1.93,1.66,158.01
+761,Nitroethane,nitroethane,79-24-3,6587,114,112,0.63,1.84,160.24
+762,Nitroethylene,nitroethene,3638-64-0,77197,,,0.64,0.00,0.00
+763,Nitroglycerin (Glyceryl Trinitrate),"1,2,3-propanetrioltrinitrate",55-63-0,4510,250,120,4.20,1.36,129.26
+764,Nitromethane,nitromethane,75-52-5,6375,101.1,100,0.04,1.86,139.71
+765,Nitrosobenzene,nitrosobenzene,586-96-9,11473,,,1.35,0.00,0.00
+766,Nonane,n-nonane,111-84-2,8141,150.8,120,5.49,2.60,246.57
+767,Norephedrin,ephedrine,299-42-3,9294,255,120,2.28,2.13,202.27
+768,o-Chlorofluorobenzene,o-chlorofluorobenzene,348-51-6,9583,137.6,120,2.57,1.41,133.83
+769,o-Chlorostyrene,o-chlorostyrene,2039-87-4,14906,188.7,120,3.15,1.68,159.80
+770,o-Chlorotoluene,1-chloro-2-methylbenzene,95-49-8,7238,159,120,2.93,1.71,162.92
+771,o-Dichlorobenzene,"1,2-dichlorobenzene",95-50-1,7239,180,120,2.92,1.32,125.22
+772,o-Difluorobenzene,o-difluorobenzene,367-11-3,9706,94,92,2.21,1.49,100.16
+773,o-Methoxyphenol (Guaiacol),2-methoxyphenol,90-05-1,460,205,120,2.17,1.90,180.57
+774,Octadecane,octadecane,593-45-3,11635,316.3,120,10.27,2.53,240.37
+775,Octamethylcyclotetrasiloxane,octamethylcyclotetrasiloxane,556-67-2,11169,175.8,120,6.42,1.86,176.77
+776,Octane,octane,111-65-9,356,125.6,120,4.95,2.62,249.03
+777,Octanoic Acid,caprylicacid,124-07-2,379,239,120,3.09,2.25,213.88
+778,Octyl Acetate,aceticacidoctylester,112-14-1,8164,210,120,4.18,2.29,217.73
+779,Oleic Acid,cis-9-octadecenoicacid,112-80-1,445639,360,120,7.86,2.63,249.50
+780,Oleyl Alcohol,oleyl-alcohol,143-28-2,5284499,334,120,8.12,2.57,244.43
+781,OS-10 (Hexamethyldisiloxane),hexamethyldisiloxane,107-46-0,24764,99,98,4.63,2.11,153.86
+782,OS-20 (Octamethyltrisiloxane),octamethyltrisiloxane,107-51-7,24705,153,120,5.63,2.02,192.16
+783,OS-30 (Decamethyltetrasiloxane),decamethyltetrasiloxane,141-62-8,8852,194,120,7.02,1.95,185.21
+784,Oxalic Acid,oxalicacid,144-62-7,971,,,0.59,0.00,0.00
+785,Oxalylchloride,oxalylchloride,79-37-8,65578,63.5,62,2.49,0.71,26.18
+786,Oxetane (Trimethylene Oxide),oxetane,503-30-0,10423,47.6,46,0.37,1.93,40.47
+787,Ozone,o3,10028-15-6,24823,,,1.91,0.00,0.00
+788,p-Anisidine (Methoxy Aniline),p-anisidine,104-94-9,7732,243,120,0.88,1.99,188.61
+789,p-Bromobenzonitrile,4-bromobenzonitrile,623-00-7,12162,236,120,1.70,1.14,108.46
+790,p-Bromonitrobenzene,4-bromonitrobenzene,586-78-7,11466,256,120,2.54,1.11,105.69
+791,p-Bromotoluene,1-bromo-4-methylbenzene,106-38-7,7805,184.3,120,3.11,1.20,113.75
+792,p-Chloro Acetophenone,1-(4-chlorophenyl)ethanone,99-91-2,7467,232,120,1.96,1.62,154.05
+793,p-Chloronitrobenzene,1-chloro-4-nitrobenzene,100-00-5,7474,242,120,2.41,1.45,137.53
+794,p-Chlorostyrene,p-chlorostyrene,1073-67-2,14085,192,120,3.12,1.68,159.80
+795,p-Chlorotoluene,1-chloro-4-methylbenzene,106-43-4,7810,162.4,120,2.98,1.62,153.89
+796,p-Dichlorobenzene,"1,4-dichlorobenzene",106-46-7,4685,174,120,2.95,1.31,124.74
+797,p-Diethyl Benzene,"1,4-diethylbenzene",105-05-5,7734,183.7,120,4.08,2.24,212.93
+798,p-Divinyl Benzene,p-divinylbenzene,105-06-6,66041,,,3.27,0.00,0.00
+799,p-Fluoroanisole,4-fluoroanisole,459-60-9,9987,157,120,2.23,1.80,171.17
+800,p-Nitro Toluene,1-methyl-4-nitro-benzene,99-99-0,7473,238.3,120,2.32,1.77,168.37
+801,Paracetamol,4-hydroxyacetanilide,103-90-2,1983,,,0.23,0.00,0.00
+802,Paraldehyde,paraldehyde,123-63-7,31264,124.3,120,1.20,2.09,198.88
+803,Pentachloro Ethane,pentachloroethane,76-01-7,6419,159.8,120,3.28,0.67,63.90
+804,Pentachlorophenol,pentachlorophenol,87-86-5,992,309.5,120,4.38,0.82,77.49
+805,Pentanal (Valeraldehyde),valeraldehyde,110-62-3,8063,103,102,1.34,2.22,171.30
+806,Pentane,pentane,109-66-0,8003,36,34,3.36,2.36,21.23
+807,Pentanoic Acid,n-bucooh,109-52-4,7991,186.1,120,1.49,2.15,204.49
+808,Perfluoro Ethylene (Tetrafluoro Ethylene,tetrafluoroethene,116-14-3,8301,-75.9,-76,1.91,0.51,-51.59
+809,Perfluorobutane,decafluorobutane,355-25-9,9638,-1.9,-2,3.57,1.10,-29.82
+810,Perfluoroheptane,perfluoroheptane,335-57-9,9553,82.5,80,5.31,1.16,63.91
+811,Perfluorohexane (PFC 5060),perfluoro-n-hexane,355-42-0,9639,56.6,54,4.73,1.09,31.69
+812,Perfluoromethylcyclohexane,perfluoromethylcyclohexane,355-02-2,9637,76.3,74,4.42,0.90,44.14
+813,Perfluoropentane (PFC 5050),perfluoropentane,678-26-2,12675,29.9,28,4.13,1.05,3.16
+814,Phenetole (Ethyl Phenyl Ether),ethoxybenzene,103-73-1,7674,169.8,120,2.72,2.07,196.25
+815,Phenol,phenol,108-95-2,996,181.8,120,1.35,11.20,1063.62
+816,Phenyl Acetate,phenylacetate,122-79-2,31229,196,120,1.66,1.86,176.24
+817,Phenyl Acetonitrile,phenylacetonitrile,140-29-4,8794,233.5,120,0.98,1.90,180.24
+818,Phenyl Acetylene,ethynylbenzene,536-74-3,10821,143,120,2.39,2.07,197.12
+819,Phenylhydrazine,phenyl-hydrazine,100-63-0,7516,243.5,120,0.59,2.00,190.12
+820,Phosgene,carbonicdichloride,75-44-5,6371,8.2,6,2.18,0.52,-9.89
+821,Phosphoric Acid,phosphoricacid,7664-38-2,1004,,,-1.63,0.00,0.00
+822,Phosphorous Oxychloride,pocl3,10025-87-3,24813,,,2.30,0.00,0.00
+823,Phosphorus Trichloride,pcl3,7719-12-2,24387,76,74,2.84,0.46,22.69
+824,Phthalic Anhydride,phthalicanhydride,85-44-9,6811,295,120,1.49,1.52,144.56
+825,"Picric Acid (2,4,6-Trinitrophenol)","2,4,6-trinitrophenol",88-89-1,6954,,,2.91,0.00,0.00
+826,Piperazine,piperazine,110-85-0,4837,146,120,0.31,2.52,239.04
+827,Piperidine,piperidine,110-89-4,8082,106.2,104,1.75,2.31,182.68
+828,Propane,propane,74-98-6,6334,-42.1,-42,2.30,2.25,-150.52
+829,Propargylaldehyde,2-propynal,624-67-9,12222,,,0.27,0.00,0.00
+830,Propionaldehyde,propanal,123-38-6,527,48,46,0.23,1.93,40.47
+831,"Propionaldehyde - 2,3-Epoxy",glycidylaldehyde,765-34-4,13002,112.5,110,-0.15,1.75,149.09
+832,Propionamide,propanamide,79-05-0,6578,213,120,-1.14,2.14,202.83
+833,Propionic Acid,propionicacid,79-09-4,1032,141.1,120,0.39,2.01,190.56
+834,Propionic Anhydride,"propanoicacid,anhydride",123-62-6,31263,170,120,1.59,1.98,188.47
+835,Propionitrile,propionitrile,107-12-0,7854,97.1,96,-0.17,2.05,145.51
+836,Propionylchloride,propionylchloride,79-03-8,62324,80,78,1.79,1.49,78.79
+837,Propyl Amine,n-propylamine,107-10-8,7852,47.2,46,0.89,2.19,46.07
+838,Propyl Chloride,1-chloropropane,540-54-5,10899,46.5,44,2.00,1.72,32.64
+839,Propyl Formate,n-propylformate,110-74-7,8073,80.9,78,1.14,1.95,103.46
+840,Propyl Methacrylate,propylmethacrylate,2210-28-8,16638,141,120,2.65,2.13,202.59
+841,Propylene,propene,115-07-1,8252,-47.6,-48,1.73,2.19,-159.73
+842,Propylene Carbonate,propylenecarbonate,108-32-7,7924,242,120,-0.25,1.85,175.52
+843,Propylene Chlorohydrin,1-chloro-2-propanol,127-00-4,31370,127,120,0.85,1.80,171.25
+844,Propylene Glycol,propyleneglycol,57-55-6,1030,187.6,120,-0.41,3.04,289.00
+845,Propylene Glycol Mono-t-Butyl Ether,"1-(1,1-dimethylethoxy)-2-propanol",57018-52-7,92629,,,2.23,0.00,0.00
+846,Propylene Glycol Monobutyl Ether,1-butoxy-2-propanol,5131-66-8,21210,171.5,120,2.66,2.31,219.25
+847,Propylene Glycol Monoethyl Ether,1-ethoxy-2-propanol,1569-02-4,15287,131,120,1.54,2.27,215.23
+848,Propylene Glycol Monoethyl Ether Acetate,1-ethoxy-2-propanol-acetate,54839-24-6,171378,,,1.78,0.00,0.00
+849,Propylene Glycol Monoisopropyl Ether,1-isopropoxy-2-propanol,3944-36-3,19846,137.5,120,1.88,2.29,217.51
+850,Propylene Glycol Monomethyl Ether,1-methoxy2-propanol,107-98-2,7900,119,118,0.97,2.23,207.02
+851,Propylene Glycol Monomethyl Ether Acetate,1-methoxy-2-acetoxypropane,108-65-6,7946,145,120,1.21,2.09,198.88
+852,Propylene Glycol Monophenyl Ether,1-phenoxy-2-propanol,770-35-4,92839,242.7,120,2.29,2.03,192.73
+853,Propylene Glycol Monopropyl Ether,1-propoxy-2-propanol,1569-01-3,15286,150,120,2.12,2.29,217.51
+854,Propylene Imine (2-Methyl Aziridine),2-methylaziridine,75-55-8,6377,67,66,0.43,2.13,87.47
+855,Propylene Oxide,"1,2-epoxypropane",75-56-9,6378,35,34,0.45,2.11,18.95
+856,Propynonitrile,propiolonitrile,1070-71-9,14055,,,0.61,0.00,0.00
+857,Pulegone,pulegone,89-82-7,442495,224,120,2.63,2.23,211.99
+858,Pyrazole,pyrazole,288-13-1,1048,187,120,-0.52,1.86,176.23
+859,Pyridazine,pyridazine,289-80-5,9259,208,120,-0.97,1.78,169.24
+860,Pyridine,pyridine,110-86-1,1049,115.2,114,0.65,1.94,172.44
+861,Pyrimidine,pyrimidine,289-95-2,9260,123.8,120,-0.27,1.78,169.24
+862,"Pyrogallol (1,2,3-Trihydroxybenzene)","1,2,3-trihydroxybenzene",87-66-1,1057,309,120,1.72,1.72,163.37
+863,Pyrrole,pyrrole,109-97-7,8027,129.7,120,0.53,2.01,191.03
+864,Pyrrolidine,pyrrolidine,123-75-1,31268,86.5,84,1.13,2.22,131.24
+865,Pyruvonitrile,2-oxo-propanenitrile,631-57-2,69430,,,0.31,0.00,0.00
+866,Quinine,quinine,130-95-0,3034034,,,3.55,0.00,0.00
+867,Quinoline,chinoline,91-22-5,7047,237.1,120,1.70,1.85,175.69
+868,Saccharin,saccharin,81-07-2,5143,,,0.62,0.00,0.00
+869,Salicylaldehyde,salicylicaldehyde,90-02-8,6998,197,120,1.74,1.76,167.25
+870,Salicylic Acid,salicylicacid,69-72-7,338,,,2.16,0.00,0.00
+871,Sebacic Acid,decanedioicacid,111-20-6,5192,,,2.29,0.00,0.00
+872,sec-Butyl Acetate,sec-butylacetate,105-46-4,7758,112,110,2.03,2.16,183.74
+873,Skatole,methylindole,83-34-1,6736,266,120,2.30,1.97,187.50
+874,Stearic Acid,octadecanoicacid,57-11-4,5281,383,120,8.39,2.68,254.90
+875,Styrene,styrene,100-42-5,7501,145,120,2.62,2.05,194.75
+876,Styrene Oxide (Phenyl Oxirane),styreneoxide,96-09-3,7276,194.1,120,1.82,1.94,184.60
+877,Succinic Anhydride,"dihydro-2,5-furandione",108-30-5,7922,261,120,-0.57,1.62,154.00
+878,Succinonitrile,butanedinitrile,110-61-2,8062,266,120,-1.65,1.78,169.24
+879,Sulfanilamide,sulfanilamide,63-74-1,5333,,,-1.38,0.00,0.00
+880,Sulfolane (Tetramethylene Sulfone),"tetrahydrothiophene-1,1-dioxide",126-33-0,31347,287.3,120,-1.45,1.73,164.82
+881,Sulfur Dicyanide,sulfurcyanide,627-52-1,136447,,,0.38,0.00,0.00
+882,Sulfur Dioxide,so2,7446-09-5,1119,-10,-10,0.69,1.36,-47.64
+883,Sulfuryl Chloride,sulfurylchloride,7791-25-5,24648,69.3,68,2.79,0.57,24.63
+884,t-Butyl Acetate,tert-butylacetate,540-88-5,10908,97,96,2.06,2.11,150.06
+885,t-Butyl Alcohol,tert-butanol,75-65-0,6386,82.4,80,1.06,3.50,192.65
+886,Terephthalic Acid,"1,4-benzenedicarboxylicacid",100-21-0,7489,,,1.42,0.00,0.00
+887,Tetrachloroethylene,tetrachloroethene,127-18-4,31373,121.3,120,3.34,0.62,58.83
+888,Tetraethylorthosilicate,ethylsilicate,78-10-4,6517,168.8,120,2.27,2.09,198.49
+889,Tetrahydrofuran (THF),thf,109-99-9,8028,65,64,0.87,2.05,79.97
+890,Tetrahydrofurfuryl Alcohol,tetrahydrofurfurylalcohol,97-99-4,7360,178,120,0.60,2.15,204.49
+891,Tetrahydronaphthalene,tetralin,119-64-2,8404,207.6,120,3.45,1.98,188.30
+892,Tetrahydropyran,thp,142-68-7,8894,88,86,1.45,2.04,124.22
+893,Tetrahydrothiapyran,tetrahydro-2h-thiopyran,1613-51-0,15367,141.8,120,2.18,2.07,197.06
+894,Tetramethylene Sulfide,tetrahydrothiophene,110-01-0,1127,121,120,1.69,2.00,189.69
+895,Tetramethylene Sulfoxide,tetramethylenesulfoxide,1600-44-8,1128,,,-0.77,0.00,0.00
+896,Tetramethylurea,tetramethylurea,632-22-4,12437,176.5,120,0.78,2.25,213.99
+897,Tetranitromethane,tetranitro-methane,509-14-8,10509,,,5.51,0.00,0.00
+898,Thiazole,thiazole,288-47-1,9256,118,116,0.64,1.43,129.68
+899,Thioacetamide,ethanethioamide,62-55-5,2723949,,,-0.97,0.00,0.00
+900,Thioacetic Acid,thioaceticacid,507-09-5,10484,88,86,0.85,1.48,90.13
+901,Thiocyanic Acid,thiocyanicacid,463-56-9,781,,,0.03,0.00,0.00
+902,Thiodiethylenglycol,"2,2'-thiobisethanol",111-48-8,5447,282,120,0.31,1.92,182.53
+903,Thioglycolic Acid (Mercapto Acetic Acid),mercaptoaceticacid,68-11-1,1133,,,-0.52,0.00,0.00
+904,Thionyl Chloride,thionylchloride,7719-09-7,24386,76,74,2.17,0.53,25.98
+905,Thiophene,thiophene,110-02-1,8030,84,82,1.84,1.49,84.72
+906,Thiophenol,thiophenol,108-98-5,7969,169.1,120,2.20,1.71,162.41
+907,Thiourea,thiourea,62-56-6,2723790,,,-2.70,0.00,0.00
+908,Thiourea From Urea Min Sphere,thiourea,62-56-6,2723790,,,-2.70,0.00,0.00
+909,Thymine,thymine,65-71-4,1135,,,-1.92,0.00,0.00
+910,Thymol,thymol,89-83-8,6989,232.5,120,3.50,2.15,204.47
+911,Tigaldehyde,trans-2-methyl-2-butenal,497-03-0,5321950,115,114,0.79,2.13,189.82
+912,Toluene,toluene,108-88-3,1140,110.6,108,2.53,1.99,165.44
+913,Trans-Crotononitrile,(e)-2-butenenitrile,627-26-9,637921,120,118,0.33,2.00,186.44
+914,Trans-Decahydronaphthalene,trans-decalin,493-02-7,7044,187.3,120,4.45,2.38,226.51
+915,Tri-n-Butyl Borate,tributoxyborane,688-74-4,12712,234,120,7.29,2.29,217.91
+916,Tri-n-Butyl Phosphate,tri-n-butylphosphate,126-73-8,31357,,,5.22,0.00,0.00
+917,Trichloroacetic Acid,trichloroaceticacid,76-03-9,6421,196.5,120,2.36,0.82,77.71
+918,Trichloroacetonitrile,trichloroacetonitrile,545-06-2,11011,85.7,84,2.45,0.66,38.93
+919,Trichloroethylene,trichloroethene,79-01-6,6575,87.2,86,2.69,0.72,44.07
+920,Trichlorofluoromethane (Freon 11),cfcl3,75-69-4,6389,23.7,22,2.73,0.88,-2.63
+921,Trichloromethylsilane,trichloromethylsilane,75-79-6,6399,65.6,64,2.87,1.13,43.97
+922,Trichlorosilane,trichlorosilane,10025-78-2,24811,31.8,30,2.66,0.42,2.11
+923,Tricyclene,tricyclene,508-32-7,79035,152.5,120,4.18,2.32,220.25
+924,Tridecyl Alcohol,1-tridecanol,112-70-9,8207,274,120,5.91,2.42,229.91
+925,Triethanolamine,triethanolamine,102-71-6,7618,335.4,120,-0.42,2.65,251.73
+926,Triethyl Citrate,triethylcitrate,77-93-0,6506,,,2.09,0.00,0.00
+927,Triethylamine,triethylamine,121-44-8,8471,89,88,3.51,2.62,164.93
+928,Triethylene Glycol,triethyleneglycol,112-27-6,8172,285,120,0.06,2.49,236.68
+929,Triethylene Glycol Monomethyl Ether,2-2-(2-methoxyethoxy)ethoxyethanol,112-35-6,8178,249,120,0.34,2.14,203.02
+930,Triethylphosphate,triethylphosphate,78-40-0,6535,215.5,120,1.68,1.95,185.68
+931,Trifluoroacetic Acid,trifluoroaceticacid,76-05-1,6422,73,72,1.41,1.03,48.35
+932,Trifluoromethane (Freon 23),chf3,75-46-7,6373,-82.1,-82,0.83,1.24,-132.41
+933,Trimethyl Amine,trimethylamine,75-50-3,1146,2.8,0,1.55,2.02,-50.42
+934,Trimethylbenzene,"1,2,4-trimethylbenzene",95-63-6,7247,169.3,120,3.47,2.21,210.24
+935,Trimethylene Sulfide,thiacyclobutane,287-27-4,9251,95,94,1.51,1.80,124.38
+936,Trimethylphosphate,trimethylphosphate,512-56-1,10541,197.2,120,0.32,1.75,165.80
+937,Trinitromethane,trinitromethane,517-25-9,10602,,,3.53,0.00,0.00
+938,Trinitrotoluene (TNT) (DM),"2-methyl-1,3,5-trinitrobenzene",118-96-7,8376,,,3.09,0.00,0.00
+939,Trinitrotoluene (TNT) (G.C.),"2-methyl-1,3,5-trinitrobenzene",118-96-7,8376,,,3.09,0.00,0.00
+940,Triphenyl Phosphate,triphenylphosphate,115-86-6,8289,,,5.05,0.00,0.00
+941,Undecane,n-undecane,1120-21-4,14257,195.9,120,6.54,2.57,244.03
+942,Urea For Ro Equal 19.4,urea,57-13-6,1176,,,-3.08,0.00,0.00
+943,Urea Min Sphere,urea,57-13-6,1176,,,-3.08,0.00,0.00
+944,Valeronitrile,valeronitrile,110-59-8,8061,141.3,120,0.98,2.25,213.97
+945,Vanillin (4-Hydroxy-3-Methoxy Benzaldehy,4-hydroxy-3-methoxybenzaldehyde,121-33-5,1183,285,120,1.45,1.78,169.26
+946,Vinyl 2-Chloro Ethyl Ether,(c-chloroethoxy)ethene,110-75-8,8074,109,108,1.57,1.72,142.67
+947,Vinyl Acetate,vinylacetate,108-05-4,7904,72.5,70,1.41,2.03,91.47
+948,Vinyl Acetylene,butenyne,689-97-4,12720,5.1,4,1.46,1.62,-34.03
+949,Vinyl Allyl Ether,allylvinylether,3917-15-5,221523,,,1.95,0.00,0.00
+950,Vinyl Butyl Ether,butylvinylether,111-34-2,8108,94,92,2.90,2.46,164.71
+951,Vinyl Butyrate,vinylbutyrate,123-20-6,31247,116,114,2.60,2.06,183.75
+952,Vinyl Chloride,chloroethene,75-01-4,6338,-13.3,-14,1.47,1.42,-55.44
+953,Vinyl Ether,divinylether,109-93-3,8024,28.3,26,1.76,1.74,1.74
+954,Vinyl Ethyl Sulfide,ethylvinylsulfide,627-50-9,12320,,,2.33,0.00,0.00
+955,Vinyl Formate,vinylformate,692-45-5,222465,,,1.00,0.00,0.00
+956,Vinyl Iodide (Iodoethene),iodoethene,593-66-8,68976,56,54,1.82,0.58,16.84
+957,Vinyl Isobutyl Ether,isobutylvinylether,109-53-5,7992,83,82,2.98,2.18,124.04
+958,Vinyl Isopropyl Ether,2-(ethenyloxy)-propane,926-65-8,13557,,,2.07,0.00,0.00
+959,Vinyl Propionate,propanoicacidethenylester,105-38-4,7750,91.2,90,2.03,1.92,124.87
+960,Vinyl Propyl Ether,1-(ethenyloxy)propane,764-47-6,69815,65,64,2.36,2.08,81.31
+961,Vinyl Pyrrolidone,1-vinyl-2-pyrrolidinone,88-12-0,6917,148,120,0.53,1.95,185.67
+962,Vinyl Trimethyl Silane,ethenyltrimethylsilane,754-05-2,79102,55,54,3.63,2.02,58.57
+963,Vinylenecarbonate,"1,3-dioxol-2-one",872-36-6,13385,,,0.30,0.00,0.00
+964,Water,h2o,7732-18-5,962,100,98,-1.34,4.21,307.58
+965,Water 1% Soluble In - Ro=18.1,h2o,7732-18-5,962,100,98,-1.34,4.21,307.58
+966,Water Complete Misc. (R=13.0),h2o,7732-18-5,962,100,98,-1.34,4.21,307.58
+967,Xylene,"1,4-dimethylbenzene",106-42-3,7809,138.3,120,3.05,2.05,194.31
+968,ß-Propiolactone,beta-propiolactone,57-57-8,2365,162,120,-0.57,1.78,169.27
+969,α-Chloro Acetophenone,2-chloroacetophenone,532-27-4,10757,,,1.58,0.00,0.00
+970,α-Chloro Methyl Acrylate,methyl2-chloroacrylate,80-63-7,6659,135,120,1.71,1.50,142.63
+971,γ-Butyrolactone (GBL),gamma-butyrolactone,96-48-0,7302,204,120,-0.62,1.87,177.82
+972,γ-Thiobutyrolactone,dihydrothiophen-2(3h)-one,1003-10-7,13852,,,0.86,0.00,0.00
+973,"1,4-dichloro-2-butyne","1,4-dichloro-2-butyne",821-10-3,13182,165.5,120,1.86,1.27,121.02
+974,"1,2-dibromoethylene",trans-dibromoethene,590-12-5,637929,108,106,2.26,0.54,44.05
+975,o-xylene,"1,2-dimethylbenzene",95-47-6,7237,144.5,120,2.94,2.09,198.08
+976,dipropyleneglycolmethylether,dipropyleneglycolmonomethylether,34590-94-8,,188.3,120,1.17,2.22,210.72
+977,butadienedioxide,"1,2-3,4-diepoxybutane",564-00-1,233706,144,120,-0.16,1.92,182.76
+978,propylenechlorohydrin,2-chloro-1-propanol,78-89-7,6566,133,120,0.79,1.80,171.25
+979,dimethylmethylphosphonate,dimethylmethylphosphonate,765-79-6,,181,120,-0.83,0.00,0.00
+980,ethylamylketone,5-methyl-3-heptanone,541-85-5,7822,159,120,2.67,2.34,222.57
+981,propyleneglycolmonophenylether,propyleneglycolmonophenylether,4169-04-4,20129,244,120,2.16,2.03,192.73
+982,dipropyleneglycol,dipropyleneglycol,25265-71-8,,230.5,120,0.93,2.19,207.99
+983,di-n-butylsulfoxide,"1,1'-sulfonylbisbutane",598-04-9,69014,291,120,1.34,2.12,201.71
+984,vinylaceticacid,3-butenoicacid,625-38-7,32743,163,120,0.60,1.92,182.76
+985,hexyleneglycol,"2-methyl-2,4-pentanediol",107-41-5,7870,198,120,1.08,2.29,217.51
+986,crotonaldehyde,cis-crotonaldehyde,15798-64-8,643950,,,0.11,0.00,0.00
+987,"2,3-dimethyl-1-butene","2,3-dimethyl-1-butene",563-78-0,11249,55.6,54,3.17,2.20,63.71
+988,ethylcinnamate,ethylcinnamate,4192-77-2,637758,,,2.95,0.00,0.00
+989,dimethylethanolamine,dimethylethanolamine,2854-16-2,95102,,,0.40,0.00,0.00
+990,propyleneglycolmonoethylether,"1,2-propanediolmonoethylether",52125-53-8,93269,,,1.56,0.00,0.00
+991,dioctylphthalate,"1,2-benzenedicarboxylicaciddioctylester",117-84-0,8346,,,9.23,0.00,0.00
+992,isopropylpalmitate,isopropylpalmitate,,445063,,,9.07,0.00,0.00
+993,glutaric anhydride,"dihydro-2h-pyran-2,6(3h)-dione",108-55-4,7940,287,120,-0.56,1.76,167.12
+994,GVL,dihydro-5-methyl-2(3h)-furanone,108-29-2,7921,207,,-0.12,0.00,0.00
+995,chloromethyl methyl ether,chloromethoxymethane,107-30-2,7864,59.5,58,0.88,1.46,48.28
+996,chloromethyl acetate,chloromethacetate,625-56-9,69366,,,1.12,0.00,0.00
+997,bromodichloromethane,chcl2br,75-27-4,6359,90,88,2.25,0.50,31.41
+998,chlorofluoromethane,ch2fcl,593-70-4,11643,-9.1,-10,0.79,0.84,-29.53
+999,chloroiodomethane,ch2cli,593-71-5,11644,109,108,1.67,0.48,40.06
+1000,carbon tetrafluoride,cf4,75-73-0,6393,-128,-128,1.63,0.91,-138.54
+1001,camphor,camphor,76-22-2,2537,204,120,2.27,2.23,211.99
+1002,butyl isobutyrate,butylisobutyrate,97-87-0,7353,,,3.34,0.00,0.00
+1003,bromoacetic acid,bromoaceticacid,79-08-3,6227,208,120,0.38,0.95,89.86
+1004,alpha-terpineol,alpha-terpineol,98-55-5,17100,220,120,3.05,2.30,218.60
+1005,n-allylmethylamine,allylmethylamine,627-37-2,69391,,,1.55,0.00,0.00
+1006,2-aminobutan-1-ol,2-amino-1-butanol,96-20-8,22129,176,120,0.49,2.32,220.18
+1007,benzyl formate,benzylformate,104-57-4,7708,203,120,1.57,1.86,176.24

@@ -1,0 +1,30 @@
+{
+  "model_type": "Random Forest",
+  "timestamp": "20260124_145027",
+  "sklearn_version": "1.8.0",
+  "feature_names": [
+    "Polymer_Dispersion",
+    "Polymer_Polar",
+    "Polymer_Hydrogen",
+    "Solvent_Dispersion",
+    "Solvent_Polar",
+    "Solvent_Hydrogen",
+    "Molar_Volume",
+    "R0",
+    "Ra",
+    "RED"
+  ],
+  "classification_threshold": 0.85,
+  "performance": {
+    "test_accuracy": 1.0,
+    "test_precision": 1.0,
+    "test_recall": 1.0,
+    "test_f1": 1.0,
+    "test_roc_auc": 1.0
+  },
+  "training_strategy": "all_polymers_corrected_formula",
+  "target_definition": "RED < 1.0 = Soluble",
+  "hansen_formula": "Ra = sqrt(4\u00d7\u0394D\u00b2 + \u0394P\u00b2 + \u0394H\u00b2)",
+  "num_features": 10,
+  "random_seed": 42
+}

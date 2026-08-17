@@ -1,0 +1,3448 @@
+"""Bounded scholarly, patent, and portable literature-corpus capabilities."""
+
+from __future__ import annotations
+
+import ast
+import gzip
+import hashlib
+import html
+import importlib
+import io
+import json
+import math
+import os
+import re
+import statistics
+from collections import Counter, defaultdict
+from datetime import date, datetime, timezone
+from html.parser import HTMLParser
+from pathlib import Path
+from typing import Any, Literal, Mapping, Optional, Sequence
+from urllib.error import HTTPError, URLError
+from urllib.parse import urlencode, urlparse
+from urllib.request import Request, urlopen
+from xml.etree import ElementTree
+
+import duckdb
+
+from .contracts import tool_error, tool_success
+
+_INDEX_SCHEMA = "dissolve.literature-index.v1"
+_PARSED_DOCUMENT_SCHEMA = "dissolve.parsed-document.v1"
+_HTTP_LIMIT = 25 * 1024 * 1024
+_MAX_DOCUMENTS = 40
+_MAX_CHUNKS = 12_000
+_USER_AGENT = "DISSOLVE-v11/0.4 literature client"
+_SUPPORTED_SCHOLAR = {"arxiv", "google_scholar", "web_of_science"}
+_SUPPORTED_PATENTS = {"google_patents", "patentsview"}
+_TEXT_SUFFIXES = {".txt", ".md", ".markdown", ".html", ".htm"}
+_STOPWORDS = {
+    "a", "an", "and", "are", "as", "at", "be", "by", "for", "from",
+    "how", "in", "is", "it", "of", "on", "or", "that", "the", "their",
+    "this", "to", "was", "were", "what", "which", "with",
+}
+
+
+class ResearchNetworkError(RuntimeError):
+    """Network failure whose message never contains a credential-bearing URL."""
+
+
+class LiteratureContractError(ValueError):
+    """Typed offline literature-contract failure."""
+
+    def __init__(self, code: str, message: str, **details: Any) -> None:
+        super().__init__(message)
+        self.code = code
+        self.details = details
+
+
+def _now() -> str:
+    return datetime.now(timezone.utc).isoformat()
+
+
+def _clean(value: Any, limit: int = 4_000) -> str:
+    text = html.unescape(str(value or ""))
+    text = re.sub(r"<[^>]+>", " ", text)
+    return re.sub(r"\s+", " ", text).strip()[:limit]
+
+
+def _items(value: Any) -> list[str]:
+    if value is None:
+        return []
+    if isinstance(value, str):
+        try:
+            parsed = json.loads(value)
+        except json.JSONDecodeError:
+            parsed = [value]
+        value = parsed
+    if not isinstance(value, list):
+        return []
+    return [str(item).strip() for item in value if str(item).strip()]
+
+
+def _tokens(value: str) -> list[str]:
+    return [
+        token for token in re.findall(r"[a-z0-9]+", value.casefold())
+        if len(token) > 1 and token not in _STOPWORDS
+    ]
+
+
+def _table(headers: tuple[str, ...], rows: list[tuple[Any, ...]]) -> str:
+    if not rows:
+        return ""
+    return "\n".join([
+        "| " + " | ".join(headers) + " |",
+        "|" + "|".join("---" for _ in headers) + "|",
+        *("| " + " | ".join(str(value) for value in row) + " |" for row in rows),
+    ])
+
+
+def _request_bytes(
+    endpoint: str,
+    *,
+    source: str,
+    params: Optional[dict[str, Any]] = None,
+    headers: Optional[dict[str, str]] = None,
+    timeout: int = 30,
+) -> bytes:
+    query = urlencode(params or {}, doseq=True)
+    url = endpoint + (("&" if "?" in endpoint else "?") + query if query else "")
+    request = Request(url, headers={"User-Agent": _USER_AGENT, **(headers or {})})
+    try:
+        with urlopen(request, timeout=timeout) as response:  # noqa: S310 - explicit user search/download
+            declared = int(response.headers.get("Content-Length") or 0)
+            if declared > _HTTP_LIMIT:
+                raise ResearchNetworkError(f"{source} response exceeded the 25 MB limit")
+            payload = response.read(_HTTP_LIMIT + 1)
+    except HTTPError as error:
+        raise ResearchNetworkError(f"{source} request failed with HTTP {error.code}") from error
+    except (URLError, TimeoutError, OSError) as error:
+        raise ResearchNetworkError(f"{source} request failed") from error
+    if len(payload) > _HTTP_LIMIT:
+        raise ResearchNetworkError(f"{source} response exceeded the 25 MB limit")
+    return payload
+
+
+def _request_json(*args: Any, **kwargs: Any) -> dict[str, Any]:
+    try:
+        value = json.loads(_request_bytes(*args, **kwargs).decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError) as error:
+        raise ResearchNetworkError(f"{kwargs.get('source', 'remote')} returned invalid JSON") from error
+    if not isinstance(value, dict):
+        raise ResearchNetworkError(f"{kwargs.get('source', 'remote')} returned an invalid payload")
+    return value
+
+
+def _citation_result(
+    *, title: Any, source: str, url: Any = None, authors: Any = None,
+    year: Any = None, doi: Any = None, abstract: Any = None,
+    pdf_url: Any = None, **extra: Any,
+) -> dict[str, Any]:
+    if isinstance(authors, str):
+        authors = [part.strip() for part in re.split(r",| and ", authors) if part.strip()]
+    authors = list(authors or [])[:12]
+    try:
+        parsed_year = int(str(year)[:4]) if year not in (None, "", "N/A") else None
+    except (TypeError, ValueError):
+        parsed_year = None
+    return {
+        "title": _clean(title, 400) or "Untitled",
+        "source": source,
+        "authors": [_clean(item, 120) for item in authors],
+        "year": parsed_year,
+        "doi": _clean(doi, 200) or None,
+        "url": _clean(url, 1_000) or None,
+        "pdf_url": _clean(pdf_url, 1_000) or None,
+        "abstract": _clean(abstract, 1_200) or None,
+        **{key: value for key, value in extra.items() if value not in (None, "")},
+    }
+
+
+class _ArxivHTMLParser(HTMLParser):
+    """Parse arXiv's structured search result cards without scraping prose."""
+
+    def __init__(self) -> None:
+        super().__init__(); self.rows: list[dict[str, Any]] = []
+        self.row: Optional[dict[str, Any]] = None; self.field: Optional[str] = None
+        self.abstract_depth = 0
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, Optional[str]]]) -> None:
+        attributes = dict(attrs); classes = set((attributes.get("class") or "").split())
+        if tag == "li" and "arxiv-result" in classes:
+            self.row = {key: [] for key in ("title", "authors", "abstract", "submitted")}; return
+        if self.row is None: return
+        if self.abstract_depth: self.abstract_depth += 1
+        if tag == "span" and "abstract-full" in classes:
+            self.field, self.abstract_depth = "abstract", 1
+        elif tag == "p":
+            self.field = ("title" if {"title", "is-5"} <= classes else
+                          "authors" if "authors" in classes else
+                          "submitted" if "is-size-7" in classes else None)
+        elif tag == "a" and attributes.get("href"):
+            href = str(attributes["href"])
+            if "/abs/" in href and not self.row.get("url"): self.row["url"] = href
+            if "/pdf/" in href and not self.row.get("pdf_url"): self.row["pdf_url"] = href
+
+    def handle_endtag(self, tag: str) -> None:
+        if self.row is None: return
+        if self.abstract_depth:
+            self.abstract_depth -= 1
+            if not self.abstract_depth: self.field = None
+        elif tag == "p": self.field = None
+        if tag == "li":
+            text = {key: _clean(" ".join(self.row[key])) for key in ("title", "abstract", "submitted")}
+            authors = [_clean(value, 120) for value in self.row["authors"]
+                       if re.search(r"[A-Za-z]", value) and "authors:" not in value.casefold()]
+            year = re.search(r"\b(?:19|20)\d{2}\b", text["submitted"])
+            self.rows.append(_citation_result(title=text["title"], source="arXiv", authors=authors,
+                year=year.group() if year else None, url=self.row.get("url"),
+                pdf_url=self.row.get("pdf_url"), abstract=text["abstract"])); self.row = None
+
+    def handle_data(self, data: str) -> None:
+        if self.row is not None and self.field and _clean(data): self.row[self.field].append(data)
+
+
+def _search_arxiv_html(query: str, limit: int) -> list[dict[str, Any]]:
+    parser = _ArxivHTMLParser()
+    payload = _request_bytes("https://arxiv.org/search/", source="arXiv search",
+        params={"query": query, "searchtype": "all", "abstracts": "show", "size": 25, "order": ""})
+    parser.feed(payload.decode("utf-8", errors="replace"))
+    return parser.rows[:limit]
+
+
+def _search_arxiv(query: str, limit: int) -> list[dict[str, Any]]:
+    terms = _tokens(query)[:10]
+    search = " AND ".join(f"all:{term}" for term in terms) or f'all:"{query.strip()}"'
+    try:
+        payload = _request_bytes("https://export.arxiv.org/api/query", source="arXiv",
+            params={"search_query": search, "start": 0, "max_results": limit, "sortBy": "relevance"})
+        root = ElementTree.fromstring(payload)
+    except (ResearchNetworkError, ElementTree.ParseError):
+        return _search_arxiv_html(query, limit)
+    atom = "{http://www.w3.org/2005/Atom}"
+    arxiv = "{http://arxiv.org/schemas/atom}"
+    rows: list[dict[str, Any]] = []
+    for entry in root.findall(f"{atom}entry"):
+        url = (entry.findtext(f"{atom}id") or "").replace("http://", "https://")
+        links = {item.attrib.get("type"): item.attrib.get("href") for item in entry.findall(f"{atom}link")}
+        rows.append(_citation_result(
+            title=entry.findtext(f"{atom}title"), source="arXiv", url=url,
+            authors=[node.findtext(f"{atom}name") for node in entry.findall(f"{atom}author")],
+            year=entry.findtext(f"{atom}published"), doi=entry.findtext(f"{arxiv}doi"),
+            abstract=entry.findtext(f"{atom}summary"), pdf_url=links.get("application/pdf"),
+            journal=entry.findtext(f"{arxiv}journal_ref"),
+        ))
+    return rows
+
+
+def _search_google_scholar(query: str, limit: int, year_low: int | None, year_high: int | None) -> list[dict[str, Any]]:
+    key = os.getenv("SERPAPI_KEY")
+    if not key:
+        raise KeyError("SERPAPI_KEY")
+    data = _request_json(
+        "https://serpapi.com/search", source="Google Scholar",
+        params={"engine": "google_scholar", "api_key": key, "q": query, "num": limit,
+                "as_ylo": year_low or "", "as_yhi": year_high or ""},
+    )
+    rows = []
+    for item in list(data.get("organic_results") or [])[:limit]:
+        publication = item.get("publication_info") or {}
+        raw_authors = publication.get("authors") or []
+        authors = [entry.get("name") for entry in raw_authors if isinstance(entry, dict)]
+        resources = item.get("resources") or []
+        pdf = next((entry.get("link") for entry in resources if str(entry.get("file_format")).casefold() == "pdf"), None)
+        summary = str(publication.get("summary") or "")
+        year_match = re.search(r"\b(?:19|20)\d{2}\b", summary)
+        rows.append(_citation_result(
+            title=item.get("title"), source="Google Scholar", url=item.get("link"),
+            authors=authors, year=year_match.group() if year_match else None,
+            abstract=item.get("snippet"), pdf_url=pdf,
+            cited_by=((item.get("inline_links") or {}).get("cited_by") or {}).get("total"),
+        ))
+    return rows
+
+
+def _search_wos(query: str, limit: int, year_low: int | None, year_high: int | None) -> list[dict[str, Any]]:
+    key = os.getenv("WOS_STARTER_API_KEY")
+    if not key:
+        raise KeyError("WOS_STARTER_API_KEY")
+    wos_query = query if re.search(r"\b(?:TS|TI|AU|SO|PY)=", query, re.I) else f"TS=({query})"
+    if (year_low or year_high) and "PY=" not in wos_query.upper():
+        wos_query += f" AND PY=({year_low or 1900}-{year_high or 2100})"
+    data = _request_json(
+        "https://api.clarivate.com/apis/wos-starter/v1/documents", source="Web of Science",
+        params={"db": "WOS", "q": wos_query, "limit": limit, "page": 1, "sortField": "PY+D"},
+        headers={"X-ApiKey": key, "Accept": "application/json"},
+    )
+    rows = []
+    for item in list(data.get("hits") or [])[:limit]:
+        source = item.get("source") or {}
+        identifiers = item.get("identifiers") or {}
+        authors = [entry.get("displayName") for entry in ((item.get("names") or {}).get("authors") or [])]
+        uid = item.get("uid")
+        rows.append(_citation_result(
+            title=item.get("title"), source="Web of Science",
+            url=f"https://www.webofscience.com/wos/woscc/full-record/{uid}" if uid else None,
+            authors=authors, year=source.get("publishYear"), doi=identifiers.get("doi"),
+            journal=source.get("sourceTitle"),
+            cited_by=((item.get("citations") or [{}])[0]).get("count", 0),
+        ))
+    return rows
+
+
+def search_scholarly_literature(
+    query: str,
+    sources: Optional[list[str]] = None,
+    max_results: int = 6,
+    year_low: Optional[int] = None,
+    year_high: Optional[int] = None,
+    save_to_corpus: bool = False,
+    knowledgebase: str = "user-library",
+    max_save: int = 2,
+) -> str:
+    """Search arXiv, Google Scholar, and/or Web of Science with bounded metadata."""
+    tool = "search_scholarly_literature"
+    if not str(query or "").strip():
+        return tool_error(tool, "Search query cannot be empty.", error_code="empty_query")
+    requested = [item.casefold() for item in (_items(sources) or ["arxiv"])]
+    if "all" in requested:
+        requested = ["arxiv", "google_scholar", "web_of_science"]
+    unknown = sorted(set(requested) - _SUPPORTED_SCHOLAR)
+    if unknown:
+        return tool_error(tool, f"Unknown scholarly source(s): {', '.join(unknown)}.", error_code="unknown_source")
+    limit = max(1, min(int(max_results), 10))
+    results: list[dict[str, Any]] = []
+    completed: list[str] = []
+    unavailable: list[dict[str, str]] = []
+    clients = {
+        "arxiv": lambda: _search_arxiv(query, limit),
+        "google_scholar": lambda: _search_google_scholar(query, limit, year_low, year_high),
+        "web_of_science": lambda: _search_wos(query, limit, year_low, year_high),
+    }
+    for source in dict.fromkeys(requested):
+        try:
+            rows = clients[source]()
+            completed.append(source)
+            results.extend(rows)
+        except KeyError as error:
+            unavailable.append({"source": source, "reason": "missing_credentials", "required_env": str(error).strip("'")})
+        except (ResearchNetworkError, ElementTree.ParseError) as error:
+            unavailable.append({"source": source, "reason": "request_failed", "message": str(error)})
+    deduplicated: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for row in results:
+        key = str(row.get("doi") or row.get("url") or row.get("title")).casefold()
+        if key and key not in seen:
+            seen.add(key)
+            deduplicated.append(row)
+    if year_low is not None:
+        deduplicated = [row for row in deduplicated if row.get("year") is None or row["year"] >= year_low]
+    if year_high is not None:
+        deduplicated = [row for row in deduplicated if row.get("year") is None or row["year"] <= year_high]
+    deduplicated = deduplicated[:limit]
+    for index, row in enumerate(deduplicated, 1):
+        row["citation_id"] = f"C{index}"
+    save_result = None
+    if save_to_corpus:
+        urls = [row["pdf_url"] for row in deduplicated if row.get("pdf_url")][:max(1, min(max_save, 5))]
+        try:
+            metadata = {row["pdf_url"]: row for row in deduplicated if row.get("pdf_url")}
+            save_result = _ingest_inputs([], urls, knowledgebase, False, len(urls), False, metadata) if urls else {
+                "documents_added": 0, "chunks_added": 0, "failures": ["No downloadable PDF was returned."],
+            }
+        except (OSError, ValueError, RuntimeError, json.JSONDecodeError) as error:
+            save_result = {"documents_added": 0, "chunks_added": 0, "failures": [str(error)[:200]]}
+    if not completed and not deduplicated:
+        return tool_error(
+            tool, "No requested scholarly source was available.", error_code="research_sources_unavailable",
+            sources_requested=requested, sources_unavailable=unavailable,
+        )
+    return tool_success(
+        tool,
+        display=_table(("Citation", "Year", "Source", "Title"), [
+            (row["citation_id"], row.get("year") or "—", row["source"], row["title"])
+            for row in deduplicated
+        ]),
+        analysis_type="scholarly_search", query=query, sources_requested=requested,
+        sources_completed=completed, sources_unavailable=unavailable,
+        result_count=len(deduplicated), results=deduplicated,
+        evidence_scope="provider_metadata_and_available_abstracts",
+        fetched_at=_now(), save_requested=bool(save_to_corpus), save_result=save_result,
+        warnings=[
+            "Search metadata and abstracts do not establish full experimental conditions; inspect the cited full text before lab use.",
+            "Results are not attached automatically to thermodynamic calculations or plots.",
+        ],
+    )
+
+
+def _search_google_patents(
+    query: str, limit: int, after: str | None, before: str | None, assignee: str | None,
+) -> list[dict[str, Any]]:
+    key = os.getenv("SERPAPI_KEY")
+    if not key:
+        raise KeyError("SERPAPI_KEY")
+    data = _request_json(
+        "https://serpapi.com/search", source="Google Patents",
+        params={"engine": "google_patents", "api_key": key, "q": query, "num": limit,
+                "after": after or "", "before": before or "", "assignee": assignee or ""},
+    )
+    rows = []
+    for item in list(data.get("organic_results") or [])[:limit]:
+        patent_id = _clean(item.get("patent_id"), 100)
+        rows.append(_citation_result(
+            title=item.get("title"), source="Google Patents", url=item.get("link"),
+            authors=item.get("inventor") or item.get("inventors"), year=item.get("publication_date") or item.get("filing_date"),
+            abstract=item.get("snippet"), pdf_url=item.get("pdf"), patent_id=patent_id,
+            assignee=_clean(item.get("assignee"), 200) or None,
+        ))
+    return rows
+
+
+def _search_patentsview(
+    query: str, limit: int, after: str | None, before: str | None, assignee: str | None,
+    patent_number: str | None,
+) -> list[dict[str, Any]]:
+    key = os.getenv("PATENTSVIEW_API_KEY")
+    if not key:
+        raise KeyError("PATENTSVIEW_API_KEY")
+    endpoint = "https://search.patentsview.org/api/v1/patent/"
+    params: dict[str, Any] = {}
+    if patent_number:
+        endpoint += re.sub(r"^US", "", re.sub(r"[^A-Za-z0-9]", "", patent_number), flags=re.I) + "/"
+    else:
+        conditions: list[dict[str, Any]] = [{"_or": [
+            {"_text_any": {"patent_title": query}}, {"_text_any": {"patent_abstract": query}},
+        ]}]
+        if after:
+            conditions.append({"_gte": {"patent_date": after}})
+        if before:
+            conditions.append({"_lte": {"patent_date": before}})
+        if assignee:
+            conditions.append({"_contains": {"assignees.assignee_organization": assignee}})
+        query_object = conditions[0] if len(conditions) == 1 else {"_and": conditions}
+        fields = ["patent_id", "patent_title", "patent_date", "patent_abstract", "assignees.assignee_organization", "inventors.inventor_name_first", "inventors.inventor_name_last"]
+        params = {"q": json.dumps(query_object), "f": json.dumps(fields), "o": json.dumps({"size": limit})}
+    data = _request_json(endpoint, source="PatentsView", params=params, headers={"X-Api-Key": key, "Accept": "application/json"})
+    hits = data.get("patents") if isinstance(data.get("patents"), list) else [data]
+    rows = []
+    for item in hits[:limit]:
+        patent_id = _clean(item.get("patent_id"), 100)
+        inventors = [
+            " ".join(filter(None, (entry.get("inventor_name_first"), entry.get("inventor_name_last"))))
+            for entry in (item.get("inventors") or [])
+        ]
+        assignees = item.get("assignees") or []
+        rows.append(_citation_result(
+            title=item.get("patent_title"), source="PatentsView",
+            url=f"https://patents.google.com/patent/US{patent_id}", authors=inventors,
+            year=item.get("patent_date"), abstract=item.get("patent_abstract"), patent_id=patent_id,
+            assignee=_clean((assignees[0] if assignees else {}).get("assignee_organization"), 200) or None,
+            pdf_url=f"https://patents.google.com/patent/US{patent_id}/download" if patent_id else None,
+        ))
+    return rows
+
+
+def search_patent_literature(
+    query: str = "",
+    source: Literal["google_patents", "patentsview"] = "google_patents",
+    patent_number: Optional[str] = None,
+    max_results: int = 6,
+    after: Optional[str] = None,
+    before: Optional[str] = None,
+    assignee: Optional[str] = None,
+    save_to_corpus: bool = False,
+    knowledgebase: str = "user-library",
+    max_save: int = 2,
+) -> str:
+    """Search patents or retrieve a known patent through one explicit source."""
+    tool = "search_patent_literature"
+    source = str(source or "").casefold()
+    if source not in _SUPPORTED_PATENTS:
+        return tool_error(tool, f"Unknown patent source: {source}.", error_code="unknown_source")
+    search_query = str(patent_number or query or "").strip()
+    if not search_query:
+        return tool_error(tool, "Patent query or patent_number is required.", error_code="empty_query")
+    limit = max(1, min(int(max_results), 10))
+    try:
+        if source == "google_patents":
+            rows = _search_google_patents(search_query, limit, after, before, assignee)
+        else:
+            rows = _search_patentsview(query or search_query, limit, after, before, assignee, patent_number)
+    except KeyError as error:
+        return tool_error(
+            tool, f"{source} requires {str(error).strip(chr(39))}.", error_code="missing_credentials",
+            source=source, required_env=str(error).strip("'"),
+        )
+    except ResearchNetworkError as error:
+        return tool_error(tool, str(error), error_code="research_request_failed", source=source)
+    for index, row in enumerate(rows, 1):
+        row["citation_id"] = f"C{index}"
+    save_result = None
+    if save_to_corpus:
+        urls = [row["pdf_url"] for row in rows if row.get("pdf_url")][:max(1, min(max_save, 5))]
+        try:
+            metadata = {row["pdf_url"]: row for row in rows if row.get("pdf_url")}
+            save_result = _ingest_inputs([], urls, knowledgebase, False, len(urls), False, metadata) if urls else {
+                "documents_added": 0, "chunks_added": 0, "failures": ["No downloadable patent PDF was returned."],
+            }
+        except (OSError, ValueError, RuntimeError, json.JSONDecodeError) as error:
+            save_result = {"documents_added": 0, "chunks_added": 0, "failures": [str(error)[:200]]}
+    return tool_success(
+        tool,
+        display=_table(("Citation", "Patent", "Year", "Assignee", "Title"), [
+            (row["citation_id"], row.get("patent_id") or "—", row.get("year") or "—", row.get("assignee") or "—", row["title"])
+            for row in rows
+        ]),
+        analysis_type="patent_search", query=search_query, source=source,
+        patent_number=patent_number, result_count=len(rows), results=rows,
+        evidence_scope="provider_metadata_and_available_abstracts",
+        fetched_at=_now(), save_requested=bool(save_to_corpus), save_result=save_result,
+        warnings=[
+            "Patent metadata and abstracts are not a claim-construction or freedom-to-operate analysis.",
+            "Inspect the full patent and legal status before drawing process or legal conclusions.",
+        ],
+    )
+
+
+def _research_root() -> Path:
+    return Path(os.getenv("DISSOLVE_RESEARCH_HOME", "~/.dissolve/research")).expanduser().resolve()
+
+
+def _slug(value: str) -> str:
+    slug = re.sub(r"[^a-z0-9._-]+", "-", str(value or "").casefold()).strip("-.")
+    if not slug or slug in {".", ".."}:
+        raise ValueError("knowledgebase must contain letters or numbers")
+    return slug[:80]
+
+
+_PARSED_BLOCK_KINDS = {
+    "title", "heading", "paragraph", "list_item", "caption", "footnote",
+    "formula", "claim", "header", "footer", "other",
+}
+_DOCLING_BLOCK_KINDS = {
+    "title": "title", "section_header": "heading", "heading": "heading",
+    "paragraph": "paragraph", "text": "paragraph", "list_item": "list_item",
+    "caption": "caption", "footnote": "footnote", "formula": "formula",
+    "page_header": "header", "header": "header", "page_footer": "footer",
+    "footer": "footer", "claim": "claim",
+}
+_PARSE_QUALITY_FLAGS = {
+    "ocr_used", "rotation_corrected", "reading_order_uncertain",
+    "table_grid_incomplete", "encrypted", "truncated", "low_confidence",
+    "layout_degraded",
+}
+_QUANTITY_NUMBER = r"[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?"
+_QUANTITY_RANGE_RE = re.compile(
+    rf"^\s*({_QUANTITY_NUMBER})\s*(.*?)\s*(?:\bto\b|(?<![eE^])[-–—])\s*"
+    rf"({_QUANTITY_NUMBER})\s*(.*?)\s*$",
+    re.IGNORECASE,
+)
+_QUANTITY_SCALAR_RE = re.compile(rf"^\s*({_QUANTITY_NUMBER})\s*(.*?)\s*$")
+_QUANTITY_FUNCTION_RE = re.compile(
+    r"^\s*(?:χ|chi|flory[- ]huggins\s+chi)\s*=\s*(.+?)\s*$", re.IGNORECASE,
+)
+_UNIT_CANONICAL = {
+    "c": "degC", "°c": "degC", "degc": "degC",
+    "k": "K", "kelvin": "K",
+    "wt%": "wt_percent", "wt.%": "wt_percent", "%w/w": "wt_percent",
+    "mass%": "wt_percent", "vol%": "vol_percent", "%v/v": "vol_percent",
+    "mpa^0.5": "MPa^0.5", "mpa^1/2": "MPa^0.5", "mpa½": "MPa^0.5",
+    "k/min": "K_per_min", "kmin^-1": "K_per_min",
+    "min": "min", "minute": "min", "minutes": "min",
+    "h": "h", "hr": "h", "hour": "h", "hours": "h",
+    "s": "s", "sec": "s", "second": "s", "seconds": "s",
+    "g/l": "g_per_L", "mg/l": "mg_per_L", "kg/m3": "kg_per_m3",
+    "pa": "Pa", "kpa": "kPa", "mpa": "MPa", "bar": "bar",
+    "mol/l": "mol_per_L", "mol%": "mol_percent",
+}
+
+
+def _enum_text(value: Any) -> str:
+    """Normalize enum-like third-party labels without depending on their classes."""
+    text = str(getattr(value, "value", value) or "").strip().casefold()
+    return text.rsplit(".", 1)[-1].replace("-", "_").replace(" ", "_")
+
+
+def _object_value(value: Any, name: str, default: Any = None) -> Any:
+    if isinstance(value, Mapping):
+        return value.get(name, default)
+    return getattr(value, name, default)
+
+
+def _reference_id(value: Any) -> str:
+    return str(_object_value(value, "cref", value))
+
+
+def _bbox_from(value: Any) -> dict[str, Any] | None:
+    if value is None:
+        return None
+    if isinstance(value, Sequence) and not isinstance(value, (str, bytes, Mapping)):
+        if len(value) < 4:
+            raise LiteratureContractError(
+                "invalid_parser_bbox", "Parser bounding-box sequence must have four coordinates."
+            )
+        value = {"x0": value[0], "y0": value[1], "x1": value[2], "y1": value[3]}
+    names = (("x0", "y0", "x1", "y1"), ("l", "b", "r", "t"), ("left", "top", "right", "bottom"))
+    for fields in names:
+        coordinates = [_object_value(value, field) for field in fields]
+        if all(item is not None for item in coordinates):
+            try:
+                x0, y0, x1, y1 = (float(item) for item in coordinates)
+            except (TypeError, ValueError) as error:
+                raise LiteratureContractError(
+                    "invalid_parser_bbox", "Parser bounding-box coordinates must be numeric."
+                ) from error
+            return {
+                "x0": x0, "y0": y0, "x1": x1, "y1": y1,
+                "coordinate_space": str(_object_value(value, "coordinate_space", "page_points")),
+            }
+    raise LiteratureContractError(
+        "invalid_parser_bbox", "Parser bounding box is missing a complete coordinate set."
+    )
+
+
+def _provenance(item: Any) -> tuple[int | None, dict[str, Any] | None, float]:
+    rows = _object_value(item, "prov", []) or _object_value(item, "provenance", []) or []
+    row = rows[0] if isinstance(rows, Sequence) and not isinstance(rows, (str, bytes)) and rows else None
+    page = _object_value(item, "page") or _object_value(item, "page_no")
+    bbox = _object_value(item, "bbox")
+    confidence = _object_value(item, "confidence", 1.0)
+    if row is not None:
+        page = page or _object_value(row, "page_no") or _object_value(row, "page")
+        bbox = bbox or _object_value(row, "bbox")
+        confidence = _object_value(row, "confidence", confidence)
+    try:
+        page_value = int(page) if page is not None else None
+        confidence_value = max(0.0, min(1.0, float(confidence)))
+    except (TypeError, ValueError) as error:
+        raise LiteratureContractError(
+            "invalid_parser_provenance", "Parser page and confidence fields must be numeric."
+        ) from error
+    return page_value, _bbox_from(bbox), confidence_value
+
+
+def _docling_bridge(document: Any, *, version: str) -> dict[str, Any]:
+    """Convert a DoclingDocument into the small backend-neutral bridge."""
+    iterate = getattr(document, "iterate_items", None)
+    if not callable(iterate):
+        raise LiteratureContractError(
+            "docling_contract_mismatch", "Docling result has no iterate_items() document interface."
+        )
+    items: list[dict[str, Any]] = []
+    tables: list[dict[str, Any]] = []
+    for order, pair in enumerate(iterate()):
+        item, level = pair if isinstance(pair, tuple) and len(pair) == 2 else (pair, 0)
+        label = _enum_text(_object_value(item, "label", item.__class__.__name__))
+        page, bbox, confidence = _provenance(item)
+        data = _object_value(item, "data")
+        raw_cells = _object_value(data, "table_cells", []) if data is not None else []
+        if raw_cells or "table" in label:
+            captions = _object_value(item, "captions", []) or []
+            tables.append({
+                "id": _object_value(item, "self_ref") or _object_value(item, "id"),
+                "page": page,
+                "caption_id": _reference_id(captions[0]) if captions else None,
+                "row_count": _object_value(data, "num_rows"),
+                "column_count": _object_value(data, "num_cols"),
+                "cells": [{
+                    "row": _object_value(cell, "start_row_offset_idx", _object_value(cell, "row", 0)),
+                    "column": _object_value(cell, "start_col_offset_idx", _object_value(cell, "column", 0)),
+                    "row_end": _object_value(cell, "end_row_offset_idx"),
+                    "column_end": _object_value(cell, "end_col_offset_idx"),
+                    "row_span": _object_value(cell, "row_span"),
+                    "column_span": _object_value(cell, "col_span", _object_value(cell, "column_span")),
+                    "is_header": bool(
+                        _object_value(cell, "column_header", False)
+                        or _object_value(cell, "row_header", False)
+                        or _object_value(cell, "row_section", False)
+                    ),
+                    "text": str(_object_value(cell, "text", "")),
+                    "block_refs": [],
+                } for cell in raw_cells],
+            })
+            continue
+        text = _object_value(item, "text") or _object_value(item, "orig") or ""
+        if not str(text).strip():
+            continue
+        items.append({
+            "id": _object_value(item, "self_ref") or _object_value(item, "id"),
+            "label": label, "level": int(level or 0), "order": order,
+            "page": page, "bbox": bbox, "text": str(text), "confidence": confidence,
+            "caption_ref": _object_value(item, "caption_ref"),
+            "footnote_refs": [_reference_id(value) for value in (_object_value(item, "footnotes", []) or [])],
+        })
+    return {
+        "backend": "docling", "version": version, "items": items, "tables": tables,
+        "quality_flags": [], "fallback_reason": None,
+    }
+
+
+def _run_docling(path: Path) -> dict[str, Any]:
+    try:
+        module = importlib.import_module("docling.document_converter")
+        converter_type = module.DocumentConverter
+        version = getattr(importlib.import_module("docling"), "__version__", "unknown")
+    except (ImportError, AttributeError) as error:
+        raise LiteratureContractError(
+            "parser_backend_unavailable",
+            "Docling is unavailable; install the pinned research extra before parsing documents.",
+            backend="docling",
+        ) from error
+    try:
+        result = converter_type().convert(path)
+        bridge = _docling_bridge(result.document, version=str(version))
+        if _enum_text(getattr(result, "status", "success")) not in {"success", "partial_success"}:
+            raise LiteratureContractError(
+                "parser_backend_failed", "Docling returned a non-success conversion status.",
+                backend="docling", status=str(getattr(result, "status", "unknown")),
+            )
+        if _enum_text(getattr(result, "status", "success")) == "partial_success":
+            bridge["quality_flags"] = ["truncated"]
+        return bridge
+    except LiteratureContractError:
+        raise
+    except Exception as error:  # backend failures vary by document and Docling release
+        raise LiteratureContractError(
+            "parser_backend_failed", "Docling could not parse the acquired artifact.",
+            backend="docling", error_type=type(error).__name__,
+        ) from error
+
+
+def _deepdoc_bridge(result: Any, *, version: str, fallback_reason: str) -> dict[str, Any]:
+    try:
+        boxes, raw_tables = result
+    except (TypeError, ValueError) as error:
+        raise LiteratureContractError(
+            "deepdoc_contract_mismatch", "DeepDoc did not return its boxes-and-tables result."
+        ) from error
+    items = []
+    for order, box in enumerate(boxes or []):
+        text = _object_value(box, "text") or _object_value(box, "content") or ""
+        if not str(text).strip():
+            continue
+        layout = _enum_text(_object_value(box, "layout_type", _object_value(box, "type", "text")))
+        items.append({
+            "id": _object_value(box, "id"), "label": layout, "order": order,
+            "page": _object_value(box, "page_number", _object_value(box, "page")),
+            "bbox": _object_value(box, "bbox", _object_value(box, "position")),
+            "section_path": list(_object_value(box, "section_path", []) or []),
+            "text": str(text), "confidence": _object_value(box, "confidence", 1.0),
+        })
+    tables = []
+    for raw in raw_tables or []:
+        if not isinstance(raw, Mapping):
+            continue
+        tables.append(dict(raw))
+    return {
+        "backend": "deepdoc", "version": version, "items": items, "tables": tables,
+        "quality_flags": ["ocr_used"], "fallback_reason": fallback_reason,
+    }
+
+
+def _run_deepdoc(path: Path, *, fallback_reason: str) -> dict[str, Any]:
+    try:
+        parser_type = importlib.import_module("deepdoc.parser").PdfParser
+        version = getattr(importlib.import_module("deepdoc"), "__version__", "unknown")
+    except (ImportError, AttributeError) as error:
+        raise LiteratureContractError(
+            "parser_backend_unavailable",
+            "DeepDoc fallback is unavailable; install a compatible RAGFlow DeepDoc environment.",
+            backend="deepdoc", fallback_reason=fallback_reason,
+        ) from error
+    try:
+        return _deepdoc_bridge(
+            parser_type()(str(path), auto_rotate_tables=False),
+            version=str(version), fallback_reason=fallback_reason,
+        )
+    except LiteratureContractError:
+        raise
+    except Exception as error:  # optional fallback errors vary by RAGFlow release
+        raise LiteratureContractError(
+            "parser_backend_failed", "DeepDoc could not parse the acquired artifact.",
+            backend="deepdoc", error_type=type(error).__name__,
+            fallback_reason=fallback_reason,
+        ) from error
+
+
+def _source_artifact(acquisition: Mapping[str, Any]) -> Mapping[str, Any]:
+    document = acquisition.get("document") or {}
+    source_sha = document.get("content_sha256")
+    artifacts = list(acquisition.get("artifacts") or [])
+    matches = [item for item in artifacts if item.get("sha256") == source_sha]
+    if len(matches) != 1:
+        raise LiteratureContractError(
+            "source_artifact_ambiguous",
+            "AcquireEnvelope must contain exactly one artifact matching document.content_sha256.",
+            source_sha256=source_sha, match_count=len(matches),
+        )
+    return matches[0]
+
+
+def _normalize_parser_bridge(
+    acquisition: Mapping[str, Any], bridge: Mapping[str, Any], *, parsed_at: str | None,
+) -> dict[str, Any]:
+    document = acquisition.get("document") or {}
+    library_id, document_id = acquisition.get("library_id"), document.get("document_id")
+    if acquisition.get("schema") != "dissolve.acquire.v1" or not library_id or not document_id:
+        raise LiteratureContractError(
+            "invalid_acquire_envelope", "Structure parsing requires a scoped AcquireEnvelope."
+        )
+    if document.get("library_id") != library_id:
+        raise LiteratureContractError(
+            "library_scope_mismatch", "AcquireEnvelope and document library_id values must match."
+        )
+    source = _source_artifact(acquisition)
+    backend = str(bridge.get("backend") or "").casefold()
+    if backend not in {"docling", "deepdoc", "pypdf", "jats", "local_text"}:
+        raise LiteratureContractError(
+            "unknown_parser_backend",
+            "Parser bridge backend must be docling, deepdoc, pypdf, jats, or local_text.",
+            backend=backend,
+        )
+    fallback_reason = bridge.get("fallback_reason")
+    if backend in {"deepdoc", "pypdf"} and not fallback_reason:
+        raise LiteratureContractError(
+            "undisclosed_parser_fallback",
+            "Fallback parser output requires a non-empty fallback_reason."
+        )
+    quality_flags = sorted(set(str(item) for item in bridge.get("quality_flags") or []))
+    unknown_flags = set(quality_flags) - _PARSE_QUALITY_FLAGS
+    if unknown_flags:
+        raise LiteratureContractError(
+            "unknown_parse_quality_flag", "Parser emitted unsupported quality flags.",
+            quality_flags=sorted(unknown_flags),
+        )
+
+    current_sections: list[str] = []
+    blocks: list[dict[str, Any]] = []
+    block_ids: set[str] = set()
+    items = sorted(
+        list(bridge.get("items") or []),
+        key=lambda item: (int(_object_value(item, "order", len(blocks))), str(_object_value(item, "id", ""))),
+    )
+    for raw in items:
+        label = _enum_text(_object_value(raw, "label", "other"))
+        kind = _DOCLING_BLOCK_KINDS.get(label, label if label in _PARSED_BLOCK_KINDS else "other")
+        text = str(_object_value(raw, "text", ""))
+        if not text.strip():
+            continue
+        if document.get("document_kind") == "patent" and (
+            kind == "claim" or any(part.casefold().startswith("claim") for part in _object_value(raw, "section_path", []) or [])
+        ):
+            kind = "claim"
+        level = max(1, int(_object_value(raw, "level", 1) or 1))
+        supplied_path = list(_object_value(raw, "section_path", []) or [])
+        if kind == "heading":
+            current_sections = current_sections[:level - 1] + [text.strip()]
+        section_path = supplied_path or list(current_sections)
+        block_id = str(_object_value(raw, "id") or f"{document_id}-B{len(blocks) + 1:05d}")
+        if block_id in block_ids:
+            raise LiteratureContractError(
+                "duplicate_parser_block_id", "Parser emitted a duplicate block identifier.",
+                block_id=block_id,
+            )
+        page, bbox, confidence = _provenance(raw)
+        block_ids.add(block_id)
+        blocks.append({
+            "block_id": block_id, "kind": kind, "reading_order": len(blocks),
+            "page": page, "bbox": bbox, "section_path": section_path,
+            "text": text, "confidence": confidence,
+            "caption_ref": _object_value(raw, "caption_ref"),
+            "footnote_refs": list(_object_value(raw, "footnote_refs", []) or []),
+        })
+
+    tables: list[dict[str, Any]] = []
+    table_ids: set[str] = set()
+    for index, raw in enumerate(bridge.get("tables") or [], 1):
+        table_id = str(_object_value(raw, "id") or f"{document_id}-T{index:05d}")
+        if table_id in table_ids:
+            raise LiteratureContractError(
+                "duplicate_parser_table_id", "Parser emitted a duplicate table identifier.",
+                table_id=table_id,
+            )
+        cells = []
+        for raw_cell in _object_value(raw, "cells", []) or []:
+            try:
+                row = int(_object_value(raw_cell, "row", 0))
+                column = int(_object_value(raw_cell, "column", 0))
+                row_end = _object_value(raw_cell, "row_end")
+                column_end = _object_value(raw_cell, "column_end")
+                row_span = int(_object_value(raw_cell, "row_span") or (
+                    int(row_end) - row if row_end is not None else 1
+                ))
+                column_span = int(_object_value(raw_cell, "column_span") or (
+                    int(column_end) - column if column_end is not None else 1
+                ))
+            except (TypeError, ValueError) as error:
+                raise LiteratureContractError(
+                    "invalid_table_cell_coordinates", "Table-cell coordinates and spans must be integers."
+                ) from error
+            if min(row, column) < 0 or min(row_span, column_span) < 1:
+                raise LiteratureContractError(
+                    "invalid_table_cell_coordinates", "Table-cell coordinates and spans are out of bounds."
+                )
+            refs = list(_object_value(raw_cell, "block_refs", []) or [])
+            if not set(refs) <= block_ids:
+                raise LiteratureContractError(
+                    "unknown_table_block_reference", "Table cell references an unknown parsed block.",
+                    block_refs=refs,
+                )
+            cells.append({
+                "row": row, "column": column, "row_span": row_span,
+                "column_span": column_span,
+                "is_header": bool(_object_value(raw_cell, "is_header", False)),
+                "text": str(_object_value(raw_cell, "text", "")), "block_refs": refs,
+            })
+        if not cells:
+            raise LiteratureContractError(
+                "empty_parsed_table", "A parsed table must contain at least one cell.", table_id=table_id,
+            )
+        row_count = int(_object_value(raw, "row_count") or max(cell["row"] + cell["row_span"] for cell in cells))
+        column_count = int(_object_value(raw, "column_count") or max(cell["column"] + cell["column_span"] for cell in cells))
+        occupied = {
+            (row, column)
+            for cell in cells
+            for row in range(cell["row"], cell["row"] + cell["row_span"])
+            for column in range(cell["column"], cell["column"] + cell["column_span"])
+        }
+        grid_complete = len(occupied) == row_count * column_count and all(
+            row < row_count and column < column_count for row, column in occupied
+        )
+        if not grid_complete and "table_grid_incomplete" not in quality_flags:
+            quality_flags.append("table_grid_incomplete")
+            quality_flags.sort()
+        caption_id = _object_value(raw, "caption_id")
+        if caption_id is not None and caption_id not in block_ids:
+            raise LiteratureContractError(
+                "unknown_table_caption_reference", "Parsed table references an unknown caption block.",
+                caption_block_id=caption_id,
+            )
+        table_ids.add(table_id)
+        tables.append({
+            "table_id": table_id, "page": _object_value(raw, "page"),
+            "caption_block_id": caption_id, "row_count": row_count,
+            "column_count": column_count, "cells": cells, "grid_complete": grid_complete,
+        })
+
+    attachments = [
+        dict(item) for item in acquisition.get("artifacts") or []
+        if item.get("artifact_id") != source.get("artifact_id")
+    ]
+    return {
+        "schema": _PARSED_DOCUMENT_SCHEMA, "library_id": library_id,
+        "document_id": document_id, "source_sha256": source["sha256"],
+        "parser_backend": backend, "parser_version": str(bridge.get("version") or "unknown"),
+        "fallback_reason": str(fallback_reason) if fallback_reason else None,
+        "blocks": blocks, "tables": tables, "attachments": attachments,
+        "quality_flags": quality_flags,
+        "parsed_at": parsed_at or str(bridge.get("parsed_at") or _now()),
+    }
+
+
+def parse_document_structure(
+    acquisition: Mapping[str, Any], *, parser_payload: Mapping[str, Any] | None = None,
+    asset_root: str | Path | None = None, parsed_at: str | None = None,
+) -> dict[str, Any]:
+    """Parse either a paper or patent through one backend-neutral structure path.
+
+    ``parser_payload`` is the checksummed/offline fixture seam. Production parsing
+    first invokes Docling and only invokes DeepDoc after a typed Docling failure.
+    """
+    if parser_payload is not None:
+        return _normalize_parser_bridge(acquisition, parser_payload, parsed_at=parsed_at)
+    source = _source_artifact(acquisition)
+    path = Path(str(source.get("packed_path") or ""))
+    if not path.is_absolute():
+        path = Path(asset_root or ".").resolve() / path
+    if not path.is_file():
+        raise LiteratureContractError(
+            "parser_source_missing", "The acquired content artifact is not present on disk.",
+            artifact_id=source.get("artifact_id"), packed_path=str(path),
+        )
+    try:
+        bridge = _run_docling(path)
+    except LiteratureContractError as docling_error:
+        reason = f"docling_{docling_error.code}"
+        bridge = _run_deepdoc(path, fallback_reason=reason)
+    return _normalize_parser_bridge(acquisition, bridge, parsed_at=parsed_at)
+
+
+def _normalize_reported_unit(unit: str) -> tuple[str, str | None]:
+    reported = re.sub(r"\s+", " ", str(unit or "").strip())
+    compact = reported.casefold().replace(" ", "").replace("·", "*")
+    if (
+        not reported
+        or not re.match(r"^[A-Za-zµμ°%]", reported)
+        or not re.search(r"[A-Za-zµμ°%]", reported)
+        or re.search(r"[^A-Za-zµμ°%0-9.*/^_()+\-\s·½]", reported)
+        or reported.count("(") != reported.count(")")
+        or re.search(r"(?:\*\*|//|\^\^|%%)", compact)
+        or re.search(r"[*/^]$", compact)
+        or re.search(r"\^(?![+\-]?(?:\d|\.)+)", compact)
+        or set(re.findall(r"[A-Za-z]+", reported.casefold())) & {"at", "from", "over", "to"}
+    ):
+        raise LiteratureContractError(
+            "quantity_unit_malformed",
+            "Reported quantity unit is malformed; retain one explicit unit token such as C, K, wt%, MPa^0.5, or g/L.",
+            unit_reported=reported,
+        )
+    return reported, _UNIT_CANONICAL.get(compact)
+
+
+def _canonical_unit(detected: str | None, declared: str | None, *, reported: str | None) -> str | None:
+    if detected and declared and detected != declared:
+        raise LiteratureContractError(
+            "quantity_unit_canonical_mismatch",
+            "Declared canonical unit conflicts with the reported unit; conversion belongs in a recorded transformation.",
+            unit_reported=reported, detected_canonical=detected, declared_canonical=declared,
+        )
+    return declared or detected
+
+
+def _quantity_shell(
+    *, property_name: str, shape: str, unit_reported: str | None,
+    unit_canonical: str | None, basis: str,
+) -> dict[str, Any]:
+    if not str(property_name or "").strip():
+        raise LiteratureContractError(
+            "quantity_property_missing", "Quantity property must be explicit."
+        )
+    if not str(basis or "").strip():
+        raise LiteratureContractError(
+            "quantity_basis_missing",
+            "Quantity basis must be explicit; do not infer it from a value or unit.",
+            property=property_name,
+        )
+    return {
+        "property": str(property_name).strip(), "shape": shape,
+        "unit_reported": unit_reported, "unit_canonical": unit_canonical,
+        "basis": str(basis).strip(), "value": None, "lower": None, "upper": None,
+        "expression": None, "coefficients": {}, "independent_variable": None,
+    }
+
+
+def _literal_number(node: ast.AST) -> float | None:
+    if isinstance(node, ast.Constant) and isinstance(node.value, (int, float)) and not isinstance(node.value, bool):
+        return float(node.value)
+    if isinstance(node, ast.UnaryOp) and isinstance(node.op, (ast.UAdd, ast.USub)):
+        value = _literal_number(node.operand)
+        if value is not None:
+            return value if isinstance(node.op, ast.UAdd) else -value
+    return None
+
+
+def _parse_reciprocal_function(expression: str) -> tuple[dict[str, float], str]:
+    try:
+        tree = ast.parse(expression, mode="eval")
+    except SyntaxError as error:
+        raise LiteratureContractError(
+            "quantity_function_malformed", "Quantity function is not a valid arithmetic expression.",
+            expression=expression,
+        ) from error
+    allowed = (
+        ast.Expression, ast.BinOp, ast.UnaryOp, ast.Add, ast.Sub, ast.Mult,
+        ast.Div, ast.Pow, ast.UAdd, ast.USub, ast.Constant, ast.Name, ast.Load,
+    )
+    unsupported = next((node for node in ast.walk(tree) if not isinstance(node, allowed)), None)
+    if unsupported is not None:
+        raise LiteratureContractError(
+            "quantity_function_unsupported",
+            "Only a numeric A + B/T reciprocal function is supported; calls, attributes, and subscripts are forbidden.",
+            expression=expression, unsupported_node=type(unsupported).__name__,
+        )
+    body = tree.body
+    if not isinstance(body, ast.BinOp) or not isinstance(body.op, (ast.Add, ast.Sub)):
+        raise LiteratureContractError(
+            "quantity_function_unsupported",
+            "Function must have the reported form A + B/T with numeric A and B.",
+            expression=expression,
+        )
+    coefficient_a = _literal_number(body.left)
+    reciprocal = body.right
+    if (
+        coefficient_a is None
+        or not isinstance(reciprocal, ast.BinOp)
+        or not isinstance(reciprocal.op, ast.Div)
+        or _literal_number(reciprocal.left) is None
+        or not isinstance(reciprocal.right, ast.Name)
+    ):
+        raise LiteratureContractError(
+            "quantity_function_unsupported",
+            "Function must have the reported form A + B/T with numeric A and B and one named independent variable.",
+            expression=expression,
+        )
+    coefficient_b = float(_literal_number(reciprocal.left))
+    if isinstance(body.op, ast.Sub):
+        coefficient_b *= -1.0
+    return {"A": float(coefficient_a), "B": coefficient_b}, reciprocal.right.id
+
+
+def parse_quantity(
+    text: str, *, property_name: str, basis: str,
+    unit_canonical: str | None = None, independent_variable: str | None = None,
+) -> dict[str, Any]:
+    """Parse one already-located quantity span without scanning surrounding prose."""
+    source = str(text or "").strip()
+    if not source:
+        raise LiteratureContractError(
+            "quantity_text_missing", "Quantity text cannot be empty.", property=property_name,
+        )
+    function_match = _QUANTITY_FUNCTION_RE.fullmatch(source)
+    if function_match:
+        coefficients, variable = _parse_reciprocal_function(function_match.group(1))
+        canonical = unit_canonical or "dimensionless"
+        quantity = _quantity_shell(
+            property_name=property_name, shape="function", unit_reported=None,
+            unit_canonical=canonical, basis=basis,
+        )
+        quantity.update({
+            "expression": "A + B/T", "coefficients": coefficients,
+            "independent_variable": independent_variable or (
+                "temperature_K" if variable.casefold() in {"t", "temperature"} else variable
+            ),
+        })
+        return quantity
+
+    range_match = _QUANTITY_RANGE_RE.fullmatch(source)
+    if range_match:
+        lower, unit_left, upper, unit_right = range_match.groups()
+        unit_left, unit_right = unit_left.strip(), unit_right.strip()
+        if unit_left and unit_right:
+            reported_left, canonical_left = _normalize_reported_unit(unit_left)
+            reported_right, canonical_right = _normalize_reported_unit(unit_right)
+            left_identity = canonical_left or re.sub(r"\s+", "", reported_left.casefold())
+            right_identity = canonical_right or re.sub(r"\s+", "", reported_right.casefold())
+            if left_identity != right_identity:
+                raise LiteratureContractError(
+                    "quantity_range_unit_mismatch",
+                    "Range endpoints must use the same reported unit or one shared trailing unit.",
+                    lower_unit=reported_left, upper_unit=reported_right,
+                )
+            reported, canonical = reported_right, canonical_right
+        elif unit_left or unit_right:
+            reported, canonical = _normalize_reported_unit(unit_left or unit_right)
+        elif unit_canonical == "dimensionless":
+            reported, canonical = None, "dimensionless"
+        else:
+            raise LiteratureContractError(
+                "quantity_unit_missing", "Quantity range is missing its reported unit.",
+                text=source,
+            )
+        lower_value, upper_value = float(lower), float(upper)
+        if not all(math.isfinite(value) for value in (lower_value, upper_value)):
+            raise LiteratureContractError(
+                "quantity_nonfinite", "Quantity range endpoints must be finite.", text=source,
+            )
+        if lower_value > upper_value:
+            raise LiteratureContractError(
+                "quantity_range_inverted", "Quantity range lower endpoint exceeds its upper endpoint.",
+                lower=lower_value, upper=upper_value,
+            )
+        quantity = _quantity_shell(
+            property_name=property_name, shape="range", unit_reported=reported,
+            unit_canonical=_canonical_unit(canonical, unit_canonical, reported=reported), basis=basis,
+        )
+        quantity.update({"lower": lower_value, "upper": upper_value})
+        return quantity
+
+    scalar_match = _QUANTITY_SCALAR_RE.fullmatch(source)
+    if not scalar_match:
+        raise LiteratureContractError(
+            "quantity_syntax_malformed",
+            "Quantity must be one scalar, one inclusive range, or an A + B/T function span.",
+            text=source,
+        )
+    value_text, unit_text = scalar_match.groups()
+    if unit_text:
+        reported, canonical = _normalize_reported_unit(unit_text)
+    elif unit_canonical == "dimensionless":
+        reported, canonical = None, "dimensionless"
+    else:
+        raise LiteratureContractError(
+            "quantity_unit_missing", "Scalar quantity is missing its reported unit.", text=source,
+        )
+    value = float(value_text)
+    if not math.isfinite(value):
+        raise LiteratureContractError(
+            "quantity_nonfinite", "Scalar quantity must be finite.", text=source,
+        )
+    quantity = _quantity_shell(
+        property_name=property_name, shape="scalar", unit_reported=reported,
+        unit_canonical=_canonical_unit(canonical, unit_canonical, reported=reported), basis=basis,
+    )
+    quantity["value"] = value
+    return quantity
+
+
+_RECORD_CORE_FIELDS = {
+    "library_id", "record_id", "record_class", "status", "method",
+    "conditions", "evidence", "extraction_confidence", "extractor",
+    "validation_issues", "cross_references",
+}
+_RECORD_CLASS_FIELDS = {
+    "SolubilityPoint": {"polymer", "solvent", "temperature", "solubility"},
+    "ChiParameter": {"component_a", "component_b", "chi"},
+    "HSPRecord": {"material", "dD", "dP", "dH", "r0"},
+    "PartitionRecord": {"contaminant", "phase_a", "phase_b", "metric", "partition_value"},
+    "LeachingRecord": {
+        "feed_material", "contaminant", "extraction_solvent", "response_metric", "response",
+    },
+    "TgRecord": {"material", "tg"},
+    "ProcessClaim": {
+        "patent_document_id", "claim_number", "claim_scope", "legal_effect",
+        "operation", "inputs", "claimed_outcome",
+    },
+    "CompositionClaim": {
+        "patent_document_id", "claim_number", "claim_scope", "legal_effect", "components",
+    },
+}
+_NO_EVIDENCE_FIELDS = {
+    "library_id", "record_id", "record_class", "status", "query_id", "query",
+    "parameter_classes", "document_kinds", "adapter_scope", "date_bounds",
+    "corpus_snapshot_sha256", "validated_result_count", "executed_at",
+}
+_QUANTITY_FIELDS = {
+    "property", "shape", "unit_reported", "unit_canonical", "basis", "value",
+    "lower", "upper", "expression", "coefficients", "independent_variable",
+}
+_MATERIAL_FIELDS = {
+    "observed_label", "role", "identity_status", "canonical_id", "candidate_ids",
+}
+
+
+def _require_exact_fields(
+    value: Any, required: set[str], *, code: str, field: str,
+) -> dict[str, Any]:
+    if not isinstance(value, Mapping):
+        raise LiteratureContractError(
+            code, f"{field} must be an object.", field=field,
+            observed_type=type(value).__name__,
+        )
+    row = dict(value)
+    missing, extra = sorted(required - set(row)), sorted(set(row) - required)
+    if missing or extra:
+        raise LiteratureContractError(
+            code, f"{field} does not match its typed contract.", field=field,
+            missing_fields=missing, extra_fields=extra,
+        )
+    return row
+
+
+def _finite_number(value: Any) -> bool:
+    return (
+        isinstance(value, (int, float)) and not isinstance(value, bool)
+        and math.isfinite(float(value))
+    )
+
+
+def _validate_material_ref(value: Any, field: str) -> dict[str, Any]:
+    row = _require_exact_fields(
+        value, _MATERIAL_FIELDS, code="literature_material_ref_invalid", field=field,
+    )
+    status = row["identity_status"]
+    candidates = row["candidate_ids"]
+    if (
+        not isinstance(row["observed_label"], str) or not row["observed_label"].strip()
+        or row["role"] not in {"polymer", "solvent", "contaminant", "material", "phase", "component"}
+        or status not in {"canonical", "pending", "ambiguous"}
+        or not isinstance(candidates, list)
+        or any(not isinstance(item, str) or not item for item in candidates)
+        or len(set(candidates)) != len(candidates)
+        or (status == "canonical" and (not row["canonical_id"] or candidates))
+        or (status != "canonical" and row["canonical_id"] is not None)
+        or (status == "ambiguous" and len(candidates) < 2)
+    ):
+        raise LiteratureContractError(
+            "literature_material_ref_invalid",
+            "Material identity status, canonical ID, and candidate IDs are inconsistent.",
+            field=field, identity_status=status,
+        )
+    return row
+
+
+def _validate_quantity(value: Any, field: str) -> dict[str, Any]:
+    row = _require_exact_fields(
+        value, _QUANTITY_FIELDS, code="literature_quantity_invalid", field=field,
+    )
+    shape = row["shape"]
+    coefficients = row["coefficients"]
+    if not isinstance(coefficients, Mapping) or any(
+        not _finite_number(item) for item in coefficients.values()
+    ):
+        raise LiteratureContractError(
+            "literature_quantity_invalid", "Quantity coefficients must be finite numbers.", field=field,
+        )
+    populated = {
+        name: row[name] is not None for name in ("value", "lower", "upper", "expression", "independent_variable")
+    }
+    valid_shape = (
+        shape == "scalar" and populated["value"] and not any(
+            populated[name] for name in ("lower", "upper", "expression", "independent_variable")
+        ) and not coefficients
+    ) or (
+        shape == "range" and populated["lower"] and populated["upper"]
+        and not any(populated[name] for name in ("value", "expression", "independent_variable"))
+        and not coefficients and _finite_number(row["lower"]) and _finite_number(row["upper"])
+        and float(row["lower"]) <= float(row["upper"])
+    ) or (
+        shape == "function" and populated["expression"] and populated["independent_variable"]
+        and not any(populated[name] for name in ("value", "lower", "upper")) and bool(coefficients)
+    )
+    if (
+        shape not in {"scalar", "range", "function"}
+        or (shape == "scalar" and not _finite_number(row["value"]))
+        or not valid_shape
+        or not isinstance(row["property"], str) or not row["property"].strip()
+    ):
+        raise LiteratureContractError(
+            "literature_quantity_invalid",
+            "Quantity scalar/range/function fields are inconsistent or non-finite.",
+            field=field, shape=shape,
+        )
+    return row
+
+
+def _quantity_values(quantity: Mapping[str, Any]) -> list[float]:
+    return [
+        float(quantity[name]) for name in ("value", "lower", "upper")
+        if _finite_number(quantity.get(name))
+    ]
+
+
+def _issue(code: str, message: str, field: str, severity: str = "error") -> dict[str, Any]:
+    return {"code": code, "message": message, "field": field, "severity": severity}
+
+
+def _validate_record_evidence(
+    evidence: Any, *, record_id: str, parsed_documents: Sequence[Mapping[str, Any]] | None,
+) -> None:
+    if not isinstance(evidence, list) or not evidence:
+        raise LiteratureContractError(
+            "literature_evidence_missing", "Typed positive records require exact evidence.",
+            record_id=record_id,
+        )
+    parsed = {str(row.get("document_id")): row for row in parsed_documents or []}
+    seen: set[str] = set()
+    for index, item in enumerate(evidence):
+        field = f"evidence[{index}]"
+        row = _require_exact_fields(
+            item,
+            {"evidence_id", "document_id", "locator", "verbatim_span", "source_sha256",
+             "extraction_confidence", "extraction_method"},
+            code="literature_evidence_invalid", field=field,
+        )
+        evidence_id = str(row["evidence_id"])
+        if not evidence_id or evidence_id in seen or not re.fullmatch(r"[0-9a-f]{64}", str(row["source_sha256"])):
+            raise LiteratureContractError(
+                "literature_evidence_invalid", "Evidence IDs must be unique and source hashes valid.",
+                record_id=record_id, field=field,
+            )
+        seen.add(evidence_id)
+        locator = _require_exact_fields(
+            row["locator"],
+            {"document_id", "block_id", "passage_id", "page", "section_path", "source_scope",
+             "table_id", "cell_range", "claim_number"},
+            code="literature_evidence_locator_invalid", field=f"{field}.locator",
+        )
+        if locator["document_id"] != row["document_id"] or not str(row["verbatim_span"]).strip():
+            raise LiteratureContractError(
+                "literature_evidence_locator_invalid",
+                "Evidence document and locator identities must agree and include a verbatim span.",
+                record_id=record_id, evidence_id=evidence_id,
+            )
+        if parsed_documents is None:
+            continue
+        document = parsed.get(str(row["document_id"]))
+        if document is None:
+            raise LiteratureContractError(
+                "literature_evidence_document_missing",
+                "Evidence document is absent from the parsed-document set.",
+                record_id=record_id, evidence_id=evidence_id,
+            )
+        source_hashes = {str(document.get("source_sha256") or "")} | {
+            str(attachment.get("sha256") or "") for attachment in document.get("attachments") or []
+            if isinstance(attachment, Mapping)
+        }
+        if row["source_sha256"] not in source_hashes:
+            raise LiteratureContractError(
+                "literature_evidence_source_hash_mismatch",
+                "Evidence source hash is absent from the parsed source and attachments.",
+                record_id=record_id, evidence_id=evidence_id,
+            )
+        if locator["block_id"] is not None:
+            block = next((
+                block for block in document.get("blocks") or []
+                if block.get("block_id") == locator["block_id"]
+            ), None)
+            if block is None or str(row["verbatim_span"]) not in str(block.get("text") or ""):
+                raise LiteratureContractError(
+                    "literature_evidence_span_unresolved",
+                    "Evidence block and verbatim span must resolve in the normalized parse.",
+                    record_id=record_id, evidence_id=evidence_id,
+                )
+
+
+def validate_literature_record(
+    record: Mapping[str, Any], *,
+    parsed_documents: Sequence[Mapping[str, Any]] | None = None,
+    library_id: str | None = None,
+) -> dict[str, Any]:
+    """Validate one typed extraction and report whether it may ground a positive claim."""
+    if not isinstance(record, Mapping):
+        raise LiteratureContractError(
+            "literature_record_invalid", "Extracted record must be an object.",
+            observed_type=type(record).__name__,
+        )
+    row = dict(record)
+    record_class = str(row.get("record_class") or "")
+    record_id = str(row.get("record_id") or "")
+    if record_class == "NoEvidenceRecord":
+        _require_exact_fields(
+            row, _NO_EVIDENCE_FIELDS, code="literature_record_contract_invalid", field="record",
+        )
+        if (
+            row.get("status") != "validated" or row.get("validated_result_count") != 0
+            or not record_id or not re.fullmatch(r"[0-9a-f]{64}", str(row.get("corpus_snapshot_sha256") or ""))
+        ):
+            raise LiteratureContractError(
+                "literature_no_evidence_contract_invalid",
+                "NoEvidenceRecord must capture a validated zero-result scoped search.",
+                record_id=record_id,
+            )
+        if library_id is not None and row.get("library_id") != library_id:
+            raise LiteratureContractError(
+                "literature_record_library_mismatch", "Record library differs from its extraction batch.",
+                record_id=record_id,
+            )
+        return {
+            "schema": "dissolve.record-validation.v1", "record_id": record_id,
+            "record_class": record_class, "structurally_valid": True,
+            "claim_eligible": True, "violations": [],
+        }
+    class_fields = _RECORD_CLASS_FIELDS.get(record_class)
+    if class_fields is None:
+        raise LiteratureContractError(
+            "literature_record_class_unsupported",
+            "Record class is outside the reviewed nine-class union.", record_class=record_class,
+        )
+    _require_exact_fields(
+        row, _RECORD_CORE_FIELDS | class_fields,
+        code="literature_record_contract_invalid", field="record",
+    )
+    if library_id is not None and row["library_id"] != library_id:
+        raise LiteratureContractError(
+            "literature_record_library_mismatch", "Record library differs from its extraction batch.",
+            record_id=record_id,
+        )
+    if (
+        not record_id or row["status"] not in {
+            "validated", "unvalidated_extraction", "pending_identity", "superseded",
+        }
+        or not _finite_number(row["extraction_confidence"])
+        or not 0 <= float(row["extraction_confidence"]) <= 1
+        or not isinstance(row["extractor"], str) or not row["extractor"]
+    ):
+        raise LiteratureContractError(
+            "literature_record_core_invalid", "Record identity, lifecycle, or extraction provenance is invalid.",
+            record_id=record_id,
+        )
+    method = _require_exact_fields(
+        row["method"], {"method_id", "label", "category"},
+        code="literature_method_invalid", field="method",
+    )
+    if not method["label"] or method["category"] not in {
+        "experimental", "model", "calculated", "reported_claim", "unknown",
+    }:
+        raise LiteratureContractError(
+            "literature_method_invalid", "Record method is incomplete or unsupported.", record_id=record_id,
+        )
+    conditions = _require_exact_fields(
+        row["conditions"], {"condition_id", "quantities", "notes"},
+        code="literature_conditions_invalid", field="conditions",
+    )
+    if not isinstance(conditions["quantities"], list) or not isinstance(conditions["notes"], list):
+        raise LiteratureContractError(
+            "literature_conditions_invalid", "Condition quantities and notes must be arrays.", record_id=record_id,
+        )
+    for index, quantity in enumerate(conditions["quantities"]):
+        _validate_quantity(quantity, f"conditions.quantities[{index}]")
+    _validate_record_evidence(row["evidence"], record_id=record_id, parsed_documents=parsed_documents)
+    if not isinstance(row["validation_issues"], list) or not isinstance(row["cross_references"], list) or not row["cross_references"]:
+        raise LiteratureContractError(
+            "literature_record_diagnostics_invalid",
+            "Records require validation issue and cross-reference arrays.", record_id=record_id,
+        )
+
+    entity_fields = {
+        "SolubilityPoint": ("polymer", "solvent"),
+        "ChiParameter": ("component_a", "component_b"),
+        "HSPRecord": ("material",),
+        "PartitionRecord": ("contaminant", "phase_a", "phase_b"),
+        "LeachingRecord": ("feed_material", "contaminant", "extraction_solvent"),
+        "TgRecord": ("material",),
+    }.get(record_class, ())
+    entities = [_validate_material_ref(row[field], field) for field in entity_fields]
+    if record_class == "ProcessClaim":
+        if not isinstance(row["inputs"], list):
+            raise LiteratureContractError("literature_claim_inputs_invalid", "Process inputs must be an array.")
+        entities = [_validate_material_ref(value, f"inputs[{index}]") for index, value in enumerate(row["inputs"])]
+    elif record_class == "CompositionClaim":
+        if not isinstance(row["components"], list) or not row["components"]:
+            raise LiteratureContractError("literature_composition_components_invalid", "Composition requires components.")
+        entities = []
+        for index, component in enumerate(row["components"]):
+            component_row = _require_exact_fields(
+                component, {"material", "role", "amount"},
+                code="literature_composition_components_invalid", field=f"components[{index}]",
+            )
+            entities.append(_validate_material_ref(component_row["material"], f"components[{index}].material"))
+            if component_row["amount"] is not None:
+                _validate_quantity(component_row["amount"], f"components[{index}].amount")
+
+    quantity_fields = {
+        "SolubilityPoint": ("temperature", "solubility"),
+        "ChiParameter": ("chi",), "HSPRecord": ("dD", "dP", "dH"),
+        "PartitionRecord": ("partition_value",), "LeachingRecord": ("response",),
+        "TgRecord": ("tg",),
+    }.get(record_class, ())
+    quantities = {field: _validate_quantity(row[field], field) for field in quantity_fields}
+    if record_class == "HSPRecord" and row["r0"] is not None:
+        quantities["r0"] = _validate_quantity(row["r0"], "r0")
+
+    violations: list[dict[str, Any]] = []
+    if any(entity["identity_status"] != "canonical" for entity in entities):
+        violations.append(_issue(
+            "UNRESOLVED_RECORD_IDENTITY", "Positive claims require canonical material identities.", "identity",
+        ))
+    if any(quantity.get("basis") in {None, ""} for quantity in quantities.values()):
+        violations.append(_issue(
+            "MISSING_QUANTITY_BASIS", "Reported quantities require an explicit scientific basis.", "basis",
+        ))
+    if record_class == "SolubilityPoint":
+        values = _quantity_values(quantities["solubility"])
+        if quantities["solubility"]["unit_canonical"] != "wt_percent" or any(value < 0 or value > 100 for value in values):
+            violations.append(_issue(
+                "SOLUBILITY_VALUE_INVALID", "Solubility must be 0–100 wt% on the declared solution basis.", "solubility",
+            ))
+    elif record_class == "ChiParameter" and quantities["chi"]["unit_canonical"] != "dimensionless":
+        violations.append(_issue("CHI_UNIT_INVALID", "Flory–Huggins chi is dimensionless.", "chi"))
+    elif record_class == "HSPRecord":
+        if any(value < 0 for quantity in quantities.values() for value in _quantity_values(quantity)):
+            violations.append(_issue("HSP_COMPONENT_NEGATIVE", "HSP components and radius cannot be negative.", "HSP"))
+    elif record_class == "PartitionRecord":
+        if row["phase_a"]["canonical_id"] == row["phase_b"]["canonical_id"]:
+            violations.append(_issue("PARTITION_PHASES_IDENTICAL", "Partition phases must be distinct.", "phase_b"))
+    elif record_class == "LeachingRecord":
+        if row["response_metric"] == "feed_removal_fraction" and any(
+            value < 0 or value > 100 for value in _quantity_values(quantities["response"])
+        ):
+            violations.append(_issue(
+                "LEACHING_RESPONSE_INVALID", "Feed-removal response must remain between 0 and 100 wt%.", "response",
+            ))
+    elif record_class == "TgRecord":
+        unit = quantities["tg"]["unit_canonical"]
+        minimum = 0 if unit == "K" else -273.15 if unit == "degC" else None
+        if minimum is None or any(value <= minimum for value in _quantity_values(quantities["tg"])):
+            violations.append(_issue("TG_ABSOLUTE_TEMPERATURE_INVALID", "Tg must exceed absolute zero.", "tg"))
+    elif record_class in {"ProcessClaim", "CompositionClaim"}:
+        expected_scope = {
+            "claimed_scope": {"independent", "dependent"},
+            "non_claim_example": {"description_example"},
+            "non_claim_abstract": {"abstract"},
+        }.get(row["legal_effect"], set())
+        if row["claim_scope"] not in expected_scope:
+            violations.append(_issue(
+                "PATENT_LEGAL_EFFECT_MISMATCH",
+                "Patent claim scope and legal-effect classification are inconsistent.", "legal_effect",
+            ))
+    claim_eligible = row["status"] == "validated" and not violations
+    return {
+        "schema": "dissolve.record-validation.v1", "record_id": record_id,
+        "record_class": record_class, "structurally_valid": True,
+        "claim_eligible": claim_eligible, "violations": violations,
+    }
+
+
+def validate_extraction_batch(
+    records: Sequence[Mapping[str, Any]], *, parsed_documents: Sequence[Mapping[str, Any]],
+    library_id: str,
+) -> dict[str, Any]:
+    """Validate all extracted records while retaining honest rejected/pending candidates."""
+    validations = [
+        validate_literature_record(record, parsed_documents=parsed_documents, library_id=library_id)
+        for record in records
+    ]
+    ids = [item["record_id"] for item in validations]
+    if len(ids) != len(set(ids)):
+        raise LiteratureContractError(
+            "literature_record_ids_duplicate", "Extraction batch record IDs must be unique.",
+        )
+    invalid_positive = [
+        item for record, item in zip(records, validations, strict=True)
+        if record.get("status") == "validated" and not item["claim_eligible"]
+    ]
+    if invalid_positive:
+        raise LiteratureContractError(
+            "literature_validated_record_semantic_invalid",
+            "A record marked validated violates typed scientific semantics.", records=invalid_positive,
+        )
+    return {
+        "schema": "dissolve.extraction-validation.v1", "library_id": library_id,
+        "record_count": len(records),
+        "claim_eligible_count": sum(item["claim_eligible"] for item in validations),
+        "retained_unvalidated_count": sum(not item["claim_eligible"] for item in validations),
+        "records": validations,
+    }
+
+
+def _record_entities_and_quantities(record: Mapping[str, Any]) -> tuple[list[str], list[dict[str, Any]]]:
+    record_class = str(record["record_class"])
+    entities: list[str] = []
+    quantities: list[dict[str, Any]] = []
+    for field in {
+        "SolubilityPoint": ("polymer", "solvent"),
+        "ChiParameter": ("component_a", "component_b"),
+        "HSPRecord": ("material",),
+        "PartitionRecord": ("contaminant", "phase_a", "phase_b"),
+        "LeachingRecord": ("feed_material", "contaminant", "extraction_solvent"),
+        "TgRecord": ("material",),
+    }.get(record_class, ()):
+        entities.append(str(record[field]["canonical_id"]))
+    for field in {
+        "SolubilityPoint": ("temperature", "solubility"),
+        "ChiParameter": ("chi",), "HSPRecord": ("dD", "dP", "dH", "r0"),
+        "PartitionRecord": ("partition_value",), "LeachingRecord": ("response",),
+        "TgRecord": ("tg",),
+    }.get(record_class, ()):
+        if record.get(field) is not None:
+            quantities.append(dict(record[field]))
+    if record_class == "ProcessClaim":
+        entities.extend(str(item["canonical_id"]) for item in record["inputs"])
+        entities.append(str(record["patent_document_id"]))
+    elif record_class == "CompositionClaim":
+        entities.extend(str(item["material"]["canonical_id"]) for item in record["components"])
+        entities.append(str(record["patent_document_id"]))
+        quantities.extend(dict(item["amount"]) for item in record["components"] if item["amount"] is not None)
+    quantities.extend(dict(item) for item in (record.get("conditions") or {}).get("quantities") or [])
+    return list(dict.fromkeys(entities)), quantities
+
+
+def compile_claim_plan(
+    records: Sequence[Mapping[str, Any]], *, query_id: str,
+    gap_entity_scopes: Mapping[str, Sequence[str]] | None = None,
+    compiler_version: str = "typed-binding-1",
+) -> dict[str, Any]:
+    """Compile finite allowances from validated records; never author conversational prose."""
+    if not query_id or not records:
+        raise LiteratureContractError(
+            "claim_plan_input_invalid", "Claim plans require a query ID and at least one record.",
+        )
+    library_ids = {str(record.get("library_id") or "") for record in records}
+    if len(library_ids) != 1 or not next(iter(library_ids)):
+        raise LiteratureContractError(
+            "claim_plan_library_mismatch", "All claim-plan records must share one library.",
+        )
+    allowances = []
+    for record in sorted(records, key=lambda row: str(row["record_id"])):
+        validation = validate_literature_record(record)
+        if not validation["claim_eligible"]:
+            raise LiteratureContractError(
+                "claim_plan_record_ineligible",
+                "Only validated, semantically sound records may support claim allowances.",
+                record_id=record["record_id"], violations=validation["violations"],
+            )
+        record_class = str(record["record_class"])
+        suffix = str(record["record_id"]).removeprefix("REC-")
+        entities, quantities = _record_entities_and_quantities(record)
+        evidence_ids = [str(item["evidence_id"]) for item in record.get("evidence") or []]
+        if record_class == "NoEvidenceRecord":
+            claim_kind, epistemic_status = "gap", "no_evidence_in_scope"
+            entities = list((gap_entity_scopes or {}).get(str(record["record_id"]), ()))
+            query = str(record["query"]).casefold()
+            if any(entity.casefold() not in query for entity in entities):
+                raise LiteratureContractError(
+                    "claim_plan_gap_scope_unbound",
+                    "Gap entities must be explicit in the scoped no-evidence query.",
+                    record_id=record["record_id"], entities=entities,
+                )
+        elif record_class in {"ProcessClaim", "CompositionClaim"}:
+            claim_kind = "attributive"
+            epistemic_status = "claimed" if record["legal_effect"] == "claimed_scope" else "reported"
+        else:
+            claim_kind = "quantitative"
+            epistemic_status = (
+                "measured" if record["method"]["category"] == "experimental"
+                else "modeled" if record["method"]["category"] in {"model", "calculated"}
+                else "reported"
+            )
+        allowances.append({
+            "claim_id": f"CLAIM-{suffix}", "claim_kind": claim_kind,
+            "record_ids": [record["record_id"]], "evidence_ids": evidence_ids,
+            "allowed_entities": entities, "allowed_quantities": quantities,
+            "allowed_transformations": ["identity", "round", "unit_convert", "range_summarize", "compare"],
+            "epistemic_status": epistemic_status,
+        })
+    ordered_records = sorted([dict(record) for record in records], key=lambda row: row["record_id"])
+    return {
+        "schema": "dissolve.claim-plan.v1", "library_id": next(iter(library_ids)),
+        "query_id": query_id, "allowances": allowances,
+        "record_snapshot_sha256": _payload_sha256(ordered_records),
+        "compiler_version": compiler_version,
+    }
+
+
+def validate_bound_answer(
+    claim_plan: Mapping[str, Any], answer: Mapping[str, Any],
+    records: Sequence[Mapping[str, Any]],
+    *, documents: Sequence[Mapping[str, Any]] = (),
+) -> dict[str, Any]:
+    """Validate model-authored claims against a finite plan and exact typed evidence."""
+    violations: list[dict[str, Any]] = []
+
+    def add(code: str, message: str, field: str) -> None:
+        violations.append(_issue(code, message, field))
+
+    if answer.get("schema") != "dissolve.bound-answer.v1" or answer.get("answer_author") != "model":
+        add("BOUND_ANSWER_AUTHOR_INVALID", "Bound answers must be model-authored.", "answer_author")
+    if answer.get("library_id") != claim_plan.get("library_id"):
+        add("BOUND_ANSWER_LIBRARY_MISMATCH", "Answer and claim plan must share one library.", "library_id")
+    expected_plan_hash = _payload_sha256(claim_plan)
+    if answer.get("claim_plan_sha256") != expected_plan_hash:
+        add("CLAIM_PLAN_HASH_MISMATCH", "Answer claim-plan hash does not match the supplied plan.", "claim_plan_sha256")
+    allowances = {str(row["claim_id"]): row for row in claim_plan.get("allowances") or []}
+    record_map = {str(row["record_id"]): row for row in records}
+    document_entities = {
+        str(document.get("document_id") or ""): {
+            str(value) for value in (
+                document.get("document_id"), document.get("patent_number"),
+                *((document.get("source_identifiers") or {}).values()),
+            ) if value
+        }
+        for document in documents
+    }
+    selected_record_ids = {
+        str(record_id) for allowance in allowances.values()
+        for record_id in allowance.get("record_ids") or []
+    }
+    missing_plan_records = sorted(selected_record_ids - set(record_map))
+    selected_records = sorted(
+        [record_map[record_id] for record_id in selected_record_ids if record_id in record_map],
+        key=lambda row: row["record_id"],
+    )
+    if missing_plan_records or claim_plan.get("record_snapshot_sha256") != _payload_sha256(selected_records):
+        add(
+            "CLAIM_RECORD_SNAPSHOT_MISMATCH",
+            "Claim plan record snapshot does not match the supplied typed records.",
+            "record_snapshot_sha256",
+        )
+    for allowance in allowances.values():
+        for record_id in allowance.get("record_ids") or []:
+            record = record_map.get(str(record_id))
+            if record is None:
+                continue
+            actual_evidence = {str(item["evidence_id"]) for item in record.get("evidence") or []}
+            if not set(allowance.get("evidence_ids") or []) <= actual_evidence:
+                add(
+                    "CLAIM_PLAN_EVIDENCE_UNSUPPORTED",
+                    "Claim plan permits evidence absent from its typed record.",
+                    str(allowance.get("claim_id") or "allowance"),
+                )
+            if record["record_class"] != "NoEvidenceRecord":
+                actual_entities, actual_quantities = _record_entities_and_quantities(record)
+                if record["record_class"] in {"ProcessClaim", "CompositionClaim"}:
+                    actual_entities.extend(document_entities.get(str(record["patent_document_id"]), set()))
+                if not set(allowance.get("allowed_entities") or []) <= set(actual_entities):
+                    add(
+                        "CLAIM_PLAN_ENTITY_UNSUPPORTED",
+                        "Claim plan permits an entity absent from its typed record.",
+                        str(allowance.get("claim_id") or "allowance"),
+                    )
+                actual_quantity_payloads = {_canonical_payload(item) for item in actual_quantities}
+                if any(
+                    _canonical_payload(item) not in actual_quantity_payloads
+                    for item in allowance.get("allowed_quantities") or []
+                ):
+                    add(
+                        "CLAIM_PLAN_QUANTITY_UNSUPPORTED",
+                        "Claim plan permits a quantity absent from its typed record.",
+                        str(allowance.get("claim_id") or "allowance"),
+                    )
+    claims = answer.get("claims")
+    if not isinstance(claims, list):
+        claims = []
+        add("BOUND_CLAIMS_INVALID", "Answer claims must be an array.", "claims")
+    seen: set[str] = set()
+    bound_evidence: set[str] = set()
+    for claim_index, claim in enumerate(claims):
+        if not isinstance(claim, Mapping):
+            add("BOUND_CLAIM_INVALID", "Every bound claim must be an object.", f"claims[{claim_index}]")
+            continue
+        claim_id = str(claim.get("claim_id") or "")
+        allowance = allowances.get(claim_id)
+        if allowance is None or claim_id in seen:
+            add("CLAIM_ALLOWANCE_MISSING", "Claim ID is absent from the finite plan or repeated.", f"claims[{claim_index}].claim_id")
+            continue
+        seen.add(claim_id)
+        if claim.get("claim_kind") != allowance["claim_kind"] or claim.get("epistemic_status") != allowance["epistemic_status"]:
+            add("CLAIM_CLASS_MISMATCH", "Claim kind and epistemic status must match the allowance.", claim_id)
+        answer_without_citations = re.sub(
+            r"\s*\[[A-Za-z0-9_.:-]+\]", "", str(answer.get("answer_text") or ""),
+        )
+        if str(claim.get("text") or "") not in answer_without_citations:
+            add("CLAIM_TEXT_UNBOUND", "Rendered claim text must occur in the model-authored answer.", claim_id)
+        bindings = claim.get("bindings")
+        if not isinstance(bindings, list) or not bindings:
+            add("CLAIM_BINDING_MISSING", "Every rendered claim requires at least one binding.", claim_id)
+            continue
+        for binding_index, binding in enumerate(bindings):
+            field = f"{claim_id}.bindings[{binding_index}]"
+            if not isinstance(binding, Mapping) or binding.get("claim_id") != claim_id:
+                add("CLAIM_BINDING_ID_MISMATCH", "Binding claim ID must match its rendered claim.", field)
+                continue
+            record_id = str(binding.get("record_id") or "")
+            record = record_map.get(record_id)
+            if record_id not in allowance["record_ids"] or record is None:
+                add("CLAIM_RECORD_UNSUPPORTED", "Binding record is absent from the allowance and record snapshot.", field)
+                continue
+            validation = validate_literature_record(record)
+            if not validation["claim_eligible"]:
+                add("CLAIM_RECORD_INELIGIBLE", "Rejected, pending, or semantically invalid records cannot ground claims.", field)
+            evidence_id = binding.get("evidence_id")
+            if evidence_id is not None:
+                if evidence_id not in allowance["evidence_ids"]:
+                    add("CLAIM_EVIDENCE_UNSUPPORTED", "Binding evidence is absent from the allowance.", field)
+                else:
+                    bound_evidence.add(str(evidence_id))
+            if allowance["claim_kind"] != "gap" and evidence_id is None:
+                add("CLAIM_EVIDENCE_MISSING", "Positive claims require an exact evidence binding.", field)
+            if allowance["claim_kind"] == "gap" and record["record_class"] != "NoEvidenceRecord":
+                add("GAP_RECORD_INVALID", "Gap claims require a scoped NoEvidenceRecord.", field)
+            emitted_entities = binding.get("emitted_entities")
+            if not isinstance(emitted_entities, list) or not set(emitted_entities) <= set(allowance["allowed_entities"]):
+                add("CLAIM_ENTITY_UNSUPPORTED", "Binding emits an entity absent from the allowance.", field)
+            emitted_quantities = binding.get("emitted_quantities")
+            if not isinstance(emitted_quantities, list) or any(
+                _canonical_payload(quantity) not in {
+                    _canonical_payload(allowed) for allowed in allowance["allowed_quantities"]
+                } for quantity in emitted_quantities
+            ):
+                add("CLAIM_QUANTITY_UNSUPPORTED", "Binding emits a quantity absent from the allowance.", field)
+            transformations = binding.get("transformations")
+            if not isinstance(transformations, list) or any(
+                not isinstance(item, Mapping) or item.get("kind") not in allowance["allowed_transformations"]
+                for item in transformations
+            ):
+                add("CLAIM_TRANSFORMATION_UNSUPPORTED", "Binding uses a transformation absent from the allowance.", field)
+    citations = answer.get("citations")
+    if not isinstance(citations, list):
+        citations = []
+        add("BOUND_CITATIONS_INVALID", "Answer citations must be an array.", "citations")
+    cited_evidence = {
+        str(evidence_id) for citation in citations if isinstance(citation, Mapping)
+        for evidence_id in citation.get("evidence_ids") or []
+    }
+    if bound_evidence - cited_evidence:
+        add("BOUND_CITATION_MISSING", "Every bound positive evidence ID requires a citation.", "citations")
+    return {"valid": not violations, "violations": violations, "claim_plan_sha256": expected_plan_hash}
+
+
+_GRAPH_TABLES = (
+    "kg_ingest_runs", "kg_acquisitions", "kg_documents",
+    "kg_parsed_documents", "kg_evidence", "kg_records", "kg_nodes",
+    "kg_edges", "kg_summaries",
+)
+
+
+def _canonical_payload(value: Any) -> str:
+    return json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+
+
+def _payload_sha256(value: Any) -> str:
+    return hashlib.sha256(_canonical_payload(value).encode("utf-8")).hexdigest()
+
+
+def literature_graph_path(library_id: str = "owner-main", *, root: str | Path | None = None) -> Path:
+    """Return the durable, library-scoped DuckDB asset path."""
+    base = Path(root).expanduser().resolve() if root is not None else _research_root()
+    return base / "libraries" / _slug(library_id) / "knowledge.duckdb"
+
+
+def _ensure_graph_schema(connection: duckdb.DuckDBPyConnection) -> None:
+    statements = (
+        """CREATE TABLE IF NOT EXISTS kg_ingest_runs (
+            library_id VARCHAR NOT NULL, ingest_run_id VARCHAR NOT NULL,
+            idempotency_key VARCHAR NOT NULL, batch_sha256 VARCHAR NOT NULL,
+            source_document_ids_json VARCHAR NOT NULL, extractor_ids_json VARCHAR NOT NULL,
+            provenance_json VARCHAR NOT NULL DEFAULT '{}',
+            status VARCHAR NOT NULL, node_count BIGINT NOT NULL, edge_count BIGINT NOT NULL,
+            record_count BIGINT NOT NULL, evidence_count BIGINT NOT NULL,
+            started_at TIMESTAMPTZ NOT NULL, completed_at TIMESTAMPTZ,
+            PRIMARY KEY (library_id, ingest_run_id),
+            UNIQUE (library_id, idempotency_key)
+        )""",
+        """CREATE TABLE IF NOT EXISTS kg_acquisitions (
+            library_id VARCHAR NOT NULL, acquisition_id VARCHAR NOT NULL,
+            document_id VARCHAR NOT NULL, adapter_name VARCHAR NOT NULL,
+            adapter_version VARCHAR NOT NULL, source_sha256 VARCHAR NOT NULL,
+            payload_json VARCHAR NOT NULL, content_sha256 VARCHAR NOT NULL,
+            first_ingest_run_id VARCHAR NOT NULL, created_at TIMESTAMPTZ NOT NULL,
+            PRIMARY KEY (library_id, acquisition_id)
+        )""",
+        """CREATE TABLE IF NOT EXISTS kg_documents (
+            library_id VARCHAR NOT NULL, document_id VARCHAR NOT NULL,
+            document_kind VARCHAR, canonical_key VARCHAR, label VARCHAR,
+            payload_json VARCHAR NOT NULL, content_sha256 VARCHAR NOT NULL,
+            first_ingest_run_id VARCHAR NOT NULL, created_at TIMESTAMPTZ NOT NULL,
+            PRIMARY KEY (library_id, document_id)
+        )""",
+        """CREATE TABLE IF NOT EXISTS kg_parsed_documents (
+            library_id VARCHAR NOT NULL, parse_id VARCHAR NOT NULL,
+            document_id VARCHAR NOT NULL, source_sha256 VARCHAR NOT NULL,
+            parser_backend VARCHAR NOT NULL, parser_version VARCHAR NOT NULL,
+            payload_json VARCHAR NOT NULL, content_sha256 VARCHAR NOT NULL,
+            first_ingest_run_id VARCHAR NOT NULL, created_at TIMESTAMPTZ NOT NULL,
+            PRIMARY KEY (library_id, parse_id)
+        )""",
+        """CREATE TABLE IF NOT EXISTS kg_evidence (
+            library_id VARCHAR NOT NULL, evidence_id VARCHAR NOT NULL,
+            document_id VARCHAR, record_id VARCHAR, payload_json VARCHAR NOT NULL,
+            content_sha256 VARCHAR NOT NULL, first_ingest_run_id VARCHAR NOT NULL,
+            created_at TIMESTAMPTZ NOT NULL,
+            PRIMARY KEY (library_id, evidence_id)
+        )""",
+        """CREATE TABLE IF NOT EXISTS kg_records (
+            library_id VARCHAR NOT NULL, record_id VARCHAR NOT NULL,
+            record_class VARCHAR, status VARCHAR, payload_json VARCHAR NOT NULL,
+            content_sha256 VARCHAR NOT NULL, first_ingest_run_id VARCHAR NOT NULL,
+            created_at TIMESTAMPTZ NOT NULL,
+            PRIMARY KEY (library_id, record_id)
+        )""",
+        """CREATE TABLE IF NOT EXISTS kg_nodes (
+            library_id VARCHAR NOT NULL, node_id VARCHAR NOT NULL,
+            node_type VARCHAR NOT NULL, canonical_key VARCHAR NOT NULL, label VARCHAR NOT NULL,
+            payload_json VARCHAR NOT NULL, declared_payload_sha256 VARCHAR NOT NULL,
+            content_sha256 VARCHAR NOT NULL, first_ingest_run_id VARCHAR NOT NULL,
+            created_at TIMESTAMPTZ NOT NULL,
+            PRIMARY KEY (library_id, node_id),
+            UNIQUE (library_id, node_type, canonical_key)
+        )""",
+        """CREATE TABLE IF NOT EXISTS kg_edges (
+            library_id VARCHAR NOT NULL, edge_id VARCHAR NOT NULL,
+            edge_type VARCHAR NOT NULL, source_node_id VARCHAR NOT NULL,
+            target_node_id VARCHAR NOT NULL, record_ids_json VARCHAR NOT NULL,
+            evidence_ids_json VARCHAR NOT NULL, attributes_json VARCHAR NOT NULL,
+            payload_json VARCHAR NOT NULL, declared_payload_sha256 VARCHAR NOT NULL,
+            content_sha256 VARCHAR NOT NULL,
+            first_ingest_run_id VARCHAR NOT NULL, created_at TIMESTAMPTZ NOT NULL,
+            PRIMARY KEY (library_id, edge_id)
+        )""",
+        """CREATE TABLE IF NOT EXISTS kg_summaries (
+            library_id VARCHAR NOT NULL, topic_key VARCHAR NOT NULL,
+            summary_json VARCHAR, source_record_ids_json VARCHAR NOT NULL,
+            status VARCHAR NOT NULL, stale_since_ingest_run_id VARCHAR,
+            updated_at TIMESTAMPTZ NOT NULL,
+            PRIMARY KEY (library_id, topic_key)
+        )""",
+    )
+    for statement in statements:
+        connection.execute(statement)
+    connection.execute(
+        "ALTER TABLE kg_ingest_runs ADD COLUMN IF NOT EXISTS "
+        "provenance_json VARCHAR DEFAULT '{}'"
+    )
+
+
+def _batch_unique(rows: Sequence[Mapping[str, Any]], key: str, code: str) -> None:
+    values = [str(row.get(key) or "") for row in rows]
+    missing = [index for index, value in enumerate(values) if not value]
+    duplicates = sorted(value for value, count in Counter(values).items() if count > 1)
+    if missing or duplicates:
+        raise LiteratureContractError(
+            code, f"Graph merge requires non-empty, unique {key} values within one batch.",
+            missing_indexes=missing, duplicate_values=duplicates,
+        )
+
+
+def _graph_idempotency_material(batch: Mapping[str, Any]) -> dict[str, Any]:
+    parsed = {
+        str(row.get("document_id") or ""): row
+        for row in batch.get("parsed_documents") or []
+        if isinstance(row, Mapping)
+    }
+    sources = []
+    for acquisition in batch.get("acquisitions") or []:
+        document = acquisition.get("document") or {}
+        document_id = str(document.get("document_id") or "")
+        parser = parsed.get(document_id) or {}
+        adapter = acquisition.get("adapter") or {}
+        sources.append({
+            "document_id": document_id,
+            "source_sha256": document.get("content_sha256"),
+            "adapter": {
+                "name": adapter.get("adapter_name"),
+                "version": adapter.get("adapter_version"),
+            },
+            "parser": {
+                "backend": parser.get("parser_backend"),
+                "version": parser.get("parser_version"),
+                "source_sha256": parser.get("source_sha256"),
+            },
+        })
+    return {
+        "schema": batch.get("schema"),
+        "library_id": batch.get("library_id"),
+        "sources": sorted(sources, key=lambda row: row["document_id"]),
+        "extractors": sorted(
+            [dict(row) for row in batch.get("extractor_manifests") or []],
+            key=lambda row: str(row.get("extractor_id") or ""),
+        ),
+    }
+
+
+def derive_graph_idempotency_key(batch: Mapping[str, Any]) -> str:
+    """Derive one stable merge identity from source and processing provenance."""
+    return _payload_sha256(_graph_idempotency_material(batch))
+
+
+def _graph_batch_parts(batch: Mapping[str, Any]) -> tuple[
+    str, str, list[dict[str, Any]], list[dict[str, Any]],
+    list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]],
+    list[dict[str, Any]],
+]:
+    if batch.get("schema") != "dissolve.graph-merge.v1":
+        raise LiteratureContractError(
+            "graph_batch_schema_mismatch", "Graph merge requires dissolve.graph-merge.v1."
+        )
+    try:
+        library_id = _slug(str(batch.get("library_id") or ""))
+    except ValueError as error:
+        raise LiteratureContractError(
+            "graph_library_id_invalid", "Graph merge library_id must contain letters or numbers."
+        ) from error
+    ingest_run_id = str(batch.get("ingest_run_id") or "").strip()
+    idempotency_key = str(batch.get("idempotency_key") or "").strip().casefold()
+    if not ingest_run_id:
+        raise LiteratureContractError(
+            "graph_ingest_run_missing", "Graph merge ingest_run_id cannot be empty."
+        )
+    if not re.fullmatch(r"[0-9a-f]{64}", idempotency_key):
+        raise LiteratureContractError(
+            "graph_idempotency_key_invalid", "Graph merge idempotency_key must be one SHA-256 hex digest."
+        )
+    acquisitions = [dict(row) for row in batch.get("acquisitions") or []]
+    parsed_documents = [dict(row) for row in batch.get("parsed_documents") or []]
+    extractor_manifests = [dict(row) for row in batch.get("extractor_manifests") or []]
+    if not acquisitions or not parsed_documents or not extractor_manifests:
+        raise LiteratureContractError(
+            "graph_provenance_missing",
+            "Graph merge requires acquisitions, parsed documents, and extractor manifests."
+        )
+    acquisition_documents = [dict(row.get("document") or {}) for row in acquisitions]
+    _batch_unique(acquisition_documents, "document_id", "graph_acquisition_documents_invalid")
+    _batch_unique(parsed_documents, "document_id", "graph_parsed_documents_invalid")
+    _batch_unique(extractor_manifests, "extractor_id", "graph_extractor_manifests_invalid")
+    acquired = {str(row["document_id"]): row for row in acquisition_documents}
+    parsed = {str(row["document_id"]): row for row in parsed_documents}
+    if set(acquired) != set(parsed):
+        raise LiteratureContractError(
+            "graph_acquisition_parse_mismatch",
+            "Every acquired document requires exactly one corresponding parsed document.",
+            acquired_document_ids=sorted(acquired), parsed_document_ids=sorted(parsed),
+        )
+    for acquisition, document in zip(acquisitions, acquisition_documents, strict=True):
+        document_id = str(document["document_id"])
+        parser = parsed[document_id]
+        adapter = acquisition.get("adapter") or {}
+        source_sha = str(document.get("content_sha256") or "")
+        artifact_hashes = {
+            str(row.get("sha256") or "")
+            for row in acquisition.get("artifacts") or [] if isinstance(row, Mapping)
+        }
+        if (
+            acquisition.get("library_id") != library_id
+            or document.get("library_id") != library_id
+            or parser.get("library_id") != library_id
+        ):
+            raise LiteratureContractError(
+                "graph_library_scope_mismatch",
+                "Acquisition, document, parse, and batch must share one library_id.",
+                document_id=document_id,
+            )
+        if (
+            not re.fullmatch(r"[0-9a-f]{64}", source_sha)
+            or source_sha not in artifact_hashes
+            or parser.get("source_sha256") != source_sha
+        ):
+            raise LiteratureContractError(
+                "graph_source_hash_mismatch",
+                "Acquisition artifact, normalized document, and parse source hashes must correspond exactly.",
+                document_id=document_id, document_sha256=source_sha,
+                parsed_source_sha256=parser.get("source_sha256"),
+            )
+        if not adapter.get("adapter_name") or not adapter.get("adapter_version"):
+            raise LiteratureContractError(
+                "graph_adapter_manifest_invalid",
+                "Every acquisition requires a named, versioned adapter manifest.",
+                document_id=document_id,
+            )
+    for manifest in extractor_manifests:
+        if (
+            manifest.get("schema") != "dissolve.extractor-manifest.v1"
+            or not manifest.get("name") or not manifest.get("version")
+            or not re.fullmatch(
+                r"[0-9a-f]{64}", str(manifest.get("configuration_sha256") or "")
+            )
+            or (
+                manifest.get("model_sha256") is not None
+                and not re.fullmatch(r"[0-9a-f]{64}", str(manifest["model_sha256"]))
+            )
+        ):
+            raise LiteratureContractError(
+                "graph_extractor_manifest_invalid",
+                "Extractor manifests require versioned configuration and model provenance.",
+                extractor_id=manifest.get("extractor_id"),
+            )
+    records = [dict(row) for row in batch.get("records") or []]
+    nodes = [dict(row) for row in batch.get("nodes") or []]
+    edges = [dict(row) for row in batch.get("edges") or []]
+    _batch_unique(records, "record_id", "graph_record_ids_invalid")
+    _batch_unique(nodes, "node_id", "graph_node_ids_invalid")
+    _batch_unique(edges, "edge_id", "graph_edge_ids_invalid")
+    validate_extraction_batch(
+        records, parsed_documents=parsed_documents, library_id=library_id,
+    )
+    required_node_fields = {"node_type", "canonical_key", "label", "payload", "payload_sha256"}
+    required_edge_fields = {
+        "edge_type", "source_node_id", "target_node_id", "record_ids",
+        "evidence_ids", "attributes", "payload_sha256",
+    }
+    for node in nodes:
+        missing = sorted(required_node_fields - set(node))
+        if missing:
+            raise LiteratureContractError(
+                "graph_node_fields_missing", "Graph node is missing required storage fields.",
+                node_id=node.get("node_id"), fields=missing,
+            )
+        expected_hash = _payload_sha256(node.get("payload"))
+        if node.get("payload_sha256") != expected_hash:
+            raise LiteratureContractError(
+                "graph_node_payload_hash_mismatch",
+                "Graph node payload_sha256 does not match canonical JSON payload.",
+                node_id=node.get("node_id"), expected_sha256=expected_hash,
+                observed_sha256=node.get("payload_sha256"),
+            )
+    for edge in edges:
+        missing = sorted(required_edge_fields - set(edge))
+        if missing:
+            raise LiteratureContractError(
+                "graph_edge_fields_missing", "Graph edge is missing required storage fields.",
+                edge_id=edge.get("edge_id"), fields=missing,
+            )
+        expected_hash = _payload_sha256(edge.get("attributes"))
+        if edge.get("payload_sha256") != expected_hash:
+            raise LiteratureContractError(
+                "graph_edge_payload_hash_mismatch",
+                "Graph edge payload_sha256 does not match canonical JSON attributes.",
+                edge_id=edge.get("edge_id"), expected_sha256=expected_hash,
+                observed_sha256=edge.get("payload_sha256"),
+            )
+    canonical_keys = [(str(row.get("node_type")), str(row.get("canonical_key"))) for row in nodes]
+    duplicates = sorted(key for key, count in Counter(canonical_keys).items() if count > 1)
+    if duplicates:
+        raise LiteratureContractError(
+            "graph_node_canonical_keys_invalid",
+            "One batch cannot assign multiple nodes to the same typed canonical key.",
+            duplicate_keys=duplicates,
+        )
+    expected_idempotency = derive_graph_idempotency_key(batch)
+    if idempotency_key != expected_idempotency:
+        raise LiteratureContractError(
+            "graph_idempotency_key_mismatch",
+            "Graph merge idempotency_key does not match canonical source/parser/extractor provenance.",
+            expected_sha256=expected_idempotency, observed_sha256=idempotency_key,
+        )
+    return (
+        library_id, ingest_run_id, acquisitions, parsed_documents,
+        extractor_manifests, records, nodes, edges,
+    )
+
+
+def _existing_row(
+    connection: duckdb.DuckDBPyConnection, table: str, library_id: str,
+    id_field: str, identifier: str, fields: Sequence[str],
+) -> dict[str, Any] | None:
+    if table not in _GRAPH_TABLES:
+        raise ValueError(f"unknown graph table: {table}")
+    row = connection.execute(
+        f"SELECT {', '.join(fields)} FROM {table} WHERE library_id = ? AND {id_field} = ?",
+        [library_id, identifier],
+    ).fetchone()
+    return dict(zip(fields, row)) if row else None
+
+
+def _insert_immutable(
+    connection: duckdb.DuckDBPyConnection, *, table: str, library_id: str,
+    id_field: str, identifier: str, payload: Mapping[str, Any],
+    conflict_code: str, columns: Sequence[str], values: Sequence[Any],
+) -> bool:
+    body = _canonical_payload(payload)
+    content_sha = hashlib.sha256(body.encode("utf-8")).hexdigest()
+    existing = _existing_row(
+        connection, table, library_id, id_field, identifier,
+        ["content_sha256", "payload_json"],
+    )
+    if existing:
+        if existing["content_sha256"] != content_sha or existing["payload_json"] != body:
+            raise LiteratureContractError(
+                conflict_code,
+                f"Existing {table} identity has different immutable content; retain it under a new explicit identity or conflict edge.",
+                identifier=identifier, existing_sha256=existing["content_sha256"],
+                incoming_sha256=content_sha,
+            )
+        return False
+    placeholders = ", ".join("?" for _ in range(len(columns) + 2))
+    connection.execute(
+        f"INSERT INTO {table} (library_id, {', '.join(columns)}, content_sha256) VALUES ({placeholders})",
+        [library_id, *values, content_sha],
+    )
+    return True
+
+
+def merge_literature_graph(
+    batch: Mapping[str, Any], *, root: str | Path | None = None,
+) -> dict[str, Any]:
+    """Incrementally merge one GraphMergeBatch without rebuilding other library state."""
+    (
+        library_id, ingest_run_id, acquisitions, parsed_documents,
+        extractor_manifests, records, nodes, edges,
+    ) = _graph_batch_parts(batch)
+    path = literature_graph_path(library_id, root=root)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    connection = duckdb.connect(str(path))
+    try:
+        _ensure_graph_schema(connection)
+        prior = connection.execute(
+            "SELECT ingest_run_id, batch_sha256, status FROM kg_ingest_runs "
+            "WHERE library_id = ? AND idempotency_key = ?",
+            [library_id, str(batch["idempotency_key"]).casefold()],
+        ).fetchone()
+        batch_sha = _payload_sha256(batch)
+        prior_run = connection.execute(
+            "SELECT idempotency_key, batch_sha256 FROM kg_ingest_runs "
+            "WHERE library_id = ? AND ingest_run_id = ?",
+            [library_id, ingest_run_id],
+        ).fetchone()
+        if prior_run and (prior_run[0] != str(batch["idempotency_key"]).casefold() or prior_run[1] != batch_sha):
+            raise LiteratureContractError(
+                "graph_ingest_run_conflict",
+                "An ingest_run_id was reused for a different graph batch.",
+                ingest_run_id=ingest_run_id,
+            )
+        if prior:
+            if prior[1] != batch_sha:
+                raise LiteratureContractError(
+                    "graph_idempotency_conflict",
+                    "An idempotency key was reused for a different graph batch.",
+                    existing_ingest_run_id=prior[0], existing_batch_sha256=prior[1],
+                    incoming_batch_sha256=batch_sha,
+                )
+            return {
+                "schema": "dissolve.graph-merge-result.v1", "library_id": library_id,
+                "ingest_run_id": prior[0], "status": "idempotent",
+                "inserted": {
+                    "acquisitions": 0, "documents": 0, "parsed_documents": 0,
+                    "evidence": 0, "records": 0, "nodes": 0, "edges": 0,
+                },
+                "summaries_marked_stale": 0, "graph_path": str(path),
+            }
+        batch_node_ids = {str(row["node_id"]) for row in nodes}
+        stored_node_ids = {
+            row[0] for row in connection.execute(
+                "SELECT node_id FROM kg_nodes WHERE library_id = ?", [library_id],
+            ).fetchall()
+        }
+        missing_endpoints = sorted({
+            endpoint
+            for edge in edges
+            for endpoint in (str(edge.get("source_node_id") or ""), str(edge.get("target_node_id") or ""))
+            if endpoint not in batch_node_ids and endpoint not in stored_node_ids
+        })
+        if missing_endpoints:
+            raise LiteratureContractError(
+                "graph_edge_endpoint_missing", "Graph edges reference nodes absent from the batch and library.",
+                node_ids=missing_endpoints,
+            )
+
+        connection.execute("BEGIN TRANSACTION")
+        now = _now()
+        source_document_ids = sorted(
+            str((row.get("document") or {}).get("document_id"))
+            for row in acquisitions
+        )
+        extractor_ids = sorted(str(row["extractor_id"]) for row in extractor_manifests)
+        provenance = _graph_idempotency_material(batch)
+        connection.execute(
+            "INSERT INTO kg_ingest_runs (library_id, ingest_run_id, idempotency_key, "
+            "batch_sha256, source_document_ids_json, extractor_ids_json, provenance_json, "
+            "status, node_count, edge_count, record_count, evidence_count, started_at, completed_at) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            [library_id, ingest_run_id, str(batch["idempotency_key"]).casefold(), batch_sha,
+             _canonical_payload(source_document_ids), _canonical_payload(extractor_ids),
+             _canonical_payload(provenance), "running", 0, 0, 0, 0, now, None],
+        )
+        inserted = {
+            "acquisitions": 0, "documents": 0, "parsed_documents": 0,
+            "evidence": 0, "records": 0, "nodes": 0, "edges": 0,
+        }
+
+        for acquisition in acquisitions:
+            document = dict(acquisition["document"])
+            document_id = str(document["document_id"])
+            adapter = acquisition["adapter"]
+            acquisition_id = _payload_sha256(acquisition)
+            inserted["acquisitions"] += int(_insert_immutable(
+                connection, table="kg_acquisitions", library_id=library_id,
+                id_field="acquisition_id", identifier=acquisition_id,
+                payload=acquisition, conflict_code="graph_acquisition_conflict",
+                columns=("acquisition_id", "document_id", "adapter_name", "adapter_version",
+                         "source_sha256", "payload_json", "first_ingest_run_id", "created_at"),
+                values=(acquisition_id, document_id, adapter["adapter_name"],
+                        adapter["adapter_version"], document["content_sha256"],
+                        _canonical_payload(acquisition), ingest_run_id, now),
+            ))
+            identifiers = document.get("source_identifiers") or {}
+            canonical_key = next((
+                f"{key}:{value}" for key, value in sorted(identifiers.items()) if value
+            ), f"document:{document_id}")
+            inserted["documents"] += int(_insert_immutable(
+                connection, table="kg_documents", library_id=library_id,
+                id_field="document_id", identifier=document_id, payload=document,
+                conflict_code="graph_document_conflict",
+                columns=("document_id", "document_kind", "canonical_key", "label", "payload_json", "first_ingest_run_id", "created_at"),
+                values=(document_id, document.get("document_kind"), canonical_key,
+                        document.get("title"), _canonical_payload(document),
+                        ingest_run_id, now),
+            ))
+
+        for parsed_document in parsed_documents:
+            parse_id = _payload_sha256({
+                "document_id": parsed_document["document_id"],
+                "source_sha256": parsed_document["source_sha256"],
+                "parser_backend": parsed_document["parser_backend"],
+                "parser_version": parsed_document["parser_version"],
+            })
+            inserted["parsed_documents"] += int(_insert_immutable(
+                connection, table="kg_parsed_documents", library_id=library_id,
+                id_field="parse_id", identifier=parse_id, payload=parsed_document,
+                conflict_code="graph_parsed_document_conflict",
+                columns=("parse_id", "document_id", "source_sha256", "parser_backend",
+                         "parser_version", "payload_json", "first_ingest_run_id", "created_at"),
+                values=(parse_id, parsed_document["document_id"],
+                        parsed_document["source_sha256"], parsed_document["parser_backend"],
+                        parsed_document["parser_version"], _canonical_payload(parsed_document),
+                        ingest_run_id, now),
+            ))
+
+        for record in records:
+            record_id = str(record["record_id"])
+            inserted["records"] += int(_insert_immutable(
+                connection, table="kg_records", library_id=library_id,
+                id_field="record_id", identifier=record_id, payload=record,
+                conflict_code="graph_record_conflict",
+                columns=("record_id", "record_class", "status", "payload_json", "first_ingest_run_id", "created_at"),
+                values=(record_id, record.get("record_class"), record.get("status"),
+                        _canonical_payload(record), ingest_run_id, now),
+            ))
+            for evidence in record.get("evidence") or []:
+                evidence_id = str(evidence.get("evidence_id") or "")
+                if not evidence_id:
+                    raise LiteratureContractError(
+                        "graph_evidence_id_missing", "Record evidence must carry evidence_id before graph merge.",
+                        record_id=record_id,
+                    )
+                inserted["evidence"] += int(_insert_immutable(
+                    connection, table="kg_evidence", library_id=library_id,
+                    id_field="evidence_id", identifier=evidence_id, payload=evidence,
+                    conflict_code="graph_evidence_conflict",
+                    columns=("evidence_id", "document_id", "record_id", "payload_json", "first_ingest_run_id", "created_at"),
+                    values=(evidence_id, evidence.get("document_id"), record_id,
+                            _canonical_payload(evidence), ingest_run_id, now),
+                ))
+
+        known_evidence = {
+            row[0] for row in connection.execute(
+                "SELECT evidence_id FROM kg_evidence WHERE library_id = ?", [library_id],
+            ).fetchall()
+        }
+        missing_evidence_ids = sorted({
+            str(value) for edge in edges for value in edge.get("evidence_ids") or []
+        } - known_evidence)
+        if missing_evidence_ids:
+            raise LiteratureContractError(
+                "graph_edge_evidence_missing",
+                "Graph edge references evidence absent from the batch and library.",
+                evidence_ids=missing_evidence_ids,
+            )
+        stored_record_ids = {
+            row[0] for row in connection.execute(
+                "SELECT record_id FROM kg_records WHERE library_id = ?", [library_id],
+            ).fetchall()
+        }
+        missing_record_ids = sorted({
+            str(value) for edge in edges for value in edge.get("record_ids") or []
+        } - stored_record_ids)
+        if missing_record_ids:
+            raise LiteratureContractError(
+                "graph_edge_record_missing",
+                "Graph edge references records absent from the batch and library.",
+                record_ids=missing_record_ids,
+            )
+
+        for node in nodes:
+            node_id = str(node["node_id"])
+            canonical_collision = connection.execute(
+                "SELECT node_id FROM kg_nodes WHERE library_id = ? AND node_type = ? AND canonical_key = ?",
+                [library_id, node.get("node_type"), node.get("canonical_key")],
+            ).fetchone()
+            if canonical_collision and canonical_collision[0] != node_id:
+                raise LiteratureContractError(
+                    "graph_node_canonical_conflict",
+                    "Typed canonical key already belongs to a different node identity.",
+                    canonical_key=node.get("canonical_key"), existing_node_id=canonical_collision[0],
+                    incoming_node_id=node_id,
+                )
+            inserted["nodes"] += int(_insert_immutable(
+                connection, table="kg_nodes", library_id=library_id,
+                id_field="node_id", identifier=node_id, payload=node,
+                conflict_code="graph_node_conflict",
+                columns=("node_id", "node_type", "canonical_key", "label", "payload_json", "declared_payload_sha256", "first_ingest_run_id", "created_at"),
+                values=(node_id, node.get("node_type"), node.get("canonical_key"), node.get("label"),
+                        _canonical_payload(node), node.get("payload_sha256"), ingest_run_id, now),
+            ))
+
+        for edge in edges:
+            edge_id = str(edge["edge_id"])
+            inserted["edges"] += int(_insert_immutable(
+                connection, table="kg_edges", library_id=library_id,
+                id_field="edge_id", identifier=edge_id, payload=edge,
+                conflict_code="graph_edge_conflict",
+                columns=("edge_id", "edge_type", "source_node_id", "target_node_id",
+                         "record_ids_json", "evidence_ids_json", "attributes_json", "payload_json",
+                         "declared_payload_sha256",
+                         "first_ingest_run_id", "created_at"),
+                values=(edge_id, edge.get("edge_type"), edge.get("source_node_id"), edge.get("target_node_id"),
+                        _canonical_payload(edge.get("record_ids") or []),
+                        _canonical_payload(edge.get("evidence_ids") or []),
+                        _canonical_payload(edge.get("attributes") or {}), _canonical_payload(edge),
+                        edge.get("payload_sha256"),
+                        ingest_run_id, now),
+            ))
+
+        stale_count = 0
+        for topic in sorted(set(str(value) for value in batch.get("summary_topics_touched") or [])):
+            existing = connection.execute(
+                "SELECT topic_key FROM kg_summaries WHERE library_id = ? AND topic_key = ?",
+                [library_id, topic],
+            ).fetchone()
+            if existing:
+                connection.execute(
+                    "UPDATE kg_summaries SET status = 'stale', stale_since_ingest_run_id = ?, updated_at = ? "
+                    "WHERE library_id = ? AND topic_key = ?",
+                    [ingest_run_id, now, library_id, topic],
+                )
+            else:
+                connection.execute(
+                    "INSERT INTO kg_summaries VALUES (?, ?, NULL, '[]', 'stale', ?, ?)",
+                    [library_id, topic, ingest_run_id, now],
+                )
+            stale_count += 1
+        connection.execute(
+            "UPDATE kg_ingest_runs SET status = 'complete', node_count = ?, edge_count = ?, "
+            "record_count = ?, evidence_count = ?, completed_at = ? "
+            "WHERE library_id = ? AND ingest_run_id = ?",
+            [inserted["nodes"], inserted["edges"], inserted["records"], inserted["evidence"],
+             _now(), library_id, ingest_run_id],
+        )
+        connection.execute("COMMIT")
+        return {
+            "schema": "dissolve.graph-merge-result.v1", "library_id": library_id,
+            "ingest_run_id": ingest_run_id, "status": "merged", "inserted": inserted,
+            "deferred_references": {"record_ids": [], "evidence_ids": []},
+            "summaries_marked_stale": stale_count, "graph_path": str(path),
+        }
+    except Exception:
+        try:
+            connection.execute("ROLLBACK")
+        except duckdb.TransactionException:
+            pass
+        raise
+    finally:
+        connection.close()
+
+
+def inspect_literature_graph(
+    library_id: str = "owner-main", *, root: str | Path | None = None,
+) -> dict[str, Any]:
+    """Return bounded storage counts for one named library without creating it."""
+    scoped = _slug(library_id)
+    path = literature_graph_path(scoped, root=root)
+    if not path.is_file():
+        return {
+            "schema": "dissolve.graph-status.v1", "library_id": scoped,
+            "graph_path": str(path), "exists": False,
+            "counts": {name: 0 for name in _GRAPH_TABLES}, "stale_topics": [],
+        }
+    connection = duckdb.connect(str(path), read_only=True)
+    try:
+        counts = {
+            table: connection.execute(
+                f"SELECT count(*) FROM {table} WHERE library_id = ?", [scoped],
+            ).fetchone()[0]
+            for table in _GRAPH_TABLES
+        }
+        stale_topics = [
+            row[0] for row in connection.execute(
+                "SELECT topic_key FROM kg_summaries WHERE library_id = ? AND status = 'stale' ORDER BY topic_key",
+                [scoped],
+            ).fetchall()
+        ]
+    finally:
+        connection.close()
+    return {
+        "schema": "dissolve.graph-status.v1", "library_id": scoped,
+        "graph_path": str(path), "exists": True, "counts": counts,
+        "stale_topics": stale_topics,
+    }
+
+
+def _date_parts(value: Any) -> str | None:
+    if not value:
+        return None
+    if isinstance(value, str):
+        try:
+            return date.fromisoformat(value[:10]).isoformat()
+        except ValueError:
+            year = re.search(r"\b(?:18|19|20|21)\d{2}\b", value)
+            return f"{year.group()}-01-01" if year else None
+    if isinstance(value, Mapping):
+        parts = value.get("date-parts") or value.get("date_parts")
+        if isinstance(parts, list) and parts and isinstance(parts[0], list):
+            parts = parts[0]
+        if isinstance(parts, list) and parts:
+            year, month, day = int(parts[0]), int(parts[1] if len(parts) > 1 else 1), int(parts[2] if len(parts) > 2 else 1)
+            try:
+                return date(year, month, day).isoformat()
+            except ValueError:
+                return None
+    return None
+
+
+def normalize_recorded_metadata_response(source: str, payload: Mapping[str, Any]) -> list[dict[str, Any]]:
+    """Normalize recorded provider-shaped metadata without making a provider call."""
+    source_key = str(source or "").casefold().replace("-", "_")
+    rows: list[dict[str, Any]] = []
+    if source_key == "crossref":
+        native_rows = (payload.get("message") or {}).get("items") or []
+        for item in native_rows:
+            titles = item.get("title") or []
+            title = titles[0] if isinstance(titles, list) and titles else titles
+            authors = [
+                " ".join(part for part in (str(row.get("given") or "").strip(), str(row.get("family") or "").strip()) if part)
+                for row in item.get("author") or []
+            ]
+            published = _date_parts(item.get("published-print") or item.get("published-online") or item.get("issued"))
+            rows.append({
+                "document_kind": "paper", "source": "crossref",
+                "source_record_id": str(item.get("DOI") or item.get("URL") or ""),
+                "title": _clean(title, 500),
+                "abstract": _clean(item.get("abstract"), 2_000) or None,
+                "authors": [value for value in authors if value],
+                "published_date": published, "updated_date": _date_parts(item.get("indexed", {}).get("date-time")),
+                "doi": str(item.get("DOI") or "").casefold() or None,
+                "arxiv_id": None, "patent_number": None, "family_id": None,
+                "url": item.get("URL"),
+            })
+    elif source_key in {"semantic_scholar", "semanticscholar"}:
+        for item in payload.get("data") or []:
+            identifiers = item.get("externalIds") or {}
+            rows.append({
+                "document_kind": "paper", "source": "semantic_scholar",
+                "source_record_id": str(item.get("paperId") or ""),
+                "title": _clean(item.get("title"), 500),
+                "abstract": _clean(item.get("abstract"), 2_000) or None,
+                "authors": [_clean(row.get("name"), 160) for row in item.get("authors") or [] if row.get("name")],
+                "published_date": _date_parts(item.get("publicationDate") or str(item.get("year") or "")),
+                "updated_date": None,
+                "doi": str(identifiers.get("DOI") or "").casefold() or None,
+                "arxiv_id": str(identifiers.get("ArXiv") or "") or None,
+                "patent_number": None, "family_id": None, "url": item.get("url"),
+            })
+    elif source_key in {"uspto", "patentsview"}:
+        native_rows = payload.get("patents") or payload.get("results") or []
+        for item in native_rows:
+            patent_number = str(item.get("patent_number") or item.get("patent_id") or "")
+            rows.append({
+                "document_kind": "patent", "source": source_key,
+                "source_record_id": patent_number,
+                "title": _clean(item.get("patent_title") or item.get("title"), 500),
+                "abstract": _clean(item.get("patent_abstract") or item.get("abstract"), 2_000) or None,
+                "authors": [str(value) for value in item.get("inventors") or []],
+                "published_date": _date_parts(item.get("publication_date") or item.get("patent_date")),
+                "updated_date": _date_parts(item.get("updated_date")),
+                "doi": None, "arxiv_id": None,
+                "patent_number": patent_number or None,
+                "family_id": str(item.get("family_id") or "") or None,
+                "priority_dates": sorted(set(str(value) for value in item.get("priority_dates") or [])),
+                "url": item.get("url"),
+            })
+    else:
+        raise LiteratureContractError(
+            "metadata_source_unsupported",
+            "Recorded metadata source must be crossref, semantic_scholar, uspto, or patentsview.",
+            source=source,
+        )
+    invalid = [index for index, row in enumerate(rows) if not row["title"] or not row["source_record_id"]]
+    if invalid:
+        raise LiteratureContractError(
+            "metadata_record_identity_missing",
+            "Recorded metadata rows require a title and source-native record identity.",
+            source=source_key, indexes=invalid,
+        )
+    return rows
+
+
+_METADATA_STRONG_IDENTITY_ORDER = ("patent_family", "doi", "arxiv", "patent")
+
+
+def _metadata_identities(row: Mapping[str, Any]) -> dict[str, str]:
+    """Return every usable identity rather than selecting one lossy winner."""
+    kind = str(row.get("document_kind") or "unknown")
+    identities: dict[str, str] = {}
+    if row.get("family_id"):
+        identities["patent_family"] = re.sub(
+            r"[^A-Z0-9]", "", str(row["family_id"]).upper(),
+        )
+    if row.get("doi"):
+        identities["doi"] = (
+            str(row["doi"]).casefold()
+            .removeprefix("https://doi.org/").removeprefix("doi:")
+        )
+    if row.get("arxiv_id"):
+        identities["arxiv"] = re.sub(
+            r"v\d+$", "", str(row["arxiv_id"]).casefold(),
+        )
+    if row.get("patent_number"):
+        identities["patent"] = re.sub(
+            r"[^A-Z0-9]", "", str(row["patent_number"]).upper(),
+        )
+    title = " ".join(_tokens(str(row.get("title") or "")))
+    year = str(row.get("published_date") or "")[:4]
+    identities[f"{kind}_title_year"] = f"{title}|{year}"
+    return {basis: value for basis, value in identities.items() if value}
+
+
+def _metadata_components(rows: Sequence[Mapping[str, Any]]) -> list[list[int]]:
+    """Link compatible metadata identities while keeping ambiguous titles split."""
+    identities = [_metadata_identities(row) for row in rows]
+    parents = list(range(len(rows)))
+    component_strong = [{
+        basis: {identity[basis]} for basis in _METADATA_STRONG_IDENTITY_ORDER
+        if identity.get(basis)
+    } for identity in identities]
+
+    def find(index: int) -> int:
+        while parents[index] != index:
+            parents[index] = parents[parents[index]]
+            index = parents[index]
+        return index
+
+    def union(left: int, right: int) -> bool:
+        left_root, right_root = find(left), find(right)
+        if left_root == right_root:
+            return True
+        shared_family = bool(
+            component_strong[left_root].get("patent_family", set())
+            & component_strong[right_root].get("patent_family", set())
+        )
+        for basis in _METADATA_STRONG_IDENTITY_ORDER:
+            values = (
+                component_strong[left_root].get(basis, set())
+                | component_strong[right_root].get(basis, set())
+            )
+            # Different jurisdiction/publication numbers are expected members
+            # of one explicitly shared patent family, not an identity conflict.
+            if basis == "patent" and shared_family:
+                continue
+            if len(values) > 1:
+                return False
+        parents[right_root] = left_root
+        for basis, values in component_strong[right_root].items():
+            component_strong[left_root].setdefault(basis, set()).update(values)
+        return True
+
+    # Exact durable identifiers are authoritative links only when another
+    # durable identifier of the same namespace does not contradict the link.
+    strong_buckets: dict[tuple[str, str], list[int]] = defaultdict(list)
+    for index, identity in enumerate(identities):
+        for basis in _METADATA_STRONG_IDENTITY_ORDER:
+            if identity.get(basis):
+                strong_buckets[(basis, identity[basis])].append(index)
+    for bucket in strong_buckets.values():
+        for index in bucket[1:]:
+            union(bucket[0], index)
+
+    weak_buckets: dict[tuple[str, str], list[int]] = defaultdict(list)
+    for index, identity in enumerate(identities):
+        for basis, value in identity.items():
+            if basis not in _METADATA_STRONG_IDENTITY_ORDER:
+                weak_buckets[(basis, value)].append(index)
+    for bucket in weak_buckets.values():
+        roots = sorted({find(index) for index in bucket})
+        if len(roots) < 2:
+            continue
+        root_members = {
+            root: [index for index in range(len(rows)) if find(index) == root]
+            for root in roots
+        }
+        strong_values = {
+            basis: {
+                identities[index][basis]
+                for members in root_members.values() for index in members
+                if identities[index].get(basis)
+            }
+            for basis in _METADATA_STRONG_IDENTITY_ORDER
+        }
+        # A title/year is useful corroboration only when it does not point at
+        # multiple durable identifiers of the same kind. In the ambiguous case
+        # even an identifier-free row remains separate instead of being joined
+        # to whichever provider happened to sort first.
+        if any(len(values) > 1 for values in strong_values.values()):
+            continue
+        for root in roots[1:]:
+            union(roots[0], root)
+
+    grouped: dict[int, list[int]] = defaultdict(list)
+    for index in range(len(rows)):
+        grouped[find(index)].append(index)
+    return sorted(grouped.values(), key=lambda members: min(members))
+
+
+def _metadata_component_identity(
+    group: Sequence[Mapping[str, Any]],
+) -> tuple[str, str, list[str]]:
+    identities = [_metadata_identities(row) for row in group]
+    keys = sorted({
+        f"{basis}:{value}"
+        for identity in identities for basis, value in identity.items()
+    })
+    for basis in _METADATA_STRONG_IDENTITY_ORDER:
+        values = sorted({identity[basis] for identity in identities if identity.get(basis)})
+        if values:
+            return basis, values[0], keys
+    basis, value = next(iter(identities[0].items()))
+    return basis, value, keys
+
+
+def _metadata_date(value: Any) -> date | None:
+    normalized = _date_parts(value)
+    return date.fromisoformat(normalized) if normalized else None
+
+
+def merge_rank_literature_metadata(
+    rows: Sequence[Mapping[str, Any]], *, query: str = "",
+    date_from: str | None = None, date_through: str | None = None, limit: int = 50,
+) -> dict[str, Any]:
+    """Deduplicate recorded metadata and rank it with explicit date handling."""
+    try:
+        lower = date.fromisoformat(date_from) if date_from else None
+        upper = date.fromisoformat(date_through) if date_through else None
+    except ValueError as error:
+        raise LiteratureContractError(
+            "metadata_date_bound_invalid", "Metadata date bounds must be ISO dates (YYYY-MM-DD)."
+        ) from error
+    if lower and upper and lower > upper:
+        raise LiteratureContractError(
+            "metadata_date_bounds_inverted", "Metadata date_from exceeds date_through."
+        )
+    if not isinstance(limit, int) or isinstance(limit, bool) or not 1 <= limit <= 1_000:
+        raise LiteratureContractError(
+            "metadata_limit_invalid", "Metadata merge limit must be an integer from 1 through 1000."
+        )
+    included, excluded = [], []
+    for raw in rows:
+        row = dict(raw)
+        if not row.get("title") or not row.get("source") or not row.get("source_record_id"):
+            raise LiteratureContractError(
+                "metadata_record_identity_missing",
+                "Normalized metadata requires title, source, and source_record_id.",
+            )
+        published = _metadata_date(row.get("published_date"))
+        if (lower or upper) and published is None:
+            excluded.append({
+                "source": row["source"], "source_record_id": row["source_record_id"],
+                "reason": "publication_date_unavailable_for_explicit_bound",
+            })
+            continue
+        if lower and published and published < lower:
+            excluded.append({"source": row["source"], "source_record_id": row["source_record_id"], "reason": "before_date_from"})
+            continue
+        if upper and published and published > upper:
+            excluded.append({"source": row["source"], "source_record_id": row["source_record_id"], "reason": "after_date_through"})
+            continue
+        included.append(row)
+
+    merged = []
+    variant_fields = ("title", "abstract", "published_date", "updated_date", "doi", "arxiv_id", "patent_number", "family_id", "url")
+    components = _metadata_components(included)
+    component_groups = [[included[index] for index in members] for members in components]
+    identified_groups = [(*_metadata_component_identity(group), group) for group in component_groups]
+    for basis, key, identity_keys, group in sorted(
+        identified_groups, key=lambda item: (item[0], item[1]),
+    ):
+        ranked_group = sorted(
+            group,
+            key=lambda row: (
+                -sum(value not in (None, "", []) for value in row.values()),
+                -len(str(row.get("abstract") or "")),
+                str(row.get("source")), str(row.get("source_record_id")),
+            ),
+        )
+        primary = ranked_group[0]
+        variants = {
+            field: sorted({_canonical_payload(row.get(field)) for row in group if row.get(field) not in (None, "", [])})
+            for field in variant_fields
+        }
+        variants = {
+            field: [json.loads(value) for value in values]
+            for field, values in variants.items() if len(values) > 1
+        }
+        merged.append({
+            "document_key": f"{basis}:{key}", "dedup_basis": basis,
+            "identity_keys": identity_keys,
+            **{field: primary.get(field) for field in variant_fields},
+            "document_kind": primary.get("document_kind"),
+            "authors": sorted({str(author) for row in group for author in row.get("authors") or []}),
+            "sources": sorted({str(row["source"]) for row in group}),
+            "source_records": [
+                {"source": row["source"], "source_record_id": row["source_record_id"],
+                 "normalized_sha256": _payload_sha256(row)}
+                for row in sorted(group, key=lambda value: (str(value["source"]), str(value["source_record_id"])))
+            ],
+            "field_variants": variants,
+            "metadata_conflict": bool(variants),
+        })
+
+    query_tokens = set(_tokens(query))
+    known_dates = [_metadata_date(row.get("published_date")) for row in merged]
+    anchor = upper or max((value for value in known_dates if value), default=date(2000, 1, 1))
+    recency_intent = bool(query_tokens & {"current", "latest", "recent", "today", "review"})
+    for row in merged:
+        searchable = set(_tokens(" ".join([
+            str(row.get("title") or ""), str(row.get("abstract") or ""),
+            " ".join(row.get("authors") or []),
+        ])))
+        relevance = len(query_tokens & searchable) / len(query_tokens) if query_tokens else 0.0
+        published = _metadata_date(row.get("published_date"))
+        age_years = max(0.0, (anchor - published).days / 365.25) if published else 100.0
+        recency = 1.0 / (1.0 + age_years / 5.0) if published else 0.0
+        completeness = min(1.0, sum(row.get(field) not in (None, "", []) for field in variant_fields) / 6.0)
+        weights = (0.70, 0.25, 0.05) if recency_intent else (0.85, 0.10, 0.05)
+        row["ranking"] = {
+            "query_relevance": round(relevance, 6), "date_recency": round(recency, 6),
+            "metadata_completeness": round(completeness, 6),
+            "score": round(weights[0] * relevance + weights[1] * recency + weights[2] * completeness, 6),
+            "date_anchor": anchor.isoformat(), "recency_intent": recency_intent,
+        }
+    merged.sort(key=lambda row: (-row["ranking"]["score"], row["document_key"]))
+    return {
+        "schema": "dissolve.metadata-merge.v1", "query": query,
+        "date_bounds": {"from": date_from, "through": date_through},
+        "input_count": len(rows), "included_count": len(included),
+        "deduplicated_count": len(merged), "excluded": excluded,
+        "results": merged[:limit], "truncated": len(merged) > limit,
+    }
+
+
+def _index_path(knowledgebase: str) -> Path:
+    return _research_root() / f"{_slug(knowledgebase)}.json.gz"
+
+
+def _empty_index(knowledgebase: str) -> dict[str, Any]:
+    return {"schema": _INDEX_SCHEMA, "knowledgebase": _slug(knowledgebase), "documents": [], "chunks": [], "dense": None}
+
+
+def _load_index(knowledgebase: str) -> dict[str, Any]:
+    path = _index_path(knowledgebase)
+    if not path.exists():
+        return _empty_index(knowledgebase)
+    with gzip.open(path, "rt", encoding="utf-8") as handle:
+        payload = json.load(handle)
+    if payload.get("schema") != _INDEX_SCHEMA or payload.get("knowledgebase") != _slug(knowledgebase):
+        raise ValueError("unsupported or mismatched literature index")
+    return payload
+
+
+def _save_index(index: dict[str, Any]) -> Path:
+    path = _index_path(index["knowledgebase"])
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = path.with_suffix(".tmp")
+    body = json.dumps(index, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode()
+    with temporary.open("wb") as handle:
+        with gzip.GzipFile(fileobj=handle, mode="wb", mtime=0) as compressed:
+            compressed.write(body)
+        handle.flush()
+        os.fsync(handle.fileno())
+    temporary.replace(path)
+    return path
+
+
+def _pdf_pages(data: bytes) -> list[dict[str, Any]]:
+    try:
+        reader_type = importlib.import_module("pypdf").PdfReader
+    except (ImportError, AttributeError) as error:
+        raise RuntimeError("PDF ingestion requires pip install '.[research]'.") from error
+    reader = reader_type(io.BytesIO(data))
+    return [{"page": index + 1, "text": page.extract_text() or ""} for index, page in enumerate(reader.pages)]
+
+
+def _json_documents(data: bytes, source: str) -> list[dict[str, Any]]:
+    text = data.decode("utf-8")
+    if source.casefold().endswith(".jsonl"):
+        value: Any = [json.loads(line) for line in text.splitlines() if line.strip()]
+    else:
+        value = json.loads(text)
+    if isinstance(value, dict) and isinstance(value.get("documents"), list):
+        value = value["documents"]
+    if isinstance(value, dict):
+        value = [value]
+    if not isinstance(value, list):
+        raise ValueError("JSON corpus input must be a document object or list")
+    records = []
+    for item in value:
+        if not isinstance(item, dict):
+            continue
+        content = item.get("text") or item.get("content") or item.get("abstract")
+        if not content:
+            continue
+        records.append({
+            "title": _clean(item.get("title") or source, 300), "source": source,
+            "url": item.get("url"), "doi": item.get("doi"), "year": item.get("year"),
+            "pages": [{"page": item.get("page"), "text": str(content)}],
+        })
+    return records
+
+
+def _records_from_bytes(data: bytes, source: str) -> list[dict[str, Any]]:
+    suffix = Path(urlparse(source).path).suffix.casefold()
+    if data.startswith(b"%PDF") or suffix == ".pdf":
+        return [{"title": Path(urlparse(source).path).stem or source, "source": source, "pages": _pdf_pages(data)}]
+    if suffix in {".json", ".jsonl"}:
+        return _json_documents(data, source)
+    if suffix not in _TEXT_SUFFIXES and suffix:
+        raise ValueError(f"unsupported document type: {suffix}")
+    text = data.decode("utf-8", errors="replace")
+    if suffix in {".html", ".htm"}:
+        text = re.sub(r"<[^>]+>", " ", text)
+    return [{"title": Path(urlparse(source).path).stem or source, "source": source, "pages": [{"page": None, "text": text}]}]
+
+
+def _expand_paths(paths: list[str], maximum: int) -> list[Path]:
+    expanded: list[Path] = []
+    allowed = _TEXT_SUFFIXES | {".pdf", ".json", ".jsonl"}
+    for raw in paths:
+        path = Path(raw).expanduser().resolve()
+        if path.is_dir():
+            expanded.extend(item for item in sorted(path.rglob("*")) if item.is_file() and item.suffix.casefold() in allowed)
+        else:
+            expanded.append(path)
+        if len(expanded) >= maximum:
+            break
+    return expanded[:maximum]
+
+
+def _paragraph_chunks(text: str, target: int = 1_400, overlap: int = 180) -> list[tuple[str, str]]:
+    cleaned = re.sub(r"\r\n?", "\n", str(text or ""))
+    paragraphs = [re.sub(r"\s+", " ", item).strip() for item in re.split(r"\n\s*\n", cleaned) if item.strip()]
+    section = "body"
+    chunks: list[tuple[str, str]] = []
+    buffer = ""
+    for paragraph in paragraphs:
+        if paragraph.startswith("#") or (len(paragraph) < 100 and not re.search(r"[.!?]$", paragraph)):
+            section = paragraph.lstrip("# ")[:120] or section
+        while len(paragraph) > target:
+            piece, paragraph = paragraph[:target], paragraph[target - overlap:]
+            if buffer:
+                chunks.append((section, buffer))
+                buffer = ""
+            chunks.append((section, piece))
+        candidate = f"{buffer}\n\n{paragraph}".strip()
+        if buffer and len(candidate) > target:
+            chunks.append((section, buffer))
+            buffer = f"{buffer[-overlap:]} {paragraph}".strip()
+        else:
+            buffer = candidate
+    if buffer:
+        chunks.append((section, buffer))
+    return chunks
+
+
+def _dense_vectors(texts: list[str], model_name: str | None = None) -> tuple[str, list[list[float]]]:
+    try:
+        model_type = importlib.import_module("sentence_transformers").SentenceTransformer
+    except (ImportError, AttributeError) as error:
+        raise RuntimeError("Dense indexing requires pip install '.[research]'.") from error
+    selected = model_name or os.getenv("DISSOLVE_EMBEDDING_MODEL", "sentence-transformers/all-MiniLM-L6-v2")
+    try:
+        model = model_type(selected)
+        encoded = model.encode(texts, normalize_embeddings=True, show_progress_bar=False)
+    except Exception as error:  # third-party model/cache failures vary by backend
+        raise RuntimeError(f"Dense embedding model {selected!r} could not be loaded or evaluated.") from error
+    return selected, [[round(float(value), 8) for value in row] for row in encoded]
+
+
+def _ingest_inputs(
+    paths: list[str], urls: list[str], knowledgebase: str, replace: bool,
+    max_documents: int, build_dense_index: bool,
+    metadata_by_url: Optional[dict[str, dict[str, Any]]] = None,
+) -> dict[str, Any]:
+    maximum = max(1, min(int(max_documents or 1), _MAX_DOCUMENTS))
+    index = _empty_index(knowledgebase) if replace else _load_index(knowledgebase)
+    records: list[dict[str, Any]] = []
+    failures: list[str] = []
+    for path in _expand_paths(paths, maximum):
+        try:
+            if not path.is_file():
+                raise ValueError("path is not a file")
+            records.extend(_records_from_bytes(path.read_bytes(), str(path)))
+        except (OSError, ValueError, RuntimeError, json.JSONDecodeError) as error:
+            failures.append(f"{path.name}: {str(error)[:160]}")
+    for url in urls[:max(0, maximum - len(records))]:
+        if urlparse(url).scheme not in {"http", "https"}:
+            failures.append("URL must use http or https")
+            continue
+        try:
+            downloaded = _records_from_bytes(
+                _request_bytes(url, source="document download", timeout=60), url,
+            )
+            metadata = (metadata_by_url or {}).get(url) or {}
+            for record in downloaded:
+                record.update({
+                    key: metadata[key] for key in ("title", "url", "doi", "year")
+                    if metadata.get(key) is not None
+                })
+            records.extend(downloaded)
+        except (ResearchNetworkError, ValueError, RuntimeError, json.JSONDecodeError) as error:
+            failures.append(f"download: {str(error)[:160]}")
+    existing_documents = {item["sha256"] for item in index["documents"]}
+    existing_chunks = {item["sha256"] for item in index["chunks"]}
+    documents_added = 0
+    chunks_added = 0
+    for record in records[:maximum]:
+        joined = "\n".join(str(page.get("text") or "") for page in record.get("pages") or [])
+        document_sha = hashlib.sha256(joined.encode()).hexdigest()
+        if not joined.strip() or document_sha in existing_documents:
+            continue
+        document_id = f"D{document_sha[:16]}"
+        index["documents"].append({
+            "document_id": document_id, "sha256": document_sha,
+            "title": _clean(record.get("title"), 300), "source": str(record.get("source") or ""),
+            "url": record.get("url") or (record.get("source") if str(record.get("source", "")).startswith("http") else None),
+            "doi": record.get("doi"), "year": record.get("year"), "ingested_at": _now(),
+        })
+        existing_documents.add(document_sha)
+        documents_added += 1
+        chunk_index = 0
+        for page in record.get("pages") or []:
+            for section, text in _paragraph_chunks(page.get("text") or ""):
+                chunk_sha = hashlib.sha256(text.encode()).hexdigest()
+                if chunk_sha in existing_chunks:
+                    continue
+                chunk_index += 1
+                index["chunks"].append({
+                    "chunk_id": f"K{document_sha[:10]}-{chunk_index:04d}", "sha256": chunk_sha,
+                    "document_id": document_id, "title": _clean(record.get("title"), 300),
+                    "source": str(record.get("source") or ""), "url": record.get("url"),
+                    "doi": record.get("doi"), "year": record.get("year"),
+                    "page": page.get("page"), "section": section, "text": text,
+                    "token_estimate": max(1, math.ceil(len(text) / 4)),
+                })
+                existing_chunks.add(chunk_sha)
+                chunks_added += 1
+                if len(index["chunks"]) >= _MAX_CHUNKS:
+                    break
+            if len(index["chunks"]) >= _MAX_CHUNKS:
+                break
+    dense_warning = None
+    if build_dense_index and index["chunks"]:
+        model_name, vectors = _dense_vectors([item["text"] for item in index["chunks"]])
+        index["dense"] = {"model": model_name, "vectors": vectors, "built_at": _now()}
+    elif chunks_added and index.get("dense"):
+        index["dense"] = None
+        dense_warning = "Dense vectors were invalidated by new chunks; rebuild explicitly."
+    path = _save_index(index) if documents_added or replace or build_dense_index else _index_path(knowledgebase)
+    return {
+        "knowledgebase": index["knowledgebase"], "index_path": str(path),
+        "documents_added": documents_added, "chunks_added": chunks_added,
+        "document_count": len(index["documents"]), "chunk_count": len(index["chunks"]),
+        "dense_index_built": bool(index.get("dense")), "dense_model": (index.get("dense") or {}).get("model"),
+        "failures": failures, "warnings": [dense_warning] if dense_warning else [],
+    }
+
+
+def ingest_literature_documents(
+    paths: Optional[list[str]] = None,
+    urls: Optional[list[str]] = None,
+    knowledgebase: str = "user-library",
+    max_documents: int = 20,
+    build_dense_index: bool = False,
+) -> str:
+    """Ingest explicit PDF/text/HTML/JSON sources into a portable local corpus."""
+    tool = "ingest_literature_documents"
+    path_items, url_items = _items(paths), _items(urls)
+    if not path_items and not url_items:
+        return tool_error(tool, "At least one path or URL is required.", error_code="missing_document_source")
+    try:
+        result = _ingest_inputs(path_items, url_items, knowledgebase, False, max_documents, build_dense_index)
+    except (OSError, ValueError, RuntimeError, json.JSONDecodeError) as error:
+        return tool_error(tool, str(error), error_code="corpus_ingestion_failed")
+    if not result["documents_added"] and result["failures"]:
+        return tool_error(tool, "No document was ingested.", error_code="corpus_ingestion_failed", **result)
+    result_warnings = list(result.pop("warnings", []))
+    return tool_success(
+        tool,
+        display=_table(("Knowledgebase", "Documents", "Chunks", "Dense"), [(
+            result["knowledgebase"], result["document_count"], result["chunk_count"], result["dense_index_built"],
+        )]),
+        analysis_type="corpus_ingestion", **result,
+        corpus_schema=_INDEX_SCHEMA,
+        warnings=[
+            *result_warnings,
+            "The index is regenerable user state; source documents and provenance remain authoritative.",
+        ],
+    )
+
+
+def _bm25(query_tokens: list[str], chunks: list[dict[str, Any]]) -> list[float]:
+    token_lists = [_tokens(item["text"]) for item in chunks]
+    lengths = [len(items) for items in token_lists]
+    average = statistics.fmean(lengths) if lengths else 1.0
+    document_frequency = Counter(token for items in token_lists for token in set(items))
+    scores = []
+    for items in token_lists:
+        frequency = Counter(items)
+        score = 0.0
+        for token in set(query_tokens):
+            count = frequency.get(token, 0)
+            if not count:
+                continue
+            inverse = math.log(1.0 + (len(chunks) - document_frequency[token] + 0.5) / (document_frequency[token] + 0.5))
+            score += inverse * count * 2.2 / (count + 1.2 * (0.25 + 0.75 * len(items) / max(average, 1.0)))
+        scores.append(score)
+    return scores
+
+
+def _cosine(left: list[float], right: list[float]) -> float:
+    return sum(a * b for a, b in zip(left, right))
+
+
+def _search_index(index: dict[str, Any], query: str, top_k: int, mode: str) -> list[dict[str, Any]]:
+    chunks = list(index.get("chunks") or [])
+    query_tokens = _tokens(query)
+    sparse_raw = _bm25(query_tokens, chunks)
+    sparse_max = max(sparse_raw, default=0.0)
+    sparse = [value / sparse_max if sparse_max else 0.0 for value in sparse_raw]
+    dense_scores = [0.0] * len(chunks)
+    if mode in {"dense", "hybrid"}:
+        dense = index.get("dense") or {}
+        vectors = dense.get("vectors") or []
+        if len(vectors) != len(chunks):
+            raise ValueError("dense_index_unavailable")
+        _, query_vector = _dense_vectors([query], dense.get("model"))
+        dense_scores = [max(0.0, _cosine(query_vector[0], vector)) for vector in vectors]
+    ranked = []
+    for chunk, sparse_score, dense_score in zip(chunks, sparse, dense_scores):
+        section = str(chunk.get("section") or "").casefold()
+        boost = 0.05 if any(word in section for word in ("abstract", "result", "conclusion", "method")) else 0.0
+        if mode == "dense":
+            score = dense_score + boost
+        elif mode == "hybrid":
+            score = 0.55 * dense_score + 0.40 * sparse_score + boost
+        else:
+            score = sparse_score + boost
+        if score <= 0:
+            continue
+        ranked.append((score, sparse_score, dense_score, boost, chunk))
+    ranked.sort(key=lambda item: (-item[0], str(item[4].get("title")), item[4]["chunk_id"]))
+    rows = []
+    for index_number, (score, sparse_score, dense_score, boost, chunk) in enumerate(ranked[:top_k], 1):
+        rows.append({
+            "citation_id": f"C{index_number}", "chunk_id": chunk["chunk_id"],
+            "title": chunk.get("title"), "source": chunk.get("source"),
+            "url": chunk.get("url"), "doi": chunk.get("doi"), "year": chunk.get("year"),
+            "page": chunk.get("page"), "section": chunk.get("section"),
+            "excerpt": _clean(chunk.get("text"), 600),
+            "sparse_score": round(sparse_score, 6), "dense_score": round(dense_score, 6),
+            "section_boost": boost, "final_score": round(score, 6),
+        })
+    return rows
+
+
+def search_literature_corpus(
+    query: str,
+    knowledgebase: str = "user-library",
+    top_k: int = 5,
+    retrieval_mode: Literal["sparse", "dense", "hybrid"] = "sparse",
+) -> str:
+    """Retrieve bounded, citable passages; the parent model authors the answer."""
+    tool = "search_literature_corpus"
+    if not str(query or "").strip():
+        return tool_error(tool, "Corpus query cannot be empty.", error_code="empty_query")
+    mode = str(retrieval_mode or "").casefold()
+    if mode not in {"sparse", "dense", "hybrid"}:
+        return tool_error(tool, f"Unknown retrieval mode: {mode}.", error_code="unknown_retrieval_mode")
+    try:
+        index = _load_index(knowledgebase)
+    except (OSError, ValueError, json.JSONDecodeError) as error:
+        return tool_error(tool, str(error), error_code="corpus_read_failed")
+    if not index["chunks"]:
+        return tool_error(
+            tool, f"Knowledgebase {_slug(knowledgebase)!r} is empty.", error_code="empty_corpus",
+            knowledgebase=_slug(knowledgebase),
+        )
+    try:
+        rows = _search_index(index, query, max(1, min(int(top_k), 10)), mode)
+    except (ValueError, RuntimeError) as error:
+        if str(error) == "dense_index_unavailable":
+            return tool_error(
+                tool, "Dense retrieval was requested but this corpus has no complete dense index.",
+                error_code="dense_index_unavailable", knowledgebase=index["knowledgebase"],
+                remediation="Reingest with build_dense_index=true or use sparse retrieval.",
+            )
+        return tool_error(tool, str(error), error_code="retrieval_failed")
+    top_score = rows[0]["final_score"] if rows else 0.0
+    return tool_success(
+        tool,
+        display=_table(("Citation", "Score", "Source", "Section"), [
+            (row["citation_id"], row["final_score"], row["title"], row.get("section") or "—") for row in rows
+        ]),
+        analysis_type="corpus_retrieval", query=query, knowledgebase=index["knowledgebase"],
+        retrieval_mode=mode, dense_index_available=bool(index.get("dense")),
+        result_count=len(rows), results=rows, top_score=top_score,
+        low_retrieval_confidence=not rows or top_score < 0.15,
+        evidence_scope="retrieved_corpus_passages",
+        warnings=[
+            "Cite passage identifiers and distinguish retrieved text from independent experimental validation.",
+            "Validation or external-test results in a passage are author-reported and were not independently reproduced by DISSOLVE.",
+            "Absence from the returned passages is not evidence that the corpus contains no relevant document.",
+        ],
+    )
+
+
+def _correlation(left: list[float], right: list[float]) -> float | None:
+    if len(left) < 2 or len(left) != len(right):
+        return None
+    mean_left, mean_right = statistics.fmean(left), statistics.fmean(right)
+    numerator = sum((a - mean_left) * (b - mean_right) for a, b in zip(left, right))
+    denominator = math.sqrt(sum((a - mean_left) ** 2 for a in left) * sum((b - mean_right) ** 2 for b in right))
+    return numerator / denominator if denominator else None
+
+
+def _expanded_query(query: str) -> str:
+    aliases = {
+        "ldpe": "low density polyethylene", "hdpe": "high density polyethylene",
+        "pet": "polyethylene terephthalate", "evoh": "ethylene vinyl alcohol",
+        "strap": "solvent targeted recovery precipitation",
+    }
+    additions = [phrase for token, phrase in aliases.items() if token in _tokens(query)]
+    return " ".join([query, *additions]).strip()
+
+
+def inspect_literature_corpus(
+    operation: Literal["status", "chunk_quality", "retrieval_comparison", "query_expansion", "document_similarity"] = "status",
+    knowledgebase: str = "user-library",
+    query: Optional[str] = None,
+) -> str:
+    """Inspect corpus state and retrieval quality without manufacturing prose."""
+    tool = "inspect_literature_corpus"
+    operation = str(operation or "").casefold()
+    allowed = {"status", "chunk_quality", "retrieval_comparison", "query_expansion", "document_similarity"}
+    if operation not in allowed:
+        return tool_error(tool, f"Unknown diagnostic operation: {operation}.", error_code="unknown_diagnostic")
+    if operation == "status":
+        rows = []
+        root = _research_root()
+        for path in sorted(root.glob("*.json.gz")) if root.exists() else []:
+            try:
+                with gzip.open(path, "rt", encoding="utf-8") as handle:
+                    item = json.load(handle)
+                rows.append({
+                    "knowledgebase": item.get("knowledgebase"), "documents": len(item.get("documents") or []),
+                    "chunks": len(item.get("chunks") or []), "dense_index_available": bool(item.get("dense")),
+                    "index_path": str(path),
+                })
+            except (OSError, json.JSONDecodeError):
+                rows.append({"knowledgebase": path.stem, "error": "unreadable index", "index_path": str(path)})
+        return tool_success(
+            tool, display=_table(("Knowledgebase", "Documents", "Chunks", "Dense"), [
+                (row.get("knowledgebase"), row.get("documents", "—"), row.get("chunks", "—"), row.get("dense_index_available", "—")) for row in rows
+            ]), analysis_type="corpus_status", operation=operation,
+            knowledgebase_count=len(rows), results=rows, corpus_root=str(root), corpus_schema=_INDEX_SCHEMA,
+        )
+    try:
+        index = _load_index(knowledgebase)
+    except (OSError, ValueError, json.JSONDecodeError) as error:
+        return tool_error(tool, str(error), error_code="corpus_read_failed")
+    chunks = list(index.get("chunks") or [])
+    if not chunks:
+        return tool_error(tool, "The requested knowledgebase is empty.", error_code="empty_corpus", knowledgebase=index["knowledgebase"])
+    if operation == "chunk_quality":
+        sizes = [len(item["text"]) for item in chunks]
+        duplicate_count = len(sizes) - len({item["sha256"] for item in chunks})
+        result = {
+            "chunk_count": len(chunks), "document_count": len(index["documents"]),
+            "minimum_chars": min(sizes), "median_chars": statistics.median(sizes), "maximum_chars": max(sizes),
+            "short_chunks": sum(value < 120 for value in sizes), "long_chunks": sum(value > 2_000 for value in sizes),
+            "duplicate_chunks": duplicate_count,
+        }
+        return tool_success(tool, analysis_type="corpus_chunk_quality", operation=operation,
+                            knowledgebase=index["knowledgebase"], result=result,
+                            warnings=["Chunk-length checks describe index structure, not retrieval relevance."])
+    if operation == "document_similarity":
+        by_document: dict[str, set[str]] = {}
+        titles: dict[str, str] = {}
+        for item in chunks:
+            by_document.setdefault(item["document_id"], set()).update(_tokens(item["text"]))
+            titles[item["document_id"]] = item.get("title") or item["document_id"]
+        pairs = []
+        ids = sorted(by_document)
+        for left_index, left_id in enumerate(ids):
+            for right_id in ids[left_index + 1:]:
+                union = by_document[left_id] | by_document[right_id]
+                score = len(by_document[left_id] & by_document[right_id]) / len(union) if union else 0.0
+                pairs.append({"left": titles[left_id], "right": titles[right_id], "token_jaccard": round(score, 6)})
+        pairs.sort(key=lambda item: (-item["token_jaccard"], item["left"], item["right"]))
+        return tool_success(tool, analysis_type="corpus_document_similarity", operation=operation,
+                            knowledgebase=index["knowledgebase"], results=pairs[:20],
+                            similarity_basis="document token-set Jaccard, not semantic embedding")
+    if not str(query or "").strip():
+        return tool_error(tool, f"query is required for {operation}.", error_code="missing_query")
+    if operation == "query_expansion":
+        expanded = _expanded_query(query or "")
+        original = _search_index(index, query or "", 10, "sparse")
+        expanded_rows = _search_index(index, expanded, 10, "sparse")
+        original_ids = {row["chunk_id"] for row in original}
+        expanded_ids = {row["chunk_id"] for row in expanded_rows}
+        return tool_success(
+            tool, analysis_type="corpus_query_expansion", operation=operation,
+            knowledgebase=index["knowledgebase"], query=query, expanded_query=expanded,
+            original_result_count=len(original), expanded_result_count=len(expanded_rows),
+            added_chunks=sorted(expanded_ids - original_ids), lost_chunks=sorted(original_ids - expanded_ids),
+            expansion_basis="transparent polymer-name aliases only",
+        )
+    sparse = _search_index(index, query or "", 10, "sparse")
+    if not index.get("dense"):
+        return tool_success(
+            tool, analysis_type="corpus_retrieval_comparison", operation=operation,
+            knowledgebase=index["knowledgebase"], query=query, dense_index_available=False,
+            results=sparse, correlation=None,
+            warnings=["Dense-versus-sparse comparison is unavailable until an explicit dense index is built."],
+        )
+    hybrid = _search_index(index, query or "", 10, "hybrid")
+    sparse_by_id = {row["chunk_id"]: row["sparse_score"] for row in sparse}
+    common = [row for row in hybrid if row["chunk_id"] in sparse_by_id]
+    correlation = _correlation([sparse_by_id[row["chunk_id"]] for row in common], [row["dense_score"] for row in common])
+    return tool_success(
+        tool, analysis_type="corpus_retrieval_comparison", operation=operation,
+        knowledgebase=index["knowledgebase"], query=query, dense_index_available=True,
+        results=hybrid, correlation=correlation,
+        scoring_basis="0.55 dense + 0.40 BM25 + transparent section boost",
+    )
+
+
+SCHOLAR_PROMPT = """You are DISSOLVE's scholarly-literature specialist. Call
+search_scholarly_literature exactly once and return no prose. Preserve the
+research question, requested sources and year bounds. arXiv is keyless;
+Google Scholar and Web of Science require their configured credentials. Pass
+typed_session_context.declared_save_to_corpus exactly as save_to_corpus and
+typed_session_context.declared_knowledgebase exactly as knowledgebase. A provider
+such as arXiv is a source, not the storage knowledgebase. Search results are
+metadata/available abstracts, not verified experimental conditions."""
+
+PATENT_PROMPT = """You are DISSOLVE's patent-research specialist. Call
+search_patent_literature exactly once and return no prose. Preserve patent
+number, source, assignee and date constraints. Never invent a patent landscape
+when credentials or results are absent. Set save_to_corpus only when explicitly
+requested. Patent metadata is not legal advice or a freedom-to-operate result."""
+
+RAG_PROMPT = """You are DISSOLVE's local-literature specialist. Call exactly
+one scoped corpus tool and return no prose. Use ingest_literature_documents only
+for explicit paths/URLs; ingestion is append/deduplicate only and exposes no
+destructive replacement operation.
+Use ingest_literature_graph when the user explicitly requests typed scientific
+extraction, cross-referencing, or graph ingestion from local documents. This
+path performs model extraction and incremental merge; preserve each path and
+library_id. Pass typed_session_context.declared_knowledgebase as knowledgebase.
+Use search_literature_corpus for questions over indexed papers; its passages
+are the evidence the parent model cites. Use inspect_literature_corpus for
+status, chunk quality, retrieval comparison, query expansion, or document
+similarity. Sparse retrieval is the offline default; request dense/hybrid only
+when a dense index exists or the user asks to build one."""
+
+
+def _declared_knowledgebase(
+    context: dict[str, Any],
+) -> str | None:
+    value = context.get("declared_knowledgebase")
+    if value is None:
+        return None
+    declared = str(value).strip()
+    return declared or None
+
+
+def _validate_scholar_plan(
+    calls: Sequence[dict[str, Any]], query: str, context: dict[str, Any],
+) -> tuple[str, ...]:
+    declared_save = context.get("declared_save_to_corpus")
+    if not calls:
+        return ()
+    arguments = calls[0].get("args") or {}
+    if not isinstance(arguments, dict):
+        return ("Scholarly search arguments must be one JSON object.",)
+    violations = []
+    expected_knowledgebase = _declared_knowledgebase(context)
+    supplied_knowledgebase = str(arguments.get("knowledgebase") or "user-library")
+    if (
+        expected_knowledgebase
+        and _slug(supplied_knowledgebase) != _slug(expected_knowledgebase)
+    ):
+        violations.append(
+            f"Preserve knowledgebase={_slug(expected_knowledgebase)}; the search "
+            "provider is not the corpus name."
+        )
+    supplied_save = arguments.get("save_to_corpus") is True
+    if declared_save is not None and supplied_save != bool(declared_save):
+        violations.append("Set save_to_corpus=true for the explicit save request." if declared_save else "Set save_to_corpus=false; corpus persistence was not declared.")
+    return tuple(violations)
+
+
+def _validate_rag_plan(
+    calls: Sequence[dict[str, Any]], query: str, context: dict[str, Any],
+) -> tuple[str, ...]:
+    if not calls:
+        return ()
+    arguments = calls[0].get("args") or {}
+    if not isinstance(arguments, dict):
+        return ("Corpus tool arguments must be one JSON object.",)
+    expected = _declared_knowledgebase(context)
+    prior_save = (context.get("last_research") or {}).get("save_result") or {}
+    if expected is None and re.search(r"\b(?:that|the|indexed)\s+(?:corpus|paper)\b", query, re.I):
+        expected = prior_save.get("knowledgebase")
+    supplied = str(arguments.get("knowledgebase") or "user-library")
+    if expected and _slug(supplied) != _slug(str(expected)):
+        return (f"Preserve knowledgebase={_slug(str(expected))} from the request or saved corpus.",)
+    return ()
+
+
+# This late import keeps the typed orchestration module free to reuse the
+# contracts above lazily without a module-initialization cycle.
+from .literature_ingest import ingest_literature_graph
