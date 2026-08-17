@@ -3359,15 +3359,6 @@ def inspect_literature_corpus(
     )
 
 
-SCHOLAR_PROMPT = """You are DISSOLVE's scholarly-literature specialist. Call
-search_scholarly_literature exactly once and return no prose. Preserve the
-research question, requested sources and year bounds. arXiv is keyless;
-Google Scholar and Web of Science require their configured credentials. Pass
-typed_session_context.declared_save_to_corpus exactly as save_to_corpus and
-typed_session_context.declared_knowledgebase exactly as knowledgebase. A provider
-such as arXiv is a source, not the storage knowledgebase. Search results are
-metadata/available abstracts, not verified experimental conditions."""
-
 PATENT_PROMPT = """You are DISSOLVE's patent-research specialist. Call
 search_patent_literature exactly once and return no prose. Preserve patent
 number, source, assignee and date constraints. Never invent a patent landscape

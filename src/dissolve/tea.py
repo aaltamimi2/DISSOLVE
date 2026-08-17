@@ -518,7 +518,7 @@ def _live(config: dict[str, Any], timeout_seconds: int) -> dict[str, Any]:
     environment = _tea_worker_environment()
     try:
         completed = subprocess.run(
-            [_tea_worker_python(), "-m", "strap.tea_worker", json.dumps(config)],
+            [_tea_worker_python(), "-m", "dissolve.tea_worker", json.dumps(config)],
             capture_output=True, text=True, timeout=timeout_seconds,
             env=environment, check=False,
         )

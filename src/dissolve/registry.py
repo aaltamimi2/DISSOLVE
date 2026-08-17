@@ -25,7 +25,7 @@ from typing import Any, Callable, NamedTuple
 
 from . import (
     analysis, contaminants, optimization, research, safety,
-    separation, tea, tools, visualization,
+    separation, tea, tools,
 )
 
 
@@ -91,13 +91,6 @@ REGISTRY: tuple[Tool, ...] = tuple([
     _t(research.search_literature_corpus, "research"),
     _t(research.inspect_literature_corpus, "research"),
     _t(research.ingest_literature_graph, "research"),
-    # --- visualization ---
-    _t(visualization.plot_solubility_curves, "visualization"),
-    _t(visualization.plot_fixed_temperature_separation, "visualization"),
-    _t(visualization.plot_separation_analysis, "visualization"),
-    _t(visualization.plot_comparison_results, "visualization"),
-    _t(visualization.plot_analysis_results, "visualization"),
-    _t(visualization.plot_research_results, "visualization"),
 ])
 
 BY_NAME: dict[str, Tool] = {t.name: t for t in REGISTRY}
