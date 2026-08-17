@@ -167,6 +167,16 @@ def get_connection() -> duckdb.DuckDBPyConnection:
     connection = getattr(_LOCAL, "connection", None)
     if connection is None:
         connection = duckdb.connect(str(_ASSET), read_only=True)
+        # Shadow the raw table only in this connection: the asset and its
+        # recorded rejection reason remain unchanged.
+        catalog = _ASSET.stem.replace('"', '""')
+        connection.execute(
+            "CREATE TEMP VIEW solubility_grid AS "
+            "SELECT * REPLACE ("
+            "(is_valid OR invalid_reason = 'exact_100_artifact') AS is_valid"
+            ") FROM "
+            f'"{catalog}".main.solubility_grid'
+        )
         _LOCAL.connection = connection
     return connection
 

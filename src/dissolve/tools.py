@@ -621,14 +621,6 @@ def _assign_clipped_ceiling_ranks(
             row[rank_key] = ordinal
 
 
-def _meets_unclipped_threshold(row: dict, threshold: float) -> bool:
-    """Require an unclipped measured value for threshold evidence."""
-    return bool(
-        row.get("is_clipped") is not True
-        and float(row["solubility_pct"]) >= threshold
-    )
-
-
 def _unique_names(values: Sequence[str]) -> list[str]:
     result, seen = [], set()
     for value in values:
@@ -723,7 +715,7 @@ def _screen_direction(
                 counts = common_temperature_counts[temperature]
                 if clipped:
                     counts["clipped"] += 1
-                elif float(row["target_sol"]) >= solubility_threshold_pct:
+                if float(row["target_sol"]) >= solubility_threshold_pct:
                     counts["qualifying"] += 1
             off_target_evidence = ({
                 polymer: thermo.get_solubility_result(
@@ -786,7 +778,6 @@ def _screen_direction(
                 ),
                 "meets_solubility_threshold": bool(
                     float(row["target_sol"]) >= solubility_threshold_pct
-                    and not clipped
                 ),
                 "is_clipped": clipped,
                 "clip_limit_wt_percent": 100.0,
@@ -842,7 +833,7 @@ def _rank_screen_candidates(
             item,
             condition_operability(item["solvent"], item["temperature_c"]),
         )
-    if ranking_mode == "absolute_solubility":
+    if ranking_mode in ("absolute_solubility", "target_dissolution"):
         _assign_clipped_ceiling_ranks(ranked)
     else:
         for rank, item in enumerate(ranked, 1):
@@ -890,7 +881,7 @@ def screen_polymer_separation(
     ``min_solubility_pct``, and ``minimum_qualifying_solvent_count``.  The
     result then reports full-candidate counts at each common grid setpoint;
     never infer that answer from the per-solvent best-temperature shortlist.
-    Clipped 100 wt% ceilings never qualify.
+    Saturated 100 wt% ceilings qualify through 100 and share a ceiling rank.
     """
     tool = "screen_polymer_separation"
     if not isinstance(feed_polymers, (list, tuple)) or not (requested := _unique_names(feed_polymers)):
@@ -1230,7 +1221,10 @@ def screen_polymer_separation(
         ]
     )
     if any(bool(candidate.get("is_clipped")) for candidate in combined):
-        warnings.append("A 100 wt% value is a clipped model ceiling, not a precise prediction.")
+        warnings.append(
+            "A 100 wt% value marks the stored saturation ceiling; tied values "
+            "are not ordered beyond that ceiling."
+        )
     if common_temperature_counts is not None:
         threshold_counts = {
             f"{temperature:g}": counts["qualifying"]
@@ -1256,7 +1250,7 @@ def screen_polymer_separation(
             "threshold_count_candidate_scope": (
                 "all_eligible_candidates_before_top_k_at_each_temperature"
             ),
-            "threshold_count_excludes_clipped": True,
+            "threshold_count_excludes_clipped": False,
             "threshold_count_excludes_extrapolated": True,
             "ranked_candidate_population": ranked_candidate_population,
             "ranked_candidate_temperature_c": ranked_candidate_temperature,
@@ -1276,8 +1270,8 @@ def screen_polymer_separation(
         warnings.insert(
             0,
             "Common-temperature threshold counts use all eligible candidates "
-            "at each shared grid setpoint and exclude clipped model ceilings "
-            "from the threshold. The shortlist contains only qualifying "
+            "at each shared grid setpoint and include saturated 100 wt% values. "
+            "The shortlist contains only qualifying "
             "stored-grid candidates at the reported shared temperature.",
         )
     if not resolved_require_atmospheric and any(
