@@ -235,6 +235,25 @@ Assign **file lanes** and say so to both. Require path-scoped staging: never
 builder's uncommitted work. Then **detect** violations rather than trusting the
 norm: watch for a commit touching both lanes.
 
+Three things v11 learned the hard way:
+
+**Give each builder its own test file from the start.** A shared test file is
+where a breach happens, because lane assignment and content-appropriateness point
+in opposite directions — harness-level tests belong in the harness test file no
+matter who writes them. In v11 a builder appended 143 lines to the other's test
+file; nothing was lost only because that file happened to be clean at that
+moment, and the other builder started writing there minutes later. **A sweep
+looks exactly like a normal commit from the outside.**
+
+**Widen the lanes when the work widens.** A class fix spreads — v11's went from
+one file to six as it censused every reader. A detector whose vocabulary is
+narrower than the work reports `lane-clean` and means nothing by it. Have it
+name **unassigned** files explicitly rather than counting them as clean.
+
+**Norms alone do not hold.** Both v11 builders were told the staging rules
+directly. One breached anyway, without malice, because the file it wanted was
+the natural home for its tests.
+
 ---
 
 ## 8. Writing a send-back
