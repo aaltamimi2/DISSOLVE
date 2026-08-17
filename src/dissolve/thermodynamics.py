@@ -180,20 +180,6 @@ def get_connection() -> duckdb.DuckDBPyConnection:
 
 
 @lru_cache(maxsize=1)
-def _coefficients() -> dict[tuple[str, str], dict]:
-    cursor = get_connection().execute(
-        "SELECT * FROM solubility_coefficients ORDER BY source_order"
-    )
-    columns = [item[0] for item in cursor.description]
-    lookup: dict[tuple[str, str], dict] = {}
-    for row in cursor.fetchall():
-        entry = dict(zip(columns, row))
-        entry["source"] = "static"
-        lookup[(entry["polymer"].strip().upper(), entry["solvent"].strip().lower())] = entry
-    return lookup
-
-
-@lru_cache(maxsize=1)
 def _thermodynamic_metadata() -> dict[str, str]:
     return dict(get_connection().execute(
         "SELECT key, value FROM thermodynamic_metadata"
@@ -539,16 +525,6 @@ def get_solubility_pair_exclusion_reason(polymer: str, solvent: str) -> Optional
     return "Quarantined from runtime solubility tools pending data-quality review."
 
 
-def get_entry(polymer: str, solvent: str) -> Optional[dict]:
-    resolved_polymer, resolved_solvent = resolve_names(polymer, solvent)
-    if not resolved_polymer or not resolved_solvent:
-        return None
-    if is_solubility_pair_excluded(resolved_polymer, resolved_solvent):
-        return None
-    entry = _coefficients().get((resolved_polymer, resolved_solvent))
-    return dict(entry) if entry else None
-
-
 def predict(entry: dict, temperature_c: float) -> dict:
     temperature_k = temperature_c + 273.15
     log_solubility = (
@@ -689,53 +665,6 @@ def methods_share_continuous_basis(first: object, second: object) -> bool:
     return methods <= {GRID_EXACT, GRID_INTERPOLATION}
 
 
-def _raw_solubility(polymer: str, solvent: str, temperature_c: float) -> Optional[float]:
-    row = get_connection().execute(
-        """
-        SELECT AVG(solubility_pct)
-        FROM common_solvents_database
-        WHERE UPPER(polymer) = ? AND LOWER(solvent) = ?
-          AND temperature_c BETWEEN ? AND ?
-        """,
-        [polymer.upper(), solvent.lower(), temperature_c - 10.0, temperature_c + 10.0],
-    ).fetchone()
-    return float(row[0]) if row and row[0] is not None else None
-
-
-def _grid_interpolated_value(
-    lower: tuple[float, float],
-    upper: tuple[float, float],
-    temperature_c: float,
-) -> float:
-    """Interpolate with the scheme selected by the builder's holdout test."""
-    lower_temperature_c, lower_value = lower
-    upper_temperature_c, upper_value = upper
-    scheme = _thermodynamic_metadata().get("grid_interpolation_scheme")
-    if scheme == "linear_solubility_vs_temperature":
-        fraction = (
-            (temperature_c - lower_temperature_c)
-            / (upper_temperature_c - lower_temperature_c)
-        )
-        value = lower_value + fraction * (upper_value - lower_value)
-    elif scheme == "log_solubility_vs_reciprocal_kelvin":
-        lower_reciprocal = 1.0 / (lower_temperature_c + 273.15)
-        upper_reciprocal = 1.0 / (upper_temperature_c + 273.15)
-        requested_reciprocal = 1.0 / (temperature_c + 273.15)
-        fraction = (
-            (requested_reciprocal - lower_reciprocal)
-            / (upper_reciprocal - lower_reciprocal)
-        )
-        value = math.exp(
-            math.log(lower_value)
-            + fraction * (math.log(upper_value) - math.log(lower_value))
-        )
-    else:
-        raise RuntimeError(
-            f"Unsupported governed grid interpolation scheme: {scheme!r}"
-        )
-    return float(f"{value:.12g}")
-
-
 def _unavailable_grid_result(
     temperature_c: float,
     pair: dict,
@@ -767,10 +696,6 @@ def _pair_temperature_coverage(
     if valid_points:
         coverage["source_grid_temperature_range_c"] = [
             float(valid_points[0][0]), float(valid_points[-1][0]),
-        ]
-    if entry and entry.get("category") == "fitted":
-        coverage["fitted_temperature_range_c"] = [
-            float(entry["t_min_c"]), float(entry["t_max_c"]),
         ]
     return coverage
 
@@ -967,9 +892,6 @@ def get_solubility_curve(
             "grid_point_status": result.get("grid_point_status"),
             "extrapolation": result.get("extrapolation") or "none",
             "temperature_use_regime": result.get("temperature_use_regime"),
-            "fitted_temperature_range_c": result.get(
-                "fitted_temperature_range_c",
-            ),
             "source_grid_temperature_range_c": result.get(
                 "source_grid_temperature_range_c",
             ),
@@ -1031,13 +953,6 @@ def get_all_solvents_selectivity(
                 target_name: target_result["temperature_use_regime"],
                 **{
                     str(other): result["temperature_use_regime"]
-                    for other, result in zip(other_names, other_results)
-                },
-            },
-            "fitted_temperature_range_by_polymer": {
-                target_name: target_result.get("fitted_temperature_range_c"),
-                **{
-                    str(other): result.get("fitted_temperature_range_c")
                     for other, result in zip(other_names, other_results)
                 },
             },

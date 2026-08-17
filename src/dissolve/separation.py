@@ -327,18 +327,6 @@ def _threshold_crossing(
     }
 
 
-def _fit_quality_by_polymer(
-    polymers: list[str], solvent: str,
-) -> dict[str, float | None]:
-    """Return governed F6 pair MAPE values without changing fitted science."""
-    quality: dict[str, float | None] = {}
-    for polymer in polymers:
-        entry = thermo.get_entry(polymer, solvent) or {}
-        value = entry.get("fit_mape_pct")
-        quality[polymer] = None if value is None else round(float(value), 6)
-    return quality
-
-
 def _crossing_states(
     solvent: str,
     first_polymer: str,
@@ -1521,7 +1509,6 @@ def screen_precipitation_order(
             "atmospheric_feasible": (
                 boiling_point is not None and dissolution < boiling_point
             ),
-            "pair_fit_mape_pct": _fit_quality_by_polymer(names, solvent),
             "crossing_states": _crossing_states(
                 solvent, first, second, crossings,
             ),

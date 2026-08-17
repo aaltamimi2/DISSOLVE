@@ -176,14 +176,15 @@ def _pair_result(
     temperature_c: float,
     method: str = thermo.AUTO,
 ) -> Optional[dict]:
-    entry = thermo.get_entry(polymer, solvent) or {}
     evidence = thermo.get_solubility_result(
         polymer, solvent, temperature_c, method,
     )
     value = evidence.get("solubility_pct")
     if not evidence.get("available") or value is None:
         return None
-    category = str(entry.get("category") or "grid_only")
+    # v12: every served value comes from solubility_grid. The old label was
+    # read from solubility_coefficients, so a grid value reported "fitted".
+    category = "grid_only"
     return {
         "polymer": polymer,
         "solvent": thermo.canonical_solvent_name(solvent),
@@ -197,14 +198,9 @@ def _pair_result(
         "source_grid_temperature_range_c": evidence.get(
             "source_grid_temperature_range_c",
         ),
-        "fitted_temperature_range_c": evidence.get(
-            "fitted_temperature_range_c",
-        ),
         "extrapolation": evidence.get("extrapolation") or "none",
-        "r_squared": entry.get("r_squared"),
         "temperature_use_regime": thermo.temperature_use_regime(
             temperature_c, evidence["method"],
-            evidence.get("fitted_temperature_range_c"),
         ),
         "is_clipped": bool(float(value) >= 100.0),
         "clip_limit_wt_percent": 100.0,
@@ -298,7 +294,6 @@ def predict_solubility(polymer_name: str, solvent_name: str, temperature_c: floa
         )
     boiling_point = thermo.get_boiling_point(solvent)
     atmospheric = None if boiling_point is None else float(temperature_c) < boiling_point
-    entry = thermo.get_entry(polymer, solvent) or {}
     return tool_success(
         tool,
         display=_table(
@@ -321,7 +316,6 @@ def predict_solubility(polymer_name: str, solvent_name: str, temperature_c: floa
         clip_limit_wt_percent=100.0,
         boiling_point_c=boiling_point,
         atmospheric_operation=atmospheric,
-        r_squared=entry.get("r_squared"),
         extrapolation=row.get("extrapolation") or "none",
         temperature_extrapolation=thermo.temperature_extrapolation_status(
             float(temperature_c), row.get("fitted_temperature_range_c"),
@@ -366,8 +360,9 @@ def predict_solubility_range(
     if isinstance(resolved, str):
         return resolved
     polymer, solvent = resolved
-    entry = thermo.get_entry(polymer, solvent) or {}
-    category = str(entry.get("category") or "grid_only")
+    # v12: every served value comes from solubility_grid. The old label was
+    # read from solubility_coefficients, so a grid value reported "fitted".
+    category = "grid_only"
     predictions: list[dict] = []
     unavailable_predictions: list[dict] = []
     fitted_temperature_range_c = None
@@ -438,7 +433,6 @@ def predict_solubility_range(
         solvent_data_key=solvent,
         category=category,
         method=method,
-        r_squared=entry.get("r_squared"),
         t_start_c=float(t_start_c),
         t_end_c=end,
         requested_t_end_c=requested_end,
