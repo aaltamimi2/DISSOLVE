@@ -13,32 +13,16 @@ from .contracts import parse_tool_result, tool_error, tool_success
 _STRONG_OVERLAP_RATIO = 0.70
 MATERIAL_UNDER_COVERAGE_RATIO = 0.90
 
-# One product-level registry for scientific methods the current tool surface
-# actually implements. Consumers may render it, but must not expand it in prose.
-MODELING_CAPABILITIES = (
-    {"capability": "temperature-dependent measured-grid solubility", "tools": (
-        "predict_solubility", "predict_solubility_range",
-        "rank_polymers_by_solubility", "rank_solvents_by_solubility",
-    )},
-    {"capability": "selective-dissolution and multistage route screening", "tools": (
-        "screen_polymer_separation", "plan_multistage_separation",
-        "screen_pairwise_solubility_overlap",
-    )},
-    {"capability": "cooling and precipitation-order proxy screening", "tools": (
-        "screen_precipitation_order",
-    )},
-    {"capability": "Hansen RED and binary Random Forest fallback", "tools": (
-        "resolve_polymer_data_scope", "lookup_material_database_membership",
-        "screen_hansen_compatibility",
-    )},
-)
+# Methods this system does not implement. The facts are worth stating so nothing
+# claims them; the alias lists that used to sit here were a keyword matcher for
+# v11 routing, no consumer ever read them, and v12 does not route on phrasing.
 UNAVAILABLE_MODELING_METHODS = (
-    {"method": "PC-SAFT", "status": "planned_not_available", "aliases": ("PC-SAFT", "PC SAFT")},
-    {"method": "Flory-Huggins interaction parameters", "status": "not_available", "aliases": ("Flory-Huggins", "Flory Huggins")},
-    {"method": "binodal or spinodal phase diagrams", "status": "not_available", "aliases": ("binodal", "spinodal")},
-    {"method": "solvent-mixture thermodynamics", "status": "not_available", "aliases": ("solvent mixture", "solvent-mixture")},
-    {"method": "fractional blend-dissolution simulation", "status": "not_available", "aliases": ("fractional dissolution", "blend dissolution")},
-    {"method": "COSMO or molecular-dynamics simulation", "status": "not_available", "aliases": ("COSMO", "molecular dynamics", "molecular-dynamics")},
+    {"method": "PC-SAFT", "status": "planned_not_available"},
+    {"method": "Flory-Huggins interaction parameters", "status": "not_available"},
+    {"method": "binodal or spinodal phase diagrams", "status": "not_available"},
+    {"method": "solvent-mixture thermodynamics", "status": "not_available"},
+    {"method": "fractional blend-dissolution simulation", "status": "not_available"},
+    {"method": "COSMO or molecular-dynamics simulation", "status": "not_available"},
 )
 
 
