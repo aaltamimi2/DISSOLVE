@@ -19,8 +19,8 @@ GRID_EXACT = "grid_exact"
 GRID_INTERPOLATION = "grid_interpolation"
 APELBLAT_FIT = "apelblat_fit"
 SOLUBILITY_MODEL_BASIS = (
-    "pair-specific grid (exact lookup / interpolation) plus labelled Apelblat "
-    "extrapolation outside coefficient t_min_c/t_max_c"
+    "stored pair-specific grid values at 5 C nodes from 25 to 160 C; exact "
+    "lookup only, with no interpolation, fit or extrapolation"
 )
 
 FITTED_TEMP_MIN_C = 25.0
@@ -761,7 +761,12 @@ def get_solubility_result(
     temperature_c: float,
     method: str = AUTO,
 ) -> dict:
-    """Return one value together with its evidence method or typed refusal."""
+    """Return one measured grid value, or a typed refusal.
+
+    v12: the only evidence method is ``grid_exact``. There is no fit, no
+    interpolation and no extrapolation, so ``method`` is retained only because
+    downstream readers still key on it.
+    """
     if method not in {AUTO, INTERPOLATION, SQL}:
         raise ValueError(f"Unknown solubility method: {method}")
     requested_temperature_c = float(temperature_c)
@@ -784,25 +789,8 @@ def get_solubility_result(
         }
     pair_key = (resolved_polymer, resolved_solvent)
 
-    if method == SQL:
-        value = _raw_solubility(
-            resolved_polymer, resolved_solvent, requested_temperature_c,
-        )
-        return {
-            "available": value is not None,
-            "solubility_pct": value,
-            "temperature_c": requested_temperature_c,
-            "method": "sql_nearby_grid_fallback" if value is not None else None,
-            "source_kind": "legacy_common_solvents_database",
-            "grid_point_status": "nearby_average" if value is not None else "unavailable",
-            "unavailable_reason": None if value is not None else "sql_fallback_unavailable",
-            "extrapolation": "none",
-        }
-
     grid_pair = _grid_pairs().get(pair_key)
-    entry = _coefficients().get(pair_key)
-    fitted_entry = entry if entry and entry.get("category") == "fitted" else None
-    coverage = _pair_temperature_coverage(grid_pair, fitted_entry)
+    coverage = _pair_temperature_coverage(grid_pair, None)
     if grid_pair is not None:
         valid_points: tuple[tuple[float, float], ...] = grid_pair["valid_points"]
         if not valid_points:
@@ -840,82 +828,17 @@ def get_solubility_result(
                     "temperature_use_regime": "source_grid",
                     **coverage,
                 }
-            lower = [
-                point for point in valid_points
-                if point[0] < requested_temperature_c
-            ]
-            upper = [
-                point for point in valid_points
-                if point[0] > requested_temperature_c
-            ]
-            if lower and upper:
-                bracket = (lower[-1], upper[0])
-                value = _grid_interpolated_value(
-                    *bracket, requested_temperature_c,
-                )
-                return {
-                    "available": True,
-                    "solubility_pct": value,
-                    "temperature_c": requested_temperature_c,
-                    "method": GRID_INTERPOLATION,
-                    "source_kind": "ground_truth_grid",
-                    "grid_point_status": "interpolated",
-                    "source_temperatures_c": [
-                        bracket[0][0], bracket[1][0],
-                    ],
-                    "grid_valid_point_count": len(valid_points),
-                    "grid_filtered_point_count": sum(
-                        grid_pair["filtered_reasons"].values()
-                    ),
-                    "grid_source_tables": list(grid_pair["source_tables"]),
-                    "extrapolation": "none",
-                    "temperature_use_regime": "source_grid",
-                    **coverage,
-                }
+            # v12: a temperature between two grid nodes is not a question this
+            # engine answers. v11 interpolated the bracket here.
 
-    # Explicit ``INTERPOLATION`` requests remain grid-only. Normal runtime
-    # readers use ``AUTO``, which follows the owner rule by falling back to the
-    # pair fit when no direct or bracketed grid value exists.
-    screen_requires_retained_grid = bool(
-        method == INTERPOLATION
-        and grid_pair is not None
-        and requested_temperature_c <= GRID_TEMP_MAX_C
-    )
-    if fitted_entry and not screen_requires_retained_grid:
-        fitted = predict(fitted_entry, requested_temperature_c)
-        fitted_range = coverage.get("fitted_temperature_range_c")
-        grid_range = coverage.get("source_grid_temperature_range_c")
-        grid_status = "no_grid"
-        if grid_range:
-            if requested_temperature_c < grid_range[0]:
-                grid_status = "below_grid"
-            elif requested_temperature_c > grid_range[1]:
-                grid_status = "above_grid"
-            else:
-                grid_status = "unbracketed_grid_gap"
-        return {
-            "available": True,
-            "solubility_pct": fitted["solubility_pct"],
-            "temperature_c": requested_temperature_c,
-            "method": APELBLAT_FIT,
-            "source_kind": "apelblat_correlation",
-            "grid_point_status": grid_status,
-            "extrapolation": fitted["extrapolation"] or "none",
-            "temperature_use_regime": temperature_use_regime(
-                requested_temperature_c,
-                APELBLAT_FIT,
-                fitted_range,
-            ),
-            **coverage,
-        }
     if grid_pair is not None:
         grid_range = coverage.get("source_grid_temperature_range_c")
         above_grid = bool(
             grid_range and requested_temperature_c > grid_range[1]
         )
         reason = (
-            "apelblat_fit_unavailable_above_grid"
-            if above_grid else "outside_retained_grid_range"
+            "above_retained_grid_range"
+            if above_grid else "temperature_not_a_grid_node"
         )
         return {
             **_unavailable_grid_result(
