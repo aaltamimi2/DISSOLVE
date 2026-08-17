@@ -772,26 +772,6 @@ def tea_lookup_arguments_from_boundary(
     return arguments
 
 
-def tea_specialist_manifest_context(
-    deliverable: Mapping[str, Any],
-    request_units: Iterable[Mapping[str, Any]],
-) -> dict[str, Any]:
-    """Project only exact request units mapped to one TEA deliverable."""
-    unit_ids = {
-        str(value) for value in deliverable.get("unit_ids") or ()
-    }
-    return {
-        "declared_deliverable": dict(deliverable),
-        "declared_request_units": [
-            dict(item) for item in request_units
-            if (
-                isinstance(item, Mapping)
-                and str(item.get("unit_id") or "") in unit_ids
-            )
-        ],
-    }
-
-
 def resolve_tea_tool_boundary(
     deliverable: Mapping[str, Any] | None,
     typed_state: Mapping[str, Any] | None,
@@ -884,40 +864,6 @@ def resolve_tea_tool_boundary(
         ("polymers",),
         implicit,
     )
-
-
-def resolve_pareto_surface_boundary(
-    deliverable: Mapping[str, Any] | None,
-    typed_state: Mapping[str, Any] | None,
-    request_units: Iterable[Mapping[str, Any]] = (),
-) -> ParetoSurfaceBoundaryContract | None:
-    """Select preferred Pareto surface from manifest facts and prerequisites."""
-    manifest = deliverable or {}
-    state = typed_state or {}
-    implicit = resolve_implicit_tea_record_selectors(
-        manifest,
-        request_units,
-    )
-    polymers = tuple(dict.fromkeys((
-        *_manifest_names(
-            manifest,
-            ("target_polymers", "polymers", "feed_polymers"),
-        ),
-        *implicit.target_polymers,
-    )))
-    stored_route = state.get("last_route")
-    has_stored_route = isinstance(stored_route, Mapping) and bool(
-        stored_route,
-    )
-    has_resolvable_records = bool(polymers)
-
-    for surface in PARETO_SURFACE_BOUNDARY_REGISTRY:
-        if surface.requires_stored_route and not has_stored_route:
-            continue
-        if surface.requires_admitted_records and not has_resolvable_records:
-            continue
-        return surface
-    return None
 
 
 _TEA_CONFIG_LABEL_SUFFIXES = (
