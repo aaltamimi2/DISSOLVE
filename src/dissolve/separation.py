@@ -15,6 +15,8 @@ from .session import (
     resolve_candidate_argument,
 )
 from .tools import (
+    _atmospheric_exclusion_applies, _atmospheric_exclusion_counts,
+    _atmospheric_exclusion_reason,
     _screen_catalog_provenance, _solvent_resolution_error, _temperature_grid,
     normalize_feed_composition, screen_polymer_separation,
 )
@@ -1179,7 +1181,7 @@ def screen_precipitation_order(
     strict_maximum: bool = False,
     precipitation_threshold_wt_pct: float = 1.0,
     min_dissolution_solubility_wt_pct: float = 5.0,
-    require_atmospheric: bool = True,
+    require_atmospheric: Optional[bool] = None,
     min_ordering_window_c: float = 0.0,
     min_recovery_window_c: float = 0.0,
     max_first_precipitation_temperature_c: Optional[float] = None,
@@ -1216,6 +1218,10 @@ def screen_precipitation_order(
     Multi-polymer catalog provenance names only polymers whose actual
     pair-screen count at the highest screened temperature is below 90% of the
     stored-grid solvent catalog.
+
+    ``require_atmospheric=None`` keeps missing boiling-point data while
+    excluding known-too-low conditions; ``True`` excludes both and ``False``
+    excludes neither.
     """
     tool = "screen_precipitation_order"
     names, unsupported = _feed_names(feed_polymers)
@@ -1294,10 +1300,25 @@ def screen_precipitation_order(
     recovery_filter_active = recovery_floor > 0 or max_first is not None
 
     candidates: list[dict[str, Any]] = []
-    excluded_for_bp = excluded_for_dissolution = excluded_for_missing_model = 0
+    atmospheric_exclusions = _atmospheric_exclusion_counts()
+    excluded_for_dissolution = excluded_for_missing_model = 0
     excluded_for_crossing = 0
     missing_model_details: list[dict[str, Any]] = []
     for solvent in requested_solvents:
+        boiling_point = thermo.get_boiling_point(solvent)
+        if all(
+            _atmospheric_exclusion_applies(
+                _atmospheric_exclusion_reason(boiling_point, temperature),
+                require_atmospheric,
+            )
+            for temperature in temperatures
+        ):
+            reason = _atmospheric_exclusion_reason(
+                boiling_point, temperatures[0],
+            )
+            assert reason is not None
+            atmospheric_exclusions[reason] += 1
+            continue
         missing_polymers = [
             polymer for polymer in names
             if not thermo.has_solubility_pair(polymer, solvent)
@@ -1309,13 +1330,14 @@ def screen_precipitation_order(
                 "missing_polymers": missing_polymers,
             })
             continue
-        boiling_point = thermo.get_boiling_point(solvent)
         dissolution = None
+        qualifying_atmospheric_exclusion: Optional[str] = None
         dissolution_values: dict[str, float] = {}
         dissolution_source_grid_ranges: dict[str, list[float] | None] = {}
         for temperature in temperatures:
-            if require_atmospheric and (boiling_point is None or temperature >= boiling_point):
-                continue
+            atmospheric_exclusion = _atmospheric_exclusion_reason(
+                boiling_point, temperature,
+            )
             evidence = {
                 polymer: thermo.get_solubility_result(
                     polymer, solvent, temperature,
@@ -1329,6 +1351,12 @@ def screen_precipitation_order(
                 for polymer, result in evidence.items()
             }
             if all(float(value) >= minimum_dissolution for value in values.values()):
+                if _atmospheric_exclusion_applies(
+                    atmospheric_exclusion, require_atmospheric,
+                ):
+                    assert atmospheric_exclusion is not None
+                    qualifying_atmospheric_exclusion = atmospheric_exclusion
+                    continue
                 dissolution = temperature
                 dissolution_values = {
                     polymer: float(value) for polymer, value in values.items()
@@ -1339,8 +1367,8 @@ def screen_precipitation_order(
                 }
                 break
         if dissolution is None:
-            if require_atmospheric and boiling_point is not None and boiling_point <= lower:
-                excluded_for_bp += 1
+            if qualifying_atmospheric_exclusion is not None:
+                atmospheric_exclusions[qualifying_atmospheric_exclusion] += 1
             else:
                 excluded_for_dissolution += 1
             continue
@@ -1432,7 +1460,7 @@ def screen_precipitation_order(
                 None if boiling_point is None else round(boiling_point - dissolution, 6)
             ),
             "atmospheric_feasible": (
-                boiling_point is not None and dissolution < boiling_point
+                None if boiling_point is None else dissolution < boiling_point
             ),
             "crossing_states": _crossing_states(
                 solvent, first, second, crossings,
@@ -1579,7 +1607,7 @@ def screen_precipitation_order(
         **({} if max_first is None else {
             "max_first_precipitation_temperature_c": max_first,
         }),
-        require_atmospheric=bool(require_atmospheric),
+        require_atmospheric=require_atmospheric,
         ordering_definition=(
             "On cooling, the polymer with the higher modeled capacity-threshold "
             "crossing is the first precipitation proxy."
@@ -1607,7 +1635,7 @@ def screen_precipitation_order(
         evaluated_candidate_count=len(candidates),
         screened_solvent_count=len(requested_solvents),
         solvent_universe=solvent_universe,
-        excluded_for_boiling_point=excluded_for_bp,
+        **atmospheric_exclusions,
         excluded_for_dissolution=excluded_for_dissolution,
         excluded_for_missing_model=excluded_for_missing_model,
         excluded_for_missing_model_details=missing_model_details,
@@ -1655,13 +1683,18 @@ def plan_multistage_separation(
     temperature_max_c: Optional[float] = None,
     strict_maximum: bool = False,
     temperature_step_c: float = 5.0,
-    require_atmospheric: bool = True,
+    require_atmospheric: Optional[bool] = None,
     min_target_solubility_pct: float = 5.0,
     min_selectivity_pct: float = 5.0,
     top_k_routes: int = 5,
     feed_mass_fractions: Optional[dict[str, float]] = None,
 ) -> str:
-    """Recursively rank complete or explicitly partial routes for any supported feed."""
+    """Recursively rank complete or explicitly partial routes for any supported feed.
+
+    The tri-state atmospheric policy is passed unchanged to every subset
+    screen: ``None`` keeps unknown BP and excludes known-too-low conditions,
+    ``True`` excludes both, and ``False`` excludes neither.
+    """
     tool = "plan_multistage_separation"
     supplied_min = temperature_min_c is not None
     supplied_max = temperature_max_c is not None
@@ -1742,7 +1775,7 @@ def plan_multistage_separation(
             screens[subset] = parse_tool_result(screen_polymer_separation(
                 list(subset), temperature_min_c=lower, temperature_max_c=upper,
                 target_polymers=list(subset), strict_maximum=bool(strict_maximum),
-                temperature_step_c=step_c, require_atmospheric=bool(require_atmospheric),
+                temperature_step_c=step_c, require_atmospheric=require_atmospheric,
             ))["data"]
         return screens[subset]
 
@@ -1867,6 +1900,10 @@ def plan_multistage_separation(
         else float(best["bottleneck_selectivity_pct"]) - min_selectivity
     )
     root_screen = screens.get(root_subset, {})
+    atmospheric_exclusions = _atmospheric_exclusion_counts()
+    for result in screens.values():
+        for reason in atmospheric_exclusions:
+            atmospheric_exclusions[reason] += int(result.get(reason, 0))
     temperature_scope = (
         "user_bounded" if supplied_min and supplied_max
         else "grid_min_to_user_max" if supplied_max
@@ -1883,7 +1920,8 @@ def plan_multistage_separation(
         strict_maximum=bool(strict_maximum),
         temperature_step_c=step_c,
         temperature_scope=temperature_scope,
-        require_atmospheric=bool(require_atmospheric),
+        require_atmospheric=require_atmospheric,
+        **atmospheric_exclusions,
         min_target_solubility_pct=min_target,
         min_selectivity_pct=min_selectivity,
         solubility_unit="wt_pct_solution_concentration",

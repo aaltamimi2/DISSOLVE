@@ -667,11 +667,54 @@ def _temperature_grid(start: float, end: float, step: float, strict: bool) -> li
     return thermo._nodes_within(start, end, step, strict)
 
 
+def _atmospheric_exclusion_counts() -> dict[str, int]:
+    """Return the shared, explicit vocabulary for atmospheric exclusions."""
+    return {
+        "excluded_for_missing_boiling_point": 0,
+        "excluded_for_boiling_point": 0,
+    }
+
+
+def _atmospheric_exclusion_reason(
+    boiling_point_c: Optional[float],
+    temperature_c: float,
+) -> Optional[str]:
+    """Distinguish absent data from operation at or above a known boiling point."""
+    if boiling_point_c is None:
+        return "excluded_for_missing_boiling_point"
+    if temperature_c >= boiling_point_c:
+        return "excluded_for_boiling_point"
+    return None
+
+
+def _atmospheric_exclusion_applies(
+    reason: Optional[str],
+    require_atmospheric: Optional[bool],
+) -> bool:
+    """Apply the tri-state policy without treating missing data as a property."""
+    if reason is None or require_atmospheric is False:
+        return False
+    if require_atmospheric is True:
+        return True
+    return reason == "excluded_for_boiling_point"
+
+
+def _atmospheric_filter_policy_name(
+    require_atmospheric: Optional[bool],
+) -> str:
+    """Name the caller-visible meaning of the tri-state atmospheric option."""
+    if require_atmospheric is True:
+        return "strict_exclude_unknown_and_known_too_low"
+    if require_atmospheric is False:
+        return "off"
+    return "default_keep_unknown_exclude_known_too_low"
+
+
 def _screen_direction(
     target: str,
     retained: list[str],
     temperatures: list[float],
-    require_atmospheric: bool,
+    require_atmospheric: Optional[bool],
     limit: int,
     candidate_solvents: Optional[set[str]] = None,
     ranking_mode: Literal[
@@ -680,8 +723,9 @@ def _screen_direction(
     solubility_threshold_pct: float = 5.0,
     common_temperature_counts: Optional[dict[float, dict[str, int]]] = None,
     common_temperature_candidates: Optional[dict[float, list[dict]]] = None,
-) -> tuple[list[dict], int, int, list[dict]]:
-    best_by_solvent, screened, excluded = {}, 0, 0
+) -> tuple[list[dict], int, dict[str, int], list[dict]]:
+    best_by_solvent, screened = {}, 0
+    atmospheric_exclusions = _atmospheric_exclusion_counts()
     for temperature in temperatures:
         rows = (
             [{
@@ -706,9 +750,17 @@ def _screen_direction(
                 or row["solvent"]
             )
             boiling_point = thermo.get_boiling_point(solvent_key)
-            atmospheric = boiling_point is not None and temperature < boiling_point
-            if require_atmospheric and not atmospheric:
-                excluded += 1
+            atmospheric_exclusion = _atmospheric_exclusion_reason(
+                boiling_point, temperature,
+            )
+            atmospheric = (
+                None if boiling_point is None else atmospheric_exclusion is None
+            )
+            if _atmospheric_exclusion_applies(
+                atmospheric_exclusion, require_atmospheric,
+            ):
+                assert atmospheric_exclusion is not None
+                atmospheric_exclusions[atmospheric_exclusion] += 1
                 continue
             clipped = float(row["target_sol"]) >= 100.0
             if common_temperature_counts is not None:
@@ -807,7 +859,7 @@ def _screen_direction(
     ranked, ranked_all = _rank_screen_candidates(
         list(best_by_solvent.values()), limit, ranking_mode,
     )
-    return ranked, screened, excluded, ranked_all
+    return ranked, screened, atmospheric_exclusions, ranked_all
 
 
 def _rank_screen_candidates(
@@ -882,6 +934,10 @@ def screen_polymer_separation(
     result then reports full-candidate counts at each common grid setpoint;
     never infer that answer from the per-solvent best-temperature shortlist.
     Saturated 100 wt% ceilings qualify through 100 and share a ceiling rank.
+
+    ``require_atmospheric`` is tri-state: ``None`` keeps solvents with missing
+    boiling-point data but excludes conditions at or above a recorded boiling
+    point; ``True`` excludes both causes; ``False`` excludes neither.
     """
     tool = "screen_polymer_separation"
     if not isinstance(feed_polymers, (list, tuple)) or not (requested := _unique_names(feed_polymers)):
@@ -966,17 +1022,10 @@ def screen_polymer_separation(
     if not temperatures:
         return tool_error(tool, "No temperatures remain after applying bounds.", error_code="empty_temperature_grid")
     catalog_provenance = _screen_catalog_provenance(names, max(temperatures))
-    if require_atmospheric is None:
-        resolved_require_atmospheric = not (
-            constrained_solvents is not None and len(temperatures) == 1
-        )
-        atmospheric_filter_policy = (
-            "auto_report_all_exact_shortlist"
-            if not resolved_require_atmospheric else "auto_filter_discovery"
-        )
-    else:
-        resolved_require_atmospheric = bool(require_atmospheric)
-        atmospheric_filter_policy = "explicit"
+    resolved_require_atmospheric = require_atmospheric
+    atmospheric_filter_policy = _atmospheric_filter_policy_name(
+        require_atmospheric,
+    )
     single = len(names) == 1
     try:
         solubility_threshold = max(0.0, float(min_solubility_pct))
@@ -1022,7 +1071,8 @@ def screen_polymer_separation(
     else:
         candidate_limit = 5 if single else 3
     directions, combined, recommendations = [], [], {}
-    screened_conditions = excluded_conditions = 0
+    screened_conditions = 0
+    atmospheric_exclusions = _atmospheric_exclusion_counts()
     common_temperature_counts = (
         {
             temperature: {
@@ -1046,7 +1096,7 @@ def screen_polymer_separation(
             [] if ranking_mode == "absolute_solubility"
             else [polymer for polymer in names if polymer != target]
         )
-        candidates, screened, excluded, complete_candidates = _screen_direction(
+        candidates, screened, exclusions, complete_candidates = _screen_direction(
             target, retained, temperatures, resolved_require_atmospheric, candidate_limit,
             None if constrained_solvents is None else set(constrained_solvents),
             ranking_mode,
@@ -1092,7 +1142,8 @@ def screen_polymer_separation(
                     len(candidates) == len(shared_population)
                 )
         screened_conditions += screened
-        excluded_conditions += excluded
+        for reason, count in exclusions.items():
+            atmospheric_exclusions[reason] += count
         for candidate in candidates:
             candidate["dissolved_polymer"] = target
             candidate["retained_polymers"] = retained
@@ -1281,6 +1332,13 @@ def screen_polymer_separation(
             "Candidates at or above their normal boiling point remain in this thermodynamic "
             "ranking but are not atmospheric liquid-phase conditions."
         )
+    if not resolved_require_atmospheric and any(
+        candidate.get("atmospheric_feasible") is None for candidate in combined
+    ):
+        warnings.append(
+            "Candidates without a recorded normal boiling point remain in this "
+            "thermodynamic ranking; their atmospheric feasibility is unknown."
+        )
     return tool_success(
         tool,
         display=_table(
@@ -1369,7 +1427,7 @@ def screen_polymer_separation(
         best_result_is_marginal=marginal,
         threshold_margin_pct=threshold_margin,
         screened_conditions=screened_conditions,
-        excluded_for_boiling_point=excluded_conditions,
+        **atmospheric_exclusions,
         solvent_catalog_provenance=catalog_provenance,
         warnings=warnings,
         model_basis=thermo.SOLUBILITY_MODEL_BASIS,
@@ -1385,7 +1443,7 @@ def screen_pairwise_solubility_overlap(
     solvents: Optional[list[str]] = None,
     strict_maximum: bool = False,
     temperature_step_c: float = 5.0,
-    require_atmospheric: bool = True,
+    require_atmospheric: Optional[bool] = None,
     top_k: Optional[int] = None,
 ) -> str:
     """Rank all feed pairs by best gap; not a directional X-from-Y process screen.
@@ -1398,6 +1456,8 @@ def screen_pairwise_solubility_overlap(
     ``top_k`` to return every pair.  An explicit value still evaluates every
     pair, then keeps that many of the sorted ranking; the compact may show
     fewer and then sets ``ranked_pairs_truncated`` and ``ranked_pairs_total``.
+    Its tri-state ``require_atmospheric`` policy is inherited unchanged by
+    every underlying directional screen.
     """
     tool = "screen_pairwise_solubility_overlap"
     if not isinstance(feed_polymers, (list, tuple)):
@@ -1414,6 +1474,7 @@ def screen_pairwise_solubility_overlap(
         return tool_error(tool, "At least two polymers are required.", error_code="insufficient_feed_polymers")
 
     ranked: list[dict[str, Any]] = []
+    atmospheric_exclusions = _atmospheric_exclusion_counts()
     scope: dict[str, Any] | None = None
     for index, first in enumerate(names[:-1]):
         for second in names[index + 1:]:
@@ -1428,6 +1489,8 @@ def screen_pairwise_solubility_overlap(
             if data.get("success") is not True or not data.get("recommended_condition"):
                 return tool_error(tool, f"No comparable thermodynamic conditions for {first}/{second}.",
                                   error_code="pair_overlap_screen_failed", failed_pair=[first, second])
+            for reason in atmospheric_exclusions:
+                atmospheric_exclusions[reason] += int(data.get(reason, 0))
             scope = scope or data
             candidate = data["recommended_condition"]
             first_value = float(candidate["target_solubility_pct"])
@@ -1462,7 +1525,8 @@ def screen_pairwise_solubility_overlap(
         temperature_min_c=scope["temperature_min_c"],
         temperature_max_c=scope["temperature_max_c"],
         strict_maximum=bool(strict_maximum), temperature_step_c=float(temperature_step_c),
-        temperature_dependent=True, require_atmospheric=bool(require_atmospheric),
+        temperature_dependent=True, require_atmospheric=require_atmospheric,
+        **atmospheric_exclusions,
         solubility_unit="wt_pct_solution_concentration", gap_unit="percentage_points",
         hansen_parameters_used=False,
         hansen_applicability=("Hansen RED is a temperature-independent polymer-solvent compatibility "
