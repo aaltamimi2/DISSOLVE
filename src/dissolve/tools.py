@@ -41,31 +41,6 @@ def _table(headers: Sequence[str], rows: Sequence[Sequence[object]]) -> str:
     ])
 
 
-def _temperature_error(tool: str, temperature_c: float) -> Optional[str]:
-    try:
-        temperature = float(temperature_c)
-    except (TypeError, ValueError):
-        return tool_error(tool, "Temperature must be numeric.", error_code="invalid_temperature")
-    if not math.isfinite(temperature):
-        return tool_error(tool, "Temperature must be finite.", error_code="non_finite_temperature")
-    if temperature <= -273.15:
-        return tool_error(
-            tool,
-            "Temperature must be above absolute zero.",
-            error_code="temperature_below_absolute_zero",
-            temperature_c=temperature,
-        )
-    if temperature > thermo.SENSITIVITY_EXTRAPOLATION_MAX_C:
-        return tool_error(
-            tool,
-            f"Temperature {temperature:g} C is above the supported 200 C sensitivity limit.",
-            error_code="temperature_above_supported_extrapolation",
-            temperature_c=temperature,
-            max_temperature_c=thermo.SENSITIVITY_EXTRAPOLATION_MAX_C,
-        )
-    return None
-
-
 def _solvent_resolution_detail(solvent_name: str) -> dict[str, Any]:
     """Describe one unresolved model identity without collapsing its cause."""
     identity = thermo.identify_known_solvent(solvent_name)
@@ -80,22 +55,8 @@ def _solvent_resolution_detail(solvent_name: str) -> dict[str, Any]:
 
 
 def _solvent_resolution_error(tool: str, solvent_name: str) -> str:
-    """Keep chemical identity separate from stored-grid availability."""
-    detail = _solvent_resolution_detail(solvent_name)
-    if detail["solvent_identity_status"] == "not_found":
-        message = f"Unknown solvent: {solvent_name!r}."
-    else:
-        message = (
-            f"Known solvent without available solubility grid values: "
-            f"{solvent_name!r}."
-        )
-    return tool_error(
-        tool,
-        message,
-        error_code="unknown_solvent",
-        **detail,
-        available_solvents=sorted(thermo.get_available_solvents()),
-    )
+    """Route one unresolved name through the shared plural refusal."""
+    return _solvent_resolution_errors(tool, (solvent_name,))
 
 
 def _solvent_resolution_errors(tool: str, solvent_names: Sequence[str]) -> str:
@@ -106,36 +67,12 @@ def _solvent_resolution_errors(tool: str, solvent_names: Sequence[str]) -> str:
     return tool_error(
         tool,
         "Unsupported solvent(s): " + ", ".join(unsupported),
-        error_code="unknown_solvent",
+        error_code="unknown_solvents",
         unsupported_solvents=unsupported,
         unsupported_solvent_details=details,
         **single,
-        available_solvents=sorted(thermo.get_available_solvents()),
+        available_count=len(thermo.get_available_solvents()),
     )
-
-
-def _resolve_pair(tool: str, polymer_name: str, solvent_name: str) -> tuple[str, str] | str:
-    polymer = thermo.resolve_polymer(polymer_name)
-    if polymer is None:
-        return tool_error(
-            tool,
-            f"Unknown polymer: {polymer_name!r}.",
-            error_code="unknown_polymer",
-            polymer_name=polymer_name,
-            available_polymers=sorted(thermo.get_available_polymers()),
-        )
-    solvent = thermo.resolve_solvent(solvent_name)
-    if solvent is None:
-        return _solvent_resolution_error(tool, solvent_name)
-    if not thermo.has_solubility_pair(polymer, solvent):
-        return tool_error(
-            tool,
-            f"No retained grid data for {polymer} in {solvent}.",
-            error_code="pair_not_found",
-            polymer_name=polymer,
-            solvent_name=solvent,
-        )
-    return polymer, solvent
 
 
 def _pair_result(
