@@ -29,16 +29,6 @@ _ACTIVE: ContextVar[dict[str, Any] | None] = ContextVar(
 )
 
 
-@contextmanager
-def bind_tool_session(session: dict[str, Any]) -> Iterator[None]:
-    """Expose the session record to tools for one invocation, without a global."""
-    token = _ACTIVE.set(session)
-    try:
-        yield
-    finally:
-        _ACTIVE.reset(token)
-
-
 def current_tool_session() -> dict[str, Any] | None:
     """The session record bound for this invocation, or None outside one."""
     return _ACTIVE.get()
