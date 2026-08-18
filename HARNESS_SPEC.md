@@ -1307,10 +1307,15 @@ check. `normalize_feed_composition` is not on that roster.
 
 ## 10. Acceptance tests
 
-These are the done criterion. `python agent_harness.py "<query>"` prints every
-tool call and result, then an answer. No pytest file is required for
-this pass; if one is wanted later, ask, because that is a fourth
-(fifth) file.
+These are the done criterion. `python agent_harness.py "<query>"` prints a
+compact one-line event per tool call (name, identifying arguments, result
+size) then an answer. It does not dump the tool payload; that stays in the
+turn record, the transcript, and `--stream-json` (D-12; §10 sentence
+amended under D-13). Every rendered fragment is escaped for control
+characters and newlines and truncated to a stated bound; a container
+argument keeps enough identity to distinguish two different calls
+(D-14). No pytest file is required for this pass; if one is wanted
+later, ask, because that is a fourth (fifth) file.
 
 Test 5 is first, as instructed. Test 4 is written as specified.
 `57acf74` already expands `polyethylene` to both members on

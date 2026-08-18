@@ -17,7 +17,7 @@ for _p in (str(_ROOT), str(_ROOT / "src")):
         sys.path.insert(0, _p)
 
 import agent_harness
-from agent_harness import ToolEvent, TurnResult
+from agent_harness import ToolEvent, TurnResult, run_turn
 from dissolve import cli
 from dissolve.cli import CliApp, EXPECTED_REGISTRY_NAMES, doctor_report, main, resolve_model
 from dissolve.session import new_session
@@ -562,7 +562,7 @@ def test_cost_rounds_count_current_group_after_compaction(tmp_path, monkeypatch)
     assert "0 tool round" not in out
 
 
-def test_oneshot_resolves_through_cli_table(monkeypatch):
+def test_oneshot_resolves_through_cli_table(monkeypatch, tmp_path):
     seen = {}
 
     def fake_run_turn(query, **kwargs):
@@ -570,13 +570,68 @@ def test_oneshot_resolves_through_cli_table(monkeypatch):
         seen["query"] = query
         return TurnResult("ok", "ok", [], "turn-1")
 
+    monkeypatch.setenv("META_MUSE_API_KEY", "test-key")
+    monkeypatch.setenv("DISSOLVE_HOME", str(tmp_path))
     monkeypatch.setattr(sys, "argv", ["agent_harness.py", "hello"])
-    monkeypatch.setattr(agent_harness, "run_turn", fake_run_turn)
-    agent_harness._main()
+    monkeypatch.setattr(cli, "run_turn", fake_run_turn)
+    with pytest.raises(SystemExit) as exc:
+        agent_harness._main()
+    assert exc.value.code == 0
     assert seen["query"] == "hello"
     assert seen["model"] == "openai:muse-spark-1.2"
     assert seen["api_base"] == "https://api.meta.ai/v1"
     assert seen["api_key_env"] == "META_MUSE_API_KEY"
+
+
+def test_positional_oneshot_persists_exact_tool_result(tmp_path, monkeypatch, capsys):
+    home = tmp_path / "dissolve-home"
+    monkeypatch.setenv("META_MUSE_API_KEY", "test-key")
+    monkeypatch.setenv("DISSOLVE_HOME", str(home))
+    monkeypatch.setattr(sys, "argv", ["agent_harness.py", "what is the safety of dodecane?"])
+    monkeypatch.setattr(
+        agent_harness, "complete",
+        _complete_one_tool(
+            "get_solvent_safety_card",
+            {"solvent_name": "dodecane", "include_pubchem": False},
+        ),
+    )
+    try:
+        agent_harness._main()
+    except SystemExit as exc:
+        assert exc.code == 0
+    sessions = list(home.glob("sessions/*/session.json"))
+    transcripts = list(home.glob("sessions/*/transcript.jsonl"))
+    assert sessions and transcripts
+    session_text = sessions[0].read_text(encoding="utf-8")
+    transcript_text = transcripts[0].read_text(encoding="utf-8")
+    assert "physical_properties" in session_text
+    assert "112-40-3" in session_text
+    assert "physical_properties" in transcript_text
+    assert "112-40-3" in transcript_text
+    shown = capsys.readouterr().out
+    assert "physical_properties" not in shown
+    assert "112-40-3" not in shown
+    assert "tool  get_solvent_safety_card" in shown
+    assert "status=ok" in shown
+    assert "Advanced Recycling Agent" not in shown
+
+
+def test_positional_oneshot_missing_key_is_provider_error(tmp_path, monkeypatch, capsys):
+    monkeypatch.delenv("META_MUSE_API_KEY", raising=False)
+    monkeypatch.setenv("DISSOLVE_HOME", str(tmp_path / "home"))
+    monkeypatch.setattr(sys, "argv", ["agent_harness.py", "hello"])
+    try:
+        agent_harness._main()
+    except SystemExit:
+        pass
+    except RuntimeError as exc:
+        pytest.fail(f"RuntimeError escaped the positional entrypoint: {exc}")
+    out, err = capsys.readouterr()
+    assert "Traceback" not in err
+    assert "RuntimeError" not in err
+    assert "missing environment variable META_MUSE_API_KEY" in out
+    assert "status=provider_error" in out
+    assert "Traceback" not in out
 
 
 def test_usage_is_display_only_except_the_cost_line(tmp_path, monkeypatch):
@@ -638,3 +693,234 @@ def test_usage_is_display_only_except_the_cost_line(tmp_path, monkeypatch):
     assert '"total_tokens": 0' in cost_lines[1]
     assert '"total_tokens": 18' in cost_lines[2]
     assert "No model usage in this process yet" not in "".join(cost_lines)
+
+
+_SAFETY_PAYLOAD = {
+    "identity": {"name": "dodecane"},
+    "physical_properties": {"bp_c": 216},
+    "gscore": 4.1,
+    "ghs": {"pictograms": ["flame"]},
+    "toxicity": {"ld50": "none"},
+    "occupational_exposure_limits": {"twa": "none"},
+    "peroxide_risk": {"class": "none"},
+    "process_temperature_assessment": {"ok": True},
+    "data_gaps": [],
+    "provenance": {"source_basis": "safety_local"},
+}
+
+
+def _safety_turn(query, *, session, model, messages, on_event, api_base, api_key_env):
+    if messages is not None:
+        messages.append({"role": "user", "content": query})
+        messages.append({"role": "assistant", "content": "dodecane is a hydrocarbon."})
+    ev = ToolEvent(
+        "get_solvent_safety_card",
+        {"solvent_name": "dodecane", "include_pubchem": False},
+        _SAFETY_PAYLOAD,
+    )
+    if on_event:
+        on_event(ev)
+    return TurnResult(
+        "dodecane is a hydrocarbon.", "ok", [ev], "turn-1", 1, None,
+    )
+
+
+def test_tool_event_print_is_one_line_without_payload(tmp_path, monkeypatch):
+    monkeypatch.setattr(cli, "run_turn", _safety_turn)
+    app, buf = _app(tmp_path, monkeypatch)
+    result = app.ask("what is the safety of dodecane?")
+    shown = buf.getvalue()
+    blob = json.dumps(_SAFETY_PAYLOAD, ensure_ascii=False)
+    size = len(blob.encode("utf-8"))
+    summary = cli._tool_event_summary(result.tool_trace[0])
+    assert summary in shown
+    assert "get_solvent_safety_card(solvent_name=dodecane, include_pubchem=False" in summary
+    assert f"-> {size} B" in summary
+    tool_lines = [ln for ln in shown.splitlines() if "get_solvent_safety_card" in ln]
+    assert len(tool_lines) == 1
+    assert "\n" not in summary
+    assert shown.count("get_solvent_safety_card") == 1
+    for key in (
+        "physical_properties", "gscore", "occupational_exposure_limits",
+        "peroxide_risk", "process_temperature_assessment", "data_gaps",
+    ):
+        assert key not in shown
+    assert result.tool_trace[0].result == _SAFETY_PAYLOAD
+    rows = [
+        json.loads(line)
+        for line in app.store.transcript_path.read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+    tool_row = next(row for row in rows if row.get("role") == "tool")
+    assert json.loads(tool_row["content"]) == _SAFETY_PAYLOAD
+
+
+def test_stream_json_emits_complete_tool_result(tmp_path, monkeypatch):
+    monkeypatch.setattr(cli, "run_turn", _safety_turn)
+    events = []
+    console, buf = _console()
+    monkeypatch.setenv("META_MUSE_API_KEY", "test-key")
+    app = CliApp(
+        session_id="stream-json",
+        store_root=tmp_path,
+        console=console,
+        persist=False,
+        event_sink=events.append,
+        quiet=True,
+    )
+    app.ask("what is the safety of dodecane?")
+    shown = buf.getvalue()
+    tool_events = [ev for ev in events if ev.get("event") == "tool"]
+    assert len(tool_events) == 1
+    assert tool_events[0]["name"] == "get_solvent_safety_card"
+    assert tool_events[0]["result"] == _SAFETY_PAYLOAD
+    assert tool_events[0]["result"]["gscore"] == 4.1
+    assert "gscore" not in shown
+    assert "physical_properties" not in shown
+    assert "get_solvent_safety_card" not in shown
+
+
+def test_tool_event_line_escapes_multiline_query(tmp_path, monkeypatch):
+    event = ToolEvent(
+        "search_scholarly_literature",
+        {"query": "alpha\nRAW SECOND LINE"},
+        {"hits": 0},
+    )
+
+    def fake_turn(query, *, session, model, messages, on_event, api_base, api_key_env):
+        if messages is not None:
+            messages.append({"role": "user", "content": query})
+            messages.append({"role": "assistant", "content": "none"})
+        if on_event:
+            on_event(event)
+        return TurnResult("none", "ok", [event], "turn-1", 1, None)
+
+    monkeypatch.setattr(cli, "run_turn", fake_turn)
+    app, buf = _app(tmp_path, monkeypatch)
+    app.ask("literature")
+    summary = cli._tool_event_summary(event)
+    shown = buf.getvalue()
+    assert "\n" not in summary
+    assert "\\n" in summary
+    assert "RAW SECOND LINE" not in shown.splitlines()
+    assert sum(1 for ln in shown.splitlines() if "search_scholarly_literature" in ln) == 1
+
+
+def test_tool_event_line_bounds_long_string():
+    event = ToolEvent(
+        "search_scholarly_literature",
+        {"query": "Q" * 5000},
+        {"hits": 0},
+    )
+    summary = cli._tool_event_summary(event)
+    assert "\n" not in summary
+    assert len(summary) <= 48 + 160 + 80
+    assert ("Q" * 5000) not in summary
+    assert summary.count("Q") <= cli._ARG_ITEM_MAX
+
+
+def test_tool_event_line_keeps_container_identity():
+    result = {"ok": True}
+    left = cli._tool_event_summary(ToolEvent(
+        "screen_hansen_compatibility",
+        {"polymer_names": ["LDPE"], "solvent_names": ["dodecane", "xylene"]},
+        result,
+    ))
+    right = cli._tool_event_summary(ToolEvent(
+        "screen_hansen_compatibility",
+        {"polymer_names": ["HDPE"], "solvent_names": ["hexane", "toluene"]},
+        result,
+    ))
+    assert left != right
+    assert "LDPE" in left and "HDPE" in right
+    assert "dodecane" in left and "hexane" in right
+    assert "<1>" not in left and "<2>" not in left
+
+
+def _complete_one_tool(name, args):
+    def fake_complete(messages, tools, **kwargs):
+        if any(m.get("role") == "tool" for m in messages):
+            return {"text": "done", "tool_calls": []}
+        return {
+            "text": "",
+            "tool_calls": [{"id": "c1", "name": name, "args": args}],
+        }
+    return fake_complete
+
+
+def _run_one_tool(monkeypatch, name, args):
+    monkeypatch.setattr(agent_harness, "complete", _complete_one_tool(name, args))
+    events = []
+    result = run_turn(
+        "q", session=new_session(), model="openai:x", on_event=events.append,
+    )
+    return result, events
+
+
+def _summary_args_body(summary: str) -> str:
+    inner = summary.split("(", 1)[1].rsplit(") -> ", 1)[0]
+    return re.sub(r" #[0-9a-f]+$", "", inner)
+
+
+def test_tool_event_line_escapes_name_via_unknown_tool_refusal(monkeypatch):
+    result, events = _run_one_tool(monkeypatch, "unknown\nTOOL", {})
+    assert events and events[0].result.get("refusal") == "unknown_tool"
+    assert result.tool_trace[0].result.get("refusal") == "unknown_tool"
+    summary = cli._tool_event_summary(events[0])
+    assert "\n" not in summary
+    assert "\\n" in summary
+    assert "unknown\\nTOOL" in summary
+
+
+def test_tool_event_line_escapes_key_via_tool_exception_refusal(monkeypatch):
+    result, events = _run_one_tool(
+        monkeypatch, "solubility_query", {"bad\nKEY": "x"},
+    )
+    assert events and events[0].result.get("refusal") == "tool_exception"
+    assert result.tool_trace[0].name == "solubility_query"
+    summary = cli._tool_event_summary(events[0])
+    assert "\n" not in summary
+    assert "\\n" in summary
+    assert "bad\\nKEY" in summary
+
+
+def test_tool_event_line_bounds_unknown_tool_name_via_run_turn(monkeypatch):
+    name = "U" * 5000
+    result, events = _run_one_tool(monkeypatch, name, {})
+    assert events and events[0].result.get("refusal") == "unknown_tool"
+    summary = cli._tool_event_summary(events[0])
+    assert "\n" not in summary
+    assert len(summary) <= 48 + 160 + 80
+    assert name not in summary
+    assert summary.count("U") <= cli._ARG_ITEM_MAX
+    assert result.tool_trace[0].name == name
+
+
+def test_tool_event_line_distinguishes_unsampled_container_tail():
+    result = {"ok": True}
+    left = cli._tool_event_summary(ToolEvent(
+        "screen_hansen_compatibility",
+        {"polymer_names": ["LDPE"], "solvent_names": ["dodecane", "xylene", "hexane"]},
+        result,
+    ))
+    right = cli._tool_event_summary(ToolEvent(
+        "screen_hansen_compatibility",
+        {"polymer_names": ["LDPE"], "solvent_names": ["dodecane", "xylene", "toluene"]},
+        result,
+    ))
+    assert _summary_args_body(left) == _summary_args_body(right)
+    assert "hexane" not in left and "toluene" not in right
+    assert left != right
+    fps = re.findall(
+        rf"(?<=#)[0-9a-f]{{{cli._FP_HEX}}}", left + " " + right,
+    )
+    assert len(set(fps)) == 2
+
+
+def test_tool_event_line_distinguishes_args_past_global_truncation():
+    padding = {f"arg{i:02d}": "xxxx" for i in range(30)}
+    left = cli._tool_event_summary(ToolEvent("probe", {**padding, "zz": "one"}, {}))
+    right = cli._tool_event_summary(ToolEvent("probe", {**padding, "zz": "two"}, {}))
+    assert _summary_args_body(left) == _summary_args_body(right)
+    assert "zz=" not in _summary_args_body(left)
+    assert left != right

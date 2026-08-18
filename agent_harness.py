@@ -244,20 +244,20 @@ def run_turn(
 
 def _main() -> None:
     import argparse
-    from dissolve.session import new_session
-    from dissolve.cli import DEFAULT_MODEL, main, resolve_model
+    from dissolve.cli import DEFAULT_MODEL, CliApp, main, _tool_event_summary
     if len(sys.argv) < 2 or sys.argv[1].startswith("-"):
         raise SystemExit(main())
     p = argparse.ArgumentParser()
     p.add_argument("query")
     p.add_argument("--model", default=DEFAULT_MODEL)
     ns = p.parse_args()
-    _, spec = resolve_model(ns.model)
-    def _print(ev: ToolEvent) -> None:
-        print(f"tool {ev.name} {ev.args}"); print(ev.result)
-    result = run_turn(ns.query, session=new_session(), model=spec.model,
-                      on_event=_print, api_base=spec.base_url, api_key_env=spec.env_var)
-    print(result.answer); print(f"status={result.status}")
+    app = CliApp(model_alias=ns.model, persist=True, quiet=True, require_key=False)
+    result = app.ask(ns.query)
+    for ev in result.tool_trace:
+        print(f"tool  {_tool_event_summary(ev)}")
+    print(result.answer)
+    print(f"status={result.status}")
+    raise SystemExit(0 if result.status == "ok" else 1)
 
 if __name__ == "__main__":
     _main()

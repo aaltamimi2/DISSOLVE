@@ -30,6 +30,7 @@ from rich.markdown import Markdown
 from rich.panel import Panel
 from rich.prompt import Prompt
 from rich.table import Table
+from rich.text import Text
 
 from agent_harness import ToolEvent, TurnResult, run_turn
 from agent_tools import SYSTEM_PROMPT
@@ -348,6 +349,83 @@ class _Store:
             handle.write(json.dumps(event, ensure_ascii=False) + "\n")
 
 
+_ARG_ITEM_MAX = 48
+_CONTAINER_SAMPLE = 2
+_ARGS_MAX = 160
+_FP_HEX = 12
+
+
+def _canonical_json(value: Any) -> str:
+    try:
+        payload = normalize_json(value)
+    except TypeError:
+        payload = str(value)
+    return json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+
+
+def _args_fingerprint(args: Any) -> str:
+    blob = _canonical_json(args if args is not None else {})
+    return hashlib.sha256(blob.encode("utf-8")).hexdigest()[:_FP_HEX]
+
+
+def _render_scalar(value: Any, limit: int = _ARG_ITEM_MAX) -> str:
+    if isinstance(value, bool) or value is None or isinstance(value, (int, float)):
+        text = str(value)
+        return text if len(text) <= limit else text[: limit - 1] + "…"
+    text = value if isinstance(value, str) else str(value)
+    escaped = (
+        text.replace("\\", "\\\\")
+        .replace("\n", "\\n")
+        .replace("\r", "\\r")
+        .replace("\t", "\\t")
+    )
+    escaped = "".join(
+        ch if ch.isprintable() else f"\\x{ord(ch):02x}" for ch in escaped
+    )
+    if len(escaped) > limit:
+        escaped = escaped[: limit - 1] + "…"
+    return escaped
+
+
+def _render_value(value: Any, *, depth: int = 0) -> str:
+    if isinstance(value, (list, tuple)):
+        if depth >= 2:
+            return f"<{len(value)}>"
+        bits = [_render_value(item, depth=depth + 1) for item in value[:_CONTAINER_SAMPLE]]
+        extra = len(value) - _CONTAINER_SAMPLE
+        if extra > 0:
+            bits.append(f"…+{extra}")
+        return "[" + ", ".join(bits) + "]"
+    if isinstance(value, dict):
+        if depth >= 2:
+            return f"<{len(value)}>"
+        items = list(value.items())[:_CONTAINER_SAMPLE]
+        bits = [
+            f"{_render_scalar(key, 24)}:{_render_value(item, depth=depth + 1)}"
+            for key, item in items
+        ]
+        extra = len(value) - _CONTAINER_SAMPLE
+        if extra > 0:
+            bits.append(f"…+{extra}")
+        return "{" + ", ".join(bits) + "}"
+    return _render_scalar(value)
+
+
+def _tool_arg_fragment(key: str, value: Any) -> str:
+    return f"{_render_scalar(key)}={_render_value(value)}"
+
+
+def _tool_event_summary(event: ToolEvent) -> str:
+    name = _render_scalar(event.name)
+    args = ", ".join(_tool_arg_fragment(k, v) for k, v in (event.args or {}).items())
+    if len(args) > _ARGS_MAX:
+        args = args[: _ARGS_MAX - 1] + "…"
+    fingerprint = _args_fingerprint(event.args or {})
+    inner = f"{args} #{fingerprint}" if args else f"#{fingerprint}"
+    blob = json.dumps(event.result, ensure_ascii=False, default=str)
+    return f"{name}({inner}) -> {len(blob.encode('utf-8'))} B"
+
+
 class CliApp:
     def __init__(
         self,
@@ -492,8 +570,10 @@ class CliApp:
         self._append("tool", json.dumps(event.result), name=event.name, args=event.args)
         self._emit({"event": "tool", "name": event.name, "args": event.args, "result": event.result})
         if not self.quiet:
-            self.console.print(f"[cyan]tool[/] {event.name} {event.args}")
-            self.console.print(event.result)
+            line = Text(no_wrap=True)
+            line.append("tool", style="cyan")
+            line.append(f"  {_tool_event_summary(event)}")
+            self.console.print(line, soft_wrap=True)
 
     def handle_command(self, line: str) -> bool:
         parts = line.strip().split()
