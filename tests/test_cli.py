@@ -602,13 +602,18 @@ def test_positional_oneshot_persists_exact_tool_result(tmp_path, monkeypatch, ca
     sessions = list(home.glob("sessions/*/session.json"))
     transcripts = list(home.glob("sessions/*/transcript.jsonl"))
     assert sessions and transcripts
-    durable = sessions[0].read_text(encoding="utf-8") + transcripts[0].read_text(encoding="utf-8")
-    assert "physical_properties" in durable
-    assert "112-40-3" in durable
+    session_text = sessions[0].read_text(encoding="utf-8")
+    transcript_text = transcripts[0].read_text(encoding="utf-8")
+    assert "physical_properties" in session_text
+    assert "112-40-3" in session_text
+    assert "physical_properties" in transcript_text
+    assert "112-40-3" in transcript_text
     shown = capsys.readouterr().out
     assert "physical_properties" not in shown
     assert "112-40-3" not in shown
-    assert "get_solvent_safety_card" in shown
+    assert "tool  get_solvent_safety_card" in shown
+    assert "status=ok" in shown
+    assert "Advanced Recycling Agent" not in shown
 
 
 def test_usage_is_display_only_except_the_cost_line(tmp_path, monkeypatch):

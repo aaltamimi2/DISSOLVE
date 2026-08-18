@@ -243,11 +243,21 @@ def run_turn(
         )
 
 def _main() -> None:
-    from dissolve.cli import main
-    argv = sys.argv[1:]
-    if argv and not argv[0].startswith("-") and argv[0] != "doctor":
-        argv = ["--once", argv[0], *argv[1:]]
-    raise SystemExit(main(argv))
+    import argparse
+    from dissolve.cli import DEFAULT_MODEL, CliApp, main, _tool_event_summary
+    if len(sys.argv) < 2 or sys.argv[1].startswith("-"):
+        raise SystemExit(main())
+    p = argparse.ArgumentParser()
+    p.add_argument("query")
+    p.add_argument("--model", default=DEFAULT_MODEL)
+    ns = p.parse_args()
+    app = CliApp(model_alias=ns.model, persist=True, quiet=True)
+    result = app.ask(ns.query)
+    for ev in result.tool_trace:
+        print(f"tool  {_tool_event_summary(ev)}")
+    print(result.answer)
+    print(f"status={result.status}")
+    raise SystemExit(0 if result.status == "ok" else 1)
 
 if __name__ == "__main__":
     _main()
