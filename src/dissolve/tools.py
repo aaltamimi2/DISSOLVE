@@ -3,9 +3,13 @@
 from __future__ import annotations
 
 from collections import Counter
+from functools import lru_cache
+from importlib.resources import files
 import math
+from pathlib import Path
 from typing import Annotated, Any, Callable, Literal, Optional, Sequence
 
+import duckdb
 from langchain_core.tools import InjectedToolArg
 
 from . import thermodynamics as thermo
@@ -14,6 +18,7 @@ from .contracts import parse_tool_result, tool_error, tool_success
 _STRONG_OVERLAP_RATIO = 0.70
 MATERIAL_UNDER_COVERAGE_RATIO = 0.90
 _TOOL = "solubility_query"
+_HANSEN_ASSET = Path(str(files("dissolve").joinpath("data/hansen.duckdb")))
 _ORDER_FIELDS = {
     "solubility": "solubility_pct",
     "boiling_point_margin": "boiling_point_margin_c",
@@ -359,6 +364,73 @@ def _fetch_grid_rows(
     ).fetchall()
 
 
+def _fetch_red_source_rows(
+    polymers: Sequence[str],
+    solvents: Sequence[str],
+) -> tuple[list[tuple[Any, ...]], dict[str, int]]:
+    """Return every admitted HSP source-row pair without collapsing grades."""
+    polymer_slots = ", ".join("?" for _ in polymers)
+    solvent_slots = ", ".join("?" for _ in solvents)
+    connection = duckdb.connect(str(_HANSEN_ASSET), read_only=True)
+    try:
+        rows = connection.execute(
+            "SELECT pm.thermo_polymer, sm.grid_solvent, "
+            "rg.hsp_polymer_row_id, rg.hsp_solvent_row_id, "
+            "rg.hsp_polymer_name, rg.hsp_solvent_name, "
+            "pm.route, sm.route, rg.red, rg.ra "
+            "FROM red_grid rg "
+            "JOIN polymer_identity_map pm "
+            "ON pm.hsp_row_id = rg.hsp_polymer_row_id "
+            "JOIN solvent_identity_map sm "
+            "ON sm.hsp_name = rg.hsp_solvent_name "
+            f"WHERE pm.thermo_polymer IN ({polymer_slots}) "
+            f"AND sm.grid_solvent IN ({solvent_slots}) "
+            "ORDER BY pm.thermo_polymer, sm.grid_solvent, "
+            "rg.hsp_polymer_row_id, rg.hsp_solvent_row_id",
+            [*polymers, *solvents],
+        ).fetchall()
+        polymer_map_rows, polymer_targets = connection.execute(
+            "SELECT count(*), count(DISTINCT thermo_polymer) "
+            "FROM polymer_identity_map"
+        ).fetchone()
+        solvent_map_names, solvent_targets = connection.execute(
+            "SELECT count(*), count(DISTINCT grid_solvent) "
+            "FROM solvent_identity_map"
+        ).fetchone()
+        matched_solvent_source_rows = connection.execute(
+            "SELECT count(DISTINCT rg.hsp_solvent_row_id) "
+            "FROM red_grid rg JOIN solvent_identity_map sm "
+            "ON sm.hsp_name = rg.hsp_solvent_name"
+        ).fetchone()[0]
+    finally:
+        connection.close()
+    return rows, {
+        "matched_hsp_polymer_source_row_count": int(polymer_map_rows),
+        "total_hsp_polymer_source_row_count": 466,
+        "thermodynamic_polymer_with_hsp_count": int(polymer_targets),
+        "matched_hsp_solvent_source_row_count": int(matched_solvent_source_rows),
+        "total_hsp_solvent_source_row_count": 1_180,
+        "matched_hsp_solvent_name_count": int(solvent_map_names),
+        "total_unique_hsp_solvent_name_count": 1_149,
+        "grid_solvent_with_hsp_count": int(solvent_targets),
+    }
+
+
+@lru_cache(maxsize=1)
+def _hsp_interaction_radii() -> dict[int, float]:
+    """Read R0 from its existing component-record home, never the RED asset."""
+    # Imported lazily because analysis uses the shared ambiguity helper from
+    # this module. At tool-call time both engines are fully initialized.
+    from .analysis import asset_payload
+
+    records = asset_payload()["hsp"]["polymer_source_records"]
+    return {
+        int(record["source_record_id"]): float(record["interaction_radius"])
+        for record in records
+        if record.get("interaction_radius") is not None
+    }
+
+
 def _sort_rows(rows: list[dict[str, Any]], field: str, descending: bool) -> None:
     """Sort null primary values last and use cell identity as a stable tie-break."""
     def key(row: dict[str, Any]) -> tuple[object, ...]:
@@ -372,6 +444,8 @@ def _sort_rows(rows: list[dict[str, Any]], field: str, descending: bool) -> None
             row["polymer"],
             row["solvent"],
             float(row["temperature_c"]),
+            int(row.get("hsp_polymer_row_id", -1)),
+            int(row.get("hsp_solvent_row_id", -1)),
         )
 
     rows.sort(key=key)
@@ -384,6 +458,21 @@ def _display(rows: Sequence[dict[str, Any]]) -> str:
     def value(item: object) -> str:
         return "—" if item is None else f"{float(item):.6g}"
 
+    if "red" in rows[0]:
+        return _table(
+            ("Polymer", "HSP polymer", "HSP row", "Solvent", "HSP solvent row",
+             "T (C)", "Solubility (wt%)", "RED", "Ra", "R0"),
+            tuple(
+                (
+                    row["polymer"], row["hsp_polymer_name"],
+                    row["hsp_polymer_row_id"], row["solvent_name"],
+                    row["hsp_solvent_row_id"], value(row["temperature_c"]),
+                    value(row["solubility_pct"]), value(row["red"]),
+                    value(row["ra"]), value(row["r0"]),
+                )
+                for row in rows
+            ),
+        )
     return _table(
         ("Polymer", "Solvent", "T (C)", "Solubility (wt%)", "BP (C)",
          "BP margin (C)", "GHS", "Clipped"),
@@ -405,6 +494,8 @@ def solubility_query(
     temperatures: list[float] | None = None,
     min_solubility_pct: float | None = None,
     max_solubility_pct: float | None = None,
+    min_red: float | None = None,
+    max_red: float | None = None,
     require_atmospheric: bool = False,
     min_boiling_point_margin_c: float | None = None,
     order_by: str = "solubility",
@@ -412,10 +503,18 @@ def solubility_query(
     top_k: int = 50,
     offset: int = 0,
 ) -> str:
-    """Query measured solubility cells across any combination of grid axes."""
+    """Query measured solubility cells across any combination of grid axes.
+
+    Supplying ``min_red`` or ``max_red`` activates the Hansen join. Each
+    qualifying HSP source-record pair is published separately; omitting both
+    bounds leaves the thermodynamic response unchanged.
+    """
     try:
         minimum = _finite_optional(min_solubility_pct, "min_solubility_pct")
         maximum = _finite_optional(max_solubility_pct, "max_solubility_pct")
+        minimum_red = _finite_optional(min_red, "min_red")
+        maximum_red = _finite_optional(max_red, "max_red")
+        red_active = minimum_red is not None or maximum_red is not None
         minimum_margin = _finite_optional(
             min_boiling_point_margin_c, "min_boiling_point_margin_c",
         )
@@ -424,6 +523,16 @@ def solubility_query(
                 "invalid_solubility_range",
                 "min_solubility_pct cannot exceed max_solubility_pct.",
                 min_solubility_pct=minimum, max_solubility_pct=maximum,
+            )
+        if (
+            minimum_red is not None
+            and maximum_red is not None
+            and minimum_red > maximum_red
+        ):
+            raise _InputError(
+                "invalid_red_range",
+                "min_red cannot exceed max_red.",
+                min_red=minimum_red, max_red=maximum_red,
             )
         if not isinstance(require_atmospheric, bool):
             raise _InputError(
@@ -531,6 +640,51 @@ def solubility_query(
             "source_table": str(source_table),
         })
 
+    red_by_pair: dict[tuple[str, str], list[dict[str, Any]]] = {}
+    hsp_catalog_coverage: dict[str, int] = {}
+    if red_active:
+        interaction_radii = _hsp_interaction_radii()
+        red_source_rows, hsp_catalog_coverage = _fetch_red_source_rows(
+            selected_polymers, selected_solvents,
+        )
+        for (
+            polymer, solvent, hsp_polymer_row_id, hsp_solvent_row_id,
+            hsp_polymer_name, hsp_solvent_name, polymer_route, solvent_route,
+            red, ra,
+        ) in red_source_rows:
+            polymer_source_id = int(hsp_polymer_row_id)
+            if polymer_source_id not in interaction_radii:
+                raise RuntimeError(
+                    f"HSP polymer row {polymer_source_id} has no interaction radius"
+                )
+            red_by_pair.setdefault((str(polymer), str(solvent)), []).append({
+                "red": float(red),
+                "ra": float(ra),
+                "r0": interaction_radii[polymer_source_id],
+                "hsp_source_id": {
+                    "polymer_row_id": polymer_source_id,
+                    "solvent_row_id": int(hsp_solvent_row_id),
+                },
+                "hsp_polymer_row_id": polymer_source_id,
+                "hsp_solvent_row_id": int(hsp_solvent_row_id),
+                "hsp_polymer_name": str(hsp_polymer_name),
+                "hsp_solvent_name": str(hsp_solvent_name),
+                "hsp_polymer_identity_route": str(polymer_route),
+                "hsp_solvent_identity_route": str(solvent_route),
+            })
+
+    qualifying_red_by_pair: dict[tuple[str, str], list[dict[str, Any]]] = {}
+    if red_active:
+        for pair, candidates in red_by_pair.items():
+            qualifying_red_by_pair[pair] = [
+                candidate for candidate in candidates
+                if (
+                    minimum_red is None or candidate["red"] >= minimum_red
+                ) and (
+                    maximum_red is None or candidate["red"] <= maximum_red
+                )
+            ]
+
     exclusion_counts = {
         "below_min_solubility_pct": 0,
         "above_max_solubility_pct": 0,
@@ -540,7 +694,15 @@ def solubility_query(
         "unknown_boiling_point_for_margin_requirement": 0,
         "failed_any_constraint": 0,
     }
+    if red_active:
+        exclusion_counts.update({
+            "thermodynamic_cells_without_red": 0,
+            "thermodynamic_cells_without_qualifying_red_source_record": 0,
+            "red_source_record_pairs_below_min_red": 0,
+            "red_source_record_pairs_above_max_red": 0,
+        })
     qualified: list[dict[str, Any]] = []
+    qualified_thermodynamic_cell_count = 0
     for row in evaluable_rows:
         failed = False
         if minimum is not None and row["solubility_pct"] < minimum:
@@ -566,13 +728,47 @@ def solubility_query(
                     "unknown_boiling_point_for_margin_requirement"
                 ] += 1
             failed = True
+        red_candidates: list[dict[str, Any]] = []
+        qualifying_red_candidates: list[dict[str, Any]] = []
+        if red_active:
+            pair = (row["polymer"], row["solvent"])
+            red_candidates = red_by_pair.get(pair, [])
+            qualifying_red_candidates = qualifying_red_by_pair.get(pair, [])
+            if not red_candidates:
+                exclusion_counts["thermodynamic_cells_without_red"] += 1
+                failed = True
+            elif not qualifying_red_candidates:
+                exclusion_counts[
+                    "thermodynamic_cells_without_qualifying_red_source_record"
+                ] += 1
+                failed = True
+            if minimum_red is not None:
+                exclusion_counts["red_source_record_pairs_below_min_red"] += sum(
+                    candidate["red"] < minimum_red for candidate in red_candidates
+                )
+            if maximum_red is not None:
+                exclusion_counts["red_source_record_pairs_above_max_red"] += sum(
+                    candidate["red"] > maximum_red for candidate in red_candidates
+                )
         if failed:
             exclusion_counts["failed_any_constraint"] += 1
+        elif red_active:
+            qualified_thermodynamic_cell_count += 1
+            qualified.extend(
+                {**row, **candidate} for candidate in qualifying_red_candidates
+            )
         else:
             qualified.append(row)
 
     total = len(qualified)
-    assert total + exclusion_counts["failed_any_constraint"] == len(evaluable_rows)
+    if red_active:
+        assert (
+            qualified_thermodynamic_cell_count
+            + exclusion_counts["failed_any_constraint"]
+            == len(evaluable_rows)
+        )
+    else:
+        assert total + exclusion_counts["failed_any_constraint"] == len(evaluable_rows)
     _sort_rows(qualified, _ORDER_FIELDS[ordering], descending)
     page = qualified[start:start + limit]
     returned = len(page)
@@ -583,6 +779,87 @@ def solubility_query(
     measurement_rejected_count = sum(rejected_measurements.values())
     unavailable_cell_count = missing_cell_count + measurement_rejected_count
     assert selected_cell_count == len(evaluable_rows) + unavailable_cell_count
+
+    constraints = {
+        "min_solubility_pct": minimum,
+        "max_solubility_pct": maximum,
+        "require_atmospheric": require_atmospheric,
+        "min_boiling_point_margin_c": minimum_margin,
+    }
+    red_response: dict[str, Any] = {}
+    if red_active:
+        constraints.update({"min_red": minimum_red, "max_red": maximum_red})
+        solubility_pairs = {
+            (row["polymer"], row["solvent"]) for row in evaluable_rows
+        }
+        solubility_solvents = {solvent for _, solvent in solubility_pairs}
+        red_pairs = set(red_by_pair)
+        red_solvents = {solvent for _, solvent in red_pairs}
+        both_pairs = solubility_pairs & red_pairs
+        both_solvents = {solvent for _, solvent in both_pairs}
+        qualifying_red_pairs = {
+            pair for pair, candidates in qualifying_red_by_pair.items() if candidates
+        }
+        qualifying_both_pairs = solubility_pairs & qualifying_red_pairs
+        qualifying_both_solvents = {
+            solvent for _, solvent in qualifying_both_pairs
+        }
+        result_solvents = {row["solvent"] for row in qualified}
+        red_response = {
+            "result_grain": "thermodynamic_cell_x_hsp_source_record_pair",
+            "red_constraint_semantics": {
+                "quantifier": "per_hsp_source_record",
+                "bounds_are_inclusive": True,
+                "distinct_solvent_inclusion_rule": (
+                    "at_least_one_published_hsp_source_record_pair_satisfies_bounds"
+                ),
+                "scope_warning": (
+                    "A qualifying solvent does not imply that every mapped HSP grade "
+                    "satisfies the RED bounds."
+                ),
+            },
+            "red_join_coverage": {
+                "requested_solvent_count": len(selected_solvents),
+                "solvents_with_red_count": len(red_solvents),
+                "solvents_with_solubility_count": len(solubility_solvents),
+                "solvents_with_both_count": len(both_solvents),
+                "solvents_with_qualifying_red_and_solubility_count": len(
+                    qualifying_both_solvents
+                ),
+                "requested_polymer_count": len(selected_polymers),
+                "polymers_with_red_count": len({polymer for polymer, _ in red_pairs}),
+                "requested_polymer_solvent_pair_count": (
+                    len(selected_polymers) * len(selected_solvents)
+                ),
+                "pairs_with_red_count": len(red_pairs),
+                "pairs_with_solubility_count": len(solubility_pairs),
+                "pairs_with_both_count": len(both_pairs),
+            },
+            "hsp_catalog_coverage": {
+                **hsp_catalog_coverage,
+                "thermodynamic_polymer_count": len(polymer_universe),
+                "grid_solvent_count": len(solvent_universe),
+            },
+            "qualified_thermodynamic_cell_count": qualified_thermodynamic_cell_count,
+            "qualifying_joined_row_count": total,
+            "distinct_qualifying_solvent_count": len(result_solvents),
+            "red_unmatched_row_policy": "excluded_with_explicit_coverage_and_reason_counts",
+            "red_unmatched_reason": "no_reviewed_hsp_identity_match",
+            "hsp_units": {"red": "dimensionless", "ra": "MPa^0.5", "r0": "MPa^0.5"},
+            "red_temperature_dependent": False,
+            "red_evidence_class": "qualitative_hansen_compatibility",
+            "exclusion_count_grains": {
+                "thermodynamic_cells": [
+                    "thermodynamic_cells_without_red",
+                    "thermodynamic_cells_without_qualifying_red_source_record",
+                    "failed_any_constraint",
+                ],
+                "hsp_source_record_pairs": [
+                    "red_source_record_pairs_below_min_red",
+                    "red_source_record_pairs_above_max_red",
+                ],
+            },
+        }
 
     return tool_success(
         _TOOL,
@@ -596,12 +873,7 @@ def solubility_query(
         next_offset=(start + returned if has_more else None),
         order_by=ordering,
         descending=descending,
-        constraints={
-            "min_solubility_pct": minimum,
-            "max_solubility_pct": maximum,
-            "require_atmospheric": require_atmospheric,
-            "min_boiling_point_margin_c": minimum_margin,
-        },
+        constraints=constraints,
         selection={
             "polymers": None if all_polymers else selected_polymers,
             "solvents": None if all_solvents else selected_solvents,
@@ -626,6 +898,7 @@ def solubility_query(
         exclusion_counts=exclusion_counts,
         exclusion_counts_are_independent_predicate_failures=True,
         solubility_unit="wt_pct_solution_concentration",
+        **red_response,
     )
 
 
