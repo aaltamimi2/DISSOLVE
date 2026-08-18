@@ -750,7 +750,6 @@ def test_compact_postcondition_holds_on_production_timing():
     rec["reported"] = [{"number": 92.5, "source_basis": "cosmo_rs_grid", "handle": "calm-blue-cat"}]
     rec["polymers_in_play"] = ["LDPE"]
     rec["temperatures_in_play"] = [140.0]
-    rec["turn_records"] = {}
     msgs = _production_tool_msgs()
     compact_messages(msgs, rec, window=400, reserve=0)
     assert estimated_tokens(msgs) <= 400
@@ -777,6 +776,13 @@ def test_compact_refuses_when_reported_template_cannot_fit():
     with pytest.raises(CompactionBudgetError):
         compact_messages(
             _production_tool_msgs(old="old " + ("x" * 490_000)), rec_real,
+            window=128_000, reserve=8_000,
+        )
+    rec_poly = new_session()
+    rec_poly["polymers_in_play"] = ["P" + ("z" * 1000) + str(i) for i in range(600)]
+    with pytest.raises(CompactionBudgetError):
+        compact_messages(
+            _production_tool_msgs(old="old " + ("x" * 490_000)), rec_poly,
             window=128_000, reserve=8_000,
         )
 
