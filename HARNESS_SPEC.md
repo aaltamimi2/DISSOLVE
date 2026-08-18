@@ -88,7 +88,7 @@ to it. If a paragraph does not name what it rejected, it is unfinished.
 | `src/dissolve/cli.py` | retained v11 presentation | not in budget |
 | `src/dissolve/session.py` | already exists; add the binder and the handle table | not a new file |
 
-**Ceilings.** Part 1 set 200 / 250 / 80 when
+**Ceilings, revised by owner (`agent_tools.py`) and orchestrator D-2 (`agent_harness.py`).** Part 1 set 200 / 250 / 80 when
 `agent_tools.py` meant "the one generic wrapper" and a `research_agent.py`
 existed. Since then the file also carries `result_read`, `source_basis`
 attachment, handle issue and the §4.6 turn record, and the research sub-agent
@@ -1280,8 +1280,8 @@ If any `complete()` in the turn returned `None` usage, the turn's
 When every round measured a dict, sum each key only where that key
 appeared.
 
-This six-field seam is a provisional orchestrator decision (D-1),
-reversible at one field's cost if the owner disagrees. The CLI may
+This six-field seam is a provisional orchestrator decision (D-1), flagged
+to the owner and reversible by them at one field's cost. The CLI may
 print `tool_rounds` and `usage`. It must never branch on them (§9.1).
 
 ### 9.5 What the CLI is allowed to know
@@ -1506,13 +1506,13 @@ These supersede Part 1 of the brief where they conflict.
    Part 1, not a question. Three modules already own `basis` with
    three meanings (§3.5). Colliding a required provenance field with
    any of them is laundering.
-7. **`TurnResult` is six fields (provisional; orchestrator, D-1).** The
-   original four plus `tool_rounds: int` and `usage: dict | None` (§2,
-   §9.1, §9.4). The CLI may print those two and must never branch on
-   them. Reversible at one field's cost if the owner disagrees. The
-   four-field rule's purpose (display layer is not a decision layer)
-   stands; the number four does not. D-3: derived `total_tokens` is
-   Anthropic-only; Google and OpenAI omit a total they did not measure.
+7. **`TurnResult` is six fields (provisional; D-1).** The original four
+   plus `tool_rounds: int` and `usage: dict | None` (§2, §9.1, §9.4).
+   The CLI may print those two and must never branch on them. Flagged
+   to the owner; reversible at one field's cost. The four-field rule's
+   purpose (display layer is not a decision layer) stands; the number
+   four does not. D-3: derived `total_tokens` is Anthropic-only; Google
+   and OpenAI omit a total they did not measure.
 8. **Loop line ceiling lifted (orchestrator, D-2, unconditional).**
    `agent_harness.py` has no numeric ceiling. The 199-line budget was
    making the six-field seam harder to audit. A fourth harness file is
