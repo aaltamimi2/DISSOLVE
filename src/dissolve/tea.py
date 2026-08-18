@@ -1263,20 +1263,11 @@ def _stored_candidate_screen(state: Any) -> Optional[dict[str, Any]]:
                         "min_dissolution_solubility_wt_pct": facts.get("min_dissolution_solubility_wt_pct"),
                         "candidate_conditions": rows,
                     }
-    rows, candidate_source = candidate_evidence(
-        state, {CANDIDATE_SHAPE_SCREEN, CANDIDATE_SHAPE_PRECIPITATION},
-    )
+    # Candidate shape is a harness routing concern. This engine consumes any
+    # bound rows only when their actual fields establish the screening basis it
+    # needs; otherwise the ordinary basis-gap path declines them.
+    rows, candidate_source = candidate_evidence(state)
     rows = [row for row in rows if row.get("solvent")]
-    if (
-        state and getattr(state, "last_candidates", None)
-        and not rows and candidate_source
-    ):
-        return {
-            "candidate_evidence_kind_mismatch": True,
-            "candidate_evidence_source": candidate_source.get("source_tool"),
-            "candidate_evidence_shape": candidate_source.get("shape"),
-            "required_candidate_shape": CANDIDATE_SHAPE_SCREEN,
-        }
     constraints = dict(getattr(state, "last_screen_constraints", None) or {})
     target = next((
         row.get("dissolved_polymer") or row.get("target_polymer")
@@ -2047,7 +2038,7 @@ def evaluate_stored_route_tea_lca(
     route = copy.deepcopy(getattr(state, "last_route", None)) if state else None
     candidate_basis = _stored_candidate_screen(state) if state and not route else None
     candidate_feed_matches = False
-    if candidate_basis and not candidate_basis.get("candidate_evidence_kind_mismatch"):
+    if candidate_basis:
         candidate_labels = [
             str(candidate_basis.get("target_product") or ""),
             *(str(item) for item in candidate_basis.get("other_polymers") or []),
@@ -2261,19 +2252,6 @@ def evaluate_stored_route_tea_lca(
         )
     if not route:
         if candidate_basis and candidate_feed_matches:
-            if candidate_basis.get("candidate_evidence_kind_mismatch"):
-                return tool_error(
-                    tool,
-                    "The stored candidate evidence is a route, not a solvent-screen "
-                    "shortlist; ask to cost the stored route or rerun the screen.",
-                    error_code="candidate_evidence_kind_mismatch",
-                    analysis_type="candidate_evidence_basis_gap",
-                    requested_analysis_type="tea_lca",
-                    can_estimate_msp=False, can_estimate_gwp=False,
-                    **candidate_basis,
-                    missing_basis_codes=["screen_shortlist_or_complete_route"],
-                    warnings=["No MSP, TCI, AOC, or GWP value was calculated."],
-                )
             return _candidate_tea_basis_gap(
                 state,
                 candidate_basis,
@@ -2313,19 +2291,6 @@ def evaluate_stored_route_tea_lca(
             )
         candidate_basis = candidate_basis or _stored_candidate_screen(state)
         if candidate_basis:
-            if candidate_basis.get("candidate_evidence_kind_mismatch"):
-                return tool_error(
-                    tool,
-                    "The stored candidate evidence is a route, not a solvent-screen "
-                    "shortlist; ask to cost the stored route or rerun the screen.",
-                    error_code="candidate_evidence_kind_mismatch",
-                    analysis_type="candidate_evidence_basis_gap",
-                    requested_analysis_type="tea_lca",
-                    can_estimate_msp=False, can_estimate_gwp=False,
-                    **candidate_basis,
-                    missing_basis_codes=["screen_shortlist_or_complete_route"],
-                    warnings=["No MSP, TCI, AOC, or GWP value was calculated."],
-                )
             return _candidate_tea_basis_gap(
                 state,
                 candidate_basis,

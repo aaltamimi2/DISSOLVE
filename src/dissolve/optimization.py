@@ -229,29 +229,9 @@ def _stored_optimization_gap(x_metric: str, y_metric: str) -> str | None:
     if {x_metric, y_metric} != {"emissions", "selectivity"}:
         return tool_error(tool, "The stored candidate screen supports only an emissions-versus-selectivity basis-gap assessment.", error_code="invalid_pareto_basis")
     floor = (getattr(state, "last_screen_constraints", None) or {}).get("minimum_selectivity_points")
-    candidates, candidate_source = candidate_evidence(
-        state, {CANDIDATE_SHAPE_SCREEN},
-    )
-    if (
-        state and getattr(state, "last_candidates", None)
-        and not candidates and candidate_source
-    ):
-        return tool_error(
-            tool,
-            "The stored candidate evidence is not a solvent-screen shortlist; "
-            "rerun the screen or evaluate the stored route before optimization.",
-            error_code="candidate_evidence_kind_mismatch",
-            analysis_type="candidate_evidence_basis_gap",
-            requested_analysis_type="optimization",
-            can_optimize=False, can_build_frontier=False,
-            candidate_evidence_source=candidate_source.get("source_tool"),
-            candidate_evidence_shape=candidate_source.get("shape"),
-            required_candidate_shape=CANDIDATE_SHAPE_SCREEN,
-            missing_basis_codes=["screen_shortlist", "comparable_candidate_gwp"],
-            warnings=[
-                "No solvent screen, emissions ranking, optimum, or frontier was calculated."
-            ],
-        )
+    # Shape selection belongs to the harness. The optimization engine accepts
+    # bound rows only when the selectivity fields below establish its basis.
+    candidates, _ = candidate_evidence(state)
     if floor is None or not candidates or any(row.get("selectivity_pct") is None for row in candidates):
         return tool_error(tool, "The stored screen lacks a selectivity floor or candidate values.", error_code="invalid_pareto_basis")
     safety = {
@@ -819,5 +799,4 @@ def pareto_optimize_stored_route(
             "Circularity is a mass-diversion screening proxy, not a validated circularity assessment.",
         ],
     )
-
 

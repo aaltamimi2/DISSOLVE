@@ -50,7 +50,6 @@ REGISTRY: tuple[Tool, ...] = tuple([
     _t(tools.solubility_query, "thermodynamics"),
     _t(tools.screen_polymer_separation, "thermodynamics"),
     _t(tools.screen_pairwise_solubility_overlap, "thermodynamics"),
-    _t(tools.normalize_feed_composition, "thermodynamics"),
     # --- separation: routes, precipitation protocol, membership ---
     _t(separation.resolve_polymer_data_scope, "separation"),
     _t(separation.lookup_material_database_membership, "separation"),
