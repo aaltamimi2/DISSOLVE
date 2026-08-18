@@ -1,8 +1,11 @@
 """Dispatch, result_read, handle issue, and the loop — chunk 2 obligations."""
 from __future__ import annotations
 
+import ast
+import inspect
 import json
 import sys
+import textwrap
 from pathlib import Path
 
 import pytest
@@ -13,13 +16,57 @@ for _p in (str(_ROOT), str(_ROOT / "src")):
         sys.path.insert(0, _p)
 
 import agent_harness
+import agent_tools
 from agent_harness import TurnResult, run_turn
 from agent_tools import dispatch, result_read, source_basis_for, tool_schemas
+from dissolve import session as sess
 from dissolve.session import (
     append_reported, bind_tool_session, compact_messages, current_tool_session,
     handle_rows, load_handle, load_turn_record, new_session, open_turn_record,
     store_handle,
 )
+
+
+def _loop_call_graph():
+    """Functions in the harness/wrapper/session modules reachable from run_turn."""
+    mods = (agent_harness, agent_tools, sess)
+    catalog = {
+        name: obj
+        for mod in mods for name, obj in vars(mod).items()
+        if inspect.isfunction(obj) and inspect.getmodule(obj) in mods
+    }
+    seen: set = set()
+    stack = [agent_harness.run_turn]
+    while stack:
+        fn = stack.pop()
+        if fn in seen:
+            continue
+        seen.add(fn)
+        tree = ast.parse(textwrap.dedent(inspect.getsource(fn)))
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.Call):
+                continue
+            func = node.func
+            name = func.id if isinstance(func, ast.Name) else (
+                func.attr if isinstance(func, ast.Attribute) else None
+            )
+            nxt = catalog.get(name) if name else None
+            if nxt is not None:
+                stack.append(nxt)
+    return seen
+
+
+def _archive_readers_in_loop_graph():
+    """Names in run_turn's graph that read turn_records, excluding the writers."""
+    writers = {"open_turn_record", "record_tool_call", "bind_tool_session", "new_session"}
+    found = []
+    for fn in _loop_call_graph():
+        if fn.__name__ in writers:
+            continue
+        src = inspect.getsource(fn)
+        if "turn_records" in src or "load_turn_record" in src:
+            found.append(fn.__name__)
+    return found
 
 
 def _bound(session=None):
@@ -280,9 +327,15 @@ def test_loop_prose_does_not_gate_or_read_record(monkeypatch):
     assert load_turn_record(session, result.turn_record) == []
     assert "_turn" not in session
     src = Path(agent_harness.__file__).read_text()
-    assert "load_turn_record" not in src
     assert "numeral_scan" not in src
     assert result.status != "verifier_failed"
+    graph = _loop_call_graph()
+    assert sess.compact_messages in graph
+    assert sess._summary_text in graph
+    assert agent_tools._emit in graph
+    assert sess.load_turn_record not in graph
+    assert _archive_readers_in_loop_graph() == []
+    assert "result_read" not in inspect.getsource(agent_tools._emit)
 
 
 def test_turn_record_every_result_exact_ordered_durable():
@@ -607,14 +660,11 @@ def test_compact_updates_summary_in_place_and_does_not_lead_with_tool():
 
 
 def test_compaction_does_not_read_turn_records():
-    import inspect
-    from dissolve import session as sess
     assert "turn_records" not in inspect.getsource(sess._summary_text)
     assert "turn_records" not in inspect.getsource(sess.compact_messages)
     assert "turn_records" not in inspect.getsource(sess.append_reported)
     assert "turn_records" not in inspect.getsource(sess.note_in_play)
-    assert "load_turn_record" not in Path(agent_harness.__file__).read_text()
-    assert "turn_records" not in Path(agent_harness.__file__).read_text()
+    assert _archive_readers_in_loop_graph() == []
 
 
 def test_wrapper_appends_reported_from_row_fields():
