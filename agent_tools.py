@@ -280,11 +280,12 @@ def _invoke(name, kwargs):
     except Exception as e:
         return None, _refuse("tool_exception", error=f"{type(e).__name__}: {e}")
 
-def _emit(name, kwargs, out, exact, handle=None, display=None):
+def _emit(name, kwargs, out, exact, handle=None, display=None, source_basis=None):
     rec = current_tool_session()
     if rec is not None:
         record_tool_call(
-            rec, tool=name, args=kwargs, exact=exact, handle=handle, display=display,
+            rec, tool=name, args=kwargs, exact=exact, handle=handle,
+            display=display, source_basis=source_basis,
         )
     return out
 
@@ -299,7 +300,9 @@ def dispatch(name: str, **kwargs: Any) -> dict[str, Any]:
         rec = current_tool_session()
         stored = load_handle(rec, token) if rec is not None and token else None
         if stored is not None and out.get("available"):
-            return _emit(name, kwargs, out, stored["exact"], token, stored.get("display"))
+            return _emit(
+                name, kwargs, out, out, token, None, stored.get("source_basis"),
+            )
         return _emit(name, kwargs, out, out)
     if name in UNWIRED:
         out = _refuse(
@@ -342,17 +345,19 @@ def dispatch(name: str, **kwargs: Any) -> dict[str, Any]:
         out = to_contract(parsed, None)
         if out.get("refusal") == "unknown_solvents" and not (data.get("near_miss_solvents") or data.get("suggested_solvents")):
             out["near_miss_solvents"] = _near_miss(data)
-        return _emit(name, kwargs, out, data, display=display)
+        return _emit(name, kwargs, out, parsed, display=display)
     basis = source_basis_for(name, data, call_kwargs)
     if not basis:
         out = _refuse("no_honest_basis", tool=name)
-        return _emit(name, kwargs, out, data, display=display)
+        return _emit(name, kwargs, out, parsed, display=display)
     guard = _ambiguous(call_kwargs, data)
     if guard:
-        return _emit(name, kwargs, guard, data, display=display)
+        return _emit(name, kwargs, guard, parsed, display=display, source_basis=basis)
     payload = _issue_handle(record, name, basis, data, to_contract(parsed, basis), display)
     handle = payload.get("handle") if payload.get("available") else None
-    return _emit(name, kwargs, payload, data, handle, display)
+    if handle:
+        return _emit(name, kwargs, payload, None, handle, None, basis)
+    return _emit(name, kwargs, payload, parsed, None, display, basis)
 
 SYSTEM_PROMPT = """\
 You are DISSOLVE v12, a thermodynamic analysis agent. You have tools. You

@@ -88,7 +88,8 @@ def test_large_unrecognised_contaminant_comparison_named_refusal():
         assert len(json.dumps(out)) < 8192
         archived = rec["turn_records"][rec["_turn"]][-1]
         assert archived["handle"] is None
-        assert archived["exact"].get("success") is True
+        assert set(archived["exact"]) == {"display", "data"}
+        assert archived["exact"]["data"].get("success") is True
         assert len(json.dumps(archived["exact"])) > 8192
 
 
@@ -104,7 +105,8 @@ def test_large_unrecognised_precipitation_fallback_named_refusal():
         assert rec.get("handles") == {}
         archived = rec["turn_records"][rec["_turn"]][-1]
         assert archived["handle"] is None
-        assert archived["exact"].get("success") is True
+        assert set(archived["exact"]) == {"display", "data"}
+        assert archived["exact"]["data"].get("success") is True
         assert len(json.dumps(archived["exact"])) > 8192
 
 
@@ -290,32 +292,72 @@ def test_turn_record_every_result_exact_ordered_durable():
             "compare_contaminant_removal_modes", "result_read", "result_read",
         ]
         assert rows[0]["handle"] is None
-        assert rows[0]["exact"] is small["data"]
-        assert rows[0]["exact"].get("success") is True
-        assert isinstance(rows[0]["display"], str) and rows[0]["display"]
+        assert set(rows[0]["exact"]) == {"display", "data"}
+        assert rows[0]["exact"]["data"] is small["data"]
+        assert rows[0]["source_basis"] == small["source_basis"] == "cosmo_rs_grid"
+        assert isinstance(rows[0]["exact"]["display"], str) and rows[0]["exact"]["display"]
         assert "display" not in small
         h = screen["handle"]
         stored = load_handle(rec, h)
         assert rows[1]["handle"] == h
-        assert rows[1]["exact"] is stored["exact"]
-        assert rows[1]["display"] == stored.get("display")
+        assert "exact" not in rows[1]
+        assert rows[1]["source_basis"] == screen["source_basis"] == stored.get("source_basis")
         assert isinstance(stored.get("display"), str) and stored["display"]
-        assert rows[1]["exact"] is not screen.get("top")
+        assert stored["exact"] is not screen.get("top")
         assert "display" not in screen
         assert refused["refusal"] == "unaddressable_result"
         assert rows[2]["handle"] is None
-        assert rows[2]["exact"].get("success") is True
-        assert isinstance(rows[2]["display"], str)
+        assert set(rows[2]["exact"]) == {"display", "data"}
+        assert rows[2]["exact"]["data"].get("success") is True
+        assert isinstance(rows[2]["exact"]["display"], str)
         assert len(json.dumps(rows[2]["exact"])) > 8192
         assert rows[3]["handle"] == h
-        assert rows[3]["exact"] is stored["exact"]
-        assert rows[3]["display"] == stored.get("display")
-        assert page["data"]["rows"] is not rows[3]["exact"]
+        assert rows[3]["exact"] is page
+        assert rows[3]["exact"]["returned"] == 5
+        assert rows[3]["exact"] is not stored["exact"]
+        assert page["data"]["rows"] is not stored["exact"]
         assert rows[4]["handle"] is None
         assert rows[4]["exact"]["refusal"] == "unknown_handle"
-    assert load_turn_record(session, tid)[2]["exact"].get("success") is True
+    assert load_turn_record(session, tid)[2]["exact"]["data"].get("success") is True
     assert "_turn" not in session
     assert session["turn_records"][tid][0]["tool"] == "solubility_query"
+
+
+def test_turn_record_json_one_canonical_population_and_page():
+    session = new_session()
+    with bind_tool_session(session) as rec:
+        tid = open_turn_record(rec)
+        small = dispatch(
+            "solubility_query",
+            polymers=["LDPE"], solvents=["dodecane"], temperatures=[140.0],
+        )
+        screen = dispatch(
+            "screen_polymer_separation",
+            feed_polymers=["LDPE", "PP"], temperature_min_c=80.0,
+            temperature_max_c=140.0, top_k=20,
+        )
+        page = dispatch("result_read", handle=screen["handle"], offset=5, limit=2)
+        h = screen["handle"]
+        stored = load_handle(rec, h)
+    blob = json.dumps(session)
+    reloaded = json.loads(blob)
+    rows = reloaded["turn_records"][tid]
+    assert set(rows[0]["exact"]) == {"display", "data"}
+    assert rows[0]["source_basis"] == small["source_basis"]
+    assert rows[0]["exact"]["data"]["success"] is True
+    assert "exact" not in rows[1]
+    assert rows[1]["handle"] == h
+    assert rows[1]["source_basis"] == screen["source_basis"]
+    assert "ranked_candidates" in reloaded["handles"][h]["exact"]
+    assert "ranked_candidates" not in json.dumps(reloaded["turn_records"])
+    assert rows[2]["handle"] == h
+    assert rows[2]["exact"]["offset"] == 5
+    assert rows[2]["exact"]["returned"] == 2
+    assert len(rows[2]["exact"]["data"]["rows"]) == 2
+    assert rows[2]["exact"]["data"]["rows"] == stored["exact"]["ranked_candidates"][5:7]
+    reloaded["handles"][h]["exact"]["ranked_candidates"] = []
+    assert json.loads(blob)["handles"][h]["exact"]["ranked_candidates"]
+    assert len(json.dumps(reloaded["turn_records"][tid][1])) < 2048
 
 
 def test_loop_turn_record_survives_bind_and_is_not_a_gate(monkeypatch):
@@ -345,8 +387,10 @@ def test_loop_turn_record_survives_bind_and_is_not_a_gate(monkeypatch):
     assert len(rows) == 1
     assert rows[0]["tool"] == "solubility_query"
     assert rows[0]["handle"] is None
-    assert rows[0]["exact"]["success"] is True
-    assert result.tool_trace[0].result.get("data") is rows[0]["exact"]
+    assert set(rows[0]["exact"]) == {"display", "data"}
+    assert rows[0]["exact"]["data"]["success"] is True
+    assert rows[0]["source_basis"] == "cosmo_rs_grid"
+    assert result.tool_trace[0].result.get("data") is rows[0]["exact"]["data"]
     assert result.status != "verifier_failed"
 
 

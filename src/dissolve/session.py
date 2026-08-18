@@ -210,29 +210,31 @@ def record_tool_call(
     *,
     tool: str,
     args: dict[str, Any],
-    exact: Any,
+    exact: Any = None,
     handle: str | None = None,
     display: str | None = None,
+    source_basis: str | None = None,
 ) -> None:
-    """Append one exact call to the active turn. Same object a handle stores.
+    """Append one call to the active turn.
 
-    Opens a turn if dispatch ran outside run_turn (tests). Not a second row store:
-    when `handle` is set, `exact` must be handles[handle]['exact'] (engine data).
-    `display` is the engine string; together they are the `{display, data}` envelope
-    without copying the row population.
+    Handled producers name the handle and do not embed `exact` — that object
+    lives once in handles[handle]['exact']. Unhandled producers store the
+    engine envelope `{display, data}`. result_read stores the page payload
+    and names the source handle.
     """
     record = _bound_record(record)
     tid = record.get("_turn")
     if not tid:
         tid = open_turn_record(record)
-    table = record.setdefault("turn_records", {})
-    table.setdefault(tid, []).append({
+    row: dict[str, Any] = {
         "tool": tool,
         "args": dict(args),
-        "exact": exact,
         "handle": handle,
-        "display": display,
-    })
+        "source_basis": source_basis,
+    }
+    if exact is not None:
+        row["exact"] = exact
+    record.setdefault("turn_records", {}).setdefault(tid, []).append(row)
 
 
 def load_turn_record(record: dict[str, Any], turn_id: str) -> list | None:
