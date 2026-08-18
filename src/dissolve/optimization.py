@@ -17,6 +17,7 @@ from pathlib import Path
 from typing import Any, Literal, Optional, Sequence
 
 from .contracts import tool_error, tool_success
+from . import tea_contracts
 from .session import (
     candidate_evidence, current_tool_session,
     resolve_candidate_argument,
@@ -141,7 +142,7 @@ def _source_state() -> dict[str, Any]:
     rows = list(tea.get("comparison_rows") or [])
     if not rows or any(row.get("stage") is None for row in rows):
         raise ValueError("Stored TEA/LCA state lacks stage metrics")
-    expected_signature = route_evidence_signature(route)
+    expected_signature = tea_contracts.route_evidence_signature(route)
     if tea.get("route_signature") != expected_signature:
         raise ValueError("Stored TEA/LCA state is stale for the current route")
     route_steps = list(route.get("steps") or [])
@@ -799,4 +800,3 @@ def pareto_optimize_stored_route(
             "Circularity is a mass-diversion screening proxy, not a validated circularity assessment.",
         ],
     )
-
