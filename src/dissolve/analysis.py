@@ -14,6 +14,7 @@ from typing import Any, Literal, Optional
 
 from . import thermodynamics as thermo
 from .contracts import tool_error, tool_success
+from .tools import _polymer_ambiguity_error
 
 _ASSET = Path(__file__).with_name("data") / "analysis.json.gz"
 _ASSET_SHA256 = "6fa37a21e4ff492654172883ca3a941f7820b704f899ad86839d1fe9e17ee9a0"
@@ -809,6 +810,12 @@ def screen_hansen_compatibility(
                 f"{thermo.SENSITIVITY_EXTRAPOLATION_MAX_C:g} C for the admitted thermodynamic comparison.",
                 error_code="invalid_temperature",
             )
+        for supplied in _items(polymer_names):
+            ambiguity = _polymer_ambiguity_error(
+                tool, supplied, "polymer_names",
+            )
+            if ambiguity:
+                return ambiguity
     polymers, polymer_issues = _resolve_many(
         polymer_names, "polymer", include_qualified_records,
     )
@@ -1344,4 +1351,3 @@ def list_thermal_evidence() -> str:
         provenance=payload["provenance"],
         warnings=["Generated predictive extensions are never equivalent to fitted thermodynamic records."],
     )
-
