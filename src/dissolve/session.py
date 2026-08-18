@@ -254,15 +254,15 @@ _NOT_REPORTED = frozenset({
     "shown", "total", "available_count", "returned", "offset",
     "available", "success",
 })
-_POLY_ARG = (
-    "polymers", "feed_polymers", "target_polymer", "target_polymers",
-    "polymer_names",
-)
-_TEMP_ARG = (
-    "temperatures", "temperature_c", "temperature_min_c", "temperature_max_c",
-    "operating_temp_c",
-)
-_REPORTED_CAP = 200
+_POLY_FROM_SIG: frozenset[str] | None = None
+_TEMP_FROM_SIG: frozenset[str] | None = None
+
+
+class CompactionBudgetError(RuntimeError):
+    """§7 template plus the protected current group cannot fit in window-reserve.
+
+    Not a license to omit reported numbers or to call the provider over budget.
+    """
 
 
 def append_reported(record: dict[str, Any], payload: dict[str, Any]) -> None:
@@ -294,8 +294,24 @@ def append_reported(record: dict[str, Any], payload: dict[str, Any]) -> None:
                 continue
             seen.add(ident)
             store.append(item)
-    if len(store) > _REPORTED_CAP:
-        del store[:-_REPORTED_CAP]
+
+
+def _subject_arg_names() -> tuple[frozenset[str], frozenset[str]]:
+    """Polymer/temperature argument names from registered signatures."""
+    global _POLY_FROM_SIG, _TEMP_FROM_SIG
+    if _POLY_FROM_SIG is None:
+        import inspect as _inspect
+        from dissolve import registry as _registry
+        poly, temp = set(), set()
+        for spec in _registry.REGISTRY:
+            for name in _inspect.signature(spec.fn).parameters:
+                low = name.lower()
+                if "polymer" in low:
+                    poly.add(name)
+                if "temp" in low:
+                    temp.add(name)
+        _POLY_FROM_SIG, _TEMP_FROM_SIG = frozenset(poly), frozenset(temp)
+    return _POLY_FROM_SIG, _TEMP_FROM_SIG
 
 
 def note_in_play(record: dict[str, Any], args: dict[str, Any]) -> None:
@@ -303,22 +319,26 @@ def note_in_play(record: dict[str, Any], args: dict[str, Any]) -> None:
     record = _bound_record(record)
     polys = record.setdefault("polymers_in_play", [])
     temps = record.setdefault("temperatures_in_play", [])
-    for key in _POLY_ARG:
-        val = args.get(key)
-        if isinstance(val, str) and val and val not in polys:
-            polys.append(val)
-        elif isinstance(val, (list, tuple)):
-            for item in val:
-                if item and (name := str(item)) not in polys:
-                    polys.append(name)
-    for key in _TEMP_ARG:
-        val = args.get(key)
-        if isinstance(val, (int, float)) and val not in temps:
-            temps.append(val)
-        elif isinstance(val, (list, tuple)):
-            for item in val:
-                if isinstance(item, (int, float)) and item not in temps:
-                    temps.append(item)
+    poly_keys, temp_keys = _subject_arg_names()
+    for key, val in (args or {}).items():
+        if key in poly_keys:
+            if isinstance(val, str) and val and val not in polys:
+                polys.append(val)
+            elif isinstance(val, (list, tuple)):
+                for item in val:
+                    if isinstance(item, str) and item and item not in polys:
+                        polys.append(item)
+        elif key in temp_keys:
+            if isinstance(val, bool):
+                continue
+            if isinstance(val, (int, float)) and val not in temps:
+                temps.append(val)
+            elif isinstance(val, (list, tuple)):
+                for item in val:
+                    if isinstance(item, bool):
+                        continue
+                    if isinstance(item, (int, float)) and item not in temps:
+                        temps.append(item)
 
 
 def estimated_tokens(messages: list) -> int:
@@ -334,19 +354,7 @@ def context_window(model: str) -> int:
     return 128_000
 
 
-def _is_prose(message: dict[str, Any]) -> bool:
-    if message.get("role") == "user":
-        return True
-    text = str(message.get("content") or "")
-    return (
-        message.get("role") == "assistant"
-        and not message.get("tool_calls")
-        and bool(text.strip())
-        and not text.startswith("Summary (do not continue")
-    )
-
-
-def _summary_text(record: dict[str, Any], nums: list | None = None) -> str:
+def _summary_text(record: dict[str, Any]) -> str:
     record = _bound_record(record)
     polys = [str(p) for p in (record.get("polymers_in_play") or [])]
     temps = [str(t) for t in (record.get("temperatures_in_play") or [])]
@@ -363,7 +371,7 @@ def _summary_text(record: dict[str, Any], nums: list | None = None) -> str:
             f"source_basis={stored.get('source_basis')})"
         )
     bits = []
-    for row in (nums if nums is not None else (record.get("reported") or [])):
+    for row in (record.get("reported") or []):
         bit = f"{row.get('number')} (source_basis={row.get('source_basis')}"
         if row.get("handle"):
             bit += f", handle={row['handle']}"
@@ -400,21 +408,22 @@ def compact_messages(
         messages.insert(insert_at, {"role": "assistant", "content": text})
     keep = insert_at + 1
     while estimated_tokens(messages) > target:
-        limit = next(
+        protected = next(
             (i for i in range(len(messages) - 1, keep - 1, -1)
              if messages[i].get("role") == "user"),
             None,
         )
-        if limit is None or keep >= limit:
+        if protected is None or keep >= protected:
             break
         end = keep + 1
-        while end < limit and not _is_prose(messages[end]):
+        while end < protected and messages[end].get("role") != "user":
             end += 1
-        del messages[keep:min(end, limit)]
-    nums = list(record.get("reported") or [])
-    while estimated_tokens(messages) > target and nums:
-        nums = nums[len(nums) // 2:] if len(nums) > 1 else []
-        messages[insert_at]["content"] = _summary_text(record, nums)
+        del messages[keep:end]
+    if estimated_tokens(messages) > target:
+        raise CompactionBudgetError(
+            "compaction cannot meet window-reserve without omitting "
+            "numbers already reported or cutting the current user/tool group"
+        )
 
 
 def store_handle(

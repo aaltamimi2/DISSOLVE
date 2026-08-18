@@ -21,9 +21,10 @@ from agent_harness import TurnResult, run_turn
 from agent_tools import dispatch, result_read, source_basis_for, tool_schemas
 from dissolve import session as sess
 from dissolve.session import (
-    append_reported, bind_tool_session, compact_messages, context_window,
-    current_tool_session, estimated_tokens, handle_rows, load_handle,
-    load_turn_record, new_session, open_turn_record, store_handle,
+    CompactionBudgetError, append_reported, bind_tool_session,
+    compact_messages, context_window, current_tool_session,
+    estimated_tokens, handle_rows, load_handle, load_turn_record,
+    new_session, open_turn_record, store_handle,
 )
 
 
@@ -642,7 +643,19 @@ def test_google_contents_keep_function_call_and_response():
     assert contents[2].parts[0].function_response.name == "solubility_query"
 
 
-def test_compact_updates_summary_in_place_and_does_not_lead_with_tool():
+def _production_tool_msgs(old="old " + ("x" * 4000), query="CURRENT-QUERY"):
+    """Shape at compact time: last role is tool. No later user/prose."""
+    return [
+        {"role": "system", "content": "sys"},
+        {"role": "user", "content": old},
+        {"role": "assistant", "content": "old answer"},
+        {"role": "user", "content": query},
+        {"role": "assistant", "content": "", "tool_calls": [{"id": "1", "name": "t", "args": {}}]},
+        {"role": "tool", "tool_call_id": "1", "name": "t", "content": "{}"},
+    ]
+
+
+def test_compact_postcondition_holds_on_production_timing():
     rec = new_session()
     rec["handles"]["calm-blue-cat"] = {
         "tool": "solubility_query", "source_basis": "cosmo_rs_grid",
@@ -652,48 +665,40 @@ def test_compact_updates_summary_in_place_and_does_not_lead_with_tool():
     rec["polymers_in_play"] = ["LDPE"]
     rec["temperatures_in_play"] = [140.0]
     rec["turn_records"] = {}
-    msgs = [
-        {"role": "system", "content": "sys"},
-        {"role": "user", "content": "q1 " + ("x" * 4000)},
-        {"role": "assistant", "content": "", "tool_calls": [{"id": "1", "name": "t", "args": {}}]},
-        {"role": "tool", "tool_call_id": "1", "name": "t", "content": "{}"},
-        {"role": "user", "content": "q2"},
-    ]
-    compact_messages(msgs, rec, window=20, reserve=0)
+    msgs = _production_tool_msgs()
+    compact_messages(msgs, rec, window=400, reserve=0)
+    assert estimated_tokens(msgs) <= 400
     assert msgs[0]["role"] == "system"
     assert str(msgs[1].get("content") or "").startswith("Summary (do not continue the conversation")
     assert "LDPE" in msgs[1]["content"]
     assert "calm-blue-cat" in msgs[1]["content"]
-    assert msgs[2]["role"] == "user" and "q2" in str(msgs[2].get("content"))
-    compact_messages(msgs, rec, window=20, reserve=0)
+    assert msgs[-1]["role"] == "tool"
+    assert msgs[2]["role"] == "user" and "CURRENT-QUERY" in str(msgs[2].get("content"))
+    assert msgs[3].get("tool_calls")
+    compact_messages(msgs, rec, window=400, reserve=0)
     assert sum(1 for m in msgs if str(m.get("content") or "").startswith("Summary (do not continue")) == 1
 
 
-def test_compact_keeps_current_query_and_fits_budget():
+def test_compact_refuses_when_reported_template_cannot_fit():
     rec = new_session()
     rec["reported"] = [{"number": i, "source_basis": "cosmo_rs_grid"} for i in range(1000)]
     rec["polymers_in_play"] = ["LDPE"]
-    query = "CURRENT-QUERY"
-    msgs = [
-        {"role": "system", "content": "sys"},
-        {"role": "user", "content": "old " + ("x" * 4000)},
-        {"role": "assistant", "content": "old answer"},
-        {"role": "user", "content": query},
-        {"role": "assistant", "content": "", "tool_calls": [{"id": "1", "name": "t", "args": {}}]},
-        {"role": "tool", "tool_call_id": "1", "name": "t", "content": "{}"},
-    ]
-    compact_messages(msgs, rec, window=400, reserve=0)
-    assert msgs[0]["role"] == "system"
-    assert str(msgs[1].get("content") or "").startswith("Summary (do not continue")
-    idx = next(
-        i for i, m in enumerate(msgs)
-        if m.get("role") == "user" and query in str(m.get("content"))
-    )
-    assert idx >= 2
-    assert all(m.get("role") != "tool" for m in msgs[2:idx + 1])
-    assert estimated_tokens(msgs) <= 400
+    msgs = _production_tool_msgs()
+    with pytest.raises(CompactionBudgetError, match="numbers already reported"):
+        compact_messages(msgs, rec, window=400, reserve=0)
+    rec_real = new_session()
+    rec_real["reported"] = [{"number": i, "source_basis": "cosmo_rs_grid"} for i in range(20_000)]
+    with pytest.raises(CompactionBudgetError):
+        compact_messages(
+            _production_tool_msgs(old="old " + ("x" * 490_000)), rec_real,
+            window=128_000, reserve=8_000,
+        )
+
+
+def test_context_window_defaults_only_when_alias_omits_it():
     assert context_window("openai:muse-spark-1.2") == 128_000
     assert context_window("openai:foo-8k") == 8_000
+    assert context_window("openai:foo-256k") == 256_000
 
 
 def test_compaction_does_not_read_turn_records():
@@ -729,13 +734,19 @@ def test_result_read_later_page_appends_reported():
         page = dispatch("result_read", handle=screen["handle"], offset=20, limit=20)
         assert page["returned"] == 20
         assert len(rec["reported"]) > before
+        skip = {"shown", "total", "available_count", "returned", "offset", "available", "success"}
         later = {
-            v for r in page["data"]["rows"] if isinstance(r, dict)
+            (v, page.get("source_basis"), page.get("handle"))
+            for r in page["data"]["rows"] if isinstance(r, dict)
             for k, v in r.items()
-            if isinstance(v, (int, float)) and k not in ("shown", "total", "returned", "offset")
+            if isinstance(v, (int, float)) and not isinstance(v, bool) and k not in skip
         }
-        assert 21 in later
-        assert {row["number"] for row in rec["reported"]} & later
+        have = {
+            (row.get("number"), row.get("source_basis"), row.get("handle"))
+            for row in rec["reported"]
+        }
+        assert later
+        assert later <= have
 
 
 def test_append_reported_skips_count_fields():
@@ -757,7 +768,102 @@ def test_append_reported_skips_count_fields():
     assert rec["reported"][0]["handle"] == "calm-blue-cat"
 
 
-def test_run_turn_compacts_after_tool_append(monkeypatch):
+def test_append_reported_dedupes_overlapping_page_identities():
+    rec = new_session()
+    payload = {
+        "source_basis": "cosmo_rs_grid",
+        "handle": "calm-blue-cat",
+        "top": [{"rank": 1, "solubility_wt_pct": 92.5}],
+    }
+    with bind_tool_session(rec) as bound:
+        append_reported(bound, payload)
+        n = len(bound["reported"])
+        append_reported(bound, payload)
+        assert len(bound["reported"]) == n
+
+
+def test_in_play_keys_come_from_registered_signatures():
+    from dissolve import registry
+    poly, temp = sess._subject_arg_names()
+    found_poly, found_temp = set(), set()
+    for spec in registry.REGISTRY:
+        for name in inspect.signature(spec.fn).parameters:
+            low = name.lower()
+            if "polymer" in low:
+                found_poly.add(name)
+            if "temp" in low:
+                found_temp.add(name)
+    assert found_poly == set(poly)
+    assert found_temp == set(temp)
+    assert "polymer_query" in poly
+    assert "operating_temperature_c" in temp
+
+
+def test_lookup_glass_transition_notes_polymer_query():
+    with _bound() as rec:
+        out = dispatch("lookup_glass_transition", polymer_query="LDPE")
+        assert out["available"] is True
+        assert "LDPE" in rec["polymers_in_play"]
+        assert "LDPE" in sess._summary_text(rec)
+        assert "(none)" not in sess._summary_text(rec).split("Polymers in play:")[1].splitlines()[0]
+
+
+def test_data_scope_notes_operating_temperature():
+    with _bound() as rec:
+        dispatch(
+            "resolve_polymer_data_scope",
+            feed_polymers=["LDPE"], operating_solvent="dodecane",
+            operating_temperature_c=140.0,
+        )
+        assert "LDPE" in rec["polymers_in_play"]
+        assert 140.0 in rec["temperatures_in_play"]
+
+
+def test_run_turn_production_timing_keeps_current_group_and_meets_budget(monkeypatch):
+    n = {"i": 0}
+    windows = []
+    history = [
+        {"role": "user", "content": "OLD " + ("x" * 490_000)},
+        {"role": "assistant", "content": "old answer"},
+    ]
+
+    def fake_complete(messages, tools, **kwargs):
+        n["i"] += 1
+        if n["i"] == 1:
+            return {"text": "", "tool_calls": [{"id": "1", "name": "no_such_tool", "args": {}}]}
+        assert messages[-1]["role"] == "tool"
+        lead = 2 if str(messages[1].get("content") or "").startswith("Summary") else 1
+        assert messages[lead]["role"] == "user"
+        assert "CURRENT-QUERY" in str(messages[lead].get("content"))
+        assert not (
+            messages[lead].get("role") == "assistant" and messages[lead].get("tool_calls")
+        )
+        target = context_window("openai:muse-spark-1.2") - 8_000
+        assert estimated_tokens(messages) <= target
+        return {"text": "done", "tool_calls": []}
+
+    def spy(messages, record, **kwargs):
+        windows.append(kwargs.get("window"))
+        assert messages[-1].get("role") == "tool"
+        compact_messages(messages, record, **kwargs)
+        return None
+
+    monkeypatch.setattr(agent_harness, "complete", fake_complete)
+    monkeypatch.setattr(agent_harness, "compact_messages", spy)
+    result = run_turn(
+        "CURRENT-QUERY", session=new_session(),
+        model="openai:muse-spark-1.2", messages=history,
+    )
+    assert result.status == "ok"
+    assert n["i"] == 2
+    assert windows == [128_000]
+    assert history[-1]["role"] == "assistant"
+    users = [m for m in history if m.get("role") == "user"]
+    assert any("CURRENT-QUERY" in str(u.get("content")) for u in users)
+    assert not any(str(u.get("content", "")).startswith("OLD ") for u in users)
+
+
+def test_run_turn_passes_alias_window(monkeypatch):
     n = {"i": 0}
     hits = []
 
@@ -773,6 +879,6 @@ def test_run_turn_compacts_after_tool_append(monkeypatch):
 
     monkeypatch.setattr(agent_harness, "complete", fake_complete)
     monkeypatch.setattr(agent_harness, "compact_messages", spy)
-    result = run_turn("q", session=new_session(), model="openai:foo-8k")
-    assert result.status == "ok"
+    with pytest.raises(CompactionBudgetError):
+        run_turn("q", session=new_session(), model="openai:foo-8k")
     assert hits == [("tool", 8000)]
