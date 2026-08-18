@@ -17,7 +17,7 @@ for _p in (str(_ROOT), str(_ROOT / "src")):
         sys.path.insert(0, _p)
 
 import agent_harness
-from agent_harness import ToolEvent, TurnResult
+from agent_harness import ToolEvent, TurnResult, run_turn
 from dissolve import cli
 from dissolve.cli import CliApp, EXPECTED_REGISTRY_NAMES, doctor_report, main, resolve_model
 from dissolve.session import new_session
@@ -677,13 +677,13 @@ def test_tool_event_print_is_one_line_without_payload(tmp_path, monkeypatch):
     shown = buf.getvalue()
     blob = json.dumps(_SAFETY_PAYLOAD, ensure_ascii=False)
     size = len(blob.encode("utf-8"))
-    summary = (
-        f"get_solvent_safety_card(solvent_name=dodecane, include_pubchem=False) -> {size} B"
-    )
+    summary = cli._tool_event_summary(result.tool_trace[0])
     assert summary in shown
+    assert "get_solvent_safety_card(solvent_name=dodecane, include_pubchem=False)" in summary
+    assert f"-> {size} B" in summary
     tool_lines = [ln for ln in shown.splitlines() if "get_solvent_safety_card" in ln]
     assert len(tool_lines) == 1
-    assert "\n" not in cli._tool_event_summary(result.tool_trace[0])
+    assert "\n" not in summary
     assert shown.count("get_solvent_safety_card") == 1
     for key in (
         "physical_properties", "gscore", "occupational_exposure_limits",
@@ -780,3 +780,89 @@ def test_tool_event_line_keeps_container_identity():
     assert "LDPE" in left and "HDPE" in right
     assert "dodecane" in left and "hexane" in right
     assert "<1>" not in left and "<2>" not in left
+
+
+def _complete_one_tool(name, args):
+    def fake_complete(messages, tools, **kwargs):
+        if any(m.get("role") == "tool" for m in messages):
+            return {"text": "done", "tool_calls": []}
+        return {
+            "text": "",
+            "tool_calls": [{"id": "c1", "name": name, "args": args}],
+        }
+    return fake_complete
+
+
+def _run_one_tool(monkeypatch, name, args):
+    monkeypatch.setattr(agent_harness, "complete", _complete_one_tool(name, args))
+    events = []
+    result = run_turn(
+        "q", session=new_session(), model="openai:x", on_event=events.append,
+    )
+    return result, events
+
+
+def _summary_args_body(summary: str) -> str:
+    return summary.split("(", 1)[1].rsplit(") fp=", 1)[0]
+
+
+def test_tool_event_line_escapes_name_via_unknown_tool_refusal(monkeypatch):
+    result, events = _run_one_tool(monkeypatch, "unknown\nTOOL", {})
+    assert events and events[0].result.get("refusal") == "unknown_tool"
+    assert result.tool_trace[0].result.get("refusal") == "unknown_tool"
+    summary = cli._tool_event_summary(events[0])
+    assert "\n" not in summary
+    assert "\\n" in summary
+    assert "unknown\\nTOOL" in summary
+
+
+def test_tool_event_line_escapes_key_via_tool_exception_refusal(monkeypatch):
+    result, events = _run_one_tool(
+        monkeypatch, "solubility_query", {"bad\nKEY": "x"},
+    )
+    assert events and events[0].result.get("refusal") == "tool_exception"
+    assert result.tool_trace[0].name == "solubility_query"
+    summary = cli._tool_event_summary(events[0])
+    assert "\n" not in summary
+    assert "\\n" in summary
+    assert "bad\\nKEY" in summary
+
+
+def test_tool_event_line_bounds_unknown_tool_name_via_run_turn(monkeypatch):
+    name = "U" * 5000
+    result, events = _run_one_tool(monkeypatch, name, {})
+    assert events and events[0].result.get("refusal") == "unknown_tool"
+    summary = cli._tool_event_summary(events[0])
+    assert "\n" not in summary
+    assert len(summary) <= 48 + 160 + 80
+    assert name not in summary
+    assert summary.count("U") <= cli._ARG_ITEM_MAX
+    assert result.tool_trace[0].name == name
+
+
+def test_tool_event_line_distinguishes_unsampled_container_tail():
+    result = {"ok": True}
+    left = cli._tool_event_summary(ToolEvent(
+        "screen_hansen_compatibility",
+        {"polymer_names": ["LDPE"], "solvent_names": ["dodecane", "xylene", "hexane"]},
+        result,
+    ))
+    right = cli._tool_event_summary(ToolEvent(
+        "screen_hansen_compatibility",
+        {"polymer_names": ["LDPE"], "solvent_names": ["dodecane", "xylene", "toluene"]},
+        result,
+    ))
+    assert _summary_args_body(left) == _summary_args_body(right)
+    assert "hexane" not in left and "toluene" not in right
+    assert left != right
+    fps = re.findall(rf"fp=([0-9a-f]{{{cli._FP_HEX}}})", left + " " + right)
+    assert len(set(fps)) == 2
+
+
+def test_tool_event_line_distinguishes_args_past_global_truncation():
+    padding = {f"arg{i:02d}": "xxxx" for i in range(30)}
+    left = cli._tool_event_summary(ToolEvent("probe", {**padding, "zz": "one"}, {}))
+    right = cli._tool_event_summary(ToolEvent("probe", {**padding, "zz": "two"}, {}))
+    assert _summary_args_body(left) == _summary_args_body(right)
+    assert "zz=" not in _summary_args_body(left)
+    assert left != right

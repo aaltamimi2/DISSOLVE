@@ -352,6 +352,20 @@ class _Store:
 _ARG_ITEM_MAX = 48
 _CONTAINER_SAMPLE = 2
 _ARGS_MAX = 160
+_FP_HEX = 12
+
+
+def _canonical_json(value: Any) -> str:
+    try:
+        payload = normalize_json(value)
+    except TypeError:
+        payload = str(value)
+    return json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+
+
+def _args_fingerprint(args: Any) -> str:
+    blob = _canonical_json(args if args is not None else {})
+    return hashlib.sha256(blob.encode("utf-8")).hexdigest()[:_FP_HEX]
 
 
 def _render_scalar(value: Any, limit: int = _ARG_ITEM_MAX) -> str:
@@ -398,15 +412,17 @@ def _render_value(value: Any, *, depth: int = 0) -> str:
 
 
 def _tool_arg_fragment(key: str, value: Any) -> str:
-    return f"{key}={_render_value(value)}"
+    return f"{_render_scalar(key)}={_render_value(value)}"
 
 
 def _tool_event_summary(event: ToolEvent) -> str:
+    name = _render_scalar(event.name)
     args = ", ".join(_tool_arg_fragment(k, v) for k, v in (event.args or {}).items())
     if len(args) > _ARGS_MAX:
         args = args[: _ARGS_MAX - 1] + "…"
+    fingerprint = _args_fingerprint(event.args or {})
     blob = json.dumps(event.result, ensure_ascii=False, default=str)
-    return f"{event.name}({args}) -> {len(blob.encode('utf-8'))} B"
+    return f"{name}({args}) fp={fingerprint} -> {len(blob.encode('utf-8'))} B"
 
 
 class CliApp:
