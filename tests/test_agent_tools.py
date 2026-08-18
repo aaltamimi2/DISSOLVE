@@ -845,6 +845,26 @@ def test_wrapper_appends_reported_from_row_fields():
         assert 140.0 in rec["temperatures_in_play"]
 
 
+def _eligible_reported_ids(payload):
+    skip = {"shown", "total", "available_count", "returned", "offset", "available", "success"}
+    rows = []
+    if isinstance(payload.get("top"), list):
+        rows.extend(r for r in payload["top"] if isinstance(r, dict))
+    data = payload.get("data")
+    if isinstance(data, dict):
+        for value in data.values():
+            if isinstance(value, list) and value and all(isinstance(i, dict) for i in value):
+                rows.extend(value)
+    basis, handle = payload.get("source_basis"), payload.get("handle")
+    ids = set()
+    for row in rows:
+        for key, value in row.items():
+            if key in skip or isinstance(value, bool) or not isinstance(value, (int, float)):
+                continue
+            ids.add((value, basis, handle))
+    return ids
+
+
 def test_result_read_later_page_appends_reported():
     with _bound() as rec:
         screen = dispatch(
@@ -852,23 +872,21 @@ def test_result_read_later_page_appends_reported():
             feed_polymers=["LDPE", "PP"], temperature_min_c=80.0,
             temperature_max_c=140.0, top_k=20,
         )
+        first = _eligible_reported_ids(screen)
         before = len(rec["reported"])
         page = dispatch("result_read", handle=screen["handle"], offset=20, limit=20)
         assert page["returned"] == 20
         assert len(rec["reported"]) > before
-        skip = {"shown", "total", "available_count", "returned", "offset", "available", "success"}
-        later = {
-            (v, page.get("source_basis"), page.get("handle"))
-            for r in page["data"]["rows"] if isinstance(r, dict)
-            for k, v in r.items()
-            if isinstance(v, (int, float)) and not isinstance(v, bool) and k not in skip
-        }
+        later = _eligible_reported_ids(page)
         have = {
             (row.get("number"), row.get("source_basis"), row.get("handle"))
             for row in rec["reported"]
         }
+        assert first
         assert later
+        assert first <= have
         assert later <= have
+        assert len(have) >= len(first | later)
 
 
 def test_append_reported_skips_count_fields():
