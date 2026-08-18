@@ -9,7 +9,7 @@ for _p in (str(_SRC), str(_ROOT)):
     if _p not in sys.path:
         sys.path.insert(0, _p)
 
-from dissolve.session import bind_tool_session, compact_messages, context_window, open_turn_record
+from dissolve.session import CompactionBudgetError, bind_tool_session, compact_messages, context_window, open_turn_record
 from agent_tools import SYSTEM_PROMPT, dispatch, tool_schemas
 
 @dataclass(frozen=True)
@@ -157,8 +157,7 @@ def run_turn(
                 return TurnResult(answer=f"provider error: {type(e).__name__}: {e}", status="provider_error", tool_trace=trace, turn_record=tid)
             calls, text = reply.get("tool_calls") or [], reply.get("text") or ""
             if not calls:
-                msgs.append({"role": "assistant", "content": text})
-                return TurnResult(answer=text, status="ok", tool_trace=trace, turn_record=tid)
+                msgs.append({"role": "assistant", "content": text}); return TurnResult(answer=text, status="ok", tool_trace=trace, turn_record=tid)
             msgs.append({"role": "assistant", "content": text, "tool_calls": calls})
             for call in calls:
                 args = call.get("args") or {}
@@ -170,11 +169,12 @@ def run_turn(
                 result = dispatch(call["name"], **args)
                 event = ToolEvent(name=call["name"], args=args, result=result)
                 trace.append(event)
-                if on_event:
-                    on_event(event)
+                if on_event: on_event(event)
                 msgs.append({"role": "tool", "tool_call_id": call.get("id"),
                              "name": call["name"], "content": json.dumps(result)})
-                compact_messages(msgs, bound, window=context_window(model))
+                try: compact_messages(msgs, bound, window=context_window(model))
+                except CompactionBudgetError as e:
+                    return TurnResult(answer=str(e), status="compaction_error", tool_trace=trace, turn_record=tid)
         return TurnResult(
             answer="round cap (30) reached; see the tool trace for what was retrieved. No guessed answer.",
             status="round_cap", tool_trace=trace, turn_record=tid)

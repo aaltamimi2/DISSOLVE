@@ -420,9 +420,13 @@ def compact_messages(
             end += 1
         del messages[keep:end]
     if estimated_tokens(messages) > target:
+        summary = messages[insert_at].get("content") if insert_at < len(messages) else ""
         raise CompactionBudgetError(
             "compaction cannot meet window-reserve without omitting "
-            "numbers already reported or cutting the current user/tool group"
+            "numbers already reported or cutting the current user/tool group: "
+            f"estimated_tokens={estimated_tokens(messages)} target={target} "
+            f"(window={window} reserve={reserve}); "
+            f"summary needs {len(str(summary))} characters"
         )
 
 

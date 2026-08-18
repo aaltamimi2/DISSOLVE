@@ -1019,6 +1019,9 @@ def test_run_turn_passes_alias_window(monkeypatch):
 
     monkeypatch.setattr(agent_harness, "complete", fake_complete)
     monkeypatch.setattr(agent_harness, "compact_messages", spy)
-    with pytest.raises(CompactionBudgetError):
-        run_turn("q", session=new_session(), model="openai:foo-8k")
+    result = run_turn("q", session=new_session(), model="openai:foo-8k")
+    assert result.status == "compaction_error"
+    assert "target=" in result.answer
+    assert "estimated_tokens=" in result.answer
+    assert "summary needs" in result.answer
     assert hits == [("tool", 8000)]
