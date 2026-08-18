@@ -284,6 +284,8 @@ def test_schemas_handle_only_on_consumer_and_omit_injected():
             schema = props.get(name) or {}
             if not (schema.get("type") or schema.get("anyOf") or schema.get("enum")):
                 empty.append(f"{spec['name']}.{name}")
+            if schema.get("type") == "array" and "items" not in schema:
+                empty.append(f"{spec['name']}.{name}")
     assert empty == []
     assert [
         f"{spec['name']}.{n}"
@@ -573,6 +575,14 @@ def test_missing_provider_key_names_the_environment_variable(monkeypatch):
     )
     assert blank.status == "provider_error"
     assert blank.answer == "missing environment variable META_MUSE_API_KEY"
+    monkeypatch.delenv("NONEXISTENT_AUDIT_KEY", raising=False)
+    ghost = run_turn(
+        "q", session=new_session(), model="openai:muse-spark-1.2",
+        api_key_env="NONEXISTENT_AUDIT_KEY",
+    )
+    assert ghost.status == "provider_error"
+    assert ghost.answer == "missing environment variable NONEXISTENT_AUDIT_KEY"
+    assert "OPENAI_API_KEY" not in ghost.answer
 
 
 def test_unknown_prefix_and_omitted_key_env_do_not_invent_api_key_env(monkeypatch):
