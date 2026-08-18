@@ -638,3 +638,83 @@ def test_usage_is_display_only_except_the_cost_line(tmp_path, monkeypatch):
     assert '"total_tokens": 0' in cost_lines[1]
     assert '"total_tokens": 18' in cost_lines[2]
     assert "No model usage in this process yet" not in "".join(cost_lines)
+
+
+_SAFETY_PAYLOAD = {
+    "identity": {"name": "dodecane"},
+    "physical_properties": {"bp_c": 216},
+    "gscore": 4.1,
+    "ghs": {"pictograms": ["flame"]},
+    "toxicity": {"ld50": "none"},
+    "occupational_exposure_limits": {"twa": "none"},
+    "peroxide_risk": {"class": "none"},
+    "process_temperature_assessment": {"ok": True},
+    "data_gaps": [],
+    "provenance": {"source_basis": "safety_local"},
+}
+
+
+def _safety_turn(query, *, session, model, messages, on_event, api_base, api_key_env):
+    if messages is not None:
+        messages.append({"role": "user", "content": query})
+        messages.append({"role": "assistant", "content": "dodecane is a hydrocarbon."})
+    ev = ToolEvent(
+        "get_solvent_safety_card",
+        {"solvent_name": "dodecane", "include_pubchem": False},
+        _SAFETY_PAYLOAD,
+    )
+    if on_event:
+        on_event(ev)
+    return TurnResult(
+        "dodecane is a hydrocarbon.", "ok", [ev], "turn-1", 1, None,
+    )
+
+
+def test_tool_event_print_is_one_line_without_payload(tmp_path, monkeypatch):
+    monkeypatch.setattr(cli, "run_turn", _safety_turn)
+    app, buf = _app(tmp_path, monkeypatch)
+    result = app.ask("what is the safety of dodecane?")
+    shown = buf.getvalue()
+    blob = json.dumps(_SAFETY_PAYLOAD, ensure_ascii=False)
+    size = len(blob.encode("utf-8"))
+    assert f"get_solvent_safety_card(solvent_name=dodecane, include_pubchem=False) -> {size} B" in shown
+    assert shown.count("get_solvent_safety_card") == 1
+    for key in (
+        "physical_properties", "gscore", "occupational_exposure_limits",
+        "peroxide_risk", "process_temperature_assessment", "data_gaps",
+    ):
+        assert key not in shown
+    assert result.tool_trace[0].result == _SAFETY_PAYLOAD
+    rows = [
+        json.loads(line)
+        for line in app.store.transcript_path.read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+    tool_row = next(row for row in rows if row.get("role") == "tool")
+    assert json.loads(tool_row["content"]) == _SAFETY_PAYLOAD
+
+
+def test_stream_json_emits_complete_tool_result(tmp_path, monkeypatch):
+    monkeypatch.setattr(cli, "run_turn", _safety_turn)
+    events = []
+    console, buf = _console()
+    monkeypatch.setenv("META_MUSE_API_KEY", "test-key")
+    app = CliApp(
+        session_id="stream-json",
+        store_root=tmp_path,
+        console=console,
+        persist=False,
+        event_sink=events.append,
+        quiet=True,
+    )
+    app.ask("what is the safety of dodecane?")
+    shown = buf.getvalue()
+    tool_events = [ev for ev in events if ev.get("event") == "tool"]
+    assert len(tool_events) == 1
+    assert tool_events[0]["name"] == "get_solvent_safety_card"
+    assert tool_events[0]["result"] == _SAFETY_PAYLOAD
+    assert tool_events[0]["result"]["gscore"] == 4.1
+    assert "gscore" not in shown
+    assert "physical_properties" not in shown
+    assert "get_solvent_safety_card" not in shown
+

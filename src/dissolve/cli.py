@@ -30,6 +30,7 @@ from rich.markdown import Markdown
 from rich.panel import Panel
 from rich.prompt import Prompt
 from rich.table import Table
+from rich.text import Text
 
 from agent_harness import ToolEvent, TurnResult, run_turn
 from agent_tools import SYSTEM_PROMPT
@@ -348,6 +349,20 @@ class _Store:
             handle.write(json.dumps(event, ensure_ascii=False) + "\n")
 
 
+def _tool_arg_fragment(key: str, value: Any) -> str:
+    if isinstance(value, str):
+        return f"{key}={value}"
+    if isinstance(value, (dict, list, tuple)):
+        return f"{key}=<{len(value)}>"
+    return f"{key}={value}"
+
+
+def _tool_event_summary(event: ToolEvent) -> str:
+    args = ", ".join(_tool_arg_fragment(k, v) for k, v in (event.args or {}).items())
+    blob = json.dumps(event.result, ensure_ascii=False, default=str)
+    return f"{event.name}({args}) -> {len(blob.encode('utf-8'))} B"
+
+
 class CliApp:
     def __init__(
         self,
@@ -492,8 +507,10 @@ class CliApp:
         self._append("tool", json.dumps(event.result), name=event.name, args=event.args)
         self._emit({"event": "tool", "name": event.name, "args": event.args, "result": event.result})
         if not self.quiet:
-            self.console.print(f"[cyan]tool[/] {event.name} {event.args}")
-            self.console.print(event.result)
+            line = Text(no_wrap=True)
+            line.append("tool", style="cyan")
+            line.append(f"  {_tool_event_summary(event)}")
+            self.console.print(line, soft_wrap=True)
 
     def handle_command(self, line: str) -> bool:
         parts = line.strip().split()
