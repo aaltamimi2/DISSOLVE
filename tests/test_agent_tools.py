@@ -70,6 +70,57 @@ def _archive_readers_in_loop_graph():
     return found
 
 
+class ArchiveReadError(RuntimeError):
+    """Row read of the validator archive from inside the loop."""
+
+
+class ArchiveTrap(dict):
+    """A turn_records table writers may append to. Row reads raise.
+
+    Installed as the *value* of session['turn_records'] so bind_tool_session's
+    shallow copy keeps the same object. open_turn_record / record_tool_call
+    use len, `in`, __setitem__, and setdefault. _summary_text on a93030d
+    used .values().
+    """
+
+    def values(self):
+        raise ArchiveReadError("archive rows consumed via values")
+
+    def items(self):
+        raise ArchiveReadError("archive rows consumed via items")
+
+    def keys(self):
+        raise ArchiveReadError("archive rows consumed via keys")
+
+    def __iter__(self):
+        raise ArchiveReadError("archive rows consumed via iter")
+
+    def get(self, *args, **kwargs):
+        raise ArchiveReadError("archive rows consumed via get")
+
+
+def _forced_compact_turn(monkeypatch, session):
+    """A reachable over-budget tool round. Last message at compact time is tool."""
+    n = {"i": 0}
+    history = [
+        {"role": "user", "content": "OLD " + ("x" * 490_000)},
+        {"role": "assistant", "content": "old answer"},
+    ]
+
+    def fake_complete(messages, tools, **kwargs):
+        n["i"] += 1
+        if n["i"] == 1:
+            return {"text": "", "tool_calls": [{"id": "1", "name": "no_such_tool", "args": {}}]}
+        return {"text": "done", "tool_calls": []}
+
+    monkeypatch.setattr(agent_harness, "complete", fake_complete)
+    result = run_turn(
+        "CURRENT-QUERY", session=session,
+        model="openai:muse-spark-1.2", messages=history,
+    )
+    return result, n["i"]
+
+
 def _bound(session=None):
     return bind_tool_session(session if session is not None else new_session())
 
@@ -707,6 +758,16 @@ def test_compaction_does_not_read_turn_records():
     assert "turn_records" not in inspect.getsource(sess.append_reported)
     assert "turn_records" not in inspect.getsource(sess.note_in_play)
     assert _archive_readers_in_loop_graph() == []
+
+
+def test_reachable_compact_does_not_consume_archive_rows(monkeypatch):
+    session = new_session()
+    session["turn_records"] = ArchiveTrap()
+    result, rounds = _forced_compact_turn(monkeypatch, session)
+    assert result.status == "ok"
+    assert rounds == 2
+    assert isinstance(session["turn_records"], ArchiveTrap)
+    assert len(session["turn_records"]) >= 1
 
 
 def test_wrapper_appends_reported_from_row_fields():
