@@ -1128,14 +1128,19 @@ def screen_green_solvent_candidates(
     temperature_min_c: Optional[float] = None,
     temperature_max_c: Optional[float] = None,
     strict_maximum: bool = False,
-    require_atmospheric: bool = True,
+    require_atmospheric: Optional[bool] = None,
     exclude_chlorinated: bool = True,
     minimum_g_score: float = 6.0,
     minimum_target_solubility_wt_pct: float = 5.0,
     minimum_selectivity_points: float = 5.0,
     limit: int = 5,
 ) -> str:
-    """Apply sourced green/safety filters before thermodynamic tie-breaks."""
+    """Apply sourced green/safety filters before thermodynamic tie-breaks.
+
+    ``require_atmospheric=None`` keeps missing boiling-point data while
+    excluding known-too-low conditions; ``True`` excludes both and ``False``
+    excludes neither.
+    """
     tool = "screen_green_solvent_candidates"
     if not isinstance(feed_polymers, list) or len(feed_polymers) < 2:
         return tool_error(tool, "At least two feed polymers are required.", error_code="invalid_feed")
@@ -1193,12 +1198,17 @@ def screen_green_solvent_candidates(
     if len(polymers) < 2:
         return tool_error(tool, "At least two distinct feed polymers are required.", error_code="invalid_feed")
     retained = [polymer for polymer in polymers if polymer != target]
-    from .tools import _temperature_grid
+    from .tools import (
+        _atmospheric_exclusion_applies, _atmospheric_exclusion_counts,
+        _atmospheric_exclusion_reason,
+        _temperature_grid,
+    )
 
     temperatures = _temperature_grid(lower, upper, 5.0, bool(strict_maximum))
     if not temperatures:
         return tool_error(tool, "No temperatures remain inside the requested bound.", error_code="empty_temperature_grid")
     eligible, chlorinated, below_g, missing_g, no_condition = [], [], [], [], []
+    atmospheric_exclusions = _atmospheric_exclusion_counts()
     sources: list[str] = []
     for solvent_key in sorted(thermo.get_available_solvents()):
         properties = _local_properties(solvent_key)
@@ -1220,9 +1230,22 @@ def screen_green_solvent_candidates(
             continue
         condition = None
         boiling = thermo.get_boiling_point(solvent_key)
+        if all(
+            _atmospheric_exclusion_applies(
+                _atmospheric_exclusion_reason(boiling, temperature),
+                require_atmospheric,
+            )
+            for temperature in temperatures
+        ):
+            reason = _atmospheric_exclusion_reason(boiling, temperatures[0])
+            assert reason is not None
+            atmospheric_exclusions[reason] += 1
+            continue
+        qualifying_atmospheric_exclusion: Optional[str] = None
         for temperature in temperatures:
-            if require_atmospheric and (boiling is None or temperature >= boiling):
-                continue
+            atmospheric_exclusion = _atmospheric_exclusion_reason(
+                boiling, temperature,
+            )
             target_result = thermo.get_solubility_result(
                 target, solvent_key, temperature,
             )
@@ -1243,6 +1266,12 @@ def screen_green_solvent_candidates(
             limiting_value = float(off_targets[limiting])
             selectivity = float(target_value) - limiting_value
             if target_value >= solubility_floor and selectivity >= selectivity_floor:
+                if _atmospheric_exclusion_applies(
+                    atmospheric_exclusion, require_atmospheric,
+                ):
+                    assert atmospheric_exclusion is not None
+                    qualifying_atmospheric_exclusion = atmospheric_exclusion
+                    continue
                 condition = {
                     "solvent": canonical,
                     "temperature_c": temperature,
@@ -1268,7 +1297,10 @@ def screen_green_solvent_candidates(
                 sources.append(str(score.get("source") or ""))
                 break
         if condition is None:
-            no_condition.append(canonical)
+            if qualifying_atmospheric_exclusion is not None:
+                atmospheric_exclusions[qualifying_atmospheric_exclusion] += 1
+            else:
+                no_condition.append(canonical)
         else:
             eligible.append(condition)
     eligible.sort(key=lambda row: (
@@ -1294,14 +1326,17 @@ def screen_green_solvent_candidates(
         analysis_type="green_first_solvent_screen", polymers=polymers,
         target_polymer=target, other_polymers=retained,
         temperature_min_c=lower, temperature_max_c=upper,
-        strict_maximum=bool(strict_maximum), require_atmospheric=bool(require_atmospheric),
+        strict_maximum=bool(strict_maximum), require_atmospheric=require_atmospheric,
         exclude_chlorinated=bool(exclude_chlorinated), minimum_g_score=g_floor,
         g_score_rating_floor=("Excellent" if g_floor >= 8.0 else "Good" if g_floor >= 6.0 else "Problematic"),
         minimum_target_solubility_wt_pct=solubility_floor,
         minimum_selectivity_points=selectivity_floor,
         condition_selection=(
             "lowest screened atmospheric temperature meeting both thermodynamic references"
-            if require_atmospheric else
+            if require_atmospheric is True else
+            "lowest screened temperature below the recorded boiling point, while retaining "
+            "solvents with no boiling point on record, meeting both thermodynamic references"
+            if require_atmospheric is None else
             "lowest screened temperature meeting both thermodynamic references"
         ),
         ranking_basis="G-score descending, then lower qualifying temperature and higher selectivity",
@@ -1310,6 +1345,7 @@ def screen_green_solvent_candidates(
         excluded_below_g_score_count=len(set(below_g)),
         excluded_missing_g_score_count=len(set(missing_g)),
         excluded_no_qualifying_condition_count=len(set(no_condition)),
+        **atmospheric_exclusions,
         best_result_is_weak=not ranked,
         provenance={
             "thermodynamics": "thermodynamics.duckdb",
@@ -1335,11 +1371,16 @@ def screen_route_solvent_substitutions(
     temperature_min_c: Optional[float] = None,
     temperature_max_c: Optional[float] = None,
     strict_maximum: bool = False,
-    require_atmospheric: bool = True,
+    require_atmospheric: Optional[bool] = None,
     min_selectivity_retention_fraction: float = 0.8,
     include_pubchem: bool = True,
 ) -> str:
-    """Screen a whole route and replace its worst solvent without hard-coded candidates."""
+    """Screen a whole route and replace its worst solvent without hard-coded candidates.
+
+    ``require_atmospheric=None`` keeps missing boiling-point data while
+    excluding known-too-low conditions; ``True`` excludes both and ``False``
+    excludes neither.
+    """
     tool = "screen_route_solvent_substitutions"
     if not isinstance(feed_polymers, list) or len(feed_polymers) < 2:
         return tool_error(tool, "At least two feed polymers are required.", error_code="invalid_feed")
@@ -1407,9 +1448,9 @@ def screen_route_solvent_substitutions(
         })
         remaining.remove(target)
     worst = max(stages, key=lambda item: _safety_priority(item["safety"]))
-    candidates, screened, excluded, _ = _screen_direction(
+    candidates, screened, atmospheric_exclusions, _ = _screen_direction(
         worst["dissolved_polymer"], worst["retained_polymers"], temperatures,
-        bool(require_atmospheric), 12,
+        require_atmospheric, 12,
     )
     current_key = str(worst["solvent_data_key"])
     minimum_selectivity = float(worst["selectivity_pct"]) * retention
@@ -1484,11 +1525,16 @@ def screen_route_solvent_substitutions(
     current_display = {**worst, "safety": worst["safety"]}
     display = _format_substitution_comparison(current_display, recommended, retention)
     comparison_rows = [worst["safety"]] + ([recommended["safety"]] if recommended else [])
+    atmospheric_candidate_scope = (
+        "strictly atmospheric" if require_atmospheric is True
+        else "thermodynamic" if require_atmospheric is False
+        else "known-atmospheric-or-unknown-BP"
+    )
     return tool_success(
         tool, display=display, analysis_type="route_solvent_substitution_screen",
         polymers=polymers, temperature_min_c=lower, temperature_max_c=upper,
         evaluated_temperature_max_c=max(temperatures), strict_maximum=bool(strict_maximum),
-        require_atmospheric=bool(require_atmospheric),
+        require_atmospheric=require_atmospheric,
         min_selectivity_retention_fraction=retention,
         minimum_comparable_selectivity_points=minimum_selectivity,
         route_stage_assessments=stages, worst_stage=worst,
@@ -1509,10 +1555,11 @@ def screen_route_solvent_substitutions(
             {"solvent_name": row["solvent"], "operating_temp_c": row["temperature_c"]}
             for row in [worst, *substitutions]
         ],
-        screened_conditions=screened, excluded_for_boiling_point=excluded,
+        screened_conditions=screened, **atmospheric_exclusions,
         selection_basis=(
-            "higher sourced G-score among atmospheric candidates retaining at least "
-            f"{retention:.0%} of the current modeled selectivity"
+            f"higher sourced G-score among {atmospheric_candidate_scope} "
+            f"candidates retaining at least {retention:.0%} of the current "
+            "modeled selectivity"
         ),
         provenance={"source_families": list(dict.fromkeys(source_families))},
         artifact={"kind": "route_solvent_substitution", "format": "text", "title": "Route solvent substitution"},
@@ -1521,6 +1568,15 @@ def screen_route_solvent_substitutions(
             "A higher G-score does not imply safer heated operation; compare flash point and heating risk separately.",
             "Selectivity is a modeled percentage-point difference, not recovery or purity.",
             "The substituted route remains model-screened and requires experimental validation.",
+            *(
+                [
+                    "Candidates without a recorded normal boiling point remain in the "
+                    "screen; their atmospheric feasibility is unknown."
+                ]
+                if not require_atmospheric and any(
+                    candidate.get("atmospheric_feasible") is None
+                    for candidate in candidates
+                ) else []
+            ),
         ],
     )
-
