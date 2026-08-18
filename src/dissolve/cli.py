@@ -10,6 +10,7 @@ import re
 import sys
 import time
 import uuid
+from contextlib import nullcontext
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -34,7 +35,7 @@ from agent_harness import ToolEvent, TurnResult, run_turn
 from agent_tools import SYSTEM_PROMPT
 from dissolve import RELEASE
 from dissolve.contracts import normalize_json
-from dissolve.session import SessionRecord, handle_total, new_session
+from dissolve.session import SessionRecord, new_session
 
 _SESSION_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{2,63}$")
 _MODE_LINE = {
@@ -50,7 +51,6 @@ class ModelSpec:
     env_var: str
     usage: str
     base_url: str | None = None
-    true_alias: str | None = None
 
 
 MODELS = {
@@ -72,7 +72,7 @@ MODELS = {
     ),
     "muse-spark": ModelSpec(
         "Meta Muse Spark 1.2", "openai:muse-spark-1.2", "META_MUSE_API_KEY",
-        "Reasoning model · Meta API", "https://api.meta.ai/v1", "muse-spark",
+        "Reasoning model · Meta API", "https://api.meta.ai/v1",
     ),
 }
 MODEL_ALIASES = {"gemini": "gemini-flash", "claude": "claude-sonnet", "muse": "muse-spark"}
@@ -90,6 +90,28 @@ def _system_prompt(mode: str) -> str:
     return f"{SYSTEM_PROMPT}\n\nCLI interaction mode: {mode}. {_MODE_LINE[mode]}"
 
 
+def _scrub_session(loaded: dict[str, Any] | None) -> SessionRecord:
+    """Resume the world. Never restore an in-flight `_turn`."""
+    rec = SessionRecord(loaded) if isinstance(loaded, dict) else new_session()
+    rec.pop("_turn", None)
+    return rec
+
+
+def _drop_incomplete_tool_round(messages: list) -> list:
+    """A persisted unmatched tool_use is dropped, not completed with a fake result."""
+    last = None
+    for i, msg in enumerate(messages):
+        if msg.get("role") == "assistant" and msg.get("tool_calls"):
+            last = i
+    if last is None:
+        return messages
+    emitted = [c.get("id") for c in messages[last].get("tool_calls") or [] if c.get("id")]
+    received = [m.get("tool_call_id") for m in messages[last + 1:] if m.get("role") == "tool"]
+    if emitted and set(emitted) <= set(received):
+        return messages
+    return messages[:last]
+
+
 def doctor_report(
     home: str | Path | None = None, *, model_alias: str | None = None,
 ) -> dict[str, Any]:
@@ -105,21 +127,15 @@ def doctor_report(
     supported_keys = ("GOOGLE_API_KEY", "ANTHROPIC_API_KEY", "META_MUSE_API_KEY")
     available_keys = [name for name in supported_keys if os.getenv(name)]
     selected_provider_ready = bool(os.getenv(selected_spec.env_var))
-    if selected_provider_ready:
-        provider_detail = (
-            f"{selected_spec.env_var} configured for selected model "
-            f"{selected_alias} ({selected_spec.label})"
-        )
-    else:
-        alternatives = (
-            f"configured alternatives: {', '.join(available_keys)}"
-            if available_keys else
-            f"no provider keys are configured (supported: {', '.join(supported_keys)})"
-        )
-        provider_detail = (
-            f"{selected_spec.env_var} is required for selected model "
-            f"{selected_alias} ({selected_spec.label}); {alternatives}"
-        )
+    provider_detail = (
+        f"{selected_spec.env_var} configured for selected model "
+        f"{selected_alias} ({selected_spec.label})"
+        if selected_provider_ready else
+        f"{selected_spec.env_var} is required for selected model "
+        f"{selected_alias} ({selected_spec.label}); "
+        + (f"configured alternatives: {', '.join(available_keys)}" if available_keys else
+           f"no provider keys are configured (supported: {', '.join(supported_keys)})")
+    )
     add(
         "Model provider", "pass" if selected_provider_ready else "fail",
         provider_detail, configured_keys=available_keys,
@@ -266,11 +282,9 @@ class CliApp:
         if require_key and not (os.getenv(self.model_spec.env_var) or "").strip():
             raise RuntimeError(f"{self.model_spec.env_var} is required for {self.model_spec.label}")
         loaded_session = (stored or {}).get("session") if stored else None
-        self.session: dict[str, Any] = (
-            SessionRecord(loaded_session) if isinstance(loaded_session, dict) else new_session()
-        )
+        self.session: dict[str, Any] = _scrub_session(loaded_session)
         loaded_msgs = list((stored or {}).get("messages") or [])
-        self.messages: list[dict[str, Any]] = loaded_msgs or [
+        self.messages: list[dict[str, Any]] = _drop_incomplete_tool_round(loaded_msgs) or [
             {"role": "system", "content": _system_prompt(self.mode)},
         ]
         self._apply_mode_prompt()
@@ -290,7 +304,6 @@ class CliApp:
         meta = {
             "model": self.model_alias,
             "model_id": self.model_spec.model,
-            "model_true_alias": self.model_spec.true_alias or self.model_spec.model.rsplit(":", 1)[-1],
             "mode": self.mode,
             "release": RELEASE,
         }
@@ -339,10 +352,12 @@ class CliApp:
         for name, stored in handles.items():
             if not isinstance(stored, dict):
                 continue
-            try:
-                total = handle_total(stored)
-            except (TypeError, ValueError, KeyError):
-                total = None
+            exact, total = stored.get("exact"), None
+            if isinstance(exact, dict):
+                for value in exact.values():
+                    if isinstance(value, list) and value and all(isinstance(i, dict) for i in value):
+                        total = len(value)
+                        break
             live.append({"handle": name, "tool": stored.get("tool"), "total": total,
                          "source_basis": stored.get("source_basis")})
         payload = {
@@ -420,12 +435,7 @@ class CliApp:
     def ask(self, query: str) -> TurnResult:
         self._append("user", query, mode=self.mode, model=self.model_alias)
         started = time.monotonic()
-        status = (
-            None if self.quiet
-            else self.console.status("[cyan]Reasoning with scientific tools…[/]")
-        )
-        cm = status if status is not None else _null()
-        with cm:
+        with nullcontext() if self.quiet else self.console.status("[cyan]Reasoning with scientific tools…[/]"):
             result = run_turn(
                 query,
                 session=self.session,
@@ -474,14 +484,6 @@ class CliApp:
                 break
             except (RuntimeError, ValueError) as error:
                 self.console.print(f"[red]Error:[/] {error}")
-
-
-class _null:
-    def __enter__(self):
-        return self
-
-    def __exit__(self, *exc):
-        return False
 
 
 def main(argv: Sequence[str] | None = None) -> int:

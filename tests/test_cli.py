@@ -76,6 +76,10 @@ def test_cli_source_cuts_langchain_ingest_and_registry_call():
     assert "AgentHarness" not in src
     assert "SessionState" not in src
     assert "candidate_evidence" not in src
+    assert "handle_total" not in src
+    assert "true_alias" not in src
+    assert "budget_profile" not in src
+    assert "v0.4" not in src
 
 
 def test_main_rejects_ingest_verbs():
@@ -220,3 +224,86 @@ def test_cli_does_not_call_registry(monkeypatch, tmp_path):
 def test_new_session_shape_unchanged():
     rec = new_session()
     assert set(rec) >= {"handles", "reported", "turn_records"}
+
+
+def test_banner_subtitle_is_v12_release(tmp_path, monkeypatch):
+    app, buf = _app(tmp_path, monkeypatch)
+    app.banner()
+    shown = buf.getvalue()
+    assert "dissolve-v12-0.1" in shown
+    assert "v0.4" not in shown
+
+
+def test_ask_prints_turnresult_answer_only(tmp_path, monkeypatch):
+    monkeypatch.setattr(cli, "run_turn", _ok_turn)
+    app, buf = _app(tmp_path, monkeypatch)
+    result = app.ask("screen LDPE")
+    shown = buf.getvalue()
+    assert result.answer in shown
+    assert shown.count(result.answer) >= 1
+    assert "registry.call" not in shown
+
+
+def test_load_strips_stale_turn_and_incomplete_tool_round(tmp_path, monkeypatch):
+    monkeypatch.setenv("META_MUSE_API_KEY", "test-key")
+    root = tmp_path / "sessions" / "test-session"
+    root.mkdir(parents=True)
+    payload = {
+        "schema_version": 1,
+        "session_id": "test-session",
+        "release": "dissolve-v12-0.1",
+        "messages": [
+            {"role": "system", "content": "sys"},
+            {"role": "user", "content": "old"},
+            {"role": "assistant", "content": "", "tool_calls": [
+                {"id": "call-1", "name": "no_such_tool", "args": {}},
+                {"id": "call-2", "name": "no_such_tool", "args": {}},
+            ]},
+            {"role": "tool", "tool_call_id": "call-1", "name": "no_such_tool", "content": "{}"},
+        ],
+        "session": {
+            "handles": {}, "reported": [],
+            "_turn": "turn-1",
+            "turn_records": {"turn-1": [{"tool": "old"}]},
+            "polymers_in_play": [], "temperatures_in_play": [],
+        },
+        "metadata": {"model": "muse-spark", "mode": "review"},
+    }
+    (root / "session.json").write_text(json.dumps(payload), encoding="utf-8")
+    app, _ = _app(tmp_path, monkeypatch)
+    assert "_turn" not in app.session
+    assert [m.get("role") for m in app.messages] == ["system", "user"]
+    assert app.session["turn_records"]["turn-1"] == [{"tool": "old"}]
+
+
+def test_resume_missing_handle_is_named_refusal_not_crash(tmp_path, monkeypatch):
+    monkeypatch.setenv("META_MUSE_API_KEY", "test-key")
+    n = {"i": 0}
+
+    def fake_complete(messages, tools, **kwargs):
+        n["i"] += 1
+        if n["i"] == 1:
+            return {"text": "", "tool_calls": [
+                {"id": "1", "name": "result_read", "args": {"handle": "ghost-handle"}},
+            ]}
+        return {"text": "the handle is gone", "tool_calls": []}
+
+    monkeypatch.setattr(agent_harness, "complete", fake_complete)
+    monkeypatch.setattr(cli, "run_turn", _ok_turn)
+    app, _ = _app(tmp_path, monkeypatch)
+    app.ask("screen LDPE")
+    path = tmp_path / "sessions" / "test-session" / "session.json"
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    payload["session"]["handles"] = {}
+    payload["session"]["_turn"] = "turn-1"
+    payload["session"]["turn_records"] = {"turn-1": [{"tool": "old"}]}
+    path.write_text(json.dumps(payload), encoding="utf-8")
+    monkeypatch.setattr(cli, "run_turn", agent_harness.run_turn)
+    app2, _ = _app(tmp_path, monkeypatch)
+    assert app2.session.get("handles") == {}
+    assert "_turn" not in app2.session
+    result = app2.ask("read that shortlist")
+    assert result.status == "ok"
+    assert result.tool_trace[0].result.get("refusal") == "unknown_handle"
+    assert result.turn_record != "turn-1"
+    assert app2.session["turn_records"]["turn-1"] == [{"tool": "old"}]
