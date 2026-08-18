@@ -40,6 +40,12 @@ _HANDLE_ANIMALS = (
     "lynx", "mole", "moth", "newt", "owl", "pike", "puma", "wren",
 )
 
+# Longest list[dict] among these names is the primary row list. Ties: first wins.
+_PRIMARY_KEYS = (
+    "results", "ranked_candidates", "comparison_rows",
+    "candidate_solvents", "records", "matches", "safety_profiles",
+)
+
 
 class SessionRecord(dict):
     """A dict that does not AttributeError on `state.last_contaminant`.
@@ -64,6 +70,22 @@ def new_session() -> SessionRecord:
 def current_tool_session() -> dict[str, Any] | None:
     """The session record bound for this invocation, or None outside one."""
     return _ACTIVE.get()
+
+
+def _bound_record(record: dict[str, Any]) -> dict[str, Any]:
+    """Writes and handle reads go through the active wrapper, or `record`.
+
+    A plain dict is copied at bind. Passing the original while the binder
+    is active is a hard error, not a silent no-op.
+    """
+    active = _ACTIVE.get()
+    if active is None:
+        return record
+    if record is not active:
+        raise RuntimeError(
+            "session writes must use the bound record from bind_tool_session"
+        )
+    return active
 
 
 @contextmanager
@@ -99,45 +121,102 @@ def _unused_handle(handles: dict[str, Any]) -> str:
     raise RuntimeError("handle namespace exhausted")
 
 
+def primary_row_key(data: Any) -> str | None:
+    """Name of the primary row list inside exact `data`, or None."""
+    if not isinstance(data, dict):
+        return None
+    best_key: str | None = None
+    best_len = -1
+    for name in _PRIMARY_KEYS:
+        value = data.get(name)
+        if not isinstance(value, list) or not value:
+            continue
+        if not all(isinstance(item, dict) for item in value):
+            continue
+        if len(value) > best_len:
+            best_key = name
+            best_len = len(value)
+    return best_key
+
+
+def handle_rows(stored: dict[str, Any]) -> list[dict[str, Any]]:
+    """The primary list inside `stored['exact']`. A reference, not a copy."""
+    exact = stored.get("exact")
+    key = primary_row_key(exact)
+    if key is None:
+        raise ValueError("handle has no primary row list")
+    return exact[key]
+
+
+def handle_total(stored: dict[str, Any]) -> int:
+    return len(handle_rows(stored))
+
+
 def store_handle(
     record: dict[str, Any],
     *,
     tool: str,
     source_basis: str,
     data: Any,
-    rows: list[dict[str, Any]],
 ) -> str:
-    """Durable write. Does not also write last_candidates."""
+    """Durable write of exact engine `data`. Rows and total are derived.
+
+    Does not also write last_candidates. Refuses if `data` has no primary
+    row list — there is then no handle.
+    """
+    record = _bound_record(record)
+    if primary_row_key(data) is None:
+        raise ValueError("no primary row list; no handle")
     handles = record.setdefault("handles", {})
     name = _unused_handle(handles)
     handles[name] = {
         "tool": tool,
         "source_basis": source_basis,
-        "total": len(rows),
         "exact": data,
-        "rows": rows,
     }
     return name
 
 
 def load_handle(record: dict[str, Any], handle: str) -> dict[str, Any] | None:
+    record = _bound_record(record)
     stored = (record.get("handles") or {}).get(handle)
     return stored if isinstance(stored, dict) else None
 
 
+def engine_kwargs_for_handle(kwargs: dict[str, Any]) -> tuple[str | None, dict[str, Any]]:
+    """Split `handle` from engine kwargs. Handle present => candidates is None.
+
+    `resolve_candidate_argument` is unchanged and still lets an explicit
+    list win. The wrapper must call this so a copied list cannot win over
+    a handle. Without a handle, the explicit list is left intact (new question).
+    """
+    out = dict(kwargs)
+    handle = out.pop("handle", None)
+    if handle:
+        out["candidates"] = None
+    return (str(handle) if handle else None), out
+
+
 @contextmanager
 def bind_handle_rows(record: dict[str, Any], handle: str) -> Iterator[None]:
-    """Per-call last_candidates bind from a handle. Unbinds in finally."""
+    """Per-call last_candidates bind from exact rows of a handle.
+
+    Builds the source record before either transient write. Unbinds in
+    finally even if the body raises. Unknown handle: KeyError, no write.
+    """
+    record = _bound_record(record)
     stored = load_handle(record, handle)
     if stored is None:
         raise KeyError(handle)
-    record["last_candidates"] = stored["rows"]
-    record["last_candidates_source"] = {
+    rows = handle_rows(stored)
+    source = {
         "handle": handle,
-        "total": stored["total"],
+        "total": len(rows),
         "source_tool": stored["tool"],
     }
     try:
+        record["last_candidates"] = rows
+        record["last_candidates_source"] = source
         yield
     finally:
         record.pop("last_candidates", None)
