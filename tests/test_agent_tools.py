@@ -238,6 +238,12 @@ def test_schemas_handle_only_on_consumer_and_omit_injected():
             if not (schema.get("type") or schema.get("anyOf") or schema.get("enum")):
                 empty.append(f"{spec['name']}.{name}")
     assert empty == []
+    assert [
+        f"{spec['name']}.{n}"
+        for spec in tool_schemas()
+        for n, schema in spec["parameters"]["properties"].items()
+        if schema.get("default", "MISSING") is None
+    ] == []
 
 
 def test_active_record_reported_survives_and_original_write_fails():
@@ -516,6 +522,18 @@ def test_missing_provider_key_names_the_environment_variable(monkeypatch):
     assert blank.answer == "missing environment variable META_MUSE_API_KEY"
 
 
+def test_unknown_prefix_and_omitted_key_env_do_not_invent_api_key_env(monkeypatch):
+    missing = run_turn("q", session=new_session(), model="nope:x")
+    assert missing.status == "provider_error"
+    assert "unknown model prefix" in missing.answer
+    assert "api_key_env" not in missing.answer
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    monkeypatch.delenv("OPENAI_ADMIN_KEY", raising=False)
+    omitted = run_turn("q", session=new_session(), model="openai:x")
+    assert omitted.status == "provider_error"
+    assert "api_key_env" not in omitted.answer
+
+
 def test_run_turn_appends_query_and_mutates_caller_messages(monkeypatch):
     session = new_session()
     history = [
@@ -624,6 +642,18 @@ def test_result_read_later_page_appends_reported():
         page = dispatch("result_read", handle=screen["handle"], offset=20, limit=20)
         assert page["returned"] == 20
         assert len(rec["reported"]) > before
+        later = {r.get("overall_rank") for r in page["data"]["rows"] if isinstance(r, dict)}
+        assert 21 in later
+        assert any(row["number"] == 21 for row in rec["reported"][before:])
+        msgs = [
+            {"role": "system", "content": "sys"},
+            {"role": "user", "content": "q " + ("x" * 4000)},
+            {"role": "assistant", "content": "", "tool_calls": [{"id": "1", "name": "t", "args": {}}]},
+            {"role": "tool", "tool_call_id": "1", "name": "t", "content": "{}"},
+            {"role": "user", "content": "q2"},
+        ]
+        compact_messages(msgs, rec, window=20, reserve=0)
+        assert "21" in msgs[1]["content"]
 
 
 def test_append_reported_skips_count_fields():

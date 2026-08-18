@@ -170,8 +170,8 @@ def tool_schemas() -> list[dict[str, Any]]:
             props[n] = _ptype(hints.get(n, p.annotation))
             if spec.name in PUBCHEM and n == "include_pubchem":
                 props[n] = {**props[n], "type": "boolean", "default": False}
-            elif p.default is not inspect.Parameter.empty and (
-                p.default is None or isinstance(p.default, (bool, int, float, str))
+            elif p.default is not inspect.Parameter.empty and isinstance(
+                p.default, (bool, int, float, str)
             ):
                 props[n]["default"] = p.default
             if p.default is inspect.Parameter.empty:

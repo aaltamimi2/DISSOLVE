@@ -65,10 +65,11 @@ class MissingProviderKey(Exception): pass
 def complete(messages, tools, *, model, api_base=None, api_key_env=None):
     kind, _, ident = model.partition(":")
     ident = ident or model
-    env_name = api_key_env or ""
-    key = (os.environ.get(env_name) or "").strip() if env_name else ""
-    if not key:
-        raise MissingProviderKey(f"missing environment variable {env_name or 'api_key_env'}")
+    if kind not in ("anthropic", "google_genai", "openai"):
+        raise ValueError(f"unknown model prefix: {kind!r}")
+    key = (os.environ.get(api_key_env) or "").strip() if api_key_env else ""
+    if api_key_env and not key:
+        raise MissingProviderKey(f"missing environment variable {api_key_env}")
     if kind == "anthropic":
         import anthropic
         sys, rest = _ant_msgs(messages)
@@ -103,7 +104,6 @@ def complete(messages, tools, *, model, api_base=None, api_key_env=None):
                 args = {}
             calls.append({"id": c.id, "name": c.function.name, "args": args})
         return {"text": msg.content or "", "tool_calls": calls}
-    raise ValueError(f"unknown model prefix: {kind!r}")
 
 def _gen_contents(messages):
     from google.genai import types
