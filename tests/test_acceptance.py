@@ -90,13 +90,27 @@ def _safety_names(payload):
 
 
 def _named_roster_solvents(text):
+    """Longest non-overlapping registry names in `text`. Short names count."""
+    lower = text.casefold()
+    spans = []
+    for name in get_available_solvents():
+        needle = name.casefold()
+        start = 0
+        while True:
+            i = lower.find(needle, start)
+            if i < 0:
+                break
+            spans.append((i, i + len(needle), name, len(needle)))
+            start = i + 1
+    spans.sort(key=lambda item: (-item[3], item[0]))
+    occupied = []
     found = []
-    for name in sorted(get_available_solvents(), key=len, reverse=True):
-        if len(name) < 5:
+    for start, end, name, _length in spans:
+        if any(start < taken_end and end > taken_start for taken_start, taken_end in occupied):
             continue
-        if re.search(re.escape(name), text, re.I):
-            found.append(name)
-    return found
+        occupied.append((start, end))
+        found.append(name)
+    return _unique(found)
 
 
 def _assert_inherited_identities(exact_ids, bound_ids):
@@ -108,17 +122,24 @@ def _assert_inherited_identities(exact_ids, bound_ids):
     )
 
 
+def _assert_coverage_disclosed(answer, compared, stored):
+    compared, stored = int(compared), int(stored)
+    if compared < stored:
+        pat = rf"(?<!\d){compared} of {stored}(?!\d)"
+        assert re.search(pat, answer), (
+            f"answer omitted {compared} of {stored} coverage "
+            "and presented a comparison page as the shortlist"
+        )
+
+
 def _assert_answer_stays_inside_exact(answer, exact_ids, must_name):
     exact = _ids(exact_ids)
     for name in must_name:
         assert name in answer, f"printed answer omitted {name!r}"
-    foreign = []
-    for name in _named_roster_solvents(answer):
-        if name.casefold() in exact:
-            continue
-        if any(name.casefold() in item.casefold() for item in exact_ids):
-            continue
-        foreign.append(name)
+    foreign = [
+        name for name in _named_roster_solvents(answer)
+        if name.casefold() not in exact
+    ]
     assert foreign == [], f"printed answer named solvents outside the exact rows: {foreign}"
 
 
@@ -233,10 +254,14 @@ def test_acceptance_5_screen_then_safety_identities_and_answer(monkeypatch):
     def answer(messages):
         safety = _tool_json(messages, "compare_solvent_safety_at_conditions")
         names = _unique(_safety_names(safety))
+        data = safety.get("data") or {}
+        compared = data["candidate_count"]
+        stored = data["candidate_scope_stored_count"]
         return {
             "text": (
-                "Safety of the inherited shortlist at the screen temperatures "
-                f"(source_basis safety_local): {', '.join(names)}."
+                f"Safety of {compared} of {stored} inherited solvents "
+                f"(source_basis safety_local); the comparison page is not the full shortlist: "
+                f"{', '.join(names)}."
             ),
             "tool_calls": [],
         }
@@ -269,11 +294,27 @@ def test_acceptance_5_screen_then_safety_identities_and_answer(monkeypatch):
     assert len(exact_ids) == total
     assert bound_ids, "safety never inherited a handle bind"
     _assert_inherited_identities(exact_ids, bound_ids[-1])
+    data = safety_ev.result.get("data") or {}
+    stored = data["candidate_scope_stored_count"]
+    compared = data["candidate_count"]
     safety_ids = _unique(_safety_names(safety_ev.result))
     assert safety_ids, "safety ran on an empty list"
+    assert stored == total
+    assert compared == len(safety_ids)
+    assert compared < stored
     assert _ids(safety_ids) <= _ids(exact_ids)
-    assert safety_ids == exact_ids[:len(safety_ids)]
+    _assert_coverage_disclosed(result.answer, compared, stored)
     _assert_answer_stays_inside_exact(result.answer, exact_ids, safety_ids)
+
+
+def test_acceptance_5_coverage_predicate_is_red_when_page_is_the_shortlist():
+    """Not Test 5. The answer Test 5 must fail on: 6-row page, no coverage."""
+    with pytest.raises(AssertionError, match="coverage"):
+        _assert_coverage_disclosed(
+            "Safety of the inherited shortlist at the screen temperatures "
+            "(source_basis safety_local): cyclohexane.",
+            compared=6, stored=40,
+        )
 
 
 def test_acceptance_1_point_lookup_on_grid(monkeypatch):
@@ -647,3 +688,33 @@ def test_acceptance_composition_cannot_cost_the_ranked_screen(monkeypatch):
     msp = pair_tea["data"]["comparison_rows"][0]["msp_usd_per_kg"]
     assert str(msp) in direct.answer
     assert "tea_cache_exact" in direct.answer
+
+
+def test_named_roster_longest_nonoverlapping_and_short_names():
+    nested = _named_roster_solvents("5-methyl-2-hexanone")
+    assert any(n.casefold() == "5-methyl-2-hexanone" for n in nested)
+    assert not any(n.casefold() == "2-hexanone" for n in nested)
+    cyclo = _named_roster_solvents("Cyclohexane")
+    assert any(n.casefold() == "cyclohexane" for n in cyclo)
+    assert not any(n.casefold() == "hexane" for n in cyclo)
+    lone = _named_roster_solvents("hexane")
+    assert any(n.casefold() == "hexane" for n in lone)
+    short = {n.casefold() for n in _named_roster_solvents("thf and h2o and co2")}
+    assert {"thf", "h2o", "co2"} <= short
+
+
+def test_answer_matcher_rejects_hexane_when_exact_has_cyclohexane():
+    with pytest.raises(AssertionError, match="outside"):
+        _assert_answer_stays_inside_exact(
+            "Safety of Cyclohexane and hexane.",
+            ["cyclohexane"],
+            ["Cyclohexane"],
+        )
+
+
+def test_answer_matcher_does_not_split_a_nested_exact_name():
+    _assert_answer_stays_inside_exact(
+        "Compared 5-methyl-2-hexanone.",
+        ["5-methyl-2-hexanone"],
+        ["5-methyl-2-hexanone"],
+    )

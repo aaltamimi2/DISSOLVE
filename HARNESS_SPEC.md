@@ -1308,21 +1308,36 @@ shapes, not a second specification of the data asset.
 - A `screen_polymer_separation` (or equivalent screen) call returns a
   handle. `total` and `shown` are both present. The exact
   `ranked_candidates` (or primary row list) in the session record has
-  length `total`.
+  length `total`. On this fixture `total > shown`, so binding `top`
+  is not binding exact.
 - A later `compare_solvent_safety_at_conditions` call is made **with
   that handle** and without a copied, truncated `candidates` list.
-- The safety result's solvents are the same set as the screen's exact
-  rows, not `top`, not empty, not a silently shortened page.
+- The identities **inherited into that call** are the same set as the
+  screen's exact rows, not `top`, not empty, not a silently shortened
+  page. That is the bind. The safety **output** on this fixture is a
+  comparison page (`candidate_count` < `candidate_scope_stored_count`,
+  measured 6 of 40 under the tool's default limit). That is coverage,
+  not a second bind. Do not treat the page as the shortlist, and do
+  not repair the bind by weakening an assertion or by reaching into
+  the engine.
 
 **Assert:**
 - `handle` used on the safety call equals the screen's handle.
-- `set(safety solvents) == set(exact screen row solvents)`.
-- The printed answer names those solvents and does not name a solvent
-  that was not in the exact rows.
+- `set(inherited solvents) == set(exact screen row solvents)`.
+- `candidate_scope_stored_count` equals `total`.
+- If `candidate_count` < `candidate_scope_stored_count`, the printed
+  answer discloses both counts, names the compared solvents, and does
+  not present the page as the inherited shortlist.
+- The printed answer does not name a solvent that was not in the exact
+  rows. Extraction is a longest non-overlapping registry-name match,
+  including names shorter than five characters; do not suppress a
+  foreign name because it is a substring of an exact row.
 - Fail the test if safety ran on an empty list, or if it ran on `top`
   while `total > shown`, or if it ran with no handle and a copied list.
 
-**Must not:** answer over an empty or silently truncated candidate set.
+**Must not:** answer over an empty or silently truncated **bind**.
+**Must not:** treat a comparison page as set-equal to the exact rows,
+or bless a green test whose answer omits the coverage loss.
 
 **Chunk 7 obligation — this is not Test 5.**
 `test_handle_beats_copied_list_at_dispatch` must not be counted as
@@ -1677,7 +1692,7 @@ this spec. Do not treat a row as a fix.
 |---|---|---|
 | **1** | One channel claimed; rows live in `exact` + `rows` + `last_candidates` + an explicit argument that wins over a handle. | **Answered** in §4.2–4.4: one durable store (handles). `last_candidates` is a per-call bind, then gone. `exact`/`rows` are that handle's payload. Explicit subjects without a handle are a new question. When both a handle and a copied `candidates` list are present, the Rejected line in §4.4 says the handle wins. |
 | **2** | The chain stops before TEA and contaminants; the handle-schema rule misses those consumers. | **STANDING**, engine work, outside this spec. Got worse after the binder design, not better. `gate_surface.py` now sweeps all 34 and reports FAIL(7): `evaluate_stored_route_tea_lca` raises `NameError` on `CANDIDATE_SHAPE_SCREEN` with **no** session bound (not latent). All three contaminant tools raise `AttributeError('dict' object has no attribute 'last_contaminant')` the moment a session record **is** bound. Four of those break precisely when the harness does the thing §4 does first (bind). Spec mitigation only: those three stored-route names are `tool_not_wired` (§5.4); the dict subclass in §4.5 stops the contaminant AttributeError from crashing the turn; inherit stays empty. Handle on the generated schema is still only `compare_solvent_safety_at_conditions` (§3.1–3.2). `57acf74` did not close this. |
-| **3** | Acceptance test 5 has `shown == total`, so binding the projection passes both broken and fixed. | **STANDING**. §10 test 5 still uses the 80–140 LDPE/PP screen and does not require `total > shown`. Binding `top` then equals binding exact. Test 6 is a large screen but does not re-run safety on the exact set. |
+| **3** | Acceptance test 5 has `shown == total`, so binding the projection passes both broken and fixed. | **Answered** for the projection-bind theatre: §10 test 5 requires `total > shown` on the 80–140 LDPE/PP screen, inherited identities equal the exact set, and a retained forty-copy control that keeps the identity predicate red. Test 6 is still a large screen and does not re-run safety on the exact set. Output set-equality of safety rows to exact rows is **not** the bind — the engine's default comparison page is 6 of 40; the answer must disclose that coverage rather than present the page as the shortlist. |
 | **4** | `basis` launders provenance; only 2 of 5 added tokens ground to a real engine distinction. | **Answered** for the collision and for those two distinctions: key is `source_basis` (§3.5); `include_pubchem` wrapper default `False` on every safety tool that takes the flag (`get_solvent_safety_card`, `compare_solvent_safety_at_conditions`, `screen_route_solvent_substitutions`) so `safety_local` vs `pubchem_live` is visible; tea per-call `tea_cache_exact` / `tea_screening_analog` / `tea_live`. **STANDING** on the other added tokens (`identity_registry`, `provider_metadata`, `analysis_asset`): they are module defaults, not engine-mode distinctions. Open vocabulary plus §6 (report the token as given, never paraphrase) is the mitigation, not a claim they ground. `screen_green_solvent_candidates` has no `include_pubchem`. |
 | **5** | The verifier is a presence check. | **MOOT.** Owner directive: no verification in the agent. There is no in-agent verifier to be a presence check. §8 is now the external-validation contract and §4.6 is what this system owes it — every tool result exact, associable, ordered, durable. The finding was correct and is retired by removing its subject, not by answering it. |
 | **6** | Hidden tools / role-refusal on the root. | **SUPERSEDED**. The hidden-tools decision no longer exists. §3.3: all 34 executable on the root; no `research()`; test 8 dropped. |
