@@ -16,8 +16,9 @@ import agent_harness
 from agent_harness import TurnResult, run_turn
 from agent_tools import dispatch, result_read, source_basis_for, tool_schemas
 from dissolve.session import (
-    bind_tool_session, current_tool_session, handle_rows, load_handle,
-    load_turn_record, new_session, open_turn_record, store_handle,
+    append_reported, bind_tool_session, compact_messages, current_tool_session,
+    handle_rows, load_handle, load_turn_record, new_session, open_turn_record,
+    store_handle,
 )
 
 
@@ -243,7 +244,8 @@ def test_active_record_reported_survives_and_original_write_fails():
                 original, tool="x", source_basis="y",
                 data={"results": [{"solvent": "dodecane"}]},
             )
-    assert original["reported"] == [{"number": 92.5, "source_basis": "cosmo_rs_grid"}]
+    assert original["reported"][-1] == {"number": 92.5, "source_basis": "cosmo_rs_grid"}
+    assert any(isinstance(r.get("number"), (int, float)) for r in original["reported"][:-1])
 
 
 def test_loop_prose_does_not_gate_or_read_record(monkeypatch):
@@ -542,3 +544,84 @@ def test_google_contents_keep_function_call_and_response():
     assert contents[1].parts[-1].function_call.name == "solubility_query"
     assert contents[2].role == "user"
     assert contents[2].parts[0].function_response.name == "solubility_query"
+
+
+def test_compact_updates_summary_in_place_and_does_not_lead_with_tool():
+    rec = new_session()
+    rec["handles"]["calm-blue-cat"] = {
+        "tool": "solubility_query", "source_basis": "cosmo_rs_grid",
+        "exact": {"results": [{"solvent": "dodecane", "solubility_wt_pct": 92.5}]},
+    }
+    rec["reported"] = [{"number": 92.5, "source_basis": "cosmo_rs_grid", "handle": "calm-blue-cat"}]
+    rec["turn_records"] = {"turn-1": [{
+        "tool": "solubility_query",
+        "args": {"polymers": ["LDPE"], "temperatures": [140.0]},
+        "exact": {}, "handle": None,
+    }]}
+    msgs = [
+        {"role": "system", "content": "sys"},
+        {"role": "user", "content": "q1 " + ("x" * 4000)},
+        {"role": "assistant", "content": "", "tool_calls": [{"id": "1", "name": "t", "args": {}}]},
+        {"role": "tool", "tool_call_id": "1", "name": "t", "content": "{}"},
+        {"role": "user", "content": "q2"},
+    ]
+    compact_messages(msgs, rec, window=20, reserve=0)
+    assert msgs[0]["role"] == "system"
+    assert str(msgs[1].get("content") or "").startswith("Summary (do not continue the conversation")
+    assert "LDPE" in msgs[1]["content"]
+    assert "calm-blue-cat" in msgs[1]["content"]
+    assert msgs[2]["role"] != "tool"
+    compact_messages(msgs, rec, window=20, reserve=0)
+    assert sum(1 for m in msgs if str(m.get("content") or "").startswith("Summary (do not continue")) == 1
+
+
+def test_wrapper_appends_reported_from_row_fields():
+    with _bound() as rec:
+        dispatch(
+            "solubility_query",
+            polymers=["LDPE"], solvents=["dodecane"], temperatures=[140.0],
+        )
+        assert rec["reported"]
+        assert all("number" in row and "source_basis" in row for row in rec["reported"])
+        assert rec["reported"][0]["source_basis"] == "cosmo_rs_grid"
+        assert "shown" not in {row.get("number") for row in rec["reported"]}
+
+
+def test_append_reported_skips_count_fields():
+    rec = new_session()
+    with bind_tool_session(rec) as bound:
+        append_reported(bound, {
+            "source_basis": "cosmo_rs_grid",
+            "handle": "calm-blue-cat",
+            "shown": 20,
+            "total": 100,
+            "available_count": 100,
+            "top": [{
+                "solvent": "dodecane", "solubility_wt_pct": 92.5,
+                "shown": 20, "total": 100, "available_count": 3,
+            }],
+        })
+    numbers = [row["number"] for row in rec["reported"]]
+    assert numbers == [92.5]
+    assert rec["reported"][0]["handle"] == "calm-blue-cat"
+
+
+def test_run_turn_compacts_after_tool_append(monkeypatch):
+    n = {"i": 0}
+    hits = []
+
+    def fake_complete(messages, tools, **kwargs):
+        n["i"] += 1
+        if n["i"] == 1:
+            return {"text": "", "tool_calls": [{"id": "1", "name": "no_such_tool", "args": {}}]}
+        return {"text": "done", "tool_calls": []}
+
+    def spy(messages, record, **kwargs):
+        hits.append(messages[-1].get("role"))
+        return compact_messages(messages, record, **kwargs)
+
+    monkeypatch.setattr(agent_harness, "complete", fake_complete)
+    monkeypatch.setattr(agent_harness, "compact_messages", spy)
+    result = run_turn("q", session=new_session(), model="openai:x")
+    assert result.status == "ok"
+    assert hits == ["tool"]

@@ -8,8 +8,9 @@ from typing import Annotated, Any, Literal, Union, get_args, get_origin, get_typ
 from dissolve import registry
 from dissolve.contracts import parse_tool_result
 from dissolve.session import (
-    bind_handle_rows, current_tool_session, engine_kwargs_for_handle,
-    handle_rows, load_handle, primary_row_key, record_tool_call, store_handle,
+    append_reported, bind_handle_rows, current_tool_session,
+    engine_kwargs_for_handle, handle_rows, load_handle, primary_row_key,
+    record_tool_call, store_handle,
 )
 from dissolve.thermodynamics import expand_polymer_identity, get_available_solvents
 
@@ -287,6 +288,7 @@ def _emit(name, kwargs, out, exact, handle=None, display=None, source_basis=None
             rec, tool=name, args=kwargs, exact=exact, handle=handle,
             display=display, source_basis=source_basis,
         )
+        append_reported(rec, out)
     return out
 
 def dispatch(name: str, **kwargs: Any) -> dict[str, Any]:
