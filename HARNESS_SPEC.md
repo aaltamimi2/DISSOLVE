@@ -6,9 +6,12 @@ clears a build pass by name.
 **Authority:** the owner's build spec and handle/bounds/compaction delta in
 `HARNESS_BRIEF.md` Part 1, as amended by the post-brief decisions in
 §11. Where this document and Part 1 still disagree, the disagreement is
-named there. The post-brief decisions win. Auditor OBJECT findings at
-seal are mapped in §14 (STANDING / SUPERSEDED / answered). Do not
-re-derive the audit from this file; the table is the index.
+named there. The post-brief decisions win. A commit that changes this
+file cites a `D-nn` from `dissolve-v12-audit/DECISIONS.md` in its
+subject (D-10). Auditor OBJECT findings at seal are mapped in §14
+(STANDING / SUPERSEDED / answered). Do not re-derive the audit from
+this file; the table is the index. Retroactive: `5dc8c5d` is D-4;
+`3698afe` is D-5.
 
 This is a default plus its exceptions. The default is Claude Code. Where this
 file is silent, do what Claude Code does. If a later question is not answered
@@ -1255,7 +1258,11 @@ Normalized `usage` is a dict with whichever of `input_tokens`,
 `output_tokens`, and `total_tokens` the provider actually measured.
 Omit keys that were not present. Do not fill a missing key with `0`.
 
-The three adapters disagree on field names. Map them, then stop:
+The three adapters disagree on field names. Map them, then stop.
+D-10: derived is not measured. Do not invent a `total_tokens` the
+Google or OpenAI object did not carry. Only Anthropic has no total
+field; if both `input_tokens` and `output_tokens` are present,
+`total_tokens` is their sum. Omit the key everywhere else.
 
 | prefix | object | native fields | normalized |
 |---|---|---|---|
@@ -1505,7 +1512,12 @@ These supersede Part 1 of the brief where they conflict.
    The CLI may print those two and must never branch on them. Flagged
    to the owner; reversible at one field's cost. The four-field rule's
    purpose (display layer is not a decision layer) stands; the number
-   four does not.
+   four does not. D-10: derived `total_tokens` is Anthropic-only;
+   Google and OpenAI omit a total they did not measure.
+8. **Loop line ceiling lifted (D-2, unconditional; D-9).**
+   `agent_harness.py` has no numeric ceiling. The 199-line budget was
+   making the six-field seam harder to audit. A fourth harness file is
+   still stop-and-ask.
 
 **Owner decision — Part 1 divergence C: (b) now. Later pick is a
 measurement.**
