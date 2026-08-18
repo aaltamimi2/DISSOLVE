@@ -21,9 +21,9 @@ from agent_harness import TurnResult, run_turn
 from agent_tools import dispatch, result_read, source_basis_for, tool_schemas
 from dissolve import session as sess
 from dissolve.session import (
-    append_reported, bind_tool_session, compact_messages, current_tool_session,
-    handle_rows, load_handle, load_turn_record, new_session, open_turn_record,
-    store_handle,
+    append_reported, bind_tool_session, compact_messages, context_window,
+    current_tool_session, estimated_tokens, handle_rows, load_handle,
+    load_turn_record, new_session, open_turn_record, store_handle,
 )
 
 
@@ -654,9 +654,36 @@ def test_compact_updates_summary_in_place_and_does_not_lead_with_tool():
     assert str(msgs[1].get("content") or "").startswith("Summary (do not continue the conversation")
     assert "LDPE" in msgs[1]["content"]
     assert "calm-blue-cat" in msgs[1]["content"]
-    assert msgs[2]["role"] != "tool"
+    assert msgs[2]["role"] == "user" and "q2" in str(msgs[2].get("content"))
     compact_messages(msgs, rec, window=20, reserve=0)
     assert sum(1 for m in msgs if str(m.get("content") or "").startswith("Summary (do not continue")) == 1
+
+
+def test_compact_keeps_current_query_and_fits_budget():
+    rec = new_session()
+    rec["reported"] = [{"number": i, "source_basis": "cosmo_rs_grid"} for i in range(1000)]
+    rec["polymers_in_play"] = ["LDPE"]
+    query = "CURRENT-QUERY"
+    msgs = [
+        {"role": "system", "content": "sys"},
+        {"role": "user", "content": "old " + ("x" * 4000)},
+        {"role": "assistant", "content": "old answer"},
+        {"role": "user", "content": query},
+        {"role": "assistant", "content": "", "tool_calls": [{"id": "1", "name": "t", "args": {}}]},
+        {"role": "tool", "tool_call_id": "1", "name": "t", "content": "{}"},
+    ]
+    compact_messages(msgs, rec, window=400, reserve=0)
+    assert msgs[0]["role"] == "system"
+    assert str(msgs[1].get("content") or "").startswith("Summary (do not continue")
+    idx = next(
+        i for i, m in enumerate(msgs)
+        if m.get("role") == "user" and query in str(m.get("content"))
+    )
+    assert idx >= 2
+    assert all(m.get("role") != "tool" for m in msgs[2:idx + 1])
+    assert estimated_tokens(msgs) <= 400
+    assert context_window("openai:muse-spark-1.2") == 128_000
+    assert context_window("openai:foo-8k") == 8_000
 
 
 def test_compaction_does_not_read_turn_records():
@@ -692,18 +719,13 @@ def test_result_read_later_page_appends_reported():
         page = dispatch("result_read", handle=screen["handle"], offset=20, limit=20)
         assert page["returned"] == 20
         assert len(rec["reported"]) > before
-        later = {r.get("overall_rank") for r in page["data"]["rows"] if isinstance(r, dict)}
+        later = {
+            v for r in page["data"]["rows"] if isinstance(r, dict)
+            for k, v in r.items()
+            if isinstance(v, (int, float)) and k not in ("shown", "total", "returned", "offset")
+        }
         assert 21 in later
-        assert any(row["number"] == 21 for row in rec["reported"][before:])
-        msgs = [
-            {"role": "system", "content": "sys"},
-            {"role": "user", "content": "q " + ("x" * 4000)},
-            {"role": "assistant", "content": "", "tool_calls": [{"id": "1", "name": "t", "args": {}}]},
-            {"role": "tool", "tool_call_id": "1", "name": "t", "content": "{}"},
-            {"role": "user", "content": "q2"},
-        ]
-        compact_messages(msgs, rec, window=20, reserve=0)
-        assert "21" in msgs[1]["content"]
+        assert {row["number"] for row in rec["reported"]} & later
 
 
 def test_append_reported_skips_count_fields():
@@ -736,11 +758,11 @@ def test_run_turn_compacts_after_tool_append(monkeypatch):
         return {"text": "done", "tool_calls": []}
 
     def spy(messages, record, **kwargs):
-        hits.append(messages[-1].get("role"))
+        hits.append((messages[-1].get("role"), kwargs.get("window")))
         return compact_messages(messages, record, **kwargs)
 
     monkeypatch.setattr(agent_harness, "complete", fake_complete)
     monkeypatch.setattr(agent_harness, "compact_messages", spy)
-    result = run_turn("q", session=new_session(), model="openai:x")
+    result = run_turn("q", session=new_session(), model="openai:foo-8k")
     assert result.status == "ok"
-    assert hits == ["tool"]
+    assert hits == [("tool", 8000)]

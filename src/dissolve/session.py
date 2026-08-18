@@ -262,6 +262,7 @@ _TEMP_ARG = (
     "temperatures", "temperature_c", "temperature_min_c", "temperature_max_c",
     "operating_temp_c",
 )
+_REPORTED_CAP = 200
 
 
 def append_reported(record: dict[str, Any], payload: dict[str, Any]) -> None:
@@ -277,18 +278,24 @@ def append_reported(record: dict[str, Any], payload: dict[str, Any]) -> None:
         for value in data.values():
             if isinstance(value, list) and value and all(isinstance(i, dict) for i in value):
                 rows.extend(value)
-    found: list[dict[str, Any]] = []
+    store = record.setdefault("reported", [])
+    seen = {(r.get("number"), r.get("source_basis"), r.get("handle")) for r in store}
     for row in rows:
         for key, value in row.items():
             if key in _NOT_REPORTED or isinstance(value, bool):
                 continue
-            if isinstance(value, (int, float)):
-                item: dict[str, Any] = {"number": value, "source_basis": basis}
-                if handle:
-                    item["handle"] = handle
-                found.append(item)
-    if found:
-        record.setdefault("reported", []).extend(found)
+            if not isinstance(value, (int, float)):
+                continue
+            item: dict[str, Any] = {"number": value, "source_basis": basis}
+            if handle:
+                item["handle"] = handle
+            ident = (item.get("number"), item.get("source_basis"), item.get("handle"))
+            if ident in seen:
+                continue
+            seen.add(ident)
+            store.append(item)
+    if len(store) > _REPORTED_CAP:
+        del store[:-_REPORTED_CAP]
 
 
 def note_in_play(record: dict[str, Any], args: dict[str, Any]) -> None:
@@ -318,7 +325,28 @@ def estimated_tokens(messages: list) -> int:
     return sum(len(json.dumps(m, default=str)) for m in messages) // 4
 
 
-def _summary_text(record: dict[str, Any]) -> str:
+def context_window(model: str) -> int:
+    """Tokens; 128k unless the alias itself names a *k window."""
+    ident = (model.partition(":")[2] or model).replace("-", "_")
+    for part in reversed(ident.split("_")):
+        if part.endswith("k") and part[:-1].isdigit() and int(part[:-1]):
+            return int(part[:-1]) * 1000
+    return 128_000
+
+
+def _is_prose(message: dict[str, Any]) -> bool:
+    if message.get("role") == "user":
+        return True
+    text = str(message.get("content") or "")
+    return (
+        message.get("role") == "assistant"
+        and not message.get("tool_calls")
+        and bool(text.strip())
+        and not text.startswith("Summary (do not continue")
+    )
+
+
+def _summary_text(record: dict[str, Any], nums: list | None = None) -> str:
     record = _bound_record(record)
     polys = [str(p) for p in (record.get("polymers_in_play") or [])]
     temps = [str(t) for t in (record.get("temperatures_in_play") or [])]
@@ -334,18 +362,18 @@ def _summary_text(record: dict[str, Any]) -> str:
             f"{name} (total={total}, tool={stored.get('tool')}, "
             f"source_basis={stored.get('source_basis')})"
         )
-    nums = []
-    for row in record.get("reported") or []:
+    bits = []
+    for row in (nums if nums is not None else (record.get("reported") or [])):
         bit = f"{row.get('number')} (source_basis={row.get('source_basis')}"
         if row.get("handle"):
             bit += f", handle={row['handle']}"
-        nums.append(bit + ")")
+        bits.append(bit + ")")
     return (
         "Summary (do not continue the conversation, do not answer questions):\n"
         f"- Polymers in play: {', '.join(polys) or '(none)'}\n"
         f"- Temperatures in play: {', '.join(temps) or '(none)'}\n"
         f"- Live handles: {', '.join(live) or '(none)'}\n"
-        f"- Numbers already reported: {', '.join(nums) or '(none)'}"
+        f"- Numbers already reported: {', '.join(bits) or '(none)'}"
     )
 
 
@@ -353,11 +381,11 @@ def compact_messages(
     messages: list, record: dict[str, Any],
     *, window: int = 128_000, reserve: int = 8_000,
 ) -> None:
-    """Trigger/cut/template. No model call. The loop must not read the summary."""
-    if estimated_tokens(messages) <= window - reserve:
+    """Trigger/cut/template. No model call. Does not consult the validator feed."""
+    target = window - reserve
+    if estimated_tokens(messages) <= target:
         return
     record = _bound_record(record)
-    text = _summary_text(record)
     insert_at = 1 if messages and messages[0].get("role") == "system" else 0
     existing = (
         insert_at < len(messages)
@@ -365,25 +393,28 @@ def compact_messages(
             "Summary (do not continue the conversation"
         )
     )
+    text = _summary_text(record)
     if existing:
         messages[insert_at]["content"] = text
     else:
         messages.insert(insert_at, {"role": "assistant", "content": text})
     keep = insert_at + 1
-    while estimated_tokens(messages) > window - reserve and keep < len(messages) - 1:
+    while estimated_tokens(messages) > target:
+        limit = next(
+            (i for i in range(len(messages) - 1, keep - 1, -1)
+             if messages[i].get("role") == "user"),
+            None,
+        )
+        if limit is None or keep >= limit:
+            break
         end = keep + 1
-        if end < len(messages) and messages[end].get("role") == "tool":
-            while end < len(messages) - 1 and messages[end].get("role") == "tool":
-                end += 1
-            if messages[end].get("role") == "tool":
-                break
-        del messages[keep:end]
-    if keep < len(messages) and messages[keep].get("role") == "tool":
-        i = keep
-        while i < len(messages) and messages[i].get("role") == "tool":
-            i += 1
-        if i < len(messages):
-            del messages[keep:i]
+        while end < limit and not _is_prose(messages[end]):
+            end += 1
+        del messages[keep:min(end, limit)]
+    nums = list(record.get("reported") or [])
+    while estimated_tokens(messages) > target and nums:
+        nums = nums[len(nums) // 2:] if len(nums) > 1 else []
+        messages[insert_at]["content"] = _summary_text(record, nums)
 
 
 def store_handle(
