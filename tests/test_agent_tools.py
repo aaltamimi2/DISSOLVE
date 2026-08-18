@@ -79,8 +79,8 @@ class ArchiveTrap(dict):
 
     Installed as the *value* of session['turn_records'] so bind_tool_session's
     shallow copy keeps the same object. open_turn_record / record_tool_call
-    use len, `in`, __setitem__, and setdefault. _summary_text on a93030d
-    used .values().
+    use len, `in`, __setitem__, and setdefault. Row reads via get, item
+    access, iteration, values, or items raise.
     """
 
     def values(self):
@@ -95,8 +95,17 @@ class ArchiveTrap(dict):
     def __iter__(self):
         raise ArchiveReadError("archive rows consumed via iter")
 
+    def __getitem__(self, key):
+        raise ArchiveReadError("archive rows consumed via item access")
+
     def get(self, *args, **kwargs):
         raise ArchiveReadError("archive rows consumed via get")
+
+    def setdefault(self, key, default=None):
+        if super().__contains__(key):
+            return super().__getitem__(key)
+        super().__setitem__(key, default)
+        return default
 
 
 def _forced_compact_turn(monkeypatch, session):
@@ -807,8 +816,19 @@ def test_reachable_compact_does_not_consume_archive_rows(monkeypatch):
     result, rounds = _forced_compact_turn(monkeypatch, session)
     assert result.status == "ok"
     assert rounds == 2
-    assert isinstance(session["turn_records"], ArchiveTrap)
-    assert len(session["turn_records"]) >= 1
+    trap = session["turn_records"]
+    assert isinstance(trap, ArchiveTrap)
+    assert len(trap) >= 1
+    with pytest.raises(ArchiveReadError, match="item access"):
+        trap[result.turn_record]
+    with pytest.raises(ArchiveReadError, match=" via get"):
+        trap.get(result.turn_record)
+    with pytest.raises(ArchiveReadError, match="values"):
+        trap.values()
+    with pytest.raises(ArchiveReadError, match="items"):
+        trap.items()
+    with pytest.raises(ArchiveReadError, match="iter"):
+        iter(trap)
 
 
 def test_wrapper_appends_reported_from_row_fields():
