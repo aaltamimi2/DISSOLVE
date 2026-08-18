@@ -3,13 +3,14 @@ from __future__ import annotations
 
 import inspect, json
 from types import UnionType
-from typing import Annotated, Any, Union, get_args, get_origin
+from typing import Annotated, Any, Literal, Union, get_args, get_origin, get_type_hints
 
 from dissolve import registry
 from dissolve.contracts import parse_tool_result
 from dissolve.session import (
-    bind_handle_rows, current_tool_session, engine_kwargs_for_handle,
-    handle_rows, load_handle, primary_row_key, record_tool_call, store_handle,
+    append_reported, bind_handle_rows, current_tool_session,
+    engine_kwargs_for_handle, handle_rows, load_handle, primary_row_key,
+    record_tool_call, store_handle,
 )
 from dissolve.thermodynamics import expand_polymer_identity, get_available_solvents
 
@@ -89,12 +90,29 @@ def _tea_basis(data: dict[str, Any]) -> str | None:
         return "tea_cache_exact"
     return None
 
+def _pubchem_contributed(obj: Any) -> bool:
+    if isinstance(obj, list):
+        return any(_pubchem_contributed(x) for x in obj)
+    if not isinstance(obj, dict):
+        return False
+    prov = obj.get("provenance")
+    if isinstance(prov, dict) and (
+        prov.get("pubchem") or prov.get("pubchem_failed_headings")
+        or prov.get("pubchem_heading_errors")
+    ):
+        failed = list(prov.get("pubchem_failed_headings") or ())
+        if len(failed) < 8 and (failed or prov.get("pubchem")):
+            return True
+    return any(_pubchem_contributed(v) for v in obj.values())
+
 def source_basis_for(name: str, data: dict[str, Any], kwargs: dict[str, Any]) -> str | None:
     if name == "lookup_material_database_membership":
         return "identity_registry"
     eng = registry.BY_NAME[name].engine
     if eng == "safety":
-        return "pubchem_live" if kwargs.get("include_pubchem") is True else "safety_local"
+        if kwargs.get("include_pubchem") is True and _pubchem_contributed(data):
+            return "pubchem_live"
+        return "safety_local"
     if eng == "tea":
         return _tea_basis(data)
     if eng == "analysis":
@@ -106,11 +124,21 @@ def _ptype(ann: Any) -> dict[str, Any]:
     origin, args = get_origin(ann), get_args(ann)
     if origin is Annotated:
         return _ptype(args[0])
+    if origin is Literal:
+        return {"type": "string", "enum": [str(v) for v in args]}
     if origin in (Union, UnionType):
         non = [a for a in args if a is not type(None)]
-        return _ptype(non[0]) if len(non) == 1 else {}
+        if len(non) == 1:
+            return _ptype(non[0])
+        variants = [p for a in non if (p := _ptype(a))]
+        if not variants:
+            return {}
+        return variants[0] if len(variants) == 1 else {"anyOf": variants}
     if origin in (list, tuple):
-        return {"type": "array"}
+        out: dict[str, Any] = {"type": "array"}
+        if args and (item := _ptype(args[0])):
+            out["items"] = item
+        return out
     if origin is dict:
         return {"type": "object"}
     return {bool: {"type": "boolean"}, int: {"type": "integer"}, float: {"type": "number"}, str: {"type": "string"}}.get(ann, {})
@@ -131,10 +159,20 @@ def tool_schemas() -> list[dict[str, Any]]:
     )
     for spec in registry.REGISTRY:
         props, req = {}, []
+        try:
+            hints = get_type_hints(spec.fn, include_extras=True)
+        except Exception:
+            hints = {}
         for n, p in inspect.signature(spec.fn).parameters.items():
             if n in _OMIT or p.kind is p.VAR_KEYWORD:
                 continue
-            props[n] = _ptype(p.annotation)
+            props[n] = _ptype(hints.get(n, p.annotation))
+            if spec.name in PUBCHEM and n == "include_pubchem":
+                props[n] = {**props[n], "type": "boolean", "default": False}
+            elif p.default is not inspect.Parameter.empty and (
+                p.default is None or isinstance(p.default, (bool, int, float, str))
+            ):
+                props[n]["default"] = p.default
             if p.default is inspect.Parameter.empty:
                 req.append(n)
         if spec.name in CONSUMERS:
@@ -222,7 +260,10 @@ def _issue_handle(record, tool, basis, data, payload):
         )
     rows = handle_rows(load_handle(record, name))
     top = rows[:_PAGE]
-    rest = {k: v for k, v in data.items() if k != primary_row_key(data)}
+    rest = {
+        k: v for k, v in data.items()
+        if not (isinstance(v, list) and v and all(isinstance(i, dict) for i in v))
+    }
     return {
         "available": True, "source_basis": basis, "handle": name,
         "total": len(rows), "shown": len(top), "top": top, "data": rest,
@@ -244,6 +285,8 @@ def _emit(name, kwargs, out, exact, handle=None):
     rec = current_tool_session()
     if rec is not None:
         record_tool_call(rec, tool=name, args=kwargs, exact=exact, handle=handle)
+        if name != "result_read":
+            append_reported(rec, out)
     return out
 
 def dispatch(name: str, **kwargs: Any) -> dict[str, Any]:
@@ -288,7 +331,7 @@ def dispatch(name: str, **kwargs: Any) -> dict[str, Any]:
         try:
             with bind_handle_rows(record, bind):
                 parsed, err = _invoke(name, call_kwargs)
-        except KeyError:
+        except (KeyError, ValueError):
             out = _refuse("no_upstream_candidates")
             return _emit(name, kwargs, out, out)
     else:

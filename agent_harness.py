@@ -9,7 +9,7 @@ for _p in (str(_SRC), str(_ROOT)):
     if _p not in sys.path:
         sys.path.insert(0, _p)
 
-from dissolve.session import bind_tool_session, open_turn_record
+from dissolve.session import bind_tool_session, compact_messages, open_turn_record
 from agent_tools import SYSTEM_PROMPT, dispatch, tool_schemas
 
 @dataclass(frozen=True)
@@ -78,9 +78,8 @@ def complete(messages, tools, *, model, api_base=None, api_key_env=None):
         from google.genai import types
         decls = [types.FunctionDeclaration(name=t["name"], description=t.get("description") or "", parameters=t["parameters"]) for t in tools]
         sys = next((m.get("content") or "" for m in messages if m["role"] == "system"), "")
-        contents = [m.get("content") or json.dumps(m.get("tool_calls") or "") for m in messages if m["role"] != "system"]
         resp = genai.Client(api_key=key).models.generate_content(
-            model=ident, contents=contents,
+            model=ident, contents=_gen_contents(messages),
             config=types.GenerateContentConfig(system_instruction=sys, tools=[types.Tool(function_declarations=decls)]))
         calls = [{"id": getattr(c, "id", "") or "", "name": c.name, "args": dict(c.args or {})}
                  for c in (getattr(resp, "function_calls", None) or [])]
@@ -100,16 +99,46 @@ def complete(messages, tools, *, model, api_base=None, api_key_env=None):
         return {"text": msg.content or "", "tool_calls": calls}
     raise ValueError(f"unknown model prefix: {kind!r}")
 
+def _gen_contents(messages):
+    from google.genai import types
+    contents = []
+    for m in messages:
+        if m["role"] == "system":
+            continue
+        if m["role"] == "assistant":
+            parts = []
+            if m.get("content"):
+                parts.append(types.Part.from_text(text=m["content"]))
+            for c in m.get("tool_calls") or []:
+                parts.append(types.Part.from_function_call(name=c["name"], args=c.get("args") or {}))
+            if parts:
+                contents.append(types.Content(role="model", parts=parts))
+        elif m["role"] == "tool":
+            try:
+                resp = json.loads(m.get("content") or "{}")
+            except json.JSONDecodeError:
+                resp = {"result": m.get("content") or ""}
+            if not isinstance(resp, dict):
+                resp = {"result": resp}
+            contents.append(types.Content(role="user", parts=[
+                types.Part.from_function_response(name=m.get("name") or "", response=resp)]))
+        else:
+            contents.append(types.Content(role="user", parts=[types.Part.from_text(text=m.get("content") or "")]))
+    return contents
+
 def run_turn(
     query: str, *, session: dict, model: str, messages: list | None = None,
     on_event: Callable[[ToolEvent], None] | None = None,
     api_base: str | None = None, api_key_env: str | None = None,
 ) -> TurnResult:
     schemas = tool_schemas()
-    msgs = list(messages) if messages else [
-        {"role": "system", "content": SYSTEM_PROMPT}, {"role": "user", "content": query}]
-    if not msgs or msgs[0].get("role") != "system":
-        msgs.insert(0, {"role": "system", "content": SYSTEM_PROMPT})
+    if messages is None:
+        msgs = [{"role": "system", "content": SYSTEM_PROMPT}, {"role": "user", "content": query}]
+    else:
+        msgs = messages
+        if not msgs or msgs[0].get("role") != "system":
+            msgs.insert(0, {"role": "system", "content": SYSTEM_PROMPT})
+        msgs.append({"role": "user", "content": query})
     trace: list[ToolEvent] = []
     with bind_tool_session(session) as bound:
         tid = open_turn_record(bound)
@@ -121,6 +150,7 @@ def run_turn(
                                   status="provider_error", tool_trace=trace, turn_record=tid)
             calls, text = reply.get("tool_calls") or [], reply.get("text") or ""
             if not calls:
+                msgs.append({"role": "assistant", "content": text})
                 return TurnResult(answer=text, status="ok", tool_trace=trace, turn_record=tid)
             msgs.append({"role": "assistant", "content": text, "tool_calls": calls})
             for call in calls:
@@ -137,6 +167,7 @@ def run_turn(
                     on_event(event)
                 msgs.append({"role": "tool", "tool_call_id": call.get("id"),
                              "name": call["name"], "content": json.dumps(result)})
+                compact_messages(msgs, bound)
         return TurnResult(
             answer="round cap (30) reached; see the tool trace for what was retrieved. No guessed answer.",
             status="round_cap", tool_trace=trace, turn_record=tid)

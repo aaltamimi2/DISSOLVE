@@ -14,10 +14,10 @@ for _p in (str(_ROOT), str(_ROOT / "src")):
 
 import agent_harness
 from agent_harness import TurnResult, run_turn
-from agent_tools import dispatch, result_read, tool_schemas
+from agent_tools import dispatch, result_read, source_basis_for, tool_schemas
 from dissolve.session import (
-    bind_tool_session, current_tool_session, handle_rows, load_handle,
-    load_turn_record, new_session, open_turn_record, store_handle,
+    bind_tool_session, compact_messages, current_tool_session, handle_rows,
+    load_handle, load_turn_record, new_session, open_turn_record, store_handle,
 )
 
 
@@ -201,6 +201,24 @@ def test_schemas_handle_only_on_consumer_and_omit_injected():
     assert "handle" in schemas["compare_solvent_safety_at_conditions"]["parameters"]["properties"]
     assert "handle" not in schemas["solubility_query"]["parameters"]["properties"]
     assert "temperature_step_c" not in schemas["screen_polymer_separation"]["parameters"]["properties"]
+    sq = schemas["solubility_query"]["parameters"]["properties"]
+    assert sq["polymers"]["type"] == "array"
+    assert sq["polymers"]["items"]["type"] == "string"
+    assert sq["temperatures"]["type"] == "array"
+    assert sq["require_atmospheric"]["type"] == "boolean"
+    assert sq["top_k"]["type"] == "integer"
+    assert sq["min_solubility_pct"]["type"] == "number"
+    assert sq["descending"]["default"] is True
+    card = schemas["get_solvent_safety_card"]["parameters"]["properties"]
+    assert card["include_pubchem"]["type"] == "boolean"
+    assert card["include_pubchem"]["default"] is False
+    tea = schemas["evaluate_tea_lca_scenarios"]["parameters"]["properties"]
+    assert tea["scenarios"]["type"] == "array"
+    assert tea["timeout_seconds"]["type"] == "integer"
+    rm = schemas["screen_polymer_separation"]["parameters"]["properties"]["ranking_mode"]
+    assert "target_dissolution" in rm["enum"]
+    mt = schemas["lookup_hansen_parameters"]["parameters"]["properties"]["material_type"]
+    assert set(mt["enum"]) == {"polymer", "solvent"}
     for name in (
         "evaluate_stored_route_tea_lca",
         "optimize_stored_route",
@@ -223,7 +241,8 @@ def test_active_record_reported_survives_and_original_write_fails():
                 original, tool="x", source_basis="y",
                 data={"results": [{"solvent": "dodecane"}]},
             )
-    assert original["reported"] == [{"number": 92.5, "source_basis": "cosmo_rs_grid"}]
+    assert original["reported"][-1] == {"number": 92.5, "source_basis": "cosmo_rs_grid"}
+    assert any(isinstance(r.get("number"), (int, float)) for r in original["reported"][:-1])
 
 
 def test_loop_prose_does_not_gate_or_read_record(monkeypatch):
@@ -335,3 +354,164 @@ def test_unknown_tool_and_polyethylene_not_picked():
         assert out["available"] is True
         polymers = {row.get("polymer") for row in out["data"].get("results") or []}
         assert polymers == {"LDPE", "HDPE"}
+
+
+def _row_keys(data):
+    return [
+        k for k, v in (data or {}).items()
+        if isinstance(v, list) and v and all(isinstance(i, dict) for i in v)
+    ]
+
+
+def test_handle_projection_strips_secondary_row_lists():
+    with _bound() as rec:
+        hansen = dispatch(
+            "screen_hansen_compatibility",
+            polymer_names=["LDPE"],
+            solvent_names=["dodecane", "xylene", "toluene"],
+            temperature_c=80.0,
+        )
+        assert hansen["available"] and hansen.get("handle")
+        exact = load_handle(rec, hansen["handle"])["exact"]
+        assert "joined_rows" in exact and "rows" in exact and "leading_matches" in exact
+        assert _row_keys(hansen.get("data")) == []
+        assert len(json.dumps(hansen)) < len(json.dumps(exact))
+        leach = dispatch(
+            "screen_contaminant_leaching",
+            target_polymer="LDPE", contaminants="PFAS",
+        )
+        lexact = load_handle(rec, leach["handle"])["exact"]
+        assert "contaminant_catalog" in lexact
+        assert "contaminant_catalog" not in (leach.get("data") or {})
+        assert _row_keys(leach.get("data")) == []
+        assert len(json.dumps(leach)) < len(json.dumps(lexact))
+        admitted = dispatch("lookup_admitted_process_records", target_polymer="LDPE")
+        aexact = load_handle(rec, admitted["handle"])["exact"]
+        assert "records" in aexact and "record_assumptions" in aexact
+        assert _row_keys(admitted.get("data")) == []
+        assert len(json.dumps(admitted)) < len(json.dumps(aexact))
+
+
+def test_malformed_persisted_handle_named_refusal_not_valueerror():
+    with _bound() as rec:
+        rec["handles"]["calm-blue-cat"] = {
+            "tool": "x", "source_basis": "y",
+            "exact": {"success": True, "note": "no primary page"},
+        }
+        out = dispatch("compare_solvent_safety_at_conditions", handle="calm-blue-cat")
+        assert out["refusal"] == "no_upstream_candidates"
+        assert out["available"] is False
+        page = dispatch("result_read", handle="calm-blue-cat")
+        assert page["refusal"] == "unknown_handle"
+
+
+def test_pubchem_basis_requires_live_contribution():
+    headings = [
+        "Flash Point", "Autoignition Temperature", "Vapor Pressure",
+        "GHS Classification", "Non-Human Toxicity Values", "Biodegradation",
+        "NIOSH Recommendations", "OSHA Standards",
+    ]
+    failed = {
+        "success": True,
+        "provenance": {
+            "pubchem": "https://pubchem.ncbi.nlm.nih.gov/compound/1",
+            "pubchem_failed_headings": headings,
+            "pubchem_heading_errors": {h: {"failure_class": "http"} for h in headings},
+        },
+    }
+    live = {
+        "success": True,
+        "provenance": {
+            "pubchem": "https://pubchem.ncbi.nlm.nih.gov/compound/1",
+            "pubchem_failed_headings": [],
+        },
+    }
+    assert source_basis_for("get_solvent_safety_card", failed, {"include_pubchem": True}) == "safety_local"
+    assert source_basis_for("get_solvent_safety_card", live, {"include_pubchem": True}) == "pubchem_live"
+    assert source_basis_for("get_solvent_safety_card", live, {"include_pubchem": False}) == "safety_local"
+
+
+def test_run_turn_appends_query_and_mutates_caller_messages(monkeypatch):
+    session = new_session()
+    history = [
+        {"role": "system", "content": "sys"},
+        {"role": "user", "content": "OLD-MARKER"},
+        {"role": "assistant", "content": "old answer"},
+    ]
+    seen = {}
+
+    def fake_complete(messages, tools, **kwargs):
+        seen["same"] = messages is history
+        seen["contents"] = [m.get("content") for m in messages]
+        return {"text": "new answer", "tool_calls": []}
+
+    monkeypatch.setattr(agent_harness, "complete", fake_complete)
+    result = run_turn("NEW-MARKER", session=session, model="openai:x", messages=history)
+    assert result.status == "ok"
+    assert seen["same"] is True
+    assert "NEW-MARKER" in seen["contents"]
+    assert "OLD-MARKER" in seen["contents"]
+    assert history[-1] == {"role": "assistant", "content": "new answer"}
+    assert history[-2]["content"] == "NEW-MARKER"
+
+
+def test_google_contents_keep_function_call_and_response():
+    msgs = [
+        {"role": "system", "content": "s"},
+        {"role": "user", "content": "q"},
+        {
+            "role": "assistant", "content": "",
+            "tool_calls": [{"id": "1", "name": "solubility_query", "args": {"polymers": ["LDPE"]}}],
+        },
+        {
+            "role": "tool", "name": "solubility_query", "tool_call_id": "1",
+            "content": json.dumps({"available": True}),
+        },
+    ]
+    contents = agent_harness._gen_contents(msgs)
+    assert contents[0].role == "user"
+    assert contents[1].role == "model"
+    assert contents[1].parts[-1].function_call.name == "solubility_query"
+    assert contents[2].role == "user"
+    assert contents[2].parts[0].function_response.name == "solubility_query"
+
+
+def test_compact_updates_summary_in_place_and_does_not_lead_with_tool():
+    rec = new_session()
+    rec["handles"]["calm-blue-cat"] = {
+        "tool": "solubility_query", "source_basis": "cosmo_rs_grid",
+        "exact": {"results": [{"solvent": "dodecane", "solubility_wt_pct": 92.5}]},
+    }
+    rec["reported"] = [{"number": 92.5, "source_basis": "cosmo_rs_grid", "handle": "calm-blue-cat"}]
+    rec["turn_records"] = {"turn-1": [{
+        "tool": "solubility_query",
+        "args": {"polymers": ["LDPE"], "temperatures": [140.0]},
+        "exact": {}, "handle": None,
+    }]}
+    msgs = [
+        {"role": "system", "content": "sys"},
+        {"role": "user", "content": "q1 " + ("x" * 4000)},
+        {"role": "assistant", "content": "", "tool_calls": [{"id": "1", "name": "t", "args": {}}]},
+        {"role": "tool", "tool_call_id": "1", "name": "t", "content": "{}"},
+        {"role": "user", "content": "q2"},
+    ]
+    compact_messages(msgs, rec, window=20, reserve=0)
+    assert msgs[0]["role"] == "system"
+    assert str(msgs[1].get("content") or "").startswith("Summary (do not continue the conversation")
+    assert "LDPE" in msgs[1]["content"]
+    assert "calm-blue-cat" in msgs[1]["content"]
+    assert msgs[2]["role"] != "tool"
+    compact_messages(msgs, rec, window=20, reserve=0)
+    assert sum(1 for m in msgs if str(m.get("content") or "").startswith("Summary (do not continue")) == 1
+
+
+def test_wrapper_appends_reported_from_row_fields():
+    with _bound() as rec:
+        dispatch(
+            "solubility_query",
+            polymers=["LDPE"], solvents=["dodecane"], temperatures=[140.0],
+        )
+        assert rec["reported"]
+        assert all("number" in row and "source_basis" in row for row in rec["reported"])
+        assert rec["reported"][0]["source_basis"] == "cosmo_rs_grid"
+        assert "shown" not in {row.get("number") for row in rec["reported"]}
