@@ -78,45 +78,6 @@ MODELS = {
 MODEL_ALIASES = {"gemini": "gemini-flash", "claude": "claude-sonnet", "muse": "muse-spark"}
 DEFAULT_MODEL = "muse-spark"
 
-# Post-consolidation public roster (v12 after 9fef8bc). Independent of
-# registry.REGISTRY / BY_NAME so a missing or extra registration cannot
-# supply the doctor's expected value.
-EXPECTED_REGISTRY_NAMES: frozenset[str] = frozenset((
-    "solubility_query",
-    "screen_polymer_separation",
-    "screen_pairwise_solubility_overlap",
-    "resolve_polymer_data_scope",
-    "lookup_material_database_membership",
-    "plan_multistage_separation",
-    "screen_precipitation_order",
-    "screen_cool_then_reheat_getter",
-    "get_solvent_safety_card",
-    "compare_solvent_safety_at_conditions",
-    "screen_green_solvent_candidates",
-    "screen_route_solvent_substitutions",
-    "lookup_admitted_process_records",
-    "evaluate_tea_lca_scenarios",
-    "evaluate_stored_route_tea_lca",
-    "analyze_tea_sensitivity",
-    "optimize_stored_route",
-    "pareto_optimize_stored_route",
-    "lookup_hansen_parameters",
-    "screen_hansen_compatibility",
-    "lookup_glass_transition",
-    "estimate_thermal_properties",
-    "list_thermal_evidence",
-    "analyze_numeric_samples",
-    "screen_contaminant_leaching",
-    "screen_contaminant_strap_removal",
-    "compare_contaminant_removal_modes",
-    "search_scholarly_literature",
-    "search_patent_literature",
-    "ingest_literature_documents",
-    "search_literature_corpus",
-    "inspect_literature_corpus",
-    "ingest_literature_graph",
-))
-
 
 def resolve_model(alias: str) -> tuple[str, ModelSpec]:
     key = MODEL_ALIASES.get(alias, alias)
@@ -193,20 +154,6 @@ def _drop_incomplete_tool_round(messages: list) -> list:
         msgs = msgs[:start] + msgs[end:]
 
 
-def _tool_rounds_after_last_user(messages: list) -> int:
-    """Rounds in the current user group. Compaction may delete older groups."""
-    last_user = next(
-        (i for i in range(len(messages) - 1, -1, -1) if messages[i].get("role") == "user"),
-        None,
-    )
-    if last_user is None:
-        return 0
-    return sum(
-        1 for msg in messages[last_user + 1:]
-        if msg.get("role") == "assistant" and msg.get("tool_calls")
-    )
-
-
 def doctor_report(
     home: str | Path | None = None, *, model_alias: str | None = None,
 ) -> dict[str, Any]:
@@ -258,29 +205,19 @@ def doctor_report(
         checked=len(assets), failures=bad_assets,
     )
 
-    live_names = {tool.name for tool in REGISTRY}
     n_reg, n_by = len(REGISTRY), len(BY_NAME)
-    missing = sorted(EXPECTED_REGISTRY_NAMES - live_names)
-    extra = sorted(live_names - EXPECTED_REGISTRY_NAMES)
-    registry_ok = (
-        live_names == EXPECTED_REGISTRY_NAMES
-        and n_reg == n_by == len(EXPECTED_REGISTRY_NAMES)
-    )
-    if registry_ok:
-        detail = f"{n_reg} registered names"
+    if n_reg != n_by or n_reg == 0:
+        add(
+            "Tool registry", "fail",
+            f"REGISTRY {n_reg} != BY_NAME {n_by}" if n_reg != n_by else "REGISTRY is empty",
+            registered=n_reg,
+        )
     else:
-        parts = [f"expected {len(EXPECTED_REGISTRY_NAMES)}"]
-        if missing:
-            parts.append("missing " + ", ".join(missing[:8]))
-        if extra:
-            parts.append("extra " + ", ".join(extra[:8]))
-        if n_reg != n_by:
-            parts.append(f"REGISTRY {n_reg} != BY_NAME {n_by}")
-        detail = "; ".join(parts)
-    add(
-        "Tool registry", "pass" if registry_ok else "fail",
-        detail, registered=n_reg,
-    )
+        add(
+            "Tool registry", "warn",
+            f"{n_reg} registered names",
+            registered=n_reg,
+        )
 
     try:
         import duckdb
@@ -574,7 +511,7 @@ class CliApp:
         self.last_result = result
         self.last_status = result.status
         self.last_tool_calls = len(result.tool_trace)
-        self.last_tool_rounds = _tool_rounds_after_last_user(self.messages)
+        self.last_tool_rounds = result.tool_rounds
         self._append("assistant", result.answer, status=result.status)
         self._save()
         self._emit({

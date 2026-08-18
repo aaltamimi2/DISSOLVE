@@ -17,13 +17,13 @@ class ToolEvent:
     name: str
     args: dict
     result: dict
-
 @dataclass(frozen=True)
 class TurnResult:
     answer: str
     status: str
     tool_trace: list[ToolEvent]
     turn_record: str
+    tool_rounds: int = 0
 
 def _oai_msgs(messages):
     out = []
@@ -145,20 +145,20 @@ def run_turn(
         if not msgs or msgs[0].get("role") != "system":
             msgs.insert(0, {"role": "system", "content": SYSTEM_PROMPT})
         msgs.append({"role": "user", "content": query})
-    trace: list[ToolEvent] = []
+    trace: list[ToolEvent] = []; rounds = 0
     with bind_tool_session(session) as bound:
         tid = open_turn_record(bound)
         for _ in range(30):
             try:
                 reply = complete(msgs, schemas, model=model, api_base=api_base, api_key_env=api_key_env)
             except MissingProviderKey as e:
-                return TurnResult(answer=str(e), status="provider_error", tool_trace=trace, turn_record=tid)
+                return TurnResult(answer=str(e), status="provider_error", tool_trace=trace, turn_record=tid, tool_rounds=rounds)
             except Exception as e:
-                return TurnResult(answer=f"provider error: {type(e).__name__}: {e}", status="provider_error", tool_trace=trace, turn_record=tid)
+                return TurnResult(answer=f"provider error: {type(e).__name__}: {e}", status="provider_error", tool_trace=trace, turn_record=tid, tool_rounds=rounds)
             calls, text = reply.get("tool_calls") or [], reply.get("text") or ""
             if not calls:
-                msgs.append({"role": "assistant", "content": text}); return TurnResult(answer=text, status="ok", tool_trace=trace, turn_record=tid)
-            msgs.append({"role": "assistant", "content": text, "tool_calls": calls})
+                msgs.append({"role": "assistant", "content": text}); return TurnResult(answer=text, status="ok", tool_trace=trace, turn_record=tid, tool_rounds=rounds)
+            rounds += 1; msgs.append({"role": "assistant", "content": text, "tool_calls": calls})
             for call in calls:
                 args = call.get("args") or {}
                 if isinstance(args, str):
@@ -174,10 +174,10 @@ def run_turn(
                              "name": call["name"], "content": json.dumps(result)})
             try: compact_messages(msgs, bound, window=context_window(model))
             except CompactionBudgetError as e:
-                return TurnResult(answer=str(e), status="compaction_error", tool_trace=trace, turn_record=tid)
+                return TurnResult(answer=str(e), status="compaction_error", tool_trace=trace, turn_record=tid, tool_rounds=rounds)
         return TurnResult(
             answer="round cap (30) reached; see the tool trace for what was retrieved. No guessed answer.",
-            status="round_cap", tool_trace=trace, turn_record=tid)
+            status="round_cap", tool_trace=trace, turn_record=tid, tool_rounds=rounds)
 def _main() -> None:
     import argparse
     from dissolve.session import new_session

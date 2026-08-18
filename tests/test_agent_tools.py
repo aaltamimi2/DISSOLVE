@@ -1003,6 +1003,44 @@ def test_run_turn_production_timing_keeps_current_group_and_meets_budget(monkeyp
     assert not any(str(u.get("content", "")).startswith("OLD ") for u in users)
 
 
+def test_run_turn_counts_rounds_not_history_delta(monkeypatch):
+    n = {"i": 0}
+    history = [{"role": "system", "content": "sys"}]
+    for i in range(6):
+        history.extend([
+            {"role": "user", "content": f"old-{i}"},
+            {"role": "assistant", "content": "", "tool_calls": [
+                {"id": f"old-{i}", "name": "no_such_tool", "args": {}},
+            ]},
+            {"role": "tool", "tool_call_id": f"old-{i}", "name": "no_such_tool", "content": "{}"},
+            {"role": "assistant", "content": f"ans-{i}"},
+        ])
+
+    def fake_complete(messages, tools, **kwargs):
+        n["i"] += 1
+        if n["i"] == 1:
+            return {"text": "", "tool_calls": [{"id": "now", "name": "no_such_tool", "args": {}}]}
+        return {"text": "done", "tool_calls": []}
+
+    def fake_compact(messages, record, **kwargs):
+        start = next(i for i, msg in enumerate(messages) if msg.get("role") == "user")
+        end = next(
+            i for i in range(start + 1, len(messages)) if messages[i].get("role") == "user"
+        )
+        del messages[start:end]
+
+    monkeypatch.setattr(agent_harness, "complete", fake_complete)
+    monkeypatch.setattr(agent_harness, "compact_messages", fake_compact)
+    before = sum(1 for m in history if m.get("role") == "assistant" and m.get("tool_calls"))
+    result = run_turn("NOW", session=new_session(), model="openai:x", messages=history)
+    after = sum(1 for m in history if m.get("role") == "assistant" and m.get("tool_calls"))
+    assert before == 6
+    assert after - before == 0
+    assert result.status == "ok"
+    assert result.tool_rounds == 1
+    assert len(result.tool_trace) == 1
+
+
 def test_run_turn_passes_alias_window(monkeypatch):
     n = {"i": 0}
     hits = []
