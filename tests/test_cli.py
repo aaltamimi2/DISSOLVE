@@ -677,7 +677,13 @@ def test_tool_event_print_is_one_line_without_payload(tmp_path, monkeypatch):
     shown = buf.getvalue()
     blob = json.dumps(_SAFETY_PAYLOAD, ensure_ascii=False)
     size = len(blob.encode("utf-8"))
-    assert f"get_solvent_safety_card(solvent_name=dodecane, include_pubchem=False) -> {size} B" in shown
+    summary = (
+        f"get_solvent_safety_card(solvent_name=dodecane, include_pubchem=False) -> {size} B"
+    )
+    assert summary in shown
+    tool_lines = [ln for ln in shown.splitlines() if "get_solvent_safety_card" in ln]
+    assert len(tool_lines) == 1
+    assert "\n" not in cli._tool_event_summary(result.tool_trace[0])
     assert shown.count("get_solvent_safety_card") == 1
     for key in (
         "physical_properties", "gscore", "occupational_exposure_limits",
@@ -718,3 +724,59 @@ def test_stream_json_emits_complete_tool_result(tmp_path, monkeypatch):
     assert "physical_properties" not in shown
     assert "get_solvent_safety_card" not in shown
 
+
+def test_tool_event_line_escapes_multiline_query(tmp_path, monkeypatch):
+    event = ToolEvent(
+        "search_scholarly_literature",
+        {"query": "alpha\nRAW SECOND LINE"},
+        {"hits": 0},
+    )
+
+    def fake_turn(query, *, session, model, messages, on_event, api_base, api_key_env):
+        if messages is not None:
+            messages.append({"role": "user", "content": query})
+            messages.append({"role": "assistant", "content": "none"})
+        if on_event:
+            on_event(event)
+        return TurnResult("none", "ok", [event], "turn-1", 1, None)
+
+    monkeypatch.setattr(cli, "run_turn", fake_turn)
+    app, buf = _app(tmp_path, monkeypatch)
+    app.ask("literature")
+    summary = cli._tool_event_summary(event)
+    shown = buf.getvalue()
+    assert "\n" not in summary
+    assert "\\n" in summary
+    assert "RAW SECOND LINE" not in shown.splitlines()
+    assert sum(1 for ln in shown.splitlines() if "search_scholarly_literature" in ln) == 1
+
+
+def test_tool_event_line_bounds_long_string():
+    event = ToolEvent(
+        "search_scholarly_literature",
+        {"query": "Q" * 5000},
+        {"hits": 0},
+    )
+    summary = cli._tool_event_summary(event)
+    assert "\n" not in summary
+    assert len(summary) <= 48 + 160 + 80
+    assert ("Q" * 5000) not in summary
+    assert summary.count("Q") <= cli._ARG_ITEM_MAX
+
+
+def test_tool_event_line_keeps_container_identity():
+    result = {"ok": True}
+    left = cli._tool_event_summary(ToolEvent(
+        "screen_hansen_compatibility",
+        {"polymer_names": ["LDPE"], "solvent_names": ["dodecane", "xylene"]},
+        result,
+    ))
+    right = cli._tool_event_summary(ToolEvent(
+        "screen_hansen_compatibility",
+        {"polymer_names": ["HDPE"], "solvent_names": ["hexane", "toluene"]},
+        result,
+    ))
+    assert left != right
+    assert "LDPE" in left and "HDPE" in right
+    assert "dodecane" in left and "hexane" in right
+    assert "<1>" not in left and "<2>" not in left

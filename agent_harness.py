@@ -245,7 +245,7 @@ def run_turn(
 def _main() -> None:
     import argparse
     from dissolve.session import new_session
-    from dissolve.cli import DEFAULT_MODEL, main, resolve_model
+    from dissolve.cli import DEFAULT_MODEL, _tool_event_summary, main, resolve_model
     if len(sys.argv) < 2 or sys.argv[1].startswith("-"):
         raise SystemExit(main())
     p = argparse.ArgumentParser()
@@ -254,7 +254,7 @@ def _main() -> None:
     ns = p.parse_args()
     _, spec = resolve_model(ns.model)
     def _print(ev: ToolEvent) -> None:
-        print(f"tool {ev.name} {ev.args}"); print(ev.result)
+        print(f"tool  {_tool_event_summary(ev)}")
     result = run_turn(ns.query, session=new_session(), model=spec.model,
                       on_event=_print, api_base=spec.base_url, api_key_env=spec.env_var)
     print(result.answer); print(f"status={result.status}")

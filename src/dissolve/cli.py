@@ -349,16 +349,62 @@ class _Store:
             handle.write(json.dumps(event, ensure_ascii=False) + "\n")
 
 
+_ARG_ITEM_MAX = 48
+_CONTAINER_SAMPLE = 2
+_ARGS_MAX = 160
+
+
+def _render_scalar(value: Any, limit: int = _ARG_ITEM_MAX) -> str:
+    if isinstance(value, bool) or value is None or isinstance(value, (int, float)):
+        text = str(value)
+        return text if len(text) <= limit else text[: limit - 1] + "…"
+    text = value if isinstance(value, str) else str(value)
+    escaped = (
+        text.replace("\\", "\\\\")
+        .replace("\n", "\\n")
+        .replace("\r", "\\r")
+        .replace("\t", "\\t")
+    )
+    escaped = "".join(
+        ch if ch.isprintable() else f"\\x{ord(ch):02x}" for ch in escaped
+    )
+    if len(escaped) > limit:
+        escaped = escaped[: limit - 1] + "…"
+    return escaped
+
+
+def _render_value(value: Any, *, depth: int = 0) -> str:
+    if isinstance(value, (list, tuple)):
+        if depth >= 2:
+            return f"<{len(value)}>"
+        bits = [_render_value(item, depth=depth + 1) for item in value[:_CONTAINER_SAMPLE]]
+        extra = len(value) - _CONTAINER_SAMPLE
+        if extra > 0:
+            bits.append(f"…+{extra}")
+        return "[" + ", ".join(bits) + "]"
+    if isinstance(value, dict):
+        if depth >= 2:
+            return f"<{len(value)}>"
+        items = list(value.items())[:_CONTAINER_SAMPLE]
+        bits = [
+            f"{_render_scalar(key, 24)}:{_render_value(item, depth=depth + 1)}"
+            for key, item in items
+        ]
+        extra = len(value) - _CONTAINER_SAMPLE
+        if extra > 0:
+            bits.append(f"…+{extra}")
+        return "{" + ", ".join(bits) + "}"
+    return _render_scalar(value)
+
+
 def _tool_arg_fragment(key: str, value: Any) -> str:
-    if isinstance(value, str):
-        return f"{key}={value}"
-    if isinstance(value, (dict, list, tuple)):
-        return f"{key}=<{len(value)}>"
-    return f"{key}={value}"
+    return f"{key}={_render_value(value)}"
 
 
 def _tool_event_summary(event: ToolEvent) -> str:
     args = ", ".join(_tool_arg_fragment(k, v) for k, v in (event.args or {}).items())
+    if len(args) > _ARGS_MAX:
+        args = args[: _ARGS_MAX - 1] + "…"
     blob = json.dumps(event.result, ensure_ascii=False, default=str)
     return f"{event.name}({args}) -> {len(blob.encode('utf-8'))} B"
 
