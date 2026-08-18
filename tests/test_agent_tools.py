@@ -407,6 +407,12 @@ def test_loop_prose_does_not_gate_or_read_record(monkeypatch):
     assert "result_read" not in inspect.getsource(agent_tools._emit)
 
 
+def test_system_prompt_reports_engine_inclusivity_not_user_strictness():
+    prompt = agent_tools.SYSTEM_PROMPT
+    assert "bounds_are_inclusive" in prompt
+    assert "A count for >= 5 / <= 1 is not a count for > 5 / < 1" in prompt
+
+
 def test_turn_record_every_result_exact_ordered_durable():
     session = new_session()
     with bind_tool_session(session) as rec:

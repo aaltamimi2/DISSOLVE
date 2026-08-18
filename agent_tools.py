@@ -405,6 +405,12 @@ Report the source_basis with the number.
   report the token. Do not invent a gloss.
 - Screening thresholds (1, 5, 10 wt%) are engine defaults, not process
   claims. If you mention them, say that.
+- When a tool result states bound inclusivity (bounds_are_inclusive),
+  report qualifying counts with those bounds. Do not restate the
+  user's strict inequality if the engine applied an inclusive one.
+  A count for >= 5 / <= 1 is not a count for > 5 / < 1. If you have
+  not read a boundary-equal row off the handle, do not claim the two
+  are the same.
 - evaluate_stored_route_tea_lca, optimize_stored_route, and
   pareto_optimize_stored_route are unwired. Do not call them to
   recover a missing route.
