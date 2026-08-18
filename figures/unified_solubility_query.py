@@ -56,6 +56,7 @@ REJECTED = "#E15759"
 PAGE = "#F28E2B"
 REFUSAL_FACE = "#FDE9E7"
 REFUSAL_EDGE = "#C94C4C"
+RED_JOIN_FACE = "#ECF5EA"
 ARROW = "#67717C"
 
 
@@ -72,6 +73,18 @@ EXPECTED_ROW_KEYS = {
     "solvent_name",
     "source_table",
     "temperature_c",
+}
+EXPECTED_RED_ROW_KEYS = EXPECTED_ROW_KEYS | {
+    "hsp_polymer_identity_route",
+    "hsp_polymer_name",
+    "hsp_polymer_row_id",
+    "hsp_solvent_identity_route",
+    "hsp_solvent_name",
+    "hsp_solvent_row_id",
+    "hsp_source_id",
+    "r0",
+    "ra",
+    "red",
 }
 
 
@@ -193,6 +206,14 @@ def measure() -> dict[str, Any]:
     page_five = registry_query(
         polymers=["LDPE"], temperatures=[140], top_k=5, offset=0
     )
+    red_global = registry_query(min_red=0, top_k=1)
+    red_page_five = registry_query(
+        polymers=["LDPE"], temperatures=[140], min_red=0, top_k=5, offset=0
+    )
+    pe_family = registry_query(polymers=["PE"], temperatures=[140], top_k=1)
+    nylon_family = registry_query(
+        polymers=["NYLON"], temperatures=[140], top_k=1
+    )
 
     # Materialize the entire 990-row result through real pages.  ``total`` is
     # asserted below, but it is not treated as evidence that those rows exist.
@@ -214,6 +235,30 @@ def measure() -> dict[str, Any]:
         assert page["next_offset"] == offset + page["returned"]
         offset = int(page["next_offset"])
 
+    # Materialize every joined source-grain row as well.  A thermodynamic cell
+    # may publish more than one row because mapped HSP grades are not collapsed.
+    red_rows: list[dict[str, Any]] = []
+    red_page_sizes: list[int] = []
+    offset = 0
+    while True:
+        page = registry_query(
+            polymers=["LDPE"],
+            temperatures=[140],
+            min_red=0,
+            top_k=50,
+            offset=offset,
+        )
+        assert page["success"] is True
+        assert page["offset"] == offset
+        assert page["returned"] == len(page["results"])
+        red_rows.extend(page["results"])
+        red_page_sizes.append(int(page["returned"]))
+        if not page["has_more"]:
+            assert page["next_offset"] is None
+            break
+        assert page["next_offset"] == offset + page["returned"]
+        offset = int(page["next_offset"])
+
     identities = [
         (row["polymer"], row["solvent"], row["temperature_c"])
         for row in all_rows
@@ -224,6 +269,20 @@ def measure() -> dict[str, Any]:
     atmospheric_counts = Counter(
         row["atmospheric_operation"] for row in all_rows
     )
+    red_thermodynamic_identities = {
+        (row["polymer"], row["solvent"], row["temperature_c"])
+        for row in red_rows
+    }
+    red_joined_identities = {
+        (
+            row["polymer"],
+            row["solvent"],
+            row["temperature_c"],
+            row["hsp_polymer_row_id"],
+            row["hsp_solvent_row_id"],
+        )
+        for row in red_rows
+    }
 
     # Raw asset invariants.
     assert asset == {
@@ -279,6 +338,85 @@ def measure() -> dict[str, Any]:
         global_query["evaluable_cell_count"]
         + global_query["unavailable_cell_count"]
     )
+
+    # Activating either RED bound changes the result grain and publishes its
+    # join coverage without changing the underlying thermodynamic accounting.
+    assert red_global["success"] is True
+    assert red_global["selection"] == selection
+    assert red_global["selected_cell_count"] == global_query["selected_cell_count"]
+    assert red_global["stored_cell_count"] == global_query["stored_cell_count"]
+    assert red_global["evaluable_cell_count"] == global_query["evaluable_cell_count"]
+    assert red_global["unavailable_counts"] == global_query["unavailable_counts"]
+    assert red_global["constraints"] == {
+        "min_solubility_pct": None,
+        "max_solubility_pct": None,
+        "require_atmospheric": False,
+        "min_boiling_point_margin_c": None,
+        "min_red": 0.0,
+        "max_red": None,
+    }
+    assert red_global["result_grain"] == (
+        "thermodynamic_cell_x_hsp_source_record_pair"
+    )
+    assert red_global["qualified_thermodynamic_cell_count"] == 86_592
+    assert red_global["qualifying_joined_row_count"] == 141_321
+    assert red_global["total"] == 141_321
+    assert red_global["distinct_qualifying_solvent_count"] == 380
+    assert red_global["red_join_coverage"] == {
+        "requested_solvent_count": 990,
+        "solvents_with_red_count": 380,
+        "solvents_with_solubility_count": 990,
+        "solvents_with_both_count": 380,
+        "solvents_with_qualifying_red_and_solubility_count": 380,
+        "requested_polymer_count": 12,
+        "polymers_with_red_count": 11,
+        "requested_polymer_solvent_pair_count": 11_880,
+        "pairs_with_red_count": 4_180,
+        "pairs_with_solubility_count": 9_047,
+        "pairs_with_both_count": 3_111,
+    }
+    assert red_global["hsp_catalog_coverage"] == {
+        "matched_hsp_polymer_source_row_count": 23,
+        "total_hsp_polymer_source_row_count": 466,
+        "thermodynamic_polymer_with_hsp_count": 11,
+        "matched_hsp_solvent_source_row_count": 393,
+        "total_hsp_solvent_source_row_count": 1_180,
+        "matched_hsp_solvent_name_count": 380,
+        "total_unique_hsp_solvent_name_count": 1_149,
+        "grid_solvent_with_hsp_count": 380,
+        "thermodynamic_polymer_count": 12,
+        "grid_solvent_count": 990,
+    }
+    assert red_global["exclusion_counts"] == {
+        "below_min_solubility_pct": 0,
+        "above_max_solubility_pct": 0,
+        "failed_atmospheric_requirement": 0,
+        "unknown_boiling_point_for_atmospheric_requirement": 0,
+        "below_min_boiling_point_margin_c": 0,
+        "unknown_boiling_point_for_margin_requirement": 0,
+        "failed_any_constraint": 165_882,
+        "thermodynamic_cells_without_red": 165_882,
+        "thermodynamic_cells_without_qualifying_red_source_record": 0,
+        "red_source_record_pairs_below_min_red": 0,
+        "red_source_record_pairs_above_max_red": 0,
+    }
+    assert red_global["red_unmatched_row_policy"] == (
+        "excluded_with_explicit_coverage_and_reason_counts"
+    )
+    assert red_global["red_unmatched_reason"] == (
+        "no_reviewed_hsp_identity_match"
+    )
+    assert red_global["red_temperature_dependent"] is False
+    assert len(red_global["results"]) == 1
+    assert set(red_global["results"][0]) == EXPECTED_RED_ROW_KEYS
+
+    # Collection-valued polymer inputs expand known families consistently.
+    assert pe_family["success"] is True
+    assert pe_family["selection"]["polymers"] == ["LDPE", "HDPE"]
+    assert pe_family["selection"]["polymer_count"] == 2
+    assert nylon_family["success"] is True
+    assert nylon_family["selection"]["polymers"] == ["NYLON6", "NYLON66"]
+    assert nylon_family["selection"]["polymer_count"] == 2
 
     # Ragged pair coverage, all re-measured through one-axis registry calls.
     assert Counter(coverage.values()) == Counter({990: 9, 78: 1, 32: 2})
@@ -341,16 +479,103 @@ def measure() -> dict[str, Any]:
     assert atmospheric_counts == Counter({True: 463, False: 412, None: 115})
     assert all_rows and any(row["ghs_signal_word"] for row in all_rows)
 
+    # The same exact selection with RED activated: observe all 786 joined rows,
+    # rather than trusting the reported total or the five-row first page.
+    assert red_page_five["success"] is True
+    assert red_page_five["selection"] == page_five["selection"]
+    assert red_page_five["selected_cell_count"] == 990
+    assert red_page_five["stored_cell_count"] == 990
+    assert red_page_five["evaluable_cell_count"] == 990
+    assert red_page_five["unavailable_cell_count"] == 0
+    assert red_page_five["constraints"] == {
+        "min_solubility_pct": None,
+        "max_solubility_pct": None,
+        "require_atmospheric": False,
+        "min_boiling_point_margin_c": None,
+        "min_red": 0.0,
+        "max_red": None,
+    }
+    assert red_page_five["result_grain"] == (
+        "thermodynamic_cell_x_hsp_source_record_pair"
+    )
+    assert red_page_five["qualified_thermodynamic_cell_count"] == 380
+    assert red_page_five["qualifying_joined_row_count"] == 786
+    assert red_page_five["distinct_qualifying_solvent_count"] == 380
+    assert red_page_five["total"] == 786
+    assert red_page_five["returned"] == len(red_page_five["results"]) == 5
+    assert red_page_five["offset"] == 0
+    assert red_page_five["has_more"] is True
+    assert red_page_five["next_offset"] == 5
+    assert red_page_five["red_join_coverage"] == {
+        "requested_solvent_count": 990,
+        "solvents_with_red_count": 380,
+        "solvents_with_solubility_count": 990,
+        "solvents_with_both_count": 380,
+        "solvents_with_qualifying_red_and_solubility_count": 380,
+        "requested_polymer_count": 1,
+        "polymers_with_red_count": 1,
+        "requested_polymer_solvent_pair_count": 990,
+        "pairs_with_red_count": 380,
+        "pairs_with_solubility_count": 990,
+        "pairs_with_both_count": 380,
+    }
+    assert red_page_five["hsp_catalog_coverage"] == red_global[
+        "hsp_catalog_coverage"
+    ]
+    assert red_page_five["exclusion_counts"] == {
+        "below_min_solubility_pct": 0,
+        "above_max_solubility_pct": 0,
+        "failed_atmospheric_requirement": 0,
+        "unknown_boiling_point_for_atmospheric_requirement": 0,
+        "below_min_boiling_point_margin_c": 0,
+        "unknown_boiling_point_for_margin_requirement": 0,
+        "failed_any_constraint": 610,
+        "thermodynamic_cells_without_red": 610,
+        "thermodynamic_cells_without_qualifying_red_source_record": 0,
+        "red_source_record_pairs_below_min_red": 0,
+        "red_source_record_pairs_above_max_red": 0,
+    }
+    assert all(
+        set(row) == EXPECTED_RED_ROW_KEYS for row in red_page_five["results"]
+    )
+
+    assert red_page_sizes == ([50] * 15 + [36])
+    assert len(red_rows) == red_page_five["total"] == 786
+    assert len(red_joined_identities) == len(red_rows) == 786
+    assert len(red_thermodynamic_identities) == 380
+    assert len({row["solvent"] for row in red_rows}) == 380
+    assert all(
+        row["polymer"] == "LDPE"
+        and row["temperature_c"] == 140.0
+        and row["red"] >= 0.0
+        for row in red_rows
+    )
+    assert all(set(row) == EXPECTED_RED_ROW_KEYS for row in red_rows)
+    assert all(
+        row["hsp_source_id"]
+        == {
+            "polymer_row_id": row["hsp_polymer_row_id"],
+            "solvent_row_id": row["hsp_solvent_row_id"],
+        }
+        for row in red_rows
+    )
+
     return {
         "asset": asset,
         "global_query": global_query,
+        "red_global": red_global,
         "coverage": coverage,
         "off_grid": off_grid,
         "ldpe_asset": ldpe_asset,
         "page_five": page_five,
+        "red_page_five": red_page_five,
         "materialized_row_count": len(all_rows),
         "materialized_unique_count": len(set(identities)),
         "materialized_page_sizes": page_sizes,
+        "red_materialized_row_count": len(red_rows),
+        "red_materialized_unique_count": len(red_joined_identities),
+        "red_thermodynamic_cell_count": len(red_thermodynamic_identities),
+        "red_materialized_page_sizes": red_page_sizes,
         "atmospheric_counts": dict(atmospheric_counts),
     }
 
@@ -523,11 +748,12 @@ def draw(data: dict[str, Any]) -> tuple[plt.Figure, DrawingRegistry, Artist]:
     accounting_panel = panel("accounting", 0.415, 0.355, 0.550, 0.290)
     page_panel = panel("page", 0.035, 0.035, 0.930, 0.300)
 
-    # 1. Independent fixed/free axes and a separate request-refusal branch.
+    # 1. Independent selection axes, the opt-in RED join, and a separate
+    # request-refusal branch.
     add_text(
         0.055,
         0.894,
-        "1  Any axis may be fixed or free",
+        "1  Three fixed/free selection axes give 8 query shapes",
         weight="semibold",
         container=axis_panel,
     )
@@ -555,35 +781,37 @@ def draw(data: dict[str, Any]) -> tuple[plt.Figure, DrawingRegistry, Artist]:
             container=card,
             allowed=(axis_panel,),
         )
+    red_join_box = rounded_box(
+        0.055,
+        0.721,
+        0.890,
+        0.044,
+        facecolor=RED_JOIN_FACE,
+        edgecolor=SATURATED,
+        collision=True,
+    )
     add_text(
         0.500,
-        0.757,
-        "Independent choices: 2 × 2 × 2 = 8 query shapes",
+        0.743,
+        "Optional min_red / max_red → source-grain Hansen join + coverage",
         ha="center",
-        container=axis_panel,
+        container=red_join_box,
+        allowed=(axis_panel,),
     )
     refusal_box = rounded_box(
-        0.200,
-        0.672,
-        0.745,
-        0.072,
+        0.055,
+        0.673,
+        0.890,
+        0.039,
         facecolor=REFUSAL_FACE,
         edgecolor=REFUSAL_EDGE,
         collision=True,
     )
-    add_text(0.060, 0.706, "42 °C", container=axis_panel)
-    arrow((0.116, 0.706), (0.188, 0.706), color=REFUSAL_EDGE)
     add_text(
-        0.215,
-        0.719,
-        "request refusal: temperature_off_grid  ·  success=false",
-        container=refusal_box,
-        allowed=(axis_panel,),
-    )
-    add_text(
-        0.215,
-        0.691,
-        "nearest stored nodes: 40, 45 °C",
+        0.500,
+        0.6925,
+        "42 °C → request refusal: temperature_off_grid · nearest 40, 45 °C · success=false",
+        ha="center",
         container=refusal_box,
         allowed=(axis_panel,),
     )
@@ -600,7 +828,30 @@ def draw(data: dict[str, Any]) -> tuple[plt.Figure, DrawingRegistry, Artist]:
     add_text(
         0.055,
         0.582,
-        "stored solvent pairs / 990",
+        "stored solubility pairs / 990",
+        container=coverage_panel,
+    )
+    red_coverage_mark = Rectangle(
+        (0.055, 0.540),
+        0.015,
+        0.015,
+        transform=ax.transAxes,
+        facecolor=SATURATED,
+        edgecolor="none",
+        zorder=4,
+    )
+    ax.add_patch(red_coverage_mark)
+    registry.collision_patches.append(red_coverage_mark)
+    registry.data_marks.append(red_coverage_mark)
+    red_coverage = data["red_global"]["red_join_coverage"]
+    add_text(
+        0.078,
+        0.548,
+        (
+            "Hansen RED solvents: "
+            f"{red_coverage['solvents_with_red_count']} / "
+            f"{red_coverage['requested_solvent_count']}"
+        ),
         container=coverage_panel,
     )
     coverage_rows = (
@@ -612,7 +863,7 @@ def draw(data: dict[str, Any]) -> tuple[plt.Figure, DrawingRegistry, Artist]:
     track_x = 0.235
     track_width = 0.135
     bar_height = 0.019
-    for (label, value), y in zip(coverage_rows, (0.535, 0.485, 0.435, 0.385)):
+    for (label, value), y in zip(coverage_rows, (0.505, 0.460, 0.415, 0.375)):
         add_text(0.055, y, label, container=coverage_panel)
         add_text(
             0.210,
@@ -748,7 +999,7 @@ def draw(data: dict[str, Any]) -> tuple[plt.Figure, DrawingRegistry, Artist]:
     add_text(
         0.055,
         0.275,
-        "Exact selection: LDPE × all 990 solvents × 140 °C  ·  no filters",
+        "Base selection: LDPE × all 990 solvents × 140 °C · no filters (RED inactive)",
         container=page_panel,
     )
     add_text(
@@ -829,15 +1080,31 @@ def draw(data: dict[str, Any]) -> tuple[plt.Figure, DrawingRegistry, Artist]:
     )
     add_text(
         0.500,
-        0.099,
-        "Every row: polymer · solvent · stored T · exact solubility · BP + margin",
+        0.115,
+        "Row: identity · T · exact wt% · BP/margin · atmosphere {true/false/unknown} · GHS signal word",
         ha="center",
         container=page_panel,
     )
     add_text(
         0.500,
-        0.064,
-        "atmospheric state (true / false / unknown) · GHS signal word · clipping · source",
+        0.085,
+        (
+            "RED active (min_red=0): "
+            f"{data['red_page_five']['qualified_thermodynamic_cell_count']} cells joined · "
+            f"{data['red_page_five']['exclusion_counts']['thermodynamic_cells_without_red']} unmatched · "
+            f"{data['red_page_five']['qualifying_joined_row_count']} source-record rows"
+        ),
+        ha="center",
+        container=page_panel,
+    )
+    add_text(
+        0.500,
+        0.055,
+        (
+            "Joined rows add RED/Ra/R0 + HSP source IDs; coverage reports "
+            f"{data['red_page_five']['red_join_coverage']['solvents_with_red_count']} of "
+            f"{data['red_page_five']['red_join_coverage']['requested_solvent_count']} solvents"
+        ),
         ha="center",
         container=page_panel,
     )
@@ -990,6 +1257,21 @@ def main() -> None:
                 ],
                 "ldpe_140_materialized_rows": data["materialized_row_count"],
                 "ldpe_140_unique_rows": data["materialized_unique_count"],
+                "hansen_red_solvent_coverage": data["red_global"][
+                    "red_join_coverage"
+                ]["solvents_with_red_count"],
+                "hansen_red_grid_solvent_count": data["red_global"][
+                    "red_join_coverage"
+                ]["requested_solvent_count"],
+                "ldpe_140_red_materialized_rows": data[
+                    "red_materialized_row_count"
+                ],
+                "ldpe_140_red_unique_rows": data[
+                    "red_materialized_unique_count"
+                ],
+                "ldpe_140_red_thermodynamic_cells": data[
+                    "red_thermodynamic_cell_count"
+                ],
                 "geometry": geometry,
                 "outputs": [str(PDF_PATH), str(PNG_PATH)],
             },
