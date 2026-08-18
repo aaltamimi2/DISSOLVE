@@ -616,6 +616,24 @@ def test_positional_oneshot_persists_exact_tool_result(tmp_path, monkeypatch, ca
     assert "Advanced Recycling Agent" not in shown
 
 
+def test_positional_oneshot_missing_key_is_provider_error(tmp_path, monkeypatch, capsys):
+    monkeypatch.delenv("META_MUSE_API_KEY", raising=False)
+    monkeypatch.setenv("DISSOLVE_HOME", str(tmp_path / "home"))
+    monkeypatch.setattr(sys, "argv", ["agent_harness.py", "hello"])
+    try:
+        agent_harness._main()
+    except SystemExit:
+        pass
+    except RuntimeError as exc:
+        pytest.fail(f"RuntimeError escaped the positional entrypoint: {exc}")
+    out, err = capsys.readouterr()
+    assert "Traceback" not in err
+    assert "RuntimeError" not in err
+    assert "missing environment variable META_MUSE_API_KEY" in out
+    assert "status=provider_error" in out
+    assert "Traceback" not in out
+
+
 def test_usage_is_display_only_except_the_cost_line(tmp_path, monkeypatch):
     from datetime import datetime, timezone
 

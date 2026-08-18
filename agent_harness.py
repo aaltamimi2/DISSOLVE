@@ -251,7 +251,7 @@ def _main() -> None:
     p.add_argument("query")
     p.add_argument("--model", default=DEFAULT_MODEL)
     ns = p.parse_args()
-    app = CliApp(model_alias=ns.model, persist=True, quiet=True)
+    app = CliApp(model_alias=ns.model, persist=True, quiet=True, require_key=False)
     result = app.ask(ns.query)
     for ev in result.tool_trace:
         print(f"tool  {_tool_event_summary(ev)}")
