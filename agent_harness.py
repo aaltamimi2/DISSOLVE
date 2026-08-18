@@ -67,7 +67,7 @@ def complete(messages, tools, *, model, api_base=None, api_key_env=None):
     ident = ident or model
     if kind not in ("anthropic", "google_genai", "openai"):
         raise ValueError(f"unknown model prefix: {kind!r}")
-    key = (os.environ.get(api_key_env) or "").strip() if api_key_env else ""
+    key = (os.environ.get(api_key_env) or "").strip() if api_key_env else None
     if api_key_env and not key:
         raise MissingProviderKey(f"missing environment variable {api_key_env}")
     if kind == "anthropic":

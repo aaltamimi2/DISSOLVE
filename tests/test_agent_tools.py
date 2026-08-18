@@ -649,6 +649,41 @@ def test_unknown_prefix_and_omitted_key_env_do_not_invent_api_key_env(monkeypatc
     assert "api_key_env" not in omitted.answer
 
 
+def test_omitted_key_env_does_not_pass_empty_string_to_anthropic(monkeypatch):
+    import types
+    captured = {}
+    built = {"n": 0}
+
+    class FakeMessages:
+        def create(self, **kwargs):
+            raise RuntimeError("no network")
+
+    class FakeAnthropic:
+        def __init__(self, **kwargs):
+            built["n"] += 1
+            captured.update(kwargs)
+            self.messages = FakeMessages()
+
+    fake = types.ModuleType("anthropic")
+    fake.Anthropic = FakeAnthropic
+    monkeypatch.setitem(sys.modules, "anthropic", fake)
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "native-secret")
+    omitted = run_turn("q", session=new_session(), model="anthropic:claude-x")
+    assert omitted.status == "provider_error"
+    assert built["n"] == 1
+    assert captured.get("api_key") is None
+    monkeypatch.setenv("EXPLICIT_ANTHROPIC_KEY", "named-secret")
+    captured.clear()
+    built["n"] = 0
+    named = run_turn(
+        "q", session=new_session(), model="anthropic:claude-x",
+        api_key_env="EXPLICIT_ANTHROPIC_KEY",
+    )
+    assert named.status == "provider_error"
+    assert built["n"] == 1
+    assert captured.get("api_key") == "named-secret"
+
+
 def test_run_turn_appends_query_and_mutates_caller_messages(monkeypatch):
     session = new_session()
     history = [
