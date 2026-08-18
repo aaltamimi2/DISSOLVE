@@ -1,0 +1,246 @@
+"""Dispatch, result_read, handle issue, and the loop — chunk 2 obligations."""
+from __future__ import annotations
+
+import json
+import sys
+from pathlib import Path
+
+import pytest
+
+_ROOT = Path(__file__).resolve().parents[1]
+for _p in (str(_ROOT), str(_ROOT / "src")):
+    if _p not in sys.path:
+        sys.path.insert(0, _p)
+
+import agent_harness
+from agent_harness import TurnResult, run_turn
+from agent_tools import dispatch, result_read, tool_schemas
+from dissolve.session import (
+    bind_tool_session, current_tool_session, handle_rows, load_handle,
+    new_session, store_handle,
+)
+
+
+def _bound(session=None):
+    return bind_tool_session(session if session is not None else new_session())
+
+
+def test_result_read_empty_and_unknown_are_named():
+    with _bound() as rec:
+        empty = dispatch("result_read", handle="")
+        missing = dispatch("result_read")
+        unknown = dispatch("result_read", handle="no-such-handle")
+        none = result_read(handle=None)  # type: ignore[arg-type]
+        assert empty["refusal"] == unknown["refusal"] == missing["refusal"] == "unknown_handle"
+        assert none["refusal"] == "unknown_handle"
+        assert empty["available"] is False
+        assert rec.get("handles") == {}
+
+
+def test_consumer_empty_unknown_missing_are_no_upstream_not_keyerror():
+    with _bound():
+        missing = dispatch("compare_solvent_safety_at_conditions")
+        empty = dispatch("compare_solvent_safety_at_conditions", handle="")
+        unknown = dispatch("compare_solvent_safety_at_conditions", handle="ghost-white-fox")
+        assert missing["refusal"] == empty["refusal"] == unknown["refusal"] == "no_upstream_candidates"
+        assert all(r["available"] is False for r in (missing, empty, unknown))
+
+
+def test_result_read_pages_exact_rows_without_second_handle():
+    with _bound() as rec:
+        screen = dispatch(
+            "screen_polymer_separation",
+            feed_polymers=["LDPE", "PP"], temperature_min_c=80.0,
+            temperature_max_c=140.0, top_k=20,
+        )
+        assert screen["available"] and screen.get("handle")
+        h = screen["handle"]
+        stored = load_handle(rec, h)
+        exact = handle_rows(stored)
+        assert screen["total"] == len(exact)
+        assert screen["shown"] == min(20, len(exact))
+        assert screen["top"] is not exact
+        assert screen["top"] == exact[:20]
+        page = dispatch("result_read", handle=h, offset=0, limit=20)
+        assert page["available"] is True
+        assert "handle" not in page.get("data", {}) or page.get("handle") == h
+        assert page["total"] == len(exact)
+        assert page["returned"] == min(20, len(exact))
+        assert page["data"]["rows"] == exact[0:20]
+        assert page is not screen
+        assert "handle" not in page or rec["handles"].get(page.get("handle")) is stored
+        far = dispatch("result_read", handle=h, offset=len(exact), limit=20)
+        assert far["returned"] == 0 and far["total"] == len(exact)
+        clamped = dispatch("result_read", handle=h, offset=0, limit=99)
+        assert clamped["returned"] <= 50
+
+
+def test_large_unrecognised_contaminant_comparison_named_refusal():
+    with _bound() as rec:
+        out = dispatch(
+            "compare_contaminant_removal_modes",
+            target_polymer="LDPE", contaminants="PFAS",
+        )
+        assert out["available"] is False
+        assert out["refusal"] == "unaddressable_result"
+        assert rec.get("handles") == {}
+        assert "handle" not in out
+        assert len(json.dumps(out)) < 8192
+
+
+def test_large_unrecognised_precipitation_fallback_named_refusal():
+    with _bound() as rec:
+        out = dispatch(
+            "screen_precipitation_order",
+            feed_polymers=["LDPE", "PP"], first_polymer="LDPE",
+            second_polymer="PP", min_ordering_window_c=999.0, top_k=5,
+        )
+        assert out["available"] is False
+        assert out["refusal"] == "unaddressable_result"
+        assert rec.get("handles") == {}
+
+
+def test_small_success_without_handle_dumps_data():
+    with _bound() as rec:
+        out = dispatch(
+            "solubility_query",
+            polymers=["LDPE"], solvents=["dodecane"], temperatures=[140.0],
+        )
+        assert out["available"] is True
+        assert "handle" not in out
+        assert out["source_basis"] == "cosmo_rs_grid"
+        assert "source_basis" not in (out.get("data") or {})
+        assert "display" not in out
+        assert rec.get("handles") == {}
+
+
+def test_handle_beats_copied_list_at_dispatch():
+    with _bound() as rec:
+        screen = dispatch(
+            "screen_polymer_separation",
+            feed_polymers=["LDPE", "PP"], temperature_min_c=80.0,
+            temperature_max_c=140.0, top_k=20,
+        )
+        h, total = screen["handle"], screen["total"]
+        copy = [dict(screen["top"][0])]
+        safety = dispatch(
+            "compare_solvent_safety_at_conditions",
+            handle=h, candidates=copy, include_pubchem=False,
+        )
+        assert safety["available"] is True
+        data = safety["data"]
+        assert data["candidate_scope_stored_count"] == total
+        assert data["candidate_count"] != total or total <= 6
+        assert "last_candidates" not in rec
+
+
+def test_route_substitution_bound_count_separate_from_displayed():
+    with _bound() as rec:
+        screen = dispatch(
+            "screen_polymer_separation",
+            feed_polymers=["LDPE", "PP"], temperature_min_c=80.0,
+            temperature_max_c=140.0, top_k=20,
+        )
+        row = (load_handle(rec, screen["handle"]) and handle_rows(load_handle(rec, screen["handle"])))[0]
+        steps = [{
+            "dissolved_polymer": row.get("dissolved_polymer") or row.get("target_polymer") or row.get("polymer") or "LDPE",
+            "solvent": row["solvent"],
+            "temperature_c": row.get("temperature_c") or row.get("dissolution_temperature_c"),
+        }]
+        sub = dispatch(
+            "screen_route_solvent_substitutions",
+            feed_polymers=["LDPE", "PP"], route_steps=steps, include_pubchem=False,
+        )
+        assert sub["available"] is True
+        h = sub["handle"]
+        bound_n = sub["total"]
+        assert bound_n == 11
+        copy = [{"solvent_name": "xylene", "operating_temp_c": 80.0}]
+        safety = dispatch(
+            "compare_solvent_safety_at_conditions",
+            handle=h, candidates=copy, include_pubchem=False,
+        )
+        data = safety["data"]
+        assert data["candidate_scope_stored_count"] == bound_n == 11
+        assert data["candidate_count"] == 6
+        assert data["candidate_count"] != data["candidate_scope_stored_count"]
+        assert "last_candidates" not in rec
+
+
+def test_unwired_names_do_not_call_engine():
+    with _bound():
+        for name in (
+            "evaluate_stored_route_tea_lca",
+            "optimize_stored_route",
+            "pareto_optimize_stored_route",
+        ):
+            out = dispatch(name)
+            assert out["refusal"] == "tool_not_wired"
+            assert out["available"] is False
+
+
+def test_include_pubchem_wrapper_default_false():
+    with _bound():
+        out = dispatch("get_solvent_safety_card", solvent_name="dodecane")
+        assert out["available"] is True
+        assert out["source_basis"] == "safety_local"
+        assert out["data"].get("include_pubchem") is False
+
+
+def test_schemas_handle_only_on_consumer_and_omit_injected():
+    schemas = {s["name"]: s for s in tool_schemas()}
+    assert "result_read" in schemas
+    assert "handle" in schemas["compare_solvent_safety_at_conditions"]["parameters"]["properties"]
+    assert "handle" not in schemas["solubility_query"]["parameters"]["properties"]
+    assert "temperature_step_c" not in schemas["screen_polymer_separation"]["parameters"]["properties"]
+    for name in (
+        "evaluate_stored_route_tea_lca",
+        "optimize_stored_route",
+        "pareto_optimize_stored_route",
+    ):
+        assert schemas[name]["description"].startswith("UNWIRED.")
+
+
+def test_active_record_reported_survives_and_original_write_fails():
+    original = {"handles": {}, "reported": []}
+    with bind_tool_session(original) as bound:
+        dispatch(
+            "solubility_query",
+            polymers=["LDPE"], solvents=["dodecane"], temperatures=[140.0],
+        )
+        bound["reported"].append({"number": 92.5, "source_basis": "cosmo_rs_grid"})
+        assert current_tool_session() is bound
+        with pytest.raises(RuntimeError):
+            store_handle(
+                original, tool="x", source_basis="y",
+                data={"results": [{"solvent": "dodecane"}]},
+            )
+    assert original["reported"] == [{"number": 92.5, "source_basis": "cosmo_rs_grid"}]
+
+
+def test_loop_prose_does_not_gate_or_record_scan(monkeypatch):
+    session = new_session()
+
+    def fake_complete(messages, tools, **kwargs):
+        return {"text": "The recovery window is 46 C.", "tool_calls": []}
+
+    monkeypatch.setattr(agent_harness, "complete", fake_complete)
+    result = run_turn("q", session=session, model="openai:x")
+    assert result.status == "ok"
+    assert result.answer == "The recovery window is 46 C."
+    assert isinstance(result, TurnResult)
+    assert result.numeral_scan == []
+    assert "numeral_scans" not in session
+    assert result.status != "verifier_failed"
+
+
+def test_unknown_tool_and_polyethylene_not_picked():
+    with _bound():
+        assert dispatch("not_a_tool")["refusal"] == "unknown_tool"
+        out = dispatch(
+            "solubility_query",
+            polymers=["polyethylene"], solvents=["dodecane"], temperatures=[140.0],
+        )
+        assert out["available"] is True
+        polymers = {row.get("polymer") for row in out["data"].get("results") or []}
+        assert polymers == {"LDPE", "HDPE"}
