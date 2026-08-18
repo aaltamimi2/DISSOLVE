@@ -19,7 +19,7 @@ for _p in (str(_ROOT), str(_ROOT / "src")):
 import agent_harness
 from agent_harness import ToolEvent, TurnResult
 from dissolve import cli
-from dissolve.cli import CliApp, doctor_report, main, resolve_model
+from dissolve.cli import CliApp, EXPECTED_REGISTRY_NAMES, doctor_report, main, resolve_model
 from dissolve.session import new_session
 
 
@@ -107,16 +107,18 @@ def test_doctor_checks_key_assets_registry_duckdb(tmp_path, monkeypatch):
     assert "Tool registry" in names
     assert "duckdb" in names
     by_name = {c["name"]: c for c in report["checks"]}
-    assert by_name["Tool registry"]["status"] == "warn"
-    assert by_name["Tool registry"]["status"] != "pass"
-    assert re.search(r"\d+ registered names", by_name["Tool registry"]["detail"])
+    assert by_name["Tool registry"]["status"] == "pass"
+    assert by_name["Tool registry"]["detail"] == "33 registered names"
+    assert by_name["Tool registry"]["registered"] == len(EXPECTED_REGISTRY_NAMES)
+    assert len(EXPECTED_REGISTRY_NAMES) == 33
+    assert "normalize_feed_composition" not in EXPECTED_REGISTRY_NAMES
     assert by_name["Scientific assets"]["status"] == "pass"
     assert by_name["Model provider"]["status"] == "fail"
     assert report["ready"] is False
     assert "specialist" not in json.dumps(report).lower()
 
 
-def test_doctor_registry_does_not_pass_a_deleted_tool(tmp_path, monkeypatch):
+def test_doctor_fails_when_a_declared_tool_is_missing(tmp_path, monkeypatch):
     import dissolve.registry as registry
 
     shortened = tuple(t for t in registry.REGISTRY if t.name != "ingest_literature_graph")
@@ -125,7 +127,8 @@ def test_doctor_registry_does_not_pass_a_deleted_tool(tmp_path, monkeypatch):
     monkeypatch.delenv("META_MUSE_API_KEY", raising=False)
     report = doctor_report(tmp_path, model_alias="muse-spark")
     check = next(c for c in report["checks"] if c["name"] == "Tool registry")
-    assert check["status"] != "pass"
+    assert check["status"] == "fail"
+    assert "missing ingest_literature_graph" in check["detail"]
     assert "registered names" in check["detail"]
 
 

@@ -78,6 +78,45 @@ MODELS = {
 MODEL_ALIASES = {"gemini": "gemini-flash", "claude": "claude-sonnet", "muse": "muse-spark"}
 DEFAULT_MODEL = "muse-spark"
 
+# Declared post-consolidation public roster. Doctor compares the live
+# registry to this list, not to BY_NAME. Changing the surface is two
+# edits: registry.py and this set.
+EXPECTED_REGISTRY_NAMES: frozenset[str] = frozenset((
+    "solubility_query",
+    "screen_polymer_separation",
+    "screen_pairwise_solubility_overlap",
+    "resolve_polymer_data_scope",
+    "lookup_material_database_membership",
+    "plan_multistage_separation",
+    "screen_precipitation_order",
+    "screen_cool_then_reheat_getter",
+    "get_solvent_safety_card",
+    "compare_solvent_safety_at_conditions",
+    "screen_green_solvent_candidates",
+    "screen_route_solvent_substitutions",
+    "lookup_admitted_process_records",
+    "evaluate_tea_lca_scenarios",
+    "evaluate_stored_route_tea_lca",
+    "analyze_tea_sensitivity",
+    "optimize_stored_route",
+    "pareto_optimize_stored_route",
+    "lookup_hansen_parameters",
+    "screen_hansen_compatibility",
+    "lookup_glass_transition",
+    "estimate_thermal_properties",
+    "list_thermal_evidence",
+    "analyze_numeric_samples",
+    "screen_contaminant_leaching",
+    "screen_contaminant_strap_removal",
+    "compare_contaminant_removal_modes",
+    "search_scholarly_literature",
+    "search_patent_literature",
+    "ingest_literature_documents",
+    "search_literature_corpus",
+    "inspect_literature_corpus",
+    "ingest_literature_graph",
+))
+
 
 def resolve_model(alias: str) -> tuple[str, ModelSpec]:
     key = MODEL_ALIASES.get(alias, alias)
@@ -205,19 +244,28 @@ def doctor_report(
         checked=len(assets), failures=bad_assets,
     )
 
+    live = {tool.name for tool in REGISTRY}
     n_reg, n_by = len(REGISTRY), len(BY_NAME)
-    if n_reg != n_by or n_reg == 0:
-        add(
-            "Tool registry", "fail",
-            f"REGISTRY {n_reg} != BY_NAME {n_by}" if n_reg != n_by else "REGISTRY is empty",
-            registered=n_reg,
-        )
-    else:
-        add(
-            "Tool registry", "warn",
-            f"{n_reg} registered names",
-            registered=n_reg,
-        )
+    missing = sorted(EXPECTED_REGISTRY_NAMES - live)
+    extra = sorted(live - EXPECTED_REGISTRY_NAMES)
+    roster_ok = (
+        live == EXPECTED_REGISTRY_NAMES
+        and n_reg == n_by == len(EXPECTED_REGISTRY_NAMES)
+    )
+    detail = f"{n_reg} registered names"
+    if not roster_ok:
+        parts = [detail]
+        if missing:
+            parts.append("missing " + ", ".join(missing[:8]))
+        if extra:
+            parts.append("extra " + ", ".join(extra[:8]))
+        if n_reg != n_by:
+            parts.append(f"REGISTRY {n_reg} != BY_NAME {n_by}")
+        detail = "; ".join(parts)
+    add(
+        "Tool registry", "pass" if roster_ok else "fail",
+        detail, registered=n_reg,
+    )
 
     try:
         import duckdb
