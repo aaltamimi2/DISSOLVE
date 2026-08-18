@@ -19,8 +19,7 @@ for _p in (str(_ROOT), str(_ROOT / "src")):
 import agent_harness
 from agent_harness import ToolEvent, TurnResult
 from dissolve import cli
-from dissolve.cli import CliApp, doctor_report, main, resolve_model
-from dissolve.registry import BY_NAME, REGISTRY
+from dissolve.cli import CliApp, EXPECTED_REGISTRY_NAMES, doctor_report, main, resolve_model
 from dissolve.session import new_session
 
 
@@ -44,6 +43,15 @@ def _app(tmp_path, monkeypatch, **kwargs):
 def _ok_turn(query, *, session, model, messages, on_event, api_base, api_key_env):
     if messages is not None:
         messages.append({"role": "user", "content": query})
+        messages.append({
+            "role": "assistant", "content": "",
+            "tool_calls": [{"id": "call-1", "name": "screen_polymer_separation",
+                            "args": {"feed": "LDPE"}}],
+        })
+        messages.append({
+            "role": "tool", "tool_call_id": "call-1",
+            "name": "screen_polymer_separation", "content": "{}",
+        })
         messages.append({"role": "assistant", "content": "done"})
     session.setdefault("handles", {})
     session["handles"]["calm-blue-cat"] = {
@@ -99,13 +107,29 @@ def test_doctor_checks_key_assets_registry_duckdb(tmp_path, monkeypatch):
     assert "duckdb" in names
     by_name = {c["name"]: c for c in report["checks"]}
     assert by_name["Tool registry"]["status"] == "pass"
-    assert by_name["Tool registry"]["registered"] == len(REGISTRY)
-    assert by_name["Tool registry"]["registered"] == len(BY_NAME)
-    assert by_name["Tool registry"]["detail"] == f"{len(REGISTRY)} registered names"
+    assert by_name["Tool registry"]["registered"] == 33
+    assert by_name["Tool registry"]["registered"] == len(EXPECTED_REGISTRY_NAMES)
+    assert by_name["Tool registry"]["detail"] == "33 registered names"
+    assert "normalize_feed_composition" not in EXPECTED_REGISTRY_NAMES
+    assert "normalize_feed_composition" not in json.dumps(report)
     assert by_name["Scientific assets"]["status"] == "pass"
     assert by_name["Model provider"]["status"] == "fail"
     assert report["ready"] is False
     assert "specialist" not in json.dumps(report).lower()
+
+
+def test_doctor_fails_when_a_registered_tool_is_removed(tmp_path, monkeypatch):
+    import dissolve.registry as registry
+
+    shortened = tuple(t for t in registry.REGISTRY if t.name != "ingest_literature_graph")
+    monkeypatch.setattr(registry, "REGISTRY", shortened)
+    monkeypatch.setattr(registry, "BY_NAME", {t.name: t for t in shortened})
+    monkeypatch.delenv("META_MUSE_API_KEY", raising=False)
+    report = doctor_report(tmp_path, model_alias="muse-spark")
+    check = next(c for c in report["checks"] if c["name"] == "Tool registry")
+    assert check["status"] == "fail"
+    assert "missing ingest_literature_graph" in check["detail"]
+    assert check["registered"] == len(shortened)
 
 
 def test_persist_roundtrip_messages_and_handle(tmp_path, monkeypatch):
@@ -176,7 +200,7 @@ def test_harness_and_cost_commands(tmp_path, monkeypatch):
     app.handle_command("/cost")
     out = buf.getvalue()
     assert "1 tool call" in out
-    assert "tool round" in out
+    assert "1 tool round" in out
     assert "status ok" in out
 
 
@@ -457,7 +481,52 @@ def test_cost_survives_resume(tmp_path, monkeypatch):
     out = buf.getvalue()
     assert "No model usage in this process yet" not in out
     assert "status ok" in out
-    assert "tool round" in out
+    assert "1 tool round" in out
+
+
+def test_cost_rounds_count_current_group_after_compaction(tmp_path, monkeypatch):
+    def compacting_turn(query, *, messages, on_event, **kwargs):
+        start = next(i for i, msg in enumerate(messages) if msg.get("role") == "user")
+        end = next(
+            i for i in range(start + 1, len(messages)) if messages[i].get("role") == "user"
+        )
+        del messages[start:end]
+        messages.append({"role": "user", "content": query})
+        messages.append({
+            "role": "assistant", "content": "",
+            "tool_calls": [{"id": "now", "name": "no_such_tool", "args": {}}],
+        })
+        ev = ToolEvent("no_such_tool", {}, {"ok": True})
+        if on_event:
+            on_event(ev)
+        messages.append({
+            "role": "tool", "tool_call_id": "now", "name": "no_such_tool", "content": "{}",
+        })
+        messages.append({"role": "assistant", "content": "done"})
+        return TurnResult("done", "ok", [ev], "turn-now")
+
+    monkeypatch.setattr(cli, "run_turn", compacting_turn)
+    app, buf = _app(tmp_path, monkeypatch)
+    for i in range(6):
+        app.messages.extend([
+            {"role": "user", "content": f"old-{i}"},
+            {"role": "assistant", "content": "", "tool_calls": [
+                {"id": f"old-{i}", "name": "no_such_tool", "args": {}},
+            ]},
+            {"role": "tool", "tool_call_id": f"old-{i}", "name": "no_such_tool", "content": "{}"},
+            {"role": "assistant", "content": f"ans-{i}"},
+        ])
+    before = sum(1 for m in app.messages if m.get("role") == "assistant" and m.get("tool_calls"))
+    assert before == 6
+    app.ask("NEW REQUEST")
+    after = sum(1 for m in app.messages if m.get("role") == "assistant" and m.get("tool_calls"))
+    assert after == 6
+    assert app.last_tool_rounds == 1
+    assert app.last_tool_calls == 1
+    app.handle_command("/cost")
+    out = buf.getvalue()
+    assert "1 tool round" in out
+    assert "0 tool round" not in out
 
 
 def test_oneshot_resolves_through_cli_table(monkeypatch):
