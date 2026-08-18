@@ -394,6 +394,9 @@ def test_loop_prose_does_not_gate_or_read_record(monkeypatch):
     assert "_turn" not in session
     src = Path(agent_harness.__file__).read_text()
     assert "numeral_scan" not in src
+    assert "Callable[[ToolEvent], None]" in inspect.getsource(run_turn)
+    assert "bound[\"tool_rounds\"]" not in src
+    assert "provider_tokens" not in src
     assert result.status != "verifier_failed"
     graph = _loop_call_graph()
     assert sess.compact_messages in graph
@@ -1066,6 +1069,10 @@ def test_usage_reads_each_adapter_shape_and_keeps_absent_distinct_from_zero():
     assert agent_harness._usage("openai", SimpleNamespace(usage=None)) is None
     assert agent_harness._usage("openai", SimpleNamespace()) is None
     assert agent_harness._usage("openai", SimpleNamespace(usage=SimpleNamespace())) is None
+    assert agent_harness._usage("anthropic", SimpleNamespace(usage=SimpleNamespace())) is None
+    assert agent_harness._usage(
+        "anthropic", SimpleNamespace(usage=SimpleNamespace(input_tokens=0, output_tokens=0)),
+    ) == {"input_tokens": 0, "output_tokens": 0, "total_tokens": 0}
     assert agent_harness._usage("anthropic", SimpleNamespace(usage=SimpleNamespace(input_tokens=10))) == {
         "input_tokens": 10,
     }
