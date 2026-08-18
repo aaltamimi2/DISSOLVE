@@ -9,7 +9,7 @@ for _p in (str(_SRC), str(_ROOT)):
     if _p not in sys.path:
         sys.path.insert(0, _p)
 
-from dissolve.session import bind_tool_session, compact_messages, open_turn_record
+from dissolve.session import bind_tool_session, open_turn_record
 from agent_tools import SYSTEM_PROMPT, dispatch, tool_schemas
 
 @dataclass(frozen=True)
@@ -167,7 +167,6 @@ def run_turn(
                     on_event(event)
                 msgs.append({"role": "tool", "tool_call_id": call.get("id"),
                              "name": call["name"], "content": json.dumps(result)})
-                compact_messages(msgs, bound)
         return TurnResult(
             answer="round cap (30) reached; see the tool trace for what was retrieved. No guessed answer.",
             status="round_cap", tool_trace=trace, turn_record=tid)

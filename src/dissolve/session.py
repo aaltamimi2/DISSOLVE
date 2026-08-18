@@ -10,7 +10,6 @@ WHAT WAS DELIBERATELY NOT PORTED: the candidate *shape-code* machinery.
 
 from __future__ import annotations
 
-import json
 import secrets
 from contextlib import contextmanager
 from contextvars import ContextVar
@@ -213,11 +212,14 @@ def record_tool_call(
     args: dict[str, Any],
     exact: Any,
     handle: str | None = None,
+    display: str | None = None,
 ) -> None:
     """Append one exact call to the active turn. Same object a handle stores.
 
     Opens a turn if dispatch ran outside run_turn (tests). Not a second row store:
-    when `handle` is set, `exact` must be handles[handle]['exact'].
+    when `handle` is set, `exact` must be handles[handle]['exact'] (engine data).
+    `display` is the engine string; together they are the `{display, data}` envelope
+    without copying the row population.
     """
     record = _bound_record(record)
     tid = record.get("_turn")
@@ -229,6 +231,7 @@ def record_tool_call(
         "args": dict(args),
         "exact": exact,
         "handle": handle,
+        "display": display,
     })
 
 
@@ -239,144 +242,19 @@ def load_turn_record(record: dict[str, Any], turn_id: str) -> list | None:
     return rows if isinstance(rows, list) else None
 
 
-_NOT_REPORTED = frozenset({
-    "shown", "total", "available_count", "returned", "offset",
-    "available", "success",
-})
-_POLY_ARG = (
-    "polymers", "feed_polymers", "target_polymer", "target_polymers",
-    "polymer_names",
-)
-_TEMP_ARG = (
-    "temperatures", "temperature_c", "temperature_min_c", "temperature_max_c",
-    "operating_temp_c",
-)
-
-
-def append_reported(record: dict[str, Any], payload: dict[str, Any]) -> None:
-    """Book-keeping for §7. Row-field numbers only, not shown/total/counts."""
-    record = _bound_record(record)
-    basis, handle = payload.get("source_basis"), payload.get("handle")
-    rows: list[dict[str, Any]] = []
-    top = payload.get("top")
-    if isinstance(top, list):
-        rows.extend(i for i in top if isinstance(i, dict))
-    data = payload.get("data")
-    if isinstance(data, dict):
-        for value in data.values():
-            if isinstance(value, list) and value and all(isinstance(i, dict) for i in value):
-                rows.extend(value)
-    found: list[dict[str, Any]] = []
-    for row in rows:
-        for key, value in row.items():
-            if key in _NOT_REPORTED or isinstance(value, bool):
-                continue
-            if isinstance(value, (int, float)):
-                item: dict[str, Any] = {"number": value, "source_basis": basis}
-                if handle:
-                    item["handle"] = handle
-                found.append(item)
-    if found:
-        record.setdefault("reported", []).extend(found)
-
-
-def estimated_tokens(messages: list) -> int:
-    return sum(len(json.dumps(m, default=str)) for m in messages) // 4
-
-
-def _summary_text(record: dict[str, Any]) -> str:
-    record = _bound_record(record)
-    polys, temps = set(), set()
-    for calls in (record.get("turn_records") or {}).values():
-        for call in calls or ():
-            args = call.get("args") or {}
-            for key in _POLY_ARG:
-                val = args.get(key)
-                if isinstance(val, str) and val:
-                    polys.add(val)
-                elif isinstance(val, (list, tuple)):
-                    polys.update(str(x) for x in val if x)
-            for key in _TEMP_ARG:
-                val = args.get(key)
-                if isinstance(val, (int, float)):
-                    temps.add(val)
-                elif isinstance(val, (list, tuple)):
-                    temps.update(x for x in val if isinstance(x, (int, float)))
-    live = []
-    for name, stored in (record.get("handles") or {}).items():
-        if not isinstance(stored, dict):
-            continue
-        try:
-            total = len(handle_rows(stored))
-        except (ValueError, KeyError, TypeError):
-            total = "?"
-        live.append(
-            f"{name} (total={total}, tool={stored.get('tool')}, "
-            f"source_basis={stored.get('source_basis')})"
-        )
-    nums = []
-    for row in record.get("reported") or []:
-        bit = f"{row.get('number')} (source_basis={row.get('source_basis')}"
-        if row.get("handle"):
-            bit += f", handle={row['handle']}"
-        nums.append(bit + ")")
-    return (
-        "Summary (do not continue the conversation, do not answer questions):\n"
-        f"- Polymers in play: {', '.join(sorted(polys)) or '(none)'}\n"
-        f"- Temperatures in play: {', '.join(str(t) for t in sorted(temps)) or '(none)'}\n"
-        f"- Live handles: {', '.join(live) or '(none)'}\n"
-        f"- Numbers already reported: {', '.join(nums) or '(none)'}"
-    )
-
-
-def compact_messages(
-    messages: list, record: dict[str, Any],
-    *, window: int = 128_000, reserve: int = 8_000,
-) -> None:
-    """Trigger/cut/template. No model call. The loop must not read the summary."""
-    if estimated_tokens(messages) <= window - reserve:
-        return
-    record = _bound_record(record)
-    text = _summary_text(record)
-    insert_at = 1 if messages and messages[0].get("role") == "system" else 0
-    existing = (
-        insert_at < len(messages)
-        and str(messages[insert_at].get("content") or "").startswith(
-            "Summary (do not continue the conversation"
-        )
-    )
-    if existing:
-        messages[insert_at]["content"] = text
-    else:
-        messages.insert(insert_at, {"role": "assistant", "content": text})
-    keep = insert_at + 1
-    while estimated_tokens(messages) > window - reserve and keep < len(messages) - 1:
-        end = keep + 1
-        if end < len(messages) and messages[end].get("role") == "tool":
-            while end < len(messages) - 1 and messages[end].get("role") == "tool":
-                end += 1
-            if messages[end].get("role") == "tool":
-                break
-        del messages[keep:end]
-    if keep < len(messages) and messages[keep].get("role") == "tool":
-        i = keep
-        while i < len(messages) and messages[i].get("role") == "tool":
-            i += 1
-        if i < len(messages):
-            del messages[keep:i]
-
-
 def store_handle(
     record: dict[str, Any],
     *,
     tool: str,
     source_basis: str,
     data: Any,
+    display: str | None = None,
 ) -> str:
     """Durable write of exact engine `data`. Rows and total are derived.
 
     Does not also write last_candidates. Refuses if `data` has no primary
-    row list — there is then no handle.
+    row list — there is then no handle. `display` is stored beside `exact`
+    so the `{display, data}` envelope is recoverable without a second copy.
     """
     record = _bound_record(record)
     if primary_row_key(data) is None:
@@ -387,6 +265,7 @@ def store_handle(
         "tool": tool,
         "source_basis": source_basis,
         "exact": data,
+        "display": display,
     }
     return name
 

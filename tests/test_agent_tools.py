@@ -16,8 +16,8 @@ import agent_harness
 from agent_harness import TurnResult, run_turn
 from agent_tools import dispatch, result_read, source_basis_for, tool_schemas
 from dissolve.session import (
-    bind_tool_session, compact_messages, current_tool_session, handle_rows,
-    load_handle, load_turn_record, new_session, open_turn_record, store_handle,
+    bind_tool_session, current_tool_session, handle_rows, load_handle,
+    load_turn_record, new_session, open_turn_record, store_handle,
 )
 
 
@@ -241,8 +241,7 @@ def test_active_record_reported_survives_and_original_write_fails():
                 original, tool="x", source_basis="y",
                 data={"results": [{"solvent": "dodecane"}]},
             )
-    assert original["reported"][-1] == {"number": 92.5, "source_basis": "cosmo_rs_grid"}
-    assert any(isinstance(r.get("number"), (int, float)) for r in original["reported"][:-1])
+    assert original["reported"] == [{"number": 92.5, "source_basis": "cosmo_rs_grid"}]
 
 
 def test_loop_prose_does_not_gate_or_read_record(monkeypatch):
@@ -293,17 +292,24 @@ def test_turn_record_every_result_exact_ordered_durable():
         assert rows[0]["handle"] is None
         assert rows[0]["exact"] is small["data"]
         assert rows[0]["exact"].get("success") is True
+        assert isinstance(rows[0]["display"], str) and rows[0]["display"]
+        assert "display" not in small
         h = screen["handle"]
         stored = load_handle(rec, h)
         assert rows[1]["handle"] == h
         assert rows[1]["exact"] is stored["exact"]
+        assert rows[1]["display"] == stored.get("display")
+        assert isinstance(stored.get("display"), str) and stored["display"]
         assert rows[1]["exact"] is not screen.get("top")
+        assert "display" not in screen
         assert refused["refusal"] == "unaddressable_result"
         assert rows[2]["handle"] is None
         assert rows[2]["exact"].get("success") is True
+        assert isinstance(rows[2]["display"], str)
         assert len(json.dumps(rows[2]["exact"])) > 8192
         assert rows[3]["handle"] == h
         assert rows[3]["exact"] is stored["exact"]
+        assert rows[3]["display"] == stored.get("display")
         assert page["data"]["rows"] is not rows[3]["exact"]
         assert rows[4]["handle"] is None
         assert rows[4]["exact"]["refusal"] == "unknown_handle"
@@ -474,44 +480,3 @@ def test_google_contents_keep_function_call_and_response():
     assert contents[1].parts[-1].function_call.name == "solubility_query"
     assert contents[2].role == "user"
     assert contents[2].parts[0].function_response.name == "solubility_query"
-
-
-def test_compact_updates_summary_in_place_and_does_not_lead_with_tool():
-    rec = new_session()
-    rec["handles"]["calm-blue-cat"] = {
-        "tool": "solubility_query", "source_basis": "cosmo_rs_grid",
-        "exact": {"results": [{"solvent": "dodecane", "solubility_wt_pct": 92.5}]},
-    }
-    rec["reported"] = [{"number": 92.5, "source_basis": "cosmo_rs_grid", "handle": "calm-blue-cat"}]
-    rec["turn_records"] = {"turn-1": [{
-        "tool": "solubility_query",
-        "args": {"polymers": ["LDPE"], "temperatures": [140.0]},
-        "exact": {}, "handle": None,
-    }]}
-    msgs = [
-        {"role": "system", "content": "sys"},
-        {"role": "user", "content": "q1 " + ("x" * 4000)},
-        {"role": "assistant", "content": "", "tool_calls": [{"id": "1", "name": "t", "args": {}}]},
-        {"role": "tool", "tool_call_id": "1", "name": "t", "content": "{}"},
-        {"role": "user", "content": "q2"},
-    ]
-    compact_messages(msgs, rec, window=20, reserve=0)
-    assert msgs[0]["role"] == "system"
-    assert str(msgs[1].get("content") or "").startswith("Summary (do not continue the conversation")
-    assert "LDPE" in msgs[1]["content"]
-    assert "calm-blue-cat" in msgs[1]["content"]
-    assert msgs[2]["role"] != "tool"
-    compact_messages(msgs, rec, window=20, reserve=0)
-    assert sum(1 for m in msgs if str(m.get("content") or "").startswith("Summary (do not continue")) == 1
-
-
-def test_wrapper_appends_reported_from_row_fields():
-    with _bound() as rec:
-        dispatch(
-            "solubility_query",
-            polymers=["LDPE"], solvents=["dodecane"], temperatures=[140.0],
-        )
-        assert rec["reported"]
-        assert all("number" in row and "source_basis" in row for row in rec["reported"])
-        assert rec["reported"][0]["source_basis"] == "cosmo_rs_grid"
-        assert "shown" not in {row.get("number") for row in rec["reported"]}

@@ -8,9 +8,8 @@ from typing import Annotated, Any, Literal, Union, get_args, get_origin, get_typ
 from dissolve import registry
 from dissolve.contracts import parse_tool_result
 from dissolve.session import (
-    append_reported, bind_handle_rows, current_tool_session,
-    engine_kwargs_for_handle, handle_rows, load_handle, primary_row_key,
-    record_tool_call, store_handle,
+    bind_handle_rows, current_tool_session, engine_kwargs_for_handle,
+    handle_rows, load_handle, primary_row_key, record_tool_call, store_handle,
 )
 from dissolve.thermodynamics import expand_polymer_identity, get_available_solvents
 
@@ -243,7 +242,7 @@ def _ambiguous(kwargs: dict[str, Any], data: dict[str, Any]) -> dict[str, Any] |
                 )
     return None
 
-def _issue_handle(record, tool, basis, data, payload):
+def _issue_handle(record, tool, basis, data, payload, display=None):
     key = primary_row_key(data)
     over = bool(key and len(data[key]) > _PAGE) or len(json.dumps(data)) > _BYTE
     if not over:
@@ -251,7 +250,7 @@ def _issue_handle(record, tool, basis, data, payload):
     if record is None:
         return _refuse("unaddressable_result", detail="no bound session", tool=tool)
     try:
-        name = store_handle(record, tool=tool, source_basis=basis, data=data)
+        name = store_handle(record, tool=tool, source_basis=basis, data=data, display=display)
     except ValueError:
         return _refuse(
             "unaddressable_result",
@@ -281,12 +280,12 @@ def _invoke(name, kwargs):
     except Exception as e:
         return None, _refuse("tool_exception", error=f"{type(e).__name__}: {e}")
 
-def _emit(name, kwargs, out, exact, handle=None):
+def _emit(name, kwargs, out, exact, handle=None, display=None):
     rec = current_tool_session()
     if rec is not None:
-        record_tool_call(rec, tool=name, args=kwargs, exact=exact, handle=handle)
-        if name != "result_read":
-            append_reported(rec, out)
+        record_tool_call(
+            rec, tool=name, args=kwargs, exact=exact, handle=handle, display=display,
+        )
     return out
 
 def dispatch(name: str, **kwargs: Any) -> dict[str, Any]:
@@ -300,7 +299,7 @@ def dispatch(name: str, **kwargs: Any) -> dict[str, Any]:
         rec = current_tool_session()
         stored = load_handle(rec, token) if rec is not None and token else None
         if stored is not None and out.get("available"):
-            return _emit(name, kwargs, out, stored["exact"], token)
+            return _emit(name, kwargs, out, stored["exact"], token, stored.get("display"))
         return _emit(name, kwargs, out, out)
     if name in UNWIRED:
         out = _refuse(
@@ -338,22 +337,22 @@ def dispatch(name: str, **kwargs: Any) -> dict[str, Any]:
         parsed, err = _invoke(name, call_kwargs)
     if err:
         return _emit(name, kwargs, err, err)
-    data = parsed["data"]
+    data, display = parsed["data"], parsed.get("display")
     if not data.get("success"):
         out = to_contract(parsed, None)
         if out.get("refusal") == "unknown_solvents" and not (data.get("near_miss_solvents") or data.get("suggested_solvents")):
             out["near_miss_solvents"] = _near_miss(data)
-        return _emit(name, kwargs, out, data)
+        return _emit(name, kwargs, out, data, display=display)
     basis = source_basis_for(name, data, call_kwargs)
     if not basis:
         out = _refuse("no_honest_basis", tool=name)
-        return _emit(name, kwargs, out, data)
+        return _emit(name, kwargs, out, data, display=display)
     guard = _ambiguous(call_kwargs, data)
     if guard:
-        return _emit(name, kwargs, guard, data)
-    payload = _issue_handle(record, name, basis, data, to_contract(parsed, basis))
+        return _emit(name, kwargs, guard, data, display=display)
+    payload = _issue_handle(record, name, basis, data, to_contract(parsed, basis), display)
     handle = payload.get("handle") if payload.get("available") else None
-    return _emit(name, kwargs, payload, data, handle)
+    return _emit(name, kwargs, payload, data, handle, display)
 
 SYSTEM_PROMPT = """\
 You are DISSOLVE v12, a thermodynamic analysis agent. You have tools. You
