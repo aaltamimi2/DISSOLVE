@@ -60,9 +60,7 @@ def _ant_msgs(messages):
             rest.append({"role": "user", "content": m.get("content") or ""})
     return sys, rest
 
-class MissingProviderKey(Exception):
-    pass
-
+class MissingProviderKey(Exception): pass
 
 def complete(messages, tools, *, model, api_base=None, api_key_env=None):
     kind, _, ident = model.partition(":")
@@ -70,9 +68,7 @@ def complete(messages, tools, *, model, api_base=None, api_key_env=None):
     env_name = api_key_env or ""
     key = (os.environ.get(env_name) or "").strip() if env_name else ""
     if not key:
-        raise MissingProviderKey(
-            f"missing environment variable {env_name or 'api_key_env'}"
-        )
+        raise MissingProviderKey(f"missing environment variable {env_name or 'api_key_env'}")
     if kind == "anthropic":
         import anthropic
         sys, rest = _ant_msgs(messages)
@@ -156,11 +152,9 @@ def run_turn(
             try:
                 reply = complete(msgs, schemas, model=model, api_base=api_base, api_key_env=api_key_env)
             except MissingProviderKey as e:
-                return TurnResult(answer=str(e), status="provider_error",
-                                  tool_trace=trace, turn_record=tid)
+                return TurnResult(answer=str(e), status="provider_error", tool_trace=trace, turn_record=tid)
             except Exception as e:
-                return TurnResult(answer=f"provider error: {type(e).__name__}: {e}",
-                                  status="provider_error", tool_trace=trace, turn_record=tid)
+                return TurnResult(answer=f"provider error: {type(e).__name__}: {e}", status="provider_error", tool_trace=trace, turn_record=tid)
             calls, text = reply.get("tool_calls") or [], reply.get("text") or ""
             if not calls:
                 msgs.append({"role": "assistant", "content": text})

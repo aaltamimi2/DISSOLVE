@@ -228,6 +228,16 @@ def test_schemas_handle_only_on_consumer_and_omit_injected():
         "pareto_optimize_stored_route",
     ):
         assert schemas[name]["description"].startswith("UNWIRED.")
+    paths = schemas["ingest_literature_graph"]["parameters"]["properties"]["paths"]
+    assert paths["type"] == "array" and paths["items"]["type"] == "string"
+    empty = []
+    for spec in tool_schemas():
+        props = spec["parameters"]["properties"]
+        for name in spec["parameters"].get("required") or []:
+            schema = props.get(name) or {}
+            if not (schema.get("type") or schema.get("anyOf") or schema.get("enum")):
+                empty.append(f"{spec['name']}.{name}")
+    assert empty == []
 
 
 def test_active_record_reported_survives_and_original_write_fails():
@@ -342,15 +352,19 @@ def test_turn_record_json_one_canonical_population_and_page():
         h = screen["handle"]
         stored = load_handle(rec, h)
     blob = json.dumps(session)
+    assert len(blob) < 80_000
     reloaded = json.loads(blob)
     rows = reloaded["turn_records"][tid]
     assert set(rows[0]["exact"]) == {"display", "data"}
+    assert isinstance(rows[0]["exact"]["display"], str) and rows[0]["exact"]["display"]
     assert rows[0]["source_basis"] == small["source_basis"]
     assert rows[0]["exact"]["data"]["success"] is True
     assert "exact" not in rows[1]
     assert rows[1]["handle"] == h
     assert rows[1]["source_basis"] == screen["source_basis"]
     assert "ranked_candidates" in reloaded["handles"][h]["exact"]
+    assert reloaded["handles"][h]["display"] == stored["display"]
+    assert isinstance(reloaded["handles"][h]["display"], str) and reloaded["handles"][h]["display"]
     assert "ranked_candidates" not in json.dumps(reloaded["turn_records"])
     assert rows[2]["handle"] == h
     assert rows[2]["exact"]["offset"] == 5
@@ -359,6 +373,7 @@ def test_turn_record_json_one_canonical_population_and_page():
     assert rows[2]["exact"]["data"]["rows"] == stored["exact"]["ranked_candidates"][5:7]
     reloaded["handles"][h]["exact"]["ranked_candidates"] = []
     assert json.loads(blob)["handles"][h]["exact"]["ranked_candidates"]
+    assert len(rows[2]["exact"]["data"]["rows"]) == 2
     assert len(json.dumps(reloaded["turn_records"][tid][1])) < 2048
 
 
@@ -553,11 +568,9 @@ def test_compact_updates_summary_in_place_and_does_not_lead_with_tool():
         "exact": {"results": [{"solvent": "dodecane", "solubility_wt_pct": 92.5}]},
     }
     rec["reported"] = [{"number": 92.5, "source_basis": "cosmo_rs_grid", "handle": "calm-blue-cat"}]
-    rec["turn_records"] = {"turn-1": [{
-        "tool": "solubility_query",
-        "args": {"polymers": ["LDPE"], "temperatures": [140.0]},
-        "exact": {}, "handle": None,
-    }]}
+    rec["polymers_in_play"] = ["LDPE"]
+    rec["temperatures_in_play"] = [140.0]
+    rec["turn_records"] = {}
     msgs = [
         {"role": "system", "content": "sys"},
         {"role": "user", "content": "q1 " + ("x" * 4000)},
@@ -575,6 +588,17 @@ def test_compact_updates_summary_in_place_and_does_not_lead_with_tool():
     assert sum(1 for m in msgs if str(m.get("content") or "").startswith("Summary (do not continue")) == 1
 
 
+def test_compaction_does_not_read_turn_records():
+    import inspect
+    from dissolve import session as sess
+    assert "turn_records" not in inspect.getsource(sess._summary_text)
+    assert "turn_records" not in inspect.getsource(sess.compact_messages)
+    assert "turn_records" not in inspect.getsource(sess.append_reported)
+    assert "turn_records" not in inspect.getsource(sess.note_in_play)
+    assert "load_turn_record" not in Path(agent_harness.__file__).read_text()
+    assert "turn_records" not in Path(agent_harness.__file__).read_text()
+
+
 def test_wrapper_appends_reported_from_row_fields():
     with _bound() as rec:
         dispatch(
@@ -585,6 +609,21 @@ def test_wrapper_appends_reported_from_row_fields():
         assert all("number" in row and "source_basis" in row for row in rec["reported"])
         assert rec["reported"][0]["source_basis"] == "cosmo_rs_grid"
         assert "shown" not in {row.get("number") for row in rec["reported"]}
+        assert "LDPE" in rec["polymers_in_play"]
+        assert 140.0 in rec["temperatures_in_play"]
+
+
+def test_result_read_later_page_appends_reported():
+    with _bound() as rec:
+        screen = dispatch(
+            "screen_polymer_separation",
+            feed_polymers=["LDPE", "PP"], temperature_min_c=80.0,
+            temperature_max_c=140.0, top_k=20,
+        )
+        before = len(rec["reported"])
+        page = dispatch("result_read", handle=screen["handle"], offset=20, limit=20)
+        assert page["returned"] == 20
+        assert len(rec["reported"]) > before
 
 
 def test_append_reported_skips_count_fields():

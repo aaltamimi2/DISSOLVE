@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import inspect, json
+from collections.abc import Sequence as AbcSeq
 from types import UnionType
 from typing import Annotated, Any, Literal, Union, get_args, get_origin, get_type_hints
 
@@ -9,8 +10,8 @@ from dissolve import registry
 from dissolve.contracts import parse_tool_result
 from dissolve.session import (
     append_reported, bind_handle_rows, current_tool_session,
-    engine_kwargs_for_handle, handle_rows, load_handle, primary_row_key,
-    record_tool_call, store_handle,
+    engine_kwargs_for_handle, handle_rows, load_handle, note_in_play,
+    primary_row_key, record_tool_call, store_handle,
 )
 from dissolve.thermodynamics import expand_polymer_identity, get_available_solvents
 
@@ -134,7 +135,7 @@ def _ptype(ann: Any) -> dict[str, Any]:
         if not variants:
             return {}
         return variants[0] if len(variants) == 1 else {"anyOf": variants}
-    if origin in (list, tuple):
+    if origin in (list, tuple, AbcSeq):
         out: dict[str, Any] = {"type": "array"}
         if args and (item := _ptype(args[0])):
             out["items"] = item
@@ -288,6 +289,7 @@ def _emit(name, kwargs, out, exact, handle=None, display=None, source_basis=None
             rec, tool=name, args=kwargs, exact=exact, handle=handle,
             display=display, source_basis=source_basis,
         )
+        note_in_play(rec, kwargs)
         append_reported(rec, out)
     return out
 

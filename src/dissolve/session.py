@@ -101,7 +101,10 @@ class SessionRecord(dict):
 
 
 def new_session() -> SessionRecord:
-    return SessionRecord(handles={}, reported=[], turn_records={})
+    return SessionRecord(
+        handles={}, reported=[], turn_records={},
+        polymers_in_play=[], temperatures_in_play=[],
+    )
 
 
 def current_tool_session() -> dict[str, Any] | None:
@@ -137,6 +140,8 @@ def bind_tool_session(record: dict[str, Any]) -> Iterator[SessionRecord]:
     bound.setdefault("handles", {})
     bound.setdefault("reported", [])
     bound.setdefault("turn_records", {})
+    bound.setdefault("polymers_in_play", [])
+    bound.setdefault("temperatures_in_play", [])
     token = _ACTIVE.set(bound)
     try:
         yield bound
@@ -286,28 +291,37 @@ def append_reported(record: dict[str, Any], payload: dict[str, Any]) -> None:
         record.setdefault("reported", []).extend(found)
 
 
+def note_in_play(record: dict[str, Any], args: dict[str, Any]) -> None:
+    """Polymers/temperatures from tool args. Not the validator archive."""
+    record = _bound_record(record)
+    polys = record.setdefault("polymers_in_play", [])
+    temps = record.setdefault("temperatures_in_play", [])
+    for key in _POLY_ARG:
+        val = args.get(key)
+        if isinstance(val, str) and val and val not in polys:
+            polys.append(val)
+        elif isinstance(val, (list, tuple)):
+            for item in val:
+                if item and (name := str(item)) not in polys:
+                    polys.append(name)
+    for key in _TEMP_ARG:
+        val = args.get(key)
+        if isinstance(val, (int, float)) and val not in temps:
+            temps.append(val)
+        elif isinstance(val, (list, tuple)):
+            for item in val:
+                if isinstance(item, (int, float)) and item not in temps:
+                    temps.append(item)
+
+
 def estimated_tokens(messages: list) -> int:
     return sum(len(json.dumps(m, default=str)) for m in messages) // 4
 
 
 def _summary_text(record: dict[str, Any]) -> str:
     record = _bound_record(record)
-    polys, temps = set(), set()
-    for calls in (record.get("turn_records") or {}).values():
-        for call in calls or ():
-            args = call.get("args") or {}
-            for key in _POLY_ARG:
-                val = args.get(key)
-                if isinstance(val, str) and val:
-                    polys.add(val)
-                elif isinstance(val, (list, tuple)):
-                    polys.update(str(x) for x in val if x)
-            for key in _TEMP_ARG:
-                val = args.get(key)
-                if isinstance(val, (int, float)):
-                    temps.add(val)
-                elif isinstance(val, (list, tuple)):
-                    temps.update(x for x in val if isinstance(x, (int, float)))
+    polys = [str(p) for p in (record.get("polymers_in_play") or [])]
+    temps = [str(t) for t in (record.get("temperatures_in_play") or [])]
     live = []
     for name, stored in (record.get("handles") or {}).items():
         if not isinstance(stored, dict):
@@ -328,8 +342,8 @@ def _summary_text(record: dict[str, Any]) -> str:
         nums.append(bit + ")")
     return (
         "Summary (do not continue the conversation, do not answer questions):\n"
-        f"- Polymers in play: {', '.join(sorted(polys)) or '(none)'}\n"
-        f"- Temperatures in play: {', '.join(str(t) for t in sorted(temps)) or '(none)'}\n"
+        f"- Polymers in play: {', '.join(polys) or '(none)'}\n"
+        f"- Temperatures in play: {', '.join(temps) or '(none)'}\n"
         f"- Live handles: {', '.join(live) or '(none)'}\n"
         f"- Numbers already reported: {', '.join(nums) or '(none)'}"
     )
