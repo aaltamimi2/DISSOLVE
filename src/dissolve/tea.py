@@ -1222,7 +1222,18 @@ def _launch_live_worker(
                 # ``-m dissolve.tea_worker`` imports the package registry first,
                 # leaking unrelated engine dependencies into the isolated TEA
                 # environment before the worker can reach its JSON boundary.
-                _tea_worker_python(), provenance["worker_source_path"],
+                # Executing that file as a script is also unsafe: its package
+                # directory becomes sys.path[0] and shadows the scientific
+                # ``thermo`` package with the sibling dissolve module. A -c
+                # bootstrap keeps the source root as sys.path[0], while runpy
+                # still sets __file__ to the admitted path for the handshake.
+                _tea_worker_python(), "-c",
+                (
+                    "import runpy,sys;"
+                    "worker_path=sys.argv.pop(1);"
+                    "runpy.run_path(worker_path,run_name='__main__')"
+                ),
+                provenance["worker_source_path"],
                 json.dumps(worker_config),
             ],
             capture_output=True, text=True, timeout=timeout_seconds,
