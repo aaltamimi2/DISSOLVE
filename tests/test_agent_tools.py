@@ -1088,3 +1088,15 @@ def test_compaction_error_matches_every_emitted_tool_id(monkeypatch):
             if fr is not None and getattr(fr, "name", None):
                 frs += 1
     assert calls == frs == 2
+
+
+def test_session_record_getattr_sees_stored_keys():
+    rec = sess.SessionRecord()
+    rec["last_tea"] = {"analysis_type": "route"}
+    assert rec.last_tea is rec["last_tea"]
+    assert rec.last_route is None
+    rec.last_route = {"steps": [{"solvent": "dodecane"}]}
+    assert rec["last_route"]["steps"][0]["solvent"] == "dodecane"
+    assert getattr(rec, "last_candidates", None) is None
+    with pytest.raises(AttributeError):
+        rec._private = 1
