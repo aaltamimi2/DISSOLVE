@@ -856,7 +856,9 @@ def test_tool_event_line_distinguishes_unsampled_container_tail():
     assert _summary_args_body(left) == _summary_args_body(right)
     assert "hexane" not in left and "toluene" not in right
     assert left != right
-    fps = re.findall(r"(?<=#)[0-9a-f]{4}", left + " " + right)
+    fps = re.findall(
+        rf"(?<=#)[0-9a-f]{{{cli._FP_HEX}}}", left + " " + right,
+    )
     assert len(set(fps)) == 2
 
 

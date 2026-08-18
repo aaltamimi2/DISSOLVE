@@ -352,7 +352,7 @@ class _Store:
 _ARG_ITEM_MAX = 48
 _CONTAINER_SAMPLE = 2
 _ARGS_MAX = 160
-_FP_HEX = 4
+_FP_HEX = 12
 
 
 def _canonical_json(value: Any) -> str:
