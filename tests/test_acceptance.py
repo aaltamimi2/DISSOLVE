@@ -90,18 +90,27 @@ def _safety_names(payload):
 
 
 def _named_roster_solvents(text):
-    """Longest non-overlapping registry names in `text`. Short names count."""
+    """Identity-bounded, then longest non-overlapping, registry names."""
     lower = text.casefold()
+    n = len(lower)
+
+    def bounded(start, end):
+        left = start == 0 or not lower[start - 1].isalnum()
+        right = end == n or not lower[end].isalnum()
+        return left and right
+
     spans = []
     for name in get_available_solvents():
         needle = name.casefold()
-        start = 0
+        cursor = 0
         while True:
-            i = lower.find(needle, start)
+            i = lower.find(needle, cursor)
             if i < 0:
                 break
-            spans.append((i, i + len(needle), name, len(needle)))
-            start = i + 1
+            j = i + len(needle)
+            if bounded(i, j):
+                spans.append((i, j, name, len(needle)))
+            cursor = i + 1
     spans.sort(key=lambda item: (-item[3], item[0]))
     occupied = []
     found = []
@@ -129,6 +138,10 @@ def _assert_coverage_disclosed(answer, compared, stored):
         assert re.search(pat, answer), (
             f"answer omitted {compared} of {stored} coverage "
             "and presented a comparison page as the shortlist"
+        )
+        assert "comparison page is not the full shortlist" in answer, (
+            "answer omitted the comparison-page disclosure "
+            "and can still present the page as the inherited shortlist"
         )
 
 
@@ -313,6 +326,15 @@ def test_acceptance_5_coverage_predicate_is_red_when_page_is_the_shortlist():
         _assert_coverage_disclosed(
             "Safety of the inherited shortlist at the screen temperatures "
             "(source_basis safety_local): cyclohexane.",
+            compared=6, stored=40,
+        )
+
+
+def test_acceptance_5_coverage_predicate_is_red_on_full_shortlist_with_counts():
+    """Not Test 5. Counts without the page disclosure still name the shortlist."""
+    with pytest.raises(AssertionError, match="comparison-page disclosure"):
+        _assert_coverage_disclosed(
+            "The full inherited shortlist consists of these 6 of 40 solvents.",
             compared=6, stored=40,
         )
 
@@ -701,6 +723,10 @@ def test_named_roster_longest_nonoverlapping_and_short_names():
     assert any(n.casefold() == "hexane" for n in lone)
     short = {n.casefold() for n in _named_roster_solvents("thf and h2o and co2")}
     assert {"thf", "h2o", "co2"} <= short
+    prose = _named_roster_solvents("The cost comparison is complete.")
+    assert not any(n.casefold() == "cos" for n in prose)
+    lone = _named_roster_solvents("cos")
+    assert any(n.casefold() == "cos" for n in lone)
 
 
 def test_answer_matcher_rejects_hexane_when_exact_has_cyclohexane():

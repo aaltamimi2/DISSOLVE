@@ -1072,6 +1072,14 @@ def test_usage_reads_each_adapter_shape_and_keeps_absent_distinct_from_zero():
             prompt_token_count=3, candidates_token_count=5, total_token_count=8,
         )),
     ) == {"input_tokens": 3, "output_tokens": 5, "total_tokens": 8}
+    assert agent_harness._usage(
+        "openai", SimpleNamespace(usage=SimpleNamespace(prompt_tokens=3, completion_tokens=5)),
+    ) == {"input_tokens": 3, "output_tokens": 5}
+    assert agent_harness._usage(
+        "google_genai", SimpleNamespace(usage_metadata=SimpleNamespace(
+            prompt_token_count=3, candidates_token_count=5,
+        )),
+    ) == {"input_tokens": 3, "output_tokens": 5}
     assert agent_harness._usage("openai", SimpleNamespace(usage=None)) is None
     assert agent_harness._usage("openai", SimpleNamespace()) is None
     assert agent_harness._usage("openai", SimpleNamespace(usage=SimpleNamespace())) is None

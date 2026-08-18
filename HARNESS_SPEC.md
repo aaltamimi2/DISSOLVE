@@ -81,7 +81,7 @@ to it. If a paragraph does not name what it rejected, it is unfinished.
 
 | file | job | ceiling |
 |---|---|---|
-| `agent_harness.py` (repo root) | the loop, the provider call, the turn record (§4.6), `python agent_harness.py "<query>"` | < 200 |
+| `agent_harness.py` (repo root) | the loop, the provider call, the turn record (§4.6), `python agent_harness.py "<query>"` | none — owner lifted the 199-line ceiling |
 | `agent_tools.py` (repo root) | the one generic wrapper, `result_read`, `source_basis` attachment, envelope reshape, handle issue, system prompt constant, turn-record plumbing (§4.6) | no fixed ceiling — see below |
 | `src/dissolve/cli.py` | retained v11 presentation | not in budget |
 | `src/dissolve/session.py` | already exists; add the binder and the handle table | not a new file |
@@ -91,8 +91,13 @@ to it. If a paragraph does not name what it rejected, it is unfinished.
 existed. Since then the file also carries `result_read`, `source_basis`
 attachment, handle issue and the §4.6 turn record, and the research sub-agent
 was deleted (§3.3) — so its 80 lines were never spent. **Owner: more lines are
-fine.** `agent_tools.py` has no fixed ceiling; `agent_harness.py` keeps < 200
-because the loop staying small is the architectural claim, not a budget.
+fine.** `agent_tools.py` has no fixed ceiling. **Owner, later, unconditional:
+the 199-line `agent_harness.py` ceiling is lifted.** The budget was being
+paid in collapsed dataclasses and a dropped `Callable` annotation, which
+made the six-field seam harder to audit than a longer readable loop.
+The architectural claim that remains is one small loop file, not a number:
+a fourth harness file is still stop-and-ask. The loop is presently 258
+lines; that is not a breach.
 
 What this does **not** relax is the stop-and-ask rule. The requirement was never
 the number — it was saying so when you cross one. A fourth file is still a
@@ -1246,7 +1251,10 @@ Normalized `usage` is a dict with whichever of `input_tokens`,
 `output_tokens`, and `total_tokens` the provider actually measured.
 Omit keys that were not present. Do not fill a missing key with `0`.
 
-The three adapters disagree on field names. Map them, then stop:
+The three adapters disagree on field names. Map them, then stop.
+Do not invent a `total_tokens` the Google or OpenAI object did not
+carry. Only Anthropic has no total field; if both `input_tokens` and
+`output_tokens` are present, `total_tokens` is their sum.
 
 | prefix | object | native fields | normalized |
 |---|---|---|---|
@@ -1333,7 +1341,10 @@ shapes, not a second specification of the data asset.
 - `candidate_scope_stored_count` equals `total`.
 - If `candidate_count` < `candidate_scope_stored_count`, the printed
   answer discloses both counts, names the compared solvents, and does
-  not present the page as the inherited shortlist.
+  not present the page as the inherited shortlist. A `6 of 40`
+  substring inside a sentence that still calls the page the shortlist
+  is not disclosure. The scripted acceptance answer must say the
+  comparison page is not the full shortlist.
 - The printed answer does not name a solvent that was not in the exact
   rows. Extraction is a longest non-overlapping registry-name match,
   including names shorter than five characters; do not suppress a
@@ -1493,7 +1504,20 @@ These supersede Part 1 of the brief where they conflict.
    The CLI may print those two and must never branch on them. Flagged
    to the owner; reversible at one field's cost. The four-field rule's
    purpose (display layer is not a decision layer) stands; the number
-   four does not.
+   four does not. Derived `total_tokens` is Anthropic-only: Google and
+   OpenAI omit a total they did not measure.
+8. **Loop line ceiling lifted (unconditional).** `agent_harness.py`
+   has no numeric ceiling. The 199-line budget was making the
+   six-field seam harder to audit. A fourth harness file is still
+   stop-and-ask.
+9. **§10 Test 5 discloses coverage at the answer.** The bind is
+   inherited-identity equality. The engine's comparison page is 6 of
+   40; the answer must say so and must not present that page as the
+   inherited shortlist. Do not reach into the safety engine.
+10. **Inclusive bounds in the prompt.** When a tool result states
+    `bounds_are_inclusive`, qualifying counts are reported with those
+    bounds. A count for `>= 5` / `<= 1` is not a count for `> 5` /
+    `< 1`.
 
 **Owner decision — Part 1 divergence C: (b) now. Later pick is a
 measurement.**
@@ -1702,6 +1726,6 @@ this spec. Do not treat a row as a fix.
 | **4** | `basis` launders provenance; only 2 of 5 added tokens ground to a real engine distinction. | **Answered** for the collision and for those two distinctions: key is `source_basis` (§3.5); `include_pubchem` wrapper default `False` on every safety tool that takes the flag (`get_solvent_safety_card`, `compare_solvent_safety_at_conditions`, `screen_route_solvent_substitutions`) so `safety_local` vs `pubchem_live` is visible; tea per-call `tea_cache_exact` / `tea_screening_analog` / `tea_live`. **STANDING** on the other added tokens (`identity_registry`, `provider_metadata`, `analysis_asset`): they are module defaults, not engine-mode distinctions. Open vocabulary plus §6 (report the token as given, never paraphrase) is the mitigation, not a claim they ground. `screen_green_solvent_candidates` has no `include_pubchem`. |
 | **5** | The verifier is a presence check. | **MOOT.** Owner directive: no verification in the agent. There is no in-agent verifier to be a presence check. §8 is now the external-validation contract and §4.6 is what this system owes it — every tool result exact, associable, ordered, durable. The finding was correct and is retired by removing its subject, not by answering it. |
 | **6** | Hidden tools / role-refusal on the root. | **SUPERSEDED**. The hidden-tools decision no longer exists. §3.3: all 34 executable on the root; no `research()`; test 8 dropped. |
-| **7** | Budgets not build-ready: no line allocation, no provider seam, `run_turn` has no model parameter. | **Answered** on the seam: `run_turn` takes resolved `model` / `api_base` / `api_key_env` (§2); `complete()` is three prefix `if`s, not a Provider class (§2.3). **STANDING** on line allocation inside the ceilings: §1 still gives 200/250 with no split for compaction vs three SDKs vs scan. If a ceiling breaks, stop and ask. |
+| **7** | Budgets not build-ready: no line allocation, no provider seam, `run_turn` has no model parameter. | **Answered** on the seam: `run_turn` takes resolved `model` / `api_base` / `api_key_env` (§2); `complete()` is three prefix `if`s, not a Provider class (§2.3). **Answered** on the numeric ceiling: the owner lifted the 199-line `agent_harness.py` budget unconditionally (§1, §11.8) so the six-field loop could stay readable; a fourth harness file is still stop-and-ask. |
 
 Nothing in this table authorizes engine edits, a fourth harness file, or starting the build.

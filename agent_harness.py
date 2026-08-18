@@ -83,7 +83,12 @@ def _usage(kind, resp):
         usage["output_tokens"] = int(outp)
     if tot is not None:
         usage["total_tokens"] = int(tot)
-    if "total_tokens" not in usage and "input_tokens" in usage and "output_tokens" in usage:
+    if (
+        kind == "anthropic"
+        and "total_tokens" not in usage
+        and "input_tokens" in usage
+        and "output_tokens" in usage
+    ):
         usage["total_tokens"] = usage["input_tokens"] + usage["output_tokens"]
     return usage or None
 
