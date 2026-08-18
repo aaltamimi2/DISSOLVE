@@ -20,6 +20,7 @@ import agent_harness
 from agent_harness import ToolEvent, TurnResult
 from dissolve import cli
 from dissolve.cli import CliApp, doctor_report, main, resolve_model
+from dissolve.registry import BY_NAME, REGISTRY
 from dissolve.session import new_session
 
 
@@ -98,7 +99,9 @@ def test_doctor_checks_key_assets_registry_duckdb(tmp_path, monkeypatch):
     assert "duckdb" in names
     by_name = {c["name"]: c for c in report["checks"]}
     assert by_name["Tool registry"]["status"] == "pass"
-    assert by_name["Tool registry"]["registered"] == 34
+    assert by_name["Tool registry"]["registered"] == len(REGISTRY)
+    assert by_name["Tool registry"]["registered"] == len(BY_NAME)
+    assert by_name["Tool registry"]["detail"] == f"{len(REGISTRY)} registered names"
     assert by_name["Scientific assets"]["status"] == "pass"
     assert by_name["Model provider"]["status"] == "fail"
     assert report["ready"] is False
@@ -233,6 +236,36 @@ def test_banner_subtitle_is_v12_release(tmp_path, monkeypatch):
     shown = buf.getvalue()
     assert "dissolve-v12-0.1" in shown
     assert "v0.4" not in shown
+
+
+def test_interactive_path_draws_banner_models_and_prompt(tmp_path, monkeypatch):
+    monkeypatch.setenv("META_MUSE_API_KEY", "test-key")
+    buf = io.StringIO()
+    console = Console(file=buf, width=96, force_terminal=False)
+    prompts = []
+    replies = iter(["/model", "quit"])
+
+    def fake_ask(prompt, **kwargs):
+        prompts.append(prompt)
+        return next(replies)
+
+    monkeypatch.setattr(cli.Prompt, "ask", fake_ask)
+    app = CliApp(
+        session_id="look-session",
+        store_root=tmp_path,
+        persist=False,
+        console=console,
+    )
+    app.run()
+    shown = buf.getvalue()
+    assert "Advanced Recycling Agent" in shown
+    assert "dissolve-v12-0.1" in shown
+    assert "D I S S O L V E" in shown
+    assert "v0.4" not in shown
+    assert "Models" in shown
+    assert "muse-spark" in shown
+    assert "gemini-flash" in shown
+    assert prompts == ["\n[bold cyan]>[/]", "\n[bold cyan]>[/]"]
 
 
 def test_ask_prints_turnresult_answer_only(tmp_path, monkeypatch):

@@ -206,10 +206,10 @@ def doctor_report(
     )
 
     n_reg, n_by = len(REGISTRY), len(BY_NAME)
-    registry_ok = n_reg == 34 and n_by == 34
+    registry_ok = n_reg == n_by and n_reg > 0
     add(
         "Tool registry", "pass" if registry_ok else "fail",
-        f"{n_reg} registered names" if registry_ok else f"expected 34, got {n_reg}/{n_by}",
+        f"{n_reg} registered names" if registry_ok else f"REGISTRY {n_reg} != BY_NAME {n_by}",
         registered=n_reg,
     )
 
