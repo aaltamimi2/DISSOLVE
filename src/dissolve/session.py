@@ -44,15 +44,24 @@ _HANDLE_ANIMALS = (
 # a `resolution_issues` (or similar sidecar) longer than the result page,
 # and longest-wins would silently make the error list the answer.
 #
-# Names measured on registered successes this pass, plus `rows` which
-# analysis engines publish and the previous tuple omitted. Sidecars that
-# are list[dict] but are not the answer — `resolution_issues`,
-# `record_assumptions`, `source_records`, `family_summaries`,
-# `family_red_summaries`, `screened_directions` — are not in this tuple.
+# `joined_rows` before `rows`: screen_hansen_compatibility with a temperature
+# publishes both; the displayed answer is the joined page. Empty joined_rows
+# are skipped, so the no-temperature branch still selects `rows`.
+#
+# This tuple is not a complete catalog of registered list[dict] keys.
+# `sensitivity_rows` is included because analyze_tea_sensitivity publishes
+# that page. Nested pages (compare_contaminant_removal_modes) are not
+# selected here — dispatch must still attempt a handle when either
+# threshold is crossed and primary_row_key is None.
+# Sidecars that are list[dict] but are not the answer —
+# `resolution_issues`, `record_assumptions`, `source_records`,
+# `family_summaries`, `family_red_summaries`, `screened_directions` —
+# are not in this tuple.
 _PRIMARY_KEYS = (
     "ranked_candidates",
     "ranked_pairs",
     "results",
+    "joined_rows",
     "rows",
     "candidate_solvents",
     "comparison_rows",
@@ -60,10 +69,10 @@ _PRIMARY_KEYS = (
     "matches",
     "safety_profiles",
     "steps",
-    "joined_rows",
     "leading_matches",
     "candidate_conditions",
     "scale_comparison_rows",
+    "sensitivity_rows",
 )
 
 
