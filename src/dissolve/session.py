@@ -53,6 +53,12 @@ _HANDLE_ANIMALS = (
 # that page. Nested pages (compare_contaminant_removal_modes) are not
 # selected here — dispatch must still attempt a handle when either
 # threshold is crossed and primary_row_key is None.
+# `candidate_substitutions` before `comparison_rows`: route-substitution
+# displays the full condition objects (temperature, selectivity, G-score
+# change). `comparison_rows` on that tool is the reduced safety card and
+# would drop temperatures the safety consumer reads as `temperature_c`.
+# Safety comparison still selects `comparison_rows` because it has no
+# `candidate_substitutions` page.
 # Sidecars that are list[dict] but are not the answer —
 # `resolution_issues`, `record_assumptions`, `source_records`,
 # `family_summaries`, `family_red_summaries`, `screened_directions` —
@@ -64,6 +70,7 @@ _PRIMARY_KEYS = (
     "joined_rows",
     "rows",
     "candidate_solvents",
+    "candidate_substitutions",
     "comparison_rows",
     "records",
     "matches",
