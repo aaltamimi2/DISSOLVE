@@ -24,6 +24,8 @@ class TurnResult:
     status: str
     tool_trace: list[ToolEvent]
     turn_record: str
+    tool_rounds: int = 0
+    usage: dict | None = None
 
 def _oai_msgs(messages):
     out = []
@@ -62,6 +64,40 @@ def _ant_msgs(messages):
 
 class MissingProviderKey(Exception): pass
 
+def _usage(kind, resp):
+    raw = getattr(resp, "usage_metadata" if kind == "google_genai" else "usage", None)
+    if raw is None:
+        return None
+    names = {
+        "anthropic": ("input_tokens", "output_tokens", None),
+        "google_genai": ("prompt_token_count", "candidates_token_count", "total_token_count"),
+    }.get(kind, ("prompt_tokens", "completion_tokens", "total_tokens"))
+    input_name, output_name, total_name = names
+    inp = getattr(raw, input_name, None)
+    outp = getattr(raw, output_name, None)
+    tot = getattr(raw, total_name, None) if total_name else None
+    usage = {}
+    if inp is not None:
+        usage["input_tokens"] = int(inp)
+    if outp is not None:
+        usage["output_tokens"] = int(outp)
+    if tot is not None:
+        usage["total_tokens"] = int(tot)
+    if (
+        kind == "anthropic"
+        and "total_tokens" not in usage
+        and "input_tokens" in usage
+        and "output_tokens" in usage
+    ):
+        usage["total_tokens"] = usage["input_tokens"] + usage["output_tokens"]
+    return usage or None
+
+def _fold_usage(acc):
+    if not acc or any(item is None for item in acc):
+        return None
+    keys = {key for item in acc for key in item}
+    return {key: sum(item[key] for item in acc if key in item) for key in keys}
+
 def complete(messages, tools, *, model, api_base=None, api_key_env=None):
     kind, _, ident = model.partition(":")
     ident = ident or model
@@ -79,7 +115,7 @@ def complete(messages, tools, *, model, api_base=None, api_key_env=None):
         text = "".join(getattr(b, "text", "") for b in resp.content if getattr(b, "type", "") == "text")
         calls = [{"id": b.id, "name": b.name, "args": dict(b.input or {})}
                  for b in resp.content if getattr(b, "type", "") == "tool_use"]
-        return {"text": text, "tool_calls": calls}
+        return {"text": text, "tool_calls": calls, "usage": _usage(kind, resp)}
     if kind == "google_genai":
         from google import genai
         from google.genai import types
@@ -90,12 +126,13 @@ def complete(messages, tools, *, model, api_base=None, api_key_env=None):
             config=types.GenerateContentConfig(system_instruction=sys, tools=[types.Tool(function_declarations=decls)]))
         calls = [{"id": getattr(c, "id", "") or "", "name": c.name, "args": dict(c.args or {})}
                  for c in (getattr(resp, "function_calls", None) or [])]
-        return {"text": getattr(resp, "text", None) or "", "tool_calls": calls}
+        return {"text": getattr(resp, "text", None) or "", "tool_calls": calls, "usage": _usage(kind, resp)}
     if kind == "openai":
         from openai import OpenAI
         oai = [{"type": "function", "function": {"name": t["name"], "description": t.get("description") or "", "parameters": t["parameters"]}} for t in tools]
-        msg = OpenAI(api_key=key or None, base_url=api_base or None).chat.completions.create(
-            model=ident, messages=_oai_msgs(messages), tools=oai).choices[0].message
+        resp = OpenAI(api_key=key or None, base_url=api_base or None).chat.completions.create(
+            model=ident, messages=_oai_msgs(messages), tools=oai)
+        msg = resp.choices[0].message
         calls = []
         for c in msg.tool_calls or []:
             try:
@@ -103,7 +140,7 @@ def complete(messages, tools, *, model, api_base=None, api_key_env=None):
             except json.JSONDecodeError:
                 args = {}
             calls.append({"id": c.id, "name": c.function.name, "args": args})
-        return {"text": msg.content or "", "tool_calls": calls}
+        return {"text": msg.content or "", "tool_calls": calls, "usage": _usage(kind, resp)}
 
 def _gen_contents(messages):
     from google.genai import types
@@ -146,18 +183,34 @@ def run_turn(
             msgs.insert(0, {"role": "system", "content": SYSTEM_PROMPT})
         msgs.append({"role": "user", "content": query})
     trace: list[ToolEvent] = []
+    rounds = 0
+    acc = []
     with bind_tool_session(session) as bound:
         tid = open_turn_record(bound)
         for _ in range(30):
             try:
                 reply = complete(msgs, schemas, model=model, api_base=api_base, api_key_env=api_key_env)
             except MissingProviderKey as e:
-                return TurnResult(answer=str(e), status="provider_error", tool_trace=trace, turn_record=tid)
+                return TurnResult(
+                    answer=str(e), status="provider_error",
+                    tool_trace=trace, turn_record=tid, tool_rounds=rounds,
+                    usage=_fold_usage(acc),
+                )
             except Exception as e:
-                return TurnResult(answer=f"provider error: {type(e).__name__}: {e}", status="provider_error", tool_trace=trace, turn_record=tid)
+                return TurnResult(
+                    answer=f"provider error: {type(e).__name__}: {e}",
+                    status="provider_error", tool_trace=trace, turn_record=tid,
+                    tool_rounds=rounds, usage=_fold_usage(acc),
+                )
+            acc.append(reply.get("usage"))
             calls, text = reply.get("tool_calls") or [], reply.get("text") or ""
             if not calls:
-                msgs.append({"role": "assistant", "content": text}); return TurnResult(answer=text, status="ok", tool_trace=trace, turn_record=tid)
+                msgs.append({"role": "assistant", "content": text})
+                return TurnResult(
+                    answer=text, status="ok", tool_trace=trace,
+                    turn_record=tid, tool_rounds=rounds, usage=_fold_usage(acc),
+                )
+            rounds += 1
             msgs.append({"role": "assistant", "content": text, "tool_calls": calls})
             for call in calls:
                 args = call.get("args") or {}
@@ -169,31 +222,42 @@ def run_turn(
                 result = dispatch(call["name"], **args)
                 event = ToolEvent(name=call["name"], args=args, result=result)
                 trace.append(event)
-                if on_event: on_event(event)
-                msgs.append({"role": "tool", "tool_call_id": call.get("id"),
-                             "name": call["name"], "content": json.dumps(result)})
-            try: compact_messages(msgs, bound, window=context_window(model))
+                if on_event:
+                    on_event(event)
+                msgs.append({
+                    "role": "tool", "tool_call_id": call.get("id"),
+                    "name": call["name"], "content": json.dumps(result),
+                })
+            try:
+                compact_messages(msgs, bound, window=context_window(model))
             except CompactionBudgetError as e:
-                return TurnResult(answer=str(e), status="compaction_error", tool_trace=trace, turn_record=tid)
+                return TurnResult(
+                    answer=str(e), status="compaction_error",
+                    tool_trace=trace, turn_record=tid, tool_rounds=rounds,
+                    usage=_fold_usage(acc),
+                )
         return TurnResult(
             answer="round cap (30) reached; see the tool trace for what was retrieved. No guessed answer.",
-            status="round_cap", tool_trace=trace, turn_record=tid)
+            status="round_cap", tool_trace=trace, turn_record=tid,
+            tool_rounds=rounds, usage=_fold_usage(acc),
+        )
 
 def _main() -> None:
     import argparse
     from dissolve.session import new_session
+    from dissolve.cli import DEFAULT_MODEL, main, resolve_model
+    if len(sys.argv) < 2 or sys.argv[1].startswith("-"):
+        raise SystemExit(main())
     p = argparse.ArgumentParser()
     p.add_argument("query")
-    p.add_argument("--model", default="openai:muse-spark-1.2")
-    p.add_argument("--api-base", default="https://api.meta.ai/v1")
-    p.add_argument("--api-key-env", default="META_MUSE_API_KEY")
+    p.add_argument("--model", default=DEFAULT_MODEL)
     ns = p.parse_args()
+    _, spec = resolve_model(ns.model)
     def _print(ev: ToolEvent) -> None:
         print(f"tool {ev.name} {ev.args}"); print(ev.result)
-    result = run_turn(ns.query, session=new_session(), model=ns.model,
-                      on_event=_print, api_base=ns.api_base, api_key_env=ns.api_key_env)
-    print(result.answer)
-    print(f"status={result.status}")
+    result = run_turn(ns.query, session=new_session(), model=spec.model,
+                      on_event=_print, api_base=spec.base_url, api_key_env=spec.env_var)
+    print(result.answer); print(f"status={result.status}")
 
 if __name__ == "__main__":
     _main()

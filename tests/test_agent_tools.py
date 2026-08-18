@@ -385,12 +385,18 @@ def test_loop_prose_does_not_gate_or_read_record(monkeypatch):
     assert result.status == "ok"
     assert result.answer == "The recovery window is 46 C."
     assert isinstance(result, TurnResult)
+    assert list(TurnResult.__dataclass_fields__) == [
+        "answer", "status", "tool_trace", "turn_record", "tool_rounds", "usage",
+    ]
     assert "numeral_scan" not in TurnResult.__dataclass_fields__
     assert result.turn_record
     assert load_turn_record(session, result.turn_record) == []
     assert "_turn" not in session
     src = Path(agent_harness.__file__).read_text()
     assert "numeral_scan" not in src
+    assert "Callable[[ToolEvent], None]" in inspect.getsource(run_turn)
+    assert "bound[\"tool_rounds\"]" not in src
+    assert "provider_tokens" not in src
     assert result.status != "verifier_failed"
     graph = _loop_call_graph()
     assert sess.compact_messages in graph
@@ -399,6 +405,12 @@ def test_loop_prose_does_not_gate_or_read_record(monkeypatch):
     assert sess.load_turn_record not in graph
     assert _archive_readers_in_loop_graph() == []
     assert "result_read" not in inspect.getsource(agent_tools._emit)
+
+
+def test_system_prompt_reports_engine_inclusivity_not_user_strictness():
+    prompt = agent_tools.SYSTEM_PROMPT
+    assert "bounds_are_inclusive" in prompt
+    assert "A count for >= 5 / <= 1 is not a count for > 5 / < 1" in prompt
 
 
 def test_turn_record_every_result_exact_ordered_durable():
@@ -1003,6 +1015,145 @@ def test_run_turn_production_timing_keeps_current_group_and_meets_budget(monkeyp
     assert not any(str(u.get("content", "")).startswith("OLD ") for u in users)
 
 
+def test_run_turn_counts_rounds_not_history_delta(monkeypatch):
+    n = {"i": 0}
+    history = [{"role": "system", "content": "sys"}]
+    for i in range(6):
+        history.extend([
+            {"role": "user", "content": f"old-{i}"},
+            {"role": "assistant", "content": "", "tool_calls": [
+                {"id": f"old-{i}", "name": "no_such_tool", "args": {}},
+            ]},
+            {"role": "tool", "tool_call_id": f"old-{i}", "name": "no_such_tool", "content": "{}"},
+            {"role": "assistant", "content": f"ans-{i}"},
+        ])
+
+    def fake_complete(messages, tools, **kwargs):
+        n["i"] += 1
+        if n["i"] == 1:
+            return {"text": "", "tool_calls": [{"id": "now", "name": "no_such_tool", "args": {}}]}
+        return {"text": "done", "tool_calls": []}
+
+    def fake_compact(messages, record, **kwargs):
+        start = next(i for i, msg in enumerate(messages) if msg.get("role") == "user")
+        end = next(
+            i for i in range(start + 1, len(messages)) if messages[i].get("role") == "user"
+        )
+        del messages[start:end]
+
+    monkeypatch.setattr(agent_harness, "complete", fake_complete)
+    monkeypatch.setattr(agent_harness, "compact_messages", fake_compact)
+    before = sum(1 for m in history if m.get("role") == "assistant" and m.get("tool_calls"))
+    session = new_session()
+    result = run_turn("NOW", session=session, model="openai:x", messages=history)
+    after = sum(1 for m in history if m.get("role") == "assistant" and m.get("tool_calls"))
+    assert before == 6
+    assert after - before == 0
+    assert result.status == "ok"
+    assert result.tool_rounds == 1
+    assert result.usage is None
+    assert "tool_rounds" not in session
+    assert "provider_tokens" not in session
+    assert "usage" not in session
+    assert len(result.tool_trace) == 1
+
+
+def test_usage_reads_each_adapter_shape_and_keeps_absent_distinct_from_zero():
+    from types import SimpleNamespace
+    zero = SimpleNamespace(prompt_tokens=0, completion_tokens=0, total_tokens=0)
+    assert agent_harness._usage("openai", SimpleNamespace(usage=SimpleNamespace(total_tokens=18))) == {
+        "total_tokens": 18,
+    }
+    assert agent_harness._usage(
+        "anthropic", SimpleNamespace(usage=SimpleNamespace(input_tokens=10, output_tokens=8)),
+    ) == {"input_tokens": 10, "output_tokens": 8, "total_tokens": 18}
+    assert agent_harness._usage(
+        "google_genai", SimpleNamespace(usage_metadata=SimpleNamespace(
+            prompt_token_count=3, candidates_token_count=5, total_token_count=8,
+        )),
+    ) == {"input_tokens": 3, "output_tokens": 5, "total_tokens": 8}
+    assert agent_harness._usage(
+        "openai", SimpleNamespace(usage=SimpleNamespace(prompt_tokens=3, completion_tokens=5)),
+    ) == {"input_tokens": 3, "output_tokens": 5}
+    assert agent_harness._usage(
+        "google_genai", SimpleNamespace(usage_metadata=SimpleNamespace(
+            prompt_token_count=3, candidates_token_count=5,
+        )),
+    ) == {"input_tokens": 3, "output_tokens": 5}
+    assert agent_harness._usage("openai", SimpleNamespace(usage=None)) is None
+    assert agent_harness._usage("openai", SimpleNamespace()) is None
+    assert agent_harness._usage("openai", SimpleNamespace(usage=SimpleNamespace())) is None
+    assert agent_harness._usage("anthropic", SimpleNamespace(usage=SimpleNamespace())) is None
+    assert agent_harness._usage(
+        "anthropic", SimpleNamespace(usage=SimpleNamespace(input_tokens=0, output_tokens=0)),
+    ) == {"input_tokens": 0, "output_tokens": 0, "total_tokens": 0}
+    assert agent_harness._usage("anthropic", SimpleNamespace(usage=SimpleNamespace(input_tokens=10))) == {
+        "input_tokens": 10,
+    }
+    assert agent_harness._usage("openai", SimpleNamespace(usage=zero)) == {
+        "input_tokens": 0, "output_tokens": 0, "total_tokens": 0,
+    }
+
+
+def test_complete_keeps_openai_usage(monkeypatch):
+    from types import SimpleNamespace
+    import openai
+    msg = SimpleNamespace(content="done", tool_calls=[])
+    resp = SimpleNamespace(usage=SimpleNamespace(total_tokens=18), choices=[SimpleNamespace(message=msg)])
+    class Client:
+        def __init__(self, **kwargs):
+            self.chat = SimpleNamespace(completions=SimpleNamespace(create=lambda **k: resp))
+    monkeypatch.setattr(openai, "OpenAI", Client)
+    monkeypatch.setenv("K", "x")
+    out = agent_harness.complete(
+        [{"role": "user", "content": "q"}], [], model="openai:x", api_key_env="K",
+    )
+    assert out["text"] == "done"
+    assert out["tool_calls"] == []
+    assert out["usage"] == {"total_tokens": 18}
+
+
+def test_run_turn_folds_usage_and_does_not_write_session_keys(monkeypatch):
+    n = {"i": 0}
+
+    def fake_complete(messages, tools, **kwargs):
+        n["i"] += 1
+        if n["i"] == 1:
+            return {
+                "text": "", "tool_calls": [{"id": "1", "name": "no_such_tool", "args": {}}],
+                "usage": {"total_tokens": 7},
+            }
+        return {"text": "done", "tool_calls": [], "usage": {"total_tokens": 11}}
+
+    monkeypatch.setattr(agent_harness, "complete", fake_complete)
+    session = new_session()
+    result = run_turn("q", session=session, model="openai:x")
+    assert result.status == "ok"
+    assert result.tool_rounds == 1
+    assert result.usage == {"total_tokens": 18}
+    assert "tool_rounds" not in session
+    assert "provider_tokens" not in session
+    assert "usage" not in session
+
+
+def test_run_turn_usage_is_none_if_any_round_omits_it(monkeypatch):
+    n = {"i": 0}
+
+    def fake_complete(messages, tools, **kwargs):
+        n["i"] += 1
+        if n["i"] == 1:
+            return {
+                "text": "", "tool_calls": [{"id": "1", "name": "no_such_tool", "args": {}}],
+                "usage": {"total_tokens": 7},
+            }
+        return {"text": "done", "tool_calls": [], "usage": None}
+
+    monkeypatch.setattr(agent_harness, "complete", fake_complete)
+    result = run_turn("q", session=new_session(), model="openai:x")
+    assert result.status == "ok"
+    assert result.usage is None
+
+
 def test_run_turn_passes_alias_window(monkeypatch):
     n = {"i": 0}
     hits = []
@@ -1088,3 +1239,18 @@ def test_compaction_error_matches_every_emitted_tool_id(monkeypatch):
             if fr is not None and getattr(fr, "name", None):
                 frs += 1
     assert calls == frs == 2
+
+
+def test_session_record_missing_reads_none_writes_raise():
+    rec = sess.SessionRecord()
+    rec["last_tea"] = {"analysis_type": "route"}
+    assert rec.last_tea is None
+    assert rec["last_tea"]["analysis_type"] == "route"
+    with pytest.raises(AttributeError, match="set keys, not attributes"):
+        rec.last_route = {"steps": [{"solvent": "dodecane"}]}
+    assert "last_route" not in rec
+    session = sess.new_session()
+    with sess.bind_tool_session(session) as bound:
+        with pytest.raises(AttributeError, match="set keys, not attributes"):
+            bound.last_candidates = [{"solvent": "copied-projection"}]
+    assert "last_candidates" not in session
