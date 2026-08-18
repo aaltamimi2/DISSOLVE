@@ -172,9 +172,9 @@ def run_turn(
                 if on_event: on_event(event)
                 msgs.append({"role": "tool", "tool_call_id": call.get("id"),
                              "name": call["name"], "content": json.dumps(result)})
-                try: compact_messages(msgs, bound, window=context_window(model))
-                except CompactionBudgetError as e:
-                    return TurnResult(answer=str(e), status="compaction_error", tool_trace=trace, turn_record=tid)
+            try: compact_messages(msgs, bound, window=context_window(model))
+            except CompactionBudgetError as e:
+                return TurnResult(answer=str(e), status="compaction_error", tool_trace=trace, turn_record=tid)
         return TurnResult(
             answer="round cap (30) reached; see the tool trace for what was retrieved. No guessed answer.",
             status="round_cap", tool_trace=trace, turn_record=tid)

@@ -1025,3 +1025,59 @@ def test_run_turn_passes_alias_window(monkeypatch):
     assert "estimated_tokens=" in result.answer
     assert "summary needs" in result.answer
     assert hits == [("tool", 8000)]
+
+
+def test_compaction_error_matches_every_emitted_tool_id(monkeypatch):
+    n = {"i": 0}
+    history = []
+    session = new_session()
+
+    def fake_complete(messages, tools, **kwargs):
+        n["i"] += 1
+        if n["i"] == 1:
+            return {"text": "", "tool_calls": [
+                {"id": "call-1", "name": "no_such_tool", "args": {"n": 1}},
+                {"id": "call-2", "name": "no_such_tool", "args": {"n": 2}},
+            ]}
+        raise AssertionError("provider called a second time")
+
+    monkeypatch.setattr(agent_harness, "complete", fake_complete)
+    result = run_turn("q", session=session, model="openai:foo-8k", messages=history)
+    assert result.status == "compaction_error"
+    assert n["i"] == 1
+    assert [ev.name for ev in result.tool_trace] == ["no_such_tool", "no_such_tool"]
+    emitted, received = [], []
+    for msg in history:
+        if msg.get("role") == "assistant":
+            emitted.extend(c.get("id") for c in (msg.get("tool_calls") or []) if c.get("id"))
+        if msg.get("role") == "tool":
+            received.append(msg.get("tool_call_id"))
+    assert emitted == ["call-1", "call-2"]
+    assert received == emitted
+    rows = load_turn_record(session, result.turn_record)
+    assert [row["tool"] for row in rows] == ["no_such_tool", "no_such_tool"]
+    oai = agent_harness._oai_msgs(history)
+    oai_call = [c["id"] for m in oai for c in (m.get("tool_calls") or [])]
+    oai_resp = [m.get("tool_call_id") for m in oai if m.get("role") == "tool"]
+    assert oai_call == oai_resp == emitted
+    _, ant = agent_harness._ant_msgs(history)
+    uses, tres = [], []
+    for msg in ant:
+        blocks = msg.get("content")
+        if not isinstance(blocks, list):
+            continue
+        for block in blocks:
+            if block.get("type") == "tool_use":
+                uses.append(block["id"])
+            if block.get("type") == "tool_result":
+                tres.append(block.get("tool_use_id"))
+    assert uses == tres == emitted
+    calls = frs = 0
+    for content in agent_harness._gen_contents(history):
+        for part in content.parts:
+            fc, fr = getattr(part, "function_call", None), getattr(part, "function_response", None)
+            if fc is not None and getattr(fc, "name", None):
+                calls += 1
+            if fr is not None and getattr(fr, "name", None):
+                frs += 1
+    assert calls == frs == 2
