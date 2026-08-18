@@ -30,6 +30,36 @@ class _InputError(ValueError):
         self.detail = detail
 
 
+def _polymer_ambiguity_detail(
+    value: object, field: str,
+) -> dict[str, Any] | None:
+    """Describe a known family only when a scalar boundary needs one member."""
+    supplied = str(value or "").strip()
+    members = thermo.expand_polymer_identity(supplied)
+    if len(members) <= 1:
+        return None
+    return {
+        "supplied_polymer": supplied,
+        "polymer_field": field,
+        "polymer_members": list(members),
+    }
+
+
+def _polymer_ambiguity_error(
+    tool: str, value: object, field: str,
+) -> str | None:
+    """Return the shared scalar-family refusal, or None for a point identity."""
+    detail = _polymer_ambiguity_detail(value, field)
+    if detail is None:
+        return None
+    return tool_error(
+        tool,
+        f"{field} names a polymer family; choose one member.",
+        error_code="ambiguous_polymer",
+        **detail,
+    )
+
+
 def _table(headers: Sequence[str], rows: Sequence[Sequence[object]]) -> str:
     """Render a compact deterministic table artifact, never conversational prose."""
     if not rows:
@@ -182,6 +212,7 @@ def _name_axis(
     axis: str,
     universe: Sequence[str],
     resolver: Callable[[str], str | None],
+    expander: Callable[[str], Sequence[str]] | None = None,
     unresolved_detail: Callable[[str], dict[str, Any]] | None = None,
 ) -> tuple[list[str], bool, int]:
     """Resolve and deduplicate one name axis, or select its whole domain."""
@@ -207,15 +238,19 @@ def _name_axis(
         if not isinstance(value, str) or not value.strip():
             unsupported.append(str(value))
             continue
-        canonical = resolver(value)
-        if canonical is None:
+        canonicals = list(expander(value)) if expander is not None else []
+        if expander is None:
+            canonical = resolver(value)
+            canonicals = [] if canonical is None else [canonical]
+        if not canonicals:
             unsupported.append(value)
             continue
-        if canonical in seen:
-            duplicate_count += 1
-            continue
-        seen.add(canonical)
-        resolved.append(canonical)
+        for canonical in canonicals:
+            if canonical in seen:
+                duplicate_count += 1
+                continue
+            seen.add(canonical)
+            resolved.append(canonical)
     if unsupported:
         detail: dict[str, Any] = {
             "field": axis,
@@ -424,6 +459,7 @@ def solubility_query(
             axis="polymers",
             universe=polymer_universe,
             resolver=thermo.resolve_polymer,
+            expander=thermo.expand_polymer_identity,
         )
         selected_solvents, all_solvents, duplicate_solvents = _name_axis(
             solvents,
@@ -641,7 +677,18 @@ def normalize_feed_composition(
         raise ValueError("feed_mass_fractions must map every feed polymer to a fraction or percent")
     resolved: dict[str, float] = {}
     for name, raw in supplied.items():
-        polymer = thermo.resolve_polymer(str(name))
+        supplied_polymer = str(name).strip()
+        ambiguity = _polymer_ambiguity_detail(
+            supplied_polymer, "feed_mass_fractions",
+        )
+        if ambiguity is not None:
+            raise _InputError(
+                "ambiguous_polymer",
+                "feed_mass_fractions names a polymer family; choose one member.",
+                **ambiguity,
+            )
+        members = thermo.expand_polymer_identity(supplied_polymer)
+        polymer = members[0] if members else thermo.resolve_polymer(supplied_polymer)
         value = float(raw)
         if polymer is None or not math.isfinite(value) or value <= 0:
             raise ValueError("feed_mass_fractions contains an unknown polymer or invalid value")
@@ -944,8 +991,11 @@ def screen_polymer_separation(
         return tool_error(tool, "feed_polymers must contain at least one name.", error_code="invalid_feed_polymers")
     names, unsupported = [], []
     for name in requested:
-        resolved = thermo.resolve_polymer(name)
-        (names if resolved else unsupported).append(resolved or name)
+        members = thermo.expand_polymer_identity(name)
+        if not members:
+            unsupported.append(name)
+            continue
+        names.extend(members)
     if unsupported:
         return tool_error(
             tool,
@@ -971,6 +1021,10 @@ def screen_polymer_separation(
         )
     try:
         composition = normalize_feed_composition(feed_mass_fractions, names)
+    except _InputError as error:
+        return tool_error(
+            tool, str(error), error_code=error.code, **error.detail,
+        )
     except (TypeError, ValueError) as error:
         return tool_error(tool, str(error), error_code="invalid_feed_composition")
     supplied_min, supplied_max = temperature_min_c is not None, temperature_max_c is not None
@@ -989,16 +1043,17 @@ def screen_polymer_separation(
     else:
         targets = []
         for target in _unique_names(target_polymers):
-            resolved = thermo.resolve_polymer(target)
-            if resolved not in names:
+            members = thermo.expand_polymer_identity(target)
+            if not members or any(member not in names for member in members):
                 return tool_error(
                     tool,
                     "Every target must be in feed_polymers.",
                     error_code="target_not_in_feed",
                     unknown_target_polymers=[target],
                 )
-            if resolved not in targets:
-                targets.append(resolved)
+            for member in members:
+                if member not in targets:
+                    targets.append(member)
         if not targets:
             return tool_error(tool, "target_polymers cannot be empty.", error_code="missing_target_polymers")
     constrained_solvents: Optional[list[str]] = None
@@ -1464,8 +1519,11 @@ def screen_pairwise_solubility_overlap(
         return tool_error(tool, "feed_polymers must be a list.", error_code="invalid_feed_polymers")
     names, unsupported = [], []
     for supplied in _unique_names(feed_polymers):
-        resolved = thermo.resolve_polymer(supplied)
-        (names if resolved else unsupported).append(resolved or supplied)
+        members = thermo.expand_polymer_identity(supplied)
+        if not members:
+            unsupported.append(supplied)
+            continue
+        names.extend(members)
     names = _unique_names(names)
     if unsupported:
         return tool_error(tool, "Unsupported feed polymer(s): " + ", ".join(unsupported),

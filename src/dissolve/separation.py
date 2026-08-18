@@ -15,8 +15,10 @@ from .session import (
     resolve_candidate_argument,
 )
 from .tools import (
+    _InputError,
     _atmospheric_exclusion_applies, _atmospheric_exclusion_counts,
     _atmospheric_exclusion_reason,
+    _polymer_ambiguity_error,
     _screen_catalog_provenance, _solvent_resolution_error, _temperature_grid,
     normalize_feed_composition, screen_polymer_separation,
 )
@@ -529,6 +531,13 @@ def _screen_getter_polymer_catalog(
     reference_cycle_id: Optional[str],
 ) -> str:
     """Search the stored-grid polymer catalog for a sacrificial getter."""
+    ambiguity = _polymer_ambiguity_error(
+        "screen_cool_then_reheat_getter",
+        recovered_polymer,
+        "recovered_polymer",
+    )
+    if ambiguity:
+        return ambiguity
     recovered = thermo.resolve_polymer(str(recovered_polymer))
     solvent_key = thermo.resolve_solvent(str(solvent))
     temperatures = {
@@ -729,6 +738,13 @@ def screen_cool_then_reheat_getter(
         "cool": cool_temperature_c,
         "reheat": reheat_temperature_c,
     }
+    for value, field in (
+        (recovered_polymer, "recovered_polymer"),
+        (sacrificial_getter_polymer, "sacrificial_getter_polymer"),
+    ):
+        ambiguity = _polymer_ambiguity_error(tool, value, field)
+        if ambiguity:
+            return ambiguity
     recovered = thermo.resolve_polymer(str(recovered_polymer))
     getter = thermo.resolve_polymer(str(sacrificial_getter_polymer))
     solvent_key = thermo.resolve_solvent(str(solvent))
@@ -1225,6 +1241,13 @@ def screen_precipitation_order(
     """
     tool = "screen_precipitation_order"
     names, unsupported = _feed_names(feed_polymers)
+    for value, field in (
+        (first_polymer, "first_polymer"),
+        (second_polymer, "second_polymer"),
+    ):
+        ambiguity = _polymer_ambiguity_error(tool, value, field)
+        if ambiguity:
+            return ambiguity
     first = thermo.resolve_polymer(str(first_polymer))
     second = thermo.resolve_polymer(str(second_polymer))
     if unsupported or first not in names or second not in names or first == second:
@@ -1716,6 +1739,10 @@ def plan_multistage_separation(
         )
     try:
         composition = normalize_feed_composition(feed_mass_fractions, names)
+    except _InputError as error:
+        return tool_error(
+            tool, str(error), error_code=error.code, **error.detail,
+        )
     except (TypeError, ValueError) as error:
         return tool_error(tool, str(error), error_code="invalid_feed_composition")
     numeric: dict[str, Any] = {

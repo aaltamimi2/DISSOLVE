@@ -25,6 +25,7 @@ from .session import (
     candidate_evidence, current_tool_session,
     resolve_candidate_argument,
 )
+from .tools import _InputError, _polymer_ambiguity_detail
 
 _ASSET = Path(str(files("dissolve").joinpath("data/tea_cache.json.gz")))
 _ASSET_SHA256 = "f95dff48c68d57543e472ece51b59f4d807326cee432f1a1138029efcee12173"
@@ -150,12 +151,33 @@ def _record_for_pair(polymer: str, solvent: str) -> Optional[dict[str, Any]]:
     return (preferred or matches or [None])[0]
 
 
-def _resolve_polymer(value: Any) -> str:
+def _resolve_polymer(value: Any, field: str = "target_polymer") -> str:
     supplied = str(value or "").strip()
+    ambiguity = _polymer_ambiguity_detail(supplied, field)
+    if ambiguity is not None:
+        raise _InputError(
+            "ambiguous_polymer",
+            f"{field} names a polymer family; choose one member.",
+            **ambiguity,
+        )
     expanded = thermo.expand_polymer_identity(supplied)
     if len(expanded) != 1:
         raise ValueError(f"Unsupported target polymer: {supplied or '(missing)'}")
     return expanded[0]
+
+
+def _expand_polymers(values: Sequence[Any], field: str) -> list[str]:
+    """Flatten a collection-valued polymer field without choosing a member."""
+    resolved: list[str] = []
+    for value in values:
+        supplied = str(value or "").strip()
+        members = thermo.expand_polymer_identity(supplied)
+        if not members:
+            raise ValueError(f"Unsupported {field}: {supplied or '(missing)'}")
+        for member in members:
+            if member not in resolved:
+                resolved.append(member)
+    return resolved
 
 
 def _resolve_solvent(value: Any) -> str:
@@ -801,9 +823,7 @@ def lookup_admitted_process_records(
             if isinstance(target_polymer, list)
             else [target_polymer]
         )
-        polymers = list(dict.fromkeys(
-            _resolve_polymer(value) for value in supplied_polymers
-        ))
+        polymers = _expand_polymers(supplied_polymers, "target polymer")
         if not polymers:
             raise ValueError("At least one target polymer is required")
         resolved_solvent = _resolve_solvent(solvent) if solvent else None
@@ -1134,6 +1154,10 @@ def evaluate_tea_lca_scenarios(
     try:
         timeout = max(1, min(int(timeout_seconds), 600))
         configs = [_scenario_config(item) for item in scenarios]
+    except _InputError as error:
+        return tool_error(
+            tool, str(error), error_code=error.code, **error.detail,
+        )
     except (TypeError, ValueError) as error:
         return tool_error(tool, str(error), error_code="invalid_scenario")
     results = [_run(config, engine_mode, timeout) for config in configs]
@@ -1186,7 +1210,7 @@ def _composition(
     resolved: dict[str, float] = {}
     for polymer, value in values.items():
         name = (
-            _resolve_polymer(polymer) if resolve_polymers
+            _resolve_polymer(polymer, "feed_mass_fractions") if resolve_polymers
             else str(polymer or "").strip()
         )
         if not name:
@@ -1729,10 +1753,18 @@ def _feed_tea_basis_gap(
             feed_names = list(feed)
         elif isinstance(feed_polymers, list) and feed_polymers:
             feed = {}
-            feed_names = list(dict.fromkeys(
-                thermo.resolve_polymer_identity(str(item)) or str(item).strip()
-                for item in feed_polymers if str(item).strip()
-            ))
+            feed_names = []
+            for item in feed_polymers:
+                supplied = str(item).strip()
+                if not supplied:
+                    continue
+                members = thermo.expand_polymer_identity(supplied)
+                identities = members or (
+                    thermo.resolve_polymer_identity(supplied) or supplied,
+                )
+                for identity in identities:
+                    if identity not in feed_names:
+                        feed_names.append(identity)
             if not feed_names:
                 raise ValueError("feed_polymers must contain at least one material label")
         else:
@@ -2021,12 +2053,12 @@ def evaluate_stored_route_tea_lca(
             *(str(item) for item in candidate_basis.get("other_polymers") or []),
         ]
         try:
-            candidate_identities = {
-                _resolve_polymer(item) for item in candidate_labels if item
-            }
-            supplied_identities = {
-                _resolve_polymer(item) for item in feed_polymers or []
-            }
+            candidate_identities = set(_expand_polymers(
+                [item for item in candidate_labels if item], "candidate feed polymer",
+            ))
+            supplied_identities = set(_expand_polymers(
+                feed_polymers or [], "feed polymer",
+            ))
             candidate_feed_matches = bool(
                 candidate_identities
                 and (not supplied_identities or supplied_identities == candidate_identities)
@@ -2199,7 +2231,9 @@ def evaluate_stored_route_tea_lca(
             if step.get("dissolved_polymer")
         ] + ([str(route["final_residue"])] if route.get("final_residue") else [])
         try:
-            supplied_identities = {_resolve_polymer(item) for item in feed_polymers}
+            supplied_identities = set(_expand_polymers(
+                feed_polymers, "feed polymer",
+            ))
             route_identities = {_resolve_polymer(item) for item in route_labels}
         except ValueError:
             supplied_identities = route_identities = set()
@@ -2605,6 +2639,10 @@ def evaluate_stored_route_tea_lca(
         precipitation = _finite(selected_precipitation_c, "precipitation_temperature_c")
         if capacity <= 0:
             raise ValueError("processing_capacity_mt_per_yr must be positive")
+    except _InputError as error:
+        return tool_error(
+            tool, str(error), error_code=error.code, **error.detail,
+        )
     except ValueError as error:
         return tool_error(tool, str(error), error_code="invalid_route_basis")
     expected = {
@@ -2881,6 +2919,10 @@ def analyze_tea_sensitivity(
     try:
         baseline = _scenario_config(scenario)
         requested_values = [] if values is None else [_finite(value, field) for value in values]
+    except _InputError as error:
+        return tool_error(
+            tool, str(error), error_code=error.code, **error.detail,
+        )
     except ValueError as error:
         return tool_error(tool, str(error), error_code="invalid_sensitivity_basis")
     if not requested_values:
@@ -2938,5 +2980,3 @@ def analyze_tea_sensitivity(
             "Cached sensitivity points are exact prior simulations and are not interpolated between evaluated values.",
         ],
     )
-
-

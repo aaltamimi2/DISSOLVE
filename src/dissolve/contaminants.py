@@ -16,6 +16,7 @@ import duckdb
 
 from . import session, thermodynamics as thermo
 from .contracts import tool_error, tool_success
+from .tools import _polymer_ambiguity_error
 
 _ASSET = Path(str(files("dissolve").joinpath("data/contaminants.duckdb")))
 _ASSET_SHA256 = "19e585e019ad0ad1aac6e31ff49b5d47477789a5903b4fc3821e2d16a8596721"
@@ -459,12 +460,25 @@ def _inputs(
     )
     if threshold_error:
         return {}, threshold_error
+    ambiguity = _polymer_ambiguity_error(
+        tool, target_polymer, "target_polymer",
+    )
+    if ambiguity:
+        return {}, ambiguity
     target = thermo.resolve_polymer(target_polymer)
     requested = _items(contaminants)
     supported, unsupported, families = _expand(requested)
     others_requested = _items(other_polymers)
-    others = [resolved for item in others_requested if (resolved := thermo.resolve_polymer(item))]
-    missing_others = [item for item in others_requested if not thermo.resolve_polymer(item)]
+    others: list[str] = []
+    missing_others: list[str] = []
+    for item in others_requested:
+        members = thermo.expand_polymer_identity(item)
+        if not members:
+            missing_others.append(item)
+            continue
+        for member in members:
+            if member not in others:
+                others.append(member)
     explicit_solvents = None if solvents is None else _items(solvents)
     candidate_solvents, _ = session.resolve_candidate_argument(
         explicit_solvents, _inherited_candidate_solvents(tool),
@@ -925,4 +939,3 @@ def compare_contaminant_removal_modes(
         ),
         warnings=list(dict.fromkeys(leaching["warnings"] + strap["warnings"])),
     )
-

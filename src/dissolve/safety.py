@@ -26,6 +26,7 @@ from .session import (
     candidate_evidence, current_tool_session,
     resolve_candidate_argument,
 )
+from .tools import _polymer_ambiguity_error
 
 _ASSET = Path(str(files("dissolve").joinpath("data/safety.duckdb")))
 _ASSET_SHA256 = "88ce0d09ac28de17045702a8a283de6610b5fe1ab33aa5f90bf6e98edfd75a74"
@@ -1154,6 +1155,11 @@ def screen_green_solvent_candidates(
         for resolved in expanded:
             if resolved not in polymers:
                 polymers.append(resolved)
+    ambiguity = _polymer_ambiguity_error(
+        tool, target_polymer, "target_polymer",
+    )
+    if ambiguity:
+        return ambiguity
     target = thermo.resolve_polymer(str(target_polymer))
     try:
         # A domain referent is never invented by a literal default: an
@@ -1388,11 +1394,12 @@ def screen_route_solvent_substitutions(
         return tool_error(tool, "At least one route step is required.", error_code="missing_route_steps")
     polymers: list[str] = []
     for supplied in feed_polymers:
-        resolved = thermo.resolve_polymer(str(supplied))
-        if resolved is None:
+        members = thermo.expand_polymer_identity(str(supplied))
+        if not members:
             return tool_error(tool, f"Unknown polymer: {supplied}", error_code="unknown_polymer")
-        if resolved not in polymers:
-            polymers.append(resolved)
+        for member in members:
+            if member not in polymers:
+                polymers.append(member)
     try:
         lower = thermo.FITTED_TEMP_MIN_C if temperature_min_c is None else float(temperature_min_c)
         upper = thermo.FITTED_TEMP_MAX_C if temperature_max_c is None else float(temperature_max_c)
@@ -1415,7 +1422,15 @@ def screen_route_solvent_substitutions(
     for index, supplied in enumerate(route_steps, 1):
         if not isinstance(supplied, dict):
             return tool_error(tool, "Every route step must be an object.", error_code="invalid_route_step")
-        target = thermo.resolve_polymer(str(supplied.get("dissolved_polymer") or supplied.get("polymer") or ""))
+        target_label = str(
+            supplied.get("dissolved_polymer") or supplied.get("polymer") or ""
+        )
+        ambiguity = _polymer_ambiguity_error(
+            tool, target_label, f"route_steps[{index - 1}].dissolved_polymer",
+        )
+        if ambiguity:
+            return ambiguity
+        target = thermo.resolve_polymer(target_label)
         solvent_key = thermo.resolve_solvent(str(supplied.get("solvent") or ""))
         operating = _number(supplied.get("temperature_c"))
         if target not in remaining or solvent_key is None or operating is None:
