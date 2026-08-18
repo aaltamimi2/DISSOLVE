@@ -42,6 +42,21 @@ _CONFIG_FIELDS = (
     "feedstock_distance_km", "dissolution_capacity", "labor_cost",
 )
 _NUMERIC_FIELDS = set(_CONFIG_FIELDS) - {"solvent", "target_plastic", "energy_case"}
+_DESIGN_POINT_PUBLIC_FIELDS = (
+    ("target_plastic", "target_polymer"),
+    ("solvent", "solvent"),
+    ("target_plastic_percent", "target_mass_percent"),
+    ("processing_capacity", "processing_capacity_mt_per_yr"),
+    ("energy_case", "energy_case"),
+    ("dissolution_temperature_c", "dissolution_temperature_c"),
+    ("precipitation_temperature_c", "precipitation_temperature_c"),
+    ("solvent_price", "solvent_price_usd_per_kg"),
+    ("solvent_loss_pct", "solvent_loss_pct"),
+    ("feedstock_distance_km", "feedstock_distance_km"),
+    ("dissolution_capacity", "dissolution_capacity"),
+    ("labor_cost", "labor_cost_usd_per_employee_yr"),
+)
+_REFERENCE_DESIGN_POINT_ROLE = "context_only_not_route_cost_or_ranking"
 _TEA_WORKER_PYTHON_ENV = "DISSOLVE_TEA_PYTHON"
 _LIVE_PROCESS_MODEL_RELATIVE_PATH = Path("plastics/strap/process_model.py")
 _LIVE_BIOREFINERIES_VERSION = "2.34.10"
@@ -740,6 +755,97 @@ def _record_for_pair(polymer: str, solvent: str) -> Optional[dict[str, Any]]:
     ]
     preferred = [item for item in matches if str(item.get("label", "")).endswith("route-c1")]
     return (preferred or matches or [None])[0]
+
+
+def _public_design_point(
+    config: dict[str, Any], *, record_id: Optional[str] = None,
+) -> dict[str, Any]:
+    """Project one exact cache key into the stored-route public vocabulary."""
+    point = {
+        public: copy.deepcopy(config.get(internal))
+        for internal, public in _DESIGN_POINT_PUBLIC_FIELDS
+    }
+    if record_id is not None:
+        point = {"reference_record_id": record_id, **point}
+    return point
+
+
+def _design_point_value_equal(field: str, left: Any, right: Any) -> bool:
+    if field in {"target_plastic", "solvent"}:
+        return _key(left) == _key(right)
+    if field == "energy_case":
+        return str(left or "").upper() == str(right or "").upper()
+    try:
+        return math.isclose(
+            float(left), float(right), rel_tol=0, abs_tol=1e-9,
+        )
+    except (TypeError, ValueError):
+        return left == right
+
+
+def _reference_design_point_contract(
+    requested_config: dict[str, Any],
+) -> Optional[dict[str, Any]]:
+    """Disclose same-pair cache rows without substituting their coordinates."""
+    if _cache_index().get(_config_key(requested_config)) is not None:
+        return None
+    pair_records = [
+        record for record in _records()
+        if _key(record["config"].get("target_plastic"))
+        == _key(requested_config.get("target_plastic"))
+        and _key(record["config"].get("solvent"))
+        == _key(requested_config.get("solvent"))
+    ]
+    if not pair_records:
+        return None
+
+    references = []
+    differences = []
+    for record in pair_records:
+        record_id = str(record.get("label") or "")
+        reference_config = record["config"]
+        differing_fields = []
+        for internal, public in _DESIGN_POINT_PUBLIC_FIELDS:
+            requested_value = requested_config.get(internal)
+            reference_value = reference_config.get(internal)
+            if _design_point_value_equal(
+                internal, requested_value, reference_value,
+            ):
+                continue
+            differing_fields.append(public)
+        if not differing_fields:
+            continue
+        references.append(_public_design_point(
+            reference_config, record_id=record_id,
+        ))
+        differences.append({
+            "reference_record_id": record_id,
+            "differing_fields": differing_fields,
+        })
+
+    if not references:
+        return None
+    default_record = _record_for_pair(
+        str(requested_config.get("target_plastic") or ""),
+        str(requested_config.get("solvent") or ""),
+    )
+    default_record_id = str((default_record or {}).get("label") or "")
+    order = sorted(
+        range(len(references)),
+        key=lambda index: (
+            differences[index]["reference_record_id"] != default_record_id,
+            len(differences[index]["differing_fields"]),
+            differences[index]["reference_record_id"],
+        ),
+    )
+    references = [references[index] for index in order]
+    differences = [differences[index] for index in order]
+    return {
+        "requested_stage_basis": _public_design_point(requested_config),
+        "available_reference_design_points": references,
+        "basis_differences": differences,
+        "example_reference_design_point": references[0],
+    }
 
 
 def _resolve_polymer(value: Any, field: str = "target_polymer") -> str:
@@ -3938,6 +4044,7 @@ def evaluate_stored_route_tea_lca(
             "dissolution_temp_c": step["temperature_c"],
             "precipitation_temp_c": precipitation,
         }
+        config = None
         try:
             config = _scenario_config(scenario)
         except _MissingScenarioBasis as error:
@@ -3986,6 +4093,100 @@ def evaluate_stored_route_tea_lca(
                 "cache_miss", "python_version", "surrogate_unavailable",
                 "insufficient_surrogate_evidence",
             }:
+                design_point = (
+                    _reference_design_point_contract(config)
+                    if config is not None else None
+                )
+                if design_point is not None:
+                    requested = design_point["requested_stage_basis"]
+                    reference = design_point[
+                        "example_reference_design_point"
+                    ]
+                    message = (
+                        "No admitted process record matches route stage "
+                        f"{index} at the feed-derived design point "
+                        f"({requested['target_mass_percent']:g} wt%, "
+                        f"{requested['processing_capacity_mt_per_yr']:g} "
+                        "MT/yr). A disclosed reference uses "
+                        f"{reference['target_mass_percent']:g} wt% at "
+                        f"{reference['processing_capacity_mt_per_yr']:g} "
+                        f"MT/yr under {reference['energy_case']}, "
+                        f"{reference['dissolution_temperature_c']:g} C "
+                        "dissolution, and "
+                        f"{reference['precipitation_temperature_c']:g} C "
+                        "precipitation. It is a different design point for a "
+                        "potentially different plant and was not used to cost "
+                        "or rank the route."
+                    )
+                    return tool_error(
+                        tool,
+                        message,
+                        error_code="route_stage_design_point_unavailable",
+                        analysis_type="tea_route_design_point_gap",
+                        can_estimate_msp=False,
+                        can_estimate_gwp=False,
+                        can_cost_route=False,
+                        can_rank_route=False,
+                        reference_evidence_role=(
+                            _REFERENCE_DESIGN_POINT_ROLE
+                        ),
+                        requested_stage_basis={
+                            "stage": index,
+                            **requested,
+                        },
+                        available_reference_design_points=design_point[
+                            "available_reference_design_points"
+                        ],
+                        basis_differences=design_point[
+                            "basis_differences"
+                        ],
+                        route_source="typed_session_state",
+                        route_signature=(
+                            tea_contracts.route_evidence_signature(route)
+                        ),
+                        consumed_route=route,
+                        feed_mass_fractions=composition,
+                        processing_capacity_mt_per_yr=capacity,
+                        requested_capacity_basis="total_feed",
+                        energy_case=selected_energy_case,
+                        requested_metrics=metrics,
+                        failed_stage=row,
+                        completed_stage_results=rows[:-1],
+                        lca_status_definitions=(
+                            _collect_lca_status_definitions(results)
+                        ),
+                        missing_basis_codes=[
+                            "exact_route_stage_design_point",
+                            "route_stage_process_evidence",
+                        ],
+                        missing_process_inputs=[
+                            "Generate an admitted process record matching "
+                            "requested_stage_basis, or explicitly restate the "
+                            "feed and capacity to an available reference "
+                            "design point.",
+                            "Define stage solvent loading, collection and "
+                            "recovery, recycle loss, and product specification "
+                            "on that same design point.",
+                        ],
+                        process_data_gaps=[
+                            "A same-pair process record exists, but its process "
+                            "coordinates do not match the feed-derived route "
+                            "stage.",
+                            "Reference design points describe their own plant "
+                            "basis and cannot be substituted into this route "
+                            "cost or ranking.",
+                            *_cache_lca_status_gaps(results),
+                        ],
+                        warnings=[
+                            "No MSP, TCI, AOC, GWP, or energy value was "
+                            "calculated for the full route.",
+                            "Restating the question to an available reference "
+                            "design point changes the plant basis being asked "
+                            "about.",
+                            "Completed earlier stage rows, if any, do not "
+                            "establish integrated-route economics.",
+                        ],
+                    )
                 return tool_error(
                     tool,
                     f"No defensible process basis is available for route stage {index} ({polymer}).",
