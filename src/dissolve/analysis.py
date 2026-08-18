@@ -846,7 +846,12 @@ def screen_hansen_compatibility(
     joined_rows = []
     if fitted_temperature is not None:
         for row in rows:
-            thermodynamic_polymer = thermo.resolve_polymer(str(row["polymer_id"]))
+            polymer_id = str(row["polymer_id"])
+            thermodynamic_members = thermo.expand_polymer_identity(polymer_id)
+            ambiguous_join = len(thermodynamic_members) > 1
+            thermodynamic_polymer = (
+                None if ambiguous_join else thermo.resolve_polymer(polymer_id)
+            )
             thermodynamic_solvent = thermo.resolve_solvent(str(row["solvent"]))
             thermodynamic_result = (
                 thermo.get_solubility_result(
@@ -856,7 +861,7 @@ def screen_hansen_compatibility(
                 if thermodynamic_polymer and thermodynamic_solvent else {}
             )
             fitted = thermodynamic_result.get("solubility_pct")
-            joined_rows.append({
+            joined_row = {
                 **row,
                 "thermodynamic_polymer": thermodynamic_polymer,
                 "thermodynamic_solvent": (
@@ -869,7 +874,13 @@ def screen_hansen_compatibility(
                 "source_grid_temperature_range_c": thermodynamic_result.get(
                     "source_grid_temperature_range_c",
                 ),
-            })
+            }
+            if ambiguous_join:
+                joined_row.update({
+                    "thermodynamic_join_status": "ambiguous_polymer_family_not_joined",
+                    "thermodynamic_polymer_members": list(thermodynamic_members),
+                })
+            joined_rows.append(joined_row)
     family_summaries = _family_summaries(polymers)
     family_red_summaries = _family_red_summaries(polymers, rows)
     leading_matches = []
