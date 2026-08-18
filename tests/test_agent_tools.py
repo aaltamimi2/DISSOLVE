@@ -1031,6 +1031,7 @@ def test_compaction_error_matches_every_emitted_tool_id(monkeypatch):
     n = {"i": 0}
     history = []
     session = new_session()
+    compact_ids = []
 
     def fake_complete(messages, tools, **kwargs):
         n["i"] += 1
@@ -1041,10 +1042,16 @@ def test_compaction_error_matches_every_emitted_tool_id(monkeypatch):
             ]}
         raise AssertionError("provider called a second time")
 
+    def spy(messages, record, **kwargs):
+        compact_ids.append([m.get("tool_call_id") for m in messages if m.get("role") == "tool"])
+        return compact_messages(messages, record, **kwargs)
+
     monkeypatch.setattr(agent_harness, "complete", fake_complete)
+    monkeypatch.setattr(agent_harness, "compact_messages", spy)
     result = run_turn("q", session=session, model="openai:foo-8k", messages=history)
     assert result.status == "compaction_error"
     assert n["i"] == 1
+    assert compact_ids == [["call-1", "call-2"]]
     assert [ev.name for ev in result.tool_trace] == ["no_such_tool", "no_such_tool"]
     emitted, received = [], []
     for msg in history:
