@@ -385,6 +385,9 @@ def test_loop_prose_does_not_gate_or_read_record(monkeypatch):
     assert result.status == "ok"
     assert result.answer == "The recovery window is 46 C."
     assert isinstance(result, TurnResult)
+    assert list(TurnResult.__dataclass_fields__) == [
+        "answer", "status", "tool_trace", "turn_record",
+    ]
     assert "numeral_scan" not in TurnResult.__dataclass_fields__
     assert result.turn_record
     assert load_turn_record(session, result.turn_record) == []
@@ -1032,13 +1035,67 @@ def test_run_turn_counts_rounds_not_history_delta(monkeypatch):
     monkeypatch.setattr(agent_harness, "complete", fake_complete)
     monkeypatch.setattr(agent_harness, "compact_messages", fake_compact)
     before = sum(1 for m in history if m.get("role") == "assistant" and m.get("tool_calls"))
-    result = run_turn("NOW", session=new_session(), model="openai:x", messages=history)
+    session = new_session()
+    result = run_turn("NOW", session=session, model="openai:x", messages=history)
     after = sum(1 for m in history if m.get("role") == "assistant" and m.get("tool_calls"))
     assert before == 6
     assert after - before == 0
     assert result.status == "ok"
-    assert result.tool_rounds == 1
+    assert "tool_rounds" not in TurnResult.__dataclass_fields__
+    assert session["tool_rounds"] == 1
+    assert "provider_tokens" not in session
     assert len(result.tool_trace) == 1
+
+
+def test_tokens_reads_each_adapter_shape():
+    from types import SimpleNamespace
+    assert agent_harness._tokens("openai", SimpleNamespace(usage=SimpleNamespace(total_tokens=18))) == 18
+    assert agent_harness._tokens(
+        "anthropic", SimpleNamespace(usage=SimpleNamespace(input_tokens=10, output_tokens=8)),
+    ) == 18
+    assert agent_harness._tokens(
+        "google_genai", SimpleNamespace(usage_metadata=SimpleNamespace(total_token_count=18)),
+    ) == 18
+    assert agent_harness._tokens("openai", SimpleNamespace(usage=None)) is None
+
+
+def test_complete_keeps_openai_usage(monkeypatch):
+    from types import SimpleNamespace
+    import openai
+    msg = SimpleNamespace(content="done", tool_calls=[])
+    resp = SimpleNamespace(usage=SimpleNamespace(total_tokens=18), choices=[SimpleNamespace(message=msg)])
+    class Client:
+        def __init__(self, **kwargs):
+            self.chat = SimpleNamespace(completions=SimpleNamespace(create=lambda **k: resp))
+    monkeypatch.setattr(openai, "OpenAI", Client)
+    monkeypatch.setenv("K", "x")
+    out = agent_harness.complete(
+        [{"role": "user", "content": "q"}], [], model="openai:x", api_key_env="K",
+    )
+    assert out["text"] == "done"
+    assert out["tool_calls"] == []
+    assert out["tokens"] == 18
+
+
+def test_run_turn_records_provider_tokens_on_session(monkeypatch):
+    n = {"i": 0}
+
+    def fake_complete(messages, tools, **kwargs):
+        n["i"] += 1
+        if n["i"] == 1:
+            return {
+                "text": "", "tool_calls": [{"id": "1", "name": "no_such_tool", "args": {}}],
+                "tokens": 7,
+            }
+        return {"text": "done", "tool_calls": [], "tokens": 11}
+
+    monkeypatch.setattr(agent_harness, "complete", fake_complete)
+    session = new_session()
+    result = run_turn("q", session=session, model="openai:x")
+    assert result.status == "ok"
+    assert session["tool_rounds"] == 1
+    assert session["provider_tokens"] == 18
+    assert "tool_rounds" not in TurnResult.__dataclass_fields__
 
 
 def test_run_turn_passes_alias_window(monkeypatch):

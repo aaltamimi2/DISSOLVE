@@ -61,11 +61,12 @@ def _ok_turn(query, *, session, model, messages, on_event, api_base, api_key_env
     }
     session.setdefault("polymers_in_play", []).append("LDPE")
     session.setdefault("temperatures_in_play", []).append(140.0)
+    session["tool_rounds"] = 1
     ev = ToolEvent("screen_polymer_separation", {"feed": "LDPE"}, {"handle": "calm-blue-cat", "total": 40})
     if on_event:
         on_event(ev)
     return TurnResult(answer="screened forty solvents", status="ok", tool_trace=[ev],
-                      turn_record="turn-1", tool_rounds=1)
+                      turn_record="turn-1")
 
 
 def test_resolve_model_aliases_and_default():
@@ -89,7 +90,7 @@ def test_cli_source_cuts_langchain_ingest_and_registry_call():
     assert "candidate_evidence" not in src
     assert "true_alias" not in src
     assert "budget_profile" not in src
-    assert "v0.4" not in src
+    assert "result.tool_rounds" not in src
 
 
 def test_main_rejects_ingest_verbs():
@@ -213,6 +214,26 @@ def test_harness_and_cost_commands(tmp_path, monkeypatch):
     assert "1 tool call" in out
     assert "1 tool round" in out
     assert "status ok" in out
+    assert "token(s)" not in out
+    assert "did not return" not in out.lower()
+
+
+def test_cost_prints_provider_tokens_when_returned(tmp_path, monkeypatch):
+    def fake(query, **kwargs):
+        kwargs["session"]["tool_rounds"] = 1
+        kwargs["session"]["provider_tokens"] = 18
+        kwargs["messages"].append({"role": "user", "content": query})
+        kwargs["messages"].append({"role": "assistant", "content": "done"})
+        return TurnResult("done", "ok", [], "turn-1")
+
+    monkeypatch.setattr(cli, "run_turn", fake)
+    app, buf = _app(tmp_path, monkeypatch)
+    app.ask("q")
+    app.handle_command("/cost")
+    out = buf.getvalue()
+    assert "18 token" in out
+    assert "did not return" not in out.lower()
+    assert "Provider did not return a token count" not in out
 
 
 def test_compaction_error_uses_notice_panel(tmp_path, monkeypatch):
@@ -514,7 +535,8 @@ def test_cost_rounds_count_current_group_after_compaction(tmp_path, monkeypatch)
             "role": "tool", "tool_call_id": "now", "name": "no_such_tool", "content": "{}",
         })
         messages.append({"role": "assistant", "content": "done"})
-        return TurnResult("done", "ok", [ev], "turn-now", tool_rounds=1)
+        kwargs["session"]["tool_rounds"] = 1
+        return TurnResult("done", "ok", [ev], "turn-now")
 
     monkeypatch.setattr(cli, "run_turn", compacting_turn)
     app, buf = _app(tmp_path, monkeypatch)

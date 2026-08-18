@@ -1,7 +1,6 @@
 import json, os, sys
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable
 
 _ROOT = Path(__file__).resolve().parent
 _SRC = _ROOT / "src"
@@ -13,17 +12,9 @@ from dissolve.session import CompactionBudgetError, bind_tool_session, compact_m
 from agent_tools import SYSTEM_PROMPT, dispatch, tool_schemas
 
 @dataclass(frozen=True)
-class ToolEvent:
-    name: str
-    args: dict
-    result: dict
+class ToolEvent: name: str; args: dict; result: dict
 @dataclass(frozen=True)
-class TurnResult:
-    answer: str
-    status: str
-    tool_trace: list[ToolEvent]
-    turn_record: str
-    tool_rounds: int = 0
+class TurnResult: answer: str; status: str; tool_trace: list[ToolEvent]; turn_record: str
 
 def _oai_msgs(messages):
     out = []
@@ -62,6 +53,13 @@ def _ant_msgs(messages):
 
 class MissingProviderKey(Exception): pass
 
+def _tokens(kind, resp):
+    u = getattr(resp, "usage_metadata" if kind == "google_genai" else "usage", None)
+    if not u: return None
+    if kind == "anthropic": return (getattr(u, "input_tokens", 0) or 0) + (getattr(u, "output_tokens", 0) or 0)
+    n = getattr(u, "total_token_count" if kind == "google_genai" else "total_tokens", None)
+    return int(n) if n is not None else None
+
 def complete(messages, tools, *, model, api_base=None, api_key_env=None):
     kind, _, ident = model.partition(":")
     ident = ident or model
@@ -79,7 +77,7 @@ def complete(messages, tools, *, model, api_base=None, api_key_env=None):
         text = "".join(getattr(b, "text", "") for b in resp.content if getattr(b, "type", "") == "text")
         calls = [{"id": b.id, "name": b.name, "args": dict(b.input or {})}
                  for b in resp.content if getattr(b, "type", "") == "tool_use"]
-        return {"text": text, "tool_calls": calls}
+        return {"text": text, "tool_calls": calls, "tokens": _tokens(kind, resp)}
     if kind == "google_genai":
         from google import genai
         from google.genai import types
@@ -90,12 +88,13 @@ def complete(messages, tools, *, model, api_base=None, api_key_env=None):
             config=types.GenerateContentConfig(system_instruction=sys, tools=[types.Tool(function_declarations=decls)]))
         calls = [{"id": getattr(c, "id", "") or "", "name": c.name, "args": dict(c.args or {})}
                  for c in (getattr(resp, "function_calls", None) or [])]
-        return {"text": getattr(resp, "text", None) or "", "tool_calls": calls}
+        return {"text": getattr(resp, "text", None) or "", "tool_calls": calls, "tokens": _tokens(kind, resp)}
     if kind == "openai":
         from openai import OpenAI
         oai = [{"type": "function", "function": {"name": t["name"], "description": t.get("description") or "", "parameters": t["parameters"]}} for t in tools]
-        msg = OpenAI(api_key=key or None, base_url=api_base or None).chat.completions.create(
-            model=ident, messages=_oai_msgs(messages), tools=oai).choices[0].message
+        resp = OpenAI(api_key=key or None, base_url=api_base or None).chat.completions.create(
+            model=ident, messages=_oai_msgs(messages), tools=oai)
+        msg = resp.choices[0].message
         calls = []
         for c in msg.tool_calls or []:
             try:
@@ -103,7 +102,7 @@ def complete(messages, tools, *, model, api_base=None, api_key_env=None):
             except json.JSONDecodeError:
                 args = {}
             calls.append({"id": c.id, "name": c.function.name, "args": args})
-        return {"text": msg.content or "", "tool_calls": calls}
+        return {"text": msg.content or "", "tool_calls": calls, "tokens": _tokens(kind, resp)}
 
 def _gen_contents(messages):
     from google.genai import types
@@ -134,8 +133,7 @@ def _gen_contents(messages):
 
 def run_turn(
     query: str, *, session: dict, model: str, messages: list | None = None,
-    on_event: Callable[[ToolEvent], None] | None = None,
-    api_base: str | None = None, api_key_env: str | None = None,
+    on_event=None, api_base: str | None = None, api_key_env: str | None = None,
 ) -> TurnResult:
     schemas = tool_schemas()
     if messages is None:
@@ -145,39 +143,41 @@ def run_turn(
         if not msgs or msgs[0].get("role") != "system":
             msgs.insert(0, {"role": "system", "content": SYSTEM_PROMPT})
         msgs.append({"role": "user", "content": query})
-    trace: list[ToolEvent] = []; rounds = 0
+    trace: list[ToolEvent] = []; rounds = 0; tokens = 0; saw = False
     with bind_tool_session(session) as bound:
         tid = open_turn_record(bound)
-        for _ in range(30):
-            try:
-                reply = complete(msgs, schemas, model=model, api_base=api_base, api_key_env=api_key_env)
-            except MissingProviderKey as e:
-                return TurnResult(answer=str(e), status="provider_error", tool_trace=trace, turn_record=tid, tool_rounds=rounds)
-            except Exception as e:
-                return TurnResult(answer=f"provider error: {type(e).__name__}: {e}", status="provider_error", tool_trace=trace, turn_record=tid, tool_rounds=rounds)
-            calls, text = reply.get("tool_calls") or [], reply.get("text") or ""
-            if not calls:
-                msgs.append({"role": "assistant", "content": text}); return TurnResult(answer=text, status="ok", tool_trace=trace, turn_record=tid, tool_rounds=rounds)
-            rounds += 1; msgs.append({"role": "assistant", "content": text, "tool_calls": calls})
-            for call in calls:
-                args = call.get("args") or {}
-                if isinstance(args, str):
-                    try:
-                        args = json.loads(args)
-                    except json.JSONDecodeError:
-                        args = {}
-                result = dispatch(call["name"], **args)
-                event = ToolEvent(name=call["name"], args=args, result=result)
-                trace.append(event)
-                if on_event: on_event(event)
-                msgs.append({"role": "tool", "tool_call_id": call.get("id"),
-                             "name": call["name"], "content": json.dumps(result)})
-            try: compact_messages(msgs, bound, window=context_window(model))
-            except CompactionBudgetError as e:
-                return TurnResult(answer=str(e), status="compaction_error", tool_trace=trace, turn_record=tid, tool_rounds=rounds)
-        return TurnResult(
-            answer="round cap (30) reached; see the tool trace for what was retrieved. No guessed answer.",
-            status="round_cap", tool_trace=trace, turn_record=tid, tool_rounds=rounds)
+        try:
+            for _ in range(30):
+                try:
+                    reply = complete(msgs, schemas, model=model, api_base=api_base, api_key_env=api_key_env)
+                except MissingProviderKey as e:
+                    return TurnResult(str(e), "provider_error", trace, tid)
+                except Exception as e:
+                    return TurnResult(f"provider error: {type(e).__name__}: {e}", "provider_error", trace, tid)
+                if (n := reply.get("tokens")) is not None: tokens += int(n); saw = True
+                calls, text = reply.get("tool_calls") or [], reply.get("text") or ""
+                if not calls:
+                    msgs.append({"role": "assistant", "content": text}); return TurnResult(text, "ok", trace, tid)
+                rounds += 1; msgs.append({"role": "assistant", "content": text, "tool_calls": calls})
+                for call in calls:
+                    args = call.get("args") or {}
+                    if isinstance(args, str):
+                        try: args = json.loads(args)
+                        except json.JSONDecodeError: args = {}
+                    result = dispatch(call["name"], **args)
+                    event = ToolEvent(name=call["name"], args=args, result=result)
+                    trace.append(event)
+                    if on_event: on_event(event)
+                    msgs.append({"role": "tool", "tool_call_id": call.get("id"),
+                                 "name": call["name"], "content": json.dumps(result)})
+                try: compact_messages(msgs, bound, window=context_window(model))
+                except CompactionBudgetError as e:
+                    return TurnResult(str(e), "compaction_error", trace, tid)
+            return TurnResult("round cap (30) reached; see the tool trace for what was retrieved. No guessed answer.", "round_cap", trace, tid)
+        finally:
+            bound["tool_rounds"] = rounds
+            if saw: bound["provider_tokens"] = tokens
+            else: bound.pop("provider_tokens", None)
 def _main() -> None:
     import argparse
     from dissolve.session import new_session
