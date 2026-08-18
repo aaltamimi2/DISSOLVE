@@ -2,10 +2,19 @@
 
 from __future__ import annotations
 
+import hashlib
+import json
 from dataclasses import dataclass
 from types import MappingProxyType
 from typing import Any, Iterable, Mapping
 
+
+def route_evidence_signature(route: Any) -> str | None:
+    """Return the canonical identity used to bind route-derived evidence."""
+    if not isinstance(route, dict) or not route:
+        return None
+    canonical = json.dumps(route, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(canonical.encode()).hexdigest()[:16]
 
 
 @dataclass(frozen=True)

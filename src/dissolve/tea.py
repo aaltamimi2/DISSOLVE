@@ -29,6 +29,12 @@ from .tools import _InputError, _polymer_ambiguity_detail
 
 _ASSET = Path(str(files("dissolve").joinpath("data/tea_cache.json.gz")))
 _ASSET_SHA256 = "f95dff48c68d57543e472ece51b59f4d807326cee432f1a1138029efcee12173"
+_LCA_FACTORS_ASSET = Path(str(
+    files("dissolve").joinpath("data/tea_lca_characterization_factors.json")
+))
+_LCA_FACTORS_ASSET_SHA256 = (
+    "adba150af8192c57ccbd1eb3fe550206598ad7eda1f1e4abb49d07d636ea2adf"
+)
 _CONFIG_FIELDS = (
     "solvent", "target_plastic", "target_plastic_percent",
     "processing_capacity", "energy_case", "dissolution_temperature_c",
@@ -37,6 +43,14 @@ _CONFIG_FIELDS = (
 )
 _NUMERIC_FIELDS = set(_CONFIG_FIELDS) - {"solvent", "target_plastic", "energy_case"}
 _TEA_WORKER_PYTHON_ENV = "DISSOLVE_TEA_PYTHON"
+_LIVE_PROCESS_MODEL_RELATIVE_PATH = Path("plastics/strap/process_model.py")
+_LIVE_BIOREFINERIES_VERSION = "2.34.10"
+_LIVE_RUNTIME_DISTRIBUTIONS = ("biosteam", "thermosteam", "biorefineries")
+_LCA_CF_FIELDS = frozenset(
+    f"{contributor}_{metric}"
+    for contributor in ("natural_gas", "solvent", "water", "electricity")
+    for metric in ("gwp", "htc", "htnc", "etox")
+)
 _ENERGY_CASES = {
     "C1": "on-site boiler and turbogenerator (CHP)",
     "C2": "grid electricity with no on-site utilities",
@@ -55,6 +69,77 @@ _METRICS = {
     "aoc_usd_per_yr": ("tea", "aoc_usd_per_yr", "USD/yr"),
     "gwp_kg_co2e_per_kg": ("lca", "gwp_kg_co2e_per_kg", "kg CO2e/kg product"),
     "total_energy_mj_per_kg": ("operations", "total_energy_mj_per_kg", "MJ/kg product"),
+}
+_LCA_COMPARISON_METRIC_UNITS = {
+    "htc_ctuh_per_kg": "CTUh/kg product",
+    "htnc_ctuh_per_kg": "CTUh/kg product",
+    "etox_ctue_per_kg": "CTUe/kg product",
+}
+_CACHE_GWP_STATUS_CODE = "cache_gwp_natural_gas_combustion_double_count"
+_CACHE_GWP_GRID_STATUS_CODE = "cache_gwp_grid_method_unharmonized"
+_CACHE_PROPAGATED_GWP_STATUS_CODE = (
+    "cache_propagated_gwp_not_current_for_scientific_use"
+)
+_CACHE_TOXICITY_STATUS_CODE = "cache_grid_toxicity_method_unharmonized"
+_TOXICITY_METRIC_FIELDS = (
+    "htc_ctuh_per_kg", "htnc_ctuh_per_kg", "etox_ctue_per_kg",
+)
+_LCA_STATUS_DEFINITIONS = {
+    _CACHE_GWP_STATUS_CODE: {
+        "status": "superseded_by_known_defect",
+        "defect": "natural_gas_combustion_double_count",
+        "reason": (
+            "The cache generator applied a natural-gas factor that includes "
+            "combustion while the process inventory also counted stack CO2."
+        ),
+        "served_value_role": "published_cache_record_for_comparability_only",
+        "current_scientific_use": "not_admitted",
+        "corrected_value_source": (
+            "rerun the same complete scenario with engine_mode=live"
+        ),
+        "corrected_value_substituted_in_cache_payload": False,
+    },
+    _CACHE_GWP_GRID_STATUS_CODE: {
+        "status": "method_unharmonized",
+        "issue": "cache_and_live_grid_gwp_methods_differ",
+        "reason": (
+            "C2 has no natural-gas facilities, so its cache GWP does not carry "
+            "the combustion double count. Its cache and live electricity "
+            "characterization methods differ and the governing method choice "
+            "has not been harmonized."
+        ),
+        "served_value_role": "published_cache_record_for_comparability_only",
+        "current_scientific_use": "not_admitted",
+        "comparison_value_source": (
+            "rerun the same complete scenario with engine_mode=live"
+        ),
+        "method_choice_status": "pending",
+        "live_value_substituted_in_cache_payload": False,
+    },
+    _CACHE_PROPAGATED_GWP_STATUS_CODE: {
+        "status": "not_current_for_scientific_use",
+        "reason": (
+            "This comparison, ranking, or aggregate includes cache GWP inputs "
+            "that are not admitted for current scientific use. Inspect the "
+            "input metric statuses for the governing defect or method gap."
+        ),
+        "served_value_role": "cache_provenance_comparison_only",
+        "current_scientific_use": "not_admitted",
+        "corrected_value_source": (
+            "rerun every contributing complete scenario with engine_mode=live"
+        ),
+        "corrected_value_substituted_in_cache_payload": False,
+    },
+    _CACHE_TOXICITY_STATUS_CODE: {
+        "status": "method_unharmonized",
+        "issue": "cache_and_live_toxicity_characterization_methods_differ",
+        "reason": (
+            "The C2/C3 cache generator replaces electricity and steam "
+            "characterization rather than completing the live method."
+        ),
+        "served_value_role": "published_cache_record_for_comparability_only",
+        "comparison_to_live": "not_admitted_as_same_method",
+    },
 }
 _ADMITTED_RECORD_METRICS = {
     "msp": ("economics", "msp_usd_per_kg", "USD/kg product"),
@@ -102,6 +187,172 @@ TeaRecordForm = Literal.__getitem__(
 )
 
 
+def _cache_lca_metric_status(
+    config: dict[str, Any], lca: dict[str, Any],
+) -> dict[str, str]:
+    """Bind cache-method qualifications to every affected emitted metric.
+
+    The predicate follows the generation method, not a list of the six route
+    labels that exposed it. C1/C3 cache GWP carries the known natural-gas
+    boundary defect; C2 carries the separate unresolved grid-method status.
+    C2/C3 toxicity values carry their own method qualification. C1 toxicity
+    and all financial fields remain unqualified.
+    """
+    status = {}
+    energy_case = str(config.get("energy_case") or "").upper()
+    if lca.get("gwp_kg_co2e_per_kg") is not None:
+        status["gwp_kg_co2e_per_kg"] = (
+            _CACHE_GWP_GRID_STATUS_CODE
+            if energy_case == "C2" else _CACHE_GWP_STATUS_CODE
+        )
+    if energy_case in {"C2", "C3"}:
+        status.update({
+            field: _CACHE_TOXICITY_STATUS_CODE
+            for field in _TOXICITY_METRIC_FIELDS
+            if lca.get(field) is not None
+        })
+    return status
+
+
+def _lca_status_definitions(
+    metric_status: dict[str, str],
+) -> dict[str, dict[str, Any]]:
+    """Return governed definitions for the status references in one row."""
+    return {
+        code: copy.deepcopy(_LCA_STATUS_DEFINITIONS[code])
+        for code in dict.fromkeys(metric_status.values())
+    }
+
+
+def _collect_lca_status_definitions(
+    rows: Sequence[dict[str, Any]],
+) -> dict[str, dict[str, Any]]:
+    """Collect definitions from result or projected-row status references."""
+    codes = {
+        str(code)
+        for row in rows
+        if isinstance(row, dict)
+        for code in (row.get("lca_metric_status") or {}).values()
+    }
+    definitions = {
+        str(code): copy.deepcopy(definition)
+        for row in rows
+        if isinstance(row, dict)
+        for code, definition in (
+            row.get("lca_status_definitions") or {}
+        ).items()
+    }
+    for code in codes:
+        definitions.setdefault(
+            code, copy.deepcopy(_LCA_STATUS_DEFINITIONS[code]),
+        )
+    return definitions
+
+
+def _lca_method_status_by_energy_case(
+    rows: Sequence[dict[str, Any]],
+) -> dict[str, dict[str, str | list[str]]]:
+    """Bind exceptional metric methods to their stable energy-case identity."""
+    by_case: dict[str, dict[str, str | list[str]]] = {}
+
+    def add(case: str, field: str, code: str) -> None:
+        case_status = by_case.setdefault(str(case).upper(), {})
+        previous = case_status.get(field)
+        if previous is None:
+            case_status[field] = code
+        elif isinstance(previous, list):
+            if code not in previous:
+                previous.append(code)
+        elif previous != code:
+            case_status[field] = [previous, code]
+
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        for case, status in (
+            row.get("lca_method_status_by_energy_case") or {}
+        ).items():
+            if isinstance(status, dict):
+                for field, codes in status.items():
+                    if field not in {
+                        "gwp_kg_co2e_per_kg", *_TOXICITY_METRIC_FIELDS,
+                    }:
+                        continue
+                    for code in codes if isinstance(codes, list) else [codes]:
+                        add(str(case), str(field), str(code))
+        config = row.get("config") or {}
+        case = row.get("energy_case") or config.get("energy_case")
+        status = row.get("lca_metric_status") or {}
+        if case and status:
+            for field, code in status.items():
+                if field in {
+                    "gwp_kg_co2e_per_kg", *_TOXICITY_METRIC_FIELDS,
+                }:
+                    add(str(case), str(field), str(code))
+    return dict(sorted(by_case.items()))
+
+
+def _cache_lca_status_gaps(
+    rows: Sequence[dict[str, Any]],
+) -> list[str]:
+    """State exceptional cache-method qualifications in ordinary language."""
+    definitions = _collect_lca_status_definitions(rows)
+    gaps = []
+    if (
+        _CACHE_GWP_STATUS_CODE in definitions
+        or _CACHE_GWP_GRID_STATUS_CODE in definitions
+        or _CACHE_PROPAGATED_GWP_STATUS_CODE in definitions
+    ):
+        if (
+            _CACHE_GWP_STATUS_CODE in definitions
+        ):
+            gaps.append(
+                "Cached C1/C3 GWP is a published record superseded by a known "
+                "natural-gas combustion double count; use engine_mode=live for "
+                "corrected complete-scenario values."
+            )
+        if (
+            _CACHE_GWP_GRID_STATUS_CODE in definitions
+        ):
+            gaps.append(
+                "Cached C2 GWP is retained only as the published record. C2 has "
+                "no natural-gas combustion double count, but its cache and live "
+                "grid-characterization methods are not harmonized."
+            )
+    if _CACHE_TOXICITY_STATUS_CODE in definitions:
+        gaps.append(
+            "Cached C2/C3 HTC, HTNC, and ETOX use an unharmonized "
+            "electricity/steam characterization method and must not be "
+            "compared with live toxicity as though the methods were identical."
+        )
+    return gaps
+
+
+def _has_noncurrent_cache_gwp(rows: Sequence[dict[str, Any]]) -> bool:
+    """Whether any input GWP is not admitted for current scientific use."""
+    superseded_codes = {
+        _CACHE_GWP_STATUS_CODE,
+        _CACHE_GWP_GRID_STATUS_CODE,
+        _CACHE_PROPAGATED_GWP_STATUS_CODE,
+    }
+    return any(
+        code in superseded_codes
+        for row in rows if isinstance(row, dict)
+        for code in (row.get("lca_metric_status") or {}).values()
+    )
+
+
+def _propagated_gwp_metric_status(
+    rows: Sequence[dict[str, Any]], fields: Sequence[str],
+) -> dict[str, str]:
+    """Qualify each GWP-derived field when any contributing input is stale."""
+    if not _has_noncurrent_cache_gwp(rows):
+        return {}
+    return {
+        field: _CACHE_PROPAGATED_GWP_STATUS_CODE for field in fields
+    }
+
+
 def _finite(value: Any, field: str) -> float:
     try:
         number = float(value)
@@ -123,6 +374,346 @@ def cache_payload() -> dict[str, Any]:
     if digest != _ASSET_SHA256:
         raise RuntimeError(f"TEA cache checksum mismatch: {digest}")
     return json.loads(gzip.decompress(raw))
+
+
+def _lca_factor_attribution_summary(
+    payload: dict[str, Any],
+) -> dict[str, int]:
+    """Validate method/citation coverage for every governed factor entry."""
+
+    attribution = payload.get("method_citation_attribution")
+    if not isinstance(attribution, dict) or attribution.get("schema") != (
+        "dissolve.tea-lca-method-citation-attribution.v1"
+    ):
+        raise RuntimeError("TEA LCA method/citation attribution is absent")
+    unknown = attribution.get("unknown_token")
+    if unknown != "UNKNOWN":
+        raise RuntimeError("TEA LCA attribution UNKNOWN token is not governed")
+
+    required_fields = {
+        "attribution_status",
+        "lcia_method_or_package",
+        "version_or_year",
+        "geography",
+        "citation",
+        "source_evidence",
+        "generator_description",
+        "finding",
+    }
+    declared_fields = attribution.get("required_fields")
+    if not isinstance(declared_fields, list) or (
+        len(declared_fields) != len(required_fields)
+        or set(declared_fields) != required_fields
+    ):
+        raise RuntimeError("TEA LCA attribution fields are not governed")
+
+    shared = payload.get("shared")
+    shared_attribution = attribution.get("shared_entries")
+    if not isinstance(shared, dict) or not isinstance(
+        shared_attribution, dict
+    ) or set(shared_attribution) != set(shared):
+        raise RuntimeError(
+            "Every shared TEA LCA factor entry must have attribution"
+        )
+
+    solvents = payload.get("solvents")
+    tier_attribution = attribution.get("solvent_source_tiers")
+    if not isinstance(solvents, dict) or not isinstance(
+        tier_attribution, dict
+    ):
+        raise RuntimeError("TEA LCA solvent attribution is absent")
+    solvent_tiers: dict[str, str] = {}
+    for solvent, row in solvents.items():
+        if not isinstance(row, list) or len(row) < 2 or not isinstance(
+            row[1], str
+        ) or not row[1].strip():
+            raise RuntimeError(
+                f"TEA LCA solvent source tier is malformed: {solvent}"
+            )
+        solvent_tiers[str(solvent)] = row[1]
+    if set(tier_attribution) != set(solvent_tiers.values()):
+        raise RuntimeError(
+            "Every TEA LCA solvent source tier must have attribution"
+        )
+
+    known_source_hashes = {
+        value
+        for key, value in (payload.get("provenance") or {}).items()
+        if str(key).endswith("_sha256")
+        and isinstance(value, str)
+        and re.fullmatch(r"[0-9a-f]{64}", value)
+    }
+    entries = [
+        (f"shared.{name}", record)
+        for name, record in shared_attribution.items()
+    ] + [
+        (f"solvents.{name}", tier_attribution[tier])
+        for name, tier in solvent_tiers.items()
+    ]
+    status_counts = {
+        "documented": 0,
+        "generator_method_and_citation_unrecorded": 0,
+    }
+    scientific_fields = (
+        "lcia_method_or_package",
+        "version_or_year",
+        "geography",
+        "citation",
+    )
+    for label, record in entries:
+        if not isinstance(record, dict) or not required_fields.issubset(record):
+            raise RuntimeError(f"TEA LCA attribution is incomplete: {label}")
+        status = record.get("attribution_status")
+        if status not in status_counts:
+            raise RuntimeError(f"TEA LCA attribution status is invalid: {label}")
+        for field in (*scientific_fields, "generator_description", "finding"):
+            value = record.get(field)
+            if not isinstance(value, str) or not value.strip():
+                raise RuntimeError(
+                    f"TEA LCA attribution {field} is absent: {label}"
+                )
+        if status == "documented":
+            if any(record[field] == unknown for field in scientific_fields):
+                raise RuntimeError(
+                    f"Documented TEA LCA attribution contains UNKNOWN: {label}"
+                )
+        elif any(record[field] != unknown for field in scientific_fields):
+            raise RuntimeError(
+                "Unrecorded TEA LCA attribution must use explicit UNKNOWN: "
+                + label
+            )
+        evidence = record.get("source_evidence")
+        if not isinstance(evidence, list) or not evidence:
+            raise RuntimeError(f"TEA LCA source evidence is absent: {label}")
+        for index, source in enumerate(evidence):
+            source_label = f"{label}.source_evidence[{index}]"
+            if not isinstance(source, dict) or any(
+                not isinstance(source.get(field), str)
+                or not source[field].strip()
+                for field in ("source_file", "source_sha256", "source_location")
+            ):
+                raise RuntimeError(
+                    f"TEA LCA source evidence is malformed: {source_label}"
+                )
+            if source["source_sha256"] not in known_source_hashes:
+                raise RuntimeError(
+                    f"TEA LCA source hash is not governed: {source_label}"
+                )
+        status_counts[status] += 1
+    return {
+        "entry_count": len(entries),
+        "indicator_factor_count": len(entries) * len(
+            payload.get("metric_order") or []
+        ),
+        "documented_entry_count": status_counts["documented"],
+        "generator_method_and_citation_unrecorded_entry_count": (
+            status_counts["generator_method_and_citation_unrecorded"]
+        ),
+    }
+
+
+@lru_cache(maxsize=1)
+def lca_factor_payload() -> dict[str, Any]:
+    """Load the governed cache-generator factor table by content digest."""
+    raw = _LCA_FACTORS_ASSET.read_bytes()
+    digest = hashlib.sha256(raw).hexdigest()
+    if digest != _LCA_FACTORS_ASSET_SHA256:
+        raise RuntimeError(
+            f"TEA LCA characterization-factor checksum mismatch: {digest}"
+        )
+    payload = json.loads(raw)
+    if payload.get("schema") != (
+        "dissolve.tea-lca-characterization-factors.v1"
+    ):
+        raise RuntimeError("Unsupported TEA LCA characterization-factor schema")
+    _lca_factor_attribution_summary(payload)
+    return payload
+
+
+def _validated_lca_cfs(value: Any) -> dict[str, float]:
+    """Validate an explicit live-run override without silently filling it."""
+    if not isinstance(value, dict):
+        raise ValueError("lca_cfs must be an object of characterization factors")
+    unknown = sorted(set(value) - _LCA_CF_FIELDS)
+    if unknown:
+        raise ValueError("Unsupported lca_cfs fields: " + ", ".join(unknown))
+    return {key: _finite(raw, f"lca_cfs.{key}") for key, raw in value.items()}
+
+
+def _default_live_lca_cfs(config: dict[str, Any]) -> dict[str, float]:
+    """Rebuild the factor payload recorded by the admitted cache generator."""
+    payload = lca_factor_payload()
+    order = [str(item).casefold() for item in payload["metric_order"]]
+    if order != ["gwp", "htc", "htnc", "etox"]:
+        raise RuntimeError("Unexpected TEA LCA characterization-factor order")
+    shared = payload["shared"]
+    result: dict[str, float] = {}
+    for prefix, source in (
+        ("natural_gas", "natural_gas"),
+        ("water", "water"),
+    ):
+        values = shared[source]["values"]
+        result.update({
+            f"{prefix}_{metric}": float(value)
+            for metric, value in zip(order, values)
+        })
+
+    solvent_name = str(config.get("solvent") or "")
+    solvent_rows = payload.get("solvents") or {}
+    solvent_row = next(
+        (
+            row for name, row in solvent_rows.items()
+            if _key(name) == _key(solvent_name)
+        ),
+        None,
+    )
+    if solvent_row is None:
+        raise ValueError(
+            "No governed cache-generator LCA factors are admitted for "
+            f"{solvent_name or '(missing solvent)'}; supply an explicit "
+            "lca_cfs mapping for a live comparison."
+        )
+    base_values = solvent_row[2:]
+    result.update({
+        f"solvent_{metric}": float(base)
+        for metric, base in zip(order, base_values)
+    })
+
+    if str(config.get("energy_case") or "").upper() in {"C2", "C3"}:
+        values = shared["grid_electricity"]["values"]
+        result.update({
+            f"electricity_{metric}": float(value)
+            for metric, value in zip(order, values)
+        })
+    return result
+
+
+def _declared_lca_factor_bases() -> dict[str, str]:
+    """Translate governed source declarations into BioSTEAM call bases.
+
+    The strings in the factor asset are deliberately load-bearing. A changed
+    declaration must fail here rather than being fed through a call whose
+    default basis happens to look compatible.
+    """
+    payload = lca_factor_payload()
+    shared = payload["shared"]
+    declarations = {
+        "natural_gas": shared["natural_gas"]["basis"],
+        "water": shared["water"]["basis"],
+        "solvent_transport": shared["solvent_transport_offset"]["basis"],
+        "electricity": shared["grid_electricity"]["basis"],
+    }
+    expected = {
+        "natural_gas": "per kg natural-gas feed",
+        "water": "per kg purchased makeup-water feed",
+        "solvent_transport": "per kg solvent feed",
+        "electricity": "per MJ purchased electricity",
+    }
+    mismatches = {
+        key: {"expected": expected[key], "declared": declarations[key]}
+        for key in expected
+        if declarations[key] != expected[key]
+    }
+    solvent_fields = list(payload.get("solvent_entry_fields") or [])
+    expected_solvent_fields = [
+        "generator_identity", "source_tier",
+        "gwp_per_kg_solvent", "htc_per_kg_solvent",
+        "htnc_per_kg_solvent", "etox_per_kg_solvent",
+    ]
+    if solvent_fields != expected_solvent_fields:
+        mismatches["solvent"] = {
+            "expected": expected_solvent_fields,
+            "declared": solvent_fields,
+        }
+    if mismatches:
+        raise RuntimeError(
+            "TEA LCA factor basis is not admitted for application: "
+            + json.dumps(mismatches, sort_keys=True, separators=(",", ":"))
+        )
+    return {
+        "natural_gas": "kg",
+        "water": "kg",
+        "solvent": "kg",
+        "electricity": "MJ",
+    }
+
+
+def _governed_live_lca_application(
+    config: dict[str, Any],
+) -> tuple[dict[str, float], dict[str, str], dict[str, float], dict[str, Any]]:
+    """Select only method-compatible governed factors for a live run.
+
+    The cache-generator GWP table spans a different system boundary: its
+    natural-gas value includes combustion while this process already records
+    stack CO2 directly. All generator GWP substitutions therefore stay out of
+    the coherent model-native GWP calculation. C2/C3 toxicity factors are also
+    held because applying them would replace existing electricity/steam
+    methods, not fill omitted characterization. C1 toxicity has no direct
+    process inventory counterpart and can be restored without either conflict.
+    """
+    recorded = _default_live_lca_cfs(config)
+    bases = _declared_lca_factor_bases()
+    energy_case = str(config.get("energy_case") or "C1").upper()
+    metric_fields = {
+        "gwp_kg_co2e_per_kg": "GWP",
+        "htc_ctuh_per_kg": "HTC",
+        "htnc_ctuh_per_kg": "HTNC",
+        "etox_ctue_per_kg": "ETOX",
+    }
+    if energy_case == "C1":
+        applied = {
+            key: value for key, value in recorded.items()
+            if not key.endswith("_gwp")
+        }
+        metric_sources = {
+            "gwp_kg_co2e_per_kg": "live_process_model_native_boundary",
+            **{
+                field: "governed_cache_generator_table"
+                for field in metric_fields
+                if field != "gwp_kg_co2e_per_kg"
+            },
+        }
+        offsets = dict(zip(
+            ("gwp", "htc", "htnc", "etox"),
+            lca_factor_payload()["shared"]["solvent_transport_offset"][
+                "values"
+            ],
+        ))
+        offsets.pop("gwp")
+        notes = [
+            "Cache-generator GWP factors were not applied: their production-"
+            "plus-use natural-gas boundary overlaps the model's direct stack-"
+            "CO2 inventory; live GWP retains the coherent model-native boundary.",
+            "C1 HTC, HTNC, and ETOX factors were applied because those process "
+            "impact inventories are explicitly zero and have no direct-inventory "
+            "counterpart.",
+        ]
+        source = "mixed_live_model_and_governed_table"
+    else:
+        applied = {}
+        offsets = {}
+        metric_sources = {
+            field: "live_process_model_native_unharmonized"
+            for field in metric_fields
+        }
+        notes = [
+            "Cache-generator GWP factors were not applied because their system "
+            "boundary overlaps the model's direct stack-CO2 inventory.",
+            "Cache-generator C2/C3 toxicity factors were not applied because "
+            "they replace, rather than complete, the model's existing electricity "
+            "and steam characterization; no harmonized method has been admitted.",
+        ]
+        source = "live_process_model_native_unharmonized"
+    provenance = {
+        "source": source,
+        "factor_asset_sha256": _LCA_FACTORS_ASSET_SHA256,
+        "cache_generator_commit": lca_factor_payload()["provenance"][
+            "cache_generator_commit"
+        ],
+        "metric_factor_sources": metric_sources,
+        "factor_application_notes": notes,
+    }
+    return applied, bases, offsets, provenance
 
 
 def _records() -> list[dict[str, Any]]:
@@ -180,15 +771,128 @@ def _expand_polymers(values: Sequence[Any], field: str) -> list[str]:
     return resolved
 
 
-def _resolve_solvent(value: Any) -> str:
+class _ScenarioInputError(ValueError):
+    """A classified user-supplied scenario value cannot enter TEA."""
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        error_code: str,
+        **details: Any,
+    ) -> None:
+        super().__init__(message)
+        self.error_code = error_code
+        self.details = details
+
+
+def _known_assumption(identity: dict[str, Any]) -> Optional[dict[str, Any]]:
+    """Join an exact known identity to the admitted TEA row by stable CAS."""
+    cas_number = str(identity.get("cas_number") or "").strip()
+    if not cas_number:
+        return None
+    return next(
+        (
+            dict(row)
+            for row in (
+                (cache_payload().get("solvent_assumptions") or {}).get(
+                    "records"
+                ) or []
+            )
+            if str(row.get("cas_number") or "").strip() == cas_number
+        ),
+        None,
+    )
+
+
+def _resolve_tea_solvent(value: Any) -> dict[str, Any]:
+    """Resolve user, public, and BioSTEAM identities without conflating them."""
     supplied = str(value or "").strip()
     resolved = thermo.resolve_solvent(supplied)
     if resolved is None:
-        raise ValueError(f"Unsupported solvent: {supplied or '(missing)'}")
-    return thermo.canonical_solvent_name(resolved)
+        known_identity = thermo.identify_known_solvent(supplied)
+        fitted_status = thermo.get_fitted_solvent_status(supplied)
+        if fitted_status == "excluded_data_quality":
+            canonical = str(
+                (known_identity or {}).get("solvent_name") or supplied
+            )
+            raise _ScenarioInputError(
+                f"Solvent '{supplied or '(missing)'}' is recognized as "
+                f"{canonical} but is excluded from the fitted solvent model "
+                "pending data-quality review; choose another solvent.",
+                error_code="solvent_excluded_data_quality",
+                requested_solvent=supplied or None,
+                canonical_solvent=canonical,
+                solvent_support_status="known_but_excluded",
+            )
+        if known_identity is not None:
+            canonical = str(
+                known_identity.get("solvent_name") or supplied
+            )
+            admitted_row = _known_assumption(known_identity)
+            registered_identity = thermo.resolve_solvent(str(
+                known_identity.get("cosmobase_name")
+                or known_identity.get("solvent_name") or ""
+            ))
+            if admitted_row is not None and registered_identity is not None:
+                message = (
+                    f"Solvent token '{supplied or '(missing)'}' identifies "
+                    f"{canonical}, but that token is not a registered TEA "
+                    f"solvent name; use '{canonical}' or another registered alias."
+                )
+                status = "known_identity_unregistered_alias"
+                error_code = "unregistered_solvent_alias"
+            else:
+                message = (
+                    f"Solvent '{supplied or '(missing)'}' is a known chemical "
+                    f"identity ({canonical}) but is not admitted to the fitted "
+                    "TEA solvent model; choose an admitted solvent."
+                )
+                status = "known_but_not_modelled"
+                error_code = "solvent_not_admitted"
+            raise _ScenarioInputError(
+                message,
+                error_code=error_code,
+                requested_solvent=supplied or None,
+                canonical_solvent=canonical,
+                solvent_support_status=status,
+            )
+        raise _ScenarioInputError(
+            f"Unknown solvent name '{supplied or '(missing)'}'; correct the "
+            "spelling or use a registered solvent name.",
+            error_code="unknown_solvent",
+            requested_solvent=supplied or None,
+            solvent_support_status="unknown_name",
+        )
+
+    canonical = thermo.canonical_solvent_name(resolved)
+    identity = thermo.identify_known_solvent(resolved) or {}
+    assumption = _solvent_assumption(resolved)
+    engine_name = str(
+        (assumption or {}).get("name_biosteam")
+        or canonical
+    ).strip()
+    cas_number = str(
+        (assumption or {}).get("cas_number")
+        or identity.get("cas_number")
+        or ""
+    ).strip()
+    return {
+        "requested": supplied,
+        "resolved": resolved,
+        "canonical": canonical,
+        "engine": engine_name,
+        "cas_number": cas_number,
+        "assumption": assumption,
+    }
 
 
-class _MissingScenarioBasis(ValueError):
+def _resolve_solvent(value: Any) -> str:
+    """Return the canonical public identity for backward-compatible callers."""
+    return str(_resolve_tea_solvent(value)["canonical"])
+
+
+class _MissingScenarioBasis(_ScenarioInputError):
     """A valid route condition lacks an admitted process input."""
 
 
@@ -198,7 +902,8 @@ def _scenario_config(scenario: dict[str, Any]) -> dict[str, Any]:
     polymer = _resolve_polymer(
         scenario.get("target_polymer") or scenario.get("target_plastic")
     )
-    solvent = _resolve_solvent(scenario.get("solvent"))
+    solvent_identity = _resolve_tea_solvent(scenario.get("solvent"))
+    solvent = str(solvent_identity["canonical"])
     base_record = _record_for_pair(polymer, solvent)
     defaults = copy.deepcopy((base_record or {}).get("config") or {})
     aliases = {
@@ -232,12 +937,18 @@ def _scenario_config(scenario: dict[str, Any]) -> dict[str, Any]:
             "dissolution_temperature_c is required when no cached pair default exists"
         )
     if config.get("solvent_price") is None:
-        assumption = _solvent_assumption(solvent)
+        assumption = solvent_identity["assumption"]
         if assumption is not None:
             config["solvent_price"] = assumption["price_usd_per_kg"]
         else:
             raise _MissingScenarioBasis(
-                f"No admitted solvent-price basis is available for {solvent}."
+                f"Solvent '{solvent_identity['requested']}' is recognized as "
+                f"{solvent}, but no admitted solvent-price basis is available; "
+                "supply solvent_price or choose a priced solvent.",
+                error_code="solvent_price_unavailable",
+                requested_solvent=solvent_identity["requested"],
+                canonical_solvent=solvent,
+                solvent_support_status="known_but_unpriced",
             )
     for field in _NUMERIC_FIELDS:
         config[field] = _finite(config.get(field), field)
@@ -247,7 +958,17 @@ def _scenario_config(scenario: dict[str, Any]) -> dict[str, Any]:
         raise ValueError("processing and dissolution capacity must be positive")
     if config["solvent_price"] < 0 or config["solvent_loss_pct"] < 0:
         raise ValueError("solvent price and loss must be nonnegative")
-    return {key: config[key] for key in _CONFIG_FIELDS}
+    normalized = {key: config[key] for key in _CONFIG_FIELDS}
+    normalized.update({
+        "_requested_solvent": solvent_identity["requested"],
+        "_engine_solvent": solvent_identity["canonical"],
+        "_admitted_engine_solvent": solvent_identity["engine"],
+        "_engine_solvent_cas": solvent_identity["cas_number"],
+        "_allow_cas_safe_alias": False,
+    })
+    if "lca_cfs" in supplied:
+        normalized["lca_cfs"] = _validated_lca_cfs(supplied["lca_cfs"])
+    return normalized
 
 
 def _config_key(config: dict[str, Any]) -> str:
@@ -273,6 +994,17 @@ def _tea_worker_python() -> str:
     return os.path.expanduser(configured) if configured else sys.executable
 
 
+def _tea_worker_source_provenance() -> dict[str, str]:
+    """Bind child execution to the same worker source imported by the parent."""
+    worker_path = Path(str(tea_worker.__file__)).resolve()
+    return {
+        "worker_source_path": str(worker_path),
+        "expected_worker_source_sha256": hashlib.sha256(
+            worker_path.read_bytes()
+        ).hexdigest(),
+    }
+
+
 def _tea_worker_environment() -> dict[str, str]:
     """Expose this source tree and the optional process model to the worker."""
     environment = os.environ.copy()
@@ -284,7 +1016,95 @@ def _tea_worker_environment() -> dict[str, str]:
         if item
     )
     environment["PYTHONPATH"] = os.pathsep.join(dict.fromkeys(python_paths))
+    environment["PYTHONNOUSERSITE"] = "1"
     return environment
+
+
+def _expected_live_runtime_versions() -> dict[str, str]:
+    """Read cache simulator pins plus the compatible Biorefineries release."""
+    generator = cache_payload().get("generator") or {}
+    expected = {
+        "biosteam": str(generator.get("biosteam_version") or "").strip(),
+        "thermosteam": str(generator.get("thermosteam_version") or "").strip(),
+        "biorefineries": _LIVE_BIOREFINERIES_VERSION,
+    }
+    missing = [name for name, version in expected.items() if not version]
+    if missing:
+        raise RuntimeError(
+            "TEA cache lacks live runtime provenance for: " + ", ".join(missing)
+        )
+    return expected
+
+
+def _probe_live_runtime_versions(
+    worker_python: str,
+) -> tuple[Optional[dict[str, str]], Optional[str]]:
+    """Resolve distributions in the selected worker without importing BioSTEAM."""
+    probe = (
+        "import json, platform\n"
+        "from importlib.metadata import version\n"
+        "print(json.dumps({"
+        "'python': platform.python_version(),"
+        + ",".join(
+            f"'{name}': version('{name}')"
+            for name in _LIVE_RUNTIME_DISTRIBUTIONS
+        )
+        + "}))"
+    )
+    try:
+        completed = subprocess.run(
+            [worker_python, "-c", probe],
+            capture_output=True, text=True, timeout=15,
+            env=_tea_worker_environment(),
+            cwd=str(Path(__file__).resolve().parents[1]),
+            check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired) as error:
+        return None, f"Worker dependency probe could not run: {error}"
+    if completed.returncode:
+        detail = (completed.stderr or completed.stdout or "").strip()[-1_000:]
+        return None, "Worker dependency probe failed" + (
+            f": {detail}" if detail else "."
+        )
+    try:
+        resolved = json.loads(completed.stdout)
+    except (json.JSONDecodeError, TypeError):
+        return None, "Worker dependency probe returned invalid JSON."
+    if not isinstance(resolved, dict) or any(
+        not str(resolved.get(name) or "").strip()
+        for name in ("python", *_LIVE_RUNTIME_DISTRIBUTIONS)
+    ):
+        return None, "Worker dependency probe returned incomplete version data."
+    return {
+        name: str(resolved[name]).strip()
+        for name in ("python", *_LIVE_RUNTIME_DISTRIBUTIONS)
+    }, None
+
+
+def _live_process_model_provenance(path: str) -> tuple[dict[str, Any], Optional[str]]:
+    """Hash the configured physics source against the admitted cache pin."""
+    expected = str(
+        (cache_payload().get("generator") or {}).get("process_model_sha256") or ""
+    ).strip().casefold()
+    model_path = (
+        Path(path).expanduser().resolve() / _LIVE_PROCESS_MODEL_RELATIVE_PATH
+    )
+    provenance: dict[str, Any] = {
+        "process_model_path": str(model_path),
+        "expected_process_model_sha256": expected or None,
+    }
+    if not expected:
+        return provenance, "TEA cache lacks a process-model SHA-256 pin."
+    if not model_path.is_file():
+        return provenance, f"Configured process model does not exist: {model_path}"
+    actual = hashlib.sha256(model_path.read_bytes()).hexdigest()
+    provenance["process_model_sha256"] = actual
+    if actual != expected:
+        return provenance, (
+            "Configured process model does not match the admitted TEA cache: "
+            f"expected {expected}, resolved {actual} at {model_path}."
+        )
+    return provenance, None
 
 
 def live_engine_status() -> dict[str, Any]:
@@ -306,54 +1126,269 @@ def live_engine_status() -> dict[str, Any]:
                 "Python interpreter."
             ),
         }
-    if path and not Path(path).expanduser().exists():
+    if not path:
         return {
-            "available": False, "reason": "plastics_path_missing",
-            "detail": f"DISSOLVE_PLASTICS_PATH does not exist: {path}",
+            "available": False, "reason": "plastics_path_required",
+            "detail": (
+                "Set DISSOLVE_PLASTICS_PATH to the hash-verifiable unpublished "
+                "plastics model root."
+            ),
+        }
+    model_provenance, model_error = _live_process_model_provenance(path)
+    if model_error:
+        if model_provenance.get("expected_process_model_sha256") is None:
+            reason = "cache_provenance_missing"
+        elif model_provenance.get("process_model_sha256") is None:
+            reason = "process_model_missing"
+        else:
+            reason = "process_model_checksum_mismatch"
+        return {
+            "available": False,
+            "reason": reason,
+            "detail": model_error,
+            "live_provenance": {
+                "status": "mismatch",
+                **model_provenance,
+            },
         }
     try:
-        import importlib.util
-
-        spec = importlib.util.find_spec("plastics.strap")
-    except (ImportError, ModuleNotFoundError, ValueError):
-        spec = None
-    if not path and spec is None:
+        expected_versions = _expected_live_runtime_versions()
+    except RuntimeError as error:
         return {
-            "available": False, "reason": "process_model_missing",
-            "detail": "Install the compatible unpublished plastics 0.1.4 model or set DISSOLVE_PLASTICS_PATH.",
+            "available": False, "reason": "cache_provenance_missing",
+            "detail": str(error),
+            "live_provenance": {"status": "unverifiable", **model_provenance},
         }
-    return {"available": True, "reason": None, "detail": "subprocess engine ready"}
+    resolved_versions, probe_error = _probe_live_runtime_versions(worker_python)
+    if probe_error:
+        return {
+            "available": False, "reason": "worker_environment_probe_failed",
+            "detail": probe_error,
+            "live_provenance": {
+                "status": "unverifiable",
+                **model_provenance,
+                "expected_runtime_versions": expected_versions,
+            },
+        }
+    assert resolved_versions is not None
+    mismatches = {
+        name: {
+            "expected": expected_versions[name],
+            "resolved": resolved_versions[name],
+        }
+        for name in expected_versions
+        if resolved_versions[name] != expected_versions[name]
+    }
+    live_provenance = {
+        "status": "mismatch" if mismatches else "verified",
+        **model_provenance,
+        **_tea_worker_source_provenance(),
+        "expected_runtime_versions": expected_versions,
+        "resolved_runtime_versions": resolved_versions,
+    }
+    if mismatches:
+        return {
+            "available": False, "reason": "runtime_version_mismatch",
+            "detail": (
+                "Live BioSTEAM dependency versions do not match the admitted "
+                "TEA cache: " + "; ".join(
+                    f"{name} expected {values['expected']}, resolved "
+                    f"{values['resolved']}"
+                    for name, values in mismatches.items()
+                ) + "."
+            ),
+            "live_provenance": live_provenance,
+        }
+    return {
+        "available": True,
+        "reason": None,
+        "detail": "subprocess engine ready",
+        "live_provenance": live_provenance,
+    }
 
 
-def _live(config: dict[str, Any], timeout_seconds: int) -> dict[str, Any]:
-    status = live_engine_status()
-    if not status["available"]:
-        return {"success": False, "error": status["detail"], "error_type": status["reason"]}
-    environment = _tea_worker_environment()
+def _launch_live_worker(
+    worker_config: dict[str, Any],
+    *,
+    timeout_seconds: int,
+    environment: dict[str, str],
+    provenance: dict[str, Any],
+) -> dict[str, Any]:
+    """Run one fresh worker and verify its source handshake."""
     try:
         completed = subprocess.run(
-            [_tea_worker_python(), "-m", "dissolve.tea_worker", json.dumps(config)],
+            [
+                _tea_worker_python(), "-m", "dissolve.tea_worker",
+                json.dumps(worker_config),
+            ],
             capture_output=True, text=True, timeout=timeout_seconds,
-            env=environment, check=False,
+            env=environment,
+            cwd=str(Path(__file__).resolve().parents[1]),
+            check=False,
         )
     except subprocess.TimeoutExpired:
-        return {"success": False, "error": "BioSTEAM subprocess timed out", "error_type": "timeout"}
+        return {
+            "success": False,
+            "error": "BioSTEAM subprocess timed out",
+            "error_type": "timeout",
+        }
     except OSError as error:
         return {
             "success": False,
             "error": f"BioSTEAM worker interpreter could not start: {error}",
             "error_type": "worker_interpreter_unavailable",
         }
-    stdout, stderr = (completed.stdout or "")[:10_000_000], (completed.stderr or "")[-2_000:]
+    stdout = (completed.stdout or "")[:10_000_000]
+    stderr = (completed.stderr or "")[-2_000:]
     try:
         result = json.loads(stdout)
     except json.JSONDecodeError:
         return {
-            "success": False, "error": "BioSTEAM worker returned invalid JSON",
-            "error_type": "invalid_worker_output", "stderr": stderr,
+            "success": False,
+            "error": "BioSTEAM worker returned invalid JSON",
+            "error_type": "invalid_worker_output",
+            "stderr": stderr,
         }
+    if result.get("success") is True:
+        child_provenance = result.get("live_provenance") or {}
+        child_worker_path = str(
+            child_provenance.get("worker_source_path") or ""
+        )
+        child_worker_sha256 = str(
+            child_provenance.get("worker_source_sha256") or ""
+        ).casefold()
+        expected_worker_path = provenance["worker_source_path"]
+        expected_worker_sha256 = provenance["expected_worker_source_sha256"]
+        if (
+            child_provenance.get("status") != "verified"
+            or child_worker_path != expected_worker_path
+            or child_worker_sha256 != expected_worker_sha256
+        ):
+            return {
+                "success": False,
+                "error": (
+                    "Live worker response did not bind to the parent worker "
+                    "source: expected "
+                    f"{expected_worker_path} ({expected_worker_sha256}), "
+                    f"resolved {child_worker_path or '(missing)'} "
+                    f"({child_worker_sha256 or '(missing)'})."
+                ),
+                "error_type": "worker_source_mismatch",
+                "live_provenance": {
+                    **provenance,
+                    "status": "mismatch",
+                    "resolved_worker_source_path": child_worker_path or None,
+                    "resolved_worker_source_sha256": (
+                        child_worker_sha256 or None
+                    ),
+                },
+            }
     if completed.returncode and result.get("success") is not True:
         result.setdefault("stderr", stderr)
+    result.setdefault("live_provenance", provenance)
+    return result
+
+
+def _live(config: dict[str, Any], timeout_seconds: int) -> dict[str, Any]:
+    status = live_engine_status()
+    if not status["available"]:
+        return {
+            "success": False,
+            "error": status["detail"],
+            "error_type": status["reason"],
+            **(
+                {"live_provenance": status["live_provenance"]}
+                if status.get("live_provenance") else {}
+            ),
+        }
+    environment = _tea_worker_environment()
+    provenance = status["live_provenance"]
+    supplied_lca_cfs = "lca_cfs" in config
+    try:
+        if supplied_lca_cfs:
+            lca_cfs = _validated_lca_cfs(config["lca_cfs"])
+            factor_bases = {
+                "natural_gas": "kg", "water": "kg",
+                "solvent": "kg", "electricity": "MJ",
+            }
+            transport_offsets: dict[str, float] = {}
+            factor_provenance = {
+                "source": "config.lca_cfs",
+                "metric_factor_sources": {
+                    field: "config.lca_cfs"
+                    for field in (
+                        "gwp_kg_co2e_per_kg", "htc_ctuh_per_kg",
+                        "htnc_ctuh_per_kg", "etox_ctue_per_kg",
+                    )
+                },
+                "factor_application_notes": [
+                    "Explicit lca_cfs material factors use a per-kg basis and "
+                    "electricity factors use a per-MJ basis."
+                ],
+            }
+        else:
+            (
+                lca_cfs, factor_bases, transport_offsets,
+                factor_provenance,
+            ) = _governed_live_lca_application(config)
+    except (RuntimeError, ValueError) as error:
+        return {
+            "success": False,
+            "error": str(error),
+            "error_type": "lca_factor_basis_unavailable",
+            "live_provenance": provenance,
+        }
+    worker_config = {
+        **config,
+        "lca_cfs": lca_cfs,
+        "_lca_factor_bases": factor_bases,
+        "_lca_factor_provenance": factor_provenance,
+        "_lca_solvent_transport_offsets": transport_offsets,
+        "_live_provenance_expectations": {
+            "process_model_sha256": provenance[
+                "expected_process_model_sha256"
+            ],
+            "worker_source_path": provenance["worker_source_path"],
+            "worker_source_sha256": provenance[
+                "expected_worker_source_sha256"
+            ],
+            "runtime_versions": provenance["expected_runtime_versions"],
+        },
+    }
+    result = _launch_live_worker(
+        worker_config,
+        timeout_seconds=timeout_seconds,
+        environment=environment,
+        provenance=provenance,
+    )
+    gap_kind = str(
+        (result.get("solvent_model_gap") or {}).get("kind") or ""
+    )
+    admitted_engine = str(
+        config.get("_admitted_engine_solvent") or ""
+    ).strip()
+    if (
+        gap_kind in {"invalid_engine_alias", "engine_identity_not_recognized"}
+        and admitted_engine
+        and config.get("_solvent_identity_retry") is not True
+    ):
+        retry_config = {
+            **worker_config,
+            "_engine_solvent": admitted_engine,
+            "_allow_cas_safe_alias": True,
+            "_solvent_identity_retry": True,
+        }
+        result = _launch_live_worker(
+            retry_config,
+            timeout_seconds=timeout_seconds,
+            environment=environment,
+            provenance=provenance,
+        )
+        result["solvent_identity_retry"] = {
+            "trigger": gap_kind,
+            "initial_engine_solvent": config.get("_engine_solvent"),
+            "admitted_engine_solvent": admitted_engine,
+        }
     return result
 
 
@@ -361,8 +1396,9 @@ def _run(config: dict[str, Any], engine_mode: str, timeout_seconds: int) -> dict
     mode = str(engine_mode or "auto").strip().casefold()
     if mode not in {"auto", "cache", "live"}:
         return {"success": False, "error": "engine_mode must be auto, cache, or live", "error_type": "invalid_engine_mode"}
+    lca_override = "lca_cfs" in config
     record = _cache_index().get(_config_key(config))
-    if mode != "live" and record:
+    if mode != "live" and record and not lca_override:
         result = copy.deepcopy(record["result"])
         operations = result.get("operations") or {}
         for field in (
@@ -377,12 +1413,29 @@ def _run(config: dict[str, Any], engine_mode: str, timeout_seconds: int) -> dict
             "operating_hours_per_year": _LEGACY_OPERATING_HOURS,
             "basis": "BioSTEAM annual kWh-or-kJ divided by annual resin kg",
         }
+        metric_status = _cache_lca_metric_status(
+            config, result.get("lca") or {},
+        )
         result.update({
             "engine_mode": "cache", "cache_match_status": "exact",
             "cache_record_label": record["label"], "config": config,
+            "lca_metric_status": metric_status,
+            "lca_status_definitions": _lca_status_definitions(metric_status),
         })
         return result
     if mode == "cache":
+        if lca_override:
+            return {
+                "success": False,
+                "error": (
+                    "An lca_cfs override requires live execution; cached LCA "
+                    "values were generated with the governed factor table."
+                ),
+                "error_type": "cache_lca_override_unsupported",
+                "engine_mode": "cache",
+                "cache_match_status": "not_applicable",
+                "config": config,
+            }
         return {
             "success": False, "error": "No exact cached simulation matches this configuration.",
             "error_type": "cache_miss", "engine_mode": "cache",
@@ -544,6 +1597,13 @@ def _screening_estimate(
         for row in temperature_rows
     }
     assumptions = cache_payload().get("solvent_assumptions") or {}
+    metric_status = {
+        "gwp_kg_co2e_per_kg": (
+            _CACHE_GWP_GRID_STATUS_CODE
+            if str(config.get("energy_case") or "").upper() == "C2"
+            else _CACHE_GWP_STATUS_CODE
+        ),
+    }
     return {
         "success": True,
         "tea": {key: estimates[key] for key in (
@@ -553,6 +1613,8 @@ def _screening_estimate(
         "operations": {"total_energy_mj_per_kg": estimates["total_energy_mj_per_kg"]},
         "engine_mode": "screening_estimate", "cache_match_status": "surrogate",
         "config": config,
+        "lca_metric_status": metric_status,
+        "lca_status_definitions": _lca_status_definitions(metric_status),
         "energy_normalization": {
             "status": "corrected_legacy_annual_hour_basis",
             "operating_hours_per_year": _LEGACY_OPERATING_HOURS,
@@ -597,6 +1659,11 @@ def _comparison_row(label: str, result: dict[str, Any]) -> dict[str, Any]:
         "msp_usd_per_kg": tea.get("msp_usd_per_kg"),
         "tci_usd": tea.get("tci_usd"), "aoc_usd_per_yr": tea.get("aoc_usd_per_yr"),
         "gwp_kg_co2e_per_kg": lca.get("gwp_kg_co2e_per_kg"),
+        **{
+            field: lca[field]
+            for field in _LCA_COMPARISON_METRIC_UNITS
+            if lca.get(field) is not None
+        },
         "water_consumed_m3_per_yr": operations.get("water_consumed_m3_yr"),
         "water_circulated_m3_per_yr": operations.get("water_circulated_m3_yr"),
         "electricity_mj_per_kg": operations.get("electricity_consumed_mj_per_kg"),
@@ -613,30 +1680,94 @@ def _comparison_row(label: str, result: dict[str, Any]) -> dict[str, Any]:
         "cache_record_label": result.get("cache_record_label"),
         "estimate_basis": result.get("estimate_basis"),
         **(
+            {
+                "lca_metric_status": copy.deepcopy(
+                    result["lca_metric_status"],
+                )
+            }
+            if result.get("lca_metric_status") else {}
+        ),
+        **(
             {"lca_coverage": copy.deepcopy(result["lca_coverage"])}
             if result.get("lca_coverage") else {}
         ),
-        **({"error": result.get("error")} if not result.get("success") else {}),
+        **(
+            {"live_provenance": copy.deepcopy(result["live_provenance"])}
+            if result.get("live_provenance") else {}
+        ),
+        **(
+            {
+                key: copy.deepcopy(result[key])
+                for key in (
+                    "error", "error_type", "requested_solvent",
+                    "canonical_solvent", "engine_solvent",
+                    "solvent_support_status", "solvent_model_gap",
+                )
+                if result.get(key) is not None
+            }
+            if not result.get("success") else {}
+        ),
     }
+
+
+def _comparison_metric_units(
+    rows: Sequence[dict[str, Any]],
+) -> dict[str, str]:
+    """Return units only for metrics projected by at least one result row."""
+    units = {key: unit for key, (_, _, unit) in _METRICS.items()}
+    units.update({
+        field: unit
+        for field, unit in _LCA_COMPARISON_METRIC_UNITS.items()
+        if any(row.get(field) is not None for row in rows)
+    })
+    return units
 
 
 def _live_toxicity_data_gaps(
     results: Sequence[dict[str, Any]],
 ) -> list[str]:
-    """Disclose live toxicity omissions on the public tool payload."""
-    missing = [
+    """Disclose partial live characterization on the public tool payload."""
+    partial = [
         result for result in results
-        if (result.get("lca_coverage") or {}).get("toxicity_metrics_status")
-        != "available"
+        if (result.get("lca_coverage") or {}).get("lca_metrics_status")
+        == "partial"
         and result.get("engine_mode") == "live"
         and result.get("success") is True
     ]
-    if not missing:
+    if not partial:
         return []
+    contributor_names = sorted({
+        str(item.get("name"))
+        for result in partial
+        for item in (
+            (result.get("lca_coverage") or {}).get(
+                "uncharacterized_active_contributors"
+            ) or []
+        )
+        if item.get("name")
+    })
+    contributor_clause = (
+        " Uncharacterized active contributors: "
+        + ", ".join(contributor_names)
+        + "."
+        if contributor_names else ""
+    )
+    application_notes = list(dict.fromkeys(
+        str(note)
+        for result in partial
+        for note in (
+            (result.get("lca_coverage") or {}).get(
+                "factor_application_notes"
+            ) or []
+        )
+        if str(note).strip()
+    ))
     return [
-        "Live toxicity metrics were omitted because complete characterization "
-        "factors were not supplied for every contributing process input; no "
-        "zero or partial-impact toxicity value is reported."
+        "Live LCA values are reported separately from characterization "
+        "coverage; lca_coverage identifies each metric's factor source and "
+        "active contributors that remain uncharacterized."
+        + contributor_clause,
+        *application_notes,
     ]
 
 
@@ -739,6 +1870,9 @@ def _normalized_admitted_record(record: dict[str, Any]) -> dict[str, Any]:
         "energy_normalization": copy.deepcopy(
             result.get("energy_normalization") or {},
         ),
+        "lca_metric_status": copy.deepcopy(
+            result.get("lca_metric_status") or {},
+        ),
     }
 
 
@@ -774,6 +1908,10 @@ def _admitted_record_summary(record: dict[str, Any]) -> dict[str, Any]:
             "sensitivity_axis": record["sensitivity_axis"],
             "sensitivity_level": record.get("sensitivity_level"),
         })
+    if record.get("lca_metric_status"):
+        summary["lca_metric_status"] = copy.deepcopy(
+            record["lca_metric_status"],
+        )
     for _metric, (section, field, _unit) in (
         _ADMITTED_RECORD_METRICS.items()
     ):
@@ -1080,6 +2218,9 @@ def lookup_admitted_process_records(
         "record_id": row["record_id"],
         **copy.deepcopy(row["config"]),
     } for row in normalized_records]
+    status_definitions = _collect_lca_status_definitions(
+        normalized_records,
+    )
     return tool_success(
         tool,
         analysis_type=(
@@ -1118,10 +2259,15 @@ def lookup_admitted_process_records(
         energy_normalization_status="corrected_legacy_annual_hour_basis",
         energy_case_descriptions=dict(_ENERGY_CASES),
         exact_cache_basis_available=True,
+        lca_method_status_by_energy_case=_lca_method_status_by_energy_case(
+            normalized_records,
+        ),
+        lca_status_definitions=status_definitions,
         provenance=_provenance(["cache"]),
         process_data_gaps=[
             "These are admitted single-process records, not a newly integrated "
             "multistage route or experimental recovery/purity result.",
+            *_cache_lca_status_gaps(normalized_records),
         ],
         warnings=[
             "Energy intensities apply the recorded legacy annual-hour "
@@ -1158,6 +2304,14 @@ def evaluate_tea_lca_scenarios(
         return tool_error(
             tool, str(error), error_code=error.code, **error.detail,
         )
+
+    except _ScenarioInputError as error:
+        return tool_error(
+            tool,
+            str(error),
+            error_code=error.error_code,
+            **error.details,
+        )
     except (TypeError, ValueError) as error:
         return tool_error(tool, str(error), error_code="invalid_scenario")
     results = [_run(config, engine_mode, timeout) for config in configs]
@@ -1166,15 +2320,56 @@ def evaluate_tea_lca_scenarios(
     successes = [row for row in rows if row["success"]]
     failures = [row for row in rows if not row["success"]]
     if not successes:
+        failure_reasons = list(dict.fromkeys(
+            str(row.get("error") or "").strip()[:500]
+            for row in failures if str(row.get("error") or "").strip()
+        ))
+        failure_summary = "No scenario could be evaluated."
+        if failure_reasons:
+            shown = failure_reasons[:3]
+            failure_summary += " Failure reasons: " + " | ".join(shown)
+            if len(failure_reasons) > len(shown):
+                failure_summary += (
+                    f" | {len(failure_reasons) - len(shown)} additional "
+                    "distinct reason(s) omitted."
+                )
+        classified = {
+            str(row.get("error_type") or "") for row in failures
+        }
+        all_priced_unmodellable = classified == {
+            "priced_solvent_unmodellable"
+        }
+        primary = failures[0] if len(failures) == 1 else {}
         return tool_error(
-            tool, "No scenario could be evaluated.", error_code="no_simulation_result",
+            tool,
+            failure_summary,
+            error_code=(
+                "priced_solvent_unmodellable"
+                if all_priced_unmodellable else "no_simulation_result"
+            ),
             engine_mode=engine_mode, cache_match_status="miss",
             failures=failures, live_engine=live_engine_status(),
             provenance=_provenance([str(result.get("engine_mode")) for result in results]),
+            **{
+                key: copy.deepcopy(primary[key])
+                for key in (
+                    "requested_solvent", "canonical_solvent",
+                    "engine_solvent", "solvent_support_status",
+                    "solvent_model_gap",
+                )
+                if primary.get(key) is not None
+            },
         )
     by_msp = sorted(successes, key=lambda row: float(row["msp_usd_per_kg"]))
     by_gwp = sorted(successes, key=lambda row: float(row["gwp_kg_co2e_per_kg"]))
     modes = [str(row["engine_mode"]) for row in successes]
+    comparison_status = _propagated_gwp_metric_status(
+        successes, ("lowest_gwp_scenario",),
+    )
+    status_definitions = {
+        **_collect_lca_status_definitions(results),
+        **_lca_status_definitions(comparison_status),
+    }
     process_details = [
         detail for label, result in zip(labels, results)
         if (detail := _process_details(label, result)) is not None
@@ -1186,12 +2381,29 @@ def evaluate_tea_lca_scenarios(
         scenarios_requested=len(scenarios), completed=len(successes), failed=len(failures),
         comparison_rows=rows, lowest_msp_scenario=by_msp[0]["label"],
         lowest_gwp_scenario=by_gwp[0]["label"], energy_cases=_ENERGY_CASES,
-        metric_units={key: unit for key, (_, _, unit) in _METRICS.items()},
+        **(
+            {
+                "lca_metric_status": comparison_status,
+                "lca_method_status_by_energy_case": (
+                    _lca_method_status_by_energy_case(results)
+                ),
+                "lca_status_definitions": status_definitions,
+                "gwp_ranking_status": {
+                "status": "published_cache_comparison_only",
+                "current_scientific_ranking": False,
+                "lowest_cached_record_scenario": by_gwp[0]["label"],
+                "reason": _CACHE_PROPAGATED_GWP_STATUS_CODE,
+                },
+            }
+            if comparison_status else {}
+        ),
+        metric_units=_comparison_metric_units(rows),
         process_details=process_details,
         process_data_gaps=(
             ["Cached corpus does not contain unit-level equipment sizes or full stream mass balances."]
             if set(modes) == {"cache"} else []
-        ) + _live_toxicity_data_gaps(results),
+        ) + _live_toxicity_data_gaps(results)
+        + _cache_lca_status_gaps(results),
         provenance=_provenance(modes),
         warnings=[
             "Cached results are exact prior subprocess simulations, never interpolated process economics.",
@@ -2125,6 +3337,9 @@ def evaluate_stored_route_tea_lca(
                 "mass_weighted_recovered_gwp_kg_co2e_per_kg": variant.get(
                     "mass_weighted_recovered_gwp_kg_co2e_per_kg"
                 ),
+                "lca_metric_status": copy.deepcopy(
+                    variant.get("lca_metric_status") or {}
+                ),
                 "total_stage_tci_usd": variant.get("total_stage_tci_usd"),
                 "total_stage_aoc_usd_per_yr": variant.get(
                     "total_stage_aoc_usd_per_yr"
@@ -2150,6 +3365,9 @@ def evaluate_stored_route_tea_lca(
                 route_source="typed_session_state",
                 requested_metrics=metrics,
                 comparison_rows=rows,
+                lca_status_definitions=_collect_lca_status_definitions(
+                    [variant for _label, _route, variant in variant_results]
+                ),
                 missing_basis_codes=sorted({
                     code for row in failed
                     for code in row.get("missing_basis_codes") or [
@@ -2159,6 +3377,9 @@ def evaluate_stored_route_tea_lca(
                 warnings=[
                     "No cross-route MSP or GWP difference was calculated.",
                     "Thermodynamic selectivity and safety scores cannot substitute for a common TEA/LCA basis.",
+                    *_cache_lca_status_gaps(
+                        [variant for _label, _route, variant in variant_results]
+                    ),
                 ],
             )
         original, substituted = rows
@@ -2178,6 +3399,18 @@ def evaluate_stored_route_tea_lca(
             else "screening_estimate" if modes == {"screening_estimate"}
             else "mixed_exact_and_screening"
         )
+        comparison_status = _propagated_gwp_metric_status(
+            rows,
+            (
+                "gwp_difference_substituted_minus_original_kg_co2e_per_kg",
+            ) if gwp_delta is not None else (),
+        )
+        status_definitions = {
+            **_collect_lca_status_definitions(
+                [variant for _label, _route, variant in variant_results]
+            ),
+            **_lca_status_definitions(comparison_status),
+        }
         return tool_success(
             tool,
             analysis_type="route_substitution_tea_lca_comparison",
@@ -2206,6 +3439,21 @@ def evaluate_stored_route_tea_lca(
             comparison_evidence_class=evidence_class,
             msp_difference_substituted_minus_original_usd_per_kg=msp_delta,
             gwp_difference_substituted_minus_original_kg_co2e_per_kg=gwp_delta,
+            **(
+                {
+                "lca_metric_status": comparison_status,
+                "lca_method_status_by_energy_case": (
+                    _lca_method_status_by_energy_case(
+                        [
+                            variant
+                            for _label, _route, variant in variant_results
+                        ]
+                    )
+                ),
+                "lca_status_definitions": status_definitions,
+                }
+                if status_definitions else {}
+            ),
             provenance={
                 "original_route_signature": original.get("route_signature"),
                 "substituted_route_signature": substituted.get("route_signature"),
@@ -2213,6 +3461,9 @@ def evaluate_stored_route_tea_lca(
             warnings=[
                 "The original and substituted routes share feed, capacity, energy case, and metric definitions, but their evidence classes remain distinct.",
                 "A screening-estimate difference is not an experimentally validated cost or carbon premium.",
+                *_cache_lca_status_gaps(
+                    [variant for _label, _route, variant in variant_results]
+                ),
             ],
         )
     if feed_polymers and route:
@@ -2483,6 +3734,16 @@ def evaluate_stored_route_tea_lca(
             msp = float(result["mass_weighted_recovered_msp_usd_per_kg"])
             gwp = float(result["mass_weighted_recovered_gwp_kg_co2e_per_kg"])
             annual_gwp = float(result["modeled_dissolution_stage_gwp_t_co2e_per_yr"])
+            row_status = _propagated_gwp_metric_status(
+                [result],
+                (
+                    "gwp_kg_co2e_per_kg", "gwp_t_co2e_per_mt",
+                    "gwp_change_t_co2e_per_mt_from_baseline",
+                    "gwp_change_percent_from_baseline",
+                    "modeled_dissolution_stage_gwp_t_co2e_per_yr",
+                    "annual_gwp_factor_from_baseline",
+                ),
+            )
             scale_rows.append({
                 "label": f"{capacity:g}-mt-per-yr",
                 "processing_capacity_mt_per_yr": capacity,
@@ -2506,6 +3767,10 @@ def evaluate_stored_route_tea_lca(
                 "gwp_change_percent_from_baseline": 100.0 * (gwp / baseline_gwp - 1.0),
                 "modeled_dissolution_stage_gwp_t_co2e_per_yr": annual_gwp,
                 "annual_gwp_factor_from_baseline": annual_gwp / baseline_annual_gwp,
+                **(
+                    {"lca_metric_status": row_status}
+                    if row_status else {}
+                ),
             })
         selected = scale_results[-1]
         analog_solvents = sorted({
@@ -2531,6 +3796,14 @@ def evaluate_stored_route_tea_lca(
         process_gaps = list(dict.fromkeys(
             str(gap) for result in scale_results for gap in result.get("process_data_gaps") or []
         ))
+        scale_status = _propagated_gwp_metric_status(
+            scale_results,
+            ("scale_gwp_comparison",),
+        )
+        status_definitions = {
+            **_collect_lca_status_definitions(scale_results),
+            **_lca_status_definitions(scale_status),
+        }
         return tool_success(
             tool, analysis_type="multistage_route_scale_comparison",
             engine_mode=modes[0] if len(set(modes)) == 1 else "mixed",
@@ -2553,6 +3826,16 @@ def evaluate_stored_route_tea_lca(
             energy_case_description=selected.get("energy_case_description"),
             stage_results=selected.get("stage_results"),
             scale_comparison_rows=scale_rows,
+            **(
+                {
+                    "lca_metric_status": scale_status,
+                    "lca_method_status_by_energy_case": (
+                        _lca_method_status_by_energy_case(scale_results)
+                    ),
+                    "lca_status_definitions": status_definitions,
+                }
+                if status_definitions else {}
+            ),
             scale_comparison_basis=(
                 "same stored route, typed feed composition, energy case, dissolution setpoints, "
                 "and precipitation setpoint at every capacity"
@@ -2565,7 +3848,10 @@ def evaluate_stored_route_tea_lca(
                 "gwp_t_co2e_per_mt": "t CO2e/metric ton modeled dissolution-stage product",
             },
             provenance=selected.get("provenance"),
-            process_data_gaps=process_gaps,
+            process_data_gaps=list(dict.fromkeys([
+                *process_gaps,
+                *_cache_lca_status_gaps(scale_results),
+            ])),
             estimate_quality="screening_only" if estimate else "exact_simulation_evidence",
             estimate_limitations=(
                 {
@@ -2654,6 +3940,14 @@ def evaluate_stored_route_tea_lca(
                     "precipitation_temperature_c": precipitation,
                 },
             }
+        except _ScenarioInputError as error:
+            return tool_error(
+                tool,
+                str(error),
+                error_code=error.error_code,
+                stage=index,
+                **error.details,
+            )
         except ValueError as error:
             return tool_error(tool, str(error), error_code="invalid_route_stage", stage=index)
         else:
@@ -2685,7 +3979,7 @@ def evaluate_stored_route_tea_lca(
                     can_estimate_msp=False,
                     can_estimate_gwp=False,
                     route_source="typed_session_state",
-                    route_signature=route_evidence_signature(route),
+                    route_signature=tea_contracts.route_evidence_signature(route),
                     consumed_route=route,
                     feed_mass_fractions=composition,
                     processing_capacity_mt_per_yr=capacity,
@@ -2694,6 +3988,9 @@ def evaluate_stored_route_tea_lca(
                     requested_metrics=metrics,
                     failed_stage=row,
                     completed_stage_results=rows[:-1],
+                    lca_status_definitions=_collect_lca_status_definitions(
+                        results,
+                    ),
                     missing_basis_codes=[
                         "route_stage_process_evidence",
                         "exact_or_admitted_analog_process_basis",
@@ -2705,6 +4002,7 @@ def evaluate_stored_route_tea_lca(
                     process_data_gaps=[
                         "The thermodynamic route is complete, but a complete separation route is not itself a TEA/LCA process basis.",
                         f"The admitted cache has no process analog for {polymer}; records for other polymers are not substituted.",
+                        *_cache_lca_status_gaps(results),
                     ],
                     warnings=[
                         "No MSP, TCI, AOC, GWP, or energy value was calculated for the full route.",
@@ -2716,12 +4014,20 @@ def evaluate_stored_route_tea_lca(
                 error_code="route_stage_failed", failed_stage=row,
                 completed_stage_results=rows[:-1], route_source="typed_session_state",
                 consumed_route=route, live_engine=live_engine_status(),
+                lca_status_definitions=_collect_lca_status_definitions(results),
+                process_data_gaps=_cache_lca_status_gaps(results),
             )
         row["modeled_stage_product_mt_per_yr"] = round(capacity * target_fraction, 10)
         row["modeled_stage_gwp_t_co2e_per_yr"] = (
             row["modeled_stage_product_mt_per_yr"]
             * float(row["gwp_kg_co2e_per_kg"])
         )
+        if (row.get("lca_metric_status") or {}).get(
+            "gwp_kg_co2e_per_kg"
+        ):
+            row["lca_metric_status"][
+                "modeled_stage_gwp_t_co2e_per_yr"
+            ] = _CACHE_PROPAGATED_GWP_STATUS_CODE
         remaining.pop(polymer)
     dissolution_stage_fraction = sum(
         float(row["original_feed_mass_fraction"]) for row in rows
@@ -2756,7 +4062,25 @@ def evaluate_stored_route_tea_lca(
             float(row["modeled_stage_gwp_t_co2e_per_yr"]) / total_stage_gwp
             if total_stage_gwp > 0 else 0.0
         )
+        if (row.get("lca_metric_status") or {}).get(
+            "gwp_kg_co2e_per_kg"
+        ):
+            row["lca_metric_status"][
+                "modeled_stage_gwp_contribution_fraction"
+            ] = _CACHE_PROPAGATED_GWP_STATUS_CODE
     dominant_gwp = max(rows, key=lambda row: float(row["modeled_stage_gwp_t_co2e_per_yr"]))
+    aggregate_status = _propagated_gwp_metric_status(
+        rows,
+        (
+            "mass_weighted_recovered_gwp_kg_co2e_per_kg",
+            "modeled_dissolution_stage_gwp_t_co2e_per_yr",
+            "dominant_gwp_stage",
+        ),
+    )
+    status_definitions = {
+        **_collect_lca_status_definitions(results),
+        **_lca_status_definitions(aggregate_status),
+    }
     return tool_success(
         tool, analysis_type="multistage_route_tea_lca",
         engine_mode=modes[0] if len(set(modes)) == 1 else "mixed",
@@ -2769,7 +4093,7 @@ def evaluate_stored_route_tea_lca(
         route_source="typed_session_state",
         feed_composition_source=composition_source,
         requested_metrics=metrics,
-        route_signature=route_evidence_signature(route),
+        route_signature=tea_contracts.route_evidence_signature(route),
         consumed_route=route, feed_mass_fractions=composition,
         processing_capacity_mt_per_yr=capacity, energy_case=selected_energy_case,
         energy_case_description=_ENERGY_CASES.get(selected_energy_case),
@@ -2782,10 +4106,22 @@ def evaluate_stored_route_tea_lca(
         mass_weighted_recovered_msp_usd_per_kg=weighted("msp_usd_per_kg"),
         mass_weighted_recovered_gwp_kg_co2e_per_kg=weighted("gwp_kg_co2e_per_kg"),
         modeled_dissolution_stage_gwp_t_co2e_per_yr=total_stage_gwp,
+        **(
+            {
+                "lca_metric_status": aggregate_status,
+                "lca_method_status_by_energy_case": (
+                    _lca_method_status_by_energy_case(results)
+                ),
+                "lca_status_definitions": status_definitions,
+            }
+            if aggregate_status else {}
+        ),
         dominant_gwp_stage={
             key: dominant_gwp[key] for key in (
-                "stage", "polymer", "solvent", "modeled_stage_product_mt_per_yr",
-                "gwp_kg_co2e_per_kg", "modeled_stage_gwp_t_co2e_per_yr",
+                "stage", "polymer", "solvent",
+                "modeled_stage_product_mt_per_yr",
+                "gwp_kg_co2e_per_kg",
+                "modeled_stage_gwp_t_co2e_per_yr",
                 "modeled_stage_gwp_contribution_fraction",
             )
         },
@@ -2797,7 +4133,7 @@ def evaluate_stored_route_tea_lca(
             "cached process-model cradle-to-gate screen per modeled dissolution-stage product; "
             "not a full product life cycle"
         ),
-        metric_units={key: unit for key, (_, _, unit) in _METRICS.items()},
+        metric_units=_comparison_metric_units(rows),
         provenance=_provenance(modes),
         process_details=[
             detail for row, result in zip(rows, results)
@@ -2817,7 +4153,8 @@ def evaluate_stored_route_tea_lca(
             "No cached temperature sensitivity was available for: "
             + ", ".join(missing_temperature_adjustment) + "."
         ] if missing_temperature_adjustment else []) if uses_estimate else [])
-        + _live_toxicity_data_gaps(results),
+        + _live_toxicity_data_gaps(results)
+        + _cache_lca_status_gaps(results),
         estimate_quality="screening_only" if uses_estimate else "exact_simulation_evidence",
         estimate_limitations=(
             {
@@ -2888,10 +4225,22 @@ def analyze_tea_sensitivity(
         return tool_error(
             tool, str(error), error_code=error.code, **error.detail,
         )
+
+    except _ScenarioInputError as error:
+        return tool_error(
+            tool,
+            str(error),
+            error_code=error.error_code,
+            **error.details,
+        )
     except ValueError as error:
         return tool_error(tool, str(error), error_code="invalid_sensitivity_basis")
     if not requested_values:
-        comparison_key = {key: value for key, value in baseline.items() if key != field}
+        comparison_key = {
+            key: baseline[key]
+            for key in _CONFIG_FIELDS
+            if key != field
+        }
         requested_values = sorted({
             float(record["config"][field]) for record in _records()
             if all(
@@ -2912,11 +4261,18 @@ def analyze_tea_sensitivity(
     rows = []
     for value, result in zip(requested_values, results):
         measured = _metric(result, metric) if result.get("success") else None
+        source_status = (result.get("lca_metric_status") or {}).get(
+            "gwp_kg_co2e_per_kg"
+        ) if metric == "gwp_kg_co2e_per_kg" else None
         rows.append({
             "parameter": field, "value": value, "metric": metric,
             "metric_value": measured, "success": bool(result.get("success")),
             "engine_mode": result.get("engine_mode"),
             "cache_record_label": result.get("cache_record_label"),
+            **(
+                {"lca_metric_status": {"metric_value": source_status}}
+                if source_status else {}
+            ),
             **({"error": result.get("error")} if not result.get("success") else {}),
         })
     successes = [row for row in rows if row["success"] and row["metric_value"] is not None]
@@ -2925,6 +4281,21 @@ def analyze_tea_sensitivity(
     values_out = [float(row["metric_value"]) for row in successes]
     baseline_row = min(successes, key=lambda row: abs(float(row["value"]) - float(baseline[field])))
     modes = [str(row["engine_mode"]) for row in successes]
+    conclusion_status = (
+        {
+            field: _CACHE_PROPAGATED_GWP_STATUS_CODE
+            for field in (
+                "baseline_metric_value", "minimum_metric_value",
+                "maximum_metric_value", "metric_span",
+                "sample_median_metric_value",
+            )
+        }
+        if _has_noncurrent_cache_gwp(successes) else {}
+    )
+    status_definitions = {
+        **_collect_lca_status_definitions(results),
+        **_lca_status_definitions(conclusion_status),
+    }
     return tool_success(
         tool, analysis_type=f"tea_{mode}", engine_mode=modes[0] if len(set(modes)) == 1 else "mixed",
         polymer=baseline["target_plastic"], solvent=baseline["solvent"],
@@ -2937,7 +4308,24 @@ def analyze_tea_sensitivity(
         minimum_metric_value=min(values_out), maximum_metric_value=max(values_out),
         metric_span=max(values_out) - min(values_out),
         sample_median_metric_value=statistics.median(values_out),
-        sample_count=len(successes), provenance=_provenance(modes),
+        sample_count=len(successes),
+        **(
+            {
+                "lca_metric_status": conclusion_status,
+                "lca_method_status_by_energy_case": (
+                    _lca_method_status_by_energy_case(results)
+                ),
+                "lca_status_definitions": status_definitions,
+                "metric_analysis_status": {
+                    "status": "published_cache_comparison_only",
+                    "current_scientific_conclusion": False,
+                    "reason": _CACHE_PROPAGATED_GWP_STATUS_CODE,
+                },
+            }
+            if conclusion_status else {}
+        ),
+        process_data_gaps=_cache_lca_status_gaps(results),
+        provenance=_provenance(modes),
         warnings=[
             "This is a one-parameter scenario analysis; it does not establish causal sensitivity outside the evaluated values.",
             "An uncertainty-mode summary describes the finite scenario sample, not a fitted probability distribution or Monte Carlo confidence interval."
