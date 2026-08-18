@@ -35,7 +35,7 @@ from agent_harness import ToolEvent, TurnResult, run_turn
 from agent_tools import SYSTEM_PROMPT
 from dissolve import RELEASE
 from dissolve.contracts import normalize_json
-from dissolve.session import SessionRecord, new_session
+from dissolve.session import SessionRecord, handle_total, new_session
 
 _SESSION_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{2,63}$")
 _MODE_LINE = {
@@ -86,6 +86,21 @@ def resolve_model(alias: str) -> tuple[str, ModelSpec]:
     return key, MODELS[key]
 
 
+def _is_v12_session(payload: Any) -> bool:
+    if not isinstance(payload, dict):
+        return False
+    session, messages = payload.get("session"), payload.get("messages")
+    if not isinstance(session, dict) or not isinstance(messages, list):
+        return False
+    if "state" in payload or "context" in payload:
+        return False
+    version = payload.get("schema_version")
+    release = str(payload.get("release") or "")
+    if version == 2:
+        return True
+    return version == 1 and release.startswith("dissolve-v12")
+
+
 def _system_prompt(mode: str) -> str:
     return f"{SYSTEM_PROMPT}\n\nCLI interaction mode: {mode}. {_MODE_LINE[mode]}"
 
@@ -97,19 +112,46 @@ def _scrub_session(loaded: dict[str, Any] | None) -> SessionRecord:
     return rec
 
 
+def _following_tools(messages: list, asst_at: int) -> list:
+    out = []
+    for msg in messages[asst_at + 1:]:
+        if msg.get("role") != "tool":
+            break
+        out.append(msg)
+    return out
+
+
+def _calls_match(calls: list, tools: list) -> bool:
+    if len(calls) != len(tools):
+        return False
+    for call, tool in zip(calls, tools):
+        cid, tid = call.get("id") or "", tool.get("tool_call_id") or ""
+        if cid or tid:
+            if cid != tid:
+                return False
+        elif (call.get("name") or "") != (tool.get("name") or ""):
+            return False
+    return True
+
+
 def _drop_incomplete_tool_round(messages: list) -> list:
-    """A persisted unmatched tool_use is dropped, not completed with a fake result."""
-    last = None
-    for i, msg in enumerate(messages):
-        if msg.get("role") == "assistant" and msg.get("tool_calls"):
-            last = i
-    if last is None:
-        return messages
-    emitted = [c.get("id") for c in messages[last].get("tool_calls") or [] if c.get("id")]
-    received = [m.get("tool_call_id") for m in messages[last + 1:] if m.get("role") == "tool"]
-    if emitted and set(emitted) <= set(received):
-        return messages
-    return messages[:last]
+    """Drop an unmatched user/assistant/tool group. Keep complete empty-id rounds."""
+    msgs = list(messages)
+    while True:
+        incomplete = next(
+            (i for i, msg in enumerate(msgs)
+             if msg.get("role") == "assistant" and msg.get("tool_calls")
+             and not _calls_match(msg.get("tool_calls") or [], _following_tools(msgs, i))),
+            None,
+        )
+        if incomplete is None:
+            return msgs
+        start = next(
+            (j for j in range(incomplete - 1, -1, -1) if msgs[j].get("role") == "user"),
+            incomplete,
+        )
+        end = incomplete + 1 + len(_following_tools(msgs, incomplete))
+        msgs = msgs[:start] + msgs[end:]
 
 
 def doctor_report(
@@ -225,18 +267,18 @@ class _Store:
         if not self.state_path.exists():
             return None
         payload = json.loads(self.state_path.read_text(encoding="utf-8"))
-        if payload.get("schema_version") != 1:
-            raise ValueError("Unsupported DISSOLVE session schema")
+        if not _is_v12_session(payload):
+            raise ValueError("incompatible DISSOLVE session file; not overwritten")
         return payload
 
     def save(self, payload: dict[str, Any]) -> None:
         self.directory.mkdir(parents=True, exist_ok=True)
         body = normalize_json({
-            "schema_version": 1,
+            **payload,
+            "schema_version": 2,
             "session_id": self.session_id,
             "release": RELEASE,
             "updated_at": datetime.now(timezone.utc).isoformat(),
-            **payload,
         })
         temporary = self.state_path.with_suffix(".json.tmp")
         temporary.write_text(json.dumps(body, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
@@ -289,6 +331,9 @@ class CliApp:
         ]
         self._apply_mode_prompt()
         self.last_result: TurnResult | None = None
+        self.last_status = meta.get("last_status")
+        self.last_tool_rounds = meta.get("last_tool_rounds")
+        self.last_tool_calls = meta.get("last_tool_calls")
         self._save()
 
     def _apply_mode_prompt(self) -> None:
@@ -310,6 +355,14 @@ class CliApp:
         if self.last_result is not None:
             meta["last_status"] = self.last_result.status
             meta["last_tool_calls"] = len(self.last_result.tool_trace)
+            if self.last_tool_rounds is not None:
+                meta["last_tool_rounds"] = self.last_tool_rounds
+        elif self.last_status is not None:
+            meta["last_status"] = self.last_status
+            if self.last_tool_calls is not None:
+                meta["last_tool_calls"] = self.last_tool_calls
+            if self.last_tool_rounds is not None:
+                meta["last_tool_rounds"] = self.last_tool_rounds
         if self.persist:
             self.store.save({"messages": self.messages, "session": record, "metadata": meta})
 
@@ -352,12 +405,10 @@ class CliApp:
         for name, stored in handles.items():
             if not isinstance(stored, dict):
                 continue
-            exact, total = stored.get("exact"), None
-            if isinstance(exact, dict):
-                for value in exact.values():
-                    if isinstance(value, list) and value and all(isinstance(i, dict) for i in value):
-                        total = len(value)
-                        break
+            try:
+                total = handle_total(stored)
+            except (TypeError, ValueError, KeyError):
+                total = None
             live.append({"handle": name, "tool": stored.get("tool"), "total": total,
                          "source_basis": stored.get("source_basis")})
         payload = {
@@ -368,13 +419,19 @@ class CliApp:
         self.console.print_json(data=payload)
 
     def _show_cost(self) -> None:
-        if self.last_result is None:
+        status = self.last_result.status if self.last_result is not None else self.last_status
+        rounds = self.last_tool_rounds
+        calls = (
+            len(self.last_result.tool_trace) if self.last_result is not None
+            else self.last_tool_calls
+        )
+        if status is None and rounds is None and calls is None:
             self.console.print("[dim]No model usage in this process yet.[/]")
             return
-        n_tools = len(self.last_result.tool_trace)
         self.console.print(
-            f"Last turn: [bold]{n_tools} tool call(s)[/] · "
-            f"status {self.last_result.status}. [dim]Provider did not return a token count.[/]"
+            f"Last turn: [bold]{rounds if rounds is not None else 0} tool round(s)[/] · "
+            f"{calls if calls is not None else 0} tool call(s) · status {status}. "
+            f"[dim]Provider did not return a token count.[/]"
         )
 
     def _print_tool_event(self, event: ToolEvent) -> None:
@@ -416,6 +473,7 @@ class CliApp:
             self.session = new_session()
             self.messages = [{"role": "system", "content": _system_prompt(self.mode)}]
             self.last_result = None
+            self.last_status = self.last_tool_rounds = self.last_tool_calls = None
             self._save()
             self.console.print("Messages and handles cleared.")
         elif command == "/context":
@@ -435,6 +493,7 @@ class CliApp:
     def ask(self, query: str) -> TurnResult:
         self._append("user", query, mode=self.mode, model=self.model_alias)
         started = time.monotonic()
+        before = sum(1 for m in self.messages if m.get("role") == "assistant" and m.get("tool_calls"))
         with nullcontext() if self.quiet else self.console.status("[cyan]Reasoning with scientific tools…[/]"):
             result = run_turn(
                 query,
@@ -446,6 +505,11 @@ class CliApp:
                 api_key_env=self.model_spec.env_var,
             )
         self.last_result = result
+        self.last_status = result.status
+        self.last_tool_calls = len(result.tool_trace)
+        self.last_tool_rounds = sum(
+            1 for m in self.messages if m.get("role") == "assistant" and m.get("tool_calls")
+        ) - before
         self._append("assistant", result.answer, status=result.status)
         self._save()
         self._emit({

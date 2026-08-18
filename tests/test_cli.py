@@ -4,6 +4,7 @@ from __future__ import annotations
 import inspect
 import io
 import json
+import re
 import sys
 from pathlib import Path
 
@@ -76,7 +77,6 @@ def test_cli_source_cuts_langchain_ingest_and_registry_call():
     assert "AgentHarness" not in src
     assert "SessionState" not in src
     assert "candidate_evidence" not in src
-    assert "handle_total" not in src
     assert "true_alias" not in src
     assert "budget_profile" not in src
     assert "v0.4" not in src
@@ -111,7 +111,7 @@ def test_persist_roundtrip_messages_and_handle(tmp_path, monkeypatch):
     app.ask("screen LDPE")
     path = tmp_path / "sessions" / "test-session" / "session.json"
     payload = json.loads(path.read_text(encoding="utf-8"))
-    assert payload["schema_version"] == 1
+    assert payload["schema_version"] == 2
     assert payload["release"] == "dissolve-v12-0.1"
     assert payload["metadata"]["mode"] == "review"
     assert payload["metadata"]["model"] == "muse-spark"
@@ -173,6 +173,7 @@ def test_harness_and_cost_commands(tmp_path, monkeypatch):
     app.handle_command("/cost")
     out = buf.getvalue()
     assert "1 tool call" in out
+    assert "tool round" in out
     assert "status ok" in out
 
 
@@ -272,7 +273,7 @@ def test_load_strips_stale_turn_and_incomplete_tool_round(tmp_path, monkeypatch)
     (root / "session.json").write_text(json.dumps(payload), encoding="utf-8")
     app, _ = _app(tmp_path, monkeypatch)
     assert "_turn" not in app.session
-    assert [m.get("role") for m in app.messages] == ["system", "user"]
+    assert [m.get("role") for m in app.messages] == ["system"]
     assert app.session["turn_records"]["turn-1"] == [{"tool": "old"}]
 
 
@@ -307,3 +308,137 @@ def test_resume_missing_handle_is_named_refusal_not_crash(tmp_path, monkeypatch)
     assert result.tool_trace[0].result.get("refusal") == "unknown_handle"
     assert result.turn_record != "turn-1"
     assert app2.session["turn_records"]["turn-1"] == [{"tool": "old"}]
+
+
+def test_incomplete_round_drops_the_user_group(tmp_path, monkeypatch):
+    monkeypatch.setenv("META_MUSE_API_KEY", "test-key")
+    seen = []
+
+    def fake_complete(messages, tools, **kwargs):
+        seen.append([m.get("content") for m in messages if m.get("role") == "user"])
+        return {"text": "new", "tool_calls": []}
+
+    root = tmp_path / "sessions" / "test-session"
+    root.mkdir(parents=True)
+    payload = {
+        "schema_version": 1,
+        "session_id": "test-session",
+        "release": "dissolve-v12-0.1",
+        "messages": [
+            {"role": "system", "content": "sys"},
+            {"role": "user", "content": "OLD MUTATING REQUEST"},
+            {"role": "assistant", "content": "", "tool_calls": [
+                {"id": "call-1", "name": "no_such_tool", "args": {}},
+                {"id": "call-2", "name": "no_such_tool", "args": {}},
+            ]},
+            {"role": "tool", "tool_call_id": "call-1", "name": "no_such_tool", "content": "{}"},
+        ],
+        "session": {"handles": {}, "reported": [], "turn_records": {},
+                    "polymers_in_play": [], "temperatures_in_play": []},
+        "metadata": {"model": "muse-spark", "mode": "review"},
+    }
+    (root / "session.json").write_text(json.dumps(payload), encoding="utf-8")
+    monkeypatch.setattr(agent_harness, "complete", fake_complete)
+    app, _ = _app(tmp_path, monkeypatch)
+    assert not any(m.get("content") == "OLD MUTATING REQUEST" for m in app.messages)
+    app.ask("NEW REQUEST")
+    assert seen
+    assert "OLD MUTATING REQUEST" not in seen[0]
+    assert any("NEW REQUEST" in str(c) for c in seen[0])
+
+
+def test_resume_keeps_complete_empty_id_google_round(tmp_path, monkeypatch):
+    monkeypatch.setenv("META_MUSE_API_KEY", "test-key")
+    root = tmp_path / "sessions" / "test-session"
+    root.mkdir(parents=True)
+    payload = {
+        "schema_version": 1,
+        "session_id": "test-session",
+        "release": "dissolve-v12-0.1",
+        "messages": [
+            {"role": "system", "content": "sys"},
+            {"role": "user", "content": "q"},
+            {"role": "assistant", "content": "", "tool_calls": [
+                {"id": "", "name": "no_such_tool", "args": {}},
+            ]},
+            {"role": "tool", "tool_call_id": "", "name": "no_such_tool", "content": "{}"},
+            {"role": "assistant", "content": "done"},
+        ],
+        "session": {"handles": {}, "reported": [], "turn_records": {},
+                    "polymers_in_play": [], "temperatures_in_play": []},
+        "metadata": {"model": "muse-spark", "mode": "review"},
+    }
+    (root / "session.json").write_text(json.dumps(payload), encoding="utf-8")
+    app, _ = _app(tmp_path, monkeypatch)
+    assert [m.get("role") for m in app.messages] == [
+        "system", "user", "assistant", "tool", "assistant",
+    ]
+    assert app.messages[-1]["content"] == "done"
+
+
+def test_v11_session_file_is_refused_and_left_byte_identical(tmp_path, monkeypatch):
+    monkeypatch.setenv("META_MUSE_API_KEY", "test-key")
+    root = tmp_path / "sessions" / "legacy-sess"
+    root.mkdir(parents=True)
+    path = root / "session.json"
+    v11 = {
+        "schema_version": 1,
+        "session_id": "legacy-sess",
+        "state": {"handles": {"old": True}},
+        "context": {"turns": ["keep-me"]},
+        "metadata": {"model": "muse-spark"},
+    }
+    path.write_text(json.dumps(v11), encoding="utf-8")
+    before = path.read_bytes()
+    console, _ = _console()
+    with pytest.raises(ValueError, match="incompatible"):
+        CliApp(session_id="legacy-sess", store_root=tmp_path, persist=True, console=console)
+    assert path.read_bytes() == before
+
+
+def test_context_uses_canonical_handle_total(tmp_path, monkeypatch):
+    app, buf = _app(tmp_path, monkeypatch)
+    app.session["handles"]["route-sub"] = {
+        "tool": "screen_route_solvent_substitutions",
+        "source_basis": "safety_local",
+        "exact": {
+            "route_stage_assessments": [{"stage": 1}],
+            "candidate_substitutions": [{"solvent": f"s{i}"} for i in range(11)],
+            "comparison_rows": [{"solvent": "a"}, {"solvent": "b"}],
+            "candidate_conditions": [{"c": i} for i in range(12)],
+        },
+    }
+    app.handle_command("/context")
+    shown = buf.getvalue()
+    assert "route-sub" in shown
+    assert re.search(r'"total":\s*11\b', shown)
+    assert not re.search(r'"total":\s*1\b', shown)
+
+
+def test_cost_survives_resume(tmp_path, monkeypatch):
+    monkeypatch.setattr(cli, "run_turn", _ok_turn)
+    app, _ = _app(tmp_path, monkeypatch)
+    app.ask("q")
+    app2, buf = _app(tmp_path, monkeypatch)
+    app2.handle_command("/cost")
+    out = buf.getvalue()
+    assert "No model usage in this process yet" not in out
+    assert "status ok" in out
+    assert "tool round" in out
+
+
+def test_oneshot_resolves_through_cli_table(monkeypatch):
+    seen = {}
+
+    def fake_run_turn(query, **kwargs):
+        seen.update(kwargs)
+        seen["query"] = query
+        return TurnResult("ok", "ok", [], "turn-1")
+
+    monkeypatch.setattr(sys, "argv", ["agent_harness.py", "hello"])
+    monkeypatch.setattr(agent_harness, "run_turn", fake_run_turn)
+    agent_harness._main()
+    assert seen["query"] == "hello"
+    assert seen["model"] == "openai:muse-spark-1.2"
+    assert seen["api_base"] == "https://api.meta.ai/v1"
+    assert seen["api_key_env"] == "META_MUSE_API_KEY"

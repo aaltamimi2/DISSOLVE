@@ -1090,13 +1090,16 @@ def test_compaction_error_matches_every_emitted_tool_id(monkeypatch):
     assert calls == frs == 2
 
 
-def test_session_record_getattr_sees_stored_keys():
+def test_session_record_missing_reads_none_writes_raise():
     rec = sess.SessionRecord()
     rec["last_tea"] = {"analysis_type": "route"}
-    assert rec.last_tea is rec["last_tea"]
-    assert rec.last_route is None
-    rec.last_route = {"steps": [{"solvent": "dodecane"}]}
-    assert rec["last_route"]["steps"][0]["solvent"] == "dodecane"
-    assert getattr(rec, "last_candidates", None) is None
-    with pytest.raises(AttributeError):
-        rec._private = 1
+    assert rec.last_tea is None
+    assert rec["last_tea"]["analysis_type"] == "route"
+    with pytest.raises(AttributeError, match="set keys, not attributes"):
+        rec.last_route = {"steps": [{"solvent": "dodecane"}]}
+    assert "last_route" not in rec
+    session = sess.new_session()
+    with sess.bind_tool_session(session) as bound:
+        with pytest.raises(AttributeError, match="set keys, not attributes"):
+            bound.last_candidates = [{"solvent": "copied-projection"}]
+    assert "last_candidates" not in session

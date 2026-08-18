@@ -85,27 +85,19 @@ _PRIMARY_KEYS = (
 
 
 class SessionRecord(dict):
-    """A dict. Engines may use attributes; keys are still the store.
+    """A dict that does not AttributeError on `state.last_contaminant`.
 
-    Reads: a stored key is visible as an attribute (`state.last_tea` is
-    `state['last_tea']`). A missing name is None, not AttributeError.
-    Writes: attribute assignment stores a key. This is not SessionState.
+    Missing names return None. This is not SessionState: it writes nothing.
+    Keys are the store. Do not set attributes.
     """
 
     def __getattr__(self, name: str) -> Any:
-        if name.startswith("_"):
-            raise AttributeError(name)
-        try:
-            return self[name]
-        except KeyError:
-            return None
+        return None
 
     def __setattr__(self, name: str, value: Any) -> None:
-        if name.startswith("_"):
-            raise AttributeError(
-                f"session record is a dict; set keys, not attributes ({name!r})"
-            )
-        self[name] = value
+        raise AttributeError(
+            f"session record is a dict; set keys, not attributes ({name!r})"
+        )
 
 
 def new_session() -> SessionRecord:

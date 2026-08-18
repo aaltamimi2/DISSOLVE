@@ -181,18 +181,18 @@ def run_turn(
 def _main() -> None:
     import argparse
     from dissolve.session import new_session
+    from dissolve.cli import DEFAULT_MODEL, main, resolve_model
     if len(sys.argv) < 2 or sys.argv[1].startswith("-"):
-        from dissolve.cli import main; raise SystemExit(main())
+        raise SystemExit(main())
     p = argparse.ArgumentParser()
     p.add_argument("query")
-    p.add_argument("--model", default="openai:muse-spark-1.2")
-    p.add_argument("--api-base", default="https://api.meta.ai/v1")
-    p.add_argument("--api-key-env", default="META_MUSE_API_KEY")
+    p.add_argument("--model", default=DEFAULT_MODEL)
     ns = p.parse_args()
+    _, spec = resolve_model(ns.model)
     def _print(ev: ToolEvent) -> None:
         print(f"tool {ev.name} {ev.args}"); print(ev.result)
-    result = run_turn(ns.query, session=new_session(), model=ns.model,
-                      on_event=_print, api_base=ns.api_base, api_key_env=ns.api_key_env)
+    result = run_turn(ns.query, session=new_session(), model=spec.model,
+                      on_event=_print, api_base=spec.base_url, api_key_env=spec.env_var)
     print(result.answer); print(f"status={result.status}")
 
 if __name__ == "__main__":
