@@ -60,9 +60,19 @@ def _ant_msgs(messages):
             rest.append({"role": "user", "content": m.get("content") or ""})
     return sys, rest
 
+class MissingProviderKey(Exception):
+    pass
+
+
 def complete(messages, tools, *, model, api_base=None, api_key_env=None):
     kind, _, ident = model.partition(":")
-    ident, key = ident or model, os.environ.get(api_key_env or "", "")
+    ident = ident or model
+    env_name = api_key_env or ""
+    key = (os.environ.get(env_name) or "").strip() if env_name else ""
+    if not key:
+        raise MissingProviderKey(
+            f"missing environment variable {env_name or 'api_key_env'}"
+        )
     if kind == "anthropic":
         import anthropic
         sys, rest = _ant_msgs(messages)
@@ -145,6 +155,9 @@ def run_turn(
         for _ in range(30):
             try:
                 reply = complete(msgs, schemas, model=model, api_base=api_base, api_key_env=api_key_env)
+            except MissingProviderKey as e:
+                return TurnResult(answer=str(e), status="provider_error",
+                                  tool_trace=trace, turn_record=tid)
             except Exception as e:
                 return TurnResult(answer=f"provider error: {type(e).__name__}: {e}",
                                   status="provider_error", tool_trace=trace, turn_record=tid)
@@ -178,7 +191,7 @@ def _main() -> None:
     p.add_argument("query")
     p.add_argument("--model", default="openai:muse-spark-1.2")
     p.add_argument("--api-base", default="https://api.meta.ai/v1")
-    p.add_argument("--api-key-env", default="OPENAI_API_KEY")
+    p.add_argument("--api-key-env", default="META_MUSE_API_KEY")
     ns = p.parse_args()
     def _print(ev: ToolEvent) -> None:
         print(f"tool {ev.name} {ev.args}"); print(ev.result)

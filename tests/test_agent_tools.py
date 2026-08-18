@@ -481,6 +481,24 @@ def test_pubchem_basis_requires_live_contribution():
     assert source_basis_for("get_solvent_safety_card", live, {"include_pubchem": False}) == "safety_local"
 
 
+def test_missing_provider_key_names_the_environment_variable(monkeypatch):
+    monkeypatch.delenv("META_MUSE_API_KEY", raising=False)
+    result = run_turn(
+        "q", session=new_session(), model="openai:muse-spark-1.2",
+        api_base="https://api.meta.ai/v1", api_key_env="META_MUSE_API_KEY",
+    )
+    assert result.status == "provider_error"
+    assert result.answer == "missing environment variable META_MUSE_API_KEY"
+    assert "OPENAI_API_KEY" not in result.answer
+    monkeypatch.setenv("META_MUSE_API_KEY", "   ")
+    blank = run_turn(
+        "q", session=new_session(), model="openai:muse-spark-1.2",
+        api_key_env="META_MUSE_API_KEY",
+    )
+    assert blank.status == "provider_error"
+    assert blank.answer == "missing environment variable META_MUSE_API_KEY"
+
+
 def test_run_turn_appends_query_and_mutates_caller_messages(monkeypatch):
     session = new_session()
     history = [
