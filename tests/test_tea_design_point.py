@@ -92,6 +92,18 @@ def _stage_config(route: dict, target: str, fraction: float) -> dict:
     })
 
 
+def _same_pair_records(config: dict) -> list[dict]:
+    target = str(config["target_plastic"]).casefold()
+    solvent = thermodynamics.resolve_solvent(str(config["solvent"]))
+    return [
+        record for record in tea._records()
+        if str(record["config"]["target_plastic"]).casefold() == target
+        and thermodynamics.resolve_solvent(
+            str(record["config"]["solvent"])
+        ) == solvent
+    ]
+
+
 @pytest.fixture(scope="module")
 def exact_probe() -> tuple[RouteProbe, RouteProbe]:
     targets = sorted({
@@ -170,13 +182,21 @@ def no_pair_probe() -> RouteProbe:
                 residue: 1.0 - TARGET_FRACTION,
             }
             route = _one_step_route(_plan(feed, composition), target, residue)
-            if route is not None:
-                assert not any(
-                    record["config"]["target_plastic"] == target
-                    for record in tea._records()
-                )
-                return RouteProbe(feed, composition, copy.deepcopy(route))
-    pytest.fail("no planner-emitted route for a polymer without pair records was reachable")
+            if route is None:
+                continue
+            try:
+                config = _stage_config(route, target, TARGET_FRACTION)
+                key = tea._config_key(config)
+            except (KeyError, TypeError, ValueError):
+                continue
+            if tea._cache_index().get(key) is not None:
+                continue
+            if _same_pair_records(config):
+                continue
+            return RouteProbe(feed, composition, copy.deepcopy(route))
+    pytest.fail(
+        "no planner-emitted complete-config miss without pair records was reachable"
+    )
 
 
 def _evaluate(monkeypatch, probe: RouteProbe) -> dict:
@@ -245,8 +265,29 @@ def test_d8_equal_weight_route_refuses_reference_design_point_substitution(
 def test_d8_no_pair_route_keeps_generic_process_basis_refusal(
     monkeypatch, no_pair_probe,
 ):
+    contract_results = []
+    reference_contract = tea._reference_design_point_contract
+
+    def traced_reference_contract(config):
+        result = reference_contract(config)
+        contract_results.append((config, result))
+        return result
+
+    monkeypatch.setattr(
+        tea, "_reference_design_point_contract", traced_reference_contract,
+    )
     result = _evaluate(monkeypatch, no_pair_probe)
 
+    assert len(contract_results) == 1, (
+        "the no-pair probe did not reach the complete-config reference split"
+    )
+    contract_config, contract_result = contract_results[0]
+    assert contract_result is None
+    target = str(no_pair_probe.route["steps"][0]["dissolved_polymer"])
+    config = _stage_config(no_pair_probe.route, target, TARGET_FRACTION)
+    assert tea._config_key(contract_config) == tea._config_key(config)
+    assert tea._cache_index().get(tea._config_key(config)) is None
+    assert _same_pair_records(config) == []
     assert result.get("success") is False
     assert result.get("error_code") == "uncostable_route_stage"
     for field in (
