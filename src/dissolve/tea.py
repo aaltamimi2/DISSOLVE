@@ -1218,7 +1218,11 @@ def _launch_live_worker(
     try:
         completed = subprocess.run(
             [
-                _tea_worker_python(), "-m", "dissolve.tea_worker",
+                # Execute the exact file whose digest the parent has admitted.
+                # ``-m dissolve.tea_worker`` imports the package registry first,
+                # leaking unrelated engine dependencies into the isolated TEA
+                # environment before the worker can reach its JSON boundary.
+                _tea_worker_python(), provenance["worker_source_path"],
                 json.dumps(worker_config),
             ],
             capture_output=True, text=True, timeout=timeout_seconds,
