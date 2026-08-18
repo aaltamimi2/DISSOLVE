@@ -562,7 +562,7 @@ def test_cost_rounds_count_current_group_after_compaction(tmp_path, monkeypatch)
     assert "0 tool round" not in out
 
 
-def test_oneshot_resolves_through_cli_table(monkeypatch):
+def test_oneshot_resolves_through_cli_table(monkeypatch, tmp_path):
     seen = {}
 
     def fake_run_turn(query, **kwargs):
@@ -570,13 +570,45 @@ def test_oneshot_resolves_through_cli_table(monkeypatch):
         seen["query"] = query
         return TurnResult("ok", "ok", [], "turn-1")
 
+    monkeypatch.setenv("META_MUSE_API_KEY", "test-key")
+    monkeypatch.setenv("DISSOLVE_HOME", str(tmp_path))
     monkeypatch.setattr(sys, "argv", ["agent_harness.py", "hello"])
-    monkeypatch.setattr(agent_harness, "run_turn", fake_run_turn)
-    agent_harness._main()
+    monkeypatch.setattr(cli, "run_turn", fake_run_turn)
+    with pytest.raises(SystemExit) as exc:
+        agent_harness._main()
+    assert exc.value.code == 0
     assert seen["query"] == "hello"
     assert seen["model"] == "openai:muse-spark-1.2"
     assert seen["api_base"] == "https://api.meta.ai/v1"
     assert seen["api_key_env"] == "META_MUSE_API_KEY"
+
+
+def test_positional_oneshot_persists_exact_tool_result(tmp_path, monkeypatch, capsys):
+    home = tmp_path / "dissolve-home"
+    monkeypatch.setenv("META_MUSE_API_KEY", "test-key")
+    monkeypatch.setenv("DISSOLVE_HOME", str(home))
+    monkeypatch.setattr(sys, "argv", ["agent_harness.py", "what is the safety of dodecane?"])
+    monkeypatch.setattr(
+        agent_harness, "complete",
+        _complete_one_tool(
+            "get_solvent_safety_card",
+            {"solvent_name": "dodecane", "include_pubchem": False},
+        ),
+    )
+    try:
+        agent_harness._main()
+    except SystemExit as exc:
+        assert exc.code == 0
+    sessions = list(home.glob("sessions/*/session.json"))
+    transcripts = list(home.glob("sessions/*/transcript.jsonl"))
+    assert sessions and transcripts
+    durable = sessions[0].read_text(encoding="utf-8") + transcripts[0].read_text(encoding="utf-8")
+    assert "physical_properties" in durable
+    assert "112-40-3" in durable
+    shown = capsys.readouterr().out
+    assert "physical_properties" not in shown
+    assert "112-40-3" not in shown
+    assert "get_solvent_safety_card" in shown
 
 
 def test_usage_is_display_only_except_the_cost_line(tmp_path, monkeypatch):
