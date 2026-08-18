@@ -9,7 +9,7 @@ from dissolve import registry
 from dissolve.contracts import parse_tool_result
 from dissolve.session import (
     bind_handle_rows, current_tool_session, engine_kwargs_for_handle,
-    handle_rows, load_handle, primary_row_key, store_handle,
+    handle_rows, load_handle, primary_row_key, record_tool_call, store_handle,
 )
 from dissolve.thermodynamics import expand_polymer_identity, get_available_solvents
 
@@ -240,31 +240,48 @@ def _invoke(name, kwargs):
     except Exception as e:
         return None, _refuse("tool_exception", error=f"{type(e).__name__}: {e}")
 
+def _emit(name, kwargs, out, exact, handle=None):
+    rec = current_tool_session()
+    if rec is not None:
+        record_tool_call(rec, tool=name, args=kwargs, exact=exact, handle=handle)
+    return out
+
 def dispatch(name: str, **kwargs: Any) -> dict[str, Any]:
     if name == "result_read":
         h = kwargs.get("handle")
-        return result_read(
+        out = result_read(
             handle=h if isinstance(h, str) else "",
             offset=kwargs.get("offset", 0), limit=kwargs.get("limit", 20),
         )
+        token = h.strip() if isinstance(h, str) and h.strip() else None
+        rec = current_tool_session()
+        stored = load_handle(rec, token) if rec is not None and token else None
+        if stored is not None and out.get("available"):
+            return _emit(name, kwargs, out, stored["exact"], token)
+        return _emit(name, kwargs, out, out)
     if name in UNWIRED:
-        return _refuse(
+        out = _refuse(
             "tool_not_wired",
             detail="reads session state through an interface v12 removed; pending an engine pass to accept a handle",
         )
+        return _emit(name, kwargs, out, out)
     if name not in registry.BY_NAME:
-        return _refuse("unknown_tool", name=name)
+        out = _refuse("unknown_tool", name=name)
+        return _emit(name, kwargs, out, out)
     record, call_kwargs, bind = current_tool_session(), dict(kwargs), None
     if name in CONSUMERS:
         if "handle" in kwargs:
             token = kwargs.get("handle")
             if not isinstance(token, str) or not token.strip():
-                return _refuse("no_upstream_candidates")
+                out = _refuse("no_upstream_candidates")
+                return _emit(name, kwargs, out, out)
             bind, call_kwargs = engine_kwargs_for_handle({**kwargs, "handle": token.strip()})
             if record is None or load_handle(record, bind) is None:
-                return _refuse("no_upstream_candidates")
+                out = _refuse("no_upstream_candidates")
+                return _emit(name, kwargs, out, out)
         elif kwargs.get("candidates") is None:
-            return _refuse("no_upstream_candidates")
+            out = _refuse("no_upstream_candidates")
+            return _emit(name, kwargs, out, out)
     if name in PUBCHEM and call_kwargs.get("include_pubchem") is None:
         call_kwargs["include_pubchem"] = False
     if bind:
@@ -272,23 +289,28 @@ def dispatch(name: str, **kwargs: Any) -> dict[str, Any]:
             with bind_handle_rows(record, bind):
                 parsed, err = _invoke(name, call_kwargs)
         except KeyError:
-            return _refuse("no_upstream_candidates")
+            out = _refuse("no_upstream_candidates")
+            return _emit(name, kwargs, out, out)
     else:
         parsed, err = _invoke(name, call_kwargs)
     if err:
-        return err
+        return _emit(name, kwargs, err, err)
     data = parsed["data"]
     if not data.get("success"):
         out = to_contract(parsed, None)
         if out.get("refusal") == "unknown_solvents" and not (data.get("near_miss_solvents") or data.get("suggested_solvents")):
             out["near_miss_solvents"] = _near_miss(data)
-        return out
+        return _emit(name, kwargs, out, data)
     basis = source_basis_for(name, data, call_kwargs)
     if not basis:
-        return _refuse("no_honest_basis", tool=name)
-    return _ambiguous(call_kwargs, data) or _issue_handle(
-        record, name, basis, data, to_contract(parsed, basis),
-    )
+        out = _refuse("no_honest_basis", tool=name)
+        return _emit(name, kwargs, out, data)
+    guard = _ambiguous(call_kwargs, data)
+    if guard:
+        return _emit(name, kwargs, guard, data)
+    payload = _issue_handle(record, name, basis, data, to_contract(parsed, basis))
+    handle = payload.get("handle") if payload.get("available") else None
+    return _emit(name, kwargs, payload, data, handle)
 
 SYSTEM_PROMPT = """\
 You are DISSOLVE v12, a thermodynamic analysis agent. You have tools. You

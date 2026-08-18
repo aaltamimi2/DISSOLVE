@@ -100,7 +100,7 @@ class SessionRecord(dict):
 
 
 def new_session() -> SessionRecord:
-    return SessionRecord(handles={}, reported=[])
+    return SessionRecord(handles={}, reported=[], turn_records={})
 
 
 def current_tool_session() -> dict[str, Any] | None:
@@ -135,10 +135,12 @@ def bind_tool_session(record: dict[str, Any]) -> Iterator[SessionRecord]:
     bound = record if isinstance(record, SessionRecord) else SessionRecord(record)
     bound.setdefault("handles", {})
     bound.setdefault("reported", [])
+    bound.setdefault("turn_records", {})
     token = _ACTIVE.set(bound)
     try:
         yield bound
     finally:
+        bound.pop("_turn", None)
         _ACTIVE.reset(token)
         if bound is not record:
             record.clear()
@@ -184,6 +186,56 @@ def handle_rows(stored: dict[str, Any]) -> list[dict[str, Any]]:
 
 def handle_total(stored: dict[str, Any]) -> int:
     return len(handle_rows(stored))
+
+
+def open_turn_record(record: dict[str, Any]) -> str:
+    """Start an ordered exact archive for one turn. Returns its id.
+
+    Nothing in the loop reads the list this id names.
+    """
+    record = _bound_record(record)
+    table = record.setdefault("turn_records", {})
+    n = len(table) + 1
+    name = f"turn-{n}"
+    while name in table:
+        n += 1
+        name = f"turn-{n}"
+    table[name] = []
+    record["_turn"] = name
+    return name
+
+
+def record_tool_call(
+    record: dict[str, Any],
+    *,
+    tool: str,
+    args: dict[str, Any],
+    exact: Any,
+    handle: str | None = None,
+) -> None:
+    """Append one exact call to the active turn. Same object a handle stores.
+
+    Opens a turn if dispatch ran outside run_turn (tests). Not a second row store:
+    when `handle` is set, `exact` must be handles[handle]['exact'].
+    """
+    record = _bound_record(record)
+    tid = record.get("_turn")
+    if not tid:
+        tid = open_turn_record(record)
+    table = record.setdefault("turn_records", {})
+    table.setdefault(tid, []).append({
+        "tool": tool,
+        "args": dict(args),
+        "exact": exact,
+        "handle": handle,
+    })
+
+
+def load_turn_record(record: dict[str, Any], turn_id: str) -> list | None:
+    """Validator/test read. The loop must not call this."""
+    record = _bound_record(record)
+    rows = (record.get("turn_records") or {}).get(turn_id)
+    return rows if isinstance(rows, list) else None
 
 
 def store_handle(

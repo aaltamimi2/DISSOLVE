@@ -17,7 +17,7 @@ from agent_harness import TurnResult, run_turn
 from agent_tools import dispatch, result_read, tool_schemas
 from dissolve.session import (
     bind_tool_session, current_tool_session, handle_rows, load_handle,
-    new_session, store_handle,
+    load_turn_record, new_session, open_turn_record, store_handle,
 )
 
 
@@ -86,6 +86,10 @@ def test_large_unrecognised_contaminant_comparison_named_refusal():
         assert rec.get("handles") == {}
         assert "handle" not in out
         assert len(json.dumps(out)) < 8192
+        archived = rec["turn_records"][rec["_turn"]][-1]
+        assert archived["handle"] is None
+        assert archived["exact"].get("success") is True
+        assert len(json.dumps(archived["exact"])) > 8192
 
 
 def test_large_unrecognised_precipitation_fallback_named_refusal():
@@ -98,6 +102,10 @@ def test_large_unrecognised_precipitation_fallback_named_refusal():
         assert out["available"] is False
         assert out["refusal"] == "unaddressable_result"
         assert rec.get("handles") == {}
+        archived = rec["turn_records"][rec["_turn"]][-1]
+        assert archived["handle"] is None
+        assert archived["exact"].get("success") is True
+        assert len(json.dumps(archived["exact"])) > 8192
 
 
 def test_small_success_without_handle_dumps_data():
@@ -218,7 +226,7 @@ def test_active_record_reported_survives_and_original_write_fails():
     assert original["reported"] == [{"number": 92.5, "source_basis": "cosmo_rs_grid"}]
 
 
-def test_loop_prose_does_not_gate_or_record_scan(monkeypatch):
+def test_loop_prose_does_not_gate_or_read_record(monkeypatch):
     session = new_session()
 
     def fake_complete(messages, tools, **kwargs):
@@ -229,8 +237,91 @@ def test_loop_prose_does_not_gate_or_record_scan(monkeypatch):
     assert result.status == "ok"
     assert result.answer == "The recovery window is 46 C."
     assert isinstance(result, TurnResult)
-    assert result.numeral_scan == []
-    assert "numeral_scans" not in session
+    assert "numeral_scan" not in TurnResult.__dataclass_fields__
+    assert result.turn_record
+    assert load_turn_record(session, result.turn_record) == []
+    assert "_turn" not in session
+    src = Path(agent_harness.__file__).read_text()
+    assert "load_turn_record" not in src
+    assert "numeral_scan" not in src
+    assert result.status != "verifier_failed"
+
+
+def test_turn_record_every_result_exact_ordered_durable():
+    session = new_session()
+    with bind_tool_session(session) as rec:
+        tid = open_turn_record(rec)
+        small = dispatch(
+            "solubility_query",
+            polymers=["LDPE"], solvents=["dodecane"], temperatures=[140.0],
+        )
+        screen = dispatch(
+            "screen_polymer_separation",
+            feed_polymers=["LDPE", "PP"], temperature_min_c=80.0,
+            temperature_max_c=140.0, top_k=20,
+        )
+        refused = dispatch(
+            "compare_contaminant_removal_modes",
+            target_polymer="LDPE", contaminants="PFAS",
+        )
+        page = dispatch("result_read", handle=screen["handle"], offset=0, limit=5)
+        empty = dispatch("result_read", handle="")
+        rows = rec["turn_records"][tid]
+        assert [r["tool"] for r in rows] == [
+            "solubility_query", "screen_polymer_separation",
+            "compare_contaminant_removal_modes", "result_read", "result_read",
+        ]
+        assert rows[0]["handle"] is None
+        assert rows[0]["exact"] is small["data"]
+        assert rows[0]["exact"].get("success") is True
+        h = screen["handle"]
+        stored = load_handle(rec, h)
+        assert rows[1]["handle"] == h
+        assert rows[1]["exact"] is stored["exact"]
+        assert rows[1]["exact"] is not screen.get("top")
+        assert refused["refusal"] == "unaddressable_result"
+        assert rows[2]["handle"] is None
+        assert rows[2]["exact"].get("success") is True
+        assert len(json.dumps(rows[2]["exact"])) > 8192
+        assert rows[3]["handle"] == h
+        assert rows[3]["exact"] is stored["exact"]
+        assert page["data"]["rows"] is not rows[3]["exact"]
+        assert rows[4]["handle"] is None
+        assert rows[4]["exact"]["refusal"] == "unknown_handle"
+    assert load_turn_record(session, tid)[2]["exact"].get("success") is True
+    assert "_turn" not in session
+    assert session["turn_records"][tid][0]["tool"] == "solubility_query"
+
+
+def test_loop_turn_record_survives_bind_and_is_not_a_gate(monkeypatch):
+    session = new_session()
+    n = {"i": 0}
+
+    def fake_complete(messages, tools, **kwargs):
+        n["i"] += 1
+        if n["i"] == 1:
+            return {
+                "text": "",
+                "tool_calls": [{
+                    "id": "1", "name": "solubility_query",
+                    "args": {
+                        "polymers": ["LDPE"], "solvents": ["dodecane"],
+                        "temperatures": [140.0],
+                    },
+                }],
+            }
+        return {"text": "92.5 wt%", "tool_calls": []}
+
+    monkeypatch.setattr(agent_harness, "complete", fake_complete)
+    result = run_turn("q", session=session, model="openai:x")
+    assert result.status == "ok"
+    assert result.answer == "92.5 wt%"
+    rows = load_turn_record(session, result.turn_record)
+    assert len(rows) == 1
+    assert rows[0]["tool"] == "solubility_query"
+    assert rows[0]["handle"] is None
+    assert rows[0]["exact"]["success"] is True
+    assert result.tool_trace[0].result.get("data") is rows[0]["exact"]
     assert result.status != "verifier_failed"
 
 
