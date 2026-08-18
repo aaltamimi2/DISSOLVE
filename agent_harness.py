@@ -178,10 +178,11 @@ def run_turn(
         return TurnResult(
             answer="round cap (30) reached; see the tool trace for what was retrieved. No guessed answer.",
             status="round_cap", tool_trace=trace, turn_record=tid)
-
 def _main() -> None:
     import argparse
     from dissolve.session import new_session
+    if len(sys.argv) < 2 or sys.argv[1].startswith("-"):
+        from dissolve.cli import main; raise SystemExit(main())
     p = argparse.ArgumentParser()
     p.add_argument("query")
     p.add_argument("--model", default="openai:muse-spark-1.2")
@@ -192,8 +193,7 @@ def _main() -> None:
         print(f"tool {ev.name} {ev.args}"); print(ev.result)
     result = run_turn(ns.query, session=new_session(), model=ns.model,
                       on_event=_print, api_base=ns.api_base, api_key_env=ns.api_key_env)
-    print(result.answer)
-    print(f"status={result.status}")
+    print(result.answer); print(f"status={result.status}")
 
 if __name__ == "__main__":
     _main()
