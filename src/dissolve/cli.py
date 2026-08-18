@@ -352,7 +352,7 @@ class _Store:
 _ARG_ITEM_MAX = 48
 _CONTAINER_SAMPLE = 2
 _ARGS_MAX = 160
-_FP_HEX = 12
+_FP_HEX = 4
 
 
 def _canonical_json(value: Any) -> str:
@@ -421,8 +421,9 @@ def _tool_event_summary(event: ToolEvent) -> str:
     if len(args) > _ARGS_MAX:
         args = args[: _ARGS_MAX - 1] + "…"
     fingerprint = _args_fingerprint(event.args or {})
+    inner = f"{args} #{fingerprint}" if args else f"#{fingerprint}"
     blob = json.dumps(event.result, ensure_ascii=False, default=str)
-    return f"{name}({args}) fp={fingerprint} -> {len(blob.encode('utf-8'))} B"
+    return f"{name}({inner}) -> {len(blob.encode('utf-8'))} B"
 
 
 class CliApp:

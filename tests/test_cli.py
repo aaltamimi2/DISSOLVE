@@ -679,7 +679,7 @@ def test_tool_event_print_is_one_line_without_payload(tmp_path, monkeypatch):
     size = len(blob.encode("utf-8"))
     summary = cli._tool_event_summary(result.tool_trace[0])
     assert summary in shown
-    assert "get_solvent_safety_card(solvent_name=dodecane, include_pubchem=False)" in summary
+    assert "get_solvent_safety_card(solvent_name=dodecane, include_pubchem=False" in summary
     assert f"-> {size} B" in summary
     tool_lines = [ln for ln in shown.splitlines() if "get_solvent_safety_card" in ln]
     assert len(tool_lines) == 1
@@ -803,7 +803,8 @@ def _run_one_tool(monkeypatch, name, args):
 
 
 def _summary_args_body(summary: str) -> str:
-    return summary.split("(", 1)[1].rsplit(") fp=", 1)[0]
+    inner = summary.split("(", 1)[1].rsplit(") -> ", 1)[0]
+    return re.sub(r" #[0-9a-f]+$", "", inner)
 
 
 def test_tool_event_line_escapes_name_via_unknown_tool_refusal(monkeypatch):
@@ -855,7 +856,7 @@ def test_tool_event_line_distinguishes_unsampled_container_tail():
     assert _summary_args_body(left) == _summary_args_body(right)
     assert "hexane" not in left and "toluene" not in right
     assert left != right
-    fps = re.findall(rf"fp=([0-9a-f]{{{cli._FP_HEX}}})", left + " " + right)
+    fps = re.findall(r"(?<=#)[0-9a-f]{4}", left + " " + right)
     assert len(set(fps)) == 2
 
 
