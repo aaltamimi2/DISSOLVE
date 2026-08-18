@@ -388,7 +388,7 @@ class CliApp:
         self.last_status = meta.get("last_status")
         self.last_tool_rounds = meta.get("last_tool_rounds")
         self.last_tool_calls = meta.get("last_tool_calls")
-        self.last_provider_tokens = meta.get("last_provider_tokens")
+        self.last_usage = meta.get("last_usage")
         self._save()
 
     def _apply_mode_prompt(self) -> None:
@@ -410,18 +410,14 @@ class CliApp:
         if self.last_result is not None:
             meta["last_status"] = self.last_result.status
             meta["last_tool_calls"] = len(self.last_result.tool_trace)
-            if self.last_tool_rounds is not None:
-                meta["last_tool_rounds"] = self.last_tool_rounds
-            if self.last_provider_tokens is not None:
-                meta["last_provider_tokens"] = self.last_provider_tokens
+            meta["last_tool_rounds"] = self.last_tool_rounds
+            meta["last_usage"] = self.last_usage
         elif self.last_status is not None:
             meta["last_status"] = self.last_status
             if self.last_tool_calls is not None:
                 meta["last_tool_calls"] = self.last_tool_calls
-            if self.last_tool_rounds is not None:
-                meta["last_tool_rounds"] = self.last_tool_rounds
-            if self.last_provider_tokens is not None:
-                meta["last_provider_tokens"] = self.last_provider_tokens
+            meta["last_tool_rounds"] = self.last_tool_rounds
+            meta["last_usage"] = self.last_usage
         if self.persist:
             self.store.save({"messages": self.messages, "session": record, "metadata": meta})
 
@@ -479,19 +475,17 @@ class CliApp:
 
     def _show_cost(self) -> None:
         status = self.last_result.status if self.last_result is not None else self.last_status
-        rounds = self.last_tool_rounds
         calls = (
             len(self.last_result.tool_trace) if self.last_result is not None
             else self.last_tool_calls
         )
-        if status is None and rounds is None and calls is None:
+        if status is None and calls is None:
             self.console.print("[dim]No model usage in this process yet.[/]")
             return
-        tokens = self.last_provider_tokens
-        extra = f" · {tokens} token(s)" if tokens is not None else ""
         self.console.print(
-            f"Last turn: [bold]{rounds if rounds is not None else 0} tool round(s)[/] · "
-            f"{calls if calls is not None else 0} tool call(s){extra} · status {status}."
+            f"Last turn: [bold]{self.last_tool_rounds} tool round(s)[/] · "
+            f"{calls if calls is not None else 0} tool call(s) · "
+            f"usage {json.dumps(self.last_usage, sort_keys=True)} · status {status}."
         )
 
     def _print_tool_event(self, event: ToolEvent) -> None:
@@ -533,7 +527,7 @@ class CliApp:
             self.session = new_session()
             self.messages = [{"role": "system", "content": _system_prompt(self.mode)}]
             self.last_result = None
-            self.last_status = self.last_tool_rounds = self.last_tool_calls = self.last_provider_tokens = None
+            self.last_status = self.last_tool_rounds = self.last_tool_calls = self.last_usage = None
             self._save()
             self.console.print("Messages and handles cleared.")
         elif command == "/context":
@@ -566,8 +560,8 @@ class CliApp:
         self.last_result = result
         self.last_status = result.status
         self.last_tool_calls = len(result.tool_trace)
-        self.last_tool_rounds = self.session.get("tool_rounds")
-        self.last_provider_tokens = self.session.get("provider_tokens")
+        self.last_tool_rounds = result.tool_rounds
+        self.last_usage = result.usage
         self._append("assistant", result.answer, status=result.status)
         self._save()
         self._emit({

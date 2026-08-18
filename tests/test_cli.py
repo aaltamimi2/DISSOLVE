@@ -61,12 +61,11 @@ def _ok_turn(query, *, session, model, messages, on_event, api_base, api_key_env
     }
     session.setdefault("polymers_in_play", []).append("LDPE")
     session.setdefault("temperatures_in_play", []).append(140.0)
-    session["tool_rounds"] = 1
     ev = ToolEvent("screen_polymer_separation", {"feed": "LDPE"}, {"handle": "calm-blue-cat", "total": 40})
     if on_event:
         on_event(ev)
     return TurnResult(answer="screened forty solvents", status="ok", tool_trace=[ev],
-                      turn_record="turn-1")
+                      turn_record="turn-1", tool_rounds=1)
 
 
 def test_resolve_model_aliases_and_default():
@@ -90,7 +89,9 @@ def test_cli_source_cuts_langchain_ingest_and_registry_call():
     assert "candidate_evidence" not in src
     assert "true_alias" not in src
     assert "budget_profile" not in src
-    assert "result.tool_rounds" not in src
+    assert "result.tool_rounds" in src
+    assert "result.usage" in src
+    assert "last_provider_tokens" not in src
 
 
 def test_main_rejects_ingest_verbs():
@@ -214,24 +215,24 @@ def test_harness_and_cost_commands(tmp_path, monkeypatch):
     assert "1 tool call" in out
     assert "1 tool round" in out
     assert "status ok" in out
+    assert "usage null" in out
     assert "token(s)" not in out
     assert "did not return" not in out.lower()
 
 
 def test_cost_prints_provider_tokens_when_returned(tmp_path, monkeypatch):
     def fake(query, **kwargs):
-        kwargs["session"]["tool_rounds"] = 1
-        kwargs["session"]["provider_tokens"] = 18
         kwargs["messages"].append({"role": "user", "content": query})
         kwargs["messages"].append({"role": "assistant", "content": "done"})
-        return TurnResult("done", "ok", [], "turn-1")
+        return TurnResult("done", "ok", [], "turn-1", 1, {"total_tokens": 18})
 
     monkeypatch.setattr(cli, "run_turn", fake)
     app, buf = _app(tmp_path, monkeypatch)
     app.ask("q")
     app.handle_command("/cost")
     out = buf.getvalue()
-    assert "18 token" in out
+    assert '"total_tokens": 18' in out
+    assert "usage null" not in out
     assert "did not return" not in out.lower()
     assert "Provider did not return a token count" not in out
 
@@ -535,8 +536,7 @@ def test_cost_rounds_count_current_group_after_compaction(tmp_path, monkeypatch)
             "role": "tool", "tool_call_id": "now", "name": "no_such_tool", "content": "{}",
         })
         messages.append({"role": "assistant", "content": "done"})
-        kwargs["session"]["tool_rounds"] = 1
-        return TurnResult("done", "ok", [ev], "turn-now")
+        return TurnResult("done", "ok", [ev], "turn-now", 1)
 
     monkeypatch.setattr(cli, "run_turn", compacting_turn)
     app, buf = _app(tmp_path, monkeypatch)
@@ -577,3 +577,64 @@ def test_oneshot_resolves_through_cli_table(monkeypatch):
     assert seen["model"] == "openai:muse-spark-1.2"
     assert seen["api_base"] == "https://api.meta.ai/v1"
     assert seen["api_key_env"] == "META_MUSE_API_KEY"
+
+
+def test_usage_is_display_only_except_the_cost_line(tmp_path, monkeypatch):
+    from datetime import datetime, timezone
+
+    class FrozenDateTime(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return datetime(2026, 8, 18, 6, 0, 0, tzinfo=tz or timezone.utc)
+
+    monkeypatch.setenv("META_MUSE_API_KEY", "test-key")
+    monkeypatch.setattr(cli, "datetime", FrozenDateTime)
+    monkeypatch.setattr(cli.time, "monotonic", lambda: 1000.0)
+
+    injected = [
+        None,
+        {"input_tokens": 0, "output_tokens": 0, "total_tokens": 0},
+        {"total_tokens": 18},
+    ]
+    snapshots = []
+    cost_lines = []
+    for i, usage in enumerate(injected):
+        def fake_complete(messages, tools, *, _usage=usage, **kwargs):
+            return {"text": "same-answer", "tool_calls": [], "usage": _usage}
+
+        monkeypatch.setattr(agent_harness, "complete", fake_complete)
+        console, buf = _console()
+        app = CliApp(
+            session_id=f"usage-{i}",
+            store_root=tmp_path,
+            console=console,
+            persist=True,
+        )
+        result = app.ask("same query")
+        ask_out = buf.getvalue()
+        app.handle_command("/cost")
+        cost_lines.append(buf.getvalue()[len(ask_out):])
+        state = json.loads(app.store.state_path.read_text(encoding="utf-8"))
+        state.pop("session_id", None)
+        state.get("metadata", {}).pop("last_usage", None)
+        snapshots.append({
+            "answer": result.answer,
+            "status": result.status,
+            "tool_trace": [(e.name, e.args, e.result) for e in result.tool_trace],
+            "messages": json.dumps(app.messages, sort_keys=True),
+            "turn_records": json.dumps(app.session.get("turn_records"), sort_keys=True),
+            "archive": json.dumps(state, sort_keys=True),
+            "transcript": app.store.transcript_path.read_text(encoding="utf-8"),
+            "ask": ask_out,
+        })
+    assert snapshots[1] == snapshots[0]
+    assert snapshots[2] == snapshots[0]
+    assert cost_lines[0] != cost_lines[1]
+    assert cost_lines[0] != cost_lines[2]
+    assert cost_lines[1] != cost_lines[2]
+    assert "usage null" in cost_lines[0]
+    assert '"input_tokens": 0' in cost_lines[1]
+    assert '"output_tokens": 0' in cost_lines[1]
+    assert '"total_tokens": 0' in cost_lines[1]
+    assert '"total_tokens": 18' in cost_lines[2]
+    assert "No model usage in this process yet" not in "".join(cost_lines)
