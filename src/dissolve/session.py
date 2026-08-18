@@ -40,10 +40,30 @@ _HANDLE_ANIMALS = (
     "lynx", "mole", "moth", "newt", "owl", "pike", "puma", "wren",
 )
 
-# Longest list[dict] among these names is the primary row list. Ties: first wins.
+# First matching non-empty list[dict] wins. Not longest: payloads can carry
+# a `resolution_issues` (or similar sidecar) longer than the result page,
+# and longest-wins would silently make the error list the answer.
+#
+# Names measured on registered successes this pass, plus `rows` which
+# analysis engines publish and the previous tuple omitted. Sidecars that
+# are list[dict] but are not the answer — `resolution_issues`,
+# `record_assumptions`, `source_records`, `family_summaries`,
+# `family_red_summaries`, `screened_directions` — are not in this tuple.
 _PRIMARY_KEYS = (
-    "results", "ranked_candidates", "comparison_rows",
-    "candidate_solvents", "records", "matches", "safety_profiles",
+    "ranked_candidates",
+    "ranked_pairs",
+    "results",
+    "rows",
+    "candidate_solvents",
+    "comparison_rows",
+    "records",
+    "matches",
+    "safety_profiles",
+    "steps",
+    "joined_rows",
+    "leading_matches",
+    "candidate_conditions",
+    "scale_comparison_rows",
 )
 
 
@@ -122,21 +142,19 @@ def _unused_handle(handles: dict[str, Any]) -> str:
 
 
 def primary_row_key(data: Any) -> str | None:
-    """Name of the primary row list inside exact `data`, or None."""
+    """Name of the primary row list inside exact `data`, or None.
+
+    Walks `_PRIMARY_KEYS` in order. First non-empty list[dict] wins.
+    """
     if not isinstance(data, dict):
         return None
-    best_key: str | None = None
-    best_len = -1
     for name in _PRIMARY_KEYS:
         value = data.get(name)
         if not isinstance(value, list) or not value:
             continue
-        if not all(isinstance(item, dict) for item in value):
-            continue
-        if len(value) > best_len:
-            best_key = name
-            best_len = len(value)
-    return best_key
+        if all(isinstance(item, dict) for item in value):
+            return name
+    return None
 
 
 def handle_rows(stored: dict[str, Any]) -> list[dict[str, Any]]:
