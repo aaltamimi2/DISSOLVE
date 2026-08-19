@@ -306,3 +306,82 @@ def test_dispatch_evaluate_parameter_is_named_refuse(monkeypatch):
         assert energy.get("available") is False
         assert energy.get("refusal") == "not_applicable_in_mode"
         assert "handle" not in energy
+
+
+def test_evaluate_refuses_record_form_and_requested_metrics(monkeypatch):
+    record = _record_by_label("ldpe-route-c1")
+    scenario = _public_from_record(record)
+    _forbid_live(monkeypatch)
+    eval_props = _schema("evaluate_tea_lca_scenarios")["parameters"]["properties"]
+    lookup_props = _schema("lookup_admitted_process_records")[
+        "parameters"
+    ]["properties"]
+    sent = {
+        "record_form": "grouped_comparison",
+        "requested_metrics": ["etox", "energy"],
+    }
+    for name, value in sent.items():
+        assert name in lookup_props
+        assert name not in eval_props
+        payload = _data(tea.evaluate_tea_lca_scenarios(
+            [scenario],
+            engine_mode="cache",
+            **{name: value},
+        ))
+        assert payload.get("error_code") == "not_applicable_in_mode"
+        assert payload.get("applicable_mode") == "lookup"
+        assert payload.get("inapplicable_fields") == [name]
+        assert payload["applicable_mode_by_field"] == {name: "lookup"}
+        assert "comparison_rows" not in payload
+    empty = _data(tea.evaluate_tea_lca_scenarios(
+        [scenario],
+        engine_mode="cache",
+        requested_metrics=[],
+    ))
+    assert empty.get("error_code") == "not_applicable_in_mode"
+    assert empty.get("inapplicable_fields") == ["requested_metrics"]
+    nested = _data(tea.evaluate_tea_lca_scenarios(
+        [_public_from_record(record, record_form="per_record")],
+        engine_mode="cache",
+    ))
+    assert nested.get("error_code") == "unknown_process_field"
+    assert nested.get("error_code") != "not_applicable_in_mode"
+    assert "record_form" in list(nested.get("extra_keys") or [])
+
+
+def test_lookup_still_accepts_record_form_and_requested_metrics(monkeypatch):
+    _forbid_live(monkeypatch)
+    payload = _data(tea.lookup_admitted_process_records(
+        target_polymer="LDPE",
+        solvent="Dodecane",
+        record_form="grouped_comparison",
+        requested_metrics=["etox", "energy"],
+    ))
+    assert payload.get("success") is True
+    assert payload["record_form"] == "grouped_comparison"
+    assert payload["requested_metrics"] == ["etox", "energy"]
+
+
+def test_dispatch_evaluate_record_form_is_named_refuse(monkeypatch):
+    record = _record_by_label("ldpe-route-c1")
+    _forbid_live(monkeypatch)
+    session = new_session()
+    with bind_tool_session(session):
+        refused = dispatch(
+            "evaluate_tea_lca_scenarios",
+            scenarios=[_public_from_record(record)],
+            engine_mode="cache",
+            record_form="per_record",
+        )
+        assert refused.get("available") is False
+        assert refused.get("refusal") == "not_applicable_in_mode"
+        assert "handle" not in refused
+        metrics = dispatch(
+            "evaluate_tea_lca_scenarios",
+            scenarios=[_public_from_record(record)],
+            engine_mode="cache",
+            requested_metrics=["gwp"],
+        )
+        assert metrics.get("available") is False
+        assert metrics.get("refusal") == "not_applicable_in_mode"
+        assert "handle" not in metrics

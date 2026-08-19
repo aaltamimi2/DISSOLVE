@@ -4543,6 +4543,8 @@ _LOOKUP_MODE_SELECTORS = (
 _INAPPLICABLE_ON_EVALUATE = {
     **{name: "lookup" for name in _LOOKUP_MODE_SELECTORS},
     "energy_cases": "lookup",
+    "record_form": "lookup",
+    "requested_metrics": "lookup",
     "parameter": "sensitivity",
     "values": "sensitivity",
     "analysis_mode": "sensitivity",
@@ -4569,10 +4571,11 @@ def evaluate_tea_lca_scenarios(
     the nine from an economics handle when held_process_basis is omitted.
     temperature_c maps to dissolution_temperature_c only on that handoff.
     Unknown extra keys refuse. Wrong-mode scalars (lookup selectors,
-    energy_cases, parameter / values / analysis_mode / metric) refuse
-    not_applicable_in_mode. Omitted switches and coefficients keep the
-    production plant. This is not a third public TEA name and does not
-    fill the nine from a cache pair or a screening payload.
+    energy_cases, record_form, requested_metrics, parameter / values /
+    analysis_mode / metric) refuse not_applicable_in_mode. Omitted
+    switches and coefficients keep the production plant. This is not a
+    third public TEA name and does not fill the nine from a cache pair or
+    a screening payload.
     """
     tool = "evaluate_tea_lca_scenarios"
     inapplicable = [
