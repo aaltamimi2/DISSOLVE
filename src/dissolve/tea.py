@@ -4540,6 +4540,14 @@ _LOOKUP_MODE_SELECTORS = (
     "sensitivity_axes",
     "sensitivity_level_selector",
 )
+_INAPPLICABLE_ON_EVALUATE = {
+    **{name: "lookup" for name in _LOOKUP_MODE_SELECTORS},
+    "energy_cases": "lookup",
+    "parameter": "sensitivity",
+    "values": "sensitivity",
+    "analysis_mode": "sensitivity",
+    "metric": "sensitivity",
+}
 
 
 def evaluate_tea_lca_scenarios(
@@ -4560,29 +4568,39 @@ def evaluate_tea_lca_scenarios(
     item (three from_screen, nine supplied). The same shortlist may inherit
     the nine from an economics handle when held_process_basis is omitted.
     temperature_c maps to dissolution_temperature_c only on that handoff.
-    Unknown extra keys refuse. Lookup-only selectors
-    (sensitivity_labels / sensitivity_axes / sensitivity_level_selector)
-    refuse not_applicable_in_mode. Omitted switches and coefficients keep
-    the production plant. This is not a third public TEA name and does not
+    Unknown extra keys refuse. Wrong-mode scalars (lookup selectors,
+    energy_cases, parameter / values / analysis_mode / metric) refuse
+    not_applicable_in_mode. Omitted switches and coefficients keep the
+    production plant. This is not a third public TEA name and does not
     fill the nine from a cache pair or a screening payload.
     """
     tool = "evaluate_tea_lca_scenarios"
     inapplicable = [
-        name for name in _LOOKUP_MODE_SELECTORS if name in kwargs
+        name for name in _INAPPLICABLE_ON_EVALUATE if name in kwargs
     ]
     leftover = {
         name: kwargs[name]
         for name in kwargs
-        if name not in _LOOKUP_MODE_SELECTORS
+        if name not in _INAPPLICABLE_ON_EVALUATE
     }
     if inapplicable:
+        modes = list(dict.fromkeys(
+            _INAPPLICABLE_ON_EVALUATE[name] for name in inapplicable
+        ))
+        details: dict[str, Any] = {
+            "mode": "evaluate",
+            "inapplicable_fields": inapplicable,
+            "applicable_mode_by_field": {
+                name: _INAPPLICABLE_ON_EVALUATE[name] for name in inapplicable
+            },
+        }
+        if len(modes) == 1:
+            details["applicable_mode"] = modes[0]
         return tool_error(
             tool,
-            "Lookup selectors are not applicable in evaluate mode.",
+            "These arguments are not applicable in evaluate mode.",
             error_code="not_applicable_in_mode",
-            mode="evaluate",
-            inapplicable_fields=inapplicable,
-            applicable_mode="lookup",
+            **details,
         )
     if leftover:
         unexpected = ", ".join(repr(name) for name in sorted(leftover))

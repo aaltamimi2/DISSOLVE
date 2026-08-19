@@ -1,4 +1,4 @@
-"""Lookup selectors on evaluate refuse not_applicable_in_mode. Not a rename."""
+"""Wrong-mode scalars on evaluate refuse not_applicable_in_mode. Not a rename."""
 from __future__ import annotations
 
 import json
@@ -186,3 +186,123 @@ def test_dispatch_evaluate_selector_is_named_refuse(monkeypatch):
         assert served.get("available") is True
         assert served.get("source_basis") == "tea_cache_exact"
         assert served.get("handle")
+
+
+def test_evaluate_refuses_sensitivity_scalars(monkeypatch):
+    record = _record_by_label("ldpe-route-c1")
+    scenario = _public_from_record(record)
+    _forbid_live(monkeypatch)
+    sent = {
+        "parameter": "solvent_price",
+        "values": [0.5, 1.5],
+        "analysis_mode": "tornado",
+        "metric": "msp_usd_per_kg",
+    }
+    eval_props = _schema("evaluate_tea_lca_scenarios")["parameters"]["properties"]
+    sensitivity_props = _schema("analyze_tea_sensitivity")["parameters"]["properties"]
+    for name, value in sent.items():
+        assert name in sensitivity_props
+        assert name not in eval_props
+        payload = _data(tea.evaluate_tea_lca_scenarios(
+            [scenario],
+            engine_mode="cache",
+            **{name: value},
+        ))
+        assert payload.get("error_code") == "not_applicable_in_mode"
+        assert payload.get("applicable_mode") == "sensitivity"
+        assert payload.get("inapplicable_fields") == [name]
+        assert payload["applicable_mode_by_field"] == {name: "sensitivity"}
+        assert "comparison_rows" not in payload
+
+
+def test_evaluate_refuses_lookup_energy_cases_list(monkeypatch):
+    record = _record_by_label("ldpe-route-c1")
+    _forbid_live(monkeypatch)
+    eval_props = _schema("evaluate_tea_lca_scenarios")["parameters"]["properties"]
+    assert "energy_cases" not in eval_props
+    assert "energy_cases" in _schema("lookup_admitted_process_records")[
+        "parameters"
+    ]["properties"]
+    payload = _data(tea.evaluate_tea_lca_scenarios(
+        [_public_from_record(record)],
+        engine_mode="cache",
+        energy_cases=["C1"],
+    ))
+    assert payload.get("error_code") == "not_applicable_in_mode"
+    assert payload.get("applicable_mode") == "lookup"
+    assert payload.get("inapplicable_fields") == ["energy_cases"]
+    empty = _data(tea.evaluate_tea_lca_scenarios(
+        [_public_from_record(record)],
+        engine_mode="cache",
+        energy_cases=[],
+    ))
+    assert empty.get("error_code") == "not_applicable_in_mode"
+    nested = _data(tea.evaluate_tea_lca_scenarios(
+        [_public_from_record(record, energy_cases=["C1"])],
+        engine_mode="cache",
+    ))
+    assert nested.get("error_code") == "unknown_process_field"
+    assert nested.get("error_code") != "not_applicable_in_mode"
+    assert "energy_cases" in list(nested.get("extra_keys") or [])
+
+
+def test_mixed_wrong_mode_scalars_name_each_home(monkeypatch):
+    record = _record_by_label("ldpe-route-c1")
+    _forbid_live(monkeypatch)
+    payload = _data(tea.evaluate_tea_lca_scenarios(
+        [_public_from_record(record)],
+        engine_mode="cache",
+        energy_cases=["C1"],
+        parameter="solvent_price",
+    ))
+    assert payload.get("error_code") == "not_applicable_in_mode"
+    assert payload.get("inapplicable_fields") == ["energy_cases", "parameter"]
+    assert payload.get("applicable_mode") is None
+    assert payload["applicable_mode_by_field"] == {
+        "energy_cases": "lookup",
+        "parameter": "sensitivity",
+    }
+
+
+def test_lookup_energy_cases_and_sensitivity_parameter_still_serve(monkeypatch):
+    record = _record_by_label("ldpe-route-c1")
+    _forbid_live(monkeypatch)
+    lookup = _data(tea.lookup_admitted_process_records(
+        target_polymer="LDPE",
+        solvent="Dodecane",
+        energy_cases=["C1"],
+    ))
+    assert lookup.get("success") is True
+    assert lookup["requested_energy_cases"] == ["C1"]
+    sensitivity = _data(tea.analyze_tea_sensitivity(
+        _public_from_record(record),
+        parameter="solvent_price",
+        engine_mode="cache",
+    ))
+    assert sensitivity.get("success") is True
+    assert sensitivity.get("error_code") != "not_applicable_in_mode"
+
+
+def test_dispatch_evaluate_parameter_is_named_refuse(monkeypatch):
+    record = _record_by_label("ldpe-route-c1")
+    _forbid_live(monkeypatch)
+    session = new_session()
+    with bind_tool_session(session):
+        refused = dispatch(
+            "evaluate_tea_lca_scenarios",
+            scenarios=[_public_from_record(record)],
+            engine_mode="cache",
+            parameter="solvent_price",
+        )
+        assert refused.get("available") is False
+        assert refused.get("refusal") == "not_applicable_in_mode"
+        assert "handle" not in refused
+        energy = dispatch(
+            "evaluate_tea_lca_scenarios",
+            scenarios=[_public_from_record(record)],
+            engine_mode="cache",
+            energy_cases=["C1"],
+        )
+        assert energy.get("available") is False
+        assert energy.get("refusal") == "not_applicable_in_mode"
+        assert "handle" not in energy
