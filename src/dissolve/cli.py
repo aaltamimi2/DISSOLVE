@@ -285,6 +285,38 @@ def doctor_report(
     except OSError as error:
         add("Session store", "fail", f"{probe.parent}: {error}", path=str(probe.parent))
 
+    live_tea = tea.live_environment_report()
+    execution_path = live_tea.get("execution_path") or tea.LIVE_TEA_EXECUTION_PATH
+    if live_tea.get("available"):
+        handshake = live_tea.get("child_handshake_error_type") or "missing"
+        live_detail = (
+            f"live TEA ready via DISSOLVE_TEA_PYTHON subprocess of tea_worker.py "
+            f"(child handshake {tea.LIVE_CHILD_HANDSHAKE_TARGET} {handshake}); "
+            f"admitted {', '.join(live_tea['admitted_live_targets'])}; "
+            f"parameters in {live_tea['parameter_surface']}. {execution_path}"
+        )
+    else:
+        why = live_tea.get("why_unavailable") or live_tea.get("detail") or live_tea.get("reason")
+        live_detail = (
+            f"unavailable because {why} "
+            f"(parameters {live_tea['parameter_surface']}). {execution_path}"
+        )
+    add(
+        "Live TEA", live_tea["check_status"], live_detail.strip(),
+        available=live_tea["available"],
+        reason=live_tea.get("reason"),
+        why_unavailable=live_tea.get("why_unavailable"),
+        unavailable_reasons=live_tea.get("unavailable_reasons"),
+        parent_python=live_tea.get("parent_python"),
+        DISSOLVE_TEA_PYTHON=live_tea.get("DISSOLVE_TEA_PYTHON"),
+        DISSOLVE_PLASTICS_PATH=live_tea.get("DISSOLVE_PLASTICS_PATH"),
+        admitted_live_targets=live_tea.get("admitted_live_targets"),
+        refused_grid_targets=live_tea.get("refused_grid_targets"),
+        parameter_surface=live_tea.get("parameter_surface"),
+        plastics_layout=live_tea.get("plastics_layout"),
+        execution_path=execution_path,
+    )
+
     return {
         "schema": "dissolve.doctor.v1",
         "ready": not any(item["status"] == "fail" for item in checks),

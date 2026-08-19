@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import importlib
+import importlib.util
 import hashlib
 import json
 import math
@@ -13,7 +14,7 @@ import sys
 import time
 import traceback
 from pathlib import Path
-from types import SimpleNamespace
+from types import ModuleType, SimpleNamespace
 from typing import Any, Callable, Optional
 
 _ENERGY = {
@@ -21,12 +22,50 @@ _ENERGY = {
     "C2": {"facilities": False, "turbogenerator": False},
     "C3": {"facilities": True, "turbogenerator": False},
 }
-_TARGET = {
-    "LDPE": "PE", "HDPE": "PE", "EVOH": "EVOH", "PC": "PC",
-}
-_UNSUPPORTED_LIVE_TARGETS = frozenset({
-    "PET", "PS", "PP", "PVC", "NYLON6", "NYLON66",
-})
+
+
+def _polymer_parameters() -> ModuleType:
+    """Load the expert surface without importing the dissolve package.
+
+    The live child is executed via runpy as ``__main__``. A package import
+    of ``dissolve`` would run ``dissolve.__init__`` and pull the rest of
+    the engine into the BioSTEAM worker. File-loading the sibling keeps
+    the isolation the cache generator depends on.
+
+    The loaded module MUST be registered in ``sys.modules`` before
+    ``exec_module``. ``@dataclass`` looks up ``sys.modules[cls.__module__]``;
+    an unregistered spec leaves that entry ``None`` and the child dies
+    before it can write JSON.
+    """
+    if __package__:
+        from . import tea_polymer_parameters as module
+        return module
+    name = "_dissolve_tea_polymer_parameters"
+    existing = sys.modules.get(name)
+    if existing is not None:
+        return existing
+    path = Path(__file__).resolve().parent / "tea_polymer_parameters.py"
+    spec = importlib.util.spec_from_file_location(name, path)
+    if spec is None or spec.loader is None:
+        raise RuntimeError(f"Cannot load polymer parameter surface from {path}")
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[name] = module
+    try:
+        spec.loader.exec_module(module)
+    except Exception:
+        sys.modules.pop(name, None)
+        raise
+    return module
+
+
+def _live_identity_map() -> dict[str, str]:
+    return dict(_polymer_parameters().live_identity_map())
+
+
+# Derived from tea_polymer_parameters.POLYMERS. Not the admission
+# authority — that is admit_live_target() over the table + package
+# outline. Kept so tea.py can still ask "which grid names are live".
+_TARGET = _live_identity_map()
 _LCA_METRICS = (
     ("gwp_kg_co2e_per_kg", "GWP", "GWP"),
     ("htc_ctuh_per_kg", "HTC", "htc"),
@@ -376,18 +415,42 @@ def _verify_loaded_live_provenance(
     expected_worker_sha256 = str(
         expectations.get("worker_source_sha256") or ""
     ).strip().casefold()
+    params = _polymer_parameters()
+    expected_cited_raw = expectations.get("cited_package_sha256") or {}
+    expected_cited_complete = (
+        isinstance(expected_cited_raw, dict)
+        and set(expected_cited_raw) == set(params.CITED_STRAP_SOURCE_NAMES)
+        and all(
+            str(expected_cited_raw.get(name) or "").strip()
+            for name in params.CITED_STRAP_SOURCE_NAMES
+        )
+    )
     if set(expected_versions) != set(_LIVE_RUNTIME_MODULES) or not (
         expected_model_sha256 and expected_worker_path and expected_worker_sha256
+        and expected_cited_complete
     ):
         return (
             {"status": "unverifiable"},
             "live_provenance_contract_missing",
             "Live worker requires complete governed runtime, process-model, "
-            "and worker-source provenance.",
+            "cited package-source, and worker-source provenance.",
         )
 
     worker_path = Path(__file__).resolve()
-    worker_sha256 = hashlib.sha256(worker_path.read_bytes()).hexdigest()
+    try:
+        worker_sha256 = hashlib.sha256(
+            params._read_strap_bytes(worker_path)
+        ).hexdigest()
+    except params.PackageInspectionError as error:
+        return (
+            {
+                "status": "unverifiable",
+                "worker_source_path": str(worker_path),
+                "unreadable_source": str(error.path),
+            },
+            error.diagnostic_reason,
+            str(error),
+        )
     worker_provenance = {
         "worker_source_path": str(worker_path),
         "worker_source_sha256": worker_sha256,
@@ -495,7 +558,14 @@ def _verify_loaded_live_provenance(
             "process_model_missing",
             f"Imported process model has no readable source file: {model_path}",
         )
-    actual_model_sha256 = hashlib.sha256(model_path.read_bytes()).hexdigest()
+    try:
+        actual_model_sha256 = hashlib.sha256(
+            params._read_strap_bytes(model_path)
+        ).hexdigest()
+    except params.PackageInspectionError as error:
+        provenance["status"] = "unverifiable"
+        provenance["unreadable_source"] = str(error.path)
+        return provenance, error.diagnostic_reason, str(error)
     provenance["process_model_sha256"] = actual_model_sha256
     if actual_model_sha256 != expected_model_sha256:
         provenance["status"] = "mismatch"
@@ -505,6 +575,30 @@ def _verify_loaded_live_provenance(
             "Imported process model does not match the admitted TEA cache: "
             f"expected {expected_model_sha256}, resolved {actual_model_sha256} "
             f"at {model_path}.",
+        )
+    try:
+        loaded_cited = params.loaded_cited_strap_source_provenance()
+    except params.PackageInspectionError as error:
+        provenance["status"] = "unverifiable"
+        provenance["unreadable_source"] = str(error.path)
+        return provenance, error.diagnostic_reason, str(error)
+    provenance["cited_package_sources"] = loaded_cited["sources"]
+    expected_cited = {
+        name: str(expected_cited_raw.get(name) or "").strip().casefold()
+        for name in params.CITED_STRAP_SOURCE_NAMES
+    }
+    cited_mismatches = params.cited_package_hash_mismatches(
+        expected_cited, loaded_cited,
+    )
+    if cited_mismatches:
+        provenance["status"] = "mismatch"
+        return (
+            provenance,
+            "cited_package_checksum_mismatch",
+            "Imported package sources do not match the parent seal: "
+            + ", ".join(cited_mismatches)
+            + " (property_package.py, dissolution_steps.py, and "
+            "precipitation_steps.py must match the expert-table claim).",
         )
     return provenance, None, None
 
@@ -777,22 +871,98 @@ def _create_and_simulate_process(
     return process, engine_identity
 
 
+def _outline_chemical_ids(outline: Any) -> frozenset[str]:
+    """IDs the loaded ChemicalsOutline will not PET-clone."""
+    collected: list[str] = []
+    ids_attr = getattr(outline, "IDs", None)
+    if ids_attr:
+        collected.extend(str(item) for item in ids_attr)
+    chemicals = getattr(outline, "chemicals", None) or getattr(outline, "data", None)
+    if chemicals:
+        for item in chemicals:
+            ident = getattr(item, "ID", None)
+            if ident:
+                collected.append(str(ident))
+    if collected:
+        return frozenset(collected)
+    # Fallback: membership is the API process_model uses (`plastic not in outline`).
+    params = _polymer_parameters()
+    candidates = {
+        row.identity_in_model
+        for row in params.POLYMERS.values()
+        if row.identity_in_model
+    }
+    candidates.update(
+        row.oligomer.chemical_id
+        for row in params.POLYMERS.values()
+        if row.oligomer is not None
+    )
+    return frozenset(name for name in candidates if name in outline)
+
+
+def _inject_oligomer(strap_package: Any, oligomer: Any) -> None:
+    """Append a missing oligomer draft from our surface. Does not edit the package."""
+    outline = strap_package.STRAP_chemicals_outline
+    if oligomer.chemical_id in outline:
+        return
+    import biosteam as bst
+    draft = bst.ChemicalDraft(
+        oligomer.chemical_id,
+        search_ID=oligomer.search_id,
+    )
+    outline.append(draft)
+
+
+def _unsupported_target_result(
+    original_target: str, admission: Any,
+) -> dict[str, Any]:
+    params = _polymer_parameters()
+    return {
+        "success": False,
+        "error": admission.error,
+        "error_type": admission.error_type or "unsupported_live_target",
+        "target_plastic": original_target,
+        "identity_in_model": admission.identity_in_model,
+        "supported_live_targets": list(params.live_grid_targets()),
+        "package_chemical_present": admission.package_chemical_present,
+        "package_oligomer_present": admission.package_oligomer_present,
+        "parameter_surface": "dissolve.tea_polymer_parameters",
+    }
+
+
 def run(config: dict[str, Any]) -> dict[str, Any]:
     started = time.monotonic()
+    params = _polymer_parameters()
     original_target = str(config["target_plastic"]).upper()
-    if original_target in _UNSUPPORTED_LIVE_TARGETS:
+    plastics_root = params.resolve_plastics_path()
+    try:
+        source_ids = params.package_chemical_ids(plastics_root)
+        if plastics_root is not None:
+            params.inspect_cited_strap_sources(plastics_root)
+    except params.PackageInspectionError as error:
+        return {
+            "success": False,
+            "error": str(error),
+            "error_type": error.diagnostic_reason,
+            "target_plastic": original_target,
+            "parameter_surface": "dissolve.tea_polymer_parameters",
+        }
+    admission = params.admit_live_target(
+        original_target, package_chemical_ids=source_ids,
+    )
+    if not admission.admitted:
+        return _unsupported_target_result(original_target, admission)
+    if sys.version_info < (3, 12):
         return {
             "success": False,
             "error": (
-                "Live TEA has no target-specific process model for "
-                f"{original_target}; refusing to substitute the PE process."
+                "Live BioSTEAM execution requires Python 3.12 or newer. "
+                f"This worker is Python {platform.python_version()}."
             ),
-            "error_type": "unsupported_live_target",
+            "error_type": "python_version",
             "target_plastic": original_target,
-            "supported_live_targets": sorted(_TARGET),
+            "parameter_surface": "dissolve.tea_polymer_parameters",
         }
-    if sys.version_info < (3, 12):
-        raise RuntimeError("Live BioSTEAM execution requires Python 3.12 or newer")
     if path := str(os.getenv("DISSOLVE_PLASTICS_PATH") or "").strip():
         sys.path.insert(0, os.path.abspath(os.path.expanduser(path)))
     # Preserve the cache generator's import order. Importing process_model (or
@@ -812,13 +982,40 @@ def run(config: dict[str, Any]) -> dict[str, Any]:
             "target_plastic": original_target,
             "live_provenance": provenance,
         }
+    loaded_ids = _outline_chemical_ids(strap_package.STRAP_chemicals_outline)
+    admission = params.admit_live_target(
+        original_target, package_chemical_ids=loaded_ids,
+    )
+    if not admission.admitted:
+        return _unsupported_target_result(original_target, admission)
+    if (
+        admission.oligomer_injection_required
+        and admission.row is not None
+        and admission.row.oligomer is not None
+    ):
+        try:
+            _inject_oligomer(strap_package, admission.row.oligomer)
+        except Exception as error:
+            return {
+                "success": False,
+                "error": (
+                    f"Could not inject oligomer "
+                    f"{admission.row.oligomer.chemical_id} from the parameter "
+                    f"surface: {error}"
+                ),
+                "error_type": "oligomer_injection_failed",
+                "target_plastic": original_target,
+                "live_provenance": provenance,
+            }
     process_class = _patch_process(getattr(strap_package, "BaselineSTRAPProcess"))
     try:
         strap_package.STRAP_chemicals_outline.append("HCl")
     except Exception:
         pass
 
-    target = _TARGET.get(original_target, original_target)
+    target = admission.identity_in_model
+    if not target:
+        return _unsupported_target_result(original_target, admission)
     energy_case = str(config.get("energy_case") or "C1").upper()
     energy = _ENERGY.get(energy_case)
     if energy is None:
@@ -915,7 +1112,7 @@ def run(config: dict[str, Any]) -> dict[str, Any]:
         dict(config.get("_lca_factor_provenance") or {}),
         evaluated_lca,
     )
-    return {
+    result = {
         "success": True, "solvent": config["solvent"],
         "engine_solvent": engine_identity.get("engine_solvent"),
         "solvent_identity_resolution": engine_identity,
@@ -954,6 +1151,25 @@ def run(config: dict[str, Any]) -> dict[str, Any]:
         },
         "runtime_seconds": round(time.monotonic() - started, 3),
     }
+    if admission.row is not None:
+        result = params.attach_live_parameter_standing(
+            result,
+            admission.row,
+            solvent=engine_identity.get("engine_solvent") or config.get("solvent"),
+            config=config,
+            plastics_root=plastics_root,
+        )
+    elif result.get("success") is True:
+        return {
+            "success": False,
+            "error": (
+                "Live TEA produced a number without parameter standing; "
+                "refusing to serve an unlabelled result."
+            ),
+            "error_type": "live_parameter_standing_missing",
+            "target_plastic": original_target,
+        }
+    return result
 
 
 def main() -> int:

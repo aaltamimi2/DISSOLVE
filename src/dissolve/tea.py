@@ -8,6 +8,7 @@ import hashlib
 import json
 import math
 import os
+import platform
 import re
 import shutil
 import statistics
@@ -18,7 +19,7 @@ from importlib.resources import files
 from pathlib import Path
 from typing import Any, Literal, Optional, Sequence
 
-from . import tea_contracts, tea_worker
+from . import tea_contracts, tea_polymer_parameters, tea_worker
 from . import thermodynamics as thermo
 from .contracts import parse_tool_result, tool_error, tool_success
 from .session import (
@@ -1100,15 +1101,19 @@ def _tea_worker_python() -> str:
     return os.path.expanduser(configured) if configured else sys.executable
 
 
-def _tea_worker_source_provenance() -> dict[str, str]:
+def _tea_worker_source_provenance() -> tuple[dict[str, Any], Optional[str]]:
     """Bind child execution to the same worker source imported by the parent."""
     worker_path = Path(str(tea_worker.__file__)).resolve()
-    return {
-        "worker_source_path": str(worker_path),
-        "expected_worker_source_sha256": hashlib.sha256(
-            worker_path.read_bytes()
-        ).hexdigest(),
-    }
+    provenance: dict[str, Any] = {"worker_source_path": str(worker_path)}
+    try:
+        digest = hashlib.sha256(
+            tea_polymer_parameters._read_strap_bytes(worker_path)
+        ).hexdigest()
+    except tea_polymer_parameters.PackageInspectionError as error:
+        provenance["unreadable_source"] = str(error.path)
+        return provenance, str(error)
+    provenance["expected_worker_source_sha256"] = digest
+    return provenance, None
 
 
 def _tea_worker_environment() -> dict[str, str]:
@@ -1140,6 +1145,16 @@ def _expected_live_runtime_versions() -> dict[str, str]:
             "TEA cache lacks live runtime provenance for: " + ", ".join(missing)
         )
     return expected
+
+
+def _python_meets_live_requirement(version: str) -> bool:
+    """True when a resolved interpreter version is 3.12 or newer."""
+    parts = str(version or "").split(".")
+    try:
+        major, minor = int(parts[0]), int(parts[1])
+    except (IndexError, ValueError):
+        return False
+    return (major, minor) >= (3, 12)
 
 
 def _probe_live_runtime_versions(
@@ -1203,13 +1218,50 @@ def _live_process_model_provenance(path: str) -> tuple[dict[str, Any], Optional[
         return provenance, "TEA cache lacks a process-model SHA-256 pin."
     if not model_path.is_file():
         return provenance, f"Configured process model does not exist: {model_path}"
-    actual = hashlib.sha256(model_path.read_bytes()).hexdigest()
+    try:
+        tea_polymer_parameters._parse_strap_source(model_path)
+        actual = hashlib.sha256(
+            tea_polymer_parameters._read_strap_bytes(model_path)
+        ).hexdigest()
+    except tea_polymer_parameters.PackageInspectionError as error:
+        provenance["unreadable_source"] = str(error.path)
+        return provenance, str(error)
     provenance["process_model_sha256"] = actual
     if actual != expected:
         return provenance, (
             "Configured process model does not match the admitted TEA cache: "
             f"expected {expected}, resolved {actual} at {model_path}."
         )
+    return provenance, None
+
+
+def _live_cited_package_provenance(path: str) -> tuple[dict[str, Any], Optional[str]]:
+    """Hash the package files the expert table cites, not only process_model.py."""
+    root = Path(path).expanduser().resolve()
+    try:
+        cited = tea_polymer_parameters.cited_strap_source_provenance(root)
+    except tea_polymer_parameters.PackageInspectionError as error:
+        return {
+            "cited_package_sources": {},
+            "cited_package_missing": [],
+            "unreadable_source": str(error.path),
+            "unreadable_reason": error.diagnostic_reason,
+        }, str(error)
+    provenance = {
+        "cited_package_sources": cited["sources"],
+        "cited_package_missing": list(cited["missing"]),
+    }
+    if cited["missing"]:
+        return provenance, (
+            "Expert-table package sources are missing under "
+            f"{root}: " + ", ".join(cited["missing"]) + "."
+        )
+    try:
+        tea_polymer_parameters.inspect_cited_strap_sources(root)
+    except tea_polymer_parameters.PackageInspectionError as error:
+        provenance["unreadable_source"] = str(error.path)
+        provenance["unreadable_reason"] = error.diagnostic_reason
+        return provenance, str(error)
     return provenance, None
 
 
@@ -1222,7 +1274,14 @@ def live_engine_status() -> dict[str, Any]:
     if not configured_python and sys.version_info < (3, 12):
         return {
             "available": False, "reason": "python_version",
-            "detail": "Live BioSTEAM execution requires Python 3.12 or newer.",
+            "detail": (
+                "Live BioSTEAM execution requires Python 3.12 or newer. "
+                f"This process is Python {platform.python_version()}. "
+                "Set DISSOLVE_TEA_PYTHON to the dissolve-tea-312 interpreter "
+                "(biosteam==2.52.17, thermosteam==0.52.16) and "
+                "DISSOLVE_PLASTICS_PATH to unpublished plastics 0.1.4. "
+                "Public plastics 0.1.3 is incompatible."
+            ),
         }
     if configured_python and shutil.which(worker_python) is None:
         return {
@@ -1244,19 +1303,39 @@ def live_engine_status() -> dict[str, Any]:
     if model_error:
         if model_provenance.get("expected_process_model_sha256") is None:
             reason = "cache_provenance_missing"
+            provenance_status = "unverifiable"
+        elif model_provenance.get("unreadable_source"):
+            reason = "process_model_unreadable"
+            provenance_status = "unverifiable"
         elif model_provenance.get("process_model_sha256") is None:
             reason = "process_model_missing"
+            provenance_status = "unverifiable"
         else:
             reason = "process_model_checksum_mismatch"
+            provenance_status = "mismatch"
         return {
             "available": False,
             "reason": reason,
             "detail": model_error,
             "live_provenance": {
-                "status": "mismatch",
+                "status": provenance_status,
                 **model_provenance,
             },
         }
+    cited_provenance, cited_error = _live_cited_package_provenance(path)
+    if cited_error:
+        return {
+            "available": False,
+            "reason": cited_provenance.get("unreadable_reason")
+            or "cited_package_source_missing",
+            "detail": cited_error,
+            "live_provenance": {
+                "status": "unverifiable",
+                **model_provenance,
+                **cited_provenance,
+            },
+        }
+    model_provenance = {**model_provenance, **cited_provenance}
     try:
         expected_versions = _expected_live_runtime_versions()
     except RuntimeError as error:
@@ -1277,6 +1356,25 @@ def live_engine_status() -> dict[str, Any]:
             },
         }
     assert resolved_versions is not None
+    runtime_without_worker = {
+        **model_provenance,
+        "expected_runtime_versions": expected_versions,
+        "resolved_runtime_versions": resolved_versions,
+    }
+    if not _python_meets_live_requirement(resolved_versions["python"]):
+        return {
+            "available": False,
+            "reason": "python_version",
+            "detail": (
+                "Live BioSTEAM execution requires Python 3.12 or newer. "
+                f"DISSOLVE_TEA_PYTHON resolved Python "
+                f"{resolved_versions['python']}."
+            ),
+            "live_provenance": {
+                "status": "mismatch",
+                **runtime_without_worker,
+            },
+        }
     mismatches = {
         name: {
             "expected": expected_versions[name],
@@ -1285,12 +1383,25 @@ def live_engine_status() -> dict[str, Any]:
         for name in expected_versions
         if resolved_versions[name] != expected_versions[name]
     }
+    worker_provenance, worker_error = _tea_worker_source_provenance()
+    if worker_error:
+        return {
+            "available": False,
+            "reason": "worker_source_unreadable",
+            "detail": worker_error,
+            "live_provenance": {
+                "status": "unverifiable",
+                **runtime_without_worker,
+                **worker_provenance,
+            },
+        }
+    live_runtime = {
+        **runtime_without_worker,
+        **worker_provenance,
+    }
     live_provenance = {
         "status": "mismatch" if mismatches else "verified",
-        **model_provenance,
-        **_tea_worker_source_provenance(),
-        "expected_runtime_versions": expected_versions,
-        "resolved_runtime_versions": resolved_versions,
+        **live_runtime,
     }
     if mismatches:
         return {
@@ -1305,12 +1416,293 @@ def live_engine_status() -> dict[str, Any]:
             ),
             "live_provenance": live_provenance,
         }
+    handshake = live_child_handshake(live_provenance)
+    live_provenance = {
+        **live_provenance,
+        "child_handshake_target": LIVE_CHILD_HANDSHAKE_TARGET,
+        "child_handshake_error_type": handshake.get("error_type"),
+        "child_handshake_ok": _child_handshake_started(handshake),
+    }
+    if not live_provenance["child_handshake_ok"]:
+        reason = (
+            "invalid_worker_output"
+            if handshake.get("error_type") == "invalid_worker_output"
+            else "worker_child_handshake_failed"
+        )
+        error = str(handshake.get("error") or handshake.get("error_type") or "")
+        return {
+            "available": False,
+            "reason": reason,
+            "detail": (
+                "Live worker child did not start. Readiness launches the "
+                "documented runpy path with refused target "
+                f"{LIVE_CHILD_HANDSHAKE_TARGET}; expected named JSON "
+                "unsupported_live_target, got "
+                f"{handshake.get('error_type')!r}"
+                + (f": {error[:300]}" if error else ".")
+            ),
+            "live_provenance": {
+                **live_provenance,
+                "status": "unverifiable",
+            },
+        }
     return {
         "available": True,
         "reason": None,
-        "detail": "subprocess engine ready",
+        "detail": (
+            "subprocess engine ready; child handshake "
+            f"{LIVE_CHILD_HANDSHAKE_TARGET} "
+            f"{handshake.get('error_type')}"
+        ),
         "live_provenance": live_provenance,
     }
+
+
+_LIVE_MISCONFIGURED_REASONS = frozenset({
+    "worker_interpreter_missing",
+    "process_model_missing",
+    "process_model_checksum_mismatch",
+    "runtime_version_mismatch",
+    "worker_environment_probe_failed",
+    "cache_provenance_missing",
+    "worker_source_mismatch",
+    "worker_source_unreadable",
+    "property_package_unreadable",
+    "cited_package_source_missing",
+    "cited_package_checksum_mismatch",
+    "cited_package_unreadable",
+    "process_model_unreadable",
+    "invalid_worker_output",
+    "worker_child_handshake_failed",
+})
+
+# Live BioSTEAM never runs in this process. The 3.12 interpreter is a
+# subprocess that runpy-executes tea_worker.py across a JSON boundary.
+# Importing dissolve.tea_worker (or python -m dissolve.tea_worker) in that
+# interpreter loads dissolve.__init__ → registry → thermodynamics → duckdb.
+# ModuleNotFoundError: duckdb there is a wrong entry point, not a missing
+# live-TEA dependency. duckdb belongs to the parent engine.
+LIVE_TEA_EXECUTION_PATH = (
+    "Live TEA is a two-environment path: this process never imports BioSTEAM; "
+    "DISSOLVE_TEA_PYTHON runs src/dissolve/tea_worker.py as a subprocess via "
+    "runpy (JSON boundary). Do not import dissolve.tea_worker or use "
+    "python -m dissolve.tea_worker in that interpreter — that pulls the "
+    "parent engine and fails with ModuleNotFoundError: duckdb, which is not "
+    "a live-TEA dependency."
+)
+
+
+def live_environment_report() -> dict[str, Any]:
+    """Diagnose the two-environment live TEA path without importing BioSTEAM.
+
+    The default repo interpreter is 3.11; live execution needs 3.12 plus
+    unpublished plastics 0.1.4. Doctor uses this so that fact is visible
+    before anyone rediscovers it at the moment of failure.
+    """
+    status = live_engine_status()
+    configured_python = str(os.getenv(_TEA_WORKER_PYTHON_ENV) or "").strip()
+    plastics = str(os.getenv("DISSOLVE_PLASTICS_PATH") or "").strip()
+    root = tea_polymer_parameters.resolve_plastics_path(plastics or None)
+    layout = (
+        tea_polymer_parameters.plastics_layout_diagnosis(root)
+        if root is not None else None
+    )
+    package_ids: Optional[frozenset[str]] = None
+    inspection_error: Optional[tea_polymer_parameters.PackageInspectionError] = None
+    if root is not None:
+        try:
+            package_ids = tea_polymer_parameters.package_chemical_ids(root)
+            tea_polymer_parameters.inspect_ready_claim_sources(root)
+        except tea_polymer_parameters.PackageInspectionError as error:
+            inspection_error = error
+        except (OSError, UnicodeDecodeError, SyntaxError, ValueError) as error:
+            source = None
+            if layout is not None and layout.get("property_package_path"):
+                source = Path(str(layout["property_package_path"]))
+            inspection_error = tea_polymer_parameters.PackageInspectionError(
+                source or root, error,
+            )
+    refused = tuple(sorted(
+        name for name, row in tea_polymer_parameters.POLYMERS.items()
+        if row.admission != tea_polymer_parameters.ADMISSION_LIVE
+    ))
+    why: list[str] = []
+    if sys.version_info < (3, 12) and not configured_python:
+        why.append(
+            f"this process is Python {platform.python_version()}, "
+            "which is below 3.12, and DISSOLVE_TEA_PYTHON is unset"
+        )
+    elif configured_python and shutil.which(
+        os.path.expanduser(configured_python)
+    ) is None:
+        why.append(
+            f"DISSOLVE_TEA_PYTHON={configured_python} is not an executable"
+        )
+    if not plastics:
+        why.append("DISSOLVE_PLASTICS_PATH is unset")
+    elif layout is None or layout.get("layout") == "unrecognised":
+        why.append(
+            f"the plastics package is missing under {plastics}"
+        )
+    elif layout.get("layout") == "inner_package_dir":
+        why.append(
+            "DISSOLVE_PLASTICS_PATH points at the inner package directory; "
+            "set it to the parent so `import plastics.strap` works"
+        )
+    if inspection_error is not None:
+        why.append(str(inspection_error))
+    if (
+        not why
+        and not status.get("available")
+        and status.get("detail")
+    ):
+        why.append(str(status["detail"]))
+    reason = status.get("reason")
+    available = bool(status.get("available")) and inspection_error is None
+    if inspection_error is not None:
+        check_status = "fail"
+        reason = inspection_error.diagnostic_reason
+        why_text = "; ".join(why) if why else str(inspection_error)
+    elif available:
+        check_status = "pass"
+        why_text = (
+            "live TEA path is available; child handshake "
+            f"{LIVE_CHILD_HANDSHAKE_TARGET} "
+            f"{(status.get('live_provenance') or {}).get('child_handshake_error_type')}"
+        )
+    elif reason in _LIVE_MISCONFIGURED_REASONS or (
+        reason == "python_version" and configured_python
+    ):
+        check_status = "fail"
+        why_text = "; ".join(why) if why else str(status.get("detail") or reason)
+    elif layout is not None and layout.get("layout") == "inner_package_dir":
+        check_status = "fail"
+        reason = "plastics_path_inner_package_dir"
+        why_text = "; ".join(why)
+    else:
+        check_status = "warn"
+        why_text = "; ".join(why) if why else str(status.get("detail") or reason)
+    return {
+        "check_status": check_status,
+        "available": available,
+        "reason": reason,
+        "why_unavailable": why_text if not available else None,
+        "unavailable_reasons": why,
+        "detail": status.get("detail"),
+        "parent_python": platform.python_version(),
+        "parent_meets_live_requirement": sys.version_info >= (3, 12),
+        "live_requires_python": ">=3.12",
+        "DISSOLVE_TEA_PYTHON": configured_python or None,
+        "DISSOLVE_PLASTICS_PATH": plastics or None,
+        "plastics_layout": layout,
+        "package_chemical_id_count": (
+            len(package_ids) if package_ids is not None else None
+        ),
+        "admitted_live_targets": list(
+            tea_polymer_parameters.live_grid_targets()
+        ),
+        "refused_grid_targets": list(refused),
+        "parameter_surface": "src/dissolve/tea_polymer_parameters.py",
+        "execution_path": LIVE_TEA_EXECUTION_PATH,
+        "child_handshake_ok": (
+            (status.get("live_provenance") or {}).get("child_handshake_ok")
+        ),
+        "child_handshake_error_type": (
+            (status.get("live_provenance") or {}).get(
+                "child_handshake_error_type"
+            )
+        ),
+        "live_engine": {
+            key: status[key]
+            for key in ("available", "reason", "detail")
+            if key in status
+        },
+    }
+
+
+LIVE_CHILD_HANDSHAKE_TARGET = "PU"
+_LIVE_CHILD_HANDSHAKE_CACHE: dict[tuple[str, ...], dict[str, Any]] = {}
+
+
+def _child_handshake_started(result: dict[str, Any]) -> bool:
+    """True when the documented child started and wrote named JSON."""
+    return (
+        result.get("success") is False
+        and result.get("error_type") == "unsupported_live_target"
+        and str(result.get("target_plastic") or "").upper()
+        == LIVE_CHILD_HANDSHAKE_TARGET
+    )
+
+
+def live_child_handshake(
+    provenance: dict[str, Any],
+    *,
+    timeout_seconds: int = 30,
+) -> dict[str, Any]:
+    """Launch the exact runpy child readiness claims to be ready.
+
+    A refused target binds bootstrap and JSON without BioSTEAM. Hashes
+    and dependency probes are not a substitute: they declared the
+    5c0f4be child ready while it died before writing JSON.
+    """
+    key = (
+        _tea_worker_python(),
+        str(provenance.get("worker_source_path") or ""),
+        str(provenance.get("expected_worker_source_sha256") or ""),
+        str(os.getenv(_TEA_WORKER_PYTHON_ENV) or ""),
+        str(os.getenv("DISSOLVE_PLASTICS_PATH") or ""),
+    )
+    cached = _LIVE_CHILD_HANDSHAKE_CACHE.get(key)
+    if cached is not None:
+        return cached
+    result = _launch_live_worker(
+        {"target_plastic": LIVE_CHILD_HANDSHAKE_TARGET},
+        timeout_seconds=timeout_seconds,
+        environment=_tea_worker_environment(),
+        provenance={
+            "worker_source_path": provenance["worker_source_path"],
+            "expected_worker_source_sha256": provenance[
+                "expected_worker_source_sha256"
+            ],
+        },
+    )
+    _LIVE_CHILD_HANDSHAKE_CACHE[key] = result
+    return result
+
+
+# Execute the exact file whose digest the parent has admitted.
+# ``-m dissolve.tea_worker`` imports the package registry first,
+# leaking unrelated engine dependencies into the isolated TEA
+# environment before the worker can reach its JSON boundary.
+# Executing that file as a script is also unsafe: its package
+# directory becomes sys.path[0] and shadows the scientific
+# ``thermo`` package with the sibling dissolve module. A -c
+# bootstrap keeps the source root as sys.path[0], while runpy
+# still sets __file__ to the admitted path for the handshake.
+LIVE_WORKER_RUNPY_BOOTSTRAP = (
+    "import runpy,sys;"
+    "worker_path=sys.argv.pop(1);"
+    "runpy.run_path(worker_path,run_name='__main__')"
+)
+
+
+def live_worker_runpy_argv(
+    worker_config: dict[str, Any],
+    *,
+    python: Optional[str] = None,
+    worker_path: Optional[str] = None,
+) -> list[str]:
+    """Exact argv ``_launch_live_worker`` uses. Tests must reuse this.
+
+    A refused target (PU) binds bootstrap and JSON without BioSTEAM.
+    """
+    return [
+        python or _tea_worker_python(),
+        "-c",
+        LIVE_WORKER_RUNPY_BOOTSTRAP,
+        worker_path or str(Path(str(tea_worker.__file__)).resolve()),
+        json.dumps(worker_config),
+    ]
 
 
 def _launch_live_worker(
@@ -1323,25 +1715,10 @@ def _launch_live_worker(
     """Run one fresh worker and verify its source handshake."""
     try:
         completed = subprocess.run(
-            [
-                # Execute the exact file whose digest the parent has admitted.
-                # ``-m dissolve.tea_worker`` imports the package registry first,
-                # leaking unrelated engine dependencies into the isolated TEA
-                # environment before the worker can reach its JSON boundary.
-                # Executing that file as a script is also unsafe: its package
-                # directory becomes sys.path[0] and shadows the scientific
-                # ``thermo`` package with the sibling dissolve module. A -c
-                # bootstrap keeps the source root as sys.path[0], while runpy
-                # still sets __file__ to the admitted path for the handshake.
-                _tea_worker_python(), "-c",
-                (
-                    "import runpy,sys;"
-                    "worker_path=sys.argv.pop(1);"
-                    "runpy.run_path(worker_path,run_name='__main__')"
-                ),
-                provenance["worker_source_path"],
-                json.dumps(worker_config),
-            ],
+            live_worker_runpy_argv(
+                worker_config,
+                worker_path=provenance["worker_source_path"],
+            ),
             capture_output=True, text=True, timeout=timeout_seconds,
             env=environment,
             cwd=str(Path(__file__).resolve().parents[1]),
@@ -1474,6 +1851,13 @@ def _live(config: dict[str, Any], timeout_seconds: int) -> dict[str, Any]:
                 "expected_worker_source_sha256"
             ],
             "runtime_versions": provenance["expected_runtime_versions"],
+            "cited_package_sha256": {
+                name: str(
+                    ((provenance.get("cited_package_sources") or {}).get(name) or {})
+                    .get("sha256") or ""
+                )
+                for name in tea_polymer_parameters.CITED_STRAP_SOURCE_NAMES
+            },
         },
     }
     result = _launch_live_worker(
@@ -1567,7 +1951,64 @@ def _run(config: dict[str, Any], engine_mode: str, timeout_seconds: int) -> dict
         "engine_mode": "live", "cache_match_status": "bypassed" if mode == "live" else "miss",
         "config": config,
     })
+    if result.get("success") is True:
+        result = _require_live_parameter_standing(result, config)
     return result
+
+
+def _require_live_parameter_standing(
+    result: dict[str, Any], config: dict[str, Any],
+) -> dict[str, Any]:
+    """Refuse to serve a live number whose process standing is missing.
+
+    The parameter surface is the authority, not the worker's word.
+    Overlay standing from the table on every live success. A provisional
+    result without ``process_parameter_status`` is not served — same
+    shape as gate_tea (number + standing) and D-8 (structural flag).
+    """
+    polymer = str(
+        config.get("target_plastic") or result.get("target_plastic") or ""
+    )
+    row = tea_polymer_parameters.polymer_row(polymer)
+    if row is None or row.admission != tea_polymer_parameters.ADMISSION_LIVE:
+        result.update({
+            "success": False,
+            "error": (
+                "Live TEA produced a number for a polymer that is not "
+                "admitted on the parameter surface; refusing to serve it."
+            ),
+            "error_type": "live_parameter_standing_missing",
+        })
+        result.pop("tea", None)
+        return result
+    solvent = str(
+        result.get("engine_solvent")
+        or config.get("solvent")
+        or result.get("solvent")
+        or ""
+    )
+    attached = tea_polymer_parameters.attach_live_parameter_standing(
+        result,
+        row,
+        solvent=solvent,
+        config=config,
+        plastics_root=tea_polymer_parameters.resolve_plastics_path(),
+    )
+    if (
+        attached.get("can_cite_as_validated_process") is False
+        and not attached.get("process_parameter_status")
+    ):
+        attached.update({
+            "success": False,
+            "error": (
+                "Live TEA produced a provisional number without "
+                "process_parameter_status; refusing to serve an unlabelled "
+                "result."
+            ),
+            "error_type": "live_parameter_standing_missing",
+        })
+        attached.pop("tea", None)
+    return attached
 
 
 def _same_config(
@@ -1807,6 +2248,38 @@ def _comparison_row(label: str, result: dict[str, Any]) -> dict[str, Any]:
                 )
             }
             if result.get("lca_metric_status") else {}
+        ),
+        **(
+            {
+                "process_parameter_status": copy.deepcopy(
+                    result["process_parameter_status"],
+                )
+            }
+            if result.get("process_parameter_status") else {}
+        ),
+        **(
+            {
+                "process_parameter_status_definitions": copy.deepcopy(
+                    result["process_parameter_status_definitions"],
+                )
+            }
+            if result.get("process_parameter_status_definitions") else {}
+        ),
+        **(
+            {
+                "live_parameter_standing": copy.deepcopy(
+                    result["live_parameter_standing"],
+                )
+            }
+            if result.get("live_parameter_standing") else {}
+        ),
+        **(
+            {
+                "can_cite_as_validated_process": result[
+                    "can_cite_as_validated_process"
+                ]
+            }
+            if "can_cite_as_validated_process" in result else {}
         ),
         **(
             {"lca_coverage": copy.deepcopy(result["lca_coverage"])}
@@ -2900,7 +3373,7 @@ def _candidate_tea_basis_gap(
 
 
 def _live_process_model_targets() -> tuple[str, ...]:
-    return tuple(sorted(tea_worker._TARGET))
+    return tea_polymer_parameters.live_grid_targets()
 
 
 def _classify_live_feed_polymers(
@@ -2909,10 +3382,10 @@ def _classify_live_feed_polymers(
     """Split feed labels into unrecognised vs recognised-but-unmodelled.
 
     Recognition is thermo.resolve_polymer_identity. Unmodelled is absence
-    from tea_worker._TARGET after that lookup, not membership in a bad-name
-    list. Generic PE expands to modelled LDPE/HDPE and is neither.
+    from the live parameter surface after that lookup, not membership in a
+    bad-name list. Generic PE expands to modelled LDPE/HDPE and is neither.
     """
-    modelled = tea_worker._TARGET
+    modelled = set(tea_polymer_parameters.live_identity_map())
     unrecognised: list[str] = []
     unmodelled: list[str] = []
     seen_unrecognised: set[str] = set()
