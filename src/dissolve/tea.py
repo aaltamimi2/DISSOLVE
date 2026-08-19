@@ -72,6 +72,37 @@ _PRECIPITATION_FORMATS = frozenset({"constant", "drop"})
 _PRECIPITATION_CONFIGURATIONS = frozenset({
     "integrated heat transfer", "solvent mixing",
 })
+# Unreached @parameter baselines after load_model. They move MSP; they join
+# the serve key the same way the flowsheet switches do. Existing cache
+# records do not carry them and are projected at these running values.
+_IRR_DEFAULT = 0.10
+_FEEDSTOCK_PRICE_USD_PER_KG = 0.01
+_CENTRIFUGED_PLASTIC_SOLVENT_CONTENT_PCT = 50.0
+_NATURAL_GAS_PRICE_USD_PER_M3 = 4.73 * 35.3146667 / 1e3
+_COEFFICIENT_DEFAULTS = {
+    "irr": _IRR_DEFAULT,
+    "feedstock_price_usd_per_kg": _FEEDSTOCK_PRICE_USD_PER_KG,
+    "centrifuged_plastic_solvent_content_pct": (
+        _CENTRIFUGED_PLASTIC_SOLVENT_CONTENT_PCT
+    ),
+}
+_FIELD_NOT_ADJUSTABLE_NAMES = frozenset({
+    "centrifuged_precipitate_solvent_content",
+    "set_centrifuged_precipitate_solvent_content",
+    "screw_press_solvent_content",
+    "set_screw_press_solvent_content",
+    "boiling_point",
+    "set_boiling_point",
+})
+_FIELD_NOT_IN_MODEL_NAMES = frozenset({
+    "recovery", "recovery_fraction", "set_recovery",
+})
+_EXPERT_SURFACE_ONLY_NAMES = frozenset({
+    "tau_h", "dissolution_tau_h", "precipitation_tau_h",
+    "rho_kg_m3", "cp_j_per_g_k", "tm_k", "tb_k",
+    "oligomer", "precipitation_solubility_wt_wt",
+    "precipitation_solubility",
+})
 _REFERENCE_DESIGN_POINT_ROLE = "context_only_not_route_cost_or_ranking"
 _TEA_WORKER_PYTHON_ENV = "DISSOLVE_TEA_PYTHON"
 _LIVE_PROCESS_MODEL_RELATIVE_PATH = Path("plastics/strap/process_model.py")
@@ -1018,6 +1049,142 @@ class _MissingScenarioBasis(_ScenarioInputError):
     """A valid route condition lacks an admitted process input."""
 
 
+def _coefficient_defaults_for(config: dict[str, Any]) -> dict[str, float]:
+    defaults = dict(_COEFFICIENT_DEFAULTS)
+    energy = str(config.get("energy_case") or "").upper()
+    if energy in {"C1", "C3"}:
+        defaults["natural_gas_price_usd_per_m3"] = _NATURAL_GAS_PRICE_USD_PER_M3
+    return defaults
+
+
+def _project_coefficients(config: dict[str, Any]) -> dict[str, float]:
+    """Fill absent MSP-moving coefficients with load_model baselines."""
+    projected = {}
+    for key, default in _coefficient_defaults_for(config).items():
+        value = config.get(key)
+        projected[key] = default if value is None else float(value)
+    return projected
+
+
+def _refuse_reserved_process_fields(supplied: dict[str, Any]) -> None:
+    for key in supplied:
+        name = str(key)
+        if name in _FIELD_NOT_ADJUSTABLE_NAMES:
+            raise _ScenarioInputError(
+                f"{name} is commented out on BaselineSTRAPProcess; it is "
+                "not a setter on this instance.",
+                error_code="field_not_adjustable",
+                field=name,
+            )
+        if name in _FIELD_NOT_IN_MODEL_NAMES:
+            raise _ScenarioInputError(
+                "Recovery is an output of the unit operations, not an "
+                "input; there is no set_recovery on the governed model.",
+                error_code="field_not_in_model",
+                field=name,
+            )
+        if name in _EXPERT_SURFACE_ONLY_NAMES:
+            raise _ScenarioInputError(
+                f"{name} lives on the expert surface "
+                "src/dissolve/tea_polymer_parameters.py, not the process "
+                "sheet.",
+                error_code="expert_surface_only",
+                field=name,
+                expert_surface="src/dissolve/tea_polymer_parameters.py",
+            )
+        if name == "polymer_ratio":
+            raise _ScenarioInputError(
+                "polymer_ratio is registered only on a multistep instance; "
+                "pair TEA is single-step.",
+                error_code="field_not_on_this_instance",
+                field="polymer_ratio",
+            )
+        if name == "precipitation_temperature_drop_pct":
+            raise _ScenarioInputError(
+                "precipitation_temperature_drop_pct exists only when "
+                "precipitation_temperature_format is 'drop'.",
+                error_code="field_not_on_this_instance",
+                field="precipitation_temperature_drop_pct",
+            )
+
+
+def _validated_coefficients(
+    supplied: dict[str, Any], *, energy_case: str,
+) -> dict[str, float]:
+    coefficients = dict(_COEFFICIENT_DEFAULTS)
+    if "irr" in supplied:
+        irr = _finite(supplied["irr"], "irr")
+        if irr >= 1:
+            raise _ScenarioInputError(
+                "irr is a fraction (0.10 is 10 percent), not a percent "
+                "integer.",
+                error_code="invalid_scenario",
+                field="irr",
+                supplied=supplied["irr"],
+            )
+        if not 0 < irr < 1:
+            raise _ScenarioInputError(
+                "irr must be a fraction between 0 and 1 exclusive.",
+                error_code="invalid_scenario",
+                field="irr",
+                supplied=supplied["irr"],
+            )
+        coefficients["irr"] = irr
+    if "feedstock_price_usd_per_kg" in supplied:
+        price = _finite(
+            supplied["feedstock_price_usd_per_kg"],
+            "feedstock_price_usd_per_kg",
+        )
+        if price < 0:
+            raise _ScenarioInputError(
+                "feedstock_price_usd_per_kg must be nonnegative",
+                error_code="invalid_scenario",
+                field="feedstock_price_usd_per_kg",
+                supplied=supplied["feedstock_price_usd_per_kg"],
+            )
+        coefficients["feedstock_price_usd_per_kg"] = price
+    if "centrifuged_plastic_solvent_content_pct" in supplied:
+        content = _finite(
+            supplied["centrifuged_plastic_solvent_content_pct"],
+            "centrifuged_plastic_solvent_content_pct",
+        )
+        if not 0 <= content <= 100:
+            raise _ScenarioInputError(
+                "centrifuged_plastic_solvent_content_pct must be between "
+                "0 and 100.",
+                error_code="invalid_scenario",
+                field="centrifuged_plastic_solvent_content_pct",
+                supplied=supplied["centrifuged_plastic_solvent_content_pct"],
+            )
+        coefficients["centrifuged_plastic_solvent_content_pct"] = content
+    if "natural_gas_price_usd_per_m3" in supplied:
+        if energy_case == "C2":
+            raise _ScenarioInputError(
+                "natural_gas_price_usd_per_m3 is not on this instance; "
+                "energy_case C2 has no boiler.",
+                error_code="energy_case_contract",
+                field="natural_gas_price_usd_per_m3",
+                energy_case=energy_case,
+            )
+        price = _finite(
+            supplied["natural_gas_price_usd_per_m3"],
+            "natural_gas_price_usd_per_m3",
+        )
+        if price < 0:
+            raise _ScenarioInputError(
+                "natural_gas_price_usd_per_m3 must be nonnegative",
+                error_code="invalid_scenario",
+                field="natural_gas_price_usd_per_m3",
+                supplied=supplied["natural_gas_price_usd_per_m3"],
+            )
+        coefficients["natural_gas_price_usd_per_m3"] = price
+    elif energy_case in {"C1", "C3"}:
+        coefficients["natural_gas_price_usd_per_m3"] = (
+            _NATURAL_GAS_PRICE_USD_PER_M3
+        )
+    return coefficients
+
+
 def _project_flowsheet_switches(config: dict[str, Any]) -> dict[str, Any]:
     """Fill absent switches with the worker's production hardcodes.
 
@@ -1144,16 +1311,28 @@ def _design_point_key(config: dict[str, Any]) -> str:
 
 
 def _flowsheet_switch_deltas(config: dict[str, Any]) -> list[dict[str, Any]]:
-    projected = _project_flowsheet_switches(config)
-    return [
+    """Public extras that differ from the projected production plant."""
+    projected_switches = _project_flowsheet_switches(config)
+    deltas = [
         {
             "field": key,
             "recorded_value": default,
-            "requested_value": projected[key],
+            "requested_value": projected_switches[key],
         }
         for key, default in _FLOWSHEET_SWITCH_DEFAULTS.items()
-        if projected[key] != default
+        if projected_switches[key] != default
     ]
+    projected_coefficients = _project_coefficients(config)
+    for key, default in _coefficient_defaults_for(config).items():
+        requested = projected_coefficients[key]
+        if math.isclose(float(requested), float(default), rel_tol=0, abs_tol=1e-12):
+            continue
+        deltas.append({
+            "field": key,
+            "recorded_value": default,
+            "requested_value": requested,
+        })
+    return deltas
 
 
 def _scenario_config(scenario: dict[str, Any]) -> dict[str, Any]:
@@ -1173,6 +1352,7 @@ def _scenario_config(scenario: dict[str, Any]) -> dict[str, Any]:
         "precipitation_temp_c": "precipitation_temperature_c",
     }
     supplied = {aliases.get(key, key): value for key, value in scenario.items()}
+    _refuse_reserved_process_fields(supplied)
     config = {
         **{
             "target_plastic_percent": 60.0,
@@ -1221,8 +1401,12 @@ def _scenario_config(scenario: dict[str, Any]) -> dict[str, Any]:
     switches = _validated_flowsheet_switches(
         supplied, energy_case=str(config["energy_case"]),
     )
+    coefficients = _validated_coefficients(
+        supplied, energy_case=str(config["energy_case"]),
+    )
     normalized = {key: config[key] for key in _CONFIG_FIELDS}
     normalized.update(switches)
+    normalized.update(coefficients)
     normalized.update({
         "_requested_solvent": solvent_identity["requested"],
         "_engine_solvent": solvent_identity["canonical"],
@@ -1236,7 +1420,7 @@ def _scenario_config(scenario: dict[str, Any]) -> dict[str, Any]:
 
 
 def _config_key(config: dict[str, Any]) -> str:
-    """Serve key: D-8 twelve plus every public switch that changes the plant."""
+    """Serve key: D-8 twelve plus every public field that changes the number."""
     normalized = _twelve_normalized(config)
     switches = _project_flowsheet_switches(config)
     for key in _FLOWSHEET_SWITCH_FIELDS:
@@ -1245,6 +1429,8 @@ def _config_key(config: dict[str, Any]) -> str:
             normalized[key] = bool(value)
         else:
             normalized[key] = str(value)
+    for key, value in _project_coefficients(config).items():
+        normalized[key] = round(float(value), 10)
     return json.dumps(normalized, sort_keys=True, separators=(",", ":"))
 
 
@@ -2219,6 +2405,18 @@ def _same_config(
             continue
         if left_switches[key] != right_switches[key]:
             return False
+    left_coeff = _project_coefficients(left)
+    right_coeff = _project_coefficients(right)
+    for key in set(left_coeff) | set(right_coeff):
+        if key in varying:
+            continue
+        if key not in left_coeff or key not in right_coeff:
+            return False
+        if not math.isclose(
+            float(left_coeff[key]), float(right_coeff[key]),
+            rel_tol=0, abs_tol=1e-12,
+        ):
+            return False
     return True
 
 
@@ -2404,6 +2602,7 @@ def _comparison_row(label: str, result: dict[str, Any]) -> dict[str, Any]:
     tea, lca, operations = result.get("tea") or {}, result.get("lca") or {}, result.get("operations") or {}
     config = result.get("config") or {}
     switches = _project_flowsheet_switches(config)
+    coefficients = _project_coefficients(config)
     return {
         "label": label, "success": bool(result.get("success")),
         "polymer": config.get("target_plastic") or result.get("target_plastic"),
@@ -2419,6 +2618,21 @@ def _comparison_row(label: str, result: dict[str, Any]) -> dict[str, Any]:
             "precipitation_temperature_format"
         ],
         "precipitation_configuration": switches["precipitation_configuration"],
+        "irr": coefficients.get("irr"),
+        "feedstock_price_usd_per_kg": coefficients.get(
+            "feedstock_price_usd_per_kg"
+        ),
+        "centrifuged_plastic_solvent_content_pct": coefficients.get(
+            "centrifuged_plastic_solvent_content_pct"
+        ),
+        **(
+            {
+                "natural_gas_price_usd_per_m3": coefficients[
+                    "natural_gas_price_usd_per_m3"
+                ]
+            }
+            if "natural_gas_price_usd_per_m3" in coefficients else {}
+        ),
         "msp_usd_per_kg": tea.get("msp_usd_per_kg"),
         "tci_usd": tea.get("tci_usd"), "aoc_usd_per_yr": tea.get("aoc_usd_per_yr"),
         "gwp_kg_co2e_per_kg": lca.get("gwp_kg_co2e_per_kg"),
@@ -3085,13 +3299,17 @@ def evaluate_tea_lca_scenarios(
     target_mass_percent, processing_capacity_mt_per_yr, dissolution_temp_c,
     precipitation_temp_c, solvent_price, solvent_loss_pct,
     feedstock_distance_km, sell_leftover_plastic, burn_leftover_plastic,
-    precipitation_temperature_format, and precipitation_configuration.
-    Omitted switches keep the production plant (leftover neither sold nor
-    burned; constant precipitation; integrated heat transfer). Auto mode uses
-    only exact cache matches, otherwise a compatible isolated live engine; it
-    never interpolates cached process results or serves another plant's MSP
-    under a twelve-only key. Use evaluate_stored_route_tea_lca for an
-    inherited route or candidate shortlist.
+    precipitation_temperature_format, precipitation_configuration, irr,
+    feedstock_price_usd_per_kg, centrifuged_plastic_solvent_content_pct,
+    and natural_gas_price_usd_per_m3 (C1/C3). Omitted switches and
+    coefficients keep the production plant (leftover neither sold nor
+    burned; constant precipitation; integrated heat transfer; IRR 0.10;
+    feedstock 0.01 USD/kg; centrifuged solvent 50%; NG 4.73 USD/kcf on
+    C1/C3). Auto mode uses only exact cache matches, otherwise a compatible
+    isolated live engine; it never interpolates cached process results or
+    serves another plant's MSP under a twelve-only key. Use
+    evaluate_stored_route_tea_lca for an inherited route or candidate
+    shortlist.
     """
     tool = "evaluate_tea_lca_scenarios"
     if not isinstance(scenarios, list) or not scenarios:

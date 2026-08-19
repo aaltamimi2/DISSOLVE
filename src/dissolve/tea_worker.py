@@ -22,6 +22,11 @@ _ENERGY = {
     "C2": {"facilities": False, "turbogenerator": False},
     "C3": {"facilities": True, "turbogenerator": False},
 }
+# BaselineSTRAPProcess set_natural_gas_price @parameter baseline (USD/m3).
+_NATURAL_GAS_PRICE_USD_PER_M3 = 4.73 * 35.3146667 / 1e3
+_IRR_DEFAULT = 0.10
+_FEEDSTOCK_PRICE_USD_PER_KG = 0.01
+_CENTRIFUGED_PLASTIC_SOLVENT_CONTENT_PCT = 50.0
 
 
 def _polymer_parameters() -> ModuleType:
@@ -871,6 +876,23 @@ def _create_and_simulate_process(
             config["precipitation_temperature_c"] + 273.15
         )
         process.set_dissolution_capacity(config.get("dissolution_capacity", 3))
+        process.set_IRR(float(config.get("irr", _IRR_DEFAULT)))
+        process.set_feedstock_price(float(
+            config.get("feedstock_price_usd_per_kg", _FEEDSTOCK_PRICE_USD_PER_KG)
+        ))
+        process.set_centrifuged_plastic_solvent_content(float(
+            config.get(
+                "centrifuged_plastic_solvent_content_pct",
+                _CENTRIFUGED_PLASTIC_SOLVENT_CONTENT_PCT,
+            )
+        ))
+        if energy["facilities"]:
+            process.set_natural_gas_price(float(
+                config.get(
+                    "natural_gas_price_usd_per_m3",
+                    _NATURAL_GAS_PRICE_USD_PER_M3,
+                )
+            ))
         phase = "characterization_factor_application"
         _set_characterization_factors(
             process,
