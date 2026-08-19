@@ -28,6 +28,7 @@ _IRR_DEFAULT = 0.10
 _INCOME_TAX_DEFAULT = 0.21
 _OPERATING_DAYS_DEFAULT = 350.4
 _LABOR_BURDEN_DEFAULT = 0.90
+_FINANCE_INTEREST_DEFAULT = 0.08
 _FEEDSTOCK_PRICE_USD_PER_KG = 0.01
 _CENTRIFUGED_PLASTIC_SOLVENT_CONTENT_PCT = 50.0
 
@@ -877,6 +878,9 @@ def _create_and_simulate_process(
         )
         process.tea.labor_burden = float(
             config.get("labor_burden", _LABOR_BURDEN_DEFAULT)
+        )
+        process.tea.finance_interest = float(
+            config.get("finance_interest", _FINANCE_INTEREST_DEFAULT)
         )
         process.set_solvent_price(config["solvent_price"])
         process.set_feedstock_distance(config.get("feedstock_distance_km", 0))

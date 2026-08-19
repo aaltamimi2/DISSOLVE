@@ -109,6 +109,7 @@ _IRR_DEFAULT = 0.10
 _INCOME_TAX_DEFAULT = 0.21
 _OPERATING_DAYS_DEFAULT = 350.4
 _LABOR_BURDEN_DEFAULT = 0.90
+_FINANCE_INTEREST_DEFAULT = 0.08
 _FEEDSTOCK_PRICE_USD_PER_KG = 0.01
 _CENTRIFUGED_PLASTIC_SOLVENT_CONTENT_PCT = 50.0
 _NATURAL_GAS_PRICE_USD_PER_M3 = 4.73 * 35.3146667 / 1e3
@@ -117,6 +118,7 @@ _COEFFICIENT_DEFAULTS = {
     "income_tax": _INCOME_TAX_DEFAULT,
     "operating_days": _OPERATING_DAYS_DEFAULT,
     "labor_burden": _LABOR_BURDEN_DEFAULT,
+    "finance_interest": _FINANCE_INTEREST_DEFAULT,
     "feedstock_price_usd_per_kg": _FEEDSTOCK_PRICE_USD_PER_KG,
     "centrifuged_plastic_solvent_content_pct": (
         _CENTRIFUGED_PLASTIC_SOLVENT_CONTENT_PCT
@@ -919,6 +921,7 @@ def public_process_field_names(*, energy_case: str = "C1") -> tuple[str, ...]:
         "income_tax",
         "operating_days",
         "labor_burden",
+        "finance_interest",
         "feedstock_price_usd_per_kg",
         "centrifuged_plastic_solvent_content_pct",
     )
@@ -1436,6 +1439,24 @@ def _validated_coefficients(
                 supplied=supplied["labor_burden"],
             )
         coefficients["labor_burden"] = burden
+    if "finance_interest" in supplied:
+        rate = _finite(supplied["finance_interest"], "finance_interest")
+        if rate >= 1:
+            raise _ScenarioInputError(
+                "finance_interest is a fraction (0.08 is 8 percent), not a "
+                "percent integer.",
+                error_code="invalid_scenario",
+                field="finance_interest",
+                supplied=supplied["finance_interest"],
+            )
+        if not 0 <= rate < 1:
+            raise _ScenarioInputError(
+                "finance_interest must be a fraction in [0, 1).",
+                error_code="invalid_scenario",
+                field="finance_interest",
+                supplied=supplied["finance_interest"],
+            )
+        coefficients["finance_interest"] = rate
     if "feedstock_price_usd_per_kg" in supplied:
         price = _finite(
             supplied["feedstock_price_usd_per_kg"],
@@ -3518,6 +3539,7 @@ def _comparison_row(label: str, result: dict[str, Any]) -> dict[str, Any]:
         "income_tax": coefficients.get("income_tax"),
         "operating_days": coefficients.get("operating_days"),
         "labor_burden": coefficients.get("labor_burden"),
+        "finance_interest": coefficients.get("finance_interest"),
         "feedstock_price_usd_per_kg": coefficients.get(
             "feedstock_price_usd_per_kg"
         ),
