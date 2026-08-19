@@ -4774,6 +4774,154 @@ def _rank_handle_engine_mode(rows: Sequence[dict[str, Any]]) -> str:
     return "handle"
 
 
+def _formulation_token(formulation: Any) -> str:
+    return str(formulation or "").strip().casefold()
+
+
+def _supplied_feed_names(target_polymer: Any) -> list[str]:
+    if target_polymer in (None, "", []):
+        return []
+    if isinstance(target_polymer, list):
+        return [str(item) for item in target_polymer]
+    return [str(target_polymer)]
+
+
+def _planner_solvent_map_shape(value: Any) -> bool:
+    if not isinstance(value, dict) or not value:
+        return False
+    for polymer, solvent in value.items():
+        if not str(polymer or "").strip():
+            return False
+        if not isinstance(solvent, str) or not solvent.strip():
+            return False
+    return True
+
+
+def _allowed_solvents_shape(value: Any) -> bool:
+    if isinstance(value, list):
+        return bool(value) and all(
+            isinstance(item, str) and item.strip() for item in value
+        )
+    if not isinstance(value, dict) or not value:
+        return False
+    for polymer, solvents in value.items():
+        if not str(polymer or "").strip():
+            return False
+        if not isinstance(solvents, (list, tuple)) or not solvents:
+            return False
+        if not all(isinstance(item, str) and item.strip() for item in solvents):
+            return False
+    return True
+
+
+def _public_solvent_token(value: str) -> str:
+    supplied = str(value).strip()
+    return thermo.resolve_solvent(supplied) or supplied
+
+
+def _canonical_planner_solvent_map(value: dict[str, Any]) -> dict[str, str]:
+    mapping: dict[str, str] = {}
+    for raw_polymer, raw_solvent in value.items():
+        members = _expand_polymers([raw_polymer], "planner solvent map polymer")
+        solvent = _public_solvent_token(raw_solvent)
+        for member in members:
+            mapping[member] = solvent
+    return mapping
+
+
+def _canonical_allowed_solvent_keys(value: dict[str, Any]) -> set[str]:
+    keys: set[str] = set()
+    for raw_polymer in value:
+        keys.update(_expand_polymers([raw_polymer], "allowed solvents polymer"))
+    return keys
+
+
+def _superstructure_map_refusal(
+    *,
+    formulation: Any,
+    planner_solvent_map: Any,
+    allowed_solvents: Any,
+    target_polymer: Any,
+) -> str | None:
+    """Named missing-map refuses before remnant DATA / D-20 / unwired."""
+    tool = "rank_landscape"
+    token = _formulation_token(formulation)
+    feed = _supplied_feed_names(target_polymer)
+
+    def _identity_error(error: Exception) -> str:
+        if isinstance(error, _ScenarioInputError):
+            return tool_error(
+                tool, str(error), error_code=error.error_code, **error.details,
+            )
+        if isinstance(error, _InputError):
+            return tool_error(
+                tool, str(error), error_code=error.code, **error.detail,
+            )
+        return tool_error(
+            tool, str(error), error_code="invalid_admitted_record_query",
+        )
+
+    if token == "sequence":
+        if not _planner_solvent_map_shape(planner_solvent_map):
+            return tool_error(
+                tool,
+                "formulation=sequence requires planner_solvent_map",
+                error_code="missing_planner_solvent_map",
+                formulation=token,
+                polymers=feed,
+                feed=feed,
+            )
+        try:
+            mapping = _canonical_planner_solvent_map(planner_solvent_map)
+            resolved_feed = (
+                _expand_polymers(feed, "target polymer") if feed else []
+            )
+        except (_ScenarioInputError, _InputError, ValueError) as error:
+            return _identity_error(error)
+        missing = [name for name in resolved_feed if name not in mapping]
+        if missing:
+            return tool_error(
+                tool,
+                "formulation=sequence requires planner_solvent_map",
+                error_code="missing_planner_solvent_map",
+                formulation=token,
+                polymers=missing,
+                feed=resolved_feed,
+            )
+        return None
+    if token == "solvent":
+        if not _allowed_solvents_shape(allowed_solvents):
+            return tool_error(
+                tool,
+                "formulation=solvent requires allowed_solvents",
+                error_code="missing_allowed_solvents",
+                formulation=token,
+                polymers=feed,
+                feed=feed,
+            )
+        try:
+            if isinstance(allowed_solvents, list):
+                return None
+            keys = _canonical_allowed_solvent_keys(allowed_solvents)
+            resolved_feed = (
+                _expand_polymers(feed, "target polymer") if feed else []
+            )
+        except (_ScenarioInputError, _InputError, ValueError) as error:
+            return _identity_error(error)
+        missing = [name for name in resolved_feed if name not in keys]
+        if missing:
+            return tool_error(
+                tool,
+                "formulation=solvent requires allowed_solvents",
+                error_code="missing_allowed_solvents",
+                formulation=token,
+                polymers=missing,
+                feed=resolved_feed,
+            )
+        return None
+    return None
+
+
 def rank_landscape(
     source: Literal["process_rows", "residual_route", "superstructure"] = (
         "process_rows"
@@ -4792,6 +4940,8 @@ def rank_landscape(
     formulation: Optional[str] = None,
     allow_partial_campaign: bool = False,
     handle: Optional[str] = None,
+    planner_solvent_map: Optional[dict[str, Any]] = None,
+    allowed_solvents: Optional[dict[str, Any] | list[Any]] = None,
     **unexpected: Any,
 ) -> str:
     """Rank already-run process rows. Does not spawn BioSTEAM.
@@ -4800,7 +4950,11 @@ def rank_landscape(
     lookup) at the configs those rows were run at, or locates a campaign
     through DISSOLVE_CAMPAIGN_REGISTRY and campaign_fingerprint. The usable
     projection returns the landscape AND the frontier. Held-field mismatch
-    is not a ranking.
+    is not a ranking. source=superstructure takes planner_solvent_map.v1
+    (formulation=sequence) or allowed_solvents.v1 (formulation=solvent) as
+    arguments, not a third public tool. Missing maps refuse by name before
+    the remnant-grid / D-20 / unwired remainder. Do not scan
+    top_k_sequences for either map.
     """
     tool = "rank_landscape"
     if unexpected:
@@ -4821,18 +4975,43 @@ def rank_landscape(
             "polymer_grouping must be per_target_polymer or mixed_polymer.",
             error_code="invalid_admitted_record_query",
         )
+    if source_token not in {"process_rows", "residual_route", "superstructure"}:
+        return tool_error(
+            tool,
+            "source must be process_rows, residual_route, or superstructure.",
+            error_code="invalid_admitted_record_query",
+        )
+    map_fields = [
+        name for name, value in (
+            ("planner_solvent_map", planner_solvent_map),
+            ("allowed_solvents", allowed_solvents),
+        )
+        if value is not None
+    ]
+    if map_fields and source_token != "superstructure":
+        return tool_error(
+            tool,
+            "planner_solvent_map and allowed_solvents apply on "
+            "source=superstructure",
+            error_code="not_applicable_in_source",
+            source=source_token,
+            inapplicable_fields=map_fields,
+        )
     if source_token in {"residual_route", "superstructure"}:
+        if source_token == "superstructure":
+            refused = _superstructure_map_refusal(
+                formulation=formulation,
+                planner_solvent_map=planner_solvent_map,
+                allowed_solvents=allowed_solvents,
+                target_polymer=target_polymer,
+            )
+            if refused is not None:
+                return refused
         return tool_error(
             tool,
             "this slice ranks process_rows only",
             error_code="tool_not_wired",
             source=source_token,
-        )
-    if source_token != "process_rows":
-        return tool_error(
-            tool,
-            "source must be process_rows, residual_route, or superstructure.",
-            error_code="invalid_admitted_record_query",
         )
     if operation_token in {"optimum", "epsilon"}:
         return tool_error(
