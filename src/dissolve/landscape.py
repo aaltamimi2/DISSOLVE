@@ -81,13 +81,25 @@ def pareto_frontier(landscape: Sequence[dict[str, Any]]) -> list[dict[str, Any]]
 
 def _lca_standing(comparison: Mapping[str, Any]) -> dict[str, Any] | None:
     coverage = comparison.get("lca_coverage")
-    if not isinstance(coverage, dict) or not coverage:
-        return None
-    return {
-        "status": coverage.get("status"),
-        "lca_metrics_status": coverage.get("lca_metrics_status"),
-        "metric_coverage_status": coverage.get("metric_coverage_status"),
-    }
+    if isinstance(coverage, dict) and coverage:
+        if any(
+            key in coverage
+            for key in ("status", "lca_metrics_status", "metric_coverage_status")
+        ):
+            standing = {
+                "status": coverage.get("status"),
+                "lca_metrics_status": coverage.get("lca_metrics_status"),
+                "metric_coverage_status": coverage.get("metric_coverage_status"),
+            }
+            metric_status = coverage.get("lca_metric_status")
+            if isinstance(metric_status, dict) and metric_status:
+                standing["lca_metric_status"] = dict(metric_status)
+            return standing
+        return dict(coverage)
+    metric_status = comparison.get("lca_metric_status")
+    if isinstance(metric_status, dict) and metric_status:
+        return {"lca_metric_status": dict(metric_status)}
+    return None
 
 
 def _public_twelve_from_process_row(
@@ -148,23 +160,33 @@ def compact_process_row(row: Mapping[str, Any]) -> dict[str, Any]:
     return payload
 
 
-def row_is_usable(point: Mapping[str, Any], *, canonical: str) -> bool:
-    fingerprint = str(point.get("campaign_fingerprint") or "").strip().casefold()
-    if fingerprint != canonical:
-        return False
+def row_is_usable(
+    point: Mapping[str, Any],
+    *,
+    canonical: str | None,
+    skip_campaign_identity: bool = False,
+) -> bool:
+    if not skip_campaign_identity:
+        fingerprint = str(point.get("campaign_fingerprint") or "").strip().casefold()
+        if fingerprint != str(canonical or "").casefold():
+            return False
     if str(point.get("outcome") or "") != "success":
         return False
     if not _finite_number(point.get(X_METRIC)):
         return False
     if not _finite_number(point.get(Y_METRIC)):
         return False
+    coverage = point.get("lca_coverage")
+    if not isinstance(coverage, dict) or not coverage:
+        return False
+    if skip_campaign_identity:
+        from . import tea
+
+        return tea._public_twelve_from_row(dict(point)) is not None
     standing = point.get("standing")
     if not isinstance(standing, dict) or not standing:
         return False
     if not standing.get("process_parameter_status"):
-        return False
-    coverage = point.get("lca_coverage")
-    if not isinstance(coverage, dict) or not coverage:
         return False
     return True
 
@@ -272,14 +294,19 @@ def quality_block(
 def project_usable(
     rows: Iterable[Mapping[str, Any]],
     *,
-    canonical: str,
+    canonical: str | None,
+    skip_campaign_identity: bool = False,
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]], dict[str, int]]:
     usable: list[dict[str, Any]] = []
     excluded: list[dict[str, Any]] = []
     by_type: Counter[str] = Counter()
     for row in rows:
         point = compact_process_row(row)
-        if row_is_usable(point, canonical=canonical):
+        if row_is_usable(
+            point,
+            canonical=canonical,
+            skip_campaign_identity=skip_campaign_identity,
+        ):
             usable.append(point)
             continue
         token = _exclusion_token(point)
@@ -333,34 +360,137 @@ def load_filtered_rows(
     return rows
 
 
-def rank_process_rows(
-    bound: Mapping[str, Any],
+def _filter_process_rows(
+    rows: Sequence[Mapping[str, Any]],
     *,
     polymers: list[str] | None = None,
     solvent: str | None = None,
-    polymer_grouping: str = "per_target_polymer",
-    operation: str = "pareto_dominance",
+) -> list[Mapping[str, Any]]:
+    wanted_polymers = {
+        campaign_consume._key(item) for item in (polymers or []) if item
+    }
+    wanted_solvent = str(solvent or "").strip() or None
+    filtered: list[Mapping[str, Any]] = []
+    for row in rows:
+        polymer = str(
+            row.get("polymer") or row.get("target_polymer") or "",
+        ).strip()
+        if wanted_polymers and campaign_consume._key(polymer) not in wanted_polymers:
+            continue
+        public_solvent = str(
+            row.get("solvent_public_identity") or row.get("solvent") or "",
+        )
+        if wanted_solvent is not None and not campaign_consume._solvents_match(
+            wanted_solvent, public_solvent,
+        ):
+            continue
+        filtered.append(row)
+    return filtered
+
+
+def _pair_id_for_economics_row(row: Mapping[str, Any], index: int) -> str:
+    for key in ("pair_id", "label", "record_id"):
+        text = str(row.get(key) or "").strip()
+        if text:
+            return text
+    polymer = str(row.get("target_polymer") or row.get("polymer") or "").strip()
+    solvent = str(row.get("solvent") or "").strip()
+    case = str(row.get("energy_case") or "").strip()
+    token = "|".join(part for part in (polymer, solvent, case) if part)
+    return token or f"handle-row-{index + 1}"
+
+
+def _outcome_for_economics_row(row: Mapping[str, Any]) -> str:
+    if row.get("success") is True:
+        return "success"
+    if row.get("success") is False:
+        return "failure"
+    outcome = str(row.get("outcome") or "").strip()
+    if outcome:
+        return outcome
+    if _finite_number(row.get(X_METRIC)):
+        return "success"
+    return "failure"
+
+
+def economics_row_as_process_row(
+    row: Mapping[str, Any],
+    *,
+    index: int = 0,
 ) -> dict[str, Any]:
-    canonical = str(bound["canonical"])
-    rows = load_filtered_rows(
-        bound["process_rows_path"],
-        canonical,
-        polymers=polymers,
-        solvent=solvent,
-    )
-    usable, excluded, by_type = project_usable(rows, canonical=canonical)
-    census = {
-        "n_rows_read": len(rows),
+    """JSONL-shaped process row from an evaluate or lookup comparison row."""
+    from . import tea
+
+    if isinstance(row.get("comparison_row"), dict) and (
+        row.get("polymer") is not None
+        or row.get("solvent_public_identity") is not None
+    ):
+        copied = dict(row)
+        if not copied.get("pair_id"):
+            copied["pair_id"] = _pair_id_for_economics_row(row, index)
+        return copied
+    public = tea._public_twelve_from_row(dict(row)) or {}
+    worker = {
+        internal: public[public_name]
+        for internal, public_name in tea._DESIGN_POINT_PUBLIC_FIELDS
+        if public_name in public
+    }
+    standing = dict(row.get("standing") or {})
+    process_status = row.get("process_parameter_status")
+    if isinstance(process_status, dict) and process_status:
+        standing.setdefault("process_parameter_status", process_status)
+    if "can_cite_as_validated_process" in row:
+        standing.setdefault(
+            "can_cite_as_validated_process",
+            row["can_cite_as_validated_process"],
+        )
+    comparison = {
+        X_METRIC: row.get(X_METRIC),
+        Y_METRIC: row.get(Y_METRIC),
+        **public,
+    }
+    coverage = row.get("lca_coverage")
+    if isinstance(coverage, dict) and coverage:
+        comparison["lca_coverage"] = coverage
+    metric_status = row.get("lca_metric_status")
+    if isinstance(metric_status, dict) and metric_status:
+        comparison["lca_metric_status"] = dict(metric_status)
+    payload = {
+        "pair_id": _pair_id_for_economics_row(row, index),
+        "polymer": public.get("target_polymer") or row.get("polymer"),
+        "solvent_public_identity": public.get("solvent") or row.get("solvent"),
+        "campaign_fingerprint": row.get("campaign_fingerprint"),
+        "outcome": _outcome_for_economics_row(row),
+        "error_type": row.get("error_type"),
+        "standing": standing,
+        "comparison_row": comparison,
+        "config_normalized_twelve": worker,
+    }
+    if row.get("engine_mode"):
+        payload["engine_mode"] = row["engine_mode"]
+    return payload
+
+
+def _rank_usable_population(
+    usable: list[dict[str, Any]],
+    excluded: list[dict[str, Any]],
+    by_type: dict[str, int],
+    *,
+    n_rows_read: int,
+    polymer_grouping: str,
+    operation: str,
+    extra_census: Mapping[str, Any] | None = None,
+) -> dict[str, Any]:
+    census: dict[str, Any] = {
+        "n_rows_read": n_rows_read,
         "excluded_count": len(excluded),
         "excluded_by_error_type": by_type,
         "excluded_records": excluded,
         "n_usable": len(usable),
         "ingested_into_admitted_cache": False,
-        "campaign_fingerprint": canonical,
-        "append_log_fingerprint": bound.get("append_log_fingerprint"),
-        **dict(bound.get("projected") or {}),
         "safety_standing_policy": "carried_not_filtered",
         "view_family": "two_of_five",
+        **dict(extra_census or {}),
     }
     if len(usable) < 2:
         raise campaign_consume.CampaignConsumeError(
@@ -434,3 +564,82 @@ def rank_process_rows(
         "operation": "pareto_dominance",
         **block,
     }
+
+
+def rank_process_rows(
+    bound: Mapping[str, Any],
+    *,
+    polymers: list[str] | None = None,
+    solvent: str | None = None,
+    polymer_grouping: str = "per_target_polymer",
+    operation: str = "pareto_dominance",
+) -> dict[str, Any]:
+    canonical = str(bound["canonical"])
+    rows = load_filtered_rows(
+        bound["process_rows_path"],
+        canonical,
+        polymers=polymers,
+        solvent=solvent,
+    )
+    usable, excluded, by_type = project_usable(rows, canonical=canonical)
+    return _rank_usable_population(
+        usable,
+        excluded,
+        by_type,
+        n_rows_read=len(rows),
+        polymer_grouping=polymer_grouping,
+        operation=operation,
+        extra_census={
+            "campaign_fingerprint": canonical,
+            "append_log_fingerprint": bound.get("append_log_fingerprint"),
+            **dict(bound.get("projected") or {}),
+        },
+    )
+
+
+def rank_handle_process_rows(
+    rows: Sequence[Mapping[str, Any]],
+    *,
+    polymers: list[str] | None = None,
+    solvent: str | None = None,
+    polymer_grouping: str = "per_target_polymer",
+    operation: str = "pareto_dominance",
+) -> dict[str, Any]:
+    """Rank tool-1 comparison rows already in a handle. No JSONL, no BioSTEAM."""
+    converted = [
+        economics_row_as_process_row(row, index=index)
+        for index, row in enumerate(rows)
+    ]
+    fingerprints = {
+        str(row.get("campaign_fingerprint") or "").strip().casefold()
+        for row in converted
+        if str(row.get("campaign_fingerprint") or "").strip()
+    }
+    if len(fingerprints) > 1:
+        raise campaign_consume.CampaignConsumeError(
+            "handle mixes more than one campaign fingerprint",
+            error_code="mixed_campaign_basis",
+            fingerprints=sorted(fingerprints),
+            n_rows_read=len(converted),
+            ingested_into_admitted_cache=False,
+        )
+    filtered = _filter_process_rows(
+        converted, polymers=polymers, solvent=solvent,
+    )
+    usable, excluded, by_type = project_usable(
+        filtered,
+        canonical=None,
+        skip_campaign_identity=True,
+    )
+    extra: dict[str, Any] = {}
+    if len(fingerprints) == 1:
+        extra["campaign_fingerprint"] = next(iter(fingerprints))
+    return _rank_usable_population(
+        usable,
+        excluded,
+        by_type,
+        n_rows_read=len(filtered),
+        polymer_grouping=polymer_grouping,
+        operation=operation,
+        extra_census=extra,
+    )

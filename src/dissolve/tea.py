@@ -895,6 +895,10 @@ PROCESS_CONFIRM_TOOLS = frozenset({
     "evaluate_tea_lca_scenarios",
     "analyze_tea_sensitivity",
 })
+_TOOL1_PROCESS_ROWS_TOOLS = frozenset({
+    "evaluate_tea_lca_scenarios",
+    "lookup_admitted_process_records",
+})
 _SHEET_REQUIRED_FIELDS = (
     "target_polymer", "solvent", "dissolution_temperature_c",
 )
@@ -4241,6 +4245,56 @@ def lookup_admitted_process_records(
     )
 
 
+def _load_process_rows_handle(handle: Any) -> tuple[str, list[dict[str, Any]]]:
+    """Load tool-1 rows already in a handle. Rank does not consume JSONL here."""
+    token = handle.strip() if isinstance(handle, str) else ""
+    if not isinstance(handle, str) or not token:
+        raise _ScenarioInputError(
+            "unknown handle",
+            error_code="unknown_handle",
+            handle=handle,
+        )
+    record = current_tool_session()
+    stored = load_handle(record, token) if record is not None else None
+    if stored is None:
+        raise _ScenarioInputError(
+            "unknown handle",
+            error_code="unknown_handle",
+            handle=token,
+        )
+    source_tool = str(stored.get("tool") or "")
+    if source_tool not in _TOOL1_PROCESS_ROWS_TOOLS:
+        raise _ScenarioInputError(
+            "handle is not a tool-1 process_rows source",
+            error_code="not_economics_handle",
+            handle=token,
+            source_tool=source_tool,
+        )
+    try:
+        rows = _economics_handle_rows(stored)
+    except (ValueError, KeyError, TypeError):
+        raise _ScenarioInputError(
+            "handle has no economics comparison rows",
+            error_code="not_economics_handle",
+            handle=token,
+            source_tool=source_tool,
+        )
+    return source_tool, rows
+
+
+def _rank_handle_engine_mode(rows: Sequence[dict[str, Any]]) -> str:
+    modes = {
+        str(row.get("engine_mode") or "").strip()
+        for row in rows
+        if isinstance(row, dict) and str(row.get("engine_mode") or "").strip()
+    }
+    if modes == {"cache"}:
+        return "cache"
+    if len(modes) == 1:
+        return next(iter(modes))
+    return "handle"
+
+
 def rank_landscape(
     source: Literal["process_rows", "residual_route", "superstructure"] = (
         "process_rows"
@@ -4258,13 +4312,16 @@ def rank_landscape(
     ] = "per_target_polymer",
     formulation: Optional[str] = None,
     allow_partial_campaign: bool = False,
+    handle: Optional[str] = None,
     **unexpected: Any,
 ) -> str:
     """Rank already-run process rows. Does not spawn BioSTEAM.
 
-    source=process_rows locates a campaign through DISSOLVE_CAMPAIGN_REGISTRY
-    and the campaign_fingerprint, applies the usable projection, and returns
-    the landscape AND the frontier. Held-field mismatch is not a ranking.
+    source=process_rows ranks a tool-1 handle (evaluate batch or admitted
+    lookup) at the configs those rows were run at, or locates a campaign
+    through DISSOLVE_CAMPAIGN_REGISTRY and campaign_fingerprint. The usable
+    projection returns the landscape AND the frontier. Held-field mismatch
+    is not a ranking.
     """
     tool = "rank_landscape"
     if unexpected:
@@ -4355,6 +4412,31 @@ def rank_landscape(
     except ValueError as error:
         return tool_error(
             tool, str(error), error_code="invalid_admitted_record_query",
+        )
+    if handle is not None:
+        try:
+            _source_tool, rows = _load_process_rows_handle(handle)
+            payload = landscape.rank_handle_process_rows(
+                rows,
+                polymers=polymers,
+                solvent=resolved_solvent,
+                polymer_grouping=grouping_token,
+                operation=operation_token,
+            )
+        except _ScenarioInputError as error:
+            return tool_error(
+                tool, str(error), error_code=error.error_code, **error.details,
+            )
+        except campaign_consume.CampaignConsumeError as error:
+            return tool_error(
+                tool, str(error), error_code=error.error_code, **error.details,
+            )
+        return tool_success(
+            tool,
+            analysis_type="process_rows_landscape",
+            engine_mode=_rank_handle_engine_mode(rows),
+            source="process_rows",
+            **payload,
         )
     try:
         bound = campaign_consume.prepare_registered_campaign(
