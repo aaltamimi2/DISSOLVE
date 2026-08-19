@@ -7,6 +7,7 @@ import shutil
 import sys
 from dataclasses import replace
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -928,13 +929,38 @@ def test_worker_admitted_target_is_named_python_version(monkeypatch):
 
 
 def test_worker_python_guard_does_not_fire_on_3_12_predicate(monkeypatch):
+    """The 3.12 predicate must pass the guard without depending on plastics.
+
+    Passing must not be an ambient ModuleNotFoundError. Patch the first
+    post-guard seam to a sentinel and assert that result.
+    """
     monkeypatch.delenv("DISSOLVE_PLASTICS_PATH", raising=False)
     monkeypatch.setattr(tea_worker.sys, "version_info", (3, 12, 13))
     monkeypatch.setattr(
         tea_worker.platform, "python_version", lambda: "3.12.13",
     )
-    with pytest.raises(ModuleNotFoundError, match="plastics"):
-        tea_worker.run({"target_plastic": "LDPE"})
+    real_import = tea_worker.importlib.import_module
+
+    def fake_import(name, *args, **kwargs):
+        if name == "plastics.strap":
+            return SimpleNamespace(STRAP_chemicals_outline=[])
+        return real_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(tea_worker.importlib, "import_module", fake_import)
+    monkeypatch.setattr(
+        tea_worker,
+        "_verify_loaded_live_provenance",
+        lambda _expectations: (
+            {"status": "sentinel"},
+            "post_guard_sentinel",
+            "python version guard did not fire",
+        ),
+    )
+    result = tea_worker.run({"target_plastic": "LDPE"})
+    assert result["success"] is False
+    assert result["error_type"] == "post_guard_sentinel"
+    assert result["error_type"] != "python_version"
+    assert result["error"] == "python version guard did not fire"
 
 
 def test_readiness_rejects_resolved_python_below_3_12(tmp_path, monkeypatch):
