@@ -41,6 +41,7 @@ _SITE_DEVELOPMENT_DEFAULT = 0.09
 _ADDITIONAL_PIPING_DEFAULT = 0.045
 _PRORATABLE_COSTS_DEFAULT = 0.10
 _FIELD_EXPENSES_DEFAULT = 0.10
+_CONSTRUCTION_DEFAULT = 0.20
 _FEEDSTOCK_PRICE_USD_PER_KG = 0.01
 _CENTRIFUGED_PLASTIC_SOLVENT_CONTENT_PCT = 50.0
 
@@ -929,6 +930,9 @@ def _create_and_simulate_process(
         )
         process.tea.field_expenses = float(
             config.get("field_expenses", _FIELD_EXPENSES_DEFAULT)
+        )
+        process.tea.construction = float(
+            config.get("construction", _CONSTRUCTION_DEFAULT)
         )
         process.set_solvent_price(config["solvent_price"])
         process.set_feedstock_distance(config.get("feedstock_distance_km", 0))
