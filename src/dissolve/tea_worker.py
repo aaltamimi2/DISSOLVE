@@ -38,6 +38,7 @@ _STARTUP_SALESFRAC_DEFAULT = 0.5
 _WC_OVER_FCI_DEFAULT = 0.05
 _WAREHOUSE_DEFAULT = 0.04
 _SITE_DEVELOPMENT_DEFAULT = 0.09
+_ADDITIONAL_PIPING_DEFAULT = 0.045
 _FEEDSTOCK_PRICE_USD_PER_KG = 0.01
 _CENTRIFUGED_PLASTIC_SOLVENT_CONTENT_PCT = 50.0
 
@@ -917,6 +918,9 @@ def _create_and_simulate_process(
         )
         process.tea.site_development = float(
             config.get("site_development", _SITE_DEVELOPMENT_DEFAULT)
+        )
+        process.tea.additional_piping = float(
+            config.get("additional_piping", _ADDITIONAL_PIPING_DEFAULT)
         )
         process.set_solvent_price(config["solvent_price"])
         process.set_feedstock_distance(config.get("feedstock_distance_km", 0))
