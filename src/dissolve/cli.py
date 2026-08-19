@@ -541,6 +541,10 @@ def _coerce_process_sheet_value(field: str, raw: str, current: Any) -> Any:
         raise ValueError(
             "proratable_costs is a fraction (0.10 is 10 percent)"
         )
+    if field == "field_expenses" and number > 1:
+        raise ValueError(
+            "field_expenses is a fraction (0.10 is 10 percent)"
+        )
     return number
 
 

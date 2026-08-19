@@ -121,6 +121,7 @@ _WAREHOUSE_DEFAULT = 0.04
 _SITE_DEVELOPMENT_DEFAULT = 0.09
 _ADDITIONAL_PIPING_DEFAULT = 0.045
 _PRORATABLE_COSTS_DEFAULT = 0.10
+_FIELD_EXPENSES_DEFAULT = 0.10
 _FEEDSTOCK_PRICE_USD_PER_KG = 0.01
 _CENTRIFUGED_PLASTIC_SOLVENT_CONTENT_PCT = 50.0
 _NATURAL_GAS_PRICE_USD_PER_M3 = 4.73 * 35.3146667 / 1e3
@@ -141,6 +142,7 @@ _COEFFICIENT_DEFAULTS = {
     "site_development": _SITE_DEVELOPMENT_DEFAULT,
     "additional_piping": _ADDITIONAL_PIPING_DEFAULT,
     "proratable_costs": _PRORATABLE_COSTS_DEFAULT,
+    "field_expenses": _FIELD_EXPENSES_DEFAULT,
     "feedstock_price_usd_per_kg": _FEEDSTOCK_PRICE_USD_PER_KG,
     "centrifuged_plastic_solvent_content_pct": (
         _CENTRIFUGED_PLASTIC_SOLVENT_CONTENT_PCT
@@ -955,6 +957,7 @@ def public_process_field_names(*, energy_case: str = "C1") -> tuple[str, ...]:
         "site_development",
         "additional_piping",
         "proratable_costs",
+        "field_expenses",
         "feedstock_price_usd_per_kg",
         "centrifuged_plastic_solvent_content_pct",
     )
@@ -1686,6 +1689,24 @@ def _validated_coefficients(
                 supplied=supplied["proratable_costs"],
             )
         coefficients["proratable_costs"] = fraction
+    if "field_expenses" in supplied:
+        fraction = _finite(supplied["field_expenses"], "field_expenses")
+        if fraction > 1:
+            raise _ScenarioInputError(
+                "field_expenses is a fraction (0.10 is 10 percent), not a "
+                "percent integer.",
+                error_code="invalid_scenario",
+                field="field_expenses",
+                supplied=supplied["field_expenses"],
+            )
+        if not 0 <= fraction <= 1:
+            raise _ScenarioInputError(
+                "field_expenses must be a fraction in [0, 1].",
+                error_code="invalid_scenario",
+                field="field_expenses",
+                supplied=supplied["field_expenses"],
+            )
+        coefficients["field_expenses"] = fraction
     if "feedstock_price_usd_per_kg" in supplied:
         price = _finite(
             supplied["feedstock_price_usd_per_kg"],
@@ -3780,6 +3801,7 @@ def _comparison_row(label: str, result: dict[str, Any]) -> dict[str, Any]:
         "site_development": coefficients.get("site_development"),
         "additional_piping": coefficients.get("additional_piping"),
         "proratable_costs": coefficients.get("proratable_costs"),
+        "field_expenses": coefficients.get("field_expenses"),
         "feedstock_price_usd_per_kg": coefficients.get(
             "feedstock_price_usd_per_kg"
         ),
