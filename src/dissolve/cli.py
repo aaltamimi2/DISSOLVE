@@ -537,6 +537,10 @@ def _coerce_process_sheet_value(field: str, raw: str, current: Any) -> Any:
         raise ValueError(
             "additional_piping is a fraction (0.045 is 4.5 percent)"
         )
+    if field == "proratable_costs" and number > 1:
+        raise ValueError(
+            "proratable_costs is a fraction (0.10 is 10 percent)"
+        )
     return number
 
 
