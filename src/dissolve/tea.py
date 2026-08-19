@@ -110,6 +110,7 @@ _INCOME_TAX_DEFAULT = 0.21
 _OPERATING_DAYS_DEFAULT = 350.4
 _LABOR_BURDEN_DEFAULT = 0.90
 _FINANCE_INTEREST_DEFAULT = 0.08
+_FINANCE_YEARS_DEFAULT = 10
 _FEEDSTOCK_PRICE_USD_PER_KG = 0.01
 _CENTRIFUGED_PLASTIC_SOLVENT_CONTENT_PCT = 50.0
 _NATURAL_GAS_PRICE_USD_PER_M3 = 4.73 * 35.3146667 / 1e3
@@ -119,6 +120,7 @@ _COEFFICIENT_DEFAULTS = {
     "operating_days": _OPERATING_DAYS_DEFAULT,
     "labor_burden": _LABOR_BURDEN_DEFAULT,
     "finance_interest": _FINANCE_INTEREST_DEFAULT,
+    "finance_years": _FINANCE_YEARS_DEFAULT,
     "feedstock_price_usd_per_kg": _FEEDSTOCK_PRICE_USD_PER_KG,
     "centrifuged_plastic_solvent_content_pct": (
         _CENTRIFUGED_PLASTIC_SOLVENT_CONTENT_PCT
@@ -922,6 +924,7 @@ def public_process_field_names(*, energy_case: str = "C1") -> tuple[str, ...]:
         "operating_days",
         "labor_burden",
         "finance_interest",
+        "finance_years",
         "feedstock_price_usd_per_kg",
         "centrifuged_plastic_solvent_content_pct",
     )
@@ -1457,6 +1460,23 @@ def _validated_coefficients(
                 supplied=supplied["finance_interest"],
             )
         coefficients["finance_interest"] = rate
+    if "finance_years" in supplied:
+        years = _finite(supplied["finance_years"], "finance_years")
+        if years <= 0:
+            raise _ScenarioInputError(
+                "finance_years must be positive.",
+                error_code="invalid_scenario",
+                field="finance_years",
+                supplied=supplied["finance_years"],
+            )
+        if not float(years).is_integer():
+            raise _ScenarioInputError(
+                "finance_years must be a whole number of years.",
+                error_code="invalid_scenario",
+                field="finance_years",
+                supplied=supplied["finance_years"],
+            )
+        coefficients["finance_years"] = years
     if "feedstock_price_usd_per_kg" in supplied:
         price = _finite(
             supplied["feedstock_price_usd_per_kg"],
@@ -3540,6 +3560,7 @@ def _comparison_row(label: str, result: dict[str, Any]) -> dict[str, Any]:
         "operating_days": coefficients.get("operating_days"),
         "labor_burden": coefficients.get("labor_burden"),
         "finance_interest": coefficients.get("finance_interest"),
+        "finance_years": coefficients.get("finance_years"),
         "feedstock_price_usd_per_kg": coefficients.get(
             "feedstock_price_usd_per_kg"
         ),

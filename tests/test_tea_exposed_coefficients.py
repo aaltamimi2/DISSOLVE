@@ -58,6 +58,7 @@ def test_omitted_and_explicit_coefficient_defaults_share_the_serve_key():
         "operating_days": 350.4,
         "labor_burden": 0.90,
         "finance_interest": 0.08,
+        "finance_years": 10,
         "feedstock_price_usd_per_kg": 0.01,
         "centrifuged_plastic_solvent_content_pct": 50.0,
         "natural_gas_price_usd_per_m3": tea._NATURAL_GAS_PRICE_USD_PER_M3,
@@ -69,6 +70,7 @@ def test_omitted_and_explicit_coefficient_defaults_share_the_serve_key():
     assert reconstructed["operating_days"] == pytest.approx(350.4)
     assert reconstructed["labor_burden"] == pytest.approx(0.90)
     assert reconstructed["finance_interest"] == pytest.approx(0.08)
+    assert reconstructed["finance_years"] == pytest.approx(10)
     assert reconstructed["feedstock_price_usd_per_kg"] == pytest.approx(0.01)
     assert reconstructed["centrifuged_plastic_solvent_content_pct"] == pytest.approx(50.0)
     assert reconstructed["natural_gas_price_usd_per_m3"] == pytest.approx(
@@ -231,6 +233,7 @@ def test_cache_evaluate_echoes_projected_operating_days(monkeypatch):
     assert row["income_tax"] == pytest.approx(0.21)
     assert row["labor_burden"] == pytest.approx(0.90)
     assert row["finance_interest"] == pytest.approx(0.08)
+    assert row["finance_years"] == pytest.approx(10)
     assert row["msp_usd_per_kg"] == pytest.approx(
         float(record["result"]["tea"]["msp_usd_per_kg"]),
     )
@@ -350,6 +353,63 @@ def test_percent_integer_finance_interest_is_refused():
     assert caught.value.details["field"] == "finance_interest"
 
 
+def test_finance_years_override_does_not_share_the_twelve_only_serve_key():
+    record = _record_with_energy("C1")
+    overridden = {**dict(record["config"]), "finance_years": 15}
+    assert tea._config_key(record["config"]) != tea._config_key(overridden)
+    assert tea._cache_index().get(tea._config_key(overridden)) is None
+
+
+def test_cache_mode_refuses_finance_years_override_instead_of_the_other_plant(
+    monkeypatch,
+):
+    record = _record_with_energy("C1")
+    recorded_msp = float(record["result"]["tea"]["msp_usd_per_kg"])
+
+    def forbidden_live(config, timeout_seconds):
+        raise AssertionError(
+            "finance_years mismatch must not fall through to live"
+        )
+
+    monkeypatch.setattr(tea, "_live", forbidden_live)
+    payload = _data(tea.evaluate_tea_lca_scenarios(
+        [_public_from_record(record, finance_years=15)],
+        engine_mode="cache",
+    ))
+    assert payload.get("success") is False
+    assert payload.get("error_code") == "cache_flowsheet_mismatch"
+    row = (payload.get("failures") or [])[0]
+    assert row.get("msp_usd_per_kg") is None
+    assert row.get("msp_usd_per_kg") != recorded_msp
+    years = next(
+        item for item in row["flowsheet_switch_deltas"]
+        if item["field"] == "finance_years"
+    )
+    assert years["recorded_value"] == pytest.approx(10)
+    assert years["requested_value"] == pytest.approx(15)
+    assert row.get("finance_years") == pytest.approx(15)
+    assert not any(
+        item["field"] == "finance_interest"
+        for item in row["flowsheet_switch_deltas"]
+    )
+
+
+def test_nonpositive_finance_years_is_refused():
+    record = _record_with_energy("C1")
+    with pytest.raises(tea._ScenarioInputError) as caught:
+        tea._scenario_config(_public_from_record(record, finance_years=0))
+    assert caught.value.error_code == "invalid_scenario"
+    assert caught.value.details["field"] == "finance_years"
+
+
+def test_noninteger_finance_years_is_refused():
+    record = _record_with_energy("C1")
+    with pytest.raises(tea._ScenarioInputError) as caught:
+        tea._scenario_config(_public_from_record(record, finance_years=10.5))
+    assert caught.value.error_code == "invalid_scenario"
+    assert caught.value.details["field"] == "finance_years"
+
+
 def test_percent_integer_income_tax_is_refused():
     record = _record_with_energy("C1")
     with pytest.raises(tea._ScenarioInputError) as caught:
@@ -368,9 +428,16 @@ def test_other_g_constructor_coefficients_are_not_dumped():
         tea._scenario_config(_public_from_record(record, WC_over_FCI=0.10))
     assert caught.value.error_code == "unknown_process_field"
     assert "WC_over_FCI" in list(caught.value.details.get("extra_keys") or [])
+    with pytest.raises(tea._ScenarioInputError) as caught:
+        tea._scenario_config(_public_from_record(record, finance_fraction=0.4))
+    assert caught.value.error_code == "unknown_process_field"
+    assert "finance_fraction" in list(caught.value.details.get("extra_keys") or [])
     assert "lang_factor" not in tea._COEFFICIENT_DEFAULTS
     assert "WC_over_FCI" not in tea._COEFFICIENT_DEFAULTS
     assert "depreciation" not in tea._COEFFICIENT_DEFAULTS
+    assert "finance_fraction" not in tea._COEFFICIENT_DEFAULTS
+    assert "finance_years" in tea._COEFFICIENT_DEFAULTS
+    assert "finance_years" in tea.public_process_field_names()
     assert "finance_interest" in tea._COEFFICIENT_DEFAULTS
     assert "finance_interest" in tea.public_process_field_names()
     assert "labor_burden" in tea.public_process_field_names()
@@ -438,6 +505,7 @@ def test_d8_overlay_still_excludes_coefficients():
         "operating_days",
         "labor_burden",
         "finance_interest",
+        "finance_years",
         "feedstock_price_usd_per_kg",
         "centrifuged_plastic_solvent_content_pct",
         "natural_gas_price_usd_per_m3",
@@ -455,6 +523,7 @@ def test_worker_calls_the_unreached_setters():
     assert "process.tea.operating_days" in source
     assert "process.tea.labor_burden" in source
     assert "process.tea.finance_interest" in source
+    assert "process.tea.finance_years" in source
     assert "set_feedstock_price(" in source
     assert "set_centrifuged_plastic_solvent_content(" in source
     assert "set_natural_gas_price(" in source

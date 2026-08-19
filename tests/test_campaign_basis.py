@@ -184,6 +184,18 @@ def test_finance_interest_override_is_coefficient_mismatch():
     assert row["requested_value"] == pytest.approx(0.12)
 
 
+def test_finance_years_override_is_coefficient_mismatch():
+    projected = campaign_basis.project_campaign_basis_v1(_minimal_v2())
+    result = campaign_basis.held_field_mismatches(
+        projected, {"finance_years": 15},
+    )
+    assert result["error_code"] == "campaign_basis_mismatch"
+    row = result["mismatches"][0]
+    assert row["field"] == "finance_years"
+    assert row["campaign_value"] == pytest.approx(10)
+    assert row["requested_value"] == pytest.approx(15)
+
+
 def test_polymer_only_is_not_a_held_mismatch():
     projected = campaign_basis.project_campaign_basis_v1(_minimal_v2())
     result = campaign_basis.held_field_mismatches(
