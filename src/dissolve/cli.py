@@ -517,6 +517,10 @@ def _coerce_process_sheet_value(field: str, raw: str, current: Any) -> Any:
         raise ValueError(
             "startup_VOCfrac is a fraction (0.75 is 75 percent)"
         )
+    if field == "startup_salesfrac" and number > 1:
+        raise ValueError(
+            "startup_salesfrac is a fraction (0.5 is 50 percent)"
+        )
     return number
 
 

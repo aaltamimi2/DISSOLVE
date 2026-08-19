@@ -115,6 +115,7 @@ _FINANCE_FRACTION_DEFAULT = 0.0
 _STARTUP_MONTHS_DEFAULT = 3
 _STARTUP_FOCFRAC_DEFAULT = 1
 _STARTUP_VOCFRAC_DEFAULT = 0.75
+_STARTUP_SALESFRAC_DEFAULT = 0.5
 _FEEDSTOCK_PRICE_USD_PER_KG = 0.01
 _CENTRIFUGED_PLASTIC_SOLVENT_CONTENT_PCT = 50.0
 _NATURAL_GAS_PRICE_USD_PER_M3 = 4.73 * 35.3146667 / 1e3
@@ -129,6 +130,7 @@ _COEFFICIENT_DEFAULTS = {
     "startup_months": _STARTUP_MONTHS_DEFAULT,
     "startup_FOCfrac": _STARTUP_FOCFRAC_DEFAULT,
     "startup_VOCfrac": _STARTUP_VOCFRAC_DEFAULT,
+    "startup_salesfrac": _STARTUP_SALESFRAC_DEFAULT,
     "feedstock_price_usd_per_kg": _FEEDSTOCK_PRICE_USD_PER_KG,
     "centrifuged_plastic_solvent_content_pct": (
         _CENTRIFUGED_PLASTIC_SOLVENT_CONTENT_PCT
@@ -937,6 +939,7 @@ def public_process_field_names(*, energy_case: str = "C1") -> tuple[str, ...]:
         "startup_months",
         "startup_FOCfrac",
         "startup_VOCfrac",
+        "startup_salesfrac",
         "feedstock_price_usd_per_kg",
         "centrifuged_plastic_solvent_content_pct",
     )
@@ -1560,6 +1563,24 @@ def _validated_coefficients(
                 supplied=supplied["startup_VOCfrac"],
             )
         coefficients["startup_VOCfrac"] = fraction
+    if "startup_salesfrac" in supplied:
+        fraction = _finite(supplied["startup_salesfrac"], "startup_salesfrac")
+        if fraction > 1:
+            raise _ScenarioInputError(
+                "startup_salesfrac is a fraction (0.5 is 50 percent), not a "
+                "percent integer.",
+                error_code="invalid_scenario",
+                field="startup_salesfrac",
+                supplied=supplied["startup_salesfrac"],
+            )
+        if not 0 <= fraction <= 1:
+            raise _ScenarioInputError(
+                "startup_salesfrac must be a fraction in [0, 1].",
+                error_code="invalid_scenario",
+                field="startup_salesfrac",
+                supplied=supplied["startup_salesfrac"],
+            )
+        coefficients["startup_salesfrac"] = fraction
     if "feedstock_price_usd_per_kg" in supplied:
         price = _finite(
             supplied["feedstock_price_usd_per_kg"],
@@ -3648,6 +3669,7 @@ def _comparison_row(label: str, result: dict[str, Any]) -> dict[str, Any]:
         "startup_months": coefficients.get("startup_months"),
         "startup_FOCfrac": coefficients.get("startup_FOCfrac"),
         "startup_VOCfrac": coefficients.get("startup_VOCfrac"),
+        "startup_salesfrac": coefficients.get("startup_salesfrac"),
         "feedstock_price_usd_per_kg": coefficients.get(
             "feedstock_price_usd_per_kg"
         ),
