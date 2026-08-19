@@ -1882,6 +1882,7 @@ def _select_economics_handle_row(
         row for row in rows
         if str(row.get("label") or "") == token
         or str(row.get("record_id") or "") == token
+        or str(row.get("pair_id") or "") == token
     ]
     if len(matches) == 1:
         return matches[0]
@@ -1902,6 +1903,27 @@ def _select_economics_handle_row(
     )
 
 
+def _flatten_grouped_landscape_points(
+    rows: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Grouped fronts nest the ranked points. Inherit reads those points."""
+    if not rows or not all(isinstance(row, dict) for row in rows):
+        return rows
+    if any(_executed_public_config(row) is not None for row in rows):
+        return rows
+    nested: list[dict[str, Any]] = []
+    for block in rows:
+        inner = block.get("landscape_points")
+        if not isinstance(inner, list):
+            return rows
+        nested.extend(item for item in inner if isinstance(item, dict))
+    return nested or rows
+
+
+def _economics_handle_rows(stored: dict[str, Any]) -> list[dict[str, Any]]:
+    return _flatten_grouped_landscape_points(handle_rows(stored))
+
+
 def _load_economics_inherit(handle: Any, row_id: Any) -> dict[str, Any]:
     """Copy executed twelve from a prior economics handle. Not a screen."""
     token = handle.strip() if isinstance(handle, str) else ""
@@ -1920,7 +1942,7 @@ def _load_economics_inherit(handle: Any, row_id: Any) -> dict[str, Any]:
             handle=token,
         )
     try:
-        rows = handle_rows(stored)
+        rows = _economics_handle_rows(stored)
     except (ValueError, KeyError, TypeError):
         raise _ScenarioInputError(
             "handle has no economics comparison rows",

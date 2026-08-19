@@ -90,10 +90,44 @@ def _lca_standing(comparison: Mapping[str, Any]) -> dict[str, Any] | None:
     }
 
 
+def _public_twelve_from_process_row(
+    row: Mapping[str, Any], comparison: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Executed D-8 twelve on a compact landscape point. Public solvent."""
+    from . import tea
+
+    normalized = dict(row.get("config_normalized_twelve") or {})
+    public: dict[str, Any] = {}
+    for internal, public_name in tea._DESIGN_POINT_PUBLIC_FIELDS:
+        if public_name in comparison and comparison.get(public_name) is not None:
+            value = comparison[public_name]
+        elif internal in normalized:
+            value = normalized[internal]
+        elif public_name in normalized:
+            value = normalized[public_name]
+        else:
+            value = None
+        if public_name == "target_polymer":
+            value = (
+                row.get("polymer") or comparison.get("polymer") or value
+            )
+        if public_name == "solvent":
+            value = (
+                row.get("solvent_public_identity")
+                or comparison.get("solvent")
+                or value
+            )
+        if value is not None and value != "":
+            public[public_name] = value
+    if public.get("target_polymer"):
+        public["polymer"] = public["target_polymer"]
+    return public
+
+
 def compact_process_row(row: Mapping[str, Any]) -> dict[str, Any]:
     comparison = dict(row.get("comparison_row") or {})
     standing = dict(row.get("standing") or {})
-    return {
+    payload = {
         "pair_id": row.get("pair_id"),
         "target_polymer": row.get("polymer"),
         "solvent": row.get("solvent_public_identity"),
@@ -110,6 +144,8 @@ def compact_process_row(row: Mapping[str, Any]) -> dict[str, Any]:
         "lca_coverage": _lca_standing(comparison),
         "safety_standing": {"status": "not_requested"},
     }
+    payload.update(_public_twelve_from_process_row(row, comparison))
+    return payload
 
 
 def row_is_usable(point: Mapping[str, Any], *, canonical: str) -> bool:
