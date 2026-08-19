@@ -481,29 +481,7 @@ def test_public_scenario_overrides_cannot_cite_committed_pair_names(monkeypatch)
     assert "dissolution_capacity" in mismatches
 
 
-def test_table_process_defaults_drive_scenario_config(monkeypatch):
-    monkeypatch.delenv("DISSOLVE_PLASTICS_PATH", raising=False)
-    cfg = tea._scenario_config({
-        "target_polymer": "LDPE",
-        "solvent": "toluene",
-        "solvent_price": 2.17,
-    })
-    assert cfg["dissolution_temperature_c"] == 95.0
-    assert cfg["precipitation_temperature_c"] == 35.0
-    assert cfg["dissolution_capacity"] == 3.0
-    pes = tea._scenario_config({
-        "target_polymer": "PES",
-        "solvent": "toluene",
-        "solvent_price": 2.17,
-        "dissolution_temperature_c": 130.0,
-    })
-    assert pes["precipitation_temperature_c"] == 25.0
-    assert pes["dissolution_capacity"] == 3.0
-
-
-def test_mutating_committed_precip_changes_what_is_run_and_fails_validation(
-    monkeypatch,
-):
+def test_mutating_committed_precip_makes_validation_fail(monkeypatch):
     monkeypatch.delenv("DISSOLVE_PLASTICS_PATH", raising=False)
     original = params.COMMITTED_PAIR_STEPS[("PE", "toluene")]
     exact = _committed_pe_toluene_config()
@@ -516,12 +494,6 @@ def test_mutating_committed_precip_changes_what_is_run_and_fails_validation(
     assert before["can_cite_as_validated_process"] is True
     mutated = replace(original, precipitation_temperature_c=40.0)
     monkeypatch.setitem(params.COMMITTED_PAIR_STEPS, ("PE", "toluene"), mutated)
-    cfg = tea._scenario_config({
-        "target_polymer": "LDPE",
-        "solvent": "toluene",
-        "solvent_price": 2.17,
-    })
-    assert cfg["precipitation_temperature_c"] == 40.0
     after = params.live_parameter_standing_payload(
         params.POLYMERS["LDPE"],
         solvent="toluene",
@@ -532,6 +504,15 @@ def test_mutating_committed_precip_changes_what_is_run_and_fails_validation(
     assert "precipitation_temperature_c" in after["live_parameter_standing"][
         "committed_setpoint_mismatches"
     ]
+    # The table does not configure the plant. Mutating the claim cannot
+    # change the request config that would be sent to the worker.
+    cfg = tea._scenario_config({
+        "target_polymer": "LDPE",
+        "solvent": "toluene",
+        "solvent_price": 2.17,
+        "dissolution_temperature_c": 95.0,
+    })
+    assert cfg["precipitation_temperature_c"] != 40.0
 
 
 def test_package_chemical_mutation_makes_validation_fail(tmp_path):
@@ -589,3 +570,24 @@ def test_worker_malformed_package_is_named_refusal(tmp_path, monkeypatch):
     assert result["success"] is False
     assert result["error_type"] == "property_package_unreadable"
     assert str(strap / "property_package.py") in result["error"]
+
+
+def test_cited_package_hashes_seal_the_files_the_table_cites(tmp_path):
+    _write_matching_pe_package(tmp_path)
+    first = params.cited_strap_source_provenance(tmp_path)
+    assert first["missing"] == ()
+    assert set(first["sources"]) == set(params.CITED_STRAP_SOURCE_NAMES)
+    for name, row in first["sources"].items():
+        assert row["sha256"]
+        assert Path(row["path"]).is_file()
+    precip = Path(first["sources"]["precipitation_steps"]["path"])
+    precip.write_text(precip.read_text(encoding="utf-8") + "\n# drift\n", encoding="utf-8")
+    drifted = params.cited_strap_source_provenance(tmp_path)
+    assert drifted["sources"]["precipitation_steps"]["sha256"] != (
+        first["sources"]["precipitation_steps"]["sha256"]
+    )
+    mismatches = params.cited_package_hash_mismatches(
+        params.cited_package_sha256_map(first), drifted,
+    )
+    assert "precipitation_steps" in mismatches
+    assert "property_package" not in mismatches

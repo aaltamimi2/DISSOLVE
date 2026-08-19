@@ -1020,9 +1020,6 @@ def _scenario_config(scenario: dict[str, Any]) -> dict[str, Any]:
         "precipitation_temp_c": "precipitation_temperature_c",
     }
     supplied = {aliases.get(key, key): value for key, value in scenario.items()}
-    table_process = tea_polymer_parameters.live_process_config_defaults(
-        polymer, solvent,
-    )
     config = {
         **{
             "target_plastic_percent": 60.0,
@@ -1035,7 +1032,6 @@ def _scenario_config(scenario: dict[str, Any]) -> dict[str, Any]:
             "labor_cost": 120_000.0,
         },
         **defaults,
-        **table_process,
         **{key: supplied[key] for key in _CONFIG_FIELDS if key in supplied},
         "target_plastic": polymer,
         "solvent": solvent,
@@ -1218,6 +1214,22 @@ def _live_process_model_provenance(path: str) -> tuple[dict[str, Any], Optional[
     return provenance, None
 
 
+def _live_cited_package_provenance(path: str) -> tuple[dict[str, Any], Optional[str]]:
+    """Hash the package files the expert table cites, not only process_model.py."""
+    root = Path(path).expanduser().resolve()
+    cited = tea_polymer_parameters.cited_strap_source_provenance(root)
+    provenance = {
+        "cited_package_sources": cited["sources"],
+        "cited_package_missing": list(cited["missing"]),
+    }
+    if cited["missing"]:
+        return provenance, (
+            "Expert-table package sources are missing under "
+            f"{root}: " + ", ".join(cited["missing"]) + "."
+        )
+    return provenance, None
+
+
 def live_engine_status() -> dict[str, Any]:
     path = str(os.getenv("DISSOLVE_PLASTICS_PATH") or "").strip()
     configured_python = bool(
@@ -1269,6 +1281,19 @@ def live_engine_status() -> dict[str, Any]:
                 **model_provenance,
             },
         }
+    cited_provenance, cited_error = _live_cited_package_provenance(path)
+    if cited_error:
+        return {
+            "available": False,
+            "reason": "cited_package_source_missing",
+            "detail": cited_error,
+            "live_provenance": {
+                "status": "unverifiable",
+                **model_provenance,
+                **cited_provenance,
+            },
+        }
+    model_provenance = {**model_provenance, **cited_provenance}
     try:
         expected_versions = _expected_live_runtime_versions()
     except RuntimeError as error:
@@ -1334,6 +1359,8 @@ _LIVE_MISCONFIGURED_REASONS = frozenset({
     "cache_provenance_missing",
     "worker_source_mismatch",
     "property_package_unreadable",
+    "cited_package_source_missing",
+    "cited_package_checksum_mismatch",
 })
 
 
@@ -1610,6 +1637,13 @@ def _live(config: dict[str, Any], timeout_seconds: int) -> dict[str, Any]:
                 "expected_worker_source_sha256"
             ],
             "runtime_versions": provenance["expected_runtime_versions"],
+            "cited_package_sha256": {
+                name: str(
+                    ((provenance.get("cited_package_sources") or {}).get(name) or {})
+                    .get("sha256") or ""
+                )
+                for name in tea_polymer_parameters.CITED_STRAP_SOURCE_NAMES
+            },
         },
     }
     result = _launch_live_worker(

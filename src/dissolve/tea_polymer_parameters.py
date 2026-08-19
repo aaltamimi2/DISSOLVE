@@ -7,7 +7,11 @@ opens this file and this file only. Do not put these numbers in
 ``tea_worker.py``. Do not treat the unpublished plastics package as the
 place we record our standing. The package is the plant; this table is
 what we are willing to run, every number we assume, and whether that
-number is VALIDATED or PROVISIONAL.
+number is VALIDATED or PROVISIONAL. This table does not configure the
+plant — the unpublished package does. The table is a checkable claim:
+executed setpoints and inspectable package source are compared to these
+rows, and disagreement is provisional (or a typed refusal), never
+validated. Editing a number here changes the verdict, not the simulation.
 
 Every solubility-grid polymer appears here, including polymers we
 refuse to simulate. Absence from this table is a refusal, not a
@@ -54,9 +58,11 @@ from this module. The live worker file-loads it as a sibling.
 from __future__ import annotations
 
 import ast
+import hashlib
 import json
 import math
 import os
+import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import AbstractSet, Any, Iterable, Mapping, Optional
@@ -162,7 +168,12 @@ class OligomerAssumptions:
 
 @dataclass(frozen=True)
 class ProcessAssumptions:
-    """Dissolution / precipitation knobs the live plant actually uses."""
+    """Dissolution / precipitation knobs we claim the live plant uses.
+
+    The package owns the plant. Validated standing requires the executed
+    worker config and the inspectable package source to agree with these
+    numbers after unit normalization.
+    """
 
     dissolution_temperature_c: float
     dissolution_capacity_wt_per_vol: float
@@ -637,34 +648,16 @@ def process_assumptions_for(
 def process_config_from_assumptions(
     process: ProcessAssumptions,
 ) -> dict[str, float]:
-    """Worker-facing knobs for one process row.
+    """Worker-facing knobs for standing comparison, not for configuring the plant.
 
-    ``dissolution_capacity`` is wt % so the plant setter can divide by 100.
+    ``dissolution_capacity`` is wt % so it can be compared with the request
+    config that ``set_dissolution_capacity`` later divides by 100.
     """
     return {
         "dissolution_temperature_c": process.dissolution_temperature_c,
         "precipitation_temperature_c": process.precipitation_temperature_c,
         "dissolution_capacity": process.dissolution_capacity_wt_per_vol * 100.0,
     }
-
-
-def live_process_config_defaults(
-    grid_name: str, solvent: Optional[str],
-) -> dict[str, float]:
-    """Committed-pair knobs the public scenario config uses unless overridden.
-
-    Only named committed pairs drive defaults. Applying the generic factory
-    (0.05 wt/vol, 35 °C precip) here would rewrite cache keys for every
-    polymer that omitted those fields. Those runs stay provisional by
-    process standing; the table still governs the pairs it has signed.
-    """
-    row = polymer_row(grid_name)
-    if row is None:
-        return {}
-    committed = committed_process_for(row.identity_in_model, solvent)
-    if committed is None:
-        return {}
-    return process_config_from_assumptions(committed)
 
 
 def _close(left: float, right: float, abs_tol: float = 1e-9) -> bool:
@@ -1098,6 +1091,90 @@ _PRECIPITATION_STEPS_RELATIVE = (
     Path("plastics") / "strap" / "precipitation_steps.py",
     Path("strap") / "precipitation_steps.py",
 )
+
+CITED_STRAP_SOURCE_NAMES = (
+    "property_package",
+    "dissolution_steps",
+    "precipitation_steps",
+)
+_CITED_STRAP_RELATIVE = {
+    "property_package": _PROPERTY_PACKAGE_RELATIVE,
+    "dissolution_steps": _DISSOLUTION_STEPS_RELATIVE,
+    "precipitation_steps": _PRECIPITATION_STEPS_RELATIVE,
+}
+
+
+def cited_strap_source_provenance(
+    plastics_root: Path,
+) -> dict[str, Any]:
+    """SHA-256 of the package files the expert table claims against.
+
+    process_model.py is sealed separately by the TEA-cache pin. These three
+    are the files the table copies numbers from; a handshake that hashes
+    only process_model.py seals the wrong door.
+    """
+    sources: dict[str, dict[str, Any]] = {}
+    missing: list[str] = []
+    for name, relatives in _CITED_STRAP_RELATIVE.items():
+        path = resolve_strap_file(plastics_root, relatives)
+        if path is None or not path.is_file():
+            missing.append(name)
+            sources[name] = {"path": None, "sha256": None}
+            continue
+        sources[name] = {
+            "path": str(path),
+            "sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
+        }
+    return {"sources": sources, "missing": tuple(missing)}
+
+
+def loaded_cited_strap_source_provenance() -> dict[str, Any]:
+    """Hash imported ``plastics.strap`` modules the table cites."""
+    sources: dict[str, dict[str, Any]] = {}
+    missing: list[str] = []
+    for name in CITED_STRAP_SOURCE_NAMES:
+        module = sys.modules.get(f"plastics.strap.{name}")
+        path_raw = getattr(module, "__file__", None) if module is not None else None
+        path = Path(str(path_raw)).resolve() if path_raw else None
+        if path is None or not path.is_file():
+            missing.append(name)
+            sources[name] = {"path": None, "sha256": None}
+            continue
+        sources[name] = {
+            "path": str(path),
+            "sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
+        }
+    return {"sources": sources, "missing": tuple(missing)}
+
+
+def cited_package_sha256_map(
+    provenance: Mapping[str, Any],
+) -> dict[str, str]:
+    sources = provenance.get("sources") if isinstance(provenance, Mapping) else None
+    if not isinstance(sources, Mapping):
+        return {}
+    mapped: dict[str, str] = {}
+    for name in CITED_STRAP_SOURCE_NAMES:
+        row = sources.get(name) if isinstance(sources.get(name), Mapping) else {}
+        digest = str((row or {}).get("sha256") or "").strip().casefold()
+        if digest:
+            mapped[name] = digest
+    return mapped
+
+
+def cited_package_hash_mismatches(
+    expected: Mapping[str, str],
+    actual: Mapping[str, Any],
+) -> tuple[str, ...]:
+    """Source names whose loaded digest does not match the parent seal."""
+    actual_map = cited_package_sha256_map(actual)
+    mismatches: list[str] = []
+    for name in CITED_STRAP_SOURCE_NAMES:
+        wanted = str(expected.get(name) or "").strip().casefold()
+        got = actual_map.get(name) or ""
+        if not wanted or wanted != got:
+            mismatches.append(name)
+    return tuple(mismatches)
 
 
 def resolve_plastics_path(path: Optional[str] = None) -> Optional[Path]:

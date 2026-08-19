@@ -403,14 +403,25 @@ def _verify_loaded_live_provenance(
     expected_worker_sha256 = str(
         expectations.get("worker_source_sha256") or ""
     ).strip().casefold()
+    params = _polymer_parameters()
+    expected_cited_raw = expectations.get("cited_package_sha256") or {}
+    expected_cited_complete = (
+        isinstance(expected_cited_raw, dict)
+        and set(expected_cited_raw) == set(params.CITED_STRAP_SOURCE_NAMES)
+        and all(
+            str(expected_cited_raw.get(name) or "").strip()
+            for name in params.CITED_STRAP_SOURCE_NAMES
+        )
+    )
     if set(expected_versions) != set(_LIVE_RUNTIME_MODULES) or not (
         expected_model_sha256 and expected_worker_path and expected_worker_sha256
+        and expected_cited_complete
     ):
         return (
             {"status": "unverifiable"},
             "live_provenance_contract_missing",
             "Live worker requires complete governed runtime, process-model, "
-            "and worker-source provenance.",
+            "cited package-source, and worker-source provenance.",
         )
 
     worker_path = Path(__file__).resolve()
@@ -532,6 +543,25 @@ def _verify_loaded_live_provenance(
             "Imported process model does not match the admitted TEA cache: "
             f"expected {expected_model_sha256}, resolved {actual_model_sha256} "
             f"at {model_path}.",
+        )
+    loaded_cited = params.loaded_cited_strap_source_provenance()
+    provenance["cited_package_sources"] = loaded_cited["sources"]
+    expected_cited = {
+        name: str(expected_cited_raw.get(name) or "").strip().casefold()
+        for name in params.CITED_STRAP_SOURCE_NAMES
+    }
+    cited_mismatches = params.cited_package_hash_mismatches(
+        expected_cited, loaded_cited,
+    )
+    if cited_mismatches:
+        provenance["status"] = "mismatch"
+        return (
+            provenance,
+            "cited_package_checksum_mismatch",
+            "Imported package sources do not match the parent seal: "
+            + ", ".join(cited_mismatches)
+            + " (property_package.py, dissolution_steps.py, and "
+            "precipitation_steps.py must match the expert-table claim).",
         )
     return provenance, None, None
 
