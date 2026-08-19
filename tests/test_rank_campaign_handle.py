@@ -11,6 +11,7 @@ for _path in (str(_ROOT), str(_ROOT / "src")):
     if _path not in sys.path:
         sys.path.insert(0, _path)
 
+from agent_tools import SYSTEM_PROMPT, dispatch, source_basis_for
 from dissolve import campaign_consume, landscape, tea
 from dissolve.session import bind_tool_session, new_session, store_handle
 
@@ -257,3 +258,64 @@ def test_evaluate_handle_still_ignores_campaign_held_constraints(monkeypatch):
     assert payload["n_usable"] == 2
     assert payload.get("error_code") != "campaign_basis_mismatch"
     assert payload["analysis_type"] == "process_rows_landscape"
+
+
+def test_campaign_lookup_basis_is_not_cache_exact():
+    campaign = {
+        "success": True,
+        "source": "campaign",
+        "engine_mode": "campaign",
+        "comparison_rows": [{"polymer": "LDPE"}, {"polymer": "PET"}],
+    }
+    cache = {
+        "success": True,
+        "engine_mode": "cache",
+        "cache_match_status": "exact",
+        "comparison_rows": [{"engine_mode": "cache"}],
+    }
+    assert source_basis_for(
+        "lookup_admitted_process_records", campaign, {},
+    ) == "campaign_process_rows"
+    assert source_basis_for(
+        "lookup_admitted_process_records", cache, {},
+    ) == "tea_cache_exact"
+    ranked = {
+        "success": True,
+        "source": "process_rows",
+        "engine_mode": "campaign",
+        "grouped_fronts": [{"target_polymer": "LDPE"}],
+    }
+    assert source_basis_for("rank_landscape", ranked, {}) == "campaign_process_rows"
+    assert "campaign_process_rows" in SYSTEM_PROMPT
+    assert "not tea_cache_exact" in SYSTEM_PROMPT
+
+
+def test_dispatch_mints_a_campaign_lookup_handle(monkeypatch, tmp_path):
+    registry = _write_registry(tmp_path, {_CANONICAL: _sealed_entry()})
+    monkeypatch.setenv(campaign_consume.REGISTRY_ENV, str(registry))
+    _forbid_live(monkeypatch)
+    reads = _count_jsonl(monkeypatch)
+    session = new_session()
+    with bind_tool_session(session):
+        lookup = dispatch(
+            "lookup_admitted_process_records",
+            source="campaign",
+            campaign_fingerprint=_CANONICAL,
+        )
+        assert lookup.get("available") is True
+        assert lookup.get("refusal") != "no_honest_basis"
+        assert lookup["source_basis"] == "campaign_process_rows"
+        assert lookup["source_basis"] != "tea_cache_exact"
+        handle = lookup.get("handle")
+        assert handle
+        assert lookup["total"] == 462
+        ranked = dispatch("rank_landscape", handle=handle)
+    assert ranked.get("available") is True
+    assert ranked.get("refusal") != "no_honest_basis"
+    assert ranked["source_basis"] == "campaign_process_rows"
+    data = ranked.get("data") or {}
+    assert data.get("n_usable") == 408
+    assert data.get("n_groups") == 10
+    assert data.get("ingested_into_admitted_cache") is False
+    assert reads["load_filtered_rows"] == 0
+    assert len(tea._records()) == 24

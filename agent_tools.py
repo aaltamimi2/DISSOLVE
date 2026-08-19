@@ -95,6 +95,12 @@ def _tea_basis(data: dict[str, Any]) -> str | None:
         return "tea_live"
     if data.get("cache_match_status") == "exact" or "cache" in modes or data.get("engine_mode") == "cache":
         return "tea_cache_exact"
+    if (
+        data.get("engine_mode") == "campaign"
+        or "campaign" in modes
+        or str(data.get("source") or "").strip().casefold() == "campaign"
+    ):
+        return "campaign_process_rows"
     return None
 
 def _pubchem_contributed(obj: Any) -> bool:
@@ -413,6 +419,10 @@ Report the source_basis with the number.
   Say so.
 - A live BioSTEAM run (source_basis tea_live) is a simulation of the
   named configuration. Say so. It may not appear in this environment.
+- Campaign process_rows (source_basis campaign_process_rows) are
+  already-run rows consumed from a registered campaign at that
+  campaign's held basis. They are not tea_cache_exact and not a live
+  BioSTEAM run of this call.
 - Hansen curated rows are qualitative_hansen_parameters, not
   solubilities. An HSP random-forest row is hsp_fallback.
 - Contaminant screens are contaminant_workbook screening proxies.
