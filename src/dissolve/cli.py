@@ -499,6 +499,8 @@ def _coerce_process_sheet_value(field: str, raw: str, current: Any) -> Any:
     number = float(text)
     if field == "irr" and number >= 1:
         raise ValueError("irr is a fraction (0.10 is 10 percent)")
+    if field == "income_tax" and number >= 1:
+        raise ValueError("income_tax is a fraction (0.21 is 21 percent)")
     return number
 
 

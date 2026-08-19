@@ -136,6 +136,18 @@ def test_irr_override_is_coefficient_mismatch():
     assert row["requested_value"] == pytest.approx(0.15)
 
 
+def test_income_tax_override_is_coefficient_mismatch():
+    projected = campaign_basis.project_campaign_basis_v1(_minimal_v2())
+    result = campaign_basis.held_field_mismatches(
+        projected, {"income_tax": 0.30},
+    )
+    assert result["error_code"] == "campaign_basis_mismatch"
+    row = result["mismatches"][0]
+    assert row["field"] == "income_tax"
+    assert row["campaign_value"] == pytest.approx(0.21)
+    assert row["requested_value"] == pytest.approx(0.30)
+
+
 def test_polymer_only_is_not_a_held_mismatch():
     projected = campaign_basis.project_campaign_basis_v1(_minimal_v2())
     result = campaign_basis.held_field_mismatches(

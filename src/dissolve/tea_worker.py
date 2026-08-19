@@ -25,6 +25,7 @@ _ENERGY = {
 # BaselineSTRAPProcess set_natural_gas_price @parameter baseline (USD/m3).
 _NATURAL_GAS_PRICE_USD_PER_M3 = 4.73 * 35.3146667 / 1e3
 _IRR_DEFAULT = 0.10
+_INCOME_TAX_DEFAULT = 0.21
 _FEEDSTOCK_PRICE_USD_PER_KG = 0.01
 _CENTRIFUGED_PLASTIC_SOLVENT_CONTENT_PCT = 50.0
 
@@ -866,6 +867,9 @@ def _create_and_simulate_process(
             pass
         phase = "process_configuration"
         process.tea.labor_cost = config.get("labor_cost", 120_000)
+        process.tea.income_tax = float(
+            config.get("income_tax", _INCOME_TAX_DEFAULT)
+        )
         process.set_solvent_price(config["solvent_price"])
         process.set_feedstock_distance(config.get("feedstock_distance_km", 0))
         process.set_solvent_loss(config.get("solvent_loss_pct", 0.01) / 100.0)
