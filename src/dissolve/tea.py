@@ -3920,17 +3920,25 @@ def lookup_admitted_process_records(
             process_config=process_config,
             allow_partial_campaign=allow_partial_campaign,
         )
-    try:
-        if target_polymer in (None, "", []):
-            raise ValueError("At least one target polymer is required")
-        supplied_polymers = (
-            target_polymer
-            if isinstance(target_polymer, list)
-            else [target_polymer]
+    supplied_polymers = (
+        target_polymer
+        if isinstance(target_polymer, list)
+        else [target_polymer]
+    )
+    if not any(str(item or "").strip() for item in supplied_polymers):
+        return tool_error(
+            tool,
+            "Admitted-cache lookup requires target_polymer.",
+            error_code="missing_target_polymer",
         )
+    try:
         polymers = _expand_polymers(supplied_polymers, "target polymer")
         if not polymers:
-            raise ValueError("At least one target polymer is required")
+            return tool_error(
+                tool,
+                "Admitted-cache lookup requires target_polymer.",
+                error_code="missing_target_polymer",
+            )
         resolved_solvent = _resolve_solvent(solvent) if solvent else None
         temperature = (
             _finite(dissolution_temperature_c, "dissolution_temperature_c")
