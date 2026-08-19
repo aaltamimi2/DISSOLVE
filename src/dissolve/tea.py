@@ -1204,6 +1204,11 @@ def _live_process_model_provenance(path: str) -> tuple[dict[str, Any], Optional[
         return provenance, "TEA cache lacks a process-model SHA-256 pin."
     if not model_path.is_file():
         return provenance, f"Configured process model does not exist: {model_path}"
+    try:
+        tea_polymer_parameters._parse_strap_source(model_path)
+    except tea_polymer_parameters.PackageInspectionError as error:
+        provenance["unreadable_source"] = str(error.path)
+        return provenance, str(error)
     actual = hashlib.sha256(model_path.read_bytes()).hexdigest()
     provenance["process_model_sha256"] = actual
     if actual != expected:
@@ -1227,6 +1232,12 @@ def _live_cited_package_provenance(path: str) -> tuple[dict[str, Any], Optional[
             "Expert-table package sources are missing under "
             f"{root}: " + ", ".join(cited["missing"]) + "."
         )
+    try:
+        tea_polymer_parameters.inspect_cited_strap_sources(root)
+    except tea_polymer_parameters.PackageInspectionError as error:
+        provenance["unreadable_source"] = str(error.path)
+        provenance["unreadable_reason"] = error.diagnostic_reason
+        return provenance, str(error)
     return provenance, None
 
 
@@ -1268,6 +1279,8 @@ def live_engine_status() -> dict[str, Any]:
     if model_error:
         if model_provenance.get("expected_process_model_sha256") is None:
             reason = "cache_provenance_missing"
+        elif model_provenance.get("unreadable_source"):
+            reason = "process_model_unreadable"
         elif model_provenance.get("process_model_sha256") is None:
             reason = "process_model_missing"
         else:
@@ -1285,7 +1298,8 @@ def live_engine_status() -> dict[str, Any]:
     if cited_error:
         return {
             "available": False,
-            "reason": "cited_package_source_missing",
+            "reason": cited_provenance.get("unreadable_reason")
+            or "cited_package_source_missing",
             "detail": cited_error,
             "live_provenance": {
                 "status": "unverifiable",
@@ -1361,6 +1375,8 @@ _LIVE_MISCONFIGURED_REASONS = frozenset({
     "property_package_unreadable",
     "cited_package_source_missing",
     "cited_package_checksum_mismatch",
+    "cited_package_unreadable",
+    "process_model_unreadable",
 })
 
 # Live BioSTEAM never runs in this process. The 3.12 interpreter is a
@@ -1399,6 +1415,7 @@ def live_environment_report() -> dict[str, Any]:
     if root is not None:
         try:
             package_ids = tea_polymer_parameters.package_chemical_ids(root)
+            tea_polymer_parameters.inspect_ready_claim_sources(root)
         except tea_polymer_parameters.PackageInspectionError as error:
             inspection_error = error
         except (OSError, UnicodeDecodeError, SyntaxError, ValueError) as error:
@@ -1447,7 +1464,7 @@ def live_environment_report() -> dict[str, Any]:
     available = bool(status.get("available")) and inspection_error is None
     if inspection_error is not None:
         check_status = "fail"
-        reason = "property_package_unreadable"
+        reason = inspection_error.diagnostic_reason
         why_text = "; ".join(why) if why else str(inspection_error)
     elif available:
         check_status = "pass"
@@ -1492,6 +1509,41 @@ def live_environment_report() -> dict[str, Any]:
     }
 
 
+# Execute the exact file whose digest the parent has admitted.
+# ``-m dissolve.tea_worker`` imports the package registry first,
+# leaking unrelated engine dependencies into the isolated TEA
+# environment before the worker can reach its JSON boundary.
+# Executing that file as a script is also unsafe: its package
+# directory becomes sys.path[0] and shadows the scientific
+# ``thermo`` package with the sibling dissolve module. A -c
+# bootstrap keeps the source root as sys.path[0], while runpy
+# still sets __file__ to the admitted path for the handshake.
+LIVE_WORKER_RUNPY_BOOTSTRAP = (
+    "import runpy,sys;"
+    "worker_path=sys.argv.pop(1);"
+    "runpy.run_path(worker_path,run_name='__main__')"
+)
+
+
+def live_worker_runpy_argv(
+    worker_config: dict[str, Any],
+    *,
+    python: Optional[str] = None,
+    worker_path: Optional[str] = None,
+) -> list[str]:
+    """Exact argv ``_launch_live_worker`` uses. Tests must reuse this.
+
+    A refused target (PU) binds bootstrap and JSON without BioSTEAM.
+    """
+    return [
+        python or _tea_worker_python(),
+        "-c",
+        LIVE_WORKER_RUNPY_BOOTSTRAP,
+        worker_path or str(Path(str(tea_worker.__file__)).resolve()),
+        json.dumps(worker_config),
+    ]
+
+
 def _launch_live_worker(
     worker_config: dict[str, Any],
     *,
@@ -1502,25 +1554,10 @@ def _launch_live_worker(
     """Run one fresh worker and verify its source handshake."""
     try:
         completed = subprocess.run(
-            [
-                # Execute the exact file whose digest the parent has admitted.
-                # ``-m dissolve.tea_worker`` imports the package registry first,
-                # leaking unrelated engine dependencies into the isolated TEA
-                # environment before the worker can reach its JSON boundary.
-                # Executing that file as a script is also unsafe: its package
-                # directory becomes sys.path[0] and shadows the scientific
-                # ``thermo`` package with the sibling dissolve module. A -c
-                # bootstrap keeps the source root as sys.path[0], while runpy
-                # still sets __file__ to the admitted path for the handshake.
-                _tea_worker_python(), "-c",
-                (
-                    "import runpy,sys;"
-                    "worker_path=sys.argv.pop(1);"
-                    "runpy.run_path(worker_path,run_name='__main__')"
-                ),
-                provenance["worker_source_path"],
-                json.dumps(worker_config),
-            ],
+            live_worker_runpy_argv(
+                worker_config,
+                worker_path=provenance["worker_source_path"],
+            ),
             capture_output=True, text=True, timeout=timeout_seconds,
             env=environment,
             cwd=str(Path(__file__).resolve().parents[1]),

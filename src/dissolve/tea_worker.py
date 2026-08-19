@@ -31,18 +31,30 @@ def _polymer_parameters() -> ModuleType:
     of ``dissolve`` would run ``dissolve.__init__`` and pull the rest of
     the engine into the BioSTEAM worker. File-loading the sibling keeps
     the isolation the cache generator depends on.
+
+    The loaded module MUST be registered in ``sys.modules`` before
+    ``exec_module``. ``@dataclass`` looks up ``sys.modules[cls.__module__]``;
+    an unregistered spec leaves that entry ``None`` and the child dies
+    before it can write JSON.
     """
     if __package__:
         from . import tea_polymer_parameters as module
         return module
+    name = "_dissolve_tea_polymer_parameters"
+    existing = sys.modules.get(name)
+    if existing is not None:
+        return existing
     path = Path(__file__).resolve().parent / "tea_polymer_parameters.py"
-    spec = importlib.util.spec_from_file_location(
-        "_dissolve_tea_polymer_parameters", path,
-    )
+    spec = importlib.util.spec_from_file_location(name, path)
     if spec is None or spec.loader is None:
         raise RuntimeError(f"Cannot load polymer parameter surface from {path}")
     module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
+    sys.modules[name] = module
+    try:
+        spec.loader.exec_module(module)
+    except Exception:
+        sys.modules.pop(name, None)
+        raise
     return module
 
 
@@ -900,11 +912,13 @@ def run(config: dict[str, Any]) -> dict[str, Any]:
     plastics_root = params.resolve_plastics_path()
     try:
         source_ids = params.package_chemical_ids(plastics_root)
+        if plastics_root is not None:
+            params.inspect_cited_strap_sources(plastics_root)
     except params.PackageInspectionError as error:
         return {
             "success": False,
             "error": str(error),
-            "error_type": "property_package_unreadable",
+            "error_type": error.diagnostic_reason,
             "target_plastic": original_target,
             "parameter_surface": "dissolve.tea_polymer_parameters",
         }

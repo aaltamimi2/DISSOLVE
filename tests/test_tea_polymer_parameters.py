@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import ast
 import json
+import shutil
 import sys
 from dataclasses import replace
 from pathlib import Path
@@ -53,8 +54,8 @@ def _committed_pe_toluene_config(**overrides):
     return config
 
 
-# Owner-authorized live BioSTEAM oracles against merged v12. Injected so
-# standing is bound to real endpoints without spawning a child.
+# Owner-authorized live BioSTEAM endpoints against merged v12. Injected
+# standing-shape fixtures only — not produced by the worker in these tests.
 LDPE_TOLUENE_LIVE = {
     "msp_usd_per_kg": 1.13492,
     "tci_usd": 7.85216e7,
@@ -78,17 +79,19 @@ LDPE_DODECANE_C1 = {
 LDPE_DODECANE_LIVE_MSP = 1.2635722365577455
 
 
-def _write_matching_pe_package(root: Path, *, pe_rho: str = "0.5 * (880 + 960)") -> Path:
+def _write_matching_pe_package(
+    root: Path, *, pe_rho: str | None = "0.5 * (880 + 960)",
+) -> Path:
     strap = root / "plastics" / "strap"
     strap.mkdir(parents=True)
+    rho_line = f"        rho={pe_rho},\n" if pe_rho is not None else ""
     (strap / "property_package.py").write_text(
         f'''
 STRAP_chemicals_outline = bst.ChemicalsOutline([
     bst.ChemicalDraft(
         "PE",
         formula="C2H4",
-        rho={pe_rho},
-        Cp=0.5 * (1.330 + 2.400),
+{rho_line}        Cp=0.5 * (1.330 + 2.400),
         Tm=0.5 * (115 + 135) + 273.15,
     ),
     bst.ChemicalDraft("PEoligomer", search_ID="1-Hexene"),
@@ -388,11 +391,13 @@ def test_run_binds_standing_on_injected_live_success(monkeypatch):
     )
 
 
-def test_live_oracle_standing_keeps_validated_apart_from_correct(monkeypatch):
-    """Committed PE/Toluene is validated; cache-exact dodecane is not.
+def test_standing_shape_keeps_validated_apart_from_correct(monkeypatch):
+    """Standing-shape unit test: injected metrics, not a live oracle.
 
-    Validated and correct are different properties. The dodecane live MSP
-    reproduced the cache exactly and is still not a committed pair.
+    Patched ``_live`` proves validated vs provisional follows executed
+    setpoints and committed-pair membership. It does not bind MSP/TCI/AOC/GWP
+    to BioSTEAM. The production-bound child handshake is
+    ``test_runpy_child_returns_named_json_for_refused_target``.
     """
     monkeypatch.delenv("DISSOLVE_PLASTICS_PATH", raising=False)
 
@@ -692,3 +697,150 @@ def test_cited_package_hashes_seal_the_files_the_table_cites(tmp_path):
     )
     assert "precipitation_steps" in mismatches
     assert "property_package" not in mismatches
+
+
+def test_runpy_child_returns_named_json_for_refused_target(monkeypatch):
+    """Production child handshake: exact runpy argv, cheap refused target.
+
+    On sealed 5c0f4be this child wrote no JSON (invalid_worker_output).
+    The producer is the documented worker, not an expected-value fixture.
+    """
+    monkeypatch.delenv("DISSOLVE_PLASTICS_PATH", raising=False)
+    argv = tea.live_worker_runpy_argv({"target_plastic": "PU"})
+    assert argv[1] == "-c"
+    assert argv[2] == tea.LIVE_WORKER_RUNPY_BOOTSTRAP
+    assert "runpy.run_path" in argv[2]
+    result = tea._launch_live_worker(
+        {"target_plastic": "PU"},
+        timeout_seconds=30,
+        environment=tea._tea_worker_environment(),
+        provenance=tea._tea_worker_source_provenance(),
+    )
+    assert result.get("error_type") != "invalid_worker_output"
+    assert result["success"] is False
+    assert result["error_type"] == "unsupported_live_target"
+    assert "PET-clone" in (result.get("error") or "")
+    assert result.get("target_plastic") == "PU"
+
+
+def test_uninspectable_chemical_rho_forces_provisional(tmp_path):
+    _write_matching_pe_package(tmp_path, pe_rho="external_rho()")
+    row = params.POLYMERS["LDPE"]
+    exact = _committed_pe_toluene_config()
+    disagreements = params.surface_package_disagreements(row, "toluene", tmp_path)
+    assert "rho_kg_m3_uninspectable" in disagreements
+    payload = params.live_parameter_standing_payload(
+        row, solvent="toluene", config=exact, plastics_root=tmp_path,
+    )
+    assert payload["can_cite_as_validated_process"] is False
+    assert payload["live_parameter_standing"]["package_disagreements"] == (
+        list(disagreements)
+    )
+
+
+def test_absent_chemical_rho_forces_provisional(tmp_path):
+    _write_matching_pe_package(tmp_path, pe_rho=None)
+    row = params.POLYMERS["LDPE"]
+    disagreements = params.surface_package_disagreements(
+        row, "toluene", tmp_path,
+    )
+    assert "rho_kg_m3_uninspectable" in disagreements
+    payload = params.live_parameter_standing_payload(
+        row,
+        solvent="toluene",
+        config=_committed_pe_toluene_config(),
+        plastics_root=tmp_path,
+    )
+    assert payload["can_cite_as_validated_process"] is False
+
+
+def test_missing_oligomer_draft_is_named_disagreement(tmp_path):
+    _write_matching_pe_package(tmp_path)
+    strap = tmp_path / "plastics" / "strap"
+    (strap / "property_package.py").write_text(
+        '''
+STRAP_chemicals_outline = bst.ChemicalsOutline([
+    bst.ChemicalDraft(
+        "PE",
+        formula="C2H4",
+        rho=0.5 * (880 + 960),
+        Cp=0.5 * (1.330 + 2.400),
+        Tm=0.5 * (115 + 135) + 273.15,
+    ),
+])
+''',
+        encoding="utf-8",
+    )
+    row = params.POLYMERS["LDPE"]
+    disagreements = params.surface_package_disagreements(row, "toluene", tmp_path)
+    assert "oligomer_not_in_package_source" in disagreements
+    payload = params.live_parameter_standing_payload(
+        row,
+        solvent="toluene",
+        config=_committed_pe_toluene_config(),
+        plastics_root=tmp_path,
+    )
+    assert payload["can_cite_as_validated_process"] is False
+
+
+@pytest.mark.parametrize(
+    "filename",
+    ("dissolution_steps.py", "precipitation_steps.py"),
+)
+def test_doctor_malformed_cited_step_is_named_fail(
+    tmp_path, monkeypatch, filename,
+):
+    root = tmp_path / "plastics-root"
+    _write_matching_pe_package(root)
+    strap = root / "plastics" / "strap"
+    (strap / filename).write_text("def (\n", encoding="utf-8")
+    (strap / "process_model.py").write_text("# stub\n", encoding="utf-8")
+    monkeypatch.setenv("DISSOLVE_PLASTICS_PATH", str(root))
+    monkeypatch.delenv("DISSOLVE_TEA_PYTHON", raising=False)
+    monkeypatch.delenv("META_MUSE_API_KEY", raising=False)
+    report = tea.live_environment_report()
+    assert report["reason"] == "cited_package_unreadable"
+    assert report["check_status"] == "fail"
+    assert str(strap / filename) in (report["why_unavailable"] or "")
+    assert "Traceback" not in (report["why_unavailable"] or "")
+    doctor = doctor_report(tmp_path, model_alias="muse-spark")
+    check = next(c for c in doctor["checks"] if c["name"] == "Live TEA")
+    assert check["status"] == "fail"
+    assert check["reason"] == "cited_package_unreadable"
+    assert str(strap / filename) in (check["detail"] or "")
+
+
+@pytest.mark.parametrize(
+    "filename",
+    ("dissolution_steps.py", "precipitation_steps.py"),
+)
+def test_worker_malformed_cited_step_is_named_refusal(
+    tmp_path, monkeypatch, filename,
+):
+    root = tmp_path / "plastics-root"
+    _write_matching_pe_package(root)
+    strap = root / "plastics" / "strap"
+    (strap / filename).write_text("def (\n", encoding="utf-8")
+    monkeypatch.setenv("DISSOLVE_PLASTICS_PATH", str(root))
+    result = tea_worker.run({"target_plastic": "LDPE"})
+    assert result["success"] is False
+    assert result["error_type"] == "cited_package_unreadable"
+    assert str(strap / filename) in result["error"]
+
+
+def test_live_engine_status_parses_cited_steps_before_ready(tmp_path, monkeypatch):
+    real_model = (
+        _REAL_PLASTICS_PARENT / "plastics" / "strap" / "process_model.py"
+    )
+    if not real_model.is_file():
+        pytest.skip("unpublished process_model.py is not on this machine")
+    _write_matching_pe_package(tmp_path)
+    strap = tmp_path / "plastics" / "strap"
+    shutil.copy2(real_model, strap / "process_model.py")
+    (strap / "dissolution_steps.py").write_text("def (\n", encoding="utf-8")
+    monkeypatch.setenv("DISSOLVE_PLASTICS_PATH", str(tmp_path))
+    monkeypatch.setenv("DISSOLVE_TEA_PYTHON", sys.executable)
+    status = tea.live_engine_status()
+    assert status["available"] is False
+    assert status["reason"] == "cited_package_unreadable"
+    assert "dissolution_steps.py" in (status.get("detail") or "")

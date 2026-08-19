@@ -126,6 +126,20 @@ KELVIN_OFFSET = 273.15
 CONFIG_CAPACITY_IS_WT_PERCENT = True
 
 
+_INSPECTION_KIND = {
+    "property_package.py": "property package",
+    "dissolution_steps.py": "dissolution steps",
+    "precipitation_steps.py": "precipitation steps",
+    "process_model.py": "process model",
+}
+_INSPECTION_REASON = {
+    "property_package.py": "property_package_unreadable",
+    "dissolution_steps.py": "cited_package_unreadable",
+    "precipitation_steps.py": "cited_package_unreadable",
+    "process_model.py": "process_model_unreadable",
+}
+
+
 class PackageInspectionError(Exception):
     """A strap source file existed but could not be read as Python AST."""
 
@@ -133,9 +147,16 @@ class PackageInspectionError(Exception):
         self.path = Path(path)
         self.cause_type = type(cause).__name__
         self.cause = cause
+        kind = _INSPECTION_KIND.get(self.path.name, "cited package source")
         super().__init__(
-            f"property package at {self.path} could not be inspected "
+            f"{kind} at {self.path} could not be inspected "
             f"({self.cause_type})"
+        )
+
+    @property
+    def diagnostic_reason(self) -> str:
+        return _INSPECTION_REASON.get(
+            self.path.name, "cited_package_unreadable",
         )
 
 
@@ -761,8 +782,8 @@ def live_parameter_standing_payload(
             disagreements = surface_package_disagreements(
                 row, solvent, plastics_root,
             )
-        except PackageInspectionError:
-            disagreements = ("property_package_unreadable",)
+        except PackageInspectionError as error:
+            disagreements = (error.diagnostic_reason,)
     else:
         disagreements = ()
     mismatches = (
@@ -1240,9 +1261,36 @@ def _call_name(node: ast.AST) -> str:
 
 def _parse_strap_source(path: Path) -> ast.AST:
     try:
-        return ast.parse(path.read_text(encoding="utf-8"))
+        source = path.read_text(encoding="utf-8")
+        tree = ast.parse(source, filename=str(path))
+        compile(source, str(path), "exec")
+        return tree
     except (OSError, UnicodeDecodeError, SyntaxError, ValueError) as error:
         raise PackageInspectionError(path, error) from error
+
+
+def inspect_cited_strap_sources(plastics_root: Path) -> None:
+    """Parse every cited strap file whose digest participates in readiness.
+
+    Hashing a file does not prove it is executable Python. Doctor and
+    ``live_engine_status`` must fail named if a cited source cannot be
+    inspected, rather than hashing it and calling the path ready.
+    """
+    cited = cited_strap_source_provenance(plastics_root)
+    for name in CITED_STRAP_SOURCE_NAMES:
+        row = cited["sources"].get(name) or {}
+        path_raw = row.get("path")
+        if not path_raw:
+            continue
+        _parse_strap_source(Path(path_raw))
+
+
+def inspect_ready_claim_sources(plastics_root: Path) -> None:
+    """Parse cited strap sources and process_model.py when the file exists."""
+    inspect_cited_strap_sources(plastics_root)
+    model = resolve_strap_file(plastics_root, _PROCESS_MODEL_RELATIVE)
+    if model is not None:
+        _parse_strap_source(model)
 
 
 def _ast_number(node: ast.AST) -> Optional[float]:
@@ -1319,6 +1367,8 @@ def _chemical_draft_fields(node: ast.AST) -> Optional[dict[str, Any]]:
             number = _ast_number(keyword.value)
             if number is not None:
                 fields[name] = number
+            else:
+                fields[f"{name}_uninspectable"] = True
         elif name == "search_ID" and isinstance(keyword.value, ast.Constant):
             if isinstance(keyword.value.value, str):
                 fields["search_ID"] = keyword.value.value
@@ -1415,6 +1465,35 @@ def package_precipitation_steps_from_source(
     return steps
 
 
+_REQUIRED_CHEMICAL_NUMERICS = (
+    ("rho", "rho_kg_m3"),
+    ("Cp", "cp_j_per_g_k"),
+    ("Tm", "tm_k"),
+)
+
+
+def _chemical_source_disagreements(
+    chemical: ChemicalAssumptions, draft: Mapping[str, Any],
+) -> list[str]:
+    """Required chemical fields missing or unreducible are unverifiable."""
+    disagreements: list[str] = []
+    if "formula" not in draft:
+        disagreements.append("formula_uninspectable")
+    elif chemical.formula != draft["formula"]:
+        disagreements.append("formula")
+    for pkg_key, table_key in _REQUIRED_CHEMICAL_NUMERICS:
+        if pkg_key not in draft:
+            disagreements.append(f"{table_key}_uninspectable")
+        elif not _close(getattr(chemical, table_key), draft[pkg_key]):
+            disagreements.append(table_key)
+    if chemical.tb_k is not None:
+        if "Tb" not in draft:
+            disagreements.append("tb_k_uninspectable")
+        elif not _close(chemical.tb_k, draft["Tb"]):
+            disagreements.append("tb_k")
+    return disagreements
+
+
 def surface_package_disagreements(
     row: PolymerRow,
     solvent: Optional[str],
@@ -1425,7 +1504,9 @@ def surface_package_disagreements(
     Missing step files are unverifiable, not a disagreement — live TEA
     without a plastics path still has to bind standing to executed
     setpoints. When the files are present, a mismatch cannot be cited
-    as validated.
+    as validated. A required chemical field that is absent or not
+    statically reducible is a named uninspectable disagreement, not
+    silent agreement.
     """
     disagreements: list[str] = []
     property_package = resolve_strap_file(
@@ -1439,33 +1520,20 @@ def surface_package_disagreements(
             if draft is None:
                 disagreements.append("chemical_not_in_package_source")
             else:
-                if chemical.formula != draft.get("formula"):
-                    disagreements.append("formula")
-                if "rho" in draft and not _close(chemical.rho_kg_m3, draft["rho"]):
-                    disagreements.append("rho_kg_m3")
-                if "Cp" in draft and not _close(
-                    chemical.cp_j_per_g_k, draft["Cp"],
-                ):
-                    disagreements.append("cp_j_per_g_k")
-                if "Tm" in draft and not _close(chemical.tm_k, draft["Tm"]):
-                    disagreements.append("tm_k")
-                if (
-                    chemical.tb_k is not None
-                    and "Tb" in draft
-                    and not _close(chemical.tb_k, draft["Tb"])
-                ):
-                    disagreements.append("tb_k")
+                disagreements.extend(
+                    _chemical_source_disagreements(chemical, draft),
+                )
         oligomer = row.oligomer
-        if (
-            oligomer is not None
-            and oligomer.in_package_outline
-            and oligomer.search_id
-        ):
+        if oligomer is not None and oligomer.in_package_outline:
             draft = drafts.get(oligomer.chemical_id)
-            if draft is not None and draft.get("search_ID") not in {
-                None, oligomer.search_id,
-            }:
-                disagreements.append("oligomer_search_id")
+            if draft is None:
+                disagreements.append("oligomer_not_in_package_source")
+            elif oligomer.search_id:
+                search = draft.get("search_ID")
+                if not search:
+                    disagreements.append("oligomer_search_id_uninspectable")
+                elif search != oligomer.search_id:
+                    disagreements.append("oligomer_search_id")
 
     process = process_assumptions_for(row, solvent)
     if process is None or process.committed_pair is None or not solvent:
