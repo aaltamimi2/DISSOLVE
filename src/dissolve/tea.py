@@ -107,12 +107,14 @@ _PRECIPITATION_CONFIGURATIONS = frozenset({
 # records do not carry them and are projected at these running values.
 _IRR_DEFAULT = 0.10
 _INCOME_TAX_DEFAULT = 0.21
+_OPERATING_DAYS_DEFAULT = 350.4
 _FEEDSTOCK_PRICE_USD_PER_KG = 0.01
 _CENTRIFUGED_PLASTIC_SOLVENT_CONTENT_PCT = 50.0
 _NATURAL_GAS_PRICE_USD_PER_M3 = 4.73 * 35.3146667 / 1e3
 _COEFFICIENT_DEFAULTS = {
     "irr": _IRR_DEFAULT,
     "income_tax": _INCOME_TAX_DEFAULT,
+    "operating_days": _OPERATING_DAYS_DEFAULT,
     "feedstock_price_usd_per_kg": _FEEDSTOCK_PRICE_USD_PER_KG,
     "centrifuged_plastic_solvent_content_pct": (
         _CENTRIFUGED_PLASTIC_SOLVENT_CONTENT_PCT
@@ -913,6 +915,7 @@ def public_process_field_names(*, energy_case: str = "C1") -> tuple[str, ...]:
     names += (
         "irr",
         "income_tax",
+        "operating_days",
         "feedstock_price_usd_per_kg",
         "centrifuged_plastic_solvent_content_pct",
     )
@@ -1410,6 +1413,16 @@ def _validated_coefficients(
                 supplied=supplied["income_tax"],
             )
         coefficients["income_tax"] = tax
+    if "operating_days" in supplied:
+        days = _finite(supplied["operating_days"], "operating_days")
+        if days <= 0:
+            raise _ScenarioInputError(
+                "operating_days must be positive.",
+                error_code="invalid_scenario",
+                field="operating_days",
+                supplied=supplied["operating_days"],
+            )
+        coefficients["operating_days"] = days
     if "feedstock_price_usd_per_kg" in supplied:
         price = _finite(
             supplied["feedstock_price_usd_per_kg"],
@@ -3490,6 +3503,7 @@ def _comparison_row(label: str, result: dict[str, Any]) -> dict[str, Any]:
         "precipitation_configuration": switches["precipitation_configuration"],
         "irr": coefficients.get("irr"),
         "income_tax": coefficients.get("income_tax"),
+        "operating_days": coefficients.get("operating_days"),
         "feedstock_price_usd_per_kg": coefficients.get(
             "feedstock_price_usd_per_kg"
         ),
