@@ -57,6 +57,14 @@ _DESIGN_POINT_PUBLIC_FIELDS = (
     ("dissolution_capacity", "dissolution_capacity"),
     ("labor_cost", "labor_cost_usd_per_employee_yr"),
 )
+_SCENARIO_ALIASES = {
+    "target_mass_percent": "target_plastic_percent",
+    "processing_capacity_mt_per_yr": "processing_capacity",
+    "dissolution_temp_c": "dissolution_temperature_c",
+    "precipitation_temp_c": "precipitation_temperature_c",
+    "solvent_price_usd_per_kg": "solvent_price",
+    "labor_cost_usd_per_employee_yr": "labor_cost",
+}
 # D-8 overlay vocabulary stays the twelve above. These switches change the
 # flowsheet (or leftover disposition) and belong in the executed-config key.
 # Production values are what the v12 worker hardcoded; existing cache records
@@ -817,6 +825,93 @@ def _public_design_point(
     return point
 
 
+PROCESS_CONFIRM_TOOLS = frozenset({
+    "evaluate_tea_lca_scenarios",
+    "analyze_tea_sensitivity",
+})
+_SHEET_REQUIRED_FIELDS = (
+    "target_polymer", "solvent", "dissolution_temperature_c",
+)
+
+
+def public_process_field_names(*, energy_case: str = "C1") -> tuple[str, ...]:
+    """Public process_config names the confirmation sheet can edit."""
+    names = tuple(public for _internal, public in _DESIGN_POINT_PUBLIC_FIELDS)
+    names += _FLOWSHEET_SWITCH_FIELDS
+    names += (
+        "irr",
+        "feedstock_price_usd_per_kg",
+        "centrifuged_plastic_solvent_content_pct",
+    )
+    if str(energy_case or "C1").upper() in {"C1", "C3"}:
+        names += ("natural_gas_price_usd_per_m3",)
+    return names
+
+
+def first_run_sheet_defaults(*, energy_case: str = "C1") -> dict[str, Any]:
+    """Named first-run defaults. Not `_scenario_config` silent fill.
+
+    Precipitation is the generic-factory 35 °C, not the 25 °C leftover in
+    `_scenario_config`.
+    """
+    case = str(energy_case or "C1").upper() or "C1"
+    defaults: dict[str, Any] = {
+        "target_mass_percent": 60.0,
+        "processing_capacity_mt_per_yr": 20_000.0,
+        "energy_case": case if case in _ENERGY_CASES else "C1",
+        "precipitation_temperature_c": (
+            tea_polymer_parameters.GENERIC_FACTORY_PRECIPITATION_T_C
+        ),
+        "solvent_loss_pct": 0.01,
+        "feedstock_distance_km": 0.0,
+        "dissolution_capacity": 3.0,
+        "labor_cost_usd_per_employee_yr": 120_000.0,
+        **dict(_FLOWSHEET_SWITCH_DEFAULTS),
+        **dict(_COEFFICIENT_DEFAULTS),
+    }
+    if defaults["energy_case"] in {"C1", "C3"}:
+        defaults["natural_gas_price_usd_per_m3"] = _NATURAL_GAS_PRICE_USD_PER_M3
+    return defaults
+
+
+def seed_public_process_config(
+    scenario: Optional[dict[str, Any]] = None,
+) -> dict[str, Any]:
+    """Map a scenario object onto the public sheet vocabulary."""
+    raw = dict(scenario or {})
+    energy = str(raw.get("energy_case") or "C1").upper() or "C1"
+    seeded = first_run_sheet_defaults(energy_case=energy)
+    internal_to_public = dict(_DESIGN_POINT_PUBLIC_FIELDS)
+    public_names = set(public_process_field_names(energy_case=energy)) | {
+        "target_polymer", "solvent",
+    }
+    for key, value in raw.items():
+        if value is None or str(key).startswith("_"):
+            continue
+        if key in internal_to_public:
+            public = internal_to_public[key]
+        elif key in _SCENARIO_ALIASES:
+            internal = _SCENARIO_ALIASES[key]
+            public = internal_to_public.get(internal, key)
+        elif key in public_names:
+            public = key
+        else:
+            continue
+        seeded[public] = value
+    if energy == "C2":
+        seeded.pop("natural_gas_price_usd_per_m3", None)
+    return seeded
+
+
+def missing_public_process_fields(config: dict[str, Any]) -> list[str]:
+    missing = []
+    for field in _SHEET_REQUIRED_FIELDS:
+        value = config.get(field)
+        if value is None or (isinstance(value, str) and not value.strip()):
+            missing.append(field)
+    return missing
+
+
 def _design_point_value_equal(field: str, left: Any, right: Any) -> bool:
     if field in {"target_plastic", "solvent"}:
         return _key(left) == _key(right)
@@ -1345,13 +1440,9 @@ def _scenario_config(scenario: dict[str, Any]) -> dict[str, Any]:
     solvent = str(solvent_identity["canonical"])
     base_record = _record_for_pair(polymer, solvent)
     defaults = copy.deepcopy((base_record or {}).get("config") or {})
-    aliases = {
-        "target_mass_percent": "target_plastic_percent",
-        "processing_capacity_mt_per_yr": "processing_capacity",
-        "dissolution_temp_c": "dissolution_temperature_c",
-        "precipitation_temp_c": "precipitation_temperature_c",
+    supplied = {
+        _SCENARIO_ALIASES.get(key, key): value for key, value in scenario.items()
     }
-    supplied = {aliases.get(key, key): value for key, value in scenario.items()}
     _refuse_reserved_process_fields(supplied)
     config = {
         **{
@@ -5324,13 +5415,9 @@ def analyze_tea_sensitivity(
     scenario sample; it is not a probabilistic Monte Carlo claim.
     """
     tool = "analyze_tea_sensitivity"
-    aliases = {
-        "target_mass_percent": "target_plastic_percent",
-        "processing_capacity_mt_per_yr": "processing_capacity",
-        "dissolution_temp_c": "dissolution_temperature_c",
-        "precipitation_temp_c": "precipitation_temperature_c",
-    }
-    field = aliases.get(str(parameter or "").strip(), str(parameter or "").strip())
+    field = _SCENARIO_ALIASES.get(
+        str(parameter or "").strip(), str(parameter or "").strip(),
+    )
     mode = str(analysis_mode or "sweep").casefold()
     if field not in _NUMERIC_FIELDS or field in {"dissolution_capacity", "labor_cost"}:
         return tool_error(tool, "Unsupported sensitivity parameter.", error_code="unsupported_parameter", supported_parameters=sorted(_NUMERIC_FIELDS - {"dissolution_capacity", "labor_cost"}))

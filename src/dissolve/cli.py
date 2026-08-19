@@ -34,7 +34,7 @@ from rich.text import Text
 
 from agent_harness import ToolEvent, TurnResult, run_turn
 from agent_tools import SYSTEM_PROMPT
-from dissolve import RELEASE
+from dissolve import RELEASE, tea
 from dissolve.contracts import normalize_json
 from dissolve.session import SessionRecord, handle_total, new_session
 
@@ -458,6 +458,61 @@ def _tool_event_summary(event: ToolEvent) -> str:
     return f"{name}({inner}) -> {len(blob.encode('utf-8'))} B"
 
 
+_PROCESS_SHEET_HEADER = """\
+[bold]Process confirmation[/]
+
+This pane is every TEA/LCA public process variable the agent can vary.
+Accept or edit; the dict you submit is what runs. Chemistry (τ, ρ, Cp,
+Tm, Tb, oligomer, precipitation solubility) lives in
+src/dissolve/tea_polymer_parameters.py and is expert_surface_only.
+Recovery is not a knob. facilities/turbogenerator are derived from
+energy_case. Commented-out setters are field_not_adjustable.
+
+[dim]Enter to accept a value. field=value to edit. blank line or run to
+submit. abort / q discards this buffer and does not run.[/]
+"""
+_BOOL_PROCESS_FIELDS = frozenset({
+    "sell_leftover_plastic", "burn_leftover_plastic",
+})
+
+
+def _coerce_process_sheet_value(field: str, raw: str, current: Any) -> Any:
+    text = str(raw).strip()
+    if field in _BOOL_PROCESS_FIELDS:
+        token = text.casefold()
+        if token in {"true", "yes", "1"}:
+            return True
+        if token in {"false", "no", "0"}:
+            return False
+        raise ValueError(f"{field} must be true or false")
+    if field == "energy_case":
+        case = text.upper()
+        if case not in tea._ENERGY_CASES:
+            raise ValueError("energy_case must be C1, C2, or C3")
+        return case
+    if field in {
+        "precipitation_temperature_format", "precipitation_configuration",
+        "target_polymer", "solvent",
+    }:
+        return text
+    number = float(text)
+    if field == "irr" and number >= 1:
+        raise ValueError("irr is a fraction (0.10 is 10 percent)")
+    return number
+
+
+def _format_sheet_value(value: Any) -> str:
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    if isinstance(value, float):
+        if value == int(value) and abs(value) < 1e12:
+            return str(int(value)) if abs(value) >= 1 else f"{value:g}"
+        return f"{value:g}"
+    if value is None:
+        return ""
+    return str(value)
+
+
 class CliApp:
     def __init__(
         self,
@@ -499,6 +554,9 @@ class CliApp:
         self.last_tool_rounds = meta.get("last_tool_rounds")
         self.last_tool_calls = meta.get("last_tool_calls")
         self.last_usage = meta.get("last_usage")
+        self._process_buffer: dict[str, Any] | None = None
+        self._confirmation_sheet_submitted = False
+        self._cli_direct_active = False
         self._save()
 
     def _apply_mode_prompt(self) -> None:
@@ -640,6 +698,8 @@ class CliApp:
             self.messages = [{"role": "system", "content": _system_prompt(self.mode)}]
             self.last_result = None
             self.last_status = self.last_tool_rounds = self.last_tool_calls = self.last_usage = None
+            self._process_buffer = None
+            self._confirmation_sheet_submitted = False
             self._save()
             self.console.print("Messages and handles cleared.")
         elif command == "/context":
@@ -650,11 +710,165 @@ class CliApp:
                 self._show_context()
         elif command == "/cost":
             self._show_cost()
+        elif command == "/process":
+            submitted = self._edit_process_sheet(
+                self._process_buffer or tea.seed_public_process_config(),
+                require_submit=False,
+            )
+            if submitted is None:
+                self.console.print("[dim]Process sheet discarded.[/]")
+            else:
+                self._process_buffer = submitted
+                self.console.print("[dim]Process sheet kept in this session buffer.[/]")
         elif command == "/harness":
             self.console.print("flat loop, no specialists")
         else:
             self.console.print(f"[yellow]Unknown command:[/] {command}")
         return False
+
+    def _print_process_sheet(self, buffer: dict[str, Any]) -> None:
+        self.console.print(_PROCESS_SHEET_HEADER)
+        energy = str(buffer.get("energy_case") or "C1")
+        table = Table(box=None, show_header=True, pad_edge=False)
+        table.add_column("field")
+        table.add_column("value")
+        for field in tea.public_process_field_names(energy_case=energy):
+            shown = _format_sheet_value(buffer.get(field))
+            if field == "irr" and buffer.get("irr") is not None:
+                shown = f"{buffer['irr']} ({float(buffer['irr']) * 100:g}%)"
+            table.add_row(field, shown)
+        self.console.print(table)
+        missing = tea.missing_public_process_fields(buffer)
+        if missing:
+            self.console.print(f"[yellow]missing:[/] {', '.join(missing)}")
+
+    def _edit_process_sheet(
+        self,
+        seed: dict[str, Any],
+        *,
+        require_submit: bool = True,
+        prompt_fn: Callable[..., str] | None = None,
+    ) -> dict[str, Any] | None:
+        """Question pane. Returns the same buffer object, or None on abort."""
+        buffer = seed
+        ask = prompt_fn or Prompt.ask
+        self._print_process_sheet(buffer)
+        energy = str(buffer.get("energy_case") or "C1")
+        fields = tea.public_process_field_names(energy_case=energy)
+        for field in fields:
+            current = buffer.get(field)
+            default = _format_sheet_value(current)
+            try:
+                raw = str(ask(f"{field}", default=default) or "").strip()
+            except (EOFError, KeyboardInterrupt):
+                return None
+            if not raw or raw == default:
+                continue
+            if raw.casefold() in {"abort", "q"}:
+                return None
+            if raw.casefold() == "run":
+                break
+            try:
+                buffer[field] = _coerce_process_sheet_value(field, raw, current)
+            except ValueError as error:
+                self.console.print(f"[red]{error}[/]")
+            if field == "energy_case":
+                energy = str(buffer["energy_case"])
+                if energy == "C2":
+                    buffer.pop("natural_gas_price_usd_per_m3", None)
+                elif "natural_gas_price_usd_per_m3" not in buffer:
+                    buffer["natural_gas_price_usd_per_m3"] = (
+                        tea._NATURAL_GAS_PRICE_USD_PER_M3
+                    )
+        while True:
+            try:
+                line = str(ask(
+                    "edit field=value, run, or abort", default="",
+                ) or "").strip()
+            except (EOFError, KeyboardInterrupt):
+                return None
+            if not line or line.casefold() == "run":
+                missing = tea.missing_public_process_fields(buffer)
+                if missing:
+                    self.console.print(
+                        f"[red]incomplete_process_config:[/] {', '.join(missing)}"
+                    )
+                    if require_submit:
+                        continue
+                return buffer
+            if line.casefold() in {"abort", "q"}:
+                return None
+            if "=" not in line:
+                self.console.print("[yellow]Use field=value, run, or abort.[/]")
+                continue
+            field, _, raw = line.partition("=")
+            field = field.strip()
+            public = set(tea.public_process_field_names(
+                energy_case=str(buffer.get("energy_case") or "C1"),
+            ))
+            if field not in public:
+                self.console.print(f"[yellow]unknown_process_field:[/] {field}")
+                continue
+            try:
+                buffer[field] = _coerce_process_sheet_value(
+                    field, raw, buffer.get(field),
+                )
+            except ValueError as error:
+                self.console.print(f"[red]{error}[/]")
+
+    def _confirm_tool_kwargs(
+        self,
+        name: str,
+        kwargs: dict[str, Any],
+        *,
+        prompt_fn: Callable[..., str] | None = None,
+    ) -> dict[str, Any] | None:
+        if name == "evaluate_tea_lca_scenarios":
+            scenarios = list(kwargs.get("scenarios") or [])
+            seed = tea.seed_public_process_config(
+                scenarios[0] if scenarios else None,
+            )
+            submitted = self._edit_process_sheet(seed, prompt_fn=prompt_fn)
+            if submitted is None:
+                return None
+            self._process_buffer = submitted
+            out = dict(kwargs)
+            out["scenarios"] = [submitted]
+            return out
+        if name == "analyze_tea_sensitivity":
+            seed = tea.seed_public_process_config(kwargs.get("scenario"))
+            submitted = self._edit_process_sheet(seed, prompt_fn=prompt_fn)
+            if submitted is None:
+                return None
+            self._process_buffer = submitted
+            out = dict(kwargs)
+            out["scenario"] = submitted
+            return out
+        return kwargs
+
+    def _cli_direct_dispatch(
+        self, original: Callable[..., Any], name: str, kwargs: dict[str, Any],
+    ) -> Any:
+        if (
+            self._cli_direct_active
+            and name in tea.PROCESS_CONFIRM_TOOLS
+            and not self._confirmation_sheet_submitted
+            and sys.stdin.isatty()
+            and not self.quiet
+        ):
+            confirmed = self._confirm_tool_kwargs(name, kwargs)
+            if confirmed is None:
+                return {
+                    "success": False,
+                    "error": (
+                        "Process confirmation aborted; the model args "
+                        "did not run."
+                    ),
+                    "error_code": "process_confirmation_aborted",
+                }
+            kwargs = confirmed
+            self._confirmation_sheet_submitted = True
+        return original(name, **kwargs)
 
     def ask(self, query: str) -> TurnResult:
         self._append("user", query, mode=self.mode, model=self.model_alias)
@@ -696,22 +910,34 @@ class CliApp:
         return result
 
     def run(self) -> None:
+        import agent_harness
+        original_dispatch = agent_harness.dispatch
+
+        def wrapped_dispatch(name: str, **kwargs: Any) -> Any:
+            return self._cli_direct_dispatch(original_dispatch, name, kwargs)
+
         self.banner()
-        while True:
-            try:
-                line = Prompt.ask("\n[bold cyan]>[/]").strip()
-                if not line:
-                    continue
-                if line.startswith("/") or line.casefold() in {"quit", "exit", "q"}:
-                    if self.handle_command(line):
-                        break
-                else:
-                    self.ask(line)
-            except (EOFError, KeyboardInterrupt):
-                self.console.print("\n[dim]Session closed.[/]")
-                break
-            except (RuntimeError, ValueError) as error:
-                self.console.print(f"[red]Error:[/] {error}")
+        self._cli_direct_active = True
+        agent_harness.dispatch = wrapped_dispatch
+        try:
+            while True:
+                try:
+                    line = Prompt.ask("\n[bold cyan]>[/]").strip()
+                    if not line:
+                        continue
+                    if line.startswith("/") or line.casefold() in {"quit", "exit", "q"}:
+                        if self.handle_command(line):
+                            break
+                    else:
+                        self.ask(line)
+                except (EOFError, KeyboardInterrupt):
+                    self.console.print("\n[dim]Session closed.[/]")
+                    break
+                except (RuntimeError, ValueError) as error:
+                    self.console.print(f"[red]Error:[/] {error}")
+        finally:
+            agent_harness.dispatch = original_dispatch
+            self._cli_direct_active = False
 
 
 def main(argv: Sequence[str] | None = None) -> int:
