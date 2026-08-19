@@ -99,6 +99,7 @@ EXPECTED_REGISTRY_NAMES: frozenset[str] = frozenset((
     "evaluate_tea_lca_scenarios",
     "evaluate_stored_route_tea_lca",
     "analyze_tea_sensitivity",
+    "rank_landscape",
     "optimize_stored_route",
     "pareto_optimize_stored_route",
     "lookup_hansen_parameters",

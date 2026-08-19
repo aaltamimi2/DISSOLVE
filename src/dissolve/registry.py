@@ -66,6 +66,7 @@ REGISTRY: tuple[Tool, ...] = tuple([
     _t(tea.evaluate_tea_lca_scenarios, "tea"),
     _t(tea.evaluate_stored_route_tea_lca, "tea"),
     _t(tea.analyze_tea_sensitivity, "tea"),
+    _t(tea.rank_landscape, "tea"),
     # --- optimization ---
     _t(optimization.optimize_stored_route, "optimization"),
     _t(optimization.pareto_optimize_stored_route, "optimization"),

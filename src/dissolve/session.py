@@ -81,6 +81,9 @@ _PRIMARY_KEYS = (
     "candidate_conditions",
     "scale_comparison_rows",
     "sensitivity_rows",
+    "landscape_points",
+    "frontier_points",
+    "grouped_fronts",
 )
 
 

@@ -440,15 +440,14 @@ def _held_mismatch_payload(
     return mismatch
 
 
-def consume_campaign_lookup(
+def prepare_registered_campaign(
     *,
     fingerprint: str | None,
     requested: Mapping[str, Any] | None = None,
-    polymers: list[str] | None = None,
-    solvent: str | None = None,
     registry_path: str | None = None,
     allow_partial: bool = False,
 ) -> dict[str, Any]:
+    """Locate, integrity-bind, and refuse held mismatch. Does not stream rows."""
     if not str(fingerprint or "").strip():
         raise CampaignConsumeError(
             "source=campaign requires campaign_fingerprint",
@@ -460,12 +459,6 @@ def consume_campaign_lookup(
         located["canonical"],
         located["entry"],
         allow_partial=allow_partial,
-    )
-    n_rows, matching = consume_process_rows(
-        bound["process_rows_path"],
-        bound["canonical"],
-        polymers=polymers,
-        solvent=solvent,
     )
     public_requested = publicize_requested_fields(requested)
     mismatch = _held_mismatch_payload(
@@ -485,6 +478,30 @@ def consume_campaign_lookup(
                 if mismatch.get("live_rerun_quote") else {}
             ),
         )
+    return bound
+
+
+def consume_campaign_lookup(
+    *,
+    fingerprint: str | None,
+    requested: Mapping[str, Any] | None = None,
+    polymers: list[str] | None = None,
+    solvent: str | None = None,
+    registry_path: str | None = None,
+    allow_partial: bool = False,
+) -> dict[str, Any]:
+    bound = prepare_registered_campaign(
+        fingerprint=fingerprint,
+        requested=requested,
+        registry_path=registry_path,
+        allow_partial=allow_partial,
+    )
+    n_rows, matching = consume_process_rows(
+        bound["process_rows_path"],
+        bound["canonical"],
+        polymers=polymers,
+        solvent=solvent,
+    )
     payload = {
         "source": "campaign",
         "campaign_fingerprint": bound["canonical"],

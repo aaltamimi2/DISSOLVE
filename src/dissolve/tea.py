@@ -3580,6 +3580,147 @@ def lookup_admitted_process_records(
     )
 
 
+def rank_landscape(
+    source: Literal["process_rows", "residual_route", "superstructure"] = (
+        "process_rows"
+    ),
+    operation: Literal[
+        "sort", "pareto_dominance", "optimum", "epsilon",
+    ] = "pareto_dominance",
+    campaign_fingerprint: Optional[str] = None,
+    target_polymer: str | list[str] | None = None,
+    solvent: Optional[str] = None,
+    energy_cases: Optional[list[Literal["C1", "C2", "C3"]]] = None,
+    process_config: Optional[dict[str, Any]] = None,
+    polymer_grouping: Literal[
+        "per_target_polymer", "mixed_polymer",
+    ] = "per_target_polymer",
+    formulation: Optional[str] = None,
+    allow_partial_campaign: bool = False,
+    **unexpected: Any,
+) -> str:
+    """Rank already-run process rows. Does not spawn BioSTEAM.
+
+    source=process_rows locates a campaign through DISSOLVE_CAMPAIGN_REGISTRY
+    and the campaign_fingerprint, applies the usable projection, and returns
+    the landscape AND the frontier. Held-field mismatch is not a ranking.
+    """
+    tool = "rank_landscape"
+    if unexpected:
+        return tool_error(
+            tool,
+            "unknown extra argument",
+            error_code="unknown_process_field",
+            extra_keys=sorted(str(key) for key in unexpected),
+        )
+    source_token = str(source or "process_rows").strip().casefold()
+    operation_token = str(operation or "pareto_dominance").strip().casefold()
+    grouping_token = str(
+        polymer_grouping or "per_target_polymer"
+    ).strip().casefold()
+    if grouping_token not in {"per_target_polymer", "mixed_polymer"}:
+        return tool_error(
+            tool,
+            "polymer_grouping must be per_target_polymer or mixed_polymer.",
+            error_code="invalid_admitted_record_query",
+        )
+    if source_token in {"residual_route", "superstructure"}:
+        return tool_error(
+            tool,
+            "this slice ranks process_rows only",
+            error_code="tool_not_wired",
+            source=source_token,
+        )
+    if source_token != "process_rows":
+        return tool_error(
+            tool,
+            "source must be process_rows, residual_route, or superstructure.",
+            error_code="invalid_admitted_record_query",
+        )
+    if operation_token in {"optimum", "epsilon"}:
+        return tool_error(
+            tool,
+            "optimum and epsilon are not legal on source=process_rows",
+            error_code="not_applicable_in_source",
+            source=source_token,
+            operation=operation_token,
+        )
+    if operation_token not in {"sort", "pareto_dominance"}:
+        return tool_error(
+            tool,
+            "operation must be sort or pareto_dominance on process_rows.",
+            error_code="not_applicable_in_source",
+            source=source_token,
+            operation=operation_token,
+        )
+    if formulation is not None and str(formulation).strip() != "":
+        return tool_error(
+            tool,
+            "formulation is not applicable on source=process_rows",
+            error_code="not_applicable_in_source",
+            source=source_token,
+        )
+    if process_config is not None and not isinstance(process_config, dict):
+        return tool_error(
+            tool,
+            "process_config must be an object.",
+            error_code="invalid_admitted_record_query",
+        )
+    from . import campaign_consume, landscape
+
+    requested = dict(process_config or {})
+    if energy_cases:
+        requested["energy_cases"] = list(energy_cases)
+    polymers = None
+    resolved_solvent = None
+    try:
+        if target_polymer not in (None, "", []):
+            supplied = (
+                target_polymer
+                if isinstance(target_polymer, list)
+                else [target_polymer]
+            )
+            polymers = _expand_polymers(supplied, "target polymer")
+        if solvent:
+            resolved_solvent = _resolve_solvent(solvent)
+    except _ScenarioInputError as error:
+        return tool_error(
+            tool, str(error), error_code=error.error_code, **error.details,
+        )
+    except _InputError as error:
+        return tool_error(
+            tool, str(error), error_code=error.code, **error.detail,
+        )
+    except ValueError as error:
+        return tool_error(
+            tool, str(error), error_code="invalid_admitted_record_query",
+        )
+    try:
+        bound = campaign_consume.prepare_registered_campaign(
+            fingerprint=campaign_fingerprint,
+            requested=requested,
+            allow_partial=allow_partial_campaign,
+        )
+        payload = landscape.rank_process_rows(
+            bound,
+            polymers=polymers,
+            solvent=resolved_solvent,
+            polymer_grouping=grouping_token,
+            operation=operation_token,
+        )
+    except campaign_consume.CampaignConsumeError as error:
+        return tool_error(
+            tool, str(error), error_code=error.error_code, **error.details,
+        )
+    return tool_success(
+        tool,
+        analysis_type="campaign_process_rows_landscape",
+        engine_mode="campaign",
+        source="process_rows",
+        **payload,
+    )
+
+
 def evaluate_tea_lca_scenarios(
     scenarios: list[dict[str, Any]],
     engine_mode: str = "auto",
