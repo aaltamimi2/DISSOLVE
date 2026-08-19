@@ -23,7 +23,7 @@ from . import tea_contracts, tea_polymer_parameters, tea_worker
 from . import thermodynamics as thermo
 from .contracts import parse_tool_result, tool_error, tool_success
 from .session import (
-    candidate_evidence, current_tool_session,
+    candidate_evidence, current_tool_session, handle_rows, load_handle,
     resolve_candidate_argument,
 )
 from .tools import _InputError, _polymer_ambiguity_detail
@@ -116,6 +116,11 @@ _COEFFICIENT_DEFAULTS = {
         _CENTRIFUGED_PLASTIC_SOLVENT_CONTENT_PCT
     ),
 }
+_INHERIT_OPTIONAL_KEYS = (
+    *_FLOWSHEET_SWITCH_FIELDS,
+    *_COEFFICIENT_DEFAULTS,
+    "natural_gas_price_usd_per_m3",
+)
 _SCENARIO_ALLOWED_KEYS = frozenset({
     *_PUBLIC_REQUIRED_FIELDS,
     *_CONFIG_FIELDS,
@@ -1617,21 +1622,19 @@ def _canonical_held_process_basis(basis: dict[str, Any]) -> dict[str, Any]:
     return public
 
 
-def _handoff_field_origin(held: dict[str, Any]) -> dict[str, str]:
+def _handoff_field_origin(
+    held: dict[str, Any], *, nine_origin: str = "supplied",
+) -> dict[str, str]:
     origin = {
         "target_polymer": "from_screen",
         "solvent": "from_screen",
         "dissolution_temperature_c": "from_screen",
     }
     for name in _NINE_HELD_PUBLIC_FIELDS:
-        origin[name] = "supplied"
-    for key in (
-        *_FLOWSHEET_SWITCH_FIELDS,
-        *_COEFFICIENT_DEFAULTS,
-        "natural_gas_price_usd_per_m3",
-    ):
+        origin[name] = nine_origin
+    for key in _INHERIT_OPTIONAL_KEYS:
         if key in held:
-            origin[key] = "supplied"
+            origin[key] = nine_origin
     return origin
 
 
@@ -1700,8 +1703,10 @@ def _canonical_screening_shortlist_item(
 def _expand_screening_evaluate_handoff(
     shortlist: Any,
     held: Any,
+    *,
+    nine_origin: str = "supplied",
 ) -> tuple[list[dict[str, Any]], dict[str, str]]:
-    """Compose 3 from_screen + 9 supplied. Not a cache-pair fill."""
+    """Compose 3 from_screen + 9 supplied or inherited. Not a cache-pair fill."""
     if not isinstance(shortlist, dict):
         raise _ScenarioInputError(
             "screening_shortlist must be an object",
@@ -1775,7 +1780,289 @@ def _expand_screening_evaluate_handoff(
     for index, item in enumerate(items):
         three = _canonical_screening_shortlist_item(item, index)
         scenarios.append({**canonical_held, **three})
-    return scenarios, _handoff_field_origin(held)
+    return scenarios, _handoff_field_origin(held, nine_origin=nine_origin)
+
+
+def _public_name_for_inherit_key(key: str) -> str | None:
+    internal_to_public = dict(_DESIGN_POINT_PUBLIC_FIELDS)
+    if key in _SCENARIO_ALIASES:
+        return internal_to_public.get(_SCENARIO_ALIASES[key], key)
+    if key in internal_to_public:
+        return internal_to_public[key]
+    if key in _PUBLIC_REQUIRED_FIELDS or key in _INHERIT_OPTIONAL_KEYS:
+        return key
+    if key == "polymer":
+        return "target_polymer"
+    return None
+
+
+def _public_twelve_from_row(row: dict[str, Any]) -> dict[str, Any] | None:
+    """Executed D-8 twelve from an economics comparison row. Not a screen."""
+    if not isinstance(row, dict):
+        return None
+    public: dict[str, Any] = {}
+    for _internal, public_name in _DESIGN_POINT_PUBLIC_FIELDS:
+        found = None
+        for key in _PUBLIC_FIELD_SOURCE_KEYS[public_name]:
+            if key in row and _scenario_value_present(row.get(key)):
+                found = row[key]
+                break
+        if (
+            found is None
+            and public_name == "target_polymer"
+            and _scenario_value_present(row.get("polymer"))
+        ):
+            found = row["polymer"]
+        if found is None:
+            return None
+        public[public_name] = found
+    return public
+
+
+def _executed_public_config(row: dict[str, Any]) -> dict[str, Any] | None:
+    twelve = _public_twelve_from_row(row)
+    if twelve is None:
+        return None
+    executed = dict(twelve)
+    for key in _INHERIT_OPTIONAL_KEYS:
+        if key in row and _scenario_value_present(row.get(key)):
+            executed[key] = row[key]
+    return executed
+
+
+def _held_nine_from_inherit(inherited: dict[str, Any]) -> dict[str, Any]:
+    held: dict[str, Any] = {}
+    for name in _NINE_HELD_PUBLIC_FIELDS:
+        if name in inherited:
+            held[name] = inherited[name]
+    for key in _INHERIT_OPTIONAL_KEYS:
+        if key in inherited:
+            held[key] = inherited[key]
+    return held
+
+
+def _select_economics_handle_row(
+    rows: list[dict[str, Any]],
+    row_id: Any,
+    *,
+    handle: str,
+) -> dict[str, Any]:
+    if not rows:
+        raise _ScenarioInputError(
+            "handle has no economics comparison rows",
+            error_code="not_economics_handle",
+            handle=handle,
+        )
+    if row_id is None:
+        if len(rows) > 1:
+            raise _ScenarioInputError(
+                "multi-row handle requires row_id",
+                error_code="ambiguous_handle_row",
+                handle=handle,
+                n_rows=len(rows),
+            )
+        return rows[0]
+    index = None
+    if isinstance(row_id, int) and not isinstance(row_id, bool):
+        index = row_id
+    elif isinstance(row_id, str) and row_id.strip().isdigit():
+        index = int(row_id.strip())
+    if index is not None:
+        if index < 1 or index > len(rows):
+            raise _ScenarioInputError(
+                f"row_id {index} is out of range for {len(rows)} rows",
+                error_code="unknown_handle",
+                handle=handle,
+                row_id=row_id,
+                n_rows=len(rows),
+            )
+        return rows[index - 1]
+    token = str(row_id).strip()
+    matches = [
+        row for row in rows
+        if str(row.get("label") or "") == token
+        or str(row.get("record_id") or "") == token
+    ]
+    if len(matches) == 1:
+        return matches[0]
+    if len(matches) > 1:
+        raise _ScenarioInputError(
+            "row_id matches more than one handle row",
+            error_code="ambiguous_handle_row",
+            handle=handle,
+            row_id=row_id,
+            n_rows=len(matches),
+        )
+    raise _ScenarioInputError(
+        "row_id does not match a handle row",
+        error_code="unknown_handle",
+        handle=handle,
+        row_id=row_id,
+        n_rows=len(rows),
+    )
+
+
+def _load_economics_inherit(handle: Any, row_id: Any) -> dict[str, Any]:
+    """Copy executed twelve from a prior economics handle. Not a screen."""
+    token = handle.strip() if isinstance(handle, str) else ""
+    if not isinstance(handle, str) or not token:
+        raise _ScenarioInputError(
+            "handle is required to inherit omitted process fields",
+            error_code="unknown_handle",
+            handle=handle,
+        )
+    record = current_tool_session()
+    stored = load_handle(record, token) if record is not None else None
+    if stored is None:
+        raise _ScenarioInputError(
+            "unknown handle",
+            error_code="unknown_handle",
+            handle=token,
+        )
+    try:
+        rows = handle_rows(stored)
+    except (ValueError, KeyError, TypeError):
+        raise _ScenarioInputError(
+            "handle has no economics comparison rows",
+            error_code="not_economics_handle",
+            handle=token,
+            source_tool=stored.get("tool"),
+        )
+    if not any(_executed_public_config(row) is not None for row in rows):
+        raise _ScenarioInputError(
+            "handle row has no executed twelve-field process config",
+            error_code="not_economics_handle",
+            handle=token,
+            source_tool=stored.get("tool"),
+        )
+    row = _select_economics_handle_row(rows, row_id, handle=token)
+    executed = _executed_public_config(row)
+    if executed is None:
+        raise _ScenarioInputError(
+            "handle row has no executed twelve-field process config",
+            error_code="not_economics_handle",
+            handle=token,
+            source_tool=stored.get("tool"),
+        )
+    return executed
+
+
+def _merge_inherited_scenario(
+    scenario: dict[str, Any],
+    inherited: dict[str, Any],
+) -> tuple[dict[str, Any], dict[str, str]]:
+    origin = {
+        (_public_name_for_inherit_key(key) or key): "inherited"
+        for key in inherited
+        if _public_name_for_inherit_key(key)
+    }
+    merged = dict(inherited)
+    for key, value in scenario.items():
+        if not _scenario_value_present(value):
+            continue
+        merged[key] = value
+        public = _public_name_for_inherit_key(str(key))
+        if public:
+            origin[public] = "supplied"
+    return merged, origin
+
+
+def _scenario_has_complete_twelve(scenario: Any) -> bool:
+    return (
+        isinstance(scenario, dict)
+        and not _missing_required_public_fields(scenario)
+    )
+
+
+def _compose_evaluate_scenarios(
+    scenarios: Optional[list[dict[str, Any]]],
+    screening_shortlist: Optional[dict[str, Any]],
+    held_process_basis: Optional[dict[str, Any]],
+    handle: Any,
+    row_id: Any,
+) -> tuple[
+    list[dict[str, Any]],
+    dict[str, str] | None,
+    list[dict[str, str]] | None,
+]:
+    """Resolve evaluate composition, including handle inherit.
+
+    Complete twelve-field scenarios run as sent. Incomplete follow-up
+    copies omitted fields from an economics handle. A screening payload
+    cannot be that handle.
+    """
+    has_scenarios = isinstance(scenarios, list) and bool(scenarios)
+    has_shortlist = screening_shortlist is not None
+    has_held = held_process_basis is not None
+    if has_scenarios and has_shortlist:
+        raise _ScenarioInputError(
+            "send either scenarios or screening_shortlist, not both",
+            error_code="conflicting_evaluate_composition",
+        )
+    if has_held and not has_shortlist:
+        raise _ScenarioInputError(
+            "held_process_basis is only legal with screening_shortlist",
+            error_code="conflicting_evaluate_composition",
+        )
+    handle_present = isinstance(handle, str) and bool(handle.strip())
+    if row_id is not None and not handle_present and not (
+        has_shortlist and has_held
+    ) and not (has_scenarios and all(
+        _scenario_has_complete_twelve(item) for item in (scenarios or [])
+    )):
+        raise _ScenarioInputError(
+            "row_id requires handle",
+            error_code="unknown_handle",
+            row_id=row_id,
+        )
+    if has_shortlist:
+        if has_held:
+            return _expand_screening_evaluate_handoff(
+                screening_shortlist, held_process_basis,
+            ) + (None,)
+        if not handle_present:
+            raise _ScenarioInputError(
+                "held_process_basis is required with screening_shortlist",
+                error_code="screening_basis_incomplete",
+                missing=list(_NINE_HELD_PUBLIC_FIELDS),
+            )
+        inherited = _load_economics_inherit(handle, row_id)
+        held = _held_nine_from_inherit(inherited)
+        expanded, origin = _expand_screening_evaluate_handoff(
+            screening_shortlist, held, nine_origin="inherited",
+        )
+        return expanded, origin, None
+    if has_scenarios:
+        items = list(scenarios or [])
+        if all(_scenario_has_complete_twelve(item) for item in items):
+            return items, None, None
+        if not handle_present:
+            return items, None, None
+        inherited = _load_economics_inherit(handle, row_id)
+        merged = []
+        origins = []
+        for item in items:
+            if not isinstance(item, dict):
+                raise _ScenarioInputError(
+                    "Each scenario must be an object",
+                    error_code="invalid_scenario",
+                )
+            scenario, origin = _merge_inherited_scenario(item, inherited)
+            merged.append(scenario)
+            origins.append(origin)
+        return merged, None, origins
+    if handle_present or row_id is not None:
+        inherited = _load_economics_inherit(handle, row_id)
+        origin = {
+            (_public_name_for_inherit_key(key) or key): "inherited"
+            for key in inherited
+            if _public_name_for_inherit_key(key)
+        }
+        return [dict(inherited)], origin, None
+    raise _ScenarioInputError(
+        "scenarios must be a non-empty list",
+        error_code="missing_scenarios",
+    )
 
 
 def _stored_route_named_remainder(solvent: str) -> dict[str, Any]:
@@ -3082,12 +3369,18 @@ def _comparison_row(label: str, result: dict[str, Any]) -> dict[str, Any]:
     return {
         "label": label, "success": bool(result.get("success")),
         "polymer": config.get("target_plastic") or result.get("target_plastic"),
+        "target_polymer": config.get("target_plastic") or result.get("target_plastic"),
         "solvent": config.get("solvent") or result.get("solvent"),
         "energy_case": config.get("energy_case") or result.get("energy_case"),
         "target_mass_percent": config.get("target_plastic_percent"),
         "processing_capacity_mt_per_yr": config.get("processing_capacity"),
         "dissolution_temperature_c": config.get("dissolution_temperature_c"),
         "precipitation_temperature_c": config.get("precipitation_temperature_c"),
+        "solvent_price_usd_per_kg": config.get("solvent_price"),
+        "solvent_loss_pct": config.get("solvent_loss_pct"),
+        "feedstock_distance_km": config.get("feedstock_distance_km"),
+        "dissolution_capacity": config.get("dissolution_capacity"),
+        "labor_cost_usd_per_employee_yr": config.get("labor_cost"),
         "sell_leftover_plastic": switches["sell_leftover_plastic"],
         "burn_leftover_plastic": switches["burn_leftover_plastic"],
         "precipitation_temperature_format": switches[
@@ -3368,6 +3661,7 @@ def _admitted_record_summary(record: dict[str, Any]) -> dict[str, Any]:
         "label": record["record_id"],
         "record_group": record["record_group"],
         "polymer": config.get("target_plastic"),
+        "target_polymer": config.get("target_plastic"),
         "solvent": config.get("solvent"),
         "energy_case": config.get("energy_case"),
         "target_mass_percent": config.get("target_plastic_percent"),
@@ -4018,50 +4312,34 @@ def evaluate_tea_lca_scenarios(
     timeout_seconds: int = 180,
     screening_shortlist: Optional[dict[str, Any]] = None,
     held_process_basis: Optional[dict[str, Any]] = None,
+    handle: Optional[str] = None,
+    row_id: Optional[str | int] = None,
 ) -> str:
-    """Evaluate complete independent scenarios, or a screening handoff.
+    """Evaluate complete independent scenarios, or fill omitted fields from a handle.
 
-    Each scenario requires the twelve public D-8 process fields.
-    Alternatively, screening_shortlist.v1 plus held_process_basis.v1
-    expands to one complete process_config per item (three from_screen,
-    nine supplied). temperature_c maps to dissolution_temperature_c only
-    on that handoff; it is not an alias on process_config. Unknown extra
-    keys refuse. Omitted switches and coefficients keep the production
-    plant. This is not a third public TEA name and does not fill the nine
-    from a cache pair.
+    Each scenario requires the twelve public D-8 process fields unless a
+    prior economics handle supplies the omitted ones. screening_shortlist.v1
+    plus held_process_basis.v1 expands to one complete process_config per
+    item (three from_screen, nine supplied). The same shortlist may inherit
+    the nine from an economics handle when held_process_basis is omitted.
+    temperature_c maps to dissolution_temperature_c only on that handoff.
+    Unknown extra keys refuse. Omitted switches and coefficients keep the
+    production plant. This is not a third public TEA name and does not fill
+    the nine from a cache pair or a screening payload.
     """
     tool = "evaluate_tea_lca_scenarios"
-    has_scenarios = isinstance(scenarios, list) and bool(scenarios)
-    has_shortlist = screening_shortlist is not None
-    if has_scenarios and has_shortlist:
-        return tool_error(
-            tool,
-            "send either scenarios or screening_shortlist, not both",
-            error_code="conflicting_evaluate_composition",
-        )
-    if held_process_basis is not None and not has_shortlist:
-        return tool_error(
-            tool,
-            "held_process_basis is only legal with screening_shortlist",
-            error_code="conflicting_evaluate_composition",
-        )
     field_origin = None
-    if has_shortlist:
-        try:
-            scenarios, field_origin = _expand_screening_evaluate_handoff(
-                screening_shortlist, held_process_basis,
-            )
-        except _ScenarioInputError as error:
-            return tool_error(
-                tool,
-                str(error),
-                error_code=error.error_code,
-                **error.details,
-            )
-    elif not has_scenarios:
+    field_origins = None
+    try:
+        scenarios, field_origin, field_origins = _compose_evaluate_scenarios(
+            scenarios, screening_shortlist, held_process_basis, handle, row_id,
+        )
+    except _ScenarioInputError as error:
         return tool_error(
-            tool, "scenarios must be a non-empty list",
-            error_code="missing_scenarios",
+            tool,
+            str(error),
+            error_code=error.error_code,
+            **error.details,
         )
     if not isinstance(scenarios, list) or not scenarios:
         return tool_error(
@@ -4093,7 +4371,10 @@ def evaluate_tea_lca_scenarios(
     results = [_run(config, engine_mode, timeout) for config in configs]
     labels = [str(item.get("label") or f"scenario-{index}") for index, item in enumerate(scenarios, 1)]
     rows = [_comparison_row(label, result) for label, result in zip(labels, results)]
-    if field_origin is not None:
+    if field_origins is not None:
+        for row, origin in zip(rows, field_origins):
+            row["field_origin"] = dict(origin)
+    elif field_origin is not None:
         for row in rows:
             row["field_origin"] = dict(field_origin)
     successes = [row for row in rows if row["success"]]

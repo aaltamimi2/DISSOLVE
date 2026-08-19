@@ -24,6 +24,12 @@ PUBCHEM = frozenset({
     "screen_route_solvent_substitutions",
 })
 CONSUMERS = frozenset({"compare_solvent_safety_at_conditions"})
+_PROCESS_ECONOMICS_HANDLE_TOOLS = frozenset({
+    "evaluate_tea_lca_scenarios",
+    "analyze_tea_sensitivity",
+    "lookup_admitted_process_records",
+    "rank_landscape",
+})
 _OMIT = frozenset({"temperature_step_c"})
 _POLY_ARGS = ("polymers", "feed_polymers", "target_polymer", "target_polymers")
 _POLY_KEYS = ("polymer", "polymer_id", "target_polymer", "dissolved_polymer")
@@ -246,19 +252,29 @@ def _ambiguous(kwargs: dict[str, Any], data: dict[str, Any]) -> dict[str, Any] |
 
 def _issue_handle(record, tool, basis, data, payload, display=None):
     key = primary_row_key(data)
-    over = bool(key and len(data[key]) > _PAGE) or len(json.dumps(data)) > _BYTE
-    if not over:
+    n_rows = len(data[key]) if key else 0
+    over = bool(key and n_rows > _PAGE) or len(json.dumps(data)) > _BYTE
+    always = tool in _PROCESS_ECONOMICS_HANDLE_TOOLS and key is not None
+    if always:
+        over = n_rows > _PAGE
+    if not over and not always:
         return payload
     if record is None:
+        if always and n_rows <= _PAGE:
+            return payload
         return _refuse("unaddressable_result", detail="no bound session", tool=tool)
     try:
         name = store_handle(record, tool=tool, source_basis=basis, data=data, display=display)
     except ValueError:
+        if always and n_rows <= _PAGE:
+            return payload
         return _refuse(
             "unaddressable_result",
             detail="result crossed a handle threshold with no primary row list",
             tool=tool,
         )
+    if always and n_rows <= _PAGE:
+        return {**payload, "handle": name, "total": n_rows}
     rows = handle_rows(load_handle(record, name))
     top = rows[:_PAGE]
     rest = {

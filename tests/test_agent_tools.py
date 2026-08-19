@@ -589,8 +589,10 @@ def test_handle_projection_strips_secondary_row_lists():
         admitted = dispatch("lookup_admitted_process_records", target_polymer="LDPE")
         aexact = load_handle(rec, admitted["handle"])["exact"]
         assert "records" in aexact and "record_assumptions" in aexact
-        assert _row_keys(admitted.get("data")) == []
-        assert len(json.dumps(admitted)) < len(json.dumps(aexact))
+        assert admitted.get("handle")
+        assert "comparison_rows" in (admitted.get("data") or {})
+        assert "top" not in admitted
+        assert admitted.get("total") == len(aexact["comparison_rows"])
 
 
 def test_malformed_persisted_handle_named_refusal_not_valueerror():
