@@ -125,6 +125,7 @@ _FIELD_EXPENSES_DEFAULT = 0.10
 _CONSTRUCTION_DEFAULT = 0.20
 _CONTINGENCY_DEFAULT = 0.4
 _OTHER_INDIRECT_COSTS_DEFAULT = 0.10
+_PROPERTY_INSURANCE_DEFAULT = 0.007
 _FEEDSTOCK_PRICE_USD_PER_KG = 0.01
 _CENTRIFUGED_PLASTIC_SOLVENT_CONTENT_PCT = 50.0
 _NATURAL_GAS_PRICE_USD_PER_M3 = 4.73 * 35.3146667 / 1e3
@@ -149,6 +150,7 @@ _COEFFICIENT_DEFAULTS = {
     "construction": _CONSTRUCTION_DEFAULT,
     "contingency": _CONTINGENCY_DEFAULT,
     "other_indirect_costs": _OTHER_INDIRECT_COSTS_DEFAULT,
+    "property_insurance": _PROPERTY_INSURANCE_DEFAULT,
     "feedstock_price_usd_per_kg": _FEEDSTOCK_PRICE_USD_PER_KG,
     "centrifuged_plastic_solvent_content_pct": (
         _CENTRIFUGED_PLASTIC_SOLVENT_CONTENT_PCT
@@ -967,6 +969,7 @@ def public_process_field_names(*, energy_case: str = "C1") -> tuple[str, ...]:
         "construction",
         "contingency",
         "other_indirect_costs",
+        "property_insurance",
         "feedstock_price_usd_per_kg",
         "centrifuged_plastic_solvent_content_pct",
     )
@@ -1770,6 +1773,24 @@ def _validated_coefficients(
                 supplied=supplied["other_indirect_costs"],
             )
         coefficients["other_indirect_costs"] = fraction
+    if "property_insurance" in supplied:
+        fraction = _finite(supplied["property_insurance"], "property_insurance")
+        if fraction > 1:
+            raise _ScenarioInputError(
+                "property_insurance is a fraction (0.007 is 0.7 percent), not a "
+                "percent integer.",
+                error_code="invalid_scenario",
+                field="property_insurance",
+                supplied=supplied["property_insurance"],
+            )
+        if not 0 <= fraction <= 1:
+            raise _ScenarioInputError(
+                "property_insurance must be a fraction in [0, 1].",
+                error_code="invalid_scenario",
+                field="property_insurance",
+                supplied=supplied["property_insurance"],
+            )
+        coefficients["property_insurance"] = fraction
     if "feedstock_price_usd_per_kg" in supplied:
         price = _finite(
             supplied["feedstock_price_usd_per_kg"],
@@ -3868,6 +3889,7 @@ def _comparison_row(label: str, result: dict[str, Any]) -> dict[str, Any]:
         "construction": coefficients.get("construction"),
         "contingency": coefficients.get("contingency"),
         "other_indirect_costs": coefficients.get("other_indirect_costs"),
+        "property_insurance": coefficients.get("property_insurance"),
         "feedstock_price_usd_per_kg": coefficients.get(
             "feedstock_price_usd_per_kg"
         ),

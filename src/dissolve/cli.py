@@ -557,6 +557,10 @@ def _coerce_process_sheet_value(field: str, raw: str, current: Any) -> Any:
         raise ValueError(
             "other_indirect_costs is a fraction (0.10 is 10 percent)"
         )
+    if field == "property_insurance" and number > 1:
+        raise ValueError(
+            "property_insurance is a fraction (0.007 is 0.7 percent)"
+        )
     return number
 
 

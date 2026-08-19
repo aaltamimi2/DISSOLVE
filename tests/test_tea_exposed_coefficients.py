@@ -73,6 +73,7 @@ def test_omitted_and_explicit_coefficient_defaults_share_the_serve_key():
         "construction": 0.20,
         "contingency": 0.4,
         "other_indirect_costs": 0.10,
+        "property_insurance": 0.007,
         "feedstock_price_usd_per_kg": 0.01,
         "centrifuged_plastic_solvent_content_pct": 50.0,
         "natural_gas_price_usd_per_m3": tea._NATURAL_GAS_PRICE_USD_PER_M3,
@@ -99,6 +100,7 @@ def test_omitted_and_explicit_coefficient_defaults_share_the_serve_key():
     assert reconstructed["construction"] == pytest.approx(0.20)
     assert reconstructed["contingency"] == pytest.approx(0.4)
     assert reconstructed["other_indirect_costs"] == pytest.approx(0.10)
+    assert reconstructed["property_insurance"] == pytest.approx(0.007)
     assert reconstructed["feedstock_price_usd_per_kg"] == pytest.approx(0.01)
     assert reconstructed["centrifuged_plastic_solvent_content_pct"] == pytest.approx(50.0)
     assert reconstructed["natural_gas_price_usd_per_m3"] == pytest.approx(
@@ -276,6 +278,7 @@ def test_cache_evaluate_echoes_projected_operating_days(monkeypatch):
     assert row["construction"] == pytest.approx(0.20)
     assert row["contingency"] == pytest.approx(0.4)
     assert row["other_indirect_costs"] == pytest.approx(0.10)
+    assert row["property_insurance"] == pytest.approx(0.007)
     assert row["msp_usd_per_kg"] == pytest.approx(
         float(record["result"]["tea"]["msp_usd_per_kg"]),
     )
@@ -1779,6 +1782,109 @@ def test_percent_integer_other_indirect_costs_is_refused():
     assert caught.value.details["field"] == "other_indirect_costs"
 
 
+def test_property_insurance_override_does_not_share_the_twelve_only_serve_key():
+    record = _record_with_energy("C1")
+    overridden = {**dict(record["config"]), "property_insurance": 0.014}
+    assert tea._config_key(record["config"]) != tea._config_key(overridden)
+    assert tea._cache_index().get(tea._config_key(overridden)) is None
+
+
+def test_cache_mode_refuses_property_insurance_override_instead_of_the_other_plant(
+    monkeypatch,
+):
+    record = _record_with_energy("C1")
+    recorded_msp = float(record["result"]["tea"]["msp_usd_per_kg"])
+
+    def forbidden_live(config, timeout_seconds):
+        raise AssertionError(
+            "property_insurance mismatch must not fall through to live"
+        )
+
+    monkeypatch.setattr(tea, "_live", forbidden_live)
+    payload = _data(tea.evaluate_tea_lca_scenarios(
+        [_public_from_record(record, property_insurance=0.014)],
+        engine_mode="cache",
+    ))
+    assert payload.get("success") is False
+    assert payload.get("error_code") == "cache_flowsheet_mismatch"
+    row = (payload.get("failures") or [])[0]
+    assert row.get("msp_usd_per_kg") is None
+    assert row.get("msp_usd_per_kg") != recorded_msp
+    fraction = next(
+        item for item in row["flowsheet_switch_deltas"]
+        if item["field"] == "property_insurance"
+    )
+    assert fraction["recorded_value"] == pytest.approx(0.007)
+    assert fraction["requested_value"] == pytest.approx(0.014)
+    assert row.get("property_insurance") == pytest.approx(0.014)
+    assert not any(
+        item["field"] == "other_indirect_costs"
+        for item in row["flowsheet_switch_deltas"]
+    )
+
+
+def test_zero_property_insurance_is_a_legal_override(monkeypatch):
+    record = _record_with_energy("C1")
+
+    def forbidden_live(config, timeout_seconds):
+        raise AssertionError(
+            "property_insurance=0 is no insurance factor, not invalid_scenario"
+        )
+
+    monkeypatch.setattr(tea, "_live", forbidden_live)
+    payload = _data(tea.evaluate_tea_lca_scenarios(
+        [_public_from_record(record, property_insurance=0)],
+        engine_mode="cache",
+    ))
+    assert payload.get("success") is False
+    assert payload.get("error_code") == "cache_flowsheet_mismatch"
+    row = (payload.get("failures") or [])[0]
+    fraction = next(
+        item for item in row["flowsheet_switch_deltas"]
+        if item["field"] == "property_insurance"
+    )
+    assert fraction["requested_value"] == pytest.approx(0)
+
+
+def test_full_property_insurance_is_a_legal_override(monkeypatch):
+    record = _record_with_energy("C1")
+
+    def forbidden_live(config, timeout_seconds):
+        raise AssertionError(
+            "property_insurance=1.0 is 100 percent of FCI, not invalid_scenario"
+        )
+
+    monkeypatch.setattr(tea, "_live", forbidden_live)
+    payload = _data(tea.evaluate_tea_lca_scenarios(
+        [_public_from_record(record, property_insurance=1.0)],
+        engine_mode="cache",
+    ))
+    assert payload.get("success") is False
+    assert payload.get("error_code") == "cache_flowsheet_mismatch"
+    row = (payload.get("failures") or [])[0]
+    fraction = next(
+        item for item in row["flowsheet_switch_deltas"]
+        if item["field"] == "property_insurance"
+    )
+    assert fraction["requested_value"] == pytest.approx(1.0)
+
+
+def test_negative_property_insurance_is_refused():
+    record = _record_with_energy("C1")
+    with pytest.raises(tea._ScenarioInputError) as caught:
+        tea._scenario_config(_public_from_record(record, property_insurance=-0.1))
+    assert caught.value.error_code == "invalid_scenario"
+    assert caught.value.details["field"] == "property_insurance"
+
+
+def test_percent_integer_property_insurance_is_refused():
+    record = _record_with_energy("C1")
+    with pytest.raises(tea._ScenarioInputError) as caught:
+        tea._scenario_config(_public_from_record(record, property_insurance=7))
+    assert caught.value.error_code == "invalid_scenario"
+    assert caught.value.details["field"] == "property_insurance"
+
+
 def test_percent_integer_income_tax_is_refused():
     record = _record_with_energy("C1")
     with pytest.raises(tea._ScenarioInputError) as caught:
@@ -1798,11 +1904,9 @@ def test_other_g_constructor_coefficients_are_not_dumped():
     assert caught.value.error_code == "unknown_process_field"
     assert "depreciation" in list(caught.value.details.get("extra_keys") or [])
     with pytest.raises(tea._ScenarioInputError) as caught:
-        tea._scenario_config(_public_from_record(record, property_insurance=0.014))
+        tea._scenario_config(_public_from_record(record, maintenance=0.06))
     assert caught.value.error_code == "unknown_process_field"
-    assert "property_insurance" in list(
-        caught.value.details.get("extra_keys") or []
-    )
+    assert "maintenance" in list(caught.value.details.get("extra_keys") or [])
     with pytest.raises(tea._ScenarioInputError) as caught:
         tea._scenario_config(_public_from_record(
             record, construction_schedule=(0.08, 0.60, 0.32),
@@ -1813,8 +1917,10 @@ def test_other_g_constructor_coefficients_are_not_dumped():
     )
     assert "lang_factor" not in tea._COEFFICIENT_DEFAULTS
     assert "depreciation" not in tea._COEFFICIENT_DEFAULTS
-    assert "property_insurance" not in tea._COEFFICIENT_DEFAULTS
+    assert "maintenance" not in tea._COEFFICIENT_DEFAULTS
     assert "construction_schedule" not in tea._COEFFICIENT_DEFAULTS
+    assert "property_insurance" in tea._COEFFICIENT_DEFAULTS
+    assert "property_insurance" in tea.public_process_field_names()
     assert "other_indirect_costs" in tea._COEFFICIENT_DEFAULTS
     assert "other_indirect_costs" in tea.public_process_field_names()
     assert "contingency" in tea._COEFFICIENT_DEFAULTS
@@ -1927,6 +2033,7 @@ def test_d8_overlay_still_excludes_coefficients():
         "construction",
         "contingency",
         "other_indirect_costs",
+        "property_insurance",
         "feedstock_price_usd_per_kg",
         "centrifuged_plastic_solvent_content_pct",
         "natural_gas_price_usd_per_m3",
@@ -1959,6 +2066,7 @@ def test_worker_calls_the_unreached_setters():
     assert "process.tea.construction" in source
     assert "process.tea.contingency" in source
     assert "process.tea.other_indirect_costs" in source
+    assert "process.tea.property_insurance" in source
     assert "set_feedstock_price(" in source
     assert "set_centrifuged_plastic_solvent_content(" in source
     assert "set_natural_gas_price(" in source

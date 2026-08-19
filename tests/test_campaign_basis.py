@@ -364,6 +364,18 @@ def test_other_indirect_costs_override_is_coefficient_mismatch():
     assert row["requested_value"] == pytest.approx(0.20)
 
 
+def test_property_insurance_override_is_coefficient_mismatch():
+    projected = campaign_basis.project_campaign_basis_v1(_minimal_v2())
+    result = campaign_basis.held_field_mismatches(
+        projected, {"property_insurance": 0.014},
+    )
+    assert result["error_code"] == "campaign_basis_mismatch"
+    row = result["mismatches"][0]
+    assert row["field"] == "property_insurance"
+    assert row["campaign_value"] == pytest.approx(0.007)
+    assert row["requested_value"] == pytest.approx(0.014)
+
+
 def test_polymer_only_is_not_a_held_mismatch():
     projected = campaign_basis.project_campaign_basis_v1(_minimal_v2())
     result = campaign_basis.held_field_mismatches(
