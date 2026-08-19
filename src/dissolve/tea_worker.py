@@ -36,6 +36,7 @@ _STARTUP_FOCFRAC_DEFAULT = 1
 _STARTUP_VOCFRAC_DEFAULT = 0.75
 _STARTUP_SALESFRAC_DEFAULT = 0.5
 _WC_OVER_FCI_DEFAULT = 0.05
+_WAREHOUSE_DEFAULT = 0.04
 _FEEDSTOCK_PRICE_USD_PER_KG = 0.01
 _CENTRIFUGED_PLASTIC_SOLVENT_CONTENT_PCT = 50.0
 
@@ -909,6 +910,9 @@ def _create_and_simulate_process(
         )
         process.tea.WC_over_FCI = float(
             config.get("WC_over_FCI", _WC_OVER_FCI_DEFAULT)
+        )
+        process.tea.warehouse = float(
+            config.get("warehouse", _WAREHOUSE_DEFAULT)
         )
         process.set_solvent_price(config["solvent_price"])
         process.set_feedstock_distance(config.get("feedstock_distance_km", 0))
