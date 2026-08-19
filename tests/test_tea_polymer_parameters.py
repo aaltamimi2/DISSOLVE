@@ -44,13 +44,38 @@ def _committed_pe_toluene_config(**overrides):
         "processing_capacity": 20_000.0,
         "energy_case": "C1",
         **params.process_config_from_assumptions(committed),
-        "solvent_price": 2.17,
+        "solvent_price": 1.312,
         "solvent_loss_pct": 0.01,
         "feedstock_distance_km": 0.0,
         "labor_cost": 120_000.0,
     }
     config.update(overrides)
     return config
+
+
+# Owner-authorized live BioSTEAM oracles against merged v12. Injected so
+# standing is bound to real endpoints without spawning a child.
+LDPE_TOLUENE_LIVE = {
+    "msp_usd_per_kg": 1.13492,
+    "tci_usd": 7.85216e7,
+    "aoc_usd_per_yr": 2.08159e6,
+    "gwp_kg_co2e_per_kg": 0.443567,
+}
+LDPE_DODECANE_C1 = {
+    "solvent": "Dodecane",
+    "target_plastic": "LDPE",
+    "target_plastic_percent": 55.0,
+    "processing_capacity": 20_000.0,
+    "energy_case": "C1",
+    "dissolution_temperature_c": 145.0,
+    "precipitation_temperature_c": 25.0,
+    "solvent_price": 4.08,
+    "solvent_loss_pct": 0.01,
+    "feedstock_distance_km": 0.0,
+    "dissolution_capacity": 3.0,
+    "labor_cost": 120_000.0,
+}
+LDPE_DODECANE_LIVE_MSP = 1.2635722365577455
 
 
 def _write_matching_pe_package(root: Path, *, pe_rho: str = "0.5 * (880 + 960)") -> Path:
@@ -363,6 +388,77 @@ def test_run_binds_standing_on_injected_live_success(monkeypatch):
     )
 
 
+def test_live_oracle_standing_keeps_validated_apart_from_correct(monkeypatch):
+    """Committed PE/Toluene is validated; cache-exact dodecane is not.
+
+    Validated and correct are different properties. The dodecane live MSP
+    reproduced the cache exactly and is still not a committed pair.
+    """
+    monkeypatch.delenv("DISSOLVE_PLASTICS_PATH", raising=False)
+
+    def fake_live(config, timeout):
+        solvent = str(config.get("solvent") or "").casefold()
+        plastic = str(config.get("target_plastic") or "").upper()
+        if plastic == "LDPE" and solvent == "toluene":
+            return {
+                "success": True,
+                "solvent": "toluene",
+                "target_plastic": "LDPE",
+                "tea": {
+                    "msp_usd_per_kg": LDPE_TOLUENE_LIVE["msp_usd_per_kg"],
+                    "tci_usd": LDPE_TOLUENE_LIVE["tci_usd"],
+                    "aoc_usd_per_yr": LDPE_TOLUENE_LIVE["aoc_usd_per_yr"],
+                },
+                "lca": {"gwp_kg_co2e_per_kg": LDPE_TOLUENE_LIVE["gwp_kg_co2e_per_kg"]},
+                "operations": {},
+            }
+        if plastic == "LDPE" and solvent == "dodecane":
+            return {
+                "success": True,
+                "solvent": "Dodecane",
+                "target_plastic": "LDPE",
+                "tea": {
+                    "msp_usd_per_kg": LDPE_DODECANE_LIVE_MSP,
+                    "tci_usd": 87102535.73687321,
+                    "aoc_usd_per_yr": 2356462.05524089,
+                },
+                "lca": {"gwp_kg_co2e_per_kg": 0.6207154872703069},
+                "operations": {},
+            }
+        raise AssertionError(f"unexpected live config {config!r}")
+
+    monkeypatch.setattr(tea, "_live", fake_live)
+    committed = tea._run(_committed_pe_toluene_config(), "live", 1)
+    moved = tea._run(
+        _committed_pe_toluene_config(precipitation_temperature_c=25.0),
+        "live",
+        1,
+    )
+    dodecane = tea._run(dict(LDPE_DODECANE_C1), "live", 1)
+
+    assert committed["tea"]["msp_usd_per_kg"] == LDPE_TOLUENE_LIVE["msp_usd_per_kg"]
+    assert committed["can_cite_as_validated_process"] is True
+    assert not params.live_number_standing_defects(committed)
+
+    assert moved["tea"]["msp_usd_per_kg"] == LDPE_TOLUENE_LIVE["msp_usd_per_kg"]
+    assert moved["can_cite_as_validated_process"] is False
+    assert "precipitation_temperature_c" in moved["live_parameter_standing"][
+        "committed_setpoint_mismatches"
+    ]
+    assert moved["process_parameter_status"]["msp_usd_per_kg"]
+
+    assert dodecane["tea"]["msp_usd_per_kg"] == LDPE_DODECANE_LIVE_MSP
+    assert dodecane["can_cite_as_validated_process"] is False
+    assert dodecane["live_parameter_standing"]["committed_pair"] is None
+    assert dodecane["process_parameter_status"]["msp_usd_per_kg"]
+    assert params.live_standing_signature(committed) != (
+        params.live_standing_signature(dodecane)
+    )
+    assert params.live_standing_signature(committed) != (
+        params.live_standing_signature(moved)
+    )
+
+
 def test_parent_refuses_unlabelled_provisional_live_result():
     unlabelled = {
         "success": True,
@@ -424,6 +520,11 @@ def test_doctor_reports_live_tea_path_without_requiring_it(tmp_path, monkeypatch
     assert "unavailable because" in check["detail"]
     assert "DISSOLVE_PLASTICS_PATH is unset" in check["detail"]
     assert "3.12" in check["detail"]
+    assert "subprocess" in check["detail"]
+    assert "duckdb" in check["detail"]
+    assert "tea_worker" in check["detail"]
+    assert check.get("execution_path")
+    assert "ModuleNotFoundError: duckdb" in check["execution_path"]
     assert check.get("why_unavailable")
     # Unconfigured live TEA must not flip doctor to fail by itself.
     if check["status"] == "warn":

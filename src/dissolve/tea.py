@@ -1363,6 +1363,21 @@ _LIVE_MISCONFIGURED_REASONS = frozenset({
     "cited_package_checksum_mismatch",
 })
 
+# Live BioSTEAM never runs in this process. The 3.12 interpreter is a
+# subprocess that runpy-executes tea_worker.py across a JSON boundary.
+# Importing dissolve.tea_worker (or python -m dissolve.tea_worker) in that
+# interpreter loads dissolve.__init__ → registry → thermodynamics → duckdb.
+# ModuleNotFoundError: duckdb there is a wrong entry point, not a missing
+# live-TEA dependency. duckdb belongs to the parent engine.
+LIVE_TEA_EXECUTION_PATH = (
+    "Live TEA is a two-environment path: this process never imports BioSTEAM; "
+    "DISSOLVE_TEA_PYTHON runs src/dissolve/tea_worker.py as a subprocess via "
+    "runpy (JSON boundary). Do not import dissolve.tea_worker or use "
+    "python -m dissolve.tea_worker in that interpreter — that pulls the "
+    "parent engine and fails with ModuleNotFoundError: duckdb, which is not "
+    "a live-TEA dependency."
+)
+
 
 def live_environment_report() -> dict[str, Any]:
     """Diagnose the two-environment live TEA path without importing BioSTEAM.
@@ -1468,6 +1483,7 @@ def live_environment_report() -> dict[str, Any]:
         ),
         "refused_grid_targets": list(refused),
         "parameter_surface": "src/dissolve/tea_polymer_parameters.py",
+        "execution_path": LIVE_TEA_EXECUTION_PATH,
         "live_engine": {
             key: status[key]
             for key in ("available", "reason", "detail")
