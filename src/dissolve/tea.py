@@ -4535,6 +4535,13 @@ def rank_landscape(
     )
 
 
+_LOOKUP_MODE_SELECTORS = (
+    "sensitivity_labels",
+    "sensitivity_axes",
+    "sensitivity_level_selector",
+)
+
+
 def evaluate_tea_lca_scenarios(
     scenarios: Optional[list[dict[str, Any]]] = None,
     engine_mode: str = "auto",
@@ -4543,6 +4550,7 @@ def evaluate_tea_lca_scenarios(
     held_process_basis: Optional[dict[str, Any]] = None,
     handle: Optional[str] = None,
     row_id: Optional[str | int] = None,
+    **kwargs: Any,
 ) -> str:
     """Evaluate complete independent scenarios, or fill omitted fields from a handle.
 
@@ -4552,11 +4560,36 @@ def evaluate_tea_lca_scenarios(
     item (three from_screen, nine supplied). The same shortlist may inherit
     the nine from an economics handle when held_process_basis is omitted.
     temperature_c maps to dissolution_temperature_c only on that handoff.
-    Unknown extra keys refuse. Omitted switches and coefficients keep the
-    production plant. This is not a third public TEA name and does not fill
-    the nine from a cache pair or a screening payload.
+    Unknown extra keys refuse. Lookup-only selectors
+    (sensitivity_labels / sensitivity_axes / sensitivity_level_selector)
+    refuse not_applicable_in_mode. Omitted switches and coefficients keep
+    the production plant. This is not a third public TEA name and does not
+    fill the nine from a cache pair or a screening payload.
     """
     tool = "evaluate_tea_lca_scenarios"
+    inapplicable = [
+        name for name in _LOOKUP_MODE_SELECTORS if name in kwargs
+    ]
+    leftover = {
+        name: kwargs[name]
+        for name in kwargs
+        if name not in _LOOKUP_MODE_SELECTORS
+    }
+    if inapplicable:
+        return tool_error(
+            tool,
+            "Lookup selectors are not applicable in evaluate mode.",
+            error_code="not_applicable_in_mode",
+            mode="evaluate",
+            inapplicable_fields=inapplicable,
+            applicable_mode="lookup",
+        )
+    if leftover:
+        unexpected = ", ".join(repr(name) for name in sorted(leftover))
+        raise TypeError(
+            "evaluate_tea_lca_scenarios() got unexpected keyword "
+            f"argument(s): {unexpected}"
+        )
     field_origin = None
     field_origins = None
     try:
