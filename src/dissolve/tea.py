@@ -108,6 +108,7 @@ _PRECIPITATION_CONFIGURATIONS = frozenset({
 _IRR_DEFAULT = 0.10
 _INCOME_TAX_DEFAULT = 0.21
 _OPERATING_DAYS_DEFAULT = 350.4
+_LABOR_BURDEN_DEFAULT = 0.90
 _FEEDSTOCK_PRICE_USD_PER_KG = 0.01
 _CENTRIFUGED_PLASTIC_SOLVENT_CONTENT_PCT = 50.0
 _NATURAL_GAS_PRICE_USD_PER_M3 = 4.73 * 35.3146667 / 1e3
@@ -115,6 +116,7 @@ _COEFFICIENT_DEFAULTS = {
     "irr": _IRR_DEFAULT,
     "income_tax": _INCOME_TAX_DEFAULT,
     "operating_days": _OPERATING_DAYS_DEFAULT,
+    "labor_burden": _LABOR_BURDEN_DEFAULT,
     "feedstock_price_usd_per_kg": _FEEDSTOCK_PRICE_USD_PER_KG,
     "centrifuged_plastic_solvent_content_pct": (
         _CENTRIFUGED_PLASTIC_SOLVENT_CONTENT_PCT
@@ -916,6 +918,7 @@ def public_process_field_names(*, energy_case: str = "C1") -> tuple[str, ...]:
         "irr",
         "income_tax",
         "operating_days",
+        "labor_burden",
         "feedstock_price_usd_per_kg",
         "centrifuged_plastic_solvent_content_pct",
     )
@@ -1423,6 +1426,16 @@ def _validated_coefficients(
                 supplied=supplied["operating_days"],
             )
         coefficients["operating_days"] = days
+    if "labor_burden" in supplied:
+        burden = _finite(supplied["labor_burden"], "labor_burden")
+        if burden < 0:
+            raise _ScenarioInputError(
+                "labor_burden must be nonnegative.",
+                error_code="invalid_scenario",
+                field="labor_burden",
+                supplied=supplied["labor_burden"],
+            )
+        coefficients["labor_burden"] = burden
     if "feedstock_price_usd_per_kg" in supplied:
         price = _finite(
             supplied["feedstock_price_usd_per_kg"],
@@ -3504,6 +3517,7 @@ def _comparison_row(label: str, result: dict[str, Any]) -> dict[str, Any]:
         "irr": coefficients.get("irr"),
         "income_tax": coefficients.get("income_tax"),
         "operating_days": coefficients.get("operating_days"),
+        "labor_burden": coefficients.get("labor_burden"),
         "feedstock_price_usd_per_kg": coefficients.get(
             "feedstock_price_usd_per_kg"
         ),
