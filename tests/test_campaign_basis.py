@@ -214,3 +214,21 @@ def test_two_switch_request_names_both_fields():
         "precipitation_configuration",
     ]
     assert "burn_leftover_plastic" not in fields
+
+
+def test_declared_switch_in_fixed_fields_is_held_not_stamped():
+    definition = _minimal_v2()
+    definition["fixed_fields"]["burn_leftover_plastic"] = True
+    projected = campaign_basis.project_campaign_basis_v1(definition)
+    role = projected["campaign_basis"]["field_role"]["burn_leftover_plastic"]
+    assert role == {
+        "role": "held",
+        "value": True,
+        "projection": "fixed_fields",
+    }
+    result = campaign_basis.held_field_mismatches(
+        projected, {"burn_leftover_plastic": False},
+    )
+    assert result["error_code"] == "campaign_basis_mismatch"
+    assert result["mismatches"][0]["campaign_value"] is True
+    assert result["mismatches"][0]["requested_value"] is False

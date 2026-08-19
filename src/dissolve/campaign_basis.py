@@ -42,11 +42,33 @@ def _twelve_public_names() -> tuple[str, ...]:
     return tuple(public for _internal, public in tea._DESIGN_POINT_PUBLIC_FIELDS)
 
 
+def _held_switch_or_coefficient(
+    fixed_fields: Mapping[str, Any], field: str, production_value: Any,
+) -> dict[str, Any]:
+    """Declared fixed_fields win. JSONL-absent switches stay worker production."""
+    if field in fixed_fields:
+        return {
+            "role": "held",
+            "value": fixed_fields[field],
+            "projection": "fixed_fields",
+        }
+    return {
+        "role": "held",
+        "value": production_value,
+        "projection": "worker_production",
+    }
+
+
 def _held_values_equal(field: str, campaign: Any, requested: Any) -> bool:
     if campaign is requested:
         return True
     if field == "energy_case":
-        return str(campaign or "").upper() == str(requested or "").upper()
+        campaign_s = str(campaign or "").upper()
+        if isinstance(requested, (list, tuple)):
+            return bool(requested) and all(
+                str(item or "").upper() == campaign_s for item in requested
+            )
+        return campaign_s == str(requested or "").upper()
     if isinstance(campaign, bool) or isinstance(requested, bool):
         return bool(campaign) is bool(requested)
     if isinstance(campaign, (int, float)) and not isinstance(campaign, bool):
@@ -146,26 +168,18 @@ def project_campaign_basis_v1(run_definition: Mapping[str, Any]) -> dict[str, An
         )
 
     for field, value in tea._FLOWSHEET_SWITCH_DEFAULTS.items():
-        field_role[field] = {
-            "role": "held",
-            "value": value,
-            "projection": "worker_production",
-        }
+        field_role[field] = _held_switch_or_coefficient(fixed_fields, field, value)
     energy = str(
         (field_role.get("energy_case") or {}).get("value") or "C1"
     ).upper()
     for field, value in tea._COEFFICIENT_DEFAULTS.items():
-        field_role[field] = {
-            "role": "held",
-            "value": value,
-            "projection": "worker_production",
-        }
+        field_role[field] = _held_switch_or_coefficient(fixed_fields, field, value)
     if energy in {"C1", "C3"}:
-        field_role["natural_gas_price_usd_per_m3"] = {
-            "role": "held",
-            "value": tea._NATURAL_GAS_PRICE_USD_PER_M3,
-            "projection": "worker_production",
-        }
+        field_role["natural_gas_price_usd_per_m3"] = _held_switch_or_coefficient(
+            fixed_fields,
+            "natural_gas_price_usd_per_m3",
+            tea._NATURAL_GAS_PRICE_USD_PER_M3,
+        )
 
     return {
         "campaign_basis_projection": CAMPAIGN_BASIS_PROJECTION,

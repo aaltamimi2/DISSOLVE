@@ -3116,8 +3116,87 @@ def _admitted_record_summary(record: dict[str, Any]) -> dict[str, Any]:
     return summary
 
 
+def _lookup_campaign_process_records(
+    tool: str,
+    *,
+    target_polymer: str | list[str] | None,
+    solvent: Optional[str],
+    energy_cases: Optional[list[Literal["C1", "C2", "C3"]]],
+    dissolution_temperature_c: Optional[float],
+    processing_capacity_mt_per_yr: Optional[float],
+    campaign_fingerprint: Optional[str],
+    process_config: Optional[dict[str, Any]],
+    allow_partial_campaign: bool,
+) -> str:
+    from . import campaign_consume
+
+    if not str(campaign_fingerprint or "").strip():
+        return tool_error(
+            tool,
+            "source=campaign requires campaign_fingerprint",
+            error_code="missing_campaign_fingerprint",
+        )
+    if process_config is not None and not isinstance(process_config, dict):
+        return tool_error(
+            tool,
+            "process_config must be an object.",
+            error_code="invalid_admitted_record_query",
+        )
+    requested = dict(process_config or {})
+    if energy_cases:
+        requested["energy_cases"] = list(energy_cases)
+    if dissolution_temperature_c is not None:
+        requested["dissolution_temperature_c"] = dissolution_temperature_c
+    if processing_capacity_mt_per_yr is not None:
+        requested["processing_capacity_mt_per_yr"] = (
+            processing_capacity_mt_per_yr
+        )
+    polymers = None
+    resolved_solvent = None
+    try:
+        if target_polymer not in (None, "", []):
+            supplied_polymers = (
+                target_polymer
+                if isinstance(target_polymer, list)
+                else [target_polymer]
+            )
+            polymers = _expand_polymers(supplied_polymers, "target polymer")
+        if solvent:
+            resolved_solvent = _resolve_solvent(solvent)
+    except _ScenarioInputError as error:
+        return tool_error(
+            tool, str(error), error_code=error.error_code, **error.details,
+        )
+    except _InputError as error:
+        return tool_error(
+            tool, str(error), error_code=error.code, **error.detail,
+        )
+    except ValueError as error:
+        return tool_error(
+            tool, str(error), error_code="invalid_admitted_record_query",
+        )
+    try:
+        payload = campaign_consume.consume_campaign_lookup(
+            fingerprint=campaign_fingerprint,
+            requested=requested,
+            polymers=polymers,
+            solvent=resolved_solvent,
+            allow_partial=allow_partial_campaign,
+        )
+    except campaign_consume.CampaignConsumeError as error:
+        return tool_error(
+            tool, str(error), error_code=error.error_code, **error.details,
+        )
+    return tool_success(
+        tool,
+        analysis_type="campaign_process_records",
+        engine_mode="campaign",
+        **payload,
+    )
+
+
 def lookup_admitted_process_records(
-    target_polymer: str | list[str],
+    target_polymer: str | list[str] | None = None,
     solvent: Optional[str] = None,
     energy_cases: Optional[list[Literal["C1", "C2", "C3"]]] = None,
     sensitivity_labels: Optional[list[str]] = None,
@@ -3136,21 +3215,49 @@ def lookup_admitted_process_records(
             ]
         ]
     ] = None,
+    source: Literal["admitted_cache", "campaign"] = "admitted_cache",
+    campaign_fingerprint: Optional[str] = None,
+    process_config: Optional[dict[str, Any]] = None,
+    allow_partial_campaign: bool = False,
 ) -> str:
     """Query exact admitted BioSTEAM records without requiring a stored route.
 
-    The target polymer is required; solvent, energy cases, exact dissolution
+    Admitted-cache lookup still requires a target polymer. Campaign lookup
+    (`source=campaign`) requires campaign_fingerprint and locates the
+    campaign through DISSOLVE_CAMPAIGN_REGISTRY; it does not ingest JSONL
+    into the admitted cache. Solvent, energy cases, exact dissolution
     temperature, exact plant capacity, and sensitivity labels are optional
     filters. With no sensitivity labels, the canonical C1/C2/C3 energy-case
     records are returned. Sensitivity labels accept the seven admitted axes
     (solvent price, plant scale, solvent loss, dissolution temperature,
     precipitation temperature, feedstock distance, and feed composition) or an
-    exact cache record label. Returned records retain their full configuration,
-    economics, LCA, and normalized operations payloads. No interpolation,
-    surrogate, or live provider is used.
+    exact cache record label. Returned cache records retain their full
+    configuration, economics, LCA, and normalized operations payloads. No
+    interpolation, surrogate, or live provider is used.
     """
     tool = "lookup_admitted_process_records"
+    source_token = str(source or "admitted_cache").strip().casefold()
+    if source_token not in {"admitted_cache", "campaign"}:
+        return tool_error(
+            tool,
+            "source must be admitted_cache or campaign.",
+            error_code="invalid_admitted_record_query",
+        )
+    if source_token == "campaign":
+        return _lookup_campaign_process_records(
+            tool,
+            target_polymer=target_polymer,
+            solvent=solvent,
+            energy_cases=energy_cases,
+            dissolution_temperature_c=dissolution_temperature_c,
+            processing_capacity_mt_per_yr=processing_capacity_mt_per_yr,
+            campaign_fingerprint=campaign_fingerprint,
+            process_config=process_config,
+            allow_partial_campaign=allow_partial_campaign,
+        )
     try:
+        if target_polymer in (None, "", []):
+            raise ValueError("At least one target polymer is required")
         supplied_polymers = (
             target_polymer
             if isinstance(target_polymer, list)
