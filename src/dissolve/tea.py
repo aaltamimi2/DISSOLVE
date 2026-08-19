@@ -1356,10 +1356,44 @@ def live_engine_status() -> dict[str, Any]:
             ),
             "live_provenance": live_provenance,
         }
+    handshake = live_child_handshake(live_provenance)
+    live_provenance = {
+        **live_provenance,
+        "child_handshake_target": LIVE_CHILD_HANDSHAKE_TARGET,
+        "child_handshake_error_type": handshake.get("error_type"),
+        "child_handshake_ok": _child_handshake_started(handshake),
+    }
+    if not live_provenance["child_handshake_ok"]:
+        reason = (
+            "invalid_worker_output"
+            if handshake.get("error_type") == "invalid_worker_output"
+            else "worker_child_handshake_failed"
+        )
+        error = str(handshake.get("error") or handshake.get("error_type") or "")
+        return {
+            "available": False,
+            "reason": reason,
+            "detail": (
+                "Live worker child did not start. Readiness launches the "
+                "documented runpy path with refused target "
+                f"{LIVE_CHILD_HANDSHAKE_TARGET}; expected named JSON "
+                "unsupported_live_target, got "
+                f"{handshake.get('error_type')!r}"
+                + (f": {error[:300]}" if error else ".")
+            ),
+            "live_provenance": {
+                **live_provenance,
+                "status": "unverifiable",
+            },
+        }
     return {
         "available": True,
         "reason": None,
-        "detail": "subprocess engine ready",
+        "detail": (
+            "subprocess engine ready; child handshake "
+            f"{LIVE_CHILD_HANDSHAKE_TARGET} "
+            f"{handshake.get('error_type')}"
+        ),
         "live_provenance": live_provenance,
     }
 
@@ -1377,6 +1411,8 @@ _LIVE_MISCONFIGURED_REASONS = frozenset({
     "cited_package_checksum_mismatch",
     "cited_package_unreadable",
     "process_model_unreadable",
+    "invalid_worker_output",
+    "worker_child_handshake_failed",
 })
 
 # Live BioSTEAM never runs in this process. The 3.12 interpreter is a
@@ -1468,7 +1504,11 @@ def live_environment_report() -> dict[str, Any]:
         why_text = "; ".join(why) if why else str(inspection_error)
     elif available:
         check_status = "pass"
-        why_text = "live TEA path is available"
+        why_text = (
+            "live TEA path is available; child handshake "
+            f"{LIVE_CHILD_HANDSHAKE_TARGET} "
+            f"{(status.get('live_provenance') or {}).get('child_handshake_error_type')}"
+        )
     elif reason in _LIVE_MISCONFIGURED_REASONS:
         check_status = "fail"
         why_text = "; ".join(why) if why else str(status.get("detail") or reason)
@@ -1501,12 +1541,70 @@ def live_environment_report() -> dict[str, Any]:
         "refused_grid_targets": list(refused),
         "parameter_surface": "src/dissolve/tea_polymer_parameters.py",
         "execution_path": LIVE_TEA_EXECUTION_PATH,
+        "child_handshake_ok": (
+            (status.get("live_provenance") or {}).get("child_handshake_ok")
+        ),
+        "child_handshake_error_type": (
+            (status.get("live_provenance") or {}).get(
+                "child_handshake_error_type"
+            )
+        ),
         "live_engine": {
             key: status[key]
             for key in ("available", "reason", "detail")
             if key in status
         },
     }
+
+
+LIVE_CHILD_HANDSHAKE_TARGET = "PU"
+_LIVE_CHILD_HANDSHAKE_CACHE: dict[tuple[str, ...], dict[str, Any]] = {}
+
+
+def _child_handshake_started(result: dict[str, Any]) -> bool:
+    """True when the documented child started and wrote named JSON."""
+    return (
+        result.get("success") is False
+        and result.get("error_type") == "unsupported_live_target"
+        and str(result.get("target_plastic") or "").upper()
+        == LIVE_CHILD_HANDSHAKE_TARGET
+    )
+
+
+def live_child_handshake(
+    provenance: dict[str, Any],
+    *,
+    timeout_seconds: int = 30,
+) -> dict[str, Any]:
+    """Launch the exact runpy child readiness claims to be ready.
+
+    A refused target binds bootstrap and JSON without BioSTEAM. Hashes
+    and dependency probes are not a substitute: they declared the
+    5c0f4be child ready while it died before writing JSON.
+    """
+    key = (
+        _tea_worker_python(),
+        str(provenance.get("worker_source_path") or ""),
+        str(provenance.get("expected_worker_source_sha256") or ""),
+        str(os.getenv(_TEA_WORKER_PYTHON_ENV) or ""),
+        str(os.getenv("DISSOLVE_PLASTICS_PATH") or ""),
+    )
+    cached = _LIVE_CHILD_HANDSHAKE_CACHE.get(key)
+    if cached is not None:
+        return cached
+    result = _launch_live_worker(
+        {"target_plastic": LIVE_CHILD_HANDSHAKE_TARGET},
+        timeout_seconds=timeout_seconds,
+        environment=_tea_worker_environment(),
+        provenance={
+            "worker_source_path": provenance["worker_source_path"],
+            "expected_worker_source_sha256": provenance[
+                "expected_worker_source_sha256"
+            ],
+        },
+    )
+    _LIVE_CHILD_HANDSHAKE_CACHE[key] = result
+    return result
 
 
 # Execute the exact file whose digest the parent has admitted.

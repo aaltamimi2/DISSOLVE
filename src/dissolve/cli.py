@@ -288,8 +288,10 @@ def doctor_report(
     live_tea = tea.live_environment_report()
     execution_path = live_tea.get("execution_path") or tea.LIVE_TEA_EXECUTION_PATH
     if live_tea.get("available"):
+        handshake = live_tea.get("child_handshake_error_type") or "missing"
         live_detail = (
-            f"live TEA ready via DISSOLVE_TEA_PYTHON subprocess of tea_worker.py; "
+            f"live TEA ready via DISSOLVE_TEA_PYTHON subprocess of tea_worker.py "
+            f"(child handshake {tea.LIVE_CHILD_HANDSHAKE_TARGET} {handshake}); "
             f"admitted {', '.join(live_tea['admitted_live_targets'])}; "
             f"parameters in {live_tea['parameter_surface']}. {execution_path}"
         )

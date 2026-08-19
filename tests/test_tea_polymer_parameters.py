@@ -704,8 +704,21 @@ def test_runpy_child_returns_named_json_for_refused_target(monkeypatch):
 
     On sealed 5c0f4be this child wrote no JSON (invalid_worker_output).
     The producer is the documented worker, not an expected-value fixture.
+    When the isolated 3.12 interpreter and unpublished package are on
+    this machine, use them — that is the path that was dead.
     """
-    monkeypatch.delenv("DISSOLVE_PLASTICS_PATH", raising=False)
+    tea._LIVE_CHILD_HANDSHAKE_CACHE.clear()
+    live_python = Path(
+        "/home/aaltamimi2/anaconda3/envs/dissolve-tea-312/bin/python"
+    )
+    if live_python.is_file():
+        monkeypatch.setenv("DISSOLVE_TEA_PYTHON", str(live_python))
+    else:
+        monkeypatch.delenv("DISSOLVE_TEA_PYTHON", raising=False)
+    if (_REAL_PLASTICS_PARENT / "plastics" / "strap" / "property_package.py").is_file():
+        monkeypatch.setenv("DISSOLVE_PLASTICS_PATH", str(_REAL_PLASTICS_PARENT))
+    else:
+        monkeypatch.delenv("DISSOLVE_PLASTICS_PATH", raising=False)
     argv = tea.live_worker_runpy_argv({"target_plastic": "PU"})
     assert argv[1] == "-c"
     assert argv[2] == tea.LIVE_WORKER_RUNPY_BOOTSTRAP
@@ -721,6 +734,58 @@ def test_runpy_child_returns_named_json_for_refused_target(monkeypatch):
     assert result["error_type"] == "unsupported_live_target"
     assert "PET-clone" in (result.get("error") or "")
     assert result.get("target_plastic") == "PU"
+
+
+def test_live_engine_status_exercises_runpy_child(monkeypatch):
+    """Readiness must start the documented child, not only hash and probe."""
+    live_python = Path(
+        "/home/aaltamimi2/anaconda3/envs/dissolve-tea-312/bin/python"
+    )
+    plastics_ok = (
+        _REAL_PLASTICS_PARENT / "plastics" / "strap" / "property_package.py"
+    ).is_file()
+    if not live_python.is_file() or not plastics_ok:
+        pytest.skip("isolated live interpreter or unpublished plastics missing")
+    tea._LIVE_CHILD_HANDSHAKE_CACHE.clear()
+    monkeypatch.setenv("DISSOLVE_TEA_PYTHON", str(live_python))
+    monkeypatch.setenv("DISSOLVE_PLASTICS_PATH", str(_REAL_PLASTICS_PARENT))
+    status = tea.live_engine_status()
+    assert status["available"] is True
+    provenance = status["live_provenance"]
+    assert provenance["child_handshake_ok"] is True
+    assert provenance["child_handshake_error_type"] == "unsupported_live_target"
+    assert provenance["child_handshake_target"] == "PU"
+    assert "child handshake" in (status.get("detail") or "")
+
+
+def test_readiness_fails_closed_when_child_writes_no_json(monkeypatch):
+    live_python = Path(
+        "/home/aaltamimi2/anaconda3/envs/dissolve-tea-312/bin/python"
+    )
+    plastics_ok = (
+        _REAL_PLASTICS_PARENT / "plastics" / "strap" / "property_package.py"
+    ).is_file()
+    if not live_python.is_file() or not plastics_ok:
+        pytest.skip("isolated live interpreter or unpublished plastics missing")
+    tea._LIVE_CHILD_HANDSHAKE_CACHE.clear()
+    monkeypatch.setenv("DISSOLVE_TEA_PYTHON", str(live_python))
+    monkeypatch.setenv("DISSOLVE_PLASTICS_PATH", str(_REAL_PLASTICS_PARENT))
+
+    def dead_child(*_args, **_kwargs):
+        return {
+            "success": False,
+            "error": "BioSTEAM worker returned invalid JSON",
+            "error_type": "invalid_worker_output",
+        }
+
+    monkeypatch.setattr(tea, "_launch_live_worker", dead_child)
+    try:
+        status = tea.live_engine_status()
+        assert status["available"] is False
+        assert status["reason"] == "invalid_worker_output"
+        assert status["live_provenance"]["child_handshake_ok"] is False
+    finally:
+        tea._LIVE_CHILD_HANDSHAKE_CACHE.clear()
 
 
 def test_uninspectable_chemical_rho_forces_provisional(tmp_path):
