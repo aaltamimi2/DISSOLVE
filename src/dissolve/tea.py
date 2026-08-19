@@ -4245,7 +4245,9 @@ def lookup_admitted_process_records(
     )
 
 
-def _load_process_rows_handle(handle: Any) -> tuple[str, list[dict[str, Any]]]:
+def _load_process_rows_handle(
+    handle: Any,
+) -> tuple[str, list[dict[str, Any]], dict[str, Any]]:
     """Load tool-1 rows already in a handle. Rank does not consume JSONL here."""
     token = handle.strip() if isinstance(handle, str) else ""
     if not isinstance(handle, str) or not token:
@@ -4279,7 +4281,32 @@ def _load_process_rows_handle(handle: Any) -> tuple[str, list[dict[str, Any]]]:
             handle=token,
             source_tool=source_tool,
         )
-    return source_tool, rows
+    return source_tool, rows, stored
+
+
+def _campaign_handle_exact(stored: dict[str, Any]) -> dict[str, Any] | None:
+    exact = stored.get("exact") if isinstance(stored, dict) else None
+    if not isinstance(exact, dict):
+        return None
+    if str(exact.get("source") or "").strip().casefold() != "campaign":
+        return None
+    if not str(exact.get("campaign_fingerprint") or "").strip():
+        return None
+    return exact
+
+
+def _campaign_rank_census(exact: dict[str, Any]) -> dict[str, Any]:
+    census: dict[str, Any] = {}
+    for key in (
+        "campaign_fingerprint",
+        "append_log_fingerprint",
+        "campaign_basis",
+        "campaign_basis_projection",
+        "campaign_definition_schema",
+    ):
+        if key in exact:
+            census[key] = exact[key]
+    return census
 
 
 def _rank_handle_engine_mode(rows: Sequence[dict[str, Any]]) -> str:
@@ -4415,7 +4442,43 @@ def rank_landscape(
         )
     if handle is not None:
         try:
-            _source_tool, rows = _load_process_rows_handle(handle)
+            _source_tool, rows, stored = _load_process_rows_handle(handle)
+            campaign_exact = _campaign_handle_exact(stored)
+            if campaign_exact is not None:
+                handle_fp = str(
+                    campaign_exact.get("campaign_fingerprint") or "",
+                ).strip()
+                supplied_fp = str(campaign_fingerprint or "").strip()
+                if supplied_fp and supplied_fp.casefold() != handle_fp.casefold():
+                    raise campaign_consume.CampaignConsumeError(
+                        "campaign_fingerprint disagrees with the handle",
+                        error_code="campaign_fingerprint_mismatch",
+                        supplied=supplied_fp,
+                        canonical=handle_fp,
+                    )
+                if requested:
+                    campaign_consume.prepare_registered_campaign(
+                        fingerprint=handle_fp,
+                        requested=requested,
+                        allow_partial=allow_partial_campaign,
+                    )
+                payload = landscape.rank_handle_process_rows(
+                    rows,
+                    polymers=polymers,
+                    solvent=resolved_solvent,
+                    polymer_grouping=grouping_token,
+                    operation=operation_token,
+                    skip_campaign_identity=False,
+                    canonical=handle_fp.casefold(),
+                    extra_census=_campaign_rank_census(campaign_exact),
+                )
+                return tool_success(
+                    tool,
+                    analysis_type="campaign_process_rows_landscape",
+                    engine_mode="campaign",
+                    source="process_rows",
+                    **payload,
+                )
             payload = landscape.rank_handle_process_rows(
                 rows,
                 polymers=polymers,

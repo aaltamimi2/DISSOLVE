@@ -232,6 +232,8 @@ def test_legal_sealed_bind_does_not_ingest_cache(monkeypatch, tmp_path):
     assert data["n_rows_consumed"] == 462
     assert data["ingested_into_admitted_cache"] is False
     assert "records" not in data
+    assert len(data["comparison_rows"]) == 462
+    assert "engine_envelope" not in data["comparison_rows"][0]
     roles = data["campaign_basis"]["field_role"]
     assert roles["target_mass_percent"]["value"] == pytest.approx(55)
     assert roles["burn_leftover_plastic"]["value"] is False
@@ -239,7 +241,7 @@ def test_legal_sealed_bind_does_not_ingest_cache(monkeypatch, tmp_path):
     assert "matching_row_count" not in data
 
 
-def test_polymer_filter_counts_without_dumping_rows(monkeypatch, tmp_path):
+def test_polymer_filter_dumps_matching_rows(monkeypatch, tmp_path):
     registry = _write_registry(tmp_path, {_CANONICAL: _sealed_entry()})
     data = _lookup(
         monkeypatch,
@@ -250,6 +252,8 @@ def test_polymer_filter_counts_without_dumping_rows(monkeypatch, tmp_path):
     )
     assert data["success"] is True
     assert data["matching_row_count"] == 60
+    assert len(data["comparison_rows"]) == 60
+    assert {row["polymer"] for row in data["comparison_rows"]} == {"LDPE"}
     assert "records" not in data
     assert len(tea._records()) == 24
 
@@ -481,6 +485,7 @@ def test_results_jsonl_is_not_consumed(monkeypatch, tmp_path):
     )
     assert data["success"] is True
     assert data["n_rows_consumed"] == 1
+    assert len(data["comparison_rows"]) == 1
 
 
 def test_mixed_row_fingerprint_is_mismatch(monkeypatch, tmp_path):

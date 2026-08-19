@@ -604,8 +604,11 @@ def rank_handle_process_rows(
     solvent: str | None = None,
     polymer_grouping: str = "per_target_polymer",
     operation: str = "pareto_dominance",
+    skip_campaign_identity: bool = True,
+    canonical: str | None = None,
+    extra_census: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
-    """Rank tool-1 comparison rows already in a handle. No JSONL, no BioSTEAM."""
+    """Rank tool-1 rows already in a handle. No JSONL, no BioSTEAM."""
     converted = [
         economics_row_as_process_row(row, index=index)
         for index, row in enumerate(rows)
@@ -628,11 +631,11 @@ def rank_handle_process_rows(
     )
     usable, excluded, by_type = project_usable(
         filtered,
-        canonical=None,
-        skip_campaign_identity=True,
+        canonical=canonical,
+        skip_campaign_identity=skip_campaign_identity,
     )
-    extra: dict[str, Any] = {}
-    if len(fingerprints) == 1:
+    extra: dict[str, Any] = dict(extra_census or {})
+    if "campaign_fingerprint" not in extra and len(fingerprints) == 1:
         extra["campaign_fingerprint"] = next(iter(fingerprints))
     return _rank_usable_population(
         usable,

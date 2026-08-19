@@ -357,18 +357,25 @@ def _solvents_match(requested: str, public_identity: str) -> bool:
     )
 
 
+def _row_without_engine_envelope(row: Mapping[str, Any]) -> dict[str, Any]:
+    copied = dict(row)
+    copied.pop("engine_envelope", None)
+    return copied
+
+
 def consume_process_rows(
     path: Path,
     canonical: str,
     *,
     polymers: list[str] | None = None,
     solvent: str | None = None,
-) -> tuple[int, int | None]:
+) -> tuple[int, int | None, list[dict[str, Any]]]:
     wanted_polymers = {_key(item) for item in (polymers or []) if item}
     wanted_solvent = str(solvent or "").strip() or None
     filter_active = bool(wanted_polymers or wanted_solvent)
     n_rows = 0
     matched = 0
+    dumped: list[dict[str, Any]] = []
     with path.open(encoding="utf-8") as handle:
         for line in handle:
             text = line.strip()
@@ -385,8 +392,6 @@ def consume_process_rows(
                     computed=row_fp or None,
                     pair_id=row.get("pair_id"),
                 )
-            if not filter_active:
-                continue
             polymer = str(row.get("polymer") or "").strip()
             if wanted_polymers and _key(polymer) not in wanted_polymers:
                 continue
@@ -395,8 +400,10 @@ def consume_process_rows(
                 wanted_solvent, public_solvent,
             ):
                 continue
-            matched += 1
-    return n_rows, (matched if filter_active else None)
+            dumped.append(_row_without_engine_envelope(row))
+            if filter_active:
+                matched += 1
+    return n_rows, (matched if filter_active else None), dumped
 
 
 def _key(value: Any) -> str:
@@ -496,7 +503,7 @@ def consume_campaign_lookup(
         registry_path=registry_path,
         allow_partial=allow_partial,
     )
-    n_rows, matching = consume_process_rows(
+    n_rows, matching, dumped = consume_process_rows(
         bound["process_rows_path"],
         bound["canonical"],
         polymers=polymers,
@@ -509,6 +516,7 @@ def consume_campaign_lookup(
         "campaign_definition_schema": campaign_basis.CAMPAIGN_DEFINITION_SCHEMA_V2,
         **bound["projected"],
         "n_rows_consumed": n_rows,
+        "comparison_rows": dumped,
         "ingested_into_admitted_cache": False,
     }
     if matching is not None:
