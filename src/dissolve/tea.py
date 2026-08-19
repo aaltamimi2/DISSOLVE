@@ -6419,8 +6419,9 @@ def analyze_tea_sensitivity(
     The baseline requires the same complete twelve public D-8 fields as
     evaluate unless a prior economics handle supplies the omitted ones.
     With values omitted, exact cached one-at-a-time variants are discovered
-    around that baseline. Supported parameter names are the numeric
-    scenario fields. `uncertainty` describes only the supplied/discovered
+    around that baseline. Supported parameter names are every numeric
+    scenario field the worker consumes, including dissolution_capacity
+    and labor_cost. `uncertainty` describes only the supplied/discovered
     scenario sample; it is not a probabilistic Monte Carlo claim. This is
     not a cache-pair fill and not a screening payload.
     """
@@ -6429,8 +6430,13 @@ def analyze_tea_sensitivity(
         str(parameter or "").strip(), str(parameter or "").strip(),
     )
     mode = str(analysis_mode or "sweep").casefold()
-    if field not in _NUMERIC_FIELDS or field in {"dissolution_capacity", "labor_cost"}:
-        return tool_error(tool, "Unsupported sensitivity parameter.", error_code="unsupported_parameter", supported_parameters=sorted(_NUMERIC_FIELDS - {"dissolution_capacity", "labor_cost"}))
+    if field not in _NUMERIC_FIELDS:
+        return tool_error(
+            tool,
+            "Unsupported sensitivity parameter.",
+            error_code="unsupported_parameter",
+            supported_parameters=sorted(_NUMERIC_FIELDS),
+        )
     if metric not in _METRICS:
         return tool_error(tool, "Unsupported sensitivity metric.", error_code="unsupported_metric", supported_metrics=sorted(_METRICS))
     if mode not in {"sweep", "tornado", "uncertainty"}:
