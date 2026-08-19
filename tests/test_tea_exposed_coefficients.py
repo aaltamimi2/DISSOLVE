@@ -62,6 +62,7 @@ def test_omitted_and_explicit_coefficient_defaults_share_the_serve_key():
         "finance_fraction": 0.0,
         "startup_months": 3,
         "startup_FOCfrac": 1,
+        "startup_VOCfrac": 0.75,
         "feedstock_price_usd_per_kg": 0.01,
         "centrifuged_plastic_solvent_content_pct": 50.0,
         "natural_gas_price_usd_per_m3": tea._NATURAL_GAS_PRICE_USD_PER_M3,
@@ -77,6 +78,7 @@ def test_omitted_and_explicit_coefficient_defaults_share_the_serve_key():
     assert reconstructed["finance_fraction"] == pytest.approx(0.0)
     assert reconstructed["startup_months"] == pytest.approx(3)
     assert reconstructed["startup_FOCfrac"] == pytest.approx(1)
+    assert reconstructed["startup_VOCfrac"] == pytest.approx(0.75)
     assert reconstructed["feedstock_price_usd_per_kg"] == pytest.approx(0.01)
     assert reconstructed["centrifuged_plastic_solvent_content_pct"] == pytest.approx(50.0)
     assert reconstructed["natural_gas_price_usd_per_m3"] == pytest.approx(
@@ -243,6 +245,7 @@ def test_cache_evaluate_echoes_projected_operating_days(monkeypatch):
     assert row["finance_fraction"] == pytest.approx(0.0)
     assert row["startup_months"] == pytest.approx(3)
     assert row["startup_FOCfrac"] == pytest.approx(1)
+    assert row["startup_VOCfrac"] == pytest.approx(0.75)
     assert row["msp_usd_per_kg"] == pytest.approx(
         float(record["result"]["tea"]["msp_usd_per_kg"]),
     )
@@ -659,6 +662,86 @@ def test_percent_integer_startup_FOCfrac_is_refused():
     assert caught.value.details["field"] == "startup_FOCfrac"
 
 
+def test_startup_VOCfrac_override_does_not_share_the_twelve_only_serve_key():
+    record = _record_with_energy("C1")
+    overridden = {**dict(record["config"]), "startup_VOCfrac": 0.5}
+    assert tea._config_key(record["config"]) != tea._config_key(overridden)
+    assert tea._cache_index().get(tea._config_key(overridden)) is None
+
+
+def test_cache_mode_refuses_startup_VOCfrac_override_instead_of_the_other_plant(
+    monkeypatch,
+):
+    record = _record_with_energy("C1")
+    recorded_msp = float(record["result"]["tea"]["msp_usd_per_kg"])
+
+    def forbidden_live(config, timeout_seconds):
+        raise AssertionError(
+            "startup_VOCfrac mismatch must not fall through to live"
+        )
+
+    monkeypatch.setattr(tea, "_live", forbidden_live)
+    payload = _data(tea.evaluate_tea_lca_scenarios(
+        [_public_from_record(record, startup_VOCfrac=0.5)],
+        engine_mode="cache",
+    ))
+    assert payload.get("success") is False
+    assert payload.get("error_code") == "cache_flowsheet_mismatch"
+    row = (payload.get("failures") or [])[0]
+    assert row.get("msp_usd_per_kg") is None
+    assert row.get("msp_usd_per_kg") != recorded_msp
+    fraction = next(
+        item for item in row["flowsheet_switch_deltas"]
+        if item["field"] == "startup_VOCfrac"
+    )
+    assert fraction["recorded_value"] == pytest.approx(0.75)
+    assert fraction["requested_value"] == pytest.approx(0.5)
+    assert row.get("startup_VOCfrac") == pytest.approx(0.5)
+    assert not any(
+        item["field"] == "startup_FOCfrac"
+        for item in row["flowsheet_switch_deltas"]
+    )
+
+
+def test_full_startup_VOCfrac_is_a_legal_override(monkeypatch):
+    record = _record_with_energy("C1")
+
+    def forbidden_live(config, timeout_seconds):
+        raise AssertionError(
+            "startup_VOCfrac=1.0 is 100 percent VOC, not invalid_scenario"
+        )
+
+    monkeypatch.setattr(tea, "_live", forbidden_live)
+    payload = _data(tea.evaluate_tea_lca_scenarios(
+        [_public_from_record(record, startup_VOCfrac=1.0)],
+        engine_mode="cache",
+    ))
+    assert payload.get("success") is False
+    assert payload.get("error_code") == "cache_flowsheet_mismatch"
+    row = (payload.get("failures") or [])[0]
+    fraction = next(
+        item for item in row["flowsheet_switch_deltas"]
+        if item["field"] == "startup_VOCfrac"
+    )
+    assert fraction["requested_value"] == pytest.approx(1.0)
+
+
+def test_negative_startup_VOCfrac_is_refused():
+    record = _record_with_energy("C1")
+    with pytest.raises(tea._ScenarioInputError) as caught:
+        tea._scenario_config(_public_from_record(record, startup_VOCfrac=-0.1))
+    assert caught.value.error_code == "invalid_scenario"
+    assert caught.value.details["field"] == "startup_VOCfrac"
+
+
+def test_percent_integer_startup_VOCfrac_is_refused():
+    record = _record_with_energy("C1")
+    with pytest.raises(tea._ScenarioInputError) as caught:
+        tea._scenario_config(_public_from_record(record, startup_VOCfrac=75))
+    assert caught.value.error_code == "invalid_scenario"
+    assert caught.value.details["field"] == "startup_VOCfrac"
+
+
 def test_percent_integer_income_tax_is_refused():
     record = _record_with_energy("C1")
     with pytest.raises(tea._ScenarioInputError) as caught:
@@ -678,13 +761,15 @@ def test_other_g_constructor_coefficients_are_not_dumped():
     assert caught.value.error_code == "unknown_process_field"
     assert "WC_over_FCI" in list(caught.value.details.get("extra_keys") or [])
     with pytest.raises(tea._ScenarioInputError) as caught:
-        tea._scenario_config(_public_from_record(record, startup_VOCfrac=0.5))
+        tea._scenario_config(_public_from_record(record, startup_salesfrac=0.8))
     assert caught.value.error_code == "unknown_process_field"
-    assert "startup_VOCfrac" in list(caught.value.details.get("extra_keys") or [])
+    assert "startup_salesfrac" in list(caught.value.details.get("extra_keys") or [])
     assert "lang_factor" not in tea._COEFFICIENT_DEFAULTS
     assert "WC_over_FCI" not in tea._COEFFICIENT_DEFAULTS
     assert "depreciation" not in tea._COEFFICIENT_DEFAULTS
-    assert "startup_VOCfrac" not in tea._COEFFICIENT_DEFAULTS
+    assert "startup_salesfrac" not in tea._COEFFICIENT_DEFAULTS
+    assert "startup_VOCfrac" in tea._COEFFICIENT_DEFAULTS
+    assert "startup_VOCfrac" in tea.public_process_field_names()
     assert "startup_FOCfrac" in tea._COEFFICIENT_DEFAULTS
     assert "startup_FOCfrac" in tea.public_process_field_names()
     assert "startup_months" in tea._COEFFICIENT_DEFAULTS
@@ -764,6 +849,7 @@ def test_d8_overlay_still_excludes_coefficients():
         "finance_fraction",
         "startup_months",
         "startup_FOCfrac",
+        "startup_VOCfrac",
         "feedstock_price_usd_per_kg",
         "centrifuged_plastic_solvent_content_pct",
         "natural_gas_price_usd_per_m3",
@@ -785,6 +871,7 @@ def test_worker_calls_the_unreached_setters():
     assert "process.tea.finance_fraction" in source
     assert "process.tea.startup_months" in source
     assert "process.tea.startup_FOCfrac" in source
+    assert "process.tea.startup_VOCfrac" in source
     assert "set_feedstock_price(" in source
     assert "set_centrifuged_plastic_solvent_content(" in source
     assert "set_natural_gas_price(" in source
