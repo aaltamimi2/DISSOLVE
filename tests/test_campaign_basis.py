@@ -280,6 +280,18 @@ def test_warehouse_override_is_coefficient_mismatch():
     assert row["requested_value"] == pytest.approx(0.08)
 
 
+def test_site_development_override_is_coefficient_mismatch():
+    projected = campaign_basis.project_campaign_basis_v1(_minimal_v2())
+    result = campaign_basis.held_field_mismatches(
+        projected, {"site_development": 0.18},
+    )
+    assert result["error_code"] == "campaign_basis_mismatch"
+    row = result["mismatches"][0]
+    assert row["field"] == "site_development"
+    assert row["campaign_value"] == pytest.approx(0.09)
+    assert row["requested_value"] == pytest.approx(0.18)
+
+
 def test_polymer_only_is_not_a_held_mismatch():
     projected = campaign_basis.project_campaign_basis_v1(_minimal_v2())
     result = campaign_basis.held_field_mismatches(
