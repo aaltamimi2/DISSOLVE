@@ -32,6 +32,7 @@ _FINANCE_INTEREST_DEFAULT = 0.08
 _FINANCE_YEARS_DEFAULT = 10
 _FINANCE_FRACTION_DEFAULT = 0.0
 _STARTUP_MONTHS_DEFAULT = 3
+_STARTUP_FOCFRAC_DEFAULT = 1
 _FEEDSTOCK_PRICE_USD_PER_KG = 0.01
 _CENTRIFUGED_PLASTIC_SOLVENT_CONTENT_PCT = 50.0
 
@@ -893,6 +894,9 @@ def _create_and_simulate_process(
         )
         process.tea.startup_months = float(
             config.get("startup_months", _STARTUP_MONTHS_DEFAULT)
+        )
+        process.tea.startup_FOCfrac = float(
+            config.get("startup_FOCfrac", _STARTUP_FOCFRAC_DEFAULT)
         )
         process.set_solvent_price(config["solvent_price"])
         process.set_feedstock_distance(config.get("feedstock_distance_km", 0))

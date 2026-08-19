@@ -113,6 +113,7 @@ _FINANCE_INTEREST_DEFAULT = 0.08
 _FINANCE_YEARS_DEFAULT = 10
 _FINANCE_FRACTION_DEFAULT = 0.0
 _STARTUP_MONTHS_DEFAULT = 3
+_STARTUP_FOCFRAC_DEFAULT = 1
 _FEEDSTOCK_PRICE_USD_PER_KG = 0.01
 _CENTRIFUGED_PLASTIC_SOLVENT_CONTENT_PCT = 50.0
 _NATURAL_GAS_PRICE_USD_PER_M3 = 4.73 * 35.3146667 / 1e3
@@ -125,6 +126,7 @@ _COEFFICIENT_DEFAULTS = {
     "finance_years": _FINANCE_YEARS_DEFAULT,
     "finance_fraction": _FINANCE_FRACTION_DEFAULT,
     "startup_months": _STARTUP_MONTHS_DEFAULT,
+    "startup_FOCfrac": _STARTUP_FOCFRAC_DEFAULT,
     "feedstock_price_usd_per_kg": _FEEDSTOCK_PRICE_USD_PER_KG,
     "centrifuged_plastic_solvent_content_pct": (
         _CENTRIFUGED_PLASTIC_SOLVENT_CONTENT_PCT
@@ -931,6 +933,7 @@ def public_process_field_names(*, energy_case: str = "C1") -> tuple[str, ...]:
         "finance_years",
         "finance_fraction",
         "startup_months",
+        "startup_FOCfrac",
         "feedstock_price_usd_per_kg",
         "centrifuged_plastic_solvent_content_pct",
     )
@@ -1518,6 +1521,24 @@ def _validated_coefficients(
                 supplied=supplied["startup_months"],
             )
         coefficients["startup_months"] = months
+    if "startup_FOCfrac" in supplied:
+        fraction = _finite(supplied["startup_FOCfrac"], "startup_FOCfrac")
+        if fraction > 1:
+            raise _ScenarioInputError(
+                "startup_FOCfrac is a fraction (1 is 100 percent), not a "
+                "percent integer.",
+                error_code="invalid_scenario",
+                field="startup_FOCfrac",
+                supplied=supplied["startup_FOCfrac"],
+            )
+        if not 0 <= fraction <= 1:
+            raise _ScenarioInputError(
+                "startup_FOCfrac must be a fraction in [0, 1].",
+                error_code="invalid_scenario",
+                field="startup_FOCfrac",
+                supplied=supplied["startup_FOCfrac"],
+            )
+        coefficients["startup_FOCfrac"] = fraction
     if "feedstock_price_usd_per_kg" in supplied:
         price = _finite(
             supplied["feedstock_price_usd_per_kg"],
@@ -3604,6 +3625,7 @@ def _comparison_row(label: str, result: dict[str, Any]) -> dict[str, Any]:
         "finance_years": coefficients.get("finance_years"),
         "finance_fraction": coefficients.get("finance_fraction"),
         "startup_months": coefficients.get("startup_months"),
+        "startup_FOCfrac": coefficients.get("startup_FOCfrac"),
         "feedstock_price_usd_per_kg": coefficients.get(
             "feedstock_price_usd_per_kg"
         ),
