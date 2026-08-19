@@ -57,6 +57,21 @@ _DESIGN_POINT_PUBLIC_FIELDS = (
     ("dissolution_capacity", "dissolution_capacity"),
     ("labor_cost", "labor_cost_usd_per_employee_yr"),
 )
+# D-8 overlay vocabulary stays the twelve above. These switches change the
+# flowsheet (or leftover disposition) and belong in the executed-config key.
+# Production values are what the v12 worker hardcoded; existing cache records
+# do not carry them and are projected at these defaults.
+_FLOWSHEET_SWITCH_DEFAULTS = {
+    "sell_leftover_plastic": False,
+    "burn_leftover_plastic": False,
+    "precipitation_temperature_format": "constant",
+    "precipitation_configuration": "integrated heat transfer",
+}
+_FLOWSHEET_SWITCH_FIELDS = tuple(_FLOWSHEET_SWITCH_DEFAULTS)
+_PRECIPITATION_FORMATS = frozenset({"constant", "drop"})
+_PRECIPITATION_CONFIGURATIONS = frozenset({
+    "integrated heat transfer", "solvent mixing",
+})
 _REFERENCE_DESIGN_POINT_ROLE = "context_only_not_route_cost_or_ranking"
 _TEA_WORKER_PYTHON_ENV = "DISSOLVE_TEA_PYTHON"
 _LIVE_PROCESS_MODEL_RELATIVE_PATH = Path("plastics/strap/process_model.py")
@@ -1003,6 +1018,144 @@ class _MissingScenarioBasis(_ScenarioInputError):
     """A valid route condition lacks an admitted process input."""
 
 
+def _project_flowsheet_switches(config: dict[str, Any]) -> dict[str, Any]:
+    """Fill absent switches with the worker's production hardcodes.
+
+    This is cache/campaign projection, not ``field_origin=default``. Existing
+    records and twelve-only callers keep today's plant. A supplied value that
+    differs is a different executed plant.
+    """
+    projected = {}
+    for key, default in _FLOWSHEET_SWITCH_DEFAULTS.items():
+        value = config.get(key)
+        projected[key] = default if value is None else value
+    return projected
+
+
+def _coerce_flowsheet_bool(value: Any, field: str) -> bool:
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        token = value.strip().casefold()
+        if token in {"true", "yes"}:
+            return True
+        if token in {"false", "no"}:
+            return False
+    raise _ScenarioInputError(
+        f"{field} must be a boolean",
+        error_code="invalid_scenario",
+        field=field,
+        supplied=value,
+    )
+
+
+def _validated_flowsheet_switches(
+    supplied: dict[str, Any], *, energy_case: str,
+) -> dict[str, Any]:
+    if "facilities" in supplied or "turbogenerator" in supplied:
+        raise _ScenarioInputError(
+            "facilities and turbogenerator are derived from energy_case; "
+            "they are not independent knobs.",
+            error_code="energy_case_contract",
+            energy_case=energy_case,
+            energy_case_map=dict(_ENERGY_CASES),
+        )
+    switches = dict(_FLOWSHEET_SWITCH_DEFAULTS)
+    if "sell_leftover_plastic" in supplied:
+        switches["sell_leftover_plastic"] = _coerce_flowsheet_bool(
+            supplied["sell_leftover_plastic"], "sell_leftover_plastic",
+        )
+    if "burn_leftover_plastic" in supplied:
+        switches["burn_leftover_plastic"] = _coerce_flowsheet_bool(
+            supplied["burn_leftover_plastic"], "burn_leftover_plastic",
+        )
+    if "precipitation_temperature_format" in supplied:
+        fmt = str(supplied["precipitation_temperature_format"] or "").strip()
+        if fmt not in _PRECIPITATION_FORMATS:
+            raise _ScenarioInputError(
+                "precipitation_temperature_format must be 'constant' or 'drop'",
+                error_code="invalid_scenario",
+                field="precipitation_temperature_format",
+                supplied=supplied["precipitation_temperature_format"],
+            )
+        if fmt == "drop":
+            raise _ScenarioInputError(
+                "precipitation_temperature_format='drop' registers "
+                "set_precipitation_temperature_drop instead of "
+                "set_precipitation_temperature; this slice accepts 'constant' "
+                "only.",
+                error_code="field_not_on_this_instance",
+                field="precipitation_temperature_format",
+                requested="drop",
+            )
+        switches["precipitation_temperature_format"] = fmt
+    if "precipitation_configuration" in supplied:
+        configuration = str(
+            supplied["precipitation_configuration"] or ""
+        ).strip()
+        if configuration not in _PRECIPITATION_CONFIGURATIONS:
+            raise _ScenarioInputError(
+                "precipitation_configuration must be 'integrated heat "
+                "transfer' or 'solvent mixing'",
+                error_code="invalid_scenario",
+                field="precipitation_configuration",
+                supplied=supplied["precipitation_configuration"],
+            )
+        switches["precipitation_configuration"] = configuration
+    if (
+        switches["sell_leftover_plastic"]
+        and switches["burn_leftover_plastic"]
+    ):
+        raise _ScenarioInputError(
+            "sell_leftover_plastic and burn_leftover_plastic cannot both "
+            "be true; leftover cannot be sold and burned.",
+            error_code="leftover_disposition_conflict",
+            sell_leftover_plastic=True,
+            burn_leftover_plastic=True,
+        )
+    if switches["burn_leftover_plastic"] and energy_case == "C2":
+        raise _ScenarioInputError(
+            "burn_leftover_plastic requires on-site facilities; energy_case "
+            "C2 has no boiler.",
+            error_code="burn_requires_facilities",
+            energy_case=energy_case,
+            burn_leftover_plastic=True,
+        )
+    return switches
+
+
+def _twelve_normalized(config: dict[str, Any]) -> dict[str, Any]:
+    """D-8 overlay coordinates. Not a serve key once switches are public."""
+    return {
+        key: (
+            _key(config[key]) if key in {"solvent", "target_plastic"}
+            else str(config[key]).upper() if key == "energy_case"
+            else round(float(config[key]), 10)
+        )
+        for key in _CONFIG_FIELDS
+    }
+
+
+def _design_point_key(config: dict[str, Any]) -> str:
+    """Hash the D-8 twelve only. Existing records are unique on this."""
+    return json.dumps(
+        _twelve_normalized(config), sort_keys=True, separators=(",", ":"),
+    )
+
+
+def _flowsheet_switch_deltas(config: dict[str, Any]) -> list[dict[str, Any]]:
+    projected = _project_flowsheet_switches(config)
+    return [
+        {
+            "field": key,
+            "recorded_value": default,
+            "requested_value": projected[key],
+        }
+        for key, default in _FLOWSHEET_SWITCH_DEFAULTS.items()
+        if projected[key] != default
+    ]
+
+
 def _scenario_config(scenario: dict[str, Any]) -> dict[str, Any]:
     if not isinstance(scenario, dict):
         raise ValueError("Each scenario must be an object")
@@ -1065,7 +1218,11 @@ def _scenario_config(scenario: dict[str, Any]) -> dict[str, Any]:
         raise ValueError("processing and dissolution capacity must be positive")
     if config["solvent_price"] < 0 or config["solvent_loss_pct"] < 0:
         raise ValueError("solvent price and loss must be nonnegative")
+    switches = _validated_flowsheet_switches(
+        supplied, energy_case=str(config["energy_case"]),
+    )
     normalized = {key: config[key] for key in _CONFIG_FIELDS}
+    normalized.update(switches)
     normalized.update({
         "_requested_solvent": solvent_identity["requested"],
         "_engine_solvent": solvent_identity["canonical"],
@@ -1079,15 +1236,28 @@ def _scenario_config(scenario: dict[str, Any]) -> dict[str, Any]:
 
 
 def _config_key(config: dict[str, Any]) -> str:
-    normalized = {
-        key: (
-            _key(config[key]) if key in {"solvent", "target_plastic"}
-            else str(config[key]).upper() if key == "energy_case"
-            else round(float(config[key]), 10)
-        )
-        for key in _CONFIG_FIELDS
-    }
+    """Serve key: D-8 twelve plus every public switch that changes the plant."""
+    normalized = _twelve_normalized(config)
+    switches = _project_flowsheet_switches(config)
+    for key in _FLOWSHEET_SWITCH_FIELDS:
+        value = switches[key]
+        if isinstance(_FLOWSHEET_SWITCH_DEFAULTS[key], bool):
+            normalized[key] = bool(value)
+        else:
+            normalized[key] = str(value)
     return json.dumps(normalized, sort_keys=True, separators=(",", ":"))
+
+
+def _record_for_design_point(config: dict[str, Any]) -> Optional[dict[str, Any]]:
+    """Find a cache row that matches the twelve regardless of switches."""
+    key = _design_point_key(config)
+    for item in _records():
+        try:
+            if _design_point_key(item["config"]) == key:
+                return item
+        except (TypeError, ValueError, KeyError):
+            continue
+    return None
 
 
 @lru_cache(maxsize=1)
@@ -1941,6 +2111,23 @@ def _run(config: dict[str, Any], engine_mode: str, timeout_seconds: int) -> dict
                 "cache_match_status": "not_applicable",
                 "config": config,
             }
+        analog = _record_for_design_point(config)
+        deltas = _flowsheet_switch_deltas(config)
+        if analog is not None and deltas:
+            return {
+                "success": False,
+                "error": (
+                    "A cached record matches the D-8 twelve but not the "
+                    "flowsheet switches; refusing to serve the other plant's "
+                    "MSP."
+                ),
+                "error_type": "cache_flowsheet_mismatch",
+                "engine_mode": "cache",
+                "cache_match_status": "miss",
+                "config": config,
+                "cache_record_label": analog.get("label"),
+                "flowsheet_switch_deltas": deltas,
+            }
         return {
             "success": False, "error": "No exact cached simulation matches this configuration.",
             "error_type": "cache_miss", "engine_mode": "cache",
@@ -2024,6 +2211,13 @@ def _same_config(
             if str(left.get(key)).upper() != str(right.get(key)).upper():
                 return False
         elif not math.isclose(float(left.get(key)), float(right.get(key)), rel_tol=0, abs_tol=1e-9):
+            return False
+    left_switches = _project_flowsheet_switches(left)
+    right_switches = _project_flowsheet_switches(right)
+    for key in _FLOWSHEET_SWITCH_FIELDS:
+        if key in varying:
+            continue
+        if left_switches[key] != right_switches[key]:
             return False
     return True
 
@@ -2209,6 +2403,7 @@ def _screening_estimate(
 def _comparison_row(label: str, result: dict[str, Any]) -> dict[str, Any]:
     tea, lca, operations = result.get("tea") or {}, result.get("lca") or {}, result.get("operations") or {}
     config = result.get("config") or {}
+    switches = _project_flowsheet_switches(config)
     return {
         "label": label, "success": bool(result.get("success")),
         "polymer": config.get("target_plastic") or result.get("target_plastic"),
@@ -2218,6 +2413,12 @@ def _comparison_row(label: str, result: dict[str, Any]) -> dict[str, Any]:
         "processing_capacity_mt_per_yr": config.get("processing_capacity"),
         "dissolution_temperature_c": config.get("dissolution_temperature_c"),
         "precipitation_temperature_c": config.get("precipitation_temperature_c"),
+        "sell_leftover_plastic": switches["sell_leftover_plastic"],
+        "burn_leftover_plastic": switches["burn_leftover_plastic"],
+        "precipitation_temperature_format": switches[
+            "precipitation_temperature_format"
+        ],
+        "precipitation_configuration": switches["precipitation_configuration"],
         "msp_usd_per_kg": tea.get("msp_usd_per_kg"),
         "tci_usd": tea.get("tci_usd"), "aoc_usd_per_yr": tea.get("aoc_usd_per_yr"),
         "gwp_kg_co2e_per_kg": lca.get("gwp_kg_co2e_per_kg"),
@@ -2296,6 +2497,7 @@ def _comparison_row(label: str, result: dict[str, Any]) -> dict[str, Any]:
                     "error", "error_type", "requested_solvent",
                     "canonical_solvent", "engine_solvent",
                     "solvent_support_status", "solvent_model_gap",
+                    "flowsheet_switch_deltas",
                 )
                 if result.get(key) is not None
             }
@@ -2881,10 +3083,15 @@ def evaluate_tea_lca_scenarios(
 
     Each scenario requires solvent and target_polymer and may set energy_case,
     target_mass_percent, processing_capacity_mt_per_yr, dissolution_temp_c,
-    precipitation_temp_c, solvent_price, solvent_loss_pct, and
-    feedstock_distance_km. Auto mode uses only exact cache matches, otherwise a
-    compatible isolated live engine; it never interpolates cached process results.
-    Use evaluate_stored_route_tea_lca for an inherited route or candidate shortlist.
+    precipitation_temp_c, solvent_price, solvent_loss_pct,
+    feedstock_distance_km, sell_leftover_plastic, burn_leftover_plastic,
+    precipitation_temperature_format, and precipitation_configuration.
+    Omitted switches keep the production plant (leftover neither sold nor
+    burned; constant precipitation; integrated heat transfer). Auto mode uses
+    only exact cache matches, otherwise a compatible isolated live engine; it
+    never interpolates cached process results or serves another plant's MSP
+    under a twelve-only key. Use evaluate_stored_route_tea_lca for an
+    inherited route or candidate shortlist.
     """
     tool = "evaluate_tea_lca_scenarios"
     if not isinstance(scenarios, list) or not scenarios:
@@ -2933,13 +3140,19 @@ def evaluate_tea_lca_scenarios(
         all_priced_unmodellable = classified == {
             "priced_solvent_unmodellable"
         }
+        all_flowsheet_mismatch = classified == {
+            "cache_flowsheet_mismatch"
+        }
         primary = failures[0] if len(failures) == 1 else {}
         return tool_error(
             tool,
             failure_summary,
             error_code=(
                 "priced_solvent_unmodellable"
-                if all_priced_unmodellable else "no_simulation_result"
+                if all_priced_unmodellable
+                else "cache_flowsheet_mismatch"
+                if all_flowsheet_mismatch
+                else "no_simulation_result"
             ),
             engine_mode=engine_mode, cache_match_status="miss",
             failures=failures, live_engine=live_engine_status(),

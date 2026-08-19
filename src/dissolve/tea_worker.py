@@ -821,14 +821,31 @@ def _create_and_simulate_process(
             strap_package, config,
         )
         phase = "process_construction"
+        precipitation_format = str(
+            config.get("precipitation_temperature_format") or "constant"
+        )
+        if precipitation_format != "constant":
+            raise ValueError(
+                "precipitation_temperature_format must be 'constant'; "
+                "'drop' registers a different setter than this worker calls."
+            )
         scenario = process_class.Scenario(
             solvent=model_solvent, target_plastic=target,
             target_plastic_percent=config["target_plastic_percent"],
             processing_capacity=config["processing_capacity"],
-            sell_leftover_plastic=False, burn_leftover_plastic=False,
+            sell_leftover_plastic=bool(
+                config.get("sell_leftover_plastic", False)
+            ),
+            burn_leftover_plastic=bool(
+                config.get("burn_leftover_plastic", False)
+            ),
             facilities=energy["facilities"],
             turbogenerator=energy["turbogenerator"],
-            precipitation_temperature_format="constant",
+            precipitation_temperature_format=precipitation_format,
+            precipitation_configuration=str(
+                config.get("precipitation_configuration")
+                or "integrated heat transfer"
+            ),
         )
         process = process_class(scenario=scenario)
         try:
