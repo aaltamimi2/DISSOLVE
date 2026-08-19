@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import importlib
+import importlib.util
 import hashlib
 import json
 import math
@@ -13,7 +14,7 @@ import sys
 import time
 import traceback
 from pathlib import Path
-from types import SimpleNamespace
+from types import ModuleType, SimpleNamespace
 from typing import Any, Callable, Optional
 
 _ENERGY = {
@@ -21,12 +22,38 @@ _ENERGY = {
     "C2": {"facilities": False, "turbogenerator": False},
     "C3": {"facilities": True, "turbogenerator": False},
 }
-_TARGET = {
-    "LDPE": "PE", "HDPE": "PE", "EVOH": "EVOH", "PC": "PC",
-}
-_UNSUPPORTED_LIVE_TARGETS = frozenset({
-    "PET", "PS", "PP", "PVC", "NYLON6", "NYLON66",
-})
+
+
+def _polymer_parameters() -> ModuleType:
+    """Load the expert surface without importing the dissolve package.
+
+    The live child is executed via runpy as ``__main__``. A package import
+    of ``dissolve`` would run ``dissolve.__init__`` and pull the rest of
+    the engine into the BioSTEAM worker. File-loading the sibling keeps
+    the isolation the cache generator depends on.
+    """
+    if __package__:
+        from . import tea_polymer_parameters as module
+        return module
+    path = Path(__file__).resolve().parent / "tea_polymer_parameters.py"
+    spec = importlib.util.spec_from_file_location(
+        "_dissolve_tea_polymer_parameters", path,
+    )
+    if spec is None or spec.loader is None:
+        raise RuntimeError(f"Cannot load polymer parameter surface from {path}")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def _live_identity_map() -> dict[str, str]:
+    return dict(_polymer_parameters().live_identity_map())
+
+
+# Derived from tea_polymer_parameters.POLYMERS. Not the admission
+# authority — that is admit_live_target() over the table + package
+# outline. Kept so tea.py can still ask "which grid names are live".
+_TARGET = _live_identity_map()
 _LCA_METRICS = (
     ("gwp_kg_co2e_per_kg", "GWP", "GWP"),
     ("htc_ctuh_per_kg", "HTC", "htc"),
@@ -777,20 +804,76 @@ def _create_and_simulate_process(
     return process, engine_identity
 
 
+def _outline_chemical_ids(outline: Any) -> frozenset[str]:
+    """IDs the loaded ChemicalsOutline will not PET-clone."""
+    collected: list[str] = []
+    ids_attr = getattr(outline, "IDs", None)
+    if ids_attr:
+        collected.extend(str(item) for item in ids_attr)
+    chemicals = getattr(outline, "chemicals", None) or getattr(outline, "data", None)
+    if chemicals:
+        for item in chemicals:
+            ident = getattr(item, "ID", None)
+            if ident:
+                collected.append(str(ident))
+    if collected:
+        return frozenset(collected)
+    # Fallback: membership is the API process_model uses (`plastic not in outline`).
+    params = _polymer_parameters()
+    candidates = {
+        row.identity_in_model
+        for row in params.POLYMERS.values()
+        if row.identity_in_model
+    }
+    candidates.update(
+        row.oligomer.chemical_id
+        for row in params.POLYMERS.values()
+        if row.oligomer is not None
+    )
+    return frozenset(name for name in candidates if name in outline)
+
+
+def _inject_oligomer(strap_package: Any, oligomer: Any) -> None:
+    """Append a missing oligomer draft from our surface. Does not edit the package."""
+    outline = strap_package.STRAP_chemicals_outline
+    if oligomer.chemical_id in outline:
+        return
+    import biosteam as bst
+    draft = bst.ChemicalDraft(
+        oligomer.chemical_id,
+        search_ID=oligomer.search_id,
+    )
+    outline.append(draft)
+
+
+def _unsupported_target_result(
+    original_target: str, admission: Any,
+) -> dict[str, Any]:
+    params = _polymer_parameters()
+    return {
+        "success": False,
+        "error": admission.error,
+        "error_type": admission.error_type or "unsupported_live_target",
+        "target_plastic": original_target,
+        "identity_in_model": admission.identity_in_model,
+        "supported_live_targets": list(params.live_grid_targets()),
+        "package_chemical_present": admission.package_chemical_present,
+        "package_oligomer_present": admission.package_oligomer_present,
+        "parameter_surface": "dissolve.tea_polymer_parameters",
+    }
+
+
 def run(config: dict[str, Any]) -> dict[str, Any]:
     started = time.monotonic()
+    params = _polymer_parameters()
     original_target = str(config["target_plastic"]).upper()
-    if original_target in _UNSUPPORTED_LIVE_TARGETS:
-        return {
-            "success": False,
-            "error": (
-                "Live TEA has no target-specific process model for "
-                f"{original_target}; refusing to substitute the PE process."
-            ),
-            "error_type": "unsupported_live_target",
-            "target_plastic": original_target,
-            "supported_live_targets": sorted(_TARGET),
-        }
+    plastics_root = params.resolve_plastics_path()
+    source_ids = params.package_chemical_ids(plastics_root)
+    admission = params.admit_live_target(
+        original_target, package_chemical_ids=source_ids,
+    )
+    if not admission.admitted:
+        return _unsupported_target_result(original_target, admission)
     if sys.version_info < (3, 12):
         raise RuntimeError("Live BioSTEAM execution requires Python 3.12 or newer")
     if path := str(os.getenv("DISSOLVE_PLASTICS_PATH") or "").strip():
@@ -812,13 +895,40 @@ def run(config: dict[str, Any]) -> dict[str, Any]:
             "target_plastic": original_target,
             "live_provenance": provenance,
         }
+    loaded_ids = _outline_chemical_ids(strap_package.STRAP_chemicals_outline)
+    admission = params.admit_live_target(
+        original_target, package_chemical_ids=loaded_ids,
+    )
+    if not admission.admitted:
+        return _unsupported_target_result(original_target, admission)
+    if (
+        admission.oligomer_injection_required
+        and admission.row is not None
+        and admission.row.oligomer is not None
+    ):
+        try:
+            _inject_oligomer(strap_package, admission.row.oligomer)
+        except Exception as error:
+            return {
+                "success": False,
+                "error": (
+                    f"Could not inject oligomer "
+                    f"{admission.row.oligomer.chemical_id} from the parameter "
+                    f"surface: {error}"
+                ),
+                "error_type": "oligomer_injection_failed",
+                "target_plastic": original_target,
+                "live_provenance": provenance,
+            }
     process_class = _patch_process(getattr(strap_package, "BaselineSTRAPProcess"))
     try:
         strap_package.STRAP_chemicals_outline.append("HCl")
     except Exception:
         pass
 
-    target = _TARGET.get(original_target, original_target)
+    target = admission.identity_in_model
+    if not target:
+        return _unsupported_target_result(original_target, admission)
     energy_case = str(config.get("energy_case") or "C1").upper()
     energy = _ENERGY.get(energy_case)
     if energy is None:
@@ -915,7 +1025,7 @@ def run(config: dict[str, Any]) -> dict[str, Any]:
         dict(config.get("_lca_factor_provenance") or {}),
         evaluated_lca,
     )
-    return {
+    result = {
         "success": True, "solvent": config["solvent"],
         "engine_solvent": engine_identity.get("engine_solvent"),
         "solvent_identity_resolution": engine_identity,
@@ -954,6 +1064,23 @@ def run(config: dict[str, Any]) -> dict[str, Any]:
         },
         "runtime_seconds": round(time.monotonic() - started, 3),
     }
+    if admission.row is not None:
+        result = params.attach_live_parameter_standing(
+            result,
+            admission.row,
+            solvent=engine_identity.get("engine_solvent") or config.get("solvent"),
+        )
+    elif result.get("success") is True:
+        return {
+            "success": False,
+            "error": (
+                "Live TEA produced a number without parameter standing; "
+                "refusing to serve an unlabelled result."
+            ),
+            "error_type": "live_parameter_standing_missing",
+            "target_plastic": original_target,
+        }
+    return result
 
 
 def main() -> int:

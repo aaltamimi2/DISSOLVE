@@ -285,6 +285,34 @@ def doctor_report(
     except OSError as error:
         add("Session store", "fail", f"{probe.parent}: {error}", path=str(probe.parent))
 
+    live_tea = tea.live_environment_report()
+    if live_tea.get("available"):
+        live_detail = (
+            f"live TEA ready; admitted "
+            f"{', '.join(live_tea['admitted_live_targets'])}; "
+            f"parameters in {live_tea['parameter_surface']}"
+        )
+    else:
+        why = live_tea.get("why_unavailable") or live_tea.get("detail") or live_tea.get("reason")
+        live_detail = (
+            f"unavailable because {why} "
+            f"(parameters {live_tea['parameter_surface']})"
+        )
+    add(
+        "Live TEA", live_tea["check_status"], live_detail.strip(),
+        available=live_tea["available"],
+        reason=live_tea.get("reason"),
+        why_unavailable=live_tea.get("why_unavailable"),
+        unavailable_reasons=live_tea.get("unavailable_reasons"),
+        parent_python=live_tea.get("parent_python"),
+        DISSOLVE_TEA_PYTHON=live_tea.get("DISSOLVE_TEA_PYTHON"),
+        DISSOLVE_PLASTICS_PATH=live_tea.get("DISSOLVE_PLASTICS_PATH"),
+        admitted_live_targets=live_tea.get("admitted_live_targets"),
+        refused_grid_targets=live_tea.get("refused_grid_targets"),
+        parameter_surface=live_tea.get("parameter_surface"),
+        plastics_layout=live_tea.get("plastics_layout"),
+    )
+
     return {
         "schema": "dissolve.doctor.v1",
         "ready": not any(item["status"] == "fail" for item in checks),

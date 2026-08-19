@@ -8,6 +8,7 @@ import hashlib
 import json
 import math
 import os
+import platform
 import re
 import shutil
 import statistics
@@ -18,7 +19,7 @@ from importlib.resources import files
 from pathlib import Path
 from typing import Any, Literal, Optional, Sequence
 
-from . import tea_contracts, tea_worker
+from . import tea_contracts, tea_polymer_parameters, tea_worker
 from . import thermodynamics as thermo
 from .contracts import parse_tool_result, tool_error, tool_success
 from .session import (
@@ -1222,7 +1223,14 @@ def live_engine_status() -> dict[str, Any]:
     if not configured_python and sys.version_info < (3, 12):
         return {
             "available": False, "reason": "python_version",
-            "detail": "Live BioSTEAM execution requires Python 3.12 or newer.",
+            "detail": (
+                "Live BioSTEAM execution requires Python 3.12 or newer. "
+                f"This process is Python {platform.python_version()}. "
+                "Set DISSOLVE_TEA_PYTHON to the dissolve-tea-312 interpreter "
+                "(biosteam==2.52.17, thermosteam==0.52.16) and "
+                "DISSOLVE_PLASTICS_PATH to unpublished plastics 0.1.4. "
+                "Public plastics 0.1.3 is incompatible."
+            ),
         }
     if configured_python and shutil.which(worker_python) is None:
         return {
@@ -1310,6 +1318,112 @@ def live_engine_status() -> dict[str, Any]:
         "reason": None,
         "detail": "subprocess engine ready",
         "live_provenance": live_provenance,
+    }
+
+
+_LIVE_MISCONFIGURED_REASONS = frozenset({
+    "worker_interpreter_missing",
+    "process_model_missing",
+    "process_model_checksum_mismatch",
+    "runtime_version_mismatch",
+    "worker_environment_probe_failed",
+    "cache_provenance_missing",
+    "worker_source_mismatch",
+})
+
+
+def live_environment_report() -> dict[str, Any]:
+    """Diagnose the two-environment live TEA path without importing BioSTEAM.
+
+    The default repo interpreter is 3.11; live execution needs 3.12 plus
+    unpublished plastics 0.1.4. Doctor uses this so that fact is visible
+    before anyone rediscovers it at the moment of failure.
+    """
+    status = live_engine_status()
+    configured_python = str(os.getenv(_TEA_WORKER_PYTHON_ENV) or "").strip()
+    plastics = str(os.getenv("DISSOLVE_PLASTICS_PATH") or "").strip()
+    root = tea_polymer_parameters.resolve_plastics_path(plastics or None)
+    layout = (
+        tea_polymer_parameters.plastics_layout_diagnosis(root)
+        if root is not None else None
+    )
+    package_ids = (
+        tea_polymer_parameters.package_chemical_ids(root)
+        if root is not None else None
+    )
+    refused = tuple(sorted(
+        name for name, row in tea_polymer_parameters.POLYMERS.items()
+        if row.admission != tea_polymer_parameters.ADMISSION_LIVE
+    ))
+    why: list[str] = []
+    if sys.version_info < (3, 12) and not configured_python:
+        why.append(
+            f"this process is Python {platform.python_version()}, "
+            "which is below 3.12, and DISSOLVE_TEA_PYTHON is unset"
+        )
+    elif configured_python and shutil.which(
+        os.path.expanduser(configured_python)
+    ) is None:
+        why.append(
+            f"DISSOLVE_TEA_PYTHON={configured_python} is not an executable"
+        )
+    if not plastics:
+        why.append("DISSOLVE_PLASTICS_PATH is unset")
+    elif layout is None or layout.get("layout") == "unrecognised":
+        why.append(
+            f"the plastics package is missing under {plastics}"
+        )
+    elif layout.get("layout") == "inner_package_dir":
+        why.append(
+            "DISSOLVE_PLASTICS_PATH points at the inner package directory; "
+            "set it to the parent so `import plastics.strap` works"
+        )
+    if (
+        not why
+        and not status.get("available")
+        and status.get("detail")
+    ):
+        why.append(str(status["detail"]))
+    reason = status.get("reason")
+    if status.get("available"):
+        check_status = "pass"
+        why_text = "live TEA path is available"
+    elif reason in _LIVE_MISCONFIGURED_REASONS:
+        check_status = "fail"
+        why_text = "; ".join(why) if why else str(status.get("detail") or reason)
+    elif layout is not None and layout.get("layout") == "inner_package_dir":
+        check_status = "fail"
+        reason = "plastics_path_inner_package_dir"
+        why_text = "; ".join(why)
+    else:
+        check_status = "warn"
+        why_text = "; ".join(why) if why else str(status.get("detail") or reason)
+    return {
+        "check_status": check_status,
+        "available": bool(status.get("available")),
+        "reason": reason,
+        "why_unavailable": why_text if not status.get("available") else None,
+        "unavailable_reasons": why,
+        "detail": status.get("detail"),
+        "parent_python": platform.python_version(),
+        "parent_meets_live_requirement": sys.version_info >= (3, 12),
+        "live_requires_python": ">=3.12",
+        "DISSOLVE_TEA_PYTHON": configured_python or None,
+        "DISSOLVE_PLASTICS_PATH": plastics or None,
+        "plastics_layout": layout,
+        "package_chemical_id_count": (
+            len(package_ids) if package_ids is not None else None
+        ),
+        "admitted_live_targets": list(
+            tea_polymer_parameters.live_grid_targets()
+        ),
+        "refused_grid_targets": list(refused),
+        "parameter_surface": "src/dissolve/tea_polymer_parameters.py",
+        "live_engine": {
+            key: status[key]
+            for key in ("available", "reason", "detail")
+            if key in status
+        },
     }
 
 
@@ -1567,7 +1681,62 @@ def _run(config: dict[str, Any], engine_mode: str, timeout_seconds: int) -> dict
         "engine_mode": "live", "cache_match_status": "bypassed" if mode == "live" else "miss",
         "config": config,
     })
+    if result.get("success") is True:
+        result = _require_live_parameter_standing(result, config)
     return result
+
+
+def _require_live_parameter_standing(
+    result: dict[str, Any], config: dict[str, Any],
+) -> dict[str, Any]:
+    """Refuse to serve a live number whose process standing is missing.
+
+    The parameter surface is the authority, not the worker's word.
+    Overlay standing from the table on every live success. A provisional
+    result without ``process_parameter_status`` is not served — same
+    shape as gate_tea (number + standing) and D-8 (structural flag).
+    """
+    polymer = str(
+        config.get("target_plastic") or result.get("target_plastic") or ""
+    )
+    row = tea_polymer_parameters.polymer_row(polymer)
+    if row is None or row.admission != tea_polymer_parameters.ADMISSION_LIVE:
+        result.update({
+            "success": False,
+            "error": (
+                "Live TEA produced a number for a polymer that is not "
+                "admitted on the parameter surface; refusing to serve it."
+            ),
+            "error_type": "live_parameter_standing_missing",
+        })
+        result.pop("tea", None)
+        return result
+    solvent = str(
+        result.get("engine_solvent")
+        or config.get("solvent")
+        or result.get("solvent")
+        or ""
+    )
+    attached = tea_polymer_parameters.attach_live_parameter_standing(
+        result,
+        row,
+        solvent=solvent,
+    )
+    if (
+        attached.get("can_cite_as_validated_process") is False
+        and not attached.get("process_parameter_status")
+    ):
+        attached.update({
+            "success": False,
+            "error": (
+                "Live TEA produced a provisional number without "
+                "process_parameter_status; refusing to serve an unlabelled "
+                "result."
+            ),
+            "error_type": "live_parameter_standing_missing",
+        })
+        attached.pop("tea", None)
+    return attached
 
 
 def _same_config(
@@ -1807,6 +1976,38 @@ def _comparison_row(label: str, result: dict[str, Any]) -> dict[str, Any]:
                 )
             }
             if result.get("lca_metric_status") else {}
+        ),
+        **(
+            {
+                "process_parameter_status": copy.deepcopy(
+                    result["process_parameter_status"],
+                )
+            }
+            if result.get("process_parameter_status") else {}
+        ),
+        **(
+            {
+                "process_parameter_status_definitions": copy.deepcopy(
+                    result["process_parameter_status_definitions"],
+                )
+            }
+            if result.get("process_parameter_status_definitions") else {}
+        ),
+        **(
+            {
+                "live_parameter_standing": copy.deepcopy(
+                    result["live_parameter_standing"],
+                )
+            }
+            if result.get("live_parameter_standing") else {}
+        ),
+        **(
+            {
+                "can_cite_as_validated_process": result[
+                    "can_cite_as_validated_process"
+                ]
+            }
+            if "can_cite_as_validated_process" in result else {}
         ),
         **(
             {"lca_coverage": copy.deepcopy(result["lca_coverage"])}
@@ -2900,7 +3101,7 @@ def _candidate_tea_basis_gap(
 
 
 def _live_process_model_targets() -> tuple[str, ...]:
-    return tuple(sorted(tea_worker._TARGET))
+    return tea_polymer_parameters.live_grid_targets()
 
 
 def _classify_live_feed_polymers(
@@ -2909,10 +3110,10 @@ def _classify_live_feed_polymers(
     """Split feed labels into unrecognised vs recognised-but-unmodelled.
 
     Recognition is thermo.resolve_polymer_identity. Unmodelled is absence
-    from tea_worker._TARGET after that lookup, not membership in a bad-name
-    list. Generic PE expands to modelled LDPE/HDPE and is neither.
+    from the live parameter surface after that lookup, not membership in a
+    bad-name list. Generic PE expands to modelled LDPE/HDPE and is neither.
     """
-    modelled = tea_worker._TARGET
+    modelled = set(tea_polymer_parameters.live_identity_map())
     unrecognised: list[str] = []
     unmodelled: list[str] = []
     seen_unrecognised: set[str] = set()
