@@ -123,6 +123,7 @@ _ADDITIONAL_PIPING_DEFAULT = 0.045
 _PRORATABLE_COSTS_DEFAULT = 0.10
 _FIELD_EXPENSES_DEFAULT = 0.10
 _CONSTRUCTION_DEFAULT = 0.20
+_CONTINGENCY_DEFAULT = 0.4
 _FEEDSTOCK_PRICE_USD_PER_KG = 0.01
 _CENTRIFUGED_PLASTIC_SOLVENT_CONTENT_PCT = 50.0
 _NATURAL_GAS_PRICE_USD_PER_M3 = 4.73 * 35.3146667 / 1e3
@@ -145,6 +146,7 @@ _COEFFICIENT_DEFAULTS = {
     "proratable_costs": _PRORATABLE_COSTS_DEFAULT,
     "field_expenses": _FIELD_EXPENSES_DEFAULT,
     "construction": _CONSTRUCTION_DEFAULT,
+    "contingency": _CONTINGENCY_DEFAULT,
     "feedstock_price_usd_per_kg": _FEEDSTOCK_PRICE_USD_PER_KG,
     "centrifuged_plastic_solvent_content_pct": (
         _CENTRIFUGED_PLASTIC_SOLVENT_CONTENT_PCT
@@ -961,6 +963,7 @@ def public_process_field_names(*, energy_case: str = "C1") -> tuple[str, ...]:
         "proratable_costs",
         "field_expenses",
         "construction",
+        "contingency",
         "feedstock_price_usd_per_kg",
         "centrifuged_plastic_solvent_content_pct",
     )
@@ -1728,6 +1731,24 @@ def _validated_coefficients(
                 supplied=supplied["construction"],
             )
         coefficients["construction"] = fraction
+    if "contingency" in supplied:
+        fraction = _finite(supplied["contingency"], "contingency")
+        if fraction > 1:
+            raise _ScenarioInputError(
+                "contingency is a fraction (0.4 is 40 percent), not a "
+                "percent integer.",
+                error_code="invalid_scenario",
+                field="contingency",
+                supplied=supplied["contingency"],
+            )
+        if not 0 <= fraction <= 1:
+            raise _ScenarioInputError(
+                "contingency must be a fraction in [0, 1].",
+                error_code="invalid_scenario",
+                field="contingency",
+                supplied=supplied["contingency"],
+            )
+        coefficients["contingency"] = fraction
     if "feedstock_price_usd_per_kg" in supplied:
         price = _finite(
             supplied["feedstock_price_usd_per_kg"],
@@ -3824,6 +3845,7 @@ def _comparison_row(label: str, result: dict[str, Any]) -> dict[str, Any]:
         "proratable_costs": coefficients.get("proratable_costs"),
         "field_expenses": coefficients.get("field_expenses"),
         "construction": coefficients.get("construction"),
+        "contingency": coefficients.get("contingency"),
         "feedstock_price_usd_per_kg": coefficients.get(
             "feedstock_price_usd_per_kg"
         ),
