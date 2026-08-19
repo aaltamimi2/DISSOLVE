@@ -1125,6 +1125,14 @@ _CITED_STRAP_RELATIVE = {
 }
 
 
+def _read_strap_bytes(path: Path) -> bytes:
+    """Read a cited source for hashing. OSError is a named inspection failure."""
+    try:
+        return path.read_bytes()
+    except OSError as error:
+        raise PackageInspectionError(path, error) from error
+
+
 def cited_strap_source_provenance(
     plastics_root: Path,
 ) -> dict[str, Any]:
@@ -1144,7 +1152,7 @@ def cited_strap_source_provenance(
             continue
         sources[name] = {
             "path": str(path),
-            "sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
+            "sha256": hashlib.sha256(_read_strap_bytes(path)).hexdigest(),
         }
     return {"sources": sources, "missing": tuple(missing)}
 
@@ -1163,7 +1171,7 @@ def loaded_cited_strap_source_provenance() -> dict[str, Any]:
             continue
         sources[name] = {
             "path": str(path),
-            "sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
+            "sha256": hashlib.sha256(_read_strap_bytes(path)).hexdigest(),
         }
     return {"sources": sources, "missing": tuple(missing)}
 

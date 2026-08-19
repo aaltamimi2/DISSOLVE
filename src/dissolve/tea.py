@@ -1143,6 +1143,16 @@ def _expected_live_runtime_versions() -> dict[str, str]:
     return expected
 
 
+def _python_meets_live_requirement(version: str) -> bool:
+    """True when a resolved interpreter version is 3.12 or newer."""
+    parts = str(version or "").split(".")
+    try:
+        major, minor = int(parts[0]), int(parts[1])
+    except (IndexError, ValueError):
+        return False
+    return (major, minor) >= (3, 12)
+
+
 def _probe_live_runtime_versions(
     worker_python: str,
 ) -> tuple[Optional[dict[str, str]], Optional[str]]:
@@ -1206,10 +1216,12 @@ def _live_process_model_provenance(path: str) -> tuple[dict[str, Any], Optional[
         return provenance, f"Configured process model does not exist: {model_path}"
     try:
         tea_polymer_parameters._parse_strap_source(model_path)
+        actual = hashlib.sha256(
+            tea_polymer_parameters._read_strap_bytes(model_path)
+        ).hexdigest()
     except tea_polymer_parameters.PackageInspectionError as error:
         provenance["unreadable_source"] = str(error.path)
         return provenance, str(error)
-    actual = hashlib.sha256(model_path.read_bytes()).hexdigest()
     provenance["process_model_sha256"] = actual
     if actual != expected:
         return provenance, (
@@ -1222,7 +1234,15 @@ def _live_process_model_provenance(path: str) -> tuple[dict[str, Any], Optional[
 def _live_cited_package_provenance(path: str) -> tuple[dict[str, Any], Optional[str]]:
     """Hash the package files the expert table cites, not only process_model.py."""
     root = Path(path).expanduser().resolve()
-    cited = tea_polymer_parameters.cited_strap_source_provenance(root)
+    try:
+        cited = tea_polymer_parameters.cited_strap_source_provenance(root)
+    except tea_polymer_parameters.PackageInspectionError as error:
+        return {
+            "cited_package_sources": {},
+            "cited_package_missing": [],
+            "unreadable_source": str(error.path),
+            "unreadable_reason": error.diagnostic_reason,
+        }, str(error)
     provenance = {
         "cited_package_sources": cited["sources"],
         "cited_package_missing": list(cited["missing"]),
@@ -1328,6 +1348,26 @@ def live_engine_status() -> dict[str, Any]:
             },
         }
     assert resolved_versions is not None
+    live_runtime = {
+        **model_provenance,
+        **_tea_worker_source_provenance(),
+        "expected_runtime_versions": expected_versions,
+        "resolved_runtime_versions": resolved_versions,
+    }
+    if not _python_meets_live_requirement(resolved_versions["python"]):
+        return {
+            "available": False,
+            "reason": "python_version",
+            "detail": (
+                "Live BioSTEAM execution requires Python 3.12 or newer. "
+                f"DISSOLVE_TEA_PYTHON resolved Python "
+                f"{resolved_versions['python']}."
+            ),
+            "live_provenance": {
+                "status": "mismatch",
+                **live_runtime,
+            },
+        }
     mismatches = {
         name: {
             "expected": expected_versions[name],
@@ -1338,10 +1378,7 @@ def live_engine_status() -> dict[str, Any]:
     }
     live_provenance = {
         "status": "mismatch" if mismatches else "verified",
-        **model_provenance,
-        **_tea_worker_source_provenance(),
-        "expected_runtime_versions": expected_versions,
-        "resolved_runtime_versions": resolved_versions,
+        **live_runtime,
     }
     if mismatches:
         return {
@@ -1509,7 +1546,9 @@ def live_environment_report() -> dict[str, Any]:
             f"{LIVE_CHILD_HANDSHAKE_TARGET} "
             f"{(status.get('live_provenance') or {}).get('child_handshake_error_type')}"
         )
-    elif reason in _LIVE_MISCONFIGURED_REASONS:
+    elif reason in _LIVE_MISCONFIGURED_REASONS or (
+        reason == "python_version" and configured_python
+    ):
         check_status = "fail"
         why_text = "; ".join(why) if why else str(status.get("detail") or reason)
     elif layout is not None and layout.get("layout") == "inner_package_dir":

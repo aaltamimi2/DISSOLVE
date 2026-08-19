@@ -545,7 +545,14 @@ def _verify_loaded_live_provenance(
             "process_model_missing",
             f"Imported process model has no readable source file: {model_path}",
         )
-    actual_model_sha256 = hashlib.sha256(model_path.read_bytes()).hexdigest()
+    try:
+        actual_model_sha256 = hashlib.sha256(
+            params._read_strap_bytes(model_path)
+        ).hexdigest()
+    except params.PackageInspectionError as error:
+        provenance["status"] = "unverifiable"
+        provenance["unreadable_source"] = str(error.path)
+        return provenance, error.diagnostic_reason, str(error)
     provenance["process_model_sha256"] = actual_model_sha256
     if actual_model_sha256 != expected_model_sha256:
         provenance["status"] = "mismatch"
@@ -556,7 +563,12 @@ def _verify_loaded_live_provenance(
             f"expected {expected_model_sha256}, resolved {actual_model_sha256} "
             f"at {model_path}.",
         )
-    loaded_cited = params.loaded_cited_strap_source_provenance()
+    try:
+        loaded_cited = params.loaded_cited_strap_source_provenance()
+    except params.PackageInspectionError as error:
+        provenance["status"] = "unverifiable"
+        provenance["unreadable_source"] = str(error.path)
+        return provenance, error.diagnostic_reason, str(error)
     provenance["cited_package_sources"] = loaded_cited["sources"]
     expected_cited = {
         name: str(expected_cited_raw.get(name) or "").strip().casefold()
@@ -928,7 +940,16 @@ def run(config: dict[str, Any]) -> dict[str, Any]:
     if not admission.admitted:
         return _unsupported_target_result(original_target, admission)
     if sys.version_info < (3, 12):
-        raise RuntimeError("Live BioSTEAM execution requires Python 3.12 or newer")
+        return {
+            "success": False,
+            "error": (
+                "Live BioSTEAM execution requires Python 3.12 or newer. "
+                f"This worker is Python {platform.python_version()}."
+            ),
+            "error_type": "python_version",
+            "target_plastic": original_target,
+            "parameter_surface": "dissolve.tea_polymer_parameters",
+        }
     if path := str(os.getenv("DISSOLVE_PLASTICS_PATH") or "").strip():
         sys.path.insert(0, os.path.abspath(os.path.expanduser(path)))
     # Preserve the cache generator's import order. Importing process_model (or

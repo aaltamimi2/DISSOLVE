@@ -54,13 +54,14 @@ def _committed_pe_toluene_config(**overrides):
     return config
 
 
-# Owner-authorized live BioSTEAM endpoints against merged v12. Injected
-# standing-shape fixtures only — not produced by the worker in these tests.
-LDPE_TOLUENE_LIVE = {
-    "msp_usd_per_kg": 1.13492,
-    "tci_usd": 7.85216e7,
-    "aoc_usd_per_yr": 2.08159e6,
-    "gwp_kg_co2e_per_kg": 0.443567,
+# Synthetic standing-shape fixtures. Not live endpoints. The PE/Toluene
+# MSP 1.13492 belongs to a 55% target-plastic run, not this 60% config;
+# do not reattach that number here.
+STANDING_SHAPE_TOLUENE = {
+    "msp_usd_per_kg": 9.0,
+    "tci_usd": 1.0e6,
+    "aoc_usd_per_yr": 2.0e5,
+    "gwp_kg_co2e_per_kg": 0.5,
 }
 LDPE_DODECANE_C1 = {
     "solvent": "Dodecane",
@@ -76,7 +77,7 @@ LDPE_DODECANE_C1 = {
     "dissolution_capacity": 3.0,
     "labor_cost": 120_000.0,
 }
-LDPE_DODECANE_LIVE_MSP = 1.2635722365577455
+STANDING_SHAPE_DODECANE_MSP = 8.0
 
 
 def _write_matching_pe_package(
@@ -410,11 +411,11 @@ def test_standing_shape_keeps_validated_apart_from_correct(monkeypatch):
                 "solvent": "toluene",
                 "target_plastic": "LDPE",
                 "tea": {
-                    "msp_usd_per_kg": LDPE_TOLUENE_LIVE["msp_usd_per_kg"],
-                    "tci_usd": LDPE_TOLUENE_LIVE["tci_usd"],
-                    "aoc_usd_per_yr": LDPE_TOLUENE_LIVE["aoc_usd_per_yr"],
+                    "msp_usd_per_kg": STANDING_SHAPE_TOLUENE["msp_usd_per_kg"],
+                    "tci_usd": STANDING_SHAPE_TOLUENE["tci_usd"],
+                    "aoc_usd_per_yr": STANDING_SHAPE_TOLUENE["aoc_usd_per_yr"],
                 },
-                "lca": {"gwp_kg_co2e_per_kg": LDPE_TOLUENE_LIVE["gwp_kg_co2e_per_kg"]},
+                "lca": {"gwp_kg_co2e_per_kg": STANDING_SHAPE_TOLUENE["gwp_kg_co2e_per_kg"]},
                 "operations": {},
             }
         if plastic == "LDPE" and solvent == "dodecane":
@@ -423,7 +424,7 @@ def test_standing_shape_keeps_validated_apart_from_correct(monkeypatch):
                 "solvent": "Dodecane",
                 "target_plastic": "LDPE",
                 "tea": {
-                    "msp_usd_per_kg": LDPE_DODECANE_LIVE_MSP,
+                    "msp_usd_per_kg": STANDING_SHAPE_DODECANE_MSP,
                     "tci_usd": 87102535.73687321,
                     "aoc_usd_per_yr": 2356462.05524089,
                 },
@@ -441,18 +442,18 @@ def test_standing_shape_keeps_validated_apart_from_correct(monkeypatch):
     )
     dodecane = tea._run(dict(LDPE_DODECANE_C1), "live", 1)
 
-    assert committed["tea"]["msp_usd_per_kg"] == LDPE_TOLUENE_LIVE["msp_usd_per_kg"]
+    assert committed["tea"]["msp_usd_per_kg"] == STANDING_SHAPE_TOLUENE["msp_usd_per_kg"]
     assert committed["can_cite_as_validated_process"] is True
     assert not params.live_number_standing_defects(committed)
 
-    assert moved["tea"]["msp_usd_per_kg"] == LDPE_TOLUENE_LIVE["msp_usd_per_kg"]
+    assert moved["tea"]["msp_usd_per_kg"] == STANDING_SHAPE_TOLUENE["msp_usd_per_kg"]
     assert moved["can_cite_as_validated_process"] is False
     assert "precipitation_temperature_c" in moved["live_parameter_standing"][
         "committed_setpoint_mismatches"
     ]
     assert moved["process_parameter_status"]["msp_usd_per_kg"]
 
-    assert dodecane["tea"]["msp_usd_per_kg"] == LDPE_DODECANE_LIVE_MSP
+    assert dodecane["tea"]["msp_usd_per_kg"] == STANDING_SHAPE_DODECANE_MSP
     assert dodecane["can_cite_as_validated_process"] is False
     assert dodecane["live_parameter_standing"]["committed_pair"] is None
     assert dodecane["process_parameter_status"]["msp_usd_per_kg"]
@@ -909,3 +910,109 @@ def test_live_engine_status_parses_cited_steps_before_ready(tmp_path, monkeypatc
     assert status["available"] is False
     assert status["reason"] == "cited_package_unreadable"
     assert "dissolution_steps.py" in (status.get("detail") or "")
+
+
+def test_worker_admitted_target_is_named_python_version(monkeypatch):
+    monkeypatch.delenv("DISSOLVE_PLASTICS_PATH", raising=False)
+    result = tea_worker.run({"target_plastic": "LDPE"})
+    assert result["success"] is False
+    assert result["error_type"] == "python_version"
+    assert "3.12" in result["error"]
+    assert "Traceback" not in result["error"]
+
+
+def test_readiness_rejects_resolved_python_below_3_12(tmp_path, monkeypatch):
+    real_model = (
+        _REAL_PLASTICS_PARENT / "plastics" / "strap" / "process_model.py"
+    )
+    if not real_model.is_file():
+        pytest.skip("unpublished process_model.py is not on this machine")
+    _write_matching_pe_package(tmp_path)
+    shutil.copy2(real_model, tmp_path / "plastics" / "strap" / "process_model.py")
+    monkeypatch.setenv("DISSOLVE_PLASTICS_PATH", str(tmp_path))
+    monkeypatch.setenv("DISSOLVE_TEA_PYTHON", sys.executable)
+    expected = tea._expected_live_runtime_versions()
+
+    def fake_probe(_python):
+        return {
+            "python": "3.11.14",
+            **expected,
+        }, None
+
+    monkeypatch.setattr(tea, "_probe_live_runtime_versions", fake_probe)
+    tea._LIVE_CHILD_HANDSHAKE_CACHE.clear()
+    status = tea.live_engine_status()
+    assert status["available"] is False
+    assert status["reason"] == "python_version"
+    assert "3.11.14" in (status.get("detail") or "")
+    assert not (status.get("live_provenance") or {}).get("child_handshake_ok")
+    monkeypatch.delenv("META_MUSE_API_KEY", raising=False)
+    report = tea.live_environment_report()
+    assert report["available"] is False
+    assert report["reason"] == "python_version"
+    assert report["check_status"] == "fail"
+
+
+def test_group_meeting_interpreter_is_not_ready(monkeypatch):
+    interpreter = Path("/home/aaltamimi2/anaconda3/envs/group-meeting/bin/python")
+    plastics = (
+        _REAL_PLASTICS_PARENT / "plastics" / "strap" / "property_package.py"
+    )
+    if not interpreter.is_file() or not plastics.is_file():
+        pytest.skip("group-meeting interpreter or unpublished plastics missing")
+    tea._LIVE_CHILD_HANDSHAKE_CACHE.clear()
+    monkeypatch.setenv("DISSOLVE_TEA_PYTHON", str(interpreter))
+    monkeypatch.setenv("DISSOLVE_PLASTICS_PATH", str(_REAL_PLASTICS_PARENT))
+    status = tea.live_engine_status()
+    assert status["available"] is False
+    assert status["reason"] == "python_version"
+    resolved = (status.get("live_provenance") or {}).get(
+        "resolved_runtime_versions"
+    ) or {}
+    assert str(resolved.get("python") or "").startswith("3.11")
+
+
+def test_unreadable_cited_source_is_named_not_traceback(tmp_path, monkeypatch):
+    root = tmp_path / "plastics-root"
+    _write_matching_pe_package(root)
+    strap = root / "plastics" / "strap"
+    (strap / "process_model.py").write_text("# stub\n", encoding="utf-8")
+    target = strap / "dissolution_steps.py"
+    original = Path.read_bytes
+
+    def boom(self):
+        if Path(self).resolve() == target.resolve():
+            raise PermissionError("injected")
+        return original(self)
+
+    monkeypatch.setattr(Path, "read_bytes", boom)
+    monkeypatch.setenv("DISSOLVE_PLASTICS_PATH", str(root))
+    monkeypatch.delenv("DISSOLVE_TEA_PYTHON", raising=False)
+    monkeypatch.delenv("META_MUSE_API_KEY", raising=False)
+    report = tea.live_environment_report()
+    assert report["reason"] == "cited_package_unreadable"
+    assert report["check_status"] == "fail"
+    assert str(target) in (report["why_unavailable"] or "")
+    assert "Traceback" not in (report["why_unavailable"] or "")
+    result = tea_worker.run({"target_plastic": "LDPE"})
+    assert result["success"] is False
+    assert result["error_type"] == "cited_package_unreadable"
+    assert str(target) in result["error"]
+    assert "Traceback" not in result["error"]
+    real_model = (
+        _REAL_PLASTICS_PARENT / "plastics" / "strap" / "process_model.py"
+    )
+    if real_model.is_file():
+        original_copy = original
+        shutil.copy2(real_model, strap / "process_model.py")
+
+        def boom_status(self):
+            if Path(self).resolve() == target.resolve():
+                raise PermissionError("injected")
+            return original_copy(self)
+
+        monkeypatch.setattr(Path, "read_bytes", boom_status)
+        monkeypatch.setenv("DISSOLVE_TEA_PYTHON", sys.executable)
+        status = tea.live_engine_status()
+        assert status["available"] is False
+        assert status["reason"] == "cited_package_unreadable"
