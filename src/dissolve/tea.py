@@ -1101,15 +1101,19 @@ def _tea_worker_python() -> str:
     return os.path.expanduser(configured) if configured else sys.executable
 
 
-def _tea_worker_source_provenance() -> dict[str, str]:
+def _tea_worker_source_provenance() -> tuple[dict[str, Any], Optional[str]]:
     """Bind child execution to the same worker source imported by the parent."""
     worker_path = Path(str(tea_worker.__file__)).resolve()
-    return {
-        "worker_source_path": str(worker_path),
-        "expected_worker_source_sha256": hashlib.sha256(
-            worker_path.read_bytes()
-        ).hexdigest(),
-    }
+    provenance: dict[str, Any] = {"worker_source_path": str(worker_path)}
+    try:
+        digest = hashlib.sha256(
+            tea_polymer_parameters._read_strap_bytes(worker_path)
+        ).hexdigest()
+    except tea_polymer_parameters.PackageInspectionError as error:
+        provenance["unreadable_source"] = str(error.path)
+        return provenance, str(error)
+    provenance["expected_worker_source_sha256"] = digest
+    return provenance, None
 
 
 def _tea_worker_environment() -> dict[str, str]:
@@ -1299,18 +1303,22 @@ def live_engine_status() -> dict[str, Any]:
     if model_error:
         if model_provenance.get("expected_process_model_sha256") is None:
             reason = "cache_provenance_missing"
+            provenance_status = "unverifiable"
         elif model_provenance.get("unreadable_source"):
             reason = "process_model_unreadable"
+            provenance_status = "unverifiable"
         elif model_provenance.get("process_model_sha256") is None:
             reason = "process_model_missing"
+            provenance_status = "unverifiable"
         else:
             reason = "process_model_checksum_mismatch"
+            provenance_status = "mismatch"
         return {
             "available": False,
             "reason": reason,
             "detail": model_error,
             "live_provenance": {
-                "status": "mismatch",
+                "status": provenance_status,
                 **model_provenance,
             },
         }
@@ -1348,9 +1356,8 @@ def live_engine_status() -> dict[str, Any]:
             },
         }
     assert resolved_versions is not None
-    live_runtime = {
+    runtime_without_worker = {
         **model_provenance,
-        **_tea_worker_source_provenance(),
         "expected_runtime_versions": expected_versions,
         "resolved_runtime_versions": resolved_versions,
     }
@@ -1365,7 +1372,7 @@ def live_engine_status() -> dict[str, Any]:
             ),
             "live_provenance": {
                 "status": "mismatch",
-                **live_runtime,
+                **runtime_without_worker,
             },
         }
     mismatches = {
@@ -1375,6 +1382,22 @@ def live_engine_status() -> dict[str, Any]:
         }
         for name in expected_versions
         if resolved_versions[name] != expected_versions[name]
+    }
+    worker_provenance, worker_error = _tea_worker_source_provenance()
+    if worker_error:
+        return {
+            "available": False,
+            "reason": "worker_source_unreadable",
+            "detail": worker_error,
+            "live_provenance": {
+                "status": "unverifiable",
+                **runtime_without_worker,
+                **worker_provenance,
+            },
+        }
+    live_runtime = {
+        **runtime_without_worker,
+        **worker_provenance,
     }
     live_provenance = {
         "status": "mismatch" if mismatches else "verified",
@@ -1443,6 +1466,7 @@ _LIVE_MISCONFIGURED_REASONS = frozenset({
     "worker_environment_probe_failed",
     "cache_provenance_missing",
     "worker_source_mismatch",
+    "worker_source_unreadable",
     "property_package_unreadable",
     "cited_package_source_missing",
     "cited_package_checksum_mismatch",

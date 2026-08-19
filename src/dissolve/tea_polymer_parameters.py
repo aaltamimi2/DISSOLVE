@@ -131,12 +131,14 @@ _INSPECTION_KIND = {
     "dissolution_steps.py": "dissolution steps",
     "precipitation_steps.py": "precipitation steps",
     "process_model.py": "process model",
+    "tea_worker.py": "live worker source",
 }
 _INSPECTION_REASON = {
     "property_package.py": "property_package_unreadable",
     "dissolution_steps.py": "cited_package_unreadable",
     "precipitation_steps.py": "cited_package_unreadable",
     "process_model.py": "process_model_unreadable",
+    "tea_worker.py": "worker_source_unreadable",
 }
 
 

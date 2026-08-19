@@ -437,7 +437,20 @@ def _verify_loaded_live_provenance(
         )
 
     worker_path = Path(__file__).resolve()
-    worker_sha256 = hashlib.sha256(worker_path.read_bytes()).hexdigest()
+    try:
+        worker_sha256 = hashlib.sha256(
+            params._read_strap_bytes(worker_path)
+        ).hexdigest()
+    except params.PackageInspectionError as error:
+        return (
+            {
+                "status": "unverifiable",
+                "worker_source_path": str(worker_path),
+                "unreadable_source": str(error.path),
+            },
+            error.diagnostic_reason,
+            str(error),
+        )
     worker_provenance = {
         "worker_source_path": str(worker_path),
         "worker_source_sha256": worker_sha256,

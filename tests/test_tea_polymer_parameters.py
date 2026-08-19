@@ -724,11 +724,13 @@ def test_runpy_child_returns_named_json_for_refused_target(monkeypatch):
     assert argv[1] == "-c"
     assert argv[2] == tea.LIVE_WORKER_RUNPY_BOOTSTRAP
     assert "runpy.run_path" in argv[2]
+    provenance, worker_error = tea._tea_worker_source_provenance()
+    assert worker_error is None
     result = tea._launch_live_worker(
         {"target_plastic": "PU"},
         timeout_seconds=30,
         environment=tea._tea_worker_environment(),
-        provenance=tea._tea_worker_source_provenance(),
+        provenance=provenance,
     )
     assert result.get("error_type") != "invalid_worker_output"
     assert result["success"] is False
@@ -914,11 +916,25 @@ def test_live_engine_status_parses_cited_steps_before_ready(tmp_path, monkeypatc
 
 def test_worker_admitted_target_is_named_python_version(monkeypatch):
     monkeypatch.delenv("DISSOLVE_PLASTICS_PATH", raising=False)
+    monkeypatch.setattr(tea_worker.sys, "version_info", (3, 11, 14))
+    monkeypatch.setattr(
+        tea_worker.platform, "python_version", lambda: "3.11.14",
+    )
     result = tea_worker.run({"target_plastic": "LDPE"})
     assert result["success"] is False
     assert result["error_type"] == "python_version"
-    assert "3.12" in result["error"]
+    assert "3.11.14" in result["error"]
     assert "Traceback" not in result["error"]
+
+
+def test_worker_python_guard_does_not_fire_on_3_12_predicate(monkeypatch):
+    monkeypatch.delenv("DISSOLVE_PLASTICS_PATH", raising=False)
+    monkeypatch.setattr(tea_worker.sys, "version_info", (3, 12, 13))
+    monkeypatch.setattr(
+        tea_worker.platform, "python_version", lambda: "3.12.13",
+    )
+    with pytest.raises(ModuleNotFoundError, match="plastics"):
+        tea_worker.run({"target_plastic": "LDPE"})
 
 
 def test_readiness_rejects_resolved_python_below_3_12(tmp_path, monkeypatch):
@@ -1016,3 +1032,111 @@ def test_unreadable_cited_source_is_named_not_traceback(tmp_path, monkeypatch):
         status = tea.live_engine_status()
         assert status["available"] is False
         assert status["reason"] == "cited_package_unreadable"
+
+
+def test_unreadable_process_model_is_unverifiable_not_mismatch(tmp_path, monkeypatch):
+    real_model = (
+        _REAL_PLASTICS_PARENT / "plastics" / "strap" / "process_model.py"
+    )
+    if not real_model.is_file():
+        pytest.skip("unpublished process_model.py is not on this machine")
+    _write_matching_pe_package(tmp_path)
+    dest = tmp_path / "plastics" / "strap" / "process_model.py"
+    shutil.copy2(real_model, dest)
+    original = Path.read_bytes
+
+    def boom(self):
+        if Path(self).resolve() == dest.resolve():
+            raise PermissionError("injected")
+        return original(self)
+
+    monkeypatch.setattr(Path, "read_bytes", boom)
+    monkeypatch.setenv("DISSOLVE_PLASTICS_PATH", str(tmp_path))
+    monkeypatch.setenv("DISSOLVE_TEA_PYTHON", sys.executable)
+    status = tea.live_engine_status()
+    assert status["available"] is False
+    assert status["reason"] == "process_model_unreadable"
+    assert status["live_provenance"]["status"] == "unverifiable"
+    assert status["live_provenance"]["unreadable_source"] == str(dest.resolve())
+
+
+def test_unreadable_worker_source_is_named_parent_and_public(tmp_path, monkeypatch):
+    real_model = (
+        _REAL_PLASTICS_PARENT / "plastics" / "strap" / "process_model.py"
+    )
+    if not real_model.is_file():
+        pytest.skip("unpublished process_model.py is not on this machine")
+    _write_matching_pe_package(tmp_path)
+    shutil.copy2(real_model, tmp_path / "plastics" / "strap" / "process_model.py")
+    worker = Path(tea_worker.__file__).resolve()
+    original = Path.read_bytes
+
+    def boom(self):
+        if Path(self).resolve() == worker:
+            raise PermissionError("injected")
+        return original(self)
+
+    monkeypatch.setattr(Path, "read_bytes", boom)
+    monkeypatch.setenv("DISSOLVE_PLASTICS_PATH", str(tmp_path))
+    monkeypatch.setenv("DISSOLVE_TEA_PYTHON", sys.executable)
+    expected = tea._expected_live_runtime_versions()
+    monkeypatch.setattr(
+        tea,
+        "_probe_live_runtime_versions",
+        lambda _python: ({"python": "3.12.13", **expected}, None),
+    )
+    tea._LIVE_CHILD_HANDSHAKE_CACHE.clear()
+    status = tea.live_engine_status()
+    assert status["available"] is False
+    assert status["reason"] == "worker_source_unreadable"
+    assert status["live_provenance"]["status"] == "unverifiable"
+    assert str(worker) in (status.get("detail") or "")
+    monkeypatch.delenv("META_MUSE_API_KEY", raising=False)
+    report = tea.live_environment_report()
+    assert report["reason"] == "worker_source_unreadable"
+    assert report["check_status"] == "fail"
+    raw = tea.evaluate_tea_lca_scenarios(
+        [{
+            "target_polymer": "PU",
+            "solvent": "toluene",
+            "dissolution_temp_c": 95.0,
+            "solvent_price": 1.312,
+        }],
+        engine_mode="live",
+        timeout_seconds=30,
+    )
+    parsed = json.loads(raw)
+    data = parsed["data"]
+    assert data["success"] is False
+    failures = data.get("failures") or []
+    assert any(
+        row.get("error_type") == "worker_source_unreadable" for row in failures
+    )
+    assert "Traceback" not in json.dumps(parsed)
+
+
+def test_loaded_worker_source_read_failure_is_named(monkeypatch):
+    worker = Path(tea_worker.__file__).resolve()
+    original = Path.read_bytes
+
+    def boom(self):
+        if Path(self).resolve() == worker:
+            raise PermissionError("injected")
+        return original(self)
+
+    monkeypatch.setattr(Path, "read_bytes", boom)
+    provenance, error_type, error = tea_worker._verify_loaded_live_provenance({
+        "runtime_versions": {
+            name: "0" for name in tea_worker._LIVE_RUNTIME_MODULES
+        },
+        "process_model_sha256": "abc",
+        "worker_source_path": str(worker),
+        "worker_source_sha256": "def",
+        "cited_package_sha256": {
+            name: "x" for name in params.CITED_STRAP_SOURCE_NAMES
+        },
+    })
+    assert error_type == "worker_source_unreadable"
+    assert provenance["status"] == "unverifiable"
+    assert provenance["unreadable_source"] == str(worker)
+    assert "Traceback" not in (error or "")
