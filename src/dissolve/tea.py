@@ -135,6 +135,26 @@ _STORED_ROUTE_PRODUCTION_REMAINDER = {
     "dissolution_capacity": 3.0,
     "labor_cost_usd_per_employee_yr": 120_000.0,
 }
+_SCREENING_SHORTLIST_SOURCES = frozenset({
+    "plan_multistage_separation",
+    "screen_polymer_separation",
+    "explicit",
+})
+_SCREENING_SHORTLIST_KEYS = frozenset({"source", "handle", "items"})
+_SCREENING_ITEM_KEYS = frozenset({
+    "target_polymer", "target_plastic", "solvent",
+    "dissolution_temperature_c", "dissolution_temp_c",
+    "temperature_c",
+})
+_HELD_PROCESS_BASIS_KEYS = frozenset().union(
+    *(
+        _PUBLIC_FIELD_SOURCE_KEYS[name]
+        for name in _NINE_HELD_PUBLIC_FIELDS
+    ),
+    _FLOWSHEET_SWITCH_FIELDS,
+    _COEFFICIENT_DEFAULTS,
+    ("natural_gas_price_usd_per_m3",),
+)
 _FIELD_NOT_ADJUSTABLE_NAMES = frozenset({
     "centrifuged_precipitate_solvent_content",
     "set_centrifuged_precipitate_solvent_content",
@@ -1558,6 +1578,204 @@ def _missing_required_public_fields(scenario: dict[str, Any]) -> list[str]:
         ):
             missing.append(public)
     return missing
+
+
+def _missing_held_public_fields(basis: dict[str, Any]) -> list[str]:
+    missing = []
+    for public in _NINE_HELD_PUBLIC_FIELDS:
+        keys = _PUBLIC_FIELD_SOURCE_KEYS[public]
+        if not any(
+            key in basis and _scenario_value_present(basis.get(key))
+            for key in keys
+        ):
+            missing.append(public)
+    return missing
+
+
+def _canonical_held_process_basis(basis: dict[str, Any]) -> dict[str, Any]:
+    supplied = {
+        _SCENARIO_ALIASES.get(str(key), str(key)): value
+        for key, value in basis.items()
+    }
+    public: dict[str, Any] = {}
+    for internal, public_name in _DESIGN_POINT_PUBLIC_FIELDS:
+        if public_name not in _NINE_HELD_PUBLIC_FIELDS:
+            continue
+        if internal in supplied:
+            public[public_name] = supplied[internal]
+        elif public_name in supplied:
+            public[public_name] = supplied[public_name]
+    for key in (
+        *_FLOWSHEET_SWITCH_FIELDS,
+        *_COEFFICIENT_DEFAULTS,
+        "natural_gas_price_usd_per_m3",
+    ):
+        if key in supplied:
+            public[key] = supplied[key]
+        elif key in basis:
+            public[key] = basis[key]
+    return public
+
+
+def _handoff_field_origin(held: dict[str, Any]) -> dict[str, str]:
+    origin = {
+        "target_polymer": "from_screen",
+        "solvent": "from_screen",
+        "dissolution_temperature_c": "from_screen",
+    }
+    for name in _NINE_HELD_PUBLIC_FIELDS:
+        origin[name] = "supplied"
+    for key in (
+        *_FLOWSHEET_SWITCH_FIELDS,
+        *_COEFFICIENT_DEFAULTS,
+        "natural_gas_price_usd_per_m3",
+    ):
+        if key in held:
+            origin[key] = "supplied"
+    return origin
+
+
+def _canonical_screening_shortlist_item(
+    item: Any, index: int,
+) -> dict[str, Any]:
+    if not isinstance(item, dict):
+        raise _ScenarioInputError(
+            "screening_shortlist items must be objects",
+            error_code="screening_shortlist_incomplete",
+            item_index=index,
+            missing=["target_polymer", "solvent", "dissolution_temperature_c"],
+        )
+    unknown = sorted(
+        str(key) for key in item if str(key) not in _SCREENING_ITEM_KEYS
+    )
+    if unknown:
+        raise _ScenarioInputError(
+            "unknown extra process field: " + ", ".join(unknown),
+            error_code="unknown_process_field",
+            extra_keys=unknown,
+            item_index=index,
+        )
+    mapped = dict(item)
+    has_dissolution = any(
+        key in mapped and _scenario_value_present(mapped.get(key))
+        for key in (
+            "dissolution_temperature_c", "dissolution_temp_c",
+        )
+    )
+    if "temperature_c" in mapped:
+        if has_dissolution:
+            raise _ScenarioInputError(
+                "unknown extra process field: temperature_c",
+                error_code="unknown_process_field",
+                extra_keys=["temperature_c"],
+                item_index=index,
+            )
+        mapped["dissolution_temperature_c"] = mapped.pop("temperature_c")
+    polymer = mapped.get("target_polymer") or mapped.get("target_plastic")
+    missing = []
+    if not _scenario_value_present(polymer):
+        missing.append("target_polymer")
+    if not _scenario_value_present(mapped.get("solvent")):
+        missing.append("solvent")
+    temperature = mapped.get("dissolution_temperature_c")
+    if temperature is None:
+        temperature = mapped.get("dissolution_temp_c")
+    if not _scenario_value_present(temperature):
+        missing.append("dissolution_temperature_c")
+    if missing:
+        raise _ScenarioInputError(
+            "screening_shortlist item is incomplete; missing: "
+            + ", ".join(missing),
+            error_code="screening_shortlist_incomplete",
+            item_index=index,
+            missing=missing,
+        )
+    return {
+        "target_polymer": polymer,
+        "solvent": mapped.get("solvent"),
+        "dissolution_temperature_c": temperature,
+    }
+
+
+def _expand_screening_evaluate_handoff(
+    shortlist: Any,
+    held: Any,
+) -> tuple[list[dict[str, Any]], dict[str, str]]:
+    """Compose 3 from_screen + 9 supplied. Not a cache-pair fill."""
+    if not isinstance(shortlist, dict):
+        raise _ScenarioInputError(
+            "screening_shortlist must be an object",
+            error_code="screening_shortlist_incomplete",
+            missing=["source", "items"],
+        )
+    unknown = sorted(
+        str(key) for key in shortlist
+        if str(key) not in _SCREENING_SHORTLIST_KEYS
+    )
+    if unknown:
+        raise _ScenarioInputError(
+            "unknown extra process field: " + ", ".join(unknown),
+            error_code="unknown_process_field",
+            extra_keys=unknown,
+        )
+    source = str(shortlist.get("source") or "").strip()
+    if source not in _SCREENING_SHORTLIST_SOURCES:
+        raise _ScenarioInputError(
+            "screening_shortlist.source must be "
+            "plan_multistage_separation, screen_polymer_separation, "
+            "or explicit",
+            error_code="screening_shortlist_incomplete",
+            missing=["source"],
+            allowed_sources=sorted(_SCREENING_SHORTLIST_SOURCES),
+        )
+    handle = shortlist.get("handle")
+    if handle is not None and not isinstance(handle, str):
+        raise _ScenarioInputError(
+            "screening_shortlist.handle must be a string when supplied",
+            error_code="screening_shortlist_incomplete",
+            missing=["handle"],
+        )
+    items = shortlist.get("items")
+    if not isinstance(items, list) or not items:
+        raise _ScenarioInputError(
+            "screening_shortlist.items must be a non-empty list",
+            error_code="screening_shortlist_incomplete",
+            missing=["items"],
+        )
+    if held is None or not isinstance(held, dict):
+        raise _ScenarioInputError(
+            "held_process_basis is required with screening_shortlist",
+            error_code="screening_basis_incomplete",
+            missing=list(_NINE_HELD_PUBLIC_FIELDS),
+        )
+    unknown_held = sorted(
+        str(key) for key in held if str(key) not in _HELD_PROCESS_BASIS_KEYS
+    )
+    if unknown_held:
+        raise _ScenarioInputError(
+            "unknown extra process field: " + ", ".join(unknown_held),
+            error_code="unknown_process_field",
+            extra_keys=unknown_held,
+        )
+    missing_held = _missing_held_public_fields(held)
+    if missing_held:
+        raise _ScenarioInputError(
+            "held_process_basis is incomplete; missing public fields: "
+            + ", ".join(missing_held),
+            error_code="screening_basis_incomplete",
+            missing=missing_held,
+        )
+    if len(items) > 20:
+        raise _ScenarioInputError(
+            "At most 20 scenarios may run per call",
+            error_code="too_many_scenarios",
+        )
+    canonical_held = _canonical_held_process_basis(held)
+    scenarios = []
+    for index, item in enumerate(items):
+        three = _canonical_screening_shortlist_item(item, index)
+        scenarios.append({**canonical_held, **three})
+    return scenarios, _handoff_field_origin(held)
 
 
 def _stored_route_named_remainder(solvent: str) -> dict[str, Any]:
@@ -3795,33 +4013,66 @@ def rank_landscape(
 
 
 def evaluate_tea_lca_scenarios(
-    scenarios: list[dict[str, Any]],
+    scenarios: Optional[list[dict[str, Any]]] = None,
     engine_mode: str = "auto",
     timeout_seconds: int = 180,
+    screening_shortlist: Optional[dict[str, Any]] = None,
+    held_process_basis: Optional[dict[str, Any]] = None,
 ) -> str:
-    """Evaluate user-supplied complete independent scenarios, not current candidates.
+    """Evaluate complete independent scenarios, or a screening handoff.
 
-    Each scenario requires the twelve public D-8 process fields:
-    target_polymer, solvent, target_mass_percent,
-    processing_capacity_mt_per_yr, energy_case, dissolution_temperature_c,
-    precipitation_temperature_c, solvent_price_usd_per_kg, solvent_loss_pct,
-    feedstock_distance_km, dissolution_capacity, and
-    labor_cost_usd_per_employee_yr. Known aliases canonicalize into those
-    names. Unknown extra keys refuse. Omitted switches and coefficients
-    keep the production plant (leftover neither sold nor burned; constant
-    precipitation; integrated heat transfer; IRR 0.10; feedstock 0.01
-    USD/kg; centrifuged solvent 50%; NG 4.73 USD/kcf on C1/C3). Auto mode
-    uses only exact cache matches, otherwise a compatible isolated live
-    engine; it never interpolates cached process results or serves another
-    plant's MSP under a twelve-only key. Use
-    evaluate_stored_route_tea_lca for an inherited route or candidate
-    shortlist.
+    Each scenario requires the twelve public D-8 process fields.
+    Alternatively, screening_shortlist.v1 plus held_process_basis.v1
+    expands to one complete process_config per item (three from_screen,
+    nine supplied). temperature_c maps to dissolution_temperature_c only
+    on that handoff; it is not an alias on process_config. Unknown extra
+    keys refuse. Omitted switches and coefficients keep the production
+    plant. This is not a third public TEA name and does not fill the nine
+    from a cache pair.
     """
     tool = "evaluate_tea_lca_scenarios"
+    has_scenarios = isinstance(scenarios, list) and bool(scenarios)
+    has_shortlist = screening_shortlist is not None
+    if has_scenarios and has_shortlist:
+        return tool_error(
+            tool,
+            "send either scenarios or screening_shortlist, not both",
+            error_code="conflicting_evaluate_composition",
+        )
+    if held_process_basis is not None and not has_shortlist:
+        return tool_error(
+            tool,
+            "held_process_basis is only legal with screening_shortlist",
+            error_code="conflicting_evaluate_composition",
+        )
+    field_origin = None
+    if has_shortlist:
+        try:
+            scenarios, field_origin = _expand_screening_evaluate_handoff(
+                screening_shortlist, held_process_basis,
+            )
+        except _ScenarioInputError as error:
+            return tool_error(
+                tool,
+                str(error),
+                error_code=error.error_code,
+                **error.details,
+            )
+    elif not has_scenarios:
+        return tool_error(
+            tool, "scenarios must be a non-empty list",
+            error_code="missing_scenarios",
+        )
     if not isinstance(scenarios, list) or not scenarios:
-        return tool_error(tool, "scenarios must be a non-empty list", error_code="missing_scenarios")
+        return tool_error(
+            tool, "scenarios must be a non-empty list",
+            error_code="missing_scenarios",
+        )
     if len(scenarios) > 20:
-        return tool_error(tool, "At most 20 scenarios may run per call", error_code="too_many_scenarios")
+        return tool_error(
+            tool, "At most 20 scenarios may run per call",
+            error_code="too_many_scenarios",
+        )
     try:
         timeout = max(1, min(int(timeout_seconds), 600))
         configs = [_scenario_config(item) for item in scenarios]
@@ -3842,6 +4093,9 @@ def evaluate_tea_lca_scenarios(
     results = [_run(config, engine_mode, timeout) for config in configs]
     labels = [str(item.get("label") or f"scenario-{index}") for index, item in enumerate(scenarios, 1)]
     rows = [_comparison_row(label, result) for label, result in zip(labels, results)]
+    if field_origin is not None:
+        for row in rows:
+            row["field_origin"] = dict(field_origin)
     successes = [row for row in rows if row["success"]]
     failures = [row for row in rows if not row["success"]]
     if not successes:

@@ -850,6 +850,8 @@ class CliApp:
         out = dict(kwargs)
         if name == "evaluate_tea_lca_scenarios":
             out["scenarios"] = [buffer]
+            out.pop("screening_shortlist", None)
+            out.pop("held_process_basis", None)
         elif name == "analyze_tea_sensitivity":
             out["scenario"] = buffer
         return out
@@ -870,6 +872,8 @@ class CliApp:
             self._process_buffer = submitted
             out = dict(kwargs)
             out["scenarios"] = [submitted]
+            out.pop("screening_shortlist", None)
+            out.pop("held_process_basis", None)
             return out
         if name == "analyze_tea_sensitivity":
             seed = self._confirm_seed(kwargs.get("scenario"))

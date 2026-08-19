@@ -273,6 +273,46 @@ def test_later_evaluate_runs_the_confirmed_buffer_not_model_args(
     assert third["parameter"] == "solvent_price"
 
 
+def test_later_evaluate_drops_screening_shortlist_from_model_args(
+    tmp_path, monkeypatch,
+):
+    monkeypatch.setattr(cli, "run_turn", _ok_turn)
+    monkeypatch.setattr(sys.stdin, "isatty", lambda: True)
+    app, _buf = _app(tmp_path, monkeypatch)
+    sheet = tea.seed_public_process_config({
+        "target_polymer": "LDPE",
+        "solvent": "Dodecane",
+        "dissolution_temperature_c": 145.0,
+    })
+    monkeypatch.setattr(app, "_edit_process_sheet", lambda seed, **kwargs: sheet)
+    captured = []
+
+    def original(name, **kwargs):
+        captured.append(kwargs)
+        return {"success": True}
+
+    app._cli_direct_active = True
+    app._cli_direct_dispatch(
+        original,
+        "evaluate_tea_lca_scenarios",
+        {"scenarios": [{"target_polymer": "LDPE"}]},
+    )
+    app._cli_direct_dispatch(
+        original,
+        "evaluate_tea_lca_scenarios",
+        {
+            "screening_shortlist": {
+                "source": "explicit",
+                "items": [{"target_polymer": "LDPE", "solvent": "toluene"}],
+            },
+            "held_process_basis": {"energy_case": "C1"},
+        },
+    )
+    assert "screening_shortlist" not in captured[1]
+    assert "held_process_basis" not in captured[1]
+    assert captured[1]["scenarios"][0] is sheet
+
+
 def test_process_buffer_is_the_first_confirm_seed(tmp_path, monkeypatch):
     monkeypatch.setattr(cli, "run_turn", _ok_turn)
     monkeypatch.setattr(sys.stdin, "isatty", lambda: True)
