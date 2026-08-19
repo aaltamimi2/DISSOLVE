@@ -1020,6 +1020,9 @@ def _scenario_config(scenario: dict[str, Any]) -> dict[str, Any]:
         "precipitation_temp_c": "precipitation_temperature_c",
     }
     supplied = {aliases.get(key, key): value for key, value in scenario.items()}
+    table_process = tea_polymer_parameters.live_process_config_defaults(
+        polymer, solvent,
+    )
     config = {
         **{
             "target_plastic_percent": 60.0,
@@ -1032,6 +1035,7 @@ def _scenario_config(scenario: dict[str, Any]) -> dict[str, Any]:
             "labor_cost": 120_000.0,
         },
         **defaults,
+        **table_process,
         **{key: supplied[key] for key in _CONFIG_FIELDS if key in supplied},
         "target_plastic": polymer,
         "solvent": solvent,
@@ -1329,6 +1333,7 @@ _LIVE_MISCONFIGURED_REASONS = frozenset({
     "worker_environment_probe_failed",
     "cache_provenance_missing",
     "worker_source_mismatch",
+    "property_package_unreadable",
 })
 
 
@@ -1347,10 +1352,20 @@ def live_environment_report() -> dict[str, Any]:
         tea_polymer_parameters.plastics_layout_diagnosis(root)
         if root is not None else None
     )
-    package_ids = (
-        tea_polymer_parameters.package_chemical_ids(root)
-        if root is not None else None
-    )
+    package_ids: Optional[frozenset[str]] = None
+    inspection_error: Optional[tea_polymer_parameters.PackageInspectionError] = None
+    if root is not None:
+        try:
+            package_ids = tea_polymer_parameters.package_chemical_ids(root)
+        except tea_polymer_parameters.PackageInspectionError as error:
+            inspection_error = error
+        except (OSError, UnicodeDecodeError, SyntaxError, ValueError) as error:
+            source = None
+            if layout is not None and layout.get("property_package_path"):
+                source = Path(str(layout["property_package_path"]))
+            inspection_error = tea_polymer_parameters.PackageInspectionError(
+                source or root, error,
+            )
     refused = tuple(sorted(
         name for name, row in tea_polymer_parameters.POLYMERS.items()
         if row.admission != tea_polymer_parameters.ADMISSION_LIVE
@@ -1378,6 +1393,8 @@ def live_environment_report() -> dict[str, Any]:
             "DISSOLVE_PLASTICS_PATH points at the inner package directory; "
             "set it to the parent so `import plastics.strap` works"
         )
+    if inspection_error is not None:
+        why.append(str(inspection_error))
     if (
         not why
         and not status.get("available")
@@ -1385,7 +1402,12 @@ def live_environment_report() -> dict[str, Any]:
     ):
         why.append(str(status["detail"]))
     reason = status.get("reason")
-    if status.get("available"):
+    available = bool(status.get("available")) and inspection_error is None
+    if inspection_error is not None:
+        check_status = "fail"
+        reason = "property_package_unreadable"
+        why_text = "; ".join(why) if why else str(inspection_error)
+    elif available:
         check_status = "pass"
         why_text = "live TEA path is available"
     elif reason in _LIVE_MISCONFIGURED_REASONS:
@@ -1400,9 +1422,9 @@ def live_environment_report() -> dict[str, Any]:
         why_text = "; ".join(why) if why else str(status.get("detail") or reason)
     return {
         "check_status": check_status,
-        "available": bool(status.get("available")),
+        "available": available,
         "reason": reason,
-        "why_unavailable": why_text if not status.get("available") else None,
+        "why_unavailable": why_text if not available else None,
         "unavailable_reasons": why,
         "detail": status.get("detail"),
         "parent_python": platform.python_version(),
@@ -1721,6 +1743,8 @@ def _require_live_parameter_standing(
         result,
         row,
         solvent=solvent,
+        config=config,
+        plastics_root=tea_polymer_parameters.resolve_plastics_path(),
     )
     if (
         attached.get("can_cite_as_validated_process") is False

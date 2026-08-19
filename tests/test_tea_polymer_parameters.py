@@ -2,7 +2,9 @@
 from __future__ import annotations
 
 import ast
+import json
 import sys
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
@@ -31,6 +33,66 @@ STRAP_chemicals_outline = bst.ChemicalsOutline([
     "Water",
 ])
 '''
+
+
+def _committed_pe_toluene_config(**overrides):
+    committed = params.COMMITTED_PAIR_STEPS[("PE", "toluene")]
+    config = {
+        "solvent": "toluene",
+        "target_plastic": "LDPE",
+        "target_plastic_percent": 60.0,
+        "processing_capacity": 20_000.0,
+        "energy_case": "C1",
+        **params.process_config_from_assumptions(committed),
+        "solvent_price": 2.17,
+        "solvent_loss_pct": 0.01,
+        "feedstock_distance_km": 0.0,
+        "labor_cost": 120_000.0,
+    }
+    config.update(overrides)
+    return config
+
+
+def _write_matching_pe_package(root: Path, *, pe_rho: str = "0.5 * (880 + 960)") -> Path:
+    strap = root / "plastics" / "strap"
+    strap.mkdir(parents=True)
+    (strap / "property_package.py").write_text(
+        f'''
+STRAP_chemicals_outline = bst.ChemicalsOutline([
+    bst.ChemicalDraft(
+        "PE",
+        formula="C2H4",
+        rho={pe_rho},
+        Cp=0.5 * (1.330 + 2.400),
+        Tm=0.5 * (115 + 135) + 273.15,
+    ),
+    bst.ChemicalDraft("PEoligomer", search_ID="1-Hexene"),
+])
+''',
+        encoding="utf-8",
+    )
+    (strap / "dissolution_steps.py").write_text(
+        """
+def PE_Toluene_dissolution():
+    return DissolutionStep(
+        'PE', 'PEoligomer', 'Toluene', None, 0.03,
+        0.5, 368.15, 0.5
+    )
+""",
+        encoding="utf-8",
+    )
+    (strap / "precipitation_steps.py").write_text(
+        """
+def PE_Toluene_precipitation():
+    return PrecipitationStep(
+        'Toluene', 'PE', 'PEoligomer',
+        0, 0.8, 0.4, 308.15, 0.5,
+        None,
+    )
+""",
+        encoding="utf-8",
+    )
+    return root
 
 
 def test_expert_surface_lists_every_grid_polymer_including_refusals():
@@ -165,10 +227,19 @@ def test_provisional_payload_labels_every_costed_metric():
 
 def test_pe_toluene_committed_pair_is_validated_other_solvents_are_not():
     row = params.POLYMERS["LDPE"]
-    toluene = params.live_parameter_standing_payload(row, solvent="Toluene")
+    exact = _committed_pe_toluene_config()
+    toluene = params.live_parameter_standing_payload(
+        row, solvent="Toluene", config=exact, package_disagreements=(),
+    )
     assert toluene["can_cite_as_validated_process"] is True
     assert "process_parameter_status" not in toluene
-    hexane = params.live_parameter_standing_payload(row, solvent="hexane")
+    unnamed = params.live_parameter_standing_payload(
+        row, solvent="Toluene", package_disagreements=(),
+    )
+    assert unnamed["can_cite_as_validated_process"] is False
+    hexane = params.live_parameter_standing_payload(
+        row, solvent="hexane", config=exact, package_disagreements=(),
+    )
     assert hexane["can_cite_as_validated_process"] is False
     assert "msp_usd_per_kg" in hexane["process_parameter_status"]
 
@@ -233,6 +304,7 @@ def test_unlabelled_live_msp_is_a_standing_defect():
 
 
 def test_run_binds_standing_on_injected_live_success(monkeypatch):
+    monkeypatch.delenv("DISSOLVE_PLASTICS_PATH", raising=False)
     unlabelled = {
         "success": True,
         "solvent": "toluene",
@@ -272,11 +344,23 @@ def test_run_binds_standing_on_injected_live_success(monkeypatch):
     config["target_plastic"] = "LDPE"
     config["dissolution_temperature_c"] = 95.0
     unlabelled["target_plastic"] = "LDPE"
+    ldpe_wrong_precip = tea._run(dict(config), "live", 1)
+    assert ldpe_wrong_precip["success"] is True
+    assert not params.live_number_standing_defects(ldpe_wrong_precip)
+    assert ldpe_wrong_precip["tea"]["can_cite_as_validated_process"] is False
+    assert "precipitation_temperature_c" in ldpe_wrong_precip[
+        "live_parameter_standing"
+    ]["committed_setpoint_mismatches"]
+
+    config["precipitation_temperature_c"] = 35.0
     ldpe = tea._run(dict(config), "live", 1)
     assert ldpe["success"] is True
     assert not params.live_number_standing_defects(ldpe)
     assert ldpe["tea"]["can_cite_as_validated_process"] is True
     assert params.live_standing_signature(pes) != params.live_standing_signature(ldpe)
+    assert params.live_standing_signature(ldpe_wrong_precip) != (
+        params.live_standing_signature(ldpe)
+    )
 
 
 def test_parent_refuses_unlabelled_provisional_live_result():
@@ -348,3 +432,160 @@ def test_doctor_reports_live_tea_path_without_requiring_it(tmp_path, monkeypatch
             for item in report["checks"]
         )
         assert live_is_only_fail
+
+
+def test_public_scenario_overrides_cannot_cite_committed_pair_names(monkeypatch):
+    monkeypatch.delenv("DISSOLVE_PLASTICS_PATH", raising=False)
+    captured = {}
+    unlabelled = {
+        "success": True,
+        "solvent": "toluene",
+        "target_plastic": "LDPE",
+        "tea": {
+            "msp_usd_per_kg": 7.25,
+            "tci_usd": 1.0,
+            "aoc_usd_per_yr": 1.0,
+        },
+        "lca": {"gwp_kg_co2e_per_kg": 0.8},
+        "operations": {},
+    }
+
+    def fake_live(config, timeout):
+        captured.update(config)
+        return dict(unlabelled)
+
+    monkeypatch.setattr(tea, "_live", fake_live)
+    raw = tea.evaluate_tea_lca_scenarios(
+        scenarios=[{
+            "target_polymer": "LDPE",
+            "solvent": "toluene",
+            "dissolution_temp_c": 200.0,
+            "precipitation_temp_c": 10.0,
+            "dissolution_capacity": 9.0,
+            "solvent_price": 2.17,
+        }],
+        engine_mode="live",
+    )
+    payload = json.loads(raw)
+    assert captured["dissolution_temperature_c"] == 200.0
+    assert captured["precipitation_temperature_c"] == 10.0
+    assert captured["dissolution_capacity"] == 9.0
+    rows = payload["data"]["comparison_rows"]
+    assert rows[0]["success"] is True
+    assert rows[0]["msp_usd_per_kg"] == 7.25
+    assert rows[0]["can_cite_as_validated_process"] is False
+    assert rows[0]["process_parameter_status"]["msp_usd_per_kg"]
+    mismatches = rows[0]["live_parameter_standing"]["committed_setpoint_mismatches"]
+    assert "dissolution_temperature_c" in mismatches
+    assert "precipitation_temperature_c" in mismatches
+    assert "dissolution_capacity" in mismatches
+
+
+def test_table_process_defaults_drive_scenario_config(monkeypatch):
+    monkeypatch.delenv("DISSOLVE_PLASTICS_PATH", raising=False)
+    cfg = tea._scenario_config({
+        "target_polymer": "LDPE",
+        "solvent": "toluene",
+        "solvent_price": 2.17,
+    })
+    assert cfg["dissolution_temperature_c"] == 95.0
+    assert cfg["precipitation_temperature_c"] == 35.0
+    assert cfg["dissolution_capacity"] == 3.0
+    pes = tea._scenario_config({
+        "target_polymer": "PES",
+        "solvent": "toluene",
+        "solvent_price": 2.17,
+        "dissolution_temperature_c": 130.0,
+    })
+    assert pes["precipitation_temperature_c"] == 25.0
+    assert pes["dissolution_capacity"] == 3.0
+
+
+def test_mutating_committed_precip_changes_what_is_run_and_fails_validation(
+    monkeypatch,
+):
+    monkeypatch.delenv("DISSOLVE_PLASTICS_PATH", raising=False)
+    original = params.COMMITTED_PAIR_STEPS[("PE", "toluene")]
+    exact = _committed_pe_toluene_config()
+    before = params.live_parameter_standing_payload(
+        params.POLYMERS["LDPE"],
+        solvent="toluene",
+        config=exact,
+        package_disagreements=(),
+    )
+    assert before["can_cite_as_validated_process"] is True
+    mutated = replace(original, precipitation_temperature_c=40.0)
+    monkeypatch.setitem(params.COMMITTED_PAIR_STEPS, ("PE", "toluene"), mutated)
+    cfg = tea._scenario_config({
+        "target_polymer": "LDPE",
+        "solvent": "toluene",
+        "solvent_price": 2.17,
+    })
+    assert cfg["precipitation_temperature_c"] == 40.0
+    after = params.live_parameter_standing_payload(
+        params.POLYMERS["LDPE"],
+        solvent="toluene",
+        config=exact,
+        package_disagreements=(),
+    )
+    assert after["can_cite_as_validated_process"] is False
+    assert "precipitation_temperature_c" in after["live_parameter_standing"][
+        "committed_setpoint_mismatches"
+    ]
+
+
+def test_package_chemical_mutation_makes_validation_fail(tmp_path):
+    _write_matching_pe_package(tmp_path)
+    row = params.POLYMERS["LDPE"]
+    exact = _committed_pe_toluene_config()
+    matching = params.surface_package_disagreements(row, "toluene", tmp_path)
+    assert matching == ()
+    validated = params.live_parameter_standing_payload(
+        row, solvent="toluene", config=exact, plastics_root=tmp_path,
+    )
+    assert validated["can_cite_as_validated_process"] is True
+    mutated_row = replace(row, chemical=replace(row.chemical, rho_kg_m3=1.0))
+    disagreements = params.surface_package_disagreements(
+        mutated_row, "toluene", tmp_path,
+    )
+    assert "rho_kg_m3" in disagreements
+    payload = params.live_parameter_standing_payload(
+        mutated_row,
+        solvent="toluene",
+        config=exact,
+        plastics_root=tmp_path,
+    )
+    assert payload["can_cite_as_validated_process"] is False
+
+
+def test_doctor_malformed_property_package_is_named_fail(tmp_path, monkeypatch):
+    root = tmp_path / "plastics-root"
+    strap = root / "plastics" / "strap"
+    strap.mkdir(parents=True)
+    (strap / "property_package.py").write_text("def (\n", encoding="utf-8")
+    (strap / "process_model.py").write_text("# stub\n", encoding="utf-8")
+    monkeypatch.setenv("DISSOLVE_PLASTICS_PATH", str(root))
+    monkeypatch.delenv("DISSOLVE_TEA_PYTHON", raising=False)
+    monkeypatch.delenv("META_MUSE_API_KEY", raising=False)
+    report = tea.live_environment_report()
+    assert report["reason"] == "property_package_unreadable"
+    assert report["check_status"] == "fail"
+    assert str(strap / "property_package.py") in (report["why_unavailable"] or "")
+    assert "Traceback" not in (report["why_unavailable"] or "")
+    doctor = doctor_report(tmp_path, model_alias="muse-spark")
+    check = next(c for c in doctor["checks"] if c["name"] == "Live TEA")
+    assert check["status"] == "fail"
+    assert check["reason"] == "property_package_unreadable"
+    assert str(strap / "property_package.py") in (check["detail"] or "")
+
+
+def test_worker_malformed_package_is_named_refusal(tmp_path, monkeypatch):
+    root = tmp_path / "plastics-root"
+    strap = root / "plastics" / "strap"
+    strap.mkdir(parents=True)
+    (strap / "property_package.py").write_text("def (\n", encoding="utf-8")
+    monkeypatch.setenv("DISSOLVE_PLASTICS_PATH", str(root))
+    result = tea_worker.run({"target_plastic": "LDPE"})
+    assert result["success"] is False
+    assert result["error_type"] == "property_package_unreadable"
+    assert str(strap / "property_package.py") in result["error"]

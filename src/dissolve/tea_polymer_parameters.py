@@ -16,11 +16,19 @@ fall-through to the generic factory.
 Standing (same shape as ``lca_metric_status`` / D-8)
 ----------------------------------------------------
 ``validated``     a number produced from this parameter may be treated
-                  as a defended process assumption.
+                  as a defended process assumption. For process steps
+                  that means the assumptions that actually reached the
+                  worker, not the pair's names: dissolution T,
+                  precipitation T, and capacity must match the committed
+                  six-field basis after unit normalization. Config
+                  capacity is wt % because ``set_dissolution_capacity``
+                  stores wt/vol as percent/100; this table records wt/vol.
 ``provisional``   the number is servable, but every emitted costed
                   metric MUST carry ``process_parameter_status``.
                   ``can_cite_as_validated_process`` is False. A caller
-                  cannot treat it as a validated design point.
+                  cannot treat it as a validated design point. A
+                  same-polymer/same-solvent override (or a table that
+                  disagrees with the inspectable package) is provisional.
 
 Admission is a predicate, not a remembered name list
 ----------------------------------------------------
@@ -47,6 +55,7 @@ from __future__ import annotations
 
 import ast
 import json
+import math
 import os
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -103,6 +112,25 @@ GENERIC_FACTORY_TAU_H = 0.5
 GENERIC_FACTORY_PRECIPITATION_T_C = 35.0  # 308.15 K
 GENERIC_FACTORY_PRECIPITATION_SOLUBILITY = 0.0
 GENERIC_FACTORY_PRECIPITATION_TAU_H = 0.5
+
+# Worker-applied knobs. process_model.set_dissolution_capacity takes wt %
+# and stores wt/vol = percent/100. Temperatures on the request are °C;
+# the plant setters add 273.15. Named package steps store Kelvin and wt/vol.
+KELVIN_OFFSET = 273.15
+CONFIG_CAPACITY_IS_WT_PERCENT = True
+
+
+class PackageInspectionError(Exception):
+    """A strap source file existed but could not be read as Python AST."""
+
+    def __init__(self, path: Path, cause: BaseException):
+        self.path = Path(path)
+        self.cause_type = type(cause).__name__
+        self.cause = cause
+        super().__init__(
+            f"property package at {self.path} could not be inspected "
+            f"({self.cause_type})"
+        )
 
 
 @dataclass(frozen=True)
@@ -606,8 +634,98 @@ def process_assumptions_for(
     return committed if committed is not None else row.process
 
 
+def process_config_from_assumptions(
+    process: ProcessAssumptions,
+) -> dict[str, float]:
+    """Worker-facing knobs for one process row.
+
+    ``dissolution_capacity`` is wt % so the plant setter can divide by 100.
+    """
+    return {
+        "dissolution_temperature_c": process.dissolution_temperature_c,
+        "precipitation_temperature_c": process.precipitation_temperature_c,
+        "dissolution_capacity": process.dissolution_capacity_wt_per_vol * 100.0,
+    }
+
+
+def live_process_config_defaults(
+    grid_name: str, solvent: Optional[str],
+) -> dict[str, float]:
+    """Committed-pair knobs the public scenario config uses unless overridden.
+
+    Only named committed pairs drive defaults. Applying the generic factory
+    (0.05 wt/vol, 35 °C precip) here would rewrite cache keys for every
+    polymer that omitted those fields. Those runs stay provisional by
+    process standing; the table still governs the pairs it has signed.
+    """
+    row = polymer_row(grid_name)
+    if row is None:
+        return {}
+    committed = committed_process_for(row.identity_in_model, solvent)
+    if committed is None:
+        return {}
+    return process_config_from_assumptions(committed)
+
+
+def _close(left: float, right: float, abs_tol: float = 1e-9) -> bool:
+    return math.isclose(float(left), float(right), rel_tol=0.0, abs_tol=abs_tol)
+
+
+def _config_float(config: Mapping[str, Any], key: str) -> Optional[float]:
+    if key not in config or config[key] is None:
+        return None
+    try:
+        return float(config[key])
+    except (TypeError, ValueError):
+        return None
+
+
+def executed_setpoint_mismatches(
+    process: ProcessAssumptions,
+    config: Optional[Mapping[str, Any]],
+) -> tuple[str, ...]:
+    """Worker-applied knobs that differ from this process basis.
+
+    A missing config cannot be cited as a validated execution: standing is
+    a predicate over what ran, not over the pair's names.
+    """
+    required = (
+        "dissolution_temperature_c",
+        "precipitation_temperature_c",
+        "dissolution_capacity",
+    )
+    if config is None:
+        return required
+    mismatches: list[str] = []
+    executed_t = _config_float(config, "dissolution_temperature_c")
+    executed_precip = _config_float(config, "precipitation_temperature_c")
+    executed_capacity_pct = _config_float(config, "dissolution_capacity")
+    if executed_t is None or not _close(
+        executed_t, process.dissolution_temperature_c,
+    ):
+        mismatches.append("dissolution_temperature_c")
+    if executed_precip is None or not _close(
+        executed_precip, process.precipitation_temperature_c,
+    ):
+        mismatches.append("precipitation_temperature_c")
+    if executed_capacity_pct is None:
+        mismatches.append("dissolution_capacity")
+    else:
+        executed_wt_per_vol = executed_capacity_pct / 100.0
+        if not _close(
+            executed_wt_per_vol,
+            process.dissolution_capacity_wt_per_vol,
+            abs_tol=1e-12,
+        ):
+            mismatches.append("dissolution_capacity")
+    return tuple(mismatches)
+
+
 def parameters_are_provisional(
-    row: PolymerRow, solvent: Optional[str] = None,
+    row: PolymerRow,
+    solvent: Optional[str] = None,
+    config: Optional[Mapping[str, Any]] = None,
+    package_disagreements: Optional[Iterable[str]] = None,
 ) -> bool:
     """True if any parameter that feeds a live number is provisional."""
     if row.chemist_signoff_required:
@@ -619,7 +737,158 @@ def parameters_are_provisional(
     process = process_assumptions_for(row, solvent)
     if process is None or process.standing != VALIDATED:
         return True
+    if executed_setpoint_mismatches(process, config):
+        return True
+    if tuple(package_disagreements or ()):
+        return True
     return False
+
+
+def live_parameter_standing_payload(
+    row: PolymerRow,
+    *,
+    solvent: Optional[str] = None,
+    present_metrics: Optional[Iterable[str]] = None,
+    config: Optional[Mapping[str, Any]] = None,
+    package_disagreements: Optional[Iterable[str]] = None,
+    plastics_root: Optional[Path] = None,
+) -> dict[str, Any]:
+    """Attach standing to a live success payload.
+
+    Validated runs emit ``can_cite_as_validated_process: true`` and no
+    per-metric status codes (same as unqualified LCA fields).
+    Provisional runs emit the code on every present costed metric and
+    ``can_cite_as_validated_process: false``.
+    """
+    process = process_assumptions_for(row, solvent)
+    if package_disagreements is not None:
+        disagreements = tuple(package_disagreements)
+    elif plastics_root is not None:
+        try:
+            disagreements = surface_package_disagreements(
+                row, solvent, plastics_root,
+            )
+        except PackageInspectionError:
+            disagreements = ("property_package_unreadable",)
+    else:
+        disagreements = ()
+    mismatches = (
+        executed_setpoint_mismatches(process, config)
+        if process is not None else
+        (
+            "dissolution_temperature_c",
+            "precipitation_temperature_c",
+            "dissolution_capacity",
+        )
+    )
+    provisional = parameters_are_provisional(
+        row, solvent, config=config, package_disagreements=disagreements,
+    )
+    chemical_standing = (
+        row.chemical.standing if row.chemical is not None else PROVISIONAL
+    )
+    oligomer_standing = (
+        row.oligomer.standing if row.oligomer is not None else PROVISIONAL
+    )
+    process_standing = process.standing if process is not None else PROVISIONAL
+    if mismatches or disagreements:
+        process_standing = PROVISIONAL
+    provisional_parameters = [
+        name for name, standing in (
+            ("chemical", chemical_standing),
+            ("oligomer", oligomer_standing),
+            ("process_steps", process_standing),
+        )
+        if standing != VALIDATED
+    ]
+    if row.chemist_signoff_required:
+        provisional_parameters.append("chemist_signoff_required")
+    for item in mismatches:
+        if item not in provisional_parameters:
+            provisional_parameters.append(item)
+    for item in disagreements:
+        if item not in provisional_parameters:
+            provisional_parameters.append(item)
+    executed = None
+    if config is not None:
+        capacity_pct = _config_float(config, "dissolution_capacity")
+        executed = {
+            "dissolution_temperature_c": _config_float(
+                config, "dissolution_temperature_c",
+            ),
+            "precipitation_temperature_c": _config_float(
+                config, "precipitation_temperature_c",
+            ),
+            "dissolution_capacity_wt_percent": capacity_pct,
+            "dissolution_capacity_wt_per_vol": (
+                None if capacity_pct is None else capacity_pct / 100.0
+            ),
+        }
+    standing = {
+        "target_plastic": row.grid_name,
+        "identity_in_model": row.identity_in_model,
+        "chemical": chemical_standing,
+        "oligomer": oligomer_standing,
+        "process_steps": process_standing,
+        "committed_pair": process.committed_pair if process else None,
+        "chemist_signoff_required": row.chemist_signoff_required,
+        "provisional_parameters": provisional_parameters,
+        "committed_setpoint_mismatches": list(mismatches),
+        "package_disagreements": list(disagreements),
+        "executed_setpoints": executed,
+        "parameter_surface": "dissolve.tea_polymer_parameters",
+    }
+    if row.chemist_signoff_required:
+        standing["chemist_signoff_note"] = row.chemist_signoff_note
+    payload: dict[str, Any] = {
+        "can_cite_as_validated_process": not provisional,
+        "live_parameter_standing": standing,
+    }
+    if not provisional:
+        return payload
+    metrics = list(present_metrics or LIVE_COSTED_METRIC_FIELDS)
+    payload["process_parameter_status"] = {
+        field: PROCESS_PARAMETER_STATUS_CODE for field in metrics
+    }
+    payload["process_parameter_status_definitions"] = {
+        PROCESS_PARAMETER_STATUS_CODE: dict(
+            PROCESS_PARAMETER_STATUS_DEFINITION,
+        ),
+    }
+    return payload
+
+
+def attach_live_parameter_standing(
+    result: dict[str, Any],
+    row: PolymerRow,
+    *,
+    solvent: Optional[str] = None,
+    config: Optional[Mapping[str, Any]] = None,
+    package_disagreements: Optional[Iterable[str]] = None,
+    plastics_root: Optional[Path] = None,
+) -> dict[str, Any]:
+    """Write standing onto the live payload *and* onto ``tea``.
+
+    A caller who only copies ``result["tea"]`` still sees
+    ``can_cite_as_validated_process`` next to the MSP. Absence of the
+    flag on a live ``tea`` object is a defect; validated and provisional
+    must not serialize identically.
+    """
+    attached = live_parameter_standing_payload(
+        row,
+        solvent=solvent,
+        present_metrics=present_costed_metrics(result),
+        config=config if config is not None else result.get("config"),
+        package_disagreements=package_disagreements,
+        plastics_root=plastics_root,
+    )
+    result.update(attached)
+    tea = dict(result.get("tea") or {})
+    tea["can_cite_as_validated_process"] = attached["can_cite_as_validated_process"]
+    if attached.get("process_parameter_status"):
+        tea["process_parameter_status"] = dict(attached["process_parameter_status"])
+    result["tea"] = tea
+    return result
 
 
 def admit_live_target(
@@ -732,96 +1001,6 @@ def admit_live_target(
     )
 
 
-def live_parameter_standing_payload(
-    row: PolymerRow,
-    *,
-    solvent: Optional[str] = None,
-    present_metrics: Optional[Iterable[str]] = None,
-) -> dict[str, Any]:
-    """Attach standing to a live success payload.
-
-    Validated runs emit ``can_cite_as_validated_process: true`` and no
-    per-metric status codes (same as unqualified LCA fields).
-    Provisional runs emit the code on every present costed metric and
-    ``can_cite_as_validated_process: false``.
-    """
-    process = process_assumptions_for(row, solvent)
-    provisional = parameters_are_provisional(row, solvent)
-    chemical_standing = (
-        row.chemical.standing if row.chemical is not None else PROVISIONAL
-    )
-    oligomer_standing = (
-        row.oligomer.standing if row.oligomer is not None else PROVISIONAL
-    )
-    process_standing = process.standing if process is not None else PROVISIONAL
-    provisional_parameters = [
-        name for name, standing in (
-            ("chemical", chemical_standing),
-            ("oligomer", oligomer_standing),
-            ("process_steps", process_standing),
-        )
-        if standing != VALIDATED
-    ]
-    if row.chemist_signoff_required:
-        provisional_parameters.append("chemist_signoff_required")
-    standing = {
-        "target_plastic": row.grid_name,
-        "identity_in_model": row.identity_in_model,
-        "chemical": chemical_standing,
-        "oligomer": oligomer_standing,
-        "process_steps": process_standing,
-        "committed_pair": process.committed_pair if process else None,
-        "chemist_signoff_required": row.chemist_signoff_required,
-        "provisional_parameters": provisional_parameters,
-        "parameter_surface": "dissolve.tea_polymer_parameters",
-    }
-    if row.chemist_signoff_required:
-        standing["chemist_signoff_note"] = row.chemist_signoff_note
-    payload: dict[str, Any] = {
-        "can_cite_as_validated_process": not provisional,
-        "live_parameter_standing": standing,
-    }
-    if not provisional:
-        return payload
-    metrics = list(present_metrics or LIVE_COSTED_METRIC_FIELDS)
-    payload["process_parameter_status"] = {
-        field: PROCESS_PARAMETER_STATUS_CODE for field in metrics
-    }
-    payload["process_parameter_status_definitions"] = {
-        PROCESS_PARAMETER_STATUS_CODE: dict(
-            PROCESS_PARAMETER_STATUS_DEFINITION,
-        ),
-    }
-    return payload
-
-
-def attach_live_parameter_standing(
-    result: dict[str, Any],
-    row: PolymerRow,
-    *,
-    solvent: Optional[str] = None,
-) -> dict[str, Any]:
-    """Write standing onto the live payload *and* onto ``tea``.
-
-    A caller who only copies ``result["tea"]`` still sees
-    ``can_cite_as_validated_process`` next to the MSP. Absence of the
-    flag on a live ``tea`` object is a defect; validated and provisional
-    must not serialize identically.
-    """
-    attached = live_parameter_standing_payload(
-        row,
-        solvent=solvent,
-        present_metrics=present_costed_metrics(result),
-    )
-    result.update(attached)
-    tea = dict(result.get("tea") or {})
-    tea["can_cite_as_validated_process"] = attached["can_cite_as_validated_process"]
-    if attached.get("process_parameter_status"):
-        tea["process_parameter_status"] = dict(attached["process_parameter_status"])
-    result["tea"] = tea
-    return result
-
-
 def live_number_standing_defects(payload: Mapping[str, Any]) -> list[str]:
     """Defects if a served live MSP is not bound to standing on the same object.
 
@@ -911,6 +1090,14 @@ _PROCESS_MODEL_RELATIVE = (
     Path("plastics") / "strap" / "process_model.py",
     Path("strap") / "process_model.py",
 )
+_DISSOLUTION_STEPS_RELATIVE = (
+    Path("plastics") / "strap" / "dissolution_steps.py",
+    Path("strap") / "dissolution_steps.py",
+)
+_PRECIPITATION_STEPS_RELATIVE = (
+    Path("plastics") / "strap" / "precipitation_steps.py",
+    Path("strap") / "precipitation_steps.py",
+)
 
 
 def resolve_plastics_path(path: Optional[str] = None) -> Optional[Path]:
@@ -974,6 +1161,41 @@ def _call_name(node: ast.AST) -> str:
     return ""
 
 
+def _parse_strap_source(path: Path) -> ast.AST:
+    try:
+        return ast.parse(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, SyntaxError, ValueError) as error:
+        raise PackageInspectionError(path, error) from error
+
+
+def _ast_number(node: ast.AST) -> Optional[float]:
+    """Evaluate a numeric AST made of constants and + - * / only."""
+    if isinstance(node, ast.Constant) and isinstance(node.value, (int, float)):
+        return float(node.value)
+    if isinstance(node, ast.UnaryOp) and isinstance(node.op, ast.USub):
+        inner = _ast_number(node.operand)
+        return None if inner is None else -inner
+    if isinstance(node, ast.UnaryOp) and isinstance(node.op, ast.UAdd):
+        return _ast_number(node.operand)
+    if isinstance(node, ast.BinOp) and type(node.op) in {
+        ast.Add, ast.Sub, ast.Mult, ast.Div,
+    }:
+        left = _ast_number(node.left)
+        right = _ast_number(node.right)
+        if left is None or right is None:
+            return None
+        if isinstance(node.op, ast.Add):
+            return left + right
+        if isinstance(node.op, ast.Sub):
+            return left - right
+        if isinstance(node.op, ast.Mult):
+            return left * right
+        if right == 0:
+            return None
+        return left / right
+    return None
+
+
 def _outline_entry_id(node: ast.AST) -> Optional[str]:
     """One ChemicalsOutline element: a bare ID string or ChemicalDraft's ID."""
     if isinstance(node, ast.Constant) and isinstance(node.value, str):
@@ -1002,9 +1224,229 @@ def _chemical_draft_ids(node: ast.AST) -> list[str]:
     return ids
 
 
+def _chemical_draft_fields(node: ast.AST) -> Optional[dict[str, Any]]:
+    if not isinstance(node, ast.Call) or _call_name(node.func) != "ChemicalDraft":
+        return None
+    if not node.args or not isinstance(node.args[0], ast.Constant):
+        return None
+    ident = node.args[0].value
+    if not isinstance(ident, str):
+        return None
+    fields: dict[str, Any] = {"id": ident}
+    for keyword in node.keywords:
+        name = keyword.arg
+        if name == "formula" and isinstance(keyword.value, ast.Constant):
+            if isinstance(keyword.value.value, str):
+                fields["formula"] = keyword.value.value
+        elif name in {"rho", "Cp", "Tm", "Tb"}:
+            number = _ast_number(keyword.value)
+            if number is not None:
+                fields[name] = number
+        elif name == "search_ID" and isinstance(keyword.value, ast.Constant):
+            if isinstance(keyword.value.value, str):
+                fields["search_ID"] = keyword.value.value
+    return fields
+
+
+def _outline_chemical_drafts(tree: ast.AST) -> dict[str, dict[str, Any]]:
+    drafts: dict[str, dict[str, Any]] = {}
+    for node in tree.body:
+        if not isinstance(node, ast.Assign):
+            continue
+        if not any(
+            isinstance(target, ast.Name) and target.id == "STRAP_chemicals_outline"
+            for target in node.targets
+        ):
+            continue
+        call = node.value
+        if (
+            not isinstance(call, ast.Call)
+            or _call_name(call.func) != "ChemicalsOutline"
+            or not call.args
+        ):
+            continue
+        elements = call.args[0]
+        if not isinstance(elements, (ast.List, ast.Tuple)):
+            continue
+        for elt in elements.elts:
+            fields = _chemical_draft_fields(elt)
+            if fields:
+                drafts[fields["id"]] = fields
+    return drafts
+
+
+def _constructor_calls(tree: ast.AST, name: str) -> list[ast.Call]:
+    found: list[ast.Call] = []
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Call) and _call_name(node.func) == name:
+            found.append(node)
+    return found
+
+
+def _step_string(args: list[ast.AST], index: int) -> Optional[str]:
+    if index >= len(args) or not isinstance(args[index], ast.Constant):
+        return None
+    value = args[index].value
+    return value if isinstance(value, str) else None
+
+
+def package_dissolution_steps_from_source(
+    path: Path,
+) -> dict[tuple[str, str], dict[str, float]]:
+    """Named DissolutionStep constructor args: capacity, T (K), tau (h)."""
+    tree = _parse_strap_source(path)
+    steps: dict[tuple[str, str], dict[str, float]] = {}
+    for call in _constructor_calls(tree, "DissolutionStep"):
+        plastic = _step_string(call.args, 0)
+        solvent = _step_string(call.args, 2)
+        if plastic is None or solvent is None or len(call.args) < 8:
+            continue
+        capacity = _ast_number(call.args[4])
+        temperature_k = _ast_number(call.args[6])
+        tau = _ast_number(call.args[7])
+        if capacity is None or temperature_k is None or tau is None:
+            continue
+        steps[(plastic, solvent.casefold())] = {
+            "capacity_wt_per_vol": capacity,
+            "temperature_k": temperature_k,
+            "tau_h": tau,
+        }
+    return steps
+
+
+def package_precipitation_steps_from_source(
+    path: Path,
+) -> dict[tuple[str, str], dict[str, float]]:
+    """Named PrecipitationStep args: solubility, T (K), tau (h)."""
+    tree = _parse_strap_source(path)
+    steps: dict[tuple[str, str], dict[str, float]] = {}
+    for call in _constructor_calls(tree, "PrecipitationStep"):
+        solvent = _step_string(call.args, 0)
+        plastic = _step_string(call.args, 1)
+        if plastic is None or solvent is None or len(call.args) < 8:
+            continue
+        solubility = _ast_number(call.args[3])
+        temperature_k = _ast_number(call.args[6])
+        tau = _ast_number(call.args[7])
+        if solubility is None or temperature_k is None or tau is None:
+            continue
+        steps[(plastic, solvent.casefold())] = {
+            "solubility_wt_wt": solubility,
+            "temperature_k": temperature_k,
+            "tau_h": tau,
+        }
+    return steps
+
+
+def surface_package_disagreements(
+    row: PolymerRow,
+    solvent: Optional[str],
+    plastics_root: Path,
+) -> tuple[str, ...]:
+    """Fields where the expert table disagrees with inspectable package source.
+
+    Missing step files are unverifiable, not a disagreement — live TEA
+    without a plastics path still has to bind standing to executed
+    setpoints. When the files are present, a mismatch cannot be cited
+    as validated.
+    """
+    disagreements: list[str] = []
+    property_package = resolve_strap_file(
+        plastics_root, _PROPERTY_PACKAGE_RELATIVE,
+    )
+    if property_package is not None:
+        drafts = _outline_chemical_drafts(_parse_strap_source(property_package))
+        chemical = row.chemical
+        if chemical is not None:
+            draft = drafts.get(row.identity_in_model)
+            if draft is None:
+                disagreements.append("chemical_not_in_package_source")
+            else:
+                if chemical.formula != draft.get("formula"):
+                    disagreements.append("formula")
+                if "rho" in draft and not _close(chemical.rho_kg_m3, draft["rho"]):
+                    disagreements.append("rho_kg_m3")
+                if "Cp" in draft and not _close(
+                    chemical.cp_j_per_g_k, draft["Cp"],
+                ):
+                    disagreements.append("cp_j_per_g_k")
+                if "Tm" in draft and not _close(chemical.tm_k, draft["Tm"]):
+                    disagreements.append("tm_k")
+                if (
+                    chemical.tb_k is not None
+                    and "Tb" in draft
+                    and not _close(chemical.tb_k, draft["Tb"])
+                ):
+                    disagreements.append("tb_k")
+        oligomer = row.oligomer
+        if (
+            oligomer is not None
+            and oligomer.in_package_outline
+            and oligomer.search_id
+        ):
+            draft = drafts.get(oligomer.chemical_id)
+            if draft is not None and draft.get("search_ID") not in {
+                None, oligomer.search_id,
+            }:
+                disagreements.append("oligomer_search_id")
+
+    process = process_assumptions_for(row, solvent)
+    if process is None or process.committed_pair is None or not solvent:
+        return tuple(disagreements)
+
+    identity = row.identity_in_model
+    solvent_key = str(solvent).strip().casefold()
+    dissolution_path = resolve_strap_file(
+        plastics_root, _DISSOLUTION_STEPS_RELATIVE,
+    )
+    precipitation_path = resolve_strap_file(
+        plastics_root, _PRECIPITATION_STEPS_RELATIVE,
+    )
+    if dissolution_path is not None:
+        dissolution = package_dissolution_steps_from_source(dissolution_path)
+        step = dissolution.get((identity, solvent_key))
+        if step is None:
+            disagreements.append("committed_dissolution_step_missing")
+        else:
+            if not _close(
+                step["temperature_k"],
+                process.dissolution_temperature_c + KELVIN_OFFSET,
+            ):
+                disagreements.append("package_dissolution_temperature_c")
+            if not _close(
+                step["capacity_wt_per_vol"],
+                process.dissolution_capacity_wt_per_vol,
+                abs_tol=1e-12,
+            ):
+                disagreements.append("package_dissolution_capacity")
+            if not _close(step["tau_h"], process.dissolution_tau_h):
+                disagreements.append("dissolution_tau_h")
+    if precipitation_path is not None:
+        precipitation = package_precipitation_steps_from_source(
+            precipitation_path,
+        )
+        step = precipitation.get((identity, solvent_key))
+        if step is None:
+            disagreements.append("committed_precipitation_step_missing")
+        else:
+            if not _close(
+                step["temperature_k"],
+                process.precipitation_temperature_c + KELVIN_OFFSET,
+            ):
+                disagreements.append("package_precipitation_temperature_c")
+            if not _close(
+                step["solubility_wt_wt"],
+                process.precipitation_solubility_wt_wt,
+            ):
+                disagreements.append("precipitation_solubility_wt_wt")
+            if not _close(step["tau_h"], process.precipitation_tau_h):
+                disagreements.append("precipitation_tau_h")
+    return tuple(disagreements)
+
+
 def package_chemical_ids_from_source(property_package: Path) -> frozenset[str]:
     """IDs declared on STRAP_chemicals_outline, from source, no BioSTEAM."""
-    tree = ast.parse(property_package.read_text(encoding="utf-8"))
+    tree = _parse_strap_source(property_package)
     collected: list[str] = []
     for node in tree.body:
         if not isinstance(node, ast.Assign):

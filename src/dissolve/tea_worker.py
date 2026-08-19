@@ -868,7 +868,16 @@ def run(config: dict[str, Any]) -> dict[str, Any]:
     params = _polymer_parameters()
     original_target = str(config["target_plastic"]).upper()
     plastics_root = params.resolve_plastics_path()
-    source_ids = params.package_chemical_ids(plastics_root)
+    try:
+        source_ids = params.package_chemical_ids(plastics_root)
+    except params.PackageInspectionError as error:
+        return {
+            "success": False,
+            "error": str(error),
+            "error_type": "property_package_unreadable",
+            "target_plastic": original_target,
+            "parameter_surface": "dissolve.tea_polymer_parameters",
+        }
     admission = params.admit_live_target(
         original_target, package_chemical_ids=source_ids,
     )
@@ -1069,6 +1078,8 @@ def run(config: dict[str, Any]) -> dict[str, Any]:
             result,
             admission.row,
             solvent=engine_identity.get("engine_solvent") or config.get("solvent"),
+            config=config,
+            plastics_root=plastics_root,
         )
     elif result.get("success") is True:
         return {
