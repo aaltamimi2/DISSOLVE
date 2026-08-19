@@ -2065,6 +2065,60 @@ def _compose_evaluate_scenarios(
     )
 
 
+def _compose_sensitivity_scenario(
+    scenario: Any,
+    handle: Any,
+    row_id: Any,
+) -> tuple[dict[str, Any], dict[str, str] | None]:
+    """Fill a sensitivity baseline from an economics handle. Not a screen."""
+    handle_present = isinstance(handle, str) and bool(handle.strip())
+    complete = _scenario_has_complete_twelve(scenario)
+    if row_id is not None and not handle_present and not complete:
+        raise _ScenarioInputError(
+            "row_id requires handle",
+            error_code="unknown_handle",
+            row_id=row_id,
+        )
+    if scenario is None:
+        if not handle_present:
+            raise _ScenarioInputError(
+                "process_config is incomplete; missing public fields: "
+                + ", ".join(_PUBLIC_REQUIRED_FIELDS),
+                error_code="incomplete_process_config",
+                missing=list(_PUBLIC_REQUIRED_FIELDS),
+            )
+        inherited = _load_economics_inherit(handle, row_id)
+        origin = {
+            (_public_name_for_inherit_key(key) or key): "inherited"
+            for key in inherited
+            if _public_name_for_inherit_key(key)
+        }
+        return dict(inherited), origin
+    if not isinstance(scenario, dict):
+        raise _ScenarioInputError(
+            "scenario must be an object",
+            error_code="invalid_scenario",
+        )
+    if complete:
+        return dict(scenario), None
+    if not handle_present:
+        return dict(scenario), None
+    inherited = _load_economics_inherit(handle, row_id)
+    return _merge_inherited_scenario(scenario, inherited)
+
+
+def _sensitivity_row_process_fields(config: dict[str, Any]) -> dict[str, Any]:
+    """Executed twelve plus exposed tunables on a sensitivity row."""
+    public = {
+        public_name: config.get(internal)
+        for internal, public_name in _DESIGN_POINT_PUBLIC_FIELDS
+    }
+    public["polymer"] = public.get("target_polymer")
+    public.update(_project_flowsheet_switches(config))
+    public.update(_project_coefficients(config))
+    return public
+
+
 def _stored_route_named_remainder(solvent: str) -> dict[str, Any]:
     """Name the stored-route stage remainder. Not evaluate silent fill.
 
@@ -6350,22 +6404,25 @@ def _metric(row: dict[str, Any], metric: str) -> Optional[float]:
 
 
 def analyze_tea_sensitivity(
-    scenario: dict[str, Any],
-    parameter: str,
+    scenario: Optional[dict[str, Any]] = None,
+    parameter: str = "",
     values: Optional[list[float]] = None,
     metric: str = "msp_usd_per_kg",
     analysis_mode: str = "sweep",
     engine_mode: str = "auto",
     timeout_seconds: int = 180,
+    handle: Optional[str] = None,
+    row_id: Optional[str | int] = None,
 ) -> str:
     """Run a deterministic parameter sweep/tornado slice or sampled uncertainty summary.
 
-    The baseline scenario requires the same complete twelve public D-8
-    fields as evaluate. With values omitted, exact cached one-at-a-time
-    variants are discovered around that baseline. Supported parameter
-    names are the numeric scenario fields. `uncertainty` describes only
-    the supplied/discovered scenario sample; it is not a probabilistic
-    Monte Carlo claim.
+    The baseline requires the same complete twelve public D-8 fields as
+    evaluate unless a prior economics handle supplies the omitted ones.
+    With values omitted, exact cached one-at-a-time variants are discovered
+    around that baseline. Supported parameter names are the numeric
+    scenario fields. `uncertainty` describes only the supplied/discovered
+    scenario sample; it is not a probabilistic Monte Carlo claim. This is
+    not a cache-pair fill and not a screening payload.
     """
     tool = "analyze_tea_sensitivity"
     field = _SCENARIO_ALIASES.get(
@@ -6378,7 +6435,11 @@ def analyze_tea_sensitivity(
         return tool_error(tool, "Unsupported sensitivity metric.", error_code="unsupported_metric", supported_metrics=sorted(_METRICS))
     if mode not in {"sweep", "tornado", "uncertainty"}:
         return tool_error(tool, "analysis_mode must be sweep, tornado, or uncertainty", error_code="invalid_analysis_mode")
+    field_origin = None
     try:
+        scenario, field_origin = _compose_sensitivity_scenario(
+            scenario, handle, row_id,
+        )
         baseline = _scenario_config(scenario)
         requested_values = [] if values is None else [_finite(value, field) for value in values]
     except _InputError as error:
@@ -6424,17 +6485,22 @@ def analyze_tea_sensitivity(
         source_status = (result.get("lca_metric_status") or {}).get(
             "gwp_kg_co2e_per_kg"
         ) if metric == "gwp_kg_co2e_per_kg" else None
-        rows.append({
+        run_config = dict(result.get("config") or {**baseline, field: value})
+        row = {
             "parameter": field, "value": value, "metric": metric,
             "metric_value": measured, "success": bool(result.get("success")),
             "engine_mode": result.get("engine_mode"),
             "cache_record_label": result.get("cache_record_label"),
+            **_sensitivity_row_process_fields(run_config),
             **(
                 {"lca_metric_status": {"metric_value": source_status}}
                 if source_status else {}
             ),
             **({"error": result.get("error")} if not result.get("success") else {}),
-        })
+        }
+        if field_origin is not None:
+            row["field_origin"] = dict(field_origin)
+        rows.append(row)
     successes = [row for row in rows if row["success"] and row["metric_value"] is not None]
     if len(successes) < 2:
         return tool_error(tool, "Fewer than two sensitivity scenarios completed.", error_code="insufficient_sensitivity_results", sensitivity_rows=rows, live_engine=live_engine_status())
@@ -6465,6 +6531,7 @@ def analyze_tea_sensitivity(
         parameter=field, metric=metric, metric_unit=_METRICS[metric][2],
         baseline_parameter_value=baseline[field], baseline_metric_value=baseline_row["metric_value"],
         sensitivity_rows=rows,
+        **({"field_origin": dict(field_origin)} if field_origin is not None else {}),
         minimum_metric_value=min(values_out), maximum_metric_value=max(values_out),
         metric_span=max(values_out) - min(values_out),
         sample_median_metric_value=statistics.median(values_out),
