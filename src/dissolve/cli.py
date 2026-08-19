@@ -741,6 +741,23 @@ class CliApp:
         missing = tea.missing_public_process_fields(buffer)
         if missing:
             self.console.print(f"[yellow]missing:[/] {', '.join(missing)}")
+        preview = tea.sheet_standing_preview(buffer)
+        badge = preview.get("badge")
+        if badge == "validated":
+            self.console.print("[green]standing:[/] VALIDATED-process")
+        elif badge == "provisional":
+            extra = ", ".join(preview.get("provisional_parameters") or [])
+            suffix = f" ({extra})" if extra else ""
+            self.console.print(f"[yellow]standing:[/] provisional{suffix}")
+        elif badge == "unavailable":
+            reason = preview.get("reason") or "unverifiable"
+            self.console.print(
+                f"[dim]standing:[/] unavailable/unverifiable ({reason})"
+            )
+        else:
+            self.console.print(
+                "[dim]standing:[/] incomplete (need polymer and solvent)"
+            )
 
     def _edit_process_sheet(
         self,

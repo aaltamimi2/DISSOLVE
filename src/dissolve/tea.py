@@ -912,6 +912,100 @@ def missing_public_process_fields(config: dict[str, Any]) -> list[str]:
     return missing
 
 
+_STANDING_PREVIEW_SETPOINTS = (
+    "dissolution_temperature_c",
+    "precipitation_temperature_c",
+    "dissolution_capacity",
+)
+
+
+def _sheet_standing_unavailable(
+    reason: str, *, plastics_root: Optional[str] = None,
+) -> dict[str, Any]:
+    return {
+        "badge": "unavailable",
+        "can_cite_as_validated_process": False,
+        "reason": reason,
+        "plastics_root": plastics_root,
+        "passed_plastics_root": False,
+    }
+
+
+def sheet_standing_preview(buffer: dict[str, Any]) -> dict[str, Any]:
+    """Standing badge for the confirmation sheet. Not an MSP preview.
+
+    Always inspects the resolved plastics root. Calling
+    ``live_parameter_standing_payload`` with only row/solvent/config
+    skips package inspection and would cite PE/Toluene 95/35/3 as
+    validated on that thin path.
+    """
+    polymer = str(buffer.get("target_polymer") or "").strip()
+    solvent = str(buffer.get("solvent") or "").strip()
+    if not polymer or not solvent:
+        missing = [
+            name for name, value in (
+                ("target_polymer", polymer),
+                ("solvent", solvent),
+            )
+            if not value
+        ]
+        return {
+            "badge": "incomplete",
+            "can_cite_as_validated_process": False,
+            "reason": "incomplete_process_config",
+            "missing": missing,
+            "plastics_root": None,
+            "passed_plastics_root": False,
+        }
+    row = tea_polymer_parameters.polymer_row(polymer)
+    if row is None:
+        return _sheet_standing_unavailable(
+            "unsupported_live_target", plastics_root=None,
+        )
+    root = tea_polymer_parameters.resolve_plastics_path()
+    if root is None:
+        return _sheet_standing_unavailable("missing_plastics_root")
+    layout = tea_polymer_parameters.plastics_layout_diagnosis(root)
+    if layout["layout"] == "unrecognised":
+        return _sheet_standing_unavailable(
+            "missing_package", plastics_root=str(root),
+        )
+    setpoints = {
+        key: buffer[key]
+        for key in _STANDING_PREVIEW_SETPOINTS
+        if key in buffer and buffer[key] is not None
+    }
+    try:
+        tea_polymer_parameters.inspect_cited_strap_sources(root)
+        disagreements = tea_polymer_parameters.surface_package_disagreements(
+            row, solvent, root,
+        )
+    except tea_polymer_parameters.PackageInspectionError as error:
+        return _sheet_standing_unavailable(
+            error.diagnostic_reason, plastics_root=str(root),
+        )
+    payload = tea_polymer_parameters.live_parameter_standing_payload(
+        row,
+        solvent=solvent,
+        config=setpoints,
+        package_disagreements=disagreements,
+        plastics_root=root,
+    )
+    standing = dict(payload.get("live_parameter_standing") or {})
+    validated = bool(payload.get("can_cite_as_validated_process"))
+    return {
+        "badge": "validated" if validated else "provisional",
+        "can_cite_as_validated_process": validated,
+        "reason": None if validated else "provisional_process",
+        "plastics_root": str(root),
+        "passed_plastics_root": True,
+        "live_parameter_standing": standing,
+        "provisional_parameters": list(
+            standing.get("provisional_parameters") or [],
+        ),
+    }
+
+
 def _design_point_value_equal(field: str, left: Any, right: Any) -> bool:
     if field in {"target_plastic", "solvent"}:
         return _key(left) == _key(right)
