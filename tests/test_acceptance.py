@@ -23,6 +23,7 @@ from dissolve.session import (
     bind_tool_session, handle_rows, load_handle, new_session,
 )
 from dissolve.thermodynamics import get_available_solvents
+from dissolve import tea
 
 Q1 = "What is the solubility of LDPE in dodecane at 140 C?"
 Q2 = "What is the solubility of LDPE in dodecane at 137.3 C?"
@@ -78,6 +79,34 @@ def _tool_json(messages, name):
         if msg.get("role") == "tool" and msg.get("name") == name:
             return json.loads(msg["content"])
     raise AssertionError(f"no tool result for {name}")
+
+
+def _complete_ldpe_dodecane_c1_cache_scenario(**overrides):
+    record = next(
+        item for item in tea._records()
+        if str(item["config"]["target_plastic"]).casefold() == "ldpe"
+        and "dodecane" in str(item["config"]["solvent"]).casefold()
+        and str(item["config"]["energy_case"]).upper() == "C1"
+        and abs(float(item["config"]["processing_capacity"]) - 20_000.0) < 1e-9
+        and abs(float(item["config"]["dissolution_temperature_c"]) - 145.0) < 1e-9
+    )
+    cfg = record["config"]
+    scenario = {
+        "target_polymer": cfg["target_plastic"],
+        "solvent": cfg["solvent"],
+        "target_mass_percent": cfg["target_plastic_percent"],
+        "processing_capacity_mt_per_yr": cfg["processing_capacity"],
+        "energy_case": cfg["energy_case"],
+        "dissolution_temp_c": cfg["dissolution_temperature_c"],
+        "precipitation_temp_c": cfg["precipitation_temperature_c"],
+        "solvent_price": cfg["solvent_price"],
+        "solvent_loss_pct": cfg["solvent_loss_pct"],
+        "feedstock_distance_km": cfg["feedstock_distance_km"],
+        "dissolution_capacity": cfg["dissolution_capacity"],
+        "labor_cost": cfg["labor_cost"],
+    }
+    scenario.update(overrides)
+    return scenario
 
 
 def _safety_names(payload):
@@ -566,8 +595,16 @@ def test_acceptance_7_tea_outside_cache_is_a_miss(monkeypatch):
                 "engine_mode": "cache",
                 "scenarios": [{
                     "target_polymer": "HDPE", "solvent": "dodecane",
-                    "energy_case": "C1", "processing_capacity_mt_per_yr": 1.0,
+                    "target_mass_percent": 60.0,
+                    "processing_capacity_mt_per_yr": 1.0,
+                    "energy_case": "C1",
                     "dissolution_temp_c": 140.0,
+                    "precipitation_temp_c": 25.0,
+                    "solvent_price": 4.08,
+                    "solvent_loss_pct": 0.01,
+                    "feedstock_distance_km": 0.0,
+                    "dissolution_capacity": 3.0,
+                    "labor_cost": 120_000.0,
                 }],
             },
         }]},
@@ -620,7 +657,6 @@ def test_acceptance_composition_cannot_cost_the_ranked_screen(monkeypatch):
                     "scenarios": [{
                         "target_polymer": "LDPE",
                         "solvent": row["solvent"],
-                        "energy_case": "C1",
                         "dissolution_temp_c": row["temperature_c"],
                     }],
                 },
@@ -646,12 +682,7 @@ def test_acceptance_composition_cannot_cost_the_ranked_screen(monkeypatch):
                 "id": "p2", "name": "evaluate_tea_lca_scenarios",
                 "args": {
                     "engine_mode": "cache",
-                    "scenarios": [{
-                        "target_polymer": "LDPE", "solvent": "dodecane",
-                        "energy_case": "C1",
-                        "processing_capacity_mt_per_yr": 20000.0,
-                        "dissolution_temp_c": 145.0,
-                    }],
+                    "scenarios": [_complete_ldpe_dodecane_c1_cache_scenario()],
                 },
             }],
         }
@@ -695,13 +726,16 @@ def test_acceptance_composition_cannot_cost_the_ranked_screen(monkeypatch):
     assert screen["available"] is True
     top_ids = _ids(_solvents(screen.get("top") or []))
     assert "dodecane" not in top_ids
-    hsp, tea = ranked.tool_trace[1].result, ranked.tool_trace[2].result
+    hsp, tea_result = ranked.tool_trace[1].result, ranked.tool_trace[2].result
     assert hsp["available"] is False
     assert hsp["refusal"] == "hsp_resolution_failed"
-    assert tea["available"] is False
-    assert tea["refusal"] == "solvent_price_unavailable"
+    assert tea_result["available"] is False
+    assert tea_result["refusal"] == "incomplete_process_config"
+    assert list(tea_result["data"].get("missing") or []) == list(
+        tea._NINE_HELD_PUBLIC_FIELDS
+    )
     assert "hsp_resolution_failed" in ranked.answer
-    assert "solvent_price_unavailable" in ranked.answer
+    assert "incomplete_process_config" in ranked.answer
     pair_hsp, pair_tea = direct.tool_trace[0].result, direct.tool_trace[1].result
     assert pair_hsp["available"] is True
     assert pair_tea["available"] is True

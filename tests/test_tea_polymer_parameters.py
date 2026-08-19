@@ -567,10 +567,16 @@ def test_public_scenario_overrides_cannot_cite_committed_pair_names(monkeypatch)
         scenarios=[{
             "target_polymer": "LDPE",
             "solvent": "toluene",
+            "target_mass_percent": 60.0,
+            "processing_capacity_mt_per_yr": 20_000.0,
+            "energy_case": "C1",
             "dissolution_temp_c": 200.0,
             "precipitation_temp_c": 10.0,
             "dissolution_capacity": 9.0,
             "solvent_price": 2.17,
+            "solvent_loss_pct": 0.01,
+            "feedstock_distance_km": 0.0,
+            "labor_cost": 120_000.0,
         }],
         engine_mode="live",
     )
@@ -617,8 +623,16 @@ def test_mutating_committed_precip_makes_validation_fail(monkeypatch):
     cfg = tea._scenario_config({
         "target_polymer": "LDPE",
         "solvent": "toluene",
-        "solvent_price": 2.17,
+        "target_mass_percent": 60.0,
+        "processing_capacity_mt_per_yr": 20_000.0,
+        "energy_case": "C1",
         "dissolution_temperature_c": 95.0,
+        "precipitation_temperature_c": 35.0,
+        "solvent_price": 2.17,
+        "solvent_loss_pct": 0.01,
+        "feedstock_distance_km": 0.0,
+        "dissolution_capacity": 3.0,
+        "labor_cost": 120_000.0,
     })
     assert cfg["precipitation_temperature_c"] != 40.0
 
@@ -1125,8 +1139,16 @@ def test_unreadable_worker_source_is_named_parent_and_public(tmp_path, monkeypat
         [{
             "target_polymer": "PU",
             "solvent": "toluene",
+            "target_mass_percent": 60.0,
+            "processing_capacity_mt_per_yr": 20_000.0,
+            "energy_case": "C1",
             "dissolution_temp_c": 95.0,
+            "precipitation_temp_c": 35.0,
             "solvent_price": 1.312,
+            "solvent_loss_pct": 0.01,
+            "feedstock_distance_km": 0.0,
+            "dissolution_capacity": 3.0,
+            "labor_cost": 120_000.0,
         }],
         engine_mode="live",
         timeout_seconds=30,

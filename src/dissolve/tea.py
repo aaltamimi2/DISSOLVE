@@ -65,6 +65,28 @@ _SCENARIO_ALIASES = {
     "solvent_price_usd_per_kg": "solvent_price",
     "labor_cost_usd_per_employee_yr": "labor_cost",
 }
+_PUBLIC_REQUIRED_FIELDS = tuple(
+    public for _internal, public in _DESIGN_POINT_PUBLIC_FIELDS
+)
+_NINE_HELD_PUBLIC_FIELDS = tuple(
+    name for name in _PUBLIC_REQUIRED_FIELDS
+    if name not in {
+        "target_polymer", "solvent", "dissolution_temperature_c",
+    }
+)
+_PUBLIC_FIELD_SOURCE_KEYS = {
+    public: frozenset({
+        public,
+        internal,
+        *(
+            alias
+            for alias, target in _SCENARIO_ALIASES.items()
+            if target == internal
+        ),
+        *(("target_plastic",) if public == "target_polymer" else ()),
+    })
+    for internal, public in _DESIGN_POINT_PUBLIC_FIELDS
+}
 # D-8 overlay vocabulary stays the twelve above. These switches change the
 # flowsheet (or leftover disposition) and belong in the executed-config key.
 # Production values are what the v12 worker hardcoded; existing cache records
@@ -93,6 +115,25 @@ _COEFFICIENT_DEFAULTS = {
     "centrifuged_plastic_solvent_content_pct": (
         _CENTRIFUGED_PLASTIC_SOLVENT_CONTENT_PCT
     ),
+}
+_SCENARIO_ALLOWED_KEYS = frozenset({
+    *_PUBLIC_REQUIRED_FIELDS,
+    *_CONFIG_FIELDS,
+    *_SCENARIO_ALIASES,
+    "target_polymer",
+    *_FLOWSHEET_SWITCH_FIELDS,
+    *_COEFFICIENT_DEFAULTS,
+    "natural_gas_price_usd_per_m3",
+    "facilities",
+    "turbogenerator",
+    "lca_cfs",
+    "label",
+})
+_STORED_ROUTE_PRODUCTION_REMAINDER = {
+    "solvent_loss_pct": 0.01,
+    "feedstock_distance_km": 0.0,
+    "dissolution_capacity": 3.0,
+    "labor_cost_usd_per_employee_yr": 120_000.0,
 }
 _FIELD_NOT_ADJUSTABLE_NAMES = frozenset({
     "centrifuged_precipitate_solvent_content",
@@ -849,10 +890,10 @@ def public_process_field_names(*, energy_case: str = "C1") -> tuple[str, ...]:
 
 
 def first_run_sheet_defaults(*, energy_case: str = "C1") -> dict[str, Any]:
-    """Named first-run defaults. Not `_scenario_config` silent fill.
+    """Named first-run defaults. Not evaluate silent fill.
 
-    Precipitation is the generic-factory 35 °C, not the 25 °C leftover in
-    `_scenario_config`.
+    Precipitation is the generic-factory 35 °C. Headless evaluate does not
+    apply a 25 °C leftover or a cache-pair overlay.
     """
     case = str(energy_case or "C1").upper() or "C1"
     defaults: dict[str, Any] = {
@@ -1499,6 +1540,51 @@ def _design_point_key(config: dict[str, Any]) -> str:
     )
 
 
+def _scenario_value_present(value: Any) -> bool:
+    if value is None:
+        return False
+    if isinstance(value, str) and not value.strip():
+        return False
+    return True
+
+
+def _missing_required_public_fields(scenario: dict[str, Any]) -> list[str]:
+    missing = []
+    for public in _PUBLIC_REQUIRED_FIELDS:
+        keys = _PUBLIC_FIELD_SOURCE_KEYS[public]
+        if not any(
+            key in scenario and _scenario_value_present(scenario.get(key))
+            for key in keys
+        ):
+            missing.append(public)
+    return missing
+
+
+def _stored_route_named_remainder(solvent: str) -> dict[str, Any]:
+    """Name the stored-route stage remainder. Not evaluate silent fill.
+
+    Stored-route overlay already supplies mass%, capacity, energy, T, and
+    precip. The remaining public fields are this tool's production plant,
+    plus an admitted solvent price. Evaluate and sensitivity cannot omit
+    the twelve and reach this helper.
+    """
+    identity = _resolve_tea_solvent(solvent)
+    remainder = dict(_STORED_ROUTE_PRODUCTION_REMAINDER)
+    assumption = identity.get("assumption")
+    if assumption is None or assumption.get("price_usd_per_kg") is None:
+        raise _MissingScenarioBasis(
+            f"Solvent '{identity['requested']}' is recognized as "
+            f"{identity['canonical']}, but no admitted solvent-price basis "
+            "is available; supply solvent_price or choose a priced solvent.",
+            error_code="solvent_price_unavailable",
+            requested_solvent=identity["requested"],
+            canonical_solvent=identity["canonical"],
+            solvent_support_status="known_but_unpriced",
+        )
+    remainder["solvent_price_usd_per_kg"] = assumption["price_usd_per_kg"]
+    return remainder
+
+
 def _flowsheet_switch_deltas(config: dict[str, Any]) -> list[dict[str, Any]]:
     """Public extras that differ from the projected production plant."""
     projected_switches = _project_flowsheet_switches(config)
@@ -1527,54 +1613,41 @@ def _flowsheet_switch_deltas(config: dict[str, Any]) -> list[dict[str, Any]]:
 def _scenario_config(scenario: dict[str, Any]) -> dict[str, Any]:
     if not isinstance(scenario, dict):
         raise ValueError("Each scenario must be an object")
-    polymer = _resolve_polymer(
-        scenario.get("target_polymer") or scenario.get("target_plastic")
+    _refuse_reserved_process_fields(scenario)
+    unknown = sorted(
+        str(key) for key in scenario if str(key) not in _SCENARIO_ALLOWED_KEYS
     )
-    solvent_identity = _resolve_tea_solvent(scenario.get("solvent"))
-    solvent = str(solvent_identity["canonical"])
-    base_record = _record_for_pair(polymer, solvent)
-    defaults = copy.deepcopy((base_record or {}).get("config") or {})
+    if unknown:
+        raise _ScenarioInputError(
+            "unknown extra process field: " + ", ".join(unknown),
+            error_code="unknown_process_field",
+            extra_keys=unknown,
+        )
+    missing = _missing_required_public_fields(scenario)
+    if missing:
+        raise _ScenarioInputError(
+            "process_config is incomplete; missing public fields: "
+            + ", ".join(missing),
+            error_code="incomplete_process_config",
+            missing=list(missing),
+        )
     supplied = {
-        _SCENARIO_ALIASES.get(key, key): value for key, value in scenario.items()
+        _SCENARIO_ALIASES.get(str(key), str(key)): value
+        for key, value in scenario.items()
     }
-    _refuse_reserved_process_fields(supplied)
+    polymer = _resolve_polymer(
+        supplied.get("target_polymer") or supplied.get("target_plastic")
+    )
+    solvent_identity = _resolve_tea_solvent(supplied.get("solvent"))
+    solvent = str(solvent_identity["canonical"])
     config = {
-        **{
-            "target_plastic_percent": 60.0,
-            "processing_capacity": 20_000.0,
-            "energy_case": "C1",
-            "precipitation_temperature_c": 25.0,
-            "solvent_loss_pct": 0.01,
-            "feedstock_distance_km": 0.0,
-            "dissolution_capacity": 3.0,
-            "labor_cost": 120_000.0,
-        },
-        **defaults,
         **{key: supplied[key] for key in _CONFIG_FIELDS if key in supplied},
         "target_plastic": polymer,
         "solvent": solvent,
     }
-    config["energy_case"] = str(config.get("energy_case") or "C1").upper()
+    config["energy_case"] = str(config.get("energy_case") or "").upper()
     if config["energy_case"] not in _ENERGY_CASES:
         raise ValueError("energy_case must be C1, C2, or C3")
-    if config.get("dissolution_temperature_c") is None:
-        raise ValueError(
-            "dissolution_temperature_c is required when no cached pair default exists"
-        )
-    if config.get("solvent_price") is None:
-        assumption = solvent_identity["assumption"]
-        if assumption is not None:
-            config["solvent_price"] = assumption["price_usd_per_kg"]
-        else:
-            raise _MissingScenarioBasis(
-                f"Solvent '{solvent_identity['requested']}' is recognized as "
-                f"{solvent}, but no admitted solvent-price basis is available; "
-                "supply solvent_price or choose a priced solvent.",
-                error_code="solvent_price_unavailable",
-                requested_solvent=solvent_identity["requested"],
-                canonical_solvent=solvent,
-                solvent_support_status="known_but_unpriced",
-            )
     for field in _NUMERIC_FIELDS:
         config[field] = _finite(config.get(field), field)
     if not 0 < config["target_plastic_percent"] <= 100:
@@ -3728,19 +3801,19 @@ def evaluate_tea_lca_scenarios(
 ) -> str:
     """Evaluate user-supplied complete independent scenarios, not current candidates.
 
-    Each scenario requires solvent and target_polymer and may set energy_case,
-    target_mass_percent, processing_capacity_mt_per_yr, dissolution_temp_c,
-    precipitation_temp_c, solvent_price, solvent_loss_pct,
-    feedstock_distance_km, sell_leftover_plastic, burn_leftover_plastic,
-    precipitation_temperature_format, precipitation_configuration, irr,
-    feedstock_price_usd_per_kg, centrifuged_plastic_solvent_content_pct,
-    and natural_gas_price_usd_per_m3 (C1/C3). Omitted switches and
-    coefficients keep the production plant (leftover neither sold nor
-    burned; constant precipitation; integrated heat transfer; IRR 0.10;
-    feedstock 0.01 USD/kg; centrifuged solvent 50%; NG 4.73 USD/kcf on
-    C1/C3). Auto mode uses only exact cache matches, otherwise a compatible
-    isolated live engine; it never interpolates cached process results or
-    serves another plant's MSP under a twelve-only key. Use
+    Each scenario requires the twelve public D-8 process fields:
+    target_polymer, solvent, target_mass_percent,
+    processing_capacity_mt_per_yr, energy_case, dissolution_temperature_c,
+    precipitation_temperature_c, solvent_price_usd_per_kg, solvent_loss_pct,
+    feedstock_distance_km, dissolution_capacity, and
+    labor_cost_usd_per_employee_yr. Known aliases canonicalize into those
+    names. Unknown extra keys refuse. Omitted switches and coefficients
+    keep the production plant (leftover neither sold nor burned; constant
+    precipitation; integrated heat transfer; IRR 0.10; feedstock 0.01
+    USD/kg; centrifuged solvent 50%; NG 4.73 USD/kcf on C1/C3). Auto mode
+    uses only exact cache matches, otherwise a compatible isolated live
+    engine; it never interpolates cached process results or serves another
+    plant's MSP under a twelve-only key. Use
     evaluate_stored_route_tea_lca for an inherited route or candidate
     shortlist.
     """
@@ -5383,6 +5456,7 @@ def evaluate_stored_route_tea_lca(
         }
         config = None
         try:
+            scenario.update(_stored_route_named_remainder(str(step["solvent"])))
             config = _scenario_config(scenario)
         except _MissingScenarioBasis as error:
             result = {
@@ -5751,10 +5825,12 @@ def analyze_tea_sensitivity(
 ) -> str:
     """Run a deterministic parameter sweep/tornado slice or sampled uncertainty summary.
 
-    With values omitted, exact cached one-at-a-time variants are discovered
-    around the supplied baseline. Supported parameter names are the numeric
-    scenario fields. `uncertainty` describes only the supplied/discovered
-    scenario sample; it is not a probabilistic Monte Carlo claim.
+    The baseline scenario requires the same complete twelve public D-8
+    fields as evaluate. With values omitted, exact cached one-at-a-time
+    variants are discovered around that baseline. Supported parameter
+    names are the numeric scenario fields. `uncertainty` describes only
+    the supplied/discovered scenario sample; it is not a probabilistic
+    Monte Carlo claim.
     """
     tool = "analyze_tea_sensitivity"
     field = _SCENARIO_ALIASES.get(

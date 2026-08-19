@@ -81,7 +81,7 @@ def _one_step_route(
 
 def _stage_config(route: dict, target: str, fraction: float) -> dict:
     step = route["steps"][0]
-    return tea._scenario_config({
+    scenario = {
         "target_polymer": target,
         "solvent": step["solvent"],
         "target_mass_percent": 100.0 * fraction,
@@ -89,7 +89,9 @@ def _stage_config(route: dict, target: str, fraction: float) -> dict:
         "energy_case": ENERGY_CASE,
         "dissolution_temp_c": step["temperature_c"],
         "precipitation_temp_c": PRECIPITATION_C,
-    })
+    }
+    scenario.update(tea._stored_route_named_remainder(str(step["solvent"])))
+    return tea._scenario_config(scenario)
 
 
 def _same_pair_records(config: dict) -> list[dict]:
