@@ -214,3 +214,95 @@ def test_sheet_accept_defaults_keeps_the_buffer_object(tmp_path, monkeypatch):
     assert "10%" in shown
     assert "expert_surface_only" in shown
     assert tea.missing_public_process_fields(submitted) == []
+
+
+def test_later_evaluate_runs_the_confirmed_buffer_not_model_args(
+    tmp_path, monkeypatch,
+):
+    monkeypatch.setattr(cli, "run_turn", _ok_turn)
+    monkeypatch.setattr(sys.stdin, "isatty", lambda: True)
+    app, _buf = _app(tmp_path, monkeypatch)
+    sheet = tea.seed_public_process_config({
+        "target_polymer": "LDPE",
+        "solvent": "Dodecane",
+        "dissolution_temperature_c": 145.0,
+        "irr": 0.10,
+    })
+    prompts = []
+
+    def record_prompt(seed, **kwargs):
+        prompts.append(seed)
+        return sheet
+
+    monkeypatch.setattr(app, "_edit_process_sheet", record_prompt)
+    captured = []
+
+    def original(name, **kwargs):
+        captured.append({"name": name, "kwargs": kwargs})
+        return {"success": True}
+
+    app._cli_direct_active = True
+    app._cli_direct_dispatch(
+        original,
+        "evaluate_tea_lca_scenarios",
+        {"scenarios": [{"target_polymer": "LDPE", "irr": 0.10}]},
+    )
+    app._cli_direct_dispatch(
+        original,
+        "evaluate_tea_lca_scenarios",
+        {
+            "engine_mode": "cache",
+            "scenarios": [{"target_polymer": "LDPE", "irr": 0.15}],
+        },
+    )
+    assert len(prompts) == 1
+    assert len(captured) == 2
+    second = captured[1]["kwargs"]
+    assert second["scenarios"][0] is sheet
+    assert second["scenarios"][0]["irr"] == pytest.approx(0.10)
+    assert second["engine_mode"] == "cache"
+    assert sheet["irr"] != 0.15
+    app._cli_direct_dispatch(
+        original,
+        "analyze_tea_sensitivity",
+        {"scenario": {"irr": 0.20}, "parameter": "solvent_price"},
+    )
+    assert len(prompts) == 1
+    third = captured[2]["kwargs"]
+    assert third["scenario"] is sheet
+    assert third["parameter"] == "solvent_price"
+
+
+def test_process_buffer_is_the_first_confirm_seed(tmp_path, monkeypatch):
+    monkeypatch.setattr(cli, "run_turn", _ok_turn)
+    monkeypatch.setattr(sys.stdin, "isatty", lambda: True)
+    app, _buf = _app(tmp_path, monkeypatch)
+    edited = tea.seed_public_process_config({
+        "target_polymer": "LDPE",
+        "solvent": "Dodecane",
+        "dissolution_temperature_c": 145.0,
+        "irr": 0.12,
+    })
+    app._process_buffer = edited
+    seen = []
+
+    def record_prompt(seed, **kwargs):
+        seen.append(seed)
+        return seed
+
+    monkeypatch.setattr(app, "_edit_process_sheet", record_prompt)
+    captured = {}
+
+    def original(name, **kwargs):
+        captured["kwargs"] = kwargs
+        return {"success": True}
+
+    app._cli_direct_active = True
+    app._cli_direct_dispatch(
+        original,
+        "evaluate_tea_lca_scenarios",
+        {"scenarios": [{"target_polymer": "HDPE", "irr": 0.10}]},
+    )
+    assert seen[0] is edited
+    assert captured["kwargs"]["scenarios"][0] is edited
+    assert captured["kwargs"]["scenarios"][0]["irr"] == pytest.approx(0.12)

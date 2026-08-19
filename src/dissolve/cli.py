@@ -816,6 +816,26 @@ class CliApp:
             except ValueError as error:
                 self.console.print(f"[red]{error}[/]")
 
+    def _confirm_seed(self, scenario: dict[str, Any] | None) -> dict[str, Any]:
+        """Prefer a /process buffer. Never overlay model args onto it."""
+        if self._process_buffer is not None:
+            return self._process_buffer
+        return tea.seed_public_process_config(scenario)
+
+    def _bind_confirmed_process(
+        self, name: str, kwargs: dict[str, Any],
+    ) -> dict[str, Any]:
+        """Later process tools run the submitted buffer, not the model dict."""
+        buffer = self._process_buffer
+        if buffer is None:
+            return kwargs
+        out = dict(kwargs)
+        if name == "evaluate_tea_lca_scenarios":
+            out["scenarios"] = [buffer]
+        elif name == "analyze_tea_sensitivity":
+            out["scenario"] = buffer
+        return out
+
     def _confirm_tool_kwargs(
         self,
         name: str,
@@ -825,9 +845,7 @@ class CliApp:
     ) -> dict[str, Any] | None:
         if name == "evaluate_tea_lca_scenarios":
             scenarios = list(kwargs.get("scenarios") or [])
-            seed = tea.seed_public_process_config(
-                scenarios[0] if scenarios else None,
-            )
+            seed = self._confirm_seed(scenarios[0] if scenarios else None)
             submitted = self._edit_process_sheet(seed, prompt_fn=prompt_fn)
             if submitted is None:
                 return None
@@ -836,7 +854,7 @@ class CliApp:
             out["scenarios"] = [submitted]
             return out
         if name == "analyze_tea_sensitivity":
-            seed = tea.seed_public_process_config(kwargs.get("scenario"))
+            seed = self._confirm_seed(kwargs.get("scenario"))
             submitted = self._edit_process_sheet(seed, prompt_fn=prompt_fn)
             if submitted is None:
                 return None
@@ -849,25 +867,29 @@ class CliApp:
     def _cli_direct_dispatch(
         self, original: Callable[..., Any], name: str, kwargs: dict[str, Any],
     ) -> Any:
-        if (
+        armed = (
             self._cli_direct_active
             and name in tea.PROCESS_CONFIRM_TOOLS
-            and not self._confirmation_sheet_submitted
             and sys.stdin.isatty()
             and not self.quiet
-        ):
-            confirmed = self._confirm_tool_kwargs(name, kwargs)
-            if confirmed is None:
-                return {
-                    "success": False,
-                    "error": (
-                        "Process confirmation aborted; the model args "
-                        "did not run."
-                    ),
-                    "error_code": "process_confirmation_aborted",
-                }
-            kwargs = confirmed
-            self._confirmation_sheet_submitted = True
+        )
+        if not armed:
+            return original(name, **kwargs)
+        if self._confirmation_sheet_submitted:
+            kwargs = self._bind_confirmed_process(name, kwargs)
+            return original(name, **kwargs)
+        confirmed = self._confirm_tool_kwargs(name, kwargs)
+        if confirmed is None:
+            return {
+                "success": False,
+                "error": (
+                    "Process confirmation aborted; the model args "
+                    "did not run."
+                ),
+                "error_code": "process_confirmation_aborted",
+            }
+        kwargs = confirmed
+        self._confirmation_sheet_submitted = True
         return original(name, **kwargs)
 
     def ask(self, query: str) -> TurnResult:
