@@ -4829,11 +4829,99 @@ def _canonical_planner_solvent_map(value: dict[str, Any]) -> dict[str, str]:
     return mapping
 
 
+def _canonical_allowed_solvent_map(value: dict[str, Any]) -> dict[str, list[str]]:
+    mapping: dict[str, list[str]] = {}
+    for raw_polymer, raw_solvents in value.items():
+        members = _expand_polymers([raw_polymer], "allowed solvents polymer")
+        solvents: list[str] = []
+        for item in raw_solvents:
+            token = _public_solvent_token(item)
+            if token not in solvents:
+                solvents.append(token)
+        for member in members:
+            mapping[member] = list(solvents)
+    return mapping
+
+
 def _canonical_allowed_solvent_keys(value: dict[str, Any]) -> set[str]:
-    keys: set[str] = set()
-    for raw_polymer in value:
-        keys.update(_expand_polymers([raw_polymer], "allowed solvents polymer"))
-    return keys
+    return set(_canonical_allowed_solvent_map(value))
+
+
+def _remnant_cell(polymer: str, solvent: str) -> dict[str, Any]:
+    return {
+        "polymer": polymer,
+        "target_mass_percent": None,
+        "processing_capacity_mt_per_yr": None,
+        "solvent": solvent,
+    }
+
+
+def _missing_keys_from_planner_map(mapping: dict[str, str]) -> list[dict[str, Any]]:
+    return [
+        _remnant_cell(polymer, mapping[polymer])
+        for polymer in sorted(mapping)
+    ]
+
+
+def _missing_keys_from_allowed(
+    allowed_solvents: Any,
+    feed: list[str],
+) -> list[dict[str, Any]]:
+    if isinstance(allowed_solvents, list):
+        solvents = []
+        for item in allowed_solvents:
+            token = _public_solvent_token(item)
+            if token not in solvents:
+                solvents.append(token)
+        polymers = list(feed) if feed else []
+        if not polymers:
+            return [
+                {
+                    "polymer": None,
+                    "target_mass_percent": None,
+                    "processing_capacity_mt_per_yr": None,
+                    "solvent": solvent,
+                }
+                for solvent in solvents
+            ]
+        return [
+            _remnant_cell(polymer, solvent)
+            for polymer in polymers
+            for solvent in solvents
+        ]
+    mapping = _canonical_allowed_solvent_map(allowed_solvents)
+    return [
+        _remnant_cell(polymer, solvent)
+        for polymer in sorted(mapping)
+        for solvent in mapping[polymer]
+    ]
+
+
+def _incomplete_stage_basis_grid(
+    *,
+    formulation: str,
+    missing_keys: list[dict[str, Any]],
+) -> str:
+    details: dict[str, Any] = {
+        "source": "superstructure",
+        "formulation": formulation,
+        "missing_keys": missing_keys,
+        "error_type": "incomplete_stage_basis_grid",
+    }
+    if formulation == "sequence":
+        details["pending_blockers"] = [
+            {
+                "error_type": "sequence_coupling_unproven",
+                "gate": "gate_sequence_order_coupling",
+                "status": "would_fire_if_remnant_grid_complete",
+            },
+        ]
+    return tool_error(
+        "rank_landscape",
+        "remnant-basis coefficient table is incomplete",
+        error_code="incomplete_stage_basis_grid",
+        **details,
+    )
 
 
 def _superstructure_map_refusal(
@@ -4843,7 +4931,7 @@ def _superstructure_map_refusal(
     allowed_solvents: Any,
     target_polymer: Any,
 ) -> str | None:
-    """Named missing-map refuses before remnant DATA / D-20 / unwired."""
+    """Missing-map refuses, then incomplete_stage_basis_grid. Not a ranking."""
     tool = "rank_landscape"
     token = _formulation_token(formulation)
     feed = _supplied_feed_names(target_polymer)
@@ -4888,7 +4976,10 @@ def _superstructure_map_refusal(
                 polymers=missing,
                 feed=resolved_feed,
             )
-        return None
+        return _incomplete_stage_basis_grid(
+            formulation=token,
+            missing_keys=_missing_keys_from_planner_map(mapping),
+        )
     if token == "solvent":
         if not _allowed_solvents_shape(allowed_solvents):
             return tool_error(
@@ -4901,7 +4992,15 @@ def _superstructure_map_refusal(
             )
         try:
             if isinstance(allowed_solvents, list):
-                return None
+                resolved_feed = (
+                    _expand_polymers(feed, "target polymer") if feed else []
+                )
+                return _incomplete_stage_basis_grid(
+                    formulation=token,
+                    missing_keys=_missing_keys_from_allowed(
+                        allowed_solvents, resolved_feed,
+                    ),
+                )
             keys = _canonical_allowed_solvent_keys(allowed_solvents)
             resolved_feed = (
                 _expand_polymers(feed, "target polymer") if feed else []
@@ -4918,7 +5017,10 @@ def _superstructure_map_refusal(
                 polymers=missing,
                 feed=resolved_feed,
             )
-        return None
+        return _incomplete_stage_basis_grid(
+            formulation=token,
+            missing_keys=_missing_keys_from_allowed(allowed_solvents, resolved_feed),
+        )
     return None
 
 
@@ -4953,8 +5055,11 @@ def rank_landscape(
     is not a ranking. source=superstructure takes planner_solvent_map.v1
     (formulation=sequence) or allowed_solvents.v1 (formulation=solvent) as
     arguments, not a third public tool. Missing maps refuse by name before
-    the remnant-grid / D-20 / unwired remainder. Do not scan
-    top_k_sequences for either map.
+    incomplete_stage_basis_grid. A bound map still has no remnant table:
+    the data-gate lists missing (polymer, mass%, capacity, solvent) cells
+    and, for formulation=sequence, attaches pending_blockers for D-20.
+    Do not scan top_k_sequences for either map. Remnant ingest, D-20
+    primary, wash_train, and epsilon are not this slice.
     """
     tool = "rank_landscape"
     if unexpected:
