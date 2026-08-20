@@ -1602,8 +1602,9 @@ def test_c2_sheet_print_states_not_on_this_instance(tmp_path, monkeypatch):
     assert len(steam) <= 80
     assert phrase in steam
     fac = _sheet_field_block(shown, "facilities")
-    assert "derived" in fac
-    assert "energy_case" in fac
+    assert any(
+        "derived from energy_case" in line for line in fac.splitlines()
+    )
     assert all(len(line) <= 80 for line in fac.splitlines())
 
 
@@ -1805,8 +1806,15 @@ def test_sheet_print_aligns_value_units_origin(tmp_path, monkeypatch):
     assert _token_col(precip, "°C") == _token_col(diss, "°C")
     assert header_units.find("units") == _token_col(precip, "°C")
     assert _token_col(poly, "from_screen") == _token_col(solv, "from_screen")
-    assert _token_col(fac, "derived") == _token_col(poly, "from_screen")
-    assert _token_col(fac, "derived") != _token_col(precip, "°C")
+    assert _token_col(fac, "derived from energy_case") == _token_col(
+        poly, "from_screen",
+    )
+    assert _token_col(fac, "derived from energy_case") != _token_col(
+        precip, "°C",
+    )
+    assert any(
+        "derived from energy_case" in line for line in fac.splitlines()
+    )
     assert all(len(line) <= 80 for line in shown.splitlines())
     assert "…" not in shown
     assert re.search(r"^labor_cost_usd_per_employee_yr\b", shown, re.M)

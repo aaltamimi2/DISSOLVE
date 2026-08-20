@@ -2631,10 +2631,9 @@ def confirmation_sheet_format_row(
 
     Empty units still occupy the units slot so origin stays in the
     origin column. When the padded row misses line_width, value stays
-    on the field line and units/origin share a continuation with a
-    fixed units slot, so different-length values do not shift those
-    columns. Origin pad is not a fifth closed origin token. Not a
-    ranking.
+    on the field line and units/origin share a continuation. Origin is
+    sized from the right so derived from energy_case stays one visual
+    cell. Origin pad is not a fifth closed origin token. Not a ranking.
     """
     field_width, value_width, units_width, origin_width = widths
     padded = (
@@ -2646,8 +2645,14 @@ def confirmation_sheet_format_row(
     if len(padded) <= line_width:
         return padded
     units_width = max(int(units_width), len("units"))
+    origin_width = max(int(origin_width), len("origin"))
     value_budget = line_width - field_width - _SHEET_COL_SEP
-    origin_col = field_width + _SHEET_COL_SEP + units_width + _SHEET_COL_SEP
+    origin_col = max(line_width - origin_width, 0)
+    units_start = origin_col - _SHEET_COL_SEP - units_width
+    if units_start < 0:
+        units_start = 0
+        units_width = max(origin_col - _SHEET_COL_SEP, 1)
+        origin_col = units_start + units_width + _SHEET_COL_SEP
     origin_budget = max(line_width - origin_col, 1)
     value_lines = _sheet_wrap_cell(value, value_budget)
     rendered = [f"{field:<{field_width}}  {value_lines[0]}"]
@@ -2658,7 +2663,7 @@ def confirmation_sheet_format_row(
     origin_lines = _sheet_wrap_cell(origin, origin_budget)
     units_cell = f"{units:<{units_width}}"
     rendered.append(
-        f"{'':<{field_width}}  {units_cell}  {origin_lines[0]}"
+        f"{'':<{units_start}}{units_cell}  {origin_lines[0]}"
     )
     for extra in origin_lines[1:]:
         rendered.append(f"{'':<{origin_col}}{extra}")
