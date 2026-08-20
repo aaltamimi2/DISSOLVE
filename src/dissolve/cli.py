@@ -882,18 +882,14 @@ class CliApp:
         header = tea.confirmation_sheet_format_row(
             "field", "value", "units", "origin", widths,
         )
-        self.console.print(
-            header, overflow="ignore", crop=False, soft_wrap=False,
-        )
+        for visual in header.splitlines():
+            self.console.print(visual)
         for field, shown, units, token in rows:
-            self.console.print(
-                tea.confirmation_sheet_format_row(
-                    field, shown, units, token, widths,
-                ),
-                overflow="ignore",
-                crop=False,
-                soft_wrap=False,
+            formatted = tea.confirmation_sheet_format_row(
+                field, shown, units, token, widths,
             )
+            for visual in formatted.splitlines():
+                self.console.print(visual)
         missing = tea.missing_public_process_fields(buffer)
         if missing:
             self.console.print(f"[yellow]missing:[/] {', '.join(missing)}")

@@ -1577,15 +1577,15 @@ def test_c2_sheet_print_states_not_on_this_instance(tmp_path, monkeypatch):
     )
     phrase = tea.confirmation_sheet_not_on_this_instance_label(c2)
     assert phrase in ng
-    assert ng != ng.rstrip()
-    assert steam != steam.rstrip()
-    assert len(ng) > ng.find(phrase) + len(phrase)
+    assert len(ng) <= 80
+    assert len(steam) <= 80
+    assert phrase in steam
     fac = next(
         line for line in shown.splitlines()
         if line.startswith("facilities")
     )
-    assert len(ng) == len(fac)
-    assert len(steam) == len(fac)
+    assert "derived from energy_case" in fac
+    assert len(fac) <= 80
 
 
 def test_c1_sheet_print_does_not_state_not_on_this_instance(
@@ -1693,6 +1693,12 @@ def test_sheet_print_keeps_long_public_names_contiguous(tmp_path, monkeypatch):
         assert re.search(rf"^{re.escape(name)}\b", shown, re.M)
     assert "…" not in shown
     assert re.search(r"^facilities\s+true\b", shown, re.M)
+    assert all(
+        len(line) <= 80
+        for line in shown.splitlines()
+        if line.startswith(tuple(tea.public_process_field_names(energy_case="C1")))
+        or line.startswith(("facilities", "turbogenerator"))
+    )
 
 
 def test_confirmation_sheet_format_row_aligns_columns():
@@ -1715,7 +1721,6 @@ def test_confirmation_sheet_format_row_aligns_columns():
     ]
     assert lines[0].find("LDPE") == lines[1].find("Dodecane")
     assert lines[0].find("LDPE") == lines[4].find("true")
-    assert lines[2].find("°C") == lines[3].find("°C")
     assert lines[0].find("supplied") == lines[4].find(
         "derived from energy_case"
     )
@@ -1726,10 +1731,8 @@ def test_confirmation_sheet_format_row_aligns_columns():
     four_slot = (
         field_width + 2 + value_width + 2 + units_width + 2 + origin_width
     )
-    assert len(lines[0]) == four_slot
-    assert len(lines[4]) == four_slot
-    assert len(lines[5]) == four_slot
-    assert lines[5] != lines[5].rstrip()
+    assert four_slot > 80
+    assert all(len(line) <= 80 for line in lines)
     assert "derived from energy_case" not in tea._SHEET_ORIGIN_TOKENS
     assert "…" not in "".join(lines)
 
@@ -1768,13 +1771,13 @@ def test_sheet_print_aligns_value_units_origin(tmp_path, monkeypatch):
     )
     fac = next(line for line in lines if line.startswith("facilities"))
     assert poly.find("LDPE") == solv.find("Dodecane")
-    assert precip.find("°C") == diss.find("°C")
     assert fac.find("true") == poly.find("LDPE")
     assert fac.find("derived from energy_case") == poly.find("from_screen")
     assert fac.find("derived from energy_case") != precip.find("°C")
-    assert len(poly) == len(fac)
-    assert len(poly) == len(solv)
-    assert poly != poly.rstrip()
+    assert len(poly) <= 80
+    assert len(fac) <= 80
+    assert len(precip) <= 80
+    assert len(diss) <= 80
     assert "…" not in shown
     assert re.search(r"^labor_cost_usd_per_employee_yr\b", shown, re.M)
 

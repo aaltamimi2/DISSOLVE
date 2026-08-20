@@ -2602,26 +2602,42 @@ def confirmation_sheet_column_widths(
     return field_width, value_width, units_width, origin_width
 
 
+_SHEET_LINE_WIDTH = 80
+
+
 def confirmation_sheet_format_row(
     field: str,
     value: str,
     units: str,
     origin: str,
     widths: tuple[int, int, int, int],
+    *,
+    line_width: int = _SHEET_LINE_WIDTH,
 ) -> str:
     """One four-slot confirmation-sheet row, columns padded.
 
     Empty units still occupy the units slot so origin stays in the
-    origin column. Empty origin still occupies the origin slot.
-    Origin pad is not a fifth closed origin token. Not a ranking.
+    origin column. Empty origin still occupies the origin slot when
+    the padded row fits line_width. Wider pads compact rather than
+    extend the grid. Origin pad is not a fifth closed origin token.
+    Not a ranking.
     """
     field_width, value_width, units_width, origin_width = widths
-    return (
+    padded = (
         f"{field:<{field_width}}  "
         f"{value:<{value_width}}  "
         f"{units:<{units_width}}  "
         f"{origin:<{origin_width}}"
     )
+    if len(padded) <= line_width:
+        return padded
+    compact = (
+        f"{field:<{field_width}}  "
+        f"{value}  {units}  {origin}"
+    )
+    if len(compact) <= line_width:
+        return compact
+    return compact.rstrip()
 
 
 def _canonical_screening_shortlist_item(
