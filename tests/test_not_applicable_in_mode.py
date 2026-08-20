@@ -319,13 +319,27 @@ def test_sensitivity_refuses_screening_handoff(monkeypatch):
     ))
     assert held.get("error_code") == "not_applicable_in_mode"
     assert held.get("inapplicable_fields") == ["held_process_basis"]
-    with pytest.raises(TypeError, match="not_a_sensitivity_field"):
-        tea.analyze_tea_sensitivity(
-            scenario,
-            parameter="solvent_price",
-            engine_mode="cache",
-            not_a_sensitivity_field=1,
-        )
+    leftover = _data(tea.analyze_tea_sensitivity(
+        scenario,
+        parameter="solvent_price",
+        engine_mode="cache",
+        not_a_sensitivity_field=1,
+    ))
+    assert leftover.get("error_code") == "unknown_process_field"
+    assert leftover.get("extra_keys") == ["not_a_sensitivity_field"]
+    assert leftover.get("error_code") != "not_applicable_in_mode"
+    assert leftover.get("tool_name") == "analyze_tea_sensitivity"
+    assert "sensitivity_rows" not in leftover
+    mixed = _data(tea.analyze_tea_sensitivity(
+        scenario,
+        parameter="solvent_price",
+        engine_mode="cache",
+        screening_shortlist=shortlist,
+        not_a_sensitivity_field=1,
+    ))
+    assert mixed.get("error_code") == "not_applicable_in_mode"
+    assert mixed.get("inapplicable_fields") == ["screening_shortlist"]
+    assert mixed.get("error_code") != "unknown_process_field"
 
 
 def test_dispatch_sensitivity_handoff_is_named_refuse(monkeypatch):
@@ -360,6 +374,16 @@ def test_dispatch_sensitivity_handoff_is_named_refuse(monkeypatch):
         assert served.get("available") is True
         assert served.get("source_basis") == "tea_cache_exact"
         assert served.get("handle")
+        extra = dispatch(
+            "analyze_tea_sensitivity",
+            scenario=scenario,
+            parameter="solvent_price",
+            engine_mode="cache",
+            not_a_sensitivity_field=1,
+        )
+        assert extra.get("available") is False
+        assert extra.get("refusal") == "unknown_process_field"
+        assert "handle" not in extra
 
 
 def test_lookup_energy_cases_and_sensitivity_parameter_still_serve(monkeypatch):

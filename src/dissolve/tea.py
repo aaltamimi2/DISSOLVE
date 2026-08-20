@@ -9454,7 +9454,7 @@ def analyze_tea_sensitivity(
     scenario sample; it is not a probabilistic Monte Carlo claim. This is
     not a cache-pair fill and not a screening payload. screening_shortlist
     and held_process_basis refuse not_applicable_in_mode; they expand only
-    on evaluate.
+    on evaluate. Unknown leftover extras refuse unknown_process_field.
     """
     tool = "analyze_tea_sensitivity"
     inapplicable = [
@@ -9485,10 +9485,12 @@ def analyze_tea_sensitivity(
             **details,
         )
     if leftover:
-        unexpected = ", ".join(repr(name) for name in sorted(leftover))
-        raise TypeError(
-            "analyze_tea_sensitivity() got unexpected keyword "
-            f"argument(s): {unexpected}"
+        extra = sorted(str(name) for name in leftover)
+        return tool_error(
+            tool,
+            "unknown extra argument",
+            error_code="unknown_process_field",
+            extra_keys=extra,
         )
     field = _SCENARIO_ALIASES.get(
         str(parameter or "").strip(), str(parameter or "").strip(),
