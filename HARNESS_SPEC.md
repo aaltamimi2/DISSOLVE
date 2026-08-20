@@ -914,22 +914,22 @@ rows in the way `PE` does; do not invent a family walk.
 
 A refusal that names a recoverable cause for an unrecoverable
 condition is the same defect class as a value returned for an
-ambiguous name. `optimize_stored_route` and
-`pareto_optimize_stored_route` read
+ambiguous name. `pareto_optimize_stored_route` reads
 `getattr(state, "last_route"|"last_tea", ...)` on an interface v12
-removed. If they return the engine's "no stored route" / "complete
+removed. If it returns the engine's "no stored route" / "complete
 stored route is required", the model will do exactly what a
 recoverable refusal asks of it: recover in one step by running a route
 first, then call
 again, and get the identical refusal. That is a guaranteed two-round
 loop against a 30-round cap, on a tool that can never succeed no
-matter what precedes it. The Python engine
-`evaluate_stored_route_tea_lca` still getattr-reads `last_route`;
-it is not a registry name. The public wrap is `evaluate_process`
-mode=route (handle plus row_id). Dispatch of the retired string is
-`unknown_tool`.
+matter what precedes it. The Python engines
+`evaluate_stored_route_tea_lca` and `optimize_stored_route` still
+getattr-read session state; they are not registry names. The public
+wraps are `evaluate_process` mode=route (handle plus row_id) and
+`rank_landscape` source=residual_route operation=optimum. Dispatch of
+those retired strings is `unknown_tool`.
 
-The wrapper intercepts those two names **before** `registry.call`
+The wrapper intercepts that remaining name **before** `registry.call`
 and returns:
 
 ```
@@ -946,7 +946,6 @@ the model.
 
 Unwired set (closed, named — not a query router):
 
-- `optimize_stored_route`
 - `pareto_optimize_stored_route`
 
 **Rejected:** presenting this as `no_stored_route` or
@@ -1008,8 +1007,8 @@ Report the source_basis with the number.
   not read a boundary-equal row off the handle, do not claim the two
   are the same. D-5 (`3698afe`): prompt-fixed; compliance unverified
   until a live rerun.
-- optimize_stored_route and pareto_optimize_stored_route are
-  unwired. Do not call them to recover a missing route.
+- pareto_optimize_stored_route is unwired. Do not call it to
+  recover a missing route.
 
 A refusal is final. Report it, say what is available, and do not retry
 the same call with a nudged argument. Off-grid temperatures come back
@@ -1568,15 +1567,16 @@ exact, associable, ordered, durable. Verifiable, not self-verifying.
   registered tool. Do not keep a parallel path. Do not decide the
   pair together by import cost; the mutation test happens to cut
   both.
-- **`optimize_stored_route` / `pareto_optimize_stored_route`.**
-  Refuse `tool_not_wired` before `registry.call`. Schema description
-  names the status. Not `no_stored_route` — that string is
-  indistinguishable from "the user has not run a route yet" and
-  produces a guaranteed two-round loop (§5.4). Pending an engine
-  pass to accept a handle. Do not revive `SessionState`.
-  `evaluate_stored_route_tea_lca` remains a Python engine; it is
-  not a registry name. Cost a stored route through
-  `evaluate_process` mode=route (handle plus row_id).
+- **`pareto_optimize_stored_route`.** Refuse `tool_not_wired` before
+  `registry.call`. Schema description names the status. Not
+  `no_stored_route` — that string is indistinguishable from "the
+  user has not run a route yet" and produces a guaranteed two-round
+  loop (§5.4). Pending an engine pass to accept a handle. Do not
+  revive `SessionState`. `evaluate_stored_route_tea_lca` and
+  `optimize_stored_route` remain Python engines; they are not
+  registry names. Cost a stored route through `evaluate_process`
+  mode=route. Rank a costed route through `rank_landscape`
+  source=residual_route operation=optimum.
 
 **Disagreements with Part 1, named so they are not silent:**
 

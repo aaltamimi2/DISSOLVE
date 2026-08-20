@@ -288,16 +288,16 @@ def test_route_substitution_bound_count_separate_from_displayed():
 
 def test_unwired_names_do_not_call_engine():
     with _bound():
+        out = dispatch("pareto_optimize_stored_route")
+        assert out["refusal"] == "tool_not_wired"
+        assert out["available"] is False
         for name in (
+            "evaluate_stored_route_tea_lca",
             "optimize_stored_route",
-            "pareto_optimize_stored_route",
         ):
-            out = dispatch(name)
-            assert out["refusal"] == "tool_not_wired"
-            assert out["available"] is False
-        retired = dispatch("evaluate_stored_route_tea_lca")
-        assert retired["available"] is False
-        assert retired["refusal"] == "unknown_tool"
+            retired = dispatch(name)
+            assert retired["available"] is False
+            assert retired["refusal"] == "unknown_tool"
 
 
 def test_include_pubchem_wrapper_default_false():
@@ -331,15 +331,12 @@ def test_schemas_handle_only_on_consumer_and_omit_injected():
     assert wrap["process_config"]["type"] == "object"
     assert "evaluate_tea_lca_scenarios" not in schemas
     assert "evaluate_stored_route_tea_lca" not in schemas
+    assert "optimize_stored_route" not in schemas
     rm = schemas["screen_polymer_separation"]["parameters"]["properties"]["ranking_mode"]
     assert "target_dissolution" in rm["enum"]
     mt = schemas["lookup_hansen_parameters"]["parameters"]["properties"]["material_type"]
     assert set(mt["enum"]) == {"polymer", "solvent"}
-    for name in (
-        "optimize_stored_route",
-        "pareto_optimize_stored_route",
-    ):
-        assert schemas[name]["description"].startswith("UNWIRED.")
+    assert schemas["pareto_optimize_stored_route"]["description"].startswith("UNWIRED.")
     paths = schemas["ingest_literature_graph"]["parameters"]["properties"]["paths"]
     assert paths["type"] == "array" and paths["items"]["type"] == "string"
     empty = []

@@ -65,7 +65,6 @@ REGISTRY: tuple[Tool, ...] = tuple([
     _t(tea.evaluate_process, "tea"),
     _t(tea.rank_landscape, "tea"),
     # --- optimization ---
-    _t(optimization.optimize_stored_route, "optimization"),
     _t(optimization.pareto_optimize_stored_route, "optimization"),
     # --- Hansen parameters, thermal properties, numeric analysis ---
     _t(analysis.lookup_hansen_parameters, "analysis"),

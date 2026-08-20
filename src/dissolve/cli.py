@@ -98,7 +98,6 @@ EXPECTED_REGISTRY_NAMES: frozenset[str] = frozenset((
     "screen_route_solvent_substitutions",
     "evaluate_process",
     "rank_landscape",
-    "optimize_stored_route",
     "pareto_optimize_stored_route",
     "lookup_hansen_parameters",
     "screen_hansen_compatibility",

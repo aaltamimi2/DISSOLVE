@@ -169,7 +169,11 @@ def test_dispatch_residual_route_issues_handle(monkeypatch):
         assert stored["exact"]["source"] == "residual_route"
         old = dispatch("optimize_stored_route")
         assert old.get("available") is False
-        assert old.get("refusal") == "tool_not_wired"
+        assert old.get("refusal") == "unknown_tool"
+        assert callable(optimization.optimize_stored_route)
+        engine = _data(optimization.optimize_stored_route())
+        assert engine.get("error_code") == "invalid_optimization_basis"
+        assert engine.get("tool_name") == "optimize_stored_route"
 
 
 def test_objective_on_process_rows_is_not_applicable(monkeypatch):
