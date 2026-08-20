@@ -3886,6 +3886,22 @@ def _screening_estimate(
     }
 
 
+_SAFETY_STANDING_STATUSES = frozenset({
+    "evaluated", "not_requested", "unavailable",
+})
+
+
+def _comparison_safety_standing(source: Any = None) -> dict[str, Any]:
+    """Producer default: no safety call was made. Copy a legal bound object."""
+    if isinstance(source, dict):
+        bound = source.get("safety_standing")
+        if isinstance(bound, dict):
+            status = str(bound.get("status") or "").strip()
+            if status in _SAFETY_STANDING_STATUSES:
+                return copy.deepcopy(bound)
+    return {"status": "not_requested"}
+
+
 def _comparison_row(label: str, result: dict[str, Any]) -> dict[str, Any]:
     tea, lca, operations = result.get("tea") or {}, result.get("lca") or {}, result.get("operations") or {}
     config = result.get("config") or {}
@@ -4015,6 +4031,7 @@ def _comparison_row(label: str, result: dict[str, Any]) -> dict[str, Any]:
             {"lca_coverage": copy.deepcopy(result["lca_coverage"])}
             if result.get("lca_coverage") else {}
         ),
+        "safety_standing": _comparison_safety_standing(result),
         **(
             {"live_provenance": copy.deepcopy(result["live_provenance"])}
             if result.get("live_provenance") else {}
@@ -4244,6 +4261,7 @@ def _admitted_record_summary(record: dict[str, Any]) -> dict[str, Any]:
         value = (record.get(section) or {}).get(field)
         if value is not None:
             summary[field] = value
+    summary["safety_standing"] = _comparison_safety_standing(record)
     return summary
 
 
