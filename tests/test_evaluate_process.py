@@ -1162,3 +1162,102 @@ def test_dispatch_route_mode_issues_handle(monkeypatch):
         old = dispatch("evaluate_stored_route_tea_lca")
         assert old.get("available") is False
         assert old.get("refusal") == "tool_not_wired"
+
+
+def test_route_mode_row_id_costs_a_real_handle(monkeypatch):
+    composition, route = _exact_planner_route()
+    _forbid_live(monkeypatch)
+    session = new_session()
+    with bind_tool_session(session):
+        handle = store_handle(
+            session,
+            tool="plan_multistage_separation",
+            source_basis="cosmo_rs_grid",
+            data={
+                "success": True,
+                "complete": bool(route.get("complete")),
+                "steps": copy.deepcopy(route.get("steps") or []),
+                "final_residue": route.get("final_residue"),
+                "best_sequence": copy.deepcopy(route.get("sequence") or []),
+                "feed_mass_fractions": dict(composition),
+                "top_k_sequences": [
+                    copy.deepcopy(route),
+                    copy.deepcopy(route),
+                ],
+            },
+        )
+        missing = _data(tea.evaluate_process(
+            mode="route",
+            handle=handle,
+            processing_capacity_mt_per_yr=_ROUTE_CAPACITY,
+            energy_case=_ROUTE_ENERGY,
+            precipitation_temperature_c=_ROUTE_PRECIP,
+            engine_mode="cache",
+        ))
+        assert missing.get("error_code") == "ambiguous_handle_row"
+        assert missing.get("error_code") != "tool_not_wired"
+        payload = _data(tea.evaluate_process(
+            mode="route",
+            handle=handle,
+            row_id=1,
+            processing_capacity_mt_per_yr=_ROUTE_CAPACITY,
+            energy_case=_ROUTE_ENERGY,
+            precipitation_temperature_c=_ROUTE_PRECIP,
+            engine_mode="cache",
+        ))
+        assert session.get("last_route") is None
+        assert getattr(session, "last_route", None) is None
+    assert payload.get("success") is True
+    assert payload.get("error_code") != "unknown_handle"
+    assert payload.get("error_code") != "tool_not_wired"
+    assert payload.get("tool_name") == "evaluate_process"
+    stages = payload.get("stage_results") or []
+    assert stages
+    step = route["steps"][0]
+    assert _key_polymer(stages[0].get("target_polymer") or stages[0].get("polymer")) == (
+        _key_polymer(step["dissolved_polymer"])
+    )
+    assert len(payload.get("comparison_rows") or []) == len(stages)
+
+
+def test_route_mode_stage_identity_mismatch(monkeypatch):
+    composition, route = _exact_planner_route()
+    polymer = str(route["steps"][0]["dissolved_polymer"])
+    _forbid_live(monkeypatch)
+    real_run = tea._run
+
+    def planted(config, engine_mode, timeout_seconds):
+        result = real_run(config, engine_mode, timeout_seconds)
+        if result.get("success") is not True:
+            return result
+        planted_result = dict(result)
+        planted_config = dict(result.get("config") or {})
+        planted_config["target_plastic"] = "PE"
+        planted_result["config"] = planted_config
+        planted_result["target_plastic"] = "PE"
+        planted_result["target_polymer"] = "PE"
+        return planted_result
+
+    monkeypatch.setattr(tea, "_run", planted)
+    session = new_session()
+    with bind_tool_session(session):
+        handle = _store_planner_route_handle(session, composition, route)
+        payload = _data(tea.evaluate_process(
+            mode="route",
+            handle=handle,
+            row_id=1,
+            processing_capacity_mt_per_yr=_ROUTE_CAPACITY,
+            energy_case=_ROUTE_ENERGY,
+            precipitation_temperature_c=_ROUTE_PRECIP,
+            engine_mode="cache",
+        ))
+    assert payload.get("success") is False
+    assert payload.get("error_code") == "stage_identity_mismatch"
+    assert payload.get("dissolved_polymer") == polymer
+    assert payload.get("executed_target_polymer") == "PE"
+    assert payload.get("error_code") != "tool_not_wired"
+    assert payload.get("tool_name") == "evaluate_process"
+
+
+def _key_polymer(value):
+    return " ".join(str(value or "").strip().casefold().split())

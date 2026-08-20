@@ -4622,6 +4622,20 @@ def _comparison_safety_standing(source: Any = None) -> dict[str, Any]:
     return {"status": "not_requested"}
 
 
+def _executed_stage_polymer(result: dict[str, Any]) -> str:
+    """Identity the stage actually costed. D-19 compares this to dissolved_polymer."""
+    config = result.get("config") if isinstance(result.get("config"), dict) else {}
+    for key in ("target_plastic", "target_polymer"):
+        value = result.get(key)
+        if value:
+            return str(value).strip()
+    for key in ("target_plastic", "target_polymer"):
+        value = config.get(key)
+        if value:
+            return str(value).strip()
+    return ""
+
+
 def _comparison_row(label: str, result: dict[str, Any]) -> dict[str, Any]:
     tea, lca, operations = result.get("tea") or {}, result.get("lca") or {}, result.get("operations") or {}
     config = result.get("config") or {}
@@ -5703,6 +5717,9 @@ def _load_stored_route_from_handle(
         item for item in sequences
         if isinstance(item, dict) and _planner_route_shape(item)
     ] if isinstance(sequences, list) else []
+    published = _published_route_from_plan(exact)
+    if not route_rows and published is not None:
+        route_rows = [published]
     if row_id is not None:
         if not route_rows:
             raise _ScenarioInputError(
@@ -5718,11 +5735,6 @@ def _load_stored_route_from_handle(
             ),
             exact,
         )
-    published = _published_route_from_plan(exact)
-    if published is not None:
-        return published, exact
-    if len(route_rows) == 1:
-        return copy.deepcopy(route_rows[0]), exact
     if len(route_rows) > 1:
         raise _ScenarioInputError(
             "multi-row handle requires row_id",
@@ -5730,6 +5742,8 @@ def _load_stored_route_from_handle(
             handle=token,
             n_rows=len(route_rows),
         )
+    if len(route_rows) == 1:
+        return copy.deepcopy(route_rows[0]), exact
     raise _ScenarioInputError(
         "handle is not a stored separation route",
         error_code="not_route_handle",
@@ -5753,7 +5767,10 @@ def evaluate_process(
     Closed mode: lookup, evaluate, sensitivity, route. lookup uses
     lookup_filter; evaluate uses process_config or process_configs,
     or screening_shortlist plus held_process_basis; sensitivity uses
-    process_config plus parameter; route uses handle plus row_id.
+    process_config plus parameter; route uses handle plus row_id,
+    never last_route. Stage mass percent and capacity after the first
+    come from the D-18 overlay, or the stage refuses. Identity is
+    dissolved_polymer; a mismatch is stage_identity_mismatch.
     Closed screen_to_economics_order: omitted is independent. This wrap
     does not wait on safety and does not invent a router.
     The existing TEA names still serve the same work.
@@ -9531,9 +9548,10 @@ def evaluate_stored_route_tea_lca(
     override = _STORED_ROUTE_OVERRIDE.get()
     if override is not None:
         route = copy.deepcopy(override)
+        candidate_basis = None
     else:
         route = copy.deepcopy(getattr(state, "last_route", None)) if state else None
-    candidate_basis = _stored_candidate_screen(state) if state and not route else None
+        candidate_basis = _stored_candidate_screen(state) if state and not route else None
     candidate_feed_matches = False
     if candidate_basis:
         candidate_labels = [
@@ -10155,9 +10173,18 @@ def evaluate_stored_route_tea_lca(
                 "The stored route does not establish recovery or an integrated-facility design, and designated-residue impacts are excluded.",
             ],
         )
-    stored_composition = getattr(state, "feed_mass_fractions", None) if state else None
-    composition_source = "typed_session_state" if stored_composition else "tool_argument"
-    supplied_composition = stored_composition or feed_mass_fractions
+    if override is not None:
+        stored_composition = None
+        composition_source = "tool_argument"
+        supplied_composition = feed_mass_fractions
+    else:
+        stored_composition = (
+            getattr(state, "feed_mass_fractions", None) if state else None
+        )
+        composition_source = (
+            "typed_session_state" if stored_composition else "tool_argument"
+        )
+        supplied_composition = stored_composition or feed_mass_fractions
     if not supplied_composition:
         return tool_error(
             tool, "No stored feed composition is available for this route.",
@@ -10397,6 +10424,21 @@ def evaluate_stored_route_tea_lca(
                 consumed_route=route, live_engine=live_engine_status(),
                 lca_status_definitions=_collect_lca_status_definitions(results),
                 process_data_gaps=_cache_lca_status_gaps(results),
+            )
+        executed = _executed_stage_polymer(result)
+        if _key(executed) != _key(polymer):
+            return tool_error(
+                tool,
+                "Executed stage identity does not match dissolved_polymer.",
+                error_code="stage_identity_mismatch",
+                stage=index,
+                dissolved_polymer=polymer,
+                executed_target_polymer=executed,
+                route_source="typed_session_state",
+                route_signature=tea_contracts.route_evidence_signature(route),
+                consumed_route=route,
+                failed_stage=row,
+                completed_stage_results=rows[:-1],
             )
         row["modeled_stage_product_mt_per_yr"] = round(capacity * target_fraction, 10)
         row["modeled_stage_gwp_t_co2e_per_yr"] = (
