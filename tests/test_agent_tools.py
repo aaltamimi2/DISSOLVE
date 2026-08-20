@@ -586,7 +586,11 @@ def test_handle_projection_strips_secondary_row_lists():
         assert "contaminant_catalog" not in (leach.get("data") or {})
         assert _row_keys(leach.get("data")) == []
         assert len(json.dumps(leach)) < len(json.dumps(lexact))
-        admitted = dispatch("lookup_admitted_process_records", target_polymer="LDPE")
+        admitted = dispatch(
+            "evaluate_process",
+            mode="lookup",
+            lookup_filter={"target_polymer": "LDPE"},
+        )
         aexact = load_handle(rec, admitted["handle"])["exact"]
         assert "records" in aexact and "record_assumptions" in aexact
         assert admitted.get("handle")

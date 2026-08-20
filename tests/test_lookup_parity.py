@@ -1,4 +1,8 @@
-"""§10.1 lookup capability-parity. Do not retire lookup_admitted_process_records."""
+"""§10.1 lookup capability-parity on evaluate_process(mode=lookup).
+
+The Python engine tea.lookup_admitted_process_records remains. The
+registry name is retired.
+"""
 from __future__ import annotations
 
 import hashlib
@@ -78,9 +82,10 @@ def _sealed_entry() -> dict:
     }
 
 
-def test_lookup_name_is_still_registered():
-    assert "lookup_admitted_process_records" in registry.BY_NAME
+def test_lookup_name_is_unregistered_successor_stays():
+    assert "lookup_admitted_process_records" not in registry.BY_NAME
     assert "evaluate_process" in registry.BY_NAME
+    assert callable(tea.lookup_admitted_process_records)
 
 
 def test_missing_polymer_is_named_not_a_cache_dump(monkeypatch):
@@ -91,7 +96,8 @@ def test_missing_polymer_is_named_not_a_cache_dump(monkeypatch):
     blank = _data(tea.lookup_admitted_process_records(target_polymer=""))
     empty_list = _data(tea.lookup_admitted_process_records(target_polymer=[]))
     whitespace = _data(tea.lookup_admitted_process_records(target_polymer="  "))
-    for payload in (omitted, blank, empty_list, whitespace):
+    wrapped = _data(tea.evaluate_process(mode="lookup"))
+    for payload in (omitted, blank, empty_list, whitespace, wrapped):
         assert payload.get("success") is False
         assert payload.get("error_code") == "missing_target_polymer"
         assert payload.get("error_code") != "invalid_admitted_record_query"
@@ -103,7 +109,15 @@ def test_missing_polymer_is_named_not_a_cache_dump(monkeypatch):
     assert unknown.get("success") is False
     assert unknown.get("error_code") == "invalid_admitted_record_query"
     assert unknown.get("error_code") != "missing_target_polymer"
-    dispatched = dispatch("lookup_admitted_process_records")
+    wrapped_unknown = _data(tea.evaluate_process(
+        mode="lookup",
+        lookup_filter={"target_polymer": "not-a-stored-polymer"},
+    ))
+    assert wrapped_unknown.get("error_code") == "invalid_admitted_record_query"
+    retired = dispatch("lookup_admitted_process_records")
+    assert retired.get("available") is False
+    assert retired.get("refusal") == "unknown_tool"
+    dispatched = dispatch("evaluate_process", mode="lookup")
     assert dispatched.get("available") is False
     assert dispatched.get("refusal") == "missing_target_polymer"
     assert "handle" not in dispatched
@@ -118,10 +132,20 @@ def test_campaign_lookup_may_omit_polymer(monkeypatch, tmp_path):
         source="campaign",
         campaign_fingerprint=_CANONICAL,
     ))
+    wrapped = _data(tea.evaluate_process(
+        mode="lookup",
+        lookup_filter={
+            "source": "campaign",
+            "campaign_fingerprint": _CANONICAL,
+        },
+    ))
     assert payload.get("success") is True
+    assert wrapped.get("success") is True
+    assert wrapped.get("tool_name") == "evaluate_process"
     assert payload.get("error_code") != "missing_target_polymer"
-    assert payload.get("n_rows_consumed") == 462
+    assert wrapped.get("n_rows_consumed") == 462
     assert len(payload["comparison_rows"]) == 462
+    assert len(wrapped["comparison_rows"]) == 462
     assert payload.get("ingested_into_admitted_cache") is False
 
 
@@ -186,44 +210,52 @@ def test_sensitivity_selectors_stay_on_lookup(monkeypatch):
 
 def test_requested_metrics_keep_lca_and_operations_tokens(monkeypatch):
     _forbid_live(monkeypatch)
-    lookup_schema = _schema("lookup_admitted_process_records")
-    metric_enum = (
-        lookup_schema["parameters"]["properties"]["requested_metrics"]
-        ["items"]["enum"]
-    )
-    for token in _LOOKUP_METRIC_TOKENS:
-        assert token in metric_enum
+    lookup_params = inspect.signature(tea.lookup_admitted_process_records).parameters
+    assert "requested_metrics" in lookup_params
     default = _data(tea.lookup_admitted_process_records(
         target_polymer="LDPE",
         solvent="Dodecane",
     ))
+    wrapped_default = _data(tea.evaluate_process(
+        mode="lookup",
+        lookup_filter={"target_polymer": "LDPE", "solvent": "Dodecane"},
+    ))
     assert default.get("success") is True
+    assert wrapped_default.get("success") is True
     for token in _LOOKUP_METRIC_TOKENS:
         assert token in default["requested_metrics"]
         assert token in default["metric_units"]
+        assert token in wrapped_default["requested_metrics"]
     narrowed = _data(tea.lookup_admitted_process_records(
         target_polymer="LDPE",
         solvent="Dodecane",
         requested_metrics=["etox", "energy"],
     ))
+    wrapped_narrowed = _data(tea.evaluate_process(
+        mode="lookup",
+        lookup_filter={
+            "target_polymer": "LDPE",
+            "solvent": "Dodecane",
+            "requested_metrics": ["etox", "energy"],
+        },
+    ))
     assert narrowed.get("success") is True
     assert narrowed["requested_metrics"] == ["etox", "energy"]
     assert set(narrowed["metric_units"]) == {"etox", "energy"}
+    assert wrapped_narrowed["requested_metrics"] == ["etox", "energy"]
     eval_props = _schema("evaluate_tea_lca_scenarios")["parameters"]["properties"]
     assert "requested_metrics" not in eval_props
 
 
 def test_lookup_energy_cases_are_a_list(monkeypatch):
     _forbid_live(monkeypatch)
-    lookup_props = _schema("lookup_admitted_process_records")[
-        "parameters"
-    ]["properties"]
+    lookup_params = inspect.signature(tea.lookup_admitted_process_records).parameters
     eval_props = _schema("evaluate_tea_lca_scenarios")["parameters"]["properties"]
     sensitivity_props = _schema("analyze_tea_sensitivity")[
         "parameters"
     ]["properties"]
-    assert lookup_props["energy_cases"]["type"] == "array"
-    assert "energy_case" not in lookup_props
+    assert "energy_cases" in lookup_params
+    assert "energy_case" not in lookup_params
     assert "energy_cases" not in eval_props
     assert "energy_cases" not in sensitivity_props
     one = _data(tea.lookup_admitted_process_records(

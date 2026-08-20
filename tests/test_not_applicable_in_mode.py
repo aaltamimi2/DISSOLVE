@@ -1,6 +1,7 @@
 """Wrong-mode scalars on evaluate refuse not_applicable_in_mode. Not a rename."""
 from __future__ import annotations
 
+import inspect
 import json
 import sys
 from pathlib import Path
@@ -66,11 +67,9 @@ def _schema(name: str) -> dict:
 
 def test_lookup_selectors_are_absent_from_evaluate_schema():
     eval_props = _schema("evaluate_tea_lca_scenarios")["parameters"]["properties"]
-    lookup_props = _schema("lookup_admitted_process_records")[
-        "parameters"
-    ]["properties"]
+    lookup_params = inspect.signature(tea.lookup_admitted_process_records).parameters
     for name in tea._LOOKUP_MODE_SELECTORS:
-        assert name in lookup_props
+        assert name in lookup_params
         assert name not in eval_props
 
 
@@ -258,9 +257,9 @@ def test_evaluate_refuses_lookup_energy_cases_list(monkeypatch):
     _forbid_live(monkeypatch)
     eval_props = _schema("evaluate_tea_lca_scenarios")["parameters"]["properties"]
     assert "energy_cases" not in eval_props
-    assert "energy_cases" in _schema("lookup_admitted_process_records")[
-        "parameters"
-    ]["properties"]
+    assert "energy_cases" in inspect.signature(
+        tea.lookup_admitted_process_records,
+    ).parameters
     payload = _data(tea.evaluate_tea_lca_scenarios(
         [_public_from_record(record)],
         engine_mode="cache",
@@ -473,15 +472,13 @@ def test_evaluate_refuses_record_form_and_requested_metrics(monkeypatch):
     scenario = _public_from_record(record)
     _forbid_live(monkeypatch)
     eval_props = _schema("evaluate_tea_lca_scenarios")["parameters"]["properties"]
-    lookup_props = _schema("lookup_admitted_process_records")[
-        "parameters"
-    ]["properties"]
+    lookup_params = inspect.signature(tea.lookup_admitted_process_records).parameters
     sent = {
         "record_form": "grouped_comparison",
         "requested_metrics": ["etox", "energy"],
     }
     for name, value in sent.items():
-        assert name in lookup_props
+        assert name in lookup_params
         assert name not in eval_props
         payload = _data(tea.evaluate_tea_lca_scenarios(
             [scenario],
@@ -592,19 +589,25 @@ def test_dispatch_lookup_leftover_is_named_refuse(monkeypatch):
     session = new_session()
     with bind_tool_session(session):
         refused = dispatch(
-            "lookup_admitted_process_records",
-            target_polymer="LDPE",
-            solvent="Dodecane",
-            not_a_lookup_field=True,
+            "evaluate_process",
+            mode="lookup",
+            lookup_filter={
+                "target_polymer": "LDPE",
+                "solvent": "Dodecane",
+                "not_a_lookup_field": True,
+            },
         )
         assert refused.get("available") is False
         assert refused.get("refusal") == "unknown_process_field"
         assert refused.get("refusal") != "tool_exception"
         assert "handle" not in refused
         served = dispatch(
-            "lookup_admitted_process_records",
-            target_polymer="LDPE",
-            solvent="Dodecane",
+            "evaluate_process",
+            mode="lookup",
+            lookup_filter={
+                "target_polymer": "LDPE",
+                "solvent": "Dodecane",
+            },
         )
         assert served.get("available") is True
         assert served.get("handle")

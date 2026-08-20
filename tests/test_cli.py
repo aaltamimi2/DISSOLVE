@@ -110,9 +110,9 @@ def test_doctor_checks_key_assets_registry_duckdb(tmp_path, monkeypatch):
     assert "duckdb" in names
     by_name = {c["name"]: c for c in report["checks"]}
     assert by_name["Tool registry"]["status"] == "pass"
-    assert by_name["Tool registry"]["detail"] == "35 registered names"
+    assert by_name["Tool registry"]["detail"] == "34 registered names"
     assert by_name["Tool registry"]["registered"] == len(EXPECTED_REGISTRY_NAMES)
-    assert len(EXPECTED_REGISTRY_NAMES) == 35
+    assert len(EXPECTED_REGISTRY_NAMES) == 34
     assert "normalize_feed_composition" not in EXPECTED_REGISTRY_NAMES
     assert by_name["Scientific assets"]["status"] == "pass"
     assert by_name["Model provider"]["status"] == "fail"

@@ -377,7 +377,7 @@ def test_lookup_row_is_an_economics_inherit_source(monkeypatch):
         ))
         handle = store_handle(
             session,
-            tool="lookup_admitted_process_records",
+            tool="evaluate_process",
             source_basis="tea_cache_exact",
             data=lookup,
         )

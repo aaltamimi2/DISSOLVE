@@ -225,8 +225,7 @@ def test_schema_exposes_the_closed_choice():
     assert "screen_to_economics_order" not in old
     sensitivity = schemas["analyze_tea_sensitivity"]["parameters"]["properties"]
     assert "screen_to_economics_order" not in sensitivity
-    lookup = schemas["lookup_admitted_process_records"]["parameters"]["properties"]
-    assert "screen_to_economics_order" not in lookup
+    assert "lookup_admitted_process_records" not in schemas
 
 
 def test_omitted_and_explicit_independent_match(monkeypatch, tmp_path):

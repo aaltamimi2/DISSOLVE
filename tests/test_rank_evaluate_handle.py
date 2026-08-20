@@ -200,7 +200,7 @@ def test_admitted_lookup_handle_ranks_energy_cases(monkeypatch):
         assert lookup.get("success") is True
         handle = store_handle(
             session,
-            tool="lookup_admitted_process_records",
+            tool="evaluate_process",
             source_basis="tea_cache_exact",
             data=lookup,
         )
@@ -366,7 +366,7 @@ def test_mixed_fingerprints_on_one_handle_refuse(monkeypatch):
     with bind_tool_session(session):
         handle = store_handle(
             session,
-            tool="lookup_admitted_process_records",
+            tool="evaluate_process",
             source_basis="tea_cache_exact",
             data={
                 "success": True,

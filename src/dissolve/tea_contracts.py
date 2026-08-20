@@ -383,7 +383,7 @@ TEA_TOOL_BOUNDARY_REGISTRY = (
     ),
     TeaToolBoundaryContract(
         "admitted_records",
-        "lookup_admitted_process_records",
+        "evaluate_process",
     ),
 )
 TEA_TOOL_BOUNDARY_BY_MODE = MappingProxyType({

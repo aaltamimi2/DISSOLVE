@@ -111,7 +111,7 @@ def test_campaign_lookup_handle_ranks_without_rereading_jsonl(monkeypatch, tmp_p
         assert len(lookup["comparison_rows"]) == 462
         handle = store_handle(
             session,
-            tool="lookup_admitted_process_records",
+            tool="evaluate_process",
             source_basis="tea_cache_exact",
             data=lookup,
         )
@@ -141,7 +141,7 @@ def test_campaign_handle_held_mismatch_is_not_a_ranking(monkeypatch, tmp_path):
         ))
         handle = store_handle(
             session,
-            tool="lookup_admitted_process_records",
+            tool="evaluate_process",
             source_basis="tea_cache_exact",
             data=lookup,
         )
@@ -189,7 +189,7 @@ def test_ldpe_campaign_lookup_handle_is_one_polymer_front(monkeypatch, tmp_path)
         ))
         handle = store_handle(
             session,
-            tool="lookup_admitted_process_records",
+            tool="evaluate_process",
             source_basis="tea_cache_exact",
             data=lookup,
         )
@@ -221,7 +221,7 @@ def test_disagreeing_fingerprint_on_campaign_handle_mismatches(
         ))
         handle = store_handle(
             session,
-            tool="lookup_admitted_process_records",
+            tool="evaluate_process",
             source_basis="tea_cache_exact",
             data=lookup,
         )
@@ -274,10 +274,10 @@ def test_campaign_lookup_basis_is_not_cache_exact():
         "comparison_rows": [{"engine_mode": "cache"}],
     }
     assert source_basis_for(
-        "lookup_admitted_process_records", campaign, {},
+        "evaluate_process", campaign, {},
     ) == "campaign_process_rows"
     assert source_basis_for(
-        "lookup_admitted_process_records", cache, {},
+        "evaluate_process", cache, {},
     ) == "tea_cache_exact"
     ranked = {
         "success": True,
@@ -298,9 +298,12 @@ def test_dispatch_mints_a_campaign_lookup_handle(monkeypatch, tmp_path):
     session = new_session()
     with bind_tool_session(session):
         lookup = dispatch(
-            "lookup_admitted_process_records",
-            source="campaign",
-            campaign_fingerprint=_CANONICAL,
+            "evaluate_process",
+            mode="lookup",
+            lookup_filter={
+                "source": "campaign",
+                "campaign_fingerprint": _CANONICAL,
+            },
         )
         assert lookup.get("available") is True
         assert lookup.get("refusal") != "no_honest_basis"

@@ -80,14 +80,16 @@ def _parity_keys(payload: dict) -> dict:
     }
 
 
-def test_evaluate_process_is_registered_lookup_stays():
+def test_evaluate_process_is_registered_lookup_engine_stays():
     assert "evaluate_process" in registry.BY_NAME
     assert "evaluate_process" in EXPECTED_REGISTRY_NAMES
-    assert "lookup_admitted_process_records" in registry.BY_NAME
+    assert "lookup_admitted_process_records" not in registry.BY_NAME
+    assert "lookup_admitted_process_records" not in EXPECTED_REGISTRY_NAMES
+    assert callable(tea.lookup_admitted_process_records)
     assert "evaluate_process" not in UNWIRED
     assert "evaluate_process" in tea.PROCESS_CONFIRM_TOOLS
-    assert len(EXPECTED_REGISTRY_NAMES) == 35
-    assert len(registry.REGISTRY) == 35
+    assert len(EXPECTED_REGISTRY_NAMES) == 34
+    assert len(registry.REGISTRY) == 34
 
 
 def test_schema_uses_two_typed_objects_not_top_level_polymer():
