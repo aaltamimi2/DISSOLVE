@@ -78,6 +78,7 @@ def test_omitted_and_explicit_coefficient_defaults_share_the_serve_key():
         "duration": (2025, 2055),
         "depreciation": "MACRS7",
         "construction_schedule": (0.08, 0.60, 0.32),
+        "lang_factor": None,
         "feedstock_price_usd_per_kg": 0.01,
         "centrifuged_plastic_solvent_content_pct": 50.0,
         "natural_gas_price_usd_per_m3": tea._NATURAL_GAS_PRICE_USD_PER_M3,
@@ -110,6 +111,7 @@ def test_omitted_and_explicit_coefficient_defaults_share_the_serve_key():
     assert reconstructed["duration"] == (2025, 2055)
     assert reconstructed["depreciation"] == "MACRS7"
     assert reconstructed["construction_schedule"] == (0.08, 0.60, 0.32)
+    assert reconstructed["lang_factor"] is None
     assert reconstructed["feedstock_price_usd_per_kg"] == pytest.approx(0.01)
     assert reconstructed["centrifuged_plastic_solvent_content_pct"] == pytest.approx(50.0)
     assert reconstructed["natural_gas_price_usd_per_m3"] == pytest.approx(
@@ -126,6 +128,7 @@ def test_c2_does_not_carry_natural_gas_price():
     reconstructed = tea._scenario_config(_public_from_record(record))
     assert "natural_gas_price_usd_per_m3" not in reconstructed
     assert "steam_power_depreciation" not in reconstructed
+    assert reconstructed["lang_factor"] is None
     assert tea._cache_index().get(tea._config_key(reconstructed))["label"] == (
         record["label"]
     )
@@ -2201,6 +2204,10 @@ def test_cache_mode_refuses_duration_override_instead_of_the_other_plant(
         item["field"] == "construction_schedule"
         for item in row["flowsheet_switch_deltas"]
     )
+    assert not any(
+        item["field"] == "lang_factor"
+        for item in row["flowsheet_switch_deltas"]
+    )
 
 
 def test_depreciation_override_does_not_emit_a_duration_delta(monkeypatch):
@@ -2229,6 +2236,10 @@ def test_depreciation_override_does_not_emit_a_duration_delta(monkeypatch):
     )
     assert not any(
         item["field"] == "construction_schedule"
+        for item in row["flowsheet_switch_deltas"]
+    )
+    assert not any(
+        item["field"] == "lang_factor"
         for item in row["flowsheet_switch_deltas"]
     )
 
@@ -2337,12 +2348,17 @@ def test_cache_mode_refuses_construction_schedule_override_instead_of_the_other_
         item["field"] == "steam_power_depreciation"
         for item in row["flowsheet_switch_deltas"]
     )
+    assert not any(
+        item["field"] == "lang_factor"
+        for item in row["flowsheet_switch_deltas"]
+    )
 
 
 def test_c2_still_carries_construction_schedule():
     record = _record_with_energy("C2")
     reconstructed = tea._scenario_config(_public_from_record(record))
     assert reconstructed["construction_schedule"] == (0.08, 0.60, 0.32)
+    assert reconstructed["lang_factor"] is None
     assert tea._cache_index().get(tea._config_key(reconstructed))["label"] == (
         record["label"]
     )
@@ -2453,6 +2469,10 @@ def test_cache_mode_refuses_steam_power_depreciation_override_instead_of_the_oth
         for item in row["flowsheet_switch_deltas"]
     )
     assert row.get("depreciation") == "MACRS7"
+    assert not any(
+        item["field"] == "lang_factor"
+        for item in row["flowsheet_switch_deltas"]
+    )
 
 
 def test_c2_steam_power_depreciation_is_energy_case_contract():
@@ -2505,6 +2525,114 @@ def test_unimplemented_steam_power_macrs_years_are_refused():
     assert caught.value.details["field"] == "steam_power_depreciation"
 
 
+def test_explicit_none_lang_factor_shares_the_serve_key():
+    record = _record_with_energy("C1")
+    omitted = dict(record["config"])
+    as_none = {**omitted, "lang_factor": None}
+    as_empty = {**omitted, "lang_factor": ""}
+    assert tea._config_key(omitted) == tea._config_key(as_none)
+    assert tea._config_key(omitted) == tea._config_key(as_empty)
+    reconstructed = tea._scenario_config(
+        _public_from_record(record, lang_factor=None),
+    )
+    assert reconstructed["lang_factor"] is None
+    assert tea._cache_index().get(tea._config_key(reconstructed))["label"] == (
+        record["label"]
+    )
+    empty = tea._scenario_config(_public_from_record(record, lang_factor=""))
+    assert empty["lang_factor"] is None
+    assert tea._config_key(reconstructed) == tea._config_key(empty)
+
+
+def test_c2_still_carries_lang_factor():
+    record = _record_with_energy("C2")
+    reconstructed = tea._scenario_config(_public_from_record(record))
+    assert reconstructed["lang_factor"] is None
+    assert tea._cache_index().get(tea._config_key(reconstructed))["label"] == (
+        record["label"]
+    )
+
+
+def test_lang_factor_present_is_invalid_scenario_not_a_live_plant(monkeypatch):
+    record = _record_with_energy("C1")
+
+    def forbidden_live(config, timeout_seconds):
+        raise AssertionError(
+            "a Lang factor must not fall through to live"
+        )
+
+    monkeypatch.setattr(tea, "_live", forbidden_live)
+    with pytest.raises(tea._ScenarioInputError) as caught:
+        tea._scenario_config(_public_from_record(record, lang_factor=3.0))
+    assert caught.value.error_code == "invalid_scenario"
+    assert caught.value.details["field"] == "lang_factor"
+    payload = _data(tea.evaluate_tea_lca_scenarios(
+        [_public_from_record(record, lang_factor=3.0)],
+        engine_mode="cache",
+    ))
+    assert payload.get("success") is False
+    assert payload.get("error_code") == "invalid_scenario"
+    assert payload.get("field") == "lang_factor"
+    assert payload.get("error_code") != "unknown_process_field"
+    assert payload.get("error_code") != "cache_flowsheet_mismatch"
+    assert "comparison_rows" not in payload or not payload.get("comparison_rows")
+
+
+def test_zero_is_not_the_production_lang_factor(monkeypatch):
+    record = _record_with_energy("C1")
+
+    def forbidden_live(config, timeout_seconds):
+        raise AssertionError("lang_factor=0 is not production None")
+
+    monkeypatch.setattr(tea, "_live", forbidden_live)
+    with pytest.raises(tea._ScenarioInputError) as caught:
+        tea._scenario_config(_public_from_record(record, lang_factor=0))
+    assert caught.value.error_code == "invalid_scenario"
+    assert caught.value.details["field"] == "lang_factor"
+
+
+def test_string_lang_factor_is_refused():
+    record = _record_with_energy("C1")
+    with pytest.raises(tea._ScenarioInputError) as caught:
+        tea._scenario_config(_public_from_record(record, lang_factor="3.0"))
+    assert caught.value.error_code == "invalid_scenario"
+    assert caught.value.details["field"] == "lang_factor"
+
+
+def test_true_lang_factor_is_refused():
+    record = _record_with_energy("C1")
+    with pytest.raises(tea._ScenarioInputError) as caught:
+        tea._scenario_config(_public_from_record(record, lang_factor=True))
+    assert caught.value.error_code == "invalid_scenario"
+    assert caught.value.details["field"] == "lang_factor"
+
+
+def test_array_lang_factor_is_refused():
+    record = _record_with_energy("C1")
+    with pytest.raises(tea._ScenarioInputError) as caught:
+        tea._scenario_config(_public_from_record(record, lang_factor=[3.0]))
+    assert caught.value.error_code == "invalid_scenario"
+    assert caught.value.details["field"] == "lang_factor"
+
+
+def test_omitted_evaluate_echoes_production_lang_factor(monkeypatch):
+    record = _record_with_energy("C1")
+    recorded_msp = float(record["result"]["tea"]["msp_usd_per_kg"])
+
+    def forbidden_live(config, timeout_seconds):
+        raise AssertionError("omitted lang_factor must hit the cache")
+
+    monkeypatch.setattr(tea, "_live", forbidden_live)
+    payload = _data(tea.evaluate_tea_lca_scenarios(
+        [_public_from_record(record)],
+        engine_mode="cache",
+    ))
+    assert payload.get("success") is True
+    row = (payload.get("comparison_rows") or [])[0]
+    assert row.get("lang_factor") is None
+    assert row.get("msp_usd_per_kg") == pytest.approx(recorded_msp)
+
+
 def test_percent_integer_income_tax_is_refused():
     record = _record_with_energy("C1")
     with pytest.raises(tea._ScenarioInputError) as caught:
@@ -2517,9 +2645,11 @@ def test_other_g_constructor_coefficients_are_not_dumped():
     record = _record_with_energy("C1")
     with pytest.raises(tea._ScenarioInputError) as caught:
         tea._scenario_config(_public_from_record(record, lang_factor=3.0))
-    assert caught.value.error_code == "unknown_process_field"
-    assert "lang_factor" in list(caught.value.details.get("extra_keys") or [])
-    assert "lang_factor" not in tea._COEFFICIENT_DEFAULTS
+    assert caught.value.error_code == "invalid_scenario"
+    assert caught.value.details["field"] == "lang_factor"
+    assert "lang_factor" in tea._COEFFICIENT_DEFAULTS
+    assert "lang_factor" in tea.public_process_field_names()
+    assert "lang_factor" in tea.public_process_field_names(energy_case="C2")
     assert "steam_power_depreciation" not in tea._COEFFICIENT_DEFAULTS
     assert "steam_power_depreciation" in tea.public_process_field_names()
     assert "steam_power_depreciation" not in tea.public_process_field_names(
@@ -2652,6 +2782,7 @@ def test_d8_overlay_still_excludes_coefficients():
         "duration",
         "depreciation",
         "construction_schedule",
+        "lang_factor",
         "feedstock_price_usd_per_kg",
         "centrifuged_plastic_solvent_content_pct",
         "natural_gas_price_usd_per_m3",
@@ -2691,6 +2822,7 @@ def test_worker_calls_the_unreached_setters():
     assert "process.tea.duration" in source
     assert "process.tea.construction_schedule" in source
     assert "process.tea.steam_power_depreciation" in source
+    assert "process.tea.lang_factor" in source
     assert "set_feedstock_price(" in source
     assert "set_centrifuged_plastic_solvent_content(" in source
     assert "set_natural_gas_price(" in source

@@ -472,7 +472,7 @@ def test_dispatch_evaluate_process_binds_the_token(monkeypatch):
     assert refused.get("refusal") == "invalid_admitted_record_query"
 
 
-def test_lang_factor_stays_unbound(monkeypatch):
+def test_lang_factor_present_is_invalid_scenario(monkeypatch):
     _forbid_live(monkeypatch)
     c1 = _record_by_label("ldpe-route-c1")
     payload = _data(tea.evaluate_process(
@@ -481,6 +481,7 @@ def test_lang_factor_stays_unbound(monkeypatch):
         engine_mode="cache",
         screen_to_economics_order="independent",
     ))
-    assert payload.get("error_code") == "unknown_process_field"
-    assert "lang_factor" in list(payload.get("extra_keys") or [])
-    assert "lang_factor" not in tea._COEFFICIENT_DEFAULTS
+    assert payload.get("error_code") == "invalid_scenario"
+    assert payload.get("field") == "lang_factor"
+    assert payload.get("error_code") != "unknown_process_field"
+    assert "lang_factor" in tea._COEFFICIENT_DEFAULTS

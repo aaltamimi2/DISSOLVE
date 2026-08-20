@@ -134,6 +134,7 @@ _DEPRECIATION_DEFAULT = "MACRS7"
 _DURATION_DEFAULT = (2025, 2055)
 _CONSTRUCTION_SCHEDULE_DEFAULT = (0.08, 0.60, 0.32)
 _STEAM_POWER_DEPRECIATION_DEFAULT = "MACRS20"
+_LANG_FACTOR_DEFAULT = None
 _DEPRECIATION_SCHEDULE_PREFIXES = ("MACRS", "SL", "DDB", "SYD")
 # BioSTEAM TEA.depreciation_schedules MACRS keys (U.S. IRS Pub 946).
 _MACRS_IMPLEMENTED_YEARS = frozenset({3, 5, 7, 10, 15, 20})
@@ -166,6 +167,7 @@ _COEFFICIENT_DEFAULTS = {
     "duration": _DURATION_DEFAULT,
     "depreciation": _DEPRECIATION_DEFAULT,
     "construction_schedule": _CONSTRUCTION_SCHEDULE_DEFAULT,
+    "lang_factor": _LANG_FACTOR_DEFAULT,
     "feedstock_price_usd_per_kg": _FEEDSTOCK_PRICE_USD_PER_KG,
     "centrifuged_plastic_solvent_content_pct": (
         _CENTRIFUGED_PLASTIC_SOLVENT_CONTENT_PCT
@@ -993,6 +995,7 @@ def public_process_field_names(*, energy_case: str = "C1") -> tuple[str, ...]:
         "duration",
         "depreciation",
         "construction_schedule",
+        "lang_factor",
         "feedstock_price_usd_per_kg",
         "centrifuged_plastic_solvent_content_pct",
     )
@@ -1409,8 +1412,12 @@ def _project_coefficients(config: dict[str, Any]) -> dict[str, Any]:
         value = config.get(key)
         if value is None:
             projected[key] = default
-        elif value == "" and isinstance(default, (str, tuple, list)):
+        elif value == "" and (
+            default is None or isinstance(default, (str, tuple, list))
+        ):
             projected[key] = default
+        elif default is None:
+            projected[key] = value
         elif isinstance(default, str):
             projected[key] = str(value)
         elif key == "duration":
@@ -2084,6 +2091,15 @@ def _validated_coefficients(
     elif energy_case in {"C1", "C3"}:
         coefficients["steam_power_depreciation"] = (
             _STEAM_POWER_DEPRECIATION_DEFAULT
+        )
+    if "lang_factor" in supplied and supplied["lang_factor"] not in (None, ""):
+        raise _ScenarioInputError(
+            "lang_factor is None on create_baseline_tea; "
+            "CellulosicEthanolTEA raises NotImplementedError when a "
+            "Lang factor is present.",
+            error_code="invalid_scenario",
+            field="lang_factor",
+            supplied=supplied["lang_factor"],
         )
     return coefficients
 
@@ -2834,6 +2850,15 @@ def _flowsheet_switch_deltas(config: dict[str, Any]) -> list[dict[str, Any]]:
     projected_coefficients = _project_coefficients(config)
     for key, default in _coefficient_defaults_for(config).items():
         requested = projected_coefficients[key]
+        if default is None and requested is None:
+            continue
+        if default is None or requested is None:
+            deltas.append({
+                "field": key,
+                "recorded_value": default,
+                "requested_value": requested,
+            })
+            continue
         if isinstance(default, str) or isinstance(requested, str):
             if requested != default:
                 deltas.append({
@@ -2969,7 +2994,9 @@ def _config_key(config: dict[str, Any]) -> str:
         else:
             normalized[key] = str(value)
     for key, value in _project_coefficients(config).items():
-        if isinstance(value, str):
+        if value is None:
+            normalized[key] = None
+        elif isinstance(value, str):
             normalized[key] = value
         elif isinstance(value, (tuple, list)):
             if key == "duration":
@@ -3961,6 +3988,10 @@ def _same_config(
             return False
         left_value = left_coeff[key]
         right_value = right_coeff[key]
+        if left_value is None and right_value is None:
+            continue
+        if left_value is None or right_value is None:
+            return False
         if isinstance(left_value, str) or isinstance(right_value, str):
             if left_value != right_value:
                 return False
@@ -4236,6 +4267,7 @@ def _comparison_row(label: str, result: dict[str, Any]) -> dict[str, Any]:
             list(coefficients["construction_schedule"])
             if coefficients.get("construction_schedule") is not None else None
         ),
+        "lang_factor": coefficients.get("lang_factor"),
         "feedstock_price_usd_per_kg": coefficients.get(
             "feedstock_price_usd_per_kg"
         ),
@@ -6706,6 +6738,25 @@ def _requested_steam_power_depreciation(
     )
 
 
+def _requested_lang_factor(process_config: Any) -> None:
+    """Held lang_factor. Production is None; a number is not implemented."""
+    if not isinstance(process_config, dict):
+        return None
+    if (
+        "lang_factor" not in process_config
+        or process_config["lang_factor"] in (None, "")
+    ):
+        return None
+    raise _ScenarioInputError(
+        "lang_factor is None on create_baseline_tea; "
+        "CellulosicEthanolTEA raises NotImplementedError when a "
+        "Lang factor is present.",
+        error_code="invalid_admitted_record_query",
+        field="lang_factor",
+        supplied=process_config["lang_factor"],
+    )
+
+
 def _requested_duration(process_config: Any) -> tuple[int, int] | None:
     """Held venture-year pair. Do not default (2025, 2055)."""
     if not isinstance(process_config, dict):
@@ -7491,6 +7542,7 @@ def _refuse_listed_or_complete(
         "steam_power_depreciation": _requested_steam_power_depreciation(
             process_config,
         ),
+        "lang_factor": _requested_lang_factor(process_config),
     }
     if any(value is not None for value in held.values()):
         stamped: list[dict[str, Any]] = []
@@ -7746,7 +7798,7 @@ def rank_landscape(
     precipitation_configuration, irr, income_tax, operating_days,
     labor_burden, finance_interest, finance_years, finance_fraction,
     startup_months, startup_FOCfrac, startup_VOCfrac,
-    startup_salesfrac, WC_over_FCI, warehouse, site_development, additional_piping, proratable_costs, field_expenses, construction, contingency, other_indirect_costs, property_insurance, maintenance, duration, depreciation, construction_schedule, or steam_power_depreciation, listed keys include that held
+    startup_salesfrac, WC_over_FCI, warehouse, site_development, additional_piping, proratable_costs, field_expenses, construction, contingency, other_indirect_costs, property_insurance, maintenance, duration, depreciation, construction_schedule, steam_power_depreciation, or lang_factor, listed keys include that held
     value and matching requires it; omitted is not a silent cache or
     production default. A complete sequence grid with production check red is
     sequence_coupling_unproven as primary (no pending_blockers).

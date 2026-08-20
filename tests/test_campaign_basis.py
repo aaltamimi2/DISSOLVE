@@ -472,6 +472,27 @@ def test_matching_default_steam_power_depreciation_is_not_a_held_mismatch():
     assert "error_code" not in result
 
 
+def test_lang_factor_override_is_coefficient_mismatch():
+    projected = campaign_basis.project_campaign_basis_v1(_minimal_v2())
+    result = campaign_basis.held_field_mismatches(
+        projected, {"lang_factor": 3.0},
+    )
+    assert result["error_code"] == "campaign_basis_mismatch"
+    assert [row["field"] for row in result["mismatches"]] == ["lang_factor"]
+    row = result["mismatches"][0]
+    assert row["campaign_value"] is None
+    assert row["requested_value"] == pytest.approx(3.0)
+
+
+def test_matching_none_lang_factor_is_not_a_held_mismatch():
+    projected = campaign_basis.project_campaign_basis_v1(_minimal_v2())
+    result = campaign_basis.held_field_mismatches(
+        projected, {"lang_factor": None},
+    )
+    assert result["mismatches"] == []
+    assert "error_code" not in result
+
+
 def test_polymer_only_is_not_a_held_mismatch():
     projected = campaign_basis.project_campaign_basis_v1(_minimal_v2())
     result = campaign_basis.held_field_mismatches(

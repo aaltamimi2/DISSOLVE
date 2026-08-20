@@ -523,6 +523,10 @@ def _coerce_process_sheet_value(field: str, raw: str, current: Any) -> Any:
                 "for example 0.08, 0.60, 0.32"
             )
         return tuple(float(item) for item in parsed)
+    if field == "lang_factor":
+        if not text:
+            return None
+        return float(text)
     if field in {
         "precipitation_temperature_format", "precipitation_configuration",
         "target_polymer", "solvent", "depreciation",

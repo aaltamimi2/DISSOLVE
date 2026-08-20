@@ -13711,4 +13711,87 @@ def test_invalid_steam_power_does_not_outrank_missing_map(monkeypatch):
     assert payload.get("error_code") != "invalid_admitted_record_query"
 
 
+def test_omitted_lang_factor_is_not_a_silent_default(monkeypatch):
+    _forbid_live(monkeypatch)
+    payload = _data(tea.rank_landscape(**_sequence_kwargs()))
+    assert payload.get("error_code") == "incomplete_stage_basis_grid"
+    for row in payload["missing_keys"]:
+        assert row.get("lang_factor") is None
+        assert row.get("lang_factor") != 3.0
+
+
+def test_empty_lang_factor_is_the_omitted_grain(monkeypatch):
+    _forbid_live(monkeypatch)
+    payload = _data(tea.rank_landscape(
+        **_sequence_kwargs(
+            process_config={**_CAP_20KT, "lang_factor": ""},
+        ),
+    ))
+    assert payload.get("error_code") == "incomplete_stage_basis_grid"
+    for row in payload["missing_keys"]:
+        assert row.get("lang_factor") is None
+
+
+def test_named_lang_factor_is_not_a_listing(monkeypatch):
+    _forbid_live(monkeypatch)
+    payload = _data(tea.rank_landscape(
+        **_sequence_kwargs(
+            process_config={**_CAP_20KT, "lang_factor": 3.0},
+        ),
+    ))
+    assert payload.get("error_code") == "invalid_admitted_record_query"
+    assert payload.get("field") == "lang_factor"
+    assert payload.get("error_code") != "incomplete_stage_basis_grid"
+    assert payload.get("error_code") != "invalid_scenario"
+    assert "missing_keys" not in payload
+
+
+def test_zero_lang_factor_is_not_a_listing(monkeypatch):
+    _forbid_live(monkeypatch)
+    payload = _data(tea.rank_landscape(
+        **_sequence_kwargs(
+            process_config={**_CAP_20KT, "lang_factor": 0},
+        ),
+    ))
+    assert payload.get("error_code") == "invalid_admitted_record_query"
+    assert payload.get("field") == "lang_factor"
+
+
+def test_lang_factor_kwarg_is_unknown_extra(monkeypatch):
+    _forbid_live(monkeypatch)
+    payload = _data(tea.rank_landscape(
+        **_sequence_kwargs(lang_factor=3.0),
+    ))
+    assert payload.get("error_code") == "unknown_process_field"
+    assert payload.get("extra_keys") == ["lang_factor"]
+    assert payload.get("error_code") != "incomplete_stage_basis_grid"
+
+
+def test_nested_lang_factor_does_not_count(monkeypatch):
+    _forbid_live(monkeypatch)
+    payload = _data(tea.rank_landscape(
+        **_sequence_kwargs(
+            process_config={
+                **_CAP_20KT,
+                "held": {"lang_factor": 3.0},
+            },
+        ),
+    ))
+    assert payload.get("error_code") == "incomplete_stage_basis_grid"
+    for row in payload["missing_keys"]:
+        assert row.get("lang_factor") is None
+
+
+def test_invalid_lang_factor_does_not_outrank_missing_map(monkeypatch):
+    _forbid_live(monkeypatch)
+    payload = _data(tea.rank_landscape(
+        source="superstructure",
+        formulation="sequence",
+        feed_mass_fractions=_FEED_55_45,
+        process_config={**_CAP_20KT, "lang_factor": 3.0},
+    ))
+    assert payload.get("error_code") == "missing_planner_solvent_map"
+    assert payload.get("error_code") != "invalid_admitted_record_query"
+
+
 

@@ -69,6 +69,8 @@ def _held_values_equal(field: str, campaign: Any, requested: Any) -> bool:
                 str(item or "").upper() == campaign_s for item in requested
             )
         return campaign_s == str(requested or "").upper()
+    if field == "lang_factor":
+        return campaign in (None, "") and requested in (None, "")
     if isinstance(campaign, (list, tuple)) or isinstance(requested, (list, tuple)):
         try:
             left = tuple(campaign)
