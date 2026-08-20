@@ -2553,6 +2553,35 @@ def confirmation_sheet_not_on_this_instance_label(
     return f"not on this instance (energy_case={energy})"
 
 
+_ENERGY_CASE_BUNDLE = {
+    "C1": {"facilities": True, "turbogenerator": True},
+    "C2": {"facilities": False, "turbogenerator": False},
+    "C3": {"facilities": True, "turbogenerator": False},
+}
+_DERIVED_FROM_ENERGY_CASE = "derived from energy_case"
+
+
+def confirmation_sheet_derived_energy_case_rows(
+    buffer: dict[str, Any] | None = None,
+) -> tuple[tuple[str, bool], ...]:
+    """facilities / turbogenerator as bundled from energy_case.
+
+    Not independent knobs. Not a ranking.
+    """
+    energy = str((buffer or {}).get("energy_case") or "C1").upper()
+    bundle = _ENERGY_CASE_BUNDLE.get(energy)
+    if bundle is None:
+        return ()
+    return (
+        ("facilities", bundle["facilities"]),
+        ("turbogenerator", bundle["turbogenerator"]),
+    )
+
+
+def confirmation_sheet_derived_energy_case_label() -> str:
+    return _DERIVED_FROM_ENERGY_CASE
+
+
 def _canonical_screening_shortlist_item(
     item: Any, index: int,
 ) -> dict[str, Any]:

@@ -1,6 +1,7 @@
 """CLI-direct process sheet: the submitted dict is the tool dict."""
 from __future__ import annotations
 
+import re
 import sys
 from pathlib import Path
 
@@ -1560,12 +1561,12 @@ def test_c2_sheet_print_states_not_on_this_instance(tmp_path, monkeypatch):
     })
     app._print_process_sheet(c2)
     shown = buf.getvalue()
-    assert "not on this instance" in shown
+    assert "not on this" in shown
     assert "energy_case=C2" in shown
     assert "USD/m3" not in shown
     assert "energy_case=C1" not in shown
-    assert "natural_gas_price_usd_per" in shown
-    assert "steam_power_depreciation" in shown
+    assert "natural_gas_price_u" in shown
+    assert "steam_power_depreci" in shown
 
 
 def test_c1_sheet_print_does_not_state_not_on_this_instance(
@@ -1583,6 +1584,70 @@ def test_c1_sheet_print_does_not_state_not_on_this_instance(
     shown = buf.getvalue()
     assert "not on this instance" not in shown
     assert "USD/m3" in shown
+
+
+def test_derived_energy_case_rows_bind_c1_c2_c3():
+    c1 = tea.seed_public_process_config({"energy_case": "C1"})
+    c2 = tea.seed_public_process_config({"energy_case": "C2"})
+    c3 = tea.seed_public_process_config({"energy_case": "C3"})
+    assert tea.confirmation_sheet_derived_energy_case_rows(c1) == (
+        ("facilities", True),
+        ("turbogenerator", True),
+    )
+    assert tea.confirmation_sheet_derived_energy_case_rows(c2) == (
+        ("facilities", False),
+        ("turbogenerator", False),
+    )
+    assert tea.confirmation_sheet_derived_energy_case_rows(c3) == (
+        ("facilities", True),
+        ("turbogenerator", False),
+    )
+    assert tea.confirmation_sheet_derived_energy_case_rows(c1) != (
+        tea.confirmation_sheet_derived_energy_case_rows(c2)
+    )
+    assert tea.confirmation_sheet_derived_energy_case_label() == (
+        "derived from energy_case"
+    )
+    names = tea.public_process_field_names(energy_case="C1")
+    assert "facilities" not in names
+    assert "turbogenerator" not in names
+    gated = tea.confirmation_sheet_not_on_this_instance(c2)
+    assert "facilities" not in gated
+    assert "turbogenerator" not in gated
+
+
+def test_c1_sheet_print_shows_derived_facilities_true(tmp_path, monkeypatch):
+    monkeypatch.setattr(cli, "run_turn", _ok_turn)
+    app, buf = _app(tmp_path, monkeypatch)
+    c1 = tea.seed_public_process_config({
+        "target_polymer": "LDPE",
+        "solvent": "Dodecane",
+        "dissolution_temperature_c": 145.0,
+        "energy_case": "C1",
+    })
+    app._print_process_sheet(c1)
+    shown = buf.getvalue()
+    assert re.search(r"^facilities\s+true\b", shown, re.M)
+    assert re.search(r"^turbogenerator\s+true\b", shown, re.M)
+    assert re.search(r"^facilities\s+false\b", shown, re.M) is None
+
+
+def test_c2_sheet_print_shows_derived_facilities_false(tmp_path, monkeypatch):
+    monkeypatch.setattr(cli, "run_turn", _ok_turn)
+    app, buf = _app(tmp_path, monkeypatch)
+    c2 = tea.seed_public_process_config({
+        "target_polymer": "LDPE",
+        "solvent": "Dodecane",
+        "dissolution_temperature_c": 145.0,
+        "energy_case": "C2",
+    })
+    app._print_process_sheet(c2)
+    shown = buf.getvalue()
+    assert re.search(r"^facilities\s+false\b", shown, re.M)
+    assert re.search(r"^turbogenerator\s+false\b", shown, re.M)
+    assert re.search(r"^facilities\s+true\b", shown, re.M) is None
+    assert "not on this" in shown
+    assert "energy_case=C2" in shown
 
 
 

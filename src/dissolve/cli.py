@@ -866,6 +866,15 @@ class CliApp:
             )
             units = tea.confirmation_sheet_row_units(field, buffer)
             table.add_row(field, shown, units, token)
+        for field, value in tea.confirmation_sheet_derived_energy_case_rows(
+            buffer,
+        ):
+            table.add_row(
+                field,
+                _format_sheet_value(value),
+                "",
+                tea.confirmation_sheet_derived_energy_case_label(),
+            )
         for field in tea.confirmation_sheet_not_on_this_instance(buffer):
             table.add_row(
                 field,
