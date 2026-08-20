@@ -2610,7 +2610,9 @@ def confirmation_sheet_format_row(
     """One four-slot confirmation-sheet row, columns padded.
 
     Empty units still occupy the units slot so origin stays in the
-    origin column. Not a fifth closed origin token. Not a ranking.
+    origin column. Empty origin still occupies the origin slot:
+    trailing units/origin pad is kept. Not a fifth closed origin
+    token. Not a ranking.
     """
     field_width, value_width, units_width = widths
     return (
@@ -2618,7 +2620,7 @@ def confirmation_sheet_format_row(
         f"{value:<{value_width}}  "
         f"{units:<{units_width}}  "
         f"{origin}"
-    ).rstrip()
+    )
 
 
 def _canonical_screening_shortlist_item(

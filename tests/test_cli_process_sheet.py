@@ -1567,6 +1567,19 @@ def test_c2_sheet_print_states_not_on_this_instance(tmp_path, monkeypatch):
     assert "energy_case=C1" not in shown
     assert re.search(r"^natural_gas_price_usd_per_m3\b", shown, re.M)
     assert re.search(r"^steam_power_depreciation\b", shown, re.M)
+    ng = next(
+        line for line in shown.splitlines()
+        if line.startswith("natural_gas_price_usd_per_m3")
+    )
+    steam = next(
+        line for line in shown.splitlines()
+        if line.startswith("steam_power_depreciation")
+    )
+    phrase = tea.confirmation_sheet_not_on_this_instance_label(c2)
+    assert phrase in ng
+    assert ng != ng.rstrip()
+    assert steam != steam.rstrip()
+    assert len(ng) > ng.find(phrase) + len(phrase)
 
 
 def test_c1_sheet_print_does_not_state_not_on_this_instance(
@@ -1702,6 +1715,11 @@ def test_confirmation_sheet_format_row_aligns_columns():
     )
     assert lines[4].find("derived from energy_case") != lines[2].find("°C")
     assert "not on this instance (energy_case=C2)" in lines[5]
+    field_width, value_width, units_width = widths
+    assert len(lines[5]) == (
+        field_width + 2 + value_width + 2 + units_width + 2
+    )
+    assert lines[5] != lines[5].rstrip()
     assert "…" not in "".join(lines)
 
 
