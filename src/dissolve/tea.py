@@ -4774,6 +4774,14 @@ def _rank_handle_engine_mode(rows: Sequence[dict[str, Any]]) -> str:
     return "handle"
 
 
+_SUPERSTRUCTURE_FORMULATIONS = (
+    "sequence",
+    "solvent",
+    "sequence_solvent",
+    "wash_train",
+)
+
+
 def _formulation_token(formulation: Any) -> str:
     return str(formulation or "").strip().casefold()
 
@@ -4949,6 +4957,35 @@ def _superstructure_map_refusal(
             tool, str(error), error_code="invalid_admitted_record_query",
         )
 
+    if not token:
+        return tool_error(
+            tool,
+            "formulation is required on source=superstructure",
+            error_code="missing_formulation",
+            source="superstructure",
+            legal_formulations=list(_SUPERSTRUCTURE_FORMULATIONS),
+        )
+    if token not in _SUPERSTRUCTURE_FORMULATIONS:
+        return tool_error(
+            tool,
+            "formulation must be sequence, solvent, sequence_solvent, "
+            "or wash_train.",
+            error_code="invalid_admitted_record_query",
+            source="superstructure",
+            formulation=token,
+            legal_formulations=list(_SUPERSTRUCTURE_FORMULATIONS),
+        )
+    if token == "wash_train":
+        return tool_error(
+            tool,
+            "formulation=wash_train is unavailable until the process "
+            "model exposes wash-train algebra",
+            error_code="process_model_wash_train_unavailable",
+            source="superstructure",
+            formulation=token,
+        )
+    if token == "sequence_solvent":
+        return None
     if token == "sequence":
         if not _planner_solvent_map_shape(planner_solvent_map):
             return tool_error(
@@ -5058,8 +5095,10 @@ def rank_landscape(
     incomplete_stage_basis_grid. A bound map still has no remnant table:
     the data-gate lists missing (polymer, mass%, capacity, solvent) cells
     and, for formulation=sequence, attaches pending_blockers for D-20.
-    Do not scan top_k_sequences for either map. Remnant ingest, D-20
-    primary, wash_train, and epsilon are not this slice.
+    Do not scan top_k_sequences for either map. formulation is required
+    iff source=superstructure; formulation=wash_train is
+    process_model_wash_train_unavailable. Remnant ingest, D-20 primary,
+    sequence_solvent ranking, and epsilon are not this slice.
     """
     tool = "rank_landscape"
     if unexpected:

@@ -234,15 +234,19 @@ def test_complete_allowed_map_is_incomplete_stage_basis_grid(monkeypatch):
     assert polymers == {"LDPE", "EVOH"}
 
 
-def test_superstructure_without_formulation_stays_unwired(monkeypatch):
+def test_superstructure_without_formulation_is_missing_formulation(monkeypatch):
     _forbid_live(monkeypatch)
     payload = _data(tea.rank_landscape(source="superstructure"))
-    assert payload.get("error_code") == "tool_not_wired"
+    assert payload.get("error_code") == "missing_formulation"
     assert payload.get("source") == "superstructure"
+    assert payload.get("legal_formulations") == [
+        "sequence", "solvent", "sequence_solvent", "wash_train",
+    ]
+    assert payload.get("error_code") != "tool_not_wired"
     assert payload.get("error_code") != "missing_planner_solvent_map"
-    assert payload.get("error_code") != "missing_allowed_solvents"
     assert payload.get("error_code") != "incomplete_stage_basis_grid"
     assert payload.get("error_code") != "process_model_wash_train_unavailable"
+    assert "landscape_points" not in payload
 
 
 def test_residual_route_stays_unwired_without_requiring_maps(monkeypatch):
@@ -324,6 +328,7 @@ def test_maps_are_optional_schema_args_not_a_35th_name(monkeypatch):
     )
     assert "planner_solvent_map" not in required
     assert "allowed_solvents" not in required
+    assert "formulation" not in required
     assert "evaluate_process" not in EXPECTED_REGISTRY_NAMES
 
 
@@ -389,14 +394,31 @@ def test_campaign_fingerprint_does_not_fill_the_remnant_grid(monkeypatch):
     assert payload.get("n_usable") is None
 
 
-def test_wash_train_and_sequence_solvent_stay_unwired(monkeypatch):
+def test_wash_train_is_process_model_unavailable(monkeypatch):
     _forbid_live(monkeypatch)
     wash = _data(tea.rank_landscape(
         source="superstructure",
         formulation="wash_train",
     ))
-    assert wash.get("error_code") == "tool_not_wired"
-    assert wash.get("error_code") != "process_model_wash_train_unavailable"
+    assert wash.get("error_code") == "process_model_wash_train_unavailable"
+    assert wash.get("formulation") == "wash_train"
+    assert wash.get("source") == "superstructure"
+    assert "landscape_points" not in wash
+    assert wash.get("error_code") != "incomplete_stage_basis_grid"
+    aliased = _data(tea.rank_landscape(
+        source="superstructure",
+        formulation="wash_train",
+        process_config={"solvent_loss_pct": 0.5},
+        planner_solvent_map=_PLAN_MAP,
+        allowed_solvents=_ALLOWED_MAP,
+    ))
+    assert aliased.get("error_code") == "process_model_wash_train_unavailable"
+    assert aliased.get("error_code") != "missing_planner_solvent_map"
+    assert aliased.get("error_code") != "incomplete_stage_basis_grid"
+
+
+def test_sequence_solvent_stays_unwired(monkeypatch):
+    _forbid_live(monkeypatch)
     coupled = _data(tea.rank_landscape(
         source="superstructure",
         formulation="sequence_solvent",
@@ -405,4 +427,53 @@ def test_wash_train_and_sequence_solvent_stay_unwired(monkeypatch):
     ))
     assert coupled.get("error_code") == "tool_not_wired"
     assert coupled.get("error_code") != "incomplete_stage_basis_grid"
+    assert coupled.get("error_code") != "missing_formulation"
+    assert coupled.get("error_code") != "process_model_wash_train_unavailable"
+
+
+def test_complete_map_does_not_infer_formulation(monkeypatch):
+    _forbid_live(monkeypatch)
+    payload = _data(tea.rank_landscape(
+        source="superstructure",
+        planner_solvent_map=_PLAN_MAP,
+        allowed_solvents=_ALLOWED_MAP,
+        target_polymer=["LDPE", "EVOH"],
+    ))
+    assert payload.get("error_code") == "missing_formulation"
+    assert payload.get("error_code") != "incomplete_stage_basis_grid"
+    assert payload.get("error_code") != "missing_planner_solvent_map"
+    assert "landscape_points" not in payload
+
+
+def test_unknown_formulation_is_invalid(monkeypatch):
+    _forbid_live(monkeypatch)
+    payload = _data(tea.rank_landscape(
+        source="superstructure",
+        formulation="recovery_fraction",
+    ))
+    assert payload.get("error_code") == "invalid_admitted_record_query"
+    assert payload.get("formulation") == "recovery_fraction"
+    assert payload.get("legal_formulations") == [
+        "sequence", "solvent", "sequence_solvent", "wash_train",
+    ]
+    assert payload.get("error_code") != "process_model_wash_train_unavailable"
+    assert payload.get("error_code") != "missing_formulation"
+
+
+def test_casefold_sequence_still_requires_the_map(monkeypatch):
+    _forbid_live(monkeypatch)
+    payload = _data(tea.rank_landscape(
+        source="superstructure",
+        formulation="Sequence",
+    ))
+    assert payload.get("error_code") == "missing_planner_solvent_map"
+    assert payload.get("formulation") == "sequence"
+
+
+def test_dispatch_names_missing_formulation(monkeypatch):
+    _forbid_live(monkeypatch)
+    ranked = dispatch("rank_landscape", source="superstructure")
+    assert ranked.get("available") is False
+    assert ranked.get("refusal") == "missing_formulation"
+    assert ranked.get("handle") is None
 
