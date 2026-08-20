@@ -4350,6 +4350,7 @@ def lookup_admitted_process_records(
     campaign_fingerprint: Optional[str] = None,
     process_config: Optional[dict[str, Any]] = None,
     allow_partial_campaign: bool = False,
+    **kwargs: Any,
 ) -> str:
     """Query exact admitted BioSTEAM records without requiring a stored route.
 
@@ -4364,9 +4365,18 @@ def lookup_admitted_process_records(
     precipitation temperature, feedstock distance, and feed composition) or an
     exact cache record label. Returned cache records retain their full
     configuration, economics, LCA, and normalized operations payloads. No
-    interpolation, surrogate, or live provider is used.
+    interpolation, surrogate, or live provider is used. Unknown extra keys
+    refuse unknown_process_field.
     """
     tool = "lookup_admitted_process_records"
+    if kwargs:
+        extra = sorted(str(name) for name in kwargs)
+        return tool_error(
+            tool,
+            "unknown extra argument",
+            error_code="unknown_process_field",
+            extra_keys=extra,
+        )
     source_token = str(source or "admitted_cache").strip().casefold()
     if source_token not in {"admitted_cache", "campaign"}:
         return tool_error(

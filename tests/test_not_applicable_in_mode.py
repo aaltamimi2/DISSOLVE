@@ -545,3 +545,67 @@ def test_dispatch_evaluate_record_form_is_named_refuse(monkeypatch):
         assert metrics.get("available") is False
         assert metrics.get("refusal") == "not_applicable_in_mode"
         assert "handle" not in metrics
+
+
+def test_lookup_leftover_extra_is_unknown_process_field(monkeypatch):
+    _forbid_live(monkeypatch)
+    leftover = _data(tea.lookup_admitted_process_records(
+        target_polymer="LDPE",
+        solvent="Dodecane",
+        not_a_lookup_field=True,
+    ))
+    assert leftover.get("error_code") == "unknown_process_field"
+    assert leftover.get("extra_keys") == ["not_a_lookup_field"]
+    assert leftover.get("error_code") != "missing_target_polymer"
+    assert leftover.get("tool_name") == "lookup_admitted_process_records"
+    assert "comparison_rows" not in leftover
+    other = _data(tea.lookup_admitted_process_records(
+        target_polymer="LDPE",
+        also_not_a_field=1,
+    ))
+    assert other.get("extra_keys") == ["also_not_a_field"]
+    assert other.get("extra_keys") != leftover.get("extra_keys")
+    pair = _data(tea.lookup_admitted_process_records(
+        target_polymer="LDPE",
+        not_a_lookup_field=True,
+        also_not_a_field=1,
+    ))
+    assert pair.get("extra_keys") == ["also_not_a_field", "not_a_lookup_field"]
+    missing_polymer = _data(tea.lookup_admitted_process_records(
+        not_a_lookup_field=True,
+    ))
+    assert missing_polymer.get("error_code") == "unknown_process_field"
+    assert missing_polymer.get("extra_keys") == ["not_a_lookup_field"]
+    assert missing_polymer.get("error_code") != "missing_target_polymer"
+    wrap = _data(tea.evaluate_process(
+        mode="lookup",
+        lookup_filter={"target_polymer": "LDPE"},
+        not_a_lookup_field=True,
+    ))
+    assert wrap.get("error_code") == "unknown_process_field"
+    assert wrap.get("extra_keys") == ["not_a_lookup_field"]
+    assert wrap.get("tool_name") == "evaluate_process"
+
+
+def test_dispatch_lookup_leftover_is_named_refuse(monkeypatch):
+    _forbid_live(monkeypatch)
+    session = new_session()
+    with bind_tool_session(session):
+        refused = dispatch(
+            "lookup_admitted_process_records",
+            target_polymer="LDPE",
+            solvent="Dodecane",
+            not_a_lookup_field=True,
+        )
+        assert refused.get("available") is False
+        assert refused.get("refusal") == "unknown_process_field"
+        assert refused.get("refusal") != "tool_exception"
+        assert "handle" not in refused
+        served = dispatch(
+            "lookup_admitted_process_records",
+            target_polymer="LDPE",
+            solvent="Dodecane",
+        )
+        assert served.get("available") is True
+        assert served.get("handle")
+
