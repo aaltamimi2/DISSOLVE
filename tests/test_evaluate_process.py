@@ -96,10 +96,14 @@ def test_schema_uses_two_typed_objects_not_top_level_polymer():
     assert "lookup_filter" in props
     assert "process_config" in props
     assert "process_configs" in props
+    assert "screening_shortlist" in props
+    assert "held_process_basis" in props
     assert props["lookup_filter"]["type"] == "object"
     assert props["process_config"]["type"] == "object"
     assert props["process_configs"]["type"] == "array"
     assert props["process_configs"]["items"]["type"] == "object"
+    assert props["screening_shortlist"]["type"] == "object"
+    assert props["held_process_basis"]["type"] == "object"
     assert "target_polymer" not in props
     assert "solvent" not in props
     assert "parameter" not in props
@@ -110,6 +114,8 @@ def test_schema_uses_two_typed_objects_not_top_level_polymer():
     assert "lookup_filter" not in required
     assert "process_config" not in required
     assert "process_configs" not in required
+    assert "screening_shortlist" not in required
+    assert "held_process_basis" not in required
 
 
 def test_missing_mode_is_named_envelope(monkeypatch):
@@ -172,6 +178,24 @@ def test_process_config_on_lookup_is_not_applicable(monkeypatch):
     ))
     assert batch.get("error_code") == "not_applicable_in_mode"
     assert batch.get("inapplicable_fields") == ["process_configs"]
+
+
+def test_screening_handoff_on_lookup_is_not_applicable(monkeypatch):
+    _forbid_live(monkeypatch)
+    payload = _data(tea.evaluate_process(
+        mode="lookup",
+        lookup_filter={"target_polymer": "LDPE"},
+        screening_shortlist={"source": "explicit", "items": []},
+    ))
+    assert payload.get("error_code") == "not_applicable_in_mode"
+    assert payload.get("inapplicable_fields") == ["screening_shortlist"]
+    assert payload.get("applicable_mode") == "evaluate"
+    held = _data(tea.evaluate_process(
+        mode="lookup",
+        held_process_basis={"energy_case": "C1"},
+    ))
+    assert held.get("error_code") == "not_applicable_in_mode"
+    assert held.get("inapplicable_fields") == ["held_process_basis"]
 
 
 def test_lookup_filter_extra_keys_are_unknown(monkeypatch):
@@ -366,6 +390,38 @@ def _public_from_record(record: dict, **overrides) -> dict:
     return scenario
 
 
+def _held_from_record(record: dict, **overrides) -> dict:
+    cfg = record["config"]
+    held = {
+        "target_mass_percent": cfg["target_plastic_percent"],
+        "processing_capacity_mt_per_yr": cfg["processing_capacity"],
+        "energy_case": cfg["energy_case"],
+        "precipitation_temperature_c": cfg["precipitation_temperature_c"],
+        "solvent_price_usd_per_kg": cfg["solvent_price"],
+        "solvent_loss_pct": cfg["solvent_loss_pct"],
+        "feedstock_distance_km": cfg["feedstock_distance_km"],
+        "dissolution_capacity": cfg["dissolution_capacity"],
+        "labor_cost_usd_per_employee_yr": cfg["labor_cost"],
+    }
+    held.update(overrides)
+    return held
+
+
+def _item_from_record(record: dict, **overrides) -> dict:
+    cfg = record["config"]
+    item = {
+        "target_polymer": cfg["target_plastic"],
+        "solvent": cfg["solvent"],
+        "dissolution_temperature_c": cfg["dissolution_temperature_c"],
+    }
+    item.update(overrides)
+    return item
+
+
+def _shortlist(*items, source="explicit"):
+    return {"source": source, "items": list(items)}
+
+
 def _evaluate_parity(payload: dict) -> dict:
     rows = payload.get("comparison_rows") or payload.get("failures") or []
     return {
@@ -512,6 +568,117 @@ def test_evaluate_mode_too_many_process_configs(monkeypatch):
     ))
     assert payload.get("error_code") == "too_many_scenarios"
     assert payload.get("tool_name") == "evaluate_process"
+
+
+def test_evaluate_mode_shortlist_without_held_lists_the_nine(monkeypatch):
+    record = _record_with_energy("C1")
+    _forbid_live(monkeypatch)
+    shortlist = _shortlist(_item_from_record(record))
+    direct = _data(tea.evaluate_tea_lca_scenarios(
+        screening_shortlist=shortlist, engine_mode="cache",
+    ))
+    wrapped = _data(tea.evaluate_process(
+        mode="evaluate",
+        screening_shortlist=shortlist,
+        engine_mode="cache",
+    ))
+    assert wrapped.get("error_code") == "screening_basis_incomplete"
+    assert wrapped.get("missing") == list(tea._NINE_HELD_PUBLIC_FIELDS)
+    assert wrapped.get("tool_name") == "evaluate_process"
+    assert wrapped.get("error_code") != "unknown_process_field"
+    assert "comparison_rows" not in wrapped
+    assert _evaluate_parity(wrapped) == _evaluate_parity(direct)
+
+
+def test_evaluate_mode_shortlist_plus_held_matches_old_name(monkeypatch):
+    record = _record_with_energy("C1")
+    _forbid_live(monkeypatch)
+    shortlist = _shortlist(_item_from_record(record))
+    held = _held_from_record(record)
+    direct = _data(tea.evaluate_tea_lca_scenarios(
+        screening_shortlist=shortlist,
+        held_process_basis=held,
+        engine_mode="cache",
+    ))
+    wrapped = _data(tea.evaluate_process(
+        mode="evaluate",
+        screening_shortlist=shortlist,
+        held_process_basis=held,
+        engine_mode="cache",
+    ))
+    assert wrapped.get("tool_name") == "evaluate_process"
+    assert direct.get("tool_name") == "evaluate_tea_lca_scenarios"
+    assert wrapped.get("success") is True
+    origin = wrapped["comparison_rows"][0]["field_origin"]
+    assert origin["target_polymer"] == "from_screen"
+    assert origin["solvent"] == "from_screen"
+    assert origin["dissolution_temperature_c"] == "from_screen"
+    for name in tea._NINE_HELD_PUBLIC_FIELDS:
+        assert origin[name] == "supplied"
+        assert origin[name] != "from_screen"
+        assert origin[name] != "inherited"
+    assert _evaluate_parity(wrapped) == _evaluate_parity(direct)
+
+
+def test_evaluate_mode_process_config_and_shortlist_conflict(monkeypatch):
+    record = _record_with_energy("C1")
+    _forbid_live(monkeypatch)
+    payload = _data(tea.evaluate_process(
+        mode="evaluate",
+        process_config=_public_from_record(record),
+        screening_shortlist=_shortlist(_item_from_record(record)),
+        held_process_basis=_held_from_record(record),
+        engine_mode="cache",
+    ))
+    assert payload.get("error_code") == "conflicting_evaluate_composition"
+    assert payload.get("tool_name") == "evaluate_process"
+
+
+def test_screening_handoff_on_sensitivity_and_route_is_not_applicable(monkeypatch):
+    record = _record_with_energy("C1")
+    _forbid_live(monkeypatch)
+    shortlist = _shortlist(_item_from_record(record))
+    sensitivity = _data(tea.evaluate_process(
+        mode="sensitivity",
+        process_config=_public_from_record(record),
+        screening_shortlist=shortlist,
+        parameter="solvent_price",
+        engine_mode="cache",
+    ))
+    assert sensitivity.get("error_code") == "not_applicable_in_mode"
+    assert sensitivity.get("inapplicable_fields") == ["screening_shortlist"]
+    assert sensitivity.get("applicable_mode") == "evaluate"
+    route = _data(tea.evaluate_process(
+        mode="route",
+        screening_shortlist=shortlist,
+        handle="h1",
+    ))
+    assert route.get("error_code") == "not_applicable_in_mode"
+    assert route.get("inapplicable_fields") == ["screening_shortlist"]
+    assert route.get("applicable_mode") == "evaluate"
+
+
+def test_dispatch_evaluate_mode_shortlist_issues_handle(monkeypatch):
+    record = _record_with_energy("C1")
+    _forbid_live(monkeypatch)
+    session = new_session()
+    with bind_tool_session(session):
+        out = dispatch(
+            "evaluate_process",
+            mode="evaluate",
+            screening_shortlist=_shortlist(_item_from_record(record)),
+            held_process_basis=_held_from_record(record),
+            engine_mode="cache",
+        )
+        assert out.get("available") is True
+        assert out.get("handle")
+        stored = load_handle(session, out["handle"])
+        assert stored.get("tool") == "evaluate_process"
+        assert stored["exact"]["tool_name"] == "evaluate_process"
+        origin = stored["exact"]["comparison_rows"][0]["field_origin"]
+        assert origin["target_polymer"] == "from_screen"
+        for name in tea._NINE_HELD_PUBLIC_FIELDS:
+            assert origin[name] == "supplied"
 
 
 def test_evaluate_mode_process_configs_must_be_a_list(monkeypatch):

@@ -4921,14 +4921,17 @@ def evaluate_process(
     lookup_filter: Optional[dict[str, Any]] = None,
     process_config: Optional[dict[str, Any]] = None,
     process_configs: Optional[list[dict[str, Any]]] = None,
+    screening_shortlist: Optional[dict[str, Any]] = None,
+    held_process_basis: Optional[dict[str, Any]] = None,
     **kwargs: Any,
 ) -> str:
     """Typed twelve-field lookup, evaluate, sensitivity, or route.
 
     Closed mode: lookup, evaluate, sensitivity, route. lookup uses
-    lookup_filter; evaluate uses process_config or process_configs;
-    sensitivity uses process_config plus parameter; route uses handle
-    plus row_id. The existing TEA names still serve the same work.
+    lookup_filter; evaluate uses process_config or process_configs,
+    or screening_shortlist plus held_process_basis; sensitivity uses
+    process_config plus parameter; route uses handle plus row_id.
+    The existing TEA names still serve the same work.
     Optimization is not a mode. Not a ranking.
     """
     tool = "evaluate_process"
@@ -4967,6 +4970,8 @@ def evaluate_process(
             name for name, value in (
                 ("process_config", process_config),
                 ("process_configs", process_configs),
+                ("screening_shortlist", screening_shortlist),
+                ("held_process_basis", held_process_basis),
             )
             if value is not None
         ]
@@ -5030,6 +5035,23 @@ def evaluate_process(
             inapplicable_fields=["process_configs"],
             applicable_mode="evaluate",
         )
+    if token != "evaluate":
+        inapplicable_handoff = [
+            name for name, value in (
+                ("screening_shortlist", screening_shortlist),
+                ("held_process_basis", held_process_basis),
+            )
+            if value is not None
+        ]
+        if inapplicable_handoff:
+            return tool_error(
+                tool,
+                "These arguments are not applicable in this mode.",
+                error_code="not_applicable_in_mode",
+                mode=token,
+                inapplicable_fields=inapplicable_handoff,
+                applicable_mode="evaluate",
+            )
     if token == "evaluate":
         inapplicable = sorted(
             str(name) for name in kwargs if name not in _EVALUATE_MODE_FORWARD
@@ -5068,6 +5090,10 @@ def evaluate_process(
             for name in _EVALUATE_MODE_FORWARD
             if name in kwargs
         }
+        if screening_shortlist is not None:
+            forwarded["screening_shortlist"] = screening_shortlist
+        if held_process_basis is not None:
+            forwarded["held_process_basis"] = held_process_basis
         return _evaluate_process_envelope(
             evaluate_tea_lca_scenarios(scenarios, **forwarded),
         )
