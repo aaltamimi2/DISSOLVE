@@ -4752,6 +4752,11 @@ def lookup_admitted_process_records(
 
 
 _EVALUATE_PROCESS_MODES = ("lookup", "evaluate", "sensitivity", "route")
+_SCREEN_TO_ECONOMICS_ORDERS = (
+    "independent",
+    "thermo_then_economics",
+    "safety_then_economics",
+)
 _EVALUATE_PROCESS_MODE_SCALARS = frozenset({
     "parameter",
     "values",
@@ -4834,11 +4839,46 @@ _LOOKUP_FILTER_FIELDS = frozenset({
 })
 
 
-def _evaluate_process_envelope(raw: str) -> str:
+def _screen_to_economics_order_token(value: Any) -> str:
+    """Closed composition choice. Omitted is independent. Do not invent a router."""
+    if value in (None, ""):
+        return "independent"
+    if isinstance(value, str):
+        token = value.strip().casefold()
+        if not token:
+            return "independent"
+        if token in _SCREEN_TO_ECONOMICS_ORDERS:
+            return token
+    raise _ScenarioInputError(
+        "screen_to_economics_order must be independent, "
+        "thermo_then_economics, or safety_then_economics.",
+        error_code="invalid_admitted_record_query",
+        field="screen_to_economics_order",
+        supplied=value,
+        legal_orders=list(_SCREEN_TO_ECONOMICS_ORDERS),
+    )
+
+
+def _stamp_screen_to_economics_order(raw: str, order: str) -> str:
+    envelope = json.loads(raw)
+    data = envelope.get("data")
+    if isinstance(data, dict):
+        data["screen_to_economics_order"] = order
+    return json.dumps(
+        envelope, ensure_ascii=False, indent=2, allow_nan=False,
+    )
+
+
+def _evaluate_process_envelope(
+    raw: str,
+    *,
+    screen_to_economics_order: str,
+) -> str:
     envelope = json.loads(raw)
     data = envelope.get("data")
     if isinstance(data, dict):
         data["tool_name"] = "evaluate_process"
+        data["screen_to_economics_order"] = screen_to_economics_order
     return json.dumps(
         envelope, ensure_ascii=False, indent=2, allow_nan=False,
     )
@@ -4970,6 +5010,7 @@ def evaluate_process(
     process_configs: Optional[list[dict[str, Any]]] = None,
     screening_shortlist: Optional[dict[str, Any]] = None,
     held_process_basis: Optional[dict[str, Any]] = None,
+    screen_to_economics_order: Optional[str] = None,
     **kwargs: Any,
 ) -> str:
     """Typed twelve-field lookup, evaluate, sensitivity, or route.
@@ -4978,6 +5019,8 @@ def evaluate_process(
     lookup_filter; evaluate uses process_config or process_configs,
     or screening_shortlist plus held_process_basis; sensitivity uses
     process_config plus parameter; route uses handle plus row_id.
+    Closed screen_to_economics_order: omitted is independent. This wrap
+    does not wait on safety and does not invent a router.
     The existing TEA names still serve the same work.
     Top-level lookup selectors refuse not_applicable_in_mode; they live
     on lookup_filter. Optimization is not a mode. Not a ranking.
@@ -5024,12 +5067,19 @@ def evaluate_process(
             error_code="unknown_process_field",
             extra_keys=leftover,
         )
+    try:
+        order = _screen_to_economics_order_token(screen_to_economics_order)
+    except _ScenarioInputError as error:
+        return tool_error(
+            tool, str(error), error_code=error.error_code, **error.details,
+        )
     if not token:
         return tool_error(
             tool,
             "mode is required: lookup, evaluate, sensitivity, or route.",
             error_code="missing_mode",
             legal_modes=list(_EVALUATE_PROCESS_MODES),
+            screen_to_economics_order=order,
         )
     if token not in _EVALUATE_PROCESS_MODES:
         return tool_error(
@@ -5038,6 +5088,7 @@ def evaluate_process(
             error_code="invalid_admitted_record_query",
             mode=token,
             legal_modes=list(_EVALUATE_PROCESS_MODES),
+            screen_to_economics_order=order,
         )
     if token == "lookup":
         inapplicable_objects = [
@@ -5090,6 +5141,7 @@ def evaluate_process(
             supplied = dict(lookup_filter)
         return _evaluate_process_envelope(
             lookup_admitted_process_records(**supplied),
+            screen_to_economics_order=order,
         )
     if lookup_filter is not None:
         return tool_error(
@@ -5170,6 +5222,7 @@ def evaluate_process(
             forwarded["held_process_basis"] = held_process_basis
         return _evaluate_process_envelope(
             evaluate_tea_lca_scenarios(scenarios, **forwarded),
+            screen_to_economics_order=order,
         )
     if token == "sensitivity":
         inapplicable = sorted(
@@ -5199,6 +5252,7 @@ def evaluate_process(
             forwarded["scenario"] = process_config
         return _evaluate_process_envelope(
             analyze_tea_sensitivity(**forwarded),
+            screen_to_economics_order=order,
         )
     if process_config is not None:
         return tool_error(
@@ -5243,7 +5297,9 @@ def evaluate_process(
         raw = evaluate_stored_route_tea_lca(**forwarded)
     finally:
         _STORED_ROUTE_OVERRIDE.reset(override)
-    return _project_route_comparison_rows(_evaluate_process_envelope(raw))
+    return _project_route_comparison_rows(
+        _evaluate_process_envelope(raw, screen_to_economics_order=order),
+    )
 
 
 def _load_process_rows_handle(
@@ -7198,6 +7254,7 @@ def rank_landscape(
     planner_solvent_map: Optional[dict[str, Any]] = None,
     allowed_solvents: Optional[dict[str, Any] | list[Any]] = None,
     feed_mass_fractions: Optional[dict[str, Any]] = None,
+    screen_to_economics_order: Optional[str] = None,
     **unexpected: Any,
 ) -> str:
     """Rank already-run process rows. Does not spawn BioSTEAM.
@@ -7236,6 +7293,8 @@ def rank_landscape(
     polymer-solvent pairs on a loaded tool-1 economics handle bind that
     map; the handle remains the remnant subtract table. Do not inherit
     allowed_solvents. Do not scan top_k_sequences for either map.
+    Closed screen_to_economics_order: omitted is independent. Ranking
+    does not wait on safety and does not invent a router.
     formulation is required iff source=superstructure;
     formulation=wash_train is
     process_model_wash_train_unavailable. formulation=sequence_solvent
@@ -7251,22 +7310,32 @@ def rank_landscape(
             error_code="unknown_process_field",
             extra_keys=sorted(str(key) for key in unexpected),
         )
+    try:
+        order = _screen_to_economics_order_token(screen_to_economics_order)
+    except _ScenarioInputError as error:
+        return tool_error(
+            tool, str(error), error_code=error.error_code, **error.details,
+        )
     source_token = str(source or "process_rows").strip().casefold()
     operation_token = str(operation or "pareto_dominance").strip().casefold()
     grouping_token = str(
         polymer_grouping or "per_target_polymer"
     ).strip().casefold()
     if grouping_token not in {"per_target_polymer", "mixed_polymer"}:
-        return tool_error(
+        return _stamp_screen_to_economics_order(
+            tool_error(
             tool,
             "polymer_grouping must be per_target_polymer or mixed_polymer.",
             error_code="invalid_admitted_record_query",
+        ), order,
         )
     if source_token not in {"process_rows", "residual_route", "superstructure"}:
-        return tool_error(
+        return _stamp_screen_to_economics_order(
+            tool_error(
             tool,
             "source must be process_rows, residual_route, or superstructure.",
             error_code="invalid_admitted_record_query",
+        ), order,
         )
     map_fields = [
         name for name, value in (
@@ -7277,13 +7346,15 @@ def rank_landscape(
         if value is not None
     ]
     if map_fields and source_token != "superstructure":
-        return tool_error(
+        return _stamp_screen_to_economics_order(
+            tool_error(
             tool,
             "planner_solvent_map, allowed_solvents, and feed_mass_fractions "
             "apply on source=superstructure",
             error_code="not_applicable_in_source",
             source=source_token,
             inapplicable_fields=map_fields,
+        ), order,
         )
     if source_token in {"residual_route", "superstructure"}:
         if source_token == "superstructure":
@@ -7297,41 +7368,53 @@ def rank_landscape(
                 handle=handle,
             )
             if refused is not None:
-                return refused
-        return tool_error(
+                return _stamp_screen_to_economics_order(
+                    refused, order,
+                )
+        return _stamp_screen_to_economics_order(
+            tool_error(
             tool,
             "this slice ranks process_rows only",
             error_code="tool_not_wired",
             source=source_token,
+        ), order,
         )
     if operation_token in {"optimum", "epsilon"}:
-        return tool_error(
+        return _stamp_screen_to_economics_order(
+            tool_error(
             tool,
             "optimum and epsilon are not legal on source=process_rows",
             error_code="not_applicable_in_source",
             source=source_token,
             operation=operation_token,
+        ), order,
         )
     if operation_token not in {"sort", "pareto_dominance"}:
-        return tool_error(
+        return _stamp_screen_to_economics_order(
+            tool_error(
             tool,
             "operation must be sort or pareto_dominance on process_rows.",
             error_code="not_applicable_in_source",
             source=source_token,
             operation=operation_token,
+        ), order,
         )
     if formulation is not None and str(formulation).strip() != "":
-        return tool_error(
+        return _stamp_screen_to_economics_order(
+            tool_error(
             tool,
             "formulation is not applicable on source=process_rows",
             error_code="not_applicable_in_source",
             source=source_token,
+        ), order,
         )
     if process_config is not None and not isinstance(process_config, dict):
-        return tool_error(
+        return _stamp_screen_to_economics_order(
+            tool_error(
             tool,
             "process_config must be an object.",
             error_code="invalid_admitted_record_query",
+        ), order,
         )
     from . import campaign_consume, landscape
 
@@ -7351,16 +7434,22 @@ def rank_landscape(
         if solvent:
             resolved_solvent = _resolve_solvent(solvent)
     except _ScenarioInputError as error:
-        return tool_error(
+        return _stamp_screen_to_economics_order(
+            tool_error(
             tool, str(error), error_code=error.error_code, **error.details,
+        ), order,
         )
     except _InputError as error:
-        return tool_error(
+        return _stamp_screen_to_economics_order(
+            tool_error(
             tool, str(error), error_code=error.code, **error.detail,
+        ), order,
         )
     except ValueError as error:
-        return tool_error(
+        return _stamp_screen_to_economics_order(
+            tool_error(
             tool, str(error), error_code="invalid_admitted_record_query",
+        ), order,
         )
     if handle is not None:
         try:
@@ -7394,12 +7483,14 @@ def rank_landscape(
                     canonical=handle_fp.casefold(),
                     extra_census=_campaign_rank_census(campaign_exact),
                 )
-                return tool_success(
+                return _stamp_screen_to_economics_order(
+                    tool_success(
                     tool,
                     analysis_type="campaign_process_rows_landscape",
                     engine_mode="campaign",
                     source="process_rows",
                     **payload,
+                ), order,
                 )
             payload = landscape.rank_handle_process_rows(
                 rows,
@@ -7409,19 +7500,25 @@ def rank_landscape(
                 operation=operation_token,
             )
         except _ScenarioInputError as error:
-            return tool_error(
+            return _stamp_screen_to_economics_order(
+                tool_error(
                 tool, str(error), error_code=error.error_code, **error.details,
+            ), order,
             )
         except campaign_consume.CampaignConsumeError as error:
-            return tool_error(
+            return _stamp_screen_to_economics_order(
+                tool_error(
                 tool, str(error), error_code=error.error_code, **error.details,
+            ), order,
             )
-        return tool_success(
+        return _stamp_screen_to_economics_order(
+            tool_success(
             tool,
             analysis_type="process_rows_landscape",
             engine_mode=_rank_handle_engine_mode(rows),
             source="process_rows",
             **payload,
+        ), order,
         )
     try:
         bound = campaign_consume.prepare_registered_campaign(
@@ -7437,15 +7534,19 @@ def rank_landscape(
             operation=operation_token,
         )
     except campaign_consume.CampaignConsumeError as error:
-        return tool_error(
+        return _stamp_screen_to_economics_order(
+            tool_error(
             tool, str(error), error_code=error.error_code, **error.details,
+        ), order,
         )
-    return tool_success(
+    return _stamp_screen_to_economics_order(
+        tool_success(
         tool,
         analysis_type="campaign_process_rows_landscape",
         engine_mode="campaign",
         source="process_rows",
         **payload,
+    ), order,
     )
 
 
