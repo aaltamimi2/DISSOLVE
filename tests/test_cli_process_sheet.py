@@ -19,6 +19,27 @@ from rich.console import Console
 import io
 
 
+def _token_col(text, token):
+    for visual in str(text).splitlines():
+        idx = visual.find(token)
+        if idx >= 0:
+            return idx
+    return -1
+
+
+def _sheet_field_block(shown, name):
+    lines = shown.splitlines()
+    match = re.compile(rf"^{re.escape(name)}(?:\s|$)")
+    start = next(i for i, line in enumerate(lines) if match.match(line))
+    block = [lines[start]]
+    for line in lines[start + 1:]:
+        if line.startswith(" "):
+            block.append(line)
+        else:
+            break
+    return "\n".join(block)
+
+
 def _console():
     buf = io.StringIO()
     return Console(file=buf, force_terminal=True, width=80, color_system=None), buf
@@ -1580,12 +1601,10 @@ def test_c2_sheet_print_states_not_on_this_instance(tmp_path, monkeypatch):
     assert len(ng) <= 80
     assert len(steam) <= 80
     assert phrase in steam
-    fac = next(
-        line for line in shown.splitlines()
-        if line.startswith("facilities")
-    )
-    assert "derived from energy_case" in fac
-    assert len(fac) <= 80
+    fac = _sheet_field_block(shown, "facilities")
+    assert "derived" in fac
+    assert "energy_case" in fac
+    assert all(len(line) <= 80 for line in fac.splitlines())
 
 
 def test_c1_sheet_print_does_not_state_not_on_this_instance(
@@ -1719,12 +1738,16 @@ def test_confirmation_sheet_format_row_aligns_columns():
     lines = [
         tea.confirmation_sheet_format_row(*row, widths) for row in rows
     ]
-    assert lines[0].find("LDPE") == lines[1].find("Dodecane")
-    assert lines[0].find("LDPE") == lines[4].find("true")
-    assert lines[0].find("supplied") == lines[4].find(
-        "derived from energy_case"
+    assert _token_col(lines[0], "LDPE") == _token_col(lines[1], "Dodecane")
+    assert _token_col(lines[0], "LDPE") == _token_col(lines[4], "true")
+    assert _token_col(lines[2], "°C") == _token_col(lines[3], "°C")
+    assert _token_col(lines[0], "supplied") == _token_col(lines[1], "supplied")
+    assert _token_col(lines[0], "supplied") == _token_col(
+        lines[4], "derived from energy_case",
     )
-    assert lines[4].find("derived from energy_case") != lines[2].find("°C")
+    assert _token_col(lines[4], "derived from energy_case") != _token_col(
+        lines[2], "°C",
+    )
     assert "not on this instance (energy_case=C2)" in lines[5]
     assert len(widths) == 4
     field_width, value_width, units_width, origin_width = widths
@@ -1732,7 +1755,17 @@ def test_confirmation_sheet_format_row_aligns_columns():
         field_width + 2 + value_width + 2 + units_width + 2 + origin_width
     )
     assert four_slot > 80
-    assert all(len(line) <= 80 for line in lines)
+    assert all(
+        len(visual) <= 80
+        for row in lines
+        for visual in row.splitlines()
+    )
+    wide = [
+        tea.confirmation_sheet_format_row(*row, widths, line_width=200)
+        for row in rows
+    ]
+    assert _token_col(wide[2], "°C") == _token_col(wide[3], "°C")
+    assert all("\n" not in row for row in wide)
     assert "derived from energy_case" not in tea._SHEET_ORIGIN_TOKENS
     assert "…" not in "".join(lines)
 
@@ -1758,26 +1791,23 @@ def test_sheet_print_aligns_value_units_origin(tmp_path, monkeypatch):
     )
     app._print_process_sheet(c1, origin=origin)
     shown = buf.getvalue()
-    lines = shown.splitlines()
-    poly = next(line for line in lines if line.startswith("target_polymer"))
-    solv = next(line for line in lines if line.startswith("solvent"))
-    precip = next(
-        line for line in lines
-        if line.startswith("precipitation_temperature_c ")
+    poly = _sheet_field_block(shown, "target_polymer")
+    solv = _sheet_field_block(shown, "solvent")
+    precip = _sheet_field_block(shown, "precipitation_temperature_c")
+    diss = _sheet_field_block(shown, "dissolution_temperature_c")
+    fac = _sheet_field_block(shown, "facilities")
+    header_units = next(
+        line for line in shown.splitlines()
+        if line.strip().startswith("units") and "origin" in line
     )
-    diss = next(
-        line for line in lines
-        if line.startswith("dissolution_temperature_c ")
-    )
-    fac = next(line for line in lines if line.startswith("facilities"))
-    assert poly.find("LDPE") == solv.find("Dodecane")
-    assert fac.find("true") == poly.find("LDPE")
-    assert fac.find("derived from energy_case") == poly.find("from_screen")
-    assert fac.find("derived from energy_case") != precip.find("°C")
-    assert len(poly) <= 80
-    assert len(fac) <= 80
-    assert len(precip) <= 80
-    assert len(diss) <= 80
+    assert _token_col(poly, "LDPE") == _token_col(solv, "Dodecane")
+    assert _token_col(fac, "true") == _token_col(poly, "LDPE")
+    assert _token_col(precip, "°C") == _token_col(diss, "°C")
+    assert header_units.find("units") == _token_col(precip, "°C")
+    assert _token_col(poly, "from_screen") == _token_col(solv, "from_screen")
+    assert _token_col(fac, "derived") == _token_col(poly, "from_screen")
+    assert _token_col(fac, "derived") != _token_col(precip, "°C")
+    assert all(len(line) <= 80 for line in shown.splitlines())
     assert "…" not in shown
     assert re.search(r"^labor_cost_usd_per_employee_yr\b", shown, re.M)
 

@@ -14,6 +14,7 @@ import shutil
 import statistics
 import subprocess
 import sys
+import textwrap
 from contextvars import ContextVar
 from functools import lru_cache
 from importlib.resources import files
@@ -2603,6 +2604,18 @@ def confirmation_sheet_column_widths(
 
 
 _SHEET_LINE_WIDTH = 80
+_SHEET_COL_SEP = 2
+
+
+def _sheet_wrap_cell(text: str, width: int) -> list[str]:
+    if not str(text):
+        return [""]
+    return textwrap.wrap(
+        str(text),
+        width=max(int(width), 1),
+        break_long_words=False,
+        break_on_hyphens=False,
+    ) or [str(text)]
 
 
 def confirmation_sheet_format_row(
@@ -2617,10 +2630,11 @@ def confirmation_sheet_format_row(
     """One four-slot confirmation-sheet row, columns padded.
 
     Empty units still occupy the units slot so origin stays in the
-    origin column. Empty origin still occupies the origin slot when
-    the padded row fits line_width. Wider pads compact rather than
-    extend the grid. Origin pad is not a fifth closed origin token.
-    Not a ranking.
+    origin column. When the padded row misses line_width, value stays
+    on the field line and units/origin share a continuation with a
+    fixed units slot, so different-length values do not shift those
+    columns. Origin pad is not a fifth closed origin token. Not a
+    ranking.
     """
     field_width, value_width, units_width, origin_width = widths
     padded = (
@@ -2631,13 +2645,24 @@ def confirmation_sheet_format_row(
     )
     if len(padded) <= line_width:
         return padded
-    compact = (
-        f"{field:<{field_width}}  "
-        f"{value}  {units}  {origin}"
+    units_width = max(int(units_width), len("units"))
+    value_budget = line_width - field_width - _SHEET_COL_SEP
+    origin_col = field_width + _SHEET_COL_SEP + units_width + _SHEET_COL_SEP
+    origin_budget = max(line_width - origin_col, 1)
+    value_lines = _sheet_wrap_cell(value, value_budget)
+    rendered = [f"{field:<{field_width}}  {value_lines[0]}"]
+    for extra in value_lines[1:]:
+        rendered.append(f"{'':<{field_width}}  {extra}")
+    if not units and not origin:
+        return "\n".join(rendered)
+    origin_lines = _sheet_wrap_cell(origin, origin_budget)
+    units_cell = f"{units:<{units_width}}"
+    rendered.append(
+        f"{'':<{field_width}}  {units_cell}  {origin_lines[0]}"
     )
-    if len(compact) <= line_width:
-        return compact
-    return compact.rstrip()
+    for extra in origin_lines[1:]:
+        rendered.append(f"{'':<{origin_col}}{extra}")
+    return "\n".join(rendered)
 
 
 def _canonical_screening_shortlist_item(
