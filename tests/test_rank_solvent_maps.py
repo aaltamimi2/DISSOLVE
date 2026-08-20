@@ -4581,3 +4581,309 @@ def test_invalid_precipitation_configuration_does_not_outrank_missing_map(
     assert payload.get("error_code") == "missing_planner_solvent_map"
     assert payload.get("error_code") != "invalid_admitted_record_query"
 
+
+def test_omitted_irr_is_not_a_silent_tenth(monkeypatch):
+    _forbid_live(monkeypatch)
+    payload = _data(tea.rank_landscape(**_sequence_kwargs()))
+    assert payload.get("error_code") == "incomplete_stage_basis_grid"
+    for row in payload["missing_keys"]:
+        assert row.get("irr") is None
+        assert row.get("irr") != 0.10
+
+
+def test_empty_irr_is_the_omitted_grain(monkeypatch):
+    _forbid_live(monkeypatch)
+    payload = _data(tea.rank_landscape(
+        **_sequence_kwargs(process_config={**_CAP_20KT, "irr": ""}),
+    ))
+    assert payload.get("error_code") == "incomplete_stage_basis_grid"
+    for row in payload["missing_keys"]:
+        assert row.get("irr") is None
+
+
+def test_default_irr_rows_still_complete_when_omitted(monkeypatch):
+    _forbid_live(monkeypatch)
+    session = new_session()
+    with bind_tool_session(session):
+        handle = _plant_handle(session, _complete_d18_rows(irr=0.10))
+        payload = _data(tea.rank_landscape(**_sequence_kwargs(handle=handle)))
+    assert payload.get("error_code") == "sequence_coupling_unproven"
+    assert "pending_blockers" not in payload
+    assert "landscape_points" not in payload
+
+
+def test_named_irr_rows_still_complete_when_omitted(monkeypatch):
+    _forbid_live(monkeypatch)
+    session = new_session()
+    with bind_tool_session(session):
+        handle = _plant_handle(session, _complete_d18_rows(irr=0.12))
+        payload = _data(tea.rank_landscape(**_sequence_kwargs(handle=handle)))
+    assert payload.get("error_code") == "sequence_coupling_unproven"
+    assert "pending_blockers" not in payload
+    assert "landscape_points" not in payload
+
+
+def test_named_irr_does_not_accept_default_rows(monkeypatch):
+    _forbid_live(monkeypatch)
+    session = new_session()
+    with bind_tool_session(session):
+        handle = _plant_handle(session, _complete_d18_rows(irr=0.10))
+        payload = _data(tea.rank_landscape(
+            **_sequence_kwargs(
+                handle=handle,
+                process_config={**_CAP_20KT, "irr": 0.12},
+            ),
+        ))
+    assert payload.get("error_code") == "incomplete_stage_basis_grid"
+    assert payload.get("error_code") != "sequence_coupling_unproven"
+    keys = payload["missing_keys"]
+    assert len(keys) == 4
+    assert {row["irr"] for row in keys} == {0.12}
+    assert payload["pending_blockers"][0]["error_type"] == (
+        "sequence_coupling_unproven"
+    )
+    assert "landscape_points" not in payload
+
+
+def test_named_default_irr_does_not_accept_other_rows(monkeypatch):
+    _forbid_live(monkeypatch)
+    session = new_session()
+    with bind_tool_session(session):
+        handle = _plant_handle(session, _complete_d18_rows(irr=0.12))
+        payload = _data(tea.rank_landscape(
+            **_sequence_kwargs(
+                handle=handle,
+                process_config={**_CAP_20KT, "irr": 0.10},
+            ),
+        ))
+    assert payload.get("error_code") == "incomplete_stage_basis_grid"
+    keys = payload["missing_keys"]
+    assert len(keys) == 4
+    assert {row["irr"] for row in keys} == {0.10}
+
+
+def test_named_irr_completes_on_matching_rows(monkeypatch):
+    _forbid_live(monkeypatch)
+    session = new_session()
+    with bind_tool_session(session):
+        handle = _plant_handle(session, _complete_d18_rows(irr=0.12))
+        payload = _data(tea.rank_landscape(
+            **_sequence_kwargs(
+                handle=handle,
+                process_config={**_CAP_20KT, "irr": 0.12},
+            ),
+        ))
+    assert payload.get("error_code") == "sequence_coupling_unproven"
+    assert "pending_blockers" not in payload
+    assert "missing_keys" not in payload
+    assert "landscape_points" not in payload
+
+
+def test_named_default_irr_is_holdable(monkeypatch):
+    _forbid_live(monkeypatch)
+    payload = _data(tea.rank_landscape(
+        **_sequence_kwargs(process_config={**_CAP_20KT, "irr": 0.10}),
+    ))
+    assert payload.get("error_code") == "incomplete_stage_basis_grid"
+    keys = payload["missing_keys"]
+    assert len(keys) == 4
+    assert {row["irr"] for row in keys} == {0.10}
+
+
+def test_named_default_irr_completes_on_matching_default_rows(monkeypatch):
+    _forbid_live(monkeypatch)
+    session = new_session()
+    with bind_tool_session(session):
+        handle = _plant_handle(session, _complete_d18_rows(irr=0.10))
+        payload = _data(tea.rank_landscape(
+            **_sequence_kwargs(
+                handle=handle,
+                process_config={**_CAP_20KT, "irr": 0.10},
+            ),
+        ))
+    assert payload.get("error_code") == "sequence_coupling_unproven"
+    assert "pending_blockers" not in payload
+    assert "missing_keys" not in payload
+
+
+def test_precipitation_configuration_does_not_stamp_irr_on_this_slice(monkeypatch):
+    _forbid_live(monkeypatch)
+    payload = _data(tea.rank_landscape(
+        **_sequence_kwargs(
+            process_config={**_CAP_20KT, "precipitation_configuration": _MIX},
+        ),
+    ))
+    assert payload.get("error_code") == "incomplete_stage_basis_grid"
+    for row in payload["missing_keys"]:
+        assert row.get("precipitation_configuration") == _MIX
+        assert row.get("irr") is None
+
+
+def test_irr_does_not_stamp_income_tax(monkeypatch):
+    _forbid_live(monkeypatch)
+    payload = _data(tea.rank_landscape(
+        **_sequence_kwargs(process_config={**_CAP_20KT, "irr": 0.12}),
+    ))
+    assert payload.get("error_code") == "incomplete_stage_basis_grid"
+    for row in payload["missing_keys"]:
+        assert row.get("irr") == 0.12
+        assert row.get("income_tax") is None
+
+
+def test_income_tax_does_not_stamp_irr(monkeypatch):
+    _forbid_live(monkeypatch)
+    payload = _data(tea.rank_landscape(
+        **_sequence_kwargs(process_config={**_CAP_20KT, "income_tax": 0.25}),
+    ))
+    assert payload.get("error_code") == "incomplete_stage_basis_grid"
+    for row in payload["missing_keys"]:
+        assert row.get("irr") is None
+
+
+def test_named_slice_at_wrong_irr_does_not_fill(monkeypatch):
+    _forbid_live(monkeypatch)
+    session = new_session()
+    with bind_tool_session(session):
+        handle = _plant_handle(
+            session,
+            _complete_d18_rows(
+                energy_case="C1",
+                dissolution_temperature_c=90.0,
+                precipitation_temperature_c=40.0,
+                solvent_price_usd_per_kg=2.0,
+                solvent_loss_pct=3.0,
+                feedstock_distance_km=250.0,
+                dissolution_capacity=5.0,
+                labor_cost_usd_per_employee_yr=150_000.0,
+                sell_leftover_plastic=True,
+                burn_leftover_plastic=True,
+                precipitation_temperature_format="drop",
+                precipitation_configuration=_MIX,
+                irr=0.10,
+            ),
+        )
+        payload = _data(tea.rank_landscape(
+            **_sequence_kwargs(
+                handle=handle,
+                process_config={
+                    **_CAP_20KT,
+                    "energy_case": "C1",
+                    "dissolution_temperature_c": 90.0,
+                    "precipitation_temperature_c": 40.0,
+                    "solvent_price_usd_per_kg": 2.0,
+                    "solvent_loss_pct": 3.0,
+                    "feedstock_distance_km": 250.0,
+                    "dissolution_capacity": 5.0,
+                    "labor_cost_usd_per_employee_yr": 150_000.0,
+                    "sell_leftover_plastic": True,
+                    "burn_leftover_plastic": True,
+                    "precipitation_temperature_format": "drop",
+                    "precipitation_configuration": _MIX,
+                    "irr": 0.12,
+                },
+            ),
+        ))
+    assert payload.get("error_code") == "incomplete_stage_basis_grid"
+    keys = payload["missing_keys"]
+    assert len(keys) == 4
+    assert {row["precipitation_configuration"] for row in keys} == {_MIX}
+    assert {row["irr"] for row in keys} == {0.12}
+
+
+def test_mixed_irr_handle_leaves_the_unmatched_remnant(monkeypatch):
+    _forbid_live(monkeypatch)
+    rows = _complete_d18_rows(irr=0.12)
+    rows[-1]["irr"] = 0.10
+    session = new_session()
+    with bind_tool_session(session):
+        handle = _plant_handle(session, rows)
+        payload = _data(tea.rank_landscape(
+            **_sequence_kwargs(
+                handle=handle,
+                process_config={**_CAP_20KT, "irr": 0.12},
+            ),
+        ))
+    assert payload.get("error_code") == "incomplete_stage_basis_grid"
+    keys = payload["missing_keys"]
+    assert len(keys) == 1
+    assert keys[0]["irr"] == 0.12
+    assert keys[0]["polymer"] == "EVOH"
+    assert keys[0]["target_mass_percent"] == 100.0
+
+
+def test_rows_without_irr_do_not_fill_named_irr(monkeypatch):
+    _forbid_live(monkeypatch)
+    session = new_session()
+    with bind_tool_session(session):
+        handle = _plant_handle(session, _complete_d18_rows())
+        payload = _data(tea.rank_landscape(
+            **_sequence_kwargs(
+                handle=handle,
+                process_config={**_CAP_20KT, "irr": 0.12},
+            ),
+        ))
+    assert payload.get("error_code") == "incomplete_stage_basis_grid"
+    keys = payload["missing_keys"]
+    assert len(keys) == 4
+    assert {row["irr"] for row in keys} == {0.12}
+
+
+def test_irr_kwarg_is_unknown_extra(monkeypatch):
+    _forbid_live(monkeypatch)
+    payload = _data(tea.rank_landscape(**_sequence_kwargs(irr=0.12)))
+    assert payload.get("error_code") == "unknown_process_field"
+    assert payload.get("extra_keys") == ["irr"]
+    assert payload.get("error_code") != "incomplete_stage_basis_grid"
+
+
+def test_nested_irr_does_not_count(monkeypatch):
+    _forbid_live(monkeypatch)
+    payload = _data(tea.rank_landscape(
+        **_sequence_kwargs(
+            process_config={**_CAP_20KT, "held": {"irr": 0.12}},
+        ),
+    ))
+    assert payload.get("error_code") == "incomplete_stage_basis_grid"
+    for row in payload["missing_keys"]:
+        assert row.get("irr") is None
+
+
+def test_invalid_irr_is_not_a_listing(monkeypatch):
+    _forbid_live(monkeypatch)
+    payload = _data(tea.rank_landscape(
+        **_sequence_kwargs(process_config={**_CAP_20KT, "irr": "maybe"}),
+    ))
+    assert payload.get("error_code") == "invalid_admitted_record_query"
+    assert payload.get("error_code") != "incomplete_stage_basis_grid"
+
+
+def test_percent_integer_irr_is_not_a_remnant_listing(monkeypatch):
+    _forbid_live(monkeypatch)
+    payload = _data(tea.rank_landscape(
+        **_sequence_kwargs(process_config={**_CAP_20KT, "irr": 10}),
+    ))
+    assert payload.get("error_code") == "invalid_admitted_record_query"
+    assert payload.get("error_code") != "incomplete_stage_basis_grid"
+    assert payload.get("error_code") != "invalid_scenario"
+
+
+def test_zero_irr_is_not_a_remnant_listing(monkeypatch):
+    _forbid_live(monkeypatch)
+    payload = _data(tea.rank_landscape(
+        **_sequence_kwargs(process_config={**_CAP_20KT, "irr": 0}),
+    ))
+    assert payload.get("error_code") == "invalid_admitted_record_query"
+    assert payload.get("error_code") != "incomplete_stage_basis_grid"
+
+
+def test_invalid_irr_does_not_outrank_missing_map(monkeypatch):
+    _forbid_live(monkeypatch)
+    payload = _data(tea.rank_landscape(
+        source="superstructure",
+        formulation="sequence",
+        feed_mass_fractions=_FEED_55_45,
+        process_config={**_CAP_20KT, "irr": "maybe"},
+    ))
+    assert payload.get("error_code") == "missing_planner_solvent_map"
+    assert payload.get("error_code") != "invalid_admitted_record_query"
+
