@@ -18,6 +18,7 @@ for _path in (str(_ROOT), str(_ROOT / "src")):
 from agent_tools import CONSUMERS, dispatch, tool_schemas
 from dissolve import tea
 from dissolve.cli import EXPECTED_REGISTRY_NAMES
+from dissolve.session import bind_tool_session, new_session, store_handle
 
 
 def _data(raw: str) -> dict:
@@ -37,6 +38,8 @@ def _forbid_live(monkeypatch):
 
 _PLAN_MAP = {"LDPE": "Toluene", "EVOH": "DMSO"}
 _ALLOWED_MAP = {"LDPE": ["Toluene"], "EVOH": ["DMSO", "Toluene"]}
+_FEED_55_45 = {"LDPE": 0.55, "EVOH": 0.45}
+_CAP_20KT = {"processing_capacity_mt_per_yr": 20_000}
 
 
 def test_sequence_without_map_is_missing_planner_solvent_map(monkeypatch):
@@ -563,6 +566,40 @@ def _d18_cell(row):
     )
 
 
+def _plant_row(polymer, solvent, mass_pct, capacity, *, success=True, **extra):
+    row = {
+        "target_polymer": polymer,
+        "polymer": polymer,
+        "solvent": solvent,
+        "target_mass_percent": mass_pct,
+        "processing_capacity_mt_per_yr": capacity,
+        "success": success,
+    }
+    row.update(extra)
+    return row
+
+
+def _plant_handle(session, rows):
+    return store_handle(
+        session,
+        tool="evaluate_tea_lca_scenarios",
+        source_basis="tea_cache_exact",
+        data={"success": True, "comparison_rows": list(rows)},
+    )
+
+
+def _sequence_kwargs(**extra):
+    args = dict(
+        source="superstructure",
+        formulation="sequence",
+        planner_solvent_map=_PLAN_MAP,
+        feed_mass_fractions=_FEED_55_45,
+        process_config=_CAP_20KT,
+    )
+    args.update(extra)
+    return args
+
+
 def test_sequence_feed_expands_d18_remnant_keys(monkeypatch):
     _forbid_live(monkeypatch)
     payload = _data(tea.rank_landscape(
@@ -710,21 +747,253 @@ def test_feed_mass_fractions_on_process_rows_is_not_applicable(monkeypatch):
     assert "landscape_points" not in payload
 
 
-def test_handle_does_not_ingest_the_remnant_table(monkeypatch):
+def test_unknown_handle_is_not_an_empty_remnant_table(monkeypatch):
+    _forbid_live(monkeypatch)
+    payload = _data(tea.rank_landscape(
+        **_sequence_kwargs(handle="not-a-remnant-table"),
+    ))
+    assert payload.get("error_code") == "unknown_handle"
+    assert payload.get("error_code") != "incomplete_stage_basis_grid"
+    assert "landscape_points" not in payload
+
+
+def test_unknown_handle_does_not_outrank_missing_map(monkeypatch):
     _forbid_live(monkeypatch)
     payload = _data(tea.rank_landscape(
         source="superstructure",
         formulation="sequence",
-        planner_solvent_map=_PLAN_MAP,
-        feed_mass_fractions={"LDPE": 0.55, "EVOH": 0.45},
-        process_config={"processing_capacity_mt_per_yr": 20_000},
+        feed_mass_fractions=_FEED_55_45,
+        process_config=_CAP_20KT,
         handle="not-a-remnant-table",
     ))
-    assert payload.get("error_code") == "incomplete_stage_basis_grid"
+    assert payload.get("error_code") == "missing_planner_solvent_map"
     assert payload.get("error_code") != "unknown_handle"
+    assert "pending_blockers" not in payload
+
+
+def test_first_stage_handle_does_not_fill_remnant_cells(monkeypatch):
+    _forbid_live(monkeypatch)
+    toluene = tea._public_solvent_token("Toluene")
+    dmso = tea._public_solvent_token("DMSO")
+    session = new_session()
+    with bind_tool_session(session):
+        handle = _plant_handle(session, [
+            _plant_row("LDPE", toluene, 55.0, 20_000.0),
+            _plant_row("EVOH", dmso, 45.0, 20_000.0),
+        ])
+        payload = _data(tea.rank_landscape(**_sequence_kwargs(handle=handle)))
+    assert payload.get("error_code") == "incomplete_stage_basis_grid"
+    assert payload.get("error_code") != "sequence_coupling_unproven"
+    assert payload["pending_blockers"][0]["error_type"] == (
+        "sequence_coupling_unproven"
+    )
+    cells = {_d18_cell(row) for row in payload["missing_keys"]}
+    assert cells == {
+        ("LDPE", 100.0, 11_000.0, toluene),
+        ("EVOH", 100.0, 9_000.0, dmso),
+    }
     assert "landscape_points" not in payload
     assert payload.get("n_usable") is None
-    assert len(payload["missing_keys"]) == 4
+
+
+def test_planted_p2_is_not_a_remnant_hit(monkeypatch):
+    _forbid_live(monkeypatch)
+    toluene = tea._public_solvent_token("Toluene")
+    dmso = tea._public_solvent_token("DMSO")
+    session = new_session()
+    with bind_tool_session(session):
+        handle = _plant_handle(session, [
+            _plant_row("LDPE", toluene, 55.0, 20_000.0),
+            _plant_row("EVOH", dmso, 45.0, 20_000.0),
+            _plant_row("LDPE", toluene, 66.667, 18_000.0),
+            _plant_row("EVOH", dmso, 66.667, 18_000.0),
+        ])
+        payload = _data(tea.rank_landscape(**_sequence_kwargs(handle=handle)))
+    assert payload.get("error_code") == "incomplete_stage_basis_grid"
+    cells = {_d18_cell(row) for row in payload["missing_keys"]}
+    assert ("LDPE", 100.0, 11_000.0, toluene) in cells
+    assert ("EVOH", 100.0, 9_000.0, dmso) in cells
+    assert all(row["target_mass_percent"] != 66.667 for row in payload["missing_keys"])
+
+
+def test_failed_row_is_not_a_coefficient(monkeypatch):
+    _forbid_live(monkeypatch)
+    toluene = tea._public_solvent_token("Toluene")
+    dmso = tea._public_solvent_token("DMSO")
+    session = new_session()
+    with bind_tool_session(session):
+        handle = _plant_handle(session, [
+            _plant_row("LDPE", toluene, 55.0, 20_000.0),
+            _plant_row("EVOH", dmso, 45.0, 20_000.0),
+            _plant_row("LDPE", toluene, 100.0, 11_000.0),
+            _plant_row("EVOH", dmso, 100.0, 9_000.0, success=False),
+        ])
+        payload = _data(tea.rank_landscape(**_sequence_kwargs(handle=handle)))
+    assert payload.get("error_code") == "incomplete_stage_basis_grid"
+    cells = {_d18_cell(row) for row in payload["missing_keys"]}
+    assert cells == {("EVOH", 100.0, 9_000.0, dmso)}
+    assert "pending_blockers" in payload
+
+
+def test_complete_sequence_grid_is_d20_primary(monkeypatch):
+    _forbid_live(monkeypatch)
+    toluene = tea._public_solvent_token("Toluene")
+    dmso = tea._public_solvent_token("DMSO")
+    session = new_session()
+    with bind_tool_session(session):
+        handle = _plant_handle(session, [
+            _plant_row("LDPE", toluene, 55.0, 20_000.0),
+            _plant_row("EVOH", dmso, 45.0, 20_000.0),
+            _plant_row("LDPE", toluene, 100.0, 11_000.0),
+            _plant_row("EVOH", dmso, 100.0, 9_000.0),
+        ])
+        payload = _data(tea.rank_landscape(**_sequence_kwargs(handle=handle)))
+    assert payload.get("error_code") == "sequence_coupling_unproven"
+    assert payload.get("error_type") == "sequence_coupling_unproven"
+    assert payload.get("formulation") == "sequence"
+    assert payload.get("source") == "superstructure"
+    assert payload.get("gate") == "gate_sequence_order_coupling"
+    assert "pending_blockers" not in payload
+    assert payload.get("pending_blockers") in (None, [])
+    assert "landscape_points" not in payload
+    assert payload.get("n_usable") is None
+    assert "missing_keys" not in payload
+    assert payload.get("error_code") != "incomplete_stage_basis_grid"
+
+
+def test_complete_grid_without_composition_cannot_match(monkeypatch):
+    _forbid_live(monkeypatch)
+    toluene = tea._public_solvent_token("Toluene")
+    dmso = tea._public_solvent_token("DMSO")
+    session = new_session()
+    with bind_tool_session(session):
+        handle = _plant_handle(session, [
+            _plant_row("LDPE", toluene, 55.0, 20_000.0),
+            _plant_row("EVOH", dmso, 45.0, 20_000.0),
+            _plant_row("LDPE", toluene, 100.0, 11_000.0),
+            _plant_row("EVOH", dmso, 100.0, 9_000.0),
+        ])
+        payload = _data(tea.rank_landscape(
+            source="superstructure",
+            formulation="sequence",
+            planner_solvent_map=_PLAN_MAP,
+            target_polymer=["LDPE", "EVOH"],
+            handle=handle,
+        ))
+    assert payload.get("error_code") == "incomplete_stage_basis_grid"
+    keys = payload["missing_keys"]
+    assert len(keys) == 2
+    for row in keys:
+        assert row["target_mass_percent"] is None
+        assert row["processing_capacity_mt_per_yr"] is None
+    assert payload["pending_blockers"][0]["error_type"] == (
+        "sequence_coupling_unproven"
+    )
+
+
+def test_complete_sequence_solvent_is_not_a_ranking(monkeypatch):
+    _forbid_live(monkeypatch)
+    toluene = tea._public_solvent_token("Toluene")
+    dmso = tea._public_solvent_token("DMSO")
+    session = new_session()
+    with bind_tool_session(session):
+        handle = _plant_handle(session, [
+            _plant_row("LDPE", toluene, 55.0, 20_000.0),
+            _plant_row("LDPE", toluene, 100.0, 11_000.0),
+            _plant_row("EVOH", dmso, 45.0, 20_000.0),
+            _plant_row("EVOH", toluene, 45.0, 20_000.0),
+            _plant_row("EVOH", dmso, 100.0, 9_000.0),
+            _plant_row("EVOH", toluene, 100.0, 9_000.0),
+        ])
+        payload = _data(tea.rank_landscape(
+            source="superstructure",
+            formulation="sequence_solvent",
+            planner_solvent_map=_PLAN_MAP,
+            allowed_solvents=_ALLOWED_MAP,
+            feed_mass_fractions=_FEED_55_45,
+            process_config=_CAP_20KT,
+            handle=handle,
+        ))
+    assert payload.get("error_code") == "tool_not_wired"
+    assert payload.get("error_code") != "sequence_coupling_unproven"
+    assert "pending_blockers" not in payload
+    assert "landscape_points" not in payload
+
+
+def test_dispatch_of_complete_grid_is_d20_primary(monkeypatch):
+    _forbid_live(monkeypatch)
+    toluene = tea._public_solvent_token("Toluene")
+    dmso = tea._public_solvent_token("DMSO")
+    session = new_session()
+    with bind_tool_session(session):
+        handle = _plant_handle(session, [
+            _plant_row("LDPE", toluene, 55.0, 20_000.0),
+            _plant_row("EVOH", dmso, 45.0, 20_000.0),
+            _plant_row("LDPE", toluene, 100.0, 11_000.0),
+            _plant_row("EVOH", dmso, 100.0, 9_000.0),
+        ])
+        ranked = dispatch("rank_landscape", **_sequence_kwargs(handle=handle))
+    assert ranked.get("available") is False
+    assert ranked.get("refusal") == "sequence_coupling_unproven"
+    assert ranked.get("handle") is None
+    assert "pending_blockers" not in ranked.get("data", {})
+    assert "landscape_points" not in ranked.get("data", {})
+
+
+def test_campaign_fingerprint_does_not_complete_or_rank(monkeypatch):
+    _forbid_live(monkeypatch)
+    toluene = tea._public_solvent_token("Toluene")
+    dmso = tea._public_solvent_token("DMSO")
+    session = new_session()
+    with bind_tool_session(session):
+        handle = _plant_handle(session, [
+            _plant_row("LDPE", toluene, 55.0, 20_000.0),
+            _plant_row("EVOH", dmso, 45.0, 20_000.0),
+            _plant_row("LDPE", toluene, 100.0, 11_000.0),
+            _plant_row("EVOH", dmso, 100.0, 9_000.0),
+        ])
+        payload = _data(tea.rank_landscape(
+            **_sequence_kwargs(
+                handle=handle,
+                campaign_fingerprint=(
+                    "ef62efb3a708d782ce58cac3295cc9de71b0a7e8d076f6ca79f1ba5830a29636"
+                ),
+            ),
+        ))
+    assert payload.get("error_code") == "sequence_coupling_unproven"
+    assert payload.get("n_usable") is None
+    assert "landscape_points" not in payload
+
+
+def test_solvent_handle_does_not_invent_remnant_matches(monkeypatch):
+    _forbid_live(monkeypatch)
+    toluene = tea._public_solvent_token("Toluene")
+    dmso = tea._public_solvent_token("DMSO")
+    session = new_session()
+    with bind_tool_session(session):
+        handle = _plant_handle(session, [
+            _plant_row("LDPE", toluene, 55.0, 20_000.0),
+            _plant_row("EVOH", dmso, 45.0, 20_000.0),
+            _plant_row("LDPE", toluene, 100.0, 11_000.0),
+            _plant_row("EVOH", dmso, 100.0, 9_000.0),
+        ])
+        payload = _data(tea.rank_landscape(
+            source="superstructure",
+            formulation="solvent",
+            allowed_solvents=_ALLOWED_MAP,
+            target_polymer=["LDPE", "EVOH"],
+            feed_mass_fractions=_FEED_55_45,
+            process_config=_CAP_20KT,
+            handle=handle,
+        ))
+    assert payload.get("error_code") == "incomplete_stage_basis_grid"
+    assert payload.get("error_code") != "sequence_coupling_unproven"
+    assert "pending_blockers" not in payload
+    keys = payload["missing_keys"]
+    assert len(keys) == 3
+    for row in keys:
+        assert row["target_mass_percent"] is None
+        assert row["processing_capacity_mt_per_yr"] is None
 
 
 def test_d18_keys_do_not_pair_fill_from_cache(monkeypatch):

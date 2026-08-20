@@ -5111,6 +5111,91 @@ def _incomplete_stage_basis_grid(
     )
 
 
+def _sequence_coupling_unproven(formulation: str) -> str:
+    return tool_error(
+        "rank_landscape",
+        "sequence-order coupling is unproven",
+        error_code="sequence_coupling_unproven",
+        error_type="sequence_coupling_unproven",
+        source="superstructure",
+        formulation=formulation,
+        gate="gate_sequence_order_coupling",
+    )
+
+
+def _remnant_key_from_row(row: Any) -> tuple[Any, ...] | None:
+    """Four-tuple remnant coordinate of a tool-1 row. Failures are not a fill."""
+    if not isinstance(row, dict) or row.get("success") is False:
+        return None
+    raw_polymer = row.get("target_polymer") or row.get("polymer")
+    raw_solvent = row.get("solvent")
+    mass = row.get("target_mass_percent")
+    capacity = row.get("processing_capacity_mt_per_yr")
+    if raw_polymer in (None, "") or raw_solvent in (None, ""):
+        return None
+    if mass is None or capacity is None:
+        return None
+    try:
+        polymer = _resolve_polymer(raw_polymer, "handle polymer")
+        mass_n = round(_finite(mass, "target_mass_percent"), 10)
+        cap_n = round(_finite(capacity, "processing_capacity_mt_per_yr"), 10)
+    except (ValueError, _InputError, _ScenarioInputError):
+        return None
+    return (polymer, mass_n, cap_n, _public_solvent_token(str(raw_solvent)))
+
+
+def _cell_remnant_key(cell: dict[str, Any]) -> tuple[Any, ...] | None:
+    polymer = cell.get("polymer")
+    solvent = cell.get("solvent")
+    mass = cell.get("target_mass_percent")
+    capacity = cell.get("processing_capacity_mt_per_yr")
+    if polymer is None or solvent in (None, "") or mass is None or capacity is None:
+        return None
+    try:
+        mass_n = round(_finite(mass, "target_mass_percent"), 10)
+        cap_n = round(_finite(capacity, "processing_capacity_mt_per_yr"), 10)
+    except ValueError:
+        return None
+    return (polymer, mass_n, cap_n, solvent)
+
+
+def _unmatched_remnant_keys(
+    missing_keys: list[dict[str, Any]],
+    rows: Sequence[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    present = {
+        key for row in rows
+        if (key := _remnant_key_from_row(row)) is not None
+    }
+    unmatched: list[dict[str, Any]] = []
+    for cell in missing_keys:
+        key = _cell_remnant_key(cell)
+        if key is not None and key in present:
+            continue
+        unmatched.append(cell)
+    return unmatched
+
+
+def _refuse_listed_or_complete(
+    *,
+    formulation: str,
+    missing_keys: list[dict[str, Any]],
+    handle: Any,
+) -> str | None:
+    """Subtract handle rows from listed D-18 keys. Not a cache or campaign fill."""
+    if handle is not None:
+        _source, rows, _stored = _load_process_rows_handle(handle)
+        missing_keys = _unmatched_remnant_keys(missing_keys, rows)
+    if missing_keys:
+        return _incomplete_stage_basis_grid(
+            formulation=formulation,
+            missing_keys=missing_keys,
+        )
+    if formulation == "sequence":
+        return _sequence_coupling_unproven(formulation)
+    return None
+
+
 def _superstructure_map_refusal(
     *,
     formulation: Any,
@@ -5119,8 +5204,9 @@ def _superstructure_map_refusal(
     target_polymer: Any,
     feed_mass_fractions: Any = None,
     process_config: Any = None,
+    handle: Any = None,
 ) -> str | None:
-    """Missing-map refuses, then incomplete_stage_basis_grid. Not a ranking."""
+    """Missing-map refuses, then incomplete grid or D-20. Not a ranking."""
     tool = "rank_landscape"
     token = _formulation_token(formulation)
     feed = _supplied_feed_names(target_polymer)
@@ -5180,12 +5266,13 @@ def _superstructure_map_refusal(
                 composition=composition,
                 plant_capacity=plant_capacity,
             )
+            return _refuse_listed_or_complete(
+                formulation=token,
+                missing_keys=missing_keys,
+                handle=handle,
+            )
         except (_ScenarioInputError, _InputError, ValueError) as error:
             return _identity_error(error)
-        return _incomplete_stage_basis_grid(
-            formulation=token,
-            missing_keys=missing_keys,
-        )
     if token == "sequence":
         if not _planner_solvent_map_shape(planner_solvent_map):
             return tool_error(
@@ -5204,26 +5291,27 @@ def _superstructure_map_refusal(
                 )
             )
             resolved_feed = _align_feed_with_composition(feed, composition)
+            missing = [name for name in resolved_feed if name not in mapping]
+            if missing:
+                return tool_error(
+                    tool,
+                    "formulation=sequence requires planner_solvent_map",
+                    error_code="missing_planner_solvent_map",
+                    formulation=token,
+                    polymers=missing,
+                    feed=resolved_feed,
+                )
+            return _refuse_listed_or_complete(
+                formulation=token,
+                missing_keys=_missing_keys_from_planner_map(
+                    mapping,
+                    composition=composition,
+                    plant_capacity=plant_capacity,
+                ),
+                handle=handle,
+            )
         except (_ScenarioInputError, _InputError, ValueError) as error:
             return _identity_error(error)
-        missing = [name for name in resolved_feed if name not in mapping]
-        if missing:
-            return tool_error(
-                tool,
-                "formulation=sequence requires planner_solvent_map",
-                error_code="missing_planner_solvent_map",
-                formulation=token,
-                polymers=missing,
-                feed=resolved_feed,
-            )
-        return _incomplete_stage_basis_grid(
-            formulation=token,
-            missing_keys=_missing_keys_from_planner_map(
-                mapping,
-                composition=composition,
-                plant_capacity=plant_capacity,
-            ),
-        )
     if token == "solvent":
         if not _allowed_solvents_shape(allowed_solvents):
             return tool_error(
@@ -5242,29 +5330,33 @@ def _superstructure_map_refusal(
             )
             resolved_feed = _align_feed_with_composition(feed, composition)
             if isinstance(allowed_solvents, list):
-                return _incomplete_stage_basis_grid(
+                return _refuse_listed_or_complete(
                     formulation=token,
                     missing_keys=_missing_keys_from_allowed(
                         allowed_solvents, resolved_feed,
                     ),
+                    handle=handle,
                 )
             keys = _canonical_allowed_solvent_keys(allowed_solvents)
+            missing = [name for name in resolved_feed if name not in keys]
+            if missing:
+                return tool_error(
+                    tool,
+                    "formulation=solvent requires allowed_solvents",
+                    error_code="missing_allowed_solvents",
+                    formulation=token,
+                    polymers=missing,
+                    feed=resolved_feed,
+                )
+            return _refuse_listed_or_complete(
+                formulation=token,
+                missing_keys=_missing_keys_from_allowed(
+                    allowed_solvents, resolved_feed,
+                ),
+                handle=handle,
+            )
         except (_ScenarioInputError, _InputError, ValueError) as error:
             return _identity_error(error)
-        missing = [name for name in resolved_feed if name not in keys]
-        if missing:
-            return tool_error(
-                tool,
-                "formulation=solvent requires allowed_solvents",
-                error_code="missing_allowed_solvents",
-                formulation=token,
-                polymers=missing,
-                feed=resolved_feed,
-            )
-        return _incomplete_stage_basis_grid(
-            formulation=token,
-            missing_keys=_missing_keys_from_allowed(allowed_solvents, resolved_feed),
-        )
     return None
 
 
@@ -5305,13 +5397,17 @@ def rank_landscape(
     and, for formulation=sequence, attaches pending_blockers for D-20.
     When feed_mass_fractions is supplied, those cells use the D-18 remnant
     subset union (n × 2^{n−1}); plant capacity comes from process_config
-    and is not defaulted to 20 kt. Maps name solvents only. Do not scan
-    top_k_sequences for either map. formulation is required iff
+    and is not defaulted to 20 kt. Maps name solvents only. A tool-1
+    handle on source=superstructure is the remnant coefficient table:
+    rows matching listed D-18 keys are subtracted; unmatched stay
+    missing. A complete sequence grid with production check red is
+    sequence_coupling_unproven as primary (no pending_blockers). Do not
+    scan top_k_sequences for either map. formulation is required iff
     source=superstructure; formulation=wash_train is
     process_model_wash_train_unavailable. formulation=sequence_solvent
     lists the remnant×solvent table as incomplete_stage_basis_grid and
-    does not take a shortlist or maps as a coefficient fill. Remnant
-    ingest, D-20 as primary, and epsilon are not this slice.
+    does not take a shortlist or maps as a coefficient fill. Epsilon is
+    not this slice.
     """
     tool = "rank_landscape"
     if unexpected:
@@ -5364,6 +5460,7 @@ def rank_landscape(
                 target_polymer=target_polymer,
                 feed_mass_fractions=feed_mass_fractions,
                 process_config=process_config,
+                handle=handle,
             )
             if refused is not None:
                 return refused
