@@ -2755,3 +2755,416 @@ def test_invalid_dissolution_capacity_does_not_outrank_missing_map(monkeypatch):
     assert payload.get("error_code") == "missing_planner_solvent_map"
     assert payload.get("error_code") != "invalid_admitted_record_query"
 
+
+def test_omitted_labor_is_not_a_silent_default(monkeypatch):
+    _forbid_live(monkeypatch)
+    payload = _data(tea.rank_landscape(**_sequence_kwargs()))
+    assert payload.get("error_code") == "incomplete_stage_basis_grid"
+    for row in payload["missing_keys"]:
+        assert row.get("labor_cost_usd_per_employee_yr") is None
+        assert row.get("labor_cost_usd_per_employee_yr") != 120_000.0
+
+
+def test_empty_labor_is_the_omitted_grain(monkeypatch):
+    _forbid_live(monkeypatch)
+    payload = _data(tea.rank_landscape(
+        **_sequence_kwargs(
+            process_config={**_CAP_20KT, "labor_cost_usd_per_employee_yr": ""},
+        ),
+    ))
+    assert payload.get("error_code") == "incomplete_stage_basis_grid"
+    for row in payload["missing_keys"]:
+        assert row.get("labor_cost_usd_per_employee_yr") is None
+
+
+def test_planted_labor_still_completes_when_omitted(monkeypatch):
+    _forbid_live(monkeypatch)
+    session = new_session()
+    with bind_tool_session(session):
+        handle = _plant_handle(
+            session, _complete_d18_rows(labor_cost_usd_per_employee_yr=150_000.0),
+        )
+        payload = _data(tea.rank_landscape(**_sequence_kwargs(handle=handle)))
+    assert payload.get("error_code") == "sequence_coupling_unproven"
+    assert "pending_blockers" not in payload
+    assert "landscape_points" not in payload
+
+
+def test_default_labor_rows_still_complete_when_omitted(monkeypatch):
+    _forbid_live(monkeypatch)
+    session = new_session()
+    with bind_tool_session(session):
+        handle = _plant_handle(
+            session, _complete_d18_rows(labor_cost_usd_per_employee_yr=120_000.0),
+        )
+        payload = _data(tea.rank_landscape(**_sequence_kwargs(handle=handle)))
+    assert payload.get("error_code") == "sequence_coupling_unproven"
+    assert "pending_blockers" not in payload
+    assert "landscape_points" not in payload
+
+
+def test_named_labor_does_not_accept_another_labor(monkeypatch):
+    _forbid_live(monkeypatch)
+    session = new_session()
+    with bind_tool_session(session):
+        handle = _plant_handle(
+            session, _complete_d18_rows(labor_cost_usd_per_employee_yr=120_000.0),
+        )
+        payload = _data(tea.rank_landscape(
+            **_sequence_kwargs(
+                handle=handle,
+                process_config={
+                    **_CAP_20KT,
+                    "labor_cost_usd_per_employee_yr": 150_000.0,
+                },
+            ),
+        ))
+    assert payload.get("error_code") == "incomplete_stage_basis_grid"
+    assert payload.get("error_code") != "sequence_coupling_unproven"
+    keys = payload["missing_keys"]
+    assert len(keys) == 4
+    assert {row["labor_cost_usd_per_employee_yr"] for row in keys} == {150_000.0}
+    assert payload["pending_blockers"][0]["error_type"] == (
+        "sequence_coupling_unproven"
+    )
+    assert "landscape_points" not in payload
+
+
+def test_named_default_labor_does_not_accept_another_labor(monkeypatch):
+    _forbid_live(monkeypatch)
+    session = new_session()
+    with bind_tool_session(session):
+        handle = _plant_handle(
+            session, _complete_d18_rows(labor_cost_usd_per_employee_yr=150_000.0),
+        )
+        payload = _data(tea.rank_landscape(
+            **_sequence_kwargs(
+                handle=handle,
+                process_config={
+                    **_CAP_20KT,
+                    "labor_cost_usd_per_employee_yr": 120_000.0,
+                },
+            ),
+        ))
+    assert payload.get("error_code") == "incomplete_stage_basis_grid"
+    keys = payload["missing_keys"]
+    assert len(keys) == 4
+    assert {row["labor_cost_usd_per_employee_yr"] for row in keys} == {120_000.0}
+
+
+def test_named_labor_completes_on_matching_rows(monkeypatch):
+    _forbid_live(monkeypatch)
+    session = new_session()
+    with bind_tool_session(session):
+        handle = _plant_handle(
+            session, _complete_d18_rows(labor_cost_usd_per_employee_yr=150_000.0),
+        )
+        payload = _data(tea.rank_landscape(
+            **_sequence_kwargs(
+                handle=handle,
+                process_config={
+                    **_CAP_20KT,
+                    "labor_cost_usd_per_employee_yr": 150_000.0,
+                },
+            ),
+        ))
+    assert payload.get("error_code") == "sequence_coupling_unproven"
+    assert "pending_blockers" not in payload
+    assert "missing_keys" not in payload
+    assert "landscape_points" not in payload
+
+
+def test_named_default_labor_is_holdable(monkeypatch):
+    _forbid_live(monkeypatch)
+    payload = _data(tea.rank_landscape(
+        **_sequence_kwargs(
+            process_config={
+                **_CAP_20KT,
+                "labor_cost_usd_per_employee_yr": 120_000.0,
+            },
+        ),
+    ))
+    assert payload.get("error_code") == "incomplete_stage_basis_grid"
+    keys = payload["missing_keys"]
+    assert len(keys) == 4
+    assert {row["labor_cost_usd_per_employee_yr"] for row in keys} == {120_000.0}
+
+
+def test_named_default_labor_completes_on_matching_default_rows(monkeypatch):
+    _forbid_live(monkeypatch)
+    session = new_session()
+    with bind_tool_session(session):
+        handle = _plant_handle(
+            session, _complete_d18_rows(labor_cost_usd_per_employee_yr=120_000.0),
+        )
+        payload = _data(tea.rank_landscape(
+            **_sequence_kwargs(
+                handle=handle,
+                process_config={
+                    **_CAP_20KT,
+                    "labor_cost_usd_per_employee_yr": 120_000.0,
+                },
+            ),
+        ))
+    assert payload.get("error_code") == "sequence_coupling_unproven"
+    assert "pending_blockers" not in payload
+    assert "missing_keys" not in payload
+
+
+def test_labor_cost_alias_stamps_the_public_name(monkeypatch):
+    _forbid_live(monkeypatch)
+    payload = _data(tea.rank_landscape(
+        **_sequence_kwargs(process_config={**_CAP_20KT, "labor_cost": 150_000}),
+    ))
+    assert payload.get("error_code") == "incomplete_stage_basis_grid"
+    keys = payload["missing_keys"]
+    assert len(keys) == 4
+    assert {row["labor_cost_usd_per_employee_yr"] for row in keys} == {150_000.0}
+
+
+def test_public_labor_wins_over_alias(monkeypatch):
+    _forbid_live(monkeypatch)
+    payload = _data(tea.rank_landscape(
+        **_sequence_kwargs(
+            process_config={
+                **_CAP_20KT,
+                "labor_cost_usd_per_employee_yr": 150_000.0,
+                "labor_cost": 120_000.0,
+            },
+        ),
+    ))
+    assert payload.get("error_code") == "incomplete_stage_basis_grid"
+    keys = payload["missing_keys"]
+    assert len(keys) == 4
+    assert {row["labor_cost_usd_per_employee_yr"] for row in keys} == {150_000.0}
+
+
+def test_dissolution_capacity_does_not_stamp_labor_on_this_slice(monkeypatch):
+    _forbid_live(monkeypatch)
+    payload = _data(tea.rank_landscape(
+        **_sequence_kwargs(
+            process_config={**_CAP_20KT, "dissolution_capacity": 5.0},
+        ),
+    ))
+    assert payload.get("error_code") == "incomplete_stage_basis_grid"
+    for row in payload["missing_keys"]:
+        assert row.get("dissolution_capacity") == 5.0
+        assert row.get("labor_cost_usd_per_employee_yr") is None
+
+
+def test_labor_does_not_stamp_labor_burden(monkeypatch):
+    _forbid_live(monkeypatch)
+    payload = _data(tea.rank_landscape(
+        **_sequence_kwargs(
+            process_config={
+                **_CAP_20KT,
+                "labor_cost_usd_per_employee_yr": 150_000.0,
+            },
+        ),
+    ))
+    assert payload.get("error_code") == "incomplete_stage_basis_grid"
+    for row in payload["missing_keys"]:
+        assert row.get("labor_cost_usd_per_employee_yr") == 150_000.0
+        assert row.get("labor_burden") is None
+
+
+def test_labor_burden_does_not_stamp_labor(monkeypatch):
+    _forbid_live(monkeypatch)
+    payload = _data(tea.rank_landscape(
+        **_sequence_kwargs(
+            process_config={**_CAP_20KT, "labor_burden": 0.9},
+        ),
+    ))
+    assert payload.get("error_code") == "incomplete_stage_basis_grid"
+    for row in payload["missing_keys"]:
+        assert row.get("labor_cost_usd_per_employee_yr") is None
+
+
+def test_sell_leftover_does_not_stamp_labor(monkeypatch):
+    _forbid_live(monkeypatch)
+    payload = _data(tea.rank_landscape(
+        **_sequence_kwargs(
+            process_config={**_CAP_20KT, "sell_leftover_plastic": True},
+        ),
+    ))
+    assert payload.get("error_code") == "incomplete_stage_basis_grid"
+    for row in payload["missing_keys"]:
+        assert row.get("labor_cost_usd_per_employee_yr") is None
+
+
+def test_named_slice_at_wrong_labor_does_not_fill(monkeypatch):
+    _forbid_live(monkeypatch)
+    session = new_session()
+    with bind_tool_session(session):
+        handle = _plant_handle(
+            session,
+            _complete_d18_rows(
+                energy_case="C1",
+                dissolution_temperature_c=90.0,
+                precipitation_temperature_c=40.0,
+                solvent_price_usd_per_kg=2.0,
+                solvent_loss_pct=3.0,
+                feedstock_distance_km=250.0,
+                dissolution_capacity=5.0,
+                labor_cost_usd_per_employee_yr=120_000.0,
+            ),
+        )
+        payload = _data(tea.rank_landscape(
+            **_sequence_kwargs(
+                handle=handle,
+                process_config={
+                    **_CAP_20KT,
+                    "energy_case": "C1",
+                    "dissolution_temperature_c": 90.0,
+                    "precipitation_temperature_c": 40.0,
+                    "solvent_price_usd_per_kg": 2.0,
+                    "solvent_loss_pct": 3.0,
+                    "feedstock_distance_km": 250.0,
+                    "dissolution_capacity": 5.0,
+                    "labor_cost_usd_per_employee_yr": 150_000.0,
+                },
+            ),
+        ))
+    assert payload.get("error_code") == "incomplete_stage_basis_grid"
+    keys = payload["missing_keys"]
+    assert len(keys) == 4
+    assert {row["energy_case"] for row in keys} == {"C1"}
+    assert {row["dissolution_temperature_c"] for row in keys} == {90.0}
+    assert {row["precipitation_temperature_c"] for row in keys} == {40.0}
+    assert {row["solvent_price_usd_per_kg"] for row in keys} == {2.0}
+    assert {row["solvent_loss_pct"] for row in keys} == {3.0}
+    assert {row["feedstock_distance_km"] for row in keys} == {250.0}
+    assert {row["dissolution_capacity"] for row in keys} == {5.0}
+    assert {row["labor_cost_usd_per_employee_yr"] for row in keys} == {150_000.0}
+
+
+def test_mixed_labor_handle_leaves_the_unmatched_remnant(monkeypatch):
+    _forbid_live(monkeypatch)
+    rows = _complete_d18_rows(labor_cost_usd_per_employee_yr=150_000.0)
+    rows[-1]["labor_cost_usd_per_employee_yr"] = 120_000.0
+    session = new_session()
+    with bind_tool_session(session):
+        handle = _plant_handle(session, rows)
+        payload = _data(tea.rank_landscape(
+            **_sequence_kwargs(
+                handle=handle,
+                process_config={
+                    **_CAP_20KT,
+                    "labor_cost_usd_per_employee_yr": 150_000.0,
+                },
+            ),
+        ))
+    assert payload.get("error_code") == "incomplete_stage_basis_grid"
+    keys = payload["missing_keys"]
+    assert len(keys) == 1
+    assert keys[0]["labor_cost_usd_per_employee_yr"] == 150_000.0
+    assert keys[0]["polymer"] == "EVOH"
+    assert keys[0]["target_mass_percent"] == 100.0
+
+
+def test_rows_without_labor_do_not_fill_named_labor(monkeypatch):
+    _forbid_live(monkeypatch)
+    session = new_session()
+    with bind_tool_session(session):
+        handle = _plant_handle(session, _complete_d18_rows())
+        payload = _data(tea.rank_landscape(
+            **_sequence_kwargs(
+                handle=handle,
+                process_config={
+                    **_CAP_20KT,
+                    "labor_cost_usd_per_employee_yr": 150_000.0,
+                },
+            ),
+        ))
+    assert payload.get("error_code") == "incomplete_stage_basis_grid"
+    keys = payload["missing_keys"]
+    assert len(keys) == 4
+    assert {row["labor_cost_usd_per_employee_yr"] for row in keys} == {150_000.0}
+
+
+def test_alias_only_row_does_not_fill_named_labor(monkeypatch):
+    _forbid_live(monkeypatch)
+    rows = _complete_d18_rows()
+    for row in rows:
+        row["labor_cost"] = 150_000.0
+    session = new_session()
+    with bind_tool_session(session):
+        handle = _plant_handle(session, rows)
+        payload = _data(tea.rank_landscape(
+            **_sequence_kwargs(
+                handle=handle,
+                process_config={
+                    **_CAP_20KT,
+                    "labor_cost_usd_per_employee_yr": 150_000.0,
+                },
+            ),
+        ))
+    assert payload.get("error_code") == "incomplete_stage_basis_grid"
+    keys = payload["missing_keys"]
+    assert len(keys) == 4
+    assert {row["labor_cost_usd_per_employee_yr"] for row in keys} == {150_000.0}
+
+
+def test_labor_cost_usd_per_employee_yr_kwarg_is_unknown_extra(monkeypatch):
+    _forbid_live(monkeypatch)
+    payload = _data(tea.rank_landscape(
+        **_sequence_kwargs(labor_cost_usd_per_employee_yr=150_000.0),
+    ))
+    assert payload.get("error_code") == "unknown_process_field"
+    assert payload.get("extra_keys") == ["labor_cost_usd_per_employee_yr"]
+    assert payload.get("error_code") != "incomplete_stage_basis_grid"
+
+
+def test_labor_cost_kwarg_is_unknown_extra(monkeypatch):
+    _forbid_live(monkeypatch)
+    payload = _data(tea.rank_landscape(
+        **_sequence_kwargs(labor_cost=150_000.0),
+    ))
+    assert payload.get("error_code") == "unknown_process_field"
+    assert payload.get("extra_keys") == ["labor_cost"]
+    assert payload.get("error_code") != "incomplete_stage_basis_grid"
+
+
+def test_nested_labor_does_not_count(monkeypatch):
+    _forbid_live(monkeypatch)
+    payload = _data(tea.rank_landscape(
+        **_sequence_kwargs(
+            process_config={
+                **_CAP_20KT,
+                "held": {"labor_cost_usd_per_employee_yr": 150_000.0},
+            },
+        ),
+    ))
+    assert payload.get("error_code") == "incomplete_stage_basis_grid"
+    for row in payload["missing_keys"]:
+        assert row.get("labor_cost_usd_per_employee_yr") is None
+
+
+def test_invalid_labor_is_not_a_listing(monkeypatch):
+    _forbid_live(monkeypatch)
+    payload = _data(tea.rank_landscape(
+        **_sequence_kwargs(
+            process_config={
+                **_CAP_20KT,
+                "labor_cost_usd_per_employee_yr": "salary",
+            },
+        ),
+    ))
+    assert payload.get("error_code") == "invalid_admitted_record_query"
+    assert payload.get("error_code") != "incomplete_stage_basis_grid"
+
+
+def test_invalid_labor_does_not_outrank_missing_map(monkeypatch):
+    _forbid_live(monkeypatch)
+    payload = _data(tea.rank_landscape(
+        source="superstructure",
+        formulation="sequence",
+        feed_mass_fractions=_FEED_55_45,
+        process_config={
+            **_CAP_20KT,
+            "labor_cost_usd_per_employee_yr": "salary",
+        },
+    ))
+    assert payload.get("error_code") == "missing_planner_solvent_map"
+    assert payload.get("error_code") != "invalid_admitted_record_query"
+

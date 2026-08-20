@@ -5022,6 +5022,27 @@ def _requested_dissolution_capacity(process_config: Any) -> float | None:
     )
 
 
+def _requested_labor_cost_usd_per_employee_yr(
+    process_config: Any,
+) -> float | None:
+    """Held labor cost from process_config. Do not default 120000."""
+    if not isinstance(process_config, dict):
+        return None
+    if (
+        "labor_cost_usd_per_employee_yr" in process_config
+        and process_config["labor_cost_usd_per_employee_yr"] not in (None, "")
+    ):
+        raw = process_config["labor_cost_usd_per_employee_yr"]
+    elif (
+        "labor_cost" in process_config
+        and process_config["labor_cost"] not in (None, "")
+    ):
+        raw = process_config["labor_cost"]
+    else:
+        return None
+    return round(_finite(raw, "labor_cost_usd_per_employee_yr"), 10)
+
+
 def _superstructure_composition_and_capacity(
     feed_mass_fractions: Any,
     process_config: Any,
@@ -5252,6 +5273,7 @@ def _remnant_key_from_row(
     solvent_loss_pct: float | None = None,
     feedstock_distance_km: float | None = None,
     dissolution_capacity: float | None = None,
+    labor_cost_usd_per_employee_yr: float | None = None,
 ) -> tuple[Any, ...] | None:
     """Remnant coordinate of a tool-1 row. Failures are not a fill."""
     if not isinstance(row, dict) or row.get("success") is False:
@@ -5285,6 +5307,7 @@ def _remnant_key_from_row(
         ("solvent_loss_pct", solvent_loss_pct),
         ("feedstock_distance_km", feedstock_distance_km),
         ("dissolution_capacity", dissolution_capacity),
+        ("labor_cost_usd_per_employee_yr", labor_cost_usd_per_employee_yr),
     ):
         if held is None:
             continue
@@ -5324,6 +5347,7 @@ def _cell_remnant_key(cell: dict[str, Any]) -> tuple[Any, ...] | None:
         "solvent_loss_pct",
         "feedstock_distance_km",
         "dissolution_capacity",
+        "labor_cost_usd_per_employee_yr",
     ):
         temp = cell.get(field)
         if temp not in (None, ""):
@@ -5373,6 +5397,9 @@ def _unmatched_remnant_keys(
     held_dissolution_capacity = _held_rounded_field(
         missing_keys, "dissolution_capacity",
     )
+    held_labor = _held_rounded_field(
+        missing_keys, "labor_cost_usd_per_employee_yr",
+    )
     present = {
         key for row in rows
         if (
@@ -5385,6 +5412,7 @@ def _unmatched_remnant_keys(
                 solvent_loss_pct=held_loss,
                 feedstock_distance_km=held_distance,
                 dissolution_capacity=held_dissolution_capacity,
+                labor_cost_usd_per_employee_yr=held_labor,
             )
         ) is not None
     }
@@ -5419,6 +5447,9 @@ def _refuse_listed_or_complete(
         "solvent_loss_pct": _requested_solvent_loss_pct(process_config),
         "feedstock_distance_km": _requested_feedstock_distance_km(process_config),
         "dissolution_capacity": _requested_dissolution_capacity(process_config),
+        "labor_cost_usd_per_employee_yr": (
+            _requested_labor_cost_usd_per_employee_yr(process_config)
+        ),
     }
     if any(value is not None for value in held.values()):
         stamped: list[dict[str, Any]] = []
@@ -5655,9 +5686,9 @@ def rank_landscape(
     a silent C1 default. When process_config names
     dissolution_temperature_c, precipitation_temperature_c,
     solvent_price_usd_per_kg, solvent_loss_pct,
-    feedstock_distance_km, or dissolution_capacity, listed keys include
-    that held value and matching requires it; omitted is not a silent
-    cache default. A complete sequence grid with production check red is
+    feedstock_distance_km, dissolution_capacity, or
+    labor_cost_usd_per_employee_yr, listed keys include that held value
+    and matching requires it; omitted is not a silent cache default. A complete sequence grid with production check red is
     sequence_coupling_unproven as primary (no pending_blockers).
     Do not scan top_k_sequences for either map.
     formulation is required iff source=superstructure;
