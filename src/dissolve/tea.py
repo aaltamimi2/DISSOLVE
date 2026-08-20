@@ -4903,6 +4903,24 @@ def _requested_plant_capacity(process_config: Any) -> float | None:
     return capacity
 
 
+def _requested_energy_case(process_config: Any) -> str | None:
+    """Held energy_case from process_config. Do not default C1."""
+    if not isinstance(process_config, dict):
+        return None
+    if "energy_case" not in process_config or process_config["energy_case"] in (
+        None, "",
+    ):
+        return None
+    token = str(process_config["energy_case"]).strip().upper()
+    if token not in _ENERGY_CASES:
+        raise _ScenarioInputError(
+            "energy_case must be C1, C2, or C3",
+            error_code="invalid_admitted_record_query",
+            energy_case=str(process_config["energy_case"]).strip(),
+        )
+    return token
+
+
 def _superstructure_composition_and_capacity(
     feed_mass_fractions: Any,
     process_config: Any,
@@ -5123,8 +5141,10 @@ def _sequence_coupling_unproven(formulation: str) -> str:
     )
 
 
-def _remnant_key_from_row(row: Any) -> tuple[Any, ...] | None:
-    """Four-tuple remnant coordinate of a tool-1 row. Failures are not a fill."""
+def _remnant_key_from_row(
+    row: Any, *, energy_case: str | None = None,
+) -> tuple[Any, ...] | None:
+    """Remnant coordinate of a tool-1 row. Failures are not a fill."""
     if not isinstance(row, dict) or row.get("success") is False:
         return None
     raw_polymer = row.get("target_polymer") or row.get("polymer")
@@ -5141,7 +5161,15 @@ def _remnant_key_from_row(row: Any) -> tuple[Any, ...] | None:
         cap_n = round(_finite(capacity, "processing_capacity_mt_per_yr"), 10)
     except (ValueError, _InputError, _ScenarioInputError):
         return None
-    return (polymer, mass_n, cap_n, _public_solvent_token(str(raw_solvent)))
+    four = (
+        polymer, mass_n, cap_n, _public_solvent_token(str(raw_solvent)),
+    )
+    if energy_case is None:
+        return four
+    row_case = str(row.get("energy_case") or "").strip().upper()
+    if row_case != energy_case:
+        return None
+    return four + (energy_case,)
 
 
 def _cell_remnant_key(cell: dict[str, Any]) -> tuple[Any, ...] | None:
@@ -5156,16 +5184,28 @@ def _cell_remnant_key(cell: dict[str, Any]) -> tuple[Any, ...] | None:
         cap_n = round(_finite(capacity, "processing_capacity_mt_per_yr"), 10)
     except ValueError:
         return None
-    return (polymer, mass_n, cap_n, solvent)
+    four = (polymer, mass_n, cap_n, solvent)
+    case = cell.get("energy_case")
+    if case in (None, ""):
+        return four
+    return four + (str(case).strip().upper(),)
 
 
 def _unmatched_remnant_keys(
     missing_keys: list[dict[str, Any]],
     rows: Sequence[dict[str, Any]],
 ) -> list[dict[str, Any]]:
+    held_case = next(
+        (
+            str(cell["energy_case"]).strip().upper()
+            for cell in missing_keys
+            if cell.get("energy_case") not in (None, "")
+        ),
+        None,
+    )
     present = {
         key for row in rows
-        if (key := _remnant_key_from_row(row)) is not None
+        if (key := _remnant_key_from_row(row, energy_case=held_case)) is not None
     }
     unmatched: list[dict[str, Any]] = []
     for cell in missing_keys:
@@ -5181,8 +5221,14 @@ def _refuse_listed_or_complete(
     formulation: str,
     missing_keys: list[dict[str, Any]],
     handle: Any,
+    process_config: Any = None,
 ) -> str | None:
     """Subtract handle rows from listed D-18 keys. Not a cache or campaign fill."""
+    energy_case = _requested_energy_case(process_config)
+    if energy_case is not None:
+        missing_keys = [
+            {**cell, "energy_case": energy_case} for cell in missing_keys
+        ]
     if handle is not None:
         _source, rows, _stored = _load_process_rows_handle(handle)
         missing_keys = _unmatched_remnant_keys(missing_keys, rows)
@@ -5270,6 +5316,7 @@ def _superstructure_map_refusal(
                 formulation=token,
                 missing_keys=missing_keys,
                 handle=handle,
+                process_config=process_config,
             )
         except (_ScenarioInputError, _InputError, ValueError) as error:
             return _identity_error(error)
@@ -5309,6 +5356,7 @@ def _superstructure_map_refusal(
                     plant_capacity=plant_capacity,
                 ),
                 handle=handle,
+                process_config=process_config,
             )
         except (_ScenarioInputError, _InputError, ValueError) as error:
             return _identity_error(error)
@@ -5336,6 +5384,7 @@ def _superstructure_map_refusal(
                         allowed_solvents, resolved_feed,
                     ),
                     handle=handle,
+                    process_config=process_config,
                 )
             keys = _canonical_allowed_solvent_keys(allowed_solvents)
             missing = [name for name in resolved_feed if name not in keys]
@@ -5354,6 +5403,7 @@ def _superstructure_map_refusal(
                     allowed_solvents, resolved_feed,
                 ),
                 handle=handle,
+                process_config=process_config,
             )
         except (_ScenarioInputError, _InputError, ValueError) as error:
             return _identity_error(error)
@@ -5400,14 +5450,16 @@ def rank_landscape(
     and is not defaulted to 20 kt. Maps name solvents only. A tool-1
     handle on source=superstructure is the remnant coefficient table:
     rows matching listed D-18 keys are subtracted; unmatched stay
-    missing. A complete sequence grid with production check red is
-    sequence_coupling_unproven as primary (no pending_blockers). Do not
-    scan top_k_sequences for either map. formulation is required iff
-    source=superstructure; formulation=wash_train is
+    missing. When process_config names energy_case, listed keys include
+    that held case and matching requires it; omitted energy_case is not
+    a silent C1 default. A complete sequence grid with production check
+    red is sequence_coupling_unproven as primary (no pending_blockers).
+    Do not scan top_k_sequences for either map. formulation is required
+    iff source=superstructure; formulation=wash_train is
     process_model_wash_train_unavailable. formulation=sequence_solvent
     lists the remnant×solvent table as incomplete_stage_basis_grid and
-    does not take a shortlist or maps as a coefficient fill. Epsilon is
-    not this slice.
+    does not take a shortlist or maps as a coefficient fill. The rest of
+    the twelve-field key and epsilon are not this slice.
     """
     tool = "rank_landscape"
     if unexpected:

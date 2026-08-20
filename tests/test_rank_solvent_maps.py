@@ -588,6 +588,18 @@ def _plant_handle(session, rows):
     )
 
 
+def _complete_d18_rows(*, energy_case=None):
+    toluene = tea._public_solvent_token("Toluene")
+    dmso = tea._public_solvent_token("DMSO")
+    extra = {} if energy_case is None else {"energy_case": energy_case}
+    return [
+        _plant_row("LDPE", toluene, 55.0, 20_000.0, **extra),
+        _plant_row("EVOH", dmso, 45.0, 20_000.0, **extra),
+        _plant_row("LDPE", toluene, 100.0, 11_000.0, **extra),
+        _plant_row("EVOH", dmso, 100.0, 9_000.0, **extra),
+    ]
+
+
 def _sequence_kwargs(**extra):
     args = dict(
         source="superstructure",
@@ -1079,4 +1091,97 @@ def test_dispatch_of_d18_keys_is_still_the_data_gate(monkeypatch):
     assert ranked["data"]["pending_blockers"][0]["error_type"] == (
         "sequence_coupling_unproven"
     )
+
+
+def test_omitted_energy_case_is_not_a_silent_c1(monkeypatch):
+    _forbid_live(monkeypatch)
+    payload = _data(tea.rank_landscape(**_sequence_kwargs()))
+    assert payload.get("error_code") == "incomplete_stage_basis_grid"
+    for row in payload["missing_keys"]:
+        assert "energy_case" not in row or row.get("energy_case") is None
+        assert row.get("energy_case") != "C1"
+
+
+def test_c2_rows_still_complete_when_energy_case_is_omitted(monkeypatch):
+    _forbid_live(monkeypatch)
+    session = new_session()
+    with bind_tool_session(session):
+        handle = _plant_handle(session, _complete_d18_rows(energy_case="C2"))
+        payload = _data(tea.rank_landscape(**_sequence_kwargs(handle=handle)))
+    assert payload.get("error_code") == "sequence_coupling_unproven"
+    assert "pending_blockers" not in payload
+    assert "landscape_points" not in payload
+
+
+def test_named_c1_slice_does_not_accept_c2_rows(monkeypatch):
+    _forbid_live(monkeypatch)
+    session = new_session()
+    with bind_tool_session(session):
+        handle = _plant_handle(session, _complete_d18_rows(energy_case="C2"))
+        payload = _data(tea.rank_landscape(
+            **_sequence_kwargs(
+                handle=handle,
+                process_config={**_CAP_20KT, "energy_case": "C1"},
+            ),
+        ))
+    assert payload.get("error_code") == "incomplete_stage_basis_grid"
+    assert payload.get("error_code") != "sequence_coupling_unproven"
+    keys = payload["missing_keys"]
+    assert len(keys) == 4
+    assert {row["energy_case"] for row in keys} == {"C1"}
+    assert payload["pending_blockers"][0]["error_type"] == (
+        "sequence_coupling_unproven"
+    )
+    assert "landscape_points" not in payload
+
+
+def test_named_c1_slice_completes_on_c1_rows(monkeypatch):
+    _forbid_live(monkeypatch)
+    session = new_session()
+    with bind_tool_session(session):
+        handle = _plant_handle(session, _complete_d18_rows(energy_case="C1"))
+        payload = _data(tea.rank_landscape(
+            **_sequence_kwargs(
+                handle=handle,
+                process_config={**_CAP_20KT, "energy_case": "C1"},
+            ),
+        ))
+    assert payload.get("error_code") == "sequence_coupling_unproven"
+    assert "pending_blockers" not in payload
+    assert "missing_keys" not in payload
+    assert "landscape_points" not in payload
+
+
+def test_named_energy_case_is_listed_without_a_handle(monkeypatch):
+    _forbid_live(monkeypatch)
+    payload = _data(tea.rank_landscape(
+        **_sequence_kwargs(process_config={**_CAP_20KT, "energy_case": "c2"}),
+    ))
+    assert payload.get("error_code") == "incomplete_stage_basis_grid"
+    keys = payload["missing_keys"]
+    assert len(keys) == 4
+    assert {row["energy_case"] for row in keys} == {"C2"}
+    assert all(row["target_mass_percent"] is not None for row in keys)
+
+
+def test_invalid_energy_case_is_not_a_listing(monkeypatch):
+    _forbid_live(monkeypatch)
+    payload = _data(tea.rank_landscape(
+        **_sequence_kwargs(process_config={**_CAP_20KT, "energy_case": "C9"}),
+    ))
+    assert payload.get("error_code") == "invalid_admitted_record_query"
+    assert payload.get("error_code") != "incomplete_stage_basis_grid"
+    assert "landscape_points" not in payload
+
+
+def test_invalid_energy_case_does_not_outrank_missing_map(monkeypatch):
+    _forbid_live(monkeypatch)
+    payload = _data(tea.rank_landscape(
+        source="superstructure",
+        formulation="sequence",
+        feed_mass_fractions=_FEED_55_45,
+        process_config={**_CAP_20KT, "energy_case": "C9"},
+    ))
+    assert payload.get("error_code") == "missing_planner_solvent_map"
+    assert payload.get("error_code") != "invalid_admitted_record_query"
 
