@@ -183,7 +183,7 @@ def test_sensitivity_selectors_stay_on_lookup(monkeypatch):
         assert name not in inspect.signature(
             tea.analyze_tea_sensitivity,
         ).parameters
-        assert name not in _schema("evaluate_tea_lca_scenarios")[
+        assert name not in _schema("evaluate_process")[
             "parameters"
         ]["properties"]
         assert name not in _schema("analyze_tea_sensitivity")[
@@ -243,14 +243,14 @@ def test_requested_metrics_keep_lca_and_operations_tokens(monkeypatch):
     assert narrowed["requested_metrics"] == ["etox", "energy"]
     assert set(narrowed["metric_units"]) == {"etox", "energy"}
     assert wrapped_narrowed["requested_metrics"] == ["etox", "energy"]
-    eval_props = _schema("evaluate_tea_lca_scenarios")["parameters"]["properties"]
+    eval_props = _schema("evaluate_process")["parameters"]["properties"]
     assert "requested_metrics" not in eval_props
 
 
 def test_lookup_energy_cases_are_a_list(monkeypatch):
     _forbid_live(monkeypatch)
     lookup_params = inspect.signature(tea.lookup_admitted_process_records).parameters
-    eval_props = _schema("evaluate_tea_lca_scenarios")["parameters"]["properties"]
+    eval_props = _schema("evaluate_process")["parameters"]["properties"]
     sensitivity_props = _schema("analyze_tea_sensitivity")[
         "parameters"
     ]["properties"]

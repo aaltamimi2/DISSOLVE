@@ -953,12 +953,10 @@ def _public_design_point(
 
 
 PROCESS_CONFIRM_TOOLS = frozenset({
-    "evaluate_tea_lca_scenarios",
     "analyze_tea_sensitivity",
     "evaluate_process",
 })
 _TOOL1_PROCESS_ROWS_TOOLS = frozenset({
-    "evaluate_tea_lca_scenarios",
     "evaluate_process",
     "analyze_tea_sensitivity",
 })
@@ -5772,8 +5770,9 @@ def evaluate_process(
     dissolved_polymer; a mismatch is stage_identity_mismatch.
     Closed screen_to_economics_order: omitted is independent. This wrap
     does not wait on safety and does not invent a router.
-    lookup_admitted_process_records remains the Python engine; it is
-    not a registry name. The remaining TEA names still serve.
+    lookup_admitted_process_records and evaluate_tea_lca_scenarios
+    remain Python engines; they are not registry names. The remaining
+    TEA names still serve.
     Top-level lookup selectors refuse not_applicable_in_mode; they live
     on lookup_filter. Optimization is not a mode. Not a ranking.
     """

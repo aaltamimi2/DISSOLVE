@@ -97,7 +97,6 @@ EXPECTED_REGISTRY_NAMES: frozenset[str] = frozenset((
     "screen_green_solvent_candidates",
     "screen_route_solvent_substitutions",
     "evaluate_process",
-    "evaluate_tea_lca_scenarios",
     "evaluate_stored_route_tea_lca",
     "analyze_tea_sensitivity",
     "rank_landscape",
@@ -1137,11 +1136,7 @@ class CliApp:
         if buffer is None:
             return kwargs
         out = dict(kwargs)
-        if name == "evaluate_tea_lca_scenarios":
-            out["scenarios"] = [buffer]
-            out.pop("screening_shortlist", None)
-            out.pop("held_process_basis", None)
-        elif name == "evaluate_process":
+        if name == "evaluate_process":
             mode = str(kwargs.get("mode") or "").strip().casefold()
             if mode == "route":
                 return self._bind_route_sheet_scalars(kwargs, buffer)
@@ -1162,43 +1157,6 @@ class CliApp:
         *,
         prompt_fn: Callable[..., str] | None = None,
     ) -> dict[str, Any] | None:
-        if name == "evaluate_tea_lca_scenarios":
-            scenarios = list(kwargs.get("scenarios") or [])
-            seed_src = scenarios[0] if scenarios else None
-            if not isinstance(seed_src, dict):
-                seed_src = self._handoff_confirm_seed(
-                    kwargs.get("screening_shortlist"),
-                    kwargs.get("held_process_basis"),
-                )
-            seed = self._confirm_seed(seed_src if isinstance(seed_src, dict) else None)
-            snapshot = copy.deepcopy(seed)
-            preview = self._preview_sheet_field_origin(
-                seed,
-                snapshot,
-                seed_from_handoff=not scenarios,
-                shortlist=kwargs.get("screening_shortlist"),
-                held=kwargs.get("held_process_basis"),
-                caller=seed_src if scenarios else None,
-            )
-            submitted = self._edit_process_sheet(
-                seed, prompt_fn=prompt_fn, origin=preview,
-            )
-            if submitted is None:
-                return None
-            self._process_buffer = submitted
-            self._record_sheet_field_origin(
-                submitted,
-                snapshot,
-                seed_from_handoff=not scenarios,
-                shortlist=kwargs.get("screening_shortlist"),
-                held=kwargs.get("held_process_basis"),
-                caller=seed_src if scenarios else None,
-            )
-            out = dict(kwargs)
-            out["scenarios"] = [submitted]
-            out.pop("screening_shortlist", None)
-            out.pop("held_process_basis", None)
-            return out
         if name == "evaluate_process":
             mode = str(kwargs.get("mode") or "").strip().casefold()
             if mode == "route":

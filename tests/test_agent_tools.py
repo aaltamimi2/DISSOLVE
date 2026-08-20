@@ -323,9 +323,11 @@ def test_schemas_handle_only_on_consumer_and_omit_injected():
     card = schemas["get_solvent_safety_card"]["parameters"]["properties"]
     assert card["include_pubchem"]["type"] == "boolean"
     assert card["include_pubchem"]["default"] is False
-    tea = schemas["evaluate_tea_lca_scenarios"]["parameters"]["properties"]
-    assert tea["scenarios"]["type"] == "array"
-    assert tea["timeout_seconds"]["type"] == "integer"
+    wrap = schemas["evaluate_process"]["parameters"]["properties"]
+    assert wrap["process_configs"]["type"] == "array"
+    assert wrap["process_configs"]["items"]["type"] == "object"
+    assert wrap["process_config"]["type"] == "object"
+    assert "evaluate_tea_lca_scenarios" not in schemas
     rm = schemas["screen_polymer_separation"]["parameters"]["properties"]["ranking_mode"]
     assert "target_dissolution" in rm["enum"]
     mt = schemas["lookup_hansen_parameters"]["parameters"]["properties"]["material_type"]

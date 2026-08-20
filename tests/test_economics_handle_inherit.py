@@ -1,6 +1,7 @@
 """Fill omitted process fields from an economics handle, not a screen or pair."""
 from __future__ import annotations
 
+import inspect
 import json
 import sys
 from pathlib import Path
@@ -96,7 +97,7 @@ def _store_evaluate_handle(session, record):
     assert first.get("success") is True
     return store_handle(
         session,
-        tool="evaluate_tea_lca_scenarios",
+        tool="evaluate_process",
         source_basis="tea_cache_exact",
         data=first,
     ), first
@@ -314,7 +315,7 @@ def test_multi_row_handle_without_row_id_is_ambiguous(monkeypatch):
         ))
         handle = store_handle(
             session,
-            tool="evaluate_tea_lca_scenarios",
+            tool="evaluate_process",
             source_basis="tea_cache_exact",
             data=first,
         )
@@ -405,8 +406,9 @@ def test_dispatch_one_scenario_evaluate_issues_handle_and_keeps_rows(monkeypatch
     session = new_session()
     with bind_tool_session(session) as rec:
         out = dispatch(
-            "evaluate_tea_lca_scenarios",
-            scenarios=[_public_from_record(record)],
+            "evaluate_process",
+            mode="evaluate",
+            process_config=_public_from_record(record),
             engine_mode="cache",
         )
         assert out["available"] is True
@@ -414,17 +416,18 @@ def test_dispatch_one_scenario_evaluate_issues_handle_and_keeps_rows(monkeypatch
         assert "comparison_rows" in (out.get("data") or {})
         assert "top" not in out
         stored = load_handle(rec, out["handle"])
-        assert stored["tool"] == "evaluate_tea_lca_scenarios"
+        assert stored["tool"] == "evaluate_process"
         assert stored["exact"]["comparison_rows"][0]["target_polymer"]
         follow = dispatch(
-            "evaluate_tea_lca_scenarios",
-            scenarios=[{
+            "evaluate_process",
+            mode="evaluate",
+            process_config={
                 "target_polymer": record["config"]["target_plastic"],
                 "solvent": record["config"]["solvent"],
                 "dissolution_temperature_c": record["config"][
                     "dissolution_temperature_c"
                 ],
-            }],
+            },
             handle=out["handle"],
             engine_mode="cache",
         )
@@ -436,10 +439,11 @@ def test_dispatch_one_scenario_evaluate_issues_handle_and_keeps_rows(monkeypatch
 
 def test_evaluate_schema_names_handle_and_row_id():
     schemas = {spec["name"]: spec for spec in tool_schemas()}
-    props = schemas["evaluate_tea_lca_scenarios"]["parameters"]["properties"]
-    assert props["handle"]["type"] == "string"
-    assert "handle" not in (
-        schemas["evaluate_tea_lca_scenarios"]["parameters"].get("required") or []
-    )
-    assert "row_id" in props
+    assert "evaluate_tea_lca_scenarios" not in schemas
+    params = inspect.signature(tea.evaluate_tea_lca_scenarios).parameters
+    assert "handle" in params
+    assert "row_id" in params
+    wrap = schemas["evaluate_process"]["parameters"]["properties"]
+    assert wrap["process_config"]["type"] == "object"
+    assert wrap["process_configs"]["type"] == "array"
     assert "handle" not in schemas["solubility_query"]["parameters"]["properties"]

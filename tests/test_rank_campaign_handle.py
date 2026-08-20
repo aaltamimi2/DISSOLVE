@@ -246,7 +246,7 @@ def test_evaluate_handle_still_ignores_campaign_held_constraints(monkeypatch):
         ))
         handle = store_handle(
             session,
-            tool="evaluate_tea_lca_scenarios",
+            tool="evaluate_process",
             source_basis="tea_cache_exact",
             data=first,
         )

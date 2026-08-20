@@ -5,6 +5,7 @@ Ranking does not wait on safety. Not a GSK-fail filter. Not lang_factor.
 from __future__ import annotations
 
 import hashlib
+import inspect
 import json
 import sys
 from pathlib import Path
@@ -221,11 +222,14 @@ def test_schema_exposes_the_closed_choice():
         assert "default" not in props["screen_to_economics_order"]
         assert "pipeline" not in props["screen_to_economics_order"]["enum"]
         assert "exclude_safety_fail" not in props
-    old = schemas["evaluate_tea_lca_scenarios"]["parameters"]["properties"]
-    assert "screen_to_economics_order" not in old
+    old = schemas["evaluate_process"]["parameters"]["properties"]
+    assert "screen_to_economics_order" in old
     sensitivity = schemas["analyze_tea_sensitivity"]["parameters"]["properties"]
     assert "screen_to_economics_order" not in sensitivity
+    assert "evaluate_tea_lca_scenarios" not in schemas
     assert "lookup_admitted_process_records" not in schemas
+    engine_params = inspect.signature(tea.evaluate_tea_lca_scenarios).parameters
+    assert "screen_to_economics_order" not in engine_params
 
 
 def test_omitted_and_explicit_independent_match(monkeypatch, tmp_path):

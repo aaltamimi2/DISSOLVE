@@ -577,7 +577,7 @@ def test_acceptance_6_large_screen_handle_and_follow_up(monkeypatch):
 
 def test_acceptance_7_tea_outside_cache_is_a_miss(monkeypatch):
     def answer(messages):
-        payload = _tool_json(messages, "evaluate_tea_lca_scenarios")
+        payload = _tool_json(messages, "evaluate_process")
         status = payload["data"].get("cache_match_status")
         return {
             "text": (
@@ -590,10 +590,11 @@ def test_acceptance_7_tea_outside_cache_is_a_miss(monkeypatch):
 
     _play(monkeypatch, [
         {"text": "", "tool_calls": [{
-            "id": "t", "name": "evaluate_tea_lca_scenarios",
+            "id": "t", "name": "evaluate_process",
             "args": {
+                "mode": "evaluate",
                 "engine_mode": "cache",
-                "scenarios": [{
+                "process_config": {
                     "target_polymer": "HDPE", "solvent": "dodecane",
                     "target_mass_percent": 60.0,
                     "processing_capacity_mt_per_yr": 1.0,
@@ -605,7 +606,7 @@ def test_acceptance_7_tea_outside_cache_is_a_miss(monkeypatch):
                     "feedstock_distance_km": 0.0,
                     "dissolution_capacity": 3.0,
                     "labor_cost": 120_000.0,
-                }],
+                },
             },
         }]},
         answer,
@@ -652,20 +653,21 @@ def test_acceptance_composition_cannot_cost_the_ranked_screen(monkeypatch):
         return {
             "text": "",
             "tool_calls": [{
-                "id": "t", "name": "evaluate_tea_lca_scenarios",
+                "id": "t", "name": "evaluate_process",
                 "args": {
-                    "scenarios": [{
+                    "mode": "evaluate",
+                    "process_config": {
                         "target_polymer": "LDPE",
                         "solvent": row["solvent"],
                         "dissolution_temp_c": row["temperature_c"],
-                    }],
+                    },
                 },
             }],
         }
 
     def refuse(messages):
         hsp = _tool_json(messages, "screen_hansen_compatibility")
-        tea = _tool_json(messages, "evaluate_tea_lca_scenarios")
+        tea = _tool_json(messages, "evaluate_process")
         return {
             "text": (
                 f"Screen succeeded. HSP of a top-page member refused "
@@ -679,17 +681,18 @@ def test_acceptance_composition_cannot_cost_the_ranked_screen(monkeypatch):
         return {
             "text": "",
             "tool_calls": [{
-                "id": "p2", "name": "evaluate_tea_lca_scenarios",
+                "id": "p2", "name": "evaluate_process",
                 "args": {
+                    "mode": "evaluate",
                     "engine_mode": "cache",
-                    "scenarios": [_complete_ldpe_dodecane_c1_cache_scenario()],
+                    "process_config": _complete_ldpe_dodecane_c1_cache_scenario(),
                 },
             }],
         }
 
     def pair_answer(messages):
         hsp = _tool_json(messages, "screen_hansen_compatibility")
-        tea = _tool_json(messages, "evaluate_tea_lca_scenarios")
+        tea = _tool_json(messages, "evaluate_process")
         msp = tea["data"]["comparison_rows"][0]["msp_usd_per_kg"]
         return {
             "text": (

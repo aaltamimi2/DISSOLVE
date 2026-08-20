@@ -68,7 +68,7 @@ def _store_evaluate(session, scenarios):
     assert first.get("success") is True
     return store_handle(
         session,
-        tool="evaluate_tea_lca_scenarios",
+        tool="evaluate_process",
         source_basis="tea_cache_exact",
         data=first,
     ), first
@@ -131,7 +131,7 @@ def test_evaluate_handle_carries_bound_safety_standing(monkeypatch):
         first["comparison_rows"] = rows
         handle = store_handle(
             session,
-            tool="evaluate_tea_lca_scenarios",
+            tool="evaluate_process",
             source_basis="tea_cache_exact",
             data=first,
         )
@@ -395,8 +395,9 @@ def test_dispatch_ranks_the_evaluate_handle(monkeypatch):
     session = new_session()
     with bind_tool_session(session):
         evaluated = dispatch(
-            "evaluate_tea_lca_scenarios",
-            scenarios=[_public_from_record(c1), _public_from_record(c2)],
+            "evaluate_process",
+            mode="evaluate",
+            process_configs=[_public_from_record(c1), _public_from_record(c2)],
             engine_mode="cache",
         )
         assert evaluated.get("available") is True

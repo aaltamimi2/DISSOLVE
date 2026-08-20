@@ -66,7 +66,7 @@ def _store_evaluate_handle(session, record):
     assert first.get("success") is True
     return store_handle(
         session,
-        tool="evaluate_tea_lca_scenarios",
+            tool="evaluate_process",
         source_basis="tea_cache_exact",
         data=first,
     ), first
@@ -256,8 +256,9 @@ def test_dispatch_tornado_from_evaluate_handle(monkeypatch):
     session = new_session()
     with bind_tool_session(session):
         evaluated = dispatch(
-            "evaluate_tea_lca_scenarios",
-            scenarios=[_public_from_record(record)],
+            "evaluate_process",
+            mode="evaluate",
+            process_config=_public_from_record(record),
             engine_mode="cache",
         )
         tornado = dispatch(

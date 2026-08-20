@@ -66,7 +66,7 @@ def _schema(name: str) -> dict:
 
 
 def test_lookup_selectors_are_absent_from_evaluate_schema():
-    eval_props = _schema("evaluate_tea_lca_scenarios")["parameters"]["properties"]
+    eval_props = _schema("evaluate_process")["parameters"]["properties"]
     lookup_params = inspect.signature(tea.lookup_admitted_process_records).parameters
     for name in tea._LOOKUP_MODE_SELECTORS:
         assert name in lookup_params
@@ -164,6 +164,15 @@ def test_unknown_top_level_kwarg_is_unknown_process_field(monkeypatch):
     assert mixed.get("error_code") == "not_applicable_in_mode"
     assert mixed.get("inapplicable_fields") == ["sensitivity_axes"]
     assert mixed.get("error_code") != "unknown_process_field"
+    wrap = _data(tea.evaluate_process(
+        mode="evaluate",
+        process_config=scenario,
+        engine_mode="cache",
+        not_a_lookup_selector=True,
+    ))
+    assert wrap.get("error_code") == "unknown_process_field"
+    assert wrap.get("extra_keys") == ["not_a_lookup_selector"]
+    assert wrap.get("tool_name") == "evaluate_process"
 
 
 def test_evaluate_without_selectors_still_serves_cache(monkeypatch):
@@ -197,8 +206,9 @@ def test_dispatch_evaluate_selector_is_named_refuse(monkeypatch):
     session = new_session()
     with bind_tool_session(session):
         refused = dispatch(
-            "evaluate_tea_lca_scenarios",
-            scenarios=[_public_from_record(record)],
+            "evaluate_process",
+            mode="evaluate",
+            process_config=_public_from_record(record),
             engine_mode="cache",
             sensitivity_axes=["solvent_price"],
         )
@@ -206,16 +216,18 @@ def test_dispatch_evaluate_selector_is_named_refuse(monkeypatch):
         assert refused.get("refusal") == "not_applicable_in_mode"
         assert "handle" not in refused
         served = dispatch(
-            "evaluate_tea_lca_scenarios",
-            scenarios=[_public_from_record(record)],
+            "evaluate_process",
+            mode="evaluate",
+            process_config=_public_from_record(record),
             engine_mode="cache",
         )
         assert served.get("available") is True
         assert served.get("source_basis") == "tea_cache_exact"
         assert served.get("handle")
         extra = dispatch(
-            "evaluate_tea_lca_scenarios",
-            scenarios=[_public_from_record(record)],
+            "evaluate_process",
+            mode="evaluate",
+            process_config=_public_from_record(record),
             engine_mode="cache",
             not_a_lookup_selector=True,
         )
@@ -235,7 +247,7 @@ def test_evaluate_refuses_sensitivity_scalars(monkeypatch):
         "analysis_mode": "tornado",
         "metric": "msp_usd_per_kg",
     }
-    eval_props = _schema("evaluate_tea_lca_scenarios")["parameters"]["properties"]
+    eval_props = _schema("evaluate_process")["parameters"]["properties"]
     sensitivity_props = _schema("analyze_tea_sensitivity")["parameters"]["properties"]
     for name, value in sent.items():
         assert name in sensitivity_props
@@ -255,7 +267,7 @@ def test_evaluate_refuses_sensitivity_scalars(monkeypatch):
 def test_evaluate_refuses_lookup_energy_cases_list(monkeypatch):
     record = _record_by_label("ldpe-route-c1")
     _forbid_live(monkeypatch)
-    eval_props = _schema("evaluate_tea_lca_scenarios")["parameters"]["properties"]
+    eval_props = _schema("evaluate_process")["parameters"]["properties"]
     assert "energy_cases" not in eval_props
     assert "energy_cases" in inspect.signature(
         tea.lookup_admitted_process_records,
@@ -303,7 +315,7 @@ def test_mixed_wrong_mode_scalars_name_each_home(monkeypatch):
 
 def test_sensitivity_schema_omits_screening_handoff():
     props = _schema("analyze_tea_sensitivity")["parameters"]["properties"]
-    eval_props = _schema("evaluate_tea_lca_scenarios")["parameters"]["properties"]
+    eval_props = _schema("evaluate_process")["parameters"]["properties"]
     assert "screening_shortlist" in eval_props
     assert "held_process_basis" in eval_props
     assert "screening_shortlist" not in props
@@ -448,8 +460,9 @@ def test_dispatch_evaluate_parameter_is_named_refuse(monkeypatch):
     session = new_session()
     with bind_tool_session(session):
         refused = dispatch(
-            "evaluate_tea_lca_scenarios",
-            scenarios=[_public_from_record(record)],
+            "evaluate_process",
+            mode="evaluate",
+            process_config=_public_from_record(record),
             engine_mode="cache",
             parameter="solvent_price",
         )
@@ -457,8 +470,9 @@ def test_dispatch_evaluate_parameter_is_named_refuse(monkeypatch):
         assert refused.get("refusal") == "not_applicable_in_mode"
         assert "handle" not in refused
         energy = dispatch(
-            "evaluate_tea_lca_scenarios",
-            scenarios=[_public_from_record(record)],
+            "evaluate_process",
+            mode="evaluate",
+            process_config=_public_from_record(record),
             engine_mode="cache",
             energy_cases=["C1"],
         )
@@ -471,7 +485,7 @@ def test_evaluate_refuses_record_form_and_requested_metrics(monkeypatch):
     record = _record_by_label("ldpe-route-c1")
     scenario = _public_from_record(record)
     _forbid_live(monkeypatch)
-    eval_props = _schema("evaluate_tea_lca_scenarios")["parameters"]["properties"]
+    eval_props = _schema("evaluate_process")["parameters"]["properties"]
     lookup_params = inspect.signature(tea.lookup_admitted_process_records).parameters
     sent = {
         "record_form": "grouped_comparison",
@@ -525,8 +539,9 @@ def test_dispatch_evaluate_record_form_is_named_refuse(monkeypatch):
     session = new_session()
     with bind_tool_session(session):
         refused = dispatch(
-            "evaluate_tea_lca_scenarios",
-            scenarios=[_public_from_record(record)],
+            "evaluate_process",
+            mode="evaluate",
+            process_config=_public_from_record(record),
             engine_mode="cache",
             record_form="per_record",
         )
@@ -534,8 +549,9 @@ def test_dispatch_evaluate_record_form_is_named_refuse(monkeypatch):
         assert refused.get("refusal") == "not_applicable_in_mode"
         assert "handle" not in refused
         metrics = dispatch(
-            "evaluate_tea_lca_scenarios",
-            scenarios=[_public_from_record(record)],
+            "evaluate_process",
+            mode="evaluate",
+            process_config=_public_from_record(record),
             engine_mode="cache",
             requested_metrics=["gwp"],
         )

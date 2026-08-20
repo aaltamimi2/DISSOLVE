@@ -319,7 +319,7 @@ def test_exclude_safety_fail_stays_unknown_extra(monkeypatch):
 def test_maps_are_optional_schema_args_not_a_35th_name(monkeypatch):
     _forbid_live(monkeypatch)
     assert "rank_landscape" not in CONSUMERS
-    assert len(EXPECTED_REGISTRY_NAMES) == 34
+    assert len(EXPECTED_REGISTRY_NAMES) == 33
     props = {
         item["name"]: item["parameters"]["properties"]
         for item in tool_schemas()
@@ -585,7 +585,7 @@ def _plant_row(polymer, solvent, mass_pct, capacity, *, success=True, **extra):
 def _plant_handle(session, rows):
     return store_handle(
         session,
-        tool="evaluate_tea_lca_scenarios",
+        tool="evaluate_process",
         source_basis="tea_cache_exact",
         data={"success": True, "comparison_rows": list(rows)},
     )

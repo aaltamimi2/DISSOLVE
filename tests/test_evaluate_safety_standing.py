@@ -148,7 +148,7 @@ def test_rank_copies_producer_not_requested(monkeypatch):
         ))
         handle = store_handle(
             session,
-            tool="evaluate_tea_lca_scenarios",
+            tool="evaluate_process",
             source_basis="tea_cache_exact",
             data=first,
         )

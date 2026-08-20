@@ -235,8 +235,10 @@ execution of those tools. `result_read` counts.
 round-cap.  
 **Rejected:** parallel tool execution, `asyncio.gather`, worker threads.
 The engines already run TEA live as a ~760 MB child process;
-`evaluate_tea_lca_scenarios` already loops scenarios sequentially. The
-harness must not introduce a second concurrent TEA path. I measured no
+the Python engine `evaluate_tea_lca_scenarios` already loops
+scenarios sequentially (`evaluate_process` mode=evaluate is the
+public wrap). The harness must not introduce a second concurrent TEA
+path. I measured no
 `flock` in v12 `tea.py` — the brief's flock shim lives in the v11 sweep
 script, not in this tree. Sequential execution is therefore the only
 lock.  

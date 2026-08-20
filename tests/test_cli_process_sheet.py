@@ -163,12 +163,17 @@ def test_cli_direct_dispatch_uses_the_same_sheet_object(tmp_path, monkeypatch):
     app._cli_direct_active = True
     result = app._cli_direct_dispatch(
         original,
-        "evaluate_tea_lca_scenarios",
-        {"scenarios": [{"target_polymer": "LDPE", "solvent": "toluene"}]},
+        "evaluate_process",
+        {
+            "mode": "evaluate",
+            "process_config": {
+                "target_polymer": "LDPE", "solvent": "toluene",
+            },
+        },
     )
     assert result == {"success": True}
-    assert captured["name"] == "evaluate_tea_lca_scenarios"
-    dispatched = captured["kwargs"]["scenarios"][0]
+    assert captured["name"] == "evaluate_process"
+    dispatched = captured["kwargs"]["process_config"]
     assert dispatched is sheet
     assert app._confirmation_sheet_submitted is True
     assert app._process_buffer is sheet
@@ -188,8 +193,8 @@ def test_abort_does_not_set_the_bit_or_run_model_args(tmp_path, monkeypatch):
     app._cli_direct_active = True
     result = app._cli_direct_dispatch(
         original,
-        "evaluate_tea_lca_scenarios",
-        {"scenarios": [{"target_polymer": "LDPE"}]},
+        "evaluate_process",
+        {"mode": "evaluate", "process_config": {"target_polymer": "LDPE"}},
     )
     assert called == []
     assert result["error_code"] == "process_confirmation_aborted"
@@ -211,11 +216,14 @@ def test_non_tty_skips_the_sheet(tmp_path, monkeypatch):
 
     monkeypatch.setattr(app, "_edit_process_sheet", forbidden)
     app._cli_direct_active = True
-    model_args = {"scenarios": [{"target_polymer": "LDPE"}]}
+    model_args = {
+        "mode": "evaluate",
+        "process_config": {"target_polymer": "LDPE"},
+    }
     app._cli_direct_dispatch(
-        original, "evaluate_tea_lca_scenarios", model_args,
+        original, "evaluate_process", model_args,
     )
-    assert captured["kwargs"]["scenarios"] == model_args["scenarios"]
+    assert captured["kwargs"]["process_config"] == model_args["process_config"]
     assert app._confirmation_sheet_submitted is False
 
 
@@ -249,8 +257,9 @@ def test_first_old_evaluate_name_shortlist_seeds_the_sheet(
     app._cli_direct_active = True
     result = app._cli_direct_dispatch(
         original,
-        "evaluate_tea_lca_scenarios",
+        "evaluate_process",
         {
+            "mode": "evaluate",
             "screening_shortlist": {
                 "source": "explicit",
                 "items": [{
@@ -272,8 +281,8 @@ def test_first_old_evaluate_name_shortlist_seeds_the_sheet(
     assert seen[0]["dissolution_temperature_c"] == 145.0
     assert seen[0]["energy_case"] == "C1"
     assert seen[0]["target_mass_percent"] == 55.0
-    assert captured["name"] == "evaluate_tea_lca_scenarios"
-    assert captured["kwargs"]["scenarios"][0] is sheet
+    assert captured["name"] == "evaluate_process"
+    assert captured["kwargs"]["process_config"] is sheet
     assert captured["kwargs"]["engine_mode"] == "cache"
     assert "screening_shortlist" not in captured["kwargs"]
     assert "held_process_basis" not in captured["kwargs"]
@@ -308,9 +317,12 @@ def test_old_evaluate_name_scenarios_still_win_the_seed(
     app._cli_direct_active = True
     app._cli_direct_dispatch(
         original,
-        "evaluate_tea_lca_scenarios",
+        "evaluate_process",
         {
-            "scenarios": [{"target_polymer": "HDPE", "solvent": "Toluene"}],
+            "mode": "evaluate",
+            "process_config": {
+                "target_polymer": "HDPE", "solvent": "Toluene",
+            },
             "screening_shortlist": {
                 "source": "explicit",
                 "items": [{
@@ -325,7 +337,7 @@ def test_old_evaluate_name_scenarios_still_win_the_seed(
     assert seen[0]["target_polymer"] == "HDPE"
     assert seen[0]["solvent"] == "Toluene"
     assert seen[0]["target_polymer"] != "LDPE"
-    assert captured["kwargs"]["scenarios"][0] is sheet
+    assert captured["kwargs"]["process_config"] is sheet
     assert "screening_shortlist" not in captured["kwargs"]
     assert "held_process_basis" not in captured["kwargs"]
 
@@ -498,22 +510,26 @@ def test_later_evaluate_runs_the_confirmed_buffer_not_model_args(
     app._cli_direct_active = True
     app._cli_direct_dispatch(
         original,
-        "evaluate_tea_lca_scenarios",
-        {"scenarios": [{"target_polymer": "LDPE", "irr": 0.10}]},
+        "evaluate_process",
+        {
+            "mode": "evaluate",
+            "process_config": {"target_polymer": "LDPE", "irr": 0.10},
+        },
     )
     app._cli_direct_dispatch(
         original,
-        "evaluate_tea_lca_scenarios",
+        "evaluate_process",
         {
+            "mode": "evaluate",
             "engine_mode": "cache",
-            "scenarios": [{"target_polymer": "LDPE", "irr": 0.15}],
+            "process_config": {"target_polymer": "LDPE", "irr": 0.15},
         },
     )
     assert len(prompts) == 1
     assert len(captured) == 2
     second = captured[1]["kwargs"]
-    assert second["scenarios"][0] is sheet
-    assert second["scenarios"][0]["irr"] == pytest.approx(0.10)
+    assert second["process_config"] is sheet
+    assert second["process_config"]["irr"] == pytest.approx(0.10)
     assert second["engine_mode"] == "cache"
     assert sheet["irr"] != 0.15
     app._cli_direct_dispatch(
@@ -548,13 +564,14 @@ def test_later_evaluate_drops_screening_shortlist_from_model_args(
     app._cli_direct_active = True
     app._cli_direct_dispatch(
         original,
-        "evaluate_tea_lca_scenarios",
-        {"scenarios": [{"target_polymer": "LDPE"}]},
+        "evaluate_process",
+        {"mode": "evaluate", "process_config": {"target_polymer": "LDPE"}},
     )
     app._cli_direct_dispatch(
         original,
-        "evaluate_tea_lca_scenarios",
+        "evaluate_process",
         {
+            "mode": "evaluate",
             "screening_shortlist": {
                 "source": "explicit",
                 "items": [{"target_polymer": "LDPE", "solvent": "toluene"}],
@@ -564,7 +581,7 @@ def test_later_evaluate_drops_screening_shortlist_from_model_args(
     )
     assert "screening_shortlist" not in captured[1]
     assert "held_process_basis" not in captured[1]
-    assert captured[1]["scenarios"][0] is sheet
+    assert captured[1]["process_config"] is sheet
 
 
 def test_process_buffer_is_the_first_confirm_seed(tmp_path, monkeypatch):
@@ -594,12 +611,15 @@ def test_process_buffer_is_the_first_confirm_seed(tmp_path, monkeypatch):
     app._cli_direct_active = True
     app._cli_direct_dispatch(
         original,
-        "evaluate_tea_lca_scenarios",
-        {"scenarios": [{"target_polymer": "HDPE", "irr": 0.10}]},
+        "evaluate_process",
+        {
+            "mode": "evaluate",
+            "process_config": {"target_polymer": "HDPE", "irr": 0.10},
+        },
     )
     assert seen[0] is edited
-    assert captured["kwargs"]["scenarios"][0] is edited
-    assert captured["kwargs"]["scenarios"][0]["irr"] == pytest.approx(0.12)
+    assert captured["kwargs"]["process_config"] is edited
+    assert captured["kwargs"]["process_config"]["irr"] == pytest.approx(0.12)
 
 
 def test_evaluate_process_evaluate_mode_uses_the_same_sheet_object(
@@ -1030,14 +1050,15 @@ def test_flatten_shortlist_mints_from_screen_on_the_envelope(
         captured["kwargs"] = kwargs
         return {
             "success": True,
-            "comparison_rows": [dict(kwargs["scenarios"][0])],
+            "comparison_rows": [dict(kwargs["process_config"])],
         }
 
     app._cli_direct_active = True
     result = app._cli_direct_dispatch(
         original,
-        "evaluate_tea_lca_scenarios",
+        "evaluate_process",
         {
+            "mode": "evaluate",
             "screening_shortlist": {
                 "source": "explicit",
                 "items": [{
@@ -1079,15 +1100,16 @@ def test_flatten_scenarios_do_not_mint_from_screen(tmp_path, monkeypatch):
     def original(name, **kwargs):
         return {
             "success": True,
-            "comparison_rows": [dict(kwargs["scenarios"][0])],
+            "comparison_rows": [dict(kwargs["process_config"])],
         }
 
     app._cli_direct_active = True
     result = app._cli_direct_dispatch(
         original,
-        "evaluate_tea_lca_scenarios",
+        "evaluate_process",
         {
-            "scenarios": [{"target_polymer": "HDPE", "solvent": "Toluene"}],
+            "mode": "evaluate",
+            "process_config": {"target_polymer": "HDPE", "solvent": "Toluene"},
             "screening_shortlist": {
                 "source": "explicit",
                 "items": [{
@@ -1123,8 +1145,8 @@ def test_non_tty_flatten_does_not_mint_default(tmp_path, monkeypatch):
     monkeypatch.setattr(app, "_edit_process_sheet", forbidden)
     app._cli_direct_active = True
     result = app._cli_direct_dispatch(
-        original, "evaluate_tea_lca_scenarios",
-        {"scenarios": [{"target_polymer": "LDPE"}]},
+        original, "evaluate_process",
+        {"mode": "evaluate", "process_config": {"target_polymer": "LDPE"}},
     )
     assert "field_origin" not in result
     assert "field_origin" not in result["comparison_rows"][0]
@@ -1234,8 +1256,9 @@ def test_process_command_edit_is_supplied_on_later_stamp(
     app._cli_direct_active = True
     first = app._cli_direct_dispatch(
         original,
-        "evaluate_tea_lca_scenarios",
+        "evaluate_process",
         {
+            "mode": "evaluate",
             "screening_shortlist": {
                 "source": "explicit",
                 "items": [{
@@ -1265,8 +1288,8 @@ def test_process_command_edit_is_supplied_on_later_stamp(
     app.handle_command("/process")
     later = app._cli_direct_dispatch(
         original,
-        "evaluate_tea_lca_scenarios",
-        {"scenarios": [{"target_polymer": "LDPE"}]},
+        "evaluate_process",
+        {"mode": "evaluate", "process_config": {"target_polymer": "LDPE"}},
     )
     origin = later["comparison_rows"][0]["field_origin"]
     assert origin["precipitation_temperature_c"] == "supplied"
@@ -1293,18 +1316,21 @@ def test_process_abort_does_not_refresh_origin(tmp_path, monkeypatch):
     def original(name, **kwargs):
         return {
             "success": True,
-            "comparison_rows": [dict(kwargs["scenarios"][0])],
+            "comparison_rows": [dict(kwargs["process_config"])],
         }
 
     app._cli_direct_active = True
     first = app._cli_direct_dispatch(
         original,
-        "evaluate_tea_lca_scenarios",
-        {"scenarios": [{
-            "target_polymer": "LDPE",
-            "solvent": "Dodecane",
-            "dissolution_temperature_c": 145.0,
-        }]},
+        "evaluate_process",
+        {
+            "mode": "evaluate",
+            "process_config": {
+                "target_polymer": "LDPE",
+                "solvent": "Dodecane",
+                "dissolution_temperature_c": 145.0,
+            },
+        },
     )
     before = dict(app._sheet_field_origin)
     monkeypatch.setattr(app, "_edit_process_sheet", lambda seed, **kwargs: None)
@@ -1430,8 +1456,9 @@ def test_first_run_sheet_print_shows_from_screen(tmp_path, monkeypatch):
     app._cli_direct_active = True
     result = app._cli_direct_dispatch(
         original,
-        "evaluate_tea_lca_scenarios",
+        "evaluate_process",
         {
+            "mode": "evaluate",
             "screening_shortlist": {
                 "source": "explicit",
                 "items": [{

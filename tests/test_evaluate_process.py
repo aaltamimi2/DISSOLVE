@@ -1,4 +1,8 @@
-"""evaluate_process lookup, evaluate, sensitivity, and route. Old TEA names stay."""
+"""evaluate_process lookup, evaluate, sensitivity, and route.
+
+lookup_admitted_process_records and evaluate_tea_lca_scenarios stay
+as Python engines. Those registry names are retired.
+"""
 from __future__ import annotations
 
 import copy
@@ -86,10 +90,17 @@ def test_evaluate_process_is_registered_lookup_engine_stays():
     assert "lookup_admitted_process_records" not in registry.BY_NAME
     assert "lookup_admitted_process_records" not in EXPECTED_REGISTRY_NAMES
     assert callable(tea.lookup_admitted_process_records)
+    assert "evaluate_tea_lca_scenarios" not in registry.BY_NAME
+    assert "evaluate_tea_lca_scenarios" not in EXPECTED_REGISTRY_NAMES
+    assert callable(tea.evaluate_tea_lca_scenarios)
     assert "evaluate_process" not in UNWIRED
     assert "evaluate_process" in tea.PROCESS_CONFIRM_TOOLS
-    assert len(EXPECTED_REGISTRY_NAMES) == 34
-    assert len(registry.REGISTRY) == 34
+    assert "evaluate_tea_lca_scenarios" not in tea.PROCESS_CONFIRM_TOOLS
+    assert len(EXPECTED_REGISTRY_NAMES) == 33
+    assert len(registry.REGISTRY) == 33
+    retired = dispatch("evaluate_tea_lca_scenarios")
+    assert retired.get("available") is False
+    assert retired.get("refusal") == "unknown_tool"
 
 
 def test_schema_uses_two_typed_objects_not_top_level_polymer():
