@@ -507,6 +507,22 @@ def _coerce_process_sheet_value(field: str, raw: str, current: Any) -> Any:
                 "duration must be two years, for example 2025, 2055"
             )
         return (int(parsed[0]), int(parsed[1]))
+    if field == "construction_schedule":
+        token = text.strip()
+        if token.startswith("["):
+            parsed = json.loads(token)
+        else:
+            parsed = [
+                part.strip()
+                for part in token.replace(";", ",").split(",")
+                if part.strip()
+            ]
+        if not isinstance(parsed, (list, tuple)) or len(parsed) < 1:
+            raise ValueError(
+                "construction_schedule must be investment fractions, "
+                "for example 0.08, 0.60, 0.32"
+            )
+        return tuple(float(item) for item in parsed)
     if field in {
         "precipitation_temperature_format", "precipitation_configuration",
         "target_polymer", "solvent", "depreciation",

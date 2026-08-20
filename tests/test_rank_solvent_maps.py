@@ -13214,4 +13214,252 @@ def test_invalid_duration_does_not_outrank_missing_map(monkeypatch):
     assert payload.get("error_code") != "invalid_admitted_record_query"
 
 
+def test_omitted_construction_schedule_is_not_a_silent_default(monkeypatch):
+    _forbid_live(monkeypatch)
+    payload = _data(tea.rank_landscape(**_sequence_kwargs()))
+    assert payload.get("error_code") == "incomplete_stage_basis_grid"
+    for row in payload["missing_keys"]:
+        assert row.get("construction_schedule") is None
+        assert row.get("construction_schedule") != (0.08, 0.60, 0.32)
+        assert row.get("construction_schedule") != [0.08, 0.60, 0.32]
+
+
+def test_empty_construction_schedule_is_the_omitted_grain(monkeypatch):
+    _forbid_live(monkeypatch)
+    payload = _data(tea.rank_landscape(
+        **_sequence_kwargs(
+            process_config={**_CAP_20KT, "construction_schedule": ""},
+        ),
+    ))
+    assert payload.get("error_code") == "incomplete_stage_basis_grid"
+    for row in payload["missing_keys"]:
+        assert row.get("construction_schedule") is None
+
+
+def test_default_construction_schedule_rows_still_complete_when_omitted(monkeypatch):
+    _forbid_live(monkeypatch)
+    session = new_session()
+    with bind_tool_session(session):
+        handle = _plant_handle(
+            session, _complete_d18_rows(construction_schedule=(0.08, 0.60, 0.32)),
+        )
+        payload = _data(tea.rank_landscape(**_sequence_kwargs(handle=handle)))
+    assert payload.get("error_code") == "sequence_coupling_unproven"
+    assert "pending_blockers" not in payload
+    assert "landscape_points" not in payload
+
+
+def test_named_construction_schedule_does_not_accept_default_rows(monkeypatch):
+    _forbid_live(monkeypatch)
+    session = new_session()
+    with bind_tool_session(session):
+        handle = _plant_handle(
+            session, _complete_d18_rows(construction_schedule=(0.08, 0.60, 0.32)),
+        )
+        payload = _data(tea.rank_landscape(
+            **_sequence_kwargs(
+                handle=handle,
+                process_config={**_CAP_20KT, "construction_schedule": [0.5, 0.5]},
+            ),
+        ))
+    assert payload.get("error_code") == "incomplete_stage_basis_grid"
+    assert payload.get("error_code") != "sequence_coupling_unproven"
+    keys = payload["missing_keys"]
+    assert len(keys) == 4
+    assert {tuple(row["construction_schedule"]) for row in keys} == {(0.5, 0.5)}
+    assert payload["pending_blockers"][0]["error_type"] == (
+        "sequence_coupling_unproven"
+    )
+    assert "landscape_points" not in payload
+
+
+def test_named_default_construction_schedule_does_not_accept_other_rows(monkeypatch):
+    _forbid_live(monkeypatch)
+    session = new_session()
+    with bind_tool_session(session):
+        handle = _plant_handle(
+            session, _complete_d18_rows(construction_schedule=(0.5, 0.5)),
+        )
+        payload = _data(tea.rank_landscape(
+            **_sequence_kwargs(
+                handle=handle,
+                process_config={
+                    **_CAP_20KT,
+                    "construction_schedule": [0.08, 0.60, 0.32],
+                },
+            ),
+        ))
+    assert payload.get("error_code") == "incomplete_stage_basis_grid"
+    keys = payload["missing_keys"]
+    assert len(keys) == 4
+    assert {tuple(row["construction_schedule"]) for row in keys} == {
+        (0.08, 0.60, 0.32),
+    }
+
+
+def test_named_construction_schedule_completes_on_matching_rows(monkeypatch):
+    _forbid_live(monkeypatch)
+    session = new_session()
+    with bind_tool_session(session):
+        handle = _plant_handle(
+            session, _complete_d18_rows(construction_schedule=[0.5, 0.5]),
+        )
+        payload = _data(tea.rank_landscape(
+            **_sequence_kwargs(
+                handle=handle,
+                process_config={**_CAP_20KT, "construction_schedule": (0.5, 0.5)},
+            ),
+        ))
+    assert payload.get("error_code") == "sequence_coupling_unproven"
+    assert "pending_blockers" not in payload
+    assert "missing_keys" not in payload
+    assert "landscape_points" not in payload
+
+
+def test_named_default_construction_schedule_is_holdable(monkeypatch):
+    _forbid_live(monkeypatch)
+    payload = _data(tea.rank_landscape(
+        **_sequence_kwargs(
+            process_config={
+                **_CAP_20KT,
+                "construction_schedule": [0.08, 0.60, 0.32],
+            },
+        ),
+    ))
+    assert payload.get("error_code") == "incomplete_stage_basis_grid"
+    keys = payload["missing_keys"]
+    assert len(keys) == 4
+    assert {tuple(row["construction_schedule"]) for row in keys} == {
+        (0.08, 0.60, 0.32),
+    }
+
+
+def test_named_default_construction_schedule_completes_on_matching_default_rows(
+    monkeypatch,
+):
+    _forbid_live(monkeypatch)
+    session = new_session()
+    with bind_tool_session(session):
+        handle = _plant_handle(
+            session, _complete_d18_rows(construction_schedule=(0.08, 0.60, 0.32)),
+        )
+        payload = _data(tea.rank_landscape(
+            **_sequence_kwargs(
+                handle=handle,
+                process_config={
+                    **_CAP_20KT,
+                    "construction_schedule": [0.08, 0.60, 0.32],
+                },
+            ),
+        ))
+    assert payload.get("error_code") == "sequence_coupling_unproven"
+    assert "pending_blockers" not in payload
+    assert "missing_keys" not in payload
+
+
+def test_construction_schedule_does_not_stamp_unbound_g_fields(monkeypatch):
+    _forbid_live(monkeypatch)
+    payload = _data(tea.rank_landscape(
+        **_sequence_kwargs(
+            process_config={**_CAP_20KT, "construction_schedule": [0.5, 0.5]},
+        ),
+    ))
+    assert payload.get("error_code") == "incomplete_stage_basis_grid"
+    for row in payload["missing_keys"]:
+        assert tuple(row["construction_schedule"]) == (0.5, 0.5)
+        assert row.get("lang_factor") is None
+        assert row.get("steam_power_depreciation") is None
+        assert row.get("duration") is None
+        assert row.get("depreciation") is None
+
+
+def test_mixed_construction_schedule_handle_leaves_the_unmatched_remnant(
+    monkeypatch,
+):
+    _forbid_live(monkeypatch)
+    rows = _complete_d18_rows(construction_schedule=(0.5, 0.5))
+    rows[-1]["construction_schedule"] = (0.08, 0.60, 0.32)
+    session = new_session()
+    with bind_tool_session(session):
+        handle = _plant_handle(session, rows)
+        payload = _data(tea.rank_landscape(
+            **_sequence_kwargs(
+                handle=handle,
+                process_config={**_CAP_20KT, "construction_schedule": [0.5, 0.5]},
+            ),
+        ))
+    assert payload.get("error_code") == "incomplete_stage_basis_grid"
+    keys = payload["missing_keys"]
+    assert len(keys) == 1
+    assert tuple(keys[0]["construction_schedule"]) == (0.5, 0.5)
+    assert keys[0]["polymer"] == "EVOH"
+    assert keys[0]["target_mass_percent"] == 100.0
+
+
+def test_rows_without_construction_schedule_do_not_fill_named(monkeypatch):
+    _forbid_live(monkeypatch)
+    session = new_session()
+    with bind_tool_session(session):
+        handle = _plant_handle(session, _complete_d18_rows())
+        payload = _data(tea.rank_landscape(
+            **_sequence_kwargs(
+                handle=handle,
+                process_config={**_CAP_20KT, "construction_schedule": [0.5, 0.5]},
+            ),
+        ))
+    assert payload.get("error_code") == "incomplete_stage_basis_grid"
+    keys = payload["missing_keys"]
+    assert len(keys) == 4
+    assert {tuple(row["construction_schedule"]) for row in keys} == {(0.5, 0.5)}
+
+
+def test_construction_schedule_kwarg_is_unknown_extra(monkeypatch):
+    _forbid_live(monkeypatch)
+    payload = _data(tea.rank_landscape(
+        **_sequence_kwargs(construction_schedule=[0.5, 0.5]),
+    ))
+    assert payload.get("error_code") == "unknown_process_field"
+    assert payload.get("extra_keys") == ["construction_schedule"]
+    assert payload.get("error_code") != "incomplete_stage_basis_grid"
+
+
+def test_nested_construction_schedule_does_not_count(monkeypatch):
+    _forbid_live(monkeypatch)
+    payload = _data(tea.rank_landscape(
+        **_sequence_kwargs(
+            process_config={
+                **_CAP_20KT,
+                "held": {"construction_schedule": [0.5, 0.5]},
+            },
+        ),
+    ))
+    assert payload.get("error_code") == "incomplete_stage_basis_grid"
+    for row in payload["missing_keys"]:
+        assert row.get("construction_schedule") is None
+
+
+def test_scalar_construction_schedule_is_not_a_listing(monkeypatch):
+    _forbid_live(monkeypatch)
+    payload = _data(tea.rank_landscape(
+        **_sequence_kwargs(
+            process_config={**_CAP_20KT, "construction_schedule": 3},
+        ),
+    ))
+    assert payload.get("error_code") == "invalid_admitted_record_query"
+    assert payload.get("error_code") != "incomplete_stage_basis_grid"
+    assert payload.get("error_code") != "invalid_scenario"
+
+
+def test_invalid_construction_schedule_does_not_outrank_missing_map(monkeypatch):
+    _forbid_live(monkeypatch)
+    payload = _data(tea.rank_landscape(
+        source="superstructure",
+        formulation="sequence",
+        feed_mass_fractions=_FEED_55_45,
+        process_config={**_CAP_20KT, "construction_schedule": 3},
+    ))
+    assert payload.get("error_code") == "missing_planner_solvent_map"
+    assert payload.get("error_code") != "invalid_admitted_record_query"
+
+
 

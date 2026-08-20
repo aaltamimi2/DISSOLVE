@@ -132,6 +132,7 @@ _PROPERTY_INSURANCE_DEFAULT = 0.007
 _MAINTENANCE_DEFAULT = 0.03
 _DEPRECIATION_DEFAULT = "MACRS7"
 _DURATION_DEFAULT = (2025, 2055)
+_CONSTRUCTION_SCHEDULE_DEFAULT = (0.08, 0.60, 0.32)
 _DEPRECIATION_SCHEDULE_PREFIXES = ("MACRS", "SL", "DDB", "SYD")
 # BioSTEAM TEA.depreciation_schedules MACRS keys (U.S. IRS Pub 946).
 _MACRS_IMPLEMENTED_YEARS = frozenset({3, 5, 7, 10, 15, 20})
@@ -163,6 +164,7 @@ _COEFFICIENT_DEFAULTS = {
     "maintenance": _MAINTENANCE_DEFAULT,
     "duration": _DURATION_DEFAULT,
     "depreciation": _DEPRECIATION_DEFAULT,
+    "construction_schedule": _CONSTRUCTION_SCHEDULE_DEFAULT,
     "feedstock_price_usd_per_kg": _FEEDSTOCK_PRICE_USD_PER_KG,
     "centrifuged_plastic_solvent_content_pct": (
         _CENTRIFUGED_PLASTIC_SOLVENT_CONTENT_PCT
@@ -987,6 +989,7 @@ def public_process_field_names(*, energy_case: str = "C1") -> tuple[str, ...]:
         "maintenance",
         "duration",
         "depreciation",
+        "construction_schedule",
         "feedstock_price_usd_per_kg",
         "centrifuged_plastic_solvent_content_pct",
     )
@@ -1404,8 +1407,10 @@ def _project_coefficients(config: dict[str, Any]) -> dict[str, Any]:
             projected[key] = default
         elif isinstance(default, str):
             projected[key] = str(value)
-        elif isinstance(default, (tuple, list)):
+        elif key == "duration":
             projected[key] = tuple(int(item) for item in value)
+        elif isinstance(default, (tuple, list)):
+            projected[key] = tuple(round(float(item), 10) for item in value)
         else:
             projected[key] = float(value)
     return projected
@@ -1508,6 +1513,55 @@ def _duration_pair(value: Any, *, error_code: str) -> tuple[int, int]:
             supplied=value,
         )
     return (start, end)
+
+
+def _construction_schedule(
+    value: Any, *, error_code: str,
+) -> tuple[float, ...]:
+    """BioSTEAM construction investment fractions per year. Not a year count."""
+    if isinstance(value, (str, bytes)) or not isinstance(value, (list, tuple)):
+        raise _ScenarioInputError(
+            "construction_schedule must be a sequence of investment "
+            "fractions such as (0.08, 0.60, 0.32).",
+            error_code=error_code,
+            field="construction_schedule",
+            supplied=value,
+        )
+    if len(value) < 1:
+        raise _ScenarioInputError(
+            "construction_schedule must be a sequence of investment "
+            "fractions such as (0.08, 0.60, 0.32).",
+            error_code=error_code,
+            field="construction_schedule",
+            supplied=value,
+        )
+    fractions: list[float] = []
+    for item in value:
+        if isinstance(item, bool):
+            raise _ScenarioInputError(
+                "construction_schedule fractions must be numbers.",
+                error_code=error_code,
+                field="construction_schedule",
+                supplied=value,
+            )
+        try:
+            fraction = round(_finite(item, "construction_schedule"), 10)
+        except ValueError:
+            raise _ScenarioInputError(
+                "construction_schedule fractions must be finite numbers.",
+                error_code=error_code,
+                field="construction_schedule",
+                supplied=value,
+            ) from None
+        if fraction < 0:
+            raise _ScenarioInputError(
+                "construction_schedule fractions must be nonnegative.",
+                error_code=error_code,
+                field="construction_schedule",
+                supplied=value,
+            )
+        fractions.append(fraction)
+    return tuple(fractions)
 
 
 def _refuse_reserved_process_fields(supplied: dict[str, Any]) -> None:
@@ -1942,6 +1996,14 @@ def _validated_coefficients(
     if "duration" in supplied and supplied["duration"] not in (None, ""):
         coefficients["duration"] = _duration_pair(
             supplied["duration"],
+            error_code="invalid_scenario",
+        )
+    if (
+        "construction_schedule" in supplied
+        and supplied["construction_schedule"] not in (None, "")
+    ):
+        coefficients["construction_schedule"] = _construction_schedule(
+            supplied["construction_schedule"],
             error_code="invalid_scenario",
         )
     if "feedstock_price_usd_per_kg" in supplied:
@@ -2753,7 +2815,21 @@ def _flowsheet_switch_deltas(config: dict[str, Any]) -> list[dict[str, Any]]:
                 })
             continue
         if isinstance(default, (tuple, list)) or isinstance(requested, (tuple, list)):
-            if tuple(requested) != tuple(default):
+            left = tuple(default)
+            right = tuple(requested)
+            if key == "duration":
+                matched = left == right
+            else:
+                matched = (
+                    len(left) == len(right)
+                    and all(
+                        math.isclose(
+                            float(a), float(b), rel_tol=0, abs_tol=1e-12,
+                        )
+                        for a, b in zip(left, right)
+                    )
+                )
+            if not matched:
                 deltas.append({
                     "field": key,
                     "recorded_value": list(default),
@@ -2868,7 +2944,10 @@ def _config_key(config: dict[str, Any]) -> str:
         if isinstance(value, str):
             normalized[key] = value
         elif isinstance(value, (tuple, list)):
-            normalized[key] = [int(item) for item in value]
+            if key == "duration":
+                normalized[key] = [int(item) for item in value]
+            else:
+                normalized[key] = [round(float(item), 10) for item in value]
         else:
             normalized[key] = round(float(value), 10)
     return json.dumps(normalized, sort_keys=True, separators=(",", ":"))
@@ -3859,7 +3938,15 @@ def _same_config(
                 return False
             continue
         if isinstance(left_value, (tuple, list)) or isinstance(right_value, (tuple, list)):
-            if tuple(left_value) != tuple(right_value):
+            left_seq = tuple(left_value)
+            right_seq = tuple(right_value)
+            if key == "duration":
+                if left_seq != right_seq:
+                    return False
+            elif len(left_seq) != len(right_seq) or not all(
+                math.isclose(float(a), float(b), rel_tol=0, abs_tol=1e-12)
+                for a, b in zip(left_seq, right_seq)
+            ):
                 return False
             continue
         if not math.isclose(
@@ -4117,6 +4204,10 @@ def _comparison_row(label: str, result: dict[str, Any]) -> dict[str, Any]:
             if coefficients.get("duration") is not None else None
         ),
         "depreciation": coefficients.get("depreciation"),
+        "construction_schedule": (
+            list(coefficients["construction_schedule"])
+            if coefficients.get("construction_schedule") is not None else None
+        ),
         "feedstock_price_usd_per_kg": coefficients.get(
             "feedstock_price_usd_per_kg"
         ),
@@ -6568,6 +6659,23 @@ def _requested_duration(process_config: Any) -> tuple[int, int] | None:
     )
 
 
+def _requested_construction_schedule(
+    process_config: Any,
+) -> tuple[float, ...] | None:
+    """Held construction fractions. Do not default (0.08, 0.60, 0.32)."""
+    if not isinstance(process_config, dict):
+        return None
+    if (
+        "construction_schedule" not in process_config
+        or process_config["construction_schedule"] in (None, "")
+    ):
+        return None
+    return _construction_schedule(
+        process_config["construction_schedule"],
+        error_code="invalid_admitted_record_query",
+    )
+
+
 def _superstructure_composition_and_capacity(
     feed_mass_fractions: Any,
     process_config: Any,
@@ -6827,6 +6935,7 @@ def _remnant_key_from_row(
     maintenance: float | None = None,
     duration: tuple[int, int] | None = None,
     depreciation: str | None = None,
+    construction_schedule: tuple[float, ...] | None = None,
 ) -> tuple[Any, ...] | None:
     """Remnant coordinate of a tool-1 row. Failures are not a fill."""
     if not isinstance(row, dict) or row.get("success") is False:
@@ -6914,6 +7023,19 @@ def _remnant_key_from_row(
         if row_v != duration:
             return None
         key = key + (duration,)
+    if construction_schedule is not None:
+        raw = row.get("construction_schedule")
+        if raw in (None, ""):
+            return None
+        try:
+            row_v = _construction_schedule(
+                raw, error_code="invalid_admitted_record_query",
+            )
+        except _ScenarioInputError:
+            return None
+        if row_v != construction_schedule:
+            return None
+        key = key + (construction_schedule,)
     for field, held in (
         ("irr", irr),
         ("income_tax", income_tax),
@@ -7004,6 +7126,14 @@ def _cell_remnant_key(cell: dict[str, Any]) -> tuple[Any, ...] | None:
         try:
             key = key + (_duration_pair(
                 raw_duration, error_code="invalid_admitted_record_query",
+            ),)
+        except _ScenarioInputError:
+            return None
+    raw_schedule = cell.get("construction_schedule")
+    if raw_schedule not in (None, ""):
+        try:
+            key = key + (_construction_schedule(
+                raw_schedule, error_code="invalid_admitted_record_query",
             ),)
         except _ScenarioInputError:
             return None
@@ -7157,6 +7287,17 @@ def _unmatched_remnant_keys(
         ),
         None,
     )
+    held_construction_schedule = next(
+        (
+            _construction_schedule(
+                cell["construction_schedule"],
+                error_code="invalid_admitted_record_query",
+            )
+            for cell in missing_keys
+            if cell.get("construction_schedule") not in (None, "")
+        ),
+        None,
+    )
     present = {
         key for row in rows
         if (
@@ -7198,6 +7339,7 @@ def _unmatched_remnant_keys(
                 maintenance=held_maintenance,
                 duration=held_duration,
                 depreciation=held_depreciation,
+                construction_schedule=held_construction_schedule,
             )
         ) is not None
     }
@@ -7269,6 +7411,9 @@ def _refuse_listed_or_complete(
         "maintenance": _requested_maintenance(process_config),
         "duration": _requested_duration(process_config),
         "depreciation": _requested_depreciation(process_config),
+        "construction_schedule": _requested_construction_schedule(
+            process_config,
+        ),
     }
     if any(value is not None for value in held.values()):
         stamped: list[dict[str, Any]] = []
@@ -7524,7 +7669,7 @@ def rank_landscape(
     precipitation_configuration, irr, income_tax, operating_days,
     labor_burden, finance_interest, finance_years, finance_fraction,
     startup_months, startup_FOCfrac, startup_VOCfrac,
-    startup_salesfrac, WC_over_FCI, warehouse, site_development, additional_piping, proratable_costs, field_expenses, construction, contingency, other_indirect_costs, property_insurance, maintenance, duration, or depreciation, listed keys include that held
+    startup_salesfrac, WC_over_FCI, warehouse, site_development, additional_piping, proratable_costs, field_expenses, construction, contingency, other_indirect_costs, property_insurance, maintenance, duration, depreciation, or construction_schedule, listed keys include that held
     value and matching requires it; omitted is not a silent cache or
     production default. A complete sequence grid with production check red is
     sequence_coupling_unproven as primary (no pending_blockers).

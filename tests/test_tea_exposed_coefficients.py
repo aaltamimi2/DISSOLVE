@@ -77,6 +77,7 @@ def test_omitted_and_explicit_coefficient_defaults_share_the_serve_key():
         "maintenance": 0.03,
         "duration": (2025, 2055),
         "depreciation": "MACRS7",
+        "construction_schedule": (0.08, 0.60, 0.32),
         "feedstock_price_usd_per_kg": 0.01,
         "centrifuged_plastic_solvent_content_pct": 50.0,
         "natural_gas_price_usd_per_m3": tea._NATURAL_GAS_PRICE_USD_PER_M3,
@@ -107,6 +108,7 @@ def test_omitted_and_explicit_coefficient_defaults_share_the_serve_key():
     assert reconstructed["maintenance"] == pytest.approx(0.03)
     assert reconstructed["duration"] == (2025, 2055)
     assert reconstructed["depreciation"] == "MACRS7"
+    assert reconstructed["construction_schedule"] == (0.08, 0.60, 0.32)
     assert reconstructed["feedstock_price_usd_per_kg"] == pytest.approx(0.01)
     assert reconstructed["centrifuged_plastic_solvent_content_pct"] == pytest.approx(50.0)
     assert reconstructed["natural_gas_price_usd_per_m3"] == pytest.approx(
@@ -2187,6 +2189,10 @@ def test_cache_mode_refuses_duration_override_instead_of_the_other_plant(
         item["field"] == "depreciation"
         for item in row["flowsheet_switch_deltas"]
     )
+    assert not any(
+        item["field"] == "construction_schedule"
+        for item in row["flowsheet_switch_deltas"]
+    )
 
 
 def test_depreciation_override_does_not_emit_a_duration_delta(monkeypatch):
@@ -2211,6 +2217,10 @@ def test_depreciation_override_does_not_emit_a_duration_delta(monkeypatch):
     assert schedule["requested_value"] == "MACRS5"
     assert not any(
         item["field"] == "duration"
+        for item in row["flowsheet_switch_deltas"]
+    )
+    assert not any(
+        item["field"] == "construction_schedule"
         for item in row["flowsheet_switch_deltas"]
     )
 
@@ -2252,6 +2262,120 @@ def test_inverted_duration_is_refused():
     assert caught.value.details["field"] == "duration"
 
 
+def test_explicit_default_construction_schedule_shares_the_serve_key():
+    record = _record_with_energy("C1")
+    as_tuple = {
+        **dict(record["config"]),
+        "construction_schedule": (0.08, 0.60, 0.32),
+    }
+    as_list = {
+        **dict(record["config"]),
+        "construction_schedule": [0.08, 0.60, 0.32],
+    }
+    assert tea._config_key(record["config"]) == tea._config_key(as_tuple)
+    assert tea._config_key(record["config"]) == tea._config_key(as_list)
+    assert tea._cache_index().get(tea._config_key(as_list))["label"] == (
+        record["label"]
+    )
+
+
+def test_construction_schedule_override_does_not_share_the_serve_key():
+    record = _record_with_energy("C1")
+    overridden = {
+        **dict(record["config"]),
+        "construction_schedule": (0.5, 0.5),
+    }
+    assert tea._config_key(record["config"]) != tea._config_key(overridden)
+    assert tea._cache_index().get(tea._config_key(overridden)) is None
+
+
+def test_cache_mode_refuses_construction_schedule_override_instead_of_the_other_plant(
+    monkeypatch,
+):
+    record = _record_with_energy("C1")
+    recorded_msp = float(record["result"]["tea"]["msp_usd_per_kg"])
+
+    def forbidden_live(config, timeout_seconds):
+        raise AssertionError(
+            "construction_schedule mismatch must not fall through to live"
+        )
+
+    monkeypatch.setattr(tea, "_live", forbidden_live)
+    payload = _data(tea.evaluate_tea_lca_scenarios(
+        [_public_from_record(record, construction_schedule=[0.5, 0.5])],
+        engine_mode="cache",
+    ))
+    assert payload.get("success") is False
+    assert payload.get("error_code") == "cache_flowsheet_mismatch"
+    row = (payload.get("failures") or [])[0]
+    assert row.get("msp_usd_per_kg") is None
+    assert row.get("msp_usd_per_kg") != recorded_msp
+    pair = next(
+        item for item in row["flowsheet_switch_deltas"]
+        if item["field"] == "construction_schedule"
+    )
+    assert pair["recorded_value"] == [0.08, 0.60, 0.32]
+    assert pair["requested_value"] == [0.5, 0.5]
+    assert row.get("construction_schedule") == [0.5, 0.5]
+    assert not any(
+        item["field"] == "duration"
+        for item in row["flowsheet_switch_deltas"]
+    )
+    assert not any(
+        item["field"] == "depreciation"
+        for item in row["flowsheet_switch_deltas"]
+    )
+
+
+def test_c2_still_carries_construction_schedule():
+    record = _record_with_energy("C2")
+    reconstructed = tea._scenario_config(_public_from_record(record))
+    assert reconstructed["construction_schedule"] == (0.08, 0.60, 0.32)
+    assert tea._cache_index().get(tea._config_key(reconstructed))["label"] == (
+        record["label"]
+    )
+
+
+def test_scalar_years_is_not_construction_schedule():
+    record = _record_with_energy("C1")
+    with pytest.raises(tea._ScenarioInputError) as caught:
+        tea._scenario_config(
+            _public_from_record(record, construction_schedule=3),
+        )
+    assert caught.value.error_code == "invalid_scenario"
+    assert caught.value.details["field"] == "construction_schedule"
+
+
+def test_empty_construction_schedule_is_refused():
+    record = _record_with_energy("C1")
+    with pytest.raises(tea._ScenarioInputError) as caught:
+        tea._scenario_config(
+            _public_from_record(record, construction_schedule=[]),
+        )
+    assert caught.value.error_code == "invalid_scenario"
+    assert caught.value.details["field"] == "construction_schedule"
+
+
+def test_negative_construction_schedule_item_is_refused():
+    record = _record_with_energy("C1")
+    with pytest.raises(tea._ScenarioInputError) as caught:
+        tea._scenario_config(
+            _public_from_record(record, construction_schedule=(0.08, -0.60, 0.32)),
+        )
+    assert caught.value.error_code == "invalid_scenario"
+    assert caught.value.details["field"] == "construction_schedule"
+
+
+def test_string_construction_schedule_is_refused():
+    record = _record_with_energy("C1")
+    with pytest.raises(tea._ScenarioInputError) as caught:
+        tea._scenario_config(
+            _public_from_record(record, construction_schedule="0.08, 0.60, 0.32"),
+        )
+    assert caught.value.error_code == "invalid_scenario"
+    assert caught.value.details["field"] == "construction_schedule"
+
+
 def test_percent_integer_income_tax_is_refused():
     record = _record_with_energy("C1")
     with pytest.raises(tea._ScenarioInputError) as caught:
@@ -2274,17 +2398,10 @@ def test_other_g_constructor_coefficients_are_not_dumped():
     assert "steam_power_depreciation" in list(
         caught.value.details.get("extra_keys") or []
     )
-    with pytest.raises(tea._ScenarioInputError) as caught:
-        tea._scenario_config(_public_from_record(
-            record, construction_schedule=(0.08, 0.60, 0.32),
-        ))
-    assert caught.value.error_code == "unknown_process_field"
-    assert "construction_schedule" in list(
-        caught.value.details.get("extra_keys") or []
-    )
     assert "lang_factor" not in tea._COEFFICIENT_DEFAULTS
     assert "steam_power_depreciation" not in tea._COEFFICIENT_DEFAULTS
-    assert "construction_schedule" not in tea._COEFFICIENT_DEFAULTS
+    assert "construction_schedule" in tea._COEFFICIENT_DEFAULTS
+    assert "construction_schedule" in tea.public_process_field_names()
     assert "depreciation" in tea._COEFFICIENT_DEFAULTS
     assert "depreciation" in tea.public_process_field_names()
     assert "duration" in tea._COEFFICIENT_DEFAULTS
@@ -2409,6 +2526,7 @@ def test_d8_overlay_still_excludes_coefficients():
         "maintenance",
         "duration",
         "depreciation",
+        "construction_schedule",
         "feedstock_price_usd_per_kg",
         "centrifuged_plastic_solvent_content_pct",
         "natural_gas_price_usd_per_m3",
@@ -2445,6 +2563,7 @@ def test_worker_calls_the_unreached_setters():
     assert "process.tea.maintenance" in source
     assert "process.tea.depreciation" in source
     assert "process.tea.duration" in source
+    assert "process.tea.construction_schedule" in source
     assert "set_feedstock_price(" in source
     assert "set_centrifuged_plastic_solvent_content(" in source
     assert "set_natural_gas_price(" in source

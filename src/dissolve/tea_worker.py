@@ -48,6 +48,7 @@ _PROPERTY_INSURANCE_DEFAULT = 0.007
 _MAINTENANCE_DEFAULT = 0.03
 _DEPRECIATION_DEFAULT = "MACRS7"
 _DURATION_DEFAULT = (2025, 2055)
+_CONSTRUCTION_SCHEDULE_DEFAULT = (0.08, 0.60, 0.32)
 _FEEDSTOCK_PRICE_USD_PER_KG = 0.01
 _CENTRIFUGED_PLASTIC_SOLVENT_CONTENT_PCT = 50.0
 
@@ -957,6 +958,9 @@ def _create_and_simulate_process(
         )
         process.tea.duration = tuple(
             config.get("duration", _DURATION_DEFAULT)
+        )
+        process.tea.construction_schedule = tuple(
+            config.get("construction_schedule", _CONSTRUCTION_SCHEDULE_DEFAULT)
         )
         process.set_solvent_price(config["solvent_price"])
         process.set_feedstock_distance(config.get("feedstock_distance_km", 0))
