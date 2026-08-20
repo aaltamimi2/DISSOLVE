@@ -5065,6 +5065,28 @@ def _requested_sell_leftover_plastic(process_config: Any) -> bool | None:
         )
 
 
+def _requested_burn_leftover_plastic(process_config: Any) -> bool | None:
+    """Held leftover-burn switch. Do not default False."""
+    if not isinstance(process_config, dict):
+        return None
+    if (
+        "burn_leftover_plastic" not in process_config
+        or process_config["burn_leftover_plastic"] in (None, "")
+    ):
+        return None
+    try:
+        return _coerce_flowsheet_bool(
+            process_config["burn_leftover_plastic"], "burn_leftover_plastic",
+        )
+    except _ScenarioInputError:
+        raise _ScenarioInputError(
+            "burn_leftover_plastic must be a boolean",
+            error_code="invalid_admitted_record_query",
+            field="burn_leftover_plastic",
+            supplied=process_config["burn_leftover_plastic"],
+        )
+
+
 def _superstructure_composition_and_capacity(
     feed_mass_fractions: Any,
     process_config: Any,
@@ -5297,6 +5319,7 @@ def _remnant_key_from_row(
     dissolution_capacity: float | None = None,
     labor_cost_usd_per_employee_yr: float | None = None,
     sell_leftover_plastic: bool | None = None,
+    burn_leftover_plastic: bool | None = None,
 ) -> tuple[Any, ...] | None:
     """Remnant coordinate of a tool-1 row. Failures are not a fill."""
     if not isinstance(row, dict) or row.get("success") is False:
@@ -5344,17 +5367,22 @@ def _remnant_key_from_row(
         if row_v != held:
             return None
         key = key + (held,)
-    if sell_leftover_plastic is not None:
-        raw = row.get("sell_leftover_plastic")
+    for field, held in (
+        ("sell_leftover_plastic", sell_leftover_plastic),
+        ("burn_leftover_plastic", burn_leftover_plastic),
+    ):
+        if held is None:
+            continue
+        raw = row.get(field)
         if raw in (None, ""):
             return None
         try:
-            row_v = _coerce_flowsheet_bool(raw, "sell_leftover_plastic")
+            row_v = _coerce_flowsheet_bool(raw, field)
         except _ScenarioInputError:
             return None
-        if row_v != sell_leftover_plastic:
+        if row_v != held:
             return None
-        key = key + (sell_leftover_plastic,)
+        key = key + (held,)
     return key
 
 
@@ -5389,14 +5417,13 @@ def _cell_remnant_key(cell: dict[str, Any]) -> tuple[Any, ...] | None:
                 key = key + (round(_finite(temp, field), 10),)
             except ValueError:
                 return None
-    sell = cell.get("sell_leftover_plastic")
-    if sell not in (None, ""):
-        try:
-            key = key + (
-                _coerce_flowsheet_bool(sell, "sell_leftover_plastic"),
-            )
-        except _ScenarioInputError:
-            return None
+    for field in ("sell_leftover_plastic", "burn_leftover_plastic"):
+        value = cell.get(field)
+        if value not in (None, ""):
+            try:
+                key = key + (_coerce_flowsheet_bool(value, field),)
+            except _ScenarioInputError:
+                return None
     return key
 
 
@@ -5456,6 +5483,7 @@ def _unmatched_remnant_keys(
         missing_keys, "labor_cost_usd_per_employee_yr",
     )
     held_sell = _held_bool_field(missing_keys, "sell_leftover_plastic")
+    held_burn = _held_bool_field(missing_keys, "burn_leftover_plastic")
     present = {
         key for row in rows
         if (
@@ -5470,6 +5498,7 @@ def _unmatched_remnant_keys(
                 dissolution_capacity=held_dissolution_capacity,
                 labor_cost_usd_per_employee_yr=held_labor,
                 sell_leftover_plastic=held_sell,
+                burn_leftover_plastic=held_burn,
             )
         ) is not None
     }
@@ -5508,6 +5537,7 @@ def _refuse_listed_or_complete(
             _requested_labor_cost_usd_per_employee_yr(process_config)
         ),
         "sell_leftover_plastic": _requested_sell_leftover_plastic(process_config),
+        "burn_leftover_plastic": _requested_burn_leftover_plastic(process_config),
     }
     if any(value is not None for value in held.values()):
         stamped: list[dict[str, Any]] = []
@@ -5745,9 +5775,10 @@ def rank_landscape(
     dissolution_temperature_c, precipitation_temperature_c,
     solvent_price_usd_per_kg, solvent_loss_pct,
     feedstock_distance_km, dissolution_capacity,
-    labor_cost_usd_per_employee_yr, or sell_leftover_plastic, listed
-    keys include that held value and matching requires it; omitted is
-    not a silent cache or production default. A complete sequence grid with production check red is
+    labor_cost_usd_per_employee_yr, sell_leftover_plastic, or
+    burn_leftover_plastic, listed keys include that held value and
+    matching requires it; omitted is not a silent cache or production
+    default. A complete sequence grid with production check red is
     sequence_coupling_unproven as primary (no pending_blockers).
     Do not scan top_k_sequences for either map.
     formulation is required iff source=superstructure;
