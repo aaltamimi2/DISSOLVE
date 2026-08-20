@@ -5382,6 +5382,34 @@ def _requested_startup_FOCfrac(process_config: Any) -> float | None:
     return round(fraction, 10)
 
 
+def _requested_startup_VOCfrac(process_config: Any) -> float | None:
+    """Held startup VOC fraction. Do not default 0.75."""
+    if not isinstance(process_config, dict):
+        return None
+    if (
+        "startup_VOCfrac" not in process_config
+        or process_config["startup_VOCfrac"] in (None, "")
+    ):
+        return None
+    fraction = _finite(process_config["startup_VOCfrac"], "startup_VOCfrac")
+    if fraction > 1:
+        raise _ScenarioInputError(
+            "startup_VOCfrac is a fraction (0.75 is 75 percent), not a "
+            "percent integer.",
+            error_code="invalid_admitted_record_query",
+            field="startup_VOCfrac",
+            supplied=process_config["startup_VOCfrac"],
+        )
+    if not 0 <= fraction <= 1:
+        raise _ScenarioInputError(
+            "startup_VOCfrac must be a fraction in [0, 1].",
+            error_code="invalid_admitted_record_query",
+            field="startup_VOCfrac",
+            supplied=process_config["startup_VOCfrac"],
+        )
+    return round(fraction, 10)
+
+
 def _superstructure_composition_and_capacity(
     feed_mass_fractions: Any,
     process_config: Any,
@@ -5626,6 +5654,7 @@ def _remnant_key_from_row(
     finance_fraction: float | None = None,
     startup_months: float | None = None,
     startup_FOCfrac: float | None = None,
+    startup_VOCfrac: float | None = None,
 ) -> tuple[Any, ...] | None:
     """Remnant coordinate of a tool-1 row. Failures are not a fill."""
     if not isinstance(row, dict) or row.get("success") is False:
@@ -5711,6 +5740,7 @@ def _remnant_key_from_row(
         ("finance_fraction", finance_fraction),
         ("startup_months", startup_months),
         ("startup_FOCfrac", startup_FOCfrac),
+        ("startup_VOCfrac", startup_VOCfrac),
     ):
         if held is None:
             continue
@@ -5775,7 +5805,7 @@ def _cell_remnant_key(cell: dict[str, Any]) -> tuple[Any, ...] | None:
     for field in (
         "irr", "income_tax", "operating_days", "labor_burden",
         "finance_interest", "finance_years", "finance_fraction",
-        "startup_months", "startup_FOCfrac",
+        "startup_months", "startup_FOCfrac", "startup_VOCfrac",
     ):
         value = cell.get(field)
         if value not in (None, ""):
@@ -5872,6 +5902,9 @@ def _unmatched_remnant_keys(
     held_startup_FOCfrac = _held_rounded_field(
         missing_keys, "startup_FOCfrac",
     )
+    held_startup_VOCfrac = _held_rounded_field(
+        missing_keys, "startup_VOCfrac",
+    )
     present = {
         key for row in rows
         if (
@@ -5898,6 +5931,7 @@ def _unmatched_remnant_keys(
                 finance_fraction=held_finance_fraction,
                 startup_months=held_startup_months,
                 startup_FOCfrac=held_startup_FOCfrac,
+                startup_VOCfrac=held_startup_VOCfrac,
             )
         ) is not None
     }
@@ -5952,6 +5986,7 @@ def _refuse_listed_or_complete(
         "finance_fraction": _requested_finance_fraction(process_config),
         "startup_months": _requested_startup_months(process_config),
         "startup_FOCfrac": _requested_startup_FOCfrac(process_config),
+        "startup_VOCfrac": _requested_startup_VOCfrac(process_config),
     }
     if any(value is not None for value in held.values()):
         stamped: list[dict[str, Any]] = []
@@ -6193,9 +6228,9 @@ def rank_landscape(
     burn_leftover_plastic, precipitation_temperature_format,
     precipitation_configuration, irr, income_tax, operating_days,
     labor_burden, finance_interest, finance_years, finance_fraction,
-    startup_months, or startup_FOCfrac, listed keys include that held
-    value and matching requires it; omitted is not a silent cache or
-    production default. A complete sequence grid with production check red is
+    startup_months, startup_FOCfrac, or startup_VOCfrac, listed keys
+    include that held value and matching requires it; omitted is not a
+    silent cache or production default. A complete sequence grid with production check red is
     sequence_coupling_unproven as primary (no pending_blockers).
     Do not scan top_k_sequences for either map.
     formulation is required iff source=superstructure;
