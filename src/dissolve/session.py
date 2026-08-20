@@ -50,8 +50,9 @@ _HANDLE_ANIMALS = (
 # are skipped, so the no-temperature branch still selects `rows`.
 #
 # This tuple is not a complete catalog of registered list[dict] keys.
-# `sensitivity_rows` is included because analyze_tea_sensitivity publishes
-# that page. Nested pages (compare_contaminant_removal_modes) are not
+# `sensitivity_rows` is included because evaluate_process mode=sensitivity
+# (and the analyze_tea_sensitivity engine) publishes that page. Nested
+# pages (compare_contaminant_removal_modes) are not
 # selected here — dispatch must still attempt a handle when either
 # threshold is crossed and primary_row_key is None.
 # `candidate_substitutions` before `comparison_rows`: route-substitution

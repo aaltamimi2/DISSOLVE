@@ -98,7 +98,6 @@ EXPECTED_REGISTRY_NAMES: frozenset[str] = frozenset((
     "screen_route_solvent_substitutions",
     "evaluate_process",
     "evaluate_stored_route_tea_lca",
-    "analyze_tea_sensitivity",
     "rank_landscape",
     "optimize_stored_route",
     "pareto_optimize_stored_route",
@@ -1144,10 +1143,6 @@ class CliApp:
             out.pop("process_configs", None)
             out.pop("screening_shortlist", None)
             out.pop("held_process_basis", None)
-        elif name == "analyze_tea_sensitivity":
-            out["scenario"] = buffer
-            out.pop("screening_shortlist", None)
-            out.pop("held_process_basis", None)
         return out
 
     def _confirm_tool_kwargs(
@@ -1212,42 +1207,6 @@ class CliApp:
             out = dict(kwargs)
             out["process_config"] = submitted
             out.pop("process_configs", None)
-            out.pop("screening_shortlist", None)
-            out.pop("held_process_basis", None)
-            return out
-        if name == "analyze_tea_sensitivity":
-            seed_src = kwargs.get("scenario")
-            if not isinstance(seed_src, dict):
-                seed_src = self._handoff_confirm_seed(
-                    kwargs.get("screening_shortlist"),
-                    kwargs.get("held_process_basis"),
-                )
-            seed = self._confirm_seed(seed_src if isinstance(seed_src, dict) else None)
-            snapshot = copy.deepcopy(seed)
-            preview = self._preview_sheet_field_origin(
-                seed,
-                snapshot,
-                seed_from_handoff=not isinstance(kwargs.get("scenario"), dict),
-                shortlist=kwargs.get("screening_shortlist"),
-                held=kwargs.get("held_process_basis"),
-                caller=seed_src if isinstance(kwargs.get("scenario"), dict) else None,
-            )
-            submitted = self._edit_process_sheet(
-                seed, prompt_fn=prompt_fn, origin=preview,
-            )
-            if submitted is None:
-                return None
-            self._process_buffer = submitted
-            self._record_sheet_field_origin(
-                submitted,
-                snapshot,
-                seed_from_handoff=not isinstance(kwargs.get("scenario"), dict),
-                shortlist=kwargs.get("screening_shortlist"),
-                held=kwargs.get("held_process_basis"),
-                caller=seed_src if isinstance(kwargs.get("scenario"), dict) else None,
-            )
-            out = dict(kwargs)
-            out["scenario"] = submitted
             out.pop("screening_shortlist", None)
             out.pop("held_process_basis", None)
             return out

@@ -230,22 +230,34 @@ def test_evaluate_process_sensitivity_handle_ranks(monkeypatch):
             parameter="solvent_price",
             engine_mode="cache",
         )
-        old = dispatch(
+        retired = dispatch(
             "analyze_tea_sensitivity",
             scenario=_public_from_record(record),
             parameter="solvent_price",
             engine_mode="cache",
         )
         assert wrapped.get("available") is True
-        assert old.get("available") is True
+        assert retired.get("available") is False
+        assert retired.get("refusal") == "unknown_tool"
+        engine = _data(tea.analyze_tea_sensitivity(
+            _public_from_record(record),
+            parameter="solvent_price",
+            engine_mode="cache",
+        ))
+        engine_handle = store_handle(
+            session,
+            tool="evaluate_process",
+            source_basis="tea_cache_exact",
+            data=engine,
+        )
         wrapped_rank = _data(tea.rank_landscape(handle=wrapped["handle"]))
-        old_rank = _data(tea.rank_landscape(handle=old["handle"]))
+        engine_rank = _data(tea.rank_landscape(handle=engine_handle))
     rows = [
         row for row in wrapped["data"]["sensitivity_rows"]
         if row.get("success") and row.get("msp_usd_per_kg") is not None
     ]
     assert len(rows) >= 2
-    for payload in (wrapped_rank, old_rank):
+    for payload in (wrapped_rank, engine_rank):
         assert payload.get("success") is True
         assert payload.get("error_code") is None
         assert payload["analysis_type"] == "process_rows_landscape"

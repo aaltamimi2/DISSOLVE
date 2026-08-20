@@ -372,8 +372,9 @@ def test_first_old_sensitivity_name_shortlist_seeds_the_sheet(
     app._cli_direct_active = True
     result = app._cli_direct_dispatch(
         original,
-        "analyze_tea_sensitivity",
+        "evaluate_process",
         {
+            "mode": "sensitivity",
             "screening_shortlist": {
                 "source": "explicit",
                 "items": [{
@@ -396,8 +397,8 @@ def test_first_old_sensitivity_name_shortlist_seeds_the_sheet(
     assert seen[0]["dissolution_temperature_c"] == 145.0
     assert seen[0]["energy_case"] == "C1"
     assert seen[0]["target_mass_percent"] == 55.0
-    assert captured["name"] == "analyze_tea_sensitivity"
-    assert captured["kwargs"]["scenario"] is sheet
+    assert captured["name"] == "evaluate_process"
+    assert captured["kwargs"]["process_config"] is sheet
     assert captured["kwargs"]["parameter"] == "solvent_price"
     assert captured["kwargs"]["engine_mode"] == "cache"
     assert "screening_shortlist" not in captured["kwargs"]
@@ -433,9 +434,10 @@ def test_old_sensitivity_name_scenario_still_wins_the_seed(
     app._cli_direct_active = True
     app._cli_direct_dispatch(
         original,
-        "analyze_tea_sensitivity",
+        "evaluate_process",
         {
-            "scenario": {"target_polymer": "HDPE", "solvent": "Toluene"},
+            "mode": "sensitivity",
+            "process_config": {"target_polymer": "HDPE", "solvent": "Toluene"},
             "parameter": "solvent_price",
             "screening_shortlist": {
                 "source": "explicit",
@@ -451,7 +453,7 @@ def test_old_sensitivity_name_scenario_still_wins_the_seed(
     assert seen[0]["target_polymer"] == "HDPE"
     assert seen[0]["solvent"] == "Toluene"
     assert seen[0]["target_polymer"] != "LDPE"
-    assert captured["kwargs"]["scenario"] is sheet
+    assert captured["kwargs"]["process_config"] is sheet
     assert captured["kwargs"]["parameter"] == "solvent_price"
     assert "screening_shortlist" not in captured["kwargs"]
     assert "held_process_basis" not in captured["kwargs"]
@@ -534,12 +536,16 @@ def test_later_evaluate_runs_the_confirmed_buffer_not_model_args(
     assert sheet["irr"] != 0.15
     app._cli_direct_dispatch(
         original,
-        "analyze_tea_sensitivity",
-        {"scenario": {"irr": 0.20}, "parameter": "solvent_price"},
+        "evaluate_process",
+        {
+            "mode": "sensitivity",
+            "process_config": {"irr": 0.20},
+            "parameter": "solvent_price",
+        },
     )
     assert len(prompts) == 1
     third = captured[2]["kwargs"]
-    assert third["scenario"] is sheet
+    assert third["process_config"] is sheet
     assert third["parameter"] == "solvent_price"
 
 

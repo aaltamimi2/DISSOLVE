@@ -224,12 +224,14 @@ def test_schema_exposes_the_closed_choice():
         assert "exclude_safety_fail" not in props
     old = schemas["evaluate_process"]["parameters"]["properties"]
     assert "screen_to_economics_order" in old
-    sensitivity = schemas["analyze_tea_sensitivity"]["parameters"]["properties"]
-    assert "screen_to_economics_order" not in sensitivity
     assert "evaluate_tea_lca_scenarios" not in schemas
     assert "lookup_admitted_process_records" not in schemas
+    assert "analyze_tea_sensitivity" not in schemas
     engine_params = inspect.signature(tea.evaluate_tea_lca_scenarios).parameters
     assert "screen_to_economics_order" not in engine_params
+    assert "screen_to_economics_order" not in inspect.signature(
+        tea.analyze_tea_sensitivity,
+    ).parameters
 
 
 def test_omitted_and_explicit_independent_match(monkeypatch, tmp_path):

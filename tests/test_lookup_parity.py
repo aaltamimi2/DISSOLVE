@@ -186,9 +186,6 @@ def test_sensitivity_selectors_stay_on_lookup(monkeypatch):
         assert name not in _schema("evaluate_process")[
             "parameters"
         ]["properties"]
-        assert name not in _schema("analyze_tea_sensitivity")[
-            "parameters"
-        ]["properties"]
     payload = _data(tea.lookup_admitted_process_records(
         target_polymer="LDPE",
         solvent="Dodecane",
@@ -251,13 +248,11 @@ def test_lookup_energy_cases_are_a_list(monkeypatch):
     _forbid_live(monkeypatch)
     lookup_params = inspect.signature(tea.lookup_admitted_process_records).parameters
     eval_props = _schema("evaluate_process")["parameters"]["properties"]
-    sensitivity_props = _schema("analyze_tea_sensitivity")[
-        "parameters"
-    ]["properties"]
+    sensitivity_params = inspect.signature(tea.analyze_tea_sensitivity).parameters
     assert "energy_cases" in lookup_params
     assert "energy_case" not in lookup_params
     assert "energy_cases" not in eval_props
-    assert "energy_cases" not in sensitivity_props
+    assert "energy_cases" not in sensitivity_params
     one = _data(tea.lookup_admitted_process_records(
         target_polymer="LDPE",
         solvent="Dodecane",

@@ -248,9 +248,9 @@ def test_evaluate_refuses_sensitivity_scalars(monkeypatch):
         "metric": "msp_usd_per_kg",
     }
     eval_props = _schema("evaluate_process")["parameters"]["properties"]
-    sensitivity_props = _schema("analyze_tea_sensitivity")["parameters"]["properties"]
+    sensitivity_params = inspect.signature(tea.analyze_tea_sensitivity).parameters
     for name, value in sent.items():
-        assert name in sensitivity_props
+        assert name in sensitivity_params
         assert name not in eval_props
         payload = _data(tea.evaluate_tea_lca_scenarios(
             [scenario],
@@ -314,7 +314,7 @@ def test_mixed_wrong_mode_scalars_name_each_home(monkeypatch):
 
 
 def test_sensitivity_schema_omits_screening_handoff():
-    props = _schema("analyze_tea_sensitivity")["parameters"]["properties"]
+    props = inspect.signature(tea.analyze_tea_sensitivity).parameters
     eval_props = _schema("evaluate_process")["parameters"]["properties"]
     assert "screening_shortlist" in eval_props
     assert "held_process_basis" in eval_props
@@ -379,6 +379,16 @@ def test_sensitivity_refuses_screening_handoff(monkeypatch):
     assert leftover.get("error_code") != "not_applicable_in_mode"
     assert leftover.get("tool_name") == "analyze_tea_sensitivity"
     assert "sensitivity_rows" not in leftover
+    wrap = _data(tea.evaluate_process(
+        mode="sensitivity",
+        process_config=scenario,
+        parameter="solvent_price",
+        engine_mode="cache",
+        not_a_sensitivity_field=1,
+    ))
+    assert wrap.get("error_code") == "unknown_process_field"
+    assert wrap.get("extra_keys") == ["not_a_sensitivity_field"]
+    assert wrap.get("tool_name") == "evaluate_process"
     mixed = _data(tea.analyze_tea_sensitivity(
         scenario,
         parameter="solvent_price",
@@ -398,8 +408,9 @@ def test_dispatch_sensitivity_handoff_is_named_refuse(monkeypatch):
     session = new_session()
     with bind_tool_session(session):
         refused = dispatch(
-            "analyze_tea_sensitivity",
-            scenario=scenario,
+            "evaluate_process",
+            mode="sensitivity",
+            process_config=scenario,
             parameter="solvent_price",
             engine_mode="cache",
             screening_shortlist={
@@ -415,8 +426,9 @@ def test_dispatch_sensitivity_handoff_is_named_refuse(monkeypatch):
         assert refused.get("refusal") == "not_applicable_in_mode"
         assert "handle" not in refused
         served = dispatch(
-            "analyze_tea_sensitivity",
-            scenario=scenario,
+            "evaluate_process",
+            mode="sensitivity",
+            process_config=scenario,
             parameter="solvent_price",
             engine_mode="cache",
         )
@@ -424,8 +436,9 @@ def test_dispatch_sensitivity_handoff_is_named_refuse(monkeypatch):
         assert served.get("source_basis") == "tea_cache_exact"
         assert served.get("handle")
         extra = dispatch(
-            "analyze_tea_sensitivity",
-            scenario=scenario,
+            "evaluate_process",
+            mode="sensitivity",
+            process_config=scenario,
             parameter="solvent_price",
             engine_mode="cache",
             not_a_sensitivity_field=1,

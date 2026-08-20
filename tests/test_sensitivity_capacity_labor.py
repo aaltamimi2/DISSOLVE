@@ -89,8 +89,16 @@ def test_dissolution_capacity_is_no_longer_unsupported(monkeypatch):
         parameter="dissolution_capacity",
         engine_mode="cache",
     ))
+    wrapped = _data(tea.evaluate_process(
+        mode="sensitivity",
+        process_config=_public_from_record(record),
+        parameter="dissolution_capacity",
+        engine_mode="cache",
+    ))
     assert discovered.get("error_code") != "unsupported_parameter"
     assert discovered.get("error_code") == "insufficient_sensitivity_values"
+    assert wrapped.get("error_code") == "insufficient_sensitivity_values"
+    assert wrapped.get("tool_name") == "evaluate_process"
     swept = _data(tea.analyze_tea_sensitivity(
         _public_from_record(record),
         parameter="dissolution_capacity",
@@ -124,8 +132,16 @@ def test_labor_cost_public_alias_is_no_longer_unsupported(monkeypatch):
         parameter="labor_cost_usd_per_employee_yr",
         engine_mode="cache",
     ))
+    wrapped = _data(tea.evaluate_process(
+        mode="sensitivity",
+        process_config=_public_from_record(record),
+        parameter="labor_cost",
+        engine_mode="cache",
+    ))
     assert discovered.get("error_code") != "unsupported_parameter"
     assert discovered.get("error_code") == "insufficient_sensitivity_values"
+    assert wrapped.get("error_code") == "insufficient_sensitivity_values"
+    assert wrapped.get("tool_name") == "evaluate_process"
     swept = _data(tea.analyze_tea_sensitivity(
         _public_from_record(record),
         parameter="labor_cost",

@@ -1,6 +1,7 @@
 """Sensitivity inherits its baseline from an economics handle, not a screen."""
 from __future__ import annotations
 
+import inspect
 import json
 import sys
 from pathlib import Path
@@ -215,7 +216,7 @@ def test_evaluate_can_inherit_from_a_sensitivity_row(monkeypatch):
         ))
         handle = store_handle(
             session,
-            tool="analyze_tea_sensitivity",
+            tool="evaluate_process",
             source_basis="tea_cache_exact",
             data=sweep,
         )
@@ -262,7 +263,8 @@ def test_dispatch_tornado_from_evaluate_handle(monkeypatch):
             engine_mode="cache",
         )
         tornado = dispatch(
-            "analyze_tea_sensitivity",
+            "evaluate_process",
+            mode="sensitivity",
             parameter="solvent_price",
             analysis_mode="tornado",
             handle=evaluated["handle"],
@@ -279,11 +281,10 @@ def test_dispatch_tornado_from_evaluate_handle(monkeypatch):
 
 def test_sensitivity_schema_names_handle_and_optional_scenario():
     schemas = {spec["name"]: spec for spec in tool_schemas()}
-    spec = schemas["analyze_tea_sensitivity"]
-    props = spec["parameters"]["properties"]
-    required = spec["parameters"].get("required") or []
-    assert props["handle"]["type"] == "string"
-    assert "handle" not in required
-    assert "scenario" not in required
-    assert "row_id" in props
-    assert props["scenario"]["type"] == "object"
+    assert "analyze_tea_sensitivity" not in schemas
+    params = inspect.signature(tea.analyze_tea_sensitivity).parameters
+    assert "handle" in params
+    assert "row_id" in params
+    assert "scenario" in params
+    wrap = schemas["evaluate_process"]["parameters"]["properties"]
+    assert wrap["process_config"]["type"] == "object"
