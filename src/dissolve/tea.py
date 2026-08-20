@@ -2459,6 +2459,71 @@ def confirmation_sheet_row_origin(
     return "missing"
 
 
+_SHEET_FIELD_UNITS = {
+    "target_polymer": "",
+    "solvent": "",
+    "target_mass_percent": "wt%",
+    "processing_capacity_mt_per_yr": "MT/yr",
+    "energy_case": "",
+    "dissolution_temperature_c": "°C",
+    "precipitation_temperature_c": "°C",
+    "solvent_price_usd_per_kg": "USD/kg",
+    "solvent_loss_pct": "%",
+    "feedstock_distance_km": "km",
+    "dissolution_capacity": "wt/vol %",
+    "labor_cost_usd_per_employee_yr": "USD/employee/yr",
+    "sell_leftover_plastic": "",
+    "burn_leftover_plastic": "",
+    "precipitation_temperature_format": "",
+    "precipitation_configuration": "",
+    "irr": "fraction",
+    "income_tax": "fraction",
+    "operating_days": "days",
+    "labor_burden": "fraction",
+    "finance_interest": "fraction",
+    "finance_years": "years",
+    "finance_fraction": "fraction",
+    "startup_months": "months",
+    "startup_FOCfrac": "fraction",
+    "startup_VOCfrac": "fraction",
+    "startup_salesfrac": "fraction",
+    "WC_over_FCI": "fraction",
+    "warehouse": "fraction",
+    "site_development": "fraction",
+    "additional_piping": "fraction",
+    "proratable_costs": "fraction",
+    "field_expenses": "fraction",
+    "construction": "fraction",
+    "contingency": "fraction",
+    "other_indirect_costs": "fraction",
+    "property_insurance": "fraction",
+    "maintenance": "fraction",
+    "duration": "year",
+    "depreciation": "",
+    "construction_schedule": "fraction",
+    "lang_factor": "",
+    "feedstock_price_usd_per_kg": "USD/kg",
+    "centrifuged_plastic_solvent_content_pct": "%",
+    "natural_gas_price_usd_per_m3": "USD/m3",
+    "steam_power_depreciation": "",
+}
+
+
+def confirmation_sheet_row_units(
+    field: str,
+    buffer: dict[str, Any] | None = None,
+) -> str:
+    """Units printed on one confirmation-sheet row.
+
+    Identity, enum, and boolean rows are blank. Not a ranking.
+    """
+    name = str(field)
+    energy = str((buffer or {}).get("energy_case") or "C1")
+    if name not in public_process_field_names(energy_case=energy):
+        return ""
+    return _SHEET_FIELD_UNITS.get(name, "")
+
+
 def _canonical_screening_shortlist_item(
     item: Any, index: int,
 ) -> dict[str, Any]:

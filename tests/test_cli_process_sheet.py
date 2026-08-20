@@ -1428,4 +1428,86 @@ def test_first_run_sheet_print_shows_from_screen(tmp_path, monkeypatch):
     assert origin["target_mass_percent"] == "supplied"
 
 
+def test_confirmation_sheet_row_units_bind_per_field():
+    seed = tea.seed_public_process_config({
+        "target_polymer": "LDPE",
+        "solvent": "Dodecane",
+        "dissolution_temperature_c": 145.0,
+        "energy_case": "C1",
+    })
+    assert tea.confirmation_sheet_row_units(
+        "precipitation_temperature_c", seed,
+    ) == "°C"
+    assert tea.confirmation_sheet_row_units(
+        "dissolution_temperature_c", seed,
+    ) == "°C"
+    assert tea.confirmation_sheet_row_units("target_polymer", seed) == ""
+    assert tea.confirmation_sheet_row_units("target_polymer", seed) != "°C"
+    assert tea.confirmation_sheet_row_units("irr", seed) == "fraction"
+    assert tea.confirmation_sheet_row_units("irr", seed) != "%"
+    assert tea.confirmation_sheet_row_units("irr", seed) != "°C"
+    assert tea.confirmation_sheet_row_units(
+        "processing_capacity_mt_per_yr", seed,
+    ) == "MT/yr"
+    assert tea.confirmation_sheet_row_units(
+        "target_mass_percent", seed,
+    ) == "wt%"
+    assert tea.confirmation_sheet_row_units(
+        "solvent_price_usd_per_kg", seed,
+    ) == "USD/kg"
+    assert tea.confirmation_sheet_row_units(
+        "labor_cost_usd_per_employee_yr", seed,
+    ) == "USD/employee/yr"
+    assert tea.confirmation_sheet_row_units("finance_years", seed) == "years"
+    assert tea.confirmation_sheet_row_units("startup_months", seed) == (
+        "months"
+    )
+    assert tea.confirmation_sheet_row_units("finance_years", seed) != (
+        tea.confirmation_sheet_row_units("startup_months", seed)
+    )
+    assert tea.confirmation_sheet_row_units(
+        "natural_gas_price_usd_per_m3", seed,
+    ) == "USD/m3"
+    c2 = dict(seed)
+    c2["energy_case"] = "C2"
+    assert tea.confirmation_sheet_row_units(
+        "natural_gas_price_usd_per_m3", c2,
+    ) == ""
+    assert tea.confirmation_sheet_row_units("facilities", seed) == ""
+    assert tea.confirmation_sheet_row_units("sell_leftover_plastic", seed) == (
+        ""
+    )
+
+
+def test_sheet_print_shows_units_column(tmp_path, monkeypatch):
+    monkeypatch.setattr(cli, "run_turn", _ok_turn)
+    app, buf = _app(tmp_path, monkeypatch)
+    seed = tea.seed_public_process_config({
+        "target_polymer": "LDPE",
+        "solvent": "Dodecane",
+        "dissolution_temperature_c": 145.0,
+        "energy_case": "C1",
+        "target_mass_percent": 55.0,
+    })
+    origin = tea.confirmation_sheet_field_origin(
+        seed,
+        snapshot=seed,
+        screening_item={
+            "target_polymer": "LDPE",
+            "solvent": "Dodecane",
+            "dissolution_temperature_c": 145.0,
+        },
+        held_keys=["energy_case", "target_mass_percent"],
+    )
+    app._print_process_sheet(seed, origin=origin)
+    shown = buf.getvalue()
+    assert "units" in shown
+    assert "°C" in shown
+    assert "wt%" in shown
+    assert "MT/yr" in shown
+    assert "fraction" in shown
+    assert "from_screen" in shown
+    assert "origin" in shown
+
+
 

@@ -855,6 +855,7 @@ class CliApp:
         table = Table(box=None, show_header=True, pad_edge=False)
         table.add_column("field")
         table.add_column("value")
+        table.add_column("units")
         table.add_column("origin")
         for field in tea.public_process_field_names(energy_case=energy):
             shown = _format_sheet_value(buffer.get(field))
@@ -863,7 +864,8 @@ class CliApp:
             token = tea.confirmation_sheet_row_origin(
                 field, buffer, origin=origin,
             )
-            table.add_row(field, shown, token)
+            units = tea.confirmation_sheet_row_units(field, buffer)
+            table.add_row(field, shown, units, token)
         self.console.print(table)
         missing = tea.missing_public_process_fields(buffer)
         if missing:
