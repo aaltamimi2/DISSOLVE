@@ -5789,7 +5789,8 @@ def _canonical_planner_solvent_map(value: dict[str, Any]) -> dict[str, str]:
 
 
 def _planner_solvent_map_omitted(value: Any) -> bool:
-    return value in (None, "") or (isinstance(value, dict) and not value)
+    """True only when the caller did not send a map. Empty `{}` is present."""
+    return value in (None, "")
 
 
 def _planner_solvent_map_from_economics_handle(
@@ -7828,8 +7829,9 @@ def rank_landscape(
     sequence_coupling_unproven as primary (no pending_blockers).
     When formulation=sequence omits planner_solvent_map, unique
     polymer-solvent pairs on a loaded tool-1 economics handle bind that
-    map; the handle remains the remnant subtract table. Do not inherit
-    allowed_solvents. Do not scan top_k_sequences for either map.
+    map; the handle remains the remnant subtract table. Empty `{}` is
+    present and does not inherit. Do not inherit allowed_solvents. Do
+    not scan top_k_sequences for either map.
     Closed screen_to_economics_order: omitted is independent. Ranking
     does not wait on safety and does not invent a router.
     formulation is required iff source=superstructure;

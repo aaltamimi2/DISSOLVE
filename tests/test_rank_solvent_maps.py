@@ -869,6 +869,30 @@ def test_explicit_planner_map_is_not_replaced_by_handle_pairs(monkeypatch):
     assert inherited.get("error_code") != explicit.get("error_code")
 
 
+def test_empty_planner_map_does_not_inherit_from_handle(monkeypatch):
+    """Present `{}` is not omitted. Inherit only when the map is absent."""
+    _forbid_live(monkeypatch)
+    toluene = tea._public_solvent_token("Toluene")
+    dmso = tea._public_solvent_token("DMSO")
+    session = new_session()
+    with bind_tool_session(session):
+        handle = _plant_handle(session, [
+            _plant_row("LDPE", toluene, 55.0, 20_000.0),
+            _plant_row("EVOH", dmso, 45.0, 20_000.0),
+        ])
+        empty = _data(tea.rank_landscape(
+            **_sequence_kwargs(handle=handle, planner_solvent_map={}),
+        ))
+        omitted = _data(tea.rank_landscape(
+            **_sequence_kwargs(handle=handle, planner_solvent_map=None),
+        ))
+    assert empty.get("error_code") == "missing_planner_solvent_map"
+    assert empty.get("error_code") != "incomplete_stage_basis_grid"
+    assert "landscape_points" not in empty
+    assert omitted.get("error_code") == "incomplete_stage_basis_grid"
+    assert omitted.get("error_code") != "missing_planner_solvent_map"
+
+
 def test_malformed_planner_map_does_not_inherit_from_handle(monkeypatch):
     _forbid_live(monkeypatch)
     toluene = tea._public_solvent_token("Toluene")
