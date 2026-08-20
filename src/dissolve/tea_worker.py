@@ -15,7 +15,7 @@ import time
 import traceback
 from pathlib import Path
 from types import ModuleType, SimpleNamespace
-from typing import Any, Callable, Optional
+from typing import Any, Callable, Optional, Sequence
 
 _ENERGY = {
     "C1": {"facilities": True, "turbogenerator": True},
@@ -159,6 +159,60 @@ def _safe(function: Callable[[], Any]) -> Any:
         return value
     except Exception:
         return None
+
+
+def _served_tea_value(
+    function_or_value: Any,
+) -> tuple[Any, str | None, str | None]:
+    """Read one served TEA metric without swallowing the failure.
+
+    Equipment/stream helpers still use ``_safe``. MSP / TCI / AOC are
+    served: a non-finite result is a typed refusal, and the underlying
+    exception text is kept as context.
+    """
+    try:
+        value = (
+            function_or_value()
+            if callable(function_or_value)
+            else function_or_value
+        )
+    except Exception as error:
+        return None, type(error).__name__, str(error)
+    if value is None:
+        return None, None, "served metric was None"
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return None, None, f"served metric is not numeric: {value!r}"
+    if not math.isfinite(number):
+        return None, None, f"served metric is not finite: {value!r}"
+    return number, None, None
+
+
+def _nonfinite_served_tea_refusal(
+    missing: Sequence[str],
+    contexts: Sequence[str],
+) -> dict[str, Any]:
+    """Typed live refusal when a served TEA metric is not finite.
+
+    Bound to the metric property, not to an input value such as 100 wt%.
+    """
+    cashflow = any("cashflow" in text.casefold() for text in contexts)
+    error_type = (
+        "tea_cashflow_undefined"
+        if cashflow or "msp_usd_per_kg" not in missing
+        else "no_finite_msp"
+    )
+    detail = "Live TEA did not produce a finite served metric ("
+    detail += ", ".join(missing) + ")."
+    if contexts:
+        detail += " Underlying error: " + " | ".join(contexts)
+    return {
+        "error_type": error_type,
+        "error": detail,
+        "nonfinite_served_metrics": list(missing),
+        "underlying_errors": list(contexts),
+    }
 
 
 def _scalar_mapping(values: Any, limit: int = 8) -> dict[str, Any]:
@@ -1246,9 +1300,23 @@ def run(config: dict[str, Any]) -> dict[str, Any]:
     } for stream in streams[:20]]
     feed_mass = sum(float(getattr(stream, "F_mass", 0.0) or 0.0) for stream in process.system.feeds)
     product_mass = sum(float(getattr(stream, "F_mass", 0.0) or 0.0) for stream in process.system.products)
-    msp = _safe(process.MSP)
-    tci = _safe(lambda: process.tea.TCI)
-    aoc = _safe(lambda: process.tea.AOC)
+    msp, msp_exc, msp_ctx = _served_tea_value(process.MSP)
+    tci, tci_exc, tci_ctx = _served_tea_value(lambda: process.tea.TCI)
+    aoc, aoc_exc, aoc_ctx = _served_tea_value(lambda: process.tea.AOC)
+    served_missing: list[str] = []
+    served_contexts: list[str] = []
+    for key, value, exc_name, context in (
+        ("msp_usd_per_kg", msp, msp_exc, msp_ctx),
+        ("tci_usd", tci, tci_exc, tci_ctx),
+        ("aoc_usd_per_yr", aoc, aoc_exc, aoc_ctx),
+    ):
+        if value is not None:
+            continue
+        served_missing.append(key)
+        if exc_name and context:
+            served_contexts.append(f"{exc_name}: {context}")
+        elif context:
+            served_contexts.append(context)
     lca, lca_coverage = _lca_payload(
         process,
         lca_cfs,
@@ -1257,7 +1325,7 @@ def run(config: dict[str, Any]) -> dict[str, Any]:
         evaluated_lca,
     )
     result = {
-        "success": True, "solvent": config["solvent"],
+        "success": not served_missing, "solvent": config["solvent"],
         "engine_solvent": engine_identity.get("engine_solvent"),
         "solvent_identity_resolution": engine_identity,
         "target_plastic": original_target, "simulated_as": target,
@@ -1295,6 +1363,9 @@ def run(config: dict[str, Any]) -> dict[str, Any]:
         },
         "runtime_seconds": round(time.monotonic() - started, 3),
     }
+    if served_missing:
+        result.update(_nonfinite_served_tea_refusal(served_missing, served_contexts))
+        return result
     if admission.row is not None:
         result = params.attach_live_parameter_standing(
             result,

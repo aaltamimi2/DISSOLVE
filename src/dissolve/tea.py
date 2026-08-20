@@ -4264,7 +4264,7 @@ def _run(config: dict[str, Any], engine_mode: str, timeout_seconds: int) -> dict
             "lca_metric_status": metric_status,
             "lca_status_definitions": _lca_status_definitions(metric_status),
         })
-        return result
+        return _coerce_nonfinite_served_tea(result)
     if mode == "cache":
         if lca_override:
             return {
@@ -4307,7 +4307,7 @@ def _run(config: dict[str, Any], engine_mode: str, timeout_seconds: int) -> dict
     })
     if result.get("success") is True:
         result = _require_live_parameter_standing(result, config)
-    return result
+    return _coerce_nonfinite_served_tea(result)
 
 
 def _require_live_parameter_standing(
@@ -4631,6 +4631,68 @@ def _executed_stage_polymer(result: dict[str, Any]) -> str:
     return ""
 
 
+_SERVED_TEA_METRIC_KEYS = ("msp_usd_per_kg", "tci_usd", "aoc_usd_per_yr")
+_NONFINITE_SERVED_TEA_ERROR_TYPES = frozenset({
+    "no_finite_msp", "tea_cashflow_undefined",
+})
+
+
+def _finite_served_number(value: Any) -> bool:
+    try:
+        return math.isfinite(float(value))
+    except (TypeError, ValueError):
+        return False
+
+
+def _coerce_nonfinite_served_tea(result: dict[str, Any]) -> dict[str, Any]:
+    """Refuse success when a served TEA metric is not finite.
+
+    Bound to the metric, not to an input such as 100 wt%. Idempotent on
+    already-failed results. Parent-side counterpart of the worker refusal
+    so a mocked ``_run`` cannot resurrect the sort TypeError.
+    """
+    if not isinstance(result, dict) or result.get("success") is not True:
+        return result
+    tea = result.get("tea") if isinstance(result.get("tea"), dict) else {}
+    missing = [
+        key for key in _SERVED_TEA_METRIC_KEYS
+        if not _finite_served_number(tea.get(key))
+    ]
+    if not missing:
+        return result
+    out = dict(result)
+    out["success"] = False
+    cashflow = "cashflow" in str(out.get("error") or "").casefold()
+    out["error_type"] = (
+        "tea_cashflow_undefined"
+        if cashflow or "msp_usd_per_kg" not in missing
+        else "no_finite_msp"
+    )
+    out["error"] = (
+        str(out.get("error") or "").strip()
+        or (
+            "TEA did not produce a finite served metric ("
+            + ", ".join(missing)
+            + ")."
+        )
+    )
+    out["nonfinite_served_metrics"] = missing
+    return out
+
+
+def _evaluate_row_usable(row: dict[str, Any]) -> bool:
+    """Batch-evaluate counterpart of sensitivity's metric_value is not None.
+
+    A success flag with a null MSP is not a completed scenario. GWP is
+    required too so the comparison sort never calls float on None.
+    """
+    return bool(
+        row.get("success")
+        and _finite_served_number(row.get("msp_usd_per_kg"))
+        and _finite_served_number(row.get("gwp_kg_co2e_per_kg"))
+    )
+
+
 def _comparison_row(label: str, result: dict[str, Any]) -> dict[str, Any]:
     tea, lca, operations = result.get("tea") or {}, result.get("lca") or {}, result.get("operations") or {}
     config = result.get("config") or {}
@@ -4791,6 +4853,7 @@ def _comparison_row(label: str, result: dict[str, Any]) -> dict[str, Any]:
                     "canonical_solvent", "engine_solvent",
                     "solvent_support_status", "solvent_model_gap",
                     "flowsheet_switch_deltas",
+                    "nonfinite_served_metrics", "underlying_errors",
                 )
                 if result.get(key) is not None
             }
@@ -8837,7 +8900,10 @@ def evaluate_tea_lca_scenarios(
         )
     except (TypeError, ValueError) as error:
         return tool_error(tool, str(error), error_code="invalid_scenario")
-    results = [_run(config, engine_mode, timeout) for config in configs]
+    results = [
+        _coerce_nonfinite_served_tea(_run(config, engine_mode, timeout))
+        for config in configs
+    ]
     labels = [str(item.get("label") or f"scenario-{index}") for index, item in enumerate(scenarios, 1)]
     rows = [_comparison_row(label, result) for label, result in zip(labels, results)]
     if field_origins is not None:
@@ -8846,8 +8912,8 @@ def evaluate_tea_lca_scenarios(
     elif field_origin is not None:
         for row in rows:
             row["field_origin"] = dict(field_origin)
-    successes = [row for row in rows if row["success"]]
-    failures = [row for row in rows if not row["success"]]
+    successes = [row for row in rows if _evaluate_row_usable(row)]
+    failures = [row for row in rows if not _evaluate_row_usable(row)]
     if not successes:
         failure_reasons = list(dict.fromkeys(
             str(row.get("error") or "").strip()[:500]
@@ -10502,11 +10568,16 @@ def evaluate_stored_route_tea_lca(
         except ValueError as error:
             return tool_error(tool, str(error), error_code="invalid_route_stage", stage=index)
         else:
-            result = _run(config, engine_mode, max(1, min(int(timeout_seconds), 600)))
+            result = _coerce_nonfinite_served_tea(
+                _run(config, engine_mode, max(1, min(int(timeout_seconds), 600)))
+            )
             if (
                 result.get("success") is not True
                 and allow_screening_estimate
-                and result.get("error_type") != "invalid_engine_mode"
+                and result.get("error_type") not in {
+                    "invalid_engine_mode",
+                    *_NONFINITE_SERVED_TEA_ERROR_TYPES,
+                }
             ):
                 result = _screening_estimate(config, result)
         label = f"stage-{index}-{polymer}"
@@ -10972,7 +11043,16 @@ def analyze_tea_sensitivity(
         return tool_error(tool, "At least two exact sensitivity values are required.", error_code="insufficient_sensitivity_values")
     if len(requested_values) > 20:
         return tool_error(tool, "At most 20 sensitivity values may run per call.", error_code="too_many_sensitivity_values")
-    results = [_run({**baseline, field: value}, engine_mode, max(1, min(int(timeout_seconds), 600))) for value in requested_values]
+    results = [
+        _coerce_nonfinite_served_tea(
+            _run(
+                {**baseline, field: value},
+                engine_mode,
+                max(1, min(int(timeout_seconds), 600)),
+            )
+        )
+        for value in requested_values
+    ]
     rows = []
     for value, result in zip(requested_values, results):
         measured = _metric(result, metric) if result.get("success") else None
@@ -10990,7 +11070,17 @@ def analyze_tea_sensitivity(
                 {"lca_metric_status": {"metric_value": source_status}}
                 if source_status else {}
             ),
-            **({"error": result.get("error")} if not result.get("success") else {}),
+            **(
+                {
+                    key: copy.deepcopy(result[key])
+                    for key in (
+                        "error", "error_type",
+                        "nonfinite_served_metrics", "underlying_errors",
+                    )
+                    if result.get(key) is not None
+                }
+                if not result.get("success") else {}
+            ),
         }
         if field_origin is not None:
             row["field_origin"] = dict(field_origin)
