@@ -2420,6 +2420,45 @@ def confirmation_sheet_field_origin_after_edit(
     return origin
 
 
+_SHEET_ORIGIN_TOKENS = (
+    "supplied", "inherited", "from_screen", "default", "missing",
+)
+
+
+def confirmation_sheet_row_origin(
+    field: str,
+    buffer: dict[str, Any],
+    *,
+    origin: dict[str, str] | None = None,
+) -> str:
+    """Origin token printed on one confirmation-sheet row.
+
+    A recorded map wins. Without a map this does not mint
+    ``from_screen`` or ``inherited``. Not a ranking.
+    """
+    name = str(field)
+    if isinstance(origin, dict) and name in origin:
+        token = str(origin[name])
+        if token in _SHEET_ORIGIN_TOKENS:
+            return token
+        return "missing"
+    energy = str(buffer.get("energy_case") or "C1")
+    names = public_process_field_names(energy_case=energy)
+    if name not in names:
+        return "missing"
+    if name not in buffer:
+        return "missing"
+    value = buffer.get(name)
+    if name in _SHEET_REQUIRED_FIELDS and not _scenario_value_present(value):
+        return "missing"
+    defaults = first_run_sheet_defaults(energy_case=energy)
+    if name in defaults and _sheet_values_match(value, defaults[name]):
+        return "default"
+    if _scenario_value_present(value):
+        return "supplied"
+    return "missing"
+
+
 def _canonical_screening_shortlist_item(
     item: Any, index: int,
 ) -> dict[str, Any]:

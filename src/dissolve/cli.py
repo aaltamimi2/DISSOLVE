@@ -823,7 +823,9 @@ class CliApp:
             seed = self._process_buffer or tea.seed_public_process_config()
             snapshot = copy.deepcopy(seed)
             submitted = self._edit_process_sheet(
-                seed, require_submit=False,
+                seed,
+                require_submit=False,
+                origin=self._sheet_field_origin,
             )
             if submitted is None:
                 self.console.print("[dim]Process sheet discarded.[/]")
@@ -843,17 +845,25 @@ class CliApp:
             self.console.print(f"[yellow]Unknown command:[/] {command}")
         return False
 
-    def _print_process_sheet(self, buffer: dict[str, Any]) -> None:
+    def _print_process_sheet(
+        self,
+        buffer: dict[str, Any],
+        origin: dict[str, str] | None = None,
+    ) -> None:
         self.console.print(_PROCESS_SHEET_HEADER)
         energy = str(buffer.get("energy_case") or "C1")
         table = Table(box=None, show_header=True, pad_edge=False)
         table.add_column("field")
         table.add_column("value")
+        table.add_column("origin")
         for field in tea.public_process_field_names(energy_case=energy):
             shown = _format_sheet_value(buffer.get(field))
             if field == "irr" and buffer.get("irr") is not None:
                 shown = f"{buffer['irr']} ({float(buffer['irr']) * 100:g}%)"
-            table.add_row(field, shown)
+            token = tea.confirmation_sheet_row_origin(
+                field, buffer, origin=origin,
+            )
+            table.add_row(field, shown, token)
         self.console.print(table)
         missing = tea.missing_public_process_fields(buffer)
         if missing:
@@ -882,11 +892,12 @@ class CliApp:
         *,
         require_submit: bool = True,
         prompt_fn: Callable[..., str] | None = None,
+        origin: dict[str, str] | None = None,
     ) -> dict[str, Any] | None:
         """Question pane. Returns the same buffer object, or None on abort."""
         buffer = seed
         ask = prompt_fn or Prompt.ask
-        self._print_process_sheet(buffer)
+        self._print_process_sheet(buffer, origin=origin)
         energy = str(buffer.get("energy_case") or "C1")
         fields = tea.public_process_field_names(energy_case=energy)
         for field in fields:
@@ -1025,6 +1036,31 @@ class CliApp:
             return None
         return next((item for item in items if isinstance(item, dict)), None)
 
+    def _preview_sheet_field_origin(
+        self,
+        submitted: dict[str, Any],
+        snapshot: dict[str, Any],
+        *,
+        seed_from_handoff: bool,
+        shortlist: Any = None,
+        held: Any = None,
+        caller: Any = None,
+    ) -> dict[str, str]:
+        screening_item = (
+            self._first_shortlist_item(shortlist) if seed_from_handoff else None
+        )
+        caller_keys = list(caller) if isinstance(caller, dict) else []
+        held_keys = (
+            list(held) if seed_from_handoff and isinstance(held, dict) else []
+        )
+        return tea.confirmation_sheet_field_origin(
+            submitted,
+            snapshot=snapshot,
+            screening_item=screening_item,
+            caller_keys=caller_keys,
+            held_keys=held_keys,
+        )
+
     def _record_sheet_field_origin(
         self,
         submitted: dict[str, Any],
@@ -1035,19 +1071,13 @@ class CliApp:
         held: Any = None,
         caller: Any = None,
     ) -> None:
-        screening_item = (
-            self._first_shortlist_item(shortlist) if seed_from_handoff else None
-        )
-        caller_keys = list(caller) if isinstance(caller, dict) else []
-        held_keys = (
-            list(held) if seed_from_handoff and isinstance(held, dict) else []
-        )
-        self._sheet_field_origin = tea.confirmation_sheet_field_origin(
+        self._sheet_field_origin = self._preview_sheet_field_origin(
             submitted,
-            snapshot=snapshot,
-            screening_item=screening_item,
-            caller_keys=caller_keys,
-            held_keys=held_keys,
+            snapshot,
+            seed_from_handoff=seed_from_handoff,
+            shortlist=shortlist,
+            held=held,
+            caller=caller,
         )
 
     def _stamp_confirmation_field_origin(self, result: Any) -> Any:
@@ -1115,7 +1145,17 @@ class CliApp:
                 )
             seed = self._confirm_seed(seed_src if isinstance(seed_src, dict) else None)
             snapshot = copy.deepcopy(seed)
-            submitted = self._edit_process_sheet(seed, prompt_fn=prompt_fn)
+            preview = self._preview_sheet_field_origin(
+                seed,
+                snapshot,
+                seed_from_handoff=not scenarios,
+                shortlist=kwargs.get("screening_shortlist"),
+                held=kwargs.get("held_process_basis"),
+                caller=seed_src if scenarios else None,
+            )
+            submitted = self._edit_process_sheet(
+                seed, prompt_fn=prompt_fn, origin=preview,
+            )
             if submitted is None:
                 return None
             self._process_buffer = submitted
@@ -1137,7 +1177,12 @@ class CliApp:
             if mode == "route":
                 seed = self._confirm_seed(None)
                 snapshot = copy.deepcopy(seed)
-                submitted = self._edit_process_sheet(seed, prompt_fn=prompt_fn)
+                preview = self._preview_sheet_field_origin(
+                    seed, snapshot, seed_from_handoff=False,
+                )
+                submitted = self._edit_process_sheet(
+                    seed, prompt_fn=prompt_fn, origin=preview,
+                )
                 if submitted is None:
                     return None
                 self._process_buffer = submitted
@@ -1156,11 +1201,21 @@ class CliApp:
                 )
             seed = self._confirm_seed(seed_src if isinstance(seed_src, dict) else None)
             snapshot = copy.deepcopy(seed)
-            submitted = self._edit_process_sheet(seed, prompt_fn=prompt_fn)
+            caller = seed_src if isinstance(kwargs.get("process_config"), dict) or configs else None
+            preview = self._preview_sheet_field_origin(
+                seed,
+                snapshot,
+                seed_from_handoff=caller is None,
+                shortlist=kwargs.get("screening_shortlist"),
+                held=kwargs.get("held_process_basis"),
+                caller=caller,
+            )
+            submitted = self._edit_process_sheet(
+                seed, prompt_fn=prompt_fn, origin=preview,
+            )
             if submitted is None:
                 return None
             self._process_buffer = submitted
-            caller = seed_src if isinstance(kwargs.get("process_config"), dict) or configs else None
             self._record_sheet_field_origin(
                 submitted,
                 snapshot,
@@ -1184,7 +1239,17 @@ class CliApp:
                 )
             seed = self._confirm_seed(seed_src if isinstance(seed_src, dict) else None)
             snapshot = copy.deepcopy(seed)
-            submitted = self._edit_process_sheet(seed, prompt_fn=prompt_fn)
+            preview = self._preview_sheet_field_origin(
+                seed,
+                snapshot,
+                seed_from_handoff=not isinstance(kwargs.get("scenario"), dict),
+                shortlist=kwargs.get("screening_shortlist"),
+                held=kwargs.get("held_process_basis"),
+                caller=seed_src if isinstance(kwargs.get("scenario"), dict) else None,
+            )
+            submitted = self._edit_process_sheet(
+                seed, prompt_fn=prompt_fn, origin=preview,
+            )
             if submitted is None:
                 return None
             self._process_buffer = submitted

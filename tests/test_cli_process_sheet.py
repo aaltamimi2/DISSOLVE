@@ -1287,4 +1287,145 @@ def test_process_abort_does_not_refresh_origin(tmp_path, monkeypatch):
     ] == "default"
 
 
+def test_confirmation_sheet_row_origin_recorded_map_wins():
+    seed = tea.seed_public_process_config({
+        "target_polymer": "LDPE",
+        "solvent": "Dodecane",
+        "dissolution_temperature_c": 145.0,
+        "energy_case": "C1",
+        "target_mass_percent": 55.0,
+    })
+    origin = tea.confirmation_sheet_field_origin(
+        seed,
+        snapshot=seed,
+        screening_item={
+            "target_polymer": "LDPE",
+            "solvent": "Dodecane",
+            "dissolution_temperature_c": 145.0,
+        },
+        held_keys=["energy_case", "target_mass_percent"],
+    )
+    assert tea.confirmation_sheet_row_origin(
+        "target_polymer", seed, origin=origin,
+    ) == "from_screen"
+    assert tea.confirmation_sheet_row_origin(
+        "precipitation_temperature_c", seed, origin=origin,
+    ) == "default"
+    assert tea.confirmation_sheet_row_origin(
+        "target_mass_percent", seed, origin=origin,
+    ) == "supplied"
+    assert tea.confirmation_sheet_row_origin("target_polymer", seed) == (
+        "supplied"
+    )
+    assert tea.confirmation_sheet_row_origin("target_polymer", seed) != (
+        "from_screen"
+    )
+    assert tea.confirmation_sheet_row_origin(
+        "precipitation_temperature_c", seed,
+    ) == "default"
+    empty = dict(seed)
+    empty.pop("target_polymer")
+    assert tea.confirmation_sheet_row_origin("target_polymer", empty) == (
+        "missing"
+    )
+    assert tea.confirmation_sheet_row_origin(
+        "facilities", seed, origin=origin,
+    ) == "missing"
+    assert tea.confirmation_sheet_row_origin(
+        "solvent", seed, origin={"solvent": "fail"},
+    ) == "missing"
+    assert tea.confirmation_sheet_row_origin(
+        "solvent", seed, origin={"solvent": "inherited"},
+    ) == "inherited"
+
+
+def test_sheet_print_shows_origin_column(tmp_path, monkeypatch):
+    monkeypatch.setattr(cli, "run_turn", _ok_turn)
+    app, buf = _app(tmp_path, monkeypatch)
+    seed = tea.seed_public_process_config({
+        "target_polymer": "LDPE",
+        "solvent": "Dodecane",
+        "dissolution_temperature_c": 145.0,
+        "energy_case": "C1",
+        "target_mass_percent": 55.0,
+    })
+    origin = tea.confirmation_sheet_field_origin(
+        seed,
+        snapshot=seed,
+        screening_item={
+            "target_polymer": "LDPE",
+            "solvent": "Dodecane",
+            "dissolution_temperature_c": 145.0,
+        },
+        held_keys=["energy_case", "target_mass_percent"],
+    )
+    app._print_process_sheet(seed, origin=origin)
+    shown = buf.getvalue()
+    assert "origin" in shown
+    assert "from_screen" in shown
+    assert "default" in shown
+    assert "supplied" in shown
+    assert "inherited" not in shown
+
+
+def test_sheet_print_without_map_does_not_mint_from_screen(
+    tmp_path, monkeypatch,
+):
+    monkeypatch.setattr(cli, "run_turn", _ok_turn)
+    app, buf = _app(tmp_path, monkeypatch)
+    seed = tea.seed_public_process_config({
+        "target_polymer": "LDPE",
+        "solvent": "Dodecane",
+        "dissolution_temperature_c": 145.0,
+    })
+    app._print_process_sheet(seed)
+    shown = buf.getvalue()
+    assert "from_screen" not in shown
+    assert "inherited" not in shown
+    assert "default" in shown
+    assert "supplied" in shown
+
+
+def test_first_run_sheet_print_shows_from_screen(tmp_path, monkeypatch):
+    monkeypatch.setattr(cli, "run_turn", _ok_turn)
+    monkeypatch.setattr(sys.stdin, "isatty", lambda: True)
+    monkeypatch.setattr(cli.Prompt, "ask", _accept_defaults)
+    app, buf = _app(tmp_path, monkeypatch)
+
+    def original(name, **kwargs):
+        if kwargs.get("scenarios"):
+            row = dict(kwargs["scenarios"][0])
+        else:
+            row = dict(kwargs.get("process_config") or {})
+        return {"success": True, "comparison_rows": [row]}
+
+    app._cli_direct_active = True
+    result = app._cli_direct_dispatch(
+        original,
+        "evaluate_tea_lca_scenarios",
+        {
+            "screening_shortlist": {
+                "source": "explicit",
+                "items": [{
+                    "target_polymer": "LDPE",
+                    "solvent": "Dodecane",
+                    "dissolution_temperature_c": 145.0,
+                }],
+            },
+            "held_process_basis": {
+                "energy_case": "C1",
+                "target_mass_percent": 55.0,
+            },
+        },
+    )
+    shown = buf.getvalue()
+    assert "from_screen" in shown
+    assert "default" in shown
+    assert "supplied" in shown
+    origin = result["comparison_rows"][0]["field_origin"]
+    assert origin["target_polymer"] == "from_screen"
+    assert origin["precipitation_temperature_c"] == "default"
+    assert origin["target_mass_percent"] == "supplied"
+
+
 
