@@ -181,6 +181,22 @@ def test_residual_route_pareto_returns_landscape_and_frontier(monkeypatch):
         point["safety_standing"]["status"] == "not_requested"
         for point in landscape
     )
+    x_key = payload.get("x_metric") or "total_cost"
+    y_key = payload.get("y_metric") or "emissions"
+    spans = payload.get("axis_spans") or {}
+    assert set(spans) == {x_key, y_key}
+    costs = [float(point[x_key]) for point in landscape]
+    emissions = [float(point[y_key]) for point in landscape]
+    assert spans[x_key]["min"] == min(costs)
+    assert spans[x_key]["max"] == max(costs)
+    assert spans[y_key]["min"] == min(emissions)
+    assert spans[y_key]["max"] == max(emissions)
+    for axis, values in ((x_key, costs), (y_key, emissions)):
+        span = spans[axis]
+        assert span["min"] <= span["p05"] <= span["p95"] <= span["max"]
+        assert span == optimization.axis_span(values)
+    slice0 = (payload.get("slices") or [{}])[0]
+    assert slice0.get("axis_spans") == spans
 
 
 def test_pareto_name_retired_both_successors_serve(monkeypatch):
@@ -285,6 +301,16 @@ def test_residual_pareto_quality_matches_fraction_and_sparse_definition():
     assert tradeoff["frontier_fraction"] == 1.0
     assert tradeoff["cheapest_equals_lowest_y"] is False
     assert tradeoff["sparse_frontier"] is False
+    spans = star["axis_spans"]
+    assert spans["total_cost"]["min"] == 1.0
+    assert spans["total_cost"]["max"] == 3.0
+    assert spans["emissions"]["min"] == 1.0
+    assert spans["emissions"]["max"] == 2.0
+    singleton = optimization._residual_pareto_quality(
+        [one], [one], "total_cost", "emissions",
+    )
+    cost_span = singleton["axis_spans"]["total_cost"]
+    assert cost_span["min"] == cost_span["p05"] == cost_span["p95"] == cost_span["max"] == 1.0
 
 
 def test_residual_route_optimum_omits_frontier_fraction(monkeypatch):
@@ -299,6 +325,7 @@ def test_residual_route_optimum_omits_frontier_fraction(monkeypatch):
     assert payload.get("success") is True
     assert "frontier_fraction" not in payload
     assert "sparse_frontier" not in payload
+    assert "axis_spans" not in payload
     landscape = payload.get("landscape_points") or []
     assert landscape
     assert all(

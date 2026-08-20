@@ -18,7 +18,7 @@ from typing import Any, Literal, Optional, Sequence
 
 from .contracts import tool_error, tool_success
 from . import tea_contracts
-from .landscape import _carried_safety_standing
+from .landscape import _carried_safety_standing, axis_span
 from .session import (
     candidate_evidence, current_tool_session,
     resolve_candidate_argument,
@@ -544,21 +544,35 @@ def _axis_extreme(
     return min(points, key=lambda point: float(point[key]))
 
 
+def _residual_axis_spans(
+    landscape: Sequence[dict[str, Any]], x_key: str, y_key: str,
+) -> dict[str, dict[str, float]]:
+    """Hyndman–Fan type 7 spans of the usable landscape, not the frontier."""
+    if not landscape:
+        return {}
+    return {
+        x_key: axis_span([float(point[x_key]) for point in landscape]),
+        y_key: axis_span([float(point[y_key]) for point in landscape]),
+    }
+
+
 def _residual_pareto_quality(
     landscape: Sequence[dict[str, Any]],
     frontier: Sequence[dict[str, Any]],
     x_key: str,
     y_key: str,
 ) -> dict[str, Any]:
-    """F quality fields residual_route was missing: fraction, sparse, equality."""
+    """F quality fields on residual pareto: fraction, sparse, equality, spans."""
     n_landscape = len(landscape)
     n_frontier = len(frontier)
     fraction = (n_frontier / n_landscape) if n_landscape else None
+    spans = _residual_axis_spans(landscape, x_key, y_key)
     if not frontier:
         return {
             "frontier_fraction": fraction,
             "sparse_frontier": False,
             "cheapest_equals_lowest_y": False,
+            "axis_spans": spans,
         }
     cheapest = _axis_extreme(frontier, x_key, _DIRECTIONS[x_key])
     best_y = _axis_extreme(frontier, y_key, _DIRECTIONS[y_key])
@@ -570,6 +584,7 @@ def _residual_pareto_quality(
         "frontier_fraction": fraction,
         "sparse_frontier": n_frontier == 1 or equals,
         "cheapest_equals_lowest_y": equals,
+        "axis_spans": spans,
     }
 
 
@@ -839,6 +854,7 @@ def rank_residual_route(
         frontier_fraction=primary["frontier_fraction"],
         sparse_frontier=primary["sparse_frontier"],
         cheapest_equals_lowest_y=primary["cheapest_equals_lowest_y"],
+        axis_spans=primary["axis_spans"],
         knee_point=primary["knee_point"],
         knee_status=primary["knee_status"],
         cheapest_point=primary["cheapest_point"],
@@ -847,7 +863,7 @@ def rank_residual_route(
             key: item[key] for key in (
                 "slice_id", "feed_mass_fractions", "n_landscape_points",
                 "n_frontier_points", "frontier_fraction", "sparse_frontier",
-                "cheapest_equals_lowest_y", "knee_point", "cheapest_point",
+                "cheapest_equals_lowest_y", "axis_spans", "knee_point", "cheapest_point",
                 "knee_status", "frontier_tradeoff",
             )
         } for item in slice_payloads],
