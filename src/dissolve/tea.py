@@ -5043,6 +5043,28 @@ def _requested_labor_cost_usd_per_employee_yr(
     return round(_finite(raw, "labor_cost_usd_per_employee_yr"), 10)
 
 
+def _requested_sell_leftover_plastic(process_config: Any) -> bool | None:
+    """Held leftover-sale switch. Do not default False."""
+    if not isinstance(process_config, dict):
+        return None
+    if (
+        "sell_leftover_plastic" not in process_config
+        or process_config["sell_leftover_plastic"] in (None, "")
+    ):
+        return None
+    try:
+        return _coerce_flowsheet_bool(
+            process_config["sell_leftover_plastic"], "sell_leftover_plastic",
+        )
+    except _ScenarioInputError:
+        raise _ScenarioInputError(
+            "sell_leftover_plastic must be a boolean",
+            error_code="invalid_admitted_record_query",
+            field="sell_leftover_plastic",
+            supplied=process_config["sell_leftover_plastic"],
+        )
+
+
 def _superstructure_composition_and_capacity(
     feed_mass_fractions: Any,
     process_config: Any,
@@ -5274,6 +5296,7 @@ def _remnant_key_from_row(
     feedstock_distance_km: float | None = None,
     dissolution_capacity: float | None = None,
     labor_cost_usd_per_employee_yr: float | None = None,
+    sell_leftover_plastic: bool | None = None,
 ) -> tuple[Any, ...] | None:
     """Remnant coordinate of a tool-1 row. Failures are not a fill."""
     if not isinstance(row, dict) or row.get("success") is False:
@@ -5321,6 +5344,17 @@ def _remnant_key_from_row(
         if row_v != held:
             return None
         key = key + (held,)
+    if sell_leftover_plastic is not None:
+        raw = row.get("sell_leftover_plastic")
+        if raw in (None, ""):
+            return None
+        try:
+            row_v = _coerce_flowsheet_bool(raw, "sell_leftover_plastic")
+        except _ScenarioInputError:
+            return None
+        if row_v != sell_leftover_plastic:
+            return None
+        key = key + (sell_leftover_plastic,)
     return key
 
 
@@ -5355,6 +5389,14 @@ def _cell_remnant_key(cell: dict[str, Any]) -> tuple[Any, ...] | None:
                 key = key + (round(_finite(temp, field), 10),)
             except ValueError:
                 return None
+    sell = cell.get("sell_leftover_plastic")
+    if sell not in (None, ""):
+        try:
+            key = key + (
+                _coerce_flowsheet_bool(sell, "sell_leftover_plastic"),
+            )
+        except _ScenarioInputError:
+            return None
     return key
 
 
@@ -5364,6 +5406,19 @@ def _held_rounded_field(
     return next(
         (
             round(_finite(cell[field], field), 10)
+            for cell in missing_keys
+            if cell.get(field) not in (None, "")
+        ),
+        None,
+    )
+
+
+def _held_bool_field(
+    missing_keys: list[dict[str, Any]], field: str,
+) -> bool | None:
+    return next(
+        (
+            _coerce_flowsheet_bool(cell[field], field)
             for cell in missing_keys
             if cell.get(field) not in (None, "")
         ),
@@ -5400,6 +5455,7 @@ def _unmatched_remnant_keys(
     held_labor = _held_rounded_field(
         missing_keys, "labor_cost_usd_per_employee_yr",
     )
+    held_sell = _held_bool_field(missing_keys, "sell_leftover_plastic")
     present = {
         key for row in rows
         if (
@@ -5413,6 +5469,7 @@ def _unmatched_remnant_keys(
                 feedstock_distance_km=held_distance,
                 dissolution_capacity=held_dissolution_capacity,
                 labor_cost_usd_per_employee_yr=held_labor,
+                sell_leftover_plastic=held_sell,
             )
         ) is not None
     }
@@ -5450,6 +5507,7 @@ def _refuse_listed_or_complete(
         "labor_cost_usd_per_employee_yr": (
             _requested_labor_cost_usd_per_employee_yr(process_config)
         ),
+        "sell_leftover_plastic": _requested_sell_leftover_plastic(process_config),
     }
     if any(value is not None for value in held.values()):
         stamped: list[dict[str, Any]] = []
@@ -5686,9 +5744,10 @@ def rank_landscape(
     a silent C1 default. When process_config names
     dissolution_temperature_c, precipitation_temperature_c,
     solvent_price_usd_per_kg, solvent_loss_pct,
-    feedstock_distance_km, dissolution_capacity, or
-    labor_cost_usd_per_employee_yr, listed keys include that held value
-    and matching requires it; omitted is not a silent cache default. A complete sequence grid with production check red is
+    feedstock_distance_km, dissolution_capacity,
+    labor_cost_usd_per_employee_yr, or sell_leftover_plastic, listed
+    keys include that held value and matching requires it; omitted is
+    not a silent cache or production default. A complete sequence grid with production check red is
     sequence_coupling_unproven as primary (no pending_blockers).
     Do not scan top_k_sequences for either map.
     formulation is required iff source=superstructure;
