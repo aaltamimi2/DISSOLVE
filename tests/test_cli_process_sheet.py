@@ -1565,8 +1565,8 @@ def test_c2_sheet_print_states_not_on_this_instance(tmp_path, monkeypatch):
     assert "energy_case=C2" in shown
     assert "USD/m3" not in shown
     assert "energy_case=C1" not in shown
-    assert "natural_gas_price_u" in shown
-    assert "steam_power_depreci" in shown
+    assert re.search(r"^natural_gas_price_usd_per_m3\b", shown, re.M)
+    assert re.search(r"^steam_power_depreciation\b", shown, re.M)
 
 
 def test_c1_sheet_print_does_not_state_not_on_this_instance(
@@ -1648,6 +1648,32 @@ def test_c2_sheet_print_shows_derived_facilities_false(tmp_path, monkeypatch):
     assert re.search(r"^facilities\s+true\b", shown, re.M) is None
     assert "not on this" in shown
     assert "energy_case=C2" in shown
+
+
+def test_sheet_print_keeps_long_public_names_contiguous(tmp_path, monkeypatch):
+    monkeypatch.setattr(cli, "run_turn", _ok_turn)
+    app, buf = _app(tmp_path, monkeypatch)
+    c1 = tea.seed_public_process_config({
+        "target_polymer": "LDPE",
+        "solvent": "Dodecane",
+        "dissolution_temperature_c": 145.0,
+        "energy_case": "C1",
+    })
+    app._print_process_sheet(c1)
+    shown = buf.getvalue()
+    for name in (
+        "precipitation_temperature_format",
+        "labor_cost_usd_per_employee_yr",
+        "natural_gas_price_usd_per_m3",
+        "processing_capacity_mt_per_yr",
+        "centrifuged_plastic_solvent_content_pct",
+    ):
+        assert re.search(rf"^{name}\b", shown, re.M)
+        assert f"{name}…" not in shown
+    for name in tea.public_process_field_names(energy_case="C1"):
+        assert re.search(rf"^{re.escape(name)}\b", shown, re.M)
+    assert "…" not in shown
+    assert re.search(r"^facilities\s+true\b", shown, re.M)
 
 
 

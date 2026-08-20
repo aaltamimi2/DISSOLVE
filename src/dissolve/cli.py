@@ -852,11 +852,7 @@ class CliApp:
     ) -> None:
         self.console.print(_PROCESS_SHEET_HEADER)
         energy = str(buffer.get("energy_case") or "C1")
-        table = Table(box=None, show_header=True, pad_edge=False)
-        table.add_column("field")
-        table.add_column("value")
-        table.add_column("units")
-        table.add_column("origin")
+        self.console.print("field  value  units  origin")
         for field in tea.public_process_field_names(energy_case=energy):
             shown = _format_sheet_value(buffer.get(field))
             if field == "irr" and buffer.get("irr") is not None:
@@ -865,24 +861,21 @@ class CliApp:
                 field, buffer, origin=origin,
             )
             units = tea.confirmation_sheet_row_units(field, buffer)
-            table.add_row(field, shown, units, token)
+            self.console.print(
+                f"{field}  {shown}  {units}  {token}".rstrip()
+            )
         for field, value in tea.confirmation_sheet_derived_energy_case_rows(
             buffer,
         ):
-            table.add_row(
-                field,
-                _format_sheet_value(value),
-                "",
-                tea.confirmation_sheet_derived_energy_case_label(),
+            self.console.print(
+                f"{field}  {_format_sheet_value(value)}  "
+                f"{tea.confirmation_sheet_derived_energy_case_label()}"
             )
         for field in tea.confirmation_sheet_not_on_this_instance(buffer):
-            table.add_row(
-                field,
-                tea.confirmation_sheet_not_on_this_instance_label(buffer),
-                "",
-                "",
+            self.console.print(
+                f"{field}  "
+                f"{tea.confirmation_sheet_not_on_this_instance_label(buffer)}"
             )
-        self.console.print(table)
         missing = tea.missing_public_process_fields(buffer)
         if missing:
             self.console.print(f"[yellow]missing:[/] {', '.join(missing)}")
