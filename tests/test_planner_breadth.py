@@ -482,6 +482,50 @@ def test_planner_routes_residual_kwargs_are_not_applicable(monkeypatch):
         assert data.get("source") == "planner_routes"
 
 
+def test_planner_routes_objective_on_pareto_is_not_applicable(monkeypatch):
+    def forbidden(*args, **kwargs):
+        raise AssertionError("planner_routes must not start BioSTEAM")
+
+    monkeypatch.setattr(tea, "_live", forbidden)
+    monkeypatch.setattr(tea.tea_worker, "run", forbidden)
+    session = new_session()
+    with bind_tool_session(session):
+        branched = dispatch(
+            "plan_multistage_separation",
+            feed_polymers=_PAIR,
+            breadth=5,
+        )
+        handle = branched["handle"]
+        served = dispatch(
+            "rank_landscape",
+            source="planner_routes",
+            operation="pareto_dominance",
+            handle=handle,
+        )
+        sorted_paths = dispatch(
+            "rank_landscape",
+            source="planner_routes",
+            operation="sort",
+            objective="min_stage_g_score",
+            handle=handle,
+        )
+        refused = dispatch(
+            "rank_landscape",
+            source="planner_routes",
+            operation="pareto_dominance",
+            handle=handle,
+            objective="min_stage_g_score",
+        )
+    assert served.get("available") is True
+    assert sorted_paths.get("available") is True
+    data = refused.get("data") or {}
+    assert refused.get("available") is False
+    assert refused.get("refusal") == "not_applicable_in_source"
+    assert data.get("inapplicable_fields") == ["objective"]
+    assert data.get("source") == "planner_routes"
+    assert data.get("operation") == "pareto_dominance"
+
+
 def test_planner_routes_mixed_polymer_grouping_is_not_applicable(monkeypatch):
     def forbidden(*args, **kwargs):
         raise AssertionError("planner_routes must not start BioSTEAM")
