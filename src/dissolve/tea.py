@@ -211,6 +211,12 @@ _SCREENING_ITEM_KEYS = frozenset({
     "target_polymer", "target_plastic", "solvent",
     "dissolution_temperature_c", "dissolution_temp_c",
     "temperature_c",
+    "thermo_rank",
+})
+_ORIGINAL_THERMO_RANK_KEY = "_original_thermo_rank"
+_LIVE_TEA_SECONDS_PER_PAIR = 15.132821729521634
+_PROCESS_ROWS_SORT_OBJECTIVES = frozenset({
+    "msp_usd_per_kg", "gwp_kg_co2e_per_kg",
 })
 _HELD_PROCESS_BASIS_KEYS = frozenset().union(
     *(
@@ -2750,6 +2756,190 @@ def _canonical_screening_shortlist_item(
     }
 
 
+def _canonical_thermo_rank(value: Any, index: int) -> int | None:
+    if value is None:
+        return None
+    if isinstance(value, bool):
+        raise _ScenarioInputError(
+            "thermo_rank must be a positive integer",
+            error_code="screening_shortlist_incomplete",
+            item_index=index,
+            field="thermo_rank",
+        )
+    if isinstance(value, int):
+        number = value
+    elif isinstance(value, float) and math.isfinite(value) and value == int(value):
+        number = int(value)
+    else:
+        raise _ScenarioInputError(
+            "thermo_rank must be a positive integer",
+            error_code="screening_shortlist_incomplete",
+            item_index=index,
+            field="thermo_rank",
+        )
+    if number < 1:
+        raise _ScenarioInputError(
+            "thermo_rank must be a positive integer",
+            error_code="screening_shortlist_incomplete",
+            item_index=index,
+            field="thermo_rank",
+            supplied=value,
+        )
+    return number
+
+
+def _stage_identity(
+    polymer: Any, solvent: Any, temperature: Any,
+) -> tuple[str, str, float | None]:
+    text = str(solvent or "").strip()
+    resolved = thermo.resolve_solvent(text) if text else None
+    try:
+        temp = (
+            round(float(temperature), 6)
+            if temperature is not None and not isinstance(temperature, bool)
+            else None
+        )
+        if temp is not None and not math.isfinite(temp):
+            temp = None
+    except (TypeError, ValueError):
+        temp = None
+    return (_key(polymer), _key(resolved or text), temp)
+
+
+def _plan_exact_from_shortlist_handle(handle: Any) -> dict[str, Any] | None:
+    token = handle.strip() if isinstance(handle, str) else ""
+    if not token:
+        return None
+    record = current_tool_session()
+    stored = load_handle(record, token) if record is not None else None
+    if record is not None and stored is None:
+        raise _ScenarioInputError(
+            "unknown handle",
+            error_code="unknown_handle",
+            handle=token,
+        )
+    if not isinstance(stored, dict):
+        return None
+    exact = stored.get("exact")
+    if (
+        stored.get("tool") != "plan_multistage_separation"
+        or not isinstance(exact, dict)
+        or exact.get("success") is not True
+    ):
+        return None
+    return exact
+
+
+def _designated_residue_polymer(exact: dict[str, Any]) -> str | None:
+    accounting = exact.get("residue_accounting")
+    if isinstance(accounting, dict):
+        named = accounting.get("polymer")
+        if _scenario_value_present(named):
+            return str(named)
+    residue = exact.get("final_residue")
+    if _scenario_value_present(residue):
+        return str(residue)
+    return None
+
+
+def _plan_route_steps(exact: dict[str, Any]) -> list[list[dict[str, Any]]]:
+    sequences: list[list[dict[str, Any]]] = []
+    for route in exact.get("top_k_sequences") or []:
+        if not isinstance(route, dict):
+            continue
+        steps = [
+            item for item in (route.get("steps") or []) if isinstance(item, dict)
+        ]
+        if steps:
+            sequences.append(steps)
+    winner = [item for item in (exact.get("steps") or []) if isinstance(item, dict)]
+    if winner:
+        sequences.append(winner)
+    return sequences
+
+
+def _plan_first_stage_identities(exact: dict[str, Any]) -> set[tuple[str, str, float | None]]:
+    identities: set[tuple[str, str, float | None]] = set()
+    shortlists = exact.get("stage1_shortlists")
+    if isinstance(shortlists, list):
+        for block in shortlists:
+            items = block.get("items") if isinstance(block, dict) else None
+            for item in items or []:
+                if not isinstance(item, dict):
+                    continue
+                ident = _stage_identity(
+                    item.get("target_polymer") or item.get("target_plastic"),
+                    item.get("solvent"),
+                    item.get("dissolution_temperature_c")
+                    or item.get("temperature_c"),
+                )
+                if ident[0]:
+                    identities.add(ident)
+    for steps in _plan_route_steps(exact):
+        first = steps[0]
+        ident = _stage_identity(
+            first.get("dissolved_polymer") or first.get("polymer"),
+            first.get("solvent"),
+            first.get("temperature_c") or first.get("dissolution_temperature_c"),
+        )
+        if ident[0]:
+            identities.add(ident)
+    return identities
+
+
+def _plan_later_stage_identities(exact: dict[str, Any]) -> set[tuple[str, str, float | None]]:
+    identities: set[tuple[str, str, float | None]] = set()
+    for steps in _plan_route_steps(exact):
+        for item in steps[1:]:
+            ident = _stage_identity(
+                item.get("dissolved_polymer") or item.get("polymer"),
+                item.get("solvent"),
+                item.get("temperature_c") or item.get("dissolution_temperature_c"),
+            )
+            if ident[0]:
+                identities.add(ident)
+    return identities
+
+
+def _refuse_residue_or_later_stage_shortlist(
+    items: list[tuple[dict[str, Any], int]],
+    exact: dict[str, Any],
+) -> None:
+    residue = _designated_residue_polymer(exact)
+    residue_key = _key(residue) if residue else ""
+    first = _plan_first_stage_identities(exact)
+    later = _plan_later_stage_identities(exact)
+    for three, index in items:
+        polymer = three.get("target_polymer")
+        ident = _stage_identity(
+            polymer,
+            three.get("solvent"),
+            three.get("dissolution_temperature_c"),
+        )
+        if residue_key and _key(polymer) == residue_key and ident not in first:
+            raise _ScenarioInputError(
+                "the designated residue is not a costed stage",
+                error_code="residue_was_costed",
+                item_index=index,
+                polymer=polymer,
+                final_residue=residue,
+            )
+        if ident in later and ident not in first:
+            raise _ScenarioInputError(
+                "later-stage shortlist items are not stage-1 feed-basis TEA",
+                error_code="stage_basis_not_derived",
+                item_index=index,
+                named_blocker="incomplete_stage_basis_grid",
+                identity={
+                    "target_polymer": three.get("target_polymer"),
+                    "solvent": three.get("solvent"),
+                    "dissolution_temperature_c": three.get(
+                        "dissolution_temperature_c"
+                    ),
+                },
+            )
+
+
 def _expand_screening_evaluate_handoff(
     shortlist: Any,
     held: Any,
@@ -2826,10 +3016,25 @@ def _expand_screening_evaluate_handoff(
             error_code="too_many_scenarios",
         )
     canonical_held = _canonical_held_process_basis(held)
-    scenarios = []
+    canonical_items: list[tuple[dict[str, Any], int, int | None]] = []
     for index, item in enumerate(items):
         three = _canonical_screening_shortlist_item(item, index)
-        scenarios.append({**canonical_held, **three})
+        rank = _canonical_thermo_rank(
+            item.get("thermo_rank") if isinstance(item, dict) else None,
+            index,
+        )
+        canonical_items.append((three, index, rank))
+    plan_exact = _plan_exact_from_shortlist_handle(handle)
+    if plan_exact is not None:
+        _refuse_residue_or_later_stage_shortlist(
+            [(three, index) for three, index, _rank in canonical_items],
+            plan_exact,
+        )
+    scenarios = []
+    for three, _index, rank in canonical_items:
+        scenario = {**canonical_held, **three}
+        scenario[_ORIGINAL_THERMO_RANK_KEY] = rank
+        scenarios.append(scenario)
     return scenarios, _handoff_field_origin(held, nine_origin=nine_origin)
 
 
@@ -3313,9 +3518,13 @@ def _scenario_config(
 ) -> dict[str, Any]:
     if not isinstance(scenario, dict):
         raise ValueError("Each scenario must be an object")
-    _refuse_reserved_process_fields(scenario)
+    working_keys = dict(scenario)
+    thermo_rank_supplied = _ORIGINAL_THERMO_RANK_KEY in working_keys
+    thermo_rank = working_keys.pop(_ORIGINAL_THERMO_RANK_KEY, None)
+    _refuse_reserved_process_fields(working_keys)
     unknown = sorted(
-        str(key) for key in scenario if str(key) not in _SCENARIO_ALLOWED_KEYS
+        str(key) for key in working_keys
+        if str(key) not in _SCENARIO_ALLOWED_KEYS
     )
     if unknown:
         raise _ScenarioInputError(
@@ -3323,7 +3532,7 @@ def _scenario_config(
             error_code="unknown_process_field",
             extra_keys=unknown,
         )
-    working = dict(scenario)
+    working = dict(working_keys)
     missing = _missing_required_public_fields(working)
     if (
         missing
@@ -3387,6 +3596,8 @@ def _scenario_config(
     })
     if "lca_cfs" in supplied:
         normalized["lca_cfs"] = _validated_lca_cfs(supplied["lca_cfs"])
+    if thermo_rank_supplied:
+        normalized[_ORIGINAL_THERMO_RANK_KEY] = thermo_rank
     return normalized
 
 
@@ -4234,6 +4445,18 @@ def _live(config: dict[str, Any], timeout_seconds: int) -> dict[str, Any]:
     return result
 
 
+def _would_start_live_child(config: dict[str, Any], engine_mode: str) -> bool:
+    """Detect a live BioSTEAM child without starting it."""
+    mode = str(engine_mode or "auto").strip().casefold()
+    if mode == "live":
+        return True
+    if mode != "auto":
+        return False
+    if "lca_cfs" in config:
+        return True
+    return _cache_index().get(_config_key(config)) is None
+
+
 def _run(config: dict[str, Any], engine_mode: str, timeout_seconds: int) -> dict[str, Any]:
     mode = str(engine_mode or "auto").strip().casefold()
     if mode not in {"auto", "cache", "live"}:
@@ -4844,6 +5067,12 @@ def _comparison_row(label: str, result: dict[str, Any]) -> dict[str, Any]:
         **(
             {"live_provenance": copy.deepcopy(result["live_provenance"])}
             if result.get("live_provenance") else {}
+        ),
+        **(
+            {
+                "original_thermo_rank": config[_ORIGINAL_THERMO_RANK_KEY]
+            }
+            if _ORIGINAL_THERMO_RANK_KEY in config else {}
         ),
         **(
             {
@@ -5818,6 +6047,7 @@ def evaluate_process(
     screening_shortlist: Optional[dict[str, Any]] = None,
     held_process_basis: Optional[dict[str, Any]] = None,
     screen_to_economics_order: Optional[ScreenToEconomicsOrder] = None,
+    confirm_live_tea: Optional[bool] = None,
     **kwargs: Any,
 ) -> str:
     """Typed twelve-field lookup, evaluate, sensitivity, or route.
@@ -5831,6 +6061,9 @@ def evaluate_process(
     dissolved_polymer; a mismatch is stage_identity_mismatch.
     Closed screen_to_economics_order: omitted is independent. This wrap
     does not wait on safety and does not invent a router.
+    confirm_live_tea applies only to evaluate with screening_shortlist;
+    omit is false. A live or auto expansion that would start children
+    refuses live_tea_cost_confirmation_required until it is true.
     lookup_admitted_process_records, evaluate_tea_lca_scenarios,
     analyze_tea_sensitivity, and evaluate_stored_route_tea_lca remain
     Python engines; they are not registry names. The remaining TEA
@@ -5910,6 +6143,7 @@ def evaluate_process(
                 ("process_configs", process_configs),
                 ("screening_shortlist", screening_shortlist),
                 ("held_process_basis", held_process_basis),
+                ("confirm_live_tea", confirm_live_tea),
             )
             if value is not None
         ]
@@ -5979,6 +6213,7 @@ def evaluate_process(
             name for name, value in (
                 ("screening_shortlist", screening_shortlist),
                 ("held_process_basis", held_process_basis),
+                ("confirm_live_tea", confirm_live_tea),
             )
             if value is not None
         ]
@@ -6002,6 +6237,14 @@ def evaluate_process(
                 error_code="not_applicable_in_mode",
                 mode="evaluate",
                 inapplicable_fields=inapplicable,
+            )
+        if confirm_live_tea is not None and screening_shortlist is None:
+            return tool_error(
+                tool,
+                "confirm_live_tea applies only with screening_shortlist.",
+                error_code="not_applicable_in_mode",
+                mode="evaluate",
+                inapplicable_fields=["confirm_live_tea"],
             )
         if process_config is not None and not isinstance(process_config, dict):
             return tool_error(
@@ -6033,6 +6276,8 @@ def evaluate_process(
             forwarded["screening_shortlist"] = screening_shortlist
         if held_process_basis is not None:
             forwarded["held_process_basis"] = held_process_basis
+        if confirm_live_tea is not None:
+            forwarded["confirm_live_tea"] = confirm_live_tea
         return _evaluate_process_envelope(
             evaluate_tea_lca_scenarios(scenarios, **forwarded),
             screen_to_economics_order=order,
@@ -8895,6 +9140,12 @@ def rank_landscape(
             inapplicable_fields=map_fields,
         ), order,
         )
+    process_rows_sort_metric = None
+    if source_token == "process_rows" and operation_token == "sort":
+        if objective is None:
+            process_rows_sort_metric = "msp_usd_per_kg"
+        elif str(objective).strip() in _PROCESS_ROWS_SORT_OBJECTIVES:
+            process_rows_sort_metric = str(objective).strip()
     residual_fields = [
         name for name, value in (
             ("objective", objective),
@@ -8907,6 +9158,11 @@ def rank_landscape(
             ("composition_slices", composition_slices),
         )
         if value is not None
+        and not (
+            name == "objective"
+            and process_rows_sort_metric is not None
+            and objective is not None
+        )
     ]
     if residual_fields and source_token != "residual_route":
         return _stamp_screen_to_economics_order(
@@ -9067,6 +9323,7 @@ def rank_landscape(
                     skip_campaign_identity=False,
                     canonical=handle_fp.casefold(),
                     extra_census=_campaign_rank_census(campaign_exact),
+                    sort_metric=process_rows_sort_metric,
                 )
                 return _stamp_screen_to_economics_order(
                     tool_success(
@@ -9083,6 +9340,7 @@ def rank_landscape(
                 solvent=resolved_solvent,
                 polymer_grouping=grouping_token,
                 operation=operation_token,
+                sort_metric=process_rows_sort_metric,
             )
         except _ScenarioInputError as error:
             return _stamp_screen_to_economics_order(
@@ -9117,6 +9375,7 @@ def rank_landscape(
             solvent=resolved_solvent,
             polymer_grouping=grouping_token,
             operation=operation_token,
+            sort_metric=process_rows_sort_metric,
         )
     except campaign_consume.CampaignConsumeError as error:
         return _stamp_screen_to_economics_order(
@@ -9143,6 +9402,7 @@ def evaluate_tea_lca_scenarios(
     held_process_basis: Optional[dict[str, Any]] = None,
     handle: Optional[str] = None,
     row_id: Optional[str | int] = None,
+    confirm_live_tea: Optional[bool] = None,
     **kwargs: Any,
 ) -> str:
     """Evaluate complete independent scenarios, or fill omitted fields from a handle.
@@ -9153,6 +9413,7 @@ def evaluate_tea_lca_scenarios(
     item (three from_screen, nine supplied). The same shortlist may inherit
     the nine from an economics handle when held_process_basis is omitted.
     temperature_c maps to dissolution_temperature_c only on that handoff.
+    confirm_live_tea applies only with screening_shortlist; omit is false.
     Unknown extra keys refuse unknown_process_field. Wrong-mode scalars
     (lookup selectors, energy_cases, record_form, requested_metrics,
     parameter / values / analysis_mode / metric) refuse
@@ -9197,6 +9458,14 @@ def evaluate_tea_lca_scenarios(
             error_code="unknown_process_field",
             extra_keys=extra,
         )
+    if confirm_live_tea is not None and screening_shortlist is None:
+        return tool_error(
+            tool,
+            "confirm_live_tea applies only with screening_shortlist.",
+            error_code="not_applicable_in_mode",
+            mode="evaluate",
+            inapplicable_fields=["confirm_live_tea"],
+        )
     field_origin = None
     field_origins = None
     try:
@@ -9240,10 +9509,29 @@ def evaluate_tea_lca_scenarios(
         )
     except (TypeError, ValueError) as error:
         return tool_error(tool, str(error), error_code="invalid_scenario")
-    results = [
-        _coerce_nonfinite_served_tea(_run(config, engine_mode, timeout))
-        for config in configs
-    ]
+    if screening_shortlist is not None:
+        live_flags = [
+            _would_start_live_child(config, engine_mode) for config in configs
+        ]
+        n_live = sum(1 for flag in live_flags if flag)
+        n_cache = len(configs) - n_live
+        if n_live > 0 and confirm_live_tea is not True:
+            seconds = _LIVE_TEA_SECONDS_PER_PAIR
+            return tool_error(
+                tool,
+                "live TEA children require confirm_live_tea=true",
+                error_code="live_tea_cost_confirmation_required",
+                n_live=n_live,
+                n_cache=n_cache,
+                seconds_per_pair=seconds,
+                estimated_wall_seconds=float(n_live) * seconds,
+                per_stage_per_ordering=True,
+            )
+    results = []
+    for config in configs:
+        results.append(
+            _coerce_nonfinite_served_tea(_run(config, engine_mode, timeout))
+        )
     labels = [str(item.get("label") or f"scenario-{index}") for index, item in enumerate(scenarios, 1)]
     rows = [_comparison_row(label, result) for label, result in zip(labels, results)]
     if field_origins is not None:
@@ -11261,6 +11549,7 @@ def _metric(row: dict[str, Any], metric: str) -> Optional[float]:
 _INAPPLICABLE_ON_SENSITIVITY = {
     "screening_shortlist": "evaluate",
     "held_process_basis": "evaluate",
+    "confirm_live_tea": "evaluate",
 }
 
 

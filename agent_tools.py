@@ -28,7 +28,7 @@ _PROCESS_ECONOMICS_HANDLE_TOOLS = frozenset({
 _ALWAYS_HANDLE_TOOLS = _PROCESS_ECONOMICS_HANDLE_TOOLS | frozenset({
     "plan_multistage_separation",
 })
-_COMPACT_KEEP_LISTS = frozenset({"ranked_path_index"})
+_COMPACT_KEEP_LISTS = frozenset({"ranked_path_index", "stage1_shortlists"})
 _OMIT = frozenset({"temperature_step_c"})
 _POLY_ARGS = ("polymers", "feed_polymers", "target_polymer", "target_polymers")
 _POLY_KEYS = ("polymer", "polymer_id", "target_polymer", "dissolved_polymer")

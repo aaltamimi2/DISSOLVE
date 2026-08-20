@@ -2168,6 +2168,8 @@ def plan_multistage_separation(
 
     screens: dict[tuple[str, ...], dict[str, Any]] = {}
     solved: dict[tuple[str, ...], list[dict[str, Any]]] = {}
+    root_subset = tuple(sorted(names))
+    stage1_shortlists: list[dict[str, Any]] = []
 
     def screen(subset: tuple[str, ...]) -> dict[str, Any]:
         if subset not in screens:
@@ -2255,6 +2257,24 @@ def plan_multistage_separation(
                 min_target=min_target,
                 min_selectivity=min_selectivity,
             )
+            if subset == root_subset and branches:
+                items = []
+                for rank, candidate in enumerate(branches, 1):
+                    if not isinstance(candidate, dict):
+                        continue
+                    items.append({
+                        "target_polymer": target,
+                        "solvent": candidate.get("solvent"),
+                        "dissolution_temperature_c": candidate.get(
+                            "temperature_c"
+                        ),
+                        "thermo_rank": rank,
+                    })
+                if items:
+                    stage1_shortlists.append({
+                        "target_polymer": target,
+                        "items": items,
+                    })
             retained = tuple(item for item in subset if item != target)
             for candidate in branches:
                 stage = {
@@ -2282,7 +2302,6 @@ def plan_multistage_separation(
         solved[subset] = sorted(routes, key=score, reverse=True)[:top_k_routes]
         return solved[subset]
 
-    root_subset = tuple(sorted(names))
     routes = sorted(solve(root_subset), key=score, reverse=True)[:top_k_routes]
     for rank, route in enumerate(routes, 1):
         route["rank"] = rank
@@ -2364,6 +2383,7 @@ def plan_multistage_separation(
         peak_temperature_c=best.get("peak_temperature_c"),
         top_k_sequences=routes,
         ranked_path_index=_ranked_path_index(routes),
+        stage1_shortlists=stage1_shortlists,
         complete_route_count=complete_route_count,
         subset_screens_evaluated=len(screens),
         warnings=[

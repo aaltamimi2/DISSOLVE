@@ -141,12 +141,14 @@ def test_schema_uses_two_typed_objects_not_top_level_polymer():
     assert "process_configs" in props
     assert "screening_shortlist" in props
     assert "held_process_basis" in props
+    assert "confirm_live_tea" in props
     assert props["lookup_filter"]["type"] == "object"
     assert props["process_config"]["type"] == "object"
     assert props["process_configs"]["type"] == "array"
     assert props["process_configs"]["items"]["type"] == "object"
     assert props["screening_shortlist"]["type"] == "object"
     assert props["held_process_basis"]["type"] == "object"
+    assert props["confirm_live_tea"]["type"] == "boolean"
     assert "target_polymer" not in props
     assert "solvent" not in props
     assert "parameter" not in props
@@ -159,6 +161,7 @@ def test_schema_uses_two_typed_objects_not_top_level_polymer():
     assert "process_configs" not in required
     assert "screening_shortlist" not in required
     assert "held_process_basis" not in required
+    assert "confirm_live_tea" not in required
 
 
 def test_missing_mode_is_named_envelope(monkeypatch):

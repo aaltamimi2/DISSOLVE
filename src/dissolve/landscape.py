@@ -179,6 +179,10 @@ def compact_process_row(row: Mapping[str, Any]) -> dict[str, Any]:
         "safety_standing": _carried_safety_standing(row),
     }
     payload.update(_public_twelve_from_process_row(row, comparison))
+    if "original_thermo_rank" in row:
+        payload["original_thermo_rank"] = row.get("original_thermo_rank")
+    elif "original_thermo_rank" in comparison:
+        payload["original_thermo_rank"] = comparison.get("original_thermo_rank")
     return payload
 
 
@@ -500,7 +504,83 @@ def economics_row_as_process_row(
         payload["safety_standing"] = dict(safety)
     if row.get("engine_mode"):
         payload["engine_mode"] = row["engine_mode"]
+    if "original_thermo_rank" in row:
+        payload["original_thermo_rank"] = row.get("original_thermo_rank")
+        comparison["original_thermo_rank"] = row.get("original_thermo_rank")
+    elif isinstance(row.get("comparison_row"), dict) and (
+        "original_thermo_rank" in row["comparison_row"]
+    ):
+        payload["original_thermo_rank"] = row["comparison_row"].get(
+            "original_thermo_rank"
+        )
     return payload
+
+
+def _optional_thermo_rank(value: Any) -> int | None:
+    if value is None or isinstance(value, bool):
+        return None
+    if isinstance(value, int):
+        return value if value >= 1 else None
+    if isinstance(value, float) and math.isfinite(value) and value == int(value):
+        number = int(value)
+        return number if number >= 1 else None
+    return None
+
+
+def _stamp_thermo_econ_ranks(
+    points: Sequence[dict[str, Any]],
+    *,
+    rank_metric: str,
+) -> list[dict[str, Any]]:
+    """Stamp economics rank 1..n and disagreement with original_thermo_rank."""
+    indexed = list(enumerate(points))
+
+    def sort_key(item: tuple[int, Mapping[str, Any]]) -> tuple[float, int]:
+        index, point = item
+        try:
+            value = float(point[rank_metric])
+        except (TypeError, ValueError, KeyError):
+            return (math.inf, index)
+        if not math.isfinite(value):
+            return (math.inf, index)
+        return (value, index)
+
+    order = sorted(indexed, key=sort_key)
+    ranks = {index: rank for rank, (index, _point) in enumerate(order, 1)}
+    stamped: list[dict[str, Any]] = []
+    for index, point in enumerate(points):
+        copied = dict(point)
+        thermo = _optional_thermo_rank(copied.get("original_thermo_rank"))
+        copied["original_thermo_rank"] = thermo
+        copied["rank"] = ranks[index]
+        copied["thermo_econ_rank_disagreement"] = (
+            thermo is not None and thermo != ranks[index]
+        )
+        stamped.append(copied)
+    return stamped
+
+
+def _apply_thermo_econ_ranks(
+    block: dict[str, Any],
+    *,
+    rank_metric: str,
+) -> dict[str, Any]:
+    landscape = list(block.get("landscape_points") or [])
+    stamped = _stamp_thermo_econ_ranks(landscape, rank_metric=rank_metric)
+    by_id = {point.get("pair_id"): point for point in stamped}
+    block = dict(block)
+    block["landscape_points"] = stamped
+    frontier = [
+        dict(by_id.get(point.get("pair_id"), point))
+        for point in (block.get("frontier_points") or [])
+        if isinstance(point, dict)
+    ]
+    if "frontier_points" in block:
+        block["frontier_points"] = frontier
+    cheapest = block.get("cheapest_point")
+    if isinstance(cheapest, dict) and cheapest.get("pair_id") in by_id:
+        block["cheapest_point"] = dict(by_id[cheapest["pair_id"]])
+    return block
 
 
 def _rank_usable_population(
@@ -512,6 +592,7 @@ def _rank_usable_population(
     polymer_grouping: str,
     operation: str,
     extra_census: Mapping[str, Any] | None = None,
+    sort_metric: str | None = None,
 ) -> dict[str, Any]:
     census: dict[str, Any] = {
         "n_rows_read": n_rows_read,
@@ -534,8 +615,11 @@ def _rank_usable_population(
     polymers_present = list(dict.fromkeys(
         str(point.get("target_polymer") or "") for point in usable
     ))
+    rank_metric = str(sort_metric or X_METRIC).strip() or X_METRIC
+    units = {X_METRIC: X_UNITS, Y_METRIC: Y_UNITS}
     if operation == "sort":
-        ranked = sorted(usable, key=lambda point: float(point[X_METRIC]))
+        ranked = sorted(usable, key=lambda point: float(point[rank_metric]))
+        ranked = _stamp_thermo_econ_ranks(ranked, rank_metric=rank_metric)
         return {
             **census,
             "operation": "sort",
@@ -546,8 +630,8 @@ def _rank_usable_population(
                 "polymer_grouping": grouping_token,
                 "target_polymers": polymers_present,
             },
-            "metric_units": {X_METRIC: X_UNITS},
-            "x_metric": X_METRIC,
+            "metric_units": {rank_metric: units[rank_metric]},
+            "x_metric": rank_metric,
         }
     if grouping_token == "per_target_polymer" and len(polymers_present) > 1:
         grouped = []
@@ -560,12 +644,15 @@ def _rank_usable_population(
                 continue
             grouped.append({
                 "target_polymer": polymer,
-                **quality_block(
-                    subset,
-                    grouping={
-                        "polymer_grouping": "per_target_polymer",
-                        "target_polymer": polymer,
-                    },
+                **_apply_thermo_econ_ranks(
+                    quality_block(
+                        subset,
+                        grouping={
+                            "polymer_grouping": "per_target_polymer",
+                            "target_polymer": polymer,
+                        },
+                    ),
+                    rank_metric=X_METRIC,
                 ),
             })
         if len(grouped) < 1:
@@ -585,7 +672,10 @@ def _rank_usable_population(
         "polymer_grouping": grouping_token,
         "target_polymers": polymers_present,
     }
-    block = quality_block(usable, grouping=grouping)
+    block = _apply_thermo_econ_ranks(
+        quality_block(usable, grouping=grouping),
+        rank_metric=X_METRIC,
+    )
     n_land, n_front = block["n_landscape_points"], block["n_frontier_points"]
     if n_land != len(block["landscape_points"]) or n_front != len(
         block["frontier_points"]
@@ -605,6 +695,7 @@ def rank_process_rows(
     solvent: str | None = None,
     polymer_grouping: str = "per_target_polymer",
     operation: str = "pareto_dominance",
+    sort_metric: str | None = None,
 ) -> dict[str, Any]:
     canonical = str(bound["canonical"])
     rows = load_filtered_rows(
@@ -626,6 +717,7 @@ def rank_process_rows(
             "append_log_fingerprint": bound.get("append_log_fingerprint"),
             **dict(bound.get("projected") or {}),
         },
+        sort_metric=sort_metric,
     )
 
 
@@ -639,6 +731,7 @@ def rank_handle_process_rows(
     skip_campaign_identity: bool = True,
     canonical: str | None = None,
     extra_census: Mapping[str, Any] | None = None,
+    sort_metric: str | None = None,
 ) -> dict[str, Any]:
     """Rank tool-1 rows already in a handle. No JSONL, no BioSTEAM."""
     converted = [
@@ -677,4 +770,5 @@ def rank_handle_process_rows(
         polymer_grouping=polymer_grouping,
         operation=operation,
         extra_census=extra,
+        sort_metric=sort_metric,
     )
