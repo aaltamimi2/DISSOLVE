@@ -5186,6 +5186,26 @@ def _requested_income_tax(process_config: Any) -> float | None:
     return round(tax, 10)
 
 
+def _requested_operating_days(process_config: Any) -> float | None:
+    """Held operating days. Do not default 350.4."""
+    if not isinstance(process_config, dict):
+        return None
+    if (
+        "operating_days" not in process_config
+        or process_config["operating_days"] in (None, "")
+    ):
+        return None
+    days = _finite(process_config["operating_days"], "operating_days")
+    if days <= 0:
+        raise _ScenarioInputError(
+            "operating_days must be positive.",
+            error_code="invalid_admitted_record_query",
+            field="operating_days",
+            supplied=process_config["operating_days"],
+        )
+    return round(days, 10)
+
+
 def _superstructure_composition_and_capacity(
     feed_mass_fractions: Any,
     process_config: Any,
@@ -5423,6 +5443,7 @@ def _remnant_key_from_row(
     precipitation_configuration: str | None = None,
     irr: float | None = None,
     income_tax: float | None = None,
+    operating_days: float | None = None,
 ) -> tuple[Any, ...] | None:
     """Remnant coordinate of a tool-1 row. Failures are not a fill."""
     if not isinstance(row, dict) or row.get("success") is False:
@@ -5501,6 +5522,7 @@ def _remnant_key_from_row(
     for field, held in (
         ("irr", irr),
         ("income_tax", income_tax),
+        ("operating_days", operating_days),
     ):
         if held is None:
             continue
@@ -5562,7 +5584,7 @@ def _cell_remnant_key(cell: dict[str, Any]) -> tuple[Any, ...] | None:
         value = cell.get(field)
         if value not in (None, ""):
             key = key + (str(value).strip(),)
-    for field in ("irr", "income_tax"):
+    for field in ("irr", "income_tax", "operating_days"):
         value = cell.get(field)
         if value not in (None, ""):
             try:
@@ -5647,6 +5669,7 @@ def _unmatched_remnant_keys(
     )
     held_irr = _held_rounded_field(missing_keys, "irr")
     held_income_tax = _held_rounded_field(missing_keys, "income_tax")
+    held_operating_days = _held_rounded_field(missing_keys, "operating_days")
     present = {
         key for row in rows
         if (
@@ -5666,6 +5689,7 @@ def _unmatched_remnant_keys(
                 precipitation_configuration=held_configuration,
                 irr=held_irr,
                 income_tax=held_income_tax,
+                operating_days=held_operating_days,
             )
         ) is not None
     }
@@ -5713,6 +5737,7 @@ def _refuse_listed_or_complete(
         ),
         "irr": _requested_irr(process_config),
         "income_tax": _requested_income_tax(process_config),
+        "operating_days": _requested_operating_days(process_config),
     }
     if any(value is not None for value in held.values()):
         stamped: list[dict[str, Any]] = []
@@ -5952,9 +5977,9 @@ def rank_landscape(
     feedstock_distance_km, dissolution_capacity,
     labor_cost_usd_per_employee_yr, sell_leftover_plastic,
     burn_leftover_plastic, precipitation_temperature_format,
-    precipitation_configuration, irr, or income_tax, listed keys include
-    that held value and matching requires it; omitted is not a silent
-    cache or production default. A complete sequence grid with production check red is
+    precipitation_configuration, irr, income_tax, or operating_days,
+    listed keys include that held value and matching requires it;
+    omitted is not a silent cache or production default. A complete sequence grid with production check red is
     sequence_coupling_unproven as primary (no pending_blockers).
     Do not scan top_k_sequences for either map.
     formulation is required iff source=superstructure;
