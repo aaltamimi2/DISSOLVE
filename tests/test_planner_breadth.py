@@ -526,6 +526,65 @@ def test_planner_routes_objective_on_pareto_is_not_applicable(monkeypatch):
     assert data.get("operation") == "pareto_dominance"
 
 
+def test_planner_routes_axes_on_sort_are_not_applicable(monkeypatch):
+    def forbidden(*args, **kwargs):
+        raise AssertionError("planner_routes must not start BioSTEAM")
+
+    monkeypatch.setattr(tea, "_live", forbidden)
+    monkeypatch.setattr(tea.tea_worker, "run", forbidden)
+    session = new_session()
+    axis_kwargs = (
+        {"x_metric": "bottleneck_selectivity_pct"},
+        {"y_metric": "min_stage_g_score"},
+        {
+            "x_metric": "bottleneck_selectivity_pct",
+            "y_metric": "min_stage_g_score",
+        },
+    )
+    with bind_tool_session(session):
+        branched = dispatch(
+            "plan_multistage_separation",
+            feed_polymers=_PAIR,
+            breadth=5,
+        )
+        handle = branched["handle"]
+        served_sort = dispatch(
+            "rank_landscape",
+            source="planner_routes",
+            operation="sort",
+            objective="min_stage_g_score",
+            handle=handle,
+        )
+        served_pareto = dispatch(
+            "rank_landscape",
+            source="planner_routes",
+            operation="pareto_dominance",
+            handle=handle,
+            x_metric="bottleneck_selectivity_pct",
+            y_metric="min_stage_g_score",
+        )
+        refused = [
+            dispatch(
+                "rank_landscape",
+                source="planner_routes",
+                operation="sort",
+                objective="min_stage_g_score",
+                handle=handle,
+                **kwargs,
+            )
+            for kwargs in axis_kwargs
+        ]
+    assert served_sort.get("available") is True
+    assert served_pareto.get("available") is True
+    for kwargs, payload in zip(axis_kwargs, refused):
+        data = payload.get("data") or {}
+        assert payload.get("available") is False, kwargs
+        assert payload.get("refusal") == "not_applicable_in_source", kwargs
+        assert data.get("inapplicable_fields") == list(kwargs), kwargs
+        assert data.get("source") == "planner_routes"
+        assert data.get("operation") == "sort"
+
+
 def test_planner_routes_mixed_polymer_grouping_is_not_applicable(monkeypatch):
     def forbidden(*args, **kwargs):
         raise AssertionError("planner_routes must not start BioSTEAM")

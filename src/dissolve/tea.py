@@ -8982,6 +8982,27 @@ def _rank_planner_routes(
             ),
             order,
         )
+    if operation == "sort":
+        mismatched = [
+            name for name, value in (
+                ("x_metric", x_metric),
+                ("y_metric", y_metric),
+            )
+            if value is not None
+        ]
+        if mismatched:
+            return _stamp_screen_to_economics_order(
+                tool_error(
+                    tool,
+                    "x_metric and y_metric are not applicable on "
+                    "source=planner_routes operation=sort",
+                    error_code="not_applicable_in_source",
+                    source="planner_routes",
+                    operation=operation,
+                    inapplicable_fields=mismatched,
+                ),
+                order,
+            )
     token = handle.strip() if isinstance(handle, str) else ""
     if not isinstance(handle, str) or not token:
         return _stamp_screen_to_economics_order(
