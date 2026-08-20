@@ -1,4 +1,4 @@
-"""evaluate_process lookup and evaluate. Old TEA names stay. Not sensitivity/route."""
+"""evaluate_process lookup, evaluate, and sensitivity. Old TEA names stay. Not route."""
 from __future__ import annotations
 
 import hashlib
@@ -248,21 +248,20 @@ def test_sensitivity_selector_stays_on_lookup_filter(monkeypatch):
     assert "ldpe-route-c1" in {item.casefold() for item in labels}
 
 
-def test_sensitivity_and_route_stay_unwired_on_this_name(monkeypatch):
+def test_route_stays_unwired_on_this_name(monkeypatch):
     _forbid_live(monkeypatch)
-    for token in ("sensitivity", "route"):
-        payload = _data(tea.evaluate_process(mode=token))
-        assert payload.get("success") is False
-        assert payload.get("error_code") == "tool_not_wired"
-        assert payload.get("mode") == token
-        filtered = _data(tea.evaluate_process(
-            mode=token,
-            lookup_filter={"target_polymer": "LDPE"},
-        ))
-        assert filtered.get("error_code") == "not_applicable_in_mode"
-        assert filtered.get("inapplicable_fields") == ["lookup_filter"]
+    payload = _data(tea.evaluate_process(mode="route"))
+    assert payload.get("success") is False
+    assert payload.get("error_code") == "tool_not_wired"
+    assert payload.get("mode") == "route"
+    filtered = _data(tea.evaluate_process(
+        mode="route",
+        lookup_filter={"target_polymer": "LDPE"},
+    ))
+    assert filtered.get("error_code") == "not_applicable_in_mode"
+    assert filtered.get("inapplicable_fields") == ["lookup_filter"]
     batch = _data(tea.evaluate_process(
-        mode="sensitivity",
+        mode="route",
         process_configs=[{"target_polymer": "LDPE"}],
     ))
     assert batch.get("error_code") == "not_applicable_in_mode"
@@ -566,4 +565,167 @@ def test_dispatch_evaluate_mode_issues_handle(monkeypatch):
         assert stored.get("tool") == "evaluate_process"
         assert "comparison_rows" in stored["exact"]
         assert "top" not in out
+        assert stored["exact"]["tool_name"] == "evaluate_process"
+
+
+def _route_c1() -> dict:
+    return next(
+        record for record in tea._records()
+        if str(record.get("label") or "").casefold() == "ldpe-route-c1"
+    )
+
+
+def _sensitivity_parity(payload: dict) -> dict:
+    rows = payload.get("sensitivity_rows") or []
+    return {
+        "success": payload.get("success"),
+        "error_code": payload.get("error_code"),
+        "analysis_type": payload.get("analysis_type"),
+        "parameter": payload.get("parameter"),
+        "missing": payload.get("missing"),
+        "row_count": len(rows) if isinstance(rows, list) else None,
+        "row_parameters": [row.get("parameter") for row in rows if isinstance(row, dict)],
+        "row_success": [row.get("success") for row in rows if isinstance(row, dict)],
+        "row_values": [row.get("value") for row in rows if isinstance(row, dict)],
+        "metric_values": [row.get("metric_value") for row in rows if isinstance(row, dict)],
+        "origins": [row.get("field_origin") for row in rows if isinstance(row, dict)],
+    }
+
+
+def test_sensitivity_mode_without_parameter_is_unsupported(monkeypatch):
+    _forbid_live(monkeypatch)
+    payload = _data(tea.evaluate_process(mode="sensitivity"))
+    assert payload.get("success") is False
+    assert payload.get("error_code") == "unsupported_parameter"
+    assert payload.get("error_code") != "tool_not_wired"
+    assert payload.get("tool_name") == "evaluate_process"
+
+
+def test_sensitivity_mode_process_configs_is_not_applicable(monkeypatch):
+    record = _route_c1()
+    _forbid_live(monkeypatch)
+    payload = _data(tea.evaluate_process(
+        mode="sensitivity",
+        process_configs=[_public_from_record(record)],
+        parameter="solvent_price",
+        engine_mode="cache",
+    ))
+    assert payload.get("error_code") == "not_applicable_in_mode"
+    assert payload.get("inapplicable_fields") == ["process_configs"]
+    assert payload.get("applicable_mode") == "evaluate"
+
+
+def test_sensitivity_mode_solvent_price_matches_old_name(monkeypatch):
+    record = _route_c1()
+    _forbid_live(monkeypatch)
+    twelve = _public_from_record(record)
+    direct = _data(tea.analyze_tea_sensitivity(
+        twelve, parameter="solvent_price", engine_mode="cache",
+    ))
+    wrapped = _data(tea.evaluate_process(
+        mode="sensitivity",
+        process_config=twelve,
+        parameter="solvent_price",
+        engine_mode="cache",
+    ))
+    assert wrapped.get("tool_name") == "evaluate_process"
+    assert direct.get("tool_name") == "analyze_tea_sensitivity"
+    assert wrapped.get("success") is True
+    assert len(wrapped["sensitivity_rows"]) >= 2
+    assert _sensitivity_parity(wrapped) == _sensitivity_parity(direct)
+
+
+def test_sensitivity_mode_incomplete_lists_missing_public_fields(monkeypatch):
+    record = _route_c1()
+    cfg = record["config"]
+    _forbid_live(monkeypatch)
+    partial = {
+        "target_polymer": cfg["target_plastic"],
+        "solvent": cfg["solvent"],
+        "dissolution_temperature_c": cfg["dissolution_temperature_c"],
+    }
+    direct = _data(tea.analyze_tea_sensitivity(
+        partial, parameter="solvent_price", engine_mode="cache",
+    ))
+    wrapped = _data(tea.evaluate_process(
+        mode="sensitivity",
+        process_config=partial,
+        parameter="solvent_price",
+        engine_mode="cache",
+    ))
+    assert wrapped.get("error_code") == "incomplete_process_config"
+    assert wrapped.get("missing") == list(tea._NINE_HELD_PUBLIC_FIELDS)
+    assert wrapped.get("tool_name") == "evaluate_process"
+    assert "sensitivity_rows" not in wrapped
+    assert _sensitivity_parity(wrapped) == _sensitivity_parity(direct)
+
+
+def test_sensitivity_mode_inherits_baseline_from_evaluate_handle(monkeypatch):
+    record = _route_c1()
+    cfg = record["config"]
+    _forbid_live(monkeypatch)
+    session = new_session()
+    with bind_tool_session(session):
+        first = _data(tea.evaluate_process(
+            mode="evaluate",
+            process_config=_public_from_record(record),
+            engine_mode="cache",
+        ))
+        handle = store_handle(
+            session,
+            tool="evaluate_process",
+            source_basis="tea_cache_exact",
+            data=first,
+        )
+        wrapped = _data(tea.evaluate_process(
+            mode="sensitivity",
+            process_config={
+                "target_polymer": cfg["target_plastic"],
+                "solvent": cfg["solvent"],
+                "dissolution_temperature_c": cfg["dissolution_temperature_c"],
+            },
+            parameter="solvent_price",
+            handle=handle,
+            engine_mode="cache",
+            analysis_mode="tornado",
+        ))
+        direct = _data(tea.analyze_tea_sensitivity(
+            {
+                "target_polymer": cfg["target_plastic"],
+                "solvent": cfg["solvent"],
+                "dissolution_temperature_c": cfg["dissolution_temperature_c"],
+            },
+            parameter="solvent_price",
+            handle=handle,
+            engine_mode="cache",
+            analysis_mode="tornado",
+        ))
+    assert wrapped.get("success") is True
+    origin = wrapped["sensitivity_rows"][0]["field_origin"]
+    assert origin["target_polymer"] == "supplied"
+    assert origin["solvent"] == "supplied"
+    assert origin["dissolution_temperature_c"] == "supplied"
+    for name in tea._NINE_HELD_PUBLIC_FIELDS:
+        assert origin[name] == "inherited"
+    assert _sensitivity_parity(wrapped) == _sensitivity_parity(direct)
+
+
+def test_dispatch_sensitivity_mode_issues_handle(monkeypatch):
+    record = _route_c1()
+    _forbid_live(monkeypatch)
+    session = new_session()
+    with bind_tool_session(session):
+        out = dispatch(
+            "evaluate_process",
+            mode="sensitivity",
+            process_config=_public_from_record(record),
+            parameter="solvent_price",
+            engine_mode="cache",
+        )
+        assert out.get("available") is True
+        assert out.get("handle")
+        assert out.get("source_basis") == "tea_cache_exact"
+        stored = load_handle(session, out["handle"])
+        assert stored.get("tool") == "evaluate_process"
+        assert "sensitivity_rows" in stored["exact"]
         assert stored["exact"]["tool_name"] == "evaluate_process"

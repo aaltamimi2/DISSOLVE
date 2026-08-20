@@ -914,7 +914,9 @@ class CliApp:
             return False
         if name != "evaluate_process":
             return True
-        return str(kwargs.get("mode") or "").strip().casefold() == "evaluate"
+        return str(kwargs.get("mode") or "").strip().casefold() in {
+            "evaluate", "sensitivity",
+        }
 
     def _bind_confirmed_process(
         self, name: str, kwargs: dict[str, Any],

@@ -4735,6 +4735,16 @@ _EVALUATE_MODE_FORWARD = frozenset({
     "row_id",
     "timeout_seconds",
 })
+_SENSITIVITY_MODE_FORWARD = frozenset({
+    "parameter",
+    "values",
+    "analysis_mode",
+    "metric",
+    "engine_mode",
+    "handle",
+    "row_id",
+    "timeout_seconds",
+})
 _LOOKUP_FILTER_FIELDS = frozenset({
     "target_polymer",
     "solvent",
@@ -4773,9 +4783,10 @@ def evaluate_process(
     """Typed twelve-field lookup, evaluate, sensitivity, or route.
 
     Closed mode: lookup, evaluate, sensitivity, route. lookup uses
-    lookup_filter; evaluate uses process_config or process_configs.
-    Lookup and evaluate are wired; sensitivity and route on this name
-    stay tool_not_wired while the existing TEA names still serve them.
+    lookup_filter; evaluate uses process_config or process_configs;
+    sensitivity uses process_config plus parameter. Lookup, evaluate,
+    and sensitivity are wired; route on this name stays tool_not_wired
+    while the existing TEA names still serve them.
     Optimization is not a mode. Not a ranking.
     """
     tool = "evaluate_process"
@@ -4914,6 +4925,35 @@ def evaluate_process(
         }
         return _evaluate_process_envelope(
             evaluate_tea_lca_scenarios(scenarios, **forwarded),
+        )
+    if token == "sensitivity":
+        inapplicable = sorted(
+            str(name) for name in kwargs if name not in _SENSITIVITY_MODE_FORWARD
+        )
+        if inapplicable:
+            return tool_error(
+                tool,
+                "These arguments are not applicable in sensitivity mode.",
+                error_code="not_applicable_in_mode",
+                mode="sensitivity",
+                inapplicable_fields=inapplicable,
+            )
+        if process_config is not None and not isinstance(process_config, dict):
+            return tool_error(
+                tool,
+                "process_config must be an object.",
+                error_code="invalid_admitted_record_query",
+                field="process_config",
+            )
+        forwarded = {
+            name: kwargs[name]
+            for name in _SENSITIVITY_MODE_FORWARD
+            if name in kwargs
+        }
+        if process_config is not None:
+            forwarded["scenario"] = process_config
+        return _evaluate_process_envelope(
+            analyze_tea_sensitivity(**forwarded),
         )
     return tool_error(
         tool,

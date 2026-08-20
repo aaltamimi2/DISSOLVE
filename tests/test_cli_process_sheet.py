@@ -461,3 +461,80 @@ def test_later_evaluate_process_runs_the_confirmed_buffer(
     assert second["engine_mode"] == "cache"
     assert "process_configs" not in second
     assert sheet["irr"] != 0.15
+
+
+def test_evaluate_process_sensitivity_mode_uses_the_same_sheet_object(
+    tmp_path, monkeypatch,
+):
+    monkeypatch.setattr(cli, "run_turn", _ok_turn)
+    monkeypatch.setattr(sys.stdin, "isatty", lambda: True)
+    app, _buf = _app(tmp_path, monkeypatch)
+    sheet = tea.seed_public_process_config({
+        "target_polymer": "LDPE",
+        "solvent": "Dodecane",
+        "dissolution_temperature_c": 145.0,
+    })
+    monkeypatch.setattr(app, "_edit_process_sheet", lambda seed, **kwargs: sheet)
+    captured = {}
+
+    def original(name, **kwargs):
+        captured["name"] = name
+        captured["kwargs"] = kwargs
+        return {"success": True}
+
+    app._cli_direct_active = True
+    result = app._cli_direct_dispatch(
+        original,
+        "evaluate_process",
+        {
+            "mode": "sensitivity",
+            "process_config": {"target_polymer": "LDPE"},
+            "parameter": "solvent_price",
+        },
+    )
+    assert result == {"success": True}
+    assert captured["kwargs"]["process_config"] is sheet
+    assert captured["kwargs"]["parameter"] == "solvent_price"
+    assert app._confirmation_sheet_submitted is True
+    assert app._process_buffer is sheet
+
+
+def test_later_sensitivity_keeps_parameter_and_uses_confirmed_buffer(
+    tmp_path, monkeypatch,
+):
+    monkeypatch.setattr(cli, "run_turn", _ok_turn)
+    monkeypatch.setattr(sys.stdin, "isatty", lambda: True)
+    app, _buf = _app(tmp_path, monkeypatch)
+    sheet = tea.seed_public_process_config({
+        "target_polymer": "LDPE",
+        "solvent": "Dodecane",
+        "dissolution_temperature_c": 145.0,
+        "irr": 0.10,
+    })
+    monkeypatch.setattr(app, "_edit_process_sheet", lambda seed, **kwargs: sheet)
+    captured = []
+
+    def original(name, **kwargs):
+        captured.append(kwargs)
+        return {"success": True}
+
+    app._cli_direct_active = True
+    app._cli_direct_dispatch(
+        original,
+        "evaluate_process",
+        {"mode": "evaluate", "process_config": {"target_polymer": "LDPE"}},
+    )
+    app._cli_direct_dispatch(
+        original,
+        "evaluate_process",
+        {
+            "mode": "sensitivity",
+            "parameter": "solvent_price",
+            "engine_mode": "cache",
+            "process_config": {"irr": 0.20},
+        },
+    )
+    assert captured[1]["process_config"] is sheet
+    assert captured[1]["parameter"] == "solvent_price"
+    assert captured[1]["engine_mode"] == "cache"
+    assert sheet["irr"] != 0.20
