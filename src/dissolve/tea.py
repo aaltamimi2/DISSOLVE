@@ -9059,6 +9059,7 @@ def _rank_planner_routes(
                 objective_direction=direction,
                 landscape_points=points,
                 n_landscape_points=len(points),
+                n_returned=len(points),
             ),
             order,
         )

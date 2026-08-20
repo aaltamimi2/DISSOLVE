@@ -278,6 +278,9 @@ def test_m1_rerank_refuses_and_m5_keeps_original_thermo_rank(monkeypatch):
     assert branched_rank.get("available") is True
     points = (branched_rank.get("data") or {}).get("landscape_points") or []
     assert points
+    sort_data = branched_rank.get("data") or {}
+    assert sort_data.get("n_returned") == len(points)
+    assert sort_data.get("n_returned") == sort_data.get("n_landscape_points")
     originals = [point.get("original_thermo_rank") for point in points]
     assert all(isinstance(item, int) and item >= 1 for item in originals)
     assert [point.get("rank") for point in points] == list(range(1, len(points) + 1))
@@ -381,6 +384,10 @@ def test_planner_routes_pareto_has_f_quality_schema(monkeypatch):
     assert "axis_spans" not in sort_data
     assert "sparse_frontier" not in sort_data
     assert "grouping" not in sort_data
+    assert "n_frontier_points" not in sort_data
+    assert sort_data.get("n_returned") == len(sort_data.get("landscape_points") or [])
+    assert sort_data.get("n_returned") == sort_data.get("n_landscape_points")
+    assert "n_returned" not in data
 
 
 def test_planner_routes_mixed_polymer_grouping_is_not_applicable(monkeypatch):
