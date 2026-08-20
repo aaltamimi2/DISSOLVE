@@ -5768,9 +5768,10 @@ def evaluate_process(
     dissolved_polymer; a mismatch is stage_identity_mismatch.
     Closed screen_to_economics_order: omitted is independent. This wrap
     does not wait on safety and does not invent a router.
-    lookup_admitted_process_records, evaluate_tea_lca_scenarios, and
-    analyze_tea_sensitivity remain Python engines; they are not
-    registry names. The remaining TEA names still serve.
+    lookup_admitted_process_records, evaluate_tea_lca_scenarios,
+    analyze_tea_sensitivity, and evaluate_stored_route_tea_lca remain
+    Python engines; they are not registry names. The remaining TEA
+    names still serve.
     Top-level lookup selectors refuse not_applicable_in_mode; they live
     on lookup_filter. Optimization is not a mode. Not a ranking.
     """

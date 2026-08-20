@@ -213,7 +213,7 @@ def _evaluate(monkeypatch, probe: RouteProbe) -> dict:
         )
 
     monkeypatch.setattr(tea, "current_tool_session", current_state)
-    result = _data(registry.BY_NAME["evaluate_stored_route_tea_lca"].fn(
+    result = _data(tea.evaluate_stored_route_tea_lca(
         feed_mass_fractions=dict(probe.composition),
         processing_capacity_mt_per_yr=CAPACITY,
         energy_case=ENERGY_CASE,

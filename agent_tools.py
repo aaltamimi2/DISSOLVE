@@ -16,7 +16,7 @@ from dissolve.session import (
 from dissolve.thermodynamics import expand_polymer_identity, get_available_solvents
 
 UNWIRED = frozenset({
-    "evaluate_stored_route_tea_lca", "optimize_stored_route",
+    "optimize_stored_route",
     "pareto_optimize_stored_route",
 })
 PUBCHEM = frozenset({
@@ -435,9 +435,8 @@ Report the source_basis with the number.
   A count for >= 5 / <= 1 is not a count for > 5 / < 1. If you have
   not read a boundary-equal row off the handle, do not claim the two
   are the same.
-- evaluate_stored_route_tea_lca, optimize_stored_route, and
-  pareto_optimize_stored_route are unwired. Do not call them to
-  recover a missing route.
+- optimize_stored_route and pareto_optimize_stored_route are
+  unwired. Do not call them to recover a missing route.
 
 A refusal is final. Report it, say what is available, and do not retry
 the same call with a nudged argument. Off-grid temperatures come back

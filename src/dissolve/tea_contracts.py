@@ -379,7 +379,7 @@ TEA_IMPLICIT_SENSITIVITY_ALIASES = MappingProxyType({
 TEA_TOOL_BOUNDARY_REGISTRY = (
     TeaToolBoundaryContract(
         "route_integrated",
-        "evaluate_stored_route_tea_lca",
+        "evaluate_process",
     ),
     TeaToolBoundaryContract(
         "admitted_records",

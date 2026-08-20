@@ -63,7 +63,6 @@ REGISTRY: tuple[Tool, ...] = tuple([
     _t(safety.screen_route_solvent_substitutions, "safety"),
     # --- TEA / LCA ---
     _t(tea.evaluate_process, "tea"),
-    _t(tea.evaluate_stored_route_tea_lca, "tea"),
     _t(tea.rank_landscape, "tea"),
     # --- optimization ---
     _t(optimization.optimize_stored_route, "optimization"),
