@@ -131,6 +131,7 @@ _OTHER_INDIRECT_COSTS_DEFAULT = 0.10
 _PROPERTY_INSURANCE_DEFAULT = 0.007
 _MAINTENANCE_DEFAULT = 0.03
 _DEPRECIATION_DEFAULT = "MACRS7"
+_DURATION_DEFAULT = (2025, 2055)
 _DEPRECIATION_SCHEDULE_PREFIXES = ("MACRS", "SL", "DDB", "SYD")
 # BioSTEAM TEA.depreciation_schedules MACRS keys (U.S. IRS Pub 946).
 _MACRS_IMPLEMENTED_YEARS = frozenset({3, 5, 7, 10, 15, 20})
@@ -160,6 +161,7 @@ _COEFFICIENT_DEFAULTS = {
     "other_indirect_costs": _OTHER_INDIRECT_COSTS_DEFAULT,
     "property_insurance": _PROPERTY_INSURANCE_DEFAULT,
     "maintenance": _MAINTENANCE_DEFAULT,
+    "duration": _DURATION_DEFAULT,
     "depreciation": _DEPRECIATION_DEFAULT,
     "feedstock_price_usd_per_kg": _FEEDSTOCK_PRICE_USD_PER_KG,
     "centrifuged_plastic_solvent_content_pct": (
@@ -983,6 +985,7 @@ def public_process_field_names(*, energy_case: str = "C1") -> tuple[str, ...]:
         "other_indirect_costs",
         "property_insurance",
         "maintenance",
+        "duration",
         "depreciation",
         "feedstock_price_usd_per_kg",
         "centrifuged_plastic_solvent_content_pct",
@@ -1395,10 +1398,14 @@ def _project_coefficients(config: dict[str, Any]) -> dict[str, Any]:
     projected: dict[str, Any] = {}
     for key, default in _coefficient_defaults_for(config).items():
         value = config.get(key)
-        if value is None or (isinstance(default, str) and value == ""):
+        if value is None:
+            projected[key] = default
+        elif value == "" and isinstance(default, (str, tuple, list)):
             projected[key] = default
         elif isinstance(default, str):
             projected[key] = str(value)
+        elif isinstance(default, (tuple, list)):
+            projected[key] = tuple(int(item) for item in value)
         else:
             projected[key] = float(value)
     return projected
@@ -1451,6 +1458,56 @@ def _depreciation_schedule_token(
         field="depreciation",
         supplied=value,
     )
+
+
+def _duration_year(value: Any, *, error_code: str, supplied: Any) -> int:
+    if isinstance(value, bool) or isinstance(value, str):
+        raise _ScenarioInputError(
+            "duration years must be integers.",
+            error_code=error_code,
+            field="duration",
+            supplied=supplied,
+        )
+    if isinstance(value, int):
+        return value
+    if isinstance(value, float) and value.is_integer():
+        return int(value)
+    raise _ScenarioInputError(
+        "duration years must be integers.",
+        error_code=error_code,
+        field="duration",
+        supplied=supplied,
+    )
+
+
+def _duration_pair(value: Any, *, error_code: str) -> tuple[int, int]:
+    """BioSTEAM (start, end) venture years. Not a years=30 scalar."""
+    if isinstance(value, (str, bytes)) or not isinstance(value, (list, tuple)):
+        raise _ScenarioInputError(
+            "duration must be a two-year (start, end) pair such as "
+            "(2025, 2055).",
+            error_code=error_code,
+            field="duration",
+            supplied=value,
+        )
+    if len(value) != 2:
+        raise _ScenarioInputError(
+            "duration must be a two-year (start, end) pair such as "
+            "(2025, 2055).",
+            error_code=error_code,
+            field="duration",
+            supplied=value,
+        )
+    start = _duration_year(value[0], error_code=error_code, supplied=value)
+    end = _duration_year(value[1], error_code=error_code, supplied=value)
+    if end <= start:
+        raise _ScenarioInputError(
+            "duration end year must be after the start year.",
+            error_code=error_code,
+            field="duration",
+            supplied=value,
+        )
+    return (start, end)
 
 
 def _refuse_reserved_process_fields(supplied: dict[str, Any]) -> None:
@@ -1880,6 +1937,11 @@ def _validated_coefficients(
     if "depreciation" in supplied and supplied["depreciation"] not in (None, ""):
         coefficients["depreciation"] = _depreciation_schedule_token(
             supplied["depreciation"],
+            error_code="invalid_scenario",
+        )
+    if "duration" in supplied and supplied["duration"] not in (None, ""):
+        coefficients["duration"] = _duration_pair(
+            supplied["duration"],
             error_code="invalid_scenario",
         )
     if "feedstock_price_usd_per_kg" in supplied:
@@ -2690,6 +2752,14 @@ def _flowsheet_switch_deltas(config: dict[str, Any]) -> list[dict[str, Any]]:
                     "requested_value": requested,
                 })
             continue
+        if isinstance(default, (tuple, list)) or isinstance(requested, (tuple, list)):
+            if tuple(requested) != tuple(default):
+                deltas.append({
+                    "field": key,
+                    "recorded_value": list(default),
+                    "requested_value": list(requested),
+                })
+            continue
         if math.isclose(float(requested), float(default), rel_tol=0, abs_tol=1e-12):
             continue
         deltas.append({
@@ -2797,6 +2867,8 @@ def _config_key(config: dict[str, Any]) -> str:
     for key, value in _project_coefficients(config).items():
         if isinstance(value, str):
             normalized[key] = value
+        elif isinstance(value, (tuple, list)):
+            normalized[key] = [int(item) for item in value]
         else:
             normalized[key] = round(float(value), 10)
     return json.dumps(normalized, sort_keys=True, separators=(",", ":"))
@@ -3786,6 +3858,10 @@ def _same_config(
             if left_value != right_value:
                 return False
             continue
+        if isinstance(left_value, (tuple, list)) or isinstance(right_value, (tuple, list)):
+            if tuple(left_value) != tuple(right_value):
+                return False
+            continue
         if not math.isclose(
             float(left_value), float(right_value),
             rel_tol=0, abs_tol=1e-12,
@@ -4036,6 +4112,10 @@ def _comparison_row(label: str, result: dict[str, Any]) -> dict[str, Any]:
         "other_indirect_costs": coefficients.get("other_indirect_costs"),
         "property_insurance": coefficients.get("property_insurance"),
         "maintenance": coefficients.get("maintenance"),
+        "duration": (
+            list(coefficients["duration"])
+            if coefficients.get("duration") is not None else None
+        ),
         "depreciation": coefficients.get("depreciation"),
         "feedstock_price_usd_per_kg": coefficients.get(
             "feedstock_price_usd_per_kg"
@@ -6473,6 +6553,21 @@ def _requested_depreciation(process_config: Any) -> str | None:
     )
 
 
+def _requested_duration(process_config: Any) -> tuple[int, int] | None:
+    """Held venture-year pair. Do not default (2025, 2055)."""
+    if not isinstance(process_config, dict):
+        return None
+    if (
+        "duration" not in process_config
+        or process_config["duration"] in (None, "")
+    ):
+        return None
+    return _duration_pair(
+        process_config["duration"],
+        error_code="invalid_admitted_record_query",
+    )
+
+
 def _superstructure_composition_and_capacity(
     feed_mass_fractions: Any,
     process_config: Any,
@@ -6730,6 +6825,7 @@ def _remnant_key_from_row(
     other_indirect_costs: float | None = None,
     property_insurance: float | None = None,
     maintenance: float | None = None,
+    duration: tuple[int, int] | None = None,
     depreciation: str | None = None,
 ) -> tuple[Any, ...] | None:
     """Remnant coordinate of a tool-1 row. Failures are not a fill."""
@@ -6807,6 +6903,17 @@ def _remnant_key_from_row(
         if str(raw).strip() != held:
             return None
         key = key + (held,)
+    if duration is not None:
+        raw = row.get("duration")
+        if raw in (None, ""):
+            return None
+        try:
+            row_v = _duration_pair(raw, error_code="invalid_admitted_record_query")
+        except _ScenarioInputError:
+            return None
+        if row_v != duration:
+            return None
+        key = key + (duration,)
     for field, held in (
         ("irr", irr),
         ("income_tax", income_tax),
@@ -6892,6 +6999,14 @@ def _cell_remnant_key(cell: dict[str, Any]) -> tuple[Any, ...] | None:
         value = cell.get(field)
         if value not in (None, ""):
             key = key + (str(value).strip(),)
+    raw_duration = cell.get("duration")
+    if raw_duration not in (None, ""):
+        try:
+            key = key + (_duration_pair(
+                raw_duration, error_code="invalid_admitted_record_query",
+            ),)
+        except _ScenarioInputError:
+            return None
     for field in (
         "irr", "income_tax", "operating_days", "labor_burden",
         "finance_interest", "finance_years", "finance_fraction",
@@ -7031,6 +7146,17 @@ def _unmatched_remnant_keys(
         ),
         None,
     )
+    held_duration = next(
+        (
+            _duration_pair(
+                cell["duration"],
+                error_code="invalid_admitted_record_query",
+            )
+            for cell in missing_keys
+            if cell.get("duration") not in (None, "")
+        ),
+        None,
+    )
     present = {
         key for row in rows
         if (
@@ -7070,6 +7196,7 @@ def _unmatched_remnant_keys(
                 other_indirect_costs=held_other_indirect_costs,
                 property_insurance=held_property_insurance,
                 maintenance=held_maintenance,
+                duration=held_duration,
                 depreciation=held_depreciation,
             )
         ) is not None
@@ -7140,6 +7267,7 @@ def _refuse_listed_or_complete(
         ),
         "property_insurance": _requested_property_insurance(process_config),
         "maintenance": _requested_maintenance(process_config),
+        "duration": _requested_duration(process_config),
         "depreciation": _requested_depreciation(process_config),
     }
     if any(value is not None for value in held.values()):
@@ -7396,7 +7524,7 @@ def rank_landscape(
     precipitation_configuration, irr, income_tax, operating_days,
     labor_burden, finance_interest, finance_years, finance_fraction,
     startup_months, startup_FOCfrac, startup_VOCfrac,
-    startup_salesfrac, WC_over_FCI, warehouse, site_development, additional_piping, proratable_costs, field_expenses, construction, contingency, other_indirect_costs, property_insurance, maintenance, or depreciation, listed keys include that held
+    startup_salesfrac, WC_over_FCI, warehouse, site_development, additional_piping, proratable_costs, field_expenses, construction, contingency, other_indirect_costs, property_insurance, maintenance, duration, or depreciation, listed keys include that held
     value and matching requires it; omitted is not a silent cache or
     production default. A complete sequence grid with production check red is
     sequence_coupling_unproven as primary (no pending_blockers).

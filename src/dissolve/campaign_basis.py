@@ -69,6 +69,11 @@ def _held_values_equal(field: str, campaign: Any, requested: Any) -> bool:
                 str(item or "").upper() == campaign_s for item in requested
             )
         return campaign_s == str(requested or "").upper()
+    if isinstance(campaign, (list, tuple)) or isinstance(requested, (list, tuple)):
+        try:
+            return tuple(campaign) == tuple(requested)
+        except TypeError:
+            return False
     if isinstance(campaign, bool) or isinstance(requested, bool):
         return bool(campaign) is bool(requested)
     if isinstance(campaign, (int, float)) and not isinstance(campaign, bool):

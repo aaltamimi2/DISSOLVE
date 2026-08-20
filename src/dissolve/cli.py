@@ -492,6 +492,21 @@ def _coerce_process_sheet_value(field: str, raw: str, current: Any) -> Any:
         if case not in tea._ENERGY_CASES:
             raise ValueError("energy_case must be C1, C2, or C3")
         return case
+    if field == "duration":
+        token = text.strip()
+        if token.startswith("["):
+            parsed = json.loads(token)
+        else:
+            parsed = [
+                part.strip()
+                for part in token.replace(";", ",").split(",")
+                if part.strip()
+            ]
+        if not isinstance(parsed, (list, tuple)) or len(parsed) != 2:
+            raise ValueError(
+                "duration must be two years, for example 2025, 2055"
+            )
+        return (int(parsed[0]), int(parsed[1]))
     if field in {
         "precipitation_temperature_format", "precipitation_configuration",
         "target_polymer", "solvent", "depreciation",
@@ -572,6 +587,8 @@ def _coerce_process_sheet_value(field: str, raw: str, current: Any) -> Any:
 def _format_sheet_value(value: Any) -> str:
     if isinstance(value, bool):
         return "true" if value else "false"
+    if isinstance(value, (list, tuple)) and not isinstance(value, (str, bytes)):
+        return ", ".join(_format_sheet_value(item) for item in value)
     if isinstance(value, float):
         if value == int(value) and abs(value) < 1e12:
             return str(int(value)) if abs(value) >= 1 else f"{value:g}"

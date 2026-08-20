@@ -409,6 +409,27 @@ def test_matching_default_depreciation_is_not_a_held_mismatch():
     assert "error_code" not in result
 
 
+def test_duration_override_is_coefficient_mismatch():
+    projected = campaign_basis.project_campaign_basis_v1(_minimal_v2())
+    result = campaign_basis.held_field_mismatches(
+        projected, {"duration": [2025, 2045]},
+    )
+    assert result["error_code"] == "campaign_basis_mismatch"
+    row = result["mismatches"][0]
+    assert row["field"] == "duration"
+    assert tuple(row["campaign_value"]) == (2025, 2055)
+    assert tuple(row["requested_value"]) == (2025, 2045)
+
+
+def test_matching_default_duration_is_not_a_held_mismatch():
+    projected = campaign_basis.project_campaign_basis_v1(_minimal_v2())
+    result = campaign_basis.held_field_mismatches(
+        projected, {"duration": [2025, 2055]},
+    )
+    assert result["mismatches"] == []
+    assert "error_code" not in result
+
+
 def test_polymer_only_is_not_a_held_mismatch():
     projected = campaign_basis.project_campaign_basis_v1(_minimal_v2())
     result = campaign_basis.held_field_mismatches(

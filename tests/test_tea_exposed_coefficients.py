@@ -75,6 +75,7 @@ def test_omitted_and_explicit_coefficient_defaults_share_the_serve_key():
         "other_indirect_costs": 0.10,
         "property_insurance": 0.007,
         "maintenance": 0.03,
+        "duration": (2025, 2055),
         "depreciation": "MACRS7",
         "feedstock_price_usd_per_kg": 0.01,
         "centrifuged_plastic_solvent_content_pct": 50.0,
@@ -104,6 +105,7 @@ def test_omitted_and_explicit_coefficient_defaults_share_the_serve_key():
     assert reconstructed["other_indirect_costs"] == pytest.approx(0.10)
     assert reconstructed["property_insurance"] == pytest.approx(0.007)
     assert reconstructed["maintenance"] == pytest.approx(0.03)
+    assert reconstructed["duration"] == (2025, 2055)
     assert reconstructed["depreciation"] == "MACRS7"
     assert reconstructed["feedstock_price_usd_per_kg"] == pytest.approx(0.01)
     assert reconstructed["centrifuged_plastic_solvent_content_pct"] == pytest.approx(50.0)
@@ -2135,6 +2137,121 @@ def test_unimplemented_macrs_years_are_refused():
     assert caught.value.details["field"] == "depreciation"
 
 
+def test_explicit_default_duration_shares_the_serve_key():
+    record = _record_with_energy("C1")
+    as_tuple = {**dict(record["config"]), "duration": (2025, 2055)}
+    as_list = {**dict(record["config"]), "duration": [2025, 2055]}
+    assert tea._config_key(record["config"]) == tea._config_key(as_tuple)
+    assert tea._config_key(record["config"]) == tea._config_key(as_list)
+    assert tea._cache_index().get(tea._config_key(as_list))["label"] == (
+        record["label"]
+    )
+
+
+def test_duration_override_does_not_share_the_twelve_only_serve_key():
+    record = _record_with_energy("C1")
+    overridden = {**dict(record["config"]), "duration": (2025, 2045)}
+    assert tea._config_key(record["config"]) != tea._config_key(overridden)
+    assert tea._cache_index().get(tea._config_key(overridden)) is None
+
+
+def test_cache_mode_refuses_duration_override_instead_of_the_other_plant(
+    monkeypatch,
+):
+    record = _record_with_energy("C1")
+    recorded_msp = float(record["result"]["tea"]["msp_usd_per_kg"])
+
+    def forbidden_live(config, timeout_seconds):
+        raise AssertionError(
+            "duration mismatch must not fall through to live"
+        )
+
+    monkeypatch.setattr(tea, "_live", forbidden_live)
+    payload = _data(tea.evaluate_tea_lca_scenarios(
+        [_public_from_record(record, duration=[2025, 2045])],
+        engine_mode="cache",
+    ))
+    assert payload.get("success") is False
+    assert payload.get("error_code") == "cache_flowsheet_mismatch"
+    row = (payload.get("failures") or [])[0]
+    assert row.get("msp_usd_per_kg") is None
+    assert row.get("msp_usd_per_kg") != recorded_msp
+    pair = next(
+        item for item in row["flowsheet_switch_deltas"]
+        if item["field"] == "duration"
+    )
+    assert pair["recorded_value"] == [2025, 2055]
+    assert pair["requested_value"] == [2025, 2045]
+    assert row.get("duration") == [2025, 2045]
+    assert not any(
+        item["field"] == "depreciation"
+        for item in row["flowsheet_switch_deltas"]
+    )
+
+
+def test_depreciation_override_does_not_emit_a_duration_delta(monkeypatch):
+    record = _record_with_energy("C1")
+
+    def forbidden_live(config, timeout_seconds):
+        raise AssertionError(
+            "depreciation mismatch must not fall through to live"
+        )
+
+    monkeypatch.setattr(tea, "_live", forbidden_live)
+    payload = _data(tea.evaluate_tea_lca_scenarios(
+        [_public_from_record(record, depreciation="MACRS5")],
+        engine_mode="cache",
+    ))
+    assert payload.get("error_code") == "cache_flowsheet_mismatch"
+    row = (payload.get("failures") or [])[0]
+    schedule = next(
+        item for item in row["flowsheet_switch_deltas"]
+        if item["field"] == "depreciation"
+    )
+    assert schedule["requested_value"] == "MACRS5"
+    assert not any(
+        item["field"] == "duration"
+        for item in row["flowsheet_switch_deltas"]
+    )
+
+
+def test_c2_still_carries_duration():
+    record = _record_with_energy("C2")
+    reconstructed = tea._scenario_config(_public_from_record(record))
+    assert reconstructed["duration"] == (2025, 2055)
+    assert tea._cache_index().get(tea._config_key(reconstructed))["label"] == (
+        record["label"]
+    )
+
+
+def test_years_scalar_is_not_duration():
+    record = _record_with_energy("C1")
+    with pytest.raises(tea._ScenarioInputError) as caught:
+        tea._scenario_config(_public_from_record(record, duration=30))
+    assert caught.value.error_code == "invalid_scenario"
+    assert caught.value.details["field"] == "duration"
+
+
+def test_three_year_duration_is_refused():
+    record = _record_with_energy("C1")
+    with pytest.raises(tea._ScenarioInputError) as caught:
+        tea._scenario_config(
+            _public_from_record(record, duration=(2025, 2040, 2055)),
+        )
+    assert caught.value.error_code == "invalid_scenario"
+    assert caught.value.details["field"] == "duration"
+
+
+def test_inverted_duration_is_refused():
+    record = _record_with_energy("C1")
+    with pytest.raises(tea._ScenarioInputError) as caught:
+        tea._scenario_config(
+            _public_from_record(record, duration=(2055, 2025)),
+        )
+    assert caught.value.error_code == "invalid_scenario"
+    assert caught.value.details["field"] == "duration"
+
+
 def test_percent_integer_income_tax_is_refused():
     record = _record_with_energy("C1")
     with pytest.raises(tea._ScenarioInputError) as caught:
@@ -2170,6 +2287,8 @@ def test_other_g_constructor_coefficients_are_not_dumped():
     assert "construction_schedule" not in tea._COEFFICIENT_DEFAULTS
     assert "depreciation" in tea._COEFFICIENT_DEFAULTS
     assert "depreciation" in tea.public_process_field_names()
+    assert "duration" in tea._COEFFICIENT_DEFAULTS
+    assert "duration" in tea.public_process_field_names()
     assert "maintenance" in tea._COEFFICIENT_DEFAULTS
     assert "maintenance" in tea.public_process_field_names()
     assert "property_insurance" in tea._COEFFICIENT_DEFAULTS
@@ -2288,6 +2407,7 @@ def test_d8_overlay_still_excludes_coefficients():
         "other_indirect_costs",
         "property_insurance",
         "maintenance",
+        "duration",
         "depreciation",
         "feedstock_price_usd_per_kg",
         "centrifuged_plastic_solvent_content_pct",
@@ -2324,6 +2444,7 @@ def test_worker_calls_the_unreached_setters():
     assert "process.tea.property_insurance" in source
     assert "process.tea.maintenance" in source
     assert "process.tea.depreciation" in source
+    assert "process.tea.duration" in source
     assert "set_feedstock_price(" in source
     assert "set_centrifuged_plastic_solvent_content(" in source
     assert "set_natural_gas_price(" in source
