@@ -5466,6 +5466,34 @@ def _requested_WC_over_FCI(process_config: Any) -> float | None:
     return round(fraction, 10)
 
 
+def _requested_warehouse(process_config: Any) -> float | None:
+    """Held warehouse factor. Do not default 0.04."""
+    if not isinstance(process_config, dict):
+        return None
+    if (
+        "warehouse" not in process_config
+        or process_config["warehouse"] in (None, "")
+    ):
+        return None
+    fraction = _finite(process_config["warehouse"], "warehouse")
+    if fraction > 1:
+        raise _ScenarioInputError(
+            "warehouse is a fraction (0.04 is 4 percent), not a "
+            "percent integer.",
+            error_code="invalid_admitted_record_query",
+            field="warehouse",
+            supplied=process_config["warehouse"],
+        )
+    if not 0 <= fraction <= 1:
+        raise _ScenarioInputError(
+            "warehouse must be a fraction in [0, 1].",
+            error_code="invalid_admitted_record_query",
+            field="warehouse",
+            supplied=process_config["warehouse"],
+        )
+    return round(fraction, 10)
+
+
 def _superstructure_composition_and_capacity(
     feed_mass_fractions: Any,
     process_config: Any,
@@ -5713,6 +5741,7 @@ def _remnant_key_from_row(
     startup_VOCfrac: float | None = None,
     startup_salesfrac: float | None = None,
     WC_over_FCI: float | None = None,
+    warehouse: float | None = None,
 ) -> tuple[Any, ...] | None:
     """Remnant coordinate of a tool-1 row. Failures are not a fill."""
     if not isinstance(row, dict) or row.get("success") is False:
@@ -5801,6 +5830,7 @@ def _remnant_key_from_row(
         ("startup_VOCfrac", startup_VOCfrac),
         ("startup_salesfrac", startup_salesfrac),
         ("WC_over_FCI", WC_over_FCI),
+        ("warehouse", warehouse),
     ):
         if held is None:
             continue
@@ -5866,7 +5896,7 @@ def _cell_remnant_key(cell: dict[str, Any]) -> tuple[Any, ...] | None:
         "irr", "income_tax", "operating_days", "labor_burden",
         "finance_interest", "finance_years", "finance_fraction",
         "startup_months", "startup_FOCfrac", "startup_VOCfrac",
-        "startup_salesfrac", "WC_over_FCI",
+        "startup_salesfrac", "WC_over_FCI", "warehouse",
     ):
         value = cell.get(field)
         if value not in (None, ""):
@@ -5970,6 +6000,7 @@ def _unmatched_remnant_keys(
         missing_keys, "startup_salesfrac",
     )
     held_WC_over_FCI = _held_rounded_field(missing_keys, "WC_over_FCI")
+    held_warehouse = _held_rounded_field(missing_keys, "warehouse")
     present = {
         key for row in rows
         if (
@@ -5999,6 +6030,7 @@ def _unmatched_remnant_keys(
                 startup_VOCfrac=held_startup_VOCfrac,
                 startup_salesfrac=held_startup_salesfrac,
                 WC_over_FCI=held_WC_over_FCI,
+                warehouse=held_warehouse,
             )
         ) is not None
     }
@@ -6056,6 +6088,7 @@ def _refuse_listed_or_complete(
         "startup_VOCfrac": _requested_startup_VOCfrac(process_config),
         "startup_salesfrac": _requested_startup_salesfrac(process_config),
         "WC_over_FCI": _requested_WC_over_FCI(process_config),
+        "warehouse": _requested_warehouse(process_config),
     }
     if any(value is not None for value in held.values()):
         stamped: list[dict[str, Any]] = []
@@ -6298,7 +6331,7 @@ def rank_landscape(
     precipitation_configuration, irr, income_tax, operating_days,
     labor_burden, finance_interest, finance_years, finance_fraction,
     startup_months, startup_FOCfrac, startup_VOCfrac,
-    startup_salesfrac, or WC_over_FCI, listed keys include that held
+    startup_salesfrac, WC_over_FCI, or warehouse, listed keys include that held
     value and matching requires it; omitted is not a silent cache or
     production default. A complete sequence grid with production check red is
     sequence_coupling_unproven as primary (no pending_blockers).
