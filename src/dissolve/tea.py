@@ -938,6 +938,7 @@ def _public_design_point(
 PROCESS_CONFIRM_TOOLS = frozenset({
     "evaluate_tea_lca_scenarios",
     "analyze_tea_sensitivity",
+    "evaluate_process",
 })
 _TOOL1_PROCESS_ROWS_TOOLS = frozenset({
     "evaluate_tea_lca_scenarios",
@@ -4726,6 +4727,13 @@ _EVALUATE_PROCESS_MODE_SCALARS = frozenset({
     "engine_mode",
     "handle",
     "row_id",
+    "timeout_seconds",
+})
+_EVALUATE_MODE_FORWARD = frozenset({
+    "engine_mode",
+    "handle",
+    "row_id",
+    "timeout_seconds",
 })
 _LOOKUP_FILTER_FIELDS = frozenset({
     "target_polymer",
@@ -4745,18 +4753,29 @@ _LOOKUP_FILTER_FIELDS = frozenset({
 })
 
 
+def _evaluate_process_envelope(raw: str) -> str:
+    envelope = json.loads(raw)
+    data = envelope.get("data")
+    if isinstance(data, dict):
+        data["tool_name"] = "evaluate_process"
+    return json.dumps(
+        envelope, ensure_ascii=False, indent=2, allow_nan=False,
+    )
+
+
 def evaluate_process(
     mode: Optional[str] = None,
     lookup_filter: Optional[dict[str, Any]] = None,
     process_config: Optional[dict[str, Any]] = None,
+    process_configs: Optional[list[dict[str, Any]]] = None,
     **kwargs: Any,
 ) -> str:
     """Typed twelve-field lookup, evaluate, sensitivity, or route.
 
     Closed mode: lookup, evaluate, sensitivity, route. lookup uses
-    lookup_filter; evaluate and sensitivity use process_config. Lookup is
-    wired; evaluate, sensitivity, and route on this name stay
-    tool_not_wired while the existing TEA names still serve them.
+    lookup_filter; evaluate uses process_config or process_configs.
+    Lookup and evaluate are wired; sensitivity and route on this name
+    stay tool_not_wired while the existing TEA names still serve them.
     Optimization is not a mode. Not a ranking.
     """
     tool = "evaluate_process"
@@ -4788,13 +4807,20 @@ def evaluate_process(
             legal_modes=list(_EVALUATE_PROCESS_MODES),
         )
     if token == "lookup":
-        if process_config is not None:
+        inapplicable_objects = [
+            name for name, value in (
+                ("process_config", process_config),
+                ("process_configs", process_configs),
+            )
+            if value is not None
+        ]
+        if inapplicable_objects:
             return tool_error(
                 tool,
-                "process_config is not applicable in lookup mode.",
+                "These arguments are not applicable in lookup mode.",
                 error_code="not_applicable_in_mode",
                 mode="lookup",
-                inapplicable_fields=["process_config"],
+                inapplicable_fields=inapplicable_objects,
                 applicable_mode="evaluate",
             )
         inapplicable = sorted(str(name) for name in kwargs)
@@ -4827,13 +4853,8 @@ def evaluate_process(
                     extra_keys=extra,
                 )
             supplied = dict(lookup_filter)
-        raw = lookup_admitted_process_records(**supplied)
-        envelope = json.loads(raw)
-        data = envelope.get("data")
-        if isinstance(data, dict):
-            data["tool_name"] = tool
-        return json.dumps(
-            envelope, ensure_ascii=False, indent=2, allow_nan=False,
+        return _evaluate_process_envelope(
+            lookup_admitted_process_records(**supplied),
         )
     if lookup_filter is not None:
         return tool_error(
@@ -4843,6 +4864,56 @@ def evaluate_process(
             mode=token,
             inapplicable_fields=["lookup_filter"],
             applicable_mode="lookup",
+        )
+    if token != "evaluate" and process_configs is not None:
+        return tool_error(
+            tool,
+            "process_configs is not applicable in this mode.",
+            error_code="not_applicable_in_mode",
+            mode=token,
+            inapplicable_fields=["process_configs"],
+            applicable_mode="evaluate",
+        )
+    if token == "evaluate":
+        inapplicable = sorted(
+            str(name) for name in kwargs if name not in _EVALUATE_MODE_FORWARD
+        )
+        if inapplicable:
+            return tool_error(
+                tool,
+                "These arguments are not applicable in evaluate mode.",
+                error_code="not_applicable_in_mode",
+                mode="evaluate",
+                inapplicable_fields=inapplicable,
+            )
+        if process_config is not None and not isinstance(process_config, dict):
+            return tool_error(
+                tool,
+                "process_config must be an object.",
+                error_code="invalid_admitted_record_query",
+                field="process_config",
+            )
+        if process_configs is not None and not isinstance(process_configs, list):
+            return tool_error(
+                tool,
+                "process_configs must be a list.",
+                error_code="invalid_admitted_record_query",
+                field="process_configs",
+            )
+        scenarios: list[dict[str, Any]] | None = None
+        if process_config is not None or process_configs is not None:
+            scenarios = []
+            if process_config is not None:
+                scenarios.append(process_config)
+            if process_configs is not None:
+                scenarios.extend(process_configs)
+        forwarded = {
+            name: kwargs[name]
+            for name in _EVALUATE_MODE_FORWARD
+            if name in kwargs
+        }
+        return _evaluate_process_envelope(
+            evaluate_tea_lca_scenarios(scenarios, **forwarded),
         )
     return tool_error(
         tool,

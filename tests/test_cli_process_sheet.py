@@ -346,3 +346,118 @@ def test_process_buffer_is_the_first_confirm_seed(tmp_path, monkeypatch):
     assert seen[0] is edited
     assert captured["kwargs"]["scenarios"][0] is edited
     assert captured["kwargs"]["scenarios"][0]["irr"] == pytest.approx(0.12)
+
+
+def test_evaluate_process_evaluate_mode_uses_the_same_sheet_object(
+    tmp_path, monkeypatch,
+):
+    monkeypatch.setattr(cli, "run_turn", _ok_turn)
+    monkeypatch.setattr(sys.stdin, "isatty", lambda: True)
+    app, _buf = _app(tmp_path, monkeypatch)
+    sheet = tea.seed_public_process_config({
+        "target_polymer": "LDPE",
+        "solvent": "Dodecane",
+        "dissolution_temperature_c": 145.0,
+    })
+    monkeypatch.setattr(app, "_edit_process_sheet", lambda seed, **kwargs: sheet)
+    captured = {}
+
+    def original(name, **kwargs):
+        captured["name"] = name
+        captured["kwargs"] = kwargs
+        return {"success": True}
+
+    app._cli_direct_active = True
+    result = app._cli_direct_dispatch(
+        original,
+        "evaluate_process",
+        {
+            "mode": "evaluate",
+            "process_config": {"target_polymer": "LDPE", "solvent": "toluene"},
+        },
+    )
+    assert result == {"success": True}
+    assert captured["name"] == "evaluate_process"
+    assert captured["kwargs"]["process_config"] is sheet
+    assert "process_configs" not in captured["kwargs"]
+    assert app._confirmation_sheet_submitted is True
+    assert app._process_buffer is sheet
+
+
+def test_evaluate_process_lookup_mode_does_not_open_the_sheet(
+    tmp_path, monkeypatch,
+):
+    monkeypatch.setattr(cli, "run_turn", _ok_turn)
+    monkeypatch.setattr(sys.stdin, "isatty", lambda: True)
+    app, _buf = _app(tmp_path, monkeypatch)
+    captured = {}
+
+    def original(name, **kwargs):
+        captured["kwargs"] = kwargs
+        return {"success": True}
+
+    def forbidden(*args, **kwargs):
+        raise AssertionError("lookup mode must not prompt the process sheet")
+
+    monkeypatch.setattr(app, "_edit_process_sheet", forbidden)
+    app._cli_direct_active = True
+    model_args = {
+        "mode": "lookup",
+        "lookup_filter": {"target_polymer": "LDPE"},
+    }
+    app._cli_direct_dispatch(original, "evaluate_process", model_args)
+    assert captured["kwargs"] == model_args
+    assert app._confirmation_sheet_submitted is False
+
+
+def test_later_evaluate_process_runs_the_confirmed_buffer(
+    tmp_path, monkeypatch,
+):
+    monkeypatch.setattr(cli, "run_turn", _ok_turn)
+    monkeypatch.setattr(sys.stdin, "isatty", lambda: True)
+    app, _buf = _app(tmp_path, monkeypatch)
+    sheet = tea.seed_public_process_config({
+        "target_polymer": "LDPE",
+        "solvent": "Dodecane",
+        "dissolution_temperature_c": 145.0,
+        "irr": 0.10,
+    })
+    prompts = []
+
+    def record_prompt(seed, **kwargs):
+        prompts.append(seed)
+        return sheet
+
+    monkeypatch.setattr(app, "_edit_process_sheet", record_prompt)
+    captured = []
+
+    def original(name, **kwargs):
+        captured.append({"name": name, "kwargs": kwargs})
+        return {"success": True}
+
+    app._cli_direct_active = True
+    app._cli_direct_dispatch(
+        original,
+        "evaluate_process",
+        {
+            "mode": "evaluate",
+            "process_configs": [{"target_polymer": "LDPE", "irr": 0.10}],
+        },
+    )
+    app._cli_direct_dispatch(
+        original,
+        "evaluate_process",
+        {
+            "mode": "evaluate",
+            "engine_mode": "cache",
+            "process_config": {"target_polymer": "LDPE", "irr": 0.15},
+        },
+    )
+    assert len(prompts) == 1
+    assert len(captured) == 2
+    second = captured[1]["kwargs"]
+    assert second["process_config"] is sheet
+    assert second["process_config"]["irr"] == pytest.approx(0.10)
+    assert second["engine_mode"] == "cache"
+    assert "process_configs" not in second
+    assert sheet["irr"] != 0.15

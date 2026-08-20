@@ -907,6 +907,15 @@ class CliApp:
             return self._process_buffer
         return tea.seed_public_process_config(scenario)
 
+    def _process_confirm_applies(
+        self, name: str, kwargs: dict[str, Any],
+    ) -> bool:
+        if name not in tea.PROCESS_CONFIRM_TOOLS:
+            return False
+        if name != "evaluate_process":
+            return True
+        return str(kwargs.get("mode") or "").strip().casefold() == "evaluate"
+
     def _bind_confirmed_process(
         self, name: str, kwargs: dict[str, Any],
     ) -> dict[str, Any]:
@@ -917,6 +926,11 @@ class CliApp:
         out = dict(kwargs)
         if name == "evaluate_tea_lca_scenarios":
             out["scenarios"] = [buffer]
+            out.pop("screening_shortlist", None)
+            out.pop("held_process_basis", None)
+        elif name == "evaluate_process":
+            out["process_config"] = buffer
+            out.pop("process_configs", None)
             out.pop("screening_shortlist", None)
             out.pop("held_process_basis", None)
         elif name == "analyze_tea_sensitivity":
@@ -942,6 +956,20 @@ class CliApp:
             out.pop("screening_shortlist", None)
             out.pop("held_process_basis", None)
             return out
+        if name == "evaluate_process":
+            configs = list(kwargs.get("process_configs") or [])
+            seed_src = kwargs.get("process_config")
+            if not isinstance(seed_src, dict):
+                seed_src = configs[0] if configs else None
+            seed = self._confirm_seed(seed_src if isinstance(seed_src, dict) else None)
+            submitted = self._edit_process_sheet(seed, prompt_fn=prompt_fn)
+            if submitted is None:
+                return None
+            self._process_buffer = submitted
+            out = dict(kwargs)
+            out["process_config"] = submitted
+            out.pop("process_configs", None)
+            return out
         if name == "analyze_tea_sensitivity":
             seed = self._confirm_seed(kwargs.get("scenario"))
             submitted = self._edit_process_sheet(seed, prompt_fn=prompt_fn)
@@ -958,7 +986,7 @@ class CliApp:
     ) -> Any:
         armed = (
             self._cli_direct_active
-            and name in tea.PROCESS_CONFIRM_TOOLS
+            and self._process_confirm_applies(name, kwargs)
             and sys.stdin.isatty()
             and not self.quiet
         )
