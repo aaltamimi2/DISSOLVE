@@ -1,4 +1,8 @@
-"""rank_landscape source=residual_route from a mode=route handle. Never last_route."""
+"""rank_landscape source=residual_route from a mode=route handle. Never last_route.
+
+Pareto keeps F's quality schema including frontier_fraction, sparse_frontier,
+and safety_standing on every point. Safety is carried, not a usable filter.
+"""
 from __future__ import annotations
 
 import json
@@ -121,6 +125,16 @@ def test_residual_route_does_not_read_getattr_source_state(monkeypatch):
     assert payload.get("n_landscape_points") >= 2
     assert payload.get("cheapest_point")
     assert payload.get("solver")
+    for point in landscape:
+        assert point["safety_standing"]["status"] in {
+            "evaluated", "not_requested", "unavailable",
+        }
+    assert payload["selected_point"]["safety_standing"]["status"] in {
+        "evaluated", "not_requested", "unavailable",
+    }
+    assert payload["cheapest_point"]["safety_standing"]["status"] in {
+        "evaluated", "not_requested", "unavailable",
+    }
 
 
 def test_residual_route_pareto_returns_landscape_and_frontier(monkeypatch):
@@ -151,6 +165,22 @@ def test_residual_route_pareto_returns_landscape_and_frontier(monkeypatch):
     }
     assert payload.get("cheapest_point")
     assert "frontier_tradeoff" in payload
+    n_land = payload["n_landscape_points"]
+    n_front = payload["n_frontier_points"]
+    assert payload.get("frontier_fraction") == n_front / n_land
+    assert payload.get("sparse_frontier") is (
+        n_front == 1 or payload.get("cheapest_equals_lowest_y") is True
+    )
+    assert isinstance(payload.get("cheapest_equals_lowest_y"), bool)
+    assert payload.get("sparse_frontier") is not None
+    for point in landscape + frontier + [payload["cheapest_point"]]:
+        assert point["safety_standing"]["status"] in {
+            "evaluated", "not_requested", "unavailable",
+        }
+    assert all(
+        point["safety_standing"]["status"] == "not_requested"
+        for point in landscape
+    )
 
 
 def test_pareto_name_retired_both_successors_serve(monkeypatch):
@@ -238,3 +268,40 @@ def test_objective_on_process_rows_is_not_applicable(monkeypatch):
     assert payload.get("error_code") == "not_applicable_in_source"
     assert payload.get("inapplicable_fields") == ["objective"]
     assert payload.get("source") == "process_rows"
+
+
+def test_residual_pareto_quality_matches_fraction_and_sparse_definition():
+    one = {"total_cost": 1.0, "emissions": 2.0}
+    two = {"total_cost": 3.0, "emissions": 1.0}
+    star = optimization._residual_pareto_quality(
+        [one, two], [one], "total_cost", "emissions",
+    )
+    assert star["frontier_fraction"] == 0.5
+    assert star["sparse_frontier"] is True
+    assert star["cheapest_equals_lowest_y"] is True
+    tradeoff = optimization._residual_pareto_quality(
+        [one, two], [one, two], "total_cost", "emissions",
+    )
+    assert tradeoff["frontier_fraction"] == 1.0
+    assert tradeoff["cheapest_equals_lowest_y"] is False
+    assert tradeoff["sparse_frontier"] is False
+
+
+def test_residual_route_optimum_omits_frontier_fraction(monkeypatch):
+    session = new_session()
+    with bind_tool_session(session):
+        handle, _costed = _costed_route_handle(session, monkeypatch)
+        payload = _data(tea.rank_landscape(
+            source="residual_route",
+            operation="optimum",
+            handle=handle,
+        ))
+    assert payload.get("success") is True
+    assert "frontier_fraction" not in payload
+    assert "sparse_frontier" not in payload
+    landscape = payload.get("landscape_points") or []
+    assert landscape
+    assert all(
+        point["safety_standing"]["status"] == "not_requested"
+        for point in landscape
+    )

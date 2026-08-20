@@ -18,6 +18,7 @@ from typing import Any, Literal, Optional, Sequence
 
 from .contracts import tool_error, tool_success
 from . import tea_contracts
+from .landscape import _carried_safety_standing
 from .session import (
     candidate_evidence, current_tool_session,
     resolve_candidate_argument,
@@ -520,6 +521,58 @@ def _cost_emissions_tradeoff(
     }
 
 
+def _stamp_residual_point(point: Optional[dict[str, Any]]) -> Optional[dict[str, Any]]:
+    """Carry safety_standing on an F point. Not a GSK-fail filter."""
+    if not isinstance(point, dict):
+        return point
+    copied = dict(point)
+    copied["safety_standing"] = _carried_safety_standing(copied)
+    return copied
+
+
+def _stamp_residual_points(
+    points: Sequence[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    return [_stamp_residual_point(point) for point in points]
+
+
+def _axis_extreme(
+    points: Sequence[dict[str, Any]], key: str, direction: str,
+) -> dict[str, Any]:
+    if direction == "max":
+        return max(points, key=lambda point: float(point[key]))
+    return min(points, key=lambda point: float(point[key]))
+
+
+def _residual_pareto_quality(
+    landscape: Sequence[dict[str, Any]],
+    frontier: Sequence[dict[str, Any]],
+    x_key: str,
+    y_key: str,
+) -> dict[str, Any]:
+    """F quality fields residual_route was missing: fraction, sparse, equality."""
+    n_landscape = len(landscape)
+    n_frontier = len(frontier)
+    fraction = (n_frontier / n_landscape) if n_landscape else None
+    if not frontier:
+        return {
+            "frontier_fraction": fraction,
+            "sparse_frontier": False,
+            "cheapest_equals_lowest_y": False,
+        }
+    cheapest = _axis_extreme(frontier, x_key, _DIRECTIONS[x_key])
+    best_y = _axis_extreme(frontier, y_key, _DIRECTIONS[y_key])
+    equals = cheapest is best_y or (
+        float(cheapest[x_key]) == float(best_y[x_key])
+        and float(cheapest[y_key]) == float(best_y[y_key])
+    )
+    return {
+        "frontier_fraction": fraction,
+        "sparse_frontier": n_frontier == 1 or equals,
+        "cheapest_equals_lowest_y": equals,
+    }
+
+
 def _solver_version(name: str) -> Optional[str]:
     if name in {"appsi_highs", "highs"}:
         try:
@@ -672,7 +725,7 @@ def rank_residual_route(
             verification.get("selected_design_id") == selected["design_id"]
             if verification.get("status") == "verified" else None
         )
-        marked = [dict(point) for point in landscape]
+        marked = _stamp_residual_points(landscape)
         return tool_success(
             tool, analysis_type="point_optimum", operation="optimum",
             objective=objective_key, scenario=scenario_key,
@@ -682,8 +735,8 @@ def rank_residual_route(
                 (asset_payload().get("policy") or {})["strap_capital_allocation_years"]
             ),
             residual_product_revenue_included=False,
-            selected_point=selected,
-            cheapest_point=copy.deepcopy(
+            selected_point=_stamp_residual_point(selected),
+            cheapest_point=_stamp_residual_point(
                 min(landscape, key=lambda point: float(point["total_cost"]))
             ),
             landscape_points=marked,
@@ -735,6 +788,10 @@ def rank_residual_route(
             copied = dict(point)
             copied["is_frontier"] = copied.get("design_id") in frontier_ids
             marked.append(copied)
+        marked = _stamp_residual_points(marked)
+        frontier = _stamp_residual_points(frontier)
+        cheapest = _stamp_residual_point(cheapest)
+        quality = _residual_pareto_quality(marked, frontier, x_key, y_key)
         slice_payloads.append({
             "slice_id": f"slice-{index}",
             "feed_mass_fractions": composition,
@@ -744,11 +801,12 @@ def rank_residual_route(
             "n_landscape_points": len(marked),
             "n_frontier_points": len(frontier),
             "n_rejected_phantom_designs": len(rejected),
-            "knee_point": knee, "knee_status": knee_status,
+            "knee_point": _stamp_residual_point(knee), "knee_status": knee_status,
             "cheapest_point": cheapest,
             "frontier_tradeoff": _cost_emissions_tradeoff(
                 frontier, x_key, y_key,
             ),
+            **quality,
         })
     if not slice_payloads:
         return tool_error(
@@ -778,6 +836,9 @@ def rank_residual_route(
         points=primary["points"],
         n_landscape_points=n_land,
         n_frontier_points=n_front,
+        frontier_fraction=primary["frontier_fraction"],
+        sparse_frontier=primary["sparse_frontier"],
+        cheapest_equals_lowest_y=primary["cheapest_equals_lowest_y"],
         knee_point=primary["knee_point"],
         knee_status=primary["knee_status"],
         cheapest_point=primary["cheapest_point"],
@@ -785,7 +846,8 @@ def rank_residual_route(
         slices=[{
             key: item[key] for key in (
                 "slice_id", "feed_mass_fractions", "n_landscape_points",
-                "n_frontier_points", "knee_point", "cheapest_point",
+                "n_frontier_points", "frontier_fraction", "sparse_frontier",
+                "cheapest_equals_lowest_y", "knee_point", "cheapest_point",
                 "knee_status", "frontier_tradeoff",
             )
         } for item in slice_payloads],
