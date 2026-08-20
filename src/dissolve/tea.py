@@ -942,6 +942,7 @@ PROCESS_CONFIRM_TOOLS = frozenset({
 _TOOL1_PROCESS_ROWS_TOOLS = frozenset({
     "evaluate_tea_lca_scenarios",
     "lookup_admitted_process_records",
+    "evaluate_process",
 })
 _SHEET_REQUIRED_FIELDS = (
     "target_polymer", "solvent", "dissolution_temperature_c",
@@ -4713,6 +4714,142 @@ def lookup_admitted_process_records(
             "Every metric uses the product basis and configuration stored with "
             "its record; records are not interpolated across conditions.",
         ],
+    )
+
+
+_EVALUATE_PROCESS_MODES = ("lookup", "evaluate", "sensitivity", "route")
+_EVALUATE_PROCESS_MODE_SCALARS = frozenset({
+    "parameter",
+    "values",
+    "analysis_mode",
+    "metric",
+    "engine_mode",
+    "handle",
+    "row_id",
+})
+_LOOKUP_FILTER_FIELDS = frozenset({
+    "target_polymer",
+    "solvent",
+    "energy_cases",
+    "sensitivity_labels",
+    "sensitivity_axes",
+    "sensitivity_level_selector",
+    "record_form",
+    "dissolution_temperature_c",
+    "processing_capacity_mt_per_yr",
+    "requested_metrics",
+    "source",
+    "campaign_fingerprint",
+    "process_config",
+    "allow_partial_campaign",
+})
+
+
+def evaluate_process(
+    mode: Optional[str] = None,
+    lookup_filter: Optional[dict[str, Any]] = None,
+    process_config: Optional[dict[str, Any]] = None,
+    **kwargs: Any,
+) -> str:
+    """Typed twelve-field lookup, evaluate, sensitivity, or route.
+
+    Closed mode: lookup, evaluate, sensitivity, route. lookup uses
+    lookup_filter; evaluate and sensitivity use process_config. Lookup is
+    wired; evaluate, sensitivity, and route on this name stay
+    tool_not_wired while the existing TEA names still serve them.
+    Optimization is not a mode. Not a ranking.
+    """
+    tool = "evaluate_process"
+    extra = sorted(
+        str(name) for name in kwargs
+        if name not in _EVALUATE_PROCESS_MODE_SCALARS
+    )
+    if extra:
+        return tool_error(
+            tool,
+            "unknown extra argument",
+            error_code="unknown_process_field",
+            extra_keys=extra,
+        )
+    token = str(mode or "").strip().casefold()
+    if not token:
+        return tool_error(
+            tool,
+            "mode is required: lookup, evaluate, sensitivity, or route.",
+            error_code="missing_mode",
+            legal_modes=list(_EVALUATE_PROCESS_MODES),
+        )
+    if token not in _EVALUATE_PROCESS_MODES:
+        return tool_error(
+            tool,
+            "mode must be lookup, evaluate, sensitivity, or route.",
+            error_code="invalid_admitted_record_query",
+            mode=token,
+            legal_modes=list(_EVALUATE_PROCESS_MODES),
+        )
+    if token == "lookup":
+        if process_config is not None:
+            return tool_error(
+                tool,
+                "process_config is not applicable in lookup mode.",
+                error_code="not_applicable_in_mode",
+                mode="lookup",
+                inapplicable_fields=["process_config"],
+                applicable_mode="evaluate",
+            )
+        inapplicable = sorted(str(name) for name in kwargs)
+        if inapplicable:
+            return tool_error(
+                tool,
+                "These arguments are not applicable in lookup mode.",
+                error_code="not_applicable_in_mode",
+                mode="lookup",
+                inapplicable_fields=inapplicable,
+            )
+        if lookup_filter is None:
+            supplied: dict[str, Any] = {}
+        elif not isinstance(lookup_filter, dict):
+            return tool_error(
+                tool,
+                "lookup_filter must be an object.",
+                error_code="invalid_admitted_record_query",
+                field="lookup_filter",
+            )
+        else:
+            extra = sorted(
+                name for name in lookup_filter if name not in _LOOKUP_FILTER_FIELDS
+            )
+            if extra:
+                return tool_error(
+                    tool,
+                    "unknown extra process field: " + ", ".join(extra),
+                    error_code="unknown_process_field",
+                    extra_keys=extra,
+                )
+            supplied = dict(lookup_filter)
+        raw = lookup_admitted_process_records(**supplied)
+        envelope = json.loads(raw)
+        data = envelope.get("data")
+        if isinstance(data, dict):
+            data["tool_name"] = tool
+        return json.dumps(
+            envelope, ensure_ascii=False, indent=2, allow_nan=False,
+        )
+    if lookup_filter is not None:
+        return tool_error(
+            tool,
+            "lookup_filter is not applicable in this mode.",
+            error_code="not_applicable_in_mode",
+            mode=token,
+            inapplicable_fields=["lookup_filter"],
+            applicable_mode="lookup",
+        )
+    return tool_error(
+        tool,
+        "evaluate_process mode=" + token + " is unwired; use the existing "
+        "TEA name until this mode lands.",
+        error_code="tool_not_wired",
+        mode=token,
     )
 
 

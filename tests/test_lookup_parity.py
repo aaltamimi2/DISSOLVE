@@ -80,7 +80,7 @@ def _sealed_entry() -> dict:
 
 def test_lookup_name_is_still_registered():
     assert "lookup_admitted_process_records" in registry.BY_NAME
-    assert "evaluate_process" not in registry.BY_NAME
+    assert "evaluate_process" in registry.BY_NAME
 
 
 def test_missing_polymer_is_named_not_a_cache_dump(monkeypatch):

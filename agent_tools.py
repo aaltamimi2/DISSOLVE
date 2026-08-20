@@ -28,6 +28,7 @@ _PROCESS_ECONOMICS_HANDLE_TOOLS = frozenset({
     "evaluate_tea_lca_scenarios",
     "analyze_tea_sensitivity",
     "lookup_admitted_process_records",
+    "evaluate_process",
     "rank_landscape",
 })
 _OMIT = frozenset({"temperature_step_c"})
