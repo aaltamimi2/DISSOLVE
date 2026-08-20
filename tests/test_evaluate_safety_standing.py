@@ -175,3 +175,79 @@ def test_illegal_bound_standing_is_not_copied():
     assert tea._comparison_safety_standing(None) == {
         "status": "not_requested",
     }
+
+
+def test_sensitivity_rows_stamp_not_requested(monkeypatch):
+    _forbid_live(monkeypatch)
+    c1 = _record_by_label("ldpe-route-c1")
+    payload = _data(tea.analyze_tea_sensitivity(
+        _public_from_record(c1),
+        parameter="solvent_price",
+        engine_mode="cache",
+    ))
+    assert payload.get("success") is True
+    rows = payload["sensitivity_rows"]
+    assert len(rows) >= 2
+    assert "safety_standing" not in payload
+    values = {row["value"] for row in rows}
+    assert len(values) >= 2
+    for row in rows:
+        assert row["safety_standing"] == {"status": "not_requested"}
+        assert row["safety_standing"]["status"] != "evaluated"
+
+
+def test_evaluate_process_sensitivity_stamps_not_requested(monkeypatch):
+    _forbid_live(monkeypatch)
+    c1 = _record_by_label("ldpe-route-c1")
+    payload = _data(tea.evaluate_process(
+        mode="sensitivity",
+        process_config=_public_from_record(c1),
+        parameter="solvent_price",
+        engine_mode="cache",
+    ))
+    assert payload.get("success") is True
+    assert "safety_standing" not in payload
+    rows = payload["sensitivity_rows"]
+    assert len(rows) >= 2
+    for row in rows:
+        assert row["safety_standing"] == {"status": "not_requested"}
+    assert rows[0]["value"] != rows[1]["value"]
+
+
+def test_incomplete_sensitivity_does_not_stamp_rows(monkeypatch):
+    _forbid_live(monkeypatch)
+    c1 = _record_by_label("ldpe-route-c1")
+    cfg = c1["config"]
+    payload = _data(tea.evaluate_process(
+        mode="sensitivity",
+        process_config={
+            "target_polymer": cfg["target_plastic"],
+            "solvent": cfg["solvent"],
+            "dissolution_temperature_c": cfg["dissolution_temperature_c"],
+        },
+        parameter="solvent_price",
+        engine_mode="cache",
+    ))
+    assert payload.get("error_code") == "incomplete_process_config"
+    assert "sensitivity_rows" not in payload
+
+
+def test_sensitivity_row_helper_copies_legal_standing():
+    c1 = _record_by_label("ldpe-route-c1")
+    fields = tea._sensitivity_row_process_fields(c1["config"])
+    assert fields["safety_standing"] == {"status": "not_requested"}
+    evaluated = {
+        "status": "evaluated",
+        "safety_profile": {"ghs_signal_word": "Danger"},
+    }
+    copied = tea._sensitivity_row_process_fields(
+        c1["config"],
+        {"safety_standing": evaluated},
+    )
+    assert copied["safety_standing"] == evaluated
+    skipped = tea._sensitivity_row_process_fields(
+        c1["config"],
+        {"safety_standing": {"status": "fail", "excluded": True}},
+    )
+    assert skipped["safety_standing"] == {"status": "not_requested"}
+    assert "excluded" not in skipped["safety_standing"]

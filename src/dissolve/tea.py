@@ -2561,7 +2561,10 @@ def _compose_sensitivity_scenario(
     return _merge_inherited_scenario(scenario, inherited)
 
 
-def _sensitivity_row_process_fields(config: dict[str, Any]) -> dict[str, Any]:
+def _sensitivity_row_process_fields(
+    config: dict[str, Any],
+    source: Any = None,
+) -> dict[str, Any]:
     """Executed twelve plus exposed tunables on a sensitivity row."""
     public = {
         public_name: config.get(internal)
@@ -2570,6 +2573,7 @@ def _sensitivity_row_process_fields(config: dict[str, Any]) -> dict[str, Any]:
     public["polymer"] = public.get("target_polymer")
     public.update(_project_flowsheet_switches(config))
     public.update(_project_coefficients(config))
+    public["safety_standing"] = _comparison_safety_standing(source)
     return public
 
 
@@ -9673,7 +9677,7 @@ def analyze_tea_sensitivity(
             "metric_value": measured, "success": bool(result.get("success")),
             "engine_mode": result.get("engine_mode"),
             "cache_record_label": result.get("cache_record_label"),
-            **_sensitivity_row_process_fields(run_config),
+            **_sensitivity_row_process_fields(run_config, result),
             **(
                 {"lca_metric_status": {"metric_value": source_status}}
                 if source_status else {}
