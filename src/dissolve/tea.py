@@ -69,6 +69,7 @@ _SCENARIO_ALIASES = {
 _PUBLIC_REQUIRED_FIELDS = tuple(
     public for _internal, public in _DESIGN_POINT_PUBLIC_FIELDS
 )
+_D8_REMAINDER_PUBLIC_FIELDS = _PUBLIC_REQUIRED_FIELDS[7:]
 _NINE_HELD_PUBLIC_FIELDS = tuple(
     name for name in _PUBLIC_REQUIRED_FIELDS
     if name not in {
@@ -2574,8 +2575,8 @@ def _stored_route_named_remainder(solvent: str) -> dict[str, Any]:
 
     Stored-route overlay already supplies mass%, capacity, energy, T, and
     precip. The remaining public fields are this tool's production plant,
-    plus an admitted solvent price. Evaluate and sensitivity cannot omit
-    the twelve and reach this helper.
+    plus an admitted solvent price. Evaluate and sensitivity require the
+    twelve before `_scenario_config` and do not reach this helper.
     """
     identity = _resolve_tea_solvent(solvent)
     remainder = dict(_STORED_ROUTE_PRODUCTION_REMAINDER)
@@ -2619,7 +2620,11 @@ def _flowsheet_switch_deltas(config: dict[str, Any]) -> list[dict[str, Any]]:
     return deltas
 
 
-def _scenario_config(scenario: dict[str, Any]) -> dict[str, Any]:
+def _scenario_config(
+    scenario: dict[str, Any],
+    *,
+    require_complete_twelve: bool = False,
+) -> dict[str, Any]:
     if not isinstance(scenario, dict):
         raise ValueError("Each scenario must be an object")
     _refuse_reserved_process_fields(scenario)
@@ -2632,7 +2637,20 @@ def _scenario_config(scenario: dict[str, Any]) -> dict[str, Any]:
             error_code="unknown_process_field",
             extra_keys=unknown,
         )
-    missing = _missing_required_public_fields(scenario)
+    working = dict(scenario)
+    missing = _missing_required_public_fields(working)
+    if (
+        missing
+        and not require_complete_twelve
+        and all(name in _D8_REMAINDER_PUBLIC_FIELDS for name in missing)
+        and working.get("solvent") not in (None, "")
+    ):
+        remainder = _stored_route_named_remainder(str(working["solvent"]))
+        missing_set = set(missing)
+        for key, value in remainder.items():
+            if key in missing_set:
+                working[key] = value
+        missing = _missing_required_public_fields(working)
     if missing:
         raise _ScenarioInputError(
             "process_config is incomplete; missing public fields: "
@@ -2642,7 +2660,7 @@ def _scenario_config(scenario: dict[str, Any]) -> dict[str, Any]:
         )
     supplied = {
         _SCENARIO_ALIASES.get(str(key), str(key)): value
-        for key, value in scenario.items()
+        for key, value in working.items()
     }
     polymer = _resolve_polymer(
         supplied.get("target_polymer") or supplied.get("target_plastic")
@@ -6494,7 +6512,10 @@ def evaluate_tea_lca_scenarios(
         )
     try:
         timeout = max(1, min(int(timeout_seconds), 600))
-        configs = [_scenario_config(item) for item in scenarios]
+        configs = [
+            _scenario_config(item, require_complete_twelve=True)
+            for item in scenarios
+        ]
     except _InputError as error:
         return tool_error(
             tool, str(error), error_code=error.code, **error.detail,
@@ -8533,7 +8554,7 @@ def analyze_tea_sensitivity(
         scenario, field_origin = _compose_sensitivity_scenario(
             scenario, handle, row_id,
         )
-        baseline = _scenario_config(scenario)
+        baseline = _scenario_config(scenario, require_complete_twelve=True)
         requested_values = [] if values is None else [_finite(value, field) for value in values]
     except _InputError as error:
         return tool_error(

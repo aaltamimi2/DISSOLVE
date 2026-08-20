@@ -244,3 +244,53 @@ def test_worker_internal_names_satisfy_the_public_twelve(monkeypatch):
     ))
     assert payload.get("success") is True
     assert payload.get("cache_match_status") == "exact"
+
+
+def _d8_overlay_from_record(record: dict) -> dict:
+    cfg = record["config"]
+    return {
+        "target_polymer": cfg["target_plastic"],
+        "solvent": cfg["solvent"],
+        "target_mass_percent": cfg["target_plastic_percent"],
+        "processing_capacity_mt_per_yr": cfg["processing_capacity"],
+        "energy_case": cfg["energy_case"],
+        "dissolution_temp_c": cfg["dissolution_temperature_c"],
+        "precipitation_temp_c": cfg["precipitation_temperature_c"],
+    }
+
+
+def test_d8_overlay_scenario_config_names_the_remainder(monkeypatch):
+    record = _record_with_energy("C1")
+    _forbid_pair_fill(monkeypatch)
+    overlay = _d8_overlay_from_record(record)
+    config = tea._scenario_config(overlay)
+    assert tea._cache_index().get(tea._config_key(config)) is not None
+    assert config["solvent_loss_pct"] == pytest.approx(0.01)
+    assert config["feedstock_distance_km"] == pytest.approx(0.0)
+    assert config["dissolution_capacity"] == pytest.approx(3.0)
+    assert config["labor_cost"] == pytest.approx(120_000.0)
+
+
+def test_evaluate_still_refuses_a_d8_overlay_without_the_twelve(monkeypatch):
+    record = _record_with_energy("C1")
+    _forbid_pair_fill(monkeypatch)
+    payload = _data(tea.evaluate_tea_lca_scenarios(
+        [_d8_overlay_from_record(record)],
+        engine_mode="cache",
+    ))
+    assert payload.get("error_code") == "incomplete_process_config"
+    assert payload.get("missing") == list(tea._D8_REMAINDER_PUBLIC_FIELDS)
+    assert payload.get("comparison_rows") is None or "comparison_rows" not in payload
+    assert payload.get("cache_match_status") is None
+
+
+def test_sensitivity_still_refuses_a_d8_overlay_without_the_twelve(monkeypatch):
+    record = _record_with_energy("C1")
+    _forbid_pair_fill(monkeypatch)
+    payload = _data(tea.analyze_tea_sensitivity(
+        _d8_overlay_from_record(record),
+        parameter="target_mass_percent",
+        engine_mode="cache",
+    ))
+    assert payload.get("error_code") == "incomplete_process_config"
+    assert payload.get("missing") == list(tea._D8_REMAINDER_PUBLIC_FIELDS)
