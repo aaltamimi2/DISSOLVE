@@ -879,14 +879,17 @@ class CliApp:
                 "",
             ))
         widths = tea.confirmation_sheet_column_widths(rows)
+        line_width = max(int(self.console.width), 1)
         header = tea.confirmation_sheet_format_row(
             "field", "value", "units", "origin", widths,
+            line_width=line_width,
         )
         for visual in header.splitlines():
             self.console.print(visual)
         for field, shown, units, token in rows:
             formatted = tea.confirmation_sheet_format_row(
                 field, shown, units, token, widths,
+                line_width=line_width,
             )
             for visual in formatted.splitlines():
                 self.console.print(visual)

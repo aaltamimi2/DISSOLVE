@@ -40,14 +40,20 @@ def _sheet_field_block(shown, name):
     return "\n".join(block)
 
 
-def _console():
+def _console(width=80):
     buf = io.StringIO()
-    return Console(file=buf, force_terminal=True, width=80, color_system=None), buf
+    return Console(
+        file=buf,
+        force_terminal=True,
+        width=width,
+        height=25,
+        color_system=None,
+    ), buf
 
 
-def _app(tmp_path, monkeypatch, **kwargs):
+def _app(tmp_path, monkeypatch, *, console_width=80, **kwargs):
     monkeypatch.setenv("META_MUSE_API_KEY", "test-key")
-    console, buf = _console()
+    console, buf = _console(console_width)
     app = CliApp(
         session_id="test-session",
         store_root=tmp_path,
@@ -1801,6 +1807,84 @@ def test_confirmation_sheet_splits_unbreakable_value():
     )
     assert "\n" not in wide
     assert unbreakable in wide
+
+
+def test_confirmation_sheet_format_row_honors_line_width():
+    rows = (
+        ("centrifuged_plastic_solvent_content_pct", "50.0", "wt%", "default"),
+        ("precipitation_temperature_c", "35", "°C", "default"),
+        ("facilities", "true", "", "derived from energy_case"),
+    )
+    widths = tea.confirmation_sheet_column_widths(rows)
+    narrow = [
+        tea.confirmation_sheet_format_row(*row, widths, line_width=40)
+        for row in rows
+    ]
+    typical = [
+        tea.confirmation_sheet_format_row(*row, widths, line_width=80)
+        for row in rows
+    ]
+    narrow_visuals = [visual for row in narrow for visual in row.splitlines()]
+    typical_visuals = [visual for row in typical for visual in row.splitlines()]
+    assert all(len(visual) <= 40 for visual in narrow_visuals)
+    assert all(len(visual) <= 80 for visual in typical_visuals)
+    assert max(len(visual) for visual in typical_visuals) > 40
+    assert any(
+        visual.startswith("centrifuged_plastic_solvent_content_pct")
+        for visual in narrow_visuals
+    )
+    assert any(
+        "derived from energy_case" in visual for visual in narrow[2].splitlines()
+    )
+    assert _token_col(narrow[2], "derived from energy_case") != _token_col(
+        narrow[1], "°C",
+    )
+    assert "…" not in "".join(narrow_visuals)
+    assert "derived from energy_case" not in tea._SHEET_ORIGIN_TOKENS
+
+
+def test_sheet_print_follows_console_width(tmp_path, monkeypatch):
+    monkeypatch.setattr(cli, "run_turn", _ok_turn)
+    app, buf = _app(tmp_path, monkeypatch, console_width=40)
+    c1 = tea.seed_public_process_config({
+        "target_polymer": "LDPE",
+        "solvent": "Dodecane",
+        "dissolution_temperature_c": 145.0,
+        "energy_case": "C1",
+    })
+    origin = tea.confirmation_sheet_field_origin(
+        c1,
+        snapshot=c1,
+        screening_item={
+            "target_polymer": "LDPE",
+            "solvent": "Dodecane",
+            "dissolution_temperature_c": 145.0,
+        },
+        held_keys=["energy_case"],
+    )
+    app._print_process_sheet(c1, origin=origin)
+    shown = buf.getvalue()
+    names = list(tea.public_process_field_names(energy_case="C1"))
+    names.extend(["facilities", "turbogenerator"])
+    blocks = [_sheet_field_block(shown, name) for name in names]
+    assert all(
+        len(line) <= 40
+        for block in blocks
+        for line in block.splitlines()
+    )
+    assert all(len(line) <= 40 for line in shown.splitlines())
+    assert re.search(r"^centrifuged_plastic_solvent_content_pct\b", shown, re.M)
+    assert re.search(r"^labor_cost_usd_per_employee_yr\b", shown, re.M)
+    fac = _sheet_field_block(shown, "facilities")
+    precip = _sheet_field_block(shown, "precipitation_temperature_c")
+    assert any(
+        "derived from energy_case" in line for line in fac.splitlines()
+    )
+    assert _token_col(fac, "derived from energy_case") != _token_col(
+        precip, "°C",
+    )
+    assert "…" not in shown
+    assert "derived from energy_case" not in tea._SHEET_ORIGIN_TOKENS
 
 
 def test_sheet_print_aligns_value_units_origin(tmp_path, monkeypatch):

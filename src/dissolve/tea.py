@@ -2642,13 +2642,16 @@ def confirmation_sheet_format_row(
 
     Empty units still occupy the units slot so origin stays in the
     origin column. When the padded row misses line_width, value stays
-    on the field line and units/origin share a continuation. Origin is
-    sized from the right so derived from energy_case stays one visual
-    cell. An unbreakable cell still splits so visual lines stay inside
-    line_width; this is not an ellipsis. Public names stay contiguous.
-    Origin pad is not a fifth closed origin token. Not a ranking.
+    on the field line and units/origin share a continuation. If the
+    name slot leaves no value budget, the public name stays on its
+    own line. Origin is sized from the right so derived from
+    energy_case stays one visual cell. An unbreakable cell still
+    splits so visual lines stay inside line_width; this is not an
+    ellipsis. Public names stay contiguous. Origin pad is not a
+    fifth closed origin token. Not a ranking.
     """
     field_width, value_width, units_width, origin_width = widths
+    line_width = max(int(line_width), 1)
     padded = (
         f"{field:<{field_width}}  "
         f"{value:<{value_width}}  "
@@ -2667,10 +2670,17 @@ def confirmation_sheet_format_row(
         units_width = max(origin_col - _SHEET_COL_SEP, 1)
         origin_col = units_start + units_width + _SHEET_COL_SEP
     origin_budget = max(line_width - origin_col, 1)
-    value_lines = _sheet_wrap_cell(value, value_budget)
-    rendered = [f"{field:<{field_width}}  {value_lines[0]}"]
-    for extra in value_lines[1:]:
-        rendered.append(f"{'':<{field_width}}  {extra}")
+    if value_budget < 1:
+        rendered = [str(field)]
+        wrap_width = max(line_width - 1, 1)
+        if value:
+            for extra in _sheet_wrap_cell(value, wrap_width):
+                rendered.append(f" {extra}")
+    else:
+        value_lines = _sheet_wrap_cell(value, value_budget)
+        rendered = [f"{field:<{field_width}}  {value_lines[0]}"]
+        for extra in value_lines[1:]:
+            rendered.append(f"{'':<{field_width}}  {extra}")
     if not units and not origin:
         return "\n".join(rendered)
     origin_lines = _sheet_wrap_cell(origin, origin_budget)
