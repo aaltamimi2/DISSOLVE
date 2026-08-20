@@ -5158,6 +5158,34 @@ def _requested_irr(process_config: Any) -> float | None:
     return round(irr, 10)
 
 
+def _requested_income_tax(process_config: Any) -> float | None:
+    """Held income tax. Do not default 0.21."""
+    if not isinstance(process_config, dict):
+        return None
+    if (
+        "income_tax" not in process_config
+        or process_config["income_tax"] in (None, "")
+    ):
+        return None
+    tax = _finite(process_config["income_tax"], "income_tax")
+    if tax >= 1:
+        raise _ScenarioInputError(
+            "income_tax is a fraction (0.21 is 21 percent), not a "
+            "percent integer.",
+            error_code="invalid_admitted_record_query",
+            field="income_tax",
+            supplied=process_config["income_tax"],
+        )
+    if not 0 <= tax < 1:
+        raise _ScenarioInputError(
+            "income_tax must be a fraction in [0, 1).",
+            error_code="invalid_admitted_record_query",
+            field="income_tax",
+            supplied=process_config["income_tax"],
+        )
+    return round(tax, 10)
+
+
 def _superstructure_composition_and_capacity(
     feed_mass_fractions: Any,
     process_config: Any,
@@ -5394,6 +5422,7 @@ def _remnant_key_from_row(
     precipitation_temperature_format: str | None = None,
     precipitation_configuration: str | None = None,
     irr: float | None = None,
+    income_tax: float | None = None,
 ) -> tuple[Any, ...] | None:
     """Remnant coordinate of a tool-1 row. Failures are not a fill."""
     if not isinstance(row, dict) or row.get("success") is False:
@@ -5469,17 +5498,22 @@ def _remnant_key_from_row(
         if str(raw).strip() != held:
             return None
         key = key + (held,)
-    if irr is not None:
-        raw = row.get("irr")
+    for field, held in (
+        ("irr", irr),
+        ("income_tax", income_tax),
+    ):
+        if held is None:
+            continue
+        raw = row.get(field)
         if raw in (None, ""):
             return None
         try:
-            row_v = round(_finite(raw, "irr"), 10)
+            row_v = round(_finite(raw, field), 10)
         except ValueError:
             return None
-        if row_v != irr:
+        if row_v != held:
             return None
-        key = key + (irr,)
+        key = key + (held,)
     return key
 
 
@@ -5528,12 +5562,13 @@ def _cell_remnant_key(cell: dict[str, Any]) -> tuple[Any, ...] | None:
         value = cell.get(field)
         if value not in (None, ""):
             key = key + (str(value).strip(),)
-    irr_v = cell.get("irr")
-    if irr_v not in (None, ""):
-        try:
-            key = key + (round(_finite(irr_v, "irr"), 10),)
-        except ValueError:
-            return None
+    for field in ("irr", "income_tax"):
+        value = cell.get(field)
+        if value not in (None, ""):
+            try:
+                key = key + (round(_finite(value, field), 10),)
+            except ValueError:
+                return None
     return key
 
 
@@ -5611,6 +5646,7 @@ def _unmatched_remnant_keys(
         None,
     )
     held_irr = _held_rounded_field(missing_keys, "irr")
+    held_income_tax = _held_rounded_field(missing_keys, "income_tax")
     present = {
         key for row in rows
         if (
@@ -5629,6 +5665,7 @@ def _unmatched_remnant_keys(
                 precipitation_temperature_format=held_format,
                 precipitation_configuration=held_configuration,
                 irr=held_irr,
+                income_tax=held_income_tax,
             )
         ) is not None
     }
@@ -5675,6 +5712,7 @@ def _refuse_listed_or_complete(
             _requested_precipitation_configuration(process_config)
         ),
         "irr": _requested_irr(process_config),
+        "income_tax": _requested_income_tax(process_config),
     }
     if any(value is not None for value in held.values()):
         stamped: list[dict[str, Any]] = []
@@ -5914,9 +5952,9 @@ def rank_landscape(
     feedstock_distance_km, dissolution_capacity,
     labor_cost_usd_per_employee_yr, sell_leftover_plastic,
     burn_leftover_plastic, precipitation_temperature_format,
-    precipitation_configuration, or irr, listed keys include that held
-    value and matching requires it; omitted is not a silent cache or
-    production default. A complete sequence grid with production check red is
+    precipitation_configuration, irr, or income_tax, listed keys include
+    that held value and matching requires it; omitted is not a silent
+    cache or production default. A complete sequence grid with production check red is
     sequence_coupling_unproven as primary (no pending_blockers).
     Do not scan top_k_sequences for either map.
     formulation is required iff source=superstructure;
