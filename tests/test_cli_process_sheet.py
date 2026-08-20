@@ -1510,4 +1510,79 @@ def test_sheet_print_shows_units_column(tmp_path, monkeypatch):
     assert "origin" in shown
 
 
+def test_c2_not_on_this_instance_lists_ng_and_steam_power():
+    c1 = tea.seed_public_process_config({
+        "target_polymer": "LDPE",
+        "solvent": "Dodecane",
+        "dissolution_temperature_c": 145.0,
+        "energy_case": "C1",
+    })
+    c3 = tea.seed_public_process_config({
+        "target_polymer": "LDPE",
+        "solvent": "Dodecane",
+        "dissolution_temperature_c": 145.0,
+        "energy_case": "C3",
+    })
+    c2 = tea.seed_public_process_config({
+        "target_polymer": "LDPE",
+        "solvent": "Dodecane",
+        "dissolution_temperature_c": 145.0,
+        "energy_case": "C2",
+    })
+    assert tea.confirmation_sheet_not_on_this_instance(c1) == ()
+    assert tea.confirmation_sheet_not_on_this_instance(c3) == ()
+    gated = tea.confirmation_sheet_not_on_this_instance(c2)
+    assert gated == (
+        "natural_gas_price_usd_per_m3",
+        "steam_power_depreciation",
+    )
+    assert "facilities" not in gated
+    assert "natural_gas_price_usd_per_m3" not in tea.public_process_field_names(
+        energy_case="C2",
+    )
+    assert "natural_gas_price_usd_per_m3" not in tea.missing_public_process_fields(
+        c2,
+    )
+    assert tea.confirmation_sheet_not_on_this_instance_label(c2) == (
+        "not on this instance (energy_case=C2)"
+    )
+    assert "C1" not in tea.confirmation_sheet_not_on_this_instance_label(c2)
+
+
+def test_c2_sheet_print_states_not_on_this_instance(tmp_path, monkeypatch):
+    monkeypatch.setattr(cli, "run_turn", _ok_turn)
+    app, buf = _app(tmp_path, monkeypatch)
+    c2 = tea.seed_public_process_config({
+        "target_polymer": "LDPE",
+        "solvent": "Dodecane",
+        "dissolution_temperature_c": 145.0,
+        "energy_case": "C2",
+    })
+    app._print_process_sheet(c2)
+    shown = buf.getvalue()
+    assert "not on this instance" in shown
+    assert "energy_case=C2" in shown
+    assert "USD/m3" not in shown
+    assert "energy_case=C1" not in shown
+    assert "natural_gas_price_usd_per" in shown
+    assert "steam_power_depreciation" in shown
+
+
+def test_c1_sheet_print_does_not_state_not_on_this_instance(
+    tmp_path, monkeypatch,
+):
+    monkeypatch.setattr(cli, "run_turn", _ok_turn)
+    app, buf = _app(tmp_path, monkeypatch)
+    c1 = tea.seed_public_process_config({
+        "target_polymer": "LDPE",
+        "solvent": "Dodecane",
+        "dissolution_temperature_c": 145.0,
+        "energy_case": "C1",
+    })
+    app._print_process_sheet(c1)
+    shown = buf.getvalue()
+    assert "not on this instance" not in shown
+    assert "USD/m3" in shown
+
+
 

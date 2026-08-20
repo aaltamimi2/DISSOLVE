@@ -2524,6 +2524,35 @@ def confirmation_sheet_row_units(
     return _SHEET_FIELD_UNITS.get(name, "")
 
 
+_C1_C3_INSTANCE_FIELDS = (
+    "natural_gas_price_usd_per_m3",
+    "steam_power_depreciation",
+)
+
+
+def confirmation_sheet_not_on_this_instance(
+    buffer: dict[str, Any] | None = None,
+) -> tuple[str, ...]:
+    """Knobs that exist on C1/C3 but not this instance.
+
+    Omitted from the editable public name list, not missing required
+    fields. Not a ranking.
+    """
+    energy = str((buffer or {}).get("energy_case") or "C1").upper()
+    if energy in {"C1", "C3"}:
+        return ()
+    return _C1_C3_INSTANCE_FIELDS
+
+
+def confirmation_sheet_not_on_this_instance_label(
+    buffer: dict[str, Any] | None = None,
+) -> str:
+    energy = str((buffer or {}).get("energy_case") or "C2")
+    if not str(energy).strip():
+        energy = "C2"
+    return f"not on this instance (energy_case={energy})"
+
+
 def _canonical_screening_shortlist_item(
     item: Any, index: int,
 ) -> dict[str, Any]:

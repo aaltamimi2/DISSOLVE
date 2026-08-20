@@ -866,6 +866,13 @@ class CliApp:
             )
             units = tea.confirmation_sheet_row_units(field, buffer)
             table.add_row(field, shown, units, token)
+        for field in tea.confirmation_sheet_not_on_this_instance(buffer):
+            table.add_row(
+                field,
+                tea.confirmation_sheet_not_on_this_instance_label(buffer),
+                "",
+                "",
+            )
         self.console.print(table)
         missing = tea.missing_public_process_fields(buffer)
         if missing:
