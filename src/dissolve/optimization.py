@@ -30,6 +30,12 @@ _DIRECTIONS = {
     "total_cost": "min", "emissions": "min", "profit": "max",
     "circularity": "max",
 }
+_TRADEOFF_UNITS = {
+    "total_cost": "USD/yr",
+    "emissions": "t CO2e/yr",
+    "profit": "USD/yr",
+    "circularity": "dimensionless",
+}
 _OBJECTIVES = {
     "min_cost": ("total_cost", "min"),
     "min_emissions": ("emissions", "min"),
@@ -588,6 +594,45 @@ def _residual_pareto_quality(
     }
 
 
+def _metric_generic_tradeoff(
+    frontier: Sequence[dict[str, Any]],
+    x_key: str,
+    y_key: str,
+    *,
+    cheapest_equals_lowest_y: bool,
+) -> dict[str, Any] | None:
+    """§9.2.2 metric-generic tradeoff. Null on a star. F units, not F leaf names."""
+    if len(frontier) < 2 or cheapest_equals_lowest_y:
+        return None
+    cheapest = _axis_extreme(frontier, x_key, _DIRECTIONS[x_key])
+    best_y = _axis_extreme(frontier, y_key, _DIRECTIONS[y_key])
+    x_at_cheapest = float(cheapest[x_key])
+    y_at_cheapest = float(cheapest[y_key])
+    x_at_best_y = float(best_y[x_key])
+    y_at_best_y = float(best_y[y_key])
+    delta_y = y_at_best_y - y_at_cheapest
+    payload: dict[str, Any] = {
+        "x_metric": x_key,
+        "y_metric": y_key,
+        "x_direction": _DIRECTIONS[x_key],
+        "y_direction": _DIRECTIONS[y_key],
+        "x_units": _TRADEOFF_UNITS[x_key],
+        "y_units": _TRADEOFF_UNITS[y_key],
+        "x_at_cheapest": x_at_cheapest,
+        "y_at_cheapest": y_at_cheapest,
+        "x_at_best_y": x_at_best_y,
+        "y_at_best_y": y_at_best_y,
+        "delta_x": x_at_best_y - x_at_cheapest,
+        "delta_y": delta_y,
+        "delta_y_percent": (
+            100.0 * delta_y / y_at_cheapest if y_at_cheapest else None
+        ),
+    }
+    if x_at_cheapest > 0:
+        payload["x_ratio"] = x_at_best_y / x_at_cheapest
+    return payload
+
+
 def _solver_version(name: str) -> Optional[str]:
     if name in {"appsi_highs", "highs"}:
         try:
@@ -818,8 +863,11 @@ def rank_residual_route(
             "n_rejected_phantom_designs": len(rejected),
             "knee_point": _stamp_residual_point(knee), "knee_status": knee_status,
             "cheapest_point": cheapest,
-            "frontier_tradeoff": _cost_emissions_tradeoff(
-                frontier, x_key, y_key,
+            "frontier_tradeoff": _metric_generic_tradeoff(
+                frontier,
+                x_key,
+                y_key,
+                cheapest_equals_lowest_y=quality["cheapest_equals_lowest_y"],
             ),
             **quality,
         })

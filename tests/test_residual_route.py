@@ -197,6 +197,25 @@ def test_residual_route_pareto_returns_landscape_and_frontier(monkeypatch):
         assert span == optimization.axis_span(values)
     slice0 = (payload.get("slices") or [{}])[0]
     assert slice0.get("axis_spans") == spans
+    tradeoff = payload.get("frontier_tradeoff")
+    if payload.get("cheapest_equals_lowest_y") or n_front < 2:
+        assert tradeoff is None
+    else:
+        assert tradeoff is not None
+        assert tradeoff["x_metric"] == x_key
+        assert tradeoff["y_metric"] == y_key
+        assert tradeoff["x_direction"] == "min"
+        assert tradeoff["y_direction"] == "min"
+        assert tradeoff["x_units"] == "USD/yr"
+        assert tradeoff["y_units"] == "t CO2e/yr"
+        assert "incremental_annual_cost_usd" not in tradeoff
+        cheapest_x = min(float(point[x_key]) for point in frontier)
+        best_y = min(float(point[y_key]) for point in frontier)
+        assert tradeoff["x_at_cheapest"] == cheapest_x
+        assert tradeoff["y_at_best_y"] == best_y
+        assert tradeoff["delta_x"] == tradeoff["x_at_best_y"] - tradeoff["x_at_cheapest"]
+        assert tradeoff["delta_y"] == tradeoff["y_at_best_y"] - tradeoff["y_at_cheapest"]
+        assert slice0.get("frontier_tradeoff") == tradeoff
 
 
 def test_pareto_name_retired_both_successors_serve(monkeypatch):
@@ -311,6 +330,26 @@ def test_residual_pareto_quality_matches_fraction_and_sparse_definition():
     )
     cost_span = singleton["axis_spans"]["total_cost"]
     assert cost_span["min"] == cost_span["p05"] == cost_span["p95"] == cost_span["max"] == 1.0
+    generic = optimization._metric_generic_tradeoff(
+        [one, two], "total_cost", "emissions", cheapest_equals_lowest_y=False,
+    )
+    assert generic is not None
+    assert generic["x_metric"] == "total_cost"
+    assert generic["y_metric"] == "emissions"
+    assert generic["x_at_cheapest"] == 1.0
+    assert generic["y_at_cheapest"] == 2.0
+    assert generic["x_at_best_y"] == 3.0
+    assert generic["y_at_best_y"] == 1.0
+    assert generic["delta_x"] == 2.0
+    assert generic["delta_y"] == -1.0
+    assert generic["x_ratio"] == 3.0
+    assert "incremental_annual_cost_usd" not in generic
+    assert optimization._metric_generic_tradeoff(
+        [one], "total_cost", "emissions", cheapest_equals_lowest_y=False,
+    ) is None
+    assert optimization._metric_generic_tradeoff(
+        [one, two], "total_cost", "emissions", cheapest_equals_lowest_y=True,
+    ) is None
 
 
 def test_residual_route_optimum_omits_frontier_fraction(monkeypatch):
