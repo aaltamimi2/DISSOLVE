@@ -5494,6 +5494,34 @@ def _requested_warehouse(process_config: Any) -> float | None:
     return round(fraction, 10)
 
 
+def _requested_site_development(process_config: Any) -> float | None:
+    """Held site-development factor. Do not default 0.09."""
+    if not isinstance(process_config, dict):
+        return None
+    if (
+        "site_development" not in process_config
+        or process_config["site_development"] in (None, "")
+    ):
+        return None
+    fraction = _finite(process_config["site_development"], "site_development")
+    if fraction > 1:
+        raise _ScenarioInputError(
+            "site_development is a fraction (0.09 is 9 percent), not a "
+            "percent integer.",
+            error_code="invalid_admitted_record_query",
+            field="site_development",
+            supplied=process_config["site_development"],
+        )
+    if not 0 <= fraction <= 1:
+        raise _ScenarioInputError(
+            "site_development must be a fraction in [0, 1].",
+            error_code="invalid_admitted_record_query",
+            field="site_development",
+            supplied=process_config["site_development"],
+        )
+    return round(fraction, 10)
+
+
 def _superstructure_composition_and_capacity(
     feed_mass_fractions: Any,
     process_config: Any,
@@ -5742,6 +5770,7 @@ def _remnant_key_from_row(
     startup_salesfrac: float | None = None,
     WC_over_FCI: float | None = None,
     warehouse: float | None = None,
+    site_development: float | None = None,
 ) -> tuple[Any, ...] | None:
     """Remnant coordinate of a tool-1 row. Failures are not a fill."""
     if not isinstance(row, dict) or row.get("success") is False:
@@ -5831,6 +5860,7 @@ def _remnant_key_from_row(
         ("startup_salesfrac", startup_salesfrac),
         ("WC_over_FCI", WC_over_FCI),
         ("warehouse", warehouse),
+        ("site_development", site_development),
     ):
         if held is None:
             continue
@@ -5897,6 +5927,7 @@ def _cell_remnant_key(cell: dict[str, Any]) -> tuple[Any, ...] | None:
         "finance_interest", "finance_years", "finance_fraction",
         "startup_months", "startup_FOCfrac", "startup_VOCfrac",
         "startup_salesfrac", "WC_over_FCI", "warehouse",
+        "site_development",
     ):
         value = cell.get(field)
         if value not in (None, ""):
@@ -6001,6 +6032,9 @@ def _unmatched_remnant_keys(
     )
     held_WC_over_FCI = _held_rounded_field(missing_keys, "WC_over_FCI")
     held_warehouse = _held_rounded_field(missing_keys, "warehouse")
+    held_site_development = _held_rounded_field(
+        missing_keys, "site_development",
+    )
     present = {
         key for row in rows
         if (
@@ -6031,6 +6065,7 @@ def _unmatched_remnant_keys(
                 startup_salesfrac=held_startup_salesfrac,
                 WC_over_FCI=held_WC_over_FCI,
                 warehouse=held_warehouse,
+                site_development=held_site_development,
             )
         ) is not None
     }
@@ -6089,6 +6124,7 @@ def _refuse_listed_or_complete(
         "startup_salesfrac": _requested_startup_salesfrac(process_config),
         "WC_over_FCI": _requested_WC_over_FCI(process_config),
         "warehouse": _requested_warehouse(process_config),
+        "site_development": _requested_site_development(process_config),
     }
     if any(value is not None for value in held.values()):
         stamped: list[dict[str, Any]] = []
@@ -6331,7 +6367,7 @@ def rank_landscape(
     precipitation_configuration, irr, income_tax, operating_days,
     labor_burden, finance_interest, finance_years, finance_fraction,
     startup_months, startup_FOCfrac, startup_VOCfrac,
-    startup_salesfrac, WC_over_FCI, or warehouse, listed keys include that held
+    startup_salesfrac, WC_over_FCI, warehouse, or site_development, listed keys include that held
     value and matching requires it; omitted is not a silent cache or
     production default. A complete sequence grid with production check red is
     sequence_coupling_unproven as primary (no pending_blockers).
