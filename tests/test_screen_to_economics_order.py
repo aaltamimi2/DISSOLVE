@@ -483,5 +483,4 @@ def test_lang_factor_stays_unbound(monkeypatch):
     ))
     assert payload.get("error_code") == "unknown_process_field"
     assert "lang_factor" in list(payload.get("extra_keys") or [])
-    assert "depreciation" not in tea._COEFFICIENT_DEFAULTS
     assert "lang_factor" not in tea._COEFFICIENT_DEFAULTS

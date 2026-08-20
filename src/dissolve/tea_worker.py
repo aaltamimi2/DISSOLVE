@@ -46,6 +46,7 @@ _CONTINGENCY_DEFAULT = 0.4
 _OTHER_INDIRECT_COSTS_DEFAULT = 0.10
 _PROPERTY_INSURANCE_DEFAULT = 0.007
 _MAINTENANCE_DEFAULT = 0.03
+_DEPRECIATION_DEFAULT = "MACRS7"
 _FEEDSTOCK_PRICE_USD_PER_KG = 0.01
 _CENTRIFUGED_PLASTIC_SOLVENT_CONTENT_PCT = 50.0
 
@@ -949,6 +950,9 @@ def _create_and_simulate_process(
         )
         process.tea.maintenance = float(
             config.get("maintenance", _MAINTENANCE_DEFAULT)
+        )
+        process.tea.depreciation = str(
+            config.get("depreciation", _DEPRECIATION_DEFAULT)
         )
         process.set_solvent_price(config["solvent_price"])
         process.set_feedstock_distance(config.get("feedstock_distance_km", 0))

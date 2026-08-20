@@ -130,6 +130,10 @@ _CONTINGENCY_DEFAULT = 0.4
 _OTHER_INDIRECT_COSTS_DEFAULT = 0.10
 _PROPERTY_INSURANCE_DEFAULT = 0.007
 _MAINTENANCE_DEFAULT = 0.03
+_DEPRECIATION_DEFAULT = "MACRS7"
+_DEPRECIATION_SCHEDULE_PREFIXES = ("MACRS", "SL", "DDB", "SYD")
+# BioSTEAM TEA.depreciation_schedules MACRS keys (U.S. IRS Pub 946).
+_MACRS_IMPLEMENTED_YEARS = frozenset({3, 5, 7, 10, 15, 20})
 _FEEDSTOCK_PRICE_USD_PER_KG = 0.01
 _CENTRIFUGED_PLASTIC_SOLVENT_CONTENT_PCT = 50.0
 _NATURAL_GAS_PRICE_USD_PER_M3 = 4.73 * 35.3146667 / 1e3
@@ -156,6 +160,7 @@ _COEFFICIENT_DEFAULTS = {
     "other_indirect_costs": _OTHER_INDIRECT_COSTS_DEFAULT,
     "property_insurance": _PROPERTY_INSURANCE_DEFAULT,
     "maintenance": _MAINTENANCE_DEFAULT,
+    "depreciation": _DEPRECIATION_DEFAULT,
     "feedstock_price_usd_per_kg": _FEEDSTOCK_PRICE_USD_PER_KG,
     "centrifuged_plastic_solvent_content_pct": (
         _CENTRIFUGED_PLASTIC_SOLVENT_CONTENT_PCT
@@ -978,6 +983,7 @@ def public_process_field_names(*, energy_case: str = "C1") -> tuple[str, ...]:
         "other_indirect_costs",
         "property_insurance",
         "maintenance",
+        "depreciation",
         "feedstock_price_usd_per_kg",
         "centrifuged_plastic_solvent_content_pct",
     )
@@ -1376,7 +1382,7 @@ class _MissingScenarioBasis(_ScenarioInputError):
     """A valid route condition lacks an admitted process input."""
 
 
-def _coefficient_defaults_for(config: dict[str, Any]) -> dict[str, float]:
+def _coefficient_defaults_for(config: dict[str, Any]) -> dict[str, Any]:
     defaults = dict(_COEFFICIENT_DEFAULTS)
     energy = str(config.get("energy_case") or "").upper()
     if energy in {"C1", "C3"}:
@@ -1384,13 +1390,67 @@ def _coefficient_defaults_for(config: dict[str, Any]) -> dict[str, float]:
     return defaults
 
 
-def _project_coefficients(config: dict[str, Any]) -> dict[str, float]:
+def _project_coefficients(config: dict[str, Any]) -> dict[str, Any]:
     """Fill absent MSP-moving coefficients with load_model baselines."""
-    projected = {}
+    projected: dict[str, Any] = {}
     for key, default in _coefficient_defaults_for(config).items():
         value = config.get(key)
-        projected[key] = default if value is None else float(value)
+        if value is None or (isinstance(default, str) and value == ""):
+            projected[key] = default
+        elif isinstance(default, str):
+            projected[key] = str(value)
+        else:
+            projected[key] = float(value)
     return projected
+
+
+def _depreciation_schedule_token(
+    value: Any, *, error_code: str,
+) -> str:
+    """BioSTEAM '{schedule}{years}' name. Not an invented enum."""
+    if not isinstance(value, str):
+        raise _ScenarioInputError(
+            "depreciation must be a BioSTEAM schedule name such as MACRS7.",
+            error_code=error_code,
+            field="depreciation",
+            supplied=value,
+        )
+    token = value.strip()
+    if not token:
+        raise _ScenarioInputError(
+            "depreciation must be a BioSTEAM schedule name such as MACRS7.",
+            error_code=error_code,
+            field="depreciation",
+            supplied=value,
+        )
+    for prefix in _DEPRECIATION_SCHEDULE_PREFIXES:
+        if not token.startswith(prefix):
+            continue
+        years = token[len(prefix):]
+        if years == "":
+            return token
+        try:
+            count = int(years)
+        except ValueError:
+            break
+        if count <= 0:
+            break
+        if prefix == "MACRS" and count not in _MACRS_IMPLEMENTED_YEARS:
+            raise _ScenarioInputError(
+                "depreciation name has a valid format, but that MACRS "
+                "schedule is not implemented in BioSTEAM.",
+                error_code=error_code,
+                field="depreciation",
+                supplied=value,
+            )
+        return token
+    raise _ScenarioInputError(
+        "depreciation must have format '{schedule}{years}', where "
+        "schedule is MACRS, SL, DDB, or SYD.",
+        error_code=error_code,
+        field="depreciation",
+        supplied=value,
+    )
 
 
 def _refuse_reserved_process_fields(supplied: dict[str, Any]) -> None:
@@ -1437,7 +1497,7 @@ def _refuse_reserved_process_fields(supplied: dict[str, Any]) -> None:
 
 def _validated_coefficients(
     supplied: dict[str, Any], *, energy_case: str,
-) -> dict[str, float]:
+) -> dict[str, Any]:
     coefficients = dict(_COEFFICIENT_DEFAULTS)
     if "irr" in supplied:
         irr = _finite(supplied["irr"], "irr")
@@ -1817,6 +1877,11 @@ def _validated_coefficients(
                 supplied=supplied["maintenance"],
             )
         coefficients["maintenance"] = fraction
+    if "depreciation" in supplied and supplied["depreciation"] not in (None, ""):
+        coefficients["depreciation"] = _depreciation_schedule_token(
+            supplied["depreciation"],
+            error_code="invalid_scenario",
+        )
     if "feedstock_price_usd_per_kg" in supplied:
         price = _finite(
             supplied["feedstock_price_usd_per_kg"],
@@ -2617,6 +2682,14 @@ def _flowsheet_switch_deltas(config: dict[str, Any]) -> list[dict[str, Any]]:
     projected_coefficients = _project_coefficients(config)
     for key, default in _coefficient_defaults_for(config).items():
         requested = projected_coefficients[key]
+        if isinstance(default, str) or isinstance(requested, str):
+            if requested != default:
+                deltas.append({
+                    "field": key,
+                    "recorded_value": default,
+                    "requested_value": requested,
+                })
+            continue
         if math.isclose(float(requested), float(default), rel_tol=0, abs_tol=1e-12):
             continue
         deltas.append({
@@ -2722,7 +2795,10 @@ def _config_key(config: dict[str, Any]) -> str:
         else:
             normalized[key] = str(value)
     for key, value in _project_coefficients(config).items():
-        normalized[key] = round(float(value), 10)
+        if isinstance(value, str):
+            normalized[key] = value
+        else:
+            normalized[key] = round(float(value), 10)
     return json.dumps(normalized, sort_keys=True, separators=(",", ":"))
 
 
@@ -3704,8 +3780,14 @@ def _same_config(
             continue
         if key not in left_coeff or key not in right_coeff:
             return False
+        left_value = left_coeff[key]
+        right_value = right_coeff[key]
+        if isinstance(left_value, str) or isinstance(right_value, str):
+            if left_value != right_value:
+                return False
+            continue
         if not math.isclose(
-            float(left_coeff[key]), float(right_coeff[key]),
+            float(left_value), float(right_value),
             rel_tol=0, abs_tol=1e-12,
         ):
             return False
@@ -3954,6 +4036,7 @@ def _comparison_row(label: str, result: dict[str, Any]) -> dict[str, Any]:
         "other_indirect_costs": coefficients.get("other_indirect_costs"),
         "property_insurance": coefficients.get("property_insurance"),
         "maintenance": coefficients.get("maintenance"),
+        "depreciation": coefficients.get("depreciation"),
         "feedstock_price_usd_per_kg": coefficients.get(
             "feedstock_price_usd_per_kg"
         ),
@@ -6375,6 +6458,21 @@ def _requested_maintenance(process_config: Any) -> float | None:
     return round(fraction, 10)
 
 
+def _requested_depreciation(process_config: Any) -> str | None:
+    """Held depreciation schedule. Do not default MACRS7."""
+    if not isinstance(process_config, dict):
+        return None
+    if (
+        "depreciation" not in process_config
+        or process_config["depreciation"] in (None, "")
+    ):
+        return None
+    return _depreciation_schedule_token(
+        process_config["depreciation"],
+        error_code="invalid_admitted_record_query",
+    )
+
+
 def _superstructure_composition_and_capacity(
     feed_mass_fractions: Any,
     process_config: Any,
@@ -6632,6 +6730,7 @@ def _remnant_key_from_row(
     other_indirect_costs: float | None = None,
     property_insurance: float | None = None,
     maintenance: float | None = None,
+    depreciation: str | None = None,
 ) -> tuple[Any, ...] | None:
     """Remnant coordinate of a tool-1 row. Failures are not a fill."""
     if not isinstance(row, dict) or row.get("success") is False:
@@ -6698,6 +6797,7 @@ def _remnant_key_from_row(
     for field, held in (
         ("precipitation_temperature_format", precipitation_temperature_format),
         ("precipitation_configuration", precipitation_configuration),
+        ("depreciation", depreciation),
     ):
         if held is None:
             continue
@@ -6787,6 +6887,7 @@ def _cell_remnant_key(cell: dict[str, Any]) -> tuple[Any, ...] | None:
     for field in (
         "precipitation_temperature_format",
         "precipitation_configuration",
+        "depreciation",
     ):
         value = cell.get(field)
         if value not in (None, ""):
@@ -6922,6 +7023,14 @@ def _unmatched_remnant_keys(
         missing_keys, "property_insurance",
     )
     held_maintenance = _held_rounded_field(missing_keys, "maintenance")
+    held_depreciation = next(
+        (
+            str(cell["depreciation"]).strip()
+            for cell in missing_keys
+            if cell.get("depreciation") not in (None, "")
+        ),
+        None,
+    )
     present = {
         key for row in rows
         if (
@@ -6961,6 +7070,7 @@ def _unmatched_remnant_keys(
                 other_indirect_costs=held_other_indirect_costs,
                 property_insurance=held_property_insurance,
                 maintenance=held_maintenance,
+                depreciation=held_depreciation,
             )
         ) is not None
     }
@@ -7030,6 +7140,7 @@ def _refuse_listed_or_complete(
         ),
         "property_insurance": _requested_property_insurance(process_config),
         "maintenance": _requested_maintenance(process_config),
+        "depreciation": _requested_depreciation(process_config),
     }
     if any(value is not None for value in held.values()):
         stamped: list[dict[str, Any]] = []
@@ -7285,7 +7396,7 @@ def rank_landscape(
     precipitation_configuration, irr, income_tax, operating_days,
     labor_burden, finance_interest, finance_years, finance_fraction,
     startup_months, startup_FOCfrac, startup_VOCfrac,
-    startup_salesfrac, WC_over_FCI, warehouse, site_development, additional_piping, proratable_costs, field_expenses, construction, contingency, other_indirect_costs, property_insurance, or maintenance, listed keys include that held
+    startup_salesfrac, WC_over_FCI, warehouse, site_development, additional_piping, proratable_costs, field_expenses, construction, contingency, other_indirect_costs, property_insurance, maintenance, or depreciation, listed keys include that held
     value and matching requires it; omitted is not a silent cache or
     production default. A complete sequence grid with production check red is
     sequence_coupling_unproven as primary (no pending_blockers).

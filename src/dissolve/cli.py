@@ -494,7 +494,7 @@ def _coerce_process_sheet_value(field: str, raw: str, current: Any) -> Any:
         return case
     if field in {
         "precipitation_temperature_format", "precipitation_configuration",
-        "target_polymer", "solvent",
+        "target_polymer", "solvent", "depreciation",
     }:
         return text
     number = float(text)
