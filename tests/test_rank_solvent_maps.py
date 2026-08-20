@@ -417,18 +417,30 @@ def test_wash_train_is_process_model_unavailable(monkeypatch):
     assert aliased.get("error_code") != "incomplete_stage_basis_grid"
 
 
-def test_sequence_solvent_stays_unwired(monkeypatch):
+def test_sequence_solvent_lists_remnant_times_solvent_table(monkeypatch):
     _forbid_live(monkeypatch)
     coupled = _data(tea.rank_landscape(
         source="superstructure",
         formulation="sequence_solvent",
         planner_solvent_map=_PLAN_MAP,
         allowed_solvents=_ALLOWED_MAP,
+        target_polymer=["LDPE", "EVOH"],
     ))
-    assert coupled.get("error_code") == "tool_not_wired"
-    assert coupled.get("error_code") != "incomplete_stage_basis_grid"
-    assert coupled.get("error_code") != "missing_formulation"
-    assert coupled.get("error_code") != "process_model_wash_train_unavailable"
+    assert coupled.get("error_code") == "incomplete_stage_basis_grid"
+    assert coupled.get("formulation") == "sequence_solvent"
+    assert coupled.get("error_code") != "tool_not_wired"
+    assert coupled.get("error_code") != "missing_planner_solvent_map"
+    assert coupled.get("error_code") != "missing_allowed_solvents"
+    assert coupled.get("error_code") != "sequence_coupling_unproven"
+    assert "pending_blockers" not in coupled
+    assert "landscape_points" not in coupled
+    polymers = {row["polymer"] for row in coupled["missing_keys"]}
+    assert polymers == {"LDPE", "EVOH"}
+    assert len(coupled["missing_keys"]) == 3
+    for row in coupled["missing_keys"]:
+        assert row["target_mass_percent"] is None
+        assert row["processing_capacity_mt_per_yr"] is None
+        assert row["solvent"]
 
 
 def test_complete_map_does_not_infer_formulation(monkeypatch):
@@ -442,6 +454,66 @@ def test_complete_map_does_not_infer_formulation(monkeypatch):
     assert payload.get("error_code") == "missing_formulation"
     assert payload.get("error_code") != "incomplete_stage_basis_grid"
     assert payload.get("error_code") != "missing_planner_solvent_map"
+    assert "landscape_points" not in payload
+
+
+def test_sequence_solvent_does_not_require_the_sequence_map(monkeypatch):
+    _forbid_live(monkeypatch)
+    payload = _data(tea.rank_landscape(
+        source="superstructure",
+        formulation="sequence_solvent",
+        target_polymer=["LDPE", "EVOH"],
+    ))
+    assert payload.get("error_code") == "incomplete_stage_basis_grid"
+    assert payload.get("formulation") == "sequence_solvent"
+    assert payload.get("error_code") != "missing_planner_solvent_map"
+    assert payload.get("error_code") != "missing_allowed_solvents"
+    assert payload.get("error_code") != "tool_not_wired"
+    assert "pending_blockers" not in payload
+    keys = payload["missing_keys"]
+    assert {row["polymer"] for row in keys} == {"LDPE", "EVOH"}
+    assert all(row["solvent"] is None for row in keys)
+    assert all(row["target_mass_percent"] is None for row in keys)
+
+
+def test_sequence_solvent_does_not_fill_from_a_shortlist_kwarg(monkeypatch):
+    _forbid_live(monkeypatch)
+    payload = _data(tea.rank_landscape(
+        source="superstructure",
+        formulation="sequence_solvent",
+        screening_shortlist={"source": "explicit", "items": []},
+    ))
+    assert payload.get("error_code") == "unknown_process_field"
+    assert payload.get("extra_keys") == ["screening_shortlist"]
+    assert payload.get("error_code") != "incomplete_stage_basis_grid"
+
+
+def test_sequence_solvent_empty_table_is_still_incomplete(monkeypatch):
+    _forbid_live(monkeypatch)
+    payload = _data(tea.rank_landscape(
+        source="superstructure",
+        formulation="sequence_solvent",
+    ))
+    assert payload.get("error_code") == "incomplete_stage_basis_grid"
+    assert payload.get("missing_keys")
+    assert payload.get("missing_keys") != []
+    assert "landscape_points" not in payload
+    assert payload.get("n_usable") is None
+
+
+def test_sequence_solvent_planner_map_names_cells_not_a_fill(monkeypatch):
+    _forbid_live(monkeypatch)
+    payload = _data(tea.rank_landscape(
+        source="superstructure",
+        formulation="sequence_solvent",
+        planner_solvent_map=_PLAN_MAP,
+        target_polymer=["LDPE", "EVOH"],
+    ))
+    assert payload.get("error_code") == "incomplete_stage_basis_grid"
+    assert len(payload["missing_keys"]) == 2
+    assert {row["polymer"] for row in payload["missing_keys"]} == {"LDPE", "EVOH"}
+    assert all(row["solvent"] for row in payload["missing_keys"])
+    assert "pending_blockers" not in payload
     assert "landscape_points" not in payload
 
 

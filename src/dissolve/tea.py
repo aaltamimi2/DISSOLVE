@@ -4864,6 +4864,34 @@ def _remnant_cell(polymer: str, solvent: str) -> dict[str, Any]:
     }
 
 
+def _unnamed_remnant_cell(**fields: Any) -> dict[str, Any]:
+    cell = {
+        "polymer": None,
+        "target_mass_percent": None,
+        "processing_capacity_mt_per_yr": None,
+        "solvent": None,
+    }
+    cell.update(fields)
+    return cell
+
+
+def _missing_keys_from_sequence_solvent(
+    *,
+    planner_solvent_map: Any,
+    allowed_solvents: Any,
+    feed: list[str],
+) -> list[dict[str, Any]]:
+    """Name remnant×solvent cells the caller identified. Do not fill them."""
+    if _allowed_solvents_shape(allowed_solvents):
+        return _missing_keys_from_allowed(allowed_solvents, feed)
+    if _planner_solvent_map_shape(planner_solvent_map):
+        mapping = _canonical_planner_solvent_map(planner_solvent_map)
+        return _missing_keys_from_planner_map(mapping)
+    if feed:
+        return [_unnamed_remnant_cell(polymer=name) for name in feed]
+    return [_unnamed_remnant_cell()]
+
+
 def _missing_keys_from_planner_map(mapping: dict[str, str]) -> list[dict[str, Any]]:
     return [
         _remnant_cell(polymer, mapping[polymer])
@@ -4985,7 +5013,21 @@ def _superstructure_map_refusal(
             formulation=token,
         )
     if token == "sequence_solvent":
-        return None
+        try:
+            resolved_feed = (
+                _expand_polymers(feed, "target polymer") if feed else []
+            )
+            missing_keys = _missing_keys_from_sequence_solvent(
+                planner_solvent_map=planner_solvent_map,
+                allowed_solvents=allowed_solvents,
+                feed=resolved_feed,
+            )
+        except (_ScenarioInputError, _InputError, ValueError) as error:
+            return _identity_error(error)
+        return _incomplete_stage_basis_grid(
+            formulation=token,
+            missing_keys=missing_keys,
+        )
     if token == "sequence":
         if not _planner_solvent_map_shape(planner_solvent_map):
             return tool_error(
@@ -5097,8 +5139,10 @@ def rank_landscape(
     and, for formulation=sequence, attaches pending_blockers for D-20.
     Do not scan top_k_sequences for either map. formulation is required
     iff source=superstructure; formulation=wash_train is
-    process_model_wash_train_unavailable. Remnant ingest, D-20 primary,
-    sequence_solvent ranking, and epsilon are not this slice.
+    process_model_wash_train_unavailable. formulation=sequence_solvent
+    lists the remnant×solvent table as incomplete_stage_basis_grid and
+    does not take a shortlist or maps as a coefficient fill. Remnant
+    ingest, D-20 as primary, and epsilon are not this slice.
     """
     tool = "rank_landscape"
     if unexpected:
