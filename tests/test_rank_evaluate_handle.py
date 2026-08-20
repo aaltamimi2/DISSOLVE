@@ -218,6 +218,61 @@ def test_admitted_lookup_handle_ranks_energy_cases(monkeypatch):
         assert point["safety_standing"]["status"] == "not_requested"
 
 
+def test_evaluate_process_sensitivity_handle_ranks(monkeypatch):
+    record = _record_by_label("ldpe-route-c1")
+    _forbid_live(monkeypatch)
+    session = new_session()
+    with bind_tool_session(session):
+        wrapped = dispatch(
+            "evaluate_process",
+            mode="sensitivity",
+            process_config=_public_from_record(record),
+            parameter="solvent_price",
+            engine_mode="cache",
+        )
+        old = dispatch(
+            "analyze_tea_sensitivity",
+            scenario=_public_from_record(record),
+            parameter="solvent_price",
+            engine_mode="cache",
+        )
+        assert wrapped.get("available") is True
+        assert old.get("available") is True
+        wrapped_rank = _data(tea.rank_landscape(handle=wrapped["handle"]))
+        old_rank = _data(tea.rank_landscape(handle=old["handle"]))
+    rows = [
+        row for row in wrapped["data"]["sensitivity_rows"]
+        if row.get("success") and row.get("msp_usd_per_kg") is not None
+    ]
+    assert len(rows) >= 2
+    for payload in (wrapped_rank, old_rank):
+        assert payload.get("success") is True
+        assert payload.get("error_code") is None
+        assert payload["analysis_type"] == "process_rows_landscape"
+        assert payload["analysis_type"] != "tea_tornado"
+        assert payload["source"] == "process_rows"
+        assert payload["n_usable"] == len(rows)
+        assert payload["n_landscape_points"] == len(payload["landscape_points"])
+        assert payload["n_frontier_points"] == len(payload["frontier_points"])
+        assert payload["n_usable"] >= 2
+        assert payload["ingested_into_admitted_cache"] is False
+        prices = {
+            float(row["solvent_price_usd_per_kg"]) for row in rows
+        }
+        ranked_prices = {
+            float(point["solvent_price_usd_per_kg"])
+            for point in payload["landscape_points"]
+        }
+        assert ranked_prices == prices
+        pair_ids = [point["pair_id"] for point in payload["landscape_points"]]
+        assert len(set(pair_ids)) == len(pair_ids)
+        for point in payload["landscape_points"]:
+            for name in tea._PUBLIC_REQUIRED_FIELDS:
+                assert point.get(name) is not None
+            assert point["lca_coverage"]
+            assert point["safety_standing"]["status"] == "not_requested"
+
+
 def test_screening_handle_cannot_be_ranked(monkeypatch):
     _forbid_live(monkeypatch)
     session = new_session()

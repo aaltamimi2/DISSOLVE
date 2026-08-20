@@ -959,6 +959,7 @@ _TOOL1_PROCESS_ROWS_TOOLS = frozenset({
     "evaluate_tea_lca_scenarios",
     "lookup_admitted_process_records",
     "evaluate_process",
+    "analyze_tea_sensitivity",
 })
 _SHEET_REQUIRED_FIELDS = (
     "target_polymer", "solvent", "dissolution_temperature_c",
@@ -2798,7 +2799,11 @@ def _sensitivity_row_process_fields(
     config: dict[str, Any],
     source: Any = None,
 ) -> dict[str, Any]:
-    """Executed twelve plus exposed tunables on a sensitivity row."""
+    """Executed twelve, comparison axes, and standing on a sensitivity row.
+
+    Rank reads these as process_rows at the recorded bases. Tornado stays
+    a tool-1 operation; this is not a rank_landscape payload.
+    """
     public = {
         public_name: config.get(internal)
         for internal, public_name in _DESIGN_POINT_PUBLIC_FIELDS
@@ -2807,6 +2812,24 @@ def _sensitivity_row_process_fields(
     public.update(_project_flowsheet_switches(config))
     public.update(_project_coefficients(config))
     public["safety_standing"] = _comparison_safety_standing(source)
+    if not isinstance(source, dict):
+        return public
+    tea_block = source.get("tea") or {}
+    lca_block = source.get("lca") or {}
+    public["msp_usd_per_kg"] = tea_block.get("msp_usd_per_kg")
+    public["gwp_kg_co2e_per_kg"] = lca_block.get("gwp_kg_co2e_per_kg")
+    if source.get("lca_coverage"):
+        public["lca_coverage"] = copy.deepcopy(source["lca_coverage"])
+    if source.get("lca_metric_status"):
+        public["lca_metric_status"] = copy.deepcopy(source["lca_metric_status"])
+    if source.get("process_parameter_status"):
+        public["process_parameter_status"] = copy.deepcopy(
+            source["process_parameter_status"],
+        )
+    if "can_cite_as_validated_process" in source:
+        public["can_cite_as_validated_process"] = source[
+            "can_cite_as_validated_process"
+        ]
     return public
 
 
@@ -7773,8 +7796,8 @@ def rank_landscape(
 ) -> str:
     """Rank already-run process rows. Does not spawn BioSTEAM.
 
-    source=process_rows ranks a tool-1 handle (evaluate batch or admitted
-    lookup) at the configs those rows were run at, or locates a campaign
+    source=process_rows ranks a tool-1 handle (evaluate batch, admitted
+    lookup, or sensitivity) at the configs those rows were run at, or locates a campaign
     through DISSOLVE_CAMPAIGN_REGISTRY and campaign_fingerprint. The usable
     projection returns the landscape AND the frontier. Held-field mismatch
     is not a ranking. source=superstructure takes planner_solvent_map.v1

@@ -418,7 +418,14 @@ def _pair_id_for_economics_row(row: Mapping[str, Any], index: int) -> str:
     polymer = str(row.get("target_polymer") or row.get("polymer") or "").strip()
     solvent = str(row.get("solvent") or "").strip()
     case = str(row.get("energy_case") or "").strip()
-    token = "|".join(part for part in (polymer, solvent, case) if part)
+    parts = [part for part in (polymer, solvent, case) if part]
+    parameter = str(row.get("parameter") or "").strip()
+    if parameter:
+        parts.append(parameter)
+        value = row.get("value")
+        if value not in (None, ""):
+            parts.append(str(value))
+    token = "|".join(parts)
     return token or f"handle-row-{index + 1}"
 
 
@@ -440,7 +447,7 @@ def economics_row_as_process_row(
     *,
     index: int = 0,
 ) -> dict[str, Any]:
-    """JSONL-shaped process row from an evaluate or lookup comparison row."""
+    """JSONL-shaped process row from an evaluate, lookup, or sensitivity row."""
     from . import tea
 
     if isinstance(row.get("comparison_row"), dict) and (
