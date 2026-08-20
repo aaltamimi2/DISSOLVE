@@ -384,6 +384,99 @@ def test_evaluate_process_evaluate_mode_uses_the_same_sheet_object(
     assert app._process_buffer is sheet
 
 
+def test_first_evaluate_process_shortlist_pops_handoff_and_seeds_the_sheet(
+    tmp_path, monkeypatch,
+):
+    monkeypatch.setattr(cli, "run_turn", _ok_turn)
+    monkeypatch.setattr(sys.stdin, "isatty", lambda: True)
+    app, _buf = _app(tmp_path, monkeypatch)
+    sheet = tea.seed_public_process_config({
+        "target_polymer": "LDPE",
+        "solvent": "Dodecane",
+        "dissolution_temperature_c": 145.0,
+        "energy_case": "C1",
+        "target_mass_percent": 55.0,
+    })
+    seen = []
+
+    def record_prompt(seed, **kwargs):
+        seen.append(seed)
+        return sheet
+
+    monkeypatch.setattr(app, "_edit_process_sheet", record_prompt)
+    captured = {}
+
+    def original(name, **kwargs):
+        captured["name"] = name
+        captured["kwargs"] = kwargs
+        return {"success": True}
+
+    app._cli_direct_active = True
+    result = app._cli_direct_dispatch(
+        original,
+        "evaluate_process",
+        {
+            "mode": "evaluate",
+            "screening_shortlist": {
+                "source": "explicit",
+                "items": [{
+                    "target_polymer": "LDPE",
+                    "solvent": "Dodecane",
+                    "temperature_c": 145.0,
+                }],
+            },
+            "held_process_basis": {
+                "energy_case": "C1",
+                "target_mass_percent": 55.0,
+            },
+            "engine_mode": "cache",
+        },
+    )
+    assert result == {"success": True}
+    assert seen[0]["target_polymer"] == "LDPE"
+    assert seen[0]["solvent"] == "Dodecane"
+    assert seen[0]["dissolution_temperature_c"] == 145.0
+    assert seen[0]["energy_case"] == "C1"
+    assert seen[0]["target_mass_percent"] == 55.0
+    assert captured["name"] == "evaluate_process"
+    assert captured["kwargs"]["process_config"] is sheet
+    assert captured["kwargs"]["engine_mode"] == "cache"
+    assert "screening_shortlist" not in captured["kwargs"]
+    assert "held_process_basis" not in captured["kwargs"]
+    assert "process_configs" not in captured["kwargs"]
+    assert app._confirmation_sheet_submitted is True
+    assert app._process_buffer is sheet
+
+
+def test_non_tty_evaluate_process_keeps_the_handoff(tmp_path, monkeypatch):
+    monkeypatch.setattr(cli, "run_turn", _ok_turn)
+    monkeypatch.setattr(sys.stdin, "isatty", lambda: False)
+    app, _buf = _app(tmp_path, monkeypatch)
+    captured = {}
+
+    def original(name, **kwargs):
+        captured["kwargs"] = kwargs
+        return {"success": True}
+
+    def forbidden(*args, **kwargs):
+        raise AssertionError("non-TTY must not prompt")
+
+    monkeypatch.setattr(app, "_edit_process_sheet", forbidden)
+    app._cli_direct_active = True
+    model_args = {
+        "mode": "evaluate",
+        "screening_shortlist": {
+            "source": "explicit",
+            "items": [{"target_polymer": "LDPE", "solvent": "Dodecane"}],
+        },
+        "held_process_basis": {"energy_case": "C1"},
+        "engine_mode": "cache",
+    }
+    app._cli_direct_dispatch(original, "evaluate_process", model_args)
+    assert captured["kwargs"] == model_args
+    assert app._confirmation_sheet_submitted is False
+
+
 def test_evaluate_process_lookup_mode_does_not_open_the_sheet(
     tmp_path, monkeypatch,
 ):

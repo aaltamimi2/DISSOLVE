@@ -937,6 +937,33 @@ class CliApp:
                     out[field] = buffer[field]
         return out
 
+    def _handoff_confirm_seed(
+        self, shortlist: Any, held: Any,
+    ) -> dict[str, Any] | None:
+        """Seed the sheet from a screening handoff. Not a cache-pair fill."""
+        seed: dict[str, Any] = {}
+        if isinstance(held, dict):
+            seed.update(held)
+        items = shortlist.get("items") if isinstance(shortlist, dict) else None
+        first = None
+        if isinstance(items, list):
+            first = next((item for item in items if isinstance(item, dict)), None)
+        if isinstance(first, dict):
+            item = dict(first)
+            if (
+                "temperature_c" in item
+                and not item.get("dissolution_temperature_c")
+                and not item.get("dissolution_temp_c")
+            ):
+                item["dissolution_temperature_c"] = item.pop("temperature_c")
+            for key in (
+                "target_polymer", "target_plastic", "solvent",
+                "dissolution_temperature_c", "dissolution_temp_c",
+            ):
+                if key in item:
+                    seed[key] = item[key]
+        return seed or None
+
     def _bind_confirmed_process(
         self, name: str, kwargs: dict[str, Any],
     ) -> dict[str, Any]:
@@ -993,6 +1020,11 @@ class CliApp:
             seed_src = kwargs.get("process_config")
             if not isinstance(seed_src, dict):
                 seed_src = configs[0] if configs else None
+            if not isinstance(seed_src, dict):
+                seed_src = self._handoff_confirm_seed(
+                    kwargs.get("screening_shortlist"),
+                    kwargs.get("held_process_basis"),
+                )
             seed = self._confirm_seed(seed_src if isinstance(seed_src, dict) else None)
             submitted = self._edit_process_sheet(seed, prompt_fn=prompt_fn)
             if submitted is None:
@@ -1001,6 +1033,8 @@ class CliApp:
             out = dict(kwargs)
             out["process_config"] = submitted
             out.pop("process_configs", None)
+            out.pop("screening_shortlist", None)
+            out.pop("held_process_basis", None)
             return out
         if name == "analyze_tea_sensitivity":
             seed = self._confirm_seed(kwargs.get("scenario"))
