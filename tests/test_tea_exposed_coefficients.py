@@ -81,6 +81,7 @@ def test_omitted_and_explicit_coefficient_defaults_share_the_serve_key():
         "feedstock_price_usd_per_kg": 0.01,
         "centrifuged_plastic_solvent_content_pct": 50.0,
         "natural_gas_price_usd_per_m3": tea._NATURAL_GAS_PRICE_USD_PER_M3,
+        "steam_power_depreciation": "MACRS20",
     }
     assert tea._config_key(twelve) == tea._config_key(explicit)
     reconstructed = tea._scenario_config(_public_from_record(record))
@@ -114,6 +115,7 @@ def test_omitted_and_explicit_coefficient_defaults_share_the_serve_key():
     assert reconstructed["natural_gas_price_usd_per_m3"] == pytest.approx(
         tea._NATURAL_GAS_PRICE_USD_PER_M3
     )
+    assert reconstructed["steam_power_depreciation"] == "MACRS20"
     hit = tea._cache_index().get(tea._config_key(reconstructed))
     assert hit is not None
     assert hit["label"] == record["label"]
@@ -123,6 +125,7 @@ def test_c2_does_not_carry_natural_gas_price():
     record = _record_with_energy("C2")
     reconstructed = tea._scenario_config(_public_from_record(record))
     assert "natural_gas_price_usd_per_m3" not in reconstructed
+    assert "steam_power_depreciation" not in reconstructed
     assert tea._cache_index().get(tea._config_key(reconstructed))["label"] == (
         record["label"]
     )
@@ -2077,6 +2080,11 @@ def test_macrs20_is_plant_depreciation_not_steam_power(monkeypatch):
     assert schedule["recorded_value"] == "MACRS7"
     assert schedule["requested_value"] == "MACRS20"
     assert row.get("depreciation") == "MACRS20"
+    assert not any(
+        item["field"] == "steam_power_depreciation"
+        for item in row["flowsheet_switch_deltas"]
+    )
+    assert row.get("steam_power_depreciation") == "MACRS20"
 
 
 def test_maintenance_override_does_not_emit_a_depreciation_delta(monkeypatch):
@@ -2325,6 +2333,10 @@ def test_cache_mode_refuses_construction_schedule_override_instead_of_the_other_
         item["field"] == "depreciation"
         for item in row["flowsheet_switch_deltas"]
     )
+    assert not any(
+        item["field"] == "steam_power_depreciation"
+        for item in row["flowsheet_switch_deltas"]
+    )
 
 
 def test_c2_still_carries_construction_schedule():
@@ -2376,6 +2388,123 @@ def test_string_construction_schedule_is_refused():
     assert caught.value.details["field"] == "construction_schedule"
 
 
+def test_explicit_default_steam_power_depreciation_shares_the_serve_key():
+    record = _record_with_energy("C1")
+    explicit = {
+        **dict(record["config"]),
+        "steam_power_depreciation": "MACRS20",
+    }
+    assert tea._config_key(record["config"]) == tea._config_key(explicit)
+    assert tea._cache_index().get(tea._config_key(explicit))["label"] == (
+        record["label"]
+    )
+
+
+def test_steam_power_depreciation_override_does_not_share_the_serve_key():
+    record = _record_with_energy("C1")
+    overridden = {
+        **dict(record["config"]),
+        "steam_power_depreciation": "MACRS7",
+    }
+    assert tea._config_key(record["config"]) != tea._config_key(overridden)
+    assert tea._cache_index().get(tea._config_key(overridden)) is None
+
+
+def test_macrs07_does_not_fold_to_macrs20_on_steam_power():
+    record = _record_with_energy("C1")
+    padded = {
+        **dict(record["config"]),
+        "steam_power_depreciation": "MACRS07",
+    }
+    assert tea._config_key(record["config"]) != tea._config_key(padded)
+    assert tea._cache_index().get(tea._config_key(padded)) is None
+
+
+def test_cache_mode_refuses_steam_power_depreciation_override_instead_of_the_other_plant(
+    monkeypatch,
+):
+    record = _record_with_energy("C1")
+    recorded_msp = float(record["result"]["tea"]["msp_usd_per_kg"])
+
+    def forbidden_live(config, timeout_seconds):
+        raise AssertionError(
+            "steam_power_depreciation mismatch must not fall through to live"
+        )
+
+    monkeypatch.setattr(tea, "_live", forbidden_live)
+    payload = _data(tea.evaluate_tea_lca_scenarios(
+        [_public_from_record(record, steam_power_depreciation="MACRS7")],
+        engine_mode="cache",
+    ))
+    assert payload.get("success") is False
+    assert payload.get("error_code") == "cache_flowsheet_mismatch"
+    row = (payload.get("failures") or [])[0]
+    assert row.get("msp_usd_per_kg") is None
+    assert row.get("msp_usd_per_kg") != recorded_msp
+    schedule = next(
+        item for item in row["flowsheet_switch_deltas"]
+        if item["field"] == "steam_power_depreciation"
+    )
+    assert schedule["recorded_value"] == "MACRS20"
+    assert schedule["requested_value"] == "MACRS7"
+    assert row.get("steam_power_depreciation") == "MACRS7"
+    assert not any(
+        item["field"] == "depreciation"
+        for item in row["flowsheet_switch_deltas"]
+    )
+    assert row.get("depreciation") == "MACRS7"
+
+
+def test_c2_steam_power_depreciation_is_energy_case_contract():
+    record = _record_with_energy("C2")
+    with pytest.raises(tea._ScenarioInputError) as caught:
+        tea._scenario_config(_public_from_record(
+            record, steam_power_depreciation="MACRS20",
+        ))
+    assert caught.value.error_code == "energy_case_contract"
+    assert caught.value.details["field"] == "steam_power_depreciation"
+
+
+def test_lowercase_steam_power_depreciation_is_refused():
+    record = _record_with_energy("C1")
+    with pytest.raises(tea._ScenarioInputError) as caught:
+        tea._scenario_config(_public_from_record(
+            record, steam_power_depreciation="macrs20",
+        ))
+    assert caught.value.error_code == "invalid_scenario"
+    assert caught.value.details["field"] == "steam_power_depreciation"
+
+
+def test_integer_steam_power_depreciation_is_refused():
+    record = _record_with_energy("C1")
+    with pytest.raises(tea._ScenarioInputError) as caught:
+        tea._scenario_config(_public_from_record(
+            record, steam_power_depreciation=20,
+        ))
+    assert caught.value.error_code == "invalid_scenario"
+    assert caught.value.details["field"] == "steam_power_depreciation"
+
+
+def test_array_steam_power_depreciation_is_refused():
+    record = _record_with_energy("C1")
+    with pytest.raises(tea._ScenarioInputError) as caught:
+        tea._scenario_config(_public_from_record(
+            record, steam_power_depreciation=["MACRS20"],
+        ))
+    assert caught.value.error_code == "invalid_scenario"
+    assert caught.value.details["field"] == "steam_power_depreciation"
+
+
+def test_unimplemented_steam_power_macrs_years_are_refused():
+    record = _record_with_energy("C1")
+    with pytest.raises(tea._ScenarioInputError) as caught:
+        tea._scenario_config(_public_from_record(
+            record, steam_power_depreciation="MACRS4",
+        ))
+    assert caught.value.error_code == "invalid_scenario"
+    assert caught.value.details["field"] == "steam_power_depreciation"
+
+
 def test_percent_integer_income_tax_is_refused():
     record = _record_with_energy("C1")
     with pytest.raises(tea._ScenarioInputError) as caught:
@@ -2390,16 +2519,12 @@ def test_other_g_constructor_coefficients_are_not_dumped():
         tea._scenario_config(_public_from_record(record, lang_factor=3.0))
     assert caught.value.error_code == "unknown_process_field"
     assert "lang_factor" in list(caught.value.details.get("extra_keys") or [])
-    with pytest.raises(tea._ScenarioInputError) as caught:
-        tea._scenario_config(_public_from_record(
-            record, steam_power_depreciation="MACRS20",
-        ))
-    assert caught.value.error_code == "unknown_process_field"
-    assert "steam_power_depreciation" in list(
-        caught.value.details.get("extra_keys") or []
-    )
     assert "lang_factor" not in tea._COEFFICIENT_DEFAULTS
     assert "steam_power_depreciation" not in tea._COEFFICIENT_DEFAULTS
+    assert "steam_power_depreciation" in tea.public_process_field_names()
+    assert "steam_power_depreciation" not in tea.public_process_field_names(
+        energy_case="C2",
+    )
     assert "construction_schedule" in tea._COEFFICIENT_DEFAULTS
     assert "construction_schedule" in tea.public_process_field_names()
     assert "depreciation" in tea._COEFFICIENT_DEFAULTS
@@ -2530,6 +2655,7 @@ def test_d8_overlay_still_excludes_coefficients():
         "feedstock_price_usd_per_kg",
         "centrifuged_plastic_solvent_content_pct",
         "natural_gas_price_usd_per_m3",
+        "steam_power_depreciation",
     ):
         assert name not in tea._CONFIG_FIELDS
         assert name not in {
@@ -2564,6 +2690,7 @@ def test_worker_calls_the_unreached_setters():
     assert "process.tea.depreciation" in source
     assert "process.tea.duration" in source
     assert "process.tea.construction_schedule" in source
+    assert "process.tea.steam_power_depreciation" in source
     assert "set_feedstock_price(" in source
     assert "set_centrifuged_plastic_solvent_content(" in source
     assert "set_natural_gas_price(" in source

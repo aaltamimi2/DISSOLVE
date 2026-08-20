@@ -13462,4 +13462,253 @@ def test_invalid_construction_schedule_does_not_outrank_missing_map(monkeypatch)
     assert payload.get("error_code") != "invalid_admitted_record_query"
 
 
+def test_omitted_steam_power_depreciation_is_not_a_silent_default(monkeypatch):
+    _forbid_live(monkeypatch)
+    payload = _data(tea.rank_landscape(**_sequence_kwargs()))
+    assert payload.get("error_code") == "incomplete_stage_basis_grid"
+    for row in payload["missing_keys"]:
+        assert row.get("steam_power_depreciation") is None
+        assert row.get("steam_power_depreciation") != "MACRS20"
+
+
+def test_empty_steam_power_depreciation_is_the_omitted_grain(monkeypatch):
+    _forbid_live(monkeypatch)
+    payload = _data(tea.rank_landscape(
+        **_sequence_kwargs(
+            process_config={**_CAP_20KT, "steam_power_depreciation": ""},
+        ),
+    ))
+    assert payload.get("error_code") == "incomplete_stage_basis_grid"
+    for row in payload["missing_keys"]:
+        assert row.get("steam_power_depreciation") is None
+
+
+def test_default_steam_power_rows_still_complete_when_omitted(monkeypatch):
+    _forbid_live(monkeypatch)
+    session = new_session()
+    with bind_tool_session(session):
+        handle = _plant_handle(
+            session, _complete_d18_rows(steam_power_depreciation="MACRS20"),
+        )
+        payload = _data(tea.rank_landscape(**_sequence_kwargs(handle=handle)))
+    assert payload.get("error_code") == "sequence_coupling_unproven"
+    assert "pending_blockers" not in payload
+    assert "landscape_points" not in payload
+
+
+def test_named_steam_power_does_not_accept_default_rows(monkeypatch):
+    _forbid_live(monkeypatch)
+    session = new_session()
+    with bind_tool_session(session):
+        handle = _plant_handle(
+            session, _complete_d18_rows(steam_power_depreciation="MACRS20"),
+        )
+        payload = _data(tea.rank_landscape(
+            **_sequence_kwargs(
+                handle=handle,
+                process_config={**_CAP_20KT, "steam_power_depreciation": "MACRS7"},
+            ),
+        ))
+    assert payload.get("error_code") == "incomplete_stage_basis_grid"
+    assert payload.get("error_code") != "sequence_coupling_unproven"
+    keys = payload["missing_keys"]
+    assert len(keys) == 4
+    assert {row["steam_power_depreciation"] for row in keys} == {"MACRS7"}
+    assert payload["pending_blockers"][0]["error_type"] == (
+        "sequence_coupling_unproven"
+    )
+    assert "landscape_points" not in payload
+
+
+def test_named_default_steam_power_does_not_accept_other_rows(monkeypatch):
+    _forbid_live(monkeypatch)
+    session = new_session()
+    with bind_tool_session(session):
+        handle = _plant_handle(
+            session, _complete_d18_rows(steam_power_depreciation="MACRS7"),
+        )
+        payload = _data(tea.rank_landscape(
+            **_sequence_kwargs(
+                handle=handle,
+                process_config={
+                    **_CAP_20KT, "steam_power_depreciation": "MACRS20",
+                },
+            ),
+        ))
+    assert payload.get("error_code") == "incomplete_stage_basis_grid"
+    keys = payload["missing_keys"]
+    assert len(keys) == 4
+    assert {row["steam_power_depreciation"] for row in keys} == {"MACRS20"}
+
+
+def test_named_steam_power_completes_on_matching_rows(monkeypatch):
+    _forbid_live(monkeypatch)
+    session = new_session()
+    with bind_tool_session(session):
+        handle = _plant_handle(
+            session, _complete_d18_rows(steam_power_depreciation="MACRS7"),
+        )
+        payload = _data(tea.rank_landscape(
+            **_sequence_kwargs(
+                handle=handle,
+                process_config={**_CAP_20KT, "steam_power_depreciation": "MACRS7"},
+            ),
+        ))
+    assert payload.get("error_code") == "sequence_coupling_unproven"
+    assert "pending_blockers" not in payload
+    assert "missing_keys" not in payload
+    assert "landscape_points" not in payload
+
+
+def test_named_default_steam_power_is_holdable(monkeypatch):
+    _forbid_live(monkeypatch)
+    payload = _data(tea.rank_landscape(
+        **_sequence_kwargs(
+            process_config={**_CAP_20KT, "steam_power_depreciation": "MACRS20"},
+        ),
+    ))
+    assert payload.get("error_code") == "incomplete_stage_basis_grid"
+    keys = payload["missing_keys"]
+    assert len(keys) == 4
+    assert {row["steam_power_depreciation"] for row in keys} == {"MACRS20"}
+
+
+def test_named_default_steam_power_completes_on_matching_default_rows(monkeypatch):
+    _forbid_live(monkeypatch)
+    session = new_session()
+    with bind_tool_session(session):
+        handle = _plant_handle(
+            session, _complete_d18_rows(steam_power_depreciation="MACRS20"),
+        )
+        payload = _data(tea.rank_landscape(
+            **_sequence_kwargs(
+                handle=handle,
+                process_config={
+                    **_CAP_20KT, "steam_power_depreciation": "MACRS20",
+                },
+            ),
+        ))
+    assert payload.get("error_code") == "sequence_coupling_unproven"
+    assert "pending_blockers" not in payload
+    assert "missing_keys" not in payload
+
+
+def test_steam_power_does_not_stamp_unbound_g_fields(monkeypatch):
+    _forbid_live(monkeypatch)
+    payload = _data(tea.rank_landscape(
+        **_sequence_kwargs(
+            process_config={**_CAP_20KT, "steam_power_depreciation": "MACRS7"},
+        ),
+    ))
+    assert payload.get("error_code") == "incomplete_stage_basis_grid"
+    for row in payload["missing_keys"]:
+        assert row.get("steam_power_depreciation") == "MACRS7"
+        assert row.get("lang_factor") is None
+        assert row.get("depreciation") is None
+        assert row.get("duration") is None
+        assert row.get("construction_schedule") is None
+
+
+def test_mixed_steam_power_handle_leaves_the_unmatched_remnant(monkeypatch):
+    _forbid_live(monkeypatch)
+    rows = _complete_d18_rows(steam_power_depreciation="MACRS7")
+    rows[-1]["steam_power_depreciation"] = "MACRS20"
+    session = new_session()
+    with bind_tool_session(session):
+        handle = _plant_handle(session, rows)
+        payload = _data(tea.rank_landscape(
+            **_sequence_kwargs(
+                handle=handle,
+                process_config={**_CAP_20KT, "steam_power_depreciation": "MACRS7"},
+            ),
+        ))
+    assert payload.get("error_code") == "incomplete_stage_basis_grid"
+    keys = payload["missing_keys"]
+    assert len(keys) == 1
+    assert keys[0]["steam_power_depreciation"] == "MACRS7"
+    assert keys[0]["polymer"] == "EVOH"
+    assert keys[0]["target_mass_percent"] == 100.0
+
+
+def test_rows_without_steam_power_do_not_fill_named(monkeypatch):
+    _forbid_live(monkeypatch)
+    session = new_session()
+    with bind_tool_session(session):
+        handle = _plant_handle(session, _complete_d18_rows())
+        payload = _data(tea.rank_landscape(
+            **_sequence_kwargs(
+                handle=handle,
+                process_config={**_CAP_20KT, "steam_power_depreciation": "MACRS7"},
+            ),
+        ))
+    assert payload.get("error_code") == "incomplete_stage_basis_grid"
+    keys = payload["missing_keys"]
+    assert len(keys) == 4
+    assert {row["steam_power_depreciation"] for row in keys} == {"MACRS7"}
+
+
+def test_steam_power_kwarg_is_unknown_extra(monkeypatch):
+    _forbid_live(monkeypatch)
+    payload = _data(tea.rank_landscape(
+        **_sequence_kwargs(steam_power_depreciation="MACRS7"),
+    ))
+    assert payload.get("error_code") == "unknown_process_field"
+    assert payload.get("extra_keys") == ["steam_power_depreciation"]
+    assert payload.get("error_code") != "incomplete_stage_basis_grid"
+
+
+def test_nested_steam_power_does_not_count(monkeypatch):
+    _forbid_live(monkeypatch)
+    payload = _data(tea.rank_landscape(
+        **_sequence_kwargs(
+            process_config={
+                **_CAP_20KT,
+                "held": {"steam_power_depreciation": "MACRS7"},
+            },
+        ),
+    ))
+    assert payload.get("error_code") == "incomplete_stage_basis_grid"
+    for row in payload["missing_keys"]:
+        assert row.get("steam_power_depreciation") is None
+
+
+def test_lowercase_steam_power_is_not_a_listing(monkeypatch):
+    _forbid_live(monkeypatch)
+    payload = _data(tea.rank_landscape(
+        **_sequence_kwargs(
+            process_config={**_CAP_20KT, "steam_power_depreciation": "macrs20"},
+        ),
+    ))
+    assert payload.get("error_code") == "invalid_admitted_record_query"
+    assert payload.get("error_code") != "incomplete_stage_basis_grid"
+    assert payload.get("error_code") != "invalid_scenario"
+
+
+def test_c2_named_steam_power_is_energy_case_contract(monkeypatch):
+    _forbid_live(monkeypatch)
+    payload = _data(tea.rank_landscape(
+        **_sequence_kwargs(
+            process_config={
+                **_CAP_20KT,
+                "energy_case": "C2",
+                "steam_power_depreciation": "MACRS20",
+            },
+        ),
+    ))
+    assert payload.get("error_code") == "energy_case_contract"
+    assert payload.get("error_code") != "incomplete_stage_basis_grid"
+
+
+def test_invalid_steam_power_does_not_outrank_missing_map(monkeypatch):
+    _forbid_live(monkeypatch)
+    payload = _data(tea.rank_landscape(
+        source="superstructure",
+        formulation="sequence",
+        feed_mass_fractions=_FEED_55_45,
+        process_config={**_CAP_20KT, "steam_power_depreciation": "macrs20"},
+    ))
+    assert payload.get("error_code") == "missing_planner_solvent_map"
+    assert payload.get("error_code") != "invalid_admitted_record_query"
+
+
 

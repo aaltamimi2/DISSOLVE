@@ -451,6 +451,27 @@ def test_matching_default_construction_schedule_is_not_a_held_mismatch():
     assert "error_code" not in result
 
 
+def test_steam_power_depreciation_override_is_coefficient_mismatch():
+    projected = campaign_basis.project_campaign_basis_v1(_minimal_v2())
+    result = campaign_basis.held_field_mismatches(
+        projected, {"steam_power_depreciation": "MACRS7"},
+    )
+    assert result["error_code"] == "campaign_basis_mismatch"
+    row = result["mismatches"][0]
+    assert row["field"] == "steam_power_depreciation"
+    assert row["campaign_value"] == "MACRS20"
+    assert row["requested_value"] == "MACRS7"
+
+
+def test_matching_default_steam_power_depreciation_is_not_a_held_mismatch():
+    projected = campaign_basis.project_campaign_basis_v1(_minimal_v2())
+    result = campaign_basis.held_field_mismatches(
+        projected, {"steam_power_depreciation": "MACRS20"},
+    )
+    assert result["mismatches"] == []
+    assert "error_code" not in result
+
+
 def test_polymer_only_is_not_a_held_mismatch():
     projected = campaign_basis.project_campaign_basis_v1(_minimal_v2())
     result = campaign_basis.held_field_mismatches(

@@ -200,6 +200,11 @@ def project_campaign_basis_v1(run_definition: Mapping[str, Any]) -> dict[str, An
             "natural_gas_price_usd_per_m3",
             tea._NATURAL_GAS_PRICE_USD_PER_M3,
         )
+        field_role["steam_power_depreciation"] = _held_switch_or_coefficient(
+            fixed_fields,
+            "steam_power_depreciation",
+            tea._STEAM_POWER_DEPRECIATION_DEFAULT,
+        )
 
     return {
         "campaign_basis_projection": CAMPAIGN_BASIS_PROJECTION,

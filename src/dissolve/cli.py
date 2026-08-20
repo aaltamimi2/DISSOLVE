@@ -526,6 +526,7 @@ def _coerce_process_sheet_value(field: str, raw: str, current: Any) -> Any:
     if field in {
         "precipitation_temperature_format", "precipitation_configuration",
         "target_polymer", "solvent", "depreciation",
+        "steam_power_depreciation",
     }:
         return text
     number = float(text)
@@ -894,10 +895,16 @@ class CliApp:
                 energy = str(buffer["energy_case"])
                 if energy == "C2":
                     buffer.pop("natural_gas_price_usd_per_m3", None)
-                elif "natural_gas_price_usd_per_m3" not in buffer:
-                    buffer["natural_gas_price_usd_per_m3"] = (
-                        tea._NATURAL_GAS_PRICE_USD_PER_M3
-                    )
+                    buffer.pop("steam_power_depreciation", None)
+                else:
+                    if "natural_gas_price_usd_per_m3" not in buffer:
+                        buffer["natural_gas_price_usd_per_m3"] = (
+                            tea._NATURAL_GAS_PRICE_USD_PER_M3
+                        )
+                    if "steam_power_depreciation" not in buffer:
+                        buffer["steam_power_depreciation"] = (
+                            tea._STEAM_POWER_DEPRECIATION_DEFAULT
+                        )
         while True:
             try:
                 line = str(ask(

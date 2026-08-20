@@ -49,6 +49,7 @@ _MAINTENANCE_DEFAULT = 0.03
 _DEPRECIATION_DEFAULT = "MACRS7"
 _DURATION_DEFAULT = (2025, 2055)
 _CONSTRUCTION_SCHEDULE_DEFAULT = (0.08, 0.60, 0.32)
+_STEAM_POWER_DEPRECIATION_DEFAULT = "MACRS20"
 _FEEDSTOCK_PRICE_USD_PER_KG = 0.01
 _CENTRIFUGED_PLASTIC_SOLVENT_CONTENT_PCT = 50.0
 
@@ -989,6 +990,12 @@ def _create_and_simulate_process(
                     _NATURAL_GAS_PRICE_USD_PER_M3,
                 )
             ))
+            process.tea.steam_power_depreciation = str(
+                config.get(
+                    "steam_power_depreciation",
+                    _STEAM_POWER_DEPRECIATION_DEFAULT,
+                )
+            )
         phase = "characterization_factor_application"
         _set_characterization_factors(
             process,

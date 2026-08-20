@@ -133,6 +133,7 @@ _MAINTENANCE_DEFAULT = 0.03
 _DEPRECIATION_DEFAULT = "MACRS7"
 _DURATION_DEFAULT = (2025, 2055)
 _CONSTRUCTION_SCHEDULE_DEFAULT = (0.08, 0.60, 0.32)
+_STEAM_POWER_DEPRECIATION_DEFAULT = "MACRS20"
 _DEPRECIATION_SCHEDULE_PREFIXES = ("MACRS", "SL", "DDB", "SYD")
 # BioSTEAM TEA.depreciation_schedules MACRS keys (U.S. IRS Pub 946).
 _MACRS_IMPLEMENTED_YEARS = frozenset({3, 5, 7, 10, 15, 20})
@@ -174,6 +175,7 @@ _INHERIT_OPTIONAL_KEYS = (
     *_FLOWSHEET_SWITCH_FIELDS,
     *_COEFFICIENT_DEFAULTS,
     "natural_gas_price_usd_per_m3",
+    "steam_power_depreciation",
 )
 _SCENARIO_ALLOWED_KEYS = frozenset({
     *_PUBLIC_REQUIRED_FIELDS,
@@ -183,6 +185,7 @@ _SCENARIO_ALLOWED_KEYS = frozenset({
     *_FLOWSHEET_SWITCH_FIELDS,
     *_COEFFICIENT_DEFAULTS,
     "natural_gas_price_usd_per_m3",
+    "steam_power_depreciation",
     "facilities",
     "turbogenerator",
     "lca_cfs",
@@ -212,7 +215,7 @@ _HELD_PROCESS_BASIS_KEYS = frozenset().union(
     ),
     _FLOWSHEET_SWITCH_FIELDS,
     _COEFFICIENT_DEFAULTS,
-    ("natural_gas_price_usd_per_m3",),
+    ("natural_gas_price_usd_per_m3", "steam_power_depreciation"),
 )
 _FIELD_NOT_ADJUSTABLE_NAMES = frozenset({
     "centrifuged_precipitate_solvent_content",
@@ -994,7 +997,7 @@ def public_process_field_names(*, energy_case: str = "C1") -> tuple[str, ...]:
         "centrifuged_plastic_solvent_content_pct",
     )
     if str(energy_case or "C1").upper() in {"C1", "C3"}:
-        names += ("natural_gas_price_usd_per_m3",)
+        names += ("natural_gas_price_usd_per_m3", "steam_power_depreciation")
     return names
 
 
@@ -1021,6 +1024,7 @@ def first_run_sheet_defaults(*, energy_case: str = "C1") -> dict[str, Any]:
     }
     if defaults["energy_case"] in {"C1", "C3"}:
         defaults["natural_gas_price_usd_per_m3"] = _NATURAL_GAS_PRICE_USD_PER_M3
+        defaults["steam_power_depreciation"] = _STEAM_POWER_DEPRECIATION_DEFAULT
     return defaults
 
 
@@ -1050,6 +1054,7 @@ def seed_public_process_config(
         seeded[public] = value
     if energy == "C2":
         seeded.pop("natural_gas_price_usd_per_m3", None)
+        seeded.pop("steam_power_depreciation", None)
     return seeded
 
 
@@ -1393,6 +1398,7 @@ def _coefficient_defaults_for(config: dict[str, Any]) -> dict[str, Any]:
     energy = str(config.get("energy_case") or "").upper()
     if energy in {"C1", "C3"}:
         defaults["natural_gas_price_usd_per_m3"] = _NATURAL_GAS_PRICE_USD_PER_M3
+        defaults["steam_power_depreciation"] = _STEAM_POWER_DEPRECIATION_DEFAULT
     return defaults
 
 
@@ -1417,22 +1423,22 @@ def _project_coefficients(config: dict[str, Any]) -> dict[str, Any]:
 
 
 def _depreciation_schedule_token(
-    value: Any, *, error_code: str,
+    value: Any, *, error_code: str, field: str = "depreciation",
 ) -> str:
     """BioSTEAM '{schedule}{years}' name. Not an invented enum."""
     if not isinstance(value, str):
         raise _ScenarioInputError(
-            "depreciation must be a BioSTEAM schedule name such as MACRS7.",
+            f"{field} must be a BioSTEAM schedule name such as MACRS7.",
             error_code=error_code,
-            field="depreciation",
+            field=field,
             supplied=value,
         )
     token = value.strip()
     if not token:
         raise _ScenarioInputError(
-            "depreciation must be a BioSTEAM schedule name such as MACRS7.",
+            f"{field} must be a BioSTEAM schedule name such as MACRS7.",
             error_code=error_code,
-            field="depreciation",
+            field=field,
             supplied=value,
         )
     for prefix in _DEPRECIATION_SCHEDULE_PREFIXES:
@@ -1449,18 +1455,18 @@ def _depreciation_schedule_token(
             break
         if prefix == "MACRS" and count not in _MACRS_IMPLEMENTED_YEARS:
             raise _ScenarioInputError(
-                "depreciation name has a valid format, but that MACRS "
+                f"{field} name has a valid format, but that MACRS "
                 "schedule is not implemented in BioSTEAM.",
                 error_code=error_code,
-                field="depreciation",
+                field=field,
                 supplied=value,
             )
         return token
     raise _ScenarioInputError(
-        "depreciation must have format '{schedule}{years}', where "
+        f"{field} must have format '{{schedule}}{{years}}', where "
         "schedule is MACRS, SL, DDB, or SYD.",
         error_code=error_code,
-        field="depreciation",
+        field=field,
         supplied=value,
     )
 
@@ -2058,6 +2064,27 @@ def _validated_coefficients(
         coefficients["natural_gas_price_usd_per_m3"] = (
             _NATURAL_GAS_PRICE_USD_PER_M3
         )
+    if (
+        "steam_power_depreciation" in supplied
+        and supplied["steam_power_depreciation"] not in (None, "")
+    ):
+        if energy_case == "C2":
+            raise _ScenarioInputError(
+                "steam_power_depreciation is not on this instance; "
+                "energy_case C2 has no boiler.",
+                error_code="energy_case_contract",
+                field="steam_power_depreciation",
+                energy_case=energy_case,
+            )
+        coefficients["steam_power_depreciation"] = _depreciation_schedule_token(
+            supplied["steam_power_depreciation"],
+            error_code="invalid_scenario",
+            field="steam_power_depreciation",
+        )
+    elif energy_case in {"C1", "C3"}:
+        coefficients["steam_power_depreciation"] = (
+            _STEAM_POWER_DEPRECIATION_DEFAULT
+        )
     return coefficients
 
 
@@ -2235,6 +2262,7 @@ def _canonical_held_process_basis(basis: dict[str, Any]) -> dict[str, Any]:
         *_FLOWSHEET_SWITCH_FIELDS,
         *_COEFFICIENT_DEFAULTS,
         "natural_gas_price_usd_per_m3",
+        "steam_power_depreciation",
     ):
         if key in supplied:
             public[key] = supplied[key]
@@ -4221,6 +4249,14 @@ def _comparison_row(label: str, result: dict[str, Any]) -> dict[str, Any]:
                 ]
             }
             if "natural_gas_price_usd_per_m3" in coefficients else {}
+        ),
+        **(
+            {
+                "steam_power_depreciation": coefficients[
+                    "steam_power_depreciation"
+                ]
+            }
+            if "steam_power_depreciation" in coefficients else {}
         ),
         "msp_usd_per_kg": tea.get("msp_usd_per_kg"),
         "tci_usd": tea.get("tci_usd"), "aoc_usd_per_yr": tea.get("aoc_usd_per_yr"),
@@ -6644,6 +6680,32 @@ def _requested_depreciation(process_config: Any) -> str | None:
     )
 
 
+def _requested_steam_power_depreciation(
+    process_config: Any,
+) -> str | None:
+    """Held steam-power schedule. Do not default MACRS20."""
+    if not isinstance(process_config, dict):
+        return None
+    if (
+        "steam_power_depreciation" not in process_config
+        or process_config["steam_power_depreciation"] in (None, "")
+    ):
+        return None
+    if _requested_energy_case(process_config) == "C2":
+        raise _ScenarioInputError(
+            "steam_power_depreciation is not on this instance; "
+            "energy_case C2 has no boiler.",
+            error_code="energy_case_contract",
+            field="steam_power_depreciation",
+            energy_case="C2",
+        )
+    return _depreciation_schedule_token(
+        process_config["steam_power_depreciation"],
+        error_code="invalid_admitted_record_query",
+        field="steam_power_depreciation",
+    )
+
+
 def _requested_duration(process_config: Any) -> tuple[int, int] | None:
     """Held venture-year pair. Do not default (2025, 2055)."""
     if not isinstance(process_config, dict):
@@ -6936,6 +6998,7 @@ def _remnant_key_from_row(
     duration: tuple[int, int] | None = None,
     depreciation: str | None = None,
     construction_schedule: tuple[float, ...] | None = None,
+    steam_power_depreciation: str | None = None,
 ) -> tuple[Any, ...] | None:
     """Remnant coordinate of a tool-1 row. Failures are not a fill."""
     if not isinstance(row, dict) or row.get("success") is False:
@@ -7003,6 +7066,7 @@ def _remnant_key_from_row(
         ("precipitation_temperature_format", precipitation_temperature_format),
         ("precipitation_configuration", precipitation_configuration),
         ("depreciation", depreciation),
+        ("steam_power_depreciation", steam_power_depreciation),
     ):
         if held is None:
             continue
@@ -7117,6 +7181,7 @@ def _cell_remnant_key(cell: dict[str, Any]) -> tuple[Any, ...] | None:
         "precipitation_temperature_format",
         "precipitation_configuration",
         "depreciation",
+        "steam_power_depreciation",
     ):
         value = cell.get(field)
         if value not in (None, ""):
@@ -7276,6 +7341,14 @@ def _unmatched_remnant_keys(
         ),
         None,
     )
+    held_steam_power_depreciation = next(
+        (
+            str(cell["steam_power_depreciation"]).strip()
+            for cell in missing_keys
+            if cell.get("steam_power_depreciation") not in (None, "")
+        ),
+        None,
+    )
     held_duration = next(
         (
             _duration_pair(
@@ -7340,6 +7413,7 @@ def _unmatched_remnant_keys(
                 duration=held_duration,
                 depreciation=held_depreciation,
                 construction_schedule=held_construction_schedule,
+                steam_power_depreciation=held_steam_power_depreciation,
             )
         ) is not None
     }
@@ -7412,6 +7486,9 @@ def _refuse_listed_or_complete(
         "duration": _requested_duration(process_config),
         "depreciation": _requested_depreciation(process_config),
         "construction_schedule": _requested_construction_schedule(
+            process_config,
+        ),
+        "steam_power_depreciation": _requested_steam_power_depreciation(
             process_config,
         ),
     }
@@ -7669,7 +7746,7 @@ def rank_landscape(
     precipitation_configuration, irr, income_tax, operating_days,
     labor_burden, finance_interest, finance_years, finance_fraction,
     startup_months, startup_FOCfrac, startup_VOCfrac,
-    startup_salesfrac, WC_over_FCI, warehouse, site_development, additional_piping, proratable_costs, field_expenses, construction, contingency, other_indirect_costs, property_insurance, maintenance, duration, depreciation, or construction_schedule, listed keys include that held
+    startup_salesfrac, WC_over_FCI, warehouse, site_development, additional_piping, proratable_costs, field_expenses, construction, contingency, other_indirect_costs, property_insurance, maintenance, duration, depreciation, construction_schedule, or steam_power_depreciation, listed keys include that held
     value and matching requires it; omitted is not a silent cache or
     production default. A complete sequence grid with production check red is
     sequence_coupling_unproven as primary (no pending_blockers).
