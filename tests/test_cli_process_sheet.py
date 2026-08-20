@@ -1771,6 +1771,38 @@ def test_confirmation_sheet_format_row_aligns_columns():
     assert "…" not in "".join(lines)
 
 
+def test_confirmation_sheet_splits_unbreakable_value():
+    unbreakable = "V" * 90
+    rows = (
+        ("short_field", unbreakable, "u", "supplied"),
+        ("precipitation_temperature_c", "35", "°C", "default"),
+        ("facilities", "true", "", "derived from energy_case"),
+    )
+    widths = tea.confirmation_sheet_column_widths(rows)
+    lines = [
+        tea.confirmation_sheet_format_row(*row, widths) for row in rows
+    ]
+    visuals = [visual for row in lines for visual in row.splitlines()]
+    assert all(len(visual) <= 80 for visual in visuals)
+    assert not any(unbreakable in visual for visual in visuals)
+    assert "…" not in "".join(visuals)
+    assert any(
+        "derived from energy_case" in visual for visual in lines[2].splitlines()
+    )
+    assert _token_col(lines[2], "derived from energy_case") == _token_col(
+        lines[0], "supplied",
+    )
+    assert _token_col(lines[2], "derived from energy_case") != _token_col(
+        lines[1], "°C",
+    )
+    assert "derived from energy_case" not in tea._SHEET_ORIGIN_TOKENS
+    wide = tea.confirmation_sheet_format_row(
+        *rows[0], widths, line_width=200,
+    )
+    assert "\n" not in wide
+    assert unbreakable in wide
+
+
 def test_sheet_print_aligns_value_units_origin(tmp_path, monkeypatch):
     monkeypatch.setattr(cli, "run_turn", _ok_turn)
     app, buf = _app(tmp_path, monkeypatch)

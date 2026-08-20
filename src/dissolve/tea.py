@@ -2608,14 +2608,25 @@ _SHEET_COL_SEP = 2
 
 
 def _sheet_wrap_cell(text: str, width: int) -> list[str]:
-    if not str(text):
+    raw = str(text)
+    if not raw:
         return [""]
-    return textwrap.wrap(
-        str(text),
-        width=max(int(width), 1),
-        break_long_words=False,
+    width = max(int(width), 1)
+    wrapped = textwrap.wrap(
+        raw,
+        width=width,
+        break_long_words=True,
         break_on_hyphens=False,
-    ) or [str(text)]
+    )
+    lines: list[str] = []
+    for piece in wrapped or [raw]:
+        if len(piece) <= width:
+            lines.append(piece)
+        else:
+            lines.extend(
+                piece[i:i + width] for i in range(0, len(piece), width)
+            )
+    return lines or [""]
 
 
 def confirmation_sheet_format_row(
@@ -2633,7 +2644,9 @@ def confirmation_sheet_format_row(
     origin column. When the padded row misses line_width, value stays
     on the field line and units/origin share a continuation. Origin is
     sized from the right so derived from energy_case stays one visual
-    cell. Origin pad is not a fifth closed origin token. Not a ranking.
+    cell. An unbreakable cell still splits so visual lines stay inside
+    line_width; this is not an ellipsis. Public names stay contiguous.
+    Origin pad is not a fifth closed origin token. Not a ranking.
     """
     field_width, value_width, units_width, origin_width = widths
     padded = (
