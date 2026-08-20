@@ -5281,6 +5281,34 @@ def _requested_finance_years(process_config: Any) -> float | None:
     return round(years, 10)
 
 
+def _requested_finance_fraction(process_config: Any) -> float | None:
+    """Held finance fraction. Do not default 0."""
+    if not isinstance(process_config, dict):
+        return None
+    if (
+        "finance_fraction" not in process_config
+        or process_config["finance_fraction"] in (None, "")
+    ):
+        return None
+    fraction = _finite(process_config["finance_fraction"], "finance_fraction")
+    if fraction > 1:
+        raise _ScenarioInputError(
+            "finance_fraction is a fraction (0.4 is 40 percent), not a "
+            "percent integer.",
+            error_code="invalid_admitted_record_query",
+            field="finance_fraction",
+            supplied=process_config["finance_fraction"],
+        )
+    if not 0 <= fraction <= 1:
+        raise _ScenarioInputError(
+            "finance_fraction must be a fraction in [0, 1].",
+            error_code="invalid_admitted_record_query",
+            field="finance_fraction",
+            supplied=process_config["finance_fraction"],
+        )
+    return round(fraction, 10)
+
+
 def _superstructure_composition_and_capacity(
     feed_mass_fractions: Any,
     process_config: Any,
@@ -5522,6 +5550,7 @@ def _remnant_key_from_row(
     labor_burden: float | None = None,
     finance_interest: float | None = None,
     finance_years: float | None = None,
+    finance_fraction: float | None = None,
 ) -> tuple[Any, ...] | None:
     """Remnant coordinate of a tool-1 row. Failures are not a fill."""
     if not isinstance(row, dict) or row.get("success") is False:
@@ -5604,6 +5633,7 @@ def _remnant_key_from_row(
         ("labor_burden", labor_burden),
         ("finance_interest", finance_interest),
         ("finance_years", finance_years),
+        ("finance_fraction", finance_fraction),
     ):
         if held is None:
             continue
@@ -5667,7 +5697,7 @@ def _cell_remnant_key(cell: dict[str, Any]) -> tuple[Any, ...] | None:
             key = key + (str(value).strip(),)
     for field in (
         "irr", "income_tax", "operating_days", "labor_burden",
-        "finance_interest", "finance_years",
+        "finance_interest", "finance_years", "finance_fraction",
     ):
         value = cell.get(field)
         if value not in (None, ""):
@@ -5757,6 +5787,9 @@ def _unmatched_remnant_keys(
     held_labor_burden = _held_rounded_field(missing_keys, "labor_burden")
     held_finance_interest = _held_rounded_field(missing_keys, "finance_interest")
     held_finance_years = _held_rounded_field(missing_keys, "finance_years")
+    held_finance_fraction = _held_rounded_field(
+        missing_keys, "finance_fraction",
+    )
     present = {
         key for row in rows
         if (
@@ -5780,6 +5813,7 @@ def _unmatched_remnant_keys(
                 labor_burden=held_labor_burden,
                 finance_interest=held_finance_interest,
                 finance_years=held_finance_years,
+                finance_fraction=held_finance_fraction,
             )
         ) is not None
     }
@@ -5831,6 +5865,7 @@ def _refuse_listed_or_complete(
         "labor_burden": _requested_labor_burden(process_config),
         "finance_interest": _requested_finance_interest(process_config),
         "finance_years": _requested_finance_years(process_config),
+        "finance_fraction": _requested_finance_fraction(process_config),
     }
     if any(value is not None for value in held.values()):
         stamped: list[dict[str, Any]] = []
@@ -6071,9 +6106,9 @@ def rank_landscape(
     labor_cost_usd_per_employee_yr, sell_leftover_plastic,
     burn_leftover_plastic, precipitation_temperature_format,
     precipitation_configuration, irr, income_tax, operating_days,
-    labor_burden, finance_interest, or finance_years, listed keys
-    include that held value and matching requires it; omitted is not
-    a silent cache or production default. A complete sequence grid with production check red is
+    labor_burden, finance_interest, finance_years, or finance_fraction,
+    listed keys include that held value and matching requires it;
+    omitted is not a silent cache or production default. A complete sequence grid with production check red is
     sequence_coupling_unproven as primary (no pending_blockers).
     Do not scan top_k_sequences for either map.
     formulation is required iff source=superstructure;
