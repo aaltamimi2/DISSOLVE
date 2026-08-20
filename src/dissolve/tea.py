@@ -4959,6 +4959,25 @@ def _requested_precipitation_temperature_c(process_config: Any) -> float | None:
     return round(_finite(raw, "precipitation_temperature_c"), 10)
 
 
+def _requested_solvent_price_usd_per_kg(process_config: Any) -> float | None:
+    """Held solvent price from process_config. Do not default a cache price."""
+    if not isinstance(process_config, dict):
+        return None
+    if (
+        "solvent_price_usd_per_kg" in process_config
+        and process_config["solvent_price_usd_per_kg"] not in (None, "")
+    ):
+        raw = process_config["solvent_price_usd_per_kg"]
+    elif (
+        "solvent_price" in process_config
+        and process_config["solvent_price"] not in (None, "")
+    ):
+        raw = process_config["solvent_price"]
+    else:
+        return None
+    return round(_finite(raw, "solvent_price_usd_per_kg"), 10)
+
+
 def _superstructure_composition_and_capacity(
     feed_mass_fractions: Any,
     process_config: Any,
@@ -5185,6 +5204,7 @@ def _remnant_key_from_row(
     energy_case: str | None = None,
     dissolution_temperature_c: float | None = None,
     precipitation_temperature_c: float | None = None,
+    solvent_price_usd_per_kg: float | None = None,
 ) -> tuple[Any, ...] | None:
     """Remnant coordinate of a tool-1 row. Failures are not a fill."""
     if not isinstance(row, dict) or row.get("success") is False:
@@ -5211,28 +5231,23 @@ def _remnant_key_from_row(
         if row_case != energy_case:
             return None
         key = key + (energy_case,)
-    if dissolution_temperature_c is not None:
-        raw_t = row.get("dissolution_temperature_c")
-        if raw_t in (None, ""):
+    for field, held in (
+        ("dissolution_temperature_c", dissolution_temperature_c),
+        ("precipitation_temperature_c", precipitation_temperature_c),
+        ("solvent_price_usd_per_kg", solvent_price_usd_per_kg),
+    ):
+        if held is None:
+            continue
+        raw = row.get(field)
+        if raw in (None, ""):
             return None
         try:
-            row_t = round(_finite(raw_t, "dissolution_temperature_c"), 10)
+            row_v = round(_finite(raw, field), 10)
         except ValueError:
             return None
-        if row_t != dissolution_temperature_c:
+        if row_v != held:
             return None
-        key = key + (dissolution_temperature_c,)
-    if precipitation_temperature_c is not None:
-        raw_t = row.get("precipitation_temperature_c")
-        if raw_t in (None, ""):
-            return None
-        try:
-            row_t = round(_finite(raw_t, "precipitation_temperature_c"), 10)
-        except ValueError:
-            return None
-        if row_t != precipitation_temperature_c:
-            return None
-        key = key + (precipitation_temperature_c,)
+        key = key + (held,)
     return key
 
 
@@ -5253,7 +5268,9 @@ def _cell_remnant_key(cell: dict[str, Any]) -> tuple[Any, ...] | None:
     if case not in (None, ""):
         key = key + (str(case).strip().upper(),)
     for field in (
-        "dissolution_temperature_c", "precipitation_temperature_c",
+        "dissolution_temperature_c",
+        "precipitation_temperature_c",
+        "solvent_price_usd_per_kg",
     ):
         temp = cell.get(field)
         if temp not in (None, ""):
@@ -5295,6 +5312,9 @@ def _unmatched_remnant_keys(
     held_precipitation = _held_rounded_field(
         missing_keys, "precipitation_temperature_c",
     )
+    held_price = _held_rounded_field(
+        missing_keys, "solvent_price_usd_per_kg",
+    )
     present = {
         key for row in rows
         if (
@@ -5303,6 +5323,7 @@ def _unmatched_remnant_keys(
                 energy_case=held_case,
                 dissolution_temperature_c=held_dissolution,
                 precipitation_temperature_c=held_precipitation,
+                solvent_price_usd_per_kg=held_price,
             )
         ) is not None
     }
@@ -5323,23 +5344,25 @@ def _refuse_listed_or_complete(
     process_config: Any = None,
 ) -> str | None:
     """Subtract handle rows from listed D-18 keys. Not a cache or campaign fill."""
-    energy_case = _requested_energy_case(process_config)
-    dissolution_t = _requested_dissolution_temperature_c(process_config)
-    precipitation_t = _requested_precipitation_temperature_c(process_config)
-    if (
-        energy_case is not None
-        or dissolution_t is not None
-        or precipitation_t is not None
-    ):
+    held = {
+        "energy_case": _requested_energy_case(process_config),
+        "dissolution_temperature_c": (
+            _requested_dissolution_temperature_c(process_config)
+        ),
+        "precipitation_temperature_c": (
+            _requested_precipitation_temperature_c(process_config)
+        ),
+        "solvent_price_usd_per_kg": (
+            _requested_solvent_price_usd_per_kg(process_config)
+        ),
+    }
+    if any(value is not None for value in held.values()):
         stamped: list[dict[str, Any]] = []
         for cell in missing_keys:
             item = dict(cell)
-            if energy_case is not None:
-                item["energy_case"] = energy_case
-            if dissolution_t is not None:
-                item["dissolution_temperature_c"] = dissolution_t
-            if precipitation_t is not None:
-                item["precipitation_temperature_c"] = precipitation_t
+            for name, value in held.items():
+                if value is not None:
+                    item[name] = value
             stamped.append(item)
         missing_keys = stamped
     if handle is not None:
@@ -5566,11 +5589,12 @@ def rank_landscape(
     missing. When process_config names energy_case, listed keys include
     that held case and matching requires it; omitted energy_case is not
     a silent C1 default. When process_config names
-    dissolution_temperature_c or precipitation_temperature_c, listed
-    keys include that held T and matching requires it; omitted T is not
-    a silent cache temperature. A complete sequence grid with production
-    check red is sequence_coupling_unproven as primary
-    (no pending_blockers). Do not scan top_k_sequences for either map.
+    dissolution_temperature_c, precipitation_temperature_c, or
+    solvent_price_usd_per_kg, listed keys include that held value and
+    matching requires it; omitted is not a silent cache default. A
+    complete sequence grid with production check red is
+    sequence_coupling_unproven as primary (no pending_blockers).
+    Do not scan top_k_sequences for either map.
     formulation is required iff source=superstructure;
     formulation=wash_train is
     process_model_wash_train_unavailable. formulation=sequence_solvent

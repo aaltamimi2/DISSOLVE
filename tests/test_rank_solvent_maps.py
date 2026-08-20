@@ -1593,3 +1593,278 @@ def test_invalid_precipitation_t_does_not_outrank_missing_map(monkeypatch):
     assert payload.get("error_code") == "missing_planner_solvent_map"
     assert payload.get("error_code") != "invalid_admitted_record_query"
 
+
+def test_omitted_solvent_price_is_not_a_silent_cache_price(monkeypatch):
+    _forbid_live(monkeypatch)
+    payload = _data(tea.rank_landscape(**_sequence_kwargs()))
+    assert payload.get("error_code") == "incomplete_stage_basis_grid"
+    for row in payload["missing_keys"]:
+        assert row.get("solvent_price_usd_per_kg") is None
+
+
+def test_empty_solvent_price_is_the_omitted_grain(monkeypatch):
+    _forbid_live(monkeypatch)
+    payload = _data(tea.rank_landscape(
+        **_sequence_kwargs(
+            process_config={**_CAP_20KT, "solvent_price_usd_per_kg": ""},
+        ),
+    ))
+    assert payload.get("error_code") == "incomplete_stage_basis_grid"
+    for row in payload["missing_keys"]:
+        assert row.get("solvent_price_usd_per_kg") is None
+
+
+def test_planted_price_still_completes_when_solvent_price_is_omitted(monkeypatch):
+    _forbid_live(monkeypatch)
+    session = new_session()
+    with bind_tool_session(session):
+        handle = _plant_handle(
+            session, _complete_d18_rows(solvent_price_usd_per_kg=1.5),
+        )
+        payload = _data(tea.rank_landscape(**_sequence_kwargs(handle=handle)))
+    assert payload.get("error_code") == "sequence_coupling_unproven"
+    assert "pending_blockers" not in payload
+    assert "landscape_points" not in payload
+
+
+def test_named_solvent_price_does_not_accept_another_price(monkeypatch):
+    _forbid_live(monkeypatch)
+    session = new_session()
+    with bind_tool_session(session):
+        handle = _plant_handle(
+            session, _complete_d18_rows(solvent_price_usd_per_kg=1.5),
+        )
+        payload = _data(tea.rank_landscape(
+            **_sequence_kwargs(
+                handle=handle,
+                process_config={**_CAP_20KT, "solvent_price_usd_per_kg": 2.0},
+            ),
+        ))
+    assert payload.get("error_code") == "incomplete_stage_basis_grid"
+    assert payload.get("error_code") != "sequence_coupling_unproven"
+    keys = payload["missing_keys"]
+    assert len(keys) == 4
+    assert {row["solvent_price_usd_per_kg"] for row in keys} == {2.0}
+    assert payload["pending_blockers"][0]["error_type"] == (
+        "sequence_coupling_unproven"
+    )
+    assert "landscape_points" not in payload
+
+
+def test_named_solvent_price_completes_on_matching_rows(monkeypatch):
+    _forbid_live(monkeypatch)
+    session = new_session()
+    with bind_tool_session(session):
+        handle = _plant_handle(
+            session, _complete_d18_rows(solvent_price_usd_per_kg=2.0),
+        )
+        payload = _data(tea.rank_landscape(
+            **_sequence_kwargs(
+                handle=handle,
+                process_config={**_CAP_20KT, "solvent_price_usd_per_kg": 2.0},
+            ),
+        ))
+    assert payload.get("error_code") == "sequence_coupling_unproven"
+    assert "pending_blockers" not in payload
+    assert "missing_keys" not in payload
+    assert "landscape_points" not in payload
+
+
+def test_solvent_price_alias_stamps_the_public_name(monkeypatch):
+    _forbid_live(monkeypatch)
+    payload = _data(tea.rank_landscape(
+        **_sequence_kwargs(process_config={**_CAP_20KT, "solvent_price": 2.0}),
+    ))
+    assert payload.get("error_code") == "incomplete_stage_basis_grid"
+    keys = payload["missing_keys"]
+    assert len(keys) == 4
+    assert {row["solvent_price_usd_per_kg"] for row in keys} == {2.0}
+
+
+def test_public_solvent_price_wins_over_alias(monkeypatch):
+    _forbid_live(monkeypatch)
+    payload = _data(tea.rank_landscape(
+        **_sequence_kwargs(
+            process_config={
+                **_CAP_20KT,
+                "solvent_price_usd_per_kg": 2.0,
+                "solvent_price": 1.5,
+            },
+        ),
+    ))
+    assert payload.get("error_code") == "incomplete_stage_basis_grid"
+    keys = payload["missing_keys"]
+    assert len(keys) == 4
+    assert {row["solvent_price_usd_per_kg"] for row in keys} == {2.0}
+
+
+def test_precipitation_t_does_not_stamp_solvent_price(monkeypatch):
+    _forbid_live(monkeypatch)
+    payload = _data(tea.rank_landscape(
+        **_sequence_kwargs(
+            process_config={**_CAP_20KT, "precipitation_temperature_c": 40.0},
+        ),
+    ))
+    assert payload.get("error_code") == "incomplete_stage_basis_grid"
+    for row in payload["missing_keys"]:
+        assert row.get("precipitation_temperature_c") == 40.0
+        assert row.get("solvent_price_usd_per_kg") is None
+
+
+def test_solvent_price_does_not_stamp_precipitation_t(monkeypatch):
+    _forbid_live(monkeypatch)
+    payload = _data(tea.rank_landscape(
+        **_sequence_kwargs(
+            process_config={**_CAP_20KT, "solvent_price_usd_per_kg": 2.0},
+        ),
+    ))
+    assert payload.get("error_code") == "incomplete_stage_basis_grid"
+    for row in payload["missing_keys"]:
+        assert row.get("solvent_price_usd_per_kg") == 2.0
+        assert row.get("precipitation_temperature_c") is None
+
+
+def test_solvent_loss_does_not_stamp_solvent_price(monkeypatch):
+    _forbid_live(monkeypatch)
+    payload = _data(tea.rank_landscape(
+        **_sequence_kwargs(
+            process_config={**_CAP_20KT, "solvent_loss_pct": 3.0},
+        ),
+    ))
+    assert payload.get("error_code") == "incomplete_stage_basis_grid"
+    for row in payload["missing_keys"]:
+        assert row.get("solvent_price_usd_per_kg") is None
+
+
+def test_named_slice_at_wrong_price_does_not_fill(monkeypatch):
+    _forbid_live(monkeypatch)
+    session = new_session()
+    with bind_tool_session(session):
+        handle = _plant_handle(
+            session,
+            _complete_d18_rows(
+                energy_case="C1",
+                dissolution_temperature_c=90.0,
+                precipitation_temperature_c=40.0,
+                solvent_price_usd_per_kg=1.5,
+            ),
+        )
+        payload = _data(tea.rank_landscape(
+            **_sequence_kwargs(
+                handle=handle,
+                process_config={
+                    **_CAP_20KT,
+                    "energy_case": "C1",
+                    "dissolution_temperature_c": 90.0,
+                    "precipitation_temperature_c": 40.0,
+                    "solvent_price_usd_per_kg": 2.0,
+                },
+            ),
+        ))
+    assert payload.get("error_code") == "incomplete_stage_basis_grid"
+    keys = payload["missing_keys"]
+    assert len(keys) == 4
+    assert {row["energy_case"] for row in keys} == {"C1"}
+    assert {row["dissolution_temperature_c"] for row in keys} == {90.0}
+    assert {row["precipitation_temperature_c"] for row in keys} == {40.0}
+    assert {row["solvent_price_usd_per_kg"] for row in keys} == {2.0}
+
+
+def test_mixed_price_handle_leaves_the_unmatched_remnant(monkeypatch):
+    _forbid_live(monkeypatch)
+    rows = _complete_d18_rows(solvent_price_usd_per_kg=2.0)
+    rows[-1]["solvent_price_usd_per_kg"] = 1.5
+    session = new_session()
+    with bind_tool_session(session):
+        handle = _plant_handle(session, rows)
+        payload = _data(tea.rank_landscape(
+            **_sequence_kwargs(
+                handle=handle,
+                process_config={**_CAP_20KT, "solvent_price_usd_per_kg": 2.0},
+            ),
+        ))
+    assert payload.get("error_code") == "incomplete_stage_basis_grid"
+    keys = payload["missing_keys"]
+    assert len(keys) == 1
+    assert keys[0]["solvent_price_usd_per_kg"] == 2.0
+    assert keys[0]["polymer"] == "EVOH"
+    assert keys[0]["target_mass_percent"] == 100.0
+
+
+def test_alias_only_row_does_not_fill_named_solvent_price(monkeypatch):
+    _forbid_live(monkeypatch)
+    rows = _complete_d18_rows()
+    for row in rows:
+        row["solvent_price"] = 2.0
+    session = new_session()
+    with bind_tool_session(session):
+        handle = _plant_handle(session, rows)
+        payload = _data(tea.rank_landscape(
+            **_sequence_kwargs(
+                handle=handle,
+                process_config={**_CAP_20KT, "solvent_price_usd_per_kg": 2.0},
+            ),
+        ))
+    assert payload.get("error_code") == "incomplete_stage_basis_grid"
+    keys = payload["missing_keys"]
+    assert len(keys) == 4
+    assert {row["solvent_price_usd_per_kg"] for row in keys} == {2.0}
+
+
+def test_solvent_price_usd_per_kg_kwarg_is_unknown_extra(monkeypatch):
+    _forbid_live(monkeypatch)
+    payload = _data(tea.rank_landscape(
+        **_sequence_kwargs(solvent_price_usd_per_kg=2.0),
+    ))
+    assert payload.get("error_code") == "unknown_process_field"
+    assert payload.get("extra_keys") == ["solvent_price_usd_per_kg"]
+    assert payload.get("error_code") != "incomplete_stage_basis_grid"
+
+
+def test_solvent_price_kwarg_is_unknown_extra(monkeypatch):
+    _forbid_live(monkeypatch)
+    payload = _data(tea.rank_landscape(
+        **_sequence_kwargs(solvent_price=2.0),
+    ))
+    assert payload.get("error_code") == "unknown_process_field"
+    assert payload.get("extra_keys") == ["solvent_price"]
+    assert payload.get("error_code") != "incomplete_stage_basis_grid"
+
+
+def test_nested_solvent_price_does_not_count(monkeypatch):
+    _forbid_live(monkeypatch)
+    payload = _data(tea.rank_landscape(
+        **_sequence_kwargs(
+            process_config={
+                **_CAP_20KT,
+                "held": {"solvent_price_usd_per_kg": 2.0},
+            },
+        ),
+    ))
+    assert payload.get("error_code") == "incomplete_stage_basis_grid"
+    for row in payload["missing_keys"]:
+        assert row.get("solvent_price_usd_per_kg") is None
+
+
+def test_invalid_solvent_price_is_not_a_listing(monkeypatch):
+    _forbid_live(monkeypatch)
+    payload = _data(tea.rank_landscape(
+        **_sequence_kwargs(
+            process_config={**_CAP_20KT, "solvent_price_usd_per_kg": "cheap"},
+        ),
+    ))
+    assert payload.get("error_code") == "invalid_admitted_record_query"
+    assert payload.get("error_code") != "incomplete_stage_basis_grid"
+
+
+def test_invalid_solvent_price_does_not_outrank_missing_map(monkeypatch):
+    _forbid_live(monkeypatch)
+    payload = _data(tea.rank_landscape(
+        source="superstructure",
+        formulation="sequence",
+        feed_mass_fractions=_FEED_55_45,
+        process_config={**_CAP_20KT, "solvent_price_usd_per_kg": "cheap"},
+    ))
+    assert payload.get("error_code") == "missing_planner_solvent_map"
+    assert payload.get("error_code") != "invalid_admitted_record_query"
+
