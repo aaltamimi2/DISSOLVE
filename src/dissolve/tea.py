@@ -5722,6 +5722,34 @@ def _requested_property_insurance(process_config: Any) -> float | None:
     return round(fraction, 10)
 
 
+def _requested_maintenance(process_config: Any) -> float | None:
+    """Held maintenance factor. Do not default 0.03."""
+    if not isinstance(process_config, dict):
+        return None
+    if (
+        "maintenance" not in process_config
+        or process_config["maintenance"] in (None, "")
+    ):
+        return None
+    fraction = _finite(process_config["maintenance"], "maintenance")
+    if fraction > 1:
+        raise _ScenarioInputError(
+            "maintenance is a fraction (0.03 is 3 percent), not a "
+            "percent integer.",
+            error_code="invalid_admitted_record_query",
+            field="maintenance",
+            supplied=process_config["maintenance"],
+        )
+    if not 0 <= fraction <= 1:
+        raise _ScenarioInputError(
+            "maintenance must be a fraction in [0, 1].",
+            error_code="invalid_admitted_record_query",
+            field="maintenance",
+            supplied=process_config["maintenance"],
+        )
+    return round(fraction, 10)
+
+
 def _superstructure_composition_and_capacity(
     feed_mass_fractions: Any,
     process_config: Any,
@@ -5978,6 +6006,7 @@ def _remnant_key_from_row(
     contingency: float | None = None,
     other_indirect_costs: float | None = None,
     property_insurance: float | None = None,
+    maintenance: float | None = None,
 ) -> tuple[Any, ...] | None:
     """Remnant coordinate of a tool-1 row. Failures are not a fill."""
     if not isinstance(row, dict) or row.get("success") is False:
@@ -6075,6 +6104,7 @@ def _remnant_key_from_row(
         ("contingency", contingency),
         ("other_indirect_costs", other_indirect_costs),
         ("property_insurance", property_insurance),
+        ("maintenance", maintenance),
     ):
         if held is None:
             continue
@@ -6143,7 +6173,7 @@ def _cell_remnant_key(cell: dict[str, Any]) -> tuple[Any, ...] | None:
         "startup_salesfrac", "WC_over_FCI", "warehouse",
         "site_development", "additional_piping", "proratable_costs",
         "field_expenses", "construction", "contingency",
-        "other_indirect_costs", "property_insurance",
+        "other_indirect_costs", "property_insurance", "maintenance",
     ):
         value = cell.get(field)
         if value not in (None, ""):
@@ -6266,6 +6296,7 @@ def _unmatched_remnant_keys(
     held_property_insurance = _held_rounded_field(
         missing_keys, "property_insurance",
     )
+    held_maintenance = _held_rounded_field(missing_keys, "maintenance")
     present = {
         key for row in rows
         if (
@@ -6304,6 +6335,7 @@ def _unmatched_remnant_keys(
                 contingency=held_contingency,
                 other_indirect_costs=held_other_indirect_costs,
                 property_insurance=held_property_insurance,
+                maintenance=held_maintenance,
             )
         ) is not None
     }
@@ -6372,6 +6404,7 @@ def _refuse_listed_or_complete(
             process_config,
         ),
         "property_insurance": _requested_property_insurance(process_config),
+        "maintenance": _requested_maintenance(process_config),
     }
     if any(value is not None for value in held.values()):
         stamped: list[dict[str, Any]] = []
@@ -6614,7 +6647,7 @@ def rank_landscape(
     precipitation_configuration, irr, income_tax, operating_days,
     labor_burden, finance_interest, finance_years, finance_fraction,
     startup_months, startup_FOCfrac, startup_VOCfrac,
-    startup_salesfrac, WC_over_FCI, warehouse, site_development, additional_piping, proratable_costs, field_expenses, construction, contingency, other_indirect_costs, or property_insurance, listed keys include that held
+    startup_salesfrac, WC_over_FCI, warehouse, site_development, additional_piping, proratable_costs, field_expenses, construction, contingency, other_indirect_costs, property_insurance, or maintenance, listed keys include that held
     value and matching requires it; omitted is not a silent cache or
     production default. A complete sequence grid with production check red is
     sequence_coupling_unproven as primary (no pending_blockers).
