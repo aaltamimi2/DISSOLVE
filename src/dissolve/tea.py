@@ -5606,6 +5606,34 @@ def _requested_field_expenses(process_config: Any) -> float | None:
     return round(fraction, 10)
 
 
+def _requested_construction(process_config: Any) -> float | None:
+    """Held construction factor. Do not default 0.20."""
+    if not isinstance(process_config, dict):
+        return None
+    if (
+        "construction" not in process_config
+        or process_config["construction"] in (None, "")
+    ):
+        return None
+    fraction = _finite(process_config["construction"], "construction")
+    if fraction > 1:
+        raise _ScenarioInputError(
+            "construction is a fraction (0.20 is 20 percent), not a "
+            "percent integer.",
+            error_code="invalid_admitted_record_query",
+            field="construction",
+            supplied=process_config["construction"],
+        )
+    if not 0 <= fraction <= 1:
+        raise _ScenarioInputError(
+            "construction must be a fraction in [0, 1].",
+            error_code="invalid_admitted_record_query",
+            field="construction",
+            supplied=process_config["construction"],
+        )
+    return round(fraction, 10)
+
+
 def _superstructure_composition_and_capacity(
     feed_mass_fractions: Any,
     process_config: Any,
@@ -5858,6 +5886,7 @@ def _remnant_key_from_row(
     additional_piping: float | None = None,
     proratable_costs: float | None = None,
     field_expenses: float | None = None,
+    construction: float | None = None,
 ) -> tuple[Any, ...] | None:
     """Remnant coordinate of a tool-1 row. Failures are not a fill."""
     if not isinstance(row, dict) or row.get("success") is False:
@@ -5951,6 +5980,7 @@ def _remnant_key_from_row(
         ("additional_piping", additional_piping),
         ("proratable_costs", proratable_costs),
         ("field_expenses", field_expenses),
+        ("construction", construction),
     ):
         if held is None:
             continue
@@ -6018,7 +6048,7 @@ def _cell_remnant_key(cell: dict[str, Any]) -> tuple[Any, ...] | None:
         "startup_months", "startup_FOCfrac", "startup_VOCfrac",
         "startup_salesfrac", "WC_over_FCI", "warehouse",
         "site_development", "additional_piping", "proratable_costs",
-        "field_expenses",
+        "field_expenses", "construction",
     ):
         value = cell.get(field)
         if value not in (None, ""):
@@ -6133,6 +6163,7 @@ def _unmatched_remnant_keys(
         missing_keys, "proratable_costs",
     )
     held_field_expenses = _held_rounded_field(missing_keys, "field_expenses")
+    held_construction = _held_rounded_field(missing_keys, "construction")
     present = {
         key for row in rows
         if (
@@ -6167,6 +6198,7 @@ def _unmatched_remnant_keys(
                 additional_piping=held_additional_piping,
                 proratable_costs=held_proratable_costs,
                 field_expenses=held_field_expenses,
+                construction=held_construction,
             )
         ) is not None
     }
@@ -6229,6 +6261,7 @@ def _refuse_listed_or_complete(
         "additional_piping": _requested_additional_piping(process_config),
         "proratable_costs": _requested_proratable_costs(process_config),
         "field_expenses": _requested_field_expenses(process_config),
+        "construction": _requested_construction(process_config),
     }
     if any(value is not None for value in held.values()):
         stamped: list[dict[str, Any]] = []
@@ -6471,7 +6504,7 @@ def rank_landscape(
     precipitation_configuration, irr, income_tax, operating_days,
     labor_burden, finance_interest, finance_years, finance_fraction,
     startup_months, startup_FOCfrac, startup_VOCfrac,
-    startup_salesfrac, WC_over_FCI, warehouse, site_development, additional_piping, proratable_costs, or field_expenses, listed keys include that held
+    startup_salesfrac, WC_over_FCI, warehouse, site_development, additional_piping, proratable_costs, field_expenses, or construction, listed keys include that held
     value and matching requires it; omitted is not a silent cache or
     production default. A complete sequence grid with production check red is
     sequence_coupling_unproven as primary (no pending_blockers).

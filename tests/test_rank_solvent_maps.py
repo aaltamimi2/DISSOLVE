@@ -10589,3 +10589,376 @@ def test_invalid_field_expenses_does_not_outrank_missing_map(monkeypatch):
     assert payload.get("error_code") == "missing_planner_solvent_map"
     assert payload.get("error_code") != "invalid_admitted_record_query"
 
+
+def test_omitted_construction_is_not_a_silent_default(monkeypatch):
+    _forbid_live(monkeypatch)
+    payload = _data(tea.rank_landscape(**_sequence_kwargs()))
+    assert payload.get("error_code") == "incomplete_stage_basis_grid"
+    for row in payload["missing_keys"]:
+        assert row.get("construction") is None
+        assert row.get("construction") != 0.20
+
+
+def test_empty_construction_is_the_omitted_grain(monkeypatch):
+    _forbid_live(monkeypatch)
+    payload = _data(tea.rank_landscape(
+        **_sequence_kwargs(
+            process_config={**_CAP_20KT, "construction": ""},
+        ),
+    ))
+    assert payload.get("error_code") == "incomplete_stage_basis_grid"
+    for row in payload["missing_keys"]:
+        assert row.get("construction") is None
+
+
+def test_default_construction_rows_still_complete_when_omitted(monkeypatch):
+    _forbid_live(monkeypatch)
+    session = new_session()
+    with bind_tool_session(session):
+        handle = _plant_handle(
+            session, _complete_d18_rows(construction=0.20),
+        )
+        payload = _data(tea.rank_landscape(**_sequence_kwargs(handle=handle)))
+    assert payload.get("error_code") == "sequence_coupling_unproven"
+    assert "pending_blockers" not in payload
+    assert "landscape_points" not in payload
+
+
+def test_named_construction_rows_still_complete_when_omitted(monkeypatch):
+    _forbid_live(monkeypatch)
+    session = new_session()
+    with bind_tool_session(session):
+        handle = _plant_handle(
+            session, _complete_d18_rows(construction=0.10),
+        )
+        payload = _data(tea.rank_landscape(**_sequence_kwargs(handle=handle)))
+    assert payload.get("error_code") == "sequence_coupling_unproven"
+    assert "pending_blockers" not in payload
+    assert "landscape_points" not in payload
+
+
+def test_named_construction_does_not_accept_default_rows(monkeypatch):
+    _forbid_live(monkeypatch)
+    session = new_session()
+    with bind_tool_session(session):
+        handle = _plant_handle(
+            session, _complete_d18_rows(construction=0.20),
+        )
+        payload = _data(tea.rank_landscape(
+            **_sequence_kwargs(
+                handle=handle,
+                process_config={**_CAP_20KT, "construction": 0.10},
+            ),
+        ))
+    assert payload.get("error_code") == "incomplete_stage_basis_grid"
+    assert payload.get("error_code") != "sequence_coupling_unproven"
+    keys = payload["missing_keys"]
+    assert len(keys) == 4
+    assert {row["construction"] for row in keys} == {0.10}
+    assert payload["pending_blockers"][0]["error_type"] == (
+        "sequence_coupling_unproven"
+    )
+    assert "landscape_points" not in payload
+
+
+def test_named_default_construction_does_not_accept_other_rows(monkeypatch):
+    _forbid_live(monkeypatch)
+    session = new_session()
+    with bind_tool_session(session):
+        handle = _plant_handle(
+            session, _complete_d18_rows(construction=0.10),
+        )
+        payload = _data(tea.rank_landscape(
+            **_sequence_kwargs(
+                handle=handle,
+                process_config={**_CAP_20KT, "construction": 0.20},
+            ),
+        ))
+    assert payload.get("error_code") == "incomplete_stage_basis_grid"
+    keys = payload["missing_keys"]
+    assert len(keys) == 4
+    assert {row["construction"] for row in keys} == {0.20}
+
+
+def test_named_construction_completes_on_matching_rows(monkeypatch):
+    _forbid_live(monkeypatch)
+    session = new_session()
+    with bind_tool_session(session):
+        handle = _plant_handle(
+            session, _complete_d18_rows(construction=0.10),
+        )
+        payload = _data(tea.rank_landscape(
+            **_sequence_kwargs(
+                handle=handle,
+                process_config={**_CAP_20KT, "construction": 0.10},
+            ),
+        ))
+    assert payload.get("error_code") == "sequence_coupling_unproven"
+    assert "pending_blockers" not in payload
+    assert "missing_keys" not in payload
+    assert "landscape_points" not in payload
+
+
+def test_named_default_construction_is_holdable(monkeypatch):
+    _forbid_live(monkeypatch)
+    payload = _data(tea.rank_landscape(
+        **_sequence_kwargs(
+            process_config={**_CAP_20KT, "construction": 0.20},
+        ),
+    ))
+    assert payload.get("error_code") == "incomplete_stage_basis_grid"
+    keys = payload["missing_keys"]
+    assert len(keys) == 4
+    assert {row["construction"] for row in keys} == {0.20}
+
+
+def test_named_zero_construction_is_holdable(monkeypatch):
+    _forbid_live(monkeypatch)
+    payload = _data(tea.rank_landscape(
+        **_sequence_kwargs(
+            process_config={**_CAP_20KT, "construction": 0.0},
+        ),
+    ))
+    assert payload.get("error_code") == "incomplete_stage_basis_grid"
+    keys = payload["missing_keys"]
+    assert len(keys) == 4
+    assert {row["construction"] for row in keys} == {0.0}
+
+
+def test_named_unity_construction_is_holdable(monkeypatch):
+    _forbid_live(monkeypatch)
+    payload = _data(tea.rank_landscape(
+        **_sequence_kwargs(
+            process_config={**_CAP_20KT, "construction": 1.0},
+        ),
+    ))
+    assert payload.get("error_code") == "incomplete_stage_basis_grid"
+    keys = payload["missing_keys"]
+    assert len(keys) == 4
+    assert {row["construction"] for row in keys} == {1.0}
+
+
+def test_named_default_construction_completes_on_matching_default_rows(
+    monkeypatch,
+):
+    _forbid_live(monkeypatch)
+    session = new_session()
+    with bind_tool_session(session):
+        handle = _plant_handle(
+            session, _complete_d18_rows(construction=0.20),
+        )
+        payload = _data(tea.rank_landscape(
+            **_sequence_kwargs(
+                handle=handle,
+                process_config={**_CAP_20KT, "construction": 0.20},
+            ),
+        ))
+    assert payload.get("error_code") == "sequence_coupling_unproven"
+    assert "pending_blockers" not in payload
+    assert "missing_keys" not in payload
+
+
+def test_construction_does_not_stamp_contingency(monkeypatch):
+    _forbid_live(monkeypatch)
+    payload = _data(tea.rank_landscape(
+        **_sequence_kwargs(
+            process_config={**_CAP_20KT, "construction": 0.10},
+        ),
+    ))
+    assert payload.get("error_code") == "incomplete_stage_basis_grid"
+    for row in payload["missing_keys"]:
+        assert row.get("construction") == 0.10
+        assert row.get("contingency") is None
+        assert row.get("lang_factor") is None
+        assert row.get("field_expenses") is None
+
+
+def test_named_slice_at_wrong_construction_does_not_fill(monkeypatch):
+    _forbid_live(monkeypatch)
+    session = new_session()
+    with bind_tool_session(session):
+        handle = _plant_handle(
+            session,
+            _complete_d18_rows(
+                energy_case="C1",
+                dissolution_temperature_c=90.0,
+                precipitation_temperature_c=40.0,
+                solvent_price_usd_per_kg=2.0,
+                solvent_loss_pct=3.0,
+                feedstock_distance_km=250.0,
+                dissolution_capacity=5.0,
+                labor_cost_usd_per_employee_yr=150_000.0,
+                sell_leftover_plastic=True,
+                burn_leftover_plastic=True,
+                precipitation_temperature_format="drop",
+                precipitation_configuration=_MIX,
+                irr=0.12,
+                income_tax=0.25,
+                operating_days=365.0,
+                labor_burden=1.5,
+                finance_interest=0.12,
+                finance_years=15,
+                finance_fraction=0.4,
+                startup_months=6,
+                startup_FOCfrac=0.5,
+                startup_VOCfrac=0.5,
+                startup_salesfrac=0.25,
+                WC_over_FCI=0.10,
+                warehouse=0.10,
+                site_development=0.10,
+                additional_piping=0.10,
+                proratable_costs=0.20,
+                field_expenses=0.20,
+                construction=0.20,
+            ),
+        )
+        payload = _data(tea.rank_landscape(
+            **_sequence_kwargs(
+                handle=handle,
+                process_config={
+                    **_CAP_20KT,
+                    "energy_case": "C1",
+                    "dissolution_temperature_c": 90.0,
+                    "precipitation_temperature_c": 40.0,
+                    "solvent_price_usd_per_kg": 2.0,
+                    "solvent_loss_pct": 3.0,
+                    "feedstock_distance_km": 250.0,
+                    "dissolution_capacity": 5.0,
+                    "labor_cost_usd_per_employee_yr": 150_000.0,
+                    "sell_leftover_plastic": True,
+                    "burn_leftover_plastic": True,
+                    "precipitation_temperature_format": "drop",
+                    "precipitation_configuration": _MIX,
+                    "irr": 0.12,
+                    "income_tax": 0.25,
+                    "operating_days": 365,
+                    "labor_burden": 1.5,
+                    "finance_interest": 0.12,
+                    "finance_years": 15,
+                    "finance_fraction": 0.4,
+                    "startup_months": 6,
+                    "startup_FOCfrac": 0.5,
+                    "startup_VOCfrac": 0.5,
+                    "startup_salesfrac": 0.25,
+                    "WC_over_FCI": 0.10,
+                    "warehouse": 0.10,
+                    "site_development": 0.10,
+                    "additional_piping": 0.10,
+                    "proratable_costs": 0.20,
+                    "field_expenses": 0.20,
+                    "construction": 0.10,
+                },
+            ),
+        ))
+    assert payload.get("error_code") == "incomplete_stage_basis_grid"
+    keys = payload["missing_keys"]
+    assert len(keys) == 4
+    assert {row["field_expenses"] for row in keys} == {0.20}
+    assert {row["construction"] for row in keys} == {0.10}
+
+
+def test_mixed_construction_handle_leaves_the_unmatched_remnant(monkeypatch):
+    _forbid_live(monkeypatch)
+    rows = _complete_d18_rows(construction=0.10)
+    rows[-1]["construction"] = 0.20
+    session = new_session()
+    with bind_tool_session(session):
+        handle = _plant_handle(session, rows)
+        payload = _data(tea.rank_landscape(
+            **_sequence_kwargs(
+                handle=handle,
+                process_config={**_CAP_20KT, "construction": 0.10},
+            ),
+        ))
+    assert payload.get("error_code") == "incomplete_stage_basis_grid"
+    keys = payload["missing_keys"]
+    assert len(keys) == 1
+    assert keys[0]["construction"] == 0.10
+    assert keys[0]["polymer"] == "EVOH"
+    assert keys[0]["target_mass_percent"] == 100.0
+
+
+def test_rows_without_construction_do_not_fill_named_fraction(monkeypatch):
+    _forbid_live(monkeypatch)
+    session = new_session()
+    with bind_tool_session(session):
+        handle = _plant_handle(session, _complete_d18_rows())
+        payload = _data(tea.rank_landscape(
+            **_sequence_kwargs(
+                handle=handle,
+                process_config={**_CAP_20KT, "construction": 0.10},
+            ),
+        ))
+    assert payload.get("error_code") == "incomplete_stage_basis_grid"
+    keys = payload["missing_keys"]
+    assert len(keys) == 4
+    assert {row["construction"] for row in keys} == {0.10}
+
+
+def test_construction_kwarg_is_unknown_extra(monkeypatch):
+    _forbid_live(monkeypatch)
+    payload = _data(tea.rank_landscape(
+        **_sequence_kwargs(construction=0.10),
+    ))
+    assert payload.get("error_code") == "unknown_process_field"
+    assert payload.get("extra_keys") == ["construction"]
+    assert payload.get("error_code") != "incomplete_stage_basis_grid"
+
+
+def test_nested_construction_does_not_count(monkeypatch):
+    _forbid_live(monkeypatch)
+    payload = _data(tea.rank_landscape(
+        **_sequence_kwargs(
+            process_config={**_CAP_20KT, "held": {"construction": 0.10}},
+        ),
+    ))
+    assert payload.get("error_code") == "incomplete_stage_basis_grid"
+    for row in payload["missing_keys"]:
+        assert row.get("construction") is None
+
+
+def test_invalid_construction_is_not_a_listing(monkeypatch):
+    _forbid_live(monkeypatch)
+    payload = _data(tea.rank_landscape(
+        **_sequence_kwargs(
+            process_config={**_CAP_20KT, "construction": "maybe"},
+        ),
+    ))
+    assert payload.get("error_code") == "invalid_admitted_record_query"
+    assert payload.get("error_code") != "incomplete_stage_basis_grid"
+
+
+def test_percent_integer_construction_is_not_a_remnant_listing(monkeypatch):
+    _forbid_live(monkeypatch)
+    payload = _data(tea.rank_landscape(
+        **_sequence_kwargs(
+            process_config={**_CAP_20KT, "construction": 20},
+        ),
+    ))
+    assert payload.get("error_code") == "invalid_admitted_record_query"
+    assert payload.get("error_code") != "incomplete_stage_basis_grid"
+    assert payload.get("error_code") != "invalid_scenario"
+
+
+def test_negative_construction_is_not_a_remnant_listing(monkeypatch):
+    _forbid_live(monkeypatch)
+    payload = _data(tea.rank_landscape(
+        **_sequence_kwargs(
+            process_config={**_CAP_20KT, "construction": -0.1},
+        ),
+    ))
+    assert payload.get("error_code") == "invalid_admitted_record_query"
+    assert payload.get("error_code") != "incomplete_stage_basis_grid"
+
+
+def test_invalid_construction_does_not_outrank_missing_map(monkeypatch):
+    _forbid_live(monkeypatch)
+    payload = _data(tea.rank_landscape(
+        source="superstructure",
+        formulation="sequence",
+        feed_mass_fractions=_FEED_55_45,
+        process_config={**_CAP_20KT, "construction": "maybe"},
+    ))
+    assert payload.get("error_code") == "missing_planner_solvent_map"
+    assert payload.get("error_code") != "invalid_admitted_record_query"
+
