@@ -286,6 +286,116 @@ def test_m1_rerank_refuses_and_m5_keeps_original_thermo_rank(monkeypatch):
     assert missing.get("refusal") == "missing_objective"
 
 
+def test_planner_routes_pareto_has_f_quality_schema(monkeypatch):
+    def forbidden(*args, **kwargs):
+        raise AssertionError("planner_routes must not start BioSTEAM")
+
+    monkeypatch.setattr(tea, "_live", forbidden)
+    monkeypatch.setattr(tea.tea_worker, "run", forbidden)
+    session = new_session()
+    with bind_tool_session(session):
+        branched = dispatch(
+            "plan_multistage_separation",
+            feed_polymers=_PAIR,
+            breadth=5,
+        )
+        payload = dispatch(
+            "rank_landscape",
+            source="planner_routes",
+            operation="pareto_dominance",
+            handle=branched["handle"],
+        )
+        sort_payload = dispatch(
+            "rank_landscape",
+            source="planner_routes",
+            operation="sort",
+            objective="min_stage_g_score",
+            handle=branched["handle"],
+        )
+    assert payload.get("available") is True
+    data = payload.get("data") or {}
+    assert data.get("source") == "planner_routes"
+    assert data.get("operation") == "pareto_dominance"
+    landscape = data.get("landscape_points") or []
+    frontier = data.get("frontier_points") or []
+    assert landscape
+    assert frontier
+    n_land = data["n_landscape_points"]
+    n_front = data["n_frontier_points"]
+    assert n_land == len(landscape)
+    assert n_front == len(frontier)
+    assert data.get("frontier_fraction") == n_front / n_land
+    assert data.get("sparse_frontier") is (
+        n_front == 1 or data.get("cheapest_equals_lowest_y") is True
+    )
+    assert data.get("knee_status") in {
+        "endpoint_only_no_interior_knee",
+        "interior_tradeoff",
+        "not_calculated_no_comparable_designs",
+    }
+    x_key = "bottleneck_selectivity_pct"
+    y_key = "min_stage_g_score"
+    assert data.get("x_metric") == x_key
+    assert data.get("y_metric") == y_key
+    spans = data.get("axis_spans") or {}
+    assert set(spans) == {x_key, y_key}
+    xs = [float(point[x_key]) for point in landscape]
+    ys = [float(point[y_key]) for point in landscape]
+    assert spans[x_key]["min"] == min(xs)
+    assert spans[x_key]["max"] == max(xs)
+    assert spans[y_key]["min"] == min(ys)
+    assert spans[y_key]["max"] == max(ys)
+    for point in landscape:
+        assert point["safety_standing"]["status"] == "not_requested"
+        assert point.get("original_thermo_rank")
+    cheapest = data.get("cheapest_point") or {}
+    assert cheapest.get(x_key) == max(float(point[x_key]) for point in frontier)
+    tradeoff = data.get("frontier_tradeoff")
+    if data.get("cheapest_equals_lowest_y") or n_front < 2:
+        assert tradeoff is None
+    else:
+        assert tradeoff["x_metric"] == x_key
+        assert tradeoff["y_metric"] == y_key
+        assert tradeoff["x_direction"] == "max"
+        assert tradeoff["y_direction"] == "max"
+        assert tradeoff["x_units"] == "percentage_points"
+        assert tradeoff["y_units"] == "dimensionless"
+        assert "incremental_annual_cost_usd" not in tradeoff
+        assert "msp_usd_per_kg" not in (tradeoff.get("x_metric"), tradeoff.get("y_metric"))
+    sort_data = sort_payload.get("data") or {}
+    assert "frontier_fraction" not in sort_data
+    assert "axis_spans" not in sort_data
+    assert "sparse_frontier" not in sort_data
+
+
+def test_planner_pareto_quality_star_is_sparse_and_null_tradeoff():
+    better_x = {
+        "bottleneck_selectivity_pct": 90.0,
+        "min_stage_g_score": 5.0,
+    }
+    better_y = {
+        "bottleneck_selectivity_pct": 80.0,
+        "min_stage_g_score": 8.0,
+    }
+    star = tea._planner_pareto_quality(
+        [better_x, better_y], [better_x],
+        "bottleneck_selectivity_pct", "min_stage_g_score",
+    )
+    assert star["frontier_fraction"] == 0.5
+    assert star["sparse_frontier"] is True
+    assert star["frontier_tradeoff"] is None
+    trade = tea._planner_pareto_quality(
+        [better_x, better_y], [better_x, better_y],
+        "bottleneck_selectivity_pct", "min_stage_g_score",
+    )
+    assert trade["sparse_frontier"] is False
+    assert trade["frontier_tradeoff"]["x_at_cheapest"] == 90.0
+    assert trade["frontier_tradeoff"]["y_at_best_y"] == 8.0
+    assert trade["frontier_tradeoff"]["delta_x"] == -10.0
+    assert trade["frontier_tradeoff"]["delta_y"] == 3.0
+    assert trade["frontier_tradeoff"]["y_direction"] == "max"
+
+
 def test_registry_still_two_public_tea_names_and_planner_is_not_new():
     names = {spec["name"] for spec in tool_schemas()}
     assert "evaluate_process" in names

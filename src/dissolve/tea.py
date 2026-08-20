@@ -8712,6 +8712,14 @@ _PLANNER_SORT_OBJECTIVES = {
 }
 _PLANNER_PARETO_X = "bottleneck_selectivity_pct"
 _PLANNER_PARETO_Y = "min_stage_g_score"
+_PLANNER_PARETO_DIRECTIONS = {
+    "bottleneck_selectivity_pct": "max",
+    "min_stage_g_score": "max",
+}
+_PLANNER_PARETO_UNITS = {
+    "bottleneck_selectivity_pct": "percentage_points",
+    "min_stage_g_score": "dimensionless",
+}
 
 
 def _planner_min_stage_g_score(steps: Any) -> float | None:
@@ -8740,6 +8748,94 @@ def _planner_route_metric(route: dict[str, Any], name: str) -> float | None:
     except (TypeError, ValueError):
         return None
     return number if math.isfinite(number) else None
+
+
+def _planner_axis_extreme(
+    points: Sequence[dict[str, Any]], key: str, direction: str,
+) -> dict[str, Any]:
+    if direction == "max":
+        return max(points, key=lambda point: float(point[key]))
+    return min(points, key=lambda point: float(point[key]))
+
+
+def _planner_pareto_quality(
+    landscape: Sequence[dict[str, Any]],
+    frontier: Sequence[dict[str, Any]],
+    x_key: str,
+    y_key: str,
+) -> dict[str, Any]:
+    """§9.2.2 quality block on planner_routes pareto. Thermo/greenness axes."""
+    from .landscape import axis_span
+
+    n_landscape = len(landscape)
+    n_frontier = len(frontier)
+    fraction = (n_frontier / n_landscape) if n_landscape else None
+    spans = (
+        {
+            x_key: axis_span([float(point[x_key]) for point in landscape]),
+            y_key: axis_span([float(point[y_key]) for point in landscape]),
+        }
+        if landscape else {}
+    )
+    if not frontier:
+        return {
+            "frontier_fraction": fraction,
+            "sparse_frontier": False,
+            "cheapest_equals_lowest_y": False,
+            "axis_spans": spans,
+            "cheapest_point": None,
+            "knee_status": "not_calculated_no_comparable_designs",
+            "frontier_tradeoff": None,
+        }
+    x_dir = _PLANNER_PARETO_DIRECTIONS[x_key]
+    y_dir = _PLANNER_PARETO_DIRECTIONS[y_key]
+    cheapest = _planner_axis_extreme(frontier, x_key, x_dir)
+    best_y = _planner_axis_extreme(frontier, y_key, y_dir)
+    equals = cheapest is best_y or (
+        float(cheapest[x_key]) == float(best_y[x_key])
+        and float(cheapest[y_key]) == float(best_y[y_key])
+    )
+    if n_frontier == 1 or equals:
+        knee_status = "endpoint_only_no_interior_knee"
+    elif n_frontier > 2:
+        knee_status = "interior_tradeoff"
+    else:
+        knee_status = "endpoint_only_no_interior_knee"
+    tradeoff = None
+    if n_frontier >= 2 and not equals:
+        x_at_cheapest = float(cheapest[x_key])
+        y_at_cheapest = float(cheapest[y_key])
+        x_at_best_y = float(best_y[x_key])
+        y_at_best_y = float(best_y[y_key])
+        delta_y = y_at_best_y - y_at_cheapest
+        tradeoff = {
+            "x_metric": x_key,
+            "y_metric": y_key,
+            "x_direction": x_dir,
+            "y_direction": y_dir,
+            "x_units": _PLANNER_PARETO_UNITS[x_key],
+            "y_units": _PLANNER_PARETO_UNITS[y_key],
+            "x_at_cheapest": x_at_cheapest,
+            "y_at_cheapest": y_at_cheapest,
+            "x_at_best_y": x_at_best_y,
+            "y_at_best_y": y_at_best_y,
+            "delta_x": x_at_best_y - x_at_cheapest,
+            "delta_y": delta_y,
+            "delta_y_percent": (
+                100.0 * delta_y / y_at_cheapest if y_at_cheapest else None
+            ),
+        }
+        if x_at_cheapest > 0:
+            tradeoff["x_ratio"] = x_at_best_y / x_at_cheapest
+    return {
+        "frontier_fraction": fraction,
+        "sparse_frontier": n_frontier == 1 or equals,
+        "cheapest_equals_lowest_y": equals,
+        "axis_spans": spans,
+        "cheapest_point": dict(cheapest),
+        "knee_status": knee_status,
+        "frontier_tradeoff": tradeoff,
+    }
 
 
 def _planner_route_point(
@@ -9005,6 +9101,7 @@ def _rank_planner_routes(
     frontier = [point for point in landscape if point.get("is_frontier") is True]
     n_landscape = len(landscape)
     n_frontier = len(frontier)
+    quality = _planner_pareto_quality(landscape, frontier, x_token, y_token)
     return _stamp_screen_to_economics_order(
         tool_success(
             tool,
@@ -9017,9 +9114,7 @@ def _rank_planner_routes(
             frontier_points=frontier,
             n_landscape_points=n_landscape,
             n_frontier_points=n_frontier,
-            frontier_fraction=(
-                n_frontier / n_landscape if n_landscape else None
-            ),
+            **quality,
         ),
         order,
     )
