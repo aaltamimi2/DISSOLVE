@@ -852,7 +852,7 @@ class CliApp:
     ) -> None:
         self.console.print(_PROCESS_SHEET_HEADER)
         energy = str(buffer.get("energy_case") or "C1")
-        self.console.print("field  value  units  origin")
+        rows: list[tuple[str, str, str, str]] = []
         for field in tea.public_process_field_names(energy_case=energy):
             shown = _format_sheet_value(buffer.get(field))
             if field == "irr" and buffer.get("irr") is not None:
@@ -861,20 +861,38 @@ class CliApp:
                 field, buffer, origin=origin,
             )
             units = tea.confirmation_sheet_row_units(field, buffer)
-            self.console.print(
-                f"{field}  {shown}  {units}  {token}".rstrip()
-            )
+            rows.append((field, shown, units, token))
         for field, value in tea.confirmation_sheet_derived_energy_case_rows(
             buffer,
         ):
-            self.console.print(
-                f"{field}  {_format_sheet_value(value)}  "
-                f"{tea.confirmation_sheet_derived_energy_case_label()}"
-            )
+            rows.append((
+                field,
+                _format_sheet_value(value),
+                "",
+                tea.confirmation_sheet_derived_energy_case_label(),
+            ))
         for field in tea.confirmation_sheet_not_on_this_instance(buffer):
+            rows.append((
+                field,
+                tea.confirmation_sheet_not_on_this_instance_label(buffer),
+                "",
+                "",
+            ))
+        widths = tea.confirmation_sheet_column_widths(rows)
+        header = tea.confirmation_sheet_format_row(
+            "field", "value", "units", "origin", widths,
+        )
+        self.console.print(
+            header, overflow="ignore", crop=False, soft_wrap=False,
+        )
+        for field, shown, units, token in rows:
             self.console.print(
-                f"{field}  "
-                f"{tea.confirmation_sheet_not_on_this_instance_label(buffer)}"
+                tea.confirmation_sheet_format_row(
+                    field, shown, units, token, widths,
+                ),
+                overflow="ignore",
+                crop=False,
+                soft_wrap=False,
             )
         missing = tea.missing_public_process_fields(buffer)
         if missing:

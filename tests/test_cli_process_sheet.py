@@ -1676,4 +1676,75 @@ def test_sheet_print_keeps_long_public_names_contiguous(tmp_path, monkeypatch):
     assert re.search(r"^facilities\s+true\b", shown, re.M)
 
 
+def test_confirmation_sheet_format_row_aligns_columns():
+    rows = (
+        ("target_polymer", "LDPE", "", "supplied"),
+        ("solvent", "Dodecane", "", "supplied"),
+        ("precipitation_temperature_c", "35", "°C", "default"),
+        ("dissolution_temperature_c", "145", "°C", "supplied"),
+        ("facilities", "true", "", "derived from energy_case"),
+        (
+            "natural_gas_price_usd_per_m3",
+            "not on this instance (energy_case=C2)",
+            "",
+            "",
+        ),
+    )
+    widths = tea.confirmation_sheet_column_widths(rows)
+    lines = [
+        tea.confirmation_sheet_format_row(*row, widths) for row in rows
+    ]
+    assert lines[0].find("LDPE") == lines[1].find("Dodecane")
+    assert lines[0].find("LDPE") == lines[4].find("true")
+    assert lines[2].find("°C") == lines[3].find("°C")
+    assert lines[0].find("supplied") == lines[4].find(
+        "derived from energy_case"
+    )
+    assert lines[4].find("derived from energy_case") != lines[2].find("°C")
+    assert "not on this instance (energy_case=C2)" in lines[5]
+    assert "…" not in "".join(lines)
+
+
+def test_sheet_print_aligns_value_units_origin(tmp_path, monkeypatch):
+    monkeypatch.setattr(cli, "run_turn", _ok_turn)
+    app, buf = _app(tmp_path, monkeypatch)
+    c1 = tea.seed_public_process_config({
+        "target_polymer": "LDPE",
+        "solvent": "Dodecane",
+        "dissolution_temperature_c": 145.0,
+        "energy_case": "C1",
+    })
+    origin = tea.confirmation_sheet_field_origin(
+        c1,
+        snapshot=c1,
+        screening_item={
+            "target_polymer": "LDPE",
+            "solvent": "Dodecane",
+            "dissolution_temperature_c": 145.0,
+        },
+        held_keys=["energy_case"],
+    )
+    app._print_process_sheet(c1, origin=origin)
+    shown = buf.getvalue()
+    lines = shown.splitlines()
+    poly = next(line for line in lines if line.startswith("target_polymer"))
+    solv = next(line for line in lines if line.startswith("solvent"))
+    precip = next(
+        line for line in lines
+        if line.startswith("precipitation_temperature_c ")
+    )
+    diss = next(
+        line for line in lines
+        if line.startswith("dissolution_temperature_c ")
+    )
+    fac = next(line for line in lines if line.startswith("facilities"))
+    assert poly.find("LDPE") == solv.find("Dodecane")
+    assert precip.find("°C") == diss.find("°C")
+    assert fac.find("true") == poly.find("LDPE")
+    assert fac.find("derived from energy_case") == poly.find("from_screen")
+    assert fac.find("derived from energy_case") != precip.find("°C")
+    assert "…" not in shown
+    assert re.search(r"^labor_cost_usd_per_employee_yr\b", shown, re.M)
+
+
 
