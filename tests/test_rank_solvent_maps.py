@@ -3851,3 +3851,386 @@ def test_invalid_burn_leftover_does_not_outrank_missing_map(monkeypatch):
     assert payload.get("error_code") == "missing_planner_solvent_map"
     assert payload.get("error_code") != "invalid_admitted_record_query"
 
+
+def test_omitted_precipitation_format_is_not_a_silent_constant(monkeypatch):
+    _forbid_live(monkeypatch)
+    payload = _data(tea.rank_landscape(**_sequence_kwargs()))
+    assert payload.get("error_code") == "incomplete_stage_basis_grid"
+    for row in payload["missing_keys"]:
+        assert row.get("precipitation_temperature_format") is None
+        assert row.get("precipitation_temperature_format") != "constant"
+
+
+def test_empty_precipitation_format_is_the_omitted_grain(monkeypatch):
+    _forbid_live(monkeypatch)
+    payload = _data(tea.rank_landscape(
+        **_sequence_kwargs(
+            process_config={**_CAP_20KT, "precipitation_temperature_format": ""},
+        ),
+    ))
+    assert payload.get("error_code") == "incomplete_stage_basis_grid"
+    for row in payload["missing_keys"]:
+        assert row.get("precipitation_temperature_format") is None
+
+
+def test_constant_format_rows_still_complete_when_omitted(monkeypatch):
+    _forbid_live(monkeypatch)
+    session = new_session()
+    with bind_tool_session(session):
+        handle = _plant_handle(
+            session,
+            _complete_d18_rows(precipitation_temperature_format="constant"),
+        )
+        payload = _data(tea.rank_landscape(**_sequence_kwargs(handle=handle)))
+    assert payload.get("error_code") == "sequence_coupling_unproven"
+    assert "pending_blockers" not in payload
+    assert "landscape_points" not in payload
+
+
+def test_drop_format_rows_still_complete_when_omitted(monkeypatch):
+    _forbid_live(monkeypatch)
+    session = new_session()
+    with bind_tool_session(session):
+        handle = _plant_handle(
+            session,
+            _complete_d18_rows(precipitation_temperature_format="drop"),
+        )
+        payload = _data(tea.rank_landscape(**_sequence_kwargs(handle=handle)))
+    assert payload.get("error_code") == "sequence_coupling_unproven"
+    assert "pending_blockers" not in payload
+    assert "landscape_points" not in payload
+
+
+def test_named_drop_does_not_accept_constant_rows(monkeypatch):
+    _forbid_live(monkeypatch)
+    session = new_session()
+    with bind_tool_session(session):
+        handle = _plant_handle(
+            session,
+            _complete_d18_rows(precipitation_temperature_format="constant"),
+        )
+        payload = _data(tea.rank_landscape(
+            **_sequence_kwargs(
+                handle=handle,
+                process_config={
+                    **_CAP_20KT,
+                    "precipitation_temperature_format": "drop",
+                },
+            ),
+        ))
+    assert payload.get("error_code") == "incomplete_stage_basis_grid"
+    assert payload.get("error_code") != "sequence_coupling_unproven"
+    keys = payload["missing_keys"]
+    assert len(keys) == 4
+    assert {row["precipitation_temperature_format"] for row in keys} == {"drop"}
+    assert payload["pending_blockers"][0]["error_type"] == (
+        "sequence_coupling_unproven"
+    )
+    assert "landscape_points" not in payload
+
+
+def test_named_constant_does_not_accept_drop_rows(monkeypatch):
+    _forbid_live(monkeypatch)
+    session = new_session()
+    with bind_tool_session(session):
+        handle = _plant_handle(
+            session,
+            _complete_d18_rows(precipitation_temperature_format="drop"),
+        )
+        payload = _data(tea.rank_landscape(
+            **_sequence_kwargs(
+                handle=handle,
+                process_config={
+                    **_CAP_20KT,
+                    "precipitation_temperature_format": "constant",
+                },
+            ),
+        ))
+    assert payload.get("error_code") == "incomplete_stage_basis_grid"
+    keys = payload["missing_keys"]
+    assert len(keys) == 4
+    assert {row["precipitation_temperature_format"] for row in keys} == {
+        "constant",
+    }
+
+
+def test_named_drop_completes_on_matching_rows(monkeypatch):
+    _forbid_live(monkeypatch)
+    session = new_session()
+    with bind_tool_session(session):
+        handle = _plant_handle(
+            session,
+            _complete_d18_rows(precipitation_temperature_format="drop"),
+        )
+        payload = _data(tea.rank_landscape(
+            **_sequence_kwargs(
+                handle=handle,
+                process_config={
+                    **_CAP_20KT,
+                    "precipitation_temperature_format": "drop",
+                },
+            ),
+        ))
+    assert payload.get("error_code") == "sequence_coupling_unproven"
+    assert "pending_blockers" not in payload
+    assert "missing_keys" not in payload
+    assert "landscape_points" not in payload
+
+
+def test_named_constant_is_holdable(monkeypatch):
+    _forbid_live(monkeypatch)
+    payload = _data(tea.rank_landscape(
+        **_sequence_kwargs(
+            process_config={
+                **_CAP_20KT,
+                "precipitation_temperature_format": "constant",
+            },
+        ),
+    ))
+    assert payload.get("error_code") == "incomplete_stage_basis_grid"
+    keys = payload["missing_keys"]
+    assert len(keys) == 4
+    assert {row["precipitation_temperature_format"] for row in keys} == {
+        "constant",
+    }
+
+
+def test_named_constant_completes_on_matching_constant_rows(monkeypatch):
+    _forbid_live(monkeypatch)
+    session = new_session()
+    with bind_tool_session(session):
+        handle = _plant_handle(
+            session,
+            _complete_d18_rows(precipitation_temperature_format="constant"),
+        )
+        payload = _data(tea.rank_landscape(
+            **_sequence_kwargs(
+                handle=handle,
+                process_config={
+                    **_CAP_20KT,
+                    "precipitation_temperature_format": "constant",
+                },
+            ),
+        ))
+    assert payload.get("error_code") == "sequence_coupling_unproven"
+    assert "pending_blockers" not in payload
+    assert "missing_keys" not in payload
+
+
+def test_burn_leftover_does_not_stamp_format_on_this_slice(monkeypatch):
+    _forbid_live(monkeypatch)
+    payload = _data(tea.rank_landscape(
+        **_sequence_kwargs(
+            process_config={**_CAP_20KT, "burn_leftover_plastic": True},
+        ),
+    ))
+    assert payload.get("error_code") == "incomplete_stage_basis_grid"
+    for row in payload["missing_keys"]:
+        assert row.get("burn_leftover_plastic") is True
+        assert row.get("precipitation_temperature_format") is None
+
+
+def test_precipitation_format_does_not_stamp_configuration(monkeypatch):
+    _forbid_live(monkeypatch)
+    payload = _data(tea.rank_landscape(
+        **_sequence_kwargs(
+            process_config={
+                **_CAP_20KT,
+                "precipitation_temperature_format": "drop",
+            },
+        ),
+    ))
+    assert payload.get("error_code") == "incomplete_stage_basis_grid"
+    for row in payload["missing_keys"]:
+        assert row.get("precipitation_temperature_format") == "drop"
+        assert row.get("precipitation_configuration") is None
+        assert row.get("precipitation_temperature_drop_pct") is None
+
+
+def test_precipitation_configuration_does_not_stamp_format(monkeypatch):
+    _forbid_live(monkeypatch)
+    payload = _data(tea.rank_landscape(
+        **_sequence_kwargs(
+            process_config={
+                **_CAP_20KT,
+                "precipitation_configuration": "solvent mixing",
+            },
+        ),
+    ))
+    assert payload.get("error_code") == "incomplete_stage_basis_grid"
+    for row in payload["missing_keys"]:
+        assert row.get("precipitation_temperature_format") is None
+
+
+def test_named_drop_does_not_fire_field_not_on_this_instance(monkeypatch):
+    _forbid_live(monkeypatch)
+    payload = _data(tea.rank_landscape(
+        **_sequence_kwargs(
+            process_config={
+                **_CAP_20KT,
+                "precipitation_temperature_format": "drop",
+            },
+        ),
+    ))
+    assert payload.get("error_code") == "incomplete_stage_basis_grid"
+    assert payload.get("error_code") != "field_not_on_this_instance"
+    keys = payload["missing_keys"]
+    assert len(keys) == 4
+    assert {row["precipitation_temperature_format"] for row in keys} == {"drop"}
+
+
+def test_named_slice_at_wrong_format_does_not_fill(monkeypatch):
+    _forbid_live(monkeypatch)
+    session = new_session()
+    with bind_tool_session(session):
+        handle = _plant_handle(
+            session,
+            _complete_d18_rows(
+                energy_case="C1",
+                dissolution_temperature_c=90.0,
+                precipitation_temperature_c=40.0,
+                solvent_price_usd_per_kg=2.0,
+                solvent_loss_pct=3.0,
+                feedstock_distance_km=250.0,
+                dissolution_capacity=5.0,
+                labor_cost_usd_per_employee_yr=150_000.0,
+                sell_leftover_plastic=True,
+                burn_leftover_plastic=True,
+                precipitation_temperature_format="constant",
+            ),
+        )
+        payload = _data(tea.rank_landscape(
+            **_sequence_kwargs(
+                handle=handle,
+                process_config={
+                    **_CAP_20KT,
+                    "energy_case": "C1",
+                    "dissolution_temperature_c": 90.0,
+                    "precipitation_temperature_c": 40.0,
+                    "solvent_price_usd_per_kg": 2.0,
+                    "solvent_loss_pct": 3.0,
+                    "feedstock_distance_km": 250.0,
+                    "dissolution_capacity": 5.0,
+                    "labor_cost_usd_per_employee_yr": 150_000.0,
+                    "sell_leftover_plastic": True,
+                    "burn_leftover_plastic": True,
+                    "precipitation_temperature_format": "drop",
+                },
+            ),
+        ))
+    assert payload.get("error_code") == "incomplete_stage_basis_grid"
+    keys = payload["missing_keys"]
+    assert len(keys) == 4
+    assert {row["burn_leftover_plastic"] for row in keys} == {True}
+    assert {row["precipitation_temperature_format"] for row in keys} == {"drop"}
+
+
+def test_mixed_format_handle_leaves_the_unmatched_remnant(monkeypatch):
+    _forbid_live(monkeypatch)
+    rows = _complete_d18_rows(precipitation_temperature_format="drop")
+    rows[-1]["precipitation_temperature_format"] = "constant"
+    session = new_session()
+    with bind_tool_session(session):
+        handle = _plant_handle(session, rows)
+        payload = _data(tea.rank_landscape(
+            **_sequence_kwargs(
+                handle=handle,
+                process_config={
+                    **_CAP_20KT,
+                    "precipitation_temperature_format": "drop",
+                },
+            ),
+        ))
+    assert payload.get("error_code") == "incomplete_stage_basis_grid"
+    keys = payload["missing_keys"]
+    assert len(keys) == 1
+    assert keys[0]["precipitation_temperature_format"] == "drop"
+    assert keys[0]["polymer"] == "EVOH"
+    assert keys[0]["target_mass_percent"] == 100.0
+
+
+def test_rows_without_format_do_not_fill_named_drop(monkeypatch):
+    _forbid_live(monkeypatch)
+    session = new_session()
+    with bind_tool_session(session):
+        handle = _plant_handle(session, _complete_d18_rows())
+        payload = _data(tea.rank_landscape(
+            **_sequence_kwargs(
+                handle=handle,
+                process_config={
+                    **_CAP_20KT,
+                    "precipitation_temperature_format": "drop",
+                },
+            ),
+        ))
+    assert payload.get("error_code") == "incomplete_stage_basis_grid"
+    keys = payload["missing_keys"]
+    assert len(keys) == 4
+    assert {row["precipitation_temperature_format"] for row in keys} == {"drop"}
+
+
+def test_precipitation_temperature_format_kwarg_is_unknown_extra(monkeypatch):
+    _forbid_live(monkeypatch)
+    payload = _data(tea.rank_landscape(
+        **_sequence_kwargs(precipitation_temperature_format="drop"),
+    ))
+    assert payload.get("error_code") == "unknown_process_field"
+    assert payload.get("extra_keys") == ["precipitation_temperature_format"]
+    assert payload.get("error_code") != "incomplete_stage_basis_grid"
+
+
+def test_nested_precipitation_format_does_not_count(monkeypatch):
+    _forbid_live(monkeypatch)
+    payload = _data(tea.rank_landscape(
+        **_sequence_kwargs(
+            process_config={
+                **_CAP_20KT,
+                "held": {"precipitation_temperature_format": "drop"},
+            },
+        ),
+    ))
+    assert payload.get("error_code") == "incomplete_stage_basis_grid"
+    for row in payload["missing_keys"]:
+        assert row.get("precipitation_temperature_format") is None
+
+
+def test_invalid_precipitation_format_is_not_a_listing(monkeypatch):
+    _forbid_live(monkeypatch)
+    payload = _data(tea.rank_landscape(
+        **_sequence_kwargs(
+            process_config={
+                **_CAP_20KT,
+                "precipitation_temperature_format": "linear",
+            },
+        ),
+    ))
+    assert payload.get("error_code") == "invalid_admitted_record_query"
+    assert payload.get("error_code") != "incomplete_stage_basis_grid"
+    assert payload.get("error_code") != "field_not_on_this_instance"
+
+
+def test_integer_one_is_not_a_precipitation_format_listing(monkeypatch):
+    _forbid_live(monkeypatch)
+    payload = _data(tea.rank_landscape(
+        **_sequence_kwargs(
+            process_config={**_CAP_20KT, "precipitation_temperature_format": 1},
+        ),
+    ))
+    assert payload.get("error_code") == "invalid_admitted_record_query"
+    assert payload.get("error_code") != "incomplete_stage_basis_grid"
+
+
+def test_invalid_precipitation_format_does_not_outrank_missing_map(monkeypatch):
+    _forbid_live(monkeypatch)
+    payload = _data(tea.rank_landscape(
+        source="superstructure",
+        formulation="sequence",
+        feed_mass_fractions=_FEED_55_45,
+        process_config={
+            **_CAP_20KT,
+            "precipitation_temperature_format": "linear",
+        },
+    ))
+    assert payload.get("error_code") == "missing_planner_solvent_map"
+    assert payload.get("error_code") != "invalid_admitted_record_query"
+
