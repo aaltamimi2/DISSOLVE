@@ -5438,6 +5438,34 @@ def _requested_startup_salesfrac(process_config: Any) -> float | None:
     return round(fraction, 10)
 
 
+def _requested_WC_over_FCI(process_config: Any) -> float | None:
+    """Held working-capital fraction. Do not default 0.05."""
+    if not isinstance(process_config, dict):
+        return None
+    if (
+        "WC_over_FCI" not in process_config
+        or process_config["WC_over_FCI"] in (None, "")
+    ):
+        return None
+    fraction = _finite(process_config["WC_over_FCI"], "WC_over_FCI")
+    if fraction > 1:
+        raise _ScenarioInputError(
+            "WC_over_FCI is a fraction (0.05 is 5 percent), not a "
+            "percent integer.",
+            error_code="invalid_admitted_record_query",
+            field="WC_over_FCI",
+            supplied=process_config["WC_over_FCI"],
+        )
+    if not 0 <= fraction <= 1:
+        raise _ScenarioInputError(
+            "WC_over_FCI must be a fraction in [0, 1].",
+            error_code="invalid_admitted_record_query",
+            field="WC_over_FCI",
+            supplied=process_config["WC_over_FCI"],
+        )
+    return round(fraction, 10)
+
+
 def _superstructure_composition_and_capacity(
     feed_mass_fractions: Any,
     process_config: Any,
@@ -5684,6 +5712,7 @@ def _remnant_key_from_row(
     startup_FOCfrac: float | None = None,
     startup_VOCfrac: float | None = None,
     startup_salesfrac: float | None = None,
+    WC_over_FCI: float | None = None,
 ) -> tuple[Any, ...] | None:
     """Remnant coordinate of a tool-1 row. Failures are not a fill."""
     if not isinstance(row, dict) or row.get("success") is False:
@@ -5771,6 +5800,7 @@ def _remnant_key_from_row(
         ("startup_FOCfrac", startup_FOCfrac),
         ("startup_VOCfrac", startup_VOCfrac),
         ("startup_salesfrac", startup_salesfrac),
+        ("WC_over_FCI", WC_over_FCI),
     ):
         if held is None:
             continue
@@ -5836,7 +5866,7 @@ def _cell_remnant_key(cell: dict[str, Any]) -> tuple[Any, ...] | None:
         "irr", "income_tax", "operating_days", "labor_burden",
         "finance_interest", "finance_years", "finance_fraction",
         "startup_months", "startup_FOCfrac", "startup_VOCfrac",
-        "startup_salesfrac",
+        "startup_salesfrac", "WC_over_FCI",
     ):
         value = cell.get(field)
         if value not in (None, ""):
@@ -5939,6 +5969,7 @@ def _unmatched_remnant_keys(
     held_startup_salesfrac = _held_rounded_field(
         missing_keys, "startup_salesfrac",
     )
+    held_WC_over_FCI = _held_rounded_field(missing_keys, "WC_over_FCI")
     present = {
         key for row in rows
         if (
@@ -5967,6 +5998,7 @@ def _unmatched_remnant_keys(
                 startup_FOCfrac=held_startup_FOCfrac,
                 startup_VOCfrac=held_startup_VOCfrac,
                 startup_salesfrac=held_startup_salesfrac,
+                WC_over_FCI=held_WC_over_FCI,
             )
         ) is not None
     }
@@ -6023,6 +6055,7 @@ def _refuse_listed_or_complete(
         "startup_FOCfrac": _requested_startup_FOCfrac(process_config),
         "startup_VOCfrac": _requested_startup_VOCfrac(process_config),
         "startup_salesfrac": _requested_startup_salesfrac(process_config),
+        "WC_over_FCI": _requested_WC_over_FCI(process_config),
     }
     if any(value is not None for value in held.values()):
         stamped: list[dict[str, Any]] = []
@@ -6264,9 +6297,10 @@ def rank_landscape(
     burn_leftover_plastic, precipitation_temperature_format,
     precipitation_configuration, irr, income_tax, operating_days,
     labor_burden, finance_interest, finance_years, finance_fraction,
-    startup_months, startup_FOCfrac, startup_VOCfrac, or
-    startup_salesfrac, listed keys include that held value and matching
-    requires it; omitted is not a silent cache or production default. A complete sequence grid with production check red is
+    startup_months, startup_FOCfrac, startup_VOCfrac,
+    startup_salesfrac, or WC_over_FCI, listed keys include that held
+    value and matching requires it; omitted is not a silent cache or
+    production default. A complete sequence grid with production check red is
     sequence_coupling_unproven as primary (no pending_blockers).
     Do not scan top_k_sequences for either map.
     formulation is required iff source=superstructure;
