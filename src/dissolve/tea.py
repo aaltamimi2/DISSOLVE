@@ -8416,8 +8416,330 @@ def _rank_residual_route(
     )
 
 
+_PLANNER_SORT_OBJECTIVES = {
+    "min_stage_g_score": "max",
+    "bottleneck_selectivity_pct": "max",
+    "peak_temperature_c": "min",
+}
+_PLANNER_PARETO_X = "bottleneck_selectivity_pct"
+_PLANNER_PARETO_Y = "min_stage_g_score"
+
+
+def _planner_min_stage_g_score(steps: Any) -> float | None:
+    scores = []
+    for item in steps or []:
+        if not isinstance(item, dict):
+            continue
+        try:
+            score = float(item.get("g_score"))
+        except (TypeError, ValueError):
+            continue
+        if math.isfinite(score):
+            scores.append(score)
+    return min(scores) if scores else None
+
+
+def _planner_route_metric(route: dict[str, Any], name: str) -> float | None:
+    if name == "min_stage_g_score":
+        value = route.get("min_stage_g_score")
+        if value is None:
+            value = _planner_min_stage_g_score(route.get("steps"))
+    else:
+        value = route.get(name)
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return None
+    return number if math.isfinite(number) else None
+
+
+def _planner_route_point(
+    route: dict[str, Any],
+    *,
+    handle: str,
+    original_rank: int,
+    new_rank: int,
+    objective: str | None,
+    x_metric: str | None,
+    y_metric: str | None,
+) -> dict[str, Any]:
+    point = {
+        "original_thermo_rank": original_rank,
+        "rank": new_rank,
+        "row_id": original_rank,
+        "handle": handle,
+        "sequence": list(route.get("sequence") or []),
+        "solvent_mapping": dict(route.get("solvent_mapping") or {}),
+        "complete": bool(route.get("complete")),
+        "bottleneck_selectivity_pct": route.get("bottleneck_selectivity_pct"),
+        "min_stage_g_score": _planner_route_metric(route, "min_stage_g_score"),
+        "peak_temperature_c": route.get("peak_temperature_c"),
+        "safety_standing": {"status": "not_requested"},
+    }
+    if objective is not None:
+        point["objective"] = objective
+        point["objective_direction"] = _PLANNER_SORT_OBJECTIVES[objective]
+        point[objective] = _planner_route_metric(route, objective)
+    if x_metric is not None:
+        point["x_metric"] = x_metric
+        point[x_metric] = _planner_route_metric(route, x_metric)
+    if y_metric is not None:
+        point["y_metric"] = y_metric
+        point[y_metric] = _planner_route_metric(route, y_metric)
+    return point
+
+
+def _rank_planner_routes(
+    *,
+    operation: str,
+    handle: Any,
+    objective: Any,
+    x_metric: Any,
+    y_metric: Any,
+    order: str,
+    planner_solvent_map: Any,
+    allowed_solvents: Any,
+    feed_mass_fractions: Any,
+    campaign_fingerprint: Any,
+    process_config: Any,
+    formulation: Any,
+) -> str:
+    tool = "rank_landscape"
+    inapplicable = [
+        name for name, value in (
+            ("planner_solvent_map", planner_solvent_map),
+            ("allowed_solvents", allowed_solvents),
+            ("feed_mass_fractions", feed_mass_fractions),
+            ("campaign_fingerprint", campaign_fingerprint),
+            ("process_config", process_config),
+            ("formulation", formulation),
+        )
+        if value is not None
+    ]
+    if inapplicable:
+        return _stamp_screen_to_economics_order(
+            tool_error(
+                tool,
+                "those fields are not applicable on source=planner_routes",
+                error_code="not_applicable_in_source",
+                source="planner_routes",
+                inapplicable_fields=inapplicable,
+            ),
+            order,
+        )
+    if operation in {"optimum", "epsilon"}:
+        return _stamp_screen_to_economics_order(
+            tool_error(
+                tool,
+                "optimum and epsilon are not legal on source=planner_routes",
+                error_code="not_applicable_in_source",
+                source="planner_routes",
+                operation=operation,
+            ),
+            order,
+        )
+    if operation not in {"sort", "pareto_dominance"}:
+        return _stamp_screen_to_economics_order(
+            tool_error(
+                tool,
+                "operation must be sort or pareto_dominance on planner_routes.",
+                error_code="not_applicable_in_source",
+                source="planner_routes",
+                operation=operation,
+            ),
+            order,
+        )
+    token = handle.strip() if isinstance(handle, str) else ""
+    if not isinstance(handle, str) or not token:
+        return _stamp_screen_to_economics_order(
+            tool_error(
+                tool, "unknown handle", error_code="unknown_handle", handle=handle,
+            ),
+            order,
+        )
+    record = current_tool_session()
+    stored = load_handle(record, token) if record is not None else None
+    if stored is None:
+        return _stamp_screen_to_economics_order(
+            tool_error(
+                tool, "unknown handle", error_code="unknown_handle", handle=token,
+            ),
+            order,
+        )
+    exact = stored.get("exact") if isinstance(stored, dict) else None
+    source_tool = stored.get("tool") if isinstance(stored, dict) else None
+    sequences = exact.get("top_k_sequences") if isinstance(exact, dict) else None
+    if (
+        source_tool != "plan_multistage_separation"
+        or not isinstance(exact, dict)
+        or exact.get("success") is not True
+        or not isinstance(sequences, list)
+        or not any(isinstance(item, dict) for item in sequences)
+    ):
+        return _stamp_screen_to_economics_order(
+            tool_error(
+                tool,
+                "handle is not a plan success with ranked paths",
+                error_code="not_plan_handle",
+                handle=token,
+                source_tool=source_tool,
+            ),
+            order,
+        )
+    routes = [item for item in sequences if isinstance(item, dict)]
+    breadth = exact.get("breadth")
+    rule = str(exact.get("branch_rule") or "count").strip().casefold()
+    missing_or_one = breadth is None or breadth == 1
+    if missing_or_one and rule != "window":
+        return _stamp_screen_to_economics_order(
+            tool_error(
+                tool,
+                "rerank of a plan handle requires stage branching (m>1 or window)",
+                error_code="rerank_requires_stage_branch",
+                handle=token,
+                breadth=breadth,
+                branch_rule=rule,
+            ),
+            order,
+        )
+    if operation == "sort":
+        if objective is None or str(objective).strip() == "":
+            return _stamp_screen_to_economics_order(
+                tool_error(
+                    tool,
+                    "source=planner_routes operation=sort requires objective",
+                    error_code="missing_objective",
+                    source="planner_routes",
+                ),
+                order,
+            )
+        objective_token = str(objective).strip()
+        if objective_token not in _PLANNER_SORT_OBJECTIVES:
+            return _stamp_screen_to_economics_order(
+                tool_error(
+                    tool,
+                    "objective is not applicable on source=planner_routes",
+                    error_code="not_applicable_in_source",
+                    source="planner_routes",
+                    requested=objective_token,
+                ),
+                order,
+            )
+        direction = _PLANNER_SORT_OBJECTIVES[objective_token]
+
+        def sort_key(route: dict[str, Any]) -> tuple[Any, ...]:
+            value = _planner_route_metric(route, objective_token)
+            missing = value is None
+            original = int(route.get("rank") or 0)
+            if direction == "max":
+                return (missing, -(value or 0.0), original)
+            return (missing, value if value is not None else math.inf, original)
+
+        ranked = sorted(routes, key=sort_key)
+        points = [
+            _planner_route_point(
+                route,
+                handle=token,
+                original_rank=int(route.get("rank") or index),
+                new_rank=index,
+                objective=objective_token,
+                x_metric=None,
+                y_metric=None,
+            )
+            for index, route in enumerate(ranked, 1)
+        ]
+        return _stamp_screen_to_economics_order(
+            tool_success(
+                tool,
+                analysis_type="planner_routes_landscape",
+                source="planner_routes",
+                operation="sort",
+                objective=objective_token,
+                objective_direction=direction,
+                landscape_points=points,
+                n_landscape_points=len(points),
+            ),
+            order,
+        )
+    x_token = str(x_metric).strip() if x_metric is not None else _PLANNER_PARETO_X
+    y_token = str(y_metric).strip() if y_metric is not None else _PLANNER_PARETO_Y
+    if {x_token, y_token} != {_PLANNER_PARETO_X, _PLANNER_PARETO_Y}:
+        return _stamp_screen_to_economics_order(
+            tool_error(
+                tool,
+                "pareto axes on source=planner_routes are "
+                "bottleneck_selectivity_pct and min_stage_g_score",
+                error_code="not_applicable_in_source",
+                source="planner_routes",
+                x_metric=x_token,
+                y_metric=y_token,
+            ),
+            order,
+        )
+    usable = []
+    for route in routes:
+        x_value = _planner_route_metric(route, x_token)
+        y_value = _planner_route_metric(route, y_token)
+        if x_value is None or y_value is None:
+            continue
+        usable.append((route, x_value, y_value))
+
+    def dominates(left: tuple[Any, float, float], right: tuple[Any, float, float]) -> bool:
+        return (
+            left[1] >= right[1] and left[2] >= right[2]
+            and (left[1] > right[1] or left[2] > right[2])
+        )
+
+    frontier_ids = {
+        id(item[0]) for item in usable
+        if not any(
+            other[0] is not item[0] and dominates(other, item)
+            for other in usable
+        )
+    }
+    landscape = []
+    for index, (route, _, _) in enumerate(
+        sorted(usable, key=lambda item: (-item[1], -item[2], int(item[0].get("rank") or 0))),
+        1,
+    ):
+        point = _planner_route_point(
+            route,
+            handle=token,
+            original_rank=int(route.get("rank") or index),
+            new_rank=index,
+            objective=None,
+            x_metric=x_token,
+            y_metric=y_token,
+        )
+        point["is_frontier"] = id(route) in frontier_ids
+        landscape.append(point)
+    frontier = [point for point in landscape if point.get("is_frontier") is True]
+    n_landscape = len(landscape)
+    n_frontier = len(frontier)
+    return _stamp_screen_to_economics_order(
+        tool_success(
+            tool,
+            analysis_type="planner_routes_landscape",
+            source="planner_routes",
+            operation="pareto_dominance",
+            x_metric=x_token,
+            y_metric=y_token,
+            landscape_points=landscape,
+            frontier_points=frontier,
+            n_landscape_points=n_landscape,
+            n_frontier_points=n_frontier,
+            frontier_fraction=(
+                n_frontier / n_landscape if n_landscape else None
+            ),
+        ),
+        order,
+    )
+
+
 def rank_landscape(
-    source: Literal["process_rows", "residual_route", "superstructure"] = (
+    source: Literal[
+        "process_rows", "residual_route", "superstructure", "planner_routes"
+    ] = (
         "process_rows"
     ),
     operation: Literal[
@@ -8528,13 +8850,31 @@ def rank_landscape(
             error_code="invalid_admitted_record_query",
         ), order,
         )
-    if source_token not in {"process_rows", "residual_route", "superstructure"}:
+    if source_token not in {
+        "process_rows", "residual_route", "superstructure", "planner_routes",
+    }:
         return _stamp_screen_to_economics_order(
             tool_error(
             tool,
-            "source must be process_rows, residual_route, or superstructure.",
+            "source must be process_rows, residual_route, superstructure, "
+            "or planner_routes.",
             error_code="invalid_admitted_record_query",
         ), order,
+        )
+    if source_token == "planner_routes":
+        return _rank_planner_routes(
+            operation=operation_token,
+            handle=handle,
+            objective=objective,
+            x_metric=x_metric,
+            y_metric=y_metric,
+            order=order,
+            planner_solvent_map=planner_solvent_map,
+            allowed_solvents=allowed_solvents,
+            feed_mass_fractions=feed_mass_fractions,
+            campaign_fingerprint=campaign_fingerprint,
+            process_config=process_config,
+            formulation=formulation,
         )
     map_fields = [
         name for name, value in (

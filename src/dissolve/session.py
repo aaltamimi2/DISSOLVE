@@ -63,8 +63,10 @@ _HANDLE_ANIMALS = (
 # `candidate_substitutions` page.
 # Sidecars that are list[dict] but are not the answer —
 # `resolution_issues`, `record_assumptions`, `source_records`,
-# `family_summaries`, `family_red_summaries`, `screened_directions` —
-# are not in this tuple.
+# `family_summaries`, `family_red_summaries`, `screened_directions`,
+# `ranked_path_index` — are not in this tuple.
+# `top_k_sequences` is last: a plan's winner `steps` stays the primary
+# page when both lists are non-empty.
 _PRIMARY_KEYS = (
     "ranked_candidates",
     "ranked_pairs",
@@ -85,6 +87,7 @@ _PRIMARY_KEYS = (
     "landscape_points",
     "frontier_points",
     "grouped_fronts",
+    "top_k_sequences",
 )
 
 

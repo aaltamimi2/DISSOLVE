@@ -6,6 +6,7 @@ import argparse
 import copy
 import hashlib
 import json
+import math
 import os
 import re
 import sys
@@ -44,6 +45,46 @@ _MODE_LINE = {
     "review": "Ask before making consequential process assumptions the user did not specify.",
     "auto": "Make reasonable process assumptions when needed and label them explicitly.",
 }
+_PLANNER_STAGE_CAP = 50
+
+
+def _format_breadth_default(stored: dict[str, Any], *, origin: str) -> str:
+    rule = stored.get("branch_rule") or "count"
+    if rule == "window":
+        window = stored.get("selectivity_window_pct")
+        return f"branch_rule=window  selectivity_window_pct={window}  ({origin})"
+    breadth = stored.get("breadth")
+    return f"breadth={breadth}  branch_rule=count  ({origin})"
+
+
+def _parse_breadth_slash(tokens: Sequence[str]) -> dict[str, Any] | None:
+    """None prints the current default. Raises ValueError on a bad token."""
+    if not tokens:
+        return None
+    head = str(tokens[0]).strip().casefold()
+    if head == "all" and len(tokens) == 1:
+        return {"branch_rule": "count", "breadth": "all"}
+    if head == "window":
+        if len(tokens) != 2:
+            raise ValueError("usage: /breadth window <positive number>")
+        try:
+            window = float(tokens[1])
+        except (TypeError, ValueError) as error:
+            raise ValueError("selectivity_window_pct must be a positive number") from error
+        if not math.isfinite(window) or window <= 0:
+            raise ValueError("selectivity_window_pct must be a positive number")
+        return {"branch_rule": "window", "selectivity_window_pct": window}
+    if len(tokens) != 1:
+        raise ValueError("usage: /breadth [1–50 | all | window <positive number>]")
+    try:
+        if isinstance(tokens[0], bool) or "." in str(tokens[0]):
+            raise ValueError
+        count = int(str(tokens[0]).strip())
+    except (TypeError, ValueError) as error:
+        raise ValueError("usage: /breadth [1–50 | all | window <positive number>]") from error
+    if count < 1 or count > _PLANNER_STAGE_CAP:
+        raise ValueError(f"breadth must be an integer 1–{_PLANNER_STAGE_CAP} or all")
+    return {"branch_rule": "count", "breadth": count}
 
 
 @dataclass(frozen=True)
@@ -705,7 +746,7 @@ class CliApp:
             f"[dim]Advanced polymer separation engineering[/]\n\n"
             f"Model    [bold]{self.model_spec.label}[/]  ·  {self.model_spec.usage}\n"
             f"Session  [bold]{self.store.session_id}[/]  ·  mode {self.mode}\n"
-            f"[dim]Type /context to inspect state, /model to switch, or quit to exit.[/]"
+            f"[dim]Type /context, /process, /breadth, /model, or quit to exit.[/]"
         )
         self.console.print(Panel(details, title="Advanced Recycling Agent", subtitle=RELEASE))
 
@@ -833,11 +874,32 @@ class CliApp:
                     )
                 )
                 self.console.print("[dim]Process sheet kept in this session buffer.[/]")
+        elif command == "/breadth":
+            self._handle_breadth_command(parts[1:])
         elif command == "/harness":
             self.console.print("flat loop, no specialists")
         else:
             self.console.print(f"[yellow]Unknown command:[/] {command}")
         return False
+
+    def _handle_breadth_command(self, tokens: Sequence[str]) -> None:
+        try:
+            stored = _parse_breadth_slash(tokens)
+        except ValueError as error:
+            self.console.print(f"[red]{error}[/]")
+            return
+        if stored is None:
+            current = self.session.get("planner_breadth")
+            if isinstance(current, dict) and current:
+                self.console.print(_format_breadth_default(current, origin="session"))
+            else:
+                self.console.print(
+                    "breadth=1  branch_rule=count  (built-in)"
+                )
+            return
+        self.session["planner_breadth"] = stored
+        self._save()
+        self.console.print(_format_breadth_default(stored, origin="session"))
 
     def _print_process_sheet(
         self,

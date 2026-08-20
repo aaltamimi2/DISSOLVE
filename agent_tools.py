@@ -25,6 +25,10 @@ _PROCESS_ECONOMICS_HANDLE_TOOLS = frozenset({
     "evaluate_process",
     "rank_landscape",
 })
+_ALWAYS_HANDLE_TOOLS = _PROCESS_ECONOMICS_HANDLE_TOOLS | frozenset({
+    "plan_multistage_separation",
+})
+_COMPACT_KEEP_LISTS = frozenset({"ranked_path_index"})
 _OMIT = frozenset({"temperature_step_c"})
 _POLY_ARGS = ("polymers", "feed_polymers", "target_polymer", "target_polymers")
 _POLY_KEYS = ("polymer", "polymer_id", "target_polymer", "dissolved_polymer")
@@ -38,14 +42,20 @@ _ENGINE_BASIS = {
 def _refuse(refusal: str, **extra: Any) -> dict[str, Any]:
     return {"available": False, "refusal": refusal, **extra}
 
-def result_read(handle: str = "", offset: int = 0, limit: int = 20) -> dict[str, Any]:
+def result_read(
+    handle: str = "", offset: int = 0, limit: int = 20, page: str | None = None,
+) -> dict[str, Any]:
     if not isinstance(handle, str) or not handle.strip():
         return _refuse("unknown_handle", handle=handle)
     rec, token = current_tool_session(), handle.strip()
     stored = load_handle(rec, token) if rec is not None else None
     try:
-        rows = handle_rows(stored) if stored else None
-    except (ValueError, KeyError, TypeError):
+        rows = _handle_page_rows(stored, page) if stored else None
+    except ValueError as error:
+        if str(error) == "unknown_handle_page":
+            return _refuse("unknown_handle_page", handle=handle, page=page)
+        rows = None
+    except (KeyError, TypeError):
         rows = None
     if stored is None or rows is None:
         return _refuse("unknown_handle", handle=handle)
@@ -58,12 +68,25 @@ def result_read(handle: str = "", offset: int = 0, limit: int = 20) -> dict[str,
     except (TypeError, ValueError):
         lim = _PAGE
     lim = max(0, min(lim, _LIM))
-    page = rows[off:off + lim]
+    window = rows[off:off + lim]
     return {
         "available": True, "source_basis": stored.get("source_basis"),
         "handle": token, "total": len(rows), "offset": off,
-        "returned": len(page), "data": {"rows": page},
+        "returned": len(window), "data": {"rows": window},
     }
+
+def _handle_page_rows(stored: dict[str, Any], page: str | None) -> list[dict[str, Any]]:
+    """Named page on handle exact, or the primary list when page is omitted."""
+    if page is None or (isinstance(page, str) and not page.strip()):
+        return handle_rows(stored)
+    token = str(page).strip()
+    if token not in {"steps", "top_k_sequences"}:
+        raise ValueError("unknown_handle_page")
+    exact = stored.get("exact") if isinstance(stored, dict) else None
+    rows = exact.get(token) if isinstance(exact, dict) else None
+    if not isinstance(rows, list):
+        return []
+    return [item for item in rows if isinstance(item, dict)]
 
 def to_contract(raw: dict[str, Any], source_basis: str | None) -> dict[str, Any]:
     data = raw["data"]
@@ -116,6 +139,11 @@ def _pubchem_contributed(obj: Any) -> bool:
 def source_basis_for(name: str, data: dict[str, Any], kwargs: dict[str, Any]) -> str | None:
     if name == "lookup_material_database_membership":
         return "identity_registry"
+    if (
+        name == "rank_landscape"
+        and str(data.get("source") or "").strip().casefold() == "planner_routes"
+    ):
+        return "cosmo_rs_grid"
     eng = registry.BY_NAME[name].engine
     if eng == "safety":
         if kwargs.get("include_pubchem") is True and _pubchem_contributed(data):
@@ -158,6 +186,7 @@ def tool_schemas() -> list[dict[str, Any]]:
         "parameters": {"type": "object", "properties": {
             "handle": {"type": "string"}, "offset": {"type": "integer", "default": 0},
             "limit": {"type": "integer", "default": 20},
+            "page": {"type": "string", "enum": ["steps", "top_k_sequences"]},
         }, "required": ["handle"]},
     }]
     prefix = (
@@ -254,33 +283,37 @@ def _ambiguous(kwargs: dict[str, Any], data: dict[str, Any]) -> dict[str, Any] |
 def _issue_handle(record, tool, basis, data, payload, display=None):
     key = primary_row_key(data)
     n_rows = len(data[key]) if key else 0
-    over = bool(key and n_rows > _PAGE) or len(json.dumps(data)) > _BYTE
-    always = tool in _PROCESS_ECONOMICS_HANDLE_TOOLS and key is not None
-    if always:
-        over = n_rows > _PAGE
+    page_over = bool(key and n_rows > _PAGE)
+    json_over = len(json.dumps(data)) > _BYTE
+    always = tool in _ALWAYS_HANDLE_TOOLS and key is not None
+    if tool in _PROCESS_ECONOMICS_HANDLE_TOOLS:
+        over = page_over
+    else:
+        over = page_over or json_over
     if not over and not always:
         return payload
     if record is None:
-        if always and n_rows <= _PAGE:
+        if always and not over:
             return payload
         return _refuse("unaddressable_result", detail="no bound session", tool=tool)
     try:
         name = store_handle(record, tool=tool, source_basis=basis, data=data, display=display)
     except ValueError:
-        if always and n_rows <= _PAGE:
+        if always and not over:
             return payload
         return _refuse(
             "unaddressable_result",
             detail="result crossed a handle threshold with no primary row list",
             tool=tool,
         )
-    if always and n_rows <= _PAGE:
+    if always and not over:
         return {**payload, "handle": name, "total": n_rows}
     rows = handle_rows(load_handle(record, name))
     top = rows[:_PAGE]
     rest = {
         k: v for k, v in data.items()
-        if not (isinstance(v, list) and v and all(isinstance(i, dict) for i in v))
+        if k in _COMPACT_KEEP_LISTS
+        or not (isinstance(v, list) and v and all(isinstance(i, dict) for i in v))
     }
     return {
         "available": True, "source_basis": basis, "handle": name,
@@ -316,6 +349,7 @@ def dispatch(name: str, **kwargs: Any) -> dict[str, Any]:
         out = result_read(
             handle=h if isinstance(h, str) else "",
             offset=kwargs.get("offset", 0), limit=kwargs.get("limit", 20),
+            page=kwargs.get("page"),
         )
         token = h.strip() if isinstance(h, str) and h.strip() else None
         rec = current_tool_session()

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import math
 import re
-from typing import Annotated, Any, Optional
+from typing import Annotated, Any, Literal, Optional
 
 from langchain_core.tools import InjectedToolArg
 
@@ -1700,6 +1700,362 @@ def screen_precipitation_order(
     )
 
 
+_PLANNER_STAGE_CAP = 50
+_PLANNER_BEAM_CAP = 50
+_PLANNER_BUILT_IN_BREADTH = 1
+_PLANNER_BUILT_IN_BEAM = 5
+_PLANNER_SESSION_KEY = "planner_breadth"
+_STAGE_COPY_KEYS = (
+    "solvent", "temperature_c", "target_solubility_pct",
+    "max_off_target_solubility_pct", "off_target_solubilities_pct",
+    "limiting_off_target_polymer", "selectivity_pct", "boiling_point_c",
+    "boiling_point_margin_c", "atmospheric_feasible",
+    "is_clipped", "clip_limit_wt_percent",
+    "heating_risk_level", "heating_flags", "catalog_hazard_reference_c",
+    "ghs_signal_word", "g_score", "peroxide_former_class", "flash_point_c",
+    "flash_point_available", "operating_at_or_above_flash_point",
+    "safety_source", "typed_safety_evidence",
+    "lower_hazard_search_scope", "lower_hazard_alternative_count",
+    "lower_hazard_alternatives",
+    "lower_hazard_alternatives_truncated", "ghs_danger_unavoidable",
+)
+
+
+class _PlannerKnobError(Exception):
+    def __init__(self, message: str, error_code: str, **detail: Any) -> None:
+        super().__init__(message)
+        self.error_code = error_code
+        self.detail = detail
+
+
+def _planner_int(value: Any, *, code: str, field: str) -> int:
+    if isinstance(value, bool) or isinstance(value, float) and not value.is_integer():
+        raise _PlannerKnobError(
+            f"{field} must be an integer.", error_code=code, field=field, requested=value,
+        )
+    try:
+        if isinstance(value, str) and value.strip().lstrip("-").isdigit():
+            number = int(value.strip())
+        else:
+            number = int(value)
+    except (TypeError, ValueError):
+        raise _PlannerKnobError(
+            f"{field} must be an integer.", error_code=code, field=field, requested=value,
+        ) from None
+    return number
+
+
+def _session_planner_default() -> dict[str, Any] | None:
+    record = current_tool_session()
+    if not isinstance(record, dict):
+        return None
+    stored = record.get(_PLANNER_SESSION_KEY)
+    return stored if isinstance(stored, dict) and stored else None
+
+
+def _all_token(value: Any) -> bool:
+    return isinstance(value, str) and value.strip().casefold() == "all"
+
+
+def _resolve_branch_selector(
+    *,
+    breadth: Any,
+    branch_rule: Any,
+    selectivity_window_pct: Any,
+    origin: str,
+) -> dict[str, Any]:
+    rule_raw = None if branch_rule is None else str(branch_rule).strip().casefold()
+    if rule_raw is None or rule_raw == "":
+        rule = "count"
+    elif rule_raw in {"count", "window"}:
+        rule = rule_raw
+    else:
+        raise _PlannerKnobError(
+            "branch_rule must be count or window.",
+            error_code="invalid_branch_rule",
+            requested=branch_rule,
+        )
+    window_present = selectivity_window_pct is not None
+    breadth_present = breadth is not None
+    if rule == "count" and window_present:
+        raise _PlannerKnobError(
+            "selectivity_window_pct applies on branch_rule=window.",
+            error_code="not_applicable_in_branch_rule",
+            branch_rule=rule,
+            inapplicable_fields=["selectivity_window_pct"],
+        )
+    if rule == "window" and breadth_present:
+        raise _PlannerKnobError(
+            "breadth applies on branch_rule=count.",
+            error_code="not_applicable_in_branch_rule",
+            branch_rule=rule,
+            inapplicable_fields=["breadth"],
+        )
+    if rule == "window":
+        if not window_present:
+            raise _PlannerKnobError(
+                "branch_rule=window requires selectivity_window_pct.",
+                error_code="missing_selectivity_window",
+            )
+        try:
+            window = float(selectivity_window_pct)
+        except (TypeError, ValueError):
+            raise _PlannerKnobError(
+                "selectivity_window_pct must be a positive finite number.",
+                error_code="invalid_selectivity_window",
+                requested=selectivity_window_pct,
+            ) from None
+        if not math.isfinite(window) or window <= 0:
+            raise _PlannerKnobError(
+                "selectivity_window_pct must be a positive finite number.",
+                error_code="invalid_selectivity_window",
+                requested=selectivity_window_pct,
+            )
+        return {
+            "branch_rule": "window",
+            "breadth": None,
+            "stage_branch_token": None,
+            "selectivity_window_pct": window,
+            "screen_top_k": _PLANNER_STAGE_CAP,
+            "need_wide_shortlist": True,
+            "breadth_origin": origin,
+        }
+    if _all_token(breadth):
+        return {
+            "branch_rule": "count",
+            "breadth": "all",
+            "stage_branch_token": "all",
+            "selectivity_window_pct": None,
+            "screen_top_k": _PLANNER_STAGE_CAP,
+            "need_wide_shortlist": True,
+            "breadth_origin": origin,
+        }
+    if not breadth_present:
+        requested = _PLANNER_BUILT_IN_BREADTH
+        return {
+            "branch_rule": "count",
+            "breadth": requested,
+            "stage_branch_token": None,
+            "selectivity_window_pct": None,
+            "screen_top_k": None,
+            "need_wide_shortlist": requested > 1,
+            "breadth_origin": origin,
+        }
+    count = _planner_int(breadth, code="invalid_breadth", field="breadth")
+    if count < 1:
+        raise _PlannerKnobError(
+            "breadth must be a positive integer 1–50 or all.",
+            error_code="invalid_breadth",
+            requested=breadth,
+            cap=_PLANNER_STAGE_CAP,
+        )
+    if count > _PLANNER_STAGE_CAP:
+        raise _PlannerKnobError(
+            f"breadth exceeds the stage-branch cap of {_PLANNER_STAGE_CAP}.",
+            error_code="stage_branch_exceeds_cap",
+            requested=count,
+            cap=_PLANNER_STAGE_CAP,
+        )
+    return {
+        "branch_rule": "count",
+        "breadth": count,
+        "stage_branch_token": None,
+        "selectivity_window_pct": None,
+        "screen_top_k": None if count == 1 else count,
+        "need_wide_shortlist": count > 1,
+        "breadth_origin": origin,
+    }
+
+
+def _resolve_planner_search(
+    *,
+    breadth: Any,
+    branch_rule: Any,
+    selectivity_window_pct: Any,
+    top_k_routes: Any,
+) -> dict[str, Any]:
+    query_selector = any(
+        value is not None for value in (breadth, branch_rule, selectivity_window_pct)
+    )
+    if query_selector:
+        selector = _resolve_branch_selector(
+            breadth=breadth,
+            branch_rule=branch_rule,
+            selectivity_window_pct=selectivity_window_pct,
+            origin="query",
+        )
+    else:
+        stored = _session_planner_default()
+        if stored is not None:
+            selector = _resolve_branch_selector(
+                breadth=stored.get("breadth"),
+                branch_rule=stored.get("branch_rule"),
+                selectivity_window_pct=stored.get("selectivity_window_pct"),
+                origin="session_default",
+            )
+        else:
+            selector = _resolve_branch_selector(
+                breadth=None,
+                branch_rule=None,
+                selectivity_window_pct=None,
+                origin="built_in",
+            )
+    if top_k_routes is None:
+        selector["top_k_routes"] = _PLANNER_BUILT_IN_BEAM
+        selector["beam_origin"] = "built_in"
+        return selector
+    beam = _planner_int(
+        top_k_routes, code="invalid_numeric_input", field="top_k_routes",
+    )
+    if beam < 1:
+        raise _PlannerKnobError(
+            "top_k_routes must be a positive integer.",
+            error_code="invalid_numeric_input",
+            requested=top_k_routes,
+        )
+    if beam > _PLANNER_BEAM_CAP:
+        raise _PlannerKnobError(
+            f"top_k_routes exceeds the planner beam cap of {_PLANNER_BEAM_CAP}.",
+            error_code="planner_beam_exceeds_cap",
+            requested=beam,
+            cap=_PLANNER_BEAM_CAP,
+        )
+    selector["top_k_routes"] = beam
+    selector["beam_origin"] = "query"
+    return selector
+
+
+def _candidate_viable(
+    candidate: Any, min_target: float, min_selectivity: float,
+) -> bool:
+    if not isinstance(candidate, dict):
+        return False
+    try:
+        target_value = float(candidate.get("target_solubility_pct") or 0.0)
+        selectivity = float(candidate.get("selectivity_pct") or 0.0)
+    except (TypeError, ValueError):
+        return False
+    return target_value >= min_target and selectivity >= min_selectivity
+
+
+def _ranked_for_target(screen_data: dict[str, Any], target: str) -> list[dict[str, Any]]:
+    rows = [
+        item for item in (screen_data.get("ranked_candidates") or [])
+        if isinstance(item, dict) and item.get("dissolved_polymer") == target
+    ]
+
+    def sort_key(item: dict[str, Any]) -> tuple[Any, ...]:
+        rank = item.get("rank")
+        try:
+            rank_n = int(rank)
+        except (TypeError, ValueError):
+            rank_n = 10**9
+        try:
+            selectivity = -float(item.get("selectivity_pct") or -math.inf)
+        except (TypeError, ValueError):
+            selectivity = math.inf
+        return (rank_n, selectivity, str(item.get("solvent") or ""))
+
+    rows.sort(key=sort_key)
+    return rows
+
+
+def _select_split_branches(
+    *,
+    screen_data: dict[str, Any],
+    target: str,
+    selector: dict[str, Any],
+    min_target: float,
+    min_selectivity: float,
+) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    token = selector.get("stage_branch_token")
+    rule = selector["branch_rule"]
+    if rule == "count" and selector["breadth"] == 1 and token is None:
+        directions = {
+            item.get("dissolved_polymer"): item.get("best_candidate")
+            for item in screen_data.get("screened_directions", [])
+            if isinstance(item, dict)
+        }
+        candidate = directions.get(target)
+        kept = (
+            [candidate] if _candidate_viable(candidate, min_target, min_selectivity)
+            else []
+        )
+        return kept, {
+            "stage_branch_requested": 1,
+            "stage_branch_supplied": len(kept),
+            "stage_branch_token": None,
+            "window_truncated_to_screen_cap": False,
+        }
+    viable = [
+        item for item in _ranked_for_target(screen_data, target)
+        if _candidate_viable(item, min_target, min_selectivity)
+    ]
+    truncated = False
+    if rule == "window":
+        requested: Any = selector["selectivity_window_pct"]
+        if not viable:
+            kept = []
+        else:
+            try:
+                best = float(viable[0].get("selectivity_pct") or 0.0)
+                window = float(selector["selectivity_window_pct"])
+            except (TypeError, ValueError):
+                kept = []
+            else:
+                kept = [
+                    item for item in viable
+                    if float(item.get("selectivity_pct") or 0.0) >= best - window
+                ]
+                if len(kept) > _PLANNER_STAGE_CAP:
+                    kept = kept[:_PLANNER_STAGE_CAP]
+                    truncated = True
+    elif token == "all":
+        requested = "all"
+        kept = viable[:_PLANNER_STAGE_CAP]
+        truncated = len(viable) > _PLANNER_STAGE_CAP
+    else:
+        requested = int(selector["breadth"])
+        kept = viable[:requested]
+    stamp = {
+        "stage_branch_requested": requested,
+        "stage_branch_supplied": len(kept),
+        "stage_branch_token": token,
+        "window_truncated_to_screen_cap": truncated,
+    }
+    return kept, stamp
+
+
+def _min_stage_g_score(steps: Any) -> float | None:
+    scores = []
+    for item in steps or []:
+        if not isinstance(item, dict):
+            continue
+        try:
+            score = float(item.get("g_score"))
+        except (TypeError, ValueError):
+            continue
+        if math.isfinite(score):
+            scores.append(score)
+    return min(scores) if scores else None
+
+
+def _ranked_path_index(routes: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    index = []
+    for route in routes:
+        steps = route.get("steps") or []
+        index.append({
+            "rank": route.get("rank"),
+            "sequence": list(route.get("sequence") or []),
+            "complete": bool(route.get("complete")),
+            "bottleneck_selectivity_pct": route.get("bottleneck_selectivity_pct"),
+            "min_stage_g_score": _min_stage_g_score(steps),
+            "peak_temperature_c": route.get("peak_temperature_c"),
+            "solvent_mapping": dict(route.get("solvent_mapping") or {}),
+        })
+    return index
+
+
 def plan_multistage_separation(
     feed_polymers: list[str],
     temperature_min_c: Optional[float] = None,
@@ -1709,14 +2065,21 @@ def plan_multistage_separation(
     require_atmospheric: Optional[bool] = None,
     min_target_solubility_pct: float = 5.0,
     min_selectivity_pct: float = 5.0,
-    top_k_routes: int = 5,
+    top_k_routes: Optional[int] = None,
     feed_mass_fractions: Optional[dict[str, float]] = None,
+    breadth: Optional[int | Literal["all"]] = None,
+    branch_rule: Optional[Literal["count", "window"]] = None,
+    selectivity_window_pct: Optional[float] = None,
+    require_complete_routes: Optional[bool] = None,
 ) -> str:
     """Recursively rank complete or explicitly partial routes for any supported feed.
 
     The tri-state atmospheric policy is passed unchanged to every subset
     screen: ``None`` keeps unknown BP and excludes known-too-low conditions,
     ``True`` excludes both, and ``False`` excludes neither.
+
+    ``breadth`` is per-split branching m. ``top_k_routes`` is published beam B.
+    Omit both to use ``/breadth`` session default then built-in m=1, B=5.
     """
     tool = "plan_multistage_separation"
     supplied_min = temperature_min_c is not None
@@ -1756,9 +2119,18 @@ def plan_multistage_separation(
         numeric["temperature_max_c"] = temperature_max_c
     try:
         numeric = {key: float(value) for key, value in numeric.items()}
-        top_k_routes = max(1, min(int(top_k_routes), 10))
     except (TypeError, ValueError):
         return tool_error(tool, "Temperature, threshold, and route-count inputs must be numeric.", error_code="invalid_numeric_input")
+    try:
+        selector = _resolve_planner_search(
+            breadth=breadth,
+            branch_rule=branch_rule,
+            selectivity_window_pct=selectivity_window_pct,
+            top_k_routes=top_k_routes,
+        )
+    except _PlannerKnobError as error:
+        return tool_error(tool, str(error), error_code=error.error_code, **error.detail)
+    top_k_routes = int(selector["top_k_routes"])
     if not all(math.isfinite(value) for value in numeric.values()):
         return tool_error(tool, "Temperature and threshold inputs must be finite.", error_code="non_finite_numeric_input")
     step_c = numeric["temperature_step_c"]
@@ -1799,11 +2171,20 @@ def plan_multistage_separation(
 
     def screen(subset: tuple[str, ...]) -> dict[str, Any]:
         if subset not in screens:
-            screens[subset] = parse_tool_result(screen_polymer_separation(
-                list(subset), temperature_min_c=lower, temperature_max_c=upper,
-                target_polymers=list(subset), strict_maximum=bool(strict_maximum),
-                temperature_step_c=step_c, require_atmospheric=require_atmospheric,
-            ))["data"]
+            kwargs: dict[str, Any] = dict(
+                feed_polymers=list(subset),
+                temperature_min_c=lower,
+                temperature_max_c=upper,
+                target_polymers=list(subset),
+                strict_maximum=bool(strict_maximum),
+                temperature_step_c=step_c,
+                require_atmospheric=require_atmospheric,
+            )
+            if selector["need_wide_shortlist"] and selector["screen_top_k"] is not None:
+                kwargs["top_k"] = int(selector["screen_top_k"])
+            screens[subset] = parse_tool_result(
+                screen_polymer_separation(**kwargs)
+            )["data"]
         return screens[subset]
 
     def finish(route: dict[str, Any]) -> dict[str, Any]:
@@ -1865,48 +2246,33 @@ def plan_multistage_separation(
                 "failure_reason": result.get("error_code") or "subset_screen_failed",
             })]
             return solved[subset]
-        directions = {
-            item.get("dissolved_polymer"): item.get("best_candidate")
-            for item in result.get("screened_directions", []) if isinstance(item, dict)
-        }
         routes: list[dict[str, Any]] = []
         for target in subset:
-            candidate = directions.get(target)
-            if not isinstance(candidate, dict):
-                continue
-            target_value = float(candidate.get("target_solubility_pct") or 0.0)
-            selectivity = float(candidate.get("selectivity_pct") or 0.0)
-            if target_value < min_target or selectivity < min_selectivity:
-                continue
+            branches, branch_stamp = _select_split_branches(
+                screen_data=result,
+                target=target,
+                selector=selector,
+                min_target=min_target,
+                min_selectivity=min_selectivity,
+            )
             retained = tuple(item for item in subset if item != target)
-            stage = {
-                "dissolved_polymer": target,
-                "polymer": target,
-                "retained_polymers": list(retained),
-                **{key: candidate.get(key) for key in (
-                    "solvent", "temperature_c", "target_solubility_pct",
-                    "max_off_target_solubility_pct", "off_target_solubilities_pct",
-                    "limiting_off_target_polymer", "selectivity_pct", "boiling_point_c",
-                    "boiling_point_margin_c", "atmospheric_feasible",
-                    "is_clipped", "clip_limit_wt_percent",
-                    "heating_risk_level", "heating_flags", "catalog_hazard_reference_c",
-                    "ghs_signal_word", "g_score", "peroxide_former_class", "flash_point_c",
-                    "flash_point_available", "operating_at_or_above_flash_point",
-                    "safety_source", "typed_safety_evidence",
-                    "lower_hazard_search_scope", "lower_hazard_alternative_count",
-                    "lower_hazard_alternatives",
-                    "lower_hazard_alternatives_truncated", "ghs_danger_unavoidable",
-                )},
-                "selectivity_unit": "percentage_points",
-            }
-            for tail in solve(retained):
-                routes.append(finish({
-                    "complete": bool(tail.get("complete")),
-                    "steps": [stage, *tail.get("steps", [])],
-                    "final_residue": tail.get("final_residue"),
-                    "unresolved_polymers": list(tail.get("unresolved_polymers", [])),
-                    "failure_reason": tail.get("failure_reason"),
-                }))
+            for candidate in branches:
+                stage = {
+                    "dissolved_polymer": target,
+                    "polymer": target,
+                    "retained_polymers": list(retained),
+                    **{key: candidate.get(key) for key in _STAGE_COPY_KEYS},
+                    "selectivity_unit": "percentage_points",
+                    **branch_stamp,
+                }
+                for tail in solve(retained):
+                    routes.append(finish({
+                        "complete": bool(tail.get("complete")),
+                        "steps": [stage, *tail.get("steps", [])],
+                        "final_residue": tail.get("final_residue"),
+                        "unresolved_polymers": list(tail.get("unresolved_polymers", [])),
+                        "failure_reason": tail.get("failure_reason"),
+                    }))
         if not routes:
             routes = [finish({
                 "complete": False, "steps": [], "final_residue": None,
@@ -1920,6 +2286,7 @@ def plan_multistage_separation(
     routes = sorted(solve(root_subset), key=score, reverse=True)[:top_k_routes]
     for rank, route in enumerate(routes, 1):
         route["rank"] = rank
+        route["min_stage_g_score"] = _min_stage_g_score(route.get("steps"))
     best = routes[0]
     runner_up = routes[1] if len(routes) > 1 else None
     threshold_margin = (
@@ -1937,6 +2304,15 @@ def plan_multistage_separation(
         else "user_min_to_grid_max" if supplied_min
         else "full_stored_grid_domain"
     )
+    complete_route_count = sum(bool(route.get("complete")) for route in routes)
+    if require_complete_routes is True and complete_route_count == 0:
+        return tool_error(
+            tool,
+            "No complete ranked path was published.",
+            error_code="incomplete_ranked_paths",
+            complete_route_count=0,
+            published_route_count=len(routes),
+        )
     return tool_success(
         tool,
         analysis_type="multistage_separation_route",
@@ -1953,6 +2329,15 @@ def plan_multistage_separation(
         min_selectivity_pct=min_selectivity,
         solubility_unit="wt_pct_solution_concentration",
         selectivity_unit="percentage_points",
+        breadth_origin=selector["breadth_origin"],
+        beam_origin=selector["beam_origin"],
+        branch_rule=selector["branch_rule"],
+        breadth=selector["breadth"],
+        stage_branch_token=selector.get("stage_branch_token"),
+        stage_branch_cap=_PLANNER_STAGE_CAP,
+        selectivity_window_pct=selector.get("selectivity_window_pct"),
+        top_k_routes=top_k_routes,
+        beam_cap=_PLANNER_BEAM_CAP,
         complete=bool(best.get("complete")),
         best_sequence=best.get("sequence", []),
         steps=best.get("steps", []),
@@ -1978,7 +2363,8 @@ def plan_multistage_separation(
         threshold_margin_pct=threshold_margin,
         peak_temperature_c=best.get("peak_temperature_c"),
         top_k_sequences=routes,
-        complete_route_count=sum(bool(route.get("complete")) for route in routes),
+        ranked_path_index=_ranked_path_index(routes),
+        complete_route_count=complete_route_count,
         subset_screens_evaluated=len(screens),
         warnings=[
             "Modeled solubility is wt% solution concentration, not feed recovery or product purity.",
