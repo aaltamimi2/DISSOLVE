@@ -5111,6 +5111,29 @@ def _requested_precipitation_temperature_format(
     return token
 
 
+def _requested_precipitation_configuration(
+    process_config: Any,
+) -> str | None:
+    """Held precipitation configuration. Do not default integrated heat transfer."""
+    if not isinstance(process_config, dict):
+        return None
+    if (
+        "precipitation_configuration" not in process_config
+        or process_config["precipitation_configuration"] in (None, "")
+    ):
+        return None
+    token = str(process_config["precipitation_configuration"]).strip()
+    if token not in _PRECIPITATION_CONFIGURATIONS:
+        raise _ScenarioInputError(
+            "precipitation_configuration must be 'integrated heat "
+            "transfer' or 'solvent mixing'",
+            error_code="invalid_admitted_record_query",
+            field="precipitation_configuration",
+            supplied=process_config["precipitation_configuration"],
+        )
+    return token
+
+
 def _superstructure_composition_and_capacity(
     feed_mass_fractions: Any,
     process_config: Any,
@@ -5345,6 +5368,7 @@ def _remnant_key_from_row(
     sell_leftover_plastic: bool | None = None,
     burn_leftover_plastic: bool | None = None,
     precipitation_temperature_format: str | None = None,
+    precipitation_configuration: str | None = None,
 ) -> tuple[Any, ...] | None:
     """Remnant coordinate of a tool-1 row. Failures are not a fill."""
     if not isinstance(row, dict) or row.get("success") is False:
@@ -5408,13 +5432,18 @@ def _remnant_key_from_row(
         if row_v != held:
             return None
         key = key + (held,)
-    if precipitation_temperature_format is not None:
-        raw = row.get("precipitation_temperature_format")
+    for field, held in (
+        ("precipitation_temperature_format", precipitation_temperature_format),
+        ("precipitation_configuration", precipitation_configuration),
+    ):
+        if held is None:
+            continue
+        raw = row.get(field)
         if raw in (None, ""):
             return None
-        if str(raw).strip() != precipitation_temperature_format:
+        if str(raw).strip() != held:
             return None
-        key = key + (precipitation_temperature_format,)
+        key = key + (held,)
     return key
 
 
@@ -5456,9 +5485,13 @@ def _cell_remnant_key(cell: dict[str, Any]) -> tuple[Any, ...] | None:
                 key = key + (_coerce_flowsheet_bool(value, field),)
             except _ScenarioInputError:
                 return None
-    fmt = cell.get("precipitation_temperature_format")
-    if fmt not in (None, ""):
-        key = key + (str(fmt).strip(),)
+    for field in (
+        "precipitation_temperature_format",
+        "precipitation_configuration",
+    ):
+        value = cell.get(field)
+        if value not in (None, ""):
+            key = key + (str(value).strip(),)
     return key
 
 
@@ -5527,6 +5560,14 @@ def _unmatched_remnant_keys(
         ),
         None,
     )
+    held_configuration = next(
+        (
+            str(cell["precipitation_configuration"]).strip()
+            for cell in missing_keys
+            if cell.get("precipitation_configuration") not in (None, "")
+        ),
+        None,
+    )
     present = {
         key for row in rows
         if (
@@ -5543,6 +5584,7 @@ def _unmatched_remnant_keys(
                 sell_leftover_plastic=held_sell,
                 burn_leftover_plastic=held_burn,
                 precipitation_temperature_format=held_format,
+                precipitation_configuration=held_configuration,
             )
         ) is not None
     }
@@ -5584,6 +5626,9 @@ def _refuse_listed_or_complete(
         "burn_leftover_plastic": _requested_burn_leftover_plastic(process_config),
         "precipitation_temperature_format": (
             _requested_precipitation_temperature_format(process_config)
+        ),
+        "precipitation_configuration": (
+            _requested_precipitation_configuration(process_config)
         ),
     }
     if any(value is not None for value in held.values()):
@@ -5823,9 +5868,10 @@ def rank_landscape(
     solvent_price_usd_per_kg, solvent_loss_pct,
     feedstock_distance_km, dissolution_capacity,
     labor_cost_usd_per_employee_yr, sell_leftover_plastic,
-    burn_leftover_plastic, or precipitation_temperature_format, listed
-    keys include that held value and matching requires it; omitted is
-    not a silent cache or production default. A complete sequence grid with production check red is
+    burn_leftover_plastic, precipitation_temperature_format, or
+    precipitation_configuration, listed keys include that held value
+    and matching requires it; omitted is not a silent cache or
+    production default. A complete sequence grid with production check red is
     sequence_coupling_unproven as primary (no pending_blockers).
     Do not scan top_k_sequences for either map.
     formulation is required iff source=superstructure;
