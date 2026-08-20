@@ -986,6 +986,8 @@ class CliApp:
             out.pop("held_process_basis", None)
         elif name == "analyze_tea_sensitivity":
             out["scenario"] = buffer
+            out.pop("screening_shortlist", None)
+            out.pop("held_process_basis", None)
         return out
 
     def _confirm_tool_kwargs(
@@ -1043,13 +1045,21 @@ class CliApp:
             out.pop("held_process_basis", None)
             return out
         if name == "analyze_tea_sensitivity":
-            seed = self._confirm_seed(kwargs.get("scenario"))
+            seed_src = kwargs.get("scenario")
+            if not isinstance(seed_src, dict):
+                seed_src = self._handoff_confirm_seed(
+                    kwargs.get("screening_shortlist"),
+                    kwargs.get("held_process_basis"),
+                )
+            seed = self._confirm_seed(seed_src if isinstance(seed_src, dict) else None)
             submitted = self._edit_process_sheet(seed, prompt_fn=prompt_fn)
             if submitted is None:
                 return None
             self._process_buffer = submitted
             out = dict(kwargs)
             out["scenario"] = submitted
+            out.pop("screening_shortlist", None)
+            out.pop("held_process_basis", None)
             return out
         return kwargs
 

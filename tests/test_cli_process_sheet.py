@@ -302,6 +302,121 @@ def test_old_evaluate_name_scenarios_still_win_the_seed(
     assert "held_process_basis" not in captured["kwargs"]
 
 
+def test_first_old_sensitivity_name_shortlist_seeds_the_sheet(
+    tmp_path, monkeypatch,
+):
+    monkeypatch.setattr(cli, "run_turn", _ok_turn)
+    monkeypatch.setattr(sys.stdin, "isatty", lambda: True)
+    app, _buf = _app(tmp_path, monkeypatch)
+    sheet = tea.seed_public_process_config({
+        "target_polymer": "LDPE",
+        "solvent": "Dodecane",
+        "dissolution_temperature_c": 145.0,
+        "energy_case": "C1",
+        "target_mass_percent": 55.0,
+    })
+    seen = []
+
+    def record_prompt(seed, **kwargs):
+        seen.append(seed)
+        return sheet
+
+    monkeypatch.setattr(app, "_edit_process_sheet", record_prompt)
+    captured = {}
+
+    def original(name, **kwargs):
+        captured["name"] = name
+        captured["kwargs"] = kwargs
+        return {"success": True}
+
+    app._cli_direct_active = True
+    result = app._cli_direct_dispatch(
+        original,
+        "analyze_tea_sensitivity",
+        {
+            "screening_shortlist": {
+                "source": "explicit",
+                "items": [{
+                    "target_polymer": "LDPE",
+                    "solvent": "Dodecane",
+                    "temperature_c": 145.0,
+                }],
+            },
+            "held_process_basis": {
+                "energy_case": "C1",
+                "target_mass_percent": 55.0,
+            },
+            "parameter": "solvent_price",
+            "engine_mode": "cache",
+        },
+    )
+    assert result == {"success": True}
+    assert seen[0]["target_polymer"] == "LDPE"
+    assert seen[0]["solvent"] == "Dodecane"
+    assert seen[0]["dissolution_temperature_c"] == 145.0
+    assert seen[0]["energy_case"] == "C1"
+    assert seen[0]["target_mass_percent"] == 55.0
+    assert captured["name"] == "analyze_tea_sensitivity"
+    assert captured["kwargs"]["scenario"] is sheet
+    assert captured["kwargs"]["parameter"] == "solvent_price"
+    assert captured["kwargs"]["engine_mode"] == "cache"
+    assert "screening_shortlist" not in captured["kwargs"]
+    assert "held_process_basis" not in captured["kwargs"]
+    assert app._confirmation_sheet_submitted is True
+    assert app._process_buffer is sheet
+
+
+def test_old_sensitivity_name_scenario_still_wins_the_seed(
+    tmp_path, monkeypatch,
+):
+    monkeypatch.setattr(cli, "run_turn", _ok_turn)
+    monkeypatch.setattr(sys.stdin, "isatty", lambda: True)
+    app, _buf = _app(tmp_path, monkeypatch)
+    sheet = tea.seed_public_process_config({
+        "target_polymer": "HDPE",
+        "solvent": "Toluene",
+        "dissolution_temperature_c": 90.0,
+    })
+    seen = []
+
+    def record_prompt(seed, **kwargs):
+        seen.append(seed)
+        return sheet
+
+    monkeypatch.setattr(app, "_edit_process_sheet", record_prompt)
+    captured = {}
+
+    def original(name, **kwargs):
+        captured["kwargs"] = kwargs
+        return {"success": True}
+
+    app._cli_direct_active = True
+    app._cli_direct_dispatch(
+        original,
+        "analyze_tea_sensitivity",
+        {
+            "scenario": {"target_polymer": "HDPE", "solvent": "Toluene"},
+            "parameter": "solvent_price",
+            "screening_shortlist": {
+                "source": "explicit",
+                "items": [{
+                    "target_polymer": "LDPE",
+                    "solvent": "Dodecane",
+                    "dissolution_temperature_c": 145.0,
+                }],
+            },
+            "held_process_basis": {"energy_case": "C1"},
+        },
+    )
+    assert seen[0]["target_polymer"] == "HDPE"
+    assert seen[0]["solvent"] == "Toluene"
+    assert seen[0]["target_polymer"] != "LDPE"
+    assert captured["kwargs"]["scenario"] is sheet
+    assert captured["kwargs"]["parameter"] == "solvent_price"
+    assert "screening_shortlist" not in captured["kwargs"]
+    assert "held_process_basis" not in captured["kwargs"]
+
+
 def test_ask_path_does_not_arm_cli_direct(tmp_path, monkeypatch):
     monkeypatch.setattr(cli, "run_turn", _ok_turn)
     monkeypatch.setattr(sys.stdin, "isatty", lambda: True)
