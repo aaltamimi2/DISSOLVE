@@ -71,11 +71,12 @@ _PUBLIC_REQUIRED_FIELDS = tuple(
     public for _internal, public in _DESIGN_POINT_PUBLIC_FIELDS
 )
 _D8_REMAINDER_PUBLIC_FIELDS = _PUBLIC_REQUIRED_FIELDS[7:]
+_FROM_SCREEN_FIELDS = (
+    "target_polymer", "solvent", "dissolution_temperature_c",
+)
 _NINE_HELD_PUBLIC_FIELDS = tuple(
     name for name in _PUBLIC_REQUIRED_FIELDS
-    if name not in {
-        "target_polymer", "solvent", "dissolution_temperature_c",
-    }
+    if name not in _FROM_SCREEN_FIELDS
 )
 _PUBLIC_FIELD_SOURCE_KEYS = {
     public: frozenset({
@@ -2291,16 +2292,91 @@ def _canonical_held_process_basis(basis: dict[str, Any]) -> dict[str, Any]:
 def _handoff_field_origin(
     held: dict[str, Any], *, nine_origin: str = "supplied",
 ) -> dict[str, str]:
-    origin = {
-        "target_polymer": "from_screen",
-        "solvent": "from_screen",
-        "dissolution_temperature_c": "from_screen",
-    }
+    origin = {name: "from_screen" for name in _FROM_SCREEN_FIELDS}
     for name in _NINE_HELD_PUBLIC_FIELDS:
         origin[name] = nine_origin
     for key in _INHERIT_OPTIONAL_KEYS:
         if key in held:
             origin[key] = nine_origin
+    return origin
+
+
+def _sheet_values_match(left: Any, right: Any) -> bool:
+    if left is right:
+        return True
+    if isinstance(left, (list, tuple)) and isinstance(right, (list, tuple)):
+        return tuple(left) == tuple(right)
+    try:
+        return abs(float(left) - float(right)) <= 1e-12
+    except (TypeError, ValueError):
+        return left == right
+
+
+def _screening_origin_fields(item: Any) -> dict[str, Any]:
+    """The three from_screen keys on a shortlist item. Not a held fill."""
+    if not isinstance(item, dict):
+        return {}
+    mapped = dict(item)
+    if (
+        "temperature_c" in mapped
+        and not _scenario_value_present(mapped.get("dissolution_temperature_c"))
+        and not _scenario_value_present(mapped.get("dissolution_temp_c"))
+    ):
+        mapped["dissolution_temperature_c"] = mapped.get("temperature_c")
+    polymer = mapped.get("target_polymer") or mapped.get("target_plastic")
+    temperature = mapped.get("dissolution_temperature_c")
+    if temperature is None:
+        temperature = mapped.get("dissolution_temp_c")
+    fields: dict[str, Any] = {}
+    if _scenario_value_present(polymer):
+        fields["target_polymer"] = polymer
+    if _scenario_value_present(mapped.get("solvent")):
+        fields["solvent"] = mapped["solvent"]
+    if _scenario_value_present(temperature):
+        fields["dissolution_temperature_c"] = temperature
+    return fields
+
+
+def confirmation_sheet_field_origin(
+    submitted: dict[str, Any],
+    *,
+    snapshot: dict[str, Any] | None = None,
+    screening_item: Any = None,
+    caller_keys: Sequence[str] = (),
+    held_keys: Sequence[str] = (),
+) -> dict[str, str]:
+    """Origin map after a seen-and-submitted confirmation sheet.
+
+    ``default`` is legal only here. Headless complete twelves never call
+    this. Silent ``_scenario_config`` fill cannot mint ``default``.
+    """
+    energy = str(submitted.get("energy_case") or "C1")
+    defaults = first_run_sheet_defaults(energy_case=energy)
+    names = public_process_field_names(energy_case=energy)
+    screen = _screening_origin_fields(screening_item)
+    caller = {str(key) for key in caller_keys}
+    held = {str(key) for key in held_keys}
+    origin: dict[str, str] = {}
+    for field in names:
+        if field not in submitted:
+            continue
+        value = submitted.get(field)
+        if field in _SHEET_REQUIRED_FIELDS and not _scenario_value_present(value):
+            continue
+        if snapshot is not None and field in snapshot:
+            if not _sheet_values_match(value, snapshot.get(field)):
+                origin[field] = "supplied"
+                continue
+        if field in screen and _sheet_values_match(value, screen[field]):
+            origin[field] = "from_screen"
+            continue
+        if field in caller or field in held:
+            origin[field] = "supplied"
+            continue
+        if field in defaults and _sheet_values_match(value, defaults[field]):
+            origin[field] = "default"
+            continue
+        origin[field] = "supplied"
     return origin
 
 

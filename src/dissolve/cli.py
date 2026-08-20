@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import copy
 import hashlib
 import json
 import os
@@ -662,6 +663,7 @@ class CliApp:
         self.last_usage = meta.get("last_usage")
         self._process_buffer: dict[str, Any] | None = None
         self._confirmation_sheet_submitted = False
+        self._sheet_field_origin: dict[str, str] | None = None
         self._cli_direct_active = False
         self._save()
 
@@ -806,6 +808,7 @@ class CliApp:
             self.last_status = self.last_tool_rounds = self.last_tool_calls = self.last_usage = None
             self._process_buffer = None
             self._confirmation_sheet_submitted = False
+            self._sheet_field_origin = None
             self._save()
             self.console.print("Messages and handles cleared.")
         elif command == "/context":
@@ -1008,6 +1011,59 @@ class CliApp:
                     seed[key] = item[key]
         return seed or None
 
+    def _first_shortlist_item(self, shortlist: Any) -> dict[str, Any] | None:
+        items = shortlist.get("items") if isinstance(shortlist, dict) else None
+        if not isinstance(items, list):
+            return None
+        return next((item for item in items if isinstance(item, dict)), None)
+
+    def _record_sheet_field_origin(
+        self,
+        submitted: dict[str, Any],
+        snapshot: dict[str, Any],
+        *,
+        seed_from_handoff: bool,
+        shortlist: Any = None,
+        held: Any = None,
+        caller: Any = None,
+    ) -> None:
+        screening_item = (
+            self._first_shortlist_item(shortlist) if seed_from_handoff else None
+        )
+        caller_keys = list(caller) if isinstance(caller, dict) else []
+        held_keys = (
+            list(held) if seed_from_handoff and isinstance(held, dict) else []
+        )
+        self._sheet_field_origin = tea.confirmation_sheet_field_origin(
+            submitted,
+            snapshot=snapshot,
+            screening_item=screening_item,
+            caller_keys=caller_keys,
+            held_keys=held_keys,
+        )
+
+    def _stamp_confirmation_field_origin(self, result: Any) -> Any:
+        origin = self._sheet_field_origin
+        if not origin or not isinstance(result, dict):
+            return result
+        data = result.get("data")
+        payload = data if isinstance(data, dict) else result
+        rows: list[dict[str, Any]] = []
+        for key in ("comparison_rows", "sensitivity_rows"):
+            block = payload.get(key)
+            if isinstance(block, list):
+                rows.extend(
+                    item for item in block if isinstance(item, dict)
+                )
+        if not rows:
+            return result
+        for row in rows:
+            if "field_origin" not in row:
+                row["field_origin"] = dict(origin)
+        if "field_origin" not in payload:
+            payload["field_origin"] = dict(origin)
+        return result
+
     def _bind_confirmed_process(
         self, name: str, kwargs: dict[str, Any],
     ) -> dict[str, Any]:
@@ -1050,10 +1106,19 @@ class CliApp:
                     kwargs.get("held_process_basis"),
                 )
             seed = self._confirm_seed(seed_src if isinstance(seed_src, dict) else None)
+            snapshot = copy.deepcopy(seed)
             submitted = self._edit_process_sheet(seed, prompt_fn=prompt_fn)
             if submitted is None:
                 return None
             self._process_buffer = submitted
+            self._record_sheet_field_origin(
+                submitted,
+                snapshot,
+                seed_from_handoff=not scenarios,
+                shortlist=kwargs.get("screening_shortlist"),
+                held=kwargs.get("held_process_basis"),
+                caller=seed_src if scenarios else None,
+            )
             out = dict(kwargs)
             out["scenarios"] = [submitted]
             out.pop("screening_shortlist", None)
@@ -1063,10 +1128,14 @@ class CliApp:
             mode = str(kwargs.get("mode") or "").strip().casefold()
             if mode == "route":
                 seed = self._confirm_seed(None)
+                snapshot = copy.deepcopy(seed)
                 submitted = self._edit_process_sheet(seed, prompt_fn=prompt_fn)
                 if submitted is None:
                     return None
                 self._process_buffer = submitted
+                self._record_sheet_field_origin(
+                    submitted, snapshot, seed_from_handoff=False,
+                )
                 return self._bind_route_sheet_scalars(kwargs, submitted)
             configs = list(kwargs.get("process_configs") or [])
             seed_src = kwargs.get("process_config")
@@ -1078,10 +1147,20 @@ class CliApp:
                     kwargs.get("held_process_basis"),
                 )
             seed = self._confirm_seed(seed_src if isinstance(seed_src, dict) else None)
+            snapshot = copy.deepcopy(seed)
             submitted = self._edit_process_sheet(seed, prompt_fn=prompt_fn)
             if submitted is None:
                 return None
             self._process_buffer = submitted
+            caller = seed_src if isinstance(kwargs.get("process_config"), dict) or configs else None
+            self._record_sheet_field_origin(
+                submitted,
+                snapshot,
+                seed_from_handoff=caller is None,
+                shortlist=kwargs.get("screening_shortlist"),
+                held=kwargs.get("held_process_basis"),
+                caller=caller,
+            )
             out = dict(kwargs)
             out["process_config"] = submitted
             out.pop("process_configs", None)
@@ -1096,10 +1175,19 @@ class CliApp:
                     kwargs.get("held_process_basis"),
                 )
             seed = self._confirm_seed(seed_src if isinstance(seed_src, dict) else None)
+            snapshot = copy.deepcopy(seed)
             submitted = self._edit_process_sheet(seed, prompt_fn=prompt_fn)
             if submitted is None:
                 return None
             self._process_buffer = submitted
+            self._record_sheet_field_origin(
+                submitted,
+                snapshot,
+                seed_from_handoff=not isinstance(kwargs.get("scenario"), dict),
+                shortlist=kwargs.get("screening_shortlist"),
+                held=kwargs.get("held_process_basis"),
+                caller=seed_src if isinstance(kwargs.get("scenario"), dict) else None,
+            )
             out = dict(kwargs)
             out["scenario"] = submitted
             out.pop("screening_shortlist", None)
@@ -1120,7 +1208,7 @@ class CliApp:
             return original(name, **kwargs)
         if self._confirmation_sheet_submitted:
             kwargs = self._bind_confirmed_process(name, kwargs)
-            return original(name, **kwargs)
+            return self._stamp_confirmation_field_origin(original(name, **kwargs))
         confirmed = self._confirm_tool_kwargs(name, kwargs)
         if confirmed is None:
             return {
@@ -1133,7 +1221,7 @@ class CliApp:
             }
         kwargs = confirmed
         self._confirmation_sheet_submitted = True
-        return original(name, **kwargs)
+        return self._stamp_confirmation_field_origin(original(name, **kwargs))
 
     def ask(self, query: str) -> TurnResult:
         self._append("user", query, mode=self.mode, model=self.model_alias)
