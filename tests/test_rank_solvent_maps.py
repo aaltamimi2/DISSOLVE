@@ -253,14 +253,17 @@ def test_superstructure_without_formulation_is_missing_formulation(monkeypatch):
     assert "landscape_points" not in payload
 
 
-def test_residual_route_stays_unwired_without_requiring_maps(monkeypatch):
+def test_residual_route_formulation_is_not_applicable_without_requiring_maps(monkeypatch):
     _forbid_live(monkeypatch)
     payload = _data(tea.rank_landscape(
         source="residual_route",
         formulation="sequence",
     ))
-    assert payload.get("error_code") == "tool_not_wired"
+    assert payload.get("error_code") == "not_applicable_in_source"
     assert payload.get("source") == "residual_route"
+    assert payload.get("inapplicable_fields") == ["formulation"]
+    assert payload.get("error_code") != "tool_not_wired"
+    assert payload.get("error_code") != "missing_planner_solvent_map"
 
 
 def test_maps_on_process_rows_are_not_applicable(monkeypatch):

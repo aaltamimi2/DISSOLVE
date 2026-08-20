@@ -282,12 +282,15 @@ def test_illegal_safety_status_is_not_copied(monkeypatch, tmp_path):
     assert data["n_usable"] == 2
 
 
-def test_residual_route_is_unwired(monkeypatch, tmp_path):
+def test_residual_route_campaign_fingerprint_is_not_applicable(monkeypatch, tmp_path):
     monkeypatch.delenv(campaign_consume.REGISTRY_ENV, raising=False)
     data = _data(tea.rank_landscape(
         source="residual_route", campaign_fingerprint=_CANONICAL,
     ))
-    assert data["error_code"] == "tool_not_wired"
+    assert data["error_code"] == "not_applicable_in_source"
+    assert data["source"] == "residual_route"
+    assert data["inapplicable_fields"] == ["campaign_fingerprint"]
+    assert data["error_code"] != "tool_not_wired"
 
 
 def test_epsilon_not_applicable_on_process_rows(monkeypatch, tmp_path):

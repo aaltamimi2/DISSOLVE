@@ -6093,6 +6093,58 @@ def _load_process_rows_handle(
     return source_tool, rows, stored
 
 
+def _load_residual_route_source(handle: Any) -> dict[str, Any]:
+    """F source from a successful mode=route handle. Never last_route."""
+    from . import optimization
+
+    token = handle.strip() if isinstance(handle, str) else ""
+    if not isinstance(handle, str) or not token:
+        raise _ScenarioInputError(
+            "unknown handle",
+            error_code="unknown_handle",
+            handle=handle,
+        )
+    record = current_tool_session()
+    stored = load_handle(record, token) if record is not None else None
+    if stored is None:
+        raise _ScenarioInputError(
+            "unknown handle",
+            error_code="unknown_handle",
+            handle=token,
+        )
+    exact = stored.get("exact") if isinstance(stored, dict) else None
+    source_tool = stored.get("tool") if isinstance(stored, dict) else None
+    if not isinstance(exact, dict) or exact.get("success") is not True:
+        raise _ScenarioInputError(
+            "handle is not a successful mode=route payload",
+            error_code="not_route_handle",
+            handle=token,
+            source_tool=source_tool,
+        )
+    route = copy.deepcopy(exact.get("consumed_route"))
+    if not _planner_route_shape(route):
+        raise _ScenarioInputError(
+            "handle is not a successful mode=route payload",
+            error_code="not_route_handle",
+            handle=token,
+            source_tool=source_tool,
+        )
+    tea_payload = copy.deepcopy(exact)
+    if not tea_payload.get("comparison_rows"):
+        stages = tea_payload.get("stage_results")
+        if isinstance(stages, list) and stages:
+            tea_payload["comparison_rows"] = copy.deepcopy(stages)
+    try:
+        return optimization._source_from_route_and_tea(route, tea_payload)
+    except ValueError as error:
+        raise _ScenarioInputError(
+            str(error),
+            error_code="invalid_optimization_basis",
+            handle=token,
+            source_tool=source_tool,
+        ) from error
+
+
 def _campaign_handle_exact(stored: dict[str, Any]) -> dict[str, Any] | None:
     exact = stored.get("exact") if isinstance(stored, dict) else None
     if not isinstance(exact, dict):
@@ -8177,6 +8229,132 @@ def _superstructure_map_refusal(
     return None
 
 
+def _rank_residual_route(
+    *,
+    operation: str,
+    handle: Any,
+    order: str,
+    formulation: Any,
+    campaign_fingerprint: Any,
+    target_polymer: Any,
+    solvent: Any,
+    energy_cases: Any,
+    process_config: Any,
+    polymer_grouping: str,
+    allow_partial_campaign: bool,
+    objective: Any,
+    scenario: Any,
+    recovery_yield: Any,
+    polymer_market_values_usd_per_mt: Any,
+    solver_name: Any,
+    x_metric: Any,
+    y_metric: Any,
+    composition_slices: Any,
+) -> str:
+    """Prefix × leftover tech of one costed route. Handle, never last_route."""
+    from . import optimization
+
+    tool = "rank_landscape"
+    inapplicable = [
+        name for name, value in (
+            ("formulation", formulation),
+            ("campaign_fingerprint", campaign_fingerprint),
+            ("target_polymer", target_polymer),
+            ("solvent", solvent),
+            ("energy_cases", energy_cases),
+            ("process_config", process_config),
+        )
+        if value not in (None, "", [])
+    ]
+    if polymer_grouping != "per_target_polymer":
+        inapplicable.append("polymer_grouping")
+    if allow_partial_campaign:
+        inapplicable.append("allow_partial_campaign")
+    if inapplicable:
+        return _stamp_screen_to_economics_order(
+            tool_error(
+            tool,
+            "these arguments are not applicable on source=residual_route",
+            error_code="not_applicable_in_source",
+            source="residual_route",
+            inapplicable_fields=inapplicable,
+        ), order,
+        )
+    if operation in {"sort", "epsilon"}:
+        return _stamp_screen_to_economics_order(
+            tool_error(
+            tool,
+            "sort and epsilon are not legal on source=residual_route",
+            error_code="not_applicable_in_source",
+            source="residual_route",
+            operation=operation,
+        ), order,
+        )
+    if operation not in {"optimum", "pareto_dominance"}:
+        return _stamp_screen_to_economics_order(
+            tool_error(
+            tool,
+            "operation must be optimum or pareto_dominance on residual_route.",
+            error_code="not_applicable_in_source",
+            source="residual_route",
+            operation=operation,
+        ), order,
+        )
+    mismatched = []
+    if operation == "optimum":
+        if x_metric is not None:
+            mismatched.append("x_metric")
+        if y_metric is not None:
+            mismatched.append("y_metric")
+        if composition_slices is not None:
+            mismatched.append("composition_slices")
+    else:
+        if objective is not None:
+            mismatched.append("objective")
+        if solver_name is not None:
+            mismatched.append("solver_name")
+    if mismatched:
+        return _stamp_screen_to_economics_order(
+            tool_error(
+            tool,
+            "these arguments are not applicable for this residual_route operation",
+            error_code="not_applicable_in_source",
+            source="residual_route",
+            operation=operation,
+            inapplicable_fields=mismatched,
+        ), order,
+        )
+    try:
+        source = _load_residual_route_source(handle)
+    except _ScenarioInputError as error:
+        return _stamp_screen_to_economics_order(
+            tool_error(
+            tool, str(error), error_code=error.error_code, **error.details,
+        ), order,
+        )
+    kwargs: dict[str, Any] = {"operation": operation}
+    if operation == "optimum":
+        kwargs["objective"] = objective or "max_profit"
+        kwargs["solver_name"] = solver_name or "scip"
+    else:
+        kwargs["x_metric"] = x_metric or "total_cost"
+        kwargs["y_metric"] = y_metric or "emissions"
+        if composition_slices is not None:
+            kwargs["composition_slices"] = composition_slices
+    if scenario is not None:
+        kwargs["scenario"] = scenario
+    if recovery_yield is not None:
+        kwargs["recovery_yield"] = recovery_yield
+    if polymer_market_values_usd_per_mt is not None:
+        kwargs["polymer_market_values_usd_per_mt"] = (
+            polymer_market_values_usd_per_mt
+        )
+    return _stamp_screen_to_economics_order(
+        optimization.rank_residual_route(source, **kwargs),
+        order,
+    )
+
+
 def rank_landscape(
     source: Literal["process_rows", "residual_route", "superstructure"] = (
         "process_rows"
@@ -8198,6 +8376,14 @@ def rank_landscape(
     planner_solvent_map: Optional[dict[str, Any]] = None,
     allowed_solvents: Optional[dict[str, Any] | list[Any]] = None,
     feed_mass_fractions: Optional[dict[str, Any]] = None,
+    objective: Optional[str] = None,
+    scenario: Optional[str] = None,
+    recovery_yield: Optional[float] = None,
+    polymer_market_values_usd_per_mt: Optional[dict[str, float]] = None,
+    solver_name: Optional[str] = None,
+    x_metric: Optional[str] = None,
+    y_metric: Optional[str] = None,
+    composition_slices: Optional[list[dict[str, float]]] = None,
     screen_to_economics_order: Optional[ScreenToEconomicsOrder] = None,
     **unexpected: Any,
 ) -> str:
@@ -8207,7 +8393,10 @@ def rank_landscape(
     lookup, or sensitivity) at the configs those rows were run at, or locates a campaign
     through DISSOLVE_CAMPAIGN_REGISTRY and campaign_fingerprint. The usable
     projection returns the landscape AND the frontier. Held-field mismatch
-    is not a ranking. source=superstructure takes planner_solvent_map.v1
+    is not a ranking. source=residual_route takes the handle of a
+    successful mode=route payload and ranks prefix × leftover tech × A/B
+    of that one costed route (optimum or pareto_dominance). Identity
+    comes from the handle, never last_route. source=superstructure takes planner_solvent_map.v1
     (formulation=sequence) or allowed_solvents.v1 (formulation=solvent) as
     arguments, not a third public tool. Missing maps refuse by name before
     incomplete_stage_basis_grid. A bound map still has no remnant table:
@@ -8301,21 +8490,45 @@ def rank_landscape(
             inapplicable_fields=map_fields,
         ), order,
         )
-    if source_token in {"residual_route", "superstructure"}:
-        if source_token == "superstructure":
-            refused = _superstructure_map_refusal(
-                formulation=formulation,
-                planner_solvent_map=planner_solvent_map,
-                allowed_solvents=allowed_solvents,
-                target_polymer=target_polymer,
-                feed_mass_fractions=feed_mass_fractions,
-                process_config=process_config,
-                handle=handle,
+    residual_fields = [
+        name for name, value in (
+            ("objective", objective),
+            ("scenario", scenario),
+            ("recovery_yield", recovery_yield),
+            ("polymer_market_values_usd_per_mt", polymer_market_values_usd_per_mt),
+            ("solver_name", solver_name),
+            ("x_metric", x_metric),
+            ("y_metric", y_metric),
+            ("composition_slices", composition_slices),
+        )
+        if value is not None
+    ]
+    if residual_fields and source_token != "residual_route":
+        return _stamp_screen_to_economics_order(
+            tool_error(
+            tool,
+            "objective, scenario, recovery_yield, market values, solver_name, "
+            "x_metric, y_metric, and composition_slices apply on "
+            "source=residual_route",
+            error_code="not_applicable_in_source",
+            source=source_token,
+            inapplicable_fields=residual_fields,
+        ), order,
+        )
+    if source_token == "superstructure":
+        refused = _superstructure_map_refusal(
+            formulation=formulation,
+            planner_solvent_map=planner_solvent_map,
+            allowed_solvents=allowed_solvents,
+            target_polymer=target_polymer,
+            feed_mass_fractions=feed_mass_fractions,
+            process_config=process_config,
+            handle=handle,
+        )
+        if refused is not None:
+            return _stamp_screen_to_economics_order(
+                refused, order,
             )
-            if refused is not None:
-                return _stamp_screen_to_economics_order(
-                    refused, order,
-                )
         return _stamp_screen_to_economics_order(
             tool_error(
             tool,
@@ -8323,6 +8536,28 @@ def rank_landscape(
             error_code="tool_not_wired",
             source=source_token,
         ), order,
+        )
+    if source_token == "residual_route":
+        return _rank_residual_route(
+            operation=operation_token,
+            handle=handle,
+            order=order,
+            formulation=formulation,
+            campaign_fingerprint=campaign_fingerprint,
+            target_polymer=target_polymer,
+            solvent=solvent,
+            energy_cases=energy_cases,
+            process_config=process_config,
+            polymer_grouping=grouping_token,
+            allow_partial_campaign=allow_partial_campaign,
+            objective=objective,
+            scenario=scenario,
+            recovery_yield=recovery_yield,
+            polymer_market_values_usd_per_mt=polymer_market_values_usd_per_mt,
+            solver_name=solver_name,
+            x_metric=x_metric,
+            y_metric=y_metric,
+            composition_slices=composition_slices,
         )
     if operation_token in {"optimum", "epsilon"}:
         return _stamp_screen_to_economics_order(

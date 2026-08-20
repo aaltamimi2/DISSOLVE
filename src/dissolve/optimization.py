@@ -131,10 +131,11 @@ def _composition(values: dict[str, Any]) -> dict[str, float]:
     return result
 
 
-def _source_state() -> dict[str, Any]:
-    state = current_tool_session()
-    route = copy.deepcopy(getattr(state, "last_route", None)) if state else None
-    tea = copy.deepcopy(getattr(state, "last_tea", None)) if state else None
+def _source_from_route_and_tea(
+    route: Any,
+    tea: Any,
+) -> dict[str, Any]:
+    """F source from an explicit costed-route payload. Never getattr."""
     if not route or not route.get("complete"):
         raise ValueError("A complete stored separation route is required")
     if not tea or tea.get("route_source") != "typed_session_state":
@@ -169,6 +170,13 @@ def _source_state() -> dict[str, Any]:
         "composition": composition,
         "feed_mt_per_yr": _number(tea.get("processing_capacity_mt_per_yr"), "processing capacity"),
     }
+
+
+def _source_state() -> dict[str, Any]:
+    state = current_tool_session()
+    route = copy.deepcopy(getattr(state, "last_route", None)) if state else None
+    tea = copy.deepcopy(getattr(state, "last_tea", None)) if state else None
+    return _source_from_route_and_tea(route, tea)
 
 
 def _stored_optimization_gap(x_metric: str, y_metric: str) -> str | None:
@@ -578,6 +586,227 @@ def _payload_path(kind: str, payload: dict[str, Any]) -> str:
     path = (root / f"{kind}_{hashlib.sha256(canonical.encode()).hexdigest()[:12]}.json").resolve()
     path.write_text(json.dumps(payload, indent=2, allow_nan=False) + "\n", encoding="utf-8")
     return str(path)
+
+
+def rank_residual_route(
+    source: dict[str, Any],
+    *,
+    operation: str,
+    objective: Objective = "max_profit",
+    scenario: Scenario = "B",
+    recovery_yield: Optional[float] = None,
+    polymer_market_values_usd_per_mt: Optional[dict[str, float]] = None,
+    solver_name: SolverName = "scip",
+    x_metric: Metric = "total_cost",
+    y_metric: Metric = "emissions",
+    composition_slices: Optional[list[dict[str, float]]] = None,
+) -> str:
+    """Prefix × leftover-tech ranking of one costed route. Handle-fed source."""
+    tool = "rank_landscape"
+    operation_token = str(operation or "").strip().casefold()
+    shared = {
+        "source": "residual_route",
+        "source_route_signature": source["tea"].get("route_signature"),
+        "source_tea_engine_mode": source["tea"].get("engine_mode"),
+        "engine_mode": source["tea"].get("engine_mode"),
+        "feed_mass_fractions": source["composition"],
+        "feed_mt_per_yr": source["feed_mt_per_yr"],
+    }
+    try:
+        scenario_key = _scenario_key(scenario)
+        recovery = _number(
+            recovery_yield if recovery_yield is not None else
+            (asset_payload().get("policy") or {}).get("default_recovery_yield"),
+            "recovery_yield",
+        )
+        if not 0 < recovery <= 1:
+            raise ValueError("recovery_yield must be above 0 and at most 1")
+        values = _market_values(
+            polymer_market_values_usd_per_mt, tuple(source["composition"]),
+        )
+        if operation_token == "optimum":
+            objective_key = _objective_key(objective)
+            solver_key = _solver_key(solver_name)
+            landscape, rejected = _landscape(
+                source, scenario=scenario_key, recovery_yield=recovery,
+                market_values=values,
+            )
+        elif operation_token == "pareto_dominance":
+            x_key = _metric_key(x_metric)
+            y_key = _metric_key(y_metric)
+            slices = composition_slices or [source["composition"]]
+            normalized_slices = [_composition(item) for item in slices]
+            if any(
+                set(item) != set(source["composition"])
+                for item in normalized_slices
+            ):
+                raise ValueError(
+                    "Every composition slice must cover the stored-route polymers"
+                )
+        else:
+            raise ValueError("operation must be optimum or pareto_dominance")
+    except ValueError as error:
+        message = str(error)
+        if message == "Unsupported objective":
+            return tool_error(
+                tool, "Unsupported objective.",
+                error_code="unsupported_objective",
+                supported_objectives=sorted(_OBJECTIVES),
+                **shared,
+            )
+        code = (
+            "invalid_pareto_basis"
+            if operation_token == "pareto_dominance"
+            else "invalid_optimization_basis"
+        )
+        return tool_error(tool, message, error_code=code, **shared)
+    if operation_token == "optimum":
+        if not landscape:
+            return tool_error(
+                tool, "No design has usable economics.",
+                error_code="no_usable_designs", **shared,
+            )
+        selected = _deterministic_optimum(landscape, objective_key)
+        verification = _verify_point(landscape, objective_key, solver_key)
+        verification["agrees_with_deterministic_optimum"] = (
+            verification.get("selected_design_id") == selected["design_id"]
+            if verification.get("status") == "verified" else None
+        )
+        marked = [dict(point) for point in landscape]
+        return tool_success(
+            tool, analysis_type="point_optimum", operation="optimum",
+            objective=objective_key, scenario=scenario_key,
+            recovery_yield=recovery,
+            polymer_market_values_usd_per_mt=values,
+            capital_allocation_years=int(
+                (asset_payload().get("policy") or {})["strap_capital_allocation_years"]
+            ),
+            residual_product_revenue_included=False,
+            selected_point=selected,
+            cheapest_point=copy.deepcopy(
+                min(landscape, key=lambda point: float(point["total_cost"]))
+            ),
+            landscape_points=marked,
+            n_landscape_points=len(marked),
+            n_rejected_phantom_designs=len(rejected),
+            solver=verification,
+            economics_guard="annualized CAPEX>0 AND (OPEX>0 OR GWP>0)",
+            metric_units={
+                "capital_cost": "USD/yr (BioSTEAM TCI allocated over 10 years)",
+                "operational_cost": "USD/yr", "transportation_cost": "USD/yr",
+                "total_cost": "USD/yr", "revenue": "USD/yr", "profit": "USD/yr",
+                "emissions": "t CO2e/yr", "energy_mj_per_yr": "MJ/yr",
+                "circularity": "mass-diversion fraction",
+            },
+            circularity_basis=(asset_payload().get("policy") or {}).get(
+                "circularity_note"
+            ),
+            provenance={
+                "asset_sha256": _ASSET_SHA256,
+                **(asset_payload().get("provenance") or {}),
+            },
+            **shared,
+        )
+    slice_payloads = []
+    for index, composition in enumerate(normalized_slices, 1):
+        landscape, rejected = _landscape(
+            source, scenario=scenario_key, recovery_yield=recovery,
+            market_values=values, composition=composition,
+        )
+        frontier = _pareto_sweep(landscape, x_key, y_key)
+        if not frontier:
+            continue
+        cheapest = copy.deepcopy(
+            min(frontier, key=lambda point: float(point["total_cost"]))
+        )
+        knee = _knee(frontier, x_key, y_key)
+        knee_status = (
+            "interior_tradeoff"
+            if len(frontier) > 2 and knee and knee.get("design_id") not in {
+                frontier[0].get("design_id"), frontier[-1].get("design_id"),
+            }
+            else "endpoint_only_no_interior_knee"
+        )
+        if not landscape:
+            knee_status = "not_calculated_no_comparable_designs"
+        frontier_ids = {point.get("design_id") for point in frontier}
+        marked = []
+        for point in landscape:
+            copied = dict(point)
+            copied["is_frontier"] = copied.get("design_id") in frontier_ids
+            marked.append(copied)
+        slice_payloads.append({
+            "slice_id": f"slice-{index}",
+            "feed_mass_fractions": composition,
+            "landscape_points": marked,
+            "frontier_points": frontier,
+            "points": frontier,
+            "n_landscape_points": len(marked),
+            "n_frontier_points": len(frontier),
+            "n_rejected_phantom_designs": len(rejected),
+            "knee_point": knee, "knee_status": knee_status,
+            "cheapest_point": cheapest,
+            "frontier_tradeoff": _cost_emissions_tradeoff(
+                frontier, x_key, y_key,
+            ),
+        })
+    if not slice_payloads:
+        return tool_error(
+            tool, "No feasible Pareto frontier was found.",
+            error_code="no_pareto_points", **shared,
+        )
+    primary = slice_payloads[0]
+    n_land = primary["n_landscape_points"]
+    n_front = primary["n_frontier_points"]
+    return tool_success(
+        tool,
+        analysis_type=(
+            "pareto_slices" if len(slice_payloads) > 1 else "pareto_front"
+        ),
+        operation="pareto_dominance",
+        x_metric=x_key, y_metric=y_key, scenario=scenario_key,
+        recovery_yield=recovery,
+        polymer_market_values_usd_per_mt=values,
+        capital_allocation_years=int(
+            (asset_payload().get("policy") or {})["strap_capital_allocation_years"]
+        ),
+        residual_product_revenue_included=False,
+        n_slices_requested=len(normalized_slices),
+        n_slices_solved=len(slice_payloads),
+        landscape_points=primary["landscape_points"],
+        frontier_points=primary["frontier_points"],
+        points=primary["points"],
+        n_landscape_points=n_land,
+        n_frontier_points=n_front,
+        knee_point=primary["knee_point"],
+        knee_status=primary["knee_status"],
+        cheapest_point=primary["cheapest_point"],
+        frontier_tradeoff=primary["frontier_tradeoff"],
+        slices=[{
+            key: item[key] for key in (
+                "slice_id", "feed_mass_fractions", "n_landscape_points",
+                "n_frontier_points", "knee_point", "cheapest_point",
+                "knee_status", "frontier_tradeoff",
+            )
+        } for item in slice_payloads],
+        points_are_subset_of_landscape=True,
+        economics_guard="annualized CAPEX>0 AND (OPEX>0 OR GWP>0)",
+        metric_units={
+            "capital_cost": "USD/yr (BioSTEAM TCI allocated over 10 years)",
+            "operational_cost": "USD/yr", "transportation_cost": "USD/yr",
+            "total_cost": "USD/yr", "revenue": "USD/yr", "profit": "USD/yr",
+            "emissions": "t CO2e/yr", "energy_mj_per_yr": "MJ/yr",
+            "circularity": "mass-diversion fraction",
+        },
+        circularity_basis=(asset_payload().get("policy") or {}).get(
+            "circularity_note"
+        ),
+        provenance={
+            "asset_sha256": _ASSET_SHA256,
+            **(asset_payload().get("provenance") or {}),
+        },
+        **shared,
+    )
 
 
 def optimize_stored_route(
