@@ -9425,6 +9425,12 @@ def _metric(row: dict[str, Any], metric: str) -> Optional[float]:
     return None if value is None else float(value)
 
 
+_INAPPLICABLE_ON_SENSITIVITY = {
+    "screening_shortlist": "evaluate",
+    "held_process_basis": "evaluate",
+}
+
+
 def analyze_tea_sensitivity(
     scenario: Optional[dict[str, Any]] = None,
     parameter: str = "",
@@ -9435,6 +9441,7 @@ def analyze_tea_sensitivity(
     timeout_seconds: int = 180,
     handle: Optional[str] = None,
     row_id: Optional[str | int] = None,
+    **kwargs: Any,
 ) -> str:
     """Run a deterministic parameter sweep/tornado slice or sampled uncertainty summary.
 
@@ -9445,9 +9452,44 @@ def analyze_tea_sensitivity(
     scenario field the worker consumes, including dissolution_capacity
     and labor_cost. `uncertainty` describes only the supplied/discovered
     scenario sample; it is not a probabilistic Monte Carlo claim. This is
-    not a cache-pair fill and not a screening payload.
+    not a cache-pair fill and not a screening payload. screening_shortlist
+    and held_process_basis refuse not_applicable_in_mode; they expand only
+    on evaluate.
     """
     tool = "analyze_tea_sensitivity"
+    inapplicable = [
+        name for name in _INAPPLICABLE_ON_SENSITIVITY if name in kwargs
+    ]
+    leftover = {
+        name: kwargs[name]
+        for name in kwargs
+        if name not in _INAPPLICABLE_ON_SENSITIVITY
+    }
+    if inapplicable:
+        modes = list(dict.fromkeys(
+            _INAPPLICABLE_ON_SENSITIVITY[name] for name in inapplicable
+        ))
+        details: dict[str, Any] = {
+            "mode": "sensitivity",
+            "inapplicable_fields": inapplicable,
+            "applicable_mode_by_field": {
+                name: _INAPPLICABLE_ON_SENSITIVITY[name] for name in inapplicable
+            },
+        }
+        if len(modes) == 1:
+            details["applicable_mode"] = modes[0]
+        return tool_error(
+            tool,
+            "These arguments are not applicable in sensitivity mode.",
+            error_code="not_applicable_in_mode",
+            **details,
+        )
+    if leftover:
+        unexpected = ", ".join(repr(name) for name in sorted(leftover))
+        raise TypeError(
+            "analyze_tea_sensitivity() got unexpected keyword "
+            f"argument(s): {unexpected}"
+        )
     field = _SCENARIO_ALIASES.get(
         str(parameter or "").strip(), str(parameter or "").strip(),
     )

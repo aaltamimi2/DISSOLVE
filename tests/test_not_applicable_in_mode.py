@@ -264,6 +264,104 @@ def test_mixed_wrong_mode_scalars_name_each_home(monkeypatch):
     }
 
 
+def test_sensitivity_schema_omits_screening_handoff():
+    props = _schema("analyze_tea_sensitivity")["parameters"]["properties"]
+    eval_props = _schema("evaluate_tea_lca_scenarios")["parameters"]["properties"]
+    assert "screening_shortlist" in eval_props
+    assert "held_process_basis" in eval_props
+    assert "screening_shortlist" not in props
+    assert "held_process_basis" not in props
+
+
+def test_sensitivity_refuses_screening_handoff(monkeypatch):
+    record = _record_by_label("ldpe-route-c1")
+    scenario = _public_from_record(record)
+    _forbid_live(monkeypatch)
+    shortlist = {
+        "source": "explicit",
+        "items": [{
+            "target_polymer": "LDPE",
+            "solvent": "Dodecane",
+            "dissolution_temperature_c": 145.0,
+        }],
+    }
+    payload = _data(tea.analyze_tea_sensitivity(
+        scenario,
+        parameter="solvent_price",
+        engine_mode="cache",
+        screening_shortlist=shortlist,
+    ))
+    assert payload.get("error_code") == "not_applicable_in_mode"
+    assert payload.get("inapplicable_fields") == ["screening_shortlist"]
+    assert payload.get("applicable_mode") == "evaluate"
+    assert payload["applicable_mode_by_field"] == {
+        "screening_shortlist": "evaluate",
+    }
+    assert payload.get("tool_name") == "analyze_tea_sensitivity"
+    assert "sensitivity_rows" not in payload
+    both = _data(tea.analyze_tea_sensitivity(
+        scenario,
+        parameter="solvent_price",
+        engine_mode="cache",
+        screening_shortlist=shortlist,
+        held_process_basis={"energy_case": "C1"},
+    ))
+    assert both.get("error_code") == "not_applicable_in_mode"
+    assert both.get("inapplicable_fields") == [
+        "screening_shortlist", "held_process_basis",
+    ]
+    assert both.get("applicable_mode") == "evaluate"
+    held = _data(tea.analyze_tea_sensitivity(
+        scenario,
+        parameter="solvent_price",
+        engine_mode="cache",
+        held_process_basis={"energy_case": "C1"},
+    ))
+    assert held.get("error_code") == "not_applicable_in_mode"
+    assert held.get("inapplicable_fields") == ["held_process_basis"]
+    with pytest.raises(TypeError, match="not_a_sensitivity_field"):
+        tea.analyze_tea_sensitivity(
+            scenario,
+            parameter="solvent_price",
+            engine_mode="cache",
+            not_a_sensitivity_field=1,
+        )
+
+
+def test_dispatch_sensitivity_handoff_is_named_refuse(monkeypatch):
+    record = _record_by_label("ldpe-route-c1")
+    scenario = _public_from_record(record)
+    _forbid_live(monkeypatch)
+    session = new_session()
+    with bind_tool_session(session):
+        refused = dispatch(
+            "analyze_tea_sensitivity",
+            scenario=scenario,
+            parameter="solvent_price",
+            engine_mode="cache",
+            screening_shortlist={
+                "source": "explicit",
+                "items": [{
+                    "target_polymer": "LDPE",
+                    "solvent": "Dodecane",
+                    "dissolution_temperature_c": 145.0,
+                }],
+            },
+        )
+        assert refused.get("available") is False
+        assert refused.get("refusal") == "not_applicable_in_mode"
+        assert "handle" not in refused
+        served = dispatch(
+            "analyze_tea_sensitivity",
+            scenario=scenario,
+            parameter="solvent_price",
+            engine_mode="cache",
+        )
+        assert served.get("available") is True
+        assert served.get("source_basis") == "tea_cache_exact"
+        assert served.get("handle")
+
+
 def test_lookup_energy_cases_and_sensitivity_parameter_still_serve(monkeypatch):
     record = _record_by_label("ldpe-route-c1")
     _forbid_live(monkeypatch)
