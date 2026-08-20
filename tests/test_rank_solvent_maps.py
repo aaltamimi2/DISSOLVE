@@ -783,6 +783,204 @@ def test_unknown_handle_does_not_outrank_missing_map(monkeypatch):
     assert "pending_blockers" not in payload
 
 
+def test_omitted_map_inherits_pairs_from_economics_handle(monkeypatch):
+    """Handle binds the map; it still does not fill remnant cells."""
+    _forbid_live(monkeypatch)
+    toluene = tea._public_solvent_token("Toluene")
+    dmso = tea._public_solvent_token("DMSO")
+    session = new_session()
+    with bind_tool_session(session):
+        handle = _plant_handle(session, [
+            _plant_row("LDPE", toluene, 55.0, 20_000.0),
+            _plant_row("EVOH", dmso, 45.0, 20_000.0),
+        ])
+        payload = _data(tea.rank_landscape(
+            **_sequence_kwargs(handle=handle, planner_solvent_map=None),
+        ))
+    assert payload.get("error_code") == "incomplete_stage_basis_grid"
+    assert payload.get("error_code") != "missing_planner_solvent_map"
+    assert payload.get("error_code") != "sequence_coupling_unproven"
+    cells = {_d18_cell(row) for row in payload["missing_keys"]}
+    assert cells == {
+        ("LDPE", 100.0, 11_000.0, toluene),
+        ("EVOH", 100.0, 9_000.0, dmso),
+    }
+    assert "landscape_points" not in payload
+    assert payload.get("n_usable") is None
+
+
+def test_omitted_map_complete_handle_is_still_coupling_unproven(monkeypatch):
+    _forbid_live(monkeypatch)
+    session = new_session()
+    with bind_tool_session(session):
+        handle = _plant_handle(session, _complete_d18_rows())
+        payload = _data(tea.rank_landscape(
+            **_sequence_kwargs(handle=handle, planner_solvent_map=None),
+        ))
+    assert payload.get("error_code") == "sequence_coupling_unproven"
+    assert payload.get("error_code") != "missing_planner_solvent_map"
+    assert "pending_blockers" not in payload
+    assert "landscape_points" not in payload
+    assert payload.get("n_usable") is None
+
+
+def test_omitted_map_handle_missing_a_feed_polymer_is_missing_map(monkeypatch):
+    _forbid_live(monkeypatch)
+    toluene = tea._public_solvent_token("Toluene")
+    session = new_session()
+    with bind_tool_session(session):
+        handle = _plant_handle(session, [
+            _plant_row("LDPE", toluene, 55.0, 20_000.0),
+        ])
+        payload = _data(tea.rank_landscape(
+            **_sequence_kwargs(handle=handle, planner_solvent_map=None),
+        ))
+    assert payload.get("error_code") == "missing_planner_solvent_map"
+    assert payload.get("polymers") == ["EVOH"]
+    assert payload.get("feed") == ["LDPE", "EVOH"]
+    assert "landscape_points" not in payload
+
+
+def test_explicit_planner_map_is_not_replaced_by_handle_pairs(monkeypatch):
+    """The argument map names solvents; the handle only subtracts matching cells."""
+    _forbid_live(monkeypatch)
+    toluene = tea._public_solvent_token("Toluene")
+    dmso = tea._public_solvent_token("DMSO")
+    xylene = tea._public_solvent_token("Xylene")
+    session = new_session()
+    with bind_tool_session(session):
+        handle = _plant_handle(session, [
+            _plant_row("LDPE", xylene, 55.0, 20_000.0),
+            _plant_row("EVOH", dmso, 45.0, 20_000.0),
+            _plant_row("LDPE", xylene, 100.0, 11_000.0),
+            _plant_row("EVOH", dmso, 100.0, 9_000.0),
+        ])
+        explicit = _data(tea.rank_landscape(**_sequence_kwargs(handle=handle)))
+        inherited = _data(tea.rank_landscape(
+            **_sequence_kwargs(handle=handle, planner_solvent_map=None),
+        ))
+    assert explicit.get("error_code") == "incomplete_stage_basis_grid"
+    cells = {_d18_cell(row) for row in explicit["missing_keys"]}
+    assert ("LDPE", 55.0, 20_000.0, toluene) in cells
+    assert ("LDPE", 100.0, 11_000.0, toluene) in cells
+    assert ("EVOH", 45.0, 20_000.0, dmso) not in cells
+    assert all(row[3] != xylene for row in cells)
+    assert inherited.get("error_code") == "sequence_coupling_unproven"
+    assert inherited.get("error_code") != explicit.get("error_code")
+
+
+def test_malformed_planner_map_does_not_inherit_from_handle(monkeypatch):
+    _forbid_live(monkeypatch)
+    toluene = tea._public_solvent_token("Toluene")
+    dmso = tea._public_solvent_token("DMSO")
+    session = new_session()
+    with bind_tool_session(session):
+        handle = _plant_handle(session, [
+            _plant_row("LDPE", toluene, 55.0, 20_000.0),
+            _plant_row("EVOH", dmso, 45.0, 20_000.0),
+        ])
+        payload = _data(tea.rank_landscape(
+            **_sequence_kwargs(
+                handle=handle,
+                planner_solvent_map={
+                    "LDPE": {"solvent": "Toluene", "temperature_c": 25},
+                },
+            ),
+        ))
+    assert payload.get("error_code") == "missing_planner_solvent_map"
+    assert payload.get("error_code") != "incomplete_stage_basis_grid"
+    assert "landscape_points" not in payload
+
+
+def test_two_solvents_for_one_polymer_is_not_a_sequence_map(monkeypatch):
+    _forbid_live(monkeypatch)
+    toluene = tea._public_solvent_token("Toluene")
+    dmso = tea._public_solvent_token("DMSO")
+    xylene = tea._public_solvent_token("Xylene")
+    session = new_session()
+    with bind_tool_session(session):
+        handle = _plant_handle(session, [
+            _plant_row("LDPE", toluene, 55.0, 20_000.0),
+            _plant_row("LDPE", xylene, 100.0, 11_000.0),
+            _plant_row("EVOH", dmso, 45.0, 20_000.0),
+        ])
+        payload = _data(tea.rank_landscape(
+            **_sequence_kwargs(handle=handle, planner_solvent_map=None),
+        ))
+    assert payload.get("error_code") == "missing_planner_solvent_map"
+    assert payload.get("polymers") == ["LDPE"]
+    assert "landscape_points" not in payload
+
+
+def test_failed_row_does_not_bind_planner_map(monkeypatch):
+    _forbid_live(monkeypatch)
+    toluene = tea._public_solvent_token("Toluene")
+    dmso = tea._public_solvent_token("DMSO")
+    session = new_session()
+    with bind_tool_session(session):
+        handle = _plant_handle(session, [
+            _plant_row("LDPE", toluene, 55.0, 20_000.0),
+            _plant_row("EVOH", dmso, 45.0, 20_000.0, success=False),
+        ])
+        payload = _data(tea.rank_landscape(
+            **_sequence_kwargs(handle=handle, planner_solvent_map=None),
+        ))
+    assert payload.get("error_code") == "missing_planner_solvent_map"
+    assert payload.get("polymers") == ["EVOH"]
+    assert "landscape_points" not in payload
+
+
+def test_plan_top_k_is_not_scanned_for_the_map(monkeypatch):
+    _forbid_live(monkeypatch)
+    session = new_session()
+    with bind_tool_session(session):
+        handle = store_handle(
+            session,
+            tool="plan_multistage_separation",
+            source_basis="cosmo_rs_grid",
+            data={
+                "success": True,
+                "steps": [
+                    {"dissolved_polymer": "LDPE", "solvent": "Toluene"},
+                    {"dissolved_polymer": "EVOH", "solvent": "DMSO"},
+                ],
+                "top_k_sequences": [{
+                    "steps": [
+                        {"dissolved_polymer": "LDPE", "solvent": "Toluene"},
+                        {"dissolved_polymer": "EVOH", "solvent": "DMSO"},
+                    ],
+                }],
+            },
+        )
+        payload = _data(tea.rank_landscape(
+            **_sequence_kwargs(handle=handle, planner_solvent_map=None),
+        ))
+    assert payload.get("error_code") == "missing_planner_solvent_map"
+    assert payload.get("error_code") != "not_economics_handle"
+    assert "landscape_points" not in payload
+
+
+def test_omitted_allowed_solvents_does_not_inherit_from_handle(monkeypatch):
+    _forbid_live(monkeypatch)
+    toluene = tea._public_solvent_token("Toluene")
+    dmso = tea._public_solvent_token("DMSO")
+    session = new_session()
+    with bind_tool_session(session):
+        handle = _plant_handle(session, [
+            _plant_row("LDPE", toluene, 55.0, 20_000.0),
+            _plant_row("EVOH", dmso, 45.0, 20_000.0),
+        ])
+        payload = _data(tea.rank_landscape(
+            source="superstructure",
+            formulation="solvent",
+            target_polymer=["LDPE", "EVOH"],
+            handle=handle,
+        ))
+    assert payload.get("error_code") == "missing_allowed_solvents"
+    assert payload.get("error_code") != "incomplete_stage_basis_grid"
+    assert "landscape_points" not in payload
+
+
 def test_first_stage_handle_does_not_fill_remnant_cells(monkeypatch):
     _forbid_live(monkeypatch)
     toluene = tea._public_solvent_token("Toluene")

@@ -5364,6 +5364,45 @@ def _canonical_planner_solvent_map(value: dict[str, Any]) -> dict[str, str]:
     return mapping
 
 
+def _planner_solvent_map_omitted(value: Any) -> bool:
+    return value in (None, "") or (isinstance(value, dict) and not value)
+
+
+def _planner_solvent_map_from_economics_handle(
+    handle: Any,
+) -> dict[str, str] | None:
+    """Unique polymer→solvent pairs on a tool-1 handle. Not a remnant fill."""
+    if handle in (None, "") or (isinstance(handle, str) and not handle.strip()):
+        return None
+    try:
+        _source, rows, _stored = _load_process_rows_handle(handle)
+    except _ScenarioInputError:
+        return None
+    mapping: dict[str, str] = {}
+    conflicted: set[str] = set()
+    for row in rows:
+        if not isinstance(row, dict) or row.get("success") is False:
+            continue
+        raw_polymer = row.get("target_polymer") or row.get("polymer")
+        raw_solvent = row.get("solvent")
+        if raw_polymer in (None, "") or raw_solvent in (None, ""):
+            continue
+        try:
+            polymer = _resolve_polymer(raw_polymer, "handle polymer")
+        except (ValueError, _InputError, _ScenarioInputError):
+            continue
+        solvent = _public_solvent_token(str(raw_solvent))
+        if polymer in conflicted:
+            continue
+        previous = mapping.get(polymer)
+        if previous is not None and previous != solvent:
+            mapping.pop(polymer, None)
+            conflicted.add(polymer)
+            continue
+        mapping[polymer] = solvent
+    return mapping or None
+
+
 def _canonical_allowed_solvent_map(value: dict[str, Any]) -> dict[str, list[str]]:
     mapping: dict[str, list[str]] = {}
     for raw_polymer, raw_solvents in value.items():
@@ -7015,7 +7054,13 @@ def _superstructure_map_refusal(
         except (_ScenarioInputError, _InputError, ValueError) as error:
             return _identity_error(error)
     if token == "sequence":
-        if not _planner_solvent_map_shape(planner_solvent_map):
+        mapping_src = planner_solvent_map
+        inherited_map = None
+        if _planner_solvent_map_omitted(mapping_src):
+            inherited_map = _planner_solvent_map_from_economics_handle(handle)
+            if inherited_map is not None:
+                mapping_src = inherited_map
+        if not _planner_solvent_map_shape(mapping_src):
             return tool_error(
                 tool,
                 "formulation=sequence requires planner_solvent_map",
@@ -7025,13 +7070,19 @@ def _superstructure_map_refusal(
                 feed=feed,
             )
         try:
-            mapping = _canonical_planner_solvent_map(planner_solvent_map)
+            mapping = _canonical_planner_solvent_map(mapping_src)
             composition, plant_capacity = (
                 _superstructure_composition_and_capacity(
                     feed_mass_fractions, process_config,
                 )
             )
             resolved_feed = _align_feed_with_composition(feed, composition)
+            if inherited_map is not None and resolved_feed:
+                mapping = {
+                    name: mapping[name]
+                    for name in resolved_feed
+                    if name in mapping
+                }
             missing = [name for name in resolved_feed if name not in mapping]
             if missing:
                 return tool_error(
@@ -7159,7 +7210,10 @@ def rank_landscape(
     value and matching requires it; omitted is not a silent cache or
     production default. A complete sequence grid with production check red is
     sequence_coupling_unproven as primary (no pending_blockers).
-    Do not scan top_k_sequences for either map.
+    When formulation=sequence omits planner_solvent_map, unique
+    polymer-solvent pairs on a loaded tool-1 economics handle bind that
+    map; the handle remains the remnant subtract table. Do not inherit
+    allowed_solvents. Do not scan top_k_sequences for either map.
     formulation is required iff source=superstructure;
     formulation=wash_train is
     process_model_wash_train_unavailable. formulation=sequence_solvent
