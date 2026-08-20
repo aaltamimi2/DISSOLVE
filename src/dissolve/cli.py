@@ -997,7 +997,13 @@ class CliApp:
     ) -> dict[str, Any] | None:
         if name == "evaluate_tea_lca_scenarios":
             scenarios = list(kwargs.get("scenarios") or [])
-            seed = self._confirm_seed(scenarios[0] if scenarios else None)
+            seed_src = scenarios[0] if scenarios else None
+            if not isinstance(seed_src, dict):
+                seed_src = self._handoff_confirm_seed(
+                    kwargs.get("screening_shortlist"),
+                    kwargs.get("held_process_basis"),
+                )
+            seed = self._confirm_seed(seed_src if isinstance(seed_src, dict) else None)
             submitted = self._edit_process_sheet(seed, prompt_fn=prompt_fn)
             if submitted is None:
                 return None
