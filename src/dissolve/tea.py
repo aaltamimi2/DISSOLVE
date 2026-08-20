@@ -4858,6 +4858,13 @@ _SERVED_TEA_METRIC_KEYS = ("msp_usd_per_kg", "tci_usd", "aoc_usd_per_yr")
 _NONFINITE_SERVED_TEA_ERROR_TYPES = frozenset({
     "no_finite_msp", "tea_cashflow_undefined",
 })
+_PROMOTED_ALL_FAIL_ERROR_TYPES = frozenset({
+    "priced_solvent_unmodellable",
+    "cache_flowsheet_mismatch",
+    "no_finite_msp",
+    "tea_cashflow_undefined",
+    "no_finite_gwp",
+})
 
 
 def _finite_served_number(value: Any) -> bool:
@@ -4901,6 +4908,43 @@ def _coerce_nonfinite_served_tea(result: dict[str, Any]) -> dict[str, Any]:
     )
     out["nonfinite_served_metrics"] = missing
     return out
+
+
+def _coerce_nonfinite_served_gwp(result: dict[str, Any]) -> dict[str, Any]:
+    """Type a success-with-null GWP so evaluate all-fail is not an untyped drop.
+
+    Not a D-23 TEA type. Idempotent on already-failed results. Evaluate-batch
+    only: sensitivity of an MSP axis must not die because GWP is missing.
+    """
+    if not isinstance(result, dict) or result.get("success") is not True:
+        return result
+    lca = result.get("lca") if isinstance(result.get("lca"), dict) else {}
+    if _finite_served_number(lca.get("gwp_kg_co2e_per_kg")):
+        return result
+    out = dict(result)
+    out["success"] = False
+    out["error_type"] = "no_finite_gwp"
+    out["error"] = (
+        str(out.get("error") or "").strip()
+        or "LCA did not produce a finite served GWP."
+    )
+    out["nonfinite_served_metrics"] = ["gwp_kg_co2e_per_kg"]
+    return out
+
+
+def _all_fail_error_code(failures: Sequence[dict[str, Any]]) -> str:
+    """Promote a homogeneous classified all-fail onto the envelope error_code.
+
+    Mixed or untyped failures stay ``no_simulation_result``. Same rule the
+    two older classified types already used; D-23 types and typed null GWP
+    join that set.
+    """
+    classified = {str(row.get("error_type") or "") for row in failures}
+    if len(classified) == 1:
+        token = next(iter(classified))
+        if token in _PROMOTED_ALL_FAIL_ERROR_TYPES:
+            return token
+    return "no_simulation_result"
 
 
 def _evaluate_row_usable(row: dict[str, Any]) -> bool:
@@ -9530,7 +9574,9 @@ def evaluate_tea_lca_scenarios(
     results = []
     for config in configs:
         results.append(
-            _coerce_nonfinite_served_tea(_run(config, engine_mode, timeout))
+            _coerce_nonfinite_served_gwp(
+                _coerce_nonfinite_served_tea(_run(config, engine_mode, timeout))
+            )
         )
     labels = [str(item.get("label") or f"scenario-{index}") for index, item in enumerate(scenarios, 1)]
     rows = [_comparison_row(label, result) for label, result in zip(labels, results)]
@@ -9556,26 +9602,11 @@ def evaluate_tea_lca_scenarios(
                     f" | {len(failure_reasons) - len(shown)} additional "
                     "distinct reason(s) omitted."
                 )
-        classified = {
-            str(row.get("error_type") or "") for row in failures
-        }
-        all_priced_unmodellable = classified == {
-            "priced_solvent_unmodellable"
-        }
-        all_flowsheet_mismatch = classified == {
-            "cache_flowsheet_mismatch"
-        }
         primary = failures[0] if len(failures) == 1 else {}
         return tool_error(
             tool,
             failure_summary,
-            error_code=(
-                "priced_solvent_unmodellable"
-                if all_priced_unmodellable
-                else "cache_flowsheet_mismatch"
-                if all_flowsheet_mismatch
-                else "no_simulation_result"
-            ),
+            error_code=_all_fail_error_code(failures),
             engine_mode=engine_mode, cache_match_status="miss",
             failures=failures, live_engine=live_engine_status(),
             provenance=_provenance([str(result.get("engine_mode")) for result in results]),
