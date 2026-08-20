@@ -588,15 +588,15 @@ def _plant_handle(session, rows):
     )
 
 
-def _complete_d18_rows(*, energy_case=None):
+def _complete_d18_rows(**extra):
     toluene = tea._public_solvent_token("Toluene")
     dmso = tea._public_solvent_token("DMSO")
-    extra = {} if energy_case is None else {"energy_case": energy_case}
+    held = {key: value for key, value in extra.items() if value is not None}
     return [
-        _plant_row("LDPE", toluene, 55.0, 20_000.0, **extra),
-        _plant_row("EVOH", dmso, 45.0, 20_000.0, **extra),
-        _plant_row("LDPE", toluene, 100.0, 11_000.0, **extra),
-        _plant_row("EVOH", dmso, 100.0, 9_000.0, **extra),
+        _plant_row("LDPE", toluene, 55.0, 20_000.0, **held),
+        _plant_row("EVOH", dmso, 45.0, 20_000.0, **held),
+        _plant_row("LDPE", toluene, 100.0, 11_000.0, **held),
+        _plant_row("EVOH", dmso, 100.0, 9_000.0, **held),
     ]
 
 
@@ -1181,6 +1181,154 @@ def test_invalid_energy_case_does_not_outrank_missing_map(monkeypatch):
         formulation="sequence",
         feed_mass_fractions=_FEED_55_45,
         process_config={**_CAP_20KT, "energy_case": "C9"},
+    ))
+    assert payload.get("error_code") == "missing_planner_solvent_map"
+    assert payload.get("error_code") != "invalid_admitted_record_query"
+
+
+def test_omitted_dissolution_t_is_not_a_silent_cache_temperature(monkeypatch):
+    _forbid_live(monkeypatch)
+    payload = _data(tea.rank_landscape(**_sequence_kwargs()))
+    assert payload.get("error_code") == "incomplete_stage_basis_grid"
+    for row in payload["missing_keys"]:
+        assert row.get("dissolution_temperature_c") is None
+
+
+def test_planted_t_still_completes_when_dissolution_t_is_omitted(monkeypatch):
+    _forbid_live(monkeypatch)
+    session = new_session()
+    with bind_tool_session(session):
+        handle = _plant_handle(
+            session, _complete_d18_rows(dissolution_temperature_c=80.0),
+        )
+        payload = _data(tea.rank_landscape(**_sequence_kwargs(handle=handle)))
+    assert payload.get("error_code") == "sequence_coupling_unproven"
+    assert "pending_blockers" not in payload
+    assert "landscape_points" not in payload
+
+
+def test_named_dissolution_t_does_not_accept_another_t(monkeypatch):
+    _forbid_live(monkeypatch)
+    session = new_session()
+    with bind_tool_session(session):
+        handle = _plant_handle(
+            session, _complete_d18_rows(dissolution_temperature_c=80.0),
+        )
+        payload = _data(tea.rank_landscape(
+            **_sequence_kwargs(
+                handle=handle,
+                process_config={**_CAP_20KT, "dissolution_temperature_c": 90.0},
+            ),
+        ))
+    assert payload.get("error_code") == "incomplete_stage_basis_grid"
+    assert payload.get("error_code") != "sequence_coupling_unproven"
+    keys = payload["missing_keys"]
+    assert len(keys) == 4
+    assert {row["dissolution_temperature_c"] for row in keys} == {90.0}
+    assert payload["pending_blockers"][0]["error_type"] == (
+        "sequence_coupling_unproven"
+    )
+    assert "landscape_points" not in payload
+
+
+def test_named_dissolution_t_completes_on_matching_rows(monkeypatch):
+    _forbid_live(monkeypatch)
+    session = new_session()
+    with bind_tool_session(session):
+        handle = _plant_handle(
+            session, _complete_d18_rows(dissolution_temperature_c=90.0),
+        )
+        payload = _data(tea.rank_landscape(
+            **_sequence_kwargs(
+                handle=handle,
+                process_config={**_CAP_20KT, "dissolution_temperature_c": 90.0},
+            ),
+        ))
+    assert payload.get("error_code") == "sequence_coupling_unproven"
+    assert "pending_blockers" not in payload
+    assert "missing_keys" not in payload
+    assert "landscape_points" not in payload
+
+
+def test_dissolution_temp_c_alias_stamps_the_public_name(monkeypatch):
+    _forbid_live(monkeypatch)
+    payload = _data(tea.rank_landscape(
+        **_sequence_kwargs(process_config={**_CAP_20KT, "dissolution_temp_c": 90}),
+    ))
+    assert payload.get("error_code") == "incomplete_stage_basis_grid"
+    keys = payload["missing_keys"]
+    assert len(keys) == 4
+    assert {row["dissolution_temperature_c"] for row in keys} == {90.0}
+
+
+def test_c1_at_wrong_t_does_not_fill_named_c1_and_t(monkeypatch):
+    _forbid_live(monkeypatch)
+    session = new_session()
+    with bind_tool_session(session):
+        handle = _plant_handle(
+            session,
+            _complete_d18_rows(energy_case="C1", dissolution_temperature_c=80.0),
+        )
+        payload = _data(tea.rank_landscape(
+            **_sequence_kwargs(
+                handle=handle,
+                process_config={
+                    **_CAP_20KT,
+                    "energy_case": "C1",
+                    "dissolution_temperature_c": 90.0,
+                },
+            ),
+        ))
+    assert payload.get("error_code") == "incomplete_stage_basis_grid"
+    keys = payload["missing_keys"]
+    assert len(keys) == 4
+    assert {row["energy_case"] for row in keys} == {"C1"}
+    assert {row["dissolution_temperature_c"] for row in keys} == {90.0}
+
+
+def test_dissolution_temperature_c_kwarg_is_unknown_extra(monkeypatch):
+    _forbid_live(monkeypatch)
+    payload = _data(tea.rank_landscape(
+        **_sequence_kwargs(dissolution_temperature_c=90.0),
+    ))
+    assert payload.get("error_code") == "unknown_process_field"
+    assert payload.get("extra_keys") == ["dissolution_temperature_c"]
+    assert payload.get("error_code") != "incomplete_stage_basis_grid"
+
+
+def test_nested_dissolution_t_does_not_count(monkeypatch):
+    _forbid_live(monkeypatch)
+    payload = _data(tea.rank_landscape(
+        **_sequence_kwargs(
+            process_config={
+                **_CAP_20KT,
+                "held": {"dissolution_temperature_c": 90.0},
+            },
+        ),
+    ))
+    assert payload.get("error_code") == "incomplete_stage_basis_grid"
+    for row in payload["missing_keys"]:
+        assert row.get("dissolution_temperature_c") is None
+
+
+def test_invalid_dissolution_t_is_not_a_listing(monkeypatch):
+    _forbid_live(monkeypatch)
+    payload = _data(tea.rank_landscape(
+        **_sequence_kwargs(
+            process_config={**_CAP_20KT, "dissolution_temperature_c": "hot"},
+        ),
+    ))
+    assert payload.get("error_code") == "invalid_admitted_record_query"
+    assert payload.get("error_code") != "incomplete_stage_basis_grid"
+
+
+def test_invalid_dissolution_t_does_not_outrank_missing_map(monkeypatch):
+    _forbid_live(monkeypatch)
+    payload = _data(tea.rank_landscape(
+        source="superstructure",
+        formulation="sequence",
+        feed_mass_fractions=_FEED_55_45,
+        process_config={**_CAP_20KT, "dissolution_temperature_c": "hot"},
     ))
     assert payload.get("error_code") == "missing_planner_solvent_map"
     assert payload.get("error_code") != "invalid_admitted_record_query"

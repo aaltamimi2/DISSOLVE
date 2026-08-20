@@ -4921,6 +4921,25 @@ def _requested_energy_case(process_config: Any) -> str | None:
     return token
 
 
+def _requested_dissolution_temperature_c(process_config: Any) -> float | None:
+    """Held dissolution T from process_config. Do not default a cache T."""
+    if not isinstance(process_config, dict):
+        return None
+    if (
+        "dissolution_temperature_c" in process_config
+        and process_config["dissolution_temperature_c"] not in (None, "")
+    ):
+        raw = process_config["dissolution_temperature_c"]
+    elif (
+        "dissolution_temp_c" in process_config
+        and process_config["dissolution_temp_c"] not in (None, "")
+    ):
+        raw = process_config["dissolution_temp_c"]
+    else:
+        return None
+    return round(_finite(raw, "dissolution_temperature_c"), 10)
+
+
 def _superstructure_composition_and_capacity(
     feed_mass_fractions: Any,
     process_config: Any,
@@ -5142,7 +5161,10 @@ def _sequence_coupling_unproven(formulation: str) -> str:
 
 
 def _remnant_key_from_row(
-    row: Any, *, energy_case: str | None = None,
+    row: Any,
+    *,
+    energy_case: str | None = None,
+    dissolution_temperature_c: float | None = None,
 ) -> tuple[Any, ...] | None:
     """Remnant coordinate of a tool-1 row. Failures are not a fill."""
     if not isinstance(row, dict) or row.get("success") is False:
@@ -5161,15 +5183,26 @@ def _remnant_key_from_row(
         cap_n = round(_finite(capacity, "processing_capacity_mt_per_yr"), 10)
     except (ValueError, _InputError, _ScenarioInputError):
         return None
-    four = (
+    key: tuple[Any, ...] = (
         polymer, mass_n, cap_n, _public_solvent_token(str(raw_solvent)),
     )
-    if energy_case is None:
-        return four
-    row_case = str(row.get("energy_case") or "").strip().upper()
-    if row_case != energy_case:
-        return None
-    return four + (energy_case,)
+    if energy_case is not None:
+        row_case = str(row.get("energy_case") or "").strip().upper()
+        if row_case != energy_case:
+            return None
+        key = key + (energy_case,)
+    if dissolution_temperature_c is not None:
+        raw_t = row.get("dissolution_temperature_c")
+        if raw_t in (None, ""):
+            return None
+        try:
+            row_t = round(_finite(raw_t, "dissolution_temperature_c"), 10)
+        except ValueError:
+            return None
+        if row_t != dissolution_temperature_c:
+            return None
+        key = key + (dissolution_temperature_c,)
+    return key
 
 
 def _cell_remnant_key(cell: dict[str, Any]) -> tuple[Any, ...] | None:
@@ -5184,11 +5217,17 @@ def _cell_remnant_key(cell: dict[str, Any]) -> tuple[Any, ...] | None:
         cap_n = round(_finite(capacity, "processing_capacity_mt_per_yr"), 10)
     except ValueError:
         return None
-    four = (polymer, mass_n, cap_n, solvent)
+    key: tuple[Any, ...] = (polymer, mass_n, cap_n, solvent)
     case = cell.get("energy_case")
-    if case in (None, ""):
-        return four
-    return four + (str(case).strip().upper(),)
+    if case not in (None, ""):
+        key = key + (str(case).strip().upper(),)
+    temp = cell.get("dissolution_temperature_c")
+    if temp not in (None, ""):
+        try:
+            key = key + (round(_finite(temp, "dissolution_temperature_c"), 10),)
+        except ValueError:
+            return None
+    return key
 
 
 def _unmatched_remnant_keys(
@@ -5203,9 +5242,26 @@ def _unmatched_remnant_keys(
         ),
         None,
     )
+    held_temp = next(
+        (
+            round(
+                _finite(cell["dissolution_temperature_c"], "dissolution_temperature_c"),
+                10,
+            )
+            for cell in missing_keys
+            if cell.get("dissolution_temperature_c") not in (None, "")
+        ),
+        None,
+    )
     present = {
         key for row in rows
-        if (key := _remnant_key_from_row(row, energy_case=held_case)) is not None
+        if (
+            key := _remnant_key_from_row(
+                row,
+                energy_case=held_case,
+                dissolution_temperature_c=held_temp,
+            )
+        ) is not None
     }
     unmatched: list[dict[str, Any]] = []
     for cell in missing_keys:
@@ -5225,10 +5281,17 @@ def _refuse_listed_or_complete(
 ) -> str | None:
     """Subtract handle rows from listed D-18 keys. Not a cache or campaign fill."""
     energy_case = _requested_energy_case(process_config)
-    if energy_case is not None:
-        missing_keys = [
-            {**cell, "energy_case": energy_case} for cell in missing_keys
-        ]
+    dissolution_t = _requested_dissolution_temperature_c(process_config)
+    if energy_case is not None or dissolution_t is not None:
+        stamped: list[dict[str, Any]] = []
+        for cell in missing_keys:
+            item = dict(cell)
+            if energy_case is not None:
+                item["energy_case"] = energy_case
+            if dissolution_t is not None:
+                item["dissolution_temperature_c"] = dissolution_t
+            stamped.append(item)
+        missing_keys = stamped
     if handle is not None:
         _source, rows, _stored = _load_process_rows_handle(handle)
         missing_keys = _unmatched_remnant_keys(missing_keys, rows)
@@ -5450,10 +5513,13 @@ def rank_landscape(
     and is not defaulted to 20 kt. Maps name solvents only. A tool-1
     handle on source=superstructure is the remnant coefficient table:
     rows matching listed D-18 keys are subtracted; unmatched stay
-    missing. When process_config names energy_case, listed keys include
+    missing.     When process_config names energy_case, listed keys include
     that held case and matching requires it; omitted energy_case is not
-    a silent C1 default. A complete sequence grid with production check
-    red is sequence_coupling_unproven as primary (no pending_blockers).
+    a silent C1 default. When process_config names
+    dissolution_temperature_c, listed keys include that held T and
+    matching requires it; omitted T is not a silent cache temperature.
+    A complete sequence grid with production check red is
+    sequence_coupling_unproven as primary (no pending_blockers).
     Do not scan top_k_sequences for either map. formulation is required
     iff source=superstructure; formulation=wash_train is
     process_model_wash_train_unavailable. formulation=sequence_solvent
