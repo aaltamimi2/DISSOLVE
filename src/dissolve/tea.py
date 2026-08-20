@@ -20,7 +20,7 @@ from functools import lru_cache
 from importlib.resources import files
 from itertools import combinations
 from pathlib import Path
-from typing import Any, Literal, Optional, Sequence
+from typing import Any, Literal, Mapping, Optional, Sequence
 
 from . import tea_contracts, tea_polymer_parameters, tea_worker
 from . import thermodynamics as thermo
@@ -8874,6 +8874,19 @@ def _planner_route_point(
     return point
 
 
+def _planner_grouping(exact: Mapping[str, Any]) -> dict[str, Any]:
+    """Held identity of the plan. polymer_grouping stays process_rows-only."""
+    grouping: dict[str, Any] = {
+        "polymers": list(exact.get("polymers") or []),
+        "breadth": exact.get("breadth"),
+        "branch_rule": str(exact.get("branch_rule") or "count"),
+    }
+    fractions = exact.get("feed_mass_fractions")
+    if isinstance(fractions, dict):
+        grouping["feed_mass_fractions"] = dict(fractions)
+    return grouping
+
+
 def _rank_planner_routes(
     *,
     operation: str,
@@ -8888,6 +8901,7 @@ def _rank_planner_routes(
     campaign_fingerprint: Any,
     process_config: Any,
     formulation: Any,
+    polymer_grouping: str,
 ) -> str:
     tool = "rank_landscape"
     inapplicable = [
@@ -8901,6 +8915,8 @@ def _rank_planner_routes(
         )
         if value is not None
     ]
+    if polymer_grouping != "per_target_polymer":
+        inapplicable.append("polymer_grouping")
     if inapplicable:
         return _stamp_screen_to_economics_order(
             tool_error(
@@ -9114,6 +9130,7 @@ def _rank_planner_routes(
             frontier_points=frontier,
             n_landscape_points=n_landscape,
             n_frontier_points=n_frontier,
+            grouping=_planner_grouping(exact),
             **quality,
         ),
         order,
@@ -9259,6 +9276,7 @@ def rank_landscape(
             campaign_fingerprint=campaign_fingerprint,
             process_config=process_config,
             formulation=formulation,
+            polymer_grouping=grouping_token,
         )
     map_fields = [
         name for name, value in (

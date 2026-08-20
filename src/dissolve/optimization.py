@@ -14,7 +14,7 @@ from functools import lru_cache
 from importlib.metadata import PackageNotFoundError, version as package_version
 from importlib.resources import files
 from pathlib import Path
-from typing import Any, Literal, Optional, Sequence
+from typing import Any, Literal, Mapping, Optional, Sequence
 
 from .contracts import tool_error, tool_success
 from . import tea_contracts
@@ -542,6 +542,15 @@ def _stamp_residual_points(
     return [_stamp_residual_point(point) for point in points]
 
 
+def _residual_grouping(source: Mapping[str, Any]) -> dict[str, Any]:
+    """Held identity of one costed route. Not process_rows polymer_grouping."""
+    return {
+        "source_route_signature": source["tea"].get("route_signature"),
+        "feed_mass_fractions": dict(source["composition"]),
+        "feed_mt_per_yr": source["feed_mt_per_yr"],
+    }
+
+
 def _axis_extreme(
     points: Sequence[dict[str, Any]], key: str, direction: str,
 ) -> dict[str, Any]:
@@ -852,6 +861,7 @@ def rank_residual_route(
         frontier = _stamp_residual_points(frontier)
         cheapest = _stamp_residual_point(cheapest)
         quality = _residual_pareto_quality(marked, frontier, x_key, y_key)
+        grouping = _residual_grouping(source)
         slice_payloads.append({
             "slice_id": f"slice-{index}",
             "feed_mass_fractions": composition,
@@ -869,6 +879,7 @@ def rank_residual_route(
                 y_key,
                 cheapest_equals_lowest_y=quality["cheapest_equals_lowest_y"],
             ),
+            "grouping": grouping,
             **quality,
         })
     if not slice_payloads:
@@ -907,12 +918,13 @@ def rank_residual_route(
         knee_status=primary["knee_status"],
         cheapest_point=primary["cheapest_point"],
         frontier_tradeoff=primary["frontier_tradeoff"],
+        grouping=primary["grouping"],
         slices=[{
             key: item[key] for key in (
                 "slice_id", "feed_mass_fractions", "n_landscape_points",
                 "n_frontier_points", "frontier_fraction", "sparse_frontier",
                 "cheapest_equals_lowest_y", "axis_spans", "knee_point", "cheapest_point",
-                "knee_status", "frontier_tradeoff",
+                "knee_status", "frontier_tradeoff", "grouping",
             )
         } for item in slice_payloads],
         points_are_subset_of_landscape=True,

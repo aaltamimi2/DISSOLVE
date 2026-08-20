@@ -362,10 +362,52 @@ def test_planner_routes_pareto_has_f_quality_schema(monkeypatch):
         assert tradeoff["y_units"] == "dimensionless"
         assert "incremental_annual_cost_usd" not in tradeoff
         assert "msp_usd_per_kg" not in (tradeoff.get("x_metric"), tradeoff.get("y_metric"))
+    grouping = data.get("grouping") or {}
+    assert "polymer_grouping" not in grouping
+    plan_exact = load_handle(session, branched["handle"])["exact"]
+    assert grouping.get("polymers") == plan_exact.get("polymers")
+    assert grouping.get("breadth") == plan_exact.get("breadth")
+    assert grouping.get("branch_rule") == (
+        plan_exact.get("branch_rule") or "count"
+    )
+    if "feed_mass_fractions" in plan_exact:
+        assert grouping.get("feed_mass_fractions") == plan_exact.get(
+            "feed_mass_fractions",
+        )
+    else:
+        assert "feed_mass_fractions" not in grouping
     sort_data = sort_payload.get("data") or {}
     assert "frontier_fraction" not in sort_data
     assert "axis_spans" not in sort_data
     assert "sparse_frontier" not in sort_data
+    assert "grouping" not in sort_data
+
+
+def test_planner_routes_mixed_polymer_grouping_is_not_applicable(monkeypatch):
+    def forbidden(*args, **kwargs):
+        raise AssertionError("planner_routes must not start BioSTEAM")
+
+    monkeypatch.setattr(tea, "_live", forbidden)
+    monkeypatch.setattr(tea.tea_worker, "run", forbidden)
+    session = new_session()
+    with bind_tool_session(session):
+        branched = dispatch(
+            "plan_multistage_separation",
+            feed_polymers=_PAIR,
+            breadth=5,
+        )
+        payload = dispatch(
+            "rank_landscape",
+            source="planner_routes",
+            operation="pareto_dominance",
+            handle=branched["handle"],
+            polymer_grouping="mixed_polymer",
+        )
+    data = payload.get("data") or {}
+    assert payload.get("available") is False
+    assert payload.get("refusal") == "not_applicable_in_source"
+    assert data.get("inapplicable_fields") == ["polymer_grouping"]
+    assert data.get("source") == "planner_routes"
 
 
 def test_planner_pareto_quality_star_is_sparse_and_null_tradeoff():

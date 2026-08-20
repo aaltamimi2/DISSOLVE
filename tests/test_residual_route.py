@@ -89,6 +89,21 @@ def test_residual_route_planner_handle_is_not_the_costed_route(monkeypatch):
     assert payload.get("error_code") != "tool_not_wired"
 
 
+def test_residual_route_mixed_polymer_grouping_is_not_applicable(monkeypatch):
+    session = new_session()
+    with bind_tool_session(session):
+        handle, _costed = _costed_route_handle(session, monkeypatch)
+        payload = _data(tea.rank_landscape(
+            source="residual_route",
+            operation="pareto_dominance",
+            handle=handle,
+            polymer_grouping="mixed_polymer",
+        ))
+    assert payload.get("error_code") == "not_applicable_in_source"
+    assert payload.get("inapplicable_fields") == ["polymer_grouping"]
+    assert payload.get("source") == "residual_route"
+
+
 def test_residual_route_sort_is_not_applicable(monkeypatch):
     _forbid_live(monkeypatch)
     payload = _data(tea.rank_landscape(source="residual_route", operation="sort"))
@@ -197,6 +212,14 @@ def test_residual_route_pareto_returns_landscape_and_frontier(monkeypatch):
         assert span == optimization.axis_span(values)
     slice0 = (payload.get("slices") or [{}])[0]
     assert slice0.get("axis_spans") == spans
+    grouping = payload.get("grouping") or {}
+    assert "polymer_grouping" not in grouping
+    assert grouping.get("source_route_signature") == payload.get(
+        "source_route_signature",
+    )
+    assert grouping.get("feed_mass_fractions") == payload.get("feed_mass_fractions")
+    assert grouping.get("feed_mt_per_yr") == payload.get("feed_mt_per_yr")
+    assert slice0.get("grouping") == grouping
     tradeoff = payload.get("frontier_tradeoff")
     if payload.get("cheapest_equals_lowest_y") or n_front < 2:
         assert tradeoff is None
@@ -365,6 +388,7 @@ def test_residual_route_optimum_omits_frontier_fraction(monkeypatch):
     assert "frontier_fraction" not in payload
     assert "sparse_frontier" not in payload
     assert "axis_spans" not in payload
+    assert "grouping" not in payload
     landscape = payload.get("landscape_points") or []
     assert landscape
     assert all(
