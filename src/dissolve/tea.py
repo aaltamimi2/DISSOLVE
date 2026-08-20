@@ -8906,6 +8906,11 @@ def _rank_planner_routes(
     solvent: Any,
     energy_cases: Any,
     allow_partial_campaign: bool,
+    scenario: Any,
+    recovery_yield: Any,
+    polymer_market_values_usd_per_mt: Any,
+    solver_name: Any,
+    composition_slices: Any,
 ) -> str:
     tool = "rank_landscape"
     inapplicable = [
@@ -8919,6 +8924,11 @@ def _rank_planner_routes(
             ("target_polymer", target_polymer),
             ("solvent", solvent),
             ("energy_cases", energy_cases),
+            ("scenario", scenario),
+            ("recovery_yield", recovery_yield),
+            ("polymer_market_values_usd_per_mt", polymer_market_values_usd_per_mt),
+            ("solver_name", solver_name),
+            ("composition_slices", composition_slices),
         )
         if value not in (None, "", [])
     ]
@@ -9291,6 +9301,11 @@ def rank_landscape(
             solvent=solvent,
             energy_cases=energy_cases,
             allow_partial_campaign=allow_partial_campaign,
+            scenario=scenario,
+            recovery_yield=recovery_yield,
+            polymer_market_values_usd_per_mt=polymer_market_values_usd_per_mt,
+            solver_name=solver_name,
+            composition_slices=composition_slices,
         )
     map_fields = [
         name for name, value in (
