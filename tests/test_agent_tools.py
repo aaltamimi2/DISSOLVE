@@ -18,7 +18,7 @@ for _p in (str(_ROOT), str(_ROOT / "src")):
 import agent_harness
 import agent_tools
 from agent_harness import TurnResult, run_turn
-from agent_tools import dispatch, result_read, source_basis_for, tool_schemas
+from agent_tools import UNWIRED, dispatch, result_read, source_basis_for, tool_schemas
 from dissolve import session as sess
 from dissolve.session import (
     CompactionBudgetError, append_reported, bind_tool_session,
@@ -288,12 +288,11 @@ def test_route_substitution_bound_count_separate_from_displayed():
 
 def test_unwired_names_do_not_call_engine():
     with _bound():
-        out = dispatch("pareto_optimize_stored_route")
-        assert out["refusal"] == "tool_not_wired"
-        assert out["available"] is False
+        assert UNWIRED == frozenset()
         for name in (
             "evaluate_stored_route_tea_lca",
             "optimize_stored_route",
+            "pareto_optimize_stored_route",
         ):
             retired = dispatch(name)
             assert retired["available"] is False
@@ -332,11 +331,11 @@ def test_schemas_handle_only_on_consumer_and_omit_injected():
     assert "evaluate_tea_lca_scenarios" not in schemas
     assert "evaluate_stored_route_tea_lca" not in schemas
     assert "optimize_stored_route" not in schemas
+    assert "pareto_optimize_stored_route" not in schemas
     rm = schemas["screen_polymer_separation"]["parameters"]["properties"]["ranking_mode"]
     assert "target_dissolution" in rm["enum"]
     mt = schemas["lookup_hansen_parameters"]["parameters"]["properties"]["material_type"]
     assert set(mt["enum"]) == {"polymer", "solvent"}
-    assert schemas["pareto_optimize_stored_route"]["description"].startswith("UNWIRED.")
     paths = schemas["ingest_literature_graph"]["parameters"]["properties"]["paths"]
     assert paths["type"] == "array" and paths["items"]["type"] == "string"
     empty = []

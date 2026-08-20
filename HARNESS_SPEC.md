@@ -914,23 +914,21 @@ rows in the way `PE` does; do not invent a family walk.
 
 A refusal that names a recoverable cause for an unrecoverable
 condition is the same defect class as a value returned for an
-ambiguous name. `pareto_optimize_stored_route` reads
-`getattr(state, "last_route"|"last_tea", ...)` on an interface v12
-removed. If it returns the engine's "no stored route" / "complete
-stored route is required", the model will do exactly what a
-recoverable refusal asks of it: recover in one step by running a route
-first, then call
-again, and get the identical refusal. That is a guaranteed two-round
-loop against a 30-round cap, on a tool that can never succeed no
-matter what precedes it. The Python engines
-`evaluate_stored_route_tea_lca` and `optimize_stored_route` still
-getattr-read session state; they are not registry names. The public
-wraps are `evaluate_process` mode=route (handle plus row_id) and
-`rank_landscape` source=residual_route operation=optimum. Dispatch of
-those retired strings is `unknown_tool`.
+ambiguous name. The Python engines `evaluate_stored_route_tea_lca`,
+`optimize_stored_route`, and `pareto_optimize_stored_route` still
+getattr-read `last_route` / `last_tea` on an interface v12 removed.
+They are not registry names. If those engines returned "no stored
+route" / "complete stored route is required" on the public binder,
+the model would recover in one step by running a route first, then
+call again, and get the identical refusal. That is why those names
+were `tool_not_wired` while registered. Dispatch of those retired
+strings is now `unknown_tool`. The public wraps are
+`evaluate_process` mode=route (handle plus row_id) and
+`rank_landscape` source=residual_route (optimum or pareto_dominance)
+plus source=process_rows operation=pareto_dominance.
 
-The wrapper intercepts that remaining name **before** `registry.call`
-and returns:
+The wrapper still intercepts the closed unwired set **before**
+`registry.call` and returns:
 
 ```
 {"available": false,
@@ -938,15 +936,11 @@ and returns:
  "detail": "reads session state through an interface v12 removed; pending an engine pass to accept a handle"}
 ```
 
-The generated schema description says the same (§3.1), so the model
-can decline the call rather than discovering it per query. That is
-what makes the §12.6 enumeration operational instead of a note in a
-document. Do not let the engine's recoverable-looking string reach
-the model.
+The generated schema description says the same (§3.1) for any name
+still in the set. The measured set is empty. Do not revive
+`SessionState` so getattr starts working.
 
-Unwired set (closed, named — not a query router):
-
-- `pareto_optimize_stored_route`
+Unwired set (closed, named — not a query router): empty.
 
 **Rejected:** presenting this as `no_stored_route` or
 `missing_candidates`.  
@@ -1007,8 +1001,6 @@ Report the source_basis with the number.
   not read a boundary-equal row off the handle, do not claim the two
   are the same. D-5 (`3698afe`): prompt-fixed; compliance unverified
   until a live rerun.
-- pareto_optimize_stored_route is unwired. Do not call it to
-  recover a missing route.
 
 A refusal is final. Report it, say what is available, and do not retry
 the same call with a nudged argument. Off-grid temperatures come back
@@ -1567,16 +1559,16 @@ exact, associable, ordered, durable. Verifiable, not self-verifying.
   registered tool. Do not keep a parallel path. Do not decide the
   pair together by import cost; the mutation test happens to cut
   both.
-- **`pareto_optimize_stored_route`.** Refuse `tool_not_wired` before
-  `registry.call`. Schema description names the status. Not
-  `no_stored_route` — that string is indistinguishable from "the
-  user has not run a route yet" and produces a guaranteed two-round
-  loop (§5.4). Pending an engine pass to accept a handle. Do not
-  revive `SessionState`. `evaluate_stored_route_tea_lca` and
-  `optimize_stored_route` remain Python engines; they are not
-  registry names. Cost a stored route through `evaluate_process`
-  mode=route. Rank a costed route through `rank_landscape`
-  source=residual_route operation=optimum.
+- **Unwired session readers.** The closed set is empty. The wrapper
+  still refuses `tool_not_wired` for any name that later joins it,
+  before `registry.call`. `evaluate_stored_route_tea_lca`,
+  `optimize_stored_route`, and `pareto_optimize_stored_route` remain
+  Python engines; they are not registry names. Cost a stored route
+  through `evaluate_process` mode=route. Rank a costed route through
+  `rank_landscape` source=residual_route (optimum or
+  pareto_dominance). Rank already-run process rows through
+  `rank_landscape` source=process_rows operation=pareto_dominance.
+  Do not revive `SessionState`.
 
 **Disagreements with Part 1, named so they are not silent:**
 

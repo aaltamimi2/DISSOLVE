@@ -319,7 +319,7 @@ def test_exclude_safety_fail_stays_unknown_extra(monkeypatch):
 def test_maps_are_optional_schema_args_not_a_35th_name(monkeypatch):
     _forbid_live(monkeypatch)
     assert "rank_landscape" not in CONSUMERS
-    assert len(EXPECTED_REGISTRY_NAMES) == 30
+    assert len(EXPECTED_REGISTRY_NAMES) == 29
     props = {
         item["name"]: item["parameters"]["properties"]
         for item in tool_schemas()

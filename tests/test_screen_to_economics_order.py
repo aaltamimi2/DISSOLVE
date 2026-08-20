@@ -229,6 +229,7 @@ def test_schema_exposes_the_closed_choice():
     assert "analyze_tea_sensitivity" not in schemas
     assert "evaluate_stored_route_tea_lca" not in schemas
     assert "optimize_stored_route" not in schemas
+    assert "pareto_optimize_stored_route" not in schemas
     engine_params = inspect.signature(tea.evaluate_tea_lca_scenarios).parameters
     assert "screen_to_economics_order" not in engine_params
     assert "screen_to_economics_order" not in inspect.signature(

@@ -8395,8 +8395,10 @@ def rank_landscape(
     successful mode=route payload and ranks prefix × leftover tech × A/B
     of that one costed route (optimum or pareto_dominance). Identity
     comes from the handle, never last_route. optimize_stored_route
-    remains a Python engine; it is not a registry name. The public
-    wrap is source=residual_route operation=optimum. source=superstructure takes planner_solvent_map.v1
+    and pareto_optimize_stored_route remain Python engines; they are
+    not registry names. The public wraps are source=residual_route
+    operation=optimum and pareto_dominance on residual_route and
+    process_rows. source=superstructure takes planner_solvent_map.v1
     (formulation=sequence) or allowed_solvents.v1 (formulation=solvent) as
     arguments, not a third public tool. Missing maps refuse by name before
     incomplete_stage_basis_grid. A bound map still has no remnant table:

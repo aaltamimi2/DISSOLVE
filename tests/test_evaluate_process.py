@@ -105,12 +105,17 @@ def test_evaluate_process_is_registered_lookup_engine_stays():
     assert "optimize_stored_route" not in EXPECTED_REGISTRY_NAMES
     assert callable(optimization.optimize_stored_route)
     assert "optimize_stored_route" not in UNWIRED
+    assert "pareto_optimize_stored_route" not in registry.BY_NAME
+    assert "pareto_optimize_stored_route" not in EXPECTED_REGISTRY_NAMES
+    assert callable(optimization.pareto_optimize_stored_route)
+    assert "pareto_optimize_stored_route" not in UNWIRED
+    assert UNWIRED == frozenset()
     assert "evaluate_process" not in UNWIRED
     assert "evaluate_process" in tea.PROCESS_CONFIRM_TOOLS
     assert "evaluate_tea_lca_scenarios" not in tea.PROCESS_CONFIRM_TOOLS
     assert "analyze_tea_sensitivity" not in tea.PROCESS_CONFIRM_TOOLS
-    assert len(EXPECTED_REGISTRY_NAMES) == 30
-    assert len(registry.REGISTRY) == 30
+    assert len(EXPECTED_REGISTRY_NAMES) == 29
+    assert len(registry.REGISTRY) == 29
     retired = dispatch("evaluate_tea_lca_scenarios")
     assert retired.get("available") is False
     assert retired.get("refusal") == "unknown_tool"
@@ -123,6 +128,9 @@ def test_evaluate_process_is_registered_lookup_engine_stays():
     retired_optimize = dispatch("optimize_stored_route")
     assert retired_optimize.get("available") is False
     assert retired_optimize.get("refusal") == "unknown_tool"
+    retired_pareto = dispatch("pareto_optimize_stored_route")
+    assert retired_pareto.get("available") is False
+    assert retired_pareto.get("refusal") == "unknown_tool"
 
 
 def test_schema_uses_two_typed_objects_not_top_level_polymer():

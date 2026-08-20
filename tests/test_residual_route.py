@@ -19,8 +19,10 @@ from test_evaluate_process import (
     _ROUTE_ENERGY,
     _ROUTE_PRECIP,
     _exact_planner_route,
+    _public_from_record,
     _store_planner_route_handle,
 )
+from test_rank_evaluate_handle import _record_by_label
 
 
 def _data(raw: str) -> dict:
@@ -149,6 +151,56 @@ def test_residual_route_pareto_returns_landscape_and_frontier(monkeypatch):
     }
     assert payload.get("cheapest_point")
     assert "frontier_tradeoff" in payload
+
+
+def test_pareto_name_retired_both_successors_serve(monkeypatch):
+    session = new_session()
+    with bind_tool_session(session):
+        route_handle, _costed = _costed_route_handle(session, monkeypatch)
+        residual = dispatch(
+            "rank_landscape",
+            source="residual_route",
+            operation="pareto_dominance",
+            handle=route_handle,
+        )
+        assert residual.get("available") is True
+        assert residual["data"]["source"] == "residual_route"
+        assert residual["data"]["operation"] == "pareto_dominance"
+        assert residual["data"].get("n_frontier_points") >= 1
+        c1 = _record_by_label("ldpe-route-c1")
+        c2 = _record_by_label("ldpe-route-c2")
+        batch = _data(tea.evaluate_process(
+            mode="evaluate",
+            process_configs=[
+                _public_from_record(c1),
+                _public_from_record(c2),
+            ],
+            engine_mode="cache",
+        ))
+        assert batch.get("success") is True
+        batch_handle = store_handle(
+            session,
+            tool="evaluate_process",
+            source_basis="tea_cache_exact",
+            data=batch,
+        )
+        process_rows = dispatch(
+            "rank_landscape",
+            source="process_rows",
+            operation="pareto_dominance",
+            handle=batch_handle,
+        )
+        assert process_rows.get("available") is True
+        assert process_rows["data"]["source"] == "process_rows"
+        assert process_rows["data"]["operation"] == "pareto_dominance"
+        assert process_rows["data"].get("n_frontier_points") >= 1
+        old = dispatch("pareto_optimize_stored_route")
+        assert old.get("available") is False
+        assert old.get("refusal") == "unknown_tool"
+    assert callable(optimization.pareto_optimize_stored_route)
+    engine = _data(optimization.pareto_optimize_stored_route())
+    assert engine.get("error_code") == "invalid_pareto_basis"
+    assert engine.get("tool_name") == "pareto_optimize_stored_route"
 
 
 def test_dispatch_residual_route_issues_handle(monkeypatch):

@@ -24,7 +24,7 @@ from __future__ import annotations
 from typing import Any, Callable, NamedTuple
 
 from . import (
-    analysis, contaminants, optimization, research, safety,
+    analysis, contaminants, research, safety,
     separation, tea, tools,
 )
 
@@ -64,8 +64,6 @@ REGISTRY: tuple[Tool, ...] = tuple([
     # --- TEA / LCA ---
     _t(tea.evaluate_process, "tea"),
     _t(tea.rank_landscape, "tea"),
-    # --- optimization ---
-    _t(optimization.pareto_optimize_stored_route, "optimization"),
     # --- Hansen parameters, thermal properties, numeric analysis ---
     _t(analysis.lookup_hansen_parameters, "analysis"),
     _t(analysis.screen_hansen_compatibility, "analysis"),
