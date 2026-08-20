@@ -210,6 +210,78 @@ def test_exclude_safety_fail_is_unknown_extra(monkeypatch, tmp_path):
     assert data["extra_keys"] == ["exclude_safety_fail"]
 
 
+def test_evaluated_safety_standing_is_carried_not_filtered(monkeypatch, tmp_path):
+    definition = _minimal_definition(pair_definitions=[
+        {"config_sent": {"target_plastic": "LDPE", "solvent": "toluene"}},
+        {"config_sent": {"target_plastic": "LDPE", "solvent": "xylene"}},
+    ])
+    canonical = campaign_consume.canonical_json_digest(definition)
+    toluene = _success_row(canonical, "p1", "LDPE", "Toluene", 1.0, 0.4)
+    toluene["safety_standing"] = {
+        "status": "evaluated",
+        "safety_profile": {"ghs_signal_word": "Danger"},
+    }
+    xylene = _success_row(canonical, "p2", "LDPE", "Xylene", 2.0, 0.8)
+    canonical, entry = _mini(
+        tmp_path, [toluene, xylene], definition=definition,
+    )
+    registry = _write_registry(tmp_path, {canonical: entry})
+    data = _rank(monkeypatch, registry, campaign_fingerprint=canonical)
+    assert data["success"] is True
+    assert data["n_usable"] == 2
+    assert data["n_landscape_points"] == 2
+    assert data["safety_standing_policy"] == "carried_not_filtered"
+    by_id = {point["pair_id"]: point for point in data["landscape_points"]}
+    assert by_id["p1"]["safety_standing"]["status"] == "evaluated"
+    assert by_id["p1"]["safety_standing"]["safety_profile"] == {
+        "ghs_signal_word": "Danger",
+    }
+    assert by_id["p2"]["safety_standing"] == {"status": "not_requested"}
+    assert by_id["p1"]["safety_standing"] != by_id["p2"]["safety_standing"]
+    assert data.get("excluded_count") == 0
+    assert "GSK-fail" not in (data.get("excluded_by_error_type") or {})
+
+
+def test_unavailable_safety_standing_is_carried(monkeypatch, tmp_path):
+    definition = _minimal_definition(pair_definitions=[
+        {"config_sent": {"target_plastic": "LDPE", "solvent": "toluene"}},
+        {"config_sent": {"target_plastic": "LDPE", "solvent": "xylene"}},
+    ])
+    canonical = campaign_consume.canonical_json_digest(definition)
+    missing = _success_row(canonical, "p1", "LDPE", "Toluene", 1.0, 0.4)
+    missing["safety_standing"] = {"status": "unavailable"}
+    sibling = _success_row(canonical, "p2", "LDPE", "Xylene", 2.0, 0.8)
+    canonical, entry = _mini(
+        tmp_path, [missing, sibling], definition=definition,
+    )
+    registry = _write_registry(tmp_path, {canonical: entry})
+    data = _rank(monkeypatch, registry, campaign_fingerprint=canonical)
+    by_id = {point["pair_id"]: point for point in data["landscape_points"]}
+    assert by_id["p1"]["safety_standing"] == {"status": "unavailable"}
+    assert by_id["p2"]["safety_standing"]["status"] == "not_requested"
+    assert data["n_usable"] == 2
+
+
+def test_illegal_safety_status_is_not_copied(monkeypatch, tmp_path):
+    definition = _minimal_definition(pair_definitions=[
+        {"config_sent": {"target_plastic": "LDPE", "solvent": "toluene"}},
+        {"config_sent": {"target_plastic": "LDPE", "solvent": "xylene"}},
+    ])
+    canonical = campaign_consume.canonical_json_digest(definition)
+    bad = _success_row(canonical, "p1", "LDPE", "Toluene", 1.0, 0.4)
+    bad["safety_standing"] = {"status": "fail", "excluded": True}
+    sibling = _success_row(canonical, "p2", "LDPE", "Xylene", 2.0, 0.8)
+    canonical, entry = _mini(
+        tmp_path, [bad, sibling], definition=definition,
+    )
+    registry = _write_registry(tmp_path, {canonical: entry})
+    data = _rank(monkeypatch, registry, campaign_fingerprint=canonical)
+    by_id = {point["pair_id"]: point for point in data["landscape_points"]}
+    assert by_id["p1"]["safety_standing"] == {"status": "not_requested"}
+    assert "excluded" not in by_id["p1"]["safety_standing"]
+    assert data["n_usable"] == 2
+
+
 def test_residual_route_is_unwired(monkeypatch, tmp_path):
     monkeypatch.delenv(campaign_consume.REGISTRY_ENV, raising=False)
     data = _data(tea.rank_landscape(

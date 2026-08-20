@@ -1,4 +1,8 @@
-"""rank_landscape source=process_rows: usable projection, landscape AND frontier."""
+"""rank_landscape source=process_rows: usable projection, landscape AND frontier.
+
+safety_standing is a carried axis: copy a legal status from the source row.
+Do not filter usable on it. Default not_requested when nothing was bound.
+"""
 from __future__ import annotations
 
 import json
@@ -15,6 +19,9 @@ X_UNITS = "USD/kg"
 Y_UNITS = "kg CO2e/kg"
 X_DIRECTION = "min"
 Y_DIRECTION = "min"
+_SAFETY_STANDING_STATUSES = frozenset({
+    "evaluated", "not_requested", "unavailable",
+})
 
 
 def _finite_number(value: Any) -> bool:
@@ -136,6 +143,21 @@ def _public_twelve_from_process_row(
     return public
 
 
+def _carried_safety_standing(row: Mapping[str, Any]) -> dict[str, Any]:
+    """Copy a legal safety_standing object. Not a GSK-fail predicate."""
+    nested = row.get("comparison_row")
+    sources = (row.get("safety_standing"),)
+    if isinstance(nested, dict):
+        sources = (row.get("safety_standing"), nested.get("safety_standing"))
+    for source in sources:
+        if not isinstance(source, dict):
+            continue
+        status = str(source.get("status") or "").strip()
+        if status in _SAFETY_STANDING_STATUSES:
+            return dict(source)
+    return {"status": "not_requested"}
+
+
 def compact_process_row(row: Mapping[str, Any]) -> dict[str, Any]:
     comparison = dict(row.get("comparison_row") or {})
     standing = dict(row.get("standing") or {})
@@ -154,7 +176,7 @@ def compact_process_row(row: Mapping[str, Any]) -> dict[str, Any]:
             "can_cite_as_validated_process",
         ),
         "lca_coverage": _lca_standing(comparison),
-        "safety_standing": {"status": "not_requested"},
+        "safety_standing": _carried_safety_standing(row),
     }
     payload.update(_public_twelve_from_process_row(row, comparison))
     return payload
@@ -466,6 +488,9 @@ def economics_row_as_process_row(
         "comparison_row": comparison,
         "config_normalized_twelve": worker,
     }
+    safety = row.get("safety_standing")
+    if isinstance(safety, dict):
+        payload["safety_standing"] = dict(safety)
     if row.get("engine_mode"):
         payload["engine_mode"] = row["engine_mode"]
     return payload

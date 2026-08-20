@@ -110,6 +110,53 @@ def test_evaluate_batch_handle_ranks_without_fingerprint(monkeypatch):
     assert payload["sparse_frontier"] is True or payload["n_frontier_points"] >= 1
 
 
+def test_evaluate_handle_carries_bound_safety_standing(monkeypatch):
+    c1 = _record_by_label("ldpe-route-c1")
+    c2 = _record_by_label("ldpe-route-c2")
+    _forbid_live(monkeypatch)
+    session = new_session()
+    with bind_tool_session(session):
+        first = _data(tea.evaluate_tea_lca_scenarios(
+            [_public_from_record(c1), _public_from_record(c2)],
+            engine_mode="cache",
+        ))
+        assert first.get("success") is True
+        rows = list(first["comparison_rows"])
+        rows[0] = dict(rows[0])
+        rows[0]["safety_standing"] = {
+            "status": "evaluated",
+            "safety_profile": {"ghs_signal_word": "Danger"},
+        }
+        first = dict(first)
+        first["comparison_rows"] = rows
+        handle = store_handle(
+            session,
+            tool="evaluate_tea_lca_scenarios",
+            source_basis="tea_cache_exact",
+            data=first,
+        )
+        payload = _data(tea.rank_landscape(handle=handle))
+    assert payload.get("success") is True
+    assert payload["n_usable"] == 2
+    assert payload["safety_standing_policy"] == "carried_not_filtered"
+    points = payload["landscape_points"]
+    statuses = {point["safety_standing"]["status"] for point in points}
+    assert statuses == {"evaluated", "not_requested"}
+    evaluated = next(
+        point for point in points
+        if point["safety_standing"]["status"] == "evaluated"
+    )
+    skipped = next(
+        point for point in points
+        if point["safety_standing"]["status"] == "not_requested"
+    )
+    assert evaluated["safety_standing"]["safety_profile"] == {
+        "ghs_signal_word": "Danger",
+    }
+    assert skipped["safety_standing"] == {"status": "not_requested"}
+    assert evaluated["energy_case"] != skipped["energy_case"]
+
+
 def test_c1_and_c2_evaluate_batch_is_not_mixed_campaign_basis(monkeypatch):
     c1 = _record_by_label("ldpe-route-c1")
     c2 = _record_by_label("ldpe-route-c2")
