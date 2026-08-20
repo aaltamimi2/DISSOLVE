@@ -7356,9 +7356,10 @@ def evaluate_tea_lca_scenarios(
     item (three from_screen, nine supplied). The same shortlist may inherit
     the nine from an economics handle when held_process_basis is omitted.
     temperature_c maps to dissolution_temperature_c only on that handoff.
-    Unknown extra keys refuse. Wrong-mode scalars (lookup selectors,
-    energy_cases, record_form, requested_metrics, parameter / values /
-    analysis_mode / metric) refuse not_applicable_in_mode. Omitted
+    Unknown extra keys refuse unknown_process_field. Wrong-mode scalars
+    (lookup selectors, energy_cases, record_form, requested_metrics,
+    parameter / values / analysis_mode / metric) refuse
+    not_applicable_in_mode. Omitted
     switches and coefficients keep the production plant. This is not a
     third public TEA name and does not fill the nine from a cache pair or
     a screening payload.
@@ -7392,10 +7393,12 @@ def evaluate_tea_lca_scenarios(
             **details,
         )
     if leftover:
-        unexpected = ", ".join(repr(name) for name in sorted(leftover))
-        raise TypeError(
-            "evaluate_tea_lca_scenarios() got unexpected keyword "
-            f"argument(s): {unexpected}"
+        extra = sorted(str(name) for name in leftover)
+        return tool_error(
+            tool,
+            "unknown extra argument",
+            error_code="unknown_process_field",
+            extra_keys=extra,
         )
     field_origin = None
     field_origins = None

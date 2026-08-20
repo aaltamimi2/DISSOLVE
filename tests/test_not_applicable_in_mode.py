@@ -128,15 +128,43 @@ def test_nested_selector_stays_unknown_process_field(monkeypatch):
     assert "sensitivity_axes" in list(payload.get("extra_keys") or [])
 
 
-def test_unknown_top_level_kwarg_is_still_typeerror(monkeypatch):
+def test_unknown_top_level_kwarg_is_unknown_process_field(monkeypatch):
     record = _record_by_label("ldpe-route-c1")
+    scenario = _public_from_record(record)
     _forbid_live(monkeypatch)
-    with pytest.raises(TypeError):
-        tea.evaluate_tea_lca_scenarios(
-            [_public_from_record(record)],
-            engine_mode="cache",
-            not_a_lookup_selector=True,
-        )
+    leftover = _data(tea.evaluate_tea_lca_scenarios(
+        [scenario],
+        engine_mode="cache",
+        not_a_lookup_selector=True,
+    ))
+    assert leftover.get("error_code") == "unknown_process_field"
+    assert leftover.get("extra_keys") == ["not_a_lookup_selector"]
+    assert leftover.get("error_code") != "not_applicable_in_mode"
+    assert leftover.get("tool_name") == "evaluate_tea_lca_scenarios"
+    assert "comparison_rows" not in leftover
+    other = _data(tea.evaluate_tea_lca_scenarios(
+        [scenario],
+        engine_mode="cache",
+        also_not_a_field=1,
+    ))
+    assert other.get("extra_keys") == ["also_not_a_field"]
+    assert other.get("extra_keys") != leftover.get("extra_keys")
+    pair = _data(tea.evaluate_tea_lca_scenarios(
+        [scenario],
+        engine_mode="cache",
+        not_a_lookup_selector=True,
+        also_not_a_field=1,
+    ))
+    assert pair.get("extra_keys") == ["also_not_a_field", "not_a_lookup_selector"]
+    mixed = _data(tea.evaluate_tea_lca_scenarios(
+        [scenario],
+        engine_mode="cache",
+        sensitivity_axes=["solvent_price"],
+        not_a_lookup_selector=True,
+    ))
+    assert mixed.get("error_code") == "not_applicable_in_mode"
+    assert mixed.get("inapplicable_fields") == ["sensitivity_axes"]
+    assert mixed.get("error_code") != "unknown_process_field"
 
 
 def test_evaluate_without_selectors_still_serves_cache(monkeypatch):
@@ -186,6 +214,16 @@ def test_dispatch_evaluate_selector_is_named_refuse(monkeypatch):
         assert served.get("available") is True
         assert served.get("source_basis") == "tea_cache_exact"
         assert served.get("handle")
+        extra = dispatch(
+            "evaluate_tea_lca_scenarios",
+            scenarios=[_public_from_record(record)],
+            engine_mode="cache",
+            not_a_lookup_selector=True,
+        )
+        assert extra.get("available") is False
+        assert extra.get("refusal") == "unknown_process_field"
+        assert extra.get("refusal") != "tool_exception"
+        assert "handle" not in extra
 
 
 def test_evaluate_refuses_sensitivity_scalars(monkeypatch):
