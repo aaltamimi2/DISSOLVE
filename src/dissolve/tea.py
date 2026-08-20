@@ -5522,6 +5522,34 @@ def _requested_site_development(process_config: Any) -> float | None:
     return round(fraction, 10)
 
 
+def _requested_additional_piping(process_config: Any) -> float | None:
+    """Held additional-piping factor. Do not default 0.045."""
+    if not isinstance(process_config, dict):
+        return None
+    if (
+        "additional_piping" not in process_config
+        or process_config["additional_piping"] in (None, "")
+    ):
+        return None
+    fraction = _finite(process_config["additional_piping"], "additional_piping")
+    if fraction > 1:
+        raise _ScenarioInputError(
+            "additional_piping is a fraction (0.045 is 4.5 percent), not a "
+            "percent integer.",
+            error_code="invalid_admitted_record_query",
+            field="additional_piping",
+            supplied=process_config["additional_piping"],
+        )
+    if not 0 <= fraction <= 1:
+        raise _ScenarioInputError(
+            "additional_piping must be a fraction in [0, 1].",
+            error_code="invalid_admitted_record_query",
+            field="additional_piping",
+            supplied=process_config["additional_piping"],
+        )
+    return round(fraction, 10)
+
+
 def _superstructure_composition_and_capacity(
     feed_mass_fractions: Any,
     process_config: Any,
@@ -5771,6 +5799,7 @@ def _remnant_key_from_row(
     WC_over_FCI: float | None = None,
     warehouse: float | None = None,
     site_development: float | None = None,
+    additional_piping: float | None = None,
 ) -> tuple[Any, ...] | None:
     """Remnant coordinate of a tool-1 row. Failures are not a fill."""
     if not isinstance(row, dict) or row.get("success") is False:
@@ -5861,6 +5890,7 @@ def _remnant_key_from_row(
         ("WC_over_FCI", WC_over_FCI),
         ("warehouse", warehouse),
         ("site_development", site_development),
+        ("additional_piping", additional_piping),
     ):
         if held is None:
             continue
@@ -5927,7 +5957,7 @@ def _cell_remnant_key(cell: dict[str, Any]) -> tuple[Any, ...] | None:
         "finance_interest", "finance_years", "finance_fraction",
         "startup_months", "startup_FOCfrac", "startup_VOCfrac",
         "startup_salesfrac", "WC_over_FCI", "warehouse",
-        "site_development",
+        "site_development", "additional_piping",
     ):
         value = cell.get(field)
         if value not in (None, ""):
@@ -6035,6 +6065,9 @@ def _unmatched_remnant_keys(
     held_site_development = _held_rounded_field(
         missing_keys, "site_development",
     )
+    held_additional_piping = _held_rounded_field(
+        missing_keys, "additional_piping",
+    )
     present = {
         key for row in rows
         if (
@@ -6066,6 +6099,7 @@ def _unmatched_remnant_keys(
                 WC_over_FCI=held_WC_over_FCI,
                 warehouse=held_warehouse,
                 site_development=held_site_development,
+                additional_piping=held_additional_piping,
             )
         ) is not None
     }
@@ -6125,6 +6159,7 @@ def _refuse_listed_or_complete(
         "WC_over_FCI": _requested_WC_over_FCI(process_config),
         "warehouse": _requested_warehouse(process_config),
         "site_development": _requested_site_development(process_config),
+        "additional_piping": _requested_additional_piping(process_config),
     }
     if any(value is not None for value in held.values()):
         stamped: list[dict[str, Any]] = []
@@ -6367,7 +6402,7 @@ def rank_landscape(
     precipitation_configuration, irr, income_tax, operating_days,
     labor_burden, finance_interest, finance_years, finance_fraction,
     startup_months, startup_FOCfrac, startup_VOCfrac,
-    startup_salesfrac, WC_over_FCI, warehouse, or site_development, listed keys include that held
+    startup_salesfrac, WC_over_FCI, warehouse, site_development, or additional_piping, listed keys include that held
     value and matching requires it; omitted is not a silent cache or
     production default. A complete sequence grid with production check red is
     sequence_coupling_unproven as primary (no pending_blockers).
