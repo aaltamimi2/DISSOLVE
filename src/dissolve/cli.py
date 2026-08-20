@@ -820,14 +820,22 @@ class CliApp:
         elif command == "/cost":
             self._show_cost()
         elif command == "/process":
+            seed = self._process_buffer or tea.seed_public_process_config()
+            snapshot = copy.deepcopy(seed)
             submitted = self._edit_process_sheet(
-                self._process_buffer or tea.seed_public_process_config(),
-                require_submit=False,
+                seed, require_submit=False,
             )
             if submitted is None:
                 self.console.print("[dim]Process sheet discarded.[/]")
             else:
                 self._process_buffer = submitted
+                self._sheet_field_origin = (
+                    tea.confirmation_sheet_field_origin_after_edit(
+                        submitted,
+                        snapshot=snapshot,
+                        previous=self._sheet_field_origin,
+                    )
+                )
                 self.console.print("[dim]Process sheet kept in this session buffer.[/]")
         elif command == "/harness":
             self.console.print("flat loop, no specialists")

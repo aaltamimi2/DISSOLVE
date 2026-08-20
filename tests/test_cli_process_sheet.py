@@ -1149,3 +1149,142 @@ def test_flatten_evaluate_process_mints_from_screen(tmp_path, monkeypatch):
     assert origin["precipitation_temperature_c"] == "default"
 
 
+def test_process_edit_refreshes_sheet_field_origin():
+    seed = tea.seed_public_process_config({
+        "target_polymer": "LDPE",
+        "solvent": "Dodecane",
+        "dissolution_temperature_c": 145.0,
+        "energy_case": "C1",
+        "target_mass_percent": 55.0,
+    })
+    previous = tea.confirmation_sheet_field_origin(
+        seed,
+        snapshot=seed,
+        screening_item={
+            "target_polymer": "LDPE",
+            "solvent": "Dodecane",
+            "dissolution_temperature_c": 145.0,
+        },
+        held_keys=["energy_case", "target_mass_percent"],
+    )
+    submitted = dict(seed)
+    submitted["precipitation_temperature_c"] = 25.0
+    origin = tea.confirmation_sheet_field_origin_after_edit(
+        submitted, snapshot=seed, previous=previous,
+    )
+    assert origin["precipitation_temperature_c"] == "supplied"
+    assert origin["precipitation_temperature_c"] != "default"
+    assert origin["target_mass_percent"] == "supplied"
+    assert origin["processing_capacity_mt_per_yr"] == "default"
+    assert origin["target_polymer"] == "from_screen"
+    assert origin["solvent"] == "from_screen"
+    assert origin["energy_case"] == "supplied"
+
+
+def test_process_command_edit_is_supplied_on_later_stamp(
+    tmp_path, monkeypatch,
+):
+    monkeypatch.setattr(cli, "run_turn", _ok_turn)
+    monkeypatch.setattr(sys.stdin, "isatty", lambda: True)
+    app, _buf = _app(tmp_path, monkeypatch)
+    sheet = tea.seed_public_process_config({
+        "target_polymer": "LDPE",
+        "solvent": "Dodecane",
+        "dissolution_temperature_c": 145.0,
+        "energy_case": "C1",
+        "target_mass_percent": 55.0,
+    })
+    monkeypatch.setattr(app, "_edit_process_sheet", lambda seed, **kwargs: sheet)
+
+    def original(name, **kwargs):
+        if kwargs.get("scenarios"):
+            row = dict(kwargs["scenarios"][0])
+        else:
+            row = dict(kwargs.get("process_config") or {})
+        return {"success": True, "comparison_rows": [row]}
+
+    app._cli_direct_active = True
+    first = app._cli_direct_dispatch(
+        original,
+        "evaluate_tea_lca_scenarios",
+        {
+            "screening_shortlist": {
+                "source": "explicit",
+                "items": [{
+                    "target_polymer": "LDPE",
+                    "solvent": "Dodecane",
+                    "temperature_c": 145.0,
+                }],
+            },
+            "held_process_basis": {
+                "energy_case": "C1",
+                "target_mass_percent": 55.0,
+            },
+        },
+    )
+    assert first["comparison_rows"][0]["field_origin"]["target_mass_percent"] == (
+        "supplied"
+    )
+    assert first["comparison_rows"][0]["field_origin"][
+        "precipitation_temperature_c"
+    ] == "default"
+
+    def edit_precip(seed, **kwargs):
+        seed["precipitation_temperature_c"] = 25.0
+        return seed
+
+    monkeypatch.setattr(app, "_edit_process_sheet", edit_precip)
+    app.handle_command("/process")
+    later = app._cli_direct_dispatch(
+        original,
+        "evaluate_tea_lca_scenarios",
+        {"scenarios": [{"target_polymer": "LDPE"}]},
+    )
+    origin = later["comparison_rows"][0]["field_origin"]
+    assert origin["precipitation_temperature_c"] == "supplied"
+    assert origin["precipitation_temperature_c"] != "default"
+    assert origin["target_mass_percent"] == "supplied"
+    assert origin["target_polymer"] == "from_screen"
+    assert later["comparison_rows"][0]["precipitation_temperature_c"] == (
+        pytest.approx(25.0)
+    )
+
+
+def test_process_abort_does_not_refresh_origin(tmp_path, monkeypatch):
+    monkeypatch.setattr(cli, "run_turn", _ok_turn)
+    monkeypatch.setattr(sys.stdin, "isatty", lambda: True)
+    app, _buf = _app(tmp_path, monkeypatch)
+    sheet = tea.seed_public_process_config({
+        "target_polymer": "LDPE",
+        "solvent": "Dodecane",
+        "dissolution_temperature_c": 145.0,
+        "energy_case": "C1",
+    })
+    monkeypatch.setattr(app, "_edit_process_sheet", lambda seed, **kwargs: sheet)
+
+    def original(name, **kwargs):
+        return {
+            "success": True,
+            "comparison_rows": [dict(kwargs["scenarios"][0])],
+        }
+
+    app._cli_direct_active = True
+    first = app._cli_direct_dispatch(
+        original,
+        "evaluate_tea_lca_scenarios",
+        {"scenarios": [{
+            "target_polymer": "LDPE",
+            "solvent": "Dodecane",
+            "dissolution_temperature_c": 145.0,
+        }]},
+    )
+    before = dict(app._sheet_field_origin)
+    monkeypatch.setattr(app, "_edit_process_sheet", lambda seed, **kwargs: None)
+    app.handle_command("/process")
+    assert app._sheet_field_origin == before
+    assert first["comparison_rows"][0]["field_origin"][
+        "precipitation_temperature_c"
+    ] == "default"
+
+
+

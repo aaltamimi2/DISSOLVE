@@ -2380,6 +2380,46 @@ def confirmation_sheet_field_origin(
     return origin
 
 
+def confirmation_sheet_field_origin_after_edit(
+    submitted: dict[str, Any],
+    *,
+    snapshot: dict[str, Any] | None = None,
+    previous: dict[str, str] | None = None,
+) -> dict[str, str]:
+    """Refresh origin after a later ``/process`` submit.
+
+    Typed ``field=value`` edits become ``supplied``. Unedited
+    ``from_screen`` / ``default`` tokens stay. Not a first-run fill.
+    """
+    if not previous:
+        return confirmation_sheet_field_origin(submitted, snapshot=snapshot)
+    origin = dict(previous)
+    energy = str(submitted.get("energy_case") or "C1")
+    names = public_process_field_names(energy_case=energy)
+    defaults = first_run_sheet_defaults(energy_case=energy)
+    for field in list(origin):
+        if field not in names:
+            origin.pop(field, None)
+    for field in names:
+        if field not in submitted:
+            origin.pop(field, None)
+            continue
+        value = submitted.get(field)
+        if field in _SHEET_REQUIRED_FIELDS and not _scenario_value_present(value):
+            origin.pop(field, None)
+            continue
+        if snapshot is not None and field in snapshot:
+            if not _sheet_values_match(value, snapshot.get(field)):
+                origin[field] = "supplied"
+                continue
+        if field not in origin:
+            if field in defaults and _sheet_values_match(value, defaults[field]):
+                origin[field] = "default"
+            else:
+                origin[field] = "supplied"
+    return origin
+
+
 def _canonical_screening_shortlist_item(
     item: Any, index: int,
 ) -> dict[str, Any]:
