@@ -4740,6 +4740,21 @@ _EVALUATE_PROCESS_MODE_SCALARS = frozenset({
     "row_id",
     "timeout_seconds",
 })
+_LOOKUP_MODE_SELECTORS = (
+    "sensitivity_labels",
+    "sensitivity_axes",
+    "sensitivity_level_selector",
+)
+_INAPPLICABLE_ON_EVALUATE = {
+    **{name: "lookup" for name in _LOOKUP_MODE_SELECTORS},
+    "energy_cases": "lookup",
+    "record_form": "lookup",
+    "requested_metrics": "lookup",
+    "parameter": "sensitivity",
+    "values": "sensitivity",
+    "analysis_mode": "sensitivity",
+    "metric": "sensitivity",
+}
 _EVALUATE_MODE_FORWARD = frozenset({
     "engine_mode",
     "handle",
@@ -4942,7 +4957,8 @@ def evaluate_process(
     or screening_shortlist plus held_process_basis; sensitivity uses
     process_config plus parameter; route uses handle plus row_id.
     The existing TEA names still serve the same work.
-    Optimization is not a mode. Not a ranking.
+    Top-level lookup selectors refuse not_applicable_in_mode; they live
+    on lookup_filter. Optimization is not a mode. Not a ranking.
     """
     tool = "evaluate_process"
     token = str(mode or "").strip().casefold()
@@ -4953,12 +4969,38 @@ def evaluate_process(
         str(name) for name in kwargs
         if name not in allowed_scalars
     )
-    if extra:
+    inapplicable = [
+        name for name in _INAPPLICABLE_ON_EVALUATE if name in extra
+    ]
+    leftover = [
+        name for name in extra if name not in _INAPPLICABLE_ON_EVALUATE
+    ]
+    if inapplicable:
+        modes = list(dict.fromkeys(
+            _INAPPLICABLE_ON_EVALUATE[name] for name in inapplicable
+        ))
+        details: dict[str, Any] = {
+            "inapplicable_fields": inapplicable,
+            "applicable_mode_by_field": {
+                name: _INAPPLICABLE_ON_EVALUATE[name] for name in inapplicable
+            },
+        }
+        if token in _EVALUATE_PROCESS_MODES:
+            details["mode"] = token
+        if len(modes) == 1:
+            details["applicable_mode"] = modes[0]
+        return tool_error(
+            tool,
+            "These arguments are not applicable in this mode.",
+            error_code="not_applicable_in_mode",
+            **details,
+        )
+    if leftover:
         return tool_error(
             tool,
             "unknown extra argument",
             error_code="unknown_process_field",
-            extra_keys=extra,
+            extra_keys=leftover,
         )
     if not token:
         return tool_error(
@@ -7329,23 +7371,6 @@ def rank_landscape(
         source="process_rows",
         **payload,
     )
-
-
-_LOOKUP_MODE_SELECTORS = (
-    "sensitivity_labels",
-    "sensitivity_axes",
-    "sensitivity_level_selector",
-)
-_INAPPLICABLE_ON_EVALUATE = {
-    **{name: "lookup" for name in _LOOKUP_MODE_SELECTORS},
-    "energy_cases": "lookup",
-    "record_form": "lookup",
-    "requested_metrics": "lookup",
-    "parameter": "sensitivity",
-    "values": "sensitivity",
-    "analysis_mode": "sensitivity",
-    "metric": "sensitivity",
-}
 
 
 def evaluate_tea_lca_scenarios(

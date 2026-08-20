@@ -609,3 +609,104 @@ def test_dispatch_lookup_leftover_is_named_refuse(monkeypatch):
         assert served.get("available") is True
         assert served.get("handle")
 
+
+def test_evaluate_process_top_level_selector_is_not_applicable(monkeypatch):
+    record = _record_by_label("ldpe-route-c1")
+    scenario = _public_from_record(record)
+    _forbid_live(monkeypatch)
+    payload = _data(tea.evaluate_process(
+        mode="evaluate",
+        process_config=scenario,
+        engine_mode="cache",
+        sensitivity_axes=["solvent_price"],
+    ))
+    assert payload.get("error_code") == "not_applicable_in_mode"
+    assert payload.get("inapplicable_fields") == ["sensitivity_axes"]
+    assert payload.get("applicable_mode") == "lookup"
+    assert payload["applicable_mode_by_field"] == {
+        "sensitivity_axes": "lookup",
+    }
+    assert payload.get("tool_name") == "evaluate_process"
+    assert payload.get("error_code") != "unknown_process_field"
+    energy = _data(tea.evaluate_process(
+        mode="evaluate",
+        process_config=scenario,
+        engine_mode="cache",
+        energy_cases=["C1"],
+    ))
+    assert energy.get("error_code") == "not_applicable_in_mode"
+    assert energy.get("inapplicable_fields") == ["energy_cases"]
+    leftover = _data(tea.evaluate_process(
+        mode="evaluate",
+        process_config=scenario,
+        engine_mode="cache",
+        not_a_lookup_selector=True,
+    ))
+    assert leftover.get("error_code") == "unknown_process_field"
+    assert leftover.get("extra_keys") == ["not_a_lookup_selector"]
+    mixed = _data(tea.evaluate_process(
+        mode="evaluate",
+        process_config=scenario,
+        engine_mode="cache",
+        sensitivity_axes=["solvent_price"],
+        not_a_lookup_selector=True,
+    ))
+    assert mixed.get("error_code") == "not_applicable_in_mode"
+    assert mixed.get("inapplicable_fields") == ["sensitivity_axes"]
+    assert mixed.get("error_code") != "unknown_process_field"
+    filtered = _data(tea.evaluate_process(
+        mode="lookup",
+        lookup_filter={
+            "target_polymer": "LDPE",
+            "solvent": "Dodecane",
+            "sensitivity_axes": ["solvent_price"],
+        },
+    ))
+    assert filtered.get("success") is True
+    assert filtered.get("error_code") != "not_applicable_in_mode"
+    top_level_lookup = _data(tea.evaluate_process(
+        mode="lookup",
+        lookup_filter={"target_polymer": "LDPE"},
+        sensitivity_axes=["solvent_price"],
+    ))
+    assert top_level_lookup.get("error_code") == "not_applicable_in_mode"
+    assert top_level_lookup.get("inapplicable_fields") == ["sensitivity_axes"]
+    assert top_level_lookup.get("error_code") != "unknown_process_field"
+
+
+def test_dispatch_evaluate_process_selector_is_named_refuse(monkeypatch):
+    record = _record_by_label("ldpe-route-c1")
+    scenario = _public_from_record(record)
+    _forbid_live(monkeypatch)
+    session = new_session()
+    with bind_tool_session(session):
+        refused = dispatch(
+            "evaluate_process",
+            mode="evaluate",
+            process_config=scenario,
+            engine_mode="cache",
+            sensitivity_axes=["solvent_price"],
+        )
+        assert refused.get("available") is False
+        assert refused.get("refusal") == "not_applicable_in_mode"
+        assert "handle" not in refused
+        extra = dispatch(
+            "evaluate_process",
+            mode="evaluate",
+            process_config=scenario,
+            engine_mode="cache",
+            not_a_lookup_selector=True,
+        )
+        assert extra.get("available") is False
+        assert extra.get("refusal") == "unknown_process_field"
+        assert "handle" not in extra
+        served = dispatch(
+            "evaluate_process",
+            mode="evaluate",
+            process_config=scenario,
+            engine_mode="cache",
+        )
+        assert served.get("available") is True
+        assert served.get("handle")
+
+
