@@ -206,14 +206,27 @@ def _two_row_mini(tmp_path):
 
 def test_schema_exposes_the_closed_choice():
     schemas = {item["name"]: item for item in tool_schemas()}
+    expected = [
+        "independent",
+        "thermo_then_economics",
+        "safety_then_economics",
+    ]
     for name in ("evaluate_process", "rank_landscape"):
         props = schemas[name]["parameters"]["properties"]
         required = schemas[name]["parameters"].get("required") or []
         assert "screen_to_economics_order" in props
         assert "screen_to_economics_order" not in required
+        assert props["screen_to_economics_order"]["type"] == "string"
+        assert props["screen_to_economics_order"]["enum"] == expected
+        assert "default" not in props["screen_to_economics_order"]
+        assert "pipeline" not in props["screen_to_economics_order"]["enum"]
         assert "exclude_safety_fail" not in props
     old = schemas["evaluate_tea_lca_scenarios"]["parameters"]["properties"]
     assert "screen_to_economics_order" not in old
+    sensitivity = schemas["analyze_tea_sensitivity"]["parameters"]["properties"]
+    assert "screen_to_economics_order" not in sensitivity
+    lookup = schemas["lookup_admitted_process_records"]["parameters"]["properties"]
+    assert "screen_to_economics_order" not in lookup
 
 
 def test_omitted_and_explicit_independent_match(monkeypatch, tmp_path):

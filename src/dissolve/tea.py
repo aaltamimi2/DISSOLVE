@@ -5079,6 +5079,7 @@ _SCREEN_TO_ECONOMICS_ORDERS = (
     "thermo_then_economics",
     "safety_then_economics",
 )
+ScreenToEconomicsOrder = Literal.__getitem__(_SCREEN_TO_ECONOMICS_ORDERS)
 _EVALUATE_PROCESS_MODE_SCALARS = frozenset({
     "parameter",
     "values",
@@ -5332,7 +5333,7 @@ def evaluate_process(
     process_configs: Optional[list[dict[str, Any]]] = None,
     screening_shortlist: Optional[dict[str, Any]] = None,
     held_process_basis: Optional[dict[str, Any]] = None,
-    screen_to_economics_order: Optional[str] = None,
+    screen_to_economics_order: Optional[ScreenToEconomicsOrder] = None,
     **kwargs: Any,
 ) -> str:
     """Typed twelve-field lookup, evaluate, sensitivity, or route.
@@ -7767,7 +7768,7 @@ def rank_landscape(
     planner_solvent_map: Optional[dict[str, Any]] = None,
     allowed_solvents: Optional[dict[str, Any] | list[Any]] = None,
     feed_mass_fractions: Optional[dict[str, Any]] = None,
-    screen_to_economics_order: Optional[str] = None,
+    screen_to_economics_order: Optional[ScreenToEconomicsOrder] = None,
     **unexpected: Any,
 ) -> str:
     """Rank already-run process rows. Does not spawn BioSTEAM.
