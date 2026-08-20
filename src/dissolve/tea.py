@@ -8902,6 +8902,10 @@ def _rank_planner_routes(
     process_config: Any,
     formulation: Any,
     polymer_grouping: str,
+    target_polymer: Any,
+    solvent: Any,
+    energy_cases: Any,
+    allow_partial_campaign: bool,
 ) -> str:
     tool = "rank_landscape"
     inapplicable = [
@@ -8912,11 +8916,16 @@ def _rank_planner_routes(
             ("campaign_fingerprint", campaign_fingerprint),
             ("process_config", process_config),
             ("formulation", formulation),
+            ("target_polymer", target_polymer),
+            ("solvent", solvent),
+            ("energy_cases", energy_cases),
         )
-        if value is not None
+        if value not in (None, "", [])
     ]
     if polymer_grouping != "per_target_polymer":
         inapplicable.append("polymer_grouping")
+    if allow_partial_campaign:
+        inapplicable.append("allow_partial_campaign")
     if inapplicable:
         return _stamp_screen_to_economics_order(
             tool_error(
@@ -9278,6 +9287,10 @@ def rank_landscape(
             process_config=process_config,
             formulation=formulation,
             polymer_grouping=grouping_token,
+            target_polymer=target_polymer,
+            solvent=solvent,
+            energy_cases=energy_cases,
+            allow_partial_campaign=allow_partial_campaign,
         )
     map_fields = [
         name for name, value in (

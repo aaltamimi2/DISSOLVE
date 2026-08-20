@@ -390,6 +390,52 @@ def test_planner_routes_pareto_has_f_quality_schema(monkeypatch):
     assert "n_returned" not in data
 
 
+def test_planner_routes_process_rows_locators_are_not_applicable(monkeypatch):
+    def forbidden(*args, **kwargs):
+        raise AssertionError("planner_routes must not start BioSTEAM")
+
+    monkeypatch.setattr(tea, "_live", forbidden)
+    monkeypatch.setattr(tea.tea_worker, "run", forbidden)
+    session = new_session()
+    locators = (
+        {"target_polymer": "LDPE"},
+        {"solvent": "Toluene"},
+        {"energy_cases": ["C2"]},
+        {"allow_partial_campaign": True},
+    )
+    with bind_tool_session(session):
+        branched = dispatch(
+            "plan_multistage_separation",
+            feed_polymers=_PAIR,
+            breadth=5,
+        )
+        handle = branched["handle"]
+        served = dispatch(
+            "rank_landscape",
+            source="planner_routes",
+            operation="pareto_dominance",
+            handle=handle,
+        )
+        refused = [
+            dispatch(
+                "rank_landscape",
+                source="planner_routes",
+                operation="pareto_dominance",
+                handle=handle,
+                **kwargs,
+            )
+            for kwargs in locators
+        ]
+    assert served.get("available") is True
+    assert (served.get("data") or {}).get("source") == "planner_routes"
+    for kwargs, payload in zip(locators, refused):
+        data = payload.get("data") or {}
+        assert payload.get("available") is False, kwargs
+        assert payload.get("refusal") == "not_applicable_in_source", kwargs
+        assert data.get("inapplicable_fields") == list(kwargs), kwargs
+        assert data.get("source") == "planner_routes"
+
+
 def test_planner_routes_mixed_polymer_grouping_is_not_applicable(monkeypatch):
     def forbidden(*args, **kwargs):
         raise AssertionError("planner_routes must not start BioSTEAM")
