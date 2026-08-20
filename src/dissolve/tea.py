@@ -8902,6 +8902,15 @@ def _rank_planner_routes(
     process_config: Any,
     formulation: Any,
     polymer_grouping: str,
+    target_polymer: Any,
+    solvent: Any,
+    energy_cases: Any,
+    allow_partial_campaign: bool,
+    scenario: Any,
+    recovery_yield: Any,
+    polymer_market_values_usd_per_mt: Any,
+    solver_name: Any,
+    composition_slices: Any,
 ) -> str:
     tool = "rank_landscape"
     inapplicable = [
@@ -8912,11 +8921,21 @@ def _rank_planner_routes(
             ("campaign_fingerprint", campaign_fingerprint),
             ("process_config", process_config),
             ("formulation", formulation),
+            ("target_polymer", target_polymer),
+            ("solvent", solvent),
+            ("energy_cases", energy_cases),
+            ("scenario", scenario),
+            ("recovery_yield", recovery_yield),
+            ("polymer_market_values_usd_per_mt", polymer_market_values_usd_per_mt),
+            ("solver_name", solver_name),
+            ("composition_slices", composition_slices),
         )
-        if value is not None
+        if value not in (None, "", [])
     ]
     if polymer_grouping != "per_target_polymer":
         inapplicable.append("polymer_grouping")
+    if allow_partial_campaign:
+        inapplicable.append("allow_partial_campaign")
     if inapplicable:
         return _stamp_screen_to_economics_order(
             tool_error(
@@ -8950,6 +8969,40 @@ def _rank_planner_routes(
             ),
             order,
         )
+    if operation == "pareto_dominance" and objective is not None:
+        return _stamp_screen_to_economics_order(
+            tool_error(
+                tool,
+                "objective is not applicable on source=planner_routes "
+                "operation=pareto_dominance",
+                error_code="not_applicable_in_source",
+                source="planner_routes",
+                operation=operation,
+                inapplicable_fields=["objective"],
+            ),
+            order,
+        )
+    if operation == "sort":
+        mismatched = [
+            name for name, value in (
+                ("x_metric", x_metric),
+                ("y_metric", y_metric),
+            )
+            if value is not None
+        ]
+        if mismatched:
+            return _stamp_screen_to_economics_order(
+                tool_error(
+                    tool,
+                    "x_metric and y_metric are not applicable on "
+                    "source=planner_routes operation=sort",
+                    error_code="not_applicable_in_source",
+                    source="planner_routes",
+                    operation=operation,
+                    inapplicable_fields=mismatched,
+                ),
+                order,
+            )
     token = handle.strip() if isinstance(handle, str) else ""
     if not isinstance(handle, str) or not token:
         return _stamp_screen_to_economics_order(
@@ -9278,6 +9331,15 @@ def rank_landscape(
             process_config=process_config,
             formulation=formulation,
             polymer_grouping=grouping_token,
+            target_polymer=target_polymer,
+            solvent=solvent,
+            energy_cases=energy_cases,
+            allow_partial_campaign=allow_partial_campaign,
+            scenario=scenario,
+            recovery_yield=recovery_yield,
+            polymer_market_values_usd_per_mt=polymer_market_values_usd_per_mt,
+            solver_name=solver_name,
+            composition_slices=composition_slices,
         )
     map_fields = [
         name for name, value in (
