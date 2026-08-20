@@ -2,6 +2,7 @@
 
 A bound map still has no remnant table: incomplete_stage_basis_grid,
 not a ranking, not a cache fill, and not a scan of top_k_sequences.
+feed_mass_fractions expands listed remnant keys by D-18; it is not ingest.
 """
 from __future__ import annotations
 
@@ -319,8 +320,10 @@ def test_maps_are_optional_schema_args_not_a_35th_name(monkeypatch):
     }["rank_landscape"]
     assert "planner_solvent_map" in props
     assert "allowed_solvents" in props
+    assert "feed_mass_fractions" in props
     assert "default" not in props["planner_solvent_map"]
     assert "default" not in props["allowed_solvents"]
+    assert "default" not in props["feed_mass_fractions"]
     required = next(
         item["parameters"].get("required") or []
         for item in tool_schemas()
@@ -328,6 +331,7 @@ def test_maps_are_optional_schema_args_not_a_35th_name(monkeypatch):
     )
     assert "planner_solvent_map" not in required
     assert "allowed_solvents" not in required
+    assert "feed_mass_fractions" not in required
     assert "formulation" not in required
     assert "evaluate_process" not in EXPECTED_REGISTRY_NAMES
 
@@ -548,4 +552,262 @@ def test_dispatch_names_missing_formulation(monkeypatch):
     assert ranked.get("available") is False
     assert ranked.get("refusal") == "missing_formulation"
     assert ranked.get("handle") is None
+
+
+def _d18_cell(row):
+    return (
+        row["polymer"],
+        row["target_mass_percent"],
+        row["processing_capacity_mt_per_yr"],
+        row["solvent"],
+    )
+
+
+def test_sequence_feed_expands_d18_remnant_keys(monkeypatch):
+    _forbid_live(monkeypatch)
+    payload = _data(tea.rank_landscape(
+        source="superstructure",
+        formulation="sequence",
+        planner_solvent_map=_PLAN_MAP,
+        target_polymer=["LDPE", "EVOH"],
+        feed_mass_fractions={"LDPE": 0.55, "EVOH": 0.45},
+        process_config={"processing_capacity_mt_per_yr": 20_000},
+    ))
+    assert payload.get("error_code") == "incomplete_stage_basis_grid"
+    assert payload.get("error_code") != "sequence_coupling_unproven"
+    assert payload.get("n_usable") is None
+    assert "landscape_points" not in payload
+    assert payload.get("pending_blockers") == [
+        {
+            "error_type": "sequence_coupling_unproven",
+            "gate": "gate_sequence_order_coupling",
+            "status": "would_fire_if_remnant_grid_complete",
+        },
+    ]
+    keys = payload["missing_keys"]
+    toluene = tea._public_solvent_token("Toluene")
+    dmso = tea._public_solvent_token("DMSO")
+    cells = {_d18_cell(row) for row in keys}
+    assert cells == {
+        ("LDPE", 55.0, 20_000.0, toluene),
+        ("LDPE", 100.0, 11_000.0, toluene),
+        ("EVOH", 45.0, 20_000.0, dmso),
+        ("EVOH", 100.0, 9_000.0, dmso),
+    }
+    assert len(keys) == 4
+    assert all(row["target_mass_percent"] != 66.667 for row in keys)
+    assert all(row["processing_capacity_mt_per_yr"] != 18_000 for row in keys)
+
+
+def test_three_polymer_feed_lists_the_subset_union(monkeypatch):
+    _forbid_live(monkeypatch)
+    payload = _data(tea.rank_landscape(
+        source="superstructure",
+        formulation="sequence",
+        planner_solvent_map={
+            "LDPE": "Toluene", "EVOH": "DMSO", "PET": "Toluene",
+        },
+        feed_mass_fractions={"LDPE": 0.55, "EVOH": 0.15, "PET": 0.30},
+        process_config={"processing_capacity_mt_per_yr": 20_000},
+    ))
+    assert payload.get("error_code") == "incomplete_stage_basis_grid"
+    keys = payload["missing_keys"]
+    assert len(keys) == 12
+    ldpe_caps = sorted(
+        row["processing_capacity_mt_per_yr"]
+        for row in keys if row["polymer"] == "LDPE"
+    )
+    assert ldpe_caps == [11_000.0, 14_000.0, 17_000.0, 20_000.0]
+    assert all(row["processing_capacity_mt_per_yr"] != 18_000 for row in keys)
+
+
+def test_d18_keys_follow_the_feed_in_hand(monkeypatch):
+    _forbid_live(monkeypatch)
+    payload = _data(tea.rank_landscape(
+        source="superstructure",
+        formulation="sequence",
+        planner_solvent_map=_PLAN_MAP,
+        feed_mass_fractions={"LDPE": 0.60, "EVOH": 0.40},
+        process_config={"processing_capacity_mt_per_yr": 15_000},
+    ))
+    assert payload.get("error_code") == "incomplete_stage_basis_grid"
+    cells = {_d18_cell(row) for row in payload["missing_keys"]}
+    toluene = tea._public_solvent_token("Toluene")
+    dmso = tea._public_solvent_token("DMSO")
+    assert cells == {
+        ("LDPE", 60.0, 15_000.0, toluene),
+        ("LDPE", 100.0, 9_000.0, toluene),
+        ("EVOH", 40.0, 15_000.0, dmso),
+        ("EVOH", 100.0, 6_000.0, dmso),
+    }
+    assert all(row["target_mass_percent"] != 55 for row in payload["missing_keys"])
+    assert all(
+        row["processing_capacity_mt_per_yr"] != 20_000
+        for row in payload["missing_keys"]
+    )
+
+
+def test_omitted_capacity_does_not_default_twenty_kt(monkeypatch):
+    _forbid_live(monkeypatch)
+    payload = _data(tea.rank_landscape(
+        source="superstructure",
+        formulation="sequence",
+        planner_solvent_map=_PLAN_MAP,
+        feed_mass_fractions={"LDPE": 0.55, "EVOH": 0.45},
+    ))
+    assert payload.get("error_code") == "incomplete_stage_basis_grid"
+    keys = payload["missing_keys"]
+    assert len(keys) == 4
+    percents = {row["target_mass_percent"] for row in keys}
+    assert percents == {55.0, 45.0, 100.0}
+    assert all(row["processing_capacity_mt_per_yr"] is None for row in keys)
+    assert all(row["processing_capacity_mt_per_yr"] != 20_000 for row in keys)
+
+
+def test_process_config_mass_percent_is_not_the_feed(monkeypatch):
+    _forbid_live(monkeypatch)
+    payload = _data(tea.rank_landscape(
+        source="superstructure",
+        formulation="sequence",
+        planner_solvent_map=_PLAN_MAP,
+        target_polymer=["LDPE", "EVOH"],
+        process_config={
+            "target_mass_percent": 55,
+            "processing_capacity_mt_per_yr": 20_000,
+            "feed_mass_fractions": {"LDPE": 0.55, "EVOH": 0.45},
+        },
+    ))
+    assert payload.get("error_code") == "incomplete_stage_basis_grid"
+    keys = payload["missing_keys"]
+    assert len(keys) == 2
+    for row in keys:
+        assert row["target_mass_percent"] is None
+        assert row["processing_capacity_mt_per_yr"] is None
+
+
+def test_composition_without_map_is_still_missing_planner_map(monkeypatch):
+    _forbid_live(monkeypatch)
+    payload = _data(tea.rank_landscape(
+        source="superstructure",
+        formulation="sequence",
+        feed_mass_fractions={"LDPE": 0.55, "EVOH": 0.45},
+        process_config={"processing_capacity_mt_per_yr": 20_000},
+    ))
+    assert payload.get("error_code") == "missing_planner_solvent_map"
+    assert payload.get("error_code") != "incomplete_stage_basis_grid"
+    assert "pending_blockers" not in payload
+    assert "landscape_points" not in payload
+
+
+def test_feed_mass_fractions_on_process_rows_is_not_applicable(monkeypatch):
+    _forbid_live(monkeypatch)
+    payload = _data(tea.rank_landscape(
+        feed_mass_fractions={"LDPE": 0.55, "EVOH": 0.45},
+    ))
+    assert payload.get("error_code") == "not_applicable_in_source"
+    assert payload.get("source") == "process_rows"
+    assert payload.get("inapplicable_fields") == ["feed_mass_fractions"]
+    assert "landscape_points" not in payload
+
+
+def test_handle_does_not_ingest_the_remnant_table(monkeypatch):
+    _forbid_live(monkeypatch)
+    payload = _data(tea.rank_landscape(
+        source="superstructure",
+        formulation="sequence",
+        planner_solvent_map=_PLAN_MAP,
+        feed_mass_fractions={"LDPE": 0.55, "EVOH": 0.45},
+        process_config={"processing_capacity_mt_per_yr": 20_000},
+        handle="not-a-remnant-table",
+    ))
+    assert payload.get("error_code") == "incomplete_stage_basis_grid"
+    assert payload.get("error_code") != "unknown_handle"
+    assert "landscape_points" not in payload
+    assert payload.get("n_usable") is None
+    assert len(payload["missing_keys"]) == 4
+
+
+def test_d18_keys_do_not_pair_fill_from_cache(monkeypatch):
+    _forbid_live(monkeypatch)
+
+    def forbidden_records():
+        raise AssertionError("D-18 listing must not pair-fill from cache")
+
+    monkeypatch.setattr(tea, "_records", forbidden_records)
+    payload = _data(tea.rank_landscape(
+        source="superstructure",
+        formulation="sequence",
+        planner_solvent_map=_PLAN_MAP,
+        feed_mass_fractions={"LDPE": 0.55, "EVOH": 0.45},
+        process_config={"processing_capacity_mt_per_yr": 20_000},
+    ))
+    assert payload.get("error_code") == "incomplete_stage_basis_grid"
+    assert len(payload["missing_keys"]) == 4
+
+
+def test_sequence_solvent_expands_remnant_times_solvent(monkeypatch):
+    _forbid_live(monkeypatch)
+    payload = _data(tea.rank_landscape(
+        source="superstructure",
+        formulation="sequence_solvent",
+        planner_solvent_map=_PLAN_MAP,
+        allowed_solvents=_ALLOWED_MAP,
+        feed_mass_fractions={"LDPE": 0.55, "EVOH": 0.45},
+        process_config={"processing_capacity_mt_per_yr": 20_000},
+    ))
+    assert payload.get("error_code") == "incomplete_stage_basis_grid"
+    assert "pending_blockers" not in payload
+    assert payload.get("error_code") != "sequence_coupling_unproven"
+    keys = payload["missing_keys"]
+    toluene = tea._public_solvent_token("Toluene")
+    dmso = tea._public_solvent_token("DMSO")
+    cells = {_d18_cell(row) for row in keys}
+    assert cells == {
+        ("LDPE", 55.0, 20_000.0, toluene),
+        ("LDPE", 100.0, 11_000.0, toluene),
+        ("EVOH", 45.0, 20_000.0, dmso),
+        ("EVOH", 45.0, 20_000.0, toluene),
+        ("EVOH", 100.0, 9_000.0, dmso),
+        ("EVOH", 100.0, 9_000.0, toluene),
+    }
+    assert len(keys) == 6
+    assert all(row["target_mass_percent"] != 66.667 for row in keys)
+
+
+def test_solvent_formulation_does_not_invent_an_order(monkeypatch):
+    _forbid_live(monkeypatch)
+    payload = _data(tea.rank_landscape(
+        source="superstructure",
+        formulation="solvent",
+        allowed_solvents=_ALLOWED_MAP,
+        target_polymer=["LDPE", "EVOH"],
+        feed_mass_fractions={"LDPE": 0.55, "EVOH": 0.45},
+        process_config={"processing_capacity_mt_per_yr": 20_000},
+    ))
+    assert payload.get("error_code") == "incomplete_stage_basis_grid"
+    assert "pending_blockers" not in payload
+    keys = payload["missing_keys"]
+    assert len(keys) == 3
+    for row in keys:
+        assert row["target_mass_percent"] is None
+        assert row["processing_capacity_mt_per_yr"] is None
+
+
+def test_dispatch_of_d18_keys_is_still_the_data_gate(monkeypatch):
+    _forbid_live(monkeypatch)
+    ranked = dispatch(
+        "rank_landscape",
+        source="superstructure",
+        formulation="sequence",
+        planner_solvent_map=_PLAN_MAP,
+        feed_mass_fractions={"LDPE": 0.55, "EVOH": 0.45},
+        process_config={"processing_capacity_mt_per_yr": 20_000},
+    )
+    assert ranked.get("available") is False
+    assert ranked.get("refusal") == "incomplete_stage_basis_grid"
+    assert ranked.get("handle") is None
+    assert len(ranked["data"]["missing_keys"]) == 4
+    assert ranked["data"]["pending_blockers"][0]["error_type"] == (
+        "sequence_coupling_unproven"
+    )
 

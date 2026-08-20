@@ -16,6 +16,7 @@ import subprocess
 import sys
 from functools import lru_cache
 from importlib.resources import files
+from itertools import combinations
 from pathlib import Path
 from typing import Any, Literal, Optional, Sequence
 
@@ -4855,11 +4856,16 @@ def _canonical_allowed_solvent_keys(value: dict[str, Any]) -> set[str]:
     return set(_canonical_allowed_solvent_map(value))
 
 
-def _remnant_cell(polymer: str, solvent: str) -> dict[str, Any]:
+def _remnant_cell(
+    polymer: str,
+    solvent: Any,
+    target_mass_percent: Any = None,
+    processing_capacity_mt_per_yr: Any = None,
+) -> dict[str, Any]:
     return {
         "polymer": polymer,
-        "target_mass_percent": None,
-        "processing_capacity_mt_per_yr": None,
+        "target_mass_percent": target_mass_percent,
+        "processing_capacity_mt_per_yr": processing_capacity_mt_per_yr,
         "solvent": solvent,
     }
 
@@ -4875,28 +4881,173 @@ def _unnamed_remnant_cell(**fields: Any) -> dict[str, Any]:
     return cell
 
 
+def _requested_plant_capacity(process_config: Any) -> float | None:
+    """Plant scale from process_config. Do not default 20 kt."""
+    if not isinstance(process_config, dict):
+        return None
+    if (
+        "processing_capacity_mt_per_yr" in process_config
+        and process_config["processing_capacity_mt_per_yr"] is not None
+    ):
+        raw = process_config["processing_capacity_mt_per_yr"]
+    elif (
+        "processing_capacity" in process_config
+        and process_config["processing_capacity"] is not None
+    ):
+        raw = process_config["processing_capacity"]
+    else:
+        return None
+    capacity = _finite(raw, "processing_capacity_mt_per_yr")
+    if capacity <= 0:
+        raise ValueError("processing_capacity_mt_per_yr must be positive")
+    return capacity
+
+
+def _superstructure_composition_and_capacity(
+    feed_mass_fractions: Any,
+    process_config: Any,
+) -> tuple[dict[str, float] | None, float | None]:
+    composition = None
+    if feed_mass_fractions is not None:
+        composition = _composition(feed_mass_fractions)
+    return composition, _requested_plant_capacity(process_config)
+
+
+def _align_feed_with_composition(
+    feed: list[str],
+    composition: dict[str, float] | None,
+) -> list[str]:
+    resolved = _expand_polymers(feed, "target polymer") if feed else []
+    if composition is None:
+        return resolved
+    names = list(composition)
+    if resolved and set(resolved) != set(names):
+        raise _ScenarioInputError(
+            "target_polymer must match feed_mass_fractions",
+            error_code="invalid_admitted_record_query",
+            feed=resolved,
+            composition_polymers=names,
+        )
+    return names
+
+
+def _d18_remnant_bases(
+    composition: dict[str, float],
+    plant_capacity: float | None,
+) -> list[dict[str, Any]]:
+    """Union of remnant (polymer, mass%, capacity) cells. Not a lookup table."""
+    polymers = sorted(composition)
+    bases: list[dict[str, Any]] = []
+    seen: set[tuple[Any, ...]] = set()
+    for polymer in polymers:
+        others = [name for name in polymers if name != polymer]
+        for count in range(len(others) + 1):
+            for taken in combinations(others, count):
+                remaining = {
+                    name: composition[name]
+                    for name in polymers
+                    if name not in taken
+                }
+                entering = sum(remaining.values())
+                mass_pct = round(100.0 * composition[polymer] / entering, 10)
+                capacity = (
+                    round(plant_capacity * entering, 10)
+                    if plant_capacity is not None
+                    else None
+                )
+                key = (polymer, mass_pct, capacity)
+                if key in seen:
+                    continue
+                seen.add(key)
+                bases.append({
+                    "polymer": polymer,
+                    "target_mass_percent": mass_pct,
+                    "processing_capacity_mt_per_yr": capacity,
+                })
+    return bases
+
+
+def _solvents_by_polymer_from_cells(
+    cells: list[dict[str, Any]],
+) -> tuple[dict[str, list[Any]], list[Any]]:
+    solvents_by_polymer: dict[str, list[Any]] = {}
+    unnamed: list[Any] = []
+    for cell in cells:
+        polymer = cell["polymer"]
+        solvent = cell["solvent"]
+        if polymer is None:
+            if solvent not in unnamed:
+                unnamed.append(solvent)
+            continue
+        solvents_by_polymer.setdefault(polymer, [])
+        if solvent not in solvents_by_polymer[polymer]:
+            solvents_by_polymer[polymer].append(solvent)
+    return solvents_by_polymer, unnamed
+
+
+def _expand_identity_cells_with_d18(
+    identity_cells: list[dict[str, Any]],
+    composition: dict[str, float],
+    plant_capacity: float | None,
+) -> list[dict[str, Any]]:
+    solvents_by_polymer, unnamed = _solvents_by_polymer_from_cells(
+        identity_cells,
+    )
+    cells: list[dict[str, Any]] = []
+    for base in _d18_remnant_bases(composition, plant_capacity):
+        solvents = solvents_by_polymer.get(base["polymer"]) or unnamed or [None]
+        for solvent in solvents:
+            cells.append(_remnant_cell(
+                base["polymer"],
+                solvent,
+                target_mass_percent=base["target_mass_percent"],
+                processing_capacity_mt_per_yr=base[
+                    "processing_capacity_mt_per_yr"
+                ],
+            ))
+    return cells or identity_cells
+
+
 def _missing_keys_from_sequence_solvent(
     *,
     planner_solvent_map: Any,
     allowed_solvents: Any,
     feed: list[str],
+    composition: dict[str, float] | None = None,
+    plant_capacity: float | None = None,
 ) -> list[dict[str, Any]]:
     """Name remnant×solvent cells the caller identified. Do not fill them."""
     if _allowed_solvents_shape(allowed_solvents):
-        return _missing_keys_from_allowed(allowed_solvents, feed)
-    if _planner_solvent_map_shape(planner_solvent_map):
+        identity = _missing_keys_from_allowed(allowed_solvents, feed)
+    elif _planner_solvent_map_shape(planner_solvent_map):
         mapping = _canonical_planner_solvent_map(planner_solvent_map)
-        return _missing_keys_from_planner_map(mapping)
-    if feed:
-        return [_unnamed_remnant_cell(polymer=name) for name in feed]
-    return [_unnamed_remnant_cell()]
+        identity = _missing_keys_from_planner_map(mapping)
+    elif feed:
+        identity = [_unnamed_remnant_cell(polymer=name) for name in feed]
+    else:
+        identity = [_unnamed_remnant_cell()]
+    if composition is None:
+        return identity
+    return _expand_identity_cells_with_d18(
+        identity, composition, plant_capacity,
+    )
 
 
-def _missing_keys_from_planner_map(mapping: dict[str, str]) -> list[dict[str, Any]]:
-    return [
+def _missing_keys_from_planner_map(
+    mapping: dict[str, str],
+    *,
+    composition: dict[str, float] | None = None,
+    plant_capacity: float | None = None,
+) -> list[dict[str, Any]]:
+    identity = [
         _remnant_cell(polymer, mapping[polymer])
         for polymer in sorted(mapping)
     ]
+    if composition is None:
+        return identity
+    return _expand_identity_cells_with_d18(
+        identity, composition, plant_capacity,
+    )
 
 
 def _missing_keys_from_allowed(
@@ -4966,6 +5117,8 @@ def _superstructure_map_refusal(
     planner_solvent_map: Any,
     allowed_solvents: Any,
     target_polymer: Any,
+    feed_mass_fractions: Any = None,
+    process_config: Any = None,
 ) -> str | None:
     """Missing-map refuses, then incomplete_stage_basis_grid. Not a ranking."""
     tool = "rank_landscape"
@@ -5014,13 +5167,18 @@ def _superstructure_map_refusal(
         )
     if token == "sequence_solvent":
         try:
-            resolved_feed = (
-                _expand_polymers(feed, "target polymer") if feed else []
+            composition, plant_capacity = (
+                _superstructure_composition_and_capacity(
+                    feed_mass_fractions, process_config,
+                )
             )
+            resolved_feed = _align_feed_with_composition(feed, composition)
             missing_keys = _missing_keys_from_sequence_solvent(
                 planner_solvent_map=planner_solvent_map,
                 allowed_solvents=allowed_solvents,
                 feed=resolved_feed,
+                composition=composition,
+                plant_capacity=plant_capacity,
             )
         except (_ScenarioInputError, _InputError, ValueError) as error:
             return _identity_error(error)
@@ -5040,9 +5198,12 @@ def _superstructure_map_refusal(
             )
         try:
             mapping = _canonical_planner_solvent_map(planner_solvent_map)
-            resolved_feed = (
-                _expand_polymers(feed, "target polymer") if feed else []
+            composition, plant_capacity = (
+                _superstructure_composition_and_capacity(
+                    feed_mass_fractions, process_config,
+                )
             )
+            resolved_feed = _align_feed_with_composition(feed, composition)
         except (_ScenarioInputError, _InputError, ValueError) as error:
             return _identity_error(error)
         missing = [name for name in resolved_feed if name not in mapping]
@@ -5057,7 +5218,11 @@ def _superstructure_map_refusal(
             )
         return _incomplete_stage_basis_grid(
             formulation=token,
-            missing_keys=_missing_keys_from_planner_map(mapping),
+            missing_keys=_missing_keys_from_planner_map(
+                mapping,
+                composition=composition,
+                plant_capacity=plant_capacity,
+            ),
         )
     if token == "solvent":
         if not _allowed_solvents_shape(allowed_solvents):
@@ -5070,10 +5235,13 @@ def _superstructure_map_refusal(
                 feed=feed,
             )
         try:
-            if isinstance(allowed_solvents, list):
-                resolved_feed = (
-                    _expand_polymers(feed, "target polymer") if feed else []
+            composition, _plant_capacity = (
+                _superstructure_composition_and_capacity(
+                    feed_mass_fractions, process_config,
                 )
+            )
+            resolved_feed = _align_feed_with_composition(feed, composition)
+            if isinstance(allowed_solvents, list):
                 return _incomplete_stage_basis_grid(
                     formulation=token,
                     missing_keys=_missing_keys_from_allowed(
@@ -5081,9 +5249,6 @@ def _superstructure_map_refusal(
                     ),
                 )
             keys = _canonical_allowed_solvent_keys(allowed_solvents)
-            resolved_feed = (
-                _expand_polymers(feed, "target polymer") if feed else []
-            )
         except (_ScenarioInputError, _InputError, ValueError) as error:
             return _identity_error(error)
         missing = [name for name in resolved_feed if name not in keys]
@@ -5123,6 +5288,7 @@ def rank_landscape(
     handle: Optional[str] = None,
     planner_solvent_map: Optional[dict[str, Any]] = None,
     allowed_solvents: Optional[dict[str, Any] | list[Any]] = None,
+    feed_mass_fractions: Optional[dict[str, Any]] = None,
     **unexpected: Any,
 ) -> str:
     """Rank already-run process rows. Does not spawn BioSTEAM.
@@ -5137,8 +5303,11 @@ def rank_landscape(
     incomplete_stage_basis_grid. A bound map still has no remnant table:
     the data-gate lists missing (polymer, mass%, capacity, solvent) cells
     and, for formulation=sequence, attaches pending_blockers for D-20.
-    Do not scan top_k_sequences for either map. formulation is required
-    iff source=superstructure; formulation=wash_train is
+    When feed_mass_fractions is supplied, those cells use the D-18 remnant
+    subset union (n × 2^{n−1}); plant capacity comes from process_config
+    and is not defaulted to 20 kt. Maps name solvents only. Do not scan
+    top_k_sequences for either map. formulation is required iff
+    source=superstructure; formulation=wash_train is
     process_model_wash_train_unavailable. formulation=sequence_solvent
     lists the remnant×solvent table as incomplete_stage_basis_grid and
     does not take a shortlist or maps as a coefficient fill. Remnant
@@ -5173,14 +5342,15 @@ def rank_landscape(
         name for name, value in (
             ("planner_solvent_map", planner_solvent_map),
             ("allowed_solvents", allowed_solvents),
+            ("feed_mass_fractions", feed_mass_fractions),
         )
         if value is not None
     ]
     if map_fields and source_token != "superstructure":
         return tool_error(
             tool,
-            "planner_solvent_map and allowed_solvents apply on "
-            "source=superstructure",
+            "planner_solvent_map, allowed_solvents, and feed_mass_fractions "
+            "apply on source=superstructure",
             error_code="not_applicable_in_source",
             source=source_token,
             inapplicable_fields=map_fields,
@@ -5192,6 +5362,8 @@ def rank_landscape(
                 planner_solvent_map=planner_solvent_map,
                 allowed_solvents=allowed_solvents,
                 target_polymer=target_polymer,
+                feed_mass_fractions=feed_mass_fractions,
+                process_config=process_config,
             )
             if refused is not None:
                 return refused
