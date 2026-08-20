@@ -5254,6 +5254,33 @@ def _requested_finance_interest(process_config: Any) -> float | None:
     return round(rate, 10)
 
 
+def _requested_finance_years(process_config: Any) -> float | None:
+    """Held finance years. Do not default 10."""
+    if not isinstance(process_config, dict):
+        return None
+    if (
+        "finance_years" not in process_config
+        or process_config["finance_years"] in (None, "")
+    ):
+        return None
+    years = _finite(process_config["finance_years"], "finance_years")
+    if years <= 0:
+        raise _ScenarioInputError(
+            "finance_years must be positive.",
+            error_code="invalid_admitted_record_query",
+            field="finance_years",
+            supplied=process_config["finance_years"],
+        )
+    if not float(years).is_integer():
+        raise _ScenarioInputError(
+            "finance_years must be a whole number of years.",
+            error_code="invalid_admitted_record_query",
+            field="finance_years",
+            supplied=process_config["finance_years"],
+        )
+    return round(years, 10)
+
+
 def _superstructure_composition_and_capacity(
     feed_mass_fractions: Any,
     process_config: Any,
@@ -5494,6 +5521,7 @@ def _remnant_key_from_row(
     operating_days: float | None = None,
     labor_burden: float | None = None,
     finance_interest: float | None = None,
+    finance_years: float | None = None,
 ) -> tuple[Any, ...] | None:
     """Remnant coordinate of a tool-1 row. Failures are not a fill."""
     if not isinstance(row, dict) or row.get("success") is False:
@@ -5575,6 +5603,7 @@ def _remnant_key_from_row(
         ("operating_days", operating_days),
         ("labor_burden", labor_burden),
         ("finance_interest", finance_interest),
+        ("finance_years", finance_years),
     ):
         if held is None:
             continue
@@ -5638,7 +5667,7 @@ def _cell_remnant_key(cell: dict[str, Any]) -> tuple[Any, ...] | None:
             key = key + (str(value).strip(),)
     for field in (
         "irr", "income_tax", "operating_days", "labor_burden",
-        "finance_interest",
+        "finance_interest", "finance_years",
     ):
         value = cell.get(field)
         if value not in (None, ""):
@@ -5727,6 +5756,7 @@ def _unmatched_remnant_keys(
     held_operating_days = _held_rounded_field(missing_keys, "operating_days")
     held_labor_burden = _held_rounded_field(missing_keys, "labor_burden")
     held_finance_interest = _held_rounded_field(missing_keys, "finance_interest")
+    held_finance_years = _held_rounded_field(missing_keys, "finance_years")
     present = {
         key for row in rows
         if (
@@ -5749,6 +5779,7 @@ def _unmatched_remnant_keys(
                 operating_days=held_operating_days,
                 labor_burden=held_labor_burden,
                 finance_interest=held_finance_interest,
+                finance_years=held_finance_years,
             )
         ) is not None
     }
@@ -5799,6 +5830,7 @@ def _refuse_listed_or_complete(
         "operating_days": _requested_operating_days(process_config),
         "labor_burden": _requested_labor_burden(process_config),
         "finance_interest": _requested_finance_interest(process_config),
+        "finance_years": _requested_finance_years(process_config),
     }
     if any(value is not None for value in held.values()):
         stamped: list[dict[str, Any]] = []
@@ -6039,9 +6071,9 @@ def rank_landscape(
     labor_cost_usd_per_employee_yr, sell_leftover_plastic,
     burn_leftover_plastic, precipitation_temperature_format,
     precipitation_configuration, irr, income_tax, operating_days,
-    labor_burden, or finance_interest, listed keys include that held
-    value and matching requires it; omitted is not a silent cache or
-    production default. A complete sequence grid with production check red is
+    labor_burden, finance_interest, or finance_years, listed keys
+    include that held value and matching requires it; omitted is not
+    a silent cache or production default. A complete sequence grid with production check red is
     sequence_coupling_unproven as primary (no pending_blockers).
     Do not scan top_k_sequences for either map.
     formulation is required iff source=superstructure;
