@@ -2584,20 +2584,22 @@ def confirmation_sheet_derived_energy_case_label() -> str:
 
 def confirmation_sheet_column_widths(
     rows: Sequence[tuple[str, str, str, str]],
-) -> tuple[int, int, int]:
-    """Min widths for field / value / units on the confirmation sheet.
+) -> tuple[int, int, int, int]:
+    """Min widths for field / value / units / origin on the confirmation sheet.
 
-    Origin is last and is not padded. Empty units still occupy the
-    units slot. Not a ranking.
+    Empty units and empty origin still occupy their slots. Origin pad
+    is a display width, not a fifth closed origin token. Not a ranking.
     """
     field_width = len("field")
     value_width = len("value")
     units_width = len("units")
-    for field, value, units, _origin in rows:
+    origin_width = len("origin")
+    for field, value, units, origin in rows:
         field_width = max(field_width, len(field))
         value_width = max(value_width, len(value))
         units_width = max(units_width, len(units))
-    return field_width, value_width, units_width
+        origin_width = max(origin_width, len(origin))
+    return field_width, value_width, units_width, origin_width
 
 
 def confirmation_sheet_format_row(
@@ -2605,21 +2607,20 @@ def confirmation_sheet_format_row(
     value: str,
     units: str,
     origin: str,
-    widths: tuple[int, int, int],
+    widths: tuple[int, int, int, int],
 ) -> str:
     """One four-slot confirmation-sheet row, columns padded.
 
     Empty units still occupy the units slot so origin stays in the
-    origin column. Empty origin still occupies the origin slot:
-    trailing units/origin pad is kept. Not a fifth closed origin
-    token. Not a ranking.
+    origin column. Empty origin still occupies the origin slot.
+    Origin pad is not a fifth closed origin token. Not a ranking.
     """
-    field_width, value_width, units_width = widths
+    field_width, value_width, units_width, origin_width = widths
     return (
         f"{field:<{field_width}}  "
         f"{value:<{value_width}}  "
         f"{units:<{units_width}}  "
-        f"{origin}"
+        f"{origin:<{origin_width}}"
     )
 
 
