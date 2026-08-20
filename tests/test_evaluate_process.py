@@ -1,10 +1,13 @@
-"""evaluate_process lookup, evaluate, and sensitivity. Old TEA names stay. Not route."""
+"""evaluate_process lookup, evaluate, sensitivity, and route. Old TEA names stay."""
 from __future__ import annotations
 
+import copy
 import hashlib
 import json
+import math
 import sys
 from pathlib import Path
+from types import SimpleNamespace
 
 _ROOT = Path(__file__).resolve().parents[1]
 for _path in (str(_ROOT), str(_ROOT / "src")):
@@ -12,7 +15,7 @@ for _path in (str(_ROOT), str(_ROOT / "src")):
         sys.path.insert(0, _path)
 
 from agent_tools import UNWIRED, dispatch, tool_schemas
-from dissolve import campaign_consume, registry, tea
+from dissolve import campaign_consume, registry, tea, thermodynamics
 from dissolve.cli import EXPECTED_REGISTRY_NAMES
 from dissolve.session import bind_tool_session, load_handle, new_session, store_handle
 
@@ -101,6 +104,7 @@ def test_schema_uses_two_typed_objects_not_top_level_polymer():
     assert "solvent" not in props
     assert "parameter" not in props
     assert "scenarios" not in props
+    assert "feed_mass_fractions" not in props
     required = _schema("evaluate_process")["parameters"].get("required") or []
     assert "mode" not in required
     assert "lookup_filter" not in required
@@ -248,12 +252,17 @@ def test_sensitivity_selector_stays_on_lookup_filter(monkeypatch):
     assert "ldpe-route-c1" in {item.casefold() for item in labels}
 
 
-def test_route_stays_unwired_on_this_name(monkeypatch):
+def test_route_missing_handle_is_named_refuse(monkeypatch):
     _forbid_live(monkeypatch)
     payload = _data(tea.evaluate_process(mode="route"))
     assert payload.get("success") is False
-    assert payload.get("error_code") == "tool_not_wired"
-    assert payload.get("mode") == "route"
+    assert payload.get("error_code") == "unknown_handle"
+    assert payload.get("error_code") != "tool_not_wired"
+    assert payload.get("error_code") != "missing_stored_route"
+    assert payload.get("tool_name") == "evaluate_process"
+    blank = _data(tea.evaluate_process(mode="route", handle="  "))
+    assert blank.get("error_code") == "unknown_handle"
+    assert blank.get("error_code") != "tool_not_wired"
     filtered = _data(tea.evaluate_process(
         mode="route",
         lookup_filter={"target_polymer": "LDPE"},
@@ -266,6 +275,22 @@ def test_route_stays_unwired_on_this_name(monkeypatch):
     ))
     assert batch.get("error_code") == "not_applicable_in_mode"
     assert batch.get("inapplicable_fields") == ["process_configs"]
+    config = _data(tea.evaluate_process(
+        mode="route",
+        process_config={"target_polymer": "LDPE"},
+        handle="h1",
+    ))
+    assert config.get("error_code") == "not_applicable_in_mode"
+    assert config.get("inapplicable_fields") == ["process_config"]
+    assert config.get("applicable_mode") == "evaluate"
+    dispatched = dispatch("evaluate_process", mode="route")
+    assert dispatched.get("available") is False
+    assert dispatched.get("refusal") == "unknown_handle"
+    old = dispatch("evaluate_stored_route_tea_lca")
+    assert old.get("available") is False
+    assert old.get("refusal") == "tool_not_wired"
+    assert "evaluate_stored_route_tea_lca" in UNWIRED
+    assert "evaluate_process" not in UNWIRED
     assert _data(tea.lookup_admitted_process_records(
         target_polymer="LDPE",
         solvent="Dodecane",
@@ -729,3 +754,244 @@ def test_dispatch_sensitivity_mode_issues_handle(monkeypatch):
         assert stored.get("tool") == "evaluate_process"
         assert "sensitivity_rows" in stored["exact"]
         assert stored["exact"]["tool_name"] == "evaluate_process"
+
+
+_ROUTE_CAPACITY = 20_000.0
+_ROUTE_ENERGY = "C1"
+_ROUTE_PRECIP = 25.0
+_ROUTE_FRACTION = 0.55
+_EXACT_PLANNER_ROUTE: tuple[dict, dict] | None = None
+
+
+def _plan_routes(feed: tuple[str, str], composition: dict[str, float]) -> list[dict]:
+    result = _data(registry.BY_NAME["plan_multistage_separation"].fn(
+        feed_polymers=list(feed),
+        feed_mass_fractions=dict(composition),
+        top_k_routes=10,
+    ))
+    assert result.get("success") is True
+    return list(result.get("top_k_sequences") or [])
+
+
+def _one_step_route(routes: list[dict], target: str, residue: str) -> dict | None:
+    return next((
+        route for route in routes
+        if route.get("complete") is True
+        and len(route.get("steps") or []) == 1
+        and route["steps"][0].get("dissolved_polymer") == target
+        and route.get("final_residue") == residue
+    ), None)
+
+
+def _exact_planner_route() -> tuple[dict, dict]:
+    global _EXACT_PLANNER_ROUTE
+    if _EXACT_PLANNER_ROUTE is not None:
+        return (
+            copy.deepcopy(_EXACT_PLANNER_ROUTE[0]),
+            copy.deepcopy(_EXACT_PLANNER_ROUTE[1]),
+        )
+    targets = sorted({
+        str(record["config"]["target_plastic"])
+        for record in tea._records()
+        if math.isclose(
+            float(record["config"]["target_plastic_percent"]),
+            100.0 * _ROUTE_FRACTION,
+            rel_tol=0,
+            abs_tol=1e-9,
+        )
+        and math.isclose(
+            float(record["config"]["processing_capacity"]),
+            _ROUTE_CAPACITY,
+            rel_tol=0,
+            abs_tol=1e-9,
+        )
+        and str(record["config"]["energy_case"]).upper() == _ROUTE_ENERGY
+        and math.isclose(
+            float(record["config"]["precipitation_temperature_c"]),
+            _ROUTE_PRECIP,
+            rel_tol=0,
+            abs_tol=1e-9,
+        )
+    })
+    for target in targets:
+        for residue in sorted(thermodynamics.get_available_polymers()):
+            if residue == target:
+                continue
+            feed = tuple(sorted((target, residue)))
+            composition = {
+                target: _ROUTE_FRACTION,
+                residue: 1.0 - _ROUTE_FRACTION,
+            }
+            route = _one_step_route(_plan_routes(feed, composition), target, residue)
+            if route is None:
+                continue
+            try:
+                step = route["steps"][0]
+                scenario = {
+                    "target_polymer": target,
+                    "solvent": step["solvent"],
+                    "target_mass_percent": 100.0 * _ROUTE_FRACTION,
+                    "processing_capacity_mt_per_yr": _ROUTE_CAPACITY,
+                    "energy_case": _ROUTE_ENERGY,
+                    "dissolution_temp_c": step["temperature_c"],
+                    "precipitation_temp_c": _ROUTE_PRECIP,
+                }
+                scenario.update(tea._stored_route_named_remainder(str(step["solvent"])))
+                config = tea._scenario_config(scenario)
+            except (TypeError, ValueError):
+                continue
+            if tea._cache_index().get(tea._config_key(config)) is None:
+                continue
+            _EXACT_PLANNER_ROUTE = (composition, copy.deepcopy(route))
+            return copy.deepcopy(composition), copy.deepcopy(route)
+    raise AssertionError("no planner-emitted exact D-8 design-point route was reachable")
+
+
+def _store_planner_route_handle(session, composition: dict, route: dict) -> str:
+    return store_handle(
+        session,
+        tool="plan_multistage_separation",
+        source_basis="cosmo_rs_grid",
+        data={
+            "success": True,
+            "complete": bool(route.get("complete")),
+            "steps": copy.deepcopy(route.get("steps") or []),
+            "final_residue": route.get("final_residue"),
+            "best_sequence": copy.deepcopy(route.get("sequence") or []),
+            "feed_mass_fractions": dict(composition),
+            "top_k_sequences": [copy.deepcopy(route)],
+        },
+    )
+
+
+def _route_parity(payload: dict) -> dict:
+    stages = payload.get("stage_results") or []
+    return {
+        "success": payload.get("success"),
+        "error_code": payload.get("error_code"),
+        "analysis_type": payload.get("analysis_type"),
+        "engine_mode": payload.get("engine_mode"),
+        "cache_match_status": payload.get("cache_match_status"),
+        "stage_count": len(stages) if isinstance(stages, list) else None,
+        "stage_labels": [
+            str(row.get("label") or "") for row in stages if isinstance(row, dict)
+        ],
+        "stage_success": [
+            row.get("success") for row in stages if isinstance(row, dict)
+        ],
+        "polymers": [
+            str(row.get("target_plastic") or row.get("polymer") or "")
+            for row in stages if isinstance(row, dict)
+        ],
+    }
+
+
+def test_route_unknown_handle_is_named(monkeypatch):
+    _forbid_live(monkeypatch)
+    session = new_session()
+    with bind_tool_session(session):
+        payload = _data(tea.evaluate_process(
+            mode="route",
+            handle="no-such-handle",
+            engine_mode="cache",
+        ))
+    assert payload.get("error_code") == "unknown_handle"
+    assert payload.get("error_code") != "tool_not_wired"
+    assert payload.get("tool_name") == "evaluate_process"
+
+
+def test_route_evaluate_handle_is_not_a_route(monkeypatch):
+    record = _route_c1()
+    _forbid_live(monkeypatch)
+    session = new_session()
+    with bind_tool_session(session):
+        first = _data(tea.evaluate_process(
+            mode="evaluate",
+            process_config=_public_from_record(record),
+            engine_mode="cache",
+        ))
+        handle = store_handle(
+            session,
+            tool="evaluate_process",
+            source_basis="tea_cache_exact",
+            data=first,
+        )
+        payload = _data(tea.evaluate_process(
+            mode="route",
+            handle=handle,
+            engine_mode="cache",
+        ))
+    assert payload.get("error_code") == "not_route_handle"
+    assert payload.get("error_code") != "tool_not_wired"
+    assert payload.get("tool_name") == "evaluate_process"
+
+
+def test_route_mode_matches_old_name_on_planner_route(monkeypatch):
+    composition, route = _exact_planner_route()
+    _forbid_live(monkeypatch)
+    session = new_session()
+    with bind_tool_session(session):
+        handle = _store_planner_route_handle(session, composition, route)
+        wrapped = _data(tea.evaluate_process(
+            mode=" ROUTE ",
+            handle=handle,
+            processing_capacity_mt_per_yr=_ROUTE_CAPACITY,
+            energy_case=_ROUTE_ENERGY,
+            precipitation_temperature_c=_ROUTE_PRECIP,
+            engine_mode="cache",
+        ))
+        assert session.get("last_route") is None
+        assert getattr(session, "last_route", None) is None
+    monkeypatch.setattr(
+        tea,
+        "current_tool_session",
+        lambda: SimpleNamespace(
+            last_route=copy.deepcopy(route),
+            feed_mass_fractions=dict(composition),
+        ),
+    )
+    direct = _data(tea.evaluate_stored_route_tea_lca(
+        feed_mass_fractions=dict(composition),
+        processing_capacity_mt_per_yr=_ROUTE_CAPACITY,
+        energy_case=_ROUTE_ENERGY,
+        precipitation_temperature_c=_ROUTE_PRECIP,
+        engine_mode="cache",
+    ))
+    assert wrapped.get("tool_name") == "evaluate_process"
+    assert direct.get("tool_name") == "evaluate_stored_route_tea_lca"
+    assert wrapped.get("success") is True
+    assert wrapped.get("error_code") != "tool_not_wired"
+    assert wrapped.get("route_source") == "typed_session_state"
+    assert len(wrapped.get("comparison_rows") or []) == len(wrapped.get("stage_results") or [])
+    assert _route_parity(wrapped) == _route_parity(direct)
+
+
+def test_dispatch_route_mode_issues_handle(monkeypatch):
+    composition, route = _exact_planner_route()
+    _forbid_live(monkeypatch)
+    session = new_session()
+    with bind_tool_session(session):
+        handle = _store_planner_route_handle(session, composition, route)
+        out = dispatch(
+            "evaluate_process",
+            mode="route",
+            handle=handle,
+            processing_capacity_mt_per_yr=_ROUTE_CAPACITY,
+            energy_case=_ROUTE_ENERGY,
+            precipitation_temperature_c=_ROUTE_PRECIP,
+            engine_mode="cache",
+        )
+        assert out.get("available") is True
+        assert out.get("handle")
+        assert out.get("handle") != handle
+        stored = load_handle(session, out["handle"])
+        assert stored.get("tool") == "evaluate_process"
+        assert stored["exact"]["tool_name"] == "evaluate_process"
+        assert "stage_results" in stored["exact"]
+        assert "comparison_rows" in stored["exact"]
+        assert len(stored["exact"]["comparison_rows"]) == len(
+            stored["exact"]["stage_results"]
+        )
+        old = dispatch("evaluate_stored_route_tea_lca")
+        assert old.get("available") is False
+        assert old.get("refusal") == "tool_not_wired"

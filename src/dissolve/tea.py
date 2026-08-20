@@ -14,6 +14,7 @@ import shutil
 import statistics
 import subprocess
 import sys
+from contextvars import ContextVar
 from functools import lru_cache
 from importlib.resources import files
 from itertools import combinations
@@ -4745,6 +4746,29 @@ _SENSITIVITY_MODE_FORWARD = frozenset({
     "row_id",
     "timeout_seconds",
 })
+_ROUTE_MODE_FORWARD = frozenset({
+    "feed_mass_fractions",
+    "processing_capacity_mt_per_yr",
+    "product_capacity_mt_per_yr",
+    "comparison_capacities_mt_per_yr",
+    "energy_case",
+    "precipitation_temperature_c",
+    "product_quality_intent",
+    "engine_mode",
+    "timeout_seconds",
+    "allow_screening_estimate",
+    "requested_metrics",
+    "requested_product_count",
+    "product_selection_basis",
+    "feed_polymers",
+    "compare_route_variants",
+    "handle",
+    "row_id",
+})
+_STORED_ROUTE_OVERRIDE: ContextVar[dict[str, Any] | None] = ContextVar(
+    "dissolve_stored_route_override",
+    default=None,
+)
 _LOOKUP_FILTER_FIELDS = frozenset({
     "target_polymer",
     "solvent",
@@ -4773,6 +4797,125 @@ def _evaluate_process_envelope(raw: str) -> str:
     )
 
 
+def _project_route_comparison_rows(raw: str) -> str:
+    """Publish stage rows as comparison_rows so dispatch can issue a handle."""
+    envelope = json.loads(raw)
+    data = envelope.get("data")
+    if not isinstance(data, dict) or data.get("success") is not True:
+        return raw
+    if data.get("comparison_rows"):
+        return raw
+    stages = data.get("stage_results")
+    if not isinstance(stages, list) or not stages:
+        return raw
+    data["comparison_rows"] = copy.deepcopy(stages)
+    return json.dumps(
+        envelope, ensure_ascii=False, indent=2, allow_nan=False,
+    )
+
+
+def _planner_route_shape(value: Any) -> bool:
+    if not isinstance(value, dict):
+        return False
+    steps = value.get("steps")
+    if not isinstance(steps, list) or not steps:
+        return False
+    if not all(isinstance(step, dict) for step in steps):
+        return False
+    return any(
+        str(step.get("dissolved_polymer") or "").strip() for step in steps
+    )
+
+
+def _published_route_from_plan(exact: dict[str, Any]) -> dict[str, Any] | None:
+    if not _planner_route_shape(exact):
+        return None
+    route: dict[str, Any] = {
+        "complete": exact.get("complete"),
+        "steps": copy.deepcopy(exact["steps"]),
+    }
+    if "final_residue" in exact:
+        route["final_residue"] = copy.deepcopy(exact.get("final_residue"))
+    sequence = exact.get("best_sequence")
+    if sequence is None:
+        sequence = exact.get("sequence")
+    if sequence is not None:
+        route["sequence"] = copy.deepcopy(sequence)
+    mapping = exact.get("solvent_mapping")
+    if mapping is not None:
+        route["solvent_mapping"] = copy.deepcopy(mapping)
+    return route
+
+
+def _load_stored_route_from_handle(
+    handle: Any,
+    row_id: Any,
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    """Route identity from handle + row_id. Never last_route."""
+    token = handle.strip() if isinstance(handle, str) else ""
+    if not isinstance(handle, str) or not token:
+        raise _ScenarioInputError(
+            "unknown handle",
+            error_code="unknown_handle",
+            handle=handle,
+        )
+    record = current_tool_session()
+    stored = load_handle(record, token) if record is not None else None
+    if stored is None:
+        raise _ScenarioInputError(
+            "unknown handle",
+            error_code="unknown_handle",
+            handle=token,
+        )
+    exact = stored.get("exact") if isinstance(stored, dict) else None
+    source_tool = stored.get("tool") if isinstance(stored, dict) else None
+    if not isinstance(exact, dict):
+        raise _ScenarioInputError(
+            "handle is not a stored separation route",
+            error_code="not_route_handle",
+            handle=token,
+            source_tool=source_tool,
+        )
+    sequences = exact.get("top_k_sequences")
+    route_rows = [
+        item for item in sequences
+        if isinstance(item, dict) and _planner_route_shape(item)
+    ] if isinstance(sequences, list) else []
+    if row_id is not None:
+        if not route_rows:
+            raise _ScenarioInputError(
+                "handle has no stored route rows",
+                error_code="not_route_handle",
+                handle=token,
+                row_id=row_id,
+                source_tool=source_tool,
+            )
+        return (
+            copy.deepcopy(
+                _select_economics_handle_row(route_rows, row_id, handle=token)
+            ),
+            exact,
+        )
+    published = _published_route_from_plan(exact)
+    if published is not None:
+        return published, exact
+    if len(route_rows) == 1:
+        return copy.deepcopy(route_rows[0]), exact
+    if len(route_rows) > 1:
+        raise _ScenarioInputError(
+            "multi-row handle requires row_id",
+            error_code="ambiguous_handle_row",
+            handle=token,
+            n_rows=len(route_rows),
+        )
+    raise _ScenarioInputError(
+        "handle is not a stored separation route",
+        error_code="not_route_handle",
+        handle=token,
+        source_tool=source_tool,
+    )
+
+
 def evaluate_process(
     mode: Optional[str] = None,
     lookup_filter: Optional[dict[str, Any]] = None,
@@ -4784,15 +4927,18 @@ def evaluate_process(
 
     Closed mode: lookup, evaluate, sensitivity, route. lookup uses
     lookup_filter; evaluate uses process_config or process_configs;
-    sensitivity uses process_config plus parameter. Lookup, evaluate,
-    and sensitivity are wired; route on this name stays tool_not_wired
-    while the existing TEA names still serve them.
+    sensitivity uses process_config plus parameter; route uses handle
+    plus row_id. The existing TEA names still serve the same work.
     Optimization is not a mode. Not a ranking.
     """
     tool = "evaluate_process"
+    token = str(mode or "").strip().casefold()
+    allowed_scalars = _EVALUATE_PROCESS_MODE_SCALARS
+    if token == "route":
+        allowed_scalars = allowed_scalars | _ROUTE_MODE_FORWARD
     extra = sorted(
         str(name) for name in kwargs
-        if name not in _EVALUATE_PROCESS_MODE_SCALARS
+        if name not in allowed_scalars
     )
     if extra:
         return tool_error(
@@ -4801,7 +4947,6 @@ def evaluate_process(
             error_code="unknown_process_field",
             extra_keys=extra,
         )
-    token = str(mode or "").strip().casefold()
     if not token:
         return tool_error(
             tool,
@@ -4955,13 +5100,50 @@ def evaluate_process(
         return _evaluate_process_envelope(
             analyze_tea_sensitivity(**forwarded),
         )
-    return tool_error(
-        tool,
-        "evaluate_process mode=" + token + " is unwired; use the existing "
-        "TEA name until this mode lands.",
-        error_code="tool_not_wired",
-        mode=token,
+    if process_config is not None:
+        return tool_error(
+            tool,
+            "process_config is not applicable in this mode.",
+            error_code="not_applicable_in_mode",
+            mode=token,
+            inapplicable_fields=["process_config"],
+            applicable_mode="evaluate",
+        )
+    inapplicable = sorted(
+        str(name) for name in kwargs if name not in _ROUTE_MODE_FORWARD
     )
+    if inapplicable:
+        return tool_error(
+            tool,
+            "These arguments are not applicable in route mode.",
+            error_code="not_applicable_in_mode",
+            mode="route",
+            inapplicable_fields=inapplicable,
+        )
+    forwarded = {
+        name: kwargs[name]
+        for name in _ROUTE_MODE_FORWARD
+        if name in kwargs and name not in {"handle", "row_id"}
+    }
+    try:
+        route, exact = _load_stored_route_from_handle(
+            kwargs.get("handle"), kwargs.get("row_id"),
+        )
+    except _ScenarioInputError as error:
+        return tool_error(
+            tool, str(error), error_code=error.error_code, **error.details,
+        )
+    if (
+        "feed_mass_fractions" not in forwarded
+        and isinstance(exact.get("feed_mass_fractions"), dict)
+    ):
+        forwarded["feed_mass_fractions"] = dict(exact["feed_mass_fractions"])
+    override = _STORED_ROUTE_OVERRIDE.set(route)
+    try:
+        raw = evaluate_stored_route_tea_lca(**forwarded)
+    finally:
+        _STORED_ROUTE_OVERRIDE.reset(override)
+    return _project_route_comparison_rows(_evaluate_process_envelope(raw))
 
 
 def _load_process_rows_handle(
@@ -8177,7 +8359,11 @@ def evaluate_stored_route_tea_lca(
                 error_code="invalid_requested_metrics",
             )
     state = current_tool_session()
-    route = copy.deepcopy(getattr(state, "last_route", None)) if state else None
+    override = _STORED_ROUTE_OVERRIDE.get()
+    if override is not None:
+        route = copy.deepcopy(override)
+    else:
+        route = copy.deepcopy(getattr(state, "last_route", None)) if state else None
     candidate_basis = _stored_candidate_screen(state) if state and not route else None
     candidate_feed_matches = False
     if candidate_basis:

@@ -538,3 +538,84 @@ def test_later_sensitivity_keeps_parameter_and_uses_confirmed_buffer(
     assert captured[1]["parameter"] == "solvent_price"
     assert captured[1]["engine_mode"] == "cache"
     assert sheet["irr"] != 0.20
+
+
+def test_evaluate_process_route_mode_opens_the_sheet_without_process_config(
+    tmp_path, monkeypatch,
+):
+    monkeypatch.setattr(cli, "run_turn", _ok_turn)
+    monkeypatch.setattr(sys.stdin, "isatty", lambda: True)
+    app, _buf = _app(tmp_path, monkeypatch)
+    sheet = tea.seed_public_process_config({
+        "target_polymer": "LDPE",
+        "solvent": "Dodecane",
+        "dissolution_temperature_c": 145.0,
+        "processing_capacity_mt_per_yr": 20_000.0,
+        "energy_case": "C1",
+        "precipitation_temperature_c": 25.0,
+    })
+    monkeypatch.setattr(app, "_edit_process_sheet", lambda seed, **kwargs: sheet)
+    captured = {}
+
+    def original(name, **kwargs):
+        captured["name"] = name
+        captured["kwargs"] = kwargs
+        return {"success": True}
+
+    app._cli_direct_active = True
+    result = app._cli_direct_dispatch(
+        original,
+        "evaluate_process",
+        {"mode": "route", "handle": "plan-1", "engine_mode": "cache"},
+    )
+    assert result == {"success": True}
+    assert captured["name"] == "evaluate_process"
+    assert captured["kwargs"]["handle"] == "plan-1"
+    assert captured["kwargs"]["engine_mode"] == "cache"
+    assert "process_config" not in captured["kwargs"]
+    assert "process_configs" not in captured["kwargs"]
+    assert captured["kwargs"]["processing_capacity_mt_per_yr"] == 20_000.0
+    assert captured["kwargs"]["energy_case"] == "C1"
+    assert captured["kwargs"]["precipitation_temperature_c"] == 25.0
+    assert app._confirmation_sheet_submitted is True
+    assert app._process_buffer is sheet
+
+
+def test_later_route_keeps_handle_and_does_not_inject_process_config(
+    tmp_path, monkeypatch,
+):
+    monkeypatch.setattr(cli, "run_turn", _ok_turn)
+    monkeypatch.setattr(sys.stdin, "isatty", lambda: True)
+    app, _buf = _app(tmp_path, monkeypatch)
+    sheet = tea.seed_public_process_config({
+        "target_polymer": "LDPE",
+        "solvent": "Dodecane",
+        "dissolution_temperature_c": 145.0,
+        "processing_capacity_mt_per_yr": 20_000.0,
+        "energy_case": "C1",
+        "precipitation_temperature_c": 25.0,
+        "irr": 0.10,
+    })
+    monkeypatch.setattr(app, "_edit_process_sheet", lambda seed, **kwargs: sheet)
+    captured = []
+
+    def original(name, **kwargs):
+        captured.append(kwargs)
+        return {"success": True}
+
+    app._cli_direct_active = True
+    app._cli_direct_dispatch(
+        original,
+        "evaluate_process",
+        {"mode": "evaluate", "process_config": {"target_polymer": "LDPE"}},
+    )
+    app._cli_direct_dispatch(
+        original,
+        "evaluate_process",
+        {"mode": "route", "handle": "plan-1", "engine_mode": "cache"},
+    )
+    assert captured[0]["process_config"] is sheet
+    assert captured[1]["handle"] == "plan-1"
+    assert "process_config" not in captured[1]
+    assert captured[1]["engine_mode"] == "cache"
+    assert captured[1]["processing_capacity_mt_per_yr"] == 20_000.0

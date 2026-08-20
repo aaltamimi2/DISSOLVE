@@ -915,8 +915,27 @@ class CliApp:
         if name != "evaluate_process":
             return True
         return str(kwargs.get("mode") or "").strip().casefold() in {
-            "evaluate", "sensitivity",
+            "evaluate", "sensitivity", "route",
         }
+
+    def _bind_route_sheet_scalars(
+        self, kwargs: dict[str, Any], buffer: dict[str, Any] | None,
+    ) -> dict[str, Any]:
+        """Route identity is handle + row_id. Do not inject process_config."""
+        out = dict(kwargs)
+        out.pop("process_config", None)
+        out.pop("process_configs", None)
+        out.pop("screening_shortlist", None)
+        out.pop("held_process_basis", None)
+        if isinstance(buffer, dict):
+            for field in (
+                "processing_capacity_mt_per_yr",
+                "energy_case",
+                "precipitation_temperature_c",
+            ):
+                if field not in out and buffer.get(field) is not None:
+                    out[field] = buffer[field]
+        return out
 
     def _bind_confirmed_process(
         self, name: str, kwargs: dict[str, Any],
@@ -931,6 +950,9 @@ class CliApp:
             out.pop("screening_shortlist", None)
             out.pop("held_process_basis", None)
         elif name == "evaluate_process":
+            mode = str(kwargs.get("mode") or "").strip().casefold()
+            if mode == "route":
+                return self._bind_route_sheet_scalars(kwargs, buffer)
             out["process_config"] = buffer
             out.pop("process_configs", None)
             out.pop("screening_shortlist", None)
@@ -959,6 +981,14 @@ class CliApp:
             out.pop("held_process_basis", None)
             return out
         if name == "evaluate_process":
+            mode = str(kwargs.get("mode") or "").strip().casefold()
+            if mode == "route":
+                seed = self._confirm_seed(None)
+                submitted = self._edit_process_sheet(seed, prompt_fn=prompt_fn)
+                if submitted is None:
+                    return None
+                self._process_buffer = submitted
+                return self._bind_route_sheet_scalars(kwargs, submitted)
             configs = list(kwargs.get("process_configs") or [])
             seed_src = kwargs.get("process_config")
             if not isinstance(seed_src, dict):
