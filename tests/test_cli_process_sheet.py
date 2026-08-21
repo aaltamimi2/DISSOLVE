@@ -201,6 +201,43 @@ def test_abort_does_not_set_the_bit_or_run_model_args(tmp_path, monkeypatch):
     assert app._confirmation_sheet_submitted is False
 
 
+def test_transcript_process_config_refuses_before_the_sheet(tmp_path, monkeypatch):
+    monkeypatch.setattr(cli, "run_turn", _ok_turn)
+    monkeypatch.setattr(sys.stdin, "isatty", lambda: True)
+    app, _buf = _app(tmp_path, monkeypatch)
+
+    def forbidden(*args, **kwargs):
+        raise AssertionError("unknown process_config keys must not open the sheet")
+
+    monkeypatch.setattr(app, "_edit_process_sheet", forbidden)
+    called = []
+
+    def original(name, **kwargs):
+        called.append(name)
+        return {"success": True}
+
+    app._cli_direct_active = True
+    result = app._cli_direct_dispatch(
+        original,
+        "evaluate_process",
+        {
+            "mode": "evaluate",
+            "process_config": {
+                "polymer": "LDPE",
+                "solvent": "Dodecane",
+                "temperature_c": 105.0,
+                "solubility_pct": 14.54225715,
+            },
+        },
+    )
+    assert called == []
+    assert result["success"] is False
+    assert result["error_code"] == "unknown_process_field"
+    assert result["extra_keys"] == ["polymer", "solubility_pct", "temperature_c"]
+    assert result["error_code"] != "process_confirmation_aborted"
+    assert app._confirmation_sheet_submitted is False
+
+
 def test_non_tty_skips_the_sheet(tmp_path, monkeypatch):
     monkeypatch.setattr(cli, "run_turn", _ok_turn)
     monkeypatch.setattr(sys.stdin, "isatty", lambda: False)

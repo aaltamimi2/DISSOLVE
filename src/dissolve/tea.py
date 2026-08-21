@@ -1035,11 +1035,107 @@ def first_run_sheet_defaults(*, energy_case: str = "C1") -> dict[str, Any]:
     return defaults
 
 
+def _process_config_public_name(key: str) -> str | None:
+    """Public name for a process_config key, or None if it is not one."""
+    token = str(key)
+    if token not in _SCENARIO_ALLOWED_KEYS:
+        return None
+    internal_to_public = dict(_DESIGN_POINT_PUBLIC_FIELDS)
+    if token in _SCENARIO_ALIASES:
+        return internal_to_public.get(_SCENARIO_ALIASES[token], token)
+    if token in internal_to_public:
+        return internal_to_public[token]
+    return token
+
+
+def _unknown_process_config_keys(config: Mapping[str, Any]) -> list[str]:
+    return sorted(
+        str(key) for key in config
+        if str(key) not in _SCENARIO_ALLOWED_KEYS
+    )
+
+
+def _process_config_values_equivalent(public: str, left: Any, right: Any) -> bool:
+    if _sheet_values_match(left, right):
+        return True
+    if public == "solvent":
+        try:
+            return (
+                _resolve_tea_solvent(left)["canonical"]
+                == _resolve_tea_solvent(right)["canonical"]
+            )
+        except (_ScenarioInputError, ValueError, TypeError, KeyError):
+            return False
+    if public == "target_polymer":
+        try:
+            return _resolve_polymer(left) == _resolve_polymer(right)
+        except Exception:
+            return False
+    return False
+
+
+def _process_config_collisions(config: Mapping[str, Any]) -> list[dict[str, Any]]:
+    seen: dict[str, tuple[str, Any]] = {}
+    found: list[dict[str, Any]] = []
+    for key, value in config.items():
+        public = _process_config_public_name(str(key))
+        if public is None:
+            continue
+        if public in seen:
+            prior_key, prior_value = seen[public]
+            if not _process_config_values_equivalent(public, prior_value, value):
+                found.append({
+                    "public": public,
+                    "keys": [prior_key, str(key)],
+                    "values": [prior_value, value],
+                })
+        else:
+            seen[public] = (str(key), value)
+    return found
+
+
+def _refuse_process_config_ingest(config: Mapping[str, Any]) -> None:
+    """Refuse unrecognised or conflicting process_config keys. Do not drop them."""
+    supplied = dict(config)
+    _refuse_reserved_process_fields(supplied)
+    unknown = _unknown_process_config_keys(supplied)
+    if unknown:
+        raise _ScenarioInputError(
+            "unknown extra process field: " + ", ".join(unknown),
+            error_code="unknown_process_field",
+            extra_keys=unknown,
+        )
+    collisions = _process_config_collisions(supplied)
+    if not collisions:
+        return
+    parts = [
+        f"{item['public']}: {item['keys'][0]}={item['values'][0]!r} vs "
+        f"{item['keys'][1]}={item['values'][1]!r}"
+        for item in collisions
+    ]
+    raise _ScenarioInputError(
+        "conflicting process_config keys for " + "; ".join(parts),
+        error_code="conflicting_process_field",
+        collisions=collisions,
+    )
+
+
+def _refuse_process_config_items(items: Sequence[Any]) -> None:
+    for item in items:
+        if isinstance(item, dict):
+            _refuse_process_config_ingest(item)
+
+
 def seed_public_process_config(
     scenario: Optional[dict[str, Any]] = None,
 ) -> dict[str, Any]:
     """Map a scenario object onto the public sheet vocabulary."""
     raw = dict(scenario or {})
+    visible = {
+        key: value for key, value in raw.items()
+        if not str(key).startswith("_")
+    }
+    _refuse_process_config_ingest(visible)
     energy = str(raw.get("energy_case") or "C1").upper() or "C1"
     seeded = first_run_sheet_defaults(energy_case=energy)
     internal_to_public = dict(_DESIGN_POINT_PUBLIC_FIELDS)
@@ -3521,17 +3617,7 @@ def _scenario_config(
     working_keys = dict(scenario)
     thermo_rank_supplied = _ORIGINAL_THERMO_RANK_KEY in working_keys
     thermo_rank = working_keys.pop(_ORIGINAL_THERMO_RANK_KEY, None)
-    _refuse_reserved_process_fields(working_keys)
-    unknown = sorted(
-        str(key) for key in working_keys
-        if str(key) not in _SCENARIO_ALLOWED_KEYS
-    )
-    if unknown:
-        raise _ScenarioInputError(
-            "unknown extra process field: " + ", ".join(unknown),
-            error_code="unknown_process_field",
-            extra_keys=unknown,
-        )
+    _refuse_process_config_ingest(working_keys)
     working = dict(working_keys)
     missing = _missing_required_public_fields(working)
     if (
@@ -6304,6 +6390,15 @@ def evaluate_process(
                 error_code="invalid_admitted_record_query",
                 field="process_configs",
             )
+        try:
+            if process_config is not None:
+                _refuse_process_config_ingest(process_config)
+            if process_configs is not None:
+                _refuse_process_config_items(process_configs)
+        except _ScenarioInputError as error:
+            return tool_error(
+                tool, str(error), error_code=error.error_code, **error.details,
+            )
         scenarios: list[dict[str, Any]] | None = None
         if process_config is not None or process_configs is not None:
             scenarios = []
@@ -6345,6 +6440,13 @@ def evaluate_process(
                 error_code="invalid_admitted_record_query",
                 field="process_config",
             )
+        if process_config is not None:
+            try:
+                _refuse_process_config_ingest(process_config)
+            except _ScenarioInputError as error:
+                return tool_error(
+                    tool, str(error), error_code=error.error_code, **error.details,
+                )
         forwarded = {
             name: kwargs[name]
             for name in _SENSITIVITY_MODE_FORWARD

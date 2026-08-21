@@ -14,6 +14,8 @@ import sys
 from pathlib import Path
 from types import SimpleNamespace
 
+import pytest
+
 _ROOT = Path(__file__).resolve().parents[1]
 for _path in (str(_ROOT), str(_ROOT / "src")):
     if _path not in sys.path:
@@ -587,6 +589,157 @@ def test_evaluate_mode_temperature_c_is_unknown_extra(monkeypatch):
     ))
     assert payload.get("error_code") == "unknown_process_field"
     assert "temperature_c" in list(payload.get("extra_keys") or [])
+
+
+_TRANSCRIPT_PROCESS_CONFIG = {
+    "polymer": "LDPE",
+    "solvent": "Dodecane",
+    "temperature_c": 105.0,
+    "solubility_pct": 14.54225715,
+}
+_FOUR_PUBLIC_NAMES = {
+    "target_polymer": "LDPE",
+    "solvent": "Dodecane",
+    "dissolution_temperature_c": 105.0,
+    "dissolution_capacity": 14.54225715,
+}
+
+
+def _ingest_must_not_run(*_args, **_kwargs):
+    raise AssertionError("T1 must refuse before seed, default, or evaluate")
+
+
+def test_evaluate_mode_transcript_dict_refuses_unknown_keys_at_ingest(monkeypatch):
+    _forbid_live(monkeypatch)
+    monkeypatch.setattr(tea, "seed_public_process_config", _ingest_must_not_run)
+    monkeypatch.setattr(tea, "_scenario_config", _ingest_must_not_run)
+    monkeypatch.setattr(tea, "evaluate_tea_lca_scenarios", _ingest_must_not_run)
+    payload = _data(tea.evaluate_process(
+        mode="evaluate",
+        process_config=dict(_TRANSCRIPT_PROCESS_CONFIG),
+        engine_mode="cache",
+    ))
+    assert payload.get("success") is False
+    assert payload.get("error_code") == "unknown_process_field"
+    assert payload.get("extra_keys") == [
+        "polymer", "solubility_pct", "temperature_c",
+    ]
+    assert payload.get("tool_name") == "evaluate_process"
+    assert "msp_usd_per_kg" not in payload
+    assert "comparison_rows" not in payload
+
+
+def test_evaluate_mode_process_configs_transcript_item_refuses(monkeypatch):
+    _forbid_live(monkeypatch)
+    monkeypatch.setattr(tea, "evaluate_tea_lca_scenarios", _ingest_must_not_run)
+    payload = _data(tea.evaluate_process(
+        mode="evaluate",
+        process_configs=[dict(_TRANSCRIPT_PROCESS_CONFIG)],
+        engine_mode="cache",
+    ))
+    assert payload.get("error_code") == "unknown_process_field"
+    assert payload.get("extra_keys") == [
+        "polymer", "solubility_pct", "temperature_c",
+    ]
+
+
+def test_evaluate_mode_real_public_names_do_not_refuse_on_field_names(monkeypatch):
+    _forbid_live(monkeypatch)
+    payload = _data(tea.evaluate_process(
+        mode="evaluate",
+        process_config=dict(_FOUR_PUBLIC_NAMES),
+        engine_mode="cache",
+    ))
+    assert payload.get("error_code") != "unknown_process_field"
+    assert payload.get("error_code") == "incomplete_process_config"
+    assert "solvent_price_usd_per_kg" in list(payload.get("missing") or [])
+
+
+def test_seed_refuses_transcript_keys_instead_of_swallowing():
+    with pytest.raises(tea._ScenarioInputError) as caught:
+        tea.seed_public_process_config(dict(_TRANSCRIPT_PROCESS_CONFIG))
+    assert caught.value.error_code == "unknown_process_field"
+    assert caught.value.details["extra_keys"] == [
+        "polymer", "solubility_pct", "temperature_c",
+    ]
+
+
+def test_seed_accepts_real_public_and_internal_names():
+    seeded = tea.seed_public_process_config(dict(_FOUR_PUBLIC_NAMES))
+    assert seeded["target_polymer"] == "LDPE"
+    assert seeded["dissolution_capacity"] == pytest.approx(14.54225715)
+    internal = tea.seed_public_process_config({
+        "target_plastic": "LDPE",
+        "solvent": "Dodecane",
+        "dissolution_temp_c": 105.0,
+        "dissolution_capacity": 14.54225715,
+    })
+    assert internal["target_polymer"] == "LDPE"
+    assert internal["dissolution_temperature_c"] == pytest.approx(105.0)
+
+
+def test_evaluate_mode_dual_key_conflict_refuses(monkeypatch):
+    record = _record_with_energy("C1")
+    _forbid_live(monkeypatch)
+    monkeypatch.setattr(tea, "evaluate_tea_lca_scenarios", _ingest_must_not_run)
+    config = _public_from_record(record, target_plastic="HDPE")
+    config["target_polymer"] = "LDPE"
+    payload = _data(tea.evaluate_process(
+        mode="evaluate",
+        process_config=config,
+        engine_mode="cache",
+    ))
+    assert payload.get("error_code") == "conflicting_process_field"
+    collisions = payload.get("collisions") or []
+    assert collisions
+    assert collisions[0]["public"] == "target_polymer"
+
+
+def test_evaluate_mode_agreeing_dual_keys_are_not_a_field_name_refusal(monkeypatch):
+    record = _record_with_energy("C1")
+    _forbid_live(monkeypatch)
+    config = _public_from_record(record)
+    config["target_plastic"] = config["target_polymer"]
+    payload = _data(tea.evaluate_process(
+        mode="evaluate",
+        process_config=config,
+        engine_mode="cache",
+    ))
+    assert payload.get("error_code") != "unknown_process_field"
+    assert payload.get("error_code") != "conflicting_process_field"
+
+
+def test_evaluate_mode_allowed_extras_are_not_unknown(monkeypatch):
+    _forbid_live(monkeypatch)
+    payload = _data(tea.evaluate_process(
+        mode="evaluate",
+        process_config={
+            **_FOUR_PUBLIC_NAMES,
+            "label": "probe",
+            "lca_cfs": {"natural_gas_gwp": 1.0},
+            "facilities": (),
+            "turbogenerator": (),
+        },
+        engine_mode="cache",
+    ))
+    assert payload.get("error_code") != "unknown_process_field"
+    assert payload.get("error_code") == "incomplete_process_config"
+
+
+def test_evaluate_mode_screening_temperature_c_still_maps(monkeypatch):
+    record = _record_with_energy("C1")
+    _forbid_live(monkeypatch)
+    shortlist = _shortlist(_item_from_record(record))
+    item = dict(shortlist["items"][0])
+    item["temperature_c"] = item.pop("dissolution_temperature_c")
+    shortlist = _shortlist(item)
+    payload = _data(tea.evaluate_process(
+        mode="evaluate",
+        screening_shortlist=shortlist,
+        held_process_basis=_held_from_record(record),
+        engine_mode="cache",
+    ))
+    assert payload.get("error_code") != "unknown_process_field"
 
 
 def test_evaluate_mode_parameter_is_not_applicable(monkeypatch):
