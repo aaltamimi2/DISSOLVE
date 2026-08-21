@@ -1068,9 +1068,8 @@ def parse_document_structure(
     """Parse either a paper or patent through one backend-neutral structure path.
 
     ``parser_payload`` is the checksummed/offline fixture seam. Production parsing
-    first invokes Docling and only invokes DeepDoc after a typed Docling failure.
-    The one-paper experiment must not use this cascade; it calls
-    ``parse_experiment_document(backend=...)``.
+    invokes Docling and raises on failure; DeepDoc and pypdf are not a fallback.
+    The one-paper experiment calls ``parse_experiment_document(backend=...)``.
     """
     if parser_payload is not None:
         return _normalize_parser_bridge(acquisition, parser_payload, parsed_at=parsed_at)
@@ -1083,11 +1082,7 @@ def parse_document_structure(
             "parser_source_missing", "The acquired content artifact is not present on disk.",
             artifact_id=source.get("artifact_id"), packed_path=str(path),
         )
-    try:
-        bridge = _run_docling(path)
-    except LiteratureContractError as docling_error:
-        reason = f"docling_{docling_error.code}"
-        bridge = _run_deepdoc(path, fallback_reason=reason)
+    bridge = _run_docling(path)
     return _normalize_parser_bridge(acquisition, bridge, parsed_at=parsed_at)
 
 

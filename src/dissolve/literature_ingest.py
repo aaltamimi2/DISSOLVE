@@ -218,11 +218,10 @@ def _pypdf_bridge(path: Path, fallback_reason: str) -> dict[str, Any]:
 
 
 def _parse(acquisition: Mapping[str, Any]) -> dict[str, Any]:
-    """Production cascade: Docling, then DeepDoc, then pypdf.
+    """Production parse. Docling failure raises; DeepDoc and pypdf are not a fallback.
 
     The one-paper experiment must not call this. It uses
-    ``research.parse_experiment_document(backend=...)``, which raises instead
-    of falling through.
+    ``research.parse_experiment_document(backend=...)``.
     """
     from . import research
     source = Path(str(research._source_artifact(acquisition)["packed_path"]))
@@ -231,18 +230,19 @@ def _parse(acquisition: Mapping[str, Any]) -> dict[str, Any]:
             acquisition, parser_payload=_jats_bridge(source),
             parsed_at=str(acquisition["document"]["acquired_at"]),
         )
-    try:
-        bridge = research._run_docling(source)
-    except research.LiteratureContractError as docling_error:
-        docling_reason = f"docling_{docling_error.code}"
-        try:
-            bridge = research._run_deepdoc(source, fallback_reason=docling_reason)
-        except research.LiteratureContractError as deepdoc_error:
-            bridge = _pypdf_bridge(source, f"{docling_reason};deepdoc_{deepdoc_error.code}")
-    return research.parse_document_structure(
+    bridge = research._run_docling(source)
+    parsed = research.parse_document_structure(
         acquisition, parser_payload=bridge,
         parsed_at=str(acquisition["document"]["acquired_at"]),
     )
+    backend = parsed.get("parser_backend")
+    if backend != "docling" or parsed.get("fallback_reason"):
+        raise research.LiteratureContractError(
+            "parser_identity_lie",
+            "Production ingest refuses a non-Docling document into a table-bearing corpus.",
+            parser_backend=backend, fallback_reason=parsed.get("fallback_reason"),
+        )
+    return parsed
 
 
 def _prompt(parsed: Mapping[str, Any]) -> str:
