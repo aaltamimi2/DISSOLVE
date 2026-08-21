@@ -30,6 +30,11 @@ from .tools import _polymer_ambiguity_error
 
 _ASSET = Path(str(files("dissolve").joinpath("data/safety.duckdb")))
 _ASSET_SHA256 = "88ce0d09ac28de17045702a8a283de6610b5fe1ab33aa5f90bf6e98edfd75a74"
+_DEFAULT_MINIMUM_G_SCORE = 6.0
+_UNSOURCED_G_FLOOR_WARNING = (
+    "Default G-score floor 6.0 has no regulatory or literature citation "
+    "on this function."
+)
 _LOCAL = threading.local()
 _HEADINGS = (
     "Flash Point", "Autoignition Temperature", "Vapor Pressure",
@@ -1123,6 +1128,24 @@ def compare_solvent_safety_at_conditions(
     )
 
 
+def _g_floor_disclosure(g_floor: float) -> dict[str, Any]:
+    """Publish the G-score floor and whether the default 6.0 is unsourced."""
+    default_used = g_floor == _DEFAULT_MINIMUM_G_SCORE
+    return {
+        "minimum_g_score": g_floor,
+        "minimum_g_score_source": "default" if default_used else "user",
+        "minimum_g_score_citation_status": (
+            "unsourced" if default_used else "user_requested"
+        ),
+    }
+
+
+def _g_floor_warnings(g_floor: float) -> list[str]:
+    if g_floor != _DEFAULT_MINIMUM_G_SCORE:
+        return []
+    return [_UNSOURCED_G_FLOOR_WARNING]
+
+
 def screen_green_solvent_candidates(
     feed_polymers: list[str],
     target_polymer: str,
@@ -1131,7 +1154,7 @@ def screen_green_solvent_candidates(
     strict_maximum: bool = False,
     require_atmospheric: Optional[bool] = None,
     exclude_chlorinated: bool = True,
-    minimum_g_score: float = 6.0,
+    minimum_g_score: float = _DEFAULT_MINIMUM_G_SCORE,
     minimum_target_solubility_wt_pct: float = 5.0,
     minimum_selectivity_points: float = 5.0,
     limit: int = 5,
@@ -1190,7 +1213,7 @@ def screen_green_solvent_candidates(
             unsupported_thermodynamic_polymers=unsupported,
             temperature_min_c=lower, temperature_max_c=upper,
             strict_maximum=bool(strict_maximum), exclude_chlorinated=bool(exclude_chlorinated),
-            minimum_g_score=g_floor,
+            **_g_floor_disclosure(g_floor),
             minimum_target_solubility_wt_pct=solubility_floor,
             minimum_selectivity_points=selectivity_floor,
             selectivity_computable=False, screen_executed=False,
@@ -1199,6 +1222,7 @@ def screen_green_solvent_candidates(
             warnings=[
                 "No solvent shortlist was ranked because every feed polymer needs thermodynamic coverage for target/off-target selectivity.",
                 "HSP fallback evidence is qualitative and cannot satisfy a numerical selectivity constraint.",
+                *_g_floor_warnings(g_floor),
             ],
         )
     if len(polymers) < 2:
@@ -1333,7 +1357,7 @@ def screen_green_solvent_candidates(
         target_polymer=target, other_polymers=retained,
         temperature_min_c=lower, temperature_max_c=upper,
         strict_maximum=bool(strict_maximum), require_atmospheric=require_atmospheric,
-        exclude_chlorinated=bool(exclude_chlorinated), minimum_g_score=g_floor,
+        exclude_chlorinated=bool(exclude_chlorinated), **_g_floor_disclosure(g_floor),
         g_score_rating_floor=("Excellent" if g_floor >= 8.0 else "Good" if g_floor >= 6.0 else "Problematic"),
         minimum_target_solubility_wt_pct=solubility_floor,
         minimum_selectivity_points=selectivity_floor,
@@ -1366,6 +1390,7 @@ def screen_green_solvent_candidates(
             f"G-score >= {g_floor:g} is an EHS screening cutoff, not proof of low process hazard.",
             f"The {solubility_floor:g} wt% target-solubility and {selectivity_floor:g}-percentage-point selectivity references are screening heuristics, not recovery or purity criteria.",
             "Normal-boiling-point feasibility is an operability check; flash point, toxicity, and heated handling still require candidate-specific assessment.",
+            *_g_floor_warnings(g_floor),
         ],
         model_basis="green-first filter over the unified grid-first solubility model and sourced solvent scores",
         **thermo.solvent_scope_stamp(),
