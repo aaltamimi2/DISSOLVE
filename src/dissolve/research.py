@@ -3630,6 +3630,13 @@ def _json_documents(data: bytes, source: str) -> list[dict[str, Any]]:
         value: Any = [json.loads(line) for line in text.splitlines() if line.strip()]
     else:
         value = json.loads(text)
+    if isinstance(value, dict) and value.get("schema") == _CANONICAL_DOCUMENT_SCHEMA:
+        return [{
+            "title": Path(urlparse(source).path).stem or source,
+            "source": source,
+            "canonical_document": value,
+            "url": value.get("url"), "doi": value.get("doi"), "year": value.get("year"),
+        }]
     if isinstance(value, dict) and isinstance(value.get("documents"), list):
         value = value["documents"]
     if isinstance(value, dict):
@@ -3719,6 +3726,81 @@ def _dense_vectors(texts: list[str], model_name: str | None = None) -> tuple[str
     return selected, [[round(float(value), 8) for value in row] for row in encoded]
 
 
+def _first_overlapping_block(canonical: Mapping[str, Any], start: int, end: int) -> Mapping[str, Any] | None:
+    for block in canonical.get("blocks") or []:
+        try:
+            b_start, b_end = int(block["char_start"]), int(block["char_end"])
+        except (KeyError, TypeError, ValueError):
+            continue
+        if b_start < end and start < b_end:
+            return block
+    return None
+
+
+def _table_caption_and_basis(canonical: Mapping[str, Any], table: Mapping[str, Any]) -> tuple[str | None, str | None]:
+    """Caption and preceding prose carried alongside an atomic table chunk. Not in the span."""
+    blocks = list(canonical.get("blocks") or [])
+    by_id = {str(block.get("block_id")): i for i, block in enumerate(blocks)}
+    table_id = str(table.get("table_id") or "")
+    idx = by_id.get(table_id)
+    caption = None
+    cap_id = table.get("caption_block_id")
+    if idx is not None:
+        cap_id = cap_id or blocks[idx].get("caption_ref")
+    if cap_id:
+        for block in blocks:
+            if str(block.get("block_id")) == str(cap_id):
+                caption = str(block.get("text") or "") or None
+                break
+    basis = None
+    if idx is None:
+        return caption, basis
+    window = blocks[max(0, idx - 3):idx]
+    for block in reversed(window):
+        kind = str(block.get("kind") or "")
+        text = str(block.get("text") or "").strip()
+        if not text:
+            continue
+        if kind == "caption" and not caption:
+            caption = text
+        elif kind == "paragraph" and not basis:
+            basis = text
+    return caption, basis
+
+
+def _index_chunks_from_canonical(canonical: Mapping[str, Any]) -> list[dict[str, Any]]:
+    """C7 join: S2 atomic table spans, caption/basis carried alongside. No _paragraph_chunks."""
+    packed = chunk_s2_block_pack(canonical)
+    tables = {
+        (int(table["char_start"]), int(table["char_end"])): table
+        for table in canonical.get("tables") or []
+        if table.get("char_start") is not None and table.get("char_end") is not None
+    }
+    rows: list[dict[str, Any]] = []
+    for item in packed:
+        start, end = int(item["char_start"]), int(item["char_end"])
+        table = tables.get((start, end))
+        block = _first_overlapping_block(canonical, start, end) or {}
+        origin = block.get("nearest_preceding_heading_origin")
+        heading = list(block.get("nearest_preceding_heading") or [])
+        caption = basis = None
+        if table is not None:
+            caption, basis = _table_caption_and_basis(canonical, table)
+        rows.append({
+            "text": item["body"],
+            "char_start": start,
+            "char_end": end,
+            "page": block.get("page"),
+            "section": _chunk_header(heading) if origin == "parser_supplied" else "",
+            "section_origin": origin,
+            "nearest_preceding_heading": heading,
+            "caption": caption,
+            "basis": basis,
+            "kind": "table" if table is not None else block.get("kind"),
+        })
+    return rows
+
+
 def _ingest_inputs(
     paths: list[str], urls: list[str], knowledgebase: str, replace: bool,
     max_documents: int, build_dense_index: bool,
@@ -3757,6 +3839,58 @@ def _ingest_inputs(
     documents_added = 0
     chunks_added = 0
     for record in records[:maximum]:
+        canonical = record.get("canonical_document")
+        if isinstance(canonical, Mapping) and canonical.get("schema") == _CANONICAL_DOCUMENT_SCHEMA:
+            document_sha = str(canonical.get("source_pdf_sha256") or "")
+            if not document_sha:
+                document_sha = hashlib.sha256(
+                    str(canonical.get("canonical_text") or "").encode()
+                ).hexdigest()
+            if not str(canonical.get("canonical_text") or "").strip() or document_sha in existing_documents:
+                continue
+            document_id = f"D{document_sha[:16]}"
+            index["documents"].append({
+                "document_id": document_id, "sha256": document_sha,
+                "title": _clean(record.get("title"), 300), "source": str(record.get("source") or ""),
+                "url": record.get("url") or (record.get("source") if str(record.get("source", "")).startswith("http") else None),
+                "doi": record.get("doi"), "year": record.get("year"), "ingested_at": _now(),
+                "parser_backend": canonical.get("parser_backend"),
+                "parser_version": canonical.get("parser_version"),
+                "fallback_reason": canonical.get("fallback_reason"),
+            })
+            existing_documents.add(document_sha)
+            documents_added += 1
+            chunk_index = 0
+            for derived in _index_chunks_from_canonical(canonical):
+                text = str(derived.get("text") or "")
+                if not text.strip():
+                    continue
+                chunk_sha = hashlib.sha256(text.encode()).hexdigest()
+                if chunk_sha in existing_chunks:
+                    continue
+                chunk_index += 1
+                index["chunks"].append({
+                    "chunk_id": f"K{document_sha[:10]}-{chunk_index:04d}", "sha256": chunk_sha,
+                    "document_id": document_id, "title": _clean(record.get("title"), 300),
+                    "source": str(record.get("source") or ""), "url": record.get("url"),
+                    "doi": record.get("doi"), "year": record.get("year"),
+                    "page": derived.get("page"),
+                    "section": derived.get("section") or "",
+                    "section_origin": derived.get("section_origin"),
+                    "nearest_preceding_heading": derived.get("nearest_preceding_heading") or [],
+                    "caption": derived.get("caption"),
+                    "basis": derived.get("basis"),
+                    "kind": derived.get("kind"),
+                    "char_start": derived.get("char_start"),
+                    "char_end": derived.get("char_end"),
+                    "text": text,
+                    "token_estimate": max(1, math.ceil(len(text) / 4)),
+                })
+                existing_chunks.add(chunk_sha)
+                chunks_added += 1
+                if len(index["chunks"]) >= _MAX_CHUNKS:
+                    break
+            continue
         joined = "\n".join(str(page.get("text") or "") for page in record.get("pages") or [])
         document_sha = hashlib.sha256(joined.encode()).hexdigest()
         if not joined.strip() or document_sha in existing_documents:
@@ -3880,7 +4014,11 @@ def _search_index(index: dict[str, Any], query: str, top_k: int, mode: str) -> l
         dense_scores = [max(0.0, _cosine(query_vector[0], vector)) for vector in vectors]
     ranked = []
     for chunk, sparse_score, dense_score in zip(chunks, sparse, dense_scores):
-        section = str(chunk.get("section") or "").casefold()
+        origin = chunk.get("section_origin")
+        if origin == "inherited_from_stack":
+            section = ""
+        else:
+            section = str(chunk.get("section") or "").casefold()
         boost = 0.05 if any(word in section for word in ("abstract", "result", "conclusion", "method")) else 0.0
         if mode == "dense":
             score = dense_score + boost
@@ -3894,12 +4032,24 @@ def _search_index(index: dict[str, Any], query: str, top_k: int, mode: str) -> l
     ranked.sort(key=lambda item: (-item[0], str(item[4].get("title")), item[4]["chunk_id"]))
     rows = []
     for index_number, (score, sparse_score, dense_score, boost, chunk) in enumerate(ranked[:top_k], 1):
+        origin = chunk.get("section_origin")
+        if origin == "inherited_from_stack":
+            served_section = None
+        else:
+            served_section = chunk.get("section")
+        excerpt_source = " ".join(
+            str(part) for part in (chunk.get("caption"), chunk.get("basis"), chunk.get("text"))
+            if part
+        )
         rows.append({
             "citation_id": f"C{index_number}", "chunk_id": chunk["chunk_id"],
             "title": chunk.get("title"), "source": chunk.get("source"),
             "url": chunk.get("url"), "doi": chunk.get("doi"), "year": chunk.get("year"),
-            "page": chunk.get("page"), "section": chunk.get("section"),
-            "excerpt": _clean(chunk.get("text"), 600),
+            "page": chunk.get("page"), "section": served_section,
+            "section_origin": origin,
+            "caption": chunk.get("caption"),
+            "basis": chunk.get("basis"),
+            "excerpt": _clean(excerpt_source, 600),
             "sparse_score": round(sparse_score, 6), "dense_score": round(dense_score, 6),
             "section_boost": boost, "final_score": round(score, 6),
         })
