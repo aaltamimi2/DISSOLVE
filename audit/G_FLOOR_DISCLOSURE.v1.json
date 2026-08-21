@@ -1,0 +1,37 @@
+{
+  "schema": "dissolve.audit-g-floor-disclosure.v1",
+  "spec": "UNAUDITED_SURFACE_SPEC.v2",
+  "spec_sha256": "5b415210a26070a6c925b638526ea1f62be15b2e15d2919d6dd0b7b76ddf114b",
+  "checkpoint": "R2",
+  "residual_taken": "A5 G-floor 6.0 unsourced on the served green screen",
+  "measured_on_builder_sha": "f535afa94e8f0ee5ca9397ba49256e5263a87a4c",
+  "measured_at": "2026-08-21T17:55:20Z",
+  "command": "python3 audit/measure_g_floor_disclosure.py",
+  "served_floors": {
+    "why": "f535afa residual: A5 G-floor 6.0 still unsourced. The number was already served; this slice labels it unsourced.",
+    "default": {
+      "success": true,
+      "analysis_type": "green_first_solvent_screen",
+      "minimum_g_score": 6.0,
+      "minimum_g_score_source": "default",
+      "minimum_g_score_citation_status": "unsourced",
+      "warning_names_unsourced": true
+    },
+    "user_requested": {
+      "success": true,
+      "analysis_type": "green_first_solvent_screen",
+      "minimum_g_score": 8.0,
+      "minimum_g_score_source": "user",
+      "minimum_g_score_citation_status": "user_requested",
+      "warning_names_unsourced": false
+    },
+    "scope_gap": {
+      "success": true,
+      "analysis_type": "green_first_solvent_scope_gap",
+      "minimum_g_score": 6.0,
+      "minimum_g_score_source": "default",
+      "minimum_g_score_citation_status": "unsourced",
+      "warning_names_unsourced": true
+    }
+  }
+}
