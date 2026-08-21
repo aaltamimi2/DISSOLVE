@@ -528,7 +528,36 @@ def bind_figure_facts(
     disputed: list[dict[str, Any]] = []
     used_p: set[int] = set()
     paper_sha = str(paper["sha256"])
-    if not rows_c or not rows_p:
+
+    def _dispute(row_c: Mapping[str, Any] | None, row_p: Mapping[str, Any] | None) -> dict[str, Any]:
+        source = row_c or row_p or {}
+        return {
+            "fact_id": f"fig-{paper_sha[:12]}-{len(disputed):04d}",
+            "paper_sha256": paper_sha,
+            "paper_status": paper.get("status"),
+            "genre": paper.get("genre"),
+            "kind": "table_cell",
+            "scoring_class": "bound_fact",
+            "locus": str(source.get("locus") or "Fig. 4"),
+            "page": source.get("page"),
+            "needles": {},
+            "channels_used": ["C", "C_prime"],
+            "read_by": {"C": model_c, "C_prime": model_p},
+            "readings": {"A": None, "B": None, "C": row_c, "C_prime": row_p},
+            "confidence": "disputed",
+            "status": "disputed",
+            "sealed": False,
+        }
+
+    if not rows_c and not rows_p:
+        return agreed, disputed
+    if not rows_p:
+        for row_c in rows_c:
+            disputed.append(_dispute(row_c, None))
+        return agreed, disputed
+    if not rows_c:
+        for row_p in rows_p:
+            disputed.append(_dispute(None, row_p))
         return agreed, disputed
     for row_c in rows_c:
         found = None
@@ -742,6 +771,7 @@ def apply_vision(
             "read_by": c_result.get("read_by"),
             "pages": table_pages,
             "reading": c_result.get("reading"),
+            "reading_raw": c_result.get("reading_raw") or c_result.get("reading"),
         }
         out["table_cell_candidates"] = bind_table_cells(
             paper=paper, candidates=candidates, channel_c_result=c_result,

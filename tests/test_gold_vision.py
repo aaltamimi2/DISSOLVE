@@ -292,6 +292,49 @@ def test_figure_c_plus_cprime_and_dispute():
     assert disputed[0]["readings"]["C_prime"]["value"] == "0.01"
 
 
+def test_empty_cprime_does_not_drop_c_rows():
+    paper = {"sha256": "cd" * 32, "status": "indexed", "genre": "experimental"}
+    row = {
+        "polymer": TOKEN_P, "solvent": TOKEN_S,
+        "temperature": TOKEN_T, "value": TOKEN_V,
+        "cells": [TOKEN_V], "locus": "Fig. 4", "page": 6,
+    }
+    agreed, disputed = gold_vision.bind_figure_facts(
+        paper=paper,
+        channel_c_result={"read_by": gold_vision.CHANNEL_C_MODEL, "reading": {"tables": [{"rows": [row]}]}},
+        channel_c_prime_result={
+            "read_by": gold_vision.CHANNEL_C_PRIME_MODEL,
+            "reading": {"tables": []},
+        },
+    )
+    assert agreed == []
+    assert len(disputed) == 1
+    assert disputed[0]["readings"]["C"]["value"] == TOKEN_V
+    assert disputed[0]["readings"]["C_prime"] is None
+    assert research.official_contain_bound_fact_eligible(disputed[0]) is False
+
+
+def test_empty_c_does_not_drop_cprime_rows():
+    paper = {"sha256": "cd" * 32, "status": "indexed", "genre": "experimental"}
+    row = {
+        "polymer": TOKEN_P, "solvent": TOKEN_S,
+        "temperature": TOKEN_T, "value": TOKEN_V,
+        "cells": [TOKEN_V], "locus": "Fig. 4", "page": 6,
+    }
+    agreed, disputed = gold_vision.bind_figure_facts(
+        paper=paper,
+        channel_c_result={"read_by": gold_vision.CHANNEL_C_MODEL, "reading": {"tables": []}},
+        channel_c_prime_result={
+            "read_by": gold_vision.CHANNEL_C_PRIME_MODEL,
+            "reading": {"tables": [{"rows": [row]}]},
+        },
+    )
+    assert agreed == []
+    assert len(disputed) == 1
+    assert disputed[0]["readings"]["C"] is None
+    assert disputed[0]["readings"]["C_prime"]["value"] == TOKEN_V
+
+
 def test_apply_vision_uses_mocks_not_cli(tmp_path, monkeypatch):
     paper = {
         "sha256": "ef" * 32, "status": "indexed", "genre": "experimental",
