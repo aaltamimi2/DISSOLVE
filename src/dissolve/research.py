@@ -1880,7 +1880,9 @@ def official_contain_bound_fact_eligible(fact: Mapping[str, Any]) -> bool:
     satisfy official ``contain_bound_fact``. Empty ``needles`` is vacuously
     true in ``_body_has_all_needles`` and must not be scored as bound. Gold v1
     rows have nonempty needles and no ``scoring_class`` and stay eligible.
-    ``awaiting_C`` table-cell candidates are not gold yet.
+    Ensemble ``gold`` / ``gold_unsealed`` ``bound_fact`` rows need all four named
+    needles so a one-key row cannot dummy-score True if the set invariant is
+    bypassed. ``awaiting_C`` table-cell candidates are not gold yet.
     """
     if str(fact.get("scoring_class") or "") == "string_existence":
         return False
@@ -1889,6 +1891,19 @@ def official_contain_bound_fact_eligible(fact: Mapping[str, Any]) -> bool:
     }:
         return False
     needles = fact.get("needles") or {}
+    filled = sum(
+        1
+        for key in ("polymer", "solvent", "temperature", "value")
+        if str(needles.get(key) or "").strip()
+    )
+    # Ensemble gold_unsealed is four named keys. Gold v1 has no scoring_class
+    # and stays on nonempty needles (two of twelve facts are not four-key).
+    if (
+        str(fact.get("scoring_class") or "") == "bound_fact"
+        and str(fact.get("status") or "") in {"gold", "gold_unsealed"}
+        and filled != 4
+    ):
+        return False
     if not any(str(value or "").strip() for value in needles.values()):
         return False
     return True

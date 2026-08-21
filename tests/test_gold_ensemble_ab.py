@@ -424,6 +424,25 @@ def test_gold_v1_shape_still_eligible():
     }) is True
 
 
+def test_underbound_ensemble_gold_is_not_officially_eligible():
+    """05bc844 leftover: one nonempty needle must not dummy-score True."""
+    fact = {
+        "fact_id": "underbound",
+        "scoring_class": "bound_fact",
+        "status": "gold_unsealed",
+        "kind": "table_cell",
+        "needles": {"value": TOKEN_V},
+    }
+    assert research.official_contain_bound_fact_eligible(fact) is False
+    scored = research.score_chunks_against_facts(
+        _chunks_for(f"{TOKEN_P} {TOKEN_S} {TOKEN_V}"),
+        [fact],
+        _canon_paragraph(f"{TOKEN_P} {TOKEN_S} {TOKEN_V}"),
+        strategy="S2_block_pack",
+    )
+    assert scored["facts"][0]["contain_bound_fact"] is False
+
+
 def test_empty_needles_cannot_satisfy_contain_bound_fact():
     """Seal poison: all([]) is true. Empty needles are not a bound fact."""
     text = f"{TOKEN_P} {TOKEN_S} {TOKEN_V}"
