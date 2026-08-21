@@ -483,12 +483,8 @@ def recover_figure_needles(
             union[key] = value_c
         elif value_p and _norm(value_p) in cells_c:
             union[key] = value_p
-    if len(union) == 3:
-        used = {_norm(value) for value in union.values()}
-        leftover = [cell for cell in orig_c if _norm(cell) not in used]
-        missing = [key for key in _NEEDLE_KEYS if key not in union]
-        if len(leftover) == 1 and len(missing) == 1:
-            union[missing[0]] = leftover[0]
+    # A leftover cell is not two-model naming of the missing key. 3+1
+    # stays awaiting_needles; a unit string must not become value.
     return union
 
 

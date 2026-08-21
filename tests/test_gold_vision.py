@@ -237,7 +237,8 @@ def test_cell_agree_without_four_keys_is_awaiting_needles():
     assert research.official_contain_bound_fact_eligible(agreed[0]) is False
 
 
-def test_leftover_cell_closes_fourth_key():
+def test_leftover_cell_does_not_close_fourth_key():
+    """05bc844 / 33e3acf residual: leftover cell is not a named fourth key."""
     paper = {"sha256": "cd" * 32, "status": "indexed", "genre": "experimental"}
     row = {
         "polymer": TOKEN_P, "solvent": TOKEN_S, "temperature": TOKEN_T, "value": "",
@@ -252,8 +253,31 @@ def test_leftover_cell_closes_fourth_key():
         },
     )
     assert disputed == []
-    assert agreed[0]["status"] == "gold_unsealed"
-    assert agreed[0]["needles"]["value"] == TOKEN_V
+    assert agreed[0]["status"] == "awaiting_needles"
+    assert agreed[0]["needles"] == {}
+    assert agreed[0]["partial_needles"].get("value") in (None, "")
+    assert research.official_contain_bound_fact_eligible(agreed[0]) is False
+
+
+def test_leftover_unit_cell_does_not_become_value():
+    paper = {"sha256": "cd" * 32, "status": "indexed", "genre": "experimental"}
+    row = {
+        "polymer": TOKEN_P, "solvent": TOKEN_S, "temperature": TOKEN_T, "value": "",
+        "cells": [TOKEN_P, TOKEN_S, TOKEN_T, "wt%"], "locus": "Fig. 4", "page": 6,
+    }
+    agreed, disputed = gold_vision.bind_figure_facts(
+        paper=paper,
+        channel_c_result={"read_by": gold_vision.CHANNEL_C_MODEL, "reading": {"tables": [{"rows": [row]}]}},
+        channel_c_prime_result={
+            "read_by": gold_vision.CHANNEL_C_PRIME_MODEL,
+            "reading": {"tables": [{"rows": [row]}]},
+        },
+    )
+    assert disputed == []
+    assert agreed[0]["status"] == "awaiting_needles"
+    assert agreed[0]["needles"] == {}
+    assert agreed[0]["partial_needles"].get("value") != "wt%"
+    assert research.official_contain_bound_fact_eligible(agreed[0]) is False
 
 
 def test_figure_c_plus_cprime_and_dispute():
