@@ -17,6 +17,8 @@ from dissolve import gold_ensemble, research
 
 CENSUS_V2 = Path("/home/aaltamimi2/dissolve-v12-audit/corpus/CENSUS.v2.json")
 CEILING_V2 = Path("/home/aaltamimi2/dissolve-v12-audit/corpus/CEILING.v2.json")
+CENSUS_V3 = Path("/home/aaltamimi2/dissolve-v12-audit/corpus/CENSUS.v3.json")
+CEILING_V3 = Path("/home/aaltamimi2/dissolve-v12-audit/corpus/CEILING.v3.json")
 GOLD_V1 = Path("/home/aaltamimi2/dissolve-v12-audit/one_paper_experiment/gold_facts.v1.json")
 GOLD_V1_SHA256 = "345b426bd66f995b3b78a10e796afb6df013299dd6769379192b59d0d97dfaab"
 
@@ -197,6 +199,18 @@ def test_unclassified_contaminant_refuses_even_with_option2(tmp_path):
     with pytest.raises(gold_ensemble.GoldEnsembleError) as caught:
         gold_ensemble.require_c1_v2(census, ceiling)
     assert caught.value.code == "unclassified_paper"
+
+
+def test_census_v3_option2_unlocks():
+    loaded = gold_ensemble.require_c1_v2(CENSUS_V3, CEILING_V3)
+    assert loaded["c35_close"] == "option_2_start_guard"
+    assert loaded["census_sha256"] == gold_ensemble.CENSUS_V3_SHA256
+    assert loaded["ceiling_sha256"] == gold_ensemble.CEILING_V3_SHA256
+    rows = gold_ensemble.c3_papers(loaded["census"])
+    shas = {row["sha256"] for row in rows}
+    assert gold_ensemble.CONTAMINANT_SHA256 in shas
+    assert len(rows) == 22
+    assert all(row["status"] in {"indexed", "held_out"} for row in rows)
 
 
 def test_option2_start_guard_and_classified_papers_unlock(tmp_path):

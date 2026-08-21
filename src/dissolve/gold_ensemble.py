@@ -8,6 +8,7 @@ import json
 import re
 import shutil
 import subprocess
+import sys
 import tempfile
 from pathlib import Path
 from typing import Any, Mapping
@@ -18,6 +19,9 @@ OBJECTED_CENSUS_V2_SHA256 = "f8568ad7def8157e5dc54563eaf6b4a7571337e41ef2d3e5c85
 OBJECTED_CEILING_V2_SHA256 = "f3a477d6423fded3cd25675dd68bc6a953422f750e75e6837569199416732b47"
 CENSUS_V2_SHA256 = OBJECTED_CENSUS_V2_SHA256
 CEILING_V2_SHA256 = OBJECTED_CEILING_V2_SHA256
+CENSUS_V3_SHA256 = "b60d9791eb1bc56a8e417df48c22e3b22faa9f3a44bf97022ec58d96495792f7"
+CEILING_V3_SHA256 = "286900d0c73e64b26bad5621f23475919b73d3c552b9946c1659707d36586d56"
+VISION_SPEND_SHA256 = "8fdbb00e8290c0915ce08d5be8fd072c263081925bbfee9cec526c9af9b81f4a"
 CONTAMINANT_SHA256 = "7419fa5c9ffac0beb2722f73c1b446064e612b972c64e8f04595141f4f9c8421"
 START_GUARD_PEAK_RSS_BYTES = 3_501_953_024
 ALLOWED_PAPER_STATUS = frozenset({"indexed", "held_out", "excluded"})
@@ -49,6 +53,7 @@ _TIME_V_RSS_KB = re.compile(
     r"Maximum resident set size \(kbytes\):\s*(\d+)",
     re.IGNORECASE,
 )
+_FIG4 = re.compile(r"\bFig(?:ure)?\.?\s*4\b", re.IGNORECASE)
 
 
 class GoldEnsembleError(ValueError):
@@ -270,28 +275,33 @@ def c3_papers(
     census: Mapping[str, Any],
     covered: set[str] | None = None,
 ) -> list[dict[str, Any]]:
-    """C3-covered in-scope papers. A v2 addition that is indexed/held_out refuses."""
+    """Gold run set: indexed + held_out. Indexed extras still need a C3 extension.
+
+    held_out papers that C3 did not parse are allowed: gold channels never use
+    Docling (CENSUS.v3 owner decision on 7419fa5c).
+    """
     covered_shas = set(covered) if covered is not None else c3_covered_shas()
     seen: set[str] = set()
     rows: list[dict[str, Any]] = []
-    extra: list[str] = []
+    extra_indexed: list[str] = []
     for row in census["papers"]:
         digest = str(row["sha256"])
         if digest in seen:
             continue
-        if row.get("status") not in _C3_STATUSES:
+        status = row.get("status")
+        if status not in _C3_STATUSES:
             continue
         seen.add(digest)
-        if digest not in covered_shas:
-            extra.append(digest)
+        if digest not in covered_shas and status == "indexed":
+            extra_indexed.append(digest)
             continue
         rows.append(row)
-    if extra:
+    if extra_indexed:
         raise GoldEnsembleError(
             "c3_extension_required",
-            "An in-scope v2 paper is not in the C3 coverage set. "
-            "Classifying it indexed or held_out requires a C3 extension.",
-            extra=extra,
+            "An indexed paper is not in the C3 coverage set. "
+            "Classifying it indexed requires a C3 extension.",
+            extra=extra_indexed,
         )
     return rows
 
@@ -309,14 +319,16 @@ def contaminant_pending(census: Mapping[str, Any]) -> dict[str, Any]:
         "status": status,
         "classified": classified,
         "owner_call": None if classified else "required",
-        "c3_extension": None if status == "excluded" else "required_before_indexed",
+        "c3_extension": "required_before_indexed" if status == "indexed" else None,
         "ran_c5": False,
         "note": (
             "C5 refuses to start while this SHA is not indexed, held_out, or "
             "excluded. Recording a pending addition is not permission to start."
             if not classified else
-            "Classified. Indexed or held_out still requires a C3 extension "
-            "before this SHA may enter the C5 run set."
+            "held_out needs no C3 parse. Gold channels never use Docling."
+            if status == "held_out" else
+            "Classified. Indexed still requires a C3 extension before this "
+            "SHA may enter the C5 run set."
         ),
     }
 
@@ -364,12 +376,18 @@ def refuse_vision(*_args: Any, **_kwargs: Any) -> None:
     )
 
 
-def channel_c(*_args: Any, **_kwargs: Any) -> None:
-    refuse_vision()
+def channel_c(*args: Any, **kwargs: Any) -> Any:
+    if "page_image" in kwargs or not kwargs.get("image_dir"):
+        refuse_vision()
+    from .gold_vision import channel_c as _channel_c
+    return _channel_c(*args, **kwargs)
 
 
-def channel_c_prime(*_args: Any, **_kwargs: Any) -> None:
-    refuse_vision()
+def channel_c_prime(*args: Any, **kwargs: Any) -> Any:
+    if "page_image" in kwargs or not kwargs.get("image_dir"):
+        refuse_vision()
+    from .gold_vision import channel_c_prime as _channel_c_prime
+    return _channel_c_prime(*args, **kwargs)
 
 
 def channel_a_pypdf(pdf: Path) -> dict[str, Any]:
@@ -617,6 +635,13 @@ def assemble_facts(
         validate_fact(fact)
         disputes.append(fact)
 
+    fig4_pages = [
+        number for number, text in enumerate(b_pages, 1) if _FIG4.search(text or "")
+    ]
+    if not fig4_pages:
+        fig4_pages = [
+            number for number, text in enumerate(a_pages, 1) if _FIG4.search(text or "")
+        ]
     return {
         "paper_sha256": paper_sha,
         "filename": paper.get("filename"),
@@ -625,14 +650,24 @@ def assemble_facts(
         "string_existence": string_facts,
         "table_cell_candidates": candidates,
         "disputes": disputes,
+        "fig4_pages": fig4_pages,
         "n_string_existence": len(string_facts),
         "n_table_cell_candidates": len(candidates),
         "n_disputes": len(disputes),
+        "n_fig4_pages": len(fig4_pages),
         "sealed": False,
     }
 
 
-def run_one_paper(paper: Mapping[str, Any], source: Path, stage_root: Path) -> dict[str, Any]:
+def run_one_paper(
+    paper: Mapping[str, Any],
+    source: Path,
+    stage_root: Path,
+    *,
+    vision: bool = False,
+    vision_c: Any = None,
+    vision_c_prime: Any = None,
+) -> dict[str, Any]:
     paper_sha = str(paper["sha256"])
     stage_dir = Path(stage_root) / paper_sha
     if stage_dir.exists():
@@ -649,6 +684,22 @@ def run_one_paper(paper: Mapping[str, Any], source: Path, stage_root: Path) -> d
         assembled["n_pages_b"] = channel_b["n_pages"]
         assembled["a_empty"] = not any(page.strip() for page in channel_a["pages"])
         assembled["b_empty"] = not any(page.strip() for page in channel_b["pages"])
+        if vision:
+            from .gold_vision import apply_vision
+            vision_root = Path(stage_root) / f"{paper_sha}-vision"
+            vision_root.mkdir(parents=True, exist_ok=True)
+            apply_kwargs: dict[str, Any] = {}
+            if vision_c is not None:
+                apply_kwargs["run_c"] = vision_c
+            if vision_c_prime is not None:
+                apply_kwargs["run_c_prime"] = vision_c_prime
+            assembled = apply_vision(
+                paper=paper,
+                assembled=assembled,
+                staged_pdf=staged,
+                work_root=vision_root,
+                **apply_kwargs,
+            )
         return assembled
     finally:
         if stage_dir.exists():
@@ -661,13 +712,19 @@ def run_c5_ab(
     ceiling_path: Path,
     pdf_root: Path,
     out_path: Path | None = None,
+    vision: bool = False,
+    vision_c: Any = None,
+    vision_c_prime: Any = None,
 ) -> dict[str, Any]:
-    """Run A+B only after accept test 7 closes. Does not seal. Does not call vision."""
+    """Run A+B after accept test 7 closes. Vision only with spend auth. No seal."""
     loaded = require_c1_v2(census_path, ceiling_path)
     census = loaded["census"]
     disk = pdf_set_identity(census, pdf_root)
     papers = c3_papers(census)
     pending = contaminant_pending(census)
+    if vision:
+        from .gold_vision import require_vision_spend
+        require_vision_spend()
     papers_out: list[dict[str, Any]] = []
     with tempfile.TemporaryDirectory(prefix="c5-ab-") as raw_stage:
         stage_root = Path(raw_stage)
@@ -675,17 +732,80 @@ def run_c5_ab(
             digest = str(paper["sha256"])
             sources = disk[digest]
             source = Path(sources[0])
-            papers_out.append(run_one_paper(paper, source, stage_root))
+            try:
+                papers_out.append(run_one_paper(
+                    paper, source, stage_root,
+                    vision=vision, vision_c=vision_c, vision_c_prime=vision_c_prime,
+                ))
+                done = papers_out[-1]
+                print(
+                    f"C5 OK {len(papers_out)}/{len(papers)} {digest[:16]} "
+                    f"se={done.get('n_string_existence')} "
+                    f"tc={done.get('n_table_cell_gold', 0)}/"
+                    f"{done.get('n_table_cell_candidates')} "
+                    f"fig={done.get('n_figure_embedded', 0)}",
+                    file=sys.stderr, flush=True,
+                )
+            except GoldEnsembleError as error:
+                print(
+                    f"C5 FAIL {len(papers_out)+1}/{len(papers)} {digest[:16]} {error.code}",
+                    file=sys.stderr, flush=True,
+                )
+                papers_out.append({
+                    "paper_sha256": digest,
+                    "filename": paper.get("filename"),
+                    "paper_status": paper.get("status"),
+                    "error": error.code,
+                    "error_message": str(error),
+                    "n_string_existence": 0,
+                    "n_table_cell_candidates": 0,
+                    "n_disputes": 0,
+                    "sealed": False,
+                    "vision_spend": [],
+                })
+            except Exception as error:
+                print(
+                    f"C5 FAIL {len(papers_out)+1}/{len(papers)} {digest[:16]} "
+                    f"{type(error).__name__}",
+                    file=sys.stderr, flush=True,
+                )
+                papers_out.append({
+                    "paper_sha256": digest,
+                    "filename": paper.get("filename"),
+                    "paper_status": paper.get("status"),
+                    "error": type(error).__name__,
+                    "error_message": str(error)[-400:],
+                    "n_string_existence": 0,
+                    "n_table_cell_candidates": 0,
+                    "n_disputes": 0,
+                    "sealed": False,
+                    "vision_spend": [],
+                })
+            if out_path is not None:
+                Path(out_path).parent.mkdir(parents=True, exist_ok=True)
+                Path(out_path).write_text(
+                    json.dumps({
+                        "schema": "dissolve.gold-ensemble-c5.partial.v1",
+                        "sealed": False,
+                        "n_papers_done": len(papers_out),
+                        "papers": papers_out,
+                    }, indent=2, ensure_ascii=False) + "\n",
+                    encoding="utf-8",
+                )
 
     density = {
         "n_papers": len(papers_out),
         "n_string_existence": sum(row["n_string_existence"] for row in papers_out),
         "n_table_cell_candidates": sum(row["n_table_cell_candidates"] for row in papers_out),
         "n_disputes": sum(row["n_disputes"] for row in papers_out),
+        "n_table_cell_gold": sum(int(row.get("n_table_cell_gold") or 0) for row in papers_out),
+        "n_figure_embedded": sum(int(row.get("n_figure_embedded") or 0) for row in papers_out),
+        "n_figure_disputes": sum(int(row.get("n_figure_disputes") or 0) for row in papers_out),
         "agreement_rate_string_tokens": None,
         "note": (
             "Density floors in corpus §6.4 apply to sealed GOLD.v2 bound_facts, "
-            "not to this A+B draft. Table-cell rows are awaiting-C, not gold."
+            "not to this unsealed draft. Table-cell gold requires B+C; "
+            "figure-embedded requires C+C'."
         ),
     }
     n_agreed = density["n_string_existence"]
@@ -695,25 +815,29 @@ def run_c5_ab(
         density["agreement_rate_string_tokens"] = n_agreed / denom
 
     artifact = {
-        "schema": "dissolve.gold-ensemble-ab.v1",
-        "checkpoint": "C5-AB",
+        "schema": "dissolve.gold-ensemble-c5.v1" if vision else "dissolve.gold-ensemble-ab.v1",
+        "checkpoint": "C5" if vision else "C5-AB",
         "sealed": False,
         "seal_forbidden": True,
-        "vision_called": False,
-        "channels_run": ["A", "B"],
-        "channels_not_run": ["C", "C_prime"],
+        "vision_called": bool(vision),
+        "channels_run": ["A", "B", "C", "C_prime"] if vision else ["A", "B"],
+        "channels_not_run": [] if vision else ["C", "C_prime"],
         "docling_used": False,
         "census_v2_sha256": loaded["census_sha256"],
         "ceiling_v2_sha256": loaded["ceiling_sha256"],
         "c35_close": loaded["c35_close"],
+        "census_v3_sha256": CENSUS_V3_SHA256,
+        "ceiling_v3_sha256": CEILING_V3_SHA256,
+        "vision_spend_sha256": VISION_SPEND_SHA256 if vision else None,
         "c3_coverage": C3_SET_NOTE,
-        "contaminant_pending": pending,
+        "contaminant": pending,
         "skipped": [
             {
                 "sha256": "b95603201907ce4de4f4a62671d0ba8c20879b723da7b15fee5d8af2fa2f199f",
-                "reason": "excluded / text_layer none — C+C' not authorized",
+                "reason": "excluded — not in gold scope (VISION_SPEND_AUTHORIZATION.v1)",
             },
         ],
+        "vision_spend": [item for row in papers_out for item in row.get("vision_spend") or []],
         "density": density,
         "papers": papers_out,
     }
@@ -732,20 +856,23 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--ceiling", type=Path, required=True)
     parser.add_argument("--pdf-root", type=Path, required=True)
     parser.add_argument("--out", type=Path, required=True)
+    parser.add_argument("--vision", action="store_true")
     args = parser.parse_args(argv)
     artifact = run_c5_ab(
         census_path=args.census,
         ceiling_path=args.ceiling,
         pdf_root=args.pdf_root,
         out_path=args.out,
+        vision=args.vision,
     )
     print(json.dumps({
         "wrote": artifact.get("wrote"),
         "wrote_sha256": artifact.get("wrote_sha256"),
         "density": artifact["density"],
         "sealed": False,
-        "vision_called": False,
-        "contaminant_pending": artifact["contaminant_pending"]["sha256"],
+        "vision_called": artifact.get("vision_called"),
+        "n_vision_calls": len(artifact.get("vision_spend") or []),
+        "contaminant": (artifact.get("contaminant") or {}).get("sha256"),
     }, indent=2))
     return 0
 
