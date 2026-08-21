@@ -41,6 +41,14 @@ def test_dehp_and_other_parentheticals_expand():
     assert aliases["DEP"]["unsupported"] == []
 
 
+def test_inner_parentheticals_do_not_expand():
+    aliases = _measure().identity()["parenthetical_aliases"]
+    assert aliases["2-ethylhexyl"]["supported"] == []
+    assert aliases["2-ethylhexyl"]["unsupported"] == ["2-ethylhexyl"]
+    assert aliases["heptafluoropropoxy"]["supported"] == []
+    assert aliases["heptafluoropropoxy"]["unsupported"] == ["heptafluoropropoxy"]
+
+
 def test_resolved_thermo_name_hits_workbook_row():
     hits = _measure().identity()["constructed_hits"]
     assert hits["butanone_equals_2_butanone"] is True

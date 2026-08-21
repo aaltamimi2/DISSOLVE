@@ -81,7 +81,10 @@ def identity() -> dict[str, Any]:
     xylene_pfoa = module._logd("xylene", pfoa)
     o_xylene_dehp = module._logd("o-xylene", _DEHP_CATALOG)
     aliases = {}
-    for token in ("DEHP", "BBP", "DiNP", "DEP", "DBP", "DiDP", "DnHP", "DnOP"):
+    for token in (
+        "DEHP", "BBP", "DiNP", "DEP", "DBP", "DiDP", "DnHP", "DnOP",
+        "2-ethylhexyl", "heptafluoropropoxy",
+    ):
         supported, unsupported, families = module._expand([token])
         aliases[token] = {
             "supported": supported,

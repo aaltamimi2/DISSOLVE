@@ -5,8 +5,8 @@
   "objected_v2": "CONTAMINANT_MODE_SPEC.v2.md",
   "objected_v2_sha256": "a0665ccf51276270991854056836c9e8d09b6fee0be556a83ef84e7fb2a15a1d",
   "checkpoint": "identity-join + section-7 facts independent of test 2",
-  "measured_on_builder_sha": "a43d8f6ca4dacac652513dbb37b2f7e1357d1d45",
-  "measured_at": "2026-08-21T22:02:18Z",
+  "measured_on_builder_sha": "0aa9907cc0696ac0b41cac15494005a388768884",
+  "measured_at": "2026-08-21T22:07:17Z",
   "command": "python3 audit/measure_contaminant_identity.py",
   "tea_config_key_calls": [],
   "identity": {
@@ -233,6 +233,20 @@
         "families": [
           "Phthalates"
         ]
+      },
+      "2-ethylhexyl": {
+        "supported": [],
+        "unsupported": [
+          "2-ethylhexyl"
+        ],
+        "families": []
+      },
+      "heptafluoropropoxy": {
+        "supported": [],
+        "unsupported": [
+          "heptafluoropropoxy"
+        ],
+        "families": []
       }
     },
     "solvent_raw_is_queried": true

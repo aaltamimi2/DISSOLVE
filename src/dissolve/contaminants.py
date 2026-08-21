@@ -142,13 +142,18 @@ def _families() -> dict[str, list[str]]:
     return result
 
 
-_PARENTHETICAL = re.compile(r"\(([^)]+)\)")
+_TRAILING_SHORT_NAME = re.compile(r"\(([^)]+)\)\s*$")
 
 
 def _name_aliases(name: str, key: str) -> tuple[str, ...]:
-    """Catalog key, folded name, and parenthetical short names (DEHP, BBP)."""
+    """Catalog key, folded name, and a trailing short name only (DEHP, BBP).
+
+    Inner parentheticals are structure, not aliases. ``2-ethylhexyl`` inside
+    DEHP and ``heptafluoropropoxy`` inside two PFAS must not expand.
+    """
     aliases = [_key(name), _key(key)]
-    for match in _PARENTHETICAL.finditer(name):
+    match = _TRAILING_SHORT_NAME.search(name)
+    if match:
         inner = _key(match.group(1))
         if inner:
             aliases.append(inner)
