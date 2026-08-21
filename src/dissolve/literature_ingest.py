@@ -18,7 +18,7 @@ from .contracts import parse_tool_result, tool_error, tool_success
 _SCHEMA = "dissolve.literature-graph-ingest.v1"
 _MODEL_ID = "openai:muse-spark-1.2"
 _MODEL_LABEL = "muse-spark-1.2"
-_JATS_XML_SUFFIXES = frozenset({".xml", ".nxml"})
+_JATS_XML_SUFFIXES = frozenset({".xml", ".nxml", ".xhtml"})
 _JATS_TEXT_SUFFIXES = frozenset({".txt", ".md"})
 _PRODUCTION_JATS_SUFFIXES = _JATS_XML_SUFFIXES | _JATS_TEXT_SUFFIXES
 _BASE_URL = "https://api.meta.ai/v1"
@@ -67,6 +67,7 @@ def _local_acquisition(path: Path, library_id: str) -> dict[str, Any]:
     kind = "patent" if "patent" in source.name.casefold() else "paper"
     media = {
         ".pdf": "application/pdf", ".xml": "application/xml", ".nxml": "application/xml",
+        ".xhtml": "application/xhtml+xml",
         ".txt": "text/plain", ".md": "text/markdown",
     }.get(suffix) or mimetypes.guess_type(source.name)[0] or "application/octet-stream"
     title = source.stem.replace("_", " ").replace("-", " ").strip()
@@ -223,9 +224,10 @@ def _pypdf_bridge(path: Path, fallback_reason: str) -> dict[str, Any]:
 def _parse(acquisition: Mapping[str, Any]) -> dict[str, Any]:
     """Production parse. Docling failure raises; DeepDoc and pypdf are not a fallback.
 
-    ``.xml`` / ``.nxml`` / ``.txt`` / ``.md`` still stamp via ``_jats_bridge``, then
-    hit the same non-Docling refuse. The one-paper experiment must not call this.
-    It uses ``research.parse_experiment_document(backend=...)``.
+    ``.xml`` / ``.nxml`` / ``.xhtml`` / ``.txt`` / ``.md`` still stamp via
+    ``_jats_bridge``, then hit the same non-Docling refuse. The one-paper
+    experiment must not call this. It uses
+    ``research.parse_experiment_document(backend=...)``.
     """
     from . import research
     source = Path(str(research._source_artifact(acquisition)["packed_path"]))
