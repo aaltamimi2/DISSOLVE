@@ -8,6 +8,7 @@ dependencies = [
     "anthropic>=0.40",
     "google-genai>=1",
     "rich>=13",
+    "prompt_toolkit>=3.0",
 ]
 
 [build-system]

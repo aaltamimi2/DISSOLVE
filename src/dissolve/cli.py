@@ -46,6 +46,10 @@ _MODE_LINE = {
     "auto": "Make reasonable process assumptions when needed and label them explicitly.",
 }
 _PLANNER_STAGE_CAP = 50
+_PICKER_BREADTH_PRESETS = (1, 3, 5, 10)
+_PICKER_BREADTH_BOUND = 20
+_PickerFn = Callable[..., Any]
+_InputFn = Callable[[str], str]
 
 
 def _format_solvent_scope_default(stored: dict[str, Any] | None, *, origin: str) -> str:
@@ -54,7 +58,7 @@ def _format_solvent_scope_default(stored: dict[str, Any] | None, *, origin: str)
 
 
 def _parse_solvents_slash(tokens: Sequence[str]) -> dict[str, Any] | None:
-    """None prints the current default. Raises ValueError on a bad token."""
+    """None is the no-argument path. Raises ValueError on a bad token."""
     if not tokens:
         return None
     if len(tokens) != 1:
@@ -63,6 +67,294 @@ def _parse_solvents_slash(tokens: Sequence[str]) -> dict[str, Any] | None:
     if token not in {"common", "all"}:
         raise ValueError("usage: /solvents [common | all]")
     return {"scope": token}
+
+
+def _interactive_stdin(*, quiet: bool) -> bool:
+    """`/process` confirmation and slash pickers share this. Never prompt a pipe or campaign."""
+    return bool(sys.stdin.isatty()) and not quiet
+
+
+def _slash_picker_live(*, quiet: bool) -> bool:
+    """TTY both sides, not quiet, not a dumb TERM. Extra stdout/TERM checks because a TUI raises."""
+    if not _interactive_stdin(quiet=quiet):
+        return False
+    if not sys.stdout.isatty():
+        return False
+    try:
+        from prompt_toolkit.utils import is_dumb_terminal
+    except ImportError:
+        return False
+    return not is_dumb_terminal()
+
+
+def _slash_picker_armed(*, quiet: bool, picker_fn: _PickerFn | None) -> bool:
+    if picker_fn is not None:
+        return True
+    return _slash_picker_live(quiet=quiet)
+
+
+def _run_arrow_picker(
+    title: str,
+    options: Sequence[tuple[Any, str]],
+    *,
+    selected: int = 0,
+) -> Any | None:
+    """Inline highlighted list. Returns the chosen value, or None on cancel / TUI failure."""
+    if not options:
+        return None
+    try:
+        from prompt_toolkit.application import Application
+        from prompt_toolkit.key_binding import KeyBindings
+        from prompt_toolkit.layout import Layout, Window
+        from prompt_toolkit.layout.controls import FormattedTextControl
+        from prompt_toolkit.layout.dimension import Dimension
+        from prompt_toolkit.layout.margins import ScrollbarMargin
+        from prompt_toolkit.styles import Style
+    except ImportError:
+        return None
+
+    index = max(0, min(int(selected), len(options) - 1))
+    chosen: dict[str, Any] = {"value": None, "done": False}
+
+    def _fragments() -> list[tuple[str, str]]:
+        rows: list[tuple[str, str]] = [("class:title", title + "\n")]
+        for i, (_value, label) in enumerate(options):
+            if i == index:
+                rows.append(("[SetCursorPosition]", ""))
+                rows.append(("class:selected", f"> {label}\n"))
+            else:
+                rows.append(("class:item", f"  {label}\n"))
+        rows.append((
+            "class:hint",
+            "Arrow keys move, Enter selects, Esc cancels",
+        ))
+        return rows
+
+    kb = KeyBindings()
+
+    @kb.add("up")
+    def _up(event: Any) -> None:
+        nonlocal index
+        index = max(0, index - 1)
+
+    @kb.add("down")
+    def _down(event: Any) -> None:
+        nonlocal index
+        index = min(len(options) - 1, index + 1)
+
+    @kb.add("pageup")
+    def _pageup(event: Any) -> None:
+        nonlocal index
+        index = max(0, index - 5)
+
+    @kb.add("pagedown")
+    def _pagedown(event: Any) -> None:
+        nonlocal index
+        index = min(len(options) - 1, index + 5)
+
+    @kb.add("home")
+    def _home(event: Any) -> None:
+        nonlocal index
+        index = 0
+
+    @kb.add("end")
+    def _end(event: Any) -> None:
+        nonlocal index
+        index = len(options) - 1
+
+    @kb.add("enter")
+    def _enter(event: Any) -> None:
+        chosen["value"] = options[index][0]
+        chosen["done"] = True
+        event.app.exit()
+
+    @kb.add("escape")
+    @kb.add("c-c")
+    def _cancel(event: Any) -> None:
+        chosen["value"] = None
+        chosen["done"] = True
+        event.app.exit()
+
+    control = FormattedTextControl(
+        _fragments, key_bindings=kb, focusable=True, show_cursor=False,
+    )
+    visible = min(len(options) + 2, 16)
+    window = Window(
+        content=control,
+        dont_extend_height=True,
+        height=Dimension(min=3, max=visible),
+        right_margins=[ScrollbarMargin(display_arrows=True)],
+        wrap_lines=False,
+    )
+    app = Application(
+        layout=Layout(window),
+        key_bindings=kb,
+        full_screen=False,
+        mouse_support=False,
+        style=Style.from_dict({
+            "title": "bold",
+            "selected": "reverse",
+            "hint": "italic",
+        }),
+    )
+    try:
+        app.run()
+    except (OSError, EOFError, KeyboardInterrupt, RuntimeError):
+        return None
+    if not chosen["done"]:
+        return None
+    return chosen["value"]
+
+
+def _ask_picker_line(message: str, *, input_fn: _InputFn | None = None) -> str | None:
+    if input_fn is not None:
+        try:
+            return str(input_fn(message) or "").strip()
+        except (EOFError, KeyboardInterrupt, StopIteration):
+            return None
+    try:
+        from prompt_toolkit.shortcuts import prompt as pt_prompt
+        return str(pt_prompt(f"{message}: ") or "").strip()
+    except (EOFError, KeyboardInterrupt, OSError, RuntimeError):
+        return None
+
+
+def _invoke_picker(
+    title: str,
+    options: Sequence[tuple[Any, str]],
+    *,
+    selected: int,
+    quiet: bool,
+    picker_fn: _PickerFn | None,
+) -> Any | None:
+    if picker_fn is not None:
+        return picker_fn(title=title, options=options, selected=selected)
+    if not _slash_picker_live(quiet=quiet):
+        return None
+    return _run_arrow_picker(title, options, selected=selected)
+
+
+def _solvents_picker_options(current_scope: str) -> tuple[list[tuple[str, str]], int]:
+    from dissolve import thermodynamics as thermo
+
+    n_common = len(thermo.COMMON_INTERP_KEYS)
+    n_all = len(thermo._available_solvents())
+    rows = (
+        ("common", f"1. common   {n_common} curated solvents"),
+        ("all", f"2. all      {n_all} grid solvents"),
+    )
+    options: list[tuple[str, str]] = []
+    selected = 0
+    for i, (key, base) in enumerate(rows):
+        suffix = "      (current)" if key == current_scope else ""
+        options.append((key, base + suffix))
+        if key == current_scope:
+            selected = i
+    return options, selected
+
+
+def _breadth_choice_key(stored: dict[str, Any] | None) -> str:
+    if not isinstance(stored, dict) or not stored:
+        return "count"
+    if (stored.get("branch_rule") or "count") == "window":
+        return "window"
+    if stored.get("breadth") == "all":
+        return "all"
+    return "count"
+
+
+def _breadth_picker_options(
+    stored: dict[str, Any] | None,
+) -> tuple[list[tuple[Any, str]], int]:
+    key = _breadth_choice_key(stored)
+    current_count: Any = 1
+    if isinstance(stored, dict) and stored:
+        if key == "count":
+            current_count = stored.get("breadth")
+        else:
+            current_count = None
+    options: list[tuple[Any, str]] = []
+    for preset in _PICKER_BREADTH_PRESETS:
+        number = len(options) + 1
+        label = f"{number}. {preset}"
+        if preset == 1:
+            label += "     one solvent per stage (today's behaviour)"
+        if key == "count" and current_count == preset:
+            label += "      (current)"
+        options.append((preset, label))
+    all_n = len(options) + 1
+    all_label = (
+        f"{all_n}. all   every qualifying candidate, cap {_PLANNER_STAGE_CAP}"
+    )
+    if key == "all":
+        all_label += "      (current)"
+    options.append(("all", all_label))
+    win_n = len(options) + 1
+    win_label = f"{win_n}. window..."
+    if key == "window" and isinstance(stored, dict):
+        win_label += f"      (current: {stored.get('selectivity_window_pct')})"
+    options.append(("window", win_label))
+    custom_n = len(options) + 1
+    custom_label = (
+        f"{custom_n}. custom...   enter 1–{_PICKER_BREADTH_BOUND}"
+    )
+    custom_current = (
+        key == "count"
+        and current_count not in _PICKER_BREADTH_PRESETS
+        and current_count is not None
+    )
+    if custom_current:
+        custom_label += f"      (current: {current_count})"
+    options.append(("custom", custom_label))
+    selected = 0
+    if key == "all":
+        selected = next(i for i, (value, _) in enumerate(options) if value == "all")
+    elif key == "window":
+        selected = next(
+            i for i, (value, _) in enumerate(options) if value == "window"
+        )
+    elif current_count in _PICKER_BREADTH_PRESETS:
+        selected = next(
+            i for i, (value, _) in enumerate(options) if value == current_count
+        )
+    else:
+        selected = next(
+            i for i, (value, _) in enumerate(options) if value == "custom"
+        )
+    return options, selected
+
+
+def _parse_picker_custom_breadth(raw: str) -> dict[str, Any]:
+    text = str(raw).strip()
+    try:
+        if "." in text:
+            raise ValueError
+        count = int(text)
+    except (TypeError, ValueError) as error:
+        raise ValueError(
+            f"picker custom must be an integer 1–{_PICKER_BREADTH_BOUND}"
+        ) from error
+    if count < 1:
+        raise ValueError(
+            f"picker custom must be an integer 1–{_PICKER_BREADTH_BOUND}"
+        )
+    if count > _PICKER_BREADTH_BOUND:
+        raise ValueError(
+            f"picker custom bound is {_PICKER_BREADTH_BOUND}; "
+            f"/breadth still accepts 1–{_PLANNER_STAGE_CAP}"
+        )
+    return {"branch_rule": "count", "breadth": count}
+
+
+def _solvent_status_line(scope: str, origin: str) -> str:
+    stored = {"scope": scope} if origin == "session" else None
+    return _format_solvent_scope_default(stored, origin=origin)
+
+
+def _breadth_status_line(stored: dict[str, Any] | None, origin: str) -> str:
+    if stored:
+        return _format_breadth_default(stored, origin=origin)
+    return "breadth=1  branch_rule=count  (built-in)"
 
 
 def _format_breadth_default(stored: dict[str, Any], *, origin: str) -> str:
@@ -75,7 +367,7 @@ def _format_breadth_default(stored: dict[str, Any], *, origin: str) -> str:
 
 
 def _parse_breadth_slash(tokens: Sequence[str]) -> dict[str, Any] | None:
-    """None prints the current default. Raises ValueError on a bad token."""
+    """None is the no-argument path. Raises ValueError on a bad token."""
     if not tokens:
         return None
     head = str(tokens[0]).strip().casefold()
@@ -901,7 +1193,12 @@ class CliApp:
             self.console.print(f"[yellow]Unknown command:[/] {command}")
         return False
 
-    def _handle_solvents_command(self, tokens: Sequence[str]) -> None:
+    def _handle_solvents_command(
+        self,
+        tokens: Sequence[str],
+        *,
+        picker_fn: _PickerFn | None = None,
+    ) -> None:
         try:
             stored = _parse_solvents_slash(tokens)
         except ValueError as error:
@@ -910,17 +1207,47 @@ class CliApp:
         if stored is None:
             current = self.session.get("solvent_scope")
             if isinstance(current, dict) and current.get("scope") in {"common", "all"}:
-                self.console.print(
-                    _format_solvent_scope_default(current, origin="session"),
-                )
+                scope, origin = str(current["scope"]), "session"
             else:
-                self.console.print("solvent_scope=all  (built-in)")
-            return
+                scope, origin = "all", "built-in"
+            if not _slash_picker_armed(quiet=self.quiet, picker_fn=picker_fn):
+                self.console.print(_solvent_status_line(scope, origin))
+                return
+            stored = self._pick_solvent_scope(
+                scope, picker_fn=picker_fn,
+            )
+            if stored is None:
+                self.console.print(_solvent_status_line(scope, origin))
+                return
         self.session["solvent_scope"] = stored
         self._save()
         self.console.print(_format_solvent_scope_default(stored, origin="session"))
 
-    def _handle_breadth_command(self, tokens: Sequence[str]) -> None:
+    def _pick_solvent_scope(
+        self,
+        current_scope: str,
+        *,
+        picker_fn: _PickerFn | None = None,
+    ) -> dict[str, Any] | None:
+        options, selected = _solvents_picker_options(current_scope)
+        chosen = _invoke_picker(
+            "Select solvent scope",
+            options,
+            selected=selected,
+            quiet=self.quiet,
+            picker_fn=picker_fn,
+        )
+        if chosen in {"common", "all"}:
+            return {"scope": chosen}
+        return None
+
+    def _handle_breadth_command(
+        self,
+        tokens: Sequence[str],
+        *,
+        picker_fn: _PickerFn | None = None,
+        input_fn: _InputFn | None = None,
+    ) -> None:
         try:
             stored = _parse_breadth_slash(tokens)
         except ValueError as error:
@@ -928,16 +1255,68 @@ class CliApp:
             return
         if stored is None:
             current = self.session.get("planner_breadth")
-            if isinstance(current, dict) and current:
-                self.console.print(_format_breadth_default(current, origin="session"))
-            else:
-                self.console.print(
-                    "breadth=1  branch_rule=count  (built-in)"
-                )
-            return
+            origin = (
+                "session"
+                if isinstance(current, dict) and current
+                else "built-in"
+            )
+            shown = current if origin == "session" else None
+            if not _slash_picker_armed(quiet=self.quiet, picker_fn=picker_fn):
+                self.console.print(_breadth_status_line(shown, origin))
+                return
+            stored = self._pick_planner_breadth(
+                shown, picker_fn=picker_fn, input_fn=input_fn,
+            )
+            if stored is None:
+                self.console.print(_breadth_status_line(shown, origin))
+                return
         self.session["planner_breadth"] = stored
         self._save()
         self.console.print(_format_breadth_default(stored, origin="session"))
+
+    def _pick_planner_breadth(
+        self,
+        current: dict[str, Any] | None,
+        *,
+        picker_fn: _PickerFn | None = None,
+        input_fn: _InputFn | None = None,
+    ) -> dict[str, Any] | None:
+        options, selected = _breadth_picker_options(current)
+        chosen = _invoke_picker(
+            "Select planner breadth",
+            options,
+            selected=selected,
+            quiet=self.quiet,
+            picker_fn=picker_fn,
+        )
+        if chosen in _PICKER_BREADTH_PRESETS:
+            return {"branch_rule": "count", "breadth": int(chosen)}
+        if chosen == "all":
+            return _parse_breadth_slash(["all"])
+        if chosen == "window":
+            follow = _ask_picker_line(
+                "selectivity_window_pct", input_fn=input_fn,
+            )
+            if not follow:
+                return None
+            try:
+                return _parse_breadth_slash(["window", follow])
+            except ValueError as error:
+                self.console.print(f"[red]{error}[/]")
+                return None
+        if chosen == "custom":
+            follow = _ask_picker_line(
+                f"custom breadth 1–{_PICKER_BREADTH_BOUND}",
+                input_fn=input_fn,
+            )
+            if not follow:
+                return None
+            try:
+                return _parse_picker_custom_breadth(follow)
+            except ValueError as error:
+                self.console.print(f"[red]{error}[/]")
+                return None
+        return None
 
     def _print_process_sheet(
         self,
@@ -1315,8 +1694,7 @@ class CliApp:
         armed = (
             self._cli_direct_active
             and self._process_confirm_applies(name, kwargs)
-            and sys.stdin.isatty()
-            and not self.quiet
+            and _interactive_stdin(quiet=self.quiet)
         )
         if not armed:
             return original(name, **kwargs)

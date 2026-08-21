@@ -688,3 +688,108 @@ def test_slash_breadth_sets_and_clear_drops(tmp_path, monkeypatch):
     assert "handle_command" not in inspect.getsource(app.ask)
     assert _parse_breadth_slash([]) is None
     assert _parse_breadth_slash(["3"])["breadth"] == 3
+
+
+def test_bare_breadth_non_tty_prints_status(tmp_path, monkeypatch):
+    monkeypatch.setenv("META_MUSE_API_KEY", "test-key")
+    monkeypatch.setattr("sys.stdin.isatty", lambda: False)
+    from rich.console import Console
+    import io
+    buf = io.StringIO()
+    app = CliApp(
+        session_id="breadth-status",
+        store_root=tmp_path,
+        console=Console(file=buf, force_terminal=True, width=80, color_system=None),
+    )
+    assert app.handle_command("/breadth") is False
+    assert "planner_breadth" not in app.session
+    assert "breadth=1" in buf.getvalue()
+
+
+def test_bare_breadth_picker_presets_and_all(tmp_path, monkeypatch):
+    monkeypatch.setenv("META_MUSE_API_KEY", "test-key")
+    from rich.console import Console
+    import io
+    from dissolve.cli import _breadth_picker_options, _PICKER_BREADTH_PRESETS
+
+    options, selected = _breadth_picker_options(None)
+    assert selected == 0
+    values = [value for value, _label in options]
+    assert values[:4] == list(_PICKER_BREADTH_PRESETS)
+    assert "all" in values
+    assert "window" in values
+    assert "custom" in values
+    labels = " ".join(label for _value, label in options)
+    assert "window" in labels
+    assert "custom" in labels
+
+    app = CliApp(
+        session_id="breadth-pick",
+        store_root=tmp_path,
+        console=Console(file=io.StringIO()),
+    )
+    app._handle_breadth_command([], picker_fn=lambda **_k: 5)
+    assert app.session["planner_breadth"] == {
+        "branch_rule": "count", "breadth": 5,
+    }
+    app._handle_breadth_command([], picker_fn=lambda **_k: "all")
+    assert app.session["planner_breadth"]["breadth"] == "all"
+
+
+def test_bare_breadth_picker_custom_bound(tmp_path, monkeypatch):
+    monkeypatch.setenv("META_MUSE_API_KEY", "test-key")
+    from rich.console import Console
+    import io
+    from dissolve.cli import _parse_picker_custom_breadth, _parse_breadth_slash
+
+    assert _parse_picker_custom_breadth("20")["breadth"] == 20
+    try:
+        _parse_picker_custom_breadth("21")
+        raise AssertionError("expected refuse above picker bound")
+    except ValueError as error:
+        text = str(error)
+        assert "20" in text
+        assert "50" in text
+    assert _parse_breadth_slash(["30"])["breadth"] == 30
+
+    buf = io.StringIO()
+    app = CliApp(
+        session_id="breadth-custom",
+        store_root=tmp_path,
+        console=Console(file=buf),
+    )
+    app._handle_breadth_command(
+        [],
+        picker_fn=lambda **_k: "custom",
+        input_fn=lambda _m: "7",
+    )
+    assert app.session["planner_breadth"] == {
+        "branch_rule": "count", "breadth": 7,
+    }
+    app._handle_breadth_command(
+        [],
+        picker_fn=lambda **_k: "custom",
+        input_fn=lambda _m: "21",
+    )
+    assert app.session["planner_breadth"]["breadth"] == 7
+    assert "picker custom bound is 20" in buf.getvalue()
+
+
+def test_bare_breadth_picker_window_followup(tmp_path, monkeypatch):
+    monkeypatch.setenv("META_MUSE_API_KEY", "test-key")
+    from rich.console import Console
+    import io
+    app = CliApp(
+        session_id="breadth-window",
+        store_root=tmp_path,
+        console=Console(file=io.StringIO()),
+    )
+    app._handle_breadth_command(
+        [],
+        picker_fn=lambda **_k: "window",
+        input_fn=lambda _m: "1.8",
+    )
+    assert app.session["planner_breadth"]["branch_rule"] == "window"
+    assert math.isclose(
+        float(app.session["planner_breadth"]["selectivity_window_pct"]), 1.8,
+    )
