@@ -24,8 +24,8 @@ from .gold_ensemble import (
 VISION_SPEND_PATH = Path(
     "/home/aaltamimi2/dissolve-v12-audit/VISION_SPEND_AUTHORIZATION.v1.md"
 )
-CHANNEL_C_MODEL = "claude-opus-5-thinking-max"
-CHANNEL_C_PRIME_MODEL = "cursor-grok-4.6-xhigh"
+CHANNEL_C_MODEL = "claude-opus-5-thinking-high"
+CHANNEL_C_PRIME_MODEL = "cursor-grok-4.6-high"
 CHANNEL_C_PRIME_CLI = ("/home/aaltamimi2/.local/bin/agent",)
 
 _JSON_FENCE = re.compile(r"```(?:json)?\s*(\{.*\})\s*```", re.DOTALL)
