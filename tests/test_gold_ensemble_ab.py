@@ -445,6 +445,52 @@ def test_empty_needles_cannot_satisfy_contain_bound_fact():
     assert scored["facts"][0]["contain_bound_fact_rebound"] is False
 
 
+def test_contaminant_ran_c5_is_not_hardcoded_false():
+    loaded = gold_ensemble.require_c1_v2(CENSUS_V3, CEILING_V3)
+    before = gold_ensemble.contaminant_pending(loaded["census"])
+    assert before["ran_c5"] is False
+    after = gold_ensemble.contaminant_pending(
+        loaded["census"],
+        ran_paper_shas=[gold_ensemble.CONTAMINANT_SHA256],
+    )
+    assert after["ran_c5"] is True
+    missed = gold_ensemble.contaminant_pending(
+        loaded["census"],
+        ran_paper_shas=["aa" * 32],
+    )
+    assert missed["ran_c5"] is False
+
+
+def test_narrow_gold_set_invariants():
+    gold = {
+        "fact_id": "g1",
+        "scoring_class": "bound_fact",
+        "status": "gold_unsealed",
+        "kind": "table_cell",
+        "channels_used": ["B", "C"],
+        "needles": {
+            "polymer": TOKEN_P, "solvent": TOKEN_S,
+            "temperature": TOKEN_V, "value": TOKEN_ONLY_B,
+        },
+    }
+    gold_ensemble.assert_gold_set_invariants([gold], sealed=False)
+    under = dict(gold)
+    under["needles"] = {"value": TOKEN_V}
+    with pytest.raises(gold_ensemble.GoldEnsembleError) as caught:
+        gold_ensemble.assert_gold_set_invariants([under], sealed=False)
+    assert caught.value.code == "gold_unsealed_underbound"
+    awaiting = {
+        "fact_id": "a1",
+        "status": "awaiting_needles",
+        "scoring_class": "bound_fact",
+        "needles": {},
+    }
+    gold_ensemble.assert_gold_set_invariants([awaiting], sealed=False)
+    with pytest.raises(gold_ensemble.GoldEnsembleError) as caught:
+        gold_ensemble.assert_gold_set_invariants([awaiting], sealed=True)
+    assert caught.value.code == "unready_fact_in_sealed_set"
+
+
 def test_gold_bound_fact_without_needles_fails_validate():
     with pytest.raises(gold_ensemble.GoldEnsembleError) as caught:
         gold_ensemble.validate_fact({

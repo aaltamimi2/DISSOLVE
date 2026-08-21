@@ -307,13 +307,21 @@ def c3_papers(
     return rows
 
 
-def contaminant_pending(census: Mapping[str, Any]) -> dict[str, Any]:
+def contaminant_pending(
+    census: Mapping[str, Any],
+    *,
+    ran_paper_shas: list[str] | None = None,
+) -> dict[str, Any]:
     row = next(
         (item for item in census["papers"] if item.get("sha256") == CONTAMINANT_SHA256),
         None,
     )
     status = (row or {}).get("status", "NEW-UNCLASSIFIED")
     classified = status in ALLOWED_PAPER_STATUS
+    ran = bool(
+        ran_paper_shas is not None
+        and CONTAMINANT_SHA256 in set(ran_paper_shas)
+    )
     return {
         "sha256": CONTAMINANT_SHA256,
         "filename": (row or {}).get("filename", "contaminant.pdf"),
@@ -321,7 +329,7 @@ def contaminant_pending(census: Mapping[str, Any]) -> dict[str, Any]:
         "classified": classified,
         "owner_call": None if classified else "required",
         "c3_extension": "required_before_indexed" if status == "indexed" else None,
-        "ran_c5": False,
+        "ran_c5": ran,
         "note": (
             "C5 refuses to start while this SHA is not indexed, held_out, or "
             "excluded. Recording a pending addition is not permission to start."
@@ -526,9 +534,40 @@ def validate_fact(fact: Mapping[str, Any]) -> None:
         if not all(str(needles.get(key) or "").strip() for key in _BOUND_NEEDLE_KEYS):
             raise GoldEnsembleError(
                 "bound_fact_missing_needles",
-                "A bound_fact with no needles is not a bound fact. "
-                "Empty needles make contain_bound_fact vacuously true.",
+                "gold_unsealed requires four needles. Underbound rows stay "
+                "awaiting_needles; they must not reach the sealed set.",
                 fact_id=fact.get("fact_id"),
+            )
+
+
+def assert_gold_set_invariants(
+    facts: list[Mapping[str, Any]],
+    *,
+    sealed: bool,
+) -> None:
+    """Owner-narrowed standing check. Not the withdrawn empty-needles sweep.
+
+    OBJECT if gold_unsealed has fewer than four needles, or if a sealed set
+    contains awaiting_needles or disputed.
+    """
+    blocked = {"awaiting_needles", "awaiting_C", "disputed", "diagnostic_not_fact"}
+    for fact in facts:
+        status = str(fact.get("status") or "")
+        needles = fact.get("needles") or {}
+        filled = sum(
+            1 for key in _BOUND_NEEDLE_KEYS if str(needles.get(key) or "").strip()
+        )
+        if status in {"gold", "gold_unsealed"} and filled != 4:
+            raise GoldEnsembleError(
+                "gold_unsealed_underbound",
+                "status gold_unsealed requires polymer, solvent, temperature, value.",
+                fact_id=fact.get("fact_id"), filled=filled,
+            )
+        if sealed and status in blocked:
+            raise GoldEnsembleError(
+                "unready_fact_in_sealed_set",
+                "awaiting_needles and disputed facts must not enter the sealed set.",
+                fact_id=fact.get("fact_id"), status=status,
             )
 
 
@@ -739,7 +778,6 @@ def run_c5_ab(
     census = loaded["census"]
     disk = pdf_set_identity(census, pdf_root)
     papers = c3_papers(census)
-    pending = contaminant_pending(census)
     if vision:
         from .gold_vision import require_vision_spend
         require_vision_spend()
@@ -821,6 +859,9 @@ def run_c5_ab(
         "n_disputes": sum(row["n_disputes"] for row in papers_out),
         "n_table_cell_gold": sum(int(row.get("n_table_cell_gold") or 0) for row in papers_out),
         "n_figure_embedded": sum(int(row.get("n_figure_embedded") or 0) for row in papers_out),
+        "n_figure_awaiting_needles": sum(
+            int(row.get("n_figure_awaiting_needles") or 0) for row in papers_out
+        ),
         "n_figure_disputes": sum(int(row.get("n_figure_disputes") or 0) for row in papers_out),
         "agreement_rate_string_tokens": None,
         "note": (
@@ -852,7 +893,6 @@ def run_c5_ab(
         "ceiling_v3_sha256": CEILING_V3_SHA256,
         "vision_spend_sha256": VISION_SPEND_SHA256 if vision else None,
         "c3_coverage": C3_SET_NOTE,
-        "contaminant": pending,
         "skipped": [
             {
                 "sha256": "b95603201907ce4de4f4a62671d0ba8c20879b723da7b15fee5d8af2fa2f199f",
@@ -863,6 +903,22 @@ def run_c5_ab(
         "density": density,
         "papers": papers_out,
     }
+    artifact["contaminant"] = contaminant_pending(
+        census,
+        ran_paper_shas=[str(row.get("paper_sha256") or "") for row in papers_out],
+    )
+    collected: list[Mapping[str, Any]] = []
+    for row in papers_out:
+        for key in (
+            "string_existence",
+            "string_existence_diagnostic",
+            "table_cell_candidates",
+            "figure_embedded",
+            "figure_disputes",
+            "disputes",
+        ):
+            collected.extend(row.get(key) or [])
+    assert_gold_set_invariants(collected, sealed=False)
     if out_path is not None:
         dest = Path(out_path)
         dest.parent.mkdir(parents=True, exist_ok=True)

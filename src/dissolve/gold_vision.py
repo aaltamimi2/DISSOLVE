@@ -16,6 +16,7 @@ from typing import Any, Callable, Mapping
 from .gold_ensemble import (
     GoldEnsembleError,
     VISION_SPEND_SHA256,
+    assert_gold_set_invariants,
     file_sha256,
     scan_firewall_text,
     validate_fact,
@@ -185,7 +186,7 @@ def channel_c(
     timeout: int = 600,
     **kwargs: Any,
 ) -> dict[str, Any]:
-    """Opus 5 max reasoning via the named Claude CLI. Not a v3 visual look."""
+    """Opus 5 thinking-high via the named Claude CLI. Not a v3 visual look."""
     if "page_image" in kwargs:
         raise GoldEnsembleError(
             "vision_not_authorized",
@@ -202,6 +203,7 @@ def channel_c(
         "read_by": model,
         "pages": list(pages),
         "reading": reading,
+        "reading_raw": payload,
         "dropped_incomplete_rows": reading.get("dropped_incomplete_rows"),
         "raw_chars": len(raw),
     }
@@ -216,7 +218,7 @@ def channel_c_prime(
     timeout: int = 600,
     **kwargs: Any,
 ) -> dict[str, Any]:
-    """Cursor Grok 4.6 extra-high via the named agent CLI. Not this v3 session."""
+    """Cursor Grok 4.6 high via the named agent CLI. Not this v3 session."""
     if "page_image" in kwargs:
         raise GoldEnsembleError(
             "vision_not_authorized",
@@ -234,6 +236,7 @@ def channel_c_prime(
         "read_by": model,
         "pages": list(pages),
         "reading": reading,
+        "reading_raw": payload,
         "dropped_incomplete_rows": reading.get("dropped_incomplete_rows"),
         "raw_chars": len(raw),
     }
@@ -407,20 +410,55 @@ def bind_table_cells(
     return bound
 
 
-def c_and_cprime_agree(row_c: Mapping[str, Any], row_cp: Mapping[str, Any]) -> dict[str, str] | None:
-    needles_c = _needles_from_row(row_c)
-    needles_p = _needles_from_row(row_cp)
+def _named_fields(row: Mapping[str, Any]) -> dict[str, str]:
+    return _needles_from_row(row, row.get("columns") or row.get("_columns"))
+
+
+def recover_figure_needles(
+    row_c: Mapping[str, Any],
+    row_cp: Mapping[str, Any],
+) -> dict[str, str] | None:
+    """None if the rows do not agree on structure. Short dict = awaiting_needles."""
+    needles_c = _named_fields(row_c)
+    needles_p = _named_fields(row_cp)
     if (
         len(needles_c) == 4
         and len(needles_p) == 4
         and all(_norm(needles_c[key]) == _norm(needles_p[key]) for key in _NEEDLE_KEYS)
     ):
         return needles_c
-    cells_c = [_norm(cell) for cell in (row_c.get("cells") or []) if str(cell).strip()]
+    orig_c = [str(cell).strip() for cell in (row_c.get("cells") or []) if str(cell).strip()]
+    cells_c = [_norm(cell) for cell in orig_c]
     cells_p = [_norm(cell) for cell in (row_cp.get("cells") or []) if str(cell).strip()]
-    if cells_c and cells_c == cells_p and len(needles_c) == 4:
-        return needles_c
-    return None
+    cells_agree = bool(cells_c) and cells_c == cells_p
+    if not cells_agree:
+        return None
+    union: dict[str, str] = {}
+    for key in _NEEDLE_KEYS:
+        value_c = str(row_c.get(key) or "").strip()
+        value_p = str(row_cp.get(key) or "").strip()
+        if value_c and value_p and _norm(value_c) == _norm(value_p):
+            union[key] = value_c
+        elif value_c and value_p:
+            if _norm(value_c) in cells_c and _norm(value_p) not in cells_c:
+                union[key] = value_c
+            elif _norm(value_p) in cells_c and _norm(value_c) not in cells_c:
+                union[key] = value_p
+        elif value_c and _norm(value_c) in cells_c:
+            union[key] = value_c
+        elif value_p and _norm(value_p) in cells_c:
+            union[key] = value_p
+    if len(union) == 3:
+        used = {_norm(value) for value in union.values()}
+        leftover = [cell for cell in orig_c if _norm(cell) not in used]
+        missing = [key for key in _NEEDLE_KEYS if key not in union]
+        if len(leftover) == 1 and len(missing) == 1:
+            union[missing[0]] = leftover[0]
+    return union
+
+
+def c_and_cprime_agree(row_c: Mapping[str, Any], row_cp: Mapping[str, Any]) -> dict[str, str] | None:
+    return recover_figure_needles(row_c, row_cp)
 
 
 def bind_figure_facts(
@@ -435,25 +473,22 @@ def bind_figure_facts(
     if not model_c or not model_p:
         raise GoldEnsembleError("vision_model_unrecorded", "C+C' facts must record read_by.")
     assert_distinct_vision_models(model_c, model_p)
-    def _complete_rows(result: Mapping[str, Any]) -> list[dict[str, Any]]:
+    def _all_rows(result: Mapping[str, Any]) -> list[dict[str, Any]]:
         rows: list[dict[str, Any]] = []
-        reading = result.get("reading") or {}
-        try:
-            reading = normalize_vision_reading(reading)
-        except GoldEnsembleError:
+        reading = result.get("reading_raw") or result.get("reading") or {}
+        if not isinstance(reading, dict):
             return []
         for table in reading.get("tables") or []:
             for row in table.get("rows") or []:
-                if len(_needles_from_row(row, table.get("columns"))) != 4:
-                    continue
                 item = dict(row)
                 item.setdefault("locus", table.get("locus"))
                 item.setdefault("page", table.get("page"))
+                item.setdefault("columns", table.get("columns"))
                 rows.append(item)
         return rows
 
-    rows_c = _complete_rows(channel_c_result)
-    rows_p = _complete_rows(channel_c_prime_result)
+    rows_c = _all_rows(channel_c_result)
+    rows_p = _all_rows(channel_c_prime_result)
     agreed: list[dict[str, Any]] = []
     disputed: list[dict[str, Any]] = []
     used_p: set[int] = set()
@@ -474,6 +509,16 @@ def bind_figure_facts(
             break
         locus = str(row_c.get("locus") or "Fig. 4")
         if found is None:
+            leftover_p = None
+            leftover_idx = None
+            for index, row_p in enumerate(rows_p):
+                if index in used_p:
+                    continue
+                leftover_p = row_p
+                leftover_idx = index
+                break
+            if leftover_idx is not None:
+                used_p.add(leftover_idx)
             disputed.append({
                 "fact_id": f"fig-{paper_sha[:12]}-{len(disputed):04d}",
                 "paper_sha256": paper_sha,
@@ -486,7 +531,7 @@ def bind_figure_facts(
                 "needles": {},
                 "channels_used": ["C", "C_prime"],
                 "read_by": {"C": model_c, "C_prime": model_p},
-                "readings": {"A": None, "B": None, "C": row_c, "C_prime": None},
+                "readings": {"A": None, "B": None, "C": row_c, "C_prime": leftover_p},
                 "confidence": "disputed",
                 "status": "disputed",
                 "sealed": False,
@@ -494,10 +539,29 @@ def bind_figure_facts(
             continue
         used_p.add(found_idx)
         row_p, needles = found
-        if len(needles) != 4:
+        if len(needles) == 4:
+            fact = {
+                "fact_id": f"fig-{paper_sha[:12]}-{len(agreed):04d}",
+                "paper_sha256": paper_sha,
+                "paper_status": paper.get("status"),
+                "genre": paper.get("genre"),
+                "kind": "table_cell",
+                "scoring_class": "bound_fact",
+                "locus": locus,
+                "page": row_c.get("page"),
+                "needles": needles,
+                "channels_used": ["C", "C_prime"],
+                "read_by": {"C": model_c, "C_prime": model_p},
+                "readings": {"A": None, "B": None, "C": row_c, "C_prime": row_p},
+                "confidence": "unanimous",
+                "status": "gold_unsealed",
+                "sealed": False,
+            }
+            validate_fact(fact)
+            agreed.append(fact)
             continue
-        fact = {
-            "fact_id": f"fig-{paper_sha[:12]}-{len(agreed):04d}",
+        agreed.append({
+            "fact_id": f"fig-{paper_sha[:12]}-an-{len(agreed):04d}",
             "paper_sha256": paper_sha,
             "paper_status": paper.get("status"),
             "genre": paper.get("genre"),
@@ -505,16 +569,36 @@ def bind_figure_facts(
             "scoring_class": "bound_fact",
             "locus": locus,
             "page": row_c.get("page"),
-            "needles": needles,
+            "needles": {},
+            "partial_needles": needles,
             "channels_used": ["C", "C_prime"],
             "read_by": {"C": model_c, "C_prime": model_p},
             "readings": {"A": None, "B": None, "C": row_c, "C_prime": row_p},
-            "confidence": "unanimous",
-            "status": "gold_unsealed",
+            "confidence": "majority",
+            "status": "awaiting_needles",
             "sealed": False,
-        }
-        validate_fact(fact)
-        agreed.append(fact)
+            "note": "C and C' agree on cells. Fewer than four binding keys. Not gold.",
+        })
+    for index, row_p in enumerate(rows_p):
+        if index in used_p:
+            continue
+        disputed.append({
+            "fact_id": f"fig-{paper_sha[:12]}-{len(disputed):04d}",
+            "paper_sha256": paper_sha,
+            "paper_status": paper.get("status"),
+            "genre": paper.get("genre"),
+            "kind": "table_cell",
+            "scoring_class": "bound_fact",
+            "locus": str(row_p.get("locus") or "Fig. 4"),
+            "page": row_p.get("page"),
+            "needles": {},
+            "channels_used": ["C", "C_prime"],
+            "read_by": {"C": model_c, "C_prime": model_p},
+            "readings": {"A": None, "B": None, "C": None, "C_prime": row_p},
+            "confidence": "disputed",
+            "status": "disputed",
+            "sealed": False,
+        })
     return agreed, disputed
 
 
@@ -542,7 +626,12 @@ def rebind_paper(paper_out: dict[str, Any]) -> dict[str, Any]:
         )
         out["figure_embedded"] = facts
         out["figure_disputes"] = disputes
-        out["n_figure_embedded"] = len(facts)
+        out["n_figure_embedded"] = sum(
+            1 for row in facts if row.get("status") == "gold_unsealed"
+        )
+        out["n_figure_awaiting_needles"] = sum(
+            1 for row in facts if row.get("status") == "awaiting_needles"
+        )
         out["n_figure_disputes"] = len(disputes)
     return out
 
@@ -554,10 +643,21 @@ def rebind_artifact(artifact: Mapping[str, Any]) -> dict[str, Any]:
     density = dict(out.get("density") or {})
     density["n_table_cell_gold"] = sum(int(row.get("n_table_cell_gold") or 0) for row in papers)
     density["n_figure_embedded"] = sum(int(row.get("n_figure_embedded") or 0) for row in papers)
+    density["n_figure_awaiting_needles"] = sum(
+        int(row.get("n_figure_awaiting_needles") or 0) for row in papers
+    )
     density["n_figure_disputes"] = sum(int(row.get("n_figure_disputes") or 0) for row in papers)
     out["density"] = density
     out["sealed"] = False
     out["seal_forbidden"] = True
+    collected: list[Mapping[str, Any]] = []
+    for row in papers:
+        for key in (
+            "string_existence", "string_existence_diagnostic",
+            "table_cell_candidates", "figure_embedded", "figure_disputes", "disputes",
+        ):
+            collected.extend(row.get(key) or [])
+    assert_gold_set_invariants(collected, sealed=False)
     return out
 
 
@@ -636,11 +736,13 @@ def apply_vision(
             "read_by": c_result.get("read_by"),
             "pages": fig_pages,
             "reading": c_result.get("reading"),
+            "reading_raw": c_result.get("reading_raw") or c_result.get("reading"),
         }
         out["channel_c_prime_figures"] = {
             "read_by": cp_result.get("read_by"),
             "pages": fig_pages,
             "reading": cp_result.get("reading"),
+            "reading_raw": cp_result.get("reading_raw") or cp_result.get("reading"),
         }
         figure_facts, figure_disputes = bind_figure_facts(
             paper=paper,
@@ -650,7 +752,12 @@ def apply_vision(
     if figures:
         out["figure_embedded"] = figure_facts
         out["figure_disputes"] = figure_disputes
-        out["n_figure_embedded"] = len(figure_facts)
+        out["n_figure_embedded"] = sum(
+            1 for row in figure_facts if row.get("status") == "gold_unsealed"
+        )
+        out["n_figure_awaiting_needles"] = sum(
+            1 for row in figure_facts if row.get("status") == "awaiting_needles"
+        )
         out["n_figure_disputes"] = len(figure_disputes)
     out["vision_spend"] = spend
     out["vision_called"] = bool(spend)

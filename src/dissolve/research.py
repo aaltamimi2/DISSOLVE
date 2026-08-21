@@ -1884,7 +1884,9 @@ def official_contain_bound_fact_eligible(fact: Mapping[str, Any]) -> bool:
     """
     if str(fact.get("scoring_class") or "") == "string_existence":
         return False
-    if str(fact.get("status") or "") == "awaiting_C":
+    if str(fact.get("status") or "") in {
+        "awaiting_C", "awaiting_needles", "disputed", "diagnostic_not_fact",
+    }:
         return False
     needles = fact.get("needles") or {}
     if not any(str(value or "").strip() for value in needles.values()):

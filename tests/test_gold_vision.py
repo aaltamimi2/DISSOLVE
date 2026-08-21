@@ -12,7 +12,7 @@ for _path in (str(_ROOT), str(_ROOT / "src")):
     if _path not in sys.path:
         sys.path.insert(0, _path)
 
-from dissolve import gold_ensemble, gold_vision
+from dissolve import gold_ensemble, gold_vision, research
 
 TOKEN_P = "PEZXQ"
 TOKEN_S = "SOLZXQ"
@@ -188,6 +188,50 @@ def test_string_existence_still_unbound_after_vision_needles():
     assert row["contain_bound_fact"] is False
 
 
+def test_cell_agree_without_four_keys_is_awaiting_needles():
+    paper = {"sha256": "cd" * 32, "status": "indexed", "genre": "experimental"}
+    row_c = {
+        "polymer": TOKEN_P, "solvent": "", "temperature": "", "value": "",
+        "cells": [TOKEN_P, TOKEN_S], "locus": "Fig. 4", "page": 6,
+    }
+    row_p = {
+        "polymer": TOKEN_P, "solvent": "", "temperature": "", "value": "",
+        "cells": [TOKEN_P, TOKEN_S], "locus": "Fig. 4", "page": 6,
+    }
+    agreed, disputed = gold_vision.bind_figure_facts(
+        paper=paper,
+        channel_c_result={"read_by": gold_vision.CHANNEL_C_MODEL, "reading": {"tables": [{"rows": [row_c]}]}},
+        channel_c_prime_result={
+            "read_by": gold_vision.CHANNEL_C_PRIME_MODEL,
+            "reading": {"tables": [{"rows": [row_p]}]},
+        },
+    )
+    assert disputed == []
+    assert agreed[0]["status"] == "awaiting_needles"
+    assert agreed[0]["needles"] == {}
+    assert agreed[0]["partial_needles"]["polymer"] == TOKEN_P
+    assert research.official_contain_bound_fact_eligible(agreed[0]) is False
+
+
+def test_leftover_cell_closes_fourth_key():
+    paper = {"sha256": "cd" * 32, "status": "indexed", "genre": "experimental"}
+    row = {
+        "polymer": TOKEN_P, "solvent": TOKEN_S, "temperature": TOKEN_T, "value": "",
+        "cells": [TOKEN_P, TOKEN_S, TOKEN_T, TOKEN_V], "locus": "Fig. 4", "page": 6,
+    }
+    agreed, disputed = gold_vision.bind_figure_facts(
+        paper=paper,
+        channel_c_result={"read_by": gold_vision.CHANNEL_C_MODEL, "reading": {"tables": [{"rows": [row]}]}},
+        channel_c_prime_result={
+            "read_by": gold_vision.CHANNEL_C_PRIME_MODEL,
+            "reading": {"tables": [{"rows": [row]}]},
+        },
+    )
+    assert disputed == []
+    assert agreed[0]["status"] == "gold_unsealed"
+    assert agreed[0]["needles"]["value"] == TOKEN_V
+
+
 def test_figure_c_plus_cprime_and_dispute():
     paper = {"sha256": "cd" * 32, "status": "indexed", "genre": "experimental"}
     row = {
@@ -220,6 +264,8 @@ def test_figure_c_plus_cprime_and_dispute():
     )
     assert agreed == []
     assert disputed[0]["status"] == "disputed"
+    assert disputed[0]["readings"]["C"]["value"] == TOKEN_V
+    assert disputed[0]["readings"]["C_prime"]["value"] == "0.01"
 
 
 def test_apply_vision_uses_mocks_not_cli(tmp_path, monkeypatch):
