@@ -54,6 +54,7 @@ _TIME_V_RSS_KB = re.compile(
     re.IGNORECASE,
 )
 _FIG4 = re.compile(r"\bFig(?:ure)?\.?\s*4\b", re.IGNORECASE)
+_BOUND_NEEDLE_KEYS = ("polymer", "solvent", "temperature", "value")
 
 
 class GoldEnsembleError(ValueError):
@@ -520,6 +521,15 @@ def validate_fact(fact: Mapping[str, Any]) -> None:
             "string_existence must not populate needles for official contain_bound_fact.",
             fact_id=fact.get("fact_id"),
         )
+    if scoring == "bound_fact" and str(fact.get("status") or "") in {"gold", "gold_unsealed"}:
+        needles = fact.get("needles") or {}
+        if not all(str(needles.get(key) or "").strip() for key in _BOUND_NEEDLE_KEYS):
+            raise GoldEnsembleError(
+                "bound_fact_missing_needles",
+                "A bound_fact with no needles is not a bound fact. "
+                "Empty needles make contain_bound_fact vacuously true.",
+                fact_id=fact.get("fact_id"),
+            )
 
 
 def assemble_facts(
@@ -538,9 +548,10 @@ def assemble_facts(
     disputed_tokens = sorted(set(a_tokens) ^ set(b_tokens))
 
     string_facts: list[dict[str, Any]] = []
+    diagnostics: list[dict[str, Any]] = []
     for token in agreed:
         page = min(a_tokens[token], b_tokens[token])
-        fact = {
+        row = {
             "fact_id": _fact_id("se", paper_sha, token),
             "paper_sha256": paper_sha,
             "paper_status": paper.get("status"),
@@ -558,11 +569,16 @@ def assemble_facts(
             "read_by": {"A": "pypdf", "B": "pdftotext -layout"},
             "readings": {"A": token, "B": token, "C": None, "C_prime": None},
             "confidence": "unanimous",
-            "status": "agreed_not_gold_bound",
+            "status": "diagnostic_not_fact",
+            "role": "diagnostic",
             "sealed": False,
+            "note": (
+                "A+B numeric-token agreement is a diagnostic, not a gold fact. "
+                "Bare numbers must not enter density as facts."
+            ),
         }
-        validate_fact(fact)
-        string_facts.append(fact)
+        validate_fact(row)
+        diagnostics.append(row)
 
     candidates: list[dict[str, Any]] = []
     for index, row in enumerate(table_candidates_from_b(b_pages), 1):
@@ -648,10 +664,12 @@ def assemble_facts(
         "paper_status": paper.get("status"),
         "genre": paper.get("genre"),
         "string_existence": string_facts,
+        "string_existence_diagnostic": diagnostics,
         "table_cell_candidates": candidates,
         "disputes": disputes,
         "fig4_pages": fig4_pages,
         "n_string_existence": len(string_facts),
+        "n_string_existence_diagnostic": len(diagnostics),
         "n_table_cell_candidates": len(candidates),
         "n_disputes": len(disputes),
         "n_fig4_pages": len(fig4_pages),
@@ -795,7 +813,10 @@ def run_c5_ab(
 
     density = {
         "n_papers": len(papers_out),
-        "n_string_existence": sum(row["n_string_existence"] for row in papers_out),
+        "n_string_existence": sum(int(row.get("n_string_existence") or 0) for row in papers_out),
+        "n_string_existence_diagnostic": sum(
+            int(row.get("n_string_existence_diagnostic") or 0) for row in papers_out
+        ),
         "n_table_cell_candidates": sum(row["n_table_cell_candidates"] for row in papers_out),
         "n_disputes": sum(row["n_disputes"] for row in papers_out),
         "n_table_cell_gold": sum(int(row.get("n_table_cell_gold") or 0) for row in papers_out),
@@ -804,11 +825,12 @@ def run_c5_ab(
         "agreement_rate_string_tokens": None,
         "note": (
             "Density floors in corpus §6.4 apply to sealed GOLD.v2 bound_facts, "
-            "not to this unsealed draft. Table-cell gold requires B+C; "
-            "figure-embedded requires C+C'."
+            "not to this unsealed draft. string_existence is a diagnostic of A+B "
+            "numeric tokens, not a fact class. Table-cell gold requires B+C and "
+            "four needles. Figure-embedded requires C+C' and four needles."
         ),
     }
-    n_agreed = density["n_string_existence"]
+    n_agreed = density["n_string_existence_diagnostic"]
     n_disp = density["n_disputes"]
     denom = n_agreed + n_disp
     if denom:

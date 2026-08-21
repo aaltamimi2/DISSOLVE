@@ -30,6 +30,31 @@ def test_page_image_kwarg_is_not_a_channel():
     assert caught.value.code == "vision_not_authorized"
 
 
+def test_normalize_drops_empty_named_fields():
+    raw = {"tables": [{"locus": "Fig. 4", "page": 6, "rows": [{
+        "polymer": "", "solvent": "", "temperature": "", "value": "",
+        "cells": [TOKEN_P, TOKEN_S, TOKEN_T, TOKEN_V],
+    }]}]}
+    out = gold_vision.normalize_vision_reading(raw)
+    assert out["tables"] == []
+    assert out["dropped_incomplete_rows"] == 1
+
+
+def test_normalize_null_is_channel_error():
+    with pytest.raises(gold_ensemble.GoldEnsembleError) as caught:
+        gold_vision.normalize_vision_reading(None)
+    assert caught.value.code == "vision_null_reading"
+
+
+def test_labeled_columns_recover_needles_from_cells():
+    raw = {"tables": [{"columns": ["polymer", "solvent", "temperature", "value"],
+                       "rows": [{"polymer": "", "solvent": "", "temperature": "",
+                                 "value": "", "cells": [TOKEN_P, TOKEN_S, TOKEN_T, TOKEN_V]}]}]}
+    out = gold_vision.normalize_vision_reading(raw)
+    assert len(out["tables"][0]["rows"]) == 1
+    assert out["tables"][0]["rows"][0]["polymer"] == TOKEN_P
+
+
 def test_same_model_twice_fails():
     with pytest.raises(gold_ensemble.GoldEnsembleError) as caught:
         gold_vision.assert_distinct_vision_models("same", "same")

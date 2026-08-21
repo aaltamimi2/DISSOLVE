@@ -1877,14 +1877,17 @@ def official_contain_bound_fact_eligible(fact: Mapping[str, Any]) -> bool:
     """Official contain_bound_fact is a bound-fact score, not string existence.
 
     Ensemble accept test 2: a ``scoring_class=string_existence`` row must not
-    satisfy official ``contain_bound_fact``, even if every needle is in a chunk
-    body (empty needles would otherwise be vacuously true). Gold v1 rows have
-    no ``scoring_class`` and stay eligible. ``awaiting_C`` table-cell candidates
-    are not gold yet.
+    satisfy official ``contain_bound_fact``. Empty ``needles`` is vacuously
+    true in ``_body_has_all_needles`` and must not be scored as bound. Gold v1
+    rows have nonempty needles and no ``scoring_class`` and stay eligible.
+    ``awaiting_C`` table-cell candidates are not gold yet.
     """
     if str(fact.get("scoring_class") or "") == "string_existence":
         return False
     if str(fact.get("status") or "") == "awaiting_C":
+        return False
+    needles = fact.get("needles") or {}
+    if not any(str(value or "").strip() for value in needles.values()):
         return False
     return True
 

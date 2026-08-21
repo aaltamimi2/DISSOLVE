@@ -344,12 +344,15 @@ def test_assemble_ab_agreement_candidates_and_disputes():
     assembled = gold_ensemble.assemble_facts(
         paper=paper, channel_a=channel_a, channel_b=channel_b,
     )
-    tokens = {fact["tokens"][0] for fact in assembled["string_existence"]}
+    tokens = {fact["tokens"][0] for fact in assembled["string_existence_diagnostic"]}
     assert TOKEN_V in tokens
     assert "4.50" in tokens
     assert TOKEN_ONLY_B not in tokens
-    assert all(fact["scoring_class"] == "string_existence" for fact in assembled["string_existence"])
-    assert all(fact["needles"] == {} for fact in assembled["string_existence"])
+    assert assembled["string_existence"] == []
+    assert assembled["n_string_existence"] == 0
+    assert all(fact["scoring_class"] == "string_existence" for fact in assembled["string_existence_diagnostic"])
+    assert all(fact["needles"] == {} for fact in assembled["string_existence_diagnostic"])
+    assert all(fact["status"] == "diagnostic_not_fact" for fact in assembled["string_existence_diagnostic"])
     assert assembled["n_disputes"] >= 1
     dispute = next(fact for fact in assembled["disputes"] if fact["tokens"] == [TOKEN_ONLY_B])
     assert dispute["status"] == "disputed"
@@ -421,6 +424,41 @@ def test_gold_v1_shape_still_eligible():
     }) is True
 
 
+def test_empty_needles_cannot_satisfy_contain_bound_fact():
+    """Seal poison: all([]) is true. Empty needles are not a bound fact."""
+    text = f"{TOKEN_P} {TOKEN_S} {TOKEN_V}"
+    fact = {
+        "fact_id": "empty-needles",
+        "scoring_class": "bound_fact",
+        "status": "gold_unsealed",
+        "kind": "table_cell",
+        "locus": "Table 2",
+        "page": 1,
+        "query": TOKEN_V,
+        "needles": {},
+    }
+    assert research.official_contain_bound_fact_eligible(fact) is False
+    scored = research.score_chunks_against_facts(
+        _chunks_for(text), [fact], _canon_paragraph(text), strategy="S2_block_pack",
+    )
+    assert scored["facts"][0]["contain_bound_fact"] is False
+    assert scored["facts"][0]["contain_bound_fact_rebound"] is False
+
+
+def test_gold_bound_fact_without_needles_fails_validate():
+    with pytest.raises(gold_ensemble.GoldEnsembleError) as caught:
+        gold_ensemble.validate_fact({
+            "fact_id": "no-needles",
+            "kind": "table_cell",
+            "locus": "Table 2",
+            "scoring_class": "bound_fact",
+            "status": "gold_unsealed",
+            "channels_used": ["B", "C"],
+            "needles": {},
+        })
+    assert caught.value.code == "bound_fact_missing_needles"
+
+
 def test_ab_channels_on_staged_pdf(tmp_path, monkeypatch):
     pdf = tmp_path / "paper.pdf"
     _write_text_pdf(pdf, [
@@ -445,8 +483,9 @@ def test_ab_channels_on_staged_pdf(tmp_path, monkeypatch):
     monkeypatch.setattr("builtins.__import__", spy)
     assembled = gold_ensemble.run_one_paper(paper, pdf, tmp_path / "stages")
     assert assembled["stage_listing"] == [f"{digest}.pdf"]
-    assert assembled["n_string_existence"] >= 1
-    assert any(fact["tokens"] == [TOKEN_V] for fact in assembled["string_existence"])
+    assert assembled["n_string_existence"] == 0
+    assert assembled["n_string_existence_diagnostic"] >= 1
+    assert any(fact["tokens"] == [TOKEN_V] for fact in assembled["string_existence_diagnostic"])
     assert assembled["sealed"] is False
     assert "docling" not in imported
     assert "sentence_transformers" not in imported
