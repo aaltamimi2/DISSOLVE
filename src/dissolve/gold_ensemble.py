@@ -81,6 +81,49 @@ def refuse_source_path(path: Path) -> None:
         )
 
 
+def _reused_c3_peaks(text: str) -> bool:
+    folded = text.casefold()
+    return "during c3" in folded or "c3 persist" in folded
+
+
+def assert_time_v_persist(ceiling: Mapping[str, Any]) -> Path:
+    """Option 1 is a /usr/bin/time -v persist, not a measurement_method label."""
+    raw_path = ceiling.get("time_v_persist_path")
+    expected = str(ceiling.get("time_v_persist_sha256") or "")
+    if not raw_path or not expected:
+        raise GoldEnsembleError(
+            "c35_option1_label_only",
+            "Option 1 is not a measurement_method string. Publish a "
+            "/usr/bin/time -v persist and pin its SHA-256.",
+        )
+    persist = Path(raw_path)
+    if not persist.is_file():
+        raise GoldEnsembleError(
+            "c35_option1_persist_missing",
+            "Option 1 persist path is not a file.",
+            path=str(persist),
+        )
+    got = file_sha256(persist)
+    if got != expected:
+        raise GoldEnsembleError(
+            "c35_option1_persist_digest_mismatch",
+            "Option 1 persist digest does not match the ceiling pin.",
+            got=got, expected=expected,
+        )
+    body = persist.read_text(encoding="utf-8", errors="replace")
+    if "Maximum resident set size" not in body:
+        raise GoldEnsembleError(
+            "c35_option1_not_time_v",
+            "Option 1 persist is not /usr/bin/time -v output.",
+        )
+    if _reused_c3_peaks(body):
+        raise GoldEnsembleError(
+            "c35_not_closed",
+            "Option 1 persist reuses C3 peaks. That is not a re-measure.",
+        )
+    return persist
+
+
 def assert_c35_closed(ceiling: Mapping[str, Any]) -> str:
     """Accept test 7: C3.5 closes only by option 1 or option 2. Not a C3 reuse raise."""
     try:
@@ -93,10 +136,11 @@ def assert_c35_closed(ceiling: Mapping[str, Any]) -> str:
     retraction = str((ceiling.get("RETRACTION") or {}).get("status") or "")
     method = str(ceiling.get("measurement_method") or "")
     basis = str(ceiling.get("basis") or "")
-    reused_c3 = "during C3" in basis or "c3 persist" in basis.casefold()
+    reused_c3 = _reused_c3_peaks(basis)
     if peak == START_GUARD_PEAK_RSS_BYTES and "RETRACTED" in retraction:
         return "option_2_start_guard"
     if "/usr/bin/time -v" in method and not reused_c3 and "RETRACTED" in retraction:
+        assert_time_v_persist(ceiling)
         return "option_1_remeasure"
     raise GoldEnsembleError(
         "c35_not_closed",

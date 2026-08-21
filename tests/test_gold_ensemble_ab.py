@@ -112,12 +112,28 @@ def _option2_ceiling() -> dict:
     }
 
 
-def _option1_ceiling() -> dict:
+def _option1_label_only() -> dict:
     return {
         "PEAK_RSS_CEILING_BYTES": 3_710_992_384,
         "RETRACTION": {"status": "FALSE — RETRACTED"},
         "basis": "quiet-machine re-measure of in-scope worst cases",
         "measurement_method": "/usr/bin/time -v",
+    }
+
+
+def _time_v_persist(path: Path, *, rss_kb: int = 3429642) -> dict:
+    text = (
+        "Command being timed: \"true\"\n"
+        f"Maximum resident set size (kbytes): {rss_kb}\n"
+    )
+    path.write_text(text, encoding="utf-8")
+    return {
+        "PEAK_RSS_CEILING_BYTES": rss_kb * 1024,
+        "RETRACTION": {"status": "FALSE — RETRACTED"},
+        "basis": "quiet-machine re-measure of in-scope worst cases",
+        "measurement_method": "/usr/bin/time -v",
+        "time_v_persist_path": str(path),
+        "time_v_persist_sha256": gold_ensemble.file_sha256(path),
     }
 
 
@@ -190,11 +206,31 @@ def test_option2_start_guard_and_classified_papers_unlock(tmp_path):
     assert loaded["c35_close"] == "option_2_start_guard"
 
 
-def test_option1_time_v_remeasure_unlocks(tmp_path):
+def test_option1_label_only_does_not_close_c35(tmp_path):
+    """PASS f6726ab residual: a measurement_method string is not a re-measure."""
     census = _write_json(tmp_path / "census.json", {"papers": _classified_rows()})
-    ceiling = _write_json(tmp_path / "ceiling.json", _option1_ceiling())
+    ceiling = _write_json(tmp_path / "ceiling.json", _option1_label_only())
+    with pytest.raises(gold_ensemble.GoldEnsembleError) as caught:
+        gold_ensemble.require_c1_v2(census, ceiling)
+    assert caught.value.code == "c35_option1_label_only"
+
+
+def test_option1_time_v_persist_unlocks(tmp_path):
+    census = _write_json(tmp_path / "census.json", {"papers": _classified_rows()})
+    payload = _time_v_persist(tmp_path / "time-v.txt")
+    ceiling = _write_json(tmp_path / "ceiling.json", payload)
     loaded = gold_ensemble.require_c1_v2(census, ceiling)
     assert loaded["c35_close"] == "option_1_remeasure"
+
+
+def test_during_c3_is_case_insensitive(tmp_path):
+    census = _write_json(tmp_path / "census.json", {"papers": _classified_rows()})
+    payload = _c3_raise_ceiling()
+    payload["basis"] = "peak_rss_bytes measured per document DURING c3."
+    ceiling = _write_json(tmp_path / "ceiling.json", payload)
+    with pytest.raises(gold_ensemble.GoldEnsembleError) as caught:
+        gold_ensemble.require_c1_v2(census, ceiling)
+    assert caught.value.code == "c35_not_closed"
 
 
 def test_indexed_contaminant_requires_c3_extension():
