@@ -20,7 +20,7 @@ _MODEL_ID = "openai:muse-spark-1.2"
 _MODEL_LABEL = "muse-spark-1.2"
 _JATS_XML_SUFFIXES = frozenset({".xml", ".nxml", ".xhtml"})
 _JATS_TEXT_SUFFIXES = frozenset({".txt", ".md", ".html", ".htm"})
-_PRODUCTION_JATS_SUFFIXES = _JATS_XML_SUFFIXES | _JATS_TEXT_SUFFIXES
+_PRODUCTION_PDF_SUFFIXES = frozenset({".pdf"})
 _BASE_URL = "https://api.meta.ai/v1"
 _PROMPT_VERSION = "typed-literature-extraction-v2"
 _RECORD_CLASSES = (
@@ -225,15 +225,14 @@ def _pypdf_bridge(path: Path, fallback_reason: str) -> dict[str, Any]:
 def _parse(acquisition: Mapping[str, Any]) -> dict[str, Any]:
     """Production parse. Docling failure raises; DeepDoc and pypdf are not a fallback.
 
-    ``.xml`` / ``.nxml`` / ``.xhtml`` / ``.txt`` / ``.md`` / ``.html`` /
-    ``.htm`` still stamp via ``_jats_bridge``, then hit the same non-Docling
-    refuse. The one-paper
-    experiment must not call this. It uses
+    Only ``.pdf`` reaches Docling. Any other suffix stamps via ``_jats_bridge``
+    (XML set → ``jats``, else ``local_text``) and hits the same non-Docling
+    refuse. The one-paper experiment must not call this. It uses
     ``research.parse_experiment_document(backend=...)``.
     """
     from . import research
     source = Path(str(research._source_artifact(acquisition)["packed_path"]))
-    if source.suffix.casefold() in _PRODUCTION_JATS_SUFFIXES:
+    if source.suffix.casefold() not in _PRODUCTION_PDF_SUFFIXES:
         parsed = research.parse_document_structure(
             acquisition, parser_payload=_jats_bridge(source),
             parsed_at=str(acquisition["document"]["acquired_at"]),
