@@ -176,6 +176,50 @@ def _provenance() -> dict[str, str]:
     }
 
 
+_UNSOURCED_THRESHOLD_WARNING = (
+    "Default swelling / dissolution / precipitation proxies "
+    "(1 / 10 / 1 wt%, swelling max 10) have no regulatory or literature "
+    "citation on this function. Zhou workbook provenance is the "
+    "miscibility/logD evidence class, not the threshold basis."
+)
+
+
+def _served_threshold_fields(
+    inputs: dict[str, Any], *, include_precipitation: bool | None = None,
+) -> dict[str, Any]:
+    """Always publish the active proxies and whether they are unsourced."""
+    sources = dict(inputs["threshold_sources"])
+    if include_precipitation is None:
+        include_precipitation = "precipitation_threshold_wt_pct" in inputs
+    published_sources = {
+        key: value for key, value in sources.items()
+        if include_precipitation or key != "precipitation_threshold_wt_pct"
+    }
+    fields: dict[str, Any] = {
+        "swelling_min_wt_pct": inputs["swelling_min_wt_pct"],
+        "swelling_max_wt_pct": inputs["swelling_max_wt_pct"],
+        "dissolution_min_wt_pct": inputs["dissolution_min_wt_pct"],
+        "threshold_basis": inputs["threshold_basis"],
+        "threshold_sources": published_sources,
+        "threshold_citation_status": (
+            "unsourced" if "default" in published_sources.values()
+            else "user_requested"
+        ),
+    }
+    if include_precipitation and "precipitation_threshold_wt_pct" in inputs:
+        fields["precipitation_threshold_wt_pct"] = inputs[
+            "precipitation_threshold_wt_pct"
+        ]
+    return fields
+
+
+def _threshold_warnings(inputs: dict[str, Any]) -> list[str]:
+    fields = _served_threshold_fields(inputs)
+    if fields["threshold_citation_status"] != "unsourced":
+        return []
+    return [_UNSOURCED_THRESHOLD_WARNING]
+
+
 def _expand(requested: Sequence[str]) -> tuple[list[str], list[str], list[str]]:
     supported, unsupported, families = [], [], set()
     lookup = _contaminant_lookup()
@@ -551,15 +595,10 @@ def _base_result(inputs: dict[str, Any], mode: str, rows: list[dict[str, Any]]) 
             "screening proxies from stored values"
         ),
         "provenance": _provenance(),
+        **_served_threshold_fields(
+            inputs, include_precipitation=mode != "leaching",
+        ),
     }
-    if inputs["threshold_basis"] == "user_requested":
-        result.update({
-            "swelling_min_wt_pct": inputs["swelling_min_wt_pct"],
-            "swelling_max_wt_pct": inputs["swelling_max_wt_pct"],
-            "dissolution_min_wt_pct": inputs["dissolution_min_wt_pct"],
-            "threshold_basis": inputs["threshold_basis"],
-            "threshold_sources": inputs["threshold_sources"],
-        })
     return result
 
 
@@ -640,6 +679,7 @@ def _leaching(inputs: dict[str, Any]) -> dict[str, Any]:
             "Workbook miscibility and logD are screening inputs, not validated process partition coefficients or removal efficiency.",
             "Leaching-mode swelling is inferred from modeled polymer solubility, not measured swelling.",
             "A passing screen does not establish extraction recovery, kinetics, solvent loading, or product purity.",
+            *_threshold_warnings(inputs),
         ],
     })
     return result
@@ -797,6 +837,7 @@ def _strap(inputs: dict[str, Any]) -> dict[str, Any]:
             ),
             "Workbook miscibility and logD are screening inputs, not validated process partition coefficients.",
             "A passing screen does not establish kinetics, solvent loading, contaminant removal efficiency, or product purity.",
+            *_threshold_warnings(inputs),
         ],
     })
     return result
@@ -880,16 +921,6 @@ def compare_contaminant_removal_modes(
         }
         for item in (leaching, strap)
     }
-    threshold_metadata = (
-        {
-            "swelling_min_wt_pct": inputs["swelling_min_wt_pct"],
-            "swelling_max_wt_pct": inputs["swelling_max_wt_pct"],
-            "dissolution_min_wt_pct": inputs["dissolution_min_wt_pct"],
-            "threshold_basis": inputs["threshold_basis"],
-            "threshold_sources": inputs["threshold_sources"],
-        }
-        if inputs["threshold_basis"] == "user_requested" else {}
-    )
     return tool_success(
         tool, analysis_type="contaminant_screen_analysis",
         mode="comparison", target_polymer=inputs["target"],
@@ -909,8 +940,7 @@ def compare_contaminant_removal_modes(
         unsupported_contaminants=inputs["unsupported"],
         contaminant_families=inputs["families"], recommended_mode=mode,
         min_dissolution_solubility_wt_pct=inputs["dissolution_min_wt_pct"],
-        precipitation_threshold_wt_pct=inputs["precipitation_threshold_wt_pct"],
-        **threshold_metadata,
+        **_served_threshold_fields(inputs),
         recommended_solvents={
             "leaching": leaching["recommended_solvents"],
             "strap_contaminant_removal": strap["recommended_solvents"],
