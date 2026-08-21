@@ -551,6 +551,20 @@ _CANONICAL_DROP_KEYS = {
     "nearest_preceding_heading", "nearest_preceding_heading_origin",
     "caption_ref_origin",
 }
+_GOLD_FACTS_V1_SHA256 = "345b426bd66f995b3b78a10e796afb6df013299dd6769379192b59d0d97dfaab"
+_CHUNK_TARGET = 1_400
+_CHUNK_OVERLAP = 180
+_ATOMIC_CHUNK_KINDS = frozenset({"table", "formula", "caption"})
+_C6_STRATEGY_IDS = (
+    "S0_production_pypdf",
+    "S1_naive_char",
+    "S2_block_pack",
+    "S3_section_pack",
+    "S4_sentence_pack",
+    "S5_table_plus_neighbors",
+)
+_SENTENCE_SPLIT_RE = re.compile(r"(?<=[.!?])\s+(?=[A-Z])")
+_TABLE_LABEL_RE = re.compile(r"^\s*Table\s+(\d+)\b", re.IGNORECASE)
 _PARSE_QUALITY_FLAGS = {
     "ocr_used", "rotation_corrected", "reading_order_uncertain",
     "table_grid_incomplete", "encrypted", "truncated", "low_confidence",
@@ -1336,6 +1350,563 @@ def build_canonical_document(
             "rules": list(_M3_RULE_NAMES),
             "post_pass": False,
         },
+    }
+
+
+def load_sealed_gold_facts(path: str | Path) -> dict[str, Any]:
+    """Load gold v1. Abort if the bytes are not the sealed digest."""
+    raw = Path(path).read_bytes()
+    digest = hashlib.sha256(raw).hexdigest()
+    if digest != _GOLD_FACTS_V1_SHA256:
+        raise LiteratureContractError(
+            "gold_digest_mismatch",
+            "Scorer aborts when gold_facts.v1.json is not the sealed digest.",
+            path=str(path), digest=digest, required=_GOLD_FACTS_V1_SHA256,
+        )
+    payload = json.loads(raw.decode("utf-8"))
+    if not isinstance(payload, dict) or not isinstance(payload.get("facts"), list):
+        raise LiteratureContractError(
+            "invalid_gold_facts", "Sealed gold must be an object with a facts list.",
+        )
+    return payload
+
+
+def _chunk_header(heading: Sequence[str] | None) -> str:
+    return " > ".join(str(part) for part in (heading or []) if str(part).strip())
+
+
+def _make_chunk(
+    *, strategy: str, index: int, body: str, header: str,
+    char_start: int | None, char_end: int | None,
+    atomic_overflow: bool = False, page: int | None = None,
+) -> dict[str, Any]:
+    chunk: dict[str, Any] = {
+        "strategy": strategy,
+        "chunk_id": f"{strategy}-{index:04d}",
+        "body": body,
+        "header": header,
+        "char_start": char_start,
+        "char_end": char_end,
+        "atomic_overflow": atomic_overflow,
+    }
+    if page is not None:
+        chunk["page"] = page
+    return chunk
+
+
+def _canonical_slice_ok(canonical: Mapping[str, Any], chunk: Mapping[str, Any]) -> bool:
+    start, end = chunk.get("char_start"), chunk.get("char_end")
+    if start is None or end is None:
+        return False
+    text = str(canonical.get("canonical_text") or "")
+    return text[int(start):int(end)] == chunk.get("body")
+
+
+def _unit_from_block(block: Mapping[str, Any]) -> dict[str, Any]:
+    kind = str(block.get("kind") or "other")
+    return {
+        "char_start": int(block["char_start"]),
+        "char_end": int(block["char_end"]),
+        "kind": kind,
+        "heading": list(block.get("nearest_preceding_heading") or []),
+        "atomic": kind in _ATOMIC_CHUNK_KINDS,
+        "block_id": block.get("block_id"),
+    }
+
+
+def _sentence_units(block: Mapping[str, Any]) -> list[dict[str, Any]]:
+    text = str(block.get("text") or "")
+    base = int(block["char_start"])
+    if str(block.get("kind")) not in {"paragraph", "list_item"} or not text:
+        return [_unit_from_block(block)]
+    spans: list[tuple[int, int]] = []
+    cursor = 0
+    for match in _SENTENCE_SPLIT_RE.finditer(text):
+        if match.start() > cursor:
+            spans.append((base + cursor, base + match.start()))
+        cursor = match.end()
+    if cursor < len(text):
+        spans.append((base + cursor, base + len(text)))
+    if not spans:
+        return [_unit_from_block(block)]
+    heading = list(block.get("nearest_preceding_heading") or [])
+    return [{
+        "char_start": start, "char_end": end, "kind": str(block.get("kind") or "paragraph"),
+        "heading": heading, "atomic": False, "block_id": block.get("block_id"),
+    } for start, end in spans if end > start]
+
+
+def _pack_units(
+    units: Sequence[Mapping[str, Any]],
+    canonical_text: str,
+    *,
+    strategy: str,
+    target: int = _CHUNK_TARGET,
+    start_new_on_heading: bool = False,
+) -> list[dict[str, Any]]:
+    chunks: list[dict[str, Any]] = []
+
+    def emit(start: int, end: int, heading: Sequence[str], overflow: bool) -> None:
+        chunks.append(_make_chunk(
+            strategy=strategy, index=len(chunks) + 1,
+            body=canonical_text[start:end], header=_chunk_header(heading),
+            char_start=start, char_end=end, atomic_overflow=overflow,
+        ))
+
+    buf_start: int | None = None
+    buf_end: int | None = None
+    buf_heading: list[str] = []
+    buf_overflow = False
+    buf_started_heading: tuple[str, ...] | None = None
+
+    def flush() -> None:
+        nonlocal buf_start, buf_end, buf_heading, buf_overflow, buf_started_heading
+        if buf_start is None or buf_end is None:
+            return
+        emit(buf_start, buf_end, buf_heading, buf_overflow)
+        buf_start = buf_end = None
+        buf_heading = []
+        buf_overflow = False
+        buf_started_heading = None
+
+    for unit in units:
+        start, end = int(unit["char_start"]), int(unit["char_end"])
+        heading = list(unit.get("heading") or [])
+        heading_key = tuple(heading)
+        atomic = bool(unit.get("atomic"))
+        overflow = atomic and (end - start) > target
+        if start_new_on_heading and buf_start is not None and unit.get("kind") == "heading":
+            flush()
+        if buf_start is not None and buf_end is not None and start > buf_end + 2:
+            flush()
+        if atomic:
+            flush()
+            emit(start, end, heading, overflow)
+            continue
+        if buf_start is None:
+            buf_start, buf_end, buf_heading = start, end, heading
+            buf_started_heading = heading_key
+            continue
+        if (end - buf_start) > target:
+            flush()
+            buf_start, buf_end, buf_heading = start, end, heading
+            buf_started_heading = heading_key
+            continue
+        buf_end = end
+    flush()
+    return chunks
+
+
+def chunk_s0_production_pypdf(
+    page_texts: Sequence[str], *, target: int = _CHUNK_TARGET, overlap: int = _CHUNK_OVERLAP,
+) -> list[dict[str, Any]]:
+    """S0: production `_paragraph_chunks` on pypdf page text. Not a Docling function."""
+    chunks: list[dict[str, Any]] = []
+    for page_number, page_text in enumerate(page_texts, 1):
+        for section, body in _paragraph_chunks(page_text, target=target, overlap=overlap):
+            if not str(body).strip():
+                continue
+            chunks.append(_make_chunk(
+                strategy="S0_production_pypdf", index=len(chunks) + 1,
+                body=body, header=str(section or ""),
+                char_start=None, char_end=None, page=page_number,
+            ))
+    return chunks
+
+
+def chunk_s1_naive_char(
+    canonical: Mapping[str, Any], *, target: int = _CHUNK_TARGET, overlap: int = _CHUNK_OVERLAP,
+) -> list[dict[str, Any]]:
+    """S1: sliding window on canonical_text, ignoring block kinds. Negative control."""
+    text = str(canonical.get("canonical_text") or "")
+    chunks: list[dict[str, Any]] = []
+    start = 0
+    n = len(text)
+    while start < n:
+        end = min(start + target, n)
+        chunks.append(_make_chunk(
+            strategy="S1_naive_char", index=len(chunks) + 1,
+            body=text[start:end], header="",
+            char_start=start, char_end=end,
+        ))
+        if end >= n:
+            break
+        nxt = end - overlap
+        start = end if nxt <= start else nxt
+    return chunks
+
+
+def chunk_s2_block_pack(
+    canonical: Mapping[str, Any], *, target: int = _CHUNK_TARGET,
+) -> list[dict[str, Any]]:
+    units = [_unit_from_block(block) for block in canonical.get("blocks") or []]
+    return _pack_units(
+        units, str(canonical.get("canonical_text") or ""),
+        strategy="S2_block_pack", target=target,
+    )
+
+
+def chunk_s3_section_pack(
+    canonical: Mapping[str, Any], *, target: int = _CHUNK_TARGET,
+) -> list[dict[str, Any]]:
+    units = [_unit_from_block(block) for block in canonical.get("blocks") or []]
+    return _pack_units(
+        units, str(canonical.get("canonical_text") or ""),
+        strategy="S3_section_pack", target=target, start_new_on_heading=True,
+    )
+
+
+def chunk_s4_sentence_pack(
+    canonical: Mapping[str, Any], *, target: int = _CHUNK_TARGET,
+) -> list[dict[str, Any]]:
+    units: list[dict[str, Any]] = []
+    for block in canonical.get("blocks") or []:
+        units.extend(_sentence_units(block))
+    return _pack_units(
+        units, str(canonical.get("canonical_text") or ""),
+        strategy="S4_sentence_pack", target=target,
+    )
+
+
+def chunk_s5_table_plus_neighbors(
+    canonical: Mapping[str, Any], *, target: int = _CHUNK_TARGET,
+) -> list[dict[str, Any]]:
+    text = str(canonical.get("canonical_text") or "")
+    blocks = list(canonical.get("blocks") or [])
+    by_id = {str(block.get("block_id")): i for i, block in enumerate(blocks)}
+    covered: set[int] = set()
+    table_chunks: list[dict[str, Any]] = []
+    for table in canonical.get("tables") or []:
+        table_id = str(table.get("table_id") or "")
+        if table_id not in by_id:
+            continue
+        members = [blocks[by_id[table_id]]]
+        idx = by_id[table_id]
+        for prev in range(idx - 1, -1, -1):
+            kind = str(blocks[prev].get("kind") or "")
+            if kind in {"header", "footer"}:
+                continue
+            members.append(blocks[prev])
+            break
+        caption_id = table.get("caption_block_id") or blocks[idx].get("caption_ref")
+        if caption_id and str(caption_id) in by_id:
+            members.append(blocks[by_id[str(caption_id)]])
+        start = min(int(item["char_start"]) for item in members)
+        end = max(int(item["char_end"]) for item in members)
+        heading = list(blocks[idx].get("nearest_preceding_heading") or [])
+        table_chunks.append(_make_chunk(
+            strategy="S5_table_plus_neighbors", index=len(table_chunks) + 1,
+            body=text[start:end], header=_chunk_header(heading),
+            char_start=start, char_end=end,
+        ))
+        for i, block in enumerate(blocks):
+            if int(block["char_start"]) >= start and int(block["char_end"]) <= end:
+                covered.add(i)
+    remaining = [_unit_from_block(block) for i, block in enumerate(blocks) if i not in covered]
+    rest = _pack_units(
+        remaining, text, strategy="S5_table_plus_neighbors",
+        target=target, start_new_on_heading=True,
+    )
+    combined = table_chunks + rest
+    for index, chunk in enumerate(combined, 1):
+        chunk["chunk_id"] = f"S5_table_plus_neighbors-{index:04d}"
+        chunk["strategy"] = "S5_table_plus_neighbors"
+    return combined
+
+
+_C6_CHUNKERS = {
+    "S0_production_pypdf": None,
+    "S1_naive_char": chunk_s1_naive_char,
+    "S2_block_pack": chunk_s2_block_pack,
+    "S3_section_pack": chunk_s3_section_pack,
+    "S4_sentence_pack": chunk_s4_sentence_pack,
+    "S5_table_plus_neighbors": chunk_s5_table_plus_neighbors,
+}
+
+
+def _intersects(cs: int, ce: int, ss: int, se: int) -> bool:
+    return cs < se and ss < ce
+
+
+def _covers(cs: int, ce: int, ss: int, se: int) -> bool:
+    return cs <= ss and ce >= se
+
+
+def _proper_subset(cs: int, ce: int, ss: int, se: int) -> bool:
+    return ss <= cs and ce <= se and (cs > ss or ce < se)
+
+
+def _atomic_spans(canonical: Mapping[str, Any], kinds: set[str]) -> list[tuple[int, int]]:
+    spans = []
+    for block in canonical.get("blocks") or []:
+        if str(block.get("kind")) in kinds:
+            spans.append((int(block["char_start"]), int(block["char_end"])))
+    return spans
+
+
+def chunk_splits_atomic(chunks: Sequence[Mapping[str, Any]], canonical: Mapping[str, Any], kinds: set[str]) -> int:
+    """Count chunks that intersect an atomic span without covering it."""
+    splits = 0
+    for span_start, span_end in _atomic_spans(canonical, kinds):
+        for chunk in chunks:
+            start, end = chunk.get("char_start"), chunk.get("char_end")
+            if start is None or end is None:
+                continue
+            if _intersects(int(start), int(end), span_start, span_end) and not _covers(
+                int(start), int(end), span_start, span_end,
+            ):
+                splits += 1
+    return splits
+
+
+def table_atomic_fraction(chunks: Sequence[Mapping[str, Any]], canonical: Mapping[str, Any]) -> float | None:
+    tables = list(canonical.get("tables") or [])
+    if not tables:
+        return None
+    hits = 0
+    for table in tables:
+        ts, te = int(table["char_start"]), int(table["char_end"])
+        if any(
+            chunk.get("char_start") == ts and chunk.get("char_end") == te
+            for chunk in chunks
+        ):
+            hits += 1
+    return hits / len(tables)
+
+
+def _needle_hit(corpus: str, needle: Any) -> bool:
+    return str(needle).casefold() in str(corpus).casefold()
+
+
+def _body_has_all_needles(body: str, needles: Mapping[str, Any]) -> bool:
+    return all(_needle_hit(body, value) for value in needles.values())
+
+
+def _page6_table_spans(canonical: Mapping[str, Any]) -> list[tuple[int, int]]:
+    return [
+        (int(table["char_start"]), int(table["char_end"]))
+        for table in canonical.get("tables") or []
+        if table.get("page") == 6
+    ]
+
+
+def _locus_table_spans(canonical: Mapping[str, Any]) -> dict[str, tuple[int, int]]:
+    labels: dict[str, tuple[int, int]] = {}
+    blocks = list(canonical.get("blocks") or [])
+    by_id = {str(block.get("block_id")): block for block in blocks}
+    for table in canonical.get("tables") or []:
+        span = (int(table["char_start"]), int(table["char_end"]))
+        candidates: list[str] = []
+        caption_id = table.get("caption_block_id") or (by_id.get(str(table.get("table_id"))) or {}).get("caption_ref")
+        if caption_id and str(caption_id) in by_id:
+            candidates.append(str(by_id[str(caption_id)].get("text") or ""))
+        table_idx = next(
+            (i for i, block in enumerate(blocks) if block.get("block_id") == table.get("table_id")),
+            None,
+        )
+        if table_idx is not None:
+            for prev in reversed(blocks[:table_idx]):
+                kind = str(prev.get("kind") or "")
+                if kind == "table":
+                    break
+                candidates.append(str(prev.get("text") or ""))
+                if kind == "heading":
+                    break
+            for nxt in blocks[table_idx + 1:]:
+                kind = str(nxt.get("kind") or "")
+                if kind in {"table", "heading"}:
+                    break
+                candidates.append(str(nxt.get("text") or ""))
+        for text in candidates:
+            match = _TABLE_LABEL_RE.match(text)
+            if match:
+                labels.setdefault(f"Table {match.group(1)}", span)
+                break
+    return labels
+
+
+def _bm25_top5(query: str, chunks: Sequence[Mapping[str, Any]]) -> list[Mapping[str, Any]]:
+    rows = [{"text": str(chunk.get("body") or "")} for chunk in chunks]
+    scores = _bm25(_tokens(query), rows)
+    ranked = sorted(
+        zip(scores, range(len(chunks)), chunks),
+        key=lambda item: (-item[0], item[1]),
+    )
+    return [chunk for _, _, chunk in ranked[:5]]
+
+
+def score_chunks_against_facts(
+    chunks: Sequence[Mapping[str, Any]],
+    facts: Sequence[Mapping[str, Any]],
+    canonical: Mapping[str, Any],
+    *,
+    strategy: str,
+) -> dict[str, Any]:
+    """v2 §7 metrics. Does not blend an F1. Offset metrics skipped for S0."""
+    page6 = _page6_table_spans(canonical)
+    locus_spans = _locus_table_spans(canonical)
+    offsetful = strategy != "S0_production_pypdf"
+    per_fact: list[dict[str, Any]] = []
+    cross_hits = 0
+    for fact in facts:
+        fact_id = str(fact.get("fact_id") or "")
+        needles = dict(fact.get("needles") or {})
+        locus = str(fact.get("locus") or "")
+        parse_gated = locus.casefold().startswith("fig") or int(fact.get("page") or 0) == 6
+        parse_miss = parse_gated and not page6
+        bodies = [str(chunk.get("body") or "") for chunk in chunks]
+        if "value" in needles:
+            contain_value = any(_needle_hit(body, needles.get("value")) for body in bodies)
+        else:
+            contain_value = any(
+                _needle_hit(body, value) for body in bodies for value in needles.values()
+            )
+        bound_chunks = [chunk for chunk in chunks if _body_has_all_needles(str(chunk.get("body") or ""), needles)]
+        contain_bound_fact = bool(bound_chunks)
+        if parse_gated and contain_bound_fact:
+            contain_bound_fact = any(
+                chunk.get("char_start") is not None
+                and any(
+                    _intersects(int(chunk["char_start"]), int(chunk["char_end"]), span[0], span[1])
+                    for span in page6
+                )
+                for chunk in bound_chunks
+            ) if page6 else False
+        header_only = False
+        if not contain_bound_fact:
+            header_only = any(
+                _body_has_all_needles(str(chunk.get("header") or ""), needles)
+                and not _body_has_all_needles(str(chunk.get("body") or ""), needles)
+                for chunk in chunks
+            )
+        query = str(fact.get("query") or "")
+        top5 = _bm25_top5(query, chunks) if query else []
+        retrievable = any(_body_has_all_needles(str(chunk.get("body") or ""), needles) for chunk in top5)
+        if parse_gated and retrievable and page6:
+            retrievable = any(
+                _body_has_all_needles(str(chunk.get("body") or ""), needles)
+                and chunk.get("char_start") is not None
+                and any(
+                    _intersects(int(chunk["char_start"]), int(chunk["char_end"]), span[0], span[1])
+                    for span in page6
+                )
+                for chunk in top5
+            )
+        severed = False
+        table_span = locus_spans.get(locus) if locus.startswith("Table ") else None
+        if offsetful and table_span and "value" in needles:
+            for chunk in chunks:
+                start, end = chunk.get("char_start"), chunk.get("char_end")
+                if start is None or end is None:
+                    continue
+                body = str(chunk.get("body") or "")
+                if (
+                    _needle_hit(body, needles.get("value"))
+                    and not _body_has_all_needles(body, needles)
+                    and _proper_subset(int(start), int(end), table_span[0], table_span[1])
+                ):
+                    severed = True
+                    break
+        row = {
+            "fact_id": fact_id,
+            "parse_miss": parse_miss,
+            "contain_value": contain_value,
+            "contain_bound_fact": None if parse_miss else contain_bound_fact,
+            "retrievable": None if parse_miss else retrievable,
+            "condition_severed_inside_table": None if (parse_miss or not offsetful) else severed,
+            "header_only_hit": header_only,
+        }
+        per_fact.append(row)
+        if parse_miss:
+            continue
+        value_a = needles.get("value")
+        if value_a is None or not contain_bound_fact:
+            continue
+        for other in facts:
+            if other is fact:
+                continue
+            if str(other.get("locus") or "") == locus:
+                continue
+            other_needles = dict(other.get("needles") or {})
+            other_value = other_needles.get("value")
+            if other_value is None:
+                continue
+            for chunk in bound_chunks:
+                if _needle_hit(str(chunk.get("body") or ""), other_value):
+                    cross_hits += 1
+                    break
+    scored = [row for row in per_fact if not row["parse_miss"]]
+    return {
+        "strategy": strategy,
+        "n_chunks": len(chunks),
+        "table_splits": chunk_splits_atomic(chunks, canonical, {"table"}) if offsetful else None,
+        "formula_splits": chunk_splits_atomic(chunks, canonical, {"formula"}) if offsetful else None,
+        "caption_splits": chunk_splits_atomic(chunks, canonical, {"caption"}) if offsetful else None,
+        "table_atomic": table_atomic_fraction(chunks, canonical) if offsetful else None,
+        "n_parse_miss": sum(1 for row in per_fact if row["parse_miss"]),
+        "n_contain_value": sum(1 for row in scored if row["contain_value"]),
+        "n_contain_bound_fact": sum(1 for row in scored if row["contain_bound_fact"]),
+        "n_retrievable": sum(1 for row in scored if row["retrievable"]),
+        "n_condition_severed_inside_table": sum(
+            1 for row in scored if row["condition_severed_inside_table"]
+        ),
+        "cross_fact_hits": cross_hits,
+        "facts": per_fact,
+    }
+
+
+def pypdf_page_texts_from_persist(parsed: Mapping[str, Any]) -> list[str]:
+    """Rebuild page strings from a saved pypdf persist. Does not call Docling."""
+    by_page: dict[int, list[str]] = {}
+    for block in parsed.get("blocks") or []:
+        page = int(block.get("page") or 0)
+        by_page.setdefault(page, []).append(str(block.get("text") or ""))
+    return ["\n\n".join(by_page[page]) for page in sorted(by_page)]
+
+
+def sweep_one_paper_chunking(
+    canonical: Mapping[str, Any],
+    pypdf_page_texts: Sequence[str],
+    gold_path: str | Path,
+) -> dict[str, Any]:
+    """C6 one-paper sweep. Pure functions of saved artifacts. Names all six strategies."""
+    gold = load_sealed_gold_facts(gold_path)
+    facts = list(gold.get("facts") or [])
+    built: dict[str, list[dict[str, Any]]] = {
+        "S0_production_pypdf": chunk_s0_production_pypdf(pypdf_page_texts),
+        "S1_naive_char": chunk_s1_naive_char(canonical),
+        "S2_block_pack": chunk_s2_block_pack(canonical),
+        "S3_section_pack": chunk_s3_section_pack(canonical),
+        "S4_sentence_pack": chunk_s4_sentence_pack(canonical),
+        "S5_table_plus_neighbors": chunk_s5_table_plus_neighbors(canonical),
+    }
+    if tuple(built) != _C6_STRATEGY_IDS:
+        raise LiteratureContractError(
+            "c6_strategy_omitted",
+            "C6 record must name all six strategies S0–S5.",
+            strategies=list(built),
+        )
+    strategies = {
+        name: score_chunks_against_facts(chunks, facts, canonical, strategy=name)
+        for name, chunks in built.items()
+    }
+    return {
+        "schema": "dissolve.one-paper-chunk-sweep.v1",
+        "checkpoint": "C6",
+        "source_pdf_sha256": canonical.get("source_pdf_sha256"),
+        "gold_sha256": _GOLD_FACTS_V1_SHA256,
+        "strategies_named": list(_C6_STRATEGY_IDS),
+        "did_not_invoke_docling": True,
+        "did_not_start_C3": True,
+        "did_not_start_C7": True,
+        "c9_all_six_still_run": True,
+        "probe_does_not_prune": (
+            "This one-paper sweep does not drop a strategy from C9. "
+            "S0–S5 all remain rows at corpus scale regardless of probe numbers."
+        ),
+        "strategies": strategies,
+        "n_facts": len(facts),
+        "page6_table_spans": len(_page6_table_spans(canonical)),
     }
 
 
