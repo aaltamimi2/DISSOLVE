@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import ast
+import copy
 import gzip
 import hashlib
 import html
@@ -13,6 +14,7 @@ import math
 import os
 import re
 import statistics
+import unicodedata
 from collections import Counter, defaultdict
 from datetime import date, datetime, timezone
 from html.parser import HTMLParser
@@ -29,6 +31,7 @@ from .contracts import tool_error, tool_success
 
 _INDEX_SCHEMA = "dissolve.literature-index.v1"
 _PARSED_DOCUMENT_SCHEMA = "dissolve.parsed-document.v1"
+_CANONICAL_DOCUMENT_SCHEMA = "dissolve.canonical-document.v1"
 _HTTP_LIMIT = 25 * 1024 * 1024
 _MAX_DOCUMENTS = 40
 _MAX_CHUNKS = 12_000
@@ -529,6 +532,25 @@ _DOCLING_BLOCK_KINDS = {
 }
 _EXPERIMENT_DOCLING_VERSION = "2.121.0"
 _EXPERIMENT_PARSE_BACKENDS = {"docling", "pypdf"}
+_CANONICAL_STORED_KINDS = {
+    "title", "heading", "paragraph", "list_item", "caption", "footnote",
+    "formula", "table", "header", "footer", "other",
+}
+_M3_RULE_NAMES = (
+    "white_bullet_to_degree",
+    "strip_soft_hyphen",
+    "elsevier_split_acute",
+    "degree_c_collapse",
+)
+_SPLIT_ACUTE_RE = re.compile(r"\s+\u00B4\s+([A-Za-z])")
+_DEGREE_C_WS_RE = re.compile(r"\u00B0\s+[Cc]")
+_CANONICAL_TEMPERATURE_RE = re.compile(r"(\d+(?:\.\d+)?)\s*°\s*C")
+_HEADING_FILL_KEY = "_heading_fill"
+_CANONICAL_DROP_KEYS = {
+    "section_path", _HEADING_FILL_KEY, "text", "char_start", "char_end",
+    "nearest_preceding_heading", "nearest_preceding_heading_origin",
+    "caption_ref_origin",
+}
 _PARSE_QUALITY_FLAGS = {
     "ocr_used", "rotation_corrected", "reading_order_uncertain",
     "table_grid_incomplete", "encrypted", "truncated", "low_confidence",
@@ -853,6 +875,7 @@ def _source_artifact(acquisition: Mapping[str, Any]) -> Mapping[str, Any]:
 
 def _normalize_parser_bridge(
     acquisition: Mapping[str, Any], bridge: Mapping[str, Any], *, parsed_at: str | None,
+    stamp_heading_fill: bool = False,
 ) -> dict[str, Any]:
     document = acquisition.get("document") or {}
     library_id, document_id = acquisition.get("library_id"), document.get("document_id")
@@ -922,13 +945,19 @@ def _normalize_parser_bridge(
             )
         page, bbox, confidence = _provenance(raw)
         block_ids.add(block_id)
-        blocks.append({
+        block = {
             "block_id": block_id, "kind": kind, "reading_order": len(blocks),
             "page": page, "bbox": bbox, "section_path": section_path,
             "text": text, "confidence": confidence,
             "caption_ref": _object_value(raw, "caption_ref"),
             "footnote_refs": list(_object_value(raw, "footnote_refs", []) or []),
-        })
+        }
+        if stamp_heading_fill:
+            # Recorded at fill time. Filled section_path alone cannot recover this.
+            block[_HEADING_FILL_KEY] = (
+                "parser_supplied" if supplied_path else "inherited_from_stack"
+            )
+        blocks.append(block)
 
     tables: list[dict[str, Any]] = []
     table_ids: set[str] = set()
@@ -1112,7 +1141,9 @@ def parse_experiment_document(
             "Experiment parse backend must match the named backend argument.",
             requested=requested, produced=produced,
         )
-    parsed = _normalize_parser_bridge(acquisition, bridge, parsed_at=parsed_at)
+    parsed = _normalize_parser_bridge(
+        acquisition, bridge, parsed_at=parsed_at, stamp_heading_fill=True,
+    )
     if parsed.get("parser_backend") != requested:
         raise LiteratureContractError(
             "parser_identity_lie",
@@ -1120,6 +1151,192 @@ def parse_experiment_document(
             requested=requested, produced=parsed.get("parser_backend"),
         )
     return parsed
+
+
+def _m3_repair(text: str) -> str:
+    """Closed M3 list, in order, once. Named so C2.1b can spy and C2.1c can patch."""
+    repaired = str(text).replace("\u25e6", "\u00b0").replace("\u00ad", "")
+    repaired = _SPLIT_ACUTE_RE.sub(lambda match: match.group(1) + "\u0301", repaired)
+    repaired = unicodedata.normalize("NFC", repaired)
+    return _DEGREE_C_WS_RE.sub("\u00b0C", repaired)
+
+
+def _mark_offset_assignment(char_start: int, char_end: int) -> None:
+    """C2.1b hook. Production is a no-op; tests spy this after every span write."""
+    del char_start, char_end
+    return None
+
+
+def _json_safe(value: Any) -> bool:
+    if value is None or isinstance(value, (str, int, float, bool)):
+        return True
+    if isinstance(value, list):
+        return all(_json_safe(item) for item in value)
+    if isinstance(value, dict):
+        return all(isinstance(key, str) and _json_safe(item) for key, item in value.items())
+    return False
+
+
+def _canonical_kind(kind: Any) -> str:
+    label = str(kind or "other")
+    if label in _CANONICAL_STORED_KINDS:
+        return label
+    return "other"
+
+
+def _copy_parser_block_fields(block: Mapping[str, Any]) -> dict[str, Any]:
+    """Copy parser keys. No allowlist. Drop production section_path and fill stamps."""
+    copied: dict[str, Any] = {}
+    for key, value in block.items():
+        if key in _CANONICAL_DROP_KEYS:
+            continue
+        if _json_safe(value):
+            copied[key] = copy.deepcopy(value)
+    copied.setdefault("bbox", None)
+    copied.setdefault("confidence", None)
+    copied.setdefault("footnote_refs", [])
+    return copied
+
+
+def build_canonical_document(
+    parsed: Mapping[str, Any],
+    *,
+    parse_metrics: Mapping[str, Any] | None = None,
+) -> dict[str, Any]:
+    """One-paper canonical document. Offsets into already-normalized canonical_text.
+
+    Repair every block and cell string first, then concatenate with ``\\n\\n``
+    and assign ``char_start``/``char_end``. Streaming (repair n, assign n, repair
+    n+1) is a C2.1b failure.
+    """
+    if not isinstance(parsed, Mapping):
+        raise LiteratureContractError(
+            "invalid_parsed_document", "Canonical build requires a parsed document mapping.",
+        )
+    metrics = dict(parse_metrics or parsed.get("parse_metrics") or {})
+    if "wall_s" not in metrics or "peak_rss_bytes" not in metrics:
+        raise LiteratureContractError(
+            "missing_parse_metrics",
+            "Canonical envelope requires parse_metrics.wall_s and parse_metrics.peak_rss_bytes.",
+        )
+
+    tables_in = [copy.deepcopy(table) for table in (parsed.get("tables") or [])]
+    table_by_id: dict[str, dict[str, Any]] = {}
+    for table in tables_in:
+        table_id = str(table.get("table_id") or "")
+        if not table_id:
+            raise LiteratureContractError(
+                "missing_table_id", "A parsed table must carry table_id.",
+            )
+        for cell in table.get("cells") or []:
+            cell["text"] = _m3_repair(str(cell.get("text") or ""))
+        table_by_id[table_id] = table
+
+    repaired_blocks: list[tuple[dict[str, Any], str]] = []
+    for block in parsed.get("blocks") or []:
+        fill = block.get(_HEADING_FILL_KEY)
+        if fill not in {"parser_supplied", "inherited_from_stack"}:
+            raise LiteratureContractError(
+                "missing_heading_fill_stamp",
+                "Canonical build requires heading origin stamped at fill time.",
+                block_id=block.get("block_id"),
+            )
+        kind = _canonical_kind(block.get("kind"))
+        if kind == "table":
+            table = table_by_id.get(str(block.get("block_id") or ""))
+            if table is None:
+                text = _m3_repair(str(block.get("text") or ""))
+            else:
+                text = _m3_repair(_table_grid_text(
+                    table.get("cells") or [],
+                    table_id=table.get("table_id"),
+                    page=table.get("page"),
+                    row_count=table.get("row_count"),
+                    column_count=table.get("column_count"),
+                ))
+        else:
+            text = _m3_repair(str(block.get("text") or ""))
+        if not str(text).strip():
+            continue
+        repaired_blocks.append((dict(block), text))
+
+    parts: list[str] = []
+    canonical_blocks: list[dict[str, Any]] = []
+    table_spans: dict[str, tuple[int, int]] = {}
+    cursor = 0
+    for index, (raw_block, text) in enumerate(repaired_blocks):
+        if index:
+            parts.append("\n\n")
+            cursor += 2
+        char_start = cursor
+        parts.append(text)
+        cursor += len(text)
+        char_end = cursor
+        _mark_offset_assignment(char_start, char_end)
+        heading = list(raw_block.get("section_path") or [])
+        caption_ref = raw_block.get("caption_ref")
+        out_block = _copy_parser_block_fields(raw_block)
+        out_block.update({
+            "kind": _canonical_kind(raw_block.get("kind")),
+            "text": text,
+            "char_start": char_start,
+            "char_end": char_end,
+            "nearest_preceding_heading": heading,
+            "nearest_preceding_heading_origin": raw_block[_HEADING_FILL_KEY],
+            "caption_ref_origin": "bound" if caption_ref not in (None, "") else "unbound",
+        })
+        canonical_blocks.append(out_block)
+        if out_block["kind"] == "table":
+            table_spans[str(out_block.get("block_id") or "")] = (char_start, char_end)
+
+    canonical_text = "".join(parts)
+    tables_out: list[dict[str, Any]] = []
+    for table in tables_in:
+        table_id = str(table.get("table_id") or "")
+        span = table_spans.get(table_id)
+        if span is None:
+            raise LiteratureContractError(
+                "table_block_missing",
+                "Every tables[] row must have exactly one kind=table block with the same id.",
+                table_id=table_id,
+            )
+        table["char_start"] = span[0]
+        table["char_end"] = span[1]
+        tables_out.append(table)
+
+    pages = 0
+    for block in canonical_blocks:
+        page = block.get("page")
+        if isinstance(page, int) and page > pages:
+            pages = page
+    for table in tables_out:
+        page = table.get("page")
+        if isinstance(page, int) and page > pages:
+            pages = page
+
+    return {
+        "schema": _CANONICAL_DOCUMENT_SCHEMA,
+        "source_pdf_sha256": str(parsed.get("source_sha256") or ""),
+        "parser_backend": parsed.get("parser_backend"),
+        "parser_version": parsed.get("parser_version"),
+        "fallback_reason": parsed.get("fallback_reason"),
+        "quality_flags": list(parsed.get("quality_flags") or []),
+        "pages": pages,
+        "canonical_text": canonical_text,
+        "blocks": canonical_blocks,
+        "tables": tables_out,
+        "attachments": [],
+        "parse_metrics": {
+            "wall_s": metrics["wall_s"],
+            "peak_rss_bytes": metrics["peak_rss_bytes"],
+        },
+        "parsed_at": parsed.get("parsed_at") or _now(),
+        "normalization": {
+            "applied_during_build": True,
+            "rules": list(_M3_RULE_NAMES),
+            "post_pass": False,
+        },
+    }
 
 
 def _normalize_reported_unit(unit: str) -> tuple[str, str | None]:
