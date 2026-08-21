@@ -142,14 +142,29 @@ def _families() -> dict[str, list[str]]:
     return result
 
 
+_PARENTHETICAL = re.compile(r"\(([^)]+)\)")
+
+
+def _name_aliases(name: str, key: str) -> tuple[str, ...]:
+    """Catalog key, folded name, and parenthetical short names (DEHP, BBP)."""
+    aliases = [_key(name), _key(key)]
+    for match in _PARENTHETICAL.finditer(name):
+        inner = _key(match.group(1))
+        if inner:
+            aliases.append(inner)
+    return tuple(dict.fromkeys(item for item in aliases if item))
+
+
 @lru_cache(maxsize=1)
 def _contaminant_lookup() -> dict[str, tuple[str, str]]:
-    return {
-        str(key): (str(name), str(family))
-        for family, name, key in _connection().execute(
-            "SELECT family, contaminant, contaminant_key FROM contaminants"
-        ).fetchall()
-    }
+    result: dict[str, tuple[str, str]] = {}
+    for family, name, key in _connection().execute(
+        "SELECT family, contaminant, contaminant_key FROM contaminants"
+    ).fetchall():
+        identity = (str(name), str(family))
+        for alias in _name_aliases(str(name), str(key)):
+            result.setdefault(alias, identity)
+    return result
 
 
 def _contaminant_catalog(contaminants: Sequence[str]) -> list[dict[str, str]]:
@@ -253,25 +268,88 @@ def _solvent_names(contaminants: Sequence[str]) -> list[str]:
     return [str(row[0]) for row in rows]
 
 
+@lru_cache(maxsize=1)
+def _workbook_solvent_rows() -> tuple[tuple[str, str, str], ...]:
+    rows = _connection().execute(
+        """SELECT DISTINCT solvent_raw, solvent_key, solvent_normalized FROM (
+             SELECT solvent_raw, solvent_key, solvent_normalized FROM logd
+             UNION
+             SELECT solvent_raw, solvent_key, solvent_normalized FROM miscibility
+           )"""
+    ).fetchall()
+    return tuple(
+        (str(raw or ""), str(key or ""), str(normalized or ""))
+        for raw, key, normalized in rows
+    )
+
+
+def _solvent_where(tokens: Sequence[str]) -> tuple[str, list[str]]:
+    """Match any of the three workbook solvent identity columns."""
+    if not tokens:
+        return "FALSE", []
+    placeholders = ",".join("?" for _ in tokens)
+    sql = (
+        f"(solvent_key IN ({placeholders}) OR "
+        f"solvent_normalized IN ({placeholders}) OR "
+        f"lower(trim(CAST(solvent_raw AS VARCHAR))) IN ({placeholders}))"
+    )
+    return sql, list(tokens) * 3
+
+
 def _solvent_keys(name: str) -> tuple[str, ...]:
+    """Every label that can hit a workbook row for this thermo identity.
+
+    ``solvent_raw`` / ``solvent_key`` / ``solvent_normalized`` plus
+    ``thermo.solvent_identity_labels`` and any workbook row whose
+    ``resolve_solvent`` matches. ``butanone`` must reach ``2-butanone``;
+    ``aceticacid`` must reach ``acetic acid``. ``o-xylene`` must not become
+    catalog ``xylene`` (p-xylene).
+    """
     raw = _key(name)
     resolved = thermo.resolve_solvent(name)
-    return tuple(dict.fromkeys(item for item in (raw, _key(resolved)) if item))
+    tokens: list[str] = []
+    if raw:
+        tokens.append(raw)
+    if resolved:
+        tokens.append(_key(resolved))
+        for label in thermo.solvent_identity_labels(resolved):
+            folded = _key(label)
+            if folded:
+                tokens.append(folded)
+    token_set = {item for item in tokens if item}
+    resolved_key = _key(resolved) if resolved else ""
+    for workbook_raw, workbook_key, workbook_normalized in _workbook_solvent_rows():
+        members = {
+            _key(workbook_raw),
+            _key(workbook_key),
+            _key(workbook_normalized),
+        }
+        members.discard("")
+        if token_set & members:
+            token_set.update(members)
+            continue
+        if not resolved_key:
+            continue
+        for candidate in (workbook_key, workbook_normalized, workbook_raw):
+            other = thermo.resolve_solvent(candidate) if candidate else None
+            if other and _key(other) == resolved_key:
+                token_set.update(members)
+                break
+    return tuple(item for item in token_set if item)
 
 
 def _miscibility(solvent: str, contaminant: str, regime: str) -> dict[str, Any] | None:
     solvent_keys = _solvent_keys(solvent)
     if not solvent_keys:
         return None
-    placeholders = ",".join("?" for _ in solvent_keys)
+    where, params = _solvent_where(solvent_keys)
     rows = _connection().execute(
         f"""SELECT temperature_regime, temperature_c, boiling_point_c,
                    t_higher_c, miscible
             FROM miscibility
-            WHERE contaminant_key=? AND
-                  (solvent_key IN ({placeholders}) OR solvent_normalized IN ({placeholders}))
+            WHERE contaminant_key=? AND {where}
             ORDER BY CASE WHEN temperature_regime=? THEN 0 ELSE 1 END, rowid""",
-        [_key(contaminant), *solvent_keys, *solvent_keys, regime],
+        [_key(contaminant), *params, regime],
     ).fetchall()
     if not rows:
         return None
@@ -286,12 +364,11 @@ def _logd(solvent: str, contaminant: str) -> Optional[float]:
     solvent_keys = _solvent_keys(solvent)
     if not solvent_keys:
         return None
-    placeholders = ",".join("?" for _ in solvent_keys)
+    where, params = _solvent_where(solvent_keys)
     row = _connection().execute(
-        f"""SELECT logd FROM logd WHERE contaminant_key=? AND
-            (solvent_key IN ({placeholders}) OR solvent_normalized IN ({placeholders}))
+        f"""SELECT logd FROM logd WHERE contaminant_key=? AND {where}
             ORDER BY rowid LIMIT 1""",
-        [_key(contaminant), *solvent_keys, *solvent_keys],
+        [_key(contaminant), *params],
     ).fetchone()
     return float(row[0]) if row and row[0] is not None else None
 
@@ -300,12 +377,11 @@ def _regime(solvent: str, temperature: Optional[float]) -> str:
     solvent_keys = _solvent_keys(solvent)
     if temperature is None or not solvent_keys:
         return "rt"
-    placeholders = ",".join("?" for _ in solvent_keys)
+    where, params = _solvent_where(solvent_keys)
     rows = _connection().execute(
         f"""SELECT t_higher_c FROM miscibility
-            WHERE (solvent_key IN ({placeholders}) OR solvent_normalized IN ({placeholders}))
-              AND t_higher_c IS NOT NULL""",
-        [*solvent_keys, *solvent_keys],
+            WHERE {where} AND t_higher_c IS NOT NULL""",
+        params,
     ).fetchall()
     higher = [float(row[0]) for row in rows if row[0] is not None]
     return "t_higher" if higher and temperature >= (25.0 + max(higher)) / 2.0 else "rt"
