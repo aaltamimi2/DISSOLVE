@@ -220,21 +220,23 @@ def _pypdf_bridge(path: Path, fallback_reason: str) -> dict[str, Any]:
 def _parse(acquisition: Mapping[str, Any]) -> dict[str, Any]:
     """Production parse. Docling failure raises; DeepDoc and pypdf are not a fallback.
 
-    The one-paper experiment must not call this. It uses
+    ``.xml`` / ``.txt`` / ``.md`` still stamp via ``_jats_bridge``, then hit the
+    same non-Docling refuse. The one-paper experiment must not call this. It uses
     ``research.parse_experiment_document(backend=...)``.
     """
     from . import research
     source = Path(str(research._source_artifact(acquisition)["packed_path"]))
     if source.suffix.casefold() in {".xml", ".txt", ".md"}:
-        return research.parse_document_structure(
+        parsed = research.parse_document_structure(
             acquisition, parser_payload=_jats_bridge(source),
             parsed_at=str(acquisition["document"]["acquired_at"]),
         )
-    bridge = research._run_docling(source)
-    parsed = research.parse_document_structure(
-        acquisition, parser_payload=bridge,
-        parsed_at=str(acquisition["document"]["acquired_at"]),
-    )
+    else:
+        bridge = research._run_docling(source)
+        parsed = research.parse_document_structure(
+            acquisition, parser_payload=bridge,
+            parsed_at=str(acquisition["document"]["acquired_at"]),
+        )
     backend = parsed.get("parser_backend")
     if backend != "docling" or parsed.get("fallback_reason"):
         raise research.LiteratureContractError(

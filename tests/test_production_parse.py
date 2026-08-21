@@ -201,3 +201,99 @@ def test_production_parse_keeps_a_named_docling_success(monkeypatch, tmp_path):
     assert parsed["fallback_reason"] is None
     assert parsed["blocks"][0]["text"] == "production docling prose"
     assert calls == {"pypdf": 0, "deepdoc": 0}
+
+
+def _suffix_fallback_spies(monkeypatch):
+    calls = {"docling": 0, "pypdf": 0, "deepdoc": 0}
+
+    def count_docling(*_args, **_kwargs):
+        calls["docling"] += 1
+        raise AssertionError("Docling must not run on a JATS/local-text suffix")
+
+    def count_pypdf(*_args, **_kwargs):
+        calls["pypdf"] += 1
+        raise AssertionError("pypdf must not run on a JATS/local-text suffix")
+
+    def count_deepdoc(*_args, **_kwargs):
+        calls["deepdoc"] += 1
+        raise AssertionError("DeepDoc must not run on a JATS/local-text suffix")
+
+    monkeypatch.setattr(research, "_run_docling", count_docling)
+    monkeypatch.setattr(research, "_run_deepdoc", count_deepdoc)
+    monkeypatch.setattr(literature_ingest, "_pypdf_bridge", count_pypdf)
+    return calls
+
+
+def test_production_parse_refuses_xml_jats_suffix_and_does_not_call_fallbacks(monkeypatch, tmp_path):
+    xml = tmp_path / "probe.xml"
+    xml.write_text(
+        "<article><article-title>Suffix probe</article-title>"
+        "<p>jats body text for the identity check</p></article>",
+        encoding="utf-8",
+    )
+    calls = _suffix_fallback_spies(monkeypatch)
+
+    with pytest.raises(research.LiteratureContractError) as caught:
+        literature_ingest._parse(_acquire(xml))
+    assert caught.value.code == "parser_identity_lie"
+    assert caught.value.details.get("parser_backend") == "jats"
+    assert calls == {"docling": 0, "pypdf": 0, "deepdoc": 0}
+
+
+def test_production_parse_refuses_txt_local_text_suffix_and_does_not_call_fallbacks(monkeypatch, tmp_path):
+    txt = tmp_path / "probe.txt"
+    txt.write_text("local text body for the identity check\n", encoding="utf-8")
+    calls = _suffix_fallback_spies(monkeypatch)
+
+    with pytest.raises(research.LiteratureContractError) as caught:
+        literature_ingest._parse(_acquire(txt))
+    assert caught.value.code == "parser_identity_lie"
+    assert caught.value.details.get("parser_backend") == "local_text"
+    assert calls == {"docling": 0, "pypdf": 0, "deepdoc": 0}
+
+
+def test_production_parse_refuses_md_local_text_suffix_and_does_not_call_fallbacks(monkeypatch, tmp_path):
+    md = tmp_path / "probe.md"
+    md.write_text("markdown body for the identity check\n", encoding="utf-8")
+    calls = _suffix_fallback_spies(monkeypatch)
+
+    with pytest.raises(research.LiteratureContractError) as caught:
+        literature_ingest._parse(_acquire(md))
+    assert caught.value.code == "parser_identity_lie"
+    assert caught.value.details.get("parser_backend") == "local_text"
+    assert calls == {"docling": 0, "pypdf": 0, "deepdoc": 0}
+
+
+def test_production_parse_suffix_refuse_names_the_stamped_backend(monkeypatch, tmp_path):
+    """1c: a hardcoded jats refuse from the suffix would stay green. The stamp must bind."""
+    xml = tmp_path / "probe.xml"
+    xml.write_text(
+        "<article><p>suffix stamp body</p></article>",
+        encoding="utf-8",
+    )
+    calls = _suffix_fallback_spies(monkeypatch)
+    jats_calls = {"n": 0}
+
+    def lie_bridge(_path):
+        jats_calls["n"] += 1
+        return {
+            "backend": "pypdf",
+            "version": "6.6.0",
+            "items": [{
+                "id": "PDF-P0001-B00001", "label": "paragraph", "order": 0,
+                "page": 1, "text": "forced suffix stamp", "confidence": 0.75,
+            }],
+            "tables": [],
+            "quality_flags": ["layout_degraded"],
+            "fallback_reason": "forced_suffix_stamp",
+        }
+
+    monkeypatch.setattr(literature_ingest, "_jats_bridge", lie_bridge)
+
+    with pytest.raises(research.LiteratureContractError) as caught:
+        literature_ingest._parse(_acquire(xml))
+    assert caught.value.code == "parser_identity_lie"
+    assert caught.value.details.get("parser_backend") == "pypdf"
+    assert caught.value.details.get("fallback_reason") == "forced_suffix_stamp"
+    assert jats_calls["n"] == 1
+    assert calls == {"docling": 0, "pypdf": 0, "deepdoc": 0}
