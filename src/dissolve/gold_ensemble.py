@@ -45,6 +45,10 @@ _NUMERIC_TOKEN = re.compile(
 )
 _TABLE_CAPTION = re.compile(r"\bTable\s+(\d+[A-Za-z]?)\b", re.IGNORECASE)
 _NUMERIC_CELL = re.compile(r"^[-+]?\d+(?:\.\d+)?%?$")
+_TIME_V_RSS_KB = re.compile(
+    r"Maximum resident set size \(kbytes\):\s*(\d+)",
+    re.IGNORECASE,
+)
 
 
 class GoldEnsembleError(ValueError):
@@ -86,8 +90,19 @@ def _reused_c3_peaks(text: str) -> bool:
     return "during c3" in folded or "c3 persist" in folded
 
 
-def assert_time_v_persist(ceiling: Mapping[str, Any]) -> Path:
-    """Option 1 is a /usr/bin/time -v persist, not a measurement_method label."""
+def persist_peak_rss_bytes(body: str) -> int:
+    """Largest Maximum resident set size in a time -v persist, in bytes."""
+    values = [int(match.group(1)) for match in _TIME_V_RSS_KB.finditer(body)]
+    if not values:
+        raise GoldEnsembleError(
+            "c35_option1_not_time_v",
+            "Option 1 persist has no Maximum resident set size (kbytes) line.",
+        )
+    return max(values) * 1024
+
+
+def assert_time_v_persist(ceiling: Mapping[str, Any], *, peak: int) -> Path:
+    """Option 1 is a /usr/bin/time -v persist whose peak equals the ceiling."""
     raw_path = ceiling.get("time_v_persist_path")
     expected = str(ceiling.get("time_v_persist_sha256") or "")
     if not raw_path or not expected:
@@ -121,6 +136,14 @@ def assert_time_v_persist(ceiling: Mapping[str, Any]) -> Path:
             "c35_not_closed",
             "Option 1 persist reuses C3 peaks. That is not a re-measure.",
         )
+    persist_peak = persist_peak_rss_bytes(body)
+    if persist_peak != peak:
+        raise GoldEnsembleError(
+            "c35_option1_rss_mismatch",
+            "Option 1 persist peak RSS does not equal PEAK_RSS_CEILING_BYTES.",
+            persist_peak_rss_bytes=persist_peak,
+            ceiling_bytes=peak,
+        )
     return persist
 
 
@@ -140,7 +163,7 @@ def assert_c35_closed(ceiling: Mapping[str, Any]) -> str:
     if peak == START_GUARD_PEAK_RSS_BYTES and "RETRACTED" in retraction:
         return "option_2_start_guard"
     if "/usr/bin/time -v" in method and not reused_c3 and "RETRACTED" in retraction:
-        assert_time_v_persist(ceiling)
+        assert_time_v_persist(ceiling, peak=peak)
         return "option_1_remeasure"
     raise GoldEnsembleError(
         "c35_not_closed",

@@ -223,6 +223,17 @@ def test_option1_time_v_persist_unlocks(tmp_path):
     assert loaded["c35_close"] == "option_1_remeasure"
 
 
+def test_option1_persist_rss_must_equal_ceiling(tmp_path):
+    """3bae660 residual: 100 kB persist cannot justify 3710992384."""
+    census = _write_json(tmp_path / "census.json", {"papers": _classified_rows()})
+    payload = _time_v_persist(tmp_path / "time-v.txt", rss_kb=100)
+    payload["PEAK_RSS_CEILING_BYTES"] = 3_710_992_384
+    ceiling = _write_json(tmp_path / "ceiling.json", payload)
+    with pytest.raises(gold_ensemble.GoldEnsembleError) as caught:
+        gold_ensemble.require_c1_v2(census, ceiling)
+    assert caught.value.code == "c35_option1_rss_mismatch"
+
+
 def test_during_c3_is_case_insensitive(tmp_path):
     census = _write_json(tmp_path / "census.json", {"papers": _classified_rows()})
     payload = _c3_raise_ceiling()
