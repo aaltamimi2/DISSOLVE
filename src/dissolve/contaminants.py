@@ -203,18 +203,33 @@ def _provenance() -> dict[str, str]:
     }
 
 
-_UNSOURCED_THRESHOLD_WARNING = (
-    "Default swelling / dissolution / precipitation proxies "
-    "(1 / 10 / 1 wt%, swelling max 10) have no regulatory or literature "
-    "citation on this function. Zhou workbook provenance is the "
-    "miscibility/logD evidence class, not the threshold basis."
+_UNSOURCED_SWELL_DISSOLVE_WARNING = (
+    "Default swelling / dissolution proxies (1 / 10 wt%, swelling max 10) "
+    "have no regulatory or literature citation on this function. Zhou "
+    "workbook provenance is the miscibility/logD evidence class, not the "
+    "swelling or dissolution threshold basis."
 )
+_PAPER_PRECIPITATION_NOTE = (
+    "Default precipitation_threshold_wt_pct 1 wt% follows Zhou et al., "
+    "Green Chem. 2026, 28, 9061 ('we set a threshold of 1 wt%')."
+)
+_UNSOURCED_SWELL_DISSOLVE_KEYS = frozenset({
+    "swelling_min_wt_pct", "swelling_max_wt_pct", "dissolution_min_wt_pct",
+})
+
+
+def _source_label(key: str, supplied: bool) -> str:
+    if supplied:
+        return "user"
+    if key == "precipitation_threshold_wt_pct":
+        return "paper"
+    return "default"
 
 
 def _served_threshold_fields(
     inputs: dict[str, Any], *, include_precipitation: bool | None = None,
 ) -> dict[str, Any]:
-    """Always publish the active proxies and whether they are unsourced."""
+    """Publish active proxies. Precipitation 1 wt% is paper-sourced; 1/10 is not."""
     sources = dict(inputs["threshold_sources"])
     if include_precipitation is None:
         include_precipitation = "precipitation_threshold_wt_pct" in inputs
@@ -222,16 +237,34 @@ def _served_threshold_fields(
         key: value for key, value in sources.items()
         if include_precipitation or key != "precipitation_threshold_wt_pct"
     }
+    unsourced = any(
+        published_sources.get(key) == "default"
+        for key in _UNSOURCED_SWELL_DISSOLVE_KEYS
+    )
+    if unsourced:
+        citation_status = "unsourced"
+    elif "user" in published_sources.values():
+        citation_status = "user_requested"
+    elif published_sources.get("precipitation_threshold_wt_pct") == "paper":
+        citation_status = "paper_sourced"
+    else:
+        citation_status = "user_requested"
+    citations = {
+        key: (
+            "zhou_green_chem_2026" if source == "paper"
+            else "unsourced" if source == "default"
+            else "user"
+        )
+        for key, source in published_sources.items()
+    }
     fields: dict[str, Any] = {
         "swelling_min_wt_pct": inputs["swelling_min_wt_pct"],
         "swelling_max_wt_pct": inputs["swelling_max_wt_pct"],
         "dissolution_min_wt_pct": inputs["dissolution_min_wt_pct"],
         "threshold_basis": inputs["threshold_basis"],
         "threshold_sources": published_sources,
-        "threshold_citation_status": (
-            "unsourced" if "default" in published_sources.values()
-            else "user_requested"
-        ),
+        "threshold_citations": citations,
+        "threshold_citation_status": citation_status,
     }
     if include_precipitation and "precipitation_threshold_wt_pct" in inputs:
         fields["precipitation_threshold_wt_pct"] = inputs[
@@ -240,11 +273,21 @@ def _served_threshold_fields(
     return fields
 
 
-def _threshold_warnings(inputs: dict[str, Any]) -> list[str]:
-    fields = _served_threshold_fields(inputs)
-    if fields["threshold_citation_status"] != "unsourced":
-        return []
-    return [_UNSOURCED_THRESHOLD_WARNING]
+def _threshold_warnings(
+    inputs: dict[str, Any], *, include_precipitation: bool | None = None,
+) -> list[str]:
+    fields = _served_threshold_fields(
+        inputs, include_precipitation=include_precipitation,
+    )
+    warnings: list[str] = []
+    if any(
+        fields["threshold_sources"].get(key) == "default"
+        for key in _UNSOURCED_SWELL_DISSOLVE_KEYS
+    ):
+        warnings.append(_UNSOURCED_SWELL_DISSOLVE_WARNING)
+    if fields["threshold_sources"].get("precipitation_threshold_wt_pct") == "paper":
+        warnings.append(_PAPER_PRECIPITATION_NOTE)
+    return warnings
 
 
 def _expand(
@@ -537,7 +580,7 @@ def _active_thresholds(
         "user_requested" if any(supplied.values()) else "default_proxy"
     )
     active["threshold_sources"] = {
-        key: "user" if supplied[key] else "default"
+        key: _source_label(key, supplied[key])
         for key in values
     }
     return active, None
@@ -835,7 +878,7 @@ def _leaching(inputs: dict[str, Any]) -> dict[str, Any]:
             "Workbook miscibility and logD are screening inputs, not validated process partition coefficients or removal efficiency.",
             "Leaching-mode swelling is inferred from modeled polymer solubility, not measured swelling.",
             "A passing screen does not establish extraction recovery, kinetics, solvent loading, or product purity.",
-            *_threshold_warnings(inputs),
+            *_threshold_warnings(inputs, include_precipitation=False),
         ],
     })
     return result
@@ -993,7 +1036,7 @@ def _strap(inputs: dict[str, Any]) -> dict[str, Any]:
             ),
             "Workbook miscibility and logD are screening inputs, not validated process partition coefficients.",
             "A passing screen does not establish kinetics, solvent loading, contaminant removal efficiency, or product purity.",
-            *_threshold_warnings(inputs),
+            *_threshold_warnings(inputs, include_precipitation=True),
         ],
     })
     return result

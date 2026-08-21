@@ -83,11 +83,17 @@ def test_leaching_and_strap_invert_the_polymer_requirement():
     )
 
 
-def test_threshold_split_is_recorded_not_relabelled():
+def test_threshold_split_is_served_on_the_product():
     item = _measure().thresholds()
     assert item["defaults"]["precipitation_threshold_wt_pct"] == 1.0
     assert item["split"]["precipitation_threshold_wt_pct"]["status"] == (
         "paper_sourced"
+    )
+    assert item["split"]["precipitation_threshold_wt_pct"][
+        "product_still_labelled"
+    ] == "paper"
+    assert item["served_threshold_sources"]["precipitation_threshold_wt_pct"] == (
+        "paper"
     )
     assert item["split"]["dissolution_min_wt_pct"]["status"] == "unsourced"
     assert item["served_still_labels_block_unsourced"] is True

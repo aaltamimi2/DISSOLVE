@@ -5,8 +5,8 @@
   "objected_v2": "CONTAMINANT_MODE_SPEC.v2.md",
   "objected_v2_sha256": "a0665ccf51276270991854056836c9e8d09b6fee0be556a83ef84e7fb2a15a1d",
   "checkpoint": "identity-join + section-7 facts independent of test 2",
-  "measured_on_builder_sha": "f8b81c8cef7c1fd36cd5e29919a2870c18b5e0ff",
-  "measured_at": "2026-08-21T22:10:13Z",
+  "measured_on_builder_sha": "fa34f421e97a9b1a401aaaa12528a5df88fa4f62",
+  "measured_at": "2026-08-21T22:13:44Z",
   "command": "python3 audit/measure_contaminant_identity.py",
   "tea_config_key_calls": [],
   "identity": {
@@ -371,7 +371,13 @@
       "swelling_min_wt_pct": "default",
       "swelling_max_wt_pct": "default",
       "dissolution_min_wt_pct": "default",
-      "precipitation_threshold_wt_pct": "default"
+      "precipitation_threshold_wt_pct": "paper"
+    },
+    "served_threshold_citations": {
+      "swelling_min_wt_pct": "unsourced",
+      "swelling_max_wt_pct": "unsourced",
+      "dissolution_min_wt_pct": "unsourced",
+      "precipitation_threshold_wt_pct": "zhou_green_chem_2026"
     },
     "served_threshold_citation_status": "unsourced",
     "served_still_labels_block_unsourced": true,
@@ -380,7 +386,7 @@
         "default": 1.0,
         "literature_basis": "Zhou Green Chem. 2026, 28, 9061: 'we set a threshold of 1 wt%'",
         "status": "paper_sourced",
-        "product_still_labelled": "unsourced (R1; not relabelled here)"
+        "product_still_labelled": "paper"
       },
       "swelling_min_wt_pct": {
         "default": 1.0,

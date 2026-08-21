@@ -180,6 +180,7 @@ def thresholds() -> dict[str, Any]:
     return {
         "defaults": module.default_thresholds(include_precipitation=True),
         "served_threshold_sources": served.get("threshold_sources"),
+        "served_threshold_citations": served.get("threshold_citations"),
         "served_threshold_citation_status": served.get("threshold_citation_status"),
         "served_still_labels_block_unsourced": (
             served.get("threshold_citation_status") == "unsourced"
@@ -192,7 +193,9 @@ def thresholds() -> dict[str, Any]:
                     "'we set a threshold of 1 wt%'"
                 ),
                 "status": "paper_sourced",
-                "product_still_labelled": "unsourced (R1; not relabelled here)",
+                "product_still_labelled": (
+                    served.get("threshold_sources") or {}
+                ).get("precipitation_threshold_wt_pct"),
             },
             "swelling_min_wt_pct": {"default": 1.0, "status": "unsourced"},
             "swelling_max_wt_pct": {"default": 10.0, "status": "unsourced"},
