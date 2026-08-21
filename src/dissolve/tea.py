@@ -1170,6 +1170,52 @@ def missing_public_process_fields(config: dict[str, Any]) -> list[str]:
     return missing
 
 
+def caller_named_public_process_fields(config: Mapping[str, Any]) -> set[str]:
+    """Public names the caller actually sent, including surviving aliases."""
+    named: set[str] = set()
+    for key, value in config.items():
+        if not _scenario_value_present(value):
+            continue
+        public = _process_config_public_name(str(key))
+        if public is not None:
+            named.add(public)
+    return named
+
+
+def silently_defaulted_process_fields(
+    config: Optional[Mapping[str, Any]] = None,
+) -> dict[str, Any]:
+    """first_run_sheet_defaults values the caller did not name.
+
+    Predicate, not a watch list. dissolution_capacity is 3.0 when omitted.
+    lang_factor stays out because first-run leaves it empty.
+    """
+    raw = dict(config or {})
+    energy = str(raw.get("energy_case") or "C1").upper() or "C1"
+    defaults = first_run_sheet_defaults(energy_case=energy)
+    named = caller_named_public_process_fields(raw)
+    silent: dict[str, Any] = {}
+    for key, value in defaults.items():
+        if key in named:
+            continue
+        if not _scenario_value_present(value):
+            continue
+        silent[str(key)] = value
+    return silent
+
+
+def evaluate_caller_field_origin(
+    config: Optional[Mapping[str, Any]] = None,
+) -> dict[str, str]:
+    """Origin map for evaluate ingest. ``default`` is legal here."""
+    raw = dict(config or {})
+    origin = {name: "supplied" for name in caller_named_public_process_fields(raw)}
+    origin.update({
+        name: "default" for name in silently_defaulted_process_fields(raw)
+    })
+    return origin
+
+
 _STANDING_PREVIEW_SETPOINTS = (
     "dissolution_temperature_c",
     "precipitation_temperature_c",
@@ -2445,8 +2491,9 @@ def confirmation_sheet_field_origin(
 ) -> dict[str, str]:
     """Origin map after a seen-and-submitted confirmation sheet.
 
-    ``default`` is legal only here. Headless complete twelves never call
-    this. Silent ``_scenario_config`` fill cannot mint ``default``.
+    ``default`` is also legal on the evaluate payload via
+    ``evaluate_caller_field_origin``. Silent ``_scenario_config`` fill
+    still cannot mint ``default``.
     """
     energy = str(submitted.get("energy_case") or "C1")
     defaults = first_run_sheet_defaults(energy_case=energy)
@@ -6035,6 +6082,28 @@ def _stamp_screen_to_economics_order(raw: str, order: str) -> str:
     )
 
 
+def _stamp_evaluate_silent_defaults(
+    raw: str,
+    *,
+    field_origin: Optional[Mapping[str, str]] = None,
+    silently_defaulted: Optional[Mapping[str, Any]] = None,
+) -> str:
+    """Put T2 default provenance on the evaluate payload, success or refuse."""
+    if not field_origin and not silently_defaulted:
+        return raw
+    envelope = json.loads(raw)
+    data = envelope.get("data")
+    if not isinstance(data, dict):
+        return raw
+    if silently_defaulted and "silently_defaulted" not in data:
+        data["silently_defaulted"] = copy.deepcopy(dict(silently_defaulted))
+    if field_origin and "field_origin" not in data:
+        data["field_origin"] = dict(field_origin)
+    return json.dumps(
+        envelope, ensure_ascii=False, indent=2, allow_nan=False,
+    )
+
+
 def _evaluate_process_envelope(
     raw: str,
     *,
@@ -6417,8 +6486,24 @@ def evaluate_process(
             forwarded["held_process_basis"] = held_process_basis
         if confirm_live_tea is not None:
             forwarded["confirm_live_tea"] = confirm_live_tea
+        caller = process_config if isinstance(process_config, dict) else None
+        if caller is None and process_configs:
+            caller = next(
+                (item for item in process_configs if isinstance(item, dict)),
+                None,
+            )
+        silent = (
+            silently_defaulted_process_fields(caller) if caller is not None else None
+        )
+        origin = (
+            evaluate_caller_field_origin(caller) if caller is not None else None
+        )
         return _evaluate_process_envelope(
-            evaluate_tea_lca_scenarios(scenarios, **forwarded),
+            _stamp_evaluate_silent_defaults(
+                evaluate_tea_lca_scenarios(scenarios, **forwarded),
+                field_origin=origin,
+                silently_defaulted=silent,
+            ),
             screen_to_economics_order=order,
         )
     if token == "sensitivity":
