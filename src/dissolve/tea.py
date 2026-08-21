@@ -3821,6 +3821,38 @@ def _config_key(config: dict[str, Any]) -> str:
     return json.dumps(normalized, sort_keys=True, separators=(",", ":"))
 
 
+def cache_record_stored_basis(config: Mapping[str, Any]) -> dict[str, Any]:
+    """Name what the record stores versus what the serve key fills.
+
+    Finding 30: every stored record holds the D-8 twelve. The serve key is
+    the public 44/46. Missing switch and coefficient fields are filled from
+    defaults and are not on the record. Reconstructed defaults are not stored.
+    """
+    stored = dict(config or {})
+    key_fields = json.loads(_config_key(stored))
+    stored_names = sorted(stored)
+    key_names = sorted(key_fields)
+    missing = [name for name in key_names if name not in stored]
+    case = str(stored.get("energy_case") or "C1").upper()
+    return {
+        "status": (
+            "complete_stored_basis" if not missing else "incomplete_stored_basis"
+        ),
+        "stored_field_count": len(stored_names),
+        "serve_key_field_count": len(key_names),
+        "expected_public_basis_count": len(
+            public_process_field_names(energy_case=case)
+        ),
+        "stored_fields": stored_names,
+        "missing_from_stored_record": missing,
+        "reconstructed_defaults_are_not_stored": bool(missing),
+        "note": (
+            "The serve key fills switches and coefficients from defaults. "
+            "Those values are not stored on the cache record."
+        ),
+    }
+
+
 def _record_for_design_point(config: dict[str, Any]) -> Optional[dict[str, Any]]:
     """Find a cache row that matches the twelve regardless of switches."""
     key = _design_point_key(config)
@@ -5493,6 +5525,7 @@ def _normalized_admitted_record(record: dict[str, Any]) -> dict[str, Any]:
         "lca_metric_status": copy.deepcopy(
             result.get("lca_metric_status") or {},
         ),
+        "cache_stored_basis": cache_record_stored_basis(config),
     }
 
 
@@ -5968,6 +6001,13 @@ def lookup_admitted_process_records(
     status_definitions = _collect_lca_status_definitions(
         normalized_records,
     )
+    stored_basis_statuses = [
+        str((row.get("cache_stored_basis") or {}).get("status") or "")
+        for row in normalized_records
+    ]
+    incomplete_stored = sum(
+        status == "incomplete_stored_basis" for status in stored_basis_statuses
+    )
     return tool_success(
         tool,
         analysis_type=(
@@ -6006,6 +6046,12 @@ def lookup_admitted_process_records(
         energy_normalization_status="corrected_legacy_annual_hour_basis",
         energy_case_descriptions=dict(_ENERGY_CASES),
         exact_cache_basis_available=True,
+        cache_stored_basis_status=(
+            "incomplete_stored_basis"
+            if incomplete_stored
+            else "complete_stored_basis"
+        ),
+        records_with_incomplete_stored_basis=incomplete_stored,
         lca_method_status_by_energy_case=_lca_method_status_by_energy_case(
             normalized_records,
         ),
@@ -6021,6 +6067,14 @@ def lookup_admitted_process_records(
             "normalization correction at the cache boundary.",
             "Every metric uses the product basis and configuration stored with "
             "its record; records are not interpolated across conditions.",
+            *(
+                [(
+                    "Each cache record stores the D-8 twelve. The serve key is "
+                    "44/46 fields; missing switch and coefficient fields are "
+                    "filled from defaults and are not stored on the record."
+                )]
+                if incomplete_stored else []
+            ),
         ],
     )
 
