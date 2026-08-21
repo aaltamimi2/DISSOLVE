@@ -20,6 +20,8 @@ CANON_DIR = Path("/home/aaltamimi2/dissolve-v12-audit/corpus/canonical")
 PARSED_DIR = Path("/home/aaltamimi2/dissolve-v12-audit/corpus/parsed")
 PROBE_SHA = "1af857ee2e8299d6d0a586216ead5109a9b4293505585edf76da3bca9772ad21"
 PATENT_SHA = "b95603201907ce4de4f4a62671d0ba8c20879b723da7b15fee5d8af2fa2f199f"
+SCREENING_SHA = "74a97bb76eb805256d49c3ce07b42cca2357415b634e8f1d70873d9c92c05462"
+C1_CEILING_BYTES = 3_501_953_024
 TEMP_RE = research._CANONICAL_TEMPERATURE_RE
 
 
@@ -162,12 +164,23 @@ def test_c25_glyphs_on_all_21_and_report_temperatures():
     assert len(counts) == 21
 
 
-def test_ceiling_breaches_are_recorded_not_hidden():
-    """C1's two-paper sample is not a corpus bound. A breach is recorded, not swallowed."""
+def test_c35_start_guard_and_recorded_breaches():
+    """C3.5 after e1388ba OBJECT: start-guard held; C1 peak not silently raised; breaches listed."""
+    assert research.PEAK_RSS_CEILING_BYTES == C1_CEILING_BYTES
+    assert research.PEAK_RSS_HEADROOM_BYTES == 512 * 1024 * 1024
     manifest = _manifest()
     ceiling = research.PEAK_RSS_CEILING_BYTES
+    guard = ceiling + research.PEAK_RSS_HEADROOM_BYTES
+    shas = {row["pdf_sha256"] for row in manifest["documents"]}
     over = [row for row in manifest["documents"] if row["peak_rss_bytes"] > ceiling]
     listed = {item["pdf_sha256"] for item in manifest.get("ceiling_breaches") or []}
     assert listed == {row["pdf_sha256"] for row in over}
+    assert listed <= shas
+    assert SCREENING_SHA in shas
+    for row in manifest["documents"]:
+        assert row["wall_s"] > 0
+        assert row["peak_rss_bytes"] > 0
+        assert row["mem_available_before_bytes"] >= guard
     for row in over:
         assert row.get("exceeded_c1_ceiling") is True
+        assert row["pdf_sha256"] in listed

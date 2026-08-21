@@ -532,7 +532,7 @@ _DOCLING_BLOCK_KINDS = {
 }
 _EXPERIMENT_DOCLING_VERSION = "2.121.0"
 _EXPERIMENT_PARSE_BACKENDS = {"docling", "pypdf"}
-PEAK_RSS_CEILING_BYTES = 3_501_953_024  # C1 maxbytes peak, 3.261 GiB
+PEAK_RSS_CEILING_BYTES = 3_501_953_024  # C1 two-paper peak. Start-guard basis, not a corpus RSS cap.
 PEAK_RSS_HEADROOM_BYTES = 512 * 1024 * 1024
 _CANONICAL_STORED_KINDS = {
     "title", "heading", "paragraph", "list_item", "caption", "footnote",
