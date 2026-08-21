@@ -1873,6 +1873,22 @@ def _body_has_all_needles(body: str, needles: Mapping[str, Any]) -> bool:
     return all(_needle_hit(body, value) for value in needles.values())
 
 
+def official_contain_bound_fact_eligible(fact: Mapping[str, Any]) -> bool:
+    """Official contain_bound_fact is a bound-fact score, not string existence.
+
+    Ensemble accept test 2: a ``scoring_class=string_existence`` row must not
+    satisfy official ``contain_bound_fact``, even if every needle is in a chunk
+    body (empty needles would otherwise be vacuously true). Gold v1 rows have
+    no ``scoring_class`` and stay eligible. ``awaiting_C`` table-cell candidates
+    are not gold yet.
+    """
+    if str(fact.get("scoring_class") or "") == "string_existence":
+        return False
+    if str(fact.get("status") or "") == "awaiting_C":
+        return False
+    return True
+
+
 def _page6_table_spans(canonical: Mapping[str, Any]) -> list[tuple[int, int]]:
     return [
         (int(table["char_start"]), int(table["char_end"]))
@@ -2065,6 +2081,12 @@ def score_chunks_against_facts(
                     missing = [value for value in needles.values() if not _needle_hit(body, value)]
                     if any(_needle_hit(rebound_txt, missing_needle) for missing_needle in missing):
                         severed_ctx = True
+        if not official_contain_bound_fact_eligible(fact):
+            contain_bound_fact = False
+            contain_bound_fact_rebound = False
+            retrievable = False
+            retrievable_rebound = False
+            header_only = False
         row = {
             "fact_id": fact_id,
             "parse_miss": parse_miss,
