@@ -532,6 +532,8 @@ _DOCLING_BLOCK_KINDS = {
 }
 _EXPERIMENT_DOCLING_VERSION = "2.121.0"
 _EXPERIMENT_PARSE_BACKENDS = {"docling", "pypdf"}
+PEAK_RSS_CEILING_BYTES = 3_501_953_024  # C1 maxbytes peak, 3.261 GiB
+PEAK_RSS_HEADROOM_BYTES = 512 * 1024 * 1024
 _CANONICAL_STORED_KINDS = {
     "title", "heading", "paragraph", "list_item", "caption", "footnote",
     "formula", "table", "header", "footer", "other",
@@ -1099,6 +1101,22 @@ def _experiment_source_path(
             artifact_id=source.get("artifact_id"), packed_path=str(path),
         )
     return path
+
+
+def mem_available_bytes() -> int:
+    """Current MemAvailable. C3 refuses a parse when this is below the C1 guard."""
+    for line in Path("/proc/meminfo").read_text().splitlines():
+        if line.startswith("MemAvailable:"):
+            return int(line.split()[1]) * 1024
+    raise LiteratureContractError(
+        "meminfo_missing",
+        "MemAvailable is required before a Docling parse may start.",
+    )
+
+
+def parse_start_allowed(*, ceiling_bytes: int = PEAK_RSS_CEILING_BYTES) -> bool:
+    """True iff MemAvailable >= C1 peak + 512 MiB. A false value defers; it does not hope."""
+    return mem_available_bytes() >= int(ceiling_bytes) + PEAK_RSS_HEADROOM_BYTES
 
 
 def parse_experiment_document(
