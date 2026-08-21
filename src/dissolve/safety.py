@@ -1368,6 +1368,7 @@ def screen_green_solvent_candidates(
             "Normal-boiling-point feasibility is an operability check; flash point, toxicity, and heated handling still require candidate-specific assessment.",
         ],
         model_basis="green-first filter over the unified grid-first solubility model and sourced solvent scores",
+        **thermo.solvent_scope_stamp(),
     )
 
 

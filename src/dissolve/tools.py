@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 from collections import Counter
-from functools import lru_cache
+from functools import lru_cache, wraps
 from importlib.resources import files
+import inspect
 import math
 from pathlib import Path
 from typing import Annotated, Any, Callable, Literal, Optional, Sequence
@@ -18,6 +19,55 @@ from .contracts import parse_tool_result, tool_error, tool_success
 _STRONG_OVERLAP_RATIO = 0.70
 MATERIAL_UNDER_COVERAGE_RATIO = 0.90
 _TOOL = "solubility_query"
+
+
+def _with_solvent_scope(fn: Callable[..., str]) -> Callable[..., str]:
+    """Bind optional ``solvent_scope`` for one tool call. Does not swallow ``_InputError``."""
+
+    @wraps(fn)
+    def wrapped(*args: Any, solvent_scope: Any = None, **kwargs: Any) -> str:
+        try:
+            bound = thermo.bind_query_solvent_scope(solvent_scope)
+            bound.__enter__()
+        except ValueError:
+            return tool_error(
+                fn.__name__,
+                "solvent_scope must be common or all.",
+                error_code="invalid_solvent_scope",
+                requested=solvent_scope,
+            )
+        try:
+            return fn(*args, **kwargs)
+        finally:
+            bound.__exit__(None, None, None)
+
+    signature = inspect.signature(fn)
+    if "solvent_scope" not in signature.parameters:
+        extra = inspect.Parameter(
+            "solvent_scope",
+            inspect.Parameter.KEYWORD_ONLY,
+            default=None,
+            annotation=Optional[str],
+        )
+        wrapped.__signature__ = signature.replace(
+            parameters=(*signature.parameters.values(), extra),
+        )
+    return wrapped
+
+
+def _refuse_solvents_out_of_scope(tool: str, resolved: Sequence[str]) -> str | None:
+    outside = thermo.solvents_outside_active_scope(list(resolved))
+    if not outside:
+        return None
+    return tool_error(
+        tool,
+        "Solvent(s) not in the active solvent scope: " + ", ".join(outside),
+        error_code="solvent_not_in_scope",
+        solvents=outside,
+        **thermo.solvent_scope_stamp(),
+    )
+
+
 _HANSEN_ASSET = Path(str(files("dissolve").joinpath("data/hansen.duckdb")))
 _ORDER_FIELDS = {
     "solubility": "solubility_pct",
@@ -168,7 +218,7 @@ def _screen_catalog_provenance(
     if len(counts) == 1:
         return _single_polymer_catalog_provenance(next(iter(counts.values())))
     provenance = dict(thermo.get_solvent_catalog_provenance())
-    catalog_count = int(provenance["fitted_solvent_count"])
+    catalog_count = int(thermo.solvent_scope_stamp()["solvent_scope_n"])
     under_covered = {
         polymer: count for polymer, count in counts.items()
         if count < MATERIAL_UNDER_COVERAGE_RATIO * catalog_count
@@ -488,6 +538,7 @@ def _display(rows: Sequence[dict[str, Any]]) -> str:
     )
 
 
+@_with_solvent_scope
 def solubility_query(
     polymers: list[str] | None = None,
     solvents: list[str] | None = None,
@@ -555,13 +606,8 @@ def solubility_query(
         limit = _page_integer(top_k, "top_k", minimum=1)
         start = _page_integer(offset, "offset", minimum=0)
 
-        connection = thermo.get_connection()
         polymer_universe = sorted(thermo.get_available_polymers())
-        solvent_universe = [
-            str(row[0]) for row in connection.execute(
-                "SELECT DISTINCT solvent FROM solubility_grid ORDER BY solvent"
-            ).fetchall()
-        ]
+        solvent_universe = sorted(thermo.get_available_solvents())
         temperature_universe = list(thermo._grid_nodes())
         selected_polymers, all_polymers, duplicate_polymers = _name_axis(
             polymers,
@@ -577,6 +623,10 @@ def solubility_query(
             resolver=thermo.resolve_solvent,
             unresolved_detail=_solvent_resolution_detail,
         )
+        if not all_solvents:
+            scoped = _refuse_solvents_out_of_scope(_TOOL, selected_solvents)
+            if scoped is not None:
+                return scoped
         selected_temperatures, all_temperatures, duplicate_temperatures = (
             _temperature_axis(temperatures, temperature_universe)
         )
@@ -899,6 +949,7 @@ def solubility_query(
         exclusion_counts_are_independent_predicate_failures=True,
         solubility_unit="wt_pct_solution_concentration",
         **red_response,
+        **thermo.solvent_scope_stamp(),
     )
 
 
@@ -1213,6 +1264,7 @@ def _rank_screen_candidates(
     return ranked, ranked_all
 
 
+@_with_solvent_scope
 def screen_polymer_separation(
     feed_polymers: list[str],
     temperature_min_c: Optional[float] = None,
@@ -1346,6 +1398,9 @@ def screen_polymer_separation(
                 constrained_solvents.append(resolved)
         if unsupported_solvents:
             return _solvent_resolution_errors(tool, unsupported_solvents)
+        scoped = _refuse_solvents_out_of_scope(tool, constrained_solvents)
+        if scoped is not None:
+            return scoped
     temperatures = _temperature_grid(start, end, step, bool(strict_maximum))
     if not temperatures:
         return tool_error(tool, "No temperatures remain after applying bounds.", error_code="empty_temperature_grid")
@@ -1761,9 +1816,11 @@ def screen_polymer_separation(
         model_basis=thermo.SOLUBILITY_MODEL_BASIS,
         feed_mass_fractions=composition,
         **extra,
+        **thermo.solvent_scope_stamp(),
     )
 
 
+@_with_solvent_scope
 def screen_pairwise_solubility_overlap(
     feed_polymers: list[str],
     temperature_min_c: Optional[float] = None,
@@ -1869,6 +1926,7 @@ def screen_pairwise_solubility_overlap(
                   "Modeled wt% solution concentration is not recovery or purity."],
         model_basis="pairwise reuse of the unified grid-first solubility screen",
         **extra,
+        **thermo.solvent_scope_stamp(),
     )
 
 
