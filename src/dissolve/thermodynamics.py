@@ -5,10 +5,12 @@ from __future__ import annotations
 import math
 import re
 import threading
+from contextlib import contextmanager
+from contextvars import ContextVar
 from functools import lru_cache
 from importlib.resources import files
 from pathlib import Path
-from typing import Callable, Optional
+from typing import Callable, Iterator, Optional, Sequence
 
 import duckdb
 
@@ -161,6 +163,27 @@ SOURCE_SOLVENT_ALIASES = {"2-butanone": "butanone"}
 _ASSET = Path(str(files("dissolve").joinpath("data/thermodynamics.duckdb")))
 _ASSET_SHA256 = "4aa3adc7af54c295c6a647bb8b04a72b0ffc0a7adc75ec4b9d920099df0311dc"
 _LOCAL = threading.local()
+_QUERY_SOLVENT_SCOPE: ContextVar[tuple[str, str] | None] = ContextVar(
+    "dissolve_query_solvent_scope", default=None,
+)
+COMMON_INTERP_KEYS: frozenset[str] = frozenset((
+    "1,2,4-trimethylbenzene", "1,2-dimethylbenzene", "1,3,5-trimethylbenzene",
+    "1,3-dioxolan-2-one", "1,4-dimethylbenzene", "1,8-cineole", "1-heptanol",
+    "1-hexanol", "1-methoxy-2-acetoxypropane", "1-methoxy2-propanol",
+    "1-octanol", "1-pentanol", "2,3-dihydropyran", "2,6-dimethyl-4-heptanone",
+    "2-butanol", "2-heptanone", "2-pentanol", "2-propanol", "4-methyl-2-pentanol",
+    "4-oh-4-me-2-pentanone", "acetophenone", "acetylacetone", "anisole",
+    "benzene", "benzylalcohol", "butanone", "ch2cl2", "chcl3", "chlorobenzene",
+    "cyclohexane", "cyclohexanol", "cyclohexanone", "cyclopentanone",
+    "di-n-butylether", "diethylcarbonate", "diethyleneglycol",
+    "diethyleneglycolmonobutylether", "dimethylformamide", "dimethylsulfoxide",
+    "dipentene", "diphenylether", "dodecane", "ethanol", "ethylacetate",
+    "glycol", "gvl", "hexane", "isoamylacetate", "isophorone", "isopropylamine",
+    "methanol", "methylacetate", "n-butylacetate", "n-heptane", "n-hexylacetate",
+    "n-pentylacetate", "octane", "propanol", "propanone", "propylenecarbonate",
+    "propyleneglycol", "tert-butanol", "tetrahydrothiophene-1,1-dioxide",
+    "tetralin", "thf", "thp", "toluene", "triethylamine", "triethyleneglycol",
+))
 
 
 def get_connection() -> duckdb.DuckDBPyConnection:
@@ -280,8 +303,74 @@ def _available_solvents() -> frozenset[str]:
     return frozenset(solvent for _, solvent in _usable_grid_pairs())
 
 
+def parse_solvent_scope_token(value: object) -> str:
+    """Return ``common`` or ``all``. Raise ``ValueError`` on any other token."""
+    if isinstance(value, str):
+        token = value.strip().casefold()
+        if token in {"common", "all"}:
+            return token
+    raise ValueError("solvent_scope must be common or all")
+
+
+def resolve_solvent_scope() -> tuple[str, str]:
+    """Precedence: query override → session default → built-in ``all``."""
+    query = _QUERY_SOLVENT_SCOPE.get()
+    if query is not None:
+        return query
+    from .session import current_tool_session
+
+    record = current_tool_session()
+    stored = record.get("solvent_scope") if isinstance(record, dict) else None
+    if isinstance(stored, dict):
+        token = stored.get("scope")
+        if token in {"common", "all"}:
+            return str(token), "session_default"
+    return "all", "built_in"
+
+
+@contextmanager
+def bind_query_solvent_scope(query_value: object | None) -> Iterator[None]:
+    """Apply a tool-kwarg override for one call. ``None`` leaves session/built-in."""
+    if query_value is None:
+        yield
+        return
+    scope = parse_solvent_scope_token(query_value)
+    token = _QUERY_SOLVENT_SCOPE.set((scope, "query"))
+    try:
+        yield
+    finally:
+        _QUERY_SOLVENT_SCOPE.reset(token)
+
+
+def active_solvent_universe() -> set[str]:
+    """The only intersection of the 990-solvent asset roster with the common set."""
+    roster = set(_available_solvents())
+    scope, _origin = resolve_solvent_scope()
+    if scope == "all":
+        return roster
+    return roster & COMMON_INTERP_KEYS
+
+
+def solvent_scope_stamp() -> dict[str, object]:
+    scope, origin = resolve_solvent_scope()
+    return {
+        "solvent_scope": scope,
+        "solvent_scope_origin": origin,
+        "solvent_scope_n": len(active_solvent_universe()),
+    }
+
+
+def solvents_outside_active_scope(resolved: Sequence[str]) -> list[str]:
+    """Return interp keys that resolve in the 990 but are not in the active universe."""
+    active = active_solvent_universe()
+    return [
+        name for name in dict.fromkeys(resolved)
+        if name not in active
+    ]
+
+
 def get_available_solvents() -> set[str]:
-    return set(_available_solvents())
+    return active_solvent_universe()
 
 
 def resolve_polymer_identity(name: str) -> Optional[str]:
@@ -730,9 +819,10 @@ def get_available_solvents_for_polymer(polymer: str) -> set[str]:
     resolved = resolve_polymer(polymer)
     if not resolved:
         return set()
+    active = active_solvent_universe()
     return {
         solvent for (candidate, solvent) in _usable_grid_pairs()
-        if candidate == resolved
+        if candidate == resolved and solvent in active
     }
 
 
@@ -925,7 +1015,7 @@ def get_solvent_catalog_provenance() -> dict[str, object]:
         metadata = {}
     admitted = int(metadata.get("extended_admitted_solvent_count", "0"))
     result: dict[str, object] = {
-        "fitted_solvent_count": len(get_available_solvents()),
+        "fitted_solvent_count": len(_available_solvents()),
         "extended_admitted_solvent_count": admitted,
         "admission_guards": {
             "boiling_point_required": True,

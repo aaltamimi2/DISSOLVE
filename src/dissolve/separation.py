@@ -19,7 +19,9 @@ from .tools import (
     _atmospheric_exclusion_applies, _atmospheric_exclusion_counts,
     _atmospheric_exclusion_reason,
     _polymer_ambiguity_error,
+    _refuse_solvents_out_of_scope,
     _screen_catalog_provenance, _solvent_resolution_error, _temperature_grid,
+    _with_solvent_scope,
     normalize_feed_composition, screen_polymer_separation,
 )
 
@@ -154,6 +156,7 @@ def resolve_polymer_data_scope(
         polymers=modeled, modeled_polymer_count=len(modeled), results=rows,
         operating_condition=operating_condition,
         **capability_inventory,
+        **thermo.solvent_scope_stamp(),
         warnings=[
             "The HSP Random Forest is temperature-independent binary screening trained on RED < 1 labels; it is not wt% solubility.",
             "Coverage does not establish a feasible route or experimental validation.",
@@ -1187,6 +1190,7 @@ def screen_cool_then_reheat_getter(
     )
 
 
+@_with_solvent_scope
 def screen_precipitation_order(
     feed_polymers: list[str],
     first_polymer: str,
@@ -1298,6 +1302,9 @@ def screen_precipitation_order(
             return _solvent_resolution_error(tool, str(supplied))
         if resolved not in requested_solvents:
             requested_solvents.append(resolved)
+    scoped = _refuse_solvents_out_of_scope(tool, requested_solvents)
+    if scoped is not None:
+        return scoped
     solvent_universe = {
         "kind": "stored_grid_thermodynamic_catalog",
         "modelable_solvent_count": len(available_solvents),
@@ -1697,6 +1704,7 @@ def screen_precipitation_order(
             "pair-specific stored-grid values plus between-node threshold "
             "crossing interpolation; shared wt% precipitation proxy"
         ),
+        **thermo.solvent_scope_stamp(),
     )
 
 
@@ -2056,6 +2064,7 @@ def _ranked_path_index(routes: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return index
 
 
+@_with_solvent_scope
 def plan_multistage_separation(
     feed_polymers: list[str],
     temperature_min_c: Optional[float] = None,
@@ -2395,6 +2404,7 @@ def plan_multistage_separation(
             "Candidates require experimental validation.",
         ],
         model_basis="recursive application of stored-grid solubility values",
+        **thermo.solvent_scope_stamp(),
     )
 
 

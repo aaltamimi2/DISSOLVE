@@ -48,6 +48,23 @@ _MODE_LINE = {
 _PLANNER_STAGE_CAP = 50
 
 
+def _format_solvent_scope_default(stored: dict[str, Any] | None, *, origin: str) -> str:
+    scope = (stored or {}).get("scope") or "all"
+    return f"solvent_scope={scope}  ({origin})"
+
+
+def _parse_solvents_slash(tokens: Sequence[str]) -> dict[str, Any] | None:
+    """None prints the current default. Raises ValueError on a bad token."""
+    if not tokens:
+        return None
+    if len(tokens) != 1:
+        raise ValueError("usage: /solvents [common | all]")
+    token = str(tokens[0]).strip().casefold()
+    if token not in {"common", "all"}:
+        raise ValueError("usage: /solvents [common | all]")
+    return {"scope": token}
+
+
 def _format_breadth_default(stored: dict[str, Any], *, origin: str) -> str:
     rule = stored.get("branch_rule") or "count"
     if rule == "window":
@@ -746,7 +763,7 @@ class CliApp:
             f"[dim]Advanced polymer separation engineering[/]\n\n"
             f"Model    [bold]{self.model_spec.label}[/]  ·  {self.model_spec.usage}\n"
             f"Session  [bold]{self.store.session_id}[/]  ·  mode {self.mode}\n"
-            f"[dim]Type /context, /process, /breadth, /model, or quit to exit.[/]"
+            f"[dim]Type /context, /process, /solvents, /breadth, /model, or quit to exit.[/]"
         )
         self.console.print(Panel(details, title="Advanced Recycling Agent", subtitle=RELEASE))
 
@@ -874,6 +891,8 @@ class CliApp:
                     )
                 )
                 self.console.print("[dim]Process sheet kept in this session buffer.[/]")
+        elif command == "/solvents":
+            self._handle_solvents_command(parts[1:])
         elif command == "/breadth":
             self._handle_breadth_command(parts[1:])
         elif command == "/harness":
@@ -881,6 +900,25 @@ class CliApp:
         else:
             self.console.print(f"[yellow]Unknown command:[/] {command}")
         return False
+
+    def _handle_solvents_command(self, tokens: Sequence[str]) -> None:
+        try:
+            stored = _parse_solvents_slash(tokens)
+        except ValueError as error:
+            self.console.print(f"[red]{error}[/]")
+            return
+        if stored is None:
+            current = self.session.get("solvent_scope")
+            if isinstance(current, dict) and current.get("scope") in {"common", "all"}:
+                self.console.print(
+                    _format_solvent_scope_default(current, origin="session"),
+                )
+            else:
+                self.console.print("solvent_scope=all  (built-in)")
+            return
+        self.session["solvent_scope"] = stored
+        self._save()
+        self.console.print(_format_solvent_scope_default(stored, origin="session"))
 
     def _handle_breadth_command(self, tokens: Sequence[str]) -> None:
         try:
