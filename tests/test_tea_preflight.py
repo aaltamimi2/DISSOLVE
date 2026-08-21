@@ -53,8 +53,7 @@ def test_transcript_dict_refuses_and_names_screening_vocabulary():
         "polymer", "solubility_pct", "temperature_c",
     ]
     assert "dissolution_capacity" in report.lost
-    assert "dissolution_capacity" in report.silent_defaults
-    assert report.silent_defaults["dissolution_capacity"] == 3.0
+    assert report.silent_defaults == {}
     assert report.runnable is False
 
 

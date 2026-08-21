@@ -1655,6 +1655,14 @@ class CliApp:
                     kwargs.get("screening_shortlist"),
                     kwargs.get("held_process_basis"),
                 )
+            ingest_items: list[dict[str, Any]] = []
+            if isinstance(kwargs.get("process_config"), dict):
+                ingest_items.append(kwargs["process_config"])
+            ingest_items.extend(
+                item for item in configs if isinstance(item, dict)
+            )
+            for item in ingest_items:
+                tea._refuse_process_config_ingest(item)
             seed = self._confirm_seed(seed_src if isinstance(seed_src, dict) else None)
             snapshot = copy.deepcopy(seed)
             caller = seed_src if isinstance(kwargs.get("process_config"), dict) or configs else None
@@ -1701,7 +1709,16 @@ class CliApp:
         if self._confirmation_sheet_submitted:
             kwargs = self._bind_confirmed_process(name, kwargs)
             return self._stamp_confirmation_field_origin(original(name, **kwargs))
-        confirmed = self._confirm_tool_kwargs(name, kwargs)
+        try:
+            confirmed = self._confirm_tool_kwargs(name, kwargs)
+        except tea._ScenarioInputError as error:
+            payload: dict[str, Any] = {
+                "success": False,
+                "error": str(error),
+                "error_code": error.error_code,
+            }
+            payload.update(error.details)
+            return payload
         if confirmed is None:
             return {
                 "success": False,

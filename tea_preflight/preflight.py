@@ -154,9 +154,12 @@ def check(intent: dict[str, Any], config: dict[str, Any]) -> PreflightReport:
     screening = _screening_vocabulary()
     screening_hits = sorted(key for key in unrecognised if key in screening)
 
-    seeded = tea.seed_public_process_config(dict(config))
     named = _named_publics(config)
     collisions = _collisions(config)
+    if unrecognised or collisions:
+        seeded = {}
+    else:
+        seeded = tea.seed_public_process_config(dict(config))
 
     dropped: list[str] = []
     if energy == "C2":
@@ -273,7 +276,10 @@ def preflight(intent: dict[str, Any], config: dict[str, Any]) -> int:
 
     print("\nINTENT SURVIVAL — named on the caller dict, value reached the seed")
     named = _named_publics(config)
-    seeded = tea.seed_public_process_config(dict(config))
+    if report.unrecognised or report.collisions:
+        seeded = {}
+    else:
+        seeded = tea.seed_public_process_config(dict(config))
     lost_set = set(report.lost)
     for key, want in sorted(intent.items()):
         public = _public_name(str(key)) or str(key)
