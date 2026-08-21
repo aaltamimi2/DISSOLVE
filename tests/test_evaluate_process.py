@@ -742,6 +742,116 @@ def test_evaluate_mode_screening_temperature_c_still_maps(monkeypatch):
     assert payload.get("error_code") != "unknown_process_field"
 
 
+def test_omitting_dissolution_capacity_lists_it_defaulted_at_3(monkeypatch):
+    _forbid_live(monkeypatch)
+    config = {
+        "target_polymer": "LDPE",
+        "solvent": "Dodecane",
+        "dissolution_temperature_c": 105.0,
+    }
+    payload = _data(tea.evaluate_process(
+        mode="evaluate",
+        process_config=config,
+        engine_mode="cache",
+    ))
+    assert payload.get("error_code") != "unknown_process_field"
+    assert payload.get("silently_defaulted", {}).get("dissolution_capacity") == 3.0
+    assert payload.get("field_origin", {}).get("dissolution_capacity") == "default"
+    assert "msp_usd_per_kg" not in payload
+    assert "comparison_rows" not in payload
+
+
+def test_named_dissolution_capacity_is_not_a_silent_default(monkeypatch):
+    _forbid_live(monkeypatch)
+    payload = _data(tea.evaluate_process(
+        mode="evaluate",
+        process_config=dict(_FOUR_PUBLIC_NAMES),
+        engine_mode="cache",
+    ))
+    silent = payload.get("silently_defaulted") or {}
+    assert "dissolution_capacity" not in silent
+    assert payload.get("field_origin", {}).get("dissolution_capacity") == "supplied"
+    assert len(silent) == 40
+
+
+def test_transcript_dict_does_not_reach_silent_defaults(monkeypatch):
+    _forbid_live(monkeypatch)
+    payload = _data(tea.evaluate_process(
+        mode="evaluate",
+        process_config=dict(_TRANSCRIPT_PROCESS_CONFIG),
+        engine_mode="cache",
+    ))
+    assert payload.get("error_code") == "unknown_process_field"
+    assert "silently_defaulted" not in payload
+
+
+def test_complete_twelve_success_lists_unnamed_first_run_defaults(monkeypatch):
+    record = _record_with_energy("C1")
+    _forbid_live(monkeypatch)
+    config = _public_from_record(record)
+    payload = _data(tea.evaluate_process(
+        mode="evaluate",
+        process_config=config,
+        engine_mode="cache",
+    ))
+    assert payload.get("success") is True
+    silent = payload.get("silently_defaulted") or {}
+    origin = payload.get("field_origin") or {}
+    assert "dissolution_capacity" not in silent
+    assert origin.get("dissolution_capacity") == "supplied"
+    assert origin.get("dissolution_capacity") != "default"
+    assert silent.get("labor_burden") == tea.first_run_sheet_defaults()["labor_burden"]
+    assert origin.get("labor_burden") == "default"
+    assert len(silent) == 33
+
+
+def test_complete_twelve_omitting_capacity_lists_default_3_without_msp(monkeypatch):
+    record = _record_with_energy("C1")
+    _forbid_live(monkeypatch)
+    config = _public_from_record(record)
+    config.pop("dissolution_capacity")
+    payload = _data(tea.evaluate_process(
+        mode="evaluate",
+        process_config=config,
+        engine_mode="cache",
+    ))
+    assert payload.get("success") is not True
+    assert payload.get("silently_defaulted", {}).get("dissolution_capacity") == 3.0
+    assert payload.get("field_origin", {}).get("dissolution_capacity") == "default"
+    assert "msp_usd_per_kg" not in payload
+
+
+def test_capacity_alias_is_named_not_defaulted(monkeypatch):
+    _forbid_live(monkeypatch)
+    payload = _data(tea.evaluate_process(
+        mode="evaluate",
+        process_config={
+            "target_polymer": "LDPE",
+            "solvent": "Dodecane",
+            "dissolution_temperature_c": 105.0,
+            "dissolution_capacity": 14.54225715,
+        },
+        engine_mode="cache",
+    ))
+    assert "dissolution_capacity" not in (payload.get("silently_defaulted") or {})
+
+
+def test_handoff_from_screen_is_not_overwritten_by_default(monkeypatch):
+    record = _record_with_energy("C1")
+    _forbid_live(monkeypatch)
+    payload = _data(tea.evaluate_process(
+        mode="evaluate",
+        screening_shortlist=_shortlist(_item_from_record(record)),
+        held_process_basis=_held_from_record(record),
+        engine_mode="cache",
+    ))
+    assert payload.get("success") is True
+    origin = payload["comparison_rows"][0]["field_origin"]
+    assert origin["target_polymer"] == "from_screen"
+    assert origin["dissolution_temperature_c"] == "from_screen"
+    assert "silently_defaulted" not in payload
+
+
 def test_evaluate_mode_parameter_is_not_applicable(monkeypatch):
     record = _record_with_energy("C1")
     _forbid_live(monkeypatch)
