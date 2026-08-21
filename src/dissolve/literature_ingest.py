@@ -18,6 +18,9 @@ from .contracts import parse_tool_result, tool_error, tool_success
 _SCHEMA = "dissolve.literature-graph-ingest.v1"
 _MODEL_ID = "openai:muse-spark-1.2"
 _MODEL_LABEL = "muse-spark-1.2"
+_JATS_XML_SUFFIXES = frozenset({".xml", ".nxml"})
+_JATS_TEXT_SUFFIXES = frozenset({".txt", ".md"})
+_PRODUCTION_JATS_SUFFIXES = _JATS_XML_SUFFIXES | _JATS_TEXT_SUFFIXES
 _BASE_URL = "https://api.meta.ai/v1"
 _PROMPT_VERSION = "typed-literature-extraction-v2"
 _RECORD_CLASSES = (
@@ -63,11 +66,11 @@ def _local_acquisition(path: Path, library_id: str) -> dict[str, Any]:
     suffix = source.suffix.casefold()
     kind = "patent" if "patent" in source.name.casefold() else "paper"
     media = {
-        ".pdf": "application/pdf", ".xml": "application/xml",
+        ".pdf": "application/pdf", ".xml": "application/xml", ".nxml": "application/xml",
         ".txt": "text/plain", ".md": "text/markdown",
     }.get(suffix) or mimetypes.guess_type(source.name)[0] or "application/octet-stream"
     title = source.stem.replace("_", " ").replace("-", " ").strip()
-    if suffix == ".xml":
+    if suffix in _JATS_XML_SUFFIXES:
         try:
             root = ElementTree.fromstring(payload)
             title_node = root.find(".//article-title") or root.find(".//title")
@@ -107,7 +110,7 @@ def _jats_bridge(path: Path) -> dict[str, Any]:
     """Normalize JATS/XML or plain text into the shared parser bridge."""
     items: list[dict[str, Any]] = []
     tables: list[dict[str, Any]] = []
-    if path.suffix.casefold() == ".xml":
+    if path.suffix.casefold() in _JATS_XML_SUFFIXES:
         try:
             root = ElementTree.parse(path).getroot()
         except ElementTree.ParseError as error:
@@ -169,7 +172,7 @@ def _jats_bridge(path: Path) -> dict[str, Any]:
         from .research import LiteratureContractError
         raise LiteratureContractError("parser_text_empty", "Local text/XML input contains no extractable text.")
     return {
-        "backend": "jats" if path.suffix.casefold() == ".xml" else "local_text",
+        "backend": "jats" if path.suffix.casefold() in _JATS_XML_SUFFIXES else "local_text",
         "version": "stdlib-1", "items": items, "tables": tables,
         "quality_flags": [], "fallback_reason": None,
     }
@@ -220,13 +223,13 @@ def _pypdf_bridge(path: Path, fallback_reason: str) -> dict[str, Any]:
 def _parse(acquisition: Mapping[str, Any]) -> dict[str, Any]:
     """Production parse. Docling failure raises; DeepDoc and pypdf are not a fallback.
 
-    ``.xml`` / ``.txt`` / ``.md`` still stamp via ``_jats_bridge``, then hit the
-    same non-Docling refuse. The one-paper experiment must not call this. It uses
-    ``research.parse_experiment_document(backend=...)``.
+    ``.xml`` / ``.nxml`` / ``.txt`` / ``.md`` still stamp via ``_jats_bridge``, then
+    hit the same non-Docling refuse. The one-paper experiment must not call this.
+    It uses ``research.parse_experiment_document(backend=...)``.
     """
     from . import research
     source = Path(str(research._source_artifact(acquisition)["packed_path"]))
-    if source.suffix.casefold() in {".xml", ".txt", ".md"}:
+    if source.suffix.casefold() in _PRODUCTION_JATS_SUFFIXES:
         parsed = research.parse_document_structure(
             acquisition, parser_payload=_jats_bridge(source),
             parsed_at=str(acquisition["document"]["acquired_at"]),

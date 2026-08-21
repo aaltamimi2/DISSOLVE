@@ -240,6 +240,23 @@ def test_production_parse_refuses_xml_jats_suffix_and_does_not_call_fallbacks(mo
     assert calls == {"docling": 0, "pypdf": 0, "deepdoc": 0}
 
 
+def test_production_parse_refuses_nxml_as_jats_not_local_text(monkeypatch, tmp_path):
+    """b45a1b4 residual: .nxml must stamp jats, not fall through to Docling or local_text."""
+    nxml = tmp_path / "probe.nxml"
+    nxml.write_text(
+        "<article><article-title>NXML probe</article-title>"
+        "<p>nxml body text for the identity check</p></article>",
+        encoding="utf-8",
+    )
+    calls = _suffix_fallback_spies(monkeypatch)
+
+    with pytest.raises(research.LiteratureContractError) as caught:
+        literature_ingest._parse(_acquire(nxml))
+    assert caught.value.code == "parser_identity_lie"
+    assert caught.value.details.get("parser_backend") == "jats"
+    assert calls == {"docling": 0, "pypdf": 0, "deepdoc": 0}
+
+
 def test_production_parse_refuses_txt_local_text_suffix_and_does_not_call_fallbacks(monkeypatch, tmp_path):
     txt = tmp_path / "probe.txt"
     txt.write_text("local text body for the identity check\n", encoding="utf-8")
