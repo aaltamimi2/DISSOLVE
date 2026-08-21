@@ -4202,7 +4202,9 @@ def _ingest_inputs(
                 break
     dense_warning = None
     if build_dense_index and index["chunks"]:
-        model_name, vectors = _dense_vectors([item["text"] for item in index["chunks"]])
+        model_name, vectors = _dense_vectors(
+            [chunk_sparse_corpus(item) for item in index["chunks"]]
+        )
         index["dense"] = {"model": model_name, "vectors": vectors, "built_at": _now()}
     elif chunks_added and index.get("dense"):
         index["dense"] = None

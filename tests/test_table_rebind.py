@@ -318,3 +318,113 @@ def test_c7c_official_s2_still_matches_c6_persist():
     s2 = record["strategies"]["S2_block_pack"]
     assert s2["n_contain_bound_fact_rebound"] == 10
     assert s2["n_retrievable"] == baseline["strategies"]["S2_block_pack"]["n_retrievable"]
+
+
+C7C = Path(
+    "/home/aaltamimi2/dissolve-v12-audit/one_paper_experiment/measurements/c7c_rank.json"
+)
+
+
+def _patched_dense(seen):
+    def fake(texts, model_name=None):
+        seen.extend(list(texts))
+        return "patched-no-minilm", [[0.0, 1.0] for _ in texts]
+    return fake
+
+
+def _c7d_ingest_spies(monkeypatch, tmp_path, seen, corpus=None):
+    def boom(*_args, **_kwargs):
+        raise AssertionError("C7d must not call Docling, paragraph chunks, or MiniLM")
+
+    monkeypatch.setattr(research, "_dense_vectors", _patched_dense(seen))
+    monkeypatch.setattr(research, "_run_docling", boom)
+    monkeypatch.setattr(research, "parse_experiment_document", boom)
+    monkeypatch.setattr(research, "_paragraph_chunks", boom)
+    if corpus is not None:
+        monkeypatch.setattr(research, "chunk_sparse_corpus", corpus)
+    monkeypatch.setenv("DISSOLVE_RESEARCH_HOME", str(tmp_path))
+    canonical = _fixture()
+    path = tmp_path / "canonical_document.v1.json"
+    path.write_text(json.dumps(canonical), encoding="utf-8")
+    research._ingest_inputs([str(path)], [], "c7d-embed", True, 4, True)
+    return canonical, research._load_index("c7d-embed")
+
+
+def test_c7d_atomicity_holds():
+    canonical = _fixture()
+    rebound = research.apply_table_rebound(research.chunk_s2_block_pack(canonical), canonical)
+    table = canonical["tables"][0]
+    assert research.table_atomic_fraction(rebound, canonical) > 0
+    matched = [
+        chunk for chunk in rebound
+        if chunk.get("char_start") == table["char_start"] and chunk.get("char_end") == table["char_end"]
+    ]
+    assert matched
+    body = matched[0]["body"]
+    assert TOKEN_V in body
+    assert TOKEN_NOTE not in body
+    assert body == canonical["canonical_text"][table["char_start"]:table["char_end"]]
+
+
+def _table_embed_texts(index, seen, table):
+    assert len(seen) == len(index["chunks"])
+    return [
+        text for chunk, text in zip(index["chunks"], seen)
+        if chunk.get("char_start") == table["char_start"]
+        and chunk.get("char_end") == table["char_end"]
+    ]
+
+
+def test_c7d_dense_embed_receives_rebound_not_body(monkeypatch, tmp_path):
+    seen = []
+    canonical, index = _c7d_ingest_spies(monkeypatch, tmp_path, seen)
+    table = canonical["tables"][0]
+    embeds = _table_embed_texts(index, seen, table)
+    assert embeds
+    assert TOKEN_NOTE in embeds[0]
+    assert TOKEN_V in embeds[0]
+    stored = [
+        chunk for chunk in index["chunks"]
+        if chunk.get("char_start") == table["char_start"]
+        and chunk.get("char_end") == table["char_end"]
+    ]
+    assert stored
+    assert TOKEN_NOTE not in stored[0]["text"]
+    assert stored[0]["text"] == canonical["canonical_text"][table["char_start"]:table["char_end"]]
+    assert len(index["documents"]) == 1
+
+
+def test_c7d_1c_force_body_embed_drops_note(monkeypatch, tmp_path):
+    seen = []
+    canonical, index = _c7d_ingest_spies(
+        monkeypatch, tmp_path, seen, corpus=research._chunk_body_text,
+    )
+    embeds = _table_embed_texts(index, seen, canonical["tables"][0])
+    assert embeds
+    assert TOKEN_NOTE not in embeds[0]
+    assert TOKEN_V in embeds[0]
+
+
+def test_c7d_s5_still_not_this_checkpoint():
+    canonical = _fixture()
+    s5 = research.chunk_s5_table_plus_neighbors(canonical)
+    table_chunks = [chunk for chunk in s5 if TOKEN_V in chunk["body"]]
+    assert table_chunks
+    assert all(TOKEN_NOTE not in chunk["body"] for chunk in table_chunks)
+    assert research.table_atomic_fraction(s5, canonical) == 0.0
+
+
+@pytest.mark.skipif(not (PERSIST.is_file() and C6.is_file() and PYPDF.is_file() and C7C.is_file()), reason="probe persist missing")
+def test_c7d_official_s2_still_matches_c6_and_c7c():
+    canonical = json.loads(PERSIST.read_text(encoding="utf-8"))
+    pages = research.pypdf_page_texts_from_persist(json.loads(PYPDF.read_text(encoding="utf-8")))
+    record = research.sweep_one_paper_chunking(canonical, pages, GOLD)
+    baseline = json.loads(C6.read_text(encoding="utf-8"))
+    c7c = json.loads(C7C.read_text(encoding="utf-8"))
+    assert hashlib.sha256(C6.read_bytes()).hexdigest() == "ece22479e596990927f4d342a69988fcc892e8483ab2640020c4997a7d3e7d33"
+    s2 = record["strategies"]["S2_block_pack"]
+    old = baseline["strategies"]["S2_block_pack"]
+    assert s2["n_contain_bound_fact"] == old["n_contain_bound_fact"]
+    assert s2["n_retrievable"] == old["n_retrievable"]
+    assert s2["n_retrievable_rebound"] == c7c["s2_n_retrievable_rebound"]
+    assert s2["n_contain_bound_fact_rebound"] == c7c["s2_n_contain_bound_fact_rebound"]
