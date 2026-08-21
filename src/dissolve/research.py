@@ -567,6 +567,7 @@ _C6_STRATEGY_IDS = (
 )
 _SENTENCE_SPLIT_RE = re.compile(r"(?<=[.!?])\s+(?=[A-Z])")
 _TABLE_LABEL_RE = re.compile(r"^\s*Table\s+(\d+)\b", re.IGNORECASE)
+_FOOTNOTE_MARKER_RE = re.compile(r"^[*†‡§]+$")
 _PARSE_QUALITY_FLAGS = {
     "ocr_used", "rotation_corrected", "reading_order_uncertain",
     "table_grid_incomplete", "encrypted", "truncated", "low_confidence",
@@ -1672,6 +1673,183 @@ def chunk_splits_atomic(chunks: Sequence[Mapping[str, Any]], canonical: Mapping[
     return splits
 
 
+def _chunk_body_text(chunk: Mapping[str, Any]) -> str:
+    if chunk.get("body") is not None:
+        return str(chunk.get("body") or "")
+    return str(chunk.get("text") or "")
+
+
+def _join_match_parts(*parts: Any) -> str:
+    return "\n".join(str(part) for part in parts if part and str(part).strip())
+
+
+def _is_footnote_marker(text: str) -> bool:
+    return bool(_FOOTNOTE_MARKER_RE.match(str(text or "").strip()))
+
+
+def _caption_needs_continuation(text: str) -> bool:
+    """Stub `Table N` or a truncated table label. Not a complete caption sentence."""
+    stripped = " ".join(str(text or "").split())
+    if not stripped:
+        return True
+    if re.fullmatch(r"Table\s+\d+[.:]?", stripped, flags=re.IGNORECASE):
+        return True
+    match = re.match(r"^Table\s+\d+\b(.*)$", stripped, flags=re.IGNORECASE)
+    if match is not None and len(match.group(1).strip()) < 24:
+        return True
+    return stripped[-1] not in ".!?"
+
+
+def rebound_blocks_for_table(
+    canonical: Mapping[str, Any], table: Mapping[str, Any],
+) -> list[dict[str, Any]]:
+    """Caption, orphan continuation, and following footnotes. Not the table body.
+
+    Chunk-level association. Does not rewrite parser `caption_ref` / `unbound`.
+    """
+    blocks = list(canonical.get("blocks") or [])
+    table_id = str(table.get("table_id") or "")
+    by_index = {str(block.get("block_id")): i for i, block in enumerate(blocks)}
+    idx = by_index.get(table_id)
+    associated: list[dict[str, Any]] = []
+    seen: set[str] = set()
+
+    def add(block: Mapping[str, Any]) -> None:
+        bid = str(block.get("block_id") or "")
+        if not bid or bid == table_id or bid in seen:
+            return
+        if str(block.get("kind") or "") == "table":
+            return
+        seen.add(bid)
+        associated.append(dict(block))
+
+    table_block: Mapping[str, Any] = blocks[idx] if idx is not None else {}
+    cap_id = table.get("caption_block_id") or table_block.get("caption_ref")
+    caption_text = ""
+    if cap_id not in (None, "") and str(cap_id) in by_index:
+        cap_block = blocks[by_index[str(cap_id)]]
+        add(cap_block)
+        caption_text = str(cap_block.get("text") or "")
+    for ref in table_block.get("footnote_refs") or []:
+        if str(ref) in by_index:
+            add(blocks[by_index[str(ref)]])
+    unbound = cap_id in (None, "")
+    needs = unbound or _caption_needs_continuation(caption_text)
+    if idx is not None:
+        for prev in range(idx - 1, -1, -1):
+            block = blocks[prev]
+            kind = str(block.get("kind") or "")
+            text = str(block.get("text") or "")
+            if kind in {"header", "footer"} or _is_footnote_marker(text):
+                continue
+            if kind in {"table", "heading", "footnote"}:
+                break
+            if kind == "caption":
+                if _TABLE_LABEL_RE.match(text):
+                    add(block)
+                    if not caption_text:
+                        caption_text = text
+                        needs = needs or _caption_needs_continuation(text)
+                break
+            if kind == "paragraph" and needs:
+                add(block)
+                continue
+            break
+        for nxt in range(idx + 1, len(blocks)):
+            block = blocks[nxt]
+            kind = str(block.get("kind") or "")
+            text = str(block.get("text") or "")
+            if kind in {"header", "footer"} or _is_footnote_marker(text):
+                continue
+            if kind in {"table", "heading"}:
+                break
+            if kind == "footnote":
+                add(block)
+                continue
+            if kind == "caption" and _TABLE_LABEL_RE.match(text):
+                add(block)
+                continue
+            break
+    associated.sort(key=lambda block: (int(block.get("char_start") or 0), str(block.get("block_id") or "")))
+    return associated
+
+
+def _table_rebound_text(canonical: Mapping[str, Any], table: Mapping[str, Any]) -> str:
+    return _join_match_parts(*(block.get("text") for block in rebound_blocks_for_table(canonical, table)))
+
+
+def _body_plus_rebound_text(
+    body: str, canonical: Mapping[str, Any], table: Mapping[str, Any],
+) -> str:
+    table_start, table_end = int(table["char_start"]), int(table["char_end"])
+    before: list[str] = []
+    after: list[str] = []
+    for block in rebound_blocks_for_table(canonical, table):
+        text = str(block.get("text") or "")
+        try:
+            start, end = int(block["char_start"]), int(block["char_end"])
+        except (KeyError, TypeError, ValueError):
+            after.append(text)
+            continue
+        if end <= table_start:
+            before.append(text)
+        else:
+            after.append(text)
+    return _join_match_parts(*before, body, *after)
+
+
+def apply_table_rebound(
+    chunks: Sequence[Mapping[str, Any]],
+    canonical: Mapping[str, Any],
+) -> list[dict[str, Any]]:
+    """Attach rebound sidecars. Does not change char_start/char_end or body/text."""
+    tables_by_span = {
+        (int(table["char_start"]), int(table["char_end"])): table
+        for table in canonical.get("tables") or []
+        if table.get("char_start") is not None and table.get("char_end") is not None
+    }
+    attached: list[dict[str, Any]] = []
+    for chunk in chunks:
+        item = dict(chunk)
+        body = _chunk_body_text(item)
+        start, end = item.get("char_start"), item.get("char_end")
+        table = None
+        if start is not None and end is not None:
+            table = tables_by_span.get((int(start), int(end)))
+        if table is None:
+            item["rebound_block_ids"] = list(item.get("rebound_block_ids") or [])
+            item["body_plus_rebound"] = body
+            item.setdefault("footnotes", item.get("footnotes"))
+            attached.append(item)
+            continue
+        associated = rebound_blocks_for_table(canonical, table)
+        notes = _join_match_parts(
+            *(block.get("text") for block in associated if str(block.get("kind")) == "footnote")
+        )
+        item["rebound_block_ids"] = [str(block.get("block_id")) for block in associated]
+        item["footnotes"] = notes or None
+        item["body_plus_rebound"] = _body_plus_rebound_text(body, canonical, table)
+        attached.append(item)
+    return attached
+
+
+def _chunk_rebound_corpus(
+    chunk: Mapping[str, Any],
+    canonical: Mapping[str, Any],
+    tables_by_span: Mapping[tuple[int, int], Mapping[str, Any]],
+) -> str:
+    if "body_plus_rebound" in chunk:
+        return str(chunk.get("body_plus_rebound") or "")
+    body = _chunk_body_text(chunk)
+    start, end = chunk.get("char_start"), chunk.get("char_end")
+    if start is None or end is None:
+        return body
+    table = tables_by_span.get((int(start), int(end)))
+    if table is None:
+        return body
+    return _body_plus_rebound_text(body, canonical, table)
+
+
 def table_atomic_fraction(chunks: Sequence[Mapping[str, Any]], canonical: Mapping[str, Any]) -> float | None:
     tables = list(canonical.get("tables") or [])
     if not tables:
@@ -1758,6 +1936,11 @@ def score_chunks_against_facts(
     """v2 §7 metrics. Does not blend an F1. Offset metrics skipped for S0."""
     page6 = _page6_table_spans(canonical)
     locus_spans = _locus_table_spans(canonical)
+    tables_by_span = {
+        (int(table["char_start"]), int(table["char_end"])): table
+        for table in canonical.get("tables") or []
+        if table.get("char_start") is not None and table.get("char_end") is not None
+    }
     offsetful = strategy != "S0_production_pypdf"
     per_fact: list[dict[str, Any]] = []
     cross_hits = 0
@@ -1767,15 +1950,20 @@ def score_chunks_against_facts(
         locus = str(fact.get("locus") or "")
         parse_gated = locus.casefold().startswith("fig") or int(fact.get("page") or 0) == 6
         parse_miss = parse_gated and not page6
-        bodies = [str(chunk.get("body") or "") for chunk in chunks]
+        bodies = [_chunk_body_text(chunk) for chunk in chunks]
         if "value" in needles:
             contain_value = any(_needle_hit(body, needles.get("value")) for body in bodies)
         else:
             contain_value = any(
                 _needle_hit(body, value) for body in bodies for value in needles.values()
             )
-        bound_chunks = [chunk for chunk in chunks if _body_has_all_needles(str(chunk.get("body") or ""), needles)]
+        bound_chunks = [chunk for chunk in chunks if _body_has_all_needles(_chunk_body_text(chunk), needles)]
         contain_bound_fact = bool(bound_chunks)
+        rebound_bound_chunks = [
+            chunk for chunk in chunks
+            if _body_has_all_needles(_chunk_rebound_corpus(chunk, canonical, tables_by_span), needles)
+        ]
+        contain_bound_fact_rebound = bool(rebound_bound_chunks)
         if parse_gated and contain_bound_fact:
             contain_bound_fact = any(
                 chunk.get("char_start") is not None
@@ -1785,19 +1973,42 @@ def score_chunks_against_facts(
                 )
                 for chunk in bound_chunks
             ) if page6 else False
+        if parse_gated and contain_bound_fact_rebound:
+            contain_bound_fact_rebound = any(
+                chunk.get("char_start") is not None
+                and any(
+                    _intersects(int(chunk["char_start"]), int(chunk["char_end"]), span[0], span[1])
+                    for span in page6
+                )
+                for chunk in rebound_bound_chunks
+            ) if page6 else False
         header_only = False
         if not contain_bound_fact:
             header_only = any(
                 _body_has_all_needles(str(chunk.get("header") or ""), needles)
-                and not _body_has_all_needles(str(chunk.get("body") or ""), needles)
+                and not _body_has_all_needles(_chunk_body_text(chunk), needles)
                 for chunk in chunks
             )
         query = str(fact.get("query") or "")
         top5 = _bm25_top5(query, chunks) if query else []
-        retrievable = any(_body_has_all_needles(str(chunk.get("body") or ""), needles) for chunk in top5)
+        retrievable = any(_body_has_all_needles(_chunk_body_text(chunk), needles) for chunk in top5)
+        retrievable_rebound = any(
+            _body_has_all_needles(_chunk_rebound_corpus(chunk, canonical, tables_by_span), needles)
+            for chunk in top5
+        )
         if parse_gated and retrievable and page6:
             retrievable = any(
-                _body_has_all_needles(str(chunk.get("body") or ""), needles)
+                _body_has_all_needles(_chunk_body_text(chunk), needles)
+                and chunk.get("char_start") is not None
+                and any(
+                    _intersects(int(chunk["char_start"]), int(chunk["char_end"]), span[0], span[1])
+                    for span in page6
+                )
+                for chunk in top5
+            )
+        if parse_gated and retrievable_rebound and page6:
+            retrievable_rebound = any(
+                _body_has_all_needles(_chunk_rebound_corpus(chunk, canonical, tables_by_span), needles)
                 and chunk.get("char_start") is not None
                 and any(
                     _intersects(int(chunk["char_start"]), int(chunk["char_end"]), span[0], span[1])
@@ -1806,27 +2017,40 @@ def score_chunks_against_facts(
                 for chunk in top5
             )
         severed = False
+        severed_ctx = False
         table_span = locus_spans.get(locus) if locus.startswith("Table ") else None
+        table_obj = tables_by_span.get(table_span) if table_span else None
         if offsetful and table_span and "value" in needles:
+            rebound_txt = _table_rebound_text(canonical, table_obj) if table_obj is not None else ""
             for chunk in chunks:
                 start, end = chunk.get("char_start"), chunk.get("char_end")
                 if start is None or end is None:
                     continue
-                body = str(chunk.get("body") or "")
-                if (
-                    _needle_hit(body, needles.get("value"))
-                    and not _body_has_all_needles(body, needles)
-                    and _proper_subset(int(start), int(end), table_span[0], table_span[1])
-                ):
+                body = _chunk_body_text(chunk)
+                value_hit = _needle_hit(body, needles.get("value"))
+                bound_on_body = _body_has_all_needles(body, needles)
+                subset = _proper_subset(int(start), int(end), table_span[0], table_span[1])
+                if value_hit and not bound_on_body and subset:
                     severed = True
-                    break
+                if (
+                    value_hit
+                    and not bound_on_body
+                    and not subset
+                    and rebound_txt
+                ):
+                    missing = [value for value in needles.values() if not _needle_hit(body, value)]
+                    if any(_needle_hit(rebound_txt, missing_needle) for missing_needle in missing):
+                        severed_ctx = True
         row = {
             "fact_id": fact_id,
             "parse_miss": parse_miss,
             "contain_value": contain_value,
             "contain_bound_fact": None if parse_miss else contain_bound_fact,
+            "contain_bound_fact_rebound": None if parse_miss else contain_bound_fact_rebound,
             "retrievable": None if parse_miss else retrievable,
+            "retrievable_rebound": None if parse_miss else retrievable_rebound,
             "condition_severed_inside_table": None if (parse_miss or not offsetful) else severed,
+            "condition_severed_from_context": None if (parse_miss or not offsetful) else severed_ctx,
             "header_only_hit": header_only,
         }
         per_fact.append(row)
@@ -1845,7 +2069,7 @@ def score_chunks_against_facts(
             if other_value is None:
                 continue
             for chunk in bound_chunks:
-                if _needle_hit(str(chunk.get("body") or ""), other_value):
+                if _needle_hit(_chunk_body_text(chunk), other_value):
                     cross_hits += 1
                     break
     scored = [row for row in per_fact if not row["parse_miss"]]
@@ -1859,9 +2083,14 @@ def score_chunks_against_facts(
         "n_parse_miss": sum(1 for row in per_fact if row["parse_miss"]),
         "n_contain_value": sum(1 for row in scored if row["contain_value"]),
         "n_contain_bound_fact": sum(1 for row in scored if row["contain_bound_fact"]),
+        "n_contain_bound_fact_rebound": sum(1 for row in scored if row["contain_bound_fact_rebound"]),
         "n_retrievable": sum(1 for row in scored if row["retrievable"]),
+        "n_retrievable_rebound": sum(1 for row in scored if row["retrievable_rebound"]),
         "n_condition_severed_inside_table": sum(
             1 for row in scored if row["condition_severed_inside_table"]
+        ),
+        "n_condition_severed_from_context": sum(
+            1 for row in scored if row["condition_severed_from_context"]
         ),
         "cross_fact_hits": cross_hits,
         "facts": per_fact,
@@ -3787,7 +4016,7 @@ def _table_caption_and_basis(canonical: Mapping[str, Any], table: Mapping[str, A
 
 
 def _index_chunks_from_canonical(canonical: Mapping[str, Any]) -> list[dict[str, Any]]:
-    """C7 join: S2 atomic table spans, caption/basis carried alongside. No _paragraph_chunks."""
+    """C7 join + C7b rebound sidecar. Atomic table spans. No _paragraph_chunks."""
     packed = chunk_s2_block_pack(canonical)
     tables = {
         (int(table["char_start"]), int(table["char_end"])): table
@@ -3806,6 +4035,7 @@ def _index_chunks_from_canonical(canonical: Mapping[str, Any]) -> list[dict[str,
             caption, basis = _table_caption_and_basis(canonical, table)
         rows.append({
             "text": item["body"],
+            "body": item["body"],
             "char_start": start,
             "char_end": end,
             "page": block.get("page"),
@@ -3816,7 +4046,7 @@ def _index_chunks_from_canonical(canonical: Mapping[str, Any]) -> list[dict[str,
             "basis": basis,
             "kind": "table" if table is not None else block.get("kind"),
         })
-    return rows
+    return apply_table_rebound(rows, canonical)
 
 
 def _ingest_inputs(
@@ -3898,6 +4128,9 @@ def _ingest_inputs(
                     "nearest_preceding_heading": derived.get("nearest_preceding_heading") or [],
                     "caption": derived.get("caption"),
                     "basis": derived.get("basis"),
+                    "footnotes": derived.get("footnotes"),
+                    "rebound_block_ids": list(derived.get("rebound_block_ids") or []),
+                    "body_plus_rebound": derived.get("body_plus_rebound"),
                     "kind": derived.get("kind"),
                     "char_start": derived.get("char_start"),
                     "char_end": derived.get("char_end"),
@@ -4055,8 +4288,10 @@ def _search_index(index: dict[str, Any], query: str, top_k: int, mode: str) -> l
             served_section = None
         else:
             served_section = chunk.get("section")
-        excerpt_source = " ".join(
-            str(part) for part in (chunk.get("caption"), chunk.get("basis"), chunk.get("text"))
+        excerpt_source = str(chunk.get("body_plus_rebound") or "").strip() or " ".join(
+            str(part) for part in (
+                chunk.get("caption"), chunk.get("basis"), chunk.get("footnotes"), chunk.get("text"),
+            )
             if part
         )
         rows.append({
@@ -4067,6 +4302,7 @@ def _search_index(index: dict[str, Any], query: str, top_k: int, mode: str) -> l
             "section_origin": origin,
             "caption": chunk.get("caption"),
             "basis": chunk.get("basis"),
+            "footnotes": chunk.get("footnotes"),
             "excerpt": _clean(excerpt_source, 600),
             "sparse_score": round(sparse_score, 6), "dense_score": round(dense_score, 6),
             "section_boost": boost, "final_score": round(score, 6),
