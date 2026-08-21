@@ -12,9 +12,16 @@ import tempfile
 from pathlib import Path
 from typing import Any, Mapping
 
-CENSUS_V2_SHA256 = "f8568ad7def8157e5dc54563eaf6b4a7571337e41ef2d3e5c85efb68ceca829e"
-CEILING_V2_SHA256 = "f3a477d6423fded3cd25675dd68bc6a953422f750e75e6837569199416732b47"
+# GATE c1v2-census-ceiling OBJECT (2026-08-21T18:52:03Z). Pinning these
+# digests is not an accept-test-7 close. A later C1.v2 must be new bytes.
+OBJECTED_CENSUS_V2_SHA256 = "f8568ad7def8157e5dc54563eaf6b4a7571337e41ef2d3e5c85efb68ceca829e"
+OBJECTED_CEILING_V2_SHA256 = "f3a477d6423fded3cd25675dd68bc6a953422f750e75e6837569199416732b47"
+CENSUS_V2_SHA256 = OBJECTED_CENSUS_V2_SHA256
+CEILING_V2_SHA256 = OBJECTED_CEILING_V2_SHA256
 CONTAMINANT_SHA256 = "7419fa5c9ffac0beb2722f73c1b446064e612b972c64e8f04595141f4f9c8421"
+START_GUARD_PEAK_RSS_BYTES = 3_501_953_024
+ALLOWED_PAPER_STATUS = frozenset({"indexed", "held_out", "excluded"})
+CENSUS_V1_PATH = Path("/home/aaltamimi2/dissolve-v12-audit/corpus/CENSUS.v1.json")
 C3_SET_NOTE = (
     "C3 CANONICAL_MANIFEST.v1 covered the v1 in-scope set (21 documents). "
     "It is not silently treated as covering CENSUS.v2."
@@ -38,6 +45,8 @@ _NUMERIC_TOKEN = re.compile(
 )
 _TABLE_CAPTION = re.compile(r"\bTable\s+(\d+[A-Za-z]?)\b", re.IGNORECASE)
 _NUMERIC_CELL = re.compile(r"^[-+]?\d+(?:\.\d+)?%?$")
+
+
 class GoldEnsembleError(ValueError):
     """Typed C5 assembler failure. Not a gold seal."""
 
@@ -72,33 +81,84 @@ def refuse_source_path(path: Path) -> None:
         )
 
 
+def assert_c35_closed(ceiling: Mapping[str, Any]) -> str:
+    """Accept test 7: C3.5 closes only by option 1 or option 2. Not a C3 reuse raise."""
+    try:
+        peak = int(ceiling["PEAK_RSS_CEILING_BYTES"])
+    except (KeyError, TypeError, ValueError) as error:
+        raise GoldEnsembleError(
+            "c35_not_closed",
+            "C5 refuses to start: CEILING has no usable PEAK_RSS_CEILING_BYTES.",
+        ) from error
+    retraction = str((ceiling.get("RETRACTION") or {}).get("status") or "")
+    method = str(ceiling.get("measurement_method") or "")
+    basis = str(ceiling.get("basis") or "")
+    reused_c3 = "during C3" in basis or "c3 persist" in basis.casefold()
+    if peak == START_GUARD_PEAK_RSS_BYTES and "RETRACTED" in retraction:
+        return "option_2_start_guard"
+    if "/usr/bin/time -v" in method and not reused_c3 and "RETRACTED" in retraction:
+        return "option_1_remeasure"
+    raise GoldEnsembleError(
+        "c35_not_closed",
+        "C3.5 is not closed. Keep PEAK_RSS_CEILING_BYTES 3501953024 as the "
+        "start-guard, or re-measure with /usr/bin/time -v. Reusing C3 peaks "
+        "to raise the ceiling is not a close.",
+        peak=peak, measurement_method=method, reused_c3=reused_c3,
+    )
+
+
+def assert_papers_classified(census: Mapping[str, Any]) -> None:
+    """§5 / accept test 7: every paper is indexed, held_out, or excluded."""
+    bad = [
+        {
+            "sha256": row.get("sha256"),
+            "status": row.get("status"),
+            "filename": row.get("filename"),
+        }
+        for row in census.get("papers") or []
+        if str(row.get("status") or "") not in ALLOWED_PAPER_STATUS
+    ]
+    if bad:
+        raise GoldEnsembleError(
+            "unclassified_paper",
+            "Accept test 7: every paper must be indexed, held_out, or excluded. "
+            "NEW-UNCLASSIFIED is a labelled hole, not a classification.",
+            papers=bad,
+        )
+
+
 def require_c1_v2(census_path: Path, ceiling_path: Path) -> dict[str, Any]:
-    """Refuse to start C5 unless CENSUS.v2 and CEILING.v2 match the owner pins."""
+    """Refuse to start C5 unless accept test 7 is actually closed.
+
+    File-digest match plus a RETRACTED substring is not a close. GATE
+    c1v2-census-ceiling already OBJECTed the current v2 pins.
+    """
     census_path = Path(census_path)
     ceiling_path = Path(ceiling_path)
     census_digest = file_sha256(census_path)
     ceiling_digest = file_sha256(ceiling_path)
-    if census_digest != CENSUS_V2_SHA256:
+    if (
+        census_digest == OBJECTED_CENSUS_V2_SHA256
+        or ceiling_digest == OBJECTED_CEILING_V2_SHA256
+    ):
         raise GoldEnsembleError(
-            "census_v2_digest_mismatch",
-            "C5 refuses to start: CENSUS.v2.json digest is not the owner pin.",
-            got=census_digest, expected=CENSUS_V2_SHA256,
-        )
-    if ceiling_digest != CEILING_V2_SHA256:
-        raise GoldEnsembleError(
-            "ceiling_v2_digest_mismatch",
-            "C5 refuses to start: CEILING.v2.json digest is not the owner pin.",
-            got=ceiling_digest, expected=CEILING_V2_SHA256,
+            "c1v2_objected",
+            "GATE c1v2-census-ceiling OBJECT. Pinning those digests does not "
+            "close accept test 7. C3.5 is unclosed and 7419fa5c is NEW-UNCLASSIFIED.",
+            census_sha256=census_digest,
+            ceiling_sha256=ceiling_digest,
         )
     census = json.loads(census_path.read_text(encoding="utf-8"))
     ceiling = json.loads(ceiling_path.read_text(encoding="utf-8"))
-    retraction = ceiling.get("RETRACTION") or {}
-    if str(retraction.get("status") or "").find("RETRACTED") < 0:
-        raise GoldEnsembleError(
-            "c35_retraction_missing",
-            "C5 refuses to start: CEILING.v2 must record the v1 corpus-maximum retraction.",
-        )
-    return {"census": census, "ceiling": ceiling}
+    close = assert_c35_closed(ceiling)
+    assert_papers_classified(census)
+    return {
+        "census": census,
+        "ceiling": ceiling,
+        "census_sha256": census_digest,
+        "ceiling_sha256": ceiling_digest,
+        "c35_close": close,
+    }
 
 
 def iter_pdfs(pdf_root: Path) -> list[Path]:
@@ -128,25 +188,43 @@ def pdf_set_identity(census: Mapping[str, Any], pdf_root: Path) -> dict[str, lis
     return disk
 
 
-def c3_papers(census: Mapping[str, Any]) -> list[dict[str, Any]]:
-    """21 already-parsed in-scope papers. Deduped by SHA. Contaminant excluded."""
+def c3_covered_shas(census_v1_path: Path | None = None) -> set[str]:
+    """In-scope SHAs C3 actually parsed. CENSUS.v1, not the canonical store."""
+    path = Path(census_v1_path or CENSUS_V1_PATH)
+    data = json.loads(path.read_text(encoding="utf-8"))
+    return {
+        str(row["sha256"])
+        for row in data["papers"]
+        if row.get("status") in _C3_STATUSES
+    }
+
+
+def c3_papers(
+    census: Mapping[str, Any],
+    covered: set[str] | None = None,
+) -> list[dict[str, Any]]:
+    """C3-covered in-scope papers. A v2 addition that is indexed/held_out refuses."""
+    covered_shas = set(covered) if covered is not None else c3_covered_shas()
     seen: set[str] = set()
     rows: list[dict[str, Any]] = []
+    extra: list[str] = []
     for row in census["papers"]:
         digest = str(row["sha256"])
         if digest in seen:
             continue
-        if digest == CONTAMINANT_SHA256:
-            continue
         if row.get("status") not in _C3_STATUSES:
             continue
         seen.add(digest)
+        if digest not in covered_shas:
+            extra.append(digest)
+            continue
         rows.append(row)
-    if len(rows) != 21:
+    if extra:
         raise GoldEnsembleError(
-            "c3_set_size",
-            "C5 A+B runs the 21-paper C3 set; got a different count.",
-            n=len(rows),
+            "c3_extension_required",
+            "An in-scope v2 paper is not in the C3 coverage set. "
+            "Classifying it indexed or held_out requires a C3 extension.",
+            extra=extra,
         )
     return rows
 
@@ -156,16 +234,22 @@ def contaminant_pending(census: Mapping[str, Any]) -> dict[str, Any]:
         (item for item in census["papers"] if item.get("sha256") == CONTAMINANT_SHA256),
         None,
     )
+    status = (row or {}).get("status", "NEW-UNCLASSIFIED")
+    classified = status in ALLOWED_PAPER_STATUS
     return {
         "sha256": CONTAMINANT_SHA256,
         "filename": (row or {}).get("filename", "contaminant.pdf"),
-        "status": (row or {}).get("status", "NEW-UNCLASSIFIED"),
-        "owner_call": "required",
-        "c3_extension": "required_before_indexed",
+        "status": status,
+        "classified": classified,
+        "owner_call": None if classified else "required",
+        "c3_extension": None if status == "excluded" else "required_before_indexed",
         "ran_c5": False,
         "note": (
-            "NEW-UNCLASSIFIED. Classifying it indexed would require extending C3 "
-            "to parse it. C5 A+B ran the 21-paper C3 set and did not wait."
+            "C5 refuses to start while this SHA is not indexed, held_out, or "
+            "excluded. Recording a pending addition is not permission to start."
+            if not classified else
+            "Classified. Indexed or held_out still requires a C3 extension "
+            "before this SHA may enter the C5 run set."
         ),
     }
 
@@ -511,7 +595,7 @@ def run_c5_ab(
     pdf_root: Path,
     out_path: Path | None = None,
 ) -> dict[str, Any]:
-    """Run A+B on the 21 C3 papers. Does not seal. Does not call vision."""
+    """Run A+B only after accept test 7 closes. Does not seal. Does not call vision."""
     loaded = require_c1_v2(census_path, ceiling_path)
     census = loaded["census"]
     disk = pdf_set_identity(census, pdf_root)
@@ -552,8 +636,9 @@ def run_c5_ab(
         "channels_run": ["A", "B"],
         "channels_not_run": ["C", "C_prime"],
         "docling_used": False,
-        "census_v2_sha256": CENSUS_V2_SHA256,
-        "ceiling_v2_sha256": CEILING_V2_SHA256,
+        "census_v2_sha256": loaded["census_sha256"],
+        "ceiling_v2_sha256": loaded["ceiling_sha256"],
+        "c35_close": loaded["c35_close"],
         "c3_coverage": C3_SET_NOTE,
         "contaminant_pending": pending,
         "skipped": [

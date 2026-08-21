@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import sys
 from pathlib import Path
 
@@ -97,24 +98,121 @@ def test_gold_v1_digest_unmoved():
     assert hashlib.sha256(GOLD_V1.read_bytes()).hexdigest() == GOLD_V1_SHA256
 
 
-def test_c1_v2_pins_and_c3_set_excludes_contaminant():
-    loaded = gold_ensemble.require_c1_v2(CENSUS_V2, CEILING_V2)
-    rows = gold_ensemble.c3_papers(loaded["census"])
-    shas = {row["sha256"] for row in rows}
-    assert len(rows) == 21
-    assert gold_ensemble.CONTAMINANT_SHA256 not in shas
-    pending = gold_ensemble.contaminant_pending(loaded["census"])
-    assert pending["ran_c5"] is False
-    assert pending["c3_extension"] == "required_before_indexed"
-    assert pending["status"] == "NEW-UNCLASSIFIED"
+def _write_json(path: Path, payload: dict) -> Path:
+    path.write_text(json.dumps(payload) + "\n", encoding="utf-8")
+    return path
 
 
-def test_wrong_census_digest_refuses(tmp_path):
+def _option2_ceiling() -> dict:
+    return {
+        "PEAK_RSS_CEILING_BYTES": gold_ensemble.START_GUARD_PEAK_RSS_BYTES,
+        "RETRACTION": {"status": "FALSE — RETRACTED"},
+        "basis": "option 2 start-guard keep of 3501953024",
+        "measurement_method": "keep PEAK_RSS_CEILING_BYTES 3501953024",
+    }
+
+
+def _option1_ceiling() -> dict:
+    return {
+        "PEAK_RSS_CEILING_BYTES": 3_710_992_384,
+        "RETRACTION": {"status": "FALSE — RETRACTED"},
+        "basis": "quiet-machine re-measure of in-scope worst cases",
+        "measurement_method": "/usr/bin/time -v",
+    }
+
+
+def _c3_raise_ceiling() -> dict:
+    return {
+        "PEAK_RSS_CEILING_BYTES": 3_710_992_384,
+        "RETRACTION": {"status": "FALSE — RETRACTED"},
+        "basis": "All 21 in-scope papers, peak_rss_bytes measured per document during C3.",
+        "measurement_method": "C3 persist",
+    }
+
+
+def _classified_rows() -> list[dict]:
+    return [
+        {
+            "filename": "paper.pdf",
+            "sha256": "aa" * 32,
+            "status": "indexed",
+        },
+        {
+            "filename": "contaminant.pdf",
+            "sha256": gold_ensemble.CONTAMINANT_SHA256,
+            "status": "excluded",
+        },
+    ]
+
+
+def test_objected_c1v2_does_not_unlock_c5():
+    """Accept test 7 / 1c: digest pin plus RETRACTED is not a close."""
+    with pytest.raises(gold_ensemble.GoldEnsembleError) as caught:
+        gold_ensemble.require_c1_v2(CENSUS_V2, CEILING_V2)
+    assert caught.value.code == "c1v2_objected"
+
+
+def test_run_c5_ab_refuses_objected_c1v2_and_writes_nothing(tmp_path):
+    out = tmp_path / "GOLD.v2.ab_draft.json"
+    with pytest.raises(gold_ensemble.GoldEnsembleError) as caught:
+        gold_ensemble.run_c5_ab(
+            census_path=CENSUS_V2,
+            ceiling_path=CEILING_V2,
+            pdf_root=tmp_path,
+            out_path=out,
+        )
+    assert caught.value.code == "c1v2_objected"
+    assert not out.exists()
+
+
+def test_c3_raise_with_retraction_is_not_a_close(tmp_path):
+    census = _write_json(tmp_path / "census.json", {"papers": _classified_rows()})
+    ceiling = _write_json(tmp_path / "ceiling.json", _c3_raise_ceiling())
+    with pytest.raises(gold_ensemble.GoldEnsembleError) as caught:
+        gold_ensemble.require_c1_v2(census, ceiling)
+    assert caught.value.code == "c35_not_closed"
+
+
+def test_unclassified_contaminant_refuses_even_with_option2(tmp_path):
+    rows = _classified_rows()
+    rows[1]["status"] = "NEW-UNCLASSIFIED"
+    census = _write_json(tmp_path / "census.json", {"papers": rows})
+    ceiling = _write_json(tmp_path / "ceiling.json", _option2_ceiling())
+    with pytest.raises(gold_ensemble.GoldEnsembleError) as caught:
+        gold_ensemble.require_c1_v2(census, ceiling)
+    assert caught.value.code == "unclassified_paper"
+
+
+def test_option2_start_guard_and_classified_papers_unlock(tmp_path):
+    census = _write_json(tmp_path / "census.json", {"papers": _classified_rows()})
+    ceiling = _write_json(tmp_path / "ceiling.json", _option2_ceiling())
+    loaded = gold_ensemble.require_c1_v2(census, ceiling)
+    assert loaded["c35_close"] == "option_2_start_guard"
+
+
+def test_option1_time_v_remeasure_unlocks(tmp_path):
+    census = _write_json(tmp_path / "census.json", {"papers": _classified_rows()})
+    ceiling = _write_json(tmp_path / "ceiling.json", _option1_ceiling())
+    loaded = gold_ensemble.require_c1_v2(census, ceiling)
+    assert loaded["c35_close"] == "option_1_remeasure"
+
+
+def test_indexed_contaminant_requires_c3_extension():
+    census = {"papers": [
+        {"sha256": "aa" * 32, "status": "indexed"},
+        {"sha256": gold_ensemble.CONTAMINANT_SHA256, "status": "indexed"},
+    ]}
+    with pytest.raises(gold_ensemble.GoldEnsembleError) as caught:
+        gold_ensemble.c3_papers(census, covered={"aa" * 32})
+    assert caught.value.code == "c3_extension_required"
+
+
+def test_wrong_census_with_objected_ceiling_still_refuses(tmp_path):
     fake = tmp_path / "CENSUS.v2.json"
     fake.write_text('{"papers":[]}\n', encoding="utf-8")
     with pytest.raises(gold_ensemble.GoldEnsembleError) as caught:
         gold_ensemble.require_c1_v2(fake, CEILING_V2)
-    assert caught.value.code == "census_v2_digest_mismatch"
+    assert caught.value.code == "c1v2_objected"
 
 
 def test_stage_must_be_exactly_one_pdf(tmp_path):
