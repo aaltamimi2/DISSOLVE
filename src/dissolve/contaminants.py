@@ -28,6 +28,13 @@ _FAMILY_ALIASES = {
     "phthalate": "Phthalates",
     "phthalates": "Phthalates",
 }
+_UNCOVERED_FAMILY_ALIASES = {
+    "bfr": "BFR",
+    "brominated flame retardant": "BFR",
+    "brominated flame retardants": "BFR",
+    "flame retardant": "BFR",
+    "flame retardants": "BFR",
+}
 _DEFAULT_SWELLING_MIN = 1.0
 _DEFAULT_SWELLING_MAX = 10.0
 _DEFAULT_DISSOLUTION_MIN = 10.0
@@ -240,22 +247,34 @@ def _threshold_warnings(inputs: dict[str, Any]) -> list[str]:
     return [_UNSOURCED_THRESHOLD_WARNING]
 
 
-def _expand(requested: Sequence[str]) -> tuple[list[str], list[str], list[str]]:
-    supported, unsupported, families = [], [], set()
+def _expand(
+    requested: Sequence[str],
+) -> tuple[list[str], list[str], list[str], list[str]]:
+    supported, unsupported, families, uncovered = [], [], set(), []
     lookup = _contaminant_lookup()
     for item in requested:
         text = str(item).strip()
-        family = _FAMILY_ALIASES.get(_key(text))
+        folded = _key(text)
+        family = _FAMILY_ALIASES.get(folded)
+        uncovered_family = _UNCOVERED_FAMILY_ALIASES.get(folded)
         if family:
             supported.extend(_families().get(family, []))
             families.add(family)
-        elif _key(text) in lookup:
-            name, family = lookup[_key(text)]
+        elif uncovered_family:
+            uncovered.append(uncovered_family)
+            unsupported.append(text)
+        elif folded in lookup:
+            name, family = lookup[folded]
             supported.append(name)
             families.add(family)
         elif text:
             unsupported.append(text)
-    return list(dict.fromkeys(supported)), list(dict.fromkeys(unsupported)), sorted(families)
+    return (
+        list(dict.fromkeys(supported)),
+        list(dict.fromkeys(unsupported)),
+        sorted(families),
+        list(dict.fromkeys(uncovered)),
+    )
 
 
 def _solvent_names(contaminants: Sequence[str]) -> list[str]:
@@ -390,6 +409,22 @@ def _regime(solvent: str, temperature: Optional[float]) -> str:
     ).fetchall()
     higher = [float(row[0]) for row in rows if row[0] is not None]
     return "t_higher" if higher and temperature >= (25.0 + max(higher)) / 2.0 else "rt"
+
+
+def _solvent_in_workbook(name: str) -> bool:
+    tokens = _solvent_keys(name)
+    if not tokens:
+        return False
+    where, params = _solvent_where(tokens)
+    row = _connection().execute(
+        f"""SELECT 1 FROM (
+              SELECT 1 FROM logd WHERE {where}
+              UNION ALL
+              SELECT 1 FROM miscibility WHERE {where}
+            ) LIMIT 1""",
+        [*params, *params],
+    ).fetchone()
+    return row is not None
 
 
 def _upper(solvent: str, maximum: Optional[float]) -> float:
@@ -592,7 +627,7 @@ def _inputs(
         return {}, ambiguity
     target = thermo.resolve_polymer(target_polymer)
     requested = _items(contaminants)
-    supported, unsupported, families = _expand(requested)
+    supported, unsupported, families, uncovered_families = _expand(requested)
     others_requested = _items(other_polymers)
     others: list[str] = []
     missing_others: list[str] = []
@@ -605,14 +640,50 @@ def _inputs(
             if member not in others:
                 others.append(member)
     explicit_solvents = None if solvents is None else _items(solvents)
-    candidate_solvents, _ = session.resolve_candidate_argument(
-        explicit_solvents, _inherited_candidate_solvents(tool),
-    )
+    unsupported_solvents: list[str] = []
+    if explicit_solvents is not None:
+        known_solvents = [
+            item for item in explicit_solvents if _solvent_in_workbook(item)
+        ]
+        unsupported_solvents = [
+            item for item in explicit_solvents if item not in known_solvents
+        ]
+        candidate_solvents = known_solvents
+    else:
+        candidate_solvents, _ = session.resolve_candidate_argument(
+            None, _inherited_candidate_solvents(tool),
+        )
     requested_maximum = _finite(max_temperature_c)
     strict = bool(strict_maximum and requested_maximum is not None)
     maximum = _grid_ceiling(requested_maximum, strict)
     if not target:
         return {}, tool_error(tool, f"Unsupported target polymer: {target_polymer}.", error_code="unsupported_polymer")
+    if explicit_solvents and not candidate_solvents:
+        return {}, tool_error(
+            tool,
+            "None of the requested solvents are in the contaminant workbook.",
+            error_code="unknown_contaminant_solvent",
+            target_polymer=target,
+            requested_solvents=explicit_solvents,
+            unsupported_solvents=unsupported_solvents,
+            requested_contaminants=requested,
+        )
+    if not supported and uncovered_families:
+        return {}, tool_error(
+            tool,
+            "The contaminant corpus does not cover this family.",
+            error_code="unsupported_contaminant_family",
+            target_polymer=target,
+            other_polymers=others,
+            unsupported_other_polymers=missing_others,
+            requested_contaminants=requested,
+            unsupported_contaminants=unsupported or requested,
+            unsupported_families=uncovered_families,
+            supported_families=sorted(_families()),
+            warnings=[
+                "The held corpus is PFAS and Phthalates only. Empty is not clean."
+            ],
+        )
     if not supported:
         return {}, tool_error(
             tool, "None of the requested contaminants are supported.",
@@ -636,7 +707,9 @@ def _inputs(
     return {
         "target": target, "requested": requested, "supported": supported,
         "unsupported": unsupported, "families": families, "others": others,
+        "uncovered_families": uncovered_families,
         "missing_others": missing_others, "solvents": candidate_solvents,
+        "unsupported_solvents": unsupported_solvents,
         "maximum": maximum, "requested_maximum": requested_maximum,
         "strict_maximum": strict,
         **thresholds,
@@ -664,6 +737,8 @@ def _base_result(inputs: dict[str, Any], mode: str, rows: list[dict[str, Any]]) 
         "contaminant_catalog": _contaminant_catalog(inputs["supported"]),
         "n_supported_contaminants": len(inputs["supported"]),
         "unsupported_contaminants": inputs["unsupported"],
+        "unsupported_families": inputs.get("uncovered_families") or [],
+        "unsupported_solvents": inputs.get("unsupported_solvents") or [],
         "contaminant_families": inputs["families"],
         "candidate_solvents": rows,
         "recommended_solvents": [row["solvent"] for row in rows if row["passes"]],

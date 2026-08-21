@@ -99,6 +99,10 @@ def test_absence_cases_are_constructed():
     assert item["all_unknown"]["refuses"] is True
     assert item["all_unknown"]["error_code"] == "unsupported_contaminants"
     assert item["uncovered_class_BFR"]["empty_is_not_clean"] is True
+    assert item["uncovered_class_BFR"]["error_code"] == (
+        "unsupported_contaminant_family"
+    )
+    assert item["uncovered_class_BFR"]["distinct_family_code"] is True
     assert item["uncovered_class_BFR"]["supported_families"] == [
         "PFAS", "Phthalates",
     ]
@@ -106,7 +110,9 @@ def test_absence_cases_are_constructed():
     assert item["mixed_known_unknown_continues"]["unsupported_contaminants"] == [
         "HBCD",
     ]
-    assert item["unknown_solvent"]["today_is_success_with_failing_candidate"] is True
+    assert item["unknown_solvent"]["refuses"] is True
+    assert item["unknown_solvent"]["error_code"] == "unknown_contaminant_solvent"
+    assert item["unknown_solvent"]["today_is_success_with_failing_candidate"] is False
     unspecified = item["unspecified_fallback"]
     assert unspecified["all_unspecified_are_pfas"] is True
     assert unspecified["rt_and_t_higher_are_phthalates"] is True

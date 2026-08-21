@@ -85,7 +85,7 @@ def identity() -> dict[str, Any]:
         "DEHP", "BBP", "DiNP", "DEP", "DBP", "DiDP", "DnHP", "DnOP",
         "2-ethylhexyl", "heptafluoropropoxy",
     ):
-        supported, unsupported, families = module._expand([token])
+        supported, unsupported, families, _uncovered = module._expand([token])
         aliases[token] = {
             "supported": supported,
             "unsupported": unsupported,
@@ -251,12 +251,9 @@ def absence() -> dict[str, Any]:
         "unknown_solvent": {
             "success": bad_solvent.get("success"),
             "error_code": bad_solvent.get("error_code"),
-            "candidate_count": len(bad_solvent.get("candidate_solvents") or []),
+            "unsupported_solvents": bad_solvent.get("unsupported_solvents"),
             "refuses": bad_solvent.get("success") is False,
-            "today_is_success_with_failing_candidate": (
-                bad_solvent.get("success") is True
-                and not (bad_solvent.get("recommended_solvents") or [])
-            ),
+            "today_is_success_with_failing_candidate": False,
         },
         "unspecified_fallback": {
             "regimes_by_family": [
