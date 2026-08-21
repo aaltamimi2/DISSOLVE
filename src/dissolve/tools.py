@@ -156,7 +156,7 @@ def _solvent_resolution_errors(tool: str, solvent_names: Sequence[str]) -> str:
         unsupported_solvents=unsupported,
         unsupported_solvent_details=details,
         **single,
-        available_count=len(thermo.get_available_solvents()),
+        available_count=len(thermo._available_solvents()),
     )
 
 
@@ -269,6 +269,7 @@ def _name_axis(
     resolver: Callable[[str], str | None],
     expander: Callable[[str], Sequence[str]] | None = None,
     unresolved_detail: Callable[[str], dict[str, Any]] | None = None,
+    available_count: int | None = None,
 ) -> tuple[list[str], bool, int]:
     """Resolve and deduplicate one name axis, or select its whole domain."""
     if values is None:
@@ -311,7 +312,9 @@ def _name_axis(
             "field": axis,
             "unsupported": unsupported,
             "unsupported_count": len(unsupported),
-            "available_count": len(universe),
+            "available_count": (
+                len(universe) if available_count is None else int(available_count)
+            ),
         }
         if unresolved_detail is not None:
             detail[f"unsupported_{axis[:-1]}_details"] = [
@@ -622,6 +625,7 @@ def solubility_query(
             universe=solvent_universe,
             resolver=thermo.resolve_solvent,
             unresolved_detail=_solvent_resolution_detail,
+            available_count=len(thermo._available_solvents()),
         )
         if not all_solvents:
             scoped = _refuse_solvents_out_of_scope(_TOOL, selected_solvents)

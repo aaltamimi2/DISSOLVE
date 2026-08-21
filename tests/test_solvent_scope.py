@@ -76,6 +76,14 @@ def test_named_out_of_scope_refuses_not_unknown():
     ))
     assert unknown["success"] is False
     assert unknown["error_code"] == "unknown_solvents"
+    assert unknown["available_count"] == 990
+    assert "available_solvents" not in unknown
+    unknown_all = _data(solubility_query(
+        polymers=["LDPE"], solvents=["not-a-real-solvent-xx"], temperatures=[80.0],
+        solvent_scope="all",
+    ))
+    assert unknown_all["error_code"] == "unknown_solvents"
+    assert unknown_all["available_count"] == 990
 
 
 def test_surviving_solvent_number_identity():
@@ -127,6 +135,31 @@ def test_under_coverage_denominator_is_scope_n():
     under = provenance.get("under_covered_polymers") or {}
     for count in under.values():
         assert count < 0.90 * 69
+
+
+def test_unknown_solvents_available_count_stays_on_the_990():
+    from dissolve.tools import screen_polymer_separation
+
+    query = _data(solubility_query(
+        polymers=["LDPE"], solvents=["not-a-real-solvent-xx"],
+        temperatures=[80.0], solvent_scope="common",
+    ))
+    assert query["error_code"] == "unknown_solvents"
+    assert query["available_count"] == 990
+    screen = _data(screen_polymer_separation(
+        feed_polymers=["LDPE", "PP"],
+        solvents=["not-a-real-solvent-xx"],
+        temperature_min_c=80.0,
+        temperature_max_c=80.0,
+        solvent_scope="common",
+    ))
+    assert screen["error_code"] == "unknown_solvents"
+    assert screen["available_count"] == 990
+    nmp = _data(solubility_query(
+        polymers=["LDPE"], solvents=["n-methyl-2-pyrrolidinone"],
+        temperatures=[80.0], solvent_scope="common",
+    ))
+    assert nmp["error_code"] == "solvent_not_in_scope"
 
 
 def test_session_default_and_clear(tmp_path, monkeypatch):
