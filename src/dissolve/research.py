@@ -517,12 +517,13 @@ def _slug(value: str) -> str:
 
 _PARSED_BLOCK_KINDS = {
     "title", "heading", "paragraph", "list_item", "caption", "footnote",
-    "formula", "claim", "header", "footer", "other",
+    "formula", "table", "claim", "header", "footer", "other",
 }
 _DOCLING_BLOCK_KINDS = {
     "title": "title", "section_header": "heading", "heading": "heading",
     "paragraph": "paragraph", "text": "paragraph", "list_item": "list_item",
     "caption": "caption", "footnote": "footnote", "formula": "formula",
+    "table": "table", "tableitem": "table",
     "page_header": "header", "header": "header", "page_footer": "footer",
     "footer": "footer", "claim": "claim",
 }
@@ -621,6 +622,65 @@ def _provenance(item: Any) -> tuple[int | None, dict[str, Any] | None, float]:
     return page_value, _bbox_from(bbox), confidence_value
 
 
+def _docling_table_cells(raw_cells: Any) -> list[dict[str, Any]]:
+    cells: list[dict[str, Any]] = []
+    for cell in raw_cells or []:
+        cells.append({
+            "row": _object_value(cell, "start_row_offset_idx", _object_value(cell, "row", 0)),
+            "column": _object_value(cell, "start_col_offset_idx", _object_value(cell, "column", 0)),
+            "row_end": _object_value(cell, "end_row_offset_idx"),
+            "column_end": _object_value(cell, "end_col_offset_idx"),
+            "row_span": _object_value(cell, "row_span"),
+            "column_span": _object_value(cell, "col_span", _object_value(cell, "column_span")),
+            "is_header": bool(
+                _object_value(cell, "column_header", False)
+                or _object_value(cell, "row_header", False)
+                or _object_value(cell, "row_section", False)
+            ),
+            "text": str(_object_value(cell, "text", "")),
+            "block_refs": [],
+        })
+    return cells
+
+
+def _table_grid_text(
+    cells: Sequence[Mapping[str, Any]], *, table_id: Any, page: Any,
+    row_count: Any, column_count: Any,
+) -> str:
+    """Serialize structured cells so a table item has retrievable text.
+
+    Empty cells stay empty strings, not invented dashes. Offsets into a later
+    canonical document can wrap this same span; this helper does not invent them.
+    """
+    if not cells:
+        return ""
+    parsed: list[tuple[int, int, str]] = []
+    for cell in cells:
+        try:
+            row = int(cell.get("row") or 0)
+            column = int(cell.get("column") or 0)
+        except (TypeError, ValueError):
+            continue
+        parsed.append((row, column, str(cell.get("text") or "")))
+    if not parsed:
+        return ""
+    try:
+        n_rows = int(row_count) if row_count not in (None, "") else 0
+        n_cols = int(column_count) if column_count not in (None, "") else 0
+    except (TypeError, ValueError):
+        n_rows, n_cols = 0, 0
+    n_rows = n_rows or (max(row for row, _, _ in parsed) + 1)
+    n_cols = n_cols or (max(column for _, column, _ in parsed) + 1)
+    grid = [[""] * n_cols for _ in range(n_rows)]
+    for row, column, text in parsed:
+        if 0 <= row < n_rows and 0 <= column < n_cols:
+            grid[row][column] = text
+    lines = [f"[TABLE {table_id} page={page}]"]
+    lines.extend("| " + " | ".join(row) + " |" for row in grid)
+    lines.append("[/TABLE]")
+    return "\n".join(lines)
+
+
 def _docling_bridge(document: Any, *, version: str) -> dict[str, Any]:
     """Convert a DoclingDocument into the small backend-neutral bridge."""
     iterate = getattr(document, "iterate_items", None)
@@ -638,28 +698,39 @@ def _docling_bridge(document: Any, *, version: str) -> dict[str, Any]:
         raw_cells = _object_value(data, "table_cells", []) if data is not None else []
         if raw_cells or "table" in label:
             captions = _object_value(item, "captions", []) or []
+            table_id = _object_value(item, "self_ref") or _object_value(item, "id")
+            row_count = _object_value(data, "num_rows")
+            column_count = _object_value(data, "num_cols")
+            cells = _docling_table_cells(raw_cells)
             tables.append({
-                "id": _object_value(item, "self_ref") or _object_value(item, "id"),
+                "id": table_id,
                 "page": page,
                 "caption_id": _reference_id(captions[0]) if captions else None,
-                "row_count": _object_value(data, "num_rows"),
-                "column_count": _object_value(data, "num_cols"),
-                "cells": [{
-                    "row": _object_value(cell, "start_row_offset_idx", _object_value(cell, "row", 0)),
-                    "column": _object_value(cell, "start_col_offset_idx", _object_value(cell, "column", 0)),
-                    "row_end": _object_value(cell, "end_row_offset_idx"),
-                    "column_end": _object_value(cell, "end_col_offset_idx"),
-                    "row_span": _object_value(cell, "row_span"),
-                    "column_span": _object_value(cell, "col_span", _object_value(cell, "column_span")),
-                    "is_header": bool(
-                        _object_value(cell, "column_header", False)
-                        or _object_value(cell, "row_header", False)
-                        or _object_value(cell, "row_section", False)
-                    ),
-                    "text": str(_object_value(cell, "text", "")),
-                    "block_refs": [],
-                } for cell in raw_cells],
+                "row_count": row_count,
+                "column_count": column_count,
+                "cells": cells,
             })
+            # Tables must enter the item list. The previous `continue` stored
+            # structure only in tables[] and dropped the item, so a later
+            # text/chunk path could not see thermodynamic cells.
+            text = _table_grid_text(
+                cells, table_id=table_id, page=page,
+                row_count=row_count, column_count=column_count,
+            )
+            if str(text).strip():
+                items.append({
+                    "id": table_id, "label": "table", "level": int(level or 0),
+                    "order": order, "page": page, "bbox": bbox, "text": text,
+                    "confidence": confidence,
+                    "caption_ref": (
+                        _reference_id(captions[0]) if captions
+                        else _object_value(item, "caption_ref")
+                    ),
+                    "footnote_refs": [
+                        _reference_id(value)
+                        for value in (_object_value(item, "footnotes", []) or [])
+                    ],
+                })
             continue
         text = _object_value(item, "text") or _object_value(item, "orig") or ""
         if not str(text).strip():
