@@ -517,15 +517,13 @@ def _slug(value: str) -> str:
 
 _PARSED_BLOCK_KINDS = {
     "title", "heading", "paragraph", "list_item", "caption", "footnote",
-    "formula", "table", "figure", "claim", "header", "footer", "other",
+    "formula", "table", "claim", "header", "footer", "other",
 }
 _DOCLING_BLOCK_KINDS = {
     "title": "title", "section_header": "heading", "heading": "heading",
     "paragraph": "paragraph", "text": "paragraph", "list_item": "list_item",
     "caption": "caption", "footnote": "footnote", "formula": "formula",
     "table": "table", "tableitem": "table",
-    "figure": "figure", "picture": "figure", "pictureitem": "figure",
-    "chart": "figure",
     "page_header": "header", "header": "header", "page_footer": "footer",
     "footer": "footer", "claim": "claim",
 }
@@ -685,25 +683,6 @@ def _table_grid_text(
     return "\n".join(lines)
 
 
-def _is_docling_figure_item(item: Any, label: str) -> bool:
-    folded = str(label or "").casefold().replace("-", "_")
-    if folded in {"picture", "figure", "pictureitem", "chart"}:
-        return True
-    return item.__class__.__name__ in {"PictureItem"}
-
-
-def _figure_span_text(*, figure_id: Any, page: Any, text: Any) -> str:
-    """Marker span so an empty PictureItem still enters the item list.
-
-    This is not image extraction: no bytes, no JPEG, no caption OCR beyond
-    whatever Docling already put on the item.
-    """
-    existing = str(text or "").strip()
-    if existing:
-        return existing
-    return f"[FIGURE {figure_id} page={page}]"
-
-
 def _docling_bridge(document: Any, *, version: str) -> dict[str, Any]:
     """Convert a DoclingDocument into the small backend-neutral bridge."""
     iterate = getattr(document, "iterate_items", None)
@@ -713,7 +692,6 @@ def _docling_bridge(document: Any, *, version: str) -> dict[str, Any]:
         )
     items: list[dict[str, Any]] = []
     tables: list[dict[str, Any]] = []
-    figures: list[dict[str, Any]] = []
     for order, pair in enumerate(iterate()):
         item, level = pair if isinstance(pair, tuple) and len(pair) == 2 else (pair, 0)
         label = _enum_text(_object_value(item, "label", item.__class__.__name__))
@@ -756,30 +734,6 @@ def _docling_bridge(document: Any, *, version: str) -> dict[str, Any]:
                     ],
                 })
             continue
-        if _is_docling_figure_item(item, label):
-            captions = _object_value(item, "captions", []) or []
-            figure_id = _object_value(item, "self_ref") or _object_value(item, "id")
-            caption_ref = (
-                _reference_id(captions[0]) if captions
-                else _object_value(item, "caption_ref")
-            )
-            text = _figure_span_text(
-                figure_id=figure_id, page=page,
-                text=_object_value(item, "text") or _object_value(item, "orig") or "",
-            )
-            figures.append({
-                "id": figure_id, "page": page, "caption_id": caption_ref, "bbox": bbox,
-            })
-            items.append({
-                "id": figure_id, "label": "figure", "level": int(level or 0),
-                "order": order, "page": page, "bbox": bbox, "text": text,
-                "confidence": confidence, "caption_ref": caption_ref,
-                "footnote_refs": [
-                    _reference_id(value)
-                    for value in (_object_value(item, "footnotes", []) or [])
-                ],
-            })
-            continue
         text = _object_value(item, "text") or _object_value(item, "orig") or ""
         if not str(text).strip():
             continue
@@ -792,7 +746,7 @@ def _docling_bridge(document: Any, *, version: str) -> dict[str, Any]:
         })
     return {
         "backend": "docling", "version": version, "items": items, "tables": tables,
-        "figures": figures, "quality_flags": [], "fallback_reason": None,
+        "quality_flags": [], "fallback_reason": None,
     }
 
 
