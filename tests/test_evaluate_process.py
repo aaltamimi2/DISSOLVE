@@ -850,6 +850,72 @@ def test_handoff_from_screen_is_not_overwritten_by_default(monkeypatch):
     assert origin["target_polymer"] == "from_screen"
     assert origin["dissolution_temperature_c"] == "from_screen"
     assert "silently_defaulted" not in payload
+    basis = payload.get("process_basis") or []
+    assert len(basis) == 46
+    top = payload.get("field_origin") or {}
+    assert set(top) >= set(basis)
+    assert top["target_polymer"] == "from_screen"
+    assert top.get("lang_factor") == "default"
+
+
+def test_complete_twelve_success_quotes_the_46_field_c1_basis(monkeypatch):
+    record = _record_with_energy("C1")
+    _forbid_live(monkeypatch)
+    payload = _data(tea.evaluate_process(
+        mode="evaluate",
+        process_config=_public_from_record(record),
+        engine_mode="cache",
+    ))
+    assert payload.get("success") is True
+    basis = payload.get("process_basis") or []
+    origin = payload.get("field_origin") or {}
+    assert basis == list(tea.evaluate_process_basis_names(energy_case="C1"))
+    assert len(basis) == 46
+    assert set(origin) >= set(basis)
+    assert origin.get("lang_factor") == "default"
+    assert origin.get("solvent_price_usd_per_kg") == "supplied"
+    assert payload["comparison_rows"][0].get("msp_usd_per_kg") is not None
+
+
+def test_c2_success_quotes_the_44_field_basis(monkeypatch):
+    record = _record_with_energy("C2")
+    _forbid_live(monkeypatch)
+    payload = _data(tea.evaluate_process(
+        mode="evaluate",
+        process_config=_public_from_record(record),
+        engine_mode="cache",
+    ))
+    assert payload.get("success") is True
+    basis = payload.get("process_basis") or []
+    origin = payload.get("field_origin") or {}
+    assert len(basis) == 44
+    assert "natural_gas_price_usd_per_m3" not in basis
+    assert set(origin) >= set(basis)
+    assert payload["comparison_rows"][0].get("msp_usd_per_kg") is not None
+
+
+def test_four_field_payload_has_no_msp(monkeypatch):
+    _forbid_live(monkeypatch)
+    payload = _data(tea.evaluate_process(
+        mode="evaluate",
+        process_config=dict(_FOUR_PUBLIC_NAMES),
+        engine_mode="cache",
+    ))
+    assert payload.get("success") is not True
+    assert "msp_usd_per_kg" not in payload
+    assert payload.get("lowest_msp_scenario") is None
+    assert "solvent_price_usd_per_kg" not in (payload.get("field_origin") or {})
+    assert len(payload.get("process_basis") or []) == 46
+
+
+def test_confirmation_abort_shape_has_no_msp():
+    abort = {
+        "success": False,
+        "error": "Process confirmation aborted; the model args did not run.",
+        "error_code": "process_confirmation_aborted",
+    }
+    assert "msp_usd_per_kg" not in abort
+    assert "comparison_rows" not in abort
 
 
 def test_evaluate_mode_parameter_is_not_applicable(monkeypatch):

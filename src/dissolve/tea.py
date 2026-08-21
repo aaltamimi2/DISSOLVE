@@ -1216,6 +1216,68 @@ def evaluate_caller_field_origin(
     return origin
 
 
+def evaluate_process_basis_names(*, energy_case: str = "C1") -> tuple[str, ...]:
+    """Public names that describe a served MSP. C1 is 46; C2 is 44."""
+    return public_process_field_names(energy_case=energy_case)
+
+
+def _evaluate_energy_case(*sources: Any) -> str:
+    for src in sources:
+        if not isinstance(src, dict):
+            continue
+        token = str(src.get("energy_case") or "").upper().strip()
+        if token in _ENERGY_CASES:
+            return token
+    return "C1"
+
+
+def _complete_evaluate_basis_origin(
+    origin: Optional[Mapping[str, str]],
+    *,
+    energy_case: str,
+    inherited: Optional[Mapping[str, str]] = None,
+) -> dict[str, str]:
+    completed = dict(origin or {})
+    if inherited:
+        completed.update(inherited)
+    defaults = first_run_sheet_defaults(energy_case=energy_case)
+    for name in evaluate_process_basis_names(energy_case=energy_case):
+        if name in completed:
+            continue
+        if name in defaults:
+            completed[name] = "default"
+    return completed
+
+
+def _first_row_field_origin(data: Mapping[str, Any]) -> dict[str, str] | None:
+    rows = data.get("comparison_rows")
+    if not isinstance(rows, list) or not rows:
+        return None
+    existing = rows[0].get("field_origin") if isinstance(rows[0], dict) else None
+    if isinstance(existing, dict):
+        return dict(existing)
+    return None
+
+
+def _strip_served_msp(data: dict[str, Any]) -> None:
+    """A thin basis must not leave the building with an MSP."""
+    data.pop("lowest_msp_scenario", None)
+    data.pop("lowest_gwp_scenario", None)
+    rows = data.get("comparison_rows")
+    if isinstance(rows, list):
+        for row in rows:
+            if isinstance(row, dict):
+                row.pop("msp_usd_per_kg", None)
+                row.pop("gwp_kg_co2e_per_kg", None)
+    if data.get("success") is True:
+        data["success"] = False
+        data["error_code"] = "incomplete_process_basis"
+        data["error"] = (
+            "MSP was not served; the payload did not name every field "
+            "on the evaluate basis."
+        )
+
+
 _STANDING_PREVIEW_SETPOINTS = (
     "dissolution_temperature_c",
     "precipitation_temperature_c",
@@ -6087,18 +6149,30 @@ def _stamp_evaluate_silent_defaults(
     *,
     field_origin: Optional[Mapping[str, str]] = None,
     silently_defaulted: Optional[Mapping[str, Any]] = None,
+    energy_case: str = "C1",
 ) -> str:
-    """Put T2 default provenance on the evaluate payload, success or refuse."""
-    if not field_origin and not silently_defaulted:
-        return raw
+    """T2 defaults plus T3 basis quote. A thin origin cannot keep an MSP."""
     envelope = json.loads(raw)
     data = envelope.get("data")
     if not isinstance(data, dict):
         return raw
+    basis = list(evaluate_process_basis_names(energy_case=energy_case))
+    origin = _complete_evaluate_basis_origin(
+        field_origin,
+        energy_case=energy_case,
+        inherited=_first_row_field_origin(data),
+    )
     if silently_defaulted and "silently_defaulted" not in data:
         data["silently_defaulted"] = copy.deepcopy(dict(silently_defaulted))
-    if field_origin and "field_origin" not in data:
-        data["field_origin"] = dict(field_origin)
+    if "field_origin" in data and isinstance(data["field_origin"], dict):
+        for name, token in origin.items():
+            data["field_origin"].setdefault(name, token)
+        origin = dict(data["field_origin"])
+    else:
+        data["field_origin"] = dict(origin)
+    data["process_basis"] = basis
+    if not all(name in origin for name in basis):
+        _strip_served_msp(data)
     return json.dumps(
         envelope, ensure_ascii=False, indent=2, allow_nan=False,
     )
@@ -6496,13 +6570,17 @@ def evaluate_process(
             silently_defaulted_process_fields(caller) if caller is not None else None
         )
         origin = (
-            evaluate_caller_field_origin(caller) if caller is not None else None
+            evaluate_caller_field_origin(caller) if caller is not None else {}
+        )
+        energy = _evaluate_energy_case(
+            caller, held_process_basis, process_config,
         )
         return _evaluate_process_envelope(
             _stamp_evaluate_silent_defaults(
                 evaluate_tea_lca_scenarios(scenarios, **forwarded),
                 field_origin=origin,
                 silently_defaulted=silent,
+                energy_case=energy,
             ),
             screen_to_economics_order=order,
         )
