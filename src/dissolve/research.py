@@ -517,16 +517,20 @@ def _slug(value: str) -> str:
 
 _PARSED_BLOCK_KINDS = {
     "title", "heading", "paragraph", "list_item", "caption", "footnote",
-    "formula", "table", "claim", "header", "footer", "other",
+    "formula", "table", "figure", "claim", "header", "footer", "other",
 }
 _DOCLING_BLOCK_KINDS = {
     "title": "title", "section_header": "heading", "heading": "heading",
     "paragraph": "paragraph", "text": "paragraph", "list_item": "list_item",
     "caption": "caption", "footnote": "footnote", "formula": "formula",
     "table": "table", "tableitem": "table",
+    "figure": "figure", "picture": "figure", "pictureitem": "figure",
+    "chart": "figure",
     "page_header": "header", "header": "header", "page_footer": "footer",
     "footer": "footer", "claim": "claim",
 }
+_EXPERIMENT_DOCLING_VERSION = "2.121.0"
+_EXPERIMENT_PARSE_BACKENDS = {"docling", "pypdf"}
 _PARSE_QUALITY_FLAGS = {
     "ocr_used", "rotation_corrected", "reading_order_uncertain",
     "table_grid_incomplete", "encrypted", "truncated", "low_confidence",
@@ -681,6 +685,25 @@ def _table_grid_text(
     return "\n".join(lines)
 
 
+def _is_docling_figure_item(item: Any, label: str) -> bool:
+    folded = str(label or "").casefold().replace("-", "_")
+    if folded in {"picture", "figure", "pictureitem", "chart"}:
+        return True
+    return item.__class__.__name__ in {"PictureItem"}
+
+
+def _figure_span_text(*, figure_id: Any, page: Any, text: Any) -> str:
+    """Marker span so an empty PictureItem still enters the item list.
+
+    This is not image extraction: no bytes, no JPEG, no caption OCR beyond
+    whatever Docling already put on the item.
+    """
+    existing = str(text or "").strip()
+    if existing:
+        return existing
+    return f"[FIGURE {figure_id} page={page}]"
+
+
 def _docling_bridge(document: Any, *, version: str) -> dict[str, Any]:
     """Convert a DoclingDocument into the small backend-neutral bridge."""
     iterate = getattr(document, "iterate_items", None)
@@ -690,6 +713,7 @@ def _docling_bridge(document: Any, *, version: str) -> dict[str, Any]:
         )
     items: list[dict[str, Any]] = []
     tables: list[dict[str, Any]] = []
+    figures: list[dict[str, Any]] = []
     for order, pair in enumerate(iterate()):
         item, level = pair if isinstance(pair, tuple) and len(pair) == 2 else (pair, 0)
         label = _enum_text(_object_value(item, "label", item.__class__.__name__))
@@ -732,6 +756,30 @@ def _docling_bridge(document: Any, *, version: str) -> dict[str, Any]:
                     ],
                 })
             continue
+        if _is_docling_figure_item(item, label):
+            captions = _object_value(item, "captions", []) or []
+            figure_id = _object_value(item, "self_ref") or _object_value(item, "id")
+            caption_ref = (
+                _reference_id(captions[0]) if captions
+                else _object_value(item, "caption_ref")
+            )
+            text = _figure_span_text(
+                figure_id=figure_id, page=page,
+                text=_object_value(item, "text") or _object_value(item, "orig") or "",
+            )
+            figures.append({
+                "id": figure_id, "page": page, "caption_id": caption_ref, "bbox": bbox,
+            })
+            items.append({
+                "id": figure_id, "label": "figure", "level": int(level or 0),
+                "order": order, "page": page, "bbox": bbox, "text": text,
+                "confidence": confidence, "caption_ref": caption_ref,
+                "footnote_refs": [
+                    _reference_id(value)
+                    for value in (_object_value(item, "footnotes", []) or [])
+                ],
+            })
+            continue
         text = _object_value(item, "text") or _object_value(item, "orig") or ""
         if not str(text).strip():
             continue
@@ -744,7 +792,7 @@ def _docling_bridge(document: Any, *, version: str) -> dict[str, Any]:
         })
     return {
         "backend": "docling", "version": version, "items": items, "tables": tables,
-        "quality_flags": [], "fallback_reason": None,
+        "figures": figures, "quality_flags": [], "fallback_reason": None,
     }
 
 
@@ -871,6 +919,12 @@ def _normalize_parser_bridge(
             backend=backend,
         )
     fallback_reason = bridge.get("fallback_reason")
+    if backend == "docling" and fallback_reason:
+        raise LiteratureContractError(
+            "parser_identity_lie",
+            "A Docling parse cannot carry a fallback_reason; that is a fallback labeled as Docling.",
+            fallback_reason=str(fallback_reason),
+        )
     if backend in {"deepdoc", "pypdf"} and not fallback_reason:
         raise LiteratureContractError(
             "undisclosed_parser_fallback",
@@ -1018,6 +1072,8 @@ def parse_document_structure(
 
     ``parser_payload`` is the checksummed/offline fixture seam. Production parsing
     first invokes Docling and only invokes DeepDoc after a typed Docling failure.
+    The one-paper experiment must not use this cascade; it calls
+    ``parse_experiment_document(backend=...)``.
     """
     if parser_payload is not None:
         return _normalize_parser_bridge(acquisition, parser_payload, parsed_at=parsed_at)
@@ -1036,6 +1092,80 @@ def parse_document_structure(
         reason = f"docling_{docling_error.code}"
         bridge = _run_deepdoc(path, fallback_reason=reason)
     return _normalize_parser_bridge(acquisition, bridge, parsed_at=parsed_at)
+
+
+def _experiment_source_path(
+    acquisition: Mapping[str, Any], *, asset_root: str | Path | None,
+) -> Path:
+    source = _source_artifact(acquisition)
+    path = Path(str(source.get("packed_path") or ""))
+    if not path.is_absolute():
+        path = Path(asset_root or ".").resolve() / path
+    if not path.is_file():
+        raise LiteratureContractError(
+            "parser_source_missing", "The acquired content artifact is not present on disk.",
+            artifact_id=source.get("artifact_id"), packed_path=str(path),
+        )
+    return path
+
+
+def parse_experiment_document(
+    acquisition: Mapping[str, Any],
+    *,
+    backend: str,
+    parsed_at: str | None = None,
+    asset_root: str | Path | None = None,
+) -> dict[str, Any]:
+    """One-paper experiment parse. The cascade does not cascade.
+
+    ``backend`` is required: ``docling`` or ``pypdf``. There is no default, and
+    there is no fallback flag. A Docling failure raises; it does not call
+    DeepDoc or ``_pypdf_bridge``. ``pypdf`` is the named step-3 control arm
+    (``fallback_reason=explicit_control_arm``), never a failure path.
+    """
+    requested = str(backend or "").casefold()
+    if requested not in _EXPERIMENT_PARSE_BACKENDS:
+        raise LiteratureContractError(
+            "unknown_experiment_backend",
+            "Experiment parses name backend='docling' or backend='pypdf'.",
+            backend=requested,
+        )
+    path = _experiment_source_path(acquisition, asset_root=asset_root)
+    if requested == "docling":
+        try:
+            version = str(importlib.import_module("docling").__version__)
+        except (ImportError, AttributeError) as error:
+            raise LiteratureContractError(
+                "parser_backend_unavailable",
+                "Docling is unavailable; install the pinned research extra before parsing documents.",
+                backend="docling",
+            ) from error
+        if version != _EXPERIMENT_DOCLING_VERSION:
+            raise LiteratureContractError(
+                "parser_version_mismatch",
+                "Experiment Docling parses require exactly version 2.121.0.",
+                backend="docling", parser_version=version,
+                required=_EXPERIMENT_DOCLING_VERSION,
+            )
+        bridge = _run_docling(path)
+    else:
+        from .literature_ingest import _pypdf_bridge
+        bridge = _pypdf_bridge(path, "explicit_control_arm")
+    produced = str(bridge.get("backend") or "").casefold()
+    if produced != requested:
+        raise LiteratureContractError(
+            "parser_identity_lie",
+            "Experiment parse backend must match the named backend argument.",
+            requested=requested, produced=produced,
+        )
+    parsed = _normalize_parser_bridge(acquisition, bridge, parsed_at=parsed_at)
+    if parsed.get("parser_backend") != requested:
+        raise LiteratureContractError(
+            "parser_identity_lie",
+            "Persisted parser_backend must match the named experiment backend.",
+            requested=requested, produced=parsed.get("parser_backend"),
+        )
+    return parsed
 
 
 def _normalize_reported_unit(unit: str) -> tuple[str, str | None]:

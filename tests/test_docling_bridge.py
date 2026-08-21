@@ -150,7 +150,39 @@ def test_paragraph_only_document_does_not_invent_a_table():
     paragraph = _paragraph(block_id="#/texts/9", page=1, text="No grid here.")
     bridge = _bridge([paragraph])
     assert bridge["tables"] == []
+    assert bridge["figures"] == []
     assert [row["label"] for row in bridge["items"]] == ["paragraph"]
+
+
+def test_empty_picture_item_becomes_figure_kind_not_other():
+    picture = SimpleNamespace(
+        label="picture",
+        self_ref="#/pictures/0",
+        id="#/pictures/0",
+        page=6,
+        bbox=None,
+        confidence=1.0,
+        captions=[],
+        footnotes=[],
+        caption_ref=None,
+        text="",
+        orig="",
+        data=None,
+    )
+    bridge = _bridge([picture])
+    assert len(bridge["figures"]) == 1
+    assert bridge["figures"][0]["id"] == "#/pictures/0"
+    assert bridge["figures"][0]["page"] == 6
+    assert [row["label"] for row in bridge["items"]] == ["figure"]
+    assert bridge["items"][0]["text"] == "[FIGURE #/pictures/0 page=6]"
+    parsed = research.parse_document_structure(
+        _acquire(), parser_payload=bridge, parsed_at="2026-08-20T00:00:00+00:00",
+    )
+    kinds = [block["kind"] for block in parsed["blocks"]]
+    assert kinds == ["figure"]
+    assert "other" not in kinds
+    assert parsed["parser_backend"] == "docling"
+    assert parsed["fallback_reason"] is None
 
 
 def test_normalize_keeps_table_kind_not_other():

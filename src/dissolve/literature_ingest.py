@@ -218,6 +218,12 @@ def _pypdf_bridge(path: Path, fallback_reason: str) -> dict[str, Any]:
 
 
 def _parse(acquisition: Mapping[str, Any]) -> dict[str, Any]:
+    """Production cascade: Docling, then DeepDoc, then pypdf.
+
+    The one-paper experiment must not call this. It uses
+    ``research.parse_experiment_document(backend=...)``, which raises instead
+    of falling through.
+    """
     from . import research
     source = Path(str(research._source_artifact(acquisition)["packed_path"]))
     if source.suffix.casefold() in {".xml", ".txt", ".md"}:
