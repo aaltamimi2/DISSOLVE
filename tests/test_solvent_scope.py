@@ -159,6 +159,125 @@ def test_session_default_and_clear(tmp_path, monkeypatch):
     assert "handle_command" not in inspect.getsource(app.ask)
 
 
+def test_bare_solvents_non_tty_prints_status(tmp_path, monkeypatch):
+    import io
+    from rich.console import Console
+
+    monkeypatch.setenv("META_MUSE_API_KEY", "test-key")
+    monkeypatch.setattr("sys.stdin.isatty", lambda: False)
+    monkeypatch.setattr("sys.stdout.isatty", lambda: True)
+    buf = io.StringIO()
+    app = CliApp(
+        session_id="solvents-status",
+        store_root=tmp_path,
+        console=Console(file=buf, force_terminal=True, width=80, color_system=None),
+    )
+    assert app.handle_command("/solvents") is False
+    assert "solvent_scope" not in app.session
+    assert "solvent_scope=all" in buf.getvalue()
+
+
+def test_bare_solvents_dumb_term_prints_status(tmp_path, monkeypatch):
+    import io
+    from rich.console import Console
+
+    monkeypatch.setenv("META_MUSE_API_KEY", "test-key")
+    monkeypatch.setenv("TERM", "dumb")
+    monkeypatch.setattr("sys.stdin.isatty", lambda: True)
+    monkeypatch.setattr("sys.stdout.isatty", lambda: True)
+
+    def boom(*_a, **_k):
+        raise AssertionError("TUI must not open on a dumb terminal")
+
+    monkeypatch.setattr("dissolve.cli._run_arrow_picker", boom)
+    buf = io.StringIO()
+    app = CliApp(
+        session_id="solvents-dumb",
+        store_root=tmp_path,
+        console=Console(file=buf),
+    )
+    assert app.handle_command("/solvents") is False
+    assert "solvent_scope" not in app.session
+    assert "solvent_scope=all" in buf.getvalue()
+
+
+def test_bare_solvents_stdout_pipe_prints_status(tmp_path, monkeypatch):
+    import io
+    from rich.console import Console
+
+    monkeypatch.setenv("META_MUSE_API_KEY", "test-key")
+    monkeypatch.setattr("sys.stdin.isatty", lambda: True)
+    monkeypatch.setattr("sys.stdout.isatty", lambda: False)
+    buf = io.StringIO()
+    app = CliApp(
+        session_id="solvents-stdout",
+        store_root=tmp_path,
+        console=Console(file=buf),
+    )
+    assert app.handle_command("/solvents") is False
+    assert "solvent_scope" not in app.session
+
+
+def test_bare_solvents_picker_sets_common(tmp_path, monkeypatch):
+    import io
+    from rich.console import Console
+    from dissolve.cli import _solvents_picker_options
+
+    monkeypatch.setenv("META_MUSE_API_KEY", "test-key")
+    options, selected = _solvents_picker_options("all")
+    assert selected == 1
+    labels = " ".join(label for _value, label in options)
+    assert "69" in labels
+    assert "990" in labels
+    assert "786" not in labels
+    assert "(current)" in options[1][1]
+
+    buf = io.StringIO()
+    app = CliApp(
+        session_id="solvents-pick",
+        store_root=tmp_path,
+        console=Console(file=buf, force_terminal=True, width=80, color_system=None),
+    )
+    app._handle_solvents_command(
+        [], picker_fn=lambda **_k: "common",
+    )
+    assert app.session.get("solvent_scope") == {"scope": "common"}
+    app._handle_solvents_command([], picker_fn=lambda **_k: None)
+    assert app.session.get("solvent_scope") == {"scope": "common"}
+
+
+def test_bare_solvents_picker_rejects_unknown(tmp_path, monkeypatch):
+    import io
+    from rich.console import Console
+
+    monkeypatch.setenv("META_MUSE_API_KEY", "test-key")
+    app = CliApp(
+        session_id="solvents-bad",
+        store_root=tmp_path,
+        console=Console(file=io.StringIO()),
+    )
+    app._handle_solvents_command([], picker_fn=lambda **_k: "nope")
+    assert "solvent_scope" not in app.session
+
+
+def test_bare_solvents_quiet_never_prompts(tmp_path, monkeypatch):
+    import io
+    from rich.console import Console
+
+    monkeypatch.setenv("META_MUSE_API_KEY", "test-key")
+    monkeypatch.setattr("sys.stdin.isatty", lambda: True)
+    monkeypatch.setattr("sys.stdout.isatty", lambda: True)
+    buf = io.StringIO()
+    app = CliApp(
+        session_id="solvents-quiet",
+        store_root=tmp_path,
+        console=Console(file=buf),
+        quiet=True,
+    )
+    app._handle_solvents_command([], picker_fn=None)
+    assert "solvent_scope" not in app.session
+
+
 def test_query_overrides_session():
     session = new_session()
     session["solvent_scope"] = {"scope": "common"}
