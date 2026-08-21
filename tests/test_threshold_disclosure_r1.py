@@ -1,6 +1,7 @@
-"""R1: default 1/10/1 is served and labelled unsourced.
+"""R1 plus fa34f42 leftover: precip 1 wt% is paper; 1/10 stay unsourced.
 
-Does not invent a citation. Zhou provenance is not the threshold basis.
+Does not invent a 10 wt% citation. Zhou workbook provenance is still
+not the swelling or dissolution threshold basis.
 """
 from __future__ import annotations
 
@@ -44,15 +45,23 @@ def test_r1_default_leaching_serves_unsourced_1_10_1():
     )
 
 
-def test_r1_strap_and_compare_serve_precipitation_1_as_unsourced():
+def test_r1_strap_serves_precipitation_as_paper_and_1_10_as_unsourced():
     served = _measure().served_defaults()
     strap = served["strap"]
     compare = served["compare"]
+    leach = served["leaching"]
     assert strap["precipitation_threshold_wt_pct"] == 1.0
+    assert strap["threshold_sources"]["precipitation_threshold_wt_pct"] == "paper"
+    assert strap["threshold_citations"]["precipitation_threshold_wt_pct"] == (
+        "zhou_green_chem_2026"
+    )
     assert strap["threshold_citation_status"] == "unsourced"
     assert strap["warning_names_unsourced"] is True
+    assert strap["warning_names_paper_precipitation"] is True
+    assert leach["warning_names_paper_precipitation"] is False
     assert compare["dissolution_min_wt_pct"] == 10.0
     assert compare["precipitation_threshold_wt_pct"] == 1.0
+    assert compare["threshold_sources"]["precipitation_threshold_wt_pct"] == "paper"
     assert compare["threshold_citation_status"] == "unsourced"
     assert served["nested_compare_leaching_status"] == "unsourced"
 

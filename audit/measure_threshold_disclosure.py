@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Reproduce R1: served contaminant answers name unsourced 1/10/1.
+"""Reproduce R1 plus the fa34f42 leftover: precip 1 wt% is paper-sourced.
 
-Taken from the A7 residual list (first named leftover). Not a P-item.
-Does not invent a citation. No tea._config_key. No BioSTEAM.
+1/10 swelling-dissolution stay unsourced. Does not invent a 10 wt%
+citation. No tea._config_key. No BioSTEAM.
 """
 from __future__ import annotations
 
@@ -46,12 +46,17 @@ def _threshold_view(payload: dict[str, Any]) -> dict[str, Any]:
         "precipitation_threshold_wt_pct": payload.get("precipitation_threshold_wt_pct"),
         "threshold_basis": payload.get("threshold_basis"),
         "threshold_sources": payload.get("threshold_sources"),
+        "threshold_citations": payload.get("threshold_citations"),
         "threshold_citation_status": payload.get("threshold_citation_status"),
         "provenance_source_dataset": (payload.get("provenance") or {}).get(
             "source_dataset"
         ),
         "warning_names_unsourced": any(
             "no regulatory or literature citation" in str(item)
+            for item in (payload.get("warnings") or [])
+        ),
+        "warning_names_paper_precipitation": any(
+            "Green Chem. 2026, 28, 9061" in str(item)
             for item in (payload.get("warnings") or [])
         ),
     }
@@ -75,9 +80,9 @@ def served_defaults() -> dict[str, Any]:
     ))
     return {
         "why": (
-            "A7 residual: unsourced contaminant 1/10/1. "
-            "Leaching hid those numbers behind Zhou provenance. "
-            "This slice serves the numbers and labels them unsourced."
+            "fa34f42 residual: precipitation 1 wt% is Zhou Green Chem. "
+            "2026, 28, 9061. 1/10 swelling-dissolution stay unsourced. "
+            "Do not invent a 10 wt% citation."
         ),
         "leaching": _threshold_view(leaching),
         "strap": _threshold_view(strap),
@@ -100,7 +105,10 @@ def build_document() -> dict[str, Any]:
         "spec": "UNAUDITED_SURFACE_SPEC.v2",
         "spec_sha256": spec_sha,
         "checkpoint": "R1",
-        "residual_taken": "unsourced contaminant 1/10/1 on the served answer",
+        "residual_taken": (
+            "precipitation 1 wt% paper-sourced on the served answer; "
+            "1/10 stay unsourced"
+        ),
         "measured_on_builder_sha": head,
         "measured_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "command": "python3 audit/measure_threshold_disclosure.py",
