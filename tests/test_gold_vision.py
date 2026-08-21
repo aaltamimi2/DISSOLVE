@@ -46,6 +46,30 @@ def test_normalize_null_is_channel_error():
     assert caught.value.code == "vision_null_reading"
 
 
+def test_one_json_retry_is_recorded():
+    calls = {"n": 0}
+
+    def runner(**kwargs):
+        calls["n"] += 1
+        if calls["n"] == 1:
+            return "{not-json}"
+        return json.dumps({"tables": []})
+
+    out = gold_vision.channel_c(image_dir=Path("/tmp"), pages=[1], runner=runner)
+    assert calls["n"] == 2
+    assert out["retried_json_fail"] == "vision_json_invalid"
+    assert out["reading"]["tables"] == []
+
+
+def test_second_json_fail_is_not_absorbed():
+    def runner(**kwargs):
+        return "{not-json}"
+
+    with pytest.raises(gold_ensemble.GoldEnsembleError) as caught:
+        gold_vision.channel_c(image_dir=Path("/tmp"), pages=[1], runner=runner)
+    assert caught.value.code == "vision_json_invalid"
+
+
 def test_labeled_columns_recover_needles_from_cells():
     raw = {"tables": [{"columns": ["polymer", "solvent", "temperature", "value"],
                        "rows": [{"polymer": "", "solvent": "", "temperature": "",

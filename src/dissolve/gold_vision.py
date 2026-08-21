@@ -30,6 +30,11 @@ CHANNEL_C_PRIME_MODEL = "cursor-grok-4.6-high"
 CHANNEL_C_PRIME_CLI = ("/home/aaltamimi2/.local/bin/agent",)
 
 _JSON_FENCE = re.compile(r"```(?:json)?\s*(\{.*\})\s*```", re.DOTALL)
+_JSON_RETRY_CODES = frozenset({
+    "vision_json_invalid",
+    "vision_json_missing",
+    "vision_null_reading",
+})
 _NEEDLE_KEYS = ("polymer", "solvent", "temperature", "value")
 _FIG4 = re.compile(r"\bFig(?:ure)?\.?\s*4\b", re.IGNORECASE)
 
@@ -177,6 +182,48 @@ def _run_named_model(
     return completed.stdout
 
 
+def _read_named_channel(
+    *,
+    channel: str,
+    image_dir: Path,
+    pages: list[int],
+    model: str,
+    runner: Callable[..., str] | None,
+    timeout: int,
+) -> dict[str, Any]:
+    """One JSON-parse retry. The fe9931cb first call was not an artifact."""
+    prompt = _extract_prompt(pages)
+    command = _agent_command(model)
+    call = runner or _run_named_model
+    first_fail = None
+    raw = ""
+    payload: dict[str, Any] | None = None
+    for attempt in (1, 2):
+        raw = call(
+            command=command, cwd=Path(image_dir), prompt=prompt, timeout=timeout,
+        )
+        try:
+            payload = parse_json_object(raw)
+            break
+        except GoldEnsembleError as error:
+            if error.code not in _JSON_RETRY_CODES or attempt == 2:
+                raise
+            first_fail = error.code
+    reading = normalize_vision_reading(payload)
+    out = {
+        "channel": channel,
+        "read_by": model,
+        "pages": list(pages),
+        "reading": reading,
+        "reading_raw": payload,
+        "dropped_incomplete_rows": reading.get("dropped_incomplete_rows"),
+        "raw_chars": len(raw),
+    }
+    if first_fail:
+        out["retried_json_fail"] = first_fail
+    return out
+
+
 def channel_c(
     *,
     image_dir: Path,
@@ -193,20 +240,14 @@ def channel_c(
             "The assembler must not load a page image into the v3 session.",
         )
     require_vision_spend()
-    prompt = _extract_prompt(pages)
-    command = _agent_command(model)
-    raw = (runner or _run_named_model)(command=command, cwd=Path(image_dir), prompt=prompt, timeout=timeout)
-    payload = parse_json_object(raw)
-    reading = normalize_vision_reading(payload)
-    return {
-        "channel": "C",
-        "read_by": model,
-        "pages": list(pages),
-        "reading": reading,
-        "reading_raw": payload,
-        "dropped_incomplete_rows": reading.get("dropped_incomplete_rows"),
-        "raw_chars": len(raw),
-    }
+    return _read_named_channel(
+        channel="C",
+        image_dir=image_dir,
+        pages=pages,
+        model=model,
+        runner=runner,
+        timeout=timeout,
+    )
 
 
 def channel_c_prime(
@@ -226,20 +267,14 @@ def channel_c_prime(
         )
     require_vision_spend()
     assert_distinct_vision_models(CHANNEL_C_MODEL, model)
-    prompt = _extract_prompt(pages)
-    command = _agent_command(model)
-    raw = (runner or _run_named_model)(command=command, cwd=Path(image_dir), prompt=prompt, timeout=timeout)
-    payload = parse_json_object(raw)
-    reading = normalize_vision_reading(payload)
-    return {
-        "channel": "C_prime",
-        "read_by": model,
-        "pages": list(pages),
-        "reading": reading,
-        "reading_raw": payload,
-        "dropped_incomplete_rows": reading.get("dropped_incomplete_rows"),
-        "raw_chars": len(raw),
-    }
+    return _read_named_channel(
+        channel="C_prime",
+        image_dir=image_dir,
+        pages=pages,
+        model=model,
+        runner=runner,
+        timeout=timeout,
+    )
 
 
 def _norm(value: Any) -> str:
@@ -695,11 +730,14 @@ def apply_vision(
         render_pages(staged_pdf, table_pages, image_dir)
         started = time.time()
         c_result = run_c(image_dir=image_dir, pages=table_pages)
-        spend.append({
+        row = {
             "channel": "C", "model": c_result["read_by"],
             "paper_sha256": paper["sha256"], "pages": table_pages,
             "role": "table_cell", "wall_s": round(time.time() - started, 3),
-        })
+        }
+        if c_result.get("retried_json_fail"):
+            row["retried_json_fail"] = c_result["retried_json_fail"]
+        spend.append(row)
         out["channel_c_tables"] = {
             "read_by": c_result.get("read_by"),
             "pages": table_pages,
@@ -720,18 +758,24 @@ def apply_vision(
         render_pages(staged_pdf, fig_pages, image_dir)
         started = time.time()
         c_result = run_c(image_dir=image_dir, pages=fig_pages)
-        spend.append({
+        c_spend = {
             "channel": "C", "model": c_result["read_by"],
             "paper_sha256": paper["sha256"], "pages": fig_pages,
             "role": "figure_embedded", "wall_s": round(time.time() - started, 3),
-        })
+        }
+        if c_result.get("retried_json_fail"):
+            c_spend["retried_json_fail"] = c_result["retried_json_fail"]
+        spend.append(c_spend)
         started = time.time()
         cp_result = run_c_prime(image_dir=image_dir, pages=fig_pages)
-        spend.append({
+        cp_spend = {
             "channel": "C_prime", "model": cp_result["read_by"],
             "paper_sha256": paper["sha256"], "pages": fig_pages,
             "role": "figure_embedded", "wall_s": round(time.time() - started, 3),
-        })
+        }
+        if cp_result.get("retried_json_fail"):
+            cp_spend["retried_json_fail"] = cp_result["retried_json_fail"]
+        spend.append(cp_spend)
         out["channel_c_figures"] = {
             "read_by": c_result.get("read_by"),
             "pages": fig_pages,
