@@ -1916,14 +1916,31 @@ def _locus_table_spans(canonical: Mapping[str, Any]) -> dict[str, tuple[int, int
     return labels
 
 
-def _bm25_top5(query: str, chunks: Sequence[Mapping[str, Any]]) -> list[Mapping[str, Any]]:
-    rows = [{"text": str(chunk.get("body") or "")} for chunk in chunks]
+def chunk_sparse_corpus(chunk: Mapping[str, Any]) -> str:
+    """C7c: rank on rebound when present. Official body-only scores do not use this."""
+    rebound = str(chunk.get("body_plus_rebound") or "").strip()
+    if rebound:
+        return rebound
+    return _chunk_body_text(chunk)
+
+
+def _bm25_top5_on(
+    query: str,
+    chunks: Sequence[Mapping[str, Any]],
+    corpus_of,
+) -> list[Mapping[str, Any]]:
+    rows = [{"text": str(corpus_of(chunk) or "")} for chunk in chunks]
     scores = _bm25(_tokens(query), rows)
     ranked = sorted(
         zip(scores, range(len(chunks)), chunks),
         key=lambda item: (-item[0], item[1]),
     )
     return [chunk for _, _, chunk in ranked[:5]]
+
+
+def _bm25_top5(query: str, chunks: Sequence[Mapping[str, Any]]) -> list[Mapping[str, Any]]:
+    """Official v2 §7 ranking: chunk body only."""
+    return _bm25_top5_on(query, chunks, _chunk_body_text)
 
 
 def score_chunks_against_facts(
@@ -1991,10 +2008,17 @@ def score_chunks_against_facts(
             )
         query = str(fact.get("query") or "")
         top5 = _bm25_top5(query, chunks) if query else []
+        top5_rebound = (
+            _bm25_top5_on(
+                query, chunks,
+                lambda chunk: _chunk_rebound_corpus(chunk, canonical, tables_by_span),
+            )
+            if query else []
+        )
         retrievable = any(_body_has_all_needles(_chunk_body_text(chunk), needles) for chunk in top5)
         retrievable_rebound = any(
             _body_has_all_needles(_chunk_rebound_corpus(chunk, canonical, tables_by_span), needles)
-            for chunk in top5
+            for chunk in top5_rebound
         )
         if parse_gated and retrievable and page6:
             retrievable = any(
@@ -2014,7 +2038,7 @@ def score_chunks_against_facts(
                     _intersects(int(chunk["char_start"]), int(chunk["char_end"]), span[0], span[1])
                     for span in page6
                 )
-                for chunk in top5
+                for chunk in top5_rebound
             )
         severed = False
         severed_ctx = False
@@ -4252,7 +4276,7 @@ def _cosine(left: list[float], right: list[float]) -> float:
 def _search_index(index: dict[str, Any], query: str, top_k: int, mode: str) -> list[dict[str, Any]]:
     chunks = list(index.get("chunks") or [])
     query_tokens = _tokens(query)
-    sparse_raw = _bm25(query_tokens, chunks)
+    sparse_raw = _bm25(query_tokens, [{"text": chunk_sparse_corpus(chunk)} for chunk in chunks])
     sparse_max = max(sparse_raw, default=0.0)
     sparse = [value / sparse_max if sparse_max else 0.0 for value in sparse_raw]
     dense_scores = [0.0] * len(chunks)

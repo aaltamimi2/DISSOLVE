@@ -19,10 +19,16 @@ GOLD = Path("/home/aaltamimi2/dissolve-v12-audit/one_paper_experiment/gold_facts
 PERSIST = Path(
     "/home/aaltamimi2/dissolve-v12-audit/one_paper_experiment/parses/canonical_document.v1.json"
 )
+PYPDF = Path(
+    "/home/aaltamimi2/dissolve-v12-audit/one_paper_experiment/parses/pypdf_parsed_document.v1.json"
+)
+C6 = Path(
+    "/home/aaltamimi2/dissolve-v12-audit/one_paper_experiment/measurements/c6_one_paper_sweep.json"
+)
 
-TOKEN_V = "TOKEN_V"
-TOKEN_BASIS = "TOKEN_BASIS"
-TOKEN_NOTE = "TOKEN_NOTE"
+TOKEN_V = "CELLVALUE"
+TOKEN_BASIS = "BASISLINE"
+TOKEN_NOTE = "FOOTNOTEZXQ"
 
 
 def _block(block_id, kind, text, start, end, heading=None, caption_ref=None):
@@ -221,3 +227,94 @@ def test_probe_table2_footnotes_rebound_not_spliced_into_span():
     assert "Solvent retention" in hit["body_plus_rebound"]
     assert "residue" in hit["body_plus_rebound"].casefold()
     assert "1 g for each polymer" in hit["body_plus_rebound"]
+
+
+def _table_in_top(top, table) -> bool:
+    return any(
+        chunk.get("char_start") == table["char_start"]
+        and chunk.get("char_end") == table["char_end"]
+        for chunk in top
+    )
+
+
+def _table_sparse_score(query, chunks, corpus_of, table) -> float:
+    rows = [{"text": corpus_of(chunk)} for chunk in chunks]
+    scores = research._bm25(research._tokens(query), rows)
+    for score, chunk in zip(scores, chunks):
+        if chunk.get("char_start") == table["char_start"] and chunk.get("char_end") == table["char_end"]:
+            return float(score)
+    return 0.0
+
+
+def test_c7c_token_note_query_returns_atomic_table():
+    canonical = _fixture()
+    rebound = research.apply_table_rebound(research.chunk_s2_block_pack(canonical), canonical)
+    table = canonical["tables"][0]
+    assert research.table_atomic_fraction(rebound, canonical) == 1.0
+    assert _table_sparse_score(TOKEN_NOTE, rebound, research.chunk_sparse_corpus, table) > 0
+    top = research._bm25_top5_on(TOKEN_NOTE, rebound, research.chunk_sparse_corpus)
+    assert _table_in_top(top, table)
+
+
+def test_c7c_1c_body_rank_misses_atomic_table(monkeypatch):
+    monkeypatch.setattr(research, "chunk_sparse_corpus", research._chunk_body_text)
+    canonical = _fixture()
+    rebound = research.apply_table_rebound(research.chunk_s2_block_pack(canonical), canonical)
+    table = canonical["tables"][0]
+    assert _table_sparse_score(TOKEN_NOTE, rebound, research.chunk_sparse_corpus, table) == 0
+    assert _table_sparse_score(TOKEN_NOTE, rebound, research._chunk_body_text, table) == 0
+
+
+def test_c7c_search_index_ranks_rebound(monkeypatch, tmp_path):
+    def boom(*_args, **_kwargs):
+        raise AssertionError("C7c must not load MiniLM or call Docling")
+
+    monkeypatch.setattr(research, "_dense_vectors", boom)
+    monkeypatch.setattr(research, "_run_docling", boom)
+    monkeypatch.setenv("DISSOLVE_RESEARCH_HOME", str(tmp_path))
+    canonical = _fixture()
+    path = tmp_path / "canonical_document.v1.json"
+    path.write_text(json.dumps(canonical), encoding="utf-8")
+    research._ingest_inputs([str(path)], [], "c7c-rank", True, 4, False)
+    index = research._load_index("c7c-rank")
+    table = canonical["tables"][0]
+    rows = research._search_index(index, TOKEN_NOTE, 5, "sparse")
+    assert any(
+        row.get("page") == 5 and TOKEN_V in str(row.get("excerpt") or "")
+        for row in rows
+    )
+    stored = [
+        chunk for chunk in index["chunks"]
+        if chunk.get("char_start") == table["char_start"]
+        and chunk.get("char_end") == table["char_end"]
+    ]
+    assert stored
+    assert stored[0]["text"] == canonical["canonical_text"][table["char_start"]:table["char_end"]]
+
+
+def test_c7c_1c_search_index_body_rank_drops_table(monkeypatch, tmp_path):
+    monkeypatch.setattr(research, "chunk_sparse_corpus", research._chunk_body_text)
+    monkeypatch.setenv("DISSOLVE_RESEARCH_HOME", str(tmp_path))
+    canonical = _fixture()
+    path = tmp_path / "canonical_document.v1.json"
+    path.write_text(json.dumps(canonical), encoding="utf-8")
+    research._ingest_inputs([str(path)], [], "c7c-rank-1c", True, 4, False)
+    index = research._load_index("c7c-rank-1c")
+    rows = research._search_index(index, TOKEN_NOTE, 5, "sparse")
+    assert not any(TOKEN_V in str(row.get("excerpt") or "") for row in rows)
+
+
+@pytest.mark.skipif(not (PERSIST.is_file() and C6.is_file() and PYPDF.is_file()), reason="probe persist missing")
+def test_c7c_official_s2_still_matches_c6_persist():
+    canonical = json.loads(PERSIST.read_text(encoding="utf-8"))
+    pages = research.pypdf_page_texts_from_persist(json.loads(PYPDF.read_text(encoding="utf-8")))
+    record = research.sweep_one_paper_chunking(canonical, pages, GOLD)
+    baseline = json.loads(C6.read_text(encoding="utf-8"))
+    for name in research._C6_STRATEGY_IDS:
+        got = record["strategies"][name]
+        old = baseline["strategies"][name]
+        assert got["n_contain_bound_fact"] == old["n_contain_bound_fact"]
+        assert got["n_retrievable"] == old["n_retrievable"]
+    s2 = record["strategies"]["S2_block_pack"]
+    assert s2["n_contain_bound_fact_rebound"] == 10
+    assert s2["n_retrievable"] == baseline["strategies"]["S2_block_pack"]["n_retrievable"]
