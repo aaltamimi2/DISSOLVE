@@ -25,8 +25,8 @@ from .gold_ensemble import (
 VISION_SPEND_PATH = Path(
     "/home/aaltamimi2/dissolve-v12-audit/VISION_SPEND_AUTHORIZATION.v1.md"
 )
-CHANNEL_C_MODEL = "claude-opus-5-thinking-high"
-CHANNEL_C_PRIME_MODEL = "cursor-grok-4.6-high"
+CHANNEL_C_MODEL = "claude-opus-5-thinking-max"
+CHANNEL_C_PRIME_MODEL = "cursor-grok-4.6-xhigh"
 CHANNEL_C_PRIME_CLI = ("/home/aaltamimi2/.local/bin/agent",)
 
 _JSON_FENCE = re.compile(r"```(?:json)?\s*(\{.*\})\s*```", re.DOTALL)
@@ -233,7 +233,7 @@ def channel_c(
     timeout: int = 600,
     **kwargs: Any,
 ) -> dict[str, Any]:
-    """Opus 5 thinking-high via the named Claude CLI. Not a v3 visual look."""
+    """Opus 5 max reasoning via the named Claude CLI. Not a v3 visual look."""
     if "page_image" in kwargs:
         raise GoldEnsembleError(
             "vision_not_authorized",
@@ -259,7 +259,7 @@ def channel_c_prime(
     timeout: int = 600,
     **kwargs: Any,
 ) -> dict[str, Any]:
-    """Cursor Grok 4.6 high via the named agent CLI. Not this v3 session."""
+    """Cursor Grok 4.6 extra-high via the named agent CLI. Not this v3 session."""
     if "page_image" in kwargs:
         raise GoldEnsembleError(
             "vision_not_authorized",
