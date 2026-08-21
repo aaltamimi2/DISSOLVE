@@ -19,7 +19,7 @@ _SCHEMA = "dissolve.literature-graph-ingest.v1"
 _MODEL_ID = "openai:muse-spark-1.2"
 _MODEL_LABEL = "muse-spark-1.2"
 _JATS_XML_SUFFIXES = frozenset({".xml", ".nxml", ".xhtml"})
-_JATS_TEXT_SUFFIXES = frozenset({".txt", ".md", ".html"})
+_JATS_TEXT_SUFFIXES = frozenset({".txt", ".md", ".html", ".htm"})
 _PRODUCTION_JATS_SUFFIXES = _JATS_XML_SUFFIXES | _JATS_TEXT_SUFFIXES
 _BASE_URL = "https://api.meta.ai/v1"
 _PROMPT_VERSION = "typed-literature-extraction-v2"
@@ -69,6 +69,7 @@ def _local_acquisition(path: Path, library_id: str) -> dict[str, Any]:
         ".pdf": "application/pdf", ".xml": "application/xml", ".nxml": "application/xml",
         ".xhtml": "application/xhtml+xml",
         ".txt": "text/plain", ".md": "text/markdown", ".html": "text/html",
+        ".htm": "text/html",
     }.get(suffix) or mimetypes.guess_type(source.name)[0] or "application/octet-stream"
     title = source.stem.replace("_", " ").replace("-", " ").strip()
     if suffix in _JATS_XML_SUFFIXES:
@@ -224,8 +225,9 @@ def _pypdf_bridge(path: Path, fallback_reason: str) -> dict[str, Any]:
 def _parse(acquisition: Mapping[str, Any]) -> dict[str, Any]:
     """Production parse. Docling failure raises; DeepDoc and pypdf are not a fallback.
 
-    ``.xml`` / ``.nxml`` / ``.xhtml`` / ``.txt`` / ``.md`` / ``.html`` still
-    stamp via ``_jats_bridge``, then hit the same non-Docling refuse. The one-paper
+    ``.xml`` / ``.nxml`` / ``.xhtml`` / ``.txt`` / ``.md`` / ``.html`` /
+    ``.htm`` still stamp via ``_jats_bridge``, then hit the same non-Docling
+    refuse. The one-paper
     experiment must not call this. It uses
     ``research.parse_experiment_document(backend=...)``.
     """

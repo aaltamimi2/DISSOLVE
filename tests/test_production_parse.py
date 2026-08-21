@@ -240,6 +240,19 @@ def test_production_parse_refuses_xml_jats_suffix_and_does_not_call_fallbacks(mo
     assert calls == {"docling": 0, "pypdf": 0, "deepdoc": 0}
 
 
+def test_production_parse_refuses_htm_as_local_text_not_docling(monkeypatch, tmp_path):
+    """11efc46 residual: .htm must stamp local_text, not fall through to Docling or jats."""
+    htm = tmp_path / "probe.htm"
+    htm.write_text("<p>htm body text for the identity check</p>\n", encoding="utf-8")
+    calls = _suffix_fallback_spies(monkeypatch)
+
+    with pytest.raises(research.LiteratureContractError) as caught:
+        literature_ingest._parse(_acquire(htm))
+    assert caught.value.code == "parser_identity_lie"
+    assert caught.value.details.get("parser_backend") == "local_text"
+    assert calls == {"docling": 0, "pypdf": 0, "deepdoc": 0}
+
+
 def test_production_parse_refuses_html_as_local_text_not_docling(monkeypatch, tmp_path):
     """a5a43c0 residual: .html must stamp local_text, not fall through to Docling or jats."""
     html = tmp_path / "probe.html"
