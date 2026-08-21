@@ -335,6 +335,8 @@ def test_empty_cprime_does_not_drop_c_rows():
     assert len(disputed) == 1
     assert disputed[0]["readings"]["C"]["value"] == TOKEN_V
     assert disputed[0]["readings"]["C_prime"] is None
+    assert disputed[0]["channels_used"] == ["C"]
+    assert list(disputed[0]["read_by"]) == ["C"]
     assert research.official_contain_bound_fact_eligible(disputed[0]) is False
 
 
@@ -357,6 +359,8 @@ def test_empty_c_does_not_drop_cprime_rows():
     assert len(disputed) == 1
     assert disputed[0]["readings"]["C"] is None
     assert disputed[0]["readings"]["C_prime"]["value"] == TOKEN_V
+    assert disputed[0]["channels_used"] == ["C_prime"]
+    assert list(disputed[0]["read_by"]) == ["C_prime"]
 
 
 def test_apply_vision_uses_mocks_not_cli(tmp_path, monkeypatch):

@@ -525,8 +525,23 @@ def bind_figure_facts(
     used_p: set[int] = set()
     paper_sha = str(paper["sha256"])
 
+    def _channel_labels(
+        row_c: Mapping[str, Any] | None,
+        row_p: Mapping[str, Any] | None,
+    ) -> tuple[list[str], dict[str, str]]:
+        used: list[str] = []
+        read_by: dict[str, str] = {}
+        if row_c is not None:
+            used.append("C")
+            read_by["C"] = model_c
+        if row_p is not None:
+            used.append("C_prime")
+            read_by["C_prime"] = model_p
+        return used, read_by
+
     def _dispute(row_c: Mapping[str, Any] | None, row_p: Mapping[str, Any] | None) -> dict[str, Any]:
         source = row_c or row_p or {}
+        used, read_by = _channel_labels(row_c, row_p)
         return {
             "fact_id": f"fig-{paper_sha[:12]}-{len(disputed):04d}",
             "paper_sha256": paper_sha,
@@ -537,8 +552,8 @@ def bind_figure_facts(
             "locus": str(source.get("locus") or "Fig. 4"),
             "page": source.get("page"),
             "needles": {},
-            "channels_used": ["C", "C_prime"],
-            "read_by": {"C": model_c, "C_prime": model_p},
+            "channels_used": used,
+            "read_by": read_by,
             "readings": {"A": None, "B": None, "C": row_c, "C_prime": row_p},
             "confidence": "disputed",
             "status": "disputed",
@@ -579,23 +594,7 @@ def bind_figure_facts(
                 break
             if leftover_idx is not None:
                 used_p.add(leftover_idx)
-            disputed.append({
-                "fact_id": f"fig-{paper_sha[:12]}-{len(disputed):04d}",
-                "paper_sha256": paper_sha,
-                "paper_status": paper.get("status"),
-                "genre": paper.get("genre"),
-                "kind": "table_cell",
-                "scoring_class": "bound_fact",
-                "locus": locus,
-                "page": row_c.get("page"),
-                "needles": {},
-                "channels_used": ["C", "C_prime"],
-                "read_by": {"C": model_c, "C_prime": model_p},
-                "readings": {"A": None, "B": None, "C": row_c, "C_prime": leftover_p},
-                "confidence": "disputed",
-                "status": "disputed",
-                "sealed": False,
-            })
+            disputed.append(_dispute(row_c, leftover_p))
             continue
         used_p.add(found_idx)
         row_p, needles = found
@@ -642,23 +641,7 @@ def bind_figure_facts(
     for index, row_p in enumerate(rows_p):
         if index in used_p:
             continue
-        disputed.append({
-            "fact_id": f"fig-{paper_sha[:12]}-{len(disputed):04d}",
-            "paper_sha256": paper_sha,
-            "paper_status": paper.get("status"),
-            "genre": paper.get("genre"),
-            "kind": "table_cell",
-            "scoring_class": "bound_fact",
-            "locus": str(row_p.get("locus") or "Fig. 4"),
-            "page": row_p.get("page"),
-            "needles": {},
-            "channels_used": ["C", "C_prime"],
-            "read_by": {"C": model_c, "C_prime": model_p},
-            "readings": {"A": None, "B": None, "C": None, "C_prime": row_p},
-            "confidence": "disputed",
-            "status": "disputed",
-            "sealed": False,
-        })
+        disputed.append(_dispute(None, row_p))
     return agreed, disputed
 
 
