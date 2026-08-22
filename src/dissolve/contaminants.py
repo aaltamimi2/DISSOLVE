@@ -14,7 +14,7 @@ from typing import Any, Optional, Sequence
 import duckdb
 
 from . import session, thermodynamics as thermo
-from .contracts import tool_error, tool_success
+from .contracts import parse_tool_result, tool_error, tool_success
 from .tools import _polymer_ambiguity_error
 
 _ASSET = Path(str(files("dissolve").joinpath("data/contaminants.duckdb")))
@@ -1243,3 +1243,66 @@ def compare_contaminant_removal_modes(
         ),
         warnings=list(dict.fromkeys(leaching["warnings"] + strap["warnings"])),
     )
+
+
+def feed_state_at_step(
+    *,
+    feed_order: Sequence[str],
+    remaining: Sequence[str],
+    contaminants: Sequence[str],
+) -> dict[str, Any]:
+    """Polymers still in the solid, feed order. No residual-mass update."""
+    present = {str(item) for item in remaining}
+    return {
+        "polymers": [str(name) for name in feed_order if str(name) in present],
+        "contaminants": [str(item) for item in contaminants],
+        "inventory_model": "none",
+    }
+
+
+def others_from_feed_state(
+    feed_state: dict[str, Any],
+    target_polymer: str,
+) -> list[str]:
+    """Others are remaining solid polymers minus the named target."""
+    target = str(target_polymer)
+    polymers = [
+        str(name) for name in (feed_state or {}).get("polymers") or [] if str(name)
+    ]
+    return [name for name in polymers if name != target]
+
+
+def evaluate_contaminant_at_feed_state(
+    path: str,
+    target_polymer: str,
+    others: Sequence[str],
+    contaminants: str | Sequence[str],
+    solvents: str | Sequence[str] | None = None,
+    *,
+    temperature_max_c: Optional[float] = None,
+    strict_maximum: bool = False,
+) -> dict[str, Any]:
+    """One evaluator for leaching washes and later STRAP stamps."""
+    token = _key(path)
+    if token == "swing":
+        token = "strap"
+    kwargs: dict[str, Any] = dict(
+        target_polymer=target_polymer,
+        contaminants=contaminants,
+        other_polymers=list(others),
+        solvents=solvents,
+        max_temperature_c=temperature_max_c,
+        strict_maximum=strict_maximum,
+    )
+    if token == "leaching":
+        raw = screen_contaminant_leaching(**kwargs)
+    elif token == "strap":
+        raw = screen_contaminant_strap_removal(**kwargs)
+    else:
+        return parse_tool_result(tool_error(
+            "evaluate_contaminant_at_feed_state",
+            "path must be leaching or strap.",
+            error_code="invalid_contaminant_path",
+            requested=path,
+        ))["data"]
+    return parse_tool_result(raw)["data"]

@@ -233,12 +233,15 @@ def test_lookup_is_the_table_and_the_parser_is_gone():
     assert refuse["unsupported_contaminants"] == [
         "2-ethylhexyl", "heptafluoropropoxy",
     ]
-    assert "contaminants" not in inspect.signature(
+    assert "contaminants" in inspect.signature(
         separation.plan_multistage_separation,
     ).parameters
-    assert "contaminant_mode" not in inspect.signature(
+    assert "contaminant_mode" in inspect.signature(
         separation.plan_multistage_separation,
     ).parameters
+    planner = Path(separation.__file__).read_text()
+    assert "_stamp_strap_route" not in planner
+    assert "def plan_multistage_separation_with_contaminants" not in planner
 
 
 def test_eight_shorts_and_hfpo_catalog_rows_serve_the_basis():
