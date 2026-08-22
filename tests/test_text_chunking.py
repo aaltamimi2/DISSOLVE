@@ -80,6 +80,33 @@ def test_t0_bodies_are_canonical_slices():
         assert text_chunking.slice_ok(canon, chunk)
 
 
+def test_t0_recovers_offsets_when_production_collapses_whitespace():
+    """Auditor hold-to: None offsets must not be scored as span-preserved."""
+    raw = (
+        f"{TOKEN_A} first sentence.\n\n"
+        + ("word  " * 40)
+        + f"\nEnd {TOKEN_A}.\n\n"
+        + f"{TOKEN_B} second sentence.\n"
+        + ("item\t" * 40)
+        + f"End {TOKEN_B}."
+    )
+    canon = {"canonical_text": raw, "blocks": []}
+    chunks = text_chunking.chunk_t0(canon)
+    assert chunks
+    for chunk in chunks:
+        assert chunk["char_start"] is not None
+        assert chunk["char_end"] is not None
+        start, end = int(chunk["char_start"]), int(chunk["char_end"])
+        covering = canon["canonical_text"][start:end]
+        collapsed_cover = "".join(ch for ch in covering if not ch.isspace())
+        collapsed_body = "".join(ch for ch in chunk["body"] if not ch.isspace())
+        assert collapsed_cover == collapsed_body
+        # needle_span_preserved must see real offsets, never None-as-true
+        assert start < end
+        assert text_chunking.offsets_usable(chunk)
+    assert text_chunking.offsets_usable({"char_start": None, "char_end": None}) is False
+
+
 def test_t1_grid_and_nonoverlap():
     assert len(text_chunking.t1_grid()) == 12
     canon = _long_prose()

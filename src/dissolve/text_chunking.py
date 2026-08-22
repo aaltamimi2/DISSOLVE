@@ -82,6 +82,45 @@ def _window(text: str, *, size: int, overlap: int, strategy: str, params: Mappin
     return chunks
 
 
+def _align_collapsed(text: str, body: str, cursor: int) -> tuple[int, int] | None:
+    """Map a whitespace-collapsed production body onto ``canonical_text``.
+
+    ``_paragraph_chunks`` collapses ``\\s+`` to a single space, so ``str.find``
+    misses on real documents. Offsets are the covering span of the same
+    non-whitespace characters. ``body`` remains the production string and may
+    differ from ``text[start:end]``.
+    """
+    needle = "".join(char for char in body if not char.isspace())
+    if not needle:
+        return None
+    origin = max(0, cursor)
+    limit = len(text)
+    search = origin
+    while search < limit:
+        if text[search].isspace():
+            search += 1
+            continue
+        pos = search
+        matched = 0
+        first = None
+        last = None
+        while pos < limit and matched < len(needle):
+            if text[pos].isspace():
+                pos += 1
+                continue
+            if text[pos] != needle[matched]:
+                break
+            if first is None:
+                first = pos
+            last = pos
+            pos += 1
+            matched += 1
+        if matched == len(needle) and first is not None and last is not None:
+            return first, last + 1
+        search += 1
+    return None
+
+
 def chunk_t0(canonical: Mapping[str, Any]) -> list[dict[str, Any]]:
     """Production ``_paragraph_chunks`` 1400 / 180 on ``canonical_text``."""
     text = _text(canonical)
@@ -95,7 +134,18 @@ def chunk_t0(canonical: Mapping[str, Any]) -> list[dict[str, Any]]:
         start = text.find(body, cursor)
         if start < 0:
             start = text.find(body)
-        if start < 0:
+        if start >= 0:
+            end = start + len(body)
+            chunks.append(_make(
+                strategy="T0", index=len(chunks) + 1, text=text,
+                start=start, end=end, header=str(header or ""), params=params,
+            ))
+            cursor = end
+            continue
+        aligned = _align_collapsed(text, body, cursor)
+        if aligned is None and cursor:
+            aligned = _align_collapsed(text, body, 0)
+        if aligned is None:
             chunks.append({
                 "strategy": "T0",
                 "chunk_id": f"T0-{len(chunks) + 1:04d}",
@@ -104,13 +154,21 @@ def chunk_t0(canonical: Mapping[str, Any]) -> list[dict[str, Any]]:
                 "char_start": None,
                 "char_end": None,
                 "params": dict(params),
+                "offset_recovery": "failed",
             })
             continue
-        end = start + len(body)
-        chunks.append(_make(
-            strategy="T0", index=len(chunks) + 1, text=text,
-            start=start, end=end, header=str(header or ""), params=params,
-        ))
+        start, end = aligned
+        chunk = {
+            "strategy": "T0",
+            "chunk_id": f"T0-{len(chunks) + 1:04d}",
+            "body": body,
+            "header": str(header or ""),
+            "char_start": start,
+            "char_end": end,
+            "params": dict(params),
+            "offset_recovery": "whitespace_collapsed",
+        }
+        chunks.append(chunk)
         cursor = end
     return chunks
 
@@ -512,3 +570,14 @@ def slice_ok(canonical: Mapping[str, Any], chunk: Mapping[str, Any]) -> bool:
         return False
     text = _text(canonical)
     return text[int(start):int(end)] == chunk.get("body")
+
+
+def offsets_usable(chunk: Mapping[str, Any]) -> bool:
+    """None offsets are not a preserved span. Auditor hold-to on T0."""
+    start, end = chunk.get("char_start"), chunk.get("char_end")
+    if start is None or end is None:
+        return False
+    try:
+        return int(end) > int(start)
+    except (TypeError, ValueError):
+        return False
