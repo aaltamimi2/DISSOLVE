@@ -240,7 +240,6 @@ def test_lookup_is_the_table_and_the_parser_is_gone():
         separation.plan_multistage_separation,
     ).parameters
     planner = Path(separation.__file__).read_text()
-    assert "_stamp_strap_route" not in planner
     assert "def plan_multistage_separation_with_contaminants" not in planner
 
 

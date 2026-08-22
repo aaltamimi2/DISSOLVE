@@ -1,7 +1,7 @@
-"""v3 §8.3 / E1: leaching embed. STRAP stamp is E2 and is not this SHA.
+"""v3 §8.3–§8.4: leaching embed plus STRAP stamp on remaining-polymer others.
 
-Mode is inert when contaminants are omitted. Accept test 2 stays on the
-evaluator only. No BioSTEAM.
+Accept test 2 is DEHP / toluene / {PET,EVOH} fail vs {EVOH} pass, both rows rt.
+Do not weaken it. No BioSTEAM.
 """
 from __future__ import annotations
 
@@ -54,15 +54,37 @@ def _regimes(row: dict) -> list[str]:
     return [str(item) for item in hot + cold if item is not None]
 
 
-def test_no_parallel_planner_and_no_strap_stamp():
+def _published_routes(payload: dict) -> list[dict]:
+    routes = list(payload.get("top_k_sequences") or [])
+    if payload.get("steps") and payload not in routes:
+        routes = [payload, *routes]
+    return routes
+
+
+def _ldpe_step(payload: dict, *, others: set[str] | None = None) -> dict:
+    for route in _published_routes(payload):
+        for item in route.get("steps") or []:
+            if item.get("dissolved_polymer") != "LDPE":
+                continue
+            if others is None or set(item.get("other_polymers") or []) == others:
+                return item
+    raise AssertionError(
+        f"planner emitted no LDPE dissolution with others={others}"
+    )
+
+
+def test_no_parallel_planner():
     source = Path(separation.__file__).read_text()
     assert "def plan_multistage_separation_with_contaminants" not in source
     assert "def plan_multistage_separation(" in source
-    assert "_stamp_strap_route" not in source
-    assert "_stamp_strap_step" not in source
-    assert "strap_evaluations" not in source
     assert "_embed_leaching_route" in inspect.getsource(
         separation.plan_multistage_separation,
+    )
+    assert "_stamp_strap_route" in inspect.getsource(
+        separation.plan_multistage_separation,
+    )
+    assert "others_from_feed_state" in inspect.getsource(
+        separation._stamp_strap_route,
     )
     assert "others_from_feed_state" in inspect.getsource(
         separation._embed_leaching_route,
@@ -105,18 +127,144 @@ def test_off_plus_contaminants_embeds_nothing_and_does_not_refuse():
         assert item.get("feed_state_at_step") is None
 
 
-def test_strap_plus_contaminants_does_not_stamp_or_insert_a_wash():
-    payload = _plan(
+def test_accept_test_2_through_planner_derived_others():
+    three = _data(separation.plan_multistage_separation(
         _TRIPLE, contaminants=_DEHP, contaminant_mode="strap",
+        top_k_routes=5, breadth=1,
+    ))
+    two = _data(separation.plan_multistage_separation(
+        _PAIR, contaminants=_DEHP, contaminant_mode="strap",
+        top_k_routes=5, breadth=1,
+    ))
+    assert three["success"] is True
+    assert two["success"] is True
+    assert three["contaminant_mode"] == "strap"
+    assert "wash" not in (three.get("best_sequence") or [])
+    assert "wash" not in (two.get("best_sequence") or [])
+    assert all(
+        item.get("step_kind") != "wash"
+        for route in _published_routes(three)
+        for item in (route.get("steps") or [])
+    )
+    first_state = (three.get("steps") or [{}])[0].get("feed_state_at_step") or {}
+    assert first_state.get("inventory_model") == "none"
+    assert set(first_state.get("polymers") or []) == set(_TRIPLE)
+    ldpe_fail = _ldpe_step(three, others={"PET", "EVOH"})
+    ldpe_pass = _ldpe_step(two, others={"EVOH"})
+    assert ldpe_fail.get("path") == "strap"
+    assert ldpe_pass.get("path") == "strap"
+    assert ldpe_fail["feed_state_at_step"]["inventory_model"] == "none"
+    assert ldpe_pass["feed_state_at_step"]["inventory_model"] == "none"
+    fail_others = contaminants.others_from_feed_state(
+        ldpe_fail["feed_state_at_step"], "LDPE",
+    )
+    pass_others = contaminants.others_from_feed_state(
+        ldpe_pass["feed_state_at_step"], "LDPE",
+    )
+    assert set(fail_others) == {"PET", "EVOH"}
+    assert pass_others == ["EVOH"]
+    fail = contaminants.evaluate_contaminant_at_feed_state(
+        "strap", "LDPE", fail_others, [_DEHP], solvents=["toluene"],
+    )
+    passed = contaminants.evaluate_contaminant_at_feed_state(
+        "strap", "LDPE", pass_others, [_DEHP], solvents=["toluene"],
+    )
+    fail_row = _candidate(fail, "toluene")
+    pass_row = _candidate(passed, "toluene")
+    assert fail_row.get("passes") is False
+    assert pass_row.get("passes") is True
+    assert _regimes(pass_row) == ["rt", "rt"]
+    if str(ldpe_pass.get("solvent") or "").casefold() == "toluene":
+        assert ldpe_pass.get("passes") is True
+        assert _regimes(ldpe_pass) == ["rt", "rt"]
+
+
+def test_stamp_strap_route_flips_on_toluene_when_others_change():
+    fail_route = separation._stamp_strap_route(
+        {
+            "complete": True,
+            "final_residue": "EVOH",
+            "unresolved_polymers": [],
+            "steps": [{
+                "step_kind": "dissolution",
+                "dissolved_polymer": "LDPE",
+                "solvent": "toluene",
+                "temperature_c": 105.0,
+                "selectivity_pct": 80.0,
+                "target_solubility_pct": 20.0,
+                "off_target_solubilities_pct": {"PET": 0.5, "EVOH": 0.5},
+            }],
+        },
+        names=_TRIPLE,
+        supported=[_DEHP],
+        temperature_max_c=None,
+        strict_maximum=False,
+    )
+    pass_route = separation._stamp_strap_route(
+        {
+            "complete": True,
+            "final_residue": "EVOH",
+            "unresolved_polymers": [],
+            "steps": [{
+                "step_kind": "dissolution",
+                "dissolved_polymer": "LDPE",
+                "solvent": "toluene",
+                "temperature_c": 105.0,
+                "selectivity_pct": 80.0,
+                "target_solubility_pct": 20.0,
+                "off_target_solubilities_pct": {"EVOH": 0.5},
+            }],
+        },
+        names=_PAIR,
+        supported=[_DEHP],
+        temperature_max_c=None,
+        strict_maximum=False,
+    )
+    fail_step = fail_route["steps"][0]
+    pass_step = pass_route["steps"][0]
+    assert fail_step["other_polymers"] == ["PET", "EVOH"]
+    assert pass_step["other_polymers"] == ["EVOH"]
+    assert fail_step["passes"] is False
+    assert pass_step["passes"] is True
+    assert _regimes(pass_step) == ["rt", "rt"]
+    assert "wash" not in fail_route["sequence"]
+    assert "wash" not in pass_route["sequence"]
+    assert all(
+        row.get("resolution_basis") == "cas_verified"
+        and row.get("identity_verified") is True
+        for row in (pass_step.get("contaminants") or [])
+    )
+
+
+def test_owner_example_strap_stamps_each_dissolution_without_a_wash():
+    payload = _plan(
+        _TRIPLE, contaminants="PFAS", contaminant_mode="strap",
     )
     assert payload["success"] is True
     assert payload["contaminant_mode"] == "strap"
     assert "wash" not in (payload.get("best_sequence") or [])
     assert "positions_considered" not in payload
-    assert "strap_evaluations" not in payload
-    for item in payload.get("steps") or []:
-        assert item.get("path") != "strap"
-        assert item.get("feed_state_at_step") is None
+    evaluations = payload.get("strap_evaluations") or []
+    dissolutions = [
+        item for item in (payload.get("steps") or [])
+        if item.get("dissolved_polymer")
+    ]
+    assert evaluations
+    assert len(evaluations) == len(dissolutions)
+    for item in dissolutions:
+        assert item.get("path") == "strap"
+        assert item["feed_state_at_step"]["inventory_model"] == "none"
+        others = contaminants.others_from_feed_state(
+            item["feed_state_at_step"], item["dissolved_polymer"],
+        )
+        assert item.get("other_polymers") == others
+    catalog = payload.get("contaminant_catalog") or []
+    assert len(catalog) == 26
+    assert all(
+        row["resolution_basis"] == "catalog_declared"
+        and row["identity_verified"] is not True
+        for row in catalog
+    )
 
 
 def test_refusals_stay_constructed():

@@ -2335,6 +2335,94 @@ def _embed_leaching_route(
     return finished
 
 
+def _stamp_strap_step(
+    step: dict[str, Any],
+    *,
+    feed_state: dict[str, Any],
+    screen: dict[str, Any],
+) -> dict[str, Any]:
+    stamped = dict(step)
+    stamped["step_kind"] = "dissolution"
+    stamped["path"] = "strap"
+    stamped["feed_state_at_step"] = feed_state
+    stamped["passes"] = False
+    if screen.get("success") is False:
+        stamped["strap_error_code"] = screen.get("error_code")
+        stamped["recommended_solvents"] = []
+        stamped["contaminants"] = []
+        return stamped
+    recommended = list(screen.get("recommended_solvents") or [])
+    stamped["recommended_solvents"] = recommended
+    candidates = screen.get("candidate_solvents") or []
+    chosen = next((row for row in candidates if row.get("passes")), None)
+    if chosen is None and candidates:
+        chosen = candidates[0]
+    if isinstance(chosen, dict):
+        stamped["operating_temperature_c"] = chosen.get("operating_temperature_c")
+        stamped["precipitation_temperature_c"] = chosen.get(
+            "precipitation_temperature_c"
+        )
+        stamped["contaminants"] = list(chosen.get("contaminants") or [])
+        stamped["precipitation_regime_contaminants"] = list(
+            chosen.get("precipitation_regime_contaminants") or []
+        )
+        stamped["unspecified_not_a_strap_basis"] = bool(
+            chosen.get("unspecified_not_a_strap_basis")
+        )
+        stamped["passes"] = bool(chosen.get("passes"))
+    else:
+        stamped["passes"] = bool(recommended)
+    stamped["threshold_citation_status"] = screen.get("threshold_citation_status")
+    return stamped
+
+
+def _stamp_strap_route(
+    route: dict[str, Any],
+    *,
+    names: Sequence[str],
+    supported: Sequence[str],
+    temperature_max_c: Optional[float],
+    strict_maximum: bool,
+) -> dict[str, Any]:
+    remaining = list(names)
+    stamped: list[dict[str, Any]] = []
+    evaluations: list[dict[str, Any]] = []
+    for item in route.get("steps") or []:
+        step = dict(item)
+        if step.get("step_kind") == "wash" or not step.get("dissolved_polymer"):
+            stamped.append(step)
+            continue
+        target = str(step["dissolved_polymer"])
+        feed_state = contaminant_screens.feed_state_at_step(
+            feed_order=names, remaining=remaining, contaminants=supported,
+        )
+        others = contaminant_screens.others_from_feed_state(feed_state, target)
+        screen = contaminant_screens.evaluate_contaminant_at_feed_state(
+            "strap",
+            target,
+            others,
+            supported,
+            solvents=[step["solvent"]] if step.get("solvent") else None,
+            temperature_max_c=temperature_max_c,
+            strict_maximum=strict_maximum,
+        )
+        step = _stamp_strap_step(step, feed_state=feed_state, screen=screen)
+        step["other_polymers"] = others
+        stamped.append(step)
+        evaluations.append({
+            "dissolved_polymer": target,
+            "solvent": step.get("solvent"),
+            "other_polymers": others,
+            "feed_state_at_step": feed_state,
+            "passes": step.get("passes"),
+            "strap_error_code": step.get("strap_error_code"),
+        })
+        remaining = [name for name in remaining if name != target]
+    finished = finish_route({**route, "steps": stamped}, feed_polymers=names)
+    finished["strap_evaluations"] = evaluations
+    return finished
+
+
 @_with_solvent_scope
 def plan_multistage_separation(
     feed_polymers: list[str],
@@ -2617,6 +2705,17 @@ def plan_multistage_separation(
                 return result
             embedded.append(result)
         routes = embedded
+    elif mode == "strap" and supported_contaminants:
+        routes = [
+            _stamp_strap_route(
+                route,
+                names=names,
+                supported=supported_contaminants,
+                temperature_max_c=upper,
+                strict_maximum=bool(strict_maximum),
+            )
+            for route in routes
+        ]
     for rank, route in enumerate(routes, 1):
         route["rank"] = rank
         route["min_stage_g_score"] = _min_stage_g_score(route.get("steps"))
@@ -2722,6 +2821,9 @@ def plan_multistage_separation(
                 "positions_considered": best.get("positions_considered"),
                 "chosen_wash_position": best.get("chosen_wash_position"),
             } if mode == "leaching" else {}),
+            **({
+                "strap_evaluations": best.get("strap_evaluations"),
+            } if mode == "strap" else {}),
         } if mode is not None else {}),
     )
 
