@@ -1,4 +1,4 @@
-"""TEXT_CHUNKING_SPEC.v1 T0–T5. Tiny fixtures. No Docling, no gold v1, no T6."""
+"""TEXT_CHUNKING_SPEC.v1 T0–T6. Tiny fixtures. No Docling, no gold v1."""
 from __future__ import annotations
 
 import sys
@@ -14,6 +14,12 @@ from dissolve import research, text_chunking
 TOKEN_A = "PEZXQ"
 TOKEN_B = "SOLZXQ"
 TOKEN_C = "81.25"
+
+
+def _t6_encoder_one_jump(sentences):
+    """First half [1,0], second half [0,1]. One large distance in the middle."""
+    mid = max(1, len(sentences) // 2)
+    return [[1.0, 0.0] if index < mid else [0.0, 1.0] for index, _ in enumerate(sentences)]
 
 
 def _block(kind, text, start, end, heading=None):
@@ -166,6 +172,7 @@ def test_chunkers_do_not_invoke_docling_or_dense(monkeypatch):
     text_chunking.chunk_t3(canon, n_sentences=3, stride=1)
     text_chunking.chunk_t4(canon)
     text_chunking.chunk_t5(canon)
+    text_chunking.chunk_t6(canon, percentile=80, encoder=_t6_encoder_one_jump)
 
 
 def test_empty_text_is_empty_chunks():
@@ -175,3 +182,57 @@ def test_empty_text_is_empty_chunks():
     assert text_chunking.chunk_t2(canon, size=800, overlap_frac=0.0) == []
     assert text_chunking.chunk_t3(canon, n_sentences=3, stride=2) == []
     assert text_chunking.chunk_t5(canon) == []
+    assert text_chunking.chunk_t6(canon, percentile=80, encoder=_t6_encoder_one_jump) == []
+
+
+def test_t6_pin_and_segmentation_only():
+    assert text_chunking.T6_EMBEDDER_ID == "sentence-transformers/all-MiniLM-L6-v2"
+    assert text_chunking.T6_EMBEDDER_ROLE == "segmentation_only"
+    assert text_chunking.t6_grid() == [80, 95]
+
+
+def test_t6_percentile_cuts_and_no_vectors_on_chunks():
+    sentences = [
+        f"{TOKEN_A} one.",
+        "Two stays close.",
+        "Three stays close.",
+        f"{TOKEN_B} topic change.",
+        "Five stays close.",
+        f"{TOKEN_C} six.",
+    ]
+    text = " ".join(sentences)
+    canon = {"canonical_text": text, "blocks": []}
+    chunks = text_chunking.chunk_t6(canon, percentile=80, encoder=_t6_encoder_one_jump)
+    assert len(chunks) == 2
+    for chunk in chunks:
+        assert text_chunking.slice_ok(canon, chunk)
+        assert chunk["strategy"] == "T6"
+        assert chunk["params"]["embedder"] == text_chunking.T6_EMBEDDER_ID
+        assert chunk["params"]["embedder_role"] == text_chunking.T6_EMBEDDER_ROLE
+        assert "embedding" not in chunk
+        assert "vector" not in chunk
+        assert "vectors" not in chunk
+    assert TOKEN_A in chunks[0]["body"]
+    assert TOKEN_B in chunks[1]["body"]
+    assert TOKEN_A not in chunks[1]["body"]
+
+
+def test_t6_default_path_does_not_call_dense(monkeypatch):
+    class FakeModel:
+        def __init__(self, name):
+            assert name == text_chunking.T6_EMBEDDER_ID
+
+        def encode(self, texts, normalize_embeddings=True, show_progress_bar=False):
+            return _t6_encoder_one_jump(list(texts))
+
+    def boom(*_args, **_kwargs):
+        raise AssertionError("retrieval _dense_vectors must not run for T6")
+
+    monkeypatch.setattr(text_chunking, "_t6_sentence_transformer", lambda: FakeModel)
+    monkeypatch.setattr(research, "_dense_vectors", boom)
+    canon = _long_prose()
+    chunks = text_chunking.chunk_t6(canon, percentile=95)
+    assert chunks
+    for chunk in chunks:
+        assert text_chunking.slice_ok(canon, chunk)
+        assert "vector" not in chunk

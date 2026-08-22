@@ -1,17 +1,25 @@
-"""TEXT_CHUNKING_SPEC.v1 T0–T5. Pure functions of saved canonical_text + offsets.
+"""TEXT_CHUNKING_SPEC.v1 T0–T6. Pure functions of saved canonical_text + offsets.
 
-T6 is not in this module (segmentation embedder is a later pin). Does not invoke
-Docling, a frontier CLI, or ``_dense_vectors``. New persist — not the C6 series.
+T6 may load a pinned local embedder solely to place boundaries. It does not
+invoke Docling, a frontier CLI, or ``research._dense_vectors``. Embeddings
+never enter a chunk body, BM25, or an index. New persist — not the C6 series.
 """
 
 from __future__ import annotations
 
+import math
 import re
-from typing import Any, Mapping
+from typing import Any, Callable, Mapping, Sequence
 
 from . import research
 
 SPEC_SHA256 = "f7bdc3f7ce519cfc456ff7249d804848dfadaaca21a5a4f57cc44518b8f50b55"
+
+# Segmentation only. Not the retrieval / C8 path. Do not pass these vectors
+# to ``_dense_vectors``, BM25, or any index builder.
+T6_EMBEDDER_ID = "sentence-transformers/all-MiniLM-L6-v2"
+T6_EMBEDDER_ROLE = "segmentation_only"
+T6_PERCENTILES = (80, 95)
 
 T0_TARGET = research._CHUNK_TARGET
 T0_OVERLAP = research._CHUNK_OVERLAP
@@ -371,6 +379,112 @@ def chunk_t5(canonical: Mapping[str, Any], *, target: int = T5_TARGET) -> list[d
     return chunks
 
 
+def _t6_sentence_transformer() -> Callable[..., Any]:
+    """Pinned segmentation embedder class. Not ``research._dense_vectors``."""
+    from sentence_transformers import SentenceTransformer
+
+    return SentenceTransformer
+
+
+def _dot(left: Sequence[float], right: Sequence[float]) -> float:
+    return float(sum(a * b for a, b in zip(left, right)))
+
+
+def _l2(vector: Sequence[float]) -> float:
+    return math.sqrt(sum(value * value for value in vector))
+
+
+def _cosine_distance(left: Sequence[float], right: Sequence[float]) -> float:
+    denom = _l2(left) * _l2(right)
+    if denom == 0:
+        return 1.0
+    similarity = max(-1.0, min(1.0, _dot(left, right) / denom))
+    return 1.0 - similarity
+
+
+def _percentile(values: Sequence[float], percentile: float) -> float:
+    if not values:
+        return 0.0
+    ordered = sorted(float(value) for value in values)
+    if len(ordered) == 1:
+        return ordered[0]
+    rank = (percentile / 100.0) * (len(ordered) - 1)
+    lo = int(rank)
+    hi = min(lo + 1, len(ordered) - 1)
+    frac = rank - lo
+    return ordered[lo] * (1.0 - frac) + ordered[hi] * frac
+
+
+def _t6_segment_vectors(
+    sentences: Sequence[str],
+    *,
+    encoder: Callable[[Sequence[str]], Sequence[Sequence[float]]] | None = None,
+) -> list[list[float]]:
+    """Encode sentences for boundary placement only. Never writes an index."""
+    if encoder is not None:
+        rows = encoder(sentences)
+        return [list(row) for row in rows]
+    model_type = _t6_sentence_transformer()
+    model = model_type(T6_EMBEDDER_ID)
+    encoded = model.encode(
+        list(sentences),
+        normalize_embeddings=True,
+        show_progress_bar=False,
+    )
+    return [[float(value) for value in row] for row in encoded]
+
+
+def chunk_t6(
+    canonical: Mapping[str, Any],
+    *,
+    percentile: float,
+    encoder: Callable[[Sequence[str]], Sequence[Sequence[float]]] | None = None,
+) -> list[dict[str, Any]]:
+    """Semantic boundaries at a distance percentile. Segmentation only.
+
+    ``encoder`` is a test seam. Production loads ``T6_EMBEDDER_ID`` and never
+    calls ``research._dense_vectors``. Chunk dicts carry no vectors.
+    """
+    text = _text(canonical)
+    units = _sentence_spans(text)
+    params = {
+        "percentile": percentile,
+        "embedder": T6_EMBEDDER_ID,
+        "embedder_role": T6_EMBEDDER_ROLE,
+    }
+    if not units:
+        return []
+    if len(units) == 1:
+        start, end = units[0]
+        return [_make(
+            strategy="T6", index=1, text=text, start=start, end=end, params=params,
+        )]
+    sentences = [text[start:end] for start, end in units]
+    vectors = _t6_segment_vectors(sentences, encoder=encoder)
+    if len(vectors) != len(units):
+        raise ValueError("T6 encoder must return one vector per sentence.")
+    distances = [
+        _cosine_distance(vectors[index], vectors[index + 1])
+        for index in range(len(vectors) - 1)
+    ]
+    threshold = _percentile(distances, percentile)
+    cuts = {index for index, dist in enumerate(distances) if dist > threshold}
+    chunks: list[dict[str, Any]] = []
+    group_start = 0
+    for index in range(len(units)):
+        at_cut = index in cuts
+        at_end = index == len(units) - 1
+        if not (at_cut or at_end):
+            continue
+        start, end = units[group_start][0], units[index][1]
+        chunks.append(_make(
+            strategy="T6", index=len(chunks) + 1, text=text,
+            start=start, end=end, params=params,
+        ))
+        group_start = index + 1
+    return chunks
+
+
 def t1_grid() -> list[tuple[int, float]]:
     return [(size, frac) for size in T1_SIZES for frac in T1_OVERLAP_FRACS]
 
@@ -386,6 +500,10 @@ def t1_control_pairs_for_t2() -> list[tuple[int, float]]:
     same size and 15% so the pair is matched, not a nearby 10%/25%.
     """
     return list(t2_grid())
+
+
+def t6_grid() -> list[float]:
+    return list(T6_PERCENTILES)
 
 
 def slice_ok(canonical: Mapping[str, Any], chunk: Mapping[str, Any]) -> bool:
