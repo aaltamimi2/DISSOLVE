@@ -270,6 +270,14 @@ def test_run_corpus_resumes_without_rebilling(tmp_path):
     assert len(calls) == n_first
 
 
+def test_parse_json_object_keeps_first_object_when_stdout_has_extra():
+    first = {"facts": [_raw()]}
+    raw = json.dumps(first) + "\n" + json.dumps({"facts": []}) + "\ntrailing prose\n"
+    payload = text_gold.parse_json_object(raw)
+    assert payload == first
+    assert text_gold.parse_facts_payload(raw) == [_raw()]
+
+
 def test_cli_argv_strips_embedded_nul(monkeypatch):
     seen: dict[str, list[str]] = {}
 

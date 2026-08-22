@@ -49,17 +49,16 @@ class TextGoldError(GoldEnsembleError):
 
 
 def parse_json_object(text: str) -> dict[str, Any]:
-    """Parse one JSON object from model stdout. Not a vision channel."""
+    """Parse the first JSON object from model stdout. Not a vision channel."""
     stripped = str(text or "").strip()
     fenced = _JSON_FENCE.search(stripped)
     if fenced:
         stripped = fenced.group(1)
     start = stripped.find("{")
-    end = stripped.rfind("}")
-    if start < 0 or end < start:
+    if start < 0:
         raise TextGoldError("text_json_missing", "Named text CLI stdout had no JSON object.")
     try:
-        payload = json.loads(stripped[start:end + 1])
+        payload, _consumed = json.JSONDecoder().raw_decode(stripped, start)
     except json.JSONDecodeError as error:
         raise TextGoldError("text_json_invalid", "Named text CLI stdout was not JSON.") from error
     if not isinstance(payload, dict):
