@@ -1,8 +1,7 @@
 #!/usr/bin/env python3
-"""Identity join + §7 facts that do not depend on contaminant-mode test 2.
+"""Identity join + §7 facts. Unspecified-only STRAP refuse is in contaminants.py.
 
-Does not implement unspecified-as-strap-refuse. Does not embed washes.
-Does not call tea._config_key. No BioSTEAM.
+Does not embed washes. Does not call tea._config_key. No BioSTEAM.
 """
 from __future__ import annotations
 
@@ -175,7 +174,7 @@ def screens() -> dict[str, Any]:
 def thresholds() -> dict[str, Any]:
     module = _contaminants()
     served = _data(module.screen_contaminant_strap_removal(
-        "LDPE", [_PFOA], other_polymers=["PP"], solvents=["Toluene"],
+        "LDPE", [_DEHP_CATALOG], other_polymers=["EVOH"], solvents=["Toluene"],
     ))
     return {
         "defaults": module.default_thresholds(include_precipitation=True),
@@ -274,7 +273,7 @@ def absence() -> dict[str, Any]:
                 if regime in {"rt", "t_higher"}
             ),
             "toluene_pfoa_asked_rt": toluene,
-            "unspecified_not_a_strap_basis_not_implemented": True,
+            "unspecified_not_a_strap_basis_not_implemented": False,
         },
     }
 
@@ -303,9 +302,8 @@ def build_document() -> dict[str, Any]:
         "thresholds": _jsonable(thresholds()),
         "absence": _jsonable(absence()),
         "not_this_slice": [
-            "unspecified_not_a_strap_basis",
             "wash embedding",
-            "accept test 2",
+            "accept test 2 planner bind",
             "tea._config_key",
         ],
     }
