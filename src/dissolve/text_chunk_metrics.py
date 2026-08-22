@@ -14,7 +14,9 @@ from pathlib import Path
 from typing import Any, Mapping, Sequence
 
 from . import research, text_chunking
+from .gold_ensemble import file_sha256
 from .text_gold import (
+    DEFAULT_OUT_DIR,
     SPAN_BUCKETS,
     TextGoldError,
     nonempty_needles,
@@ -23,7 +25,17 @@ from .text_gold import (
 )
 
 SPEC_SHA256 = text_chunking.SPEC_SHA256
+SPEC_V2_SHA256 = "2b6b776aec5a9146518051caee4b87e5dbd684eb1357776aa5655a0fa68eb8aa"
+SPEC_V2_PATH = Path("/home/aaltamimi2/dissolve-v12-audit/TEXT_CHUNKING_SPEC.v2.md")
 RETRIEVAL_KS = (1, 3, 5, 10, 20)
+CURVES_SCHEMA = "dissolve.text-chunk-curves.retrieval.v1"
+CURVES_PATH = DEFAULT_OUT_DIR / "CURVES.retrieval.v1.json"
+POINT_SWEEP_PATH = DEFAULT_OUT_DIR / "SWEEP.t0_t6.v1.json"
+PROBE_SWEEP_PATH = DEFAULT_OUT_DIR / "SWEEP.t0_t6.probe.v1.json"
+GOLD_UNSEALED_PATH = DEFAULT_OUT_DIR / "GOLD.text.v1.unsealed.json"
+GOLD_V2_PATH = DEFAULT_OUT_DIR / "GOLD.v2.json"
+POINT_SWEEP_SHA256 = "dfc4c4707e7b43ecd3238ac9e3182049da646bc8383abd2e5a282e7b5611afd6"
+SERIES_BUCKETS = ("all",) + SPAN_BUCKETS
 
 
 def require_histogram_before_score(gold: Mapping[str, Any]) -> dict[str, Any]:
@@ -83,6 +95,18 @@ def _precision_means(sums: Mapping[str, float], n: int) -> dict[str, float]:
     return {key: (float(value) / n if n else 0.0) for key, value in sums.items()}
 
 
+def _recall_rates(counts: Mapping[str, int], n: int) -> dict[str, float]:
+    return {_k_label(int(key)): (int(value) / n if n else 0.0) for key, value in counts.items()}
+
+
+def _k_int_map(src: Mapping[str, Any]) -> dict[str, int]:
+    return {_k_label(k): int((src or {}).get(_k_label(k), 0)) for k in RETRIEVAL_KS}
+
+
+def _k_float_map(src: Mapping[str, Any]) -> dict[str, float]:
+    return {_k_label(k): float((src or {}).get(_k_label(k), 0.0)) for k in RETRIEVAL_KS}
+
+
 def _add_k_map(
     dest: dict[str, float] | dict[str, int],
     src: Mapping[str, Any],
@@ -139,27 +163,35 @@ def retrievable_at_5(
     return retrievable[_k_label(5)]
 
 
+def fact_has_cross_hit(
+    chunks: Sequence[Mapping[str, Any]],
+    fact: Mapping[str, Any],
+    facts: Sequence[Mapping[str, Any]],
+) -> bool:
+    """True when a binding chunk for this fact also binds a different fact."""
+    needles = nonempty_needles(fact.get("needles") or {})
+    if not needles:
+        return False
+    bound = [chunk for chunk in chunks if contain_bound_fact(_body(chunk), needles)]
+    if not bound:
+        return False
+    for other in facts:
+        if other is fact:
+            continue
+        other_needles = nonempty_needles(other.get("needles") or {})
+        if not other_needles:
+            continue
+        if any(contain_bound_fact(_body(chunk), other_needles) for chunk in bound):
+            return True
+    return False
+
+
 def cross_fact_hits(
     chunks: Sequence[Mapping[str, Any]],
     facts: Sequence[Mapping[str, Any]],
 ) -> int:
     """A bound chunk for fact A that also binds a different fact B."""
-    hits = 0
-    for fact in facts:
-        needles = nonempty_needles(fact.get("needles") or {})
-        bound = [chunk for chunk in chunks if contain_bound_fact(_body(chunk), needles)]
-        if not bound:
-            continue
-        for other in facts:
-            if other is fact:
-                continue
-            other_needles = nonempty_needles(other.get("needles") or {})
-            if not other_needles:
-                continue
-            if any(contain_bound_fact(_body(chunk), other_needles) for chunk in bound):
-                hits += 1
-                break
-    return hits
+    return sum(1 for fact in facts if fact_has_cross_hit(chunks, fact, facts))
 
 
 def _empty_bucket() -> dict[str, Any]:
@@ -168,8 +200,10 @@ def _empty_bucket() -> dict[str, Any]:
         "n_contain_bound_fact": 0,
         "n_retrievable_at_5": 0,
         "n_retrievable_at_k": _empty_k_counts(),
+        "recall_at_k": _empty_k_sums(),
         "precision_at_k_sum": _empty_k_sums(),
         "precision_at_k": _empty_k_sums(),
+        "cross_fact_hits": 0,
         "n_needle_span_preserved": 0,
     }
 
@@ -194,10 +228,12 @@ def score_strategy(
         ranked = bm25_ranked(str(fact.get("query") or ""), chunks)
         retrievable, precision = retrieval_at_ks(ranked, needles)
         retrieved = retrievable[_k_label(5)]
+        crossed = fact_has_cross_hit(chunks, fact, facts)
         by_bucket[bucket]["n_facts"] += 1
         by_bucket[bucket]["n_contain_bound_fact"] += int(contained)
         by_bucket[bucket]["n_retrievable_at_5"] += int(retrieved)
         by_bucket[bucket]["n_needle_span_preserved"] += int(preserved)
+        by_bucket[bucket]["cross_fact_hits"] += int(crossed)
         _add_k_map(by_bucket[bucket]["n_retrievable_at_k"], {
             key: int(hit) for key, hit in retrievable.items()
         })
@@ -218,6 +254,7 @@ def score_strategy(
     for row in by_bucket.values():
         n_bucket = int(row["n_facts"])
         row["precision_at_k"] = _precision_means(row["precision_at_k_sum"], n_bucket)
+        row["recall_at_k"] = _recall_rates(row["n_retrievable_at_k"], n_bucket)
         _add_k_map(retr_at_k, row["n_retrievable_at_k"])
         _add_k_map(prec_sums, row["precision_at_k_sum"], as_float=True)
     return {
@@ -227,7 +264,7 @@ def score_strategy(
         "token_count_min": min(token_lens) if token_lens else 0,
         "token_count_max": max(token_lens) if token_lens else 0,
         "token_count_mean": (sum(token_lens) / len(token_lens)) if token_lens else 0.0,
-        "cross_fact_hits": cross_fact_hits(chunks, facts),
+        "cross_fact_hits": sum(int(row["cross_fact_hits"]) for row in by_bucket.values()),
         "by_bucket": by_bucket,
         "facts": per_fact,
         "retrieval_ks": list(RETRIEVAL_KS),
@@ -235,6 +272,7 @@ def score_strategy(
         "n_contain_bound_fact": sum(row["n_contain_bound_fact"] for row in by_bucket.values()),
         "n_retrievable_at_5": retr_at_k[_k_label(5)],
         "n_retrievable_at_k": retr_at_k,
+        "recall_at_k": _recall_rates(retr_at_k, n_facts),
         "precision_at_k_sum": prec_sums,
         "precision_at_k": _precision_means(prec_sums, n_facts),
         "n_needle_span_preserved": sum(row["n_needle_span_preserved"] for row in by_bucket.values()),
@@ -355,6 +393,7 @@ def _merge_buckets(into: dict[str, dict[str, Any]], src: Mapping[str, Mapping[st
         dest["n_contain_bound_fact"] += int(row.get("n_contain_bound_fact") or 0)
         dest["n_retrievable_at_5"] += int(row.get("n_retrievable_at_5") or 0)
         dest["n_needle_span_preserved"] += int(row.get("n_needle_span_preserved") or 0)
+        dest["cross_fact_hits"] += int(row.get("cross_fact_hits") or 0)
         _add_k_map(dest["n_retrievable_at_k"], row.get("n_retrievable_at_k") or {})
         _add_k_map(
             dest["precision_at_k_sum"],
@@ -362,6 +401,7 @@ def _merge_buckets(into: dict[str, dict[str, Any]], src: Mapping[str, Mapping[st
             as_float=True,
         )
         dest["precision_at_k"] = _precision_means(dest["precision_at_k_sum"], dest["n_facts"])
+        dest["recall_at_k"] = _recall_rates(dest["n_retrievable_at_k"], dest["n_facts"])
 
 
 def run_sweep(
@@ -392,6 +432,7 @@ def run_sweep(
             "n_contain_bound_fact": 0,
             "n_retrievable_at_5": 0,
             "n_retrievable_at_k": _empty_k_counts(),
+            "recall_at_k": _empty_k_sums(),
             "precision_at_k_sum": _empty_k_sums(),
             "precision_at_k": _empty_k_sums(),
             "n_needle_span_preserved": 0,
@@ -415,6 +456,7 @@ def run_sweep(
         )
         slot["n_retrievable_at_5"] = slot["n_retrievable_at_k"][_k_label(5)]
         slot["precision_at_k"] = _precision_means(slot["precision_at_k_sum"], slot["n_facts"])
+        slot["recall_at_k"] = _recall_rates(slot["n_retrievable_at_k"], slot["n_facts"])
         _merge_buckets(slot["by_bucket"], row["by_bucket"])
     results = list(pooled.values())
     report = {
@@ -431,6 +473,178 @@ def run_sweep(
     }
     if out_path is not None:
         path = Path(out_path)
+        if path.resolve() in {
+            POINT_SWEEP_PATH.resolve(),
+            PROBE_SWEEP_PATH.resolve(),
+            GOLD_UNSEALED_PATH.resolve(),
+        }:
+            raise TextGoldError(
+                "protected_persist",
+                "Do not overwrite the point sweep, probe, or unsealed gold.",
+            )
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(json.dumps(report, indent=2, ensure_ascii=False) + "\n")
     return report
+
+
+def _series_from_arm(arm: Mapping[str, Any], bucket: str) -> dict[str, Any]:
+    if bucket == "all":
+        n_facts = int(arm.get("n_facts") or 0)
+        n_retr = _k_int_map(arm.get("n_retrievable_at_k") or {})
+        precision = _k_float_map(arm.get("precision_at_k") or {})
+        contain = int(arm.get("n_contain_bound_fact") or 0)
+        preserved = int(arm.get("n_needle_span_preserved") or 0)
+        cross = int(arm.get("cross_fact_hits") or 0)
+    else:
+        row = (arm.get("by_bucket") or {}).get(bucket) or _empty_bucket()
+        n_facts = int(row.get("n_facts") or 0)
+        n_retr = _k_int_map(row.get("n_retrievable_at_k") or {})
+        precision = _k_float_map(row.get("precision_at_k") or {})
+        contain = int(row.get("n_contain_bound_fact") or 0)
+        preserved = int(row.get("n_needle_span_preserved") or 0)
+        cross = int(row.get("cross_fact_hits") or 0)
+    return {
+        "strategy": arm["strategy"],
+        "params": dict(arm.get("params") or {}),
+        "bucket": bucket,
+        "n_facts": n_facts,
+        "n_chunks": int(arm.get("n_chunks") or 0),
+        "n_contain_bound_fact": contain,
+        "n_needle_span_preserved": preserved,
+        "n_retrievable_at_k": n_retr,
+        "recall_at_k": _recall_rates(n_retr, n_facts),
+        "precision_at_k": precision,
+        "cross_fact_hits": cross,
+    }
+
+
+def t1_t2_curve_rows(arms: Sequence[Mapping[str, Any]]) -> list[dict[str, Any]]:
+    """T2 vs T1 at each k and each span bucket, including all."""
+    t1 = {
+        (row["params"].get("size"), row["params"].get("overlap_frac")): row
+        for row in arms
+        if row.get("strategy") == "T1"
+    }
+    pairs = []
+    for row in arms:
+        if row.get("strategy") != "T2":
+            continue
+        key = (row["params"].get("size"), row["params"].get("overlap_frac"))
+        control = t1.get(key)
+        if control is None:
+            continue
+        for bucket in SERIES_BUCKETS:
+            left = _series_from_arm(control, bucket)
+            right = _series_from_arm(row, bucket)
+            beats = {
+                _k_label(k): right["n_retrievable_at_k"][_k_label(k)]
+                > left["n_retrievable_at_k"][_k_label(k)]
+                for k in RETRIEVAL_KS
+            }
+            pairs.append({
+                "size": key[0],
+                "overlap_frac": key[1],
+                "bucket": bucket,
+                "t1": {
+                    "n_facts": left["n_facts"],
+                    "n_chunks": left["n_chunks"],
+                    "n_contain_bound_fact": left["n_contain_bound_fact"],
+                    "n_needle_span_preserved": left["n_needle_span_preserved"],
+                    "n_retrievable_at_k": left["n_retrievable_at_k"],
+                    "recall_at_k": left["recall_at_k"],
+                    "precision_at_k": left["precision_at_k"],
+                    "cross_fact_hits": left["cross_fact_hits"],
+                },
+                "t2": {
+                    "n_facts": right["n_facts"],
+                    "n_chunks": right["n_chunks"],
+                    "n_contain_bound_fact": right["n_contain_bound_fact"],
+                    "n_needle_span_preserved": right["n_needle_span_preserved"],
+                    "n_retrievable_at_k": right["n_retrievable_at_k"],
+                    "recall_at_k": right["recall_at_k"],
+                    "precision_at_k": right["precision_at_k"],
+                    "cross_fact_hits": right["cross_fact_hits"],
+                },
+                "t2_beats_t1_recall_at_k": beats,
+            })
+    return pairs
+
+
+def build_retrieval_curves(
+    *,
+    gold: Mapping[str, Any],
+    arms: Sequence[Mapping[str, Any]],
+    gold_sha256: str,
+    spec_sha256: str = SPEC_V2_SHA256,
+) -> dict[str, Any]:
+    """Addressable curve artifact. Counts and rates only. Not a sweep dump."""
+    histogram = require_histogram_before_score(gold)
+    series = [
+        _series_from_arm(arm, bucket)
+        for arm in arms
+        for bucket in SERIES_BUCKETS
+    ]
+    return {
+        "schema": CURVES_SCHEMA,
+        "spec_sha256": spec_sha256,
+        "ranker": "bm25_body",
+        "embedder_in_retrieval": False,
+        "retrieval_ks": list(RETRIEVAL_KS),
+        "f1": None,
+        "n_papers": int(gold.get("n_papers") or 0),
+        "n_facts": int(gold.get("n_facts") or len(gold.get("facts") or [])),
+        "gold_sha256": gold_sha256,
+        "span_histogram": histogram,
+        "series": series,
+        "t1_vs_t2": t1_t2_curve_rows(arms),
+    }
+
+
+def emit_retrieval_curves(
+    *,
+    gold: Mapping[str, Any],
+    canonicals: Sequence[Mapping[str, Any]],
+    gold_path: Path,
+    out_path: Path | None = None,
+) -> dict[str, Any]:
+    """Write CURVES.retrieval.v1.json. Does not overwrite the point sweep."""
+    if GOLD_V2_PATH.exists():
+        raise TextGoldError("gold_v2_present", "Sealing GOLD.v2.json is an owner stop.")
+    dest = Path(out_path or CURVES_PATH)
+    protected = {
+        POINT_SWEEP_PATH.resolve(),
+        PROBE_SWEEP_PATH.resolve(),
+        GOLD_UNSEALED_PATH.resolve(),
+        Path(gold_path).resolve(),
+    }
+    if dest.resolve() in protected:
+        raise TextGoldError(
+            "protected_persist",
+            "CURVES.retrieval.v1.json is a new persist. Do not overwrite the point sweep.",
+        )
+    spec_digest = file_sha256(SPEC_V2_PATH)
+    if spec_digest != SPEC_V2_SHA256:
+        raise TextGoldError("spec_v2_moved", "Emit only against the ADMITTED v2 bytes.")
+    gold_digest = file_sha256(Path(gold_path))
+    before_point = file_sha256(POINT_SWEEP_PATH) if POINT_SWEEP_PATH.is_file() else ""
+    before_probe = file_sha256(PROBE_SWEEP_PATH) if PROBE_SWEEP_PATH.is_file() else ""
+    before_gold = gold_digest
+    if before_point and before_point != POINT_SWEEP_SHA256:
+        raise TextGoldError("point_sweep_moved", "Point sweep digest is not the v2 pin.")
+    report = run_sweep(gold=gold, canonicals=canonicals, out_path=None)
+    artifact = build_retrieval_curves(
+        gold=gold,
+        arms=report["arms"],
+        gold_sha256=gold_digest,
+        spec_sha256=spec_digest,
+    )
+    artifact["n_papers"] = len(canonicals)
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    dest.write_text(json.dumps(artifact, indent=2, ensure_ascii=False) + "\n")
+    if POINT_SWEEP_PATH.is_file() and file_sha256(POINT_SWEEP_PATH) != before_point:
+        raise TextGoldError("point_sweep_mutated", "Emit must not touch the point sweep.")
+    if PROBE_SWEEP_PATH.is_file() and file_sha256(PROBE_SWEEP_PATH) != before_probe:
+        raise TextGoldError("probe_sweep_mutated", "Emit must not touch the probe sweep.")
+    if file_sha256(Path(gold_path)) != before_gold:
+        raise TextGoldError("gold_mutated", "Emit must not touch the unsealed gold.")
+    return artifact

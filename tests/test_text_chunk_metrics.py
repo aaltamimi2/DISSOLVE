@@ -1,6 +1,7 @@
 """TEXT_CHUNKING_SPEC.v1 metrics. Fixtures. BM25 only. No gold v1. No F1."""
 from __future__ import annotations
 
+import json
 import sys
 from pathlib import Path
 
@@ -171,6 +172,118 @@ def test_recall_at_k_is_monotone_and_precision_is_binds_over_k():
     assert prec["1"] == 1.0
     assert prec["3"] == 2 / 3
     assert prec["5"] == 2 / 5
+
+
+def test_cross_fact_hits_cut_by_span_bucket():
+    short_needles = {"subject": SUBJ, "qualifier": QUAL, "value": VAL}
+    long_needles = {"subject": OTHER, "qualifier": "end.", "value": "y y"}
+    shared = {"body": f"{SUBJ} {QUAL} {VAL} {OTHER} end. y y"}
+    facts = [
+        {
+            "needles": short_needles,
+            "needle_span_chars": 80,
+            "query": SUBJ,
+            "needle_first_char": 0,
+            "needle_last_char": 10,
+        },
+        {
+            "needles": long_needles,
+            "needle_span_chars": 900,
+            "query": OTHER,
+            "needle_first_char": 0,
+            "needle_last_char": 20,
+        },
+    ]
+    scored = text_chunk_metrics.score_strategy([shared], facts, strategy="T5")
+    assert scored["cross_fact_hits"] == 2
+    assert scored["by_bucket"]["<200"]["cross_fact_hits"] == 1
+    assert scored["by_bucket"]["600-1500"]["cross_fact_hits"] == 1
+    assert scored["by_bucket"]["200-600"]["cross_fact_hits"] == 0
+    assert scored["recall_at_k"]["5"] == scored["n_retrievable_at_k"]["5"] / scored["n_facts"]
+
+
+def test_build_retrieval_curves_is_per_bucket_and_has_no_needles():
+    gold = {
+        "n_papers": 1,
+        "n_facts": 2,
+        "span_histogram": text_gold.span_histogram([
+            {"needle_span_chars": 80},
+            {"needle_span_chars": 900},
+        ]),
+    }
+    arm = {
+        "strategy": "T5",
+        "params": {"target": 1400},
+        "n_chunks": 4,
+        "n_facts": 2,
+        "n_contain_bound_fact": 2,
+        "n_needle_span_preserved": 1,
+        "n_retrievable_at_k": {"1": 1, "3": 2, "5": 2, "10": 2, "20": 2},
+        "precision_at_k": {"1": 1.0, "3": 0.5, "5": 0.4, "10": 0.2, "20": 0.1},
+        "cross_fact_hits": 1,
+        "by_bucket": {
+            "<200": {
+                "n_facts": 1,
+                "n_contain_bound_fact": 1,
+                "n_needle_span_preserved": 1,
+                "n_retrievable_at_k": {"1": 1, "3": 1, "5": 1, "10": 1, "20": 1},
+                "precision_at_k": {"1": 1.0, "3": 0.3, "5": 0.2, "10": 0.1, "20": 0.05},
+                "cross_fact_hits": 0,
+            },
+            "200-600": text_chunk_metrics._empty_bucket(),
+            "600-1500": {
+                "n_facts": 1,
+                "n_contain_bound_fact": 1,
+                "n_needle_span_preserved": 0,
+                "n_retrievable_at_k": {"1": 0, "3": 1, "5": 1, "10": 1, "20": 1},
+                "precision_at_k": {"1": 0.0, "3": 0.3, "5": 0.2, "10": 0.1, "20": 0.05},
+                "cross_fact_hits": 1,
+            },
+            ">1500": text_chunk_metrics._empty_bucket(),
+        },
+    }
+    artifact = text_chunk_metrics.build_retrieval_curves(
+        gold=gold, arms=[arm], gold_sha256="ab" * 32,
+    )
+    assert artifact["schema"] == "dissolve.text-chunk-curves.retrieval.v1"
+    assert artifact["ranker"] == "bm25_body"
+    assert artifact["embedder_in_retrieval"] is False
+    assert artifact["f1"] is None
+    assert artifact["retrieval_ks"] == [1, 3, 5, 10, 20]
+    buckets = {row["bucket"] for row in artifact["series"]}
+    assert buckets == {"all", "<200", "200-600", "600-1500", ">1500"}
+    all_row = next(row for row in artifact["series"] if row["bucket"] == "all")
+    assert all_row["cross_fact_hits"] == 1
+    assert all_row["recall_at_k"]["5"] == 2 / 2
+    mid = next(row for row in artifact["series"] if row["bucket"] == "600-1500")
+    assert mid["cross_fact_hits"] == 1
+    assert mid["n_chunks"] == 4
+    blob = json.dumps(artifact)
+    assert "needles" not in blob
+    assert "canonical_text" not in blob
+    assert "query" not in blob
+    assert "fact_id" not in blob
+
+
+def test_emit_refuses_to_overwrite_point_sweep(tmp_path):
+    gold = {
+        "n_papers": 1,
+        "n_facts": 1,
+        "span_histogram": text_gold.span_histogram([{"needle_span_chars": 400}]),
+        "facts": [],
+    }
+    gold_path = tmp_path / "gold.json"
+    gold_path.write_text("{}\n")
+    import pytest
+    from dissolve.gold_ensemble import GoldEnsembleError
+    with pytest.raises(GoldEnsembleError) as error:
+        text_chunk_metrics.emit_retrieval_curves(
+            gold=gold,
+            canonicals=[],
+            gold_path=gold_path,
+            out_path=text_chunk_metrics.POINT_SWEEP_PATH,
+        )
+    assert error.value.code == "protected_persist"
 
 
 def test_retrievable_at_5_matches_production_bm25_top5():
