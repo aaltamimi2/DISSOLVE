@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import math
 import re
-from typing import Annotated, Any, Literal, Optional
+from typing import Annotated, Any, Literal, Optional, Sequence
 
 from langchain_core.tools import InjectedToolArg
 
@@ -2034,6 +2034,64 @@ def _select_split_branches(
     return kept, stamp
 
 
+def _route_step_kind(item: dict[str, Any]) -> str:
+    kind = item.get("step_kind")
+    if kind in {"wash", "dissolution"}:
+        return kind
+    return "dissolution" if item.get("dissolved_polymer") else "wash"
+
+
+def finish_route(route: dict[str, Any], *, feed_polymers: Sequence[str]) -> dict[str, Any]:
+    """Stamp sequence tokens, mappings, and bottlenecks. Washes do not KeyError."""
+    names = list(feed_polymers)
+    route = {**route, "steps": [dict(item) for item in route.get("steps", [])]}
+    unresolved = set(route.get("unresolved_polymers", []))
+    route["unresolved_polymers"] = [name for name in names if name in unresolved]
+    wash_count = sum(
+        1 for item in route["steps"] if _route_step_kind(item) == "wash"
+    )
+    wash_index = 0
+    tokens: list[str] = []
+    for index, item in enumerate(route["steps"], 1):
+        item["step"] = index
+        kind = _route_step_kind(item)
+        item["step_kind"] = kind
+        if kind == "wash":
+            wash_index += 1
+            tokens.append(f"wash {wash_index}" if wash_count > 1 else "wash")
+        else:
+            tokens.append(item["dissolved_polymer"])
+    if route.get("complete") and route.get("final_residue"):
+        tokens.append(route["final_residue"])
+    route["sequence"] = tokens
+    dissolutions = [
+        item for item in route["steps"] if item["step_kind"] == "dissolution"
+    ]
+    route["solvent_mapping"] = {
+        item["dissolved_polymer"]: item["solvent"] for item in dissolutions
+    }
+    route["bottleneck_selectivity_pct"] = min(
+        (item["selectivity_pct"] for item in dissolutions), default=None
+    )
+    route["bottleneck_target_solubility_pct"] = min(
+        (item["target_solubility_pct"] for item in dissolutions), default=None
+    )
+    route["cumulative_off_target_burden_wt_pct_sum"] = sum(
+        float(value)
+        for item in dissolutions
+        for value in (item.get("off_target_solubilities_pct") or {}).values()
+    )
+    route["peak_temperature_c"] = max(
+        (
+            item["temperature_c"]
+            for item in route["steps"]
+            if item.get("temperature_c") is not None
+        ),
+        default=None,
+    )
+    return route
+
+
 def _min_stage_g_score(steps: Any) -> float | None:
     scores = []
     for item in steps or []:
@@ -2199,32 +2257,7 @@ def plan_multistage_separation(
         return screens[subset]
 
     def finish(route: dict[str, Any]) -> dict[str, Any]:
-        route = {**route, "steps": [dict(item) for item in route.get("steps", [])]}
-        unresolved = set(route.get("unresolved_polymers", []))
-        route["unresolved_polymers"] = [name for name in names if name in unresolved]
-        for index, item in enumerate(route["steps"], 1):
-            item["step"] = index
-        route["sequence"] = [item["dissolved_polymer"] for item in route["steps"]]
-        if route.get("complete") and route.get("final_residue"):
-            route["sequence"].append(route["final_residue"])
-        route["solvent_mapping"] = {
-            item["dissolved_polymer"]: item["solvent"] for item in route["steps"]
-        }
-        route["bottleneck_selectivity_pct"] = min(
-            (item["selectivity_pct"] for item in route["steps"]), default=None
-        )
-        route["bottleneck_target_solubility_pct"] = min(
-            (item["target_solubility_pct"] for item in route["steps"]), default=None
-        )
-        route["cumulative_off_target_burden_wt_pct_sum"] = sum(
-            float(value)
-            for item in route["steps"]
-            for value in (item.get("off_target_solubilities_pct") or {}).values()
-        )
-        route["peak_temperature_c"] = max(
-            (item["temperature_c"] for item in route["steps"]), default=None
-        )
-        return route
+        return finish_route(route, feed_polymers=names)
 
     def score(route: dict[str, Any]) -> tuple[float, ...]:
         return (
