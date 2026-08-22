@@ -510,3 +510,112 @@ def manifest_papers(manifest_path: Path | None = None) -> list[dict[str, Any]]:
             "filename": row.get("filename") or "",
         })
     return rows
+
+
+def write_spend(calls: Sequence[Mapping[str, Any]], path: Path) -> None:
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    payload = {
+        "schema": "dissolve.text-gold-spend.v1",
+        "grant": "TEXT_CHUNKING_SPEC.v1 ADMIT spec-text-chunking-f7bdc3f7",
+        "models": [READER_MODEL, CONFIRMER_MODEL],
+        "n_calls": len(calls),
+        "calls": list(calls),
+    }
+    path.write_text(json.dumps(payload, indent=2) + "\n")
+
+
+def write_draft(papers: Sequence[Mapping[str, Any]], out_dir: Path) -> dict[str, str]:
+    """Incremental persist. Does not refuse all-short until assemble_gold."""
+    out_dir = Path(out_dir)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    facts = [fact for paper in papers for fact in paper.get("facts") or []]
+    draft = {
+        "schema": SCHEMA + ".draft",
+        "spec_sha256": SPEC_SHA256,
+        "sealed": False,
+        "seal_forbidden": True,
+        "n_papers": len(papers),
+        "n_facts": len(facts),
+        "span_histogram": span_histogram(facts),
+        "papers": list(papers),
+        "facts": facts,
+    }
+    draft_path = out_dir / "GOLD.text.v1.draft.json"
+    hist_path = out_dir / "NEEDLE_SPAN_HISTOGRAM.v1.json"
+    draft_path.write_text(json.dumps(draft, indent=2, ensure_ascii=False) + "\n")
+    hist_path.write_text(
+        json.dumps(draft["span_histogram"], indent=2, ensure_ascii=False) + "\n"
+    )
+    return {
+        "draft_sha256": file_sha256(draft_path),
+        "histogram_sha256": file_sha256(hist_path),
+    }
+
+
+def run_corpus(
+    *,
+    only: Sequence[str] | None = None,
+    limit: int | None = None,
+    out_dir: Path | None = None,
+    runner: Callable[..., str] | None = None,
+    timeout: int = 600,
+) -> dict[str, Any]:
+    """Mint text gold for saved C3 canonicals. Does not score. Does not seal."""
+    dest = Path(out_dir or DEFAULT_OUT_DIR)
+    dest.mkdir(parents=True, exist_ok=True)
+    if (dest / "GOLD.v2.json").exists():
+        raise TextGoldError("gold_v2_present", "Do not write GOLD.v2.json.")
+    rows = manifest_papers()
+    if only:
+        want = set(only)
+        rows = [row for row in rows if row["pdf_sha256"] in want]
+    if limit is not None:
+        rows = rows[: int(limit)]
+    papers: list[dict[str, Any]] = []
+    spend: list[dict[str, Any]] = []
+    for index, row in enumerate(rows):
+        sha = row["pdf_sha256"]
+        canonical = load_canonical(sha)
+        if file_sha256(CANONICAL_DIR / f"{sha}.v1.json") != row["canonical_sha256"]:
+            raise TextGoldError(
+                "canonical_digest_mismatch",
+                "Saved canonical does not match the manifest pin.",
+                paper=sha,
+            )
+        work = Path("/tmp") / f"text_gold_{sha[:12]}"
+        work.mkdir(parents=True, exist_ok=True)
+        for leftover in work.iterdir():
+            leftover.unlink()
+        paper = mint_one_paper(
+            canonical=canonical,
+            paper_sha256=sha,
+            paper_status=str(row["status"]),
+            paper_index=index,
+            runner=runner,
+            timeout=timeout,
+            cwd=work,
+        )
+        paper["filename"] = row["filename"]
+        papers.append(paper)
+        for call in paper["calls"]:
+            spend.append({"paper_sha256": sha, **call})
+        write_spend(spend, dest / "TEXT_GOLD_SPEND.v1.json")
+        write_draft(papers, dest)
+    facts = [fact for paper in papers for fact in paper.get("facts") or []]
+    histogram = span_histogram(facts)
+    summary = {
+        "n_papers": len(papers),
+        "n_facts": len(facts),
+        "n_calls": len(spend),
+        "all_short": histogram["all_short"],
+        "span_histogram": histogram,
+    }
+    if histogram["all_short"] or not facts:
+        summary["status"] = "draft_only"
+        return summary
+    gold = assemble_gold(papers)
+    written = write_gold_with_histogram(gold, dest)
+    written.update(summary)
+    written["status"] = "unsealed"
+    return written

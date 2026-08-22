@@ -6,6 +6,8 @@ at matched size and overlap. None offsets are not a preserved span.
 
 from __future__ import annotations
 
+import json
+from pathlib import Path
 from typing import Any, Mapping, Sequence
 
 from . import research, text_chunking
@@ -162,11 +164,14 @@ def run_arm(
     params: Mapping[str, Any],
     chunks: Sequence[Mapping[str, Any]],
 ) -> dict[str, Any]:
+    paper_id = (
+        canonical.get("source_pdf_sha256")
+        or canonical.get("pdf_sha256")
+        or canonical.get("paper_sha256")
+    )
     paper_facts = [
         fact for fact in facts
-        if not fact.get("paper_sha256")
-        or fact.get("paper_sha256") == canonical.get("source_pdf_sha256")
-        or fact.get("paper_sha256") == canonical.get("pdf_sha256")
+        if not fact.get("paper_sha256") or fact.get("paper_sha256") == paper_id
     ]
     if not paper_facts:
         paper_facts = list(facts)
@@ -249,3 +254,70 @@ def enumerate_arms(canonical: Mapping[str, Any]) -> list[tuple[str, dict[str, An
             "embedder_role": text_chunking.T6_EMBEDDER_ROLE,
         }, text_chunking.chunk_t6(canonical, percentile=percentile)))
     return arms
+
+
+def _merge_buckets(into: dict[str, dict[str, int]], src: Mapping[str, Mapping[str, int]]) -> None:
+    for bucket, row in src.items():
+        dest = into.setdefault(bucket, _empty_bucket())
+        for key, value in row.items():
+            dest[key] = dest.get(key, 0) + int(value)
+
+
+def run_sweep(
+    *,
+    gold: Mapping[str, Any],
+    canonicals: Sequence[Mapping[str, Any]],
+    out_path: Path | None = None,
+) -> dict[str, Any]:
+    """Score every T0–T6 arm. Histogram must already be on the gold."""
+    histogram = require_histogram_before_score(gold)
+    facts = list(gold.get("facts") or [])
+    per_arm: list[dict[str, Any]] = []
+    for canonical in canonicals:
+        for strategy, params, chunks in enumerate_arms(canonical):
+            scored = run_arm(canonical, facts, strategy=strategy, params=params, chunks=chunks)
+            scored["paper_sha256"] = (
+                canonical.get("source_pdf_sha256") or canonical.get("pdf_sha256")
+            )
+            per_arm.append(scored)
+    pooled: dict[tuple[str, str], dict[str, Any]] = {}
+    for row in per_arm:
+        key = (row["strategy"], json.dumps(row["params"], sort_keys=True))
+        slot = pooled.setdefault(key, {
+            "strategy": row["strategy"],
+            "params": row["params"],
+            "n_chunks": 0,
+            "cross_fact_hits": 0,
+            "n_contain_bound_fact": 0,
+            "n_retrievable_at_5": 0,
+            "n_needle_span_preserved": 0,
+            "n_facts": 0,
+            "n_offsets_none": 0,
+            "by_bucket": {bucket: _empty_bucket() for bucket in SPAN_BUCKETS},
+            "f1": None,
+        })
+        slot["n_chunks"] += row["n_chunks"]
+        slot["cross_fact_hits"] += row["cross_fact_hits"]
+        slot["n_contain_bound_fact"] += row["n_contain_bound_fact"]
+        slot["n_retrievable_at_5"] += row["n_retrievable_at_5"]
+        slot["n_needle_span_preserved"] += row["n_needle_span_preserved"]
+        slot["n_facts"] += row["n_facts"]
+        slot["n_offsets_none"] += row["n_offsets_none"]
+        _merge_buckets(slot["by_bucket"], row["by_bucket"])
+    results = list(pooled.values())
+    report = {
+        "schema": "dissolve.text-chunk-sweep.v1",
+        "spec_sha256": SPEC_SHA256,
+        "span_histogram": histogram,
+        "n_papers": len(canonicals),
+        "n_facts": len(facts),
+        "arms": results,
+        "t1_vs_t2": t1_t2_control_rows(results),
+        "f1": None,
+        "per_paper_arms": per_arm,
+    }
+    if out_path is not None:
+        path = Path(out_path)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(report, indent=2, ensure_ascii=False) + "\n")
+    return report

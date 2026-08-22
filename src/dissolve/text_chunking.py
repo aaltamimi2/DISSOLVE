@@ -473,18 +473,22 @@ def _percentile(values: Sequence[float], percentile: float) -> float:
     return ordered[lo] * (1.0 - frac) + ordered[hi] * frac
 
 
+_T6_MODEL = None
+
+
 def _t6_segment_vectors(
     sentences: Sequence[str],
     *,
     encoder: Callable[[Sequence[str]], Sequence[Sequence[float]]] | None = None,
 ) -> list[list[float]]:
     """Encode sentences for boundary placement only. Never writes an index."""
+    global _T6_MODEL
     if encoder is not None:
         rows = encoder(sentences)
         return [list(row) for row in rows]
-    model_type = _t6_sentence_transformer()
-    model = model_type(T6_EMBEDDER_ID)
-    encoded = model.encode(
+    if _T6_MODEL is None:
+        _T6_MODEL = _t6_sentence_transformer()(T6_EMBEDDER_ID)
+    encoded = _T6_MODEL.encode(
         list(sentences),
         normalize_embeddings=True,
         show_progress_bar=False,

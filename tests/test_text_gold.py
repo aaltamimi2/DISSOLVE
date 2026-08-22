@@ -179,6 +179,54 @@ def test_assemble_refuses_all_short_gold():
     assert error.value.code == "gold_spans_all_short"
 
 
+def test_run_corpus_writes_histogram_before_any_score(tmp_path):
+    text = _text()
+    extract = {"facts": [_raw()]}
+    confirm = {"verdicts": [{"index": 0, "confirm": True}]}
+
+    def runner(*, command, cwd, prompt, timeout):
+        if "gold reader" in prompt:
+            return json.dumps(extract)
+        return json.dumps(confirm)
+
+    paper_sha = "ab" * 32
+    canon_dir = tmp_path / "canonical"
+    canon_dir.mkdir()
+    body = {"canonical_text": text, "source_pdf_sha256": paper_sha}
+    canon_path = canon_dir / f"{paper_sha}.v1.json"
+    canon_path.write_text(json.dumps(body))
+    from dissolve.gold_ensemble import file_sha256
+    digest = file_sha256(canon_path)
+    manifest = tmp_path / "manifest.json"
+    manifest.write_text(json.dumps({
+        "documents": [{
+            "pdf_sha256": paper_sha,
+            "canonical_sha256": digest,
+            "status": "indexed",
+            "filename": "probe.pdf",
+        }]
+    }))
+    out = tmp_path / "out"
+    monkey_canon = text_gold.CANONICAL_DIR
+    monkey_manifest = text_gold.MANIFEST_PATH
+    text_gold.CANONICAL_DIR = canon_dir
+    text_gold.MANIFEST_PATH = manifest
+    try:
+        result = text_gold.run_corpus(out_dir=out, runner=runner, timeout=5)
+    finally:
+        text_gold.CANONICAL_DIR = monkey_canon
+        text_gold.MANIFEST_PATH = monkey_manifest
+    assert (out / "NEEDLE_SPAN_HISTOGRAM.v1.json").is_file()
+    assert (out / "GOLD.text.v1.unsealed.json").is_file()
+    assert not (out / "GOLD.v2.json").exists()
+    hist = json.loads((out / "NEEDLE_SPAN_HISTOGRAM.v1.json").read_text())
+    assert "buckets" in hist
+    assert result["all_short"] is False
+    gold = json.loads((out / "GOLD.text.v1.unsealed.json").read_text())
+    assert "contain_bound_fact" not in gold
+    assert gold["span_histogram"]["n_facts"] == gold["n_facts"]
+
+
 def test_text_gold_does_not_call_docling_dense_or_vision(monkeypatch):
     def boom(*_args, **_kwargs):
         raise AssertionError("gold mint must not parse, embed, or vision-read")
