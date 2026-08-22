@@ -2,6 +2,9 @@
 
 Per strategy × needle_span_chars bucket. T1 is the explicit control for T2
 at matched size and overlap. None offsets are not a preserved span.
+
+retrievable@5 is one operating point. The curve is recall@k and precision@k
+at k ∈ {1, 3, 5, 10, 20} from one BM25 ranking per fact.
 """
 
 from __future__ import annotations
@@ -20,6 +23,7 @@ from .text_gold import (
 )
 
 SPEC_SHA256 = text_chunking.SPEC_SHA256
+RETRIEVAL_KS = (1, 3, 5, 10, 20)
 
 
 def require_histogram_before_score(gold: Mapping[str, Any]) -> dict[str, Any]:
@@ -63,16 +67,76 @@ def needle_span_preserved(chunk: Mapping[str, Any], fact: Mapping[str, Any]) -> 
     return start <= first and last <= end
 
 
+def _k_label(k: int) -> str:
+    return str(int(k))
+
+
+def _empty_k_counts() -> dict[str, int]:
+    return {_k_label(k): 0 for k in RETRIEVAL_KS}
+
+
+def _empty_k_sums() -> dict[str, float]:
+    return {_k_label(k): 0.0 for k in RETRIEVAL_KS}
+
+
+def _precision_means(sums: Mapping[str, float], n: int) -> dict[str, float]:
+    return {key: (float(value) / n if n else 0.0) for key, value in sums.items()}
+
+
+def _add_k_map(
+    dest: dict[str, float] | dict[str, int],
+    src: Mapping[str, Any],
+    *,
+    as_float: bool = False,
+) -> None:
+    for key, value in src.items():
+        label = _k_label(int(key))
+        dest[label] = dest.get(label, 0.0 if as_float else 0) + (
+            float(value) if as_float else int(value)
+        )
+
+
+def bm25_ranked(
+    query: str,
+    chunks: Sequence[Mapping[str, Any]],
+) -> list[Mapping[str, Any]]:
+    """Full BM25 ranking on chunk body. Same order as research._bm25_top5."""
+    if not query or not chunks:
+        return []
+    rows = [{"text": _body(chunk)} for chunk in chunks]
+    scores = research._bm25(research._tokens(query), rows)
+    ranked = sorted(
+        zip(scores, range(len(chunks)), chunks),
+        key=lambda item: (-item[0], item[1]),
+    )
+    return [chunk for _, _, chunk in ranked]
+
+
+def retrieval_at_ks(
+    ranked: Sequence[Mapping[str, Any]],
+    needles: Mapping[str, Any],
+    ks: Sequence[int] = RETRIEVAL_KS,
+) -> tuple[dict[str, bool], dict[str, float]]:
+    """Recall@k is a hit if any top-k chunk binds. Precision@k is binds / k."""
+    relevant = [contain_bound_fact(_body(chunk), needles) for chunk in ranked]
+    retrievable: dict[str, bool] = {}
+    precision: dict[str, float] = {}
+    for k in ks:
+        hits = sum(relevant[:k])
+        retrievable[_k_label(k)] = bool(hits)
+        precision[_k_label(k)] = (hits / k) if k else 0.0
+    return retrievable, precision
+
+
 def retrievable_at_5(
     query: str,
     chunks: Sequence[Mapping[str, Any]],
     needles: Mapping[str, Any],
 ) -> bool:
-    """BM25 top-5 on chunk body. Does not call _dense_vectors."""
-    if not query or not chunks:
-        return False
-    top5 = research._bm25_top5(query, chunks)
-    return any(contain_bound_fact(_body(chunk), needles) for chunk in top5)
+    """BM25 top-5 on chunk body. The k=5 point on the curve. Not dense."""
+    ranked = bm25_ranked(query, chunks)
+    retrievable, _precision = retrieval_at_ks(ranked, needles)
+    return retrievable[_k_label(5)]
 
 
 def cross_fact_hits(
@@ -98,11 +162,14 @@ def cross_fact_hits(
     return hits
 
 
-def _empty_bucket() -> dict[str, int]:
+def _empty_bucket() -> dict[str, Any]:
     return {
         "n_facts": 0,
         "n_contain_bound_fact": 0,
         "n_retrievable_at_5": 0,
+        "n_retrievable_at_k": _empty_k_counts(),
+        "precision_at_k_sum": _empty_k_sums(),
+        "precision_at_k": _empty_k_sums(),
         "n_needle_span_preserved": 0,
     }
 
@@ -124,19 +191,35 @@ def score_strategy(
         bucket = span_bucket(span)
         contained = any(contain_bound_fact(_body(chunk), needles) for chunk in chunks)
         preserved = any(needle_span_preserved(chunk, fact) for chunk in chunks)
-        retrieved = retrievable_at_5(str(fact.get("query") or ""), chunks, needles)
+        ranked = bm25_ranked(str(fact.get("query") or ""), chunks)
+        retrievable, precision = retrieval_at_ks(ranked, needles)
+        retrieved = retrievable[_k_label(5)]
         by_bucket[bucket]["n_facts"] += 1
         by_bucket[bucket]["n_contain_bound_fact"] += int(contained)
         by_bucket[bucket]["n_retrievable_at_5"] += int(retrieved)
         by_bucket[bucket]["n_needle_span_preserved"] += int(preserved)
+        _add_k_map(by_bucket[bucket]["n_retrievable_at_k"], {
+            key: int(hit) for key, hit in retrievable.items()
+        })
+        _add_k_map(by_bucket[bucket]["precision_at_k_sum"], precision, as_float=True)
         per_fact.append({
             "fact_id": fact.get("fact_id"),
             "bucket": bucket,
             "needle_span_chars": span,
             "contain_bound_fact": contained,
             "retrievable@5": retrieved,
+            "retrievable_at_k": retrievable,
+            "precision_at_k": precision,
             "needle_span_preserved": preserved,
         })
+    n_facts = len(facts)
+    retr_at_k = _empty_k_counts()
+    prec_sums = _empty_k_sums()
+    for row in by_bucket.values():
+        n_bucket = int(row["n_facts"])
+        row["precision_at_k"] = _precision_means(row["precision_at_k_sum"], n_bucket)
+        _add_k_map(retr_at_k, row["n_retrievable_at_k"])
+        _add_k_map(prec_sums, row["precision_at_k_sum"], as_float=True)
     return {
         "strategy": strategy,
         "params": dict(params or {}),
@@ -147,11 +230,15 @@ def score_strategy(
         "cross_fact_hits": cross_fact_hits(chunks, facts),
         "by_bucket": by_bucket,
         "facts": per_fact,
+        "retrieval_ks": list(RETRIEVAL_KS),
         # Headline totals are diagnostic only. The reported result is by_bucket.
         "n_contain_bound_fact": sum(row["n_contain_bound_fact"] for row in by_bucket.values()),
-        "n_retrievable_at_5": sum(row["n_retrievable_at_5"] for row in by_bucket.values()),
+        "n_retrievable_at_5": retr_at_k[_k_label(5)],
+        "n_retrievable_at_k": retr_at_k,
+        "precision_at_k_sum": prec_sums,
+        "precision_at_k": _precision_means(prec_sums, n_facts),
         "n_needle_span_preserved": sum(row["n_needle_span_preserved"] for row in by_bucket.values()),
-        "n_facts": len(facts),
+        "n_facts": n_facts,
         "f1": None,
     }
 
@@ -206,6 +293,8 @@ def t1_t2_control_rows(results: Sequence[Mapping[str, Any]]) -> list[dict[str, A
             "t1": {
                 "n_contain_bound_fact": control["n_contain_bound_fact"],
                 "n_retrievable_at_5": control["n_retrievable_at_5"],
+                "n_retrievable_at_k": control["n_retrievable_at_k"],
+                "precision_at_k": control["precision_at_k"],
                 "n_needle_span_preserved": control["n_needle_span_preserved"],
                 "cross_fact_hits": control["cross_fact_hits"],
                 "n_chunks": control["n_chunks"],
@@ -214,6 +303,8 @@ def t1_t2_control_rows(results: Sequence[Mapping[str, Any]]) -> list[dict[str, A
             "t2": {
                 "n_contain_bound_fact": row["n_contain_bound_fact"],
                 "n_retrievable_at_5": row["n_retrievable_at_5"],
+                "n_retrievable_at_k": row["n_retrievable_at_k"],
+                "precision_at_k": row["precision_at_k"],
                 "n_needle_span_preserved": row["n_needle_span_preserved"],
                 "cross_fact_hits": row["cross_fact_hits"],
                 "n_chunks": row["n_chunks"],
@@ -257,11 +348,20 @@ def enumerate_arms(canonical: Mapping[str, Any]) -> list[tuple[str, dict[str, An
     return arms
 
 
-def _merge_buckets(into: dict[str, dict[str, int]], src: Mapping[str, Mapping[str, int]]) -> None:
+def _merge_buckets(into: dict[str, dict[str, Any]], src: Mapping[str, Mapping[str, Any]]) -> None:
     for bucket, row in src.items():
         dest = into.setdefault(bucket, _empty_bucket())
-        for key, value in row.items():
-            dest[key] = dest.get(key, 0) + int(value)
+        dest["n_facts"] += int(row.get("n_facts") or 0)
+        dest["n_contain_bound_fact"] += int(row.get("n_contain_bound_fact") or 0)
+        dest["n_retrievable_at_5"] += int(row.get("n_retrievable_at_5") or 0)
+        dest["n_needle_span_preserved"] += int(row.get("n_needle_span_preserved") or 0)
+        _add_k_map(dest["n_retrievable_at_k"], row.get("n_retrievable_at_k") or {})
+        _add_k_map(
+            dest["precision_at_k_sum"],
+            row.get("precision_at_k_sum") or {},
+            as_float=True,
+        )
+        dest["precision_at_k"] = _precision_means(dest["precision_at_k_sum"], dest["n_facts"])
 
 
 def run_sweep(
@@ -291,19 +391,30 @@ def run_sweep(
             "cross_fact_hits": 0,
             "n_contain_bound_fact": 0,
             "n_retrievable_at_5": 0,
+            "n_retrievable_at_k": _empty_k_counts(),
+            "precision_at_k_sum": _empty_k_sums(),
+            "precision_at_k": _empty_k_sums(),
             "n_needle_span_preserved": 0,
             "n_facts": 0,
             "n_offsets_none": 0,
+            "retrieval_ks": list(RETRIEVAL_KS),
             "by_bucket": {bucket: _empty_bucket() for bucket in SPAN_BUCKETS},
             "f1": None,
         })
         slot["n_chunks"] += row["n_chunks"]
         slot["cross_fact_hits"] += row["cross_fact_hits"]
         slot["n_contain_bound_fact"] += row["n_contain_bound_fact"]
-        slot["n_retrievable_at_5"] += row["n_retrievable_at_5"]
         slot["n_needle_span_preserved"] += row["n_needle_span_preserved"]
         slot["n_facts"] += row["n_facts"]
         slot["n_offsets_none"] += row["n_offsets_none"]
+        _add_k_map(slot["n_retrievable_at_k"], row.get("n_retrievable_at_k") or {})
+        _add_k_map(
+            slot["precision_at_k_sum"],
+            row.get("precision_at_k_sum") or {},
+            as_float=True,
+        )
+        slot["n_retrievable_at_5"] = slot["n_retrievable_at_k"][_k_label(5)]
+        slot["precision_at_k"] = _precision_means(slot["precision_at_k_sum"], slot["n_facts"])
         _merge_buckets(slot["by_bucket"], row["by_bucket"])
     results = list(pooled.values())
     report = {
@@ -312,6 +423,7 @@ def run_sweep(
         "span_histogram": histogram,
         "n_papers": len(canonicals),
         "n_facts": len(facts),
+        "retrieval_ks": list(RETRIEVAL_KS),
         "arms": results,
         "t1_vs_t2": t1_t2_control_rows(results),
         "f1": None,

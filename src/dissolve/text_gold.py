@@ -39,7 +39,8 @@ MANIFEST_PATH = Path("/home/aaltamimi2/dissolve-v12-audit/corpus/CANONICAL_MANIF
 DEFAULT_OUT_DIR = Path("/home/aaltamimi2/dissolve-v12-audit/corpus/text_chunking")
 _JSON_FENCE = re.compile(r"```(?:json)?\s*(\{.*\})\s*```", re.DOTALL)
 _SCORE_KEYS = (
-    "contain_bound_fact", "retrievable", "retrievable@5", "cross_fact_hits",
+    "contain_bound_fact", "retrievable", "retrievable@5", "retrievable_at_k",
+    "precision_at_k", "n_retrievable_at_k", "cross_fact_hits",
     "needle_span_preserved", "f1", "sweep", "scores",
 )
 

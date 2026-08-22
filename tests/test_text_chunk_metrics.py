@@ -133,3 +133,56 @@ def test_metrics_are_bm25_not_dense(monkeypatch):
     scored = text_chunk_metrics.score_strategy(chunks, facts, strategy="T1")
     assert "retrievable@5" in scored["facts"][0]
     assert scored["f1"] is None
+    assert scored["retrieval_ks"] == [1, 3, 5, 10, 20]
+    assert scored["n_retrievable_at_5"] == scored["n_retrievable_at_k"]["5"]
+
+
+def test_retrieval_curve_is_not_a_single_point():
+    needles = {"subject": SUBJ, "qualifier": QUAL, "value": VAL}
+    filler = {"body": "zzzz filler with no needles"}
+    bound = {"body": f"{SUBJ} {QUAL} {VAL}"}
+    # Relevant chunk sits at rank 4. retr@5 is a hit; retr@1 and retr@3 are misses.
+    ranked = [filler, filler, filler, bound, filler, filler]
+    retr, prec = text_chunk_metrics.retrieval_at_ks(ranked, needles)
+    assert list(retr) == ["1", "3", "5", "10", "20"]
+    assert retr["1"] is False
+    assert retr["3"] is False
+    assert retr["5"] is True
+    assert retr["10"] is True
+    assert retr["20"] is True
+    assert prec["1"] == 0.0
+    assert prec["3"] == 0.0
+    assert prec["5"] == 1 / 5
+    assert prec["10"] == 1 / 10
+    assert prec["20"] == 1 / 20
+    # Standard P@k still divides by k when k exceeds the list.
+    assert all(0.0 <= prec[key] <= 1.0 for key in prec)
+
+
+def test_recall_at_k_is_monotone_and_precision_is_binds_over_k():
+    needles = {"subject": SUBJ, "qualifier": QUAL, "value": VAL}
+    bound = {"body": f"{SUBJ} {QUAL} {VAL}"}
+    other = {"body": "no needles here"}
+    ranked = [bound, other, bound, other]
+    retr, prec = text_chunk_metrics.retrieval_at_ks(ranked, needles)
+    labels = ["1", "3", "5", "10", "20"]
+    hits = [retr[key] for key in labels]
+    assert hits == sorted(hits)  # False cannot follow True
+    assert prec["1"] == 1.0
+    assert prec["3"] == 2 / 3
+    assert prec["5"] == 2 / 5
+
+
+def test_retrievable_at_5_matches_production_bm25_top5():
+    canon, facts = _canon_and_facts()
+    chunks = text_chunking.chunk_t1(canon, size=800, overlap_frac=0.0)
+    fact = facts[0]
+    query = fact["query"]
+    needles = fact["needles"]
+    top5 = research._bm25_top5(query, chunks)
+    expected = any(
+        text_chunk_metrics.contain_bound_fact(chunk["body"], needles) for chunk in top5
+    )
+    assert text_chunk_metrics.retrievable_at_5(query, chunks, needles) is expected
+    ranked = text_chunk_metrics.bm25_ranked(query, chunks)
+    assert [c["body"] for c in ranked[:5]] == [c["body"] for c in top5]
