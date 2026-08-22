@@ -146,7 +146,7 @@ def test_mode_key_does_not_change_planner_or_screens():
     unset = run(None)
     assert unset == run("off") == run("leaching") == run("strap")
     assert _data(unset[1])["success"] is True
-    assert "contaminants" in inspect.signature(
+    assert "contaminants" not in inspect.signature(
         separation.plan_multistage_separation,
     ).parameters
     assert "bind_query_solvent_scope" not in inspect.getsource(

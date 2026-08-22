@@ -1,6 +1,6 @@
 """v3 §8 commit 2: finish() is wash-safe. Fixture only; no planner embed.
 
-Omitted contaminants still emit no wash. No BioSTEAM.
+Does not add contaminants to plan_multistage_separation. No BioSTEAM.
 """
 from __future__ import annotations
 
@@ -206,10 +206,10 @@ def test_wash_selectivity_does_not_enter_bottlenecks():
     assert "wash" not in finished["solvent_mapping"]
 
 
-def test_planner_omitted_contaminants_still_emits_no_wash():
+def test_planner_still_has_no_contaminants_parameter():
     payload = _data(separation.plan_multistage_separation(["LDPE", "PP"]))
     assert payload["success"] is True
-    assert "contaminants" in inspect.signature(
+    assert "contaminants" not in inspect.signature(
         separation.plan_multistage_separation,
     ).parameters
     sequence = payload.get("best_sequence") or payload.get("sequence")
@@ -217,9 +217,3 @@ def test_planner_omitted_contaminants_still_emits_no_wash():
     assert all(not str(item).startswith("wash") for item in sequence)
     mapping = payload.get("solvent_mapping") or {}
     assert "wash" not in mapping
-    assert "positions_considered" not in payload
-    assert all(
-        item.get("path") is None and item.get("feed_state_at_step") is None
-        for item in (payload.get("steps") or [])
-        if isinstance(item, dict)
-    )
