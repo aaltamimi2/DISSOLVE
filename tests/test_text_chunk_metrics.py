@@ -111,6 +111,18 @@ def test_score_refuses_missing_or_all_short_histogram():
     assert error.value.code == "gold_spans_all_short"
 
 
+def test_run_arm_does_not_score_whole_gold_on_zero_fact_paper():
+    canon, facts = _canon_and_facts()
+    canon["source_pdf_sha256"] = "aa" * 32
+    tagged = [{**facts[0], "paper_sha256": "bb" * 32}]
+    chunks = text_chunking.chunk_t1(canon, size=400, overlap_frac=0.0)
+    scored = text_chunk_metrics.run_arm(
+        canon, tagged, strategy="T1", params={"size": 400}, chunks=chunks,
+    )
+    assert scored["n_facts"] == 0
+    assert scored["n_contain_bound_fact"] == 0
+
+
 def test_metrics_are_bm25_not_dense(monkeypatch):
     def boom(*_args, **_kwargs):
         raise AssertionError("retrievable@5 must not call _dense_vectors")

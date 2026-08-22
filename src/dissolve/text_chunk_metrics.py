@@ -169,11 +169,12 @@ def run_arm(
         or canonical.get("pdf_sha256")
         or canonical.get("paper_sha256")
     )
-    paper_facts = [
-        fact for fact in facts
-        if not fact.get("paper_sha256") or fact.get("paper_sha256") == paper_id
-    ]
-    if not paper_facts:
+    tagged = [fact for fact in facts if fact.get("paper_sha256")]
+    if tagged:
+        # A paper with zero kept facts scores nothing. Do not fall back to
+        # the rest of the gold — that doubles pooled n_facts.
+        paper_facts = [fact for fact in tagged if fact.get("paper_sha256") == paper_id]
+    else:
         paper_facts = list(facts)
     scored = score_strategy(chunks, paper_facts, strategy=strategy, params=params)
     scored["n_offsets_usable"] = sum(1 for chunk in chunks if text_chunking.offsets_usable(chunk))
