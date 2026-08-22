@@ -122,7 +122,7 @@ def test_absence_cases_are_constructed():
     unspecified = item["unspecified_fallback"]
     assert unspecified["all_unspecified_are_pfas"] is True
     assert unspecified["rt_and_t_higher_are_phthalates"] is True
-    assert unspecified["unspecified_not_a_strap_basis_not_implemented"] is True
+    assert unspecified["unspecified_not_a_strap_basis_not_implemented"] is False
     assert unspecified["toluene_pfoa_asked_rt"]["temperature_regime"] == (
         "unspecified"
     )

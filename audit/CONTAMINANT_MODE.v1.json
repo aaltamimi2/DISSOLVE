@@ -1,0 +1,169 @@
+{
+  "schema": "dissolve.audit-contaminant-mode.v1",
+  "spec": "CONTAMINANT_MODE_SPEC.v3",
+  "spec_sha256": "ccdd75d403231e6c8938dd9b0232d56f0630afca010e9d779625ab625167aea7",
+  "checkpoint": "v3-section-7",
+  "measured_on_builder_sha": "ef8c1b84305001e8142fab25838a8774525d7d69",
+  "measured_at": "2026-08-22T03:59:23Z",
+  "command": "python3 audit/measure_contaminant_mode.py",
+  "tea_config_key_calls": [],
+  "inverted_screens": {
+    "same_inputs": {
+      "target_polymer": "LDPE",
+      "contaminants": [
+        "Perfluorooctanoic Acid"
+      ],
+      "other_polymers": [
+        "PET",
+        "EVOH"
+      ],
+      "solvents": [
+        "2,3-dihydropyran",
+        "acetone",
+        "2-butanone",
+        "1-propanol"
+      ]
+    },
+    "leaching_success": true,
+    "strap_success": true,
+    "leaching_mode": "leaching",
+    "strap_mode": "strap_contaminant_removal",
+    "leaching_recommended": [
+      "2,3-dihydropyran",
+      "acetone"
+    ],
+    "strap_recommended": [],
+    "leaching_decision_basis": [
+      "all requested supported contaminants are miscible",
+      "all workbook logD values are positive",
+      "the polymer remains below the 10 wt% dissolution proxy"
+    ],
+    "strap_decision_basis": [
+      "target polymer reaches at least 10 wt% modeled solubility",
+      "non-target polymers remain at or below 1 wt%",
+      "target polymer crosses below the 1 wt% precipitation proxy on cooling",
+      "contaminants remain miscible with positive workbook logD"
+    ],
+    "pass_sets_differ": true
+  },
+  "constructed_b_pair": {
+    "fail_pet_evoh": {
+      "success": true,
+      "passes": false,
+      "target_polymer_status": "no_feasible_dissolution_precipitation_window",
+      "unspecified_not_a_strap_basis": false
+    },
+    "pass_evoh": {
+      "success": true,
+      "passes": true,
+      "operating_temperature_c": 105.0,
+      "precipitation_temperature_c": 60.0,
+      "contaminant_logd_min": 0.81,
+      "miscibility_regimes": [
+        "rt",
+        "rt"
+      ],
+      "unspecified_not_a_strap_basis": false
+    }
+  },
+  "withdrawn_pfoa_case": {
+    "success": false,
+    "error_code": "unspecified_not_a_strap_basis",
+    "refuses": true,
+    "toluene_pfoa_asked_rt": {
+      "temperature_regime": "unspecified",
+      "temperature_c": null,
+      "boiling_point_c": null,
+      "t_higher_c": null,
+      "miscible": true
+    }
+  },
+  "regimes": {
+    "regimes_by_family": [
+      {
+        "family": "PFAS",
+        "temperature_regime": "unspecified",
+        "n": 832
+      },
+      {
+        "family": "Phthalates",
+        "temperature_regime": "rt",
+        "n": 256
+      },
+      {
+        "family": "Phthalates",
+        "temperature_regime": "t_higher",
+        "n": 256
+      }
+    ],
+    "histogram_256_256_832": true,
+    "pfas_specified_rows": 0,
+    "toluene_dehp_asked_t_higher": {
+      "temperature_regime": "rt",
+      "temperature_c": 25.0,
+      "boiling_point_c": 110.6,
+      "t_higher_c": 109.6,
+      "miscible": true
+    },
+    "asked_t_higher_returns_rt": true
+  },
+  "thresholds": {
+    "threshold_sources": {
+      "swelling_min_wt_pct": "default",
+      "swelling_max_wt_pct": "default",
+      "dissolution_min_wt_pct": "default",
+      "precipitation_threshold_wt_pct": "paper"
+    },
+    "threshold_citations": {
+      "swelling_min_wt_pct": "unsourced",
+      "swelling_max_wt_pct": "unsourced",
+      "dissolution_min_wt_pct": "unsourced",
+      "precipitation_threshold_wt_pct": "zhou_green_chem_2026"
+    },
+    "threshold_citation_status": "unsourced",
+    "precipitation_threshold_wt_pct": 1.0,
+    "precipitation_is_paper": true,
+    "swell_dissolve_unsourced": true
+  },
+  "thp": {
+    "ldpe_thp_85c": {
+      "solubility_pct": 6.49342467,
+      "unavailable_reason": null
+    },
+    "ldpe_thp_87c": {
+      "solubility_pct": null,
+      "unavailable_reason": "temperature_not_a_grid_node"
+    },
+    "paper_7_3_wt_pct_at_87c": 7.3,
+    "both_below_default_dissolution_min": true
+  },
+  "identity_and_refusals": {
+    "dehp_supported": [
+      "di-(2-ethylhexyl) phthalate (DEHP)"
+    ],
+    "ethylhexyl_unsupported": [
+      "2-ethylhexyl"
+    ],
+    "bfr_error_code": "unsupported_contaminant_family",
+    "junk_error_code": "unsupported_contaminants",
+    "unknown_solvent_error_code": "unknown_contaminant_solvent",
+    "codes_are_distinct": true
+  },
+  "paper_disagreements": {
+    "logd_has_no_polymer_column": true,
+    "pfas_miscibility_is_unspecified_only": true,
+    "dissolution_10_wt_pct_is_unsourced": true,
+    "precipitation_1_wt_pct_is_paper": true,
+    "zero_bfr_rows": true,
+    "thp_rejected_by_10_wt_pct": true,
+    "pfoa_cyclohexanol_pet_is_unspecified_fallback": true,
+    "dehp_toluene_evoh_is_specified_rt": true
+  },
+  "not_this_slice": [
+    "wash embedding",
+    "cli.py",
+    "separation.py",
+    "accept test 2 planner bind",
+    "tea._config_key"
+  ]
+}

@@ -427,6 +427,29 @@ def _miscibility(solvent: str, contaminant: str, regime: str) -> dict[str, Any] 
     }
 
 
+def _miscibility_regimes(solvent: str, contaminant: str) -> tuple[str, ...]:
+    """Every workbook regime for this pair. Does not require the asked _regime."""
+    solvent_keys = _solvent_keys(solvent)
+    if not solvent_keys:
+        return ()
+    where, params = _solvent_where(solvent_keys)
+    rows = _connection().execute(
+        f"""SELECT DISTINCT temperature_regime FROM miscibility
+            WHERE contaminant_key=? AND {where}""",
+        [_key(contaminant), *params],
+    ).fetchall()
+    return tuple(str(row[0]) for row in rows if row and row[0])
+
+
+def _unspecified_only_basis(solvent: str, contaminants: Sequence[str]) -> bool:
+    """True if any contaminant has workbook rows and none of them is rt/t_higher."""
+    for contaminant in contaminants:
+        regimes = set(_miscibility_regimes(solvent, contaminant))
+        if regimes and regimes <= {"unspecified"}:
+            return True
+    return False
+
+
 def _logd(solvent: str, contaminant: str) -> Optional[float]:
     solvent_keys = _solvent_keys(solvent)
     if not solvent_keys:
@@ -973,6 +996,7 @@ def _strap(inputs: dict[str, Any]) -> dict[str, Any]:
                 "contaminant_precipitation_regime_pass": False,
                 "contaminant_logd_pass": False, "contaminant_logd_min": None,
                 "contaminants": [], "caveats": ["no modeled dissolution/cooling window"],
+                "unspecified_not_a_strap_basis": False,
             })
             continue
         dissolution_regime = _regime(solvent, window["operating_temperature_c"])
@@ -983,9 +1007,14 @@ def _strap(inputs: dict[str, Any]) -> dict[str, Any]:
         cold_contaminants, _, cold_miscible, _ = _contaminant_rows(
             solvent, inputs["supported"], precipitation_regime,
         )
+        unspecified_only = _unspecified_only_basis(solvent, inputs["supported"])
         rows.append({
             "solvent": solvent,
-            "passes": hot_miscible and cold_miscible and positive and not inputs["missing_others"],
+            "passes": (
+                hot_miscible and cold_miscible and positive
+                and not inputs["missing_others"]
+                and not unspecified_only
+            ),
             "mode": "strap_contaminant_removal", **window,
             "boiling_point_c": thermo.get_boiling_point(solvent),
             "target_polymer_status": "dissolving_then_precipitating",
@@ -993,7 +1022,12 @@ def _strap(inputs: dict[str, Any]) -> dict[str, Any]:
             "contaminant_precipitation_regime_pass": cold_miscible,
             "contaminant_logd_pass": positive, "contaminant_logd_min": minimum,
             "contaminants": contaminants,
-            "precipitation_regime_contaminants": cold_contaminants, "caveats": [],
+            "precipitation_regime_contaminants": cold_contaminants,
+            "unspecified_not_a_strap_basis": unspecified_only,
+            "caveats": (
+                ["unspecified is not a STRAP temperature-regime basis"]
+                if unspecified_only else []
+            ),
         })
     result = _base_result(inputs, "strap_contaminant_removal", rows)
     configured_defaults = (
@@ -1085,7 +1119,28 @@ def screen_contaminant_strap_removal(
         swelling_max_wt_pct, dissolution_min_wt_pct,
         precipitation_threshold_wt_pct, include_precipitation=True,
     )
-    return error or _tool_result(tool, _strap(inputs))
+    if error:
+        return error
+    result = _strap(inputs)
+    candidates = result.get("candidate_solvents") or []
+    if candidates and all(
+        row.get("unspecified_not_a_strap_basis") for row in candidates
+    ):
+        return tool_error(
+            tool,
+            "Every strap candidate has only unspecified miscibility; "
+            "unspecified is not a STRAP temperature-regime basis.",
+            error_code="unspecified_not_a_strap_basis",
+            target_polymer=inputs["target"],
+            other_polymers=inputs["others"],
+            requested_contaminants=inputs["requested"],
+            supported_contaminants=inputs["supported"],
+            unsupported_contaminants=inputs["unsupported"],
+            solvents=[row.get("solvent") for row in candidates],
+            **_served_threshold_fields(inputs),
+            provenance=_provenance(),
+        )
+    return _tool_result(tool, result)
 
 
 def compare_contaminant_removal_modes(

@@ -5,8 +5,8 @@
   "objected_v2": "CONTAMINANT_MODE_SPEC.v2.md",
   "objected_v2_sha256": "a0665ccf51276270991854056836c9e8d09b6fee0be556a83ef84e7fb2a15a1d",
   "checkpoint": "identity-join + section-7 facts independent of test 2",
-  "measured_on_builder_sha": "fa34f421e97a9b1a401aaaa12528a5df88fa4f62",
-  "measured_at": "2026-08-21T22:13:44Z",
+  "measured_on_builder_sha": "ef8c1b84305001e8142fab25838a8774525d7d69",
+  "measured_at": "2026-08-22T03:59:24Z",
   "command": "python3 audit/measure_contaminant_identity.py",
   "tea_config_key_calls": [],
   "identity": {
@@ -469,13 +469,12 @@
         "t_higher_c": null,
         "miscible": true
       },
-      "unspecified_not_a_strap_basis_not_implemented": true
+      "unspecified_not_a_strap_basis_not_implemented": false
     }
   },
   "not_this_slice": [
-    "unspecified_not_a_strap_basis",
     "wash embedding",
-    "accept test 2",
+    "accept test 2 planner bind",
     "tea._config_key"
   ]
 }

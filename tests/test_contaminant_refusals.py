@@ -1,4 +1,4 @@
-"""v1 hold-to 3: distinct absence codes, except unspecified (owner stop 5)."""
+"""v1 hold-to 3 / v3 §6: distinct absence codes, including unspecified STRAP."""
 from __future__ import annotations
 
 import sys
@@ -55,8 +55,7 @@ def test_mixed_known_and_unknown_solvent_continues():
     assert any(row.get("solvent") == "toluene" for row in payload["candidate_solvents"])
 
 
-def test_unspecified_fallback_is_unchanged():
-    """Owner stop 5: do not make unspecified-only fail strap."""
+def test_unspecified_only_does_not_pass_strap():
     row = C._miscibility("toluene", "Perfluorooctanoic Acid", "rt")
     assert row is not None
     assert row["temperature_regime"] == "unspecified"
@@ -64,5 +63,22 @@ def test_unspecified_fallback_is_unchanged():
         "LDPE", ["Perfluorooctanoic Acid"],
         other_polymers=["PET"], solvents=["cyclohexanol"],
     ))
-    assert strap["success"] is True
-    assert any(item.get("passes") for item in strap["candidate_solvents"])
+    assert strap["success"] is False
+    assert strap["error_code"] == "unspecified_not_a_strap_basis"
+    leach = _data(C.screen_contaminant_leaching(
+        "LDPE", ["Perfluorooctanoic Acid"],
+        other_polymers=["PET"], solvents=["toluene"],
+    ))
+    assert leach["success"] is True
+
+
+def test_specified_rt_fallback_still_passes_strap():
+    dehp = _data(C.screen_contaminant_strap_removal(
+        "LDPE", ["di-(2-ethylhexyl) phthalate (DEHP)"],
+        other_polymers=["EVOH"], solvents=["toluene"],
+    ))
+    assert dehp["success"] is True
+    row = dehp["candidate_solvents"][0]
+    assert row["passes"] is True
+    assert row["unspecified_not_a_strap_basis"] is False
+    assert [item["miscibility_regime"] for item in row["contaminants"]] == ["rt"]
