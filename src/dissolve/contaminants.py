@@ -19,7 +19,7 @@ from .contracts import tool_error, tool_success
 from .tools import _polymer_ambiguity_error
 
 _ASSET = Path(str(files("dissolve").joinpath("data/contaminants.duckdb")))
-_ASSET_SHA256 = "9f85a554809a547a60aa980879e8b24f9c141ff1959d9114a4d81077ff7d4716"
+_ASSET_SHA256 = "866d769b6a140bf289c5036fd5c0d7d2b6f424cb7994e71c76e16a1a1d9a4c5f"
 _LOCAL = threading.local()
 _FAMILY_ALIASES = {
     "pfas": "PFAS",

@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
-"""Add contaminant_aliases to the existing contaminants.duckdb pin.
+"""Rebuild contaminant_aliases for v5 Commit D5.
 
-Commit D only: table + pin. Does not delete the trailing-parenthetical regex.
-CAS numbers come from Solvent_Data.csv via the cosmobase / normalized name.
-PFAS CAS are an explicit NULL absence. No registry call. No BioSTEAM.
+resolution_basis is cas_verified / held_snapshot / catalog_declared.
+Regex stays the lookup. No embed. No registry call. No BioSTEAM.
 """
 from __future__ import annotations
 
@@ -12,17 +11,18 @@ import csv
 import hashlib
 import json
 import shutil
+import subprocess
 import tempfile
-from collections import defaultdict
 from pathlib import Path
 from typing import Any
 
 import duckdb
 
 ROOT = Path(__file__).resolve().parents[1]
-PARENT_ASSET_SHA256 = (
+CHEMISTRY_ASSET_SHA256 = (
     "19e585e019ad0ad1aac6e31ff49b5d47477789a5903b4fc3821e2d16a8596721"
 )
+CHEMISTRY_COMMIT = "1b61ebfb7d7fb5239f8c8aab11685d0cb87fbd31"
 HELD_SHA256 = (
     "eca9233329f8a33612996fd40669d94bdcd8036ed2641e51439bb3e18ee8654c"
 )
@@ -30,20 +30,23 @@ SOLVENT_DATA_SHA256 = (
     "c9dfd6556ec3f755157b951408a852df44b7cbdc18dea02c36266000d0c9bd49"
 )
 PERFLUORO_SOLVENT_CAS = {
-    "355-25-9",  # perfluorobutane — not perfluorobutanoic acid
-    "335-57-9",  # perfluoroheptane
-    "355-42-0",  # perfluorohexane
-    "678-26-2",  # perfluoropentane
-    "355-02-2",  # perfluoromethylcyclohexane
-    "116-14-3",  # tetrafluoroethene
-    "76-05-1",   # trifluoroacetic acid
+    "355-25-9",
+    "335-57-9",
+    "355-42-0",
+    "678-26-2",
+    "355-02-2",
+    "116-14-3",
+    "76-05-1",
 }
 FORBIDDEN_ALIASES = {
     "2-ethylhexyl",
     "heptafluoropropoxy",
     "dioctyl phthalate",
     "genx",
+    "pfoa",
 }
+DIMETHYL_PHTHALATE_CAS = "131-11-3"
+RESOLUTION_BASIS = {"cas_verified", "held_snapshot", "catalog_declared"}
 PHTHALATE_SHORTS = {
     "butyl benzyl phthalate (bbp)": "BBP",
     "di-(2-ethylhexyl) phthalate (dehp)": "DEHP",
@@ -53,6 +56,16 @@ PHTHALATE_SHORTS = {
     "di-n-hexyl phthalate (dnhp)": "DnHP",
     "di-n-octyl phthalate (dnop)": "DnOP",
     "diethyl phthalate (dep)": "DEP",
+}
+PHTHALATE_CAS_CID = {
+    "butyl benzyl phthalate (bbp)": ("85-68-7", "2347"),
+    "di-(2-ethylhexyl) phthalate (dehp)": ("117-81-7", "8343"),
+    "di-isodecyl phthalate(didp)": ("26761-40-0", "33599"),
+    "di-isononyl phthalate (dinp)": ("28553-12-0", "590836"),
+    "di-n-butyl phthalate (dbp)": ("84-74-2", "3026"),
+    "di-n-hexyl phthalate (dnhp)": ("84-75-3", "6786"),
+    "di-n-octyl phthalate (dnop)": ("117-84-0", "8346"),
+    "diethyl phthalate (dep)": ("84-66-2", "6781"),
 }
 
 
@@ -68,6 +81,24 @@ def _require_sha(path: Path, expected: str, label: str) -> None:
     digest = _sha256(path)
     if digest != expected:
         raise SystemExit(f"{label} sha256 {digest} != {expected}")
+
+
+def _cid(value: Any) -> str:
+    text = str(value or "").strip()
+    if not text:
+        return ""
+    try:
+        return str(int(float(text)))
+    except ValueError:
+        return text
+
+
+def _extract_chemistry(dest: Path) -> None:
+    raw = subprocess.check_output(
+        ["git", "-C", str(ROOT), "show", f"{CHEMISTRY_COMMIT}:src/dissolve/data/contaminants.duckdb"],
+    )
+    dest.write_bytes(raw)
+    _require_sha(dest, CHEMISTRY_ASSET_SHA256, "chemistry parent")
 
 
 def _load_held(path: Path) -> dict[str, dict[str, str]]:
@@ -86,7 +117,7 @@ def _load_held(path: Path) -> dict[str, dict[str, str]]:
     return rows
 
 
-def _load_normalized_cas(path: Path) -> dict[str, dict[str, str]]:
+def _load_normalized(path: Path) -> dict[str, dict[str, str]]:
     _require_sha(path, SOLVENT_DATA_SHA256, path.name)
     by_normalized: dict[str, dict[str, str]] = {}
     with path.open(encoding="utf-8-sig", newline="") as handle:
@@ -104,20 +135,20 @@ def _load_normalized_cas(path: Path) -> dict[str, dict[str, str]]:
                 )
             by_normalized[normalized] = {
                 "cas_number": cas,
-                "cid": str(row.get("CID") or "").strip(),
+                "cid": _cid(row.get("CID")),
                 "display": str(row.get("Solvent name") or "").strip(),
-                "normalized": str(row.get("Solvent name in cosmobase") or "").strip(),
             }
     return by_normalized
 
 
-def _phthalate_cas(
+def _phthalate_identity(
     held: dict[str, dict[str, str]],
     by_normalized: dict[str, dict[str, str]],
-) -> dict[str, str]:
-    assigned: dict[str, str] = {}
+) -> dict[str, tuple[str, str]]:
+    assigned: dict[str, tuple[str, str]] = {}
     cas_to_key: dict[str, str] = {}
     for key, item in held.items():
+        expected_cas, expected_cid = PHTHALATE_CAS_CID[key]
         normalized = _key(item["source_normalized_name"])
         joined = by_normalized.get(normalized)
         if joined is None:
@@ -125,23 +156,28 @@ def _phthalate_cas(
                 f"no Solvent_Data.csv normalized row for {key} "
                 f"({item['source_normalized_name']})"
             )
+        if _key(joined["display"]) == "dioctyl phthalate":
+            raise SystemExit("refusing display-name Dioctyl Phthalate join")
         if joined["cas_number"] != item["cas_number"]:
             raise SystemExit(
-                f"held CAS {item['cas_number']} != Solvent_Data.csv "
-                f"{joined['cas_number']} for normalized {normalized}"
+                f"held CAS {item['cas_number']} != CSV {joined['cas_number']}"
+            )
+        if joined["cas_number"] != expected_cas or joined["cid"] != expected_cid:
+            raise SystemExit(
+                f"{key} CSV CAS/CID {joined['cas_number']}/{joined['cid']} "
+                f"!= {expected_cas}/{expected_cid}"
             )
         if joined["cas_number"] in PERFLUORO_SOLVENT_CAS:
-            raise SystemExit(
-                f"refusing perfluorinated solvent CAS {joined['cas_number']} "
-                f"on contaminant {key}"
-            )
-        prior_key = cas_to_key.get(joined["cas_number"])
-        if prior_key and prior_key != key:
-            raise SystemExit(
-                f"CAS {joined['cas_number']} would belong to {prior_key} and {key}"
-            )
+            raise SystemExit(f"perfluoro solvent CAS on {key}")
+        if joined["cas_number"] == DIMETHYL_PHTHALATE_CAS:
+            raise SystemExit("DMP is not a catalog key")
+        prior = cas_to_key.get(joined["cas_number"])
+        if prior and prior != key:
+            raise SystemExit(f"CAS {joined['cas_number']} on {prior} and {key}")
         cas_to_key[joined["cas_number"]] = key
-        assigned[key] = joined["cas_number"]
+        assigned[key] = (joined["cas_number"], joined["cid"])
+    if set(assigned) != set(PHTHALATE_CAS_CID):
+        raise SystemExit("phthalate identity set does not match v5 §2")
     return assigned
 
 
@@ -155,60 +191,54 @@ def _add_alias(
     canonical_name: str,
     family: str,
     cas_number: str | None,
-    cas_status: str,
+    resolution_basis: str,
+    pubchem_cid: str | None,
 ) -> None:
     folded = _key(alias)
     if not folded:
         return
     if folded in FORBIDDEN_ALIASES:
         raise SystemExit(f"refusing forbidden alias {alias!r}")
+    if resolution_basis not in RESOLUTION_BASIS:
+        raise SystemExit(f"unknown resolution_basis {resolution_basis!r}")
     if cas_number == "":
         raise SystemExit(f"blank CAS on alias {alias!r}")
-    if cas_status == "local":
+    if resolution_basis in {"cas_verified", "held_snapshot"}:
         if not cas_number:
-            raise SystemExit(f"local CAS row {alias!r} is missing cas_number")
-    elif cas_status == "absent":
-        if cas_number is not None:
-            raise SystemExit(f"absent CAS row {alias!r} must be NULL, not {cas_number}")
-    else:
-        raise SystemExit(f"cas_status must be local or absent, not {cas_status}")
-    if cas_number in PERFLUORO_SOLVENT_CAS:
+            raise SystemExit(f"{resolution_basis} row {alias!r} needs cas_number")
+    elif cas_number is not None:
+        raise SystemExit(f"catalog_declared row {alias!r} must have NULL CAS")
+    if resolution_basis == "cas_verified":
+        if not pubchem_cid:
+            raise SystemExit(f"cas_verified row {alias!r} needs pubchem_cid")
+    elif pubchem_cid is not None:
         raise SystemExit(
-            f"refusing perfluorinated solvent CAS {cas_number} on {alias!r}"
+            f"{resolution_basis} row {alias!r} must not carry a CID"
         )
+    if cas_number in PERFLUORO_SOLVENT_CAS or cas_number == DIMETHYL_PHTHALATE_CAS:
+        raise SystemExit(f"refusing CAS {cas_number} on {alias!r}")
     prior = folded_owner.get(folded)
     identity = (contaminant_key, cas_number)
     if prior and prior != identity:
-        raise SystemExit(
-            f"folded alias {folded!r} maps to {prior} and {identity}"
-        )
+        raise SystemExit(f"folded alias {folded!r} maps to {prior} and {identity}")
     if cas_number:
         other = cas_owner.get(cas_number)
         if other and other != contaminant_key:
-            raise SystemExit(
-                f"CAS {cas_number} maps to {other} and {contaminant_key}"
-            )
+            raise SystemExit(f"CAS {cas_number} maps to {other} and {contaminant_key}")
         cas_owner[cas_number] = contaminant_key
     if prior:
         return
     folded_owner[folded] = identity
     rows.append((
-        alias, contaminant_key, canonical_name, family, cas_number, cas_status,
+        alias, contaminant_key, canonical_name, family,
+        cas_number, resolution_basis, pubchem_cid,
     ))
 
 
 def build(parent: Path, output: Path, held_path: Path, solvent_csv: Path) -> str:
-    if _sha256(parent) != PARENT_ASSET_SHA256:
-        source = duckdb.connect(str(parent), read_only=True)
-        tables = {row[0] for row in source.execute("SHOW TABLES").fetchall()}
-        source.close()
-        if "contaminant_aliases" not in tables:
-            raise SystemExit(
-                f"parent asset sha256 {_sha256(parent)} != {PARENT_ASSET_SHA256}"
-            )
+    _require_sha(parent, CHEMISTRY_ASSET_SHA256, "chemistry parent")
     held = _load_held(held_path)
-    by_normalized = _load_normalized_cas(solvent_csv)
-    phthalate_cas = _phthalate_cas(held, by_normalized)
+    identities = _phthalate_identity(held, _load_normalized(solvent_csv))
 
     source = duckdb.connect(str(parent), read_only=True)
     contaminants = source.execute(
@@ -223,49 +253,43 @@ def build(parent: Path, output: Path, held_path: Path, solvent_csv: Path) -> str
         ).fetchall()
     }
     source.close()
-    if len(contaminants) != 34:
-        raise SystemExit(f"contaminants has {len(contaminants)}, expected 34")
-    if families != {"PFAS", "Phthalates"}:
-        raise SystemExit(f"unexpected families {sorted(families)}")
+    if len(contaminants) != 34 or families != {"PFAS", "Phthalates"}:
+        raise SystemExit("catalog is not 26 PFAS / 8 Phthalates")
     if logd_count != 1088 or misc_count != 1344:
-        raise SystemExit(
-            f"logd/miscibility counts moved: {logd_count}/{misc_count}"
-        )
+        raise SystemExit(f"logd/miscibility moved: {logd_count}/{misc_count}")
 
     aliases: list[tuple[Any, ...]] = []
     folded_owner: dict[str, tuple[str, str | None]] = {}
     cas_owner: dict[str, str] = {}
-    seen_keys: set[str] = set()
+    seen: set[str] = set()
     for family, name, key in contaminants:
-        family_s = str(family)
-        name_s = str(name)
-        key_s = str(key)
-        seen_keys.add(key_s)
+        family_s, name_s, key_s = str(family), str(name), str(key)
+        seen.add(_key(key_s))
         if family_s == "Phthalates":
-            cas = phthalate_cas.get(_key(key_s))
-            if not cas:
-                raise SystemExit(f"phthalate {key_s} has no local CAS")
-            status = "local"
+            cas, cid = identities[_key(key_s)]
+            basis = "cas_verified"
         elif family_s == "PFAS":
-            cas = None
-            status = "absent"
+            cas, cid, basis = None, None, "catalog_declared"
         else:
             raise SystemExit(f"unexpected family {family_s}")
         _add_alias(
             aliases, folded_owner, cas_owner,
             alias=name_s, contaminant_key=key_s, canonical_name=name_s,
-            family=family_s, cas_number=cas, cas_status=status,
+            family=family_s, cas_number=cas, resolution_basis=basis,
+            pubchem_cid=cid,
         )
         _add_alias(
             aliases, folded_owner, cas_owner,
             alias=key_s, contaminant_key=key_s, canonical_name=name_s,
-            family=family_s, cas_number=cas, cas_status=status,
+            family=family_s, cas_number=cas, resolution_basis=basis,
+            pubchem_cid=cid,
         )
         if cas:
             _add_alias(
                 aliases, folded_owner, cas_owner,
                 alias=cas, contaminant_key=key_s, canonical_name=name_s,
-                family=family_s, cas_number=cas, cas_status=status,
+                family=family_s, cas_number=cas, resolution_basis=basis,
+                pubchem_cid=cid,
             )
             short = PHTHALATE_SHORTS.get(_key(key_s))
             if not short:
@@ -273,20 +297,18 @@ def build(parent: Path, output: Path, held_path: Path, solvent_csv: Path) -> str
             _add_alias(
                 aliases, folded_owner, cas_owner,
                 alias=short, contaminant_key=key_s, canonical_name=name_s,
-                family=family_s, cas_number=cas, cas_status=status,
-            )
-            normalized = held[_key(key_s)]["source_normalized_name"]
-            _add_alias(
-                aliases, folded_owner, cas_owner,
-                alias=normalized, contaminant_key=key_s, canonical_name=name_s,
-                family=family_s, cas_number=cas, cas_status=status,
+                family=family_s, cas_number=cas, resolution_basis=basis,
+                pubchem_cid=cid,
             )
 
-    missing_shorts = set(PHTHALATE_SHORTS) - {_key(key) for key in seen_keys}
-    if missing_shorts:
-        raise SystemExit(f"named shorts for missing keys: {sorted(missing_shorts)}")
-    if set(phthalate_cas) - {_key(key) for key in seen_keys}:
-        raise SystemExit("held CAS for a contaminant_key that is not in the catalog")
+    if set(PHTHALATE_SHORTS) - seen:
+        raise SystemExit("named shorts for missing keys")
+    if set(identities) - seen:
+        raise SystemExit("held CAS for a key that is not in the catalog")
+    if any(row[5] == "held_snapshot" for row in aliases):
+        raise SystemExit("held_snapshot must be 0 until contaminant_cas.held.v1")
+    if any(row[5] == "catalog_declared" and row[4] is not None for row in aliases):
+        raise SystemExit("catalog_declared row carries a CAS")
 
     output.parent.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory() as tmp:
@@ -302,43 +324,47 @@ def build(parent: Path, output: Path, held_path: Path, solvent_csv: Path) -> str
                 canonical_name VARCHAR,
                 family VARCHAR,
                 cas_number VARCHAR,
-                cas_status VARCHAR
+                resolution_basis VARCHAR,
+                pubchem_cid VARCHAR
             )
             """
         )
         connection.executemany(
-            "INSERT INTO contaminant_aliases VALUES (?,?,?,?,?,?)",
+            "INSERT INTO contaminant_aliases VALUES (?,?,?,?,?,?,?)",
             aliases,
         )
         connection.execute(
             "CREATE INDEX contaminant_alias_name ON contaminant_aliases(alias)"
         )
-        held_bytes = held_path.stat().st_size
+        held_label = "src/dissolve/data/contaminant_cas_phthalates.local.v1.json"
         existing_sources = {
             str(row[0])
             for row in connection.execute(
                 "SELECT source_path FROM asset_sources"
             ).fetchall()
         }
-        held_label = "src/dissolve/data/contaminant_cas_phthalates.local.v1.json"
         if held_label not in existing_sources:
             connection.execute(
                 "INSERT INTO asset_sources VALUES (?,?,?)",
-                [held_label, HELD_SHA256, held_bytes],
+                [held_label, HELD_SHA256, held_path.stat().st_size],
             )
-        connection.execute("DELETE FROM metadata WHERE key LIKE 'cas_%'")
+        connection.execute(
+            "DELETE FROM metadata WHERE key LIKE 'cas_%' OR key LIKE 'held_%' "
+            "OR key LIKE 'resolution_%'"
+        )
         connection.executemany(
             "INSERT INTO metadata VALUES (?,?)",
             [
                 ("cas_local_count", "8"),
                 ("cas_absent_count", "26"),
                 ("cas_absent_family", "PFAS"),
+                ("held_snapshot_count", "0"),
                 ("cas_source", "Solvent_Data.csv cosmobase_name"),
                 ("cas_held_file", held_label),
                 ("cas_held_sha256", HELD_SHA256),
                 (
                     "cas_absent_note",
-                    "26 PFAS CAS are not local; cas_number is explicit NULL",
+                    "26 PFAS CAS are not local; resolution_basis=catalog_declared",
                 ),
             ],
         )
@@ -350,16 +376,7 @@ def build(parent: Path, output: Path, held_path: Path, solvent_csv: Path) -> str
 
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument(
-        "--parent",
-        type=Path,
-        default=ROOT / "src/dissolve/data/contaminants.duckdb",
-    )
-    parser.add_argument(
-        "--output",
-        type=Path,
-        default=ROOT / "src/dissolve/data/contaminants.duckdb",
-    )
+    parser.add_argument("--output", type=Path, default=ROOT / "src/dissolve/data/contaminants.duckdb")
     parser.add_argument(
         "--held",
         type=Path,
@@ -371,31 +388,14 @@ def main() -> int:
         default=ROOT / "src/dissolve/data/Solvent_Data.csv",
     )
     args = parser.parse_args()
-    parent = args.parent.resolve()
-    output = args.output.resolve()
-    if parent == output:
-        raw = parent.read_bytes()
-        if hashlib.sha256(raw).hexdigest() != PARENT_ASSET_SHA256:
-            source = duckdb.connect(str(parent), read_only=True)
-            has_aliases = "contaminant_aliases" in {
-                row[0] for row in source.execute("SHOW TABLES").fetchall()
-            }
-            source.close()
-            if has_aliases:
-                raise SystemExit(
-                    "in-place rebuild needs the parent pin "
-                    f"{PARENT_ASSET_SHA256}; restore contaminants.duckdb first"
-                )
-        with tempfile.NamedTemporaryFile(suffix=".duckdb", delete=False) as handle:
-            backup = Path(handle.name)
-        backup.write_bytes(raw)
-        try:
-            digest = build(backup, output, args.held.resolve(), args.solvent_data.resolve())
-        finally:
-            backup.unlink(missing_ok=True)
-    else:
-        digest = build(parent, output, args.held.resolve(), args.solvent_data.resolve())
-    print(f"built {output} sha256 {digest}")
+    with tempfile.TemporaryDirectory() as tmp:
+        parent = Path(tmp) / "chemistry.duckdb"
+        _extract_chemistry(parent)
+        digest = build(
+            parent, args.output.resolve(),
+            args.held.resolve(), args.solvent_data.resolve(),
+        )
+    print(f"built {args.output.resolve()} sha256 {digest}")
     return 0
 
 
