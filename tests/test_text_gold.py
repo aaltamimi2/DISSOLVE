@@ -270,6 +270,39 @@ def test_run_corpus_resumes_without_rebilling(tmp_path):
     assert len(calls) == n_first
 
 
+def test_cli_argv_strips_embedded_nul(monkeypatch):
+    seen: dict[str, list[str]] = {}
+
+    class _Result:
+        returncode = 0
+        stdout = '{"facts":[]}'
+        stderr = ""
+
+    def fake_run(args, **_kwargs):
+        seen["args"] = list(args)
+        return _Result()
+
+    monkeypatch.setattr(text_gold.subprocess, "run", fake_run)
+    prompt = "canonical_text:\nhello\x00world"
+    out = text_gold.run_named_text_model(
+        model=text_gold.READER_MODEL,
+        prompt=prompt,
+        cwd=Path("/tmp"),
+        timeout=5,
+    )
+    assert "\x00" not in seen["args"][-1]
+    assert seen["args"][-1] == "canonical_text:\nhelloworld"
+    assert out == '{"facts":[]}'
+    dirty = _text() + "\x00"
+    bound = text_gold.locate_needles(
+        dirty,
+        {"subject": SUBJ, "qualifier": QUAL, "value": VAL},
+        span_start=0,
+        span_end=len(dirty),
+    )
+    assert bound is not None
+
+
 def test_text_gold_does_not_call_docling_dense_or_vision(monkeypatch):
     def boom(*_args, **_kwargs):
         raise AssertionError("gold mint must not parse, embed, or vision-read")

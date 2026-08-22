@@ -267,6 +267,11 @@ def _agent_command(model: str) -> list[str]:
     ]
 
 
+def argv_safe_prompt(prompt: str) -> str:
+    """OS argv cannot contain NUL. Bind still uses the saved canonical_text."""
+    return prompt.replace("\x00", "")
+
+
 def run_named_text_model(
     *,
     model: str,
@@ -284,7 +289,7 @@ def run_named_text_model(
     if runner is not None:
         return runner(command=_agent_command(model), cwd=cwd, prompt=prompt, timeout=timeout)
     completed = subprocess.run(
-        _agent_command(model) + [prompt],
+        _agent_command(model) + [argv_safe_prompt(prompt)],
         cwd=str(cwd),
         capture_output=True,
         text=True,
