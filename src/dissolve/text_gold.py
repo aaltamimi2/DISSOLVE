@@ -567,15 +567,27 @@ def run_corpus(
     if (dest / "GOLD.v2.json").exists():
         raise TextGoldError("gold_v2_present", "Do not write GOLD.v2.json.")
     rows = manifest_papers()
-    if only:
-        want = set(only)
-        rows = [row for row in rows if row["pdf_sha256"] in want]
-    if limit is not None:
-        rows = rows[: int(limit)]
+    want = set(only) if only else None
     papers: list[dict[str, Any]] = []
     spend: list[dict[str, Any]] = []
+    draft_path = dest / "GOLD.text.v1.draft.json"
+    if draft_path.is_file():
+        prior = json.loads(draft_path.read_text())
+        papers = list(prior.get("papers") or [])
+        spend_path = dest / "TEXT_GOLD_SPEND.v1.json"
+        if spend_path.is_file():
+            spend = list(json.loads(spend_path.read_text()).get("calls") or [])
+    done = {str(paper.get("paper_sha256") or "") for paper in papers}
+    seen = 0
     for index, row in enumerate(rows):
         sha = row["pdf_sha256"]
+        if want is not None and sha not in want:
+            continue
+        if sha in done:
+            continue
+        if limit is not None and seen >= int(limit):
+            break
+        seen += 1
         canonical = load_canonical(sha)
         if file_sha256(CANONICAL_DIR / f"{sha}.v1.json") != row["canonical_sha256"]:
             raise TextGoldError(
