@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import json
 import math
-import re
 import threading
 from dataclasses import dataclass
 from functools import lru_cache
@@ -149,47 +148,69 @@ def _families() -> dict[str, list[str]]:
     return result
 
 
-_TRAILING_SHORT_NAME = re.compile(r"\(([^)]+)\)\s*$")
+@dataclass(frozen=True)
+class _ResolvedContaminant:
+    name: str
+    family: str
+    key: str
+    cas_number: Optional[str]
+    resolution_basis: str
+    pubchem_cid: Optional[str]
 
-
-def _name_aliases(name: str, key: str) -> tuple[str, ...]:
-    """Catalog key, folded name, and a trailing short name only (DEHP, BBP).
-
-    Inner parentheticals are structure, not aliases. ``2-ethylhexyl`` inside
-    DEHP and ``heptafluoropropoxy`` inside two PFAS must not expand.
-    """
-    aliases = [_key(name), _key(key)]
-    match = _TRAILING_SHORT_NAME.search(name)
-    if match:
-        inner = _key(match.group(1))
-        if inner:
-            aliases.append(inner)
-    return tuple(dict.fromkeys(item for item in aliases if item))
+    @property
+    def identity_verified(self) -> bool:
+        return self.resolution_basis == "cas_verified"
 
 
 @lru_cache(maxsize=1)
-def _contaminant_lookup() -> dict[str, tuple[str, str]]:
-    result: dict[str, tuple[str, str]] = {}
-    for family, name, key in _connection().execute(
-        "SELECT family, contaminant, contaminant_key FROM contaminants"
+def _contaminant_lookup() -> dict[str, _ResolvedContaminant]:
+    """Folded alias → catalog identity. Table only; no parse fallback."""
+    result: dict[str, _ResolvedContaminant] = {}
+    for alias, key, name, family, cas, basis, cid in _connection().execute(
+        "SELECT alias, contaminant_key, canonical_name, family, "
+        "cas_number, resolution_basis, pubchem_cid "
+        "FROM contaminant_aliases ORDER BY alias"
     ).fetchall():
-        identity = (str(name), str(family))
-        for alias in _name_aliases(str(name), str(key)):
-            result.setdefault(alias, identity)
+        folded = _key(alias)
+        if not folded:
+            continue
+        result.setdefault(
+            folded,
+            _ResolvedContaminant(
+                name=str(name),
+                family=str(family),
+                key=str(key),
+                cas_number=cas,
+                resolution_basis=str(basis),
+                pubchem_cid=cid,
+            ),
+        )
     return result
 
 
-def _contaminant_catalog(contaminants: Sequence[str]) -> list[dict[str, str]]:
-    """Attach the admitted family identity to every expanded contaminant."""
+def _served_identity(identity: _ResolvedContaminant) -> dict[str, Any]:
+    """Public identity. Only cas_verified may be served as verified."""
+    return {
+        "contaminant": identity.name,
+        "contaminant_key": identity.key,
+        "contaminant_family": identity.family,
+        "resolution_basis": identity.resolution_basis,
+        "identity_verified": identity.identity_verified,
+        "cas_number": identity.cas_number,
+        "pubchem_cid": identity.pubchem_cid,
+    }
+
+
+def _contaminant_catalog(contaminants: Sequence[str]) -> list[dict[str, Any]]:
+    """Attach family and resolution_basis to every expanded contaminant."""
     lookup = _contaminant_lookup()
-    return [
-        {
-            "contaminant": str(contaminant),
-            "contaminant_family": lookup[_key(contaminant)][1],
-        }
-        for contaminant in contaminants
-        if _key(contaminant) in lookup
-    ]
+    catalog = []
+    for contaminant in contaminants:
+        identity = lookup.get(_key(contaminant))
+        if identity is None:
+            continue
+        catalog.append(_served_identity(identity))
+    return catalog
 
 
 def _provenance() -> dict[str, str]:
@@ -307,9 +328,9 @@ def _expand(
             uncovered.append(uncovered_family)
             unsupported.append(text)
         elif folded in lookup:
-            name, family = lookup[folded]
-            supported.append(name)
-            families.add(family)
+            identity = lookup[folded]
+            supported.append(identity.name)
+            families.add(identity.family)
         elif text:
             unsupported.append(text)
     return (
@@ -648,8 +669,7 @@ def _contaminant_rows(solvent: str, contaminants: Sequence[str], regime: str) ->
         if logd is not None:
             minimum = logd if minimum is None else min(minimum, logd)
         rows.append({
-            "contaminant": contaminant,
-            "contaminant_family": lookup[_key(contaminant)][1],
+            **_served_identity(lookup[_key(contaminant)]),
             "miscible": miscible, "logd": logd,
             "miscibility_regime": (
                 miscibility.get("temperature_regime") if miscibility else regime

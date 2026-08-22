@@ -1,7 +1,7 @@
-"""Commit D5: resolution_basis alias table. Regex still the lookup.
+"""Commit F: table lookup + served identity. No query-time parser.
 
-Eight phthalates are cas_verified (CAS + CID). Twenty-six PFAS are
-catalog_declared with NULL CAS and NULL CID. No BioSTEAM. No registry.
+Regex is gone. Fragments stay unsupported because they are not rows.
+identity_verified is true only for cas_verified. No embed. No BioSTEAM.
 """
 from __future__ import annotations
 
@@ -18,6 +18,7 @@ for _path in (str(_ROOT), str(_ROOT / "src")):
         sys.path.insert(0, _path)
 
 from dissolve import contaminants, separation
+from dissolve.contracts import parse_tool_result
 
 
 _HELD = _ROOT / "src/dissolve/data/contaminant_cas_phthalates.local.v1.json"
@@ -205,18 +206,32 @@ def test_parenthetical_pfas_are_catalog_declared_with_null_cas():
     )
 
 
-def test_commit_d5_does_not_delete_the_regex_or_bind_the_planner():
+def _data(raw: str) -> dict:
+    return parse_tool_result(raw)["data"]
+
+
+def test_lookup_is_the_table_and_the_parser_is_gone():
     source = Path(contaminants.__file__).read_text()
-    assert "_TRAILING_SHORT_NAME" in source
-    assert "def _name_aliases" in source
-    assert "FROM contaminant_aliases" not in source
-    assert contaminants._TRAILING_SHORT_NAME.pattern == r"\(([^)]+)\)\s*$"
-    expanded = contaminants._expand(
-        ["DEHP", "2-ethylhexyl", "heptafluoropropoxy", "117-81-7", "PFOA"]
+    assert "_TRAILING_SHORT_NAME" not in source
+    assert "_name_aliases" not in source
+    assert r"\(([^)]+)\)\s*$" not in source
+    assert "import re" not in source
+    assert "FROM contaminant_aliases" in source
+    assert not hasattr(contaminants, "_TRAILING_SHORT_NAME")
+    assert not hasattr(contaminants, "_name_aliases")
+    supported, unsupported, families, _uncovered = contaminants._expand(
+        ["DEHP", "117-81-7", "2-ethylhexyl", "heptafluoropropoxy", "PFOA"]
     )
-    assert expanded[0] == ["di-(2-ethylhexyl) phthalate (DEHP)"]
-    assert expanded[1] == [
-        "2-ethylhexyl", "heptafluoropropoxy", "117-81-7", "PFOA",
+    assert supported == ["di-(2-ethylhexyl) phthalate (DEHP)"]
+    assert families == ["Phthalates"]
+    assert unsupported == ["2-ethylhexyl", "heptafluoropropoxy", "PFOA"]
+    refuse = _data(contaminants.screen_contaminant_leaching(
+        "LDPE", ["2-ethylhexyl", "heptafluoropropoxy"],
+    ))
+    assert refuse["success"] is False
+    assert refuse["error_code"] == "unsupported_contaminants"
+    assert refuse["unsupported_contaminants"] == [
+        "2-ethylhexyl", "heptafluoropropoxy",
     ]
     assert "contaminants" not in inspect.signature(
         separation.plan_multistage_separation,
@@ -224,3 +239,73 @@ def test_commit_d5_does_not_delete_the_regex_or_bind_the_planner():
     assert "contaminant_mode" not in inspect.signature(
         separation.plan_multistage_separation,
     ).parameters
+
+
+def test_eight_shorts_and_hfpo_catalog_rows_serve_the_basis():
+    for short, (cas, cid) in zip(_SHORTS, [_OWNER[k] for k in (
+        "butyl benzyl phthalate (bbp)",
+        "di-(2-ethylhexyl) phthalate (dehp)",
+        "di-isodecyl phthalate(didp)",
+        "di-isononyl phthalate (dinp)",
+        "di-n-butyl phthalate (dbp)",
+        "di-n-hexyl phthalate (dnhp)",
+        "di-n-octyl phthalate (dnop)",
+        "diethyl phthalate (dep)",
+    )]):
+        supported, unsupported, _families, _uncovered = contaminants._expand([short])
+        assert unsupported == []
+        catalog = contaminants._contaminant_catalog(supported)
+        assert len(catalog) == 1
+        row = catalog[0]
+        assert row["resolution_basis"] == "cas_verified"
+        assert row["identity_verified"] is True
+        assert row["cas_number"] == cas
+        assert row["pubchem_cid"] == cid
+    names = [
+        "2,3,3,3-Tetrafluoro-2-(heptafluoropropoxy)propanoic acid",
+        "2,3,3,3-tetrafluoro-2-(heptafluoropropoxy)propanoic acid",
+        "Ammonium 2,3,3,3-tetrafluoro-2-(heptafluoropropoxy)propanoate",
+        "ammonium 2,3,3,3-tetrafluoro-2-(heptafluoropropoxy)propanoate",
+    ]
+    supported, unsupported, _families, _uncovered = contaminants._expand(names)
+    assert unsupported == []
+    assert supported == [
+        "2,3,3,3-Tetrafluoro-2-(heptafluoropropoxy)propanoic acid",
+        "Ammonium 2,3,3,3-tetrafluoro-2-(heptafluoropropoxy)propanoate",
+    ]
+    catalog = contaminants._contaminant_catalog(supported)
+    assert {row["contaminant_key"] for row in catalog} == {
+        "2,3,3,3-tetrafluoro-2-(heptafluoropropoxy)propanoic acid",
+        "ammonium 2,3,3,3-tetrafluoro-2-(heptafluoropropoxy)propanoate",
+    }
+    assert all(
+        row["resolution_basis"] == "catalog_declared"
+        and row["identity_verified"] is False
+        and row["cas_number"] is None
+        for row in catalog
+    )
+
+
+def test_served_catalog_marks_only_cas_verified_as_identity_verified():
+    screens = (
+        contaminants.screen_contaminant_leaching,
+        contaminants.screen_contaminant_strap_removal,
+        contaminants.compare_contaminant_removal_modes,
+    )
+    for screen in screens:
+        pfas = _data(screen("LDPE", ["PFAS"]))
+        catalog = pfas["contaminant_catalog"]
+        assert len(catalog) == 26
+        assert all(
+            row["resolution_basis"] == "catalog_declared"
+            and row["identity_verified"] is not True
+            and row["cas_number"] is None
+            for row in catalog
+        )
+        dehp = _data(screen("LDPE", ["DEHP"]))
+        assert len(dehp["contaminant_catalog"]) == 1
+        row = dehp["contaminant_catalog"][0]
+        assert row["resolution_basis"] == "cas_verified"
+        assert row["identity_verified"] is True
+        assert row["cas_number"] == "117-81-7"
+        assert row["pubchem_cid"] == "8343"
