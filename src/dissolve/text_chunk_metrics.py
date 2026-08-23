@@ -1,15 +1,17 @@
-"""TEXT_CHUNKING_SPEC.v1 sweep metrics. BM25 only. No blended F1.
+"""TEXT_CHUNKING_SPEC sweep metrics. BM25 only. No blended F1.
 
 Per strategy × needle_span_chars bucket. T1 is the explicit control for T2
 at matched size and overlap. None offsets are not a preserved span.
 
-retrievable@5 is one operating point. The curve is recall@k and precision@k
-at k ∈ {1, 3, 5, 10, 20} from one BM25 ranking per fact.
+v1/v2 scored each paper as its own BM25 list, including hold-out papers.
+v3 official ranking is BM25-body over index I (indexed papers only).
+Must-refuse sits beside recall. Wilson 95% intervals decide ties.
 """
 
 from __future__ import annotations
 
 import json
+import math
 from pathlib import Path
 from typing import Any, Mapping, Sequence
 
@@ -22,20 +24,42 @@ from .text_gold import (
     nonempty_needles,
     refuse_all_short,
     span_bucket,
+    span_histogram,
 )
 
 SPEC_SHA256 = text_chunking.SPEC_SHA256
 SPEC_V2_SHA256 = "2b6b776aec5a9146518051caee4b87e5dbd684eb1357776aa5655a0fa68eb8aa"
 SPEC_V2_PATH = Path("/home/aaltamimi2/dissolve-v12-audit/TEXT_CHUNKING_SPEC.v2.md")
+SPEC_V3_SHA256 = "56f1eee782fce93125fd493ebf087deded3b9c17c245ef3e810f4394d76d4ac7"
+SPEC_V3_PATH = Path("/home/aaltamimi2/dissolve-v12-audit/TEXT_CHUNKING_SPEC.v3.md")
 RETRIEVAL_KS = (1, 3, 5, 10, 20)
+WILSON_Z = 1.959963984540054
 CURVES_SCHEMA = "dissolve.text-chunk-curves.retrieval.v1"
+CURVES_V3_SCHEMA = "dissolve.text-chunk-curves.retrieval.v3"
+ERROR_ANALYSIS_SCHEMA = "dissolve.text-chunk-error-analysis.k10.v3"
 CURVES_PATH = DEFAULT_OUT_DIR / "CURVES.retrieval.v1.json"
+CURVES_V3_PATH = DEFAULT_OUT_DIR / "CURVES.retrieval.v3.json"
+CURVES_V1_PNG_PATH = DEFAULT_OUT_DIR / "CURVES.retrieval.v1.png"
+CURVES_V3_PNG_PATH = DEFAULT_OUT_DIR / "CURVES.retrieval.v3.png"
+ERROR_ANALYSIS_PATH = DEFAULT_OUT_DIR / "ERROR_ANALYSIS.k10.v3.json"
 POINT_SWEEP_PATH = DEFAULT_OUT_DIR / "SWEEP.t0_t6.v1.json"
 PROBE_SWEEP_PATH = DEFAULT_OUT_DIR / "SWEEP.t0_t6.probe.v1.json"
+CURVE_SWEEP_PATH = DEFAULT_OUT_DIR / "SWEEP.t0_t6.curve.v1.json"
 GOLD_UNSEALED_PATH = DEFAULT_OUT_DIR / "GOLD.text.v1.unsealed.json"
 GOLD_V2_PATH = DEFAULT_OUT_DIR / "GOLD.v2.json"
 POINT_SWEEP_SHA256 = "dfc4c4707e7b43ecd3238ac9e3182049da646bc8383abd2e5a282e7b5611afd6"
+PROBE_SWEEP_SHA256 = "03ae2b2827a577baac3c3fab10edc78bae181c103e8c7e3a2885b9efd7351118"
+CURVE_SWEEP_SHA256 = "cb5695ff7bced4f8bea564d3ef01cc01f581fa90efb5a314ff9ce318b35f0942"
+CURVES_V1_SHA256 = "abe190c7b5d2608328b93f0c5311dd68ab1f9b1843835e0267bd65228ced62da"
+CURVES_V1_PNG_SHA256 = "96cd15b152fa8a17bc570393fafb9cea648def7ba7e5c4b04c5014ba1193bb16"
+GOLD_UNSEALED_SHA256 = "1c6df27b08dde99c675a01ecc8f99dbfb8dbcee250f298b3e1e352a56816c7d8"
 SERIES_BUCKETS = ("all",) + SPAN_BUCKETS
+NAMED_ERROR_ARMS = (
+    ("T0", (("target", text_chunking.T0_TARGET), ("overlap", text_chunking.T0_OVERLAP))),
+    ("T5", (("target", text_chunking.T5_TARGET),)),
+    ("T6", (("percentile", 95),)),
+    ("T1", (("size", 2000), ("overlap_frac", 0.25))),
+)
 
 
 def require_histogram_before_score(gold: Mapping[str, Any]) -> dict[str, Any]:
@@ -615,6 +639,8 @@ def emit_retrieval_curves(
         POINT_SWEEP_PATH.resolve(),
         PROBE_SWEEP_PATH.resolve(),
         GOLD_UNSEALED_PATH.resolve(),
+        CURVES_PATH.resolve(),
+        CURVES_V1_PNG_PATH.resolve(),
         Path(gold_path).resolve(),
     }
     if dest.resolve() in protected:
@@ -648,3 +674,807 @@ def emit_retrieval_curves(
     if file_sha256(Path(gold_path)) != before_gold:
         raise TextGoldError("gold_mutated", "Emit must not touch the unsealed gold.")
     return artifact
+
+
+def wilson_interval(x: int, n: int, z: float = WILSON_Z) -> dict[str, float | None]:
+    """Wilson score interval. n==0 is null, not a fake 0.0."""
+    if n <= 0:
+        return {"lo": None, "hi": None}
+    successes = int(x)
+    trials = int(n)
+    if successes < 0 or successes > trials:
+        raise TextGoldError("wilson_x_out_of_range", "Wilson x must sit in 0..n.")
+    phat = successes / trials
+    z2 = float(z) * float(z)
+    denom = 1.0 + z2 / trials
+    center = (phat + z2 / (2.0 * trials)) / denom
+    margin = (
+        float(z)
+        * math.sqrt(phat * (1.0 - phat) / trials + z2 / (4.0 * trials * trials))
+        / denom
+    )
+    return {"lo": max(0.0, center - margin), "hi": min(1.0, center + margin)}
+
+
+def intervals_overlap(left: Mapping[str, Any], right: Mapping[str, Any]) -> bool:
+    lo_a, hi_a = left.get("lo"), left.get("hi")
+    lo_b, hi_b = right.get("lo"), right.get("hi")
+    if lo_a is None or hi_a is None or lo_b is None or hi_b is None:
+        return False
+    return float(lo_a) <= float(hi_b) and float(lo_b) <= float(hi_a)
+
+
+def interval_separates_above(left: Mapping[str, Any], right: Mapping[str, Any]) -> bool:
+    lo_a, hi_b = left.get("lo"), right.get("hi")
+    if lo_a is None or hi_b is None:
+        return False
+    return float(lo_a) > float(hi_b)
+
+
+def _v3_rate(count: int, n: int) -> float | None:
+    if n <= 0:
+        return None
+    return int(count) / n
+
+
+def _v3_rate_map(counts: Mapping[str, Any], n: int) -> dict[str, float | None]:
+    return {_k_label(k): _v3_rate(int(counts.get(_k_label(k), 0)), n) for k in RETRIEVAL_KS}
+
+
+def _v3_ci_map(counts: Mapping[str, Any], n: int) -> dict[str, dict[str, float | None]]:
+    return {
+        _k_label(k): wilson_interval(int(counts.get(_k_label(k), 0)), n)
+        for k in RETRIEVAL_KS
+    }
+
+
+def _empty_k_null_rates() -> dict[str, float | None]:
+    return {_k_label(k): None for k in RETRIEVAL_KS}
+
+
+def _empty_k_null_cis() -> dict[str, dict[str, float | None]]:
+    return {_k_label(k): {"lo": None, "hi": None} for k in RETRIEVAL_KS}
+
+
+def iter_gold_facts(gold: Mapping[str, Any]) -> list[dict[str, Any]]:
+    facts = [dict(row) for row in (gold.get("facts") or [])]
+    if facts:
+        return facts
+    out: list[dict[str, Any]] = []
+    for paper in gold.get("papers") or []:
+        out.extend(dict(row) for row in (paper.get("facts") or []))
+    return out
+
+
+def split_gold(gold: Mapping[str, Any]) -> dict[str, Any]:
+    """Index membership is gold paper_status + paper_sha256, never filename."""
+    paper_status = {
+        str(row.get("paper_sha256") or ""): str(row.get("paper_status") or "")
+        for row in (gold.get("papers") or [])
+        if row.get("paper_sha256")
+    }
+    indexed_shas = {sha for sha, status in paper_status.items() if status == "indexed"}
+    held_shas = {sha for sha, status in paper_status.items() if status == "held_out"}
+    facts = iter_gold_facts(gold)
+
+    def _status(fact: Mapping[str, Any]) -> str:
+        return str(fact.get("paper_status") or paper_status.get(str(fact.get("paper_sha256") or ""), ""))
+
+    fire = [fact for fact in facts if _status(fact) == "indexed"]
+    refuse = [fact for fact in facts if _status(fact) == "held_out"]
+    return {
+        "paper_status": paper_status,
+        "indexed_shas": indexed_shas,
+        "held_shas": held_shas,
+        "facts": facts,
+        "must_fire": fire,
+        "must_refuse": refuse,
+    }
+
+
+def _paper_sha(canonical: Mapping[str, Any]) -> str:
+    return str(
+        canonical.get("source_pdf_sha256")
+        or canonical.get("pdf_sha256")
+        or canonical.get("paper_sha256")
+        or ""
+    )
+
+
+def tag_chunks(
+    chunks: Sequence[Mapping[str, Any]],
+    paper_sha256: str,
+) -> list[dict[str, Any]]:
+    return [{**dict(chunk), "paper_sha256": paper_sha256} for chunk in chunks]
+
+
+def build_index_i(
+    chunks_by_paper: Mapping[str, Sequence[Mapping[str, Any]]],
+    indexed_shas: Sequence[str] | set[str],
+    paper_order: Sequence[str],
+) -> list[dict[str, Any]]:
+    """Concatenate indexed-paper chunks only. Hold-out SHAs never enter I."""
+    allowed = set(indexed_shas)
+    index: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for sha in paper_order:
+        if sha not in allowed or sha in seen:
+            continue
+        seen.add(sha)
+        index.extend(tag_chunks(chunks_by_paper.get(sha) or [], sha))
+    for sha in sorted(allowed - seen):
+        index.extend(tag_chunks(chunks_by_paper.get(sha) or [], sha))
+    if any(str(chunk.get("paper_sha256") or "") not in allowed for chunk in index):
+        raise TextGoldError("held_out_in_index", "Index I contained a non-indexed paper_sha256.")
+    return index
+
+
+def count_value_collisions(
+    held_out_facts: Sequence[Mapping[str, Any]],
+    indexed_canonicals: Sequence[Mapping[str, Any]],
+) -> tuple[int, bool]:
+    """§6.5 diagnostic. Does not remint. Does not quote values."""
+    blob = "\n".join(
+        str(row.get("canonical_text") or "") for row in indexed_canonicals
+    ).casefold()
+    collisions = 0
+    by_paper: dict[str, list[bool]] = {}
+    for fact in held_out_facts:
+        value = nonempty_needles(fact.get("needles") or {}).get("value", "")
+        hit = bool(value) and value.casefold() in blob
+        collisions += int(hit)
+        by_paper.setdefault(str(fact.get("paper_sha256") or ""), []).append(hit)
+    too_thin = False
+    for flags in by_paper.values():
+        if (len(flags) - sum(flags)) < 5:
+            too_thin = True
+    return collisions, too_thin
+
+
+def _needles_in_text(text: str, needles: Mapping[str, Any]) -> bool:
+    values = nonempty_needles(needles)
+    if not values:
+        return False
+    folded = str(text or "").casefold()
+    return all(value.casefold() in folded for value in values.values())
+
+
+def _needles_in_recorded_window(text: str, fact: Mapping[str, Any]) -> bool:
+    values = nonempty_needles(fact.get("needles") or {})
+    if not values:
+        return False
+    try:
+        first = int(fact["needle_first_char"])
+        last = int(fact["needle_last_char"])
+    except (KeyError, TypeError, ValueError):
+        return False
+    if last < first:
+        return False
+    span = int(fact.get("needle_span_chars") or 0)
+    if span == (last - first + 1):
+        window = str(text or "")[first:last + 1]
+    else:
+        window = str(text or "")[first:last]
+    folded = window.casefold()
+    return all(value.casefold() in folded for value in values.values())
+
+
+def classify_k10_miss(
+    fact: Mapping[str, Any],
+    *,
+    canonical_text: str,
+    own_chunks: Sequence[Mapping[str, Any]],
+) -> dict[str, Any]:
+    """Exactly one class. Counts only in the persist; needles stay here."""
+    needles = fact.get("needles") or {}
+    span = int(fact.get("needle_span_chars") or 0)
+    max_chunk = max((len(_body(chunk)) for chunk in own_chunks), default=0)
+    contained = any(contain_bound_fact(_body(chunk), needles) for chunk in own_chunks)
+    if not _needles_in_text(canonical_text, needles) or not _needles_in_recorded_window(
+        canonical_text, fact,
+    ):
+        klass = "ambiguous_gold"
+    elif span > max_chunk:
+        klass = "span_exceeds_chunk"
+    elif not contained:
+        klass = "needles_split"
+    else:
+        klass = "lexical_mismatch"
+    return {
+        "fact_id": fact.get("fact_id"),
+        "class": klass,
+        "bucket": span_bucket(span),
+        "needle_span_chars": span,
+        "max_chunk_chars": max_chunk,
+    }
+
+
+def _arm_key(strategy: str, params: Mapping[str, Any]) -> tuple[str, str]:
+    return (str(strategy), json.dumps(dict(params or {}), sort_keys=True))
+
+
+def _arm_matches_named(strategy: str, params: Mapping[str, Any], named: tuple[str, tuple]) -> bool:
+    if strategy != named[0]:
+        return False
+    want = dict(named[1])
+    have = dict(params or {})
+    return all(have.get(key) == value for key, value in want.items())
+
+
+def _empty_v3_bucket() -> dict[str, Any]:
+    return {
+        "n_facts": 0,
+        "n_held_out_facts": 0,
+        "n_contain_bound_fact": 0,
+        "n_needle_span_preserved": 0,
+        "n_retrievable_at_k": _empty_k_counts(),
+        "precision_at_k_sum": _empty_k_sums(),
+        "n_must_refuse_at_k": _empty_k_counts(),
+        "n_leaks_at_k": _empty_k_counts(),
+        "cross_fact_hits": 0,
+    }
+
+
+def _finalize_v3_bucket(row: Mapping[str, Any], n_chunks: int) -> dict[str, Any]:
+    n_fire = int(row.get("n_facts") or 0)
+    n_hold = int(row.get("n_held_out_facts") or 0)
+    retr = _k_int_map(row.get("n_retrievable_at_k") or {})
+    refuse = _k_int_map(row.get("n_must_refuse_at_k") or {})
+    leaks = _k_int_map(row.get("n_leaks_at_k") or {})
+    recall_ci = _v3_ci_map(retr, n_fire)
+    refuse_ci = _v3_ci_map(refuse, n_hold)
+    hi5 = (recall_ci["5"] or {}).get("hi")
+    null_retriever = (
+        n_hold > 0
+        and int(refuse.get("5") or 0) == n_hold
+        and hi5 is not None
+        and float(hi5) < 0.05
+    )
+    return {
+        "n_facts": n_fire,
+        "n_held_out_facts": n_hold,
+        "n_chunks": int(n_chunks),
+        "n_contain_bound_fact": int(row.get("n_contain_bound_fact") or 0),
+        "n_needle_span_preserved": int(row.get("n_needle_span_preserved") or 0),
+        "n_retrievable_at_k": retr,
+        "recall_at_k": _v3_rate_map(retr, n_fire),
+        "recall_ci_at_k": recall_ci,
+        "precision_at_k": (
+            _precision_means(row.get("precision_at_k_sum") or _empty_k_sums(), n_fire)
+            if n_fire else _empty_k_null_rates()
+        ),
+        "n_must_refuse_at_k": refuse,
+        "must_refuse_at_k": _v3_rate_map(refuse, n_hold),
+        "must_refuse_ci_at_k": refuse_ci,
+        "n_leaks_at_k": leaks,
+        "cross_fact_hits": int(row.get("cross_fact_hits") or 0),
+        "null_retriever": bool(null_retriever),
+    }
+
+
+def score_index_arm(
+    *,
+    strategy: str,
+    params: Mapping[str, Any],
+    index: Sequence[Mapping[str, Any]],
+    chunks_by_paper: Mapping[str, Sequence[Mapping[str, Any]]],
+    must_fire: Sequence[Mapping[str, Any]],
+    must_refuse: Sequence[Mapping[str, Any]],
+    all_facts: Sequence[Mapping[str, Any]],
+) -> dict[str, Any]:
+    """Official v3 scores: one BM25 ranking over I for both sides."""
+    held_shas = {str(fact.get("paper_sha256") or "") for fact in must_refuse}
+    if any(str(chunk.get("paper_sha256") or "") in held_shas for chunk in index):
+        raise TextGoldError("held_out_in_index", "A held-out paper_sha256 entered I.")
+    fire_ids = {id(fact) for fact in must_fire}
+
+    by_bucket = {bucket: _empty_v3_bucket() for bucket in SPAN_BUCKETS}
+    fire_hits: dict[str, dict[str, bool]] = {}
+    refuse_hits: dict[str, dict[str, bool]] = {}
+    own_contain: dict[str, bool] = {}
+
+    for fact in list(must_fire) + list(must_refuse):
+        fact_id = str(fact.get("fact_id") or "")
+        needles = nonempty_needles(fact.get("needles") or {})
+        own = chunks_by_paper.get(str(fact.get("paper_sha256") or ""), [])
+        own_contain[fact_id] = any(contain_bound_fact(_body(chunk), needles) for chunk in own)
+        preserved = any(needle_span_preserved(chunk, fact) for chunk in own)
+        ranked = bm25_ranked(str(fact.get("query") or ""), index)
+        retrievable, precision = retrieval_at_ks(ranked, needles)
+        bucket = span_bucket(int(fact.get("needle_span_chars") or 0))
+        slot = by_bucket[bucket]
+        if id(fact) in fire_ids:
+            crossed = fact_has_cross_hit(index, fact, all_facts)
+            slot["n_facts"] += 1
+            slot["n_contain_bound_fact"] += int(own_contain[fact_id])
+            slot["n_needle_span_preserved"] += int(preserved)
+            slot["cross_fact_hits"] += int(crossed)
+            _add_k_map(slot["n_retrievable_at_k"], {
+                key: int(hit) for key, hit in retrievable.items()
+            })
+            _add_k_map(slot["precision_at_k_sum"], precision, as_float=True)
+            fire_hits[fact_id] = retrievable
+        else:
+            slot["n_held_out_facts"] += 1
+            refused = {key: (not bool(hit)) for key, hit in retrievable.items()}
+            _add_k_map(slot["n_must_refuse_at_k"], {
+                key: int(hit) for key, hit in refused.items()
+            })
+            _add_k_map(slot["n_leaks_at_k"], {
+                key: int(not hit) for key, hit in refused.items()
+            })
+            refuse_hits[fact_id] = refused
+
+    all_row = _empty_v3_bucket()
+    for row in by_bucket.values():
+        all_row["n_facts"] += row["n_facts"]
+        all_row["n_held_out_facts"] += row["n_held_out_facts"]
+        all_row["n_contain_bound_fact"] += row["n_contain_bound_fact"]
+        all_row["n_needle_span_preserved"] += row["n_needle_span_preserved"]
+        all_row["cross_fact_hits"] += row["cross_fact_hits"]
+        _add_k_map(all_row["n_retrievable_at_k"], row["n_retrievable_at_k"])
+        _add_k_map(all_row["precision_at_k_sum"], row["precision_at_k_sum"], as_float=True)
+        _add_k_map(all_row["n_must_refuse_at_k"], row["n_must_refuse_at_k"])
+        _add_k_map(all_row["n_leaks_at_k"], row["n_leaks_at_k"])
+
+    n_chunks = len(index)
+    series = []
+    finalized_all = _finalize_v3_bucket(all_row, n_chunks)
+    finalized_all.update({"strategy": strategy, "params": dict(params or {}), "bucket": "all"})
+    series.append(finalized_all)
+    for bucket in SPAN_BUCKETS:
+        finalized = _finalize_v3_bucket(by_bucket[bucket], n_chunks)
+        finalized.update({"strategy": strategy, "params": dict(params or {}), "bucket": bucket})
+        series.append(finalized)
+    return {
+        "strategy": strategy,
+        "params": dict(params or {}),
+        "n_chunks": n_chunks,
+        "series": series,
+        "fire_hits": fire_hits,
+        "refuse_hits": refuse_hits,
+        "own_contain": own_contain,
+    }
+
+
+def _tie_groups_for_series(series: Sequence[Mapping[str, Any]], k: int) -> dict[str, Any]:
+    rows = [row for row in series if row.get("bucket") == "all" and int(row.get("n_facts") or 0) > 0]
+    labels = []
+    cis = []
+    for row in rows:
+        labels.append({"strategy": row["strategy"], "params": dict(row.get("params") or {})})
+        cis.append((row.get("recall_ci_at_k") or {}).get(_k_label(k)) or {"lo": None, "hi": None})
+    parent = list(range(len(rows)))
+
+    def find(i: int) -> int:
+        while parent[i] != i:
+            parent[i] = parent[parent[i]]
+            i = parent[i]
+        return i
+
+    for i in range(len(rows)):
+        for j in range(i + 1, len(rows)):
+            if intervals_overlap(cis[i], cis[j]):
+                parent[find(j)] = find(i)
+    groups: dict[int, list[dict[str, Any]]] = {}
+    for i, label in enumerate(labels):
+        groups.setdefault(find(i), []).append(label)
+    return {"bucket": "all", "side": "recall", "groups": list(groups.values())}
+
+
+def t1_t2_v3_rows(series: Sequence[Mapping[str, Any]]) -> list[dict[str, Any]]:
+    t1 = {
+        (
+            row["params"].get("size"),
+            row["params"].get("overlap_frac"),
+            row.get("bucket"),
+        ): row
+        for row in series
+        if row.get("strategy") == "T1"
+    }
+    pairs = []
+    for row in series:
+        if row.get("strategy") != "T2":
+            continue
+        key = (row["params"].get("size"), row["params"].get("overlap_frac"), row.get("bucket"))
+        control = t1.get(key)
+        if control is None:
+            continue
+        beats = {}
+        tied = {}
+        for k in RETRIEVAL_KS:
+            label = _k_label(k)
+            left = (control.get("recall_ci_at_k") or {}).get(label) or {"lo": None, "hi": None}
+            right = (row.get("recall_ci_at_k") or {}).get(label) or {"lo": None, "hi": None}
+            beats[label] = interval_separates_above(right, left)
+            tied[label] = intervals_overlap(left, right)
+        pairs.append({
+            "size": key[0],
+            "overlap_frac": key[1],
+            "bucket": row.get("bucket"),
+            "t1": {
+                "n_facts": control.get("n_facts"),
+                "n_held_out_facts": control.get("n_held_out_facts"),
+                "n_chunks": control.get("n_chunks"),
+                "n_retrievable_at_k": control.get("n_retrievable_at_k"),
+                "recall_at_k": control.get("recall_at_k"),
+                "recall_ci_at_k": control.get("recall_ci_at_k"),
+                "must_refuse_at_k": control.get("must_refuse_at_k"),
+                "must_refuse_ci_at_k": control.get("must_refuse_ci_at_k"),
+                "cross_fact_hits": control.get("cross_fact_hits"),
+            },
+            "t2": {
+                "n_facts": row.get("n_facts"),
+                "n_held_out_facts": row.get("n_held_out_facts"),
+                "n_chunks": row.get("n_chunks"),
+                "n_retrievable_at_k": row.get("n_retrievable_at_k"),
+                "recall_at_k": row.get("recall_at_k"),
+                "recall_ci_at_k": row.get("recall_ci_at_k"),
+                "must_refuse_at_k": row.get("must_refuse_at_k"),
+                "must_refuse_ci_at_k": row.get("must_refuse_ci_at_k"),
+                "cross_fact_hits": row.get("cross_fact_hits"),
+            },
+            "t2_beats_t1_recall_at_k": beats,
+            "tied_recall_at_k": tied,
+        })
+    return pairs
+
+
+def run_v3_sweep(
+    *,
+    gold: Mapping[str, Any],
+    canonicals: Sequence[Mapping[str, Any]],
+) -> dict[str, Any]:
+    split = split_gold(gold)
+    indexed_hist = span_histogram(split["must_fire"])
+    if split["must_fire"]:
+        refuse_all_short(indexed_hist)
+    held_hist = span_histogram(split["must_refuse"])
+    all_hist = require_histogram_before_score(gold)
+
+    paper_order = [
+        str(row.get("paper_sha256") or "")
+        for row in (gold.get("papers") or [])
+        if str(row.get("paper_status") or "") == "indexed"
+    ]
+    canonical_by_sha = {_paper_sha(row): row for row in canonicals}
+    indexed_canonicals = [
+        canonical_by_sha[sha] for sha in paper_order if sha in canonical_by_sha
+    ]
+    collisions, too_thin = count_value_collisions(split["must_refuse"], indexed_canonicals)
+
+    # arm_key -> paper_sha -> chunks
+    per_arm_chunks: dict[tuple[str, str], dict[str, list[dict[str, Any]]]] = {}
+    arm_params: dict[tuple[str, str], dict[str, Any]] = {}
+    for canonical in canonicals:
+        sha = _paper_sha(canonical)
+        for strategy, params, chunks in enumerate_arms(canonical):
+            key = _arm_key(strategy, params)
+            arm_params[key] = dict(params)
+            per_arm_chunks.setdefault(key, {})[sha] = list(chunks)
+
+    scored_arms = []
+    series: list[dict[str, Any]] = []
+    for key, by_paper in per_arm_chunks.items():
+        strategy, _params_json = key
+        params = arm_params[key]
+        index = build_index_i(by_paper, split["indexed_shas"], paper_order)
+        scored = score_index_arm(
+            strategy=strategy,
+            params=params,
+            index=index,
+            chunks_by_paper=by_paper,
+            must_fire=split["must_fire"],
+            must_refuse=split["must_refuse"],
+            all_facts=split["facts"],
+        )
+        scored_arms.append(scored)
+        series.extend(scored["series"])
+
+    tie_groups = {_k_label(k): _tie_groups_for_series(series, k) for k in RETRIEVAL_KS}
+    return {
+        "split": split,
+        "indexed_hist": indexed_hist,
+        "held_hist": held_hist,
+        "all_hist": all_hist,
+        "n_value_collisions": collisions,
+        "holdout_too_thin": too_thin,
+        "scored_arms": scored_arms,
+        "series": series,
+        "tie_groups_at_k": tie_groups,
+        "t1_vs_t2": t1_t2_v3_rows(series),
+        "canonical_by_sha": canonical_by_sha,
+        "per_arm_chunks": per_arm_chunks,
+        "paper_order": paper_order,
+    }
+
+
+def build_retrieval_curves_v3(
+    *,
+    gold: Mapping[str, Any],
+    report: Mapping[str, Any],
+    gold_sha256: str,
+    spec_sha256: str = SPEC_V3_SHA256,
+) -> dict[str, Any]:
+    split = report["split"]
+    return {
+        "schema": CURVES_V3_SCHEMA,
+        "spec_sha256": spec_sha256,
+        "ranker": "bm25_body",
+        "index": "indexed_papers_only",
+        "embedder_in_retrieval": False,
+        "retrieval_ks": list(RETRIEVAL_KS),
+        "ci_method": "wilson_score",
+        "ci_level": 0.95,
+        "z": WILSON_Z,
+        "f1": None,
+        "n_papers": int(gold.get("n_papers") or len(gold.get("papers") or [])),
+        "n_indexed_papers": len(split["indexed_shas"]),
+        "n_held_out_papers": len(split["held_shas"]),
+        "n_facts": int(gold.get("n_facts") or len(split["facts"])),
+        "n_indexed_facts": len(split["must_fire"]),
+        "n_held_out_facts": len(split["must_refuse"]),
+        "n_value_collisions": int(report["n_value_collisions"]),
+        "holdout_too_thin": bool(report["holdout_too_thin"]),
+        "gold_sha256": gold_sha256,
+        "span_histogram": report["all_hist"],
+        "span_histogram_indexed": report["indexed_hist"],
+        "span_histogram_held_out": report["held_hist"],
+        "series": report["series"],
+        "tie_groups_at_k": report["tie_groups_at_k"],
+        "t1_vs_t2": report["t1_vs_t2"],
+    }
+
+
+def _protected_v3_paths(gold_path: Path) -> dict[Path, str]:
+    pins = {
+        POINT_SWEEP_PATH: POINT_SWEEP_SHA256,
+        PROBE_SWEEP_PATH: PROBE_SWEEP_SHA256,
+        CURVE_SWEEP_PATH: CURVE_SWEEP_SHA256,
+        CURVES_PATH: CURVES_V1_SHA256,
+        CURVES_V1_PNG_PATH: CURVES_V1_PNG_SHA256,
+        GOLD_UNSEALED_PATH: GOLD_UNSEALED_SHA256,
+    }
+    resolved = Path(gold_path).resolve()
+    if resolved == GOLD_UNSEALED_PATH.resolve():
+        pins[GOLD_UNSEALED_PATH] = GOLD_UNSEALED_SHA256
+    return {path.resolve(): digest for path, digest in pins.items() if path.is_file()}
+
+
+def _assert_protected_unmoved(pins: Mapping[Path, str], *, when: str) -> None:
+    for path, digest in pins.items():
+        if file_sha256(path) != digest:
+            raise TextGoldError(
+                "protected_persist_moved",
+                f"Protected persist moved {when}.",
+                path=str(path),
+            )
+
+
+def render_retrieval_png_v3(artifact: Mapping[str, Any], dest: Path) -> None:
+    """Two panels: recall and must-refuse. Wilson bars. No leaked 21/257 title."""
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+
+    series = [
+        row for row in (artifact.get("series") or [])
+        if row.get("bucket") == "all" and int(row.get("n_facts") or 0) > 0
+    ]
+    ks = list(RETRIEVAL_KS)
+    fig, axes = plt.subplots(1, 2, figsize=(11.5, 4.8), sharex=True)
+    n_idx = int(artifact.get("n_indexed_papers") or 0)
+    n_fire = int(artifact.get("n_indexed_facts") or 0)
+    n_hold = int(artifact.get("n_held_out_facts") or 0)
+    fig.suptitle(
+        f"{n_idx} indexed papers, {n_fire} must-fire facts, {n_hold} must-refuse facts",
+        fontsize=12,
+    )
+    highlight = []
+    faint = []
+    for row in series:
+        if any(_arm_matches_named(row["strategy"], row["params"], named) for named in NAMED_ERROR_ARMS):
+            highlight.append(row)
+        else:
+            faint.append(row)
+
+    def _ys(row: Mapping[str, Any], key: str) -> list[float]:
+        rates = row.get(key) or {}
+        return [float(rates.get(_k_label(k)) or 0.0) for k in ks]
+
+    def _yerr(row: Mapping[str, Any], ci_key: str, rate_key: str) -> list[list[float]]:
+        rates = row.get(rate_key) or {}
+        cis = row.get(ci_key) or {}
+        down, up = [], []
+        for k in ks:
+            rate = rates.get(_k_label(k))
+            ci = cis.get(_k_label(k)) or {}
+            if rate is None or ci.get("lo") is None or ci.get("hi") is None:
+                down.append(0.0)
+                up.append(0.0)
+            else:
+                down.append(max(0.0, float(rate) - float(ci["lo"])))
+                up.append(max(0.0, float(ci["hi"]) - float(rate)))
+        return [down, up]
+
+    def _label(row: Mapping[str, Any]) -> str:
+        strategy = str(row.get("strategy"))
+        params = dict(row.get("params") or {})
+        if strategy == "T5":
+            return "T5 block-pack"
+        if strategy == "T6":
+            return f"T6 p{params.get('percentile')}"
+        if strategy == "T0":
+            return "T0 production"
+        if strategy == "T1":
+            return f"T1 {params.get('size')} ov {params.get('overlap_frac')}"
+        if strategy == "T2":
+            return f"T2 {params.get('size')} ov {params.get('overlap_frac')}"
+        return strategy
+
+    ax0, ax1 = axes
+    for row in faint:
+        ax0.errorbar(
+            ks, _ys(row, "recall_at_k"), yerr=_yerr(row, "recall_ci_at_k", "recall_at_k"),
+            fmt="o-", color="0.75", alpha=0.45, linewidth=0.8, markersize=3, capsize=2,
+        )
+        ax1.errorbar(
+            ks, _ys(row, "must_refuse_at_k"),
+            yerr=_yerr(row, "must_refuse_ci_at_k", "must_refuse_at_k"),
+            fmt="o-", color="0.75", alpha=0.45, linewidth=0.8, markersize=3, capsize=2,
+        )
+    for row in highlight:
+        ax0.errorbar(
+            ks, _ys(row, "recall_at_k"), yerr=_yerr(row, "recall_ci_at_k", "recall_at_k"),
+            fmt="o-", linewidth=2, markersize=5, capsize=3, label=_label(row),
+        )
+        ax1.errorbar(
+            ks, _ys(row, "must_refuse_at_k"),
+            yerr=_yerr(row, "must_refuse_ci_at_k", "must_refuse_at_k"),
+            fmt="o-", linewidth=2, markersize=5, capsize=3, label=_label(row),
+        )
+    ax0.set_title("Recall@k (must-fire, index I)")
+    ax1.set_title("Must-refuse@k (held-out, same I)")
+    ax0.set_ylabel("recall@k")
+    ax1.set_ylabel("must_refuse@k")
+    for ax in axes:
+        ax.set_xlabel("k (retrieved chunks)")
+        ax.set_xticks(ks)
+        ax.set_ylim(-0.02, 1.05)
+        ax.grid(True, alpha=0.3)
+    ax0.legend(loc="lower right", fontsize=8, frameon=False)
+    fig.tight_layout()
+    dest = Path(dest)
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    fig.savefig(dest, dpi=140, facecolor="white")
+    plt.close(fig)
+
+
+def build_error_analysis_k10(
+    *,
+    artifact: Mapping[str, Any],
+    report: Mapping[str, Any],
+    spec_sha256: str,
+    curves_sha256: str,
+) -> dict[str, Any]:
+    split = report["split"]
+    canonical_by_sha = report["canonical_by_sha"]
+    per_arm_chunks = report["per_arm_chunks"]
+    fire_by_id = {str(fact.get("fact_id") or ""): fact for fact in split["must_fire"]}
+    hold_by_id = {str(fact.get("fact_id") or ""): fact for fact in split["must_refuse"]}
+    arms_out = []
+    for scored in report["scored_arms"]:
+        strategy = scored["strategy"]
+        params = scored["params"]
+        named = any(_arm_matches_named(strategy, params, named) for named in NAMED_ERROR_ARMS)
+        if not named:
+            continue
+        all_row = next(row for row in scored["series"] if row["bucket"] == "all")
+        misses = []
+        for fact_id, retr in (scored.get("fire_hits") or {}).items():
+            if retr.get("10"):
+                continue
+            fact = fire_by_id.get(fact_id)
+            if fact is None:
+                continue
+            sha = str(fact.get("paper_sha256") or "")
+            text = str((canonical_by_sha.get(sha) or {}).get("canonical_text") or "")
+            own = (per_arm_chunks.get(_arm_key(strategy, params)) or {}).get(sha) or []
+            misses.append(classify_k10_miss(fact, canonical_text=text, own_chunks=own))
+        class_counts = {
+            "ambiguous_gold": 0,
+            "span_exceeds_chunk": 0,
+            "needles_split": 0,
+            "lexical_mismatch": 0,
+        }
+        for row in misses:
+            class_counts[str(row["class"])] += 1
+        leaks = [
+            fact_id
+            for fact_id, refused in (scored.get("refuse_hits") or {}).items()
+            if not refused.get("10") and fact_id in hold_by_id
+        ]
+        arms_out.append({
+            "strategy": strategy,
+            "params": dict(params),
+            "n_miss_at_10": len(misses),
+            "class_counts": class_counts,
+            "misses": misses,
+            "refuse_leaks_at_10": leaks,
+        })
+    return {
+        "schema": ERROR_ANALYSIS_SCHEMA,
+        "spec_sha256": spec_sha256,
+        "curves_sha256": curves_sha256,
+        "k": 10,
+        "n_value_collisions": int(report["n_value_collisions"]),
+        "holdout_too_thin": bool(report["holdout_too_thin"]),
+        "arms": arms_out,
+    }
+
+
+def emit_v3_product(
+    *,
+    gold: Mapping[str, Any],
+    canonicals: Sequence[Mapping[str, Any]],
+    gold_path: Path,
+    out_dir: Path | None = None,
+) -> dict[str, Any]:
+    """Write the three §6 files. Does not overwrite the leaked v2 persist."""
+    if GOLD_V2_PATH.exists():
+        raise TextGoldError("gold_v2_present", "Sealing GOLD.v2.json is an owner stop.")
+    dest_dir = Path(out_dir or DEFAULT_OUT_DIR)
+    curves_path = dest_dir / "CURVES.retrieval.v3.json" if out_dir else CURVES_V3_PATH
+    png_path = dest_dir / "CURVES.retrieval.v3.png" if out_dir else CURVES_V3_PNG_PATH
+    err_path = dest_dir / "ERROR_ANALYSIS.k10.v3.json" if out_dir else ERROR_ANALYSIS_PATH
+    protected = {
+        POINT_SWEEP_PATH.resolve(),
+        PROBE_SWEEP_PATH.resolve(),
+        CURVE_SWEEP_PATH.resolve(),
+        CURVES_PATH.resolve(),
+        CURVES_V1_PNG_PATH.resolve(),
+        GOLD_UNSEALED_PATH.resolve(),
+        Path(gold_path).resolve(),
+    }
+    for dest in (curves_path, png_path, err_path):
+        if dest.resolve() in protected:
+            raise TextGoldError("protected_persist", "v3 emit must not overwrite the leaked persist.")
+    spec_digest = file_sha256(SPEC_V3_PATH)
+    if spec_digest != SPEC_V3_SHA256:
+        raise TextGoldError("spec_v3_moved", "Emit only against the ADMITTED v3 bytes.")
+    gold_digest = file_sha256(Path(gold_path))
+    pins = _protected_v3_paths(Path(gold_path))
+    _assert_protected_unmoved(pins, when="before emit")
+    report = run_v3_sweep(gold=gold, canonicals=canonicals)
+    artifact = build_retrieval_curves_v3(
+        gold=gold,
+        report=report,
+        gold_sha256=gold_digest,
+        spec_sha256=spec_digest,
+    )
+    dest_dir.mkdir(parents=True, exist_ok=True)
+    curves_path.write_text(json.dumps(artifact, indent=2, ensure_ascii=False) + "\n")
+    render_retrieval_png_v3(artifact, png_path)
+    curves_digest = file_sha256(curves_path)
+    analysis = build_error_analysis_k10(
+        artifact=artifact,
+        report=report,
+        spec_sha256=spec_digest,
+        curves_sha256=curves_digest,
+    )
+    err_path.write_text(json.dumps(analysis, indent=2, ensure_ascii=False) + "\n")
+    _assert_protected_unmoved(pins, when="after emit")
+    if _contains_forbidden_keys(artifact, {"needles", "canonical_text", "evidence_quote", "query", "fact_id"}):
+        raise TextGoldError("gold_quoted", "Curve persist must not carry gold text fields.")
+    if _contains_forbidden_keys(analysis, {"needles", "canonical_text", "evidence_quote", "query"}):
+        raise TextGoldError("gold_quoted", "Error analysis must not carry needles, queries, or quotes.")
+    return {"curves": artifact, "error_analysis": analysis, "curves_path": str(curves_path)}
+
+
+def _contains_forbidden_keys(obj: Any, forbidden: set[str]) -> bool:
+    if isinstance(obj, Mapping):
+        return any(key in forbidden or _contains_forbidden_keys(value, forbidden) for key, value in obj.items())
+    if isinstance(obj, list):
+        return any(_contains_forbidden_keys(item, forbidden) for item in obj)
+    return False
+

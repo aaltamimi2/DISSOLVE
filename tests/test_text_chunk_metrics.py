@@ -265,6 +265,27 @@ def test_build_retrieval_curves_is_per_bucket_and_has_no_needles():
     assert "fact_id" not in blob
 
 
+def test_emit_refuses_to_overwrite_leaked_curves_path(tmp_path):
+    gold = {
+        "n_papers": 1,
+        "n_facts": 1,
+        "span_histogram": text_gold.span_histogram([{"needle_span_chars": 400}]),
+        "facts": [],
+    }
+    gold_path = tmp_path / "gold.json"
+    gold_path.write_text("{}\n")
+    import pytest
+    from dissolve.gold_ensemble import GoldEnsembleError
+    with pytest.raises(GoldEnsembleError) as error:
+        text_chunk_metrics.emit_retrieval_curves(
+            gold=gold,
+            canonicals=[],
+            gold_path=gold_path,
+            out_path=text_chunk_metrics.CURVES_PATH,
+        )
+    assert error.value.code == "protected_persist"
+
+
 def test_emit_refuses_to_overwrite_point_sweep(tmp_path):
     gold = {
         "n_papers": 1,
@@ -299,3 +320,215 @@ def test_retrievable_at_5_matches_production_bm25_top5():
     assert text_chunk_metrics.retrievable_at_5(query, chunks, needles) is expected
     ranked = text_chunk_metrics.bm25_ranked(query, chunks)
     assert [c["body"] for c in ranked[:5]] == [c["body"] for c in top5]
+
+
+def test_wilson_interval_matches_the_v3_formula_and_is_null_on_empty():
+    empty = text_chunk_metrics.wilson_interval(0, 0)
+    assert empty == {"lo": None, "hi": None}
+    lo_hi = text_chunk_metrics.wilson_interval(217, 228)
+    assert abs(lo_hi["lo"] - 0.9156883608389312) <= 1e-12
+    assert abs(lo_hi["hi"] - 0.9728498714852543) <= 1e-12
+    assert lo_hi["hi"] <= 1.0
+    sure = text_chunk_metrics.wilson_interval(29, 29)
+    assert sure["hi"] == 1.0
+    assert sure["lo"] > 0.8
+
+
+def test_overlapping_intervals_are_tied_and_a_gap_of_two_facts_does_not_separate():
+    t6 = text_chunk_metrics.wilson_interval(219, 228)
+    t5 = text_chunk_metrics.wilson_interval(217, 228)
+    t1 = text_chunk_metrics.wilson_interval(216, 228)
+    assert text_chunk_metrics.intervals_overlap(t6, t5)
+    assert text_chunk_metrics.intervals_overlap(t5, t1)
+    assert text_chunk_metrics.intervals_overlap(t6, t1)
+    assert text_chunk_metrics.interval_separates_above(t6, t5) is False
+
+
+def test_index_i_drops_held_out_chunks():
+    indexed = [{"body": f"{SUBJ} {QUAL} {VAL}", "char_start": 0, "char_end": 10}]
+    held = [{"body": f"{OTHER} must not be searchable", "char_start": 0, "char_end": 10}]
+    index = text_chunk_metrics.build_index_i(
+        {"aa" * 32: indexed, "bb" * 32: held},
+        indexed_shas={"aa" * 32},
+        paper_order=["aa" * 32, "bb" * 32],
+    )
+    assert len(index) == 1
+    assert index[0]["paper_sha256"] == "aa" * 32
+    assert OTHER not in index[0]["body"]
+
+
+def test_v3_scores_refuse_beside_recall_on_shared_index():
+    sha_i = "aa" * 32
+    sha_h = "bb" * 32
+    index = text_chunk_metrics.tag_chunks(
+        [{"body": f"{SUBJ} {QUAL} {VAL} unique indexed", "char_start": 0, "char_end": 40}],
+        sha_i,
+    )
+    fire = [{
+        "fact_id": "f-i",
+        "paper_sha256": sha_i,
+        "paper_status": "indexed",
+        "needles": {"subject": SUBJ, "qualifier": QUAL, "value": VAL},
+        "query": f"{SUBJ} {VAL}",
+        "needle_span_chars": 80,
+        "needle_first_char": 0,
+        "needle_last_char": 20,
+    }]
+    refuse = [{
+        "fact_id": "f-h",
+        "paper_sha256": sha_h,
+        "paper_status": "held_out",
+        "needles": {"subject": OTHER, "qualifier": "end.", "value": "y y"},
+        "query": OTHER,
+        "needle_span_chars": 80,
+        "needle_first_char": 0,
+        "needle_last_char": 20,
+    }]
+    scored = text_chunk_metrics.score_index_arm(
+        strategy="T5",
+        params={"target": 1400},
+        index=index,
+        chunks_by_paper={sha_i: index, sha_h: [{"body": f"{OTHER} end. y y"}]},
+        must_fire=fire,
+        must_refuse=refuse,
+        all_facts=fire + refuse,
+    )
+    all_row = next(row for row in scored["series"] if row["bucket"] == "all")
+    assert all_row["n_facts"] == 1
+    assert all_row["n_held_out_facts"] == 1
+    assert all_row["n_retrievable_at_k"]["5"] == 1
+    assert all_row["n_must_refuse_at_k"]["5"] == 1
+    assert all_row["n_leaks_at_k"]["5"] == 0
+    assert all_row["recall_ci_at_k"]["5"]["lo"] is not None
+    assert all_row["must_refuse_ci_at_k"]["5"]["lo"] is not None
+    assert all_row["f1"] if "f1" in all_row else True
+    empty = next(row for row in scored["series"] if row["bucket"] == ">1500")
+    assert empty["n_facts"] == 0
+    assert empty["recall_at_k"]["5"] is None
+    assert empty["must_refuse_at_k"]["5"] is None
+    assert empty["recall_ci_at_k"]["5"] == {"lo": None, "hi": None}
+
+
+def test_held_out_chunk_in_index_is_refused():
+    sha_h = "bb" * 32
+    bad = text_chunk_metrics.tag_chunks([{"body": "leak"}], sha_h)
+    try:
+        text_chunk_metrics.score_index_arm(
+            strategy="T5",
+            params={"target": 1400},
+            index=bad,
+            chunks_by_paper={sha_h: bad},
+            must_fire=[],
+            must_refuse=[{"fact_id": "h", "paper_sha256": sha_h, "needles": {}, "query": "x"}],
+            all_facts=[],
+        )
+    except text_gold.TextGoldError as error:
+        assert error.code == "held_out_in_index"
+    else:
+        raise AssertionError("held-out SHA in I must refuse")
+
+
+def test_error_class_priority_is_gold_then_span_then_split_then_lexical():
+    text = f"{SUBJ} {QUAL} {VAL} " + ("z" * 50)
+    first = text.find(SUBJ)
+    last = text.find(VAL) + len(VAL)
+    own = [{"body": text, "char_start": 0, "char_end": len(text)}]
+    gold_broken = text_chunk_metrics.classify_k10_miss(
+        {
+            "fact_id": "g",
+            "needles": {"subject": "MISSINGZX", "qualifier": QUAL, "value": VAL},
+            "needle_span_chars": 10,
+            "needle_first_char": 0,
+            "needle_last_char": 5,
+        },
+        canonical_text=text,
+        own_chunks=own,
+    )
+    assert gold_broken["class"] == "ambiguous_gold"
+    span_miss = text_chunk_metrics.classify_k10_miss(
+        {
+            "fact_id": "s",
+            "needles": {"subject": SUBJ, "qualifier": QUAL, "value": VAL},
+            "needle_span_chars": 10_000,
+            "needle_first_char": first,
+            "needle_last_char": last,
+        },
+        canonical_text=text,
+        own_chunks=[{"body": "short", "char_start": 0, "char_end": 5}],
+    )
+    assert span_miss["class"] == "span_exceeds_chunk"
+    split = text_chunk_metrics.classify_k10_miss(
+        {
+            "fact_id": "c",
+            "needles": {"subject": SUBJ, "qualifier": QUAL, "value": VAL},
+            "needle_span_chars": last - first,
+            "needle_first_char": first,
+            "needle_last_char": last,
+        },
+        canonical_text=text,
+        own_chunks=[
+            {"body": SUBJ + (" a" * 80), "char_start": 0, "char_end": 200},
+            {"body": QUAL + (" b" * 80), "char_start": 200, "char_end": 400},
+        ],
+    )
+    assert split["class"] == "needles_split"
+    lexical = text_chunk_metrics.classify_k10_miss(
+        {
+            "fact_id": "l",
+            "needles": {"subject": SUBJ, "qualifier": QUAL, "value": VAL},
+            "needle_span_chars": last - first,
+            "needle_first_char": first,
+            "needle_last_char": last,
+        },
+        canonical_text=text,
+        own_chunks=own,
+    )
+    assert lexical["class"] == "lexical_mismatch"
+
+
+def test_v3_curves_artifact_has_no_needles_or_fact_ids():
+    gold = {
+        "n_papers": 2,
+        "n_facts": 2,
+        "span_histogram": text_gold.span_histogram([
+            {"needle_span_chars": 80},
+            {"needle_span_chars": 90},
+        ]),
+        "papers": [
+            {"paper_sha256": "aa" * 32, "paper_status": "indexed"},
+            {"paper_sha256": "bb" * 32, "paper_status": "held_out"},
+        ],
+        "facts": [
+            {"fact_id": "keep-out", "paper_sha256": "aa" * 32, "paper_status": "indexed", "needle_span_chars": 80},
+            {"fact_id": "hold-out", "paper_sha256": "bb" * 32, "paper_status": "held_out", "needle_span_chars": 90},
+        ],
+    }
+    split = text_chunk_metrics.split_gold(gold)
+    assert len(split["indexed_shas"]) == 1
+    assert len(split["held_shas"]) == 1
+    assert len(split["must_fire"]) == 1
+    assert len(split["must_refuse"]) == 1
+    report = {
+        "split": split,
+        "indexed_hist": text_gold.span_histogram(split["must_fire"]),
+        "held_hist": text_gold.span_histogram(split["must_refuse"]),
+        "all_hist": gold["span_histogram"],
+        "n_value_collisions": 0,
+        "holdout_too_thin": False,
+        "series": [],
+        "tie_groups_at_k": {},
+        "t1_vs_t2": [],
+    }
+    artifact = text_chunk_metrics.build_retrieval_curves_v3(
+        gold=gold, report=report, gold_sha256="ab" * 32,
+    )
+    assert artifact["schema"] == "dissolve.text-chunk-curves.retrieval.v3"
+    assert artifact["index"] == "indexed_papers_only"
+    assert artifact["ci_method"] == "wilson_score"
+    assert artifact["z"] == text_chunk_metrics.WILSON_Z
+    assert artifact["f1"] is None
+    assert artifact["n_indexed_facts"] == 1
+    assert artifact["n_held_out_facts"] == 1
+    assert text_chunk_metrics._contains_forbidden_keys(
+        artifact, {"needles", "canonical_text", "evidence_quote", "query", "fact_id"},
+    ) is False
