@@ -1,8 +1,11 @@
-"""ENGINE_E2E_SPEC.v1 E2E-0 figure and E2E-1 T5 store. No score. No MiniLM."""
+"""ENGINE_E2E_SPEC.v1 E2E-0 figure, E2E-1 store, E2E-2 index. No score. No MiniLM."""
 
 from __future__ import annotations
 
+import hashlib
 import json
+import math
+import os
 from pathlib import Path
 from typing import Any, Mapping, Sequence
 
@@ -19,7 +22,13 @@ SPEC_PATH = Path("/home/aaltamimi2/dissolve-v12-audit/ENGINE_E2E_SPEC.v1.md")
 CENSUS_PATH = Path("/home/aaltamimi2/dissolve-v12-audit/corpus/CENSUS.v3.json")
 STORE_SCHEMA = "dissolve.t5-chunk-store.unsealed.v1"
 STORE_PATH = DEFAULT_OUT_DIR / "CHUNKS.t5.indexed.unsealed.v1.json"
+STORE_SHA256 = "91851dbf3b979450d087f86acca8c146205e0d0a8c41cc49c3aab1fc9cf73a40"
 FIGURE_PATH = DEFAULT_OUT_DIR / "CURVES.retrieval.v3.strategies_spans.png"
+MANIFEST_SCHEMA = "dissolve.t5-index-manifest.unsealed.v1"
+MANIFEST_PATH = DEFAULT_OUT_DIR / "INDEX.t5.unsealed.v1.json"
+KNOWLEDGEBASE_ID = "t5-indexed-unsealed"
+INDEX_HOME = DEFAULT_OUT_DIR / "indexes"
+PLANT_TOKEN = "E2E2PLANTZXQTOKEN"
 CURVES_V3_SHA256 = "8090143a69106ff5ba5db8bab70f7fbc7980fe4f54574d427c7815dca7379152"
 CURVES_V3_PNG_SHA256 = "be999b405544ac44a5e37291918f3c2b9b66196f6e9569df689ebb09d0d0cc4b"
 ERROR_ANALYSIS_SHA256 = "4dbd695135ce7f877e4db86f6ed93ea855a75258b501aaf6d1391ee7ede3fdde"
@@ -223,6 +232,8 @@ def _protected_e2e_pins() -> dict[Path, str]:
         text_chunk_metrics.ERROR_ANALYSIS_PATH: ERROR_ANALYSIS_SHA256,
         CURVES_T5_LEFTOVER_PATH: CURVES_T5_LEFTOVER_SHA256,
         CURVES_T5_LEFTOVER_PNG_PATH: CURVES_T5_LEFTOVER_PNG_SHA256,
+        STORE_PATH: STORE_SHA256,
+        FIGURE_PATH: "5d3ce85a4163edfae5a7ab9450451ca1b6e95fb148604e5672f1ec9ed5ea65ec",
     }
     return {path.resolve(): digest for path, digest in pins.items() if path.is_file()}
 
@@ -242,6 +253,7 @@ def _refuse_protected_dest(dest: Path) -> None:
         "ENGINE_CURVES.v1.json",
         "GOLD.v2.json",
         "GOLD.text.v1.unsealed.json",
+        "user-library.json.gz",
     }
     if dest.name in banned_names:
         raise TextGoldError("protected_persist", "E2E emit must not overwrite published persist.")
@@ -550,6 +562,182 @@ def emit_e2e_0_and_1(
         skip_pin_check=skip_pin_check,
     )
     return {**figure, **store}
+
+
+def store_to_literature_index(
+    store: Mapping[str, Any],
+    *,
+    knowledgebase: str = KNOWLEDGEBASE_ID,
+) -> dict[str, Any]:
+    """Address the T5 store as a live literature index. Dense stays null."""
+    slug = research._slug(knowledgebase)
+    if slug == "user-library":
+        raise TextGoldError("protected_persist", "E2E-2 must not write user-library.")
+    indexed = [str(sha) for sha in (store.get("indexed_paper_sha256") or [])]
+    if set(indexed) != {str(row.get("paper_sha256") or "") for row in (store.get("chunks") or [])}:
+        raise TextGoldError("index_sha_mismatch", "Store header SHAs do not match chunk paper_sha256.")
+    documents = []
+    for sha in indexed:
+        documents.append({
+            "document_id": f"D{sha[:16]}",
+            "sha256": sha,
+            "title": "",
+            "source": "",
+            "parser_backend": "docling",
+        })
+    doc_ids = {row["sha256"]: row["document_id"] for row in documents}
+    chunks = []
+    for row in store.get("chunks") or []:
+        body = str(row.get("body") or "")
+        item = {
+            "chunk_id": str(row["chunk_id"]),
+            "sha256": hashlib.sha256(body.encode("utf-8")).hexdigest(),
+            "document_id": doc_ids[str(row["paper_sha256"])],
+            "paper_sha256": str(row["paper_sha256"]),
+            "title": "",
+            "source": "",
+            "page": row.get("page"),
+            "section": row.get("section") or "",
+            "section_origin": row.get("section_origin"),
+            "kind": row.get("kind"),
+            "char_start": row.get("char_start"),
+            "char_end": row.get("char_end"),
+            "text": body,
+            "body": body,
+            "token_estimate": max(1, math.ceil(len(body) / 4)),
+        }
+        sidecar = row.get("body_plus_rebound")
+        if sidecar and str(sidecar) != body:
+            item["body_plus_rebound"] = sidecar
+        chunks.append(item)
+    if len(chunks) != int(store.get("n_chunks") or 0):
+        raise TextGoldError("n_chunks_mismatch", "Index chunk count does not match the store.")
+    return {
+        "schema": research._INDEX_SCHEMA,
+        "knowledgebase": slug,
+        "documents": documents,
+        "chunks": chunks,
+        "dense": None,
+    }
+
+
+def planted_sparse_top5(
+    index: Mapping[str, Any],
+    *,
+    chunk_id: str,
+    token: str = PLANT_TOKEN,
+) -> list[str]:
+    """Constructed query. Plants a fixture token in one body. Not a gold needle."""
+    planted = json.loads(json.dumps(index))
+    hit = False
+    for chunk in planted["chunks"]:
+        if chunk["chunk_id"] == chunk_id:
+            body = str(chunk.get("body") or chunk.get("text") or "")
+            chunk["body"] = f"{body} {token}"
+            chunk["text"] = chunk["body"]
+            chunk.pop("body_plus_rebound", None)
+            hit = True
+            break
+    if not hit:
+        raise TextGoldError("plant_miss", "Constructed plant target chunk_id is missing.")
+    rows = research._search_index(planted, token, 5, "sparse")
+    return [str(row["chunk_id"]) for row in rows]
+
+
+def emit_e2e_2(
+    *,
+    store_path: Path | None = None,
+    gold_path: Path | None = None,
+    census_path: Path | None = None,
+    dest: Path | None = None,
+    index_home: Path | None = None,
+    expected_n_indexed: int = EXPECTED_N_INDEXED,
+    expected_n_chunks: int = EXPECTED_N_CHUNKS,
+    spec_path: Path | None = None,
+    skip_pin_check: bool = False,
+) -> dict[str, Any]:
+    if text_chunk_metrics.GOLD_V2_PATH.exists():
+        raise TextGoldError("gold_v2_present", "Sealing GOLD.v2.json is an owner stop.")
+    dest = Path(dest or MANIFEST_PATH)
+    _refuse_protected_dest(dest)
+    store_file = Path(store_path or STORE_PATH)
+    gold_file = Path(gold_path or text_chunk_metrics.GOLD_UNSEALED_PATH)
+    census_file = Path(census_path or CENSUS_PATH)
+    spec_file = Path(spec_path or SPEC_PATH)
+    if store_file.resolve() == STORE_PATH.resolve() and file_sha256(store_file) != STORE_SHA256:
+        raise TextGoldError("store_moved", "E2E-2 must address the PASSed T5 store.")
+    if spec_file.resolve() == SPEC_PATH.resolve() and file_sha256(spec_file) != SPEC_SHA256:
+        raise TextGoldError("spec_e2e_moved", "Emit only against the ADMITTED E2E bytes.")
+    gold = json.loads(gold_file.read_text())
+    census = json.loads(census_file.read_text())
+    store = json.loads(store_file.read_text())
+    gold_sets = gold_status_sets(gold)
+    census_sets = census_status_sets(census)
+    store_shas = set(store.get("indexed_paper_sha256") or [])
+    if store_shas != gold_sets["indexed"] or store_shas != census_sets["indexed"]:
+        raise TextGoldError("index_sha_mismatch", "Store SHA set is not gold/census indexed I.")
+    if len(store_shas) != expected_n_indexed or int(store.get("n_chunks") or 0) != expected_n_chunks:
+        raise TextGoldError("n_chunks_mismatch", "Store counts are not the E2E-1 accept integers.")
+    pins = {} if skip_pin_check else _protected_e2e_pins()
+    if pins:
+        text_chunk_metrics._assert_protected_unmoved(pins, when="before E2E-2")
+    index = store_to_literature_index(store, knowledgebase=KNOWLEDGEBASE_ID)
+    live_shas = {str(row.get("sha256") or "") for row in index["documents"]}
+    if live_shas != gold_sets["indexed"]:
+        raise TextGoldError("index_sha_mismatch", "Live document SHAs are not gold indexed I.")
+    if len(index["chunks"]) != expected_n_chunks:
+        raise TextGoldError("n_chunks_mismatch", "Live n_chunks is not the store.")
+    home = Path(index_home or INDEX_HOME)
+    home.mkdir(parents=True, exist_ok=True)
+    previous = os.environ.get("DISSOLVE_RESEARCH_HOME")
+    os.environ["DISSOLVE_RESEARCH_HOME"] = str(home)
+    try:
+        index_path = research._save_index(index)
+        loaded = research._load_index(KNOWLEDGEBASE_ID)
+    finally:
+        if previous is None:
+            os.environ.pop("DISSOLVE_RESEARCH_HOME", None)
+        else:
+            os.environ["DISSOLVE_RESEARCH_HOME"] = previous
+    loaded_shas = {str(row.get("sha256") or "") for row in loaded["documents"]}
+    if loaded_shas != gold_sets["indexed"] or len(loaded["chunks"]) != expected_n_chunks:
+        raise TextGoldError("index_sha_mismatch", "Reloaded index is not I.")
+    if loaded.get("dense") is not None:
+        raise TextGoldError("dense_present", "E2E-2 must not persist dense vectors.")
+    plant_ids = planted_sparse_top5(loaded, chunk_id=str(loaded["chunks"][0]["chunk_id"]))
+    if loaded["chunks"][0]["chunk_id"] not in plant_ids:
+        raise TextGoldError("plant_not_retrieved", "Constructed plant token missed top-5 sparse.")
+    payload = {
+        "schema": MANIFEST_SCHEMA,
+        "spec_sha256": file_sha256(spec_file),
+        "gold_sha256": file_sha256(gold_file),
+        "census_sha256": file_sha256(census_file),
+        "chunk_store_sha256": file_sha256(store_file),
+        "knowledgebase": KNOWLEDGEBASE_ID,
+        "index_path": str(index_path),
+        "n_indexed_papers": len(live_shas),
+        "n_chunks": len(loaded["chunks"]),
+        "indexed_paper_sha256": sorted(live_shas),
+        "embedder_in_index": False,
+        "dense": None,
+    }
+    if text_chunk_metrics._contains_forbidden_keys(
+        payload, set(_FORBIDDEN_STORE_KEYS) | {"recall_at_k", "retr@k", "f1", "provisional"},
+    ):
+        raise TextGoldError("gold_quoted", "Index manifest must not carry gold text or a score.")
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    dest.write_text(json.dumps(payload, indent=2, ensure_ascii=False) + "\n")
+    if pins:
+        text_chunk_metrics._assert_protected_unmoved(pins, when="after E2E-2")
+    return {
+        "manifest_path": str(dest),
+        "manifest_sha256": file_sha256(dest),
+        "index_path": str(index_path),
+        "n_chunks": len(loaded["chunks"]),
+        "n_indexed_papers": len(live_shas),
+        "knowledgebase": KNOWLEDGEBASE_ID,
+        "planted_in_top5": True,
+    }
 
 
 def main() -> None:

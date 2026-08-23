@@ -10,7 +10,7 @@ for _path in (str(_ROOT), str(_ROOT / "src")):
     if _path not in sys.path:
         sys.path.insert(0, _path)
 
-from dissolve import engine_e2e, text_chunk_metrics, text_chunking, text_gold
+from dissolve import engine_e2e, research, text_chunk_metrics, text_chunking, text_gold
 from dissolve.gold_ensemble import CONTAMINANT_SHA256
 
 IDX = "aa" * 32
@@ -341,6 +341,90 @@ def test_n_chunks_mismatch_is_loud(tmp_path):
             skip_pin_check=True,
         )
     assert error.value.code == "n_chunks_mismatch"
+
+
+def test_e2e2_live_index_matches_store_sha_set_and_retrieves_plant(tmp_path):
+    canon = _indexed_canonical()
+    packed = text_chunking.chunk_t5(canon, target=text_chunking.T5_TARGET)
+    gold_path = tmp_path / "gold.json"
+    census_path = tmp_path / "census.json"
+    spec_path = tmp_path / "spec.md"
+    gold_path.write_text(json.dumps(_gold()) + "\n")
+    census_path.write_text(json.dumps(_census()) + "\n")
+    spec_path.write_text("e2e2 fixture\n")
+    store_dest = tmp_path / "store.json"
+    engine_e2e.emit_e2e_1_store(
+        gold=_gold(),
+        gold_path=gold_path,
+        census=_census(),
+        census_path=census_path,
+        curves={"series": [{
+            "strategy": "T5", "params": {"target": 1400},
+            "bucket": "all", "n_chunks": len(packed),
+        }]},
+        dest=store_dest,
+        canonicals=[canon],
+        expected_n_indexed=1,
+        expected_n_chunks=len(packed),
+        spec_path=spec_path,
+        skip_pin_check=True,
+    )
+    manifest = tmp_path / "INDEX.t5.unsealed.v1.json"
+    result = engine_e2e.emit_e2e_2(
+        store_path=store_dest,
+        gold_path=gold_path,
+        census_path=census_path,
+        dest=manifest,
+        index_home=tmp_path / "indexes",
+        expected_n_indexed=1,
+        expected_n_chunks=len(packed),
+        spec_path=spec_path,
+        skip_pin_check=True,
+    )
+    payload = json.loads(manifest.read_text())
+    assert payload["schema"] == "dissolve.t5-index-manifest.unsealed.v1"
+    assert payload["knowledgebase"] == "t5-indexed-unsealed"
+    assert payload["indexed_paper_sha256"] == [IDX]
+    assert HOLD not in payload["indexed_paper_sha256"]
+    assert payload["embedder_in_index"] is False
+    assert payload["dense"] is None
+    assert "recall_at_k" not in payload
+    assert result["planted_in_top5"] is True
+    import os
+    previous = os.environ.get("DISSOLVE_RESEARCH_HOME")
+    os.environ["DISSOLVE_RESEARCH_HOME"] = str(tmp_path / "indexes")
+    try:
+        live = research._load_index("t5-indexed-unsealed")
+    finally:
+        if previous is None:
+            os.environ.pop("DISSOLVE_RESEARCH_HOME", None)
+        else:
+            os.environ["DISSOLVE_RESEARCH_HOME"] = previous
+    assert {row["sha256"] for row in live["documents"]} == {IDX}
+    assert len(live["chunks"]) == len(packed)
+    assert live["dense"] is None
+    top = engine_e2e.planted_sparse_top5(live, chunk_id=live["chunks"][0]["chunk_id"])
+    assert live["chunks"][0]["chunk_id"] in top
+
+
+def test_e2e2_refuses_user_library():
+    import pytest
+    with pytest.raises(text_gold.TextGoldError) as error:
+        engine_e2e.store_to_literature_index(
+            {
+                "n_chunks": 1,
+                "indexed_paper_sha256": [IDX],
+                "chunks": [{
+                    "chunk_id": "T5-aa-0001",
+                    "paper_sha256": IDX,
+                    "body": "x",
+                    "char_start": 0,
+                    "char_end": 1,
+                }],
+            },
+            knowledgebase="user-library",
+        )
+    assert error.value.code == "protected_persist"
 
 
 def test_page_range_when_pack_crosses_a_page():
