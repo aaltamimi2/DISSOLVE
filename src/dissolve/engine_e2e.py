@@ -1,4 +1,4 @@
-"""ENGINE_E2E_SPEC.v1 E2E-0..3. No published score. MiniLM only at E2E-3."""
+"""ENGINE_E2E_SPEC.v1 E2E-0..4. No published score. MiniLM only at E2E-3."""
 
 from __future__ import annotations
 
@@ -29,6 +29,20 @@ MANIFEST_PATH = DEFAULT_OUT_DIR / "INDEX.t5.unsealed.v1.json"
 KNOWLEDGEBASE_ID = "t5-indexed-unsealed"
 INDEX_HOME = DEFAULT_OUT_DIR / "indexes"
 PLANT_TOKEN = "E2E2PLANTZXQTOKEN"
+NONSENSE_QUERY = "ZXQQQNONSENSEZXQ TOKENTHATISABSENTQZX"
+SERVED_PROVENANCE_KEYS = (
+    "paper_sha256",
+    "page",
+    "section",
+    "section_origin",
+    "char_start",
+    "char_end",
+    "chunk_id",
+    "dense_score",
+    "sparse_score",
+    "section_boost",
+    "final_score",
+)
 MINILM_ID = "sentence-transformers/all-MiniLM-L6-v2"
 EXPECTED_DIM = 384
 REBOUND_NOTE_TOKEN = "E2E3REBOUNDZXQNOTE"
@@ -636,7 +650,7 @@ def planted_sparse_top5(
     for chunk in planted["chunks"]:
         if chunk["chunk_id"] == chunk_id:
             body = str(chunk.get("body") or chunk.get("text") or "")
-            chunk["body"] = f"{body} {token}"
+            chunk["body"] = f"{token} {body}"
             chunk["text"] = chunk["body"]
             chunk.pop("body_plus_rebound", None)
             hit = True
@@ -783,6 +797,84 @@ def embed_t5_index(
         "vectors": vectors,
     }
     return out
+
+
+def _plant_copy(
+    index: Mapping[str, Any],
+    *,
+    chunk_id: str,
+    token: str,
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    planted = {
+        "schema": index.get("schema"),
+        "knowledgebase": index.get("knowledgebase"),
+        "documents": json.loads(json.dumps(index.get("documents") or [])),
+        "chunks": json.loads(json.dumps(index.get("chunks") or [])),
+        "dense": None,
+    }
+    hit = None
+    for chunk in planted["chunks"]:
+        if str(chunk.get("chunk_id")) == chunk_id:
+            body = str(chunk.get("body") or chunk.get("text") or "")
+            chunk["body"] = f"{token} {body}"
+            chunk["text"] = chunk["body"]
+            chunk.pop("body_plus_rebound", None)
+            hit = chunk
+            break
+    if hit is None:
+        raise TextGoldError("plant_miss", "Constructed plant target chunk_id is missing.")
+    return planted, hit
+
+
+def served_row_has_provenance(row: Mapping[str, Any]) -> bool:
+    return all(key in row for key in SERVED_PROVENANCE_KEYS)
+
+
+def prove_e2e4_contract(
+    index: Mapping[str, Any],
+    *,
+    chunk_id: str | None = None,
+    token: str = PLANT_TOKEN,
+    mutate_plant: bool = True,
+) -> dict[str, Any]:
+    """Constructed plant + nonsense. Counts only. No gold rate."""
+    chunks = list(index.get("chunks") or [])
+    if not chunks:
+        raise TextGoldError("empty_index", "Cannot prove provenance on an empty index.")
+    target_id = chunk_id or str(chunks[0]["chunk_id"])
+    store_row = next((chunk for chunk in chunks if str(chunk.get("chunk_id")) == target_id), None)
+    if store_row is None:
+        raise TextGoldError("plant_miss", "Constructed plant target chunk_id is missing.")
+    if mutate_plant:
+        working, planted_row = _plant_copy(index, chunk_id=target_id, token=token)
+    else:
+        working, planted_row = index, store_row
+    rows = research._search_index(working, token, 5, "sparse")
+    match = next((row for row in rows if str(row.get("chunk_id")) == target_id), None)
+    expected_sha = research._chunk_paper_sha256(index, store_row)
+    slice_has_token = token in str(planted_row.get("body") or planted_row.get("text") or "")
+    planted_ok = bool(
+        match
+        and served_row_has_provenance(match)
+        and match.get("paper_sha256") == expected_sha
+        and match.get("paper_sha256") != planted_row.get("sha256")
+        and match.get("char_start") == store_row.get("char_start")
+        and match.get("char_end") == store_row.get("char_end")
+        and match.get("section_origin") == store_row.get("section_origin")
+        and token in str(match.get("excerpt") or "")
+        and slice_has_token
+    )
+    nonsense = research._search_index(index, NONSENSE_QUERY, 5, "sparse")
+    empty_ok = nonsense == []
+    if index.get("dense"):
+        empty_ok = empty_ok and research._search_index(index, NONSENSE_QUERY, 5, "hybrid") == []
+        empty_ok = empty_ok and research._search_index(index, NONSENSE_QUERY, 5, "dense") == []
+    return {
+        "planted_match": planted_ok,
+        "empty_on_no_match": empty_ok,
+        "n_plant_hits": len(rows),
+        "n_nonsense": len(nonsense),
+    }
 
 
 def hybrid_envelope_ok(raw: str) -> bool:

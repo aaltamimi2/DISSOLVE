@@ -1,4 +1,4 @@
-"""ENGINE_E2E_SPEC.v1 E2E-0 / E2E-1. Fixtures. No MiniLM. No gold needles."""
+"""ENGINE_E2E_SPEC.v1 E2E-0..4. Fixtures. No MiniLM. No gold needles."""
 from __future__ import annotations
 
 import json
@@ -550,3 +550,136 @@ def test_page_range_when_pack_crosses_a_page():
     assert chunks
     pages = {row["page"] for row in chunks}
     assert pages & {1, 2, "1-2"}
+
+
+def _t5_index_from_fixture():
+    canon = _indexed_canonical()
+    store_chunks = engine_e2e.build_t5_store_chunks(
+        [canon],
+        indexed_shas={IDX},
+        paper_order=[IDX],
+        forbidden_shas={HOLD, CONTAM},
+    )
+    index = engine_e2e.store_to_literature_index({
+        "n_chunks": len(store_chunks),
+        "indexed_paper_sha256": [IDX],
+        "chunks": store_chunks,
+    })
+    return index, store_chunks, canon
+
+
+def test_e2e4_planted_row_matches_store_span_and_body():
+    index, store_chunks, canon = _t5_index_from_fixture()
+    store_hit = next(row for row in store_chunks if PLANT in row["body"])
+    assert store_hit["body"] == canon["canonical_text"][store_hit["char_start"]:store_hit["char_end"]]
+    proved = engine_e2e.prove_e2e4_contract(
+        index, chunk_id=store_hit["chunk_id"], token=PLANT, mutate_plant=False,
+    )
+    assert proved["planted_match"] is True
+    rows = research._search_index(index, PLANT, 5, "sparse")
+    match = next(row for row in rows if row["chunk_id"] == store_hit["chunk_id"])
+    for key in engine_e2e.SERVED_PROVENANCE_KEYS:
+        assert key in match
+    assert match["paper_sha256"] == IDX
+    assert match["paper_sha256"] != next(
+        chunk["sha256"] for chunk in index["chunks"] if chunk["chunk_id"] == store_hit["chunk_id"]
+    )
+    assert match["char_start"] == store_hit["char_start"]
+    assert match["char_end"] == store_hit["char_end"]
+    assert match["section_origin"] == store_hit["section_origin"]
+    assert PLANT in match["excerpt"]
+    assert "fact_id" not in match
+    assert "needles" not in match
+    blob = json.dumps(rows)
+    assert "fact_id" not in blob
+    assert "needles" not in blob
+    assert '"query"' not in blob
+
+
+def test_e2e4_constructed_plant_binds_to_one_store_row():
+    index, store_chunks, _canon = _t5_index_from_fixture()
+    target = store_chunks[0]
+    proved = engine_e2e.prove_e2e4_contract(index, chunk_id=target["chunk_id"])
+    assert proved["planted_match"] is True
+    planted, _hit = engine_e2e._plant_copy(
+        index, chunk_id=target["chunk_id"], token=engine_e2e.PLANT_TOKEN,
+    )
+    rows = research._search_index(planted, engine_e2e.PLANT_TOKEN, 5, "sparse")
+    match = next(row for row in rows if row["chunk_id"] == target["chunk_id"])
+    assert match["paper_sha256"] == target["paper_sha256"]
+    assert match["char_start"] == target["char_start"]
+    assert match["char_end"] == target["char_end"]
+    assert engine_e2e.PLANT_TOKEN in match["excerpt"]
+
+
+def test_e2e4_nonsense_query_returns_empty(monkeypatch, tmp_path):
+    from dissolve.contracts import parse_tool_result
+    index, _store_chunks, _canon = _t5_index_from_fixture()
+    proved = engine_e2e.prove_e2e4_contract(index, chunk_id=index["chunks"][0]["chunk_id"])
+    assert proved["empty_on_no_match"] is True
+    assert proved["n_nonsense"] == 0
+    assert research._search_index(index, engine_e2e.NONSENSE_QUERY, 5, "sparse") == []
+    fake_dense = {
+        "model": engine_e2e.MINILM_ID,
+        "dim": 384,
+        "chunk_ids": [chunk["chunk_id"] for chunk in index["chunks"]],
+        "vectors": [[1.0] + [0.0] * 383 for _ in index["chunks"]],
+    }
+    with_dense = dict(index)
+    with_dense["dense"] = fake_dense
+    def boom(*_args, **_kwargs):
+        raise AssertionError("nonsense query must not load MiniLM")
+    monkeypatch.setattr(research, "_dense_vectors", boom)
+    assert research._search_index(with_dense, engine_e2e.NONSENSE_QUERY, 5, "hybrid") == []
+    assert research._search_index(with_dense, engine_e2e.NONSENSE_QUERY, 5, "dense") == []
+    monkeypatch.setenv("DISSOLVE_RESEARCH_HOME", str(tmp_path))
+    research._save_index(index)
+    raw = parse_tool_result(research.search_literature_corpus(
+        engine_e2e.NONSENSE_QUERY,
+        knowledgebase="t5-indexed-unsealed",
+        retrieval_mode="sparse",
+    ))
+    assert raw["data"]["success"] is True
+    assert raw["data"]["result_count"] == 0
+    assert raw["data"]["results"] == []
+
+
+def test_e2e4_section_boost_does_not_return_least_bad():
+    index, _store_chunks, _canon = _t5_index_from_fixture()
+    origins = {chunk.get("section_origin") for chunk in index["chunks"]}
+    assert "parser_supplied" in origins
+    rows = research._search_index(index, engine_e2e.NONSENSE_QUERY, 5, "sparse")
+    assert rows == []
+
+
+def test_e2e4_live_t5_index_empty_and_plant_without_writing():
+    import os
+    import pytest
+    gzip_path = engine_e2e.INDEX_HOME / "t5-indexed-unsealed.json.gz"
+    if not gzip_path.is_file():
+        pytest.skip("live T5 index persist missing")
+    previous = os.environ.get("DISSOLVE_RESEARCH_HOME")
+    os.environ["DISSOLVE_RESEARCH_HOME"] = str(engine_e2e.INDEX_HOME)
+    try:
+        live = research._load_index(engine_e2e.KNOWLEDGEBASE_ID)
+        proved = engine_e2e.prove_e2e4_contract(live, chunk_id=str(live["chunks"][0]["chunk_id"]))
+    finally:
+        if previous is None:
+            os.environ.pop("DISSOLVE_RESEARCH_HOME", None)
+        else:
+            os.environ["DISSOLVE_RESEARCH_HOME"] = previous
+    assert proved["planted_match"] is True
+    assert proved["empty_on_no_match"] is True
+    assert proved["n_nonsense"] == 0
+
+
+def test_e2e4_paper_sha_resolves_from_document_when_chunk_omits_it():
+    index, store_chunks, _canon = _t5_index_from_fixture()
+    stripped = json.loads(json.dumps(index))
+    for chunk in stripped["chunks"]:
+        chunk.pop("paper_sha256", None)
+    store_hit = next(row for row in store_chunks if PLANT in row["body"])
+    rows = research._search_index(stripped, PLANT, 5, "sparse")
+    match = next(row for row in rows if row["chunk_id"] == store_hit["chunk_id"])
+    assert match["paper_sha256"] == IDX
+    assert match["paper_sha256"] != store_hit.get("sha256")

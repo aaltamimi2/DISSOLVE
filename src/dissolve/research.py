@@ -4317,12 +4317,27 @@ def _cosine(left: list[float], right: list[float]) -> float:
     return sum(a * b for a, b in zip(left, right))
 
 
+def _chunk_paper_sha256(index: Mapping[str, Any], chunk: Mapping[str, Any]) -> str | None:
+    """Document identity. Never the chunk content hash."""
+    sha = chunk.get("paper_sha256")
+    if sha:
+        return str(sha)
+    doc_id = chunk.get("document_id")
+    for document in index.get("documents") or []:
+        if document.get("document_id") == doc_id:
+            value = str(document.get("sha256") or "")
+            return value or None
+    return None
+
+
 def _search_index(index: dict[str, Any], query: str, top_k: int, mode: str) -> list[dict[str, Any]]:
     chunks = list(index.get("chunks") or [])
     query_tokens = _tokens(query)
     sparse_raw = _bm25(query_tokens, [{"text": chunk_sparse_corpus(chunk)} for chunk in chunks])
-    sparse_max = max(sparse_raw, default=0.0)
-    sparse = [value / sparse_max if sparse_max else 0.0 for value in sparse_raw]
+    if max(sparse_raw, default=0.0) <= 0:
+        return []
+    sparse_max = max(sparse_raw)
+    sparse = [value / sparse_max for value in sparse_raw]
     dense_scores = [0.0] * len(chunks)
     if mode in {"dense", "hybrid"}:
         dense = index.get("dense") or {}
@@ -4364,10 +4379,13 @@ def _search_index(index: dict[str, Any], query: str, top_k: int, mode: str) -> l
         )
         rows.append({
             "citation_id": f"C{index_number}", "chunk_id": chunk["chunk_id"],
+            "paper_sha256": _chunk_paper_sha256(index, chunk),
             "title": chunk.get("title"), "source": chunk.get("source"),
             "url": chunk.get("url"), "doi": chunk.get("doi"), "year": chunk.get("year"),
             "page": chunk.get("page"), "section": served_section,
             "section_origin": origin,
+            "char_start": chunk.get("char_start"),
+            "char_end": chunk.get("char_end"),
             "caption": chunk.get("caption"),
             "basis": chunk.get("basis"),
             "footnotes": chunk.get("footnotes"),
