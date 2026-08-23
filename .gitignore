@@ -4,3 +4,9 @@ __pycache__/
 
 # Local STRAP PDF corpus (~80 MB, currently untracked). Never commit.
 STRAP/
+
+# WSL/Windows download metadata. Every file fetched through a Windows browser
+# into the WSL tree gets a ':Zone.Identifier' alternate-data-stream sibling, and
+# '.crdownload' is a partial download. Neither is content.
+*:Zone.Identifier
+*.crdownload
