@@ -2133,25 +2133,33 @@ def _planner_contaminant_mode(
     contaminants: Any,
     contaminant_mode: Any,
 ) -> tuple[str | None, list[str], str | None]:
-    """Session mode is read only when contaminants were supplied."""
+    """Read the token before the empty-contaminants short-circuit.
+
+    An argument is not an inherited session default. Session mode is a
+    no-op when contaminants were omitted; an explicit leaching/strap
+    argument with nothing named is not.
+    """
     requested = _requested_contaminants(contaminants)
-    if not requested:
-        return None, [], None
     if contaminant_mode is not None:
         token = contaminant_screens._key(contaminant_mode)
         origin = "argument"
     else:
         record = current_tool_session()
         stored = record.get("contaminant_mode") if isinstance(record, dict) else None
-        token = contaminant_screens._key(
-            (stored or {}).get("mode") if isinstance(stored, dict) else "off"
-        ) or "off"
-        origin = (
-            "session" if isinstance(stored, dict) and stored.get("mode")
-            else "default"
-        )
+        if isinstance(stored, dict) and stored.get("mode"):
+            token = contaminant_screens._key(stored.get("mode")) or "off"
+            origin = "session"
+        else:
+            token = "off"
+            origin = "default"
     if token == "swing":
         token = "strap"
+    if origin == "argument" and token not in {"off", "leaching", "strap"}:
+        return "invalid", requested, origin
+    if not requested:
+        if origin == "argument" and token in {"leaching", "strap"}:
+            return "without_contaminants", requested, origin
+        return None, [], origin
     if token not in {"off", "leaching", "strap"}:
         return "invalid", requested, origin
     return token, requested, origin
@@ -2546,6 +2554,14 @@ def plan_multistage_separation(
             "contaminant_mode must be off, leaching, or strap.",
             error_code="invalid_contaminant_mode",
             requested=contaminant_mode,
+        )
+    if mode == "without_contaminants":
+        return tool_error(
+            tool,
+            "contaminant_mode leaching or strap requires contaminants.",
+            error_code="contaminant_mode_without_contaminants",
+            requested=contaminant_mode,
+            contaminant_mode_origin=mode_origin,
         )
     if mode in {"leaching", "strap"}:
         (
