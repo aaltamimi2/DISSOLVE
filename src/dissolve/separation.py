@@ -2280,11 +2280,27 @@ def _embed_leaching_route(
             "contaminant_logd_min": _passing_logd_min(screen),
             "recommended_solvents": recommended,
             "passes": bool(recommended),
+            "reason": (
+                "leaching candidate passed"
+                if recommended
+                else "no leaching candidate passed at this feed state"
+            ),
             "threshold_citation_status": screen.get("threshold_citation_status"),
             "screen": screen,
         })
     if not considered:
         return {**route, "positions_considered": []}
+    published = [
+        {key: item[key] for key in item if key != "screen"}
+        for item in considered
+    ]
+    if not any(item.get("passing_count") for item in considered):
+        finished = finish_route(
+            {**route, "steps": list(dissolutions)},
+            feed_polymers=names,
+        )
+        finished["positions_considered"] = published
+        return finished
     winner = max(considered, key=_position_objective)
     screen = winner["screen"]
     recommended = list(winner["recommended_solvents"])
@@ -2320,8 +2336,6 @@ def _embed_leaching_route(
             "among passing candidates, then earlier index"
         ),
     }
-    if not recommended:
-        wash["caveat"] = "no leaching candidate passed at this feed state"
     steps = list(dissolutions)
     steps.insert(int(winner["index"]), wash)
     if _wash_temperature_conflict(steps, step_c):
@@ -2335,10 +2349,7 @@ def _embed_leaching_route(
             position_index=winner["index"],
         )
     finished = finish_route({**route, "steps": steps}, feed_polymers=names)
-    finished["positions_considered"] = [
-        {key: item[key] for key in item if key != "screen"}
-        for item in considered
-    ]
+    finished["positions_considered"] = published
     finished["chosen_wash_position"] = winner["index"]
     return finished
 
