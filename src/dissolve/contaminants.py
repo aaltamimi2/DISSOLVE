@@ -471,6 +471,22 @@ def _unspecified_only_basis(solvent: str, contaminants: Sequence[str]) -> bool:
     return False
 
 
+def _leaching_basis(contaminants: Sequence[str]) -> tuple[bool, list[str]]:
+    """Workbook solvents whose logD meets CONTAMINANT_LOGD_CRITERION.
+
+    Named on the unspecified-STRAP refuse so the caller can see whether
+    leaching exists. Not a mode fallback.
+    """
+    names: list[str] = []
+    for solvent in _solvent_names(contaminants):
+        if any(
+            CONTAMINANT_LOGD_CRITERION.passes(_logd(solvent, item))
+            for item in contaminants
+        ):
+            names.append(solvent)
+    return bool(names), names
+
+
 def _logd(solvent: str, contaminant: str) -> Optional[float]:
     solvent_keys = _solvent_keys(solvent)
     if not solvent_keys:
@@ -1146,6 +1162,7 @@ def screen_contaminant_strap_removal(
     if candidates and all(
         row.get("unspecified_not_a_strap_basis") for row in candidates
     ):
+        available, leaching_solvents = _leaching_basis(inputs["supported"])
         return tool_error(
             tool,
             "Every strap candidate has only unspecified miscibility; "
@@ -1157,6 +1174,8 @@ def screen_contaminant_strap_removal(
             supported_contaminants=inputs["supported"],
             unsupported_contaminants=inputs["unsupported"],
             solvents=[row.get("solvent") for row in candidates],
+            leaching_basis_available=available,
+            leaching_basis_solvents=leaching_solvents,
             **_served_threshold_fields(inputs),
             provenance=_provenance(),
         )
