@@ -2993,9 +2993,32 @@ def _canonical_thermo_rank(value: Any, index: int) -> int | None:
     return number
 
 
+_WASH_BASIS_FIELDS = (
+    "solvent_charge",
+    "vessel",
+    "residence_time",
+    "waste_mass",
+)
+
+
+def _tea_route_step_kind(item: Mapping[str, Any] | None) -> str:
+    """Wash vs dissolution. Never infer wash from a polymer name."""
+    if not isinstance(item, Mapping):
+        return "dissolution"
+    kind = str(item.get("step_kind") or "").strip().casefold()
+    if kind in {"wash", "dissolution"}:
+        return kind
+    if item.get("dissolved_polymer") or item.get("polymer"):
+        return "dissolution"
+    return "wash"
+
+
 def _stage_identity(
-    polymer: Any, solvent: Any, temperature: Any,
-) -> tuple[str, str, float | None]:
+    polymer: Any,
+    solvent: Any,
+    temperature: Any,
+    step_kind: Any = None,
+) -> tuple[str, str, float | None, str]:
     text = str(solvent or "").strip()
     resolved = thermo.resolve_solvent(text) if text else None
     try:
@@ -3008,7 +3031,62 @@ def _stage_identity(
             temp = None
     except (TypeError, ValueError):
         temp = None
-    return (_key(polymer), _key(resolved or text), temp)
+    kind = str(step_kind or "").strip().casefold()
+    if kind not in {"wash", "dissolution"}:
+        kind = "wash" if not _key(polymer) else "dissolution"
+    return (_key(polymer), _key(resolved or text), temp, kind)
+
+
+def _stage_visible(ident: tuple[str, str, float | None, str]) -> bool:
+    """Washes are visible by step_kind, not by a polymer sentinel."""
+    return bool(ident[0]) or ident[3] == "wash"
+
+
+def _wash_cited_basis(step: Mapping[str, Any]) -> tuple[list[str], dict[str, str]]:
+    origin = step.get("field_origin") if isinstance(step.get("field_origin"), dict) else {}
+    missing: list[str] = []
+    cited: dict[str, str] = {}
+    for name in _WASH_BASIS_FIELDS:
+        if step.get(name) is not None and origin.get(name):
+            cited[name] = str(origin[name])
+        else:
+            missing.append(name)
+    return missing, cited
+
+
+def _refuse_wash_not_derived(
+    tool: str,
+    *,
+    stage: int,
+    step: Mapping[str, Any],
+    route: Mapping[str, Any],
+    position_zero: bool,
+) -> str:
+    missing, cited = _wash_cited_basis(step)
+    message = (
+        "A position-0 wash has no cited solvent-charge, vessel, residence, "
+        "or waste-mass basis."
+        if position_zero else
+        "A later-position wash is not stage-1 feed-basis TEA."
+    )
+    return tool_error(
+        tool,
+        message,
+        error_code="stage_basis_not_derived",
+        named_blocker="incomplete_stage_basis_grid",
+        stage=stage,
+        step_kind="wash",
+        wash_position=0 if position_zero else stage - 1,
+        missing_wash_basis=missing,
+        cited_wash_basis=cited,
+        recovered_polymer_kg=0.0,
+        disposal_cost="not_costed",
+        disposal_reason="no_disposal_cost_data",
+        per_stage_usd_per_kg=None,
+        per_stage_usd_per_kg_reason="cost_over_zero_recovered_polymer",
+        route_source="typed_session_state",
+        consumed_route=dict(route),
+    )
 
 
 def _plan_exact_from_shortlist_handle(handle: Any) -> dict[str, Any] | None:
@@ -3063,8 +3141,10 @@ def _plan_route_steps(exact: dict[str, Any]) -> list[list[dict[str, Any]]]:
     return sequences
 
 
-def _plan_first_stage_identities(exact: dict[str, Any]) -> set[tuple[str, str, float | None]]:
-    identities: set[tuple[str, str, float | None]] = set()
+def _plan_first_stage_identities(
+    exact: dict[str, Any],
+) -> set[tuple[str, str, float | None, str]]:
+    identities: set[tuple[str, str, float | None, str]] = set()
     shortlists = exact.get("stage1_shortlists")
     if isinstance(shortlists, list):
         for block in shortlists:
@@ -3077,8 +3157,9 @@ def _plan_first_stage_identities(exact: dict[str, Any]) -> set[tuple[str, str, f
                     item.get("solvent"),
                     item.get("dissolution_temperature_c")
                     or item.get("temperature_c"),
+                    item.get("step_kind"),
                 )
-                if ident[0]:
+                if _stage_visible(ident):
                     identities.add(ident)
     for steps in _plan_route_steps(exact):
         first = steps[0]
@@ -3086,22 +3167,26 @@ def _plan_first_stage_identities(exact: dict[str, Any]) -> set[tuple[str, str, f
             first.get("dissolved_polymer") or first.get("polymer"),
             first.get("solvent"),
             first.get("temperature_c") or first.get("dissolution_temperature_c"),
+            first.get("step_kind"),
         )
-        if ident[0]:
+        if _stage_visible(ident):
             identities.add(ident)
     return identities
 
 
-def _plan_later_stage_identities(exact: dict[str, Any]) -> set[tuple[str, str, float | None]]:
-    identities: set[tuple[str, str, float | None]] = set()
+def _plan_later_stage_identities(
+    exact: dict[str, Any],
+) -> set[tuple[str, str, float | None, str]]:
+    identities: set[tuple[str, str, float | None, str]] = set()
     for steps in _plan_route_steps(exact):
         for item in steps[1:]:
             ident = _stage_identity(
                 item.get("dissolved_polymer") or item.get("polymer"),
                 item.get("solvent"),
                 item.get("temperature_c") or item.get("dissolution_temperature_c"),
+                item.get("step_kind"),
             )
-            if ident[0]:
+            if _stage_visible(ident):
                 identities.add(ident)
     return identities
 
@@ -3120,6 +3205,7 @@ def _refuse_residue_or_later_stage_shortlist(
             polymer,
             three.get("solvent"),
             three.get("dissolution_temperature_c"),
+            three.get("step_kind"),
         )
         if residue_key and _key(polymer) == residue_key and ident not in first:
             raise _ScenarioInputError(
@@ -11680,6 +11766,14 @@ def evaluate_stored_route_tea_lca(
     remaining = dict(composition)
     results, rows = [], []
     for index, step in enumerate(route.get("steps") or [], 1):
+        if _tea_route_step_kind(step) == "wash":
+            return _refuse_wash_not_derived(
+                tool,
+                stage=index,
+                step=step,
+                route=route,
+                position_zero=(index == 1),
+            )
         polymer = str(step["dissolved_polymer"])
         entering_fraction = sum(remaining.values())
         target_fraction = remaining[polymer]
