@@ -1,3 +1,6 @@
 __pycache__/
 *.pyc
 .pytest_cache/
+
+# Local STRAP PDF corpus (~80 MB, currently untracked). Never commit.
+STRAP/
