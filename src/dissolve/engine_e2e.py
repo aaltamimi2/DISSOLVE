@@ -1,4 +1,4 @@
-"""ENGINE_E2E_SPEC.v1 E2E-0 figure, E2E-1 store, E2E-2 index. No score. No MiniLM."""
+"""ENGINE_E2E_SPEC.v1 E2E-0..3. No published score. MiniLM only at E2E-3."""
 
 from __future__ import annotations
 
@@ -29,6 +29,9 @@ MANIFEST_PATH = DEFAULT_OUT_DIR / "INDEX.t5.unsealed.v1.json"
 KNOWLEDGEBASE_ID = "t5-indexed-unsealed"
 INDEX_HOME = DEFAULT_OUT_DIR / "indexes"
 PLANT_TOKEN = "E2E2PLANTZXQTOKEN"
+MINILM_ID = "sentence-transformers/all-MiniLM-L6-v2"
+EXPECTED_DIM = 384
+REBOUND_NOTE_TOKEN = "E2E3REBOUNDZXQNOTE"
 CURVES_V3_SHA256 = "8090143a69106ff5ba5db8bab70f7fbc7980fe4f54574d427c7815dca7379152"
 CURVES_V3_PNG_SHA256 = "be999b405544ac44a5e37291918f3c2b9b66196f6e9569df689ebb09d0d0cc4b"
 ERROR_ANALYSIS_SHA256 = "4dbd695135ce7f877e4db86f6ed93ea855a75258b501aaf6d1391ee7ede3fdde"
@@ -737,6 +740,132 @@ def emit_e2e_2(
         "n_indexed_papers": len(live_shas),
         "knowledgebase": KNOWLEDGEBASE_ID,
         "planted_in_top5": True,
+    }
+
+
+def embed_inputs_for_index(index: Mapping[str, Any]) -> list[str]:
+    """C7d selector. Not body-only when rebound is present."""
+    return [research.chunk_sparse_corpus(chunk) for chunk in (index.get("chunks") or [])]
+
+
+def embed_t5_index(
+    index: Mapping[str, Any],
+    *,
+    embedder=None,
+    expected_dim: int = EXPECTED_DIM,
+) -> dict[str, Any]:
+    """Attach MiniLM vectors aligned to chunks. No gold score."""
+    slug = str(index.get("knowledgebase") or "")
+    if slug == "user-library":
+        raise TextGoldError("protected_persist", "E2E-3 must not write user-library.")
+    chunks = list(index.get("chunks") or [])
+    if not chunks:
+        raise TextGoldError("empty_index", "Cannot embed an empty index.")
+    texts = embed_inputs_for_index(index)
+    if len(texts) != len(chunks):
+        raise TextGoldError("embed_align", "Embed inputs are not aligned to chunks.")
+    if embedder is None:
+        model_id, vectors = research._dense_vectors(texts, MINILM_ID)
+    else:
+        model_id, vectors = embedder(texts, MINILM_ID)
+    if len(vectors) != len(chunks):
+        raise TextGoldError("n_chunks_mismatch", "Vector count is not n_chunks.")
+    dim = len(vectors[0]) if vectors else 0
+    if dim != expected_dim:
+        raise TextGoldError("dense_dim", "Embedding dim is not 384.")
+    if any(len(row) != dim for row in vectors):
+        raise TextGoldError("dense_dim", "A vector has the wrong dim.")
+    out = dict(index)
+    out["dense"] = {
+        "model": str(model_id),
+        "dim": dim,
+        "chunk_ids": [str(chunk["chunk_id"]) for chunk in chunks],
+        "vectors": vectors,
+    }
+    return out
+
+
+def hybrid_envelope_ok(raw: str) -> bool:
+    from .contracts import parse_tool_result
+    parsed = parse_tool_result(raw)
+    data = parsed["data"]
+    if data.get("error_code") == "dense_index_unavailable":
+        return False
+    return bool(data.get("success"))
+
+
+def emit_e2e_3(
+    *,
+    index_home: Path | None = None,
+    manifest_path: Path | None = None,
+    expected_n_chunks: int = EXPECTED_N_CHUNKS,
+    embedder=None,
+    skip_pin_check: bool = False,
+) -> dict[str, Any]:
+    if text_chunk_metrics.GOLD_V2_PATH.exists():
+        raise TextGoldError("gold_v2_present", "Sealing GOLD.v2.json is an owner stop.")
+    dest = Path(manifest_path or MANIFEST_PATH)
+    home = Path(index_home or INDEX_HOME)
+    pins = {} if skip_pin_check else _protected_e2e_pins()
+    if pins:
+        text_chunk_metrics._assert_protected_unmoved(pins, when="before E2E-3")
+    previous = os.environ.get("DISSOLVE_RESEARCH_HOME")
+    os.environ["DISSOLVE_RESEARCH_HOME"] = str(home)
+    try:
+        loaded = research._load_index(KNOWLEDGEBASE_ID)
+        if len(loaded.get("chunks") or []) != expected_n_chunks:
+            raise TextGoldError("n_chunks_mismatch", "Live index is not the E2E-2 store.")
+        embedded = embed_t5_index(loaded, embedder=embedder)
+        index_path = research._save_index(embedded)
+        again = research._load_index(KNOWLEDGEBASE_ID)
+        dense = again.get("dense") or {}
+        if len(dense.get("vectors") or []) != expected_n_chunks:
+            raise TextGoldError("n_chunks_mismatch", "Saved dense length is not n_chunks.")
+        if int(dense.get("dim") or 0) != EXPECTED_DIM:
+            raise TextGoldError("dense_dim", "Saved dim is not 384.")
+        if list(dense.get("chunk_ids") or []) != [str(c["chunk_id"]) for c in again["chunks"]]:
+            raise TextGoldError("embed_align", "Dense chunk_ids are not keyed to the store.")
+        raw_hybrid = research.search_literature_corpus(
+            "E2E3HYBRIDPROBE", knowledgebase=KNOWLEDGEBASE_ID, retrieval_mode="hybrid",
+        )
+        raw_dense = research.search_literature_corpus(
+            "E2E3DENSEPROBE", knowledgebase=KNOWLEDGEBASE_ID, retrieval_mode="dense",
+        )
+    finally:
+        if previous is None:
+            os.environ.pop("DISSOLVE_RESEARCH_HOME", None)
+        else:
+            os.environ["DISSOLVE_RESEARCH_HOME"] = previous
+    if not hybrid_envelope_ok(raw_hybrid) or not hybrid_envelope_ok(raw_dense):
+        raise TextGoldError("dense_index_unavailable", "hybrid/dense still raise dense_index_unavailable.")
+    payload = json.loads(dest.read_text()) if dest.is_file() else {
+        "schema": MANIFEST_SCHEMA,
+        "knowledgebase": KNOWLEDGEBASE_ID,
+    }
+    payload["embedder_in_index"] = True
+    payload["dense"] = {
+        "model": dense["model"],
+        "dim": int(dense["dim"]),
+        "n_vectors": len(dense["vectors"]),
+    }
+    payload["index_path"] = str(index_path)
+    if text_chunk_metrics._contains_forbidden_keys(
+        payload,
+        set(_FORBIDDEN_STORE_KEYS) | {"recall_at_k", "retr@k", "f1", "provisional", "delta"},
+    ):
+        raise TextGoldError("gold_quoted", "E2E-3 must not persist a gold score.")
+    dest.write_text(json.dumps(payload, indent=2, ensure_ascii=False) + "\n")
+    if pins:
+        text_chunk_metrics._assert_protected_unmoved(pins, when="after E2E-3")
+    return {
+        "manifest_path": str(dest),
+        "manifest_sha256": file_sha256(dest),
+        "index_path": str(index_path),
+        "n_vectors": len(dense["vectors"]),
+        "dim": int(dense["dim"]),
+        "model": dense["model"],
+        "hybrid_ok": True,
+        "dense_ok": True,
     }
 
 

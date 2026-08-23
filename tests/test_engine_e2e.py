@@ -427,6 +427,118 @@ def test_e2e2_refuses_user_library():
     assert error.value.code == "protected_persist"
 
 
+def _fake_minilm(seen):
+    def fake(texts, model_name=None):
+        seen.extend(list(texts))
+        return engine_e2e.MINILM_ID, [[1.0] + [0.0] * 383 for _ in texts]
+    return fake
+
+
+def test_e2e3_embeds_rebound_not_body():
+    seen = []
+    index = engine_e2e.store_to_literature_index({
+        "n_chunks": 1,
+        "indexed_paper_sha256": [IDX],
+        "chunks": [{
+            "chunk_id": engine_e2e.t5_store_chunk_id(IDX, 1),
+            "paper_sha256": IDX,
+            "body": "BODYONLY TOKEN",
+            "char_start": 0,
+            "char_end": 14,
+            "body_plus_rebound": f"BODYONLY TOKEN {engine_e2e.REBOUND_NOTE_TOKEN}",
+            "page": 1,
+            "section": "",
+            "section_origin": "inherited_from_stack",
+            "kind": "table",
+        }],
+    })
+    texts = engine_e2e.embed_inputs_for_index(index)
+    assert engine_e2e.REBOUND_NOTE_TOKEN in texts[0]
+    assert engine_e2e.REBOUND_NOTE_TOKEN not in index["chunks"][0]["body"]
+    embedded = engine_e2e.embed_t5_index(index, embedder=_fake_minilm(seen))
+    assert engine_e2e.REBOUND_NOTE_TOKEN in seen[0]
+    assert len(embedded["dense"]["vectors"]) == 1
+    assert embedded["dense"]["dim"] == 384
+    assert embedded["dense"]["chunk_ids"] == [index["chunks"][0]["chunk_id"]]
+    assert embedded["dense"]["model"] == engine_e2e.MINILM_ID
+
+
+def test_e2e3_hybrid_stops_raising(monkeypatch, tmp_path):
+    import os
+    from dissolve.contracts import parse_tool_result
+    canon = _indexed_canonical()
+    packed = text_chunking.chunk_t5(canon, target=text_chunking.T5_TARGET)
+    gold_path = tmp_path / "gold.json"
+    census_path = tmp_path / "census.json"
+    spec_path = tmp_path / "spec.md"
+    gold_path.write_text(json.dumps(_gold()) + "\n")
+    census_path.write_text(json.dumps(_census()) + "\n")
+    spec_path.write_text("e2e3 fixture\n")
+    store_dest = tmp_path / "store.json"
+    engine_e2e.emit_e2e_1_store(
+        gold=_gold(),
+        gold_path=gold_path,
+        census=_census(),
+        census_path=census_path,
+        curves={"series": [{
+            "strategy": "T5", "params": {"target": 1400},
+            "bucket": "all", "n_chunks": len(packed),
+        }]},
+        dest=store_dest,
+        canonicals=[canon],
+        expected_n_indexed=1,
+        expected_n_chunks=len(packed),
+        spec_path=spec_path,
+        skip_pin_check=True,
+    )
+    manifest = tmp_path / "INDEX.t5.unsealed.v1.json"
+    engine_e2e.emit_e2e_2(
+        store_path=store_dest,
+        gold_path=gold_path,
+        census_path=census_path,
+        dest=manifest,
+        index_home=tmp_path / "indexes",
+        expected_n_indexed=1,
+        expected_n_chunks=len(packed),
+        spec_path=spec_path,
+        skip_pin_check=True,
+    )
+    seen = []
+    monkeypatch.setattr(research, "_dense_vectors", _fake_minilm(seen))
+    result = engine_e2e.emit_e2e_3(
+        index_home=tmp_path / "indexes",
+        manifest_path=manifest,
+        expected_n_chunks=len(packed),
+        skip_pin_check=True,
+    )
+    assert result["n_vectors"] == len(packed)
+    assert result["dim"] == 384
+    assert result["hybrid_ok"] is True
+    updated = json.loads(manifest.read_text())
+    assert updated["embedder_in_index"] is True
+    assert updated["dense"]["n_vectors"] == len(packed)
+    assert "recall_at_k" not in updated
+    assert "delta" not in updated
+    previous = os.environ.get("DISSOLVE_RESEARCH_HOME")
+    os.environ["DISSOLVE_RESEARCH_HOME"] = str(tmp_path / "indexes")
+    try:
+        hybrid = parse_tool_result(research.search_literature_corpus(
+            "E2E3HYBRIDPROBE", knowledgebase="t5-indexed-unsealed", retrieval_mode="hybrid",
+        ))
+        dense = parse_tool_result(research.search_literature_corpus(
+            "E2E3DENSEPROBE", knowledgebase="t5-indexed-unsealed", retrieval_mode="dense",
+        ))
+    finally:
+        if previous is None:
+            os.environ.pop("DISSOLVE_RESEARCH_HOME", None)
+        else:
+            os.environ["DISSOLVE_RESEARCH_HOME"] = previous
+    assert hybrid["data"]["success"] is True
+    assert dense["data"]["success"] is True
+    assert hybrid["data"].get("error_code") != "dense_index_unavailable"
+    assert dense["data"].get("error_code") != "dense_index_unavailable"
+
+
 def test_page_range_when_pack_crosses_a_page():
     canon = _indexed_canonical()
     chunks = engine_e2e.build_t5_store_chunks(
