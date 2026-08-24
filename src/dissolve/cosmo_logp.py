@@ -1397,6 +1397,30 @@ def _canonical_solute_orcacosmo(inchikey: str, artifacts_dir: str | Path) -> Pat
     return Path(artifacts_dir) / f"{inchikey}_cosmo.solute.orcacosmo"
 
 
+def _discard_unverified_solute_orcacosmo(
+    inchikey: str,
+    artifacts_dir: str | Path,
+    dest: str | Path | None = None,
+) -> None:
+    """Identity refuse must not leave a canonical surface the next submit can reuse."""
+    targets = [_canonical_solute_orcacosmo(inchikey, artifacts_dir)]
+    if dest is not None:
+        targets.append(Path(dest))
+    seen: set[Path] = set()
+    for path in targets:
+        try:
+            key = path.resolve()
+        except OSError:
+            key = path
+        if key in seen:
+            continue
+        seen.add(key)
+        try:
+            path.unlink(missing_ok=True)
+        except OSError:
+            pass
+
+
 def _classify_job_solvents(
     solvents: Sequence[str],
     *,
@@ -1492,6 +1516,7 @@ def _run_solute_dft_worker(
     record["status"] = "running"
     record["updated_at"] = _stamp_job_now()
     _write_job(record, jobs_dir=jobs_dir)
+    produced: dict[str, Any] | None = None
     try:
         with acquire_dft_slot(jobs_dir=jobs_dir):
             produced = runner({
@@ -1535,11 +1560,16 @@ def _run_solute_dft_worker(
         record["status"] = "done"
         record["error_code"] = None
     except CosmoIdentityError as exc:
+        leftover = None if produced is None else produced.get("orcacosmo")
+        _discard_unverified_solute_orcacosmo(
+            record["inchikey"], artifacts_dir, dest=leftover,
+        )
         record["status"] = "failed"
         record["error_code"] = "identity_changed"
         record["error"] = str(exc)
         record["result"] = None
         record["dft_ran"] = bool(record.get("dft_ran"))
+        record["solute_orcacosmo"] = None
     except CosmoDependencyError as exc:
         record["status"] = "failed"
         record["error_code"] = "orca_unavailable"
