@@ -1767,6 +1767,32 @@ def _canonical_solvent_orcacosmo(key: str, artifacts_dir: str | Path) -> Path:
     return Path(artifacts_dir) / f"{stem}_cosmo.solute.orcacosmo"
 
 
+def _discard_unverified_solvent_orcacosmo(
+    key: str,
+    artifacts_dir: str | Path,
+    dest: str | Path | None = None,
+) -> None:
+    """Identity refuse must not leave a wave-0 surface the next submit can reuse as 24a."""
+    targets: list[Path] = []
+    if key in ORCA_SOLVENT_FILE_STEMS:
+        targets.append(_canonical_solvent_orcacosmo(key, artifacts_dir))
+    if dest is not None:
+        targets.append(Path(dest))
+    seen: set[Path] = set()
+    for path in targets:
+        try:
+            resolved = path.resolve()
+        except OSError:
+            resolved = path
+        if resolved in seen:
+            continue
+        seen.add(resolved)
+        try:
+            path.unlink(missing_ok=True)
+        except OSError:
+            pass
+
+
 def _stamp_orca_24a_surface(path: Path) -> Path:
     """Write route/parameterisation onto a new ORCA surface. Never onto COSMObase."""
     stamp = (
@@ -1863,6 +1889,7 @@ def _run_solvent_dft_worker(
     record["status"] = "running"
     record["updated_at"] = _stamp_job_now()
     _write_job(record, jobs_dir=jobs_dir)
+    produced: dict[str, Any] | None = None
     try:
         with acquire_dft_slot(jobs_dir=jobs_dir):
             produced = runner({
@@ -1894,12 +1921,17 @@ def _run_solvent_dft_worker(
         record["success"] = True
         record["result"] = None
     except CosmoIdentityError as exc:
+        leftover = None if produced is None else produced.get("orcacosmo")
+        _discard_unverified_solvent_orcacosmo(
+            record["solvent_key"], artifacts_dir, dest=leftover,
+        )
         record["status"] = "failed"
         record["error_code"] = "identity_changed"
         record["error"] = str(exc)
         record["result"] = None
         record["dft_ran"] = bool(record.get("dft_ran"))
         record["success"] = False
+        record["solvent_orcacosmo"] = None
     except CosmoDependencyError as exc:
         record["status"] = "failed"
         record["error_code"] = "orca_unavailable"

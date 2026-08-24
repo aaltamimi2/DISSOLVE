@@ -1961,6 +1961,37 @@ def test_p4d_identity_changed_refuses_and_does_not_serve_delta(tmp_path):
     assert record["status"] == "failed"
     assert record["error_code"] == "identity_changed"
     assert record.get("result") in (None, {})
+    leftover = artifacts / "octanol_cosmo.solute.orcacosmo"
+    assert not leftover.is_file()
+    assert cl.orca_solvent_cosmo_path(
+        "1-octanol", artifacts_dir=artifacts,
+    ) is None
+
+    calls: list[object] = []
+
+    def refuse_reuse(ctx):
+        calls.append(ctx)
+        raise RuntimeError("failed-identity leftover must not bind the solvent library")
+
+    second = cl.submit_solvent_dft_job(
+        "1-octanol",
+        jobs_dir=jobs,
+        artifacts_dir=artifacts,
+        runner=refuse_reuse,
+        background=False,
+    )
+    assert calls, "second submit must not reuse a leftover 1-octanol surface"
+    assert second.get("reused") is not True
+    assert second.get("status") != "done"
+    assert second.get("error_code") == "solvent_dft_failed"
+    still_2002 = cl.compute_delta_logd(
+        cl.DEP_SMILES, ["1-octanol"],
+        solvents_dir=solvents, artifacts_dir=artifacts, ln_gamma=lambda *a, **k: 0.5,
+    )
+    row = still_2002["results"][0]
+    assert row["route"] == cl.COSMOBASE_ROUTE
+    assert row["parameterisation"] == "2002"
+    assert row["parameterisation"] != "24a"
 
 
 def test_p4d_wave1_and_xylene_do_not_start_dft(tmp_path):
