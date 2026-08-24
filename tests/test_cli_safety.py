@@ -21,7 +21,9 @@ for _p in (str(_ROOT), str(_ROOT / "src")):
 from dissolve.cli import (
     CliApp,
     PUBLISHED_HAZARD_METHODS_COPY,
+    doctor_report,
     format_published_hazard_methods_copy,
+    published_hazard_methods_doctor_check,
 )
 
 _ANSI = re.compile(r"\x1b\[[0-9;]*m")
@@ -161,3 +163,51 @@ def test_keep_outs_ident_parent_tree():
     for rel, digest in _KEEP_OUTS:
         path = _ROOT / rel
         assert hashlib.sha256(path.read_bytes()).hexdigest() == digest
+
+
+_DOCTOR_DETAIL = (
+    "n=990 GSK=130 GreenSolventDB=840 neither=20 both=128 "
+    "MAE=0.30 signed=+0.01 floor=6.0 unsourced"
+)
+
+
+def test_doctor_published_hazard_methods_after_assets(tmp_path, monkeypatch):
+    monkeypatch.delenv("META_MUSE_API_KEY", raising=False)
+    report = doctor_report(tmp_path, model_alias="muse-spark")
+    names = [c["name"] for c in report["checks"]]
+    assets_at = names.index("Scientific assets")
+    assert names[assets_at + 1] == "Published hazard Methods"
+    assert names[assets_at + 2] == "Tool registry"
+    assert names[:2] == ["Model provider", "Scientific assets"]
+
+
+def test_doctor_published_hazard_methods_detail_and_facts(tmp_path, monkeypatch):
+    monkeypatch.delenv("META_MUSE_API_KEY", raising=False)
+    report = doctor_report(tmp_path, model_alias="muse-spark")
+    check = next(c for c in report["checks"] if c["name"] == "Published hazard Methods")
+    copy_row = PUBLISHED_HAZARD_METHODS_COPY
+    assert check["status"] == "pass"
+    assert check["detail"] == _DOCTOR_DETAIL
+    assert check["n"] == copy_row["n"] == 990
+    assert check["served_gsk"] == copy_row["served_gsk"] == 130
+    assert check["served_green"] == copy_row["served_green"] == 840
+    assert check["served_neither"] == copy_row["served_neither"] == 20
+    assert check["both_table_hits"] == copy_row["both_table_hits"] == 128
+    assert check["mae_2dp"] == copy_row["mae_2dp"] == 0.3
+    assert check["signed_mean_2dp"] == copy_row["signed_mean_2dp"] == 0.01
+    assert check["default_minimum_g_score"] == copy_row["default_minimum_g_score"] == 6.0
+    assert check["measured_on_builder_sha"] == copy_row["measured_on_builder_sha"]
+    assert check["census_json"] == _CENSUS_SHA256
+
+
+def test_doctor_check_helper_is_format_only():
+    src = inspect.getsource(published_hazard_methods_doctor_check)
+    assert "connect" not in src
+    assert "_gscore" not in src
+    assert "dissolve.safety" not in src
+    assert "import " not in src
+
+
+def test_doctor_detail_omits_strike_phrases():
+    for phrase in _strike_phrases():
+        assert phrase not in _DOCTOR_DETAIL

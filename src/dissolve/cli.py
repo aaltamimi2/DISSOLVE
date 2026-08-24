@@ -119,6 +119,75 @@ def format_published_hazard_methods_copy(
     )
 
 
+_PUBLISHED_HAZARD_METHODS_DETAIL = (
+    "n=990 GSK=130 GreenSolventDB=840 neither=20 both=128 "
+    "MAE=0.30 signed=+0.01 floor=6.0 unsourced"
+)
+_SAFETY_ASSET_SHA256 = (
+    "88ce0d09ac28de17045702a8a283de6610b5fe1ab33aa5f90bf6e98edfd75a74"
+)
+_CENSUS_JSON_SHA256 = (
+    "8540e6fe2f3ee780989ea15beb1b9ce0fe2aac2c81a073e271fd073997ecb150"
+)
+_EXPECTED_LEFTOVER = (
+    ("1,2-dimethoxyethane", "110-71-4"),
+    ("cis-decalin", "493-01-6"),
+)
+
+
+def published_hazard_methods_doctor_check(
+    *,
+    asset_sha256: str | None,
+    census_json_path: Path,
+) -> dict[str, Any]:
+    """Format-only doctor row from PUBLISHED_HAZARD_METHODS_COPY. Not a query."""
+    row = PUBLISHED_HAZARD_METHODS_COPY
+    leftover_ok = tuple(row["leftover"]) == _EXPECTED_LEFTOVER
+    mapping_ok = (
+        row["n"] == 990
+        and row["served_gsk"] == 130
+        and row["served_green"] == 840
+        and row["served_neither"] == 20
+        and row["both_table_hits"] == 128
+        and row["mae_2dp"] == 0.3
+        and row["signed_mean_2dp"] == 0.01
+        and row["default_minimum_g_score"] == 6.0
+        and leftover_ok
+        and str(row["measured_on_builder_sha"]).startswith("1d97a73")
+    )
+    pin_ok = asset_sha256 == _SAFETY_ASSET_SHA256
+    if census_json_path.is_file():
+        census_json = hashlib.sha256(census_json_path.read_bytes()).hexdigest()
+        json_ok = census_json == _CENSUS_JSON_SHA256
+    else:
+        census_json = "not_shipped"
+        json_ok = True
+    ok = mapping_ok and pin_ok and json_ok
+    mae = f"{float(row['mae_2dp']):.2f}"
+    signed = f"{float(row['signed_mean_2dp']):+.2f}"
+    shaped = (
+        f"n={row['n']} GSK={row['served_gsk']} "
+        f"GreenSolventDB={row['served_green']} neither={row['served_neither']} "
+        f"both={row['both_table_hits']} MAE={mae} signed={signed} "
+        f"floor={row['default_minimum_g_score']} unsourced"
+    )
+    return {
+        "name": "Published hazard Methods",
+        "status": "pass" if ok else "fail",
+        "detail": _PUBLISHED_HAZARD_METHODS_DETAIL if ok else f"census drift: {shaped}",
+        "n": row["n"],
+        "served_gsk": row["served_gsk"],
+        "served_green": row["served_green"],
+        "served_neither": row["served_neither"],
+        "both_table_hits": row["both_table_hits"],
+        "mae_2dp": row["mae_2dp"],
+        "signed_mean_2dp": row["signed_mean_2dp"],
+        "default_minimum_g_score": row["default_minimum_g_score"],
+        "measured_on_builder_sha": row["measured_on_builder_sha"],
+        "census_json": census_json,
+    }
+
+
 _CONTAMINANT_USAGE = "usage: /contaminant [off | leaching | strap | swing | compare]"
 _CONTAMINANT_COMPARE_USAGE = (
     "usage: /contaminant compare  "
@@ -702,8 +771,11 @@ def doctor_report(
         ("optimization", optimization._ASSET, optimization._ASSET_SHA256),
     ]
     bad_assets = []
+    safety_digest = None
     for name, path, expected in assets:
         actual = hashlib.sha256(path.read_bytes()).hexdigest() if path.is_file() else None
+        if name == "safety":
+            safety_digest = actual
         if actual != expected:
             bad_assets.append(name)
     add(
@@ -711,6 +783,25 @@ def doctor_report(
         f"{len(assets)} checksums verified" if not bad_assets
         else "mismatch/missing: " + ", ".join(bad_assets),
         checked=len(assets), failures=bad_assets,
+    )
+    hazard = published_hazard_methods_doctor_check(
+        asset_sha256=safety_digest,
+        census_json_path=_ROOT / "audit" / "HAZARD_METHODS.v1.json",
+    )
+    add(
+        hazard["name"],
+        hazard["status"],
+        hazard["detail"],
+        n=hazard["n"],
+        served_gsk=hazard["served_gsk"],
+        served_green=hazard["served_green"],
+        served_neither=hazard["served_neither"],
+        both_table_hits=hazard["both_table_hits"],
+        mae_2dp=hazard["mae_2dp"],
+        signed_mean_2dp=hazard["signed_mean_2dp"],
+        default_minimum_g_score=hazard["default_minimum_g_score"],
+        measured_on_builder_sha=hazard["measured_on_builder_sha"],
+        census_json=hazard["census_json"],
     )
 
     live = {tool.name for tool in REGISTRY}
