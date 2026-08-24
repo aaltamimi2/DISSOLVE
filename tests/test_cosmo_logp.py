@@ -14,7 +14,9 @@ from __future__ import annotations
 
 import hashlib
 import math
+import os
 import shutil
+import sys
 from pathlib import Path
 
 import pytest
@@ -834,8 +836,9 @@ def test_no_dft_override_knobs_on_the_parameterised_level():
     assert cl.DFT_BASIS_SP == "def2-TZVPD"
 
 
-def test_dependency_errors_name_what_is_missing_and_how_to_get_it():
+def test_dependency_errors_name_what_is_missing_and_how_to_get_it(monkeypatch):
     """A missing 17 GB licensed program should say so, not fail obscurely."""
+    monkeypatch.setenv(cl.COSMO_PYTHON_ENV, "/no/such/dissolve-cosmo-python")
     try:
         import opencosmorspy  # noqa: F401
     except ImportError:
@@ -1328,3 +1331,140 @@ def test_computed_deltas_for_screen_stamps_computed_origin(tmp_path):
     after = hashlib.sha256(db.read_bytes()).hexdigest()
     assert before == after
     assert before.startswith("866d769b")
+
+
+# ------------------------------------------------------------- P-4b engine bridge
+
+def _p4b_dummy_compute(tmp_path, monkeypatch, **env):
+    pytest.importorskip("rdkit")
+    for key, value in env.items():
+        if value is None:
+            monkeypatch.delenv(key, raising=False)
+        else:
+            monkeypatch.setenv(key, value)
+    artifacts, solvents = _dummy_p3_dirs(tmp_path)
+    return cl.compute_delta_logd(
+        cl.DEP_SMILES, ["dichloromethane"],
+        solvents_dir=solvents, artifacts_dir=artifacts,
+    )
+
+
+def test_p4b_missing_interpreter_refuses_cosmo_rs_and_does_not_serve_2002(tmp_path, monkeypatch):
+    payload = _p4b_dummy_compute(
+        tmp_path, monkeypatch, **{cl.COSMO_PYTHON_ENV: "/no/such/dissolve-cosmo-python"},
+    )
+    row = payload["results"][0]
+    assert row["success"] is False
+    assert row["error_code"] == "cosmo_rs_unavailable"
+    assert "opencosmorspy" in row["error"]
+    assert row.get("delta_logd") is None
+    assert "delta_logd" not in row or row["delta_logd"] is None
+    assert row.get("parameterisation") != "2002"
+    assert row.get("route") != cl.COSMOBASE_ROUTE
+    assert payload["dft_ran"] is False
+    assert row["dft_ran"] is False
+
+
+def test_p4b_interpreter_without_opencosmorspy_refuses_and_does_not_recurse(tmp_path, monkeypatch):
+    payload = _p4b_dummy_compute(
+        tmp_path, monkeypatch, **{cl.COSMO_PYTHON_ENV: sys.executable},
+    )
+    row = payload["results"][0]
+    assert row["success"] is False
+    assert row["error_code"] == "cosmo_rs_unavailable"
+    assert "opencosmorspy" in row["error"]
+    assert row.get("delta_logd") is None
+    assert row.get("parameterisation") != "2002"
+    assert payload["dft_ran"] is False
+
+
+def test_p4b_unparseable_stdout_and_timeout_are_named_refuses(tmp_path, monkeypatch):
+    pytest.importorskip("rdkit")
+    artifacts, solvents = _dummy_p3_dirs(tmp_path)
+
+    def fake_run(*_a, **_k):
+        return type("R", (), {
+            "returncode": 0, "stdout": "not-json {", "stderr": "",
+        })()
+
+    monkeypatch.setattr(cl.subprocess, "run", fake_run)
+    payload = cl.compute_delta_logd(
+        cl.DEP_SMILES, ["dichloromethane"],
+        solvents_dir=solvents, artifacts_dir=artifacts,
+    )
+    row = payload["results"][0]
+    assert row["error_code"] == "cosmo_rs_unavailable"
+    assert row.get("delta_logd") is None
+    assert row.get("parameterisation") != "2002"
+
+    def boom(*_a, **_k):
+        raise cl.subprocess.TimeoutExpired(cmd=["python"], timeout=0.01)
+
+    monkeypatch.setattr(cl.subprocess, "run", boom)
+    timed = cl.compute_delta_logd(
+        cl.DEP_SMILES, ["dichloromethane"],
+        solvents_dir=solvents, artifacts_dir=artifacts,
+    )
+    trow = timed["results"][0]
+    assert trow["error_code"] == "cosmo_rs_unavailable"
+    assert "timed out" in trow["error"] or "timeout" in trow["error"].lower()
+    assert trow.get("delta_logd") is None
+
+
+def test_p4b_bridge_uses_argv_list_and_does_not_use_a_shell():
+    src = Path(cl.__file__).read_text()
+    worker = Path(cl.LN_GAMMA_WORKER).read_text()
+    assert "shell=True" not in src
+    assert "shell=True" not in worker
+    assert "shell=False" in src
+    assert "subprocess.run(" in src
+    # SMILES is JSON payload, not interpolated into a shell string.
+    assert "shell=True" not in Path(cl.LN_GAMMA_WORKER).read_text()
+    assert "/tmp/" not in worker
+    assert "world-writable" not in worker
+
+
+def test_p4b_main_env_matches_direct_venv_dep_counterfactual():
+    """Same molecule, same files, main env after the bridge = direct venv."""
+    pytest.importorskip("rdkit")
+    if not cl.DEFAULT_COSMO_PYTHON.is_file():
+        pytest.skip("isolated COSMO interpreter is not present")
+    if cl.orca_solute_cosmo_path(cl.DEP_INCHIKEY) is None:
+        pytest.skip("stage-1 DEP .orcacosmo is not present")
+    db = Path(__file__).resolve().parents[1] / "src" / "dissolve" / "data" / "contaminants.duckdb"
+    before = hashlib.sha256(db.read_bytes()).hexdigest()
+    payload = cl.compute_delta_logd(
+        cl.DEP_SMILES, ["dichloromethane", "hexane"], reference="water",
+    )
+    after = hashlib.sha256(db.read_bytes()).hexdigest()
+    assert before == after
+    assert before.startswith("866d769b")
+    assert payload["success"] is True
+    assert payload["validation_status"] == cl.VALIDATION_VALIDATED
+    assert payload["validated_ok"] is True
+    assert payload["dft_ran"] is False
+    by_key = {row["solvent_key"]: row for row in payload["results"]}
+    dcm = by_key["dichloromethane"]
+    hexane = by_key["hexane"]
+    assert dcm["success"] is True
+    assert hexane["success"] is True
+    assert dcm["delta_logd"] == pytest.approx(5.311936866031463, abs=1e-12)
+    assert hexane["delta_logd"] == pytest.approx(3.3643418255389044, abs=1e-12)
+    assert round(dcm["delta_logd"], 2) == 5.31
+    assert round(hexane["delta_logd"], 2) == 3.36
+    for row in (dcm, hexane):
+        assert row["route"] == cl.ORCA_ROUTE
+        assert row["parameterisation"] == "24a"
+        assert row["parameterisation"] != "2002"
+        assert row["validation_status"] == cl.VALIDATION_VALIDATED
+        assert row["dft_ran"] is False
+        assert row["n_conformers"] == 1
+        assert row["temperature"] == cl.STANDARD_T
+        assert payload.get("inchikey") == cl.DEP_INCHIKEY
+        assert len(row["solute_sha256"]) == 64
+        assert len(row["solvent_sha256"]) == 64
+        assert len(row["reference_sha256"]) == 64
+        assert "ln_gamma_solvent" in row
+        assert "ln_gamma_reference" in row
+        assert "volume_correction" in row
+        assert cl.DFT_FUNCTIONAL in row["level_of_theory"]

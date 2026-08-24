@@ -44,6 +44,7 @@ from __future__ import annotations
 import hashlib
 import json
 import math
+import os
 import re
 import shutil
 import subprocess
@@ -249,6 +250,15 @@ DEFAULT_COSMOBASE_SOLVENTS_DIR = Path(
     "/home/aaltamimi2/COSMO-POLYMER-ML/results/oligomers/all-cosmotherm-solvents"
 )
 DEFAULT_ORCA_ARTIFACTS_DIR = Path("/home/aaltamimi2/cosmo-artifacts/stage1")
+#: Isolated interpreter that actually imports opencosmorspy. Main env does not.
+DEFAULT_COSMO_PYTHON = Path("/home/aaltamimi2/.venvs/cosmo-logp/bin/python")
+LN_GAMMA_WORKER = (
+    Path(__file__).resolve().parents[2] / "scripts" / "cosmo" / "ln_gamma_worker.py"
+)
+COSMO_PYTHON_ENV = "DISSOLVE_COSMO_PYTHON"
+COSMO_IN_WORKER_ENV = "DISSOLVE_COSMO_IN_WORKER"
+COSMO_TIMEOUT_ENV = "DISSOLVE_COSMO_TIMEOUT"
+DEFAULT_COSMO_TIMEOUT_S = 120.0
 
 #: Stage-1 ORCA solvent file stems. Matches scripts/cosmo/compute_delta_logd.py.
 ORCA_SOLVENT_FILE_STEMS = {
@@ -589,6 +599,124 @@ def orca_converged(output: str) -> bool:
 # openCOSMO-RS
 # ======================================================================
 
+def _cosmo_python() -> Path:
+    override = os.environ.get(COSMO_PYTHON_ENV, "").strip()
+    return Path(override) if override else DEFAULT_COSMO_PYTHON
+
+
+def _cosmo_timeout_s() -> float:
+    raw = os.environ.get(COSMO_TIMEOUT_ENV, "").strip()
+    if not raw:
+        return DEFAULT_COSMO_TIMEOUT_S
+    try:
+        value = float(raw)
+    except ValueError:
+        return DEFAULT_COSMO_TIMEOUT_S
+    return value if value > 0 else DEFAULT_COSMO_TIMEOUT_S
+
+
+def _in_cosmo_worker() -> bool:
+    return os.environ.get(COSMO_IN_WORKER_ENV, "").strip() == "1"
+
+
+def _parse_worker_payload(stdout: str) -> dict[str, Any] | None:
+    text = (stdout or "").strip()
+    if not text:
+        return None
+    try:
+        payload = json.loads(text)
+    except json.JSONDecodeError:
+        last = text.splitlines()[-1]
+        try:
+            payload = json.loads(last)
+        except json.JSONDecodeError:
+            return None
+    return payload if isinstance(payload, dict) else None
+
+
+def _ln_gamma_via_subprocess(
+    solute_orcacosmo: str | Path,
+    solvent_orcacosmo: str | Path,
+    *,
+    temperature: float,
+    solute_fraction: float,
+    parameterization: str,
+    import_error: ImportError,
+) -> float:
+    """Run ln(γ^∞) in the isolated COSMO interpreter. argv list, shell=False."""
+    python = _cosmo_python()
+    worker = LN_GAMMA_WORKER
+    if not python.is_file():
+        raise CosmoDependencyError(
+            "opencosmorspy is required for ln(γ^∞) and is not importable in "
+            f"this interpreter ({import_error}). Configured COSMO interpreter "
+            f"{python} is missing. Set {COSMO_PYTHON_ENV} to an interpreter "
+            "that can import opencosmorspy, or install from "
+            "https://github.com/TUHH-TVT/opencosmorspy"
+        ) from import_error
+    if not worker.is_file():
+        raise CosmoDependencyError(
+            "opencosmorspy is required for ln(γ^∞) and is not importable in "
+            f"this interpreter ({import_error}). Worker {worker} is missing."
+        ) from import_error
+    request = {
+        "solute": str(Path(solute_orcacosmo).resolve()),
+        "solvent": str(Path(solvent_orcacosmo).resolve()),
+        "temperature": float(temperature),
+        "solute_fraction": float(solute_fraction),
+        "parameterization": str(parameterization),
+    }
+    env = os.environ.copy()
+    env[COSMO_IN_WORKER_ENV] = "1"
+    try:
+        completed = subprocess.run(
+            [str(python), str(worker)],
+            input=json.dumps(request),
+            capture_output=True,
+            text=True,
+            check=False,
+            shell=False,
+            env=env,
+            timeout=_cosmo_timeout_s(),
+        )
+    except subprocess.TimeoutExpired as exc:
+        raise CosmoDependencyError(
+            "opencosmorspy is required for ln(γ^∞) and is not importable in "
+            f"this interpreter ({import_error}). Isolated COSMO interpreter "
+            f"{python} timed out after {_cosmo_timeout_s()} s."
+        ) from exc
+    payload = _parse_worker_payload(completed.stdout or "")
+    if completed.returncode != 0 or not isinstance(payload, dict):
+        reason = ""
+        if isinstance(payload, dict) and payload.get("error"):
+            reason = str(payload["error"])
+        elif (completed.stderr or "").strip():
+            reason = completed.stderr.strip().splitlines()[-1]
+        elif (completed.stdout or "").strip():
+            reason = (completed.stdout.strip().splitlines()[-1])[:400]
+        else:
+            reason = f"exit {completed.returncode}"
+        raise CosmoDependencyError(
+            "opencosmorspy is required for ln(γ^∞) and is not importable in "
+            f"this interpreter ({import_error}). Isolated COSMO interpreter "
+            f"{python} failed ({reason})."
+        ) from import_error
+    if not payload.get("ok"):
+        raise CosmoDependencyError(
+            "opencosmorspy is required for ln(γ^∞) and is not importable in "
+            f"this interpreter ({import_error}). Isolated COSMO interpreter "
+            f"{python} refused: {payload.get('error')}."
+        ) from import_error
+    try:
+        return float(payload["ln_gamma"])
+    except (KeyError, TypeError, ValueError) as exc:
+        raise CosmoDependencyError(
+            "opencosmorspy is required for ln(γ^∞) and is not importable in "
+            f"this interpreter ({import_error}). Isolated COSMO interpreter "
+            f"{python} returned unparseable ln_gamma."
+        ) from exc
+
+
 def ln_gamma_infinite_dilution(
     solute_orcacosmo: str | Path, solvent_orcacosmo: str | Path, *,
     temperature: float = STANDARD_T, solute_fraction: float = 1e-5,
@@ -602,16 +730,28 @@ def ln_gamma_infinite_dilution(
     NOTE `COSMORS.add_molecule` accepts a list but raises
     ``NotImplementedError: More than one conformer not supported``. The
     ensemble is therefore combined explicitly -- see `boltzmann_combine`.
+
+    When this interpreter cannot import opencosmorspy, P-4b bridges to the
+    isolated COSMO interpreter via subprocess (JSON stdin/stdout, no shell).
     """
     try:
         import numpy as np
         from opencosmorspy import COSMORS, Parameterization
         from opencosmorspy.parameterization import openCOSMORS24a
     except ImportError as exc:
-        raise CosmoDependencyError(
-            f"opencosmorspy is required: {exc}. It has no PyPI package; install with "
-            "pip install git+https://github.com/TUHH-TVT/opencosmorspy.git"
-        ) from exc
+        if _in_cosmo_worker():
+            raise CosmoDependencyError(
+                "opencosmorspy is required for ln(γ^∞). Install from "
+                f"https://github.com/TUHH-TVT/opencosmorspy ({exc})"
+            ) from exc
+        return _ln_gamma_via_subprocess(
+            solute_orcacosmo,
+            solvent_orcacosmo,
+            temperature=temperature,
+            solute_fraction=solute_fraction,
+            parameterization=parameterization,
+            import_error=exc,
+        )
     par = openCOSMORS24a() if parameterization == "openCOSMORS24a" else Parameterization(parameterization)
     engine = COSMORS(par)
     engine.add_molecule([str(solute_orcacosmo)])
