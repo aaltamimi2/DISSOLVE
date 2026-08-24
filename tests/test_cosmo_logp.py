@@ -1827,3 +1827,162 @@ def test_p4c_missing_solvent_orca_is_named_and_does_not_fake_24a(tmp_path):
     assert "o-xylene" not in str(xylene).lower()
     assert xylene["dft_ran"] is False
 
+
+def _p4d_fake_runner(artifacts: Path):
+    def runner(ctx):
+        dest = Path(ctx["artifacts_dir"]) / "octanol_cosmo.solute.orcacosmo"
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        dest.write_text("dummy-octanol-surface\n")
+        assert "%pal" not in str(ctx)
+        return {"orcacosmo": dest}
+    return runner
+
+
+def test_p4d_wave0_octanol_job_does_not_block_and_stamps_24a(tmp_path):
+    pytest.importorskip("rdkit")
+    artifacts, solvents = _dummy_p3_dirs(tmp_path)
+    jobs = tmp_path / "jobs"
+    db = Path(__file__).resolve().parents[1] / "src" / "dissolve" / "data" / "contaminants.duckdb"
+    before = hashlib.sha256(db.read_bytes()).hexdigest()
+    submitted = cl.submit_solvent_dft_job(
+        "octanol",
+        jobs_dir=jobs,
+        artifacts_dir=artifacts,
+        runner=_p4d_fake_runner(artifacts),
+        background=True,
+    )
+    assert submitted.get("handle")
+    assert submitted["status"] in {"queued", "running", "done"}
+    assert submitted["dft_ran"] is False
+    assert submitted["reused"] is False
+    assert submitted["estimate"]["n_atoms"] >= 9
+    assert submitted["estimate"]["pal"] is False
+    assert submitted["estimate"]["maxcore_mb"] == 1500
+    deadline = time.time() + 5
+    record = submitted
+    while time.time() < deadline:
+        record = cl.solvent_dft_job_status(submitted["handle"], jobs_dir=jobs)
+        if record.get("status") in {"done", "failed"}:
+            break
+        time.sleep(0.05)
+    assert record["status"] == "done"
+    assert record["dft_ran"] is True
+    assert record["reused"] is False
+    assert record["error_code"] is None
+    assert record["route"] == cl.ORCA_ROUTE
+    assert record["parameterisation"] == "24a"
+    assert record["parameterisation"] != "2002"
+    surface = artifacts / "octanol_cosmo.solute.orcacosmo"
+    assert surface.is_file()
+    stamped = surface.read_text()
+    assert "route=orca" in stamped
+    assert "parameterisation=24a" in stamped
+    after = hashlib.sha256(db.read_bytes()).hexdigest()
+    assert before == after
+    assert before.startswith("866d769b")
+    reused = cl.submit_solvent_dft_job(
+        "1-octanol",
+        jobs_dir=jobs,
+        artifacts_dir=artifacts,
+        runner=lambda ctx: (_ for _ in ()).throw(RuntimeError("reuse must not DFT")),
+        background=False,
+    )
+    assert reused["reused"] is True
+    assert reused["dft_ran"] is False
+    assert reused["status"] == "done"
+    coverage = cl.solvent_route_coverage(solvents_dir=solvents)
+    assert coverage["n_orca"] == 5
+    computed = cl.compute_delta_logd(
+        cl.DEP_SMILES, ["1-octanol"],
+        solvents_dir=solvents, artifacts_dir=artifacts, ln_gamma=lambda *a, **k: 0.5,
+    )
+    row = computed["results"][0]
+    assert row["success"] is True
+    assert row["route"] == cl.ORCA_ROUTE
+    assert row["parameterisation"] == "24a"
+    assert row["parameterisation"] != "2002"
+
+
+def test_p4d_identity_changed_refuses_and_does_not_serve_delta(tmp_path):
+    pytest.importorskip("rdkit")
+    if shutil.which("obabel") is None:
+        pytest.skip("obabel is required to perceive identity from xyz")
+    artifacts, solvents = _dummy_p3_dirs(tmp_path)
+    jobs = tmp_path / "jobs"
+
+    def runner(ctx):
+        work = Path(ctx["work_dir"])
+        work.mkdir(parents=True, exist_ok=True)
+        xyz = work / "decoy.xyz"
+        xyz.write_text(
+            "6\nmethanol decoy\n"
+            "C    0.000000    0.000000    0.000000\n"
+            "O    1.400000    0.000000    0.000000\n"
+            "H   -0.500000    0.900000    0.000000\n"
+            "H   -0.500000   -0.900000    0.000000\n"
+            "H    0.500000    0.000000    0.900000\n"
+            "H    1.700000    0.400000    0.800000\n"
+        )
+        dest = Path(ctx["artifacts_dir"]) / "octanol_cosmo.solute.orcacosmo"
+        dest.write_text("dummy-surface\n")
+        return {"orcacosmo": dest, "opt_xyz": xyz}
+
+    record = cl.submit_solvent_dft_job(
+        "1-octanol",
+        jobs_dir=jobs,
+        artifacts_dir=artifacts,
+        runner=runner,
+        background=False,
+    )
+    assert record["status"] == "failed"
+    assert record["error_code"] == "identity_changed"
+    assert record.get("result") in (None, {})
+
+
+def test_p4d_wave1_and_xylene_do_not_start_dft(tmp_path):
+    pytest.importorskip("rdkit")
+    artifacts, solvents = _dummy_p3_dirs(tmp_path)
+    jobs = tmp_path / "jobs"
+    toluene = cl.submit_solvent_dft_job(
+        "toluene",
+        jobs_dir=jobs,
+        artifacts_dir=artifacts,
+        runner=lambda ctx: (_ for _ in ()).throw(RuntimeError("wave 1 must not DFT")),
+        background=False,
+    )
+    assert toluene["error_code"] == "solvent_library_wave_not_started"
+    assert toluene["dft_ran"] is False
+    assert toluene["handle"] is None
+    xylene = cl.submit_solvent_dft_job(
+        "xylene",
+        jobs_dir=jobs,
+        artifacts_dir=artifacts,
+        runner=lambda ctx: (_ for _ in ()).throw(RuntimeError("xylene must not DFT")),
+        background=False,
+    )
+    assert xylene["error_code"] == "solvent_not_available"
+    assert "o-xylene" not in str(xylene).lower()
+    assert xylene["dft_ran"] is False
+    still_2002 = cl.compute_delta_logd(
+        cl.DEP_SMILES, ["1-octanol"],
+        solvents_dir=solvents, artifacts_dir=artifacts, ln_gamma=lambda *a, **k: 0.5,
+    )
+    row = still_2002["results"][0]
+    assert row["route"] == cl.COSMOBASE_ROUTE
+    assert row["parameterisation"] == "2002"
+    assert row["parameterisation"] != "24a"
+    body = Path(cl.__file__).read_text().split("def compute_delta_logd", 1)[1]
+    assert "subprocess" not in body
+    assert "generate_conformers(" not in body
+    coverage = cl.solvent_route_coverage(solvents_dir=solvents)
+    assert coverage["n_orca"] == 5
+    water = cl.submit_solvent_dft_job(
+        "water",
+        jobs_dir=jobs,
+        artifacts_dir=artifacts,
+        runner=lambda ctx: (_ for _ in ()).throw(RuntimeError("held water must reuse")),
+        background=False,
+    )
+    assert water["reused"] is True
+    assert water["dft_ran"] is False
+

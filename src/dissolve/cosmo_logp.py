@@ -281,7 +281,25 @@ ORCA_SOLVENT_FILE_STEMS = {
     "methanol": "methanol",
     "hexane": "hexane",
     "cyclohexanol": "cyclohexanol",
+    #: Wave-0 library molecule. Not a table key; COSMObase 2002 is not a 24a stand-in.
+    "1-octanol": "octanol",
 }
+
+#: 1-octanol (n-octanol). Identity alias ``octanol`` maps here. Not in the 33.
+OCTANOL_SMILES = "CCCCCCCCO"
+OCTANOL_INCHIKEY = "KBPLFHHGFOOTCA-UHFFFAOYSA-N"
+
+#: P-4d solvent ORCA library. This SHA starts DFT for wave 0 only.
+P4D_WAVE0_SOLVENTS = frozenset({"1-octanol"})
+P4D_WAVE1_SOLVENTS = frozenset({
+    "toluene", "ethanol", "acetone", "tetrahydrofuran", "ethyl acetate",
+    "heptane", "cyclohexane", "dimethyl sulfoxide", "n,n-dimethylformamide",
+    "isopropanol", "1-propanol", "benzene",
+})
+#: Remaining table keys except xylene. Not started in this SHA.
+P4D_WAVE2_SOLVENTS = (
+    TABLE_SOLVENT_KEYS - ORCA_ROUTE_SOLVENTS - P4D_WAVE1_SOLVENTS - {"xylene"}
+)
 
 #: InChIKey → stage-1 solute stem. No guessing for an unknown SMILES.
 SOLUTE_ORCA_STEM_BY_INCHIKEY = {
@@ -327,6 +345,9 @@ SOLVENT_IDENTITY_ALIASES = {
     "mek": "2-butanone",
     "butanone": "2-butanone",
     "1,2-dimethylbenzene": "o-xylene",
+    "octanol": "1-octanol",
+    "n-octanol": "1-octanol",
+    "n-octan-1-ol": "1-octanol",
 }
 
 #: Chloroform is EXCLUDED from the headline regression, and the exclusion is
@@ -1245,6 +1266,7 @@ def _validation_status(
 # ======================================================================
 
 _SOLUTE_DFT_RUNNER: Callable[..., dict[str, Any]] | None = None
+_SOLVENT_DFT_RUNNER: Callable[..., dict[str, Any]] | None = None
 
 
 def _jobs_root(jobs_dir: str | Path | None = None) -> Path:
@@ -1708,6 +1730,317 @@ def solute_dft_job_status(
         }
     loaded.setdefault("success", loaded.get("status") in {"queued", "running", "done"})
     return loaded
+
+
+def _canonical_solvent_orcacosmo(key: str, artifacts_dir: str | Path) -> Path:
+    stem = ORCA_SOLVENT_FILE_STEMS[key]
+    return Path(artifacts_dir) / f"{stem}_cosmo.solute.orcacosmo"
+
+
+def _stamp_orca_24a_surface(path: Path) -> Path:
+    """Write route/parameterisation onto a new ORCA surface. Never onto COSMObase."""
+    stamp = (
+        f"# dissolve route={ORCA_ROUTE} parameterisation={ORCA_PARAMETERISATION}\n"
+    )
+    text = path.read_text() if path.is_file() else ""
+    if f"route={ORCA_ROUTE}" in text and f"parameterisation={ORCA_PARAMETERISATION}" in text:
+        return path
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(stamp + text)
+    return path
+
+
+def _solvent_library_disposition(key: str) -> str:
+    """Where a named solvent sits in the P-4d waves. xylene is never o-xylene."""
+    if key == "xylene":
+        return "xylene_hole"
+    if key in P4D_WAVE0_SOLVENTS:
+        return "wave0"
+    if key in P4D_WAVE1_SOLVENTS:
+        return "wave1"
+    if key in P4D_WAVE2_SOLVENTS or key in ORCA_ROUTE_SOLVENTS:
+        return "later_wave"
+    return "unknown"
+
+
+def _active_solvent_dft_runner() -> Callable[..., dict[str, Any]]:
+    return _SOLVENT_DFT_RUNNER if _SOLVENT_DFT_RUNNER is not None else run_solvent_dft_orca
+
+
+def run_solvent_dft_orca(ctx: Mapping[str, Any]) -> dict[str, Any]:
+    """Serial ORCA geometry + COSMO surface for one library solvent. No ``%pal``."""
+    orca = os.environ.get("ORCA_BIN") or shutil.which("orca")
+    if not orca:
+        raise CosmoDependencyError("orca is not available")
+    work = Path(ctx["work_dir"])
+    work.mkdir(parents=True, exist_ok=True)
+    inchikey = str(ctx["inchikey"])
+    key = str(ctx["solvent_key"])
+    conformers = generate_conformers(str(ctx["smiles"]))
+    xyz = write_xyz(conformers[0][0], work / "intake.xyz", comment=inchikey)
+    verify_identity(xyz, inchikey)
+    script = RUN_ORCA_STAGE
+    if not script.is_file():
+        raise CosmoDependencyError(f"ORCA stage script is missing: {script}")
+    argv = [
+        sys.executable,
+        str(script),
+        "--xyz", str(xyz),
+        "--tag", inchikey,
+        "--outdir", str(work),
+        "--maxcore", str(DFT_MAXCORE_MB),
+        "--expect-inchikey", inchikey,
+        "--orca", str(orca),
+    ]
+    completed = subprocess.run(argv, check=False, capture_output=True, text=True)
+    if completed.returncode != 0:
+        raise CosmoError(
+            f"ORCA solvent stage failed exit={completed.returncode}: "
+            f"{(completed.stderr or completed.stdout or '')[:300]}"
+        )
+    produced = work / f"{inchikey}_cosmo.solute.orcacosmo"
+    if not produced.is_file():
+        raise CosmoError("ORCA stage produced no solvent .orcacosmo")
+    opt_xyz = work / f"{inchikey}.opt.xyz"
+    if opt_xyz.is_file():
+        verify_identity(opt_xyz, inchikey)
+    dest = _canonical_solvent_orcacosmo(key, ctx["artifacts_dir"])
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    if produced.resolve() != dest.resolve():
+        shutil.copy2(produced, dest)
+    _stamp_orca_24a_surface(dest)
+    return {
+        "orcacosmo": dest,
+        "opt_xyz": opt_xyz if opt_xyz.is_file() else xyz,
+        "intake_xyz": xyz,
+        "argv": argv,
+        "pal": False,
+        "maxcore_mb": DFT_MAXCORE_MB,
+        "solvent_key": key,
+    }
+
+
+def _run_solvent_dft_worker(
+    handle: str,
+    *,
+    jobs_dir: str | Path | None,
+    artifacts_dir: Path,
+    runner: Callable[..., dict[str, Any]],
+) -> None:
+    record = _read_job(handle, jobs_dir=jobs_dir)
+    if record is None:
+        return
+    record["status"] = "running"
+    record["updated_at"] = _stamp_job_now()
+    _write_job(record, jobs_dir=jobs_dir)
+    try:
+        with acquire_dft_slot(jobs_dir=jobs_dir):
+            produced = runner({
+                "handle": handle,
+                "smiles": record["smiles"],
+                "inchikey": record["inchikey"],
+                "solvent_key": record["solvent_key"],
+                "work_dir": str(_job_dir(handle, jobs_dir) / "work"),
+                "artifacts_dir": str(artifacts_dir),
+            })
+        opt_xyz = produced.get("opt_xyz")
+        if opt_xyz:
+            verify_identity(opt_xyz, record["inchikey"])
+        dest = produced.get("orcacosmo")
+        if dest is None or not Path(dest).is_file():
+            raise CosmoError("solvent DFT runner produced no .orcacosmo")
+        canonical = _canonical_solvent_orcacosmo(record["solvent_key"], artifacts_dir)
+        if Path(dest).resolve() != canonical.resolve():
+            canonical.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(dest, canonical)
+        _stamp_orca_24a_surface(canonical)
+        record["dft_ran"] = True
+        record["reused"] = False
+        record["solvent_orcacosmo"] = str(canonical)
+        record["route"] = ORCA_ROUTE
+        record["parameterisation"] = ORCA_PARAMETERISATION
+        record["status"] = "done"
+        record["error_code"] = None
+        record["success"] = True
+        record["result"] = None
+    except CosmoIdentityError as exc:
+        record["status"] = "failed"
+        record["error_code"] = "identity_changed"
+        record["error"] = str(exc)
+        record["result"] = None
+        record["dft_ran"] = bool(record.get("dft_ran"))
+        record["success"] = False
+    except CosmoDependencyError as exc:
+        record["status"] = "failed"
+        record["error_code"] = "orca_unavailable"
+        record["error"] = str(exc)
+        record["result"] = None
+        record["success"] = False
+    except Exception as exc:
+        record["status"] = "failed"
+        record["error_code"] = record.get("error_code") or "solvent_dft_failed"
+        record["error"] = f"{type(exc).__name__}: {exc}"
+        record["result"] = None
+        record["success"] = False
+    record["updated_at"] = _stamp_job_now()
+    _write_job(record, jobs_dir=jobs_dir)
+
+
+def submit_solvent_dft_job(
+    name: str,
+    *,
+    jobs_dir: str | Path | None = None,
+    artifacts_dir: str | Path | None = None,
+    runner: Callable[..., dict[str, Any]] | None = None,
+    background: bool = True,
+) -> dict[str, Any]:
+    """P-4d wave 0: return a handle immediately. Only 1-octanol DFT is started."""
+    query = "" if name is None else str(name).strip()
+    key = canonical_solvent_key(query)
+    artifacts = _artifacts_root(artifacts_dir)
+    artifacts.mkdir(parents=True, exist_ok=True)
+    jobs_root = _jobs_root(jobs_dir)
+    jobs_root.mkdir(parents=True, exist_ok=True)
+    disposition = _solvent_library_disposition(key)
+
+    def _failed(error_code: str, error: str, *, ingested: dict[str, Any] | None = None) -> dict[str, Any]:
+        payload: dict[str, Any] = {
+            **(ingested or {}),
+            "success": False,
+            "status": "failed",
+            "handle": None,
+            "query": query,
+            "solvent_key": key,
+            "job_kind": "solvent_dft",
+            "error_code": error_code,
+            "error": error,
+            "reused": False,
+            "dft_ran": False,
+            "result": None,
+        }
+        if error_code == "solvent_not_available":
+            payload["error"] = error
+        return payload
+
+    if not query:
+        return _failed("solvent_not_available", "solvent name is empty")
+    if disposition == "xylene_hole":
+        return _failed(
+            "solvent_not_available",
+            "xylene has no named isomer surface; an isomer is not a substitute",
+        )
+    if disposition == "unknown":
+        return _failed(
+            "solvent_not_available",
+            "solvent is not a P-4d library name; no neighbour solvent will be substituted",
+        )
+
+    existing = orca_solvent_cosmo_path(key, artifacts_dir=artifacts)
+    if existing is not None:
+        handle = f"{key.replace(' ', '-')}-{uuid.uuid4().hex[:10]}"
+        record: dict[str, Any] = {
+            "success": True,
+            "status": "done",
+            "handle": handle,
+            "query": query,
+            "solvent_key": key,
+            "job_kind": "solvent_dft",
+            "reused": True,
+            "dft_ran": False,
+            "result": None,
+            "error_code": None,
+            "error": None,
+            "route": ORCA_ROUTE,
+            "parameterisation": ORCA_PARAMETERISATION,
+            "solvent_orcacosmo": str(existing),
+            "created_at": _stamp_job_now(),
+            "updated_at": _stamp_job_now(),
+        }
+        if key in P4D_WAVE0_SOLVENTS:
+            ingested = ingest_smiles(OCTANOL_SMILES)
+            record["estimate"] = estimate_dft_cost(
+                int(ingested.get("n_atoms") or 1),
+                int(ingested.get("n_rotatable_bonds") or 0),
+            )
+            record["inchikey"] = ingested.get("inchikey")
+            record["smiles"] = ingested.get("smiles")
+        _write_job(record, jobs_dir=jobs_root)
+        return record
+
+    if disposition in {"wave1", "later_wave"}:
+        return _failed(
+            "solvent_library_wave_not_started",
+            (
+                f"{key} is not wave 0 (1-octanol); solvent DFT for this name "
+                "is not started in this SHA"
+            ),
+        )
+
+    ingested = ingest_smiles(OCTANOL_SMILES)
+    estimate = estimate_dft_cost(
+        int(ingested.get("n_atoms") or 1),
+        int(ingested.get("n_rotatable_bonds") or 0),
+    )
+    if not ingested.get("success"):
+        return {
+            **_failed(
+                "invalid_smiles",
+                ingested.get("error") or "1-octanol SMILES failed",
+                ingested=ingested,
+            ),
+            "estimate": estimate,
+        }
+    if ingested.get("inchikey") != OCTANOL_INCHIKEY:
+        return _failed(
+            "identity_changed",
+            "1-octanol SMILES did not bind the expected InChIKey",
+            ingested=ingested,
+        )
+
+    handle = f"octanol-{uuid.uuid4().hex[:10]}"
+    record: dict[str, Any] = {
+        **ingested,
+        "handle": handle,
+        "status": "queued",
+        "job_kind": "solvent_dft",
+        "query": query,
+        "solvent_key": key,
+        "estimate": estimate,
+        "reused": False,
+        "dft_ran": False,
+        "result": None,
+        "error_code": None,
+        "error": None,
+        "route": ORCA_ROUTE,
+        "parameterisation": ORCA_PARAMETERISATION,
+        "created_at": _stamp_job_now(),
+        "updated_at": _stamp_job_now(),
+    }
+
+    _write_job(record, jobs_dir=jobs_root)
+    active_runner = runner if runner is not None else _active_solvent_dft_runner()
+    kwargs = dict(jobs_dir=jobs_root, artifacts_dir=artifacts, runner=active_runner)
+    if background:
+        thread = threading.Thread(
+            target=_run_solvent_dft_worker,
+            args=(handle,),
+            kwargs=kwargs,
+            daemon=True,
+            name=f"solvent-dft-{handle}",
+        )
+        thread.start()
+        record["status"] = "queued"
+        record["success"] = True
+        return record
+    _run_solvent_dft_worker(handle, **kwargs)
+    return _read_job(handle, jobs_dir=jobs_root) or record
+
+
+def solvent_dft_job_status(
+    handle: str, *, jobs_dir: str | Path | None = None,
+) -> dict[str, Any]:
+    """P-4d status query. Missing handle is a named refuse, not a hang."""
+    return solute_dft_job_status(handle, jobs_dir=jobs_dir)
 
 
 def compute_delta_logd(

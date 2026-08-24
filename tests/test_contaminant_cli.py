@@ -214,6 +214,7 @@ def test_logp_is_not_a_persistent_mode_token():
         assert "--smiles" not in str(error)
         assert "--file" not in str(error)
         assert "--job" not in str(error)
+        assert "--solvent-dft" not in str(error)
 
 
 def test_logp_absolute_is_refused_and_does_not_persist(tmp_path, monkeypatch):
@@ -341,6 +342,11 @@ def test_logp_job_xor_and_status_query(tmp_path, monkeypatch):
         raise AssertionError("expected ValueError")
     except ValueError as error:
         assert "--smiles" in str(error) or "logp" in str(error)
+    try:
+        _parse_contaminant_slash(["logp", "--smiles", "CC", "--solvent-dft", "1-octanol"])
+        raise AssertionError("expected ValueError")
+    except ValueError as error:
+        assert "logp" in str(error)
     parsed = _parse_contaminant_slash(["logp", "--job", "missing-handle"])
     assert parsed["job"] == "missing-handle"
     assert parsed["smiles"] is None
@@ -393,4 +399,38 @@ def test_logp_new_smiles_returns_handle_and_estimate_without_blocking(
     status = buf2.getvalue()
     assert handle in status
     assert "job_not_found" not in status
+
+
+def test_logp_solvent_dft_returns_handle_without_blocking(tmp_path, monkeypatch):
+    import time
+    import threading
+    from dissolve import cosmo_logp as cl
+
+    monkeypatch.setenv("DISSOLVE_COSMO_JOBS_DIR", str(tmp_path / "jobs"))
+    monkeypatch.setenv("DISSOLVE_COSMO_ARTIFACTS_DIR", str(tmp_path / "orca"))
+    release = threading.Event()
+
+    def runner(ctx):
+        release.wait(timeout=2)
+        dest = Path(ctx["artifacts_dir"]) / "octanol_cosmo.solute.orcacosmo"
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        dest.write_text("dummy-octanol-surface\n")
+        return {"orcacosmo": dest}
+
+    monkeypatch.setattr(cl, "_SOLVENT_DFT_RUNNER", runner)
+    app, buf = _app(tmp_path, monkeypatch)
+    started = time.monotonic()
+    assert app.handle_command("/contaminant logp --solvent-dft 1-octanol") is False
+    elapsed = time.monotonic() - started
+    release.set()
+    assert elapsed < 0.3
+    text = buf.getvalue()
+    assert "handle=" in text
+    assert "estimated_wall_min=" in text
+    assert "dft=not_run" in text
+    assert "contaminant_mode" not in app.session
+    assert "%pal" not in text
+    parsed = _parse_contaminant_slash(["logp", "--solvent-dft", "octanol"])
+    assert parsed["solvent_dft"] == "octanol"
+    assert parsed["smiles"] is None
 
