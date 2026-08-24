@@ -1263,6 +1263,7 @@ def test_leaching_computed_overlay_is_labelled_computed_and_cannot_wear_tabulate
         "delta_logd": 9.99,
         "reference": "water",
         "field_origin": cl.FIELD_ORIGIN_TABULATED,
+        "inchikey": cl.DEP_INCHIKEY,
     }]
     payload = parse_tool_result(contaminants.screen_contaminant_leaching(
         "LDPE", ["diethyl phthalate (DEP)"], solvents=["toluene"],
@@ -1293,6 +1294,7 @@ def test_leaching_uses_computed_delta_when_table_logd_is_missing():
             "delta_logd": 1.25,
             "reference": "water",
             "field_origin": cl.FIELD_ORIGIN_COMPUTED,
+            "inchikey": cl.DEP_INCHIKEY,
         }],
     ))["data"]
     row = next(item for item in payload["candidate_solvents"] if item["solvent"] == "xylene")
@@ -1331,6 +1333,130 @@ def test_computed_deltas_for_screen_stamps_computed_origin(tmp_path):
     after = hashlib.sha256(db.read_bytes()).hexdigest()
     assert before == after
     assert before.startswith("866d769b")
+
+
+def test_leaching_overlay_does_not_inform_a_different_contaminant():
+    from dissolve import contaminants
+    from dissolve.contracts import parse_tool_result
+
+    payload = parse_tool_result(contaminants.screen_contaminant_leaching(
+        "LDPE",
+        ["diethyl phthalate (DEP)", "di-n-butyl phthalate (DBP)"],
+        solvents=["xylene"],
+        computed_deltas=[{
+            "solvent_key": "xylene",
+            "delta_logd": 1.25,
+            "reference": "water",
+            "field_origin": cl.FIELD_ORIGIN_COMPUTED,
+            "inchikey": cl.DEP_INCHIKEY,
+        }],
+    ))["data"]
+    row = next(item for item in payload["candidate_solvents"] if item["solvent"] == "xylene")
+    by_name = {item["contaminant"]: item for item in row["contaminants"]}
+    dep = by_name["diethyl phthalate (DEP)"]
+    dbp = by_name["di-n-butyl phthalate (DBP)"]
+    assert dep["tabulated_logd"] is None
+    assert dep["logd"] == pytest.approx(1.25)
+    assert dep["field_origin"] == cl.FIELD_ORIGIN_COMPUTED
+    assert dbp["tabulated_logd"] is None
+    assert dbp["logd"] is None
+    assert dbp["field_origin"] is None
+    assert dbp["computed_delta_logd"] is None
+    assert "o-xylene" not in str(payload).split("xylene")[0]
+
+
+def test_leaching_family_expansion_does_not_share_one_overlay():
+    from dissolve import contaminants
+    from dissolve.contracts import parse_tool_result
+
+    payload = parse_tool_result(contaminants.screen_contaminant_leaching(
+        "LDPE", "phthalates", solvents=["xylene"],
+        computed_deltas=[{
+            "solvent_key": "xylene",
+            "delta_logd": 1.25,
+            "field_origin": cl.FIELD_ORIGIN_COMPUTED,
+            "inchikey": cl.DEP_INCHIKEY,
+        }],
+    ))["data"]
+    row = next(item for item in payload["candidate_solvents"] if item["solvent"] == "xylene")
+    by_name = {item["contaminant"]: item for item in row["contaminants"]}
+    assert len(by_name) > 1
+    assert by_name["diethyl phthalate (DEP)"]["logd"] == pytest.approx(1.25)
+    assert by_name["diethyl phthalate (DEP)"]["field_origin"] == cl.FIELD_ORIGIN_COMPUTED
+    others = [
+        item for name, item in by_name.items() if name != "diethyl phthalate (DEP)"
+    ]
+    assert others
+    assert all(item["logd"] is None for item in others)
+    assert all(item.get("computed_delta_logd") is None for item in others)
+
+
+def test_leaching_unstamped_overlay_and_bare_map_do_not_inform():
+    from dissolve import contaminants
+    from dissolve.contracts import parse_tool_result
+
+    unstamped = parse_tool_result(contaminants.screen_contaminant_leaching(
+        "LDPE", ["diethyl phthalate (DEP)"], solvents=["xylene"],
+        computed_deltas=[{
+            "solvent_key": "xylene",
+            "delta_logd": 1.25,
+            "inchikey": cl.DEP_INCHIKEY,
+        }],
+    ))["data"]
+    row = next(item for item in unstamped["candidate_solvents"] if item["solvent"] == "xylene")
+    contaminant = row["contaminants"][0]
+    assert contaminant["logd"] is None
+    assert contaminant["field_origin"] is None
+
+    bare = parse_tool_result(contaminants.screen_contaminant_leaching(
+        "LDPE", ["diethyl phthalate (DEP)"], solvents=["xylene"],
+        computed_deltas={"xylene": 1.25},
+    ))["data"]
+    row = next(item for item in bare["candidate_solvents"] if item["solvent"] == "xylene")
+    contaminant = row["contaminants"][0]
+    assert contaminant["logd"] is None
+    assert contaminant["field_origin"] is None
+
+
+def test_leaching_tabulated_stamp_does_not_fill_a_missing_table_cell():
+    from dissolve import contaminants
+    from dissolve.contracts import parse_tool_result
+
+    payload = parse_tool_result(contaminants.screen_contaminant_leaching(
+        "LDPE", ["diethyl phthalate (DEP)"], solvents=["xylene"],
+        computed_deltas=[{
+            "solvent_key": "xylene",
+            "delta_logd": 1.25,
+            "field_origin": cl.FIELD_ORIGIN_TABULATED,
+            "inchikey": cl.DEP_INCHIKEY,
+        }],
+    ))["data"]
+    row = next(item for item in payload["candidate_solvents"] if item["solvent"] == "xylene")
+    contaminant = row["contaminants"][0]
+    assert contaminant["tabulated_logd"] is None
+    assert contaminant["logd"] is None
+    assert contaminant["field_origin"] is None
+    assert contaminant["computed_delta_logd"] == pytest.approx(1.25)
+    assert contaminant["computed_field_origin"] == cl.FIELD_ORIGIN_COMPUTED
+
+
+def test_leaching_overlay_without_identity_does_not_inform():
+    from dissolve import contaminants
+    from dissolve.contracts import parse_tool_result
+
+    payload = parse_tool_result(contaminants.screen_contaminant_leaching(
+        "LDPE", ["diethyl phthalate (DEP)"], solvents=["xylene"],
+        computed_deltas=[{
+            "solvent_key": "xylene",
+            "delta_logd": 1.25,
+            "field_origin": cl.FIELD_ORIGIN_COMPUTED,
+        }],
+    ))["data"]
+    row = next(item for item in payload["candidate_solvents"] if item["solvent"] == "xylene")
+    contaminant = row["contaminants"][0]
+    assert contaminant["logd"] is None
+    assert contaminant["field_origin"] is None
+    assert contaminant["computed_delta_logd"] is None
 
 
 # ------------------------------------------------------------- P-4b engine bridge

@@ -676,11 +676,45 @@ def _polymer_status(
 _FIELD_ORIGIN_TABULATED = "tabulated"
 _FIELD_ORIGIN_COMPUTED = "computed"
 
+#: Overlay identity pins. Catalog rows have no InChIKey column; the producer
+#: stamps one. Unknown keys do not bind.
+_OVERLAY_INCHIKEY_ALIASES = {
+    "FLKPEMZONWLCSK-UHFFFAOYSA-N": "DEP",
+    "DOIRQSBPFJWKBE-UHFFFAOYSA-N": "DBP",
+    "IRIAEXORFWYRCZ-UHFFFAOYSA-N": "BBP",
+    "BJQHLKABXJIVAM-UHFFFAOYSA-N": "DEHP",
+    "BJQHLKABXJIVAM-PMACEKPBSA-N": "DEHP",
+}
+
+
+def _overlay_contaminant_key(item: Mapping[str, Any]) -> str | None:
+    """Contaminant the overlay is about. Solvent-only rows do not bind."""
+    lookup = _contaminant_lookup()
+    for field in ("contaminant_key", "contaminant"):
+        raw = item.get(field)
+        if not raw:
+            continue
+        identity = lookup.get(_key(raw))
+        if identity is not None:
+            return identity.key
+    inchikey = str(item.get("inchikey") or "").strip()
+    alias = _OVERLAY_INCHIKEY_ALIASES.get(inchikey)
+    if alias:
+        identity = lookup.get(_key(alias))
+        if identity is not None:
+            return identity.key
+    return None
+
 
 def _index_computed_deltas(
     computed_deltas: Sequence[Mapping[str, Any]] | Mapping[str, Any] | None,
-) -> dict[str, dict[str, Any]]:
-    """Index overlay rows by folded solvent key. Overlay is never tabulated."""
+) -> dict[tuple[str, str], dict[str, Any]]:
+    """Index overlay rows by (contaminant_key, solvent_key).
+
+    A row informs only when it names a contaminant and carries field_origin.
+    A {solvent: float} map has neither, so it does not bind. Overlay cannot
+    wear tabulated for the served logD; tabulated stamps stay labels.
+    """
     if not computed_deltas:
         return {}
     items: list[Mapping[str, Any]]
@@ -692,47 +726,64 @@ def _index_computed_deltas(
             for key, value in computed_deltas.items():
                 if isinstance(value, Mapping):
                     items.append({**value, "solvent_key": value.get("solvent_key") or key})
-                elif isinstance(value, (int, float)) and not isinstance(value, bool):
-                    items.append({"solvent_key": key, "delta_logd": float(value)})
     else:
         items = [item for item in computed_deltas if isinstance(item, Mapping)]
-    indexed: dict[str, dict[str, Any]] = {}
+    indexed: dict[tuple[str, str], dict[str, Any]] = {}
     for item in items:
         if item.get("delta_logd") is None:
             continue
-        key = _key(item.get("solvent_key") or item.get("query") or item.get("solvent") or "")
-        if not key:
+        raw_origin = item.get("field_origin")
+        if raw_origin is None or str(raw_origin).strip() == "":
             continue
-        origin = str(item.get("field_origin") or _FIELD_ORIGIN_COMPUTED)
+        origin = str(raw_origin).strip()
+        serves_logd = origin == _FIELD_ORIGIN_COMPUTED
         if origin == _FIELD_ORIGIN_TABULATED:
             origin = _FIELD_ORIGIN_COMPUTED
-        indexed[key] = {**dict(item), "field_origin": origin}
+        elif origin != _FIELD_ORIGIN_COMPUTED:
+            continue
+        contaminant_key = _overlay_contaminant_key(item)
+        solvent_key = _key(
+            item.get("solvent_key") or item.get("query") or item.get("solvent") or ""
+        )
+        if not contaminant_key or not solvent_key:
+            continue
+        indexed[(contaminant_key, solvent_key)] = {
+            **dict(item),
+            "field_origin": origin,
+            "_serves_logd": serves_logd,
+        }
     return indexed
 
 
 def _contaminant_rows(
     solvent: str, contaminants: Sequence[str], regime: str,
-    computed_by_solvent: Mapping[str, Mapping[str, Any]] | None = None,
+    computed_by_pair: Mapping[tuple[str, str], Mapping[str, Any]] | None = None,
 ) -> tuple[list[dict], Optional[float], bool, bool]:
     rows, minimum, all_miscible, all_positive = [], None, True, True
     lookup = _contaminant_lookup()
-    overlay = (computed_by_solvent or {}).get(_key(solvent))
+    solvent_key = _key(solvent)
     for contaminant in contaminants:
+        identity = lookup.get(_key(contaminant))
+        overlay = None
+        if identity is not None and computed_by_pair:
+            overlay = computed_by_pair.get((identity.key, solvent_key))
         miscibility = _miscibility(solvent, contaminant, regime)
         table_logd = _logd(solvent, contaminant)
         computed_value = None
         computed_origin = None
         computed_reference = None
+        serves_logd = False
         if overlay is not None and overlay.get("delta_logd") is not None:
             computed_value = float(overlay["delta_logd"])
             computed_origin = overlay.get("field_origin") or _FIELD_ORIGIN_COMPUTED
             if computed_origin == _FIELD_ORIGIN_TABULATED:
                 computed_origin = _FIELD_ORIGIN_COMPUTED
             computed_reference = overlay.get("reference")
+            serves_logd = bool(overlay.get("_serves_logd"))
         if table_logd is not None:
             logd = table_logd
             origin = _FIELD_ORIGIN_TABULATED
-        elif computed_value is not None:
+        elif computed_value is not None and serves_logd:
             logd = computed_value
             origin = _FIELD_ORIGIN_COMPUTED
         else:
@@ -933,7 +984,7 @@ def _leaching(inputs: dict[str, Any]) -> dict[str, Any]:
         temperature = upper if regime == "t_higher" else min(upper, 25.0)
         contaminants, minimum, miscible, positive = _contaminant_rows(
             solvent, inputs["supported"], regime,
-            computed_by_solvent=_index_computed_deltas(inputs.get("computed_deltas")),
+            computed_by_pair=_index_computed_deltas(inputs.get("computed_deltas")),
         )
         target = _polymer_status(inputs["target"], solvent, temperature, inputs)
         other_status = {
@@ -992,10 +1043,20 @@ def _leaching(inputs: dict[str, Any]) -> dict[str, Any]:
         else "the polymer remains below the active dissolution proxy and does "
         "not exceed the active swelling-window maximum"
     )
+    informed = any(
+        item.get("field_origin") == _FIELD_ORIGIN_COMPUTED
+        for row in rows
+        for item in row.get("contaminants") or []
+    )
     result.update({
         "decision_basis": [
             "all requested supported contaminants are miscible",
-            "all workbook logD values are positive",
+            (
+                "computed Δ logD with field_origin=computed informed missing table cells; "
+                "tabulated logD still wins when present"
+                if informed else
+                "all workbook logD values are positive"
+            ),
             polymer_decision,
         ],
         "warnings": [
