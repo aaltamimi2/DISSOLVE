@@ -2373,3 +2373,129 @@ def compute_delta_logd_batch(
                 "dft_ran": False,
             })
     return base
+
+
+def octanol_water_sanity(
+    smiles: str,
+    literature_logp: float | int | str,
+    *,
+    solvents_dir: str | Path | None = None,
+    artifacts_dir: str | Path | None = None,
+    ln_gamma: Callable[..., float] | None = None,
+) -> dict[str, Any]:
+    """P-4e: octanol/water Δ vs a caller-supplied literature logP.
+
+    A sanity check, never a gate, never ``validated``. Does not start DFT.
+    COSMObase 2002 1-octanol is not an ORCA 24a Kow.
+    """
+    payload: dict[str, Any] = {
+        "success": False,
+        "role": "sanity_check",
+        "is_gate": False,
+        "pair": "1-octanol/water",
+        "dft_ran": False,
+        "literature_logp": None,
+        "computed_logp": None,
+        "residual": None,
+        "validated_ok": False,
+        "validation_status": VALIDATION_NO_BASIS,
+        "error_code": None,
+        "error": None,
+        "route": None,
+        "parameterisation": None,
+    }
+    try:
+        lit = float(literature_logp)
+    except (TypeError, ValueError):
+        payload["error_code"] = "invalid_literature_logp"
+        payload["error"] = "literature logP must be a finite number the caller supplies"
+        return payload
+    if not math.isfinite(lit):
+        payload["error_code"] = "invalid_literature_logp"
+        payload["error"] = "literature logP must be a finite number the caller supplies"
+        return payload
+    payload["literature_logp"] = lit
+
+    artifacts = _artifacts_root(artifacts_dir)
+    octanol_orca = orca_solvent_cosmo_path("1-octanol", artifacts_dir=artifacts)
+    if octanol_orca is None:
+        payload["error_code"] = "octanol_orca_unavailable"
+        payload["error"] = (
+            "1-octanol has no ORCA surface; COSMObase 2002 is not a 24a "
+            "octanol/water sanity"
+        )
+        return payload
+    water_orca = orca_solvent_cosmo_path("water", artifacts_dir=artifacts)
+    if water_orca is None:
+        payload["error_code"] = "water_orca_unavailable"
+        payload["error"] = (
+            "water has no ORCA surface; octanol/water sanity is not served "
+            "from a mixed or missing pair"
+        )
+        return payload
+
+    computed = compute_delta_logd(
+        smiles,
+        ["1-octanol"],
+        reference="water",
+        solvents_dir=solvents_dir,
+        artifacts_dir=artifacts,
+        ln_gamma=ln_gamma,
+    )
+    row = None
+    for item in computed.get("results") or []:
+        if item.get("solvent_key") == "1-octanol":
+            row = item
+            break
+    if row is None and computed.get("results"):
+        row = computed["results"][0]
+    if not computed.get("success") or not row or not row.get("success"):
+        payload["error_code"] = (
+            (row or {}).get("error_code")
+            or computed.get("error_code")
+            or "octanol_water_unavailable"
+        )
+        payload["error"] = (
+            (row or {}).get("error")
+            or computed.get("error")
+            or "octanol/water Δ could not be computed"
+        )
+        payload["route"] = (row or {}).get("route") or computed.get("route")
+        payload["parameterisation"] = (
+            (row or {}).get("parameterisation") or computed.get("parameterisation")
+        )
+        return payload
+    if (
+        row.get("parameterisation") != ORCA_PARAMETERISATION
+        or row.get("route") != ORCA_ROUTE
+    ):
+        payload["error_code"] = "octanol_orca_unavailable"
+        payload["error"] = (
+            "octanol/water sanity requires the ORCA 24a pair; a 2002 COSMObase "
+            "number is not labelled 24a"
+        )
+        payload["route"] = row.get("route")
+        payload["parameterisation"] = row.get("parameterisation")
+        return payload
+    value = row.get("delta_logd")
+    if value is None:
+        payload["error_code"] = "octanol_water_unavailable"
+        payload["error"] = "octanol/water Δ was not served"
+        return payload
+    computed_logp = float(value)
+    payload.update({
+        "success": True,
+        "computed_logp": computed_logp,
+        "residual": computed_logp - lit,
+        "route": row.get("route"),
+        "parameterisation": row.get("parameterisation"),
+        "engine": row.get("engine"),
+        "inchikey": computed.get("inchikey") or row.get("inchikey"),
+        "kow_validation_status": computed.get("validation_status"),
+        "validation_status": VALIDATION_NO_BASIS,
+        "validated_ok": False,
+        "is_gate": False,
+        "role": "sanity_check",
+        "dft_ran": False,
+    })
+    return payload

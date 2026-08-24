@@ -2041,3 +2041,81 @@ def test_p4d_wave1_and_xylene_do_not_start_dft(tmp_path):
     assert water["reused"] is True
     assert water["dft_ran"] is False
 
+
+def test_p4e_octanol_water_sanity_is_not_a_gate_and_never_validated(tmp_path, monkeypatch):
+    pytest.importorskip("rdkit")
+    artifacts, solvents = _dummy_p3_dirs(tmp_path)
+    db = Path(__file__).resolve().parents[1] / "src" / "dissolve" / "data" / "contaminants.duckdb"
+    before = hashlib.sha256(db.read_bytes()).hexdigest()
+
+    def boom(*_a, **_k):
+        raise AssertionError("P-4e must not start DFT")
+
+    monkeypatch.setattr(cl.subprocess, "run", boom)
+    missing = cl.octanol_water_sanity(
+        cl.DEP_SMILES, 0.0,
+        solvents_dir=solvents, artifacts_dir=artifacts, ln_gamma=lambda *a, **k: 0.0,
+    )
+    assert missing["success"] is False
+    assert missing["error_code"] == "octanol_orca_unavailable"
+    assert missing["parameterisation"] != "24a"
+    assert missing["parameterisation"] != cl.ORCA_PARAMETERISATION
+    assert missing["is_gate"] is False
+    assert missing["role"] == "sanity_check"
+    assert missing["validated_ok"] is False
+    assert missing["validation_status"] == cl.VALIDATION_NO_BASIS
+    assert missing["dft_ran"] is False
+
+    _touch(
+        artifacts / "octanol_cosmo.solute.orcacosmo",
+        "route=orca\nparameterisation=24a\n",
+    )
+    zero = cl.octanol_water_sanity(
+        cl.DEP_SMILES, 0.0,
+        solvents_dir=solvents, artifacts_dir=artifacts, ln_gamma=lambda *a, **k: 0.0,
+    )
+    assert zero["success"] is True
+    assert zero["computed_logp"] == 0.0
+    assert zero["residual"] == 0.0
+    assert zero["route"] == cl.ORCA_ROUTE
+    assert zero["parameterisation"] == cl.ORCA_PARAMETERISATION
+    assert zero["is_gate"] is False
+    assert zero["role"] == "sanity_check"
+    assert zero["validated_ok"] is False
+    assert zero["validation_status"] == cl.VALIDATION_NO_BASIS
+    assert zero["dft_ran"] is False
+
+    far = cl.octanol_water_sanity(
+        cl.DEP_SMILES, 12.0,
+        solvents_dir=solvents, artifacts_dir=artifacts, ln_gamma=lambda *a, **k: 0.0,
+    )
+    assert far["success"] is True
+    assert far["residual"] == far["computed_logp"] - 12.0
+    assert far["validated_ok"] is False
+    assert far["is_gate"] is False
+    assert far["validation_status"] == cl.VALIDATION_NO_BASIS
+
+    for bad in (float("nan"), float("inf"), "not-a-number"):
+        refused = cl.octanol_water_sanity(
+            cl.DEP_SMILES, bad,
+            solvents_dir=solvents, artifacts_dir=artifacts, ln_gamma=lambda *a, **k: 0.0,
+        )
+        assert refused["success"] is False
+        assert refused["error_code"] == "invalid_literature_logp"
+        assert refused["validated_ok"] is False
+        assert refused["is_gate"] is False
+
+    xylene = cl.resolve_solvent("xylene", solvents_dir=solvents)
+    assert xylene["success"] is False
+    assert xylene["error_code"] == "solvent_not_available"
+    assert "o-xylene" not in str(xylene).lower()
+
+    coverage = cl.solvent_route_coverage(solvents_dir=solvents)
+    assert coverage["n_orca"] == 5
+    after = hashlib.sha256(db.read_bytes()).hexdigest()
+    assert before == after
+    assert before.startswith("866d769b")
+    body = Path(cl.__file__).read_text().split("def compute_delta_logd", 1)[1]
+    assert "subprocess" not in body
+    assert "generate_conformers(" not in body
+

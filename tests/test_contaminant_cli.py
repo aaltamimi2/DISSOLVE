@@ -215,6 +215,7 @@ def test_logp_is_not_a_persistent_mode_token():
         assert "--file" not in str(error)
         assert "--job" not in str(error)
         assert "--solvent-dft" not in str(error)
+        assert "--literature-logp" not in str(error)
 
 
 def test_logp_absolute_is_refused_and_does_not_persist(tmp_path, monkeypatch):
@@ -433,4 +434,66 @@ def test_logp_solvent_dft_returns_handle_without_blocking(tmp_path, monkeypatch)
     parsed = _parse_contaminant_slash(["logp", "--solvent-dft", "octanol"])
     assert parsed["solvent_dft"] == "octanol"
     assert parsed["smiles"] is None
+
+
+def test_logp_literature_is_a_sanity_check_never_a_gate(tmp_path, monkeypatch):
+    from dissolve import cosmo_logp as cl
+
+    parsed = _parse_contaminant_slash(
+        ["logp", "--smiles", "CCO", "--literature-logp", "-0.31"],
+    )
+    assert parsed["smiles"] == "CCO"
+    assert parsed["literature_logp"] == -0.31
+    try:
+        _parse_contaminant_slash(
+            ["logp", "--solvent-dft", "octanol", "--literature-logp", "1.2"],
+        )
+        raise AssertionError("expected ValueError")
+    except ValueError as error:
+        assert "usage: /contaminant logp" in str(error)
+
+    monkeypatch.setenv("DISSOLVE_COSMO_JOBS_DIR", str(tmp_path / "jobs"))
+    monkeypatch.setenv("DISSOLVE_COSMO_ARTIFACTS_DIR", str(tmp_path / "orca"))
+    monkeypatch.setattr(
+        cl, "submit_solute_dft_job",
+        lambda *a, **k: (_ for _ in ()).throw(RuntimeError("sanity must not start DFT")),
+    )
+    app, buf = _app(tmp_path, monkeypatch)
+    assert app.handle_command(
+        "/contaminant logp --smiles CCO --literature-logp -0.31"
+    ) is False
+    text = buf.getvalue()
+    assert "octanol_orca_unavailable" in text
+    assert "role=sanity_check" in text
+    assert "gate=no" in text
+    assert "validated_ok=no" in text
+    assert "handle=" not in text
+    assert "contaminant_mode" not in app.session
+    assert "dft=not_run" in text
+
+    artifacts = tmp_path / "orca"
+    artifacts.mkdir(parents=True, exist_ok=True)
+    (artifacts / "water_cosmo.solute.orcacosmo").write_text("dummy-water\n")
+    (artifacts / "dep_cosmo.solute.orcacosmo").write_text("dummy-dep\n")
+    (artifacts / "octanol_cosmo.solute.orcacosmo").write_text(
+        "route=orca\nparameterisation=24a\n"
+    )
+    solvents = tmp_path / "cosmo"
+    solvents.mkdir(parents=True, exist_ok=True)
+    (solvents / "1-octanol_c0.cosmo").write_text("dummy-octanol-cb\n")
+    (solvents / "h2o_c0.cosmo").write_text("dummy-water-cb\n")
+    monkeypatch.setattr(cl, "DEFAULT_COSMOBASE_SOLVENTS_DIR", solvents)
+    monkeypatch.setattr(cl, "ln_gamma_infinite_dilution", lambda *a, **k: 0.0)
+    app2, buf2 = _app(tmp_path, monkeypatch)
+    assert app2.handle_command(
+        f"/contaminant logp --smiles {cl.DEP_SMILES} --literature-logp 0.0"
+    ) is False
+    ok = buf2.getvalue()
+    assert "role=sanity_check" in ok
+    assert "gate=no" in ok
+    assert "validated_ok=no" in ok
+    assert "no_validation_basis" in ok
+    assert "handle=" not in ok
+    assert "contaminant_mode" not in app2.session
+    assert "dft=not_run" in ok
 
