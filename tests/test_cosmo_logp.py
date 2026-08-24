@@ -100,6 +100,20 @@ def test_formula_cannot_distinguish_the_isomers_this_pipeline_must_reject():
     assert len(keys) == 3, "the decoys must have distinct InChIKeys or they test nothing"
 
 
+def test_formula_cannot_distinguish_the_dbp_isomers_either():
+    """L1: di-n-butyl phthalate / iso / tere are all C16H22O4. The decoys
+    exist so the InChIKey refuse has a real colliding-formula input."""
+    same = _atoms(*([("C", 0, 0, 0)] * 16 + [("H", 0, 0, 0)] * 22 + [("O", 0, 0, 0)] * 4))
+    assert cl.molecular_formula(same) == "C16H22O4"
+    assert cl.DBP_CAS == "84-74-2"
+    assert cl.DBP_INCHIKEY == "DOIRQSBPFJWKBE-UHFFFAOYSA-N"
+    assert cl.DBP_INCHIKEY != cl.DEP_INCHIKEY
+    assert len(cl.DBP_ISOMER_DECOYS) == 2
+    keys = {cl.DBP_INCHIKEY} | {k for _, k in cl.DBP_ISOMER_DECOYS.values()}
+    assert len(keys) == 3, "the DBP decoys must have distinct InChIKeys or they test nothing"
+    assert cl.DEP_INCHIKEY not in keys
+
+
 # ------------------------------------------------------------- ORCA text i/o
 
 def test_orca_opt_input_names_the_parameterised_level():
@@ -252,6 +266,75 @@ def test_evaluate_anchor_pairs_refuses_a_missing_pair():
     assert not result["accept"]
 
 
+def test_dbp_anchors_are_the_pin_table_deltas_not_deps():
+    """Scoring DBP against DEP's 4.81/2.92/2.41/1.79 would be a silent
+    wrong-molecule accept. The numbers are pin 866d769b solvent_key Δ."""
+    assert cl.anchor_pairs_for("dbp") == cl.DBP_ANCHOR_PAIRS
+    assert cl.anchor_pairs_for("dep") == cl.ANCHOR_PAIRS
+    assert cl.DBP_ANCHOR_PAIRS != cl.ANCHOR_PAIRS
+    assert cl.DBP_ANCHOR_PAIRS == (
+        ("dichloromethane", "water", 7.05),
+        ("cyclohexanol", "water", 5.17),
+        ("hexane", "water", 4.98),
+        ("dichloromethane", "methanol", 2.18),
+    )
+    assert any((a, b) == cl.WATER_FREE_PAIR for a, b, _ in cl.DBP_ANCHOR_PAIRS)
+    with pytest.raises(cl.CosmoError):
+        cl.anchor_pairs_for("dehp")
+    with pytest.raises(cl.CosmoError):
+        cl.anchor_pairs_for("bbp")
+
+
+def test_dep_stage1_numbers_do_not_pass_the_dbp_accept():
+    """Replaying the closed DEP measurement must not satisfy L1."""
+    result = cl.evaluate_anchor_pairs(
+        {
+            "dichloromethane-water": 5.31, "cyclohexanol-water": 3.79,
+            "hexane-water": 3.36, "dichloromethane-methanol": 1.45,
+        },
+        pairs=cl.DBP_ANCHOR_PAIRS,
+    )
+    assert not result["accept"]
+
+
+def test_evaluate_anchor_pairs_accepts_dbp_numbers_on_dbp_pairs():
+    """A correct pipeline landing on the table Δ themselves must accept."""
+    result = cl.evaluate_anchor_pairs(
+        {
+            "dichloromethane-water": 7.05, "cyclohexanol-water": 5.17,
+            "hexane-water": 4.98, "dichloromethane-methanol": 2.18,
+        },
+        pairs=cl.DBP_ANCHOR_PAIRS,
+    )
+    assert result["accept"]
+    assert result["n_passing"] == 4
+    assert result["water_free_passes"]
+
+
+def test_evaluate_anchor_pairs_accepts_the_measured_dbp_stage1_numbers():
+    """Recorded L1 stage-1 Δ, same role as the DEP 5.31/3.79/3.36/1.45 pin."""
+    result = cl.evaluate_anchor_pairs(
+        {
+            "dichloromethane-water": 7.61, "cyclohexanol-water": 5.88,
+            "hexane-water": 5.64, "dichloromethane-methanol": 1.92,
+        },
+        pairs=cl.DBP_ANCHOR_PAIRS,
+    )
+    assert result["accept"]
+    assert result["n_passing"] == 4
+    assert result["water_free_passes"]
+
+
+def test_delta_log_d_reproduces_the_measured_dbp_dcm_water_value():
+    """Stage 1: ln γ of DBP is -2.737 in dichloromethane and 16.039 in water."""
+    value = cl.delta_log_d(
+        -2.737, 16.039,
+        volume_a=cl.MOLAR_VOLUMES_CM3["dichloromethane"],
+        volume_b=cl.MOLAR_VOLUMES_CM3["water"],
+    )
+    assert value == pytest.approx(7.61, abs=0.01)
+
+
 def test_chloroform_exclusion_is_recorded_with_a_mechanism():
     """The exclusion must be justified by a stated mechanism, not by which
     solvent the current fit happens to dislike."""
@@ -305,6 +388,40 @@ def test_identity_check_rejects_a_molecule_that_is_not_the_target(tmp_path):
         )
 
 
+@pytest.mark.skipif(not HAS_COSMOBASE, reason="COSMObase .cosmo library not present")
+def test_parses_the_real_dbp_cosmo_file_to_the_right_formula():
+    atoms = cl.parse_cosmo_geometry(COSMOBASE / "dibutylphthalate_c0.cosmo")
+    assert len(atoms) == 42
+    assert cl.molecular_formula(atoms) == "C16H22O4"
+
+
+@pytest.mark.skipif(not (HAS_COSMOBASE and HAS_OBABEL), reason="needs COSMObase and obabel")
+def test_identity_of_the_real_dbp_file_binds_to_the_expected_inchikey(tmp_path):
+    found = cl.verify_identity(
+        COSMOBASE / "dibutylphthalate_c0.cosmo", cl.DBP_INCHIKEY, scratch=tmp_path
+    )
+    assert found == cl.DBP_INCHIKEY
+
+
+@pytest.mark.skipif(not (HAS_COSMOBASE and HAS_OBABEL), reason="needs COSMObase and obabel")
+def test_dbp_identity_refuses_the_terephthalate_decoy(tmp_path):
+    """Must-refuse: formula-colliding 1,4-isomer key is not this structure."""
+    with pytest.raises(cl.CosmoIdentityError):
+        cl.verify_identity(
+            COSMOBASE / "dibutylphthalate_c0.cosmo",
+            cl.DBP_ISOMER_DECOYS["di-n-butyl terephthalate"][1],
+            scratch=tmp_path,
+        )
+
+
+@pytest.mark.skipif(not (HAS_COSMOBASE and HAS_OBABEL), reason="needs COSMObase and obabel")
+def test_dbp_file_is_not_dep(tmp_path):
+    with pytest.raises(cl.CosmoIdentityError):
+        cl.verify_identity(
+            COSMOBASE / "dibutylphthalate_c0.cosmo", cl.DEP_INCHIKEY, scratch=tmp_path
+        )
+
+
 @pytest.mark.skipif(not ARTIFACTS.is_dir(), reason="rescued ORCA artifacts not present")
 def test_rescued_orcacosmo_files_are_all_present():
     """The stage-1 and stage-2 records cite these exact files."""
@@ -321,6 +438,62 @@ def test_conformer_generation_produces_distinct_geometries_of_one_molecule():
     energies = [e for _, e in confs]
     assert energies == sorted(energies), "returned lowest-energy first"
     assert energies[0] == pytest.approx(0.0)
+
+
+def test_dbp_conformer_generation_is_one_molecule_of_42_atoms():
+    pytest.importorskip("rdkit")
+    confs = cl.generate_conformers(cl.DBP_SMILES, n_embed=20, seed=12345)
+    assert len(confs) >= 1
+    assert all(len(atoms) == 42 for atoms, _ in confs)
+    assert confs[0][1] == pytest.approx(0.0)
+
+
+def test_tea_separation_contaminants_do_not_import_cosmo_logp():
+    """Hold-to 4: no planner/TEA bind of a computed logD."""
+    src = Path(__file__).resolve().parents[1] / "src" / "dissolve"
+    for name in ("tea.py", "separation.py", "contaminants.py"):
+        text = (src / name).read_text()
+        assert "cosmo_logp" not in text
+
+
+def test_leftover_cl1_banana_still_invalid_and_accept_test_2_unchanged():
+    """L1 must not reopen leftovers. Same refuse / same accept-test-2 bits."""
+    from dissolve import contaminants, separation
+    from dissolve.contracts import parse_tool_result
+
+    dehp = "di-(2-ethylhexyl) phthalate (DEHP)"
+    junk = parse_tool_result(separation.plan_multistage_separation(
+        ["LDPE", "PP"], top_k_routes=1, breadth=1, contaminant_mode="banana",
+    ))["data"]
+    assert junk["success"] is False
+    assert junk["error_code"] == "invalid_contaminant_mode"
+
+    fail = contaminants.evaluate_contaminant_at_feed_state(
+        "strap", "LDPE", ["PET", "EVOH"], [dehp], solvents=["toluene"],
+    )
+    passed = contaminants.evaluate_contaminant_at_feed_state(
+        "strap", "LDPE", ["EVOH"], [dehp], solvents=["toluene"],
+    )
+    fail_row = next(
+        r for r in fail["candidate_solvents"] if r["solvent"].casefold() == "toluene"
+    )
+    pass_row = next(
+        r for r in passed["candidate_solvents"] if r["solvent"].casefold() == "toluene"
+    )
+    assert fail["success"] is True
+    assert fail_row.get("passes") is False
+    assert passed["success"] is True
+    assert pass_row.get("passes") is True
+
+
+def test_no_dft_override_knobs_on_the_parameterised_level():
+    """Hold-to 2: a different level still yields a σ-profile and nothing raises."""
+    text = Path(cl.__file__).read_text()
+    assert "dftfunc" not in text.lower()
+    assert "dftbas" not in text.lower()
+    assert cl.DFT_FUNCTIONAL == "BP86"
+    assert cl.DFT_BASIS_OPT == "def2-TZVP(-f)"
+    assert cl.DFT_BASIS_SP == "def2-TZVPD"
 
 
 def test_dependency_errors_name_what_is_missing_and_how_to_get_it():
