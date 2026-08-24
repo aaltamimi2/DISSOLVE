@@ -169,6 +169,25 @@ def test_logp_one_shot_parses_smiles_and_does_not_persist_a_mode(tmp_path, monke
     assert "dft=not_run" in text
     assert "n_rotatable_bonds=" in text
     assert "invalid_smiles" not in text
+    assert "table=33" in text
+    assert "orca=5/33" in text
+
+
+def test_logp_solvents_report_routes_and_refuse_a_cousin_substitute(tmp_path, monkeypatch):
+    app, buf = _app(tmp_path, monkeypatch)
+    assert app.handle_command(
+        "/contaminant logp --smiles CCOC(=O)c1ccccc1C(=O)OCC "
+        "--solvents toluene,xylene,water"
+    ) is False
+    assert "contaminant_mode" not in app.session
+    text = buf.getvalue()
+    assert "FLKPEMZONWLCSK-UHFFFAOYSA-N" in text
+    assert "dft=not_run" in text
+    assert "solvent_not_available" in text
+    assert "solvent=xylene" in text
+    assert "water" in text
+    assert "24a" in text
+    assert "delta_logd=" not in text.lower()
 
 
 def test_logp_invalid_smiles_refuses_without_writing_mode(tmp_path, monkeypatch):

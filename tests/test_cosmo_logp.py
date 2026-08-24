@@ -767,6 +767,62 @@ def test_ingest_smiles_binds_inchikey_and_does_not_run_dft():
     assert "subprocess" not in body
 
 
+def test_table_solvent_set_is_thirty_three_and_orca_route_is_five():
+    assert len(cl.TABLE_SOLVENT_KEYS) == 33
+    assert len(cl.ORCA_ROUTE_SOLVENTS) == 5
+    assert cl.ORCA_ROUTE_SOLVENTS <= cl.TABLE_SOLVENT_KEYS
+    assert "xylene" in cl.TABLE_SOLVENT_KEYS
+    assert "o-xylene" in cl.TABLE_SOLVENT_KEYS
+    assert "xylene" not in cl.ORCA_ROUTE_SOLVENTS
+    coverage = cl.solvent_route_coverage(solvents_dir=Path("/tmp/dissolve-missing-cosmobase"))
+    assert coverage["n_table"] == 33
+    assert coverage["n_orca"] == 5
+    assert coverage["n_orca"] != 9
+    assert coverage["dft_ran"] is False
+    assert coverage["orca_parameterisation"] == "24a"
+    assert coverage["cosmobase_parameterisation"] == "2002"
+
+
+def test_xylene_does_not_silently_become_o_xylene(tmp_path):
+    (tmp_path / "1,2-dimethylbenzene_c0.cosmo").write_text("pin\n")
+    (tmp_path / "toluene_c0.cosmo").write_text("pin\n")
+    xylene = cl.resolve_solvent("xylene", solvents_dir=tmp_path)
+    isomer = cl.resolve_solvent("o-xylene", solvents_dir=tmp_path)
+    toluene = cl.resolve_solvent("toluene", solvents_dir=tmp_path)
+    typo = cl.resolve_solvent("toluenee", solvents_dir=tmp_path)
+    assert xylene["success"] is False
+    assert xylene["error_code"] == "solvent_not_available"
+    assert xylene["dft_ran"] is False
+    assert isomer["success"] is True
+    assert isomer["solvent_key"] == "o-xylene"
+    assert isomer["cosmobase"]["parameterisation"] == "2002"
+    assert isomer["cosmobase"]["engine"] == "turbomole"
+    assert isomer["orca"]["available"] is False
+    assert toluene["success"] is True
+    assert toluene["orca"]["available"] is False
+    assert typo["error_code"] == "solvent_not_available"
+    water = cl.resolve_solvent("water", solvents_dir=tmp_path)
+    assert water["orca"]["available"] is True
+    assert water["orca"]["parameterisation"] == "24a"
+    assert water["cosmobase"]["available"] is False
+
+
+@pytest.mark.skipif(not HAS_COSMOBASE, reason="COSMObase .cosmo library not present")
+def test_real_cosmobase_covers_thirty_two_table_solvents_and_not_xylene():
+    coverage = cl.solvent_route_coverage(solvents_dir=COSMOBASE)
+    assert coverage["n_table"] == 33
+    assert coverage["n_orca"] == 5
+    assert coverage["n_cosmobase"] == 32
+    assert coverage["unavailable"] == ["xylene"]
+    dcm = cl.resolve_solvent("DCM", solvents_dir=COSMOBASE)
+    assert dcm["success"] is True
+    assert dcm["solvent_key"] == "dichloromethane"
+    assert dcm["orca"]["available"] is True
+    assert dcm["cosmobase"]["available"] is True
+    assert dcm["cosmobase"]["parameterisation"] == "2002"
+    assert dcm["cosmobase"]["parameterisation"] != "24a"
+
+
 def test_no_dft_override_knobs_on_the_parameterised_level():
     """Hold-to 2: a different level still yields a σ-profile and nothing raises."""
     text = Path(cl.__file__).read_text()

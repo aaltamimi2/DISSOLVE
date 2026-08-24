@@ -70,7 +70,9 @@ def _parse_solvents_slash(tokens: Sequence[str]) -> dict[str, Any] | None:
 
 
 _CONTAMINANT_USAGE = "usage: /contaminant [off | leaching | strap | swing | compare]"
-_LOGP_USAGE = "usage: /contaminant logp --smiles <SMILES>"
+_LOGP_USAGE = (
+    "usage: /contaminant logp --smiles <SMILES> [--solvents <name,name>]"
+)
 _CONTAMINANT_COMPARE_USAGE = (
     "usage: /contaminant compare  "
     "(needs a prior contaminant screen with target_polymer and contaminants)"
@@ -86,6 +88,7 @@ def _parse_contaminant_logp(tokens: Sequence[str]) -> dict[str, Any]:
     """One-shot /contaminant logp. Not a persistent contaminant_mode."""
     args = [str(token) for token in tokens[1:]]
     smiles: str | None = None
+    solvents_raw: str | None = None
     index = 0
     while index < len(args):
         if args[index] == "--smiles":
@@ -94,10 +97,19 @@ def _parse_contaminant_logp(tokens: Sequence[str]) -> dict[str, Any]:
             smiles = args[index + 1]
             index += 2
             continue
+        if args[index] == "--solvents":
+            if index + 1 >= len(args):
+                raise ValueError(_LOGP_USAGE)
+            solvents_raw = args[index + 1]
+            index += 2
+            continue
         raise ValueError(_LOGP_USAGE)
     if not smiles:
         raise ValueError(_LOGP_USAGE)
-    return {"logp": True, "smiles": smiles}
+    solvents = [
+        item.strip() for item in (solvents_raw or "").split(",") if item.strip()
+    ]
+    return {"logp": True, "smiles": smiles, "solvents": solvents}
 
 
 def _parse_contaminant_slash(tokens: Sequence[str]) -> dict[str, Any] | None:
@@ -1350,7 +1362,9 @@ class CliApp:
             self._run_contaminant_compare()
             return
         if stored and stored.get("logp"):
-            self._run_contaminant_logp(str(stored["smiles"]))
+            self._run_contaminant_logp(
+                str(stored["smiles"]), solvents=list(stored.get("solvents") or []),
+            )
             return
         if stored is None:
             current = self.session.get("contaminant_mode")
@@ -1373,22 +1387,51 @@ class CliApp:
         self._save()
         self.console.print(_format_contaminant_default(stored, origin="session"))
 
-    def _run_contaminant_logp(self, smiles: str) -> None:
-        """P-1 one-shot: parse SMILES, print InChIKey and cost proxies, do not run DFT."""
+    def _run_contaminant_logp(
+        self, smiles: str, *, solvents: Sequence[str] | None = None,
+    ) -> None:
+        """P-1 intake + P-2 solvent routes. No DFT. No silent route fallback."""
         from dissolve import cosmo_logp as cl
 
         result = cl.ingest_smiles(smiles)
         if not result["success"]:
             self.console.print(f"[red]{result['error_code']}[/]")
             return
+        coverage = cl.solvent_route_coverage()
         self.console.print(
             "logp intake  "
             f"inchikey={result['inchikey']}  "
             f"n_atoms={result['n_atoms']}  "
             f"n_rotatable_bonds={result['n_rotatable_bonds']}  "
             "dft=not_run  "
-            "reference=water (not computed)"
+            "reference=water (not computed)  "
+            f"coverage table={coverage['n_table']} "
+            f"orca={coverage['n_orca']}/{coverage['n_table']} "
+            f"cosmobase={coverage['n_cosmobase']}/{coverage['n_table']} "
+            f"orca_param={coverage['orca_parameterisation']} "
+            f"cosmobase_param={coverage['cosmobase_parameterisation']}"
         )
+        for row in cl.resolve_solvents(solvents or []):
+            if not row["success"]:
+                self.console.print(
+                    f"[red]{row['error_code']}[/]  solvent={row['query']}"
+                )
+                continue
+            orca = "yes" if row["orca"]["available"] else "no"
+            cosmo = "yes" if row["cosmobase"]["available"] else "no"
+            param = (
+                row["orca"]["parameterisation"]
+                if row["orca"]["available"]
+                else row["cosmobase"]["parameterisation"]
+            )
+            self.console.print(
+                "solvent  "
+                f"{row['solvent_key']}  "
+                f"orca={orca}  "
+                f"cosmobase={cosmo}  "
+                f"param={param}  "
+                "dft=not_run"
+            )
 
     def _pick_contaminant_mode(
         self,
