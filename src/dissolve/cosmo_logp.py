@@ -1091,30 +1091,46 @@ def _anchor_pairs_for_inchikey(inchikey: str) -> tuple[tuple[str, str, float], .
     return None
 
 
+def _orca_solvent_cosmo_candidates(
+    key: str, *, artifacts_dir: str | Path | None = None,
+) -> list[Path]:
+    """Every path ``orca_solvent_cosmo_path`` will accept. Discard must match."""
+    stem = ORCA_SOLVENT_FILE_STEMS.get(key)
+    if not stem:
+        return []
+    root = Path(artifacts_dir) if artifacts_dir is not None else DEFAULT_ORCA_ARTIFACTS_DIR
+    return [
+        root / f"{stem}_cosmo.solute.orcacosmo",
+        root / f"{stem}_cosmo.solvent.orcacosmo",
+    ]
+
+
 def orca_solvent_cosmo_path(
     key: str, *, artifacts_dir: str | Path | None = None,
 ) -> Path | None:
-    stem = ORCA_SOLVENT_FILE_STEMS.get(key)
-    if not stem:
-        return None
-    root = Path(artifacts_dir) if artifacts_dir is not None else DEFAULT_ORCA_ARTIFACTS_DIR
-    for name in (f"{stem}_cosmo.solute.orcacosmo", f"{stem}_cosmo.solvent.orcacosmo"):
-        path = root / name
+    for path in _orca_solvent_cosmo_candidates(key, artifacts_dir=artifacts_dir):
         if path.is_file():
             return path
     return None
 
 
-def orca_solute_cosmo_path(
+def _orca_solute_cosmo_candidates(
     inchikey: str, *, artifacts_dir: str | Path | None = None,
-) -> Path | None:
+) -> list[Path]:
+    """Every path ``orca_solute_cosmo_path`` will accept. Discard must match."""
     root = Path(artifacts_dir) if artifacts_dir is not None else DEFAULT_ORCA_ARTIFACTS_DIR
     stem = SOLUTE_ORCA_STEM_BY_INCHIKEY.get(inchikey)
     candidates: list[Path] = []
     if stem:
         candidates.append(root / f"{stem}_cosmo.solute.orcacosmo")
     candidates.append(root / f"{inchikey}_cosmo.solute.orcacosmo")
-    for path in candidates:
+    return candidates
+
+
+def orca_solute_cosmo_path(
+    inchikey: str, *, artifacts_dir: str | Path | None = None,
+) -> Path | None:
+    for path in _orca_solute_cosmo_candidates(inchikey, artifacts_dir=artifacts_dir):
         if path.is_file():
             return path
     return None
@@ -1397,28 +1413,38 @@ def _canonical_solute_orcacosmo(inchikey: str, artifacts_dir: str | Path) -> Pat
     return Path(artifacts_dir) / f"{inchikey}_cosmo.solute.orcacosmo"
 
 
+def _unlink_orcacosmo_files(paths: Sequence[Path | str | None]) -> None:
+    seen: set[Path] = set()
+    for item in paths:
+        if item is None:
+            continue
+        path = Path(item)
+        try:
+            resolved = path.resolve()
+        except OSError:
+            resolved = path
+        if resolved in seen:
+            continue
+        seen.add(resolved)
+        try:
+            path.unlink(missing_ok=True)
+        except OSError:
+            pass
+
+
 def _discard_unverified_solute_orcacosmo(
     inchikey: str,
     artifacts_dir: str | Path,
     dest: str | Path | None = None,
 ) -> None:
-    """Identity refuse must not leave a canonical surface the next submit can reuse."""
-    targets = [_canonical_solute_orcacosmo(inchikey, artifacts_dir)]
+    """Identity refuse must not leave a surface the next submit can reuse as 24a.
+
+    Discard every path ``orca_solute_cosmo_path`` will accept, plus the runner dest.
+    """
+    targets = list(_orca_solute_cosmo_candidates(inchikey, artifacts_dir=artifacts_dir))
     if dest is not None:
         targets.append(Path(dest))
-    seen: set[Path] = set()
-    for path in targets:
-        try:
-            key = path.resolve()
-        except OSError:
-            key = path
-        if key in seen:
-            continue
-        seen.add(key)
-        try:
-            path.unlink(missing_ok=True)
-        except OSError:
-            pass
+    _unlink_orcacosmo_files(targets)
 
 
 def _classify_job_solvents(
@@ -1772,28 +1798,14 @@ def _discard_unverified_solvent_orcacosmo(
     artifacts_dir: str | Path,
     dest: str | Path | None = None,
 ) -> None:
-    """Identity refuse must not leave a canonical surface the next submit can reuse."""
-    targets: list[Path] = []
-    stem = ORCA_SOLVENT_FILE_STEMS.get(key)
-    if stem:
-        root = Path(artifacts_dir)
-        targets.append(root / f"{stem}_cosmo.solute.orcacosmo")
-        targets.append(root / f"{stem}_cosmo.solvent.orcacosmo")
+    """Identity refuse must not leave a surface the next submit can reuse as 24a.
+
+    Discard every path ``orca_solvent_cosmo_path`` will accept, plus the runner dest.
+    """
+    targets = list(_orca_solvent_cosmo_candidates(key, artifacts_dir=artifacts_dir))
     if dest is not None:
         targets.append(Path(dest))
-    seen: set[Path] = set()
-    for path in targets:
-        try:
-            resolved = path.resolve()
-        except OSError:
-            resolved = path
-        if resolved in seen:
-            continue
-        seen.add(resolved)
-        try:
-            path.unlink(missing_ok=True)
-        except OSError:
-            pass
+    _unlink_orcacosmo_files(targets)
 
 
 def _stamp_orca_24a_surface(path: Path) -> Path:
@@ -1933,8 +1945,8 @@ def _run_solvent_dft_worker(
         record["error"] = str(exc)
         record["result"] = None
         record["dft_ran"] = bool(record.get("dft_ran"))
-        record["solvent_orcacosmo"] = None
         record["success"] = False
+        record["solvent_orcacosmo"] = None
     except CosmoDependencyError as exc:
         record["status"] = "failed"
         record["error_code"] = "orca_unavailable"
@@ -2376,3 +2388,129 @@ def compute_delta_logd_batch(
                 "dft_ran": False,
             })
     return base
+
+
+def octanol_water_sanity(
+    smiles: str,
+    literature_logp: float | int | str,
+    *,
+    solvents_dir: str | Path | None = None,
+    artifacts_dir: str | Path | None = None,
+    ln_gamma: Callable[..., float] | None = None,
+) -> dict[str, Any]:
+    """P-4e: octanol/water Δ vs a caller-supplied literature logP.
+
+    A sanity check, never a gate, never ``validated``. Does not start DFT.
+    COSMObase 2002 1-octanol is not an ORCA 24a Kow.
+    """
+    payload: dict[str, Any] = {
+        "success": False,
+        "role": "sanity_check",
+        "is_gate": False,
+        "pair": "1-octanol/water",
+        "dft_ran": False,
+        "literature_logp": None,
+        "computed_logp": None,
+        "residual": None,
+        "validated_ok": False,
+        "validation_status": VALIDATION_NO_BASIS,
+        "error_code": None,
+        "error": None,
+        "route": None,
+        "parameterisation": None,
+    }
+    try:
+        lit = float(literature_logp)
+    except (TypeError, ValueError):
+        payload["error_code"] = "invalid_literature_logp"
+        payload["error"] = "literature logP must be a finite number the caller supplies"
+        return payload
+    if not math.isfinite(lit):
+        payload["error_code"] = "invalid_literature_logp"
+        payload["error"] = "literature logP must be a finite number the caller supplies"
+        return payload
+    payload["literature_logp"] = lit
+
+    artifacts = _artifacts_root(artifacts_dir)
+    octanol_orca = orca_solvent_cosmo_path("1-octanol", artifacts_dir=artifacts)
+    if octanol_orca is None:
+        payload["error_code"] = "octanol_orca_unavailable"
+        payload["error"] = (
+            "1-octanol has no ORCA surface; COSMObase 2002 is not a 24a "
+            "octanol/water sanity"
+        )
+        return payload
+    water_orca = orca_solvent_cosmo_path("water", artifacts_dir=artifacts)
+    if water_orca is None:
+        payload["error_code"] = "water_orca_unavailable"
+        payload["error"] = (
+            "water has no ORCA surface; octanol/water sanity is not served "
+            "from a mixed or missing pair"
+        )
+        return payload
+
+    computed = compute_delta_logd(
+        smiles,
+        ["1-octanol"],
+        reference="water",
+        solvents_dir=solvents_dir,
+        artifacts_dir=artifacts,
+        ln_gamma=ln_gamma,
+    )
+    row = None
+    for item in computed.get("results") or []:
+        if item.get("solvent_key") == "1-octanol":
+            row = item
+            break
+    if row is None and computed.get("results"):
+        row = computed["results"][0]
+    if not computed.get("success") or not row or not row.get("success"):
+        payload["error_code"] = (
+            (row or {}).get("error_code")
+            or computed.get("error_code")
+            or "octanol_water_unavailable"
+        )
+        payload["error"] = (
+            (row or {}).get("error")
+            or computed.get("error")
+            or "octanol/water Δ could not be computed"
+        )
+        payload["route"] = (row or {}).get("route") or computed.get("route")
+        payload["parameterisation"] = (
+            (row or {}).get("parameterisation") or computed.get("parameterisation")
+        )
+        return payload
+    if (
+        row.get("parameterisation") != ORCA_PARAMETERISATION
+        or row.get("route") != ORCA_ROUTE
+    ):
+        payload["error_code"] = "octanol_orca_unavailable"
+        payload["error"] = (
+            "octanol/water sanity requires the ORCA 24a pair; a 2002 COSMObase "
+            "number is not labelled 24a"
+        )
+        payload["route"] = row.get("route")
+        payload["parameterisation"] = row.get("parameterisation")
+        return payload
+    value = row.get("delta_logd")
+    if value is None:
+        payload["error_code"] = "octanol_water_unavailable"
+        payload["error"] = "octanol/water Δ was not served"
+        return payload
+    computed_logp = float(value)
+    payload.update({
+        "success": True,
+        "computed_logp": computed_logp,
+        "residual": computed_logp - lit,
+        "route": row.get("route"),
+        "parameterisation": row.get("parameterisation"),
+        "engine": row.get("engine"),
+        "inchikey": computed.get("inchikey") or row.get("inchikey"),
+        "kow_validation_status": computed.get("validation_status"),
+        "validation_status": VALIDATION_NO_BASIS,
+        "validated_ok": False,
+        "is_gate": False,
+        "role": "sanity_check",
+        "dft_ran": False,
+    })
+    return payload

@@ -73,7 +73,8 @@ _CONTAMINANT_USAGE = "usage: /contaminant [off | leaching | strap | swing | comp
 _LOGP_USAGE = (
     "usage: /contaminant logp (--smiles <SMILES> | --file <path> | --job <handle> "
     "| --solvent-dft <name>) "
-    "[--solvents <name,name>] [--reference <name>] [--absolute]"
+    "[--solvents <name,name>] [--reference <name>] [--absolute] "
+    "[--literature-logp <float>]"
 )
 _CONTAMINANT_COMPARE_USAGE = (
     "usage: /contaminant compare  "
@@ -96,6 +97,7 @@ def _parse_contaminant_logp(tokens: Sequence[str]) -> dict[str, Any]:
     solvents_raw: str | None = None
     reference: str | None = None
     absolute = False
+    literature_logp: float | None = None
     index = 0
     while index < len(args):
         if args[index] == "--smiles":
@@ -138,8 +140,19 @@ def _parse_contaminant_logp(tokens: Sequence[str]) -> dict[str, Any]:
             absolute = True
             index += 1
             continue
+        if args[index] == "--literature-logp":
+            if index + 1 >= len(args):
+                raise ValueError(_LOGP_USAGE)
+            try:
+                literature_logp = float(args[index + 1])
+            except ValueError:
+                raise ValueError(_LOGP_USAGE) from None
+            index += 2
+            continue
         raise ValueError(_LOGP_USAGE)
     if sum(bool(item) for item in (smiles, file_path, job_handle, solvent_dft)) != 1:
+        raise ValueError(_LOGP_USAGE)
+    if literature_logp is not None and not smiles:
         raise ValueError(_LOGP_USAGE)
     solvents = [
         item.strip() for item in (solvents_raw or "").split(",") if item.strip()
@@ -153,6 +166,7 @@ def _parse_contaminant_logp(tokens: Sequence[str]) -> dict[str, Any]:
         "solvents": solvents,
         "reference": reference,
         "absolute": absolute,
+        "literature_logp": literature_logp,
     }
 
 
@@ -1414,6 +1428,7 @@ class CliApp:
                 solvents=list(stored.get("solvents") or []),
                 reference=stored.get("reference"),
                 absolute=bool(stored.get("absolute")),
+                literature_logp=stored.get("literature_logp"),
             )
             return
         if stored is None:
@@ -1442,8 +1457,9 @@ class CliApp:
         job: str | None = None, solvent_dft: str | None = None,
         solvents: Sequence[str] | None = None,
         reference: str | None = None, absolute: bool = False,
+        literature_logp: float | None = None,
     ) -> None:
-        """P-1–P-4d: intake, batch, solute job, or wave-0 solvent library job. Submit does not block."""
+        """P-1–P-4e: intake, batch, job, wave-0 solvent library, or octanol/water sanity."""
         from dissolve import cosmo_logp as cl
 
         if job:
@@ -1483,6 +1499,9 @@ class CliApp:
             f"orca_param={coverage['orca_parameterisation']} "
             f"cosmobase_param={coverage['cosmobase_parameterisation']}"
         )
+        if literature_logp is not None:
+            self._emit_logp_sanity(cl.octanol_water_sanity(smiles, literature_logp))
+            return
         surface = cl.orca_solute_cosmo_path(result["inchikey"])
         if surface is None:
             submitted = cl.submit_solute_dft_job(
@@ -1615,6 +1634,26 @@ class CliApp:
                 f"{dft_token}"
             )
 
+    def _emit_logp_sanity(self, record: dict[str, Any]) -> None:
+        """P-4e: literature Kow comparison. Never a gate, never validated."""
+        line = (
+            "sanity octanol/water  "
+            f"literature={record.get('literature_logp')}  "
+            f"computed={record.get('computed_logp')}  "
+            f"residual={record.get('residual')}  "
+            f"role={record.get('role') or 'sanity_check'}  "
+            "gate=no  "
+            f"validation_status={record.get('validation_status')}  "
+            "validated_ok=no  "
+            f"route={record.get('route')}  "
+            f"param={record.get('parameterisation')}  "
+            "dft=not_run"
+        )
+        self.console.print(line)
+        if record.get("error_code"):
+            self.console.print(
+                f"[red]{record['error_code']}[/]  role=sanity_check  gate=no"
+            )
 
     def _run_contaminant_logp_batch(
         self, file: str, *, solvents: Sequence[str] | None = None,
@@ -1688,6 +1727,7 @@ class CliApp:
                     "dft=not_run"
                 )
 
+
     def _pick_contaminant_mode(
         self,
         current_mode: str,
@@ -1705,6 +1745,7 @@ class CliApp:
         if chosen in {"off", "leaching", "strap"}:
             return {"mode": chosen}
         return None
+
 
     def _run_contaminant_compare(self) -> None:
         prior = _last_contaminant_screen(self.session)

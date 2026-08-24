@@ -1949,6 +1949,9 @@ def test_p4d_identity_changed_refuses_and_does_not_serve_delta(tmp_path):
         )
         dest = Path(ctx["artifacts_dir"]) / "octanol_cosmo.solute.orcacosmo"
         dest.write_text("dummy-surface\n")
+        (Path(ctx["artifacts_dir"]) / "octanol_cosmo.solvent.orcacosmo").write_text(
+            "dummy-solvent-surface\n"
+        )
         return {"orcacosmo": dest, "opt_xyz": xyz}
 
     record = cl.submit_solvent_dft_job(
@@ -1972,7 +1975,7 @@ def test_p4d_identity_changed_refuses_and_does_not_serve_delta(tmp_path):
 
     def refuse_reuse(ctx):
         calls.append(ctx)
-        raise RuntimeError("failed-identity leftover must not bind the artifact store")
+        raise RuntimeError("failed-identity leftover must not bind the solvent library")
 
     second = cl.submit_solvent_dft_job(
         "1-octanol",
@@ -1981,13 +1984,147 @@ def test_p4d_identity_changed_refuses_and_does_not_serve_delta(tmp_path):
         runner=refuse_reuse,
         background=False,
     )
-    assert calls, "second submit must not reuse a leftover surface"
+    assert calls, "second submit must not reuse a leftover 1-octanol surface"
     assert second.get("reused") is not True
-    computed = cl.compute_delta_logd(
+    assert second.get("status") != "done"
+    assert second.get("error_code") == "solvent_dft_failed"
+    still_2002 = cl.compute_delta_logd(
         cl.DEP_SMILES, ["1-octanol"],
         solvents_dir=solvents, artifacts_dir=artifacts, ln_gamma=lambda *a, **k: 0.5,
     )
-    row = computed["results"][0]
+    row = still_2002["results"][0]
+    assert row["route"] == cl.COSMOBASE_ROUTE
+    assert row["parameterisation"] == "2002"
+    assert row["parameterisation"] != "24a"
+    sanity = cl.octanol_water_sanity(
+        cl.DEP_SMILES, 0.0,
+        solvents_dir=solvents, artifacts_dir=artifacts, ln_gamma=lambda *a, **k: 0.5,
+    )
+    assert sanity["success"] is False
+    assert sanity["error_code"] == "octanol_orca_unavailable"
+    assert sanity.get("parameterisation") != "24a"
+    assert sanity.get("parameterisation") != cl.ORCA_PARAMETERISATION
+
+
+def test_identity_changed_discards_solvent_lookup_alias_leftover(tmp_path):
+    """Lookup-alias leftover after identity_changed must not bind as ORCA 24a."""
+    pytest.importorskip("rdkit")
+    artifacts, solvents = _dummy_p3_dirs(tmp_path)
+    jobs = tmp_path / "jobs"
+    alias = artifacts / "octanol_cosmo.solvent.orcacosmo"
+
+    def plant_alias_then_refuse(ctx):
+        Path(ctx["artifacts_dir"]).mkdir(parents=True, exist_ok=True)
+        alias.write_text("dummy-lookup-alias\n")
+        raise cl.CosmoIdentityError("identity_changed")
+
+    record = cl.submit_solvent_dft_job(
+        "1-octanol",
+        jobs_dir=jobs,
+        artifacts_dir=artifacts,
+        runner=plant_alias_then_refuse,
+        background=False,
+    )
+    assert record["status"] == "failed"
+    assert record["error_code"] == "identity_changed"
+    assert not alias.is_file()
+    assert not (artifacts / "octanol_cosmo.solute.orcacosmo").is_file()
+    assert cl.orca_solvent_cosmo_path("1-octanol", artifacts_dir=artifacts) is None
+
+    calls: list[object] = []
+
+    def never_runner(ctx):
+        calls.append(ctx)
+        raise RuntimeError("lookup-alias leftover must not bind as 24a reuse")
+
+    second = cl.submit_solvent_dft_job(
+        "1-octanol",
+        jobs_dir=jobs,
+        artifacts_dir=artifacts,
+        runner=never_runner,
+        background=False,
+    )
+    assert calls, "second submit must not reuse a lookup-alias leftover"
+    assert second.get("reused") is not True
+    assert second.get("status") != "done"
+    assert second.get("error_code") == "solvent_dft_failed"
+    still_2002 = cl.compute_delta_logd(
+        cl.DEP_SMILES, ["1-octanol"],
+        solvents_dir=solvents, artifacts_dir=artifacts, ln_gamma=lambda *a, **k: 0.5,
+    )
+    row = still_2002["results"][0]
+    assert row["route"] == cl.COSMOBASE_ROUTE
+    assert row["parameterisation"] == "2002"
+    assert row["parameterisation"] != "24a"
+    sanity = cl.octanol_water_sanity(
+        cl.DEP_SMILES, 0.0,
+        solvents_dir=solvents, artifacts_dir=artifacts, ln_gamma=lambda *a, **k: 0.5,
+    )
+    assert sanity["success"] is False
+    assert sanity["error_code"] == "octanol_orca_unavailable"
+    assert sanity.get("parameterisation") != "24a"
+    assert sanity.get("route") != cl.ORCA_ROUTE
+
+
+def test_identity_changed_discards_solute_stem_alias_leftover(tmp_path):
+    """Stage-1 stem alias leftover after identity_changed must not bind as reuse."""
+    pytest.importorskip("rdkit")
+    artifacts, solvents = _dummy_p3_dirs(tmp_path)
+    (artifacts / "dep_cosmo.solute.orcacosmo").unlink()
+    jobs = tmp_path / "jobs"
+    stem_alias = artifacts / "dep_cosmo.solute.orcacosmo"
+
+    def plant_stem_then_refuse(ctx):
+        Path(ctx["artifacts_dir"]).mkdir(parents=True, exist_ok=True)
+        stem_alias.write_text("dummy-stem-alias\n")
+        raise cl.CosmoIdentityError("identity_changed")
+
+    record = cl.submit_solute_dft_job(
+        cl.DEP_SMILES,
+        ["dichloromethane"],
+        reference="water",
+        jobs_dir=jobs,
+        artifacts_dir=artifacts,
+        solvents_dir=solvents,
+        ln_gamma=lambda *a, **k: 1.0,
+        runner=plant_stem_then_refuse,
+        background=False,
+    )
+    assert record["status"] == "failed"
+    assert record["error_code"] == "identity_changed"
+    assert not stem_alias.is_file()
+    assert not (
+        artifacts / f"{cl.DEP_INCHIKEY}_cosmo.solute.orcacosmo"
+    ).is_file()
+    assert cl.orca_solute_cosmo_path(
+        cl.DEP_INCHIKEY, artifacts_dir=artifacts,
+    ) is None
+
+    calls: list[object] = []
+
+    def never_runner(ctx):
+        calls.append(ctx)
+        raise RuntimeError("solute stem-alias leftover must not bind as 24a reuse")
+
+    second = cl.submit_solute_dft_job(
+        cl.DEP_SMILES,
+        ["dichloromethane"],
+        reference="water",
+        jobs_dir=jobs,
+        artifacts_dir=artifacts,
+        solvents_dir=solvents,
+        ln_gamma=lambda *a, **k: 1.0,
+        runner=never_runner,
+        background=False,
+    )
+    assert calls, "second submit must not reuse a solute stem-alias leftover"
+    assert second.get("reused") is not True
+    assert second.get("status") != "done"
+    still_2002 = cl.compute_delta_logd(
+        cl.DEP_SMILES, ["dichloromethane"],
+        solvents_dir=solvents, artifacts_dir=artifacts, ln_gamma=lambda *a, **k: 1.0,
+    )
+    row = still_2002["results"][0]
     assert row["route"] == cl.COSMOBASE_ROUTE
     assert row["parameterisation"] == "2002"
     assert row["parameterisation"] != "24a"
@@ -2039,4 +2176,82 @@ def test_p4d_wave1_and_xylene_do_not_start_dft(tmp_path):
     )
     assert water["reused"] is True
     assert water["dft_ran"] is False
+
+
+def test_p4e_octanol_water_sanity_is_not_a_gate_and_never_validated(tmp_path, monkeypatch):
+    pytest.importorskip("rdkit")
+    artifacts, solvents = _dummy_p3_dirs(tmp_path)
+    db = Path(__file__).resolve().parents[1] / "src" / "dissolve" / "data" / "contaminants.duckdb"
+    before = hashlib.sha256(db.read_bytes()).hexdigest()
+
+    def boom(*_a, **_k):
+        raise AssertionError("P-4e must not start DFT")
+
+    monkeypatch.setattr(cl.subprocess, "run", boom)
+    missing = cl.octanol_water_sanity(
+        cl.DEP_SMILES, 0.0,
+        solvents_dir=solvents, artifacts_dir=artifacts, ln_gamma=lambda *a, **k: 0.0,
+    )
+    assert missing["success"] is False
+    assert missing["error_code"] == "octanol_orca_unavailable"
+    assert missing["parameterisation"] != "24a"
+    assert missing["parameterisation"] != cl.ORCA_PARAMETERISATION
+    assert missing["is_gate"] is False
+    assert missing["role"] == "sanity_check"
+    assert missing["validated_ok"] is False
+    assert missing["validation_status"] == cl.VALIDATION_NO_BASIS
+    assert missing["dft_ran"] is False
+
+    _touch(
+        artifacts / "octanol_cosmo.solute.orcacosmo",
+        "route=orca\nparameterisation=24a\n",
+    )
+    zero = cl.octanol_water_sanity(
+        cl.DEP_SMILES, 0.0,
+        solvents_dir=solvents, artifacts_dir=artifacts, ln_gamma=lambda *a, **k: 0.0,
+    )
+    assert zero["success"] is True
+    assert zero["computed_logp"] == 0.0
+    assert zero["residual"] == 0.0
+    assert zero["route"] == cl.ORCA_ROUTE
+    assert zero["parameterisation"] == cl.ORCA_PARAMETERISATION
+    assert zero["is_gate"] is False
+    assert zero["role"] == "sanity_check"
+    assert zero["validated_ok"] is False
+    assert zero["validation_status"] == cl.VALIDATION_NO_BASIS
+    assert zero["dft_ran"] is False
+
+    far = cl.octanol_water_sanity(
+        cl.DEP_SMILES, 12.0,
+        solvents_dir=solvents, artifacts_dir=artifacts, ln_gamma=lambda *a, **k: 0.0,
+    )
+    assert far["success"] is True
+    assert far["residual"] == far["computed_logp"] - 12.0
+    assert far["validated_ok"] is False
+    assert far["is_gate"] is False
+    assert far["validation_status"] == cl.VALIDATION_NO_BASIS
+
+    for bad in (float("nan"), float("inf"), "not-a-number"):
+        refused = cl.octanol_water_sanity(
+            cl.DEP_SMILES, bad,
+            solvents_dir=solvents, artifacts_dir=artifacts, ln_gamma=lambda *a, **k: 0.0,
+        )
+        assert refused["success"] is False
+        assert refused["error_code"] == "invalid_literature_logp"
+        assert refused["validated_ok"] is False
+        assert refused["is_gate"] is False
+
+    xylene = cl.resolve_solvent("xylene", solvents_dir=solvents)
+    assert xylene["success"] is False
+    assert xylene["error_code"] == "solvent_not_available"
+    assert "o-xylene" not in str(xylene).lower()
+
+    coverage = cl.solvent_route_coverage(solvents_dir=solvents)
+    assert coverage["n_orca"] == 5
+    after = hashlib.sha256(db.read_bytes()).hexdigest()
+    assert before == after
+    assert before.startswith("866d769b")
+    body = Path(cl.__file__).read_text().split("def compute_delta_logd", 1)[1]
+    assert "subprocess" not in body
+    assert "generate_conformers(" not in body
 
