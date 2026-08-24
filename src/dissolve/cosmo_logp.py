@@ -56,6 +56,7 @@ BOHR_TO_ANGSTROM = 0.529177210903
 HARTREE_TO_KCAL = 627.5094740631
 GAS_CONSTANT_KCAL = 0.0019872041          # kcal/(mol K)
 STANDARD_T = 298.15                        # K
+MAX_CONCURRENT_DFT = 4  # measured safe vs ~6 GiB; P-4 serialises and does not start DFT
 
 #: 1 log unit expressed as a free energy at 298.15 K. Worth stating: a sign or
 #: unit error in the partition relation produces a plausible-looking number.
@@ -1219,3 +1220,98 @@ def compute_delta_logd(
         payload["results"].append(row)
     return payload
 
+
+def compute_delta_logd_batch(
+    source: str | Path,
+    solvents: Sequence[str],
+    *,
+    reference: str | None = "water",
+    absolute: bool = False,
+    solvents_dir: str | Path | None = None,
+    artifacts_dir: str | Path | None = None,
+    ln_gamma: Callable[..., float] | None = None,
+) -> dict[str, Any]:
+    """P-4: one SMILES per line. A failure does not abort the rest. No new DFT.
+
+    Each non-empty line is computed independently via ``compute_delta_logd``.
+    Empty lines are skipped and named. DFT is not started; concurrency is
+    serialised at ``MAX_CONCURRENT_DFT`` (4) if a later slice launches ORCA.
+    """
+    path = Path(source)
+    base = {
+        "success": False,
+        "error_code": None,
+        "dft_ran": False,
+        "max_concurrent_dft": MAX_CONCURRENT_DFT,
+        "source": str(path),
+        "n_lines": 0,
+        "n_ok": 0,
+        "n_refused": 0,
+        "n_skipped": 0,
+        "results": [],
+        "skipped": [],
+        "refused": [],
+        "validation_status": VALIDATION_NO_BASIS,
+        "validated_ok": False,
+        "reference": None if reference is None else str(reference).strip() or None,
+    }
+    if not path.is_file():
+        base["error_code"] = "batch_file_unavailable"
+        base["error"] = f"SMILES file {path} is not a readable file"
+        return base
+    raw_lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
+    base["n_lines"] = len(raw_lines)
+    base["success"] = True
+    for index, raw in enumerate(raw_lines, start=1):
+        stripped = raw.strip()
+        if not stripped:
+            skip = {
+                "line": index,
+                "smiles": raw,
+                "reason": "empty_line",
+                "error_code": "empty_line",
+                "dft_ran": False,
+            }
+            base["skipped"].append(skip)
+            base["n_skipped"] += 1
+            continue
+        try:
+            computed = compute_delta_logd(
+                stripped,
+                solvents,
+                reference=reference,
+                absolute=absolute,
+                solvents_dir=solvents_dir,
+                artifacts_dir=artifacts_dir,
+                ln_gamma=ln_gamma,
+            )
+        except Exception as exc:
+            computed = {
+                "success": False,
+                "error_code": "batch_line_failed",
+                "error": f"{type(exc).__name__}: {exc}",
+                "smiles": stripped,
+                "dft_ran": False,
+                "results": [],
+                "validation_status": VALIDATION_NO_BASIS,
+                "validated_ok": False,
+            }
+        computed = dict(computed)
+        computed["line"] = index
+        computed["smiles"] = computed.get("smiles", stripped)
+        computed["dft_ran"] = bool(computed.get("dft_ran"))
+        base["results"].append(computed)
+        if computed.get("dft_ran"):
+            base["dft_ran"] = True
+        if computed.get("success"):
+            base["n_ok"] += 1
+        else:
+            base["n_refused"] += 1
+            base["refused"].append({
+                "line": index,
+                "smiles": stripped,
+                "error_code": computed.get("error_code"),
+                "error": computed.get("error"),
+                "dft_ran": False,
+            })
+    return base

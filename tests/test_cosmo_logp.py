@@ -1088,3 +1088,137 @@ def test_compute_delta_logd_does_not_write_the_logd_table(tmp_path):
     after = hashlib.sha256(db.read_bytes()).hexdigest()
     assert before == after
     assert before.startswith("866d769b")
+
+
+def test_batch_one_failure_does_not_abort_and_names_the_skip(tmp_path, monkeypatch):
+    pytest.importorskip("rdkit")
+    artifacts, solvents = _dummy_p3_dirs(tmp_path)
+    smiles_file = tmp_path / "batch.smi"
+    smiles_file.write_text(
+        "\n".join([cl.DEP_SMILES, "", "not_a_smiles", "CCO", cl.DEHP_SMILES]) + "\n"
+    )
+
+    def boom(*_a, **_k):
+        raise AssertionError("DFT must not start in P-4")
+
+    monkeypatch.setattr(cl.subprocess, "run", boom)
+    payload = cl.compute_delta_logd_batch(
+        smiles_file,
+        ["toluene", "xylene"],
+        solvents_dir=solvents,
+        artifacts_dir=artifacts,
+        ln_gamma=lambda *a, **k: 1.0,
+    )
+    assert payload["success"] is True
+    assert payload["error_code"] is None
+    assert payload["n_lines"] == 5
+    assert payload["n_skipped"] == 1
+    assert payload["n_refused"] == 1
+    assert payload["n_ok"] == 3
+    assert payload["dft_ran"] is False
+    assert payload["max_concurrent_dft"] == 4
+    assert cl.MAX_CONCURRENT_DFT == 4
+    skipped = payload["skipped"][0]
+    assert skipped["line"] == 2
+    assert skipped["reason"] == "empty_line"
+    refused = payload["refused"][0]
+    assert refused["line"] == 3
+    assert refused["error_code"] == "invalid_smiles"
+    by_line = {row["line"]: row for row in payload["results"]}
+    assert by_line[1]["success"] is True
+    assert by_line[1]["inchikey"] == cl.DEP_INCHIKEY
+    toluene = next(r for r in by_line[1]["results"] if r.get("solvent_key") == "toluene")
+    assert toluene["success"] is True
+    assert toluene["parameterisation"] == "2002"
+    assert toluene["parameterisation"] != "24a"
+    xylene = next(r for r in by_line[1]["results"] if r.get("query") == "xylene")
+    assert xylene["error_code"] == "solvent_not_available"
+    assert by_line[4]["success"] is True
+    assert by_line[4]["validation_status"] == cl.VALIDATION_NO_BASIS
+    assert by_line[4]["validated_ok"] is False
+    assert by_line[5]["success"] is True
+    assert by_line[5]["validation_status"] == cl.VALIDATION_COMPUTED_UNVALIDATED
+    assert by_line[5]["validated_ok"] is False
+    assert cl.ACCEPT_TOLERANCE_LOG_UNITS == 1.5
+    body = Path(cl.__file__).read_text().split("def compute_delta_logd_batch", 1)[1]
+    assert "subprocess" not in body
+    assert "generate_conformers(" not in body
+    assert "field_origin" not in payload
+
+
+def test_batch_exception_on_one_line_does_not_abort_later_lines(tmp_path, monkeypatch):
+    pytest.importorskip("rdkit")
+    artifacts, solvents = _dummy_p3_dirs(tmp_path)
+    smiles_file = tmp_path / "batch.smi"
+    smiles_file.write_text(cl.DEP_SMILES + "\nCCO\n")
+    seen = []
+    real = cl.compute_delta_logd
+
+    def wrapped(smiles, *args, **kwargs):
+        seen.append(smiles)
+        if len(seen) == 1:
+            raise RuntimeError("injected failure")
+        return real(smiles, *args, **kwargs)
+
+    monkeypatch.setattr(cl, "compute_delta_logd", wrapped)
+    payload = cl.compute_delta_logd_batch(
+        smiles_file,
+        ["toluene"],
+        solvents_dir=solvents,
+        artifacts_dir=artifacts,
+        ln_gamma=lambda *a, **k: 0.0,
+    )
+    assert payload["success"] is True
+    assert payload["n_refused"] == 1
+    assert payload["n_ok"] == 1
+    assert payload["refused"][0]["error_code"] == "batch_line_failed"
+    assert payload["refused"][0]["line"] == 1
+    assert payload["results"][1]["success"] is True
+    assert payload["dft_ran"] is False
+    assert seen == [cl.DEP_SMILES, "CCO"]
+
+
+def test_batch_missing_file_is_named_and_does_not_run_dft(tmp_path, monkeypatch):
+    monkeypatch.setattr(cl.subprocess, "run", lambda *_a, **_k: (_ for _ in ()).throw(AssertionError("DFT")))
+    payload = cl.compute_delta_logd_batch(tmp_path / "missing.smi", ["toluene"])
+    assert payload["success"] is False
+    assert payload["error_code"] == "batch_file_unavailable"
+    assert payload["dft_ran"] is False
+    assert payload["results"] == []
+    assert payload["n_ok"] == 0
+
+
+def test_batch_absolute_refuses_each_line_without_aborting(tmp_path):
+    pytest.importorskip("rdkit")
+    artifacts, solvents = _dummy_p3_dirs(tmp_path)
+    smiles_file = tmp_path / "batch.smi"
+    smiles_file.write_text(cl.DEP_SMILES + "\nCCO\n")
+    payload = cl.compute_delta_logd_batch(
+        smiles_file,
+        ["toluene"],
+        absolute=True,
+        solvents_dir=solvents,
+        artifacts_dir=artifacts,
+        ln_gamma=lambda *a, **k: 0.0,
+    )
+    assert payload["success"] is True
+    assert payload["n_refused"] == 2
+    assert payload["n_ok"] == 0
+    assert {row["error_code"] for row in payload["refused"]} == {"absolute_logp_refused"}
+    assert payload["dft_ran"] is False
+
+
+def test_batch_does_not_write_the_logd_table(tmp_path):
+    pytest.importorskip("rdkit")
+    db = Path(__file__).resolve().parents[1] / "src" / "dissolve" / "data" / "contaminants.duckdb"
+    before = hashlib.sha256(db.read_bytes()).hexdigest()
+    artifacts, solvents = _dummy_p3_dirs(tmp_path)
+    smiles_file = tmp_path / "batch.smi"
+    smiles_file.write_text(cl.DEP_SMILES + "\n")
+    cl.compute_delta_logd_batch(
+        smiles_file, ["toluene"],
+        solvents_dir=solvents, artifacts_dir=artifacts, ln_gamma=lambda *a, **k: 0.0,
+    )
+    after = hashlib.sha256(db.read_bytes()).hexdigest()
+    assert before == after
+    assert before.startswith("866d769b")
