@@ -41,6 +41,7 @@ the regression -- have no such dependency and are what the test suite covers.
 
 from __future__ import annotations
 
+import fcntl
 import hashlib
 import json
 import math
@@ -48,6 +49,11 @@ import os
 import re
 import shutil
 import subprocess
+import sys
+import threading
+import time
+import uuid
+from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable, Iterable, Mapping, Sequence
@@ -57,7 +63,8 @@ BOHR_TO_ANGSTROM = 0.529177210903
 HARTREE_TO_KCAL = 627.5094740631
 GAS_CONSTANT_KCAL = 0.0019872041          # kcal/(mol K)
 STANDARD_T = 298.15                        # K
-MAX_CONCURRENT_DFT = 4  # measured safe vs ~6 GiB; P-4 serialises and does not start DFT
+MAX_CONCURRENT_DFT = 4  # measured safe vs ~6 GiB; P-4c caps serial ORCA at 4 via flock
+DFT_MAXCORE_MB = 1500  # per process, not per job; 4 × 1500 ≈ 6 GiB
 
 #: 1 log unit expressed as a free energy at 298.15 K. Worth stating: a sign or
 #: unit error in the partition relation produces a plausible-looking number.
@@ -250,6 +257,13 @@ DEFAULT_COSMOBASE_SOLVENTS_DIR = Path(
     "/home/aaltamimi2/COSMO-POLYMER-ML/results/oligomers/all-cosmotherm-solvents"
 )
 DEFAULT_ORCA_ARTIFACTS_DIR = Path("/home/aaltamimi2/cosmo-artifacts/stage1")
+DEFAULT_COSMO_JOBS_DIR = DEFAULT_ORCA_ARTIFACTS_DIR.parent / "jobs"
+JOBS_DIR_ENV = "DISSOLVE_COSMO_JOBS_DIR"
+SLOTS_DIR_ENV = "DISSOLVE_COSMO_DFT_SLOTS_DIR"
+ARTIFACTS_DIR_ENV = "DISSOLVE_COSMO_ARTIFACTS_DIR"
+RUN_ORCA_STAGE = (
+    Path(__file__).resolve().parents[2] / "scripts" / "cosmo" / "run_orca_stage.py"
+)
 #: Isolated interpreter that actually imports opencosmorspy. Main env does not.
 DEFAULT_COSMO_PYTHON = Path("/home/aaltamimi2/.venvs/cosmo-logp/bin/python")
 LN_GAMMA_WORKER = (
@@ -1073,12 +1087,16 @@ def orca_solvent_cosmo_path(
 def orca_solute_cosmo_path(
     inchikey: str, *, artifacts_dir: str | Path | None = None,
 ) -> Path | None:
-    stem = SOLUTE_ORCA_STEM_BY_INCHIKEY.get(inchikey)
-    if not stem:
-        return None
     root = Path(artifacts_dir) if artifacts_dir is not None else DEFAULT_ORCA_ARTIFACTS_DIR
-    path = root / f"{stem}_cosmo.solute.orcacosmo"
-    return path if path.is_file() else None
+    stem = SOLUTE_ORCA_STEM_BY_INCHIKEY.get(inchikey)
+    candidates: list[Path] = []
+    if stem:
+        candidates.append(root / f"{stem}_cosmo.solute.orcacosmo")
+    candidates.append(root / f"{inchikey}_cosmo.solute.orcacosmo")
+    for path in candidates:
+        if path.is_file():
+            return path
+    return None
 
 
 def cosmobase_solute_path(
@@ -1220,6 +1238,476 @@ def _validation_status(
         "anchor_evaluation": scored,
         "n_anchor_predicted": len(predicted),
     }
+
+
+# ======================================================================
+# P-4c -- async solute DFT job. CLI must not block. Four serial ORCA slots.
+# ======================================================================
+
+_SOLUTE_DFT_RUNNER: Callable[..., dict[str, Any]] | None = None
+
+
+def _jobs_root(jobs_dir: str | Path | None = None) -> Path:
+    if jobs_dir is not None:
+        return Path(jobs_dir)
+    env = os.environ.get(JOBS_DIR_ENV)
+    return Path(env) if env else DEFAULT_COSMO_JOBS_DIR
+
+
+def _artifacts_root(artifacts_dir: str | Path | None = None) -> Path:
+    if artifacts_dir is not None:
+        return Path(artifacts_dir)
+    env = os.environ.get(ARTIFACTS_DIR_ENV)
+    return Path(env) if env else DEFAULT_ORCA_ARTIFACTS_DIR
+
+
+def _slots_root(
+    slots_dir: str | Path | None = None, *, jobs_dir: str | Path | None = None,
+) -> Path:
+    if slots_dir is not None:
+        return Path(slots_dir)
+    env = os.environ.get(SLOTS_DIR_ENV)
+    if env:
+        return Path(env)
+    return _jobs_root(jobs_dir) / "slots"
+
+
+def estimate_dft_cost(n_atoms: int, n_rotatable_bonds: int) -> dict[str, Any]:
+    """Wall-time heuristic from atom count and rotatable bonds. No DFT.
+
+    DEP (~30 atoms, 4 rotors) is ~7 min serial. Extra rotors add cost; this
+    is an estimate printed before a job starts, not a promise.
+    """
+    atoms = max(1, int(n_atoms))
+    rotors = max(0, int(n_rotatable_bonds))
+    estimated_wall_min = (atoms / 30.0) * 7.0 * (1.0 + 0.15 * max(0, rotors - 4))
+    return {
+        "n_atoms": atoms,
+        "n_rotatable_bonds": rotors,
+        "estimated_wall_min": round(estimated_wall_min, 1),
+        "maxcore_mb": DFT_MAXCORE_MB,
+        "max_concurrent_dft": MAX_CONCURRENT_DFT,
+        "level_of_theory": (
+            f"{DFT_FUNCTIONAL}/{DFT_BASIS_OPT}//{DFT_FUNCTIONAL}/{DFT_BASIS_SP}"
+        ),
+        "pal": False,
+    }
+
+
+@contextmanager
+def acquire_dft_slot(
+    *,
+    blocking: bool = True,
+    slots_dir: str | Path | None = None,
+    jobs_dir: str | Path | None = None,
+):
+    """Hold one of ``MAX_CONCURRENT_DFT`` flock slots. A fifth caller blocks.
+
+    Parallelise across molecules, never inside one ORCA job. ``%pal`` stays
+    forbidden. Do not trust the caller to cap concurrency.
+    """
+    root = _slots_root(slots_dir, jobs_dir=jobs_dir)
+    root.mkdir(parents=True, exist_ok=True)
+    handles: list[Any] = []
+    acquired = None
+    try:
+        for index in range(MAX_CONCURRENT_DFT):
+            handle = open(root / f"slot-{index}.lock", "a+")
+            handles.append(handle)
+            try:
+                fcntl.flock(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+            except BlockingIOError:
+                continue
+            acquired = handle
+            yield index
+            return
+        if not blocking:
+            raise BlockingIOError("all DFT slots held")
+        handle = open(root / "slot-0.lock", "a+")
+        handles.append(handle)
+        fcntl.flock(handle.fileno(), fcntl.LOCK_EX)
+        acquired = handle
+        yield 0
+    finally:
+        for handle in handles:
+            try:
+                if handle is acquired:
+                    fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+            except OSError:
+                pass
+            try:
+                handle.close()
+            except OSError:
+                pass
+
+
+def _job_dir(handle: str, jobs_dir: str | Path | None = None) -> Path:
+    return _jobs_root(jobs_dir) / handle
+
+
+def _job_path(handle: str, jobs_dir: str | Path | None = None) -> Path:
+    return _job_dir(handle, jobs_dir) / "job.json"
+
+
+def _write_job(record: Mapping[str, Any], *, jobs_dir: str | Path | None = None) -> Path:
+    handle = str(record["handle"])
+    folder = _job_dir(handle, jobs_dir)
+    folder.mkdir(parents=True, exist_ok=True)
+    path = folder / "job.json"
+    tmp = folder / "job.json.tmp"
+    tmp.write_text(json.dumps(dict(record), indent=2, default=str) + "\n")
+    os.replace(tmp, path)
+    return path
+
+
+def _read_job(handle: str, *, jobs_dir: str | Path | None = None) -> dict[str, Any] | None:
+    path = _job_path(handle, jobs_dir)
+    if not path.is_file():
+        return None
+    try:
+        loaded = json.loads(path.read_text())
+    except (OSError, json.JSONDecodeError):
+        return None
+    return loaded if isinstance(loaded, dict) else None
+
+
+def _canonical_solute_orcacosmo(inchikey: str, artifacts_dir: str | Path) -> Path:
+    return Path(artifacts_dir) / f"{inchikey}_cosmo.solute.orcacosmo"
+
+
+def _classify_job_solvents(
+    solvents: Sequence[str],
+    *,
+    artifacts_dir: str | Path,
+    solvents_dir: str | Path | None = None,
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]]]:
+    held: list[dict[str, Any]] = []
+    missing_orca: list[dict[str, Any]] = []
+    unavailable: list[dict[str, Any]] = []
+    for name in solvents:
+        row = resolve_solvent(name, solvents_dir=solvents_dir)
+        if not row.get("success"):
+            unavailable.append(row)
+            continue
+        key = row["solvent_key"]
+        if orca_solvent_cosmo_path(key, artifacts_dir=artifacts_dir) is not None:
+            held.append(row)
+        else:
+            missing_orca.append(row)
+    return held, missing_orca, unavailable
+
+
+def run_solute_dft_orca(ctx: Mapping[str, Any]) -> dict[str, Any]:
+    """Serial ORCA geometry + COSMO surface for one solute. No ``%pal``."""
+    orca = os.environ.get("ORCA_BIN") or shutil.which("orca")
+    if not orca:
+        raise CosmoDependencyError("orca is not available")
+    work = Path(ctx["work_dir"])
+    work.mkdir(parents=True, exist_ok=True)
+    inchikey = str(ctx["inchikey"])
+    conformers = generate_conformers(str(ctx["smiles"]))
+    xyz = write_xyz(conformers[0][0], work / "intake.xyz", comment=inchikey)
+    verify_identity(xyz, inchikey)
+    script = RUN_ORCA_STAGE
+    if not script.is_file():
+        raise CosmoDependencyError(f"ORCA stage script is missing: {script}")
+    argv = [
+        sys.executable,
+        str(script),
+        "--xyz", str(xyz),
+        "--tag", inchikey,
+        "--outdir", str(work),
+        "--maxcore", str(DFT_MAXCORE_MB),
+        "--expect-inchikey", inchikey,
+        "--orca", str(orca),
+    ]
+    completed = subprocess.run(argv, check=False, capture_output=True, text=True)
+    if completed.returncode != 0:
+        raise CosmoError(
+            f"ORCA stage failed exit={completed.returncode}: "
+            f"{(completed.stderr or completed.stdout or '')[:300]}"
+        )
+    produced = work / f"{inchikey}_cosmo.solute.orcacosmo"
+    if not produced.is_file():
+        raise CosmoError("ORCA stage produced no solute .orcacosmo")
+    opt_xyz = work / f"{inchikey}.opt.xyz"
+    if opt_xyz.is_file():
+        verify_identity(opt_xyz, inchikey)
+    dest = _canonical_solute_orcacosmo(inchikey, ctx["artifacts_dir"])
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    if produced.resolve() != dest.resolve():
+        shutil.copy2(produced, dest)
+    return {
+        "orcacosmo": dest,
+        "opt_xyz": opt_xyz if opt_xyz.is_file() else xyz,
+        "intake_xyz": xyz,
+        "argv": argv,
+        "pal": False,
+        "maxcore_mb": DFT_MAXCORE_MB,
+    }
+
+
+def _active_solute_dft_runner() -> Callable[..., dict[str, Any]]:
+    return _SOLUTE_DFT_RUNNER if _SOLUTE_DFT_RUNNER is not None else run_solute_dft_orca
+
+
+def _stamp_job_now() -> str:
+    return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+
+
+def _run_solute_dft_worker(
+    handle: str,
+    *,
+    jobs_dir: str | Path | None,
+    artifacts_dir: Path,
+    solvents_dir: str | Path | None,
+    ln_gamma: Callable[..., float] | None,
+    runner: Callable[..., dict[str, Any]],
+) -> None:
+    record = _read_job(handle, jobs_dir=jobs_dir)
+    if record is None:
+        return
+    record["status"] = "running"
+    record["updated_at"] = _stamp_job_now()
+    _write_job(record, jobs_dir=jobs_dir)
+    try:
+        with acquire_dft_slot(jobs_dir=jobs_dir):
+            produced = runner({
+                "handle": handle,
+                "smiles": record["smiles"],
+                "inchikey": record["inchikey"],
+                "work_dir": str(_job_dir(handle, jobs_dir) / "work"),
+                "artifacts_dir": str(artifacts_dir),
+                "solvents": list(record.get("solvents") or []),
+                "reference": record.get("reference") or "water",
+            })
+        opt_xyz = produced.get("opt_xyz")
+        if opt_xyz:
+            verify_identity(opt_xyz, record["inchikey"])
+        dest = produced.get("orcacosmo")
+        if dest is None or not Path(dest).is_file():
+            raise CosmoError("solute DFT runner produced no .orcacosmo")
+        canonical = _canonical_solute_orcacosmo(record["inchikey"], artifacts_dir)
+        if Path(dest).resolve() != canonical.resolve():
+            canonical.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(dest, canonical)
+        record["dft_ran"] = True
+        record["reused"] = False
+        record["solute_orcacosmo"] = str(canonical)
+        held_keys = list(record.get("held_solvents") or [])
+        if held_keys:
+            computed = compute_delta_logd(
+                record["smiles"],
+                held_keys,
+                reference=record.get("reference") or "water",
+                solvents_dir=solvents_dir,
+                artifacts_dir=artifacts_dir,
+                ln_gamma=ln_gamma,
+            )
+            record["result"] = computed
+            record["validation_status"] = computed.get("validation_status")
+            record["validated_ok"] = computed.get("validated_ok")
+        else:
+            record["validation_status"] = VALIDATION_NO_BASIS
+            record["validated_ok"] = False
+        record["status"] = "done"
+        record["error_code"] = None
+    except CosmoIdentityError as exc:
+        record["status"] = "failed"
+        record["error_code"] = "identity_changed"
+        record["error"] = str(exc)
+        record["result"] = None
+        record["dft_ran"] = bool(record.get("dft_ran"))
+    except CosmoDependencyError as exc:
+        record["status"] = "failed"
+        record["error_code"] = "orca_unavailable"
+        record["error"] = str(exc)
+        record["result"] = None
+    except Exception as exc:
+        record["status"] = "failed"
+        record["error_code"] = record.get("error_code") or "solute_dft_failed"
+        record["error"] = f"{type(exc).__name__}: {exc}"
+        record["result"] = None
+    record["updated_at"] = _stamp_job_now()
+    _write_job(record, jobs_dir=jobs_dir)
+
+
+def submit_solute_dft_job(
+    smiles: str,
+    solvents: Sequence[str] | None = None,
+    *,
+    reference: str | None = "water",
+    absolute: bool = False,
+    jobs_dir: str | Path | None = None,
+    artifacts_dir: str | Path | None = None,
+    solvents_dir: str | Path | None = None,
+    ln_gamma: Callable[..., float] | None = None,
+    runner: Callable[..., dict[str, Any]] | None = None,
+    background: bool = True,
+) -> dict[str, Any]:
+    """P-4c: return a job handle immediately. Do not block the CLI on DFT."""
+    ingested = ingest_smiles(smiles)
+    estimate = estimate_dft_cost(
+        int(ingested.get("n_atoms") or 1),
+        int(ingested.get("n_rotatable_bonds") or 0),
+    )
+    if not ingested.get("success"):
+        return {
+            **ingested,
+            "status": "failed",
+            "handle": None,
+            "estimate": estimate,
+            "reused": False,
+            "dft_ran": False,
+        }
+    if absolute:
+        return {
+            **ingested,
+            "success": False,
+            "status": "failed",
+            "handle": None,
+            "error_code": "absolute_logp_refused",
+            "estimate": estimate,
+            "reused": False,
+            "dft_ran": False,
+        }
+    inchikey = ingested["inchikey"]
+    artifacts = _artifacts_root(artifacts_dir)
+    artifacts.mkdir(parents=True, exist_ok=True)
+    jobs_root = _jobs_root(jobs_dir)
+    jobs_root.mkdir(parents=True, exist_ok=True)
+    requested = [str(item) for item in (solvents or []) if str(item).strip()]
+    ref_name = "water" if reference is None else str(reference).strip() or "water"
+    held, missing_orca, unavailable = _classify_job_solvents(
+        requested, artifacts_dir=artifacts, solvents_dir=solvents_dir,
+    )
+    handle = f"{inchikey.split('-')[0].lower()}-{uuid.uuid4().hex[:10]}"
+    existing = orca_solute_cosmo_path(inchikey, artifacts_dir=artifacts)
+    record: dict[str, Any] = {
+        **ingested,
+        "handle": handle,
+        "status": "queued",
+        "solvents": requested,
+        "reference": ref_name,
+        "held_solvents": [row["solvent_key"] for row in held],
+        "estimate": estimate,
+        "reused": False,
+        "dft_ran": False,
+        "result": None,
+        "error_code": None,
+        "error": None,
+        "validation_status": VALIDATION_NO_BASIS,
+        "validated_ok": False,
+        "created_at": _stamp_job_now(),
+        "updated_at": _stamp_job_now(),
+        "refusals": [],
+    }
+    for row in unavailable:
+        record["refusals"].append({
+            "query": row.get("query"),
+            "solvent_key": row.get("solvent_key"),
+            "error_code": row.get("error_code") or "solvent_not_available",
+            "dft_ran": False,
+        })
+    for row in missing_orca:
+        record["refusals"].append({
+            "query": row.get("query"),
+            "solvent_key": row.get("solvent_key"),
+            "error_code": "solvent_orca_unavailable",
+            "error": (
+                "no ORCA solvent surface; solvent DFT is P-4d and is not started. "
+                "COSMObase 2002 is not silently labelled 24a"
+            ),
+            "dft_ran": False,
+        })
+    if requested and not held:
+        record["status"] = "failed"
+        record["success"] = False
+        record["error_code"] = (
+            unavailable[0].get("error_code") if unavailable and not missing_orca
+            else "solvent_orca_unavailable"
+        )
+        record["error"] = (
+            "named solvents have no held ORCA surface; refusing rather than "
+            "starting a solvent DFT or faking 24a from COSMObase 2002"
+        )
+        _write_job(record, jobs_dir=jobs_root)
+        return record
+
+    if existing is not None:
+        record["reused"] = True
+        record["dft_ran"] = False
+        record["solute_orcacosmo"] = str(existing)
+        if held:
+            computed = compute_delta_logd(
+                smiles,
+                [row["solvent_key"] for row in held],
+                reference=ref_name,
+                solvents_dir=solvents_dir,
+                artifacts_dir=artifacts,
+                ln_gamma=ln_gamma,
+            )
+            record["result"] = computed
+            record["validation_status"] = computed.get("validation_status")
+            record["validated_ok"] = computed.get("validated_ok")
+            record["success"] = computed.get("success")
+        else:
+            record["validation_status"] = ingested.get("validation_status") or VALIDATION_NO_BASIS
+            record["success"] = True
+        record["status"] = "done"
+        _write_job(record, jobs_dir=jobs_root)
+        return record
+
+    _write_job(record, jobs_dir=jobs_root)
+    active_runner = runner if runner is not None else _active_solute_dft_runner()
+    kwargs = dict(
+        jobs_dir=jobs_root,
+        artifacts_dir=artifacts,
+        solvents_dir=solvents_dir,
+        ln_gamma=ln_gamma,
+        runner=active_runner,
+    )
+    if background:
+        thread = threading.Thread(
+            target=_run_solute_dft_worker,
+            args=(handle,),
+            kwargs=kwargs,
+            daemon=True,
+            name=f"solute-dft-{handle}",
+        )
+        thread.start()
+        record["status"] = "queued"
+        record["success"] = True
+        return record
+    _run_solute_dft_worker(handle, **kwargs)
+    return _read_job(handle, jobs_dir=jobs_root) or record
+
+
+def solute_dft_job_status(
+    handle: str, *, jobs_dir: str | Path | None = None,
+) -> dict[str, Any]:
+    """P-4c status query. Missing handle is a named refuse, not a hang."""
+    token = "" if handle is None else str(handle).strip()
+    if not token:
+        return {
+            "success": False,
+            "status": "failed",
+            "handle": handle,
+            "error_code": "job_not_found",
+            "dft_ran": False,
+        }
+    loaded = _read_job(token, jobs_dir=jobs_dir)
+    if loaded is None:
+        return {
+            "success": False,
+            "status": "failed",
+            "handle": token,
+            "error_code": "job_not_found",
+            "error": f"no job {token}",
+            "dft_ran": False,
+        }
+    loaded.setdefault("success", loaded.get("status") in {"queued", "running", "done"})
+    return loaded
 
 
 def compute_delta_logd(

@@ -71,7 +71,7 @@ def _parse_solvents_slash(tokens: Sequence[str]) -> dict[str, Any] | None:
 
 _CONTAMINANT_USAGE = "usage: /contaminant [off | leaching | strap | swing | compare]"
 _LOGP_USAGE = (
-    "usage: /contaminant logp (--smiles <SMILES> | --file <path>) "
+    "usage: /contaminant logp (--smiles <SMILES> | --file <path> | --job <handle>) "
     "[--solvents <name,name>] [--reference <name>] [--absolute]"
 )
 _CONTAMINANT_COMPARE_USAGE = (
@@ -90,6 +90,7 @@ def _parse_contaminant_logp(tokens: Sequence[str]) -> dict[str, Any]:
     args = [str(token) for token in tokens[1:]]
     smiles: str | None = None
     file_path: str | None = None
+    job_handle: str | None = None
     solvents_raw: str | None = None
     reference: str | None = None
     absolute = False
@@ -105,6 +106,12 @@ def _parse_contaminant_logp(tokens: Sequence[str]) -> dict[str, Any]:
             if index + 1 >= len(args):
                 raise ValueError(_LOGP_USAGE)
             file_path = args[index + 1]
+            index += 2
+            continue
+        if args[index] == "--job":
+            if index + 1 >= len(args):
+                raise ValueError(_LOGP_USAGE)
+            job_handle = args[index + 1]
             index += 2
             continue
         if args[index] == "--solvents":
@@ -124,7 +131,7 @@ def _parse_contaminant_logp(tokens: Sequence[str]) -> dict[str, Any]:
             index += 1
             continue
         raise ValueError(_LOGP_USAGE)
-    if bool(smiles) == bool(file_path):
+    if sum(bool(item) for item in (smiles, file_path, job_handle)) != 1:
         raise ValueError(_LOGP_USAGE)
     solvents = [
         item.strip() for item in (solvents_raw or "").split(",") if item.strip()
@@ -133,6 +140,7 @@ def _parse_contaminant_logp(tokens: Sequence[str]) -> dict[str, Any]:
         "logp": True,
         "smiles": smiles,
         "file": file_path,
+        "job": job_handle,
         "solvents": solvents,
         "reference": reference,
         "absolute": absolute,
@@ -1392,6 +1400,7 @@ class CliApp:
             self._run_contaminant_logp(
                 stored.get("smiles"),
                 file=stored.get("file"),
+                job=stored.get("job"),
                 solvents=list(stored.get("solvents") or []),
                 reference=stored.get("reference"),
                 absolute=bool(stored.get("absolute")),
@@ -1420,12 +1429,16 @@ class CliApp:
 
     def _run_contaminant_logp(
         self, smiles: str | None, *, file: str | None = None,
+        job: str | None = None,
         solvents: Sequence[str] | None = None,
         reference: str | None = None, absolute: bool = False,
     ) -> None:
-        """P-1/P-2 intake + P-3 Δ vs a named reference, or P-4 --file. No new DFT."""
+        """P-1–P-4c: intake, batch, or an async solute DFT job. Submit does not block."""
         from dissolve import cosmo_logp as cl
 
+        if job:
+            self._emit_logp_job(cl.solute_dft_job_status(job), submit=False)
+            return
         if file:
             self._run_contaminant_logp_batch(
                 file, solvents=solvents, reference=reference, absolute=absolute,
@@ -1439,11 +1452,16 @@ class CliApp:
             self.console.print(f"[red]{result['error_code']}[/]")
             return
         coverage = cl.solvent_route_coverage()
+        estimate = cl.estimate_dft_cost(
+            int(result.get("n_atoms") or 1),
+            int(result.get("n_rotatable_bonds") or 0),
+        )
         self.console.print(
             "logp intake  "
             f"inchikey={result['inchikey']}  "
             f"n_atoms={result['n_atoms']}  "
             f"n_rotatable_bonds={result['n_rotatable_bonds']}  "
+            f"estimated_wall_min={estimate['estimated_wall_min']}  "
             "dft=not_run  "
             f"coverage table={coverage['n_table']} "
             f"orca={coverage['n_orca']}/{coverage['n_table']} "
@@ -1451,6 +1469,16 @@ class CliApp:
             f"orca_param={coverage['orca_parameterisation']} "
             f"cosmobase_param={coverage['cosmobase_parameterisation']}"
         )
+        surface = cl.orca_solute_cosmo_path(result["inchikey"])
+        if surface is None:
+            submitted = cl.submit_solute_dft_job(
+                smiles,
+                list(solvents or []),
+                reference="water" if reference is None else reference,
+                absolute=absolute,
+            )
+            self._emit_logp_job(submitted, submit=True)
+            return
         if not solvents and not absolute:
             self.console.print("reference=water (not computed)")
             return
@@ -1507,6 +1535,70 @@ class CliApp:
                 f"solute_sha256={row['solute_sha256']}  "
                 f"solvent_sha256={row['solvent_sha256']}  "
                 f"reference_sha256={row['reference_sha256']}"
+            )
+
+
+    def _emit_logp_job(self, record: dict[str, Any], *, submit: bool) -> None:
+        """P-4c: handle + estimate. Submit always prints dft=not_run."""
+        handle = record.get("handle") or ""
+        estimate = record.get("estimate") or {}
+        reused = "yes" if record.get("reused") else "no"
+        dft_token = "dft=not_run" if submit or not record.get("dft_ran") else "dft_ran=yes"
+        line = (
+            "logp job  "
+            f"handle={handle}  "
+            f"status={record.get('status')}  "
+            f"reused={reused}  "
+            f"estimated_wall_min={estimate.get('estimated_wall_min')}  "
+            f"n_atoms={estimate.get('n_atoms')}  "
+            f"n_rotatable_bonds={estimate.get('n_rotatable_bonds')}  "
+            f"{dft_token}"
+        )
+        if record.get("validation_status"):
+            line += f"  validation_status={record.get('validation_status')}"
+            line += f"  validated_ok={'yes' if record.get('validated_ok') else 'no'}"
+        self.console.print(line)
+        if record.get("error_code"):
+            self.console.print(
+                f"[red]{record['error_code']}[/]  handle={handle}"
+            )
+        for refusal in record.get("refusals") or []:
+            self.console.print(
+                f"[red]{refusal.get('error_code')}[/]  "
+                f"solvent={refusal.get('query') or refusal.get('solvent_key')}"
+            )
+        if submit:
+            return
+        computed = record.get("result")
+        if not isinstance(computed, dict):
+            return
+        self.console.print(
+            "delta provenance  "
+            f"reference={computed.get('reference')}  "
+            f"validation_status={computed.get('validation_status')}  "
+            f"validated_ok={'yes' if computed.get('validated_ok') else 'no'}  "
+            f"{dft_token}"
+        )
+        for row in computed.get("results") or []:
+            if not row.get("success"):
+                self.console.print(
+                    f"[red]{row.get('error_code')}[/]  solvent={row.get('query')}"
+                )
+                continue
+            self.console.print(
+                "delta  "
+                f"solvent={row['solvent_key']}  "
+                f"reference={row['reference']}  "
+                f"delta_logd={row['delta_logd']:.4f}  "
+                f"route={row['route']}  "
+                f"param={row['parameterisation']}  "
+                f"engine={row.get('engine') or 'orca'}  "
+                f"theory={row['level_of_theory']}  "
+                f"n_conformers={row['n_conformers']}  "
+                f"T={row['temperature']}  "
+                f"validation_status={row['validation_status']}  "
+                f"validated_ok={'yes' if row['validated_ok'] else 'no'}  "
+                f"{dft_token}"
             )
 
 
