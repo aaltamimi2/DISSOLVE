@@ -280,8 +280,6 @@ def test_dbp_anchors_are_the_pin_table_deltas_not_deps():
     )
     assert any((a, b) == cl.WATER_FREE_PAIR for a, b, _ in cl.DBP_ANCHOR_PAIRS)
     with pytest.raises(cl.CosmoError):
-        cl.anchor_pairs_for("dehp")
-    with pytest.raises(cl.CosmoError):
         cl.anchor_pairs_for("dmp")
 
 
@@ -338,7 +336,7 @@ def test_bbp_anchors_are_the_pin_table_deltas_not_dbp_or_dep():
     )
     assert any((a, b) == cl.WATER_FREE_PAIR for a, b, _ in cl.BBP_ANCHOR_PAIRS)
     with pytest.raises(cl.CosmoError):
-        cl.anchor_pairs_for("dehp")
+        cl.anchor_pairs_for("dmp")
 
 
 def test_evaluate_anchor_pairs_accepts_bbp_table_deltas_on_bbp_pairs():
@@ -352,6 +350,98 @@ def test_evaluate_anchor_pairs_accepts_bbp_table_deltas_on_bbp_pairs():
     assert result["accept"]
     assert result["n_passing"] == 4
     assert result["water_free_passes"]
+
+
+def test_dehp_anchors_are_the_pin_table_deltas_not_literature_logp():
+    """L3 accept is table Δ 9.98/8.13/8.33/2.60, not logP 7.5–8.4."""
+    assert cl.anchor_pairs_for("dehp") == cl.DEHP_ANCHOR_PAIRS
+    assert cl.DEHP_ANCHOR_PAIRS != cl.BBP_ANCHOR_PAIRS
+    assert cl.DEHP_ANCHOR_PAIRS != cl.DBP_ANCHOR_PAIRS
+    assert cl.DEHP_ANCHOR_PAIRS != cl.ANCHOR_PAIRS
+    assert cl.DEHP_ANCHOR_PAIRS == (
+        ("dichloromethane", "water", 9.98),
+        ("cyclohexanol", "water", 8.13),
+        ("hexane", "water", 8.33),
+        ("dichloromethane", "methanol", 2.60),
+    )
+    assert 7.5 not in {v for *_, v in cl.DEHP_ANCHOR_PAIRS}
+    assert 8.4 not in {v for *_, v in cl.DEHP_ANCHOR_PAIRS}
+    assert any((a, b) == cl.WATER_FREE_PAIR for a, b, _ in cl.DEHP_ANCHOR_PAIRS)
+    with pytest.raises(cl.CosmoError):
+        cl.anchor_pairs_for("dmp")
+
+
+def test_evaluate_anchor_pairs_accepts_dehp_table_deltas_on_dehp_pairs():
+    result = cl.evaluate_anchor_pairs(
+        {
+            "dichloromethane-water": 9.98, "cyclohexanol-water": 8.13,
+            "hexane-water": 8.33, "dichloromethane-methanol": 2.60,
+        },
+        pairs=cl.DEHP_ANCHOR_PAIRS,
+    )
+    assert result["accept"]
+    assert result["n_passing"] == 4
+    assert result["water_free_passes"]
+
+
+def test_measured_dehp_stage1_numbers_do_not_accept():
+    """L3 stage-1: water-free passes; the three water pairs miss by ~2.1.
+    This is the recorded fail. Do not weaken 1.5 to make it pass."""
+    result = cl.evaluate_anchor_pairs(
+        {
+            "dichloromethane-water": 12.11, "cyclohexanol-water": 10.20,
+            "hexane-water": 10.34, "dichloromethane-methanol": 2.73,
+        },
+        pairs=cl.DEHP_ANCHOR_PAIRS,
+    )
+    assert result["water_free_passes"]
+    assert result["n_passing"] == 1
+    assert result["tolerance"] == 1.5
+    assert not result["accept"]
+
+
+def test_delta_log_d_reproduces_the_measured_dehp_dcm_water_value():
+    """Stage 1: ln γ of DEHP is -3.155 in dichloromethane and 25.989 in water."""
+    value = cl.delta_log_d(
+        -3.155, 25.989,
+        volume_a=cl.MOLAR_VOLUMES_CM3["dichloromethane"],
+        volume_b=cl.MOLAR_VOLUMES_CM3["water"],
+    )
+    assert value == pytest.approx(12.11, abs=0.01)
+
+
+def test_measured_bbp_stage1_numbers_do_not_pass_the_dehp_accept():
+    """L2's recorded Δ are not L3's accept surface."""
+    result = cl.evaluate_anchor_pairs(
+        {
+            "dichloromethane-water": 8.06, "cyclohexanol-water": 6.30,
+            "hexane-water": 5.94, "dichloromethane-methanol": 1.92,
+        },
+        pairs=cl.DEHP_ANCHOR_PAIRS,
+    )
+    assert not result["accept"]
+
+
+def test_dehp_table_deltas_do_not_pass_the_dep_accept():
+    result = cl.evaluate_anchor_pairs(
+        {
+            "dichloromethane-water": 9.98, "cyclohexanol-water": 8.13,
+            "hexane-water": 8.33, "dichloromethane-methanol": 2.60,
+        },
+    )
+    assert not result["accept"]
+
+
+def test_formula_cannot_distinguish_the_dehp_isomers_either():
+    same = _atoms(*([("C", 0, 0, 0)] * 24 + [("H", 0, 0, 0)] * 38 + [("O", 0, 0, 0)] * 4))
+    assert cl.molecular_formula(same) == "C24H38O4"
+    assert cl.DEHP_CAS == "117-81-7"
+    assert cl.DEHP_INCHIKEY == "BJQHLKABXJIVAM-PMACEKPBSA-N"
+    assert cl.DEHP_INCHIKEY != cl.DEHP_INCHIKEY_NOSTEREO
+    assert cl.DEHP_INCHIKEY.split("-")[0] == cl.DEHP_INCHIKEY_NOSTEREO.split("-")[0]
+    keys = {cl.DEHP_INCHIKEY} | {k for _, k in cl.DEHP_ISOMER_DECOYS.values()}
+    assert len(keys) == 3
+    assert cl.BBP_INCHIKEY not in keys
 
 
 def test_bbp_table_deltas_do_not_pass_the_dep_accept():
@@ -535,6 +625,42 @@ def test_bbp_file_is_not_dbp_or_dep(tmp_path):
         )
 
 
+@pytest.mark.skipif(not HAS_COSMOBASE, reason="COSMObase .cosmo library not present")
+def test_parses_the_real_dehp_cosmo_file_to_the_right_formula():
+    atoms = cl.parse_cosmo_geometry(COSMOBASE / "di-2-ethylhexylphthalate_c0.cosmo")
+    assert len(atoms) == 66
+    assert cl.molecular_formula(atoms) == "C24H38O4"
+
+
+@pytest.mark.skipif(not (HAS_COSMOBASE and HAS_OBABEL), reason="needs COSMObase and obabel")
+def test_identity_of_the_real_dehp_file_binds_to_the_perceived_stereo_key(tmp_path):
+    found = cl.verify_identity(
+        COSMOBASE / "di-2-ethylhexylphthalate_c0.cosmo", cl.DEHP_INCHIKEY, scratch=tmp_path
+    )
+    assert found == cl.DEHP_INCHIKEY
+
+
+@pytest.mark.skipif(not (HAS_COSMOBASE and HAS_OBABEL), reason="needs COSMObase and obabel")
+def test_dehp_file_refuses_the_nostereo_catalog_key(tmp_path):
+    """The local file is a specified stereoisomer, not the racemic catalog key."""
+    with pytest.raises(cl.CosmoIdentityError):
+        cl.verify_identity(
+            COSMOBASE / "di-2-ethylhexylphthalate_c0.cosmo",
+            cl.DEHP_INCHIKEY_NOSTEREO,
+            scratch=tmp_path,
+        )
+
+
+@pytest.mark.skipif(not (HAS_COSMOBASE and HAS_OBABEL), reason="needs COSMObase and obabel")
+def test_dehp_identity_refuses_the_terephthalate_decoy(tmp_path):
+    with pytest.raises(cl.CosmoIdentityError):
+        cl.verify_identity(
+            COSMOBASE / "di-2-ethylhexylphthalate_c0.cosmo",
+            cl.DEHP_ISOMER_DECOYS["di-(2-ethylhexyl) terephthalate"][1],
+            scratch=tmp_path,
+        )
+
+
 @pytest.mark.skipif(not ARTIFACTS.is_dir(), reason="rescued ORCA artifacts not present")
 def test_rescued_orcacosmo_files_are_all_present():
     """The stage-1 and stage-2 records cite these exact files."""
@@ -566,6 +692,14 @@ def test_bbp_conformer_generation_is_one_molecule_of_43_atoms():
     confs = cl.generate_conformers(cl.BBP_SMILES, n_embed=20, seed=12345)
     assert len(confs) >= 1
     assert all(len(atoms) == 43 for atoms, _ in confs)
+    assert confs[0][1] == pytest.approx(0.0)
+
+
+def test_dehp_conformer_generation_is_one_molecule_of_66_atoms():
+    pytest.importorskip("rdkit")
+    confs = cl.generate_conformers(cl.DEHP_SMILES, n_embed=20, seed=12345)
+    assert len(confs) >= 1
+    assert all(len(atoms) == 66 for atoms, _ in confs)
     assert confs[0][1] == pytest.approx(0.0)
 
 
