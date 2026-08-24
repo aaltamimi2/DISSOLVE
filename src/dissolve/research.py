@@ -48,6 +48,7 @@ _HYBRID_DENSE_WEIGHT = 0.55
 _HYBRID_SPARSE_WEIGHT = 0.40
 _MINILM_DIM = 384
 _REFUSE_RULE_SPARSE_GATED = "sparse_gated"
+_PRODUCT_KNOWLEDGEBASE = "t5-indexed-unsealed"
 
 
 class ResearchNetworkError(RuntimeError):
@@ -3899,8 +3900,18 @@ def merge_rank_literature_metadata(
     }
 
 
+def _canonical_product_index_path() -> Path:
+    from .text_gold import DEFAULT_OUT_DIR
+    return DEFAULT_OUT_DIR / "indexes" / f"{_PRODUCT_KNOWLEDGEBASE}.json.gz"
+
+
 def _index_path(knowledgebase: str) -> Path:
-    return _research_root() / f"{_slug(knowledgebase)}.json.gz"
+    slug = _slug(knowledgebase)
+    if "DISSOLVE_RESEARCH_HOME" not in os.environ and slug == _PRODUCT_KNOWLEDGEBASE:
+        product = _canonical_product_index_path()
+        if product.exists():
+            return product
+    return _research_root() / f"{slug}.json.gz"
 
 
 def _empty_index(knowledgebase: str) -> dict[str, Any]:
@@ -3920,6 +3931,12 @@ def _load_index(knowledgebase: str) -> dict[str, Any]:
 
 def _save_index(index: dict[str, Any]) -> Path:
     path = _index_path(index["knowledgebase"])
+    product = _canonical_product_index_path()
+    if product.exists() and path.resolve() == product.resolve():
+        raise LiteratureContractError(
+            "protected_product_index",
+            "Ingest must not overwrite the canonical T5 gzip.",
+        )
     path.parent.mkdir(parents=True, exist_ok=True)
     temporary = path.with_suffix(".tmp")
     body = json.dumps(index, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode()
@@ -4408,7 +4425,7 @@ def _ranked_search_rows(
     top_k: int,
 ) -> list[dict[str, Any]]:
     rows = []
-    for index_number, (score, sparse_score, dense_score, boost, chunk) in enumerate(ranked[:top_k], 1):
+    for index_number, (score, sparse_score, dense_score, boost, chunk, sparse_raw_score) in enumerate(ranked[:top_k], 1):
         origin = chunk.get("section_origin")
         if origin == "inherited_from_stack":
             served_section = None
@@ -4434,6 +4451,7 @@ def _ranked_search_rows(
             "footnotes": chunk.get("footnotes"),
             "excerpt": _clean(excerpt_source, 600),
             "sparse_score": round(sparse_score, 6), "dense_score": round(dense_score, 6),
+            "sparse_raw_score": round(sparse_raw_score, 6),
             "section_boost": boost, "final_score": round(score, 6),
         })
     return rows
@@ -4451,10 +4469,19 @@ def _search_index(
     dense_w = _HYBRID_DENSE_WEIGHT if w_dense is None else float(w_dense)
     sparse_w = _HYBRID_SPARSE_WEIGHT if w_sparse is None else float(w_sparse)
     if mode == "hybrid":
+        chunks = list(index.get("chunks") or [])
+        query_tokens = _tokens(query)
+        sparse_raw = _bm25(query_tokens, [{"text": chunk_sparse_corpus(chunk)} for chunk in chunks])
+        if max(sparse_raw, default=0.0) <= 0:
+            return []
+        raw_by_id = {str(chunk["chunk_id"]): float(raw) for chunk, raw in zip(chunks, sparse_raw)}
         ranked = []
         for sparse_score, dense_score, boost, chunk in _hybrid_passage_parts(index, query):
             score = dense_w * dense_score + sparse_w * sparse_score + boost
-            ranked.append((score, sparse_score, dense_score, boost, chunk))
+            ranked.append((
+                score, sparse_score, dense_score, boost, chunk,
+                raw_by_id[str(chunk["chunk_id"])],
+            ))
         ranked.sort(key=lambda item: (-item[0], str(item[4].get("title")), item[4]["chunk_id"]))
         return _ranked_search_rows(index, ranked, top_k)
     chunks = list(index.get("chunks") or [])
@@ -4480,16 +4507,16 @@ def _search_index(
             score = sparse_score + boost
             if score <= 0:
                 continue
-        ranked.append((score, sparse_score, dense_score, boost, chunk))
+        ranked.append((score, sparse_score, dense_score, boost, chunk, sparse_raw_score))
     ranked.sort(key=lambda item: (-item[0], str(item[4].get("title")), item[4]["chunk_id"]))
     return _ranked_search_rows(index, ranked, top_k)
 
 
 def search_literature_corpus(
     query: str,
-    knowledgebase: str = "user-library",
+    knowledgebase: str = _PRODUCT_KNOWLEDGEBASE,
     top_k: int = 5,
-    retrieval_mode: Literal["sparse", "dense", "hybrid"] = "sparse",
+    retrieval_mode: Literal["sparse", "dense", "hybrid"] = "hybrid",
 ) -> str:
     """Retrieve bounded, citable passages; the parent model authors the answer."""
     tool = "search_literature_corpus"
