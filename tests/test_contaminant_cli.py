@@ -204,13 +204,15 @@ def test_logp_is_not_a_persistent_mode_token():
         _parse_contaminant_slash(["logp"])
         raise AssertionError("expected ValueError")
     except ValueError as error:
-        assert "logp --smiles" in str(error)
+        assert "--smiles" in str(error)
+        assert "--file" in str(error)
     try:
         _parse_contaminant_slash(["banana"])
         raise AssertionError("expected ValueError")
     except ValueError as error:
         assert "usage: /contaminant" in str(error)
-        assert "logp --smiles" not in str(error)
+        assert "--smiles" not in str(error)
+        assert "--file" not in str(error)
 
 
 def test_logp_absolute_is_refused_and_does_not_persist(tmp_path, monkeypatch):
@@ -270,3 +272,50 @@ def test_logp_unknown_smiles_is_no_validation_basis(tmp_path, monkeypatch):
     assert "validated_ok=yes" not in text
     assert "solute_cosmo_unavailable" in text
     assert "contaminant_mode" not in app.session
+
+
+def test_logp_file_is_not_a_persistent_mode_and_continues_after_a_refusal(tmp_path, monkeypatch):
+    from dissolve import cosmo_logp as cl
+
+    monkeypatch.setattr(cl, "ln_gamma_infinite_dilution", lambda *a, **k: 1.0)
+    smiles_file = tmp_path / "batch.smi"
+    smiles_file.write_text("\n".join([cl.DEP_SMILES, "not_a_smiles", "CCO"]) + "\n")
+    parsed = _parse_contaminant_slash(
+        ["logp", "--file", str(smiles_file), "--solvents", "toluene,xylene"]
+    )
+    assert parsed["logp"] is True
+    assert parsed["file"] == str(smiles_file)
+    assert parsed["smiles"] is None
+    app, buf = _app(tmp_path, monkeypatch)
+    assert app.handle_command(
+        f"/contaminant logp --file {smiles_file} --solvents toluene,xylene"
+    ) is False
+    assert "contaminant_mode" not in app.session
+    text = buf.getvalue()
+    assert "logp batch" in text
+    assert "n_ok=" in text
+    assert "n_refused=" in text
+    assert "invalid_smiles" in text
+    assert "line=2" in text
+    assert "delta_logd=" in text
+    assert "reference=water" in text
+    assert "solvent_not_available" in text
+    assert "solvent=xylene" in text
+    assert "no_validation_basis" in text
+    assert "validated_ok=yes" not in text
+    assert "dft=not_run" in text
+    assert "max_concurrent_dft=4" in text
+
+
+def test_logp_file_xor_smiles_and_missing_file_are_named(tmp_path, monkeypatch):
+    try:
+        _parse_contaminant_slash(["logp", "--smiles", "CC", "--file", "x.smi"])
+        raise AssertionError("expected ValueError")
+    except ValueError as error:
+        assert "logp" in str(error)
+    app, buf = _app(tmp_path, monkeypatch)
+    missing = tmp_path / "missing.smi"
+    assert app.handle_command(f"/contaminant logp --file {missing} --solvents toluene") is False
+    assert "contaminant_mode" not in app.session
+    assert "batch_file_unavailable" in buf.getvalue()
+    assert "banana" not in buf.getvalue()

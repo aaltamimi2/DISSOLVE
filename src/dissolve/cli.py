@@ -71,7 +71,7 @@ def _parse_solvents_slash(tokens: Sequence[str]) -> dict[str, Any] | None:
 
 _CONTAMINANT_USAGE = "usage: /contaminant [off | leaching | strap | swing | compare]"
 _LOGP_USAGE = (
-    "usage: /contaminant logp --smiles <SMILES> "
+    "usage: /contaminant logp (--smiles <SMILES> | --file <path>) "
     "[--solvents <name,name>] [--reference <name>] [--absolute]"
 )
 _CONTAMINANT_COMPARE_USAGE = (
@@ -89,6 +89,7 @@ def _parse_contaminant_logp(tokens: Sequence[str]) -> dict[str, Any]:
     """One-shot /contaminant logp. Not a persistent contaminant_mode."""
     args = [str(token) for token in tokens[1:]]
     smiles: str | None = None
+    file_path: str | None = None
     solvents_raw: str | None = None
     reference: str | None = None
     absolute = False
@@ -98,6 +99,12 @@ def _parse_contaminant_logp(tokens: Sequence[str]) -> dict[str, Any]:
             if index + 1 >= len(args):
                 raise ValueError(_LOGP_USAGE)
             smiles = args[index + 1]
+            index += 2
+            continue
+        if args[index] == "--file":
+            if index + 1 >= len(args):
+                raise ValueError(_LOGP_USAGE)
+            file_path = args[index + 1]
             index += 2
             continue
         if args[index] == "--solvents":
@@ -117,7 +124,7 @@ def _parse_contaminant_logp(tokens: Sequence[str]) -> dict[str, Any]:
             index += 1
             continue
         raise ValueError(_LOGP_USAGE)
-    if not smiles:
+    if bool(smiles) == bool(file_path):
         raise ValueError(_LOGP_USAGE)
     solvents = [
         item.strip() for item in (solvents_raw or "").split(",") if item.strip()
@@ -125,6 +132,7 @@ def _parse_contaminant_logp(tokens: Sequence[str]) -> dict[str, Any]:
     return {
         "logp": True,
         "smiles": smiles,
+        "file": file_path,
         "solvents": solvents,
         "reference": reference,
         "absolute": absolute,
@@ -1382,7 +1390,8 @@ class CliApp:
             return
         if stored and stored.get("logp"):
             self._run_contaminant_logp(
-                str(stored["smiles"]),
+                stored.get("smiles"),
+                file=stored.get("file"),
                 solvents=list(stored.get("solvents") or []),
                 reference=stored.get("reference"),
                 absolute=bool(stored.get("absolute")),
@@ -1410,12 +1419,21 @@ class CliApp:
         self.console.print(_format_contaminant_default(stored, origin="session"))
 
     def _run_contaminant_logp(
-        self, smiles: str, *, solvents: Sequence[str] | None = None,
+        self, smiles: str | None, *, file: str | None = None,
+        solvents: Sequence[str] | None = None,
         reference: str | None = None, absolute: bool = False,
     ) -> None:
-        """P-1/P-2 intake + P-3 Δ vs a named reference. No new DFT."""
+        """P-1/P-2 intake + P-3 Δ vs a named reference, or P-4 --file. No new DFT."""
         from dissolve import cosmo_logp as cl
 
+        if file:
+            self._run_contaminant_logp_batch(
+                file, solvents=solvents, reference=reference, absolute=absolute,
+            )
+            return
+        if not smiles:
+            self.console.print(f"[red]{_LOGP_USAGE}[/]")
+            return
         result = cl.ingest_smiles(smiles)
         if not result["success"]:
             self.console.print(f"[red]{result['error_code']}[/]")
@@ -1490,6 +1508,79 @@ class CliApp:
                 f"solvent_sha256={row['solvent_sha256']}  "
                 f"reference_sha256={row['reference_sha256']}"
             )
+
+
+    def _run_contaminant_logp_batch(
+        self, file: str, *, solvents: Sequence[str] | None = None,
+        reference: str | None = None, absolute: bool = False,
+    ) -> None:
+        """P-4: one SMILES per line. A refusal does not abort the rest. No new DFT."""
+        from dissolve import cosmo_logp as cl
+
+        batch = cl.compute_delta_logd_batch(
+            file,
+            list(solvents or []),
+            reference="water" if reference is None else reference,
+            absolute=absolute,
+        )
+        if batch.get("error_code") == "batch_file_unavailable":
+            self.console.print(f"[red]{batch['error_code']}[/]  file={file}")
+            return
+        coverage = cl.solvent_route_coverage()
+        self.console.print(
+            "logp batch  "
+            f"n_lines={batch['n_lines']}  "
+            f"n_ok={batch['n_ok']}  "
+            f"n_refused={batch['n_refused']}  "
+            f"n_skipped={batch['n_skipped']}  "
+            "dft=not_run  "
+            f"max_concurrent_dft={batch['max_concurrent_dft']}  "
+            f"coverage table={coverage['n_table']} "
+            f"orca={coverage['n_orca']}/{coverage['n_table']} "
+            f"orca_param={coverage['orca_parameterisation']}"
+        )
+        for skip in batch.get("skipped") or []:
+            self.console.print(
+                f"skipped  line={skip['line']}  reason={skip['reason']}"
+            )
+        for row in batch.get("refused") or []:
+            self.console.print(
+                f"[red]{row.get('error_code')}[/]  "
+                f"line={row.get('line')}  smiles={row.get('smiles')}"
+            )
+        for computed in batch.get("results") or []:
+            if not computed.get("success"):
+                continue
+            self.console.print(
+                "delta provenance  "
+                f"line={computed.get('line')}  "
+                f"inchikey={computed.get('inchikey')}  "
+                f"reference={computed.get('reference')}  "
+                f"validation_status={computed.get('validation_status')}  "
+                f"validated_ok={'yes' if computed.get('validated_ok') else 'no'}  "
+                "dft=not_run"
+            )
+            for sol in computed.get("results") or []:
+                if not sol.get("success"):
+                    self.console.print(
+                        f"[red]{sol.get('error_code')}[/]  "
+                        f"line={computed.get('line')}  solvent={sol.get('query')}"
+                    )
+                    continue
+                self.console.print(
+                    "delta  "
+                    f"line={computed.get('line')}  "
+                    f"solvent={sol['solvent_key']}  "
+                    f"reference={sol['reference']}  "
+                    f"delta_logd={sol['delta_logd']:.4f}  "
+                    f"route={sol['route']}  "
+                    f"param={sol['parameterisation']}  "
+                    f"engine={sol.get('engine') or 'orca'}  "
+                    f"n_conformers={sol['n_conformers']}  "
+                    f"validation_status={sol['validation_status']}  "
+                    f"validated_ok={'yes' if sol['validated_ok'] else 'no'}  "
+                    "dft=not_run"
+                )
 
     def _pick_contaminant_mode(
         self,
