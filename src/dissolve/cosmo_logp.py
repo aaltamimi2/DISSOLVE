@@ -1091,30 +1091,46 @@ def _anchor_pairs_for_inchikey(inchikey: str) -> tuple[tuple[str, str, float], .
     return None
 
 
+def _orca_solvent_cosmo_candidates(
+    key: str, *, artifacts_dir: str | Path | None = None,
+) -> list[Path]:
+    """Every path ``orca_solvent_cosmo_path`` will accept. Discard must match."""
+    stem = ORCA_SOLVENT_FILE_STEMS.get(key)
+    if not stem:
+        return []
+    root = Path(artifacts_dir) if artifacts_dir is not None else DEFAULT_ORCA_ARTIFACTS_DIR
+    return [
+        root / f"{stem}_cosmo.solute.orcacosmo",
+        root / f"{stem}_cosmo.solvent.orcacosmo",
+    ]
+
+
 def orca_solvent_cosmo_path(
     key: str, *, artifacts_dir: str | Path | None = None,
 ) -> Path | None:
-    stem = ORCA_SOLVENT_FILE_STEMS.get(key)
-    if not stem:
-        return None
-    root = Path(artifacts_dir) if artifacts_dir is not None else DEFAULT_ORCA_ARTIFACTS_DIR
-    for name in (f"{stem}_cosmo.solute.orcacosmo", f"{stem}_cosmo.solvent.orcacosmo"):
-        path = root / name
+    for path in _orca_solvent_cosmo_candidates(key, artifacts_dir=artifacts_dir):
         if path.is_file():
             return path
     return None
 
 
-def orca_solute_cosmo_path(
+def _orca_solute_cosmo_candidates(
     inchikey: str, *, artifacts_dir: str | Path | None = None,
-) -> Path | None:
+) -> list[Path]:
+    """Every path ``orca_solute_cosmo_path`` will accept. Discard must match."""
     root = Path(artifacts_dir) if artifacts_dir is not None else DEFAULT_ORCA_ARTIFACTS_DIR
     stem = SOLUTE_ORCA_STEM_BY_INCHIKEY.get(inchikey)
     candidates: list[Path] = []
     if stem:
         candidates.append(root / f"{stem}_cosmo.solute.orcacosmo")
     candidates.append(root / f"{inchikey}_cosmo.solute.orcacosmo")
-    for path in candidates:
+    return candidates
+
+
+def orca_solute_cosmo_path(
+    inchikey: str, *, artifacts_dir: str | Path | None = None,
+) -> Path | None:
+    for path in _orca_solute_cosmo_candidates(inchikey, artifacts_dir=artifacts_dir):
         if path.is_file():
             return path
     return None
@@ -1397,28 +1413,38 @@ def _canonical_solute_orcacosmo(inchikey: str, artifacts_dir: str | Path) -> Pat
     return Path(artifacts_dir) / f"{inchikey}_cosmo.solute.orcacosmo"
 
 
+def _unlink_orcacosmo_files(paths: Sequence[Path | str | None]) -> None:
+    seen: set[Path] = set()
+    for item in paths:
+        if item is None:
+            continue
+        path = Path(item)
+        try:
+            resolved = path.resolve()
+        except OSError:
+            resolved = path
+        if resolved in seen:
+            continue
+        seen.add(resolved)
+        try:
+            path.unlink(missing_ok=True)
+        except OSError:
+            pass
+
+
 def _discard_unverified_solute_orcacosmo(
     inchikey: str,
     artifacts_dir: str | Path,
     dest: str | Path | None = None,
 ) -> None:
-    """Identity refuse must not leave a canonical surface the next submit can reuse."""
-    targets = [_canonical_solute_orcacosmo(inchikey, artifacts_dir)]
+    """Identity refuse must not leave a surface the next submit can reuse as 24a.
+
+    Discard every path ``orca_solute_cosmo_path`` will accept, plus the runner dest.
+    """
+    targets = list(_orca_solute_cosmo_candidates(inchikey, artifacts_dir=artifacts_dir))
     if dest is not None:
         targets.append(Path(dest))
-    seen: set[Path] = set()
-    for path in targets:
-        try:
-            key = path.resolve()
-        except OSError:
-            key = path
-        if key in seen:
-            continue
-        seen.add(key)
-        try:
-            path.unlink(missing_ok=True)
-        except OSError:
-            pass
+    _unlink_orcacosmo_files(targets)
 
 
 def _classify_job_solvents(
@@ -1772,25 +1798,14 @@ def _discard_unverified_solvent_orcacosmo(
     artifacts_dir: str | Path,
     dest: str | Path | None = None,
 ) -> None:
-    """Identity refuse must not leave a wave-0 surface the next submit can reuse as 24a."""
-    targets: list[Path] = []
-    if key in ORCA_SOLVENT_FILE_STEMS:
-        targets.append(_canonical_solvent_orcacosmo(key, artifacts_dir))
+    """Identity refuse must not leave a surface the next submit can reuse as 24a.
+
+    Discard every path ``orca_solvent_cosmo_path`` will accept, plus the runner dest.
+    """
+    targets = list(_orca_solvent_cosmo_candidates(key, artifacts_dir=artifacts_dir))
     if dest is not None:
         targets.append(Path(dest))
-    seen: set[Path] = set()
-    for path in targets:
-        try:
-            resolved = path.resolve()
-        except OSError:
-            resolved = path
-        if resolved in seen:
-            continue
-        seen.add(resolved)
-        try:
-            path.unlink(missing_ok=True)
-        except OSError:
-            pass
+    _unlink_orcacosmo_files(targets)
 
 
 def _stamp_orca_24a_surface(path: Path) -> Path:

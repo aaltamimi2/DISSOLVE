@@ -1949,6 +1949,9 @@ def test_p4d_identity_changed_refuses_and_does_not_serve_delta(tmp_path):
         )
         dest = Path(ctx["artifacts_dir"]) / "octanol_cosmo.solute.orcacosmo"
         dest.write_text("dummy-surface\n")
+        (Path(ctx["artifacts_dir"]) / "octanol_cosmo.solvent.orcacosmo").write_text(
+            "dummy-solvent-surface\n"
+        )
         return {"orcacosmo": dest, "opt_xyz": xyz}
 
     record = cl.submit_solvent_dft_job(
@@ -1963,6 +1966,7 @@ def test_p4d_identity_changed_refuses_and_does_not_serve_delta(tmp_path):
     assert record.get("result") in (None, {})
     leftover = artifacts / "octanol_cosmo.solute.orcacosmo"
     assert not leftover.is_file()
+    assert not (artifacts / "octanol_cosmo.solvent.orcacosmo").is_file()
     assert cl.orca_solvent_cosmo_path(
         "1-octanol", artifacts_dir=artifacts,
     ) is None
@@ -1987,6 +1991,138 @@ def test_p4d_identity_changed_refuses_and_does_not_serve_delta(tmp_path):
     still_2002 = cl.compute_delta_logd(
         cl.DEP_SMILES, ["1-octanol"],
         solvents_dir=solvents, artifacts_dir=artifacts, ln_gamma=lambda *a, **k: 0.5,
+    )
+    row = still_2002["results"][0]
+    assert row["route"] == cl.COSMOBASE_ROUTE
+    assert row["parameterisation"] == "2002"
+    assert row["parameterisation"] != "24a"
+    sanity = cl.octanol_water_sanity(
+        cl.DEP_SMILES, 0.0,
+        solvents_dir=solvents, artifacts_dir=artifacts, ln_gamma=lambda *a, **k: 0.5,
+    )
+    assert sanity["success"] is False
+    assert sanity["error_code"] == "octanol_orca_unavailable"
+    assert sanity.get("parameterisation") != "24a"
+    assert sanity.get("parameterisation") != cl.ORCA_PARAMETERISATION
+
+
+def test_identity_changed_discards_solvent_lookup_alias_leftover(tmp_path):
+    """Lookup-alias leftover after identity_changed must not bind as ORCA 24a."""
+    pytest.importorskip("rdkit")
+    artifacts, solvents = _dummy_p3_dirs(tmp_path)
+    jobs = tmp_path / "jobs"
+    alias = artifacts / "octanol_cosmo.solvent.orcacosmo"
+
+    def plant_alias_then_refuse(ctx):
+        Path(ctx["artifacts_dir"]).mkdir(parents=True, exist_ok=True)
+        alias.write_text("dummy-lookup-alias\n")
+        raise cl.CosmoIdentityError("identity_changed")
+
+    record = cl.submit_solvent_dft_job(
+        "1-octanol",
+        jobs_dir=jobs,
+        artifacts_dir=artifacts,
+        runner=plant_alias_then_refuse,
+        background=False,
+    )
+    assert record["status"] == "failed"
+    assert record["error_code"] == "identity_changed"
+    assert not alias.is_file()
+    assert not (artifacts / "octanol_cosmo.solute.orcacosmo").is_file()
+    assert cl.orca_solvent_cosmo_path("1-octanol", artifacts_dir=artifacts) is None
+
+    calls: list[object] = []
+
+    def never_runner(ctx):
+        calls.append(ctx)
+        raise RuntimeError("lookup-alias leftover must not bind as 24a reuse")
+
+    second = cl.submit_solvent_dft_job(
+        "1-octanol",
+        jobs_dir=jobs,
+        artifacts_dir=artifacts,
+        runner=never_runner,
+        background=False,
+    )
+    assert calls, "second submit must not reuse a lookup-alias leftover"
+    assert second.get("reused") is not True
+    assert second.get("status") != "done"
+    assert second.get("error_code") == "solvent_dft_failed"
+    still_2002 = cl.compute_delta_logd(
+        cl.DEP_SMILES, ["1-octanol"],
+        solvents_dir=solvents, artifacts_dir=artifacts, ln_gamma=lambda *a, **k: 0.5,
+    )
+    row = still_2002["results"][0]
+    assert row["route"] == cl.COSMOBASE_ROUTE
+    assert row["parameterisation"] == "2002"
+    assert row["parameterisation"] != "24a"
+    sanity = cl.octanol_water_sanity(
+        cl.DEP_SMILES, 0.0,
+        solvents_dir=solvents, artifacts_dir=artifacts, ln_gamma=lambda *a, **k: 0.5,
+    )
+    assert sanity["success"] is False
+    assert sanity["error_code"] == "octanol_orca_unavailable"
+    assert sanity.get("parameterisation") != "24a"
+    assert sanity.get("route") != cl.ORCA_ROUTE
+
+
+def test_identity_changed_discards_solute_stem_alias_leftover(tmp_path):
+    """Stage-1 stem alias leftover after identity_changed must not bind as reuse."""
+    pytest.importorskip("rdkit")
+    artifacts, solvents = _dummy_p3_dirs(tmp_path)
+    (artifacts / "dep_cosmo.solute.orcacosmo").unlink()
+    jobs = tmp_path / "jobs"
+    stem_alias = artifacts / "dep_cosmo.solute.orcacosmo"
+
+    def plant_stem_then_refuse(ctx):
+        Path(ctx["artifacts_dir"]).mkdir(parents=True, exist_ok=True)
+        stem_alias.write_text("dummy-stem-alias\n")
+        raise cl.CosmoIdentityError("identity_changed")
+
+    record = cl.submit_solute_dft_job(
+        cl.DEP_SMILES,
+        ["dichloromethane"],
+        reference="water",
+        jobs_dir=jobs,
+        artifacts_dir=artifacts,
+        solvents_dir=solvents,
+        ln_gamma=lambda *a, **k: 1.0,
+        runner=plant_stem_then_refuse,
+        background=False,
+    )
+    assert record["status"] == "failed"
+    assert record["error_code"] == "identity_changed"
+    assert not stem_alias.is_file()
+    assert not (
+        artifacts / f"{cl.DEP_INCHIKEY}_cosmo.solute.orcacosmo"
+    ).is_file()
+    assert cl.orca_solute_cosmo_path(
+        cl.DEP_INCHIKEY, artifacts_dir=artifacts,
+    ) is None
+
+    calls: list[object] = []
+
+    def never_runner(ctx):
+        calls.append(ctx)
+        raise RuntimeError("solute stem-alias leftover must not bind as 24a reuse")
+
+    second = cl.submit_solute_dft_job(
+        cl.DEP_SMILES,
+        ["dichloromethane"],
+        reference="water",
+        jobs_dir=jobs,
+        artifacts_dir=artifacts,
+        solvents_dir=solvents,
+        ln_gamma=lambda *a, **k: 1.0,
+        runner=never_runner,
+        background=False,
+    )
+    assert calls, "second submit must not reuse a solute stem-alias leftover"
+    assert second.get("reused") is not True
+    assert second.get("status") != "done"
+    still_2002 = cl.compute_delta_logd(
+        cl.DEP_SMILES, ["dichloromethane"],
+        solvents_dir=solvents, artifacts_dir=artifacts, ln_gamma=lambda *a, **k: 1.0,
     )
     row = still_2002["results"][0]
     assert row["route"] == cl.COSMOBASE_ROUTE
