@@ -210,8 +210,6 @@ def test_a3_live_unpaid_pdftotext_mint_does_not_touch_persist(tmp_path):
     assert all(row["id"].startswith("od-") for row in artifact["queries"])
     assert all("query" in row and "fact_id" not in row for row in artifact["queries"])
     assert "mint_one_paper" not in Path(abstention_a3.__file__).read_text()
+    assert "query_idf_coverage" not in Path(abstention_a3.__file__).read_text()
     assert file_sha256(text_chunk_metrics.GOLD_UNSEALED_PATH) == gold_before
-    source = Path(research.__file__).read_text()
-    assert "query_idf_coverage" not in source
-    assert not Path("/home/aaltamimi2/dissolve-v12-audit/corpus/text_chunking/CURVES.retrieval.abstention.v1.json").exists()
 

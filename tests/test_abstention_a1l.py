@@ -75,8 +75,9 @@ def test_a1l_production_weights_ident():
     assert research._HYBRID_DENSE_WEIGHT == 0.55
     assert research._HYBRID_SPARSE_WEIGHT == 0.40
     assert "engine_e2e" not in source
-    assert "query_idf_coverage" not in source
     assert "low_retrieval_confidence=not rows or top_score < 0.15" in source
+    assert "_ABSTENTION_FLOOR" not in source
+    assert "_COVERAGE_FLOOR" not in source
 
 
 def test_a1l_search_defaults_and_ingest_home():

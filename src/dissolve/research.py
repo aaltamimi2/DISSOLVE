@@ -3918,6 +3918,25 @@ def _empty_index(knowledgebase: str) -> dict[str, Any]:
     return {"schema": _INDEX_SCHEMA, "knowledgebase": _slug(knowledgebase), "documents": [], "chunks": [], "dense": None}
 
 
+def _product_manifest_path() -> Path:
+    from .text_gold import DEFAULT_OUT_DIR
+    return DEFAULT_OUT_DIR / "INDEX.t5.unsealed.v1.json"
+
+
+def _manifest_abstention() -> dict[str, Any] | None:
+    path = _product_manifest_path()
+    if not path.is_file():
+        return None
+    try:
+        payload = json.loads(path.read_text())
+    except (OSError, json.JSONDecodeError):
+        return None
+    block = payload.get("abstention")
+    if not isinstance(block, Mapping) or block.get("floor") is None:
+        return None
+    return dict(block)
+
+
 def _load_index(knowledgebase: str) -> dict[str, Any]:
     path = _index_path(knowledgebase)
     if not path.exists():
@@ -3926,6 +3945,11 @@ def _load_index(knowledgebase: str) -> dict[str, Any]:
         payload = json.load(handle)
     if payload.get("schema") != _INDEX_SCHEMA or payload.get("knowledgebase") != _slug(knowledgebase):
         raise ValueError("unsupported or mismatched literature index")
+    if path.resolve() == _canonical_product_index_path().resolve():
+        block = _manifest_abstention()
+        if block:
+            payload = dict(payload)
+            payload["abstention"] = block
     return payload
 
 
@@ -4322,6 +4346,78 @@ def ingest_literature_documents(
     )
 
 
+def _idf_maps(chunks: Sequence[Mapping[str, Any]]) -> tuple[int, Counter, list[set[str]]]:
+    token_sets = [set(_tokens(chunk_sparse_corpus(chunk))) for chunk in chunks]
+    n_docs = len(chunks)
+    document_frequency: Counter = Counter(token for tokens in token_sets for token in tokens)
+    return n_docs, document_frequency, token_sets
+
+
+def _idf_value(token: str, n_docs: int, document_frequency: Mapping[str, int]) -> float:
+    count = int(document_frequency.get(token, 0))
+    return math.log(1.0 + (n_docs - count + 0.5) / (count + 0.5))
+
+
+def query_idf_coverage(
+    query: str,
+    passage: str,
+    *,
+    n_docs: int,
+    document_frequency: Mapping[str, int],
+) -> float:
+    query_tokens = set(_tokens(query))
+    passage_tokens = set(_tokens(passage))
+    query_mass = sum(_idf_value(token, n_docs, document_frequency) for token in query_tokens)
+    if query_mass <= 0:
+        return 0.0
+    matched_mass = sum(
+        _idf_value(token, n_docs, document_frequency)
+        for token in query_tokens
+        if token in passage_tokens
+    )
+    return matched_mass / query_mass
+
+
+def _coverage_from_sparse(
+    query: str,
+    chunks: Sequence[Mapping[str, Any]],
+    sparse_raw: Sequence[float],
+) -> tuple[dict[str, float], float]:
+    n_docs, document_frequency, token_sets = _idf_maps(chunks)
+    query_tokens = set(_tokens(query))
+    query_mass = sum(_idf_value(token, n_docs, document_frequency) for token in query_tokens)
+    coverage_by_id: dict[str, float] = {}
+    gated: list[float] = []
+    for chunk, tokens, raw in zip(chunks, token_sets, sparse_raw):
+        if query_mass <= 0:
+            value = 0.0
+        else:
+            matched = sum(
+                _idf_value(token, n_docs, document_frequency)
+                for token in query_tokens
+                if token in tokens
+            )
+            value = matched / query_mass
+        coverage_by_id[str(chunk["chunk_id"])] = value
+        if float(raw) > 0:
+            gated.append(value)
+    return coverage_by_id, (max(gated) if gated else 0.0)
+
+
+def coverage_star(index: Mapping[str, Any], query: str) -> float:
+    chunks = list(index.get("chunks") or [])
+    sparse_raw = _bm25(_tokens(query), [{"text": chunk_sparse_corpus(chunk)} for chunk in chunks])
+    _coverage_by_id, star = _coverage_from_sparse(query, chunks, sparse_raw)
+    return star
+
+
+def _abstention_floor(index: Mapping[str, Any]) -> float | None:
+    block = index.get("abstention")
+    if not isinstance(block, Mapping) or block.get("floor") is None:
+        return None
+    return float(block["floor"])
+
+
 def _bm25(query_tokens: list[str], chunks: list[dict[str, Any]]) -> list[float]:
     token_lists = [_tokens(item["text"]) for item in chunks]
     lengths = [len(items) for items in token_lists]
@@ -4423,6 +4519,7 @@ def _ranked_search_rows(
     index: dict[str, Any],
     ranked: list[tuple[Any, ...]],
     top_k: int,
+    coverage_by_id: Mapping[str, float] | None = None,
 ) -> list[dict[str, Any]]:
     rows = []
     for index_number, (score, sparse_score, dense_score, boost, chunk, sparse_raw_score) in enumerate(ranked[:top_k], 1):
@@ -4437,6 +4534,7 @@ def _ranked_search_rows(
             )
             if part
         )
+        coverage = 0.0 if coverage_by_id is None else float(coverage_by_id.get(str(chunk["chunk_id"]), 0.0))
         rows.append({
             "citation_id": f"C{index_number}", "chunk_id": chunk["chunk_id"],
             "paper_sha256": _chunk_paper_sha256(index, chunk),
@@ -4452,6 +4550,7 @@ def _ranked_search_rows(
             "excerpt": _clean(excerpt_source, 600),
             "sparse_score": round(sparse_score, 6), "dense_score": round(dense_score, 6),
             "sparse_raw_score": round(sparse_raw_score, 6),
+            "query_idf_coverage": round(coverage, 6),
             "section_boost": boost, "final_score": round(score, 6),
         })
     return rows
@@ -4468,12 +4567,16 @@ def _search_index(
 ) -> list[dict[str, Any]]:
     dense_w = _HYBRID_DENSE_WEIGHT if w_dense is None else float(w_dense)
     sparse_w = _HYBRID_SPARSE_WEIGHT if w_sparse is None else float(w_sparse)
+    chunks = list(index.get("chunks") or [])
+    query_tokens = _tokens(query)
+    sparse_raw = _bm25(query_tokens, [{"text": chunk_sparse_corpus(chunk)} for chunk in chunks])
+    coverage_by_id, star = _coverage_from_sparse(query, chunks, sparse_raw)
+    floor = _abstention_floor(index)
+    if floor is not None and star < floor:
+        return []
+    if max(sparse_raw, default=0.0) <= 0:
+        return []
     if mode == "hybrid":
-        chunks = list(index.get("chunks") or [])
-        query_tokens = _tokens(query)
-        sparse_raw = _bm25(query_tokens, [{"text": chunk_sparse_corpus(chunk)} for chunk in chunks])
-        if max(sparse_raw, default=0.0) <= 0:
-            return []
         raw_by_id = {str(chunk["chunk_id"]): float(raw) for chunk, raw in zip(chunks, sparse_raw)}
         ranked = []
         for sparse_score, dense_score, boost, chunk in _hybrid_passage_parts(index, query):
@@ -4483,12 +4586,7 @@ def _search_index(
                 raw_by_id[str(chunk["chunk_id"])],
             ))
         ranked.sort(key=lambda item: (-item[0], str(item[4].get("title")), item[4]["chunk_id"]))
-        return _ranked_search_rows(index, ranked, top_k)
-    chunks = list(index.get("chunks") or [])
-    query_tokens = _tokens(query)
-    sparse_raw = _bm25(query_tokens, [{"text": chunk_sparse_corpus(chunk)} for chunk in chunks])
-    if max(sparse_raw, default=0.0) <= 0:
-        return []
+        return _ranked_search_rows(index, ranked, top_k, coverage_by_id)
     sparse_max = max(sparse_raw)
     sparse = [value / sparse_max for value in sparse_raw]
     dense_scores = [0.0] * len(chunks)
@@ -4509,7 +4607,7 @@ def _search_index(
                 continue
         ranked.append((score, sparse_score, dense_score, boost, chunk, sparse_raw_score))
     ranked.sort(key=lambda item: (-item[0], str(item[4].get("title")), item[4]["chunk_id"]))
-    return _ranked_search_rows(index, ranked, top_k)
+    return _ranked_search_rows(index, ranked, top_k, coverage_by_id)
 
 
 def search_literature_corpus(
@@ -4555,6 +4653,7 @@ def search_literature_corpus(
         refuse_rule=_REFUSE_RULE_SPARSE_GATED,
         hybrid_weights={"dense": _HYBRID_DENSE_WEIGHT, "sparse": _HYBRID_SPARSE_WEIGHT},
         result_count=len(rows), results=rows, top_score=top_score,
+        coverage_star=round(coverage_star(index, query), 6),
         low_retrieval_confidence=not rows or top_score < 0.15,
         evidence_scope="retrieved_corpus_passages",
         warnings=[
