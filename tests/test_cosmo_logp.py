@@ -1754,9 +1754,33 @@ def test_p4c_identity_changed_refuses_delta(tmp_path):
     assert record["error_code"] == "identity_changed"
     assert record.get("result") in (None, {})
     dest = artifacts / f"{record['inchikey']}_cosmo.solute.orcacosmo"
-    # surface file may exist on disk; it must not be served as a Δ
-    if record.get("result"):
-        for row in record["result"].get("results") or []:
+    assert not dest.is_file()
+    assert cl.orca_solute_cosmo_path(
+        record["inchikey"], artifacts_dir=artifacts,
+    ) is None
+
+    calls: list[object] = []
+
+    def refuse_reuse(ctx):
+        calls.append(ctx)
+        raise RuntimeError("failed-identity leftover must not bind the artifact store")
+
+    second = cl.submit_solute_dft_job(
+        "CCO",
+        ["dichloromethane"],
+        reference="water",
+        jobs_dir=jobs,
+        artifacts_dir=artifacts,
+        solvents_dir=solvents,
+        ln_gamma=lambda *a, **k: 1.0,
+        runner=refuse_reuse,
+        background=False,
+    )
+    assert calls, "second submit must not reuse a leftover surface"
+    assert second.get("reused") is not True
+    assert second.get("result") in (None, {})
+    if second.get("result"):
+        for row in second["result"].get("results") or []:
             assert row.get("delta_logd") is None
 
 
