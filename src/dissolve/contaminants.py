@@ -9,7 +9,7 @@ from dataclasses import dataclass
 from functools import lru_cache
 from importlib.resources import files
 from pathlib import Path
-from typing import Any, Optional, Sequence
+from typing import Any, Mapping, Optional, Sequence
 
 import duckdb
 
@@ -673,12 +673,71 @@ def _polymer_status(
     }
 
 
-def _contaminant_rows(solvent: str, contaminants: Sequence[str], regime: str) -> tuple[list[dict], Optional[float], bool, bool]:
+_FIELD_ORIGIN_TABULATED = "tabulated"
+_FIELD_ORIGIN_COMPUTED = "computed"
+
+
+def _index_computed_deltas(
+    computed_deltas: Sequence[Mapping[str, Any]] | Mapping[str, Any] | None,
+) -> dict[str, dict[str, Any]]:
+    """Index overlay rows by folded solvent key. Overlay is never tabulated."""
+    if not computed_deltas:
+        return {}
+    items: list[Mapping[str, Any]]
+    if isinstance(computed_deltas, Mapping):
+        if "delta_logd" in computed_deltas:
+            items = [computed_deltas]
+        else:
+            items = []
+            for key, value in computed_deltas.items():
+                if isinstance(value, Mapping):
+                    items.append({**value, "solvent_key": value.get("solvent_key") or key})
+                elif isinstance(value, (int, float)) and not isinstance(value, bool):
+                    items.append({"solvent_key": key, "delta_logd": float(value)})
+    else:
+        items = [item for item in computed_deltas if isinstance(item, Mapping)]
+    indexed: dict[str, dict[str, Any]] = {}
+    for item in items:
+        if item.get("delta_logd") is None:
+            continue
+        key = _key(item.get("solvent_key") or item.get("query") or item.get("solvent") or "")
+        if not key:
+            continue
+        origin = str(item.get("field_origin") or _FIELD_ORIGIN_COMPUTED)
+        if origin == _FIELD_ORIGIN_TABULATED:
+            origin = _FIELD_ORIGIN_COMPUTED
+        indexed[key] = {**dict(item), "field_origin": origin}
+    return indexed
+
+
+def _contaminant_rows(
+    solvent: str, contaminants: Sequence[str], regime: str,
+    computed_by_solvent: Mapping[str, Mapping[str, Any]] | None = None,
+) -> tuple[list[dict], Optional[float], bool, bool]:
     rows, minimum, all_miscible, all_positive = [], None, True, True
     lookup = _contaminant_lookup()
+    overlay = (computed_by_solvent or {}).get(_key(solvent))
     for contaminant in contaminants:
         miscibility = _miscibility(solvent, contaminant, regime)
-        logd = _logd(solvent, contaminant)
+        table_logd = _logd(solvent, contaminant)
+        computed_value = None
+        computed_origin = None
+        computed_reference = None
+        if overlay is not None and overlay.get("delta_logd") is not None:
+            computed_value = float(overlay["delta_logd"])
+            computed_origin = overlay.get("field_origin") or _FIELD_ORIGIN_COMPUTED
+            if computed_origin == _FIELD_ORIGIN_TABULATED:
+                computed_origin = _FIELD_ORIGIN_COMPUTED
+            computed_reference = overlay.get("reference")
+        if table_logd is not None:
+            logd = table_logd
+            origin = _FIELD_ORIGIN_TABULATED
+        elif computed_value is not None:
+            logd = computed_value
+            origin = _FIELD_ORIGIN_COMPUTED
+        else:
+            logd = None
+            origin = None
         miscible = miscibility.get("miscible") if miscibility else None
         all_miscible &= miscible is True
         all_positive &= CONTAMINANT_LOGD_CRITERION.passes(logd)
@@ -687,6 +746,11 @@ def _contaminant_rows(solvent: str, contaminants: Sequence[str], regime: str) ->
         rows.append({
             **_served_identity(lookup[_key(contaminant)]),
             "miscible": miscible, "logd": logd,
+            "field_origin": origin,
+            "tabulated_logd": table_logd,
+            "computed_delta_logd": computed_value,
+            "computed_field_origin": computed_origin,
+            "computed_reference": computed_reference,
             "miscibility_regime": (
                 miscibility.get("temperature_regime") if miscibility else regime
             ),
@@ -869,6 +933,7 @@ def _leaching(inputs: dict[str, Any]) -> dict[str, Any]:
         temperature = upper if regime == "t_higher" else min(upper, 25.0)
         contaminants, minimum, miscible, positive = _contaminant_rows(
             solvent, inputs["supported"], regime,
+            computed_by_solvent=_index_computed_deltas(inputs.get("computed_deltas")),
         )
         target = _polymer_status(inputs["target"], solvent, temperature, inputs)
         other_status = {
@@ -938,6 +1003,18 @@ def _leaching(inputs: dict[str, Any]) -> dict[str, Any]:
             "Leaching-mode swelling is inferred from modeled polymer solubility, not measured swelling.",
             "A passing screen does not establish extraction recovery, kinetics, solvent loading, or product purity.",
             *_threshold_warnings(inputs, include_precipitation=False),
+            *(
+                [
+                    "A computed Δ logD informed this screen; "
+                    "field_origin=computed is not tabulated logD."
+                ]
+                if any(
+                    item.get("field_origin") == _FIELD_ORIGIN_COMPUTED
+                    for row in rows
+                    for item in row.get("contaminants") or []
+                )
+                else []
+            ),
         ],
     })
     return result
@@ -1125,15 +1202,19 @@ def screen_contaminant_leaching(
     swelling_min_wt_pct: Optional[float] = None,
     swelling_max_wt_pct: Optional[float] = None,
     dissolution_min_wt_pct: Optional[float] = None,
+    computed_deltas: Sequence[Mapping[str, Any]] | Mapping[str, Any] | None = None,
 ) -> str:
-    """Screen leaching with optional user-defined swelling/dissolution proxies."""
+    """Screen leaching. Computed Δ may inform only with field_origin. Never write logd."""
     tool = "screen_contaminant_leaching"
     inputs, error = _inputs(
         tool, target_polymer, contaminants, other_polymers, solvents,
         max_temperature_c, strict_maximum, swelling_min_wt_pct,
         swelling_max_wt_pct, dissolution_min_wt_pct,
     )
-    return error or _tool_result(tool, _leaching(inputs))
+    if error:
+        return error
+    inputs["computed_deltas"] = computed_deltas
+    return _tool_result(tool, _leaching(inputs))
 
 
 def screen_contaminant_strap_removal(
