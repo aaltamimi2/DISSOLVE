@@ -1,21 +1,30 @@
-"""Polymer COSMO ingest (R-1): split, convert, identity-check.
+"""Polymer COSMO ingest (R-1) and polymer-as-solvent partition (R-2).
 
-Never launches ORCA. Never writes the catalog partition column. R-2 intercept
-/ ``log10 P(solvent/polymer)`` is a later SHA. ``scripts/cosmo/run_orca_stage.py``
+Never launches ORCA. Never writes the catalog partition column.
+Never mixes 2002 polymer numbers with 24a. ``scripts/cosmo/run_orca_stage.py``
 is not imported.
 """
 from __future__ import annotations
 
+import math
 import re
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Mapping, Sequence
+from typing import Any, Callable, Mapping, Sequence
 
+from dissolve import contaminants
 from dissolve.cosmo_logp import (
     BOHR_TO_ANGSTROM,
     COSMOBASE_PARAMETERISATION,
+    HARTREE_TO_KCAL,
+    KNOWN_METHOD_FAILURES,
     Atom,
     CosmoError,
+    boltzmann_combine,
+    cosmotherm_file_for,
+    delta_log_d,
+    linear_fit,
+    ln_gamma_infinite_dilution,
 )
 
 # Header ``area`` is bohr²; ``$segment_information`` areas are Å².
@@ -44,6 +53,20 @@ ROUTE_POLYMER_COSMO = "polymer_cosmo"
 GAUSSIAN_UNCONVERTED = "gaussian_cosmo_unconverted"
 MCOS_NOT_SPLIT = "mcos_not_split"
 SURFACE_DISCARDED = "surface_discarded"
+WRONG_PHASE_ROLE = "wrong_phase_role"
+SOLVENT_NOT_AVAILABLE = "solvent_not_available"
+PARAMETERISATION_24A_REFUSED = "parameterisation_24a_refused"
+TURBOMOLE_2002_PARAMETERIZATION = "default_turbomole"
+QC_ORIGIN_GAUSSIAN_COSMO = "gaussian_cosmo"
+DEP_CATALOG_KEY = "diethyl phthalate (dep)"
+#: Water-referenced control (drop chloroform only). Not a target to beat.
+WATER_REFERENCED_CONTROL = {
+    "n": 30,
+    "slope": 0.928,
+    "r_squared": 0.909,
+    "residual_sd": 0.257,
+    "chloroform": "dropped",
+}
 
 POLYMER_SOURCE_DIR = Path("/home/aaltamimi2/polymers_cosmo")
 PE_MCOS = POLYMER_SOURCE_DIR / "pe_mcos" / "config_1010.mcos"
@@ -110,6 +133,7 @@ class ConvertedCosmo:
     engine: str
     qc_origin: str
     atom_mask: str
+    energy_hartree: float | None = None
 
 
 def _w_bits(raw: str) -> tuple[int, ...]:
@@ -403,8 +427,9 @@ def convert_gaussian_cosmo(
         area_angstrom2=rec.area * _BOHR2_TO_ANG2,
         parameterisation=COSMOBASE_PARAMETERISATION,
         engine=ENGINE_GAUSSIAN_CONVERTED,
-        qc_origin="gaussian_cosmo",
+        qc_origin=QC_ORIGIN_GAUSSIAN_COSMO,
         atom_mask=rec.w_vector,
+        energy_hartree=rec.energy_hartree,
     )
 
 
@@ -456,3 +481,260 @@ def first_source_file(polymer_key: str) -> Path:
     if not cosmo:
         raise PolymerCosmoError(f"no COSMO source for {polymer_key}")
     return cosmo[0]
+
+
+def _default_ln_gamma(solute: Path, solvent: Path, **kwargs: Any) -> float:
+    token = next(
+        (str(value) for key, value in kwargs.items() if "param" in key),
+        TURBOMOLE_2002_PARAMETERIZATION,
+    )
+    _refuse_24a_parameterization(token)
+    return ln_gamma_infinite_dilution(solute, solvent, parameterization=token)
+
+
+def _as_paths(value: str | Path | Sequence[str | Path]) -> list[Path]:
+    if isinstance(value, (str, Path)):
+        return [Path(value)]
+    return [Path(item) for item in value]
+
+
+def _refuse_24a_parameterization(parameterization: str) -> None:
+    token = str(parameterization or "").strip().casefold()
+    if "24a" in token or token in {"opencosmors24a", "orca"}:
+        raise PolymerCosmoError(
+            "polymer path is 2002 / default_turbomole; 24a is refused",
+            error_code=PARAMETERISATION_24A_REFUSED,
+        )
+
+
+def _ensemble_ln_gamma(
+    solute: Path,
+    solvent_files: Sequence[Path],
+    energies_hartree: Sequence[float | None] | None,
+    ln_gamma: Callable[..., float],
+    parameterization: str,
+) -> float:
+    values = [
+        float(
+            ln_gamma(
+                solute,
+                path,
+                parameterization=parameterization,
+            )
+        )
+        for path in solvent_files
+    ]
+    if len(values) == 1:
+        return values[0]
+    if energies_hartree is None or all(item is None for item in energies_hartree):
+        relative_kcal = [0.0] * len(values)
+    else:
+        kcal = [
+            0.0 if item is None else float(item) * HARTREE_TO_KCAL
+            for item in energies_hartree
+        ]
+        floor = min(kcal)
+        relative_kcal = [item - floor for item in kcal]
+    return boltzmann_combine(values, relative_kcal)
+
+
+def _served_labels(polymer_name: str, solvent_key: str) -> dict[str, Any]:
+    return {
+        "polymer_name": polymer_name,
+        "reference_phase": polymer_name,
+        "solvent_key": solvent_key,
+        "parameterisation": COSMOBASE_PARAMETERISATION,
+        "route": ROUTE_POLYMER_COSMO,
+        "engine": ENGINE_GAUSSIAN_CONVERTED,
+        "qc_origin": QC_ORIGIN_GAUSSIAN_COSMO,
+        "dft_ran": False,
+        "basis": "mole_fraction",
+    }
+
+
+def compute_log10_p_solvent_over_polymer(
+    solute_cosmo: str | Path,
+    solvent_cosmo: str | Path,
+    polymer_cosmo: str | Path | Sequence[str | Path],
+    *,
+    polymer_name: str,
+    solvent_key: str,
+    polymer_role: str = "solvent",
+    solute_role: str = "contaminant",
+    ln_gamma: Callable[..., float] | None = None,
+    energies_hartree: Sequence[float | None] | None = None,
+    parameterization: str = TURBOMOLE_2002_PARAMETERIZATION,
+) -> dict[str, Any]:
+    """log10 P(solvent/polymer) for a contaminant solute. Polymer is the solvent."""
+    if polymer_role != "solvent" or solute_role != "contaminant":
+        raise PolymerCosmoError(
+            "polymer is the solvent phase; the contaminant is the solute",
+            error_code=WRONG_PHASE_ROLE,
+        )
+    _refuse_24a_parameterization(parameterization)
+    polymer_files = _as_paths(polymer_cosmo)
+    if not polymer_files:
+        raise PolymerCosmoError("no polymer COSMO files")
+    gamma_fn = ln_gamma if ln_gamma is not None else _default_ln_gamma
+    ln_in_solvent = _ensemble_ln_gamma(
+        Path(solute_cosmo),
+        _as_paths(solvent_cosmo),
+        None,
+        gamma_fn,
+        parameterization,
+    )
+    ln_in_polymer = _ensemble_ln_gamma(
+        Path(solute_cosmo),
+        polymer_files,
+        energies_hartree,
+        gamma_fn,
+        parameterization,
+    )
+    value = delta_log_d(ln_in_solvent, ln_in_polymer)
+    row = _served_labels(polymer_name, solvent_key)
+    row["success"] = True
+    row["error_code"] = None
+    row["log10_p_solvent_over_polymer"] = value
+    row["ln_gamma_solvent"] = ln_in_solvent
+    row["ln_gamma_polymer"] = ln_in_polymer
+    return row
+
+
+def format_served_row(row: Mapping[str, Any]) -> str:
+    """Human line that names the polymer and the reference phase."""
+    return (
+        f"polymer={row.get('polymer_name')} "
+        f"reference_phase={row.get('reference_phase')} "
+        f"solvent={row.get('solvent_key')} "
+        f"log10_P={row.get('log10_p_solvent_over_polymer')} "
+        f"parameterisation={row.get('parameterisation')} "
+        f"route={row.get('route')} "
+        f"engine={row.get('engine')} "
+        f"dft_ran={row.get('dft_ran')}"
+    )
+
+
+def _dep_catalog_rows() -> list[tuple[str, float]]:
+    connection = contaminants._connection()
+    return [
+        (str(solvent), float(value))
+        for solvent, value in connection.execute(
+            "SELECT solvent_key, logd FROM logd "
+            "WHERE contaminant_key = ? ORDER BY solvent_key",
+            [DEP_CATALOG_KEY],
+        ).fetchall()
+        if value is not None and math.isfinite(float(value))
+    ]
+
+
+def _intercept_ci95(
+    x: Sequence[float], intercept: float, slope_stderr: float,
+) -> tuple[float, float, float]:
+    n = len(x)
+    mean_x = sum(x) / n
+    sxx = sum((xi - mean_x) ** 2 for xi in x)
+    intercept_stderr = float(slope_stderr) * math.sqrt(mean_x * mean_x + sxx / n)
+    half = 1.96 * intercept_stderr
+    return intercept_stderr, intercept - half, intercept + half
+
+
+def intercept_test_dep(
+    polymer_name: str,
+    polymer_cosmo: str | Path | Sequence[str | Path],
+    *,
+    solute_cosmo: str | Path | None = None,
+    ln_gamma: Callable[..., float] | None = None,
+    energies_hartree: Sequence[float | None] | None = None,
+    parameterization: str = TURBOMOLE_2002_PARAMETERIZATION,
+    catalog_rows: Sequence[tuple[str, float]] | None = None,
+    solvents_dir: str | Path | None = None,
+    solvent_file_for: Callable[[str], Path | None] | None = None,
+) -> dict[str, Any]:
+    """OLS of catalog partition (y) on computed log10 P(solvent/polymer) (x).
+
+    Chloroform handling IDENT the water-referenced control: drop chloroform
+    only. Do not drop a second solvent. Do not write the catalog column.
+    Do not apply the removability threshold in this SHA.
+    """
+    _refuse_24a_parameterization(parameterization)
+    if solute_cosmo is None:
+        raise PolymerCosmoError("DEP solute COSMO path is required")
+    rows_in = list(catalog_rows) if catalog_rows is not None else _dep_catalog_rows()
+    dropped: list[dict[str, Any]] = []
+    fit_x: list[float] = []
+    fit_y: list[float] = []
+    served: list[dict[str, Any]] = []
+    for solvent_key, catalog_value in rows_in:
+        folded = str(solvent_key).strip().casefold()
+        if folded in KNOWN_METHOD_FAILURES:
+            dropped.append({
+                "solvent_key": solvent_key,
+                "reason": KNOWN_METHOD_FAILURES[folded],
+                "dropped": True,
+            })
+            continue
+        if solvent_file_for is not None:
+            solvent_path = solvent_file_for(solvent_key)
+        else:
+            solvent_path = cosmotherm_file_for(
+                solvent_key, solvents_dir=solvents_dir,
+            )
+        if solvent_path is None:
+            served.append({
+                **_served_labels(polymer_name, solvent_key),
+                "success": False,
+                "error_code": SOLVENT_NOT_AVAILABLE,
+                "log10_p_solvent_over_polymer": None,
+                "catalog_value": catalog_value,
+                "in_fit": False,
+            })
+            continue
+        computed = compute_log10_p_solvent_over_polymer(
+            solute_cosmo,
+            solvent_path,
+            polymer_cosmo,
+            polymer_name=polymer_name,
+            solvent_key=solvent_key,
+            ln_gamma=ln_gamma,
+            energies_hartree=energies_hartree,
+            parameterization=parameterization,
+        )
+        computed["catalog_value"] = catalog_value
+        computed["in_fit"] = True
+        served.append(computed)
+        fit_x.append(float(computed["log10_p_solvent_over_polymer"]))
+        fit_y.append(float(catalog_value))
+    if len(fit_x) < 3:
+        raise PolymerCosmoError(
+            f"need at least 3 solvent points for the intercept test; got {len(fit_x)}"
+        )
+    fit = linear_fit(fit_x, fit_y)
+    intercept_stderr, ci_low, ci_high = _intercept_ci95(
+        fit_x, fit.intercept, fit.slope_stderr,
+    )
+    consistent = ci_low <= 0.0 <= ci_high
+    return {
+        "polymer_name": polymer_name,
+        "reference_phase": polymer_name,
+        "solute": "DEP",
+        "parameterisation": COSMOBASE_PARAMETERISATION,
+        "route": ROUTE_POLYMER_COSMO,
+        "engine": ENGINE_GAUSSIAN_CONVERTED,
+        "qc_origin": QC_ORIGIN_GAUSSIAN_COSMO,
+        "dft_ran": False,
+        "n": fit.n,
+        "slope": fit.slope,
+        "intercept": fit.intercept,
+        "r_squared": fit.r_squared,
+        "residual_sd": fit.residual_sd,
+        "intercept_stderr": intercept_stderr,
+        "intercept_ci95": (ci_low, ci_high),
+        "intercept_consistent_with_zero": consistent,
+        "water_referenced_control": dict(WATER_REFERENCED_CONTROL),
+        "chloroform_dropped": True,
+        "second_solvent_dropped": False,
+        "removability_threshold_applied": False,
+        "catalog_column_written": False,
+        "rows": served,
+        "dropped": dropped,
+    }

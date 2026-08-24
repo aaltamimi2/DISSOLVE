@@ -28,9 +28,9 @@ def test_does_not_import_broken_converter_or_orca_runner():
     assert "submit_solute_dft_job" not in _SRC
     assert "submit_solvent_dft_job" not in _SRC
     assert "gaussian_to_turbomole_converter" not in _SRC
-    assert "compute_log10_p_solvent_over_polymer" not in _SRC
     assert "compare_pe_dodecane_routes" not in _SRC
     assert "write_dft_handoff" not in _SRC
+    assert "_discard_unverified" not in _SRC
 
 
 def test_split_pe_is_one_conformer_not_two():
@@ -205,4 +205,5 @@ def test_xylene_is_not_rewritten_here():
     assert "o-xylene" not in _SRC
     assert "subprocess" not in _SRC
     assert "generate_conformers(" not in _SRC
-    assert "logd" not in _SRC
+    assert "INSERT" not in _SRC
+    assert "UPDATE" not in _SRC
