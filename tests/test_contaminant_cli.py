@@ -213,6 +213,7 @@ def test_logp_is_not_a_persistent_mode_token():
         assert "usage: /contaminant" in str(error)
         assert "--smiles" not in str(error)
         assert "--file" not in str(error)
+        assert "--job" not in str(error)
 
 
 def test_logp_absolute_is_refused_and_does_not_persist(tmp_path, monkeypatch):
@@ -263,6 +264,8 @@ def test_logp_prints_delta_against_named_water_when_gamma_is_mocked(
 
 
 def test_logp_unknown_smiles_is_no_validation_basis(tmp_path, monkeypatch):
+    monkeypatch.setenv("DISSOLVE_COSMO_JOBS_DIR", str(tmp_path / "jobs"))
+    monkeypatch.setenv("DISSOLVE_COSMO_ARTIFACTS_DIR", str(tmp_path / "orca"))
     app, buf = _app(tmp_path, monkeypatch)
     assert app.handle_command(
         "/contaminant logp --smiles CCO --solvents toluene"
@@ -270,7 +273,10 @@ def test_logp_unknown_smiles_is_no_validation_basis(tmp_path, monkeypatch):
     text = buf.getvalue()
     assert "no_validation_basis" in text
     assert "validated_ok=yes" not in text
-    assert "solute_cosmo_unavailable" in text
+    assert "solvent_orca_unavailable" in text
+    assert "handle=" in text
+    assert "estimated_wall_min=" in text
+    assert "dft=not_run" in text
     assert "contaminant_mode" not in app.session
 
 
@@ -319,3 +325,72 @@ def test_logp_file_xor_smiles_and_missing_file_are_named(tmp_path, monkeypatch):
     assert "contaminant_mode" not in app.session
     assert "batch_file_unavailable" in buf.getvalue()
     assert "banana" not in buf.getvalue()
+
+
+def test_logp_job_xor_and_status_query(tmp_path, monkeypatch):
+    from dissolve import cosmo_logp as cl
+
+    monkeypatch.setenv("DISSOLVE_COSMO_JOBS_DIR", str(tmp_path / "jobs"))
+    monkeypatch.setenv("DISSOLVE_COSMO_ARTIFACTS_DIR", str(tmp_path / "orca"))
+    monkeypatch.setattr(
+        cl, "_SOLUTE_DFT_RUNNER",
+        lambda ctx: {"orcacosmo": __import__("pathlib").Path(ctx["artifacts_dir"]) / "skip"},
+    )
+    try:
+        _parse_contaminant_slash(["logp", "--smiles", "CC", "--job", "abc"])
+        raise AssertionError("expected ValueError")
+    except ValueError as error:
+        assert "--smiles" in str(error) or "logp" in str(error)
+    parsed = _parse_contaminant_slash(["logp", "--job", "missing-handle"])
+    assert parsed["job"] == "missing-handle"
+    assert parsed["smiles"] is None
+    app, buf = _app(tmp_path, monkeypatch)
+    assert app.handle_command("/contaminant logp --job missing-handle") is False
+    assert "job_not_found" in buf.getvalue()
+    assert "banana" not in buf.getvalue()
+
+
+def test_logp_new_smiles_returns_handle_and_estimate_without_blocking(
+    tmp_path, monkeypatch,
+):
+    import time
+    import threading
+    from dissolve import cosmo_logp as cl
+
+    monkeypatch.setenv("DISSOLVE_COSMO_JOBS_DIR", str(tmp_path / "jobs"))
+    monkeypatch.setenv("DISSOLVE_COSMO_ARTIFACTS_DIR", str(tmp_path / "orca"))
+    release = threading.Event()
+
+    def runner(ctx):
+        release.wait(timeout=2)
+        dest = Path(ctx["artifacts_dir"]) / f"{ctx['inchikey']}_cosmo.solute.orcacosmo"
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        dest.write_text("dummy-surface\n")
+        return {"orcacosmo": dest}
+
+    monkeypatch.setattr(cl, "_SOLUTE_DFT_RUNNER", runner)
+    app, buf = _app(tmp_path, monkeypatch)
+    started = time.monotonic()
+    assert app.handle_command("/contaminant logp --smiles CCO") is False
+    elapsed = time.monotonic() - started
+    release.set()
+    assert elapsed < 0.3
+    text = buf.getvalue()
+    assert "handle=" in text
+    assert "estimated_wall_min=" in text
+    assert "n_atoms=" in text
+    assert "n_rotatable_bonds=" in text
+    assert "dft=not_run" in text
+    assert "contaminant_mode" not in app.session
+    assert "%pal" not in text
+    handle = None
+    for token in text.split():
+        if token.startswith("handle="):
+            handle = token.split("=", 1)[1]
+    assert handle
+    app2, buf2 = _app(tmp_path, monkeypatch)
+    assert app2.handle_command(f"/contaminant logp --job {handle}") is False
+    status = buf2.getvalue()
+    assert handle in status
+    assert "job_not_found" not in status
+
