@@ -4371,7 +4371,19 @@ def _dense_query_scores(index: Mapping[str, Any], chunks: Sequence[Mapping[str, 
     return [max(0.0, _cosine(query_vector, vector)) for vector in ordered]
 
 
-def _search_index(index: dict[str, Any], query: str, top_k: int, mode: str) -> list[dict[str, Any]]:
+def _section_boost(chunk: Mapping[str, Any]) -> float:
+    origin = chunk.get("section_origin")
+    if origin == "inherited_from_stack":
+        section = ""
+    else:
+        section = str(chunk.get("section") or "").casefold()
+    return 0.05 if any(word in section for word in ("abstract", "result", "conclusion", "method")) else 0.0
+
+
+def _hybrid_passage_parts(
+    index: dict[str, Any], query: str,
+) -> list[tuple[float, float, float, dict[str, Any]]]:
+    """Sparse-gated hybrid signals. Coefficients are applied by the caller."""
     chunks = list(index.get("chunks") or [])
     query_tokens = _tokens(query)
     sparse_raw = _bm25(query_tokens, [{"text": chunk_sparse_corpus(chunk)} for chunk in chunks])
@@ -4379,31 +4391,22 @@ def _search_index(index: dict[str, Any], query: str, top_k: int, mode: str) -> l
         return []
     sparse_max = max(sparse_raw)
     sparse = [value / sparse_max for value in sparse_raw]
-    dense_scores = [0.0] * len(chunks)
-    if mode in {"dense", "hybrid"}:
-        dense_scores = _dense_query_scores(index, chunks, query)
-    ranked = []
+    dense_scores = _dense_query_scores(index, chunks, query)
+    parts: list[tuple[float, float, float, dict[str, Any]]] = []
     for chunk, sparse_raw_score, sparse_score, dense_score in zip(
         chunks, sparse_raw, sparse, dense_scores,
     ):
-        origin = chunk.get("section_origin")
-        if origin == "inherited_from_stack":
-            section = ""
-        else:
-            section = str(chunk.get("section") or "").casefold()
-        boost = 0.05 if any(word in section for word in ("abstract", "result", "conclusion", "method")) else 0.0
-        if mode in {"dense", "hybrid"} and sparse_raw_score <= 0:
+        if sparse_raw_score <= 0:
             continue
-        if mode == "dense":
-            score = dense_score + boost
-        elif mode == "hybrid":
-            score = _HYBRID_DENSE_WEIGHT * dense_score + _HYBRID_SPARSE_WEIGHT * sparse_score + boost
-        else:
-            score = sparse_score + boost
-            if score <= 0:
-                continue
-        ranked.append((score, sparse_score, dense_score, boost, chunk))
-    ranked.sort(key=lambda item: (-item[0], str(item[4].get("title")), item[4]["chunk_id"]))
+        parts.append((sparse_score, dense_score, _section_boost(chunk), chunk))
+    return parts
+
+
+def _ranked_search_rows(
+    index: dict[str, Any],
+    ranked: list[tuple[Any, ...]],
+    top_k: int,
+) -> list[dict[str, Any]]:
     rows = []
     for index_number, (score, sparse_score, dense_score, boost, chunk) in enumerate(ranked[:top_k], 1):
         origin = chunk.get("section_origin")
@@ -4434,6 +4437,52 @@ def _search_index(index: dict[str, Any], query: str, top_k: int, mode: str) -> l
             "section_boost": boost, "final_score": round(score, 6),
         })
     return rows
+
+
+def _search_index(
+    index: dict[str, Any],
+    query: str,
+    top_k: int,
+    mode: str,
+    *,
+    w_dense: float | None = None,
+    w_sparse: float | None = None,
+) -> list[dict[str, Any]]:
+    dense_w = _HYBRID_DENSE_WEIGHT if w_dense is None else float(w_dense)
+    sparse_w = _HYBRID_SPARSE_WEIGHT if w_sparse is None else float(w_sparse)
+    if mode == "hybrid":
+        ranked = []
+        for sparse_score, dense_score, boost, chunk in _hybrid_passage_parts(index, query):
+            score = dense_w * dense_score + sparse_w * sparse_score + boost
+            ranked.append((score, sparse_score, dense_score, boost, chunk))
+        ranked.sort(key=lambda item: (-item[0], str(item[4].get("title")), item[4]["chunk_id"]))
+        return _ranked_search_rows(index, ranked, top_k)
+    chunks = list(index.get("chunks") or [])
+    query_tokens = _tokens(query)
+    sparse_raw = _bm25(query_tokens, [{"text": chunk_sparse_corpus(chunk)} for chunk in chunks])
+    if max(sparse_raw, default=0.0) <= 0:
+        return []
+    sparse_max = max(sparse_raw)
+    sparse = [value / sparse_max for value in sparse_raw]
+    dense_scores = [0.0] * len(chunks)
+    if mode == "dense":
+        dense_scores = _dense_query_scores(index, chunks, query)
+    ranked = []
+    for chunk, sparse_raw_score, sparse_score, dense_score in zip(
+        chunks, sparse_raw, sparse, dense_scores,
+    ):
+        boost = _section_boost(chunk)
+        if mode == "dense" and sparse_raw_score <= 0:
+            continue
+        if mode == "dense":
+            score = dense_score + boost
+        else:
+            score = sparse_score + boost
+            if score <= 0:
+                continue
+        ranked.append((score, sparse_score, dense_score, boost, chunk))
+    ranked.sort(key=lambda item: (-item[0], str(item[4].get("title")), item[4]["chunk_id"]))
+    return _ranked_search_rows(index, ranked, top_k)
 
 
 def search_literature_corpus(
