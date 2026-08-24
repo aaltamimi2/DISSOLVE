@@ -124,6 +124,24 @@ BBP_ISOMER_DECOYS = {
     "butyl benzyl terephthalate": ("CCCCOC(=O)c1ccc(C(=O)OCc2ccccc2)cc1", "IEICWPCBTOBBDK-UHFFFAOYSA-N"),
 }
 
+#: L3 target. InChIKey perceived from the local COSMObase Turbomole file
+#: ``di-2-ethylhexylphthalate_c0.cosmo``. That geometry specifies both
+#: 2-ethylhexyl stereocenters (``…-PMACEKPBSA-N``). The no-stereo catalog
+#: key ``BJQHLKABXJIVAM-UHFFFAOYSA-N`` is the same connectivity and is
+#: NOT this file. CAS from ``contaminant_cas_phthalates.local.v1.json``.
+#: Literature logP 7.5–8.4 is not the accept test — the table Δ are.
+DEHP_SMILES = "c1cc(C(=O)OC[C@@H](CC)CCCC)c(C(=O)OC[C@@H](CC)CCCC)cc1"
+DEHP_CAS = "117-81-7"
+DEHP_INCHIKEY = "BJQHLKABXJIVAM-PMACEKPBSA-N"
+DEHP_INCHIKEY_NOSTEREO = "BJQHLKABXJIVAM-UHFFFAOYSA-N"
+
+#: 1,3- and 1,4-di(2-ethylhexyl) benzenedicarboxylates. Same formula
+#: C24H38O4; InChIKeys computed locally from constructed SMILES (obabel).
+DEHP_ISOMER_DECOYS = {
+    "di-(2-ethylhexyl) isophthalate": ("CCCCC(CC)COC(=O)c1cccc(C(=O)OCC(CC)CCCC)c1", "WXZOXVVKILCOPG-UHFFFAOYSA-N"),
+    "di-(2-ethylhexyl) terephthalate": ("CCCCC(CC)COC(=O)c1ccc(C(=O)OCC(CC)CCCC)cc1", "RWPICVVBGZBXNA-UHFFFAOYSA-N"),
+}
+
 #: Molar volumes at 298 K, cm3/mol. Used only for the concentration-basis
 #: variant of the partition relation; the mole-fraction basis ignores them.
 MOLAR_VOLUMES_CM3 = {
@@ -156,6 +174,13 @@ BBP_ANCHOR_PAIRS: tuple[tuple[str, str, float], ...] = (
     ("hexane", "water", 4.61),
     ("dichloromethane", "methanol", 2.14),      # water-free
 )
+#: DEHP's rows in the same pin / the same four pairs. Not literature logP.
+DEHP_ANCHOR_PAIRS: tuple[tuple[str, str, float], ...] = (
+    ("dichloromethane", "water", 9.98),
+    ("cyclohexanol", "water", 8.13),
+    ("hexane", "water", 8.33),
+    ("dichloromethane", "methanol", 2.60),      # water-free
+)
 WATER_FREE_PAIR = ("dichloromethane", "methanol")
 
 
@@ -173,9 +198,12 @@ def anchor_pairs_for(solute: str) -> tuple[tuple[str, str, float], ...]:
         return DBP_ANCHOR_PAIRS
     if key in {"bbp", "butylbenzylphthalate", "butyl benzyl phthalate"}:
         return BBP_ANCHOR_PAIRS
+    if key in {"dehp", "di-2-ethylhexylphthalate", "di-(2-ethylhexyl) phthalate",
+               "diethylhexylphthalate"}:
+        return DEHP_ANCHOR_PAIRS
     raise CosmoError(
         f"no table-Δ anchors pinned for solute {solute!r}; "
-        "L2 is BBP, L3 is a later named SHA"
+        "the phthalate ladder pins DEP/DBP/BBP/DEHP only"
     )
 
 #: Our solvent names -> COSMObase file stems. Needed because the corpus and the
