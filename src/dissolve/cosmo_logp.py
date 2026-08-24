@@ -278,6 +278,8 @@ SOLUTE_COSMOBASE_FILE_BY_INCHIKEY = {
 VALIDATION_VALIDATED = "validated"
 VALIDATION_COMPUTED_UNVALIDATED = "computed_unvalidated"
 VALIDATION_NO_BASIS = "no_validation_basis"
+FIELD_ORIGIN_COMPUTED = "computed"
+FIELD_ORIGIN_TABULATED = "tabulated"
 ABSOLUTE_REFUSE_TOKENS = frozenset({"", "none", "absolute", "abs"})
 
 #: Same molecule, different string. Not a neighbour-solvent fallback.
@@ -1217,8 +1219,41 @@ def compute_delta_logd(
         row["success"] = True
         row["error_code"] = None
         row.update(computed)
+        row["field_origin"] = FIELD_ORIGIN_COMPUTED
         payload["results"].append(row)
     return payload
+
+
+def computed_deltas_for_screen(payload: Mapping[str, Any]) -> list[dict[str, Any]]:
+    """Shape P-3/P-4 results for ``screen_contaminant_leaching``.
+
+    Every overlay row is ``field_origin=computed``. A computed number cannot
+    wear the tabulated label. Does not write ``logd``.
+    """
+    rows: list[dict[str, Any]] = []
+    nested = payload.get("results") or []
+    for row in nested:
+        if not isinstance(row, Mapping):
+            continue
+        inner = row.get("results")
+        if isinstance(inner, list) and row.get("line") is not None:
+            rows.extend(computed_deltas_for_screen(row))
+            continue
+        if not row.get("success") or row.get("delta_logd") is None:
+            continue
+        rows.append({
+            "solvent_key": row.get("solvent_key") or row.get("query"),
+            "query": row.get("query"),
+            "delta_logd": row["delta_logd"],
+            "reference": row.get("reference") or payload.get("reference"),
+            "field_origin": FIELD_ORIGIN_COMPUTED,
+            "validation_status": row.get("validation_status") or payload.get("validation_status"),
+            "validated_ok": row.get("validated_ok", payload.get("validated_ok")),
+            "route": row.get("route"),
+            "parameterisation": row.get("parameterisation"),
+            "inchikey": payload.get("inchikey") or row.get("inchikey"),
+        })
+    return rows
 
 
 def compute_delta_logd_batch(

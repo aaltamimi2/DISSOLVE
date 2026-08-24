@@ -1222,3 +1222,109 @@ def test_batch_does_not_write_the_logd_table(tmp_path):
     after = hashlib.sha256(db.read_bytes()).hexdigest()
     assert before == after
     assert before.startswith("866d769b")
+
+
+def test_leaching_tabulated_logd_carries_field_origin_and_does_not_write_logd():
+    from dissolve import contaminants
+    from dissolve.contracts import parse_tool_result
+
+    db = Path(__file__).resolve().parents[1] / "src" / "dissolve" / "data" / "contaminants.duckdb"
+    before = hashlib.sha256(db.read_bytes()).hexdigest()
+    payload = parse_tool_result(contaminants.screen_contaminant_leaching(
+        "LDPE", ["diethyl phthalate (DEP)"], solvents=["toluene"],
+    ))["data"]
+    after = hashlib.sha256(db.read_bytes()).hexdigest()
+    assert before == after
+    row = next(item for item in payload["candidate_solvents"] if item["solvent"] == "toluene")
+    contaminant = row["contaminants"][0]
+    assert contaminant["logd"] is not None
+    assert contaminant["field_origin"] == cl.FIELD_ORIGIN_TABULATED
+    assert contaminant["field_origin"] != cl.FIELD_ORIGIN_COMPUTED
+    assert contaminant["tabulated_logd"] == contaminant["logd"]
+    assert contaminant["computed_delta_logd"] is None
+    src = Path(__file__).resolve().parents[1] / "src" / "dissolve"
+    assert "cosmo_logp" not in (src / "tea.py").read_text()
+    assert "cosmo_logp" not in (src / "separation.py").read_text()
+    assert "cosmo_logp" not in (src / "contaminants.py").read_text()
+    assert "INSERT" not in (src / "contaminants.py").read_text()
+
+
+def test_leaching_computed_overlay_is_labelled_computed_and_cannot_wear_tabulated():
+    from dissolve import contaminants
+    from dissolve.contracts import parse_tool_result
+
+    db = Path(__file__).resolve().parents[1] / "src" / "dissolve" / "data" / "contaminants.duckdb"
+    before = hashlib.sha256(db.read_bytes()).hexdigest()
+    overlay = [{
+        "solvent_key": "toluene",
+        "delta_logd": 9.99,
+        "reference": "water",
+        "field_origin": cl.FIELD_ORIGIN_TABULATED,
+    }]
+    payload = parse_tool_result(contaminants.screen_contaminant_leaching(
+        "LDPE", ["diethyl phthalate (DEP)"], solvents=["toluene"],
+        computed_deltas=overlay,
+    ))["data"]
+    after = hashlib.sha256(db.read_bytes()).hexdigest()
+    assert before == after
+    row = next(item for item in payload["candidate_solvents"] if item["solvent"] == "toluene")
+    contaminant = row["contaminants"][0]
+    assert contaminant["field_origin"] == cl.FIELD_ORIGIN_TABULATED
+    assert contaminant["logd"] == contaminant["tabulated_logd"]
+    assert contaminant["logd"] != pytest.approx(9.99)
+    assert contaminant["computed_delta_logd"] == pytest.approx(9.99)
+    assert contaminant["computed_field_origin"] == cl.FIELD_ORIGIN_COMPUTED
+    assert contaminant["computed_field_origin"] != cl.FIELD_ORIGIN_TABULATED
+    assert contaminant["computed_reference"] == "water"
+
+
+def test_leaching_uses_computed_delta_when_table_logd_is_missing():
+    from dissolve import contaminants
+    from dissolve.contracts import parse_tool_result
+
+    payload = parse_tool_result(contaminants.screen_contaminant_leaching(
+        "LDPE", ["diethyl phthalate (DEP)"], solvents=["xylene"],
+        computed_deltas=[{
+            "solvent_key": "xylene",
+            "query": "xylene",
+            "delta_logd": 1.25,
+            "reference": "water",
+            "field_origin": cl.FIELD_ORIGIN_COMPUTED,
+        }],
+    ))["data"]
+    row = next(item for item in payload["candidate_solvents"] if item["solvent"] == "xylene")
+    contaminant = row["contaminants"][0]
+    assert contaminant["tabulated_logd"] is None
+    assert contaminant["logd"] == pytest.approx(1.25)
+    assert contaminant["field_origin"] == cl.FIELD_ORIGIN_COMPUTED
+    assert contaminant["computed_delta_logd"] == pytest.approx(1.25)
+    assert contaminant["computed_field_origin"] == cl.FIELD_ORIGIN_COMPUTED
+    assert row["contaminant_logd_pass"] is True
+    assert any("field_origin=computed" in warning for warning in payload["warnings"])
+    assert "o-xylene" not in str(payload).split("xylene")[0]
+
+
+def test_computed_deltas_for_screen_stamps_computed_origin(tmp_path):
+    pytest.importorskip("rdkit")
+    artifacts, solvents = _dummy_p3_dirs(tmp_path)
+    computed = cl.compute_delta_logd(
+        cl.DEP_SMILES, ["toluene"],
+        solvents_dir=solvents, artifacts_dir=artifacts, ln_gamma=lambda *a, **k: 1.0,
+    )
+    overlay = cl.computed_deltas_for_screen(computed)
+    assert overlay
+    assert all(row["field_origin"] == cl.FIELD_ORIGIN_COMPUTED for row in overlay)
+    assert all(row["field_origin"] != cl.FIELD_ORIGIN_TABULATED for row in overlay)
+    toluene = next(row for row in overlay if row["solvent_key"] == "toluene")
+    assert toluene["delta_logd"] is not None
+    from dissolve import contaminants
+    from dissolve.contracts import parse_tool_result
+    db = Path(__file__).resolve().parents[1] / "src" / "dissolve" / "data" / "contaminants.duckdb"
+    before = hashlib.sha256(db.read_bytes()).hexdigest()
+    parse_tool_result(contaminants.screen_contaminant_leaching(
+        "LDPE", ["diethyl phthalate (DEP)"], solvents=["toluene"],
+        computed_deltas=overlay,
+    ))
+    after = hashlib.sha256(db.read_bytes()).hexdigest()
+    assert before == after
+    assert before.startswith("866d769b")
