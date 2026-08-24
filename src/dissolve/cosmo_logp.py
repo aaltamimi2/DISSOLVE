@@ -91,6 +91,24 @@ DEP_ISOMER_DECOYS = {
     "diethyl terephthalate": ("CCOC(=O)c1ccc(C(=O)OCC)cc1", "ONIHPYYWNBVMID-UHFFFAOYSA-N"),
 }
 
+#: L1 target (CONTAMINANT_COSMO_LADDER_SPEC.v1, ADMIT 0c07e6fc).
+#: InChIKey perceived from the local COSMObase Turbomole file
+#: ``dibutylphthalate_c0.cosmo`` (same library as DEP) via
+#: ``parse_cosmo_geometry`` + obabel -- not a registry fetch.
+#: CAS from ``contaminant_cas_phthalates.local.v1.json``.
+#: SMILES is the Kekulé form of that perceived connectivity.
+DBP_SMILES = "CCCCOC(=O)c1ccccc1C(=O)OCCCC"
+DBP_CAS = "84-74-2"
+DBP_INCHIKEY = "DOIRQSBPFJWKBE-UHFFFAOYSA-N"
+
+#: 1,3- and 1,4-dibutyl benzenedicarboxylates. Same formula C16H22O4 as
+#: the ortho target; InChIKeys computed locally from the constructed
+#: SMILES (obabel), not fetched.
+DBP_ISOMER_DECOYS = {
+    "di-n-butyl isophthalate": ("CCCCOC(=O)c1cccc(C(=O)OCCCC)c1", "GOPWOUQJIMLDDM-UHFFFAOYSA-N"),
+    "di-n-butyl terephthalate": ("CCCCOC(=O)c1ccc(C(=O)OCCCC)cc1", "LQLQDKBJAIILIQ-UHFFFAOYSA-N"),
+}
+
 #: Molar volumes at 298 K, cm3/mol. Used only for the concentration-basis
 #: variant of the partition relation; the mole-fraction basis ignores them.
 MOLAR_VOLUMES_CM3 = {
@@ -108,7 +126,33 @@ ANCHOR_PAIRS: tuple[tuple[str, str, float], ...] = (
     ("hexane", "water", 2.41),
     ("dichloromethane", "methanol", 1.79),      # water-free
 )
+#: Same four solvent pairs as DEP; the numbers are DBP's rows in pin
+#: ``866d769b…``, ``logd.solvent_key`` (not ``solvent_normalized``).
+DBP_ANCHOR_PAIRS: tuple[tuple[str, str, float], ...] = (
+    ("dichloromethane", "water", 7.05),
+    ("cyclohexanol", "water", 5.17),
+    ("hexane", "water", 4.98),
+    ("dichloromethane", "methanol", 2.18),      # water-free
+)
 WATER_FREE_PAIR = ("dichloromethane", "methanol")
+
+
+def anchor_pairs_for(solute: str) -> tuple[tuple[str, str, float], ...]:
+    """Table-Δ anchors for a named ladder solute.
+
+    DEP stays the default ``ANCHOR_PAIRS`` so existing callers do not silently
+    score a new molecule against DEP's numbers. A solute that is not yet
+    pinned raises rather than inventing a column.
+    """
+    key = solute.strip().lower()
+    if key in {"dep", "diethylphthalate", "diethyl phthalate"}:
+        return ANCHOR_PAIRS
+    if key in {"dbp", "dibutylphthalate", "di-n-butyl phthalate", "dibutyl phthalate"}:
+        return DBP_ANCHOR_PAIRS
+    raise CosmoError(
+        f"no table-Δ anchors pinned for solute {solute!r}; "
+        "L1 is DBP, L2/L3 are later named SHAs"
+    )
 
 #: Our solvent names -> COSMObase file stems. Needed because the corpus and the
 #: .cosmo library disagree on naming for a third of the solvents.
@@ -508,8 +552,11 @@ def linear_fit(x: Sequence[float], y: Sequence[float]) -> LinearFit:
     return LinearFit(slope, intercept, r_squared, resid_sd, n, slope_stderr)
 
 
-def evaluate_anchor_pairs(predicted: Mapping[str, float]) -> dict[str, Any]:
-    """Score predicted delta logD against ANCHOR_PAIRS.
+def evaluate_anchor_pairs(
+    predicted: Mapping[str, float],
+    pairs: Sequence[tuple[str, str, float]] | None = None,
+) -> dict[str, Any]:
+    """Score predicted delta logD against ``pairs`` (default: DEP ``ANCHOR_PAIRS``).
 
     The water-free pair MUST be among those passing. Water appears in three of
     the four anchors, and its sigma-profile is the best-validated and most
@@ -517,8 +564,9 @@ def evaluate_anchor_pairs(predicted: Mapping[str, float]) -> dict[str, Any]:
     correct water profile masking a broken solute, which is not evidence the
     pipeline works.
     """
+    anchors = tuple(pairs) if pairs is not None else ANCHOR_PAIRS
     rows = []
-    for solvent_a, solvent_b, ours in ANCHOR_PAIRS:
+    for solvent_a, solvent_b, ours in anchors:
         key = f"{solvent_a}-{solvent_b}"
         value = predicted.get(key)
         if value is None:
