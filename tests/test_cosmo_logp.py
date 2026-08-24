@@ -741,6 +741,32 @@ def test_leftover_cl1_banana_still_invalid_and_accept_test_2_unchanged():
     assert pass_row.get("passes") is True
 
 
+def test_ingest_smiles_binds_inchikey_and_does_not_run_dft():
+    pytest.importorskip("rdkit")
+    dep = cl.ingest_smiles(cl.DEP_SMILES)
+    assert dep["success"] is True
+    assert dep["inchikey"] == cl.DEP_INCHIKEY
+    assert dep["dft_ran"] is False
+    assert dep["n_atoms"] == 30
+    assert dep["n_rotatable_bonds"] >= 4
+    decoy_smiles, decoy_key = cl.DEP_ISOMER_DECOYS["diethyl terephthalate"]
+    decoy = cl.ingest_smiles(decoy_smiles)
+    assert decoy["success"] is True
+    assert decoy["inchikey"] == decoy_key
+    assert decoy["inchikey"] != dep["inchikey"]
+    refused = cl.ingest_smiles("not_a_smiles")
+    assert refused["success"] is False
+    assert refused["error_code"] == "invalid_smiles"
+    assert refused["dft_ran"] is False
+    empty = cl.ingest_smiles("   ")
+    assert empty["error_code"] == "invalid_smiles"
+    src = Path(cl.__file__).read_text()
+    body = src.split("def ingest_smiles", 1)[1].split("def generate_conformers", 1)[0]
+    assert "generate_conformers(" not in body
+    assert "orca_opt_input" not in body
+    assert "subprocess" not in body
+
+
 def test_no_dft_override_knobs_on_the_parameterised_level():
     """Hold-to 2: a different level still yields a σ-profile and nothing raises."""
     text = Path(cl.__file__).read_text()

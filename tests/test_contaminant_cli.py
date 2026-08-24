@@ -155,3 +155,38 @@ def test_mode_key_does_not_change_planner_or_screens():
     assert "bind_query_solvent_scope" not in inspect.getsource(
         CliApp._run_contaminant_compare,
     )
+
+
+def test_logp_one_shot_parses_smiles_and_does_not_persist_a_mode(tmp_path, monkeypatch):
+    app, buf = _app(tmp_path, monkeypatch)
+    app.session["contaminant_mode"] = {"mode": "leaching"}
+    assert app.handle_command(
+        "/contaminant logp --smiles CCOC(=O)c1ccccc1C(=O)OCC"
+    ) is False
+    assert app.session.get("contaminant_mode") == {"mode": "leaching"}
+    text = buf.getvalue()
+    assert "FLKPEMZONWLCSK-UHFFFAOYSA-N" in text
+    assert "dft=not_run" in text
+    assert "n_rotatable_bonds=" in text
+    assert "invalid_smiles" not in text
+
+
+def test_logp_invalid_smiles_refuses_without_writing_mode(tmp_path, monkeypatch):
+    app, buf = _app(tmp_path, monkeypatch)
+    assert app.handle_command("/contaminant logp --smiles not_a_smiles") is False
+    assert "contaminant_mode" not in app.session
+    assert "invalid_smiles" in buf.getvalue()
+
+
+def test_logp_is_not_a_persistent_mode_token():
+    try:
+        _parse_contaminant_slash(["logp"])
+        raise AssertionError("expected ValueError")
+    except ValueError as error:
+        assert "logp --smiles" in str(error)
+    try:
+        _parse_contaminant_slash(["banana"])
+        raise AssertionError("expected ValueError")
+    except ValueError as error:
+        assert "usage: /contaminant" in str(error)
+        assert "logp --smiles" not in str(error)

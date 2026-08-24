@@ -70,6 +70,7 @@ def _parse_solvents_slash(tokens: Sequence[str]) -> dict[str, Any] | None:
 
 
 _CONTAMINANT_USAGE = "usage: /contaminant [off | leaching | strap | swing | compare]"
+_LOGP_USAGE = "usage: /contaminant logp --smiles <SMILES>"
 _CONTAMINANT_COMPARE_USAGE = (
     "usage: /contaminant compare  "
     "(needs a prior contaminant screen with target_polymer and contaminants)"
@@ -81,10 +82,30 @@ def _format_contaminant_default(stored: dict[str, Any] | None, *, origin: str) -
     return f"contaminant_mode={mode}  ({origin})"
 
 
+def _parse_contaminant_logp(tokens: Sequence[str]) -> dict[str, Any]:
+    """One-shot /contaminant logp. Not a persistent contaminant_mode."""
+    args = [str(token) for token in tokens[1:]]
+    smiles: str | None = None
+    index = 0
+    while index < len(args):
+        if args[index] == "--smiles":
+            if index + 1 >= len(args):
+                raise ValueError(_LOGP_USAGE)
+            smiles = args[index + 1]
+            index += 2
+            continue
+        raise ValueError(_LOGP_USAGE)
+    if not smiles:
+        raise ValueError(_LOGP_USAGE)
+    return {"logp": True, "smiles": smiles}
+
+
 def _parse_contaminant_slash(tokens: Sequence[str]) -> dict[str, Any] | None:
     """None is the no-argument path. Raises ValueError on a bad token."""
     if not tokens:
         return None
+    if str(tokens[0]).strip().casefold() == "logp":
+        return _parse_contaminant_logp(tokens)
     if len(tokens) != 1:
         raise ValueError(_CONTAMINANT_USAGE)
     token = str(tokens[0]).strip().casefold()
@@ -1328,6 +1349,9 @@ class CliApp:
         if stored and stored.get("compare"):
             self._run_contaminant_compare()
             return
+        if stored and stored.get("logp"):
+            self._run_contaminant_logp(str(stored["smiles"]))
+            return
         if stored is None:
             current = self.session.get("contaminant_mode")
             if isinstance(current, dict) and current.get("mode") in {
@@ -1348,6 +1372,23 @@ class CliApp:
         self.session["contaminant_mode"] = stored
         self._save()
         self.console.print(_format_contaminant_default(stored, origin="session"))
+
+    def _run_contaminant_logp(self, smiles: str) -> None:
+        """P-1 one-shot: parse SMILES, print InChIKey and cost proxies, do not run DFT."""
+        from dissolve import cosmo_logp as cl
+
+        result = cl.ingest_smiles(smiles)
+        if not result["success"]:
+            self.console.print(f"[red]{result['error_code']}[/]")
+            return
+        self.console.print(
+            "logp intake  "
+            f"inchikey={result['inchikey']}  "
+            f"n_atoms={result['n_atoms']}  "
+            f"n_rotatable_bonds={result['n_rotatable_bonds']}  "
+            "dft=not_run  "
+            "reference=water (not computed)"
+        )
 
     def _pick_contaminant_mode(
         self,

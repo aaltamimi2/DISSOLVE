@@ -355,6 +355,48 @@ def verify_identity(structure: str | Path, expected_inchikey: str, *, scratch: s
     return found
 
 
+def ingest_smiles(smiles: str) -> dict[str, Any]:
+    """P-1: parse a user SMILES claim. No DFT. Bind identity on InChIKey.
+
+    A SMILES is a claim about a molecule; the InChIKey computed from it is
+    the fact. Atom count and rotatable bonds are reported before any ORCA
+    job because they predict cost -- 14 rotatable bonds is hours, not minutes.
+    """
+    claim = "" if smiles is None else str(smiles).strip()
+    failed = {
+        "success": False,
+        "error_code": "invalid_smiles",
+        "smiles": smiles,
+        "dft_ran": False,
+    }
+    if not claim:
+        return {**failed, "error": "SMILES is empty"}
+    try:
+        from rdkit import Chem
+        from rdkit.Chem import rdMolDescriptors
+    except ImportError as exc:
+        raise CosmoDependencyError(
+            f"rdkit is required to ingest SMILES: {exc}"
+        ) from exc
+    mol = Chem.MolFromSmiles(claim)
+    if mol is None:
+        return {**failed, "smiles": claim, "error": "SMILES did not parse"}
+    inchikey = Chem.MolToInchiKey(mol)
+    if not inchikey:
+        return {**failed, "smiles": claim, "error": "could not compute InChIKey"}
+    with_h = Chem.AddHs(mol)
+    return {
+        "success": True,
+        "smiles": claim,
+        "inchikey": inchikey,
+        "n_atoms": int(with_h.GetNumAtoms()),
+        "n_heavy_atoms": int(mol.GetNumAtoms()),
+        "n_rotatable_bonds": int(rdMolDescriptors.CalcNumRotatableBonds(mol)),
+        "dft_ran": False,
+        "identity_basis": "inchikey",
+    }
+
+
 # ======================================================================
 # Conformers -- RDKit
 # ======================================================================
