@@ -71,7 +71,8 @@ def _parse_solvents_slash(tokens: Sequence[str]) -> dict[str, Any] | None:
 
 _CONTAMINANT_USAGE = "usage: /contaminant [off | leaching | strap | swing | compare]"
 _LOGP_USAGE = (
-    "usage: /contaminant logp --smiles <SMILES> [--solvents <name,name>]"
+    "usage: /contaminant logp --smiles <SMILES> "
+    "[--solvents <name,name>] [--reference <name>] [--absolute]"
 )
 _CONTAMINANT_COMPARE_USAGE = (
     "usage: /contaminant compare  "
@@ -89,6 +90,8 @@ def _parse_contaminant_logp(tokens: Sequence[str]) -> dict[str, Any]:
     args = [str(token) for token in tokens[1:]]
     smiles: str | None = None
     solvents_raw: str | None = None
+    reference: str | None = None
+    absolute = False
     index = 0
     while index < len(args):
         if args[index] == "--smiles":
@@ -103,13 +106,29 @@ def _parse_contaminant_logp(tokens: Sequence[str]) -> dict[str, Any]:
             solvents_raw = args[index + 1]
             index += 2
             continue
+        if args[index] == "--reference":
+            if index + 1 >= len(args):
+                raise ValueError(_LOGP_USAGE)
+            reference = args[index + 1]
+            index += 2
+            continue
+        if args[index] == "--absolute":
+            absolute = True
+            index += 1
+            continue
         raise ValueError(_LOGP_USAGE)
     if not smiles:
         raise ValueError(_LOGP_USAGE)
     solvents = [
         item.strip() for item in (solvents_raw or "").split(",") if item.strip()
     ]
-    return {"logp": True, "smiles": smiles, "solvents": solvents}
+    return {
+        "logp": True,
+        "smiles": smiles,
+        "solvents": solvents,
+        "reference": reference,
+        "absolute": absolute,
+    }
 
 
 def _parse_contaminant_slash(tokens: Sequence[str]) -> dict[str, Any] | None:
@@ -1363,7 +1382,10 @@ class CliApp:
             return
         if stored and stored.get("logp"):
             self._run_contaminant_logp(
-                str(stored["smiles"]), solvents=list(stored.get("solvents") or []),
+                str(stored["smiles"]),
+                solvents=list(stored.get("solvents") or []),
+                reference=stored.get("reference"),
+                absolute=bool(stored.get("absolute")),
             )
             return
         if stored is None:
@@ -1389,8 +1411,9 @@ class CliApp:
 
     def _run_contaminant_logp(
         self, smiles: str, *, solvents: Sequence[str] | None = None,
+        reference: str | None = None, absolute: bool = False,
     ) -> None:
-        """P-1 intake + P-2 solvent routes. No DFT. No silent route fallback."""
+        """P-1/P-2 intake + P-3 Δ vs a named reference. No new DFT."""
         from dissolve import cosmo_logp as cl
 
         result = cl.ingest_smiles(smiles)
@@ -1404,33 +1427,68 @@ class CliApp:
             f"n_atoms={result['n_atoms']}  "
             f"n_rotatable_bonds={result['n_rotatable_bonds']}  "
             "dft=not_run  "
-            "reference=water (not computed)  "
             f"coverage table={coverage['n_table']} "
             f"orca={coverage['n_orca']}/{coverage['n_table']} "
             f"cosmobase={coverage['n_cosmobase']}/{coverage['n_table']} "
             f"orca_param={coverage['orca_parameterisation']} "
             f"cosmobase_param={coverage['cosmobase_parameterisation']}"
         )
-        for row in cl.resolve_solvents(solvents or []):
-            if not row["success"]:
+        if not solvents and not absolute:
+            self.console.print("reference=water (not computed)")
+            return
+        computed = cl.compute_delta_logd(
+            smiles,
+            list(solvents or []),
+            reference="water" if reference is None else reference,
+            absolute=absolute,
+        )
+        if computed.get("error_code") == "absolute_logp_refused":
+            self.console.print(f"[red]{computed['error_code']}[/]  reference is required")
+            return
+        if computed.get("error_code") == "solvent_not_available" and not computed.get("results"):
+            self.console.print(
+                f"[red]{computed['error_code']}[/]  reference={computed.get('reference_query')}"
+            )
+            return
+        self.console.print(
+            "delta provenance  "
+            f"reference={computed.get('reference')}  "
+            f"validation_status={computed.get('validation_status')}  "
+            f"validated_ok={'yes' if computed.get('validated_ok') else 'no'}  "
+            "dft=not_run"
+        )
+        for row in computed.get("results") or []:
+            if not row.get("success"):
                 self.console.print(
-                    f"[red]{row['error_code']}[/]  solvent={row['query']}"
+                    f"[red]{row.get('error_code')}[/]  solvent={row.get('query')}"
                 )
                 continue
-            orca = "yes" if row["orca"]["available"] else "no"
-            cosmo = "yes" if row["cosmobase"]["available"] else "no"
-            param = (
-                row["orca"]["parameterisation"]
-                if row["orca"]["available"]
-                else row["cosmobase"]["parameterisation"]
+            self.console.print(
+                "delta  "
+                f"solvent={row['solvent_key']}  "
+                f"reference={row['reference']}  "
+                f"delta_logd={row['delta_logd']:.4f}  "
+                f"route={row['route']}  "
+                f"param={row['parameterisation']}  "
+                f"engine={row.get('engine') or 'orca'}  "
+                f"theory={row['level_of_theory']}  "
+                f"n_conformers={row['n_conformers']}  "
+                f"T={row['temperature']}  "
+                f"validation_status={row['validation_status']}  "
+                f"validated_ok={'yes' if row['validated_ok'] else 'no'}  "
+                "dft=not_run"
             )
             self.console.print(
-                "solvent  "
-                f"{row['solvent_key']}  "
-                f"orca={orca}  "
-                f"cosmobase={cosmo}  "
-                f"param={param}  "
-                "dft=not_run"
+                "score  "
+                f"ln_gamma_solvent={row['ln_gamma_solvent']:.6f}  "
+                f"ln_gamma_reference={row['ln_gamma_reference']:.6f}  "
+                f"volume_correction={row['volume_correction']:.6f}"
+            )
+            self.console.print(
+                "digests  "
+                f"solute_sha256={row['solute_sha256']}  "
+                f"solvent_sha256={row['solvent_sha256']}  "
+                f"reference_sha256={row['reference_sha256']}"
             )
 
     def _pick_contaminant_mode(

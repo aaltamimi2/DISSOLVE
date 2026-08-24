@@ -187,7 +187,9 @@ def test_logp_solvents_report_routes_and_refuse_a_cousin_substitute(tmp_path, mo
     assert "solvent=xylene" in text
     assert "water" in text
     assert "24a" in text
-    assert "delta_logd=" not in text.lower()
+    for line in text.splitlines():
+        if "xylene" in line and "delta_logd=" in line:
+            raise AssertionError(line)
 
 
 def test_logp_invalid_smiles_refuses_without_writing_mode(tmp_path, monkeypatch):
@@ -209,3 +211,62 @@ def test_logp_is_not_a_persistent_mode_token():
     except ValueError as error:
         assert "usage: /contaminant" in str(error)
         assert "logp --smiles" not in str(error)
+
+
+def test_logp_absolute_is_refused_and_does_not_persist(tmp_path, monkeypatch):
+    app, buf = _app(tmp_path, monkeypatch)
+    parsed = _parse_contaminant_slash(["logp", "--smiles", "CC", "--absolute"])
+    assert parsed["absolute"] is True
+    assert parsed["logp"] is True
+    assert app.handle_command(
+        "/contaminant logp --smiles CCOC(=O)c1ccccc1C(=O)OCC --absolute"
+    ) is False
+    assert "contaminant_mode" not in app.session
+    text = buf.getvalue()
+    assert "absolute_logp_refused" in text
+    assert "delta_logd=" not in text.lower()
+    assert "dft=not_run" in buf.getvalue() or "dft=not_run" in text or "absolute_logp_refused" in text
+
+
+def test_logp_prints_delta_against_named_water_when_gamma_is_mocked(
+    tmp_path, monkeypatch,
+):
+    from dissolve import cosmo_logp as cl
+
+    monkeypatch.setattr(
+        cl, "ln_gamma_infinite_dilution",
+        lambda *a, **k: 1.0,
+    )
+    app, buf = _app(tmp_path, monkeypatch)
+    assert app.handle_command(
+        "/contaminant logp --smiles CCOC(=O)c1ccccc1C(=O)OCC "
+        "--solvents dichloromethane,toluene,xylene"
+    ) is False
+    assert "contaminant_mode" not in app.session
+    text = buf.getvalue()
+    assert "FLKPEMZONWLCSK-UHFFFAOYSA-N" in text or cl.DEP_INCHIKEY in text
+    assert "reference=water" in text
+    assert "delta_logd=" in text
+    assert "param=24a" in text
+    assert "param=2002" in text
+    assert "solvent_not_available" in text
+    assert "solvent=xylene" in text
+    assert "validated_ok=yes" not in text
+    assert "dft=not_run" in text
+    assert "solute_sha256=" in text
+    assert "ln_gamma_solvent=" in text
+    for line in text.splitlines():
+        if "xylene" in line and "delta_logd=" in line:
+            raise AssertionError(line)
+
+
+def test_logp_unknown_smiles_is_no_validation_basis(tmp_path, monkeypatch):
+    app, buf = _app(tmp_path, monkeypatch)
+    assert app.handle_command(
+        "/contaminant logp --smiles CCO --solvents toluene"
+    ) is False
+    text = buf.getvalue()
+    assert "no_validation_basis" in text
+    assert "validated_ok=yes" not in text
+    assert "solute_cosmo_unavailable" in text
+    assert "contaminant_mode" not in app.session

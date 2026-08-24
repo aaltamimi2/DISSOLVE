@@ -41,6 +41,7 @@ the regression -- have no such dependency and are what the test suite covers.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import math
 import re
@@ -48,7 +49,7 @@ import shutil
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Iterable, Mapping, Sequence
+from typing import Any, Callable, Iterable, Mapping, Sequence
 
 # --- physical constants -------------------------------------------------
 BOHR_TO_ANGSTROM = 0.529177210903
@@ -246,6 +247,37 @@ COSMOBASE_ENGINE = "turbomole"
 DEFAULT_COSMOBASE_SOLVENTS_DIR = Path(
     "/home/aaltamimi2/COSMO-POLYMER-ML/results/oligomers/all-cosmotherm-solvents"
 )
+DEFAULT_ORCA_ARTIFACTS_DIR = Path("/home/aaltamimi2/cosmo-artifacts/stage1")
+
+#: Stage-1 ORCA solvent file stems. Matches scripts/cosmo/compute_delta_logd.py.
+ORCA_SOLVENT_FILE_STEMS = {
+    "dichloromethane": "dcm",
+    "water": "water",
+    "methanol": "methanol",
+    "hexane": "hexane",
+    "cyclohexanol": "cyclohexanol",
+}
+
+#: InChIKey → stage-1 solute stem. No guessing for an unknown SMILES.
+SOLUTE_ORCA_STEM_BY_INCHIKEY = {
+    DEP_INCHIKEY: "dep",
+    DBP_INCHIKEY: "dbp",
+    BBP_INCHIKEY: "bbp",
+    DEHP_INCHIKEY: "dehp",
+}
+
+#: Exact COSMObase solute filenames. Not a substring search.
+SOLUTE_COSMOBASE_FILE_BY_INCHIKEY = {
+    DEP_INCHIKEY: "diethylphthalate_c0.cosmo",
+    DBP_INCHIKEY: "dibutylphthalate_c0.cosmo",
+    BBP_INCHIKEY: "butylbenzylphthalate_c0.cosmo",
+    DEHP_INCHIKEY: "di-2-ethylhexylphthalate_c0.cosmo",
+}
+
+VALIDATION_VALIDATED = "validated"
+VALIDATION_COMPUTED_UNVALIDATED = "computed_unvalidated"
+VALIDATION_NO_BASIS = "no_validation_basis"
+ABSOLUTE_REFUSE_TOKENS = frozenset({"", "none", "absolute", "abs"})
 
 #: Same molecule, different string. Not a neighbour-solvent fallback.
 SOLVENT_IDENTITY_ALIASES = {
@@ -859,3 +891,331 @@ def solvent_route_coverage(*, solvents_dir: str | Path | None = None) -> dict[st
             row["solvent_key"] for row in rows if not row["success"]
         ],
     }
+
+
+def _sha256_file(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(65536), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def _anchor_pairs_for_inchikey(inchikey: str) -> tuple[tuple[str, str, float], ...] | None:
+    if inchikey == DEP_INCHIKEY:
+        return ANCHOR_PAIRS
+    if inchikey == DBP_INCHIKEY:
+        return DBP_ANCHOR_PAIRS
+    if inchikey == BBP_INCHIKEY:
+        return BBP_ANCHOR_PAIRS
+    if inchikey == DEHP_INCHIKEY:
+        return DEHP_ANCHOR_PAIRS
+    return None
+
+
+def orca_solvent_cosmo_path(
+    key: str, *, artifacts_dir: str | Path | None = None,
+) -> Path | None:
+    stem = ORCA_SOLVENT_FILE_STEMS.get(key)
+    if not stem:
+        return None
+    root = Path(artifacts_dir) if artifacts_dir is not None else DEFAULT_ORCA_ARTIFACTS_DIR
+    for name in (f"{stem}_cosmo.solute.orcacosmo", f"{stem}_cosmo.solvent.orcacosmo"):
+        path = root / name
+        if path.is_file():
+            return path
+    return None
+
+
+def orca_solute_cosmo_path(
+    inchikey: str, *, artifacts_dir: str | Path | None = None,
+) -> Path | None:
+    stem = SOLUTE_ORCA_STEM_BY_INCHIKEY.get(inchikey)
+    if not stem:
+        return None
+    root = Path(artifacts_dir) if artifacts_dir is not None else DEFAULT_ORCA_ARTIFACTS_DIR
+    path = root / f"{stem}_cosmo.solute.orcacosmo"
+    return path if path.is_file() else None
+
+
+def cosmobase_solute_path(
+    inchikey: str, *, solvents_dir: str | Path | None = None,
+) -> Path | None:
+    name = SOLUTE_COSMOBASE_FILE_BY_INCHIKEY.get(inchikey)
+    if not name:
+        return None
+    root = Path(solvents_dir) if solvents_dir is not None else DEFAULT_COSMOBASE_SOLVENTS_DIR
+    path = root / name
+    return path if path.is_file() else None
+
+
+def _pair_route_files(
+    solvent_key: str,
+    reference_key: str,
+    inchikey: str,
+    *,
+    artifacts_dir: str | Path | None = None,
+    solvents_dir: str | Path | None = None,
+) -> dict[str, Any] | None:
+    """Pick one honest route. Never label a COSMObase file as 24a."""
+    solute_orca = orca_solute_cosmo_path(inchikey, artifacts_dir=artifacts_dir)
+    solvent_orca = orca_solvent_cosmo_path(solvent_key, artifacts_dir=artifacts_dir)
+    reference_orca = orca_solvent_cosmo_path(reference_key, artifacts_dir=artifacts_dir)
+    if solute_orca is not None and solvent_orca is not None and reference_orca is not None:
+        return {
+            "route": ORCA_ROUTE,
+            "parameterisation": ORCA_PARAMETERISATION,
+            "engine": None,
+            "solute": solute_orca,
+            "solvent": solvent_orca,
+            "reference": reference_orca,
+            "level_of_theory": (
+                f"{DFT_FUNCTIONAL}/{DFT_BASIS_OPT}//{DFT_FUNCTIONAL}/{DFT_BASIS_SP}"
+            ),
+        }
+    solute_cb = cosmobase_solute_path(inchikey, solvents_dir=solvents_dir)
+    solvent_cb = cosmotherm_file_for(solvent_key, solvents_dir=solvents_dir)
+    reference_cb = cosmotherm_file_for(reference_key, solvents_dir=solvents_dir)
+    if solute_cb is not None and solvent_cb is not None and reference_cb is not None:
+        return {
+            "route": COSMOBASE_ROUTE,
+            "parameterisation": COSMOBASE_PARAMETERISATION,
+            "engine": COSMOBASE_ENGINE,
+            "solute": solute_cb,
+            "solvent": solvent_cb,
+            "reference": reference_cb,
+            "level_of_theory": f"{COSMOBASE_PARAMETERISATION}/{COSMOBASE_ENGINE}",
+        }
+    return None
+
+
+def _delta_from_files(
+    files: Mapping[str, Any],
+    *,
+    ln_gamma: Callable[..., float],
+    temperature: float = STANDARD_T,
+) -> dict[str, Any]:
+    ln_solvent = ln_gamma(files["solute"], files["solvent"], temperature=temperature)
+    ln_reference = ln_gamma(files["solute"], files["reference"], temperature=temperature)
+    solvent_key = files.get("solvent_key")
+    reference_key = files.get("reference_key")
+    volume_a = MOLAR_VOLUMES_CM3.get(solvent_key) if solvent_key else None
+    volume_b = MOLAR_VOLUMES_CM3.get(reference_key) if reference_key else None
+    if volume_a is None or volume_b is None:
+        volume_a = volume_b = None
+        volume_correction = 0.0
+        delta = delta_log_d(ln_solvent, ln_reference)
+    else:
+        mole_frac = delta_log_d(ln_solvent, ln_reference)
+        delta = delta_log_d(
+            ln_solvent, ln_reference, volume_a=volume_a, volume_b=volume_b,
+        )
+        volume_correction = delta - mole_frac
+    return {
+        "delta_logd": delta,
+        "ln_gamma_solvent": ln_solvent,
+        "ln_gamma_reference": ln_reference,
+        "volume_correction": volume_correction,
+        "temperature": temperature,
+        "n_conformers": 1,
+        "solute_file": str(files["solute"]),
+        "solvent_file": str(files["solvent"]),
+        "reference_file": str(files["reference"]),
+        "solute_sha256": _sha256_file(Path(files["solute"])),
+        "solvent_sha256": _sha256_file(Path(files["solvent"])),
+        "reference_sha256": _sha256_file(Path(files["reference"])),
+        "route": files["route"],
+        "parameterisation": files["parameterisation"],
+        "engine": files["engine"],
+        "level_of_theory": files["level_of_theory"],
+        "dft_ran": False,
+    }
+
+
+def _validation_status(
+    inchikey: str,
+    *,
+    artifacts_dir: str | Path | None,
+    solvents_dir: str | Path | None,
+    ln_gamma: Callable[..., float],
+) -> dict[str, Any]:
+    """Molecule-level label. `validated` only when the regression actually passes."""
+    pairs = _anchor_pairs_for_inchikey(inchikey)
+    if pairs is None:
+        return {
+            "validation_status": VALIDATION_NO_BASIS,
+            "validated_ok": False,
+        }
+    predicted: dict[str, float] = {}
+    for solvent_a, solvent_b, _ours in pairs:
+        files = _pair_route_files(
+            solvent_a, solvent_b, inchikey,
+            artifacts_dir=artifacts_dir, solvents_dir=solvents_dir,
+        )
+        if files is None:
+            continue
+        files = {**files, "solvent_key": solvent_a, "reference_key": solvent_b}
+        try:
+            computed = _delta_from_files(files, ln_gamma=ln_gamma)
+        except CosmoDependencyError:
+            continue
+        predicted[f"{solvent_a}-{solvent_b}"] = computed["delta_logd"]
+    scored = evaluate_anchor_pairs(predicted, pairs=pairs)
+    xs = [row["ours"] for row in scored["rows"] if row["predicted"] is not None]
+    ys = [row["predicted"] for row in scored["rows"] if row["predicted"] is not None]
+    slope_contains_one = False
+    if len(xs) >= 3:
+        fit = linear_fit(xs, ys)
+        slope_contains_one = fit.contains_unit_slope()
+    if scored["accept"] and slope_contains_one:
+        status = VALIDATION_VALIDATED
+    else:
+        status = VALIDATION_COMPUTED_UNVALIDATED
+    return {
+        "validation_status": status,
+        "validated_ok": status == VALIDATION_VALIDATED,
+        "anchor_evaluation": scored,
+        "n_anchor_predicted": len(predicted),
+    }
+
+
+def compute_delta_logd(
+    smiles: str,
+    solvents: Sequence[str],
+    *,
+    reference: str | None = "water",
+    absolute: bool = False,
+    solvents_dir: str | Path | None = None,
+    artifacts_dir: str | Path | None = None,
+    ln_gamma: Callable[..., float] | None = None,
+) -> dict[str, Any]:
+    """P-3: Δ logD vs a named reference, with provenance. No new DFT.
+
+    Default reference is water. A single-phase absolute is refused. A COSMObase
+    number is labelled 2002 / Turbomole and is never presented as 24a.
+    Existing .orcacosmo / .cosmo surfaces are reused; 1-octanol DFT is not started.
+    """
+    ingested = ingest_smiles(smiles)
+    gamma_fn = ln_gamma if ln_gamma is not None else ln_gamma_infinite_dilution
+    base = {
+        "dft_ran": False,
+        "reference": None if reference is None else str(reference).strip() or None,
+        "results": [],
+        "validated_ok": False,
+        "validation_status": VALIDATION_NO_BASIS,
+    }
+    if not ingested["success"]:
+        return {**base, **ingested}
+    inchikey = ingested["inchikey"]
+    ref_token = "" if reference is None else str(reference).strip().casefold()
+    if absolute or ref_token in ABSOLUTE_REFUSE_TOKENS:
+        return {
+            **ingested,
+            **base,
+            "success": False,
+            "error_code": "absolute_logp_refused",
+            "error": (
+                "a partition coefficient is a difference between two named phases; "
+                "a single-solvent absolute is not served"
+            ),
+            "reference": None,
+        }
+    ref_name = str(reference).strip() if reference is not None else "water"
+    if not ref_name:
+        ref_name = "water"
+    ref_row = resolve_solvent(ref_name, solvents_dir=solvents_dir)
+    payload = {
+        **ingested,
+        "success": True,
+        "error_code": None,
+        "dft_ran": False,
+        "reference": ref_row["solvent_key"],
+        "reference_query": ref_row["query"],
+        "results": [],
+    }
+    if not ref_row["success"]:
+        payload["success"] = False
+        payload["error_code"] = "solvent_not_available"
+        payload["error"] = f"reference {ref_row['query']!r} is not available"
+        payload["validation_status"] = VALIDATION_NO_BASIS
+        payload["validated_ok"] = False
+        return payload
+    validation = _validation_status(
+        inchikey,
+        artifacts_dir=artifacts_dir,
+        solvents_dir=solvents_dir,
+        ln_gamma=gamma_fn,
+    )
+    payload["validation_status"] = validation["validation_status"]
+    payload["validated_ok"] = validation["validated_ok"]
+    if "anchor_evaluation" in validation:
+        payload["anchor_evaluation"] = validation["anchor_evaluation"]
+
+    for name in solvents:
+        solvent_row = resolve_solvent(name, solvents_dir=solvents_dir)
+        row: dict[str, Any] = {
+            "query": solvent_row["query"],
+            "solvent_key": solvent_row["solvent_key"],
+            "reference": payload["reference"],
+            "dft_ran": False,
+            "validation_status": payload["validation_status"],
+            "validated_ok": payload["validated_ok"],
+        }
+        if not solvent_row["success"]:
+            row["success"] = False
+            row["error_code"] = solvent_row["error_code"]
+            row["error"] = solvent_row["error"]
+            payload["results"].append(row)
+            continue
+        files = _pair_route_files(
+            solvent_row["solvent_key"], payload["reference"], inchikey,
+            artifacts_dir=artifacts_dir, solvents_dir=solvents_dir,
+        )
+        if files is None:
+            solute_orca = orca_solute_cosmo_path(inchikey, artifacts_dir=artifacts_dir)
+            solute_cb = cosmobase_solute_path(inchikey, solvents_dir=solvents_dir)
+            row["success"] = False
+            if solute_orca is None and solute_cb is None:
+                row["error_code"] = "solute_cosmo_unavailable"
+                row["error"] = (
+                    "no local COSMO surface for this InChIKey; DFT is not started in P-3"
+                )
+            else:
+                row["error_code"] = "route_unavailable"
+                row["error"] = (
+                    "solvent and reference are not both on the ORCA 24a route or "
+                    "both on COSMObase 2002; routes are not mixed and 24a is not faked"
+                )
+            payload["results"].append(row)
+            continue
+        files = {
+            **files,
+            "solvent_key": solvent_row["solvent_key"],
+            "reference_key": payload["reference"],
+        }
+        try:
+            computed = _delta_from_files(files, ln_gamma=gamma_fn)
+        except CosmoDependencyError as exc:
+            row["success"] = False
+            row["error_code"] = "cosmo_rs_unavailable"
+            row["error"] = str(exc)
+            payload["results"].append(row)
+            continue
+        if computed["parameterisation"] == ORCA_PARAMETERISATION:
+            if computed["route"] != ORCA_ROUTE:
+                row["success"] = False
+                row["error_code"] = "route_label_conflict"
+                payload["results"].append(row)
+                continue
+        if computed["route"] == COSMOBASE_ROUTE:
+            if computed["parameterisation"] == ORCA_PARAMETERISATION:
+                row["success"] = False
+                row["error_code"] = "route_label_conflict"
+                payload["results"].append(row)
+                continue
+        row["success"] = True
+        row["error_code"] = None
+        row.update(computed)
+        payload["results"].append(row)
+    return payload
+

@@ -12,6 +12,7 @@ disagrees with that record, one of the two is wrong and this suite says so.
 
 from __future__ import annotations
 
+import hashlib
 import math
 import shutil
 from pathlib import Path
@@ -842,3 +843,248 @@ def test_dependency_errors_name_what_is_missing_and_how_to_get_it():
             cl.ln_gamma_infinite_dilution("a.orcacosmo", "b.orcacosmo")
         assert "opencosmorspy" in str(exc.value)
         assert "github" in str(exc.value).lower()
+
+
+# ------------------------------------------------------------- P-3 Δ vs named reference
+
+def _touch(path: Path, body: str = "dummy-surface\n") -> Path:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(body)
+    return path
+
+
+def _dummy_p3_dirs(root: Path) -> tuple[Path, Path]:
+    """Isolated ORCA + COSMObase trees. No live DFT."""
+    artifacts = root / "orca"
+    solvents = root / "cosmo"
+    for stem in (
+        "dep", "dbp", "bbp", "dehp",
+        "water", "dcm", "methanol", "hexane", "cyclohexanol",
+    ):
+        _touch(artifacts / f"{stem}_cosmo.solute.orcacosmo")
+    for name in cl.SOLUTE_COSMOBASE_FILE_BY_INCHIKEY.values():
+        _touch(solvents / name)
+    for name in (
+        "h2o_c0.cosmo", "ch2cl2_c0.cosmo", "methanol_c0.cosmo",
+        "hexane_c0.cosmo", "cyclohexanol_c0.cosmo", "toluene_c0.cosmo",
+        "1-octanol_c0.cosmo",
+    ):
+        _touch(solvents / name)
+    return artifacts, solvents
+
+
+def _solvent_key_from_path(path) -> str:
+    name = Path(path).name.lower()
+    mapping = (
+        ("cyclohexanol", "cyclohexanol"),
+        ("dichloromethane", "dichloromethane"),
+        ("ch2cl2", "dichloromethane"),
+        ("dcm", "dichloromethane"),
+        ("methanol", "methanol"),
+        ("hexane", "hexane"),
+        ("water", "water"),
+        ("h2o", "water"),
+        ("toluene", "toluene"),
+        ("1-octanol", "1-octanol"),
+        ("octanol", "1-octanol"),
+    )
+    for needle, key in mapping:
+        if needle in name:
+            return key
+    return name.split("_")[0]
+
+
+def _ln_map_from_pairs(pairs) -> dict[str, float]:
+    ln = {"water": 0.0}
+    remaining = [(a, b, ours) for a, b, ours in pairs]
+    for _ in range(len(remaining) + 2):
+        nxt = []
+        for a, b, ours in remaining:
+            va = cl.MOLAR_VOLUMES_CM3.get(a)
+            vb = cl.MOLAR_VOLUMES_CM3.get(b)
+            vol_term = math.log10(vb / va) if va is not None and vb is not None else 0.0
+            mole = ours - vol_term
+            delta_ln = mole * math.log(10)
+            if b in ln and a not in ln:
+                ln[a] = ln[b] - delta_ln
+            elif a in ln and b not in ln:
+                ln[b] = ln[a] + delta_ln
+            elif a not in ln or b not in ln:
+                nxt.append((a, b, ours))
+        remaining = nxt
+        if not remaining:
+            break
+    assert not remaining, remaining
+    return ln
+
+
+def _ln_gamma_from_map(ln_map, default: float = 0.0):
+    def ln_gamma(solute, solvent, **kwargs):
+        return ln_map.get(_solvent_key_from_path(solvent), default)
+    return ln_gamma
+
+
+def test_absolute_logp_is_refused_and_does_not_run_dft(tmp_path):
+    pytest.importorskip("rdkit")
+    artifacts, solvents = _dummy_p3_dirs(tmp_path)
+    payload = cl.compute_delta_logd(
+        cl.DEP_SMILES, ["toluene"], absolute=True,
+        solvents_dir=solvents, artifacts_dir=artifacts, ln_gamma=lambda *a, **k: 0.0,
+    )
+    assert payload["success"] is False
+    assert payload["error_code"] == "absolute_logp_refused"
+    assert payload["dft_ran"] is False
+    none = cl.compute_delta_logd(
+        cl.DEP_SMILES, ["toluene"], reference="none",
+        solvents_dir=solvents, artifacts_dir=artifacts, ln_gamma=lambda *a, **k: 0.0,
+    )
+    assert none["error_code"] == "absolute_logp_refused"
+    assert none["dft_ran"] is False
+
+
+def test_single_solvent_vs_default_water_is_not_an_absolute(tmp_path):
+    pytest.importorskip("rdkit")
+    artifacts, solvents = _dummy_p3_dirs(tmp_path)
+    payload = cl.compute_delta_logd(
+        cl.DEP_SMILES, ["toluene"],
+        solvents_dir=solvents, artifacts_dir=artifacts, ln_gamma=lambda *a, **k: 1.0,
+    )
+    assert payload["success"] is True
+    assert payload["reference"] == "water"
+    assert payload["error_code"] != "absolute_logp_refused"
+    row = payload["results"][0]
+    assert row["success"] is True
+    assert row["solvent_key"] == "toluene"
+    assert row["reference"] == "water"
+    assert row["route"] == cl.COSMOBASE_ROUTE
+    assert row["parameterisation"] == "2002"
+    assert row["parameterisation"] != "24a"
+    assert row["engine"] == "turbomole"
+    assert row["dft_ran"] is False
+    assert "delta_logd" in row
+    assert row["n_conformers"] == 1
+    assert row["temperature"] == cl.STANDARD_T
+    assert len(row["solute_sha256"]) == 64
+    assert "ln_gamma_solvent" in row
+    assert "volume_correction" in row
+
+
+def test_dichloromethane_water_is_24a_and_toluene_is_not_labelled_24a(tmp_path):
+    pytest.importorskip("rdkit")
+    artifacts, solvents = _dummy_p3_dirs(tmp_path)
+    payload = cl.compute_delta_logd(
+        cl.DEP_SMILES, ["dichloromethane", "toluene"],
+        solvents_dir=solvents, artifacts_dir=artifacts, ln_gamma=lambda *a, **k: 0.0,
+    )
+    by_key = {row["solvent_key"]: row for row in payload["results"]}
+    dcm = by_key["dichloromethane"]
+    toluene = by_key["toluene"]
+    assert dcm["success"] is True
+    assert dcm["route"] == cl.ORCA_ROUTE
+    assert dcm["parameterisation"] == "24a"
+    assert dcm["engine"] is None
+    assert cl.DFT_FUNCTIONAL in dcm["level_of_theory"]
+    assert toluene["success"] is True
+    assert toluene["route"] == cl.COSMOBASE_ROUTE
+    assert toluene["parameterisation"] == "2002"
+    assert toluene["engine"] == "turbomole"
+    assert "24a" not in toluene["level_of_theory"]
+    assert dcm["dft_ran"] is False
+    assert toluene["dft_ran"] is False
+
+
+def test_xylene_refuses_without_becoming_o_xylene(tmp_path):
+    pytest.importorskip("rdkit")
+    artifacts, solvents = _dummy_p3_dirs(tmp_path)
+    payload = cl.compute_delta_logd(
+        cl.DEP_SMILES, ["xylene"],
+        solvents_dir=solvents, artifacts_dir=artifacts, ln_gamma=lambda *a, **k: 0.0,
+    )
+    row = payload["results"][0]
+    assert row["success"] is False
+    assert row["error_code"] == "solvent_not_available"
+    assert row["query"] == "xylene"
+    assert row["solvent_key"] == "xylene"
+    assert row["dft_ran"] is False
+
+
+def test_unknown_smiles_is_no_validation_basis_and_does_not_start_dft(tmp_path):
+    pytest.importorskip("rdkit")
+    artifacts, solvents = _dummy_p3_dirs(tmp_path)
+    payload = cl.compute_delta_logd(
+        "CCO", ["toluene"],
+        solvents_dir=solvents, artifacts_dir=artifacts, ln_gamma=lambda *a, **k: 0.0,
+    )
+    assert payload["validation_status"] == cl.VALIDATION_NO_BASIS
+    assert payload["validated_ok"] is False
+    row = payload["results"][0]
+    assert row["error_code"] == "solute_cosmo_unavailable"
+    assert row["dft_ran"] is False
+    assert payload["dft_ran"] is False
+
+
+def test_dehp_is_computed_unvalidated_and_tolerance_stays_1_5(tmp_path):
+    pytest.importorskip("rdkit")
+    artifacts, solvents = _dummy_p3_dirs(tmp_path)
+    payload = cl.compute_delta_logd(
+        cl.DEHP_SMILES, ["dichloromethane"],
+        solvents_dir=solvents, artifacts_dir=artifacts, ln_gamma=lambda *a, **k: 0.0,
+    )
+    assert payload["inchikey"] == cl.DEHP_INCHIKEY
+    assert payload["validation_status"] == cl.VALIDATION_COMPUTED_UNVALIDATED
+    assert payload["validated_ok"] is False
+    assert cl.ACCEPT_TOLERANCE_LOG_UNITS == 1.5
+    row = payload["results"][0]
+    assert row["success"] is True
+    assert row["dft_ran"] is False
+
+
+def test_dep_matching_anchors_is_validated_and_visually_distinct(tmp_path):
+    pytest.importorskip("rdkit")
+    artifacts, solvents = _dummy_p3_dirs(tmp_path)
+    ln_gamma = _ln_gamma_from_map(_ln_map_from_pairs(cl.ANCHOR_PAIRS))
+    payload = cl.compute_delta_logd(
+        cl.DEP_SMILES, ["dichloromethane"],
+        solvents_dir=solvents, artifacts_dir=artifacts, ln_gamma=ln_gamma,
+    )
+    assert payload["validation_status"] == cl.VALIDATION_VALIDATED
+    assert payload["validated_ok"] is True
+    assert payload["validation_status"] != cl.VALIDATION_COMPUTED_UNVALIDATED
+    assert payload["validation_status"] != cl.VALIDATION_NO_BASIS
+
+
+def test_one_octanol_is_labelled_2002_and_does_not_start_dft(tmp_path, monkeypatch):
+    pytest.importorskip("rdkit")
+    artifacts, solvents = _dummy_p3_dirs(tmp_path)
+
+    def boom(*_a, **_k):
+        raise AssertionError("DFT must not start in P-3")
+
+    monkeypatch.setattr(cl.subprocess, "run", boom)
+    payload = cl.compute_delta_logd(
+        cl.DEP_SMILES, ["1-octanol"],
+        solvents_dir=solvents, artifacts_dir=artifacts, ln_gamma=lambda *a, **k: 0.5,
+    )
+    row = payload["results"][0]
+    assert row["success"] is True
+    assert row["route"] == cl.COSMOBASE_ROUTE
+    assert row["parameterisation"] == "2002"
+    assert row["engine"] == "turbomole"
+    assert row["dft_ran"] is False
+    body = Path(cl.__file__).read_text().split("def compute_delta_logd", 1)[1]
+    assert "subprocess" not in body
+    assert "generate_conformers(" not in body
+
+
+def test_compute_delta_logd_does_not_write_the_logd_table(tmp_path):
+    pytest.importorskip("rdkit")
+    db = Path(__file__).resolve().parents[1] / "src" / "dissolve" / "data" / "contaminants.duckdb"
+    before = hashlib.sha256(db.read_bytes()).hexdigest()
+    artifacts, solvents = _dummy_p3_dirs(tmp_path)
+    cl.compute_delta_logd(
+        cl.DEP_SMILES, ["toluene", "xylene"],
+        solvents_dir=solvents, artifacts_dir=artifacts, ln_gamma=lambda *a, **k: 0.0,
+    )
+    after = hashlib.sha256(db.read_bytes()).hexdigest()
+    assert before == after
+    assert before.startswith("866d769b")
