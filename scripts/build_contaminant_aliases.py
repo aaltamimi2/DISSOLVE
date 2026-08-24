@@ -47,6 +47,10 @@ FORBIDDEN_ALIASES = {
 }
 DIMETHYL_PHTHALATE_CAS = "131-11-3"
 RESOLUTION_BASIS = {"cas_verified", "held_snapshot", "catalog_declared"}
+STRUCTURE_BASIS = {"cosmobase_local", "structure_unavailable"}
+STRUCTURES_SHA256 = (
+    "29838a0aa353bae765965bda444dad31ee288bcc27390d3bfa1d330669a72cd2"
+)
 PHTHALATE_SHORTS = {
     "butyl benzyl phthalate (bbp)": "BBP",
     "di-(2-ethylhexyl) phthalate (dehp)": "DEHP",
@@ -114,6 +118,33 @@ def _load_held(path: Path) -> dict[str, dict[str, str]]:
         rows[key] = item
     if len(rows) != 8:
         raise SystemExit(f"held file has {len(rows)} rows, expected 8 phthalates")
+    return rows
+
+
+def _load_structures(path: Path) -> dict[str, dict[str, str]]:
+    _require_sha(path, STRUCTURES_SHA256, path.name)
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    if payload.get("schema") != "dissolve.contaminant-structures.local.v1":
+        raise SystemExit(f"unexpected structures schema: {payload.get('schema')}")
+    rows: dict[str, dict[str, str]] = {}
+    for item in payload["rows"]:
+        key = _key(item["contaminant_key"])
+        if key in rows:
+            raise SystemExit(f"structures file repeats contaminant_key {key}")
+        smiles = str(item["smiles"]).strip()
+        inchikey = str(item["inchikey"]).strip()
+        if not smiles or not inchikey:
+            raise SystemExit(f"structures row {key} missing smiles/inchikey")
+        rows[key] = {
+            "smiles": smiles,
+            "inchikey": inchikey,
+            "cas_number": str(item["cas_number"]),
+        }
+    if len(rows) != 8:
+        raise SystemExit(f"structures file has {len(rows)} rows, expected 8 phthalates")
+    inchikeys = [row["inchikey"] for row in rows.values()]
+    if len(set(inchikeys)) != 8:
+        raise SystemExit("structures file has colliding InChIKeys")
     return rows
 
 
@@ -193,6 +224,9 @@ def _add_alias(
     cas_number: str | None,
     resolution_basis: str,
     pubchem_cid: str | None,
+    smiles: str | None,
+    inchikey: str | None,
+    structure_basis: str,
 ) -> None:
     folded = _key(alias)
     if not folded:
@@ -215,6 +249,15 @@ def _add_alias(
         raise SystemExit(
             f"{resolution_basis} row {alias!r} must not carry a CID"
         )
+    if structure_basis not in STRUCTURE_BASIS:
+        raise SystemExit(f"unknown structure_basis {structure_basis!r}")
+    if structure_basis == "cosmobase_local":
+        if not smiles or not inchikey:
+            raise SystemExit(f"cosmobase_local row {alias!r} needs smiles/inchikey")
+    elif smiles is not None or inchikey is not None:
+        raise SystemExit(
+            f"structure_unavailable row {alias!r} must not carry smiles/inchikey"
+        )
     if cas_number in PERFLUORO_SOLVENT_CAS or cas_number == DIMETHYL_PHTHALATE_CAS:
         raise SystemExit(f"refusing CAS {cas_number} on {alias!r}")
     prior = folded_owner.get(folded)
@@ -232,13 +275,20 @@ def _add_alias(
     rows.append((
         alias, contaminant_key, canonical_name, family,
         cas_number, resolution_basis, pubchem_cid,
+        smiles, inchikey, structure_basis,
     ))
 
 
-def build(parent: Path, output: Path, held_path: Path, solvent_csv: Path) -> str:
+def build(
+    parent: Path, output: Path, held_path: Path, solvent_csv: Path,
+    structures_path: Path,
+) -> str:
     _require_sha(parent, CHEMISTRY_ASSET_SHA256, "chemistry parent")
     held = _load_held(held_path)
+    structures = _load_structures(structures_path)
     identities = _phthalate_identity(held, _load_normalized(solvent_csv))
+    if set(structures) != set(identities):
+        raise SystemExit("structures keys do not match the eight held phthalates")
 
     source = duckdb.connect(str(parent), read_only=True)
     contaminants = source.execute(
@@ -268,28 +318,42 @@ def build(parent: Path, output: Path, held_path: Path, solvent_csv: Path) -> str
         if family_s == "Phthalates":
             cas, cid = identities[_key(key_s)]
             basis = "cas_verified"
+            pin = structures[_key(key_s)]
+            if pin["cas_number"] != cas:
+                raise SystemExit(
+                    f"structure CAS {pin['cas_number']} != held {cas} for {key_s}"
+                )
+            smiles, inchikey, structure_basis = (
+                pin["smiles"], pin["inchikey"], "cosmobase_local",
+            )
         elif family_s == "PFAS":
+            if _key(key_s) in structures:
+                raise SystemExit(f"PFAS {key_s} must not carry a structure pin")
             cas, cid, basis = None, None, "catalog_declared"
+            smiles, inchikey, structure_basis = None, None, "structure_unavailable"
         else:
             raise SystemExit(f"unexpected family {family_s}")
         _add_alias(
             aliases, folded_owner, cas_owner,
             alias=name_s, contaminant_key=key_s, canonical_name=name_s,
             family=family_s, cas_number=cas, resolution_basis=basis,
-            pubchem_cid=cid,
+            pubchem_cid=cid, smiles=smiles, inchikey=inchikey,
+            structure_basis=structure_basis,
         )
         _add_alias(
             aliases, folded_owner, cas_owner,
             alias=key_s, contaminant_key=key_s, canonical_name=name_s,
             family=family_s, cas_number=cas, resolution_basis=basis,
-            pubchem_cid=cid,
+            pubchem_cid=cid, smiles=smiles, inchikey=inchikey,
+            structure_basis=structure_basis,
         )
         if cas:
             _add_alias(
                 aliases, folded_owner, cas_owner,
                 alias=cas, contaminant_key=key_s, canonical_name=name_s,
                 family=family_s, cas_number=cas, resolution_basis=basis,
-                pubchem_cid=cid,
+                pubchem_cid=cid, smiles=smiles, inchikey=inchikey,
+                structure_basis=structure_basis,
             )
             short = PHTHALATE_SHORTS.get(_key(key_s))
             if not short:
@@ -298,7 +362,8 @@ def build(parent: Path, output: Path, held_path: Path, solvent_csv: Path) -> str
                 aliases, folded_owner, cas_owner,
                 alias=short, contaminant_key=key_s, canonical_name=name_s,
                 family=family_s, cas_number=cas, resolution_basis=basis,
-                pubchem_cid=cid,
+                pubchem_cid=cid, smiles=smiles, inchikey=inchikey,
+                structure_basis=structure_basis,
             )
 
     if set(PHTHALATE_SHORTS) - seen:
@@ -309,6 +374,13 @@ def build(parent: Path, output: Path, held_path: Path, solvent_csv: Path) -> str
         raise SystemExit("held_snapshot must be 0 until contaminant_cas.held.v1")
     if any(row[5] == "catalog_declared" and row[4] is not None for row in aliases):
         raise SystemExit("catalog_declared row carries a CAS")
+    if any(row[3] == "PFAS" and (row[7] or row[8]) for row in aliases):
+        raise SystemExit("PFAS row carries a SMILES or InChIKey")
+    if any(row[9] == "cosmobase_local" and row[3] != "Phthalates" for row in aliases):
+        raise SystemExit("cosmobase_local is only for phthalates")
+    phthalate_keys = {row[1] for row in aliases if row[3] == "Phthalates"}
+    if phthalate_keys != set(identities):
+        raise SystemExit("phthalate keys drifted from held CAS set")
 
     output.parent.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory() as tmp:
@@ -325,12 +397,15 @@ def build(parent: Path, output: Path, held_path: Path, solvent_csv: Path) -> str
                 family VARCHAR,
                 cas_number VARCHAR,
                 resolution_basis VARCHAR,
-                pubchem_cid VARCHAR
+                pubchem_cid VARCHAR,
+                smiles VARCHAR,
+                inchikey VARCHAR,
+                structure_basis VARCHAR
             )
             """
         )
         connection.executemany(
-            "INSERT INTO contaminant_aliases VALUES (?,?,?,?,?,?,?)",
+            "INSERT INTO contaminant_aliases VALUES (?,?,?,?,?,?,?,?,?,?)",
             aliases,
         )
         connection.execute(
@@ -350,7 +425,7 @@ def build(parent: Path, output: Path, held_path: Path, solvent_csv: Path) -> str
             )
         connection.execute(
             "DELETE FROM metadata WHERE key LIKE 'cas_%' OR key LIKE 'held_%' "
-            "OR key LIKE 'resolution_%'"
+            "OR key LIKE 'resolution_%' OR key LIKE 'structure_%'"
         )
         connection.executemany(
             "INSERT INTO metadata VALUES (?,?)",
@@ -365,6 +440,17 @@ def build(parent: Path, output: Path, held_path: Path, solvent_csv: Path) -> str
                 (
                     "cas_absent_note",
                     "26 PFAS CAS are not local; resolution_basis=catalog_declared",
+                ),
+                ("structure_local_count", "8"),
+                ("structure_unavailable_count", "26"),
+                (
+                    "structure_held_file",
+                    "src/dissolve/data/contaminant_structures.local.v1.json",
+                ),
+                ("structure_held_sha256", STRUCTURES_SHA256),
+                (
+                    "structure_absent_note",
+                    "26 PFAS have no local geometry; structure_basis=structure_unavailable",
                 ),
             ],
         )
@@ -387,6 +473,11 @@ def main() -> int:
         type=Path,
         default=ROOT / "src/dissolve/data/Solvent_Data.csv",
     )
+    parser.add_argument(
+        "--structures",
+        type=Path,
+        default=ROOT / "src/dissolve/data/contaminant_structures.local.v1.json",
+    )
     args = parser.parse_args()
     with tempfile.TemporaryDirectory() as tmp:
         parent = Path(tmp) / "chemistry.duckdb"
@@ -394,6 +485,7 @@ def main() -> int:
         digest = build(
             parent, args.output.resolve(),
             args.held.resolve(), args.solvent_data.resolve(),
+            args.structures.resolve(),
         )
     print(f"built {args.output.resolve()} sha256 {digest}")
     return 0

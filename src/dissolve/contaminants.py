@@ -18,7 +18,7 @@ from .contracts import parse_tool_result, tool_error, tool_success
 from .tools import _polymer_ambiguity_error
 
 _ASSET = Path(str(files("dissolve").joinpath("data/contaminants.duckdb")))
-_ASSET_SHA256 = "866d769b6a140bf289c5036fd5c0d7d2b6f424cb7994e71c76e16a1a1d9a4c5f"
+_ASSET_SHA256 = "0e6edf9debb0e7435c4382d7149fa2f12b620983ea94e5281ed770a872e42683"
 _LOCAL = threading.local()
 _FAMILY_ALIASES = {
     "pfas": "PFAS",
@@ -211,6 +211,63 @@ def _contaminant_catalog(contaminants: Sequence[str]) -> list[dict[str, Any]]:
             continue
         catalog.append(_served_identity(identity))
     return catalog
+
+
+def resolve_structure(name: str) -> dict[str, Any]:
+    """Map a contaminant name to a local SMILES/InChIKey, or refuse.
+
+    L-1 of CONTAMINANT_LOGP_PATH_SPEC.v1. Table lookup only: no fuzzy match,
+    no registry fetch, no SMILES invented from a homologue name. Bind on
+    InChIKey. PFAS stay ``structure_unavailable`` until the owner pins a file.
+    """
+    folded = _key(name)
+    if not folded:
+        return {
+            "success": False,
+            "error_code": "unknown_contaminant",
+            "error": "contaminant name is empty",
+            "query": name,
+        }
+    identity = _contaminant_lookup().get(folded)
+    if identity is None:
+        return {
+            "success": False,
+            "error_code": "unknown_contaminant",
+            "error": "name is not in the contaminant table; no fuzzy match",
+            "query": name,
+        }
+    row = _connection().execute(
+        "SELECT smiles, inchikey, structure_basis FROM contaminant_aliases "
+        "WHERE contaminant_key = ? LIMIT 1",
+        [identity.key],
+    ).fetchone()
+    smiles, inchikey, structure_basis = (row or (None, None, None))
+    if structure_basis != "cosmobase_local" or not smiles or not inchikey:
+        return {
+            "success": False,
+            "error_code": "structure_unavailable",
+            "error": (
+                "no local geometry pin; will not invent a SMILES from the name"
+            ),
+            "query": name,
+            "contaminant_key": identity.key,
+            "resolution_basis": identity.resolution_basis,
+            "structure_basis": structure_basis or "structure_unavailable",
+            "smiles": None,
+            "inchikey": None,
+        }
+    return {
+        "success": True,
+        "query": name,
+        "contaminant_key": identity.key,
+        "canonical_name": identity.name,
+        "family": identity.family,
+        "cas_number": identity.cas_number,
+        "resolution_basis": identity.resolution_basis,
+        "structure_basis": "cosmobase_local",
+        "smiles": smiles,
+        "inchikey": inchikey,
+    }
 
 
 def _provenance() -> dict[str, str]:
