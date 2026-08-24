@@ -44,6 +44,10 @@ _STOPWORDS = {
     "how", "in", "is", "it", "of", "on", "or", "that", "the", "their",
     "this", "to", "was", "were", "what", "which", "with",
 }
+_HYBRID_DENSE_WEIGHT = 0.55
+_HYBRID_SPARSE_WEIGHT = 0.40
+_MINILM_DIM = 384
+_REFUSE_RULE_SPARSE_GATED = "sparse_gated"
 
 
 class ResearchNetworkError(RuntimeError):
@@ -4247,7 +4251,14 @@ def _ingest_inputs(
         model_name, vectors = _dense_vectors(
             [chunk_sparse_corpus(item) for item in index["chunks"]]
         )
-        index["dense"] = {"model": model_name, "vectors": vectors, "built_at": _now()}
+        index["dense"] = {
+            "model": model_name,
+            "vectors": vectors,
+            "built_at": _now(),
+            "dim": _MINILM_DIM,
+            "chunk_ids": [str(item["chunk_id"]) for item in index["chunks"]],
+            "refuse_rule": _REFUSE_RULE_SPARSE_GATED,
+        }
     elif chunks_added and index.get("dense"):
         index["dense"] = None
         dense_warning = "Dense vectors were invalidated by new chunks; rebuild explicitly."
@@ -4330,6 +4341,37 @@ def _chunk_paper_sha256(index: Mapping[str, Any], chunk: Mapping[str, Any]) -> s
     return None
 
 
+def _dense_query_scores(index: Mapping[str, Any], chunks: Sequence[Mapping[str, Any]], query: str) -> list[float]:
+    """Query-embed only. Align by chunk_id set when the index records ids."""
+    dense = index.get("dense") or {}
+    vectors = list(dense.get("vectors") or [])
+    if len(vectors) != len(chunks):
+        raise ValueError("dense_index_unavailable")
+    store_ids = [str(chunk["chunk_id"]) for chunk in chunks]
+    recorded_ids = dense.get("chunk_ids")
+    if recorded_ids is not None:
+        recorded_ids = [str(item) for item in recorded_ids]
+        if set(recorded_ids) != set(store_ids):
+            raise ValueError("dense_index_unavailable")
+        if len(recorded_ids) != len(vectors):
+            raise ValueError("dense_index_unavailable")
+        by_id = {chunk_id: vector for chunk_id, vector in zip(recorded_ids, vectors)}
+        ordered = [by_id[chunk_id] for chunk_id in store_ids]
+    else:
+        ordered = vectors
+    expected_model = dense.get("model")
+    loaded_model, query_vectors = _dense_vectors([query], expected_model)
+    if expected_model and loaded_model != expected_model:
+        raise ValueError("dense_index_unavailable")
+    query_vector = query_vectors[0]
+    if len(query_vector) != _MINILM_DIM or any(len(vector) != _MINILM_DIM for vector in ordered):
+        raise ValueError("dense_index_unavailable")
+    recorded_dim = dense.get("dim")
+    if recorded_dim is not None and int(recorded_dim) != _MINILM_DIM:
+        raise ValueError("dense_index_unavailable")
+    return [max(0.0, _cosine(query_vector, vector)) for vector in ordered]
+
+
 def _search_index(index: dict[str, Any], query: str, top_k: int, mode: str) -> list[dict[str, Any]]:
     chunks = list(index.get("chunks") or [])
     query_tokens = _tokens(query)
@@ -4340,12 +4382,7 @@ def _search_index(index: dict[str, Any], query: str, top_k: int, mode: str) -> l
     sparse = [value / sparse_max for value in sparse_raw]
     dense_scores = [0.0] * len(chunks)
     if mode in {"dense", "hybrid"}:
-        dense = index.get("dense") or {}
-        vectors = dense.get("vectors") or []
-        if len(vectors) != len(chunks):
-            raise ValueError("dense_index_unavailable")
-        _, query_vector = _dense_vectors([query], dense.get("model"))
-        dense_scores = [max(0.0, _cosine(query_vector[0], vector)) for vector in vectors]
+        dense_scores = _dense_query_scores(index, chunks, query)
     ranked = []
     for chunk, sparse_score, dense_score in zip(chunks, sparse, dense_scores):
         origin = chunk.get("section_origin")
@@ -4357,7 +4394,7 @@ def _search_index(index: dict[str, Any], query: str, top_k: int, mode: str) -> l
         if mode == "dense":
             score = dense_score + boost
         elif mode == "hybrid":
-            score = 0.55 * dense_score + 0.40 * sparse_score + boost
+            score = _HYBRID_DENSE_WEIGHT * dense_score + _HYBRID_SPARSE_WEIGHT * sparse_score + boost
         else:
             score = sparse_score + boost
         if score <= 0:
@@ -4436,6 +4473,8 @@ def search_literature_corpus(
         ]),
         analysis_type="corpus_retrieval", query=query, knowledgebase=index["knowledgebase"],
         retrieval_mode=mode, dense_index_available=bool(index.get("dense")),
+        refuse_rule=_REFUSE_RULE_SPARSE_GATED,
+        hybrid_weights={"dense": _HYBRID_DENSE_WEIGHT, "sparse": _HYBRID_SPARSE_WEIGHT},
         result_count=len(rows), results=rows, top_score=top_score,
         low_retrieval_confidence=not rows or top_score < 0.15,
         evidence_scope="retrieved_corpus_passages",
