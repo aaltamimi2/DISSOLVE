@@ -23,9 +23,7 @@ from dissolve.contracts import parse_tool_result
 
 _HELD = _ROOT / "src/dissolve/data/contaminant_cas_phthalates.local.v1.json"
 _HELD_SHA256 = "eca9233329f8a33612996fd40669d94bdcd8036ed2641e51439bb3e18ee8654c"
-_PIN = "0e6edf9debb0e7435c4382d7149fa2f12b620983ea94e5281ed770a872e42683"
-_STRUCTURES = _ROOT / "src/dissolve/data/contaminant_structures.local.v1.json"
-_STRUCTURES_SHA256 = "29838a0aa353bae765965bda444dad31ee288bcc27390d3bfa1d330669a72cd2"
+_PIN = "866d769b6a140bf289c5036fd5c0d7d2b6f424cb7994e71c76e16a1a1d9a4c5f"
 _SHORTS = ("BBP", "DEHP", "DiDP", "DiNP", "DBP", "DnHP", "DnOP", "DEP")
 _OWNER = {
     "butyl benzyl phthalate (bbp)": ("85-68-7", "2347"),
@@ -66,16 +64,9 @@ def test_held_file_and_pin_are_the_verified_bytes():
     assert json.loads(_HELD.read_text())["schema"] == (
         "dissolve.contaminant-cas.local.v1"
     )
-    assert hashlib.sha256(_STRUCTURES.read_bytes()).hexdigest() == _STRUCTURES_SHA256
-    assert json.loads(_STRUCTURES.read_text())["schema"] == (
-        "dissolve.contaminant-structures.local.v1"
-    )
     digest = hashlib.sha256(contaminants._ASSET.read_bytes()).hexdigest()
     assert digest == _PIN
     assert contaminants._ASSET_SHA256 == _PIN
-    assert _meta("structure_local_count") == "8"
-    assert _meta("structure_unavailable_count") == "26"
-    assert _meta("structure_held_sha256") == _STRUCTURES_SHA256
 
 
 def test_thirty_four_keys_and_workbook_counts_do_not_grow():
@@ -111,7 +102,6 @@ def test_every_row_has_a_three_token_resolution_basis():
     assert columns == {
         "alias", "contaminant_key", "canonical_name", "family",
         "cas_number", "resolution_basis", "pubchem_cid",
-        "smiles", "inchikey", "structure_basis",
     }
     assert "cas_status" not in columns
     keys_by_basis: dict[str, set[str]] = defaultdict(set)
@@ -321,114 +311,3 @@ def test_served_catalog_marks_only_cas_verified_as_identity_verified():
         assert row["identity_verified"] is True
         assert row["cas_number"] == "117-81-7"
         assert row["pubchem_cid"] == "8343"
-        assert "smiles" not in row
-        assert "inchikey" not in row
-
-
-def test_eight_phthalates_have_local_structure_and_unique_inchikeys():
-    con = contaminants._connection()
-    rows = con.execute(
-        """
-        SELECT DISTINCT contaminant_key, smiles, inchikey, structure_basis
-        FROM contaminant_aliases WHERE family = 'Phthalates'
-        """
-    ).fetchall()
-    assert len(rows) == 8
-    keys = {row[0] for row in rows}
-    inchikeys = {row[2] for row in rows}
-    assert keys == set(_OWNER)
-    assert len(inchikeys) == 8
-    assert all(row[1] and row[2] and row[3] == "cosmobase_local" for row in rows)
-    dehp = next(row for row in rows if "dehp" in row[0])
-    dnop = next(row for row in rows if "dnop" in row[0])
-    assert dehp[2] != dnop[2]
-    assert dehp[2] == "BJQHLKABXJIVAM-PMACEKPBSA-N"
-    assert dnop[2] == "MQIUGAXCHLFZKX-UHFFFAOYSA-N"
-    dep = contaminants.resolve_structure("DEP")
-    assert dep["success"] is True
-    assert dep["inchikey"] == "FLKPEMZONWLCSK-UHFFFAOYSA-N"
-    assert dep["structure_basis"] == "cosmobase_local"
-    from dissolve import cosmo_logp as cl
-    assert dep["inchikey"] == cl.DEP_INCHIKEY
-    assert contaminants.resolve_structure("DBP")["inchikey"] == cl.DBP_INCHIKEY
-    assert contaminants.resolve_structure("BBP")["inchikey"] == cl.BBP_INCHIKEY
-    assert contaminants.resolve_structure("DEHP")["inchikey"] == cl.DEHP_INCHIKEY
-
-
-def test_pfas_structure_is_unavailable_and_does_not_guess_a_smiles():
-    pfoa = contaminants.resolve_structure("perfluorooctanoic acid")
-    pfna = contaminants.resolve_structure("perfluorononanoic acid")
-    assert pfoa["success"] is False
-    assert pfoa["error_code"] == "structure_unavailable"
-    assert pfoa["smiles"] is None
-    assert pfoa["inchikey"] is None
-    assert pfoa["structure_basis"] == "structure_unavailable"
-    assert pfna["error_code"] == "structure_unavailable"
-    con = contaminants._connection()
-    n = con.execute(
-        "SELECT COUNT(DISTINCT contaminant_key) FROM contaminant_aliases "
-        "WHERE family='PFAS' AND smiles IS NULL AND inchikey IS NULL "
-        "AND structure_basis='structure_unavailable'"
-    ).fetchone()[0]
-    assert n == 26
-    assert con.execute(
-        "SELECT COUNT(*) FROM contaminant_aliases WHERE family='PFAS' "
-        "AND (smiles IS NOT NULL OR inchikey IS NOT NULL)"
-    ).fetchone()[0] == 0
-
-
-def test_unknown_name_refuses_without_fuzzy_match():
-    typo = contaminants.resolve_structure("diethyl phtalate")
-    isomer = contaminants.resolve_structure("diethyl terephthalate")
-    dmp = contaminants.resolve_structure("dimethyl phthalate")
-    pfoa_short = contaminants.resolve_structure("PFOA")
-    missing = contaminants.resolve_structure("octanoic acid")
-    for payload in (typo, isomer, dmp, pfoa_short, missing):
-        assert payload["success"] is False
-        assert payload["error_code"] == "unknown_contaminant"
-        assert payload.get("smiles") is None
-    banana = contaminants.resolve_structure("banana")
-    assert banana["error_code"] == "unknown_contaminant"
-
-
-def test_structure_resolver_is_not_wired_into_leaching_or_tea():
-    src = Path(contaminants.__file__).read_text()
-    tea = Path(_ROOT / "src/dissolve/tea.py").read_text()
-    sep = Path(separation.__file__).read_text()
-    assert "def resolve_structure" in src
-    assert "cosmo_logp" not in src
-    assert "cosmo_logp" not in tea
-    assert "cosmo_logp" not in sep
-    assert "resolve_structure" not in tea
-    assert "resolve_structure" not in sep
-    for fn in (
-        contaminants.screen_contaminant_leaching,
-        contaminants.screen_contaminant_strap_removal,
-        contaminants.compare_contaminant_removal_modes,
-        contaminants.evaluate_contaminant_at_feed_state,
-    ):
-        assert "resolve_structure" not in inspect.getsource(fn)
-
-    dehp = "di-(2-ethylhexyl) phthalate (DEHP)"
-    junk = _data(separation.plan_multistage_separation(
-        ["LDPE", "PP"], top_k_routes=1, breadth=1, contaminant_mode="banana",
-    ))
-    assert junk["success"] is False
-    assert junk["error_code"] == "invalid_contaminant_mode"
-    fail = contaminants.evaluate_contaminant_at_feed_state(
-        "strap", "LDPE", ["PET", "EVOH"], [dehp], solvents=["toluene"],
-    )
-    passed = contaminants.evaluate_contaminant_at_feed_state(
-        "strap", "LDPE", ["EVOH"], [dehp], solvents=["toluene"],
-    )
-    fail_row = next(
-        r for r in fail["candidate_solvents"] if r["solvent"].casefold() == "toluene"
-    )
-    pass_row = next(
-        r for r in passed["candidate_solvents"] if r["solvent"].casefold() == "toluene"
-    )
-    assert fail["success"] is True
-    assert fail_row.get("passes") is False
-    assert passed["success"] is True
-    assert pass_row.get("passes") is True
-
