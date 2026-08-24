@@ -215,6 +215,59 @@ SOLVENT_FILE_ALIASES = {
     "1,2-propanediol": "propyleneglycol", "ethylene glycol": "glycol",
     "heptane": "n-heptane", "n,n-dimethylformamide": "dimethylformamide",
     "dimethyl sulfoxide": "dimethylsulfoxide", "isopropanol": "2-propanol",
+    "tetrahydropyran": "thp", "acetic acid": "aceticacid",
+    "diphenyl ether": "diphenylether", "ethyl acetate": "ethylacetate",
+}
+
+#: Distinct ``logd.solvent_key`` values in pin ``866d769b…``. Coverage is a
+#: number over this set, not over COSMObase. ``xylene`` is in the table and
+#: is not ``o-xylene``; do not silently substitute.
+TABLE_SOLVENT_KEYS = frozenset({
+    "1,2-propanediol", "1-propanol", "2,3-dihydropyran", "2-butanone",
+    "acetic acid", "acetone", "acetylacetone", "benzene", "chloroform",
+    "cyclohexane", "cyclohexanol", "dichloromethane", "dimethyl sulfoxide",
+    "diphenyl ether", "dodecane", "ethanol", "ethyl acetate",
+    "ethylene glycol", "heptane", "hexane", "isopropanol", "isopropylamine",
+    "methanol", "methylacetate", "n,n-dimethylformamide", "o-xylene",
+    "tert-butanol", "tetrahydrofuran", "tetrahydropyran", "toluene",
+    "triethylamine", "water", "xylene",
+})
+
+#: Stage-1 ``.orcacosmo`` solvents. Five files, not nine: the other four
+#: ``.orcacosmo`` names are solutes (dep/dbp/bbp/dehp).
+ORCA_ROUTE_SOLVENTS = frozenset({
+    "water", "methanol", "dichloromethane", "hexane", "cyclohexanol",
+})
+ORCA_ROUTE = "orca"
+ORCA_PARAMETERISATION = "24a"
+COSMOBASE_ROUTE = "cosmobase"
+COSMOBASE_PARAMETERISATION = "2002"
+COSMOBASE_ENGINE = "turbomole"
+DEFAULT_COSMOBASE_SOLVENTS_DIR = Path(
+    "/home/aaltamimi2/COSMO-POLYMER-ML/results/oligomers/all-cosmotherm-solvents"
+)
+
+#: Same molecule, different string. Not a neighbour-solvent fallback.
+SOLVENT_IDENTITY_ALIASES = {
+    "dcm": "dichloromethane",
+    "ch2cl2": "dichloromethane",
+    "methylene chloride": "dichloromethane",
+    "h2o": "water",
+    "meoh": "methanol",
+    "methyl alcohol": "methanol",
+    "dmso": "dimethyl sulfoxide",
+    "dmf": "n,n-dimethylformamide",
+    "n,n-dimethylformamide": "n,n-dimethylformamide",
+    "thf": "tetrahydrofuran",
+    "thp": "tetrahydropyran",
+    "oxane": "tetrahydropyran",
+    "ipa": "isopropanol",
+    "2-propanol": "isopropanol",
+    "propan-2-ol": "isopropanol",
+    "chcl3": "chloroform",
+    "mek": "2-butanone",
+    "butanone": "2-butanone",
+    "1,2-dimethylbenzene": "o-xylene",
 }
 
 #: Chloroform is EXCLUDED from the headline regression, and the exclusion is
@@ -688,3 +741,121 @@ def evaluate_anchor_pairs(
 def solvent_file_stem(name: str) -> str:
     """Map a corpus solvent name to its COSMObase file stem."""
     return SOLVENT_FILE_ALIASES.get(name.strip().lower(), name.strip().lower())
+
+
+def _fold_solvent(name: str) -> str:
+    return " ".join(str(name or "").strip().casefold().split())
+
+
+def canonical_solvent_key(name: str) -> str:
+    """Identity alias only. Does not map a neighbour solvent onto a cousin."""
+    folded = _fold_solvent(name)
+    if folded in TABLE_SOLVENT_KEYS:
+        return folded
+    return SOLVENT_IDENTITY_ALIASES.get(folded, folded)
+
+
+def _cosmotherm_basename_candidates(key: str) -> tuple[str, ...]:
+    stem = solvent_file_stem(key)
+    compact = stem.replace(" ", "").replace(",", "")
+    names = (f"{stem}_c0.cosmo", f"{compact}_c0.cosmo", f"{stem}.cosmo")
+    # Preserve order, drop duplicates that compacting can create.
+    seen: list[str] = []
+    for name in names:
+        if name not in seen:
+            seen.append(name)
+    return tuple(seen)
+
+
+def cosmotherm_file_for(
+    name: str, *, solvents_dir: str | Path | None = None,
+) -> Path | None:
+    """Exact filename in COSMObase, or None. No substring / neighbour match."""
+    key = canonical_solvent_key(name)
+    if not key:
+        return None
+    root = Path(solvents_dir) if solvents_dir is not None else DEFAULT_COSMOBASE_SOLVENTS_DIR
+    if not root.is_dir():
+        return None
+    available = {path.name.casefold(): path for path in root.glob("*.cosmo")}
+    for basename in _cosmotherm_basename_candidates(key):
+        hit = available.get(basename.casefold())
+        if hit is not None:
+            return hit
+    return None
+
+
+def resolve_solvent(
+    name: str, *, solvents_dir: str | Path | None = None,
+) -> dict[str, Any]:
+    """P-2: which routes can serve this solvent. No DFT. No silent fallback.
+
+    A COSMObase hit is labelled 2002 / Turbomole and is never presented as 24a.
+    ``xylene`` does not become ``o-xylene``. A missing name is
+    ``solvent_not_available``, not a cousin.
+    """
+    query = "" if name is None else str(name).strip()
+    key = canonical_solvent_key(query)
+    orca = bool(key) and key in ORCA_ROUTE_SOLVENTS
+    cosmotherm = cosmotherm_file_for(key, solvents_dir=solvents_dir) if key else None
+    payload: dict[str, Any] = {
+        "query": query,
+        "solvent_key": key or query,
+        "in_table": key in TABLE_SOLVENT_KEYS,
+        "orca": {
+            "available": orca,
+            "route": ORCA_ROUTE,
+            "parameterisation": ORCA_PARAMETERISATION if orca else None,
+        },
+        "cosmobase": {
+            "available": cosmotherm is not None,
+            "route": COSMOBASE_ROUTE,
+            "parameterisation": (
+                COSMOBASE_PARAMETERISATION if cosmotherm is not None else None
+            ),
+            "engine": COSMOBASE_ENGINE if cosmotherm is not None else None,
+            "file": None if cosmotherm is None else cosmotherm.name,
+        },
+        "dft_ran": False,
+    }
+    if not orca and cosmotherm is None:
+        payload["success"] = False
+        payload["error_code"] = "solvent_not_available"
+        payload["error"] = (
+            "solvent is on neither the ORCA 24a route nor COSMObase 2002; "
+            "no neighbour solvent will be substituted"
+        )
+        return payload
+    payload["success"] = True
+    payload["error_code"] = None
+    return payload
+
+
+def resolve_solvents(
+    names: Sequence[str], *, solvents_dir: str | Path | None = None,
+) -> list[dict[str, Any]]:
+    return [resolve_solvent(name, solvents_dir=solvents_dir) for name in names]
+
+
+def solvent_route_coverage(*, solvents_dir: str | Path | None = None) -> dict[str, Any]:
+    """Coverage is a number over the 33 table solvents, not over COSMObase."""
+    rows = [
+        resolve_solvent(key, solvents_dir=solvents_dir)
+        for key in sorted(TABLE_SOLVENT_KEYS)
+    ]
+    n_orca = sum(1 for row in rows if row["orca"]["available"])
+    n_cosmobase = sum(1 for row in rows if row["cosmobase"]["available"])
+    n_neither = sum(1 for row in rows if not row["success"])
+    return {
+        "n_table": len(TABLE_SOLVENT_KEYS),
+        "n_orca": n_orca,
+        "n_cosmobase": n_cosmobase,
+        "n_neither": n_neither,
+        "orca_parameterisation": ORCA_PARAMETERISATION,
+        "cosmobase_parameterisation": COSMOBASE_PARAMETERISATION,
+        "cosmobase_engine": COSMOBASE_ENGINE,
+        "dft_ran": False,
+        "unavailable": [
+            row["solvent_key"] for row in rows if not row["success"]
+        ],
+    }
