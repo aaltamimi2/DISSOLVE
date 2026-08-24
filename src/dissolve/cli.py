@@ -71,7 +71,8 @@ def _parse_solvents_slash(tokens: Sequence[str]) -> dict[str, Any] | None:
 
 _CONTAMINANT_USAGE = "usage: /contaminant [off | leaching | strap | swing | compare]"
 _LOGP_USAGE = (
-    "usage: /contaminant logp (--smiles <SMILES> | --file <path> | --job <handle>) "
+    "usage: /contaminant logp (--smiles <SMILES> | --file <path> | --job <handle> "
+    "| --solvent-dft <name>) "
     "[--solvents <name,name>] [--reference <name>] [--absolute]"
 )
 _CONTAMINANT_COMPARE_USAGE = (
@@ -91,6 +92,7 @@ def _parse_contaminant_logp(tokens: Sequence[str]) -> dict[str, Any]:
     smiles: str | None = None
     file_path: str | None = None
     job_handle: str | None = None
+    solvent_dft: str | None = None
     solvents_raw: str | None = None
     reference: str | None = None
     absolute = False
@@ -114,6 +116,12 @@ def _parse_contaminant_logp(tokens: Sequence[str]) -> dict[str, Any]:
             job_handle = args[index + 1]
             index += 2
             continue
+        if args[index] == "--solvent-dft":
+            if index + 1 >= len(args):
+                raise ValueError(_LOGP_USAGE)
+            solvent_dft = args[index + 1]
+            index += 2
+            continue
         if args[index] == "--solvents":
             if index + 1 >= len(args):
                 raise ValueError(_LOGP_USAGE)
@@ -131,7 +139,7 @@ def _parse_contaminant_logp(tokens: Sequence[str]) -> dict[str, Any]:
             index += 1
             continue
         raise ValueError(_LOGP_USAGE)
-    if sum(bool(item) for item in (smiles, file_path, job_handle)) != 1:
+    if sum(bool(item) for item in (smiles, file_path, job_handle, solvent_dft)) != 1:
         raise ValueError(_LOGP_USAGE)
     solvents = [
         item.strip() for item in (solvents_raw or "").split(",") if item.strip()
@@ -141,6 +149,7 @@ def _parse_contaminant_logp(tokens: Sequence[str]) -> dict[str, Any]:
         "smiles": smiles,
         "file": file_path,
         "job": job_handle,
+        "solvent_dft": solvent_dft,
         "solvents": solvents,
         "reference": reference,
         "absolute": absolute,
@@ -1401,6 +1410,7 @@ class CliApp:
                 stored.get("smiles"),
                 file=stored.get("file"),
                 job=stored.get("job"),
+                solvent_dft=stored.get("solvent_dft"),
                 solvents=list(stored.get("solvents") or []),
                 reference=stored.get("reference"),
                 absolute=bool(stored.get("absolute")),
@@ -1429,15 +1439,19 @@ class CliApp:
 
     def _run_contaminant_logp(
         self, smiles: str | None, *, file: str | None = None,
-        job: str | None = None,
+        job: str | None = None, solvent_dft: str | None = None,
         solvents: Sequence[str] | None = None,
         reference: str | None = None, absolute: bool = False,
     ) -> None:
-        """P-1–P-4c: intake, batch, or an async solute DFT job. Submit does not block."""
+        """P-1–P-4d: intake, batch, solute job, or wave-0 solvent library job. Submit does not block."""
         from dissolve import cosmo_logp as cl
 
         if job:
             self._emit_logp_job(cl.solute_dft_job_status(job), submit=False)
+            return
+        if solvent_dft:
+            submitted = cl.submit_solvent_dft_job(solvent_dft, background=True)
+            self._emit_logp_job(submitted, submit=True)
             return
         if file:
             self._run_contaminant_logp_batch(
