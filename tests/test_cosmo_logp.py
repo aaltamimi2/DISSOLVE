@@ -282,7 +282,7 @@ def test_dbp_anchors_are_the_pin_table_deltas_not_deps():
     with pytest.raises(cl.CosmoError):
         cl.anchor_pairs_for("dehp")
     with pytest.raises(cl.CosmoError):
-        cl.anchor_pairs_for("bbp")
+        cl.anchor_pairs_for("dmp")
 
 
 def test_dep_stage1_numbers_do_not_pass_the_dbp_accept():
@@ -323,6 +323,82 @@ def test_evaluate_anchor_pairs_accepts_the_measured_dbp_stage1_numbers():
     assert result["accept"]
     assert result["n_passing"] == 4
     assert result["water_free_passes"]
+
+
+def test_bbp_anchors_are_the_pin_table_deltas_not_dbp_or_dep():
+    """L2 numbers are pin 866d769b solvent_key Δ for BBP, not L1's column."""
+    assert cl.anchor_pairs_for("bbp") == cl.BBP_ANCHOR_PAIRS
+    assert cl.BBP_ANCHOR_PAIRS != cl.DBP_ANCHOR_PAIRS
+    assert cl.BBP_ANCHOR_PAIRS != cl.ANCHOR_PAIRS
+    assert cl.BBP_ANCHOR_PAIRS == (
+        ("dichloromethane", "water", 7.18),
+        ("cyclohexanol", "water", 5.04),
+        ("hexane", "water", 4.61),
+        ("dichloromethane", "methanol", 2.14),
+    )
+    assert any((a, b) == cl.WATER_FREE_PAIR for a, b, _ in cl.BBP_ANCHOR_PAIRS)
+    with pytest.raises(cl.CosmoError):
+        cl.anchor_pairs_for("dehp")
+
+
+def test_evaluate_anchor_pairs_accepts_bbp_table_deltas_on_bbp_pairs():
+    result = cl.evaluate_anchor_pairs(
+        {
+            "dichloromethane-water": 7.18, "cyclohexanol-water": 5.04,
+            "hexane-water": 4.61, "dichloromethane-methanol": 2.14,
+        },
+        pairs=cl.BBP_ANCHOR_PAIRS,
+    )
+    assert result["accept"]
+    assert result["n_passing"] == 4
+    assert result["water_free_passes"]
+
+
+def test_bbp_table_deltas_do_not_pass_the_dep_accept():
+    """Scoring BBP's column on DEP anchors must not silently accept."""
+    result = cl.evaluate_anchor_pairs(
+        {
+            "dichloromethane-water": 7.18, "cyclohexanol-water": 5.04,
+            "hexane-water": 4.61, "dichloromethane-methanol": 2.14,
+        },
+    )
+    assert not result["accept"]
+
+
+def test_evaluate_anchor_pairs_accepts_the_measured_bbp_stage1_numbers():
+    """Recorded L2 stage-1 Δ. Water-free is the tightest residual."""
+    result = cl.evaluate_anchor_pairs(
+        {
+            "dichloromethane-water": 8.06, "cyclohexanol-water": 6.30,
+            "hexane-water": 5.94, "dichloromethane-methanol": 1.92,
+        },
+        pairs=cl.BBP_ANCHOR_PAIRS,
+    )
+    assert result["accept"]
+    assert result["n_passing"] == 4
+    assert result["water_free_passes"]
+
+
+def test_delta_log_d_reproduces_the_measured_bbp_dcm_water_value():
+    """Stage 1: ln γ of BBP is -2.512 in dichloromethane and 17.316 in water."""
+    value = cl.delta_log_d(
+        -2.512, 17.316,
+        volume_a=cl.MOLAR_VOLUMES_CM3["dichloromethane"],
+        volume_b=cl.MOLAR_VOLUMES_CM3["water"],
+    )
+    assert value == pytest.approx(8.06, abs=0.01)
+
+
+def test_formula_cannot_distinguish_the_bbp_isomers_either():
+    same = _atoms(*([("C", 0, 0, 0)] * 19 + [("H", 0, 0, 0)] * 20 + [("O", 0, 0, 0)] * 4))
+    assert cl.molecular_formula(same) == "C19H20O4"
+    assert cl.BBP_CAS == "85-68-7"
+    assert cl.BBP_INCHIKEY == "IRIAEXORFWYRCZ-UHFFFAOYSA-N"
+    assert cl.BBP_INCHIKEY != cl.DBP_INCHIKEY
+    assert cl.BBP_INCHIKEY != cl.DEP_INCHIKEY
+    keys = {cl.BBP_INCHIKEY} | {k for _, k in cl.BBP_ISOMER_DECOYS.values()}
+    assert len(keys) == 3
+    assert cl.DBP_INCHIKEY not in keys
 
 
 def test_delta_log_d_reproduces_the_measured_dbp_dcm_water_value():
@@ -422,6 +498,43 @@ def test_dbp_file_is_not_dep(tmp_path):
         )
 
 
+@pytest.mark.skipif(not HAS_COSMOBASE, reason="COSMObase .cosmo library not present")
+def test_parses_the_real_bbp_cosmo_file_to_the_right_formula():
+    atoms = cl.parse_cosmo_geometry(COSMOBASE / "butylbenzylphthalate_c0.cosmo")
+    assert len(atoms) == 43
+    assert cl.molecular_formula(atoms) == "C19H20O4"
+
+
+@pytest.mark.skipif(not (HAS_COSMOBASE and HAS_OBABEL), reason="needs COSMObase and obabel")
+def test_identity_of_the_real_bbp_file_binds_to_the_expected_inchikey(tmp_path):
+    found = cl.verify_identity(
+        COSMOBASE / "butylbenzylphthalate_c0.cosmo", cl.BBP_INCHIKEY, scratch=tmp_path
+    )
+    assert found == cl.BBP_INCHIKEY
+
+
+@pytest.mark.skipif(not (HAS_COSMOBASE and HAS_OBABEL), reason="needs COSMObase and obabel")
+def test_bbp_identity_refuses_the_terephthalate_decoy(tmp_path):
+    with pytest.raises(cl.CosmoIdentityError):
+        cl.verify_identity(
+            COSMOBASE / "butylbenzylphthalate_c0.cosmo",
+            cl.BBP_ISOMER_DECOYS["butyl benzyl terephthalate"][1],
+            scratch=tmp_path,
+        )
+
+
+@pytest.mark.skipif(not (HAS_COSMOBASE and HAS_OBABEL), reason="needs COSMObase and obabel")
+def test_bbp_file_is_not_dbp_or_dep(tmp_path):
+    with pytest.raises(cl.CosmoIdentityError):
+        cl.verify_identity(
+            COSMOBASE / "butylbenzylphthalate_c0.cosmo", cl.DBP_INCHIKEY, scratch=tmp_path
+        )
+    with pytest.raises(cl.CosmoIdentityError):
+        cl.verify_identity(
+            COSMOBASE / "butylbenzylphthalate_c0.cosmo", cl.DEP_INCHIKEY, scratch=tmp_path
+        )
+
+
 @pytest.mark.skipif(not ARTIFACTS.is_dir(), reason="rescued ORCA artifacts not present")
 def test_rescued_orcacosmo_files_are_all_present():
     """The stage-1 and stage-2 records cite these exact files."""
@@ -448,6 +561,14 @@ def test_dbp_conformer_generation_is_one_molecule_of_42_atoms():
     assert confs[0][1] == pytest.approx(0.0)
 
 
+def test_bbp_conformer_generation_is_one_molecule_of_43_atoms():
+    pytest.importorskip("rdkit")
+    confs = cl.generate_conformers(cl.BBP_SMILES, n_embed=20, seed=12345)
+    assert len(confs) >= 1
+    assert all(len(atoms) == 43 for atoms, _ in confs)
+    assert confs[0][1] == pytest.approx(0.0)
+
+
 def test_tea_separation_contaminants_do_not_import_cosmo_logp():
     """Hold-to 4: no planner/TEA bind of a computed logD."""
     src = Path(__file__).resolve().parents[1] / "src" / "dissolve"
@@ -457,7 +578,7 @@ def test_tea_separation_contaminants_do_not_import_cosmo_logp():
 
 
 def test_leftover_cl1_banana_still_invalid_and_accept_test_2_unchanged():
-    """L1 must not reopen leftovers. Same refuse / same accept-test-2 bits."""
+    """Ladder SHAs must not reopen leftovers. Same refuse / same accept-test-2 bits."""
     from dissolve import contaminants, separation
     from dissolve.contracts import parse_tool_result
 

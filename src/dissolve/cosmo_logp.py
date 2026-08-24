@@ -109,6 +109,21 @@ DBP_ISOMER_DECOYS = {
     "di-n-butyl terephthalate": ("CCCCOC(=O)c1ccc(C(=O)OCCCC)cc1", "LQLQDKBJAIILIQ-UHFFFAOYSA-N"),
 }
 
+#: L2 target. InChIKey perceived from the local COSMObase Turbomole file
+#: ``butylbenzylphthalate_c0.cosmo`` via ``parse_cosmo_geometry`` + obabel.
+#: CAS from ``contaminant_cas_phthalates.local.v1.json``. Not a registry fetch.
+BBP_SMILES = "CCCCOC(=O)c1ccccc1C(=O)OCc1ccccc1"
+BBP_CAS = "85-68-7"
+BBP_INCHIKEY = "IRIAEXORFWYRCZ-UHFFFAOYSA-N"
+
+#: 1,3- and 1,4-butyl benzyl benzenedicarboxylates. Same formula C19H20O4
+#: as the ortho target; InChIKeys computed locally from the constructed
+#: SMILES (obabel), not fetched.
+BBP_ISOMER_DECOYS = {
+    "butyl benzyl isophthalate": ("CCCCOC(=O)c1cccc(C(=O)OCc2ccccc2)c1", "QDKAUHONDCKMOU-UHFFFAOYSA-N"),
+    "butyl benzyl terephthalate": ("CCCCOC(=O)c1ccc(C(=O)OCc2ccccc2)cc1", "IEICWPCBTOBBDK-UHFFFAOYSA-N"),
+}
+
 #: Molar volumes at 298 K, cm3/mol. Used only for the concentration-basis
 #: variant of the partition relation; the mole-fraction basis ignores them.
 MOLAR_VOLUMES_CM3 = {
@@ -134,6 +149,13 @@ DBP_ANCHOR_PAIRS: tuple[tuple[str, str, float], ...] = (
     ("hexane", "water", 4.98),
     ("dichloromethane", "methanol", 2.18),      # water-free
 )
+#: BBP's rows in the same pin / the same four pairs.
+BBP_ANCHOR_PAIRS: tuple[tuple[str, str, float], ...] = (
+    ("dichloromethane", "water", 7.18),
+    ("cyclohexanol", "water", 5.04),
+    ("hexane", "water", 4.61),
+    ("dichloromethane", "methanol", 2.14),      # water-free
+)
 WATER_FREE_PAIR = ("dichloromethane", "methanol")
 
 
@@ -149,9 +171,11 @@ def anchor_pairs_for(solute: str) -> tuple[tuple[str, str, float], ...]:
         return ANCHOR_PAIRS
     if key in {"dbp", "dibutylphthalate", "di-n-butyl phthalate", "dibutyl phthalate"}:
         return DBP_ANCHOR_PAIRS
+    if key in {"bbp", "butylbenzylphthalate", "butyl benzyl phthalate"}:
+        return BBP_ANCHOR_PAIRS
     raise CosmoError(
         f"no table-Δ anchors pinned for solute {solute!r}; "
-        "L1 is DBP, L2/L3 are later named SHAs"
+        "L2 is BBP, L3 is a later named SHA"
     )
 
 #: Our solvent names -> COSMObase file stems. Needed because the corpus and the
