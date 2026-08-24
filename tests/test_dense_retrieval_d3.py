@@ -177,6 +177,8 @@ def test_d3_three_arms_and_no_weight_tune():
     assert by_arm["hybrid"]["n_leaks_at_k"] == _k_map(0)
     assert artifact["hybrid_weights"] == {"dense": 0.55, "sparse": 0.40}
     assert artifact["weights_retuned"] is False
+    assert artifact["finding"]["weights_retuned"] is False
+    assert artifact["finding"]["k"] == 5
     assert artifact["refuse_rule"] == "sparse_gated"
     assert by_arm["sparse"]["embedder_in_retrieval"] is False
     assert by_arm["dense"]["embedder_in_retrieval"] is True

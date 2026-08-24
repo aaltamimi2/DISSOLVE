@@ -11,8 +11,11 @@ from .text_gold import DEFAULT_OUT_DIR, TextGoldError
 
 DENSE_SPEC_SHA256 = dense_d2.DENSE_SPEC_SHA256
 CURVES_D3_SCHEMA = "dissolve.text-chunk-curves.retrieval.d3"
+CURVES_D3_FINDING_SCHEMA = "dissolve.text-chunk-curves.retrieval.d3.finding"
 CURVES_D3_PATH = DEFAULT_OUT_DIR / "CURVES.retrieval.d3.json"
 CURVES_D3_PNG_PATH = DEFAULT_OUT_DIR / "CURVES.retrieval.d3.png"
+CURVES_D3_FINDING_PATH = DEFAULT_OUT_DIR / "CURVES.retrieval.d3.finding.json"
+CURVES_D3_SHA256 = "1def352d26baa5bce481f8c5ca6b4b81ac41186471007b2976ee133b675610ad"
 ARMS = ("sparse", "dense", "hybrid")
 _FORBIDDEN_D3_KEYS = frozenset({"needles", "query", "evidence_quote", "canonical_text"})
 _PROTECTED_NAMES = dense_d2._PROTECTED_NAMES | {
@@ -204,9 +207,70 @@ def build_d3_artifact(
         "series": [rows[mode] for mode in ARMS],
         "versus_at_k": _versus_arms(rows),
     }
+    artifact["finding"] = ablation_finding(artifact["versus_at_k"])
     if text_chunk_metrics._contains_forbidden_keys(artifact, set(_FORBIDDEN_D3_KEYS)):
         raise TextGoldError("gold_quoted", "D-3 must not carry needles, queries, or quotes.")
     return artifact
+
+
+def ablation_finding(versus_at_k: Mapping[str, Any], *, k: int = 5) -> dict[str, Any]:
+    """Plain D-3 reading. Does not retune weights. No gold identifiers."""
+    cell = dict((versus_at_k or {}).get(str(k)) or {})
+    dense = str((cell.get("dense_vs_sparse") or {}).get("verdict") or "")
+    hybrid = str((cell.get("hybrid_vs_sparse") or {}).get("verdict") or "")
+    note = (
+        f"At k={k}, dense vs sparse is {dense}; hybrid vs sparse is {hybrid}. "
+        "Weights were not retuned."
+    )
+    if dense == "DOWN" and hybrid == "TIED":
+        note = (
+            f"At k={k}, dense-only is far worse than sparse (DOWN; intervals do not "
+            "overlap) and hybrid vs sparse is TIED. BM25 carries the blend; hybrid's "
+            "lift is a marginal reorder, not dense retrieval doing the work. "
+            "Production 0.55 dense / 0.40 sparse over-weights the weaker signal. "
+            "A later named spec may retune; this slice does not."
+        )
+    return {
+        "k": int(k),
+        "dense_vs_sparse": dense,
+        "hybrid_vs_sparse": hybrid,
+        "weights_retuned": False,
+        "note": note,
+    }
+
+
+def emit_d3_finding_sidecar(
+    *,
+    curves_path: Path | None = None,
+    dest: Path | None = None,
+) -> dict[str, Any]:
+    """Write the plain finding beside d3. Never overwrite the d3 pin."""
+    source = Path(curves_path or CURVES_D3_PATH)
+    dest = Path(dest or CURVES_D3_FINDING_PATH)
+    if dest.name in _PROTECTED_NAMES or dest.resolve() == source.resolve():
+        raise TextGoldError("protected_persist", "D-3 finding must not overwrite the d3 pin.")
+    if dest.name == "CURVES.retrieval.d3.json":
+        raise TextGoldError("protected_persist", "D-3 finding must not overwrite the d3 pin.")
+    digest = file_sha256(source)
+    if source.resolve() == CURVES_D3_PATH.resolve() and digest != CURVES_D3_SHA256:
+        raise TextGoldError("d3_moved", "Finding sidecar must pin the published d3 digest.")
+    artifact = json.loads(source.read_text())
+    finding = ablation_finding(artifact.get("versus_at_k") or {})
+    payload = {
+        "schema": CURVES_D3_FINDING_SCHEMA,
+        "curves_d3_sha256": digest,
+        "spec_sha256": artifact.get("spec_sha256"),
+        "hybrid_weights": artifact.get("hybrid_weights"),
+        "weights_retuned": False,
+        **finding,
+    }
+    if text_chunk_metrics._contains_forbidden_keys(payload, set(_FORBIDDEN_D3_KEYS)):
+        raise TextGoldError("gold_quoted", "D-3 finding must not carry needles or queries.")
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    dest.write_text(json.dumps(payload, indent=2, ensure_ascii=False) + "\n")
+    if source.resolve() == CURVES_D3_PATH.resolve() and file_sha256(source) != CURVES_D3_SHA256:
+        raise TextGoldError("d3_moved", "d3 digest moved while writing the finding sidecar.")
+    return {"finding_path": str(dest), "curves_d3_sha256": digest, **finding}
 
 
 def render_d3_png(artifact: Mapping[str, Any], dest: Path) -> None:
