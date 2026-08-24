@@ -4342,23 +4342,22 @@ def _chunk_paper_sha256(index: Mapping[str, Any], chunk: Mapping[str, Any]) -> s
 
 
 def _dense_query_scores(index: Mapping[str, Any], chunks: Sequence[Mapping[str, Any]], query: str) -> list[float]:
-    """Query-embed only. Align by chunk_id set when the index records ids."""
+    """Query-embed only. Require chunk_id set identity; no positional fallback."""
     dense = index.get("dense") or {}
     vectors = list(dense.get("vectors") or [])
     if len(vectors) != len(chunks):
         raise ValueError("dense_index_unavailable")
     store_ids = [str(chunk["chunk_id"]) for chunk in chunks]
     recorded_ids = dense.get("chunk_ids")
-    if recorded_ids is not None:
-        recorded_ids = [str(item) for item in recorded_ids]
-        if set(recorded_ids) != set(store_ids):
-            raise ValueError("dense_index_unavailable")
-        if len(recorded_ids) != len(vectors):
-            raise ValueError("dense_index_unavailable")
-        by_id = {chunk_id: vector for chunk_id, vector in zip(recorded_ids, vectors)}
-        ordered = [by_id[chunk_id] for chunk_id in store_ids]
-    else:
-        ordered = vectors
+    if not recorded_ids:
+        raise ValueError("dense_index_unavailable")
+    recorded_ids = [str(item) for item in recorded_ids]
+    if set(recorded_ids) != set(store_ids):
+        raise ValueError("dense_index_unavailable")
+    if len(recorded_ids) != len(vectors):
+        raise ValueError("dense_index_unavailable")
+    by_id = {chunk_id: vector for chunk_id, vector in zip(recorded_ids, vectors)}
+    ordered = [by_id[chunk_id] for chunk_id in store_ids]
     expected_model = dense.get("model")
     loaded_model, query_vectors = _dense_vectors([query], expected_model)
     if expected_model and loaded_model != expected_model:
@@ -4384,21 +4383,25 @@ def _search_index(index: dict[str, Any], query: str, top_k: int, mode: str) -> l
     if mode in {"dense", "hybrid"}:
         dense_scores = _dense_query_scores(index, chunks, query)
     ranked = []
-    for chunk, sparse_score, dense_score in zip(chunks, sparse, dense_scores):
+    for chunk, sparse_raw_score, sparse_score, dense_score in zip(
+        chunks, sparse_raw, sparse, dense_scores,
+    ):
         origin = chunk.get("section_origin")
         if origin == "inherited_from_stack":
             section = ""
         else:
             section = str(chunk.get("section") or "").casefold()
         boost = 0.05 if any(word in section for word in ("abstract", "result", "conclusion", "method")) else 0.0
+        if mode in {"dense", "hybrid"} and sparse_raw_score <= 0:
+            continue
         if mode == "dense":
             score = dense_score + boost
         elif mode == "hybrid":
             score = _HYBRID_DENSE_WEIGHT * dense_score + _HYBRID_SPARSE_WEIGHT * sparse_score + boost
         else:
             score = sparse_score + boost
-        if score <= 0:
-            continue
+            if score <= 0:
+                continue
         ranked.append((score, sparse_score, dense_score, boost, chunk))
     ranked.sort(key=lambda item: (-item[0], str(item[4].get("title")), item[4]["chunk_id"]))
     rows = []

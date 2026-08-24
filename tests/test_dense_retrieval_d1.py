@@ -146,3 +146,32 @@ def test_d1_tool_records_sparse_gated_refuse(monkeypatch, tmp_path):
     assert empty["data"]["result_count"] == 0
     assert empty["data"]["results"] == []
     assert empty["data"]["refuse_rule"] == "sparse_gated"
+
+
+def test_d1_hybrid_does_not_admit_zero_sparse_cosine_hit(monkeypatch):
+    """Dense may reorder BM25 admits. It must not admit a BM25 reject."""
+    aligned = [0.0, 1.0] + [0.0] * 382
+
+    def fake(texts, model_name=None):
+        return engine_e2e.MINILM_ID, [aligned for _ in texts]
+
+    monkeypatch.setattr(research, "_dense_vectors", fake)
+    index = _index()
+    index["dense"]["vectors"] = [_unit(1.0), aligned]
+    rows = research._search_index(index, PLANT, 5, "hybrid")
+    assert [row["chunk_id"] for row in rows] == ["c-0001"]
+    assert rows[0]["sparse_score"] > 0
+    dense_rows = research._search_index(index, PLANT, 5, "dense")
+    assert [row["chunk_id"] for row in dense_rows] == ["c-0001"]
+
+
+def test_d1_missing_chunk_ids_is_unavailable(monkeypatch):
+    monkeypatch.setattr(research, "_dense_vectors", _fake_minilm([]))
+    index = _index()
+    del index["dense"]["chunk_ids"]
+    try:
+        research._search_index(index, PLANT, 5, "hybrid")
+    except ValueError as error:
+        assert str(error) == "dense_index_unavailable"
+    else:
+        raise AssertionError("missing chunk_ids must not fall back to position")
