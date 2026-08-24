@@ -16,6 +16,7 @@ from contextlib import nullcontext
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
+from types import MappingProxyType
 from typing import Any, Callable, Sequence
 
 _ROOT = Path(__file__).resolve().parents[2]
@@ -67,6 +68,55 @@ def _parse_solvents_slash(tokens: Sequence[str]) -> dict[str, Any] | None:
     if token not in {"common", "all"}:
         raise ValueError("usage: /solvents [common | all]")
     return {"scope": token}
+
+
+_SAFETY_USAGE = "usage: /safety"
+
+# Frozen served disclosure of HAZARD_METHODS.v1.json (sha256 8540e6fe…).
+# Format-only. Do not open the safety asset or call a score helper to fill this.
+PUBLISHED_HAZARD_METHODS_COPY = MappingProxyType({
+    "published_sha": "5ec2521",
+    "measured_on_builder_sha": "1d97a737c231357f87041e42f43ec18de99db869",
+    "enumerating_function": "get_available_solvents",
+    "scope_token": "all",
+    "scope_origin": "built_in",
+    "n": 990,
+    "served_gsk": 130,
+    "served_green": 840,
+    "served_neither": 20,
+    "both_table_hits": 128,
+    "leftover": (
+        ("1,2-dimethoxyethane", "110-71-4"),
+        ("cis-decalin", "493-01-6"),
+    ),
+    "mae_2dp": 0.3,
+    "signed_mean_2dp": 0.01,
+    "default_minimum_g_score": 6.0,
+})
+
+
+def format_published_hazard_methods_copy(
+    copy: MappingProxyType | dict[str, Any] | None = None,
+) -> str:
+    row = PUBLISHED_HAZARD_METHODS_COPY if copy is None else copy
+    leftover = ", ".join(f"{key} ({cas})" for key, cas in row["leftover"])
+    measured = str(row["measured_on_builder_sha"])[:7]
+    mae = f"{float(row['mae_2dp']):.2f}"
+    signed = f"{float(row['signed_mean_2dp']):+.2f}"
+    floor = row["default_minimum_g_score"]
+    return (
+        f"safety  published Methods {row['published_sha']}  measured {measured}\n"
+        f"enumerating_function={row['enumerating_function']}  "
+        f"scope={row['scope_token']}  origin={row['scope_origin']}  n={row['n']}\n"
+        f"served GSK={row['served_gsk']}  GreenSolventDB={row['served_green']}  "
+        f"neither={row['served_neither']}\n"
+        f"both_table={row['both_table_hits']}  leftover={leftover}\n"
+        f"average MAE={mae}  signed_mean={signed}  green_lookup=LIMIT 1 no ORDER BY\n"
+        f"green_screen=screen_green_solvent_candidates  network=offline  "
+        f"floor={floor} unsourced\n"
+        f"route=screen_route_solvent_substitutions  include_pubchem=True (default)\n"
+        f"card=get_solvent_safety_card  include_pubchem=True (default)\n"
+    )
 
 
 _CONTAMINANT_USAGE = "usage: /contaminant [off | leaching | strap | swing | compare]"
@@ -1126,7 +1176,7 @@ class CliApp:
             f"[dim]Advanced polymer separation engineering[/]\n\n"
             f"Model    [bold]{self.model_spec.label}[/]  ·  {self.model_spec.usage}\n"
             f"Session  [bold]{self.store.session_id}[/]  ·  mode {self.mode}\n"
-            f"[dim]Type /context, /process, /solvents, /contaminant, /breadth, /model, or quit to exit.[/]"
+            f"[dim]Type /context, /process, /solvents, /safety, /contaminant, /breadth, /model, or quit to exit.[/]"
         )
         self.console.print(Panel(details, title="Advanced Recycling Agent", subtitle=RELEASE))
 
@@ -1256,6 +1306,8 @@ class CliApp:
                 self.console.print("[dim]Process sheet kept in this session buffer.[/]")
         elif command == "/solvents":
             self._handle_solvents_command(parts[1:])
+        elif command == "/safety":
+            self._handle_safety_command(parts[1:])
         elif command == "/contaminant":
             self._handle_contaminant_command(parts[1:])
         elif command == "/breadth":
@@ -1265,6 +1317,13 @@ class CliApp:
         else:
             self.console.print(f"[yellow]Unknown command:[/] {command}")
         return False
+
+    def _handle_safety_command(self, tokens: Sequence[str]) -> None:
+        if tokens:
+            self.console.print(_SAFETY_USAGE)
+            return
+        self.console.file.write(format_published_hazard_methods_copy())
+        self.console.file.flush()
 
     def _handle_solvents_command(
         self,
