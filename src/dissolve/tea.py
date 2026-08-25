@@ -4770,6 +4770,37 @@ def _would_start_live_child(config: dict[str, Any], engine_mode: str) -> bool:
     return _cache_index().get(_config_key(config)) is None
 
 
+def _unconfirmed_live_tea_error(
+    tool: str,
+    configs: Sequence[dict[str, Any]],
+    engine_mode: str,
+    confirm_live_tea: Optional[bool],
+) -> str | None:
+    """Refuse before any child when live work is requested without confirm.
+
+    Applies to screening_shortlist and to a scenarios list. Omit is false.
+    """
+    named_mode = str(engine_mode or "auto")
+    live_flags = [
+        _would_start_live_child(config, named_mode) for config in configs
+    ]
+    n_live = sum(1 for flag in live_flags if flag)
+    if n_live <= 0 or confirm_live_tea is True:
+        return None
+    seconds = _LIVE_TEA_SECONDS_PER_PAIR
+    return tool_error(
+        tool,
+        "live TEA children require confirm_live_tea=true",
+        error_code="live_tea_cost_confirmation_required",
+        engine_mode=named_mode,
+        n_live=n_live,
+        n_cache=len(configs) - n_live,
+        seconds_per_pair=seconds,
+        estimated_wall_seconds=float(n_live) * seconds,
+        per_stage_per_ordering=True,
+    )
+
+
 def _run(config: dict[str, Any], engine_mode: str, timeout_seconds: int) -> dict[str, Any]:
     mode = str(engine_mode or "auto").strip().casefold()
     if mode not in {"auto", "cache", "live"}:
@@ -6474,9 +6505,10 @@ def evaluate_process(
     dissolved_polymer; a mismatch is stage_identity_mismatch.
     Closed screen_to_economics_order: omitted is independent. This wrap
     does not wait on safety and does not invent a router.
-    confirm_live_tea applies only to evaluate with screening_shortlist;
-    omit is false. A live or auto expansion that would start children
-    refuses live_tea_cost_confirmation_required until it is true.
+    confirm_live_tea applies to evaluate on screening_shortlist and on a
+    scenarios list; omit is false. A live or auto expansion that would
+    start children refuses live_tea_cost_confirmation_required until it
+    is true. engine_mode is named on that refusal.
     lookup_admitted_process_records, evaluate_tea_lca_scenarios,
     analyze_tea_sensitivity, and evaluate_stored_route_tea_lca remain
     Python engines; they are not registry names. The remaining TEA
@@ -6650,14 +6682,6 @@ def evaluate_process(
                 error_code="not_applicable_in_mode",
                 mode="evaluate",
                 inapplicable_fields=inapplicable,
-            )
-        if confirm_live_tea is not None and screening_shortlist is None:
-            return tool_error(
-                tool,
-                "confirm_live_tea applies only with screening_shortlist.",
-                error_code="not_applicable_in_mode",
-                mode="evaluate",
-                inapplicable_fields=["confirm_live_tea"],
             )
         if process_config is not None and not isinstance(process_config, dict):
             return tool_error(
@@ -10038,8 +10062,10 @@ def evaluate_tea_lca_scenarios(
     item (three from_screen, nine supplied). The same shortlist may inherit
     the nine from an economics handle when held_process_basis is omitted.
     temperature_c maps to dissolution_temperature_c only on that handoff.
-    confirm_live_tea applies only with screening_shortlist; omit is false.
-    Unknown extra keys refuse unknown_process_field. Wrong-mode scalars
+    confirm_live_tea applies to screening_shortlist and to a scenarios
+    list; omit is false. engine_mode=live, or auto with a cache miss,
+    refuses live_tea_cost_confirmation_required until confirm_live_tea
+    is true. Unknown extra keys refuse unknown_process_field. Wrong-mode scalars
     (lookup selectors, energy_cases, record_form, requested_metrics,
     parameter / values / analysis_mode / metric) refuse
     not_applicable_in_mode. Omitted
@@ -10082,14 +10108,6 @@ def evaluate_tea_lca_scenarios(
             "unknown extra argument",
             error_code="unknown_process_field",
             extra_keys=extra,
-        )
-    if confirm_live_tea is not None and screening_shortlist is None:
-        return tool_error(
-            tool,
-            "confirm_live_tea applies only with screening_shortlist.",
-            error_code="not_applicable_in_mode",
-            mode="evaluate",
-            inapplicable_fields=["confirm_live_tea"],
         )
     field_origin = None
     field_origins = None
@@ -10134,24 +10152,11 @@ def evaluate_tea_lca_scenarios(
         )
     except (TypeError, ValueError) as error:
         return tool_error(tool, str(error), error_code="invalid_scenario")
-    if screening_shortlist is not None:
-        live_flags = [
-            _would_start_live_child(config, engine_mode) for config in configs
-        ]
-        n_live = sum(1 for flag in live_flags if flag)
-        n_cache = len(configs) - n_live
-        if n_live > 0 and confirm_live_tea is not True:
-            seconds = _LIVE_TEA_SECONDS_PER_PAIR
-            return tool_error(
-                tool,
-                "live TEA children require confirm_live_tea=true",
-                error_code="live_tea_cost_confirmation_required",
-                n_live=n_live,
-                n_cache=n_cache,
-                seconds_per_pair=seconds,
-                estimated_wall_seconds=float(n_live) * seconds,
-                per_stage_per_ordering=True,
-            )
+    refusal = _unconfirmed_live_tea_error(
+        tool, configs, engine_mode, confirm_live_tea,
+    )
+    if refusal is not None:
+        return refusal
     results = []
     for config in configs:
         results.append(
