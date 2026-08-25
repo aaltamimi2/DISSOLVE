@@ -3937,6 +3937,57 @@ def _manifest_abstention() -> dict[str, Any] | None:
     return dict(block)
 
 
+def _sidecar_index_from_manifest(manifest: Mapping[str, Any]) -> dict[str, Any] | None:
+    block = manifest.get("promoted")
+    if not isinstance(block, Mapping):
+        return None
+    path = Path(str(block.get("index_path") or "")).expanduser()
+    if not path.is_file():
+        return None
+    with gzip.open(path, "rt", encoding="utf-8") as handle:
+        payload = json.load(handle)
+    if not isinstance(payload, dict):
+        return None
+    return payload
+
+
+def _union_product_and_sidecar(
+    product: Mapping[str, Any],
+    sidecar: Mapping[str, Any],
+) -> dict[str, Any]:
+    known = {str(chunk.get("chunk_id") or "") for chunk in (product.get("chunks") or [])}
+    extra_chunks = []
+    for chunk in sidecar.get("chunks") or []:
+        chunk_id = str(chunk.get("chunk_id") or "")
+        if not chunk_id or chunk_id in known:
+            continue
+        extra_chunks.append(chunk)
+        known.add(chunk_id)
+    known_docs = {str(row.get("sha256") or "") for row in (product.get("documents") or [])}
+    extra_docs = []
+    for row in sidecar.get("documents") or []:
+        sha = str(row.get("sha256") or "")
+        if not sha or sha in known_docs:
+            continue
+        extra_docs.append(row)
+        known_docs.add(sha)
+    out = dict(product)
+    out["chunks"] = list(product.get("chunks") or []) + extra_chunks
+    out["documents"] = list(product.get("documents") or []) + extra_docs
+    product_dense = product.get("dense") or {}
+    sidecar_dense = sidecar.get("dense") or {}
+    if extra_chunks and product_dense and sidecar_dense:
+        out["dense"] = {
+            "model": product_dense.get("model") or sidecar_dense.get("model"),
+            "dim": product_dense.get("dim") or sidecar_dense.get("dim"),
+            "chunk_ids": list(product_dense.get("chunk_ids") or [])
+            + list(sidecar_dense.get("chunk_ids") or []),
+            "vectors": list(product_dense.get("vectors") or [])
+            + list(sidecar_dense.get("vectors") or []),
+        }
+    return out
+
+
 def _load_index(knowledgebase: str) -> dict[str, Any]:
     path = _index_path(knowledgebase)
     if not path.exists():
@@ -3946,10 +3997,28 @@ def _load_index(knowledgebase: str) -> dict[str, Any]:
     if payload.get("schema") != _INDEX_SCHEMA or payload.get("knowledgebase") != _slug(knowledgebase):
         raise ValueError("unsupported or mismatched literature index")
     if path.resolve() == _canonical_product_index_path().resolve():
-        block = _manifest_abstention()
-        if block:
-            payload = dict(payload)
-            payload["abstention"] = block
+        manifest_path = _product_manifest_path()
+        manifest: dict[str, Any] | None = None
+        if manifest_path.is_file():
+            try:
+                loaded = json.loads(manifest_path.read_text())
+            except (OSError, json.JSONDecodeError):
+                loaded = None
+            if isinstance(loaded, dict):
+                manifest = loaded
+        if manifest is not None:
+            sidecar = _sidecar_index_from_manifest(manifest)
+            if sidecar is not None:
+                payload = _union_product_and_sidecar(payload, sidecar)
+            block = manifest.get("abstention")
+            if isinstance(block, Mapping) and block.get("floor") is not None:
+                payload = dict(payload)
+                payload["abstention"] = dict(block)
+        else:
+            block = _manifest_abstention()
+            if block:
+                payload = dict(payload)
+                payload["abstention"] = block
     return payload
 
 

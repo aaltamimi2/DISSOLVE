@@ -15,6 +15,9 @@ GRAPH_NAME = "GRAPH.t5.unsealed.v1.json"
 GRAPH_PATH = DEFAULT_OUT_DIR / GRAPH_NAME
 STORE_PATH = DEFAULT_OUT_DIR / "CHUNKS.t5.indexed.unsealed.v1.json"
 MANIFEST_PATH = DEFAULT_OUT_DIR / "INDEX.t5.unsealed.v1.json"
+SIDECAR_STORE_NAME = "CHUNKS.t5.promoted.unsealed.v1.json"
+SIDECAR_GZIP_NAME = "t5-promoted-unsealed.json.gz"
+SIDECAR_KNOWLEDGEBASE = "t5-promoted-unsealed"
 GOLD_PATH = DEFAULT_OUT_DIR / "GOLD.text.v1.unsealed.json"
 CENSUS_PATH = Path("/home/aaltamimi2/dissolve-v12-audit/corpus/CENSUS.v3.json")
 
@@ -128,8 +131,9 @@ def _header(
     n_edges: int,
     nodes: list[dict[str, Any]],
     edges: list[dict[str, Any]],
+    promoted: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
-    return {
+    payload: dict[str, Any] = {
         "schema": SCHEMA,
         "spec_sha256": SPEC_SHA256,
         "gold_sha256": gold_sha256,
@@ -141,9 +145,12 @@ def _header(
         "n_paper_nodes": n_paper_nodes,
         "n_chunk_nodes": n_chunk_nodes,
         "n_edges": n_edges,
-        "nodes": nodes,
-        "edges": edges,
     }
+    if promoted is not None:
+        payload["promoted"] = dict(promoted)
+    payload["nodes"] = nodes
+    payload["edges"] = edges
+    return payload
 
 
 def _require_product_identity(
@@ -155,6 +162,7 @@ def _require_product_identity(
     store_sha256: str,
     manifest_sha256: str,
     gzip_sha256: str,
+    require_manifest_pin: bool = True,
 ) -> None:
     gold = _load_json(GOLD_PATH)
     census = _load_json(CENSUS_PATH)
@@ -178,56 +186,36 @@ def _require_product_identity(
         "gold_sha256": (gold_sha256, GOLD_SHA256),
         "census_sha256": (census_sha256, CENSUS_SHA256),
         "store_sha256": (store_sha256, STORE_SHA256),
-        "index_manifest_sha256": (manifest_sha256, MANIFEST_SHA256),
         "gzip_sha256": (gzip_sha256, GZIP_SHA256),
     }
+    if require_manifest_pin:
+        pins["index_manifest_sha256"] = (manifest_sha256, MANIFEST_SHA256)
     mismatch = [name for name, (got, want) in pins.items() if got != want]
     if mismatch:
         raise TextGoldError("t5_graph_identity", "Header pin fields are not IDENT §1.", mismatch=mismatch)
 
 
-def emit_t5_corpus_graph(
-    *,
-    dest: str | Path | None = None,
-    store_path: str | Path | None = None,
-    manifest_path: str | Path | None = None,
-) -> dict[str, Any]:
-    """Write GRAPH.t5 from the store. Passage bodies stay in the store."""
-    dest_path = Path(dest).expanduser().resolve() if dest is not None else GRAPH_PATH
-    store_file = Path(store_path).expanduser().resolve() if store_path is not None else STORE_PATH
-    manifest_file = (
-        Path(manifest_path).expanduser().resolve() if manifest_path is not None else MANIFEST_PATH
-    )
-    store = _load_json(store_file)
-    manifest = _load_json(manifest_file)
-    gzip_file = Path(str(manifest.get("index_path") or "")).expanduser()
-    if not gzip_file.is_file():
-        raise TextGoldError("t5_graph_gzip", "Manifest index_path is not a file.")
-    gold_sha = file_sha256(GOLD_PATH)
-    census_sha = file_sha256(CENSUS_PATH)
-    store_sha = file_sha256(store_file)
-    manifest_sha = file_sha256(manifest_file)
-    gzip_sha = file_sha256(gzip_file)
-    if dest_path == GRAPH_PATH.resolve():
-        if store_file != STORE_PATH.resolve() or store_sha != STORE_SHA256:
-            raise TextGoldError(
-                "t5_graph_product_store",
-                "Product GRAPH dest requires the pinned T5 store.",
-            )
-        _require_product_identity(
-            store,
-            manifest,
-            gold_sha256=gold_sha,
-            census_sha256=census_sha,
-            store_sha256=store_sha,
-            manifest_sha256=manifest_sha,
-            gzip_sha256=gzip_sha,
-        )
+def _resolve_sidecar_store(
+    dest_path: Path,
+    sidecar_store_path: str | Path | None,
+) -> Path | None:
+    if sidecar_store_path is not None:
+        path = Path(sidecar_store_path).expanduser().resolve()
+        if not path.is_file():
+            raise TextGoldError("t5_graph_sidecar", "Sidecar store path is not a file.")
+        return path
+    candidate = dest_path.parent / SIDECAR_STORE_NAME
+    return candidate.resolve() if candidate.is_file() else None
 
-    papers: dict[str, dict[str, Any]] = {}
-    chunks: list[dict[str, Any]] = []
-    edges: list[dict[str, Any]] = []
-    seen_chunks: set[str] = set()
+
+def _append_store_rows(
+    store: Mapping[str, Any],
+    *,
+    papers: dict[str, dict[str, Any]],
+    chunks: list[dict[str, Any]],
+    edges: list[dict[str, Any]],
+    seen_chunks: set[str],
+) -> None:
     for row in store.get("chunks") or []:
         if not isinstance(row, Mapping):
             raise TextGoldError("t5_graph_chunk_keys", "Store chunk is not an object.")
@@ -258,6 +246,76 @@ def emit_t5_corpus_graph(
             "target_node_id": f"chunk:{chunk_id}",
         })
 
+
+def emit_t5_corpus_graph(
+    *,
+    dest: str | Path | None = None,
+    store_path: str | Path | None = None,
+    manifest_path: str | Path | None = None,
+    sidecar_store_path: str | Path | None = None,
+) -> dict[str, Any]:
+    """Write GRAPH.t5 from the store. Passage bodies stay in the store."""
+    dest_path = Path(dest).expanduser().resolve() if dest is not None else GRAPH_PATH
+    store_file = Path(store_path).expanduser().resolve() if store_path is not None else STORE_PATH
+    manifest_file = (
+        Path(manifest_path).expanduser().resolve() if manifest_path is not None else MANIFEST_PATH
+    )
+    store = _load_json(store_file)
+    manifest = _load_json(manifest_file)
+    gzip_file = Path(str(manifest.get("index_path") or "")).expanduser()
+    if not gzip_file.is_file():
+        raise TextGoldError("t5_graph_gzip", "Manifest index_path is not a file.")
+    gold_sha = file_sha256(GOLD_PATH)
+    census_sha = file_sha256(CENSUS_PATH)
+    store_sha = file_sha256(store_file)
+    manifest_sha = file_sha256(manifest_file)
+    gzip_sha = file_sha256(gzip_file)
+    sidecar_file = _resolve_sidecar_store(dest_path, sidecar_store_path)
+    sidecar_store = _load_json(sidecar_file) if sidecar_file is not None else None
+    if dest_path == GRAPH_PATH.resolve():
+        if store_file != STORE_PATH.resolve() or store_sha != STORE_SHA256:
+            raise TextGoldError(
+                "t5_graph_product_store",
+                "Product GRAPH dest requires the pinned T5 store.",
+            )
+        _require_product_identity(
+            store,
+            manifest,
+            gold_sha256=gold_sha,
+            census_sha256=census_sha,
+            store_sha256=store_sha,
+            manifest_sha256=manifest_sha,
+            gzip_sha256=gzip_sha,
+            require_manifest_pin=sidecar_store is None,
+        )
+
+    papers: dict[str, dict[str, Any]] = {}
+    chunks: list[dict[str, Any]] = []
+    edges: list[dict[str, Any]] = []
+    seen_chunks: set[str] = set()
+    _append_store_rows(
+        store, papers=papers, chunks=chunks, edges=edges, seen_chunks=seen_chunks,
+    )
+    promoted = None
+    if sidecar_store is not None and sidecar_file is not None:
+        sidecar_gzip = dest_path.parent / "indexes" / SIDECAR_GZIP_NAME
+        _append_store_rows(
+            sidecar_store, papers=papers, chunks=chunks, edges=edges, seen_chunks=seen_chunks,
+        )
+        sidecar_papers = {
+            str(row.get("paper_sha256") or "")
+            for row in (sidecar_store.get("chunks") or [])
+            if row.get("paper_sha256")
+        }
+        promoted = {
+            "knowledgebase": SIDECAR_KNOWLEDGEBASE,
+            "index_path": str(sidecar_gzip) if sidecar_gzip.is_file() else "",
+            "n_papers": len(sidecar_papers),
+            "n_chunks": len(sidecar_store.get("chunks") or []),
+            "store_sha256": file_sha256(sidecar_file),
+            "gzip_sha256": file_sha256(sidecar_gzip) if sidecar_gzip.is_file() else "",
+        }
+
     nodes = sorted(
         list(papers.values()) + chunks,
         key=lambda row: str(row["node_id"]),
@@ -274,6 +332,7 @@ def emit_t5_corpus_graph(
         n_edges=len(edges),
         nodes=nodes,
         edges=edges,
+        promoted=promoted,
     )
     _walk_forbidden(graph)
     dest_path.parent.mkdir(parents=True, exist_ok=True)
