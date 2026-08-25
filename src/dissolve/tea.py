@@ -9603,7 +9603,7 @@ def rank_landscape(
         "process_rows"
     ),
     operation: Literal[
-        "sort", "pareto_dominance", "optimum", "epsilon",
+        "sort", "pareto_dominance", "optimum",
     ] = "pareto_dominance",
     campaign_fingerprint: Optional[str] = None,
     target_polymer: str | list[str] | None = None,
@@ -10773,6 +10773,23 @@ def _unsupported_live_target_feed_error(
     )
 
 
+def _remember_last_tea_envelope(raw: str) -> str:
+    """Bind a TEA gap payload onto the active session, if one exists.
+
+    `pareto_optimize_stored_route` reads `getattr(state, "last_tea")`.
+    Without this write, the CLI path never stores the gap even when a
+    session is bound.
+    """
+    record = current_tool_session()
+    if record is None:
+        return raw
+    payload = json.loads(raw)
+    data = payload.get("data") if isinstance(payload, dict) else None
+    if isinstance(data, dict):
+        record["last_tea"] = copy.deepcopy(data)
+    return raw
+
+
 def _feed_tea_basis_gap(
     feed_mass_fractions: Optional[dict[str, float]],
     feed_polymers: Optional[list[str]],
@@ -10948,7 +10965,7 @@ def _feed_tea_basis_gap(
                     "below" if stage < ranges[0] else
                     "above" if stage > ranges[-1] else "within"
                 )
-        return tool_error(
+        return _remember_last_tea_envelope(tool_error(
             tool,
             "The requested scales can be checked against stage-cache coverage, but no integrated economies-of-scale or emissions-intensity result can be calculated without a complete route.",
             error_code="uncostable_feed_scale_basis",
@@ -10993,8 +11010,8 @@ def _feed_tea_basis_gap(
                     ["The requested polymer identities are explicit; do not introduce a polymer-grade ambiguity."]
                 ),
             ],
-        )
-    return tool_error(
+        ))
+    return _remember_last_tea_envelope(tool_error(
         tool,
         "No defensible MSP, capital cost, or operating cost can be calculated from this feed request alone.",
         error_code="uncostable_initial_feed_basis",
@@ -11040,7 +11057,7 @@ def _feed_tea_basis_gap(
                 ["The requested polymer identities are explicit; do not introduce a polymer-grade ambiguity."]
             ),
         ],
-    )
+    ))
 
 
 def evaluate_stored_route_tea_lca(

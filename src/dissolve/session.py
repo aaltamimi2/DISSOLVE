@@ -94,12 +94,13 @@ _PRIMARY_KEYS = (
 class SessionRecord(dict):
     """A dict that does not AttributeError on `state.last_contaminant`.
 
-    Missing names return None. This is not SessionState: it writes nothing.
-    Keys are the store. Do not set attributes.
+    Present keys are readable as attributes so `getattr(state, "last_tea")`
+    sees the store. Missing names return None. This is not SessionState:
+    it writes nothing. Keys are the store. Do not set attributes.
     """
 
     def __getattr__(self, name: str) -> Any:
-        return None
+        return self.get(name)
 
     def __setattr__(self, name: str, value: Any) -> None:
         raise AttributeError(
