@@ -37,7 +37,7 @@ _LCA_FACTORS_ASSET = Path(str(
     files("dissolve").joinpath("data/tea_lca_characterization_factors.json")
 ))
 _LCA_FACTORS_ASSET_SHA256 = (
-    "adba150af8192c57ccbd1eb3fe550206598ad7eda1f1e4abb49d07d636ea2adf"
+    "825e9e02a9366250ef0357407cc26bea1ef4ee04aa12720c3892e9eb44d8a083"
 )
 _CONFIG_FIELDS = (
     "solvent", "target_plastic", "target_plastic_percent",
