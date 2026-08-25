@@ -189,4 +189,25 @@ def test_a2a4_payload_coverage_star_on_tool(monkeypatch, tmp_path):
     payload = parse_tool_result(research.search_literature_corpus("alpha", retrieval_mode="sparse"))
     assert payload["data"]["success"] is True
     assert "coverage_star" in payload["data"]
+    assert "floor" in payload["data"]
     assert payload["data"]["results"][0]["query_idf_coverage"] >= 0.0
+    assert "floor" in payload["data"]["results"][0]
+
+
+def test_a2a4_payload_echoes_index_floor_on_every_result(monkeypatch, tmp_path):
+    monkeypatch.setattr(research, "_dense_vectors", _fake_minilm())
+    monkeypatch.setenv("DISSOLVE_RESEARCH_HOME", str(tmp_path))
+    index = _index([_chunk("c-a", "alpha methods solvent")])
+    index["abstention"] = {
+        "statistic": "query_idf_coverage",
+        "percentile": 5,
+        "floor": 0.1,
+    }
+    research._save_index(index)
+    payload = parse_tool_result(research.search_literature_corpus("alpha", retrieval_mode="sparse"))
+    assert payload["data"]["success"] is True
+    assert payload["data"]["floor"] == 0.1
+    assert payload["data"]["results"]
+    for row in payload["data"]["results"]:
+        assert row["floor"] == 0.1
+        assert row["query_idf_coverage"] >= 0.1

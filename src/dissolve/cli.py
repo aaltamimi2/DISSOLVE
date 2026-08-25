@@ -188,6 +188,49 @@ def _parse_contaminant_slash(tokens: Sequence[str]) -> dict[str, Any] | None:
     raise ValueError(_CONTAMINANT_USAGE)
 
 
+_LITERATURE_USAGE = "usage: /literature [off | corpus | scholarly]"
+
+
+def _format_literature_default(stored: dict[str, Any] | None, *, origin: str) -> str:
+    mode = (stored or {}).get("mode") or "off"
+    return f"literature_mode={mode}  ({origin})"
+
+
+def _parse_literature_slash(tokens: Sequence[str]) -> dict[str, Any] | None:
+    """None is the no-argument path. Raises ValueError on a bad token. No 'on'."""
+    if not tokens:
+        return None
+    if len(tokens) != 1:
+        raise ValueError(_LITERATURE_USAGE)
+    token = str(tokens[0]).strip().casefold()
+    if token in {"off", "corpus", "scholarly"}:
+        return {"mode": token}
+    raise ValueError(_LITERATURE_USAGE)
+
+
+def _literature_status_line(stored: dict[str, Any] | None, origin: str) -> str:
+    shown = stored if origin == "session" else None
+    return _format_literature_default(shown, origin=origin)
+
+
+def _literature_picker_options(
+    current_mode: str,
+) -> tuple[list[tuple[str, str]], int]:
+    rows = (
+        ("off", "1. off         no literature tools offered"),
+        ("corpus", "2. corpus      local pinned index, offline"),
+        ("scholarly", "3. scholarly   corpus plus arXiv / Scholar / WoS / patents"),
+    )
+    options: list[tuple[str, str]] = []
+    selected = 0
+    for i, (key, base) in enumerate(rows):
+        suffix = "      (current)" if key == current_mode else ""
+        options.append((key, base + suffix))
+        if key == current_mode:
+            selected = i
+    return options, selected
+
+
 def _contaminant_status_line(stored: dict[str, Any] | None, origin: str) -> str:
     shown = stored if origin == "session" else None
     return _format_contaminant_default(shown, origin=origin)
@@ -1217,7 +1260,7 @@ class CliApp:
             f"[dim]Advanced polymer separation engineering[/]\n\n"
             f"Model    [bold]{self.model_spec.label}[/]  ·  {self.model_spec.usage}\n"
             f"Session  [bold]{self.store.session_id}[/]  ·  mode {self.mode}\n"
-            f"[dim]Type /context, /process, /solvents, /contaminant, /breadth, /model, or quit to exit.[/]"
+            f"[dim]Type /context, /process, /solvents, /contaminant, /literature, /breadth, /model, or quit to exit.[/]"
         )
         self.console.print(Panel(details, title="Advanced Recycling Agent", subtitle=RELEASE))
 
@@ -1349,6 +1392,8 @@ class CliApp:
             self._handle_solvents_command(parts[1:])
         elif command == "/contaminant":
             self._handle_contaminant_command(parts[1:])
+        elif command == "/literature":
+            self._handle_literature_command(parts[1:])
         elif command == "/breadth":
             self._handle_breadth_command(parts[1:])
         elif command == "/harness":
@@ -1746,6 +1791,55 @@ class CliApp:
             return {"mode": chosen}
         return None
 
+    def _handle_literature_command(
+        self,
+        tokens: Sequence[str],
+        *,
+        picker_fn: _PickerFn | None = None,
+    ) -> None:
+        try:
+            stored = _parse_literature_slash(tokens)
+        except ValueError as error:
+            self.console.print(f"[red]{error}[/]")
+            return
+        if stored is None:
+            current = self.session.get("literature_mode")
+            if isinstance(current, dict) and current.get("mode") in {
+                "off", "corpus", "scholarly",
+            }:
+                shown, origin = current, "session"
+            else:
+                shown, origin = None, "built-in"
+            if not _slash_picker_armed(quiet=self.quiet, picker_fn=picker_fn):
+                self.console.print(_literature_status_line(shown, origin))
+                return
+            stored = self._pick_literature_mode(
+                (shown or {}).get("mode") or "off", picker_fn=picker_fn,
+            )
+            if stored is None:
+                self.console.print(_literature_status_line(shown, origin))
+                return
+        self.session["literature_mode"] = stored
+        self._save()
+        self.console.print(_format_literature_default(stored, origin="session"))
+
+    def _pick_literature_mode(
+        self,
+        current_mode: str,
+        *,
+        picker_fn: _PickerFn | None = None,
+    ) -> dict[str, Any] | None:
+        options, selected = _literature_picker_options(current_mode)
+        chosen = _invoke_picker(
+            "Select literature mode",
+            options,
+            selected=selected,
+            quiet=self.quiet,
+            picker_fn=picker_fn,
+        )
+        if chosen in {"off", "corpus", "scholarly"}:
+            return {"mode": chosen}
+        return None
 
     def _run_contaminant_compare(self) -> None:
         prior = _last_contaminant_screen(self.session)

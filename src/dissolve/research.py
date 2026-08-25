@@ -4520,6 +4520,7 @@ def _ranked_search_rows(
     ranked: list[tuple[Any, ...]],
     top_k: int,
     coverage_by_id: Mapping[str, float] | None = None,
+    floor: float | None = None,
 ) -> list[dict[str, Any]]:
     rows = []
     for index_number, (score, sparse_score, dense_score, boost, chunk, sparse_raw_score) in enumerate(ranked[:top_k], 1):
@@ -4551,6 +4552,7 @@ def _ranked_search_rows(
             "sparse_score": round(sparse_score, 6), "dense_score": round(dense_score, 6),
             "sparse_raw_score": round(sparse_raw_score, 6),
             "query_idf_coverage": round(coverage, 6),
+            "floor": None if floor is None else round(float(floor), 6),
             "section_boost": boost, "final_score": round(score, 6),
         })
     return rows
@@ -4586,7 +4588,7 @@ def _search_index(
                 raw_by_id[str(chunk["chunk_id"])],
             ))
         ranked.sort(key=lambda item: (-item[0], str(item[4].get("title")), item[4]["chunk_id"]))
-        return _ranked_search_rows(index, ranked, top_k, coverage_by_id)
+        return _ranked_search_rows(index, ranked, top_k, coverage_by_id, floor=floor)
     sparse_max = max(sparse_raw)
     sparse = [value / sparse_max for value in sparse_raw]
     dense_scores = [0.0] * len(chunks)
@@ -4607,7 +4609,7 @@ def _search_index(
                 continue
         ranked.append((score, sparse_score, dense_score, boost, chunk, sparse_raw_score))
     ranked.sort(key=lambda item: (-item[0], str(item[4].get("title")), item[4]["chunk_id"]))
-    return _ranked_search_rows(index, ranked, top_k, coverage_by_id)
+    return _ranked_search_rows(index, ranked, top_k, coverage_by_id, floor=floor)
 
 
 def search_literature_corpus(
@@ -4643,6 +4645,8 @@ def search_literature_corpus(
             )
         return tool_error(tool, str(error), error_code="retrieval_failed")
     top_score = rows[0]["final_score"] if rows else 0.0
+    floor = _abstention_floor(index)
+    served_floor = None if floor is None else round(float(floor), 6)
     return tool_success(
         tool,
         display=_table(("Citation", "Score", "Source", "Section"), [
@@ -4654,6 +4658,7 @@ def search_literature_corpus(
         hybrid_weights={"dense": _HYBRID_DENSE_WEIGHT, "sparse": _HYBRID_SPARSE_WEIGHT},
         result_count=len(rows), results=rows, top_score=top_score,
         coverage_star=round(coverage_star(index, query), 6),
+        floor=served_floor,
         low_retrieval_confidence=not rows or top_score < 0.15,
         evidence_scope="retrieved_corpus_passages",
         warnings=[

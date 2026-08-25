@@ -29,7 +29,22 @@ _ALWAYS_HANDLE_TOOLS = _PROCESS_ECONOMICS_HANDLE_TOOLS | frozenset({
     "plan_multistage_separation",
 })
 _COMPACT_KEEP_LISTS = frozenset({"ranked_path_index", "stage1_shortlists"})
-_OMIT = frozenset({"temperature_step_c"})
+_OMIT = frozenset({"temperature_step_c", "save_to_corpus"})
+LITERATURE_INGEST_TOOLS = frozenset({
+    "ingest_literature_documents",
+    "ingest_literature_graph",
+})
+LITERATURE_CORPUS_TOOLS = frozenset({
+    "search_literature_corpus",
+    "inspect_literature_corpus",
+})
+LITERATURE_NETWORK_TOOLS = frozenset({
+    "search_scholarly_literature",
+    "search_patent_literature",
+})
+LITERATURE_AGENT_TOOLS = (
+    LITERATURE_INGEST_TOOLS | LITERATURE_CORPUS_TOOLS | LITERATURE_NETWORK_TOOLS
+)
 _POLY_ARGS = ("polymers", "feed_polymers", "target_polymer", "target_polymers")
 _POLY_KEYS = ("polymer", "polymer_id", "target_polymer", "dissolved_polymer")
 _PAGE, _BYTE, _LIM = 20, 8192, 50
@@ -179,7 +194,76 @@ def _ptype(ann: Any) -> dict[str, Any]:
         return {"type": "object"}
     return {bool: {"type": "boolean"}, int: {"type": "integer"}, float: {"type": "number"}, str: {"type": "string"}}.get(ann, {})
 
-def tool_schemas() -> list[dict[str, Any]]:
+def literature_agent_mode(session: Any = None) -> str:
+    """off | corpus | scholarly. Absent or junk is off. Not a registry filter."""
+    if session is None:
+        session = current_tool_session()
+    if not isinstance(session, dict):
+        return "off"
+    stored = session.get("literature_mode")
+    if isinstance(stored, dict):
+        token = str(stored.get("mode") or "").strip().casefold()
+    else:
+        token = str(stored or "").strip().casefold()
+    if token in {"corpus", "scholarly"}:
+        return token
+    return "off"
+
+
+def offered_tool_names(session: Any = None) -> frozenset[str]:
+    """Agent surface. Ingest is never offered. Network only in scholarly."""
+    mode = literature_agent_mode(session)
+    names = {spec.name for spec in registry.REGISTRY}
+    names -= LITERATURE_INGEST_TOOLS
+    if mode == "off":
+        names -= LITERATURE_CORPUS_TOOLS | LITERATURE_NETWORK_TOOLS
+    elif mode == "corpus":
+        names -= LITERATURE_NETWORK_TOOLS
+    return frozenset(names)
+
+
+def _schema_item(spec: Any) -> dict[str, Any]:
+    prefix = (
+        "UNWIRED. Returns tool_not_wired. Reads session state through an interface "
+        "v12 removed; pending an engine pass to accept a handle. Do not call this "
+        "to recover a missing route. "
+    )
+    props, req = {}, []
+    try:
+        hints = get_type_hints(spec.fn, include_extras=True)
+    except Exception:
+        hints = {}
+    for n, p in inspect.signature(spec.fn).parameters.items():
+        if n in _OMIT or p.kind is p.VAR_KEYWORD:
+            continue
+        props[n] = _ptype(hints.get(n, p.annotation))
+        if spec.name in PUBCHEM and n == "include_pubchem":
+            props[n] = {**props[n], "type": "boolean", "default": False}
+        elif p.default is not inspect.Parameter.empty and isinstance(
+            p.default, (bool, int, float, str)
+        ):
+            props[n]["default"] = p.default
+        if p.default is inspect.Parameter.empty:
+            req.append(n)
+    if spec.name in CONSUMERS:
+        props["handle"] = {"type": "string"}
+    desc = prefix + spec.summary if spec.name in UNWIRED else spec.summary
+    item: dict[str, Any] = {
+        "name": spec.name,
+        "description": desc,
+        "parameters": {"type": "object", "properties": props},
+    }
+    if req:
+        item["parameters"]["required"] = req
+    return item
+
+
+def tool_schema_for(name: str) -> dict[str, Any]:
+    """Schema for one registry name. Not an offer; ingest stays inspectable."""
+    return _schema_item(registry.BY_NAME[name])
+
+
+def tool_schemas(session: Any = None) -> list[dict[str, Any]]:
     out: list[dict[str, Any]] = [{
         "name": "result_read",
         "description": "Page exact stored rows of a handle. Does not issue a second handle.",
@@ -189,36 +273,11 @@ def tool_schemas() -> list[dict[str, Any]]:
             "page": {"type": "string", "enum": ["steps", "top_k_sequences"]},
         }, "required": ["handle"]},
     }]
-    prefix = (
-        "UNWIRED. Returns tool_not_wired. Reads session state through an interface "
-        "v12 removed; pending an engine pass to accept a handle. Do not call this "
-        "to recover a missing route. "
-    )
+    offered = offered_tool_names(session)
     for spec in registry.REGISTRY:
-        props, req = {}, []
-        try:
-            hints = get_type_hints(spec.fn, include_extras=True)
-        except Exception:
-            hints = {}
-        for n, p in inspect.signature(spec.fn).parameters.items():
-            if n in _OMIT or p.kind is p.VAR_KEYWORD:
-                continue
-            props[n] = _ptype(hints.get(n, p.annotation))
-            if spec.name in PUBCHEM and n == "include_pubchem":
-                props[n] = {**props[n], "type": "boolean", "default": False}
-            elif p.default is not inspect.Parameter.empty and isinstance(
-                p.default, (bool, int, float, str)
-            ):
-                props[n]["default"] = p.default
-            if p.default is inspect.Parameter.empty:
-                req.append(n)
-        if spec.name in CONSUMERS:
-            props["handle"] = {"type": "string"}
-        desc = prefix + spec.summary if spec.name in UNWIRED else spec.summary
-        item: dict[str, Any] = {"name": spec.name, "description": desc, "parameters": {"type": "object", "properties": props}}
-        if req:
-            item["parameters"]["required"] = req
-        out.append(item)
+        if spec.name not in offered:
+            continue
+        out.append(_schema_item(spec))
     return out
 
 def _lev(a: str, b: str) -> int:
@@ -368,7 +427,17 @@ def dispatch(name: str, **kwargs: Any) -> dict[str, Any]:
     if name not in registry.BY_NAME:
         out = _refuse("unknown_tool", name=name)
         return _emit(name, kwargs, out, out)
+    if name in LITERATURE_AGENT_TOOLS and name not in offered_tool_names(current_tool_session()):
+        out = _refuse(
+            "literature_tools_not_offered",
+            name=name,
+            literature_mode=literature_agent_mode(current_tool_session()),
+        )
+        return _emit(name, kwargs, out, out)
     record, call_kwargs, bind = current_tool_session(), dict(kwargs), None
+    if name in LITERATURE_AGENT_TOOLS and name not in offered_tool_names(record):
+        out = _refuse("unknown_tool", name=name)
+        return _emit(name, kwargs, out, out)
     if name in CONSUMERS:
         if "handle" in kwargs:
             token = kwargs.get("handle")
@@ -384,6 +453,8 @@ def dispatch(name: str, **kwargs: Any) -> dict[str, Any]:
             return _emit(name, kwargs, out, out)
     if name in PUBCHEM and call_kwargs.get("include_pubchem") is None:
         call_kwargs["include_pubchem"] = False
+    if name in LITERATURE_NETWORK_TOOLS:
+        call_kwargs["save_to_corpus"] = False
     if bind:
         try:
             with bind_handle_rows(record, bind):
