@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import math
+import os
 import re
 import socket
 import textwrap
@@ -13,6 +15,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 from concurrent.futures import ThreadPoolExecutor
+from datetime import datetime, timezone
 from functools import lru_cache
 from importlib.resources import files
 from pathlib import Path
@@ -38,10 +41,57 @@ _UNSOURCED_G_FLOOR_WARNING = (
 _LOCAL = threading.local()
 _HEADINGS = (
     "Flash Point", "Autoignition Temperature", "Vapor Pressure",
-    "GHS Classification", "Non-Human Toxicity Values", "Biodegradation",
+    "GHS Classification", "Non-Human Toxicity Values",
+    "Environmental Biodegradation",
     "NIOSH Recommendations", "OSHA Standards",
 )
 _HEADING_ERROR_KEY = "_dissolve_heading_error"
+_SNAPSHOT_SHA256 = (
+    "0aaa5de41367051ceca656982d3828bd40474343f2f14f404638b33bf6d5029d"
+)
+_SNAPSHOT_DEFAULT = Path.home() / (
+    "dissolve-v12-audit/safety/pubchem_safety_snapshot.duckdb"
+)
+_BROKEN_BIODEGRADATION_HEADING = "Biodegradation"
+
+
+class SafetySnapshotRefuse(Exception):
+    """Named snapshot bind/miss refuse; tools convert this to tool_error."""
+
+    def __init__(self, error_code: str, message: str, **data: Any) -> None:
+        super().__init__(message)
+        self.error_code = error_code
+        self.message = message
+        self.data = data
+
+
+def snapshot_bind_path() -> Path:
+    raw = os.environ.get("DISSOLVE_SAFETY_SNAPSHOT")
+    if raw:
+        return Path(raw).expanduser()
+    return _SNAPSHOT_DEFAULT
+
+
+def snapshot_doctor_facts() -> dict[str, Any]:
+    path = snapshot_bind_path()
+    digest = (
+        hashlib.sha256(path.read_bytes()).hexdigest() if path.is_file() else None
+    )
+    ok = digest == _SNAPSHOT_SHA256
+    return {
+        "name": "PubChem safety snapshot",
+        "status": "pass" if ok else "fail",
+        "detail": f"{path} sha256={digest or 'missing'}",
+        "path": str(path),
+        "digest": digest,
+        "expected": _SNAPSHOT_SHA256,
+    }
+
+
+def _refuse_snapshot(tool: str, error: SafetySnapshotRefuse) -> str:
+    return tool_error(
+        tool, error.message, error_code=error.error_code, **error.data,
+    )
 
 
 # Preserve source positions for the remaining identity-ratcheted regex sites.
@@ -332,7 +382,7 @@ def _pubchem(cid: int) -> dict[str, Any]:
         "ghs": _ghs(payloads["GHS Classification"]),
         "ld50_values": [value for value in toxicity if "LD50" in value.upper()][:3],
         "lc50_values": [value for value in toxicity if "LC50" in value.upper()][:3],
-        "biodegradation": _strings(payloads["Biodegradation"])[:3],
+        "biodegradation": _strings(payloads["Environmental Biodegradation"])[:3],
         "occupational_exposure_limits": exposure_limits,
         "failed_headings": [
             name for name, payload in payloads.items()
@@ -340,6 +390,130 @@ def _pubchem(cid: int) -> dict[str, Any]:
         ],
         "heading_errors": heading_errors,
     }
+
+
+def _json_field(value: Any) -> Any:
+    if value is None:
+        return None
+    if isinstance(value, (list, dict)):
+        return value
+    text = str(value).strip()
+    if not text:
+        return None
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        return value
+
+
+def _load_snapshot() -> dict[str, Any]:
+    cached = getattr(_LOCAL, "snapshot", None)
+    path = snapshot_bind_path()
+    if cached is not None and cached["path"] == path:
+        return cached
+    digest = (
+        hashlib.sha256(path.read_bytes()).hexdigest() if path.is_file() else None
+    )
+    if digest != _SNAPSHOT_SHA256:
+        raise SafetySnapshotRefuse(
+            "snapshot_digest_mismatch",
+            f"PubChem safety snapshot digest mismatch at {path}.",
+            path=str(path),
+            digest=digest,
+            expected=_SNAPSHOT_SHA256,
+        )
+    connection = duckdb.connect(str(path), read_only=True)
+    metadata = dict(
+        connection.execute("SELECT key, value FROM snapshot_metadata").fetchall()
+    )
+    columns = [
+        item[0] for item in connection.execute("DESCRIBE pubchem_safety").fetchall()
+    ]
+    loaded = {
+        "path": path,
+        "connection": connection,
+        "digest": digest,
+        "fetched_at": metadata.get("fetched_at_utc"),
+        "columns": columns,
+    }
+    _LOCAL.snapshot = loaded
+    return loaded
+
+
+def _snapshot_pubchem(cid: int) -> dict[str, Any]:
+    loaded = _load_snapshot()
+    connection = loaded["connection"]
+    row = connection.execute(
+        "SELECT * FROM pubchem_safety WHERE cid = ?", [cid]
+    ).fetchone()
+    if row is None:
+        raise SafetySnapshotRefuse(
+            "safety_snapshot_miss",
+            f"PubChem CID {cid} is not in the safety snapshot.",
+            cid=cid,
+        )
+    record = dict(zip(loaded["columns"], row))
+    heading_rows = connection.execute(
+        "SELECT heading, ok, failure_class FROM pubchem_heading_raw WHERE cid = ?",
+        [cid],
+    ).fetchall()
+    by_heading = {str(name): (bool(ok), failure) for name, ok, failure in heading_rows}
+    failed = [
+        name for name in _HEADINGS
+        if name in by_heading and not by_heading[name][0]
+    ]
+    heading_errors = {
+        name: {"failure_class": by_heading[name][1]}
+        for name in failed
+        if by_heading[name][1]
+    }
+    pictograms = _json_field(record.get("ghs_pictograms")) or []
+    statements = _json_field(record.get("ghs_hazard_statements")) or []
+    limits = _json_field(record.get("occupational_exposure_limits")) or []
+    ld50 = _json_field(record.get("ld50_values")) or []
+    lc50 = _json_field(record.get("lc50_values")) or []
+    biodegradation = _json_field(record.get("biodegradation")) or []
+    if isinstance(biodegradation, str):
+        biodegradation = [biodegradation]
+    origin = {"source": "snapshot", "fetched_at": loaded["fetched_at"]}
+    return {
+        "flash_point_c": record.get("flash_point_c"),
+        "autoignition_c": record.get("autoignition_c"),
+        "vapor_pressure_kpa": record.get("vapor_pressure_kpa"),
+        "vapor_pressure_temp_c": record.get("vapor_pressure_temp_c"),
+        "ghs": {
+            "signal_word": record.get("ghs_signal_word"),
+            "pictograms": pictograms if isinstance(pictograms, list) else [],
+            "hazard_statements": statements if isinstance(statements, list) else [],
+        },
+        "ld50_values": ld50 if isinstance(ld50, list) else [],
+        "lc50_values": lc50 if isinstance(lc50, list) else [],
+        "biodegradation": biodegradation if isinstance(biodegradation, list) else [],
+        "occupational_exposure_limits": limits if isinstance(limits, list) else [],
+        "failed_headings": failed,
+        "heading_errors": heading_errors,
+        "_origin": origin,
+    }
+
+
+def _origin_stamps(pubchem: dict[str, Any]) -> dict[str, Any]:
+    origin = pubchem.get("_origin")
+    if not isinstance(origin, dict):
+        return {}
+    stamp = {"source": origin.get("source"), "fetched_at": origin.get("fetched_at")}
+    ghs = pubchem.get("ghs") or {}
+    served = {
+        "flash_point_c": pubchem.get("flash_point_c") is not None,
+        "autoignition_c": pubchem.get("autoignition_c") is not None,
+        "vapor_pressure_kpa": pubchem.get("vapor_pressure_kpa") is not None,
+        "ghs": bool(
+            ghs.get("signal_word") or ghs.get("pictograms") or ghs.get("hazard_statements")
+        ),
+        "occupational_exposure_limits": bool(pubchem.get("occupational_exposure_limits")),
+        "biodegradation": bool(pubchem.get("biodegradation")),
+        "ld50_values": bool(pubchem.get("ld50_values")),
+    }
+    return {key: dict(stamp) for key, present in served.items() if present}
 
 
 def _volatility(value: Optional[float]) -> str:
@@ -409,7 +583,7 @@ def build_safety_profile(
     )
     cas = str(local.get("cas_number") or "")
     cid = int(local["cid"]) if _number(local.get("cid")) is not None else None
-    pubchem = _pubchem(cid) if include_pubchem and cid is not None else {}
+    pubchem = _snapshot_pubchem(cid) if include_pubchem and cid is not None else {}
     gscore, curated = _gscore(name, cas), _curated(name, cas)
     vapor = _number(pubchem.get("vapor_pressure_kpa"))
     vapor_temp = _number(pubchem.get("vapor_pressure_temp_c"))
@@ -465,10 +639,13 @@ def build_safety_profile(
         },
         "process_temperature_assessment": assessment,
         "data_gaps": gaps,
+        "field_origin": _origin_stamps(pubchem),
         "provenance": {
             "local_properties": "thermodynamics.duckdb:solvent_data (V12-0 Solvent_Data.csv snapshot)",
             "g_score": gscore.get("source"),
             "pubchem": f"https://pubchem.ncbi.nlm.nih.gov/compound/{cid}" if cid else None,
+            "pubchem_source": (pubchem.get("_origin") or {}).get("source"),
+            "pubchem_fetched_at": (pubchem.get("_origin") or {}).get("fetched_at"),
             "pubchem_temperature_basis": (
                 "minimum parsed reported value in each PubChem heading" if pubchem else None
             ),
@@ -562,6 +739,7 @@ def _row(profile: dict[str, Any]) -> dict[str, Any]:
         "peroxide_former_class": profile["peroxide_risk"].get("peroxide_former_class"),
         "sds_storage_category": profile["peroxide_risk"].get("sds_storage_category"),
         "data_gaps": profile["data_gaps"], "provenance": profile["provenance"],
+        "field_origin": profile.get("field_origin") or {},
     }
 
 
@@ -746,9 +924,12 @@ def recommended_condition_operability(
     local = condition_operability(solvent_key, operating_temp_c)
     if not include_pubchem:
         return local
-    row = _row(build_safety_profile(
-        solvent_key, operating_temp_c, include_pubchem=True,
-    ))
+    try:
+        row = _row(build_safety_profile(
+            solvent_key, operating_temp_c, include_pubchem=True,
+        ))
+    except SafetySnapshotRefuse:
+        return local
     if row.get("flash_point_c") is None:
         return local
     return local | {
@@ -768,7 +949,8 @@ def _model_source_families(row: dict[str, Any]) -> list[str]:
     for key, source in row.get("provenance", {}).items():
         if key in {
             "pubchem_temperature_basis", "pubchem_failed_headings",
-            "pubchem_heading_errors",
+            "pubchem_heading_errors", "pubchem_source", "pubchem_fetched_at",
+            "persisted",
         }:
             continue
         if not source or isinstance(source, list):
@@ -892,7 +1074,19 @@ def format_safety_card(profile: dict[str, Any]) -> str:
         *("• " + value for value in _exposure_lines(row)),
     ])
     lines.append("Data gaps: " + (", ".join(row.get("data_gaps") or []) or "none identified in current sources"))
-    sources = [str(value) for value in row["provenance"].values() if value and not isinstance(value, list)]
+    origin = row.get("field_origin") or {}
+    if origin:
+        lines.append("FIELD ORIGIN")
+        for key, stamp in origin.items():
+            if not isinstance(stamp, dict):
+                continue
+            lines.append(
+                f"• {key}: source={stamp.get('source')} fetched_at={stamp.get('fetched_at')}"
+            )
+    sources = [
+        str(value) for value in row["provenance"].values()
+        if value and not isinstance(value, (list, dict))
+    ]
     lines.extend(["SOURCES", *('• ' + value for value in sources)])
     return _box("DISSOLVE SAFETY CARD", lines)
 
@@ -1002,7 +1196,10 @@ def get_solvent_safety_card(
     operating = _number(operating_temp_c)
     if operating_temp_c is not None and operating is None:
         return tool_error("get_solvent_safety_card", "Operating temperature must be finite.", error_code="invalid_temperature")
-    profile = build_safety_profile(name, operating, bool(include_pubchem))
+    try:
+        profile = build_safety_profile(name, operating, bool(include_pubchem))
+    except SafetySnapshotRefuse as error:
+        return _refuse_snapshot("get_solvent_safety_card", error)
     row = _row(profile)
     display = format_safety_card(profile)
     return tool_success(
@@ -1010,8 +1207,93 @@ def get_solvent_safety_card(
         operating_temp_c=operating, include_pubchem=bool(include_pubchem), safety_profile=profile,
         comparison_rows=[_model_row(row)],
         provenance={"source_families": _model_source_families(row)},
+        field_origin=profile.get("field_origin") or {},
         artifact={"kind": "safety_card", "format": "text", "title": f"Safety card · {profile['identity']['name']}"},
         warnings=["Normal-boiling-point margin is an atmospheric operability check, not a complete safety assessment."],
+    )
+
+
+def fetch_solvent_safety_by_cid(cid: Any = None) -> str:
+    """Fetch eight PubChem headings for an explicit CID. Default is fetch-and-serve."""
+    tool = "fetch_solvent_safety_by_cid"
+    if cid is None or (isinstance(cid, str) and not str(cid).strip()):
+        return tool_error(tool, "A PubChem CID is required.", error_code="missing_cid")
+    try:
+        cid_int = int(cid)
+    except (TypeError, ValueError):
+        return tool_error(tool, "PubChem CID must be an integer.", error_code="invalid_cid")
+    if cid_int <= 0:
+        return tool_error(tool, "PubChem CID must be a positive integer.", error_code="invalid_cid")
+    fetched_at = datetime.now(timezone.utc).isoformat()
+    pubchem = dict(_pubchem(cid_int))
+    pubchem["_origin"] = {"source": "live", "fetched_at": fetched_at}
+    vapor = _number(pubchem.get("vapor_pressure_kpa"))
+    vapor_temp = _number(pubchem.get("vapor_pressure_temp_c"))
+    physical = {
+        "boiling_point_c": None,
+        "flash_point_c": _number(pubchem.get("flash_point_c")),
+        "autoignition_c": _number(pubchem.get("autoignition_c")),
+        "vapor_pressure_kpa": vapor,
+        "vapor_pressure_temp_c": vapor_temp,
+        "volatility_class": _volatility(vapor),
+        "logp": None,
+    }
+    assessment = _assessment(
+        None, None, physical["flash_point_c"],
+        physical["autoignition_c"], physical["vapor_pressure_kpa"], vapor_temp,
+    )
+    profile = {
+        "identity": {
+            "name": f"CID {cid_int}",
+            "cas_number": None,
+            "pubchem_cid": cid_int,
+        },
+        "physical_properties": physical,
+        "gscore": {},
+        "ghs": pubchem.get("ghs") or {},
+        "toxicity": {
+            "ld50_values": pubchem.get("ld50_values") or [],
+            "lc50_values": pubchem.get("lc50_values") or [],
+            "biodegradation": pubchem.get("biodegradation") or [],
+        },
+        "occupational_exposure_limits": pubchem.get("occupational_exposure_limits") or [],
+        "peroxide_risk": {
+            "peroxide_former_class": "unknown",
+            "peroxide_former_label": None,
+            "peroxide_notes": None,
+            "sds_storage_category": None,
+        },
+        "process_temperature_assessment": assessment,
+        "data_gaps": [
+            field for field in ("flash_point_c", "autoignition_c", "vapor_pressure_kpa")
+            if physical[field] is None
+        ],
+        "field_origin": _origin_stamps(pubchem),
+        "provenance": {
+            "pubchem": f"https://pubchem.ncbi.nlm.nih.gov/compound/{cid_int}",
+            "pubchem_source": "live",
+            "pubchem_fetched_at": fetched_at,
+            "pubchem_failed_headings": pubchem.get("failed_headings") or [],
+            "pubchem_heading_errors": pubchem.get("heading_errors") or {},
+            "persisted": False,
+        },
+    }
+    row = _row(profile)
+    display = format_safety_card(profile)
+    return tool_success(
+        tool, display=display, cid=cid_int, persisted=False,
+        include_pubchem=True, safety_profile=profile,
+        comparison_rows=[_model_row(row)],
+        field_origin=profile["field_origin"],
+        provenance=profile["provenance"],
+        artifact={
+            "kind": "safety_card",
+            "format": "text",
+            "title": f"Safety card · CID {cid_int}",
+        },
+        warnings=[
+            "Live PubChem values are excluded from any reproducibility claim until persisted as a new snapshot version.",
+        ],
     )
 
 
@@ -1082,10 +1364,13 @@ def compare_solvent_safety_at_conditions(
             seen.add(key)
         if len(normalized) >= bounded:
             break
-    profiles = [
-        build_safety_profile(item["solvent_name"], item["operating_temp_c"], bool(include_pubchem))
-        for item in normalized
-    ]
+    try:
+        profiles = [
+            build_safety_profile(item["solvent_name"], item["operating_temp_c"], bool(include_pubchem))
+            for item in normalized
+        ]
+    except SafetySnapshotRefuse as error:
+        return _refuse_snapshot(tool, error)
     rows = [_row(profile) for profile in profiles]
     inherited_scope = candidate_source if inherited else None
     source_families = list(dict.fromkeys(
@@ -1474,9 +1759,12 @@ def screen_route_solvent_substitutions(
             for polymer, row in zip(retained, off_target_rows) if row is not None
         }
         maximum = max(off_targets.values(), default=0.0)
-        safety_row = _row(build_safety_profile(
-            thermo.canonical_solvent_name(solvent_key), operating, bool(include_pubchem)
-        ))
+        try:
+            safety_row = _row(build_safety_profile(
+                thermo.canonical_solvent_name(solvent_key), operating, bool(include_pubchem)
+            ))
+        except SafetySnapshotRefuse as error:
+            return _refuse_snapshot(tool, error)
         sources = _model_source_families(safety_row)
         safety_row["source_families"] = sources
         source_families.extend(sources)
@@ -1503,9 +1791,12 @@ def screen_route_solvent_substitutions(
         candidate_key = thermo.resolve_solvent(str(candidate.get("solvent") or ""))
         if candidate_key == current_key or float(candidate.get("selectivity_pct") or -math.inf) < minimum_selectivity:
             continue
-        safety_row = _row(build_safety_profile(
-            str(candidate["solvent"]), float(candidate["temperature_c"]), bool(include_pubchem)
-        ))
+        try:
+            safety_row = _row(build_safety_profile(
+                str(candidate["solvent"]), float(candidate["temperature_c"]), bool(include_pubchem)
+            ))
+        except SafetySnapshotRefuse as error:
+            return _refuse_snapshot(tool, error)
         sources = _model_source_families(safety_row)
         safety_row["source_families"] = sources
         source_families.extend(sources)

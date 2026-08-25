@@ -210,6 +210,7 @@ def network_by_tool() -> dict[str, Any]:
     original = safety._pubchem
     green_ok = False
     route_default_raised = False
+    route_default_ok = False
     route_offline_ok = False
     try:
         safety._pubchem = _raise_pubchem  # type: ignore[method-assign]
@@ -218,9 +219,10 @@ def network_by_tool() -> dict[str, Any]:
         ))
         green_ok = bool(green.get("success")) and green.get("screen_executed") is not False
         try:
-            safety.screen_route_solvent_substitutions(
+            route = _data(safety.screen_route_solvent_substitutions(
                 feed_polymers=["LDPE", "PP"], route_steps=_ROUTE,
-            )
+            ))
+            route_default_ok = bool(route.get("success"))
         except _PubchemRaised:
             route_default_raised = True
         offline = _data(safety.screen_route_solvent_substitutions(
@@ -233,6 +235,7 @@ def network_by_tool() -> dict[str, Any]:
     return {
         "green_screen_completes_with_pubchem_raising": green_ok,
         "route_default_raises": route_default_raised,
+        "route_default_completes": route_default_ok,
         "route_include_pubchem_false_completes": route_offline_ok,
     }
 

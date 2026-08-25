@@ -61,6 +61,7 @@ REGISTRY: tuple[Tool, ...] = tuple([
     _t(safety.compare_solvent_safety_at_conditions, "safety"),
     _t(safety.screen_green_solvent_candidates, "safety"),
     _t(safety.screen_route_solvent_substitutions, "safety"),
+    _t(safety.fetch_solvent_safety_by_cid, "safety"),
     # --- TEA / LCA ---
     _t(tea.evaluate_process, "tea"),
     _t(tea.rank_landscape, "tea"),

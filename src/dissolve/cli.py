@@ -636,6 +636,7 @@ EXPECTED_REGISTRY_NAMES: frozenset[str] = frozenset((
     "compare_solvent_safety_at_conditions",
     "screen_green_solvent_candidates",
     "screen_route_solvent_substitutions",
+    "fetch_solvent_safety_by_cid",
     "evaluate_process",
     "rank_landscape",
     "lookup_hansen_parameters",
@@ -825,6 +826,12 @@ def doctor_report(
     add(
         "Tool registry", "pass" if roster_ok else "fail",
         detail, registered=n_reg,
+    )
+    snapshot = safety.snapshot_doctor_facts()
+    add(
+        snapshot["name"], snapshot["status"], snapshot["detail"],
+        path=snapshot["path"], digest=snapshot["digest"],
+        expected=snapshot["expected"],
     )
 
     try:

@@ -63,7 +63,8 @@ def test_registry_stays_two_public_tea_names():
     assert "rank_landscape" in names
     assert "plan_then_tea" not in names
     assert names.count("evaluate_process") == 1
-    assert len(registry.REGISTRY) == 29
+    assert len(registry.REGISTRY) == 30
+    assert "fetch_solvent_safety_by_cid" in registry.BY_NAME
     assert UNWIRED == frozenset()
 
 

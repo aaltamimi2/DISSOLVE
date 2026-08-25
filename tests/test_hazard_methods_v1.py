@@ -82,11 +82,12 @@ def test_published_methods_does_not_reintroduce_the_false_partition():
     assert bindings["forbidden_claim_hits"] == []
 
 
-def test_green_screen_is_offline_and_route_default_is_live():
+def test_green_screen_is_offline_and_route_cached_path_skips_live_pubchem():
     net = _measure().network_by_tool()
     bindings = _measure().published_bindings()
     assert net["green_screen_completes_with_pubchem_raising"] is True
-    assert net["route_default_raises"] is True
+    assert net["route_default_raises"] is False
+    assert net["route_default_completes"] is True
     assert net["route_include_pubchem_false_completes"] is True
     assert bindings["names_green_screen"] is True
     assert bindings["names_route_screen"] is True
