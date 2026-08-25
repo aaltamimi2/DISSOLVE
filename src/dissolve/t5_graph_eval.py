@@ -737,6 +737,11 @@ def score_t5_graph_rag(
         raise TextGoldError("gold_quoted", "Score return must not carry gold identifiers.")
     if any(int(unbounded_leaks[str(k)]) > 0 for k in ks):
         raise TextGoldError("refuse_leak", "Graph arm dropped must-refuse below 1.000.")
+    if any(int(off_intro_unbounded[str(k)]) > 0 for k in ks):
+        raise TextGoldError(
+            "offdomain_leak",
+            "Graph arm introduced a must_fire chunk on off-domain.",
+        )
     return header
 
 
