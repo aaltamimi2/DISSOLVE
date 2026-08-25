@@ -1252,8 +1252,9 @@ def test_compaction_error_matches_every_emitted_tool_id(monkeypatch):
 def test_session_record_missing_reads_none_writes_raise():
     rec = sess.SessionRecord()
     rec["last_tea"] = {"analysis_type": "route"}
-    assert rec.last_tea is None
-    assert rec["last_tea"]["analysis_type"] == "route"
+    assert rec.last_tea["analysis_type"] == "route"
+    assert rec["last_tea"] is rec.last_tea
+    assert sess.SessionRecord().last_tea is None
     with pytest.raises(AttributeError, match="set keys, not attributes"):
         rec.last_route = {"steps": [{"solvent": "dodecane"}]}
     assert "last_route" not in rec
