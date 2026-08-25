@@ -4778,7 +4778,8 @@ def _unconfirmed_live_tea_error(
 ) -> str | None:
     """Refuse before any child when live work is requested without confirm.
 
-    Applies to screening_shortlist and to a scenarios list. Omit is false.
+    Applies to screening_shortlist, a scenarios list, a stored route,
+    and a sensitivity sweep. Omit is false.
     """
     named_mode = str(engine_mode or "auto")
     live_flags = [
@@ -6505,10 +6506,10 @@ def evaluate_process(
     dissolved_polymer; a mismatch is stage_identity_mismatch.
     Closed screen_to_economics_order: omitted is independent. This wrap
     does not wait on safety and does not invent a router.
-    confirm_live_tea applies to evaluate on screening_shortlist and on a
-    scenarios list; omit is false. A live or auto expansion that would
-    start children refuses live_tea_cost_confirmation_required until it
-    is true. engine_mode is named on that refusal.
+    confirm_live_tea applies to evaluate, sensitivity, and route; omit is
+    false. A live or auto expansion that would start children refuses
+    live_tea_cost_confirmation_required until it is true. engine_mode is
+    named on that refusal.
     lookup_admitted_process_records, evaluate_tea_lca_scenarios,
     analyze_tea_sensitivity, and evaluate_stored_route_tea_lca remain
     Python engines; they are not registry names. The remaining TEA
@@ -6658,7 +6659,6 @@ def evaluate_process(
             name for name, value in (
                 ("screening_shortlist", screening_shortlist),
                 ("held_process_basis", held_process_basis),
-                ("confirm_live_tea", confirm_live_tea),
             )
             if value is not None
         ]
@@ -6781,6 +6781,8 @@ def evaluate_process(
         }
         if process_config is not None:
             forwarded["scenario"] = process_config
+        if confirm_live_tea is not None:
+            forwarded["confirm_live_tea"] = confirm_live_tea
         return _evaluate_process_envelope(
             analyze_tea_sensitivity(**forwarded),
             screen_to_economics_order=order,
@@ -6810,6 +6812,8 @@ def evaluate_process(
         for name in _ROUTE_MODE_FORWARD
         if name in kwargs and name not in {"handle", "row_id"}
     }
+    if confirm_live_tea is not None:
+        forwarded["confirm_live_tea"] = confirm_live_tea
     try:
         route, exact = _load_stored_route_from_handle(
             kwargs.get("handle"), kwargs.get("row_id"),
@@ -11081,6 +11085,7 @@ def evaluate_stored_route_tea_lca(
     product_selection_basis: Optional[str] = None,
     feed_polymers: Optional[list[str]] = None,
     compare_route_variants: bool = False,
+    confirm_live_tea: Optional[bool] = None,
 ) -> str:
     """Evaluate every dissolution stage from the exact route in typed session state.
 
@@ -11094,6 +11099,9 @@ def evaluate_stored_route_tea_lca(
     becomes the durable basis for downstream optimization. A request to choose
     products by value returns a typed portfolio-basis gap until the product
     identities and value basis are supplied; the model never makes that choice.
+    confirm_live_tea applies here as on evaluate; omit is false.
+    engine_mode=live, or auto with a cache miss, refuses
+    live_tea_cost_confirmation_required until confirm_live_tea is true.
     """
     tool = "evaluate_stored_route_tea_lca"
     metrics = list(dict.fromkeys(
@@ -11181,6 +11189,7 @@ def evaluate_stored_route_tea_lca(
                     product_selection_basis=product_selection_basis,
                     feed_polymers=feed_polymers,
                     compare_route_variants=False,
+                    confirm_live_tea=confirm_live_tea,
                 ))["data"]
                 variant_results.append((label, variant_route, variant))
         finally:
@@ -11786,6 +11795,50 @@ def evaluate_stored_route_tea_lca(
             supplied_polymers=sorted(composition), consumed_route=route,
         )
     remaining = dict(composition)
+    stage_configs: list[dict[str, Any]] = []
+    preview = dict(composition)
+    for index, step in enumerate(route.get("steps") or [], 1):
+        if _tea_route_step_kind(step) == "wash":
+            return _refuse_wash_not_derived(
+                tool,
+                stage=index,
+                step=step,
+                route=route,
+                position_zero=(index == 1),
+            )
+        polymer = str(step["dissolved_polymer"])
+        entering_fraction = sum(preview.values())
+        target_fraction = preview[polymer]
+        stage_capacity = round(capacity * entering_fraction, 10)
+        scenario = {
+            "solvent": step["solvent"], "target_polymer": polymer,
+            "target_mass_percent": round(100.0 * target_fraction / entering_fraction, 10),
+            "processing_capacity_mt_per_yr": stage_capacity,
+            "energy_case": selected_energy_case,
+            "dissolution_temp_c": step["temperature_c"],
+            "precipitation_temp_c": precipitation,
+        }
+        try:
+            scenario.update(_stored_route_named_remainder(str(step["solvent"])))
+            stage_configs.append(_scenario_config(scenario))
+        except _MissingScenarioBasis:
+            break
+        except _ScenarioInputError as error:
+            return tool_error(
+                tool,
+                str(error),
+                error_code=error.error_code,
+                stage=index,
+                **error.details,
+            )
+        except ValueError as error:
+            return tool_error(tool, str(error), error_code="invalid_route_stage", stage=index)
+        preview.pop(polymer)
+    refusal = _unconfirmed_live_tea_error(
+        tool, stage_configs, engine_mode, confirm_live_tea,
+    )
+    if refusal is not None:
+        return refusal
     results, rows = [], []
     for index, step in enumerate(route.get("steps") or [], 1):
         if _tea_route_step_kind(step) == "wash":
@@ -12191,7 +12244,6 @@ def _metric(row: dict[str, Any], metric: str) -> Optional[float]:
 _INAPPLICABLE_ON_SENSITIVITY = {
     "screening_shortlist": "evaluate",
     "held_process_basis": "evaluate",
-    "confirm_live_tea": "evaluate",
 }
 
 
@@ -12205,6 +12257,7 @@ def analyze_tea_sensitivity(
     timeout_seconds: int = 180,
     handle: Optional[str] = None,
     row_id: Optional[str | int] = None,
+    confirm_live_tea: Optional[bool] = None,
     **kwargs: Any,
 ) -> str:
     """Run a deterministic parameter sweep/tornado slice or sampled uncertainty summary.
@@ -12218,7 +12271,10 @@ def analyze_tea_sensitivity(
     scenario sample; it is not a probabilistic Monte Carlo claim. This is
     not a cache-pair fill and not a screening payload. screening_shortlist
     and held_process_basis refuse not_applicable_in_mode; they expand only
-    on evaluate. Unknown leftover extras refuse unknown_process_field.
+    on evaluate. confirm_live_tea applies here as on evaluate; omit is
+    false. engine_mode=live, or auto with a cache miss, refuses
+    live_tea_cost_confirmation_required until confirm_live_tea is true.
+    Unknown leftover extras refuse unknown_process_field.
     """
     tool = "analyze_tea_sensitivity"
     inapplicable = [
@@ -12314,6 +12370,14 @@ def analyze_tea_sensitivity(
         return tool_error(tool, "At least two exact sensitivity values are required.", error_code="insufficient_sensitivity_values")
     if len(requested_values) > 20:
         return tool_error(tool, "At most 20 sensitivity values may run per call.", error_code="too_many_sensitivity_values")
+    sweep_configs = [
+        {**baseline, field: value} for value in requested_values
+    ]
+    refusal = _unconfirmed_live_tea_error(
+        tool, sweep_configs, engine_mode, confirm_live_tea,
+    )
+    if refusal is not None:
+        return refusal
     results = [
         _coerce_nonfinite_served_tea(
             _run(
