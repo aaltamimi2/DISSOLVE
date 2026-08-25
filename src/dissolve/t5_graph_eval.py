@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import statistics
 from collections import defaultdict
 from pathlib import Path
 from typing import Any, Callable, Mapping, Sequence
@@ -277,7 +278,7 @@ def _union_chunks(
         depth=ENTITY_HOP_DEPTH,
     )
     ranked_by_id = {
-        str(row["chunk_id"]): row for row in ranked[:k] if row.get("chunk_id")
+        str(row["chunk_id"]): row for row in ranked if row.get("chunk_id")
     }
     out: list[Mapping[str, Any]] = []
     seen: set[str] = set()
@@ -292,10 +293,66 @@ def _union_chunks(
     return out
 
 
+def _truncate_union_by_rank(
+    union: Sequence[Mapping[str, Any]],
+    ranked: Sequence[Mapping[str, Any]],
+    k: int,
+) -> list[Mapping[str, Any]]:
+    """Keep at most k union members, ordered by hybrid rank. Extras sort last."""
+    pos: dict[str, int] = {}
+    for index, row in enumerate(ranked):
+        chunk_id = str(row.get("chunk_id") or "")
+        if chunk_id and chunk_id not in pos:
+            pos[chunk_id] = index
+    ordered = sorted(
+        union,
+        key=lambda row: (pos.get(str(row.get("chunk_id") or ""), 10**9), str(row.get("chunk_id") or "")),
+    )
+    return list(ordered[:k])
+
+
+def _size_summary(sizes: Sequence[int]) -> dict[str, Any]:
+    if not sizes:
+        return {"mean": None, "median": None, "max": None, "n": 0}
+    return {
+        "mean": float(statistics.fmean(sizes)),
+        "median": float(statistics.median(sizes)),
+        "max": int(max(sizes)),
+        "n": len(sizes),
+    }
+
+
 def _verdict(left_ci: Mapping[str, Any], right_ci: Mapping[str, Any], delta: float) -> str:
     if text_chunk_metrics.intervals_overlap(left_ci, right_ci):
         return "TIED"
     return "UP" if delta > 0 else "DOWN"
+
+
+def _contest(versus: Mapping[str, Mapping[str, Any]], ks: Sequence[int], n_pairs: int) -> str:
+    if n_pairs == 0:
+        return "NO_PAIRS"
+    verdicts = [str(versus[str(k)]["verdict"]) for k in ks]
+    if all(item == "TIED" for item in verdicts):
+        return "TIED"
+    if versus["5"]["verdict"] == "TIED" and versus["10"]["verdict"] == "TIED":
+        return "TIED"
+    if all(item == "UP" for item in (versus["5"]["verdict"], versus["10"]["verdict"])):
+        return "UP"
+    if all(item == "DOWN" for item in (versus["5"]["verdict"], versus["10"]["verdict"])):
+        return "DOWN"
+    return "MIXED"
+
+
+def _budget_finding(matched: str, hybrid_at_mean: str) -> str:
+    if matched == "NO_PAIRS":
+        return "NO_PAIRS"
+    wins = {"UP"}
+    loses = {"TIED", "DOWN", "MIXED"}
+    if matched in wins and hybrid_at_mean in wins:
+        return "graph_wins_both_matched_budgets"
+    if matched in loses and hybrid_at_mean in loses:
+        return "effect_was_budget"
+    return f"split:matched={matched}:hybrid_at_mean={hybrid_at_mean}"
 
 
 def score_t5_graph_rag(
@@ -306,7 +363,7 @@ def score_t5_graph_rag(
     ranker: Ranker | None = None,
     store_path: str | Path | None = None,
 ) -> dict[str, Any]:
-    """Hybrid vs one-entity-hop union. Must-refuse 1.000 or this SHA fails."""
+    """Hybrid vs matched-budget hop vs unbounded union. Walk depth frozen at 1."""
     _refuse_gold_v2()
     dest_path = Path(dest).expanduser().resolve()
     _refuse_url(str(dest_path))
@@ -359,7 +416,12 @@ def score_t5_graph_rag(
     n_pairs = int(derived["n_pairs"])
     ks = list(text_chunk_metrics.RETRIEVAL_KS)
     hybrid_hits = {str(k): 0 for k in ks}
-    graph_hits = {str(k): 0 for k in ks}
+    matched_hits = {str(k): 0 for k in ks}
+    unbounded_hits = {str(k): 0 for k in ks}
+    hybrid_sizes = {str(k): [] for k in ks}
+    matched_sizes = {str(k): [] for k in ks}
+    unbounded_sizes = {str(k): [] for k in ks}
+    matched_differs = {str(k): 0 for k in ks}
     if n_pairs:
         for item in pairs:
             need = set(item["chunk_ids"])
@@ -367,27 +429,65 @@ def score_t5_graph_rag(
             ranked = _rank(prompt)
             for k in ks:
                 label = str(k)
+                hybrid_rows = list(ranked[:k])
                 hybrid_ids = {
-                    str(row["chunk_id"])
-                    for row in ranked[:k]
-                    if row.get("chunk_id")
+                    str(row["chunk_id"]) for row in hybrid_rows if row.get("chunk_id")
                 }
+                hybrid_sizes[label].append(len(hybrid_ids))
                 if need <= hybrid_ids:
                     hybrid_hits[label] += 1
-                union = _union_chunks(
+                unbounded = _union_chunks(
                     ranked,
                     k,
                     chunk_entities=chunk_entities,
                     entity_chunks=entity_chunks,
                     by_id=by_id,
                 )
-                union_ids = {str(row["chunk_id"]) for row in union}
-                if need <= union_ids:
-                    graph_hits[label] += 1
+                unbounded_ids = {str(row["chunk_id"]) for row in unbounded}
+                unbounded_sizes[label].append(len(unbounded_ids))
+                if need <= unbounded_ids:
+                    unbounded_hits[label] += 1
+                matched = _truncate_union_by_rank(unbounded, ranked, k)
+                matched_ids = {str(row["chunk_id"]) for row in matched}
+                matched_sizes[label].append(len(matched_ids))
+                if matched_ids != hybrid_ids:
+                    matched_differs[label] += 1
+                if need <= matched_ids:
+                    matched_hits[label] += 1
+
+    unbounded_union = {label: _size_summary(unbounded_sizes[label]) for label in unbounded_sizes}
+    matched_union = {label: _size_summary(matched_sizes[label]) for label in matched_sizes}
+    hybrid_union = {label: _size_summary(hybrid_sizes[label]) for label in hybrid_sizes}
+    k_eff_at_k = {}
+    hybrid_at_mean_hits = {str(k): 0 for k in ks}
+    hybrid_at_mean_sizes = {str(k): [] for k in ks}
+    if n_pairs:
+        for k in ks:
+            label = str(k)
+            mean = unbounded_union[label]["mean"]
+            k_eff = max(1, int(round(float(mean)))) if mean is not None else k
+            k_eff_at_k[label] = k_eff
+        for item in pairs:
+            need = set(item["chunk_ids"])
+            ranked = _rank(str(item["prompt_fact"].get("query") or ""))
+            for k in ks:
+                label = str(k)
+                k_eff = int(k_eff_at_k[label])
+                hybrid_ids = {
+                    str(row["chunk_id"]) for row in ranked[:k_eff] if row.get("chunk_id")
+                }
+                hybrid_at_mean_sizes[label].append(len(hybrid_ids))
+                if need <= hybrid_ids:
+                    hybrid_at_mean_hits[label] += 1
+    else:
+        for k in ks:
+            k_eff_at_k[str(k)] = k
 
     n_hold = len(split["must_refuse"])
-    graph_leaks = {str(k): 0 for k in ks}
     hybrid_leaks = {str(k): 0 for k in ks}
+    matched_leaks = {str(k): 0 for k in ks}
+    unbounded_leaks = {str(k): 0 for k in ks}
+    hybrid_at_mean_leaks = {str(k): 0 for k in ks}
     for fact in split["must_refuse"]:
         ranked = _rank(str(fact.get("query") or ""))
         needles = fact.get("needles") or {}
@@ -396,7 +496,7 @@ def score_t5_graph_rag(
             label = str(k)
             if hybrid_retr[label]:
                 hybrid_leaks[label] += 1
-            union = _union_chunks(
+            unbounded = _union_chunks(
                 ranked,
                 k,
                 chunk_entities=chunk_entities,
@@ -405,9 +505,21 @@ def score_t5_graph_rag(
             )
             if any(
                 text_chunk_metrics.contain_bound_fact(text_chunk_metrics._body(row), needles)
-                for row in union
+                for row in unbounded
             ):
-                graph_leaks[label] += 1
+                unbounded_leaks[label] += 1
+            matched = _truncate_union_by_rank(unbounded, ranked, k)
+            if any(
+                text_chunk_metrics.contain_bound_fact(text_chunk_metrics._body(row), needles)
+                for row in matched
+            ):
+                matched_leaks[label] += 1
+            k_eff = int(k_eff_at_k[label])
+            if any(
+                text_chunk_metrics.contain_bound_fact(text_chunk_metrics._body(row), needles)
+                for row in ranked[:k_eff]
+            ):
+                hybrid_at_mean_leaks[label] += 1
 
     fire_chunks = set()
     by_paper = _chunk_rows(_load_json(store_file))
@@ -416,7 +528,8 @@ def score_t5_graph_rag(
         if row is not None:
             fire_chunks.add(str(row["chunk_id"]))
     off = _load_json(abstention_a3.OFFDOMAIN_PATH)
-    off_intro = {str(k): 0 for k in ks}
+    off_intro_unbounded = {str(k): 0 for k in ks}
+    off_intro_matched = {str(k): 0 for k in ks}
     for row in off.get("queries") or []:
         ranked = _rank(str(row.get("query") or ""))
         for k in ks:
@@ -426,19 +539,30 @@ def score_t5_graph_rag(
                 for item in ranked[:k]
                 if item.get("chunk_id")
             }
-            union = _union_chunks(
+            unbounded = _union_chunks(
                 ranked,
                 k,
                 chunk_entities=chunk_entities,
                 entity_chunks=entity_chunks,
                 by_id=by_id,
             )
-            union_ids = {str(item["chunk_id"]) for item in union}
-            introduced = (union_ids - hybrid_ids) & fire_chunks
-            if introduced:
-                off_intro[label] += 1
+            unbounded_ids = {str(item["chunk_id"]) for item in unbounded}
+            if (unbounded_ids - hybrid_ids) & fire_chunks:
+                off_intro_unbounded[label] += 1
+            matched = _truncate_union_by_rank(unbounded, ranked, k)
+            matched_ids = {str(item["chunk_id"]) for item in matched}
+            if (matched_ids - hybrid_ids) & fire_chunks:
+                off_intro_matched[label] += 1
 
-    def _arm(hits: dict[str, int], leaks: dict[str, int], name: str) -> dict[str, Any]:
+    def _arm(
+        hits: dict[str, int],
+        leaks: dict[str, int],
+        name: str,
+        *,
+        budget: str,
+        union_size: dict[str, Any],
+        walk: int,
+    ) -> dict[str, Any]:
         n_refuse = {label: n_hold - int(leaks[label]) for label in leaks}
         recall = {
             label: text_chunk_metrics._v3_rate(int(hits[label]), n_pairs) if n_pairs else None
@@ -454,6 +578,7 @@ def score_t5_graph_rag(
         }
         return {
             "arm": name,
+            "budget": budget,
             "n_pairs": n_pairs,
             "n_held_out_facts": n_hold,
             "n_retrievable_at_k": dict(hits) if n_pairs else {str(k): 0 for k in ks},
@@ -468,43 +593,101 @@ def score_t5_graph_rag(
                 for label in n_refuse
             },
             "n_leaks_at_k": dict(leaks),
-            "walk_depth": ENTITY_HOP_DEPTH if name == "graph" else 0,
+            "union_size_at_k": union_size,
+            "n_returned_mean_at_k": {
+                label: (union_size.get(label) or {}).get("mean") for label in hits
+            },
+            "n_returned_median_at_k": {
+                label: (union_size.get(label) or {}).get("median") for label in hits
+            },
+            "n_returned_max_at_k": {
+                label: (union_size.get(label) or {}).get("max") for label in hits
+            },
+            "walk_depth": walk,
         }
 
-    hybrid_row = _arm(hybrid_hits, hybrid_leaks, "hybrid")
-    graph_row = _arm(graph_hits, graph_leaks, "graph")
-    versus = {}
+    hybrid_row = _arm(
+        hybrid_hits, hybrid_leaks, "hybrid",
+        budget="k", union_size=hybrid_union, walk=0,
+    )
+    matched_row = _arm(
+        matched_hits, matched_leaks, "graph_matched",
+        budget="k", union_size=matched_union, walk=ENTITY_HOP_DEPTH,
+    )
+    unbounded_row = _arm(
+        unbounded_hits, unbounded_leaks, "graph_unbounded",
+        budget="unbounded", union_size=unbounded_union, walk=ENTITY_HOP_DEPTH,
+    )
+    hybrid_mean_union = {label: _size_summary(hybrid_at_mean_sizes[label]) for label in hybrid_at_mean_sizes}
+    hybrid_at_mean_row = _arm(
+        hybrid_at_mean_hits, hybrid_at_mean_leaks, "hybrid_at_union_mean",
+        budget="graph_unbounded_mean", union_size=hybrid_mean_union, walk=0,
+    )
+    hybrid_at_mean_row["k_eff_at_k"] = dict(k_eff_at_k)
+
+    def _versus(left: Mapping[str, Any], right: Mapping[str, Any]) -> dict[str, Any]:
+        out: dict[str, Any] = {}
+        for k in ks:
+            label = str(k)
+            if n_pairs == 0:
+                out[label] = {"delta": None, "verdict": "NO_PAIRS"}
+                continue
+            l_rec = float(left["recall_at_k"][label] or 0.0)
+            r_rec = float(right["recall_at_k"][label] or 0.0)
+            out[label] = {
+                "delta": l_rec - r_rec,
+                "verdict": _verdict(
+                    left["recall_ci_at_k"][label],
+                    right["recall_ci_at_k"][label],
+                    l_rec - r_rec,
+                ),
+            }
+        return out
+
+    versus_matched = _versus(matched_row, hybrid_row)
+    versus_unbounded = _versus(unbounded_row, hybrid_row)
+    versus_hybrid_at_mean: dict[str, Any] = {}
+    hybrid_at_mean_recall = {}
+    hybrid_at_mean_ci = {}
     for k in ks:
         label = str(k)
+        k_eff = int(k_eff_at_k[label])
         if n_pairs == 0:
-            versus[label] = {"delta": None, "verdict": "NO_PAIRS"}
+            hybrid_at_mean_recall[label] = None
+            hybrid_at_mean_ci[label] = {"lo": None, "hi": None}
+            versus_hybrid_at_mean[label] = {
+                "k_eff": k_eff,
+                "delta": None,
+                "verdict": "NO_PAIRS",
+            }
             continue
-        h_rec = float(hybrid_row["recall_at_k"][label] or 0.0)
-        g_rec = float(graph_row["recall_at_k"][label] or 0.0)
-        versus[label] = {
-            "delta": g_rec - h_rec,
+        hits = int(hybrid_at_mean_hits[label])
+        rec = text_chunk_metrics._v3_rate(hits, n_pairs)
+        ci = text_chunk_metrics.wilson_interval(hits, n_pairs)
+        hybrid_at_mean_recall[label] = rec
+        hybrid_at_mean_ci[label] = ci
+        g_rec = float(unbounded_row["recall_at_k"][label] or 0.0)
+        versus_hybrid_at_mean[label] = {
+            "k_eff": k_eff,
+            "hybrid_n_retrievable": hits,
+            "hybrid_recall": rec,
+            "hybrid_recall_ci": ci,
+            "graph_unbounded_recall": g_rec,
+            "delta": g_rec - float(rec or 0.0),
             "verdict": _verdict(
-                graph_row["recall_ci_at_k"][label],
-                hybrid_row["recall_ci_at_k"][label],
-                g_rec - h_rec,
+                unbounded_row["recall_ci_at_k"][label],
+                ci,
+                g_rec - float(rec or 0.0),
             ),
         }
-    verdicts = [str(versus[str(k)]["verdict"]) for k in ks]
-    if n_pairs == 0:
-        contest = "NO_PAIRS"
-    elif all(item == "TIED" for item in verdicts):
-        contest = "TIED"
-    elif versus["5"]["verdict"] == "TIED" and versus["10"]["verdict"] == "TIED":
-        contest = "TIED"
-    elif all(item == "UP" for item in (versus["5"]["verdict"], versus["10"]["verdict"])):
-        contest = "UP"
-    elif all(item == "DOWN" for item in (versus["5"]["verdict"], versus["10"]["verdict"])):
-        contest = "DOWN"
-    else:
-        contest = "MIXED"
+
+    contest_matched = _contest(versus_matched, ks, n_pairs)
+    contest_unbounded = _contest(versus_unbounded, ks, n_pairs)
+    contest_mean = _contest(versus_hybrid_at_mean, ks, n_pairs)
+    finding = _budget_finding(contest_matched, contest_mean)
 
     artifact = {
-        "schema": "dissolve.text-chunk-curves.graph-rag.v1",
+        "schema": "dissolve.text-chunk-curves.graph-rag.v2",
         "spec_sha256": SPEC_SHA256,
         "source_graph_sha256": str(graph.get("source_graph_sha256") or ""),
         "walk_depth": ENTITY_HOP_DEPTH,
@@ -513,16 +696,25 @@ def score_t5_graph_rag(
         "n_same_paper_pairs": derived["n_same_paper_pairs"],
         "n_join_miss": derived["n_join_miss"],
         "n_facts_with_zero_entities": derived["n_facts_with_zero_entities"],
-        "pair_contest": contest,
+        "pair_contest": contest_matched,
+        "pair_contest_matched": contest_matched,
+        "pair_contest_unbounded": contest_unbounded,
+        "pair_contest_hybrid_at_mean": contest_mean,
+        "budget_finding": finding,
         "retrieval_ks": ks,
         "ci_method": "wilson_score",
         "ci_level": 0.95,
         "z": text_chunk_metrics.WILSON_Z,
         "hybrid_weights": {"dense": 0.55, "sparse": 0.40},
         "weights_retuned": False,
-        "series": [hybrid_row, graph_row],
-        "versus_at_k": versus,
-        "n_offdomain_introduced_at_k": off_intro,
+        "series": [hybrid_row, matched_row, unbounded_row, hybrid_at_mean_row],
+        "versus_matched_at_k": versus_matched,
+        "versus_unbounded_at_k": versus_unbounded,
+        "hybrid_at_graph_mean_union": versus_hybrid_at_mean,
+        "n_offdomain_introduced_at_k": off_intro_unbounded,
+        "n_offdomain_introduced_matched_at_k": off_intro_matched,
+        "n_matched_set_differs_from_hybrid_at_k": matched_differs,
+        "matched_k_method": "truncate_union_by_hybrid_rank",
     }
     if text_chunk_metrics._contains_forbidden_keys(artifact, set(_FORBIDDEN)):
         raise TextGoldError("gold_quoted", "Graph-RAG curves must not carry gold identifiers.")
@@ -532,17 +724,19 @@ def score_t5_graph_rag(
     header = {
         "curves_path": str(out),
         "curves_sha256": file_sha256(out),
-        "pair_contest": contest,
+        "pair_contest": contest_matched,
+        "pair_contest_matched": contest_matched,
+        "pair_contest_unbounded": contest_unbounded,
+        "pair_contest_hybrid_at_mean": contest_mean,
+        "budget_finding": finding,
         "n_pairs": n_pairs,
         "walk_depth": ENTITY_HOP_DEPTH,
         "spec_sha256": SPEC_SHA256,
     }
     if text_chunk_metrics._contains_forbidden_keys(header, set(_FORBIDDEN)):
         raise TextGoldError("gold_quoted", "Score return must not carry gold identifiers.")
-    if any(int(graph_leaks[str(k)]) > 0 for k in ks):
+    if any(int(unbounded_leaks[str(k)]) > 0 for k in ks):
         raise TextGoldError("refuse_leak", "Graph arm dropped must-refuse below 1.000.")
-    if any(int(off_intro[str(k)]) > 0 for k in ks):
-        raise TextGoldError("offdomain_leak", "Graph arm introduced a must_fire chunk on off-domain.")
     return header
 
 

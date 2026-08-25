@@ -170,8 +170,25 @@ def render_t5_graph_rag_figures(
     ks = list(text_chunk_metrics.RETRIEVAL_KS)
     labels_k = [str(k) for k in ks]
     series = {str(row.get("arm") or ""): row for row in (curves.get("series") or [])}
-    fig3, axes = plt.subplots(1, 2, figsize=(10.8, 4.6), sharex=True)
-    colors = {"hybrid": "#54A24B", "graph": "#E45756"}
+    fig3, axes = plt.subplots(1, 2, figsize=(11.4, 4.8), sharex=True)
+    colors = {
+        "hybrid": "#54A24B",
+        "graph_matched": "#E45756",
+        "hybrid_at_union_mean": "#F58518",
+        "graph_unbounded": "#E8C547",
+    }
+    styles = {
+        "hybrid": "solid",
+        "graph_matched": "solid",
+        "hybrid_at_union_mean": "solid",
+        "graph_unbounded": "dashed",
+    }
+    display = {
+        "hybrid": "hybrid (k)",
+        "graph_matched": "graph matched-k",
+        "hybrid_at_union_mean": "hybrid at union-mean",
+        "graph_unbounded": "graph unbounded-budget",
+    }
     contest = str(curves.get("pair_contest") or "")
     if contest == "NO_PAIRS" or not series:
         axes[0].text(
@@ -181,6 +198,8 @@ def render_t5_graph_rag_figures(
     else:
         for arm, color in colors.items():
             row = series.get(arm) or {}
+            if not row:
+                continue
             ys = []
             lo = []
             hi = []
@@ -190,17 +209,24 @@ def render_t5_graph_rag_figures(
                 ys.append(float(cell) if cell is not None else 0.0)
                 lo.append(float(band["lo"]) if band.get("lo") is not None else ys[-1])
                 hi.append(float(band["hi"]) if band.get("hi") is not None else ys[-1])
-            axes[0].plot(ks, ys, marker="o", color=color, label=arm)
-            axes[0].fill_between(ks, lo, hi, color=color, alpha=0.18)
+            axes[0].plot(
+                ks, ys, marker="o", color=color, linestyle=styles[arm],
+                label=display[arm],
+            )
+            axes[0].fill_between(ks, lo, hi, color=color, alpha=0.12)
         axes[0].legend(fontsize=10)
     axes[0].set_ylabel("pair recall@k")
-    axes[0].set_title("Head-to-head recall")
+    axes[0].set_title("Head-to-head recall (matched vs unbounded)")
     for arm, color in colors.items():
         row = series.get(arm) or {}
+        if not row:
+            continue
         refuse = [(row.get("must_refuse_at_k") or {}).get(label) for label in labels_k]
         ys = [float(item) if item is not None else 0.0 for item in refuse]
-        if series:
-            axes[1].plot(ks, ys, marker="o", color=color, label=arm)
+        axes[1].plot(
+            ks, ys, marker="o", color=color, linestyle=styles[arm],
+            label=display[arm],
+        )
     axes[1].set_ylabel("must-refuse@k")
     axes[1].set_title("Must-refuse")
     if series:

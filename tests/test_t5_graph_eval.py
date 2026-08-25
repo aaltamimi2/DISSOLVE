@@ -13,9 +13,11 @@ for _path in (str(_ROOT), str(_ROOT / "src")):
     if _path not in sys.path:
         sys.path.insert(0, _path)
 
-from dissolve import t5_corpus_graph, t5_graph_eval, t5_graph_extract
+from dissolve import research, t5_corpus_graph, t5_graph_eval, t5_graph_extract
 from dissolve.gold_ensemble import file_sha256
 from dissolve.text_gold import TextGoldError
+
+_ORIG_DENSE_VECTORS = research._dense_vectors
 
 GRAPH = t5_corpus_graph.GRAPH_PATH
 GOLD = t5_corpus_graph.GOLD_PATH
@@ -196,10 +198,20 @@ def test_score_stub_ranker_walk_and_refuse(tmp_path):
     curves = json.loads(Path(header["curves_path"]).read_text(encoding="utf-8"))
     assert curves["walk_depth"] == 1
     hybrid = next(row for row in curves["series"] if row["arm"] == "hybrid")
-    graph = next(row for row in curves["series"] if row["arm"] == "graph")
+    matched = next(row for row in curves["series"] if row["arm"] == "graph_matched")
+    unbounded = next(row for row in curves["series"] if row["arm"] == "graph_unbounded")
     assert hybrid["n_retrievable_at_k"]["1"] == 0
-    assert graph["n_retrievable_at_k"]["1"] == 1
-    assert graph["must_refuse_at_k"]["5"] == 1.0
+    assert matched["n_retrievable_at_k"]["1"] == 0
+    assert unbounded["n_retrievable_at_k"]["1"] == 1
+    assert unbounded["union_size_at_k"]["1"]["mean"] == 2.0
+    assert unbounded["union_size_at_k"]["1"]["max"] == 2
+    assert matched["union_size_at_k"]["1"]["max"] == 1
+    assert matched["budget"] == "k"
+    assert unbounded["budget"] == "unbounded"
+    assert unbounded["must_refuse_at_k"]["5"] == 1.0
+    assert "budget_finding" in curves
+    assert curves["matched_k_method"] == "truncate_union_by_hybrid_rank"
+    assert curves["n_matched_set_differs_from_hybrid_at_k"]["1"] == 0
     assert "fact_id" not in curves
     dumped = json.dumps(curves)
     assert "needles" not in dumped
@@ -248,21 +260,32 @@ def test_product_derive_is_deterministic_counts(tmp_path):
 
 
 def test_product_score_graph_must_refuse(tmp_path):
+    research._dense_vectors = _ORIG_DENSE_VECTORS
     dest = tmp_path / "product-overlay.json"
     t5_graph_extract.extract_t5_entity_graph(dest=dest)
-    with pytest.raises(TextGoldError) as caught:
-        t5_graph_eval.score_t5_graph_rag(dest=dest)
-    assert caught.value.code == "offdomain_leak"
-    curves = json.loads((tmp_path / "CURVES.graph-rag.v1.json").read_text(encoding="utf-8"))
-    graph = next(row for row in curves["series"] if row["arm"] == "graph")
+    header = t5_graph_eval.score_t5_graph_rag(dest=dest)
+    curves = json.loads(Path(header["curves_path"]).read_text(encoding="utf-8"))
+    names = {row["arm"] for row in curves["series"]}
+    assert names == {"hybrid", "graph_matched", "graph_unbounded", "hybrid_at_union_mean"}
+    unbounded = next(row for row in curves["series"] if row["arm"] == "graph_unbounded")
+    matched = next(row for row in curves["series"] if row["arm"] == "graph_matched")
     hybrid = next(row for row in curves["series"] if row["arm"] == "hybrid")
     for label in ("1", "3", "5", "10", "20"):
-        assert graph["must_refuse_at_k"][label] == 1.0
-        assert graph["n_leaks_at_k"][label] == 0
-        assert label in curves["n_offdomain_introduced_at_k"]
-    assert any(int(curves["n_offdomain_introduced_at_k"][label]) > 0 for label in ("1", "3", "5", "10", "20"))
-    assert curves["n_pairs"] > 0
-    assert curves["walk_depth"] == 1
-    assert hybrid["n_pairs"] == graph["n_pairs"]
+        assert unbounded["must_refuse_at_k"][label] == 1.0
+        assert matched["must_refuse_at_k"][label] == 1.0
+        assert hybrid["must_refuse_at_k"][label] == 1.0
+        assert unbounded["n_leaks_at_k"][label] == 0
+        cell = unbounded["union_size_at_k"][label]
+        assert cell["n"] == curves["n_pairs"]
+        assert cell["mean"] is not None
+        assert cell["max"] >= cell["median"] >= 0
+        assert unbounded["n_returned_mean_at_k"][label] == cell["mean"]
+        assert unbounded["n_returned_max_at_k"][label] == cell["max"]
+        assert "k_eff" in curves["hybrid_at_graph_mean_union"][label]
+        assert "n_matched_set_differs_from_hybrid_at_k" in curves
+    assert curves["matched_k_method"] == "truncate_union_by_hybrid_rank"
+    assert header["walk_depth"] == 1
+    assert curves["weights_retuned"] is False
+    assert header["budget_finding"]
     assert file_sha256(GRAPH) == t5_graph_extract.GRAPH_SHA256
     _assert_pins_unmoved()
