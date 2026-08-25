@@ -18,8 +18,11 @@ from agent_tools import (
     LITERATURE_AGENT_TOOLS,
     LITERATURE_CORPUS_TOOLS,
     LITERATURE_INGEST_TOOLS,
+    LITERATURE_MODE_SURFACE,
     LITERATURE_NETWORK_TOOLS,
+    LITERATURE_SCHOLARLY_TOOLS,
     dispatch,
+    literature_agent_mode,
     offered_tool_names,
     tool_schemas,
 )
@@ -58,6 +61,8 @@ def test_parse_rejects_on_and_unknown():
         _parse_literature_slash(["on"])
     with pytest.raises(ValueError, match="usage: /literature"):
         _parse_literature_slash(["network"])
+    with pytest.raises(ValueError, match="usage: /literature"):
+        _parse_literature_slash(["ingest"])
     assert _format_literature_default(None, origin="built-in") == (
         "literature_mode=off  (built-in)"
     )
@@ -95,10 +100,22 @@ def test_corpus_offers_exactly_two_local_tools_and_network_does_not_fire(monkeyp
     assert payload["data"]["success"] is True
 
 
+def test_scholarly_is_named_surface_not_registry_minus_ingest():
+    assert set(LITERATURE_MODE_SURFACE) == {"off", "corpus", "scholarly"}
+    assert "ingest" not in LITERATURE_MODE_SURFACE
+    assert LITERATURE_MODE_SURFACE["off"] == frozenset()
+    assert LITERATURE_MODE_SURFACE["corpus"] == LITERATURE_CORPUS_TOOLS
+    assert LITERATURE_MODE_SURFACE["scholarly"] == LITERATURE_SCHOLARLY_TOOLS
+    assert LITERATURE_SCHOLARLY_TOOLS == LITERATURE_CORPUS_TOOLS | LITERATURE_NETWORK_TOOLS
+    offered_across_modes = frozenset().union(*LITERATURE_MODE_SURFACE.values())
+    assert LITERATURE_INGEST_TOOLS.isdisjoint(offered_across_modes)
+    assert literature_agent_mode({"literature_mode": {"mode": "ingest"}}) == "off"
+
+
 def test_scholarly_offers_four_and_ingest_never():
     session = {"literature_mode": {"mode": "scholarly"}}
     names = _literature_names(session)
-    assert names == set(LITERATURE_CORPUS_TOOLS | LITERATURE_NETWORK_TOOLS)
+    assert names == set(LITERATURE_SCHOLARLY_TOOLS)
     assert len(names) == 4
     for mode in (None, {"literature_mode": {"mode": "off"}}, session, {"literature_mode": {"mode": "corpus"}}):
         assert LITERATURE_INGEST_TOOLS.isdisjoint(_literature_names(mode))

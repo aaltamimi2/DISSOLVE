@@ -30,6 +30,8 @@ _ALWAYS_HANDLE_TOOLS = _PROCESS_ECONOMICS_HANDLE_TOOLS | frozenset({
 })
 _COMPACT_KEEP_LISTS = frozenset({"ranked_path_index", "stage1_shortlists"})
 _OMIT = frozenset({"temperature_step_c", "save_to_corpus"})
+# Closed keep-out. Not a /literature mode. Retrieval-then-ingest is a later
+# spec with an owner decision and a floor re-derive; it does not widen scholarly.
 LITERATURE_INGEST_TOOLS = frozenset({
     "ingest_literature_documents",
     "ingest_literature_graph",
@@ -42,6 +44,13 @@ LITERATURE_NETWORK_TOOLS = frozenset({
     "search_scholarly_literature",
     "search_patent_literature",
 })
+# Named scholarly surface: corpus plus network. Ingest is not a member.
+LITERATURE_SCHOLARLY_TOOLS = LITERATURE_CORPUS_TOOLS | LITERATURE_NETWORK_TOOLS
+LITERATURE_MODE_SURFACE = {
+    "off": frozenset(),
+    "corpus": LITERATURE_CORPUS_TOOLS,
+    "scholarly": LITERATURE_SCHOLARLY_TOOLS,
+}
 LITERATURE_AGENT_TOOLS = (
     LITERATURE_INGEST_TOOLS | LITERATURE_CORPUS_TOOLS | LITERATURE_NETWORK_TOOLS
 )
@@ -210,15 +219,20 @@ def literature_agent_mode(session: Any = None) -> str:
     return "off"
 
 
+def offered_literature_names(session: Any = None) -> frozenset[str]:
+    """Literature names offered for this session. Never ingest."""
+    return LITERATURE_MODE_SURFACE[literature_agent_mode(session)]
+
+
 def offered_tool_names(session: Any = None) -> frozenset[str]:
-    """Agent surface. Ingest is never offered. Network only in scholarly."""
-    mode = literature_agent_mode(session)
+    """Agent surface. Strip all six literature names, then add the mode map.
+
+    Scholarly is LITERATURE_SCHOLARLY_TOOLS, not "registry minus ingest".
+    Ingest is not a map key and is not in any map value.
+    """
     names = {spec.name for spec in registry.REGISTRY}
-    names -= LITERATURE_INGEST_TOOLS
-    if mode == "off":
-        names -= LITERATURE_CORPUS_TOOLS | LITERATURE_NETWORK_TOOLS
-    elif mode == "corpus":
-        names -= LITERATURE_NETWORK_TOOLS
+    names -= LITERATURE_AGENT_TOOLS
+    names |= offered_literature_names(session)
     return frozenset(names)
 
 
@@ -435,9 +449,6 @@ def dispatch(name: str, **kwargs: Any) -> dict[str, Any]:
         )
         return _emit(name, kwargs, out, out)
     record, call_kwargs, bind = current_tool_session(), dict(kwargs), None
-    if name in LITERATURE_AGENT_TOOLS and name not in offered_tool_names(record):
-        out = _refuse("unknown_tool", name=name)
-        return _emit(name, kwargs, out, out)
     if name in CONSUMERS:
         if "handle" in kwargs:
             token = kwargs.get("handle")
