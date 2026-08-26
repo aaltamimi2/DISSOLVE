@@ -11,7 +11,9 @@ that unreviewed labels cannot bypass the collision checks.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+import hashlib
 from itertools import combinations
+from pathlib import Path
 from typing import Iterable
 
 from matplotlib.artist import Artist
@@ -37,6 +39,91 @@ class StandardsViolation(AssertionError):
     def __init__(self, violations: Iterable[str]):
         self.violations = tuple(violations)
         super().__init__("\n".join(self.violations))
+
+
+def _sha256(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as stream:
+        for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def check_output_pair(
+    png_path: str | Path,
+    svg_path: str | Path,
+) -> dict[str, int | str]:
+    """Assert one nonempty same-basename PNG/SVG output pair.
+
+    This check is deliberately separate from artist geometry because it runs
+    only after export.  It raises :class:`StandardsViolation`, allowing the
+    same must-fire harness to reject a missing or misnamed output.
+    """
+
+    png = Path(png_path)
+    svg = Path(svg_path)
+    violations: list[str] = []
+    if png.suffix.lower() != ".png":
+        violations.append(f"PNG output has the wrong suffix: {png}")
+    if svg.suffix.lower() != ".svg":
+        violations.append(f"SVG output has the wrong suffix: {svg}")
+    if png.parent != svg.parent or png.stem != svg.stem:
+        violations.append("PNG and SVG outputs do not share one basename")
+
+    sizes: dict[Path, int] = {}
+    for kind, path in (("PNG", png), ("SVG", svg)):
+        if not path.is_file():
+            violations.append(f"missing {kind} output: {path}")
+            continue
+        size = path.stat().st_size
+        sizes[path] = size
+        if size <= 0:
+            violations.append(f"empty {kind} output: {path}")
+
+    if violations:
+        raise StandardsViolation(violations)
+    return {
+        "basename": png.stem,
+        "png_bytes": sizes[png],
+        "png_sha256": _sha256(png),
+        "svg_bytes": sizes[svg],
+        "svg_sha256": _sha256(svg),
+    }
+
+
+def check_byte_identical(
+    first_paths: Iterable[str | Path],
+    second_paths: Iterable[str | Path],
+) -> dict[str, int]:
+    """Assert two ordered output sets have identical names and bytes."""
+
+    first = tuple(Path(path) for path in first_paths)
+    second = tuple(Path(path) for path in second_paths)
+    violations: list[str] = []
+    if len(first) != len(second):
+        violations.append(
+            f"determinism comparison has different file counts: "
+            f"{len(first)} != {len(second)}"
+        )
+    for left, right in zip(first, second):
+        if left.name != right.name:
+            violations.append(
+                f"determinism comparison has different names: "
+                f"{left.name!r} != {right.name!r}"
+            )
+            continue
+        if not left.is_file() or not right.is_file():
+            violations.append(
+                f"determinism comparison is missing {left.name!r}"
+            )
+            continue
+        if _sha256(left) != _sha256(right):
+            violations.append(
+                f"determinism mismatch for {left.name!r}"
+            )
+    if violations:
+        raise StandardsViolation(violations)
+    return {"file_count": len(first)}
 
 
 @dataclass(frozen=True)
@@ -177,6 +264,12 @@ def check_figure(
     tolerance = standards.numeric_tolerance
     figure_box = fig.bbox
     violations: list[str] = []
+
+    axes_count = len(getattr(fig, "axes", ()))
+    if axes_count != 1:
+        violations.append(
+            f"figure must contain exactly one axes; found {axes_count}"
+        )
 
     registered_ids = [id(record.artist) for record in registry.texts]
     duplicate_text_ids = {
@@ -415,6 +508,7 @@ def check_figure(
 
     text_heights_pt = [box.height / pixels_per_point for box in text_boxes]
     return {
+        "axes_count": axes_count,
         "text_count": len(registry.texts),
         "shape_count": len(registry.collision_patches),
         "connector_count": len(registry.connectors),

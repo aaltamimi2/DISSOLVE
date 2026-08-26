@@ -17,7 +17,9 @@ from figures.standards_checker import (
     FigureStandards,
     StandardsViolation,
     TextRecord,
+    check_byte_identical,
     check_figure,
+    check_output_pair,
 )
 from figures import unified_solubility_query
 from figures import check_existing_figures
@@ -102,6 +104,7 @@ def test_current_figure_passes_shared_checker() -> None:
     assert result["minimum_text_height_pt"] >= 7.0
     assert result["minimum_data_mark_extent_pt"] >= 7.0
     assert result["title_width_pt"] <= result["content_width_pt"]
+    assert result["axes_count"] == 1
 
 
 def test_rejects_nonuniform_text_size() -> None:
@@ -279,5 +282,71 @@ def test_rejects_unregistered_visible_text() -> None:
     assert any("visible text is not registered" in item for item in caught.value.violations)
 
 
+def test_rejects_multiple_axes() -> None:
+    fig, registry, title = _fixture()
+    fig.add_axes((0.82, 0.82, 0.10, 0.10)).axis("off")
+    try:
+        with pytest.raises(StandardsViolation) as caught:
+            check_figure(
+                fig,
+                registry,
+                title,
+                standards=FigureStandards(font_size_pt=10.0),
+            )
+    finally:
+        plt.close(fig)
+    assert any("exactly one axes" in item for item in caught.value.violations)
+
+
+def test_output_pair_requires_png_and_svg(tmp_path) -> None:
+    png = tmp_path / "figure.png"
+    svg = tmp_path / "figure.svg"
+    png.write_bytes(b"png")
+    with pytest.raises(StandardsViolation, match="missing SVG output"):
+        check_output_pair(png, svg)
+    png.unlink()
+    svg.write_bytes(b"svg")
+    with pytest.raises(StandardsViolation, match="missing PNG output"):
+        check_output_pair(png, svg)
+
+
+def test_output_pair_requires_same_basename(tmp_path) -> None:
+    png = tmp_path / "first.png"
+    svg = tmp_path / "second.svg"
+    png.write_bytes(b"png")
+    svg.write_bytes(b"svg")
+    with pytest.raises(StandardsViolation, match="do not share one basename"):
+        check_output_pair(png, svg)
+
+
+def test_byte_comparator_rejects_altered_output(tmp_path) -> None:
+    first = tmp_path / "first"
+    second = tmp_path / "second"
+    first.mkdir()
+    second.mkdir()
+    left = first / "figure.svg"
+    right = second / "figure.svg"
+    left.write_bytes(b"same")
+    right.write_bytes(b"same")
+    assert check_byte_identical((left,), (right,)) == {"file_count": 1}
+    right.write_bytes(b"different")
+    with pytest.raises(StandardsViolation, match="determinism mismatch"):
+        check_byte_identical((left,), (right,))
+
+
 def test_must_fire_harness() -> None:
     assert check_existing_figures.main() == 0
+
+
+def test_must_fire_harness_rejects_accept_all_figure_checker() -> None:
+    def accept_all(*args, **kwargs):
+        return {}
+
+    assert check_existing_figures.main(figure_checker=accept_all) == 1
+
+
+def test_must_fire_harness_rejects_accept_all_output_checker() -> None:
+    def accept_all(*args, **kwargs):
+        return {}
+
+    assert check_existing_figures.main(output_checker=accept_all) == 1

@@ -12,7 +12,10 @@ is a checker failure and returns exit 1.
 
 from __future__ import annotations
 
+from dataclasses import replace
 import json
+from pathlib import Path
+from tempfile import TemporaryDirectory
 from typing import Callable
 
 import matplotlib
@@ -25,22 +28,27 @@ from matplotlib.patches import FancyArrowPatch, Rectangle
 import numpy as np
 
 try:  # Package import in tests; direct import for the documented CLI.
-    from . import unified_solubility_query
+    from . import results_s1_screening_coverage, unified_solubility_query
     from .standards_checker import (
         DrawingRegistry,
         FigureStandards,
         StandardsViolation,
         TextRecord,
+        check_byte_identical,
         check_figure,
+        check_output_pair,
     )
 except ImportError:  # pragma: no cover - exercised by the documented CLI
+    import results_s1_screening_coverage
     import unified_solubility_query
     from standards_checker import (
         DrawingRegistry,
         FigureStandards,
         StandardsViolation,
         TextRecord,
+        check_byte_identical,
         check_figure,
+        check_output_pair,
     )
 
 
@@ -204,6 +212,14 @@ def _unregistered(
     return FigureStandards(font_size_pt=10)
 
 
+def _second_axes(
+    fig: plt.Figure, registry: DrawingRegistry, title: object,
+) -> FigureStandards:
+    extra = fig.add_axes((0.82, 0.82, 0.10, 0.10))
+    extra.axis("off")
+    return FigureStandards(font_size_pt=10)
+
+
 MUST_FIRE: tuple[tuple[str, str, Mutation], ...] = (
     ("uniform text", "nonuniform text size", _nonuniform),
     ("black text", "non-black text", _colored_text),
@@ -231,10 +247,175 @@ MUST_FIRE: tuple[tuple[str, str, Mutation], ...] = (
     ),
     ("title width", "title is wider", _wide_title),
     ("registration coverage", "visible text is not registered", _unregistered),
+    ("single axes", "exactly one axes", _second_axes),
 )
 
 
-def main() -> int:
+def _expect_output_failure(
+    *,
+    name: str,
+    expected: str,
+    output_checker: Callable[..., dict[str, object]],
+    png_path: Path,
+    svg_path: Path,
+    failures: list[str],
+) -> None:
+    try:
+        output_checker(png_path, svg_path)
+    except StandardsViolation as error:
+        matching = [item for item in error.violations if expected in item]
+        if matching:
+            print(f"MUST-FIRE {name}: FAIL (expected) — {matching[0]}")
+        else:
+            failures.append(
+                f"{name}: rejected, but not for expected token {expected!r}"
+            )
+            print(f"MUST-FIRE {name}: WRONG FAILURE")
+    else:
+        failures.append(f"{name}: defective output pair was accepted")
+        print(f"MUST-FIRE {name}: UNEXPECTED PASS")
+
+
+def _coverage_controls(
+    *,
+    figure_checker: Callable[..., dict[str, object]],
+    failures: list[str],
+) -> None:
+    coverage = results_s1_screening_coverage
+    data = coverage.measure()
+
+    wrong_digests = dict(coverage.EXPECTED_SOURCE_DIGESTS)
+    wrong_digests[coverage.DB_PATH] = "0" * 64
+    try:
+        coverage.measure(expected_digests=wrong_digests)
+    except coverage.SourceDigestError as error:
+        print(f"MUST-FIRE coverage source digest: FAIL (expected) — {str(error).splitlines()[0]}")
+    else:
+        failures.append("coverage source digest: wrong DuckDB digest was accepted")
+        print("MUST-FIRE coverage source digest: UNEXPECTED PASS")
+
+    changed_pairs = tuple(
+        (polymer, value + 1 if polymer == "PU" else value)
+        for polymer, value in data.pair_counts
+    )
+    try:
+        coverage.validate(replace(data, pair_counts=changed_pairs))
+    except coverage.CoverageValidationError as error:
+        print(f"MUST-FIRE sparse-pair arithmetic: FAIL (expected) — {str(error).splitlines()[0]}")
+    else:
+        failures.append("sparse-pair arithmetic: changed PU count was accepted")
+        print("MUST-FIRE sparse-pair arithmetic: UNEXPECTED PASS")
+
+    wrong_disposition = replace(
+        data,
+        evaluable_cells=data.raw_valid_cells,
+        refused_cells=data.nonpositive_cells + data.exact_100_artifact_cells,
+    )
+    try:
+        coverage.validate(wrong_disposition)
+    except coverage.CoverageValidationError as error:
+        print(f"MUST-FIRE runtime disposition: FAIL (expected) — {str(error).splitlines()[0]}")
+    else:
+        failures.append("runtime disposition: exact-100 cells were accepted as refused")
+        print("MUST-FIRE runtime disposition: UNEXPECTED PASS")
+
+    fig, registry, title = coverage.draw_cell_fates(data)
+    try:
+        first, second = registry.data_marks[:2]
+        second.center = first.center
+        try:
+            figure_checker(
+                fig,
+                registry,
+                title,
+                standards=FigureStandards(font_size_pt=coverage.FONT_SIZE_PT),
+            )
+        except StandardsViolation as error:
+            matching = [item for item in error.violations if "shape collision" in item]
+            if matching:
+                print(f"MUST-FIRE fate-circle overlap: FAIL (expected) — {matching[0]}")
+            else:
+                failures.append("fate-circle overlap: wrong rejection reason")
+                print("MUST-FIRE fate-circle overlap: WRONG FAILURE")
+        else:
+            failures.append("fate-circle overlap: overlapping circles were accepted")
+            print("MUST-FIRE fate-circle overlap: UNEXPECTED PASS")
+    finally:
+        plt.close(fig)
+
+    fig, registry, title = coverage.draw_pair_catalog(data)
+    try:
+        number = next(
+            record.artist
+            for record in registry.texts
+            if record.artist.get_text() == "990"
+        )
+        bar = registry.data_marks[0]
+        number.set_position((bar.get_x() + bar.get_width() / 2, bar.get_y() + bar.get_height() / 2))
+        number.set_ha("center")
+        try:
+            figure_checker(
+                fig,
+                registry,
+                title,
+                standards=FigureStandards(font_size_pt=coverage.FONT_SIZE_PT),
+            )
+        except StandardsViolation as error:
+            matching = [item for item in error.violations if "text/shape collision" in item]
+            if matching:
+                print(f"MUST-FIRE pair-label overlap: FAIL (expected) — {matching[0]}")
+            else:
+                failures.append("pair-label overlap: wrong rejection reason")
+                print("MUST-FIRE pair-label overlap: WRONG FAILURE")
+        else:
+            failures.append("pair-label overlap: label on bar was accepted")
+            print("MUST-FIRE pair-label overlap: UNEXPECTED PASS")
+    finally:
+        plt.close(fig)
+
+    with TemporaryDirectory() as first_dir, TemporaryDirectory() as second_dir:
+        first_root = Path(first_dir)
+        second_root = Path(second_dir)
+        coverage.generate(first_root)
+        coverage.generate(second_root)
+        names = tuple(
+            f"{stem}.{suffix}"
+            for stem in (coverage.PAIR_STEM, coverage.FATE_STEM)
+            for suffix in ("png", "svg", "provenance.json")
+        )
+        first_paths = tuple(first_root / name for name in names)
+        second_paths = tuple(second_root / name for name in names)
+        try:
+            check_byte_identical(first_paths, second_paths)
+        except StandardsViolation as error:
+            failures.append(f"deterministic clean generation failed: {error}")
+            print("CURRENT coverage byte determinism: FAIL")
+        else:
+            print("CURRENT coverage byte determinism: PASS")
+
+        altered = second_root / f"{coverage.FATE_STEM}.svg"
+        altered.write_bytes(altered.read_bytes() + b"\n<!-- must-fire mutation -->\n")
+        try:
+            check_byte_identical(first_paths, second_paths)
+        except StandardsViolation as error:
+            matching = [item for item in error.violations if "determinism mismatch" in item]
+            if matching:
+                print(f"MUST-FIRE byte determinism: FAIL (expected) — {matching[0]}")
+            else:
+                failures.append("byte determinism: wrong rejection reason")
+                print("MUST-FIRE byte determinism: WRONG FAILURE")
+        else:
+            failures.append("byte determinism: altered SVG was accepted")
+            print("MUST-FIRE byte determinism: UNEXPECTED PASS")
+
+
+def main(
+    *,
+    figure_checker: Callable[..., dict[str, object]] | None = None,
+    output_checker: Callable[..., dict[str, object]] | None = None,
+) -> int:
+    figure_checker = figure_checker or check_figure
+    output_checker = output_checker or check_output_pair
     failures: list[str] = []
 
     data = unified_solubility_query.measure()
@@ -255,12 +436,48 @@ def main() -> int:
     finally:
         plt.close(fig)
 
+    coverage_data = results_s1_screening_coverage.measure()
+    for stem, (fig, registry, title) in results_s1_screening_coverage.draw(
+        coverage_data
+    ).items():
+        try:
+            result = figure_checker(
+                fig,
+                registry,
+                title,
+                standards=FigureStandards(
+                    font_size_pt=results_s1_screening_coverage.FONT_SIZE_PT
+                ),
+            )
+        except StandardsViolation as error:
+            failures.append(f"{stem}: {error}")
+            print(f"CURRENT {stem}: FAIL")
+            for item in error.violations:
+                print(f"  {item}")
+        else:
+            print(f"CURRENT {stem}: PASS {json.dumps(result, sort_keys=True)}")
+        finally:
+            plt.close(fig)
+
+        png_path = Path(results_s1_screening_coverage.HERE) / f"{stem}.png"
+        svg_path = Path(results_s1_screening_coverage.HERE) / f"{stem}.svg"
+        try:
+            output_result = output_checker(png_path, svg_path)
+        except StandardsViolation as error:
+            failures.append(f"{stem} output pair: {error}")
+            print(f"CURRENT {stem} output pair: FAIL")
+        else:
+            print(
+                f"CURRENT {stem} output pair: PASS "
+                f"{json.dumps(output_result, sort_keys=True)}"
+            )
+
     for name, expected, mutate in MUST_FIRE:
         control_fig, control_registry, control_title = _control_figure()
         try:
             standards = mutate(control_fig, control_registry, control_title)
             try:
-                check_figure(
+                figure_checker(
                     control_fig,
                     control_registry,
                     control_title,
@@ -280,6 +497,52 @@ def main() -> int:
                 print(f"MUST-FIRE {name}: UNEXPECTED PASS")
         finally:
             plt.close(control_fig)
+
+    with TemporaryDirectory() as temp_dir:
+        root = Path(temp_dir)
+        png = root / "control.png"
+        svg = root / "control.svg"
+        png.write_bytes(b"png")
+        svg.write_bytes(b"svg")
+        try:
+            output_checker(png, svg)
+        except StandardsViolation as error:
+            failures.append(f"valid output pair failed: {error}")
+            print("CURRENT output pair: FAIL")
+        else:
+            print("CURRENT output pair: PASS")
+
+        png.unlink()
+        _expect_output_failure(
+            name="required PNG",
+            expected="missing PNG output",
+            output_checker=output_checker,
+            png_path=png,
+            svg_path=svg,
+            failures=failures,
+        )
+        png.write_bytes(b"png")
+        svg.unlink()
+        _expect_output_failure(
+            name="required SVG",
+            expected="missing SVG output",
+            output_checker=output_checker,
+            png_path=png,
+            svg_path=svg,
+            failures=failures,
+        )
+        svg = root / "different.svg"
+        svg.write_bytes(b"svg")
+        _expect_output_failure(
+            name="same output basename",
+            expected="do not share one basename",
+            output_checker=output_checker,
+            png_path=png,
+            svg_path=svg,
+            failures=failures,
+        )
+
+    _coverage_controls(figure_checker=figure_checker, failures=failures)
 
     if failures:
         print("CHECKER CONTROL FAILURE:")
