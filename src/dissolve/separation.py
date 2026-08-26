@@ -4,10 +4,11 @@ from __future__ import annotations
 
 import math
 import re
-from typing import Annotated, Any, Optional
+from typing import Annotated, Any, Literal, Optional, Sequence
 
 from langchain_core.tools import InjectedToolArg
 
+from . import contaminants as contaminant_screens
 from . import thermodynamics as thermo
 from .contracts import parse_tool_result, tool_error, tool_success
 from .session import (
@@ -19,7 +20,9 @@ from .tools import (
     _atmospheric_exclusion_applies, _atmospheric_exclusion_counts,
     _atmospheric_exclusion_reason,
     _polymer_ambiguity_error,
+    _refuse_solvents_out_of_scope,
     _screen_catalog_provenance, _solvent_resolution_error, _temperature_grid,
+    _with_solvent_scope,
     normalize_feed_composition, screen_polymer_separation,
 )
 
@@ -154,6 +157,7 @@ def resolve_polymer_data_scope(
         polymers=modeled, modeled_polymer_count=len(modeled), results=rows,
         operating_condition=operating_condition,
         **capability_inventory,
+        **thermo.solvent_scope_stamp(),
         warnings=[
             "The HSP Random Forest is temperature-independent binary screening trained on RED < 1 labels; it is not wt% solubility.",
             "Coverage does not establish a feasible route or experimental validation.",
@@ -1187,6 +1191,7 @@ def screen_cool_then_reheat_getter(
     )
 
 
+@_with_solvent_scope
 def screen_precipitation_order(
     feed_polymers: list[str],
     first_polymer: str,
@@ -1298,6 +1303,9 @@ def screen_precipitation_order(
             return _solvent_resolution_error(tool, str(supplied))
         if resolved not in requested_solvents:
             requested_solvents.append(resolved)
+    scoped = _refuse_solvents_out_of_scope(tool, requested_solvents)
+    if scoped is not None:
+        return scoped
     solvent_universe = {
         "kind": "stored_grid_thermodynamic_catalog",
         "modelable_solvent_count": len(available_solvents),
@@ -1697,9 +1705,744 @@ def screen_precipitation_order(
             "pair-specific stored-grid values plus between-node threshold "
             "crossing interpolation; shared wt% precipitation proxy"
         ),
+        **thermo.solvent_scope_stamp(),
     )
 
 
+_PLANNER_STAGE_CAP = 50
+_PLANNER_BEAM_CAP = 50
+_PLANNER_BUILT_IN_BREADTH = 1
+_PLANNER_BUILT_IN_BEAM = 5
+_PLANNER_SESSION_KEY = "planner_breadth"
+_STAGE_COPY_KEYS = (
+    "solvent", "temperature_c", "target_solubility_pct",
+    "max_off_target_solubility_pct", "off_target_solubilities_pct",
+    "limiting_off_target_polymer", "selectivity_pct", "boiling_point_c",
+    "boiling_point_margin_c", "atmospheric_feasible",
+    "is_clipped", "clip_limit_wt_percent",
+    "heating_risk_level", "heating_flags", "catalog_hazard_reference_c",
+    "ghs_signal_word", "g_score", "peroxide_former_class", "flash_point_c",
+    "flash_point_available", "operating_at_or_above_flash_point",
+    "safety_source", "typed_safety_evidence",
+    "lower_hazard_search_scope", "lower_hazard_alternative_count",
+    "lower_hazard_alternatives",
+    "lower_hazard_alternatives_truncated", "ghs_danger_unavoidable",
+)
+
+
+class _PlannerKnobError(Exception):
+    def __init__(self, message: str, error_code: str, **detail: Any) -> None:
+        super().__init__(message)
+        self.error_code = error_code
+        self.detail = detail
+
+
+def _planner_int(value: Any, *, code: str, field: str) -> int:
+    if isinstance(value, bool) or isinstance(value, float) and not value.is_integer():
+        raise _PlannerKnobError(
+            f"{field} must be an integer.", error_code=code, field=field, requested=value,
+        )
+    try:
+        if isinstance(value, str) and value.strip().lstrip("-").isdigit():
+            number = int(value.strip())
+        else:
+            number = int(value)
+    except (TypeError, ValueError):
+        raise _PlannerKnobError(
+            f"{field} must be an integer.", error_code=code, field=field, requested=value,
+        ) from None
+    return number
+
+
+def _session_planner_default() -> dict[str, Any] | None:
+    record = current_tool_session()
+    if not isinstance(record, dict):
+        return None
+    stored = record.get(_PLANNER_SESSION_KEY)
+    return stored if isinstance(stored, dict) and stored else None
+
+
+def _all_token(value: Any) -> bool:
+    return isinstance(value, str) and value.strip().casefold() == "all"
+
+
+def _resolve_branch_selector(
+    *,
+    breadth: Any,
+    branch_rule: Any,
+    selectivity_window_pct: Any,
+    origin: str,
+) -> dict[str, Any]:
+    rule_raw = None if branch_rule is None else str(branch_rule).strip().casefold()
+    if rule_raw is None or rule_raw == "":
+        rule = "count"
+    elif rule_raw in {"count", "window"}:
+        rule = rule_raw
+    else:
+        raise _PlannerKnobError(
+            "branch_rule must be count or window.",
+            error_code="invalid_branch_rule",
+            requested=branch_rule,
+        )
+    window_present = selectivity_window_pct is not None
+    breadth_present = breadth is not None
+    if rule == "count" and window_present:
+        raise _PlannerKnobError(
+            "selectivity_window_pct applies on branch_rule=window.",
+            error_code="not_applicable_in_branch_rule",
+            branch_rule=rule,
+            inapplicable_fields=["selectivity_window_pct"],
+        )
+    if rule == "window" and breadth_present:
+        raise _PlannerKnobError(
+            "breadth applies on branch_rule=count.",
+            error_code="not_applicable_in_branch_rule",
+            branch_rule=rule,
+            inapplicable_fields=["breadth"],
+        )
+    if rule == "window":
+        if not window_present:
+            raise _PlannerKnobError(
+                "branch_rule=window requires selectivity_window_pct.",
+                error_code="missing_selectivity_window",
+            )
+        try:
+            window = float(selectivity_window_pct)
+        except (TypeError, ValueError):
+            raise _PlannerKnobError(
+                "selectivity_window_pct must be a positive finite number.",
+                error_code="invalid_selectivity_window",
+                requested=selectivity_window_pct,
+            ) from None
+        if not math.isfinite(window) or window <= 0:
+            raise _PlannerKnobError(
+                "selectivity_window_pct must be a positive finite number.",
+                error_code="invalid_selectivity_window",
+                requested=selectivity_window_pct,
+            )
+        return {
+            "branch_rule": "window",
+            "breadth": None,
+            "stage_branch_token": None,
+            "selectivity_window_pct": window,
+            "screen_top_k": _PLANNER_STAGE_CAP,
+            "need_wide_shortlist": True,
+            "breadth_origin": origin,
+        }
+    if _all_token(breadth):
+        return {
+            "branch_rule": "count",
+            "breadth": "all",
+            "stage_branch_token": "all",
+            "selectivity_window_pct": None,
+            "screen_top_k": _PLANNER_STAGE_CAP,
+            "need_wide_shortlist": True,
+            "breadth_origin": origin,
+        }
+    if not breadth_present:
+        requested = _PLANNER_BUILT_IN_BREADTH
+        return {
+            "branch_rule": "count",
+            "breadth": requested,
+            "stage_branch_token": None,
+            "selectivity_window_pct": None,
+            "screen_top_k": None,
+            "need_wide_shortlist": requested > 1,
+            "breadth_origin": origin,
+        }
+    count = _planner_int(breadth, code="invalid_breadth", field="breadth")
+    if count < 1:
+        raise _PlannerKnobError(
+            "breadth must be a positive integer 1–50 or all.",
+            error_code="invalid_breadth",
+            requested=breadth,
+            cap=_PLANNER_STAGE_CAP,
+        )
+    if count > _PLANNER_STAGE_CAP:
+        raise _PlannerKnobError(
+            f"breadth exceeds the stage-branch cap of {_PLANNER_STAGE_CAP}.",
+            error_code="stage_branch_exceeds_cap",
+            requested=count,
+            cap=_PLANNER_STAGE_CAP,
+        )
+    return {
+        "branch_rule": "count",
+        "breadth": count,
+        "stage_branch_token": None,
+        "selectivity_window_pct": None,
+        "screen_top_k": None if count == 1 else count,
+        "need_wide_shortlist": count > 1,
+        "breadth_origin": origin,
+    }
+
+
+def _resolve_planner_search(
+    *,
+    breadth: Any,
+    branch_rule: Any,
+    selectivity_window_pct: Any,
+    top_k_routes: Any,
+) -> dict[str, Any]:
+    query_selector = any(
+        value is not None for value in (breadth, branch_rule, selectivity_window_pct)
+    )
+    if query_selector:
+        selector = _resolve_branch_selector(
+            breadth=breadth,
+            branch_rule=branch_rule,
+            selectivity_window_pct=selectivity_window_pct,
+            origin="query",
+        )
+    else:
+        stored = _session_planner_default()
+        if stored is not None:
+            selector = _resolve_branch_selector(
+                breadth=stored.get("breadth"),
+                branch_rule=stored.get("branch_rule"),
+                selectivity_window_pct=stored.get("selectivity_window_pct"),
+                origin="session_default",
+            )
+        else:
+            selector = _resolve_branch_selector(
+                breadth=None,
+                branch_rule=None,
+                selectivity_window_pct=None,
+                origin="built_in",
+            )
+    if top_k_routes is None:
+        selector["top_k_routes"] = _PLANNER_BUILT_IN_BEAM
+        selector["beam_origin"] = "built_in"
+        return selector
+    beam = _planner_int(
+        top_k_routes, code="invalid_numeric_input", field="top_k_routes",
+    )
+    if beam < 1:
+        raise _PlannerKnobError(
+            "top_k_routes must be a positive integer.",
+            error_code="invalid_numeric_input",
+            requested=top_k_routes,
+        )
+    if beam > _PLANNER_BEAM_CAP:
+        raise _PlannerKnobError(
+            f"top_k_routes exceeds the planner beam cap of {_PLANNER_BEAM_CAP}.",
+            error_code="planner_beam_exceeds_cap",
+            requested=beam,
+            cap=_PLANNER_BEAM_CAP,
+        )
+    selector["top_k_routes"] = beam
+    selector["beam_origin"] = "query"
+    return selector
+
+
+def _candidate_viable(
+    candidate: Any, min_target: float, min_selectivity: float,
+) -> bool:
+    if not isinstance(candidate, dict):
+        return False
+    try:
+        target_value = float(candidate.get("target_solubility_pct") or 0.0)
+        selectivity = float(candidate.get("selectivity_pct") or 0.0)
+    except (TypeError, ValueError):
+        return False
+    return target_value >= min_target and selectivity >= min_selectivity
+
+
+def _ranked_for_target(screen_data: dict[str, Any], target: str) -> list[dict[str, Any]]:
+    rows = [
+        item for item in (screen_data.get("ranked_candidates") or [])
+        if isinstance(item, dict) and item.get("dissolved_polymer") == target
+    ]
+
+    def sort_key(item: dict[str, Any]) -> tuple[Any, ...]:
+        rank = item.get("rank")
+        try:
+            rank_n = int(rank)
+        except (TypeError, ValueError):
+            rank_n = 10**9
+        try:
+            selectivity = -float(item.get("selectivity_pct") or -math.inf)
+        except (TypeError, ValueError):
+            selectivity = math.inf
+        return (rank_n, selectivity, str(item.get("solvent") or ""))
+
+    rows.sort(key=sort_key)
+    return rows
+
+
+def _select_split_branches(
+    *,
+    screen_data: dict[str, Any],
+    target: str,
+    selector: dict[str, Any],
+    min_target: float,
+    min_selectivity: float,
+) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    token = selector.get("stage_branch_token")
+    rule = selector["branch_rule"]
+    if rule == "count" and selector["breadth"] == 1 and token is None:
+        directions = {
+            item.get("dissolved_polymer"): item.get("best_candidate")
+            for item in screen_data.get("screened_directions", [])
+            if isinstance(item, dict)
+        }
+        candidate = directions.get(target)
+        kept = (
+            [candidate] if _candidate_viable(candidate, min_target, min_selectivity)
+            else []
+        )
+        return kept, {
+            "stage_branch_requested": 1,
+            "stage_branch_supplied": len(kept),
+            "stage_branch_token": None,
+            "window_truncated_to_screen_cap": False,
+        }
+    viable = [
+        item for item in _ranked_for_target(screen_data, target)
+        if _candidate_viable(item, min_target, min_selectivity)
+    ]
+    truncated = False
+    if rule == "window":
+        requested: Any = selector["selectivity_window_pct"]
+        if not viable:
+            kept = []
+        else:
+            try:
+                best = float(viable[0].get("selectivity_pct") or 0.0)
+                window = float(selector["selectivity_window_pct"])
+            except (TypeError, ValueError):
+                kept = []
+            else:
+                kept = [
+                    item for item in viable
+                    if float(item.get("selectivity_pct") or 0.0) >= best - window
+                ]
+                if len(kept) > _PLANNER_STAGE_CAP:
+                    kept = kept[:_PLANNER_STAGE_CAP]
+                    truncated = True
+    elif token == "all":
+        requested = "all"
+        kept = viable[:_PLANNER_STAGE_CAP]
+        truncated = len(viable) > _PLANNER_STAGE_CAP
+    else:
+        requested = int(selector["breadth"])
+        kept = viable[:requested]
+    stamp = {
+        "stage_branch_requested": requested,
+        "stage_branch_supplied": len(kept),
+        "stage_branch_token": token,
+        "window_truncated_to_screen_cap": truncated,
+    }
+    return kept, stamp
+
+
+def _route_step_kind(item: dict[str, Any]) -> str:
+    kind = item.get("step_kind")
+    if kind in {"wash", "dissolution"}:
+        return kind
+    return "dissolution" if item.get("dissolved_polymer") else "wash"
+
+
+def finish_route(route: dict[str, Any], *, feed_polymers: Sequence[str]) -> dict[str, Any]:
+    """Stamp sequence tokens, mappings, and bottlenecks. Washes do not KeyError."""
+    names = list(feed_polymers)
+    route = {**route, "steps": [dict(item) for item in route.get("steps", [])]}
+    unresolved = set(route.get("unresolved_polymers", []))
+    route["unresolved_polymers"] = [name for name in names if name in unresolved]
+    wash_count = sum(
+        1 for item in route["steps"] if _route_step_kind(item) == "wash"
+    )
+    wash_index = 0
+    tokens: list[str] = []
+    for index, item in enumerate(route["steps"], 1):
+        item["step"] = index
+        kind = _route_step_kind(item)
+        item["step_kind"] = kind
+        if kind == "wash":
+            wash_index += 1
+            tokens.append(f"wash {wash_index}" if wash_count > 1 else "wash")
+        else:
+            tokens.append(item["dissolved_polymer"])
+    if route.get("complete") and route.get("final_residue"):
+        tokens.append(route["final_residue"])
+    route["sequence"] = tokens
+    dissolutions = [
+        item for item in route["steps"] if item["step_kind"] == "dissolution"
+    ]
+    route["solvent_mapping"] = {
+        item["dissolved_polymer"]: item["solvent"] for item in dissolutions
+    }
+    route["bottleneck_selectivity_pct"] = min(
+        (item["selectivity_pct"] for item in dissolutions), default=None
+    )
+    route["bottleneck_target_solubility_pct"] = min(
+        (item["target_solubility_pct"] for item in dissolutions), default=None
+    )
+    route["cumulative_off_target_burden_wt_pct_sum"] = sum(
+        float(value)
+        for item in dissolutions
+        for value in (item.get("off_target_solubilities_pct") or {}).values()
+    )
+    route["peak_temperature_c"] = max(
+        (
+            item["temperature_c"]
+            for item in route["steps"]
+            if item.get("temperature_c") is not None
+        ),
+        default=None,
+    )
+    return route
+
+
+def _min_stage_g_score(steps: Any) -> float | None:
+    scores = []
+    for item in steps or []:
+        if not isinstance(item, dict):
+            continue
+        try:
+            score = float(item.get("g_score"))
+        except (TypeError, ValueError):
+            continue
+        if math.isfinite(score):
+            scores.append(score)
+    return min(scores) if scores else None
+
+
+def _ranked_path_index(routes: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    index = []
+    for route in routes:
+        steps = route.get("steps") or []
+        index.append({
+            "rank": route.get("rank"),
+            "sequence": list(route.get("sequence") or []),
+            "complete": bool(route.get("complete")),
+            "bottleneck_selectivity_pct": route.get("bottleneck_selectivity_pct"),
+            "min_stage_g_score": _min_stage_g_score(steps),
+            "peak_temperature_c": route.get("peak_temperature_c"),
+            "solvent_mapping": dict(route.get("solvent_mapping") or {}),
+        })
+    return index
+
+
+def _requested_contaminants(value: Any) -> list[str]:
+    if value is None:
+        return []
+    return contaminant_screens._items(value)
+
+
+def _planner_contaminant_mode(
+    contaminants: Any,
+    contaminant_mode: Any,
+) -> tuple[str | None, list[str], str | None]:
+    """Read the token before the empty-contaminants short-circuit.
+
+    An argument is not an inherited session default. Session mode is a
+    no-op when contaminants were omitted; an explicit leaching/strap
+    argument with nothing named is not.
+    """
+    requested = _requested_contaminants(contaminants)
+    if contaminant_mode is not None:
+        token = contaminant_screens._key(contaminant_mode)
+        origin = "argument"
+    else:
+        record = current_tool_session()
+        stored = record.get("contaminant_mode") if isinstance(record, dict) else None
+        if isinstance(stored, dict) and stored.get("mode"):
+            token = contaminant_screens._key(stored.get("mode")) or "off"
+            origin = "session"
+        else:
+            token = "off"
+            origin = "default"
+    if token == "swing":
+        token = "strap"
+    if origin == "argument" and token not in {"off", "leaching", "strap"}:
+        return "invalid", requested, origin
+    if not requested:
+        if origin == "argument" and token in {"leaching", "strap"}:
+            return "without_contaminants", requested, origin
+        return None, [], origin
+    if token not in {"off", "leaching", "strap"}:
+        return "invalid", requested, origin
+    return token, requested, origin
+
+
+def _leaching_candidate_solvents(supported: Sequence[str]) -> list[str]:
+    universe = {str(item).casefold() for item in thermo.active_solvent_universe()}
+    chosen: list[str] = []
+    for raw in contaminant_screens._solvent_names(supported):
+        resolved = thermo.resolve_solvent(raw) or raw
+        if str(resolved).casefold() in universe or str(raw).casefold() in universe:
+            chosen.append(str(raw))
+    return list(dict.fromkeys(chosen))
+
+
+def _passing_logd_min(screen: dict[str, Any]) -> float | None:
+    values = [
+        row.get("contaminant_logd_min")
+        for row in (screen.get("candidate_solvents") or [])
+        if row.get("passes") and row.get("contaminant_logd_min") is not None
+    ]
+    return min(values) if values else None
+
+
+def _leaching_target(remaining: Sequence[str], final_residue: Any) -> str:
+    residue = str(final_residue) if final_residue else ""
+    if residue and residue in remaining:
+        return residue
+    return str(remaining[0]) if remaining else residue
+
+
+def _wash_temperature_conflict(steps: Sequence[dict[str, Any]], step_c: float) -> bool:
+    items = list(steps)
+    for index, item in enumerate(items):
+        if item.get("step_kind") != "wash":
+            continue
+        solvent = contaminant_screens._key(item.get("solvent"))
+        wash_t = item.get("temperature_c")
+        if not solvent or wash_t is None:
+            continue
+        for neighbor in (index - 1, index + 1):
+            if neighbor < 0 or neighbor >= len(items):
+                continue
+            other = items[neighbor]
+            if other.get("step_kind") != "dissolution":
+                continue
+            if contaminant_screens._key(other.get("solvent")) != solvent:
+                continue
+            other_t = other.get("temperature_c")
+            if other_t is None:
+                continue
+            if abs(float(wash_t) - float(other_t)) > float(step_c):
+                return True
+    return False
+
+
+def _position_objective(item: dict[str, Any]) -> tuple[float, float, int]:
+    logd = item.get("contaminant_logd_min")
+    return (
+        float(item.get("passing_count") or 0),
+        float(logd) if logd is not None else float("-inf"),
+        -int(item["index"]),
+    )
+
+
+def _embed_leaching_route(
+    route: dict[str, Any],
+    *,
+    names: Sequence[str],
+    supported: Sequence[str],
+    solvents: Sequence[str],
+    temperature_max_c: Optional[float],
+    strict_maximum: bool,
+    step_c: float,
+) -> dict[str, Any] | str:
+    dissolutions = []
+    for item in route.get("steps") or []:
+        if item.get("step_kind") == "wash":
+            continue
+        if item.get("step_kind") == "dissolution" or item.get("dissolved_polymer"):
+            step = dict(item)
+            step["step_kind"] = "dissolution"
+            dissolutions.append(step)
+    considered: list[dict[str, Any]] = []
+    for index in range(len(dissolutions) + 1):
+        dissolved = [item["dissolved_polymer"] for item in dissolutions[:index]]
+        remaining = [name for name in names if name not in dissolved]
+        if not remaining and route.get("final_residue"):
+            remaining = [str(route["final_residue"])]
+        feed_state = contaminant_screens.feed_state_at_step(
+            feed_order=names, remaining=remaining, contaminants=supported,
+        )
+        target = _leaching_target(remaining, route.get("final_residue"))
+        others = contaminant_screens.others_from_feed_state(feed_state, target)
+        if solvents:
+            screen = contaminant_screens.evaluate_contaminant_at_feed_state(
+                "leaching",
+                target,
+                others,
+                supported,
+                solvents=list(solvents),
+                temperature_max_c=temperature_max_c,
+                strict_maximum=strict_maximum,
+            )
+        else:
+            screen = {
+                "success": True,
+                "recommended_solvents": [],
+                "candidate_solvents": [],
+            }
+        recommended = list(screen.get("recommended_solvents") or [])
+        considered.append({
+            "index": index,
+            "feed_state_at_step": feed_state,
+            "target_polymer": target,
+            "other_polymers": others,
+            "passing_count": len(recommended),
+            "contaminant_logd_min": _passing_logd_min(screen),
+            "recommended_solvents": recommended,
+            "passes": bool(recommended),
+            "reason": (
+                "leaching candidate passed"
+                if recommended
+                else "no leaching candidate passed at this feed state"
+            ),
+            "threshold_citation_status": screen.get("threshold_citation_status"),
+            "screen": screen,
+        })
+    if not considered:
+        return {**route, "positions_considered": []}
+    published = [
+        {key: item[key] for key in item if key != "screen"}
+        for item in considered
+    ]
+    if not any(item.get("passing_count") for item in considered):
+        finished = finish_route(
+            {**route, "steps": list(dissolutions)},
+            feed_polymers=names,
+        )
+        finished["positions_considered"] = published
+        return finished
+    winner = max(considered, key=_position_objective)
+    screen = winner["screen"]
+    recommended = list(winner["recommended_solvents"])
+    chosen = None
+    if recommended:
+        chosen = next(
+            (
+                row for row in (screen.get("candidate_solvents") or [])
+                if contaminant_screens._key(row.get("solvent"))
+                == contaminant_screens._key(recommended[0])
+            ),
+            None,
+        )
+    wash = {
+        "step_kind": "wash",
+        "path": "leaching",
+        "contaminants_targeted": list(supported),
+        "solvent": recommended[0] if recommended else None,
+        "temperature_c": (
+            None if not isinstance(chosen, dict)
+            else chosen.get("operating_temperature_c")
+        ),
+        "feed_state_at_step": winner["feed_state_at_step"],
+        "other_polymers": winner["other_polymers"],
+        "passes": bool(recommended),
+        "recommended_solvents": recommended,
+        "threshold_citation_status": winner.get("threshold_citation_status"),
+        "passing_count": winner["passing_count"],
+        "contaminant_logd_min": winner.get("contaminant_logd_min"),
+        "position_index": winner["index"],
+        "objective": (
+            "higher passing_count, then higher contaminant_logd_min "
+            "among passing candidates, then earlier index"
+        ),
+    }
+    steps = list(dissolutions)
+    steps.insert(int(winner["index"]), wash)
+    if _wash_temperature_conflict(steps, step_c):
+        return tool_error(
+            "plan_multistage_separation",
+            "Leaching wash and an adjacent dissolution name the same solvent "
+            "at temperatures more than temperature_step_c apart.",
+            error_code="incompatible_wash_temperature",
+            wash_solvent=wash.get("solvent"),
+            wash_temperature_c=wash.get("temperature_c"),
+            position_index=winner["index"],
+        )
+    finished = finish_route({**route, "steps": steps}, feed_polymers=names)
+    finished["positions_considered"] = published
+    finished["chosen_wash_position"] = winner["index"]
+    return finished
+
+
+def _stamp_strap_step(
+    step: dict[str, Any],
+    *,
+    feed_state: dict[str, Any],
+    screen: dict[str, Any],
+) -> dict[str, Any]:
+    stamped = dict(step)
+    stamped["step_kind"] = "dissolution"
+    stamped["path"] = "strap"
+    stamped["feed_state_at_step"] = feed_state
+    stamped["passes"] = False
+    if screen.get("success") is False:
+        stamped["strap_error_code"] = screen.get("error_code")
+        stamped["recommended_solvents"] = []
+        stamped["contaminants"] = []
+        return stamped
+    recommended = list(screen.get("recommended_solvents") or [])
+    stamped["recommended_solvents"] = recommended
+    candidates = screen.get("candidate_solvents") or []
+    chosen = next((row for row in candidates if row.get("passes")), None)
+    if chosen is None and candidates:
+        chosen = candidates[0]
+    if isinstance(chosen, dict):
+        stamped["operating_temperature_c"] = chosen.get("operating_temperature_c")
+        stamped["precipitation_temperature_c"] = chosen.get(
+            "precipitation_temperature_c"
+        )
+        stamped["contaminants"] = list(chosen.get("contaminants") or [])
+        stamped["precipitation_regime_contaminants"] = list(
+            chosen.get("precipitation_regime_contaminants") or []
+        )
+        stamped["unspecified_not_a_strap_basis"] = bool(
+            chosen.get("unspecified_not_a_strap_basis")
+        )
+        stamped["passes"] = bool(chosen.get("passes"))
+    else:
+        stamped["passes"] = bool(recommended)
+    stamped["threshold_citation_status"] = screen.get("threshold_citation_status")
+    return stamped
+
+
+def _stamp_strap_route(
+    route: dict[str, Any],
+    *,
+    names: Sequence[str],
+    supported: Sequence[str],
+    temperature_max_c: Optional[float],
+    strict_maximum: bool,
+) -> dict[str, Any]:
+    remaining = list(names)
+    stamped: list[dict[str, Any]] = []
+    evaluations: list[dict[str, Any]] = []
+    for item in route.get("steps") or []:
+        step = dict(item)
+        if step.get("step_kind") == "wash" or not step.get("dissolved_polymer"):
+            stamped.append(step)
+            continue
+        target = str(step["dissolved_polymer"])
+        feed_state = contaminant_screens.feed_state_at_step(
+            feed_order=names, remaining=remaining, contaminants=supported,
+        )
+        others = contaminant_screens.others_from_feed_state(feed_state, target)
+        screen = contaminant_screens.evaluate_contaminant_at_feed_state(
+            "strap",
+            target,
+            others,
+            supported,
+            solvents=[step["solvent"]] if step.get("solvent") else None,
+            temperature_max_c=temperature_max_c,
+            strict_maximum=strict_maximum,
+        )
+        step = _stamp_strap_step(step, feed_state=feed_state, screen=screen)
+        step["other_polymers"] = others
+        stamped.append(step)
+        evaluations.append({
+            "dissolved_polymer": target,
+            "solvent": step.get("solvent"),
+            "other_polymers": others,
+            "feed_state_at_step": feed_state,
+            "passes": step.get("passes"),
+            "strap_error_code": step.get("strap_error_code"),
+        })
+        remaining = [name for name in remaining if name != target]
+    finished = finish_route({**route, "steps": stamped}, feed_polymers=names)
+    finished["strap_evaluations"] = evaluations
+    return finished
+
+
+@_with_solvent_scope
 def plan_multistage_separation(
     feed_polymers: list[str],
     temperature_min_c: Optional[float] = None,
@@ -1709,14 +2452,23 @@ def plan_multistage_separation(
     require_atmospheric: Optional[bool] = None,
     min_target_solubility_pct: float = 5.0,
     min_selectivity_pct: float = 5.0,
-    top_k_routes: int = 5,
+    top_k_routes: Optional[int] = None,
     feed_mass_fractions: Optional[dict[str, float]] = None,
+    breadth: Optional[int | Literal["all"]] = None,
+    branch_rule: Optional[Literal["count", "window"]] = None,
+    selectivity_window_pct: Optional[float] = None,
+    require_complete_routes: Optional[bool] = None,
+    contaminants: Optional[str | Sequence[str]] = None,
+    contaminant_mode: Optional[str] = None,
 ) -> str:
     """Recursively rank complete or explicitly partial routes for any supported feed.
 
     The tri-state atmospheric policy is passed unchanged to every subset
     screen: ``None`` keeps unknown BP and excludes known-too-low conditions,
     ``True`` excludes both, and ``False`` excludes neither.
+
+    ``breadth`` is per-split branching m. ``top_k_routes`` is published beam B.
+    Omit both to use ``/breadth`` session default then built-in m=1, B=5.
     """
     tool = "plan_multistage_separation"
     supplied_min = temperature_min_c is not None
@@ -1756,9 +2508,18 @@ def plan_multistage_separation(
         numeric["temperature_max_c"] = temperature_max_c
     try:
         numeric = {key: float(value) for key, value in numeric.items()}
-        top_k_routes = max(1, min(int(top_k_routes), 10))
     except (TypeError, ValueError):
         return tool_error(tool, "Temperature, threshold, and route-count inputs must be numeric.", error_code="invalid_numeric_input")
+    try:
+        selector = _resolve_planner_search(
+            breadth=breadth,
+            branch_rule=branch_rule,
+            selectivity_window_pct=selectivity_window_pct,
+            top_k_routes=top_k_routes,
+        )
+    except _PlannerKnobError as error:
+        return tool_error(tool, str(error), error_code=error.error_code, **error.detail)
+    top_k_routes = int(selector["top_k_routes"])
     if not all(math.isfinite(value) for value in numeric.values()):
         return tool_error(tool, "Temperature and threshold inputs must be finite.", error_code="non_finite_numeric_input")
     step_c = numeric["temperature_step_c"]
@@ -1794,45 +2555,79 @@ def plan_multistage_separation(
             ],
         )
 
+    mode, requested_contaminants, mode_origin = _planner_contaminant_mode(
+        contaminants, contaminant_mode,
+    )
+    supported_contaminants: list[str] = []
+    if mode == "invalid":
+        return tool_error(
+            tool,
+            "contaminant_mode must be off, leaching, or strap.",
+            error_code="invalid_contaminant_mode",
+            requested=contaminant_mode,
+        )
+    if mode == "without_contaminants":
+        return tool_error(
+            tool,
+            "contaminant_mode leaching or strap requires contaminants.",
+            error_code="contaminant_mode_without_contaminants",
+            requested=contaminant_mode,
+            contaminant_mode_origin=mode_origin,
+        )
+    if mode in {"leaching", "strap"}:
+        (
+            supported_contaminants,
+            unsupported_contaminants,
+            _families,
+            uncovered,
+        ) = contaminant_screens._expand(requested_contaminants)
+        if uncovered and not supported_contaminants:
+            return tool_error(
+                tool,
+                "The contaminant corpus does not cover this family.",
+                error_code="unsupported_contaminant_family",
+                requested_contaminants=requested_contaminants,
+                unsupported_contaminants=unsupported_contaminants
+                or requested_contaminants,
+                unsupported_families=uncovered,
+                supported_families=sorted(contaminant_screens._families()),
+            )
+        if not supported_contaminants:
+            return tool_error(
+                tool,
+                "None of the requested contaminants are supported.",
+                error_code="unsupported_contaminants",
+                requested_contaminants=requested_contaminants,
+                unsupported_contaminants=unsupported_contaminants
+                or requested_contaminants,
+                supported_families=sorted(contaminant_screens._families()),
+            )
+
     screens: dict[tuple[str, ...], dict[str, Any]] = {}
     solved: dict[tuple[str, ...], list[dict[str, Any]]] = {}
+    root_subset = tuple(sorted(names))
+    stage1_shortlists: list[dict[str, Any]] = []
 
     def screen(subset: tuple[str, ...]) -> dict[str, Any]:
         if subset not in screens:
-            screens[subset] = parse_tool_result(screen_polymer_separation(
-                list(subset), temperature_min_c=lower, temperature_max_c=upper,
-                target_polymers=list(subset), strict_maximum=bool(strict_maximum),
-                temperature_step_c=step_c, require_atmospheric=require_atmospheric,
-            ))["data"]
+            kwargs: dict[str, Any] = dict(
+                feed_polymers=list(subset),
+                temperature_min_c=lower,
+                temperature_max_c=upper,
+                target_polymers=list(subset),
+                strict_maximum=bool(strict_maximum),
+                temperature_step_c=step_c,
+                require_atmospheric=require_atmospheric,
+            )
+            if selector["need_wide_shortlist"] and selector["screen_top_k"] is not None:
+                kwargs["top_k"] = int(selector["screen_top_k"])
+            screens[subset] = parse_tool_result(
+                screen_polymer_separation(**kwargs)
+            )["data"]
         return screens[subset]
 
     def finish(route: dict[str, Any]) -> dict[str, Any]:
-        route = {**route, "steps": [dict(item) for item in route.get("steps", [])]}
-        unresolved = set(route.get("unresolved_polymers", []))
-        route["unresolved_polymers"] = [name for name in names if name in unresolved]
-        for index, item in enumerate(route["steps"], 1):
-            item["step"] = index
-        route["sequence"] = [item["dissolved_polymer"] for item in route["steps"]]
-        if route.get("complete") and route.get("final_residue"):
-            route["sequence"].append(route["final_residue"])
-        route["solvent_mapping"] = {
-            item["dissolved_polymer"]: item["solvent"] for item in route["steps"]
-        }
-        route["bottleneck_selectivity_pct"] = min(
-            (item["selectivity_pct"] for item in route["steps"]), default=None
-        )
-        route["bottleneck_target_solubility_pct"] = min(
-            (item["target_solubility_pct"] for item in route["steps"]), default=None
-        )
-        route["cumulative_off_target_burden_wt_pct_sum"] = sum(
-            float(value)
-            for item in route["steps"]
-            for value in (item.get("off_target_solubilities_pct") or {}).values()
-        )
-        route["peak_temperature_c"] = max(
-            (item["temperature_c"] for item in route["steps"]), default=None
-        )
-        return route
+        return finish_route(route, feed_polymers=names)
 
     def score(route: dict[str, Any]) -> tuple[float, ...]:
         return (
@@ -1865,48 +2660,51 @@ def plan_multistage_separation(
                 "failure_reason": result.get("error_code") or "subset_screen_failed",
             })]
             return solved[subset]
-        directions = {
-            item.get("dissolved_polymer"): item.get("best_candidate")
-            for item in result.get("screened_directions", []) if isinstance(item, dict)
-        }
         routes: list[dict[str, Any]] = []
         for target in subset:
-            candidate = directions.get(target)
-            if not isinstance(candidate, dict):
-                continue
-            target_value = float(candidate.get("target_solubility_pct") or 0.0)
-            selectivity = float(candidate.get("selectivity_pct") or 0.0)
-            if target_value < min_target or selectivity < min_selectivity:
-                continue
+            branches, branch_stamp = _select_split_branches(
+                screen_data=result,
+                target=target,
+                selector=selector,
+                min_target=min_target,
+                min_selectivity=min_selectivity,
+            )
+            if subset == root_subset and branches:
+                items = []
+                for rank, candidate in enumerate(branches, 1):
+                    if not isinstance(candidate, dict):
+                        continue
+                    items.append({
+                        "target_polymer": target,
+                        "solvent": candidate.get("solvent"),
+                        "dissolution_temperature_c": candidate.get(
+                            "temperature_c"
+                        ),
+                        "thermo_rank": rank,
+                    })
+                if items:
+                    stage1_shortlists.append({
+                        "target_polymer": target,
+                        "items": items,
+                    })
             retained = tuple(item for item in subset if item != target)
-            stage = {
-                "dissolved_polymer": target,
-                "polymer": target,
-                "retained_polymers": list(retained),
-                **{key: candidate.get(key) for key in (
-                    "solvent", "temperature_c", "target_solubility_pct",
-                    "max_off_target_solubility_pct", "off_target_solubilities_pct",
-                    "limiting_off_target_polymer", "selectivity_pct", "boiling_point_c",
-                    "boiling_point_margin_c", "atmospheric_feasible",
-                    "is_clipped", "clip_limit_wt_percent",
-                    "heating_risk_level", "heating_flags", "catalog_hazard_reference_c",
-                    "ghs_signal_word", "g_score", "peroxide_former_class", "flash_point_c",
-                    "flash_point_available", "operating_at_or_above_flash_point",
-                    "safety_source", "typed_safety_evidence",
-                    "lower_hazard_search_scope", "lower_hazard_alternative_count",
-                    "lower_hazard_alternatives",
-                    "lower_hazard_alternatives_truncated", "ghs_danger_unavoidable",
-                )},
-                "selectivity_unit": "percentage_points",
-            }
-            for tail in solve(retained):
-                routes.append(finish({
-                    "complete": bool(tail.get("complete")),
-                    "steps": [stage, *tail.get("steps", [])],
-                    "final_residue": tail.get("final_residue"),
-                    "unresolved_polymers": list(tail.get("unresolved_polymers", [])),
-                    "failure_reason": tail.get("failure_reason"),
-                }))
+            for candidate in branches:
+                stage = {
+                    "dissolved_polymer": target,
+                    "polymer": target,
+                    "retained_polymers": list(retained),
+                    **{key: candidate.get(key) for key in _STAGE_COPY_KEYS},
+                    "selectivity_unit": "percentage_points",
+                    **branch_stamp,
+                }
+                for tail in solve(retained):
+                    routes.append(finish({
+                        "complete": bool(tail.get("complete")),
+                        "steps": [stage, *tail.get("steps", [])],
+                        "final_residue": tail.get("final_residue"),
+                        "unresolved_polymers": list(tail.get("unresolved_polymers", [])),
+                        "failure_reason": tail.get("failure_reason"),
+                    }))
         if not routes:
             routes = [finish({
                 "complete": False, "steps": [], "final_residue": None,
@@ -1916,10 +2714,38 @@ def plan_multistage_separation(
         solved[subset] = sorted(routes, key=score, reverse=True)[:top_k_routes]
         return solved[subset]
 
-    root_subset = tuple(sorted(names))
     routes = sorted(solve(root_subset), key=score, reverse=True)[:top_k_routes]
+    if mode == "leaching" and supported_contaminants:
+        pool = _leaching_candidate_solvents(supported_contaminants)
+        embedded: list[dict[str, Any]] = []
+        for route in routes:
+            result = _embed_leaching_route(
+                route,
+                names=names,
+                supported=supported_contaminants,
+                solvents=pool,
+                temperature_max_c=upper,
+                strict_maximum=bool(strict_maximum),
+                step_c=step_c,
+            )
+            if isinstance(result, str):
+                return result
+            embedded.append(result)
+        routes = embedded
+    elif mode == "strap" and supported_contaminants:
+        routes = [
+            _stamp_strap_route(
+                route,
+                names=names,
+                supported=supported_contaminants,
+                temperature_max_c=upper,
+                strict_maximum=bool(strict_maximum),
+            )
+            for route in routes
+        ]
     for rank, route in enumerate(routes, 1):
         route["rank"] = rank
+        route["min_stage_g_score"] = _min_stage_g_score(route.get("steps"))
     best = routes[0]
     runner_up = routes[1] if len(routes) > 1 else None
     threshold_margin = (
@@ -1937,6 +2763,15 @@ def plan_multistage_separation(
         else "user_min_to_grid_max" if supplied_min
         else "full_stored_grid_domain"
     )
+    complete_route_count = sum(bool(route.get("complete")) for route in routes)
+    if require_complete_routes is True and complete_route_count == 0:
+        return tool_error(
+            tool,
+            "No complete ranked path was published.",
+            error_code="incomplete_ranked_paths",
+            complete_route_count=0,
+            published_route_count=len(routes),
+        )
     return tool_success(
         tool,
         analysis_type="multistage_separation_route",
@@ -1953,6 +2788,15 @@ def plan_multistage_separation(
         min_selectivity_pct=min_selectivity,
         solubility_unit="wt_pct_solution_concentration",
         selectivity_unit="percentage_points",
+        breadth_origin=selector["breadth_origin"],
+        beam_origin=selector["beam_origin"],
+        branch_rule=selector["branch_rule"],
+        breadth=selector["breadth"],
+        stage_branch_token=selector.get("stage_branch_token"),
+        stage_branch_cap=_PLANNER_STAGE_CAP,
+        selectivity_window_pct=selector.get("selectivity_window_pct"),
+        top_k_routes=top_k_routes,
+        beam_cap=_PLANNER_BEAM_CAP,
         complete=bool(best.get("complete")),
         best_sequence=best.get("sequence", []),
         steps=best.get("steps", []),
@@ -1978,7 +2822,9 @@ def plan_multistage_separation(
         threshold_margin_pct=threshold_margin,
         peak_temperature_c=best.get("peak_temperature_c"),
         top_k_sequences=routes,
-        complete_route_count=sum(bool(route.get("complete")) for route in routes),
+        ranked_path_index=_ranked_path_index(routes),
+        stage1_shortlists=stage1_shortlists,
+        complete_route_count=complete_route_count,
         subset_screens_evaluated=len(screens),
         warnings=[
             "Modeled solubility is wt% solution concentration, not feed recovery or product purity.",
@@ -1989,6 +2835,23 @@ def plan_multistage_separation(
             "Candidates require experimental validation.",
         ],
         model_basis="recursive application of stored-grid solubility values",
+        **thermo.solvent_scope_stamp(),
+        **({
+            "contaminant_mode": mode,
+            "contaminant_mode_origin": mode_origin,
+            "requested_contaminants": requested_contaminants,
+            "supported_contaminants": supported_contaminants,
+            "contaminant_catalog": contaminant_screens._contaminant_catalog(
+                supported_contaminants,
+            ),
+            **({
+                "positions_considered": best.get("positions_considered"),
+                "chosen_wash_position": best.get("chosen_wash_position"),
+            } if mode == "leaching" else {}),
+            **({
+                "strap_evaluations": best.get("strap_evaluations"),
+            } if mode == "strap" else {}),
+        } if mode is not None else {}),
     )
 
 

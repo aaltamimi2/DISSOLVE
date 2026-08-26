@@ -1,0 +1,279 @@
+{
+  "schema": "dissolve.tea-lca-characterization-factors.v1",
+  "provenance": {
+    "cache_generator_commit": "4b7b513a2b715fd3f558fdb1735b1502930b4a01",
+    "cache_generator_source": "src/strap/vendor/biosteam_runner.py",
+    "cache_generator_source_sha256": "f565018171520427a56f8269e22b22732624cd231600ed60d7aaa09eed7ed9a3",
+    "reference_notebook": "Branch-TEA.ipynb",
+    "reference_notebook_sha256": "6e2bccd7988b904fc65f330c42fb53073cd436172481553aeb836491e9481b52",
+    "solvent_catalog_source": "data/60_common_solvents-TEA-LCA.csv",
+    "solvent_catalog_source_sha256": "fda504a275c1a38760494dbec5decaaf5cdfe16a359e87e35bf27098d112290d",
+    "curated_solvent_source": "data/solvent-econ-lca-summary.csv",
+    "curated_solvent_source_sha256": "69c8eec410e28b2047d488c42be13d0febfb141160907a872e423e95f08a2b72",
+    "scope": "Reproduces the characterization-factor payload assembled by the admitted v10 TEA cache generator; it does not assert complete characterization of the active process graph.",
+    "source_limit": "The cache generator labels its core table Branch-TEA/ecoinvent and its extended table curated or chemical-class estimates, but the cache does not retain complete upstream citation lineage for every extended solvent estimate."
+  },
+  "metric_order": ["GWP", "HTC", "HTNC", "ETOX"],
+  "metric_units": {
+    "GWP": "kg CO2e",
+    "HTC": "CTUh carcinogenic",
+    "HTNC": "CTUh noncarcinogenic",
+    "ETOX": "CTUe"
+  },
+  "method_citation_attribution": {
+    "schema": "dissolve.tea-lca-method-citation-attribution.v1",
+    "unknown_token": "UNKNOWN",
+    "attribution_granularity": "One attribution record applies to the GWP, HTC, HTNC, and ETOX quartet of each shared or solvent factor entry.",
+    "resolution": {
+      "shared": "Resolve each shared factor entry by its key in shared_entries.",
+      "solvents": "Resolve each solvent factor entry by its source_tier field in solvent_source_tiers."
+    },
+    "required_fields": [
+      "attribution_status",
+      "lcia_method_or_package",
+      "version_or_year",
+      "geography",
+      "citation",
+      "source_evidence",
+      "generator_description",
+      "finding"
+    ],
+    "shared_entries": {
+      "natural_gas": {
+        "attribution_status": "generator_method_and_citation_unrecorded",
+        "lcia_method_or_package": "UNKNOWN",
+        "version_or_year": "UNKNOWN",
+        "geography": "UNKNOWN",
+        "citation": "UNKNOWN",
+        "source_evidence": [
+          {
+            "source_file": "Branch-TEA.ipynb",
+            "source_sha256": "6e2bccd7988b904fc65f330c42fb53073cd436172481553aeb836491e9481b52",
+            "source_location": "Code cells setting natural_gas characterization factors; GWP is labelled 'NG produced + NG used'."
+          },
+          {
+            "source_file": "src/strap/vendor/biosteam_runner.py",
+            "source_sha256": "f565018171520427a56f8269e22b22732624cd231600ed60d7aaa09eed7ed9a3",
+            "source_location": "_NATURAL_GAS_CFS"
+          }
+        ],
+        "generator_description": "The notebook records numeric produced/use components and the cache generator sums them. It does not name an LCIA method or package, version or year, geography, or bibliographic citation.",
+        "finding": "Method and citation were not recorded by the generator; the known boundary label is not a method attribution."
+      },
+      "water": {
+        "attribution_status": "generator_method_and_citation_unrecorded",
+        "lcia_method_or_package": "UNKNOWN",
+        "version_or_year": "UNKNOWN",
+        "geography": "UNKNOWN",
+        "citation": "UNKNOWN",
+        "source_evidence": [
+          {
+            "source_file": "Branch-TEA.ipynb",
+            "source_sha256": "6e2bccd7988b904fc65f330c42fb53073cd436172481553aeb836491e9481b52",
+            "source_location": "Code cells setting makeup_water and cooling_tower_makeup_water characterization factors."
+          },
+          {
+            "source_file": "src/strap/vendor/biosteam_runner.py",
+            "source_sha256": "f565018171520427a56f8269e22b22732624cd231600ed60d7aaa09eed7ed9a3",
+            "source_location": "_WATER_CFS"
+          }
+        ],
+        "generator_description": "The notebook and cache generator record the values and indicator units only; they do not record a method/package, version/year, geography, or bibliographic citation.",
+        "finding": "Method and citation were not recorded by the generator."
+      },
+      "solvent_transport_offset": {
+        "attribution_status": "generator_method_and_citation_unrecorded",
+        "lcia_method_or_package": "UNKNOWN",
+        "version_or_year": "UNKNOWN",
+        "geography": "UNKNOWN",
+        "citation": "UNKNOWN",
+        "source_evidence": [
+          {
+            "source_file": "Branch-TEA.ipynb",
+            "source_sha256": "6e2bccd7988b904fc65f330c42fb53073cd436172481553aeb836491e9481b52",
+            "source_location": "Code cells adding fixed offsets to each solvent characterization factor; the GWP comment calls its offset a factor for burning leftover organic solvent."
+          }
+        ],
+        "generator_description": "The notebook records numeric offsets and one boundary comment for GWP, but no LCIA method/package, version/year, geography, or bibliographic citation for the quartet.",
+        "finding": "Method and citation were not recorded by the generator; the GWP boundary comment does not attribute the four indicators."
+      },
+      "grid_electricity": {
+        "attribution_status": "generator_method_and_citation_unrecorded",
+        "lcia_method_or_package": "UNKNOWN",
+        "version_or_year": "UNKNOWN",
+        "geography": "UNKNOWN",
+        "citation": "UNKNOWN",
+        "source_evidence": [
+          {
+            "source_file": "Branch-TEA.ipynb",
+            "source_sha256": "6e2bccd7988b904fc65f330c42fb53073cd436172481553aeb836491e9481b52",
+            "source_location": "C2/C3 CF_factors mappings passed to set_electricity_CF with basis='MJ'."
+          },
+          {
+            "source_file": "src/strap/vendor/biosteam_runner.py",
+            "source_sha256": "f565018171520427a56f8269e22b22732624cd231600ed60d7aaa09eed7ed9a3",
+            "source_location": "_build_lca_cfs C2/C3 grid-electricity branch"
+          }
+        ],
+        "generator_description": "The notebook calls this a grid-electricity CF mapping and records its per-MJ basis. It does not identify the grid geography, LCIA method/package, version/year, or bibliographic citation, and does not establish method compatibility with the model-native electricity factors.",
+        "finding": "Grid geography, method, version, and citation were not recorded by the generator."
+      }
+    },
+    "solvent_source_tiers": {
+      "generator_validated_table": {
+        "attribution_status": "generator_method_and_citation_unrecorded",
+        "lcia_method_or_package": "UNKNOWN",
+        "version_or_year": "UNKNOWN",
+        "geography": "UNKNOWN",
+        "citation": "UNKNOWN",
+        "source_evidence": [
+          {
+            "source_file": "Branch-TEA.ipynb",
+            "source_sha256": "6e2bccd7988b904fc65f330c42fb53073cd436172481553aeb836491e9481b52",
+            "source_location": "Per-solvent GWP_IF, HTC_IF, HTNC_IF, and ETOX_IF arrays."
+          },
+          {
+            "source_file": "src/strap/vendor/biosteam_runner.py",
+            "source_sha256": "f565018171520427a56f8269e22b22732624cd231600ed60d7aaa09eed7ed9a3",
+            "source_location": "_SOLVENT_LCA_IFS"
+          }
+        ],
+        "generator_description": "The generator describes this routing tier as 'Branch-TEA / ecoinvent' or validated data, but supplies no database version, LCIA method/package, year, geography, or bibliographic citation. The table also contains extended entries whose own source comments call them class-scaled estimates, so the tier name is not scientific validation.",
+        "finding": "Method and citation were not recorded by the generator; its source-tier label is not a citation."
+      },
+      "generator_curated_with_class_fallbacks": {
+        "attribution_status": "generator_method_and_citation_unrecorded",
+        "lcia_method_or_package": "UNKNOWN",
+        "version_or_year": "UNKNOWN",
+        "geography": "UNKNOWN",
+        "citation": "UNKNOWN",
+        "source_evidence": [
+          {
+            "source_file": "data/solvent-econ-lca-summary.csv",
+            "source_sha256": "69c8eec410e28b2047d488c42be13d0febfb141160907a872e423e95f08a2b72",
+            "source_location": "Per-solvent lca_source and lca_confidence fields."
+          },
+          {
+            "source_file": "src/strap/vendor/biosteam_runner.py",
+            "source_sha256": "f565018171520427a56f8269e22b22732624cd231600ed60d7aaa09eed7ed9a3",
+            "source_location": "_build_lca_cfs per-indicator curated/class-average merge"
+          }
+        ],
+        "generator_description": "The CSV preserves free-text source notes of uneven specificity, while the generator fills missing indicators from class averages. The factor row does not retain a complete per-indicator method/citation binding, and the source notes are not a stable bibliography.",
+        "finding": "A single method, version, geography, and citation cannot be attributed to the mixed quartet from the retained generator record."
+      },
+      "generator_class_average": {
+        "attribution_status": "generator_method_and_citation_unrecorded",
+        "lcia_method_or_package": "UNKNOWN",
+        "version_or_year": "UNKNOWN",
+        "geography": "UNKNOWN",
+        "citation": "UNKNOWN",
+        "source_evidence": [
+          {
+            "source_file": "src/strap/vendor/biosteam_runner.py",
+            "source_sha256": "f565018171520427a56f8269e22b22732624cd231600ed60d7aaa09eed7ed9a3",
+            "source_location": "_LCA_CLASS_AVERAGES and _build_lca_cfs class-average fallback"
+          }
+        ],
+        "generator_description": "The generator calls these chemical-class averages computed from core 'ecoinvent/GaBi' values, but records neither the underlying inventory rows nor database versions, LCIA method/package, year, geography, or bibliographic citations.",
+        "finding": "The derivation label is known; method and citation were not recorded by the generator."
+      }
+    }
+  },
+  "shared": {
+    "natural_gas": {
+      "basis": "per kg natural-gas feed",
+      "boundary": "production plus use/combustion",
+      "source": "Branch-TEA.ipynb cache-generator inputs",
+      "values": [3.84105, 2.47826e-07, 1.1957499999999998e-07, 6.6795]
+    },
+    "water": {
+      "basis": "per kg purchased makeup-water feed",
+      "source": "v10 cache-generator shared water factors",
+      "values": [0.000127, 1.4e-10, 7.96e-11, 0.00538]
+    },
+    "solvent_transport_offset": {
+      "basis": "per kg solvent feed",
+      "source": "Branch-TEA.ipynb cache-generator solvent transport offsets",
+      "values": [0.1563, 3.56126e-10, 8.0464e-09, 0.009]
+    },
+    "grid_electricity": {
+      "basis": "per MJ purchased electricity",
+      "source": "v10 cache-generator C2/C3 grid factors",
+      "values": [0.197, 3.12e-09, 2.44e-07, 5.24]
+    }
+  },
+  "solvent_entry_fields": [
+    "generator_identity",
+    "source_tier",
+    "gwp_per_kg_solvent",
+    "htc_per_kg_solvent",
+    "htnc_per_kg_solvent",
+    "etox_per_kg_solvent"
+  ],
+  "solvents": {
+    "1,3-Benzenediol": ["resorcinol", "generator_class_average", 2.0, 4.5e-07, 4e-07, 25.0],
+    "1,4-Dioxane": ["dioxane", "generator_curated_with_class_fallbacks", 4.25, 9e-07, 1.2e-06, 60.0],
+    "1-Butanol": ["1-butanol", "generator_curated_with_class_fallbacks", 3.0, 4.5e-07, 4e-07, 25.0],
+    "1-Propanol": ["1-Propanol", "generator_validated_table", 2.0, 4.5e-07, 4e-07, 25.0],
+    "2,3-Dihydropyran": ["2,3-Dihydropyran", "generator_validated_table", 4.0, 8.3e-07, 1.12e-06, 56.0],
+    "2,4-Pentanedione": ["Acetylacetone", "generator_validated_table", 3.5, 7.5e-07, 7e-07, 44.0],
+    "2-Propanol": ["Isopropanol", "generator_validated_table", 2.0, 4.5e-07, 4e-07, 25.0],
+    "Acetic Acid": ["acetic_acid", "generator_class_average", 3.0, 6e-07, 7e-07, 40.0],
+    "Acetic Anhydride": ["acetic_anhydride", "generator_class_average", 3.0, 6e-07, 7e-07, 40.0],
+    "Acetone": ["Acetone", "generator_validated_table", 2.55, 5.5e-07, 5e-07, 32.0],
+    "Acetonitrile": ["acetonitrile", "generator_curated_with_class_fallbacks", 5.5, 8e-07, 9.5e-07, 50.0],
+    "Benzaldehyde": ["benzaldehyde", "generator_class_average", 3.0, 6e-07, 7e-07, 40.0],
+    "Benzene": ["Benzene", "generator_validated_table", 1.2, 2.5e-07, 2.1e-07, 12.4],
+    "Benzonitrile": ["benzonitrile", "generator_class_average", 3.5, 8e-07, 9.5e-07, 48.0],
+    "Camphene": ["camphene", "generator_class_average", 3.0, 6e-07, 7e-07, 40.0],
+    "Carbon Disulfide (0 Dipole Moment)": ["Carbon_disulfide", "generator_class_average", 3.0, 6e-07, 7e-07, 40.0],
+    "Carbon Tetrachloride (0 Dipole Moment)": ["ccl4", "generator_class_average", 3.0, 6e-07, 7e-07, 40.0],
+    "Chlorobenzene": ["chlorobenzene", "generator_class_average", 3.3, 4.59e-07, 7.13e-07, 30.1],
+    "Chloroform": ["chcl3", "generator_curated_with_class_fallbacks", 3.0, 6e-07, 7e-07, 40.0],
+    "Cyclohexane": ["Cyclohexane", "generator_validated_table", 1.2, 3.58e-07, 3.2e-07, 20.7],
+    "Cyclohexanol": ["Cyclohexanol", "generator_validated_table", 2.5, 5.5e-07, 5e-07, 32.0],
+    "Di-(2-Methoxyethyl) Ether": ["diglyme", "generator_class_average", 3.0, 6e-07, 7e-07, 40.0],
+    "Dichloromethane": ["Dichloromethane", "generator_validated_table", 2.8, 1.15e-07, 3.56e-07, 6.4],
+    "Diethyl Ether": ["diethylether", "generator_class_average", 4.5, 9e-07, 1.2e-06, 60.0],
+    "Diethylene Glycol": ["diethyleneglycol", "generator_curated_with_class_fallbacks", 4.0, 9.68e-07, 1.27e-06, 195.0],
+    "Dimethyl Cellosolve": ["1,2-dimethoxyethane", "generator_curated_with_class_fallbacks", 2.5, 9e-07, 1.2e-06, 60.0],
+    "Dimethyl sulfoxide": ["Dimethyl sulfoxide", "generator_validated_table", 2.8, 6.5e-07, 7.9e-07, 39.0],
+    "Dipentene (Dl-Limonene)": ["dipentene", "generator_class_average", 3.0, 6e-07, 7e-07, 40.0],
+    "Diphenyl ether": ["Diphenyl ether", "generator_validated_table", 4.5, 9.4e-07, 1.26e-06, 63.0],
+    "Dodecane": ["Dodecane", "generator_validated_table", 1.2, 3.58e-07, 3.2e-07, 20.7],
+    "Ethanol": ["Ethanol", "generator_validated_table", 1.8, 4e-07, 3.5e-07, 22.0],
+    "Ethyl Aceto Acetate (Keto)": ["ethyl_acetoacetate", "generator_class_average", 4.9, 1.05e-06, 1.3e-06, 63.9],
+    "Ethyl acetate": ["Ethyl acetate", "generator_validated_table", 2.4, 5e-07, 6.1e-07, 30.0],
+    "Ethylene Dichloride": ["1,2-dichloroethane", "generator_class_average", 3.3, 4.59e-07, 7.13e-07, 30.1],
+    "Ethylene glycol": ["Ethylene Glycol", "generator_validated_table", 2.7, 6.25e-07, 7.65e-07, 40.7],
+    "Heptane": ["Heptane", "generator_validated_table", 0.897, 2.67e-07, 2.39e-07, 15.5],
+    "Hexamethylphosphoramide": ["hexamethylphosphoramide", "generator_class_average", 3.5, 8e-07, 9.5e-07, 48.0],
+    "Hexane": ["Hexane", "generator_validated_table", 0.9, 2.67e-07, 2.39e-07, 15.5],
+    "Isophorone": ["isophorone", "generator_class_average", 3.0, 6e-07, 7e-07, 40.0],
+    "Isopropylamine": ["isopropylamine", "generator_curated_with_class_fallbacks", 2.75, 7.58e-07, 8.89e-07, 50.2],
+    "Methanol": ["Methanol", "generator_validated_table", 1.5, 3.5e-07, 3e-07, 18.0],
+    "Methyl acetate": ["Methyl acetate", "generator_validated_table", 2.2, 4.6e-07, 5.6e-07, 27.5],
+    "Methyl ethyl ketone": ["2-Butanone", "generator_validated_table", 3.2, 7e-07, 6.5e-07, 40.0],
+    "Methyl-t-Butyl Ether": ["methyl-t-butylether", "generator_class_average", 4.5, 9e-07, 1.2e-06, 60.0],
+    "N,N-Dimethylformamide": ["N,N-Dimethylformamide", "generator_validated_table", 3.8, 8.8e-07, 1.08e-06, 53.0],
+    "N-Methyl-2-Pyrrolidone (NMP)": ["n-methyl-2-pyrrolidinone", "generator_curated_with_class_fallbacks", 3.11, 360.0, 7e-07, 40.0],
+    "Naphthalene": ["naphthalene", "generator_class_average", 1.57, 3.2e-07, 2.67e-07, 15.9],
+    "Nitromethane": ["nitromethane", "generator_class_average", 3.0, 6e-07, 7e-07, 40.0],
+    "Propylene Carbonate": ["propylene_carbonate", "generator_class_average", 3.0, 6e-07, 7e-07, 40.0],
+    "Propylene glycol": ["Propylene Glycol", "generator_validated_table", 5.16, 1.46e-06, 1.98e-06, 101],
+    "Pyridine": ["pyridine", "generator_class_average", 1.57, 3.2e-07, 2.67e-07, 15.9],
+    "Pyrrole": ["pyrrole", "generator_class_average", 3.0, 6e-07, 7e-07, 40.0],
+    "Styrene": ["styrene", "generator_class_average", 1.57, 3.2e-07, 2.67e-07, 15.9],
+    "Tetrahydrofuran (THF)": ["Tetrahydrofuran", "generator_validated_table", 5.5, 1.15e-06, 1.55e-06, 77.0],
+    "Tetrahydropyran": ["Tetrahydropyran", "generator_validated_table", 4.0, 8.3e-07, 1.12e-06, 56.0],
+    "Toluene": ["Toluene", "generator_validated_table", 1.61, 3.31e-07, 2.75e-07, 16.5],
+    "Water": ["h2o", "generator_curated_with_class_fallbacks", 0.0003, 6e-07, 7e-07, 40.0],
+    "p-Xylene": ["p-Xylene", "generator_validated_table", 1.52, 3.09e-07, 2.59e-07, 15.4],
+    "tert-Butanol": ["tert-Butanol", "generator_validated_table", 2.2, 5e-07, 4.5e-07, 28.0]
+  },
+  "unmapped_source_rows": [
+    ["triethylamine", "Triethylamine", "not admitted by the current exact identity registry"],
+    ["acetaldehyde", "acetaldehyde", "currently refuses as an ambiguous identity"]
+  ]
+}

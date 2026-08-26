@@ -24,7 +24,7 @@ from __future__ import annotations
 from typing import Any, Callable, NamedTuple
 
 from . import (
-    analysis, contaminants, optimization, research, safety,
+    analysis, contaminants, research, safety,
     separation, tea, tools,
 )
 
@@ -50,7 +50,6 @@ REGISTRY: tuple[Tool, ...] = tuple([
     _t(tools.solubility_query, "thermodynamics"),
     _t(tools.screen_polymer_separation, "thermodynamics"),
     _t(tools.screen_pairwise_solubility_overlap, "thermodynamics"),
-    _t(tools.normalize_feed_composition, "thermodynamics"),
     # --- separation: routes, precipitation protocol, membership ---
     _t(separation.resolve_polymer_data_scope, "separation"),
     _t(separation.lookup_material_database_membership, "separation"),
@@ -63,13 +62,8 @@ REGISTRY: tuple[Tool, ...] = tuple([
     _t(safety.screen_green_solvent_candidates, "safety"),
     _t(safety.screen_route_solvent_substitutions, "safety"),
     # --- TEA / LCA ---
-    _t(tea.lookup_admitted_process_records, "tea"),
-    _t(tea.evaluate_tea_lca_scenarios, "tea"),
-    _t(tea.evaluate_stored_route_tea_lca, "tea"),
-    _t(tea.analyze_tea_sensitivity, "tea"),
-    # --- optimization ---
-    _t(optimization.optimize_stored_route, "optimization"),
-    _t(optimization.pareto_optimize_stored_route, "optimization"),
+    _t(tea.evaluate_process, "tea"),
+    _t(tea.rank_landscape, "tea"),
     # --- Hansen parameters, thermal properties, numeric analysis ---
     _t(analysis.lookup_hansen_parameters, "analysis"),
     _t(analysis.screen_hansen_compatibility, "analysis"),

@@ -14,9 +14,11 @@ from functools import lru_cache
 from importlib.metadata import PackageNotFoundError, version as package_version
 from importlib.resources import files
 from pathlib import Path
-from typing import Any, Literal, Optional, Sequence
+from typing import Any, Literal, Mapping, Optional, Sequence
 
 from .contracts import tool_error, tool_success
+from . import tea_contracts
+from .landscape import _carried_safety_standing, axis_span
 from .session import (
     candidate_evidence, current_tool_session,
     resolve_candidate_argument,
@@ -27,6 +29,12 @@ _ASSET_SHA256 = "ffa6141a23ef0364f9d8e7734399922a71fc421e3a581105b7b4da75370b125
 _DIRECTIONS = {
     "total_cost": "min", "emissions": "min", "profit": "max",
     "circularity": "max",
+}
+_TRADEOFF_UNITS = {
+    "total_cost": "USD/yr",
+    "emissions": "t CO2e/yr",
+    "profit": "USD/yr",
+    "circularity": "dimensionless",
 }
 _OBJECTIVES = {
     "min_cost": ("total_cost", "min"),
@@ -130,10 +138,11 @@ def _composition(values: dict[str, Any]) -> dict[str, float]:
     return result
 
 
-def _source_state() -> dict[str, Any]:
-    state = current_tool_session()
-    route = copy.deepcopy(getattr(state, "last_route", None)) if state else None
-    tea = copy.deepcopy(getattr(state, "last_tea", None)) if state else None
+def _source_from_route_and_tea(
+    route: Any,
+    tea: Any,
+) -> dict[str, Any]:
+    """F source from an explicit costed-route payload. Never getattr."""
     if not route or not route.get("complete"):
         raise ValueError("A complete stored separation route is required")
     if not tea or tea.get("route_source") != "typed_session_state":
@@ -141,7 +150,7 @@ def _source_state() -> dict[str, Any]:
     rows = list(tea.get("comparison_rows") or [])
     if not rows or any(row.get("stage") is None for row in rows):
         raise ValueError("Stored TEA/LCA state lacks stage metrics")
-    expected_signature = route_evidence_signature(route)
+    expected_signature = tea_contracts.route_evidence_signature(route)
     if tea.get("route_signature") != expected_signature:
         raise ValueError("Stored TEA/LCA state is stale for the current route")
     route_steps = list(route.get("steps") or [])
@@ -168,6 +177,13 @@ def _source_state() -> dict[str, Any]:
         "composition": composition,
         "feed_mt_per_yr": _number(tea.get("processing_capacity_mt_per_yr"), "processing capacity"),
     }
+
+
+def _source_state() -> dict[str, Any]:
+    state = current_tool_session()
+    route = copy.deepcopy(getattr(state, "last_route", None)) if state else None
+    tea = copy.deepcopy(getattr(state, "last_tea", None)) if state else None
+    return _source_from_route_and_tea(route, tea)
 
 
 def _stored_optimization_gap(x_metric: str, y_metric: str) -> str | None:
@@ -229,29 +245,9 @@ def _stored_optimization_gap(x_metric: str, y_metric: str) -> str | None:
     if {x_metric, y_metric} != {"emissions", "selectivity"}:
         return tool_error(tool, "The stored candidate screen supports only an emissions-versus-selectivity basis-gap assessment.", error_code="invalid_pareto_basis")
     floor = (getattr(state, "last_screen_constraints", None) or {}).get("minimum_selectivity_points")
-    candidates, candidate_source = candidate_evidence(
-        state, {CANDIDATE_SHAPE_SCREEN},
-    )
-    if (
-        state and getattr(state, "last_candidates", None)
-        and not candidates and candidate_source
-    ):
-        return tool_error(
-            tool,
-            "The stored candidate evidence is not a solvent-screen shortlist; "
-            "rerun the screen or evaluate the stored route before optimization.",
-            error_code="candidate_evidence_kind_mismatch",
-            analysis_type="candidate_evidence_basis_gap",
-            requested_analysis_type="optimization",
-            can_optimize=False, can_build_frontier=False,
-            candidate_evidence_source=candidate_source.get("source_tool"),
-            candidate_evidence_shape=candidate_source.get("shape"),
-            required_candidate_shape=CANDIDATE_SHAPE_SCREEN,
-            missing_basis_codes=["screen_shortlist", "comparable_candidate_gwp"],
-            warnings=[
-                "No solvent screen, emissions ranking, optimum, or frontier was calculated."
-            ],
-        )
+    # Shape selection belongs to the harness. The optimization engine accepts
+    # bound rows only when the selectivity fields below establish its basis.
+    candidates, _ = candidate_evidence(state)
     if floor is None or not candidates or any(row.get("selectivity_pct") is None for row in candidates):
         return tool_error(tool, "The stored screen lacks a selectivity floor or candidate values.", error_code="invalid_pareto_basis")
     safety = {
@@ -531,6 +527,121 @@ def _cost_emissions_tradeoff(
     }
 
 
+def _stamp_residual_point(point: Optional[dict[str, Any]]) -> Optional[dict[str, Any]]:
+    """Carry safety_standing on an F point. Not a GSK-fail filter."""
+    if not isinstance(point, dict):
+        return point
+    copied = dict(point)
+    copied["safety_standing"] = _carried_safety_standing(copied)
+    return copied
+
+
+def _stamp_residual_points(
+    points: Sequence[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    return [_stamp_residual_point(point) for point in points]
+
+
+def _residual_grouping(source: Mapping[str, Any]) -> dict[str, Any]:
+    """Held identity of one costed route. Not process_rows polymer_grouping."""
+    return {
+        "source_route_signature": source["tea"].get("route_signature"),
+        "feed_mass_fractions": dict(source["composition"]),
+        "feed_mt_per_yr": source["feed_mt_per_yr"],
+    }
+
+
+def _axis_extreme(
+    points: Sequence[dict[str, Any]], key: str, direction: str,
+) -> dict[str, Any]:
+    if direction == "max":
+        return max(points, key=lambda point: float(point[key]))
+    return min(points, key=lambda point: float(point[key]))
+
+
+def _residual_axis_spans(
+    landscape: Sequence[dict[str, Any]], x_key: str, y_key: str,
+) -> dict[str, dict[str, float]]:
+    """Hyndman–Fan type 7 spans of the usable landscape, not the frontier."""
+    if not landscape:
+        return {}
+    return {
+        x_key: axis_span([float(point[x_key]) for point in landscape]),
+        y_key: axis_span([float(point[y_key]) for point in landscape]),
+    }
+
+
+def _residual_pareto_quality(
+    landscape: Sequence[dict[str, Any]],
+    frontier: Sequence[dict[str, Any]],
+    x_key: str,
+    y_key: str,
+) -> dict[str, Any]:
+    """F quality fields on residual pareto: fraction, sparse, equality, spans."""
+    n_landscape = len(landscape)
+    n_frontier = len(frontier)
+    fraction = (n_frontier / n_landscape) if n_landscape else None
+    spans = _residual_axis_spans(landscape, x_key, y_key)
+    if not frontier:
+        return {
+            "frontier_fraction": fraction,
+            "sparse_frontier": False,
+            "cheapest_equals_lowest_y": False,
+            "axis_spans": spans,
+        }
+    cheapest = _axis_extreme(frontier, x_key, _DIRECTIONS[x_key])
+    best_y = _axis_extreme(frontier, y_key, _DIRECTIONS[y_key])
+    equals = cheapest is best_y or (
+        float(cheapest[x_key]) == float(best_y[x_key])
+        and float(cheapest[y_key]) == float(best_y[y_key])
+    )
+    return {
+        "frontier_fraction": fraction,
+        "sparse_frontier": n_frontier == 1 or equals,
+        "cheapest_equals_lowest_y": equals,
+        "axis_spans": spans,
+    }
+
+
+def _metric_generic_tradeoff(
+    frontier: Sequence[dict[str, Any]],
+    x_key: str,
+    y_key: str,
+    *,
+    cheapest_equals_lowest_y: bool,
+) -> dict[str, Any] | None:
+    """§9.2.2 metric-generic tradeoff. Null on a star. F units, not F leaf names."""
+    if len(frontier) < 2 or cheapest_equals_lowest_y:
+        return None
+    cheapest = _axis_extreme(frontier, x_key, _DIRECTIONS[x_key])
+    best_y = _axis_extreme(frontier, y_key, _DIRECTIONS[y_key])
+    x_at_cheapest = float(cheapest[x_key])
+    y_at_cheapest = float(cheapest[y_key])
+    x_at_best_y = float(best_y[x_key])
+    y_at_best_y = float(best_y[y_key])
+    delta_y = y_at_best_y - y_at_cheapest
+    payload: dict[str, Any] = {
+        "x_metric": x_key,
+        "y_metric": y_key,
+        "x_direction": _DIRECTIONS[x_key],
+        "y_direction": _DIRECTIONS[y_key],
+        "x_units": _TRADEOFF_UNITS[x_key],
+        "y_units": _TRADEOFF_UNITS[y_key],
+        "x_at_cheapest": x_at_cheapest,
+        "y_at_cheapest": y_at_cheapest,
+        "x_at_best_y": x_at_best_y,
+        "y_at_best_y": y_at_best_y,
+        "delta_x": x_at_best_y - x_at_cheapest,
+        "delta_y": delta_y,
+        "delta_y_percent": (
+            100.0 * delta_y / y_at_cheapest if y_at_cheapest else None
+        ),
+    }
+    if x_at_cheapest > 0:
+        payload["x_ratio"] = x_at_best_y / x_at_cheapest
+    return payload
+
+
 def _solver_version(name: str) -> Optional[str]:
     if name in {"appsi_highs", "highs"}:
         try:
@@ -597,6 +708,243 @@ def _payload_path(kind: str, payload: dict[str, Any]) -> str:
     path = (root / f"{kind}_{hashlib.sha256(canonical.encode()).hexdigest()[:12]}.json").resolve()
     path.write_text(json.dumps(payload, indent=2, allow_nan=False) + "\n", encoding="utf-8")
     return str(path)
+
+
+def rank_residual_route(
+    source: dict[str, Any],
+    *,
+    operation: str,
+    objective: Objective = "max_profit",
+    scenario: Scenario = "B",
+    recovery_yield: Optional[float] = None,
+    polymer_market_values_usd_per_mt: Optional[dict[str, float]] = None,
+    solver_name: SolverName = "scip",
+    x_metric: Metric = "total_cost",
+    y_metric: Metric = "emissions",
+    composition_slices: Optional[list[dict[str, float]]] = None,
+) -> str:
+    """Prefix × leftover-tech ranking of one costed route. Handle-fed source."""
+    tool = "rank_landscape"
+    operation_token = str(operation or "").strip().casefold()
+    shared = {
+        "source": "residual_route",
+        "source_route_signature": source["tea"].get("route_signature"),
+        "source_tea_engine_mode": source["tea"].get("engine_mode"),
+        "engine_mode": source["tea"].get("engine_mode"),
+        "feed_mass_fractions": source["composition"],
+        "feed_mt_per_yr": source["feed_mt_per_yr"],
+    }
+    try:
+        scenario_key = _scenario_key(scenario)
+        recovery = _number(
+            recovery_yield if recovery_yield is not None else
+            (asset_payload().get("policy") or {}).get("default_recovery_yield"),
+            "recovery_yield",
+        )
+        if not 0 < recovery <= 1:
+            raise ValueError("recovery_yield must be above 0 and at most 1")
+        values = _market_values(
+            polymer_market_values_usd_per_mt, tuple(source["composition"]),
+        )
+        if operation_token == "optimum":
+            objective_key = _objective_key(objective)
+            solver_key = _solver_key(solver_name)
+            landscape, rejected = _landscape(
+                source, scenario=scenario_key, recovery_yield=recovery,
+                market_values=values,
+            )
+        elif operation_token == "pareto_dominance":
+            x_key = _metric_key(x_metric)
+            y_key = _metric_key(y_metric)
+            slices = composition_slices or [source["composition"]]
+            normalized_slices = [_composition(item) for item in slices]
+            if any(
+                set(item) != set(source["composition"])
+                for item in normalized_slices
+            ):
+                raise ValueError(
+                    "Every composition slice must cover the stored-route polymers"
+                )
+        else:
+            raise ValueError("operation must be optimum or pareto_dominance")
+    except ValueError as error:
+        message = str(error)
+        if message == "Unsupported objective":
+            return tool_error(
+                tool, "Unsupported objective.",
+                error_code="unsupported_objective",
+                supported_objectives=sorted(_OBJECTIVES),
+                **shared,
+            )
+        code = (
+            "invalid_pareto_basis"
+            if operation_token == "pareto_dominance"
+            else "invalid_optimization_basis"
+        )
+        return tool_error(tool, message, error_code=code, **shared)
+    if operation_token == "optimum":
+        if not landscape:
+            return tool_error(
+                tool, "No design has usable economics.",
+                error_code="no_usable_designs", **shared,
+            )
+        selected = _deterministic_optimum(landscape, objective_key)
+        verification = _verify_point(landscape, objective_key, solver_key)
+        verification["agrees_with_deterministic_optimum"] = (
+            verification.get("selected_design_id") == selected["design_id"]
+            if verification.get("status") == "verified" else None
+        )
+        marked = _stamp_residual_points(landscape)
+        return tool_success(
+            tool, analysis_type="point_optimum", operation="optimum",
+            objective=objective_key, scenario=scenario_key,
+            recovery_yield=recovery,
+            polymer_market_values_usd_per_mt=values,
+            capital_allocation_years=int(
+                (asset_payload().get("policy") or {})["strap_capital_allocation_years"]
+            ),
+            residual_product_revenue_included=False,
+            selected_point=_stamp_residual_point(selected),
+            cheapest_point=_stamp_residual_point(
+                min(landscape, key=lambda point: float(point["total_cost"]))
+            ),
+            landscape_points=marked,
+            n_landscape_points=len(marked),
+            n_rejected_phantom_designs=len(rejected),
+            solver=verification,
+            economics_guard="annualized CAPEX>0 AND (OPEX>0 OR GWP>0)",
+            metric_units={
+                "capital_cost": "USD/yr (BioSTEAM TCI allocated over 10 years)",
+                "operational_cost": "USD/yr", "transportation_cost": "USD/yr",
+                "total_cost": "USD/yr", "revenue": "USD/yr", "profit": "USD/yr",
+                "emissions": "t CO2e/yr", "energy_mj_per_yr": "MJ/yr",
+                "circularity": "mass-diversion fraction",
+            },
+            circularity_basis=(asset_payload().get("policy") or {}).get(
+                "circularity_note"
+            ),
+            provenance={
+                "asset_sha256": _ASSET_SHA256,
+                **(asset_payload().get("provenance") or {}),
+            },
+            **shared,
+        )
+    slice_payloads = []
+    for index, composition in enumerate(normalized_slices, 1):
+        landscape, rejected = _landscape(
+            source, scenario=scenario_key, recovery_yield=recovery,
+            market_values=values, composition=composition,
+        )
+        frontier = _pareto_sweep(landscape, x_key, y_key)
+        if not frontier:
+            continue
+        cheapest = copy.deepcopy(
+            min(frontier, key=lambda point: float(point["total_cost"]))
+        )
+        knee = _knee(frontier, x_key, y_key)
+        knee_status = (
+            "interior_tradeoff"
+            if len(frontier) > 2 and knee and knee.get("design_id") not in {
+                frontier[0].get("design_id"), frontier[-1].get("design_id"),
+            }
+            else "endpoint_only_no_interior_knee"
+        )
+        if not landscape:
+            knee_status = "not_calculated_no_comparable_designs"
+        frontier_ids = {point.get("design_id") for point in frontier}
+        marked = []
+        for point in landscape:
+            copied = dict(point)
+            copied["is_frontier"] = copied.get("design_id") in frontier_ids
+            marked.append(copied)
+        marked = _stamp_residual_points(marked)
+        frontier = _stamp_residual_points(frontier)
+        cheapest = _stamp_residual_point(cheapest)
+        quality = _residual_pareto_quality(marked, frontier, x_key, y_key)
+        grouping = _residual_grouping(source)
+        slice_payloads.append({
+            "slice_id": f"slice-{index}",
+            "feed_mass_fractions": composition,
+            "landscape_points": marked,
+            "frontier_points": frontier,
+            "points": frontier,
+            "n_landscape_points": len(marked),
+            "n_frontier_points": len(frontier),
+            "n_rejected_phantom_designs": len(rejected),
+            "knee_point": _stamp_residual_point(knee), "knee_status": knee_status,
+            "cheapest_point": cheapest,
+            "frontier_tradeoff": _metric_generic_tradeoff(
+                frontier,
+                x_key,
+                y_key,
+                cheapest_equals_lowest_y=quality["cheapest_equals_lowest_y"],
+            ),
+            "grouping": grouping,
+            **quality,
+        })
+    if not slice_payloads:
+        return tool_error(
+            tool, "No feasible Pareto frontier was found.",
+            error_code="no_pareto_points", **shared,
+        )
+    primary = slice_payloads[0]
+    n_land = primary["n_landscape_points"]
+    n_front = primary["n_frontier_points"]
+    return tool_success(
+        tool,
+        analysis_type=(
+            "pareto_slices" if len(slice_payloads) > 1 else "pareto_front"
+        ),
+        operation="pareto_dominance",
+        x_metric=x_key, y_metric=y_key, scenario=scenario_key,
+        recovery_yield=recovery,
+        polymer_market_values_usd_per_mt=values,
+        capital_allocation_years=int(
+            (asset_payload().get("policy") or {})["strap_capital_allocation_years"]
+        ),
+        residual_product_revenue_included=False,
+        n_slices_requested=len(normalized_slices),
+        n_slices_solved=len(slice_payloads),
+        landscape_points=primary["landscape_points"],
+        frontier_points=primary["frontier_points"],
+        points=primary["points"],
+        n_landscape_points=n_land,
+        n_frontier_points=n_front,
+        frontier_fraction=primary["frontier_fraction"],
+        sparse_frontier=primary["sparse_frontier"],
+        cheapest_equals_lowest_y=primary["cheapest_equals_lowest_y"],
+        axis_spans=primary["axis_spans"],
+        knee_point=primary["knee_point"],
+        knee_status=primary["knee_status"],
+        cheapest_point=primary["cheapest_point"],
+        frontier_tradeoff=primary["frontier_tradeoff"],
+        grouping=primary["grouping"],
+        slices=[{
+            key: item[key] for key in (
+                "slice_id", "feed_mass_fractions", "n_landscape_points",
+                "n_frontier_points", "frontier_fraction", "sparse_frontier",
+                "cheapest_equals_lowest_y", "axis_spans", "knee_point", "cheapest_point",
+                "knee_status", "frontier_tradeoff", "grouping",
+            )
+        } for item in slice_payloads],
+        points_are_subset_of_landscape=True,
+        economics_guard="annualized CAPEX>0 AND (OPEX>0 OR GWP>0)",
+        metric_units={
+            "capital_cost": "USD/yr (BioSTEAM TCI allocated over 10 years)",
+            "operational_cost": "USD/yr", "transportation_cost": "USD/yr",
+            "total_cost": "USD/yr", "revenue": "USD/yr", "profit": "USD/yr",
+            "emissions": "t CO2e/yr", "energy_mj_per_yr": "MJ/yr",
+            "circularity": "mass-diversion fraction",
+        },
+        circularity_basis=(asset_payload().get("policy") or {}).get(
+            "circularity_note"
+        ),
+        provenance={
+            "asset_sha256": _ASSET_SHA256,
+            **(asset_payload().get("provenance") or {}),
+        },
+        **shared,
+    )
 
 
 def optimize_stored_route(
@@ -819,5 +1167,3 @@ def pareto_optimize_stored_route(
             "Circularity is a mass-diversion screening proxy, not a validated circularity assessment.",
         ],
     )
-
-

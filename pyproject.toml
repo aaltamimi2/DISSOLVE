@@ -2,7 +2,14 @@
 name = "dissolve-v12"
 version = "0.1"
 requires-python = ">=3.11"
-dependencies = ["duckdb>=1.0"]
+dependencies = [
+    "duckdb>=1.0",
+    "openai>=1",
+    "anthropic>=0.40",
+    "google-genai>=1",
+    "rich>=13",
+    "prompt_toolkit>=3.0",
+]
 
 [build-system]
 requires = ["setuptools>=68"]

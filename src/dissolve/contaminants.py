@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import json
 import math
-import re
 import threading
 from dataclasses import dataclass
 from functools import lru_cache
@@ -15,11 +14,11 @@ from typing import Any, Optional, Sequence
 import duckdb
 
 from . import session, thermodynamics as thermo
-from .contracts import tool_error, tool_success
+from .contracts import parse_tool_result, tool_error, tool_success
 from .tools import _polymer_ambiguity_error
 
 _ASSET = Path(str(files("dissolve").joinpath("data/contaminants.duckdb")))
-_ASSET_SHA256 = "19e585e019ad0ad1aac6e31ff49b5d47477789a5903b4fc3821e2d16a8596721"
+_ASSET_SHA256 = "866d769b6a140bf289c5036fd5c0d7d2b6f424cb7994e71c76e16a1a1d9a4c5f"
 _LOCAL = threading.local()
 _FAMILY_ALIASES = {
     "pfas": "PFAS",
@@ -27,6 +26,13 @@ _FAMILY_ALIASES = {
     "perfluoroalkyl substances": "PFAS",
     "phthalate": "Phthalates",
     "phthalates": "Phthalates",
+}
+_UNCOVERED_FAMILY_ALIASES = {
+    "bfr": "BFR",
+    "brominated flame retardant": "BFR",
+    "brominated flame retardants": "BFR",
+    "flame retardant": "BFR",
+    "flame retardants": "BFR",
 }
 _DEFAULT_SWELLING_MIN = 1.0
 _DEFAULT_SWELLING_MAX = 10.0
@@ -142,27 +148,69 @@ def _families() -> dict[str, list[str]]:
     return result
 
 
+@dataclass(frozen=True)
+class _ResolvedContaminant:
+    name: str
+    family: str
+    key: str
+    cas_number: Optional[str]
+    resolution_basis: str
+    pubchem_cid: Optional[str]
+
+    @property
+    def identity_verified(self) -> bool:
+        return self.resolution_basis == "cas_verified"
+
+
 @lru_cache(maxsize=1)
-def _contaminant_lookup() -> dict[str, tuple[str, str]]:
+def _contaminant_lookup() -> dict[str, _ResolvedContaminant]:
+    """Folded alias → catalog identity. Table only; no parse fallback."""
+    result: dict[str, _ResolvedContaminant] = {}
+    for alias, key, name, family, cas, basis, cid in _connection().execute(
+        "SELECT alias, contaminant_key, canonical_name, family, "
+        "cas_number, resolution_basis, pubchem_cid "
+        "FROM contaminant_aliases ORDER BY alias"
+    ).fetchall():
+        folded = _key(alias)
+        if not folded:
+            continue
+        result.setdefault(
+            folded,
+            _ResolvedContaminant(
+                name=str(name),
+                family=str(family),
+                key=str(key),
+                cas_number=cas,
+                resolution_basis=str(basis),
+                pubchem_cid=cid,
+            ),
+        )
+    return result
+
+
+def _served_identity(identity: _ResolvedContaminant) -> dict[str, Any]:
+    """Public identity. Only cas_verified may be served as verified."""
     return {
-        str(key): (str(name), str(family))
-        for family, name, key in _connection().execute(
-            "SELECT family, contaminant, contaminant_key FROM contaminants"
-        ).fetchall()
+        "contaminant": identity.name,
+        "contaminant_key": identity.key,
+        "contaminant_family": identity.family,
+        "resolution_basis": identity.resolution_basis,
+        "identity_verified": identity.identity_verified,
+        "cas_number": identity.cas_number,
+        "pubchem_cid": identity.pubchem_cid,
     }
 
 
-def _contaminant_catalog(contaminants: Sequence[str]) -> list[dict[str, str]]:
-    """Attach the admitted family identity to every expanded contaminant."""
+def _contaminant_catalog(contaminants: Sequence[str]) -> list[dict[str, Any]]:
+    """Attach family and resolution_basis to every expanded contaminant."""
     lookup = _contaminant_lookup()
-    return [
-        {
-            "contaminant": str(contaminant),
-            "contaminant_family": lookup[_key(contaminant)][1],
-        }
-        for contaminant in contaminants
-        if _key(contaminant) in lookup
-    ]
+    catalog = []
+    for contaminant in contaminants:
+        identity = lookup.get(_key(contaminant))
+        if identity is None:
+            continue
+        catalog.append(_served_identity(identity))
+    return catalog
 
 
 def _provenance() -> dict[str, str]:
@@ -176,22 +224,121 @@ def _provenance() -> dict[str, str]:
     }
 
 
-def _expand(requested: Sequence[str]) -> tuple[list[str], list[str], list[str]]:
-    supported, unsupported, families = [], [], set()
+_UNSOURCED_SWELL_DISSOLVE_WARNING = (
+    "Default swelling / dissolution proxies (1 / 10 wt%, swelling max 10) "
+    "have no regulatory or literature citation on this function. Zhou "
+    "workbook provenance is the miscibility/logD evidence class, not the "
+    "swelling or dissolution threshold basis."
+)
+_PAPER_PRECIPITATION_NOTE = (
+    "Default precipitation_threshold_wt_pct 1 wt% follows Zhou et al., "
+    "Green Chem. 2026, 28, 9061 ('we set a threshold of 1 wt%')."
+)
+_UNSOURCED_SWELL_DISSOLVE_KEYS = frozenset({
+    "swelling_min_wt_pct", "swelling_max_wt_pct", "dissolution_min_wt_pct",
+})
+
+
+def _source_label(key: str, supplied: bool) -> str:
+    if supplied:
+        return "user"
+    if key == "precipitation_threshold_wt_pct":
+        return "paper"
+    return "default"
+
+
+def _served_threshold_fields(
+    inputs: dict[str, Any], *, include_precipitation: bool | None = None,
+) -> dict[str, Any]:
+    """Publish active proxies. Precipitation 1 wt% is paper-sourced; 1/10 is not."""
+    sources = dict(inputs["threshold_sources"])
+    if include_precipitation is None:
+        include_precipitation = "precipitation_threshold_wt_pct" in inputs
+    published_sources = {
+        key: value for key, value in sources.items()
+        if include_precipitation or key != "precipitation_threshold_wt_pct"
+    }
+    unsourced = any(
+        published_sources.get(key) == "default"
+        for key in _UNSOURCED_SWELL_DISSOLVE_KEYS
+    )
+    if unsourced:
+        citation_status = "unsourced"
+    elif "user" in published_sources.values():
+        citation_status = "user_requested"
+    elif published_sources.get("precipitation_threshold_wt_pct") == "paper":
+        citation_status = "paper_sourced"
+    else:
+        citation_status = "user_requested"
+    citations = {
+        key: (
+            "zhou_green_chem_2026" if source == "paper"
+            else "unsourced" if source == "default"
+            else "user"
+        )
+        for key, source in published_sources.items()
+    }
+    fields: dict[str, Any] = {
+        "swelling_min_wt_pct": inputs["swelling_min_wt_pct"],
+        "swelling_max_wt_pct": inputs["swelling_max_wt_pct"],
+        "dissolution_min_wt_pct": inputs["dissolution_min_wt_pct"],
+        "threshold_basis": inputs["threshold_basis"],
+        "threshold_sources": published_sources,
+        "threshold_citations": citations,
+        "threshold_citation_status": citation_status,
+    }
+    if include_precipitation and "precipitation_threshold_wt_pct" in inputs:
+        fields["precipitation_threshold_wt_pct"] = inputs[
+            "precipitation_threshold_wt_pct"
+        ]
+    return fields
+
+
+def _threshold_warnings(
+    inputs: dict[str, Any], *, include_precipitation: bool | None = None,
+) -> list[str]:
+    fields = _served_threshold_fields(
+        inputs, include_precipitation=include_precipitation,
+    )
+    warnings: list[str] = []
+    if any(
+        fields["threshold_sources"].get(key) == "default"
+        for key in _UNSOURCED_SWELL_DISSOLVE_KEYS
+    ):
+        warnings.append(_UNSOURCED_SWELL_DISSOLVE_WARNING)
+    if fields["threshold_sources"].get("precipitation_threshold_wt_pct") == "paper":
+        warnings.append(_PAPER_PRECIPITATION_NOTE)
+    return warnings
+
+
+def _expand(
+    requested: Sequence[str],
+) -> tuple[list[str], list[str], list[str], list[str]]:
+    supported, unsupported, families, uncovered = [], [], set(), []
     lookup = _contaminant_lookup()
     for item in requested:
         text = str(item).strip()
-        family = _FAMILY_ALIASES.get(_key(text))
+        folded = _key(text)
+        family = _FAMILY_ALIASES.get(folded)
+        uncovered_family = _UNCOVERED_FAMILY_ALIASES.get(folded)
         if family:
             supported.extend(_families().get(family, []))
             families.add(family)
-        elif _key(text) in lookup:
-            name, family = lookup[_key(text)]
-            supported.append(name)
-            families.add(family)
+        elif uncovered_family:
+            uncovered.append(uncovered_family)
+            unsupported.append(text)
+        elif folded in lookup:
+            identity = lookup[folded]
+            supported.append(identity.name)
+            families.add(identity.family)
         elif text:
             unsupported.append(text)
-    return list(dict.fromkeys(supported)), list(dict.fromkeys(unsupported)), sorted(families)
+    return (
+        list(dict.fromkeys(supported)),
+        list(dict.fromkeys(unsupported)),
+        sorted(families),
+        list(dict.fromkeys(uncovered)),
+    )
 
 
 def _solvent_names(contaminants: Sequence[str]) -> list[str]:
@@ -209,25 +356,88 @@ def _solvent_names(contaminants: Sequence[str]) -> list[str]:
     return [str(row[0]) for row in rows]
 
 
+@lru_cache(maxsize=1)
+def _workbook_solvent_rows() -> tuple[tuple[str, str, str], ...]:
+    rows = _connection().execute(
+        """SELECT DISTINCT solvent_raw, solvent_key, solvent_normalized FROM (
+             SELECT solvent_raw, solvent_key, solvent_normalized FROM logd
+             UNION
+             SELECT solvent_raw, solvent_key, solvent_normalized FROM miscibility
+           )"""
+    ).fetchall()
+    return tuple(
+        (str(raw or ""), str(key or ""), str(normalized or ""))
+        for raw, key, normalized in rows
+    )
+
+
+def _solvent_where(tokens: Sequence[str]) -> tuple[str, list[str]]:
+    """Match any of the three workbook solvent identity columns."""
+    if not tokens:
+        return "FALSE", []
+    placeholders = ",".join("?" for _ in tokens)
+    sql = (
+        f"(solvent_key IN ({placeholders}) OR "
+        f"solvent_normalized IN ({placeholders}) OR "
+        f"lower(trim(CAST(solvent_raw AS VARCHAR))) IN ({placeholders}))"
+    )
+    return sql, list(tokens) * 3
+
+
 def _solvent_keys(name: str) -> tuple[str, ...]:
+    """Every label that can hit a workbook row for this thermo identity.
+
+    ``solvent_raw`` / ``solvent_key`` / ``solvent_normalized`` plus
+    ``thermo.solvent_identity_labels`` and any workbook row whose
+    ``resolve_solvent`` matches. ``butanone`` must reach ``2-butanone``;
+    ``aceticacid`` must reach ``acetic acid``. ``o-xylene`` must not become
+    catalog ``xylene`` (p-xylene).
+    """
     raw = _key(name)
     resolved = thermo.resolve_solvent(name)
-    return tuple(dict.fromkeys(item for item in (raw, _key(resolved)) if item))
+    tokens: list[str] = []
+    if raw:
+        tokens.append(raw)
+    if resolved:
+        tokens.append(_key(resolved))
+        for label in thermo.solvent_identity_labels(resolved):
+            folded = _key(label)
+            if folded:
+                tokens.append(folded)
+    token_set = {item for item in tokens if item}
+    resolved_key = _key(resolved) if resolved else ""
+    for workbook_raw, workbook_key, workbook_normalized in _workbook_solvent_rows():
+        members = {
+            _key(workbook_raw),
+            _key(workbook_key),
+            _key(workbook_normalized),
+        }
+        members.discard("")
+        if token_set & members:
+            token_set.update(members)
+            continue
+        if not resolved_key:
+            continue
+        for candidate in (workbook_key, workbook_normalized, workbook_raw):
+            other = thermo.resolve_solvent(candidate) if candidate else None
+            if other and _key(other) == resolved_key:
+                token_set.update(members)
+                break
+    return tuple(item for item in token_set if item)
 
 
 def _miscibility(solvent: str, contaminant: str, regime: str) -> dict[str, Any] | None:
     solvent_keys = _solvent_keys(solvent)
     if not solvent_keys:
         return None
-    placeholders = ",".join("?" for _ in solvent_keys)
+    where, params = _solvent_where(solvent_keys)
     rows = _connection().execute(
         f"""SELECT temperature_regime, temperature_c, boiling_point_c,
                    t_higher_c, miscible
             FROM miscibility
-            WHERE contaminant_key=? AND
-                  (solvent_key IN ({placeholders}) OR solvent_normalized IN ({placeholders}))
+            WHERE contaminant_key=? AND {where}
             ORDER BY CASE WHEN temperature_regime=? THEN 0 ELSE 1 END, rowid""",
-        [_key(contaminant), *solvent_keys, *solvent_keys, regime],
+        [_key(contaminant), *params, regime],
     ).fetchall()
     if not rows:
         return None
@@ -238,16 +448,54 @@ def _miscibility(solvent: str, contaminant: str, regime: str) -> dict[str, Any] 
     }
 
 
+def _miscibility_regimes(solvent: str, contaminant: str) -> tuple[str, ...]:
+    """Every workbook regime for this pair. Does not require the asked _regime."""
+    solvent_keys = _solvent_keys(solvent)
+    if not solvent_keys:
+        return ()
+    where, params = _solvent_where(solvent_keys)
+    rows = _connection().execute(
+        f"""SELECT DISTINCT temperature_regime FROM miscibility
+            WHERE contaminant_key=? AND {where}""",
+        [_key(contaminant), *params],
+    ).fetchall()
+    return tuple(str(row[0]) for row in rows if row and row[0])
+
+
+def _unspecified_only_basis(solvent: str, contaminants: Sequence[str]) -> bool:
+    """True if any contaminant has workbook rows and none of them is rt/t_higher."""
+    for contaminant in contaminants:
+        regimes = set(_miscibility_regimes(solvent, contaminant))
+        if regimes and regimes <= {"unspecified"}:
+            return True
+    return False
+
+
+def _leaching_basis(contaminants: Sequence[str]) -> tuple[bool, list[str]]:
+    """Workbook solvents whose logD meets CONTAMINANT_LOGD_CRITERION.
+
+    Named on the unspecified-STRAP refuse so the caller can see whether
+    leaching exists. Not a mode fallback.
+    """
+    names: list[str] = []
+    for solvent in _solvent_names(contaminants):
+        if any(
+            CONTAMINANT_LOGD_CRITERION.passes(_logd(solvent, item))
+            for item in contaminants
+        ):
+            names.append(solvent)
+    return bool(names), names
+
+
 def _logd(solvent: str, contaminant: str) -> Optional[float]:
     solvent_keys = _solvent_keys(solvent)
     if not solvent_keys:
         return None
-    placeholders = ",".join("?" for _ in solvent_keys)
+    where, params = _solvent_where(solvent_keys)
     row = _connection().execute(
-        f"""SELECT logd FROM logd WHERE contaminant_key=? AND
-            (solvent_key IN ({placeholders}) OR solvent_normalized IN ({placeholders}))
+        f"""SELECT logd FROM logd WHERE contaminant_key=? AND {where}
             ORDER BY rowid LIMIT 1""",
-        [_key(contaminant), *solvent_keys, *solvent_keys],
+        [_key(contaminant), *params],
     ).fetchone()
     return float(row[0]) if row and row[0] is not None else None
 
@@ -256,15 +504,30 @@ def _regime(solvent: str, temperature: Optional[float]) -> str:
     solvent_keys = _solvent_keys(solvent)
     if temperature is None or not solvent_keys:
         return "rt"
-    placeholders = ",".join("?" for _ in solvent_keys)
+    where, params = _solvent_where(solvent_keys)
     rows = _connection().execute(
         f"""SELECT t_higher_c FROM miscibility
-            WHERE (solvent_key IN ({placeholders}) OR solvent_normalized IN ({placeholders}))
-              AND t_higher_c IS NOT NULL""",
-        [*solvent_keys, *solvent_keys],
+            WHERE {where} AND t_higher_c IS NOT NULL""",
+        params,
     ).fetchall()
     higher = [float(row[0]) for row in rows if row[0] is not None]
     return "t_higher" if higher and temperature >= (25.0 + max(higher)) / 2.0 else "rt"
+
+
+def _solvent_in_workbook(name: str) -> bool:
+    tokens = _solvent_keys(name)
+    if not tokens:
+        return False
+    where, params = _solvent_where(tokens)
+    row = _connection().execute(
+        f"""SELECT 1 FROM (
+              SELECT 1 FROM logd WHERE {where}
+              UNION ALL
+              SELECT 1 FROM miscibility WHERE {where}
+            ) LIMIT 1""",
+        [*params, *params],
+    ).fetchone()
+    return row is not None
 
 
 def _upper(solvent: str, maximum: Optional[float]) -> float:
@@ -377,7 +640,7 @@ def _active_thresholds(
         "user_requested" if any(supplied.values()) else "default_proxy"
     )
     active["threshold_sources"] = {
-        key: "user" if supplied[key] else "default"
+        key: _source_label(key, supplied[key])
         for key in values
     }
     return active, None
@@ -422,8 +685,7 @@ def _contaminant_rows(solvent: str, contaminants: Sequence[str], regime: str) ->
         if logd is not None:
             minimum = logd if minimum is None else min(minimum, logd)
         rows.append({
-            "contaminant": contaminant,
-            "contaminant_family": lookup[_key(contaminant)][1],
+            **_served_identity(lookup[_key(contaminant)]),
             "miscible": miscible, "logd": logd,
             "miscibility_regime": (
                 miscibility.get("temperature_regime") if miscibility else regime
@@ -467,7 +729,7 @@ def _inputs(
         return {}, ambiguity
     target = thermo.resolve_polymer(target_polymer)
     requested = _items(contaminants)
-    supported, unsupported, families = _expand(requested)
+    supported, unsupported, families, uncovered_families = _expand(requested)
     others_requested = _items(other_polymers)
     others: list[str] = []
     missing_others: list[str] = []
@@ -480,14 +742,50 @@ def _inputs(
             if member not in others:
                 others.append(member)
     explicit_solvents = None if solvents is None else _items(solvents)
-    candidate_solvents, _ = session.resolve_candidate_argument(
-        explicit_solvents, _inherited_candidate_solvents(tool),
-    )
+    unsupported_solvents: list[str] = []
+    if explicit_solvents is not None:
+        known_solvents = [
+            item for item in explicit_solvents if _solvent_in_workbook(item)
+        ]
+        unsupported_solvents = [
+            item for item in explicit_solvents if item not in known_solvents
+        ]
+        candidate_solvents = known_solvents
+    else:
+        candidate_solvents, _ = session.resolve_candidate_argument(
+            None, _inherited_candidate_solvents(tool),
+        )
     requested_maximum = _finite(max_temperature_c)
     strict = bool(strict_maximum and requested_maximum is not None)
     maximum = _grid_ceiling(requested_maximum, strict)
     if not target:
         return {}, tool_error(tool, f"Unsupported target polymer: {target_polymer}.", error_code="unsupported_polymer")
+    if explicit_solvents and not candidate_solvents:
+        return {}, tool_error(
+            tool,
+            "None of the requested solvents are in the contaminant workbook.",
+            error_code="unknown_contaminant_solvent",
+            target_polymer=target,
+            requested_solvents=explicit_solvents,
+            unsupported_solvents=unsupported_solvents,
+            requested_contaminants=requested,
+        )
+    if not supported and uncovered_families:
+        return {}, tool_error(
+            tool,
+            "The contaminant corpus does not cover this family.",
+            error_code="unsupported_contaminant_family",
+            target_polymer=target,
+            other_polymers=others,
+            unsupported_other_polymers=missing_others,
+            requested_contaminants=requested,
+            unsupported_contaminants=unsupported or requested,
+            unsupported_families=uncovered_families,
+            supported_families=sorted(_families()),
+            warnings=[
+                "The held corpus is PFAS and Phthalates only. Empty is not clean."
+            ],
+        )
     if not supported:
         return {}, tool_error(
             tool, "None of the requested contaminants are supported.",
@@ -511,7 +809,9 @@ def _inputs(
     return {
         "target": target, "requested": requested, "supported": supported,
         "unsupported": unsupported, "families": families, "others": others,
+        "uncovered_families": uncovered_families,
         "missing_others": missing_others, "solvents": candidate_solvents,
+        "unsupported_solvents": unsupported_solvents,
         "maximum": maximum, "requested_maximum": requested_maximum,
         "strict_maximum": strict,
         **thresholds,
@@ -539,6 +839,8 @@ def _base_result(inputs: dict[str, Any], mode: str, rows: list[dict[str, Any]]) 
         "contaminant_catalog": _contaminant_catalog(inputs["supported"]),
         "n_supported_contaminants": len(inputs["supported"]),
         "unsupported_contaminants": inputs["unsupported"],
+        "unsupported_families": inputs.get("uncovered_families") or [],
+        "unsupported_solvents": inputs.get("unsupported_solvents") or [],
         "contaminant_families": inputs["families"],
         "candidate_solvents": rows,
         "recommended_solvents": [row["solvent"] for row in rows if row["passes"]],
@@ -551,15 +853,10 @@ def _base_result(inputs: dict[str, Any], mode: str, rows: list[dict[str, Any]]) 
             "screening proxies from stored values"
         ),
         "provenance": _provenance(),
+        **_served_threshold_fields(
+            inputs, include_precipitation=mode != "leaching",
+        ),
     }
-    if inputs["threshold_basis"] == "user_requested":
-        result.update({
-            "swelling_min_wt_pct": inputs["swelling_min_wt_pct"],
-            "swelling_max_wt_pct": inputs["swelling_max_wt_pct"],
-            "dissolution_min_wt_pct": inputs["dissolution_min_wt_pct"],
-            "threshold_basis": inputs["threshold_basis"],
-            "threshold_sources": inputs["threshold_sources"],
-        })
     return result
 
 
@@ -640,6 +937,7 @@ def _leaching(inputs: dict[str, Any]) -> dict[str, Any]:
             "Workbook miscibility and logD are screening inputs, not validated process partition coefficients or removal efficiency.",
             "Leaching-mode swelling is inferred from modeled polymer solubility, not measured swelling.",
             "A passing screen does not establish extraction recovery, kinetics, solvent loading, or product purity.",
+            *_threshold_warnings(inputs, include_precipitation=False),
         ],
     })
     return result
@@ -734,6 +1032,7 @@ def _strap(inputs: dict[str, Any]) -> dict[str, Any]:
                 "contaminant_precipitation_regime_pass": False,
                 "contaminant_logd_pass": False, "contaminant_logd_min": None,
                 "contaminants": [], "caveats": ["no modeled dissolution/cooling window"],
+                "unspecified_not_a_strap_basis": False,
             })
             continue
         dissolution_regime = _regime(solvent, window["operating_temperature_c"])
@@ -744,9 +1043,14 @@ def _strap(inputs: dict[str, Any]) -> dict[str, Any]:
         cold_contaminants, _, cold_miscible, _ = _contaminant_rows(
             solvent, inputs["supported"], precipitation_regime,
         )
+        unspecified_only = _unspecified_only_basis(solvent, inputs["supported"])
         rows.append({
             "solvent": solvent,
-            "passes": hot_miscible and cold_miscible and positive and not inputs["missing_others"],
+            "passes": (
+                hot_miscible and cold_miscible and positive
+                and not inputs["missing_others"]
+                and not unspecified_only
+            ),
             "mode": "strap_contaminant_removal", **window,
             "boiling_point_c": thermo.get_boiling_point(solvent),
             "target_polymer_status": "dissolving_then_precipitating",
@@ -754,7 +1058,12 @@ def _strap(inputs: dict[str, Any]) -> dict[str, Any]:
             "contaminant_precipitation_regime_pass": cold_miscible,
             "contaminant_logd_pass": positive, "contaminant_logd_min": minimum,
             "contaminants": contaminants,
-            "precipitation_regime_contaminants": cold_contaminants, "caveats": [],
+            "precipitation_regime_contaminants": cold_contaminants,
+            "unspecified_not_a_strap_basis": unspecified_only,
+            "caveats": (
+                ["unspecified is not a STRAP temperature-regime basis"]
+                if unspecified_only else []
+            ),
         })
     result = _base_result(inputs, "strap_contaminant_removal", rows)
     configured_defaults = (
@@ -797,6 +1106,7 @@ def _strap(inputs: dict[str, Any]) -> dict[str, Any]:
             ),
             "Workbook miscibility and logD are screening inputs, not validated process partition coefficients.",
             "A passing screen does not establish kinetics, solvent loading, contaminant removal efficiency, or product purity.",
+            *_threshold_warnings(inputs, include_precipitation=True),
         ],
     })
     return result
@@ -845,7 +1155,31 @@ def screen_contaminant_strap_removal(
         swelling_max_wt_pct, dissolution_min_wt_pct,
         precipitation_threshold_wt_pct, include_precipitation=True,
     )
-    return error or _tool_result(tool, _strap(inputs))
+    if error:
+        return error
+    result = _strap(inputs)
+    candidates = result.get("candidate_solvents") or []
+    if candidates and all(
+        row.get("unspecified_not_a_strap_basis") for row in candidates
+    ):
+        available, leaching_solvents = _leaching_basis(inputs["supported"])
+        return tool_error(
+            tool,
+            "Every strap candidate has only unspecified miscibility; "
+            "unspecified is not a STRAP temperature-regime basis.",
+            error_code="unspecified_not_a_strap_basis",
+            target_polymer=inputs["target"],
+            other_polymers=inputs["others"],
+            requested_contaminants=inputs["requested"],
+            supported_contaminants=inputs["supported"],
+            unsupported_contaminants=inputs["unsupported"],
+            solvents=[row.get("solvent") for row in candidates],
+            leaching_basis_available=available,
+            leaching_basis_solvents=leaching_solvents,
+            **_served_threshold_fields(inputs),
+            provenance=_provenance(),
+        )
+    return _tool_result(tool, result)
 
 
 def compare_contaminant_removal_modes(
@@ -880,16 +1214,6 @@ def compare_contaminant_removal_modes(
         }
         for item in (leaching, strap)
     }
-    threshold_metadata = (
-        {
-            "swelling_min_wt_pct": inputs["swelling_min_wt_pct"],
-            "swelling_max_wt_pct": inputs["swelling_max_wt_pct"],
-            "dissolution_min_wt_pct": inputs["dissolution_min_wt_pct"],
-            "threshold_basis": inputs["threshold_basis"],
-            "threshold_sources": inputs["threshold_sources"],
-        }
-        if inputs["threshold_basis"] == "user_requested" else {}
-    )
     return tool_success(
         tool, analysis_type="contaminant_screen_analysis",
         mode="comparison", target_polymer=inputs["target"],
@@ -909,8 +1233,7 @@ def compare_contaminant_removal_modes(
         unsupported_contaminants=inputs["unsupported"],
         contaminant_families=inputs["families"], recommended_mode=mode,
         min_dissolution_solubility_wt_pct=inputs["dissolution_min_wt_pct"],
-        precipitation_threshold_wt_pct=inputs["precipitation_threshold_wt_pct"],
-        **threshold_metadata,
+        **_served_threshold_fields(inputs),
         recommended_solvents={
             "leaching": leaching["recommended_solvents"],
             "strap_contaminant_removal": strap["recommended_solvents"],
@@ -939,3 +1262,66 @@ def compare_contaminant_removal_modes(
         ),
         warnings=list(dict.fromkeys(leaching["warnings"] + strap["warnings"])),
     )
+
+
+def feed_state_at_step(
+    *,
+    feed_order: Sequence[str],
+    remaining: Sequence[str],
+    contaminants: Sequence[str],
+) -> dict[str, Any]:
+    """Polymers still in the solid, feed order. No residual-mass update."""
+    present = {str(item) for item in remaining}
+    return {
+        "polymers": [str(name) for name in feed_order if str(name) in present],
+        "contaminants": [str(item) for item in contaminants],
+        "inventory_model": "none",
+    }
+
+
+def others_from_feed_state(
+    feed_state: dict[str, Any],
+    target_polymer: str,
+) -> list[str]:
+    """Others are remaining solid polymers minus the named target."""
+    target = str(target_polymer)
+    polymers = [
+        str(name) for name in (feed_state or {}).get("polymers") or [] if str(name)
+    ]
+    return [name for name in polymers if name != target]
+
+
+def evaluate_contaminant_at_feed_state(
+    path: str,
+    target_polymer: str,
+    others: Sequence[str],
+    contaminants: str | Sequence[str],
+    solvents: str | Sequence[str] | None = None,
+    *,
+    temperature_max_c: Optional[float] = None,
+    strict_maximum: bool = False,
+) -> dict[str, Any]:
+    """One evaluator for leaching washes and later STRAP stamps."""
+    token = _key(path)
+    if token == "swing":
+        token = "strap"
+    kwargs: dict[str, Any] = dict(
+        target_polymer=target_polymer,
+        contaminants=contaminants,
+        other_polymers=list(others),
+        solvents=solvents,
+        max_temperature_c=temperature_max_c,
+        strict_maximum=strict_maximum,
+    )
+    if token == "leaching":
+        raw = screen_contaminant_leaching(**kwargs)
+    elif token == "strap":
+        raw = screen_contaminant_strap_removal(**kwargs)
+    else:
+        return parse_tool_result(tool_error(
+            "evaluate_contaminant_at_feed_state",
+            "path must be leaching or strap.",
+            error_code="invalid_contaminant_path",
+            requested=path,
+        ))["data"]
+    return parse_tool_result(raw)["data"]
