@@ -70,7 +70,8 @@ unregistered escape hatch. Shape factories would require an explicit collision
 role. Intentional layers such as a bar fill over its track would be admitted
 only as an exact artist pair, not by region or artist class. The final `check`
 would delegate to `figures/standards_checker.py`, whose text discovery makes a
-directly-created, unregistered label a failure.
+directly-created, unregistered label a failure and whose closed graphical-
+artist inventory rejects unregistered patches, lines, collections, and images.
 
 ## Provenance sidecar
 

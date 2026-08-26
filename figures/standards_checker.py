@@ -15,7 +15,11 @@ from itertools import combinations
 from typing import Iterable
 
 from matplotlib.artist import Artist
+from matplotlib.collections import Collection
 from matplotlib.colors import to_rgba
+from matplotlib.image import AxesImage
+from matplotlib.lines import Line2D
+from matplotlib.patches import Patch
 from matplotlib.text import Text
 from matplotlib.transforms import Bbox
 
@@ -68,6 +72,7 @@ class DrawingRegistry:
     collision_patches: list[Artist] = field(default_factory=list)
     connectors: list[Artist] = field(default_factory=list)
     data_marks: list[Artist] = field(default_factory=list)
+    structural_artists: list[Artist] = field(default_factory=list)
     allowed_patch_overlaps: set[frozenset[int]] = field(default_factory=set)
 
     def allow_patch_overlap(self, first: Artist, second: Artist) -> None:
@@ -129,6 +134,22 @@ def _pair_is_allowed(
     return frozenset((id(first), id(second))) in allowed
 
 
+def _matplotlib_scaffold_ids(fig: Artist) -> set[int]:
+    """Return exact Matplotlib-owned framing artists, never user data artists."""
+
+    scaffold = {id(fig.patch)}
+    for axes in fig.axes:
+        scaffold.add(id(axes.patch))
+        scaffold.update(id(spine) for spine in axes.spines.values())
+        for axis in (axes.xaxis, axes.yaxis):
+            for tick in (*axis.get_major_ticks(), *axis.get_minor_ticks()):
+                scaffold.update(
+                    id(artist)
+                    for artist in (tick.tick1line, tick.tick2line, tick.gridline)
+                )
+    return scaffold
+
+
 def check_figure(
     fig: Artist,
     registry: DrawingRegistry,
@@ -180,6 +201,35 @@ def check_figure(
         violations.append(f"visible text is not registered: {unregistered}")
     if stale:
         violations.append(f"registered text is not visible in the figure: {stale}")
+
+    # Closed-world control for rendered graphical artists. Matplotlib's exact
+    # figure/axes framing objects are recognized as scaffold; every user-added
+    # patch, line, collection, or image must have an explicit registry role.
+    registered_graphic_ids = {
+        *(id(artist) for artist in registry.panels.values()),
+        *(id(artist) for artist in registry.collision_patches),
+        *(id(artist) for artist in registry.connectors),
+        *(id(artist) for artist in registry.structural_artists),
+    }
+    permitted_graphic_ids = registered_graphic_ids | _matplotlib_scaffold_ids(fig)
+    visible_graphics = [
+        artist
+        for artist in fig.findobj(
+            match=lambda item: isinstance(
+                item, (Patch, Line2D, Collection, AxesImage)
+            )
+        )
+        if artist.get_visible()
+    ]
+    unregistered_graphics = [
+        _artist_name(artist) for artist in visible_graphics
+        if id(artist) not in permitted_graphic_ids
+    ]
+    if unregistered_graphics:
+        violations.append(
+            "visible graphical artist is not registered: "
+            f"{unregistered_graphics}"
+        )
 
     expected_rgba = to_rgba(standards.text_color)
     text_boxes: list[Bbox] = []

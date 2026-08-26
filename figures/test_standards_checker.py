@@ -214,6 +214,27 @@ def test_rejects_data_mark_that_bypasses_collision_registry() -> None:
     )
 
 
+def test_rejects_wholly_unregistered_visible_artist() -> None:
+    fig, registry, title = _fixture()
+    mark = Rectangle(
+        (0.25, 0.53), 0.10, 0.08, transform=fig.axes[0].transAxes,
+        facecolor="#E69F00", edgecolor="none",
+    )
+    fig.axes[0].add_patch(mark)
+    try:
+        with pytest.raises(StandardsViolation) as caught:
+            check_figure(
+                fig, registry, title,
+                standards=FigureStandards(font_size_pt=10),
+            )
+    finally:
+        plt.close(fig)
+    assert any(
+        "visible graphical artist is not registered" in item
+        for item in caught.value.violations
+    )
+
+
 def test_rejects_title_wider_than_content() -> None:
     assert any(
         "title is wider" in item

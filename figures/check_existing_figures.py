@@ -166,6 +166,17 @@ def _unregistered_mark(
     return FigureStandards(font_size_pt=10)
 
 
+def _wholly_unregistered_artist(
+    fig: plt.Figure, registry: DrawingRegistry, title: object,
+) -> FigureStandards:
+    mark = Rectangle(
+        (0.25, 0.53), 0.10, 0.08, transform=fig.axes[0].transAxes,
+        facecolor="#E69F00", edgecolor="none",
+    )
+    fig.axes[0].add_patch(mark)
+    return FigureStandards(font_size_pt=10)
+
+
 def _wide_title(
     fig: plt.Figure, registry: DrawingRegistry, title: object,
 ) -> FigureStandards:
@@ -197,6 +208,11 @@ MUST_FIRE: tuple[tuple[str, str, Mutation], ...] = (
         "data-mark collision registration",
         "data mark is not registered as collision-relevant",
         _unregistered_mark,
+    ),
+    (
+        "closed graphical-artist inventory",
+        "visible graphical artist is not registered",
+        _wholly_unregistered_artist,
     ),
     ("title width", "title is wider", _wide_title),
     ("registration coverage", "visible text is not registered", _unregistered),
