@@ -171,6 +171,33 @@ necessarily contain data overplot/crossings, the checker gains an explicit
   and
 - broad `structural_artists` registration cannot exempt a user data artist.
 
+Five named mechanical validators close the output and cross-figure contracts:
+
+- `check_svg_raster_contract(svg_path, expected_group="solubility-cloud")`
+  parses the SVG XML, requires the tagged Figure A data group to contain an
+  embedded raster `<image>`, and rejects a vector point cloud in that group.
+  Figure B is separately asserted to retain vector lines/markers.
+- `check_polymer_style_contract(scatter_registry, fraction_registry,
+  manifest_style_map)` reads each labelled series artist's RGBA colour and
+  marker path/name and requires an exact 12-polymer match in both figures and
+  the provenance manifests.
+- `check_data_layer_bounds(record, renderer)` inspects every source offset or
+  line vertex after the artist transform, not merely its clipped visible
+  extent, and requires all transformed data coordinates to lie within the
+  registered data-region bounds. Thus clipping cannot conceal out-of-region
+  source geometry.
+- `check_data_role_closed_world(fig, registry)` discovers user-created
+  `Collection` and data-bearing `Line2D` artists independently of the supplied
+  roles. Each must be registered as a data layer or collision-relevant mark;
+  registration only as `structural_artists` is rejected.
+- `check_display_displacement(source_rows, rendered_offsets,
+  displacement_manifest)` recomputes every polymer dodge and solvent jitter
+  from the stored `(polymer, solvent, temperature_c)` identity. It asserts a
+  one-to-one row order, exact unshifted node membership, the admitted maximum
+  displacement within its 5 °C node interval, and the canonical SHA-256 digest
+  of `(source identity, stored x, rendered x)` recorded in the sidecar. This is
+  a semantic check independent of output-byte determinism.
+
 New positive checks receive these must-fire counterparts, printed as expected
 failures by the harness:
 
@@ -194,8 +221,24 @@ failures by the harness:
     clearance.
 12. Adding a second axes, omitting PNG, omitting SVG, or changing an output
     byte continues to fail the existing controls.
+13. Saving Figure A with `rasterized=False` produces a deterministic SVG but
+    fails `check_svg_raster_contract` because the tagged cloud contains vector
+    point uses rather than an embedded image.
+14. Changing one polymer marker or colour in Figure B only fails
+    `check_polymer_style_contract`, even when each figure's own legend remains
+    internally consistent.
+15. Moving one registered scatter offset outside the data limits while leaving
+    clipping enabled fails `check_data_layer_bounds`; a clipped-away bad point
+    is not accepted.
+16. Registering a scatter or line only in `structural_artists` fails
+    `check_data_role_closed_world`.
+17. Replacing one source row's SHA-256 jitter with a fixed but deterministic
+    offset yields byte-stable output but fails `check_display_displacement` and
+    its sidecar displacement digest.
 
-An accept-all figure or output checker must make the harness return nonzero.
+All five validators run in the same harness as the existing standards checks.
+An accept-all figure, output, SVG-contract, style-contract, data-bounds,
+data-role, or displacement checker must make the harness return nonzero.
 
 ## Clause 7 — deterministic outputs and provenance
 
@@ -209,8 +252,8 @@ comparator.
 Each sidecar records full source paths and digests, exact SQL, parsed threshold
 locations/defaults, the full polymer style map, unshifted x-node semantics,
 denominators and numerators for all 336 fractions, per-layer row counts,
-generator digest, standards report, output digests, and the exact reproduction
-command:
+the canonical source-to-render displacement digest, generator digest,
+standards report, output digests, and the exact reproduction command:
 
 ```text
 PYTHONPATH=src:. python figures/results_s1_landscape.py
