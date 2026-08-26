@@ -173,10 +173,15 @@ necessarily contain data overplot/crossings, the checker gains an explicit
 
 Five named mechanical validators close the output and cross-figure contracts:
 
-- `check_svg_raster_contract(svg_path, expected_group="solubility-cloud")`
-  parses the SVG XML, requires the tagged Figure A data group to contain an
-  embedded raster `<image>`, and rejects a vector point cloud in that group.
-  Figure B is separately asserted to retain vector lines/markers.
+- `check_svg_raster_contract(scatter_svg, fraction_svg)` parses both SVG XML
+  trees and enforces group-scoped editability. In Figure A, every `<image>`
+  must descend from the tagged `solubility-cloud` group; that group must
+  contain the embedded cloud image and no vector point uses. Tagged
+  `axes-scaffold`, `threshold-guide`, and `polymer-legend` groups must contain
+  vector path/line/use/text elements and no `<image>`. In Figure B, the tagged
+  `fraction-series`, `axes-scaffold`, and `polymer-legend` groups must contain
+  vector elements, and the whole SVG must contain no `<image>`. Missing tags,
+  an image outside Figure A's cloud, or any Figure B image is a failure.
 - `check_polymer_style_contract(scatter_registry, fraction_registry,
   manifest_style_map)` reads each labelled series artist's RGBA colour and
   marker path/name and requires an exact 12-polymer match in both figures and
@@ -235,10 +240,20 @@ failures by the harness:
 17. Replacing one source row's SHA-256 jitter with a fixed but deterministic
     offset yields byte-stable output but fails `check_display_displacement` and
     its sidecar displacement digest.
+18. A temporary Figure A negative render sets the threshold, axes scaffold,
+    and legend artists to `rasterized=True` while leaving the cloud correctly
+    rasterized. It fails because `<image>` elements occur outside the
+    `solubility-cloud` group and the required non-data groups no longer contain
+    only vector content.
+19. A temporary Figure B negative render sets every fraction-series artist to
+    `rasterized=True`. It fails because Figure B contains an `<image>` and its
+    tagged `fraction-series` group is not vector-only.
 
 All five validators run in the same harness as the existing standards checks.
-An accept-all figure, output, SVG-contract, style-contract, data-bounds,
-data-role, or displacement checker must make the harness return nonzero.
+The SVG-contract harness runs all three targeted failures: vector cloud,
+rasterized Figure A non-data content, and rasterized Figure B series. An
+accept-all figure, output, SVG-contract, style-contract, data-bounds, data-role,
+or displacement checker must make the harness return nonzero.
 
 ## Clause 7 — deterministic outputs and provenance
 
