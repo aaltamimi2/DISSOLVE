@@ -69,7 +69,6 @@ REGISTRY: tuple[Tool, ...] = tuple([
     _t(analysis.lookup_hansen_parameters, "analysis"),
     _t(analysis.screen_hansen_compatibility, "analysis"),
     _t(analysis.lookup_glass_transition, "analysis"),
-    _t(analysis.estimate_thermal_properties, "analysis"),
     _t(analysis.list_thermal_evidence, "analysis"),
     _t(analysis.analyze_numeric_samples, "analysis"),
     # --- contaminant removal ---

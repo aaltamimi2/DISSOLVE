@@ -642,7 +642,6 @@ EXPECTED_REGISTRY_NAMES: frozenset[str] = frozenset((
     "lookup_hansen_parameters",
     "screen_hansen_compatibility",
     "lookup_glass_transition",
-    "estimate_thermal_properties",
     "list_thermal_evidence",
     "analyze_numeric_samples",
     "screen_contaminant_leaching",

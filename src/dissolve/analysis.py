@@ -1286,7 +1286,13 @@ def estimate_thermal_properties(
     polymer_psmiles: str,
     polymer_name: Optional[str] = None,
 ) -> str:
-    """Estimate Tm, fusion enthalpy, and heat-capacity change by group contribution."""
+    """Estimate Tm, fusion enthalpy, and heat-capacity change by group contribution.
+
+    PET reconstruction is not unique. The group-matched form
+    ``[*]C(C1=CC=C(C(OCCO[*])=O)C=C1)=O`` yields tm_c near 373 C;
+    ``[*]OCCOC(=O)c1ccc(C(=O)O)cc1[*]`` yields tm_c near 344 C.
+    ``[*]CC[*]`` yields tm_c near 131 C.
+    """
     tool = "estimate_thermal_properties"
     try:
         parsed = _thermal_groups(str(polymer_psmiles or ""))
@@ -1351,7 +1357,14 @@ def list_thermal_evidence() -> str:
     payload = asset_payload()
     rows = [
         {"capability": "Tg snapshot lookup", "available": True, "basis": f"{len(payload['tg']['entries'])} precomputed rows"},
-        {"capability": "Van Krevelen group contribution", "available": True, "basis": "runtime inference with .[thermal]"},
+        {
+            "capability": "Van Krevelen group contribution",
+            "available": False,
+            "basis": (
+                "present in the package as analysis.estimate_thermal_properties; "
+                "not offered to the agent"
+            ),
+        },
         {"capability": "polyBERT residual inference", "available": False, "basis": "weights absent at v10 baseline"},
         {"capability": "dynamic fitted solubility records", "available": False, "basis": "refused: ideal-SLE promotion is not fitted evidence"},
     ]

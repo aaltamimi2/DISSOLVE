@@ -116,9 +116,11 @@ def test_evaluate_process_is_registered_lookup_engine_stays():
     assert "evaluate_process" in tea.PROCESS_CONFIRM_TOOLS
     assert "evaluate_tea_lca_scenarios" not in tea.PROCESS_CONFIRM_TOOLS
     assert "analyze_tea_sensitivity" not in tea.PROCESS_CONFIRM_TOOLS
-    assert len(EXPECTED_REGISTRY_NAMES) == 30
-    assert len(registry.REGISTRY) == 30
+    assert len(EXPECTED_REGISTRY_NAMES) == 29
+    assert len(registry.REGISTRY) == 29
     assert "fetch_solvent_safety_by_cid" in EXPECTED_REGISTRY_NAMES
+    assert "estimate_thermal_properties" not in EXPECTED_REGISTRY_NAMES
+    assert "estimate_thermal_properties" not in registry.BY_NAME
     assert "fetch_solvent_safety_by_cid" in registry.BY_NAME
     retired = dispatch("evaluate_tea_lca_scenarios")
     assert retired.get("available") is False

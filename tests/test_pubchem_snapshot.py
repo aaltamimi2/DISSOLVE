@@ -60,12 +60,13 @@ def _empty_payload(_url: str) -> dict:
     return {}
 
 
-def test_registry_moves_29_to_30_with_cid_tool_only():
+def test_registry_keeps_cid_tool_after_thermal_estimator_retirement():
     names = {tool.name for tool in registry.REGISTRY}
-    assert len(registry.REGISTRY) == 30
-    assert len(EXPECTED_REGISTRY_NAMES) == 30
+    assert len(registry.REGISTRY) == 29
+    assert len(EXPECTED_REGISTRY_NAMES) == 29
     assert names == EXPECTED_REGISTRY_NAMES
     assert "fetch_solvent_safety_by_cid" in names
+    assert "estimate_thermal_properties" not in names
     assert "fetch_solvent_safety_by_cid" not in PUBCHEM
     assert safety._HEADINGS == _LIVE_HEADINGS
     assert "Biodegradation" not in safety._HEADINGS
@@ -323,7 +324,7 @@ def test_doctor_adds_snapshot_pin_after_registry_only(tmp_path, monkeypatch):
     by_name = {c["name"]: c for c in report["checks"]}
     assert by_name["Scientific assets"]["checked"] == 6
     assert by_name["Scientific assets"]["detail"] == "6 checksums verified"
-    assert by_name["Tool registry"]["detail"] == "30 registered names"
+    assert by_name["Tool registry"]["detail"] == "29 registered names"
     snap = by_name["PubChem safety snapshot"]
     assert snap["status"] == "pass"
     assert snap["digest"] == _SNAPSHOT_SHA256
