@@ -17,7 +17,11 @@ from typing import Iterable
 from matplotlib.artist import Artist
 from matplotlib.collections import Collection
 from matplotlib.colors import to_rgba
-from matplotlib.image import AxesImage
+# Matplotlib exposes several concrete image artists (AxesImage, FigureImage,
+# BboxImage, NonUniformImage) through one internal render base.  Using that
+# family here closes discovery across axes- and figure-level images instead of
+# enumerating today's concrete subclasses and leaving the next one unchecked.
+from matplotlib.image import _ImageBase
 from matplotlib.lines import Line2D
 from matplotlib.patches import Patch
 from matplotlib.text import Text
@@ -216,7 +220,7 @@ def check_figure(
         artist
         for artist in fig.findobj(
             match=lambda item: isinstance(
-                item, (Patch, Line2D, Collection, AxesImage)
+                item, (Patch, Line2D, Collection, _ImageBase)
             )
         )
         if artist.get_visible()

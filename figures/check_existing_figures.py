@@ -22,6 +22,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_agg import FigureCanvasAgg
 from matplotlib.patches import FancyArrowPatch, Rectangle
+import numpy as np
 
 try:  # Package import in tests; direct import for the documented CLI.
     from . import unified_solubility_query
@@ -177,6 +178,15 @@ def _wholly_unregistered_artist(
     return FigureStandards(font_size_pt=10)
 
 
+def _wholly_unregistered_figure_image(
+    fig: plt.Figure, registry: DrawingRegistry, title: object,
+) -> FigureStandards:
+    pixels = np.ones((50, 120, 4), dtype=float)
+    pixels[:, :, :3] = (0.90, 0.62, 0.00)
+    fig.figimage(pixels, xo=80, yo=140, origin="lower")
+    return FigureStandards(font_size_pt=10)
+
+
 def _wide_title(
     fig: plt.Figure, registry: DrawingRegistry, title: object,
 ) -> FigureStandards:
@@ -213,6 +223,11 @@ MUST_FIRE: tuple[tuple[str, str, Mutation], ...] = (
         "closed graphical-artist inventory",
         "visible graphical artist is not registered",
         _wholly_unregistered_artist,
+    ),
+    (
+        "closed image-artist inventory",
+        "visible graphical artist is not registered",
+        _wholly_unregistered_figure_image,
     ),
     ("title width", "title is wider", _wide_title),
     ("registration coverage", "visible text is not registered", _unregistered),

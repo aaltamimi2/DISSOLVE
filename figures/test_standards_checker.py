@@ -9,6 +9,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_agg import FigureCanvasAgg
 from matplotlib.patches import FancyArrowPatch, Rectangle
+import numpy as np
 import pytest
 
 from figures.standards_checker import (
@@ -221,6 +222,25 @@ def test_rejects_wholly_unregistered_visible_artist() -> None:
         facecolor="#E69F00", edgecolor="none",
     )
     fig.axes[0].add_patch(mark)
+    try:
+        with pytest.raises(StandardsViolation) as caught:
+            check_figure(
+                fig, registry, title,
+                standards=FigureStandards(font_size_pt=10),
+            )
+    finally:
+        plt.close(fig)
+    assert any(
+        "visible graphical artist is not registered" in item
+        for item in caught.value.violations
+    )
+
+
+def test_rejects_wholly_unregistered_figure_image() -> None:
+    fig, registry, title = _fixture()
+    pixels = np.ones((50, 120, 4), dtype=float)
+    pixels[:, :, :3] = (0.90, 0.62, 0.00)
+    fig.figimage(pixels, xo=80, yo=140, origin="lower")
     try:
         with pytest.raises(StandardsViolation) as caught:
             check_figure(
