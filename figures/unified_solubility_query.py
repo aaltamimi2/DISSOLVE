@@ -14,7 +14,6 @@ are asserted before either output is saved.
 from __future__ import annotations
 
 from collections import Counter
-from dataclasses import dataclass, field
 from importlib.resources import files
 import json
 from pathlib import Path
@@ -28,11 +27,23 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 from matplotlib.artist import Artist
 from matplotlib.backends.backend_agg import FigureCanvasAgg
-from matplotlib.colors import to_rgba
 from matplotlib.patches import FancyArrowPatch, FancyBboxPatch, Rectangle
-from matplotlib.transforms import Bbox
 
 from dissolve import BY_NAME, call
+try:  # Package import in tests; direct import when this file is run as a script.
+    from .standards_checker import (
+        DrawingRegistry,
+        FigureStandards,
+        TextRecord,
+        check_figure,
+    )
+except ImportError:  # pragma: no cover - exercised by the documented CLI
+    from standards_checker import (
+        DrawingRegistry,
+        FigureStandards,
+        TextRecord,
+        check_figure,
+    )
 
 
 HERE = Path(__file__).resolve().parent
@@ -580,47 +591,6 @@ def measure() -> dict[str, Any]:
     }
 
 
-@dataclass
-class TextRecord:
-    artist: Artist
-    container: Artist | None
-    allowed_patches: set[int] = field(default_factory=set)
-
-
-@dataclass
-class DrawingRegistry:
-    texts: list[TextRecord] = field(default_factory=list)
-    panels: dict[str, FancyBboxPatch] = field(default_factory=dict)
-    collision_patches: list[Artist] = field(default_factory=list)
-    connectors: list[Artist] = field(default_factory=list)
-    data_marks: list[Artist] = field(default_factory=list)
-
-
-def padded_bbox(box: Bbox, pixels: float) -> Bbox:
-    return Bbox.from_extents(
-        box.x0 - pixels,
-        box.y0 - pixels,
-        box.x1 + pixels,
-        box.y1 + pixels,
-    )
-
-
-def inset_bbox(box: Bbox, pixels: float) -> Bbox:
-    return Bbox.from_extents(
-        box.x0 + pixels,
-        box.y0 + pixels,
-        box.x1 - pixels,
-        box.y1 - pixels,
-    )
-
-
-def positive_overlap(first: Bbox, second: Bbox) -> bool:
-    return (
-        min(first.x1, second.x1) > max(first.x0, second.x0)
-        and min(first.y1, second.y1) > max(first.y0, second.y0)
-    )
-
-
 def draw(data: dict[str, Any]) -> tuple[plt.Figure, DrawingRegistry, Artist]:
     fig = plt.figure(
         figsize=(FIG_WIDTH_IN, FIG_HEIGHT_IN), dpi=RENDER_DPI, facecolor="white"
@@ -894,6 +864,7 @@ def draw(data: dict[str, Any]) -> tuple[plt.Figure, DrawingRegistry, Artist]:
         ax.add_patch(track)
         ax.add_patch(fill)
         registry.collision_patches.extend((track, fill))
+        registry.allow_patch_overlap(track, fill)
         registry.data_marks.extend((track, fill))
         endpoint = ax.plot(
             [track_x + fill_width],
@@ -906,6 +877,9 @@ def draw(data: dict[str, Any]) -> tuple[plt.Figure, DrawingRegistry, Artist]:
             transform=ax.transAxes,
             zorder=5,
         )[0]
+        registry.collision_patches.append(endpoint)
+        registry.allow_patch_overlap(track, endpoint)
+        registry.allow_patch_overlap(fill, endpoint)
         registry.data_marks.append(endpoint)
 
     # 3. Raw asset stamps and their deliberately different engine outcomes.
@@ -1117,97 +1091,14 @@ def verify_geometry(
     registry: DrawingRegistry,
     title: Artist,
 ) -> dict[str, float | int]:
-    """Assert the paper's typography and collision standards on rendered extents."""
-    fig.canvas.draw()
-    renderer = fig.canvas.get_renderer()
-    pixels_per_point = fig.dpi / 72.0
-    gap = 2.0 * pixels_per_point
-    border_inset = 4.0 * pixels_per_point
+    """Assert the shared publication standards on rendered extents."""
 
-    figure_box = fig.bbox
-    text_boxes: list[Bbox] = []
-    for record in registry.texts:
-        artist = record.artist
-        assert float(artist.get_fontsize()) == FONT_SIZE_PT
-        assert to_rgba(artist.get_color()) == to_rgba(BLACK)
-        box = artist.get_window_extent(renderer)
-        assert box.width > 0 and box.height > 0
-        assert box.height / pixels_per_point >= 7.0
-        assert (
-            box.x0 >= figure_box.x0
-            and box.y0 >= figure_box.y0
-            and box.x1 <= figure_box.x1
-            and box.y1 <= figure_box.y1
-        )
-        if record.container is not None:
-            container_box = inset_bbox(
-                record.container.get_window_extent(renderer), border_inset
-            )
-            assert (
-                box.x0 >= container_box.x0
-                and box.y0 >= container_box.y0
-                and box.x1 <= container_box.x1
-                and box.y1 <= container_box.y1
-            ), f"text escapes/touches container: {artist.get_text()!r}"
-        text_boxes.append(box)
-
-    # No text-text collision, with a real two-point clear space.
-    for index, first in enumerate(text_boxes):
-        first_padded = padded_bbox(first, gap / 2)
-        for other_index in range(index + 1, len(text_boxes)):
-            second_padded = padded_bbox(text_boxes[other_index], gap / 2)
-            assert not positive_overlap(first_padded, second_padded), (
-                "text collision: "
-                f"{registry.texts[index].artist.get_text()!r} and "
-                f"{registry.texts[other_index].artist.get_text()!r}"
-            )
-
-    # No text may meet an unrelated card, bar, or data mark.  Text inside its
-    # explicitly declared card is checked by the inset assertion above.
-    for record, text_box in zip(registry.texts, text_boxes):
-        expanded_text = padded_bbox(text_box, gap / 2)
-        for patch in registry.collision_patches:
-            if id(patch) in record.allowed_patches:
-                continue
-            patch_box = patch.get_window_extent(renderer)
-            assert not positive_overlap(expanded_text, patch_box), (
-                f"text/shape collision: {record.artist.get_text()!r}"
-            )
-
-    # Connectors must also clear all text; their intentional contacts are only
-    # with box edges and are therefore not whitelisted against words.
-    for connector in registry.connectors:
-        connector_box = connector.get_window_extent(renderer)
-        for record, text_box in zip(registry.texts, text_boxes):
-            assert not positive_overlap(
-                padded_bbox(text_box, gap / 2), connector_box
-            ), f"text/connector collision: {record.artist.get_text()!r}"
-
-    # The title is no wider than, and horizontally contained by, the content.
-    title_box = title.get_window_extent(renderer)
-    content_boxes = [
-        patch.get_window_extent(renderer) for patch in registry.panels.values()
-    ]
-    content_left = min(box.x0 for box in content_boxes)
-    content_right = max(box.x1 for box in content_boxes)
-    assert title_box.width <= content_right - content_left
-    assert title_box.x0 >= content_left and title_box.x1 <= content_right
-
-    # Data marks are intentionally substantial at final print size.  Linear
-    # coverage fills may be narrow, but their height and endpoint marker remain
-    # at least seven points; exact values are printed beside them.
-    for mark in registry.data_marks:
-        box = mark.get_window_extent(renderer)
-        assert max(box.width, box.height) / pixels_per_point >= 7.0
-
-    return {
-        "text_count": len(registry.texts),
-        "minimum_text_height_pt": min(
-            box.height / pixels_per_point for box in text_boxes
-        ),
-        "title_width_pt": title_box.width / pixels_per_point,
-        "content_width_pt": (content_right - content_left) / pixels_per_point,
-    }
+    return check_figure(
+        fig,
+        registry,
+        title,
+        standards=FigureStandards(font_size_pt=FONT_SIZE_PT),
+    )
 
 
 def save_outputs(fig: plt.Figure) -> None:
