@@ -1504,6 +1504,20 @@
       6
     ]
   },
+  "density_color_contract": {
+    "normalization": [
+      0.0,
+      1.0
+    ],
+    "positive_fraction_colormap": "viridis",
+    "zero_fraction_fill": "#FFFFFF"
+  },
+  "density_color_report": {
+    "cell_count": 1428,
+    "positive_cell_count": 1085,
+    "zero_cell_count": 343,
+    "zero_legend_swatch_count": 1
+  },
   "evaluable_denominator_by_temperature": {
     "100": 989,
     "105": 989,
@@ -1537,18 +1551,18 @@
   "figure": "results_s1_density_pet",
   "generator": {
     "path": "/home/aaltamimi2/dissolve-v12-visuals/figures/results_s1_dataset_landscape.py",
-    "sha256": "d3730400373926e84ea1a6fc38028a7fa920a8566ac47d36406f6b57a54d2e1e"
+    "sha256": "43b35fd20fa717e1c606289644a65315c544f1d0b6aabbbcea61755d9c863220"
   },
   "outputs": {
     "png": {
-      "bytes": 149039,
+      "bytes": 147649,
       "path": "results_s1_density_pet.png",
-      "sha256": "19c98757b10292b442485e655796ba4d601ebf17a7d571eac2afe7aea02f4123"
+      "sha256": "3c1c5f859912251684d69944e0f35d82071e856173c6c0a8f7c4b30aa4ca9b6f"
     },
     "svg": {
       "bytes": 303329,
       "path": "results_s1_density_pet.svg",
-      "sha256": "73da08bf0eaf563c55efe68dd56b3c757e3968f5ce126302554c8180e11c13d8"
+      "sha256": "8d2a680e699f8be03ec2b9dce2adafb78665f075e09139b634fd78accab34d77"
     }
   },
   "polymer": "PET",
@@ -1665,6 +1679,13 @@
       "expected_sha256": "f6f0a7e0d3d948e66a27202b285d924590ea0bafff39f2475462ca33f45a1a40",
       "path": "/home/aaltamimi2/dissolve-v12-audit/V4_VISUALIZATION_CHARTER.md",
       "role": "figure standards and owner stops"
+    },
+    {
+      "actual_sha256": "6ac9980628b2dac22d727ae4b21046f18aa38bcb3c4613c5f33fd59341f1972f",
+      "digest_lock": true,
+      "expected_sha256": "6ac9980628b2dac22d727ae4b21046f18aa38bcb3c4613c5f33fd59341f1972f",
+      "path": "/home/aaltamimi2/dissolve-v12-visuals/figures/RESULTS_S1_DENSITY_ZERO_WHITE_PROPOSAL.md",
+      "role": "admitted density zero-color contract"
     },
     {
       "digest_lock": false,

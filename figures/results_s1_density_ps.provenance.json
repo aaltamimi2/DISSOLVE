@@ -1504,6 +1504,20 @@
       17
     ]
   },
+  "density_color_contract": {
+    "normalization": [
+      0.0,
+      1.0
+    ],
+    "positive_fraction_colormap": "viridis",
+    "zero_fraction_fill": "#FFFFFF"
+  },
+  "density_color_report": {
+    "cell_count": 1428,
+    "positive_cell_count": 1077,
+    "zero_cell_count": 351,
+    "zero_legend_swatch_count": 1
+  },
   "evaluable_denominator_by_temperature": {
     "100": 987,
     "105": 988,
@@ -1537,18 +1551,18 @@
   "figure": "results_s1_density_ps",
   "generator": {
     "path": "/home/aaltamimi2/dissolve-v12-visuals/figures/results_s1_dataset_landscape.py",
-    "sha256": "d3730400373926e84ea1a6fc38028a7fa920a8566ac47d36406f6b57a54d2e1e"
+    "sha256": "43b35fd20fa717e1c606289644a65315c544f1d0b6aabbbcea61755d9c863220"
   },
   "outputs": {
     "png": {
-      "bytes": 146415,
+      "bytes": 145178,
       "path": "results_s1_density_ps.png",
-      "sha256": "0a9e4ee9045e6bbd695d2adaf881d4865ed2adc4d70d89b7dd85904634e728d9"
+      "sha256": "f30c5182382a85f64ae332271ea3f2d1d22fa761f5fd03ae60107b6169923699"
     },
     "svg": {
       "bytes": 303325,
       "path": "results_s1_density_ps.svg",
-      "sha256": "32ffdd1ae761bf837210f91848c29271f28a12c9517dd6d57385d17298e0ffb3"
+      "sha256": "244b648464882de556f4789e2c4a69561b97e3e538cb49e1b1138bc00aedaac9"
     }
   },
   "polymer": "PS",
@@ -1665,6 +1679,13 @@
       "expected_sha256": "f6f0a7e0d3d948e66a27202b285d924590ea0bafff39f2475462ca33f45a1a40",
       "path": "/home/aaltamimi2/dissolve-v12-audit/V4_VISUALIZATION_CHARTER.md",
       "role": "figure standards and owner stops"
+    },
+    {
+      "actual_sha256": "6ac9980628b2dac22d727ae4b21046f18aa38bcb3c4613c5f33fd59341f1972f",
+      "digest_lock": true,
+      "expected_sha256": "6ac9980628b2dac22d727ae4b21046f18aa38bcb3c4613c5f33fd59341f1972f",
+      "path": "/home/aaltamimi2/dissolve-v12-visuals/figures/RESULTS_S1_DENSITY_ZERO_WHITE_PROPOSAL.md",
+      "role": "admitted density zero-color contract"
     },
     {
       "digest_lock": false,

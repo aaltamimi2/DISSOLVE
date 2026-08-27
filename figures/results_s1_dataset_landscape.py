@@ -34,7 +34,7 @@ import matplotlib.pyplot as plt  # noqa: E402
 from matplotlib.artist import Artist  # noqa: E402
 from matplotlib.backends.backend_agg import FigureCanvasAgg  # noqa: E402
 from matplotlib.collections import PolyCollection  # noqa: E402
-from matplotlib.colors import Normalize  # noqa: E402
+from matplotlib.colors import Normalize, to_rgba  # noqa: E402
 from matplotlib.patches import Rectangle  # noqa: E402
 from matplotlib.text import Text  # noqa: E402
 import numpy as np  # noqa: E402
@@ -69,6 +69,7 @@ READER_PATH = ROOT / "src/dissolve/thermodynamics.py"
 TOOLS_PATH = ROOT / "src/dissolve/tools.py"
 SEPARATION_PATH = ROOT / "src/dissolve/separation.py"
 PROPOSAL_PATH = HERE / "RESULTS_S1_DATASET_LANDSCAPE_REPLACEMENT_PROPOSAL.md"
+ZERO_WHITE_PROPOSAL_PATH = HERE / "RESULTS_S1_DENSITY_ZERO_WHITE_PROPOSAL.md"
 CHARTER_PATH = Path("/home/aaltamimi2/dissolve-v12-audit/V4_VISUALIZATION_CHARTER.md")
 INBOX_PATH = Path("/home/aaltamimi2/dissolve-v12-audit/v4/STEER_INBOX.md")
 
@@ -80,6 +81,9 @@ EXPECTED_SOURCE_DIGESTS = {
     SEPARATION_PATH: "f1b05ca8684c6ea6d47b60793f60a5607220f8b7366ccab457931758b9e8f985",
     PROPOSAL_PATH: "14d091c760a72e20444c1210f03f5cca3364a9a03a2f85c9090c625db8a82661",
     CHARTER_PATH: "f6f0a7e0d3d948e66a27202b285d924590ea0bafff39f2475462ca33f45a1a40",
+}
+EXPECTED_DENSITY_STYLE_DIGESTS = {
+    ZERO_WHITE_PROPOSAL_PATH: "6ac9980628b2dac22d727ae4b21046f18aa38bcb3c4613c5f33fd59341f1972f",
 }
 
 COHORT = (
@@ -129,11 +133,17 @@ FIGURE_WIDTH = 7.25
 RENDER_DPI = 150
 PNG_DPI = 300
 BLACK = "#000000"
+WHITE = "#FFFFFF"
 BLUE = "#0072B2"
 ORANGE = "#E69F00"
 NEUTRAL = "#B8BEC5"
 GRID_EDGE = "#FFFFFF"
 CMAP = matplotlib.colormaps["viridis"]
+DENSITY_COLOR_CONTRACT = {
+    "zero_fraction_fill": WHITE,
+    "positive_fraction_colormap": "viridis",
+    "normalization": [0.0, 1.0],
+}
 
 SCALAR_SQL = """
 SELECT
@@ -278,6 +288,14 @@ def assert_source_digests(
     if errors:
         raise SourceDigestError("\n".join(errors))
     return actual
+
+
+def assert_density_style_digests(
+    expected: Mapping[Path, str] = EXPECTED_DENSITY_STYLE_DIGESTS,
+) -> dict[str, str]:
+    """Lock the separately admitted density-only color contract."""
+
+    return assert_source_digests(expected)
 
 
 def _default(path: Path, function: str, parameter: str) -> dict[str, Any]:
@@ -788,6 +806,7 @@ def _matrix_collection(
     gid: str,
     cmap=CMAP,
     norm=Normalize(0, 1),
+    zero_color: Any | None = None,
 ) -> tuple[PolyCollection, np.ndarray, np.ndarray]:
     verts: list[list[tuple[float, float]]] = []
     colors: list[Any] = []
@@ -803,7 +822,12 @@ def _matrix_collection(
                     (x - 0.5, y + 0.5),
                 ]
             )
-            colors.append(cmap(norm(float(matrix[yi, xi]))))
+            value = float(matrix[yi, xi])
+            colors.append(
+                zero_color
+                if zero_color is not None and value == 0.0
+                else cmap(norm(value))
+            )
             xs.append(float(x))
             ys.append(float(y))
     collection = PolyCollection(
@@ -827,6 +851,7 @@ def _quantitative_legend(
     *,
     y_start: float = 0.74,
     labels: Sequence[str] | None = None,
+    zero_color: Any | None = None,
 ) -> None:
     fig.text(
         0.790,
@@ -838,12 +863,13 @@ def _quantitative_legend(
     )
     shown = labels or tuple(f"{value:.2g}" for value in values)
     for index, (value, label) in enumerate(zip(values, shown)):
+        color = zero_color if zero_color is not None and value == 0.0 else CMAP(value)
         _legend_swatch(
             fig,
             registry,
             0.790,
             y_start - index * 0.065,
-            CMAP(value),
+            color,
             label,
             f"quantitative-legend-{index}",
         )
@@ -982,21 +1008,33 @@ def draw_onset_distribution(data: DatasetLandscapeData) -> Drawing:
     return Drawing(fig, registry, title)
 
 
+def _density_fraction_matrix(
+    data: DatasetLandscapeData,
+    polymer: str,
+) -> np.ndarray:
+    count_rows = np.asarray(dict(data.density_counts)[polymer], dtype=float)
+    denominators = np.asarray(dict(data.density_denominators)[polymer], dtype=float)
+    if np.any(denominators <= 0):
+        raise DatasetLandscapeValidationError(
+            f"density denominator is not positive for {polymer}"
+        )
+    return (count_rows / denominators[:, None]).T
+
+
 def draw_density(data: DatasetLandscapeData, polymer: str) -> Drawing:
     validate(data)
     if polymer not in COHORT_SET:
         raise ValueError(polymer)
     fig, ax, registry = _new_figure(4.8, axes_rect=(0.14, 0.15, 0.62, 0.72))
     title = _title(fig, ax, f"Stored solubility density — {polymer}")
-    count_rows = np.asarray(dict(data.density_counts)[polymer], dtype=float)
-    denominators = np.asarray(dict(data.density_denominators)[polymer], dtype=float)
-    matrix = (count_rows / denominators[:, None]).T
+    matrix = _density_fraction_matrix(data, polymer)
     artist, xs, ys = _matrix_collection(
         ax,
         matrix,
         x_centers=np.arange(28),
         y_centers=np.arange(51),
         gid=f"data-layer-density-{polymer.lower()}",
+        zero_color=WHITE,
     )
     registry.data_layers.append(
         DataLayerRecord(artist, ax.patch, xs, ys, f"density:{polymer}")
@@ -1020,7 +1058,12 @@ def draw_density(data: DatasetLandscapeData, polymer: str) -> Drawing:
     line.set_gid("threshold-guide")
     line.set_label("threshold-guide")
     registry.connectors.append(line)
-    _quantitative_legend(fig, registry, (0.0, 0.25, 0.50, 0.75, 1.0))
+    _quantitative_legend(
+        fig,
+        registry,
+        (0.0, 0.25, 0.50, 0.75, 1.0),
+        zero_color=WHITE,
+    )
     fig.text(
         0.790,
         0.35,
@@ -1032,6 +1075,107 @@ def draw_density(data: DatasetLandscapeData, polymer: str) -> Drawing:
     fig.text(0.790, 0.25, "Dashed: 5 wt%", fontsize=FONT_SIZE, color=BLACK)
     _register_texts(fig, registry)
     return Drawing(fig, registry, title)
+
+
+def check_density_color_contract(
+    data: DatasetLandscapeData,
+    drawing: Drawing,
+    polymer: str,
+    sidecar: Mapping[str, Any] | None = None,
+) -> dict[str, int]:
+    """Trace zero/positive matrix values to face colors, legend, and provenance."""
+
+    if polymer not in COHORT_SET:
+        raise DatasetLandscapeValidationError(f"unknown density polymer: {polymer}")
+    matrix = _density_fraction_matrix(data, polymer)
+    values = matrix.reshape(-1)
+    zero_mask = values == 0.0
+    positive_mask = values > 0.0
+    errors: list[str] = []
+
+    layers = [
+        record
+        for record in drawing.registry.data_layers
+        if record.series_id == f"density:{polymer}"
+    ]
+    if len(layers) != 1:
+        errors.append(
+            f"density color validator found {len(layers)} layers for {polymer}"
+        )
+        actual = np.empty((0, 4), dtype=float)
+    else:
+        actual = np.asarray(layers[0].artist.get_facecolors(), dtype=float)
+
+    white = np.asarray(to_rgba(WHITE), dtype=float)
+    if actual.shape != (values.size, 4):
+        errors.append(f"density face-color count changed for {polymer}: {actual.shape}")
+    else:
+        if not np.allclose(actual[zero_mask], white, atol=1e-12, rtol=0.0):
+            errors.append(f"zero density cell is not white for {polymer}")
+        if np.any(np.all(np.isclose(actual[positive_mask], white, atol=1e-12), axis=1)):
+            errors.append(f"positive density cell is white for {polymer}")
+        expected_positive = np.asarray(
+            [CMAP(float(value)) for value in values[positive_mask]], dtype=float
+        )
+        if not np.allclose(
+            actual[positive_mask], expected_positive, atol=1e-12, rtol=0.0
+        ):
+            errors.append(f"positive density colormap changed for {polymer}")
+
+    zero_swatches = [
+        patch
+        for patch in drawing.registry.collision_patches
+        if patch.get_gid() == "quantitative-legend-0"
+    ]
+    if len(zero_swatches) != 1:
+        errors.append(
+            f"density zero legend swatch count changed for {polymer}: "
+            f"{len(zero_swatches)}"
+        )
+    elif not np.allclose(
+        np.asarray(zero_swatches[0].get_facecolor(), dtype=float),
+        white,
+        atol=1e-12,
+        rtol=0.0,
+    ):
+        errors.append(f"density zero legend swatch is not white for {polymer}")
+
+    if sidecar is not None:
+        contract = sidecar.get("density_color_contract")
+        if not isinstance(contract, Mapping):
+            errors.append("density sidecar is missing density_color_contract")
+        else:
+            for key, expected in DENSITY_COLOR_CONTRACT.items():
+                if contract.get(key) != expected:
+                    errors.append(
+                        f"density sidecar color contract changed: {key}="
+                        f"{contract.get(key)!r}"
+                    )
+        style_rows = [
+            row
+            for row in sidecar.get("sources", [])
+            if row.get("path") == str(ZERO_WHITE_PROPOSAL_PATH)
+        ]
+        if len(style_rows) != 1:
+            errors.append("density sidecar style source lock is missing")
+        else:
+            row = style_rows[0]
+            expected_digest = EXPECTED_DENSITY_STYLE_DIGESTS[ZERO_WHITE_PROPOSAL_PATH]
+            if (
+                row.get("expected_sha256") != expected_digest
+                or row.get("actual_sha256") != expected_digest
+                or row.get("digest_lock") is not True
+            ):
+                errors.append("density sidecar style source lock changed")
+
+    if errors:
+        raise DatasetLandscapeValidationError("\n".join(errors))
+    return {
+        "cell_count": int(values.size),
+        "zero_cell_count": int(np.count_nonzero(zero_mask)),
+        "positive_cell_count": int(np.count_nonzero(positive_mask)),
+        "zero_legend_swatch_count": 1,
+    }
 
 
 def draw_all(data: DatasetLandscapeData) -> dict[str, Drawing]:
@@ -1113,7 +1257,11 @@ def _save(
     return check_output_pair(png, svg), png, svg
 
 
-def _sources(actual: Mapping[str, str]) -> list[dict[str, Any]]:
+def _sources(
+    actual: Mapping[str, str],
+    *,
+    include_density_style: bool,
+) -> list[dict[str, Any]]:
     roles = {
         DB_PATH: "numeric grid/property/admission authority",
         PROPERTY_PATH: "property source lineage",
@@ -1133,6 +1281,17 @@ def _sources(actual: Mapping[str, str]) -> list[dict[str, Any]]:
         }
         for path, wanted in EXPECTED_SOURCE_DIGESTS.items()
     ]
+    if include_density_style:
+        rows.extend(
+            {
+                "path": str(path),
+                "role": "admitted density zero-color contract",
+                "digest_lock": True,
+                "expected_sha256": wanted,
+                "actual_sha256": actual[str(path)],
+            }
+            for path, wanted in EXPECTED_DENSITY_STYLE_DIGESTS.items()
+        )
     rows.append(
         {
             "path": str(INBOX_PATH),
@@ -1163,7 +1322,10 @@ def _sidecar(
             "path": str(Path(__file__).resolve()),
             "sha256": sha256_file(Path(__file__).resolve()),
         },
-        "sources": _sources(actual),
+        "sources": _sources(
+            actual,
+            include_density_style=stem in DENSITY_STEMS.values(),
+        ),
         "queries": {
             "scalars": SCALAR_SQL,
             "pair_coverage": PAIR_SQL,
@@ -1237,6 +1399,7 @@ def _sidecar(
             if density_stem == stem
         )
         common["polymer"] = polymer
+        common["density_color_contract"] = dict(DENSITY_COLOR_CONTRACT)
         common["raw_log10_bin_edges"] = list(RAW_LOG_EDGES)
         common["served_ceiling_band_index"] = 50
         common["bin_counts_by_temperature"] = {
@@ -1254,6 +1417,7 @@ def generate(output_dir: str | Path = HERE) -> dict[str, Any]:
     destination = Path(output_dir)
     destination.mkdir(parents=True, exist_ok=True)
     actual = assert_source_digests()
+    actual.update(assert_density_style_digests())
     data = measure()
     drawings = draw_all(data)
     reports: dict[str, Any] = {}
@@ -1264,6 +1428,18 @@ def generate(output_dir: str | Path = HERE) -> dict[str, Any]:
             output, png, svg = _save(drawing, destination, stem)
             svg_paths.append(svg)
             sidecar = _sidecar(stem, data, actual, geometry, output)
+            if stem in DENSITY_STEMS.values():
+                polymer = next(
+                    polymer
+                    for polymer, density_stem in DENSITY_STEMS.items()
+                    if density_stem == stem
+                )
+                sidecar["density_color_report"] = check_density_color_contract(
+                    data,
+                    drawing,
+                    polymer,
+                    sidecar,
+                )
             sidecar_path = destination / f"{stem}.provenance.json"
             sidecar_path.write_text(
                 json.dumps(sidecar, indent=2, sort_keys=True) + "\n", encoding="utf-8"

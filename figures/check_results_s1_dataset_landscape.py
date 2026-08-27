@@ -110,6 +110,15 @@ def _semantic_controls(
             failures,
         )
 
+    wrong_style_digest = dict(landscape.EXPECTED_DENSITY_STYLE_DIGESTS)
+    wrong_style_digest[landscape.ZERO_WHITE_PROPOSAL_PATH] = "0" * 64
+    _expect(
+        "source digest density zero-white proposal",
+        "source digest mismatch",
+        lambda: landscape.assert_density_style_digests(wrong_style_digest),
+        failures,
+    )
+
     _expect(
         "cohort/PU mutation",
         "cohort scalar counts changed",
@@ -395,6 +404,126 @@ def _geometry_controls(
         plt.close(property_drawing.fig)
 
 
+def _density_color_controls(
+    data: landscape.DatasetLandscapeData,
+    *,
+    color_validator: Checker,
+    failures: list[str],
+) -> None:
+    for polymer, stem in landscape.DENSITY_STEMS.items():
+        drawing = landscape.draw_density(data, polymer)
+        sidecar = json.loads(
+            (landscape.HERE / f"{stem}.provenance.json").read_text(encoding="utf-8")
+        )
+        try:
+            report = color_validator(data, drawing, polymer, sidecar)
+        except EXPECTED_EXCEPTIONS as error:
+            failures.append(
+                f"current density color contract failed for {polymer}: {error}"
+            )
+            print(f"CURRENT density color {polymer}: FAIL")
+        else:
+            print(f"CURRENT density color {polymer}: PASS {report}")
+
+        if polymer != "PET":
+            plt.close(drawing.fig)
+            continue
+
+        layer = next(
+            record
+            for record in drawing.registry.data_layers
+            if record.series_id == "density:PET"
+        )
+        matrix = landscape._density_fraction_matrix(data, "PET").reshape(-1)
+        zero_index = int(
+            next(index for index, value in enumerate(matrix) if value == 0)
+        )
+        positive_index = int(
+            next(index for index, value in enumerate(matrix) if value > 0)
+        )
+        original_colors = layer.artist.get_facecolors().copy()
+
+        changed = original_colors.copy()
+        changed[zero_index] = landscape.CMAP(0.0)
+        layer.artist.set_facecolors(changed)
+        _expect(
+            "zero density cell colored",
+            "zero density cell is not white",
+            lambda: color_validator(data, drawing, "PET", sidecar),
+            failures,
+        )
+        layer.artist.set_facecolors(original_colors)
+
+        changed = original_colors.copy()
+        changed[positive_index] = (1.0, 1.0, 1.0, 1.0)
+        layer.artist.set_facecolors(changed)
+        _expect(
+            "positive density cell white",
+            "positive density cell is white",
+            lambda: color_validator(data, drawing, "PET", sidecar),
+            failures,
+        )
+        layer.artist.set_facecolors(original_colors)
+
+        zero_swatch = next(
+            patch
+            for patch in drawing.registry.collision_patches
+            if patch.get_gid() == "quantitative-legend-0"
+        )
+        original_swatch = zero_swatch.get_facecolor()
+        zero_swatch.set_facecolor(landscape.CMAP(0.0))
+        _expect(
+            "zero legend swatch colored",
+            "density zero legend swatch is not white",
+            lambda: color_validator(data, drawing, "PET", sidecar),
+            failures,
+        )
+        zero_swatch.set_facecolor(original_swatch)
+
+        missing_zero = json.loads(json.dumps(sidecar))
+        missing_zero["density_color_contract"].pop("zero_fraction_fill")
+        _expect(
+            "density sidecar zero fill missing",
+            "density sidecar color contract changed: zero_fraction_fill",
+            lambda: color_validator(data, drawing, "PET", missing_zero),
+            failures,
+        )
+
+        wrong_colormap = json.loads(json.dumps(sidecar))
+        wrong_colormap["density_color_contract"]["positive_fraction_colormap"] = (
+            "plasma"
+        )
+        _expect(
+            "density sidecar colormap changed",
+            "density sidecar color contract changed: positive_fraction_colormap",
+            lambda: color_validator(data, drawing, "PET", wrong_colormap),
+            failures,
+        )
+
+        wrong_normalization = json.loads(json.dumps(sidecar))
+        wrong_normalization["density_color_contract"]["normalization"] = [0.0, 0.5]
+        _expect(
+            "density sidecar normalization changed",
+            "density sidecar color contract changed: normalization",
+            lambda: color_validator(data, drawing, "PET", wrong_normalization),
+            failures,
+        )
+
+        missing_style_source = json.loads(json.dumps(sidecar))
+        missing_style_source["sources"] = [
+            row
+            for row in missing_style_source["sources"]
+            if row["path"] != str(landscape.ZERO_WHITE_PROPOSAL_PATH)
+        ]
+        _expect(
+            "density sidecar style source missing",
+            "density sidecar style source lock is missing",
+            lambda: color_validator(data, drawing, "PET", missing_style_source),
+            failures,
+        )
+        plt.close(drawing.fig)
+
+
 def _output_controls(
     *,
     output_checker: Checker,
@@ -562,12 +691,22 @@ def _accept_all_controls(
         svg.write_text("<svg xmlns='http://www.w3.org/2000/svg'/>", encoding="utf-8")
         prove("output checker", lambda: accept_all(missing_png, svg))
 
+    density = landscape.draw_density(data, "PET")
+    try:
+        prove(
+            "density-color/provenance validator",
+            lambda: accept_all(data, density, "PET", {}),
+        )
+    finally:
+        plt.close(density.fig)
+
 
 def main(
     *,
     semantic_validator: Checker | None = None,
     density_bin_validator: Checker | None = None,
     t5_category_validator: Checker | None = None,
+    density_color_validator: Checker | None = None,
     figure_checker: Checker | None = None,
     output_checker: Checker | None = None,
     svg_checker: Checker | None = None,
@@ -579,6 +718,9 @@ def main(
     )
     t5_category_validator = (
         t5_category_validator or landscape.check_t5_category_contract
+    )
+    density_color_validator = (
+        density_color_validator or landscape.check_density_color_contract
     )
     figure_checker = figure_checker or landscape.verify_geometry
     output_checker = output_checker or check_output_pair
@@ -616,6 +758,11 @@ def main(
     _geometry_controls(
         data,
         figure_checker=figure_checker,
+        failures=failures,
+    )
+    _density_color_controls(
+        data,
+        color_validator=density_color_validator,
         failures=failures,
     )
     _output_controls(

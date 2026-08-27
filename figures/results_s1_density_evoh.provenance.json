@@ -1504,6 +1504,20 @@
       12
     ]
   },
+  "density_color_contract": {
+    "normalization": [
+      0.0,
+      1.0
+    ],
+    "positive_fraction_colormap": "viridis",
+    "zero_fraction_fill": "#FFFFFF"
+  },
+  "density_color_report": {
+    "cell_count": 1428,
+    "positive_cell_count": 821,
+    "zero_cell_count": 607,
+    "zero_legend_swatch_count": 1
+  },
   "evaluable_denominator_by_temperature": {
     "100": 990,
     "105": 990,
@@ -1537,18 +1551,18 @@
   "figure": "results_s1_density_evoh",
   "generator": {
     "path": "/home/aaltamimi2/dissolve-v12-visuals/figures/results_s1_dataset_landscape.py",
-    "sha256": "d3730400373926e84ea1a6fc38028a7fa920a8566ac47d36406f6b57a54d2e1e"
+    "sha256": "43b35fd20fa717e1c606289644a65315c544f1d0b6aabbbcea61755d9c863220"
   },
   "outputs": {
     "png": {
-      "bytes": 151010,
+      "bytes": 147700,
       "path": "results_s1_density_evoh.png",
-      "sha256": "96b31840623f2530a0b88506c9807ccb5528acf072d68ee58c54093681fe45e9"
+      "sha256": "9047afb3400cc3f81cb2f94664b56c9cb6a4d6810103f4a9e788a9eb61be7c0a"
     },
     "svg": {
       "bytes": 303333,
       "path": "results_s1_density_evoh.svg",
-      "sha256": "28013bfd7f8ac00e50dc6f9389b16b80736ff7af11c151769148895b6b27372a"
+      "sha256": "2ba83a3ec06bf368937768226a68d3cbc7a0f6dc315d20bb37413028d64fe062"
     }
   },
   "polymer": "EVOH",
@@ -1665,6 +1679,13 @@
       "expected_sha256": "f6f0a7e0d3d948e66a27202b285d924590ea0bafff39f2475462ca33f45a1a40",
       "path": "/home/aaltamimi2/dissolve-v12-audit/V4_VISUALIZATION_CHARTER.md",
       "role": "figure standards and owner stops"
+    },
+    {
+      "actual_sha256": "6ac9980628b2dac22d727ae4b21046f18aa38bcb3c4613c5f33fd59341f1972f",
+      "digest_lock": true,
+      "expected_sha256": "6ac9980628b2dac22d727ae4b21046f18aa38bcb3c4613c5f33fd59341f1972f",
+      "path": "/home/aaltamimi2/dissolve-v12-visuals/figures/RESULTS_S1_DENSITY_ZERO_WHITE_PROPOSAL.md",
+      "role": "admitted density zero-color contract"
     },
     {
       "digest_lock": false,

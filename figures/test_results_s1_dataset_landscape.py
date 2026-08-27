@@ -70,6 +70,28 @@ def test_all_outputs_are_separate_one_axes_drawings(
             plt.close(drawing.fig)
 
 
+def test_density_zero_and_positive_colors_trace_to_sidecars(
+    data: landscape.DatasetLandscapeData,
+) -> None:
+    for polymer, stem in landscape.DENSITY_STEMS.items():
+        drawing = landscape.draw_density(data, polymer)
+        sidecar = json.loads(
+            (landscape.HERE / f"{stem}.provenance.json").read_text(encoding="utf-8")
+        )
+        try:
+            report = landscape.check_density_color_contract(
+                data,
+                drawing,
+                polymer,
+                sidecar,
+            )
+            assert report["zero_cell_count"] > 0
+            assert report["positive_cell_count"] > 0
+            assert report["cell_count"] == 51 * 28
+        finally:
+            plt.close(drawing.fig)
+
+
 def test_committed_png_svg_pairs_and_provenance_are_consistent() -> None:
     expected_generator_digest = landscape.sha256_file(
         Path(landscape.__file__).resolve()
@@ -92,6 +114,10 @@ def test_committed_png_svg_pairs_and_provenance_are_consistent() -> None:
             for row in sidecar["sources"]
             if row["digest_lock"]
         )
+        if stem in landscape.DENSITY_STEMS.values():
+            assert sidecar["density_color_contract"] == landscape.DENSITY_COLOR_CONTRACT
+        else:
+            assert "density_color_contract" not in sidecar
 
     assert landscape.check_svg_vector_contract(
         landscape.HERE / f"{stem}.svg" for stem in landscape.ALL_STEMS
@@ -182,6 +208,21 @@ def test_accept_all_injections_are_not_mistaken_for_checker_passes(
     assert any(
         "interpolated T5 crossing: defective case was accepted" in item
         for item in semantic_failures
+    )
+
+    color_failures: list[str] = []
+    harness._density_color_controls(
+        data,
+        color_validator=accept_all,
+        failures=color_failures,
+    )
+    assert any(
+        "zero density cell colored: defective case was accepted" in item
+        for item in color_failures
+    )
+    assert any(
+        "density sidecar zero fill missing: defective case was accepted" in item
+        for item in color_failures
     )
 
 
