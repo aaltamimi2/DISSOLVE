@@ -1,0 +1,2305 @@
+{
+  "analysis_cohort": {
+    "excluded_polymers": [
+      "PU"
+    ],
+    "included_polymers": [
+      "PS",
+      "PVC",
+      "PP",
+      "LDPE",
+      "PC",
+      "HDPE",
+      "NYLON6",
+      "EVOH",
+      "PET",
+      "NYLON66",
+      "PES"
+    ]
+  },
+  "artifact_status": "first draft; not a final publication figure",
+  "cells": [
+    {
+      "evaluable_denominator": 984,
+      "fraction": 0.03048780487804878,
+      "polymer": "EVOH",
+      "qualifying_numerator": 30,
+      "temperature_c": 25
+    },
+    {
+      "evaluable_denominator": 985,
+      "fraction": 0.030456852791878174,
+      "polymer": "EVOH",
+      "qualifying_numerator": 30,
+      "temperature_c": 30
+    },
+    {
+      "evaluable_denominator": 985,
+      "fraction": 0.03248730964467005,
+      "polymer": "EVOH",
+      "qualifying_numerator": 32,
+      "temperature_c": 35
+    },
+    {
+      "evaluable_denominator": 987,
+      "fraction": 0.03343465045592705,
+      "polymer": "EVOH",
+      "qualifying_numerator": 33,
+      "temperature_c": 40
+    },
+    {
+      "evaluable_denominator": 990,
+      "fraction": 0.03333333333333333,
+      "polymer": "EVOH",
+      "qualifying_numerator": 33,
+      "temperature_c": 45
+    },
+    {
+      "evaluable_denominator": 990,
+      "fraction": 0.03434343434343434,
+      "polymer": "EVOH",
+      "qualifying_numerator": 34,
+      "temperature_c": 50
+    },
+    {
+      "evaluable_denominator": 990,
+      "fraction": 0.03737373737373737,
+      "polymer": "EVOH",
+      "qualifying_numerator": 37,
+      "temperature_c": 55
+    },
+    {
+      "evaluable_denominator": 990,
+      "fraction": 0.03838383838383838,
+      "polymer": "EVOH",
+      "qualifying_numerator": 38,
+      "temperature_c": 60
+    },
+    {
+      "evaluable_denominator": 990,
+      "fraction": 0.04141414141414142,
+      "polymer": "EVOH",
+      "qualifying_numerator": 41,
+      "temperature_c": 65
+    },
+    {
+      "evaluable_denominator": 990,
+      "fraction": 0.046464646464646465,
+      "polymer": "EVOH",
+      "qualifying_numerator": 46,
+      "temperature_c": 70
+    },
+    {
+      "evaluable_denominator": 990,
+      "fraction": 0.052525252525252523,
+      "polymer": "EVOH",
+      "qualifying_numerator": 52,
+      "temperature_c": 75
+    },
+    {
+      "evaluable_denominator": 990,
+      "fraction": 0.05858585858585859,
+      "polymer": "EVOH",
+      "qualifying_numerator": 58,
+      "temperature_c": 80
+    },
+    {
+      "evaluable_denominator": 990,
+      "fraction": 0.07171717171717172,
+      "polymer": "EVOH",
+      "qualifying_numerator": 71,
+      "temperature_c": 85
+    },
+    {
+      "evaluable_denominator": 990,
+      "fraction": 0.08787878787878788,
+      "polymer": "EVOH",
+      "qualifying_numerator": 87,
+      "temperature_c": 90
+    },
+    {
+      "evaluable_denominator": 990,
+      "fraction": 0.10707070707070707,
+      "polymer": "EVOH",
+      "qualifying_numerator": 106,
+      "temperature_c": 95
+    },
+    {
+      "evaluable_denominator": 990,
+      "fraction": 0.1303030303030303,
+      "polymer": "EVOH",
+      "qualifying_numerator": 129,
+      "temperature_c": 100
+    },
+    {
+      "evaluable_denominator": 990,
+      "fraction": 0.15757575757575756,
+      "polymer": "EVOH",
+      "qualifying_numerator": 156,
+      "temperature_c": 105
+    },
+    {
+      "evaluable_denominator": 990,
+      "fraction": 0.21414141414141413,
+      "polymer": "EVOH",
+      "qualifying_numerator": 212,
+      "temperature_c": 110
+    },
+    {
+      "evaluable_denominator": 990,
+      "fraction": 0.28484848484848485,
+      "polymer": "EVOH",
+      "qualifying_numerator": 282,
+      "temperature_c": 115
+    },
+    {
+      "evaluable_denominator": 990,
+      "fraction": 0.3656565656565657,
+      "polymer": "EVOH",
+      "qualifying_numerator": 362,
+      "temperature_c": 120
+    },
+    {
+      "evaluable_denominator": 990,
+      "fraction": 0.47474747474747475,
+      "polymer": "EVOH",
+      "qualifying_numerator": 470,
+      "temperature_c": 125
+    },
+    {
+      "evaluable_denominator": 990,
+      "fraction": 0.5828282828282828,
+      "polymer": "EVOH",
+      "qualifying_numerator": 577,
+      "temperature_c": 130
+    },
+    {
+      "evaluable_denominator": 990,
+      "fraction": 0.6747474747474748,
+      "polymer": "EVOH",
+      "qualifying_numerator": 668,
+      "temperature_c": 135
+    },
+    {
+      "evaluable_denominator": 990,
+      "fraction": 0.7646464646464647,
+      "polymer": "EVOH",
+      "qualifying_numerator": 757,
+      "temperature_c": 140
+    },
+    {
+      "evaluable_denominator": 990,
+      "fraction": 0.8272727272727273,
+      "polymer": "EVOH",
+      "qualifying_numerator": 819,
+      "temperature_c": 145
+    },
+    {
+      "evaluable_denominator": 990,
+      "fraction": 0.8777777777777778,
+      "polymer": "EVOH",
+      "qualifying_numerator": 869,
+      "temperature_c": 150
+    },
+    {
+      "evaluable_denominator": 990,
+      "fraction": 0.9141414141414141,
+      "polymer": "EVOH",
+      "qualifying_numerator": 905,
+      "temperature_c": 155
+    },
+    {
+      "evaluable_denominator": 990,
+      "fraction": 0.9404040404040404,
+      "polymer": "EVOH",
+      "qualifying_numerator": 931,
+      "temperature_c": 160
+    },
+    {
+      "evaluable_denominator": 984,
+      "fraction": 0.0,
+      "polymer": "HDPE",
+      "qualifying_numerator": 0,
+      "temperature_c": 25
+    },
+    {
+      "evaluable_denominator": 986,
+      "fraction": 0.0,
+      "polymer": "HDPE",
+      "qualifying_numerator": 0,
+      "temperature_c": 30
+    },
+    {
+      "evaluable_denominator": 986,
+      "fraction": 0.0,
+      "polymer": "HDPE",
+      "qualifying_numerator": 0,
+      "temperature_c": 35
+    },
+    {
+      "evaluable_denominator": 989,
+      "fraction": 0.0,
+      "polymer": "HDPE",
+      "qualifying_numerator": 0,
+      "temperature_c": 40
+    },
+    {
+      "evaluable_denominator": 990,
+      "fraction": 0.0,
+      "polymer": "HDPE",
+      "qualifying_numerator": 0,
+      "temperature_c": 45
+    },
+    {
+      "evaluable_denominator": 990,
+      "fraction": 0.00101010101010101,
+      "polymer": "HDPE",
+      "qualifying_numerator": 1,
+      "temperature_c": 50
+    },
+    {
+      "evaluable_denominator": 990,
+      "fraction": 0.00101010101010101,
+      "polymer": "HDPE",
+      "qualifying_numerator": 1,
+      "temperature_c": 55
+    },
+    {
+      "evaluable_denominator": 990,
+      "fraction": 0.00101010101010101,
+      "polymer": "HDPE",
+      "qualifying_numerator": 1,
+      "temperature_c": 60
+    },
+    {
+      "evaluable_denominator": 990,
+      "fraction": 0.00101010101010101,
+      "polymer": "HDPE",
+      "qualifying_numerator": 1,
+      "temperature_c": 65
+    },
+    {
+      "evaluable_denominator": 990,
+      "fraction": 0.00101010101010101,
+      "polymer": "HDPE",
+      "qualifying_numerator": 1,
+      "temperature_c": 70
+    },
+    {
+      "evaluable_denominator": 990,
+      "fraction": 0.0030303030303030303,
+      "polymer": "HDPE",
+      "qualifying_numerator": 3,
+      "temperature_c": 75
+    },
+    {
+      "evaluable_denominator": 990,
+      "fraction": 0.0030303030303030303,
+      "polymer": "HDPE",
+      "qualifying_numerator": 3,
+      "temperature_c": 80
+    },
+    {
+      "evaluable_denominator": 990,
+      "fraction": 0.00404040404040404,
+      "polymer": "HDPE",
+      "qualifying_numerator": 4,
+      "temperature_c": 85
+    },
+    {
+      "evaluable_denominator": 990,
+      "fraction": 0.007070707070707071,
+      "polymer": "HDPE",
+      "qualifying_numerator": 7,
+      "temperature_c": 90
+    },
+    {
+      "evaluable_denominator": 990,
+      "fraction": 0.012121212121212121,
+      "polymer": "HDPE",
+      "qualifying_numerator": 12,
+      "temperature_c": 95
+    },
+    {
+      "evaluable_denominator": 990,
+      "fraction": 0.03838383838383838,
+      "polymer": "HDPE",
+      "qualifying_numerator": 38,
+      "temperature_c": 100
+    },
+    {
+      "evaluable_denominator": 990,
+      "fraction": 0.11515151515151516,
+      "polymer": "HDPE",
+      "qualifying_numerator": 114,
+      "temperature_c": 105
+    },
+    {
+      "evaluable_denominator": 990,
+      "fraction": 0.2818181818181818,
+      "polymer": "HDPE",
+      "qualifying_numerator": 279,
+      "temperature_c": 110
+    },
+    {
+      "evaluable_denominator": 990,
+      "fraction": 0.5141414141414141,
+      "polymer": "HDPE",
+      "qualifying_numerator": 509,
+      "temperature_c": 115
+    },
+    {
+      "evaluable_denominator": 990,
+      "fraction": 0.6888888888888889,
+      "polymer": "HDPE",
+      "qualifying_numerator": 682,
+      "temperature_c": 120
+    },
+    {
+      "evaluable_denominator": 990,
+      "fraction": 0.798989898989899,
+      "polymer": "HDPE",
+      "qualifying_numerator": 791,
+      "temperature_c": 125
+    },
+    {
+      "evaluable_denominator": 990,
+      "fraction": 0.8848484848484849,
+      "polymer": "HDPE",
+      "qualifying_numerator": 876,
+      "temperature_c": 130
+    },
+    {
+      "evaluable_denominator": 990,
+      "fraction": 0.9272727272727272,
+      "polymer": "HDPE",
+      "qualifying_numerator": 918,
+      "temperature_c": 135
+    },
+    {
+      "evaluable_denominator": 990,
+      "fraction": 0.9525252525252526,
+      "polymer": "HDPE",
+      "qualifying_numerator": 943,
+      "temperature_c": 140
+    },
+    {
+      "evaluable_denominator": 990,
+      "fraction": 0.9525252525252526,
+      "polymer": "HDPE",
+      "qualifying_numerator": 943,
+      "temperature_c": 145
+    },
+    {
+      "evaluable_denominator": 990,
+      "fraction": 0.9555555555555556,
+      "polymer": "HDPE",
+      "qualifying_numerator": 946,
+      "temperature_c": 150
+    },
+    {
+      "evaluable_denominator": 990,
+      "fraction": 0.9575757575757575,
+      "polymer": "HDPE",
+      "qualifying_numerator": 948,
+      "temperature_c": 155
+    },
+    {
+      "evaluable_denominator": 990,
+      "fraction": 0.9606060606060606,
+      "polymer": "HDPE",
+      "qualifying_numerator": 951,
+      "temperature_c": 160
+    },
+    {
+      "evaluable_denominator": 990,
+      "fraction": 0.00202020202020202,
+      "polymer": "LDPE",
+      "qualifying_numerator": 2,
+      "temperature_c": 25
+    },
+    {
+      "evaluable_denominator": 990,
+      "fraction": 0.00202020202020202,
+      "polymer": "LDPE",
+      "qualifying_numerator": 2,
+      "temperature_c": 30
+    },
+    {
+      "evaluable_denominator": 990,
+      "fraction": 0.00202020202020202,
+      "polymer": "LDPE",
+      "qualifying_numerator": 2,
+      "temperature_c": 35
+    },
+    {
+      "evaluable_denominator": 990,
+      "fraction": 0.0030303030303030303,
+      "polymer": "LDPE",
+      "qualifying_numerator": 3,
+      "temperature_c": 40
+    },
+    {
+      "evaluable_denominator": 990,
+      "fraction": 0.0030303030303030303,
+      "polymer": "LDPE",
+      "qualifying_numerator": 3,
+      "temperature_c": 45
+    },
+    {
+      "evaluable_denominator": 990,
+      "fraction": 0.00404040404040404,
+      "polymer": "LDPE",
+      "qualifying_numerator": 4,
+      "temperature_c": 50
+    },
+    {
+      "evaluable_denominator": 990,
+      "fraction": 0.006060606060606061,
+      "polymer": "LDPE",
+      "qualifying_numerator": 6,
+      "temperature_c": 55
+    },
+    {
+      "evaluable_denominator": 990,
+      "fraction": 0.00909090909090909,
+      "polymer": "LDPE",
+      "qualifying_numerator": 9,
+      "temperature_c": 60
+    },
+    {
+      "evaluable_denominator": 990,
+      "fraction": 0.012121212121212121,
+      "polymer": "LDPE",
+      "qualifying_numerator": 12,
+      "temperature_c": 65
+    },
+    {
+      "evaluable_denominator": 990,
+      "fraction": 0.01717171717171717,
+      "polymer": "LDPE",
+      "qualifying_numerator": 17,
+      "temperature_c": 70
+    },
+    {
+      "evaluable_denominator": 990,
+      "fraction": 0.03535353535353535,
+      "polymer": "LDPE",
+      "qualifying_numerator": 35,
+      "temperature_c": 75
+    },
+    {
+      "evaluable_denominator": 990,
+      "fraction": 0.06161616161616162,
+      "polymer": "LDPE",
+      "qualifying_numerator": 61,
+      "temperature_c": 80
+    },
+    {
+      "evaluable_denominator": 990,
+      "fraction": 0.14242424242424243,
+      "polymer": "LDPE",
+      "qualifying_numerator": 141,
+      "temperature_c": 85
+    },
+    {
+      "evaluable_denominator": 990,
+      "fraction": 0.22727272727272727,
+      "polymer": "LDPE",
+      "qualifying_numerator": 225,
+      "temperature_c": 90
+    },
+    {
+      "evaluable_denominator": 990,
+      "fraction": 0.3878787878787879,
+      "polymer": "LDPE",
+      "qualifying_numerator": 384,
+      "temperature_c": 95
+    },
+    {
+      "evaluable_denominator": 990,
+      "fraction": 0.5151515151515151,
+      "polymer": "LDPE",
+      "qualifying_numerator": 510,
+      "temperature_c": 100
+    },
+    {
+      "evaluable_denominator": 990,
+      "fraction": 0.6313131313131313,
+      "polymer": "LDPE",
+      "qualifying_numerator": 625,
+      "temperature_c": 105
+    },
+    {
+      "evaluable_denominator": 990,
+      "fraction": 0.7090909090909091,
+      "polymer": "LDPE",
+      "qualifying_numerator": 702,
+      "temperature_c": 110
+    },
+    {
+      "evaluable_denominator": 990,
+      "fraction": 0.7797979797979798,
+      "polymer": "LDPE",
+      "qualifying_numerator": 772,
+      "temperature_c": 115
+    },
+    {
+      "evaluable_denominator": 990,
+      "fraction": 0.8515151515151516,
+      "polymer": "LDPE",
+      "qualifying_numerator": 843,
+      "temperature_c": 120
+    },
+    {
+      "evaluable_denominator": 990,
+      "fraction": 0.8868686868686869,
+      "polymer": "LDPE",
+      "qualifying_numerator": 878,
+      "temperature_c": 125
+    },
+    {
+      "evaluable_denominator": 990,
+      "fraction": 0.9131313131313131,
+      "polymer": "LDPE",
+      "qualifying_numerator": 904,
+      "temperature_c": 130
+    },
+    {
+      "evaluable_denominator": 990,
+      "fraction": 0.9373737373737374,
+      "polymer": "LDPE",
+      "qualifying_numerator": 928,
+      "temperature_c": 135
+    },
+    {
+      "evaluable_denominator": 990,
+      "fraction": 0.9515151515151515,
+      "polymer": "LDPE",
+      "qualifying_numerator": 942,
+      "temperature_c": 140
+    },
+    {
+      "evaluable_denominator": 990,
+      "fraction": 0.9525252525252526,
+      "polymer": "LDPE",
+      "qualifying_numerator": 943,
+      "temperature_c": 145
+    },
+    {
+      "evaluable_denominator": 990,
+      "fraction": 0.9555555555555556,
+      "polymer": "LDPE",
+      "qualifying_numerator": 946,
+      "temperature_c": 150
+    },
+    {
+      "evaluable_denominator": 990,
+      "fraction": 0.9575757575757575,
+      "polymer": "LDPE",
+      "qualifying_numerator": 948,
+      "temperature_c": 155
+    },
+    {
+      "evaluable_denominator": 990,
+      "fraction": 0.9606060606060606,
+      "polymer": "LDPE",
+      "qualifying_numerator": 951,
+      "temperature_c": 160
+    },
+    {
+      "evaluable_denominator": 32,
+      "fraction": 0.0,
+      "polymer": "NYLON6",
+      "qualifying_numerator": 0,
+      "temperature_c": 25
+    },
+    {
+      "evaluable_denominator": 32,
+      "fraction": 0.0,
+      "polymer": "NYLON6",
+      "qualifying_numerator": 0,
+      "temperature_c": 30
+    },
+    {
+      "evaluable_denominator": 32,
+      "fraction": 0.0,
+      "polymer": "NYLON6",
+      "qualifying_numerator": 0,
+      "temperature_c": 35
+    },
+    {
+      "evaluable_denominator": 32,
+      "fraction": 0.0,
+      "polymer": "NYLON6",
+      "qualifying_numerator": 0,
+      "temperature_c": 40
+    },
+    {
+      "evaluable_denominator": 32,
+      "fraction": 0.0,
+      "polymer": "NYLON6",
+      "qualifying_numerator": 0,
+      "temperature_c": 45
+    },
+    {
+      "evaluable_denominator": 32,
+      "fraction": 0.0,
+      "polymer": "NYLON6",
+      "qualifying_numerator": 0,
+      "temperature_c": 50
+    },
+    {
+      "evaluable_denominator": 32,
+      "fraction": 0.03125,
+      "polymer": "NYLON6",
+      "qualifying_numerator": 1,
+      "temperature_c": 55
+    },
+    {
+      "evaluable_denominator": 32,
+      "fraction": 0.03125,
+      "polymer": "NYLON6",
+      "qualifying_numerator": 1,
+      "temperature_c": 60
+    },
+    {
+      "evaluable_denominator": 32,
+      "fraction": 0.03125,
+      "polymer": "NYLON6",
+      "qualifying_numerator": 1,
+      "temperature_c": 65
+    },
+    {
+      "evaluable_denominator": 32,
+      "fraction": 0.0625,
+      "polymer": "NYLON6",
+      "qualifying_numerator": 2,
+      "temperature_c": 70
+    },
+    {
+      "evaluable_denominator": 32,
+      "fraction": 0.0625,
+      "polymer": "NYLON6",
+      "qualifying_numerator": 2,
+      "temperature_c": 75
+    },
+    {
+      "evaluable_denominator": 32,
+      "fraction": 0.0625,
+      "polymer": "NYLON6",
+      "qualifying_numerator": 2,
+      "temperature_c": 80
+    },
+    {
+      "evaluable_denominator": 32,
+      "fraction": 0.0625,
+      "polymer": "NYLON6",
+      "qualifying_numerator": 2,
+      "temperature_c": 85
+    },
+    {
+      "evaluable_denominator": 32,
+      "fraction": 0.0625,
+      "polymer": "NYLON6",
+      "qualifying_numerator": 2,
+      "temperature_c": 90
+    },
+    {
+      "evaluable_denominator": 32,
+      "fraction": 0.0625,
+      "polymer": "NYLON6",
+      "qualifying_numerator": 2,
+      "temperature_c": 95
+    },
+    {
+      "evaluable_denominator": 32,
+      "fraction": 0.09375,
+      "polymer": "NYLON6",
+      "qualifying_numerator": 3,
+      "temperature_c": 100
+    },
+    {
+      "evaluable_denominator": 32,
+      "fraction": 0.09375,
+      "polymer": "NYLON6",
+      "qualifying_numerator": 3,
+      "temperature_c": 105
+    },
+    {
+      "evaluable_denominator": 32,
+      "fraction": 0.1875,
+      "polymer": "NYLON6",
+      "qualifying_numerator": 6,
+      "temperature_c": 110
+    },
+    {
+      "evaluable_denominator": 32,
+      "fraction": 0.3125,
+      "polymer": "NYLON6",
+      "qualifying_numerator": 10,
+      "temperature_c": 115
+    },
+    {
+      "evaluable_denominator": 32,
+      "fraction": 0.40625,
+      "polymer": "NYLON6",
+      "qualifying_numerator": 13,
+      "temperature_c": 120
+    },
+    {
+      "evaluable_denominator": 32,
+      "fraction": 0.5,
+      "polymer": "NYLON6",
+      "qualifying_numerator": 16,
+      "temperature_c": 125
+    },
+    {
+      "evaluable_denominator": 32,
+      "fraction": 0.5625,
+      "polymer": "NYLON6",
+      "qualifying_numerator": 18,
+      "temperature_c": 130
+    },
+    {
+      "evaluable_denominator": 32,
+      "fraction": 0.625,
+      "polymer": "NYLON6",
+      "qualifying_numerator": 20,
+      "temperature_c": 135
+    },
+    {
+      "evaluable_denominator": 32,
+      "fraction": 0.625,
+      "polymer": "NYLON6",
+      "qualifying_numerator": 20,
+      "temperature_c": 140
+    },
+    {
+      "evaluable_denominator": 32,
+      "fraction": 0.75,
+      "polymer": "NYLON6",
+      "qualifying_numerator": 24,
+      "temperature_c": 145
+    },
+    {
+      "evaluable_denominator": 32,
+      "fraction": 0.75,
+      "polymer": "NYLON6",
+      "qualifying_numerator": 24,
+      "temperature_c": 150
+    },
+    {
+      "evaluable_denominator": 32,
+      "fraction": 0.8125,
+      "polymer": "NYLON6",
+      "qualifying_numerator": 26,
+      "temperature_c": 155
+    },
+    {
+      "evaluable_denominator": 32,
+      "fraction": 0.8125,
+      "polymer": "NYLON6",
+      "qualifying_numerator": 26,
+      "temperature_c": 160
+    },
+    {
+      "evaluable_denominator": 984,
+      "fraction": 0.06707317073170732,
+      "polymer": "NYLON66",
+      "qualifying_numerator": 66,
+      "temperature_c": 25
+    },
+    {
+      "evaluable_denominator": 984,
+      "fraction": 0.06504065040650407,
+      "polymer": "NYLON66",
+      "qualifying_numerator": 64,
+      "temperature_c": 30
+    },
+    {
+      "evaluable_denominator": 984,
+      "fraction": 0.06402439024390244,
+      "polymer": "NYLON66",
+      "qualifying_numerator": 63,
+      "temperature_c": 35
+    },
+    {
+      "evaluable_denominator": 984,
+      "fraction": 0.06300813008130081,
+      "polymer": "NYLON66",
+      "qualifying_numerator": 62,
+      "temperature_c": 40
+    },
+    {
+      "evaluable_denominator": 985,
+      "fraction": 0.06294416243654823,
+      "polymer": "NYLON66",
+      "qualifying_numerator": 62,
+      "temperature_c": 45
+    },
+    {
+      "evaluable_denominator": 987,
+      "fraction": 0.06180344478216818,
+      "polymer": "NYLON66",
+      "qualifying_numerator": 61,
+      "temperature_c": 50
+    },
+    {
+      "evaluable_denominator": 990,
+      "fraction": 0.06363636363636363,
+      "polymer": "NYLON66",
+      "qualifying_numerator": 63,
+      "temperature_c": 55
+    },
+    {
+      "evaluable_denominator": 990,
+      "fraction": 0.06464646464646465,
+      "polymer": "NYLON66",
+      "qualifying_numerator": 64,
+      "temperature_c": 60
+    },
+    {
+      "evaluable_denominator": 990,
+      "fraction": 0.06363636363636363,
+      "polymer": "NYLON66",
+      "qualifying_numerator": 63,
+      "temperature_c": 65
+    },
+    {
+      "evaluable_denominator": 990,
+      "fraction": 0.06565656565656566,
+      "polymer": "NYLON66",
+      "qualifying_numerator": 65,
+      "temperature_c": 70
+    },
+    {
+      "evaluable_denominator": 990,
+      "fraction": 0.06666666666666667,
+      "polymer": "NYLON66",
+      "qualifying_numerator": 66,
+      "temperature_c": 75
+    },
+    {
+      "evaluable_denominator": 990,
+      "fraction": 0.0696969696969697,
+      "polymer": "NYLON66",
+      "qualifying_numerator": 69,
+      "temperature_c": 80
+    },
+    {
+      "evaluable_denominator": 990,
+      "fraction": 0.07171717171717172,
+      "polymer": "NYLON66",
+      "qualifying_numerator": 71,
+      "temperature_c": 85
+    },
+    {
+      "evaluable_denominator": 990,
+      "fraction": 0.07373737373737374,
+      "polymer": "NYLON66",
+      "qualifying_numerator": 73,
+      "temperature_c": 90
+    },
+    {
+      "evaluable_denominator": 990,
+      "fraction": 0.08282828282828283,
+      "polymer": "NYLON66",
+      "qualifying_numerator": 82,
+      "temperature_c": 95
+    },
+    {
+      "evaluable_denominator": 990,
+      "fraction": 0.08686868686868687,
+      "polymer": "NYLON66",
+      "qualifying_numerator": 86,
+      "temperature_c": 100
+    },
+    {
+      "evaluable_denominator": 990,
+      "fraction": 0.09090909090909091,
+      "polymer": "NYLON66",
+      "qualifying_numerator": 90,
+      "temperature_c": 105
+    },
+    {
+      "evaluable_denominator": 990,
+      "fraction": 0.10101010101010101,
+      "polymer": "NYLON66",
+      "qualifying_numerator": 100,
+      "temperature_c": 110
+    },
+    {
+      "evaluable_denominator": 990,
+      "fraction": 0.10808080808080808,
+      "polymer": "NYLON66",
+      "qualifying_numerator": 107,
+      "temperature_c": 115
+    },
+    {
+      "evaluable_denominator": 990,
+      "fraction": 0.1191919191919192,
+      "polymer": "NYLON66",
+      "qualifying_numerator": 118,
+      "temperature_c": 120
+    },
+    {
+      "evaluable_denominator": 990,
+      "fraction": 0.1303030303030303,
+      "polymer": "NYLON66",
+      "qualifying_numerator": 129,
+      "temperature_c": 125
+    },
+    {
+      "evaluable_denominator": 990,
+      "fraction": 0.1606060606060606,
+      "polymer": "NYLON66",
+      "qualifying_numerator": 159,
+      "temperature_c": 130
+    },
+    {
+      "evaluable_denominator": 990,
+      "fraction": 0.19797979797979798,
+      "polymer": "NYLON66",
+      "qualifying_numerator": 196,
+      "temperature_c": 135
+    },
+    {
+      "evaluable_denominator": 990,
+      "fraction": 0.25656565656565655,
+      "polymer": "NYLON66",
+      "qualifying_numerator": 254,
+      "temperature_c": 140
+    },
+    {
+      "evaluable_denominator": 990,
+      "fraction": 0.3181818181818182,
+      "polymer": "NYLON66",
+      "qualifying_numerator": 315,
+      "temperature_c": 145
+    },
+    {
+      "evaluable_denominator": 990,
+      "fraction": 0.38181818181818183,
+      "polymer": "NYLON66",
+      "qualifying_numerator": 378,
+      "temperature_c": 150
+    },
+    {
+      "evaluable_denominator": 990,
+      "fraction": 0.44747474747474747,
+      "polymer": "NYLON66",
+      "qualifying_numerator": 443,
+      "temperature_c": 155
+    },
+    {
+      "evaluable_denominator": 990,
+      "fraction": 0.5363636363636364,
+      "polymer": "NYLON66",
+      "qualifying_numerator": 531,
+      "temperature_c": 160
+    },
+    {
+      "evaluable_denominator": 967,
+      "fraction": 0.03205791106514995,
+      "polymer": "PC",
+      "qualifying_numerator": 31,
+      "temperature_c": 25
+    },
+    {
+      "evaluable_denominator": 968,
+      "fraction": 0.04132231404958678,
+      "polymer": "PC",
+      "qualifying_numerator": 40,
+      "temperature_c": 30
+    },
+    {
+      "evaluable_denominator": 970,
+      "fraction": 0.05154639175257732,
+      "polymer": "PC",
+      "qualifying_numerator": 50,
+      "temperature_c": 35
+    },
+    {
+      "evaluable_denominator": 973,
+      "fraction": 0.06269270298047276,
+      "polymer": "PC",
+      "qualifying_numerator": 61,
+      "temperature_c": 40
+    },
+    {
+      "evaluable_denominator": 974,
+      "fraction": 0.07802874743326489,
+      "polymer": "PC",
+      "qualifying_numerator": 76,
+      "temperature_c": 45
+    },
+    {
+      "evaluable_denominator": 974,
+      "fraction": 0.09650924024640657,
+      "polymer": "PC",
+      "qualifying_numerator": 94,
+      "temperature_c": 50
+    },
+    {
+      "evaluable_denominator": 976,
+      "fraction": 0.1096311475409836,
+      "polymer": "PC",
+      "qualifying_numerator": 107,
+      "temperature_c": 55
+    },
+    {
+      "evaluable_denominator": 977,
+      "fraction": 0.14431934493346982,
+      "polymer": "PC",
+      "qualifying_numerator": 141,
+      "temperature_c": 60
+    },
+    {
+      "evaluable_denominator": 977,
+      "fraction": 0.17604912998976457,
+      "polymer": "PC",
+      "qualifying_numerator": 172,
+      "temperature_c": 65
+    },
+    {
+      "evaluable_denominator": 978,
+      "fraction": 0.2034764826175869,
+      "polymer": "PC",
+      "qualifying_numerator": 199,
+      "temperature_c": 70
+    },
+    {
+      "evaluable_denominator": 979,
+      "fraction": 0.24004085801838612,
+      "polymer": "PC",
+      "qualifying_numerator": 235,
+      "temperature_c": 75
+    },
+    {
+      "evaluable_denominator": 980,
+      "fraction": 0.27653061224489794,
+      "polymer": "PC",
+      "qualifying_numerator": 271,
+      "temperature_c": 80
+    },
+    {
+      "evaluable_denominator": 983,
+      "fraction": 0.3072227873855544,
+      "polymer": "PC",
+      "qualifying_numerator": 302,
+      "temperature_c": 85
+    },
+    {
+      "evaluable_denominator": 983,
+      "fraction": 0.3611393692777213,
+      "polymer": "PC",
+      "qualifying_numerator": 355,
+      "temperature_c": 90
+    },
+    {
+      "evaluable_denominator": 983,
+      "fraction": 0.4150559511698881,
+      "polymer": "PC",
+      "qualifying_numerator": 408,
+      "temperature_c": 95
+    },
+    {
+      "evaluable_denominator": 983,
+      "fraction": 0.46286876907426244,
+      "polymer": "PC",
+      "qualifying_numerator": 455,
+      "temperature_c": 100
+    },
+    {
+      "evaluable_denominator": 984,
+      "fraction": 0.508130081300813,
+      "polymer": "PC",
+      "qualifying_numerator": 500,
+      "temperature_c": 105
+    },
+    {
+      "evaluable_denominator": 984,
+      "fraction": 0.5640243902439024,
+      "polymer": "PC",
+      "qualifying_numerator": 555,
+      "temperature_c": 110
+    },
+    {
+      "evaluable_denominator": 984,
+      "fraction": 0.6026422764227642,
+      "polymer": "PC",
+      "qualifying_numerator": 593,
+      "temperature_c": 115
+    },
+    {
+      "evaluable_denominator": 984,
+      "fraction": 0.6392276422764228,
+      "polymer": "PC",
+      "qualifying_numerator": 629,
+      "temperature_c": 120
+    },
+    {
+      "evaluable_denominator": 984,
+      "fraction": 0.665650406504065,
+      "polymer": "PC",
+      "qualifying_numerator": 655,
+      "temperature_c": 125
+    },
+    {
+      "evaluable_denominator": 984,
+      "fraction": 0.7032520325203252,
+      "polymer": "PC",
+      "qualifying_numerator": 692,
+      "temperature_c": 130
+    },
+    {
+      "evaluable_denominator": 985,
+      "fraction": 0.7309644670050761,
+      "polymer": "PC",
+      "qualifying_numerator": 720,
+      "temperature_c": 135
+    },
+    {
+      "evaluable_denominator": 987,
+      "fraction": 0.7578520770010132,
+      "polymer": "PC",
+      "qualifying_numerator": 748,
+      "temperature_c": 140
+    },
+    {
+      "evaluable_denominator": 987,
+      "fraction": 0.7831813576494427,
+      "polymer": "PC",
+      "qualifying_numerator": 773,
+      "temperature_c": 145
+    },
+    {
+      "evaluable_denominator": 987,
+      "fraction": 0.8024316109422492,
+      "polymer": "PC",
+      "qualifying_numerator": 792,
+      "temperature_c": 150
+    },
+    {
+      "evaluable_denominator": 987,
+      "fraction": 0.8297872340425532,
+      "polymer": "PC",
+      "qualifying_numerator": 819,
+      "temperature_c": 155
+    },
+    {
+      "evaluable_denominator": 987,
+      "fraction": 0.8459979736575481,
+      "polymer": "PC",
+      "qualifying_numerator": 835,
+      "temperature_c": 160
+    },
+    {
+      "evaluable_denominator": 13,
+      "fraction": 0.0,
+      "polymer": "PES",
+      "qualifying_numerator": 0,
+      "temperature_c": 25
+    },
+    {
+      "evaluable_denominator": 13,
+      "fraction": 0.0,
+      "polymer": "PES",
+      "qualifying_numerator": 0,
+      "temperature_c": 30
+    },
+    {
+      "evaluable_denominator": 16,
+      "fraction": 0.0,
+      "polymer": "PES",
+      "qualifying_numerator": 0,
+      "temperature_c": 35
+    },
+    {
+      "evaluable_denominator": 16,
+      "fraction": 0.0,
+      "polymer": "PES",
+      "qualifying_numerator": 0,
+      "temperature_c": 40
+    },
+    {
+      "evaluable_denominator": 20,
+      "fraction": 0.0,
+      "polymer": "PES",
+      "qualifying_numerator": 0,
+      "temperature_c": 45
+    },
+    {
+      "evaluable_denominator": 21,
+      "fraction": 0.0,
+      "polymer": "PES",
+      "qualifying_numerator": 0,
+      "temperature_c": 50
+    },
+    {
+      "evaluable_denominator": 25,
+      "fraction": 0.0,
+      "polymer": "PES",
+      "qualifying_numerator": 0,
+      "temperature_c": 55
+    },
+    {
+      "evaluable_denominator": 27,
+      "fraction": 0.0,
+      "polymer": "PES",
+      "qualifying_numerator": 0,
+      "temperature_c": 60
+    },
+    {
+      "evaluable_denominator": 27,
+      "fraction": 0.0,
+      "polymer": "PES",
+      "qualifying_numerator": 0,
+      "temperature_c": 65
+    },
+    {
+      "evaluable_denominator": 27,
+      "fraction": 0.0,
+      "polymer": "PES",
+      "qualifying_numerator": 0,
+      "temperature_c": 70
+    },
+    {
+      "evaluable_denominator": 27,
+      "fraction": 0.0,
+      "polymer": "PES",
+      "qualifying_numerator": 0,
+      "temperature_c": 75
+    },
+    {
+      "evaluable_denominator": 27,
+      "fraction": 0.0,
+      "polymer": "PES",
+      "qualifying_numerator": 0,
+      "temperature_c": 80
+    },
+    {
+      "evaluable_denominator": 27,
+      "fraction": 0.0,
+      "polymer": "PES",
+      "qualifying_numerator": 0,
+      "temperature_c": 85
+    },
+    {
+      "evaluable_denominator": 27,
+      "fraction": 0.0,
+      "polymer": "PES",
+      "qualifying_numerator": 0,
+      "temperature_c": 90
+    },
+    {
+      "evaluable_denominator": 29,
+      "fraction": 0.0,
+      "polymer": "PES",
+      "qualifying_numerator": 0,
+      "temperature_c": 95
+    },
+    {
+      "evaluable_denominator": 30,
+      "fraction": 0.03333333333333333,
+      "polymer": "PES",
+      "qualifying_numerator": 1,
+      "temperature_c": 100
+    },
+    {
+      "evaluable_denominator": 31,
+      "fraction": 0.06451612903225806,
+      "polymer": "PES",
+      "qualifying_numerator": 2,
+      "temperature_c": 105
+    },
+    {
+      "evaluable_denominator": 31,
+      "fraction": 0.06451612903225806,
+      "polymer": "PES",
+      "qualifying_numerator": 2,
+      "temperature_c": 110
+    },
+    {
+      "evaluable_denominator": 31,
+      "fraction": 0.0967741935483871,
+      "polymer": "PES",
+      "qualifying_numerator": 3,
+      "temperature_c": 115
+    },
+    {
+      "evaluable_denominator": 31,
+      "fraction": 0.12903225806451613,
+      "polymer": "PES",
+      "qualifying_numerator": 4,
+      "temperature_c": 120
+    },
+    {
+      "evaluable_denominator": 31,
+      "fraction": 0.12903225806451613,
+      "polymer": "PES",
+      "qualifying_numerator": 4,
+      "temperature_c": 125
+    },
+    {
+      "evaluable_denominator": 31,
+      "fraction": 0.12903225806451613,
+      "polymer": "PES",
+      "qualifying_numerator": 4,
+      "temperature_c": 130
+    },
+    {
+      "evaluable_denominator": 31,
+      "fraction": 0.12903225806451613,
+      "polymer": "PES",
+      "qualifying_numerator": 4,
+      "temperature_c": 135
+    },
+    {
+      "evaluable_denominator": 31,
+      "fraction": 0.22580645161290322,
+      "polymer": "PES",
+      "qualifying_numerator": 7,
+      "temperature_c": 140
+    },
+    {
+      "evaluable_denominator": 32,
+      "fraction": 0.28125,
+      "polymer": "PES",
+      "qualifying_numerator": 9,
+      "temperature_c": 145
+    },
+    {
+      "evaluable_denominator": 32,
+      "fraction": 0.375,
+      "polymer": "PES",
+      "qualifying_numerator": 12,
+      "temperature_c": 150
+    },
+    {
+      "evaluable_denominator": 32,
+      "fraction": 0.375,
+      "polymer": "PES",
+      "qualifying_numerator": 12,
+      "temperature_c": 155
+    },
+    {
+      "evaluable_denominator": 32,
+      "fraction": 0.46875,
+      "polymer": "PES",
+      "qualifying_numerator": 15,
+      "temperature_c": 160
+    },
+    {
+      "evaluable_denominator": 977,
+      "fraction": 0.016376663254861822,
+      "polymer": "PET",
+      "qualifying_numerator": 16,
+      "temperature_c": 25
+    },
+    {
+      "evaluable_denominator": 978,
+      "fraction": 0.017382413087934562,
+      "polymer": "PET",
+      "qualifying_numerator": 17,
+      "temperature_c": 30
+    },
+    {
+      "evaluable_denominator": 978,
+      "fraction": 0.018404907975460124,
+      "polymer": "PET",
+      "qualifying_numerator": 18,
+      "temperature_c": 35
+    },
+    {
+      "evaluable_denominator": 979,
+      "fraction": 0.018386108273748723,
+      "polymer": "PET",
+      "qualifying_numerator": 18,
+      "temperature_c": 40
+    },
+    {
+      "evaluable_denominator": 981,
+      "fraction": 0.01834862385321101,
+      "polymer": "PET",
+      "qualifying_numerator": 18,
+      "temperature_c": 45
+    },
+    {
+      "evaluable_denominator": 981,
+      "fraction": 0.01834862385321101,
+      "polymer": "PET",
+      "qualifying_numerator": 18,
+      "temperature_c": 50
+    },
+    {
+      "evaluable_denominator": 981,
+      "fraction": 0.021406727828746176,
+      "polymer": "PET",
+      "qualifying_numerator": 21,
+      "temperature_c": 55
+    },
+    {
+      "evaluable_denominator": 982,
+      "fraction": 0.024439918533604887,
+      "polymer": "PET",
+      "qualifying_numerator": 24,
+      "temperature_c": 60
+    },
+    {
+      "evaluable_denominator": 983,
+      "fraction": 0.029501525940996948,
+      "polymer": "PET",
+      "qualifying_numerator": 29,
+      "temperature_c": 65
+    },
+    {
+      "evaluable_denominator": 984,
+      "fraction": 0.03556910569105691,
+      "polymer": "PET",
+      "qualifying_numerator": 35,
+      "temperature_c": 70
+    },
+    {
+      "evaluable_denominator": 987,
+      "fraction": 0.04356636271529889,
+      "polymer": "PET",
+      "qualifying_numerator": 43,
+      "temperature_c": 75
+    },
+    {
+      "evaluable_denominator": 987,
+      "fraction": 0.05369807497467072,
+      "polymer": "PET",
+      "qualifying_numerator": 53,
+      "temperature_c": 80
+    },
+    {
+      "evaluable_denominator": 987,
+      "fraction": 0.06788247213779129,
+      "polymer": "PET",
+      "qualifying_numerator": 67,
+      "temperature_c": 85
+    },
+    {
+      "evaluable_denominator": 988,
+      "fraction": 0.07995951417004049,
+      "polymer": "PET",
+      "qualifying_numerator": 79,
+      "temperature_c": 90
+    },
+    {
+      "evaluable_denominator": 989,
+      "fraction": 0.09908998988877654,
+      "polymer": "PET",
+      "qualifying_numerator": 98,
+      "temperature_c": 95
+    },
+    {
+      "evaluable_denominator": 989,
+      "fraction": 0.12537917087967643,
+      "polymer": "PET",
+      "qualifying_numerator": 124,
+      "temperature_c": 100
+    },
+    {
+      "evaluable_denominator": 989,
+      "fraction": 0.16481294236602628,
+      "polymer": "PET",
+      "qualifying_numerator": 163,
+      "temperature_c": 105
+    },
+    {
+      "evaluable_denominator": 989,
+      "fraction": 0.20424671385237614,
+      "polymer": "PET",
+      "qualifying_numerator": 202,
+      "temperature_c": 110
+    },
+    {
+      "evaluable_denominator": 989,
+      "fraction": 0.25783619817997977,
+      "polymer": "PET",
+      "qualifying_numerator": 255,
+      "temperature_c": 115
+    },
+    {
+      "evaluable_denominator": 989,
+      "fraction": 0.2982810920121335,
+      "polymer": "PET",
+      "qualifying_numerator": 295,
+      "temperature_c": 120
+    },
+    {
+      "evaluable_denominator": 989,
+      "fraction": 0.34277047522750254,
+      "polymer": "PET",
+      "qualifying_numerator": 339,
+      "temperature_c": 125
+    },
+    {
+      "evaluable_denominator": 989,
+      "fraction": 0.40141557128412536,
+      "polymer": "PET",
+      "qualifying_numerator": 397,
+      "temperature_c": 130
+    },
+    {
+      "evaluable_denominator": 989,
+      "fraction": 0.4691607684529828,
+      "polymer": "PET",
+      "qualifying_numerator": 464,
+      "temperature_c": 135
+    },
+    {
+      "evaluable_denominator": 989,
+      "fraction": 0.5298281092012134,
+      "polymer": "PET",
+      "qualifying_numerator": 524,
+      "temperature_c": 140
+    },
+    {
+      "evaluable_denominator": 989,
+      "fraction": 0.60262891809909,
+      "polymer": "PET",
+      "qualifying_numerator": 596,
+      "temperature_c": 145
+    },
+    {
+      "evaluable_denominator": 989,
+      "fraction": 0.6643073811931244,
+      "polymer": "PET",
+      "qualifying_numerator": 657,
+      "temperature_c": 150
+    },
+    {
+      "evaluable_denominator": 989,
+      "fraction": 0.7350859453993933,
+      "polymer": "PET",
+      "qualifying_numerator": 727,
+      "temperature_c": 155
+    },
+    {
+      "evaluable_denominator": 989,
+      "fraction": 0.7795753286147624,
+      "polymer": "PET",
+      "qualifying_numerator": 771,
+      "temperature_c": 160
+    },
+    {
+      "evaluable_denominator": 986,
+      "fraction": 0.02028397565922921,
+      "polymer": "PP",
+      "qualifying_numerator": 20,
+      "temperature_c": 25
+    },
+    {
+      "evaluable_denominator": 986,
+      "fraction": 0.028397565922920892,
+      "polymer": "PP",
+      "qualifying_numerator": 28,
+      "temperature_c": 30
+    },
+    {
+      "evaluable_denominator": 986,
+      "fraction": 0.03955375253549696,
+      "polymer": "PP",
+      "qualifying_numerator": 39,
+      "temperature_c": 35
+    },
+    {
+      "evaluable_denominator": 986,
+      "fraction": 0.04969574036511156,
+      "polymer": "PP",
+      "qualifying_numerator": 49,
+      "temperature_c": 40
+    },
+    {
+      "evaluable_denominator": 986,
+      "fraction": 0.061866125760649086,
+      "polymer": "PP",
+      "qualifying_numerator": 61,
+      "temperature_c": 45
+    },
+    {
+      "evaluable_denominator": 988,
+      "fraction": 0.08704453441295547,
+      "polymer": "PP",
+      "qualifying_numerator": 86,
+      "temperature_c": 50
+    },
+    {
+      "evaluable_denominator": 989,
+      "fraction": 0.11931243680485339,
+      "polymer": "PP",
+      "qualifying_numerator": 118,
+      "temperature_c": 55
+    },
+    {
+      "evaluable_denominator": 989,
+      "fraction": 0.15874620829120323,
+      "polymer": "PP",
+      "qualifying_numerator": 157,
+      "temperature_c": 60
+    },
+    {
+      "evaluable_denominator": 989,
+      "fraction": 0.19413549039433772,
+      "polymer": "PP",
+      "qualifying_numerator": 192,
+      "temperature_c": 65
+    },
+    {
+      "evaluable_denominator": 989,
+      "fraction": 0.24266936299292213,
+      "polymer": "PP",
+      "qualifying_numerator": 240,
+      "temperature_c": 70
+    },
+    {
+      "evaluable_denominator": 989,
+      "fraction": 0.30030333670374115,
+      "polymer": "PP",
+      "qualifying_numerator": 297,
+      "temperature_c": 75
+    },
+    {
+      "evaluable_denominator": 990,
+      "fraction": 0.3565656565656566,
+      "polymer": "PP",
+      "qualifying_numerator": 353,
+      "temperature_c": 80
+    },
+    {
+      "evaluable_denominator": 990,
+      "fraction": 0.4101010101010101,
+      "polymer": "PP",
+      "qualifying_numerator": 406,
+      "temperature_c": 85
+    },
+    {
+      "evaluable_denominator": 990,
+      "fraction": 0.4585858585858586,
+      "polymer": "PP",
+      "qualifying_numerator": 454,
+      "temperature_c": 90
+    },
+    {
+      "evaluable_denominator": 990,
+      "fraction": 0.5202020202020202,
+      "polymer": "PP",
+      "qualifying_numerator": 515,
+      "temperature_c": 95
+    },
+    {
+      "evaluable_denominator": 990,
+      "fraction": 0.5666666666666667,
+      "polymer": "PP",
+      "qualifying_numerator": 561,
+      "temperature_c": 100
+    },
+    {
+      "evaluable_denominator": 990,
+      "fraction": 0.604040404040404,
+      "polymer": "PP",
+      "qualifying_numerator": 598,
+      "temperature_c": 105
+    },
+    {
+      "evaluable_denominator": 990,
+      "fraction": 0.6343434343434343,
+      "polymer": "PP",
+      "qualifying_numerator": 628,
+      "temperature_c": 110
+    },
+    {
+      "evaluable_denominator": 990,
+      "fraction": 0.6707070707070707,
+      "polymer": "PP",
+      "qualifying_numerator": 664,
+      "temperature_c": 115
+    },
+    {
+      "evaluable_denominator": 990,
+      "fraction": 0.701010101010101,
+      "polymer": "PP",
+      "qualifying_numerator": 694,
+      "temperature_c": 120
+    },
+    {
+      "evaluable_denominator": 990,
+      "fraction": 0.7282828282828283,
+      "polymer": "PP",
+      "qualifying_numerator": 721,
+      "temperature_c": 125
+    },
+    {
+      "evaluable_denominator": 990,
+      "fraction": 0.7565656565656566,
+      "polymer": "PP",
+      "qualifying_numerator": 749,
+      "temperature_c": 130
+    },
+    {
+      "evaluable_denominator": 990,
+      "fraction": 0.7818181818181819,
+      "polymer": "PP",
+      "qualifying_numerator": 774,
+      "temperature_c": 135
+    },
+    {
+      "evaluable_denominator": 990,
+      "fraction": 0.803030303030303,
+      "polymer": "PP",
+      "qualifying_numerator": 795,
+      "temperature_c": 140
+    },
+    {
+      "evaluable_denominator": 990,
+      "fraction": 0.8262626262626263,
+      "polymer": "PP",
+      "qualifying_numerator": 818,
+      "temperature_c": 145
+    },
+    {
+      "evaluable_denominator": 990,
+      "fraction": 0.8515151515151516,
+      "polymer": "PP",
+      "qualifying_numerator": 843,
+      "temperature_c": 150
+    },
+    {
+      "evaluable_denominator": 990,
+      "fraction": 0.8707070707070707,
+      "polymer": "PP",
+      "qualifying_numerator": 862,
+      "temperature_c": 155
+    },
+    {
+      "evaluable_denominator": 990,
+      "fraction": 0.8818181818181818,
+      "polymer": "PP",
+      "qualifying_numerator": 873,
+      "temperature_c": 160
+    },
+    {
+      "evaluable_denominator": 982,
+      "fraction": 0.12321792260692464,
+      "polymer": "PS",
+      "qualifying_numerator": 121,
+      "temperature_c": 25
+    },
+    {
+      "evaluable_denominator": 982,
+      "fraction": 0.15580448065173116,
+      "polymer": "PS",
+      "qualifying_numerator": 153,
+      "temperature_c": 30
+    },
+    {
+      "evaluable_denominator": 982,
+      "fraction": 0.19042769857433808,
+      "polymer": "PS",
+      "qualifying_numerator": 187,
+      "temperature_c": 35
+    },
+    {
+      "evaluable_denominator": 983,
+      "fraction": 0.2288911495422177,
+      "polymer": "PS",
+      "qualifying_numerator": 225,
+      "temperature_c": 40
+    },
+    {
+      "evaluable_denominator": 983,
+      "fraction": 0.27568667344862663,
+      "polymer": "PS",
+      "qualifying_numerator": 271,
+      "temperature_c": 45
+    },
+    {
+      "evaluable_denominator": 983,
+      "fraction": 0.32044760935910477,
+      "polymer": "PS",
+      "qualifying_numerator": 315,
+      "temperature_c": 50
+    },
+    {
+      "evaluable_denominator": 984,
+      "fraction": 0.37296747967479676,
+      "polymer": "PS",
+      "qualifying_numerator": 367,
+      "temperature_c": 55
+    },
+    {
+      "evaluable_denominator": 984,
+      "fraction": 0.4268292682926829,
+      "polymer": "PS",
+      "qualifying_numerator": 420,
+      "temperature_c": 60
+    },
+    {
+      "evaluable_denominator": 984,
+      "fraction": 0.483739837398374,
+      "polymer": "PS",
+      "qualifying_numerator": 476,
+      "temperature_c": 65
+    },
+    {
+      "evaluable_denominator": 984,
+      "fraction": 0.5203252032520326,
+      "polymer": "PS",
+      "qualifying_numerator": 512,
+      "temperature_c": 70
+    },
+    {
+      "evaluable_denominator": 984,
+      "fraction": 0.5619918699186992,
+      "polymer": "PS",
+      "qualifying_numerator": 553,
+      "temperature_c": 75
+    },
+    {
+      "evaluable_denominator": 984,
+      "fraction": 0.6026422764227642,
+      "polymer": "PS",
+      "qualifying_numerator": 593,
+      "temperature_c": 80
+    },
+    {
+      "evaluable_denominator": 986,
+      "fraction": 0.6298174442190669,
+      "polymer": "PS",
+      "qualifying_numerator": 621,
+      "temperature_c": 85
+    },
+    {
+      "evaluable_denominator": 986,
+      "fraction": 0.654158215010142,
+      "polymer": "PS",
+      "qualifying_numerator": 645,
+      "temperature_c": 90
+    },
+    {
+      "evaluable_denominator": 986,
+      "fraction": 0.7008113590263692,
+      "polymer": "PS",
+      "qualifying_numerator": 691,
+      "temperature_c": 95
+    },
+    {
+      "evaluable_denominator": 987,
+      "fraction": 0.7365754812563323,
+      "polymer": "PS",
+      "qualifying_numerator": 727,
+      "temperature_c": 100
+    },
+    {
+      "evaluable_denominator": 988,
+      "fraction": 0.7641700404858299,
+      "polymer": "PS",
+      "qualifying_numerator": 755,
+      "temperature_c": 105
+    },
+    {
+      "evaluable_denominator": 988,
+      "fraction": 0.7925101214574899,
+      "polymer": "PS",
+      "qualifying_numerator": 783,
+      "temperature_c": 110
+    },
+    {
+      "evaluable_denominator": 988,
+      "fraction": 0.8208502024291497,
+      "polymer": "PS",
+      "qualifying_numerator": 811,
+      "temperature_c": 115
+    },
+    {
+      "evaluable_denominator": 988,
+      "fraction": 0.847165991902834,
+      "polymer": "PS",
+      "qualifying_numerator": 837,
+      "temperature_c": 120
+    },
+    {
+      "evaluable_denominator": 989,
+      "fraction": 0.8614762386248737,
+      "polymer": "PS",
+      "qualifying_numerator": 852,
+      "temperature_c": 125
+    },
+    {
+      "evaluable_denominator": 989,
+      "fraction": 0.8766430738119313,
+      "polymer": "PS",
+      "qualifying_numerator": 867,
+      "temperature_c": 130
+    },
+    {
+      "evaluable_denominator": 989,
+      "fraction": 0.8867542972699697,
+      "polymer": "PS",
+      "qualifying_numerator": 877,
+      "temperature_c": 135
+    },
+    {
+      "evaluable_denominator": 989,
+      "fraction": 0.8968655207280081,
+      "polymer": "PS",
+      "qualifying_numerator": 887,
+      "temperature_c": 140
+    },
+    {
+      "evaluable_denominator": 989,
+      "fraction": 0.910010111223458,
+      "polymer": "PS",
+      "qualifying_numerator": 900,
+      "temperature_c": 145
+    },
+    {
+      "evaluable_denominator": 989,
+      "fraction": 0.9140546006066734,
+      "polymer": "PS",
+      "qualifying_numerator": 904,
+      "temperature_c": 150
+    },
+    {
+      "evaluable_denominator": 989,
+      "fraction": 0.9180990899898888,
+      "polymer": "PS",
+      "qualifying_numerator": 908,
+      "temperature_c": 155
+    },
+    {
+      "evaluable_denominator": 989,
+      "fraction": 0.9221435793731041,
+      "polymer": "PS",
+      "qualifying_numerator": 912,
+      "temperature_c": 160
+    },
+    {
+      "evaluable_denominator": 990,
+      "fraction": 0.05858585858585859,
+      "polymer": "PVC",
+      "qualifying_numerator": 58,
+      "temperature_c": 25
+    },
+    {
+      "evaluable_denominator": 990,
+      "fraction": 0.07676767676767676,
+      "polymer": "PVC",
+      "qualifying_numerator": 76,
+      "temperature_c": 30
+    },
+    {
+      "evaluable_denominator": 990,
+      "fraction": 0.1,
+      "polymer": "PVC",
+      "qualifying_numerator": 99,
+      "temperature_c": 35
+    },
+    {
+      "evaluable_denominator": 990,
+      "fraction": 0.12121212121212122,
+      "polymer": "PVC",
+      "qualifying_numerator": 120,
+      "temperature_c": 40
+    },
+    {
+      "evaluable_denominator": 990,
+      "fraction": 0.15151515151515152,
+      "polymer": "PVC",
+      "qualifying_numerator": 150,
+      "temperature_c": 45
+    },
+    {
+      "evaluable_denominator": 990,
+      "fraction": 0.18282828282828284,
+      "polymer": "PVC",
+      "qualifying_numerator": 181,
+      "temperature_c": 50
+    },
+    {
+      "evaluable_denominator": 990,
+      "fraction": 0.22727272727272727,
+      "polymer": "PVC",
+      "qualifying_numerator": 225,
+      "temperature_c": 55
+    },
+    {
+      "evaluable_denominator": 990,
+      "fraction": 0.2808080808080808,
+      "polymer": "PVC",
+      "qualifying_numerator": 278,
+      "temperature_c": 60
+    },
+    {
+      "evaluable_denominator": 990,
+      "fraction": 0.32626262626262625,
+      "polymer": "PVC",
+      "qualifying_numerator": 323,
+      "temperature_c": 65
+    },
+    {
+      "evaluable_denominator": 990,
+      "fraction": 0.3747474747474748,
+      "polymer": "PVC",
+      "qualifying_numerator": 371,
+      "temperature_c": 70
+    },
+    {
+      "evaluable_denominator": 990,
+      "fraction": 0.4353535353535353,
+      "polymer": "PVC",
+      "qualifying_numerator": 431,
+      "temperature_c": 75
+    },
+    {
+      "evaluable_denominator": 990,
+      "fraction": 0.4919191919191919,
+      "polymer": "PVC",
+      "qualifying_numerator": 487,
+      "temperature_c": 80
+    },
+    {
+      "evaluable_denominator": 990,
+      "fraction": 0.5434343434343434,
+      "polymer": "PVC",
+      "qualifying_numerator": 538,
+      "temperature_c": 85
+    },
+    {
+      "evaluable_denominator": 990,
+      "fraction": 0.6050505050505051,
+      "polymer": "PVC",
+      "qualifying_numerator": 599,
+      "temperature_c": 90
+    },
+    {
+      "evaluable_denominator": 990,
+      "fraction": 0.6585858585858586,
+      "polymer": "PVC",
+      "qualifying_numerator": 652,
+      "temperature_c": 95
+    },
+    {
+      "evaluable_denominator": 990,
+      "fraction": 0.7222222222222222,
+      "polymer": "PVC",
+      "qualifying_numerator": 715,
+      "temperature_c": 100
+    },
+    {
+      "evaluable_denominator": 990,
+      "fraction": 0.7565656565656566,
+      "polymer": "PVC",
+      "qualifying_numerator": 749,
+      "temperature_c": 105
+    },
+    {
+      "evaluable_denominator": 990,
+      "fraction": 0.797979797979798,
+      "polymer": "PVC",
+      "qualifying_numerator": 790,
+      "temperature_c": 110
+    },
+    {
+      "evaluable_denominator": 990,
+      "fraction": 0.8242424242424242,
+      "polymer": "PVC",
+      "qualifying_numerator": 816,
+      "temperature_c": 115
+    },
+    {
+      "evaluable_denominator": 990,
+      "fraction": 0.8484848484848485,
+      "polymer": "PVC",
+      "qualifying_numerator": 840,
+      "temperature_c": 120
+    },
+    {
+      "evaluable_denominator": 990,
+      "fraction": 0.8676767676767677,
+      "polymer": "PVC",
+      "qualifying_numerator": 859,
+      "temperature_c": 125
+    },
+    {
+      "evaluable_denominator": 990,
+      "fraction": 0.8888888888888888,
+      "polymer": "PVC",
+      "qualifying_numerator": 880,
+      "temperature_c": 130
+    },
+    {
+      "evaluable_denominator": 990,
+      "fraction": 0.907070707070707,
+      "polymer": "PVC",
+      "qualifying_numerator": 898,
+      "temperature_c": 135
+    },
+    {
+      "evaluable_denominator": 990,
+      "fraction": 0.9262626262626262,
+      "polymer": "PVC",
+      "qualifying_numerator": 917,
+      "temperature_c": 140
+    },
+    {
+      "evaluable_denominator": 990,
+      "fraction": 0.9373737373737374,
+      "polymer": "PVC",
+      "qualifying_numerator": 928,
+      "temperature_c": 145
+    },
+    {
+      "evaluable_denominator": 990,
+      "fraction": 0.9474747474747475,
+      "polymer": "PVC",
+      "qualifying_numerator": 938,
+      "temperature_c": 150
+    },
+    {
+      "evaluable_denominator": 990,
+      "fraction": 0.9525252525252526,
+      "polymer": "PVC",
+      "qualifying_numerator": 943,
+      "temperature_c": 155
+    },
+    {
+      "evaluable_denominator": 990,
+      "fraction": 0.9595959595959596,
+      "polymer": "PVC",
+      "qualifying_numerator": 950,
+      "temperature_c": 160
+    }
+  ],
+  "figure": "results_s1_fraction_above_threshold_heatmap",
+  "generator": {
+    "path": "/home/aaltamimi2/dissolve-v12-visuals/figures/results_s1_dataset_landscape.py",
+    "sha256": "f854cf41e3fd0f7f3f6c8db9f23ddd88f2a0d02f3e463a1ce2ccd4d1a5642634"
+  },
+  "outputs": {
+    "png": {
+      "bytes": 116664,
+      "path": "results_s1_fraction_above_threshold_heatmap.png",
+      "sha256": "86fdfac77d9ff9331ce1be18011bd854a5b5726b01cc040aa4afea0cfc506a60"
+    },
+    "svg": {
+      "bytes": 75481,
+      "path": "results_s1_fraction_above_threshold_heatmap.svg",
+      "sha256": "2b9d6da92480d077f16a084c0b47e2bc4584d17e28c86de6c3c9d6020ecc1d33"
+    }
+  },
+  "polymer_order": [
+    "PS",
+    "PVC",
+    "PP",
+    "LDPE",
+    "PC",
+    "HDPE",
+    "NYLON6",
+    "EVOH",
+    "PET",
+    "NYLON66",
+    "PES"
+  ],
+  "queries": {
+    "admissions": "SELECT a.interp_key, s.logp,\n       COALESCE(s.boiling_point_c, a.boiling_point_c) AS effective_boiling_point_c,\n       a.cas_number, a.boiling_point_c, a.hazard_lookup_status\nFROM solvent_admission_data a\nJOIN solvent_data s ON s.source_row = a.source_property_row\nORDER BY a.interp_key",
+    "density": "SELECT polymer, temperature_c, solubility_pct,\n       invalid_reason = 'exact_100_artifact' AS is_served_ceiling\nFROM solubility_grid\nWHERE polymer <> 'PU'\n  AND (is_valid OR invalid_reason = 'exact_100_artifact')\nORDER BY polymer, temperature_c, solvent",
+    "heatmap": "SELECT polymer, temperature_c,\n       COUNT(*) FILTER (WHERE is_valid OR invalid_reason = 'exact_100_artifact') AS evaluable_denominator,\n       COUNT(*) FILTER (WHERE (is_valid OR invalid_reason = 'exact_100_artifact') AND solubility_pct >= 5.0) AS qualifying_numerator\nFROM solubility_grid\nWHERE polymer <> 'PU'\nGROUP BY polymer, temperature_c\nORDER BY polymer, temperature_c",
+    "pair_coverage": "SELECT polymer, COUNT(DISTINCT solvent) AS stored_pairs\nFROM solubility_grid\nWHERE polymer <> 'PU'\nGROUP BY polymer\nORDER BY polymer",
+    "properties": "SELECT source_row, logp, boiling_point_c\nFROM solvent_data\nORDER BY source_row",
+    "scalars": "SELECT\n  COUNT(DISTINCT polymer) FILTER (WHERE polymer <> 'PU') AS cohort_polymers,\n  COUNT(DISTINCT solvent) FILTER (WHERE polymer <> 'PU') AS grid_solvents,\n  COUNT(DISTINCT (polymer, solvent)) FILTER (WHERE polymer <> 'PU') AS stored_pairs,\n  COUNT(*) FILTER (WHERE polymer <> 'PU') AS stored_cells,\n  COUNT(*) FILTER (WHERE polymer <> 'PU' AND (is_valid OR invalid_reason = 'exact_100_artifact')) AS evaluable_cells,\n  COUNT(*) FILTER (WHERE polymer <> 'PU' AND is_valid) AS raw_valid_cells,\n  COUNT(*) FILTER (WHERE polymer <> 'PU' AND invalid_reason = 'exact_100_artifact') AS ceiling_cells,\n  COUNT(*) FILTER (WHERE polymer <> 'PU' AND invalid_reason = 'nonpositive') AS refused_cells\nFROM solubility_grid",
+    "t5": "SELECT polymer, solvent,\n       MIN(temperature_c) FILTER (\n         WHERE (is_valid OR invalid_reason = 'exact_100_artifact')\n           AND solubility_pct >= 5.0\n       ) AS t5_c\nFROM solubility_grid\nWHERE polymer <> 'PU'\nGROUP BY polymer, solvent\nORDER BY polymer, solvent"
+  },
+  "reproduction_command": "PYTHONPATH=src:. python figures/results_s1_dataset_landscape.py",
+  "sources": [
+    {
+      "actual_sha256": "4aa3adc7af54c295c6a647bb8b04a72b0ffc0a7adc75ec4b9d920099df0311dc",
+      "digest_lock": true,
+      "expected_sha256": "4aa3adc7af54c295c6a647bb8b04a72b0ffc0a7adc75ec4b9d920099df0311dc",
+      "path": "/home/aaltamimi2/dissolve-v12-visuals/src/dissolve/data/thermodynamics.duckdb",
+      "role": "numeric grid/property/admission authority"
+    },
+    {
+      "actual_sha256": "c9dfd6556ec3f755157b951408a852df44b7cbdc18dea02c36266000d0c9bd49",
+      "digest_lock": true,
+      "expected_sha256": "c9dfd6556ec3f755157b951408a852df44b7cbdc18dea02c36266000d0c9bd49",
+      "path": "/home/aaltamimi2/dissolve-v12-visuals/src/dissolve/data/Solvent_Data.csv",
+      "role": "property source lineage"
+    },
+    {
+      "actual_sha256": "2a22603c52f5c17d7aa65bec9c43e18f64dcb315404c0b30279704cda8c6b204",
+      "digest_lock": true,
+      "expected_sha256": "2a22603c52f5c17d7aa65bec9c43e18f64dcb315404c0b30279704cda8c6b204",
+      "path": "/home/aaltamimi2/dissolve-v12-visuals/src/dissolve/thermodynamics.py",
+      "role": "runtime evaluable rule"
+    },
+    {
+      "actual_sha256": "a9ac03d1412d9be6ebef7155683a0bd8a628fbd59d2e77ad9fd547ff001e5d50",
+      "digest_lock": true,
+      "expected_sha256": "a9ac03d1412d9be6ebef7155683a0bd8a628fbd59d2e77ad9fd547ff001e5d50",
+      "path": "/home/aaltamimi2/dissolve-v12-visuals/src/dissolve/tools.py",
+      "role": "5 wt% threshold default"
+    },
+    {
+      "actual_sha256": "f1b05ca8684c6ea6d47b60793f60a5607220f8b7366ccab457931758b9e8f985",
+      "digest_lock": true,
+      "expected_sha256": "f1b05ca8684c6ea6d47b60793f60a5607220f8b7366ccab457931758b9e8f985",
+      "path": "/home/aaltamimi2/dissolve-v12-visuals/src/dissolve/separation.py",
+      "role": "5 wt% threshold default"
+    },
+    {
+      "actual_sha256": "14d091c760a72e20444c1210f03f5cca3364a9a03a2f85c9090c625db8a82661",
+      "digest_lock": true,
+      "expected_sha256": "14d091c760a72e20444c1210f03f5cca3364a9a03a2f85c9090c625db8a82661",
+      "path": "/home/aaltamimi2/dissolve-v12-visuals/figures/RESULTS_S1_DATASET_LANDSCAPE_REPLACEMENT_PROPOSAL.md",
+      "role": "admitted analysis/figure contract"
+    },
+    {
+      "actual_sha256": "f6f0a7e0d3d948e66a27202b285d924590ea0bafff39f2475462ca33f45a1a40",
+      "digest_lock": true,
+      "expected_sha256": "f6f0a7e0d3d948e66a27202b285d924590ea0bafff39f2475462ca33f45a1a40",
+      "path": "/home/aaltamimi2/dissolve-v12-audit/V4_VISUALIZATION_CHARTER.md",
+      "role": "figure standards and owner stops"
+    },
+    {
+      "digest_lock": false,
+      "observed_sha256": "8138831707e4945e8f2544aef558d6047c6743ce283a34c117aeba012609a960",
+      "path": "/home/aaltamimi2/dissolve-v12-audit/v4/STEER_INBOX.md",
+      "role": "append-only steering; not a number source"
+    }
+  ],
+  "standards_report": {
+    "axes_count": 1,
+    "connector_count": 0,
+    "content_width_pt": 313.2,
+    "data_candidate_count": 1,
+    "data_layer_count": 1,
+    "data_mark_count": 5,
+    "minimum_data_mark_extent_pt": 10.44,
+    "minimum_text_height_pt": 9.6,
+    "shape_count": 5,
+    "text_count": 27,
+    "title_width_pt": 194.16000000000003
+  },
+  "threshold_locations": [
+    {
+      "function": "_screen_direction",
+      "line": 1098,
+      "parameter": "solubility_threshold_pct",
+      "path": "/home/aaltamimi2/dissolve-v12-visuals/src/dissolve/tools.py",
+      "value": 5.0
+    },
+    {
+      "function": "screen_precipitation_order",
+      "line": 1204,
+      "parameter": "min_dissolution_solubility_wt_pct",
+      "path": "/home/aaltamimi2/dissolve-v12-visuals/src/dissolve/separation.py",
+      "value": 5.0
+    }
+  ]
+}
