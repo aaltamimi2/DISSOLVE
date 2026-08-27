@@ -23,7 +23,9 @@ def test_duckdb_pin_unmoved():
 
 
 def test_does_not_import_broken_converter_or_orca_runner():
-    assert "spec_from_file_location" not in _SRC
+    assert "gaussian_to_turbomole_converter" not in _SRC
+    assert "spec_from_file_location" in _SRC
+    assert "cosmo_logp.py" in _SRC
     assert "import run_orca_stage" not in _SRC
     assert "submit_solute_dft_job" not in _SRC
     assert "submit_solvent_dft_job" not in _SRC
