@@ -273,7 +273,7 @@
     "tert-Butanol": ["tert-Butanol", "generator_validated_table", 2.2, 5e-07, 4.5e-07, 28.0]
   },
   "unmapped_source_rows": [
-    ["triethylamine", "Triethylamine", "not admitted by the current exact identity registry"],
-    ["acetaldehyde", "acetaldehyde", "currently refuses as an ambiguous identity"]
+    ["triethylamine", "Triethylamine", "source row carries GWP only, no HTC/HTNC/ETOX, lca_confidence low"],
+    ["acetaldehyde", "acetaldehyde", "no row in the pinned CF source solvent-econ-lca-summary.csv under name, synonym ethanal, or CAS 75-07-0"]
   ]
 }

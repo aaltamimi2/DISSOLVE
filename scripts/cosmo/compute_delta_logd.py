@@ -65,7 +65,8 @@ def main() -> int:
     args = ap.parse_args()
 
     root = Path(args.artifacts).expanduser()
-    solvents = sorted({s for pair in cl.ANCHOR_PAIRS for s in pair[:2]})
+    pairs = cl.anchor_pairs_for(args.solute)
+    solvents = sorted({s for pair in pairs for s in pair[:2]})
 
     if args.conformer_dir:
         ensemble = conformer_energies(Path(args.conformer_dir).expanduser())
@@ -90,7 +91,7 @@ def main() -> int:
 
     use_volume = args.basis == "concentration"
     predicted = {}
-    for a, b, _ in cl.ANCHOR_PAIRS:
+    for a, b, _ in pairs:
         if a in ln_gamma and b in ln_gamma:
             predicted[f"{a}-{b}"] = cl.delta_log_d(
                 ln_gamma[a], ln_gamma[b],
@@ -98,7 +99,7 @@ def main() -> int:
                 volume_b=cl.MOLAR_VOLUMES_CM3[b] if use_volume else None,
             )
 
-    result = cl.evaluate_anchor_pairs(predicted)
+    result = cl.evaluate_anchor_pairs(predicted, pairs=pairs)
     print(f"\n  {'pair':<32}{'predicted':>10}{'ours':>8}{'resid':>8}")
     for row in result["rows"]:
         if row["predicted"] is None:
