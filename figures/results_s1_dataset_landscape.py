@@ -439,9 +439,26 @@ def check_density_bin_contract(
     }
 
 
+def check_t5_category_contract(
+    categories: Sequence[int | None] = T5_CATEGORIES,
+) -> dict[str, int]:
+    """Reject interpolated crossings and require the explicit never category."""
+
+    observed = tuple(categories)
+    if observed != T5_CATEGORIES:
+        raise DatasetLandscapeValidationError(
+            "T5 categories changed from exact stored nodes plus never by 160"
+        )
+    return {
+        "stored_node_count": len(TEMPERATURES),
+        "never_category_count": 1,
+    }
+
+
 def validate(data: DatasetLandscapeData) -> None:
     errors: list[str] = []
     check_density_bin_contract()
+    check_t5_category_contract()
     expected_scalars = (11, 990, 8974, 251272, 250527, 246525, 4002, 745)
     observed = (
         data.cohort_polymers,

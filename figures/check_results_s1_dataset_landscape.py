@@ -53,6 +53,8 @@ def _expect(
     token: str,
     action: Callable[[], object],
     failures: list[str],
+    *,
+    emit: bool = True,
 ) -> None:
     try:
         action()
@@ -62,12 +64,15 @@ def _expect(
             failures.append(
                 f"{name}: rejected for the wrong reason; wanted {token!r}: {error}"
             )
-            print(f"MUST-FIRE {name}: WRONG FAILURE")
+            if emit:
+                print(f"MUST-FIRE {name}: WRONG FAILURE")
         else:
-            print(f"MUST-FIRE {name}: FAIL (expected) — {match}")
+            if emit:
+                print(f"MUST-FIRE {name}: FAIL (expected) — {match}")
     else:
         failures.append(f"{name}: defective case was accepted")
-        print(f"MUST-FIRE {name}: UNEXPECTED PASS")
+        if emit:
+            print(f"MUST-FIRE {name}: UNEXPECTED PASS")
 
 
 def _move_one(values: tuple[int, ...]) -> tuple[int, ...]:
@@ -81,33 +86,46 @@ def _move_one(values: tuple[int, ...]) -> tuple[int, ...]:
 
 def _semantic_controls(
     data: landscape.DatasetLandscapeData,
+    *,
+    semantic_validator: Checker,
+    density_bin_validator: Checker,
+    t5_category_validator: Checker,
     failures: list[str],
 ) -> None:
-    wrong_digest = dict(landscape.EXPECTED_SOURCE_DIGESTS)
-    wrong_digest[landscape.DB_PATH] = "0" * 64
-    _expect(
-        "source digest",
-        "source digest mismatch",
-        lambda: landscape.measure(expected_digests=wrong_digest),
-        failures,
-    )
+    for source in (
+        landscape.DB_PATH,
+        landscape.PROPERTY_PATH,
+        landscape.READER_PATH,
+        landscape.TOOLS_PATH,
+        landscape.SEPARATION_PATH,
+    ):
+        wrong_digest = dict(landscape.EXPECTED_SOURCE_DIGESTS)
+        wrong_digest[source] = "0" * 64
+        _expect(
+            f"source digest {source.name}",
+            "source digest mismatch",
+            lambda wrong_digest=wrong_digest: landscape.measure(
+                expected_digests=wrong_digest
+            ),
+            failures,
+        )
 
     _expect(
         "cohort/PU mutation",
         "cohort scalar counts changed",
-        lambda: landscape.validate(replace(data, cohort_polymers=12)),
+        lambda: semantic_validator(replace(data, cohort_polymers=12)),
         failures,
     )
     _expect(
         "stored/evaluable confusion",
         "cohort scalar counts changed",
-        lambda: landscape.validate(replace(data, evaluable_cells=data.stored_cells)),
+        lambda: semantic_validator(replace(data, evaluable_cells=data.stored_cells)),
         failures,
     )
     _expect(
         "refused nonpositive mutation",
         "cohort scalar counts changed",
-        lambda: landscape.validate(replace(data, refused_cells=data.refused_cells - 1)),
+        lambda: semantic_validator(replace(data, refused_cells=data.refused_cells - 1)),
         failures,
     )
 
@@ -116,7 +134,7 @@ def _semantic_controls(
     _expect(
         "heat numerator",
         "heat payload digest changed",
-        lambda: landscape.validate(
+        lambda: semantic_validator(
             replace(data, heat_cells=(changed_heat, *data.heat_cells[1:]))
         ),
         failures,
@@ -131,7 +149,7 @@ def _semantic_controls(
     _expect(
         "heat denominator",
         "heat payload digest changed",
-        lambda: landscape.validate(replace(data, heat_cells=shifted_denominators)),
+        lambda: semantic_validator(replace(data, heat_cells=shifted_denominators)),
         failures,
     )
 
@@ -141,7 +159,35 @@ def _semantic_controls(
     _expect(
         "onset bin move with closure preserved",
         "onset payload digest changed",
-        lambda: landscape.validate(replace(data, onset_counts=tuple(onset))),
+        lambda: semantic_validator(replace(data, onset_counts=tuple(onset))),
+        failures,
+    )
+
+    without_never = tuple(
+        (polymer, counts[:-1]) for polymer, counts in data.onset_counts
+    )
+    _expect(
+        "dropped never category",
+        "onset bins do not close",
+        lambda: semantic_validator(replace(data, onset_counts=without_never)),
+        failures,
+    )
+
+    interpolated_categories = list(landscape.T5_CATEGORIES)
+    interpolated_categories[1] = 27.5
+    _expect(
+        "interpolated T5 crossing",
+        "T5 categories changed from exact stored nodes",
+        lambda: t5_category_validator(interpolated_categories),
+        failures,
+    )
+
+    _expect(
+        "frozen onset row order",
+        "onset order changed",
+        lambda: semantic_validator(
+            replace(data, onset_order=tuple(reversed(data.onset_order)))
+        ),
         failures,
     )
 
@@ -153,14 +199,98 @@ def _semantic_controls(
     _expect(
         "density bin move with closure preserved",
         "density payload digest changed",
-        lambda: landscape.validate(replace(data, density_counts=tuple(densities))),
+        lambda: semantic_validator(replace(data, density_counts=tuple(densities))),
         failures,
     )
 
+    # A refused nonpositive has no density row. Adding one without changing
+    # the runtime-evaluable denominator must break per-temperature closure.
+    refused_density = list(data.density_counts)
+    polymer, rows = refused_density[0]
+    refused_rows = [list(row) for row in rows]
+    refused_rows[0][0] += 1
+    refused_density[0] = (
+        polymer,
+        tuple(tuple(row) for row in refused_rows),
+    )
     _expect(
-        "property admission classification",
+        "refused nonpositive enters density",
+        "density bins do not close",
+        lambda: semantic_validator(
+            replace(data, density_counts=tuple(refused_density))
+        ),
+        failures,
+    )
+
+    # Exercise served-ceiling omission and misplacement separately.
+    ceiling_polymer_index = next(
+        polymer_index
+        for polymer_index, (_polymer, density_rows) in enumerate(data.density_counts)
+        if any(row[50] > 0 for row in density_rows)
+    )
+    polymer, rows = data.density_counts[ceiling_polymer_index]
+    ceiling_temperature_index = next(
+        index for index, row in enumerate(rows) if row[50] > 0
+    )
+
+    omitted_rows = [list(row) for row in rows]
+    omitted_rows[ceiling_temperature_index][50] -= 1
+    omitted_density = list(data.density_counts)
+    omitted_density[ceiling_polymer_index] = (
+        polymer,
+        tuple(tuple(row) for row in omitted_rows),
+    )
+    _expect(
+        "served ceiling omitted",
+        "density bins do not close",
+        lambda: semantic_validator(
+            replace(data, density_counts=tuple(omitted_density))
+        ),
+        failures,
+    )
+
+    misplaced_rows = [list(row) for row in rows]
+    misplaced_rows[ceiling_temperature_index][50] -= 1
+    misplaced_rows[ceiling_temperature_index][49] += 1
+    misplaced_density = list(data.density_counts)
+    misplaced_density[ceiling_polymer_index] = (
+        polymer,
+        tuple(tuple(row) for row in misplaced_rows),
+    )
+    _expect(
+        "served ceiling outside top band",
+        "density payload digest changed",
+        lambda: semantic_validator(
+            replace(data, density_counts=tuple(misplaced_density))
+        ),
+        failures,
+    )
+    _expect(
+        "density fraction closure",
+        "density bins do not close",
+        lambda: semantic_validator(
+            replace(data, density_counts=tuple(refused_density))
+        ),
+        failures,
+    )
+
+    for name, field in (
+        ("property catalog classification", "property_record_count"),
+        ("original-BP classification", "original_bp_count"),
+        ("governed-admission count classification", "admission_record_count"),
+    ):
+        _expect(
+            name,
+            "property/admission counts changed",
+            lambda field=field: semantic_validator(
+                replace(data, **{field: getattr(data, field) - 1})
+            ),
+            failures,
+        )
+    _expect(
+        "governed-admission identity classification",
         "property payload digest changed",
-        lambda: landscape.validate(
+        lambda: semantic_validator(
             replace(data, admission_points=data.admission_points[:-1])
         ),
         failures,
@@ -171,7 +301,7 @@ def _semantic_controls(
     _expect(
         "density bin edge",
         "density raw log10 bin edges changed",
-        lambda: landscape.check_density_bin_contract(changed_edges),
+        lambda: density_bin_validator(changed_edges),
         failures,
     )
 
@@ -382,13 +512,74 @@ def _determinism_controls(
         )
 
 
+def _accept_all_controls(
+    data: landscape.DatasetLandscapeData,
+    failures: list[str],
+) -> None:
+    """Prove the harness itself rejects injected accept-all validators."""
+
+    def accept_all(*args, **kwargs):
+        return {}
+
+    def prove(name: str, action: Callable[[], object]) -> None:
+        probe_failures: list[str] = []
+        _expect(name, "unreachable", action, probe_failures, emit=False)
+        wanted = [f"{name}: defective case was accepted"]
+        if probe_failures == wanted:
+            print(
+                f"MUST-FIRE accept-all {name}: FAIL (expected) — "
+                "injected validator acceptance makes the harness nonzero"
+            )
+        else:
+            failures.append(
+                f"accept-all {name}: harness probe did not detect acceptance: "
+                f"{probe_failures}"
+            )
+            print(f"MUST-FIRE accept-all {name}: WRONG FAILURE")
+
+    prove(
+        "semantic validator",
+        lambda: accept_all(replace(data, cohort_polymers=12)),
+    )
+    changed_edges = list(landscape.RAW_LOG_EDGES)
+    changed_edges[1] += 0.01
+    prove("density-bin validator", lambda: accept_all(changed_edges))
+    changed_categories = list(landscape.T5_CATEGORIES)
+    changed_categories[1] = 27.5
+    prove("T5-category validator", lambda: accept_all(changed_categories))
+
+    drawing = landscape.draw_fraction_heatmap(data)
+    try:
+        drawing.fig.add_axes((0.90, 0.01, 0.02, 0.02)).axis("off")
+        prove("figure checker", lambda: accept_all(drawing))
+    finally:
+        plt.close(drawing.fig)
+
+    with TemporaryDirectory() as temp_dir:
+        root = Path(temp_dir)
+        missing_png = root / "missing.png"
+        svg = root / "missing.svg"
+        svg.write_text("<svg xmlns='http://www.w3.org/2000/svg'/>", encoding="utf-8")
+        prove("output checker", lambda: accept_all(missing_png, svg))
+
+
 def main(
     *,
+    semantic_validator: Checker | None = None,
+    density_bin_validator: Checker | None = None,
+    t5_category_validator: Checker | None = None,
     figure_checker: Checker | None = None,
     output_checker: Checker | None = None,
     svg_checker: Checker | None = None,
     byte_checker: Checker | None = None,
 ) -> int:
+    semantic_validator = semantic_validator or landscape.validate
+    density_bin_validator = (
+        density_bin_validator or landscape.check_density_bin_contract
+    )
+    t5_category_validator = (
+        t5_category_validator or landscape.check_t5_category_contract
+    )
     figure_checker = figure_checker or landscape.verify_geometry
     output_checker = output_checker or check_output_pair
     svg_checker = svg_checker or landscape.check_svg_vector_contract
@@ -415,7 +606,13 @@ def main(
         svg_checker=svg_checker,
         failures=failures,
     )
-    _semantic_controls(data, failures)
+    _semantic_controls(
+        data,
+        semantic_validator=semantic_validator,
+        density_bin_validator=density_bin_validator,
+        t5_category_validator=t5_category_validator,
+        failures=failures,
+    )
     _geometry_controls(
         data,
         figure_checker=figure_checker,
@@ -426,6 +623,7 @@ def main(
         svg_checker=svg_checker,
         failures=failures,
     )
+    _accept_all_controls(data, failures)
     _determinism_controls(byte_checker=byte_checker, failures=failures)
 
     if failures:

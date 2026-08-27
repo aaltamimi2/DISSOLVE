@@ -49,6 +49,10 @@ def test_measurement_recounts_every_drawn_population(
         "upper_log10": 2.0,
         "served_ceiling_band_count": 1,
     }
+    assert landscape.check_t5_category_contract() == {
+        "stored_node_count": 28,
+        "never_category_count": 1,
+    }
 
 
 def test_all_outputs_are_separate_one_axes_drawings(
@@ -157,6 +161,27 @@ def test_accept_all_injections_are_not_mistaken_for_checker_passes(
     assert any(
         "vector-only SVG: defective case was accepted" in item
         for item in output_failures
+    )
+
+    semantic_failures: list[str] = []
+    harness._semantic_controls(
+        data,
+        semantic_validator=accept_all,
+        density_bin_validator=accept_all,
+        t5_category_validator=accept_all,
+        failures=semantic_failures,
+    )
+    assert any(
+        "cohort/PU mutation: defective case was accepted" in item
+        for item in semantic_failures
+    )
+    assert any(
+        "density bin edge: defective case was accepted" in item
+        for item in semantic_failures
+    )
+    assert any(
+        "interpolated T5 crossing: defective case was accepted" in item
+        for item in semantic_failures
     )
 
 
