@@ -28,6 +28,7 @@ from matplotlib.lines import Line2D
 from matplotlib.patches import Patch
 from matplotlib.text import Text
 from matplotlib.transforms import Bbox
+import numpy as np
 
 
 BLACK = "#000000"
@@ -150,6 +151,26 @@ class TextRecord:
 
 
 @dataclass
+class DataLayerRecord:
+    """A scientific data layer allowed to overlap only other data layers.
+
+    ``x_values`` and ``y_values`` are the exact coordinates passed to the
+    artist after any admitted display-only transform.  Bounds checks inspect
+    these source coordinates so clipping cannot conceal an out-of-region row.
+    """
+
+    artist: Artist
+    data_region: Artist
+    x_values: object
+    y_values: object
+    series_id: str
+    marker_size_pt: float | None = None
+    style_color: str | None = None
+    style_marker: str | None = None
+    source_indices: object | None = None
+
+
+@dataclass
 class DrawingRegistry:
     """Collision semantics supplied by a figure builder.
 
@@ -163,6 +184,7 @@ class DrawingRegistry:
     collision_patches: list[Artist] = field(default_factory=list)
     connectors: list[Artist] = field(default_factory=list)
     data_marks: list[Artist] = field(default_factory=list)
+    data_layers: list[DataLayerRecord] = field(default_factory=list)
     structural_artists: list[Artist] = field(default_factory=list)
     allowed_patch_overlaps: set[frozenset[int]] = field(default_factory=set)
 
@@ -241,6 +263,105 @@ def _matplotlib_scaffold_ids(fig: Artist) -> set[int]:
     return scaffold
 
 
+def check_data_layer_bounds(
+    record: DataLayerRecord,
+    renderer: object,
+    *,
+    tolerance: float = 1e-6,
+) -> dict[str, int]:
+    """Assert registered source geometry is clipped and inside its data region."""
+
+    artist = record.artist
+    violations: list[str] = []
+    if not artist.get_clip_on():
+        violations.append(f"data layer is not clipped: {record.series_id!r}")
+    x_values = np.asarray(record.x_values, dtype=float).reshape(-1)
+    y_values = np.asarray(record.y_values, dtype=float).reshape(-1)
+    if x_values.size != y_values.size or x_values.size == 0:
+        violations.append(
+            f"data layer has invalid source coordinates: {record.series_id!r}"
+        )
+    elif not np.all(np.isfinite(x_values)) or not np.all(np.isfinite(y_values)):
+        violations.append(
+            f"data layer has nonfinite source coordinates: {record.series_id!r}"
+        )
+    else:
+        axes = getattr(artist, "axes", None)
+        if axes is None:
+            violations.append(f"data layer has no axes: {record.series_id!r}")
+        else:
+            points = np.column_stack((x_values, y_values))
+            display = axes.transData.transform(points)
+            region_box = record.data_region.get_window_extent(renderer)
+            if (
+                float(np.min(display[:, 0])) < region_box.x0 - tolerance
+                or float(np.max(display[:, 0])) > region_box.x1 + tolerance
+                or float(np.min(display[:, 1])) < region_box.y0 - tolerance
+                or float(np.max(display[:, 1])) > region_box.y1 + tolerance
+            ):
+                violations.append(
+                    f"data layer source geometry leaves its data region: "
+                    f"{record.series_id!r}"
+                )
+    if record.marker_size_pt is not None:
+        actual_size: float | None = None
+        if isinstance(artist, Line2D):
+            actual_size = float(artist.get_markersize())
+        elif hasattr(artist, "get_sizes"):
+            sizes = np.asarray(artist.get_sizes(), dtype=float)
+            if sizes.size:
+                actual_size = float(np.sqrt(np.min(sizes)))
+        if actual_size is None:
+            violations.append(
+                f"data layer marker size cannot be measured: {record.series_id!r}"
+            )
+        elif actual_size + tolerance < record.marker_size_pt:
+            violations.append(
+                f"data layer marker is too small: {record.series_id!r} "
+                f"uses {actual_size:.3f} pt"
+            )
+    if violations:
+        raise StandardsViolation(violations)
+    return {"source_point_count": int(x_values.size)}
+
+
+def check_data_role_closed_world(
+    fig: Artist,
+    registry: DrawingRegistry,
+) -> dict[str, int]:
+    """Reject user data artists that use ``structural_artists`` as an escape."""
+
+    scaffold = _matplotlib_scaffold_ids(fig)
+    explicit_data = {id(record.artist) for record in registry.data_layers}
+    collision = {id(artist) for artist in registry.collision_patches}
+    connectors = {id(artist) for artist in registry.connectors}
+    structural = {id(artist) for artist in registry.structural_artists}
+    violations: list[str] = []
+    candidates = [
+        artist
+        for artist in fig.findobj(
+            match=lambda item: isinstance(item, (Collection, Line2D))
+        )
+        if artist.get_visible() and id(artist) not in scaffold
+    ]
+    for artist in candidates:
+        artist_id = id(artist)
+        if artist_id in explicit_data or artist_id in collision or artist_id in connectors:
+            continue
+        if artist_id in structural:
+            violations.append(
+                "data-bearing artist is registered only as structural: "
+                f"{_artist_name(artist)}"
+            )
+        else:
+            violations.append(
+                f"data-bearing artist has no data/collision role: {_artist_name(artist)}"
+            )
+    if violations:
+        raise StandardsViolation(violations)
+    return {"data_candidate_count": len(candidates)}
+
+
 def check_figure(
     fig: Artist,
     registry: DrawingRegistry,
@@ -306,6 +427,7 @@ def check_figure(
         *(id(artist) for artist in registry.panels.values()),
         *(id(artist) for artist in registry.collision_patches),
         *(id(artist) for artist in registry.connectors),
+        *(id(record.artist) for record in registry.data_layers),
         *(id(artist) for artist in registry.structural_artists),
     }
     permitted_graphic_ids = registered_graphic_ids | _matplotlib_scaffold_ids(fig)
@@ -327,6 +449,12 @@ def check_figure(
             "visible graphical artist is not registered: "
             f"{unregistered_graphics}"
         )
+
+    try:
+        role_report = check_data_role_closed_world(fig, registry)
+    except StandardsViolation as error:
+        violations.extend(error.violations)
+        role_report = {"data_candidate_count": 0}
 
     expected_rgba = to_rgba(standards.text_color)
     text_boxes: list[Bbox] = []
@@ -389,6 +517,23 @@ def check_figure(
                 f"{_artist_name(first_record.artist)} and "
                 f"{_artist_name(second_record.artist)}"
             )
+
+    for record in registry.data_layers:
+        try:
+            check_data_layer_bounds(record, renderer, tolerance=tolerance)
+        except StandardsViolation as error:
+            violations.extend(error.violations)
+    data_regions = {
+        id(record.data_region): record.data_region.get_window_extent(renderer)
+        for record in registry.data_layers
+    }
+    for text_record, text_box in zip(registry.texts, text_boxes):
+        for region_box in data_regions.values():
+            if positive_overlap(text_box, region_box):
+                violations.append(
+                    f"text enters the scientific data region: "
+                    f"{_artist_name(text_record.artist)}"
+                )
 
     patch_boxes = {
         id(patch): patch.get_window_extent(renderer)
@@ -513,6 +658,8 @@ def check_figure(
         "shape_count": len(registry.collision_patches),
         "connector_count": len(registry.connectors),
         "data_mark_count": len(registry.data_marks),
+        "data_layer_count": len(registry.data_layers),
+        "data_candidate_count": role_report["data_candidate_count"],
         "minimum_text_height_pt": min(text_heights_pt),
         "minimum_data_mark_extent_pt": (
             min(mark_extents_pt) if mark_extents_pt else 0.0

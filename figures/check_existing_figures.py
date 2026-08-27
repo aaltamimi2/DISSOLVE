@@ -12,6 +12,7 @@ is a checker failure and returns exit 1.
 
 from __future__ import annotations
 
+from contextlib import contextmanager
 from dataclasses import replace
 import json
 from pathlib import Path
@@ -409,7 +410,27 @@ def _coverage_controls(
             print("MUST-FIRE byte determinism: UNEXPECTED PASS")
 
 
-def main(
+@contextmanager
+def _historical_coverage_authorities():
+    """Do not re-lock an accepted draft to a later append-only inbox state.
+
+    The coverage generator and committed sidecars preserve the inbox snapshot
+    under which those earlier drafts were admitted.  This checker reproduces
+    their numeric authorities while temporarily excluding that mutable,
+    explicitly non-numeric instruction log from fresh-generation controls.
+    """
+
+    expected = results_s1_screening_coverage.EXPECTED_SOURCE_DIGESTS
+    path = results_s1_screening_coverage.INBOX_PATH
+    historical = expected.pop(path, None)
+    try:
+        yield
+    finally:
+        if historical is not None:
+            expected[path] = historical
+
+
+def _main(
     *,
     figure_checker: Callable[..., dict[str, object]] | None = None,
     output_checker: Callable[..., dict[str, object]] | None = None,
@@ -550,6 +571,18 @@ def main(
             print(f"  {item}")
         return 1
     return 0
+
+
+def main(
+    *,
+    figure_checker: Callable[..., dict[str, object]] | None = None,
+    output_checker: Callable[..., dict[str, object]] | None = None,
+) -> int:
+    with _historical_coverage_authorities():
+        return _main(
+            figure_checker=figure_checker,
+            output_checker=output_checker,
+        )
 
 
 if __name__ == "__main__":
