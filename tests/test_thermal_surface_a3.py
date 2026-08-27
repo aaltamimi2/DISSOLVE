@@ -129,6 +129,19 @@ def test_a3_tm_versus_tg_is_labeled_on_tools_and_predicted_column_is_dead():
     assert estimate["display_names_tg"] is False
     assert inventory["names_tg_snapshot"] is True
     assert inventory["names_van_krevelen"] is True
+    vk = next(
+        row for row in inventory["rows"]
+        if row["capability"] == "Van Krevelen group contribution"
+    )
+    assert vk["available"] is False
+    assert "not offered to the agent" in vk["basis"]
+    tg = next(
+        row for row in inventory["rows"]
+        if row["capability"] == "Tg snapshot lookup"
+    )
+    assert tg["available"] is True
+    assert "7736" in tg["basis"]
+    assert len(inventory["rows"]) == 4
     assert inventory["polyBERT_residual_available"] is False
     assert inventory["states_tm_is_not_tg"] is False
     assert report["dead_Tg_K_predicted"]["never_selected_while_measured_exists"] is True
