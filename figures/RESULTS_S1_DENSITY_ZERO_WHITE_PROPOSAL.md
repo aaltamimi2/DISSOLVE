@@ -50,7 +50,11 @@ with the source/runtime locks already recorded in every sidecar and in
 Each revised density sidecar will add an explicit zero-rendering contract:
 `zero_fraction_fill = #FFFFFF`, `positive_fraction_colormap = viridis`, and
 `normalization = [0, 1]`. Its output and generator digests will be refreshed.
-The other five sidecars remain byte-unchanged.
+Because the shared generator itself changes, all sixteen sidecars will refresh
+their generator digest to remain truthful. For the five non-density figures,
+that generator-digest field is the only permitted sidecar change: their PNG,
+SVG, output digests, numeric payloads, queries, and all other provenance fields
+remain byte-for-byte unchanged.
 
 ## Clause 4 — deterministic controls
 
@@ -60,13 +64,18 @@ failures:
 1. an exact-zero density cell receives any non-white fill;
 2. a positive density cell receives white;
 3. the zero legend swatch receives any non-white fill; and
-4. an injected accept-all density-color validator makes the harness fail.
+4. a density sidecar omits or changes `zero_fraction_fill`;
+5. a density sidecar omits or changes `positive_fraction_colormap` or
+   `normalization`; and
+6. an injected accept-all density-color/provenance validator makes the harness
+   fail.
 
 All existing numeric, closure, one-axes, paired PNG/SVG, vector-only SVG,
 artist-registration, provenance, byte-determinism, and accept-all controls
-remain required. The harness will expose a semantic density-color validator
-that checks the actual `PolyCollection` face colors against the measured
-matrix and checks the registered zero legend swatch.
+remain required. The harness will expose a semantic density-color/provenance
+validator that checks the actual `PolyCollection` face colors against the
+measured matrix, the registered zero legend swatch, and all three exact
+sidecar contract fields.
 
 ## Clause 5 — owner stops
 
