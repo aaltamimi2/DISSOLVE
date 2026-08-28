@@ -186,6 +186,41 @@ def _source_state() -> dict[str, Any]:
     return _source_from_route_and_tea(route, tea)
 
 
+def _proposed_design_points_from_feed_gap(
+    prior: dict[str, Any],
+) -> list[dict[str, Any]]:
+    """Name admitted twelve-field points that would complete the feed gap.
+
+    Uses the same public vocabulary as `_public_design_point` / remnant
+    keys. Values come from pinned cache records; nothing is invented.
+    """
+    from . import tea
+
+    names = [
+        *list(prior.get("requested_feed_mass_fractions") or {}),
+        *list(prior.get("requested_feed_polymers") or []),
+    ]
+    wanted = {tea._key(name) for name in names if str(name or "").strip()}
+    if not wanted:
+        return []
+    points: list[dict[str, Any]] = []
+    seen: set[tuple[Any, ...]] = set()
+    for record in tea._records():
+        config = dict(record.get("config") or {})
+        if tea._key(config.get("target_plastic")) not in wanted:
+            continue
+        point = tea._public_design_point(config)
+        ident = tuple(
+            (public, point.get(public))
+            for _internal, public in tea._DESIGN_POINT_PUBLIC_FIELDS
+        )
+        if ident in seen:
+            continue
+        seen.add(ident)
+        points.append(point)
+    return points
+
+
 def _stored_optimization_gap(x_metric: str, y_metric: str) -> str | None:
     state = current_tool_session()
     prior = dict(getattr(state, "last_tea", None) or {}) if state else {}
@@ -205,6 +240,7 @@ def _stored_optimization_gap(x_metric: str, y_metric: str) -> str | None:
             can_optimize=False, can_build_frontier=False,
             requested_objective="cost_vs_circularity",
             x_metric=x_metric, y_metric=y_metric,
+            proposed_design_points=_proposed_design_points_from_feed_gap(prior),
             requested_feed_mass_fractions=dict(
                 prior.get("requested_feed_mass_fractions") or {}
             ),

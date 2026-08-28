@@ -5,10 +5,12 @@ BioSTEAM child. Later-stage TEA and carry-over stay out.
 """
 from __future__ import annotations
 
+import copy
 import json
 import math
 import sys
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -145,6 +147,7 @@ def test_unadmitted_auto_without_confirm_quotes_and_starts_no_child(monkeypatch)
         engine_mode="auto",
     ))
     assert payload.get("error_code") == "live_tea_cost_confirmation_required"
+    assert payload.get("engine_mode") == "auto"
     assert payload.get("n_live") == 2
     assert payload.get("n_cache") == 1
     assert payload.get("seconds_per_pair") == pytest.approx(_SECONDS)
@@ -199,24 +202,278 @@ def test_confirm_live_tea_runs_children_one_at_a_time(monkeypatch):
     ) == 3
 
 
-def test_confirm_live_tea_on_process_configs_is_not_applicable(monkeypatch):
+def test_confirm_live_tea_on_process_configs_quotes_live_without_starting(
+    monkeypatch,
+):
     record = _record_by_label("ldpe-route-c1")
-    _forbid_live(monkeypatch)
-    payload = _data(tea.evaluate_process(
+    calls = []
+
+    def forbidden(config, timeout_seconds=None, **_kwargs):
+        calls.append(config)
+        raise AssertionError("live TEA must not start before confirm")
+
+    monkeypatch.setattr(tea, "_live", forbidden)
+    monkeypatch.setattr(tea, "_record_for_pair", forbidden)
+    monkeypatch.setattr(tea.tea_worker, "run", forbidden)
+    twelve = _public_from_record(record)
+    quoted = _data(tea.evaluate_process(
         mode="evaluate",
-        process_config=_public_from_record(record),
+        process_config=twelve,
+        engine_mode="live",
+        confirm_live_tea=False,
+    ))
+    assert quoted.get("error_code") == "live_tea_cost_confirmation_required"
+    assert quoted.get("engine_mode") == "live"
+    assert quoted.get("n_live") == 1
+    assert quoted.get("n_cache") == 0
+    assert quoted.get("per_stage_per_ordering") is True
+    assert calls == []
+    omitted = _data(tea.evaluate_process(
+        mode="evaluate",
+        process_config=twelve,
+        engine_mode="live",
+    ))
+    assert omitted.get("error_code") == "live_tea_cost_confirmation_required"
+    assert omitted.get("engine_mode") == "live"
+    assert calls == []
+    cache_path = _data(tea.evaluate_process(
+        mode="evaluate",
+        process_config=twelve,
         engine_mode="cache",
         confirm_live_tea=True,
     ))
-    assert payload.get("error_code") == "not_applicable_in_mode"
-    assert payload.get("inapplicable_fields") == ["confirm_live_tea"]
-    live_path = _data(tea.evaluate_process(
-        mode="evaluate",
-        process_config=_public_from_record(record),
-        engine_mode="cache",
+    assert cache_path.get("success") is True
+    assert cache_path.get("error_code") != "live_tea_cost_confirmation_required"
+    assert cache_path.get("error_code") != "not_applicable_in_mode"
+
+
+def test_confirm_live_tea_false_on_empty_scenarios_is_not_inapplicable():
+    payload = _data(tea.evaluate_tea_lca_scenarios(
+        [], confirm_live_tea=False,
     ))
-    assert live_path.get("success") is True
-    assert live_path.get("error_code") != "live_tea_cost_confirmation_required"
+    assert payload.get("error_code") != "not_applicable_in_mode"
+    assert payload.get("inapplicable_fields") != ["confirm_live_tea"]
+
+
+def test_scenarios_live_without_confirm_quotes_and_starts_no_child(monkeypatch):
+    record = _record_by_label("ldpe-route-c1")
+    calls = []
+
+    def forbidden(config, timeout_seconds=None, **_kwargs):
+        calls.append(config)
+        raise AssertionError("live TEA must not start before confirm")
+
+    monkeypatch.setattr(tea, "_live", forbidden)
+    monkeypatch.setattr(tea, "_record_for_pair", forbidden)
+    monkeypatch.setattr(tea.tea_worker, "run", forbidden)
+    payload = _data(tea.evaluate_tea_lca_scenarios(
+        [_public_from_record(record)],
+        engine_mode="live",
+        confirm_live_tea=False,
+    ))
+    assert payload.get("error_code") == "live_tea_cost_confirmation_required"
+    assert payload.get("engine_mode") == "live"
+    assert payload.get("n_live") == 1
+    assert payload.get("n_cache") == 0
+    assert payload.get("seconds_per_pair") == pytest.approx(_SECONDS)
+    assert calls == []
+
+
+def test_scenarios_confirm_live_tea_runs_children_one_at_a_time(monkeypatch):
+    record = _record_by_label("ldpe-route-c1")
+    order = []
+
+    def planted(config, timeout_seconds=None, **_kwargs):
+        order.append(config.get("dissolution_temperature_c"))
+        return {
+            "success": False,
+            "error": "planted live miss",
+            "error_type": "planted_live",
+            "config": config,
+        }
+
+    monkeypatch.setattr(tea, "_live", planted)
+    monkeypatch.setattr(tea, "_record_for_pair", planted)
+    monkeypatch.setattr(tea.tea_worker, "run", planted)
+    first = _public_from_record(record, dissolution_temperature_c=997.0)
+    second = _public_from_record(record, dissolution_temperature_c=998.0)
+    payload = _data(tea.evaluate_tea_lca_scenarios(
+        [first, second],
+        engine_mode="live",
+        confirm_live_tea=True,
+    ))
+    assert order == [997.0, 998.0]
+    assert payload.get("error_code") != "live_tea_cost_confirmation_required"
+
+
+def _one_step_route_from_record(record: dict) -> tuple[dict, dict]:
+    cfg = record["config"]
+    polymer = cfg["target_plastic"]
+    composition = {polymer: 1.0}
+    route = {
+        "complete": True,
+        "final_residue": None,
+        "steps": [{
+            "dissolved_polymer": polymer,
+            "solvent": cfg["solvent"],
+            "temperature_c": cfg["dissolution_temperature_c"],
+        }],
+    }
+    return composition, route
+
+
+def test_stored_route_live_without_confirm_quotes_and_starts_no_child(monkeypatch):
+    record = _record_by_label("ldpe-route-c1")
+    cfg = record["config"]
+    composition, route = _one_step_route_from_record(record)
+    calls = []
+
+    def forbidden(config, timeout_seconds=None, **_kwargs):
+        calls.append(config)
+        raise AssertionError("live TEA must not start before confirm")
+
+    monkeypatch.setattr(tea, "_live", forbidden)
+    monkeypatch.setattr(tea, "_record_for_pair", forbidden)
+    monkeypatch.setattr(tea.tea_worker, "run", forbidden)
+    monkeypatch.setattr(
+        tea,
+        "current_tool_session",
+        lambda: SimpleNamespace(
+            last_route=copy.deepcopy(route),
+            feed_mass_fractions=dict(composition),
+        ),
+    )
+    payload = _data(tea.evaluate_stored_route_tea_lca(
+        feed_mass_fractions=dict(composition),
+        processing_capacity_mt_per_yr=cfg["processing_capacity"],
+        energy_case=cfg["energy_case"],
+        precipitation_temperature_c=cfg["precipitation_temperature_c"],
+        engine_mode="live",
+    ))
+    assert payload.get("error_code") == "live_tea_cost_confirmation_required"
+    assert payload.get("engine_mode") == "live"
+    assert payload.get("n_live") == 1
+    assert payload.get("n_cache") == 0
+    assert payload.get("per_stage_per_ordering") is True
+    assert calls == []
+    omitted = _data(tea.evaluate_stored_route_tea_lca(
+        feed_mass_fractions=dict(composition),
+        processing_capacity_mt_per_yr=cfg["processing_capacity"],
+        energy_case=cfg["energy_case"],
+        precipitation_temperature_c=cfg["precipitation_temperature_c"],
+        engine_mode="live",
+        confirm_live_tea=False,
+    ))
+    assert omitted.get("error_code") == "live_tea_cost_confirmation_required"
+    assert omitted.get("inapplicable_fields") != ["confirm_live_tea"]
+    assert calls == []
+
+
+def test_stored_route_confirm_live_tea_proceeds_without_a_real_child(monkeypatch):
+    record = _record_by_label("ldpe-route-c1")
+    cfg = record["config"]
+    composition, route = _one_step_route_from_record(record)
+    order = []
+
+    def planted(config, timeout_seconds=None, **_kwargs):
+        order.append(config.get("dissolution_temperature_c"))
+        return {
+            "success": False,
+            "error": "planted live miss",
+            "error_type": "planted_live",
+            "config": config,
+        }
+
+    monkeypatch.setattr(tea, "_live", planted)
+    monkeypatch.setattr(tea, "_record_for_pair", planted)
+    monkeypatch.setattr(tea.tea_worker, "run", planted)
+    monkeypatch.setattr(
+        tea,
+        "current_tool_session",
+        lambda: SimpleNamespace(
+            last_route=copy.deepcopy(route),
+            feed_mass_fractions=dict(composition),
+        ),
+    )
+    payload = _data(tea.evaluate_stored_route_tea_lca(
+        feed_mass_fractions=dict(composition),
+        processing_capacity_mt_per_yr=cfg["processing_capacity"],
+        energy_case=cfg["energy_case"],
+        precipitation_temperature_c=cfg["precipitation_temperature_c"],
+        engine_mode="live",
+        confirm_live_tea=True,
+    ))
+    assert order == [cfg["dissolution_temperature_c"]]
+    assert payload.get("error_code") != "live_tea_cost_confirmation_required"
+
+
+def test_sensitivity_live_without_confirm_quotes_and_starts_no_child(monkeypatch):
+    record = _record_by_label("ldpe-route-c1")
+    baseline_price = float(record["config"]["solvent_price"])
+    requested = [0.5, 1.5]
+    expected_values = list(dict.fromkeys([baseline_price, *requested]))
+    calls = []
+
+    def forbidden(config, timeout_seconds=None, **_kwargs):
+        calls.append(config)
+        raise AssertionError("live TEA must not start before confirm")
+
+    monkeypatch.setattr(tea, "_live", forbidden)
+    monkeypatch.setattr(tea, "_record_for_pair", forbidden)
+    monkeypatch.setattr(tea.tea_worker, "run", forbidden)
+    payload = _data(tea.analyze_tea_sensitivity(
+        _public_from_record(record),
+        parameter="solvent_price",
+        values=requested,
+        engine_mode="live",
+    ))
+    assert payload.get("error_code") == "live_tea_cost_confirmation_required"
+    assert payload.get("engine_mode") == "live"
+    assert payload.get("n_live") == len(expected_values)
+    assert payload.get("n_cache") == 0
+    assert payload.get("error_code") != "not_applicable_in_mode"
+    assert payload.get("inapplicable_fields") != ["confirm_live_tea"]
+    assert calls == []
+    accepted = _data(tea.analyze_tea_sensitivity(
+        _public_from_record(record),
+        parameter="solvent_price",
+        values=requested,
+        engine_mode="live",
+        confirm_live_tea=False,
+    ))
+    assert accepted.get("error_code") == "live_tea_cost_confirmation_required"
+    assert accepted.get("inapplicable_fields") != ["confirm_live_tea"]
+    assert calls == []
+
+
+def test_sensitivity_confirm_live_tea_proceeds_one_at_a_time(monkeypatch):
+    record = _record_by_label("ldpe-route-c1")
+    baseline_price = float(record["config"]["solvent_price"])
+    requested = [0.5, 1.5]
+    expected_values = list(dict.fromkeys([baseline_price, *requested]))
+    order = []
+
+    def planted(config, timeout_seconds=None, **_kwargs):
+        order.append(config.get("solvent_price"))
+        return {
+            "success": False,
+            "error": "planted live miss",
+            "error_type": "planted_live",
+            "config": config,
+        }
+
+    monkeypatch.setattr(tea, "_live", planted)
+    monkeypatch.setattr(tea, "_record_for_pair", planted)
+    monkeypatch.setattr(tea.tea_worker, "run", planted)
+    payload = _data(tea.analyze_tea_sensitivity(
+        _public_from_record(record),
+        parameter="solvent_price",
+        values=requested,
+        engine_mode="live",
+        confirm_live_tea=True,
+    ))
+    assert order == expected_values
+    assert payload.get("error_code") != "live_tea_cost_confirmation_required"
 
 
 def test_process_rows_rank_keeps_thermo_rank_and_stamps_disagreement(monkeypatch):

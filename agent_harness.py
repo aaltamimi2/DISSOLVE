@@ -174,7 +174,7 @@ def run_turn(
     on_event: Callable[[ToolEvent], None] | None = None,
     api_base: str | None = None, api_key_env: str | None = None,
 ) -> TurnResult:
-    schemas = tool_schemas()
+    schemas = tool_schemas(session)
     if messages is None:
         msgs = [{"role": "system", "content": SYSTEM_PROMPT}, {"role": "user", "content": query}]
     else:

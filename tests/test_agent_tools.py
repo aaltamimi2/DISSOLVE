@@ -18,7 +18,7 @@ for _p in (str(_ROOT), str(_ROOT / "src")):
 import agent_harness
 import agent_tools
 from agent_harness import TurnResult, run_turn
-from agent_tools import UNWIRED, dispatch, result_read, source_basis_for, tool_schemas
+from agent_tools import UNWIRED, dispatch, result_read, source_basis_for, tool_schema_for, tool_schemas
 from dissolve import session as sess
 from dissolve.session import (
     CompactionBudgetError, append_reported, bind_tool_session,
@@ -336,7 +336,9 @@ def test_schemas_handle_only_on_consumer_and_omit_injected():
     assert "target_dissolution" in rm["enum"]
     mt = schemas["lookup_hansen_parameters"]["parameters"]["properties"]["material_type"]
     assert set(mt["enum"]) == {"polymer", "solvent"}
-    paths = schemas["ingest_literature_graph"]["parameters"]["properties"]["paths"]
+    assert "ingest_literature_graph" not in schemas
+    assert "ingest_literature_documents" not in schemas
+    paths = tool_schema_for("ingest_literature_graph")["parameters"]["properties"]["paths"]
     assert paths["type"] == "array" and paths["items"]["type"] == "string"
     empty = []
     for spec in tool_schemas():
@@ -1250,8 +1252,9 @@ def test_compaction_error_matches_every_emitted_tool_id(monkeypatch):
 def test_session_record_missing_reads_none_writes_raise():
     rec = sess.SessionRecord()
     rec["last_tea"] = {"analysis_type": "route"}
-    assert rec.last_tea is None
-    assert rec["last_tea"]["analysis_type"] == "route"
+    assert rec.last_tea["analysis_type"] == "route"
+    assert rec["last_tea"] is rec.last_tea
+    assert sess.SessionRecord().last_tea is None
     with pytest.raises(AttributeError, match="set keys, not attributes"):
         rec.last_route = {"steps": [{"solvent": "dodecane"}]}
     assert "last_route" not in rec

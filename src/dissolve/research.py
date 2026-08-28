@@ -44,6 +44,11 @@ _STOPWORDS = {
     "how", "in", "is", "it", "of", "on", "or", "that", "the", "their",
     "this", "to", "was", "were", "what", "which", "with",
 }
+_HYBRID_DENSE_WEIGHT = 0.55
+_HYBRID_SPARSE_WEIGHT = 0.40
+_MINILM_DIM = 384
+_REFUSE_RULE_SPARSE_GATED = "sparse_gated"
+_PRODUCT_KNOWLEDGEBASE = "t5-indexed-unsealed"
 
 
 class ResearchNetworkError(RuntimeError):
@@ -3895,12 +3900,92 @@ def merge_rank_literature_metadata(
     }
 
 
+def _canonical_product_index_path() -> Path:
+    from .text_gold import DEFAULT_OUT_DIR
+    return DEFAULT_OUT_DIR / "indexes" / f"{_PRODUCT_KNOWLEDGEBASE}.json.gz"
+
+
 def _index_path(knowledgebase: str) -> Path:
-    return _research_root() / f"{_slug(knowledgebase)}.json.gz"
+    slug = _slug(knowledgebase)
+    if "DISSOLVE_RESEARCH_HOME" not in os.environ and slug == _PRODUCT_KNOWLEDGEBASE:
+        product = _canonical_product_index_path()
+        if product.exists():
+            return product
+    return _research_root() / f"{slug}.json.gz"
 
 
 def _empty_index(knowledgebase: str) -> dict[str, Any]:
     return {"schema": _INDEX_SCHEMA, "knowledgebase": _slug(knowledgebase), "documents": [], "chunks": [], "dense": None}
+
+
+def _product_manifest_path() -> Path:
+    from .text_gold import DEFAULT_OUT_DIR
+    return DEFAULT_OUT_DIR / "INDEX.t5.unsealed.v1.json"
+
+
+def _manifest_abstention() -> dict[str, Any] | None:
+    path = _product_manifest_path()
+    if not path.is_file():
+        return None
+    try:
+        payload = json.loads(path.read_text())
+    except (OSError, json.JSONDecodeError):
+        return None
+    block = payload.get("abstention")
+    if not isinstance(block, Mapping) or block.get("floor") is None:
+        return None
+    return dict(block)
+
+
+def _sidecar_index_from_manifest(manifest: Mapping[str, Any]) -> dict[str, Any] | None:
+    block = manifest.get("promoted")
+    if not isinstance(block, Mapping):
+        return None
+    path = Path(str(block.get("index_path") or "")).expanduser()
+    if not path.is_file():
+        return None
+    with gzip.open(path, "rt", encoding="utf-8") as handle:
+        payload = json.load(handle)
+    if not isinstance(payload, dict):
+        return None
+    return payload
+
+
+def _union_product_and_sidecar(
+    product: Mapping[str, Any],
+    sidecar: Mapping[str, Any],
+) -> dict[str, Any]:
+    known = {str(chunk.get("chunk_id") or "") for chunk in (product.get("chunks") or [])}
+    extra_chunks = []
+    for chunk in sidecar.get("chunks") or []:
+        chunk_id = str(chunk.get("chunk_id") or "")
+        if not chunk_id or chunk_id in known:
+            continue
+        extra_chunks.append(chunk)
+        known.add(chunk_id)
+    known_docs = {str(row.get("sha256") or "") for row in (product.get("documents") or [])}
+    extra_docs = []
+    for row in sidecar.get("documents") or []:
+        sha = str(row.get("sha256") or "")
+        if not sha or sha in known_docs:
+            continue
+        extra_docs.append(row)
+        known_docs.add(sha)
+    out = dict(product)
+    out["chunks"] = list(product.get("chunks") or []) + extra_chunks
+    out["documents"] = list(product.get("documents") or []) + extra_docs
+    product_dense = product.get("dense") or {}
+    sidecar_dense = sidecar.get("dense") or {}
+    if extra_chunks and product_dense and sidecar_dense:
+        out["dense"] = {
+            "model": product_dense.get("model") or sidecar_dense.get("model"),
+            "dim": product_dense.get("dim") or sidecar_dense.get("dim"),
+            "chunk_ids": list(product_dense.get("chunk_ids") or [])
+            + list(sidecar_dense.get("chunk_ids") or []),
+            "vectors": list(product_dense.get("vectors") or [])
+            + list(sidecar_dense.get("vectors") or []),
+        }
+    return out
 
 
 def _load_index(knowledgebase: str) -> dict[str, Any]:
@@ -3911,11 +3996,40 @@ def _load_index(knowledgebase: str) -> dict[str, Any]:
         payload = json.load(handle)
     if payload.get("schema") != _INDEX_SCHEMA or payload.get("knowledgebase") != _slug(knowledgebase):
         raise ValueError("unsupported or mismatched literature index")
+    if path.resolve() == _canonical_product_index_path().resolve():
+        manifest_path = _product_manifest_path()
+        manifest: dict[str, Any] | None = None
+        if manifest_path.is_file():
+            try:
+                loaded = json.loads(manifest_path.read_text())
+            except (OSError, json.JSONDecodeError):
+                loaded = None
+            if isinstance(loaded, dict):
+                manifest = loaded
+        if manifest is not None:
+            sidecar = _sidecar_index_from_manifest(manifest)
+            if sidecar is not None:
+                payload = _union_product_and_sidecar(payload, sidecar)
+            block = manifest.get("abstention")
+            if isinstance(block, Mapping) and block.get("floor") is not None:
+                payload = dict(payload)
+                payload["abstention"] = dict(block)
+        else:
+            block = _manifest_abstention()
+            if block:
+                payload = dict(payload)
+                payload["abstention"] = block
     return payload
 
 
 def _save_index(index: dict[str, Any]) -> Path:
     path = _index_path(index["knowledgebase"])
+    product = _canonical_product_index_path()
+    if product.exists() and path.resolve() == product.resolve():
+        raise LiteratureContractError(
+            "protected_product_index",
+            "Ingest must not overwrite the canonical T5 gzip.",
+        )
     path.parent.mkdir(parents=True, exist_ok=True)
     temporary = path.with_suffix(".tmp")
     body = json.dumps(index, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode()
@@ -4247,7 +4361,14 @@ def _ingest_inputs(
         model_name, vectors = _dense_vectors(
             [chunk_sparse_corpus(item) for item in index["chunks"]]
         )
-        index["dense"] = {"model": model_name, "vectors": vectors, "built_at": _now()}
+        index["dense"] = {
+            "model": model_name,
+            "vectors": vectors,
+            "built_at": _now(),
+            "dim": _MINILM_DIM,
+            "chunk_ids": [str(item["chunk_id"]) for item in index["chunks"]],
+            "refuse_rule": _REFUSE_RULE_SPARSE_GATED,
+        }
     elif chunks_added and index.get("dense"):
         index["dense"] = None
         dense_warning = "Dense vectors were invalidated by new chunks; rebuild explicitly."
@@ -4294,6 +4415,78 @@ def ingest_literature_documents(
     )
 
 
+def _idf_maps(chunks: Sequence[Mapping[str, Any]]) -> tuple[int, Counter, list[set[str]]]:
+    token_sets = [set(_tokens(chunk_sparse_corpus(chunk))) for chunk in chunks]
+    n_docs = len(chunks)
+    document_frequency: Counter = Counter(token for tokens in token_sets for token in tokens)
+    return n_docs, document_frequency, token_sets
+
+
+def _idf_value(token: str, n_docs: int, document_frequency: Mapping[str, int]) -> float:
+    count = int(document_frequency.get(token, 0))
+    return math.log(1.0 + (n_docs - count + 0.5) / (count + 0.5))
+
+
+def query_idf_coverage(
+    query: str,
+    passage: str,
+    *,
+    n_docs: int,
+    document_frequency: Mapping[str, int],
+) -> float:
+    query_tokens = set(_tokens(query))
+    passage_tokens = set(_tokens(passage))
+    query_mass = sum(_idf_value(token, n_docs, document_frequency) for token in query_tokens)
+    if query_mass <= 0:
+        return 0.0
+    matched_mass = sum(
+        _idf_value(token, n_docs, document_frequency)
+        for token in query_tokens
+        if token in passage_tokens
+    )
+    return matched_mass / query_mass
+
+
+def _coverage_from_sparse(
+    query: str,
+    chunks: Sequence[Mapping[str, Any]],
+    sparse_raw: Sequence[float],
+) -> tuple[dict[str, float], float]:
+    n_docs, document_frequency, token_sets = _idf_maps(chunks)
+    query_tokens = set(_tokens(query))
+    query_mass = sum(_idf_value(token, n_docs, document_frequency) for token in query_tokens)
+    coverage_by_id: dict[str, float] = {}
+    gated: list[float] = []
+    for chunk, tokens, raw in zip(chunks, token_sets, sparse_raw):
+        if query_mass <= 0:
+            value = 0.0
+        else:
+            matched = sum(
+                _idf_value(token, n_docs, document_frequency)
+                for token in query_tokens
+                if token in tokens
+            )
+            value = matched / query_mass
+        coverage_by_id[str(chunk["chunk_id"])] = value
+        if float(raw) > 0:
+            gated.append(value)
+    return coverage_by_id, (max(gated) if gated else 0.0)
+
+
+def coverage_star(index: Mapping[str, Any], query: str) -> float:
+    chunks = list(index.get("chunks") or [])
+    sparse_raw = _bm25(_tokens(query), [{"text": chunk_sparse_corpus(chunk)} for chunk in chunks])
+    _coverage_by_id, star = _coverage_from_sparse(query, chunks, sparse_raw)
+    return star
+
+
+def _abstention_floor(index: Mapping[str, Any]) -> float | None:
+    block = index.get("abstention")
+    if not isinstance(block, Mapping) or block.get("floor") is None:
+        return None
+    return float(block["floor"])
+
+
 def _bm25(query_tokens: list[str], chunks: list[dict[str, Any]]) -> list[float]:
     token_lists = [_tokens(item["text"]) for item in chunks]
     lengths = [len(items) for items in token_lists]
@@ -4330,7 +4523,49 @@ def _chunk_paper_sha256(index: Mapping[str, Any], chunk: Mapping[str, Any]) -> s
     return None
 
 
-def _search_index(index: dict[str, Any], query: str, top_k: int, mode: str) -> list[dict[str, Any]]:
+def _dense_query_scores(index: Mapping[str, Any], chunks: Sequence[Mapping[str, Any]], query: str) -> list[float]:
+    """Query-embed only. Require chunk_id set identity; no positional fallback."""
+    dense = index.get("dense") or {}
+    vectors = list(dense.get("vectors") or [])
+    if len(vectors) != len(chunks):
+        raise ValueError("dense_index_unavailable")
+    store_ids = [str(chunk["chunk_id"]) for chunk in chunks]
+    recorded_ids = dense.get("chunk_ids")
+    if not recorded_ids:
+        raise ValueError("dense_index_unavailable")
+    recorded_ids = [str(item) for item in recorded_ids]
+    if set(recorded_ids) != set(store_ids):
+        raise ValueError("dense_index_unavailable")
+    if len(recorded_ids) != len(vectors):
+        raise ValueError("dense_index_unavailable")
+    by_id = {chunk_id: vector for chunk_id, vector in zip(recorded_ids, vectors)}
+    ordered = [by_id[chunk_id] for chunk_id in store_ids]
+    expected_model = dense.get("model")
+    loaded_model, query_vectors = _dense_vectors([query], expected_model)
+    if expected_model and loaded_model != expected_model:
+        raise ValueError("dense_index_unavailable")
+    query_vector = query_vectors[0]
+    if len(query_vector) != _MINILM_DIM or any(len(vector) != _MINILM_DIM for vector in ordered):
+        raise ValueError("dense_index_unavailable")
+    recorded_dim = dense.get("dim")
+    if recorded_dim is not None and int(recorded_dim) != _MINILM_DIM:
+        raise ValueError("dense_index_unavailable")
+    return [max(0.0, _cosine(query_vector, vector)) for vector in ordered]
+
+
+def _section_boost(chunk: Mapping[str, Any]) -> float:
+    origin = chunk.get("section_origin")
+    if origin == "inherited_from_stack":
+        section = ""
+    else:
+        section = str(chunk.get("section") or "").casefold()
+    return 0.05 if any(word in section for word in ("abstract", "result", "conclusion", "method")) else 0.0
+
+
+def _hybrid_passage_parts(
+    index: dict[str, Any], query: str,
+) -> list[tuple[float, float, float, dict[str, Any]]]:
+    """Sparse-gated hybrid signals. Coefficients are applied by the caller."""
     chunks = list(index.get("chunks") or [])
     query_tokens = _tokens(query)
     sparse_raw = _bm25(query_tokens, [{"text": chunk_sparse_corpus(chunk)} for chunk in chunks])
@@ -4338,34 +4573,26 @@ def _search_index(index: dict[str, Any], query: str, top_k: int, mode: str) -> l
         return []
     sparse_max = max(sparse_raw)
     sparse = [value / sparse_max for value in sparse_raw]
-    dense_scores = [0.0] * len(chunks)
-    if mode in {"dense", "hybrid"}:
-        dense = index.get("dense") or {}
-        vectors = dense.get("vectors") or []
-        if len(vectors) != len(chunks):
-            raise ValueError("dense_index_unavailable")
-        _, query_vector = _dense_vectors([query], dense.get("model"))
-        dense_scores = [max(0.0, _cosine(query_vector[0], vector)) for vector in vectors]
-    ranked = []
-    for chunk, sparse_score, dense_score in zip(chunks, sparse, dense_scores):
-        origin = chunk.get("section_origin")
-        if origin == "inherited_from_stack":
-            section = ""
-        else:
-            section = str(chunk.get("section") or "").casefold()
-        boost = 0.05 if any(word in section for word in ("abstract", "result", "conclusion", "method")) else 0.0
-        if mode == "dense":
-            score = dense_score + boost
-        elif mode == "hybrid":
-            score = 0.55 * dense_score + 0.40 * sparse_score + boost
-        else:
-            score = sparse_score + boost
-        if score <= 0:
+    dense_scores = _dense_query_scores(index, chunks, query)
+    parts: list[tuple[float, float, float, dict[str, Any]]] = []
+    for chunk, sparse_raw_score, sparse_score, dense_score in zip(
+        chunks, sparse_raw, sparse, dense_scores,
+    ):
+        if sparse_raw_score <= 0:
             continue
-        ranked.append((score, sparse_score, dense_score, boost, chunk))
-    ranked.sort(key=lambda item: (-item[0], str(item[4].get("title")), item[4]["chunk_id"]))
+        parts.append((sparse_score, dense_score, _section_boost(chunk), chunk))
+    return parts
+
+
+def _ranked_search_rows(
+    index: dict[str, Any],
+    ranked: list[tuple[Any, ...]],
+    top_k: int,
+    coverage_by_id: Mapping[str, float] | None = None,
+    floor: float | None = None,
+) -> list[dict[str, Any]]:
     rows = []
-    for index_number, (score, sparse_score, dense_score, boost, chunk) in enumerate(ranked[:top_k], 1):
+    for index_number, (score, sparse_score, dense_score, boost, chunk, sparse_raw_score) in enumerate(ranked[:top_k], 1):
         origin = chunk.get("section_origin")
         if origin == "inherited_from_stack":
             served_section = None
@@ -4377,6 +4604,7 @@ def _search_index(index: dict[str, Any], query: str, top_k: int, mode: str) -> l
             )
             if part
         )
+        coverage = 0.0 if coverage_by_id is None else float(coverage_by_id.get(str(chunk["chunk_id"]), 0.0))
         rows.append({
             "citation_id": f"C{index_number}", "chunk_id": chunk["chunk_id"],
             "paper_sha256": _chunk_paper_sha256(index, chunk),
@@ -4391,16 +4619,73 @@ def _search_index(index: dict[str, Any], query: str, top_k: int, mode: str) -> l
             "footnotes": chunk.get("footnotes"),
             "excerpt": _clean(excerpt_source, 600),
             "sparse_score": round(sparse_score, 6), "dense_score": round(dense_score, 6),
+            "sparse_raw_score": round(sparse_raw_score, 6),
+            "query_idf_coverage": round(coverage, 6),
+            "floor": None if floor is None else round(float(floor), 6),
             "section_boost": boost, "final_score": round(score, 6),
         })
     return rows
 
 
+def _search_index(
+    index: dict[str, Any],
+    query: str,
+    top_k: int,
+    mode: str,
+    *,
+    w_dense: float | None = None,
+    w_sparse: float | None = None,
+) -> list[dict[str, Any]]:
+    dense_w = _HYBRID_DENSE_WEIGHT if w_dense is None else float(w_dense)
+    sparse_w = _HYBRID_SPARSE_WEIGHT if w_sparse is None else float(w_sparse)
+    chunks = list(index.get("chunks") or [])
+    query_tokens = _tokens(query)
+    sparse_raw = _bm25(query_tokens, [{"text": chunk_sparse_corpus(chunk)} for chunk in chunks])
+    coverage_by_id, star = _coverage_from_sparse(query, chunks, sparse_raw)
+    floor = _abstention_floor(index)
+    if floor is not None and star < floor:
+        return []
+    if max(sparse_raw, default=0.0) <= 0:
+        return []
+    if mode == "hybrid":
+        raw_by_id = {str(chunk["chunk_id"]): float(raw) for chunk, raw in zip(chunks, sparse_raw)}
+        ranked = []
+        for sparse_score, dense_score, boost, chunk in _hybrid_passage_parts(index, query):
+            score = dense_w * dense_score + sparse_w * sparse_score + boost
+            ranked.append((
+                score, sparse_score, dense_score, boost, chunk,
+                raw_by_id[str(chunk["chunk_id"])],
+            ))
+        ranked.sort(key=lambda item: (-item[0], str(item[4].get("title")), item[4]["chunk_id"]))
+        return _ranked_search_rows(index, ranked, top_k, coverage_by_id, floor=floor)
+    sparse_max = max(sparse_raw)
+    sparse = [value / sparse_max for value in sparse_raw]
+    dense_scores = [0.0] * len(chunks)
+    if mode == "dense":
+        dense_scores = _dense_query_scores(index, chunks, query)
+    ranked = []
+    for chunk, sparse_raw_score, sparse_score, dense_score in zip(
+        chunks, sparse_raw, sparse, dense_scores,
+    ):
+        boost = _section_boost(chunk)
+        if mode == "dense" and sparse_raw_score <= 0:
+            continue
+        if mode == "dense":
+            score = dense_score + boost
+        else:
+            score = sparse_score + boost
+            if score <= 0:
+                continue
+        ranked.append((score, sparse_score, dense_score, boost, chunk, sparse_raw_score))
+    ranked.sort(key=lambda item: (-item[0], str(item[4].get("title")), item[4]["chunk_id"]))
+    return _ranked_search_rows(index, ranked, top_k, coverage_by_id, floor=floor)
+
+
 def search_literature_corpus(
     query: str,
-    knowledgebase: str = "user-library",
+    knowledgebase: str = _PRODUCT_KNOWLEDGEBASE,
     top_k: int = 5,
-    retrieval_mode: Literal["sparse", "dense", "hybrid"] = "sparse",
+    retrieval_mode: Literal["sparse", "dense", "hybrid"] = "hybrid",
 ) -> str:
     """Retrieve bounded, citable passages; the parent model authors the answer."""
     tool = "search_literature_corpus"
@@ -4429,6 +4714,8 @@ def search_literature_corpus(
             )
         return tool_error(tool, str(error), error_code="retrieval_failed")
     top_score = rows[0]["final_score"] if rows else 0.0
+    floor = _abstention_floor(index)
+    served_floor = None if floor is None else round(float(floor), 6)
     return tool_success(
         tool,
         display=_table(("Citation", "Score", "Source", "Section"), [
@@ -4436,7 +4723,11 @@ def search_literature_corpus(
         ]),
         analysis_type="corpus_retrieval", query=query, knowledgebase=index["knowledgebase"],
         retrieval_mode=mode, dense_index_available=bool(index.get("dense")),
+        refuse_rule=_REFUSE_RULE_SPARSE_GATED,
+        hybrid_weights={"dense": _HYBRID_DENSE_WEIGHT, "sparse": _HYBRID_SPARSE_WEIGHT},
         result_count=len(rows), results=rows, top_score=top_score,
+        coverage_star=round(coverage_star(index, query), 6),
+        floor=served_floor,
         low_retrieval_confidence=not rows or top_score < 0.15,
         evidence_scope="retrieved_corpus_passages",
         warnings=[

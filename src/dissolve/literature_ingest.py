@@ -739,7 +739,9 @@ def compare_literature_engines(
         legacy_ingest_s = time.monotonic() - started
         probes = []
         for query in probe_queries:
-            result = parse_tool_result(research.search_literature_corpus(query, knowledgebase=knowledgebase, top_k=5))
+            result = parse_tool_result(research.search_literature_corpus(
+                query, knowledgebase=knowledgebase, top_k=5, retrieval_mode="sparse",
+            ))
             probes.append({"query": query, "result": result["data"]})
     finally:
         if prior_root is None:
