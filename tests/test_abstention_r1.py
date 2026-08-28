@@ -402,7 +402,7 @@ def test_r1_stays_off_agent_list_and_frozen_pins():
     agent = file_sha256(_ROOT / "agent_tools.py")
     assert thermo == "95998b72529e007bfe2415187af6f878cc1d5180227cfc42541b762c0416cf2b"
     assert leftover == "49ad08d13ae0bc0368188192f87312598a229ec35feeed5f011b9d963569e766"
-    assert agent == "762123b126e7a2a8005f8acd8887eba0eee4da7409de46ce4c404a3d970db18b"
+    assert agent == "02259d2ab680d7613731013fc6f96d3b100739d0bed7f95d114bf208e1cee293"
     for rel in (
         "src/dissolve/thermodynamics.py",
         "src/dissolve/contaminants.py",

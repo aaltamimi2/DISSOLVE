@@ -579,6 +579,7 @@ def test_public_scenario_overrides_cannot_cite_committed_pair_names(monkeypatch)
             "labor_cost": 120_000.0,
         }],
         engine_mode="live",
+        confirm_live_tea=True,
     )
     payload = json.loads(raw)
     assert captured["dissolution_temperature_c"] == 200.0
@@ -1151,6 +1152,7 @@ def test_unreadable_worker_source_is_named_parent_and_public(tmp_path, monkeypat
             "labor_cost": 120_000.0,
         }],
         engine_mode="live",
+        confirm_live_tea=True,
         timeout_seconds=30,
     )
     parsed = json.loads(raw)

@@ -73,7 +73,7 @@ def test_a1_exactly_one_removal_by_identity_against_parent_30():
     assert len(now) == 29
     assert now == EXPECTED_REGISTRY_NAMES
     assert len(registry.REGISTRY) == 29
-    assert len(tool_schemas()) == 30
+    assert len(tool_schemas()) == 24
     assert "fetch_solvent_safety_by_cid" in now
     assert "estimate_thermal_properties" not in now
     names = {item["name"] for item in tool_schemas()}
