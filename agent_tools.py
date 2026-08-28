@@ -136,6 +136,23 @@ def _pubchem_contributed(obj: Any) -> bool:
             return True
     return any(_pubchem_contributed(v) for v in obj.values())
 
+def _snapshot_origin(data: dict[str, Any]) -> bool:
+    if not isinstance(data, dict):
+        return False
+    candidates = [data, data.get("provenance"), data.get("safety_profile")]
+    profile = data.get("safety_profile")
+    if isinstance(profile, dict):
+        candidates.append(profile.get("provenance"))
+    for obj in candidates:
+        if isinstance(obj, dict) and obj.get("pubchem_source") == "snapshot":
+            return True
+    origin = data.get("field_origin")
+    if isinstance(origin, dict):
+        for stamp in origin.values():
+            if isinstance(stamp, dict) and stamp.get("source") == "snapshot":
+                return True
+    return False
+
 def source_basis_for(name: str, data: dict[str, Any], kwargs: dict[str, Any]) -> str | None:
     if name == "lookup_material_database_membership":
         return "identity_registry"
@@ -146,8 +163,11 @@ def source_basis_for(name: str, data: dict[str, Any], kwargs: dict[str, Any]) ->
         return "cosmo_rs_grid"
     eng = registry.BY_NAME[name].engine
     if eng == "safety":
-        if kwargs.get("include_pubchem") is True and _pubchem_contributed(data):
+        if name == "fetch_solvent_safety_by_cid":
             return "pubchem_live"
+        if kwargs.get("include_pubchem") is True and _pubchem_contributed(data):
+            if not _snapshot_origin(data):
+                return "pubchem_live"
         return "safety_local"
     if eng == "tea":
         return _tea_basis(data)

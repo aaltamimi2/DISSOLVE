@@ -1,0 +1,86 @@
+{
+  "schema": "dissolve.audit-hazard-methods-published.v1",
+  "spec": "HAZARD_METHODS_SPEC.v1.md",
+  "spec_sha256": "b6e0e3b662ba407395e0a913248f3a18c70856959ddbcf025fc1595ced96ce06",
+  "published": "audit/HAZARD_METHODS.published.v1.md",
+  "measured_on_builder_sha": "1d97a737c231357f87041e42f43ec18de99db869",
+  "measured_at": "2026-08-24T17:32:49Z",
+  "command": "python3 audit/measure_hazard_methods.py",
+  "census": {
+    "enumerating_function": "get_available_solvents",
+    "scope_token": "all",
+    "scope_origin": "built_in",
+    "n": 990,
+    "served_gsk": 130,
+    "served_green": 840,
+    "served_neither": 20,
+    "both_table_hits": 128,
+    "gsk_only": [
+      {
+        "interp_key": "1,2-dimethoxyethane",
+        "name": "Dimethyl Cellosolve",
+        "cas": "110-71-4",
+        "g_score": 4.121645257
+      },
+      {
+        "interp_key": "cis-decalin",
+        "name": "Cis-Decahydronaphthalene",
+        "cas": "493-01-6",
+        "g_score": 5.446776507
+      }
+    ],
+    "mae": 0.30303331749999984,
+    "mae_2dp": 0.3,
+    "signed_mean": 0.01364146053124999,
+    "signed_mean_2dp": 0.01,
+    "duckdb_sha256": "88ce0d09ac28de17045702a8a283de6610b5fe1ab33aa5f90bf6e98edfd75a74",
+    "duckdb_pin": "88ce0d09ac28de17045702a8a283de6610b5fe1ab33aa5f90bf6e98edfd75a74",
+    "default_minimum_g_score": 6.0
+  },
+  "gscore_sql_shape": {
+    "has_limit_1": true,
+    "has_order_by": false,
+    "gsk_first": true
+  },
+  "published_bindings": {
+    "path": "audit/HAZARD_METHODS.published.v1.md",
+    "names_enumerating_function": true,
+    "names_scope_all": true,
+    "names_gscore": true,
+    "names_limit_1": true,
+    "names_no_order_by": true,
+    "names_mae": true,
+    "names_signed_mean": true,
+    "names_green_screen": true,
+    "names_route_screen": true,
+    "names_include_pubchem": true,
+    "names_unsourced_floor": true,
+    "names_failed_headings": true,
+    "forbidden_claim_hits": [],
+    "leftover_keys_in_text": true,
+    "leftover_cas_in_text": true,
+    "census_leftover_keys": [
+      "1,2-dimethoxyethane",
+      "cis-decalin"
+    ],
+    "census_leftover_cas": [
+      "110-71-4",
+      "493-01-6"
+    ],
+    "expected_leftover_keys": [
+      "1,2-dimethoxyethane",
+      "cis-decalin"
+    ]
+  },
+  "network_by_tool": {
+    "green_screen_completes_with_pubchem_raising": true,
+    "route_default_raises": true,
+    "route_include_pubchem_false_completes": true
+  },
+  "served_floor": {
+    "minimum_g_score": 6.0,
+    "minimum_g_score_source": "default",
+    "minimum_g_score_citation_status": "unsourced"
+  },
+  "keep_outs": "No safety.py edit. No safety.duckdb edit. No live PubChem. No BioSTEAM. No v12 merge. No G-floor citation invented."
+}

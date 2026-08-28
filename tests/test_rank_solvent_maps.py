@@ -320,6 +320,8 @@ def test_maps_are_optional_schema_args_not_a_35th_name(monkeypatch):
     _forbid_live(monkeypatch)
     assert "rank_landscape" not in CONSUMERS
     assert len(EXPECTED_REGISTRY_NAMES) == 29
+    assert "fetch_solvent_safety_by_cid" in EXPECTED_REGISTRY_NAMES
+    assert "estimate_thermal_properties" not in EXPECTED_REGISTRY_NAMES
     props = {
         item["name"]: item["parameters"]["properties"]
         for item in tool_schemas()

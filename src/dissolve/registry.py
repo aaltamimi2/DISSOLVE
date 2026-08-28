@@ -61,6 +61,7 @@ REGISTRY: tuple[Tool, ...] = tuple([
     _t(safety.compare_solvent_safety_at_conditions, "safety"),
     _t(safety.screen_green_solvent_candidates, "safety"),
     _t(safety.screen_route_solvent_substitutions, "safety"),
+    _t(safety.fetch_solvent_safety_by_cid, "safety"),
     # --- TEA / LCA ---
     _t(tea.evaluate_process, "tea"),
     _t(tea.rank_landscape, "tea"),
@@ -68,7 +69,6 @@ REGISTRY: tuple[Tool, ...] = tuple([
     _t(analysis.lookup_hansen_parameters, "analysis"),
     _t(analysis.screen_hansen_compatibility, "analysis"),
     _t(analysis.lookup_glass_transition, "analysis"),
-    _t(analysis.estimate_thermal_properties, "analysis"),
     _t(analysis.list_thermal_evidence, "analysis"),
     _t(analysis.analyze_numeric_samples, "analysis"),
     # --- contaminant removal ---
