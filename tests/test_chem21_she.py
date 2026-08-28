@@ -1,0 +1,357 @@
+"""CHEM21 SH&E scorer and G-score-alternative rerank (spec v2)."""
+from __future__ import annotations
+
+import hashlib
+import json
+import math
+import sys
+from pathlib import Path
+
+import pytest
+
+_ROOT = Path(__file__).resolve().parents[1]
+for _path in (str(_ROOT), str(_ROOT / "src")):
+    if _path not in sys.path:
+        sys.path.insert(0, _path)
+
+from agent_tools import tool_schemas
+from dissolve import safety, tea
+from dissolve.contracts import parse_tool_result
+
+_SNAPSHOT_SHA256 = (
+    "0aaa5de41367051ceca656982d3828bd40474343f2f14f404638b33bf6d5029d"
+)
+_AGENT_TOOLS_SHA256 = (
+    "02259d2ab680d7613731013fc6f96d3b100739d0bed7f95d114bf208e1cee293"
+)
+_GREEN_IDENT_QUERY = dict(
+    feed_polymers=["LDPE", "PP"], target_polymer="LDPE", limit=3,
+)
+_GREEN_IDENT_SHA256 = (
+    "30fe3b378cb1082d64fbf926492c2c3e65770e5309e194532314fe2cef644876"
+)
+_ADMISSION_CID_ABSENT = (
+    "1,2,3-trichloropropene",
+    "1,3-dichloro-2-butene",
+    "1-bromo-2-chloroethene",
+    "acetaldehydeoxime",
+    "benzisoxazole",
+    "butoxide",
+    "cis-dibromoethene",
+    "dcip",
+    "dimethylmaleate",
+    "ethylformate",
+    "ethylsilicate",
+    "ethylsuccinate",
+    "hexafluoro-i-propanol",
+    "isopropylacetate",
+    "methylindole",
+    "n-propylacetate",
+    "n-propylamine",
+    "phenylacetate",
+    "propynol",
+)
+_GAP_FLASH_4 = (398, 6568, 7762, 7964)
+_GAP_FLASH_5 = (12021,)
+
+_PAYLOAD_KEYS = safety._CHEM21_PAYLOAD_KEYS
+
+
+def _inputs(**fields):
+    base = {
+        "boiling_point_c": 100.0,
+        "flash_point_c": None,
+        "autoignition_c": None,
+        "statements": [],
+        "cas_number": None,
+        "admission_signal_word": None,
+        "snapshot_signal_word": None,
+        "n_ghs_statements": None,
+        "resistivity_ohm_m": None,
+    }
+    base.update(fields)
+    return base
+
+
+def test_recipe_water_is_one_and_recommended():
+    out = safety.score_chem21_she("water", inputs=_inputs(
+        flash_point_c=100.0, boiling_point_c=100.0, cas_number="7732-18-5",
+    ))
+    assert out["chem21_safety_score"] == 1
+    assert out["chem21_health_score"] == 1
+    assert out["chem21_environment_score"] == 1
+    assert out["chem21_default_ranking"] == "recommended"
+    for key in _PAYLOAD_KEYS:
+        assert key in out
+
+
+def test_recipe_diethyl_ether_is_ten_when_extras_supplied():
+    out = safety.score_chem21_she("diethyl ether", inputs=_inputs(
+        flash_point_c=-45.0,
+        autoignition_c=160.0,
+        resistivity_ohm_m=3.0e11,
+        statements=["EUH019 May form explosive peroxides."],
+        boiling_point_c=34.6,
+        cas_number="60-29-7",
+    ))
+    assert out["chem21_safety_score"] == 10
+    assert out["chem21_adjustments"]["ait_adjustment_applied"] is True
+    assert out["chem21_adjustments"]["euh019_adjustment_applied"] is True
+    assert out["chem21_adjustments"]["resistivity_adjustment_applied"] is True
+    assert out["chem21_adjustments"]["decomposition_override"] == "not_assessed"
+
+
+def test_recipe_acetone_safety_five_default_problematic():
+    out = safety.score_chem21_she("acetone", inputs=_inputs(
+        flash_point_c=-20.0,
+        boiling_point_c=56.05,
+        autoignition_c=465.0,
+        statements=["H319 Causes serious eye irritation."],
+        cas_number="67-64-1",
+    ))
+    assert out["chem21_safety_score"] == 5
+    assert out["chem21_health_score"] == 3
+    assert out["chem21_default_ranking"] == "problematic"
+
+
+def test_recipe_benzene_safety_six_health_ten():
+    out = safety.score_chem21_she("benzene", inputs=_inputs(
+        flash_point_c=-11.0,
+        boiling_point_c=80.1,
+        resistivity_ohm_m=1.0e11,
+        statements=["H340", "H350"],
+        cas_number="71-43-2",
+    ))
+    assert out["chem21_safety_score"] == 6
+    assert out["chem21_health_score"] == 10
+    assert out["chem21_default_ranking"] == "hazardous"
+
+
+def test_recipe_dmf_safety_three_health_nine():
+    out = safety.score_chem21_she("DMF", inputs=_inputs(
+        flash_point_c=58.0,
+        boiling_point_c=153.0,
+        statements=["H360 May damage fertility or the unborn child."],
+        cas_number="68-12-2",
+    ))
+    assert out["chem21_safety_score"] == 3
+    assert out["chem21_health_score"] == 9
+    assert out["chem21_adjustments"]["health_bp_below_85_applied"] is False
+    assert out["chem21_default_ranking"] == "hazardous"
+
+
+def test_recipe_n_butyl_acetate_safety_four():
+    out = safety.score_chem21_she("n-butyl acetate", inputs=_inputs(
+        flash_point_c=22.0,
+        boiling_point_c=126.1,
+        cas_number="123-86-4",
+    ))
+    assert out["chem21_safety_score"] == 4
+
+
+def test_dcm_missing_flash_is_null_not_one():
+    out = safety.score_chem21_she("DCM", inputs=_inputs(
+        flash_point_c=None, boiling_point_c=39.6, cas_number="75-09-2",
+    ))
+    assert out["chem21_safety_score"] is None
+    assert out["chem21_unavailable_reason"] == "flash_point_missing"
+    assert out["chem21_default_ranking"] is None
+
+
+def test_nitromethane_excluded_decomposition_not_in_v1():
+    out = safety.score_chem21_she("nitromethane")
+    assert out["chem21_adjustments"]["decomposition_override"] == "not_assessed"
+    assert out.get("chem21_safety_score") != "hard-coded-10"
+
+
+def test_health_bp_bump_applied_at_most_once():
+    default = safety.score_chem21_she("unknown-solvent", inputs=_inputs(
+        flash_point_c=80.0, boiling_point_c=70.0, statements=[],
+    ))
+    assert default["chem21_health_score"] == 6
+    assert default["chem21_adjustments"]["health_bp_below_85_applied"] is True
+    h3xx = safety.score_chem21_she("unknown-solvent", inputs=_inputs(
+        flash_point_c=80.0, boiling_point_c=70.0, statements=["H319"],
+    ))
+    assert h3xx["chem21_health_score"] == 3
+    missing_bp = safety.score_chem21_she("unknown-solvent", inputs=_inputs(
+        flash_point_c=80.0, boiling_point_c=None, statements=[],
+    ))
+    assert missing_bp["chem21_health_score"] == 5
+
+
+def test_snapshot_data_gap_payload_has_every_key():
+    out = safety.score_chem21_she("toluene")
+    for key in _PAYLOAD_KEYS:
+        assert key in out
+    if out["chem21_safety_score"] is None:
+        assert out["chem21_unavailable_reason"] == "flash_point_missing"
+    else:
+        assert 1 <= out["chem21_safety_score"] <= 10
+        assert out["chem21_safety_score"] == safety._chem21_safety_basic(
+            out["chem21_inputs"]["flash_point_c"]
+        ) + int(out["chem21_adjustments"]["ait_adjustment_applied"]) + int(
+            out["chem21_adjustments"]["euh019_adjustment_applied"]
+        ) + int(out["chem21_adjustments"]["resistivity_adjustment_applied"])
+    assert out["chem21_ghs_source"] == "pubchem_safety_snapshot"
+    assert out["chem21_inputs"]["reach_registration"] == "unknown"
+    assert out["chem21_inputs"]["resistivity_ohm_m"] is None
+
+
+def test_g_score_and_chem21_are_not_aliases():
+    profile = safety.build_safety_profile("toluene", include_pubchem=True)
+    assert "g_score" in (profile.get("gscore") or {}) or profile.get("gscore")
+    g_value = (profile.get("gscore") or {}).get("g_score")
+    chem21 = profile["chem21_safety_score"]
+    assert "chem21_safety_score" in profile
+    assert chem21 != g_value
+    assert profile.get("g_score") is None or profile["g_score"] == g_value
+    assert "chem21_g_score" not in profile
+    assert profile["chem21_recipe"] == "Prat2016_CHEM21_GreenChem_18_288"
+
+
+def test_signal_word_disagreement_still_scores():
+    out = safety.score_chem21_she("1-butanol")
+    assert out["chem21_signal_word_agreement"] is False
+    assert out["chem21_safety_score"] is None or 1 <= out["chem21_safety_score"] <= 10
+
+
+def test_r1_gap_cids_use_repaired_ladder():
+    for cid in _GAP_FLASH_4:
+        pub = safety._snapshot_pubchem(cid)
+        flash = float(pub["flash_point_c"])
+        assert 23.8 < flash < 24.0
+        out = safety.score_chem21_she(f"cid-{cid}", inputs=_inputs(flash_point_c=flash))
+        assert out["chem21_safety_score"] == 4
+    for cid in _GAP_FLASH_5:
+        pub = safety._snapshot_pubchem(cid)
+        flash = float(pub["flash_point_c"])
+        assert -1.0 < flash < 0.0
+        out = safety.score_chem21_she(f"cid-{cid}", inputs=_inputs(flash_point_c=flash))
+        assert out["chem21_safety_score"] == 5
+
+
+@pytest.mark.parametrize(
+    ("flash", "basic"),
+    [
+        (-20.0, 5),
+        (-20.01, 7),
+        (0.0, 4),
+        (-0.01, 5),
+        (23.999, 4),
+        (24.0, 3),
+        (60.0, 3),
+        (60.01, 1),
+    ],
+)
+def test_flash_bin_boundaries(flash, basic):
+    out = safety.score_chem21_she("bin", inputs=_inputs(flash_point_c=flash))
+    assert out["chem21_safety_score"] == basic
+
+
+def test_no_flash_in_range_returns_none_for_a_bin():
+    for step in range(-1000, 1001, 7):
+        out = safety.score_chem21_she("bin", inputs=_inputs(flash_point_c=float(step)))
+        assert out["chem21_safety_score"] in {1, 3, 4, 5, 7}
+        assert out["chem21_unavailable_reason"] not in {
+            "flash_point_missing", "safety_score_missing",
+        }
+    missing = safety.score_chem21_she("bin", inputs=_inputs(flash_point_c=None))
+    assert missing["chem21_safety_score"] is None
+    assert missing["chem21_unavailable_reason"] == "flash_point_missing"
+
+
+def test_census_production_join_not_the_v1_490():
+    census = safety.chem21_snapshot_join_census()
+    assert census["snapshot_digest"] == _SNAPSHOT_SHA256
+    assert census["admitted"] == 786
+    assert census["production_join"] == 786
+    assert census["production_flash"] == 489
+    assert census["production_flash"] != 490
+    assert census["common"] == 69
+    assert census["common_flash"] == 57
+    absent = tuple(
+        item["interp_key"] for item in census["admission_cid_absent_from_snapshot"]
+    )
+    assert absent == _ADMISSION_CID_ABSENT
+    assert len(absent) == 19
+
+
+def _chem21_sort_ids(routes, direction: str) -> list[str]:
+    def sort_key(route):
+        value = tea._planner_route_metric(route, "max_stage_chem21_safety")
+        missing = value is None
+        original = int(route.get("rank") or 0)
+        if direction == "max":
+            return (missing, -(value or 0.0), original)
+        return (missing, value if value is not None else math.inf, original)
+
+    return [route["id"] for route in sorted(routes, key=sort_key)]
+
+
+def test_planner_chem21_direction_must_fire():
+    routes = [
+        {
+            "id": "A", "rank": 1,
+            "steps": [
+                {"chem21_safety_score": 2},
+                {"chem21_safety_score": 3},
+            ],
+        },
+        {
+            "id": "B", "rank": 2,
+            "steps": [
+                {"chem21_safety_score": 7},
+                {"chem21_safety_score": 8},
+            ],
+        },
+    ]
+    assert tea._PLANNER_SORT_OBJECTIVES["max_stage_chem21_safety"] == "min"
+    assert tea._PLANNER_SORT_OBJECTIVES["max_stage_chem21_worst"] == "min"
+    assert "min_stage_chem21_safety" not in tea._PLANNER_SORT_OBJECTIVES
+    registered = tea._PLANNER_SORT_OBJECTIVES["max_stage_chem21_safety"]
+    assert _chem21_sort_ids(routes, registered) == ["A", "B"]
+    inverted = _chem21_sort_ids(routes, "max")
+    assert inverted == ["B", "A"]
+    assert inverted != _chem21_sort_ids(routes, registered)
+
+
+def test_green_screen_g_score_default_and_explicit_are_ident():
+    omitted = parse_tool_result(safety.screen_green_solvent_candidates(
+        **_GREEN_IDENT_QUERY,
+    ))
+    explicit = parse_tool_result(safety.screen_green_solvent_candidates(
+        **_GREEN_IDENT_QUERY, metric="g_score",
+    ))
+    omitted_blob = json.dumps(omitted, sort_keys=True, default=str).encode()
+    explicit_blob = json.dumps(explicit, sort_keys=True, default=str).encode()
+    assert hashlib.sha256(omitted_blob).hexdigest() == _GREEN_IDENT_SHA256
+    assert hashlib.sha256(explicit_blob).hexdigest() == _GREEN_IDENT_SHA256
+    assert "metric" not in omitted["data"]
+    assert "chem21_safety_score" not in json.dumps(omitted["data"])
+
+
+def test_green_screen_chem21_metric_stamps_eligible_set():
+    payload = parse_tool_result(safety.screen_green_solvent_candidates(
+        feed_polymers=["LDPE", "PP"], target_polymer="LDPE", limit=3,
+        metric="chem21_safety",
+    ))["data"]
+    assert payload["success"] is True
+    assert payload["metric"] == "chem21_safety"
+    assert "eligible_candidate_count" in payload
+    assert payload["eligible_candidate_count"] >= 1
+    assert "maximum_chem21_score" in payload
+    ranked = payload["ranked_candidates"]
+    scores = [row["chem21_safety_score"] for row in ranked]
+    assert scores == sorted(scores)
+    assert all(row.get("g_score") is None or row["g_score"] != row["chem21_safety_score"]
+               for row in ranked)
+
+
+def test_pins_untouched_and_schema_count_stays_24():
+    digest = hashlib.sha256((_ROOT / "agent_tools.py").read_bytes()).hexdigest()
+    assert digest == _AGENT_TOOLS_SHA256
+    assert len(tool_schemas()) == 24
+    names = {item["name"] for item in tool_schemas()}
+    assert "score_chem21_she" not in names
+    assert "estimate_thermal_properties" not in names

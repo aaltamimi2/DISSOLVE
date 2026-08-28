@@ -9142,6 +9142,8 @@ _PLANNER_SORT_OBJECTIVES = {
     "min_stage_g_score": "max",
     "bottleneck_selectivity_pct": "max",
     "peak_temperature_c": "min",
+    "max_stage_chem21_safety": "min",
+    "max_stage_chem21_worst": "min",
 }
 _PLANNER_PARETO_X = "bottleneck_selectivity_pct"
 _PLANNER_PARETO_Y = "min_stage_g_score"
@@ -9169,11 +9171,66 @@ def _planner_min_stage_g_score(steps: Any) -> float | None:
     return min(scores) if scores else None
 
 
+def _planner_max_stage_chem21_safety(steps: Any) -> float | None:
+    scores = []
+    for item in steps or []:
+        if not isinstance(item, dict):
+            continue
+        raw = item.get("chem21_safety_score")
+        if raw is None:
+            solvent = item.get("solvent")
+            if solvent:
+                from .safety import score_chem21_she
+                raw = score_chem21_she(str(solvent)).get("chem21_safety_score")
+        try:
+            score = float(raw)
+        except (TypeError, ValueError):
+            continue
+        if math.isfinite(score):
+            scores.append(score)
+    return max(scores) if scores else None
+
+
+def _planner_max_stage_chem21_worst(steps: Any) -> float | None:
+    scores = []
+    for item in steps or []:
+        if not isinstance(item, dict):
+            continue
+        raw = item.get("chem21_worst")
+        if raw is None:
+            safety_score = item.get("chem21_safety_score")
+            health = item.get("chem21_health_score")
+            environment = item.get("chem21_environment_score")
+            if safety_score is None:
+                solvent = item.get("solvent")
+                if solvent:
+                    from .safety import _chem21_worst, score_chem21_she
+                    payload = score_chem21_she(str(solvent))
+                    raw = _chem21_worst(payload)
+            elif health is not None and environment is not None:
+                try:
+                    raw = max(float(safety_score), float(health), float(environment))
+                except (TypeError, ValueError):
+                    raw = None
+        try:
+            score = float(raw)
+        except (TypeError, ValueError):
+            continue
+        if math.isfinite(score):
+            scores.append(score)
+    return max(scores) if scores else None
+
+
 def _planner_route_metric(route: dict[str, Any], name: str) -> float | None:
-    if name == "min_stage_g_score":
-        value = route.get("min_stage_g_score")
+    aggregators = {
+        "min_stage_g_score": _planner_min_stage_g_score,
+        "max_stage_chem21_safety": _planner_max_stage_chem21_safety,
+        "max_stage_chem21_worst": _planner_max_stage_chem21_worst,
+    }
+    if name in aggregators:
+        value = route.get(name)
         if value is None:
-            value = _planner_min_stage_g_score(route.get("steps"))
+            value = aggregators[name](route.get("steps"))
     else:
         value = route.get(name)
     try:
