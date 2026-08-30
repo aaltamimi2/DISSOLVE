@@ -19,7 +19,7 @@ from datetime import datetime, timezone
 from functools import lru_cache
 from importlib.resources import files
 from pathlib import Path
-from typing import Any, Mapping, Optional, Sequence
+from typing import Any, Literal, Mapping, Optional, Sequence
 
 import duckdb
 
@@ -577,6 +577,11 @@ def _assessment(
 _CHEM21_RECIPE = "Prat2016_CHEM21_GreenChem_18_288"
 _CHEM21_H_TOKEN = re.compile(r"\bH[2-4]\d{2}")
 _CHEM21_RESISTIVITY_THRESHOLD_OHM_M = 1.0e8
+# "chem21" is the default CHEM21 metric: the WORST of Safety/Health/Environment
+# (Table 6 band, then max). An agent that asks for CHEM21 without naming a
+# sub-score gets worst-of-three; "chem21_safety" is the explicit opt-in.
+_CHEM21_METRIC_ALIASES = {"chem21": "chem21_worst"}
+
 _CHEM21_PAYLOAD_KEYS = (
     "chem21_safety_score",
     "chem21_health_score",
@@ -1871,10 +1876,10 @@ def screen_green_solvent_candidates(
     minimum_target_solubility_wt_pct: float = 5.0,
     minimum_selectivity_points: float = 5.0,
     limit: int = 5,
-    metric: Optional[str] = None,
+    metric: Optional[Literal["g_score", "chem21", "chem21_safety", "chem21_worst"]] = None,
     maximum_chem21_score: Optional[float] = None,
 ) -> str:
-    """Apply sourced green/safety filters before thermodynamic tie-breaks.
+    """Apply sourced green/safety filters before thermodynamic tie-breaks; metric g_score (default) or chem21 = CHEM21 worst of Safety/Health/Environment, the default CHEM21 metric (chem21_safety opts into the Safety sub-score alone).
 
     ``require_atmospheric=None`` keeps missing boiling-point data while
     excluding known-too-low conditions; ``True`` excludes both and ``False``
@@ -1902,6 +1907,7 @@ def screen_green_solvent_candidates(
     metric_token = None if metric is None else str(metric).strip()
     if metric_token == "":
         metric_token = None
+    metric_token = _CHEM21_METRIC_ALIASES.get(metric_token, metric_token)
     if metric_token is None or metric_token == "g_score":
         use_g_metric = True
         metric_token = "g_score"
@@ -1910,7 +1916,7 @@ def screen_green_solvent_candidates(
     else:
         return tool_error(
             tool,
-            "metric must be g_score, chem21_safety, or chem21_worst.",
+            "metric must be g_score, chem21 (= chem21_worst, the default CHEM21 metric), chem21_safety, or chem21_worst.",
             error_code="invalid_metric",
         )
     if use_g_metric and maximum_chem21_score is not None:
@@ -2442,10 +2448,10 @@ def screen_route_solvent_substitutions(
     require_atmospheric: Optional[bool] = None,
     min_selectivity_retention_fraction: float = 0.8,
     include_pubchem: bool = True,
-    metric: Optional[str] = None,
+    metric: Optional[Literal["g_score", "chem21", "chem21_safety", "chem21_worst"]] = None,
     maximum_chem21_score: Optional[float] = None,
 ) -> str:
-    """Screen a whole route and replace its worst solvent without hard-coded candidates.
+    """Screen a whole route and replace its worst solvent without hard-coded candidates; metric g_score (default) or chem21 = CHEM21 worst of Safety/Health/Environment, the default CHEM21 metric.
 
     ``require_atmospheric=None`` keeps missing boiling-point data while
     excluding known-too-low conditions; ``True`` excludes both and ``False``
@@ -2477,6 +2483,7 @@ def screen_route_solvent_substitutions(
     metric_token = None if metric is None else str(metric).strip()
     if metric_token == "":
         metric_token = None
+    metric_token = _CHEM21_METRIC_ALIASES.get(metric_token, metric_token)
     if metric_token is None or metric_token == "g_score":
         use_g_metric = True
         metric_token = "g_score"
@@ -2485,7 +2492,7 @@ def screen_route_solvent_substitutions(
     else:
         return tool_error(
             tool,
-            "metric must be g_score, chem21_safety, or chem21_worst.",
+            "metric must be g_score, chem21 (= chem21_worst, the default CHEM21 metric), chem21_safety, or chem21_worst.",
             error_code="invalid_metric",
         )
     if use_g_metric and maximum_chem21_score is not None:

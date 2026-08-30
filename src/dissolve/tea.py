@@ -9145,6 +9145,10 @@ _PLANNER_SORT_OBJECTIVES = {
     "max_stage_chem21_safety": "min",
     "max_stage_chem21_worst": "min",
 }
+# "max_stage_chem21" is the default CHEM21 rerank: worst of S/H/E per stage,
+# packed Table 6 band-then-max. Resolved to the canonical key before validation,
+# so the direction map itself is unchanged and the alias is not a third objective.
+_PLANNER_OBJECTIVE_ALIASES = {"max_stage_chem21": "max_stage_chem21_worst"}
 _PLANNER_PARETO_X = "bottleneck_selectivity_pct"
 _PLANNER_PARETO_Y = "min_stage_g_score"
 _PLANNER_PARETO_DIRECTIONS = {
@@ -9564,6 +9568,7 @@ def _rank_planner_routes(
                 order,
             )
         objective_token = str(objective).strip()
+        objective_token = _PLANNER_OBJECTIVE_ALIASES.get(objective_token, objective_token)
         if objective_token not in _PLANNER_SORT_OBJECTIVES:
             return _stamp_screen_to_economics_order(
                 tool_error(
@@ -9721,7 +9726,7 @@ def rank_landscape(
     screen_to_economics_order: Optional[ScreenToEconomicsOrder] = None,
     **unexpected: Any,
 ) -> str:
-    """Rank already-run process rows. Does not spawn BioSTEAM.
+    """Rank already-run process rows, or rerank a plan handle (source=planner_routes; objective max_stage_chem21 = CHEM21 worst of S/H/E, the default CHEM21 rerank; max_stage_chem21_safety = Safety sub-score only). Does not spawn BioSTEAM.
 
     source=process_rows ranks a tool-1 handle (evaluate batch, admitted
     lookup, or sensitivity) at the configs those rows were run at, or locates a campaign

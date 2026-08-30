@@ -529,3 +529,54 @@ def test_ethanol_nonbasis_disclosure():
     for item in rows:
         sources = item["sources"] if isinstance(item, dict) else []
         assert sources == ["NITE-CMC"]
+
+
+# --- worst-of-three is the DEFAULT CHEM21 metric (owner 2026-08-30) ---
+
+def _sha(payload) -> str:
+    return hashlib.sha256(json.dumps(payload, sort_keys=True, default=str).encode()).hexdigest()
+
+
+def test_chem21_alias_is_worst_of_three_on_both_screens():
+    q = dict(feed_polymers=["LDPE", "PP"], target_polymer="LDPE", limit=3)
+    alias = parse_tool_result(safety.screen_green_solvent_candidates(**q, metric="chem21"))["data"]
+    worst = parse_tool_result(safety.screen_green_solvent_candidates(**q, metric="chem21_worst"))["data"]
+    assert alias["success"] is True and alias["metric"] == "chem21_worst"
+    assert _sha(alias) == _sha(worst)
+    saf = parse_tool_result(safety.screen_green_solvent_candidates(**q, metric="chem21_safety"))["data"]
+    assert _sha(alias) != _sha(saf)          # counter-case: the alias is NOT the Safety sub-score
+
+
+def test_chem21_alias_does_not_touch_the_g_score_default():
+    omitted = parse_tool_result(safety.screen_green_solvent_candidates(**_GREEN_IDENT_QUERY))
+    blob = json.dumps(omitted, sort_keys=True, default=str).encode()
+    assert hashlib.sha256(blob).hexdigest() == _GREEN_IDENT_SHA256
+
+
+def test_planner_chem21_alias_resolves_to_worst_not_a_third_objective():
+    assert "max_stage_chem21" not in tea._PLANNER_SORT_OBJECTIVES
+    assert tea._PLANNER_OBJECTIVE_ALIASES["max_stage_chem21"] == "max_stage_chem21_worst"
+    routes = [
+        {"id": "A", "rank": 1, "steps": [{"chem21_safety_score": 1, "chem21_health_score": 1, "chem21_environment_score": 4}]},
+        {"id": "B", "rank": 2, "steps": [{"chem21_safety_score": 1, "chem21_health_score": 4, "chem21_environment_score": 4}]},
+    ]
+    a = tea._planner_route_metric(routes[0], "max_stage_chem21_worst")
+    b = tea._planner_route_metric(routes[1], "max_stage_chem21_worst")
+    assert (a, b) == (4.0, 14.0)
+
+
+def test_agent_surface_names_worst_of_three_as_the_default_chem21_metric():
+    from agent_tools import tool_schemas
+    schemas = {t["name"]: t for t in tool_schemas()}
+    assert len(schemas) == 24
+    for name in ("screen_green_solvent_candidates", "screen_route_solvent_substitutions"):
+        enum = schemas[name]["parameters"]["properties"]["metric"].get("enum")
+        assert enum == ["g_score", "chem21", "chem21_safety", "chem21_worst"], (name, enum)
+        assert "worst of Safety/Health/Environment" in schemas[name]["description"]
+    assert "max_stage_chem21 = CHEM21 worst" in schemas["rank_landscape"]["description"]
+
+
+def test_unknown_metric_still_refuses():
+    out = parse_tool_result(safety.screen_green_solvent_candidates(
+        feed_polymers=["LDPE", "PP"], target_polymer="LDPE", limit=3, metric="chem21_mean"))["data"]
+    assert out["success"] is False and out["error_code"] == "invalid_metric"
