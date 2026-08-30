@@ -19,7 +19,7 @@ from dissolve import safety, tea
 from dissolve.contracts import parse_tool_result
 
 _SNAPSHOT_SHA256 = (
-    "0aaa5de41367051ceca656982d3828bd40474343f2f14f404638b33bf6d5029d"
+    "9f4082e0844ab18698fd229986d215fc7403767961c53bc5ac548875daaae0f7"
 )
 _AGENT_TOOLS_SHA256 = (
     "02259d2ab680d7613731013fc6f96d3b100739d0bed7f95d114bf208e1cee293"
@@ -211,8 +211,10 @@ def test_g_score_and_chem21_are_not_aliases():
 
 
 def test_signal_word_disagreement_still_scores():
-    out = safety.score_chem21_she("1-butanol")
+    out = safety.score_chem21_she("1,4-dimethylbenzene")
     assert out["chem21_signal_word_agreement"] is False
+    out = safety.score_chem21_she("1-butanol")
+    assert out["chem21_signal_word_agreement"] is True
     assert out["chem21_safety_score"] is None or 1 <= out["chem21_safety_score"] <= 10
 
 
@@ -266,10 +268,10 @@ def test_census_production_join_not_the_v1_490():
     assert census["snapshot_digest"] == _SNAPSHOT_SHA256
     assert census["admitted"] == 786
     assert census["production_join"] == 786
-    assert census["production_flash"] == 489
-    assert census["production_flash"] != 490
+    assert census["production_flash"] == 550
+    assert census["production_flash"] != 549
     assert census["common"] == 69
-    assert census["common_flash"] == 57
+    assert census["common_flash"] == 67
     absent = tuple(
         item["interp_key"] for item in census["admission_cid_absent_from_snapshot"]
     )
@@ -362,7 +364,7 @@ _SUBSTITUTION_IDENT_QUERY = dict(
     route_steps=[{"dissolved_polymer": "LDPE", "solvent": "Toluene", "temperature_c": 80}],
 )
 _SUBSTITUTION_IDENT_SHA256 = (
-    "4cf40f0a4566c96715b728a3404d2c293a0494610e05f3b0cf9c39742286c379"
+    "a3ae9073b265c57e7c990c084e1d6686ded77b74334f54de6a9829f576909ee6"
 )
 
 
@@ -463,3 +465,67 @@ def test_planner_route_point_stamps_table6_rule():
     )
     assert point["chem21_ranking_rule"] == "table6_band_then_max"
     assert point["max_stage_chem21_worst"] == 4
+
+
+_SEVEN = [
+    "H301: synthetic statement one",   "H302: synthetic statement two",
+    "H311: synthetic statement three", "H312: synthetic statement four",
+    "H315: synthetic statement five",  "H319: synthetic statement six",
+    "H331: synthetic statement seven",
+]
+
+
+def test_v2_schema_statements_never_truncated():
+    from dissolve import thermodynamics as thermo
+    for key in thermo._solvent_admission_rows():
+        out = safety.score_chem21_she(key)
+        assert out["chem21_inputs"]["statements_truncated"] is False
+
+
+def test_truncation_schema_must_fire_two_sided():
+    v1_shaped = safety.score_chem21_she(
+        "schema-probe",
+        inputs=_inputs(flash_point_c=20.0, statements=_SEVEN),
+    )
+    assert v1_shaped["chem21_inputs"]["statements_truncated"] is True
+    v2_shaped = safety.score_chem21_she(
+        "schema-probe",
+        inputs=_inputs(
+            flash_point_c=20.0, statements=_SEVEN, ghs_basis="clp_echa",
+        ),
+    )
+    assert v2_shaped["chem21_inputs"]["statements_truncated"] is False
+
+
+def test_ghs_basis_distribution_production():
+    from collections import Counter
+    from dissolve import thermodynamics as thermo
+    counts = Counter()
+    for key in thermo._solvent_admission_rows():
+        out = safety.score_chem21_she(key)
+        counts[out["chem21_inputs"].get("ghs_basis")] += 1
+    assert counts["clp_echa"] == 749
+    assert counts["none"] == 27
+    assert counts["NITE-CMC"] == 7
+    assert counts["Hazardous Substances Data Bank (HSDB)"] == 3
+    assert sum(counts.values()) == 786
+
+
+def test_nonbasis_severe_count_production():
+    from dissolve import thermodynamics as thermo
+    n = 0
+    for key in thermo._solvent_admission_rows():
+        out = safety.score_chem21_she(key)
+        if out["chem21_inputs"].get("nonbasis_severe"):
+            n += 1
+    assert n == 392
+
+
+def test_ethanol_nonbasis_disclosure():
+    out = safety.score_chem21_she("ethanol")
+    rows = out["chem21_inputs"]["nonbasis_severe"]
+    codes = [item["code"] if isinstance(item, dict) else item for item in rows]
+    assert codes == ["H340", "H350", "H360", "H372"]
+    for item in rows:
+        sources = item["sources"] if isinstance(item, dict) else []
+        assert sources == ["NITE-CMC"]

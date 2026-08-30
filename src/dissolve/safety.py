@@ -47,10 +47,10 @@ _HEADINGS = (
 )
 _HEADING_ERROR_KEY = "_dissolve_heading_error"
 _SNAPSHOT_SHA256 = (
-    "0aaa5de41367051ceca656982d3828bd40474343f2f14f404638b33bf6d5029d"
+    "9f4082e0844ab18698fd229986d215fc7403767961c53bc5ac548875daaae0f7"
 )
 _SNAPSHOT_DEFAULT = Path.home() / (
-    "dissolve-v12-audit/safety/pubchem_safety_snapshot.duckdb"
+    "dissolve-v12-audit/safety/pubchem_safety_snapshot.v2.duckdb"
 )
 _BROKEN_BIODEGRADATION_HEADING = "Biodegradation"
 
@@ -493,6 +493,8 @@ def _snapshot_pubchem(cid: int) -> dict[str, Any]:
         "failed_headings": failed,
         "heading_errors": heading_errors,
         "_origin": origin,
+        "ghs_basis": record.get("ghs_basis"),
+        "ghs_nonbasis_severe": _json_field(record.get("ghs_nonbasis_severe")) or [],
     }
 
 
@@ -743,6 +745,8 @@ def _chem21_load_inputs(solvent: str) -> dict[str, Any]:
         "resistivity_ohm_m": None,
         "decomposition_energy_j_g": None,
         "unavailable_reason": unavailable,
+        "ghs_basis": pubchem.get("ghs_basis"),
+        "ghs_nonbasis_severe": list(pubchem.get("ghs_nonbasis_severe") or []),
     }
 
 
@@ -759,8 +763,10 @@ def _chem21_score_from_inputs(solvent: str, inputs: Mapping[str, Any]) -> dict[s
         admission_n_int = int(admission_n) if admission_n is not None else None
     except (TypeError, ValueError):
         admission_n_int = None
-    truncated = len(statements) >= 6 or (
-        admission_n_int is not None and admission_n_int > len(statements)
+    v2_schema = inputs.get("ghs_basis") is not None
+    truncated = (not v2_schema) and (
+        len(statements) >= 6
+        or (admission_n_int is not None and admission_n_int > len(statements))
     )
     water = _chem21_is_water(solvent, cas)
     euh019 = "EUH019" in codes
@@ -856,6 +862,8 @@ def _chem21_score_from_inputs(solvent: str, inputs: Mapping[str, Any]) -> dict[s
             "reach_registration": "unknown",
             "resistivity_ohm_m": resistivity,
             "decomposition_energy_j_g": None,
+            "ghs_basis": inputs.get("ghs_basis"),
+            "nonbasis_severe": list(inputs.get("ghs_nonbasis_severe") or []),
         },
         "chem21_adjustments": {
             "ait_adjustment_applied": bool(flash is not None and ait_applied),
