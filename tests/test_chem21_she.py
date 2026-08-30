@@ -355,3 +355,111 @@ def test_pins_untouched_and_schema_count_stays_24():
     names = {item["name"] for item in tool_schemas()}
     assert "score_chem21_she" not in names
     assert "estimate_thermal_properties" not in names
+
+
+_SUBSTITUTION_IDENT_QUERY = dict(
+    feed_polymers=["LDPE", "PP"],
+    route_steps=[{"dissolved_polymer": "LDPE", "solvent": "Toluene", "temperature_c": 80}],
+)
+_SUBSTITUTION_IDENT_SHA256 = (
+    "4cf40f0a4566c96715b728a3404d2c293a0494610e05f3b0cf9c39742286c379"
+)
+
+
+def test_packed_table6_114_vs_144_must_fire():
+    recommended = {
+        "chem21_safety_score": 1,
+        "chem21_health_score": 1,
+        "chem21_environment_score": 4,
+    }
+    problematic = {
+        "chem21_safety_score": 1,
+        "chem21_health_score": 4,
+        "chem21_environment_score": 4,
+    }
+    assert safety._chem21_ranking(1, 1, 4)[0] == "recommended"
+    assert safety._chem21_ranking(1, 4, 4)[0] == "problematic"
+    assert safety._chem21_ranking(7, 1, 1)[0] == "problematic"
+    assert safety._chem21_ranking(6, 6, 1)[0] == "problematic"
+    assert safety._chem21_worst(recommended) == 4
+    assert safety._chem21_worst(problematic) == 14
+
+
+def _chem21_worst_sort_ids(routes):
+    def sort_key(route):
+        value = tea._planner_route_metric(route, "max_stage_chem21_worst")
+        missing = value is None
+        original = int(route.get("rank") or 0)
+        return (missing, value if value is not None else math.inf, original)
+    return [route["id"] for route in sorted(routes, key=sort_key)]
+
+
+def test_packed_swapped_original_rank_must_fire():
+    def make(rank_a: int, rank_b: int):
+        return [
+            {
+                "id": "A", "rank": rank_a,
+                "steps": [{
+                    "chem21_safety_score": 1,
+                    "chem21_health_score": 1,
+                    "chem21_environment_score": 4,
+                }],
+            },
+            {
+                "id": "B", "rank": rank_b,
+                "steps": [{
+                    "chem21_safety_score": 1,
+                    "chem21_health_score": 4,
+                    "chem21_environment_score": 4,
+                }],
+            },
+        ]
+    assert _chem21_worst_sort_ids(make(1, 2)) == ["A", "B"]
+    assert _chem21_worst_sort_ids(make(2, 1)) == ["A", "B"]
+
+
+def test_table6_disagrees_with_max_on_127_of_1000():
+    n = 0
+    for s in range(1, 11):
+        for h in range(1, 11):
+            for e in range(1, 11):
+                word, _ = safety._chem21_ranking(s, h, e)
+                by_max, _ = safety._chem21_ranking(max(s, h, e), 1, 1)
+                if word != by_max:
+                    n += 1
+    assert n == 127
+
+
+def test_substitution_default_and_g_score_are_ident():
+    omitted = parse_tool_result(safety.screen_route_solvent_substitutions(
+        **_SUBSTITUTION_IDENT_QUERY,
+    ))
+    explicit = parse_tool_result(safety.screen_route_solvent_substitutions(
+        **_SUBSTITUTION_IDENT_QUERY, metric="g_score",
+    ))
+    omitted_blob = json.dumps(omitted, sort_keys=True, default=str).encode()
+    explicit_blob = json.dumps(explicit, sort_keys=True, default=str).encode()
+    assert hashlib.sha256(omitted_blob).hexdigest() == _SUBSTITUTION_IDENT_SHA256
+    assert hashlib.sha256(explicit_blob).hexdigest() == _SUBSTITUTION_IDENT_SHA256
+    assert "metric" not in omitted["data"]
+
+
+def test_planner_route_point_stamps_table6_rule():
+    route = {
+        "sequence": ["PS"],
+        "solvent_mapping": {},
+        "complete": True,
+        "bottleneck_selectivity_pct": 1.0,
+        "peak_temperature_c": 80.0,
+        "steps": [{
+            "chem21_safety_score": 1,
+            "chem21_health_score": 1,
+            "chem21_environment_score": 4,
+        }],
+    }
+    point = tea._planner_route_point(
+        route, handle="h", original_rank=1, new_rank=1,
+        objective="max_stage_chem21_worst", x_metric=None, y_metric=None,
+    )
+    assert point["chem21_ranking_rule"] == "table6_band_then_max"
+    assert point["max_stage_chem21_worst"] == 4

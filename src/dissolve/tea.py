@@ -9361,6 +9361,8 @@ def _planner_route_point(
     if y_metric is not None:
         point["y_metric"] = y_metric
         point[y_metric] = _planner_route_metric(route, y_metric)
+    if "max_stage_chem21_worst" in {objective, x_metric, y_metric}:
+        point["chem21_ranking_rule"] = "table6_band_then_max"
     return point
 
 
