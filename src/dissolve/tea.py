@@ -9175,7 +9175,10 @@ _SPECIFIC_VOLUME_AXIS = {
     "evidence_pairwise_concordance": 0.970,
     "evidence_tier1_only_spearman": 0.990,
     "second_plant": "NOT MEASURED",
-    "table_coverage": "630 of 786 admitted solvents; 154 solids at 25 C and 2 out-of-band values refused",
+    # table_coverage is DERIVED from the loaded table at stamp time (never
+    # hardcoded): a codex crossed read caught the previous literal misclassifying
+    # the two non-solid refusals. A stamp that can drift from its table is not
+    # evidence.
     "weak_cohort": "predicted-tier (MMSNM0) densities carry ~3% error; 17.2% of solvent pairs are within that margin",
 }
 
@@ -9219,7 +9222,21 @@ def _density_table() -> dict[str, Any]:
         by_key[str(rec["interp_key"])] = rec
         if rec.get("cas_number"):
             by_cas[str(rec["cas_number"]).strip()] = rec
-    return {"by_key": by_key, "by_cas": by_cas, "digest": digest}
+    verdict_counts: dict[str, int] = {}
+    verdict_idx = cols.index("verdict")
+    effective_idx = cols.index("rho_effective_kg_m3")
+    n_effective = 0
+    for row in rows:
+        verdict_counts[str(row[verdict_idx])] = verdict_counts.get(str(row[verdict_idx]), 0) + 1
+        if row[effective_idx] is not None:
+            n_effective += 1
+    coverage = (
+        f"{n_effective} of {len(rows)} admitted solvents; refused: "
+        + ", ".join(f"{count} {name}" for name, count in sorted(verdict_counts.items())
+                    if name not in ("validated", "predicted"))
+    )
+    return {"by_key": by_key, "by_cas": by_cas, "digest": digest,
+            "coverage": coverage, "verdict_counts": verdict_counts}
 
 
 def _density_row(solvent: Any) -> tuple[dict[str, Any] | None, str]:
@@ -9726,8 +9743,10 @@ def _rank_planner_routes(
                     tool_error(tool, error.message, error_code=error.error_code, **error.data),
                     order,
                 )
+            _axis = dict(_SPECIFIC_VOLUME_AXIS)
+            _axis["table_coverage"] = _density_table()["coverage"]
             density_extra = {
-                "specific_volume_axis": dict(_SPECIFIC_VOLUME_AXIS),
+                "specific_volume_axis": _axis,
                 "specific_volume_excluded_routes": _planner_specific_volume_exclusions(routes),
             }
 

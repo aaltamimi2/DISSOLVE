@@ -90,6 +90,17 @@ def test_live_sort_stamps_proxy_disclosure_and_still_refuses_economics():
         assert axis["is_cost_metric"] is False
         assert axis["second_plant"] == "NOT MEASURED"
         assert axis["evidence_n"] == 51 and axis["evidence_spearman_msp"] == pytest.approx(0.9925)
+        # the coverage stamp is DERIVED: it must match a recount from the table
+        import duckdb as _duckdb
+        _con = _duckdb.connect(str(tea._DENSITY_TABLE_DEFAULT), read_only=True)
+        _counts = dict(_con.execute(
+            "select verdict, count(*) from density_validated group by 1").fetchall())
+        _con.close()
+        assert axis["table_coverage"].startswith("630 of 786")
+        for name, count in _counts.items():
+            if name not in ("validated", "predicted"):
+                assert f"{count} {name}" in axis["table_coverage"], (name, axis["table_coverage"])
+        assert "out-of-band" not in axis["table_coverage"]      # the falsified literal is gone
         assert "specific_volume_excluded_routes" in out
         pts = out["landscape_points"]
         vals = [p[KEY] for p in pts]
