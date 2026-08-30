@@ -9144,11 +9144,135 @@ _PLANNER_SORT_OBJECTIVES = {
     "peak_temperature_c": "min",
     "max_stage_chem21_safety": "min",
     "max_stage_chem21_worst": "min",
+    "max_stage_specific_volume_l_per_kg": "min",
 }
 # "max_stage_chem21" is the default CHEM21 rerank: worst of S/H/E per stage,
 # packed Table 6 band-then-max. Resolved to the canonical key before validation,
 # so the direction map itself is unchanged and the alias is not a third objective.
-_PLANNER_OBJECTIVE_ALIASES = {"max_stage_chem21": "max_stage_chem21_worst"}
+_PLANNER_OBJECTIVE_ALIASES = {
+    "max_stage_chem21": "max_stage_chem21_worst",
+    "max_stage_specific_volume": "max_stage_specific_volume_l_per_kg",
+}
+
+# --- specific volume: a TEA *proxy*, never a cost. ----------------------------
+# Evidence (TEA_RERANK_SPEC v1 §12.8 campaign, re-derived on the validated
+# table): on one plant (LDPE / 120 C / C2, 56 priced solvents, 51 with an
+# effective density) spearman(1/rho, MSP) = +0.9925, pairwise concordance 97.0%,
+# tier-1-only rho +0.990 (n=41). Mechanism: at fixed mass throughput volumetric
+# flow scales as 1/rho -> vessel size -> TCI -> MSP (spearman(1/rho, TCI) = +0.9937).
+# NOT established on a second plant yet; the payload says so.
+_DENSITY_TABLE_DEFAULT = Path.home() / "dissolve-v12-audit/density/density_validated.duckdb"
+_DENSITY_TABLE_CONTENT_DIGEST = (
+    "cc0374d44c6c7a595b83e7636c69416d8420523aa90b745a173a140d6f2b026d"
+)
+_SPECIFIC_VOLUME_AXIS = {
+    "basis": "density_validated content_digest " + _DENSITY_TABLE_CONTENT_DIGEST[:16],
+    "is_cost_metric": False,
+    "quantity": "1000 / rho_liquid(298.15 K) in L/kg; route value = max over stages",
+    "evidence_plant": "LDPE / 120 C / C2 / 20 kt-yr / 3 wt% (TEA_RERANK_SPEC.v1 s12.8)",
+    "evidence_spearman_msp": 0.9925,
+    "evidence_n": 51,
+    "evidence_pairwise_concordance": 0.970,
+    "evidence_tier1_only_spearman": 0.990,
+    "second_plant": "NOT MEASURED",
+    "table_coverage": "630 of 786 admitted solvents; 154 solids at 25 C and 2 out-of-band values refused",
+    "weak_cohort": "predicted-tier (MMSNM0) densities carry ~3% error; 17.2% of solvent pairs are within that margin",
+}
+
+
+class DensityTableRefuse(Exception):
+    def __init__(self, error_code: str, message: str, **data: Any) -> None:
+        super().__init__(message)
+        self.error_code, self.message, self.data = error_code, message, data
+
+
+@lru_cache(maxsize=1)
+def _density_table() -> dict[str, Any]:
+    """Load the validated density table, refusing unless its content digest
+    re-derives to the pinned constant (a stored digest is not evidence)."""
+    import hashlib as _hashlib
+    import json as _json
+    import os as _os
+    import duckdb as _duckdb
+    path = Path(_os.environ.get("DISSOLVE_DENSITY_TABLE") or _DENSITY_TABLE_DEFAULT)
+    if not path.is_file():
+        raise DensityTableRefuse("density_table_missing", f"validated density table missing at {path}", path=str(path))
+    con = _duckdb.connect(str(path), read_only=True)
+    try:
+        cols = [c[0] for c in con.execute("DESCRIBE density_validated").fetchall()]
+        rows = con.execute("SELECT * FROM density_validated ORDER BY interp_key").fetchall()
+        meta = con.execute(
+            "SELECT key, value FROM density_metadata WHERE key <> 'content_digest' ORDER BY key"
+        ).fetchall()
+    finally:
+        con.close()
+    digest = _hashlib.sha256(_json.dumps([rows, meta], default=str, sort_keys=True).encode()).hexdigest()
+    if digest != _DENSITY_TABLE_CONTENT_DIGEST:
+        raise DensityTableRefuse(
+            "density_table_digest_mismatch", "validated density table content digest mismatch",
+            path=str(path), digest=digest, expected=_DENSITY_TABLE_CONTENT_DIGEST,
+        )
+    by_key: dict[str, dict[str, Any]] = {}
+    by_cas: dict[str, dict[str, Any]] = {}
+    for row in rows:
+        rec = dict(zip(cols, row))
+        by_key[str(rec["interp_key"])] = rec
+        if rec.get("cas_number"):
+            by_cas[str(rec["cas_number"]).strip()] = rec
+    return {"by_key": by_key, "by_cas": by_cas, "digest": digest}
+
+
+def _density_row(solvent: Any) -> tuple[dict[str, Any] | None, str]:
+    """(row, reason). reason is '' when a row with an effective density exists."""
+    from .safety import _key, _local_properties
+    table = _density_table()
+    name = str(solvent or "").strip()
+    if not name:
+        return None, "solvent_unresolved"
+    try:
+        props = _local_properties(name) or {}
+    except Exception:
+        props = {}
+    cas = str(props.get("cas_number") or "").strip()
+    row = table["by_cas"].get(cas) if cas else None
+    if row is None:
+        row = table["by_key"].get(_key(name)) or table["by_key"].get(name.casefold())
+    if row is None:
+        return None, "density_not_in_validated_table"
+    if row.get("rho_effective_kg_m3") is None:
+        return row, f"density_unresolved:{row.get('verdict')}"
+    return row, ""
+
+
+def _planner_max_stage_specific_volume(steps: Any) -> float | None:
+    values: list[float] = []
+    for item in steps or []:
+        if not isinstance(item, dict):
+            continue
+        raw = item.get("specific_volume_l_per_kg")
+        if raw is None and item.get("solvent"):
+            row, reason = _density_row(item.get("solvent"))
+            raw = None if reason else row["specific_volume_l_per_kg"]
+        try:
+            value = float(raw)
+        except (TypeError, ValueError):
+            continue
+        if math.isfinite(value) and value > 0:
+            values.append(value)
+    return max(values) if values else None
+
+
+def _planner_specific_volume_exclusions(routes: Sequence[dict[str, Any]]) -> list[dict[str, Any]]:
+    out: list[dict[str, Any]] = []
+    for route in routes:
+        for item in route.get("steps") or []:
+            if not isinstance(item, dict) or item.get("specific_volume_l_per_kg") is not None:
+                continue
+            _row, reason = _density_row(item.get("solvent"))
+            if reason:
+                out.append({"route_rank": route.get("rank"), "solvent": item.get("solvent"), "reason": reason})
+    return out
+
 _PLANNER_PARETO_X = "bottleneck_selectivity_pct"
 _PLANNER_PARETO_Y = "min_stage_g_score"
 _PLANNER_PARETO_DIRECTIONS = {
@@ -9234,6 +9358,7 @@ def _planner_route_metric(route: dict[str, Any], name: str) -> float | None:
         "min_stage_g_score": _planner_min_stage_g_score,
         "max_stage_chem21_safety": _planner_max_stage_chem21_safety,
         "max_stage_chem21_worst": _planner_max_stage_chem21_worst,
+        "max_stage_specific_volume_l_per_kg": _planner_max_stage_specific_volume,
     }
     if name in aggregators:
         value = route.get(name)
@@ -9371,6 +9496,17 @@ def _planner_route_point(
         point[y_metric] = _planner_route_metric(route, y_metric)
     if "max_stage_chem21_worst" in {objective, x_metric, y_metric}:
         point["chem21_ranking_rule"] = "table6_band_then_max"
+    if objective == "max_stage_specific_volume_l_per_kg":
+        point["specific_volume_rule"] = "max_stage_1000_over_rho_25C"
+        point["specific_volume_is_cost_metric"] = False
+        # Stages without an effective density are skipped (the CHEM21 aggregators
+        # share this convention); a route ranked on fewer stages than it has is
+        # optimistic, and says so here rather than silently.
+        point["specific_volume_unresolved_stages"] = sum(
+            1 for item in (route.get("steps") or [])
+            if isinstance(item, dict) and item.get("specific_volume_l_per_kg") is None
+            and _density_row(item.get("solvent"))[1]
+        )
     return point
 
 
@@ -9581,6 +9717,19 @@ def _rank_planner_routes(
                 order,
             )
         direction = _PLANNER_SORT_OBJECTIVES[objective_token]
+        density_extra: dict[str, Any] = {}
+        if objective_token == "max_stage_specific_volume_l_per_kg":
+            try:
+                _density_table()
+            except DensityTableRefuse as error:
+                return _stamp_screen_to_economics_order(
+                    tool_error(tool, error.message, error_code=error.error_code, **error.data),
+                    order,
+                )
+            density_extra = {
+                "specific_volume_axis": dict(_SPECIFIC_VOLUME_AXIS),
+                "specific_volume_excluded_routes": _planner_specific_volume_exclusions(routes),
+            }
 
         def sort_key(route: dict[str, Any]) -> tuple[Any, ...]:
             value = _planner_route_metric(route, objective_token)
@@ -9614,6 +9763,7 @@ def _rank_planner_routes(
                 landscape_points=points,
                 n_landscape_points=len(points),
                 n_returned=len(points),
+                **density_extra,
             ),
             order,
         )
