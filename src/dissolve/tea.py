@@ -9192,6 +9192,7 @@ def _planner_max_stage_chem21_safety(steps: Any) -> float | None:
 
 
 def _planner_max_stage_chem21_worst(steps: Any) -> float | None:
+    from .safety import _chem21_worst, score_chem21_she
     scores = []
     for item in steps or []:
         if not isinstance(item, dict):
@@ -9204,12 +9205,15 @@ def _planner_max_stage_chem21_worst(steps: Any) -> float | None:
             if safety_score is None:
                 solvent = item.get("solvent")
                 if solvent:
-                    from .safety import _chem21_worst, score_chem21_she
                     payload = score_chem21_she(str(solvent))
                     raw = _chem21_worst(payload)
             elif health is not None and environment is not None:
                 try:
-                    raw = max(float(safety_score), float(health), float(environment))
+                    raw = _chem21_worst({
+                        "chem21_safety_score": safety_score,
+                        "chem21_health_score": health,
+                        "chem21_environment_score": environment,
+                    })
                 except (TypeError, ValueError):
                     raw = None
         try:
@@ -9361,6 +9365,8 @@ def _planner_route_point(
     if y_metric is not None:
         point["y_metric"] = y_metric
         point[y_metric] = _planner_route_metric(route, y_metric)
+    if "max_stage_chem21_worst" in {objective, x_metric, y_metric}:
+        point["chem21_ranking_rule"] = "table6_band_then_max"
     return point
 
 
