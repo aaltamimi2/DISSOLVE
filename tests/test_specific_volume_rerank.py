@@ -88,7 +88,8 @@ def test_live_sort_stamps_proxy_disclosure_and_still_refuses_economics():
         assert out["success"] is True and out["objective"] == KEY and out["objective_direction"] == "min"
         axis = out["specific_volume_axis"]
         assert axis["is_cost_metric"] is False
-        assert axis["second_plant"] == "NOT MEASURED"
+        assert "NOT MEASURED" not in axis["second_plant"]
+        assert "86.5%" in axis["second_plant"] and "BELOW the pre-registered 90% bar" in axis["second_plant"]
         assert axis["evidence_n"] == 51 and axis["evidence_spearman_msp"] == pytest.approx(0.9925)
         # the coverage stamp is DERIVED: it must match a recount from the table
         import duckdb as _duckdb

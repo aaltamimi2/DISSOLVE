@@ -9174,7 +9174,12 @@ _SPECIFIC_VOLUME_AXIS = {
     "evidence_n": 51,
     "evidence_pairwise_concordance": 0.970,
     "evidence_tier1_only_spearman": 0.990,
-    "second_plant": "NOT MEASURED",
+    "second_plant": (
+        "PS/80C/C1 runA measured 2026-08-30: rho(sv,MSP)=+0.881, rho(sv,TCI)=+0.930, "
+        "concordance 86.5% on the n=29 BP>85C cohort (T-clip impossible) — BELOW the "
+        "pre-registered 90% bar; 91.3% on all 49 incl. T-unverified low-boilers. "
+        "Mechanism replicates; generalisation partial; screening-grade only."
+    ),
     # table_coverage is DERIVED from the loaded table at stamp time (never
     # hardcoded): a codex crossed read caught the previous literal misclassifying
     # the two non-solid refusals. A stamp that can drift from its table is not
