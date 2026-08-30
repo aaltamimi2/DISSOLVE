@@ -176,6 +176,19 @@ def retrieval_at_ks(
     return retrievable, precision
 
 
+def mrr_at_k(
+    ranked: Sequence[Mapping[str, Any]],
+    needles: Mapping[str, Any],
+    k: int = 20,
+) -> float:
+    """Reciprocal rank of the first binding chunk in top-k. 0 if none."""
+    limit = int(k)
+    for rank, chunk in enumerate(ranked[:limit], 1):
+        if contain_bound_fact(_body(chunk), needles):
+            return 1.0 / rank
+    return 0.0
+
+
 def retrievable_at_5(
     query: str,
     chunks: Sequence[Mapping[str, Any]],
