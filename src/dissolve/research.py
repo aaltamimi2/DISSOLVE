@@ -4523,6 +4523,16 @@ def _chunk_paper_sha256(index: Mapping[str, Any], chunk: Mapping[str, Any]) -> s
     return None
 
 
+def _dense_recorded_dim(dense: Mapping[str, Any], ordered: Sequence[Sequence[float]]) -> int:
+    """Dim from the loaded dense block, not the MiniLM constant. 384 gzip still records 384."""
+    recorded = dense.get("dim")
+    if recorded is not None:
+        return int(recorded)
+    if not ordered:
+        raise ValueError("dense_index_unavailable")
+    return len(ordered[0])
+
+
 def _dense_query_scores(index: Mapping[str, Any], chunks: Sequence[Mapping[str, Any]], query: str) -> list[float]:
     """Query-embed only. Require chunk_id set identity; no positional fallback."""
     dense = index.get("dense") or {}
@@ -4541,14 +4551,16 @@ def _dense_query_scores(index: Mapping[str, Any], chunks: Sequence[Mapping[str, 
     by_id = {chunk_id: vector for chunk_id, vector in zip(recorded_ids, vectors)}
     ordered = [by_id[chunk_id] for chunk_id in store_ids]
     expected_model = dense.get("model")
-    loaded_model, query_vectors = _dense_vectors([query], expected_model)
+    query_text = str(dense.get("query_instruction") or "") + query
+    loaded_model, query_vectors = _dense_vectors([query_text], expected_model)
     if expected_model and loaded_model != expected_model:
         raise ValueError("dense_index_unavailable")
     query_vector = query_vectors[0]
-    if len(query_vector) != _MINILM_DIM or any(len(vector) != _MINILM_DIM for vector in ordered):
+    expected_dim = _dense_recorded_dim(dense, ordered)
+    if len(query_vector) != expected_dim or any(len(vector) != expected_dim for vector in ordered):
         raise ValueError("dense_index_unavailable")
     recorded_dim = dense.get("dim")
-    if recorded_dim is not None and int(recorded_dim) != _MINILM_DIM:
+    if recorded_dim is not None and int(recorded_dim) != expected_dim:
         raise ValueError("dense_index_unavailable")
     return [max(0.0, _cosine(query_vector, vector)) for vector in ordered]
 
