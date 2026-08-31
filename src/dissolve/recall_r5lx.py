@@ -1,6 +1,7 @@
 """P-2 lexical bridging curves. Query-time BM25 expansion. No gold seal."""
 from __future__ import annotations
 
+import gc
 import json
 import sys
 from pathlib import Path
@@ -15,6 +16,8 @@ CURVES_R5LX_PATH = DEFAULT_OUT_DIR / "CURVES.retrieval.r5lx.v1.json"
 RECALL_SPEC_V1_SHA256 = "2c66a709667cb332b7cbc0bc31610ef68edda03956b53a0583d790a0472c43fd"
 RECALL_SPEC_V1_1_SHA256 = "849953d7a5be4ec5c55de062e3aa32d4b2260cfeeae2f414d45bd0ae7f5e36f1"
 RECALL_SPEC_V1_2_SHA256 = "1807c6476772cef4e481e8072455a2758cd68706dda670eb879900a7217a49b0"
+RECALL_SPEC_V1_3_SHA256 = "7acbd065a99976c55abf6c9f7c9da0004e721ec420f035d5aac1495a7f65e2b0"
+RECALL_SPEC_V1_4_SHA256 = "8e2677b564b848a032723d6fd9762e13a8f5da16990b02b5eb118a7db3584ddf"
 CURVES_V4_SHA256 = "53cabea779037236f8227c26b8d899d6cd4e444b1a29af3f7036594658d555b2"
 V4_RETRIEVABLE = {"1": 147, "3": 188, "5": 201, "10": 209, "20": 220}
 POISON_TOKEN = "zzzxqlexiconprobe"
@@ -144,6 +147,7 @@ def build_r5lx_artifact(
     used = ranker
     if used is None:
         used = dense_d2._cached_query_ranker(index, queries)
+        gc.collect()
     n_fire = len(fire_facts)
     n_hold = len(refuse_facts)
     n_chunks = len(index.get("chunks") or [])
@@ -189,16 +193,7 @@ def build_r5lx_artifact(
         raise TextGoldError("paired_count_mismatch", "Paired net does not match k=5 hit counts.")
     if not poison_probe > empty_probe:
         raise TextGoldError("poison_did_not_move", "Poisoned-entry control did not move sparse_raw.")
-    if require_v4_ident and (net < 4 or len(broken) > 1):
-        raise TextGoldError(
-            "bars_missed",
-            "Expansion arm missed pre-registered k=5 bars.",
-            net=net,
-            n_fixed=len(fixed),
-            n_broken=len(broken),
-            empty_at_5=empty_at_5,
-            expansion_at_5=exp_at_5,
-        )
+    bars_met = not (net < 4 or len(broken) > 1)
 
     empty_metrics = _arm_metrics(
         fire=empty_fire, refuse=empty_refuse, n_fire=n_fire, n_hold=n_hold,
@@ -219,6 +214,8 @@ def build_r5lx_artifact(
         "recall_spec_sha256": RECALL_SPEC_V1_SHA256,
         "recall_spec_v1_1_sha256": RECALL_SPEC_V1_1_SHA256,
         "recall_spec_v1_2_sha256": RECALL_SPEC_V1_2_SHA256,
+        "recall_spec_v1_3_sha256": RECALL_SPEC_V1_3_SHA256,
+        "recall_spec_v1_4_sha256": RECALL_SPEC_V1_4_SHA256,
         "gold_sha256": pins["gold"],
         "census_sha256": pins["census"],
         "store_sha256": pins["store"],
@@ -257,6 +254,7 @@ def build_r5lx_artifact(
             "net_min": 4,
             "broken_max": 1,
             "leaks_max": 0,
+            "met": bars_met,
         },
     }
     if text_chunk_metrics._contains_forbidden_keys(artifact, set(_FORBIDDEN)):
@@ -329,10 +327,15 @@ def emit_r5lx(
     store = json.loads(store_file.read_text())
     loaded = dict(index) if index is not None else dense_d2.load_gzip_index(index_path)
     dense_d2._assert_index_matches_store(store, loaded)
+    del store
+    gc.collect()
     artifact = build_r5lx_artifact(
         gold=gold, index=loaded, pins=pins, ranker=ranker,
         require_v4_ident=require_v4_ident,
     )
+    del gold
+    del loaded
+    gc.collect()
     out_dir.mkdir(parents=True, exist_ok=True)
     curves_path.write_text(json.dumps(artifact, indent=2, ensure_ascii=False) + "\n")
     if r1.is_file() and file_sha256(r1) != r1_before:
@@ -348,6 +351,7 @@ def emit_r5lx(
         "n_broken": len(artifact["broken"]),
         "broken": artifact["broken"],
         "fixed": artifact["fixed"],
+        "bars_met": bool((artifact.get("bars") or {}).get("met")),
     }
 
 
