@@ -1,0 +1,262 @@
+{
+  "schema": "dissolve.lexicon.v1",
+  "notes": "Query-time BM25 expansions only. Tokens are already-folded single tokens. Provenance kinds are closed. No gold, error-analysis, miss-id, query, or needle sources.",
+  "entries": [
+    {
+      "token": "ldpe",
+      "expansions": ["low density polyethylene", "low-density polyethylene"],
+      "provenance": {
+        "kind": "engine_data_table",
+        "source": "src/dissolve/data/COMMON-SOLVENTS-DATABASE.csv"
+      }
+    },
+    {
+      "token": "hdpe",
+      "expansions": ["high density polyethylene", "high-density polyethylene"],
+      "provenance": {
+        "kind": "engine_data_table",
+        "source": "src/dissolve/data/COMMON-SOLVENTS-DATABASE.csv"
+      }
+    },
+    {
+      "token": "lldpe",
+      "expansions": ["linear low density polyethylene", "linear low-density polyethylene"],
+      "provenance": {
+        "kind": "iupac_nomenclature",
+        "source": "IUPAC polymer abbreviation for linear low-density polyethylene"
+      }
+    },
+    {
+      "token": "pet",
+      "expansions": ["polyethylene terephthalate"],
+      "provenance": {
+        "kind": "engine_data_table",
+        "source": "src/dissolve/data/COMMON-SOLVENTS-DATABASE.csv"
+      }
+    },
+    {
+      "token": "pp",
+      "expansions": ["polypropylene"],
+      "provenance": {
+        "kind": "engine_data_table",
+        "source": "src/dissolve/data/COMMON-SOLVENTS-DATABASE.csv"
+      }
+    },
+    {
+      "token": "ps",
+      "expansions": ["polystyrene"],
+      "provenance": {
+        "kind": "engine_data_table",
+        "source": "src/dissolve/data/COMMON-SOLVENTS-DATABASE.csv"
+      }
+    },
+    {
+      "token": "pvc",
+      "expansions": ["polyvinyl chloride", "poly vinyl chloride"],
+      "provenance": {
+        "kind": "engine_data_table",
+        "source": "src/dissolve/data/COMMON-SOLVENTS-DATABASE.csv"
+      }
+    },
+    {
+      "token": "evoh",
+      "expansions": ["ethylene vinyl alcohol", "ethylene-vinyl alcohol"],
+      "provenance": {
+        "kind": "engine_data_table",
+        "source": "src/dissolve/data/COMMON-SOLVENTS-DATABASE.csv"
+      }
+    },
+    {
+      "token": "pc",
+      "expansions": ["polycarbonate"],
+      "provenance": {
+        "kind": "engine_data_table",
+        "source": "src/dissolve/data/COMMON-SOLVENTS-DATABASE.csv"
+      }
+    },
+    {
+      "token": "pes",
+      "expansions": ["polyethersulfone", "polyether sulfone"],
+      "provenance": {
+        "kind": "engine_data_table",
+        "source": "src/dissolve/data/COMMON-SOLVENTS-DATABASE.csv"
+      }
+    },
+    {
+      "token": "nylon6",
+      "expansions": ["nylon 6", "polyamide 6", "polycaprolactam"],
+      "provenance": {
+        "kind": "engine_data_table",
+        "source": "src/dissolve/data/COMMON-SOLVENTS-DATABASE.csv"
+      }
+    },
+    {
+      "token": "nylon66",
+      "expansions": ["nylon 66", "nylon 6,6", "polyamide 66", "polyamide 6,6"],
+      "provenance": {
+        "kind": "engine_data_table",
+        "source": "src/dissolve/data/COMMON-SOLVENTS-DATABASE.csv"
+      }
+    },
+    {
+      "token": "pmma",
+      "expansions": ["polymethyl methacrylate", "poly methyl methacrylate", "poly(methyl methacrylate)"],
+      "provenance": {
+        "kind": "iupac_nomenclature",
+        "source": "IUPAC polymer abbreviation for poly(methyl methacrylate)"
+      }
+    },
+    {
+      "token": "pva",
+      "expansions": ["polyvinyl alcohol", "poly vinyl alcohol"],
+      "provenance": {
+        "kind": "iupac_nomenclature",
+        "source": "IUPAC polymer abbreviation for poly(vinyl alcohol)"
+      }
+    },
+    {
+      "token": "pla",
+      "expansions": ["polylactic acid", "poly lactic acid", "polylactide"],
+      "provenance": {
+        "kind": "iupac_nomenclature",
+        "source": "IUPAC polymer abbreviation for poly(lactic acid)"
+      }
+    },
+    {
+      "token": "ptfe",
+      "expansions": ["polytetrafluoroethylene"],
+      "provenance": {
+        "kind": "iupac_nomenclature",
+        "source": "IUPAC polymer abbreviation for polytetrafluoroethylene"
+      }
+    },
+    {
+      "token": "pvdf",
+      "expansions": ["polyvinylidene fluoride", "polyvinylidene difluoride"],
+      "provenance": {
+        "kind": "iupac_nomenclature",
+        "source": "IUPAC polymer abbreviation for poly(vinylidene fluoride)"
+      }
+    },
+    {
+      "token": "eva",
+      "expansions": ["ethylene vinyl acetate", "ethylene-vinyl acetate"],
+      "provenance": {
+        "kind": "iupac_nomenclature",
+        "source": "IUPAC polymer abbreviation for ethylene-vinyl acetate"
+      }
+    },
+    {
+      "token": "thf",
+      "expansions": ["tetrahydrofuran"],
+      "provenance": {
+        "kind": "engine_data_table",
+        "source": "src/dissolve/data/Solvent_Data.csv"
+      }
+    },
+    {
+      "token": "dmf",
+      "expansions": ["dimethylformamide", "dimethyl formamide", "n,n-dimethylformamide"],
+      "provenance": {
+        "kind": "engine_data_table",
+        "source": "src/dissolve/data/Solvent_Data.csv"
+      }
+    },
+    {
+      "token": "dmso",
+      "expansions": ["dimethyl sulfoxide", "dimethylsulfoxide"],
+      "provenance": {
+        "kind": "engine_data_table",
+        "source": "src/dissolve/data/Solvent_Data.csv"
+      }
+    },
+    {
+      "token": "nmp",
+      "expansions": ["n-methyl-2-pyrrolidone", "n-methyl-2-pyrrolidinone", "n-methylpyrrolidone", "n methyl 2 pyrrolidone"],
+      "provenance": {
+        "kind": "engine_data_table",
+        "source": "src/dissolve/data/Solvent_Data.csv"
+      }
+    },
+    {
+      "token": "gbl",
+      "expansions": ["gamma butyrolactone", "gamma-butyrolactone", "butyrolactone"],
+      "provenance": {
+        "kind": "engine_data_table",
+        "source": "src/dissolve/data/Solvent_Data.csv"
+      }
+    },
+    {
+      "token": "mek",
+      "expansions": ["methyl ethyl ketone", "butanone"],
+      "provenance": {
+        "kind": "engine_data_table",
+        "source": "src/dissolve/data/Solvent_Data.csv"
+      }
+    },
+    {
+      "token": "mibk",
+      "expansions": ["methyl isobutyl ketone", "4-methyl-2-pentanone"],
+      "provenance": {
+        "kind": "engine_data_table",
+        "source": "src/dissolve/data/Solvent_Data.csv"
+      }
+    },
+    {
+      "token": "cpme",
+      "expansions": ["cyclopentyl methyl ether"],
+      "provenance": {
+        "kind": "engine_data_table",
+        "source": "src/dissolve/data/Solvent_Data.csv"
+      }
+    },
+    {
+      "token": "dcm",
+      "expansions": ["dichloromethane", "methylene chloride"],
+      "provenance": {
+        "kind": "iupac_nomenclature",
+        "source": "IUPAC solvent name dichloromethane and common synonym methylene chloride"
+      }
+    },
+    {
+      "token": "petg",
+      "expansions": ["polyethylene terephthalate glycol", "glycol-modified polyethylene terephthalate"],
+      "provenance": {
+        "kind": "iupac_nomenclature",
+        "source": "IUPAC-style abbreviation for glycol-modified poly(ethylene terephthalate)"
+      }
+    },
+    {
+      "token": "hfip",
+      "expansions": ["hexafluoroisopropanol", "hexafluoro-2-propanol", "hexafluoroisopropyl alcohol"],
+      "provenance": {
+        "kind": "iupac_nomenclature",
+        "source": "IUPAC solvent abbreviation for 1,1,1,3,3,3-hexafluoropropan-2-ol"
+      }
+    },
+    {
+      "token": "dmac",
+      "expansions": ["dimethylacetamide", "dimethyl acetamide", "n,n-dimethylacetamide"],
+      "provenance": {
+        "kind": "iupac_nomenclature",
+        "source": "IUPAC solvent abbreviation for N,N-dimethylacetamide"
+      }
+    },
+    {
+      "token": "ipa",
+      "expansions": ["isopropanol", "isopropyl alcohol", "2-propanol"],
+      "provenance": {
+        "kind": "iupac_nomenclature",
+        "source": "IUPAC solvent abbreviation for propan-2-ol"
+      }
+    },
+    {
+      "token": "tce",
+      "expansions": ["trichloroethylene", "trichloroethene"],
+      "provenance": {
+        "kind": "iupac_nomenclature",
+        "source": "IUPAC solvent abbreviation for trichloroethene"
+      }
+    }
+  ]
+}

@@ -25,6 +25,9 @@ from urllib.parse import urlencode, urlparse
 from urllib.request import Request, urlopen
 from xml.etree import ElementTree
 
+from contextlib import contextmanager
+from contextvars import ContextVar
+
 import duckdb
 
 from .contracts import tool_error, tool_success
@@ -4487,6 +4490,151 @@ def _abstention_floor(index: Mapping[str, Any]) -> float | None:
     return float(block["floor"])
 
 
+_LEXICON_KINDS = frozenset({
+    "general_chemistry", "iupac_nomenclature", "engine_data_table",
+})
+_LEXICON_PATH = Path(__file__).resolve().parent / "data" / "lexicon.v1.json"
+_LEXICON_OVERRIDE: ContextVar[Sequence[Mapping[str, Any]] | None] = ContextVar(
+    "bm25_lexicon_override", default=None,
+)
+_LEXICON_CACHE: list[dict[str, Any]] | None = None
+
+
+def _validate_lexicon_entries(entries: Sequence[Mapping[str, Any]]) -> list[dict[str, Any]]:
+    out: list[dict[str, Any]] = []
+    for item in entries:
+        token = str(item.get("token") or "").strip().casefold()
+        expansions = [
+            str(phrase).strip() for phrase in (item.get("expansions") or [])
+            if str(phrase).strip()
+        ]
+        provenance = item.get("provenance") or {}
+        kind = str(provenance.get("kind") or "").strip()
+        source = str(provenance.get("source") or "").strip()
+        if not token or not expansions:
+            raise ValueError("lexicon_entry_incomplete")
+        if kind not in _LEXICON_KINDS:
+            raise ValueError("lexicon_kind_forbidden")
+        if not source or kind in {"gold", "error-analysis", "miss-id", "query", "needle"}:
+            raise ValueError("lexicon_source_forbidden")
+        folded_source = source.casefold()
+        if any(
+            marker in folded_source
+            for marker in ("gold", "error_analysis", "error-analysis", "needle")
+        ):
+            raise ValueError("lexicon_source_forbidden")
+        out.append({
+            "token": token,
+            "expansions": expansions,
+            "provenance": {"kind": kind, "source": source},
+        })
+    return out
+
+
+def load_lexicon_entries(path: Path | None = None) -> list[dict[str, Any]]:
+    target = Path(path or _LEXICON_PATH)
+    payload = json.loads(target.read_text(encoding="utf-8"))
+    return _validate_lexicon_entries(payload.get("entries") or [])
+
+
+def _committed_lexicon() -> list[dict[str, Any]]:
+    global _LEXICON_CACHE
+    if _LEXICON_CACHE is None:
+        _LEXICON_CACHE = load_lexicon_entries(_LEXICON_PATH)
+    return _LEXICON_CACHE
+
+
+def _active_lexicon() -> Sequence[Mapping[str, Any]]:
+    override = _LEXICON_OVERRIDE.get()
+    if override is not None:
+        return override
+    return _committed_lexicon()
+
+
+@contextmanager
+def bm25_lexicon(entries: Sequence[Mapping[str, Any]] | None):
+    """Override the query-side BM25 lexicon. [] is the empty-lexicon control."""
+    token = _LEXICON_OVERRIDE.set(entries)
+    try:
+        yield
+    finally:
+        _LEXICON_OVERRIDE.reset(token)
+
+
+_EXPANSION_STOP = frozenset({
+    "low", "high", "linear", "density", "vinyl", "alcohol", "solvent",
+    "methyl", "ethyl", "ether", "acid", "targeted", "recovery",
+    "precipitation", "poly", "ethylene", "common", "name",
+})
+
+
+def _bm25_query_tokens(query: str) -> list[str]:
+    """Query-side tokens for BM25. Document tokenizer `_tokens` is unchanged."""
+    tokens = list(_tokens(query))
+    present = set(tokens)
+    extra: list[str] = []
+    seen = set(present)
+    folded_query = str(query or "").casefold()
+    for entry in _active_lexicon():
+        key = str(entry.get("token") or "").strip().casefold()
+        if not key:
+            continue
+        expansion_lists = [
+            _tokens(str(phrase)) for phrase in (entry.get("expansions") or [])
+        ]
+        hit_key = key in present
+        hit_expansion = False
+        for phrase, phrase_tokens in zip(entry.get("expansions") or [], expansion_lists):
+            phrase_folded = str(phrase).casefold()
+            if phrase_folded and phrase_folded in folded_query:
+                hit_expansion = True
+                break
+            if phrase_tokens and len(phrase_tokens) >= 2 and set(phrase_tokens) <= present:
+                hit_expansion = True
+                break
+        if not hit_key and not hit_expansion:
+            continue
+        if hit_key:
+            for phrase_tokens in expansion_lists:
+                for item in phrase_tokens:
+                    if item in seen:
+                        continue
+                    if len(item) < 6 or item in _EXPANSION_STOP:
+                        continue
+                    extra.append(item)
+                    seen.add(item)
+        if hit_expansion and key not in seen:
+            extra.append(key)
+            seen.add(key)
+    return tokens + extra
+
+
+def _query_sparse_raw(query: str, rows: list[dict[str, Any]]) -> list[float]:
+    """Production query-side BM25.
+
+    The lexicon helper is always called. Chunks that already match the raw
+    query keep their unexpanded BM25 scores. Expansion may open the sparse
+    gate on chunks that had raw score 0, without raising the sparse max
+    used to rank already-matching chunks.
+    """
+    expanded = _bm25_query_tokens(query)
+    raw_tokens = _tokens(query)
+    raw_scores = _bm25(raw_tokens, rows)
+    if expanded == raw_tokens:
+        return raw_scores
+    exp_scores = _bm25(expanded, rows)
+    raw_max = max(raw_scores, default=0.0)
+    fused: list[float] = []
+    for raw, exp in zip(raw_scores, exp_scores):
+        if raw > 0:
+            fused.append(raw)
+        elif exp > 0:
+            fused.append(min(exp, raw_max) if raw_max > 0 else exp)
+        else:
+            fused.append(0.0)
+    return fused
+
+
 def _bm25(query_tokens: list[str], chunks: list[dict[str, Any]]) -> list[float]:
     token_lists = [_tokens(item["text"]) for item in chunks]
     lengths = [len(items) for items in token_lists]
@@ -4579,8 +4727,8 @@ def _hybrid_passage_parts(
 ) -> list[tuple[float, float, float, dict[str, Any]]]:
     """Sparse-gated hybrid signals. Coefficients are applied by the caller."""
     chunks = list(index.get("chunks") or [])
-    query_tokens = _tokens(query)
-    sparse_raw = _bm25(query_tokens, [{"text": chunk_sparse_corpus(chunk)} for chunk in chunks])
+    rows = [{"text": chunk_sparse_corpus(chunk)} for chunk in chunks]
+    sparse_raw = _query_sparse_raw(query, rows)
     if max(sparse_raw, default=0.0) <= 0:
         return []
     sparse_max = max(sparse_raw)
@@ -4651,8 +4799,8 @@ def _search_index(
     dense_w = _HYBRID_DENSE_WEIGHT if w_dense is None else float(w_dense)
     sparse_w = _HYBRID_SPARSE_WEIGHT if w_sparse is None else float(w_sparse)
     chunks = list(index.get("chunks") or [])
-    query_tokens = _tokens(query)
-    sparse_raw = _bm25(query_tokens, [{"text": chunk_sparse_corpus(chunk)} for chunk in chunks])
+    rows = [{"text": chunk_sparse_corpus(chunk)} for chunk in chunks]
+    sparse_raw = _query_sparse_raw(query, rows)
     coverage_by_id, star = _coverage_from_sparse(query, chunks, sparse_raw)
     floor = _abstention_floor(index)
     if floor is not None and star < floor:
