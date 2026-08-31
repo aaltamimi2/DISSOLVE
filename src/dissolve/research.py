@@ -30,6 +30,7 @@ from contextvars import ContextVar
 
 import duckdb
 
+from . import rerank
 from .contracts import tool_error, tool_success
 
 _INDEX_SCHEMA = "dissolve.literature-index.v1"
@@ -4795,6 +4796,7 @@ def _search_index(
     *,
     w_dense: float | None = None,
     w_sparse: float | None = None,
+    rerank_mode: str = "off",
 ) -> list[dict[str, Any]]:
     dense_w = _HYBRID_DENSE_WEIGHT if w_dense is None else float(w_dense)
     sparse_w = _HYBRID_SPARSE_WEIGHT if w_sparse is None else float(w_sparse)
@@ -4817,6 +4819,7 @@ def _search_index(
                 raw_by_id[str(chunk["chunk_id"])],
             ))
         ranked.sort(key=lambda item: (-item[0], str(item[4].get("title")), item[4]["chunk_id"]))
+        ranked = rerank.reorder_window(query, ranked, rerank_mode)
         return _ranked_search_rows(index, ranked, top_k, coverage_by_id, floor=floor)
     sparse_max = max(sparse_raw)
     sparse = [value / sparse_max for value in sparse_raw]
