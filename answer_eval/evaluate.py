@@ -451,10 +451,12 @@ def _eval_envelope(fx: dict[str, Any], mutation: str | None) -> dict[str, Any]:
     width = int(fx.get("id_hex_width") or PRODUCTION_HEX_WIDTH)
     arm = fx.get("arm")
     if pred.get("kind") == "none" and not pred.get("claims"):
-        if fx.get("family") == "F-ID" and fx.get("fixture_id") in {"F-ID-7", "F-ID-8"}:
+        obs_in = (fx.get("reference") or {}).get("observations") or []
+        need_occ = any(o.get("occurrence_index_supplied") is False for o in obs_in)
+        need_ident = any(o.get("identity_conditions_supplied") is False for o in obs_in)
+        if need_occ or need_ident:
             loaded = load_reference(fx["reference"], question=q, id_hex_width=width)
-            info = loaded["identity_info"]
-            if fx.get("fixture_id") == "F-ID-8":
+            if need_occ:
                 obs = loaded["observations"]
                 return {
                     "ordering_key": ["source_role_rank", "page.pdf_index", "canonical(source_locator)"],
@@ -462,6 +464,7 @@ def _eval_envelope(fx: dict[str, Any], mutation: str | None) -> dict[str, Any]:
                     "source_roles_in_order": [o.get("source_role") for o in obs],
                     "observation_ids_distinct": [o.get("observation_id_computed") for o in obs],
                 }
+            info = loaded["identity_info"]
             desc = []
             ident = info.get("identity_conditions_derived") or []
             if loaded["observations"]:
@@ -488,7 +491,7 @@ def _eval_envelope(fx: dict[str, Any], mutation: str | None) -> dict[str, Any]:
 
     r = score_question(q, fx.get("reference") or {"observations": []}, pred, "exact_reported" if run != "both" else "exact_reported", arm=arm, projection=fx.get("projection") or pred.get("projection"), id_hex_width=width)
 
-    if run == "both" or fx.get("family") == "F-EQ":
+    if run == "both":
         a = (fx["reference"]["observations"][0]["atoms"][0]["value"])
         b = (pred["claims"][0]["leaves"]["value"])
         out = {}

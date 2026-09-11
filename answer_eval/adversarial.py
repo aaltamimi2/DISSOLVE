@@ -19,7 +19,7 @@ CASES: list[dict[str, Any]] = [
     {"id": 5, "mutation": "descriptive_out_of_R", "fixtures": ["F-M4-2"], "keys": ["M-2"]},
     {"id": 6, "mutation": "signed_zero_canon", "fixtures": ["F-EQ-3"], "keys": ["canonical_equivalence"]},
     {"id": 7, "mutation": "nfkc_before_exp", "fixtures": ["F-EQ-10"], "keys": ["canonical_equivalence"]},
-    {"id": 8, "mutation": "drop_negative_kappa", "fixtures": ["F-EMIT-1"], "keys": ["write_results"]},
+    {"id": 8, "mutation": "drop_negative_kappa", "fixtures": ["F-EMIT-1"], "keys": ["write_results"], "require_indices": [3]},
     {"id": 9, "mutation": "discard_nonnumeric_prose", "fixtures": ["F-TEXT-1"], "keys": ["L1_breakdown"]},
     {"id": 10, "mutation": "omitted_as_refusal", "fixtures": ["F-REF-2"], "keys": ["M-8"]},
     {"id": 11, "mutation": "ambiguity_as_fp", "fixtures": ["F-REF-4"], "keys": ["M-8"]},
@@ -36,10 +36,10 @@ CASES: list[dict[str, Any]] = [
     {"id": 22, "mutation": "seed_20260906", "fixtures": ["F-RS-1"], "keys": ["interval_serialized"]},
     {"id": 23, "mutation": "keep_zero_den", "fixtures": ["F-RS-3"], "keys": ["dropped_replicates"]},
     {"id": 24, "mutation": "copy_unknown_key_text", "fixtures": ["F-EMIT-2"], "keys": ["exact_error_log_records", "marker_absent_from_log"]},
-    {"id": 25, "mutation": "accept_schema", "fixtures": ["F-EMIT-2"], "keys": ["write_results"]},
-    {"id": 26, "mutation": "accept_schema", "fixtures": ["F-EMIT-3"], "keys": ["write_results"]},
-    {"id": 27, "mutation": "accept_schema", "fixtures": ["F-EMIT-3"], "keys": ["write_results"]},
-    {"id": 28, "mutation": "accept_schema", "fixtures": ["F-EMIT-3"], "keys": ["write_results"]},
+    {"id": 25, "mutation": "kappa_on_non_m11", "fixtures": ["F-EMIT-2"], "keys": ["write_results"], "require_indices": [1]},
+    {"id": 26, "mutation": "negative_ratio_interval", "fixtures": ["F-EMIT-3"], "keys": ["write_results"], "require_indices": [0]},
+    {"id": 27, "mutation": "interval_without_resampling", "fixtures": ["F-EMIT-3"], "keys": ["write_results"], "require_indices": [1]},
+    {"id": 28, "mutation": "emit_not_implemented", "fixtures": ["F-EMIT-3"], "keys": ["write_results"], "require_indices": [2]},
     {"id": 29, "mutation": "cutoff_literal_200", "fixtures": ["F-RS-3"], "keys": ["interval_label"]},
     {"id": 30, "mutation": "omit_inner_draw", "fixtures": ["F-RS-4"], "keys": ["interval_serialized"]},
     {"id": 31, "mutation": "basis_from_reference", "fixtures": ["F-TEXT-1"], "keys": ["basis_source"]},
@@ -56,17 +56,17 @@ CASES: list[dict[str, Any]] = [
     {"id": 42, "mutation": "independent_families", "fixtures": ["F-RS-6"], "keys": ["interval_serialized"]},
     {"id": 43, "mutation": "casefold_excluded", "fixtures": ["F-PERT-1"], "keys": ["transformed_text"]},
     {"id": 44, "mutation": "accept_excluded_replacement", "fixtures": ["F-PERT-6"], "keys": ["invalid"]},
-    {"id": 45, "mutation": "accept_schema", "fixtures": ["F-EMIT-4"], "keys": ["write_results"]},
+    {"id": 45, "mutation": "m3t_kappa_or_nonenum_error_direction", "fixtures": ["F-EMIT-4"], "keys": ["write_results"], "require_indices": [1, 3]},
     {"id": 46, "mutation": "count_ineligible_den", "fixtures": ["F-PERT-2", "F-PERT-3"], "keys": ["not_applicable", "in_denominator"]},
-    {"id": 47, "mutation": "accept_schema", "fixtures": ["F-EMIT-5"], "keys": ["write_results"]},
-    {"id": 48, "mutation": "accept_duplicate_axes", "fixtures": ["F-EMIT-5"], "keys": ["write_results"]},
+    {"id": 47, "mutation": "negative_ratio_or_signed_without_comparison", "fixtures": ["F-EMIT-5"], "keys": ["write_results"], "require_indices": [3, 4]},
+    {"id": 48, "mutation": "accept_duplicate_axes", "fixtures": ["F-EMIT-5"], "keys": ["write_results"], "require_indices": [5]},
     {"id": 49, "mutation": "skip_stub_visible", "fixtures": ["F-CB-10"], "keys": ["halt"]},
     {"id": 50, "mutation": "std", "alt_mutation": "run2_minus_run1", "fixtures": ["F-RS-8"], "keys": ["dispersion_serialized"]},
-    {"id": 51, "mutation": "accept_schema", "fixtures": ["F-EMIT-6"], "keys": ["write_results"]},
-    {"id": 52, "mutation": "accept_schema", "fixtures": ["F-EMIT-6"], "keys": ["write_results"]},
-    {"id": 53, "mutation": "accept_schema", "fixtures": ["F-EMIT-6"], "keys": ["write_results"]},
-    {"id": 54, "mutation": "accept_schema", "fixtures": ["F-EMIT-6"], "keys": ["write_results"]},
-    {"id": 55, "mutation": "accept_schema", "fixtures": ["F-EMIT-7"], "keys": ["write_results"], "require_indices": [1, 3]},
+    {"id": 51, "mutation": "m3t_additional_document_states", "fixtures": ["F-EMIT-6"], "keys": ["write_results"], "require_indices": [4]},
+    {"id": 52, "mutation": "missing_backbone", "fixtures": ["F-EMIT-6"], "keys": ["write_results"], "require_indices": [5]},
+    {"id": 53, "mutation": "comparison_without_cell_or_off_with_cell", "fixtures": ["F-EMIT-6"], "keys": ["write_results"], "require_indices": [6, 7]},
+    {"id": 54, "mutation": "stratum_without_outcome_conditioned", "fixtures": ["F-EMIT-6"], "keys": ["write_results"], "require_indices": [8]},
+    {"id": 55, "mutation": "on_arm_without_cell", "fixtures": ["F-EMIT-7"], "keys": ["write_results"], "require_indices": [1, 3]},
 ]
 
 
@@ -85,9 +85,18 @@ def _key_failed(expected: dict, observed: dict, key: str) -> bool:
 def _write_index_flipped(expected: dict, observed: dict, indices: list[int]) -> bool:
     exp = expected.get("write_results") or []
     got = observed.get("write_results") or []
-    if len(got) < max(indices) + 1 or len(exp) < max(indices) + 1:
+    if len(got) != len(exp) or not indices:
         return False
-    return all(exp[i] != got[i] for i in indices)
+    wanted = set(indices)
+    if max(indices) >= len(exp):
+        return False
+    for i, (e, g) in enumerate(zip(exp, got)):
+        if i in wanted:
+            if e == g:
+                return False
+        elif e != g:
+            return False
+    return True
 
 
 def run_case(case: dict[str, Any], fixtures: dict[str, dict[str, Any]] | None = None) -> dict[str, Any]:

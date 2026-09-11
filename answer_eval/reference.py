@@ -66,7 +66,7 @@ def derive_identity_conditions(observations: list[dict[str, Any]]) -> dict[str, 
 def derive_occurrence(observations: list[dict[str, Any]]) -> list[dict[str, Any]]:
     groups: dict[tuple, list[dict[str, Any]]] = {}
     for obs in observations:
-        if obs.get("occurrence_index_supplied", True) and "occurrence_index_supplied" in obs and obs["occurrence_index_supplied"] is False:
+        if obs.get("occurrence_index_supplied") is False:
             ck = canonical_dumps(obs.get("comparison_key") or {})
             groups.setdefault((obs.get("study_family_id"), ck), []).append(obs)
     for group in groups.values():

@@ -469,22 +469,223 @@ def score_question(
     }
 
 
-def score(question_set: Any, arm: str | None = None) -> dict[str, Any]:
+PUBLIC_RATIO_IDS = (
+    "M-1",
+    "M-2",
+    "M-3",
+    "M-3t",
+    "M-4",
+    "M-5",
+    "M-6",
+    "M-7",
+    "M-8",
+    "M-9_RP",
+    "M-10_recall",
+    "M-10_precision",
+    "retention",
+    "CR_supported",
+    "unknown_reason_agreement",
+)
+
+PUBLIC_METRIC_NAME = {
+    "M-10_recall": "M-10",
+}
+
+BINDING_KEYS = (
+    "backbone",
+    "partition",
+    "cell",
+    "subject_id",
+    "spec_sha256",
+    "input_digests",
+    "run",
+    "flags",
+)
+
+
+def _arm_public(arm: str | None) -> str | None:
+    if arm in {"evidence_off", "off", "off_run1"}:
+        return "off_run1"
+    if arm in {"evidence_on", "on"}:
+        return "on"
+    if arm in {"off_run2", "off_run3", "off_dispersion"}:
+        return arm
+    return None
+
+
+def _meta_from(question_set: Any, kwargs: dict[str, Any]) -> dict[str, Any]:
+    meta: dict[str, Any] = {}
+    if isinstance(question_set, dict):
+        for key in BINDING_KEYS:
+            if key in question_set and question_set[key] is not None:
+                meta[key] = question_set[key]
+    for key, val in kwargs.items():
+        if val is not None:
+            meta[key] = val
+    return meta
+
+
+def _bind_row(row: dict[str, Any], meta: dict[str, Any], pub_arm: str | None, scored_run: str | None) -> dict[str, Any]:
+    if scored_run:
+        row["run"] = scored_run
+    if "partition" in meta:
+        row["partition"] = meta["partition"]
+    if "backbone" in meta:
+        row["backbone"] = meta["backbone"]
+    if pub_arm:
+        row["arm"] = pub_arm
+    if "cell" in meta:
+        row["cell"] = meta["cell"]
+    return row
+
+
+def _pool_ratio(results: list[dict[str, Any]], key: str) -> dict[str, Any] | None:
+    nums: list[int] = []
+    dens: list[int] = []
+    saw_na = False
+    saw_undef = False
+    for r in results:
+        v = r.get(key)
+        if v is None:
+            continue
+        if v == "NA":
+            saw_na = True
+            continue
+        if v == "UNDEF":
+            saw_undef = True
+            continue
+        if isinstance(v, dict):
+            if v.get("status") == "NA" and "num" not in v:
+                saw_na = True
+                continue
+            if v.get("status") == "UNDEF" and "num" not in v:
+                saw_undef = True
+                continue
+            if "num" in v and "den" in v:
+                nums.append(int(v["num"]))
+                dens.append(int(v["den"]))
+    if nums:
+        num, den = sum(nums), sum(dens)
+        if den <= 0:
+            return {"status": "UNDEF"}
+        return {"status": "defined", "num": num, "den": den, "value": num / den, "value_kind": "ratio"}
+    if saw_undef:
+        return {"status": "UNDEF"}
+    if saw_na:
+        return {"status": "NA"}
+    return None
+
+
+def _aggregate_metrics(
+    results: list[dict[str, Any]],
+    arm: str | None,
+    meta: dict[str, Any],
+    scored_run: str | None,
+) -> list[dict[str, Any]]:
+    pub_arm = _arm_public(arm)
+    rows: list[dict[str, Any]] = []
+    for key in PUBLIC_RATIO_IDS:
+        pooled = _pool_ratio(results, key)
+        if pooled is None:
+            continue
+        mid = PUBLIC_METRIC_NAME.get(key, key)
+        if mid in OUT_OF_SCOPE_WP1:
+            continue
+        row = {"metric_id": mid, **pooled}
+        rows.append(_bind_row(row, meta, pub_arm, scored_run))
+    add_n = {"additional_candidate": 0, "out_of_scope": 0, "underbound": 0, "duplicate": 0}
+    saw_add = False
+    for r in results:
+        add = r.get("M-3t_additional")
+        if isinstance(add, dict):
+            saw_add = True
+            for k in add_n:
+                add_n[k] += int(add.get(k) or 0)
+    if saw_add:
+        companion = {
+            "metric_id": "M-3t_additional",
+            "status": "defined",
+            "counts": {
+                "m3t_additional_additional_candidate": add_n["additional_candidate"],
+                "m3t_additional_out_of_scope": add_n["out_of_scope"],
+                "m3t_additional_underbound": add_n["underbound"],
+                "m3t_additional_duplicate": add_n["duplicate"],
+            },
+        }
+        rows.append(_bind_row(companion, meta, pub_arm, scored_run))
+    n_q = len(results)
+    err_row: dict[str, Any] = {"metric_id": "operational_error_rate"}
+    if n_q == 0:
+        err_row["status"] = "NA"
+    else:
+        err_n = sum(1 for r in results if r.get("operational_failure"))
+        err_row["status"] = "defined"
+        err_row["num"] = err_n
+        err_row["den"] = n_q
+        err_row["value"] = err_n / n_q
+        err_row["value_kind"] = "ratio"
+    rows.append(_bind_row(err_row, meta, pub_arm, scored_run))
+    return rows
+
+
+def score(question_set: Any, arm: str | None = None, **kwargs: Any) -> dict[str, Any]:
+    from answer_eval.tables import PINS
+
+    meta = _meta_from(question_set, kwargs)
     if isinstance(question_set, dict) and "questions" in question_set:
         questions = question_set["questions"]
     elif isinstance(question_set, list):
         questions = question_set
     else:
         questions = [question_set]
+    used_arm = arm if arm is not None else meta.get("arm")
+    scored_run = meta.get("run")
     results = []
     for q in questions:
-        results.append(
-            score_question(
-                q["question"],
-                q["reference"],
-                q["prediction"],
-                q.get("run") or "exact_reported",
-                arm=arm or q.get("arm"),
-            )
+        if not isinstance(q, dict):
+            continue
+        item_arm = used_arm if used_arm is not None else q.get("arm")
+        if used_arm is None:
+            used_arm = item_arm
+        item_run = scored_run or q.get("run") or q.get("equality_run") or "exact_reported"
+        if scored_run is None:
+            scored_run = item_run
+        r = score_question(
+            q["question"],
+            q["reference"],
+            q["prediction"],
+            item_run,
+            arm=item_arm,
+            projection=q.get("projection") or (q.get("prediction") or {}).get("projection"),
         )
-    return {"questions": results}
+        qid = (q.get("question") or {}).get("question_id")
+        if qid:
+            r["question_id"] = qid
+        results.append(r)
+    metrics = _aggregate_metrics(results, used_arm, meta, scored_run)
+    flags: dict[str, int] = {}
+    if isinstance(meta.get("flags"), dict):
+        for k, v in meta["flags"].items():
+            if isinstance(v, int) and not isinstance(v, bool):
+                flags[k] = v
+    if used_arm in {"evidence_off", "off", "off_run1"}:
+        flags["consequence_of_intervention"] = 1
+    if any((r.get("flags") or {}).get("citation_without_access") for r in results):
+        flags["citation_without_access"] = 1
+    out: dict[str, Any] = {
+        "questions": results,
+        "metrics": metrics,
+        "spec_sha256": meta.get("spec_sha256") or PINS["RAG_AUDIT_SPEC.v2.4.3.md"],
+        "input_digests": meta["input_digests"] if "input_digests" in meta else {},
+    }
+    if flags:
+        out["flags"] = flags
+    if "subject_id" in meta:
+        out["subject_id"] = meta["subject_id"]
+    if "backbone" in meta:
+        out["backbone"] = meta["backbone"]
+    if "partition" in meta:
+        out["partition"] = meta["partition"]
+    if "cell" in meta:
+        out["cell"] = meta["cell"]
+    return out

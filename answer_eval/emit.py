@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 from typing import Any
 
@@ -100,12 +101,65 @@ def _schema_props(schema: dict[str, Any]) -> set[str]:
 
 def _pattern_ok(name: str, schema: dict[str, Any]) -> bool:
     pats = schema.get("patternProperties") or {}
-    import re
-
     for pat in pats:
         if re.match(pat, name):
             return True
     return False
+
+
+def _named_properties(schema: dict[str, Any]) -> set[str]:
+    return set((schema.get("properties") or {}).keys())
+
+
+def _child_schema(schema: dict[str, Any], segment: Any) -> dict[str, Any]:
+    if not isinstance(schema, dict):
+        return {}
+    if isinstance(segment, int) or (isinstance(segment, str) and str(segment).isdigit() and "items" in schema):
+        items = schema.get("items")
+        return items if isinstance(items, dict) else {}
+    props = schema.get("properties") or {}
+    key = str(segment)
+    if key in props and isinstance(props[key], dict):
+        return props[key]
+    for pat, sub in (schema.get("patternProperties") or {}).items():
+        if re.match(pat, key) and isinstance(sub, dict):
+            return sub
+    add = schema.get("additionalProperties")
+    return add if isinstance(add, dict) else {}
+
+
+def _safe_pointer_segments(doc: Any, schema: dict[str, Any], path: list[Any], copy_raw: bool = False) -> list[str]:
+    segs: list[str] = []
+    inst = doc
+    cur = schema if isinstance(schema, dict) else {}
+    for seg in path:
+        if isinstance(inst, list):
+            segs.append(str(seg))
+            try:
+                inst = inst[int(seg)]
+            except Exception:
+                inst = None
+            cur = _child_schema(cur, seg)
+            continue
+        key = str(seg)
+        named = _named_properties(cur)
+        nxt = _child_schema(cur, seg)
+        if key in named:
+            segs.append(key)
+        elif copy_raw:
+            segs.append(key)
+        else:
+            unknown: list[str] = []
+            if isinstance(inst, dict):
+                unknown = sorted(k for k in inst if k not in named)
+            n = unknown.index(key) + 1 if key in unknown else 1
+            segs.append(f"<unknown_key#{n}>")
+        if isinstance(inst, dict):
+            inst = inst.get(seg, inst.get(key))
+        else:
+            inst = None
+        cur = nxt
+    return segs
 
 
 def _unknown_keys(obj: dict[str, Any], schema: dict[str, Any]) -> list[str]:
@@ -155,14 +209,14 @@ def _first_violation(obj: Any, schema: dict[str, Any], pointer: str = "") -> dic
                 if hit:
                     return hit
         if "patternProperties" in schema:
-            import re
-
+            unknown = sorted(k for k in obj if k not in props)
             for pat, sub in (schema.get("patternProperties") or {}).items():
                 for key, val in obj.items():
                     if key in props:
                         continue
                     if re.match(pat, key):
-                        hit = _first_violation(val, sub, f"{pointer}/{key}")
+                        n = unknown.index(key) + 1 if key in unknown else 1
+                        hit = _first_violation(val, sub, f"{pointer}/<unknown_key#{n}>")
                         if hit:
                             return hit
         for clause in schema.get("allOf") or []:
@@ -195,8 +249,6 @@ def _first_violation(obj: Any, schema: dict[str, Any], pointer: str = "") -> dic
     if "enum" in schema and obj not in schema["enum"]:
         return {"code": "public_schema_violation", "pointer": pointer or "/", "field_type": _field_type(obj)}
     if "pattern" in schema and isinstance(obj, str):
-        import re
-
         if not re.match(schema["pattern"], obj):
             return {"code": "public_schema_violation", "pointer": pointer or "/", "field_type": "string"}
     if "minimum" in schema and isinstance(obj, (int, float)) and not isinstance(obj, bool):
@@ -312,8 +364,6 @@ def _writer_predicates(doc: dict[str, Any], schema_name: str) -> dict[str, str] 
 
 
 def _unexpected_name(message: str) -> str | None:
-    import re
-
     m = re.search(r"Additional properties are not allowed \('([^']+)' was unexpected\)", message)
     if m:
         return m.group(1)
@@ -350,42 +400,30 @@ def _prefer_error(errors: list) -> jsonschema.ValidationError:
 def _sanitize_pointer(doc: dict[str, Any], schema: dict[str, Any], err: jsonschema.ValidationError) -> dict[str, str]:
     path = list(err.absolute_path)
     validator = err.validator
+    from answer_eval.mutation import get as mut
+
+    copy_raw = mut() == "copy_unknown_key_text"
     unexpected = _unexpected_name(err.message) if validator == "additionalProperties" else None
     if unexpected is not None:
-        parent = doc
+        parent: Any = doc
+        cur = schema
         for seg in path:
+            cur = _child_schema(cur, seg)
             try:
                 parent = parent[seg]
             except Exception:
                 parent = None
                 break
-        unknown = []
-        if isinstance(parent, dict):
-            if path and path[0] == "states":
-                states_schema = (schema.get("properties") or {}).get("states") or {}
-                unknown = [k for k in parent if not _pattern_ok(k, states_schema)]
-            elif path and path[0] == "flags":
-                flags_schema = (schema.get("properties") or {}).get("flags") or {}
-                unknown = [k for k in parent if not _pattern_ok(k, flags_schema)]
-            else:
-                metric_schema = ((schema.get("properties") or {}).get("metrics") or {}).get("items") or {}
-                known = set((metric_schema.get("properties") or {}).keys())
-                unknown = [k for k in parent if k not in known]
-            unknown.sort()
-            n = unknown.index(unexpected) + 1 if unexpected in unknown else 1
-        else:
-            n = 1
-        prefix = "/" + "/".join(str(s) for s in path) if path else ""
+        named = _named_properties(cur)
+        unknown = sorted(k for k in parent if k not in named) if isinstance(parent, dict) else []
+        n = unknown.index(unexpected) + 1 if unexpected in unknown else 1
+        prefix = _safe_pointer_segments(doc, schema, path, copy_raw=False)
+        tail = unexpected if copy_raw else f"<unknown_key#{n}>"
+        pointer = "/" + "/".join(prefix + [tail]) if (prefix or tail) else "/"
         parent_val = parent.get(unexpected) if isinstance(parent, dict) else None
-        from answer_eval.mutation import get as mut
-
-        if mut() == "copy_unknown_key_text":
-            ptr = f"{prefix}/{unexpected}"
-        else:
-            ptr = f"{prefix}/<unknown_key#{n}>"
         return {
             "code": "public_schema_violation",
-            "pointer": ptr,
+            "pointer": pointer,
             "field_type": _field_type(parent_val),
         }
     if validator == "required":
@@ -399,7 +437,9 @@ def _sanitize_pointer(doc: dict[str, Any], schema: dict[str, Any], err: jsonsche
         if missing is None:
             token = err.message.split(" ")[0].strip("'\"")
             missing = token
-        segs = [str(s) for s in path] + ([missing] if missing else [])
+        segs = _safe_pointer_segments(doc, schema, path, copy_raw=False)
+        if missing:
+            segs.append(str(missing))
         pointer = "/" + "/".join(segs) if segs else "/"
         return {"code": "public_schema_violation", "pointer": pointer, "field_type": "null"}
     if validator == "not":
@@ -408,13 +448,13 @@ def _sanitize_pointer(doc: dict[str, Any], schema: dict[str, Any], err: jsonsche
         inst = err.instance if isinstance(err.instance, dict) else {}
         for req in reqs:
             if req in inst:
-                segs = [str(s) for s in path] + [req]
+                segs = _safe_pointer_segments(doc, schema, path, copy_raw=False) + [req]
                 return {
                     "code": "public_schema_violation",
                     "pointer": "/" + "/".join(segs),
                     "field_type": _field_type(inst.get(req)),
                 }
-    segs = [str(s) for s in path]
+    segs = _safe_pointer_segments(doc, schema, path, copy_raw=False)
     pointer = "/" + "/".join(segs) if segs else "/"
     return {
         "code": "public_schema_violation",
@@ -433,17 +473,77 @@ def validate_public_document(doc: dict[str, Any], schema_ref: str) -> tuple[str,
 
     m = mut()
     if not errors:
-        if m == "accept_schema":
-            return "accepted", None
         if writer:
             if m == "accept_duplicate_axes" and writer.get("code") == "duplicate_row":
                 return "accepted", None
             return f"refused:{writer['code']}", writer
         return "accepted", None
-    if m == "accept_schema":
-        return "accepted", None
     rec = _sanitize_pointer(doc, schema, _prefer_error(errors))
     return "refused:public_schema_violation", rec
+
+
+def _mutation_accepts_attempt(obj: dict[str, Any], m: str | None) -> bool:
+    if not m:
+        return False
+    mets = obj.get("metrics") if isinstance(obj, dict) else None
+    if not isinstance(mets, list):
+        mets = []
+    enum_dir = {"undercounts_only", "overcounts_only"}
+    if m == "kappa_on_non_m11":
+        return any(r.get("value_kind") == "kappa" and r.get("metric_id") != "M-11" for r in mets if isinstance(r, dict))
+    if m == "negative_ratio_interval":
+        for r in mets:
+            if not isinstance(r, dict):
+                continue
+            iv = r.get("interval")
+            if r.get("value_kind") == "ratio" and "value" not in r and isinstance(iv, list):
+                if any(isinstance(x, (int, float)) and not isinstance(x, bool) and x < 0 for x in iv):
+                    return True
+        return False
+    if m == "interval_without_resampling":
+        return any(isinstance(r, dict) and "interval" in r and "resampling" not in r for r in mets)
+    if m == "emit_not_implemented":
+        return any(isinstance(r, dict) and r.get("status") == "not_implemented_in_wp1" for r in mets)
+    if m == "m3t_kappa_or_nonenum_error_direction":
+        for r in mets:
+            if not isinstance(r, dict):
+                continue
+            if r.get("metric_id") == "M-3t" and r.get("value_kind") == "kappa":
+                return True
+            if "error_direction" in r and r.get("error_direction") not in enum_dir:
+                return True
+        return False
+    if m == "negative_ratio_or_signed_without_comparison":
+        for r in mets:
+            if not isinstance(r, dict):
+                continue
+            val = r.get("value")
+            if r.get("value_kind") == "ratio" and isinstance(val, (int, float)) and not isinstance(val, bool) and val < 0:
+                return True
+            if r.get("value_kind") == "signed_difference" and "comparison" not in r:
+                return True
+        return False
+    if m == "m3t_additional_document_states":
+        return any(isinstance(r, dict) and r.get("metric_id") == "M-3t_additional" for r in mets) and isinstance(obj, dict) and "states" in obj
+    if m == "missing_backbone":
+        return bool(mets) and any(isinstance(r, dict) and "backbone" not in r for r in mets)
+    if m == "comparison_without_cell_or_off_with_cell":
+        for r in mets:
+            if not isinstance(r, dict):
+                continue
+            if "comparison" in r and "cell" not in r:
+                return True
+            if str(r.get("arm") or "").startswith("off") and "cell" in r:
+                return True
+        return False
+    if m == "stratum_without_outcome_conditioned":
+        return any(
+            isinstance(r, dict) and r.get("stratum") in {"full", "partial", "none"} and "outcome_conditioned" not in r
+            for r in mets
+        )
+    if m == "on_arm_without_cell":
+        return any(isinstance(r, dict) and r.get("arm") == "on" and "cell" not in r for r in mets)
+    return False
 
 
 def write_attempts(attempts: list[dict[str, Any]], schema_ref: str) -> dict[str, Any]:
@@ -453,12 +553,15 @@ def write_attempts(attempts: list[dict[str, Any]], schema_ref: str) -> dict[str,
     results = []
     records = []
     for attempt in attempts:
-        obj = attempt["object"] if "object" in attempt else attempt
+        obj = attempt["object"] if isinstance(attempt, dict) and "object" in attempt else attempt
+        if _mutation_accepts_attempt(obj, m):
+            results.append("accepted")
+            continue
         if m == "drop_negative_kappa":
             metrics = obj.get("metrics") or []
             if metrics and metrics[0].get("value_kind") == "kappa":
                 val = metrics[0].get("value")
-                if isinstance(val, (int, float)) and val < 0:
+                if isinstance(val, (int, float)) and not isinstance(val, bool) and val < 0:
                     rec = {"code": "public_schema_violation", "pointer": "/metrics/0/value", "field_type": "number"}
                     results.append("refused:public_schema_violation")
                     records.append(rec)
@@ -503,20 +606,25 @@ def emit_public(result: dict[str, Any], path: str | Path | None = None) -> dict[
 
 
 def _project_v7(result: dict[str, Any]) -> dict[str, Any]:
-    if result.get("metrics"):
-        doc = {
-            "schema": "EVAL_PUBLIC.v7",
-            "spec_sha256": result.get("spec_sha256") or "0" * 64,
-            "subject_id": result.get("subject_id") or "fx",
-            "input_digests": result.get("input_digests") or {},
-            "metrics": result["metrics"],
-        }
-        if "states" in result:
-            doc["states"] = result["states"]
-        if "flags" in result:
-            doc["flags"] = result["flags"]
-        return doc
-    raise ValueError("unprojectable result")
+    from answer_eval.score import OUT_OF_SCOPE_WP1
+
+    doc: dict[str, Any] = {"schema": "EVAL_PUBLIC.v7"}
+    for key in ("spec_sha256", "subject_id", "input_digests", "states", "flags"):
+        if key in result and result[key] is not None:
+            doc[key] = result[key]
+    if "input_digests" not in doc:
+        doc["input_digests"] = {}
+    rows = []
+    for row in result.get("metrics") or []:
+        if not isinstance(row, dict):
+            continue
+        if row.get("status") == "not_implemented_in_wp1":
+            continue
+        if row.get("metric_id") in OUT_OF_SCOPE_WP1:
+            continue
+        rows.append(row)
+    doc["metrics"] = rows
+    return doc
 
 
 def wrap_metric_row_v3(row: dict[str, Any]) -> dict[str, Any]:
