@@ -627,22 +627,12 @@ def _eval_envelope(fx: dict[str, Any], mutation: str | None) -> dict[str, Any]:
             out["eligible"] = True
         elif claims[0].get("claim_type") == "Q4":
             out["comparison_row_projection"] = "Q4→Q2"
-    # M-10 rows
-    expected_rows = [o.get("observation_id_computed") or o.get("observation_id") for o in loaded_obs]
-    matched_obs = set()
-    for g in r["g_atoms"]:
-        if g.get("atom_id") in r["match"]["matched_g"]:
-            matched_obs.add(g.get("observation_id"))
-    returned = []
-    for p in r["assertions"]:
-        if p.get("kind") == "m1" and not p.get("pre_duplicate"):
-            returned.append(p.get("slot_id"))
-    out["expected_rows"] = len(expected_rows)
-    out["returned_rows_distinct"] = len(set(returned))
-    out["merge_violations"] = 0
-    rec_n = len(matched_obs)
-    out["M-10_recall"] = {"num": rec_n, "den": len(expected_rows)} if expected_rows else "NA"
-    out["M-10_precision"] = {"num": rec_n, "den": len(set(returned))} if returned else "UNDEF"
+    # M-10 rows from the scorer (observation-level, not adapter-local)
+    out["expected_rows"] = r["expected_rows"]
+    out["returned_rows_distinct"] = r["returned_rows_distinct"]
+    out["merge_violations"] = r["merge_violations"]
+    out["M-10_recall"] = r["M-10_recall"]
+    out["M-10_precision"] = r["M-10_precision"]
     out["matched_atom"] = r["pairing"][0][0] if r["pairing"] else None
     if mutation == "truth_as_support" and isinstance(out.get("M-2"), dict):
         out["M-2"] = {"num": out["matched"], "den": out["M-2"]["den"]}

@@ -64,6 +64,96 @@ def _g_parent_key(g: dict[str, Any]) -> tuple:
     return (g.get("observation_id"), g.get("claim_type"), g.get("study_family_id"))
 
 
+def compute_row_metrics(
+    observations: list[dict[str, Any]],
+    g_atoms: list[dict[str, Any]],
+    classified: list[dict[str, Any]],
+    matched: dict[str, Any],
+) -> dict[str, Any]:
+    """M-10 row recall/precision: observations, not leaves (§5.3.6 / §3.2.4)."""
+    matched_g = matched.get("matched_g") or set()
+    pairing = matched.get("pairing") or []
+    g_by_id = {g.get("atom_id"): g for g in g_atoms}
+    expected_ids: list[Any] = []
+    m1_by_obs: dict[Any, list[dict[str, Any]]] = {}
+    for o in observations:
+        oid = o.get("observation_id_computed") or o.get("observation_id")
+        expected_ids.append(oid)
+    for g in g_atoms:
+        if g.get("kind") == "descriptive_binding" or g.get("applicability") == "not_applicable":
+            continue
+        m1_by_obs.setdefault(g.get("observation_id"), []).append(g)
+
+    def _complete(oid: Any) -> bool:
+        atoms = m1_by_obs.get(oid) or []
+        return bool(atoms) and all(a.get("atom_id") in matched_g for a in atoms)
+
+    groups: dict[Any, list[dict[str, Any]]] = {}
+    for p in classified:
+        if p.get("kind") != "m1" or p.get("claim_type") == "Q3":
+            continue
+        if p.get("pre_duplicate"):
+            continue
+        groups.setdefault(p.get("claim_index"), []).append(p)
+
+    correct = 0
+    merge_violations = 0
+    returned: list[tuple[str, Any]] = []
+    seen_obs: set[Any] = set()
+    for idx, ps in groups.items():
+        claim = (ps[0].get("claim") or {}) if ps else {}
+        incompat = claim.get("incompatible_bases") or []
+        claim_fams = {p.get("study_family_id") for p in ps if p.get("study_family_id")}
+        paired_obs: set[Any] = set()
+        paired_fams: set[Any] = set()
+        for p in ps:
+            for pair in pairing:
+                gid, sid = pair[0], pair[1]
+                if sid != p.get("slot_id"):
+                    continue
+                g = g_by_id.get(gid) or {}
+                paired_obs.add(g.get("observation_id"))
+                if g.get("study_family_id"):
+                    paired_fams.add(g.get("study_family_id"))
+        merge = bool(incompat) or len(paired_obs) > 1 or len(paired_fams) > 1 or len(claim_fams) > 1
+        if merge:
+            merge_violations += 1
+            returned.append(("merge", idx))
+            continue
+        if len(paired_obs) == 1:
+            oid = next(iter(paired_obs))
+            obs_fams = {g.get("study_family_id") for g in (m1_by_obs.get(oid) or []) if g.get("study_family_id")}
+            family_ok = not obs_fams or not claim_fams or obs_fams == claim_fams
+            if oid in seen_obs:
+                continue
+            seen_obs.add(oid)
+            if family_ok and _complete(oid):
+                correct += 1
+                returned.append(("matched", oid))
+            else:
+                returned.append(("incomplete", oid))
+            continue
+        returned.append(("unmatched", idx))
+
+    n_expected = len(expected_ids)
+    n_returned = len(returned)
+    if n_expected == 0:
+        recall: Any = "NA"
+    else:
+        recall = {"num": correct, "den": n_expected}
+    if n_returned == 0:
+        precision: Any = "UNDEF"
+    else:
+        precision = {"num": correct, "den": n_returned}
+    return {
+        "expected_rows": n_expected,
+        "returned_rows_distinct": n_returned,
+        "merge_violations": merge_violations,
+        "M-10_recall": recall,
+        "M-10_precision": precision,
+    }
+
+
 def score_question(
     question: dict[str, Any],
     reference: dict[str, Any],
@@ -131,6 +221,7 @@ def score_question(
     g_m1 = [g for g in g_atoms if g.get("kind") != "descriptive_binding" and g.get("applicability") != "not_applicable"]
     matched = match(g_atoms, classified, run)
     matched_g, matched_p = matched["matched_g"], matched["matched_p"]
+    row_m = compute_row_metrics(obs, g_atoms, classified, matched)
 
     parents_matched = set()
     for g in g_m1:
@@ -466,6 +557,11 @@ def score_question(
         "parent_matched": bool(parents_matched),
         "identity_info": loaded.get("identity_info"),
         "status_internal": {},
+        "expected_rows": row_m["expected_rows"],
+        "returned_rows_distinct": row_m["returned_rows_distinct"],
+        "merge_violations": row_m["merge_violations"],
+        "M-10_recall": row_m["M-10_recall"],
+        "M-10_precision": row_m["M-10_precision"],
     }
 
 
@@ -592,6 +688,14 @@ def _aggregate_metrics(
         if mid in OUT_OF_SCOPE_WP1:
             continue
         row = {"metric_id": mid, **pooled}
+        if mid == "M-7":
+            subtypes: Counter[str] = Counter()
+            for r in results:
+                for k, v in (r.get("M-7_subtypes") or {}).items():
+                    if k in M7_CLASSES and isinstance(v, int) and not isinstance(v, bool) and v:
+                        subtypes[k] += v
+            if subtypes:
+                row["subtypes"] = dict(subtypes)
         rows.append(_bind_row(row, meta, pub_arm, scored_run))
     add_n = {"additional_candidate": 0, "out_of_scope": 0, "underbound": 0, "duplicate": 0}
     saw_add = False
@@ -672,6 +776,8 @@ def score(question_set: Any, arm: str | None = None, **kwargs: Any) -> dict[str,
         flags["consequence_of_intervention"] = 1
     if any((r.get("flags") or {}).get("citation_without_access") for r in results):
         flags["citation_without_access"] = 1
+    if results:
+        flags["partial_fault_questions"] = sum(int(r.get("partial_fault_questions") or 0) for r in results)
     out: dict[str, Any] = {
         "questions": results,
         "metrics": metrics,

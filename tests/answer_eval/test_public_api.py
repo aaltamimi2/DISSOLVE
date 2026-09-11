@@ -65,7 +65,55 @@ class TestExportedScoreEmit(unittest.TestCase):
         self.assertNotIn("den", ops[0])
         self.assertNotIn("num", ops[0])
 
-    def test_emit_public_refuses_on_arm_without_cell(self) -> None:
+    def test_exported_score_emits_fid1_m10(self) -> None:
+        fx = _fixtures()["F-ID-1"]
+        scored = answer_eval.score(
+            [fx],
+            backbone="bb1",
+            partition="dev",
+            subject_id="subj1",
+        )
+        by_id = {row.get("metric_id"): row for row in scored["metrics"]}
+        self.assertIn("M-10", by_id)
+        self.assertIn("M-10_precision", by_id)
+        exp = fx["expected"]
+        rec = by_id["M-10"]
+        self.assertEqual(rec.get("num"), exp["M-10_recall"]["num"])
+        self.assertEqual(rec.get("den"), exp["M-10_recall"]["den"])
+        prec = by_id["M-10_precision"]
+        self.assertEqual(prec.get("num"), exp["M-10_precision"]["num"])
+        self.assertEqual(prec.get("den"), exp["M-10_precision"]["den"])
+        emitted = answer_eval.emit_public(scored)
+        self.assertEqual(emitted.get("write_results"), "accepted")
+        pub = {row.get("metric_id"): row for row in (emitted.get("document") or {}).get("metrics") or []}
+        self.assertIn("M-10", pub)
+        self.assertIn("M-10_precision", pub)
+        self.assertEqual(pub["M-10"].get("num"), exp["M-10_recall"]["num"])
+        self.assertEqual(pub["M-10"].get("den"), exp["M-10_recall"]["den"])
+        self.assertEqual(pub["M-10_precision"].get("num"), exp["M-10_precision"]["num"])
+        self.assertEqual(pub["M-10_precision"].get("den"), exp["M-10_precision"]["den"])
+
+    def test_exported_score_emits_subtypes_and_partial_faults(self) -> None:
+        fx = _fixtures()["F-COUNT-1"]
+        scored = answer_eval.score(
+            [fx],
+            backbone="bb1",
+            partition="dev",
+            subject_id="subj1",
+        )
+        m7 = next(row for row in scored["metrics"] if row.get("metric_id") == "M-7")
+        self.assertEqual(m7.get("subtypes"), fx["expected"]["M-7_subtypes"])
+        pref = _fixtures()["F-REF-8"]
+        scored_pf = answer_eval.score(
+            [pref],
+            backbone="bb1",
+            partition="dev",
+            subject_id="subj1",
+        )
+        self.assertEqual(
+            scored_pf.get("flags", {}).get("partial_fault_questions"),
+            pref["expected"]["partial_fault_questions"],
+        )
         obj = copy.deepcopy(_fixtures()["F-EMIT-7"]["prediction"]["attempts"][1]["object"])
         emitted = answer_eval.emit_public(obj)
         self.assertTrue(str(emitted.get("write_results")).startswith("refused"))
