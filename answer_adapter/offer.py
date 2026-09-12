@@ -15,6 +15,12 @@ from answer_adapter.constants import (
 from answer_adapter.halt import AdapterHalt
 
 
+def roster_from_config(config: Mapping | None) -> object:
+    if isinstance(config, Mapping) and "by_name" in config:
+        return config["by_name"]
+    return REGISTRY_ROSTER
+
+
 def _name_set(by_name: object) -> set[str]:
     if isinstance(by_name, Mapping):
         return {str(k) for k in by_name.keys()}

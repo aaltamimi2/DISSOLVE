@@ -22,10 +22,10 @@
     "synthetic_guard.py": "8f434541004c67e61d79ec5356bd98adafae5e0949fc8f6747c55d7e1aa9f365"
   },
   "outputs": {
-    "MANIFEST.v1.json": "c4b1934276704346d46036a955aa39c10893aad028f5ca62ec3bb6010a6d5b14",
     "PROMPT.closed_book.v1": "e50416decacb122937e640b4e79c1888f8c47992e92547883b1d412c381c9529",
     "PROMPT.rag_alone.v1": "6f97cc6a148d6b0d706bd318d93771ce2df631179b92a4e3b4b6847dc33f85b0",
-    "RESULTS.adapter.fixtures.v2.json": "bf407d268c69eb0d8c76cbb0bbedfc60e1d3a4c77534a2ec9df7d9edde822693"
+    "README.md": "dfcc61095d237bb49367a09a631c1467b4abf4c7a6da7558a39ef037e9332e67",
+    "RESULTS.adapter.fixtures.v2.json": "ef171a64277043714d5ab308fcc2e503047ab7b978ff5fc13d7d51283ca775b4"
   },
   "package": "cf950a384de54f700789c3e1d5634cc7d15679e8",
   "product_pin": "849ecdccb4d68204d0f68e56362adb90d4ef5296",

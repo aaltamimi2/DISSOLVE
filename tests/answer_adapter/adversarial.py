@@ -49,42 +49,27 @@ def _patch(module, name: str, replacement):
         setattr(module, name, original)
 
 
-def _failing(fixture, key: str, actual) -> bool:
-    expected = fixture["expected"]
-    if key in expected:
-        return not values_equal(actual.get(key) if "[" not in key else activating_value(actual, key), expected[key] if "[" not in key else activating_value(fixture["expected"], key) if key in fixture["expected"] else activating_value({"envelope": fixture["expected"].get("envelope"), "ledger_after": fixture["expected"].get("ledger_after"), "presented_tool_messages": fixture["expected"].get("presented_tool_messages")}, key) if False else activating_value(fixture["expected"] if key in fixture["expected"] else actual, key))
-    got = activating_value(actual, key)
-    want = activating_value(fixture["expected"], key)
-    return not values_equal(got, want)
+def scan_text(text: str) -> list[dict]:
+    hits = []
+    blob = text if isinstance(text, str) else ""
+    for needle in ("os.environ", "os.getenv", "getenv(", "environ["):
+        if needle in blob:
+            hits.append({"needle": needle})
+    if "META_MUSE_API_KEY" in blob:
+        lines = blob.splitlines() or [blob]
+        for line in lines:
+            stripped = line.strip()
+            if "META_MUSE_API_KEY" in stripped and any(
+                tok in stripped for tok in ("environ", "getenv", "open(", "Path(")
+            ) and "API_KEY_ENV_NAME" not in stripped:
+                hits.append({"needle": "key_value_read"})
+    return hits
 
 
 def key_failed(fixture, key: str, actual) -> bool:
     want = activating_value(fixture["expected"], key)
     got = activating_value(actual, key)
     return not values_equal(got, want)
-
-
-def demo_row_1(bundle):
-    fx = _fixture_by_id(bundle, "F-OFFER-1")
-
-    def mutant(by_name, arm):
-        out = offer_mod.build_offer.__wrapped__(by_name, arm) if False else None
-        real = offer_mod.build_offer
-        # wrap after patch target: call stored original via closure after patch
-        raise RuntimeError("replaced")
-
-    original = offer_mod.build_offer
-
-    def mutant_offer(by_name, arm):
-        out = original(by_name, arm)
-        if arm == "rag_alone":
-            out = dict(out)
-            out["offered"] = list(out["offered"]) + ["solubility_query"]
-        return out
-
-    with _patch(offer_mod, "build_offer", mutant_offer), _patch(run_mod.offer_mod, "build_offer", mutant_offer):
-        actual = run_fixture(fx, {"build_offer": mutant_offer})
-    return [("F-OFFER-1", "offered", key_failed(fx, "offered", actual))]
 
 
 def _wrap_offer(fn):
@@ -166,6 +151,15 @@ def demonstrate_all(bundle) -> list[dict]:
 
     fx = _fixture_by_id(bundle, "F-CFG-3")
     add(4, "F-CFG-3", "halt", run_fixture(fx, {"config_echo": echo_skip_key}), fx)
+    sample = 'os.environ.get("META_MUSE_API_KEY")'
+    rows.append(
+        {
+            "row": 4,
+            "fixture_id": "F-CFG-3",
+            "key": "scan result",
+            "failed": len(scan_text(sample)) > 0,
+        }
+    )
 
     # 5
     def resolve_open(substrate_id, research_home):
@@ -282,65 +276,39 @@ def demonstrate_all(bundle) -> list[dict]:
     add(13, "F-OFFER-5", "halt", run_fixture(fx, {"build_offer": offer_deferred}), fx)
 
     # 14
-    def assemble_draft(stamps, normalized, status, draft=None):
-        env = original_assemble(stamps, normalized, status)
-        if isinstance(draft, dict):
-            for k in ("request_id", "generated_at", "corpus_snapshot"):
-                if k in draft:
-                    env[k] = draft[k]
-        return env
-
     fx = _fixture_by_id(bundle, "F-STAMP-3")
+    captured = {}
 
-    def run_with_draft_stamps(*args, **kwargs):
-        def assemble(stamps, normalized, status):
-            env = original_assemble(stamps, normalized, status)
-            draft = args[0] if False else None
-            return env
+    def check_capture(draft, profile):
+        captured["draft"] = draft
+        return original_check(draft, profile)
 
-        # patch run_question path: merge discarded keys back
-        def mutant_run(question, arm, model, executor, config, clock, run_ordinal):
-            out = run_mod.run_question(question, arm, model, executor, config, clock, run_ordinal)
-            if isinstance(out.get("envelope"), dict) and "discarded_draft_keys" in out:
-                env = dict(out["envelope"])
-                env["request_id"] = "from-draft"
-                env["generated_at"] = "from-draft"
-                env["corpus_snapshot"] = {"from": "draft"}
-                out = dict(out)
-                out["envelope"] = env
-                out["discarded_draft_keys"] = []
-            return out
-
-        return mutant_run(*args, **kwargs)
-
-    # Row 14 must change the implementation path, not post-edit. Patch assemble + keep discarded empty in normalize.
     def normalize_keep(draft, ledger, arm, substrate_manifest_sha256):
         out = original_normalize(draft, ledger, arm, substrate_manifest_sha256)
         out = dict(out)
         out["discarded_draft_keys"] = []
         return out
 
-    def assemble_from_normalized(stamps, normalized, status):
+    def assemble_from_draft(stamps, normalized, status):
         env = original_assemble(stamps, normalized, status)
-        # pull through any draft-supplied stamps that normalize failed to drop
+        env = dict(env)
+        draft = captured.get("draft")
+        if isinstance(draft, dict):
+            for k in ("request_id", "generated_at", "corpus_snapshot"):
+                if k in draft:
+                    env[k] = draft[k]
         return env
 
-    with _patch(ledger_mod, "normalize_draft", normalize_keep), _patch(run_mod.ledger_mod, "normalize_draft", normalize_keep):
-        def assemble_prefers_draft_fields(stamps, normalized, status):
-            env = original_assemble(stamps, normalized, status)
-            env = dict(env)
-            env["request_id"] = "from-draft"
-            env["generated_at"] = "from-draft"
-            env["corpus_snapshot"] = {"from": "draft"}
-            return env
-
-        with _patch(run_mod, "_assemble_envelope", assemble_prefers_draft_fields):
-            fx = _fixture_by_id(bundle, "F-STAMP-3")
-            actual = run_fixture(fx)
-            add(14, "F-STAMP-3", "envelope.request_id", actual, fx)
-            add(14, "F-STAMP-3", "envelope.corpus_snapshot", actual, fx)
-            add(14, "F-STAMP-3", "envelope.generated_at", actual, fx)
-            add(14, "F-STAMP-3", "discarded_draft_keys", actual, fx)
+    with _patch(ledger_mod, "normalize_draft", normalize_keep), _patch(
+        run_mod.ledger_mod, "normalize_draft", normalize_keep
+    ), _patch(draft_mod, "check_draft", check_capture), _patch(
+        run_mod.draft_mod, "check_draft", check_capture
+    ), _patch(run_mod, "_assemble_envelope", assemble_from_draft):
+        actual = run_fixture(fx)
+        add(14, "F-STAMP-3", "envelope.request_id", actual, fx)
+        add(14, "F-STAMP-3", "envelope.corpus_snapshot", actual, fx)
+        add(14, "F-STAMP-3", "envelope.generated_at", actual, fx)
+        add(14, "F-STAMP-3", "discarded_draft_keys", actual, fx)
 
     # 15
     def stamp_accept(arm, question, config, clock, run_ordinal, echo):

@@ -18,7 +18,6 @@ from answer_adapter.constants import (
     PINNED_MODEL_ID,
     PINNED_STORE_DIGEST,
     PRESENTATION_ID,
-    REGISTRY_ROSTER,
     STAMP_KEYS,
 )
 from answer_adapter.halt import AdapterHalt
@@ -49,7 +48,7 @@ def config_echo(arm: str, config: Mapping) -> dict:
     missing = [k for k in CONFIG_ECHO_FROM_CONFIG if k not in config]
     if missing:
         raise AdapterHalt("config_incomplete", missing=missing)
-    offer = offer_mod.build_offer(config.get("by_name") or REGISTRY_ROSTER, arm)
+    offer = offer_mod.build_offer(offer_mod.roster_from_config(config), arm)
     spec = ARMS[arm]
     load_packaged_prompt(spec["prompt"])
     if "substrate_manifest" not in config:
@@ -125,6 +124,8 @@ def stamp_values(arm: str, question: Mapping, config: Mapping, clock: object, ru
     generated_at = clock() if callable(clock) else clock
     if generated_at in (None, ""):
         _missing_stamp("generated_at")
+    if config.get("model_id") != PINNED_MODEL_ID:
+        _mismatch_stamp("model_id")
     if arm == "closed_book":
         snapshot = {
             "census_version": CLOSED_BOOK_SENTINEL,
@@ -139,8 +140,6 @@ def stamp_values(arm: str, question: Mapping, config: Mapping, clock: object, ru
             _mismatch_stamp("store_digest")
         if config.get("census_version") != PINNED_CENSUS_VERSION:
             _mismatch_stamp("census_version")
-        if config.get("model_id") != PINNED_MODEL_ID:
-            _mismatch_stamp("model_id")
         snapshot = {
             "census_version": PINNED_CENSUS_VERSION,
             "index_manifest_digest": echo["substrate_manifest_sha256"],

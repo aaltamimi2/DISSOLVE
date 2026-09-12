@@ -10,11 +10,14 @@ from answer_adapter import draft as draft_mod
 from answer_adapter import ledger as ledger_mod
 from answer_adapter import offer as offer_mod
 from answer_adapter import prompt as prompt_mod
-from answer_adapter.constants import ARMS, DEFAULT_MAX_TOOL_ROUNDS, REGISTRY_ROSTER, STAMP_KEYS
+from answer_adapter.constants import ARMS, DEFAULT_MAX_TOOL_ROUNDS, STAMP_KEYS
 
 
 def _max_rounds(config: Mapping) -> int:
-    return int(config.get("max_tool_rounds", DEFAULT_MAX_TOOL_ROUNDS))
+    configured = int(config.get("max_tool_rounds", DEFAULT_MAX_TOOL_ROUNDS))
+    if configured > DEFAULT_MAX_TOOL_ROUNDS:
+        return DEFAULT_MAX_TOOL_ROUNDS
+    return configured
 
 
 def _refusal_message(name: str) -> dict:
@@ -55,7 +58,7 @@ def run_question(
     clock: object,
     run_ordinal: object,
 ) -> dict:
-    offer = offer_mod.build_offer(config.get("by_name") or REGISTRY_ROSTER, arm)
+    offer = offer_mod.build_offer(offer_mod.roster_from_config(config), arm)
     offered = list(offer["offered"])
     echo = config_mod.config_echo(arm, config)
     stamps = config_mod.stamp_values(arm, question, config, clock, run_ordinal, echo)
@@ -78,6 +81,7 @@ def run_question(
     ]
     adapter_error = None
     draft = None
+    raw_response = None
     check = {
         "check_scope": "draft_profile",
         "draft_structure_valid": False,
@@ -87,6 +91,7 @@ def run_question(
     }
     while True:
         response = model(messages, tools)
+        raw_response = response
         model_calls += 1
         if not isinstance(response, Mapping):
             adapter_error = "envelope_unparseable"
@@ -143,6 +148,8 @@ def run_question(
         "draft_errors": check["draft_errors"],
         "draft_structure_valid": check["draft_structure_valid"],
         "discarded_draft_keys": [],
+        "raw_response": raw_response,
+        "raw_draft": draft,
     }
     if session_bound:
         result["literature_mode"] = "corpus"

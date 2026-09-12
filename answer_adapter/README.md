@@ -16,8 +16,10 @@ Synthetic two-arm adapter for WP-2b. Injected model and executor only. No produc
 
 ## Reproduction
 
+From this checkout, with the pinned interpreter:
+
 ```
-/home/aaltamimi2/anaconda3/bin/python /home/aaltamimi2/dissolve-v12-wp2b/tests/answer_adapter/reproduce.py
+/home/aaltamimi2/anaconda3/bin/python tests/answer_adapter/reproduce.py
 ```
 
-Adversarial demonstrations are the same command. Caches, if any, stay under `answer_adapter/.cache/`.
+The runner derives ROOT from its own path. Adversarial demonstrations are the same command. Caches, if any, stay under `answer_adapter/.cache/`.

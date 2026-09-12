@@ -66,6 +66,9 @@ def draft_structure(draft: object) -> tuple[bool, list]:
     status = draft.get("status") if isinstance(draft, Mapping) else None
     if status not in DRAFT_STATUS:
         errors.append({"path": "/status", "code": "invalid_status"})
+    for key in ("claims", "unanswered_subparts", "limitations"):
+        if key in draft and not isinstance(draft.get(key), list):
+            errors.append({"path": f"/{key}", "code": "invalid_type"})
     return (len(errors) == 0), errors
 
 

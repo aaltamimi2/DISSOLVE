@@ -14,6 +14,7 @@ from answer_adapter.constants import (
 from answer_adapter.draft import (
     TOKEN_RE,
     discarded_draft_keys,
+    draft_structure,
     unanswered_errors,
     valid_unanswered_entries,
 )
@@ -165,11 +166,11 @@ def _token_and_form(ref: object) -> tuple[str | None, object]:
 
 
 def normalize_reference(ref: object, arm: str, entries: Mapping, substrate_manifest_sha256: str) -> dict:
+    if arm == "closed_book":
+        return {"kind": "unresolved_ref.v1", "reason": "no_visible_evidence", "draft_ref": ref}
     token, draft_ref = _token_and_form(ref)
     if token is None:
         return {"kind": "unresolved_ref.v1", "reason": "malformed_ref", "draft_ref": draft_ref}
-    if arm == "closed_book":
-        return {"kind": "unresolved_ref.v1", "reason": "no_visible_evidence", "draft_ref": draft_ref}
     if not TOKEN_RE.match(token):
         return {"kind": "unresolved_ref.v1", "reason": "malformed_ref", "draft_ref": draft_ref}
     entry = entries.get(token)
@@ -186,6 +187,16 @@ def normalize_draft(draft: object, ledger: object, arm: str, substrate_manifest_
             "limitations": [],
             "discarded_draft_keys": [],
             "draft_errors": [{"path": "", "code": "not_object"}],
+            "support_refs": [],
+        }
+    structure_ok, structure_errors = draft_structure(draft)
+    if not structure_ok:
+        return {
+            "claims": draft.get("claims"),
+            "unanswered_subparts": draft.get("unanswered_subparts"),
+            "limitations": draft.get("limitations"),
+            "discarded_draft_keys": discarded_draft_keys(draft),
+            "draft_errors": structure_errors,
             "support_refs": [],
         }
     entries = _entry_by_token(ledger if isinstance(ledger, Mapping) else {})
@@ -210,7 +221,7 @@ def normalize_draft(draft: object, ledger: object, arm: str, substrate_manifest_
     return {
         "claims": claims_out,
         "unanswered_subparts": valid_unanswered_entries(draft),
-        "limitations": list(draft.get("limitations") or []),
+        "limitations": list(draft.get("limitations")),
         "discarded_draft_keys": discarded_draft_keys(draft),
         "draft_errors": unanswered_errors(draft),
         "support_refs": support_refs,
