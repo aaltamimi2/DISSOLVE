@@ -1,0 +1,41 @@
+{
+  "branch": "wp2b-adapter",
+  "dispatch": {
+    "path": "DISPATCH.wp2b.v1.md",
+    "sha256": "b3e59ebb8061ed8e37115c243009119865c9adc5a9d8edebee3a81d8df3dbb3f"
+  },
+  "handoff": {
+    "commit": "a6cf298",
+    "path": "HANDOFF.wp2b.v3.md",
+    "sha256": "13d8b4e6cf66cc0c871060b472766daade2394fcadc026079a679dc231caa717"
+  },
+  "inputs": {
+    "FIXTURES.adapter.v2.json": "f4cdf274ae647660c3f3954209fc525e2a65ca78a315babbbe30e974a645ef20",
+    "FIXTURES.adapter.v3.json": "9a5636e11b9ff5f85cee3a2d5ddbd8bc5b56eb4049d6ec24b364741810e2c347",
+    "HANDOFF.wp2b.v3.md": "13d8b4e6cf66cc0c871060b472766daade2394fcadc026079a679dc231caa717",
+    "RAG_AUDIT_SPEC.v2.1.md": "bf262ff6cada3285a6e4613bc96c56afc196b1a2f870e224bf03ab118ab89980",
+    "RAG_AUDIT_SPEC.v2.5.1.md": "55003624c2e26f129981998db006ec90d69acc5d4042a0bd081cc6fe1a46f82b",
+    "RAG_AUDIT_SPEC.v2.5.2.md": "97aa6f15613a8733c9d509cd2f93fb7fd45e46f2ec812bfcb3ff702d4ef19797",
+    "RAG_AUDIT_SPEC.v2.5.md": "cf60ae08690b64b61d80bcf98c4c54fb7b08ed51008aefb815afde0b2c5bbc48",
+    "build_fixtures_adapter_v3.py": "d0a969394e297017b7845090c9ccd0fbf85f6faa735965c3a1f656ab95cf4fea",
+    "gold_value_guard.py": "961ef0aeb8842d785e7806d8b57da7c0a62dcba393b282ec9490f04f578847a9",
+    "synthetic_guard.py": "8f434541004c67e61d79ec5356bd98adafae5e0949fc8f6747c55d7e1aa9f365"
+  },
+  "outputs": {
+    "MANIFEST.v1.json": "5f5cabf6e0486f4391cf922edf9c756e234076d003f3e0917956fd1df2fd0123",
+    "PROMPT.closed_book.v1": "e50416decacb122937e640b4e79c1888f8c47992e92547883b1d412c381c9529",
+    "PROMPT.rag_alone.v1": "6f97cc6a148d6b0d706bd318d93771ce2df631179b92a4e3b4b6847dc33f85b0",
+    "RESULTS.adapter.fixtures.v2.json": "0b257a509a10734c33e394e71724c5ec11dd9c9fb7f43d90d2f1b06dbcfa4e00"
+  },
+  "package": "cf950a384de54f700789c3e1d5634cc7d15679e8",
+  "product_pin": "849ecdccb4d68204d0f68e56362adb90d4ef5296",
+  "runtime": {
+    "executable": "/home/aaltamimi2/anaconda3/bin/python",
+    "executable_sha256": "97f591df758773004a502807c0453f716e496cb188ef74674b06719b90f465a4",
+    "jsonschema": "4.19.2",
+    "numpy": "2.4.6",
+    "python": "3.11.9"
+  },
+  "schema": "answer_adapter.MANIFEST.v1",
+  "worktree": "/home/aaltamimi2/dissolve-v12-wp2b"
+}

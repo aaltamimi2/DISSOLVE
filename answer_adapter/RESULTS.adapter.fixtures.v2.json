@@ -1,0 +1,286 @@
+{
+  "adversarial_failed": 52,
+  "adversarial_n": 52,
+  "by_id": {
+    "F-CFG-1": {
+      "family": "F-CFG",
+      "graded_keys": 8,
+      "matched_keys": 8,
+      "missed_n": 0
+    },
+    "F-CFG-2": {
+      "family": "F-CFG",
+      "graded_keys": 2,
+      "matched_keys": 2,
+      "missed_n": 0
+    },
+    "F-CFG-3": {
+      "family": "F-CFG",
+      "graded_keys": 3,
+      "matched_keys": 3,
+      "missed_n": 0
+    },
+    "F-DRAFT-1": {
+      "family": "F-DRAFT",
+      "graded_keys": 18,
+      "matched_keys": 18,
+      "missed_n": 0
+    },
+    "F-DRAFT-2": {
+      "family": "F-DRAFT",
+      "graded_keys": 18,
+      "matched_keys": 18,
+      "missed_n": 0
+    },
+    "F-ENV-1": {
+      "family": "F-ENV",
+      "graded_keys": 5,
+      "matched_keys": 5,
+      "missed_n": 0
+    },
+    "F-ENV-2": {
+      "family": "F-ENV",
+      "graded_keys": 5,
+      "matched_keys": 5,
+      "missed_n": 0
+    },
+    "F-ENV-3": {
+      "family": "F-ENV",
+      "graded_keys": 5,
+      "matched_keys": 5,
+      "missed_n": 0
+    },
+    "F-ENV-4": {
+      "family": "F-ENV",
+      "graded_keys": 5,
+      "matched_keys": 5,
+      "missed_n": 0
+    },
+    "F-ENV-5": {
+      "family": "F-ENV",
+      "graded_keys": 5,
+      "matched_keys": 5,
+      "missed_n": 0
+    },
+    "F-IDENT-1": {
+      "family": "F-IDENT",
+      "graded_keys": 1,
+      "matched_keys": 1,
+      "missed_n": 0
+    },
+    "F-IDENT-2": {
+      "family": "F-IDENT",
+      "graded_keys": 1,
+      "matched_keys": 1,
+      "missed_n": 0
+    },
+    "F-NORM-1": {
+      "family": "F-NORM",
+      "graded_keys": 17,
+      "matched_keys": 17,
+      "missed_n": 0
+    },
+    "F-NORM-2": {
+      "family": "F-NORM",
+      "graded_keys": 17,
+      "matched_keys": 17,
+      "missed_n": 0
+    },
+    "F-NORM-3": {
+      "family": "F-NORM",
+      "graded_keys": 17,
+      "matched_keys": 17,
+      "missed_n": 0
+    },
+    "F-NORM-4": {
+      "family": "F-NORM",
+      "graded_keys": 16,
+      "matched_keys": 16,
+      "missed_n": 0
+    },
+    "F-OFFER-1": {
+      "family": "F-OFFER",
+      "graded_keys": 3,
+      "matched_keys": 3,
+      "missed_n": 0
+    },
+    "F-OFFER-2": {
+      "family": "F-OFFER",
+      "graded_keys": 3,
+      "matched_keys": 3,
+      "missed_n": 0
+    },
+    "F-OFFER-3": {
+      "family": "F-OFFER",
+      "graded_keys": 3,
+      "matched_keys": 3,
+      "missed_n": 0
+    },
+    "F-OFFER-4": {
+      "family": "F-OFFER",
+      "graded_keys": 3,
+      "matched_keys": 3,
+      "missed_n": 0
+    },
+    "F-OFFER-5": {
+      "family": "F-OFFER",
+      "graded_keys": 1,
+      "matched_keys": 1,
+      "missed_n": 0
+    },
+    "F-PROMPT-1": {
+      "family": "F-PROMPT",
+      "graded_keys": 2,
+      "matched_keys": 2,
+      "missed_n": 0
+    },
+    "F-PROMPT-2": {
+      "family": "F-PROMPT",
+      "graded_keys": 2,
+      "matched_keys": 2,
+      "missed_n": 0
+    },
+    "F-PROMPT-3": {
+      "family": "F-PROMPT",
+      "graded_keys": 2,
+      "matched_keys": 2,
+      "missed_n": 0
+    },
+    "F-RUN-1": {
+      "family": "F-RUN",
+      "graded_keys": 17,
+      "matched_keys": 17,
+      "missed_n": 0
+    },
+    "F-RUN-2": {
+      "family": "F-RUN",
+      "graded_keys": 17,
+      "matched_keys": 17,
+      "missed_n": 0
+    },
+    "F-RUN-3": {
+      "family": "F-RUN",
+      "graded_keys": 16,
+      "matched_keys": 16,
+      "missed_n": 0
+    },
+    "F-RUN-4": {
+      "family": "F-RUN",
+      "graded_keys": 7,
+      "matched_keys": 7,
+      "missed_n": 0
+    },
+    "F-RUN-5": {
+      "family": "F-RUN",
+      "graded_keys": 7,
+      "matched_keys": 7,
+      "missed_n": 0
+    },
+    "F-RUN-6": {
+      "family": "F-RUN",
+      "graded_keys": 7,
+      "matched_keys": 7,
+      "missed_n": 0
+    },
+    "F-RUN-7": {
+      "family": "F-RUN",
+      "graded_keys": 21,
+      "matched_keys": 21,
+      "missed_n": 0
+    },
+    "F-STAMP-1": {
+      "family": "F-STAMP",
+      "graded_keys": 2,
+      "matched_keys": 2,
+      "missed_n": 0
+    },
+    "F-STAMP-2": {
+      "family": "F-STAMP",
+      "graded_keys": 2,
+      "matched_keys": 2,
+      "missed_n": 0
+    },
+    "F-STAMP-3": {
+      "family": "F-STAMP",
+      "graded_keys": 17,
+      "matched_keys": 17,
+      "missed_n": 0
+    },
+    "F-SUB-1": {
+      "family": "F-SUB",
+      "graded_keys": 1,
+      "matched_keys": 1,
+      "missed_n": 0
+    },
+    "F-SUB-2": {
+      "family": "F-SUB",
+      "graded_keys": 1,
+      "matched_keys": 1,
+      "missed_n": 0
+    },
+    "F-SUB-3": {
+      "family": "F-SUB",
+      "graded_keys": 1,
+      "matched_keys": 1,
+      "missed_n": 0
+    },
+    "F-SUB-4": {
+      "family": "F-SUB",
+      "graded_keys": 4,
+      "matched_keys": 4,
+      "missed_n": 0
+    }
+  },
+  "families": {
+    "F-CFG": {
+      "matched": 3,
+      "n": 3
+    },
+    "F-DRAFT": {
+      "matched": 2,
+      "n": 2
+    },
+    "F-ENV": {
+      "matched": 5,
+      "n": 5
+    },
+    "F-IDENT": {
+      "matched": 2,
+      "n": 2
+    },
+    "F-NORM": {
+      "matched": 4,
+      "n": 4
+    },
+    "F-OFFER": {
+      "matched": 5,
+      "n": 5
+    },
+    "F-PROMPT": {
+      "matched": 3,
+      "n": 3
+    },
+    "F-RUN": {
+      "matched": 7,
+      "n": 7
+    },
+    "F-STAMP": {
+      "matched": 3,
+      "n": 3
+    },
+    "F-SUB": {
+      "matched": 4,
+      "n": 4
+    }
+  },
+  "fixture_count": 38,
+  "matched": 38,
+  "missed_n": 0,
+  "purity": {
+    "call_ordinal_mismatch": "call_ordinal_mismatch",
+    "call_tool_missing": "call_tool_missing",
+    "input_mutated": false
+  },
+  "schema": "RESULTS.adapter.fixtures.v2",
+  "static_hits": 0
+}
