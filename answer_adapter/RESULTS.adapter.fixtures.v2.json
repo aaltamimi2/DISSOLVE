@@ -287,10 +287,12 @@
       "missed_n": 0
     }
   },
-  "candidate": "8ab063842c734e1aca0fcfa6ca06797743423b12",
+  "candidate": "2f53e630122cbe0c5748d7c8a2e38c557640a4f3",
   "command": [
     "/home/aaltamimi2/anaconda3/bin/python",
-    "/home/aaltamimi2/dissolve-v12-wp2b/tests/answer_adapter/reproduce.py"
+    "/home/aaltamimi2/dissolve-v12-wp2b/tests/answer_adapter/reproduce.py",
+    "--candidate",
+    "2f53e630122cbe0c5748d7c8a2e38c557640a4f3"
   ],
   "corrections": {
     "failed_ids": [],
@@ -342,10 +344,12 @@
   "fixture_count": 38,
   "guard": {
     "MANIFEST.v1.json": 0,
+    "MANIFEST.v1.json.structure": 0,
     "PROMPT.closed_book.v1": 0,
     "PROMPT.rag_alone.v1": 0,
     "README.md": 0,
-    "RESULTS.adapter.fixtures.v2.json": 0
+    "RESULTS.adapter.fixtures.v2.json": 0,
+    "RESULTS.adapter.fixtures.v2.json.structure": 0
   },
   "identity_ok": true,
   "import_root": "/home/aaltamimi2/dissolve-v12-wp2b",
@@ -366,7 +370,7 @@
   },
   "resources": {
     "rss_kb": 60288,
-    "wall_s": 0.19299
+    "wall_s": 0.201271
   },
   "schema": "RESULTS.adapter.fixtures.v2",
   "static_hits": 0

@@ -41,6 +41,17 @@ def _key_material_field(config: Mapping) -> str | None:
     return None
 
 
+def pinned_max_tool_rounds(config: Mapping) -> int:
+    raw = config.get("max_tool_rounds", DEFAULT_MAX_TOOL_ROUNDS)
+    try:
+        rounds = int(raw)
+    except (TypeError, ValueError):
+        raise AdapterHalt("stamp_value_mismatch", field="max_tool_rounds")
+    if rounds > DEFAULT_MAX_TOOL_ROUNDS:
+        raise AdapterHalt("stamp_value_mismatch", field="max_tool_rounds")
+    return rounds
+
+
 def config_echo(arm: str, config: Mapping) -> dict:
     field = _key_material_field(config)
     if field is not None:
@@ -48,6 +59,7 @@ def config_echo(arm: str, config: Mapping) -> dict:
     missing = [k for k in CONFIG_ECHO_FROM_CONFIG if k not in config]
     if missing:
         raise AdapterHalt("config_incomplete", missing=missing)
+    rounds = pinned_max_tool_rounds(config)
     offer = offer_mod.build_offer(offer_mod.roster_from_config(config), arm)
     spec = ARMS[arm]
     load_packaged_prompt(spec["prompt"])
@@ -68,7 +80,7 @@ def config_echo(arm: str, config: Mapping) -> dict:
         "census_version": config["census_version"],
         "decoding": config["decoding"],
         "envelope_profile": spec["envelope_profile"],
-        "max_tool_rounds": config["max_tool_rounds"],
+        "max_tool_rounds": rounds,
         "model_alias": config["model_alias"],
         "model_id": config["model_id"],
         "offered_tools": list(offer["offered"]),
@@ -80,9 +92,7 @@ def config_echo(arm: str, config: Mapping) -> dict:
         "substrate_id": config["substrate_id"],
         "substrate_index_sha256": config["substrate_index_sha256"],
         "substrate_manifest_sha256": configured_manifest,
-        "tool_config_hash": offer_mod.tool_config_hash(
-            arm, offer["offered"], config.get("max_tool_rounds", DEFAULT_MAX_TOOL_ROUNDS)
-        ),
+        "tool_config_hash": offer_mod.tool_config_hash(arm, offer["offered"], rounds),
     }
     return {k: echo[k] for k in CONFIG_ECHO_KEYS}
 

@@ -5,8 +5,8 @@ from __future__ import annotations
 import hashlib
 import importlib.util
 import json
+import re
 import resource
-import subprocess
 import sys
 import time
 from pathlib import Path
@@ -273,14 +273,16 @@ def runtime_identity() -> dict:
     }
 
 
-def candidate_identity() -> str:
-    proc = subprocess.run(
-        ["git", "-C", str(ROOT), "rev-parse", "HEAD"],
-        check=False,
-        capture_output=True,
-        text=True,
-    )
-    return proc.stdout.strip()
+CANDIDATE_RE = re.compile(r"^[0-9a-f]{40}$")
+
+
+def parse_candidate(argv: list[str]) -> str:
+    if len(argv) == 3 and argv[1] == "--candidate":
+        value = str(argv[2]).strip().casefold()
+        if CANDIDATE_RE.fullmatch(value):
+            return value
+        raise SystemExit("candidate_syntax")
+    raise SystemExit("candidate_required")
 
 
 def checkout_identity() -> dict:
@@ -296,26 +298,33 @@ def checkout_identity() -> dict:
     }
 
 
+def _guard_wrap(count_violations, path: Path) -> int:
+    return int(count_violations({"text": path.read_text(encoding="utf-8")}))
+
+
+def _guard_structure(count_violations, path: Path) -> int:
+    return int(count_violations(json.loads(path.read_text(encoding="utf-8"))))
+
+
 def guard_outputs(count_violations) -> dict:
-    items = {}
-    results = json.loads((ADAPTER / "RESULTS.adapter.fixtures.v2.json").read_text(encoding="utf-8"))
-    items["RESULTS.adapter.fixtures.v2.json"] = count_violations(results)
-    items["MANIFEST.v1.json"] = count_violations(
-        json.loads((ADAPTER / "MANIFEST.v1.json").read_text(encoding="utf-8"))
-    )
-    items["README.md"] = count_violations({"text": (ADAPTER / "README.md").read_text(encoding="utf-8")})
-    items["PROMPT.rag_alone.v1"] = count_violations(
-        {"text": (ADAPTER / "prompts" / "PROMPT.rag_alone.v1.txt").read_text(encoding="utf-8")}
-    )
-    items["PROMPT.closed_book.v1"] = count_violations(
-        {"text": (ADAPTER / "prompts" / "PROMPT.closed_book.v1.txt").read_text(encoding="utf-8")}
-    )
+    results_path = ADAPTER / "RESULTS.adapter.fixtures.v2.json"
+    manifest_path = ADAPTER / "MANIFEST.v1.json"
+    items = {
+        "RESULTS.adapter.fixtures.v2.json": _guard_wrap(count_violations, results_path),
+        "RESULTS.adapter.fixtures.v2.json.structure": _guard_structure(count_violations, results_path),
+        "MANIFEST.v1.json": _guard_wrap(count_violations, manifest_path),
+        "MANIFEST.v1.json.structure": _guard_structure(count_violations, manifest_path),
+        "README.md": _guard_wrap(count_violations, ADAPTER / "README.md"),
+        "PROMPT.rag_alone.v1": _guard_wrap(count_violations, ADAPTER / "prompts" / "PROMPT.rag_alone.v1.txt"),
+        "PROMPT.closed_book.v1": _guard_wrap(count_violations, ADAPTER / "prompts" / "PROMPT.closed_book.v1.txt"),
+    }
     return items
 
 
-def main() -> int:
+def main(argv: list[str] | None = None) -> int:
     started = time.perf_counter()
-    command = [str(PYTHON), str(Path(__file__).resolve())]
+    candidate = parse_candidate(list(sys.argv if argv is None else argv))
+    command = [str(PYTHON), str(Path(__file__).resolve()), "--candidate", candidate]
     inputs = rehash_inputs()
     count_violations = _load_count_violations()
     bundle = load_fixture_file()
@@ -326,13 +335,12 @@ def main() -> int:
     key_echo = key_material_non_echo(bundle)
     scan = static_credential_scan()
     identity = checkout_identity()
-    git_head = candidate_identity()
     path_keyed = adversarial_by_path(adversarial)
     results_payload = {
         "schema": "RESULTS.adapter.fixtures.v2",
         "command": command,
         "import_root": str(ROOT),
-        "candidate": git_head,
+        "candidate": candidate,
         "fixture_count": fixtures["fixture_count"],
         "matched": fixtures["matched"],
         "missed_n": len(fixtures["misses"]),
@@ -429,9 +437,9 @@ def main() -> int:
         and resources_ok
     )
     print("state=corrected_checkpoint_ready" if ok else "state=correction_failed")
-    print(f"command={command[0]} {command[1]}")
+    print(f"command={command[0]} {command[1]} {command[2]} {command[3]}")
     print(f"import_root={ROOT}")
-    print(f"candidate={git_head}")
+    print(f"candidate={candidate}")
     print(f"fixtures={fixtures['fixture_count']}")
     print(f"matched={fixtures['matched']}")
     print(f"misses={len(fixtures['misses'])}")
@@ -474,4 +482,4 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    raise SystemExit(main(sys.argv))

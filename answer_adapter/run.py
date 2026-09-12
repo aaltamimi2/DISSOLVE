@@ -10,14 +10,11 @@ from answer_adapter import draft as draft_mod
 from answer_adapter import ledger as ledger_mod
 from answer_adapter import offer as offer_mod
 from answer_adapter import prompt as prompt_mod
-from answer_adapter.constants import ARMS, DEFAULT_MAX_TOOL_ROUNDS, STAMP_KEYS
+from answer_adapter.constants import ARMS, STAMP_KEYS
 
 
 def _max_rounds(config: Mapping) -> int:
-    configured = int(config.get("max_tool_rounds", DEFAULT_MAX_TOOL_ROUNDS))
-    if configured > DEFAULT_MAX_TOOL_ROUNDS:
-        return DEFAULT_MAX_TOOL_ROUNDS
-    return configured
+    return config_mod.pinned_max_tool_rounds(config)
 
 
 def _refusal_message(name: str) -> dict:

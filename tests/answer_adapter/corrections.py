@@ -57,12 +57,12 @@ def test_c2_round_cap(bundle) -> dict:
     fx["input"]["config"]["max_tool_rounds"] = 9
     result, halt, model, executor = _run_cloned(fx)
     ok = (
-        halt is None
-        and isinstance(result, dict)
-        and result.get("adapter_error") == "budget_exhausted"
-        and len(result.get("executor_calls") or []) == 8
-        and len(executor.calls) == 8
-        and len(model.calls) == 9
+        result is None
+        and halt is not None
+        and halt.halt == "stamp_value_mismatch"
+        and halt.info.get("field") == "max_tool_rounds"
+        and len(model.calls) == 0
+        and len(executor.calls) == 0
     )
     return _row("C-2.max_tool_rounds", ok)
 
