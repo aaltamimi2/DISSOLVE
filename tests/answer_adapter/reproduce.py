@@ -122,6 +122,35 @@ def purity_and_halts() -> dict:
         present_result(result, new_ledger(), {"tool": "inspect_literature_corpus", "call_ordinal": 2})
     except AdapterHalt as exc:
         ordinal = exc.halt
+    row = {
+        "chunk_id": "syn-purity",
+        "excerpt": "synthetic purity excerpt",
+        "title": "t",
+        "year": 1,
+        "doi": None,
+        "page": 1,
+        "section": "s",
+        "section_origin": "own",
+        "paper_sha256": None,
+        "char_start": 0,
+        "char_end": 1,
+    }
+    handle = {
+        "available": True,
+        "source_basis": "provider_metadata",
+        "handle": "h",
+        "top": [row],
+        "data": {"query": "synthetic", "result_count": 1},
+    }
+    handle_ledger = new_ledger()
+    row_id = id(row)
+    handle_out = present_result(handle, handle_ledger, {"tool": "inspect_literature_corpus", "call_ordinal": 1})
+    handle_mutated = handle["top"][0] is not row or id(row) != row_id or handle_ledger.get("executed_calls", 0) != 0
+    isolated = present_result(
+        {"available": True, "source_basis": "provider_metadata", "data": {"results": []}},
+        new_ledger(),
+        {"tool": "search_literature_corpus", "call_ordinal": 1},
+    )
     return {
         "input_mutated": mutated,
         "new_ledger_returned": new_ledger_ok,
@@ -129,7 +158,32 @@ def purity_and_halts() -> dict:
         "call_ordinal_mismatch": ordinal,
         "executed_calls": out["ledger"]["executed_calls"],
         "entries": len(out["ledger"]["entries"]),
+        "handle_top_entries": len(handle_out["ledger"]["entries"]),
+        "handle_top_mutated": handle_mutated,
+        "isolated_token_restart": isolated["ledger"]["executed_calls"] == 1,
     }
+
+
+def key_material_non_echo(bundle) -> dict:
+    from answer_adapter import config_echo
+
+    fx = next(
+        f
+        for f in bundle["fixtures"]
+        if f["family"] == "F-CFG" and f["expected"].get("halt") == "key_material_in_config"
+    )
+    secret = (fx["input"].get("config") or {}).get("api_key")
+    try:
+        config_echo(fx["input"]["arm"], fx["input"]["config"])
+        return {"halt": None, "value_echoed": None, "secret_in_payload": None}
+    except AdapterHalt as exc:
+        payload = exc.as_dict()
+        blob = json.dumps(payload)
+        return {
+            "halt": exc.halt,
+            "value_echoed": payload.get("value_echoed"),
+            "secret_in_payload": bool(secret) and secret in blob,
+        }
 
 
 def static_credential_scan() -> dict:
@@ -210,6 +264,7 @@ def main() -> int:
     fixtures = fixture_reproduction(bundle)
     adversarial = demonstrate_all(bundle)
     purity = purity_and_halts()
+    key_echo = key_material_non_echo(bundle)
     scan = static_credential_scan()
     results_payload = {
         "schema": "RESULTS.adapter.fixtures.v2",
@@ -232,6 +287,14 @@ def main() -> int:
             "input_mutated": purity["input_mutated"],
             "call_tool_missing": purity["call_tool_missing"],
             "call_ordinal_mismatch": purity["call_ordinal_mismatch"],
+            "handle_top_entries": purity["handle_top_entries"],
+            "handle_top_mutated": purity["handle_top_mutated"],
+            "isolated_token_restart": purity["isolated_token_restart"],
+        },
+        "key_material": {
+            "halt": key_echo["halt"],
+            "value_echoed": key_echo["value_echoed"],
+            "secret_in_payload": key_echo["secret_in_payload"],
         },
         "static_hits": scan["hits"],
     }
@@ -268,8 +331,14 @@ def main() -> int:
     if failed_adv:
         print("adversarial_inactive_rows=" + ",".join(f"{a['row']}:{a['fixture_id']}:{a['key']}" for a in failed_adv))
     print(f"purity_mutated={int(purity['input_mutated'])}")
+    print(f"purity.handle_top_entries={purity['handle_top_entries']}")
+    print(f"purity.handle_top_mutated={int(purity['handle_top_mutated'])}")
+    print(f"purity.isolated_token_restart={int(purity['isolated_token_restart'])}")
     print(f"halt.call_tool_missing={purity['call_tool_missing']}")
     print(f"halt.call_ordinal_mismatch={purity['call_ordinal_mismatch']}")
+    print(f"key_material.halt={key_echo['halt']}")
+    print(f"key_material.value_echoed={key_echo['value_echoed']}")
+    print(f"key_material.secret_in_payload={int(bool(key_echo['secret_in_payload']))}")
     print(f"static_hits={scan['hits']}")
     print(f"guard.RESULTS={guards['RESULTS']['stdout']}")
     print(f"guard.MANIFEST={guards['MANIFEST']['stdout']}")
@@ -278,7 +347,18 @@ def main() -> int:
     print(f"results_sha256={_sha(results_path)}")
     print(f"manifest_sha256={_sha(ADAPTER / 'MANIFEST.v1.json')}")
     print(f"runtime_sha256={runtime['executable_sha256']}")
-    return 0 if fixtures["matched"] == fixtures["fixture_count"] and not failed_adv else 1
+    ok = (
+        fixtures["matched"] == fixtures["fixture_count"]
+        and not failed_adv
+        and not purity["input_mutated"]
+        and not purity["handle_top_mutated"]
+        and purity["handle_top_entries"] == 1
+        and purity["isolated_token_restart"]
+        and key_echo["halt"] == "key_material_in_config"
+        and key_echo["value_echoed"] is False
+        and not key_echo["secret_in_payload"]
+    )
+    return 0 if ok else 1
 
 
 if __name__ == "__main__":

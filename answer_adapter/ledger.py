@@ -103,7 +103,7 @@ def present_result(result: object, ledger: object, call: object) -> dict:
         raise AdapterHalt("call_tool_missing")
     if not isinstance(ledger, Mapping):
         raise AdapterHalt("call_ordinal_mismatch")
-    expected_ordinal = int(ledger.get("executed_calls") or 0) + 1
+    expected_ordinal = int(ledger.get("executed_calls", 0)) + 1
     ordinal = _call_ordinal(call if isinstance(call, Mapping) else {})
     if ordinal != expected_ordinal:
         raise AdapterHalt("call_ordinal_mismatch")

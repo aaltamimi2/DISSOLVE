@@ -274,12 +274,20 @@
     }
   },
   "fixture_count": 38,
+  "key_material": {
+    "halt": "key_material_in_config",
+    "secret_in_payload": false,
+    "value_echoed": false
+  },
   "matched": 38,
   "missed_n": 0,
   "purity": {
     "call_ordinal_mismatch": "call_ordinal_mismatch",
     "call_tool_missing": "call_tool_missing",
-    "input_mutated": false
+    "handle_top_entries": 1,
+    "handle_top_mutated": false,
+    "input_mutated": false,
+    "isolated_token_restart": true
   },
   "schema": "RESULTS.adapter.fixtures.v2",
   "static_hits": 0
