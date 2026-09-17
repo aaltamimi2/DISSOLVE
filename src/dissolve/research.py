@@ -20,7 +20,7 @@ from collections import Counter, defaultdict
 from datetime import date, datetime, timezone
 from html.parser import HTMLParser
 from pathlib import Path
-from typing import Any, Literal, Mapping, Optional, Sequence
+from typing import Any, Literal, Mapping, NoReturn, Optional, Sequence
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode, urlparse
 from urllib.request import Request, urlopen
@@ -55,6 +55,18 @@ _MINILM_DIM = 384
 _REFUSE_RULE_SPARSE_GATED = "sparse_gated"
 _PRODUCT_KNOWLEDGEBASE = "t5-indexed-unsealed"
 _SIDECAR_KNOWLEDGEBASE = "t5-promoted-unsealed"
+_CORPUS_PROFILE_MINILM = "minilm"
+_CORPUS_PROFILE_BGE10 = "bge10"
+_SUPPORTED_CORPUS_PROFILES = frozenset({_CORPUS_PROFILE_MINILM, _CORPUS_PROFILE_BGE10})
+_ENV_CORPUS_PROFILE = "DISSOLVE_CORPUS_PROFILE"
+_ENV_BGE10_MANIFEST = "DISSOLVE_BGE10_MANIFEST"
+_ENV_RESEARCH_HOME = "DISSOLVE_RESEARCH_HOME"
+_BGE_MODEL_ID = "BAAI/bge-base-en-v1.5"
+_BGE_DIM = 768
+_BGE_QUERY_INSTRUCTION = "Represent this sentence for searching relevant passages: "
+_BGE_PASSAGE_INSTRUCTION = ""
+_BGE_ENCODER_REVISION = "a5beb1e3e68b9ab74eb54cfd186867f64f240e1a"
+_BGE_UNIT_NORM_TOLERANCE = 1e-5
 
 
 class ResearchNetworkError(RuntimeError):
@@ -4084,6 +4096,550 @@ def _sidecar_index_from_manifest(manifest: Mapping[str, Any]) -> dict[str, Any] 
     return payload
 
 
+def _corpus_profile() -> str:
+    """Return the active corpus profile.
+
+    Precedence: DISSOLVE_CORPUS_PROFILE selects minilm or bge10. Unset keeps
+    minilm. Explicit minilm is rollback. Unknown values fail closed. Canonical
+    bge10 uses DISSOLVE_BGE10_MANIFEST only; DISSOLVE_RESEARCH_HOME remains
+    available for MiniLM and noncanonical libraries and is not a bge10
+    fallback.
+    """
+    raw = os.getenv(_ENV_CORPUS_PROFILE)
+    if raw is None:
+        return _CORPUS_PROFILE_MINILM
+    if not isinstance(raw, str):
+        raise LiteratureContractError(
+            "corpus_profile_invalid",
+            "Corpus profile is not supported.",
+        )
+    profile = raw.strip()
+    if profile in _SUPPORTED_CORPUS_PROFILES:
+        return profile
+    raise LiteratureContractError(
+        "corpus_profile_invalid",
+        "Corpus profile is not supported.",
+    )
+
+
+def _is_product_knowledgebase(knowledgebase: str) -> bool:
+    return _slug(knowledgebase) == _PRODUCT_KNOWLEDGEBASE
+
+
+def _dense_union_error() -> NoReturn:
+    raise LiteratureContractError(
+        "dense_union_incompatible",
+        "Dense union members are incompatible.",
+    )
+
+
+def _finite_int(value: Any, code: str, message: str) -> int:
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise LiteratureContractError(code, message)
+    try:
+        numeric = float(value)
+    except OverflowError:
+        raise LiteratureContractError(code, message) from None
+    if not math.isfinite(numeric) or int(numeric) != numeric:
+        raise LiteratureContractError(code, message)
+    return int(numeric)
+
+
+def _optional_str_meta(
+    block: Mapping[str, Any],
+    key: str,
+    *,
+    empty_is_missing: bool,
+) -> str | None:
+    if key not in block:
+        return None
+    value = block.get(key)
+    if value is None:
+        return None
+    if not isinstance(value, str):
+        _dense_union_error()
+    if empty_is_missing and value == "":
+        return None
+    return value
+
+
+def _optional_dim(block: Mapping[str, Any]) -> int | None:
+    if "dim" not in block:
+        return None
+    return _finite_int(
+        block.get("dim"),
+        "dense_union_incompatible",
+        "Dense union members are incompatible.",
+    )
+
+
+def _agree_optional_text(
+    left: Mapping[str, Any],
+    right: Mapping[str, Any],
+    key: str,
+    *,
+    empty_is_missing: bool,
+) -> str | None:
+    left_value = _optional_str_meta(left, key, empty_is_missing=empty_is_missing)
+    right_value = _optional_str_meta(right, key, empty_is_missing=empty_is_missing)
+    if left_value != right_value:
+        _dense_union_error()
+    return left_value
+
+
+def _dense_present(index: Mapping[str, Any]) -> bool:
+    return index.get("dense") not in (None, {})
+
+
+def _as_dense_mapping(index: Mapping[str, Any]) -> Mapping[str, Any]:
+    dense = index.get("dense")
+    if not isinstance(dense, Mapping):
+        _dense_union_error()
+    return dense
+
+
+def _side_chunk_ids(chunks: Sequence[Any]) -> list[str]:
+    ids = [str(chunk.get("chunk_id") or "") for chunk in chunks]
+    if any(not item for item in ids) or len(ids) != len(set(ids)):
+        _dense_union_error()
+    return ids
+
+
+def _validate_dense_rows(
+    chunk_ids: Sequence[str],
+    vectors: Any,
+    *,
+    dim: int,
+    require_bge_geometry: bool,
+) -> list[list[float]]:
+    if not isinstance(vectors, list) or len(chunk_ids) != len(vectors):
+        _dense_union_error()
+    if len(chunk_ids) != len(set(chunk_ids)) or any(not item for item in chunk_ids):
+        _dense_union_error()
+    rows: list[list[float]] = []
+    for row in vectors:
+        if not isinstance(row, (list, tuple)) or len(row) != dim:
+            _dense_union_error()
+        parsed: list[float] = []
+        for value in row:
+            if isinstance(value, bool) or not isinstance(value, (int, float)):
+                _dense_union_error()
+            try:
+                numeric = float(value)
+            except OverflowError:
+                _dense_union_error()
+            if not math.isfinite(numeric):
+                _dense_union_error()
+            parsed.append(numeric)
+        if require_bge_geometry:
+            if all(component == 0.0 for component in parsed):
+                _dense_union_error()
+            norm = math.sqrt(sum(component * component for component in parsed))
+            if abs(norm - 1.0) > _BGE_UNIT_NORM_TOLERANCE:
+                _dense_union_error()
+        rows.append(parsed)
+    return rows
+
+
+def _validated_dense_side(
+    index: Mapping[str, Any],
+    chunks: Sequence[Any],
+) -> dict[str, Any]:
+    dense = _as_dense_mapping(index)
+    side_ids = _side_chunk_ids(chunks)
+    recorded_ids = dense.get("chunk_ids")
+    if not isinstance(recorded_ids, list):
+        _dense_union_error()
+    ids = [str(item) for item in recorded_ids]
+    if set(ids) != set(side_ids) or len(ids) != len(side_ids):
+        _dense_union_error()
+    recorded_dim = _optional_dim(dense)
+    vectors = dense.get("vectors")
+    if not isinstance(vectors, list) or not vectors:
+        if side_ids:
+            _dense_union_error()
+        inferred_dim = recorded_dim
+        if inferred_dim is None:
+            _dense_union_error()
+        rows: list[list[float]] = []
+    else:
+        first = vectors[0]
+        if not isinstance(first, (list, tuple)) or not first:
+            _dense_union_error()
+        inferred_dim = len(first)
+        if recorded_dim is not None and recorded_dim != inferred_dim:
+            _dense_union_error()
+        if recorded_dim is None:
+            recorded_dim = inferred_dim
+    if recorded_dim is None or recorded_dim <= 0:
+        _dense_union_error()
+    model = _optional_str_meta(dense, "model", empty_is_missing=True)
+    require_bge = model == _BGE_MODEL_ID
+    empty_is_missing = not require_bge
+    if require_bge and recorded_dim != _BGE_DIM:
+        _dense_union_error()
+    rows = _validate_dense_rows(
+        ids,
+        vectors if isinstance(vectors, list) else [],
+        dim=recorded_dim,
+        require_bge_geometry=require_bge,
+    )
+    by_id = {chunk_id: vector for chunk_id, vector in zip(ids, rows)}
+    return {
+        "block": dense,
+        "ids": side_ids,
+        "by_id": by_id,
+        "dim": recorded_dim,
+        "model": model,
+        "query_instruction": _optional_str_meta(
+            dense, "query_instruction", empty_is_missing=empty_is_missing
+        ),
+        "passage_instruction": _optional_str_meta(
+            dense, "passage_instruction", empty_is_missing=empty_is_missing
+        ),
+        "encoder_revision": _optional_str_meta(
+            dense, "encoder_revision", empty_is_missing=empty_is_missing
+        ),
+        "refuse_rule": _optional_str_meta(dense, "refuse_rule", empty_is_missing=True),
+        "recipe_source": _optional_str_meta(dense, "recipe_source", empty_is_missing=True),
+    }
+
+
+def _union_dense_blocks(
+    product: Mapping[str, Any],
+    sidecar: Mapping[str, Any],
+    extra_chunks: Sequence[Any],
+) -> dict[str, Any] | None:
+    extra = bool(extra_chunks)
+    product_chunks = list(product.get("chunks") or [])
+    sidecar_chunks = list(sidecar.get("chunks") or [])
+    product_dense = _dense_present(product)
+    sidecar_dense = _dense_present(sidecar)
+    if extra:
+        if product_chunks and product_dense != sidecar_dense:
+            _dense_union_error()
+        if not product_chunks and sidecar_dense and not product_dense:
+            return dict(_as_dense_mapping(sidecar))
+        if not product_dense and not sidecar_dense:
+            dense = product.get("dense")
+            return None if dense in (None, {}) else dict(_as_dense_mapping(product))
+    elif not extra:
+        dense = product.get("dense")
+        return None if dense in (None, {}) else dict(dense) if isinstance(dense, Mapping) else dense
+    left = _validated_dense_side(product, product_chunks)
+    right = _validated_dense_side(sidecar, sidecar_chunks)
+    if left["dim"] != right["dim"] or left["model"] != right["model"]:
+        _dense_union_error()
+    empty_is_missing = left["model"] != _BGE_MODEL_ID
+    for key in (
+        "query_instruction",
+        "passage_instruction",
+        "encoder_revision",
+        "refuse_rule",
+        "recipe_source",
+    ):
+        if key in {"query_instruction", "passage_instruction", "encoder_revision"}:
+            _agree_optional_text(
+                left["block"],
+                right["block"],
+                key,
+                empty_is_missing=empty_is_missing,
+            )
+        elif left[key] != right[key]:
+            _dense_union_error()
+    ordered_ids = list(left["ids"]) + [str(chunk.get("chunk_id") or "") for chunk in extra_chunks]
+    vectors = [left["by_id"][chunk_id] for chunk_id in left["ids"]]
+    for chunk in extra_chunks:
+        chunk_id = str(chunk.get("chunk_id") or "")
+        if chunk_id not in right["by_id"]:
+            _dense_union_error()
+        vectors.append(right["by_id"][chunk_id])
+    merged: dict[str, Any] = {
+        "chunk_ids": ordered_ids,
+        "vectors": vectors,
+        "dim": left["dim"],
+    }
+    if left["model"] is not None:
+        merged["model"] = left["model"]
+    for key in (
+        "query_instruction",
+        "passage_instruction",
+        "encoder_revision",
+        "refuse_rule",
+        "recipe_source",
+    ):
+        value = left[key]
+        if value is not None:
+            merged[key] = value
+    return merged
+
+
+def _resolve_against(base: Path, raw: str) -> Path:
+    path = Path(raw).expanduser()
+    if not path.is_absolute():
+        path = base / path
+    return path.resolve()
+
+
+def _bge_serving_error(code: str, message: str) -> NoReturn:
+    raise LiteratureContractError(code, message)
+
+
+def _declared_bge10_manifest_path() -> Path | None:
+    raw = os.getenv(_ENV_BGE10_MANIFEST)
+    if not isinstance(raw, str) or not raw.strip():
+        return None
+    return Path(raw.strip()).expanduser()
+
+
+def _declared_bge10_index_path() -> Path | None:
+    manifest_path = _declared_bge10_manifest_path()
+    if manifest_path is None or not manifest_path.is_file():
+        return None
+    try:
+        payload = json.loads(_read_text_file(manifest_path))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+        return None
+    if not isinstance(payload, dict):
+        return None
+    raw_path = payload.get("index_path")
+    if not isinstance(raw_path, str) or not raw_path.strip():
+        return None
+    return _resolve_against(manifest_path.parent, raw_path)
+
+
+def _protected_index_targets() -> list[Path]:
+    targets = [_canonical_product_index_path()]
+    if _corpus_profile() == _CORPUS_PROFILE_BGE10:
+        declared = _declared_bge10_index_path()
+        if declared is not None:
+            targets.append(declared)
+    return targets
+
+
+def _require_bge_recipe_fields(block: Mapping[str, Any], code: str) -> dict[str, Any]:
+    model = block.get("model")
+    if model != _BGE_MODEL_ID:
+        _bge_serving_error(code, "BGE serving recipe is incompatible.")
+    dim = _finite_int(block.get("dim"), code, "BGE serving recipe is incompatible.")
+    if dim != _BGE_DIM:
+        _bge_serving_error(code, "BGE serving recipe is incompatible.")
+    query_instruction = block.get("query_instruction")
+    passage_instruction = block.get("passage_instruction")
+    revision = block.get("encoder_revision")
+    if query_instruction != _BGE_QUERY_INSTRUCTION:
+        _bge_serving_error(code, "BGE serving recipe is incompatible.")
+    if passage_instruction != _BGE_PASSAGE_INSTRUCTION:
+        _bge_serving_error(code, "BGE serving recipe is incompatible.")
+    if revision != _BGE_ENCODER_REVISION:
+        _bge_serving_error(code, "BGE serving recipe is incompatible.")
+    return {
+        "model": _BGE_MODEL_ID,
+        "dim": _BGE_DIM,
+        "query_instruction": _BGE_QUERY_INSTRUCTION,
+        "passage_instruction": _BGE_PASSAGE_INSTRUCTION,
+        "encoder_revision": _BGE_ENCODER_REVISION,
+    }
+
+
+def _load_bge10_manifest() -> tuple[Path, dict[str, Any]]:
+    raw = os.getenv(_ENV_BGE10_MANIFEST)
+    if not isinstance(raw, str) or not raw.strip():
+        _bge_serving_error(
+            "bge10_manifest_missing",
+            "BGE serving manifest is missing.",
+        )
+    path = Path(raw.strip()).expanduser()
+    if not path.is_file():
+        _bge_serving_error(
+            "bge10_manifest_missing",
+            "BGE serving manifest is missing.",
+        )
+    try:
+        text = _read_text_file(path)
+    except (OSError, UnicodeDecodeError):
+        _bge_serving_error(
+            "bge10_manifest_unreadable",
+            "BGE serving manifest is unreadable.",
+        )
+    try:
+        payload = json.loads(text)
+    except json.JSONDecodeError:
+        _bge_serving_error(
+            "bge10_manifest_malformed",
+            "BGE serving manifest is malformed.",
+        )
+    if not isinstance(payload, dict):
+        _bge_serving_error(
+            "bge10_manifest_invalid",
+            "BGE serving manifest is not an object.",
+        )
+    return path, payload
+
+
+def _bge10_index_digest(value: Any) -> str:
+    if not isinstance(value, str) or not value.strip():
+        _bge_serving_error(
+            "bge10_index_digest",
+            "BGE serving index digest is invalid.",
+        )
+    digest = value.strip().casefold()
+    if len(digest) != 64 or any(char not in "0123456789abcdef" for char in digest):
+        _bge_serving_error(
+            "bge10_index_digest",
+            "BGE serving index digest is invalid.",
+        )
+    return digest
+
+
+def _load_bge10_product_index() -> dict[str, Any]:
+    manifest_path, manifest = _load_bge10_manifest()
+    declared_kb = manifest.get("knowledgebase")
+    try:
+        if not isinstance(declared_kb, str) or _slug(declared_kb) != _PRODUCT_KNOWLEDGEBASE:
+            _bge_serving_error(
+                "bge10_index_knowledgebase",
+                "BGE serving knowledgebase is mismatched.",
+            )
+    except ValueError:
+        _bge_serving_error(
+            "bge10_index_knowledgebase",
+            "BGE serving knowledgebase is mismatched.",
+        )
+    recipe_block = manifest.get("dense")
+    if not isinstance(recipe_block, Mapping):
+        _bge_serving_error(
+            "bge10_recipe_mismatch",
+            "BGE serving recipe is incompatible.",
+        )
+    recipe = _require_bge_recipe_fields(recipe_block, "bge10_recipe_mismatch")
+    if "abstention" not in manifest:
+        _bge_serving_error(
+            "bge10_abstention_missing",
+            "BGE serving abstention floor is missing.",
+        )
+    abstention = _manifest_abstention(manifest)
+    if abstention is None:
+        _bge_serving_error(
+            "bge10_abstention_missing",
+            "BGE serving abstention floor is missing.",
+        )
+    raw_path = manifest.get("index_path")
+    if not isinstance(raw_path, str) or not raw_path.strip():
+        _bge_serving_error(
+            "bge10_index_path_missing",
+            "BGE serving index path is missing.",
+        )
+    index_path = _resolve_against(manifest_path.parent, raw_path)
+    if index_path.is_dir():
+        _bge_serving_error(
+            "bge10_index_missing",
+            "BGE serving index is missing.",
+        )
+    if not index_path.is_file():
+        _bge_serving_error(
+            "bge10_index_missing",
+            "BGE serving index is missing.",
+        )
+    declared_digest = _bge10_index_digest(manifest.get("gzip_sha256"))
+    try:
+        actual_digest = hashlib.sha256(index_path.read_bytes()).hexdigest()
+    except OSError:
+        _bge_serving_error(
+            "bge10_index_unreadable",
+            "BGE serving index is unreadable.",
+        )
+    if actual_digest != declared_digest:
+        _bge_serving_error(
+            "bge10_index_digest",
+            "BGE serving index digest is invalid.",
+        )
+    try:
+        payload = _read_gzip_json(index_path)
+    except json.JSONDecodeError:
+        _bge_serving_error(
+            "bge10_index_malformed",
+            "BGE serving index is malformed.",
+        )
+    except gzip.BadGzipFile:
+        _bge_serving_error(
+            "bge10_index_malformed",
+            "BGE serving index is malformed.",
+        )
+    except zlib.error:
+        _bge_serving_error(
+            "bge10_index_malformed",
+            "BGE serving index is malformed.",
+        )
+    except OSError:
+        _bge_serving_error(
+            "bge10_index_unreadable",
+            "BGE serving index is unreadable.",
+        )
+    except (UnicodeDecodeError, EOFError):
+        _bge_serving_error(
+            "bge10_index_unreadable",
+            "BGE serving index is unreadable.",
+        )
+    if not isinstance(payload, dict):
+        _bge_serving_error(
+            "bge10_index_invalid",
+            "BGE serving index is not an object.",
+        )
+    if payload.get("schema") != _INDEX_SCHEMA:
+        _bge_serving_error(
+            "bge10_index_schema",
+            "BGE serving index schema is incompatible.",
+        )
+    if payload.get("knowledgebase") != _PRODUCT_KNOWLEDGEBASE:
+        _bge_serving_error(
+            "bge10_index_knowledgebase",
+            "BGE serving knowledgebase is mismatched.",
+        )
+    dense = payload.get("dense")
+    if not isinstance(dense, Mapping):
+        _bge_serving_error(
+            "bge10_recipe_mismatch",
+            "BGE serving recipe is incompatible.",
+        )
+    index_recipe = _require_bge_recipe_fields(dense, "bge10_recipe_mismatch")
+    if index_recipe != recipe:
+        _bge_serving_error(
+            "bge10_recipe_mismatch",
+            "BGE serving recipe is incompatible.",
+        )
+    chunks = list(payload.get("chunks") or [])
+    ordered_ids = [str(chunk.get("chunk_id") or "") for chunk in chunks]
+    recorded_ids = dense.get("chunk_ids")
+    if not isinstance(recorded_ids, list):
+        _bge_serving_error(
+            "bge10_chunk_membership",
+            "BGE serving chunk membership is incompatible.",
+        )
+    recorded = [str(item) for item in recorded_ids]
+    if recorded != ordered_ids:
+        _bge_serving_error(
+            "bge10_chunk_membership",
+            "BGE serving chunk membership is incompatible.",
+        )
+    declared_ids = recipe_block.get("chunk_ids")
+    if declared_ids is not None:
+        if not isinstance(declared_ids, list) or [str(item) for item in declared_ids] != ordered_ids:
+            _bge_serving_error(
+                "bge10_chunk_membership",
+                "BGE serving chunk membership is incompatible.",
+            )
+    _validate_dense_rows(
+        recorded,
+        dense.get("vectors"),
+        dim=_BGE_DIM,
+        require_bge_geometry=True,
+    )
+    out = dict(payload)
+    out["abstention"] = abstention
+    return out
+
+
 def _union_product_and_sidecar(
     product: Mapping[str, Any],
     sidecar: Mapping[str, Any],
@@ -4104,24 +4660,23 @@ def _union_product_and_sidecar(
             continue
         extra_docs.append(row)
         known_docs.add(sha)
+    dense = _union_dense_blocks(product, sidecar, extra_chunks)
     out = dict(product)
     out["chunks"] = list(product.get("chunks") or []) + extra_chunks
     out["documents"] = list(product.get("documents") or []) + extra_docs
-    product_dense = product.get("dense") or {}
-    sidecar_dense = sidecar.get("dense") or {}
-    if extra_chunks and product_dense and sidecar_dense:
-        out["dense"] = {
-            "model": product_dense.get("model") or sidecar_dense.get("model"),
-            "dim": product_dense.get("dim") or sidecar_dense.get("dim"),
-            "chunk_ids": list(product_dense.get("chunk_ids") or [])
-            + list(sidecar_dense.get("chunk_ids") or []),
-            "vectors": list(product_dense.get("vectors") or [])
-            + list(sidecar_dense.get("vectors") or []),
-        }
+    if extra_chunks:
+        if dense is None:
+            if _dense_present(product):
+                out["dense"] = None
+        else:
+            out["dense"] = dense
     return out
 
 
 def _load_index(knowledgebase: str) -> dict[str, Any]:
+    profile = _corpus_profile()
+    if _is_product_knowledgebase(knowledgebase) and profile == _CORPUS_PROFILE_BGE10:
+        return _load_bge10_product_index()
     path = _index_path(knowledgebase)
     if not path.exists():
         return _empty_index(knowledgebase)
@@ -4143,12 +4698,13 @@ def _load_index(knowledgebase: str) -> dict[str, Any]:
 
 def _save_index(index: dict[str, Any]) -> Path:
     path = _index_path(index["knowledgebase"])
-    product = _canonical_product_index_path()
-    if product.exists() and path.resolve() == product.resolve():
-        raise LiteratureContractError(
-            "protected_product_index",
-            "Ingest must not overwrite the canonical T5 gzip.",
-        )
+    destination = path.resolve()
+    for protected in _protected_index_targets():
+        if destination == protected.resolve():
+            raise LiteratureContractError(
+                "protected_serving_index",
+                "Ingest must not overwrite a protected serving index.",
+            )
     path.parent.mkdir(parents=True, exist_ok=True)
     temporary = path.with_suffix(".tmp")
     body = json.dumps(index, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode()
