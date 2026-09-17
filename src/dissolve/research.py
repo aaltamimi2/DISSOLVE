@@ -6,6 +6,7 @@ import ast
 import copy
 import gzip
 import hashlib
+import zlib
 import html
 import importlib
 import io
@@ -53,6 +54,7 @@ _HYBRID_SPARSE_WEIGHT = 0.40
 _MINILM_DIM = 384
 _REFUSE_RULE_SPARSE_GATED = "sparse_gated"
 _PRODUCT_KNOWLEDGEBASE = "t5-indexed-unsealed"
+_SIDECAR_KNOWLEDGEBASE = "t5-promoted-unsealed"
 
 
 class ResearchNetworkError(RuntimeError):
@@ -3927,31 +3929,158 @@ def _product_manifest_path() -> Path:
     return DEFAULT_OUT_DIR / "INDEX.t5.unsealed.v1.json"
 
 
-def _manifest_abstention() -> dict[str, Any] | None:
+def _read_text_file(path: Path) -> str:
+    return path.read_text(encoding="utf-8")
+
+
+def _read_gzip_json(path: Path) -> Any:
+    with gzip.open(path, "rt", encoding="utf-8") as handle:
+        return json.load(handle)
+
+
+def _load_canonical_manifest() -> dict[str, Any]:
     path = _product_manifest_path()
     if not path.is_file():
-        return None
+        raise LiteratureContractError(
+            "canonical_manifest_missing",
+            "Canonical product manifest is missing.",
+        )
     try:
-        payload = json.loads(path.read_text())
-    except (OSError, json.JSONDecodeError):
+        text = _read_text_file(path)
+    except (OSError, UnicodeDecodeError):
+        raise LiteratureContractError(
+            "canonical_manifest_unreadable",
+            "Canonical product manifest is unreadable.",
+        ) from None
+    try:
+        payload = json.loads(text)
+    except json.JSONDecodeError:
+        raise LiteratureContractError(
+            "canonical_manifest_malformed",
+            "Canonical product manifest is malformed.",
+        ) from None
+    if not isinstance(payload, dict):
+        raise LiteratureContractError(
+            "canonical_manifest_invalid",
+            "Canonical product manifest is not an object.",
+        )
+    return payload
+
+
+def _manifest_abstention(manifest: Mapping[str, Any]) -> dict[str, Any] | None:
+    if "abstention" not in manifest:
         return None
-    block = payload.get("abstention")
-    if not isinstance(block, Mapping) or block.get("floor") is None:
-        return None
+    block = manifest.get("abstention")
+    if not isinstance(block, Mapping) or "floor" not in block:
+        raise LiteratureContractError(
+            "canonical_abstention_invalid",
+            "Canonical abstention block is invalid.",
+        )
+    floor = block["floor"]
+    if isinstance(floor, bool) or not isinstance(floor, (int, float)):
+        raise LiteratureContractError(
+            "canonical_abstention_floor_invalid",
+            "Canonical abstention floor is invalid.",
+        )
+    try:
+        numeric = float(floor)
+    except OverflowError:
+        raise LiteratureContractError(
+            "canonical_abstention_floor_invalid",
+            "Canonical abstention floor is invalid.",
+        ) from None
+    if not math.isfinite(numeric):
+        raise LiteratureContractError(
+            "canonical_abstention_floor_invalid",
+            "Canonical abstention floor is invalid.",
+        )
     return dict(block)
 
 
 def _sidecar_index_from_manifest(manifest: Mapping[str, Any]) -> dict[str, Any] | None:
-    block = manifest.get("promoted")
+    if "promoted" not in manifest:
+        return None
+    block = manifest["promoted"]
     if not isinstance(block, Mapping):
-        return None
-    path = Path(str(block.get("index_path") or "")).expanduser()
+        raise LiteratureContractError(
+            "promoted_declaration_invalid",
+            "Promoted sidecar declaration is invalid.",
+        )
+    raw_path = block.get("index_path")
+    if not isinstance(raw_path, str) or not raw_path.strip():
+        raise LiteratureContractError(
+            "promoted_path_missing",
+            "Promoted sidecar path is missing.",
+        )
+    path = Path(raw_path).expanduser()
+    if path.is_dir():
+        raise LiteratureContractError(
+            "promoted_sidecar_not_file",
+            "Promoted sidecar is not a file.",
+        )
     if not path.is_file():
-        return None
-    with gzip.open(path, "rt", encoding="utf-8") as handle:
-        payload = json.load(handle)
+        raise LiteratureContractError(
+            "promoted_sidecar_missing",
+            "Promoted sidecar is missing.",
+        )
+    try:
+        payload = _read_gzip_json(path)
+    except json.JSONDecodeError:
+        raise LiteratureContractError(
+            "promoted_sidecar_malformed",
+            "Promoted sidecar is malformed.",
+        ) from None
+    except gzip.BadGzipFile:
+        raise LiteratureContractError(
+            "promoted_sidecar_invalid_gzip",
+            "Promoted sidecar is not valid gzip.",
+        ) from None
+    except zlib.error:
+        raise LiteratureContractError(
+            "promoted_sidecar_invalid_gzip",
+            "Promoted sidecar is not valid gzip.",
+        ) from None
+    except OSError:
+        raise LiteratureContractError(
+            "promoted_sidecar_unreadable",
+            "Promoted sidecar is unreadable.",
+        ) from None
+    except (UnicodeDecodeError, EOFError):
+        raise LiteratureContractError(
+            "promoted_sidecar_unreadable",
+            "Promoted sidecar is unreadable.",
+        ) from None
     if not isinstance(payload, dict):
-        return None
+        raise LiteratureContractError(
+            "promoted_sidecar_not_object",
+            "Promoted sidecar is not an object.",
+        )
+    if payload.get("schema") != _INDEX_SCHEMA:
+        raise LiteratureContractError(
+            "promoted_sidecar_schema",
+            "Promoted sidecar schema is incompatible.",
+        )
+    declared = block.get("knowledgebase")
+    if declared is None:
+        expected = _SIDECAR_KNOWLEDGEBASE
+    elif not isinstance(declared, str) or not declared.strip():
+        raise LiteratureContractError(
+            "promoted_declaration_invalid",
+            "Promoted sidecar declaration is invalid.",
+        )
+    else:
+        try:
+            expected = _slug(declared)
+        except ValueError:
+            raise LiteratureContractError(
+                "promoted_declaration_invalid",
+                "Promoted sidecar declaration is invalid.",
+            ) from None
+    if expected == _PRODUCT_KNOWLEDGEBASE or payload.get("knowledgebase") != expected:
+        raise LiteratureContractError(
+            "promoted_sidecar_knowledgebase",
+            "Promoted sidecar knowledgebase is mismatched.",
+        )
     return payload
 
 
@@ -4001,28 +4130,14 @@ def _load_index(knowledgebase: str) -> dict[str, Any]:
     if payload.get("schema") != _INDEX_SCHEMA or payload.get("knowledgebase") != _slug(knowledgebase):
         raise ValueError("unsupported or mismatched literature index")
     if path.resolve() == _canonical_product_index_path().resolve():
-        manifest_path = _product_manifest_path()
-        manifest: dict[str, Any] | None = None
-        if manifest_path.is_file():
-            try:
-                loaded = json.loads(manifest_path.read_text())
-            except (OSError, json.JSONDecodeError):
-                loaded = None
-            if isinstance(loaded, dict):
-                manifest = loaded
-        if manifest is not None:
-            sidecar = _sidecar_index_from_manifest(manifest)
-            if sidecar is not None:
-                payload = _union_product_and_sidecar(payload, sidecar)
-            block = manifest.get("abstention")
-            if isinstance(block, Mapping) and block.get("floor") is not None:
-                payload = dict(payload)
-                payload["abstention"] = dict(block)
-        else:
-            block = _manifest_abstention()
-            if block:
-                payload = dict(payload)
-                payload["abstention"] = block
+        manifest = _load_canonical_manifest()
+        sidecar = _sidecar_index_from_manifest(manifest)
+        if sidecar is not None:
+            payload = _union_product_and_sidecar(payload, sidecar)
+        block = _manifest_abstention(manifest)
+        if block is not None:
+            payload = dict(payload)
+            payload["abstention"] = block
     return payload
 
 
