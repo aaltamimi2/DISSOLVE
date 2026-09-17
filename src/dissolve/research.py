@@ -4830,6 +4830,96 @@ def _paragraph_chunks(text: str, target: int = 1_400, overlap: int = 180) -> lis
     return chunks
 
 
+def _generated_dense_error() -> NoReturn:
+    raise LiteratureContractError(
+        "dense_vectors_invalid",
+        "Generated dense vectors are invalid.",
+    )
+
+
+def _compatible_embedding_dim(model_name: str) -> int:
+    if model_name == _BGE_MODEL_ID:
+        return _BGE_DIM
+    return _MINILM_DIM
+
+
+def _bge_generated_recipe_fields() -> dict[str, str]:
+    return {
+        "query_instruction": _BGE_QUERY_INSTRUCTION,
+        "passage_instruction": _BGE_PASSAGE_INSTRUCTION,
+        "encoder_revision": _BGE_ENCODER_REVISION,
+    }
+
+
+def _attach_generated_recipe(block: dict[str, Any]) -> dict[str, Any]:
+    if block.get("model") == _BGE_MODEL_ID:
+        block.update(_bge_generated_recipe_fields())
+    return block
+
+
+def _bge_row_geometry_ok(row: Sequence[float]) -> bool:
+    if all(component == 0.0 for component in row):
+        return False
+    norm = math.sqrt(sum(component * component for component in row))
+    return abs(norm - 1.0) <= _BGE_UNIT_NORM_TOLERANCE
+
+
+def _assert_generated_dense_vectors(
+    vectors: Any,
+    *,
+    expected_count: int,
+    model_name: str,
+    expected_dim: int | None = None,
+) -> int:
+    try:
+        count = len(vectors)
+    except TypeError:
+        _generated_dense_error()
+    if count != expected_count:
+        _generated_dense_error()
+    width: int | None = None
+    parsed_rows: list[list[float]] = []
+    for row in vectors:
+        try:
+            length = len(row)
+        except TypeError:
+            _generated_dense_error()
+        if width is None:
+            if length < 1:
+                _generated_dense_error()
+            width = length
+        elif length != width:
+            _generated_dense_error()
+        parsed: list[float] = []
+        try:
+            values = list(row)
+        except TypeError:
+            _generated_dense_error()
+        if len(values) != length:
+            _generated_dense_error()
+        for value in values:
+            if isinstance(value, bool):
+                _generated_dense_error()
+            try:
+                numeric = float(value)
+            except (TypeError, ValueError, OverflowError):
+                _generated_dense_error()
+            if not math.isfinite(numeric):
+                _generated_dense_error()
+            parsed.append(numeric)
+        parsed_rows.append(parsed)
+    if width is None:
+        _generated_dense_error()
+    if expected_dim is not None and width != expected_dim:
+        _generated_dense_error()
+    if model_name == _BGE_MODEL_ID:
+        if width != _BGE_DIM:
+            _generated_dense_error()
+        if any(not _bge_row_geometry_ok(row) for row in parsed_rows):
+            _generated_dense_error()
+    return width
+
+
 def _dense_vectors(texts: list[str], model_name: str | None = None) -> tuple[str, list[list[float]]]:
     try:
         model_type = importlib.import_module("sentence_transformers").SentenceTransformer
@@ -4837,7 +4927,14 @@ def _dense_vectors(texts: list[str], model_name: str | None = None) -> tuple[str
         raise RuntimeError("Dense indexing requires pip install '.[research]'.") from error
     selected = model_name or os.getenv("DISSOLVE_EMBEDDING_MODEL", "sentence-transformers/all-MiniLM-L6-v2")
     try:
-        model = model_type(selected)
+        if selected == _BGE_MODEL_ID:
+            model = model_type(
+                selected,
+                revision=_BGE_ENCODER_REVISION,
+                device="cpu",
+            )
+        else:
+            model = model_type(selected)
         encoded = model.encode(texts, normalize_embeddings=True, show_progress_bar=False)
     except Exception as error:  # third-party model/cache failures vary by backend
         raise RuntimeError(f"Dense embedding model {selected!r} could not be loaded or evaluated.") from error
@@ -5049,17 +5146,23 @@ def _ingest_inputs(
                 break
     dense_warning = None
     if build_dense_index and index["chunks"]:
+        chunk_ids = [str(item["chunk_id"]) for item in index["chunks"]]
         model_name, vectors = _dense_vectors(
             [chunk_sparse_corpus(item) for item in index["chunks"]]
         )
-        index["dense"] = {
+        dim = _assert_generated_dense_vectors(
+            vectors,
+            expected_count=len(chunk_ids),
+            model_name=model_name,
+        )
+        index["dense"] = _attach_generated_recipe({
             "model": model_name,
             "vectors": vectors,
             "built_at": _now(),
-            "dim": _MINILM_DIM,
-            "chunk_ids": [str(item["chunk_id"]) for item in index["chunks"]],
+            "dim": dim,
+            "chunk_ids": chunk_ids,
             "refuse_rule": _REFUSE_RULE_SPARSE_GATED,
-        }
+        })
     elif chunks_added and index.get("dense"):
         index["dense"] = None
         dense_warning = "Dense vectors were invalidated by new chunks; rebuild explicitly."

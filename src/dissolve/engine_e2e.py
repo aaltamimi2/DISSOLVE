@@ -766,9 +766,10 @@ def embed_t5_index(
     index: Mapping[str, Any],
     *,
     embedder=None,
-    expected_dim: int = EXPECTED_DIM,
+    model_name: str | None = None,
+    expected_dim: int | None = None,
 ) -> dict[str, Any]:
-    """Attach MiniLM vectors aligned to chunks. No gold score."""
+    """Attach dense vectors aligned to chunks. Legacy default MiniLM. No gold score."""
     slug = str(index.get("knowledgebase") or "")
     if slug == "user-library":
         raise TextGoldError("protected_persist", "E2E-3 must not write user-library.")
@@ -778,24 +779,38 @@ def embed_t5_index(
     texts = embed_inputs_for_index(index)
     if len(texts) != len(chunks):
         raise TextGoldError("embed_align", "Embed inputs are not aligned to chunks.")
+    selected = MINILM_ID if model_name is None else str(model_name)
+    compatible_dim = research._compatible_embedding_dim(selected)
+    if expected_dim is not None and expected_dim != compatible_dim:
+        raise TextGoldError("dense_dim", "Embedding dim conflicts with the selected model.")
     if embedder is None:
-        model_id, vectors = research._dense_vectors(texts, MINILM_ID)
+        model_id, vectors = research._dense_vectors(texts, selected)
     else:
-        model_id, vectors = embedder(texts, MINILM_ID)
-    if len(vectors) != len(chunks):
+        model_id, vectors = embedder(texts, selected)
+    if str(model_id) != selected:
+        raise TextGoldError("dense_model", "Embedder returned a substitute model id.")
+    try:
+        count = len(vectors)
+    except TypeError:
+        count = -1
+    if count != len(chunks):
         raise TextGoldError("n_chunks_mismatch", "Vector count is not n_chunks.")
-    dim = len(vectors[0]) if vectors else 0
-    if dim != expected_dim:
-        raise TextGoldError("dense_dim", "Embedding dim is not 384.")
-    if any(len(row) != dim for row in vectors):
-        raise TextGoldError("dense_dim", "A vector has the wrong dim.")
+    try:
+        dim = research._assert_generated_dense_vectors(
+            vectors,
+            expected_count=len(chunks),
+            model_name=str(model_id),
+            expected_dim=compatible_dim,
+        )
+    except research.LiteratureContractError as error:
+        raise TextGoldError("dense_dim", "Generated dense vectors are invalid.") from error
     out = dict(index)
-    out["dense"] = {
+    out["dense"] = research._attach_generated_recipe({
         "model": str(model_id),
         "dim": dim,
         "chunk_ids": [str(chunk["chunk_id"]) for chunk in chunks],
         "vectors": vectors,
-    }
+    })
     return out
 
 
