@@ -951,3 +951,215 @@ def test_unsupported_routing_counterfactual_without_profile_env(_isolate, monkey
     monkeypatch.setenv("DISSOLVE_CORPUS_PROFILE", "bge10")
     routed = research._load_index(PRODUCT_KB)
     assert _chunk_ids(routed) == [BGE_CHUNK_A, BGE_CHUNK_B]
+
+
+def test_bge10_verified_bytes_load_unchanged_positive(_isolate, monkeypatch):
+    bge = _seed_bge(_isolate)
+    monkeypatch.setenv("DISSOLVE_CORPUS_PROFILE", "bge10")
+    monkeypatch.setenv("DISSOLVE_BGE10_MANIFEST", str(bge["manifest_path"]))
+    tracked = [bge["index_path"], bge["manifest_path"]]
+    before = _snapshot(tracked)
+    loaded = research._load_index(PRODUCT_KB)
+    assert _chunk_ids(loaded) == [BGE_CHUNK_A, BGE_CHUNK_B]
+    assert loaded["dense"]["chunk_ids"] == [BGE_CHUNK_A, BGE_CHUNK_B]
+    assert loaded["dense"]["model"] == BGE_MODEL
+    assert loaded["dense"]["encoder_revision"] == BGE_REVISION
+    assert _snapshot(tracked) == before
+
+
+def test_bge10_digest_read_swap_never_returns_replacement(_isolate, monkeypatch):
+    bge = _seed_bge(_isolate)
+    replacement = _make_index(
+        PRODUCT_KB,
+        [(INDEPENDENT_CHUNK, INDEPENDENT_TEXT, "swap")],
+        dense=_bge_dense([INDEPENDENT_CHUNK], [5]),
+    )
+    monkeypatch.setenv("DISSOLVE_CORPUS_PROFILE", "bge10")
+    monkeypatch.setenv("DISSOLVE_BGE10_MANIFEST", str(bge["manifest_path"]))
+    real_read = Path.read_bytes
+    swapped = {"done": False}
+
+    def fake_read(self, *args, **kwargs):
+        data = real_read(self, *args, **kwargs)
+        if self.resolve() == bge["index_path"].resolve() and not swapped["done"]:
+            swapped["done"] = True
+            _write_gzip_json(bge["index_path"], replacement)
+        return data
+
+    monkeypatch.setattr(Path, "read_bytes", fake_read)
+    try:
+        loaded = research._load_index(PRODUCT_KB)
+    except research.LiteratureContractError:
+        return
+    assert _chunk_ids(loaded) == [BGE_CHUNK_A, BGE_CHUNK_B]
+    assert INDEPENDENT_CHUNK not in _chunk_ids(loaded)
+    assert loaded["dense"]["chunk_ids"] == [BGE_CHUNK_A, BGE_CHUNK_B]
+
+
+def test_bge10_corrupt_compression_refuses(_isolate, forbid_ranking, monkeypatch):
+    bge = _seed_bge(_isolate)
+    bge["index_path"].write_bytes(b"not-gzip")
+    manifest = json.loads(bge["manifest_path"].read_text(encoding="utf-8"))
+    manifest["gzip_sha256"] = _sha256(bge["index_path"])
+    _write_json(bge["manifest_path"], manifest)
+    monkeypatch.setenv("DISSOLVE_CORPUS_PROFILE", "bge10")
+    monkeypatch.setenv("DISSOLVE_BGE10_MANIFEST", str(bge["manifest_path"]))
+    tracked = [bge["index_path"], bge["manifest_path"]]
+    before = _snapshot(tracked)
+    _assert_helper_refusal(PRODUCT_KB, QUERY, tracked)
+    _assert_public_failure(_public_search(), QUERY, tracked)
+    assert _snapshot(tracked) == before
+
+
+def test_bge10_manifest_ordered_chunk_ids_accepted(_isolate, monkeypatch):
+    bge = _seed_bge(_isolate)
+    monkeypatch.setenv("DISSOLVE_CORPUS_PROFILE", "bge10")
+    monkeypatch.setenv("DISSOLVE_BGE10_MANIFEST", str(bge["manifest_path"]))
+    loaded = research._load_index(PRODUCT_KB)
+    assert _chunk_ids(loaded) == [BGE_CHUNK_A, BGE_CHUNK_B]
+    assert loaded["dense"]["chunk_ids"] == [BGE_CHUNK_A, BGE_CHUNK_B]
+
+
+@pytest.mark.parametrize(
+    "case",
+    [
+        "missing",
+        "null",
+        "wrong_type",
+        "duplicate",
+        "missing_member",
+        "extra_member",
+        "reordered",
+    ],
+)
+def test_bge10_manifest_chunk_ids_required_against_index(case, _isolate, forbid_ranking, monkeypatch):
+    def mutate_manifest(manifest, index_path):
+        if case == "missing":
+            del manifest["dense"]["chunk_ids"]
+        elif case == "null":
+            manifest["dense"]["chunk_ids"] = None
+        elif case == "wrong_type":
+            manifest["dense"]["chunk_ids"] = BGE_CHUNK_A
+        elif case == "duplicate":
+            manifest["dense"]["chunk_ids"] = [BGE_CHUNK_A, BGE_CHUNK_B, BGE_CHUNK_A]
+        elif case == "missing_member":
+            manifest["dense"]["chunk_ids"] = [BGE_CHUNK_A]
+        elif case == "extra_member":
+            manifest["dense"]["chunk_ids"] = [BGE_CHUNK_A, BGE_CHUNK_B, INDEPENDENT_CHUNK]
+        else:
+            manifest["dense"]["chunk_ids"] = [BGE_CHUNK_B, BGE_CHUNK_A]
+        return manifest
+
+    bge = _seed_bge(_isolate, mutate_manifest=mutate_manifest)
+    monkeypatch.setenv("DISSOLVE_CORPUS_PROFILE", "bge10")
+    monkeypatch.setenv("DISSOLVE_BGE10_MANIFEST", str(bge["manifest_path"]))
+    tracked = [bge["index_path"], bge["manifest_path"]]
+    before = _snapshot(tracked)
+    _assert_helper_refusal(PRODUCT_KB, QUERY, tracked)
+    _assert_public_failure(_public_search(), QUERY, tracked)
+    assert _snapshot(tracked) == before
+
+
+def test_empty_product_valid_sidecar_preserves_ids_and_recipe():
+    product = _make_index(PRODUCT_KB, [])
+    sidecar = _make_index(
+        SIDECAR_KB,
+        [(SIDECAR_CHUNK, SIDECAR_TEXT, "sidecar")],
+        dense=_bge_dense([SIDECAR_CHUNK], [3]),
+    )
+    union = research._union_product_and_sidecar(product, sidecar)
+    assert _chunk_ids(union) == [SIDECAR_CHUNK]
+    assert union["dense"]["chunk_ids"] == [SIDECAR_CHUNK]
+    assert union["dense"]["vectors"] == [_unit(BGE_DIM, 3)]
+    assert union["dense"]["model"] == BGE_MODEL
+    assert union["dense"]["dim"] == BGE_DIM
+    assert union["dense"]["query_instruction"] == BGE_QUERY_INSTRUCTION
+    assert union["dense"]["passage_instruction"] == BGE_PASSAGE_INSTRUCTION
+    assert union["dense"]["encoder_revision"] == BGE_REVISION
+
+
+def test_empty_product_invalid_sidecar_zero_vector_refuses():
+    product = _make_index(PRODUCT_KB, [])
+    sidecar = _make_index(
+        SIDECAR_KB,
+        [(SIDECAR_CHUNK, SIDECAR_TEXT, "sidecar")],
+        dense=_bge_dense([SIDECAR_CHUNK], [1]),
+    )
+    sidecar["dense"]["vectors"][0] = [0.0] * BGE_DIM
+    _assert_union_refusal(product, sidecar)
+
+
+def test_empty_product_sparse_sidecar_union_remains_valid():
+    product = _make_index(PRODUCT_KB, [])
+    sidecar = _make_index(SIDECAR_KB, [(SIDECAR_CHUNK, SIDECAR_TEXT, "sidecar")])
+    union = research._union_product_and_sidecar(product, sidecar)
+    assert _chunk_ids(union) == [SIDECAR_CHUNK]
+    assert union.get("dense") in (None, {})
+
+
+def test_no_extra_invalid_product_membership_refuses():
+    product = _make_index(
+        PRODUCT_KB,
+        [(PRODUCT_CHUNK, PRODUCT_TEXT, "product")],
+        dense=_bge_dense(["wrong-id"], [0]),
+    )
+    sidecar = _make_index(
+        SIDECAR_KB,
+        [(PRODUCT_CHUNK, PRODUCT_TEXT, "product")],
+        dense=_bge_dense([PRODUCT_CHUNK], [0]),
+    )
+    _assert_union_refusal(product, sidecar)
+
+
+def test_fully_overlapping_valid_union_no_duplicate_vectors():
+    product = _make_index(
+        PRODUCT_KB,
+        [(PRODUCT_CHUNK, PRODUCT_TEXT, "product")],
+        dense=_bge_dense([PRODUCT_CHUNK], [0]),
+    )
+    sidecar = _make_index(
+        SIDECAR_KB,
+        [(PRODUCT_CHUNK, PRODUCT_TEXT, "product")],
+        dense=_bge_dense([PRODUCT_CHUNK], [0]),
+    )
+    union = research._union_product_and_sidecar(product, sidecar)
+    assert _chunk_ids(union) == [PRODUCT_CHUNK]
+    assert union["dense"]["chunk_ids"] == [PRODUCT_CHUNK]
+    assert union["dense"]["vectors"] == [_unit(BGE_DIM, 0)]
+    assert len(union["dense"]["vectors"]) == 1
+    assert union["dense"]["model"] == BGE_MODEL
+    assert union["dense"]["encoder_revision"] == BGE_REVISION
+
+
+def test_fully_overlapping_valid_minilm_union_no_duplicate_vectors():
+    product = _make_index(
+        PRODUCT_KB,
+        [(PRODUCT_CHUNK, PRODUCT_TEXT, "product")],
+        dense=_minilm_dense([PRODUCT_CHUNK], [0]),
+    )
+    sidecar = _make_index(
+        SIDECAR_KB,
+        [(PRODUCT_CHUNK, PRODUCT_TEXT, "product")],
+        dense=_minilm_dense([PRODUCT_CHUNK], [1]),
+    )
+    union = research._union_product_and_sidecar(product, sidecar)
+    assert _chunk_ids(union) == [PRODUCT_CHUNK]
+    assert union["dense"]["chunk_ids"] == [PRODUCT_CHUNK]
+    assert union["dense"]["vectors"] == [_unit(MINILM_DIM, 0)]
+    assert len(union["dense"]["vectors"]) == 1
+    assert union["dense"]["model"] == MINILM_MODEL
+
+
+def test_no_extra_invalid_sidecar_membership_refuses():
+    product = _make_index(
+        PRODUCT_KB,
+        [(PRODUCT_CHUNK, PRODUCT_TEXT, "product")],
+        dense=_minilm_dense([PRODUCT_CHUNK], [0]),
+    )
+    sidecar = _make_index(
+        SIDECAR_KB,
+        [(PRODUCT_CHUNK, PRODUCT_TEXT, "product")],
+        dense=_minilm_dense([PRODUCT_CHUNK], [1]),
+    )
+    sidecar["dense"]["chunk_ids"] = ["synthetic-wrong"]
+    _assert_union_refusal(product, sidecar)

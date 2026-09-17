@@ -3950,6 +3950,10 @@ def _read_gzip_json(path: Path) -> Any:
         return json.load(handle)
 
 
+def _read_gzip_json_bytes(raw: bytes) -> Any:
+    return json.loads(gzip.decompress(raw).decode("utf-8"))
+
+
 def _load_canonical_manifest() -> dict[str, Any]:
     path = _product_manifest_path()
     if not path.is_file():
@@ -4319,13 +4323,19 @@ def _union_dense_blocks(
         if product_chunks and product_dense != sidecar_dense:
             _dense_union_error()
         if not product_chunks and sidecar_dense and not product_dense:
+            _validated_dense_side(sidecar, sidecar_chunks)
             return dict(_as_dense_mapping(sidecar))
         if not product_dense and not sidecar_dense:
             dense = product.get("dense")
             return None if dense in (None, {}) else dict(_as_dense_mapping(product))
     elif not extra:
         dense = product.get("dense")
-        return None if dense in (None, {}) else dict(dense) if isinstance(dense, Mapping) else dense
+        if sidecar_dense:
+            _validated_dense_side(sidecar, sidecar_chunks)
+        if dense in (None, {}):
+            return None
+        _validated_dense_side(product, product_chunks)
+        return dict(dense) if isinstance(dense, Mapping) else dense
     left = _validated_dense_side(product, product_chunks)
     right = _validated_dense_side(sidecar, sidecar_chunks)
     if left["dim"] != right["dim"] or left["model"] != right["model"]:
@@ -4543,19 +4553,20 @@ def _load_bge10_product_index() -> dict[str, Any]:
         )
     declared_digest = _bge10_index_digest(manifest.get("gzip_sha256"))
     try:
-        actual_digest = hashlib.sha256(index_path.read_bytes()).hexdigest()
+        raw = index_path.read_bytes()
     except OSError:
         _bge_serving_error(
             "bge10_index_unreadable",
             "BGE serving index is unreadable.",
         )
+    actual_digest = hashlib.sha256(raw).hexdigest()
     if actual_digest != declared_digest:
         _bge_serving_error(
             "bge10_index_digest",
             "BGE serving index digest is invalid.",
         )
     try:
-        payload = _read_gzip_json(index_path)
+        payload = _read_gzip_json_bytes(raw)
     except json.JSONDecodeError:
         _bge_serving_error(
             "bge10_index_malformed",
@@ -4623,12 +4634,17 @@ def _load_bge10_product_index() -> dict[str, Any]:
             "BGE serving chunk membership is incompatible.",
         )
     declared_ids = recipe_block.get("chunk_ids")
-    if declared_ids is not None:
-        if not isinstance(declared_ids, list) or [str(item) for item in declared_ids] != ordered_ids:
-            _bge_serving_error(
-                "bge10_chunk_membership",
-                "BGE serving chunk membership is incompatible.",
-            )
+    if not isinstance(declared_ids, list):
+        _bge_serving_error(
+            "bge10_chunk_membership",
+            "BGE serving chunk membership is incompatible.",
+        )
+    declared = [str(item) for item in declared_ids]
+    if declared != ordered_ids or len(declared) != len(set(declared)):
+        _bge_serving_error(
+            "bge10_chunk_membership",
+            "BGE serving chunk membership is incompatible.",
+        )
     _validate_dense_rows(
         recorded,
         dense.get("vectors"),
