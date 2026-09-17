@@ -395,17 +395,182 @@ def _mark_incremental_indexed(census: Mapping[str, Any], paper_sha256: str) -> d
     return working
 
 
+def _resolved_path(path: Path | str) -> Path:
+    return Path(path).expanduser().resolve()
+
+
+def _refuse_source_output_collision(
+    *,
+    source_index: Path,
+    source_manifest: Path,
+    outputs: Sequence[Path],
+) -> None:
+    source_index = _resolved_path(source_index)
+    source_manifest = _resolved_path(source_manifest)
+    for dest in outputs:
+        resolved = _resolved_path(dest)
+        if resolved == source_index or resolved == source_manifest:
+            raise TextGoldError(
+                "protected_persist",
+                "Promote dest must not alias the selected source product pair.",
+            )
+
+
+def _manifest_copy_for_dest(
+    manifest: Mapping[str, Any],
+    *,
+    resolved_index: Path,
+) -> dict[str, Any]:
+    payload = json.loads(json.dumps(manifest))
+    payload["index_path"] = str(_resolved_path(resolved_index))
+    return payload
+
+
+def _load_dest_manifest(dest_index: Path) -> dict[str, Any]:
+    dest_index = Path(dest_index)
+    try:
+        payload = json.loads(dest_index.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError) as error:
+        raise TextGoldError("bge10_manifest_unreadable", "Product manifest is unreadable.") from error
+    except json.JSONDecodeError as error:
+        raise TextGoldError("bge10_manifest_malformed", "Product manifest is malformed.") from error
+    if not isinstance(payload, dict):
+        raise TextGoldError("bge10_manifest_invalid", "Product manifest is not an object.")
+    return payload
+
+
+def _selected_product_membership(
+    selected_product: Mapping[str, Any],
+    selected_manifest: Mapping[str, Any],
+) -> tuple[int, list[str]]:
+    index_n = len(list(selected_product.get("chunks") or []))
+    if selected_manifest.get("n_chunks") != index_n:
+        raise TextGoldError("n_chunks_mismatch", "Product INDEX n_chunks must not move.")
+    manifest_papers = selected_manifest.get("indexed_paper_sha256")
+    if not isinstance(manifest_papers, list):
+        raise TextGoldError("index_sha_mismatch", "Product indexed SHA list must not move.")
+    papers = [str(sha) for sha in manifest_papers]
+    index_docs = [str(row.get("sha256") or "") for row in (selected_product.get("documents") or [])]
+    if not index_docs:
+        seen: list[str] = []
+        known: set[str] = set()
+        for row in selected_product.get("chunks") or []:
+            paper = str(row.get("paper_sha256") or "")
+            if paper and paper not in known:
+                known.add(paper)
+                seen.append(paper)
+        index_docs = seen
+    if index_docs != papers:
+        raise TextGoldError("index_sha_mismatch", "Product indexed SHA list must not move.")
+    return index_n, papers
+
+
+def _require_selected_dest_identity(
+    dest_index: Path,
+    payload: Mapping[str, Any],
+    *,
+    selected: str,
+    expected_dim: int,
+    selected_digest: str,
+    selected_index: Path,
+    selected_kb: Any,
+    selected_product: Mapping[str, Any],
+    selected_manifest: Mapping[str, Any],
+) -> None:
+    declared_kb = payload.get("knowledgebase")
+    if declared_kb != selected_kb:
+        raise TextGoldError("bge10_index_knowledgebase", "Product knowledgebase is mismatched.")
+    try:
+        declared = research._bge10_index_digest(payload.get("gzip_sha256"))
+    except research.LiteratureContractError as error:
+        _wrap_contract(error)
+    if declared != str(selected_digest).strip().casefold():
+        raise TextGoldError("bge10_index_digest", "Product index digest does not match the manifest.")
+    raw_path = payload.get("index_path")
+    if not isinstance(raw_path, str) or not raw_path.strip():
+        raise TextGoldError("bge10_index_path_missing", "Product index path is missing.")
+    resolved = research._resolve_against(Path(dest_index).expanduser().resolve().parent, raw_path)
+    if resolved != _resolved_path(selected_index):
+        raise TextGoldError(
+            "bge10_index_path_missing",
+            "Product manifest index_path does not match the supplied index.",
+        )
+    dense = payload.get("dense")
+    if not isinstance(dense, Mapping):
+        raise TextGoldError("bge10_recipe_mismatch", "Product dense recipe is incompatible.")
+    _require_dense_metadata(dense, selected=selected, expected_dim=expected_dim)
+    expected_n, expected_papers = _selected_product_membership(selected_product, selected_manifest)
+    if payload.get("n_chunks") != expected_n:
+        raise TextGoldError("n_chunks_mismatch", "Product INDEX n_chunks must not move.")
+    dest_papers = payload.get("indexed_paper_sha256")
+    if not isinstance(dest_papers, list) or [str(sha) for sha in dest_papers] != expected_papers:
+        raise TextGoldError("index_sha_mismatch", "Product indexed SHA list must not move.")
+
+
+def _selected_dest_manifest_before_write(
+    *,
+    dest_index: Path,
+    dest_outputs: Sequence[Path],
+    source_index: Path,
+    source_manifest: Path,
+    selected_manifest: Mapping[str, Any],
+    selected_product: Mapping[str, Any],
+    selected: str,
+    expected_dim: int,
+    selected_digest: str,
+) -> dict[str, Any]:
+    dest_index = Path(dest_index)
+    _refuse_source_output_collision(
+        source_index=source_index,
+        source_manifest=source_manifest,
+        outputs=dest_outputs,
+    )
+    if dest_index.exists() or dest_index.is_symlink():
+        existing = _load_dest_manifest(dest_index)
+        _require_selected_dest_identity(
+            dest_index,
+            existing,
+            selected=selected,
+            expected_dim=expected_dim,
+            selected_digest=selected_digest,
+            selected_index=source_index,
+            selected_kb=selected_manifest.get("knowledgebase"),
+            selected_product=selected_product,
+            selected_manifest=selected_manifest,
+        )
+        return existing
+    return _manifest_copy_for_dest(selected_manifest, resolved_index=source_index)
+
+
 def _ensure_dest_index(
     dest_dir: Path,
     *,
     product_manifest_path: Path | None = None,
+    product_manifest: Mapping[str, Any] | None = None,
+    product_index_path: Path | str | None = None,
 ) -> Path:
     dest_index = dest_dir / PRODUCT_INDEX_NAME
     source = (
-        Path(product_manifest_path).expanduser().resolve()
+        _resolved_path(product_manifest_path)
         if product_manifest_path is not None
         else engine_e2e.MANIFEST_PATH.resolve()
     )
+    if product_manifest_path is not None and dest_index.resolve() == source:
+        raise TextGoldError(
+            "protected_persist",
+            "Promote dest must not alias the selected source product pair.",
+        )
+    if product_manifest is not None:
+        if dest_index.exists() or dest_index.is_symlink():
+            return dest_index
+        resolved_index = (
+            _resolved_path(product_index_path)
+            if product_index_path is not None
+            else research._resolve_against(source.parent, str(product_manifest.get("index_path") or ""))
+        )
+        payload = _manifest_copy_for_dest(product_manifest, resolved_index=resolved_index)
+        _write_json(dest_index, payload)
+        return dest_index
     if dest_index.resolve() != source and not dest_index.is_file():
         _refuse_rti_dest(dest_index)
         dest_index.parent.mkdir(parents=True, exist_ok=True)
@@ -418,8 +583,12 @@ def _update_product_index(
     *,
     promoted: Mapping[str, Any],
     floor: float,
+    payload: Mapping[str, Any] | None = None,
 ) -> str:
-    payload = json.loads(dest_index.read_text(encoding="utf-8"))
+    if payload is None:
+        payload = json.loads(dest_index.read_text(encoding="utf-8"))
+    else:
+        payload = json.loads(json.dumps(payload))
     before_keys = set(payload)
     indexed = list(payload.get("indexed_paper_sha256") or [])
     n_chunks = payload.get("n_chunks")
@@ -555,13 +724,14 @@ def promote_ingested_paper(
             )
         _refuse_nonlegacy_dest(dest)
     selected_product: dict[str, Any] | None = None
+    selected_manifest: dict[str, Any] | None = None
     selected_product_gzip_sha256: str | None = None
     selected_product_index_path: Path | None = None
     selected_product_manifest_path: Path | None = None
     if index_supplied:
         (
             selected_product,
-            _selected_manifest,
+            selected_manifest,
             selected_product_gzip_sha256,
             selected_product_index_path,
             selected_product_manifest_path,
@@ -571,7 +741,6 @@ def promote_ingested_paper(
             selected=selected,
             expected_dim=compatible_dim,
         )
-        del _selected_manifest
     incremental_census_path = dest / engine_e2e5.INCREMENTAL_CENSUS_PATH.name
     incremental_store_path = dest / engine_e2e5.INCREMENTAL_STORE_PATH.name
     sidecar_store_path = dest / SIDECAR_STORE_NAME
@@ -733,6 +902,27 @@ def promote_ingested_paper(
             research._union_product_and_sidecar(selected_product, index)
         except research.LiteratureContractError as error:
             _wrap_contract(error)
+    dest_index = dest / PRODUCT_INDEX_NAME
+    dest_manifest_payload: dict[str, Any] | None = None
+    if selected_product_manifest_path is not None:
+        dest_manifest_payload = _selected_dest_manifest_before_write(
+            dest_index=dest_index,
+            dest_outputs=(
+                dest_index,
+                sidecar_store_path,
+                sidecar_gzip_path,
+                sidecar_index_path,
+                dest_curves,
+                graph_path,
+            ),
+            source_index=selected_product_index_path,
+            source_manifest=selected_product_manifest_path,
+            selected_manifest=selected_manifest or {},
+            selected_product=selected_product or {},
+            selected=selected,
+            expected_dim=compatible_dim,
+            selected_digest=str(selected_product_gzip_sha256 or ""),
+        )
     sidecar_store_sha = _write_json(sidecar_store_path, working)
     sidecar_gzip_sha = _write_gzip(sidecar_gzip_path, index)
     sidecar_manifest = {
@@ -762,7 +952,12 @@ def promote_ingested_paper(
         product_gzip_sha256=selected_product_gzip_sha256,
     )
     floor = float(artifact["shipped_floor"])
-    dest_index = _ensure_dest_index(dest, product_manifest_path=selected_product_manifest_path)
+    dest_index = _ensure_dest_index(
+        dest,
+        product_manifest_path=selected_product_manifest_path,
+        product_manifest=dest_manifest_payload,
+        product_index_path=selected_product_index_path,
+    )
     promoted = {
         "knowledgebase": SIDECAR_KNOWLEDGEBASE,
         "index_path": str(sidecar_gzip_path),
@@ -771,7 +966,12 @@ def promote_ingested_paper(
         "store_sha256": sidecar_store_sha,
         "gzip_sha256": sidecar_gzip_sha,
     }
-    _update_product_index(dest_index, promoted=promoted, floor=floor)
+    _update_product_index(
+        dest_index,
+        promoted=promoted,
+        floor=floor,
+        payload=dest_manifest_payload,
+    )
     working_census = _mark_incremental_indexed(census, paper_sha256)
     _write_json(incremental_census_path, working_census)
     t5_corpus_graph.emit_t5_corpus_graph(

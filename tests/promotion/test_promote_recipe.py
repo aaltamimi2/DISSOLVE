@@ -147,7 +147,7 @@ def _write_json(path: Path, payload: object) -> None:
     path.write_text(json.dumps(payload, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
 
 
-def _write_gzip_index(path: Path, index: Mapping_alias := dict) -> bytes:
+def _write_gzip_index(path: Path, index: dict) -> bytes:
     path.parent.mkdir(parents=True, exist_ok=True)
     raw = engine_e2e._gzip_index_bytes(index)
     path.write_bytes(raw)
@@ -294,9 +294,9 @@ def promote_env(monkeypatch, tmp_path):
         writes["gzip"].append(Path(dest_path).resolve())
         return real_gzip(dest_path, index)
 
-    def wrap_ensure(dest_dir, *, product_manifest_path=None):
+    def wrap_ensure(dest_dir, *, product_manifest_path=None, **kwargs):
         ensure_calls.append(None if product_manifest_path is None else Path(product_manifest_path).resolve())
-        return real_ensure(dest_dir, product_manifest_path=product_manifest_path)
+        return real_ensure(dest_dir, product_manifest_path=product_manifest_path, **kwargs)
 
     def fake_union(**kwargs):
         union_calls.append(kwargs)
@@ -502,6 +502,7 @@ def test_bge_one_pending_one_missing_encodes_once_and_stamps_recipe(promote_env)
     dest_index = json.loads((env.dest / t5_promote.PRODUCT_INDEX_NAME).read_text(encoding="utf-8"))
     assert dest_index["gzip_sha256"] == digest
     assert dest_index["dense"]["model"] == BGE_MODEL
+    assert research._resolve_against(env.dest, dest_index["index_path"]) == index_path.resolve()
 
 
 def test_all_valid_pending_zero_encode(promote_env):
@@ -746,7 +747,8 @@ def test_unknown_pending_id_zero_writes(promote_env):
 def test_wrong_pending_model_revision_dimension_zero_writes(promote_env, pending_meta, code):
     env = promote_env
     params = _refuse_kwargs(env)
-    pending = _pending(BGE_MODEL, BGE_DIM, [CHUNK_A], [_unit(BGE_DIM, 1)], **pending_meta)
+    pending = _pending(BGE_MODEL, BGE_DIM, [CHUNK_A], [_unit(BGE_DIM, 1)])
+    pending.update(pending_meta)
     _seed_current_paper(env.dest, pending=pending)
     with pytest.raises(TextGoldError) as caught:
         _promote_bge(env, **params)
@@ -862,3 +864,242 @@ def test_empty_absent_pending_encodes_both(promote_env):
     )
     assert result["vectors_embedded"] == 2
     assert len(calls[0][0]) == 2
+
+
+def test_duplicate_prior_dense_ids_collapse_zero_writes(promote_env):
+    env = promote_env
+    params = _refuse_kwargs(env)
+    prior_store = _store(chunks=[_store_chunk(PRIOR_CHUNK, PRIOR_PAPER, TEXT_PRIOR)], indexed=[PRIOR_PAPER])
+    prior_index = _sidecar_index_from_store(
+        prior_store,
+        model=BGE_MODEL,
+        dim=BGE_DIM,
+        dense=_bge_dense([PRIOR_CHUNK], [1]),
+    )
+    prior_index["dense"]["chunk_ids"] = [PRIOR_CHUNK, PRIOR_CHUNK]
+    prior_index["dense"]["vectors"] = [_unit(BGE_DIM, 1), _unit(BGE_DIM, 2)]
+    _write_json(env.dest / t5_promote.SIDECAR_STORE_NAME, prior_store)
+    _write_gzip_index(env.dest / "indexes" / t5_promote.SIDECAR_GZIP_NAME, prior_index)
+    with pytest.raises(TextGoldError) as caught:
+        _promote_bge(env, **params)
+    assert caught.value.code == "dense_union_incompatible"
+    _assert_zero_side_effects(env)
+
+
+def test_wrong_prior_dimension_zero_writes(promote_env):
+    env = promote_env
+    params = _refuse_kwargs(env)
+    prior_store = _store(chunks=[_store_chunk(PRIOR_CHUNK, PRIOR_PAPER, TEXT_PRIOR)], indexed=[PRIOR_PAPER])
+    prior_dense = _bge_dense([PRIOR_CHUNK], [1])
+    prior_dense["dim"] = MINILM_DIM
+    prior_index = _sidecar_index_from_store(prior_store, model=BGE_MODEL, dim=BGE_DIM, dense=prior_dense)
+    prior_index["dense"]["dim"] = MINILM_DIM
+    _write_json(env.dest / t5_promote.SIDECAR_STORE_NAME, prior_store)
+    _write_gzip_index(env.dest / "indexes" / t5_promote.SIDECAR_GZIP_NAME, prior_index)
+    with pytest.raises(TextGoldError) as caught:
+        _promote_bge(env, **params)
+    assert caught.value.code == "dense_union_incompatible"
+    _assert_zero_side_effects(env)
+
+
+@pytest.mark.parametrize("kind", ["nan", "inf", "zero", "non_unit"])
+def test_malformed_pending_vectors_zero_writes(promote_env, kind):
+    env = promote_env
+    params = _refuse_kwargs(env)
+    pending = _pending(BGE_MODEL, BGE_DIM, [CHUNK_A], [_fault_vector(kind)])
+    _seed_current_paper(env.dest, pending=pending)
+    with pytest.raises(TextGoldError) as caught:
+        _promote_bge(env, **params)
+    assert caught.value.code == "dense_dim"
+    _assert_zero_side_effects(env)
+    assert TEXT_A not in str(caught.value)
+    assert TEXT_B not in str(caught.value)
+
+
+def test_copied_relative_index_path_keeps_resolved_source_target(promote_env):
+    env = promote_env
+    index_path, manifest_path, raw, digest = _write_product_pair(env.product_dir, model=BGE_MODEL, dim=BGE_DIM)
+    source_index = _snapshot_bytes(index_path)
+    source_manifest = _snapshot_bytes(manifest_path)
+    declared = json.loads(source_manifest)
+    assert declared["index_path"] == index_path.name
+    pending = _pending(BGE_MODEL, BGE_DIM, [CHUNK_A, CHUNK_B], [_unit(BGE_DIM, 1), _unit(BGE_DIM, 2)])
+    _seed_current_paper(env.dest, pending=pending)
+    result = _promote_bge(
+        env,
+        product_index_path=index_path,
+        product_manifest_path=manifest_path,
+        embedder=_forbidden_embedder([]),
+    )
+    assert result["status"] == "ok"
+    dest_payload = json.loads((env.dest / t5_promote.PRODUCT_INDEX_NAME).read_text(encoding="utf-8"))
+    assert research._resolve_against(env.dest, dest_payload["index_path"]) == index_path.resolve()
+    assert dest_payload["index_path"] != index_path.name
+    assert dest_payload["gzip_sha256"] == digest
+    assert dest_payload["dense"]["model"] == BGE_MODEL
+    assert _snapshot_bytes(index_path) == source_index == raw
+    assert _snapshot_bytes(manifest_path) == source_manifest
+
+
+def test_existing_relative_dest_manifest_conflicts_zero_writes(promote_env):
+    env = promote_env
+    index_path, manifest_path, raw, _digest = _write_product_pair(env.product_dir, model=BGE_MODEL, dim=BGE_DIM)
+    source_index = _snapshot_bytes(index_path)
+    source_manifest = _snapshot_bytes(manifest_path)
+    dest_index = env.dest / t5_promote.PRODUCT_INDEX_NAME
+    dest_index.parent.mkdir(parents=True, exist_ok=True)
+    dest_index.write_bytes(source_manifest)
+    pending = _pending(BGE_MODEL, BGE_DIM, [CHUNK_A, CHUNK_B], [_unit(BGE_DIM, 1), _unit(BGE_DIM, 2)])
+    _seed_current_paper(env.dest, pending=pending)
+    with pytest.raises(TextGoldError) as caught:
+        _promote_bge(
+            env,
+            product_index_path=index_path,
+            product_manifest_path=manifest_path,
+            embedder=_forbidden_embedder([]),
+        )
+    assert caught.value.code == "bge10_index_path_missing"
+    _assert_zero_side_effects(env)
+    assert _snapshot_bytes(index_path) == source_index == raw
+    assert _snapshot_bytes(manifest_path) == source_manifest
+    assert dest_index.read_bytes() == source_manifest
+
+
+def test_existing_conflicting_dest_digest_zero_writes(promote_env):
+    env = promote_env
+    index_path, manifest_path, raw, digest = _write_product_pair(env.product_dir, model=BGE_MODEL, dim=BGE_DIM)
+    source_index = _snapshot_bytes(index_path)
+    source_manifest = _snapshot_bytes(manifest_path)
+    dest_payload = json.loads(source_manifest)
+    dest_payload["index_path"] = str(index_path.resolve())
+    flipped = "0" if digest[0] != "0" else "1"
+    dest_payload["gzip_sha256"] = flipped + digest[1:]
+    dest_index = env.dest / t5_promote.PRODUCT_INDEX_NAME
+    _write_json(dest_index, dest_payload)
+    planted = dest_index.read_bytes()
+    pending = _pending(BGE_MODEL, BGE_DIM, [CHUNK_A, CHUNK_B], [_unit(BGE_DIM, 1), _unit(BGE_DIM, 2)])
+    _seed_current_paper(env.dest, pending=pending)
+    with pytest.raises(TextGoldError) as caught:
+        _promote_bge(
+            env,
+            product_index_path=index_path,
+            product_manifest_path=manifest_path,
+            embedder=_forbidden_embedder([]),
+        )
+    assert caught.value.code == "bge10_index_digest"
+    _assert_zero_side_effects(env)
+    assert _snapshot_bytes(index_path) == source_index == raw
+    assert _snapshot_bytes(manifest_path) == source_manifest
+    assert dest_index.read_bytes() == planted
+
+
+def test_dest_aliasing_source_manifest_zero_writes(promote_env):
+    env = promote_env
+    index_path, manifest_path, raw, _digest = _write_product_pair(env.product_dir, model=BGE_MODEL, dim=BGE_DIM)
+    source_index = _snapshot_bytes(index_path)
+    source_manifest = _snapshot_bytes(manifest_path)
+    pending = _pending(BGE_MODEL, BGE_DIM, [CHUNK_A, CHUNK_B], [_unit(BGE_DIM, 1), _unit(BGE_DIM, 2)])
+    _seed_current_paper(env.product_dir, pending=pending)
+    with pytest.raises(TextGoldError) as caught:
+        _promote_bge(
+            env,
+            dest_dir=env.product_dir,
+            product_index_path=index_path,
+            product_manifest_path=manifest_path,
+            embedder=_forbidden_embedder([]),
+        )
+    assert caught.value.code == "protected_persist"
+    _assert_zero_side_effects(env)
+    assert _snapshot_bytes(index_path) == source_index == raw
+    assert _snapshot_bytes(manifest_path) == source_manifest
+
+
+def test_compatible_existing_dest_preserves_product_identity(promote_env):
+    env = promote_env
+    index_path, manifest_path, raw, digest = _write_product_pair(env.product_dir, model=BGE_MODEL, dim=BGE_DIM)
+    source_index = _snapshot_bytes(index_path)
+    source_manifest = _snapshot_bytes(manifest_path)
+    dest_payload = json.loads(source_manifest)
+    dest_payload["index_path"] = str(index_path.resolve())
+    dest_payload["promoted"] = {
+        "knowledgebase": SIDECAR_KB,
+        "n_papers": 9,
+        "n_chunks": 9,
+        "marker": "prior-promotion",
+    }
+    dest_index = env.dest / t5_promote.PRODUCT_INDEX_NAME
+    _write_json(dest_index, dest_payload)
+    pending = _pending(BGE_MODEL, BGE_DIM, [CHUNK_A, CHUNK_B], [_unit(BGE_DIM, 1), _unit(BGE_DIM, 2)])
+    _seed_current_paper(env.dest, pending=pending)
+    result = _promote_bge(
+        env,
+        product_index_path=index_path,
+        product_manifest_path=manifest_path,
+        embedder=_forbidden_embedder([]),
+    )
+    assert result["status"] == "ok"
+    after = json.loads(dest_index.read_text(encoding="utf-8"))
+    assert after["gzip_sha256"] == digest
+    assert after["n_chunks"] == 1
+    assert after["indexed_paper_sha256"] == [PRODUCT_PAPER]
+    assert after["dense"]["model"] == BGE_MODEL
+    assert research._resolve_against(env.dest, after["index_path"]) == index_path.resolve()
+    assert after["promoted"]["n_chunks"] == 2
+    assert after["promoted"]["knowledgebase"] == SIDECAR_KB
+    assert after["promoted"].get("marker") is None
+    assert _snapshot_bytes(index_path) == source_index == raw
+    assert _snapshot_bytes(manifest_path) == source_manifest
+
+
+def test_existing_dest_wrong_n_chunks_zero_writes(promote_env):
+    env = promote_env
+    index_path, manifest_path, raw, _digest = _write_product_pair(env.product_dir, model=BGE_MODEL, dim=BGE_DIM)
+    source_index = _snapshot_bytes(index_path)
+    source_manifest = _snapshot_bytes(manifest_path)
+    dest_payload = json.loads(source_manifest)
+    dest_payload["index_path"] = str(index_path.resolve())
+    dest_payload["n_chunks"] = 999
+    dest_index = env.dest / t5_promote.PRODUCT_INDEX_NAME
+    _write_json(dest_index, dest_payload)
+    planted = dest_index.read_bytes()
+    pending = _pending(BGE_MODEL, BGE_DIM, [CHUNK_A, CHUNK_B], [_unit(BGE_DIM, 1), _unit(BGE_DIM, 2)])
+    _seed_current_paper(env.dest, pending=pending)
+    with pytest.raises(TextGoldError) as caught:
+        _promote_bge(
+            env,
+            product_index_path=index_path,
+            product_manifest_path=manifest_path,
+            embedder=_forbidden_embedder([]),
+        )
+    assert caught.value.code == "n_chunks_mismatch"
+    _assert_zero_side_effects(env)
+    assert _snapshot_bytes(index_path) == source_index == raw
+    assert _snapshot_bytes(manifest_path) == source_manifest
+    assert dest_index.read_bytes() == planted
+
+
+def test_existing_dest_wrong_indexed_papers_zero_writes(promote_env):
+    env = promote_env
+    index_path, manifest_path, raw, _digest = _write_product_pair(env.product_dir, model=BGE_MODEL, dim=BGE_DIM)
+    source_index = _snapshot_bytes(index_path)
+    source_manifest = _snapshot_bytes(manifest_path)
+    dest_payload = json.loads(source_manifest)
+    dest_payload["index_path"] = str(index_path.resolve())
+    dest_payload["indexed_paper_sha256"] = ["ee" * 32]
+    dest_index = env.dest / t5_promote.PRODUCT_INDEX_NAME
+    _write_json(dest_index, dest_payload)
+    planted = dest_index.read_bytes()
+    pending = _pending(BGE_MODEL, BGE_DIM, [CHUNK_A, CHUNK_B], [_unit(BGE_DIM, 1), _unit(BGE_DIM, 2)])
+    _seed_current_paper(env.dest, pending=pending)
+    with pytest.raises(TextGoldError) as caught:
+        _promote_bge(
+            env,
+            product_index_path=index_path,
+            product_manifest_path=manifest_path,
+            embedder=_forbidden_embedder([]),
+        )
+    assert caught.value.code == "index_sha_mismatch"
+    _assert_zero_side_effects(env)
+    assert _snapshot_bytes(index_path) == source_index == raw
+    assert _snapshot_bytes(manifest_path) == source_manifest
+    assert dest_index.read_bytes() == planted
