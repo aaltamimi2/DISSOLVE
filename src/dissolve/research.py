@@ -5513,6 +5513,47 @@ def _section_boost(chunk: Mapping[str, Any]) -> float:
     return 0.05 if any(word in section for word in ("abstract", "result", "conclusion", "method")) else 0.0
 
 
+def _population_zscores(values: Sequence[float]) -> list[float]:
+    sequence = [float(value) for value in values]
+    if len(sequence) < 2:
+        return [0.0] * len(sequence)
+    variance = statistics.pvariance(sequence)
+    if variance <= 0.0:
+        return [0.0] * len(sequence)
+    mean = statistics.fmean(sequence)
+    scale = math.sqrt(variance)
+    return [(value - mean) / scale for value in sequence]
+
+
+def _loaded_bge10_product_identity(index: Mapping[str, Any]) -> bool:
+    if not _is_product_knowledgebase(str(index.get("knowledgebase") or "")):
+        return False
+    dense = index.get("dense")
+    if not isinstance(dense, Mapping):
+        return False
+    dim = dense.get("dim")
+    try:
+        recorded_dim = int(dim)
+    except (TypeError, ValueError):
+        return False
+    if isinstance(dim, bool) or recorded_dim != _BGE_DIM:
+        return False
+    return (
+        dense.get("model") == _BGE_MODEL_ID
+        and dense.get("query_instruction") == _BGE_QUERY_INSTRUCTION
+        and dense.get("passage_instruction") == _BGE_PASSAGE_INSTRUCTION
+        and dense.get("encoder_revision") == _BGE_ENCODER_REVISION
+    )
+
+
+def _bge10_hybrid_fusion_enabled(index: Mapping[str, Any]) -> bool:
+    try:
+        selected = _corpus_profile()
+    except LiteratureContractError:
+        return False
+    return selected == _CORPUS_PROFILE_BGE10 and _loaded_bge10_product_identity(index)
+
+
 def _hybrid_passage_parts(
     index: dict[str, Any], query: str,
 ) -> list[tuple[float, float, float, dict[str, Any]]]:
@@ -5600,6 +5641,23 @@ def _search_index(
     if max(sparse_raw, default=0.0) <= 0:
         return []
     if mode == "hybrid":
+        if _bge10_hybrid_fusion_enabled(index):
+            dense_scores = _dense_query_scores(index, chunks, query)
+            eligible = [i for i, raw in enumerate(sparse_raw) if float(raw) > 0]
+            clipped = [max(0.0, float(dense_scores[i])) for i in eligible]
+            sparse_values = [float(sparse_raw[i]) for i in eligible]
+            z_dense = _population_zscores(clipped)
+            z_sparse = _population_zscores(sparse_values)
+            ranked = []
+            for i, dense_z, sparse_z in zip(eligible, z_dense, z_sparse):
+                chunk = chunks[i]
+                score = dense_w * dense_z + sparse_w * sparse_z
+                ranked.append((
+                    score, sparse_z, dense_z, 0.0, chunk, float(sparse_raw[i]),
+                ))
+            ranked.sort(key=lambda item: (-item[0], str(item[4].get("title")), item[4]["chunk_id"]))
+            ranked = rerank.reorder_window(query, ranked, rerank_mode)
+            return _ranked_search_rows(index, ranked, top_k, coverage_by_id, floor=floor)
         raw_by_id = {str(chunk["chunk_id"]): float(raw) for chunk, raw in zip(chunks, sparse_raw)}
         ranked = []
         for sparse_score, dense_score, boost, chunk in _hybrid_passage_parts(index, query):
@@ -5634,6 +5692,22 @@ def _search_index(
     return _ranked_search_rows(index, ranked, top_k, coverage_by_id, floor=floor)
 
 
+def _zero_hit_reason(index: Mapping[str, Any], query: str) -> str | None:
+    chunks = list(index.get("chunks") or [])
+    if not chunks:
+        return "empty_corpus"
+    sparse_raw = _query_sparse_raw(
+        query, [{"text": chunk_sparse_corpus(chunk)} for chunk in chunks],
+    )
+    _coverage_by_id, star = _coverage_from_sparse(query, chunks, sparse_raw)
+    floor = _abstention_floor(index)
+    if floor is not None and star < floor:
+        return "abstained_below_floor"
+    if max(sparse_raw, default=0.0) <= 0:
+        return "no_sparse_match"
+    return None
+
+
 def search_literature_corpus(
     query: str,
     knowledgebase: str = _PRODUCT_KNOWLEDGEBASE,
@@ -5655,9 +5729,10 @@ def search_literature_corpus(
         return tool_error(
             tool, f"Knowledgebase {_slug(knowledgebase)!r} is empty.", error_code="empty_corpus",
             knowledgebase=_slug(knowledgebase),
+            reason="empty_corpus",
         )
     try:
-        rows = _search_index(index, query, max(1, min(int(top_k), 10)), mode)
+        rows = _search_index(index, query, max(1, min(int(top_k), 20)), mode)
     except (ValueError, RuntimeError) as error:
         if str(error) == "dense_index_unavailable":
             return tool_error(
@@ -5669,6 +5744,11 @@ def search_literature_corpus(
     top_score = rows[0]["final_score"] if rows else 0.0
     floor = _abstention_floor(index)
     served_floor = None if floor is None else round(float(floor), 6)
+    extra: dict[str, Any] = {}
+    if not rows:
+        refusal = _zero_hit_reason(index, query)
+        if refusal:
+            extra["reason"] = refusal
     return tool_success(
         tool,
         display=_table(("Citation", "Score", "Source", "Section"), [
@@ -5688,6 +5768,7 @@ def search_literature_corpus(
             "Validation or external-test results in a passage are author-reported and were not independently reproduced by DISSOLVE.",
             "Absence from the returned passages is not evidence that the corpus contains no relevant document.",
         ],
+        **extra,
     )
 
 
