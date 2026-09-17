@@ -5656,7 +5656,11 @@ def _search_index(
                     score, sparse_z, dense_z, 0.0, chunk, float(sparse_raw[i]),
                 ))
             ranked.sort(key=lambda item: (-item[0], str(item[4].get("title")), item[4]["chunk_id"]))
+            window_n = min(rerank.WINDOW, len(ranked))
+            before = list(ranked[:window_n])
             ranked = rerank.reorder_window(query, ranked, rerank_mode)
+            if str(rerank_mode or "off").strip().casefold() == rerank.PAIR_RERANK_MODE:
+                ranked = rerank.fuse_rrf60(before, list(ranked[:window_n])) + list(ranked[window_n:])
             return _ranked_search_rows(index, ranked, top_k, coverage_by_id, floor=floor)
         raw_by_id = {str(chunk["chunk_id"]): float(raw) for chunk, raw in zip(chunks, sparse_raw)}
         ranked = []
@@ -5732,7 +5736,10 @@ def search_literature_corpus(
             reason="empty_corpus",
         )
     try:
-        rows = _search_index(index, query, max(1, min(int(top_k), 20)), mode)
+        rerank_mode = "off"
+        if mode == "hybrid" and _bge10_hybrid_fusion_enabled(index):
+            rerank_mode = rerank.PAIR_RERANK_MODE
+        rows = _search_index(index, query, max(1, min(int(top_k), 20)), mode, rerank_mode=rerank_mode)
     except (ValueError, RuntimeError) as error:
         if str(error) == "dense_index_unavailable":
             return tool_error(
