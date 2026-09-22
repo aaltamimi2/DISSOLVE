@@ -8,3 +8,6 @@ __pycache__/
 /logs/campaign-changes.jsonl
 /logs/chunk-release-loop.jsonl
 /state/campaign-v1/remote-records.json
+
+# Unpacked polymer conformers (inputs/polymers/conformers_v1.tar.gz holds them)
+/inputs/polymers/*/

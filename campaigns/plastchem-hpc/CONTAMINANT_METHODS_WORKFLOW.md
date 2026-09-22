@@ -189,3 +189,12 @@ This is not full 32-pair panel completion. Missing values remain blank. Twelve m
 
 
 Latest available-library snapshot (17 September, 13:54 UTC): `/home/aaltamimi2/plastchem-euler/completed-contaminants-2026-09-17T135403Z.csv`. Contains 2,951 structures with names, SMILES and provenance, suitable for RDKit structure rendering. Eligibility requires the new diphenyl-ether pass, so this snapshot is a subset while that pass runs; earlier exports remain unchanged. Nine mole-fraction pairs per molecule; diphenyl-ether concentration values remain blank. Bulk snapshot and exclusions: `/mnt/r/plastchem-euler/exports/completed-20260917T135403Z/`.
+
+## Polymer conformer inputs (amendment A-5)
+
+The 284 polymer conformer geometries (14 polymers, 16 species) are packed in
+`inputs/polymers/conformers_v1.tar.gz`. Unpack them in this folder with
+`tar -xzf inputs/polymers/conformers_v1.tar.gz` before running the polymer workflow;
+`scripts/verify_polymer_inputs.py` then checks every file against the sha256 in
+`inputs/polymers/polymer_conformers_v1.csv`. The scripts write their records under `state/` and
+`logs/`, which are not tracked: create them first with `mkdir -p state logs`.
