@@ -1,0 +1,377 @@
+{
+  "adversarial_by_path": {
+    "10:F-ENV-4:claim_flags": true,
+    "11:F-RUN-5:adapter_error": true,
+    "11:F-RUN-5:executor_calls": true,
+    "12:F-SUB-3:halt": true,
+    "13:F-OFFER-5:halt": true,
+    "14:F-STAMP-3:discarded_draft_keys": true,
+    "14:F-STAMP-3:envelope.corpus_snapshot": true,
+    "14:F-STAMP-3:envelope.generated_at": true,
+    "14:F-STAMP-3:envelope.request_id": true,
+    "15:F-STAMP-1:field": true,
+    "15:F-STAMP-1:halt": true,
+    "16:F-STAMP-2:field": true,
+    "16:F-STAMP-2:halt": true,
+    "17:F-DRAFT-1:draft_errors": true,
+    "17:F-DRAFT-1:envelope.unanswered_subparts": true,
+    "18:F-DRAFT-2:draft_errors": true,
+    "18:F-DRAFT-2:envelope.unanswered_subparts": true,
+    "19:F-NORM-1:envelope.claims[0].evidence_refs": true,
+    "1:F-OFFER-1:offered": true,
+    "20:F-NORM-2:envelope.claims[0].evidence_refs": true,
+    "21:F-NORM-3:envelope.claims[0].evidence_refs": true,
+    "21:F-NORM-3:presented_tool_messages": true,
+    "22:F-NORM-4:envelope.claims[0].evidence_refs": true,
+    "22:F-NORM-4:envelope.support_refs": true,
+    "23:F-IDENT-1:halt": true,
+    "24:F-IDENT-2:halt": true,
+    "25:F-RUN-3:envelope.corpus_snapshot": true,
+    "26:F-RUN-1:envelope.claims[0].evidence_refs": true,
+    "26:F-RUN-1:envelope.support_refs": true,
+    "27:F-RUN-7:envelope.support_refs[*].call_ordinal": true,
+    "27:F-RUN-7:ledger_after.entries[*].call_ordinal": true,
+    "28:F-RUN-7:envelope.support_refs[1..2].tool": true,
+    "28:F-RUN-7:ledger_after.entries[1..2].tool": true,
+    "29:F-RUN-7:envelope.claims[0].evidence_refs": true,
+    "29:F-RUN-7:envelope.support_refs": true,
+    "29:F-RUN-7:presented_tool_messages[2]": true,
+    "2:F-OFFER-2:offered": true,
+    "2:F-RUN-3:tools_passed_to_model": true,
+    "3:F-PROMPT-3:halt": true,
+    "4:F-CFG-3:halt": true,
+    "4:F-CFG-3:scan result": true,
+    "5:F-SUB-1:halt": true,
+    "5:F-SUB-2:halt": true,
+    "6:F-OFFER-3:extra": true,
+    "6:F-OFFER-3:halt": true,
+    "7:F-RUN-2:executor_calls": true,
+    "7:F-RUN-2:refused_tool_calls": true,
+    "7:F-RUN-4:executor_calls": true,
+    "7:F-RUN-4:refused_tool_calls": true,
+    "8:F-CFG-2:halt": true,
+    "8:F-CFG-2:missing": true,
+    "9:F-ENV-2:claim_errors": true,
+    "9:F-ENV-2:draft_structure_valid": true
+  },
+  "adversarial_failed": 53,
+  "adversarial_n": 53,
+  "adversarial_rows": 29,
+  "by_id": {
+    "F-CFG-1": {
+      "family": "F-CFG",
+      "graded_keys": 8,
+      "matched_keys": 8,
+      "missed_n": 0
+    },
+    "F-CFG-2": {
+      "family": "F-CFG",
+      "graded_keys": 2,
+      "matched_keys": 2,
+      "missed_n": 0
+    },
+    "F-CFG-3": {
+      "family": "F-CFG",
+      "graded_keys": 3,
+      "matched_keys": 3,
+      "missed_n": 0
+    },
+    "F-DRAFT-1": {
+      "family": "F-DRAFT",
+      "graded_keys": 18,
+      "matched_keys": 18,
+      "missed_n": 0
+    },
+    "F-DRAFT-2": {
+      "family": "F-DRAFT",
+      "graded_keys": 18,
+      "matched_keys": 18,
+      "missed_n": 0
+    },
+    "F-ENV-1": {
+      "family": "F-ENV",
+      "graded_keys": 5,
+      "matched_keys": 5,
+      "missed_n": 0
+    },
+    "F-ENV-2": {
+      "family": "F-ENV",
+      "graded_keys": 5,
+      "matched_keys": 5,
+      "missed_n": 0
+    },
+    "F-ENV-3": {
+      "family": "F-ENV",
+      "graded_keys": 5,
+      "matched_keys": 5,
+      "missed_n": 0
+    },
+    "F-ENV-4": {
+      "family": "F-ENV",
+      "graded_keys": 5,
+      "matched_keys": 5,
+      "missed_n": 0
+    },
+    "F-ENV-5": {
+      "family": "F-ENV",
+      "graded_keys": 5,
+      "matched_keys": 5,
+      "missed_n": 0
+    },
+    "F-IDENT-1": {
+      "family": "F-IDENT",
+      "graded_keys": 1,
+      "matched_keys": 1,
+      "missed_n": 0
+    },
+    "F-IDENT-2": {
+      "family": "F-IDENT",
+      "graded_keys": 1,
+      "matched_keys": 1,
+      "missed_n": 0
+    },
+    "F-NORM-1": {
+      "family": "F-NORM",
+      "graded_keys": 17,
+      "matched_keys": 17,
+      "missed_n": 0
+    },
+    "F-NORM-2": {
+      "family": "F-NORM",
+      "graded_keys": 17,
+      "matched_keys": 17,
+      "missed_n": 0
+    },
+    "F-NORM-3": {
+      "family": "F-NORM",
+      "graded_keys": 17,
+      "matched_keys": 17,
+      "missed_n": 0
+    },
+    "F-NORM-4": {
+      "family": "F-NORM",
+      "graded_keys": 16,
+      "matched_keys": 16,
+      "missed_n": 0
+    },
+    "F-OFFER-1": {
+      "family": "F-OFFER",
+      "graded_keys": 3,
+      "matched_keys": 3,
+      "missed_n": 0
+    },
+    "F-OFFER-2": {
+      "family": "F-OFFER",
+      "graded_keys": 3,
+      "matched_keys": 3,
+      "missed_n": 0
+    },
+    "F-OFFER-3": {
+      "family": "F-OFFER",
+      "graded_keys": 3,
+      "matched_keys": 3,
+      "missed_n": 0
+    },
+    "F-OFFER-4": {
+      "family": "F-OFFER",
+      "graded_keys": 3,
+      "matched_keys": 3,
+      "missed_n": 0
+    },
+    "F-OFFER-5": {
+      "family": "F-OFFER",
+      "graded_keys": 1,
+      "matched_keys": 1,
+      "missed_n": 0
+    },
+    "F-PROMPT-1": {
+      "family": "F-PROMPT",
+      "graded_keys": 2,
+      "matched_keys": 2,
+      "missed_n": 0
+    },
+    "F-PROMPT-2": {
+      "family": "F-PROMPT",
+      "graded_keys": 2,
+      "matched_keys": 2,
+      "missed_n": 0
+    },
+    "F-PROMPT-3": {
+      "family": "F-PROMPT",
+      "graded_keys": 2,
+      "matched_keys": 2,
+      "missed_n": 0
+    },
+    "F-RUN-1": {
+      "family": "F-RUN",
+      "graded_keys": 17,
+      "matched_keys": 17,
+      "missed_n": 0
+    },
+    "F-RUN-2": {
+      "family": "F-RUN",
+      "graded_keys": 17,
+      "matched_keys": 17,
+      "missed_n": 0
+    },
+    "F-RUN-3": {
+      "family": "F-RUN",
+      "graded_keys": 16,
+      "matched_keys": 16,
+      "missed_n": 0
+    },
+    "F-RUN-4": {
+      "family": "F-RUN",
+      "graded_keys": 7,
+      "matched_keys": 7,
+      "missed_n": 0
+    },
+    "F-RUN-5": {
+      "family": "F-RUN",
+      "graded_keys": 7,
+      "matched_keys": 7,
+      "missed_n": 0
+    },
+    "F-RUN-6": {
+      "family": "F-RUN",
+      "graded_keys": 7,
+      "matched_keys": 7,
+      "missed_n": 0
+    },
+    "F-RUN-7": {
+      "family": "F-RUN",
+      "graded_keys": 21,
+      "matched_keys": 21,
+      "missed_n": 0
+    },
+    "F-STAMP-1": {
+      "family": "F-STAMP",
+      "graded_keys": 2,
+      "matched_keys": 2,
+      "missed_n": 0
+    },
+    "F-STAMP-2": {
+      "family": "F-STAMP",
+      "graded_keys": 2,
+      "matched_keys": 2,
+      "missed_n": 0
+    },
+    "F-STAMP-3": {
+      "family": "F-STAMP",
+      "graded_keys": 17,
+      "matched_keys": 17,
+      "missed_n": 0
+    },
+    "F-SUB-1": {
+      "family": "F-SUB",
+      "graded_keys": 1,
+      "matched_keys": 1,
+      "missed_n": 0
+    },
+    "F-SUB-2": {
+      "family": "F-SUB",
+      "graded_keys": 1,
+      "matched_keys": 1,
+      "missed_n": 0
+    },
+    "F-SUB-3": {
+      "family": "F-SUB",
+      "graded_keys": 1,
+      "matched_keys": 1,
+      "missed_n": 0
+    },
+    "F-SUB-4": {
+      "family": "F-SUB",
+      "graded_keys": 4,
+      "matched_keys": 4,
+      "missed_n": 0
+    }
+  },
+  "candidate": "2f53e630122cbe0c5748d7c8a2e38c557640a4f3",
+  "command": [
+    "/home/aaltamimi2/anaconda3/bin/python",
+    "/home/aaltamimi2/dissolve-v12-wp2b/tests/answer_adapter/reproduce.py",
+    "--candidate",
+    "2f53e630122cbe0c5748d7c8a2e38c557640a4f3"
+  ],
+  "corrections": {
+    "failed_ids": [],
+    "n": 8,
+    "passed": 8
+  },
+  "families": {
+    "F-CFG": {
+      "matched": 3,
+      "n": 3
+    },
+    "F-DRAFT": {
+      "matched": 2,
+      "n": 2
+    },
+    "F-ENV": {
+      "matched": 5,
+      "n": 5
+    },
+    "F-IDENT": {
+      "matched": 2,
+      "n": 2
+    },
+    "F-NORM": {
+      "matched": 4,
+      "n": 4
+    },
+    "F-OFFER": {
+      "matched": 5,
+      "n": 5
+    },
+    "F-PROMPT": {
+      "matched": 3,
+      "n": 3
+    },
+    "F-RUN": {
+      "matched": 7,
+      "n": 7
+    },
+    "F-STAMP": {
+      "matched": 3,
+      "n": 3
+    },
+    "F-SUB": {
+      "matched": 4,
+      "n": 4
+    }
+  },
+  "fixture_count": 38,
+  "guard": {
+    "MANIFEST.v1.json": 0,
+    "MANIFEST.v1.json.structure": 0,
+    "PROMPT.closed_book.v1": 0,
+    "PROMPT.rag_alone.v1": 0,
+    "README.md": 0,
+    "RESULTS.adapter.fixtures.v2.json": 0,
+    "RESULTS.adapter.fixtures.v2.json.structure": 0
+  },
+  "identity_ok": true,
+  "import_root": "/home/aaltamimi2/dissolve-v12-wp2b",
+  "key_material": {
+    "halt": "key_material_in_config",
+    "secret_in_payload": false,
+    "value_echoed": false
+  },
+  "matched": 38,
+  "missed_n": 0,
+  "purity": {
+    "call_ordinal_mismatch": "call_ordinal_mismatch",
+    "call_tool_missing": "call_tool_missing",
+    "handle_top_entries": 1,
+    "handle_top_mutated": false,
+    "input_mutated": false,
+    "isolated_token_restart": true
+  },
+  "resources": {
+    "rss_kb": 60288,
+    "wall_s": 0.201271
+  },
+  "schema": "RESULTS.adapter.fixtures.v2",
+  "static_hits": 0
+}
