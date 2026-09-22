@@ -164,6 +164,6 @@ def test_a1l_save_does_not_clobber_canonical_gzip(monkeypatch):
     try:
         research._save_index(index)
     except research.LiteratureContractError as error:
-        assert error.code == "protected_product_index"
+        assert error.code == "protected_serving_index"
     else:
         raise AssertionError("unset-home save must not overwrite the T5 gzip")
