@@ -920,7 +920,7 @@ def doctor_report(
     )
     hazard = published_hazard_methods_doctor_check(
         asset_sha256=safety_digest,
-        census_json_path=_ROOT / "audit" / "HAZARD_METHODS.v1.json",
+        census_json_path=Path(__file__).with_name("data") / "HAZARD_METHODS.v1.json",
     )
     add(
         hazard["name"],

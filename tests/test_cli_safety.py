@@ -27,7 +27,7 @@ from dissolve.cli import (
 )
 
 _ANSI = re.compile(r"\x1b\[[0-9;]*m")
-_CENSUS_JSON = _ROOT / "audit" / "HAZARD_METHODS.v1.json"
+_CENSUS_JSON = _ROOT / "src" / "dissolve" / "data" / "HAZARD_METHODS.v1.json"
 _CENSUS_SHA256 = "8540e6fe2f3ee780989ea15beb1b9ce0fe2aac2c81a073e271fd073997ecb150"
 _KEEP_OUTS = (
     # Card builder stamped CHEM21 SH&E (v2). Methods copy / duckdb / thermo stay.
@@ -35,8 +35,8 @@ _KEEP_OUTS = (
     ("src/dissolve/data/safety.duckdb", "88ce0d09ac28de17045702a8a283de6610b5fe1ab33aa5f90bf6e98edfd75a74"),
     ("src/dissolve/thermo.py", "95998b72529e007bfe2415187af6f878cc1d5180227cfc42541b762c0416cf2b"),
     ("tests/test_thermo.py", "ae3fd7bf5cc2bdde11eca5f05984b4e5ae0c59f2a532ba344c48e8785ce503b7"),
-    ("audit/HAZARD_METHODS.published.v1.md", "a3a74ccdfc47596bc8f335097056956224407e531d9a258cad0b2656f9e9b9f9"),
-    ("audit/HAZARD_METHODS.v1.json", _CENSUS_SHA256),
+    ("src/dissolve/data/HAZARD_METHODS.published.v1.md", "a3a74ccdfc47596bc8f335097056956224407e531d9a258cad0b2656f9e9b9f9"),
+    ("src/dissolve/data/HAZARD_METHODS.v1.json", _CENSUS_SHA256),
 )
 
 _FENCE = (
