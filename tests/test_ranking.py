@@ -20,7 +20,7 @@ from dissolve.contracts import parse_tool_result
 
 # --- from test_rank_campaign_handle.py: A campaign lookup handle is a process_rows rank source. Not a live child.
 _SEALED = Path(
-    "/home/aaltamimi2/dissolve-v12-campaign/"
+    f"{Path.home()}/dissolve-v12-campaign/"
     "polymer-solvent-tea-lca-20260818"
 )
 

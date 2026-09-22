@@ -560,7 +560,7 @@ def test_unknown_metric_still_refuses():
 
 
 # --- from test_pubchem_snapshot.py: PubChem snapshot cache and explicit CID fetch. Not a test_safety*.py inventory.
-_SNAPSHOT = Path.home() / "dissolve-v12-audit/safety/pubchem_safety_snapshot.v2.duckdb"
+_SNAPSHOT = safety._SNAPSHOT_DEFAULT
 
 
 _SNAPSHOT_SHA256 = (

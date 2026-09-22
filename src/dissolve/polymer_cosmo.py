@@ -94,11 +94,11 @@ _BOHR3_TO_ANG3 = BOHR_TO_ANGSTROM ** 3
 _ANG3_TO_CM3_MOL = 0.602214076  # Å³/molecule → cm³/mol
 QC_ORIGIN_GAUSSIAN_COSMO = "gaussian_cosmo"
 DEFAULT_DEP_SOLUTE_COSMO = Path(
-    "/home/aaltamimi2/COSMO-POLYMER-ML/results/oligomers/"
+    f"{Path.home()}/COSMO-POLYMER-ML/results/oligomers/"
     "all-cosmotherm-solvents/diethylphthalate_c0.cosmo"
 )
 DEFAULT_SOLVENTS_DIR = Path(
-    "/home/aaltamimi2/COSMO-POLYMER-ML/results/oligomers/all-cosmotherm-solvents"
+    f"{Path.home()}/COSMO-POLYMER-ML/results/oligomers/all-cosmotherm-solvents"
 )
 #: Water-referenced control (drop chloroform only). Not a target to beat.
 WATER_REFERENCED_CONTROL = {
@@ -109,7 +109,7 @@ WATER_REFERENCED_CONTROL = {
     "chloroform": "dropped",
 }
 
-POLYMER_SOURCE_DIR = Path("/home/aaltamimi2/polymers_cosmo")
+POLYMER_SOURCE_DIR = (Path.home() / "polymers_cosmo")
 PE_MCOS = POLYMER_SOURCE_DIR / "pe_mcos" / "config_1010.mcos"
 PVC_MCOS = POLYMER_SOURCE_DIR / "pvc_mcos" / "config_9400.mcos"
 PET_MCOS = POLYMER_SOURCE_DIR / "pet_mcos" / "config_16910.mcos"

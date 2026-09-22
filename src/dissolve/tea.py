@@ -9158,7 +9158,7 @@ _PLANNER_OBJECTIVE_ALIASES = {
 # tier-1-only rho +0.990 (n=41). Mechanism: at fixed mass throughput volumetric
 # flow scales as 1/rho -> vessel size -> TCI -> MSP (spearman(1/rho, TCI) = +0.9937).
 # NOT established on a second plant yet; the payload says so.
-_DENSITY_TABLE_DEFAULT = Path.home() / "dissolve-v12-audit/density/density_validated.duckdb"
+_DENSITY_TABLE_DEFAULT = Path(str(files("dissolve").joinpath("data/density_validated.duckdb")))
 _DENSITY_TABLE_CONTENT_DIGEST = (
     "cc0374d44c6c7a595b83e7636c69416d8420523aa90b745a173a140d6f2b026d"
 )

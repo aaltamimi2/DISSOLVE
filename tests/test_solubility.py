@@ -18,7 +18,7 @@ from dissolve.cli import EXPECTED_REGISTRY_NAMES
 
 # --- from test_lookup_parity.py: §10.1 lookup capability-parity on evaluate_process(mode=lookup).
 _SEALED = Path(
-    "/home/aaltamimi2/dissolve-v12-campaign/"
+    f"{Path.home()}/dissolve-v12-campaign/"
     "polymer-solvent-tea-lca-20260818"
 )
 

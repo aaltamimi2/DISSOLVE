@@ -1540,10 +1540,10 @@ def test_specified_rt_fallback_still_passes_strap():
 
 
 # --- from test_cosmo_logp.py: ORCA_LOGP_SCOPE.v1 accept tests.
-COSMOBASE = Path("/home/aaltamimi2/COSMO-POLYMER-ML/results/oligomers/all-cosmotherm-solvents")
+COSMOBASE = (Path.home() / "COSMO-POLYMER-ML/results/oligomers/all-cosmotherm-solvents")
 
 
-ARTIFACTS = Path("/home/aaltamimi2/cosmo-artifacts")
+ARTIFACTS = (Path.home() / "cosmo-artifacts")
 
 
 HAS_COSMOBASE = (COSMOBASE / "diethylphthalate_c0.cosmo").is_file()
@@ -3913,7 +3913,7 @@ def test_bridged_dep_toluene_ln_gamma_matches_isolated_2002():
 
 # --- from test_campaign_basis.py: campaign_basis.v1 projection: held switches join without a campaign rerun.
 _PAIR_CAMPAIGN = Path(
-    "/home/aaltamimi2/dissolve-v12-campaign/"
+    f"{Path.home()}/dissolve-v12-campaign/"
     "polymer-solvent-tea-lca-20260818/run_definition.json"
 )
 
@@ -4253,7 +4253,7 @@ def test_declared_switch_in_fixed_fields_is_held_not_stamped():
 
 # --- from test_campaign_consume.py: Bind a registered campaign to lookup without ingesting JSONL into cache.
 _SEALED = Path(
-    "/home/aaltamimi2/dissolve-v12-campaign/"
+    f"{Path.home()}/dissolve-v12-campaign/"
     "polymer-solvent-tea-lca-20260818"
 )
 

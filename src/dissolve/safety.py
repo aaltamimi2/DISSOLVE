@@ -49,9 +49,7 @@ _HEADING_ERROR_KEY = "_dissolve_heading_error"
 _SNAPSHOT_SHA256 = (
     "9f4082e0844ab18698fd229986d215fc7403767961c53bc5ac548875daaae0f7"
 )
-_SNAPSHOT_DEFAULT = Path.home() / (
-    "dissolve-v12-audit/safety/pubchem_safety_snapshot.v2.duckdb"
-)
+_SNAPSHOT_DEFAULT = Path(str(files("dissolve").joinpath("data/pubchem_safety_snapshot.v2.duckdb")))
 
 
 class SafetySnapshotRefuse(Exception):

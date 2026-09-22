@@ -231,9 +231,9 @@ COSMOBASE_ROUTE = "cosmobase"
 COSMOBASE_PARAMETERISATION = "2002"
 COSMOBASE_ENGINE = "turbomole"
 DEFAULT_COSMOBASE_SOLVENTS_DIR = Path(
-    "/home/aaltamimi2/COSMO-POLYMER-ML/results/oligomers/all-cosmotherm-solvents"
+    f"{Path.home()}/COSMO-POLYMER-ML/results/oligomers/all-cosmotherm-solvents"
 )
-DEFAULT_ORCA_ARTIFACTS_DIR = Path("/home/aaltamimi2/cosmo-artifacts/stage1")
+DEFAULT_ORCA_ARTIFACTS_DIR = (Path.home() / "cosmo-artifacts/stage1")
 DEFAULT_COSMO_JOBS_DIR = DEFAULT_ORCA_ARTIFACTS_DIR.parent / "jobs"
 JOBS_DIR_ENV = "DISSOLVE_COSMO_JOBS_DIR"
 SLOTS_DIR_ENV = "DISSOLVE_COSMO_DFT_SLOTS_DIR"
@@ -242,7 +242,7 @@ RUN_ORCA_STAGE = (
     Path(__file__).resolve().parent / "cosmo_workers" / "run_orca_stage.py"
 )
 #: Isolated interpreter that actually imports opencosmorspy. Main env does not.
-DEFAULT_COSMO_PYTHON = Path("/home/aaltamimi2/.venvs/cosmo-logp/bin/python")
+DEFAULT_COSMO_PYTHON = (Path.home() / ".venvs/cosmo-logp/bin/python")
 LN_GAMMA_WORKER = (
     Path(__file__).resolve().parent / "cosmo_workers" / "ln_gamma_worker.py"
 )

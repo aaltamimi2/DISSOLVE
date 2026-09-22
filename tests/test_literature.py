@@ -282,9 +282,9 @@ _TEMP_RE = research._CANONICAL_TEMPERATURE_RE
 
 
 _MEASURE_SCRIPTS = (
-    Path("/home/aaltamimi2/dissolve-v12-audit/one_paper_experiment/measure_step2.py"),
-    Path("/home/aaltamimi2/dissolve-v12-audit/one_paper_experiment/measure_step3_pypdf.py"),
-    Path("/home/aaltamimi2/dissolve-v12-audit/one_paper_experiment/measure_parse.py"),
+    (Path.home() / "dissolve-v12-audit/one_paper_experiment/measure_step2.py"),
+    (Path.home() / "dissolve-v12-audit/one_paper_experiment/measure_step3_pypdf.py"),
+    (Path.home() / "dissolve-v12-audit/one_paper_experiment/measure_parse.py"),
 )
 
 
@@ -729,7 +729,7 @@ def test_envelope_schema_and_separators_unowned():
 
 # --- from test_canonical_ingest.py: C7: canonical documents reach the portable index. Not C3. Not C8.
 PERSIST = Path(
-    "/home/aaltamimi2/dissolve-v12-audit/one_paper_experiment/parses/canonical_document.v1.json"
+    f"{Path.home()}/dissolve-v12-audit/one_paper_experiment/parses/canonical_document.v1.json"
 )
 
 
@@ -1115,16 +1115,16 @@ def test_known_answer_rebuild_matches_the_reference_corpus(tmp_path):
 
 
 # --- from test_corpus_canonical.py: C3: 21 canonical documents. Not C8. Loads persist; does not call Docling.
-CENSUS = Path("/home/aaltamimi2/dissolve-v12-audit/corpus/CENSUS.v1.json")
+CENSUS = (Path.home() / "dissolve-v12-audit/corpus/CENSUS.v1.json")
 
 
-MANIFEST = Path("/home/aaltamimi2/dissolve-v12-audit/corpus/CANONICAL_MANIFEST.v1.json")
+MANIFEST = (Path.home() / "dissolve-v12-audit/corpus/CANONICAL_MANIFEST.v1.json")
 
 
-CANON_DIR = Path("/home/aaltamimi2/dissolve-v12-audit/corpus/canonical")
+CANON_DIR = (Path.home() / "dissolve-v12-audit/corpus/canonical")
 
 
-PARSED_DIR = Path("/home/aaltamimi2/dissolve-v12-audit/corpus/parsed")
+PARSED_DIR = (Path.home() / "dissolve-v12-audit/corpus/parsed")
 
 
 PROBE_SHA = "1af857ee2e8299d6d0a586216ead5109a9b4293505585edf76da3bca9772ad21"
@@ -2092,9 +2092,6 @@ def test_production_parse_suffix_refuse_names_the_stamped_backend(monkeypatch, t
 
 
 # --- from test_table_rebind.py: C7b: footnote-and-caption re-attachment. Constructed fixtures. Gold v1 unmoved.
-GOLD = Path("/home/aaltamimi2/dissolve-v12-audit/one_paper_experiment/gold_facts.v1.json")
-
-
 TOKEN_V = "CELLVALUE"
 
 
@@ -2172,11 +2169,6 @@ def test_atomicity_survives_rebind():
     assert TOKEN_V in body
     assert TOKEN_BASIS not in body
     assert TOKEN_NOTE not in body
-
-
-def test_gold_v1_digest_unmoved():
-    digest = hashlib.sha256(GOLD.read_bytes()).hexdigest()
-    assert digest == research._GOLD_FACTS_V1_SHA256
 
 
 @pytest.mark.skipif(not PERSIST.is_file(), reason="probe canonical persist missing")

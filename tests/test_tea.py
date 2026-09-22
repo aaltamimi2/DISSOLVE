@@ -39,7 +39,7 @@ from dissolve import separation, tea
 
 # --- from test_evaluate_process.py: evaluate_process lookup, evaluate, sensitivity, and route.
 _SEALED = Path(
-    "/home/aaltamimi2/dissolve-v12-campaign/"
+    f"{Path.home()}/dissolve-v12-campaign/"
     "polymer-solvent-tea-lca-20260818"
 )
 
@@ -4604,7 +4604,7 @@ def test_worker_scenario_reads_switches_from_config():
 
 # --- from test_tea_polymer_parameters.py: Live TEA admission, parameter surface, and standing — no BioSTEAM.
 _REAL_PLASTICS_PARENT = Path(
-    "/home/aaltamimi2/langchain-STRAP-v8/reference-scripts/plastics-master-3"
+    f"{Path.home()}/langchain-STRAP-v8/reference-scripts/plastics-master-3"
 )
 
 
@@ -5316,7 +5316,7 @@ def test_runpy_child_returns_named_json_for_refused_target(monkeypatch):
     """
     tea._LIVE_CHILD_HANDSHAKE_CACHE.clear()
     live_python = Path(
-        "/home/aaltamimi2/anaconda3/envs/dissolve-tea-312/bin/python"
+        f"{Path.home()}/anaconda3/envs/dissolve-tea-312/bin/python"
     )
     if live_python.is_file():
         monkeypatch.setenv("DISSOLVE_TEA_PYTHON", str(live_python))
@@ -5348,7 +5348,7 @@ def test_runpy_child_returns_named_json_for_refused_target(monkeypatch):
 def test_live_engine_status_exercises_runpy_child(monkeypatch):
     """Readiness must start the documented child, not only hash and probe."""
     live_python = Path(
-        "/home/aaltamimi2/anaconda3/envs/dissolve-tea-312/bin/python"
+        f"{Path.home()}/anaconda3/envs/dissolve-tea-312/bin/python"
     )
     plastics_ok = (
         _REAL_PLASTICS_PARENT / "plastics" / "strap" / "property_package.py"
@@ -5369,7 +5369,7 @@ def test_live_engine_status_exercises_runpy_child(monkeypatch):
 
 def test_readiness_fails_closed_when_child_writes_no_json(monkeypatch):
     live_python = Path(
-        "/home/aaltamimi2/anaconda3/envs/dissolve-tea-312/bin/python"
+        f"{Path.home()}/anaconda3/envs/dissolve-tea-312/bin/python"
     )
     plastics_ok = (
         _REAL_PLASTICS_PARENT / "plastics" / "strap" / "property_package.py"
@@ -5601,7 +5601,7 @@ def test_readiness_rejects_resolved_python_below_3_12(tmp_path, monkeypatch):
 
 
 def test_group_meeting_interpreter_is_not_ready(monkeypatch):
-    interpreter = Path("/home/aaltamimi2/anaconda3/envs/group-meeting/bin/python")
+    interpreter = (Path.home() / "anaconda3/envs/group-meeting/bin/python")
     plastics = (
         _REAL_PLASTICS_PARENT / "plastics" / "strap" / "property_package.py"
     )

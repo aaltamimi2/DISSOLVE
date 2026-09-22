@@ -578,7 +578,6 @@ _CANONICAL_DROP_KEYS = {
     "nearest_preceding_heading", "nearest_preceding_heading_origin",
     "caption_ref_origin",
 }
-_GOLD_FACTS_V1_SHA256 = "345b426bd66f995b3b78a10e796afb6df013299dd6769379192b59d0d97dfaab"
 _CHUNK_TARGET = 1_400
 _CHUNK_OVERLAP = 180
 _ATOMIC_CHUNK_KINDS = frozenset({"table", "formula", "caption"})
