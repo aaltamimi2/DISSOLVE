@@ -1,11 +1,15 @@
-"""ENGINE_E2E_SPEC.v1 E2E-0..4. No published score. MiniLM only at E2E-3."""
+"""ENGINE_E2E_SPEC.v1 E2E-0..4. No published score. MiniLM default at E2E-3."""
 
 from __future__ import annotations
 
+import copy
+import gzip
 import hashlib
+import io
 import json
 import math
 import os
+import zlib
 from pathlib import Path
 from typing import Any, Mapping, Sequence
 
@@ -45,6 +49,12 @@ SERVED_PROVENANCE_KEYS = (
 )
 MINILM_ID = "sentence-transformers/all-MiniLM-L6-v2"
 EXPECTED_DIM = 384
+BGE_FROZEN_FLOOR = 0.3698406656908355
+BGE_EXPLORATORY_STATUS = "exploratory-below-floor"
+_MINILM_PROTECTED_BASENAMES = frozenset({
+    f"{KNOWLEDGEBASE_ID}.json.gz",
+    MANIFEST_PATH.name,
+})
 REBOUND_NOTE_TOKEN = "E2E3REBOUNDZXQNOTE"
 CURVES_V3_SHA256 = "8090143a69106ff5ba5db8bab70f7fbc7980fe4f54574d427c7815dca7379152"
 CURVES_V3_PNG_SHA256 = "be999b405544ac44a5e37291918f3c2b9b66196f6e9569df689ebb09d0d0cc4b"
@@ -766,9 +776,10 @@ def embed_t5_index(
     index: Mapping[str, Any],
     *,
     embedder=None,
-    expected_dim: int = EXPECTED_DIM,
+    model_name: str | None = None,
+    expected_dim: int | None = None,
 ) -> dict[str, Any]:
-    """Attach MiniLM vectors aligned to chunks. No gold score."""
+    """Attach dense vectors aligned to chunks. Legacy default MiniLM. No gold score."""
     slug = str(index.get("knowledgebase") or "")
     if slug == "user-library":
         raise TextGoldError("protected_persist", "E2E-3 must not write user-library.")
@@ -778,24 +789,38 @@ def embed_t5_index(
     texts = embed_inputs_for_index(index)
     if len(texts) != len(chunks):
         raise TextGoldError("embed_align", "Embed inputs are not aligned to chunks.")
+    selected = MINILM_ID if model_name is None else str(model_name)
+    compatible_dim = research._compatible_embedding_dim(selected)
+    if expected_dim is not None and expected_dim != compatible_dim:
+        raise TextGoldError("dense_dim", "Embedding dim conflicts with the selected model.")
     if embedder is None:
-        model_id, vectors = research._dense_vectors(texts, MINILM_ID)
+        model_id, vectors = research._dense_vectors(texts, selected)
     else:
-        model_id, vectors = embedder(texts, MINILM_ID)
-    if len(vectors) != len(chunks):
+        model_id, vectors = embedder(texts, selected)
+    if str(model_id) != selected:
+        raise TextGoldError("dense_model", "Embedder returned a substitute model id.")
+    try:
+        count = len(vectors)
+    except TypeError:
+        count = -1
+    if count != len(chunks):
         raise TextGoldError("n_chunks_mismatch", "Vector count is not n_chunks.")
-    dim = len(vectors[0]) if vectors else 0
-    if dim != expected_dim:
-        raise TextGoldError("dense_dim", "Embedding dim is not 384.")
-    if any(len(row) != dim for row in vectors):
-        raise TextGoldError("dense_dim", "A vector has the wrong dim.")
+    try:
+        dim = research._assert_generated_dense_vectors(
+            vectors,
+            expected_count=len(chunks),
+            model_name=str(model_id),
+            expected_dim=compatible_dim,
+        )
+    except research.LiteratureContractError as error:
+        raise TextGoldError("dense_dim", "Generated dense vectors are invalid.") from error
     out = dict(index)
-    out["dense"] = {
+    out["dense"] = research._attach_generated_recipe({
         "model": str(model_id),
         "dim": dim,
         "chunk_ids": [str(chunk["chunk_id"]) for chunk in chunks],
         "vectors": vectors,
-    }
+    })
     return out
 
 
@@ -886,6 +911,360 @@ def hybrid_envelope_ok(raw: str) -> bool:
     return bool(data.get("success"))
 
 
+def _wrap_contract(error: BaseException) -> None:
+    if isinstance(error, research.LiteratureContractError):
+        raise TextGoldError(error.code, str(error)) from error
+    raise error
+
+
+def _gzip_index_bytes(index: Mapping[str, Any]) -> bytes:
+    body = json.dumps(index, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode()
+    buffer = io.BytesIO()
+    with gzip.GzipFile(fileobj=buffer, mode="wb", mtime=0) as compressed:
+        compressed.write(body)
+    return buffer.getvalue()
+
+
+def _exclusive_create_write(path: Path, data: bytes) -> None:
+    destination = Path(path)
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    flags = os.O_CREAT | os.O_EXCL | os.O_WRONLY
+    try:
+        fd = os.open(destination, flags, 0o644)
+    except FileExistsError as error:
+        raise TextGoldError("dest_exists", "Artifact destination already exists.") from error
+    try:
+        with os.fdopen(fd, "wb") as handle:
+            handle.write(data)
+            handle.flush()
+            os.fsync(handle.fileno())
+    except OSError as error:
+        raise TextGoldError("artifact_write_failed", "Artifact write failed.") from error
+
+
+def _explicit_bge_writer_requested(
+    *,
+    model_name: str | None,
+    source_index: Mapping[str, Any] | None,
+    reuse_index: Mapping[str, Any] | None,
+    output_index_path: Path | str | None,
+    frozen_floor: Any,
+) -> bool:
+    if model_name is not None and str(model_name) == research._BGE_MODEL_ID:
+        return True
+    return (
+        source_index is not None
+        or reuse_index is not None
+        or output_index_path is not None
+        or frozen_floor is not None
+    )
+
+
+def _require_product_identity(index: Mapping[str, Any]) -> None:
+    kb = index.get("knowledgebase")
+    try:
+        if not isinstance(kb, str) or research._slug(kb) != research._PRODUCT_KNOWLEDGEBASE:
+            raise TextGoldError(
+                "bge10_index_knowledgebase",
+                "BGE serving knowledgebase is mismatched.",
+            )
+    except ValueError as error:
+        raise TextGoldError(
+            "bge10_index_knowledgebase",
+            "BGE serving knowledgebase is mismatched.",
+        ) from error
+    if index.get("schema") != research._INDEX_SCHEMA:
+        raise TextGoldError("bge10_index_schema", "BGE serving index schema is incompatible.")
+
+
+def _require_frozen_floor(value: Any) -> Any:
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise TextGoldError("bge_floor_invalid", "Supplied frozen floor is invalid.")
+    try:
+        numeric = float(value)
+    except OverflowError as error:
+        raise TextGoldError("bge_floor_invalid", "Supplied frozen floor is invalid.") from error
+    if not math.isfinite(numeric) or numeric != BGE_FROZEN_FLOOR:
+        raise TextGoldError("bge_floor_invalid", "Supplied frozen floor is invalid.")
+    return value
+
+
+def _require_new_artifact_path(path: Path | str, *, peer: Path | None = None) -> Path:
+    dest = Path(path).expanduser()
+    if dest.is_symlink():
+        raise TextGoldError("dest_symlink", "Artifact destination must not be a symlink.")
+    if dest.exists():
+        raise TextGoldError("dest_exists", "Artifact destination already exists.")
+    if dest.name in _MINILM_PROTECTED_BASENAMES:
+        raise TextGoldError("protected_persist", "E2E emit must not overwrite published persist.")
+    _refuse_protected_dest(dest)
+    resolved = dest.resolve()
+    protected_targets = [research._canonical_product_index_path(), research._product_manifest_path()]
+    protected_targets.extend(research._protected_index_targets())
+    for protected in protected_targets:
+        if resolved == Path(protected).expanduser().resolve():
+            raise TextGoldError("protected_persist", "E2E emit must not overwrite published persist.")
+    if peer is not None and resolved == Path(peer).expanduser().resolve():
+        raise TextGoldError("dest_not_distinct", "Index and manifest destinations must be distinct.")
+    return resolved
+
+
+def _declared_index_path(index_dest: Path, manifest_dest: Path) -> str:
+    index_resolved = Path(index_dest).expanduser().resolve()
+    manifest_parent = Path(manifest_dest).expanduser().resolve().parent
+    try:
+        relative = index_resolved.relative_to(manifest_parent)
+    except ValueError:
+        return str(index_resolved)
+    return relative.as_posix()
+
+
+def _reuse_vectors_by_id(reuse_index: Mapping[str, Any]) -> dict[str, list[float]]:
+    chunks = list(reuse_index.get("chunks") or [])
+    try:
+        dense = research._as_dense_mapping(reuse_index)
+        recipe = research._require_bge_recipe_fields(dense, "bge10_recipe_mismatch")
+        validated = research._validated_dense_side(reuse_index, chunks)
+    except research.LiteratureContractError as error:
+        _wrap_contract(error)
+    if (
+        validated["model"] != recipe["model"]
+        or validated["dim"] != recipe["dim"]
+        or validated["query_instruction"] != recipe["query_instruction"]
+        or validated["passage_instruction"] != recipe["passage_instruction"]
+        or validated["encoder_revision"] != recipe["encoder_revision"]
+    ):
+        raise TextGoldError("bge10_recipe_mismatch", "BGE serving recipe is incompatible.")
+    return {chunk_id: list(vector) for chunk_id, vector in validated["by_id"].items()}
+
+
+def _verify_written_bge_index(
+    path: Path,
+    *,
+    expected_digest: str,
+    expected_index: Mapping[str, Any],
+) -> dict[str, Any]:
+    raw = Path(path).read_bytes()
+    actual = hashlib.sha256(raw).hexdigest()
+    if actual != expected_digest:
+        raise TextGoldError("bge10_index_digest", "BGE serving index digest is invalid.")
+    try:
+        decoded = research._read_gzip_json_bytes(raw)
+    except (
+        OSError,
+        UnicodeDecodeError,
+        json.JSONDecodeError,
+        gzip.BadGzipFile,
+        EOFError,
+        zlib.error,
+    ) as error:
+        raise TextGoldError("bge10_index_malformed", "BGE serving index is malformed.") from error
+    if not isinstance(decoded, dict):
+        raise TextGoldError("bge10_index_invalid", "BGE serving index is not an object.")
+    _require_product_identity(decoded)
+    if decoded.get("chunks") != expected_index.get("chunks"):
+        raise TextGoldError("reuse_content", "Written chunk records do not match the source.")
+    if decoded.get("documents") != expected_index.get("documents"):
+        raise TextGoldError("reuse_content", "Written document records do not match the source.")
+    dense = decoded.get("dense")
+    if not isinstance(dense, Mapping):
+        raise TextGoldError("bge10_recipe_mismatch", "BGE serving recipe is incompatible.")
+    try:
+        research._require_bge_recipe_fields(dense, "bge10_recipe_mismatch")
+        ordered_ids = [str(chunk["chunk_id"]) for chunk in decoded.get("chunks") or []]
+        if list(dense.get("chunk_ids") or []) != ordered_ids:
+            raise TextGoldError("bge10_chunk_membership", "BGE serving chunk membership is incompatible.")
+        expected_dense = expected_index.get("dense") or {}
+        if list(dense.get("chunk_ids") or []) != list(expected_dense.get("chunk_ids") or []):
+            raise TextGoldError("bge10_chunk_membership", "BGE serving chunk membership is incompatible.")
+        if list(dense.get("vectors") or []) != list(expected_dense.get("vectors") or []):
+            raise TextGoldError("dense_dim", "Generated dense vectors are invalid.")
+        research._validate_dense_rows(
+            ordered_ids,
+            dense.get("vectors"),
+            dim=research._BGE_DIM,
+            require_bge_geometry=True,
+        )
+        research._assert_generated_dense_vectors(
+            dense.get("vectors"),
+            expected_count=len(ordered_ids),
+            model_name=research._BGE_MODEL_ID,
+            expected_dim=research._BGE_DIM,
+        )
+    except research.LiteratureContractError as error:
+        _wrap_contract(error)
+    return decoded
+
+
+def _emit_bge_artifact(
+    *,
+    manifest_path: Path | None,
+    expected_n_chunks: int,
+    embedder,
+    model_name: str | None,
+    expected_dim: int | None,
+    source_index: Mapping[str, Any] | None,
+    reuse_index: Mapping[str, Any] | None,
+    output_index_path: Path | str | None,
+    frozen_floor: Any,
+) -> dict[str, Any]:
+    if (
+        manifest_path is None
+        or source_index is None
+        or reuse_index is None
+        or output_index_path is None
+        or frozen_floor is None
+        or model_name is None
+        or expected_dim is None
+    ):
+        raise TextGoldError("bge_writer_incomplete", "BGE artifact writer requires explicit inputs.")
+    selected = str(model_name)
+    if selected != research._BGE_MODEL_ID:
+        raise TextGoldError("dense_model", "BGE artifact writer requires the pinned BGE model.")
+    compatible_dim = research._compatible_embedding_dim(selected)
+    if expected_dim != compatible_dim or expected_dim != research._BGE_DIM:
+        raise TextGoldError("dense_dim", "Embedding dim conflicts with the selected model.")
+    if not isinstance(source_index, Mapping) or not isinstance(reuse_index, Mapping):
+        raise TextGoldError("bge_writer_incomplete", "BGE artifact writer requires explicit indexes.")
+    index_dest = _require_new_artifact_path(Path(output_index_path))
+    dest = _require_new_artifact_path(Path(manifest_path), peer=index_dest)
+    _require_new_artifact_path(index_dest, peer=dest)
+    pinned_floor = _require_frozen_floor(frozen_floor)
+    _require_product_identity(source_index)
+    _require_product_identity(reuse_index)
+    source_chunks = list(source_index.get("chunks") or [])
+    reuse_chunks = list(reuse_index.get("chunks") or [])
+    try:
+        source_ids = research._side_chunk_ids(source_chunks)
+    except research.LiteratureContractError as error:
+        _wrap_contract(error)
+    if len(source_ids) != expected_n_chunks:
+        raise TextGoldError("n_chunks_mismatch", "Source cardinality is not the expected total.")
+    reuse_by_id = _reuse_vectors_by_id(reuse_index)
+    reuse_ids = list(reuse_by_id)
+    if len(reuse_ids) != len(set(reuse_ids)):
+        raise TextGoldError("bge10_chunk_membership", "BGE serving chunk membership is incompatible.")
+    source_chunk_by_id = {str(chunk["chunk_id"]): chunk for chunk in source_chunks}
+    reuse_chunk_by_id = {str(chunk["chunk_id"]): chunk for chunk in reuse_chunks}
+    for chunk_id in reuse_ids:
+        if chunk_id not in source_chunk_by_id:
+            raise TextGoldError("bge10_chunk_membership", "BGE serving chunk membership is incompatible.")
+        if source_chunk_by_id[chunk_id] != reuse_chunk_by_id.get(chunk_id):
+            raise TextGoldError("reuse_content", "Reused chunk records must equal the source records.")
+    missing_chunks = [chunk for chunk in source_chunks if str(chunk["chunk_id"]) not in reuse_by_id]
+    new_by_id: dict[str, list[float]] = {}
+    if missing_chunks:
+        partial = {
+            "schema": source_index.get("schema"),
+            "knowledgebase": source_index.get("knowledgebase"),
+            "documents": list(source_index.get("documents") or []),
+            "chunks": missing_chunks,
+            "dense": None,
+        }
+        encoded = embed_t5_index(
+            partial,
+            embedder=embedder,
+            model_name=selected,
+            expected_dim=expected_dim,
+        )
+        encoded_dense = encoded.get("dense") or {}
+        encoded_ids = [str(item) for item in (encoded_dense.get("chunk_ids") or [])]
+        if encoded_ids != [str(chunk["chunk_id"]) for chunk in missing_chunks]:
+            raise TextGoldError("embed_align", "Encoded chunk_ids are not the missing source order.")
+        new_by_id = {
+            chunk_id: list(vector)
+            for chunk_id, vector in zip(encoded_ids, encoded_dense.get("vectors") or [])
+        }
+        if set(new_by_id) != {str(chunk["chunk_id"]) for chunk in missing_chunks}:
+            raise TextGoldError("embed_align", "Encoded vectors are not aligned to missing chunks.")
+    elif embedder is not None:
+        # All-reuse: the encoder must not be consulted.
+        pass
+    ordered_vectors: list[list[float]] = []
+    for chunk in source_chunks:
+        chunk_id = str(chunk["chunk_id"])
+        if chunk_id in reuse_by_id:
+            ordered_vectors.append(list(reuse_by_id[chunk_id]))
+        else:
+            if chunk_id not in new_by_id:
+                raise TextGoldError("embed_align", "Missing source IDs were not encoded.")
+            ordered_vectors.append(list(new_by_id[chunk_id]))
+    try:
+        dim = research._assert_generated_dense_vectors(
+            ordered_vectors,
+            expected_count=len(source_chunks),
+            model_name=selected,
+            expected_dim=expected_dim,
+        )
+        research._validate_dense_rows(
+            source_ids,
+            ordered_vectors,
+            dim=research._BGE_DIM,
+            require_bge_geometry=True,
+        )
+    except research.LiteratureContractError as error:
+        _wrap_contract(error)
+    output = copy.deepcopy(dict(source_index))
+    output["schema"] = research._INDEX_SCHEMA
+    output["knowledgebase"] = research._PRODUCT_KNOWLEDGEBASE
+    output["documents"] = copy.deepcopy(list(source_index.get("documents") or []))
+    output["chunks"] = copy.deepcopy(source_chunks)
+    output["dense"] = research._attach_generated_recipe({
+        "model": selected,
+        "dim": dim,
+        "chunk_ids": list(source_ids),
+        "vectors": ordered_vectors,
+    })
+    gzip_bytes = _gzip_index_bytes(output)
+    digest = hashlib.sha256(gzip_bytes).hexdigest()
+    declared_index = _declared_index_path(index_dest, dest)
+    _exclusive_create_write(index_dest, gzip_bytes)
+    _verify_written_bge_index(index_dest, expected_digest=digest, expected_index=output)
+    manifest = {
+        "knowledgebase": research._PRODUCT_KNOWLEDGEBASE,
+        "index_path": declared_index,
+        "gzip_sha256": digest,
+        "dense": {
+            "model": selected,
+            "dim": dim,
+            "query_instruction": research._BGE_QUERY_INSTRUCTION,
+            "passage_instruction": research._BGE_PASSAGE_INSTRUCTION,
+            "encoder_revision": research._BGE_ENCODER_REVISION,
+            "chunk_ids": list(source_ids),
+        },
+        "abstention": {"floor": pinned_floor},
+        "n_vectors": len(ordered_vectors),
+        "n_chunks": len(source_chunks),
+        "n_documents": len(output["documents"]),
+        "status": BGE_EXPLORATORY_STATUS,
+    }
+    if text_chunk_metrics._contains_forbidden_keys(
+        manifest,
+        set(_FORBIDDEN_STORE_KEYS) | {"recall_at_k", "retr@k", "f1", "provisional", "delta"},
+    ):
+        raise TextGoldError("gold_quoted", "E2E-3 must not persist a gold score.")
+    _exclusive_create_write(
+        dest,
+        (json.dumps(manifest, indent=2, ensure_ascii=False) + "\n").encode("utf-8"),
+    )
+    return {
+        "manifest_path": str(dest),
+        "manifest_sha256": file_sha256(dest),
+        "index_path": str(index_dest),
+        "gzip_sha256": digest,
+        "n_vectors": len(ordered_vectors),
+        "n_chunks": len(source_chunks),
+        "n_documents": len(output["documents"]),
+        "dim": int(dim),
+        "model": selected,
+        "query_instruction": research._BGE_QUERY_INSTRUCTION,
+        "passage_instruction": research._BGE_PASSAGE_INSTRUCTION,
+        "encoder_revision": research._BGE_ENCODER_REVISION,
+        "status": BGE_EXPLORATORY_STATUS,
+        "construction": "built",
+    }
+
+
 def emit_e2e_3(
     *,
     index_home: Path | None = None,
@@ -893,7 +1272,36 @@ def emit_e2e_3(
     expected_n_chunks: int = EXPECTED_N_CHUNKS,
     embedder=None,
     skip_pin_check: bool = False,
+    model_name: str | None = None,
+    expected_dim: int | None = None,
+    source_index: Mapping[str, Any] | None = None,
+    reuse_index: Mapping[str, Any] | None = None,
+    output_index_path: Path | str | None = None,
+    frozen_floor: Any = None,
 ) -> dict[str, Any]:
+    if _explicit_bge_writer_requested(
+        model_name=model_name,
+        source_index=source_index,
+        reuse_index=reuse_index,
+        output_index_path=output_index_path,
+        frozen_floor=frozen_floor,
+    ):
+        return _emit_bge_artifact(
+            manifest_path=manifest_path,
+            expected_n_chunks=expected_n_chunks,
+            embedder=embedder,
+            model_name=model_name,
+            expected_dim=expected_dim,
+            source_index=source_index,
+            reuse_index=reuse_index,
+            output_index_path=output_index_path,
+            frozen_floor=frozen_floor,
+        )
+    selected = MINILM_ID if model_name is None else str(model_name)
+    compatible_dim = research._compatible_embedding_dim(selected)
+    dim_expected = EXPECTED_DIM if expected_dim is None else expected_dim
+    if dim_expected != compatible_dim:
+        raise TextGoldError("dense_dim", "Embedding dim conflicts with the selected model.")
     if text_chunk_metrics.GOLD_V2_PATH.exists():
         raise TextGoldError("gold_v2_present", "Sealing GOLD.v2.json is an owner stop.")
     dest = Path(manifest_path or MANIFEST_PATH)
@@ -907,14 +1315,19 @@ def emit_e2e_3(
         loaded = research._load_index(KNOWLEDGEBASE_ID)
         if len(loaded.get("chunks") or []) != expected_n_chunks:
             raise TextGoldError("n_chunks_mismatch", "Live index is not the E2E-2 store.")
-        embedded = embed_t5_index(loaded, embedder=embedder)
+        embedded = embed_t5_index(
+            loaded,
+            embedder=embedder,
+            model_name=selected,
+            expected_dim=dim_expected,
+        )
         index_path = research._save_index(embedded)
         again = research._load_index(KNOWLEDGEBASE_ID)
         dense = again.get("dense") or {}
         if len(dense.get("vectors") or []) != expected_n_chunks:
             raise TextGoldError("n_chunks_mismatch", "Saved dense length is not n_chunks.")
-        if int(dense.get("dim") or 0) != EXPECTED_DIM:
-            raise TextGoldError("dense_dim", "Saved dim is not 384.")
+        if int(dense.get("dim") or 0) != dim_expected:
+            raise TextGoldError("dense_dim", "Saved dim is not the selected model width.")
         if list(dense.get("chunk_ids") or []) != [str(c["chunk_id"]) for c in again["chunks"]]:
             raise TextGoldError("embed_align", "Dense chunk_ids are not keyed to the store.")
         raw_hybrid = research.search_literature_corpus(

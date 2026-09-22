@@ -6,8 +6,10 @@ of the product 922. Floor is re-derived on the union, not typed by hand.
 from __future__ import annotations
 
 import gzip
+import hashlib
 import json
 import os
+import zlib
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Mapping, Sequence
@@ -40,6 +42,7 @@ _PROTECTED_NAMES = frozenset({
     "CURVES.retrieval.d3.json",
     "OFFDOMAIN.queries.v1.json",
 })
+_SUPPORTED_MODELS = frozenset({engine_e2e.MINILM_ID, research._BGE_MODEL_ID})
 
 
 def _refuse_gold_v2() -> None:
@@ -74,6 +77,12 @@ def _refuse_url(paper_sha256: str) -> None:
     folded = str(paper_sha256 or "").strip().casefold()
     if folded.startswith(("http://", "https://", "ftp://")):
         raise TextGoldError("url_fetch_refused", "Promote does not fetch URLs.")
+
+
+def _wrap_contract(error: BaseException) -> None:
+    if isinstance(error, research.LiteratureContractError):
+        raise TextGoldError(error.code, str(error)) from error
+    raise error
 
 
 def _write_json(dest: Path, payload: Mapping[str, Any]) -> str:
@@ -113,11 +122,251 @@ def _empty_sidecar_store() -> dict[str, Any]:
     }
 
 
-def _pending_vectors(store: Mapping[str, Any]) -> dict[str, list[float]]:
+def _select_promote_model(
+    model_name: str | None,
+    expected_dim: int | None,
+) -> tuple[str, int]:
+    selected = engine_e2e.MINILM_ID if model_name is None else str(model_name)
+    if selected not in _SUPPORTED_MODELS:
+        raise TextGoldError("dense_model", "Promote model is not supported.")
+    compatible = research._compatible_embedding_dim(selected)
+    if expected_dim is not None and expected_dim != compatible:
+        raise TextGoldError("dense_dim", "Embedding dim conflicts with the selected model.")
+    return selected, compatible
+
+
+def _canonical_corpus_dir() -> Path:
+    return engine_e2e.MANIFEST_PATH.expanduser().resolve().parent
+
+
+def _refuse_nonlegacy_dest(dest: Path) -> None:
+    dest = Path(dest).expanduser().resolve()
+    if dest == _canonical_corpus_dir():
+        raise TextGoldError(
+            "protected_persist",
+            "Nonlegacy promote dest must not be the canonical corpus directory.",
+        )
+    dest_index = (dest / PRODUCT_INDEX_NAME).expanduser().resolve()
+    dest_gzip = (dest / "indexes" / SIDECAR_GZIP_NAME).expanduser().resolve()
+    if dest_index == engine_e2e.MANIFEST_PATH.expanduser().resolve():
+        raise TextGoldError("protected_persist", "Nonlegacy promote must not overwrite the MiniLM manifest.")
+    if dest_gzip == dense_d2.INDEX_GZIP_PATH.expanduser().resolve():
+        raise TextGoldError("protected_persist", "Nonlegacy promote must not overwrite the MiniLM index.")
+    if dest_gzip == research._canonical_product_index_path().expanduser().resolve():
+        raise TextGoldError("protected_persist", "Nonlegacy promote must not overwrite the MiniLM index.")
+
+
+def _parse_gzip_index(raw: bytes) -> dict[str, Any]:
+    try:
+        payload = research._read_gzip_json_bytes(raw)
+    except json.JSONDecodeError as error:
+        raise TextGoldError("bge10_index_malformed", "Product index is malformed.") from error
+    except gzip.BadGzipFile as error:
+        raise TextGoldError("bge10_index_malformed", "Product index is malformed.") from error
+    except zlib.error as error:
+        raise TextGoldError("bge10_index_malformed", "Product index is malformed.") from error
+    except OSError as error:
+        raise TextGoldError("bge10_index_unreadable", "Product index is unreadable.") from error
+    except (UnicodeDecodeError, EOFError) as error:
+        raise TextGoldError("bge10_index_unreadable", "Product index is unreadable.") from error
+    if not isinstance(payload, dict):
+        raise TextGoldError("bge10_index_invalid", "Product index is not an object.")
+    return payload
+
+
+def _require_dense_metadata(
+    block: Mapping[str, Any],
+    *,
+    selected: str,
+    expected_dim: int,
+) -> None:
+    model = block.get("model")
+    if str(model or "") != selected:
+        raise TextGoldError("dense_model", "Dense block model is incompatible.")
+    try:
+        recorded_dim = research._finite_int(
+            block.get("dim"),
+            "dense_dim",
+            "Dense block dim is incompatible.",
+        )
+    except research.LiteratureContractError as error:
+        raise TextGoldError("dense_dim", "Dense block dim is incompatible.") from error
+    if recorded_dim != expected_dim:
+        raise TextGoldError("dense_dim", "Dense block dim is incompatible.")
+    if selected == research._BGE_MODEL_ID:
+        try:
+            research._require_bge_recipe_fields(block, "bge10_recipe_mismatch")
+        except research.LiteratureContractError as error:
+            _wrap_contract(error)
+
+
+def _pending_vectors(
+    store: Mapping[str, Any],
+    *,
+    selected: str,
+    expected_dim: int,
+) -> dict[str, list[float]]:
     pending = store.get("pending_dense") or {}
-    ids = [str(item) for item in (pending.get("chunk_ids") or [])]
-    vectors = [list(row) for row in (pending.get("vectors") or [])]
-    return {chunk_id: vector for chunk_id, vector in zip(ids, vectors)}
+    if pending in (None, {}):
+        return {}
+    if not isinstance(pending, Mapping):
+        raise TextGoldError("dense_dim", "Pending dense block is invalid.")
+    ids_raw = pending.get("chunk_ids")
+    vectors_raw = pending.get("vectors")
+    if not ids_raw and not vectors_raw:
+        return {}
+    if not isinstance(ids_raw, list) or not isinstance(vectors_raw, list):
+        raise TextGoldError("n_chunks_mismatch", "Pending dense IDs and vectors are not aligned.")
+    ids = [str(item) for item in ids_raw]
+    if any(not item for item in ids):
+        raise TextGoldError("bge10_chunk_membership", "Pending dense IDs are invalid.")
+    if len(ids) != len(set(ids)):
+        raise TextGoldError("bge10_chunk_membership", "Pending dense IDs are not unique.")
+    if len(ids) != len(vectors_raw):
+        raise TextGoldError("n_chunks_mismatch", "Pending dense IDs and vectors are not aligned.")
+    store_ids: list[str] = []
+    seen: set[str] = set()
+    for row in store.get("chunks") or []:
+        chunk_id = str(row.get("chunk_id") or "")
+        if not chunk_id:
+            raise TextGoldError("bge10_chunk_membership", "Incremental store membership is invalid.")
+        if chunk_id in seen:
+            raise TextGoldError("bge10_chunk_membership", "Incremental store membership is invalid.")
+        store_ids.append(chunk_id)
+        seen.add(chunk_id)
+    for chunk_id in ids:
+        if chunk_id not in seen:
+            raise TextGoldError("bge10_chunk_membership", "Pending dense ID is not in the incremental store.")
+    _require_dense_metadata(pending, selected=selected, expected_dim=expected_dim)
+    try:
+        rows = research._validate_dense_rows(
+            ids,
+            list(vectors_raw),
+            dim=expected_dim,
+            require_bge_geometry=selected == research._BGE_MODEL_ID,
+        )
+        research._assert_generated_dense_vectors(
+            rows,
+            expected_count=len(ids),
+            model_name=selected,
+            expected_dim=expected_dim,
+        )
+    except research.LiteratureContractError as error:
+        raise TextGoldError("dense_dim", "Pending dense vectors are invalid.") from error
+    return {chunk_id: list(vector) for chunk_id, vector in zip(ids, rows)}
+
+
+def _previous_sidecar_vectors(
+    previous: Mapping[str, Any],
+    sidecar_chunks: Sequence[Mapping[str, Any]],
+    *,
+    selected: str,
+    expected_dim: int,
+) -> dict[str, list[float]]:
+    try:
+        validated = research._validated_dense_side(previous, sidecar_chunks)
+    except research.LiteratureContractError as error:
+        _wrap_contract(error)
+    _require_dense_metadata(validated["block"], selected=selected, expected_dim=expected_dim)
+    if validated["dim"] != expected_dim:
+        raise TextGoldError("dense_dim", "Previous sidecar dim is incompatible.")
+    if str(validated["model"] or "") != selected:
+        raise TextGoldError("dense_model", "Previous sidecar model is incompatible.")
+    return {chunk_id: list(vector) for chunk_id, vector in validated["by_id"].items()}
+
+
+def _load_explicit_product_pair(
+    *,
+    index_path: Path,
+    manifest_path: Path,
+    selected: str,
+    expected_dim: int,
+) -> tuple[dict[str, Any], dict[str, Any], str, Path, Path]:
+    index_file = Path(index_path).expanduser().resolve()
+    manifest_file = Path(manifest_path).expanduser().resolve()
+    if not manifest_file.is_file():
+        raise TextGoldError("bge_product_pair", "Product manifest is missing.")
+    if not index_file.is_file():
+        raise TextGoldError("bge_product_pair", "Product index is missing.")
+    try:
+        manifest = json.loads(manifest_file.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError) as error:
+        raise TextGoldError("bge10_manifest_unreadable", "Product manifest is unreadable.") from error
+    except json.JSONDecodeError as error:
+        raise TextGoldError("bge10_manifest_malformed", "Product manifest is malformed.") from error
+    if not isinstance(manifest, dict):
+        raise TextGoldError("bge10_manifest_invalid", "Product manifest is not an object.")
+    try:
+        raw = index_file.read_bytes()
+    except OSError as error:
+        raise TextGoldError("bge10_index_unreadable", "Product index is unreadable.") from error
+    digest = hashlib.sha256(raw).hexdigest()
+    try:
+        declared = research._bge10_index_digest(manifest.get("gzip_sha256"))
+    except research.LiteratureContractError as error:
+        _wrap_contract(error)
+    if digest != declared:
+        raise TextGoldError("bge10_index_digest", "Product index digest does not match the manifest.")
+    raw_path = manifest.get("index_path")
+    if not isinstance(raw_path, str) or not raw_path.strip():
+        raise TextGoldError("bge10_index_path_missing", "Product index path is missing.")
+    resolved = research._resolve_against(manifest_file.parent, raw_path)
+    if resolved != index_file:
+        raise TextGoldError("bge10_index_path_missing", "Product manifest index_path does not match the supplied index.")
+    index = _parse_gzip_index(raw)
+    try:
+        engine_e2e._require_product_identity(index)
+    except TextGoldError:
+        raise
+    declared_kb = manifest.get("knowledgebase")
+    try:
+        if not isinstance(declared_kb, str) or research._slug(declared_kb) != research._PRODUCT_KNOWLEDGEBASE:
+            raise TextGoldError("bge10_index_knowledgebase", "Product knowledgebase is mismatched.")
+    except ValueError as error:
+        raise TextGoldError("bge10_index_knowledgebase", "Product knowledgebase is mismatched.") from error
+    if index.get("knowledgebase") != research._PRODUCT_KNOWLEDGEBASE:
+        raise TextGoldError("bge10_index_knowledgebase", "Product knowledgebase is mismatched.")
+    index_dense = index.get("dense")
+    manifest_dense = manifest.get("dense")
+    if not isinstance(index_dense, Mapping) or not isinstance(manifest_dense, Mapping):
+        raise TextGoldError("bge10_recipe_mismatch", "Product dense recipe is incompatible.")
+    _require_dense_metadata(index_dense, selected=selected, expected_dim=expected_dim)
+    _require_dense_metadata(manifest_dense, selected=selected, expected_dim=expected_dim)
+    if selected == research._BGE_MODEL_ID:
+        try:
+            index_recipe = research._require_bge_recipe_fields(index_dense, "bge10_recipe_mismatch")
+            manifest_recipe = research._require_bge_recipe_fields(manifest_dense, "bge10_recipe_mismatch")
+        except research.LiteratureContractError as error:
+            _wrap_contract(error)
+        if index_recipe != manifest_recipe:
+            raise TextGoldError("bge10_recipe_mismatch", "Product manifest recipe does not match the index.")
+    else:
+        if str(index_dense.get("model") or "") == research._BGE_MODEL_ID:
+            raise TextGoldError("dense_model", "MiniLM product must not carry BGE vectors.")
+        if str(manifest_dense.get("model") or "") == research._BGE_MODEL_ID:
+            raise TextGoldError("dense_model", "MiniLM product must not carry a BGE recipe.")
+    try:
+        research._validated_dense_side(index, index.get("chunks") or [])
+    except research.LiteratureContractError as error:
+        _wrap_contract(error)
+    return json.loads(json.dumps(index)), json.loads(json.dumps(manifest)), digest, index_file, manifest_file
+
+
+def _sidecar_manifest_dense(*, selected: str, dim: int, n_vectors: int) -> dict[str, Any]:
+    block: dict[str, Any] = {
+        "model": selected,
+        "dim": dim,
+        "n_vectors": n_vectors,
+    }
+    if selected == research._BGE_MODEL_ID:
+        block.update(research._bge_generated_recipe_fields())
+    return block
+
+
+def _product_chunk_ids(product: Mapping[str, Any] | None, *, fallback_store: Mapping[str, Any]) -> set[str]:
+    if product is not None:
+        return {str(row.get("chunk_id") or "") for row in (product.get("chunks") or []) if row.get("chunk_id")}
+    return {str(row.get("chunk_id") or "") for row in (fallback_store.get("chunks") or [])}
 
 
 def _mark_incremental_indexed(census: Mapping[str, Any], paper_sha256: str) -> dict[str, Any]:
@@ -146,11 +395,186 @@ def _mark_incremental_indexed(census: Mapping[str, Any], paper_sha256: str) -> d
     return working
 
 
-def _ensure_dest_index(dest_dir: Path) -> Path:
+def _resolved_path(path: Path | str) -> Path:
+    return Path(path).expanduser().resolve()
+
+
+def _refuse_source_output_collision(
+    *,
+    source_index: Path,
+    source_manifest: Path,
+    outputs: Sequence[Path],
+) -> None:
+    source_index = _resolved_path(source_index)
+    source_manifest = _resolved_path(source_manifest)
+    for dest in outputs:
+        resolved = _resolved_path(dest)
+        if resolved == source_index or resolved == source_manifest:
+            raise TextGoldError(
+                "protected_persist",
+                "Promote dest must not alias the selected source product pair.",
+            )
+
+
+def _manifest_copy_for_dest(
+    manifest: Mapping[str, Any],
+    *,
+    resolved_index: Path,
+) -> dict[str, Any]:
+    payload = json.loads(json.dumps(manifest))
+    payload["index_path"] = str(_resolved_path(resolved_index))
+    return payload
+
+
+def _load_dest_manifest(dest_index: Path) -> dict[str, Any]:
+    dest_index = Path(dest_index)
+    try:
+        payload = json.loads(dest_index.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError) as error:
+        raise TextGoldError("bge10_manifest_unreadable", "Product manifest is unreadable.") from error
+    except json.JSONDecodeError as error:
+        raise TextGoldError("bge10_manifest_malformed", "Product manifest is malformed.") from error
+    if not isinstance(payload, dict):
+        raise TextGoldError("bge10_manifest_invalid", "Product manifest is not an object.")
+    return payload
+
+
+def _selected_product_membership(
+    selected_product: Mapping[str, Any],
+    selected_manifest: Mapping[str, Any],
+) -> tuple[int, list[str]]:
+    index_n = len(list(selected_product.get("chunks") or []))
+    if selected_manifest.get("n_chunks") != index_n:
+        raise TextGoldError("n_chunks_mismatch", "Product INDEX n_chunks must not move.")
+    manifest_papers = selected_manifest.get("indexed_paper_sha256")
+    if not isinstance(manifest_papers, list):
+        raise TextGoldError("index_sha_mismatch", "Product indexed SHA list must not move.")
+    papers = [str(sha) for sha in manifest_papers]
+    index_docs = [str(row.get("sha256") or "") for row in (selected_product.get("documents") or [])]
+    if not index_docs:
+        seen: list[str] = []
+        known: set[str] = set()
+        for row in selected_product.get("chunks") or []:
+            paper = str(row.get("paper_sha256") or "")
+            if paper and paper not in known:
+                known.add(paper)
+                seen.append(paper)
+        index_docs = seen
+    if index_docs != papers:
+        raise TextGoldError("index_sha_mismatch", "Product indexed SHA list must not move.")
+    return index_n, papers
+
+
+def _require_selected_dest_identity(
+    dest_index: Path,
+    payload: Mapping[str, Any],
+    *,
+    selected: str,
+    expected_dim: int,
+    selected_digest: str,
+    selected_index: Path,
+    selected_kb: Any,
+    selected_product: Mapping[str, Any],
+    selected_manifest: Mapping[str, Any],
+) -> None:
+    declared_kb = payload.get("knowledgebase")
+    if declared_kb != selected_kb:
+        raise TextGoldError("bge10_index_knowledgebase", "Product knowledgebase is mismatched.")
+    try:
+        declared = research._bge10_index_digest(payload.get("gzip_sha256"))
+    except research.LiteratureContractError as error:
+        _wrap_contract(error)
+    if declared != str(selected_digest).strip().casefold():
+        raise TextGoldError("bge10_index_digest", "Product index digest does not match the manifest.")
+    raw_path = payload.get("index_path")
+    if not isinstance(raw_path, str) or not raw_path.strip():
+        raise TextGoldError("bge10_index_path_missing", "Product index path is missing.")
+    resolved = research._resolve_against(Path(dest_index).expanduser().resolve().parent, raw_path)
+    if resolved != _resolved_path(selected_index):
+        raise TextGoldError(
+            "bge10_index_path_missing",
+            "Product manifest index_path does not match the supplied index.",
+        )
+    dense = payload.get("dense")
+    if not isinstance(dense, Mapping):
+        raise TextGoldError("bge10_recipe_mismatch", "Product dense recipe is incompatible.")
+    _require_dense_metadata(dense, selected=selected, expected_dim=expected_dim)
+    expected_n, expected_papers = _selected_product_membership(selected_product, selected_manifest)
+    if payload.get("n_chunks") != expected_n:
+        raise TextGoldError("n_chunks_mismatch", "Product INDEX n_chunks must not move.")
+    dest_papers = payload.get("indexed_paper_sha256")
+    if not isinstance(dest_papers, list) or [str(sha) for sha in dest_papers] != expected_papers:
+        raise TextGoldError("index_sha_mismatch", "Product indexed SHA list must not move.")
+
+
+def _selected_dest_manifest_before_write(
+    *,
+    dest_index: Path,
+    dest_outputs: Sequence[Path],
+    source_index: Path,
+    source_manifest: Path,
+    selected_manifest: Mapping[str, Any],
+    selected_product: Mapping[str, Any],
+    selected: str,
+    expected_dim: int,
+    selected_digest: str,
+) -> dict[str, Any]:
+    dest_index = Path(dest_index)
+    _refuse_source_output_collision(
+        source_index=source_index,
+        source_manifest=source_manifest,
+        outputs=dest_outputs,
+    )
+    if dest_index.exists() or dest_index.is_symlink():
+        existing = _load_dest_manifest(dest_index)
+        _require_selected_dest_identity(
+            dest_index,
+            existing,
+            selected=selected,
+            expected_dim=expected_dim,
+            selected_digest=selected_digest,
+            selected_index=source_index,
+            selected_kb=selected_manifest.get("knowledgebase"),
+            selected_product=selected_product,
+            selected_manifest=selected_manifest,
+        )
+        return existing
+    return _manifest_copy_for_dest(selected_manifest, resolved_index=source_index)
+
+
+def _ensure_dest_index(
+    dest_dir: Path,
+    *,
+    product_manifest_path: Path | None = None,
+    product_manifest: Mapping[str, Any] | None = None,
+    product_index_path: Path | str | None = None,
+) -> Path:
     dest_index = dest_dir / PRODUCT_INDEX_NAME
-    product = engine_e2e.MANIFEST_PATH.resolve()
-    if dest_index.resolve() != product and not dest_index.is_file():
-        dest_index.write_bytes(engine_e2e.MANIFEST_PATH.read_bytes())
+    source = (
+        _resolved_path(product_manifest_path)
+        if product_manifest_path is not None
+        else engine_e2e.MANIFEST_PATH.resolve()
+    )
+    if product_manifest_path is not None and dest_index.resolve() == source:
+        raise TextGoldError(
+            "protected_persist",
+            "Promote dest must not alias the selected source product pair.",
+        )
+    if product_manifest is not None:
+        if dest_index.exists() or dest_index.is_symlink():
+            return dest_index
+        resolved_index = (
+            _resolved_path(product_index_path)
+            if product_index_path is not None
+            else research._resolve_against(source.parent, str(product_manifest.get("index_path") or ""))
+        )
+        payload = _manifest_copy_for_dest(product_manifest, resolved_index=resolved_index)
+        _write_json(dest_index, payload)
+        return dest_index
+    if dest_index.resolve() != source and not dest_index.is_file():
+        _refuse_rti_dest(dest_index)
+        dest_index.parent.mkdir(parents=True, exist_ok=True)
+        dest_index.write_bytes(source.read_bytes())
     return dest_index
 
 
@@ -159,8 +583,12 @@ def _update_product_index(
     *,
     promoted: Mapping[str, Any],
     floor: float,
+    payload: Mapping[str, Any] | None = None,
 ) -> str:
-    payload = json.loads(dest_index.read_text(encoding="utf-8"))
+    if payload is None:
+        payload = json.loads(dest_index.read_text(encoding="utf-8"))
+    else:
+        payload = json.loads(json.dumps(payload))
     before_keys = set(payload)
     indexed = list(payload.get("indexed_paper_sha256") or [])
     n_chunks = payload.get("n_chunks")
@@ -187,19 +615,31 @@ def _union_floor(
     sidecar_store_sha256: str,
     sidecar_gzip_sha256: str,
     dest_curves: Path,
+    product_index: Mapping[str, Any] | None = None,
+    product_gzip_path: Path | str | None = None,
+    product_gzip_sha256: str | None = None,
 ) -> dict[str, Any]:
     gold = json.loads(text_chunk_metrics.GOLD_UNSEALED_PATH.read_text(encoding="utf-8"))
     split = text_chunk_metrics.split_gold(gold)
     off_payload = json.loads(abstention_a3.OFFDOMAIN_PATH.read_text(encoding="utf-8"))
     fire = [str(fact.get("query") or "") for fact in split["must_fire"]]
     off = [str(row.get("query") or "") for row in (off_payload.get("queries") or [])]
-    product = dense_d2.load_gzip_index()
+    if product_index is None:
+        product = dense_d2.load_gzip_index()
+    else:
+        product = product_index
+    if product_gzip_sha256 is not None:
+        gzip_pin = str(product_gzip_sha256)
+    elif product_gzip_path is not None:
+        gzip_pin = file_sha256(Path(product_gzip_path))
+    else:
+        gzip_pin = file_sha256(dense_d2.INDEX_GZIP_PATH)
     union = research._union_product_and_sidecar(product, sidecar_index)
     pins = {
         "gold_sha256": file_sha256(text_chunk_metrics.GOLD_UNSEALED_PATH),
         "census_sha256": file_sha256(engine_e2e.CENSUS_PATH),
         "store_sha256": file_sha256(engine_e2e.STORE_PATH),
-        "gzip_sha256": file_sha256(dense_d2.INDEX_GZIP_PATH),
+        "gzip_sha256": gzip_pin,
         "offdomain_sha256": file_sha256(abstention_a3.OFFDOMAIN_PATH),
         "sidecar_store_sha256": sidecar_store_sha256,
         "sidecar_gzip_sha256": sidecar_gzip_sha256,
@@ -260,10 +700,47 @@ def promote_ingested_paper(
     paper_sha256: str,
     dest_dir: str | Path | None = None,
     embedder=None,
+    model_name: str | None = None,
+    expected_dim: int | None = None,
+    product_index_path: str | Path | None = None,
+    product_manifest_path: str | Path | None = None,
 ) -> dict[str, Any]:
     _refuse_gold_v2()
     _refuse_url(paper_sha256)
+    selected, compatible_dim = _select_promote_model(model_name, expected_dim)
     dest = Path(dest_dir).expanduser().resolve() if dest_dir is not None else DEFAULT_OUT_DIR.resolve()
+    is_bge = selected == research._BGE_MODEL_ID
+    index_supplied = product_index_path is not None
+    manifest_supplied = product_manifest_path is not None
+    if index_supplied != manifest_supplied:
+        raise TextGoldError("bge_product_pair", "Product index and manifest must be supplied together.")
+    if is_bge and not index_supplied:
+        raise TextGoldError("bge_product_pair", "BGE promote requires an explicit product index and manifest.")
+    if is_bge:
+        if dest_dir is None:
+            raise TextGoldError(
+                "protected_persist",
+                "BGE promote requires an explicit noncanonical destination.",
+            )
+        _refuse_nonlegacy_dest(dest)
+    selected_product: dict[str, Any] | None = None
+    selected_manifest: dict[str, Any] | None = None
+    selected_product_gzip_sha256: str | None = None
+    selected_product_index_path: Path | None = None
+    selected_product_manifest_path: Path | None = None
+    if index_supplied:
+        (
+            selected_product,
+            selected_manifest,
+            selected_product_gzip_sha256,
+            selected_product_index_path,
+            selected_product_manifest_path,
+        ) = _load_explicit_product_pair(
+            index_path=Path(product_index_path),
+            manifest_path=Path(product_manifest_path),
+            selected=selected,
+            expected_dim=compatible_dim,
+        )
     incremental_census_path = dest / engine_e2e5.INCREMENTAL_CENSUS_PATH.name
     incremental_store_path = dest / engine_e2e5.INCREMENTAL_STORE_PATH.name
     sidecar_store_path = dest / SIDECAR_STORE_NAME
@@ -330,35 +807,54 @@ def promote_ingested_paper(
     ]
     if not new_chunks:
         raise TextGoldError("ingested_chunks_missing", "Incremental store has no chunks for this SHA.")
-    product_ids = {
-        str(row.get("chunk_id") or "")
-        for row in (json.loads(engine_e2e.STORE_PATH.read_text(encoding="utf-8")).get("chunks") or [])
-    }
+    if selected_product is None:
+        product_store = json.loads(engine_e2e.STORE_PATH.read_text(encoding="utf-8"))
+    else:
+        product_store = {"chunks": list(selected_product.get("chunks") or [])}
+    product_ids = _product_chunk_ids(selected_product, fallback_store=product_store)
     new_ids = {str(row["chunk_id"]) for row in new_chunks}
     if not new_ids.isdisjoint(product_ids):
         raise TextGoldError("sidecar_overlap", "Sidecar chunk_id set must be disjoint from the product 922.")
     known_sidecar = {str(row.get("chunk_id") or "") for row in (sidecar.get("chunks") or [])}
     if not new_ids.isdisjoint(known_sidecar):
         raise TextGoldError("sidecar_overlap", "Sidecar chunk_id set is not unique.")
-    pending = _pending_vectors(incremental)
+    pending = _pending_vectors(incremental, selected=selected, expected_dim=compatible_dim)
     id_to_vec: dict[str, list[float]] = {}
     if sidecar_gzip_path.is_file():
-        previous = dense_d2.load_gzip_index(sidecar_gzip_path)
-        prev_dense = previous.get("dense") or {}
-        for chunk_id, vector in zip(prev_dense.get("chunk_ids") or [], prev_dense.get("vectors") or []):
-            id_to_vec[str(chunk_id)] = list(vector)
-    id_to_vec.update({chunk_id: pending[chunk_id] for chunk_id in new_ids if chunk_id in pending})
+        try:
+            previous_raw = sidecar_gzip_path.read_bytes()
+        except OSError as error:
+            raise TextGoldError("bge10_index_unreadable", "Previous sidecar index is unreadable.") from error
+        previous = _parse_gzip_index(previous_raw)
+        id_to_vec = _previous_sidecar_vectors(
+            previous,
+            sidecar.get("chunks") or [],
+            selected=selected,
+            expected_dim=compatible_dim,
+        )
+    current_pending = {chunk_id: pending[chunk_id] for chunk_id in new_ids if chunk_id in pending}
+    id_to_vec.update(current_pending)
     missing_rows = [row for row in new_chunks if str(row["chunk_id"]) not in id_to_vec]
     n_embedded = 0
     if missing_rows:
         texts = [research.chunk_sparse_corpus(row) for row in missing_rows]
         if embedder is None:
-            model_id, vectors = research._dense_vectors(texts, engine_e2e.MINILM_ID)
+            model_id, vectors = research._dense_vectors(texts, selected)
         else:
-            model_id, vectors = embedder(texts, engine_e2e.MINILM_ID)
-        del model_id
+            model_id, vectors = embedder(texts, selected)
+        if str(model_id) != selected:
+            raise TextGoldError("dense_model", "Embedder returned a substitute model id.")
         if len(vectors) != len(missing_rows):
             raise TextGoldError("embed_align", "Promote embed count is not the missing chunk count.")
+        try:
+            research._assert_generated_dense_vectors(
+                vectors,
+                expected_count=len(missing_rows),
+                model_name=selected,
+                expected_dim=compatible_dim,
+            )
+        except research.LiteratureContractError as error:
+            raise TextGoldError("dense_dim", "Generated dense vectors are invalid.") from error
         for row, vector in zip(missing_rows, vectors):
             id_to_vec[str(row["chunk_id"])] = list(vector)
         n_embedded = len(missing_rows)
@@ -369,15 +865,65 @@ def promote_ingested_paper(
     working["indexed_paper_sha256"] = sorted(papers)
     working["n_chunks"] = len(working["chunks"])
     working["schema"] = engine_e2e.STORE_SCHEMA
-    sidecar_store_sha = _write_json(sidecar_store_path, working)
+    working_ids = [str(row["chunk_id"]) for row in working["chunks"]]
+    if len(working_ids) != len(set(working_ids)):
+        raise TextGoldError("bge10_chunk_membership", "Sidecar chunk_id set is not unique.")
+    for chunk_id in working_ids:
+        if chunk_id not in id_to_vec:
+            raise TextGoldError("embed_align", "Sidecar dense membership is incomplete.")
     index = engine_e2e.store_to_literature_index(working, knowledgebase=SIDECAR_KNOWLEDGEBASE)
     dense_ids = [str(row["chunk_id"]) for row in (index.get("chunks") or [])]
-    index["dense"] = {
-        "model": engine_e2e.MINILM_ID,
-        "dim": engine_e2e.EXPECTED_DIM,
+    if dense_ids != working_ids:
+        raise TextGoldError("bge10_chunk_membership", "Sidecar dense membership is conflicting.")
+    ordered_vectors = [id_to_vec[chunk_id] for chunk_id in dense_ids]
+    try:
+        dim = research._assert_generated_dense_vectors(
+            ordered_vectors,
+            expected_count=len(dense_ids),
+            model_name=selected,
+            expected_dim=compatible_dim,
+        )
+        research._validate_dense_rows(
+            dense_ids,
+            ordered_vectors,
+            dim=compatible_dim,
+            require_bge_geometry=is_bge,
+        )
+    except research.LiteratureContractError as error:
+        raise TextGoldError("dense_dim", "Generated dense vectors are invalid.") from error
+    index["dense"] = research._attach_generated_recipe({
+        "model": selected,
+        "dim": dim,
         "chunk_ids": dense_ids,
-        "vectors": [id_to_vec[chunk_id] for chunk_id in dense_ids],
-    }
+        "vectors": ordered_vectors,
+    })
+    if selected_product is not None:
+        try:
+            research._union_product_and_sidecar(selected_product, index)
+        except research.LiteratureContractError as error:
+            _wrap_contract(error)
+    dest_index = dest / PRODUCT_INDEX_NAME
+    dest_manifest_payload: dict[str, Any] | None = None
+    if selected_product_manifest_path is not None:
+        dest_manifest_payload = _selected_dest_manifest_before_write(
+            dest_index=dest_index,
+            dest_outputs=(
+                dest_index,
+                sidecar_store_path,
+                sidecar_gzip_path,
+                sidecar_index_path,
+                dest_curves,
+                graph_path,
+            ),
+            source_index=selected_product_index_path,
+            source_manifest=selected_product_manifest_path,
+            selected_manifest=selected_manifest or {},
+            selected_product=selected_product or {},
+            selected=selected,
+            expected_dim=compatible_dim,
+            selected_digest=str(selected_product_gzip_sha256 or ""),
+        )
+    sidecar_store_sha = _write_json(sidecar_store_path, working)
     sidecar_gzip_sha = _write_gzip(sidecar_gzip_path, index)
     sidecar_manifest = {
         "schema": engine_e2e.MANIFEST_SCHEMA,
@@ -389,11 +935,11 @@ def promote_ingested_paper(
         "store_sha256": sidecar_store_sha,
         "gzip_sha256": sidecar_gzip_sha,
         "embedder_in_index": True,
-        "dense": {
-            "model": engine_e2e.MINILM_ID,
-            "dim": engine_e2e.EXPECTED_DIM,
-            "n_vectors": len(dense_ids),
-        },
+        "dense": _sidecar_manifest_dense(
+            selected=selected,
+            dim=compatible_dim,
+            n_vectors=len(dense_ids),
+        ),
     }
     _write_json(sidecar_index_path, sidecar_manifest)
     artifact = _union_floor(
@@ -401,9 +947,17 @@ def promote_ingested_paper(
         sidecar_store_sha256=sidecar_store_sha,
         sidecar_gzip_sha256=sidecar_gzip_sha,
         dest_curves=dest_curves,
+        product_index=selected_product,
+        product_gzip_path=selected_product_index_path,
+        product_gzip_sha256=selected_product_gzip_sha256,
     )
     floor = float(artifact["shipped_floor"])
-    dest_index = _ensure_dest_index(dest)
+    dest_index = _ensure_dest_index(
+        dest,
+        product_manifest_path=selected_product_manifest_path,
+        product_manifest=dest_manifest_payload,
+        product_index_path=selected_product_index_path,
+    )
     promoted = {
         "knowledgebase": SIDECAR_KNOWLEDGEBASE,
         "index_path": str(sidecar_gzip_path),
@@ -412,7 +966,12 @@ def promote_ingested_paper(
         "store_sha256": sidecar_store_sha,
         "gzip_sha256": sidecar_gzip_sha,
     }
-    _update_product_index(dest_index, promoted=promoted, floor=floor)
+    _update_product_index(
+        dest_index,
+        promoted=promoted,
+        floor=floor,
+        payload=dest_manifest_payload,
+    )
     working_census = _mark_incremental_indexed(census, paper_sha256)
     _write_json(incremental_census_path, working_census)
     t5_corpus_graph.emit_t5_corpus_graph(
