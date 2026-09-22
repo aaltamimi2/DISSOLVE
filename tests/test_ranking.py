@@ -1,21 +1,38 @@
-"""planner_solvent_map / allowed_solvents are rank_landscape arguments.
-
-A bound map still has no remnant table: incomplete_stage_basis_grid,
-not a ranking, not a cache fill, and not a scan of top_k_sequences.
-feed_mass_fractions expands listed remnant keys by D-18; it is not ingest.
-"""
+"""Ranking tests."""
 from __future__ import annotations
 
-import pytest
-
+import hashlib
 import json
 from pathlib import Path
-
-
-from dissolve.agent_tools import CONSUMERS, dispatch, tool_schemas
-from dissolve import tea
-from dissolve.cli import EXPECTED_REGISTRY_NAMES
+from dissolve.agent_tools import SYSTEM_PROMPT, dispatch, source_basis_for
+from dissolve import campaign_consume, landscape, tea
 from dissolve.session import bind_tool_session, new_session, store_handle
+from dissolve import campaign_basis, campaign_consume, landscape, tea
+import math
+import pytest
+from dissolve.agent_tools import CONSUMERS, dispatch, tool_schemas
+from dissolve.cli import EXPECTED_REGISTRY_NAMES
+import inspect
+from dissolve import campaign_basis, campaign_consume, safety, tea
+from dissolve import separation, tea
+from dissolve.contracts import parse_tool_result
+
+
+# --- from test_rank_campaign_handle.py: A campaign lookup handle is a process_rows rank source. Not a live child.
+_SEALED = Path(
+    "/home/aaltamimi2/dissolve-v12-campaign/"
+    "polymer-solvent-tea-lca-20260818"
+)
+
+
+_CANONICAL = (
+    "ef62efb3a708d782ce58cac3295cc9de71b0a7e8d076f6ca79f1ba5830a29636"
+)
+
+
+_APPEND_LOG = (
+    "8b11ee68ce9948418872d892076bf275cb8b0dc1f95e72b0af80bbd2ac1eee3a"
+)
 
 
 def _data(raw: str) -> dict:
@@ -24,7 +41,974 @@ def _data(raw: str) -> dict:
     return envelope["data"]
 
 
+def _write_registry(tmp_path: Path, entries: dict) -> dict:
+    path = tmp_path / "campaign_registry.json"
+    path.write_text(json.dumps(entries), encoding="utf-8")
+    return path
+
+
+def _sealed_entry() -> dict:
+    manifest = _SEALED / "manifest.json"
+    return {
+        "manifest_path": str(manifest),
+        "manifest_sha256": hashlib.sha256(manifest.read_bytes()).hexdigest(),
+        "append_log_aliases": [_APPEND_LOG],
+    }
+
+
 def _forbid_live(monkeypatch):
+    def forbidden(*args, **kwargs):
+        raise AssertionError("campaign-handle rank must not start BioSTEAM")
+
+    monkeypatch.setattr(tea, "_live", forbidden)
+    monkeypatch.setattr(tea, "_record_for_pair", forbidden)
+    monkeypatch.setattr(tea.tea_worker, "run", forbidden)
+
+
+def _count_jsonl(monkeypatch):
+    reads = {"load_filtered_rows": 0}
+    real = landscape.load_filtered_rows
+
+    def wrapped(*args, **kwargs):
+        reads["load_filtered_rows"] += 1
+        return real(*args, **kwargs)
+
+    monkeypatch.setattr(landscape, "load_filtered_rows", wrapped)
+    return reads
+
+
+def _record_by_label(label: str) -> dict:
+    return next(
+        record for record in tea._records()
+        if str(record.get("label") or "").casefold() == label
+    )
+
+
+def _public_from_record(record: dict, **overrides) -> dict:
+    cfg = record["config"]
+    scenario = {
+        "target_polymer": cfg["target_plastic"],
+        "solvent": cfg["solvent"],
+        "target_mass_percent": cfg["target_plastic_percent"],
+        "processing_capacity_mt_per_yr": cfg["processing_capacity"],
+        "energy_case": cfg["energy_case"],
+        "dissolution_temperature_c": cfg["dissolution_temperature_c"],
+        "precipitation_temperature_c": cfg["precipitation_temperature_c"],
+        "solvent_price_usd_per_kg": cfg["solvent_price"],
+        "solvent_loss_pct": cfg["solvent_loss_pct"],
+        "feedstock_distance_km": cfg["feedstock_distance_km"],
+        "dissolution_capacity": cfg["dissolution_capacity"],
+        "labor_cost_usd_per_employee_yr": cfg["labor_cost"],
+    }
+    scenario.update(overrides)
+    return scenario
+
+
+def test_campaign_lookup_handle_ranks_without_rereading_jsonl(monkeypatch, tmp_path):
+    registry = _write_registry(tmp_path, {_CANONICAL: _sealed_entry()})
+    monkeypatch.setenv(campaign_consume.REGISTRY_ENV, str(registry))
+    _forbid_live(monkeypatch)
+    reads = _count_jsonl(monkeypatch)
+    session = new_session()
+    with bind_tool_session(session):
+        lookup = _data(tea.lookup_admitted_process_records(
+            source="campaign",
+            campaign_fingerprint=_CANONICAL,
+        ))
+        assert lookup.get("success") is True
+        assert len(lookup["comparison_rows"]) == 462
+        handle = store_handle(
+            session,
+            tool="evaluate_process",
+            source_basis="tea_cache_exact",
+            data=lookup,
+        )
+        payload = _data(tea.rank_landscape(handle=handle))
+    assert payload.get("success") is True
+    assert payload["analysis_type"] == "campaign_process_rows_landscape"
+    assert payload["n_usable"] == 408
+    assert payload["n_groups"] == 10
+    assert len(payload["grouped_fronts"]) == 10
+    assert payload["ingested_into_admitted_cache"] is False
+    assert payload["campaign_fingerprint"] == _CANONICAL
+    assert payload["campaign_basis"]["n_pairs"] == 462
+    assert reads["load_filtered_rows"] == 0
+    assert len(tea._records()) == 24
+
+
+def test_campaign_handle_held_mismatch_is_not_a_ranking(monkeypatch, tmp_path):
+    registry = _write_registry(tmp_path, {_CANONICAL: _sealed_entry()})
+    monkeypatch.setenv(campaign_consume.REGISTRY_ENV, str(registry))
+    _forbid_live(monkeypatch)
+    reads = _count_jsonl(monkeypatch)
+    session = new_session()
+    with bind_tool_session(session):
+        lookup = _data(tea.lookup_admitted_process_records(
+            source="campaign",
+            campaign_fingerprint=_CANONICAL,
+        ))
+        handle = store_handle(
+            session,
+            tool="evaluate_process",
+            source_basis="tea_cache_exact",
+            data=lookup,
+        )
+        burned = _data(tea.rank_landscape(
+            handle=handle,
+            process_config={"burn_leftover_plastic": True},
+        ))
+        shifted = _data(tea.rank_landscape(
+            handle=handle,
+            process_config={
+                "target_mass_percent": 60.0,
+                "processing_capacity_mt_per_yr": 15_000.0,
+            },
+            energy_cases=["C2"],
+        ))
+    assert burned["error_code"] == "campaign_basis_mismatch"
+    assert burned["mismatches"][0]["field"] == "burn_leftover_plastic"
+    assert burned["mismatches"][0]["campaign_value"] is False
+    assert burned["mismatches"][0]["requested_value"] is True
+    assert "landscape_points" not in burned
+    assert "grouped_fronts" not in burned
+    assert shifted["error_code"] == "campaign_basis_mismatch"
+    fields = [row["field"] for row in shifted["mismatches"]]
+    assert fields == [
+        "target_mass_percent",
+        "processing_capacity_mt_per_yr",
+        "energy_case",
+    ]
+    assert shifted["live_rerun_quote"]["n_pairs"] == 462
+    assert "landscape_points" not in shifted
+    assert reads["load_filtered_rows"] == 0
+
+
+def test_ldpe_campaign_lookup_handle_is_one_polymer_front(monkeypatch, tmp_path):
+    registry = _write_registry(tmp_path, {_CANONICAL: _sealed_entry()})
+    monkeypatch.setenv(campaign_consume.REGISTRY_ENV, str(registry))
+    _forbid_live(monkeypatch)
+    reads = _count_jsonl(monkeypatch)
+    session = new_session()
+    with bind_tool_session(session):
+        lookup = _data(tea.lookup_admitted_process_records(
+            source="campaign",
+            campaign_fingerprint=_CANONICAL,
+            target_polymer="LDPE",
+        ))
+        handle = store_handle(
+            session,
+            tool="evaluate_process",
+            source_basis="tea_cache_exact",
+            data=lookup,
+        )
+        payload = _data(tea.rank_landscape(handle=handle))
+    assert lookup["matching_row_count"] == 60
+    assert payload.get("success") is True
+    assert payload["n_usable"] == 54
+    assert payload["n_landscape_points"] == 54
+    assert payload["n_landscape_points"] == len(payload["landscape_points"])
+    assert {point["target_polymer"] for point in payload["landscape_points"]} == {
+        "LDPE",
+    }
+    assert "grouped_fronts" not in payload
+    assert reads["load_filtered_rows"] == 0
+
+
+def test_disagreeing_fingerprint_on_campaign_handle_mismatches(
+    monkeypatch, tmp_path,
+):
+    registry = _write_registry(tmp_path, {_CANONICAL: _sealed_entry()})
+    monkeypatch.setenv(campaign_consume.REGISTRY_ENV, str(registry))
+    _forbid_live(monkeypatch)
+    session = new_session()
+    with bind_tool_session(session):
+        lookup = _data(tea.lookup_admitted_process_records(
+            source="campaign",
+            campaign_fingerprint=_CANONICAL,
+            target_polymer="LDPE",
+        ))
+        handle = store_handle(
+            session,
+            tool="evaluate_process",
+            source_basis="tea_cache_exact",
+            data=lookup,
+        )
+        payload = _data(tea.rank_landscape(
+            handle=handle,
+            campaign_fingerprint="ff" * 32,
+        ))
+    assert payload["error_code"] == "campaign_fingerprint_mismatch"
+    assert "grouped_fronts" not in payload
+    assert "landscape_points" not in payload
+
+
+def test_evaluate_handle_still_ignores_campaign_held_constraints(monkeypatch):
+    c1 = _record_by_label("ldpe-route-c1")
+    c2 = _record_by_label("ldpe-route-c2")
+    _forbid_live(monkeypatch)
+    session = new_session()
+    with bind_tool_session(session):
+        first = _data(tea.evaluate_tea_lca_scenarios(
+            [_public_from_record(c1), _public_from_record(c2)],
+            engine_mode="cache",
+        ))
+        handle = store_handle(
+            session,
+            tool="evaluate_process",
+            source_basis="tea_cache_exact",
+            data=first,
+        )
+        payload = _data(tea.rank_landscape(
+            handle=handle,
+            process_config={"burn_leftover_plastic": True},
+        ))
+    assert payload.get("success") is True
+    assert payload["n_usable"] == 2
+    assert payload.get("error_code") != "campaign_basis_mismatch"
+    assert payload["analysis_type"] == "process_rows_landscape"
+
+
+def test_campaign_lookup_basis_is_not_cache_exact():
+    campaign = {
+        "success": True,
+        "source": "campaign",
+        "engine_mode": "campaign",
+        "comparison_rows": [{"polymer": "LDPE"}, {"polymer": "PET"}],
+    }
+    cache = {
+        "success": True,
+        "engine_mode": "cache",
+        "cache_match_status": "exact",
+        "comparison_rows": [{"engine_mode": "cache"}],
+    }
+    assert source_basis_for(
+        "evaluate_process", campaign, {},
+    ) == "campaign_process_rows"
+    assert source_basis_for(
+        "evaluate_process", cache, {},
+    ) == "tea_cache_exact"
+    ranked = {
+        "success": True,
+        "source": "process_rows",
+        "engine_mode": "campaign",
+        "grouped_fronts": [{"target_polymer": "LDPE"}],
+    }
+    assert source_basis_for("rank_landscape", ranked, {}) == "campaign_process_rows"
+    assert "campaign_process_rows" in SYSTEM_PROMPT
+    assert "not tea_cache_exact" in SYSTEM_PROMPT
+
+
+def test_dispatch_mints_a_campaign_lookup_handle(monkeypatch, tmp_path):
+    registry = _write_registry(tmp_path, {_CANONICAL: _sealed_entry()})
+    monkeypatch.setenv(campaign_consume.REGISTRY_ENV, str(registry))
+    _forbid_live(monkeypatch)
+    reads = _count_jsonl(monkeypatch)
+    session = new_session()
+    with bind_tool_session(session):
+        lookup = dispatch(
+            "evaluate_process",
+            mode="lookup",
+            lookup_filter={
+                "source": "campaign",
+                "campaign_fingerprint": _CANONICAL,
+            },
+        )
+        assert lookup.get("available") is True
+        assert lookup.get("refusal") != "no_honest_basis"
+        assert lookup["source_basis"] == "campaign_process_rows"
+        assert lookup["source_basis"] != "tea_cache_exact"
+        handle = lookup.get("handle")
+        assert handle
+        assert lookup["total"] == 462
+        ranked = dispatch("rank_landscape", handle=handle)
+    assert ranked.get("available") is True
+    assert ranked.get("refusal") != "no_honest_basis"
+    assert ranked["source_basis"] == "campaign_process_rows"
+    data = ranked.get("data") or {}
+    assert data.get("n_usable") == 408
+    assert data.get("n_groups") == 10
+    assert data.get("ingested_into_admitted_cache") is False
+    assert reads["load_filtered_rows"] == 0
+    assert len(tea._records()) == 24
+
+
+# --- from test_rank_handle_inherit.py: A rank_landscape handle can be a tornado inherit source. Not a live child.
+def _route_c1() -> dict:
+    return next(
+        record for record in tea._records()
+        if str(record.get("label") or "").casefold() == "ldpe-route-c1"
+    )
+
+
+def _normalized(record: dict, **overrides) -> dict:
+    cfg = dict(record["config"])
+    cfg.update(overrides)
+    return {key: cfg[key] for key in tea._CONFIG_FIELDS}
+
+
+def _success_row(
+    canonical, pair_id, polymer, solvent, msp, gwp, *, normalized=None,
+):
+    row = {
+        "campaign_fingerprint": canonical,
+        "outcome": "success",
+        "error_type": None,
+        "pair_id": pair_id,
+        "polymer": polymer,
+        "solvent_public_identity": solvent,
+        "standing": {
+            "can_cite_as_validated_process": False,
+            "process_parameter_status": {
+                "msp_usd_per_kg": "provisional_live_process_parameters",
+            },
+        },
+        "comparison_row": {
+            "msp_usd_per_kg": msp,
+            "gwp_kg_co2e_per_kg": gwp,
+            "lca_coverage": {
+                "status": "partial",
+                "lca_metrics_status": "partial",
+            },
+        },
+    }
+    if normalized is not None:
+        row["config_normalized_twelve"] = dict(normalized)
+    return row
+
+
+def _write_registry_rank_handle_inherit(tmp_path: Path, entries: dict) -> Path:
+    path = tmp_path / "campaign_registry.json"
+    path.write_text(json.dumps(entries), encoding="utf-8")
+    return path
+
+
+def _minimal_definition(**overrides):
+    definition = {
+        "schema": campaign_basis.CAMPAIGN_DEFINITION_SCHEMA_V2,
+        "fixed_fields": {
+            "target_plastic_percent": 55.0,
+            "processing_capacity": 20_000.0,
+            "energy_case": "C1",
+            "precipitation_temperature_c": 35.0,
+            "solvent_loss_pct": 0.01,
+            "feedstock_distance_km": 0.0,
+            "dissolution_capacity": 3.0,
+            "labor_cost": 120_000.0,
+        },
+        "setpoint_rule": {
+            "dissolution_temperature_c": "lowest stored grid node",
+        },
+        "pair_definitions": [
+            {"config_sent": {"target_plastic": "LDPE", "solvent": "toluene"}},
+        ],
+        "runtime_engine_versions": {"python": "3.12.0"},
+    }
+    definition.update(overrides)
+    return definition
+
+
+def _mini(tmp_path, rows, definition=None):
+    root = tmp_path / "mini_campaign"
+    root.mkdir()
+    run_definition = definition if definition is not None else _minimal_definition()
+    canonical = campaign_consume.canonical_json_digest(run_definition)
+    run_path = root / "run_definition.json"
+    run_path.write_text(json.dumps(run_definition), encoding="utf-8")
+    rows_path = root / "process_rows.jsonl"
+    rows_path.write_text(
+        "".join(json.dumps(row) + "\n" for row in rows),
+        encoding="utf-8",
+    )
+    (root / "results.jsonl").write_text("{}\n", encoding="utf-8")
+    manifest = {
+        "campaign_fingerprint": canonical,
+        "append_log_fingerprint": "cc" * 32,
+        "complete": True,
+        "counts": {"attempted": len(rows)},
+        "census": {"pair_count": len(run_definition["pair_definitions"])},
+        "aggregate_pair_wall_seconds": 10.0,
+        "artifact_sha256": {
+            "run_definition_json": hashlib.sha256(run_path.read_bytes()).hexdigest(),
+            "process_rows_jsonl": hashlib.sha256(rows_path.read_bytes()).hexdigest(),
+        },
+    }
+    manifest_path = root / "manifest.json"
+    manifest_path.write_text(json.dumps(manifest, sort_keys=True), encoding="utf-8")
+    entry = {
+        "manifest_path": str(manifest_path),
+        "manifest_sha256": hashlib.sha256(manifest_path.read_bytes()).hexdigest(),
+        "append_log_aliases": [],
+    }
+    return canonical, entry
+
+
+def _rank(monkeypatch, registry_path: Path, **kwargs):
+    monkeypatch.setenv(campaign_consume.REGISTRY_ENV, str(registry_path))
+    return _data(tea.rank_landscape(**kwargs))
+
+
+def _forbid_live_rank_handle_inherit(monkeypatch):
+    def forbidden(*args, **kwargs):
+        raise AssertionError("rank inherit must not start live")
+
+    monkeypatch.setattr(tea, "_record_for_pair", forbidden)
+    monkeypatch.setattr(tea, "_live", forbidden)
+
+
+def test_compact_point_carries_the_executed_twelve():
+    record = _route_c1()
+    cfg = record["config"]
+    point = landscape.compact_process_row({
+        "pair_id": "p1",
+        "polymer": cfg["target_plastic"],
+        "solvent_public_identity": "Dodecane",
+        "campaign_fingerprint": "ab" * 32,
+        "outcome": "success",
+        "config_normalized_twelve": _normalized(record),
+        "standing": {"process_parameter_status": {"msp_usd_per_kg": "x"}},
+        "comparison_row": {
+            "msp_usd_per_kg": 1.0,
+            "gwp_kg_co2e_per_kg": 0.5,
+            "lca_coverage": {"status": "partial"},
+        },
+    })
+    for name in tea._PUBLIC_REQUIRED_FIELDS:
+        assert name in point
+    assert point["target_polymer"] == cfg["target_plastic"]
+    assert point["solvent"] == "Dodecane"
+    assert point["labor_cost_usd_per_employee_yr"] == cfg["labor_cost"]
+    assert "engine_envelope" not in point
+
+
+def test_rank_points_without_normalized_twelve_are_not_an_inherit_source(
+    monkeypatch, tmp_path,
+):
+    _forbid_live_rank_handle_inherit(monkeypatch)
+    definition = _minimal_definition()
+    canonical = campaign_consume.canonical_json_digest(definition)
+    canonical, entry = _mini(tmp_path, [
+        _success_row(canonical, "a", "LDPE", "Toluene", 1.0, 0.4),
+        _success_row(canonical, "b", "LDPE", "Xylene", 2.0, 0.8),
+    ], definition=definition)
+    registry = _write_registry_rank_handle_inherit(tmp_path, {canonical: entry})
+    ranked = _rank(monkeypatch, registry, campaign_fingerprint=canonical)
+    session = new_session()
+    with bind_tool_session(session):
+        handle = store_handle(
+            session,
+            tool="rank_landscape",
+            source_basis="campaign_process_rows",
+            data=ranked,
+        )
+        payload = _data(tea.analyze_tea_sensitivity(
+            parameter="solvent_price",
+            handle=handle,
+            row_id=1,
+            engine_mode="cache",
+        ))
+    assert payload.get("error_code") == "not_economics_handle"
+
+
+def test_tornado_inherits_from_a_ranked_cache_identity(monkeypatch, tmp_path):
+    record = _route_c1()
+    cfg = record["config"]
+    _forbid_live_rank_handle_inherit(monkeypatch)
+    definition = _minimal_definition()
+    canonical = campaign_consume.canonical_json_digest(definition)
+    canonical, entry = _mini(tmp_path, [
+        _success_row(
+            canonical, "cache-hit", cfg["target_plastic"], "Dodecane",
+            1.0, 0.4, normalized=_normalized(record),
+        ),
+        _success_row(
+            canonical, "other", cfg["target_plastic"], "Xylene",
+            2.0, 0.8, normalized=_normalized(record, solvent="Xylene"),
+        ),
+    ], definition=definition)
+    registry = _write_registry_rank_handle_inherit(tmp_path, {canonical: entry})
+    ranked = _rank(monkeypatch, registry, campaign_fingerprint=canonical)
+    assert ranked.get("success") is True
+    point = next(
+        item for item in ranked["landscape_points"]
+        if item["pair_id"] == "cache-hit"
+    )
+    for name in tea._PUBLIC_REQUIRED_FIELDS:
+        assert point[name] is not None
+    session = new_session()
+    with bind_tool_session(session):
+        handle = store_handle(
+            session,
+            tool="rank_landscape",
+            source_basis="campaign_process_rows",
+            data=ranked,
+        )
+        missing = _data(tea.analyze_tea_sensitivity(
+            parameter="solvent_price",
+            handle=handle,
+            engine_mode="cache",
+            analysis_mode="tornado",
+        ))
+        tornado = _data(tea.analyze_tea_sensitivity(
+            parameter="solvent_price",
+            handle=handle,
+            row_id="cache-hit",
+            engine_mode="cache",
+            analysis_mode="tornado",
+        ))
+    assert missing.get("error_code") == "ambiguous_handle_row"
+    assert tornado.get("success") is True
+    origin = tornado["field_origin"]
+    for name in tea._PUBLIC_REQUIRED_FIELDS:
+        assert origin[name] == "inherited"
+    assert tornado["polymer"] == cfg["target_plastic"]
+    prices = {float(row["value"]) for row in tornado["sensitivity_rows"]}
+    assert float(cfg["solvent_price"]) in prices
+    assert len(prices) >= 2
+
+
+def test_grouped_fronts_flatten_for_inherit(monkeypatch, tmp_path):
+    record = _route_c1()
+    cfg = record["config"]
+    _forbid_live_rank_handle_inherit(monkeypatch)
+    definition = _minimal_definition()
+    canonical = campaign_consume.canonical_json_digest(definition)
+    canonical, entry = _mini(tmp_path, [
+        _success_row(
+            canonical, "cache-hit", "LDPE", "Dodecane",
+            1.0, 0.4, normalized=_normalized(record),
+        ),
+        _success_row(
+            canonical, "ldpe-b", "LDPE", "Xylene",
+            2.0, 0.8, normalized=_normalized(record, solvent="Xylene"),
+        ),
+        _success_row(
+            canonical, "hdpe-a", "HDPE", "Dodecane",
+            1.1, 0.5, normalized=_normalized(
+                record, target_plastic="HDPE",
+            ),
+        ),
+        _success_row(
+            canonical, "hdpe-b", "HDPE", "Xylene",
+            2.1, 0.9, normalized=_normalized(
+                record, target_plastic="HDPE", solvent="Xylene",
+            ),
+        ),
+    ], definition=definition)
+    registry = _write_registry_rank_handle_inherit(tmp_path, {canonical: entry})
+    ranked = _rank(monkeypatch, registry, campaign_fingerprint=canonical)
+    assert "grouped_fronts" in ranked
+    assert "landscape_points" not in ranked
+    session = new_session()
+    with bind_tool_session(session):
+        handle = store_handle(
+            session,
+            tool="rank_landscape",
+            source_basis="campaign_process_rows",
+            data=ranked,
+        )
+        missing = _data(tea.analyze_tea_sensitivity(
+            parameter="solvent_price",
+            handle=handle,
+            engine_mode="cache",
+        ))
+        tornado = _data(tea.analyze_tea_sensitivity(
+            parameter="solvent_price",
+            handle=handle,
+            row_id="cache-hit",
+            engine_mode="cache",
+            analysis_mode="tornado",
+        ))
+    assert missing.get("error_code") == "ambiguous_handle_row"
+    assert missing.get("n_rows") == 4
+    assert tornado.get("success") is True
+    assert tornado["field_origin"]["target_polymer"] == "inherited"
+    assert tornado["polymer"] == "LDPE"
+
+
+# --- from test_rank_landscape.py: rank_landscape over campaign process_rows: usable projection, not a leftover-to-CHP ranking.
+def _write_registry_rank_landscape(tmp_path: Path, entries: dict) -> Path:
+    path = tmp_path / "campaign_registry.json"
+    path.write_text(json.dumps(entries), encoding="utf-8")
+    return path
+
+
+def _success_row_rank_landscape(canonical, pair_id, polymer, solvent, msp, gwp):
+    return {
+        "campaign_fingerprint": canonical,
+        "outcome": "success",
+        "error_type": None,
+        "pair_id": pair_id,
+        "polymer": polymer,
+        "solvent_public_identity": solvent,
+        "standing": {
+            "can_cite_as_validated_process": False,
+            "process_parameter_status": {
+                "msp_usd_per_kg": "provisional_live_process_parameters",
+            },
+        },
+        "comparison_row": {
+            "msp_usd_per_kg": msp,
+            "gwp_kg_co2e_per_kg": gwp,
+            "lca_coverage": {
+                "status": "partial",
+                "lca_metrics_status": "partial",
+            },
+        },
+    }
+
+
+def _fail_row(canonical, pair_id, polymer, error_type):
+    return {
+        "campaign_fingerprint": canonical,
+        "outcome": "failure",
+        "error_type": error_type,
+        "pair_id": pair_id,
+        "polymer": polymer,
+        "solvent_public_identity": "Toluene",
+        "standing": {},
+        "comparison_row": {
+            "msp_usd_per_kg": None,
+            "gwp_kg_co2e_per_kg": None,
+        },
+    }
+
+
+def test_missing_fingerprint_is_first(monkeypatch, tmp_path):
+    registry = _write_registry_rank_landscape(tmp_path, {_CANONICAL: _sealed_entry()})
+    data = _rank(monkeypatch, registry)
+    assert data["success"] is False
+    assert data["error_code"] == "missing_campaign_fingerprint"
+
+
+def test_held_mismatch_is_not_a_ranking(monkeypatch, tmp_path):
+    registry = _write_registry_rank_landscape(tmp_path, {_CANONICAL: _sealed_entry()})
+    data = _rank(
+        monkeypatch,
+        registry,
+        campaign_fingerprint=_CANONICAL,
+        process_config={"burn_leftover_plastic": True},
+    )
+    assert data["error_code"] == "campaign_basis_mismatch"
+    assert data["mismatches"][0]["field"] == "burn_leftover_plastic"
+    assert "landscape_points" not in data
+    assert "frontier_points" not in data
+
+
+def test_sixty_fifteen_c2_is_not_a_ranking(monkeypatch, tmp_path):
+    registry = _write_registry_rank_landscape(tmp_path, {_CANONICAL: _sealed_entry()})
+    data = _rank(
+        monkeypatch,
+        registry,
+        campaign_fingerprint=_CANONICAL,
+        process_config={
+            "target_mass_percent": 60.0,
+            "processing_capacity_mt_per_yr": 15_000.0,
+        },
+        energy_cases=["C2"],
+    )
+    assert data["error_code"] == "campaign_basis_mismatch"
+    fields = [row["field"] for row in data["mismatches"]]
+    assert fields == [
+        "target_mass_percent",
+        "processing_capacity_mt_per_yr",
+        "energy_case",
+    ]
+    assert "landscape_points" not in data
+
+
+def test_exclude_safety_fail_is_unknown_extra(monkeypatch, tmp_path):
+    registry = _write_registry_rank_landscape(tmp_path, {_CANONICAL: _sealed_entry()})
+    data = _rank(
+        monkeypatch,
+        registry,
+        campaign_fingerprint=_CANONICAL,
+        exclude_safety_fail=True,
+    )
+    assert data["error_code"] == "unknown_process_field"
+    assert data["extra_keys"] == ["exclude_safety_fail"]
+
+
+def test_evaluated_safety_standing_is_carried_not_filtered(monkeypatch, tmp_path):
+    definition = _minimal_definition(pair_definitions=[
+        {"config_sent": {"target_plastic": "LDPE", "solvent": "toluene"}},
+        {"config_sent": {"target_plastic": "LDPE", "solvent": "xylene"}},
+    ])
+    canonical = campaign_consume.canonical_json_digest(definition)
+    toluene = _success_row_rank_landscape(canonical, "p1", "LDPE", "Toluene", 1.0, 0.4)
+    toluene["safety_standing"] = {
+        "status": "evaluated",
+        "safety_profile": {"ghs_signal_word": "Danger"},
+    }
+    xylene = _success_row_rank_landscape(canonical, "p2", "LDPE", "Xylene", 2.0, 0.8)
+    canonical, entry = _mini(
+        tmp_path, [toluene, xylene], definition=definition,
+    )
+    registry = _write_registry_rank_landscape(tmp_path, {canonical: entry})
+    data = _rank(monkeypatch, registry, campaign_fingerprint=canonical)
+    assert data["success"] is True
+    assert data["n_usable"] == 2
+    assert data["n_landscape_points"] == 2
+    assert data["safety_standing_policy"] == "carried_not_filtered"
+    by_id = {point["pair_id"]: point for point in data["landscape_points"]}
+    assert by_id["p1"]["safety_standing"]["status"] == "evaluated"
+    assert by_id["p1"]["safety_standing"]["safety_profile"] == {
+        "ghs_signal_word": "Danger",
+    }
+    assert by_id["p2"]["safety_standing"] == {"status": "not_requested"}
+    assert by_id["p1"]["safety_standing"] != by_id["p2"]["safety_standing"]
+    assert data.get("excluded_count") == 0
+    assert "GSK-fail" not in (data.get("excluded_by_error_type") or {})
+
+
+def test_unavailable_safety_standing_is_carried(monkeypatch, tmp_path):
+    definition = _minimal_definition(pair_definitions=[
+        {"config_sent": {"target_plastic": "LDPE", "solvent": "toluene"}},
+        {"config_sent": {"target_plastic": "LDPE", "solvent": "xylene"}},
+    ])
+    canonical = campaign_consume.canonical_json_digest(definition)
+    missing = _success_row_rank_landscape(canonical, "p1", "LDPE", "Toluene", 1.0, 0.4)
+    missing["safety_standing"] = {"status": "unavailable"}
+    sibling = _success_row_rank_landscape(canonical, "p2", "LDPE", "Xylene", 2.0, 0.8)
+    canonical, entry = _mini(
+        tmp_path, [missing, sibling], definition=definition,
+    )
+    registry = _write_registry_rank_landscape(tmp_path, {canonical: entry})
+    data = _rank(monkeypatch, registry, campaign_fingerprint=canonical)
+    by_id = {point["pair_id"]: point for point in data["landscape_points"]}
+    assert by_id["p1"]["safety_standing"] == {"status": "unavailable"}
+    assert by_id["p2"]["safety_standing"]["status"] == "not_requested"
+    assert data["n_usable"] == 2
+
+
+def test_illegal_safety_status_is_not_copied(monkeypatch, tmp_path):
+    definition = _minimal_definition(pair_definitions=[
+        {"config_sent": {"target_plastic": "LDPE", "solvent": "toluene"}},
+        {"config_sent": {"target_plastic": "LDPE", "solvent": "xylene"}},
+    ])
+    canonical = campaign_consume.canonical_json_digest(definition)
+    bad = _success_row_rank_landscape(canonical, "p1", "LDPE", "Toluene", 1.0, 0.4)
+    bad["safety_standing"] = {"status": "fail", "excluded": True}
+    sibling = _success_row_rank_landscape(canonical, "p2", "LDPE", "Xylene", 2.0, 0.8)
+    canonical, entry = _mini(
+        tmp_path, [bad, sibling], definition=definition,
+    )
+    registry = _write_registry_rank_landscape(tmp_path, {canonical: entry})
+    data = _rank(monkeypatch, registry, campaign_fingerprint=canonical)
+    by_id = {point["pair_id"]: point for point in data["landscape_points"]}
+    assert by_id["p1"]["safety_standing"] == {"status": "not_requested"}
+    assert "excluded" not in by_id["p1"]["safety_standing"]
+    assert data["n_usable"] == 2
+
+
+def test_residual_route_campaign_fingerprint_is_not_applicable(monkeypatch, tmp_path):
+    monkeypatch.delenv(campaign_consume.REGISTRY_ENV, raising=False)
+    data = _data(tea.rank_landscape(
+        source="residual_route", campaign_fingerprint=_CANONICAL,
+    ))
+    assert data["error_code"] == "not_applicable_in_source"
+    assert data["source"] == "residual_route"
+    assert data["inapplicable_fields"] == ["campaign_fingerprint"]
+    assert data["error_code"] != "tool_not_wired"
+
+
+def test_epsilon_not_applicable_on_process_rows(monkeypatch, tmp_path):
+    registry = _write_registry_rank_landscape(tmp_path, {_CANONICAL: _sealed_entry()})
+    data = _rank(
+        monkeypatch,
+        registry,
+        campaign_fingerprint=_CANONICAL,
+        operation="epsilon",
+    )
+    assert data["error_code"] == "not_applicable_in_source"
+
+
+def test_one_usable_row_is_landscape_too_small(monkeypatch, tmp_path):
+    definition = _minimal_definition()
+    canonical = campaign_consume.canonical_json_digest(definition)
+    canonical, entry = _mini(tmp_path, [
+        _success_row_rank_landscape(canonical, "p1", "LDPE", "Toluene", 1.0, 0.4),
+        _fail_row(canonical, "p2", "LDPE", "priced_solvent_unmodellable"),
+    ], definition=definition)
+    registry = _write_registry_rank_landscape(tmp_path, {canonical: entry})
+    data = _rank(monkeypatch, registry, campaign_fingerprint=canonical)
+    assert data["error_code"] == "landscape_too_small"
+    assert data["n_usable"] == 1
+    assert data["excluded_by_error_type"]["priced_solvent_unmodellable"] == 1
+    assert data["ingested_into_admitted_cache"] is False
+
+
+def test_two_point_total_order_serves_sparse_frontier(monkeypatch, tmp_path):
+    definition = _minimal_definition()
+    canonical = campaign_consume.canonical_json_digest(definition)
+    canonical, entry = _mini(tmp_path, [
+        _success_row_rank_landscape(canonical, "p1", "LDPE", "Toluene", 1.0, 0.4),
+        _success_row_rank_landscape(canonical, "p2", "LDPE", "Xylene", 2.0, 0.8),
+    ], definition=definition)
+    registry = _write_registry_rank_landscape(tmp_path, {canonical: entry})
+    data = _rank(monkeypatch, registry, campaign_fingerprint=canonical)
+    assert data["success"] is True
+    assert data["n_landscape_points"] == 2
+    assert data["n_landscape_points"] == len(data["landscape_points"])
+    assert data["n_frontier_points"] == 1
+    assert data["n_frontier_points"] == len(data["frontier_points"])
+    assert data["sparse_frontier"] is True
+    assert data["cheapest_equals_lowest_y"] is True
+    assert data["knee_status"] == "endpoint_only_no_interior_knee"
+    assert data["frontier_tradeoff"] is None
+    assert data["frontier_fraction"] == pytest.approx(0.5)
+    for point in data["landscape_points"]:
+        assert point["safety_standing"]["status"] == "not_requested"
+        assert point["standing"]
+        assert point["lca_coverage"]
+    assert "engine_envelope" not in data["landscape_points"][0]
+    assert len(tea._records()) == 24
+
+
+def test_pareto_returns_landscape_and_frontier(monkeypatch, tmp_path):
+    definition = _minimal_definition()
+    canonical = campaign_consume.canonical_json_digest(definition)
+    canonical, entry = _mini(tmp_path, [
+        _success_row_rank_landscape(canonical, "a", "LDPE", "Toluene", 1.0, 1.0),
+        _success_row_rank_landscape(canonical, "b", "LDPE", "Xylene", 2.0, 2.0),
+        _success_row_rank_landscape(canonical, "c", "LDPE", "Heptane", 1.5, 0.5),
+        _fail_row(canonical, "d", "LDPE", "lca_factor_basis_unavailable"),
+    ], definition=definition)
+    registry = _write_registry_rank_landscape(tmp_path, {canonical: entry})
+    data = _rank(monkeypatch, registry, campaign_fingerprint=canonical)
+    assert data["success"] is True
+    assert data["n_landscape_points"] == 3
+    assert data["n_frontier_points"] == 2
+    assert data["excluded_count"] == 1
+    assert data["excluded_by_error_type"] == {
+        "lca_factor_basis_unavailable": 1,
+    }
+    ids = {point["pair_id"] for point in data["frontier_points"]}
+    assert ids == {"a", "c"}
+    assert data["cheapest_equals_lowest_y"] is False
+    assert data["frontier_tradeoff"]["delta_x"] == pytest.approx(0.5)
+    assert data["ingested_into_admitted_cache"] is False
+
+
+def test_default_grouping_does_not_mix_polymers(monkeypatch, tmp_path):
+    definition = _minimal_definition()
+    canonical = campaign_consume.canonical_json_digest(definition)
+    canonical, entry = _mini(tmp_path, [
+        _success_row_rank_landscape(canonical, "a", "LDPE", "Toluene", 1.0, 1.0),
+        _success_row_rank_landscape(canonical, "b", "LDPE", "Xylene", 2.0, 0.5),
+        _success_row_rank_landscape(canonical, "c", "HDPE", "Toluene", 1.1, 1.1),
+        _success_row_rank_landscape(canonical, "d", "HDPE", "Xylene", 2.1, 0.4),
+    ], definition=definition)
+    registry = _write_registry_rank_landscape(tmp_path, {canonical: entry})
+    data = _rank(monkeypatch, registry, campaign_fingerprint=canonical)
+    assert data["success"] is True
+    assert "grouped_fronts" in data
+    assert data["n_groups"] == 2
+    assert "frontier_points" not in data
+    polymers = [block["target_polymer"] for block in data["grouped_fronts"]]
+    assert polymers == ["LDPE", "HDPE"]
+    for block in data["grouped_fronts"]:
+        assert block["n_landscape_points"] == 2
+        assert block["n_landscape_points"] == len(block["landscape_points"])
+        assert block["n_frontier_points"] == len(block["frontier_points"])
+        names = {point["target_polymer"] for point in block["landscape_points"]}
+        assert names == {block["target_polymer"]}
+    mixed = _rank(
+        monkeypatch,
+        registry,
+        campaign_fingerprint=canonical,
+        polymer_grouping="mixed_polymer",
+    )
+    assert mixed["n_landscape_points"] == 4
+    assert "grouped_fronts" not in mixed
+
+
+def test_sort_has_no_frontier_array(monkeypatch, tmp_path):
+    definition = _minimal_definition()
+    canonical = campaign_consume.canonical_json_digest(definition)
+    canonical, entry = _mini(tmp_path, [
+        _success_row_rank_landscape(canonical, "b", "LDPE", "Xylene", 2.0, 0.8),
+        _success_row_rank_landscape(canonical, "a", "LDPE", "Toluene", 1.0, 0.4),
+    ], definition=definition)
+    registry = _write_registry_rank_landscape(tmp_path, {canonical: entry})
+    data = _rank(
+        monkeypatch, registry, campaign_fingerprint=canonical, operation="sort",
+    )
+    assert data["n_returned"] == 2
+    assert [point["pair_id"] for point in data["landscape_points"]] == ["a", "b"]
+    assert "frontier_points" not in data
+    assert "frontier_fraction" not in data
+
+
+def test_ldpe_sealed_slice_usable_projection(monkeypatch, tmp_path):
+    registry = _write_registry_rank_landscape(tmp_path, {_CANONICAL: _sealed_entry()})
+    data = _rank(
+        monkeypatch,
+        registry,
+        campaign_fingerprint=_CANONICAL,
+        target_polymer="LDPE",
+    )
+    assert data["success"] is True
+    assert data["campaign_fingerprint"] == _CANONICAL
+    assert data["n_landscape_points"] == 54
+    assert data["n_landscape_points"] == len(data["landscape_points"])
+    assert data["n_frontier_points"] == len(data["frontier_points"])
+    assert data["n_frontier_points"] >= 1
+    assert data["excluded_count"] == 6
+    assert data["excluded_by_error_type"] == {
+        "priced_solvent_unmodellable": 4,
+        "lca_factor_basis_unavailable": 2,
+    }
+    assert data["ingested_into_admitted_cache"] is False
+    assert len(tea._records()) == 24
+    for point in data["landscape_points"]:
+        assert point["target_polymer"] == "LDPE"
+        assert point["safety_standing"]["status"] == "not_requested"
+        assert point["standing"]
+        assert math.isfinite(float(point["msp_usd_per_kg"]))
+        assert math.isfinite(float(point["gwp_kg_co2e_per_kg"]))
+    if data["n_frontier_points"] == 1 or data["cheapest_equals_lowest_y"]:
+        assert data["sparse_frontier"] is True
+        assert data["frontier_tradeoff"] is None
+
+
+def test_mixed_polymer_sealed_counts_bind(monkeypatch, tmp_path):
+    registry = _write_registry_rank_landscape(tmp_path, {_CANONICAL: _sealed_entry()})
+    data = _rank(
+        monkeypatch,
+        registry,
+        campaign_fingerprint=_CANONICAL,
+        polymer_grouping="mixed_polymer",
+    )
+    assert data["n_landscape_points"] == 408
+    assert data["n_landscape_points"] == len(data["landscape_points"])
+    assert data["n_frontier_points"] == len(data["frontier_points"])
+    assert data["n_frontier_points"] == 3
+    assert data["excluded_count"] == 54
+    assert data["excluded_by_error_type"] == {
+        "priced_solvent_unmodellable": 39,
+        "lca_factor_basis_unavailable": 15,
+    }
+    assert data["frontier_fraction"] == pytest.approx(3 / 408)
+    assert len(tea._records()) == 24
+
+
+def test_quantile_type7_matches_the_spec():
+    assert landscape.hyndman_fan_type7([10.0], 0.05) == 10.0
+    sample = [1.0, 2.0, 3.0, 4.0]
+    assert landscape.hyndman_fan_type7(sample, 0.0) == 1.0
+    assert landscape.hyndman_fan_type7(sample, 1.0) == 4.0
+    assert landscape.hyndman_fan_type7(sample, 0.5) == pytest.approx(2.5)
+
+
+def test_cache_lookup_still_default(monkeypatch, tmp_path):
+    monkeypatch.delenv(campaign_consume.REGISTRY_ENV, raising=False)
+    data = _data(tea.lookup_admitted_process_records(target_polymer="LDPE"))
+    assert data["success"] is True
+    assert data["engine_mode"] == "cache"
+
+
+# --- from test_rank_solvent_maps.py: planner_solvent_map / allowed_solvents are rank_landscape arguments.
+def _forbid_live_rank_solvent_maps(monkeypatch):
     def forbidden(*args, **kwargs):
         raise AssertionError("superstructure maps must not start BioSTEAM")
 
@@ -34,13 +1018,19 @@ def _forbid_live(monkeypatch):
 
 
 _PLAN_MAP = {"LDPE": "Toluene", "EVOH": "DMSO"}
+
+
 _ALLOWED_MAP = {"LDPE": ["Toluene"], "EVOH": ["DMSO", "Toluene"]}
+
+
 _FEED_55_45 = {"LDPE": 0.55, "EVOH": 0.45}
+
+
 _CAP_20KT = {"processing_capacity_mt_per_yr": 20_000}
 
 
 def test_sequence_without_map_is_missing_planner_solvent_map(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     payload = _data(tea.rank_landscape(
         source="superstructure",
         formulation="sequence",
@@ -54,7 +1044,7 @@ def test_sequence_without_map_is_missing_planner_solvent_map(monkeypatch):
 
 
 def test_empty_planner_map_is_missing(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     payload = _data(tea.rank_landscape(
         source="superstructure",
         formulation="sequence",
@@ -68,7 +1058,7 @@ def test_empty_planner_map_is_missing(monkeypatch):
 
 
 def test_nested_temperature_value_is_not_a_planner_map(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     payload = _data(tea.rank_landscape(
         source="superstructure",
         formulation="sequence",
@@ -79,7 +1069,7 @@ def test_nested_temperature_value_is_not_a_planner_map(monkeypatch):
 
 
 def test_feed_polymer_without_solvent_is_missing_planner_map(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     payload = _data(tea.rank_landscape(
         source="superstructure",
         formulation="sequence",
@@ -93,7 +1083,7 @@ def test_feed_polymer_without_solvent_is_missing_planner_map(monkeypatch):
 
 
 def test_allowed_solvents_does_not_substitute_for_planner_map(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     payload = _data(tea.rank_landscape(
         source="superstructure",
         formulation="sequence",
@@ -105,7 +1095,7 @@ def test_allowed_solvents_does_not_substitute_for_planner_map(monkeypatch):
 
 
 def test_complete_planner_map_is_incomplete_stage_basis_grid(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     payload = _data(tea.rank_landscape(
         source="superstructure",
         formulation="sequence",
@@ -141,7 +1131,7 @@ def test_complete_planner_map_is_incomplete_stage_basis_grid(monkeypatch):
 
 
 def test_map_hidden_in_process_config_is_still_missing(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     payload = _data(tea.rank_landscape(
         source="superstructure",
         formulation="sequence",
@@ -153,7 +1143,7 @@ def test_map_hidden_in_process_config_is_still_missing(monkeypatch):
 
 
 def test_solvent_without_allowed_set_is_missing_allowed_solvents(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     payload = _data(tea.rank_landscape(
         source="superstructure",
         formulation="solvent",
@@ -164,7 +1154,7 @@ def test_solvent_without_allowed_set_is_missing_allowed_solvents(monkeypatch):
 
 
 def test_empty_allowed_solvents_is_missing(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     payload = _data(tea.rank_landscape(
         source="superstructure",
         formulation="solvent",
@@ -177,7 +1167,7 @@ def test_empty_allowed_solvents_is_missing(monkeypatch):
 
 
 def test_planner_map_does_not_substitute_for_allowed_solvents(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     payload = _data(tea.rank_landscape(
         source="superstructure",
         formulation="solvent",
@@ -189,7 +1179,7 @@ def test_planner_map_does_not_substitute_for_allowed_solvents(monkeypatch):
 
 
 def test_flat_allowed_list_is_incomplete_stage_basis_grid(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     payload = _data(tea.rank_landscape(
         source="superstructure",
         formulation="solvent",
@@ -207,7 +1197,7 @@ def test_flat_allowed_list_is_incomplete_stage_basis_grid(monkeypatch):
 
 
 def test_per_polymer_allowed_map_missing_a_stage_polymer(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     payload = _data(tea.rank_landscape(
         source="superstructure",
         formulation="solvent",
@@ -221,7 +1211,7 @@ def test_per_polymer_allowed_map_missing_a_stage_polymer(monkeypatch):
 
 
 def test_complete_allowed_map_is_incomplete_stage_basis_grid(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     payload = _data(tea.rank_landscape(
         source="superstructure",
         formulation="solvent",
@@ -236,7 +1226,7 @@ def test_complete_allowed_map_is_incomplete_stage_basis_grid(monkeypatch):
 
 
 def test_superstructure_without_formulation_is_missing_formulation(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     payload = _data(tea.rank_landscape(source="superstructure"))
     assert payload.get("error_code") == "missing_formulation"
     assert payload.get("source") == "superstructure"
@@ -251,7 +1241,7 @@ def test_superstructure_without_formulation_is_missing_formulation(monkeypatch):
 
 
 def test_residual_route_formulation_is_not_applicable_without_requiring_maps(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     payload = _data(tea.rank_landscape(
         source="residual_route",
         formulation="sequence",
@@ -264,7 +1254,7 @@ def test_residual_route_formulation_is_not_applicable_without_requiring_maps(mon
 
 
 def test_maps_on_process_rows_are_not_applicable(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     payload = _data(tea.rank_landscape(
         planner_solvent_map=_PLAN_MAP,
         allowed_solvents=_ALLOWED_MAP,
@@ -279,7 +1269,7 @@ def test_maps_on_process_rows_are_not_applicable(monkeypatch):
 
 
 def test_maps_on_residual_route_are_not_applicable(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     payload = _data(tea.rank_landscape(
         source="residual_route",
         planner_solvent_map=_PLAN_MAP,
@@ -290,7 +1280,7 @@ def test_maps_on_residual_route_are_not_applicable(monkeypatch):
 
 
 def test_top_k_sequences_is_unknown_extra_not_the_map(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     payload = _data(tea.rank_landscape(
         source="superstructure",
         formulation="sequence",
@@ -302,7 +1292,7 @@ def test_top_k_sequences_is_unknown_extra_not_the_map(monkeypatch):
 
 
 def test_exclude_safety_fail_stays_unknown_extra(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     payload = _data(tea.rank_landscape(
         source="superstructure",
         formulation="sequence",
@@ -314,7 +1304,7 @@ def test_exclude_safety_fail_stays_unknown_extra(monkeypatch):
 
 
 def test_maps_are_optional_schema_args_not_a_35th_name(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     assert "rank_landscape" not in CONSUMERS
     assert len(EXPECTED_REGISTRY_NAMES) == 29
     assert "fetch_solvent_safety_by_cid" in EXPECTED_REGISTRY_NAMES
@@ -342,7 +1332,7 @@ def test_maps_are_optional_schema_args_not_a_35th_name(monkeypatch):
 
 
 def test_dispatch_names_missing_planner_map(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     ranked = dispatch(
         "rank_landscape",
         source="superstructure",
@@ -354,7 +1344,7 @@ def test_dispatch_names_missing_planner_map(monkeypatch):
 
 
 def test_dispatch_of_complete_map_is_the_data_gate(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     ranked = dispatch(
         "rank_landscape",
         source="superstructure",
@@ -371,7 +1361,7 @@ def test_dispatch_of_complete_map_is_the_data_gate(monkeypatch):
 
 
 def test_complete_map_does_not_fill_from_admitted_cache(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
 
     def forbidden_records():
         raise AssertionError("remnant grid must not pair-fill from cache")
@@ -388,7 +1378,7 @@ def test_complete_map_does_not_fill_from_admitted_cache(monkeypatch):
 
 
 def test_campaign_fingerprint_does_not_fill_the_remnant_grid(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     payload = _data(tea.rank_landscape(
         source="superstructure",
         formulation="sequence",
@@ -404,7 +1394,7 @@ def test_campaign_fingerprint_does_not_fill_the_remnant_grid(monkeypatch):
 
 
 def test_wash_train_is_process_model_unavailable(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     wash = _data(tea.rank_landscape(
         source="superstructure",
         formulation="wash_train",
@@ -427,7 +1417,7 @@ def test_wash_train_is_process_model_unavailable(monkeypatch):
 
 
 def test_sequence_solvent_lists_remnant_times_solvent_table(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     coupled = _data(tea.rank_landscape(
         source="superstructure",
         formulation="sequence_solvent",
@@ -453,7 +1443,7 @@ def test_sequence_solvent_lists_remnant_times_solvent_table(monkeypatch):
 
 
 def test_complete_map_does_not_infer_formulation(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     payload = _data(tea.rank_landscape(
         source="superstructure",
         planner_solvent_map=_PLAN_MAP,
@@ -467,7 +1457,7 @@ def test_complete_map_does_not_infer_formulation(monkeypatch):
 
 
 def test_sequence_solvent_does_not_require_the_sequence_map(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     payload = _data(tea.rank_landscape(
         source="superstructure",
         formulation="sequence_solvent",
@@ -486,7 +1476,7 @@ def test_sequence_solvent_does_not_require_the_sequence_map(monkeypatch):
 
 
 def test_sequence_solvent_does_not_fill_from_a_shortlist_kwarg(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     payload = _data(tea.rank_landscape(
         source="superstructure",
         formulation="sequence_solvent",
@@ -498,7 +1488,7 @@ def test_sequence_solvent_does_not_fill_from_a_shortlist_kwarg(monkeypatch):
 
 
 def test_sequence_solvent_empty_table_is_still_incomplete(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     payload = _data(tea.rank_landscape(
         source="superstructure",
         formulation="sequence_solvent",
@@ -511,7 +1501,7 @@ def test_sequence_solvent_empty_table_is_still_incomplete(monkeypatch):
 
 
 def test_sequence_solvent_planner_map_names_cells_not_a_fill(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     payload = _data(tea.rank_landscape(
         source="superstructure",
         formulation="sequence_solvent",
@@ -527,7 +1517,7 @@ def test_sequence_solvent_planner_map_names_cells_not_a_fill(monkeypatch):
 
 
 def test_unknown_formulation_is_invalid(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     payload = _data(tea.rank_landscape(
         source="superstructure",
         formulation="recovery_fraction",
@@ -542,7 +1532,7 @@ def test_unknown_formulation_is_invalid(monkeypatch):
 
 
 def test_casefold_sequence_still_requires_the_map(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     payload = _data(tea.rank_landscape(
         source="superstructure",
         formulation="Sequence",
@@ -552,7 +1542,7 @@ def test_casefold_sequence_still_requires_the_map(monkeypatch):
 
 
 def test_dispatch_names_missing_formulation(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     ranked = dispatch("rank_landscape", source="superstructure")
     assert ranked.get("available") is False
     assert ranked.get("refusal") == "missing_formulation"
@@ -615,7 +1605,7 @@ def _sequence_kwargs(**extra):
 
 
 def test_sequence_feed_expands_d18_remnant_keys(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     payload = _data(tea.rank_landscape(
         source="superstructure",
         formulation="sequence",
@@ -651,7 +1641,7 @@ def test_sequence_feed_expands_d18_remnant_keys(monkeypatch):
 
 
 def test_three_polymer_feed_lists_the_subset_union(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     payload = _data(tea.rank_landscape(
         source="superstructure",
         formulation="sequence",
@@ -673,7 +1663,7 @@ def test_three_polymer_feed_lists_the_subset_union(monkeypatch):
 
 
 def test_d18_keys_follow_the_feed_in_hand(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     payload = _data(tea.rank_landscape(
         source="superstructure",
         formulation="sequence",
@@ -699,7 +1689,7 @@ def test_d18_keys_follow_the_feed_in_hand(monkeypatch):
 
 
 def test_omitted_capacity_does_not_default_twenty_kt(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     payload = _data(tea.rank_landscape(
         source="superstructure",
         formulation="sequence",
@@ -716,7 +1706,7 @@ def test_omitted_capacity_does_not_default_twenty_kt(monkeypatch):
 
 
 def test_process_config_mass_percent_is_not_the_feed(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     payload = _data(tea.rank_landscape(
         source="superstructure",
         formulation="sequence",
@@ -737,7 +1727,7 @@ def test_process_config_mass_percent_is_not_the_feed(monkeypatch):
 
 
 def test_composition_without_map_is_still_missing_planner_map(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     payload = _data(tea.rank_landscape(
         source="superstructure",
         formulation="sequence",
@@ -751,7 +1741,7 @@ def test_composition_without_map_is_still_missing_planner_map(monkeypatch):
 
 
 def test_feed_mass_fractions_on_process_rows_is_not_applicable(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     payload = _data(tea.rank_landscape(
         feed_mass_fractions={"LDPE": 0.55, "EVOH": 0.45},
     ))
@@ -762,7 +1752,7 @@ def test_feed_mass_fractions_on_process_rows_is_not_applicable(monkeypatch):
 
 
 def test_unknown_handle_is_not_an_empty_remnant_table(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     payload = _data(tea.rank_landscape(
         **_sequence_kwargs(handle="not-a-remnant-table"),
     ))
@@ -772,7 +1762,7 @@ def test_unknown_handle_is_not_an_empty_remnant_table(monkeypatch):
 
 
 def test_unknown_handle_does_not_outrank_missing_map(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     payload = _data(tea.rank_landscape(
         source="superstructure",
         formulation="sequence",
@@ -787,7 +1777,7 @@ def test_unknown_handle_does_not_outrank_missing_map(monkeypatch):
 
 def test_omitted_map_inherits_pairs_from_economics_handle(monkeypatch):
     """Handle binds the map; it still does not fill remnant cells."""
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     toluene = tea._public_solvent_token("Toluene")
     dmso = tea._public_solvent_token("DMSO")
     session = new_session()
@@ -812,7 +1802,7 @@ def test_omitted_map_inherits_pairs_from_economics_handle(monkeypatch):
 
 
 def test_omitted_map_complete_handle_is_still_coupling_unproven(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
         handle = _plant_handle(session, _complete_d18_rows())
@@ -827,7 +1817,7 @@ def test_omitted_map_complete_handle_is_still_coupling_unproven(monkeypatch):
 
 
 def test_omitted_map_handle_missing_a_feed_polymer_is_missing_map(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     toluene = tea._public_solvent_token("Toluene")
     session = new_session()
     with bind_tool_session(session):
@@ -845,7 +1835,7 @@ def test_omitted_map_handle_missing_a_feed_polymer_is_missing_map(monkeypatch):
 
 def test_explicit_planner_map_is_not_replaced_by_handle_pairs(monkeypatch):
     """The argument map names solvents; the handle only subtracts matching cells."""
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     toluene = tea._public_solvent_token("Toluene")
     dmso = tea._public_solvent_token("DMSO")
     xylene = tea._public_solvent_token("Xylene")
@@ -873,7 +1863,7 @@ def test_explicit_planner_map_is_not_replaced_by_handle_pairs(monkeypatch):
 
 def test_empty_planner_map_does_not_inherit_from_handle(monkeypatch):
     """Present `{}` is not omitted. Inherit only when the map is absent."""
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     toluene = tea._public_solvent_token("Toluene")
     dmso = tea._public_solvent_token("DMSO")
     session = new_session()
@@ -896,7 +1886,7 @@ def test_empty_planner_map_does_not_inherit_from_handle(monkeypatch):
 
 
 def test_malformed_planner_map_does_not_inherit_from_handle(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     toluene = tea._public_solvent_token("Toluene")
     dmso = tea._public_solvent_token("DMSO")
     session = new_session()
@@ -919,7 +1909,7 @@ def test_malformed_planner_map_does_not_inherit_from_handle(monkeypatch):
 
 
 def test_two_solvents_for_one_polymer_is_not_a_sequence_map(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     toluene = tea._public_solvent_token("Toluene")
     dmso = tea._public_solvent_token("DMSO")
     xylene = tea._public_solvent_token("Xylene")
@@ -939,7 +1929,7 @@ def test_two_solvents_for_one_polymer_is_not_a_sequence_map(monkeypatch):
 
 
 def test_failed_row_does_not_bind_planner_map(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     toluene = tea._public_solvent_token("Toluene")
     dmso = tea._public_solvent_token("DMSO")
     session = new_session()
@@ -957,7 +1947,7 @@ def test_failed_row_does_not_bind_planner_map(monkeypatch):
 
 
 def test_plan_top_k_is_not_scanned_for_the_map(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
         handle = store_handle(
@@ -987,7 +1977,7 @@ def test_plan_top_k_is_not_scanned_for_the_map(monkeypatch):
 
 
 def test_omitted_allowed_solvents_does_not_inherit_from_handle(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     toluene = tea._public_solvent_token("Toluene")
     dmso = tea._public_solvent_token("DMSO")
     session = new_session()
@@ -1008,7 +1998,7 @@ def test_omitted_allowed_solvents_does_not_inherit_from_handle(monkeypatch):
 
 
 def test_first_stage_handle_does_not_fill_remnant_cells(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     toluene = tea._public_solvent_token("Toluene")
     dmso = tea._public_solvent_token("DMSO")
     session = new_session()
@@ -1033,7 +2023,7 @@ def test_first_stage_handle_does_not_fill_remnant_cells(monkeypatch):
 
 
 def test_planted_p2_is_not_a_remnant_hit(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     toluene = tea._public_solvent_token("Toluene")
     dmso = tea._public_solvent_token("DMSO")
     session = new_session()
@@ -1053,7 +2043,7 @@ def test_planted_p2_is_not_a_remnant_hit(monkeypatch):
 
 
 def test_failed_row_is_not_a_coefficient(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     toluene = tea._public_solvent_token("Toluene")
     dmso = tea._public_solvent_token("DMSO")
     session = new_session()
@@ -1072,7 +2062,7 @@ def test_failed_row_is_not_a_coefficient(monkeypatch):
 
 
 def test_complete_sequence_grid_is_d20_primary(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     toluene = tea._public_solvent_token("Toluene")
     dmso = tea._public_solvent_token("DMSO")
     session = new_session()
@@ -1098,7 +2088,7 @@ def test_complete_sequence_grid_is_d20_primary(monkeypatch):
 
 
 def test_complete_grid_without_composition_cannot_match(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     toluene = tea._public_solvent_token("Toluene")
     dmso = tea._public_solvent_token("DMSO")
     session = new_session()
@@ -1128,7 +2118,7 @@ def test_complete_grid_without_composition_cannot_match(monkeypatch):
 
 
 def test_complete_sequence_solvent_is_not_a_ranking(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     toluene = tea._public_solvent_token("Toluene")
     dmso = tea._public_solvent_token("DMSO")
     session = new_session()
@@ -1157,7 +2147,7 @@ def test_complete_sequence_solvent_is_not_a_ranking(monkeypatch):
 
 
 def test_dispatch_of_complete_grid_is_d20_primary(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     toluene = tea._public_solvent_token("Toluene")
     dmso = tea._public_solvent_token("DMSO")
     session = new_session()
@@ -1177,7 +2167,7 @@ def test_dispatch_of_complete_grid_is_d20_primary(monkeypatch):
 
 
 def test_campaign_fingerprint_does_not_complete_or_rank(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     toluene = tea._public_solvent_token("Toluene")
     dmso = tea._public_solvent_token("DMSO")
     session = new_session()
@@ -1202,7 +2192,7 @@ def test_campaign_fingerprint_does_not_complete_or_rank(monkeypatch):
 
 
 def test_solvent_handle_does_not_invent_remnant_matches(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     toluene = tea._public_solvent_token("Toluene")
     dmso = tea._public_solvent_token("DMSO")
     session = new_session()
@@ -1233,7 +2223,7 @@ def test_solvent_handle_does_not_invent_remnant_matches(monkeypatch):
 
 
 def test_d18_keys_do_not_pair_fill_from_cache(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
 
     def forbidden_records():
         raise AssertionError("D-18 listing must not pair-fill from cache")
@@ -1251,7 +2241,7 @@ def test_d18_keys_do_not_pair_fill_from_cache(monkeypatch):
 
 
 def test_sequence_solvent_expands_remnant_times_solvent(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     payload = _data(tea.rank_landscape(
         source="superstructure",
         formulation="sequence_solvent",
@@ -1280,7 +2270,7 @@ def test_sequence_solvent_expands_remnant_times_solvent(monkeypatch):
 
 
 def test_solvent_formulation_does_not_invent_an_order(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     payload = _data(tea.rank_landscape(
         source="superstructure",
         formulation="solvent",
@@ -1299,7 +2289,7 @@ def test_solvent_formulation_does_not_invent_an_order(monkeypatch):
 
 
 def test_dispatch_of_d18_keys_is_still_the_data_gate(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     ranked = dispatch(
         "rank_landscape",
         source="superstructure",
@@ -1318,7 +2308,7 @@ def test_dispatch_of_d18_keys_is_still_the_data_gate(monkeypatch):
 
 
 def test_omitted_energy_case_is_not_a_silent_c1(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     payload = _data(tea.rank_landscape(**_sequence_kwargs()))
     assert payload.get("error_code") == "incomplete_stage_basis_grid"
     for row in payload["missing_keys"]:
@@ -1327,7 +2317,7 @@ def test_omitted_energy_case_is_not_a_silent_c1(monkeypatch):
 
 
 def test_c2_rows_still_complete_when_energy_case_is_omitted(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
         handle = _plant_handle(session, _complete_d18_rows(energy_case="C2"))
@@ -1338,7 +2328,7 @@ def test_c2_rows_still_complete_when_energy_case_is_omitted(monkeypatch):
 
 
 def test_named_c1_slice_does_not_accept_c2_rows(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
         handle = _plant_handle(session, _complete_d18_rows(energy_case="C2"))
@@ -1360,7 +2350,7 @@ def test_named_c1_slice_does_not_accept_c2_rows(monkeypatch):
 
 
 def test_named_c1_slice_completes_on_c1_rows(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
         handle = _plant_handle(session, _complete_d18_rows(energy_case="C1"))
@@ -1377,7 +2367,7 @@ def test_named_c1_slice_completes_on_c1_rows(monkeypatch):
 
 
 def test_named_energy_case_is_listed_without_a_handle(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     payload = _data(tea.rank_landscape(
         **_sequence_kwargs(process_config={**_CAP_20KT, "energy_case": "c2"}),
     ))
@@ -1389,7 +2379,7 @@ def test_named_energy_case_is_listed_without_a_handle(monkeypatch):
 
 
 def test_invalid_energy_case_is_not_a_listing(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     payload = _data(tea.rank_landscape(
         **_sequence_kwargs(process_config={**_CAP_20KT, "energy_case": "C9"}),
     ))
@@ -1443,7 +2433,7 @@ def test_invalid_energy_case_is_not_a_listing(monkeypatch):
     ],
 )
 def test_invalid_does_not_outrank_missing_map(monkeypatch, key, value):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     payload = _data(tea.rank_landscape(
         source="superstructure",
         formulation="sequence",
@@ -1463,7 +2453,7 @@ def test_invalid_does_not_outrank_missing_map(monkeypatch, key, value):
     ],
 )
 def test_omitted(monkeypatch, value):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     payload = _data(tea.rank_landscape(**_sequence_kwargs()))
     assert payload.get("error_code") == "incomplete_stage_basis_grid"
     for row in payload["missing_keys"]:
@@ -1471,7 +2461,7 @@ def test_omitted(monkeypatch, value):
 
 
 def test_planted_t_still_completes_when_dissolution_t_is_omitted(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
         handle = _plant_handle(
@@ -1484,7 +2474,7 @@ def test_planted_t_still_completes_when_dissolution_t_is_omitted(monkeypatch):
 
 
 def test_named_dissolution_t_does_not_accept_another_t(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
         handle = _plant_handle(
@@ -1508,7 +2498,7 @@ def test_named_dissolution_t_does_not_accept_another_t(monkeypatch):
 
 
 def test_named_dissolution_t_completes_on_matching_rows(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
         handle = _plant_handle(
@@ -1602,7 +2592,7 @@ def test_named_dissolution_t_completes_on_matching_rows(monkeypatch):
     ],
 )
 def test_dissolution_temp_c_alias_stamps_the_public_name_cases(monkeypatch, value, value_2, key, value_3):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     payload = _data(tea.rank_landscape(
         **_sequence_kwargs(process_config={**_CAP_20KT, key: value_3}),
     ))
@@ -1613,7 +2603,7 @@ def test_dissolution_temp_c_alias_stamps_the_public_name_cases(monkeypatch, valu
 
 
 def test_c1_at_wrong_t_does_not_fill_named_c1_and_t(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
         handle = _plant_handle(
@@ -1638,7 +2628,7 @@ def test_c1_at_wrong_t_does_not_fill_named_c1_and_t(monkeypatch):
 
 
 def test_dissolution_temperature_c_kwarg_is_unknown_extra(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     payload = _data(tea.rank_landscape(
         **_sequence_kwargs(dissolution_temperature_c=90.0),
     ))
@@ -1688,7 +2678,7 @@ def test_dissolution_temperature_c_kwarg_is_unknown_extra(monkeypatch):
     ],
 )
 def test_nested_does_not_count(monkeypatch, value, key, value_2):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     payload = _data(tea.rank_landscape(
         **_sequence_kwargs(
             process_config={
@@ -1748,7 +2738,7 @@ def test_nested_does_not_count(monkeypatch, value, key, value_2):
     ],
 )
 def test_listing(monkeypatch, key, value):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     payload = _data(tea.rank_landscape(
         **_sequence_kwargs(
             process_config={**_CAP_20KT, key: value},
@@ -1819,7 +2809,7 @@ def test_listing(monkeypatch, key, value):
     ],
 )
 def test_empty_precipitation_t_is_the_omitted_grain_cases(monkeypatch, value, key, value_2):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     payload = _data(tea.rank_landscape(
         **_sequence_kwargs(
             process_config={**_CAP_20KT, key: value_2},
@@ -1831,7 +2821,7 @@ def test_empty_precipitation_t_is_the_omitted_grain_cases(monkeypatch, value, ke
 
 
 def test_planted_t_still_completes_when_precipitation_t_is_omitted(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
         handle = _plant_handle(
@@ -1844,7 +2834,7 @@ def test_planted_t_still_completes_when_precipitation_t_is_omitted(monkeypatch):
 
 
 def test_named_precipitation_t_does_not_accept_another_t(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
         handle = _plant_handle(
@@ -1868,7 +2858,7 @@ def test_named_precipitation_t_does_not_accept_another_t(monkeypatch):
 
 
 def test_named_precipitation_t_completes_on_matching_rows(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
         handle = _plant_handle(
@@ -1895,7 +2885,7 @@ def test_named_precipitation_t_completes_on_matching_rows(monkeypatch):
     ],
 )
 def test_public_wins_over_alias(monkeypatch, value, value_2, key, key_2, value_3, value_4):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     payload = _data(tea.rank_landscape(
         **_sequence_kwargs(
             process_config={
@@ -1943,7 +2933,7 @@ def test_public_wins_over_alias(monkeypatch, value, value_2, key, key_2, value_3
     ],
 )
 def test_dissolution_t_does_not_stamp_precipitation_t_cases(monkeypatch, value, value_2, value_3, key, value_4):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     payload = _data(tea.rank_landscape(
         **_sequence_kwargs(
             process_config={**_CAP_20KT, key: value_4},
@@ -1956,7 +2946,7 @@ def test_dissolution_t_does_not_stamp_precipitation_t_cases(monkeypatch, value, 
 
 
 def test_c1_and_dissolution_t_at_wrong_precip_do_not_fill(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
         handle = _plant_handle(
@@ -1987,7 +2977,7 @@ def test_c1_and_dissolution_t_at_wrong_precip_do_not_fill(monkeypatch):
 
 
 def test_mixed_precip_handle_leaves_the_unmatched_remnant(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     rows = _complete_d18_rows(precipitation_temperature_c=40.0)
     rows[-1]["precipitation_temperature_c"] = 35.0
     session = new_session()
@@ -2016,7 +3006,7 @@ def test_mixed_precip_handle_leaves_the_unmatched_remnant(monkeypatch):
     ],
 )
 def test_alias_only_row_does_not_fill_named(monkeypatch, value, value_2, value_3, value_4, key, value_5):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     rows = _complete_d18_rows()
     for row in rows:
         row[value_2] = value
@@ -2036,7 +3026,7 @@ def test_alias_only_row_does_not_fill_named(monkeypatch, value, value_2, value_3
 
 
 def test_precipitation_temperature_c_kwarg_is_unknown_extra(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     payload = _data(tea.rank_landscape(
         **_sequence_kwargs(precipitation_temperature_c=40.0),
     ))
@@ -2046,7 +3036,7 @@ def test_precipitation_temperature_c_kwarg_is_unknown_extra(monkeypatch):
 
 
 def test_precipitation_temp_c_kwarg_is_unknown_extra(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     payload = _data(tea.rank_landscape(
         **_sequence_kwargs(precipitation_temp_c=40.0),
     ))
@@ -2056,7 +3046,7 @@ def test_precipitation_temp_c_kwarg_is_unknown_extra(monkeypatch):
 
 
 def test_planted_price_still_completes_when_solvent_price_is_omitted(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
         handle = _plant_handle(
@@ -2069,7 +3059,7 @@ def test_planted_price_still_completes_when_solvent_price_is_omitted(monkeypatch
 
 
 def test_named_solvent_price_does_not_accept_another_price(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
         handle = _plant_handle(
@@ -2093,7 +3083,7 @@ def test_named_solvent_price_does_not_accept_another_price(monkeypatch):
 
 
 def test_named_solvent_price_completes_on_matching_rows(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
         handle = _plant_handle(
@@ -2112,7 +3102,7 @@ def test_named_solvent_price_completes_on_matching_rows(monkeypatch):
 
 
 def test_named_slice_at_wrong_price_does_not_fill(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
         handle = _plant_handle(
@@ -2146,7 +3136,7 @@ def test_named_slice_at_wrong_price_does_not_fill(monkeypatch):
 
 
 def test_mixed_price_handle_leaves_the_unmatched_remnant(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     rows = _complete_d18_rows(solvent_price_usd_per_kg=2.0)
     rows[-1]["solvent_price_usd_per_kg"] = 1.5
     session = new_session()
@@ -2167,7 +3157,7 @@ def test_mixed_price_handle_leaves_the_unmatched_remnant(monkeypatch):
 
 
 def test_solvent_price_usd_per_kg_kwarg_is_unknown_extra(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     payload = _data(tea.rank_landscape(
         **_sequence_kwargs(solvent_price_usd_per_kg=2.0),
     ))
@@ -2177,7 +3167,7 @@ def test_solvent_price_usd_per_kg_kwarg_is_unknown_extra(monkeypatch):
 
 
 def test_solvent_price_kwarg_is_unknown_extra(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     payload = _data(tea.rank_landscape(
         **_sequence_kwargs(solvent_price=2.0),
     ))
@@ -2222,7 +3212,7 @@ def test_solvent_price_kwarg_is_unknown_extra(monkeypatch):
     ],
 )
 def test_omitted_2(monkeypatch, value, value_2, value_3):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     payload = _data(tea.rank_landscape(**_sequence_kwargs()))
     assert payload.get("error_code") == "incomplete_stage_basis_grid"
     for row in payload["missing_keys"]:
@@ -2231,7 +3221,7 @@ def test_omitted_2(monkeypatch, value, value_2, value_3):
 
 
 def test_planted_loss_still_completes_when_solvent_loss_is_omitted(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
         handle = _plant_handle(
@@ -2244,7 +3234,7 @@ def test_planted_loss_still_completes_when_solvent_loss_is_omitted(monkeypatch):
 
 
 def test_named_solvent_loss_does_not_accept_another_loss(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
         handle = _plant_handle(
@@ -2268,7 +3258,7 @@ def test_named_solvent_loss_does_not_accept_another_loss(monkeypatch):
 
 
 def test_named_solvent_loss_completes_on_matching_rows(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
         handle = _plant_handle(
@@ -2287,7 +3277,7 @@ def test_named_solvent_loss_completes_on_matching_rows(monkeypatch):
 
 
 def test_named_slice_at_wrong_loss_does_not_fill(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
         handle = _plant_handle(
@@ -2324,7 +3314,7 @@ def test_named_slice_at_wrong_loss_does_not_fill(monkeypatch):
 
 
 def test_mixed_loss_handle_leaves_the_unmatched_remnant(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     rows = _complete_d18_rows(solvent_loss_pct=3.0)
     rows[-1]["solvent_loss_pct"] = 0.5
     session = new_session()
@@ -2381,7 +3371,7 @@ def test_mixed_loss_handle_leaves_the_unmatched_remnant(monkeypatch):
     ],
 )
 def test_rows_without(monkeypatch, value, value_2, key, value_3):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
         handle = _plant_handle(session, _complete_d18_rows())
@@ -2398,7 +3388,7 @@ def test_rows_without(monkeypatch, value, value_2, key, value_3):
 
 
 def test_solvent_loss_pct_kwarg_is_unknown_extra(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     payload = _data(tea.rank_landscape(
         **_sequence_kwargs(solvent_loss_pct=3.0),
     ))
@@ -2415,7 +3405,7 @@ def test_solvent_loss_pct_kwarg_is_unknown_extra(monkeypatch):
     ],
 )
 def test_omitted_3(monkeypatch, feedstock_distance_km):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
         handle = _plant_handle(
@@ -2428,7 +3418,7 @@ def test_omitted_3(monkeypatch, feedstock_distance_km):
 
 
 def test_named_feedstock_distance_does_not_accept_another_distance(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
         handle = _plant_handle(
@@ -2452,7 +3442,7 @@ def test_named_feedstock_distance_does_not_accept_another_distance(monkeypatch):
 
 
 def test_named_zero_does_not_accept_another_distance(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
         handle = _plant_handle(
@@ -2471,7 +3461,7 @@ def test_named_zero_does_not_accept_another_distance(monkeypatch):
 
 
 def test_named_feedstock_distance_completes_on_matching_rows(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
         handle = _plant_handle(
@@ -2490,7 +3480,7 @@ def test_named_feedstock_distance_completes_on_matching_rows(monkeypatch):
 
 
 def test_named_zero_completes_on_matching_zero_rows(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
         handle = _plant_handle(
@@ -2508,7 +3498,7 @@ def test_named_zero_completes_on_matching_zero_rows(monkeypatch):
 
 
 def test_named_slice_at_wrong_distance_does_not_fill(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
         handle = _plant_handle(
@@ -2548,7 +3538,7 @@ def test_named_slice_at_wrong_distance_does_not_fill(monkeypatch):
 
 
 def test_mixed_distance_handle_leaves_the_unmatched_remnant(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     rows = _complete_d18_rows(feedstock_distance_km=250.0)
     rows[-1]["feedstock_distance_km"] = 100.0
     session = new_session()
@@ -2569,7 +3559,7 @@ def test_mixed_distance_handle_leaves_the_unmatched_remnant(monkeypatch):
 
 
 def test_feedstock_distance_km_kwarg_is_unknown_extra(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     payload = _data(tea.rank_landscape(
         **_sequence_kwargs(feedstock_distance_km=250.0),
     ))
@@ -2586,7 +3576,7 @@ def test_feedstock_distance_km_kwarg_is_unknown_extra(monkeypatch):
     ],
 )
 def test_when_omitted(monkeypatch, dissolution_capacity):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
         handle = _plant_handle(
@@ -2599,7 +3589,7 @@ def test_when_omitted(monkeypatch, dissolution_capacity):
 
 
 def test_named_dissolution_capacity_does_not_accept_another_capacity(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
         handle = _plant_handle(
@@ -2623,7 +3613,7 @@ def test_named_dissolution_capacity_does_not_accept_another_capacity(monkeypatch
 
 
 def test_named_default_capacity_does_not_accept_another_capacity(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
         handle = _plant_handle(
@@ -2642,7 +3632,7 @@ def test_named_default_capacity_does_not_accept_another_capacity(monkeypatch):
 
 
 def test_named_dissolution_capacity_completes_on_matching_rows(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
         handle = _plant_handle(
@@ -2661,7 +3651,7 @@ def test_named_dissolution_capacity_completes_on_matching_rows(monkeypatch):
 
 
 def test_named_default_completes_on_matching_default_rows(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
         handle = _plant_handle(
@@ -2679,7 +3669,7 @@ def test_named_default_completes_on_matching_default_rows(monkeypatch):
 
 
 def test_plant_capacity_is_not_dissolution_capacity(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     payload = _data(tea.rank_landscape(**_sequence_kwargs()))
     assert payload.get("error_code") == "incomplete_stage_basis_grid"
     for row in payload["missing_keys"]:
@@ -2688,7 +3678,7 @@ def test_plant_capacity_is_not_dissolution_capacity(monkeypatch):
 
 
 def test_named_slice_at_wrong_dissolution_capacity_does_not_fill(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
         handle = _plant_handle(
@@ -2731,7 +3721,7 @@ def test_named_slice_at_wrong_dissolution_capacity_does_not_fill(monkeypatch):
 
 
 def test_mixed_capacity_handle_leaves_the_unmatched_remnant(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     rows = _complete_d18_rows(dissolution_capacity=5.0)
     rows[-1]["dissolution_capacity"] = 3.0
     session = new_session()
@@ -2752,7 +3742,7 @@ def test_mixed_capacity_handle_leaves_the_unmatched_remnant(monkeypatch):
 
 
 def test_dissolution_capacity_kwarg_is_unknown_extra(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     payload = _data(tea.rank_landscape(
         **_sequence_kwargs(dissolution_capacity=5.0),
     ))
@@ -2769,7 +3759,7 @@ def test_dissolution_capacity_kwarg_is_unknown_extra(monkeypatch):
     ],
 )
 def test_when_omitted_2(monkeypatch, labor_cost_usd_per_employee_yr):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
         handle = _plant_handle(
@@ -2782,7 +3772,7 @@ def test_when_omitted_2(monkeypatch, labor_cost_usd_per_employee_yr):
 
 
 def test_named_labor_does_not_accept_another_labor(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
         handle = _plant_handle(
@@ -2809,7 +3799,7 @@ def test_named_labor_does_not_accept_another_labor(monkeypatch):
 
 
 def test_named_default_labor_does_not_accept_another_labor(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
         handle = _plant_handle(
@@ -2831,7 +3821,7 @@ def test_named_default_labor_does_not_accept_another_labor(monkeypatch):
 
 
 def test_named_labor_completes_on_matching_rows(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
         handle = _plant_handle(
@@ -2853,7 +3843,7 @@ def test_named_labor_completes_on_matching_rows(monkeypatch):
 
 
 def test_named_default_labor_completes_on_matching_default_rows(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
         handle = _plant_handle(
@@ -2874,7 +3864,7 @@ def test_named_default_labor_completes_on_matching_default_rows(monkeypatch):
 
 
 def test_named_slice_at_wrong_labor_does_not_fill(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
         handle = _plant_handle(
@@ -2920,7 +3910,7 @@ def test_named_slice_at_wrong_labor_does_not_fill(monkeypatch):
 
 
 def test_mixed_labor_handle_leaves_the_unmatched_remnant(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     rows = _complete_d18_rows(labor_cost_usd_per_employee_yr=150_000.0)
     rows[-1]["labor_cost_usd_per_employee_yr"] = 120_000.0
     session = new_session()
@@ -2944,7 +3934,7 @@ def test_mixed_labor_handle_leaves_the_unmatched_remnant(monkeypatch):
 
 
 def test_labor_cost_usd_per_employee_yr_kwarg_is_unknown_extra(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     payload = _data(tea.rank_landscape(
         **_sequence_kwargs(labor_cost_usd_per_employee_yr=150_000.0),
     ))
@@ -2954,7 +3944,7 @@ def test_labor_cost_usd_per_employee_yr_kwarg_is_unknown_extra(monkeypatch):
 
 
 def test_labor_cost_kwarg_is_unknown_extra(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     payload = _data(tea.rank_landscape(
         **_sequence_kwargs(labor_cost=150_000.0),
     ))
@@ -2971,7 +3961,7 @@ def test_labor_cost_kwarg_is_unknown_extra(monkeypatch):
     ],
 )
 def test_omitted_leftover_is_not_a_silent_false(monkeypatch, value, value_2):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     payload = _data(tea.rank_landscape(**_sequence_kwargs()))
     assert payload.get("error_code") == "incomplete_stage_basis_grid"
     for row in payload["missing_keys"]:
@@ -2987,7 +3977,7 @@ def test_omitted_leftover_is_not_a_silent_false(monkeypatch, value, value_2):
     ],
 )
 def test_rows_still_complete_when_sell_is_omitted(monkeypatch, sell_leftover_plastic):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
         handle = _plant_handle(
@@ -3000,7 +3990,7 @@ def test_rows_still_complete_when_sell_is_omitted(monkeypatch, sell_leftover_pla
 
 
 def test_named_true_does_not_accept_false_rows(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
         handle = _plant_handle(
@@ -3024,7 +4014,7 @@ def test_named_true_does_not_accept_false_rows(monkeypatch):
 
 
 def test_named_false_does_not_accept_true_rows(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
         handle = _plant_handle(
@@ -3043,7 +4033,7 @@ def test_named_false_does_not_accept_true_rows(monkeypatch):
 
 
 def test_named_true_completes_on_matching_rows(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
         handle = _plant_handle(
@@ -3062,7 +4052,7 @@ def test_named_true_completes_on_matching_rows(monkeypatch):
 
 
 def test_named_false_completes_on_matching_false_rows(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
         handle = _plant_handle(
@@ -3089,7 +4079,7 @@ def test_named_false_completes_on_matching_false_rows(monkeypatch):
     ],
 )
 def test_sell_leftover_does_not_stamp_burn_cases(monkeypatch, value, value_2, key):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     payload = _data(tea.rank_landscape(
         **_sequence_kwargs(
             process_config={**_CAP_20KT, key: True},
@@ -3102,7 +4092,7 @@ def test_sell_leftover_does_not_stamp_burn_cases(monkeypatch, value, value_2, ke
 
 
 def test_named_slice_at_wrong_sell_does_not_fill(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
         handle = _plant_handle(
@@ -3145,7 +4135,7 @@ def test_named_slice_at_wrong_sell_does_not_fill(monkeypatch):
 
 
 def test_mixed_sell_handle_leaves_the_unmatched_remnant(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     rows = _complete_d18_rows(sell_leftover_plastic=True)
     rows[-1]["sell_leftover_plastic"] = False
     session = new_session()
@@ -3166,7 +4156,7 @@ def test_mixed_sell_handle_leaves_the_unmatched_remnant(monkeypatch):
 
 
 def test_sell_leftover_plastic_kwarg_is_unknown_extra(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     payload = _data(tea.rank_landscape(
         **_sequence_kwargs(sell_leftover_plastic=True),
     ))
@@ -3183,7 +4173,7 @@ def test_sell_leftover_plastic_kwarg_is_unknown_extra(monkeypatch):
     ],
 )
 def test_burn_rows_still_complete_when_omitted(monkeypatch, burn_leftover_plastic):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
         handle = _plant_handle(
@@ -3196,7 +4186,7 @@ def test_burn_rows_still_complete_when_omitted(monkeypatch, burn_leftover_plasti
 
 
 def test_named_burn_true_does_not_accept_false_rows(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
         handle = _plant_handle(
@@ -3220,7 +4210,7 @@ def test_named_burn_true_does_not_accept_false_rows(monkeypatch):
 
 
 def test_named_burn_false_does_not_accept_true_rows(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
         handle = _plant_handle(
@@ -3239,7 +4229,7 @@ def test_named_burn_false_does_not_accept_true_rows(monkeypatch):
 
 
 def test_named_burn_true_completes_on_matching_rows(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
         handle = _plant_handle(
@@ -3258,7 +4248,7 @@ def test_named_burn_true_completes_on_matching_rows(monkeypatch):
 
 
 def test_named_burn_false_completes_on_matching_false_rows(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
         handle = _plant_handle(
@@ -3283,7 +4273,7 @@ def test_named_burn_false_completes_on_matching_false_rows(monkeypatch):
     ],
 )
 def test_named(monkeypatch, value, value_2, value_3, key, value_4):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     payload = _data(tea.rank_landscape(
         **_sequence_kwargs(
             process_config={
@@ -3302,7 +4292,7 @@ def test_named(monkeypatch, value, value_2, value_3, key, value_4):
 
 
 def test_named_slice_at_wrong_burn_does_not_fill(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
         handle = _plant_handle(
@@ -3346,7 +4336,7 @@ def test_named_slice_at_wrong_burn_does_not_fill(monkeypatch):
 
 
 def test_mixed_burn_handle_leaves_the_unmatched_remnant(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     rows = _complete_d18_rows(burn_leftover_plastic=True)
     rows[-1]["burn_leftover_plastic"] = False
     session = new_session()
@@ -3367,7 +4357,7 @@ def test_mixed_burn_handle_leaves_the_unmatched_remnant(monkeypatch):
 
 
 def test_burn_leftover_plastic_kwarg_is_unknown_extra(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     payload = _data(tea.rank_landscape(
         **_sequence_kwargs(burn_leftover_plastic=True),
     ))
@@ -3384,7 +4374,7 @@ def test_burn_leftover_plastic_kwarg_is_unknown_extra(monkeypatch):
     ],
 )
 def test_format_rows_still_complete_when_omitted(monkeypatch, precipitation_temperature_format):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
         handle = _plant_handle(
@@ -3398,7 +4388,7 @@ def test_format_rows_still_complete_when_omitted(monkeypatch, precipitation_temp
 
 
 def test_named_drop_does_not_accept_constant_rows(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
         handle = _plant_handle(
@@ -3426,7 +4416,7 @@ def test_named_drop_does_not_accept_constant_rows(monkeypatch):
 
 
 def test_named_constant_does_not_accept_drop_rows(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
         handle = _plant_handle(
@@ -3451,7 +4441,7 @@ def test_named_constant_does_not_accept_drop_rows(monkeypatch):
 
 
 def test_named_drop_completes_on_matching_rows(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
         handle = _plant_handle(
@@ -3474,7 +4464,7 @@ def test_named_drop_completes_on_matching_rows(monkeypatch):
 
 
 def test_named_constant_completes_on_matching_constant_rows(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
         handle = _plant_handle(
@@ -3507,7 +4497,7 @@ def test_named_constant_completes_on_matching_constant_rows(monkeypatch):
     ],
 )
 def test_precipitation_format_does_not_stamp_configuration_cases(monkeypatch, value, value_2, value_3, value_4, key, value_5):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     payload = _data(tea.rank_landscape(
         **_sequence_kwargs(
             process_config={
@@ -3531,7 +4521,7 @@ def test_precipitation_format_does_not_stamp_configuration_cases(monkeypatch, va
     ],
 )
 def test_named_2(monkeypatch, value, value_2, value_3, key, value_4):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     payload = _data(tea.rank_landscape(
         **_sequence_kwargs(
             process_config={
@@ -3548,7 +4538,7 @@ def test_named_2(monkeypatch, value, value_2, value_3, key, value_4):
 
 
 def test_named_slice_at_wrong_format_does_not_fill(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
         handle = _plant_handle(
@@ -3594,7 +4584,7 @@ def test_named_slice_at_wrong_format_does_not_fill(monkeypatch):
 
 
 def test_mixed_format_handle_leaves_the_unmatched_remnant(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     rows = _complete_d18_rows(precipitation_temperature_format="drop")
     rows[-1]["precipitation_temperature_format"] = "constant"
     session = new_session()
@@ -3618,7 +4608,7 @@ def test_mixed_format_handle_leaves_the_unmatched_remnant(monkeypatch):
 
 
 def test_precipitation_temperature_format_kwarg_is_unknown_extra(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     payload = _data(tea.rank_landscape(
         **_sequence_kwargs(precipitation_temperature_format="drop"),
     ))
@@ -3659,7 +4649,7 @@ def test_precipitation_temperature_format_kwarg_is_unknown_extra(monkeypatch):
     ],
 )
 def test_listing_2(monkeypatch, value, key, value_2):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     payload = _data(tea.rank_landscape(
         **_sequence_kwargs(
             process_config={
@@ -3674,11 +4664,13 @@ def test_listing_2(monkeypatch, value, key, value_2):
 
 
 _IHT = "integrated heat transfer"
+
+
 _MIX = "solvent mixing"
 
 
 def test_omitted_precipitation_configuration_is_not_a_silent_integrated(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     payload = _data(tea.rank_landscape(**_sequence_kwargs()))
     assert payload.get("error_code") == "incomplete_stage_basis_grid"
     for row in payload["missing_keys"]:
@@ -3687,7 +4679,7 @@ def test_omitted_precipitation_configuration_is_not_a_silent_integrated(monkeypa
 
 
 def test_integrated_config_rows_still_complete_when_omitted(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
         handle = _plant_handle(
@@ -3700,7 +4692,7 @@ def test_integrated_config_rows_still_complete_when_omitted(monkeypatch):
 
 
 def test_mixing_config_rows_still_complete_when_omitted(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
         handle = _plant_handle(
@@ -3713,7 +4705,7 @@ def test_mixing_config_rows_still_complete_when_omitted(monkeypatch):
 
 
 def test_named_mixing_does_not_accept_integrated_rows(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
         handle = _plant_handle(
@@ -3737,7 +4729,7 @@ def test_named_mixing_does_not_accept_integrated_rows(monkeypatch):
 
 
 def test_named_integrated_does_not_accept_mixing_rows(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
         handle = _plant_handle(
@@ -3756,7 +4748,7 @@ def test_named_integrated_does_not_accept_mixing_rows(monkeypatch):
 
 
 def test_named_mixing_completes_on_matching_rows(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
         handle = _plant_handle(
@@ -3775,7 +4767,7 @@ def test_named_mixing_completes_on_matching_rows(monkeypatch):
 
 
 def test_named_integrated_is_holdable(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     payload = _data(tea.rank_landscape(
         **_sequence_kwargs(
             process_config={**_CAP_20KT, "precipitation_configuration": _IHT},
@@ -3788,7 +4780,7 @@ def test_named_integrated_is_holdable(monkeypatch):
 
 
 def test_named_integrated_completes_on_matching_integrated_rows(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
         handle = _plant_handle(
@@ -3806,7 +4798,7 @@ def test_named_integrated_completes_on_matching_integrated_rows(monkeypatch):
 
 
 def test_precipitation_configuration_does_not_stamp_irr(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     payload = _data(tea.rank_landscape(
         **_sequence_kwargs(
             process_config={**_CAP_20KT, "precipitation_configuration": _MIX},
@@ -3819,7 +4811,7 @@ def test_precipitation_configuration_does_not_stamp_irr(monkeypatch):
 
 
 def test_named_slice_at_wrong_configuration_does_not_fill(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
         handle = _plant_handle(
@@ -3867,7 +4859,7 @@ def test_named_slice_at_wrong_configuration_does_not_fill(monkeypatch):
 
 
 def test_mixed_configuration_handle_leaves_the_unmatched_remnant(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     rows = _complete_d18_rows(precipitation_configuration=_MIX)
     rows[-1]["precipitation_configuration"] = _IHT
     session = new_session()
@@ -3888,7 +4880,7 @@ def test_mixed_configuration_handle_leaves_the_unmatched_remnant(monkeypatch):
 
 
 def test_rows_without_configuration_do_not_fill_named_mixing(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
         handle = _plant_handle(session, _complete_d18_rows())
@@ -3905,7 +4897,7 @@ def test_rows_without_configuration_do_not_fill_named_mixing(monkeypatch):
 
 
 def test_precipitation_configuration_kwarg_is_unknown_extra(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     payload = _data(tea.rank_landscape(
         **_sequence_kwargs(precipitation_configuration=_MIX),
     ))
@@ -3915,7 +4907,7 @@ def test_precipitation_configuration_kwarg_is_unknown_extra(monkeypatch):
 
 
 def test_nested_precipitation_configuration_does_not_count(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     payload = _data(tea.rank_landscape(
         **_sequence_kwargs(
             process_config={
@@ -3937,7 +4929,7 @@ def test_nested_precipitation_configuration_does_not_count(monkeypatch):
     ],
 )
 def test_irr_rows_still_complete_when_omitted(monkeypatch, irr):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
         handle = _plant_handle(session, _complete_d18_rows(irr=irr))
@@ -3948,7 +4940,7 @@ def test_irr_rows_still_complete_when_omitted(monkeypatch, irr):
 
 
 def test_named_irr_does_not_accept_default_rows(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
         handle = _plant_handle(session, _complete_d18_rows(irr=0.10))
@@ -3970,7 +4962,7 @@ def test_named_irr_does_not_accept_default_rows(monkeypatch):
 
 
 def test_named_default_irr_does_not_accept_other_rows(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
         handle = _plant_handle(session, _complete_d18_rows(irr=0.12))
@@ -3987,7 +4979,7 @@ def test_named_default_irr_does_not_accept_other_rows(monkeypatch):
 
 
 def test_named_irr_completes_on_matching_rows(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
         handle = _plant_handle(session, _complete_d18_rows(irr=0.12))
@@ -4004,7 +4996,7 @@ def test_named_irr_completes_on_matching_rows(monkeypatch):
 
 
 def test_named_default_irr_completes_on_matching_default_rows(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
         handle = _plant_handle(session, _complete_d18_rows(irr=0.10))
@@ -4020,7 +5012,7 @@ def test_named_default_irr_completes_on_matching_default_rows(monkeypatch):
 
 
 def test_precipitation_configuration_does_not_stamp_irr_on_this_slice(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     payload = _data(tea.rank_landscape(
         **_sequence_kwargs(
             process_config={**_CAP_20KT, "precipitation_configuration": _MIX},
@@ -4033,7 +5025,7 @@ def test_precipitation_configuration_does_not_stamp_irr_on_this_slice(monkeypatc
 
 
 def test_named_slice_at_wrong_irr_does_not_fill(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
         handle = _plant_handle(
@@ -4083,7 +5075,7 @@ def test_named_slice_at_wrong_irr_does_not_fill(monkeypatch):
 
 
 def test_mixed_irr_handle_leaves_the_unmatched_remnant(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     rows = _complete_d18_rows(irr=0.12)
     rows[-1]["irr"] = 0.10
     session = new_session()
@@ -4104,7 +5096,7 @@ def test_mixed_irr_handle_leaves_the_unmatched_remnant(monkeypatch):
 
 
 def test_irr_kwarg_is_unknown_extra(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     payload = _data(tea.rank_landscape(**_sequence_kwargs(irr=0.12)))
     assert payload.get("error_code") == "unknown_process_field"
     assert payload.get("extra_keys") == ["irr"]
@@ -4119,7 +5111,7 @@ def test_irr_kwarg_is_unknown_extra(monkeypatch):
     ],
 )
 def test_income_tax_rows_still_complete_when_omitted(monkeypatch, income_tax):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
         handle = _plant_handle(session, _complete_d18_rows(income_tax=income_tax))
@@ -4130,7 +5122,7 @@ def test_income_tax_rows_still_complete_when_omitted(monkeypatch, income_tax):
 
 
 def test_named_income_tax_does_not_accept_default_rows(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
         handle = _plant_handle(session, _complete_d18_rows(income_tax=0.21))
@@ -4152,7 +5144,7 @@ def test_named_income_tax_does_not_accept_default_rows(monkeypatch):
 
 
 def test_named_default_income_tax_does_not_accept_other_rows(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
         handle = _plant_handle(session, _complete_d18_rows(income_tax=0.25))
@@ -4169,7 +5161,7 @@ def test_named_default_income_tax_does_not_accept_other_rows(monkeypatch):
 
 
 def test_named_income_tax_completes_on_matching_rows(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
         handle = _plant_handle(session, _complete_d18_rows(income_tax=0.25))
@@ -4186,7 +5178,7 @@ def test_named_income_tax_completes_on_matching_rows(monkeypatch):
 
 
 def test_named_default_income_tax_completes_on_matching_default_rows(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
         handle = _plant_handle(session, _complete_d18_rows(income_tax=0.21))
@@ -4202,7 +5194,7 @@ def test_named_default_income_tax_completes_on_matching_default_rows(monkeypatch
 
 
 def test_named_slice_at_wrong_income_tax_does_not_fill(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
         handle = _plant_handle(
@@ -4254,7 +5246,7 @@ def test_named_slice_at_wrong_income_tax_does_not_fill(monkeypatch):
 
 
 def test_mixed_income_tax_handle_leaves_the_unmatched_remnant(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     rows = _complete_d18_rows(income_tax=0.25)
     rows[-1]["income_tax"] = 0.21
     session = new_session()
@@ -4275,7 +5267,7 @@ def test_mixed_income_tax_handle_leaves_the_unmatched_remnant(monkeypatch):
 
 
 def test_income_tax_kwarg_is_unknown_extra(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     payload = _data(tea.rank_landscape(**_sequence_kwargs(income_tax=0.25)))
     assert payload.get("error_code") == "unknown_process_field"
     assert payload.get("extra_keys") == ["income_tax"]
@@ -4306,7 +5298,7 @@ def test_income_tax_kwarg_is_unknown_extra(monkeypatch):
     ],
 )
 def test_negative_is_not_a_remnant_listing(monkeypatch, key, value):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     payload = _data(tea.rank_landscape(
         **_sequence_kwargs(process_config={**_CAP_20KT, key: -value}),
     ))
@@ -4322,7 +5314,7 @@ def test_negative_is_not_a_remnant_listing(monkeypatch, key, value):
     ],
 )
 def test_operating_days_rows_still_complete_when_omitted(monkeypatch, operating_days):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
         handle = _plant_handle(session, _complete_d18_rows(operating_days=operating_days))
@@ -4333,7 +5325,7 @@ def test_operating_days_rows_still_complete_when_omitted(monkeypatch, operating_
 
 
 def test_named_operating_days_does_not_accept_default_rows(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
         handle = _plant_handle(session, _complete_d18_rows(operating_days=350.4))
@@ -4355,7 +5347,7 @@ def test_named_operating_days_does_not_accept_default_rows(monkeypatch):
 
 
 def test_named_default_operating_days_does_not_accept_other_rows(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
         handle = _plant_handle(session, _complete_d18_rows(operating_days=365.0))
@@ -4372,7 +5364,7 @@ def test_named_default_operating_days_does_not_accept_other_rows(monkeypatch):
 
 
 def test_named_operating_days_completes_on_matching_rows(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
         handle = _plant_handle(session, _complete_d18_rows(operating_days=365.0))
@@ -4391,7 +5383,7 @@ def test_named_operating_days_completes_on_matching_rows(monkeypatch):
 def test_named_default_operating_days_completes_on_matching_default_rows(
     monkeypatch,
 ):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
         handle = _plant_handle(session, _complete_d18_rows(operating_days=350.4))
@@ -4407,7 +5399,7 @@ def test_named_default_operating_days_completes_on_matching_default_rows(
 
 
 def test_named_slice_at_wrong_operating_days_does_not_fill(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
         handle = _plant_handle(
@@ -4461,7 +5453,7 @@ def test_named_slice_at_wrong_operating_days_does_not_fill(monkeypatch):
 
 
 def test_mixed_operating_days_handle_leaves_the_unmatched_remnant(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     rows = _complete_d18_rows(operating_days=365.0)
     rows[-1]["operating_days"] = 350.4
     session = new_session()
@@ -4482,7 +5474,7 @@ def test_mixed_operating_days_handle_leaves_the_unmatched_remnant(monkeypatch):
 
 
 def test_operating_days_kwarg_is_unknown_extra(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     payload = _data(tea.rank_landscape(**_sequence_kwargs(operating_days=365)))
     assert payload.get("error_code") == "unknown_process_field"
     assert payload.get("extra_keys") == ["operating_days"]
@@ -4497,7 +5489,7 @@ def test_operating_days_kwarg_is_unknown_extra(monkeypatch):
     ],
 )
 def test_labor_burden_rows_still_complete_when_omitted(monkeypatch, labor_burden):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
         handle = _plant_handle(session, _complete_d18_rows(labor_burden=labor_burden))
@@ -4508,7 +5500,7 @@ def test_labor_burden_rows_still_complete_when_omitted(monkeypatch, labor_burden
 
 
 def test_named_labor_burden_does_not_accept_default_rows(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
         handle = _plant_handle(session, _complete_d18_rows(labor_burden=0.90))
@@ -4530,7 +5522,7 @@ def test_named_labor_burden_does_not_accept_default_rows(monkeypatch):
 
 
 def test_named_default_labor_burden_does_not_accept_other_rows(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
         handle = _plant_handle(session, _complete_d18_rows(labor_burden=1.5))
@@ -4547,7 +5539,7 @@ def test_named_default_labor_burden_does_not_accept_other_rows(monkeypatch):
 
 
 def test_named_labor_burden_completes_on_matching_rows(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
         handle = _plant_handle(session, _complete_d18_rows(labor_burden=1.5))
@@ -4566,7 +5558,7 @@ def test_named_labor_burden_completes_on_matching_rows(monkeypatch):
 def test_named_default_labor_burden_completes_on_matching_default_rows(
     monkeypatch,
 ):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
         handle = _plant_handle(session, _complete_d18_rows(labor_burden=0.90))
@@ -4582,7 +5574,7 @@ def test_named_default_labor_burden_completes_on_matching_default_rows(
 
 
 def test_named_slice_at_wrong_labor_burden_does_not_fill(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
         handle = _plant_handle(
@@ -4638,7 +5630,7 @@ def test_named_slice_at_wrong_labor_burden_does_not_fill(monkeypatch):
 
 
 def test_mixed_labor_burden_handle_leaves_the_unmatched_remnant(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     rows = _complete_d18_rows(labor_burden=1.5)
     rows[-1]["labor_burden"] = 0.90
     session = new_session()
@@ -4659,7 +5651,7 @@ def test_mixed_labor_burden_handle_leaves_the_unmatched_remnant(monkeypatch):
 
 
 def test_labor_burden_kwarg_is_unknown_extra(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     payload = _data(tea.rank_landscape(**_sequence_kwargs(labor_burden=1.5)))
     assert payload.get("error_code") == "unknown_process_field"
     assert payload.get("extra_keys") == ["labor_burden"]
@@ -4674,7 +5666,7 @@ def test_labor_burden_kwarg_is_unknown_extra(monkeypatch):
     ],
 )
 def test_negative_is_not_a_remnant_listing_2(monkeypatch, key, value):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     payload = _data(tea.rank_landscape(
         **_sequence_kwargs(process_config={**_CAP_20KT, key: -value}),
     ))
@@ -4691,7 +5683,7 @@ def test_negative_is_not_a_remnant_listing_2(monkeypatch, key, value):
     ],
 )
 def test_finance_interest_rows_still_complete_when_omitted(monkeypatch, finance_interest):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
         handle = _plant_handle(
@@ -4704,7 +5696,7 @@ def test_finance_interest_rows_still_complete_when_omitted(monkeypatch, finance_
 
 
 def test_named_finance_interest_does_not_accept_default_rows(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
         handle = _plant_handle(
@@ -4728,7 +5720,7 @@ def test_named_finance_interest_does_not_accept_default_rows(monkeypatch):
 
 
 def test_named_default_finance_interest_does_not_accept_other_rows(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
         handle = _plant_handle(
@@ -4747,7 +5739,7 @@ def test_named_default_finance_interest_does_not_accept_other_rows(monkeypatch):
 
 
 def test_named_finance_interest_completes_on_matching_rows(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
         handle = _plant_handle(
@@ -4768,7 +5760,7 @@ def test_named_finance_interest_completes_on_matching_rows(monkeypatch):
 def test_named_default_finance_interest_completes_on_matching_default_rows(
     monkeypatch,
 ):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
         handle = _plant_handle(
@@ -4807,7 +5799,7 @@ def test_named_default_finance_interest_completes_on_matching_default_rows(
     ],
 )
 def test_finance_interest_does_not_stamp_finance_years_or_irr_cases(monkeypatch, value, value_2, value_3, value_4, value_5, key, value_6):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     payload = _data(tea.rank_landscape(
         **_sequence_kwargs(
             process_config={**_CAP_20KT, key: value_6},
@@ -4822,7 +5814,7 @@ def test_finance_interest_does_not_stamp_finance_years_or_irr_cases(monkeypatch,
 
 
 def test_named_slice_at_wrong_finance_interest_does_not_fill(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
         handle = _plant_handle(
@@ -4880,7 +5872,7 @@ def test_named_slice_at_wrong_finance_interest_does_not_fill(monkeypatch):
 
 
 def test_mixed_finance_interest_handle_leaves_the_unmatched_remnant(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     rows = _complete_d18_rows(finance_interest=0.12)
     rows[-1]["finance_interest"] = 0.08
     session = new_session()
@@ -4901,7 +5893,7 @@ def test_mixed_finance_interest_handle_leaves_the_unmatched_remnant(monkeypatch)
 
 
 def test_finance_interest_kwarg_is_unknown_extra(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     payload = _data(tea.rank_landscape(
         **_sequence_kwargs(finance_interest=0.12),
     ))
@@ -4918,7 +5910,7 @@ def test_finance_interest_kwarg_is_unknown_extra(monkeypatch):
     ],
 )
 def test_finance_years_rows_still_complete_when_omitted(monkeypatch, finance_years):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
         handle = _plant_handle(session, _complete_d18_rows(finance_years=finance_years))
@@ -4929,7 +5921,7 @@ def test_finance_years_rows_still_complete_when_omitted(monkeypatch, finance_yea
 
 
 def test_named_finance_years_does_not_accept_default_rows(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
         handle = _plant_handle(session, _complete_d18_rows(finance_years=10))
@@ -4951,7 +5943,7 @@ def test_named_finance_years_does_not_accept_default_rows(monkeypatch):
 
 
 def test_named_default_finance_years_does_not_accept_other_rows(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
         handle = _plant_handle(session, _complete_d18_rows(finance_years=15))
@@ -4968,7 +5960,7 @@ def test_named_default_finance_years_does_not_accept_other_rows(monkeypatch):
 
 
 def test_named_finance_years_completes_on_matching_rows(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
         handle = _plant_handle(session, _complete_d18_rows(finance_years=15))
@@ -4987,7 +5979,7 @@ def test_named_finance_years_completes_on_matching_rows(monkeypatch):
 def test_named_default_finance_years_completes_on_matching_default_rows(
     monkeypatch,
 ):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
         handle = _plant_handle(session, _complete_d18_rows(finance_years=10))
@@ -5003,7 +5995,7 @@ def test_named_default_finance_years_completes_on_matching_default_rows(
 
 
 def test_named_slice_at_wrong_finance_years_does_not_fill(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
         handle = _plant_handle(
@@ -5063,7 +6055,7 @@ def test_named_slice_at_wrong_finance_years_does_not_fill(monkeypatch):
 
 
 def test_mixed_finance_years_handle_leaves_the_unmatched_remnant(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     rows = _complete_d18_rows(finance_years=15)
     rows[-1]["finance_years"] = 10
     session = new_session()
@@ -5084,7 +6076,7 @@ def test_mixed_finance_years_handle_leaves_the_unmatched_remnant(monkeypatch):
 
 
 def test_finance_years_kwarg_is_unknown_extra(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     payload = _data(tea.rank_landscape(**_sequence_kwargs(finance_years=15)))
     assert payload.get("error_code") == "unknown_process_field"
     assert payload.get("extra_keys") == ["finance_years"]
@@ -5099,7 +6091,7 @@ def test_finance_years_kwarg_is_unknown_extra(monkeypatch):
     ],
 )
 def test_finance_fraction_rows_still_complete_when_omitted(monkeypatch, finance_fraction):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
         handle = _plant_handle(
@@ -5112,7 +6104,7 @@ def test_finance_fraction_rows_still_complete_when_omitted(monkeypatch, finance_
 
 
 def test_named_finance_fraction_does_not_accept_default_rows(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
         handle = _plant_handle(
@@ -5136,7 +6128,7 @@ def test_named_finance_fraction_does_not_accept_default_rows(monkeypatch):
 
 
 def test_named_default_finance_fraction_does_not_accept_other_rows(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
         handle = _plant_handle(
@@ -5155,7 +6147,7 @@ def test_named_default_finance_fraction_does_not_accept_other_rows(monkeypatch):
 
 
 def test_named_finance_fraction_completes_on_matching_rows(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
         handle = _plant_handle(
@@ -5176,7 +6168,7 @@ def test_named_finance_fraction_completes_on_matching_rows(monkeypatch):
 def test_named_default_finance_fraction_completes_on_matching_default_rows(
     monkeypatch,
 ):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
         handle = _plant_handle(
@@ -5194,7 +6186,7 @@ def test_named_default_finance_fraction_completes_on_matching_default_rows(
 
 
 def test_named_slice_at_wrong_finance_fraction_does_not_fill(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
         handle = _plant_handle(
@@ -5258,7 +6250,7 @@ def test_named_slice_at_wrong_finance_fraction_does_not_fill(monkeypatch):
 def test_mixed_finance_fraction_handle_leaves_the_unmatched_remnant(
     monkeypatch,
 ):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     rows = _complete_d18_rows(finance_fraction=0.4)
     rows[-1]["finance_fraction"] = 0.0
     session = new_session()
@@ -5279,7 +6271,7 @@ def test_mixed_finance_fraction_handle_leaves_the_unmatched_remnant(
 
 
 def test_finance_fraction_kwarg_is_unknown_extra(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     payload = _data(tea.rank_landscape(
         **_sequence_kwargs(finance_fraction=0.4),
     ))
@@ -5296,7 +6288,7 @@ def test_finance_fraction_kwarg_is_unknown_extra(monkeypatch):
     ],
 )
 def test_startup_months_rows_still_complete_when_omitted(monkeypatch, startup_months):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
         handle = _plant_handle(
@@ -5309,7 +6301,7 @@ def test_startup_months_rows_still_complete_when_omitted(monkeypatch, startup_mo
 
 
 def test_named_startup_months_does_not_accept_default_rows(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
         handle = _plant_handle(
@@ -5333,7 +6325,7 @@ def test_named_startup_months_does_not_accept_default_rows(monkeypatch):
 
 
 def test_named_default_startup_months_does_not_accept_other_rows(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
         handle = _plant_handle(
@@ -5352,7 +6344,7 @@ def test_named_default_startup_months_does_not_accept_other_rows(monkeypatch):
 
 
 def test_named_startup_months_completes_on_matching_rows(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
         handle = _plant_handle(
@@ -5373,7 +6365,7 @@ def test_named_startup_months_completes_on_matching_rows(monkeypatch):
 def test_named_default_startup_months_completes_on_matching_default_rows(
     monkeypatch,
 ):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
         handle = _plant_handle(
@@ -5391,7 +6383,7 @@ def test_named_default_startup_months_completes_on_matching_default_rows(
 
 
 def test_named_slice_at_wrong_startup_months_does_not_fill(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
         handle = _plant_handle(
@@ -5455,7 +6447,7 @@ def test_named_slice_at_wrong_startup_months_does_not_fill(monkeypatch):
 
 
 def test_mixed_startup_months_handle_leaves_the_unmatched_remnant(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     rows = _complete_d18_rows(startup_months=6)
     rows[-1]["startup_months"] = 3
     session = new_session()
@@ -5476,7 +6468,7 @@ def test_mixed_startup_months_handle_leaves_the_unmatched_remnant(monkeypatch):
 
 
 def test_startup_months_kwarg_is_unknown_extra(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     payload = _data(tea.rank_landscape(
         **_sequence_kwargs(startup_months=6),
     ))
@@ -5493,7 +6485,7 @@ def test_startup_months_kwarg_is_unknown_extra(monkeypatch):
     ],
 )
 def test_startup_FOCfrac_rows_still_complete_when_omitted(monkeypatch, startup_FOCfrac):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
         handle = _plant_handle(
@@ -5506,7 +6498,7 @@ def test_startup_FOCfrac_rows_still_complete_when_omitted(monkeypatch, startup_F
 
 
 def test_named_startup_FOCfrac_does_not_accept_default_rows(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
         handle = _plant_handle(
@@ -5530,7 +6522,7 @@ def test_named_startup_FOCfrac_does_not_accept_default_rows(monkeypatch):
 
 
 def test_named_default_startup_FOCfrac_does_not_accept_other_rows(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
         handle = _plant_handle(
@@ -5549,7 +6541,7 @@ def test_named_default_startup_FOCfrac_does_not_accept_other_rows(monkeypatch):
 
 
 def test_named_startup_FOCfrac_completes_on_matching_rows(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
         handle = _plant_handle(
@@ -5570,7 +6562,7 @@ def test_named_startup_FOCfrac_completes_on_matching_rows(monkeypatch):
 def test_named_default_startup_FOCfrac_completes_on_matching_default_rows(
     monkeypatch,
 ):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
         handle = _plant_handle(
@@ -5588,7 +6580,7 @@ def test_named_default_startup_FOCfrac_completes_on_matching_default_rows(
 
 
 def test_named_slice_at_wrong_startup_FOCfrac_does_not_fill(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
         handle = _plant_handle(
@@ -5654,7 +6646,7 @@ def test_named_slice_at_wrong_startup_FOCfrac_does_not_fill(monkeypatch):
 
 
 def test_mixed_startup_FOCfrac_handle_leaves_the_unmatched_remnant(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     rows = _complete_d18_rows(startup_FOCfrac=0.5)
     rows[-1]["startup_FOCfrac"] = 1.0
     session = new_session()
@@ -5675,7 +6667,7 @@ def test_mixed_startup_FOCfrac_handle_leaves_the_unmatched_remnant(monkeypatch):
 
 
 def test_startup_FOCfrac_kwarg_is_unknown_extra(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     payload = _data(tea.rank_landscape(
         **_sequence_kwargs(startup_FOCfrac=0.5),
     ))
@@ -5692,7 +6684,7 @@ def test_startup_FOCfrac_kwarg_is_unknown_extra(monkeypatch):
     ],
 )
 def test_startup_VOCfrac_rows_still_complete_when_omitted(monkeypatch, startup_VOCfrac):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
         handle = _plant_handle(
@@ -5705,7 +6697,7 @@ def test_startup_VOCfrac_rows_still_complete_when_omitted(monkeypatch, startup_V
 
 
 def test_named_startup_VOCfrac_does_not_accept_default_rows(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
         handle = _plant_handle(
@@ -5729,7 +6721,7 @@ def test_named_startup_VOCfrac_does_not_accept_default_rows(monkeypatch):
 
 
 def test_named_default_startup_VOCfrac_does_not_accept_other_rows(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
         handle = _plant_handle(
@@ -5748,7 +6740,7 @@ def test_named_default_startup_VOCfrac_does_not_accept_other_rows(monkeypatch):
 
 
 def test_named_startup_VOCfrac_completes_on_matching_rows(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
         handle = _plant_handle(
@@ -5769,7 +6761,7 @@ def test_named_startup_VOCfrac_completes_on_matching_rows(monkeypatch):
 def test_named_default_startup_VOCfrac_completes_on_matching_default_rows(
     monkeypatch,
 ):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
         handle = _plant_handle(
@@ -5787,7 +6779,7 @@ def test_named_default_startup_VOCfrac_completes_on_matching_default_rows(
 
 
 def test_named_slice_at_wrong_startup_VOCfrac_does_not_fill(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
         handle = _plant_handle(
@@ -5855,7 +6847,7 @@ def test_named_slice_at_wrong_startup_VOCfrac_does_not_fill(monkeypatch):
 
 
 def test_mixed_startup_VOCfrac_handle_leaves_the_unmatched_remnant(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     rows = _complete_d18_rows(startup_VOCfrac=0.5)
     rows[-1]["startup_VOCfrac"] = 0.75
     session = new_session()
@@ -5876,7 +6868,7 @@ def test_mixed_startup_VOCfrac_handle_leaves_the_unmatched_remnant(monkeypatch):
 
 
 def test_startup_VOCfrac_kwarg_is_unknown_extra(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     payload = _data(tea.rank_landscape(
         **_sequence_kwargs(startup_VOCfrac=0.5),
     ))
@@ -5893,7 +6885,7 @@ def test_startup_VOCfrac_kwarg_is_unknown_extra(monkeypatch):
     ],
 )
 def test_startup_salesfrac_rows_still_complete_when_omitted(monkeypatch, startup_salesfrac):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
         handle = _plant_handle(
@@ -5906,7 +6898,7 @@ def test_startup_salesfrac_rows_still_complete_when_omitted(monkeypatch, startup
 
 
 def test_named_startup_salesfrac_does_not_accept_default_rows(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
         handle = _plant_handle(
@@ -5932,7 +6924,7 @@ def test_named_startup_salesfrac_does_not_accept_default_rows(monkeypatch):
 def test_named_default_startup_salesfrac_does_not_accept_other_rows(
     monkeypatch,
 ):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
         handle = _plant_handle(
@@ -5951,7 +6943,7 @@ def test_named_default_startup_salesfrac_does_not_accept_other_rows(
 
 
 def test_named_startup_salesfrac_completes_on_matching_rows(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
         handle = _plant_handle(
@@ -5972,7 +6964,7 @@ def test_named_startup_salesfrac_completes_on_matching_rows(monkeypatch):
 def test_named_default_startup_salesfrac_completes_on_matching_default_rows(
     monkeypatch,
 ):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
         handle = _plant_handle(
@@ -5990,7 +6982,7 @@ def test_named_default_startup_salesfrac_completes_on_matching_default_rows(
 
 
 def test_named_slice_at_wrong_startup_salesfrac_does_not_fill(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
         handle = _plant_handle(
@@ -6062,7 +7054,7 @@ def test_named_slice_at_wrong_startup_salesfrac_does_not_fill(monkeypatch):
 def test_mixed_startup_salesfrac_handle_leaves_the_unmatched_remnant(
     monkeypatch,
 ):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     rows = _complete_d18_rows(startup_salesfrac=0.25)
     rows[-1]["startup_salesfrac"] = 0.5
     session = new_session()
@@ -6083,7 +7075,7 @@ def test_mixed_startup_salesfrac_handle_leaves_the_unmatched_remnant(
 
 
 def test_startup_salesfrac_kwarg_is_unknown_extra(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     payload = _data(tea.rank_landscape(
         **_sequence_kwargs(startup_salesfrac=0.25),
     ))
@@ -6100,7 +7092,7 @@ def test_startup_salesfrac_kwarg_is_unknown_extra(monkeypatch):
     ],
 )
 def test_WC_over_FCI_rows_still_complete_when_omitted(monkeypatch, WC_over_FCI):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
         handle = _plant_handle(
@@ -6113,7 +7105,7 @@ def test_WC_over_FCI_rows_still_complete_when_omitted(monkeypatch, WC_over_FCI):
 
 
 def test_named_WC_over_FCI_does_not_accept_default_rows(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
         handle = _plant_handle(
@@ -6137,7 +7129,7 @@ def test_named_WC_over_FCI_does_not_accept_default_rows(monkeypatch):
 
 
 def test_named_default_WC_over_FCI_does_not_accept_other_rows(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
         handle = _plant_handle(
@@ -6156,7 +7148,7 @@ def test_named_default_WC_over_FCI_does_not_accept_other_rows(monkeypatch):
 
 
 def test_named_WC_over_FCI_completes_on_matching_rows(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
         handle = _plant_handle(
@@ -6177,7 +7169,7 @@ def test_named_WC_over_FCI_completes_on_matching_rows(monkeypatch):
 def test_named_default_WC_over_FCI_completes_on_matching_default_rows(
     monkeypatch,
 ):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
         handle = _plant_handle(
@@ -6195,7 +7187,7 @@ def test_named_default_WC_over_FCI_completes_on_matching_default_rows(
 
 
 def test_named_slice_at_wrong_WC_over_FCI_does_not_fill(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
         handle = _plant_handle(
@@ -6267,7 +7259,7 @@ def test_named_slice_at_wrong_WC_over_FCI_does_not_fill(monkeypatch):
 
 
 def test_mixed_WC_over_FCI_handle_leaves_the_unmatched_remnant(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     rows = _complete_d18_rows(WC_over_FCI=0.10)
     rows[-1]["WC_over_FCI"] = 0.05
     session = new_session()
@@ -6288,7 +7280,7 @@ def test_mixed_WC_over_FCI_handle_leaves_the_unmatched_remnant(monkeypatch):
 
 
 def test_WC_over_FCI_kwarg_is_unknown_extra(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     payload = _data(tea.rank_landscape(
         **_sequence_kwargs(WC_over_FCI=0.10),
     ))
@@ -6305,7 +7297,7 @@ def test_WC_over_FCI_kwarg_is_unknown_extra(monkeypatch):
     ],
 )
 def test_warehouse_rows_still_complete_when_omitted(monkeypatch, warehouse):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
         handle = _plant_handle(
@@ -6318,7 +7310,7 @@ def test_warehouse_rows_still_complete_when_omitted(monkeypatch, warehouse):
 
 
 def test_named_warehouse_does_not_accept_default_rows(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
         handle = _plant_handle(
@@ -6342,7 +7334,7 @@ def test_named_warehouse_does_not_accept_default_rows(monkeypatch):
 
 
 def test_named_default_warehouse_does_not_accept_other_rows(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
         handle = _plant_handle(
@@ -6361,7 +7353,7 @@ def test_named_default_warehouse_does_not_accept_other_rows(monkeypatch):
 
 
 def test_named_warehouse_completes_on_matching_rows(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
         handle = _plant_handle(
@@ -6382,7 +7374,7 @@ def test_named_warehouse_completes_on_matching_rows(monkeypatch):
 def test_named_default_warehouse_completes_on_matching_default_rows(
     monkeypatch,
 ):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
         handle = _plant_handle(
@@ -6400,7 +7392,7 @@ def test_named_default_warehouse_completes_on_matching_default_rows(
 
 
 def test_named_slice_at_wrong_warehouse_does_not_fill(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
         handle = _plant_handle(
@@ -6474,7 +7466,7 @@ def test_named_slice_at_wrong_warehouse_does_not_fill(monkeypatch):
 
 
 def test_mixed_warehouse_handle_leaves_the_unmatched_remnant(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     rows = _complete_d18_rows(warehouse=0.10)
     rows[-1]["warehouse"] = 0.04
     session = new_session()
@@ -6495,7 +7487,7 @@ def test_mixed_warehouse_handle_leaves_the_unmatched_remnant(monkeypatch):
 
 
 def test_warehouse_kwarg_is_unknown_extra(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     payload = _data(tea.rank_landscape(
         **_sequence_kwargs(warehouse=0.10),
     ))
@@ -6512,7 +7504,7 @@ def test_warehouse_kwarg_is_unknown_extra(monkeypatch):
     ],
 )
 def test_site_development_rows_still_complete_when_omitted(monkeypatch, site_development):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
         handle = _plant_handle(
@@ -6525,7 +7517,7 @@ def test_site_development_rows_still_complete_when_omitted(monkeypatch, site_dev
 
 
 def test_named_site_development_does_not_accept_default_rows(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
         handle = _plant_handle(
@@ -6549,7 +7541,7 @@ def test_named_site_development_does_not_accept_default_rows(monkeypatch):
 
 
 def test_named_default_site_development_does_not_accept_other_rows(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
         handle = _plant_handle(
@@ -6568,7 +7560,7 @@ def test_named_default_site_development_does_not_accept_other_rows(monkeypatch):
 
 
 def test_named_site_development_completes_on_matching_rows(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
         handle = _plant_handle(
@@ -6589,7 +7581,7 @@ def test_named_site_development_completes_on_matching_rows(monkeypatch):
 def test_named_default_site_development_completes_on_matching_default_rows(
     monkeypatch,
 ):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
         handle = _plant_handle(
@@ -6607,7 +7599,7 @@ def test_named_default_site_development_completes_on_matching_default_rows(
 
 
 def test_named_slice_at_wrong_site_development_does_not_fill(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
         handle = _plant_handle(
@@ -6685,7 +7677,7 @@ def test_named_slice_at_wrong_site_development_does_not_fill(monkeypatch):
 def test_mixed_site_development_handle_leaves_the_unmatched_remnant(
     monkeypatch,
 ):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     rows = _complete_d18_rows(site_development=0.10)
     rows[-1]["site_development"] = 0.09
     session = new_session()
@@ -6706,7 +7698,7 @@ def test_mixed_site_development_handle_leaves_the_unmatched_remnant(
 
 
 def test_site_development_kwarg_is_unknown_extra(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     payload = _data(tea.rank_landscape(
         **_sequence_kwargs(site_development=0.10),
     ))
@@ -6723,7 +7715,7 @@ def test_site_development_kwarg_is_unknown_extra(monkeypatch):
     ],
 )
 def test_additional_piping_rows_still_complete_when_omitted(monkeypatch, additional_piping):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
         handle = _plant_handle(
@@ -6736,7 +7728,7 @@ def test_additional_piping_rows_still_complete_when_omitted(monkeypatch, additio
 
 
 def test_named_additional_piping_does_not_accept_default_rows(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
         handle = _plant_handle(
@@ -6762,7 +7754,7 @@ def test_named_additional_piping_does_not_accept_default_rows(monkeypatch):
 def test_named_default_additional_piping_does_not_accept_other_rows(
     monkeypatch,
 ):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
         handle = _plant_handle(
@@ -6781,7 +7773,7 @@ def test_named_default_additional_piping_does_not_accept_other_rows(
 
 
 def test_named_additional_piping_completes_on_matching_rows(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
         handle = _plant_handle(
@@ -6802,7 +7794,7 @@ def test_named_additional_piping_completes_on_matching_rows(monkeypatch):
 def test_named_default_additional_piping_completes_on_matching_default_rows(
     monkeypatch,
 ):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
         handle = _plant_handle(
@@ -6820,7 +7812,7 @@ def test_named_default_additional_piping_completes_on_matching_default_rows(
 
 
 def test_named_slice_at_wrong_additional_piping_does_not_fill(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
         handle = _plant_handle(
@@ -6900,7 +7892,7 @@ def test_named_slice_at_wrong_additional_piping_does_not_fill(monkeypatch):
 def test_mixed_additional_piping_handle_leaves_the_unmatched_remnant(
     monkeypatch,
 ):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     rows = _complete_d18_rows(additional_piping=0.10)
     rows[-1]["additional_piping"] = 0.045
     session = new_session()
@@ -6921,7 +7913,7 @@ def test_mixed_additional_piping_handle_leaves_the_unmatched_remnant(
 
 
 def test_additional_piping_kwarg_is_unknown_extra(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     payload = _data(tea.rank_landscape(
         **_sequence_kwargs(additional_piping=0.10),
     ))
@@ -6938,7 +7930,7 @@ def test_additional_piping_kwarg_is_unknown_extra(monkeypatch):
     ],
 )
 def test_proratable_costs_rows_still_complete_when_omitted(monkeypatch, proratable_costs):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
         handle = _plant_handle(
@@ -6951,7 +7943,7 @@ def test_proratable_costs_rows_still_complete_when_omitted(monkeypatch, proratab
 
 
 def test_named_proratable_costs_does_not_accept_default_rows(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
         handle = _plant_handle(
@@ -6975,7 +7967,7 @@ def test_named_proratable_costs_does_not_accept_default_rows(monkeypatch):
 
 
 def test_named_default_proratable_costs_does_not_accept_other_rows(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
         handle = _plant_handle(
@@ -6994,7 +7986,7 @@ def test_named_default_proratable_costs_does_not_accept_other_rows(monkeypatch):
 
 
 def test_named_proratable_costs_completes_on_matching_rows(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
         handle = _plant_handle(
@@ -7015,7 +8007,7 @@ def test_named_proratable_costs_completes_on_matching_rows(monkeypatch):
 def test_named_default_proratable_costs_completes_on_matching_default_rows(
     monkeypatch,
 ):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
         handle = _plant_handle(
@@ -7033,7 +8025,7 @@ def test_named_default_proratable_costs_completes_on_matching_default_rows(
 
 
 def test_named_slice_at_wrong_proratable_costs_does_not_fill(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
         handle = _plant_handle(
@@ -7115,7 +8107,7 @@ def test_named_slice_at_wrong_proratable_costs_does_not_fill(monkeypatch):
 def test_mixed_proratable_costs_handle_leaves_the_unmatched_remnant(
     monkeypatch,
 ):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     rows = _complete_d18_rows(proratable_costs=0.20)
     rows[-1]["proratable_costs"] = 0.10
     session = new_session()
@@ -7136,7 +8128,7 @@ def test_mixed_proratable_costs_handle_leaves_the_unmatched_remnant(
 
 
 def test_proratable_costs_kwarg_is_unknown_extra(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     payload = _data(tea.rank_landscape(
         **_sequence_kwargs(proratable_costs=0.20),
     ))
@@ -7153,7 +8145,7 @@ def test_proratable_costs_kwarg_is_unknown_extra(monkeypatch):
     ],
 )
 def test_field_expenses_rows_still_complete_when_omitted(monkeypatch, field_expenses):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
         handle = _plant_handle(
@@ -7166,7 +8158,7 @@ def test_field_expenses_rows_still_complete_when_omitted(monkeypatch, field_expe
 
 
 def test_named_field_expenses_does_not_accept_default_rows(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
         handle = _plant_handle(
@@ -7190,7 +8182,7 @@ def test_named_field_expenses_does_not_accept_default_rows(monkeypatch):
 
 
 def test_named_default_field_expenses_does_not_accept_other_rows(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
         handle = _plant_handle(
@@ -7209,7 +8201,7 @@ def test_named_default_field_expenses_does_not_accept_other_rows(monkeypatch):
 
 
 def test_named_field_expenses_completes_on_matching_rows(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
         handle = _plant_handle(
@@ -7230,7 +8222,7 @@ def test_named_field_expenses_completes_on_matching_rows(monkeypatch):
 def test_named_default_field_expenses_completes_on_matching_default_rows(
     monkeypatch,
 ):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
         handle = _plant_handle(
@@ -7248,7 +8240,7 @@ def test_named_default_field_expenses_completes_on_matching_default_rows(
 
 
 def test_named_slice_at_wrong_field_expenses_does_not_fill(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
         handle = _plant_handle(
@@ -7330,7 +8322,7 @@ def test_named_slice_at_wrong_field_expenses_does_not_fill(monkeypatch):
 
 
 def test_mixed_field_expenses_handle_leaves_the_unmatched_remnant(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     rows = _complete_d18_rows(field_expenses=0.20)
     rows[-1]["field_expenses"] = 0.10
     session = new_session()
@@ -7351,7 +8343,7 @@ def test_mixed_field_expenses_handle_leaves_the_unmatched_remnant(monkeypatch):
 
 
 def test_field_expenses_kwarg_is_unknown_extra(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     payload = _data(tea.rank_landscape(
         **_sequence_kwargs(field_expenses=0.20),
     ))
@@ -7368,7 +8360,7 @@ def test_field_expenses_kwarg_is_unknown_extra(monkeypatch):
     ],
 )
 def test_construction_rows_still_complete_when_omitted(monkeypatch, construction):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
         handle = _plant_handle(
@@ -7381,7 +8373,7 @@ def test_construction_rows_still_complete_when_omitted(monkeypatch, construction
 
 
 def test_named_construction_does_not_accept_default_rows(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
         handle = _plant_handle(
@@ -7405,7 +8397,7 @@ def test_named_construction_does_not_accept_default_rows(monkeypatch):
 
 
 def test_named_default_construction_does_not_accept_other_rows(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
         handle = _plant_handle(
@@ -7424,7 +8416,7 @@ def test_named_default_construction_does_not_accept_other_rows(monkeypatch):
 
 
 def test_named_construction_completes_on_matching_rows(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
         handle = _plant_handle(
@@ -7445,7 +8437,7 @@ def test_named_construction_completes_on_matching_rows(monkeypatch):
 def test_named_default_construction_completes_on_matching_default_rows(
     monkeypatch,
 ):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
         handle = _plant_handle(
@@ -7463,7 +8455,7 @@ def test_named_default_construction_completes_on_matching_default_rows(
 
 
 def test_named_slice_at_wrong_construction_does_not_fill(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
         handle = _plant_handle(
@@ -7547,7 +8539,7 @@ def test_named_slice_at_wrong_construction_does_not_fill(monkeypatch):
 
 
 def test_mixed_construction_handle_leaves_the_unmatched_remnant(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     rows = _complete_d18_rows(construction=0.10)
     rows[-1]["construction"] = 0.20
     session = new_session()
@@ -7568,7 +8560,7 @@ def test_mixed_construction_handle_leaves_the_unmatched_remnant(monkeypatch):
 
 
 def test_construction_kwarg_is_unknown_extra(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     payload = _data(tea.rank_landscape(
         **_sequence_kwargs(construction=0.10),
     ))
@@ -7585,7 +8577,7 @@ def test_construction_kwarg_is_unknown_extra(monkeypatch):
     ],
 )
 def test_contingency_rows_still_complete_when_omitted(monkeypatch, contingency):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
         handle = _plant_handle(
@@ -7598,7 +8590,7 @@ def test_contingency_rows_still_complete_when_omitted(monkeypatch, contingency):
 
 
 def test_named_contingency_does_not_accept_default_rows(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
         handle = _plant_handle(
@@ -7622,7 +8614,7 @@ def test_named_contingency_does_not_accept_default_rows(monkeypatch):
 
 
 def test_named_default_contingency_does_not_accept_other_rows(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
         handle = _plant_handle(
@@ -7641,7 +8633,7 @@ def test_named_default_contingency_does_not_accept_other_rows(monkeypatch):
 
 
 def test_named_contingency_completes_on_matching_rows(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
         handle = _plant_handle(
@@ -7662,7 +8654,7 @@ def test_named_contingency_completes_on_matching_rows(monkeypatch):
 def test_named_default_contingency_completes_on_matching_default_rows(
     monkeypatch,
 ):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
         handle = _plant_handle(
@@ -7680,7 +8672,7 @@ def test_named_default_contingency_completes_on_matching_default_rows(
 
 
 def test_named_slice_at_wrong_contingency_does_not_fill(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
         handle = _plant_handle(
@@ -7766,7 +8758,7 @@ def test_named_slice_at_wrong_contingency_does_not_fill(monkeypatch):
 
 
 def test_mixed_contingency_handle_leaves_the_unmatched_remnant(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     rows = _complete_d18_rows(contingency=0.10)
     rows[-1]["contingency"] = 0.4
     session = new_session()
@@ -7787,7 +8779,7 @@ def test_mixed_contingency_handle_leaves_the_unmatched_remnant(monkeypatch):
 
 
 def test_contingency_kwarg_is_unknown_extra(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     payload = _data(tea.rank_landscape(
         **_sequence_kwargs(contingency=0.10),
     ))
@@ -7804,7 +8796,7 @@ def test_contingency_kwarg_is_unknown_extra(monkeypatch):
     ],
 )
 def test_other_indirect_costs_rows_still_complete_when_omitted(monkeypatch, other_indirect_costs):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
         handle = _plant_handle(
@@ -7817,7 +8809,7 @@ def test_other_indirect_costs_rows_still_complete_when_omitted(monkeypatch, othe
 
 
 def test_named_other_indirect_costs_does_not_accept_default_rows(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
         handle = _plant_handle(
@@ -7843,7 +8835,7 @@ def test_named_other_indirect_costs_does_not_accept_default_rows(monkeypatch):
 def test_named_default_other_indirect_costs_does_not_accept_other_rows(
     monkeypatch,
 ):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
         handle = _plant_handle(
@@ -7862,7 +8854,7 @@ def test_named_default_other_indirect_costs_does_not_accept_other_rows(
 
 
 def test_named_other_indirect_costs_completes_on_matching_rows(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
         handle = _plant_handle(
@@ -7883,7 +8875,7 @@ def test_named_other_indirect_costs_completes_on_matching_rows(monkeypatch):
 def test_named_default_other_indirect_costs_completes_on_matching_default_rows(
     monkeypatch,
 ):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
         handle = _plant_handle(
@@ -7901,7 +8893,7 @@ def test_named_default_other_indirect_costs_completes_on_matching_default_rows(
 
 
 def test_named_slice_at_wrong_other_indirect_costs_does_not_fill(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
         handle = _plant_handle(
@@ -7991,7 +8983,7 @@ def test_named_slice_at_wrong_other_indirect_costs_does_not_fill(monkeypatch):
 def test_mixed_other_indirect_costs_handle_leaves_the_unmatched_remnant(
     monkeypatch,
 ):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     rows = _complete_d18_rows(other_indirect_costs=0.20)
     rows[-1]["other_indirect_costs"] = 0.10
     session = new_session()
@@ -8012,7 +9004,7 @@ def test_mixed_other_indirect_costs_handle_leaves_the_unmatched_remnant(
 
 
 def test_other_indirect_costs_kwarg_is_unknown_extra(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     payload = _data(tea.rank_landscape(
         **_sequence_kwargs(other_indirect_costs=0.20),
     ))
@@ -8029,7 +9021,7 @@ def test_other_indirect_costs_kwarg_is_unknown_extra(monkeypatch):
     ],
 )
 def test_property_insurance_rows_still_complete_when_omitted(monkeypatch, property_insurance):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
         handle = _plant_handle(
@@ -8042,7 +9034,7 @@ def test_property_insurance_rows_still_complete_when_omitted(monkeypatch, proper
 
 
 def test_named_property_insurance_does_not_accept_default_rows(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
         handle = _plant_handle(
@@ -8068,7 +9060,7 @@ def test_named_property_insurance_does_not_accept_default_rows(monkeypatch):
 def test_named_default_property_insurance_does_not_accept_other_rows(
     monkeypatch,
 ):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
         handle = _plant_handle(
@@ -8087,7 +9079,7 @@ def test_named_default_property_insurance_does_not_accept_other_rows(
 
 
 def test_named_property_insurance_completes_on_matching_rows(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
         handle = _plant_handle(
@@ -8108,7 +9100,7 @@ def test_named_property_insurance_completes_on_matching_rows(monkeypatch):
 def test_named_default_property_insurance_completes_on_matching_default_rows(
     monkeypatch,
 ):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
         handle = _plant_handle(
@@ -8126,7 +9118,7 @@ def test_named_default_property_insurance_completes_on_matching_default_rows(
 
 
 def test_named_slice_at_wrong_property_insurance_does_not_fill(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
         handle = _plant_handle(
@@ -8218,7 +9210,7 @@ def test_named_slice_at_wrong_property_insurance_does_not_fill(monkeypatch):
 def test_mixed_property_insurance_handle_leaves_the_unmatched_remnant(
     monkeypatch,
 ):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     rows = _complete_d18_rows(property_insurance=0.10)
     rows[-1]["property_insurance"] = 0.007
     session = new_session()
@@ -8239,7 +9231,7 @@ def test_mixed_property_insurance_handle_leaves_the_unmatched_remnant(
 
 
 def test_property_insurance_kwarg_is_unknown_extra(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     payload = _data(tea.rank_landscape(
         **_sequence_kwargs(property_insurance=0.10),
     ))
@@ -8256,7 +9248,7 @@ def test_property_insurance_kwarg_is_unknown_extra(monkeypatch):
     ],
 )
 def test_maintenance_rows_still_complete_when_omitted(monkeypatch, maintenance):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
         handle = _plant_handle(
@@ -8269,7 +9261,7 @@ def test_maintenance_rows_still_complete_when_omitted(monkeypatch, maintenance):
 
 
 def test_named_maintenance_does_not_accept_default_rows(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
         handle = _plant_handle(
@@ -8293,7 +9285,7 @@ def test_named_maintenance_does_not_accept_default_rows(monkeypatch):
 
 
 def test_named_default_maintenance_does_not_accept_other_rows(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
         handle = _plant_handle(
@@ -8312,7 +9304,7 @@ def test_named_default_maintenance_does_not_accept_other_rows(monkeypatch):
 
 
 def test_named_maintenance_completes_on_matching_rows(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
         handle = _plant_handle(
@@ -8333,7 +9325,7 @@ def test_named_maintenance_completes_on_matching_rows(monkeypatch):
 def test_named_default_maintenance_completes_on_matching_default_rows(
     monkeypatch,
 ):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
         handle = _plant_handle(
@@ -8351,7 +9343,7 @@ def test_named_default_maintenance_completes_on_matching_default_rows(
 
 
 def test_named_slice_at_wrong_maintenance_does_not_fill(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
         handle = _plant_handle(
@@ -8443,7 +9435,7 @@ def test_named_slice_at_wrong_maintenance_does_not_fill(monkeypatch):
 
 
 def test_mixed_maintenance_handle_leaves_the_unmatched_remnant(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     rows = _complete_d18_rows(maintenance=0.10)
     rows[-1]["maintenance"] = 0.03
     session = new_session()
@@ -8464,7 +9456,7 @@ def test_mixed_maintenance_handle_leaves_the_unmatched_remnant(monkeypatch):
 
 
 def test_maintenance_kwarg_is_unknown_extra(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     payload = _data(tea.rank_landscape(
         **_sequence_kwargs(maintenance=0.10),
     ))
@@ -8481,7 +9473,7 @@ def test_maintenance_kwarg_is_unknown_extra(monkeypatch):
     ],
 )
 def test_depreciation_rows_still_complete_when_omitted(monkeypatch, depreciation):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
         handle = _plant_handle(
@@ -8494,7 +9486,7 @@ def test_depreciation_rows_still_complete_when_omitted(monkeypatch, depreciation
 
 
 def test_named_depreciation_does_not_accept_default_rows(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
         handle = _plant_handle(
@@ -8518,7 +9510,7 @@ def test_named_depreciation_does_not_accept_default_rows(monkeypatch):
 
 
 def test_named_default_depreciation_does_not_accept_other_rows(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
         handle = _plant_handle(
@@ -8537,7 +9529,7 @@ def test_named_default_depreciation_does_not_accept_other_rows(monkeypatch):
 
 
 def test_named_depreciation_completes_on_matching_rows(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
         handle = _plant_handle(
@@ -8558,7 +9550,7 @@ def test_named_depreciation_completes_on_matching_rows(monkeypatch):
 def test_named_default_depreciation_completes_on_matching_default_rows(
     monkeypatch,
 ):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
         handle = _plant_handle(
@@ -8583,7 +9575,7 @@ def test_named_default_depreciation_completes_on_matching_default_rows(
     ],
 )
 def test_does_not_stamp_unbound_g_fields(monkeypatch, value, value_2, value_3, value_4, value_5, key, value_6):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     payload = _data(tea.rank_landscape(
         **_sequence_kwargs(
             process_config={**_CAP_20KT, key: value_6},
@@ -8599,7 +9591,7 @@ def test_does_not_stamp_unbound_g_fields(monkeypatch, value, value_2, value_3, v
 
 
 def test_mixed_depreciation_handle_leaves_the_unmatched_remnant(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     rows = _complete_d18_rows(depreciation="MACRS5")
     rows[-1]["depreciation"] = "MACRS7"
     session = new_session()
@@ -8620,7 +9612,7 @@ def test_mixed_depreciation_handle_leaves_the_unmatched_remnant(monkeypatch):
 
 
 def test_depreciation_kwarg_is_unknown_extra(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     payload = _data(tea.rank_landscape(
         **_sequence_kwargs(depreciation="MACRS5"),
     ))
@@ -8630,7 +9622,7 @@ def test_depreciation_kwarg_is_unknown_extra(monkeypatch):
 
 
 def test_array_depreciation_is_not_a_remnant_listing(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     payload = _data(tea.rank_landscape(
         **_sequence_kwargs(
             process_config={**_CAP_20KT, "depreciation": ["MACRS7"]},
@@ -8641,7 +9633,7 @@ def test_array_depreciation_is_not_a_remnant_listing(monkeypatch):
 
 
 def test_omitted_duration_is_not_a_silent_default(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     payload = _data(tea.rank_landscape(**_sequence_kwargs()))
     assert payload.get("error_code") == "incomplete_stage_basis_grid"
     for row in payload["missing_keys"]:
@@ -8651,7 +9643,7 @@ def test_omitted_duration_is_not_a_silent_default(monkeypatch):
 
 
 def test_default_duration_rows_still_complete_when_omitted(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
         handle = _plant_handle(
@@ -8664,7 +9656,7 @@ def test_default_duration_rows_still_complete_when_omitted(monkeypatch):
 
 
 def test_named_duration_does_not_accept_default_rows(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
         handle = _plant_handle(
@@ -8688,7 +9680,7 @@ def test_named_duration_does_not_accept_default_rows(monkeypatch):
 
 
 def test_named_default_duration_does_not_accept_other_rows(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
         handle = _plant_handle(
@@ -8707,7 +9699,7 @@ def test_named_default_duration_does_not_accept_other_rows(monkeypatch):
 
 
 def test_named_duration_completes_on_matching_rows(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
         handle = _plant_handle(
@@ -8726,7 +9718,7 @@ def test_named_duration_completes_on_matching_rows(monkeypatch):
 
 
 def test_named_default_duration_is_holdable(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     payload = _data(tea.rank_landscape(
         **_sequence_kwargs(
             process_config={**_CAP_20KT, "duration": [2025, 2055]},
@@ -8739,7 +9731,7 @@ def test_named_default_duration_is_holdable(monkeypatch):
 
 
 def test_named_default_duration_completes_on_matching_default_rows(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
         handle = _plant_handle(
@@ -8764,7 +9756,7 @@ def test_named_default_duration_completes_on_matching_default_rows(monkeypatch):
     ],
 )
 def test_does_not_stamp_unbound_g_fields_2(monkeypatch, value, value_2, value_3, value_4, key, value_5, value_6):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     payload = _data(tea.rank_landscape(
         **_sequence_kwargs(
             process_config={**_CAP_20KT, key: [value_5, value_6]},
@@ -8780,7 +9772,7 @@ def test_does_not_stamp_unbound_g_fields_2(monkeypatch, value, value_2, value_3,
 
 
 def test_mixed_duration_handle_leaves_the_unmatched_remnant(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     rows = _complete_d18_rows(duration=(2025, 2045))
     rows[-1]["duration"] = (2025, 2055)
     session = new_session()
@@ -8808,7 +9800,7 @@ def test_mixed_duration_handle_leaves_the_unmatched_remnant(monkeypatch):
     ],
 )
 def test_rows_without_2(monkeypatch, value, value_2, value_3, key, value_4, value_5):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
         handle = _plant_handle(session, _complete_d18_rows())
@@ -8825,7 +9817,7 @@ def test_rows_without_2(monkeypatch, value, value_2, value_3, key, value_4, valu
 
 
 def test_duration_kwarg_is_unknown_extra(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     payload = _data(tea.rank_landscape(
         **_sequence_kwargs(duration=[2025, 2045]),
     ))
@@ -8842,7 +9834,7 @@ def test_duration_kwarg_is_unknown_extra(monkeypatch):
     ],
 )
 def test_nested_does_not_count_2(monkeypatch, value, key, value_2, value_3):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     payload = _data(tea.rank_landscape(
         **_sequence_kwargs(
             process_config={**_CAP_20KT, "held": {key: [value_2, value_3]}},
@@ -8854,7 +9846,7 @@ def test_nested_does_not_count_2(monkeypatch, value, key, value_2, value_3):
 
 
 def test_inverted_duration_is_not_a_listing(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     payload = _data(tea.rank_landscape(
         **_sequence_kwargs(
             process_config={**_CAP_20KT, "duration": [2055, 2025]},
@@ -8865,7 +9857,7 @@ def test_inverted_duration_is_not_a_listing(monkeypatch):
 
 
 def test_omitted_construction_schedule_is_not_a_silent_default(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     payload = _data(tea.rank_landscape(**_sequence_kwargs()))
     assert payload.get("error_code") == "incomplete_stage_basis_grid"
     for row in payload["missing_keys"]:
@@ -8875,7 +9867,7 @@ def test_omitted_construction_schedule_is_not_a_silent_default(monkeypatch):
 
 
 def test_default_construction_schedule_rows_still_complete_when_omitted(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
         handle = _plant_handle(
@@ -8888,7 +9880,7 @@ def test_default_construction_schedule_rows_still_complete_when_omitted(monkeypa
 
 
 def test_named_construction_schedule_does_not_accept_default_rows(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
         handle = _plant_handle(
@@ -8912,7 +9904,7 @@ def test_named_construction_schedule_does_not_accept_default_rows(monkeypatch):
 
 
 def test_named_default_construction_schedule_does_not_accept_other_rows(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
         handle = _plant_handle(
@@ -8936,7 +9928,7 @@ def test_named_default_construction_schedule_does_not_accept_other_rows(monkeypa
 
 
 def test_named_construction_schedule_completes_on_matching_rows(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
         handle = _plant_handle(
@@ -8955,7 +9947,7 @@ def test_named_construction_schedule_completes_on_matching_rows(monkeypatch):
 
 
 def test_named_default_construction_schedule_is_holdable(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     payload = _data(tea.rank_landscape(
         **_sequence_kwargs(
             process_config={
@@ -8975,7 +9967,7 @@ def test_named_default_construction_schedule_is_holdable(monkeypatch):
 def test_named_default_construction_schedule_completes_on_matching_default_rows(
     monkeypatch,
 ):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
         handle = _plant_handle(
@@ -8998,7 +9990,7 @@ def test_named_default_construction_schedule_completes_on_matching_default_rows(
 def test_mixed_construction_schedule_handle_leaves_the_unmatched_remnant(
     monkeypatch,
 ):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     rows = _complete_d18_rows(construction_schedule=(0.5, 0.5))
     rows[-1]["construction_schedule"] = (0.08, 0.60, 0.32)
     session = new_session()
@@ -9019,7 +10011,7 @@ def test_mixed_construction_schedule_handle_leaves_the_unmatched_remnant(
 
 
 def test_construction_schedule_kwarg_is_unknown_extra(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     payload = _data(tea.rank_landscape(
         **_sequence_kwargs(construction_schedule=[0.5, 0.5]),
     ))
@@ -9029,7 +10021,7 @@ def test_construction_schedule_kwarg_is_unknown_extra(monkeypatch):
 
 
 def test_default_steam_power_rows_still_complete_when_omitted(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
         handle = _plant_handle(
@@ -9042,7 +10034,7 @@ def test_default_steam_power_rows_still_complete_when_omitted(monkeypatch):
 
 
 def test_named_steam_power_does_not_accept_default_rows(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
         handle = _plant_handle(
@@ -9066,7 +10058,7 @@ def test_named_steam_power_does_not_accept_default_rows(monkeypatch):
 
 
 def test_named_default_steam_power_does_not_accept_other_rows(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
         handle = _plant_handle(
@@ -9087,7 +10079,7 @@ def test_named_default_steam_power_does_not_accept_other_rows(monkeypatch):
 
 
 def test_named_steam_power_completes_on_matching_rows(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
         handle = _plant_handle(
@@ -9106,7 +10098,7 @@ def test_named_steam_power_completes_on_matching_rows(monkeypatch):
 
 
 def test_named_default_steam_power_completes_on_matching_default_rows(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
         handle = _plant_handle(
@@ -9126,7 +10118,7 @@ def test_named_default_steam_power_completes_on_matching_default_rows(monkeypatc
 
 
 def test_mixed_steam_power_handle_leaves_the_unmatched_remnant(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     rows = _complete_d18_rows(steam_power_depreciation="MACRS7")
     rows[-1]["steam_power_depreciation"] = "MACRS20"
     session = new_session()
@@ -9147,7 +10139,7 @@ def test_mixed_steam_power_handle_leaves_the_unmatched_remnant(monkeypatch):
 
 
 def test_steam_power_kwarg_is_unknown_extra(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     payload = _data(tea.rank_landscape(
         **_sequence_kwargs(steam_power_depreciation="MACRS7"),
     ))
@@ -9157,7 +10149,7 @@ def test_steam_power_kwarg_is_unknown_extra(monkeypatch):
 
 
 def test_c2_named_steam_power_is_energy_case_contract(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     payload = _data(tea.rank_landscape(
         **_sequence_kwargs(
             process_config={
@@ -9172,7 +10164,7 @@ def test_c2_named_steam_power_is_energy_case_contract(monkeypatch):
 
 
 def test_named_lang_factor_is_not_a_listing(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     payload = _data(tea.rank_landscape(
         **_sequence_kwargs(
             process_config={**_CAP_20KT, "lang_factor": 3.0},
@@ -9186,7 +10178,7 @@ def test_named_lang_factor_is_not_a_listing(monkeypatch):
 
 
 def test_zero_lang_factor_is_not_a_listing(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     payload = _data(tea.rank_landscape(
         **_sequence_kwargs(
             process_config={**_CAP_20KT, "lang_factor": 0},
@@ -9197,10 +10189,717 @@ def test_zero_lang_factor_is_not_a_listing(monkeypatch):
 
 
 def test_lang_factor_kwarg_is_unknown_extra(monkeypatch):
-    _forbid_live(monkeypatch)
+    _forbid_live_rank_solvent_maps(monkeypatch)
     payload = _data(tea.rank_landscape(
         **_sequence_kwargs(lang_factor=3.0),
     ))
     assert payload.get("error_code") == "unknown_process_field"
     assert payload.get("extra_keys") == ["lang_factor"]
     assert payload.get("error_code") != "incomplete_stage_basis_grid"
+
+
+# --- from test_screen_to_economics_order.py: Closed screen_to_economics_order. Default independent. No router.
+_LEGAL = (
+    "independent",
+    "thermo_then_economics",
+    "safety_then_economics",
+)
+
+
+def _forbid_live_screen_to_economics_order(monkeypatch):
+    def forbidden(*args, **kwargs):
+        raise AssertionError("screen_to_economics_order must not start BioSTEAM")
+
+    monkeypatch.setattr(tea, "_live", forbidden)
+    monkeypatch.setattr(tea, "_record_for_pair", forbidden)
+    monkeypatch.setattr(tea.tea_worker, "run", forbidden)
+
+
+def _forbid_safety(monkeypatch):
+    def boom(*args, **kwargs):
+        raise AssertionError("screen_to_economics_order must not call a safety tool")
+
+    monkeypatch.setattr(safety, "get_solvent_safety_card", boom)
+    monkeypatch.setattr(safety, "compare_solvent_safety_at_conditions", boom)
+
+
+def _write_registry_screen_to_economics_order(tmp_path: Path, entries: dict) -> Path:
+    path = tmp_path / "campaign_registry.json"
+    path.write_text(json.dumps(entries), encoding="utf-8")
+    return path
+
+
+def _success_row_screen_to_economics_order(canonical, pair_id, polymer, solvent, msp, gwp):
+    return {
+        "campaign_fingerprint": canonical,
+        "outcome": "success",
+        "error_type": None,
+        "pair_id": pair_id,
+        "polymer": polymer,
+        "solvent_public_identity": solvent,
+        "standing": {
+            "can_cite_as_validated_process": False,
+            "process_parameter_status": {
+                "msp_usd_per_kg": "provisional_live_process_parameters",
+            },
+        },
+        "comparison_row": {
+            "msp_usd_per_kg": msp,
+            "gwp_kg_co2e_per_kg": gwp,
+            "lca_coverage": {
+                "status": "partial",
+                "lca_metrics_status": "partial",
+            },
+        },
+    }
+
+
+def _two_row_mini(tmp_path):
+    definition = _minimal_definition(pair_definitions=[
+        {"config_sent": {"target_plastic": "LDPE", "solvent": "toluene"}},
+        {"config_sent": {"target_plastic": "LDPE", "solvent": "xylene"}},
+    ])
+    canonical = campaign_consume.canonical_json_digest(definition)
+    toluene = _success_row_screen_to_economics_order(canonical, "p1", "LDPE", "Toluene", 1.0, 0.4)
+    toluene["safety_standing"] = {
+        "status": "evaluated",
+        "safety_profile": {"ghs_signal_word": "Danger"},
+    }
+    xylene = _success_row_screen_to_economics_order(canonical, "p2", "LDPE", "Xylene", 2.0, 0.8)
+    return _mini(tmp_path, [toluene, xylene], definition=definition)
+
+
+def test_schema_exposes_the_closed_choice():
+    schemas = {item["name"]: item for item in tool_schemas()}
+    expected = [
+        "independent",
+        "thermo_then_economics",
+        "safety_then_economics",
+    ]
+    for name in ("evaluate_process", "rank_landscape"):
+        props = schemas[name]["parameters"]["properties"]
+        required = schemas[name]["parameters"].get("required") or []
+        assert "screen_to_economics_order" in props
+        assert "screen_to_economics_order" not in required
+        assert props["screen_to_economics_order"]["type"] == "string"
+        assert props["screen_to_economics_order"]["enum"] == expected
+        assert "default" not in props["screen_to_economics_order"]
+        assert "pipeline" not in props["screen_to_economics_order"]["enum"]
+        assert "exclude_safety_fail" not in props
+    old = schemas["evaluate_process"]["parameters"]["properties"]
+    assert "screen_to_economics_order" in old
+    assert "evaluate_tea_lca_scenarios" not in schemas
+    assert "lookup_admitted_process_records" not in schemas
+    assert "analyze_tea_sensitivity" not in schemas
+    assert "evaluate_stored_route_tea_lca" not in schemas
+    assert "optimize_stored_route" not in schemas
+    assert "pareto_optimize_stored_route" not in schemas
+    engine_params = inspect.signature(tea.evaluate_tea_lca_scenarios).parameters
+    assert "screen_to_economics_order" not in engine_params
+    assert "screen_to_economics_order" not in inspect.signature(
+        tea.analyze_tea_sensitivity,
+    ).parameters
+
+
+def test_omitted_and_explicit_independent_match(monkeypatch, tmp_path):
+    _forbid_live_screen_to_economics_order(monkeypatch)
+    _forbid_safety(monkeypatch)
+    canonical, entry = _two_row_mini(tmp_path)
+    registry = _write_registry_screen_to_economics_order(tmp_path, {canonical: entry})
+    omitted = _rank(monkeypatch, registry, campaign_fingerprint=canonical)
+    explicit = _rank(
+        monkeypatch,
+        registry,
+        campaign_fingerprint=canonical,
+        screen_to_economics_order="independent",
+    )
+    blank = _rank(
+        monkeypatch,
+        registry,
+        campaign_fingerprint=canonical,
+        screen_to_economics_order="",
+    )
+    folded = _rank(
+        monkeypatch,
+        registry,
+        campaign_fingerprint=canonical,
+        screen_to_economics_order="Independent",
+    )
+    assert omitted.get("success") is True
+    assert omitted["n_usable"] == 2
+    for payload in (omitted, explicit, blank, folded):
+        assert payload["screen_to_economics_order"] == "independent"
+        assert payload["n_usable"] == omitted["n_usable"]
+        assert payload["safety_standing_policy"] == "carried_not_filtered"
+        for point in payload["landscape_points"]:
+            assert "screen_to_economics_order" not in point
+
+
+def test_thermo_and_safety_orders_echo_without_filtering(monkeypatch, tmp_path):
+    _forbid_live_screen_to_economics_order(monkeypatch)
+    _forbid_safety(monkeypatch)
+    canonical, entry = _two_row_mini(tmp_path)
+    registry = _write_registry_screen_to_economics_order(tmp_path, {canonical: entry})
+    independent = _rank(
+        monkeypatch,
+        registry,
+        campaign_fingerprint=canonical,
+        screen_to_economics_order="independent",
+    )
+    thermo = _rank(
+        monkeypatch,
+        registry,
+        campaign_fingerprint=canonical,
+        screen_to_economics_order="thermo_then_economics",
+    )
+    safety_first = _rank(
+        monkeypatch,
+        registry,
+        campaign_fingerprint=canonical,
+        screen_to_economics_order="safety_then_economics",
+    )
+    assert independent["screen_to_economics_order"] == "independent"
+    assert thermo["screen_to_economics_order"] == "thermo_then_economics"
+    assert safety_first["screen_to_economics_order"] == "safety_then_economics"
+    assert thermo["n_usable"] == independent["n_usable"] == 2
+    assert safety_first["n_usable"] == independent["n_usable"]
+    assert thermo["screen_to_economics_order"] != independent["screen_to_economics_order"]
+    by_id = {point["pair_id"]: point for point in safety_first["landscape_points"]}
+    assert by_id["p1"]["safety_standing"]["status"] == "evaluated"
+    assert by_id["p2"]["safety_standing"] == {"status": "not_requested"}
+    assert safety_first["safety_standing_policy"] == "carried_not_filtered"
+
+
+def test_sealed_campaign_omitted_order_is_independent(monkeypatch, tmp_path):
+    _forbid_live_screen_to_economics_order(monkeypatch)
+    _forbid_safety(monkeypatch)
+    registry = _write_registry_screen_to_economics_order(tmp_path, {_CANONICAL: _sealed_entry()})
+    omitted = _rank(monkeypatch, registry, campaign_fingerprint=_CANONICAL)
+    safety_first = _rank(
+        monkeypatch,
+        registry,
+        campaign_fingerprint=_CANONICAL,
+        screen_to_economics_order="safety_then_economics",
+    )
+    assert omitted.get("success") is True
+    assert omitted["screen_to_economics_order"] == "independent"
+    assert omitted["n_usable"] == 408
+    assert omitted["n_groups"] == 10
+    assert safety_first["screen_to_economics_order"] == "safety_then_economics"
+    assert safety_first["n_usable"] == omitted["n_usable"]
+    assert safety_first["n_groups"] == omitted["n_groups"]
+
+
+def test_evaluate_process_stamps_the_payload_not_the_rows(monkeypatch):
+    _forbid_live_screen_to_economics_order(monkeypatch)
+    _forbid_safety(monkeypatch)
+    c1 = _record_by_label("ldpe-route-c1")
+    omitted = _data(tea.evaluate_process(
+        mode="evaluate",
+        process_config=_public_from_record(c1),
+        engine_mode="cache",
+    ))
+    thermo = _data(tea.evaluate_process(
+        mode="evaluate",
+        process_config=_public_from_record(c1),
+        engine_mode="cache",
+        screen_to_economics_order="thermo_then_economics",
+    ))
+    lookup = _data(tea.evaluate_process(
+        mode="lookup",
+        lookup_filter={
+            "target_polymer": "LDPE",
+            "solvent": "Dodecane",
+            "energy_cases": ["C1"],
+        },
+        screen_to_economics_order="safety_then_economics",
+    ))
+    sensitivity = _data(tea.evaluate_process(
+        mode="sensitivity",
+        process_config=_public_from_record(c1),
+        parameter="solvent_price",
+        engine_mode="cache",
+        screen_to_economics_order="independent",
+    ))
+    assert omitted.get("success") is True
+    assert omitted["screen_to_economics_order"] == "independent"
+    assert thermo["screen_to_economics_order"] == "thermo_then_economics"
+    assert omitted["screen_to_economics_order"] != thermo["screen_to_economics_order"]
+    assert "screen_to_economics_order" not in omitted["comparison_rows"][0]
+    assert lookup.get("success") is True
+    assert lookup["screen_to_economics_order"] == "safety_then_economics"
+    assert "screen_to_economics_order" not in lookup["comparison_rows"][0]
+    assert sensitivity.get("success") is True
+    assert sensitivity["screen_to_economics_order"] == "independent"
+    assert "screen_to_economics_order" not in sensitivity["sensitivity_rows"][0]
+
+
+def test_invalid_order_is_named(monkeypatch, tmp_path):
+    _forbid_live_screen_to_economics_order(monkeypatch)
+    registry = _write_registry_screen_to_economics_order(tmp_path, {_CANONICAL: _sealed_entry()})
+    ranked = _rank(
+        monkeypatch,
+        registry,
+        campaign_fingerprint=_CANONICAL,
+        screen_to_economics_order="pipeline",
+    )
+    wrapped = _data(tea.evaluate_process(
+        mode="evaluate",
+        process_config=_public_from_record(_record_by_label("ldpe-route-c1")),
+        engine_mode="cache",
+        screen_to_economics_order="parallel",
+    ))
+    missing_mode = _data(tea.evaluate_process(
+        screen_to_economics_order="pipeline",
+    ))
+    number = _data(tea.evaluate_process(
+        mode="lookup",
+        lookup_filter={"target_polymer": "LDPE"},
+        screen_to_economics_order=1,
+    ))
+    for payload, supplied in (
+        (ranked, "pipeline"),
+        (wrapped, "parallel"),
+        (missing_mode, "pipeline"),
+        (number, 1),
+    ):
+        assert payload.get("success") is False
+        assert payload.get("error_code") == "invalid_admitted_record_query"
+        assert payload.get("field") == "screen_to_economics_order"
+        assert payload.get("legal_orders") == list(_LEGAL)
+        assert payload.get("supplied") == supplied
+        assert payload.get("error_code") != "missing_mode"
+        assert "landscape_points" not in payload
+        assert "comparison_rows" not in payload
+
+
+def test_leftover_extra_still_wins_before_invalid_order(monkeypatch):
+    _forbid_live_screen_to_economics_order(monkeypatch)
+    payload = _data(tea.evaluate_process(
+        mode="evaluate",
+        leftover_xyz=1,
+        screen_to_economics_order="pipeline",
+    ))
+    assert payload.get("error_code") == "unknown_process_field"
+    assert payload.get("extra_keys") == ["leftover_xyz"]
+    assert "screen_to_economics_order" not in payload
+    old = _data(tea.evaluate_tea_lca_scenarios(
+        [_public_from_record(_record_by_label("ldpe-route-c1"))],
+        engine_mode="cache",
+        screen_to_economics_order="independent",
+    ))
+    assert old.get("error_code") == "unknown_process_field"
+    assert old.get("extra_keys") == ["screen_to_economics_order"]
+    misspelled = _data(tea.rank_landscape(
+        screen_to_economic_order="independent",
+    ))
+    assert misspelled.get("error_code") == "unknown_process_field"
+    assert misspelled.get("extra_keys") == ["screen_to_economic_order"]
+
+
+def test_exclude_safety_fail_stays_unknown_extra__screen_to_economics_order(monkeypatch, tmp_path):
+    _forbid_live_screen_to_economics_order(monkeypatch)
+    registry = _write_registry_screen_to_economics_order(tmp_path, {_CANONICAL: _sealed_entry()})
+    payload = _rank(
+        monkeypatch,
+        registry,
+        campaign_fingerprint=_CANONICAL,
+        screen_to_economics_order="safety_then_economics",
+        exclude_safety_fail=True,
+    )
+    assert payload.get("error_code") == "unknown_process_field"
+    assert payload.get("extra_keys") == ["exclude_safety_fail"]
+    assert "screen_to_economics_order" not in payload
+
+
+def test_superstructure_missing_map_is_not_a_ranking(monkeypatch):
+    _forbid_live_screen_to_economics_order(monkeypatch)
+    payload = _data(tea.rank_landscape(
+        source="superstructure",
+        formulation="sequence",
+        screen_to_economics_order="thermo_then_economics",
+    ))
+    assert payload.get("error_code") == "missing_planner_solvent_map"
+    assert payload.get("screen_to_economics_order") == "thermo_then_economics"
+    assert "landscape_points" not in payload
+    assert payload.get("error_code") != "sequence_coupling_unproven"
+
+
+def test_dispatch_evaluate_process_binds_the_token(monkeypatch):
+    _forbid_live_screen_to_economics_order(monkeypatch)
+    _forbid_safety(monkeypatch)
+    c1 = _record_by_label("ldpe-route-c1")
+    omitted = dispatch(
+        "evaluate_process",
+        mode="evaluate",
+        process_config=_public_from_record(c1),
+        engine_mode="cache",
+    )
+    thermo = dispatch(
+        "evaluate_process",
+        mode="evaluate",
+        process_config=_public_from_record(c1),
+        engine_mode="cache",
+        screen_to_economics_order="thermo_then_economics",
+    )
+    assert omitted.get("available") is True
+    assert omitted["data"]["screen_to_economics_order"] == "independent"
+    assert thermo.get("available") is True
+    assert thermo["data"]["screen_to_economics_order"] == "thermo_then_economics"
+    refused = dispatch(
+        "evaluate_process",
+        mode="evaluate",
+        process_config=_public_from_record(c1),
+        engine_mode="cache",
+        screen_to_economics_order="pipeline",
+    )
+    assert refused.get("available") is False
+    assert refused.get("refusal") == "invalid_admitted_record_query"
+
+
+def test_lang_factor_present_is_invalid_scenario(monkeypatch):
+    _forbid_live_screen_to_economics_order(monkeypatch)
+    c1 = _record_by_label("ldpe-route-c1")
+    payload = _data(tea.evaluate_process(
+        mode="evaluate",
+        process_config=_public_from_record(c1, lang_factor=3.0),
+        engine_mode="cache",
+        screen_to_economics_order="independent",
+    ))
+    assert payload.get("error_code") == "invalid_scenario"
+    assert payload.get("field") == "lang_factor"
+    assert payload.get("error_code") != "unknown_process_field"
+    assert "lang_factor" in tea._COEFFICIENT_DEFAULTS
+
+
+# --- from test_screening_handoff.py: Screening-to-economics handoff: shortlist plus held nine, not a cache fill.
+def _data_screening_handoff(raw: str) -> dict:
+    envelope = json.loads(raw)
+    assert set(envelope) == {"display", "data"}
+    assert isinstance(envelope["data"], dict)
+    return envelope["data"]
+
+
+def _record_with_energy(energy_case: str) -> dict:
+    return next(
+        record for record in tea._records()
+        if str(record["config"].get("energy_case") or "").upper() == energy_case
+    )
+
+
+def _held_from_record(record: dict, **overrides) -> dict:
+    cfg = record["config"]
+    held = {
+        "target_mass_percent": cfg["target_plastic_percent"],
+        "processing_capacity_mt_per_yr": cfg["processing_capacity"],
+        "energy_case": cfg["energy_case"],
+        "precipitation_temperature_c": cfg["precipitation_temperature_c"],
+        "solvent_price_usd_per_kg": cfg["solvent_price"],
+        "solvent_loss_pct": cfg["solvent_loss_pct"],
+        "feedstock_distance_km": cfg["feedstock_distance_km"],
+        "dissolution_capacity": cfg["dissolution_capacity"],
+        "labor_cost_usd_per_employee_yr": cfg["labor_cost"],
+    }
+    held.update(overrides)
+    return held
+
+
+def _item_from_record(record: dict, **overrides) -> dict:
+    cfg = record["config"]
+    item = {
+        "target_polymer": cfg["target_plastic"],
+        "solvent": cfg["solvent"],
+        "dissolution_temperature_c": cfg["dissolution_temperature_c"],
+    }
+    item.update(overrides)
+    return item
+
+
+def _shortlist(*items, source="explicit"):
+    return {"source": source, "items": list(items)}
+
+
+def _forbid_pair_fill(monkeypatch):
+    def forbidden(*args, **kwargs):
+        raise AssertionError("handoff must not pair-default")
+
+    monkeypatch.setattr(tea, "_record_for_pair", forbidden)
+    monkeypatch.setattr(tea, "_live", forbidden)
+
+
+def test_shortlist_without_held_basis_lists_the_nine(monkeypatch):
+    record = _record_with_energy("C1")
+    _forbid_pair_fill(monkeypatch)
+    payload = _data_screening_handoff(tea.evaluate_tea_lca_scenarios(
+        screening_shortlist=_shortlist(_item_from_record(record)),
+        engine_mode="cache",
+    ))
+    assert payload.get("error_code") == "screening_basis_incomplete"
+    assert payload.get("missing") == list(tea._NINE_HELD_PUBLIC_FIELDS)
+    assert "comparison_rows" not in payload
+
+
+def test_held_basis_missing_one_field_names_only_that_field(monkeypatch):
+    record = _record_with_energy("C1")
+    _forbid_pair_fill(monkeypatch)
+    held = _held_from_record(record)
+    held.pop("energy_case")
+    payload = _data_screening_handoff(tea.evaluate_tea_lca_scenarios(
+        screening_shortlist=_shortlist(_item_from_record(record)),
+        held_process_basis=held,
+        engine_mode="cache",
+    ))
+    assert payload.get("error_code") == "screening_basis_incomplete"
+    assert payload.get("missing") == ["energy_case"]
+
+
+def test_shortlist_item_missing_t_is_screening_shortlist_incomplete(monkeypatch):
+    record = _record_with_energy("C1")
+    _forbid_pair_fill(monkeypatch)
+    item = _item_from_record(record)
+    item.pop("dissolution_temperature_c")
+    payload = _data_screening_handoff(tea.evaluate_tea_lca_scenarios(
+        screening_shortlist=_shortlist(item),
+        held_process_basis=_held_from_record(record),
+        engine_mode="cache",
+    ))
+    assert payload.get("error_code") == "screening_shortlist_incomplete"
+    assert payload.get("item_index") == 0
+    assert payload.get("missing") == ["dissolution_temperature_c"]
+
+
+def test_temperature_c_on_shortlist_item_maps_and_hits_cache(monkeypatch):
+    record = _record_with_energy("C1")
+    recorded_msp = float(record["result"]["tea"]["msp_usd_per_kg"])
+
+    def forbidden_live(config, timeout_seconds):
+        raise AssertionError("mapped handoff T must stay on cache")
+
+    monkeypatch.setattr(tea, "_live", forbidden_live)
+    monkeypatch.setattr(tea, "_record_for_pair", forbidden_live)
+    item = _item_from_record(record)
+    t = item.pop("dissolution_temperature_c")
+    item["temperature_c"] = t
+    payload = _data_screening_handoff(tea.evaluate_tea_lca_scenarios(
+        screening_shortlist=_shortlist(item),
+        held_process_basis=_held_from_record(record),
+        engine_mode="cache",
+    ))
+    assert payload.get("success") is True
+    assert payload.get("cache_match_status") == "exact"
+    row = payload["comparison_rows"][0]
+    assert row["msp_usd_per_kg"] == pytest.approx(recorded_msp)
+    assert row["dissolution_temperature_c"] == pytest.approx(t)
+    origin = row["field_origin"]
+    assert origin["target_polymer"] == "from_screen"
+    assert origin["solvent"] == "from_screen"
+    assert origin["dissolution_temperature_c"] == "from_screen"
+    for name in tea._NINE_HELD_PUBLIC_FIELDS:
+        assert origin[name] == "supplied"
+        assert origin[name] != "from_screen"
+
+
+def test_temperature_c_on_process_config_still_refuses(monkeypatch):
+    record = _record_with_energy("C1")
+    _forbid_pair_fill(monkeypatch)
+    cfg = record["config"]
+    payload = _data_screening_handoff(tea.evaluate_tea_lca_scenarios(
+        [{
+            "target_polymer": cfg["target_plastic"],
+            "solvent": cfg["solvent"],
+            "dissolution_temperature_c": cfg["dissolution_temperature_c"],
+            "temperature_c": cfg["dissolution_temperature_c"],
+            **_held_from_record(record),
+        }],
+        engine_mode="cache",
+    ))
+    assert payload.get("error_code") == "unknown_process_field"
+    assert "temperature_c" in list(payload.get("extra_keys") or [])
+
+
+def test_screening_shortlist_inside_process_config_is_unknown(monkeypatch):
+    record = _record_with_energy("C1")
+    _forbid_pair_fill(monkeypatch)
+    payload = _data_screening_handoff(tea.evaluate_tea_lca_scenarios(
+        [{
+            **_item_from_record(record),
+            **_held_from_record(record),
+            "screening_shortlist": {"source": "explicit", "items": []},
+        }],
+        engine_mode="cache",
+    ))
+    assert payload.get("error_code") == "unknown_process_field"
+    assert "screening_shortlist" in list(payload.get("extra_keys") or [])
+
+
+def test_scenarios_and_shortlist_together_conflict(monkeypatch):
+    record = _record_with_energy("C1")
+    _forbid_pair_fill(monkeypatch)
+    payload = _data_screening_handoff(tea.evaluate_tea_lca_scenarios(
+        [{**_item_from_record(record), **_held_from_record(record)}],
+        screening_shortlist=_shortlist(_item_from_record(record)),
+        held_process_basis=_held_from_record(record),
+        engine_mode="cache",
+    ))
+    assert payload.get("error_code") == "conflicting_evaluate_composition"
+
+
+def test_expansion_cap_matches_evaluate(monkeypatch):
+    record = _record_with_energy("C1")
+    _forbid_pair_fill(monkeypatch)
+    items = [_item_from_record(record)] * 21
+    payload = _data_screening_handoff(tea.evaluate_tea_lca_scenarios(
+        screening_shortlist=_shortlist(*items),
+        held_process_basis=_held_from_record(record),
+        engine_mode="cache",
+    ))
+    assert payload.get("error_code") == "too_many_scenarios"
+
+
+def test_two_item_expansion_is_two_rows_not_one_fill(monkeypatch):
+    record = _record_with_energy("C1")
+    recorded_msp = float(record["result"]["tea"]["msp_usd_per_kg"])
+
+    def forbidden_live(config, timeout_seconds):
+        raise AssertionError("cache-only expansion must not start live")
+
+    monkeypatch.setattr(tea, "_live", forbidden_live)
+    payload = _data_screening_handoff(tea.evaluate_tea_lca_scenarios(
+        screening_shortlist=_shortlist(
+            _item_from_record(record),
+            _item_from_record(record, dissolution_temperature_c=999.0),
+        ),
+        held_process_basis=_held_from_record(record),
+        engine_mode="cache",
+    ))
+    rows = list(payload.get("comparison_rows") or payload.get("failures") or [])
+    assert payload.get("error_code") == "no_simulation_result" or payload.get(
+        "completed"
+    ) == 1
+    if payload.get("success") is True:
+        assert payload.get("completed") == 1
+        assert payload.get("failed") == 1
+        assert len(payload["comparison_rows"]) == 2
+        assert payload["comparison_rows"][0]["msp_usd_per_kg"] == pytest.approx(
+            recorded_msp
+        )
+        assert payload["comparison_rows"][1]["msp_usd_per_kg"] is None
+    else:
+        failures = list(payload.get("failures") or [])
+        assert len(failures) == 2
+        assert recorded_msp not in (
+            failures[1].get("msp_usd_per_kg"), failures[1].get("tea"),
+        )
+
+
+def test_polymer_solvent_t_as_process_config_is_still_incomplete(monkeypatch):
+    record = _record_with_energy("C1")
+    _forbid_pair_fill(monkeypatch)
+    payload = _data_screening_handoff(tea.evaluate_tea_lca_scenarios(
+        [_item_from_record(record)],
+        engine_mode="cache",
+    ))
+    assert payload.get("error_code") == "incomplete_process_config"
+    assert payload.get("missing") == list(tea._NINE_HELD_PUBLIC_FIELDS)
+
+
+# --- from test_specific_volume_rerank.py: Specific volume (1/rho) as a planner rerank axis: a TEA *proxy*, never a cost.
+KEY = "max_stage_specific_volume_l_per_kg"
+
+
+def _data_specific_volume_rerank(raw):
+    return parse_tool_result(raw)["data"]
+
+
+def test_objective_registered_lower_is_better_and_alias_resolves():
+    assert tea._PLANNER_SORT_OBJECTIVES[KEY] == "min"
+    assert tea._PLANNER_OBJECTIVE_ALIASES["max_stage_specific_volume"] == KEY
+    assert "max_stage_specific_volume" not in tea._PLANNER_SORT_OBJECTIVES   # alias, not a second key
+    assert len(tool_schemas()) == 24
+
+
+def test_table_loads_and_digest_is_checked_not_trusted(monkeypatch):
+    tea._density_table.cache_clear()
+    table = tea._density_table()
+    assert table["digest"] == tea._DENSITY_TABLE_CONTENT_DIGEST
+    assert table["by_key"]["toluene"]["rho_effective_kg_m3"] == pytest.approx(862.3, abs=1.0)
+    # MUST-FIRE: a wrong pinned constant must refuse, even though the file is unchanged
+    monkeypatch.setattr(tea, "_DENSITY_TABLE_CONTENT_DIGEST", "0" * 64)
+    tea._density_table.cache_clear()
+    with pytest.raises(tea.DensityTableRefuse) as err:
+        tea._density_table()
+    assert err.value.error_code == "density_table_digest_mismatch"
+    tea._density_table.cache_clear()
+
+
+def test_aggregator_takes_worst_stage_and_refuses_unsupported_solvents():
+    tea._density_table.cache_clear()
+    v_tol = tea._planner_route_metric({"steps": [{"solvent": "toluene"}]}, KEY)
+    v_ccl4 = tea._planner_route_metric({"steps": [{"solvent": "ccl4"}]}, KEY)
+    assert v_ccl4 == pytest.approx(1000 / 1583.7, rel=1e-3)
+    assert v_tol > v_ccl4                                                    # lighter solvent = larger specific volume = worse
+    both = tea._planner_route_metric({"steps": [{"solvent": "ccl4"}, {"solvent": "toluene"}]}, KEY)
+    assert both == pytest.approx(v_tol)                                      # max over stages
+    assert tea._planner_route_metric({"steps": [{"solvent": "naphthalene"}]}, KEY) is None     # solid at 25 C
+    assert tea._planner_route_metric({"steps": [{"solvent": "not-a-solvent-xyz"}]}, KEY) is None
+    assert tea._planner_route_metric({"steps": [{"specific_volume_l_per_kg": 1.5}]}, KEY) == 1.5
+
+
+def test_unsupported_route_sorts_last_and_is_listed(monkeypatch):
+    """MUST-FIRE: without the None-sorts-last contract a solid-only route would lead."""
+    tea._density_table.cache_clear()
+    routes = [
+        {"rank": 1, "steps": [{"solvent": "naphthalene"}]},   # solid at 25 C -> None
+        {"rank": 2, "steps": [{"solvent": "toluene"}]},
+        {"rank": 3, "steps": [{"solvent": "ccl4"}]},
+    ]
+    excl = tea._planner_specific_volume_exclusions(routes)
+    assert excl == [{"route_rank": 1, "solvent": "naphthalene", "reason": "density_unresolved:solid_at_25C"}]
+    vals = [tea._planner_route_metric(r, KEY) for r in routes]
+    order = sorted(range(3), key=lambda i: (vals[i] is None, vals[i] if vals[i] is not None else float("inf"), routes[i]["rank"]))
+    assert [routes[i]["rank"] for i in order] == [3, 2, 1]                   # ccl4, toluene, then the unresolved route last
+    # counter-case: if None were treated as 0 the solid route would lead
+    naive = sorted(range(3), key=lambda i: (vals[i] or 0.0))
+    assert [routes[i]["rank"] for i in naive][0] == 1
+
+
+def test_live_sort_stamps_proxy_disclosure_and_still_refuses_economics():
+    tea._density_table.cache_clear()
+    session = new_session()
+    with bind_tool_session(session):
+        plan = _data_specific_volume_rerank(separation.plan_multistage_separation(
+            feed_polymers=["PS", "HDPE", "PET"], top_k_routes=6, breadth=4))
+        handle = store_handle(session, tool="plan_multistage_separation", source_basis="planner", data=plan)
+        out = _data_specific_volume_rerank(tea.rank_landscape(source="planner_routes", handle=handle,
+                                       operation="sort", objective="max_stage_specific_volume"))
+        assert out["success"] is True and out["objective"] == KEY and out["objective_direction"] == "min"
+        axis = out["specific_volume_axis"]
+        assert axis["is_cost_metric"] is False
+        assert "NOT MEASURED" not in axis["second_plant"]
+        assert "86.5%" in axis["second_plant"] and "BELOW the pre-registered 90% bar" in axis["second_plant"]
+        assert axis["evidence_n"] == 51 and axis["evidence_spearman_msp"] == pytest.approx(0.9925)
+        # the coverage stamp is DERIVED: it must match a recount from the table
+        import duckdb as _duckdb
+        _con = _duckdb.connect(str(tea._DENSITY_TABLE_DEFAULT), read_only=True)
+        _counts = dict(_con.execute(
+            "select verdict, count(*) from density_validated group by 1").fetchall())
+        _con.close()
+        assert axis["table_coverage"].startswith("630 of 786")
+        for name, count in _counts.items():
+            if name not in ("validated", "predicted"):
+                assert f"{count} {name}" in axis["table_coverage"], (name, axis["table_coverage"])
+        assert "out-of-band" not in axis["table_coverage"]      # the falsified literal is gone
+        assert "specific_volume_excluded_routes" in out
+        pts = out["landscape_points"]
+        vals = [p[KEY] for p in pts]
+        finite = [v for v in vals if v is not None]
+        assert finite == sorted(finite) and vals[:len(finite)] == finite     # ascending, None last
+        assert all(p["specific_volume_rule"] == "max_stage_1000_over_rho_25C" for p in pts)
+        assert all(isinstance(p["specific_volume_unresolved_stages"], int) for p in pts)
+        assert sum(p["specific_volume_unresolved_stages"] for p in pts) == len(out["specific_volume_excluded_routes"])
+        bad = _data_specific_volume_rerank(tea.rank_landscape(source="planner_routes", handle=handle,
+                                       operation="sort", objective="msp_usd_per_kg"))
+        assert bad["error_code"] == "not_applicable_in_source"
+        g = _data_specific_volume_rerank(tea.rank_landscape(source="planner_routes", handle=handle,
+                                     operation="sort", objective="min_stage_g_score"))
+        assert g["success"] is True and "specific_volume_axis" not in g       # stamps only on this objective
