@@ -1,0 +1,128 @@
+{
+  "artifact_status": "first draft; not a final publication figure",
+  "drawn_values": {
+    "pair_counts": {
+      "EVOH": 990,
+      "HDPE": 990,
+      "LDPE": 990,
+      "NYLON6": 32,
+      "NYLON66": 990,
+      "PC": 990,
+      "PES": 32,
+      "PET": 990,
+      "PP": 990,
+      "PS": 990,
+      "PU": 78,
+      "PVC": 990
+    },
+    "stored_pair_total": 9052,
+    "temperature_nodes": [
+      25,
+      30,
+      35,
+      40,
+      45,
+      50,
+      55,
+      60,
+      65,
+      70,
+      75,
+      80,
+      85,
+      90,
+      95,
+      100,
+      105,
+      110,
+      115,
+      120,
+      125,
+      130,
+      135,
+      140,
+      145,
+      150,
+      155,
+      160
+    ]
+  },
+  "field_map": {
+    "28 nodes and 25\u2013160 degC range": "temperature_nodes plus pair_lengths",
+    "990 denominator": "COUNT(DISTINCT solvent) from solubility_grid",
+    "polymer labels and bar lengths": "pair_counts.polymer, pair_counts.stored_pairs"
+  },
+  "figure": "results_s1_stored_pair_catalog",
+  "generator": {
+    "path": "/home/aaltamimi2/dissolve-v12-visuals/figures/results_s1_screening_coverage.py",
+    "sha256": "37c62aa2b60431fb862f4c06822d70601d20b4c7afb9bb09937c15c22411f66e"
+  },
+  "outputs": {
+    "png": {
+      "bytes": 202952,
+      "path": "results_s1_stored_pair_catalog.png",
+      "sha256": "e2fb106a610dc8e1a3513764ba5a8940ff061237153b00b70a30a77544aaab7c"
+    },
+    "svg": {
+      "bytes": 9952,
+      "path": "results_s1_stored_pair_catalog.svg",
+      "sha256": "94c222da0cf046bbd1ed5461af83c42569af775c537c07ae5d8910c38393500f"
+    }
+  },
+  "queries": {
+    "pair_counts": "SELECT polymer,\n       COUNT(DISTINCT solvent) AS stored_pairs,\n       COUNT(*) AS stored_cells,\n       COUNT(DISTINCT temperature_c) AS temperature_nodes\nFROM solubility_grid\nGROUP BY polymer\nORDER BY stored_pairs DESC, polymer",
+    "pair_lengths": "SELECT point_count, COUNT(*) AS stored_pairs\nFROM (\n    SELECT polymer, solvent, COUNT(*) AS point_count\n    FROM solubility_grid\n    GROUP BY polymer, solvent\n)\nGROUP BY point_count\nORDER BY point_count",
+    "temperature_nodes": "SELECT DISTINCT temperature_c\nFROM solubility_grid\nORDER BY temperature_c"
+  },
+  "representative_curves": "not drawn; owner pair selection pending",
+  "reproduction_command": "PYTHONPATH=src:. python figures/results_s1_screening_coverage.py",
+  "sources": [
+    {
+      "actual_sha256": "4aa3adc7af54c295c6a647bb8b04a72b0ffc0a7adc75ec4b9d920099df0311dc",
+      "expected_sha256": "4aa3adc7af54c295c6a647bb8b04a72b0ffc0a7adc75ec4b9d920099df0311dc",
+      "path": "/home/aaltamimi2/dissolve-v12-visuals/src/dissolve/data/thermodynamics.duckdb",
+      "role": "numeric stored-grid authority"
+    },
+    {
+      "actual_sha256": "2a22603c52f5c17d7aa65bec9c43e18f64dcb315404c0b30279704cda8c6b204",
+      "expected_sha256": "2a22603c52f5c17d7aa65bec9c43e18f64dcb315404c0b30279704cda8c6b204",
+      "path": "/home/aaltamimi2/dissolve-v12-visuals/src/dissolve/thermodynamics.py",
+      "role": "runtime disposition authority"
+    },
+    {
+      "actual_sha256": "dc1991c3682997db46576c39c6aa0831fa20f3088a8b654de68402a525c15841",
+      "expected_sha256": "dc1991c3682997db46576c39c6aa0831fa20f3088a8b654de68402a525c15841",
+      "path": "/home/aaltamimi2/dissolve-v12-visuals/figures/RESULTS_S1_SCREENING_COVERAGE_PROPOSAL.md",
+      "role": "admitted figure/source proposal"
+    },
+    {
+      "actual_sha256": "f6f0a7e0d3d948e66a27202b285d924590ea0bafff39f2475462ca33f45a1a40",
+      "expected_sha256": "f6f0a7e0d3d948e66a27202b285d924590ea0bafff39f2475462ca33f45a1a40",
+      "path": "/home/aaltamimi2/dissolve-v12-audit/V4_VISUALIZATION_CHARTER.md",
+      "role": "figure standards and owner stops"
+    },
+    {
+      "actual_sha256": "0f4107c3febd9e81e1ccac7bdfcce5815d8decb675f24f2b07851fae5c512941",
+      "expected_sha256": "0f4107c3febd9e81e1ccac7bdfcce5815d8decb675f24f2b07851fae5c512941",
+      "path": "/home/aaltamimi2/dissolve-v12-audit/v4/STEER_INBOX.md",
+      "role": "durable current steering"
+    },
+    {
+      "actual_sha256": "a0b8a7337df049b3abd9bfe2330d16cb6027cd7aabbf80d6ba767bf4b5d4b49a",
+      "expected_sha256": "a0b8a7337df049b3abd9bfe2330d16cb6027cd7aabbf80d6ba767bf4b5d4b49a",
+      "path": "/home/aaltamimi2/dissolve-v12-audit/RESULTS_S1_COVERAGE_FIGURE_STEER.md",
+      "role": "non-numeric coverage framing"
+    }
+  ],
+  "standards_report": {
+    "axes_count": 1,
+    "connector_count": 0,
+    "content_width_pt": 485.46,
+    "data_mark_count": 12,
+    "minimum_data_mark_extent_pt": 9.870545454545468,
+    "minimum_text_height_pt": 9.6,
+    "shape_count": 12,
+    "text_count": 30,
+    "title_width_pt": 232.2
+  }
+}
