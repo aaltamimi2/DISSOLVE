@@ -3,14 +3,8 @@ from __future__ import annotations
 
 import hashlib
 import json
-import sys
 from pathlib import Path
 
-
-_ROOT = Path(__file__).resolve().parents[1]
-for _path in (str(_ROOT), str(_ROOT / "src")):
-    if _path not in sys.path:
-        sys.path.insert(0, _path)
 
 from dissolve import campaign_basis, campaign_consume, landscape, tea
 from dissolve.session import bind_tool_session, new_session, store_handle

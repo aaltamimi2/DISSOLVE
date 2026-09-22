@@ -7,10 +7,6 @@ from pathlib import Path
 
 import pytest
 
-_ROOT = Path(__file__).resolve().parents[1]
-for _path in (str(_ROOT), str(_ROOT / "src")):
-    if _path not in sys.path:
-        sys.path.insert(0, _path)
 
 from dissolve import cli, tea
 from dissolve.cli import CliApp
@@ -2004,6 +2000,5 @@ def test_sheet_print_aligns_value_units_origin(tmp_path, monkeypatch):
     assert all(len(line) <= 80 for line in shown.splitlines())
     assert "…" not in shown
     assert re.search(r"^labor_cost_usd_per_employee_yr\b", shown, re.M)
-
 
 

@@ -11,10 +11,6 @@ from pathlib import Path
 import pytest
 from rich.console import Console
 
-_ROOT = Path(__file__).resolve().parents[1]
-for _p in (str(_ROOT), str(_ROOT / "src")):
-    if _p not in sys.path:
-        sys.path.insert(0, _p)
 
 from dissolve import agent_harness
 from dissolve.agent_harness import ToolEvent, TurnResult, run_turn

@@ -11,10 +11,6 @@ from types import SimpleNamespace
 
 import pytest
 
-_ROOT = Path(__file__).resolve().parents[1]
-for _p in (str(_ROOT), str(_ROOT / "src")):
-    if _p not in sys.path:
-        sys.path.insert(0, _p)
 
 from dissolve import tea, tea_polymer_parameters as params, tea_worker
 from dissolve.cli import doctor_report

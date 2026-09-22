@@ -2,15 +2,10 @@
 Every must-fire here is shown able to fail."""
 from __future__ import annotations
 
-import sys
 from pathlib import Path
 
 import pytest
 
-_ROOT = Path(__file__).resolve().parents[1]
-for _p in (str(_ROOT), str(_ROOT / "src")):
-    if _p not in sys.path:
-        sys.path.insert(0, _p)
 
 from dissolve.agent_tools import tool_schemas
 from dissolve import separation, tea

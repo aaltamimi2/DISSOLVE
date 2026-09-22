@@ -5,13 +5,8 @@ No live BioSTEAM. No official-gate recapture. Built-in remains all.
 from __future__ import annotations
 
 import inspect
-import sys
 from pathlib import Path
 
-_ROOT = Path(__file__).resolve().parents[1]
-for _path in (str(_ROOT), str(_ROOT / "src")):
-    if _path not in sys.path:
-        sys.path.insert(0, _path)
 
 from dissolve.cli import CliApp, _parse_solvents_slash
 from dissolve.contracts import parse_tool_result

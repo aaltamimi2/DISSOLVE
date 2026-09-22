@@ -1,13 +1,8 @@
 """v1 hold-to 3 / v3 §6: distinct absence codes, including unspecified STRAP."""
 from __future__ import annotations
 
-import sys
 from pathlib import Path
 
-_ROOT = Path(__file__).resolve().parents[1]
-for _path in (str(_ROOT), str(_ROOT / "src")):
-    if _path not in sys.path:
-        sys.path.insert(0, _path)
 
 from dissolve import contaminants as C
 from dissolve.contracts import parse_tool_result

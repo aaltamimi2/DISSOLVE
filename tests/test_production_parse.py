@@ -1,16 +1,11 @@
 """C4: production parse raises on Docling failure. DeepDoc and pypdf are not a fallback."""
 from __future__ import annotations
 
-import sys
 from types import SimpleNamespace
 from pathlib import Path
 
 import pytest
 
-_ROOT = Path(__file__).resolve().parents[1]
-for _path in (str(_ROOT), str(_ROOT / "src")):
-    if _path not in sys.path:
-        sys.path.insert(0, _path)
 
 from dissolve import literature_ingest, research
 

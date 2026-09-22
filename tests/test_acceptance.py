@@ -3,16 +3,11 @@ from __future__ import annotations
 
 import json
 import re
-import sys
 from contextlib import contextmanager
 from pathlib import Path
 
 import pytest
 
-_ROOT = Path(__file__).resolve().parents[1]
-for _p in (str(_ROOT), str(_ROOT / "src")):
-    if _p not in sys.path:
-        sys.path.insert(0, _p)
 
 from dissolve import agent_harness
 from dissolve import agent_tools

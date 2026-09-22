@@ -7,13 +7,8 @@ feed_mass_fractions expands listed remnant keys by D-18; it is not ingest.
 from __future__ import annotations
 
 import json
-import sys
 from pathlib import Path
 
-_ROOT = Path(__file__).resolve().parents[1]
-for _path in (str(_ROOT), str(_ROOT / "src")):
-    if _path not in sys.path:
-        sys.path.insert(0, _path)
 
 from dissolve.agent_tools import CONSUMERS, dispatch, tool_schemas
 from dissolve import tea
@@ -13821,6 +13816,5 @@ def test_invalid_lang_factor_does_not_outrank_missing_map(monkeypatch):
     ))
     assert payload.get("error_code") == "missing_planner_solvent_map"
     assert payload.get("error_code") != "invalid_admitted_record_query"
-
 
 

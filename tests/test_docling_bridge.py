@@ -1,14 +1,9 @@
 """Docling bridge must put tables on the text item list, not only in tables[]."""
 from __future__ import annotations
 
-import sys
 from types import SimpleNamespace
 from pathlib import Path
 
-_ROOT = Path(__file__).resolve().parents[1]
-for _path in (str(_ROOT), str(_ROOT / "src")):
-    if _path not in sys.path:
-        sys.path.insert(0, _path)
 
 from dissolve import research
 

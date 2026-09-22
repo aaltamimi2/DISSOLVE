@@ -12,11 +12,7 @@ from pathlib import Path
 from rich.console import Console
 
 _ROOT = Path(__file__).resolve().parents[1]
-import sys
 
-for _p in (str(_ROOT), str(_ROOT / "src")):
-    if _p not in sys.path:
-        sys.path.insert(0, _p)
 
 from dissolve.cli import (
     CliApp,

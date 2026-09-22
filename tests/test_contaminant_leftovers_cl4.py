@@ -8,13 +8,8 @@ fabrication the ADMIT forbade. No BioSTEAM child. No wash_train.
 from __future__ import annotations
 
 import copy
-import sys
 from pathlib import Path
 
-_ROOT = Path(__file__).resolve().parents[1]
-for _path in (str(_ROOT), str(_ROOT / "src"), str(_ROOT / "tests")):
-    if _path not in sys.path:
-        sys.path.insert(0, _path)
 
 from dissolve import tea
 from dissolve.contracts import parse_tool_result

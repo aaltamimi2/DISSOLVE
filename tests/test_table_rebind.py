@@ -3,15 +3,10 @@ from __future__ import annotations
 
 import hashlib
 import json
-import sys
 from pathlib import Path
 
 import pytest
 
-_ROOT = Path(__file__).resolve().parents[1]
-for _path in (str(_ROOT), str(_ROOT / "src")):
-    if _path not in sys.path:
-        sys.path.insert(0, _path)
 
 from dissolve import research
 
@@ -170,8 +165,6 @@ def test_c7c_1c_search_index_body_rank_drops_table(monkeypatch, tmp_path):
     index = research._load_index("c7c-rank-1c")
     rows = research._search_index(index, TOKEN_NOTE, 5, "sparse")
     assert not any(TOKEN_V in str(row.get("excerpt") or "") for row in rows)
-
-
 
 
 def _patched_dense(seen):

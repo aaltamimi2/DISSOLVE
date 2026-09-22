@@ -7,13 +7,8 @@ Van Krevelen as agent-available while the Tg 7736 row stays.
 """
 from __future__ import annotations
 
-import sys
 from pathlib import Path
 
-_ROOT = Path(__file__).resolve().parents[1]
-for _path in (str(_ROOT), str(_ROOT / "src")):
-    if _path not in sys.path:
-        sys.path.insert(0, _path)
 
 from dissolve.agent_tools import tool_schemas
 from dissolve import analysis, registry

@@ -5,16 +5,12 @@ import hashlib
 import inspect
 import json
 import subprocess
-import sys
 from collections import Counter
 from pathlib import Path
 
 import pytest
 
 _ROOT = Path(__file__).resolve().parents[1]
-for _path in (str(_ROOT), str(_ROOT / "src")):
-    if _path not in sys.path:
-        sys.path.insert(0, _path)
 
 from dissolve import tea
 

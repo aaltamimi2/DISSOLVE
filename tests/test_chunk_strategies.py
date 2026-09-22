@@ -1,17 +1,10 @@
 """C6: S0–S5 chunkers and the one-paper scorer. Tiny fixtures. Not C3."""
 from __future__ import annotations
 
-import sys
 from pathlib import Path
 
 
-_ROOT = Path(__file__).resolve().parents[1]
-for _path in (str(_ROOT), str(_ROOT / "src")):
-    if _path not in sys.path:
-        sys.path.insert(0, _path)
-
 from dissolve import research
-
 
 
 def _block(block_id, kind, text, start, end, heading=None, caption_ref=None, page=1):

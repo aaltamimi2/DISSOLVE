@@ -2,15 +2,10 @@
 from __future__ import annotations
 
 import json
-import sys
 from pathlib import Path
 
 import pytest
 
-_ROOT = Path(__file__).resolve().parents[1]
-for _path in (str(_ROOT), str(_ROOT / "src")):
-    if _path not in sys.path:
-        sys.path.insert(0, _path)
 
 from dissolve import research
 
@@ -23,8 +18,6 @@ PATENT_SHA = "b95603201907ce4de4f4a62671d0ba8c20879b723da7b15fee5d8af2fa2f199f"
 SCREENING_SHA = "74a97bb76eb805256d49c3ce07b42cca2357415b634e8f1d70873d9c92c05462"
 C1_CEILING_BYTES = 3_501_953_024
 TEMP_RE = research._CANONICAL_TEMPERATURE_RE
-
-
 
 
 def _census_in_scope() -> set[str]:
