@@ -18,7 +18,7 @@ for _p in (str(_ROOT), str(_ROOT / "src")):
     if _p not in sys.path:
         sys.path.insert(0, _p)
 
-from agent_tools import PUBCHEM, source_basis_for
+from dissolve.agent_tools import PUBCHEM, source_basis_for
 from dissolve import registry, safety
 from dissolve.cli import EXPECTED_REGISTRY_NAMES, doctor_report
 from dissolve.contracts import parse_tool_result

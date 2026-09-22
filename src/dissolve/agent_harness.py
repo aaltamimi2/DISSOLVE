@@ -1,16 +1,9 @@
 import json, os, sys
 from dataclasses import dataclass
-from pathlib import Path
 from typing import Callable
 
-_ROOT = Path(__file__).resolve().parent
-_SRC = _ROOT / "src"
-for _p in (str(_SRC), str(_ROOT)):
-    if _p not in sys.path:
-        sys.path.insert(0, _p)
-
 from dissolve.session import CompactionBudgetError, bind_tool_session, compact_messages, context_window, open_turn_record
-from agent_tools import SYSTEM_PROMPT, dispatch, tool_schemas
+from dissolve.agent_tools import SYSTEM_PROMPT, dispatch, tool_schemas
 
 @dataclass(frozen=True)
 class ToolEvent:

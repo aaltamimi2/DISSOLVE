@@ -3,7 +3,7 @@ and live 2002 intercept vs catalog (R-3).
 
 Never launches ORCA. Never writes the catalog partition column.
 Never applies the removability threshold. Never mixes 2002 polymer
-numbers with 24a. ``scripts/cosmo/run_orca_stage.py`` is not imported.
+numbers with 24a. ``cosmo_workers/run_orca_stage.py`` is not imported.
 """
 from __future__ import annotations
 

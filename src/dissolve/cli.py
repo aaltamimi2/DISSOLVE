@@ -19,9 +19,6 @@ from pathlib import Path
 from types import MappingProxyType
 from typing import Any, Callable, Sequence
 
-_ROOT = Path(__file__).resolve().parents[2]
-if str(_ROOT) not in sys.path:
-    sys.path.insert(0, str(_ROOT))
 
 try:
     import readline  # noqa: F401
@@ -35,8 +32,8 @@ from rich.prompt import Prompt
 from rich.table import Table
 from rich.text import Text
 
-from agent_harness import ToolEvent, TurnResult, run_turn
-from agent_tools import SYSTEM_PROMPT
+from dissolve.agent_harness import ToolEvent, TurnResult, run_turn
+from dissolve.agent_tools import SYSTEM_PROMPT
 from dissolve import RELEASE, tea
 from dissolve.contracts import normalize_json
 from dissolve.session import SessionRecord, handle_total, new_session
@@ -2556,7 +2553,7 @@ class CliApp:
         return result
 
     def run(self) -> None:
-        import agent_harness
+        from dissolve import agent_harness
         original_dispatch = agent_harness.dispatch
 
         def wrapped_dispatch(name: str, **kwargs: Any) -> Any:

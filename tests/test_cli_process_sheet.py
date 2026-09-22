@@ -14,7 +14,7 @@ for _path in (str(_ROOT), str(_ROOT / "src")):
 
 from dissolve import cli, tea
 from dissolve.cli import CliApp
-from agent_harness import ToolEvent, TurnResult
+from dissolve.agent_harness import ToolEvent, TurnResult
 from rich.console import Console
 import io
 

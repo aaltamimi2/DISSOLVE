@@ -15,10 +15,10 @@ for _p in (str(_ROOT), str(_ROOT / "src")):
     if _p not in sys.path:
         sys.path.insert(0, _p)
 
-import agent_harness
-import agent_tools
-from agent_harness import TurnResult, run_turn
-from agent_tools import UNWIRED, dispatch, result_read, source_basis_for, tool_schema_for, tool_schemas
+from dissolve import agent_harness
+from dissolve import agent_tools
+from dissolve.agent_harness import TurnResult, run_turn
+from dissolve.agent_tools import UNWIRED, dispatch, result_read, source_basis_for, tool_schema_for, tool_schemas
 from dissolve import session as sess
 from dissolve.session import (
     CompactionBudgetError, append_reported, bind_tool_session,

@@ -262,19 +262,19 @@ JOBS_DIR_ENV = "DISSOLVE_COSMO_JOBS_DIR"
 SLOTS_DIR_ENV = "DISSOLVE_COSMO_DFT_SLOTS_DIR"
 ARTIFACTS_DIR_ENV = "DISSOLVE_COSMO_ARTIFACTS_DIR"
 RUN_ORCA_STAGE = (
-    Path(__file__).resolve().parents[2] / "scripts" / "cosmo" / "run_orca_stage.py"
+    Path(__file__).resolve().parent / "cosmo_workers" / "run_orca_stage.py"
 )
 #: Isolated interpreter that actually imports opencosmorspy. Main env does not.
 DEFAULT_COSMO_PYTHON = Path("/home/aaltamimi2/.venvs/cosmo-logp/bin/python")
 LN_GAMMA_WORKER = (
-    Path(__file__).resolve().parents[2] / "scripts" / "cosmo" / "ln_gamma_worker.py"
+    Path(__file__).resolve().parent / "cosmo_workers" / "ln_gamma_worker.py"
 )
 COSMO_PYTHON_ENV = "DISSOLVE_COSMO_PYTHON"
 COSMO_IN_WORKER_ENV = "DISSOLVE_COSMO_IN_WORKER"
 COSMO_TIMEOUT_ENV = "DISSOLVE_COSMO_TIMEOUT"
 DEFAULT_COSMO_TIMEOUT_S = 120.0
 
-#: Stage-1 ORCA solvent file stems. Matches scripts/cosmo/compute_delta_logd.py.
+#: Stage-1 ORCA solvent file stems.
 ORCA_SOLVENT_FILE_STEMS = {
     "dichloromethane": "dcm",
     "water": "water",

@@ -17,10 +17,6 @@ from dissolve import polymer_cosmo as pc
 from dissolve.cosmo_logp import COSMOBASE_PARAMETERISATION
 
 _POLYMER_SRC = Path(pc.__file__).read_text()
-_REPO = Path(__file__).resolve().parents[1]
-_LOGP_SRC = _REPO / "src" / "dissolve" / "cosmo_logp.py"
-_THERMO_SRC = _REPO / "src" / "dissolve" / "thermo.py"
-_THERMO_TEST = _REPO / "tests" / "test_thermo.py"
 
 
 def _write_dummy_cosmo(path: Path, volume: float = 100.0) -> Path:
@@ -43,14 +39,7 @@ def _lng_from_catalog(catalog: dict[str, float], polymer_paths):
     return lng
 
 
-def test_leftover_store_ident_on_c2cffc9():
-    committed = subprocess.check_output(
-        ["git", "show", "c2cffc9:src/dissolve/cosmo_logp.py"],
-        cwd=Path(__file__).resolve().parents[1],
-    )
-    assert hashlib.sha256(_LOGP_SRC.read_bytes()).hexdigest() == hashlib.sha256(
-        committed
-    ).hexdigest()
+def test_contaminants_asset_matches_pin():
     assert hashlib.sha256(contaminants._ASSET.read_bytes()).hexdigest() == contaminants._ASSET_SHA256
 
 

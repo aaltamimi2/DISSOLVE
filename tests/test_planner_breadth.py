@@ -15,7 +15,7 @@ for _path in (str(_ROOT), str(_ROOT / "src")):
     if _path not in sys.path:
         sys.path.insert(0, _path)
 
-from agent_tools import dispatch, result_read, tool_schemas
+from dissolve.agent_tools import dispatch, result_read, tool_schemas
 from dissolve import registry, tea
 from dissolve.cli import CliApp, _parse_breadth_slash
 from dissolve.contracts import parse_tool_result

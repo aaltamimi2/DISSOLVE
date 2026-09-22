@@ -12,7 +12,7 @@ for _p in (str(_ROOT), str(_ROOT / "src")):
     if _p not in sys.path:
         sys.path.insert(0, _p)
 
-from agent_tools import tool_schemas
+from dissolve.agent_tools import tool_schemas
 from dissolve import separation, tea
 from dissolve.contracts import parse_tool_result
 from dissolve.session import bind_tool_session, new_session, store_handle

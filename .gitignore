@@ -11,8 +11,7 @@ STRAP/
 *:Zone.Identifier
 *.crdownload
 
-# Publisher PDFs of source papers. Article files fetched from RSC, Elsevier and
-# friends are the publisher's copyright and must not be redistributed through
-# this repo. Scoped to the repo root on purpose: figures we generate ourselves
-# are deliverables and stay tracked (figures/unified_solubility_query.pdf).
-/*.pdf
+# Publisher PDFs of source papers anywhere in the tree. Article files fetched from
+# RSC, Elsevier and friends are the publisher's copyright and must not be
+# redistributed through this repo.
+*.pdf

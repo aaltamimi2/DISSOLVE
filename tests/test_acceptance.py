@@ -14,10 +14,10 @@ for _p in (str(_ROOT), str(_ROOT / "src")):
     if _p not in sys.path:
         sys.path.insert(0, _p)
 
-import agent_harness
-import agent_tools
-from agent_harness import run_turn
-from agent_tools import SYSTEM_PROMPT, dispatch
+from dissolve import agent_harness
+from dissolve import agent_tools
+from dissolve.agent_harness import run_turn
+from dissolve.agent_tools import SYSTEM_PROMPT, dispatch
 _real_bind = agent_tools.bind_handle_rows
 from dissolve.session import (
     bind_tool_session, handle_rows, load_handle, new_session,
@@ -279,7 +279,7 @@ def test_acceptance_5_identity_predicate_is_red_on_forty_copies_of_one_row():
 def test_acceptance_5_screen_then_safety_identities_and_answer(monkeypatch):
     bound_ids = []
     monkeypatch.setattr(
-        "agent_tools.bind_handle_rows",
+        "dissolve.agent_tools.bind_handle_rows",
         _spy_bind(bound_ids, _real_bind),
     )
 

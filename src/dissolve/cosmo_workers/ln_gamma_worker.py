@@ -16,7 +16,7 @@ import importlib.util as _ilu
 
 _spec = _ilu.spec_from_file_location(
     "dissolve_cosmo_logp",
-    str(Path(__file__).resolve().parents[2] / "src" / "dissolve" / "cosmo_logp.py"),
+    str(Path(__file__).resolve().parents[1] / "cosmo_logp.py"),
 )
 cl = _ilu.module_from_spec(_spec)
 sys.modules["dissolve_cosmo_logp"] = cl

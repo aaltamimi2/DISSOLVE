@@ -13,7 +13,7 @@ for _path in (str(_ROOT), str(_ROOT / "src"), str(_ROOT / "tests")):
     if _path not in sys.path:
         sys.path.insert(0, _path)
 
-from agent_tools import (
+from dissolve.agent_tools import (
     LITERATURE_AGENT_TOOLS,
     LITERATURE_CORPUS_TOOLS,
     LITERATURE_INGEST_TOOLS,
@@ -295,7 +295,7 @@ def test_agent_list_and_registry_unmoved():
 
 
 def test_emptying_ingest_tools_does_not_put_ingest_on_scholarly(monkeypatch):
-    import agent_tools as tools
+    from dissolve import agent_tools as tools
     monkeypatch.setattr(tools, "LITERATURE_INGEST_TOOLS", frozenset())
     scholarly = {"literature_mode": {"mode": "scholarly"}}
     offered = {item["name"] for item in tools.tool_schemas(scholarly)}

@@ -23,7 +23,7 @@ from pathlib import Path
 import importlib.util as _ilu
 _spec = _ilu.spec_from_file_location(
     "dissolve_cosmo_logp",
-    str(Path(__file__).resolve().parents[2] / "src" / "dissolve" / "cosmo_logp.py"),
+    str(Path(__file__).resolve().parents[1] / "cosmo_logp.py"),
 )
 cl = _ilu.module_from_spec(_spec)
 # Register BEFORE exec: @dataclass resolves cls.__module__ through sys.modules,

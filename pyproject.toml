@@ -1,5 +1,5 @@
 [project]
-name = "dissolve-v12"
+name = "dissolve"
 version = "0.1"
 requires-python = ">=3.11"
 dependencies = [
@@ -9,7 +9,27 @@ dependencies = [
     "google-genai>=1",
     "rich>=13",
     "prompt_toolkit>=3.0",
+    "langchain-core>=1.0",
+    "numpy>=2",
+    "scipy>=1.11",
+    "joblib>=1.3",
+    # The HSP random forest in data/ was pickled with scikit-learn 1.8.0.
+    "scikit-learn>=1.8,<1.9",
+    "rdkit>=2023.9",
+    "pyomo>=6.7",
 ]
+
+[project.optional-dependencies]
+# PDF parsing, chunking, embedding and reranking exactly as the served corpus was built.
+literature = [
+    "docling==2.121.0",
+    "sentence-transformers==5.2.0",
+    "pypdf>=5",
+    "langchain>=1.0",
+]
+
+[project.scripts]
+dissolve = "dissolve.cli:main"
 
 [build-system]
 requires = ["setuptools>=68"]
@@ -19,4 +39,4 @@ build-backend = "setuptools.build_meta"
 where = ["src"]
 
 [tool.setuptools.package-data]
-dissolve = ["data/*.duckdb"]
+dissolve = ["data/*", "cosmo_workers/*.py"]

@@ -14,7 +14,7 @@ for _path in (str(_ROOT), str(_ROOT / "src")):
     if _path not in sys.path:
         sys.path.insert(0, _path)
 
-from agent_tools import tool_schemas
+from dissolve.agent_tools import tool_schemas
 from dissolve import safety, tea
 from dissolve.contracts import parse_tool_result
 
@@ -351,7 +351,7 @@ def test_green_screen_chem21_metric_stamps_eligible_set():
 
 
 def test_pins_untouched_and_schema_count_stays_24():
-    digest = hashlib.sha256((_ROOT / "agent_tools.py").read_bytes()).hexdigest()
+    digest = hashlib.sha256((_ROOT / "src" / "dissolve" / "agent_tools.py").read_bytes()).hexdigest()
     assert digest == _AGENT_TOOLS_SHA256
     assert len(tool_schemas()) == 24
     names = {item["name"] for item in tool_schemas()}
@@ -566,7 +566,7 @@ def test_planner_chem21_alias_resolves_to_worst_not_a_third_objective():
 
 
 def test_agent_surface_names_worst_of_three_as_the_default_chem21_metric():
-    from agent_tools import tool_schemas
+    from dissolve.agent_tools import tool_schemas
     schemas = {t["name"]: t for t in tool_schemas()}
     assert len(schemas) == 24
     for name in ("screen_green_solvent_candidates", "screen_route_solvent_substitutions"):

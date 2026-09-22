@@ -21,7 +21,7 @@ for _path in (str(_ROOT), str(_ROOT / "src")):
     if _path not in sys.path:
         sys.path.insert(0, _path)
 
-from agent_tools import UNWIRED, dispatch, tool_schemas
+from dissolve.agent_tools import UNWIRED, dispatch, tool_schemas
 from dissolve import campaign_consume, optimization, registry, tea, thermodynamics
 from dissolve.cli import EXPECTED_REGISTRY_NAMES
 from dissolve.session import bind_tool_session, load_handle, new_session, store_handle

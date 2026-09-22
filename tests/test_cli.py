@@ -16,8 +16,8 @@ for _p in (str(_ROOT), str(_ROOT / "src")):
     if _p not in sys.path:
         sys.path.insert(0, _p)
 
-import agent_harness
-from agent_harness import ToolEvent, TurnResult, run_turn
+from dissolve import agent_harness
+from dissolve.agent_harness import ToolEvent, TurnResult, run_turn
 from dissolve import cli
 from dissolve.cli import CliApp, EXPECTED_REGISTRY_NAMES, doctor_report, main, resolve_model
 from dissolve.session import new_session
