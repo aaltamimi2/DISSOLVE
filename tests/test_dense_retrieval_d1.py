@@ -10,7 +10,9 @@ for _path in (str(_ROOT), str(_ROOT / "src")):
     if _path not in sys.path:
         sys.path.insert(0, _path)
 
-from dissolve import engine_e2e, research
+from dissolve import research
+
+NONSENSE_QUERY = "ZXQQQNONSENSEZXQ TOKENTHATISABSENTQZX"
 from dissolve.contracts import parse_tool_result
 
 PLANT = "PLANTZXQTOKEN"
@@ -27,7 +29,7 @@ def _index(*, chunk_ids: list[str] | None = None, dense_ids: list[str] | None = 
     recorded = dense_ids if dense_ids is not None else list(ids)
     return {
         "schema": research._INDEX_SCHEMA,
-        "knowledgebase": engine_e2e.KNOWLEDGEBASE_ID,
+        "knowledgebase": research._PRODUCT_KNOWLEDGEBASE,
         "documents": [{"document_id": "d1", "sha256": PAPER, "title": "Fixture"}],
         "chunks": [
             {
@@ -58,7 +60,7 @@ def _index(*, chunk_ids: list[str] | None = None, dense_ids: list[str] | None = 
             },
         ],
         "dense": {
-            "model": engine_e2e.MINILM_ID,
+            "model": research._MINILM_MODEL_ID,
             "dim": 384,
             "chunk_ids": recorded,
             "vectors": [_unit(1.0), _unit(0.0)],
@@ -67,7 +69,7 @@ def _index(*, chunk_ids: list[str] | None = None, dense_ids: list[str] | None = 
     }
 
 
-def _fake_minilm(seen, model_id=engine_e2e.MINILM_ID):
+def _fake_minilm(seen, model_id=research._MINILM_MODEL_ID):
     def fake(texts, model_name=None):
         seen.extend(list(texts))
         return model_id, [_unit(1.0) for _ in texts]
@@ -123,7 +125,7 @@ def test_d1_constructed_refuse_does_not_load_minilm(monkeypatch):
 
     monkeypatch.setattr(research, "_dense_vectors", boom)
     index = _index()
-    assert research._search_index(index, engine_e2e.NONSENSE_QUERY, 5, "hybrid") == []
+    assert research._search_index(index, NONSENSE_QUERY, 5, "hybrid") == []
     assert research._search_index(index, ABSENT_SUBJECT, 5, "hybrid") == []
 
 
@@ -132,7 +134,7 @@ def test_d1_tool_records_sparse_gated_refuse(monkeypatch, tmp_path):
     monkeypatch.setenv("DISSOLVE_RESEARCH_HOME", str(tmp_path))
     research._save_index(_index())
     payload = parse_tool_result(research.search_literature_corpus(
-        PLANT, knowledgebase=engine_e2e.KNOWLEDGEBASE_ID, retrieval_mode="hybrid",
+        PLANT, knowledgebase=research._PRODUCT_KNOWLEDGEBASE, retrieval_mode="hybrid",
     ))
     assert payload["data"]["success"] is True
     assert payload["data"].get("error_code") != "dense_index_unavailable"
@@ -140,7 +142,7 @@ def test_d1_tool_records_sparse_gated_refuse(monkeypatch, tmp_path):
     assert payload["data"]["hybrid_weights"] == {"dense": 0.55, "sparse": 0.40}
     assert "recall" not in json.dumps(payload)
     empty = parse_tool_result(research.search_literature_corpus(
-        ABSENT_SUBJECT, knowledgebase=engine_e2e.KNOWLEDGEBASE_ID, retrieval_mode="hybrid",
+        ABSENT_SUBJECT, knowledgebase=research._PRODUCT_KNOWLEDGEBASE, retrieval_mode="hybrid",
     ))
     assert empty["data"]["success"] is True
     assert empty["data"]["result_count"] == 0
@@ -153,7 +155,7 @@ def test_d1_hybrid_does_not_admit_zero_sparse_cosine_hit(monkeypatch):
     aligned = [0.0, 1.0] + [0.0] * 382
 
     def fake(texts, model_name=None):
-        return engine_e2e.MINILM_ID, [aligned for _ in texts]
+        return research._MINILM_MODEL_ID, [aligned for _ in texts]
 
     monkeypatch.setattr(research, "_dense_vectors", fake)
     index = _index()

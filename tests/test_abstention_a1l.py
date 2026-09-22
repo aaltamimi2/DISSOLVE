@@ -11,7 +11,7 @@ for _path in (str(_ROOT), str(_ROOT / "src")):
     if _path not in sys.path:
         sys.path.insert(0, _path)
 
-from dissolve import engine_e2e, research, text_gold
+from dissolve import research
 from dissolve.contracts import parse_tool_result
 
 PAPER = "aa" * 32
@@ -48,7 +48,7 @@ def _index(chunks: list[dict]) -> dict:
         "documents": [{"document_id": "d1", "sha256": PAPER, "title": "Fixture"}],
         "chunks": chunks,
         "dense": {
-            "model": engine_e2e.MINILM_ID,
+            "model": research._MINILM_MODEL_ID,
             "dim": 384,
             "chunk_ids": [chunk["chunk_id"] for chunk in chunks],
             "vectors": [_unit(1.0) for _ in chunks],
@@ -59,7 +59,7 @@ def _index(chunks: list[dict]) -> dict:
 
 def _fake_minilm():
     def fake(texts, model_name=None):
-        return engine_e2e.MINILM_ID, [_unit(1.0) for _ in texts]
+        return research._MINILM_MODEL_ID, [_unit(1.0) for _ in texts]
 
     return fake
 
@@ -90,10 +90,12 @@ def test_a1l_search_defaults_and_ingest_home():
     assert inspect_tool.parameters["knowledgebase"].default == "user-library"
 
 
-def test_a1l_unset_home_finds_canonical_gzip(monkeypatch):
+def test_a1l_unset_home_finds_canonical_gzip(monkeypatch, tmp_path):
     monkeypatch.delenv("DISSOLVE_RESEARCH_HOME", raising=False)
-    expected = text_gold.DEFAULT_OUT_DIR / "indexes" / "t5-indexed-unsealed.json.gz"
-    assert expected.is_file()
+    monkeypatch.setenv("DISSOLVE_CORPUS_DIR", str(tmp_path))
+    expected = tmp_path / "indexes" / "t5-indexed-unsealed.json.gz"
+    expected.parent.mkdir()
+    expected.write_bytes(b"")
     assert research._index_path("t5-indexed-unsealed") == expected
 
 
@@ -101,7 +103,7 @@ def test_a1l_env_set_index_path_ident(monkeypatch, tmp_path):
     monkeypatch.setenv("DISSOLVE_RESEARCH_HOME", str(tmp_path))
     got = research._index_path("t5-indexed-unsealed")
     assert got == (tmp_path / "t5-indexed-unsealed.json.gz").resolve()
-    assert got != text_gold.DEFAULT_OUT_DIR / "indexes" / "t5-indexed-unsealed.json.gz"
+    assert got != research._corpus_dir() / "indexes" / "t5-indexed-unsealed.json.gz"
 
 
 def test_a1l_two_serving_queries_share_unit_sparse_and_differ_in_raw():
@@ -158,8 +160,12 @@ def test_a1l_sparse_mode_ident_and_refuse_skips_minilm(monkeypatch, tmp_path):
     assert research._search_index(index, "xylophone quokka zzzyx", 5, "hybrid") == []
 
 
-def test_a1l_save_does_not_clobber_canonical_gzip(monkeypatch):
+def test_a1l_save_does_not_clobber_canonical_gzip(monkeypatch, tmp_path):
     monkeypatch.delenv("DISSOLVE_RESEARCH_HOME", raising=False)
+    monkeypatch.setenv("DISSOLVE_CORPUS_DIR", str(tmp_path))
+    served = tmp_path / "indexes" / "t5-indexed-unsealed.json.gz"
+    served.parent.mkdir()
+    served.write_bytes(b"served")
     index = _index([_chunk("c-a", "alpha methods solvent")])
     try:
         research._save_index(index)
@@ -167,3 +173,4 @@ def test_a1l_save_does_not_clobber_canonical_gzip(monkeypatch):
         assert error.code == "protected_serving_index"
     else:
         raise AssertionError("unset-home save must not overwrite the T5 gzip")
+    assert served.read_bytes() == b"served"

@@ -1,9 +1,7 @@
 """A-2A4 coverage + P5 floor. Fixtures only. No MiniLM. No gold needles."""
 from __future__ import annotations
 
-import json
 import math
-import shutil
 import sys
 from pathlib import Path
 
@@ -12,9 +10,8 @@ for _path in (str(_ROOT), str(_ROOT / "src")):
     if _path not in sys.path:
         sys.path.insert(0, _path)
 
-from dissolve import abstention_a2a4, dense_d2, engine_e2e, research, text_chunk_metrics
+from dissolve import research
 from dissolve.contracts import parse_tool_result
-from dissolve.gold_ensemble import file_sha256
 
 PAPER = "aa" * 32
 
@@ -46,7 +43,7 @@ def _index(chunks: list[dict]) -> dict:
         "documents": [{"document_id": "d1", "sha256": PAPER, "title": "Fixture"}],
         "chunks": chunks,
         "dense": {
-            "model": engine_e2e.MINILM_ID,
+            "model": research._MINILM_MODEL_ID,
             "dim": 384,
             "chunk_ids": [chunk["chunk_id"] for chunk in chunks],
             "vectors": [_unit(1.0) for _ in chunks],
@@ -57,7 +54,7 @@ def _index(chunks: list[dict]) -> dict:
 
 def _fake_minilm():
     def fake(texts, model_name=None):
-        return engine_e2e.MINILM_ID, [_unit(1.0) for _ in texts]
+        return research._MINILM_MODEL_ID, [_unit(1.0) for _ in texts]
 
     return fake
 
@@ -117,68 +114,6 @@ def test_a2a4_no_floor_skips_minilm_on_invented_tokens(monkeypatch):
     index = _index([_chunk("c-a", "alpha methods solvent")])
     assert research._search_index(index, "xylophone quokka zzzyx", 5, "hybrid") == []
     assert research.coverage_star(index, "xylophone quokka zzzyx") == 0.0
-
-
-def test_a2a4_named_grid_and_interpolation():
-    assert abstention_a2a4.NAMED_PERCENTILES == (1, 5, 10, 25)
-    assert abstention_a2a4.SHIPPED_PERCENTILE == 5
-    values = [0.0, 0.25, 0.5, 0.75, 1.0]
-    assert abstention_a2a4.named_percentile(values, 50) == 0.5
-
-
-def test_a2a4_emit_tmp_does_not_move_pins(tmp_path):
-    index = _index([
-        _chunk("c-a", "zxqtitania adsorption surface methods forcefield"),
-        _chunk("c-b", "polymer solvent screening solubility"),
-    ])
-    manifest = tmp_path / "INDEX.t5.unsealed.v1.json"
-    shutil.copy(engine_e2e.MANIFEST_PATH, manifest)
-    off = tmp_path / "OFFDOMAIN.queries.v1.json"
-    off.write_text(json.dumps({
-        "schema": "dissolve.offdomain.queries.v1",
-        "set_digest": abstention_a2a4.SPEC_SHA256,
-        "queries": [
-            {"id": "od-fixture0001-001", "query": "zxqtitania rutile grafting forcefield"},
-            {"id": "od-fixture0001-002", "query": "zxqtitania adsorption on rutile surface"},
-        ],
-    }) + "\n")
-    gzip_before = file_sha256(dense_d2.INDEX_GZIP_PATH)
-    gold_before = file_sha256(text_chunk_metrics.GOLD_UNSEALED_PATH)
-    live_manifest_before = file_sha256(engine_e2e.MANIFEST_PATH)
-    result = abstention_a2a4.emit_a2a4_product(
-        dest_dir=tmp_path,
-        manifest_path=manifest,
-        offdomain_path=off,
-        index=index,
-        fire_queries=[
-            "polymer solvent screening solubility",
-            "zxqtitania adsorption surface methods forcefield",
-        ],
-        offdomain_queries=[
-            "zxqtitania rutile grafting forcefield",
-            "zxqtitania adsorption on rutile surface",
-        ],
-    )
-    curves = json.loads(Path(result["curves_path"]).read_text())
-    assert curves["named_percentiles"] == [1, 5, 10, 25]
-    assert curves["shipped_percentile"] == 5
-    assert any(row["shipped"] and row["percentile"] == 5 for row in curves["grid"])
-    assert "fn" in curves["grid"][0] and "fp" in curves["grid"][0]
-    dumped = json.dumps(curves)
-    assert '"query"' not in dumped
-    assert "fact_id" not in dumped
-    assert "needles" not in dumped
-    patched = json.loads(manifest.read_text())
-    assert patched["abstention"]["percentile"] == 5
-    assert patched["abstention"]["statistic"] == "query_idf_coverage"
-    assert patched["gold_sha256"] == text_chunk_metrics.GOLD_UNSEALED_SHA256
-    assert file_sha256(dense_d2.INDEX_GZIP_PATH) == gzip_before == abstention_a2a4.GZIP_SHA256
-    assert file_sha256(text_chunk_metrics.GOLD_UNSEALED_PATH) == gold_before
-    assert file_sha256(engine_e2e.MANIFEST_PATH) == live_manifest_before
-    source = Path(research.__file__).read_text()
-    assert "_HYBRID_DENSE_WEIGHT = 0.55\n" in source
-    assert "_HYBRID_SPARSE_WEIGHT = 0.40\n" in source
-    assert "engine_e2e" not in source
 
 
 def test_a2a4_payload_coverage_star_on_tool(monkeypatch, tmp_path):

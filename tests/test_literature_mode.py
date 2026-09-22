@@ -165,3 +165,14 @@ def test_slash_sets_and_on_does_not_write(tmp_path, monkeypatch):
     assert "usage: /literature" in buf.getvalue()
     assert app.handle_command("/literature off") is False
     assert app.session.get("literature_mode") == {"mode": "off"}
+
+
+def test_emptying_ingest_tools_does_not_put_ingest_on_scholarly(monkeypatch):
+    from dissolve import agent_tools as tools
+    monkeypatch.setattr(tools, "LITERATURE_INGEST_TOOLS", frozenset())
+    scholarly = {"literature_mode": {"mode": "scholarly"}}
+    offered = {item["name"] for item in tools.tool_schemas(scholarly)}
+    assert "ingest_literature_documents" not in offered
+    assert "ingest_literature_graph" not in offered
+    assert "promote_ingested_paper" not in offered
+    assert tools.LITERATURE_MODE_SURFACE["scholarly"] == tools.LITERATURE_SCHOLARLY_TOOLS

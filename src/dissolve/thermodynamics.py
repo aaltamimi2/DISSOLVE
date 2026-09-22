@@ -741,7 +741,7 @@ def _grid_nodes() -> tuple[float, ...]:
 
 
 # ``tools.py`` aliases this live module as ``thermo``; a call there to
-# ``thermo._nearest_nodes`` intentionally lands here, not in legacy ``thermo.py``.
+# ``thermo._nearest_nodes`` intentionally lands here.
 def _nearest_nodes(temperature: float) -> list[float]:
     """Return the stored grid nodes immediately bracketing one temperature."""
     nodes = _grid_nodes()

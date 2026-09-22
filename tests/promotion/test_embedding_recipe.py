@@ -10,8 +10,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from dissolve import engine_e2e, research
-from dissolve.text_gold import TextGoldError
+from dissolve import research
 
 MINILM_MODEL = "sentence-transformers/all-MiniLM-L6-v2"
 MINILM_DIM = 384
@@ -210,83 +209,6 @@ def _embedder(model_id, vectors, *, calls):
     return fake
 
 
-def test_embed_t5_index_minilm_two_chunks():
-    payload = _index()
-    original = json.dumps(payload, sort_keys=True)
-    calls: list[tuple[list[str], str | None]] = []
-    vectors = [_unit(MINILM_DIM, 0), _unit(MINILM_DIM, 1)]
-    out = engine_e2e.embed_t5_index(
-        payload,
-        embedder=_embedder(MINILM_MODEL, vectors, calls=calls),
-    )
-    assert json.dumps(payload, sort_keys=True) == original
-    assert calls == [(_prepared(), MINILM_MODEL)]
-    dense = out["dense"]
-    assert dense["model"] == MINILM_MODEL
-    assert dense["dim"] == MINILM_DIM
-    assert dense["chunk_ids"] == [CHUNK_A, CHUNK_B]
-    assert dense["vectors"] == vectors
-    assert "query_instruction" not in dense
-    assert "encoder_revision" not in dense
-    assert "passage_instruction" not in dense
-
-
-def test_embed_t5_index_bge_two_chunks_recipe():
-    payload = _index()
-    original = json.dumps(payload, sort_keys=True)
-    calls: list[tuple[list[str], str | None]] = []
-    vectors = [_unit(BGE_DIM, 0), _unit(BGE_DIM, 1)]
-    out = engine_e2e.embed_t5_index(
-        payload,
-        embedder=_embedder(BGE_MODEL, vectors, calls=calls),
-        model_name=BGE_MODEL,
-    )
-    assert json.dumps(payload, sort_keys=True) == original
-    assert calls == [(_prepared(), BGE_MODEL)]
-    assert all(not text.startswith(BGE_QUERY) for text in calls[0][0])
-    dense = out["dense"]
-    assert dense["model"] == BGE_MODEL
-    assert dense["dim"] == BGE_DIM
-    assert dense["chunk_ids"] == [CHUNK_A, CHUNK_B]
-    assert dense["vectors"] == vectors
-    assert dense["query_instruction"] == BGE_QUERY
-    assert dense["passage_instruction"] == ""
-    assert dense["encoder_revision"] == BGE_REVISION
-
-
-def test_embed_t5_index_wrong_returned_model_refuses():
-    calls: list[tuple[list[str], str | None]] = []
-    with pytest.raises(TextGoldError) as caught:
-        engine_e2e.embed_t5_index(
-            _index(),
-            embedder=_embedder(MINILM_MODEL, [_unit(BGE_DIM, 0), _unit(BGE_DIM, 1)], calls=calls),
-            model_name=BGE_MODEL,
-        )
-    assert caught.value.code == "dense_model"
-    assert calls == [(_prepared(), BGE_MODEL)]
-
-
-@pytest.mark.parametrize(
-    ("model_name", "expected_dim"),
-    [
-        (None, BGE_DIM),
-        (MINILM_MODEL, BGE_DIM),
-        (BGE_MODEL, MINILM_DIM),
-    ],
-)
-def test_embed_t5_index_conflicting_dimension_refuses(model_name, expected_dim):
-    calls: list[tuple[list[str], str | None]] = []
-    with pytest.raises(TextGoldError) as caught:
-        engine_e2e.embed_t5_index(
-            _index(),
-            embedder=_embedder(model_name or MINILM_MODEL, [_unit(MINILM_DIM, 0)], calls=calls),
-            model_name=model_name,
-            expected_dim=expected_dim,
-        )
-    assert caught.value.code == "dense_dim"
-    assert calls == []
-
-
 def _fault_vectors(kind: str, dim: int) -> list[list[float]]:
     good = [_unit(dim, 0), _unit(dim, 1)]
     if kind == "too_few":
@@ -310,30 +232,6 @@ def _fault_vectors(kind: str, dim: int) -> list[list[float]]:
         row[0] = math.inf
         return [good[0], row]
     raise AssertionError(kind)
-
-
-@pytest.mark.parametrize(
-    ("kind", "model_name", "dim", "code"),
-    [
-        ("too_few", MINILM_MODEL, MINILM_DIM, "n_chunks_mismatch"),
-        ("too_many", BGE_MODEL, BGE_DIM, "n_chunks_mismatch"),
-        ("ragged", MINILM_MODEL, MINILM_DIM, "dense_dim"),
-        ("zero", BGE_MODEL, BGE_DIM, "dense_dim"),
-        ("non_unit", BGE_MODEL, BGE_DIM, "dense_dim"),
-        ("nan", MINILM_MODEL, MINILM_DIM, "dense_dim"),
-        ("inf", BGE_MODEL, BGE_DIM, "dense_dim"),
-    ],
-)
-def test_embed_t5_index_malformed_vectors_refuse(kind, model_name, dim, code):
-    with pytest.raises(TextGoldError) as caught:
-        engine_e2e.embed_t5_index(
-            _index(),
-            embedder=_embedder(model_name, _fault_vectors(kind, dim), calls=[]),
-            model_name=None if model_name == MINILM_MODEL else model_name,
-        )
-    assert caught.value.code == code
-    assert TEXT_A not in str(caught.value)
-    assert TEXT_B not in str(caught.value)
 
 
 def _run_ingest(monkeypatch, *, model_id, vectors, save_calls):

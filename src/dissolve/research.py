@@ -52,6 +52,7 @@ _STOPWORDS = {
 _HYBRID_DENSE_WEIGHT = 0.55
 _HYBRID_SPARSE_WEIGHT = 0.40
 _MINILM_DIM = 384
+_MINILM_MODEL_ID = "sentence-transformers/all-MiniLM-L6-v2"
 _REFUSE_RULE_SPARSE_GATED = "sparse_gated"
 _PRODUCT_KNOWLEDGEBASE = "t5-indexed-unsealed"
 _SIDECAR_KNOWLEDGEBASE = "t5-promoted-unsealed"
@@ -61,6 +62,8 @@ _SUPPORTED_CORPUS_PROFILES = frozenset({_CORPUS_PROFILE_MINILM, _CORPUS_PROFILE_
 _ENV_CORPUS_PROFILE = "DISSOLVE_CORPUS_PROFILE"
 _ENV_BGE10_MANIFEST = "DISSOLVE_BGE10_MANIFEST"
 _ENV_RESEARCH_HOME = "DISSOLVE_RESEARCH_HOME"
+_ENV_CORPUS_DIR = "DISSOLVE_CORPUS_DIR"
+_PRODUCT_MANIFEST_NAME = "INDEX.t5.unsealed.v1.json"
 _BGE_MODEL_ID = "BAAI/bge-base-en-v1.5"
 _BGE_DIM = 768
 _BGE_QUERY_INSTRUCTION = "Represent this sentence for searching relevant passages: "
@@ -820,7 +823,7 @@ def _run_docling(path: Path) -> dict[str, Any]:
     except (ImportError, AttributeError) as error:
         raise LiteratureContractError(
             "parser_backend_unavailable",
-            "Docling is unavailable; install the pinned research extra before parsing documents.",
+            "Docling is unavailable; install the pinned literature extra before parsing documents.",
             backend="docling",
         ) from error
     try:
@@ -1171,7 +1174,7 @@ def parse_experiment_document(
         except (ImportError, AttributeError) as error:
             raise LiteratureContractError(
                 "parser_backend_unavailable",
-                "Docling is unavailable; install the pinned research extra before parsing documents.",
+                "Docling is unavailable; install the pinned literature extra before parsing documents.",
                 backend="docling",
             ) from error
         if version != _EXPERIMENT_DOCLING_VERSION:
@@ -3918,9 +3921,13 @@ def merge_rank_literature_metadata(
     }
 
 
+def _corpus_dir() -> Path:
+    """Where the served corpus lives: its manifest, and the base and sidecar indexes under indexes/."""
+    return Path(os.getenv(_ENV_CORPUS_DIR, "~/.dissolve/corpus")).expanduser()
+
+
 def _canonical_product_index_path() -> Path:
-    from .text_gold import DEFAULT_OUT_DIR
-    return DEFAULT_OUT_DIR / "indexes" / f"{_PRODUCT_KNOWLEDGEBASE}.json.gz"
+    return _corpus_dir() / "indexes" / f"{_PRODUCT_KNOWLEDGEBASE}.json.gz"
 
 
 def _index_path(knowledgebase: str) -> Path:
@@ -3937,8 +3944,7 @@ def _empty_index(knowledgebase: str) -> dict[str, Any]:
 
 
 def _product_manifest_path() -> Path:
-    from .text_gold import DEFAULT_OUT_DIR
-    return DEFAULT_OUT_DIR / "INDEX.t5.unsealed.v1.json"
+    return _corpus_dir() / _PRODUCT_MANIFEST_NAME
 
 
 def _read_text_file(path: Path) -> str:
@@ -4029,6 +4035,8 @@ def _sidecar_index_from_manifest(manifest: Mapping[str, Any]) -> dict[str, Any] 
             "Promoted sidecar path is missing.",
         )
     path = Path(raw_path).expanduser()
+    if not path.is_absolute():
+        path = _product_manifest_path().parent / path
     if path.is_dir():
         raise LiteratureContractError(
             "promoted_sidecar_not_file",
@@ -4737,7 +4745,7 @@ def _pdf_pages(data: bytes) -> list[dict[str, Any]]:
     try:
         reader_type = importlib.import_module("pypdf").PdfReader
     except (ImportError, AttributeError) as error:
-        raise RuntimeError("PDF ingestion requires pip install '.[research]'.") from error
+        raise RuntimeError("PDF ingestion requires pip install '.[literature]'.") from error
     reader = reader_type(io.BytesIO(data))
     return [{"page": index + 1, "text": page.extract_text() or ""} for index, page in enumerate(reader.pages)]
 
@@ -4924,8 +4932,8 @@ def _dense_vectors(texts: list[str], model_name: str | None = None) -> tuple[str
     try:
         model_type = importlib.import_module("sentence_transformers").SentenceTransformer
     except (ImportError, AttributeError) as error:
-        raise RuntimeError("Dense indexing requires pip install '.[research]'.") from error
-    selected = model_name or os.getenv("DISSOLVE_EMBEDDING_MODEL", "sentence-transformers/all-MiniLM-L6-v2")
+        raise RuntimeError("Dense indexing requires pip install '.[literature]'.") from error
+    selected = model_name or os.getenv("DISSOLVE_EMBEDDING_MODEL", _MINILM_MODEL_ID)
     try:
         if selected == _BGE_MODEL_ID:
             model = model_type(
