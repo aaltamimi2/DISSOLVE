@@ -119,286 +119,76 @@ def test_burn_true_is_switch_mismatch_not_a_ranking():
     ]
 
 
-def test_irr_override_is_coefficient_mismatch():
+@pytest.mark.parametrize(
+    ('value', 'key', 'value_2', 'value_3', 'value_4'),
+    [
+        pytest.param('irr', 'irr', 0.15, 0.1, 0.15, id='irr'),
+        pytest.param('income_tax', 'income_tax', 0.3, 0.21, 0.3, id='income_tax'),
+        pytest.param('operating_days', 'operating_days', 300.0, 350.4, 300.0, id='operating_days'),
+        pytest.param('labor_burden', 'labor_burden', 0.5, 0.9, 0.5, id='labor_burden'),
+        pytest.param('finance_interest', 'finance_interest', 0.12, 0.08, 0.12, id='finance_interest'),
+        pytest.param('finance_years', 'finance_years', 15, 10, 15, id='finance_years'),
+        pytest.param('finance_fraction', 'finance_fraction', 0.4, 0.0, 0.4, id='finance_fraction'),
+        pytest.param('startup_months', 'startup_months', 6, 3, 6, id='startup_months'),
+        pytest.param('startup_FOCfrac', 'startup_FOCfrac', 0.5, 1, 0.5, id='startup_FOCfrac'),
+        pytest.param('startup_VOCfrac', 'startup_VOCfrac', 0.5, 0.75, 0.5, id='startup_VOCfrac'),
+        pytest.param('startup_salesfrac', 'startup_salesfrac', 0.8, 0.5, 0.8, id='startup_salesfrac'),
+        pytest.param('WC_over_FCI', 'WC_over_FCI', 0.1, 0.05, 0.1, id='wc_over_fci'),
+        pytest.param('warehouse', 'warehouse', 0.08, 0.04, 0.08, id='warehouse'),
+        pytest.param('site_development', 'site_development', 0.18, 0.09, 0.18, id='site_development'),
+        pytest.param('additional_piping', 'additional_piping', 0.09, 0.045, 0.09, id='additional_piping'),
+        pytest.param('proratable_costs', 'proratable_costs', 0.2, 0.1, 0.2, id='proratable_costs'),
+        pytest.param('field_expenses', 'field_expenses', 0.2, 0.1, 0.2, id='field_expenses'),
+        pytest.param('construction', 'construction', 0.4, 0.2, 0.4, id='construction'),
+        pytest.param('contingency', 'contingency', 0.8, 0.4, 0.8, id='contingency'),
+        pytest.param('other_indirect_costs', 'other_indirect_costs', 0.2, 0.1, 0.2, id='other_indirect_costs'),
+        pytest.param('property_insurance', 'property_insurance', 0.014, 0.007, 0.014, id='property_insurance'),
+        pytest.param('maintenance', 'maintenance', 0.06, 0.03, 0.06, id='maintenance'),
+    ],
+)
+def test_override_is_coefficient_mismatch(value, key, value_2, value_3, value_4):
     projected = campaign_basis.project_campaign_basis_v1(_minimal_v2())
     result = campaign_basis.held_field_mismatches(
-        projected, {"irr": 0.15},
+        projected, {key: value_2},
     )
     assert result["error_code"] == "campaign_basis_mismatch"
     row = result["mismatches"][0]
-    assert row["field"] == "irr"
-    assert row["campaign_value"] == pytest.approx(0.10)
-    assert row["requested_value"] == pytest.approx(0.15)
+    assert row["field"] == value
+    assert row["campaign_value"] == pytest.approx(value_3)
+    assert row["requested_value"] == pytest.approx(value_4)
 
 
-def test_income_tax_override_is_coefficient_mismatch():
+@pytest.mark.parametrize(
+    ('value', 'value_2', 'value_3', 'key', 'value_4'),
+    [
+        pytest.param('depreciation', 'MACRS7', 'MACRS5', 'depreciation', 'MACRS5', id='depreciation_override_is_coefficient_mismatch'),
+        pytest.param('steam_power_depreciation', 'MACRS20', 'MACRS7', 'steam_power_depreciation', 'MACRS7', id='steam_power'),
+    ],
+)
+def test_depreciation_override_is_coefficient_mismatch_2(value, value_2, value_3, key, value_4):
     projected = campaign_basis.project_campaign_basis_v1(_minimal_v2())
     result = campaign_basis.held_field_mismatches(
-        projected, {"income_tax": 0.30},
+        projected, {key: value_4},
     )
     assert result["error_code"] == "campaign_basis_mismatch"
     row = result["mismatches"][0]
-    assert row["field"] == "income_tax"
-    assert row["campaign_value"] == pytest.approx(0.21)
-    assert row["requested_value"] == pytest.approx(0.30)
+    assert row["field"] == value
+    assert row["campaign_value"] == value_2
+    assert row["requested_value"] == value_3
 
 
-def test_operating_days_override_is_coefficient_mismatch():
+@pytest.mark.parametrize(
+    ('key', 'value'),
+    [
+        pytest.param('depreciation', 'MACRS7', id='default_depreciation'),
+        pytest.param('steam_power_depreciation', 'MACRS20', id='default_steam_power_depreciation'),
+        pytest.param('lang_factor', None, id='none_lang_factor'),
+    ],
+)
+def test_matching_is_not_a_held_mismatch(key, value):
     projected = campaign_basis.project_campaign_basis_v1(_minimal_v2())
     result = campaign_basis.held_field_mismatches(
-        projected, {"operating_days": 300.0},
-    )
-    assert result["error_code"] == "campaign_basis_mismatch"
-    row = result["mismatches"][0]
-    assert row["field"] == "operating_days"
-    assert row["campaign_value"] == pytest.approx(350.4)
-    assert row["requested_value"] == pytest.approx(300.0)
-
-
-def test_labor_burden_override_is_coefficient_mismatch():
-    projected = campaign_basis.project_campaign_basis_v1(_minimal_v2())
-    result = campaign_basis.held_field_mismatches(
-        projected, {"labor_burden": 0.50},
-    )
-    assert result["error_code"] == "campaign_basis_mismatch"
-    row = result["mismatches"][0]
-    assert row["field"] == "labor_burden"
-    assert row["campaign_value"] == pytest.approx(0.90)
-    assert row["requested_value"] == pytest.approx(0.50)
-
-
-def test_finance_interest_override_is_coefficient_mismatch():
-    projected = campaign_basis.project_campaign_basis_v1(_minimal_v2())
-    result = campaign_basis.held_field_mismatches(
-        projected, {"finance_interest": 0.12},
-    )
-    assert result["error_code"] == "campaign_basis_mismatch"
-    row = result["mismatches"][0]
-    assert row["field"] == "finance_interest"
-    assert row["campaign_value"] == pytest.approx(0.08)
-    assert row["requested_value"] == pytest.approx(0.12)
-
-
-def test_finance_years_override_is_coefficient_mismatch():
-    projected = campaign_basis.project_campaign_basis_v1(_minimal_v2())
-    result = campaign_basis.held_field_mismatches(
-        projected, {"finance_years": 15},
-    )
-    assert result["error_code"] == "campaign_basis_mismatch"
-    row = result["mismatches"][0]
-    assert row["field"] == "finance_years"
-    assert row["campaign_value"] == pytest.approx(10)
-    assert row["requested_value"] == pytest.approx(15)
-
-
-def test_finance_fraction_override_is_coefficient_mismatch():
-    projected = campaign_basis.project_campaign_basis_v1(_minimal_v2())
-    result = campaign_basis.held_field_mismatches(
-        projected, {"finance_fraction": 0.4},
-    )
-    assert result["error_code"] == "campaign_basis_mismatch"
-    row = result["mismatches"][0]
-    assert row["field"] == "finance_fraction"
-    assert row["campaign_value"] == pytest.approx(0.0)
-    assert row["requested_value"] == pytest.approx(0.4)
-
-
-def test_startup_months_override_is_coefficient_mismatch():
-    projected = campaign_basis.project_campaign_basis_v1(_minimal_v2())
-    result = campaign_basis.held_field_mismatches(
-        projected, {"startup_months": 6},
-    )
-    assert result["error_code"] == "campaign_basis_mismatch"
-    row = result["mismatches"][0]
-    assert row["field"] == "startup_months"
-    assert row["campaign_value"] == pytest.approx(3)
-    assert row["requested_value"] == pytest.approx(6)
-
-
-def test_startup_FOCfrac_override_is_coefficient_mismatch():
-    projected = campaign_basis.project_campaign_basis_v1(_minimal_v2())
-    result = campaign_basis.held_field_mismatches(
-        projected, {"startup_FOCfrac": 0.5},
-    )
-    assert result["error_code"] == "campaign_basis_mismatch"
-    row = result["mismatches"][0]
-    assert row["field"] == "startup_FOCfrac"
-    assert row["campaign_value"] == pytest.approx(1)
-    assert row["requested_value"] == pytest.approx(0.5)
-
-
-def test_startup_VOCfrac_override_is_coefficient_mismatch():
-    projected = campaign_basis.project_campaign_basis_v1(_minimal_v2())
-    result = campaign_basis.held_field_mismatches(
-        projected, {"startup_VOCfrac": 0.5},
-    )
-    assert result["error_code"] == "campaign_basis_mismatch"
-    row = result["mismatches"][0]
-    assert row["field"] == "startup_VOCfrac"
-    assert row["campaign_value"] == pytest.approx(0.75)
-    assert row["requested_value"] == pytest.approx(0.5)
-
-
-def test_startup_salesfrac_override_is_coefficient_mismatch():
-    projected = campaign_basis.project_campaign_basis_v1(_minimal_v2())
-    result = campaign_basis.held_field_mismatches(
-        projected, {"startup_salesfrac": 0.8},
-    )
-    assert result["error_code"] == "campaign_basis_mismatch"
-    row = result["mismatches"][0]
-    assert row["field"] == "startup_salesfrac"
-    assert row["campaign_value"] == pytest.approx(0.5)
-    assert row["requested_value"] == pytest.approx(0.8)
-
-
-def test_wc_over_fci_override_is_coefficient_mismatch():
-    projected = campaign_basis.project_campaign_basis_v1(_minimal_v2())
-    result = campaign_basis.held_field_mismatches(
-        projected, {"WC_over_FCI": 0.10},
-    )
-    assert result["error_code"] == "campaign_basis_mismatch"
-    row = result["mismatches"][0]
-    assert row["field"] == "WC_over_FCI"
-    assert row["campaign_value"] == pytest.approx(0.05)
-    assert row["requested_value"] == pytest.approx(0.10)
-
-
-def test_warehouse_override_is_coefficient_mismatch():
-    projected = campaign_basis.project_campaign_basis_v1(_minimal_v2())
-    result = campaign_basis.held_field_mismatches(
-        projected, {"warehouse": 0.08},
-    )
-    assert result["error_code"] == "campaign_basis_mismatch"
-    row = result["mismatches"][0]
-    assert row["field"] == "warehouse"
-    assert row["campaign_value"] == pytest.approx(0.04)
-    assert row["requested_value"] == pytest.approx(0.08)
-
-
-def test_site_development_override_is_coefficient_mismatch():
-    projected = campaign_basis.project_campaign_basis_v1(_minimal_v2())
-    result = campaign_basis.held_field_mismatches(
-        projected, {"site_development": 0.18},
-    )
-    assert result["error_code"] == "campaign_basis_mismatch"
-    row = result["mismatches"][0]
-    assert row["field"] == "site_development"
-    assert row["campaign_value"] == pytest.approx(0.09)
-    assert row["requested_value"] == pytest.approx(0.18)
-
-
-def test_additional_piping_override_is_coefficient_mismatch():
-    projected = campaign_basis.project_campaign_basis_v1(_minimal_v2())
-    result = campaign_basis.held_field_mismatches(
-        projected, {"additional_piping": 0.09},
-    )
-    assert result["error_code"] == "campaign_basis_mismatch"
-    row = result["mismatches"][0]
-    assert row["field"] == "additional_piping"
-    assert row["campaign_value"] == pytest.approx(0.045)
-    assert row["requested_value"] == pytest.approx(0.09)
-
-
-def test_proratable_costs_override_is_coefficient_mismatch():
-    projected = campaign_basis.project_campaign_basis_v1(_minimal_v2())
-    result = campaign_basis.held_field_mismatches(
-        projected, {"proratable_costs": 0.20},
-    )
-    assert result["error_code"] == "campaign_basis_mismatch"
-    row = result["mismatches"][0]
-    assert row["field"] == "proratable_costs"
-    assert row["campaign_value"] == pytest.approx(0.10)
-    assert row["requested_value"] == pytest.approx(0.20)
-
-
-def test_field_expenses_override_is_coefficient_mismatch():
-    projected = campaign_basis.project_campaign_basis_v1(_minimal_v2())
-    result = campaign_basis.held_field_mismatches(
-        projected, {"field_expenses": 0.20},
-    )
-    assert result["error_code"] == "campaign_basis_mismatch"
-    row = result["mismatches"][0]
-    assert row["field"] == "field_expenses"
-    assert row["campaign_value"] == pytest.approx(0.10)
-    assert row["requested_value"] == pytest.approx(0.20)
-
-
-def test_construction_override_is_coefficient_mismatch():
-    projected = campaign_basis.project_campaign_basis_v1(_minimal_v2())
-    result = campaign_basis.held_field_mismatches(
-        projected, {"construction": 0.40},
-    )
-    assert result["error_code"] == "campaign_basis_mismatch"
-    row = result["mismatches"][0]
-    assert row["field"] == "construction"
-    assert row["campaign_value"] == pytest.approx(0.20)
-    assert row["requested_value"] == pytest.approx(0.40)
-
-
-def test_contingency_override_is_coefficient_mismatch():
-    projected = campaign_basis.project_campaign_basis_v1(_minimal_v2())
-    result = campaign_basis.held_field_mismatches(
-        projected, {"contingency": 0.80},
-    )
-    assert result["error_code"] == "campaign_basis_mismatch"
-    row = result["mismatches"][0]
-    assert row["field"] == "contingency"
-    assert row["campaign_value"] == pytest.approx(0.4)
-    assert row["requested_value"] == pytest.approx(0.80)
-
-
-def test_other_indirect_costs_override_is_coefficient_mismatch():
-    projected = campaign_basis.project_campaign_basis_v1(_minimal_v2())
-    result = campaign_basis.held_field_mismatches(
-        projected, {"other_indirect_costs": 0.20},
-    )
-    assert result["error_code"] == "campaign_basis_mismatch"
-    row = result["mismatches"][0]
-    assert row["field"] == "other_indirect_costs"
-    assert row["campaign_value"] == pytest.approx(0.10)
-    assert row["requested_value"] == pytest.approx(0.20)
-
-
-def test_property_insurance_override_is_coefficient_mismatch():
-    projected = campaign_basis.project_campaign_basis_v1(_minimal_v2())
-    result = campaign_basis.held_field_mismatches(
-        projected, {"property_insurance": 0.014},
-    )
-    assert result["error_code"] == "campaign_basis_mismatch"
-    row = result["mismatches"][0]
-    assert row["field"] == "property_insurance"
-    assert row["campaign_value"] == pytest.approx(0.007)
-    assert row["requested_value"] == pytest.approx(0.014)
-
-
-def test_maintenance_override_is_coefficient_mismatch():
-    projected = campaign_basis.project_campaign_basis_v1(_minimal_v2())
-    result = campaign_basis.held_field_mismatches(
-        projected, {"maintenance": 0.06},
-    )
-    assert result["error_code"] == "campaign_basis_mismatch"
-    row = result["mismatches"][0]
-    assert row["field"] == "maintenance"
-    assert row["campaign_value"] == pytest.approx(0.03)
-    assert row["requested_value"] == pytest.approx(0.06)
-
-
-def test_depreciation_override_is_coefficient_mismatch():
-    projected = campaign_basis.project_campaign_basis_v1(_minimal_v2())
-    result = campaign_basis.held_field_mismatches(
-        projected, {"depreciation": "MACRS5"},
-    )
-    assert result["error_code"] == "campaign_basis_mismatch"
-    row = result["mismatches"][0]
-    assert row["field"] == "depreciation"
-    assert row["campaign_value"] == "MACRS7"
-    assert row["requested_value"] == "MACRS5"
-
-
-def test_matching_default_depreciation_is_not_a_held_mismatch():
-    projected = campaign_basis.project_campaign_basis_v1(_minimal_v2())
-    result = campaign_basis.held_field_mismatches(
-        projected, {"depreciation": "MACRS7"},
+        projected, {key: value},
     )
     assert result["mismatches"] == []
     assert "error_code" not in result
@@ -446,27 +236,6 @@ def test_matching_default_construction_schedule_is_not_a_held_mismatch():
     assert "error_code" not in result
 
 
-def test_steam_power_depreciation_override_is_coefficient_mismatch():
-    projected = campaign_basis.project_campaign_basis_v1(_minimal_v2())
-    result = campaign_basis.held_field_mismatches(
-        projected, {"steam_power_depreciation": "MACRS7"},
-    )
-    assert result["error_code"] == "campaign_basis_mismatch"
-    row = result["mismatches"][0]
-    assert row["field"] == "steam_power_depreciation"
-    assert row["campaign_value"] == "MACRS20"
-    assert row["requested_value"] == "MACRS7"
-
-
-def test_matching_default_steam_power_depreciation_is_not_a_held_mismatch():
-    projected = campaign_basis.project_campaign_basis_v1(_minimal_v2())
-    result = campaign_basis.held_field_mismatches(
-        projected, {"steam_power_depreciation": "MACRS20"},
-    )
-    assert result["mismatches"] == []
-    assert "error_code" not in result
-
-
 def test_lang_factor_override_is_coefficient_mismatch():
     projected = campaign_basis.project_campaign_basis_v1(_minimal_v2())
     result = campaign_basis.held_field_mismatches(
@@ -477,15 +246,6 @@ def test_lang_factor_override_is_coefficient_mismatch():
     row = result["mismatches"][0]
     assert row["campaign_value"] is None
     assert row["requested_value"] == pytest.approx(3.0)
-
-
-def test_matching_none_lang_factor_is_not_a_held_mismatch():
-    projected = campaign_basis.project_campaign_basis_v1(_minimal_v2())
-    result = campaign_basis.held_field_mismatches(
-        projected, {"lang_factor": None},
-    )
-    assert result["mismatches"] == []
-    assert "error_code" not in result
 
 
 def test_polymer_only_is_not_a_held_mismatch():

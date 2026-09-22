@@ -2000,5 +2000,3 @@ def test_sheet_print_aligns_value_units_origin(tmp_path, monkeypatch):
     assert all(len(line) <= 80 for line in shown.splitlines())
     assert "…" not in shown
     assert re.search(r"^labor_cost_usd_per_employee_yr\b", shown, re.M)
-
-

@@ -344,21 +344,17 @@ def test_acceptance_5_screen_then_safety_identities_and_answer(monkeypatch):
     _assert_answer_stays_inside_exact(result.answer, exact_ids, safety_ids)
 
 
-def test_acceptance_5_coverage_predicate_is_red_when_page_is_the_shortlist():
-    """Not Test 5. The answer Test 5 must fail on: 6-row page, no coverage."""
-    with pytest.raises(AssertionError, match="coverage"):
+@pytest.mark.parametrize(
+    ('value', 'match'),
+    [
+        pytest.param('Safety of the inherited shortlist at the screen temperatures (source_basis safety_local): cyclohexane.', 'coverage', id='when_page_is_the_shortlist'),
+        pytest.param('The full inherited shortlist consists of these 6 of 40 solvents.', 'comparison-page disclosure', id='on_full_shortlist_with_counts'),
+    ],
+)
+def test_acceptance_5_coverage_predicate_is_red(value, match):
+    with pytest.raises(AssertionError, match=match):
         _assert_coverage_disclosed(
-            "Safety of the inherited shortlist at the screen temperatures "
-            "(source_basis safety_local): cyclohexane.",
-            compared=6, stored=40,
-        )
-
-
-def test_acceptance_5_coverage_predicate_is_red_on_full_shortlist_with_counts():
-    """Not Test 5. Counts without the page disclosure still name the shortlist."""
-    with pytest.raises(AssertionError, match="comparison-page disclosure"):
-        _assert_coverage_disclosed(
-            "The full inherited shortlist consists of these 6 of 40 solvents.",
+            value,
             compared=6, stored=40,
         )
 

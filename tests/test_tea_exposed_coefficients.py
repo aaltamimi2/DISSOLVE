@@ -129,9 +129,38 @@ def test_c2_does_not_carry_natural_gas_price():
     )
 
 
-def test_irr_override_does_not_share_the_twelve_only_serve_key():
+@pytest.mark.parametrize(
+    ('key', 'value'),
+    [
+        pytest.param('irr', 0.15, id='irr_override_does_not_share_the_twelve_only'),
+        pytest.param('income_tax', 0.3, id='income_tax_override_does_not_share_the_twelve_only'),
+        pytest.param('operating_days', 300.0, id='operating_days_override_does_not_share_the_twelve_only'),
+        pytest.param('labor_burden', 0.5, id='labor_burden_override_does_not_share_the_twelve_only'),
+        pytest.param('finance_interest', 0.12, id='finance_interest_override_does_not_share_the_twelve_only'),
+        pytest.param('finance_years', 15, id='finance_years_override_does_not_share_the_twelve_only'),
+        pytest.param('finance_fraction', 0.4, id='finance_fraction_override_does_not_share_the_twelve_only'),
+        pytest.param('startup_months', 6, id='startup_months_override_does_not_share_the_twelve_only'),
+        pytest.param('startup_FOCfrac', 0.5, id='startup_FOCfrac_override_does_not_share_the_twelve_only'),
+        pytest.param('startup_VOCfrac', 0.5, id='startup_VOCfrac_override_does_not_share_the_twelve_only'),
+        pytest.param('startup_salesfrac', 0.8, id='startup_salesfrac_override_does_not_share_the_twelve_only'),
+        pytest.param('WC_over_FCI', 0.1, id='wc_over_fci_override_does_not_share_the_twelve_only'),
+        pytest.param('warehouse', 0.08, id='warehouse_override_does_not_share_the_twelve_only'),
+        pytest.param('site_development', 0.18, id='site_development_override_does_not_share_the_twelve_only'),
+        pytest.param('additional_piping', 0.09, id='additional_piping_override_does_not_share_the_twelve_only'),
+        pytest.param('proratable_costs', 0.2, id='proratable_costs_override_does_not_share_the_twelve_only'),
+        pytest.param('field_expenses', 0.2, id='field_expenses_override_does_not_share_the_twelve_only'),
+        pytest.param('construction', 0.4, id='construction_override_does_not_share_the_twelve_only'),
+        pytest.param('contingency', 0.8, id='contingency_override_does_not_share_the_twelve_only'),
+        pytest.param('other_indirect_costs', 0.2, id='other_indirect_costs_override_does_not_share_the_twelve_only'),
+        pytest.param('property_insurance', 0.014, id='property_insurance_override_does_not_share_the_twelve_only'),
+        pytest.param('maintenance', 0.06, id='maintenance_override_does_not_share_the_twelve_only'),
+        pytest.param('depreciation', 'MACRS5', id='depreciation_override_does_not_share_the_twelve_only'),
+        pytest.param('steam_power_depreciation', 'MACRS7', id='steam_power_depreciation_override_does_not_share_the'),
+    ],
+)
+def test_serve_key(key, value):
     record = _record_with_energy("C1")
-    overridden = {**dict(record["config"]), "irr": 0.15}
+    overridden = {**dict(record["config"]), key: value}
     assert tea._config_key(record["config"]) != tea._config_key(overridden)
     assert tea._cache_index().get(tea._config_key(overridden)) is None
 
@@ -159,13 +188,6 @@ def test_cache_mode_refuses_irr_override_instead_of_the_other_plant(monkeypatch)
     )
     assert irr["recorded_value"] == pytest.approx(0.10)
     assert irr["requested_value"] == pytest.approx(0.15)
-
-
-def test_income_tax_override_does_not_share_the_twelve_only_serve_key():
-    record = _record_with_energy("C1")
-    overridden = {**dict(record["config"]), "income_tax": 0.30}
-    assert tea._config_key(record["config"]) != tea._config_key(overridden)
-    assert tea._cache_index().get(tea._config_key(overridden)) is None
 
 
 def test_cache_mode_refuses_income_tax_override_instead_of_the_other_plant(
@@ -213,13 +235,6 @@ def test_cache_evaluate_echoes_projected_income_tax(monkeypatch):
     assert row["msp_usd_per_kg"] == pytest.approx(
         float(record["result"]["tea"]["msp_usd_per_kg"]),
     )
-
-
-def test_operating_days_override_does_not_share_the_twelve_only_serve_key():
-    record = _record_with_energy("C1")
-    overridden = {**dict(record["config"]), "operating_days": 300.0}
-    assert tea._config_key(record["config"]) != tea._config_key(overridden)
-    assert tea._cache_index().get(tea._config_key(overridden)) is None
 
 
 def test_cache_mode_refuses_operating_days_override_instead_of_the_other_plant(
@@ -302,13 +317,6 @@ def test_nonpositive_operating_days_is_refused():
     assert caught.value.details["field"] == "operating_days"
 
 
-def test_labor_burden_override_does_not_share_the_twelve_only_serve_key():
-    record = _record_with_energy("C1")
-    overridden = {**dict(record["config"]), "labor_burden": 0.50}
-    assert tea._config_key(record["config"]) != tea._config_key(overridden)
-    assert tea._cache_index().get(tea._config_key(overridden)) is None
-
-
 def test_cache_mode_refuses_labor_burden_override_instead_of_the_other_plant(
     monkeypatch,
 ):
@@ -349,13 +357,6 @@ def test_negative_labor_burden_is_refused():
         tea._scenario_config(_public_from_record(record, labor_burden=-0.1))
     assert caught.value.error_code == "invalid_scenario"
     assert caught.value.details["field"] == "labor_burden"
-
-
-def test_finance_interest_override_does_not_share_the_twelve_only_serve_key():
-    record = _record_with_energy("C1")
-    overridden = {**dict(record["config"]), "finance_interest": 0.12}
-    assert tea._config_key(record["config"]) != tea._config_key(overridden)
-    assert tea._cache_index().get(tea._config_key(overridden)) is None
 
 
 def test_cache_mode_refuses_finance_interest_override_instead_of_the_other_plant(
@@ -408,13 +409,6 @@ def test_percent_integer_finance_interest_is_refused():
     assert caught.value.details["field"] == "finance_interest"
 
 
-def test_finance_years_override_does_not_share_the_twelve_only_serve_key():
-    record = _record_with_energy("C1")
-    overridden = {**dict(record["config"]), "finance_years": 15}
-    assert tea._config_key(record["config"]) != tea._config_key(overridden)
-    assert tea._cache_index().get(tea._config_key(overridden)) is None
-
-
 def test_cache_mode_refuses_finance_years_override_instead_of_the_other_plant(
     monkeypatch,
 ):
@@ -449,27 +443,19 @@ def test_cache_mode_refuses_finance_years_override_instead_of_the_other_plant(
     )
 
 
-def test_nonpositive_finance_years_is_refused():
+@pytest.mark.parametrize(
+    'finance_years',
+    [
+        pytest.param(0, id='nonpositive'),
+        pytest.param(10.5, id='noninteger'),
+    ],
+)
+def test_finance_years_is_refused(finance_years):
     record = _record_with_energy("C1")
     with pytest.raises(tea._ScenarioInputError) as caught:
-        tea._scenario_config(_public_from_record(record, finance_years=0))
+        tea._scenario_config(_public_from_record(record, finance_years=finance_years))
     assert caught.value.error_code == "invalid_scenario"
     assert caught.value.details["field"] == "finance_years"
-
-
-def test_noninteger_finance_years_is_refused():
-    record = _record_with_energy("C1")
-    with pytest.raises(tea._ScenarioInputError) as caught:
-        tea._scenario_config(_public_from_record(record, finance_years=10.5))
-    assert caught.value.error_code == "invalid_scenario"
-    assert caught.value.details["field"] == "finance_years"
-
-
-def test_finance_fraction_override_does_not_share_the_twelve_only_serve_key():
-    record = _record_with_energy("C1")
-    overridden = {**dict(record["config"]), "finance_fraction": 0.4}
-    assert tea._config_key(record["config"]) != tea._config_key(overridden)
-    assert tea._cache_index().get(tea._config_key(overridden)) is None
 
 
 def test_cache_mode_refuses_finance_fraction_override_instead_of_the_other_plant(
@@ -545,13 +531,6 @@ def test_percent_integer_finance_fraction_is_refused():
     assert caught.value.details["field"] == "finance_fraction"
 
 
-def test_startup_months_override_does_not_share_the_twelve_only_serve_key():
-    record = _record_with_energy("C1")
-    overridden = {**dict(record["config"]), "startup_months": 6}
-    assert tea._config_key(record["config"]) != tea._config_key(overridden)
-    assert tea._cache_index().get(tea._config_key(overridden)) is None
-
-
 def test_cache_mode_refuses_startup_months_override_instead_of_the_other_plant(
     monkeypatch,
 ):
@@ -623,13 +602,6 @@ def test_startup_months_above_one_year_is_refused():
         tea._scenario_config(_public_from_record(record, startup_months=13))
     assert caught.value.error_code == "invalid_scenario"
     assert caught.value.details["field"] == "startup_months"
-
-
-def test_startup_FOCfrac_override_does_not_share_the_twelve_only_serve_key():
-    record = _record_with_energy("C1")
-    overridden = {**dict(record["config"]), "startup_FOCfrac": 0.5}
-    assert tea._config_key(record["config"]) != tea._config_key(overridden)
-    assert tea._cache_index().get(tea._config_key(overridden)) is None
 
 
 def test_cache_mode_refuses_startup_FOCfrac_override_instead_of_the_other_plant(
@@ -705,13 +677,6 @@ def test_percent_integer_startup_FOCfrac_is_refused():
     assert caught.value.details["field"] == "startup_FOCfrac"
 
 
-def test_startup_VOCfrac_override_does_not_share_the_twelve_only_serve_key():
-    record = _record_with_energy("C1")
-    overridden = {**dict(record["config"]), "startup_VOCfrac": 0.5}
-    assert tea._config_key(record["config"]) != tea._config_key(overridden)
-    assert tea._cache_index().get(tea._config_key(overridden)) is None
-
-
 def test_cache_mode_refuses_startup_VOCfrac_override_instead_of_the_other_plant(
     monkeypatch,
 ):
@@ -783,13 +748,6 @@ def test_percent_integer_startup_VOCfrac_is_refused():
         tea._scenario_config(_public_from_record(record, startup_VOCfrac=75))
     assert caught.value.error_code == "invalid_scenario"
     assert caught.value.details["field"] == "startup_VOCfrac"
-
-
-def test_startup_salesfrac_override_does_not_share_the_twelve_only_serve_key():
-    record = _record_with_energy("C1")
-    overridden = {**dict(record["config"]), "startup_salesfrac": 0.8}
-    assert tea._config_key(record["config"]) != tea._config_key(overridden)
-    assert tea._cache_index().get(tea._config_key(overridden)) is None
 
 
 def test_cache_mode_refuses_startup_salesfrac_override_instead_of_the_other_plant(
@@ -865,13 +823,6 @@ def test_percent_integer_startup_salesfrac_is_refused():
     assert caught.value.details["field"] == "startup_salesfrac"
 
 
-def test_wc_over_fci_override_does_not_share_the_twelve_only_serve_key():
-    record = _record_with_energy("C1")
-    overridden = {**dict(record["config"]), "WC_over_FCI": 0.10}
-    assert tea._config_key(record["config"]) != tea._config_key(overridden)
-    assert tea._cache_index().get(tea._config_key(overridden)) is None
-
-
 def test_cache_mode_refuses_wc_over_fci_override_instead_of_the_other_plant(
     monkeypatch,
 ):
@@ -906,17 +857,24 @@ def test_cache_mode_refuses_wc_over_fci_override_instead_of_the_other_plant(
     )
 
 
-def test_zero_wc_over_fci_is_a_legal_override(monkeypatch):
+@pytest.mark.parametrize(
+    ('value', 'value_2', 'WC_over_FCI'),
+    [
+        pytest.param('WC_over_FCI=0 is no working capital, not invalid_scenario', 0, 0, id='zero'),
+        pytest.param('WC_over_FCI=1.0 is 100 percent of FCI, not invalid_scenario', 1.0, 1.0, id='full'),
+    ],
+)
+def test_wc_over_fci_is_a_legal_override(monkeypatch, value, value_2, WC_over_FCI):
     record = _record_with_energy("C1")
 
     def forbidden_live(config, timeout_seconds):
         raise AssertionError(
-            "WC_over_FCI=0 is no working capital, not invalid_scenario"
+            value
         )
 
     monkeypatch.setattr(tea, "_live", forbidden_live)
     payload = _data(tea.evaluate_tea_lca_scenarios(
-        [_public_from_record(record, WC_over_FCI=0)],
+        [_public_from_record(record, WC_over_FCI=WC_over_FCI)],
         engine_mode="cache",
     ))
     assert payload.get("success") is False
@@ -926,30 +884,7 @@ def test_zero_wc_over_fci_is_a_legal_override(monkeypatch):
         item for item in row["flowsheet_switch_deltas"]
         if item["field"] == "WC_over_FCI"
     )
-    assert fraction["requested_value"] == pytest.approx(0)
-
-
-def test_full_wc_over_fci_is_a_legal_override(monkeypatch):
-    record = _record_with_energy("C1")
-
-    def forbidden_live(config, timeout_seconds):
-        raise AssertionError(
-            "WC_over_FCI=1.0 is 100 percent of FCI, not invalid_scenario"
-        )
-
-    monkeypatch.setattr(tea, "_live", forbidden_live)
-    payload = _data(tea.evaluate_tea_lca_scenarios(
-        [_public_from_record(record, WC_over_FCI=1.0)],
-        engine_mode="cache",
-    ))
-    assert payload.get("success") is False
-    assert payload.get("error_code") == "cache_flowsheet_mismatch"
-    row = (payload.get("failures") or [])[0]
-    fraction = next(
-        item for item in row["flowsheet_switch_deltas"]
-        if item["field"] == "WC_over_FCI"
-    )
-    assert fraction["requested_value"] == pytest.approx(1.0)
+    assert fraction["requested_value"] == pytest.approx(value_2)
 
 
 def test_negative_wc_over_fci_is_refused():
@@ -966,13 +901,6 @@ def test_percent_integer_wc_over_fci_is_refused():
         tea._scenario_config(_public_from_record(record, WC_over_FCI=5))
     assert caught.value.error_code == "invalid_scenario"
     assert caught.value.details["field"] == "WC_over_FCI"
-
-
-def test_warehouse_override_does_not_share_the_twelve_only_serve_key():
-    record = _record_with_energy("C1")
-    overridden = {**dict(record["config"]), "warehouse": 0.08}
-    assert tea._config_key(record["config"]) != tea._config_key(overridden)
-    assert tea._cache_index().get(tea._config_key(overridden)) is None
 
 
 def test_cache_mode_refuses_warehouse_override_instead_of_the_other_plant(
@@ -1009,17 +937,24 @@ def test_cache_mode_refuses_warehouse_override_instead_of_the_other_plant(
     )
 
 
-def test_zero_warehouse_is_a_legal_override(monkeypatch):
+@pytest.mark.parametrize(
+    ('value', 'value_2', 'warehouse'),
+    [
+        pytest.param('warehouse=0 is no warehouse factor, not invalid_scenario', 0, 0, id='zero'),
+        pytest.param('warehouse=1.0 is 100 percent of ISBL DPI, not invalid_scenario', 1.0, 1.0, id='full'),
+    ],
+)
+def test_warehouse_is_a_legal_override(monkeypatch, value, value_2, warehouse):
     record = _record_with_energy("C1")
 
     def forbidden_live(config, timeout_seconds):
         raise AssertionError(
-            "warehouse=0 is no warehouse factor, not invalid_scenario"
+            value
         )
 
     monkeypatch.setattr(tea, "_live", forbidden_live)
     payload = _data(tea.evaluate_tea_lca_scenarios(
-        [_public_from_record(record, warehouse=0)],
+        [_public_from_record(record, warehouse=warehouse)],
         engine_mode="cache",
     ))
     assert payload.get("success") is False
@@ -1029,30 +964,7 @@ def test_zero_warehouse_is_a_legal_override(monkeypatch):
         item for item in row["flowsheet_switch_deltas"]
         if item["field"] == "warehouse"
     )
-    assert fraction["requested_value"] == pytest.approx(0)
-
-
-def test_full_warehouse_is_a_legal_override(monkeypatch):
-    record = _record_with_energy("C1")
-
-    def forbidden_live(config, timeout_seconds):
-        raise AssertionError(
-            "warehouse=1.0 is 100 percent of ISBL DPI, not invalid_scenario"
-        )
-
-    monkeypatch.setattr(tea, "_live", forbidden_live)
-    payload = _data(tea.evaluate_tea_lca_scenarios(
-        [_public_from_record(record, warehouse=1.0)],
-        engine_mode="cache",
-    ))
-    assert payload.get("success") is False
-    assert payload.get("error_code") == "cache_flowsheet_mismatch"
-    row = (payload.get("failures") or [])[0]
-    fraction = next(
-        item for item in row["flowsheet_switch_deltas"]
-        if item["field"] == "warehouse"
-    )
-    assert fraction["requested_value"] == pytest.approx(1.0)
+    assert fraction["requested_value"] == pytest.approx(value_2)
 
 
 def test_negative_warehouse_is_refused():
@@ -1069,13 +981,6 @@ def test_percent_integer_warehouse_is_refused():
         tea._scenario_config(_public_from_record(record, warehouse=4))
     assert caught.value.error_code == "invalid_scenario"
     assert caught.value.details["field"] == "warehouse"
-
-
-def test_site_development_override_does_not_share_the_twelve_only_serve_key():
-    record = _record_with_energy("C1")
-    overridden = {**dict(record["config"]), "site_development": 0.18}
-    assert tea._config_key(record["config"]) != tea._config_key(overridden)
-    assert tea._cache_index().get(tea._config_key(overridden)) is None
 
 
 def test_cache_mode_refuses_site_development_override_instead_of_the_other_plant(
@@ -1112,17 +1017,24 @@ def test_cache_mode_refuses_site_development_override_instead_of_the_other_plant
     )
 
 
-def test_zero_site_development_is_a_legal_override(monkeypatch):
+@pytest.mark.parametrize(
+    ('value', 'value_2', 'site_development'),
+    [
+        pytest.param('site_development=0 is no site factor, not invalid_scenario', 0, 0, id='zero'),
+        pytest.param('site_development=1.0 is 100 percent of ISBL DPI, not invalid_scenario', 1.0, 1.0, id='full'),
+    ],
+)
+def test_site_development_is_a_legal_override(monkeypatch, value, value_2, site_development):
     record = _record_with_energy("C1")
 
     def forbidden_live(config, timeout_seconds):
         raise AssertionError(
-            "site_development=0 is no site factor, not invalid_scenario"
+            value
         )
 
     monkeypatch.setattr(tea, "_live", forbidden_live)
     payload = _data(tea.evaluate_tea_lca_scenarios(
-        [_public_from_record(record, site_development=0)],
+        [_public_from_record(record, site_development=site_development)],
         engine_mode="cache",
     ))
     assert payload.get("success") is False
@@ -1132,30 +1044,7 @@ def test_zero_site_development_is_a_legal_override(monkeypatch):
         item for item in row["flowsheet_switch_deltas"]
         if item["field"] == "site_development"
     )
-    assert fraction["requested_value"] == pytest.approx(0)
-
-
-def test_full_site_development_is_a_legal_override(monkeypatch):
-    record = _record_with_energy("C1")
-
-    def forbidden_live(config, timeout_seconds):
-        raise AssertionError(
-            "site_development=1.0 is 100 percent of ISBL DPI, not invalid_scenario"
-        )
-
-    monkeypatch.setattr(tea, "_live", forbidden_live)
-    payload = _data(tea.evaluate_tea_lca_scenarios(
-        [_public_from_record(record, site_development=1.0)],
-        engine_mode="cache",
-    ))
-    assert payload.get("success") is False
-    assert payload.get("error_code") == "cache_flowsheet_mismatch"
-    row = (payload.get("failures") or [])[0]
-    fraction = next(
-        item for item in row["flowsheet_switch_deltas"]
-        if item["field"] == "site_development"
-    )
-    assert fraction["requested_value"] == pytest.approx(1.0)
+    assert fraction["requested_value"] == pytest.approx(value_2)
 
 
 def test_negative_site_development_is_refused():
@@ -1172,13 +1061,6 @@ def test_percent_integer_site_development_is_refused():
         tea._scenario_config(_public_from_record(record, site_development=9))
     assert caught.value.error_code == "invalid_scenario"
     assert caught.value.details["field"] == "site_development"
-
-
-def test_additional_piping_override_does_not_share_the_twelve_only_serve_key():
-    record = _record_with_energy("C1")
-    overridden = {**dict(record["config"]), "additional_piping": 0.09}
-    assert tea._config_key(record["config"]) != tea._config_key(overridden)
-    assert tea._cache_index().get(tea._config_key(overridden)) is None
 
 
 def test_cache_mode_refuses_additional_piping_override_instead_of_the_other_plant(
@@ -1215,17 +1097,24 @@ def test_cache_mode_refuses_additional_piping_override_instead_of_the_other_plan
     )
 
 
-def test_zero_additional_piping_is_a_legal_override(monkeypatch):
+@pytest.mark.parametrize(
+    ('value', 'value_2', 'additional_piping'),
+    [
+        pytest.param('additional_piping=0 is no piping factor, not invalid_scenario', 0, 0, id='zero'),
+        pytest.param('additional_piping=1.0 is 100 percent of ISBL DPI, not invalid_scenario', 1.0, 1.0, id='full'),
+    ],
+)
+def test_additional_piping_is_a_legal_override(monkeypatch, value, value_2, additional_piping):
     record = _record_with_energy("C1")
 
     def forbidden_live(config, timeout_seconds):
         raise AssertionError(
-            "additional_piping=0 is no piping factor, not invalid_scenario"
+            value
         )
 
     monkeypatch.setattr(tea, "_live", forbidden_live)
     payload = _data(tea.evaluate_tea_lca_scenarios(
-        [_public_from_record(record, additional_piping=0)],
+        [_public_from_record(record, additional_piping=additional_piping)],
         engine_mode="cache",
     ))
     assert payload.get("success") is False
@@ -1235,30 +1124,7 @@ def test_zero_additional_piping_is_a_legal_override(monkeypatch):
         item for item in row["flowsheet_switch_deltas"]
         if item["field"] == "additional_piping"
     )
-    assert fraction["requested_value"] == pytest.approx(0)
-
-
-def test_full_additional_piping_is_a_legal_override(monkeypatch):
-    record = _record_with_energy("C1")
-
-    def forbidden_live(config, timeout_seconds):
-        raise AssertionError(
-            "additional_piping=1.0 is 100 percent of ISBL DPI, not invalid_scenario"
-        )
-
-    monkeypatch.setattr(tea, "_live", forbidden_live)
-    payload = _data(tea.evaluate_tea_lca_scenarios(
-        [_public_from_record(record, additional_piping=1.0)],
-        engine_mode="cache",
-    ))
-    assert payload.get("success") is False
-    assert payload.get("error_code") == "cache_flowsheet_mismatch"
-    row = (payload.get("failures") or [])[0]
-    fraction = next(
-        item for item in row["flowsheet_switch_deltas"]
-        if item["field"] == "additional_piping"
-    )
-    assert fraction["requested_value"] == pytest.approx(1.0)
+    assert fraction["requested_value"] == pytest.approx(value_2)
 
 
 def test_negative_additional_piping_is_refused():
@@ -1275,13 +1141,6 @@ def test_percent_integer_additional_piping_is_refused():
         tea._scenario_config(_public_from_record(record, additional_piping=5))
     assert caught.value.error_code == "invalid_scenario"
     assert caught.value.details["field"] == "additional_piping"
-
-
-def test_proratable_costs_override_does_not_share_the_twelve_only_serve_key():
-    record = _record_with_energy("C1")
-    overridden = {**dict(record["config"]), "proratable_costs": 0.20}
-    assert tea._config_key(record["config"]) != tea._config_key(overridden)
-    assert tea._cache_index().get(tea._config_key(overridden)) is None
 
 
 def test_cache_mode_refuses_proratable_costs_override_instead_of_the_other_plant(
@@ -1318,17 +1177,24 @@ def test_cache_mode_refuses_proratable_costs_override_instead_of_the_other_plant
     )
 
 
-def test_zero_proratable_costs_is_a_legal_override(monkeypatch):
+@pytest.mark.parametrize(
+    ('value', 'value_2', 'proratable_costs'),
+    [
+        pytest.param('proratable_costs=0 is no proratable factor, not invalid_scenario', 0, 0, id='zero'),
+        pytest.param('proratable_costs=1.0 is 100 percent of DPI, not invalid_scenario', 1.0, 1.0, id='full'),
+    ],
+)
+def test_proratable_costs_is_a_legal_override(monkeypatch, value, value_2, proratable_costs):
     record = _record_with_energy("C1")
 
     def forbidden_live(config, timeout_seconds):
         raise AssertionError(
-            "proratable_costs=0 is no proratable factor, not invalid_scenario"
+            value
         )
 
     monkeypatch.setattr(tea, "_live", forbidden_live)
     payload = _data(tea.evaluate_tea_lca_scenarios(
-        [_public_from_record(record, proratable_costs=0)],
+        [_public_from_record(record, proratable_costs=proratable_costs)],
         engine_mode="cache",
     ))
     assert payload.get("success") is False
@@ -1338,30 +1204,7 @@ def test_zero_proratable_costs_is_a_legal_override(monkeypatch):
         item for item in row["flowsheet_switch_deltas"]
         if item["field"] == "proratable_costs"
     )
-    assert fraction["requested_value"] == pytest.approx(0)
-
-
-def test_full_proratable_costs_is_a_legal_override(monkeypatch):
-    record = _record_with_energy("C1")
-
-    def forbidden_live(config, timeout_seconds):
-        raise AssertionError(
-            "proratable_costs=1.0 is 100 percent of DPI, not invalid_scenario"
-        )
-
-    monkeypatch.setattr(tea, "_live", forbidden_live)
-    payload = _data(tea.evaluate_tea_lca_scenarios(
-        [_public_from_record(record, proratable_costs=1.0)],
-        engine_mode="cache",
-    ))
-    assert payload.get("success") is False
-    assert payload.get("error_code") == "cache_flowsheet_mismatch"
-    row = (payload.get("failures") or [])[0]
-    fraction = next(
-        item for item in row["flowsheet_switch_deltas"]
-        if item["field"] == "proratable_costs"
-    )
-    assert fraction["requested_value"] == pytest.approx(1.0)
+    assert fraction["requested_value"] == pytest.approx(value_2)
 
 
 def test_negative_proratable_costs_is_refused():
@@ -1378,13 +1221,6 @@ def test_percent_integer_proratable_costs_is_refused():
         tea._scenario_config(_public_from_record(record, proratable_costs=10))
     assert caught.value.error_code == "invalid_scenario"
     assert caught.value.details["field"] == "proratable_costs"
-
-
-def test_field_expenses_override_does_not_share_the_twelve_only_serve_key():
-    record = _record_with_energy("C1")
-    overridden = {**dict(record["config"]), "field_expenses": 0.20}
-    assert tea._config_key(record["config"]) != tea._config_key(overridden)
-    assert tea._cache_index().get(tea._config_key(overridden)) is None
 
 
 def test_cache_mode_refuses_field_expenses_override_instead_of_the_other_plant(
@@ -1421,17 +1257,24 @@ def test_cache_mode_refuses_field_expenses_override_instead_of_the_other_plant(
     )
 
 
-def test_zero_field_expenses_is_a_legal_override(monkeypatch):
+@pytest.mark.parametrize(
+    ('value', 'value_2', 'field_expenses'),
+    [
+        pytest.param('field_expenses=0 is no field factor, not invalid_scenario', 0, 0, id='zero'),
+        pytest.param('field_expenses=1.0 is 100 percent of DPI, not invalid_scenario', 1.0, 1.0, id='full'),
+    ],
+)
+def test_field_expenses_is_a_legal_override(monkeypatch, value, value_2, field_expenses):
     record = _record_with_energy("C1")
 
     def forbidden_live(config, timeout_seconds):
         raise AssertionError(
-            "field_expenses=0 is no field factor, not invalid_scenario"
+            value
         )
 
     monkeypatch.setattr(tea, "_live", forbidden_live)
     payload = _data(tea.evaluate_tea_lca_scenarios(
-        [_public_from_record(record, field_expenses=0)],
+        [_public_from_record(record, field_expenses=field_expenses)],
         engine_mode="cache",
     ))
     assert payload.get("success") is False
@@ -1441,30 +1284,7 @@ def test_zero_field_expenses_is_a_legal_override(monkeypatch):
         item for item in row["flowsheet_switch_deltas"]
         if item["field"] == "field_expenses"
     )
-    assert fraction["requested_value"] == pytest.approx(0)
-
-
-def test_full_field_expenses_is_a_legal_override(monkeypatch):
-    record = _record_with_energy("C1")
-
-    def forbidden_live(config, timeout_seconds):
-        raise AssertionError(
-            "field_expenses=1.0 is 100 percent of DPI, not invalid_scenario"
-        )
-
-    monkeypatch.setattr(tea, "_live", forbidden_live)
-    payload = _data(tea.evaluate_tea_lca_scenarios(
-        [_public_from_record(record, field_expenses=1.0)],
-        engine_mode="cache",
-    ))
-    assert payload.get("success") is False
-    assert payload.get("error_code") == "cache_flowsheet_mismatch"
-    row = (payload.get("failures") or [])[0]
-    fraction = next(
-        item for item in row["flowsheet_switch_deltas"]
-        if item["field"] == "field_expenses"
-    )
-    assert fraction["requested_value"] == pytest.approx(1.0)
+    assert fraction["requested_value"] == pytest.approx(value_2)
 
 
 def test_negative_field_expenses_is_refused():
@@ -1481,13 +1301,6 @@ def test_percent_integer_field_expenses_is_refused():
         tea._scenario_config(_public_from_record(record, field_expenses=10))
     assert caught.value.error_code == "invalid_scenario"
     assert caught.value.details["field"] == "field_expenses"
-
-
-def test_construction_override_does_not_share_the_twelve_only_serve_key():
-    record = _record_with_energy("C1")
-    overridden = {**dict(record["config"]), "construction": 0.40}
-    assert tea._config_key(record["config"]) != tea._config_key(overridden)
-    assert tea._cache_index().get(tea._config_key(overridden)) is None
 
 
 def test_cache_mode_refuses_construction_override_instead_of_the_other_plant(
@@ -1524,17 +1337,24 @@ def test_cache_mode_refuses_construction_override_instead_of_the_other_plant(
     )
 
 
-def test_zero_construction_is_a_legal_override(monkeypatch):
+@pytest.mark.parametrize(
+    ('value', 'value_2', 'construction'),
+    [
+        pytest.param('construction=0 is no construction factor, not invalid_scenario', 0, 0, id='zero'),
+        pytest.param('construction=1.0 is 100 percent of DPI, not invalid_scenario', 1.0, 1.0, id='full'),
+    ],
+)
+def test_construction_is_a_legal_override(monkeypatch, value, value_2, construction):
     record = _record_with_energy("C1")
 
     def forbidden_live(config, timeout_seconds):
         raise AssertionError(
-            "construction=0 is no construction factor, not invalid_scenario"
+            value
         )
 
     monkeypatch.setattr(tea, "_live", forbidden_live)
     payload = _data(tea.evaluate_tea_lca_scenarios(
-        [_public_from_record(record, construction=0)],
+        [_public_from_record(record, construction=construction)],
         engine_mode="cache",
     ))
     assert payload.get("success") is False
@@ -1544,30 +1364,7 @@ def test_zero_construction_is_a_legal_override(monkeypatch):
         item for item in row["flowsheet_switch_deltas"]
         if item["field"] == "construction"
     )
-    assert fraction["requested_value"] == pytest.approx(0)
-
-
-def test_full_construction_is_a_legal_override(monkeypatch):
-    record = _record_with_energy("C1")
-
-    def forbidden_live(config, timeout_seconds):
-        raise AssertionError(
-            "construction=1.0 is 100 percent of DPI, not invalid_scenario"
-        )
-
-    monkeypatch.setattr(tea, "_live", forbidden_live)
-    payload = _data(tea.evaluate_tea_lca_scenarios(
-        [_public_from_record(record, construction=1.0)],
-        engine_mode="cache",
-    ))
-    assert payload.get("success") is False
-    assert payload.get("error_code") == "cache_flowsheet_mismatch"
-    row = (payload.get("failures") or [])[0]
-    fraction = next(
-        item for item in row["flowsheet_switch_deltas"]
-        if item["field"] == "construction"
-    )
-    assert fraction["requested_value"] == pytest.approx(1.0)
+    assert fraction["requested_value"] == pytest.approx(value_2)
 
 
 def test_negative_construction_is_refused():
@@ -1584,13 +1381,6 @@ def test_percent_integer_construction_is_refused():
         tea._scenario_config(_public_from_record(record, construction=20))
     assert caught.value.error_code == "invalid_scenario"
     assert caught.value.details["field"] == "construction"
-
-
-def test_contingency_override_does_not_share_the_twelve_only_serve_key():
-    record = _record_with_energy("C1")
-    overridden = {**dict(record["config"]), "contingency": 0.80}
-    assert tea._config_key(record["config"]) != tea._config_key(overridden)
-    assert tea._cache_index().get(tea._config_key(overridden)) is None
 
 
 def test_cache_mode_refuses_contingency_override_instead_of_the_other_plant(
@@ -1627,17 +1417,24 @@ def test_cache_mode_refuses_contingency_override_instead_of_the_other_plant(
     )
 
 
-def test_zero_contingency_is_a_legal_override(monkeypatch):
+@pytest.mark.parametrize(
+    ('value', 'value_2', 'contingency'),
+    [
+        pytest.param('contingency=0 is no contingency factor, not invalid_scenario', 0, 0, id='zero'),
+        pytest.param('contingency=1.0 is 100 percent of DPI, not invalid_scenario', 1.0, 1.0, id='full'),
+    ],
+)
+def test_contingency_is_a_legal_override(monkeypatch, value, value_2, contingency):
     record = _record_with_energy("C1")
 
     def forbidden_live(config, timeout_seconds):
         raise AssertionError(
-            "contingency=0 is no contingency factor, not invalid_scenario"
+            value
         )
 
     monkeypatch.setattr(tea, "_live", forbidden_live)
     payload = _data(tea.evaluate_tea_lca_scenarios(
-        [_public_from_record(record, contingency=0)],
+        [_public_from_record(record, contingency=contingency)],
         engine_mode="cache",
     ))
     assert payload.get("success") is False
@@ -1647,30 +1444,7 @@ def test_zero_contingency_is_a_legal_override(monkeypatch):
         item for item in row["flowsheet_switch_deltas"]
         if item["field"] == "contingency"
     )
-    assert fraction["requested_value"] == pytest.approx(0)
-
-
-def test_full_contingency_is_a_legal_override(monkeypatch):
-    record = _record_with_energy("C1")
-
-    def forbidden_live(config, timeout_seconds):
-        raise AssertionError(
-            "contingency=1.0 is 100 percent of DPI, not invalid_scenario"
-        )
-
-    monkeypatch.setattr(tea, "_live", forbidden_live)
-    payload = _data(tea.evaluate_tea_lca_scenarios(
-        [_public_from_record(record, contingency=1.0)],
-        engine_mode="cache",
-    ))
-    assert payload.get("success") is False
-    assert payload.get("error_code") == "cache_flowsheet_mismatch"
-    row = (payload.get("failures") or [])[0]
-    fraction = next(
-        item for item in row["flowsheet_switch_deltas"]
-        if item["field"] == "contingency"
-    )
-    assert fraction["requested_value"] == pytest.approx(1.0)
+    assert fraction["requested_value"] == pytest.approx(value_2)
 
 
 def test_negative_contingency_is_refused():
@@ -1687,13 +1461,6 @@ def test_percent_integer_contingency_is_refused():
         tea._scenario_config(_public_from_record(record, contingency=40))
     assert caught.value.error_code == "invalid_scenario"
     assert caught.value.details["field"] == "contingency"
-
-
-def test_other_indirect_costs_override_does_not_share_the_twelve_only_serve_key():
-    record = _record_with_energy("C1")
-    overridden = {**dict(record["config"]), "other_indirect_costs": 0.20}
-    assert tea._config_key(record["config"]) != tea._config_key(overridden)
-    assert tea._cache_index().get(tea._config_key(overridden)) is None
 
 
 def test_cache_mode_refuses_other_indirect_costs_override_instead_of_the_other_plant(
@@ -1730,17 +1497,24 @@ def test_cache_mode_refuses_other_indirect_costs_override_instead_of_the_other_p
     )
 
 
-def test_zero_other_indirect_costs_is_a_legal_override(monkeypatch):
+@pytest.mark.parametrize(
+    ('value', 'value_2', 'other_indirect_costs'),
+    [
+        pytest.param('other_indirect_costs=0 is no other-indirect factor, not invalid_scenario', 0, 0, id='zero'),
+        pytest.param('other_indirect_costs=1.0 is 100 percent of DPI, not invalid_scenario', 1.0, 1.0, id='full'),
+    ],
+)
+def test_other_indirect_costs_is_a_legal_override(monkeypatch, value, value_2, other_indirect_costs):
     record = _record_with_energy("C1")
 
     def forbidden_live(config, timeout_seconds):
         raise AssertionError(
-            "other_indirect_costs=0 is no other-indirect factor, not invalid_scenario"
+            value
         )
 
     monkeypatch.setattr(tea, "_live", forbidden_live)
     payload = _data(tea.evaluate_tea_lca_scenarios(
-        [_public_from_record(record, other_indirect_costs=0)],
+        [_public_from_record(record, other_indirect_costs=other_indirect_costs)],
         engine_mode="cache",
     ))
     assert payload.get("success") is False
@@ -1750,30 +1524,7 @@ def test_zero_other_indirect_costs_is_a_legal_override(monkeypatch):
         item for item in row["flowsheet_switch_deltas"]
         if item["field"] == "other_indirect_costs"
     )
-    assert fraction["requested_value"] == pytest.approx(0)
-
-
-def test_full_other_indirect_costs_is_a_legal_override(monkeypatch):
-    record = _record_with_energy("C1")
-
-    def forbidden_live(config, timeout_seconds):
-        raise AssertionError(
-            "other_indirect_costs=1.0 is 100 percent of DPI, not invalid_scenario"
-        )
-
-    monkeypatch.setattr(tea, "_live", forbidden_live)
-    payload = _data(tea.evaluate_tea_lca_scenarios(
-        [_public_from_record(record, other_indirect_costs=1.0)],
-        engine_mode="cache",
-    ))
-    assert payload.get("success") is False
-    assert payload.get("error_code") == "cache_flowsheet_mismatch"
-    row = (payload.get("failures") or [])[0]
-    fraction = next(
-        item for item in row["flowsheet_switch_deltas"]
-        if item["field"] == "other_indirect_costs"
-    )
-    assert fraction["requested_value"] == pytest.approx(1.0)
+    assert fraction["requested_value"] == pytest.approx(value_2)
 
 
 def test_negative_other_indirect_costs_is_refused():
@@ -1790,13 +1541,6 @@ def test_percent_integer_other_indirect_costs_is_refused():
         tea._scenario_config(_public_from_record(record, other_indirect_costs=10))
     assert caught.value.error_code == "invalid_scenario"
     assert caught.value.details["field"] == "other_indirect_costs"
-
-
-def test_property_insurance_override_does_not_share_the_twelve_only_serve_key():
-    record = _record_with_energy("C1")
-    overridden = {**dict(record["config"]), "property_insurance": 0.014}
-    assert tea._config_key(record["config"]) != tea._config_key(overridden)
-    assert tea._cache_index().get(tea._config_key(overridden)) is None
 
 
 def test_cache_mode_refuses_property_insurance_override_instead_of_the_other_plant(
@@ -1833,17 +1577,24 @@ def test_cache_mode_refuses_property_insurance_override_instead_of_the_other_pla
     )
 
 
-def test_zero_property_insurance_is_a_legal_override(monkeypatch):
+@pytest.mark.parametrize(
+    ('value', 'value_2', 'property_insurance'),
+    [
+        pytest.param('property_insurance=0 is no insurance factor, not invalid_scenario', 0, 0, id='zero'),
+        pytest.param('property_insurance=1.0 is 100 percent of FCI, not invalid_scenario', 1.0, 1.0, id='full'),
+    ],
+)
+def test_property_insurance_is_a_legal_override(monkeypatch, value, value_2, property_insurance):
     record = _record_with_energy("C1")
 
     def forbidden_live(config, timeout_seconds):
         raise AssertionError(
-            "property_insurance=0 is no insurance factor, not invalid_scenario"
+            value
         )
 
     monkeypatch.setattr(tea, "_live", forbidden_live)
     payload = _data(tea.evaluate_tea_lca_scenarios(
-        [_public_from_record(record, property_insurance=0)],
+        [_public_from_record(record, property_insurance=property_insurance)],
         engine_mode="cache",
     ))
     assert payload.get("success") is False
@@ -1853,30 +1604,7 @@ def test_zero_property_insurance_is_a_legal_override(monkeypatch):
         item for item in row["flowsheet_switch_deltas"]
         if item["field"] == "property_insurance"
     )
-    assert fraction["requested_value"] == pytest.approx(0)
-
-
-def test_full_property_insurance_is_a_legal_override(monkeypatch):
-    record = _record_with_energy("C1")
-
-    def forbidden_live(config, timeout_seconds):
-        raise AssertionError(
-            "property_insurance=1.0 is 100 percent of FCI, not invalid_scenario"
-        )
-
-    monkeypatch.setattr(tea, "_live", forbidden_live)
-    payload = _data(tea.evaluate_tea_lca_scenarios(
-        [_public_from_record(record, property_insurance=1.0)],
-        engine_mode="cache",
-    ))
-    assert payload.get("success") is False
-    assert payload.get("error_code") == "cache_flowsheet_mismatch"
-    row = (payload.get("failures") or [])[0]
-    fraction = next(
-        item for item in row["flowsheet_switch_deltas"]
-        if item["field"] == "property_insurance"
-    )
-    assert fraction["requested_value"] == pytest.approx(1.0)
+    assert fraction["requested_value"] == pytest.approx(value_2)
 
 
 def test_negative_property_insurance_is_refused():
@@ -1893,13 +1621,6 @@ def test_percent_integer_property_insurance_is_refused():
         tea._scenario_config(_public_from_record(record, property_insurance=7))
     assert caught.value.error_code == "invalid_scenario"
     assert caught.value.details["field"] == "property_insurance"
-
-
-def test_maintenance_override_does_not_share_the_twelve_only_serve_key():
-    record = _record_with_energy("C1")
-    overridden = {**dict(record["config"]), "maintenance": 0.06}
-    assert tea._config_key(record["config"]) != tea._config_key(overridden)
-    assert tea._cache_index().get(tea._config_key(overridden)) is None
 
 
 def test_cache_mode_refuses_maintenance_override_instead_of_the_other_plant(
@@ -1936,17 +1657,24 @@ def test_cache_mode_refuses_maintenance_override_instead_of_the_other_plant(
     )
 
 
-def test_zero_maintenance_is_a_legal_override(monkeypatch):
+@pytest.mark.parametrize(
+    ('value', 'value_2', 'maintenance'),
+    [
+        pytest.param('maintenance=0 is no maintenance factor, not invalid_scenario', 0, 0, id='zero'),
+        pytest.param('maintenance=1.0 is 100 percent of ISBL DPI, not invalid_scenario', 1.0, 1.0, id='full'),
+    ],
+)
+def test_maintenance_is_a_legal_override(monkeypatch, value, value_2, maintenance):
     record = _record_with_energy("C1")
 
     def forbidden_live(config, timeout_seconds):
         raise AssertionError(
-            "maintenance=0 is no maintenance factor, not invalid_scenario"
+            value
         )
 
     monkeypatch.setattr(tea, "_live", forbidden_live)
     payload = _data(tea.evaluate_tea_lca_scenarios(
-        [_public_from_record(record, maintenance=0)],
+        [_public_from_record(record, maintenance=maintenance)],
         engine_mode="cache",
     ))
     assert payload.get("success") is False
@@ -1956,30 +1684,7 @@ def test_zero_maintenance_is_a_legal_override(monkeypatch):
         item for item in row["flowsheet_switch_deltas"]
         if item["field"] == "maintenance"
     )
-    assert fraction["requested_value"] == pytest.approx(0)
-
-
-def test_full_maintenance_is_a_legal_override(monkeypatch):
-    record = _record_with_energy("C1")
-
-    def forbidden_live(config, timeout_seconds):
-        raise AssertionError(
-            "maintenance=1.0 is 100 percent of ISBL DPI, not invalid_scenario"
-        )
-
-    monkeypatch.setattr(tea, "_live", forbidden_live)
-    payload = _data(tea.evaluate_tea_lca_scenarios(
-        [_public_from_record(record, maintenance=1.0)],
-        engine_mode="cache",
-    ))
-    assert payload.get("success") is False
-    assert payload.get("error_code") == "cache_flowsheet_mismatch"
-    row = (payload.get("failures") or [])[0]
-    fraction = next(
-        item for item in row["flowsheet_switch_deltas"]
-        if item["field"] == "maintenance"
-    )
-    assert fraction["requested_value"] == pytest.approx(1.0)
+    assert fraction["requested_value"] == pytest.approx(value_2)
 
 
 def test_negative_maintenance_is_refused():
@@ -1998,25 +1703,32 @@ def test_percent_integer_maintenance_is_refused():
     assert caught.value.details["field"] == "maintenance"
 
 
-def test_explicit_default_depreciation_shares_the_serve_key():
+@pytest.mark.parametrize(
+    ('key', 'value'),
+    [
+        pytest.param('depreciation', 'MACRS7', id='explicit_default_depreciation_shares_the_serve_key'),
+        pytest.param('steam_power_depreciation', 'MACRS20', id='steam_power'),
+    ],
+)
+def test_explicit_default_depreciation_shares_the_serve_key_2(key, value):
     record = _record_with_energy("C1")
-    explicit = {**dict(record["config"]), "depreciation": "MACRS7"}
+    explicit = {**dict(record["config"]), key: value}
     assert tea._config_key(record["config"]) == tea._config_key(explicit)
     assert tea._cache_index().get(tea._config_key(explicit))["label"] == (
         record["label"]
     )
 
 
-def test_depreciation_override_does_not_share_the_twelve_only_serve_key():
+@pytest.mark.parametrize(
+    'key',
+    [
+        pytest.param('depreciation', id='macrs7'),
+        pytest.param('steam_power_depreciation', id='macrs20_on_steam_power'),
+    ],
+)
+def test_macrs07_does_not_fold_to(key):
     record = _record_with_energy("C1")
-    overridden = {**dict(record["config"]), "depreciation": "MACRS5"}
-    assert tea._config_key(record["config"]) != tea._config_key(overridden)
-    assert tea._cache_index().get(tea._config_key(overridden)) is None
-
-
-def test_macrs07_does_not_fold_to_macrs7():
-    record = _record_with_energy("C1")
-    padded = {**dict(record["config"]), "depreciation": "MACRS07"}
+    padded = {**dict(record["config"]), key: "MACRS07"}
     assert tea._config_key(record["config"]) != tea._config_key(padded)
     assert tea._cache_index().get(tea._config_key(padded)) is None
 
@@ -2111,18 +1823,18 @@ def test_maintenance_override_does_not_emit_a_depreciation_delta(monkeypatch):
     )
 
 
-def test_lowercase_depreciation_is_refused():
+@pytest.mark.parametrize(
+    'depreciation',
+    [
+        pytest.param('macrs7', id='lowercase_depreciation_is'),
+        pytest.param(7, id='integer_depreciation_years_are'),
+        pytest.param('MACRS4', id='unimplemented_macrs_years_are'),
+    ],
+)
+def test_refused(depreciation):
     record = _record_with_energy("C1")
     with pytest.raises(tea._ScenarioInputError) as caught:
-        tea._scenario_config(_public_from_record(record, depreciation="macrs7"))
-    assert caught.value.error_code == "invalid_scenario"
-    assert caught.value.details["field"] == "depreciation"
-
-
-def test_integer_depreciation_years_are_refused():
-    record = _record_with_energy("C1")
-    with pytest.raises(tea._ScenarioInputError) as caught:
-        tea._scenario_config(_public_from_record(record, depreciation=7))
+        tea._scenario_config(_public_from_record(record, depreciation=depreciation))
     assert caught.value.error_code == "invalid_scenario"
     assert caught.value.details["field"] == "depreciation"
 
@@ -2133,14 +1845,6 @@ def test_array_depreciation_is_refused():
         tea._scenario_config(
             _public_from_record(record, depreciation=["MACRS7"]),
         )
-    assert caught.value.error_code == "invalid_scenario"
-    assert caught.value.details["field"] == "depreciation"
-
-
-def test_unimplemented_macrs_years_are_refused():
-    record = _record_with_energy("C1")
-    with pytest.raises(tea._ScenarioInputError) as caught:
-        tea._scenario_config(_public_from_record(record, depreciation="MACRS4"))
     assert caught.value.error_code == "invalid_scenario"
     assert caught.value.details["field"] == "depreciation"
 
@@ -2156,9 +1860,16 @@ def test_explicit_default_duration_shares_the_serve_key():
     )
 
 
-def test_duration_override_does_not_share_the_twelve_only_serve_key():
+@pytest.mark.parametrize(
+    ('key', 'value', 'value_2'),
+    [
+        pytest.param('duration', 2025, 2045, id='duration_override_does_not_share_the_twelve_only'),
+        pytest.param('construction_schedule', 0.5, 0.5, id='construction_schedule_override_does_not_share_the'),
+    ],
+)
+def test_serve_key_2(key, value, value_2):
     record = _record_with_energy("C1")
-    overridden = {**dict(record["config"]), "duration": (2025, 2045)}
+    overridden = {**dict(record["config"]), key: (value, value_2)}
     assert tea._config_key(record["config"]) != tea._config_key(overridden)
     assert tea._cache_index().get(tea._config_key(overridden)) is None
 
@@ -2293,16 +2004,6 @@ def test_explicit_default_construction_schedule_shares_the_serve_key():
     )
 
 
-def test_construction_schedule_override_does_not_share_the_serve_key():
-    record = _record_with_energy("C1")
-    overridden = {
-        **dict(record["config"]),
-        "construction_schedule": (0.5, 0.5),
-    }
-    assert tea._config_key(record["config"]) != tea._config_key(overridden)
-    assert tea._cache_index().get(tea._config_key(overridden)) is None
-
-
 def test_cache_mode_refuses_construction_schedule_override_instead_of_the_other_plant(
     monkeypatch,
 ):
@@ -2359,11 +2060,18 @@ def test_c2_still_carries_construction_schedule():
     )
 
 
-def test_scalar_years_is_not_construction_schedule():
+@pytest.mark.parametrize(
+    'construction_schedule',
+    [
+        pytest.param(3, id='scalar_years_is_not_construction_schedule'),
+        pytest.param('0.08, 0.60, 0.32', id='string_construction_schedule_is_refused'),
+    ],
+)
+def test_scalar_years_is_not_construction_schedule_cases(construction_schedule):
     record = _record_with_energy("C1")
     with pytest.raises(tea._ScenarioInputError) as caught:
         tea._scenario_config(
-            _public_from_record(record, construction_schedule=3),
+            _public_from_record(record, construction_schedule=construction_schedule),
         )
     assert caught.value.error_code == "invalid_scenario"
     assert caught.value.details["field"] == "construction_schedule"
@@ -2387,48 +2095,6 @@ def test_negative_construction_schedule_item_is_refused():
         )
     assert caught.value.error_code == "invalid_scenario"
     assert caught.value.details["field"] == "construction_schedule"
-
-
-def test_string_construction_schedule_is_refused():
-    record = _record_with_energy("C1")
-    with pytest.raises(tea._ScenarioInputError) as caught:
-        tea._scenario_config(
-            _public_from_record(record, construction_schedule="0.08, 0.60, 0.32"),
-        )
-    assert caught.value.error_code == "invalid_scenario"
-    assert caught.value.details["field"] == "construction_schedule"
-
-
-def test_explicit_default_steam_power_depreciation_shares_the_serve_key():
-    record = _record_with_energy("C1")
-    explicit = {
-        **dict(record["config"]),
-        "steam_power_depreciation": "MACRS20",
-    }
-    assert tea._config_key(record["config"]) == tea._config_key(explicit)
-    assert tea._cache_index().get(tea._config_key(explicit))["label"] == (
-        record["label"]
-    )
-
-
-def test_steam_power_depreciation_override_does_not_share_the_serve_key():
-    record = _record_with_energy("C1")
-    overridden = {
-        **dict(record["config"]),
-        "steam_power_depreciation": "MACRS7",
-    }
-    assert tea._config_key(record["config"]) != tea._config_key(overridden)
-    assert tea._cache_index().get(tea._config_key(overridden)) is None
-
-
-def test_macrs07_does_not_fold_to_macrs20_on_steam_power():
-    record = _record_with_energy("C1")
-    padded = {
-        **dict(record["config"]),
-        "steam_power_depreciation": "MACRS07",
-    }
-    assert tea._config_key(record["config"]) != tea._config_key(padded)
-    assert tea._cache_index().get(tea._config_key(padded)) is None
 
 
 def test_cache_mode_refuses_steam_power_depreciation_override_instead_of_the_other_plant(
@@ -2470,33 +2136,22 @@ def test_cache_mode_refuses_steam_power_depreciation_override_instead_of_the_oth
     )
 
 
-def test_c2_steam_power_depreciation_is_energy_case_contract():
-    record = _record_with_energy("C2")
+@pytest.mark.parametrize(
+    ('value', 'value_2', 'steam_power_depreciation'),
+    [
+        pytest.param('C2', 'energy_case_contract', 'MACRS20', id='c2_steam_power_depreciation_is_energy_case_contract'),
+        pytest.param('C1', 'invalid_scenario', 'macrs20', id='lowercase_steam_power_depreciation_is_refused'),
+        pytest.param('C1', 'invalid_scenario', 20, id='integer_steam_power_depreciation_is_refused'),
+        pytest.param('C1', 'invalid_scenario', 'MACRS4', id='unimplemented_steam_power_macrs_years_are_refused'),
+    ],
+)
+def test_c2_steam_power_depreciation_is_energy_case_contract_cases(value, value_2, steam_power_depreciation):
+    record = _record_with_energy(value)
     with pytest.raises(tea._ScenarioInputError) as caught:
         tea._scenario_config(_public_from_record(
-            record, steam_power_depreciation="MACRS20",
+            record, steam_power_depreciation=steam_power_depreciation,
         ))
-    assert caught.value.error_code == "energy_case_contract"
-    assert caught.value.details["field"] == "steam_power_depreciation"
-
-
-def test_lowercase_steam_power_depreciation_is_refused():
-    record = _record_with_energy("C1")
-    with pytest.raises(tea._ScenarioInputError) as caught:
-        tea._scenario_config(_public_from_record(
-            record, steam_power_depreciation="macrs20",
-        ))
-    assert caught.value.error_code == "invalid_scenario"
-    assert caught.value.details["field"] == "steam_power_depreciation"
-
-
-def test_integer_steam_power_depreciation_is_refused():
-    record = _record_with_energy("C1")
-    with pytest.raises(tea._ScenarioInputError) as caught:
-        tea._scenario_config(_public_from_record(
-            record, steam_power_depreciation=20,
-        ))
-    assert caught.value.error_code == "invalid_scenario"
+    assert caught.value.error_code == value_2
     assert caught.value.details["field"] == "steam_power_depreciation"
 
 
@@ -2505,16 +2160,6 @@ def test_array_steam_power_depreciation_is_refused():
     with pytest.raises(tea._ScenarioInputError) as caught:
         tea._scenario_config(_public_from_record(
             record, steam_power_depreciation=["MACRS20"],
-        ))
-    assert caught.value.error_code == "invalid_scenario"
-    assert caught.value.details["field"] == "steam_power_depreciation"
-
-
-def test_unimplemented_steam_power_macrs_years_are_refused():
-    record = _record_with_energy("C1")
-    with pytest.raises(tea._ScenarioInputError) as caught:
-        tea._scenario_config(_public_from_record(
-            record, steam_power_depreciation="MACRS4",
         ))
     assert caught.value.error_code == "invalid_scenario"
     assert caught.value.details["field"] == "steam_power_depreciation"
@@ -2586,18 +2231,17 @@ def test_zero_is_not_the_production_lang_factor(monkeypatch):
     assert caught.value.details["field"] == "lang_factor"
 
 
-def test_string_lang_factor_is_refused():
+@pytest.mark.parametrize(
+    'lang_factor',
+    [
+        pytest.param('3.0', id='string'),
+        pytest.param(True, id='true'),
+    ],
+)
+def test_lang_factor_is_refused(lang_factor):
     record = _record_with_energy("C1")
     with pytest.raises(tea._ScenarioInputError) as caught:
-        tea._scenario_config(_public_from_record(record, lang_factor="3.0"))
-    assert caught.value.error_code == "invalid_scenario"
-    assert caught.value.details["field"] == "lang_factor"
-
-
-def test_true_lang_factor_is_refused():
-    record = _record_with_energy("C1")
-    with pytest.raises(tea._ScenarioInputError) as caught:
-        tea._scenario_config(_public_from_record(record, lang_factor=True))
+        tea._scenario_config(_public_from_record(record, lang_factor=lang_factor))
     assert caught.value.error_code == "invalid_scenario"
     assert caught.value.details["field"] == "lang_factor"
 

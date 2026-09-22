@@ -161,15 +161,22 @@ def test_boltzmann_combine_refuses_mismatched_lengths():
         cl.boltzmann_combine([1.0, 2.0], [0.0])
 
 
-def test_delta_log_d_reproduces_the_published_dcm_water_value():
-    """Stage 1: ln gamma of DEP is -2.043 in dichloromethane and 11.453 in
-    water; the recorded delta logD is 5.31."""
+@pytest.mark.parametrize(
+    ('value_2', 'value_3', 'value_4'),
+    [
+        pytest.param(11.453, 2.043, 5.31, id='published'),
+        pytest.param(25.989, 3.155, 12.11, id='measured_dehp'),
+        pytest.param(17.316, 2.512, 8.06, id='measured_bbp'),
+        pytest.param(16.039, 2.737, 7.61, id='measured_dbp'),
+    ],
+)
+def test_delta_log_d_reproduces_the_dcm_water_value(value_2, value_3, value_4):
     value = cl.delta_log_d(
-        -2.043, 11.453,
+        -value_3, value_2,
         volume_a=cl.MOLAR_VOLUMES_CM3["dichloromethane"],
         volume_b=cl.MOLAR_VOLUMES_CM3["water"],
     )
-    assert value == pytest.approx(5.31, abs=0.01)
+    assert value == pytest.approx(value_4, abs=0.01)
 
 
 def test_delta_log_d_is_antisymmetric():
@@ -251,12 +258,18 @@ def test_dep_stage1_numbers_do_not_pass_the_dbp_accept():
     assert not result["accept"]
 
 
-def test_evaluate_anchor_pairs_accepts_dbp_numbers_on_dbp_pairs():
-    """A correct pipeline landing on the table Δ themselves must accept."""
+@pytest.mark.parametrize(
+    ('value', 'value_2', 'value_3', 'value_4'),
+    [
+        pytest.param(7.05, 5.17, 4.98, 2.18, id='dbp_numbers_on_dbp_pairs'),
+        pytest.param(7.61, 5.88, 5.64, 1.92, id='the_measured_dbp_stage1_numbers'),
+    ],
+)
+def test_evaluate_anchor_pairs_accepts(value, value_2, value_3, value_4):
     result = cl.evaluate_anchor_pairs(
         {
-            "dichloromethane-water": 7.05, "cyclohexanol-water": 5.17,
-            "hexane-water": 4.98, "dichloromethane-methanol": 2.18,
+            "dichloromethane-water": value, "cyclohexanol-water": value_2,
+            "hexane-water": value_3, "dichloromethane-methanol": value_4,
         },
         pairs=cl.DBP_ANCHOR_PAIRS,
     )
@@ -265,25 +278,18 @@ def test_evaluate_anchor_pairs_accepts_dbp_numbers_on_dbp_pairs():
     assert result["water_free_passes"]
 
 
-def test_evaluate_anchor_pairs_accepts_the_measured_dbp_stage1_numbers():
-    """Recorded L1 stage-1 Δ, same role as the DEP 5.31/3.79/3.36/1.45 pin."""
+@pytest.mark.parametrize(
+    ('value', 'value_2', 'value_3', 'value_4'),
+    [
+        pytest.param(7.18, 5.04, 4.61, 2.14, id='bbp_table_deltas_on_bbp_pairs'),
+        pytest.param(8.06, 6.3, 5.94, 1.92, id='the_measured_bbp_stage1_numbers'),
+    ],
+)
+def test_evaluate_anchor_pairs_accepts_2(value, value_2, value_3, value_4):
     result = cl.evaluate_anchor_pairs(
         {
-            "dichloromethane-water": 7.61, "cyclohexanol-water": 5.88,
-            "hexane-water": 5.64, "dichloromethane-methanol": 1.92,
-        },
-        pairs=cl.DBP_ANCHOR_PAIRS,
-    )
-    assert result["accept"]
-    assert result["n_passing"] == 4
-    assert result["water_free_passes"]
-
-
-def test_evaluate_anchor_pairs_accepts_bbp_table_deltas_on_bbp_pairs():
-    result = cl.evaluate_anchor_pairs(
-        {
-            "dichloromethane-water": 7.18, "cyclohexanol-water": 5.04,
-            "hexane-water": 4.61, "dichloromethane-methanol": 2.14,
+            "dichloromethane-water": value, "cyclohexanol-water": value_2,
+            "hexane-water": value_3, "dichloromethane-methanol": value_4,
         },
         pairs=cl.BBP_ANCHOR_PAIRS,
     )
@@ -321,16 +327,6 @@ def test_measured_dehp_stage1_numbers_do_not_accept():
     assert not result["accept"]
 
 
-def test_delta_log_d_reproduces_the_measured_dehp_dcm_water_value():
-    """Stage 1: ln γ of DEHP is -3.155 in dichloromethane and 25.989 in water."""
-    value = cl.delta_log_d(
-        -3.155, 25.989,
-        volume_a=cl.MOLAR_VOLUMES_CM3["dichloromethane"],
-        volume_b=cl.MOLAR_VOLUMES_CM3["water"],
-    )
-    assert value == pytest.approx(12.11, abs=0.01)
-
-
 def test_measured_bbp_stage1_numbers_do_not_pass_the_dehp_accept():
     """L2's recorded Δ are not L3's accept surface."""
     result = cl.evaluate_anchor_pairs(
@@ -343,59 +339,21 @@ def test_measured_bbp_stage1_numbers_do_not_pass_the_dehp_accept():
     assert not result["accept"]
 
 
-def test_dehp_table_deltas_do_not_pass_the_dep_accept():
+@pytest.mark.parametrize(
+    ('value', 'value_2', 'value_3', 'value_4'),
+    [
+        pytest.param(9.98, 8.13, 8.33, 2.6, id='dehp'),
+        pytest.param(7.18, 5.04, 4.61, 2.14, id='bbp'),
+    ],
+)
+def test_table_deltas_do_not_pass_the_dep_accept(value, value_2, value_3, value_4):
     result = cl.evaluate_anchor_pairs(
         {
-            "dichloromethane-water": 9.98, "cyclohexanol-water": 8.13,
-            "hexane-water": 8.33, "dichloromethane-methanol": 2.60,
+            "dichloromethane-water": value, "cyclohexanol-water": value_2,
+            "hexane-water": value_3, "dichloromethane-methanol": value_4,
         },
     )
     assert not result["accept"]
-
-
-def test_bbp_table_deltas_do_not_pass_the_dep_accept():
-    """Scoring BBP's column on DEP anchors must not silently accept."""
-    result = cl.evaluate_anchor_pairs(
-        {
-            "dichloromethane-water": 7.18, "cyclohexanol-water": 5.04,
-            "hexane-water": 4.61, "dichloromethane-methanol": 2.14,
-        },
-    )
-    assert not result["accept"]
-
-
-def test_evaluate_anchor_pairs_accepts_the_measured_bbp_stage1_numbers():
-    """Recorded L2 stage-1 Δ. Water-free is the tightest residual."""
-    result = cl.evaluate_anchor_pairs(
-        {
-            "dichloromethane-water": 8.06, "cyclohexanol-water": 6.30,
-            "hexane-water": 5.94, "dichloromethane-methanol": 1.92,
-        },
-        pairs=cl.BBP_ANCHOR_PAIRS,
-    )
-    assert result["accept"]
-    assert result["n_passing"] == 4
-    assert result["water_free_passes"]
-
-
-def test_delta_log_d_reproduces_the_measured_bbp_dcm_water_value():
-    """Stage 1: ln γ of BBP is -2.512 in dichloromethane and 17.316 in water."""
-    value = cl.delta_log_d(
-        -2.512, 17.316,
-        volume_a=cl.MOLAR_VOLUMES_CM3["dichloromethane"],
-        volume_b=cl.MOLAR_VOLUMES_CM3["water"],
-    )
-    assert value == pytest.approx(8.06, abs=0.01)
-
-
-def test_delta_log_d_reproduces_the_measured_dbp_dcm_water_value():
-    """Stage 1: ln γ of DBP is -2.737 in dichloromethane and 16.039 in water."""
-    value = cl.delta_log_d(
-        -2.737, 16.039,
-        volume_a=cl.MOLAR_VOLUMES_CM3["dichloromethane"],
-        volume_b=cl.MOLAR_VOLUMES_CM3["water"],
-    )
-    assert value == pytest.approx(7.61, abs=0.01)
 
 
 def test_chloroform_exclusion_is_recorded_with_a_mechanism():
@@ -2092,4 +2050,3 @@ def test_p4e_octanol_water_sanity_is_not_a_gate_and_never_validated(tmp_path, mo
     body = Path(cl.__file__).read_text().split("def compute_delta_logd", 1)[1]
     assert "subprocess" not in body
     assert "generate_conformers(" not in body
-

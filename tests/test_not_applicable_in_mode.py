@@ -735,5 +735,3 @@ def test_dispatch_evaluate_process_selector_is_named_refuse(monkeypatch):
         )
         assert served.get("available") is True
         assert served.get("handle")
-
-

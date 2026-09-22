@@ -4,6 +4,8 @@ Does not embed washes. Does not call tea._config_key. No BioSTEAM.
 """
 from __future__ import annotations
 
+import pytest
+
 import inspect
 import io
 from pathlib import Path
@@ -90,11 +92,19 @@ def test_bare_picker_sets_strap(tmp_path, monkeypatch):
     assert app.session.get("contaminant_mode") == {"mode": "strap"}
 
 
-def test_compare_without_prior_screen_prints_usage(tmp_path, monkeypatch):
+@pytest.mark.parametrize(
+    ('value', 'value_2'),
+    [
+        pytest.param('prior contaminant screen', '/contaminant compare', id='compare_without_prior_screen_prints_usage'),
+        pytest.param('usage: /contaminant', '/contaminant solvents', id='bad_token_does_not_write'),
+        pytest.param('invalid_smiles', '/contaminant logp --smiles not_a_smiles', id='logp_invalid_smiles_refuses_without_writing_mode'),
+    ],
+)
+def test_compare_without_prior_screen_prints_usage_cases(tmp_path, monkeypatch, value, value_2):
     app, buf = _app(tmp_path, monkeypatch)
-    assert app.handle_command("/contaminant compare") is False
+    assert app.handle_command(value_2) is False
     assert "contaminant_mode" not in app.session
-    assert "prior contaminant screen" in buf.getvalue()
+    assert value in buf.getvalue()
 
 
 def test_compare_does_not_persist_a_mode(tmp_path, monkeypatch):
@@ -108,13 +118,6 @@ def test_compare_does_not_persist_a_mode(tmp_path, monkeypatch):
     assert app.handle_command("/contaminant compare") is False
     assert "contaminant_mode" not in app.session
     assert "recommended_mode" in buf.getvalue()
-
-
-def test_bad_token_does_not_write(tmp_path, monkeypatch):
-    app, buf = _app(tmp_path, monkeypatch)
-    assert app.handle_command("/contaminant solvents") is False
-    assert "contaminant_mode" not in app.session
-    assert "usage: /contaminant" in buf.getvalue()
 
 
 def test_mode_key_does_not_change_planner_or_screens():
@@ -185,13 +188,6 @@ def test_logp_solvents_report_routes_and_refuse_a_cousin_substitute(tmp_path, mo
     for line in text.splitlines():
         if "xylene" in line and "delta_logd=" in line:
             raise AssertionError(line)
-
-
-def test_logp_invalid_smiles_refuses_without_writing_mode(tmp_path, monkeypatch):
-    app, buf = _app(tmp_path, monkeypatch)
-    assert app.handle_command("/contaminant logp --smiles not_a_smiles") is False
-    assert "contaminant_mode" not in app.session
-    assert "invalid_smiles" in buf.getvalue()
 
 
 def test_logp_is_not_a_persistent_mode_token():
@@ -491,4 +487,3 @@ def test_logp_literature_is_a_sanity_check_never_a_gate(tmp_path, monkeypatch):
     assert "handle=" not in ok
     assert "contaminant_mode" not in app2.session
     assert "dft=not_run" in ok
-

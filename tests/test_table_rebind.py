@@ -245,5 +245,3 @@ def test_c7d_1c_force_body_embed_drops_note(monkeypatch, tmp_path):
     assert embeds
     assert TOKEN_NOTE not in embeds[0]
     assert TOKEN_V in embeds[0]
-
-
