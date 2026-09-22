@@ -1,0 +1,574 @@
+CODEX-ASTRA-CONTAM — CHARTER
+DISSOLVE contaminants campaign: PlastChem organics, ORCA DFT on Euler, openCOSMO-RS afterwards.
+Issued 2026-09-12 by the orchestrator (Claude, tmux session for the v12 work).
+
+=====================================================================
+0. WHO YOU ARE, AND WHAT YOU MUST NOT TOUCH
+=====================================================================
+You are codex-astra-CONTAM, tmux session of the same name. You are a SEPARATE lane from
+codex-astra-DISSOLVE, which is running the RAG/reference audit campaign. The two campaigns
+share nothing.
+
+NEVER read or write any of these (they belong to the RAG campaign or to other live lanes):
+  ~/dissolve-v12-audit/**            ~/dissolve-v12-wp2-scripts/**
+  ~/dissolve-v12-wp1*/**             ~/dissolve-v12-work/**
+  ~/langchain-STRAP-v10-core/**      ~/titania-adsorption-new/**
+  ~/surfactant-ML-explore/**
+  any file named STEER_INBOX.md, any HANDOFF.wp2*, any astra/ directory
+
+NEVER write inside ~/dissolve-v12-builder-1/ . That worktree has two live Cursor lanes in it,
+and plastchem-contaminants/ there is owned by the lane that built the census. It is READ-ONLY
+to you, and you already have pinned copies of everything you need (section 3).
+
+NEVER modify ~/dissolve-v12-builder-1/plastchem-contaminants/PLASTCHEM_READING_NOTES.md or any
+CSV in that folder. If you believe one is wrong, report it; do not edit it.
+
+NEVER write into any product database (contaminants.duckdb, hansen.duckdb, thermodynamics.duckdb,
+safety.duckdb, extended_solubility.duckdb). This campaign generates data files. Loading results
+into the product is a separate, later, owner decision.
+
+Your writable surface is exactly:
+  ~/plastchem-euler/**            (this directory: scripts, state, logs, small results)
+  /mnt/r/plastchem-euler/**       (bulk archive; create it; the R: drive has ~1.1 PB free)
+  your own Euler home and its subdirectories
+
+=====================================================================
+1. GOAL
+=====================================================================
+Generate COSMO surfaces and logP/logD-relevant data for the PlastChem CHNO first-pass set by
+running ORCA on the Euler cluster, then running openCOSMO-RS on the resulting surfaces, and
+produce a results table keyed by InChIKey.
+
+Division of labour that you should default to (justify any change):
+  - ORCA DFT (expensive, hours per molecule) runs on Euler.
+  - openCOSMO-RS (seconds per molecule) runs LOCALLY in ~/.venvs/cosmo-logp, which already has
+    rdkit 2026.03.5, opencosmorspy importable, Python 3.11.9. Do not try to install
+    opencosmorspy on Euler unless you have a reason.
+  - Therefore what comes back from Euler per molecule is the .orcacosmo surface plus a small
+    property/JSON record, NOT the full ORCA scratch tree.
+
+=====================================================================
+2. FROZEN RECIPE — DO NOT CHANGE ANY OF THIS
+=====================================================================
+openCOSMO-RS 24a is parameterised at exactly this level of theory. Changing it makes the
+partition coefficients wrong by an unbounded amount.
+
+  geometry optimisation : BP86 / def2-TZVP(-f)   ! OPT ... TightSCF
+  COSMO single point    : BP86 / def2-TZVPD via COSMORS(Water), writes .orcacosmo
+  charge/multiplicity   : * xyz 0 1   (neutral singlet; this is why charged species and salts
+                                       were filtered out of the input set)
+  parallelism           : serial. NO %pal.
+  memory                : %maxcore 1500
+  conformers            : ONE. RDKit ETKDG + MMFF ranks them; the lowest is the one DFT'd.
+                          Ensembles are not the default and are not authorised here.
+  identity              : InChIKey computed after optimisation
+  ORCA version          : 6.1.1 (see section 4)
+
+The reference implementation of this recipe is in the READ-ONLY files
+  ~/dissolve-v12-builder-1/src/dissolve/cosmo_logp.py
+  ~/dissolve-v12-builder-1/scripts/cosmo/run_orca_stage.py
+Read them for the exact input-file construction. Copy what you need into ~/plastchem-euler/.
+Do not edit them in place.
+
+=====================================================================
+3. INPUTS — ALREADY PINNED AND VERIFIED FOR YOU
+=====================================================================
+Pinned read-only copies live in ~/plastchem-euler/inputs/ with digests in
+~/plastchem-euler/state/INPUTS.sha256. Verify those digests before you use them. They were
+copied because the source folder is under another lane's control and one of these files was
+already overwritten in place once today.
+
+  plastchem_organics_orca_opencosmo_firstpass.csv          6,064 rows  5,833 unique InChIKey
+      THE SUBMISSION SET. CHNO only (H,C,N,O), MW <= 500. sha256 a8e1ae169bbf8a58...
+  plastchem_organics_orca_opencosmo_flagged_heteroatoms.csv 1,762 rows 1,721 unique
+      parked expansion tier: Cl 671, S 536, F 277, Br 222, P 194, I 22 (overlapping counts)
+  plastchem_organics_orca_opencosmo_flagged_si_b.csv          239 rows   238 unique
+      parked. DO NOT DFT WITHOUT EXPLICIT OWNER APPROVAL: silicon has a published 24a
+      parameter, boron does not.
+  plastchem_organics_orca_opencosmo_firstpass_no_sib.csv    7,826 rows  7,554 unique
+      = CHNO + heteroatoms, for later
+  plastchem_organics_orca_opencosmo_firstpass_audited_8065.csv 8,065 rows 7,792 unique
+      the superset the orchestrator audited on 2026-09-12
+
+Columns: name, smiles, plastchem_id, cas, inchikey, molecular_weight_g_mol
+(the two flagged files carry one extra column).
+
+Facts the orchestrator verified independently; re-check them cheaply, do not re-derive from
+the source workbook:
+  - The three tiers PARTITION the audited superset exactly, in both rows and structures:
+        6,064 + 1,762 +  239 = 8,065 rows
+        5,833 + 1,721 +  238 = 7,792 unique InChIKeys
+    Equality on the unique counts means no structure appears in two tiers. Reproduce this
+    identity as your first known-answer check before you submit anything.
+  - Across the 8,065-row superset: every SMILES parses under RDKit; every net formal charge is
+    zero; no multi-fragment (salt/hydrate) entries; maximum MW 499.77; every stated molecular
+    weight is within 1 g/mol of the RDKit value. DEP, DBP, BBP and DEHP are all present.
+
+=====================================================================
+4. ENVIRONMENT — WHAT THE ORCHESTRATOR ALREADY ESTABLISHED
+=====================================================================
+Euler (euler.engr.wisc.edu, UW-Madison College of Engineering), user aaltamimi2:
+  - Passwordless key SSH WORKS non-interactively. `ssh euler` needs no password.
+  - Scheduler is SLURM (/usr/bin/sbatch).
+  - Partitions seen from sinfo: interactive, research, vanlehn. All "up", time limit
+    16-16:00:00. 33 nodes at 24+ CPUs / 60000+ MB; vanlehn has 2 nodes at 96 CPUs / 248 GB.
+    You must confirm which partition and account YOU are entitled to use. Do not assume.
+  - Home is CephFS, 941 T total, 191 T available. Space on Euler is not a constraint.
+  - ORCA IS NOT INSTALLED ON EULER. Not in PATH, no module. This is the critical-path blocker.
+
+ORCA locally:
+  - The local install directory named in ~/.bashrc ($HOME/software/orca_6_1_1_..._avx2) NO
+    LONGER EXISTS; it appears to have been removed to reclaim disk.
+  - The distribution does exist on the Windows side:
+        /mnt/c/Users/aaltamimi2/Favorites/Downloads/orca_6_1_1_linux_x86-64_shared_openmpi418_avx2.tar.xz   (469 MB)
+        /mnt/c/Users/aaltamimi2/orca/orca_6_1_1_linux_x86-64_shared_openmpi418_avx2/            (extracted)
+    This is the exact build that produced the timing anchors: ORCA 6.1.1 RELEASE, GIT 487d211c,
+    2025-11-21, libXC 7.0.0. The tarball bundles its own OpenMPI 4.1.8, so it is self-contained
+    even though we run serial.
+  - It is an AVX2 build. CONFIRM Euler compute nodes advertise avx2 before relying on it.
+  - Licensing: ORCA is free for academic use but the registered user must accept the EULA and
+    must not redistribute. Installing the same user's own copy into that same user's cluster
+    account is the intended use, but flag it in your Phase 0 report so the owner sees it.
+    The EULA PDF ships inside the extracted directory.
+
+Local workstation:
+  - Root filesystem is 100% FULL: about 2.4 GB free on /. Treat local disk as nearly exhausted.
+  - /mnt/r (the R: network drive) has ~1.1 PB free. Bulk artifacts go there.
+  - R: does NOT support symlinks, permissions or the temp files rsync needs.
+    PROJECT RULE: use scp, never rsync, for anything touching R: or a remote host.
+  - ~/.venvs/cosmo-logp/bin/python: rdkit 2026.03.5, opencosmorspy importable, Python 3.11.9.
+
+Measured ORCA wall times on THIS workstation (Intel Core i7-13700), ORCA 6.1.1, serial, from the TOTAL RUN TIME
+lines of the real output files (paths given so you can re-read them):
+    DEP   ~/cosmo-artifacts/stage1/dep.opt.out        5 m 01.4 s  + dep_cosmo.out    2 m 59.7 s  =  8.0 min
+    DBP   ~/cosmo-artifacts/stage1_dbp/dbp.opt.out   17 m 48.6 s  + dbp_cosmo.out    5 m 47.2 s  = 23.6 min
+    BBP   ~/cosmo-artifacts/stage1_bbp/bbp.opt.out   40 m 21.1 s  + bbp_cosmo.out    6 m 17.3 s  = 46.6 min
+    DEHP  ~/cosmo-artifacts/stage1_dehp/dehp.opt.out 55 m 32.0 s  + dehp_cosmo.out  13 m 21.6 s  = 68.9 min
+BBP versus DBP is the warning: near-identical size, roughly double the wall, because the SCF or
+the geometry step can stall. Any estimate quoting only a smooth size scaling is optimistic.
+These are workstation numbers. Euler's per-core speed is different. Recalibrate with the pilot.
+
+The campaign estimate carried in the reading notes for the 5,833 CHNO structures is ~2,628
+CPU-hours typical, ~3.4 days on 32 concurrent jobs, ~1 day on 128, with a x1.7 conservative
+band. Budget 2-2.5 GB RAM per job. Treat all of that as a hypothesis your pilot tests.
+
+=====================================================================
+5. PHASES AND GATES
+=====================================================================
+PHASE 0 — access and environment. NO JOBS SUBMITTED. Do this first.
+  a. Re-verify the input digests and reproduce the partition identity in section 3.
+  b. Euler: confirm your account/partition entitlement, per-user job and array limits
+     (scontrol show config | grep -E 'MaxArraySize|MaxJobCount|MaxSubmitJobs'; sacctmgr show
+     assoc user=$USER), current queue load, and whether anyone else's work is already queued
+     under this account. Another project (titania) also uses Euler under this same login.
+     Do not plan anything that would starve it.
+  c. Confirm avx2 on the compute nodes you would actually target.
+  d. Resolve the ORCA blocker: get ORCA 6.1.1 installed in the Euler home from the existing
+     distribution, verify `orca` runs there and reports Program Version 6.1.1 / GIT 487d211c,
+     and run one trivial molecule (water or methanol, seconds) end to end including the
+     COSMORS step so you know a .orcacosmo file is produced on Euler.
+  e. Decide and state the results-return shape: which files come back per molecule, their
+     typical size, where they land (/mnt/r/plastchem-euler/...), and the projected total.
+  REPORT and STOP. Do not proceed to Phase 1 without the orchestrator or owner saying go.
+
+PHASE 1 — pilot. Authorised now, execute as soon as Phase 0 is reported and cleared.
+  50 to 100 molecules drawn from the CHNO submission set, spanning roughly 15 to 80 atoms,
+  chosen to cover the size range rather than randomly. It MUST include DEP, DBP, BBP and DEHP
+  so the Euler timings are directly comparable to the four workstation anchors above, and it
+  must include at least one more BBP-like aromatic ester so the stall behaviour is sampled.
+  Report: measured wall per molecule against atom count, the refitted scaling, actual RAM
+  high-water, SCF/geometry failure count and failure modes, per-molecule returned-file sizes,
+  and a revised whole-campaign estimate with its uncertainty.
+  REPORT and STOP.
+
+PHASE 2 — full CHNO campaign, 5,833 unique structures. NOT AUTHORISED YET.
+  Requires the owner's explicit go, because it commits thousands of CPU-hours on a shared
+  university cluster and because the queue/partition target is still an open owner decision.
+  When you propose it, propose a concrete plan: partition, array size, concurrency throttle,
+  walltime per job, retry policy, and how you will avoid starving other users.
+
+Later tiers (heteroatoms, then Si/B) are out of scope until CHNO is done and reported.
+
+=====================================================================
+6. HARD RULES
+=====================================================================
+  - Submit 5,833 unique InChIKeys, not 6,064 rows. 231 rows are duplicate structures.
+  - scp, never rsync.
+  - Never let the local root filesystem fill. Check `df -h /` before any retrieval. Bulk goes
+    to /mnt/r/plastchem-euler/ or stays on Euler.
+  - Do not change the level of theory, the conformer count, or the charge/multiplicity.
+  - Do not DFT the Si/B tier.
+  - Idempotent, resumable job scripts keyed by InChIKey. A rerun must not silently redo
+    completed work or silently skip failures. Keep a machine-readable state file in
+    ~/plastchem-euler/state/ recording per-structure status.
+  - Record provenance for every result: ORCA version and GIT hash, the exact input deck, the
+    node it ran on, wall time, and the digest of the .orcacosmo file.
+  - Failures are data. Never fabricate, interpolate or substitute a value for a molecule whose
+    DFT did not converge. Report converged, failed and not-yet-run counts separately and
+    always with denominators.
+  - Report counts, ids and paths. Do not paste large outputs into your pane.
+  - If something is ambiguous or an instruction here conflicts with what you find on disk,
+    say so and ask. Do not guess and proceed on a guess.
+
+=====================================================================
+7. REPORTING
+=====================================================================
+Keep your durable state and reports under ~/plastchem-euler/ (state/ for machine-readable
+status, and a short human-readable progress file you own). The orchestrator watches this
+directory and your tmux pane. End every phase with a compact summary in your pane: what you
+did, what you measured, what you are blocked on, and what you propose next.
+
+Begin with Phase 0. Do not submit any job.
+
+=====================================================================
+AMENDMENT A-1 (2026-09-12, orchestrator) — diagnostic submissions permitted
+=====================================================================
+Your Phase 0 report is accepted as far as it goes, and you were right to stop rather than
+assume. The AVX2 gate is real: the login node is an Intel Xeon E5-2640 v4, but the compute
+pool you would target is AMD EPYC (milan on euler142, genoa on euler09), and you could not
+read their CPU flags because direct compute-node SSH is denied.
+
+The "no jobs" rule in Phase 0 meant no CAMPAIGN jobs. It is hereby amended: you MAY submit
+DIAGNOSTIC jobs, bounded as follows, and you should, because running the real binary on the
+real node is stronger evidence than reading a flag.
+
+  - Partition: the research CPU pool. Do NOT add contention on vanlehn: this login already
+    has job 50511 (slab125-mixed-50ns) running there for a different campaign. Leave it alone.
+  - At most a handful of jobs, each 1 CPU, walltime <= 15 minutes, memory <= 4 GB.
+  - Permitted content: (a) report CPU model and flags from the allocated node; (b) re-run the
+    water smoke, and one slightly larger molecule of your choice from the CHNO set, through
+    sbatch at the frozen recipe, end to end including COSMORS.
+  - Nothing else. No campaign array, no batch of contaminants, no ORCA run outside these.
+
+This closes the AVX2 gate the right way: if ORCA 6.1.1 AVX2 executes and converges on an EPYC
+compute node, the build is usable there, and you will also have validated the sbatch path,
+the environment activation, and the file staging in one step.
+
+Two things to carry forward when you report:
+  - Pin the CPU model of every node you measure on, in every job record. The four workstation
+    anchors in section 4 were measured on an Intel Core i7-13700. The Euler login node is an
+    Intel Xeon E5-2640 v4 (Broadwell). EPYC Milan and EPYC Genoa will not have the same per-core speed as either. Any timing
+    you quote must name the CPU it was measured on, and the Phase 1 pilot must run on the same
+    partition and CPU generation the campaign will actually use, or its calibration is void.
+  - Your proposed return shape is accepted: surface.orcacosmo, result.json, opt.inp, cosmo.inp
+    and optimized.xyz per InChIKey under /mnt/r/plastchem-euler/results/<InChIKey>/, by scp.
+    Water's surface was 48 KB; report the projected total once the pilot gives real sizes.
+
+After these diagnostics: report and stop. Phase 1 (the 50-100 molecule pilot) still needs
+clearance, and Phase 2 still needs the owner.
+
+=====================================================================
+AMENDMENT A-2 (2026-09-12, orchestrator) — Phase 1 pilot CLEARED
+=====================================================================
+A-1 is closed. Both diagnostics converged on euler145, an AMD EPYC 7763 (Milan), with AVX2
+verified by execution, identities verified, exact decks and their digests recorded, and the
+surfaces archived. The sbatch path, environment activation and staging are proven.
+
+PHASE 1 IS CLEARED. Run the pilot now. Phase 2 still requires the owner.
+
+Binding conditions:
+
+1. HOMOGENEOUS CPU GENERATION. Keep partition research with constraint milan&cpu and the
+   euler09/euler10 exclusion. Your own evidence is the reason: water's surface came out
+   48,454 bytes on the Broadwell login node and 48,442 bytes on Milan. DFT converges to a
+   threshold, not to bits, so results are NOT bit-reproducible across CPU models. Everything
+   that will be compared must come from one generation. Record cpu_model in every job record,
+   and never quote a timing without naming the CPU it was measured on.
+
+2. COMPOSITION. 50 to 100 molecules from the CHNO submission set, chosen to span roughly 15 to
+   80 atoms rather than drawn at random. Must include DEP, DBP, BBP and DEHP so the Euler
+   numbers are directly comparable to the four workstation anchors, plus at least one further
+   aromatic ester, because BBP took about twice DBP's wall at near-identical size and that
+   stall behaviour is the main risk to any estimate.
+
+3. THROTTLE. Use one sbatch array with a concurrency cap of 16. The research pool already
+   carries other users' work and this login has a separate campaign on vanlehn. Do not exceed
+   16 concurrent pilot jobs.
+
+4. ENVELOPE. 1 CPU per job. Request 4 GB. Set a per-job walltime with real headroom, at least
+   8 hours: DEHP took about 69 minutes on an Intel Core i7-13700 workstation and you do not yet know the
+   Milan factor. A truncated job is a lost measurement, and lost measurements bias the fit
+   toward the cheap molecules.
+
+5. TRANSPORT. Keep the multiplexed SSH connection and the backoff. Reconcile against squeue
+   and sacct before resubmitting anything whose confirmation was lost; your A-1 reconciliation
+   found a job that had in fact landed, and a blind retry would have duplicated it.
+
+6. REPORT, then STOP. Give: measured wall against atom count with the refitted scaling and its
+   residuals, the four anchor molecules compared directly to their workstation values, RAM
+   high-water, every failure with its mode and the converged/failed/not-run counts each with
+   its denominator, returned bytes per molecule, the projected archive size for 5,833, and a
+   revised campaign estimate with an uncertainty band rather than a point value.
+
+Do not start Phase 2. Do not touch the parked heteroatom or Si/B tiers.
+
+=====================================================================
+CORRECTION C-1 (2026-09-12, orchestrator) — the workstation is NOT Broadwell
+=====================================================================
+You measured it; I had inferred it. Retract and replace everywhere it appears, including
+amendment A-1 and A-2 where I wrote "Broadwell workstation":
+
+  The workstation that produced the four phthalate anchors (DEP 8.0, DBP 23.6, BBP 46.6,
+  DEHP 68.9 min) is a 13th Gen Intel Core i7-13700, a modern desktop part.
+  The Euler LOGIN node is an Intel Xeon E5-2640 v4 (Broadwell). Those are two different
+  machines and I conflated them.
+
+Consequence, which you should carry into the pilot analysis rather than assume: a Raptor Lake
+desktop core is substantially faster per core on this workload than an EPYC 7763 server core.
+The four anchors therefore UNDERSTATE the Milan wall time, and the ~2,628 CPU-hour campaign
+figure inherited from the reading notes is very likely low, possibly by a large factor. Do not
+propagate that figure. Your pilot measurement on Milan is the only number that should appear in
+the revised estimate, and the comparison to the anchors should be reported as a cross-machine
+speed ratio with both CPUs named, not as agreement or disagreement with a prediction.
+
+Report the ratio per molecule for the four anchors, and give the revised campaign estimate from
+the Milan data alone with its uncertainty band.
+
+=====================================================================
+AMENDMENT A-3 (2026-09-12) — OWNER DECISIONS; PHASE 2 AUTHORISED
+=====================================================================
+The owner has decided all three open questions. Phase 2 is authorised. These are owner
+decisions, recorded here verbatim in effect; do not reopen them yourself.
+
+D-IDENT — identity policy: **connectivity match plus record the computed stereochemistry**.
+  Require the InChIKey first block (connectivity skeleton) to match between input and optimised
+  geometry. Do NOT require the stereo layer to match, because none of these inputs specifies
+  stereochemistry and a coordinate file cannot carry what the input never had. Record, per
+  molecule, the stereochemistry the calculation actually produced, including the full perceived
+  InChIKey and which perception engines agreed. Nothing is silently equated: the results table
+  must show the input key, the perceived key, and that the match was made on connectivity.
+  Projected acceptance 5,833 of 5,833, versus roughly 4,880 under the strict whole-key rule.
+
+D-ISO — isotope-labelled entries: **exclude them**. The nine deuterated structures leave the
+  submission set. The campaign is **5,824 unique structures**, not 5,833. Do not map them to
+  parents and do not carry a label-to-parent mapping. Record the nine as excluded with the
+  reason, so the exclusion is visible rather than silent, and keep the count reconciled:
+  5,833 minus 9 equals 5,824. The single 36Cl entry sits in a parked tier and is untouched.
+
+D-CONC — submission shape: **authorised at 32 concurrent**, expected about six days.
+  Same partition and constraint as the pilot: research, milan&cpu, euler09 and euler10 excluded.
+  One CPU, 4 GB (the pilot's high-water was 1.9 GB, so 4 GB stands and 2 GB would not).
+  Walltime with real headroom. Concurrency may be raised after the first day ONLY if the queue
+  has stayed quiet and other users are not waiting; report before you raise it, never after.
+
+Carry forward, unchanged: reconcile against squeue and sacct before any resubmission; keep the
+multiplexed connection and the backoff; scp never rsync; results to /mnt/r/plastchem-euler
+(projected 2.47 GB, and local root has ~2.4 GB free so nothing bulky lands here); failures are
+data and are reported with denominators; never interpolate or substitute a molecule that did not
+run. The 244 structures below 15 atoms and 89 above 80 atoms are outside the pilot's sampled
+range and their costs are extrapolations: submit the 89 large ones as a separate array so they
+cannot block the main body, and report their measured cost separately.
+
+Before submitting: restate the reconciled counts (5,833 pinned, 9 excluded, 5,824 submitted) and
+confirm the identity policy is implemented as specified. Then submit, monitor, and report at
+completion with converged, failed and not-run counts each against its denominator.
+
+AMENDMENT A-4 (2026-09-17, orchestrator, OWNER-AUTHORISED) — TIER 2: CHNO, 500 < MW ≤ 700
+
+The owner authorised a second CHNO tier above the first-pass MW cut. Everything below is a
+bounded extension of Phase 2; nothing in the frozen recipe, the identity policy or the reporting
+rules changes.
+
+Input (pinned, read-only; derived by the orchestrator from plastchem_db_v1.0.xlsx with the same
+funnel as the census, which reproduces the census exactly: 8,961/8,661 eligible, 8,065/7,792 at
+MW ≤ 500):
+  inputs/plastchem_organics_orca_opencosmo_tier2_chno_mw500_700.csv
+  sha256 f9b513c9df4e0d9ca49c6870b958b805e0c84b77368098afb63c75422540ebfb
+  270 rows = 270 unique InChIKeys, CHNO only, 500 < MW ≤ 700, none present in any existing tier,
+  no isotope-labelled entries (D-ISO checked: zero), atoms-with-H 54–134 (211 of 270 above 80).
+  Same columns as the Phase 2 submission CSV plus n_atoms_with_H. Verify the digest and the
+  counts yourself before anything else; a mismatch is a stop, not a question.
+
+Scope: run these 270 under the frozen 24a recipe (BP86/def2-TZVP(-f) OPT → BP86/def2-TZVPD
+COSMORS(Water), serial, %maxcore 1500, ONE conformer, * xyz 0 1), identity by D-IDENT
+(connectivity + recorded computed stereo), 4 GB per job, same partition/constraint/exclusions.
+Submit them as their OWN array (they are all extrapolation-range sizes; treat them like the 89
+large ones: separate, so they cannot block the Phase 2 tail) under the SAME total cap of 64
+concurrent that the owner set in the pane on 2026-09-16 — the tier shares the cap, it does not
+add to it. Phase 2's remaining chunks keep priority; fill idle slots with tier 2.
+
+Cost: the pilot size fit projects ~1,770 CPU-h for the 270, but the fit was calibrated on
+molecules up to 107 atoms, so above that it is an extrapolation. Report tier-2 wall time per
+molecule separately, with CPU model, and refit on the first 30 completions; if the refit exceeds
+2× the projection, report before continuing.
+
+Not authorised: anything above MW 700 (101 CHNO structures; owner will decide separately), the
+515 heteroatom/Si/B structures above 500 (parked with their tiers), any conformer search, any
+recipe change. Post-processing: same 32-solvent panel, same collector; keep tier-2 rows tagged
+so they can be reported with their own denominators (converged / failed / not-run of 270).
+
+Reporting: on submission, restate 270 pinned, 0 excluded, 270 submitted, array id, cap
+accounting (Phase 2 running + tier 2 running ≤ 64). Then progress in the usual cadence.
+
+AMENDMENT A-5 (2026-09-21, orchestrator, OWNER-AUTHORISED) — POLYMER CONFORMER CAMPAIGN
+
+The owner authorised running every polymer conformer we hold, on Euler, now, smallest first,
+under the same cap of 64. Purpose: put the polymer leg on the SAME parameterisation as the
+contaminants. Today the polymer partition numbers come from 2002/default_turbomole COSMObase
+files while the 5,824 contaminants are ORCA + openCOSMO-RS 24a, and the product code refuses to
+mix them. Recomputing the polymer surfaces under the frozen recipe removes that barrier.
+
+Input (pinned, read-only, derived by the orchestrator from ~/polymers_cosmo, the owner's existing
+Gaussian/COSMO conformer library; coordinates taken from each file's $coord_rad block, which is in
+BOHR, converted to angstrom at 0.52917721; verified by bond lengths, median C-C 1.540 A):
+  inputs/polymers/polymer_conformers_v1.csv
+  sha256 b1230558bd4fa00f2dcd32f9b3a6c4e26c02483996b4b1e97ba8a99714d0b2ac
+  284 conformers, 14 polymers, 16 species, one .xyz each under inputs/polymers/<polymer>/.
+  Every row carries n_atoms, formula, the Open Babel InChIKey connectivity block, the xyz digest
+  and the source-file digest. Verify the manifest digest and re-derive at least the atom counts
+  and connectivity keys yourself before submitting; a mismatch is a stop, not a question.
+
+Identity, already checked and to be re-checked by you: within every species all conformers share
+one connectivity key and one formula. PETG is the exception and is therefore split into THREE
+species (petg_a, petg_b, petg_r) at the same formula C72H70O25 with three different comonomer
+arrangements. Never Boltzmann-average across species. EVOH is a copolymer with a single
+arrangement in this library.
+
+Order: strictly ascending atom count, exactly the submission_order column. Submission orders 1-31
+are the 31 polyethylene conformers at 38 atoms, and they go first because the owner wants PE
+analysed as soon as possible. Then PVC and PVDF (44), EVOH (48), PP (62), nylon 6 and nylon 6,6
+(84), nitrocellulose (88), PET (91), polyethersulfone (98), PS (104), polyurethane (155), PC (158),
+PETG (167).
+
+Recipe: UNCHANGED frozen 24a recipe. BP86/def2-TZVP(-f) OPT, then BP86/def2-TZVPD COSMORS(Water);
+serial, no %pal; %maxcore 1500; * xyz 0 1; 4 GB per job; research partition, milan&cpu, euler09 and
+euler10 excluded. The starting geometry is the supplied conformer, not a fresh conformer search.
+Do NOT use the older workflow in ~/polymer-cosmo-module: it runs a gas phase stage, def2-TZVP
+without (-f), and %pal, so its surfaces would not be commensurable with the contaminant set.
+
+Concurrency: the SAME cap of 64, shared. Tier 2's 236 held tasks stay held; the polymer campaign
+takes the cap now. Split by size band so the three largest species cannot block the body: a band
+for <= 107 atoms (the pilot-calibrated range) and a separate band for polyurethane, PC and PETG,
+whose costs are extrapolations.
+
+Cost: ~1,544 CPU-h projected by the pilot size fit, of which PE is about 21. The fit was calibrated
+to 107 atoms, so the 155-167 atom band is an extrapolation; refit on the first 30 completions and
+report before continuing if the refit exceeds 2x the projection.
+
+Identity after optimisation: D-IDENT as for the contaminants, connectivity block plus recorded
+computed stereochemistry. Additionally, re-optimisation at this level will merge some conformers
+that were distinct in the source library. That is data: record every merge as a merged-into
+reference with the RMSD and energy difference that justified it, and never silently drop a row.
+A conformer whose connectivity changes during optimisation is a FAILURE, recorded, not repaired.
+
+PE first, and report PE as soon as its 31 conformers finish, before the rest of the campaign is
+done: converged count against 31, per-conformer final energies, relative energies and Boltzmann
+weights at 298.15 K, cavity volumes, the merge list, and the surface digests. Do not wait for the
+full 284 to report PE.
+
+NOT authorised in this amendment: computing any polymer-contaminant partition coefficient, writing
+the catalog partition column, touching the 2002 polymer path, applying any removability threshold,
+or changing the product's served numbers. The deliverable here is 24a polymer surfaces plus their
+ensemble weights. The partition step needs a code change first, because the product currently
+refuses 24a in the polymer path, and that change is a separate dispatch.
+
+Carried unchanged: scp never rsync; bulk to /mnt/r/plastchem-euler; failures are data and are
+reported with denominators; never interpolate or substitute a structure that did not run.
+
+AMENDMENT A-5 CORRECTION (2026-09-21, orchestrator) — MANIFEST DIGEST WAS WRONG IN A-5
+
+A-5 pinned inputs/polymers/polymer_conformers_v1.csv at
+b1230558bd4fa00f2dcd32f9b3a6c4e26c02483996b4b1e97ba8a99714d0b2ac. That digest is WRONG and the
+lane was right to stop on it. The correct digest of the file on disk is
+
+  72e4fca5694615722cb6134a42d2126333dfe3a8fc56c9f969e41edbc911a3ae
+
+Cause, stated plainly because it is the kind of error that must not repeat: the generating script
+hashed the path while its own csv.DictWriter file object was still open and partially buffered, so
+the printed digest described the buffer state, not the finished file. The file content was never in
+doubt and did not change; only my measurement of it was wrong.
+
+Independent verification of the file as it stands: 285 lines, one header plus 284 rows, 11 columns;
+submission_order contiguous 1..284; n_atoms ascending across the whole file; orders 1-31 all
+polyethylene; 16 species; all 284 referenced .xyz files present and every one matching its recorded
+xyz_sha256. Everything else in A-5 stands unchanged.
+
+AMENDMENT A-6 (2026-09-21, orchestrator, OWNER-REQUESTED) — PE ROUTE COMPARISON
+
+A-5 forbade computing partition coefficients. The owner now asks for exactly one bounded exception:
+reproduce the PE conformer set's logD in solvent under the new 24a route and put it beside the
+existing COSMO-RS numbers, so the size of the route change is measured rather than assumed.
+
+Scope: polyethylene only. Comparison only. This writes no catalog column, applies no removability
+threshold, changes no product code, and does not touch the served 2002 path.
+
+Both routes use the SAME 31 PE conformers, so conformer sampling is controlled.
+
+  Route A, the current data. openCOSMO-RS with the 2002 default_turbomole parameterisation.
+  Polymer from ~/polymers_cosmo/pe_mcos (31 .mcos, converted to Turbomole shape as the product
+  code already does). Solutes and solvents from the COSMObase library at
+  /home/aaltamimi2/COSMO-POLYMER-ML/results/oligomers/all-cosmotherm-solvents (979 files).
+
+  Route B, the new data. openCOSMO-RS 24a. Polymer from the 31 converged ORCA surfaces at
+  /mnt/r/plastchem-euler/polymer-v1/results/pe__config_*. Solutes from
+  ~/plastchem-euler/state/opencosmo-verification-v1/{dep,dbp,bbp,dehp}-workstation.orcacosmo.
+  Solvents from the campaign's own 32-solvent reference surfaces.
+
+Solutes: the four phthalate anchors, because they are the only molecules with a verified surface on
+BOTH routes. Solvents: the intersection of the campaign's 32 references with the COSMObase library;
+report the intersection size and name anything dropped.
+
+Quantity, per solute and solvent, on both routes:
+
+  log10 P(solvent/PE) = (ln gamma_PE - ln gamma_solvent)/ln(10) + log10(V_PE / V_solvent)
+
+Report the mole-fraction basis too, so the basis is visible rather than buried. Conformers are
+combined by explicit Boltzmann averaging over the 31 PE members using their own DFT energies at
+298.15 K, because COSMORS.add_molecule raises NotImplementedError on more than one conformer.
+Molar volumes come from the table where one exists and from the COSMO cavity otherwise; record
+which source was used for each phase.
+
+Deliverable: a per-solvent table with both routes and their difference, the ordinary least squares
+fit of route B on route A with slope, intercept and residual spread, the count of solvents that
+change sign, and the largest disagreements named. Also report the PE ensemble itself: the 31
+relative energies, their Boltzmann weights, how many conformers carry 90 percent of the weight, and
+any conformers that merged during optimisation.
+
+State this confound plainly in the report rather than in a footnote: routes A and B differ in the
+QC engine, the parameterisation AND the re-optimised geometry at once, so the comparison measures
+the route as a whole. It cannot attribute the difference to the parameterisation alone, and no such
+attribution may be claimed, because 24a cannot be evaluated on a Turbomole-shaped file.
+
+AMENDMENT A-7 (2026-09-22, orchestrator, OWNER-REQUESTED) — EXPAND THE ROUTE COMPARISON TO EVERY
+FULLY CONVERGED POLYMER
+
+A-6 compared routes for polyethylene alone. Seven polymers are now fully converged, 166 conformers:
+EVOH 11, nylon 6 20, nylon 6,6 28, PE 31, PP 25, PVC 27, PVDF 24. Repeat the A-6 design for all
+seven. Everything in A-6 carries over unchanged: same two routes, same four phthalate anchors, same
+32-solvent intersection, same concentration and mole-fraction bases, same explicit Boltzmann
+averaging over each polymer's own converged conformers at 298.15 K, same prohibition on catalog
+writes, thresholds and product code changes, same confound statement in the body rather than a
+footnote. Route A reads each polymer's files from ~/polymers_cosmo, both .mcos and .cosmo forms;
+route B reads /mnt/r/plastchem-euler/polymer-v1/results/<polymer>__*.
+
+Scale: 7 polymers x 4 solutes x 32 solvents = 896 paired predictions.
+
+EXCLUDED and named as excluded, so absence is not read as a result: PET 17 of 22, PS 15 of 29,
+polyethersulfone 14 of 20, nitrocellulose 0 of 7, and the held large band polyurethane 0 of 14,
+PC 0 of 19, PETG 0 of 7. Re-run this amendment when they finish rather than patching them in.
+
+Four analyses beyond repeating A-6 per polymer.
+
+1. Per-polymer fit table: slope of B on A, intercept, residual standard deviation, sign changes, in
+   both conventions, one row per polymer plus a pooled row.
+
+2. Is the offset common or polymer-specific? A-6 found a roughly quarter log unit offset for PE. If
+   the seven intercepts agree within their uncertainty, the route shift is a single systematic bias
+   and is correctable by one recalibration. If they do not, it is polymer-dependent and no single
+   correction exists. Answer that explicitly with the intercepts and their standard errors, and say
+   which conclusion the data supports rather than leaving the reader to infer it.
+
+3. Sign changes enumerated as (polymer, solute, solvent) triples with both values, because sign is
+   what the removability criterion reads, so every flip is a screening verdict that changed. Report
+   the count against the 896 denominator and say whether flips concentrate in particular polymers,
+   solvents or near-zero partitions.
+
+4. Rank stability across polymers. For each of the 128 solute-solvent pairs, rank all seven polymers
+   by logD on route A and again on route B, and report the rank agreement per pair and pooled. This
+   is what a user of the tool actually consumes, namely which polymer retains a contaminant most,
+   and it can be stable even where absolute values shift. Name any pair whose top-ranked polymer
+   changes.
+
+Also report, per polymer, how many conformers carry 90 percent of the Boltzmann weight and how many
+optimisation merges were recorded, and state whether ensemble size tracks route disagreement.
+Keep every conformer row; merges are recorded, never dropped.

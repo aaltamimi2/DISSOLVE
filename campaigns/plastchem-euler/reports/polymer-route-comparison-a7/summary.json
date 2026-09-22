@@ -1,0 +1,748 @@
+{
+  "utc": "2026-09-22T14:25:33.347033+00:00",
+  "polymers": {
+    "evoh": 11,
+    "nylon6": 20,
+    "nylon66": 28,
+    "pe": 31,
+    "pp": 25,
+    "pvc": 27,
+    "pvdf": 24
+  },
+  "conformers": 166,
+  "paired_predictions_per_convention": 896,
+  "temperature_K": 298.15,
+  "fit_rows": [
+    {
+      "n": 128,
+      "slope_B_on_A": 0.9735491014492313,
+      "intercept": -0.19525364941318013,
+      "intercept_standard_error_OLS": 0.04549664937026415,
+      "intercept_CI95_low": -0.28529018100600834,
+      "intercept_CI95_high": -0.10521711782035195,
+      "residual_SD_n_minus_2": 0.42641992469064244,
+      "mean_B_minus_A": -0.2205891850966292,
+      "MAE_B_minus_A": 0.25425158289058614,
+      "polymer": "evoh",
+      "convention": "normalized",
+      "sign_changes": 4
+    },
+    {
+      "n": 128,
+      "slope_B_on_A": 0.9732681220588687,
+      "intercept": -0.2202819802971786,
+      "intercept_standard_error_OLS": 0.04845469050764086,
+      "intercept_CI95_low": -0.3161723883403542,
+      "intercept_CI95_high": -0.12439157225400299,
+      "residual_SD_n_minus_2": 0.42678668050607044,
+      "mean_B_minus_A": -0.25088152180319806,
+      "MAE_B_minus_A": 0.2758599085334673,
+      "polymer": "nylon6",
+      "convention": "normalized",
+      "sign_changes": 3
+    },
+    {
+      "n": 128,
+      "slope_B_on_A": 0.9741151782750499,
+      "intercept": -0.2006570136225032,
+      "intercept_standard_error_OLS": 0.049801833928672164,
+      "intercept_CI95_low": -0.29921337889256483,
+      "intercept_CI95_high": -0.10210064835244156,
+      "residual_SD_n_minus_2": 0.4261754177949412,
+      "mean_B_minus_A": -0.23259040045389812,
+      "MAE_B_minus_A": 0.2624773785389686,
+      "polymer": "nylon66",
+      "convention": "normalized",
+      "sign_changes": 0
+    },
+    {
+      "n": 128,
+      "slope_B_on_A": 0.9806288421782665,
+      "intercept": -0.26938556938500136,
+      "intercept_standard_error_OLS": 0.04515293893343939,
+      "intercept_CI95_low": -0.35874190812775597,
+      "intercept_CI95_high": -0.18002923064224674,
+      "residual_SD_n_minus_2": 0.43521985261764784,
+      "mean_B_minus_A": -0.2862445420282104,
+      "MAE_B_minus_A": 0.30575768047370944,
+      "polymer": "pe",
+      "convention": "normalized",
+      "sign_changes": 5
+    },
+    {
+      "n": 128,
+      "slope_B_on_A": 0.9782153739512502,
+      "intercept": -0.21243074214116753,
+      "intercept_standard_error_OLS": 0.04566764663793488,
+      "intercept_CI95_low": -0.3028056722997368,
+      "intercept_CI95_high": -0.12205581198259825,
+      "residual_SD_n_minus_2": 0.4310201629014832,
+      "mean_B_minus_A": -0.23282519830896323,
+      "MAE_B_minus_A": 0.26544101568591416,
+      "polymer": "pp",
+      "convention": "normalized",
+      "sign_changes": 4
+    },
+    {
+      "n": 128,
+      "slope_B_on_A": 0.9741181409534863,
+      "intercept": -0.08042282045231383,
+      "intercept_standard_error_OLS": 0.03843361506844898,
+      "intercept_CI95_low": -0.15648181480099838,
+      "intercept_CI95_high": -0.004363826103629273,
+      "residual_SD_n_minus_2": 0.43218211698909004,
+      "mean_B_minus_A": -0.08444945631169123,
+      "MAE_B_minus_A": 0.23071519363198395,
+      "polymer": "pvc",
+      "convention": "normalized",
+      "sign_changes": 7
+    },
+    {
+      "n": 128,
+      "slope_B_on_A": 0.9738566620725244,
+      "intercept": 0.40398612634825715,
+      "intercept_standard_error_OLS": 0.039206595413529194,
+      "intercept_CI95_low": 0.3263974266207423,
+      "intercept_CI95_high": 0.481574826075772,
+      "residual_SD_n_minus_2": 0.4262987703005483,
+      "mean_B_minus_A": 0.41466371322412304,
+      "MAE_B_minus_A": 0.5638067054853507,
+      "polymer": "pvdf",
+      "convention": "normalized",
+      "sign_changes": 33
+    },
+    {
+      "n": 896,
+      "slope_B_on_A": 0.9286426537934828,
+      "intercept": -0.07771293910987531,
+      "intercept_standard_error_OLS": 0.017384367974539416,
+      "intercept_CI95_low": -0.11183186593062913,
+      "intercept_CI95_high": -0.043594012289121485,
+      "residual_SD_n_minus_2": 0.4729420167611228,
+      "mean_B_minus_A": -0.12755951296835247,
+      "MAE_B_minus_A": 0.3083299236057115,
+      "polymer": "pooled",
+      "convention": "normalized",
+      "sign_changes": 56
+    },
+    {
+      "n": 128,
+      "slope_B_on_A": 0.9778201059629839,
+      "intercept": -0.33810586203888693,
+      "intercept_standard_error_OLS": 0.044450766532308686,
+      "intercept_CI95_low": -0.4260726222422747,
+      "intercept_CI95_high": -0.25013910183549914,
+      "residual_SD_n_minus_2": 0.42939496339431016,
+      "mean_B_minus_A": -0.35744719529062136,
+      "MAE_B_minus_A": 0.363172191585048,
+      "polymer": "evoh",
+      "convention": "existing",
+      "sign_changes": 8
+    },
+    {
+      "n": 128,
+      "slope_B_on_A": 0.9775255585043606,
+      "intercept": -0.15098932718220748,
+      "intercept_standard_error_OLS": 0.04241090489067219,
+      "intercept_CI95_low": -0.2349192611646683,
+      "intercept_CI95_high": -0.06705939319974666,
+      "residual_SD_n_minus_2": 0.4297650661603258,
+      "mean_B_minus_A": -0.16698590415166628,
+      "MAE_B_minus_A": 0.2247520152063229,
+      "polymer": "nylon6",
+      "convention": "existing",
+      "sign_changes": 3
+    },
+    {
+      "n": 128,
+      "slope_B_on_A": 0.9783185117034907,
+      "intercept": -0.0707538737656882,
+      "intercept_standard_error_OLS": 0.04308792680020182,
+      "intercept_CI95_low": -0.15602361420401173,
+      "intercept_CI95_high": 0.01451586667263531,
+      "residual_SD_n_minus_2": 0.4291414877576947,
+      "mean_B_minus_A": -0.08757882063936104,
+      "MAE_B_minus_A": 0.21766502895978423,
+      "polymer": "nylon66",
+      "convention": "existing",
+      "sign_changes": 6
+    },
+    {
+      "n": 128,
+      "slope_B_on_A": 0.9847668848502359,
+      "intercept": -0.2469161163092469,
+      "intercept_standard_error_OLS": 0.04086703475231587,
+      "intercept_CI95_low": -0.3277907766746094,
+      "intercept_CI95_high": -0.16604145594388442,
+      "residual_SD_n_minus_2": 0.4379949052694494,
+      "mean_B_minus_A": -0.25428052306512033,
+      "MAE_B_minus_A": 0.28291515709946213,
+      "polymer": "pe",
+      "convention": "existing",
+      "sign_changes": 9
+    },
+    {
+      "n": 128,
+      "slope_B_on_A": 0.9823981845358162,
+      "intercept": -0.21799300458936272,
+      "intercept_standard_error_OLS": 0.03910913846249202,
+      "intercept_CI95_low": -0.2953888398758154,
+      "intercept_CI95_high": -0.14059716930291005,
+      "residual_SD_n_minus_2": 0.4338702528163668,
+      "mean_B_minus_A": -0.22302900706763829,
+      "MAE_B_minus_A": 0.2597005731757001,
+      "polymer": "pp",
+      "convention": "existing",
+      "sign_changes": 8
+    },
+    {
+      "n": 128,
+      "slope_B_on_A": 0.9784520076629657,
+      "intercept": -0.6868768583109813,
+      "intercept_standard_error_OLS": 0.03855015206900745,
+      "intercept_CI95_low": -0.7631664759578153,
+      "intercept_CI95_high": -0.6105872406641474,
+      "residual_SD_n_minus_2": 0.4351045310127472,
+      "mean_B_minus_A": -0.6889912949818755,
+      "MAE_B_minus_A": 0.6889912949818755,
+      "polymer": "pvc",
+      "convention": "existing",
+      "sign_changes": 44
+    },
+    {
+      "n": 128,
+      "slope_B_on_A": 0.9781000605819692,
+      "intercept": 0.4804913567644018,
+      "intercept_standard_error_OLS": 0.05213888744621038,
+      "intercept_CI95_low": 0.37731003128785323,
+      "intercept_CI95_high": 0.5836726822409504,
+      "residual_SD_n_minus_2": 0.42926887295726135,
+      "mean_B_minus_A": 0.5100905328806395,
+      "MAE_B_minus_A": 0.6430993936008165,
+      "polymer": "pvdf",
+      "convention": "existing",
+      "sign_changes": 10
+    },
+    {
+      "n": 896,
+      "slope_B_on_A": 0.9218753433840086,
+      "intercept": -0.160238193776852,
+      "intercept_standard_error_OLS": 0.017974446384683172,
+      "intercept_CI95_low": -0.19551522091644902,
+      "intercept_CI95_high": -0.12496116663725498,
+      "residual_SD_n_minus_2": 0.5306131645401759,
+      "mean_B_minus_A": -0.18117460175937758,
+      "MAE_B_minus_A": 0.38289937922985845,
+      "polymer": "pooled",
+      "convention": "existing",
+      "sign_changes": 88
+    }
+  ],
+  "offset_analysis": {
+    "normalized": {
+      "common_intercept_fit": -0.0831102500565341,
+      "nominal_nested_F": 32.88417887304654,
+      "nominal_p": 7.221270180864607e-36,
+      "polymer_specific_intercepts": {
+        "evoh": -0.19525364941318057,
+        "nylon6": -0.22028198029717794,
+        "nylon66": -0.20065701362250477,
+        "pe": -0.2693855693850036,
+        "pp": -0.21243074214116703,
+        "pvc": -0.08042282045231317,
+        "pvdf": 0.403986126348258
+      },
+      "matched_pair_bootstrap_contrasts": [
+        {
+          "polymer_i": "evoh",
+          "polymer_j": "nylon6",
+          "intercept_difference": 0.025028330883997363,
+          "matched_bootstrap_CI95_low": -0.013825585209483151,
+          "matched_bootstrap_CI95_high": 0.04948784258504539,
+          "excludes_zero": false
+        },
+        {
+          "polymer_i": "evoh",
+          "polymer_j": "nylon66",
+          "intercept_difference": 0.005403364209324191,
+          "matched_bootstrap_CI95_low": -0.044706692233646664,
+          "matched_bootstrap_CI95_high": 0.04001913874579431,
+          "excludes_zero": false
+        },
+        {
+          "polymer_i": "evoh",
+          "polymer_j": "pe",
+          "intercept_difference": 0.074131919971823,
+          "matched_bootstrap_CI95_low": 0.05719382240207024,
+          "matched_bootstrap_CI95_high": 0.09268267938496416,
+          "excludes_zero": true
+        },
+        {
+          "polymer_i": "evoh",
+          "polymer_j": "pp",
+          "intercept_difference": 0.017177092727986454,
+          "matched_bootstrap_CI95_low": -0.0034312296888685725,
+          "matched_bootstrap_CI95_high": 0.02911117394997473,
+          "excludes_zero": false
+        },
+        {
+          "polymer_i": "evoh",
+          "polymer_j": "pvc",
+          "intercept_difference": -0.11483082896086741,
+          "matched_bootstrap_CI95_low": -0.22149033436658624,
+          "matched_bootstrap_CI95_high": 0.0626957330754978,
+          "excludes_zero": false
+        },
+        {
+          "polymer_i": "evoh",
+          "polymer_j": "pvdf",
+          "intercept_difference": -0.5992397757614385,
+          "matched_bootstrap_CI95_low": -0.7793777349286959,
+          "matched_bootstrap_CI95_high": -0.28730240995941353,
+          "excludes_zero": true
+        },
+        {
+          "polymer_i": "nylon6",
+          "polymer_j": "nylon66",
+          "intercept_difference": -0.019624966674673172,
+          "matched_bootstrap_CI95_low": -0.03132382455010684,
+          "matched_bootstrap_CI95_high": -0.009674884480260186,
+          "excludes_zero": true
+        },
+        {
+          "polymer_i": "nylon6",
+          "polymer_j": "pe",
+          "intercept_difference": 0.04910358908782564,
+          "matched_bootstrap_CI95_low": 0.011360902217633286,
+          "matched_bootstrap_CI95_high": 0.09973247444308983,
+          "excludes_zero": true
+        },
+        {
+          "polymer_i": "nylon6",
+          "polymer_j": "pp",
+          "intercept_difference": -0.007851238156010909,
+          "matched_bootstrap_CI95_low": -0.03692983747498629,
+          "matched_bootstrap_CI95_high": 0.02637112527805548,
+          "excludes_zero": false
+        },
+        {
+          "polymer_i": "nylon6",
+          "polymer_j": "pvc",
+          "intercept_difference": -0.13985915984486477,
+          "matched_bootstrap_CI95_low": -0.2710510305781826,
+          "matched_bootstrap_CI95_high": 0.07685404548698632,
+          "excludes_zero": false
+        },
+        {
+          "polymer_i": "nylon6",
+          "polymer_j": "pvdf",
+          "intercept_difference": -0.6242681066454359,
+          "matched_bootstrap_CI95_low": -0.8296788091351694,
+          "matched_bootstrap_CI95_high": -0.27266031297344573,
+          "excludes_zero": true
+        },
+        {
+          "polymer_i": "nylon66",
+          "polymer_j": "pe",
+          "intercept_difference": 0.06872855576249881,
+          "matched_bootstrap_CI95_low": 0.020926012093918457,
+          "matched_bootstrap_CI95_high": 0.1303131761197875,
+          "excludes_zero": true
+        },
+        {
+          "polymer_i": "nylon66",
+          "polymer_j": "pp",
+          "intercept_difference": 0.011773728518662263,
+          "matched_bootstrap_CI95_low": -0.027232777993299852,
+          "matched_bootstrap_CI95_high": 0.057438163320505754,
+          "excludes_zero": false
+        },
+        {
+          "polymer_i": "nylon66",
+          "polymer_j": "pvc",
+          "intercept_difference": -0.1202341931701916,
+          "matched_bootstrap_CI95_low": -0.26213630874803573,
+          "matched_bootstrap_CI95_high": 0.1065033412526989,
+          "excludes_zero": false
+        },
+        {
+          "polymer_i": "nylon66",
+          "polymer_j": "pvdf",
+          "intercept_difference": -0.6046431399707628,
+          "matched_bootstrap_CI95_low": -0.8204352903528773,
+          "matched_bootstrap_CI95_high": -0.24292809209143626,
+          "excludes_zero": true
+        },
+        {
+          "polymer_i": "pe",
+          "polymer_j": "pp",
+          "intercept_difference": -0.05695482724383655,
+          "matched_bootstrap_CI95_low": -0.0734352926430789,
+          "matched_bootstrap_CI95_high": -0.04779308806580648,
+          "excludes_zero": true
+        },
+        {
+          "polymer_i": "pe",
+          "polymer_j": "pvc",
+          "intercept_difference": -0.1889627489326904,
+          "matched_bootstrap_CI95_low": -0.28444531133659495,
+          "matched_bootstrap_CI95_high": -0.014902749331630905,
+          "excludes_zero": true
+        },
+        {
+          "polymer_i": "pe",
+          "polymer_j": "pvdf",
+          "intercept_difference": -0.6733716957332616,
+          "matched_bootstrap_CI95_low": -0.8421690818492791,
+          "matched_bootstrap_CI95_high": -0.3671578063565531,
+          "excludes_zero": true
+        },
+        {
+          "polymer_i": "pp",
+          "polymer_j": "pvc",
+          "intercept_difference": -0.13200792168885386,
+          "matched_bootstrap_CI95_low": -0.2362580583312099,
+          "matched_bootstrap_CI95_high": 0.05895321479860585,
+          "excludes_zero": false
+        },
+        {
+          "polymer_i": "pp",
+          "polymer_j": "pvdf",
+          "intercept_difference": -0.616416868489425,
+          "matched_bootstrap_CI95_low": -0.793821666963539,
+          "matched_bootstrap_CI95_high": -0.29157957002353385,
+          "excludes_zero": true
+        },
+        {
+          "polymer_i": "pvc",
+          "polymer_j": "pvdf",
+          "intercept_difference": -0.4844089468005711,
+          "matched_bootstrap_CI95_low": -0.5579053085450109,
+          "matched_bootstrap_CI95_high": -0.35014732184324326,
+          "excludes_zero": true
+        }
+      ],
+      "contrasts_excluding_zero": 12,
+      "conclusion": "polymer-specific",
+      "qualification": "OLS SE/F use nominal independent-residual assumptions. Paired bootstrap preserves matching and anchor strata but this is four anchors, not a representative contaminant sample; no empirical correction applied."
+    },
+    "existing": {
+      "common_intercept_fit": -0.22544749444301698,
+      "nominal_nested_F": 58.10646826644513,
+      "nominal_p": 1.2714694461907405e-60,
+      "polymer_specific_intercepts": {
+        "evoh": -0.3381058620388864,
+        "nylon6": -0.15098932718220703,
+        "nylon66": -0.07075387376568787,
+        "pe": -0.24691611630924595,
+        "pp": -0.21799300458936205,
+        "pvc": -0.686876858310981,
+        "pvdf": 0.480491356764401
+      },
+      "matched_pair_bootstrap_contrasts": [
+        {
+          "polymer_i": "evoh",
+          "polymer_j": "nylon6",
+          "intercept_difference": -0.18711653485667934,
+          "matched_bootstrap_CI95_low": -0.20803447600552408,
+          "matched_bootstrap_CI95_high": -0.14800004251221685,
+          "excludes_zero": true
+        },
+        {
+          "polymer_i": "evoh",
+          "polymer_j": "nylon66",
+          "intercept_difference": -0.2673519882731985,
+          "matched_bootstrap_CI95_low": -0.2810872547489598,
+          "matched_bootstrap_CI95_high": -0.23628581088739165,
+          "excludes_zero": true
+        },
+        {
+          "polymer_i": "evoh",
+          "polymer_j": "pe",
+          "intercept_difference": -0.09118974572964042,
+          "matched_bootstrap_CI95_low": -0.14270160525313427,
+          "matched_bootstrap_CI95_high": -0.00970383520411189,
+          "excludes_zero": true
+        },
+        {
+          "polymer_i": "evoh",
+          "polymer_j": "pp",
+          "intercept_difference": -0.12011285744952432,
+          "matched_bootstrap_CI95_low": -0.19810484937848194,
+          "matched_bootstrap_CI95_high": 0.008880300745060857,
+          "excludes_zero": false
+        },
+        {
+          "polymer_i": "evoh",
+          "polymer_j": "pvc",
+          "intercept_difference": 0.3487709962720946,
+          "matched_bootstrap_CI95_low": 0.24722003320706898,
+          "matched_bootstrap_CI95_high": 0.5208265297415581,
+          "excludes_zero": true
+        },
+        {
+          "polymer_i": "evoh",
+          "polymer_j": "pvdf",
+          "intercept_difference": -0.8185972188032874,
+          "matched_bootstrap_CI95_low": -1.1058316340825765,
+          "matched_bootstrap_CI95_high": -0.31278513890230325,
+          "excludes_zero": true
+        },
+        {
+          "polymer_i": "nylon6",
+          "polymer_j": "nylon66",
+          "intercept_difference": -0.08023545341651916,
+          "matched_bootstrap_CI95_low": -0.08901582856756902,
+          "matched_bootstrap_CI95_high": -0.07294403460242899,
+          "excludes_zero": true
+        },
+        {
+          "polymer_i": "nylon6",
+          "polymer_j": "pe",
+          "intercept_difference": 0.09592678912703892,
+          "matched_bootstrap_CI95_low": 0.06523945054060172,
+          "matched_bootstrap_CI95_high": 0.1393525388021666,
+          "excludes_zero": true
+        },
+        {
+          "polymer_i": "nylon6",
+          "polymer_j": "pp",
+          "intercept_difference": 0.06700367740715502,
+          "matched_bootstrap_CI95_low": 0.010567277379152508,
+          "matched_bootstrap_CI95_high": 0.15551280486049343,
+          "excludes_zero": true
+        },
+        {
+          "polymer_i": "nylon6",
+          "polymer_j": "pvc",
+          "intercept_difference": 0.535887531128774,
+          "matched_bootstrap_CI95_low": 0.4554034300502989,
+          "matched_bootstrap_CI95_high": 0.6695597694579521,
+          "excludes_zero": true
+        },
+        {
+          "polymer_i": "nylon6",
+          "polymer_j": "pvdf",
+          "intercept_difference": -0.6314806839466081,
+          "matched_bootstrap_CI95_low": -0.8974581475027428,
+          "matched_bootstrap_CI95_high": -0.1642668136830446,
+          "excludes_zero": true
+        },
+        {
+          "polymer_i": "nylon66",
+          "polymer_j": "pe",
+          "intercept_difference": 0.17616224254355808,
+          "matched_bootstrap_CI95_low": 0.13834044894104594,
+          "matched_bootstrap_CI95_high": 0.228826441075045,
+          "excludes_zero": true
+        },
+        {
+          "polymer_i": "nylon66",
+          "polymer_j": "pp",
+          "intercept_difference": 0.14723913082367418,
+          "matched_bootstrap_CI95_low": 0.08366008502693627,
+          "matched_bootstrap_CI95_high": 0.24421223562283625,
+          "excludes_zero": true
+        },
+        {
+          "polymer_i": "nylon66",
+          "polymer_j": "pvc",
+          "intercept_difference": 0.6161229845452931,
+          "matched_bootstrap_CI95_low": 0.5281061837886598,
+          "matched_bootstrap_CI95_high": 0.7579988562038216,
+          "excludes_zero": true
+        },
+        {
+          "polymer_i": "nylon66",
+          "polymer_j": "pvdf",
+          "intercept_difference": -0.5512452305300889,
+          "matched_bootstrap_CI95_low": -0.8245398294473251,
+          "matched_bootstrap_CI95_high": -0.07590334735655754,
+          "excludes_zero": true
+        },
+        {
+          "polymer_i": "pe",
+          "polymer_j": "pp",
+          "intercept_difference": -0.028923111719883904,
+          "matched_bootstrap_CI95_low": -0.05453445291343612,
+          "matched_bootstrap_CI95_high": 0.019200518945046176,
+          "excludes_zero": false
+        },
+        {
+          "polymer_i": "pe",
+          "polymer_j": "pvc",
+          "intercept_difference": 0.4399607420017351,
+          "matched_bootstrap_CI95_low": 0.3899774464028426,
+          "matched_bootstrap_CI95_high": 0.5332067619323567,
+          "excludes_zero": true
+        },
+        {
+          "polymer_i": "pe",
+          "polymer_j": "pvdf",
+          "intercept_difference": -0.727407473073647,
+          "matched_bootstrap_CI95_low": -0.9641224922931343,
+          "matched_bootstrap_CI95_high": -0.3026474173605424,
+          "excludes_zero": true
+        },
+        {
+          "polymer_i": "pp",
+          "polymer_j": "pvc",
+          "intercept_difference": 0.46888385372161895,
+          "matched_bootstrap_CI95_low": 0.4445896875003484,
+          "matched_bootstrap_CI95_high": 0.5141450748124402,
+          "excludes_zero": true
+        },
+        {
+          "polymer_i": "pp",
+          "polymer_j": "pvdf",
+          "intercept_difference": -0.698484361353763,
+          "matched_bootstrap_CI95_low": -0.9090424645727208,
+          "matched_bootstrap_CI95_high": -0.3231879242462755,
+          "excludes_zero": true
+        },
+        {
+          "polymer_i": "pvc",
+          "polymer_j": "pvdf",
+          "intercept_difference": -1.1673682150753821,
+          "matched_bootstrap_CI95_low": -1.352721948588364,
+          "matched_bootstrap_CI95_high": -0.8341393550674066,
+          "excludes_zero": true
+        }
+      ],
+      "contrasts_excluding_zero": 19,
+      "conclusion": "polymer-specific",
+      "qualification": "OLS SE/F use nominal independent-residual assumptions. Paired bootstrap preserves matching and anchor strata but this is four anchors, not a representative contaminant sample; no empirical correction applied."
+    }
+  },
+  "sign_changes": {
+    "normalized": {
+      "count": 56,
+      "denominator": 896,
+      "by_polymer": {
+        "evoh": 4,
+        "nylon6": 3,
+        "pe": 5,
+        "pp": 4,
+        "pvc": 7,
+        "pvdf": 33
+      },
+      "by_solvent": {
+        "1,2-propanediol": 4,
+        "dodecane": 5,
+        "acetic acid": 1,
+        "ethylene glycol": 1,
+        "heptane": 2,
+        "acetylacetone": 4,
+        "dimethyl sulfoxide": 6,
+        "ethanol": 3,
+        "isopropanol": 3,
+        "1-propanol": 2,
+        "tert-butanol": 2,
+        "2,3-dihydropyran": 1,
+        "2-butanone": 1,
+        "acetone": 1,
+        "benzene": 1,
+        "ethyl acetate": 2,
+        "isopropylamine": 3,
+        "methylacetate": 2,
+        "n,n-dimethylformamide": 1,
+        "tetrahydrofuran": 1,
+        "tetrahydropyran": 1,
+        "toluene": 3,
+        "diphenyl ether": 2,
+        "o-xylene": 2,
+        "triethylamine": 1,
+        "cyclohexanol": 1
+      },
+      "both_routes_within_half_log_unit": 53,
+      "at_least_one_route_within_half_log_unit": 56
+    },
+    "existing": {
+      "count": 88,
+      "denominator": 896,
+      "by_polymer": {
+        "evoh": 8,
+        "nylon6": 3,
+        "nylon66": 6,
+        "pe": 9,
+        "pp": 8,
+        "pvc": 44,
+        "pvdf": 10
+      },
+      "by_solvent": {
+        "cyclohexane": 6,
+        "cyclohexanol": 4,
+        "dodecane": 1,
+        "hexane": 4,
+        "heptane": 4,
+        "acetic acid": 5,
+        "methanol": 3,
+        "1,2-propanediol": 5,
+        "acetylacetone": 5,
+        "dimethyl sulfoxide": 5,
+        "tert-butanol": 3,
+        "1-propanol": 1,
+        "isopropanol": 1,
+        "2,3-dihydropyran": 2,
+        "2-butanone": 4,
+        "acetone": 3,
+        "benzene": 2,
+        "ethyl acetate": 4,
+        "isopropylamine": 3,
+        "methylacetate": 3,
+        "n,n-dimethylformamide": 3,
+        "o-xylene": 4,
+        "tetrahydropyran": 1,
+        "toluene": 4,
+        "diphenyl ether": 3,
+        "triethylamine": 4,
+        "tetrahydrofuran": 1
+      },
+      "both_routes_within_half_log_unit": 62,
+      "at_least_one_route_within_half_log_unit": 88
+    }
+  },
+  "rank_summary": {
+    "normalized": {
+      "pairs": 128,
+      "mean_Spearman_rho": 0.9642857142857142,
+      "median_Spearman_rho": 0.9821428571428572,
+      "minimum_Spearman_rho": 0.8928571428571429,
+      "mean_Kendall_tau": 0.9285714285714288,
+      "top_changed": 32,
+      "top_unchanged": 96
+    },
+    "existing": {
+      "pairs": 128,
+      "mean_Spearman_rho": 0.866071428571429,
+      "median_Spearman_rho": 0.8750000000000001,
+      "minimum_Spearman_rho": 0.7857142857142859,
+      "mean_Kendall_tau": 0.7619047619047616,
+      "top_changed": 32,
+      "top_unchanged": 96
+    }
+  },
+  "ensemble_disagreement_association": {
+    "normalized": {
+      "n_polymers": 7,
+      "conformer_count_vs_MAE_Spearman": 0.07142857142857144,
+      "B_n90_vs_MAE_Spearman": 0.48181205582971587,
+      "interpretation": "Descriptive association across seven polymers; not a causal or generalisable ensemble-size effect"
+    },
+    "existing": {
+      "n_polymers": 7,
+      "conformer_count_vs_MAE_Spearman": -0.14285714285714288,
+      "B_n90_vs_MAE_Spearman": 0.18531232916527532,
+      "interpretation": "Descriptive association across seven polymers; not a causal or generalisable ensemble-size effect"
+    }
+  },
+  "excluded": [
+    "PET",
+    "PS",
+    "polyethersulfone",
+    "nitrocellulose",
+    "polyurethane",
+    "PC",
+    "PETG"
+  ]
+}

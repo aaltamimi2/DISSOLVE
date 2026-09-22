@@ -1,0 +1,257 @@
+convention,solute,solvent,A_retention_order_most_first,B_retention_order_most_first,Spearman_rho,Kendall_tau,A_top_polymer,B_top_polymer,top_changed,A_top_gap_log_units,B_top_gap_log_units
+normalized,BBP,"1,2-propanediol",pvdf>pvc>evoh>pe>nylon6>pp>nylon66,pvdf>pvc>evoh>pe>nylon6>pp>nylon66,1.0,1.0,pvdf,pvdf,False,0.6373032376155076,0.13012094303029476
+normalized,BBP,1-propanol,pvdf>pvc>evoh>pe>nylon6>pp>nylon66,pvdf>pvc>evoh>pe>nylon6>pp>nylon66,1.0,1.0,pvdf,pvdf,False,0.6373032376155078,0.13012094303029476
+normalized,BBP,"2,3-dihydropyran",pvdf>pvc>evoh>pe>nylon6>pp>nylon66,pvdf>pvc>evoh>pe>nylon6>pp>nylon66,1.0,1.0,pvdf,pvdf,False,0.6373032376155078,0.13012094303029476
+normalized,BBP,2-butanone,pvdf>pvc>evoh>pe>nylon6>pp>nylon66,pvdf>pvc>evoh>pe>nylon6>pp>nylon66,1.0,1.0,pvdf,pvdf,False,0.6373032376155078,0.13012094303029476
+normalized,BBP,acetic acid,pvdf>pvc>evoh>pe>nylon6>pp>nylon66,pvdf>pvc>evoh>pe>nylon6>pp>nylon66,1.0,1.0,pvdf,pvdf,False,0.6373032376155076,0.13012094303029476
+normalized,BBP,acetone,pvdf>pvc>evoh>pe>nylon6>pp>nylon66,pvdf>pvc>evoh>pe>nylon6>pp>nylon66,1.0,1.0,pvdf,pvdf,False,0.6373032376155079,0.13012094303029464
+normalized,BBP,acetylacetone,pvdf>pvc>evoh>pe>nylon6>pp>nylon66,pvdf>pvc>evoh>pe>nylon6>pp>nylon66,1.0,1.0,pvdf,pvdf,False,0.6373032376155077,0.13012094303029478
+normalized,BBP,benzene,pvdf>pvc>evoh>pe>nylon6>pp>nylon66,pvdf>pvc>evoh>pe>nylon6>pp>nylon66,1.0,1.0,pvdf,pvdf,False,0.6373032376155077,0.13012094303029464
+normalized,BBP,chloroform,pvdf>pvc>evoh>pe>nylon6>pp>nylon66,pvdf>pvc>evoh>pe>nylon6>pp>nylon66,1.0,1.0,pvdf,pvdf,False,0.6373032376155088,0.13012094303029476
+normalized,BBP,cyclohexane,pvdf>pvc>evoh>pe>nylon6>pp>nylon66,pvdf>pvc>evoh>pe>nylon6>pp>nylon66,1.0,1.0,pvdf,pvdf,False,0.6373032376155078,0.13012094303029464
+normalized,BBP,cyclohexanol,pvdf>pvc>evoh>pe>nylon6>pp>nylon66,pvdf>pvc>evoh>pe>nylon6>pp>nylon66,1.0,1.0,pvdf,pvdf,False,0.6373032376155078,0.13012094303029476
+normalized,BBP,dichloromethane,pvdf>pvc>evoh>pe>nylon6>pp>nylon66,pvdf>pvc>evoh>pe>nylon6>pp>nylon66,1.0,1.0,pvdf,pvdf,False,0.6373032376155083,0.13012094303029498
+normalized,BBP,dimethyl sulfoxide,pvdf>pvc>evoh>pe>nylon6>pp>nylon66,pvdf>pvc>evoh>pe>nylon6>pp>nylon66,1.0,1.0,pvdf,pvdf,False,0.6373032376155078,0.13012094303029476
+normalized,BBP,diphenyl ether,pvdf>pvc>evoh>pe>nylon6>pp>nylon66,pvdf>pvc>evoh>pe>nylon6>pp>nylon66,1.0,1.0,pvdf,pvdf,False,0.6373032376155077,0.13012094303029467
+normalized,BBP,dodecane,pvdf>pvc>evoh>pe>nylon6>pp>nylon66,pvdf>pvc>evoh>pe>nylon6>pp>nylon66,1.0,1.0,pvdf,pvdf,False,0.6373032376155077,0.13012094303029476
+normalized,BBP,ethanol,pvdf>pvc>evoh>pe>nylon6>pp>nylon66,pvdf>pvc>evoh>pe>nylon6>pp>nylon66,1.0,1.0,pvdf,pvdf,False,0.6373032376155076,0.13012094303029464
+normalized,BBP,ethyl acetate,pvdf>pvc>evoh>pe>nylon6>pp>nylon66,pvdf>pvc>evoh>pe>nylon6>pp>nylon66,1.0,1.0,pvdf,pvdf,False,0.6373032376155079,0.13012094303029464
+normalized,BBP,ethylene glycol,pvdf>pvc>evoh>pe>nylon6>pp>nylon66,pvdf>pvc>evoh>pe>nylon6>pp>nylon66,1.0,1.0,pvdf,pvdf,False,0.6373032376155079,0.1301209430302951
+normalized,BBP,heptane,pvdf>pvc>evoh>pe>nylon6>pp>nylon66,pvdf>pvc>evoh>pe>nylon6>pp>nylon66,1.0,1.0,pvdf,pvdf,False,0.6373032376155079,0.13012094303029487
+normalized,BBP,hexane,pvdf>pvc>evoh>pe>nylon6>pp>nylon66,pvdf>pvc>evoh>pe>nylon6>pp>nylon66,1.0,1.0,pvdf,pvdf,False,0.6373032376155079,0.1301209430302947
+normalized,BBP,isopropanol,pvdf>pvc>evoh>pe>nylon6>pp>nylon66,pvdf>pvc>evoh>pe>nylon6>pp>nylon66,1.0,1.0,pvdf,pvdf,False,0.6373032376155078,0.13012094303029464
+normalized,BBP,isopropylamine,pvdf>pvc>evoh>pe>nylon6>pp>nylon66,pvdf>pvc>evoh>pe>nylon6>pp>nylon66,1.0,1.0,pvdf,pvdf,False,0.6373032376155079,0.13012094303029476
+normalized,BBP,methanol,pvdf>pvc>evoh>pe>nylon6>pp>nylon66,pvdf>pvc>evoh>pe>nylon6>pp>nylon66,1.0,1.0,pvdf,pvdf,False,0.6373032376155076,0.13012094303029476
+normalized,BBP,methylacetate,pvdf>pvc>evoh>pe>nylon6>pp>nylon66,pvdf>pvc>evoh>pe>nylon6>pp>nylon66,1.0,1.0,pvdf,pvdf,False,0.6373032376155079,0.13012094303029476
+normalized,BBP,"n,n-dimethylformamide",pvdf>pvc>evoh>pe>nylon6>pp>nylon66,pvdf>pvc>evoh>pe>nylon6>pp>nylon66,1.0,1.0,pvdf,pvdf,False,0.6373032376155077,0.13012094303029487
+normalized,BBP,o-xylene,pvdf>pvc>evoh>pe>nylon6>pp>nylon66,pvdf>pvc>evoh>pe>nylon6>pp>nylon66,1.0,1.0,pvdf,pvdf,False,0.6373032376155078,0.13012094303029476
+normalized,BBP,tert-butanol,pvdf>pvc>evoh>pe>nylon6>pp>nylon66,pvdf>pvc>evoh>pe>nylon6>pp>nylon66,1.0,1.0,pvdf,pvdf,False,0.6373032376155077,0.1301209430302947
+normalized,BBP,tetrahydrofuran,pvdf>pvc>evoh>pe>nylon6>pp>nylon66,pvdf>pvc>evoh>pe>nylon6>pp>nylon66,1.0,1.0,pvdf,pvdf,False,0.6373032376155077,0.13012094303029476
+normalized,BBP,tetrahydropyran,pvdf>pvc>evoh>pe>nylon6>pp>nylon66,pvdf>pvc>evoh>pe>nylon6>pp>nylon66,1.0,1.0,pvdf,pvdf,False,0.6373032376155077,0.13012094303029476
+normalized,BBP,toluene,pvdf>pvc>evoh>pe>nylon6>pp>nylon66,pvdf>pvc>evoh>pe>nylon6>pp>nylon66,1.0,1.0,pvdf,pvdf,False,0.6373032376155078,0.13012094303029476
+normalized,BBP,triethylamine,pvdf>pvc>evoh>pe>nylon6>pp>nylon66,pvdf>pvc>evoh>pe>nylon6>pp>nylon66,1.0,1.0,pvdf,pvdf,False,0.6373032376155079,0.13012094303029478
+normalized,BBP,water,pvdf>pvc>evoh>pe>nylon6>pp>nylon66,pvdf>pvc>evoh>pe>nylon6>pp>nylon66,1.0,1.0,pvdf,pvdf,False,0.6373032376155079,0.13012094303029365
+normalized,DBP,"1,2-propanediol",pvdf>pvc>pe>pp>evoh>nylon6>nylon66,pvdf>pvc>pe>evoh>pp>nylon6>nylon66,0.9642857142857145,0.9047619047619049,pvdf,pvdf,False,0.5580050348350715,0.12208142936369604
+normalized,DBP,1-propanol,pvdf>pvc>pe>pp>evoh>nylon6>nylon66,pvdf>pvc>pe>evoh>pp>nylon6>nylon66,0.9642857142857145,0.9047619047619049,pvdf,pvdf,False,0.5580050348350716,0.12208142936369604
+normalized,DBP,"2,3-dihydropyran",pvdf>pvc>pe>pp>evoh>nylon6>nylon66,pvdf>pvc>pe>evoh>pp>nylon6>nylon66,0.9642857142857145,0.9047619047619049,pvdf,pvdf,False,0.5580050348350716,0.12208142936369604
+normalized,DBP,2-butanone,pvdf>pvc>pe>pp>evoh>nylon6>nylon66,pvdf>pvc>pe>evoh>pp>nylon6>nylon66,0.9642857142857145,0.9047619047619049,pvdf,pvdf,False,0.5580050348350716,0.12208142936369604
+normalized,DBP,acetic acid,pvdf>pvc>pe>pp>evoh>nylon6>nylon66,pvdf>pvc>pe>evoh>pp>nylon6>nylon66,0.9642857142857145,0.9047619047619049,pvdf,pvdf,False,0.5580050348350716,0.12208142936369604
+normalized,DBP,acetone,pvdf>pvc>pe>pp>evoh>nylon6>nylon66,pvdf>pvc>pe>evoh>pp>nylon6>nylon66,0.9642857142857145,0.9047619047619049,pvdf,pvdf,False,0.5580050348350716,0.12208142936369593
+normalized,DBP,acetylacetone,pvdf>pvc>pe>pp>evoh>nylon6>nylon66,pvdf>pvc>pe>evoh>pp>nylon6>nylon66,0.9642857142857145,0.9047619047619049,pvdf,pvdf,False,0.5580050348350716,0.12208142936369609
+normalized,DBP,benzene,pvdf>pvc>pe>pp>evoh>nylon6>nylon66,pvdf>pvc>pe>evoh>pp>nylon6>nylon66,0.9642857142857145,0.9047619047619049,pvdf,pvdf,False,0.5580050348350716,0.12208142936369604
+normalized,DBP,chloroform,pvdf>pvc>pe>pp>evoh>nylon6>nylon66,pvdf>pvc>pe>evoh>pp>nylon6>nylon66,0.9642857142857145,0.9047619047619049,pvdf,pvdf,False,0.5580050348350714,0.12208142936369581
+normalized,DBP,cyclohexane,pvdf>pvc>pe>pp>evoh>nylon6>nylon66,pvdf>pvc>pe>evoh>pp>nylon6>nylon66,0.9642857142857145,0.9047619047619049,pvdf,pvdf,False,0.5580050348350717,0.12208142936369593
+normalized,DBP,cyclohexanol,pvdf>pvc>pe>pp>evoh>nylon6>nylon66,pvdf>pvc>pe>evoh>pp>nylon6>nylon66,0.9642857142857145,0.9047619047619049,pvdf,pvdf,False,0.5580050348350716,0.12208142936369609
+normalized,DBP,dichloromethane,pvdf>pvc>pe>pp>evoh>nylon6>nylon66,pvdf>pvc>pe>evoh>pp>nylon6>nylon66,0.9642857142857145,0.9047619047619049,pvdf,pvdf,False,0.5580050348350714,0.12208142936369604
+normalized,DBP,dimethyl sulfoxide,pvdf>pvc>pe>pp>evoh>nylon6>nylon66,pvdf>pvc>pe>evoh>pp>nylon6>nylon66,0.9642857142857145,0.9047619047619049,pvdf,pvdf,False,0.5580050348350716,0.12208142936369609
+normalized,DBP,diphenyl ether,pvdf>pvc>pe>pp>evoh>nylon6>nylon66,pvdf>pvc>pe>evoh>pp>nylon6>nylon66,0.9642857142857145,0.9047619047619049,pvdf,pvdf,False,0.5580050348350716,0.12208142936369598
+normalized,DBP,dodecane,pvdf>pvc>pe>pp>evoh>nylon6>nylon66,pvdf>pvc>pe>evoh>pp>nylon6>nylon66,0.9642857142857145,0.9047619047619049,pvdf,pvdf,False,0.5580050348350717,0.12208142936369593
+normalized,DBP,ethanol,pvdf>pvc>pe>pp>evoh>nylon6>nylon66,pvdf>pvc>pe>evoh>pp>nylon6>nylon66,0.9642857142857145,0.9047619047619049,pvdf,pvdf,False,0.5580050348350717,0.12208142936369604
+normalized,DBP,ethyl acetate,pvdf>pvc>pe>pp>evoh>nylon6>nylon66,pvdf>pvc>pe>evoh>pp>nylon6>nylon66,0.9642857142857145,0.9047619047619049,pvdf,pvdf,False,0.5580050348350717,0.12208142936369598
+normalized,DBP,ethylene glycol,pvdf>pvc>pe>pp>evoh>nylon6>nylon66,pvdf>pvc>pe>evoh>pp>nylon6>nylon66,0.9642857142857145,0.9047619047619049,pvdf,pvdf,False,0.5580050348350716,0.12208142936369593
+normalized,DBP,heptane,pvdf>pvc>pe>pp>evoh>nylon6>nylon66,pvdf>pvc>pe>evoh>pp>nylon6>nylon66,0.9642857142857145,0.9047619047619049,pvdf,pvdf,False,0.5580050348350716,0.12208142936369604
+normalized,DBP,hexane,pvdf>pvc>pe>pp>evoh>nylon6>nylon66,pvdf>pvc>pe>evoh>pp>nylon6>nylon66,0.9642857142857145,0.9047619047619049,pvdf,pvdf,False,0.5580050348350716,0.12208142936369609
+normalized,DBP,isopropanol,pvdf>pvc>pe>pp>evoh>nylon6>nylon66,pvdf>pvc>pe>evoh>pp>nylon6>nylon66,0.9642857142857145,0.9047619047619049,pvdf,pvdf,False,0.5580050348350716,0.12208142936369598
+normalized,DBP,isopropylamine,pvdf>pvc>pe>pp>evoh>nylon6>nylon66,pvdf>pvc>pe>evoh>pp>nylon6>nylon66,0.9642857142857145,0.9047619047619049,pvdf,pvdf,False,0.5580050348350716,0.12208142936369604
+normalized,DBP,methanol,pvdf>pvc>pe>pp>evoh>nylon6>nylon66,pvdf>pvc>pe>evoh>pp>nylon6>nylon66,0.9642857142857145,0.9047619047619049,pvdf,pvdf,False,0.5580050348350715,0.12208142936369604
+normalized,DBP,methylacetate,pvdf>pvc>pe>pp>evoh>nylon6>nylon66,pvdf>pvc>pe>evoh>pp>nylon6>nylon66,0.9642857142857145,0.9047619047619049,pvdf,pvdf,False,0.5580050348350716,0.12208142936369609
+normalized,DBP,"n,n-dimethylformamide",pvdf>pvc>pe>pp>evoh>nylon6>nylon66,pvdf>pvc>pe>evoh>pp>nylon6>nylon66,0.9642857142857145,0.9047619047619049,pvdf,pvdf,False,0.5580050348350716,0.12208142936369609
+normalized,DBP,o-xylene,pvdf>pvc>pe>pp>evoh>nylon6>nylon66,pvdf>pvc>pe>evoh>pp>nylon6>nylon66,0.9642857142857145,0.9047619047619049,pvdf,pvdf,False,0.5580050348350718,0.12208142936369609
+normalized,DBP,tert-butanol,pvdf>pvc>pe>pp>evoh>nylon6>nylon66,pvdf>pvc>pe>evoh>pp>nylon6>nylon66,0.9642857142857145,0.9047619047619049,pvdf,pvdf,False,0.5580050348350716,0.12208142936369598
+normalized,DBP,tetrahydrofuran,pvdf>pvc>pe>pp>evoh>nylon6>nylon66,pvdf>pvc>pe>evoh>pp>nylon6>nylon66,0.9642857142857145,0.9047619047619049,pvdf,pvdf,False,0.5580050348350716,0.12208142936369615
+normalized,DBP,tetrahydropyran,pvdf>pvc>pe>pp>evoh>nylon6>nylon66,pvdf>pvc>pe>evoh>pp>nylon6>nylon66,0.9642857142857145,0.9047619047619049,pvdf,pvdf,False,0.5580050348350716,0.12208142936369604
+normalized,DBP,toluene,pvdf>pvc>pe>pp>evoh>nylon6>nylon66,pvdf>pvc>pe>evoh>pp>nylon6>nylon66,0.9642857142857145,0.9047619047619049,pvdf,pvdf,False,0.5580050348350716,0.12208142936369604
+normalized,DBP,triethylamine,pvdf>pvc>pe>pp>evoh>nylon6>nylon66,pvdf>pvc>pe>evoh>pp>nylon6>nylon66,0.9642857142857145,0.9047619047619049,pvdf,pvdf,False,0.5580050348350717,0.12208142936369606
+normalized,DBP,water,pvdf>pvc>pe>pp>evoh>nylon6>nylon66,pvdf>pvc>pe>evoh>pp>nylon6>nylon66,0.9642857142857145,0.9047619047619049,pvdf,pvdf,False,0.5580050348350722,0.12208142936369626
+normalized,DEHP,"1,2-propanediol",pvdf>pvc>pe>pp>evoh>nylon6>nylon66,pvc>pe>pvdf>pp>evoh>nylon6>nylon66,0.8928571428571429,0.8095238095238096,pvdf,pvc,True,0.30627702959499237,0.14567942310128168
+normalized,DEHP,1-propanol,pvdf>pvc>pe>pp>evoh>nylon6>nylon66,pvc>pe>pvdf>pp>evoh>nylon6>nylon66,0.8928571428571429,0.8095238095238096,pvdf,pvc,True,0.3062770295949919,0.1456794231012815
+normalized,DEHP,"2,3-dihydropyran",pvdf>pvc>pe>pp>evoh>nylon6>nylon66,pvc>pe>pvdf>pp>evoh>nylon6>nylon66,0.8928571428571429,0.8095238095238096,pvdf,pvc,True,0.3062770295949917,0.14567942310128146
+normalized,DEHP,2-butanone,pvdf>pvc>pe>pp>evoh>nylon6>nylon66,pvc>pe>pvdf>pp>evoh>nylon6>nylon66,0.8928571428571429,0.8095238095238096,pvdf,pvc,True,0.3062770295949919,0.14567942310128157
+normalized,DEHP,acetic acid,pvdf>pvc>pe>pp>evoh>nylon6>nylon66,pvc>pe>pvdf>pp>evoh>nylon6>nylon66,0.8928571428571429,0.8095238095238096,pvdf,pvc,True,0.3062770295949919,0.14567942310128157
+normalized,DEHP,acetone,pvdf>pvc>pe>pp>evoh>nylon6>nylon66,pvc>pe>pvdf>pp>evoh>nylon6>nylon66,0.8928571428571429,0.8095238095238096,pvdf,pvc,True,0.3062770295949919,0.14567942310128162
+normalized,DEHP,acetylacetone,pvdf>pvc>pe>pp>evoh>nylon6>nylon66,pvc>pe>pvdf>pp>evoh>nylon6>nylon66,0.8928571428571429,0.8095238095238096,pvdf,pvc,True,0.30627702959499187,0.1456794231012815
+normalized,DEHP,benzene,pvdf>pvc>pe>pp>evoh>nylon6>nylon66,pvc>pe>pvdf>pp>evoh>nylon6>nylon66,0.8928571428571429,0.8095238095238096,pvdf,pvc,True,0.3062770295949917,0.14567942310128124
+normalized,DEHP,chloroform,pvdf>pvc>pe>pp>evoh>nylon6>nylon66,pvc>pe>pvdf>pp>evoh>nylon6>nylon66,0.8928571428571429,0.8095238095238096,pvdf,pvc,True,0.3062770295949928,0.14567942310128146
+normalized,DEHP,cyclohexane,pvdf>pvc>pe>pp>evoh>nylon6>nylon66,pvc>pe>pvdf>pp>evoh>nylon6>nylon66,0.8928571428571429,0.8095238095238096,pvdf,pvc,True,0.3062770295949919,0.14567942310128157
+normalized,DEHP,cyclohexanol,pvdf>pvc>pe>pp>evoh>nylon6>nylon66,pvc>pe>pvdf>pp>evoh>nylon6>nylon66,0.8928571428571429,0.8095238095238096,pvdf,pvc,True,0.3062770295949919,0.14567942310128157
+normalized,DEHP,dichloromethane,pvdf>pvc>pe>pp>evoh>nylon6>nylon66,pvc>pe>pvdf>pp>evoh>nylon6>nylon66,0.8928571428571429,0.8095238095238096,pvdf,pvc,True,0.3062770295949915,0.1456794231012819
+normalized,DEHP,dimethyl sulfoxide,pvdf>pvc>pe>pp>evoh>nylon6>nylon66,pvc>pe>pvdf>pp>evoh>nylon6>nylon66,0.8928571428571429,0.8095238095238096,pvdf,pvc,True,0.3062770295949919,0.1456794231012815
+normalized,DEHP,diphenyl ether,pvdf>pvc>pe>pp>evoh>nylon6>nylon66,pvc>pe>pvdf>pp>evoh>nylon6>nylon66,0.8928571428571429,0.8095238095238096,pvdf,pvc,True,0.3062770295949919,0.14567942310128157
+normalized,DEHP,dodecane,pvdf>pvc>pe>pp>evoh>nylon6>nylon66,pvc>pe>pvdf>pp>evoh>nylon6>nylon66,0.8928571428571429,0.8095238095238096,pvdf,pvc,True,0.3062770295949918,0.14567942310128168
+normalized,DEHP,ethanol,pvdf>pvc>pe>pp>evoh>nylon6>nylon66,pvc>pe>pvdf>pp>evoh>nylon6>nylon66,0.8928571428571429,0.8095238095238096,pvdf,pvc,True,0.3062770295949919,0.14567942310128157
+normalized,DEHP,ethyl acetate,pvdf>pvc>pe>pp>evoh>nylon6>nylon66,pvc>pe>pvdf>pp>evoh>nylon6>nylon66,0.8928571428571429,0.8095238095238096,pvdf,pvc,True,0.3062770295949919,0.14567942310128157
+normalized,DEHP,ethylene glycol,pvdf>pvc>pe>pp>evoh>nylon6>nylon66,pvc>pe>pvdf>pp>evoh>nylon6>nylon66,0.8928571428571429,0.8095238095238096,pvdf,pvc,True,0.3062770295949919,0.14567942310128124
+normalized,DEHP,heptane,pvdf>pvc>pe>pp>evoh>nylon6>nylon66,pvc>pe>pvdf>pp>evoh>nylon6>nylon66,0.8928571428571429,0.8095238095238096,pvdf,pvc,True,0.3062770295949919,0.1456794231012815
+normalized,DEHP,hexane,pvdf>pvc>pe>pp>evoh>nylon6>nylon66,pvc>pe>pvdf>pp>evoh>nylon6>nylon66,0.8928571428571429,0.8095238095238096,pvdf,pvc,True,0.30627702959499187,0.14567942310128154
+normalized,DEHP,isopropanol,pvdf>pvc>pe>pp>evoh>nylon6>nylon66,pvc>pe>pvdf>pp>evoh>nylon6>nylon66,0.8928571428571429,0.8095238095238096,pvdf,pvc,True,0.3062770295949919,0.14567942310128165
+normalized,DEHP,isopropylamine,pvdf>pvc>pe>pp>evoh>nylon6>nylon66,pvc>pe>pvdf>pp>evoh>nylon6>nylon66,0.8928571428571429,0.8095238095238096,pvdf,pvc,True,0.3062770295949918,0.14567942310128157
+normalized,DEHP,methanol,pvdf>pvc>pe>pp>evoh>nylon6>nylon66,pvc>pe>pvdf>pp>evoh>nylon6>nylon66,0.8928571428571429,0.8095238095238096,pvdf,pvc,True,0.3062770295949918,0.14567942310128146
+normalized,DEHP,methylacetate,pvdf>pvc>pe>pp>evoh>nylon6>nylon66,pvc>pe>pvdf>pp>evoh>nylon6>nylon66,0.8928571428571429,0.8095238095238096,pvdf,pvc,True,0.3062770295949918,0.14567942310128146
+normalized,DEHP,"n,n-dimethylformamide",pvdf>pvc>pe>pp>evoh>nylon6>nylon66,pvc>pe>pvdf>pp>evoh>nylon6>nylon66,0.8928571428571429,0.8095238095238096,pvdf,pvc,True,0.3062770295949918,0.14567942310128146
+normalized,DEHP,o-xylene,pvdf>pvc>pe>pp>evoh>nylon6>nylon66,pvc>pe>pvdf>pp>evoh>nylon6>nylon66,0.8928571428571429,0.8095238095238096,pvdf,pvc,True,0.3062770295949919,0.14567942310128157
+normalized,DEHP,tert-butanol,pvdf>pvc>pe>pp>evoh>nylon6>nylon66,pvc>pe>pvdf>pp>evoh>nylon6>nylon66,0.8928571428571429,0.8095238095238096,pvdf,pvc,True,0.3062770295949918,0.1456794231012816
+normalized,DEHP,tetrahydrofuran,pvdf>pvc>pe>pp>evoh>nylon6>nylon66,pvc>pe>pvdf>pp>evoh>nylon6>nylon66,0.8928571428571429,0.8095238095238096,pvdf,pvc,True,0.3062770295949917,0.14567942310128168
+normalized,DEHP,tetrahydropyran,pvdf>pvc>pe>pp>evoh>nylon6>nylon66,pvc>pe>pvdf>pp>evoh>nylon6>nylon66,0.8928571428571429,0.8095238095238096,pvdf,pvc,True,0.3062770295949919,0.14567942310128146
+normalized,DEHP,toluene,pvdf>pvc>pe>pp>evoh>nylon6>nylon66,pvc>pe>pvdf>pp>evoh>nylon6>nylon66,0.8928571428571429,0.8095238095238096,pvdf,pvc,True,0.3062770295949919,0.14567942310128157
+normalized,DEHP,triethylamine,pvdf>pvc>pe>pp>evoh>nylon6>nylon66,pvc>pe>pvdf>pp>evoh>nylon6>nylon66,0.8928571428571429,0.8095238095238096,pvdf,pvc,True,0.3062770295949919,0.14567942310128157
+normalized,DEHP,water,pvdf>pvc>pe>pp>evoh>nylon6>nylon66,pvc>pe>pvdf>pp>evoh>nylon6>nylon66,0.8928571428571429,0.8095238095238096,pvdf,pvc,True,0.3062770295949928,0.14567942310128323
+normalized,DEP,"1,2-propanediol",pvdf>pvc>evoh>nylon6>nylon66>pe>pp,pvdf>pvc>evoh>nylon6>nylon66>pe>pp,1.0,1.0,pvdf,pvdf,False,0.7544239368942584,0.2887139873289557
+normalized,DEP,1-propanol,pvdf>pvc>evoh>nylon6>nylon66>pe>pp,pvdf>pvc>evoh>nylon6>nylon66>pe>pp,1.0,1.0,pvdf,pvdf,False,0.7544239368942581,0.2887139873289558
+normalized,DEP,"2,3-dihydropyran",pvdf>pvc>evoh>nylon6>nylon66>pe>pp,pvdf>pvc>evoh>nylon6>nylon66>pe>pp,1.0,1.0,pvdf,pvdf,False,0.754423936894258,0.2887139873289558
+normalized,DEP,2-butanone,pvdf>pvc>evoh>nylon6>nylon66>pe>pp,pvdf>pvc>evoh>nylon6>nylon66>pe>pp,1.0,1.0,pvdf,pvdf,False,0.7544239368942581,0.2887139873289557
+normalized,DEP,acetic acid,pvdf>pvc>evoh>nylon6>nylon66>pe>pp,pvdf>pvc>evoh>nylon6>nylon66>pe>pp,1.0,1.0,pvdf,pvdf,False,0.754423936894258,0.2887139873289558
+normalized,DEP,acetone,pvdf>pvc>evoh>nylon6>nylon66>pe>pp,pvdf>pvc>evoh>nylon6>nylon66>pe>pp,1.0,1.0,pvdf,pvdf,False,0.7544239368942581,0.2887139873289557
+normalized,DEP,acetylacetone,pvdf>pvc>evoh>nylon6>nylon66>pe>pp,pvdf>pvc>evoh>nylon6>nylon66>pe>pp,1.0,1.0,pvdf,pvdf,False,0.7544239368942581,0.28871398732895576
+normalized,DEP,benzene,pvdf>pvc>evoh>nylon6>nylon66>pe>pp,pvdf>pvc>evoh>nylon6>nylon66>pe>pp,1.0,1.0,pvdf,pvdf,False,0.754423936894258,0.2887139873289557
+normalized,DEP,chloroform,pvdf>pvc>evoh>nylon6>nylon66>pe>pp,pvdf>pvc>evoh>nylon6>nylon66>pe>pp,1.0,1.0,pvdf,pvdf,False,0.7544239368942587,0.2887139873289557
+normalized,DEP,cyclohexane,pvdf>pvc>evoh>nylon6>nylon66>pe>pp,pvdf>pvc>evoh>nylon6>nylon66>pe>pp,1.0,1.0,pvdf,pvdf,False,0.7544239368942581,0.28871398732895576
+normalized,DEP,cyclohexanol,pvdf>pvc>evoh>nylon6>nylon66>pe>pp,pvdf>pvc>evoh>nylon6>nylon66>pe>pp,1.0,1.0,pvdf,pvdf,False,0.754423936894258,0.28871398732895576
+normalized,DEP,dichloromethane,pvdf>pvc>evoh>nylon6>nylon66>pe>pp,pvdf>pvc>evoh>nylon6>nylon66>pe>pp,1.0,1.0,pvdf,pvdf,False,0.7544239368942585,0.2887139873289557
+normalized,DEP,dimethyl sulfoxide,pvdf>pvc>evoh>nylon6>nylon66>pe>pp,pvdf>pvc>evoh>nylon6>nylon66>pe>pp,1.0,1.0,pvdf,pvdf,False,0.7544239368942581,0.2887139873289558
+normalized,DEP,diphenyl ether,pvdf>pvc>evoh>nylon6>nylon66>pe>pp,pvdf>pvc>evoh>nylon6>nylon66>pe>pp,1.0,1.0,pvdf,pvdf,False,0.7544239368942581,0.2887139873289557
+normalized,DEP,dodecane,pvdf>pvc>evoh>nylon6>nylon66>pe>pp,pvdf>pvc>evoh>nylon6>nylon66>pe>pp,1.0,1.0,pvdf,pvdf,False,0.7544239368942585,0.2887139873289558
+normalized,DEP,ethanol,pvdf>pvc>evoh>nylon6>nylon66>pe>pp,pvdf>pvc>evoh>nylon6>nylon66>pe>pp,1.0,1.0,pvdf,pvdf,False,0.7544239368942581,0.2887139873289557
+normalized,DEP,ethyl acetate,pvdf>pvc>evoh>nylon6>nylon66>pe>pp,pvdf>pvc>evoh>nylon6>nylon66>pe>pp,1.0,1.0,pvdf,pvdf,False,0.7544239368942581,0.28871398732895565
+normalized,DEP,ethylene glycol,pvdf>pvc>evoh>nylon6>nylon66>pe>pp,pvdf>pvc>evoh>nylon6>nylon66>pe>pp,1.0,1.0,pvdf,pvdf,False,0.7544239368942585,0.2887139873289557
+normalized,DEP,heptane,pvdf>pvc>evoh>nylon6>nylon66>pe>pp,pvdf>pvc>evoh>nylon6>nylon66>pe>pp,1.0,1.0,pvdf,pvdf,False,0.7544239368942582,0.2887139873289557
+normalized,DEP,hexane,pvdf>pvc>evoh>nylon6>nylon66>pe>pp,pvdf>pvc>evoh>nylon6>nylon66>pe>pp,1.0,1.0,pvdf,pvdf,False,0.7544239368942582,0.2887139873289557
+normalized,DEP,isopropanol,pvdf>pvc>evoh>nylon6>nylon66>pe>pp,pvdf>pvc>evoh>nylon6>nylon66>pe>pp,1.0,1.0,pvdf,pvdf,False,0.7544239368942582,0.2887139873289557
+normalized,DEP,isopropylamine,pvdf>pvc>evoh>nylon6>nylon66>pe>pp,pvdf>pvc>evoh>nylon6>nylon66>pe>pp,1.0,1.0,pvdf,pvdf,False,0.7544239368942581,0.2887139873289557
+normalized,DEP,methanol,pvdf>pvc>evoh>nylon6>nylon66>pe>pp,pvdf>pvc>evoh>nylon6>nylon66>pe>pp,1.0,1.0,pvdf,pvdf,False,0.7544239368942584,0.2887139873289556
+normalized,DEP,methylacetate,pvdf>pvc>evoh>nylon6>nylon66>pe>pp,pvdf>pvc>evoh>nylon6>nylon66>pe>pp,1.0,1.0,pvdf,pvdf,False,0.7544239368942581,0.28871398732895576
+normalized,DEP,"n,n-dimethylformamide",pvdf>pvc>evoh>nylon6>nylon66>pe>pp,pvdf>pvc>evoh>nylon6>nylon66>pe>pp,1.0,1.0,pvdf,pvdf,False,0.7544239368942581,0.2887139873289558
+normalized,DEP,o-xylene,pvdf>pvc>evoh>nylon6>nylon66>pe>pp,pvdf>pvc>evoh>nylon6>nylon66>pe>pp,1.0,1.0,pvdf,pvdf,False,0.754423936894258,0.2887139873289557
+normalized,DEP,tert-butanol,pvdf>pvc>evoh>nylon6>nylon66>pe>pp,pvdf>pvc>evoh>nylon6>nylon66>pe>pp,1.0,1.0,pvdf,pvdf,False,0.754423936894258,0.2887139873289557
+normalized,DEP,tetrahydrofuran,pvdf>pvc>evoh>nylon6>nylon66>pe>pp,pvdf>pvc>evoh>nylon6>nylon66>pe>pp,1.0,1.0,pvdf,pvdf,False,0.754423936894258,0.2887139873289557
+normalized,DEP,tetrahydropyran,pvdf>pvc>evoh>nylon6>nylon66>pe>pp,pvdf>pvc>evoh>nylon6>nylon66>pe>pp,1.0,1.0,pvdf,pvdf,False,0.754423936894258,0.2887139873289557
+normalized,DEP,toluene,pvdf>pvc>evoh>nylon6>nylon66>pe>pp,pvdf>pvc>evoh>nylon6>nylon66>pe>pp,1.0,1.0,pvdf,pvdf,False,0.7544239368942581,0.2887139873289557
+normalized,DEP,triethylamine,pvdf>pvc>evoh>nylon6>nylon66>pe>pp,pvdf>pvc>evoh>nylon6>nylon66>pe>pp,1.0,1.0,pvdf,pvdf,False,0.754423936894258,0.2887139873289557
+normalized,DEP,water,pvdf>pvc>evoh>nylon6>nylon66>pe>pp,pvdf>pvc>evoh>nylon6>nylon66>pe>pp,1.0,1.0,pvdf,pvdf,False,0.7544239368942591,0.2887139873289559
+existing,BBP,"1,2-propanediol",pvdf>pvc>pp>nylon6>pe>nylon66>evoh,pvdf>pvc>pp>pe>nylon6>evoh>nylon66,0.9285714285714288,0.8095238095238096,pvdf,pvdf,False,1.522989985128484,0.315839232187038
+existing,BBP,1-propanol,pvdf>pvc>pp>nylon6>pe>nylon66>evoh,pvdf>pvc>pp>pe>nylon6>evoh>nylon66,0.9285714285714288,0.8095238095238096,pvdf,pvdf,False,1.5229899851284836,0.31583923218703724
+existing,BBP,"2,3-dihydropyran",pvdf>pvc>pp>nylon6>pe>nylon66>evoh,pvdf>pvc>pp>pe>nylon6>evoh>nylon66,0.9285714285714288,0.8095238095238096,pvdf,pvdf,False,1.522989985128484,0.31583923218703736
+existing,BBP,2-butanone,pvdf>pvc>pp>nylon6>pe>nylon66>evoh,pvdf>pvc>pp>pe>nylon6>evoh>nylon66,0.9285714285714288,0.8095238095238096,pvdf,pvdf,False,1.5229899851284838,0.31583923218703736
+existing,BBP,acetic acid,pvdf>pvc>pp>nylon6>pe>nylon66>evoh,pvdf>pvc>pp>pe>nylon6>evoh>nylon66,0.9285714285714288,0.8095238095238096,pvdf,pvdf,False,1.522989985128484,0.3158392321870377
+existing,BBP,acetone,pvdf>pvc>pp>nylon6>pe>nylon66>evoh,pvdf>pvc>pp>pe>nylon6>evoh>nylon66,0.9285714285714288,0.8095238095238096,pvdf,pvdf,False,1.5229899851284838,0.3158392321870374
+existing,BBP,acetylacetone,pvdf>pvc>pp>nylon6>pe>nylon66>evoh,pvdf>pvc>pp>pe>nylon6>evoh>nylon66,0.9285714285714288,0.8095238095238096,pvdf,pvdf,False,1.5229899851284838,0.31583923218703736
+existing,BBP,benzene,pvdf>pvc>pp>nylon6>pe>nylon66>evoh,pvdf>pvc>pp>pe>nylon6>evoh>nylon66,0.9285714285714288,0.8095238095238096,pvdf,pvdf,False,1.5229899851284838,0.3158392321870374
+existing,BBP,chloroform,pvdf>pvc>pp>nylon6>pe>nylon66>evoh,pvdf>pvc>pp>pe>nylon6>evoh>nylon66,0.9285714285714288,0.8095238095238096,pvdf,pvdf,False,1.522989985128484,0.31583923218703736
+existing,BBP,cyclohexane,pvdf>pvc>pp>nylon6>pe>nylon66>evoh,pvdf>pvc>pp>pe>nylon6>evoh>nylon66,0.9285714285714288,0.8095238095238096,pvdf,pvdf,False,1.5229899851284838,0.31583923218703724
+existing,BBP,cyclohexanol,pvdf>pvc>pp>nylon6>pe>nylon66>evoh,pvdf>pvc>pp>pe>nylon6>evoh>nylon66,0.9285714285714288,0.8095238095238096,pvdf,pvdf,False,1.5229899851284836,0.3158392321870376
+existing,BBP,dichloromethane,pvdf>pvc>pp>nylon6>pe>nylon66>evoh,pvdf>pvc>pp>pe>nylon6>evoh>nylon66,0.9285714285714288,0.8095238095238096,pvdf,pvdf,False,1.5229899851284838,0.31583923218703724
+existing,BBP,dimethyl sulfoxide,pvdf>pvc>pp>nylon6>pe>nylon66>evoh,pvdf>pvc>pp>pe>nylon6>evoh>nylon66,0.9285714285714288,0.8095238095238096,pvdf,pvdf,False,1.5229899851284838,0.31583923218703736
+existing,BBP,diphenyl ether,pvdf>pvc>pp>nylon6>pe>nylon66>evoh,pvdf>pvc>pp>pe>nylon6>evoh>nylon66,0.9285714285714288,0.8095238095238096,pvdf,pvdf,False,1.522989985128484,0.3158392321870374
+existing,BBP,dodecane,pvdf>pvc>pp>nylon6>pe>nylon66>evoh,pvdf>pvc>pp>pe>nylon6>evoh>nylon66,0.9285714285714288,0.8095238095238096,pvdf,pvdf,False,1.522989985128484,0.3158392321870376
+existing,BBP,ethanol,pvdf>pvc>pp>nylon6>pe>nylon66>evoh,pvdf>pvc>pp>pe>nylon6>evoh>nylon66,0.9285714285714288,0.8095238095238096,pvdf,pvdf,False,1.5229899851284836,0.3158392321870376
+existing,BBP,ethyl acetate,pvdf>pvc>pp>nylon6>pe>nylon66>evoh,pvdf>pvc>pp>pe>nylon6>evoh>nylon66,0.9285714285714288,0.8095238095238096,pvdf,pvdf,False,1.522989985128484,0.31583923218703747
+existing,BBP,ethylene glycol,pvdf>pvc>pp>nylon6>pe>nylon66>evoh,pvdf>pvc>pp>pe>nylon6>evoh>nylon66,0.9285714285714288,0.8095238095238096,pvdf,pvdf,False,1.5229899851284838,0.31583923218703736
+existing,BBP,heptane,pvdf>pvc>pp>nylon6>pe>nylon66>evoh,pvdf>pvc>pp>pe>nylon6>evoh>nylon66,0.9285714285714288,0.8095238095238096,pvdf,pvdf,False,1.5229899851284836,0.3158392321870378
+existing,BBP,hexane,pvdf>pvc>pp>nylon6>pe>nylon66>evoh,pvdf>pvc>pp>pe>nylon6>evoh>nylon66,0.9285714285714288,0.8095238095238096,pvdf,pvdf,False,1.5229899851284838,0.3158392321870376
+existing,BBP,isopropanol,pvdf>pvc>pp>nylon6>pe>nylon66>evoh,pvdf>pvc>pp>pe>nylon6>evoh>nylon66,0.9285714285714288,0.8095238095238096,pvdf,pvdf,False,1.522989985128484,0.31583923218703736
+existing,BBP,isopropylamine,pvdf>pvc>pp>nylon6>pe>nylon66>evoh,pvdf>pvc>pp>pe>nylon6>evoh>nylon66,0.9285714285714288,0.8095238095238096,pvdf,pvdf,False,1.5229899851284838,0.3158392321870376
+existing,BBP,methanol,pvdf>pvc>pp>nylon6>pe>nylon66>evoh,pvdf>pvc>pp>pe>nylon6>evoh>nylon66,0.9285714285714288,0.8095238095238096,pvdf,pvdf,False,1.522989985128484,0.31583923218703713
+existing,BBP,methylacetate,pvdf>pvc>pp>nylon6>pe>nylon66>evoh,pvdf>pvc>pp>pe>nylon6>evoh>nylon66,0.9285714285714288,0.8095238095238096,pvdf,pvdf,False,1.522989985128484,0.31583923218703736
+existing,BBP,"n,n-dimethylformamide",pvdf>pvc>pp>nylon6>pe>nylon66>evoh,pvdf>pvc>pp>pe>nylon6>evoh>nylon66,0.9285714285714288,0.8095238095238096,pvdf,pvdf,False,1.5229899851284838,0.31583923218703724
+existing,BBP,o-xylene,pvdf>pvc>pp>nylon6>pe>nylon66>evoh,pvdf>pvc>pp>pe>nylon6>evoh>nylon66,0.9285714285714288,0.8095238095238096,pvdf,pvdf,False,1.5229899851284838,0.31583923218703747
+existing,BBP,tert-butanol,pvdf>pvc>pp>nylon6>pe>nylon66>evoh,pvdf>pvc>pp>pe>nylon6>evoh>nylon66,0.9285714285714288,0.8095238095238096,pvdf,pvdf,False,1.5229899851284838,0.31583923218703747
+existing,BBP,tetrahydrofuran,pvdf>pvc>pp>nylon6>pe>nylon66>evoh,pvdf>pvc>pp>pe>nylon6>evoh>nylon66,0.9285714285714288,0.8095238095238096,pvdf,pvdf,False,1.522989985128484,0.3158392321870374
+existing,BBP,tetrahydropyran,pvdf>pvc>pp>nylon6>pe>nylon66>evoh,pvdf>pvc>pp>pe>nylon6>evoh>nylon66,0.9285714285714288,0.8095238095238096,pvdf,pvdf,False,1.522989985128484,0.3158392321870374
+existing,BBP,toluene,pvdf>pvc>pp>nylon6>pe>nylon66>evoh,pvdf>pvc>pp>pe>nylon6>evoh>nylon66,0.9285714285714288,0.8095238095238096,pvdf,pvdf,False,1.5229899851284836,0.31583923218703736
+existing,BBP,triethylamine,pvdf>pvc>pp>nylon6>pe>nylon66>evoh,pvdf>pvc>pp>pe>nylon6>evoh>nylon66,0.9285714285714288,0.8095238095238096,pvdf,pvdf,False,1.5229899851284836,0.31583923218703747
+existing,BBP,water,pvdf>pvc>pp>nylon6>pe>nylon66>evoh,pvdf>pvc>pp>pe>nylon6>evoh>nylon66,0.9285714285714288,0.8095238095238096,pvdf,pvdf,False,1.5229899851284836,0.31583923218703713
+existing,DBP,"1,2-propanediol",pvdf>pvc>pp>pe>nylon6>nylon66>evoh,pvdf>pvc>pp>pe>evoh>nylon6>nylon66,0.8928571428571429,0.8095238095238096,pvdf,pvdf,False,1.4436935884707354,0.307800101949002
+existing,DBP,1-propanol,pvdf>pvc>pp>pe>nylon6>nylon66>evoh,pvdf>pvc>pp>pe>evoh>nylon6>nylon66,0.8928571428571429,0.8095238095238096,pvdf,pvdf,False,1.4436935884707354,0.30780010194900176
+existing,DBP,"2,3-dihydropyran",pvdf>pvc>pp>pe>nylon6>nylon66>evoh,pvdf>pvc>pp>pe>evoh>nylon6>nylon66,0.8928571428571429,0.8095238095238096,pvdf,pvdf,False,1.4436935884707354,0.30780010194900187
+existing,DBP,2-butanone,pvdf>pvc>pp>pe>nylon6>nylon66>evoh,pvdf>pvc>pp>pe>evoh>nylon6>nylon66,0.8928571428571429,0.8095238095238096,pvdf,pvdf,False,1.4436935884707354,0.30780010194900187
+existing,DBP,acetic acid,pvdf>pvc>pp>pe>nylon6>nylon66>evoh,pvdf>pvc>pp>pe>evoh>nylon6>nylon66,0.8928571428571429,0.8095238095238096,pvdf,pvdf,False,1.4436935884707358,0.3078001019490021
+existing,DBP,acetone,pvdf>pvc>pp>pe>nylon6>nylon66>evoh,pvdf>pvc>pp>pe>evoh>nylon6>nylon66,0.8928571428571429,0.8095238095238096,pvdf,pvdf,False,1.4436935884707354,0.30780010194900187
+existing,DBP,acetylacetone,pvdf>pvc>pp>pe>nylon6>nylon66>evoh,pvdf>pvc>pp>pe>evoh>nylon6>nylon66,0.8928571428571429,0.8095238095238096,pvdf,pvdf,False,1.4436935884707354,0.307800101949002
+existing,DBP,benzene,pvdf>pvc>pp>pe>nylon6>nylon66>evoh,pvdf>pvc>pp>pe>evoh>nylon6>nylon66,0.8928571428571429,0.8095238095238096,pvdf,pvdf,False,1.4436935884707354,0.3078001019490018
+existing,DBP,chloroform,pvdf>pvc>pp>pe>nylon6>nylon66>evoh,pvdf>pvc>pp>pe>evoh>nylon6>nylon66,0.8928571428571429,0.8095238095238096,pvdf,pvdf,False,1.443693588470735,0.30780010194900154
+existing,DBP,cyclohexane,pvdf>pvc>pp>pe>nylon6>nylon66>evoh,pvdf>pvc>pp>pe>evoh>nylon6>nylon66,0.8928571428571429,0.8095238095238096,pvdf,pvdf,False,1.4436935884707358,0.30780010194900176
+existing,DBP,cyclohexanol,pvdf>pvc>pp>pe>nylon6>nylon66>evoh,pvdf>pvc>pp>pe>evoh>nylon6>nylon66,0.8928571428571429,0.8095238095238096,pvdf,pvdf,False,1.4436935884707354,0.307800101949002
+existing,DBP,dichloromethane,pvdf>pvc>pp>pe>nylon6>nylon66>evoh,pvdf>pvc>pp>pe>evoh>nylon6>nylon66,0.8928571428571429,0.8095238095238096,pvdf,pvdf,False,1.4436935884707354,0.30780010194900187
+existing,DBP,dimethyl sulfoxide,pvdf>pvc>pp>pe>nylon6>nylon66>evoh,pvdf>pvc>pp>pe>evoh>nylon6>nylon66,0.8928571428571429,0.8095238095238096,pvdf,pvdf,False,1.4436935884707354,0.30780010194900176
+existing,DBP,diphenyl ether,pvdf>pvc>pp>pe>nylon6>nylon66>evoh,pvdf>pvc>pp>pe>evoh>nylon6>nylon66,0.8928571428571429,0.8095238095238096,pvdf,pvdf,False,1.4436935884707356,0.3078001019490019
+existing,DBP,dodecane,pvdf>pvc>pp>pe>nylon6>nylon66>evoh,pvdf>pvc>pp>pe>evoh>nylon6>nylon66,0.8928571428571429,0.8095238095238096,pvdf,pvdf,False,1.4436935884707358,0.307800101949002
+existing,DBP,ethanol,pvdf>pvc>pp>pe>nylon6>nylon66>evoh,pvdf>pvc>pp>pe>evoh>nylon6>nylon66,0.8928571428571429,0.8095238095238096,pvdf,pvdf,False,1.4436935884707354,0.307800101949002
+existing,DBP,ethyl acetate,pvdf>pvc>pp>pe>nylon6>nylon66>evoh,pvdf>pvc>pp>pe>evoh>nylon6>nylon66,0.8928571428571429,0.8095238095238096,pvdf,pvdf,False,1.4436935884707356,0.307800101949002
+existing,DBP,ethylene glycol,pvdf>pvc>pp>pe>nylon6>nylon66>evoh,pvdf>pvc>pp>pe>evoh>nylon6>nylon66,0.8928571428571429,0.8095238095238096,pvdf,pvdf,False,1.4436935884707351,0.3078001019490022
+existing,DBP,heptane,pvdf>pvc>pp>pe>nylon6>nylon66>evoh,pvdf>pvc>pp>pe>evoh>nylon6>nylon66,0.8928571428571429,0.8095238095238096,pvdf,pvdf,False,1.4436935884707351,0.30780010194900176
+existing,DBP,hexane,pvdf>pvc>pp>pe>nylon6>nylon66>evoh,pvdf>pvc>pp>pe>evoh>nylon6>nylon66,0.8928571428571429,0.8095238095238096,pvdf,pvdf,False,1.4436935884707358,0.307800101949002
+existing,DBP,isopropanol,pvdf>pvc>pp>pe>nylon6>nylon66>evoh,pvdf>pvc>pp>pe>evoh>nylon6>nylon66,0.8928571428571429,0.8095238095238096,pvdf,pvdf,False,1.4436935884707358,0.307800101949002
+existing,DBP,isopropylamine,pvdf>pvc>pp>pe>nylon6>nylon66>evoh,pvdf>pvc>pp>pe>evoh>nylon6>nylon66,0.8928571428571429,0.8095238095238096,pvdf,pvdf,False,1.4436935884707356,0.307800101949002
+existing,DBP,methanol,pvdf>pvc>pp>pe>nylon6>nylon66>evoh,pvdf>pvc>pp>pe>evoh>nylon6>nylon66,0.8928571428571429,0.8095238095238096,pvdf,pvdf,False,1.4436935884707354,0.307800101949002
+existing,DBP,methylacetate,pvdf>pvc>pp>pe>nylon6>nylon66>evoh,pvdf>pvc>pp>pe>evoh>nylon6>nylon66,0.8928571428571429,0.8095238095238096,pvdf,pvdf,False,1.4436935884707354,0.30780010194900187
+existing,DBP,"n,n-dimethylformamide",pvdf>pvc>pp>pe>nylon6>nylon66>evoh,pvdf>pvc>pp>pe>evoh>nylon6>nylon66,0.8928571428571429,0.8095238095238096,pvdf,pvdf,False,1.4436935884707354,0.30780010194900176
+existing,DBP,o-xylene,pvdf>pvc>pp>pe>nylon6>nylon66>evoh,pvdf>pvc>pp>pe>evoh>nylon6>nylon66,0.8928571428571429,0.8095238095238096,pvdf,pvdf,False,1.4436935884707354,0.307800101949002
+existing,DBP,tert-butanol,pvdf>pvc>pp>pe>nylon6>nylon66>evoh,pvdf>pvc>pp>pe>evoh>nylon6>nylon66,0.8928571428571429,0.8095238095238096,pvdf,pvdf,False,1.4436935884707358,0.30780010194900187
+existing,DBP,tetrahydrofuran,pvdf>pvc>pp>pe>nylon6>nylon66>evoh,pvdf>pvc>pp>pe>evoh>nylon6>nylon66,0.8928571428571429,0.8095238095238096,pvdf,pvdf,False,1.4436935884707354,0.30780010194900187
+existing,DBP,tetrahydropyran,pvdf>pvc>pp>pe>nylon6>nylon66>evoh,pvdf>pvc>pp>pe>evoh>nylon6>nylon66,0.8928571428571429,0.8095238095238096,pvdf,pvdf,False,1.4436935884707354,0.307800101949002
+existing,DBP,toluene,pvdf>pvc>pp>pe>nylon6>nylon66>evoh,pvdf>pvc>pp>pe>evoh>nylon6>nylon66,0.8928571428571429,0.8095238095238096,pvdf,pvdf,False,1.4436935884707354,0.30780010194900187
+existing,DBP,triethylamine,pvdf>pvc>pp>pe>nylon6>nylon66>evoh,pvdf>pvc>pp>pe>evoh>nylon6>nylon66,0.8928571428571429,0.8095238095238096,pvdf,pvdf,False,1.4436935884707354,0.307800101949002
+existing,DBP,water,pvdf>pvc>pp>pe>nylon6>nylon66>evoh,pvdf>pvc>pp>pe>evoh>nylon6>nylon66,0.8928571428571429,0.8095238095238096,pvdf,pvdf,False,1.443693588470735,0.3078001019490024
+existing,DEHP,"1,2-propanediol",pvdf>pp>pvc>pe>nylon6>evoh>nylon66,pvc>pvdf>pp>pe>evoh>nylon6>nylon66,0.8571428571428573,0.7142857142857143,pvdf,pvc,True,1.014230167698201,0.09563286187909492
+existing,DEHP,1-propanol,pvdf>pp>pvc>pe>nylon6>evoh>nylon66,pvc>pvdf>pp>pe>evoh>nylon6>nylon66,0.8571428571428573,0.7142857142857143,pvdf,pvc,True,1.014230167698201,0.09563286187909514
+existing,DEHP,"2,3-dihydropyran",pvdf>pp>pvc>pe>nylon6>evoh>nylon66,pvc>pvdf>pp>pe>evoh>nylon6>nylon66,0.8571428571428573,0.7142857142857143,pvdf,pvc,True,1.0142301676982013,0.09563286187909525
+existing,DEHP,2-butanone,pvdf>pp>pvc>pe>nylon6>evoh>nylon66,pvc>pvdf>pp>pe>evoh>nylon6>nylon66,0.8571428571428573,0.7142857142857143,pvdf,pvc,True,1.014230167698201,0.09563286187909525
+existing,DEHP,acetic acid,pvdf>pp>pvc>pe>nylon6>evoh>nylon66,pvc>pvdf>pp>pe>evoh>nylon6>nylon66,0.8571428571428573,0.7142857142857143,pvdf,pvc,True,1.014230167698201,0.09563286187909514
+existing,DEHP,acetone,pvdf>pp>pvc>pe>nylon6>evoh>nylon66,pvc>pvdf>pp>pe>evoh>nylon6>nylon66,0.8571428571428573,0.7142857142857143,pvdf,pvc,True,1.014230167698201,0.09563286187909525
+existing,DEHP,acetylacetone,pvdf>pp>pvc>pe>nylon6>evoh>nylon66,pvc>pvdf>pp>pe>evoh>nylon6>nylon66,0.8571428571428573,0.7142857142857143,pvdf,pvc,True,1.0142301676982013,0.09563286187909514
+existing,DEHP,benzene,pvdf>pp>pvc>pe>nylon6>evoh>nylon66,pvc>pvdf>pp>pe>evoh>nylon6>nylon66,0.8571428571428573,0.7142857142857143,pvdf,pvc,True,1.014230167698201,0.09563286187909514
+existing,DEHP,chloroform,pvdf>pp>pvc>pe>nylon6>evoh>nylon66,pvc>pvdf>pp>pe>evoh>nylon6>nylon66,0.8571428571428573,0.7142857142857143,pvdf,pvc,True,1.014230167698201,0.09563286187909537
+existing,DEHP,cyclohexane,pvdf>pp>pvc>pe>nylon6>evoh>nylon66,pvc>pvdf>pp>pe>evoh>nylon6>nylon66,0.8571428571428573,0.7142857142857143,pvdf,pvc,True,1.014230167698201,0.09563286187909525
+existing,DEHP,cyclohexanol,pvdf>pp>pvc>pe>nylon6>evoh>nylon66,pvc>pvdf>pp>pe>evoh>nylon6>nylon66,0.8571428571428573,0.7142857142857143,pvdf,pvc,True,1.014230167698201,0.09563286187909525
+existing,DEHP,dichloromethane,pvdf>pp>pvc>pe>nylon6>evoh>nylon66,pvc>pvdf>pp>pe>evoh>nylon6>nylon66,0.8571428571428573,0.7142857142857143,pvdf,pvc,True,1.0142301676982015,0.09563286187909514
+existing,DEHP,dimethyl sulfoxide,pvdf>pp>pvc>pe>nylon6>evoh>nylon66,pvc>pvdf>pp>pe>evoh>nylon6>nylon66,0.8571428571428573,0.7142857142857143,pvdf,pvc,True,1.0142301676982015,0.09563286187909514
+existing,DEHP,diphenyl ether,pvdf>pp>pvc>pe>nylon6>evoh>nylon66,pvc>pvdf>pp>pe>evoh>nylon6>nylon66,0.8571428571428573,0.7142857142857143,pvdf,pvc,True,1.0142301676982013,0.09563286187909514
+existing,DEHP,dodecane,pvdf>pp>pvc>pe>nylon6>evoh>nylon66,pvc>pvdf>pp>pe>evoh>nylon6>nylon66,0.8571428571428573,0.7142857142857143,pvdf,pvc,True,1.014230167698201,0.09563286187909525
+existing,DEHP,ethanol,pvdf>pp>pvc>pe>nylon6>evoh>nylon66,pvc>pvdf>pp>pe>evoh>nylon6>nylon66,0.8571428571428573,0.7142857142857143,pvdf,pvc,True,1.014230167698201,0.09563286187909514
+existing,DEHP,ethyl acetate,pvdf>pp>pvc>pe>nylon6>evoh>nylon66,pvc>pvdf>pp>pe>evoh>nylon6>nylon66,0.8571428571428573,0.7142857142857143,pvdf,pvc,True,1.014230167698201,0.09563286187909514
+existing,DEHP,ethylene glycol,pvdf>pp>pvc>pe>nylon6>evoh>nylon66,pvc>pvdf>pp>pe>evoh>nylon6>nylon66,0.8571428571428573,0.7142857142857143,pvdf,pvc,True,1.014230167698201,0.09563286187909537
+existing,DEHP,heptane,pvdf>pp>pvc>pe>nylon6>evoh>nylon66,pvc>pvdf>pp>pe>evoh>nylon6>nylon66,0.8571428571428573,0.7142857142857143,pvdf,pvc,True,1.0142301676982015,0.09563286187909514
+existing,DEHP,hexane,pvdf>pp>pvc>pe>nylon6>evoh>nylon66,pvc>pvdf>pp>pe>evoh>nylon6>nylon66,0.8571428571428573,0.7142857142857143,pvdf,pvc,True,1.0142301676982013,0.09563286187909525
+existing,DEHP,isopropanol,pvdf>pp>pvc>pe>nylon6>evoh>nylon66,pvc>pvdf>pp>pe>evoh>nylon6>nylon66,0.8571428571428573,0.7142857142857143,pvdf,pvc,True,1.014230167698201,0.09563286187909514
+existing,DEHP,isopropylamine,pvdf>pp>pvc>pe>nylon6>evoh>nylon66,pvc>pvdf>pp>pe>evoh>nylon6>nylon66,0.8571428571428573,0.7142857142857143,pvdf,pvc,True,1.0142301676982013,0.09563286187909509
+existing,DEHP,methanol,pvdf>pp>pvc>pe>nylon6>evoh>nylon66,pvc>pvdf>pp>pe>evoh>nylon6>nylon66,0.8571428571428573,0.7142857142857143,pvdf,pvc,True,1.0142301676982015,0.09563286187909581
+existing,DEHP,methylacetate,pvdf>pp>pvc>pe>nylon6>evoh>nylon66,pvc>pvdf>pp>pe>evoh>nylon6>nylon66,0.8571428571428573,0.7142857142857143,pvdf,pvc,True,1.014230167698201,0.09563286187909514
+existing,DEHP,"n,n-dimethylformamide",pvdf>pp>pvc>pe>nylon6>evoh>nylon66,pvc>pvdf>pp>pe>evoh>nylon6>nylon66,0.8571428571428573,0.7142857142857143,pvdf,pvc,True,1.014230167698201,0.09563286187909525
+existing,DEHP,o-xylene,pvdf>pp>pvc>pe>nylon6>evoh>nylon66,pvc>pvdf>pp>pe>evoh>nylon6>nylon66,0.8571428571428573,0.7142857142857143,pvdf,pvc,True,1.014230167698201,0.09563286187909503
+existing,DEHP,tert-butanol,pvdf>pp>pvc>pe>nylon6>evoh>nylon66,pvc>pvdf>pp>pe>evoh>nylon6>nylon66,0.8571428571428573,0.7142857142857143,pvdf,pvc,True,1.0142301676982013,0.09563286187909503
+existing,DEHP,tetrahydrofuran,pvdf>pp>pvc>pe>nylon6>evoh>nylon66,pvc>pvdf>pp>pe>evoh>nylon6>nylon66,0.8571428571428573,0.7142857142857143,pvdf,pvc,True,1.0142301676982013,0.09563286187909514
+existing,DEHP,tetrahydropyran,pvdf>pp>pvc>pe>nylon6>evoh>nylon66,pvc>pvdf>pp>pe>evoh>nylon6>nylon66,0.8571428571428573,0.7142857142857143,pvdf,pvc,True,1.0142301676982015,0.09563286187909503
+existing,DEHP,toluene,pvdf>pp>pvc>pe>nylon6>evoh>nylon66,pvc>pvdf>pp>pe>evoh>nylon6>nylon66,0.8571428571428573,0.7142857142857143,pvdf,pvc,True,1.0142301676982013,0.0956328618790952
+existing,DEHP,triethylamine,pvdf>pp>pvc>pe>nylon6>evoh>nylon66,pvc>pvdf>pp>pe>evoh>nylon6>nylon66,0.8571428571428573,0.7142857142857143,pvdf,pvc,True,1.0142301676982013,0.09563286187909514
+existing,DEHP,water,pvdf>pp>pvc>pe>nylon6>evoh>nylon66,pvc>pvdf>pp>pe>evoh>nylon6>nylon66,0.8571428571428573,0.7142857142857143,pvdf,pvc,True,1.0142301676981997,0.09563286187909625
+existing,DEP,"1,2-propanediol",pvdf>pvc>pp>nylon6>nylon66>pe>evoh,pvdf>pvc>pp>evoh>nylon6>nylon66>pe,0.7857142857142859,0.7142857142857143,pvdf,pvdf,False,1.6401108391888402,0.47443079559256784
+existing,DEP,1-propanol,pvdf>pvc>pp>nylon6>nylon66>pe>evoh,pvdf>pvc>pp>evoh>nylon6>nylon66>pe,0.7857142857142859,0.7142857142857143,pvdf,pvdf,False,1.6401108391888395,0.4744307955925674
+existing,DEP,"2,3-dihydropyran",pvdf>pvc>pp>nylon6>nylon66>pe>evoh,pvdf>pvc>pp>evoh>nylon6>nylon66>pe,0.7857142857142859,0.7142857142857143,pvdf,pvdf,False,1.6401108391888397,0.4744307955925675
+existing,DEP,2-butanone,pvdf>pvc>pp>nylon6>nylon66>pe>evoh,pvdf>pvc>pp>evoh>nylon6>nylon66>pe,0.7857142857142859,0.7142857142857143,pvdf,pvdf,False,1.6401108391888397,0.4744307955925674
+existing,DEP,acetic acid,pvdf>pvc>pp>nylon6>nylon66>pe>evoh,pvdf>pvc>pp>evoh>nylon6>nylon66>pe,0.7857142857142859,0.7142857142857143,pvdf,pvdf,False,1.6401108391888397,0.4744307955925674
+existing,DEP,acetone,pvdf>pvc>pp>nylon6>nylon66>pe>evoh,pvdf>pvc>pp>evoh>nylon6>nylon66>pe,0.7857142857142859,0.7142857142857143,pvdf,pvdf,False,1.6401108391888397,0.4744307955925675
+existing,DEP,acetylacetone,pvdf>pvc>pp>nylon6>nylon66>pe>evoh,pvdf>pvc>pp>evoh>nylon6>nylon66>pe,0.7857142857142859,0.7142857142857143,pvdf,pvdf,False,1.6401108391888397,0.4744307955925674
+existing,DEP,benzene,pvdf>pvc>pp>nylon6>nylon66>pe>evoh,pvdf>pvc>pp>evoh>nylon6>nylon66>pe,0.7857142857142859,0.7142857142857143,pvdf,pvdf,False,1.6401108391888397,0.4744307955925674
+existing,DEP,chloroform,pvdf>pvc>pp>nylon6>nylon66>pe>evoh,pvdf>pvc>pp>evoh>nylon6>nylon66>pe,0.7857142857142859,0.7142857142857143,pvdf,pvdf,False,1.6401108391888397,0.4744307955925672
+existing,DEP,cyclohexane,pvdf>pvc>pp>nylon6>nylon66>pe>evoh,pvdf>pvc>pp>evoh>nylon6>nylon66>pe,0.7857142857142859,0.7142857142857143,pvdf,pvdf,False,1.6401108391888397,0.47443079559256773
+existing,DEP,cyclohexanol,pvdf>pvc>pp>nylon6>nylon66>pe>evoh,pvdf>pvc>pp>evoh>nylon6>nylon66>pe,0.7857142857142859,0.7142857142857143,pvdf,pvdf,False,1.6401108391888397,0.4744307955925675
+existing,DEP,dichloromethane,pvdf>pvc>pp>nylon6>nylon66>pe>evoh,pvdf>pvc>pp>evoh>nylon6>nylon66>pe,0.7857142857142859,0.7142857142857143,pvdf,pvdf,False,1.6401108391888397,0.4744307955925674
+existing,DEP,dimethyl sulfoxide,pvdf>pvc>pp>nylon6>nylon66>pe>evoh,pvdf>pvc>pp>evoh>nylon6>nylon66>pe,0.7857142857142859,0.7142857142857143,pvdf,pvdf,False,1.64011083918884,0.4744307955925675
+existing,DEP,diphenyl ether,pvdf>pvc>pp>nylon6>nylon66>pe>evoh,pvdf>pvc>pp>evoh>nylon6>nylon66>pe,0.7857142857142859,0.7142857142857143,pvdf,pvdf,False,1.6401108391888397,0.4744307955925673
+existing,DEP,dodecane,pvdf>pvc>pp>nylon6>nylon66>pe>evoh,pvdf>pvc>pp>evoh>nylon6>nylon66>pe,0.7857142857142859,0.7142857142857143,pvdf,pvdf,False,1.6401108391888397,0.4744307955925675
+existing,DEP,ethanol,pvdf>pvc>pp>nylon6>nylon66>pe>evoh,pvdf>pvc>pp>evoh>nylon6>nylon66>pe,0.7857142857142859,0.7142857142857143,pvdf,pvdf,False,1.6401108391888397,0.4744307955925675
+existing,DEP,ethyl acetate,pvdf>pvc>pp>nylon6>nylon66>pe>evoh,pvdf>pvc>pp>evoh>nylon6>nylon66>pe,0.7857142857142859,0.7142857142857143,pvdf,pvdf,False,1.6401108391888397,0.4744307955925676
+existing,DEP,ethylene glycol,pvdf>pvc>pp>nylon6>nylon66>pe>evoh,pvdf>pvc>pp>evoh>nylon6>nylon66>pe,0.7857142857142859,0.7142857142857143,pvdf,pvdf,False,1.6401108391888397,0.4744307955925673
+existing,DEP,heptane,pvdf>pvc>pp>nylon6>nylon66>pe>evoh,pvdf>pvc>pp>evoh>nylon6>nylon66>pe,0.7857142857142859,0.7142857142857143,pvdf,pvdf,False,1.6401108391888395,0.4744307955925675
+existing,DEP,hexane,pvdf>pvc>pp>nylon6>nylon66>pe>evoh,pvdf>pvc>pp>evoh>nylon6>nylon66>pe,0.7857142857142859,0.7142857142857143,pvdf,pvdf,False,1.6401108391888397,0.4744307955925673
+existing,DEP,isopropanol,pvdf>pvc>pp>nylon6>nylon66>pe>evoh,pvdf>pvc>pp>evoh>nylon6>nylon66>pe,0.7857142857142859,0.7142857142857143,pvdf,pvdf,False,1.6401108391888397,0.4744307955925676
+existing,DEP,isopropylamine,pvdf>pvc>pp>nylon6>nylon66>pe>evoh,pvdf>pvc>pp>evoh>nylon6>nylon66>pe,0.7857142857142859,0.7142857142857143,pvdf,pvdf,False,1.6401108391888397,0.4744307955925674
+existing,DEP,methanol,pvdf>pvc>pp>nylon6>nylon66>pe>evoh,pvdf>pvc>pp>evoh>nylon6>nylon66>pe,0.7857142857142859,0.7142857142857143,pvdf,pvdf,False,1.6401108391888397,0.4744307955925672
+existing,DEP,methylacetate,pvdf>pvc>pp>nylon6>nylon66>pe>evoh,pvdf>pvc>pp>evoh>nylon6>nylon66>pe,0.7857142857142859,0.7142857142857143,pvdf,pvdf,False,1.6401108391888397,0.4744307955925675
+existing,DEP,"n,n-dimethylformamide",pvdf>pvc>pp>nylon6>nylon66>pe>evoh,pvdf>pvc>pp>evoh>nylon6>nylon66>pe,0.7857142857142859,0.7142857142857143,pvdf,pvdf,False,1.6401108391888397,0.4744307955925672
+existing,DEP,o-xylene,pvdf>pvc>pp>nylon6>nylon66>pe>evoh,pvdf>pvc>pp>evoh>nylon6>nylon66>pe,0.7857142857142859,0.7142857142857143,pvdf,pvdf,False,1.6401108391888397,0.4744307955925676
+existing,DEP,tert-butanol,pvdf>pvc>pp>nylon6>nylon66>pe>evoh,pvdf>pvc>pp>evoh>nylon6>nylon66>pe,0.7857142857142859,0.7142857142857143,pvdf,pvdf,False,1.6401108391888397,0.4744307955925676
+existing,DEP,tetrahydrofuran,pvdf>pvc>pp>nylon6>nylon66>pe>evoh,pvdf>pvc>pp>evoh>nylon6>nylon66>pe,0.7857142857142859,0.7142857142857143,pvdf,pvdf,False,1.6401108391888397,0.4744307955925673
+existing,DEP,tetrahydropyran,pvdf>pvc>pp>nylon6>nylon66>pe>evoh,pvdf>pvc>pp>evoh>nylon6>nylon66>pe,0.7857142857142859,0.7142857142857143,pvdf,pvdf,False,1.6401108391888397,0.4744307955925674
+existing,DEP,toluene,pvdf>pvc>pp>nylon6>nylon66>pe>evoh,pvdf>pvc>pp>evoh>nylon6>nylon66>pe,0.7857142857142859,0.7142857142857143,pvdf,pvdf,False,1.6401108391888397,0.4744307955925674
+existing,DEP,triethylamine,pvdf>pvc>pp>nylon6>nylon66>pe>evoh,pvdf>pvc>pp>evoh>nylon6>nylon66>pe,0.7857142857142859,0.7142857142857143,pvdf,pvdf,False,1.6401108391888397,0.4744307955925675
+existing,DEP,water,pvdf>pvc>pp>nylon6>nylon66>pe>evoh,pvdf>pvc>pp>evoh>nylon6>nylon66>pe,0.7857142857142859,0.7142857142857143,pvdf,pvdf,False,1.6401108391888397,0.47443079559256773

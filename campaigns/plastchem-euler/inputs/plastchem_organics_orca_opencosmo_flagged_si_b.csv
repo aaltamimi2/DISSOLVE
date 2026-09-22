@@ -1,0 +1,240 @@
+name,smiles,plastchem_id,cas,inchikey,molecular_weight_g_mol,flag
+"2,8,9-Trioxa-5-aza-1-borabicyclo[3.3.3]undecane",B12OCCN(CCO1)CCO2,6659,283-56-7,NKPKVNRBHXOADG-UHFFFAOYSA-N,156.98,boron
+"2-Phenyl-1,3,2-dioxaborolane",B1(OCCO1)C2=CC=CC=C2,8588,4406-72-8,HVEMPDZEMICSMG-UHFFFAOYSA-N,147.97,boron
+"Borinic acid, diethyl-, 1-methylethyl ester",B(CC)(CC)OC(C)C,13448,74953-03-0,KINHWSVLCIEQTO-UHFFFAOYSA-N,128.02,boron
+"Boron, (benzenamine)trifluoro-, (T-4)-",[B-]([NH2+]C1=CC=CC=C1)(F)(F)F,11632,660-53-7,VVPMIAKJDMDELQ-UHFFFAOYSA-N,160.93,boron
+"Boron, trifluoro(2-propanamine)-, (T-4)-",[B-]([NH2+]C(C)C)(F)(F)F,8020,3776-04-3,DNJHXGJLGUPXEO-UHFFFAOYSA-N,126.92,boron
+Diethylmethoxyborane,B(CC)(CC)OC,13221,7397-46-8,FESAXEDIWWXCNG-UHFFFAOYSA-N,99.97,boron
+Tribenzyl borate,B(OCC1=CC=CC=C1)(OCC2=CC=CC=C2)OCC3=CC=CC=C3,5502,2467-18-7,IJJNTMLAAKKCML-UHFFFAOYSA-N,332.2,boron
+Tributyl borate,B(OCCCC)(OCCCC)OCCCC,12447,688-74-4,LGQXXHMEBUOXRP-UHFFFAOYSA-N,230.15,boron
+"Trichloro(N,N-dimethyloctylamine)boron",[B-]([N+](C)(C)CCCCCCCC)(Cl)(Cl)Cl,7658,34762-90-8,FXWXWPYCGVUYAA-UHFFFAOYSA-N,274.5,boron
+Triisobutyl borate,B(OCC(C)C)(OCC(C)C)OCC(C)C,2384,13195-76-1,LHJSLDBKUGXPMI-UHFFFAOYSA-N,230.15,boron
+Triisobutylborane,B(CC(C)C)(CC(C)C)CC(C)C,1180,1116-39-8,XDSSGQHOYWGIKC-UHFFFAOYSA-N,182.16,boron
+Triisopropyl borate,B(OC(C)C)(OC(C)C)OC(C)C,9631,5419-55-6,NHDIQVFFNDKAQU-UHFFFAOYSA-N,188.07,boron
+Trimethoxyboroxine,B1(OB(OB(O1)OC)OC)OC,282,102-24-9,ZFMOJHVRFMOIGF-UHFFFAOYSA-N,173.5,boron
+(2-(7-Oxabicyclo[4.1.0]heptan-3-yl)ethyl)triethoxysilane,CCO[Si](CCC1CCC2C(C1)O2)(OCC)OCC,319,10217-34-2,UDUKMRHNZZLJRB-UHFFFAOYSA-N,288.45,silicon
+(3-Aminopropyl)silanetriol,C(CN)C[Si](O)(O)O,10198,58160-99-9,JTXUAHIMULPXKY-UHFFFAOYSA-N,137.21,silicon
+(3-Chloropropyl)diethoxymethylsilane,CCO[Si](C)(CCCCl)OCC,2671,13501-76-3,KEZMLECYELSZDC-UHFFFAOYSA-N,210.77,silicon
+(3-Chloropropyl)triethoxysilane,CCO[Si](CCCCl)(OCC)OCC,9129,5089-70-3,KSCAZPYHLGGNPZ-UHFFFAOYSA-N,240.8,silicon
+(3-Chloropropyl)trimethoxysilane,CO[Si](CCCCl)(OC)OC,5840,2530-87-2,OXYZDRAJMHGSMW-UHFFFAOYSA-N,198.72,silicon
+(3-Glycidoxypropyl)trimethoxysilane,CO[Si](CCCOCC1CO1)(OC)OC,5838,2530-83-8,BPSIOYPQMFLKFR-UHFFFAOYSA-N,236.34,silicon
+(3-Glycidyloxypropyl)triethoxysilane,CCO[Si](CCCOCC1CO1)(OCC)OCC,6079,2602-34-8,JXUKBNICSRJFAP-UHFFFAOYSA-N,278.42,silicon
+(3-Mercaptopropyl)trimethoxysilane,CO[Si](CCCS)(OC)OC,8593,4420-74-0,UUEWCQRISZBELL-UHFFFAOYSA-N,196.34,silicon
+(Dimethoxy(methyl)silyl)methyl methacrylate,CC(=C)C(=O)OC[Si](C)(OC)OC,1737,121177-93-3,YBUIRAZOPRQNDE-UHFFFAOYSA-N,204.3,silicon
+(Trimethoxysilyl)methyl prop-2-enoate,CO[Si](COC(=O)C=C)(OC)OC,4893,21134-38-3,JPPHEZSCZWYTOP-UHFFFAOYSA-N,206.27,silicon
+"1,1,1,5,5,5-Hexamethyl-3-((trimethylsilyl)oxy)-3-vinyltrisiloxane",C[Si](C)(C)O[Si](C=C)(O[Si](C)(C)C)O[Si](C)(C)C,9541,5356-84-3,CHEFFAKKAFRMHG-UHFFFAOYSA-N,322.69,silicon
+"1,1,3,3-Tetramethoxy-1,3-dimethyldisiloxane",CO[Si](C)(OC)O[Si](C)(OC)OC,4264,18186-97-5,JWVHPGDCFVOYMQ-UHFFFAOYSA-N,226.37,silicon
+"1,1,3,3-Tetramethyl-1,3-divinyldisilazane",C[Si](C)(C=C)N[Si](C)(C)C=C,13704,7691-02-3,WYUIWUCVZCRTRH-UHFFFAOYSA-N,185.41,silicon
+"1,1,3,3-Tetramethyl-1,3-divinyldisiloxane",C[Si](C)(C=C)O[Si](C)(C)C=C,6168,2627-95-4,BITPLIXHRASDQB-UHFFFAOYSA-N,186.4,silicon
+"1,2-Bis(chlorodimethylsilyl)ethane",C[Si](C)(CC[Si](C)(C)Cl)Cl,2681,13528-93-3,VGQOKOYKFDUPPJ-UHFFFAOYSA-N,215.26,silicon
+"1,2-Bis(triethoxysilyl)ethane",CCO[Si](CC[Si](OCC)(OCC)OCC)(OCC)OCC,3681,16068-37-4,IZRJPHXTEXTLHY-UHFFFAOYSA-N,354.59,silicon
+"1,2-Bis(trimethoxysilyl)ethane",CO[Si](CC[Si](OC)(OC)OC)(OC)OC,4318,18406-41-2,JCGDCINCKDQXDX-UHFFFAOYSA-N,270.43,silicon
+"1,2-Bis(trimethylsiloxy)ethane",C[Si](C)(C)OCCO[Si](C)(C)C,13211,7381-30-8,JGWFUSVYECJQDT-UHFFFAOYSA-N,206.43,silicon
+"1,3-Bis(2-(7-oxabicyclo[4.1.0]heptan-3-yl)ethyl)-1,1,3,3-tetramethyldisiloxane",C[Si](C)(CCC1CCC2C(C1)O2)O[Si](C)(C)CCC3CCC4C(C3)O4,4387,18724-32-8,UQOXIKVRXYCUMT-UHFFFAOYSA-N,382.7,silicon
+"1,3-Bis(3-aminopropyl)tetramethyldisiloxane",C[Si](C)(CCCN)O[Si](C)(C)CCCN,5505,2469-55-8,GPXCORHXFPYJEH-UHFFFAOYSA-N,248.51,silicon
+"1,3-Bis(trimethylsilyl)urea",C[Si](C)(C)NC(=O)N[Si](C)(C)C,4303,18297-63-7,MASDFXZJIDNRTR-UHFFFAOYSA-N,204.42,silicon
+"1,3-Diethoxy-1,1,3,3-tetramethyldisiloxane",CCO[Si](C)(C)O[Si](C)(C)OCC,4323,18420-09-2,NPOYZXWZANURMM-UHFFFAOYSA-N,222.43,silicon
+"1,6-Hexanediamine, N-((triethoxysilyl)methyl)-",CCO[Si](CNCCCCCCN)(OCC)OCC,3377,15129-36-9,RRQTYXHHYIJDFB-UHFFFAOYSA-N,292.49,silicon
+1-[3-(Trimethoxysilyl)propyl]urea,CO[Si](CCCNC(=O)N)(OC)OC,5322,23843-64-3,LVACOMKKELLCHJ-UHFFFAOYSA-N,222.31,silicon
+"1-Propanethiol, 3-(triethoxysilyl)-",CCO[Si](CCCS)(OCC)OCC,3273,14814-09-6,DCQBZYNUSLHVJC-UHFFFAOYSA-N,238.42,silicon
+"1H-Imidazole, 4,5-dihydro-1-[3-(triethoxysilyl)propyl]-",CCO[Si](CCCN1CCN=C1)(OCC)OCC,10187,58068-97-6,WBUSESIMOZDSHU-UHFFFAOYSA-N,274.43,silicon
+"2,2,4-Trimethyl-1-oxa-4-aza-2-silacyclohexane",CN1CCO[Si](C1)(C)C,274,10196-49-3,GGPLWEZGITVTJX-UHFFFAOYSA-N,145.27,silicon
+"2,2-Bis[(4-trimethylsiloxy)phenyl]propane",CC(C)(C1=CC=C(C=C1)O[Si](C)(C)C)C2=CC=C(C=C2)O[Si](C)(C)C,8576,4387-16-0,QLAHMUJINXIWJF-UHFFFAOYSA-N,372.6,silicon
+"2,4,6,8-Tetramethyl-2,4,6,8-tetravinylcyclotetrasiloxane",C[Si]1(O[Si](O[Si](O[Si](O1)(C)C=C)(C)C=C)(C)C=C)C=C,5899,2554-06-5,VMAWODUEPLAHOE-UHFFFAOYSA-N,344.66,silicon
+"2,4-Hexadienoic acid, 3-(trimethoxysilyl)propyl ester, (2E,4E)-",C/C=C/C=C/C(=O)OCCC[Si](OC)(OC)OC,3816,163802-53-7,BEEJHAQLEWGNOO-SBIWHPGTSA-N,274.38,silicon
+"2,5-Furandione, dihydro-3-[3-(triethoxysilyl)propyl]-",CCO[Si](CCCC1CC(=O)OC1=O)(OCC)OCC,15610,93642-68-3,GXDMUOPCQNLBCZ-UHFFFAOYSA-N,304.41,silicon
+"2-(2,2-Dimethoxy-1,2-azasilolidin-1-yl)ethan-1-amine",CO[Si]1(CCCN1CCN)OC,10820,618914-51-5,TZBLRTMGLVRDRL-UHFFFAOYSA-N,190.32,silicon
+"2-(3,4-Epoxycyclohexyl)ethyltrimethoxysilane",CO[Si](CCC1CCC2C(C1)O2)(OC)OC,426,103432-54-8,DQZNLOXENNXVAD-UHFFFAOYSA-N,246.37,silicon
+"2-(3,4-Epoxycyclohexyl)ethyltrimethoxysilane",CO[Si](CCC1CCC2C(C1)O2)(OC)OC,7564,3388-04-3,DQZNLOXENNXVAD-UHFFFAOYSA-N,246.37,silicon
+"2-Butanone, O,O',O''-(ethenylsilylidyne)trioxime",CCC(=NO[Si](C=C)(ON=C(C)CC)ON=C(C)CC)C,5092,2224-33-1,WXWYJCSIHQKADM-UHFFFAOYSA-N,313.47,silicon
+2-hydroxyethyl N-(3-triethoxysilylpropyl)carbamate,CCO[Si](CCCNC(=O)OCCO)(OCC)OCC,7943,37251-86-8,WSSVPRYHKOFCRD-UHFFFAOYSA-N,309.43,silicon
+"2-Methyl-3,5-dinitrobenzyl alcohol, tert-butyldimethylsilyl ether",CC1=C(C=C(C=C1[N+](=O)[O-])[N+](=O)[O-])CO[Si](C)(C)C(C)(C)C,17430,,NNEICSQGOKPCLO-UHFFFAOYSA-N,326.42,silicon
+"2-Propenoic acid, 2-methyl-, (trimethoxysilyl)methyl ester",CC(=C)C(=O)OC[Si](OC)(OC)OC,9701,54586-78-6,UOKUUKOEIMCYAI-UHFFFAOYSA-N,220.29,silicon
+3-(Chlorodimethylsilyl)propyl methacrylate,CC(=C)C(=O)OCCC[Si](C)(C)Cl,5492,24636-31-5,OKQXCDUCLYWRHA-UHFFFAOYSA-N,220.77,silicon
+3-(Diethoxymethylsilyl)propylamine,CCO[Si](C)(CCCN)OCC,7283,3179-76-8,HXLAEGYMDGUSBD-UHFFFAOYSA-N,191.34,silicon
+3-(Dimethoxymethylsilyl)propylamine,CO[Si](C)(CCCN)OC,7867,3663-44-3,ZYAASQNKCWTPKI-UHFFFAOYSA-N,163.29,silicon
+3-(Triethoxysilyl)propionitrile,CCO[Si](CCC#N)(OCC)OCC,15441,919-31-3,GBQYMXVQHATSCC-UHFFFAOYSA-N,217.34,silicon
+3-(Triethoxysilyl)propyl methacrylate,CCO[Si](CCCOC(=O)C(=C)C)(OCC)OCC,4896,21142-29-0,URDOJQUSEUXVRP-UHFFFAOYSA-N,290.43,silicon
+3-(Trimethoxysilyl)propyl acetate,CC(=O)OCCC[Si](OC)(OC)OC,10321,59004-18-1,FZTPAOAMKBXNSH-UHFFFAOYSA-N,222.31,silicon
+3-(Trimethoxysilyl)propyl acrylate,CO[Si](CCCOC(=O)C=C)(OC)OC,8569,4369-14-6,KBQVDAIIQCXKPI-UHFFFAOYSA-N,234.32,silicon
+3-(Trimethoxysilyl)propyl methacrylate,CC(=C)C(=O)OCCC[Si](OC)(OC)OC,5839,2530-85-0,XDLMVUHYZWKMMD-UHFFFAOYSA-N,248.35,silicon
+3-(Tris(acetoxy)silyl)propyl methacrylate,CC(=C)C(=O)OCCC[Si](OC(=O)C)(OC(=O)C)OC(=O)C,9268,51772-85-1,MLOKHANBEXWBKS-UHFFFAOYSA-N,332.38,silicon
+3-(Tris(trimethylsiloxy)silyl)propyl methacrylate,CC(=C)C(=O)OCCC[Si](O[Si](C)(C)C)(O[Si](C)(C)C)O[Si](C)(C)C,4014,17096-07-0,BESKSSIEODQWBP-UHFFFAOYSA-N,422.8,silicon
+3-Aminopropyltriethoxysilane,CCO[Si](CCCN)(OCC)OCC,15440,919-30-2,WYTZZXDRDKSJID-UHFFFAOYSA-N,221.37,silicon
+3-Aminopropyltrimethoxysilane,CO[Si](CCCN)(OC)OC,2831,13822-56-5,SJECZPVISLOESU-UHFFFAOYSA-N,179.29,silicon
+3-Chloropropylmethyldimethoxysilane,CO[Si](C)(CCCCl)OC,4258,18171-19-2,KNTKCYKJRSMRMZ-UHFFFAOYSA-N,182.72,silicon
+3-Cyanopropyltrichlorosilane,C(CC#N)C[Si](Cl)(Cl)Cl,799,1071-27-8,HMFFOEBLYHLRQN-UHFFFAOYSA-N,202.54,silicon
+3-Glycidoxypropyldimethoxymethylsilane,CO[Si](C)(CCCOCC1CO1)OC,11590,65799-47-5,WHGNXNCOTZPEEK-UHFFFAOYSA-N,220.34,silicon
+3-Isocyanatopropyltrimethoxysilane,CO[Si](CCCN=C=O)(OC)OC,3447,15396-00-6,FMGBDYLOANULLW-UHFFFAOYSA-N,205.28,silicon
+3-Mercaptopropylmethyldimethoxysilane,CO[Si](C)(CCCS)OC,7165,31001-77-1,IKYAJDOSWUATPI-UHFFFAOYSA-N,180.34,silicon
+3-Methacryloxypropylmethyldiethoxysilane,CCO[Si](C)(CCCOC(=O)C(=C)C)OCC,11520,65100-04-1,DOYKFSOCSXVQAN-UHFFFAOYSA-N,260.4,silicon
+3-Methacryloxypropylmethyldimethoxysilane,CC(=C)C(=O)OCCC[Si](C)(OC)OC,3156,14513-34-9,LZMNXXQIQIHFGC-UHFFFAOYSA-N,232.35,silicon
+"4,4,13,13-Tetraethoxy-3,14-dioxa-8,9-dithia-4,13-disilahexadecane",CCO[Si](CCCSSCCC[Si](OCC)(OCC)OCC)(OCC)OCC,10007,56706-10-6,FBBATURSCRIBHN-UHFFFAOYSA-N,474.8,silicon
+4-((Triethoxysilyl)methyl)morpholine,CCO[Si](CN1CCOCC1)(OCC)OCC,5005,21743-27-1,UOCZMUZYGLTGHO-UHFFFAOYSA-N,263.41,silicon
+"4-[3-(Diethoxymethylsilyl)propoxy]-2,2,6,6-tetramethylpiperidine",CCO[Si](C)(CCCOC1CC(NC(C1)(C)C)(C)C)OCC,311,102089-33-8,PTUAFEVULPLJPF-UHFFFAOYSA-N,331.6,silicon
+4-Aminobutyltriethoxysilane,CCO[Si](CCCCN)(OCC)OCC,7096,3069-30-5,SWDDLRSGGCWDPH-UHFFFAOYSA-N,235.4,silicon
+"[(1,1-Dimethyl-2-propynyl)oxy]trimethylsilane",CC(C)(C#C)O[Si](C)(C)C,4202,17869-77-1,JNRUXZIXAXHXTN-UHFFFAOYSA-N,156.3,silicon
+[Diethoxy(methyl)silyl]methyl 2-methylprop-2-enoate,CCO[Si](C)(COC(=O)C(=C)C)OCC,8216,3978-58-3,GXDZOSLIAABYHM-UHFFFAOYSA-N,232.35,silicon
+Allyltriethoxysilane,CCO[Si](CC=C)(OCC)OCC,5887,2550-04-1,UMFJXASDGBJDEB-UHFFFAOYSA-N,204.34,silicon
+Allyltrimethoxysilane,CO[Si](CC=C)(OC)OC,5892,2551-83-9,LFRDHGNFBLIJIY-UHFFFAOYSA-N,162.26,silicon
+Allyltrimethylsilane,C[Si](C)(C)CC=C,13615,762-72-1,HYWCXWRMUZYRPH-UHFFFAOYSA-N,114.26,silicon
+"Benzaldehyde, 2,5-bis[(trimethylsilyl)oxy]-",C[Si](C)(C)OC1=CC(=C(C=C1)O[Si](C)(C)C)C=O,9930,56114-69-3,OGDNDISFPNBJNB-UHFFFAOYSA-N,282.48,silicon
+Bis(3-(triethoxysilyl)propyl)amine,CCO[Si](CCCNCCC[Si](OCC)(OCC)OCC)(OCC)OCC,2665,13497-18-2,RWLDCNACDPTRMY-UHFFFAOYSA-N,425.7,silicon
+Bis(3-glycidoxypropyl)tetramethyldisiloxane,C[Si](C)(CCCOCC1CO1)O[Si](C)(C)CCCOCC2CO2,2059,126-80-7,MFIBZDZRPYQXOM-UHFFFAOYSA-N,362.61,silicon
+Bis(N-methylbenzamido)methylethoxysilane,CCO[Si](C)(N(C)C(=O)C1=CC=CC=C1)N(C)C(=O)C2=CC=CC=C2,3750,16230-35-6,BLEJWUIEUACHKH-UHFFFAOYSA-N,356.5,silicon
+Bis(trimethoxysilylpropyl)amine,CO[Si](CCCNCCC[Si](OC)(OC)OC)(OC)OC,14372,82985-35-1,TZZGHGKTHXIOMN-UHFFFAOYSA-N,341.55,silicon
+Bis[2-(trimethylsilyloxy)ethyl] Ether,C[Si](C)(C)OCCOCCO[Si](C)(C)C,3892,16654-74-3,VZCNNAQIFXLAEZ-UHFFFAOYSA-N,250.48,silicon
+"Bis[3-(2,8,9-trioxa-5-aza-1-silabicyclo[3.3.3]undec-1-YL)propyl] disulfide",C1CO[Si]2(OCCN1CCO2)CCCSSCCC[Si]34OCCN(CCO3)CCO4,14892,883794-93-2,JPSITVNBUQSBEV-UHFFFAOYSA-N,496.8,silicon
+"Chloro(3,3-dimethylbutyl)dimethylsilane",CC(C)(C)CC[Si](C)(C)Cl,15893,96220-76-7,LGEJHPHGNSBWOF-UHFFFAOYSA-N,178.77,silicon
+Chloro(chloromethyl)dimethylsilane,C[Si](C)(CCl)Cl,4026,1719-57-9,ITKVLPYNJQOCPW-UHFFFAOYSA-N,143.08,silicon
+Chlorodimethyl(2-methylbutyl)silane,CCC(C)C[Si](C)(C)Cl,12974,71864-46-5,AJNBBVTVDUXJNX-UHFFFAOYSA-N,164.75,silicon
+Chlorodimethyloctadecylsilane,CCCCCCCCCCCCCCCCCC[Si](C)(C)Cl,4373,18643-08-8,GZGREZWGCWVAEE-UHFFFAOYSA-N,347.1,silicon
+Chlorodimethylphenylsilane,C[Si](C)(C1=CC=CC=C1)Cl,13687,768-33-2,KWYZNESIGBQHJK-UHFFFAOYSA-N,170.71,silicon
+Chlorodimethylvinylsilane,C[Si](C)(C=C)Cl,4027,1719-58-0,XSDCTSITJJJDPY-UHFFFAOYSA-N,120.65,silicon
+Chloromethyltrimethylsilane,C[Si](C)(C)CCl,5257,2344-80-1,OOCUOKHIVGWCTJ-UHFFFAOYSA-N,122.67,silicon
+Chlorotriethylsilane,CC[Si](CC)(CC)Cl,16075,994-30-9,DCFKHNIGBAHNSS-UHFFFAOYSA-N,150.72,silicon
+"Cyclohexanamine, N-[(triethoxysilyl)methyl]-",CCO[Si](CNC1CCCCC1)(OCC)OCC,6236,26495-91-0,WUFHQGLVNNOXMP-UHFFFAOYSA-N,275.46,silicon
+"Cyclohexanamine, N-[3-(trimethoxysilyl)propyl]-",CO[Si](CCCNC1CCCCC1)(OC)OC,7091,3068-78-8,KGNDVXPHQJMHLX-UHFFFAOYSA-N,261.43,silicon
+Cyclohexyldimethoxymethylsilane,CO[Si](C)(C1CCCCC1)OC,4200,17865-32-6,SJJCABYOVIHNPZ-UHFFFAOYSA-N,188.34,silicon
+Cyclomethicone 5,C[Si]1(O[Si](O[Si](O[Si](O[Si](O1)(C)C)(C)C)(C)C)(C)C)C,9614,541-02-6,XMSXQFUHVRWGNA-UHFFFAOYSA-N,370.77,silicon
+"Cyclotrisiloxane, 2,4,6-trimethyl-2,4,6-tris(3,3,3-trifluoropropyl)-",C[Si]1(O[Si](O[Si](O1)(C)CCC(F)(F)F)(C)CCC(F)(F)F)CCC(F)(F)F,5301,2374-14-3,URZHQOCYXDNFGN-UHFFFAOYSA-N,468.53,silicon
+Decamethyltetrasiloxane,C[Si](C)(C)O[Si](C)(C)O[Si](C)(C)O[Si](C)(C)C,2983,141-62-8,YFCGDEUVHLPRCZ-UHFFFAOYSA-N,310.68,silicon
+Decyltrimethoxysilane,CCCCCCCCCC[Si](OC)(OC)OC,9874,5575-48-4,KQAHMVLQCSALSX-UHFFFAOYSA-N,262.46,silicon
+Di-tert-butoxydiacetoxysilane,CC(=O)O[Si](OC(=O)C)(OC(C)(C)C)OC(C)(C)C,2367,13170-23-5,OPARTXXEFXPWJL-UHFFFAOYSA-N,292.4,silicon
+Dibutoxy(dimethyl)silane,CCCCO[Si](C)(C)OCCCC,3632,1591-02-2,GQNWJCQWBFHQAO-UHFFFAOYSA-N,204.38,silicon
+Dichloro(chloromethyl)methylsilane,C[Si](CCl)(Cl)Cl,3498,1558-33-4,JAYBZWYBCUJLNQ-UHFFFAOYSA-N,163.5,silicon
+Dichlorodimethylsilane,C[Si](C)(Cl)Cl,13494,75-78-5,LIKFHECYJZWXFJ-UHFFFAOYSA-N,129.06,silicon
+Dichlorodiphenylsilane,C1=CC=C(C=C1)[Si](C2=CC=CC=C2)(Cl)Cl,14091,80-10-4,OSXYHAQZDCICNX-UHFFFAOYSA-N,253.19,silicon
+Dichloromethylphenylsilane,C[Si](C1=CC=CC=C1)(Cl)Cl,3300,149-74-6,GNEPOXWQWFSSOU-UHFFFAOYSA-N,191.13,silicon
+Dichloromethyltetradecylsilane,CCCCCCCCCCCCCC[Si](C)(Cl)Cl,10328,59086-80-5,LRYJACVYKNBVNI-UHFFFAOYSA-N,311.4,silicon
+Dichloromethylvinylsilane,C[Si](C=C)(Cl)Cl,1993,124-70-9,YLJJAVFOBDSYAN-UHFFFAOYSA-N,141.07,silicon
+Dicyclopentyldimethoxysilane,CO[Si](C1CCCC1)(C2CCCC2)OC,2096,126990-35-0,JWCYDYZLEAQGJJ-UHFFFAOYSA-N,228.4,silicon
+Diethoxy(methyl)(3-(oxiran-2-ylmethoxy)propyl)silane,CCO[Si](C)(CCCOCC1CO1)OCC,6783,2897-60-1,OTARVPUIYXHRRB-UHFFFAOYSA-N,248.39,silicon
+Diethoxydimethylsilane,CCO[Si](C)(C)OCC,13966,78-62-6,YYLGKUPAFFKGRQ-UHFFFAOYSA-N,148.28,silicon
+Diethoxydiphenylsilane,CCO[Si](C1=CC=CC=C1)(C2=CC=CC=C2)OCC,5896,2553-19-7,ZZNQQQWFKKTOSD-UHFFFAOYSA-N,272.41,silicon
+Diethoxymethylvinylsilane,CCO[Si](C)(C=C)OCC,9762,5507-44-8,MBGQQKKTDDNCSG-UHFFFAOYSA-N,160.29,silicon
+Diethoxy{2-ethoxy-2-[(oxiran-2-yl)methoxy]ethyl}methylsilane,CCOC(C[Si](C)(OCC)OCC)OCC1CO1,2899,139485-54-4,LZFQRUUGQJDNFL-UHFFFAOYSA-N,278.42,silicon
+Diisobutyldimethoxysilane,CC(C)C[Si](CC(C)C)(OC)OC,4216,17980-32-4,NHYFIJRXGOQNFS-UHFFFAOYSA-N,204.38,silicon
+Diisopropyldimethoxysilane,CC(C)[Si](C(C)C)(OC)OC,4278,18230-61-0,VHPUZTHRFWIGAW-UHFFFAOYSA-N,176.33,silicon
+Dimethoxy(methyl)(octadecyl)silane,CCCCCCCCCCCCCCCCCC[Si](C)(OC)OC,12817,70851-50-2,UBCPEZPOCJYHPM-UHFFFAOYSA-N,358.7,silicon
+Dimethoxydimethylsilane,CO[Si](C)(C)OC,1146,1112-39-6,JJQZDUKDJDQPMQ-UHFFFAOYSA-N,120.22,silicon
+Dimethoxydiphenylsilane,CO[Si](C1=CC=CC=C1)(C2=CC=CC=C2)OC,12175,6843-66-9,AHUXYBVKTIBBJW-UHFFFAOYSA-N,244.36,silicon
+Dimethoxymethylphenylsilane,CO[Si](C)(C1=CC=CC=C1)OC,7004,3027-21-2,CVQVSVBUMVSJES-UHFFFAOYSA-N,182.29,silicon
+Dimethoxymethylvinylsilane,CO[Si](C)(C=C)OC,3914,16753-62-1,ZLNAFSPCNATQPQ-UHFFFAOYSA-N,132.23,silicon
+Dimethylsilanediol,C[Si](C)(O)O,724,1066-42-8,XCLIHDJZGPCUBT-UHFFFAOYSA-N,92.17,silicon
+Diphenylsilanediol,C1=CC=C(C=C1)[Si](C2=CC=CC=C2)(O)O,15729,947-42-2,OLLFKUHHDPMQFR-UHFFFAOYSA-N,216.31,silicon
+Dodecamethylcyclohexasiloxane,C[Si]1(O[Si](O[Si](O[Si](O[Si](O[Si](O1)(C)C)(C)C)(C)C)(C)C)(C)C)C,9602,540-97-6,IUMSDRXLFWAGNT-UHFFFAOYSA-N,444.92,silicon
+Dodecamethylpentasiloxane,C[Si](C)(C)O[Si](C)(C)O[Si](C)(C)O[Si](C)(C)O[Si](C)(C)C,2984,141-63-9,FBZANXDWQAVSTQ-UHFFFAOYSA-N,384.84,silicon
+Dodecyltrichlorosilane,CCCCCCCCCCCC[Si](Cl)(Cl)Cl,8738,4484-72-4,BNCXNUWGWUZTCN-UHFFFAOYSA-N,303.8,silicon
+Dodecyltriethoxysilane,CCCCCCCCCCCC[Si](OCC)(OCC)OCC,4351,18536-91-9,YGUFXEJWPRRAEK-UHFFFAOYSA-N,332.6,silicon
+"Ethanimidic acid, N-(trimethylsilyl)-, trimethylsilyl ester",CC(=N[Si](C)(C)C)O[Si](C)(C)C,513,10416-59-8,SIOVKLKJSOKLIF-UHFFFAOYSA-N,203.43,silicon
+"Ethanol, 2,2'-[[3-(triethoxysilyl)propyl]imino]bis-",CCO[Si](CCCN(CCO)CCO)(OCC)OCC,13529,7538-44-5,IYAYDWLKTPIEDC-UHFFFAOYSA-N,309.47,silicon
+Ethoxydimethylvinylsilane,CCO[Si](C)(C)C=C,9540,5356-83-2,JEWCZPTVOYXPGG-UHFFFAOYSA-N,130.26,silicon
+Ethoxytrimethylsilane,CCO[Si](C)(C)C,4285,1825-62-3,RSIHJDGMBDPTIM-UHFFFAOYSA-N,118.25,silicon
+Ethyl trihydrogen orthosilicate,CCO[Si](O)(O)O,1060,1109-96-2,JKGITWJSGDFJKO-UHFFFAOYSA-N,124.17,silicon
+Ethyltriacetoxysilane,CC[Si](OC(=O)C)(OC(=O)C)OC(=O)C,4162,17689-77-9,KXJLGCBCRCSXQF-UHFFFAOYSA-N,234.28,silicon
+Ethyltrichlorosilane,CC[Si](Cl)(Cl)Cl,1358,115-21-9,ZOYFEXPFPVDYIS-UHFFFAOYSA-N,163.5,silicon
+Ethyltrimethoxysilane,CC[Si](OC)(OC)OC,9486,5314-55-6,SBRXLTRZCJVAPH-UHFFFAOYSA-N,150.25,silicon
+Hexadecyltriethoxysilane,CCCCCCCCCCCCCCCC[Si](OCC)(OCC)OCC,3829,16415-13-7,OYGYKEULCAINCL-UHFFFAOYSA-N,388.7,silicon
+Hexadecyltrimethoxysilane,CCCCCCCCCCCCCCCC[Si](OC)(OC)OC,3828,16415-12-6,RSKGMYDENCAJEN-UHFFFAOYSA-N,346.6,silicon
+Hexamethylcyclotrisiloxane,C[Si]1(O[Si](O[Si](O1)(C)C)(C)C)C,9615,541-05-9,HTDJPCNNEPUOOQ-UHFFFAOYSA-N,222.46,silicon
+Hexamethyldisilane,C[Si](C)(C)[Si](C)(C)C,3152,1450-14-2,NEXSMEBSBIABKL-UHFFFAOYSA-N,146.38,silicon
+Hexamethyldisilazane,C[Si](C)(C)N[Si](C)(C)C,16108,999-97-3,FFUAGWLWBBFQJT-UHFFFAOYSA-N,161.39,silicon
+Hexamethyldisiloxane,C[Si](C)(C)O[Si](C)(C)C,770,107-46-0,UQEAIHBTYFGYIE-UHFFFAOYSA-N,162.38,silicon
+Hexyltrichlorosilane,CCCCCC[Si](Cl)(Cl)Cl,15526,928-65-4,LFXJGGDONSCPOF-UHFFFAOYSA-N,219.6,silicon
+Hexyltrimethoxysilane,CCCCCC[Si](OC)(OC)OC,7093,3069-19-0,CZWLNMOIEMTDJY-UHFFFAOYSA-N,206.35,silicon
+Iodotrimethylsilane,C[Si](C)(C)I,3661,16029-98-4,CSRZQMIRAZTJOY-UHFFFAOYSA-N,200.09,silicon
+Isobutylisopropyldimethoxysilane,CC(C)C[Si](C(C)C)(OC)OC,1172,111439-76-0,XFAOZKNGVLIXLC-UHFFFAOYSA-N,190.35,silicon
+Isobutyltrimethoxysilane,CC(C)C[Si](OC)(OC)OC,4317,18395-30-7,XYJRNCYWTVGEEG-UHFFFAOYSA-N,178.3,silicon
+Methacryloxymethyltriethoxysilane,CCO[Si](COC(=O)C(=C)C)(OCC)OCC,9875,5577-72-0,UZIAQVMNAXPCJQ-UHFFFAOYSA-N,262.37,silicon
+Methylphenyldiethoxysilane,CCO[Si](C)(C1=CC=CC=C1)OCC,13782,775-56-4,MNFGEHQPOWJJBH-UHFFFAOYSA-N,210.34,silicon
+Methyltriacetoxysilane,CC(=O)O[Si](C)(OC(=O)C)OC(=O)C,8492,4253-34-3,TVJPBVNWVPUZBM-UHFFFAOYSA-N,220.25,silicon
+Methyltrichlorosilane,C[Si](Cl)(Cl)Cl,13495,75-79-6,JLUFWMXJHAVVNN-UHFFFAOYSA-N,149.47,silicon
+Methyltrimethoxysilane,CO[Si](C)(OC)OC,1479,1185-55-3,BFXIKLCIZHOAAZ-UHFFFAOYSA-N,136.22,silicon
+Methyltris(methylethylketoximo)silane,CC/C(=N/O[Si](O/N=C(/CC)\C)(O/N=C(/CC)\C)C)/C,5207,22984-54-9,OGZPYBBKQGPQNU-DABLZPOSSA-N,301.46,silicon
+Methyltris(trimethylsiloxy)silane,C[Si](C)(C)O[Si](C)(O[Si](C)(C)C)O[Si](C)(C)C,4206,17928-28-8,RGMZNZABJYWAEC-UHFFFAOYSA-N,310.68,silicon
+Morpholylmethylmethyldiethoxysilane,CCO[Si](C)(CN1CCOCC1)OCC,4255,18162-75-9,FAPWMSZUPGYLMD-UHFFFAOYSA-N,233.38,silicon
+"N,N',N''-Tricyclohexyl-1-methylsilanetriamine",C[Si](NC1CCCCC1)(NC2CCCCC2)NC3CCCCC3,3628,15901-40-3,HDNXAGOHLKHJOA-UHFFFAOYSA-N,337.6,silicon
+"N,N'-Bis(3-(trimethoxysilyl)propyl)ethylenediamine",CO[Si](CCCNCCNCCC[Si](OC)(OC)OC)(OC)OC,12456,68845-16-9,HZGIOLNCNORPKR-UHFFFAOYSA-N,384.62,silicon
+"N,N,N',N'-tetramethyl-N''-[3-(trimethoxysilyl)propyl]guanidine",CN(C)C(=NCCC[Si](OC)(OC)OC)N(C)C,12666,69709-01-9,ZUEIRGBMFHHKAC-UHFFFAOYSA-N,277.44,silicon
+"N,N-Diethyl-1,1,1-trimethylsilylamine",CCN(CC)[Si](C)(C)C,16089,996-50-9,JOOMLFKONHCLCJ-UHFFFAOYSA-N,145.32,silicon
+"N,N-Dimethyltrimethylsilylamine",CN(C)[Si](C)(C)C,4834,2083-91-2,KAHVZNKZQFSBFW-UHFFFAOYSA-N,117.26,silicon
+N-(2-Aminoethyl)-3-aminopropylmethyldimethoxysilane,CO[Si](C)(CCCNCCN)OC,7095,3069-29-2,MQWFLKHKWJMCEN-UHFFFAOYSA-N,206.36,silicon
+N-(3-(Triethoxysilyl)propyl)formamide,CCO[Si](CCCNC=O)(OCC)OCC,13667,76524-94-2,ZGJZKIWPDBYTJA-UHFFFAOYSA-N,249.38,silicon
+N-(3-(Trimethoxysilyl)propyl)butylamine,CCCCNCCC[Si](OC)(OC)OC,7168,31024-56-3,XCOASYLMDUQBHW-UHFFFAOYSA-N,235.4,silicon
+N-(3-Triethoxysilylpropyl)ethylenediamine,CCO[Si](CCCNCCN)(OCC)OCC,9130,5089-72-5,INJVFBCDVXYHGQ-UHFFFAOYSA-N,264.44,silicon
+N-(Triethoxysilylpropyl)urea,CCO[Si](CCCNC(=O)N)(OCC)OCC,5316,23779-32-0,LVNLBBGBASVLLI-UHFFFAOYSA-N,264.39,silicon
+N-(Trimethylsilyl)acetamide,CC(=O)N[Si](C)(C)C,2594,13435-12-6,LWFWUJCJKPUZLV-UHFFFAOYSA-N,131.25,silicon
+N-(Trimethylsilyl)imidazole,C[Si](C)(C)N1C=CN=C1,4253,18156-74-6,YKFRUJSEPGHZFJ-UHFFFAOYSA-N,140.26,silicon
+N-[3-(Trimethoxysilyl)propyl]aniline,CO[Si](CCCNC1=CC=CC=C1)(OC)OC,7090,3068-76-6,KBJFYLLAMSZSOG-UHFFFAOYSA-N,255.38,silicon
+N-[3-(Trimethoxysilyl)propyl]ethylenediamine,CO[Si](CCCNCCN)(OC)OC,4144,1760-24-3,PHQOGHDTIVQXHL-UHFFFAOYSA-N,222.36,silicon
+N-Methyl-N-(trimethylsilyl)trifluoroacetamide,CN(C(=O)C(F)(F)F)[Si](C)(C)C,5475,24589-78-4,MSPCIZMDDUQPGJ-UHFFFAOYSA-N,199.25,silicon
+N-Methylaminopropyltrimethoxysilane,CNCCC[Si](OC)(OC)OC,7094,3069-25-8,DVYVMJLSUSGYMH-UHFFFAOYSA-N,193.32,silicon
+"N1-(2-Aminoethyl)-N2-(3-(trimethoxysilyl)propyl)ethane-1,2-diamine",CO[Si](CCCNCCNCCN)(OC)OC,7694,35141-30-1,NHBRUUFBSBSTHM-UHFFFAOYSA-N,265.43,silicon
+Octadecyltrichlorosilane,CCCCCCCCCCCCCCCCCC[Si](Cl)(Cl)Cl,1204,112-04-9,PYJJCSYBSYXGQQ-UHFFFAOYSA-N,387.9,silicon
+Octaethylcyclotetrasiloxane,CC[Si]1(O[Si](O[Si](O[Si](O1)(CC)CC)(CC)CC)(CC)CC)CC,3155,1451-99-6,XOCOMEGNVMCRMP-UHFFFAOYSA-N,408.8,silicon
+Octamethylcyclotetrasilazane,C[Si]1(N[Si](N[Si](N[Si](N1)(C)C)(C)C)(C)C)C,304,1020-84-4,FIADVASZMLCQIF-UHFFFAOYSA-N,292.68,silicon
+Octamethylcyclotetrasiloxane,C[Si]1(O[Si](O[Si](O[Si](O1)(C)C)(C)C)(C)C)C,9841,556-67-2,HMMGMWAXVFQUOA-UHFFFAOYSA-N,296.61,silicon
+Octamethyltrisiloxane,C[Si](C)(C)O[Si](C)(C)O[Si](C)(C)C,772,107-51-7,CXQXSVUQTKDNFP-UHFFFAOYSA-N,236.53,silicon
+"Octanethioic acid, S-[3-(triethoxysilyl)propyl] ester",CCCCCCCC(=O)SCCC[Si](OCC)(OCC)OCC,5056,220727-26-4,JPPLPDOXWBVPCW-UHFFFAOYSA-N,364.6,silicon
+Octyltrichlorosilane,CCCCCCCC[Si](Cl)(Cl)Cl,9454,5283-66-9,RCHUVCPBWWSUMC-UHFFFAOYSA-N,247.7,silicon
+p-(t-Butyl)phenethyldimethylchlorosilane,CC(C)(C)C1=CC=C(C=C1)CC[Si](C)(C)Cl,15598,93502-75-1,YHAOQDUDNXJPIG-UHFFFAOYSA-N,254.87,silicon
+Pentyltrichlorosilane,CCCCC[Si](Cl)(Cl)Cl,778,107-72-2,KWDQAHIRKOXFAV-UHFFFAOYSA-N,205.6,silicon
+Pentyltriethoxysilane,CCCCC[Si](OCC)(OCC)OCC,6540,2761-24-2,FHVAUDREWWXPRW-UHFFFAOYSA-N,234.41,silicon
+Phenethyltrichlorosilane,C1=CC=C(C=C1)CC[Si](Cl)(Cl)Cl,15674,940-41-0,FMYXZXAKZWIOHO-UHFFFAOYSA-N,239.6,silicon
+Phenyltrichlorosilane,C1=CC=C(C=C1)[Si](Cl)(Cl)Cl,15991,98-13-5,ORVMIVQULIKXCP-UHFFFAOYSA-N,211.5,silicon
+Phenyltriethoxysilane,CCO[Si](C1=CC=CC=C1)(OCC)OCC,13987,780-69-8,JCVQKRGIASEUKR-UHFFFAOYSA-N,240.37,silicon
+Phenyltrimethoxysilane,CO[Si](C1=CC=CC=C1)(OC)OC,6943,2996-92-1,ZNOCGWVLWPVKAO-UHFFFAOYSA-N,198.29,silicon
+Phenyltris(trimethylsiloxy)silane,C[Si](C)(C)O[Si](C1=CC=CC=C1)(O[Si](C)(C)C)O[Si](C)(C)C,4902,2116-84-9,LINXHFKHZLOLEI-UHFFFAOYSA-N,372.75,silicon
+Propyltrichlorosilane,CCC[Si](Cl)(Cl)Cl,2982,141-57-1,DOEHJNBEOVLHGL-UHFFFAOYSA-N,177.53,silicon
+"Silanamine, 1,1,1-triethoxy-N,N-diethyl-",CCN(CC)[Si](OCC)(OCC)OCC,7687,35077-00-0,KOFGHHIZTRGVAF-UHFFFAOYSA-N,235.4,silicon
+"Silane, 1,2-ethanediylbis[dichloromethyl-",C[Si](CC[Si](C)(Cl)Cl)(Cl)Cl,7523,3353-69-3,VFURVLVRHAMJKG-UHFFFAOYSA-N,256.1,silicon
+"Silane, 1,2-ethynediylbis[ethynylmethylphenyl-",C[Si](C#C)(C#C[Si](C)(C#C)C1=CC=CC=C1)C2=CC=CC=C2,2038,125499-28-7,MEGRBGJPKQYVFY-UHFFFAOYSA-N,314.5,silicon
+"Silane, [2-[3(or 4)-(chloromethyl)phenyl]ethyl]trimethoxy-",CO[Si](CCC1=CC=C(C=C1)CCl)(OC)OC,11961,68128-25-6,IOLWRXMELRWXQY-UHFFFAOYSA-N,274.81,silicon
+"Silane, chlorodimethyloctyl-",CCCCCCCC[Si](C)(C)Cl,4256,18162-84-0,DBKNGKYVNBJWHL-UHFFFAOYSA-N,206.83,silicon
+"Silane, dichloro(2-chloroethyl)methyl-",C[Si](CCCl)(Cl)Cl,13905,7787-85-1,DBWSTBGNSJEPFT-UHFFFAOYSA-N,177.53,silicon
+"Silane, dichlorododecylmethyl-",CCCCCCCCCCCC[Si](C)(Cl)Cl,4319,18407-07-3,ZAADUWCLWTWDSZ-UHFFFAOYSA-N,283.3,silicon
+"Silanetriamine, N,N',N'',1-tetramethyl-",CN[Si](C)(NC)NC,4268,18209-75-1,OSCCDXHPMYNADD-UHFFFAOYSA-N,133.27,silicon
+"Silicic acid (H6Si2O7), hexaethyl ester",CCO[Si](OCC)(OCC)O[Si](OCC)(OCC)OCC,4970,2157-42-8,GYTROFMCUJZKNA-UHFFFAOYSA-N,342.53,silicon
+"Silicic acid, ethyl ester",CCO[Si](=O)O,1069,11099-06-2,JDAIJCNBFIWLJJ-UHFFFAOYSA-N,106.15,silicon
+Silicon tetraacetate,CC(=O)O[Si](OC(=O)C)(OC(=O)C)OC(=O)C,9938,562-90-3,YZVRVDPMGYFCGL-UHFFFAOYSA-N,264.26,silicon
+tert-Butylchlorodiphenylsilane,CC(C)(C)[Si](C1=CC=CC=C1)(C2=CC=CC=C2)Cl,10243,58479-61-1,MHYGQXWCZAYSLJ-UHFFFAOYSA-N,274.86,silicon
+Tert-Butyldimethylsilyl chloride,CC(C)(C)[Si](C)(C)Cl,4254,18162-48-6,BCNZYOJHNLTNEZ-UHFFFAOYSA-N,150.72,silicon
+Tetra-(methylethylketoxime)silane,CC/C(=N/O[Si](O/N=C(/CC)\C)(O/N=C(/CC)\C)O/N=C(/CC)\C)/C,7595,34206-40-1,INETXKGLHYNTHK-AQWWNALJSA-N,372.53,silicon
+Tetraethyl orthosilicate,CCO[Si](OCC)(OCC)OCC,13947,78-10-4,BOTDANWDWHJENH-UHFFFAOYSA-N,208.33,silicon
+Tetrakis(2-butoxyethyl) orthosilicate,CCCCOCCO[Si](OCCOCCCC)(OCCOCCCC)OCCOCCCC,4392,18765-38-3,KWBZWRZCDGHBIQ-UHFFFAOYSA-N,496.7,silicon
+Tetrakis(2-ethoxyethyl) orthosilicate,CCOCCO[Si](OCCOCC)(OCCOCC)OCCOCC,4320,18407-94-8,OTTUQUOINFJTBJ-UHFFFAOYSA-N,384.54,silicon
+Tetrakis(2-methoxyethoxy)silane,COCCO[Si](OCCOC)(OCCOC)OCCOC,4971,2157-45-1,JSECNWXDEZOMPD-UHFFFAOYSA-N,328.43,silicon
+Tetrakis(vinyldimethylsiloxy)silane,C[Si](C)(C=C)O[Si](O[Si](C)(C)C=C)(O[Si](C)(C)C=C)O[Si](C)(C)C=C,10485,60111-54-8,JMTMWSZLPHDWBQ-UHFFFAOYSA-N,432.9,silicon
+Tetramethoxysilane,CO[Si](OC)(OC)OC,11956,681-84-5,LFQCEHFDDXELDD-UHFFFAOYSA-N,152.22,silicon
+Tetramethylsilane,C[Si](C)(C)C,13492,75-76-3,CZDYPVPMEAXLPK-UHFFFAOYSA-N,88.22,silicon
+Tetrapropyl orthosilicate,CCCO[Si](OCCC)(OCCC)OCCC,12056,682-01-9,ZQZCOBSUOFHDEE-UHFFFAOYSA-N,264.43,silicon
+trans-(2-Chlorovinyl)dimethylethoxysilane,CCO[Si](C)(C)/C=C/Cl,2157,128595-84-6,CDRKALGDLCSMSG-AATRIKPKSA-N,164.7,silicon
+"Trichloro(3,3,4,4,5,5,6,6,7,7,8,8,8-tridecafluorooctyl)silane",C(C[Si](Cl)(Cl)Cl)C(C(C(C(C(C(F)(F)F)(F)F)(F)F)(F)F)(F)F)(F)F,14016,78560-45-9,PISDRBMXQBSCIP-UHFFFAOYSA-N,481.5,silicon
+Trichloro(3-chloropropyl)silane,C(C[Si](Cl)(Cl)Cl)CCl,5888,2550-06-3,OOXSLJBUMMHDKW-UHFFFAOYSA-N,212,silicon
+Trichlorovinylsilane,C=C[Si](Cl)(Cl)Cl,13502,75-94-5,GQIUQDDJKHLHTB-UHFFFAOYSA-N,161.48,silicon
+Triethoxy(3-isocyanatopropyl)silane,CCO[Si](CCCN=C=O)(OCC)OCC,5525,24801-88-5,FRGPKMWIYVTFIQ-UHFFFAOYSA-N,247.36,silicon
+Triethoxy(3-thiocyanatopropyl)silane,CCO[Si](CCCSC#N)(OCC)OCC,7652,34708-08-2,HKMVWLQFAYGKSI-UHFFFAOYSA-N,263.43,silicon
+Triethoxy(propyl)silane,CCC[Si](OCC)(OCC)OCC,5886,2550-02-9,NBXZNTLFQLUFES-UHFFFAOYSA-N,206.35,silicon
+Triethoxymethylsilane,CCO[Si](C)(OCC)OCC,4721,2031-67-6,CPUDPFPXCZDNGI-UHFFFAOYSA-N,178.3,silicon
+Triethoxyoctylsilane,CCCCCCCC[Si](OCC)(OCC)OCC,6864,2943-75-1,MSRJTTSHWYDFIU-UHFFFAOYSA-N,276.49,silicon
+Triethylsilane,CC[SiH](CC)CC,10699,617-86-7,AQRLNPVMDITEJU-UHFFFAOYSA-N,116.28,silicon
+Triisopropylsilyl acrylate,CC(C)[Si](C(C)C)(C(C)C)OC(=O)C=C,3591,157859-20-6,PQSIXYSSKXAOFE-UHFFFAOYSA-N,228.4,silicon
+"Trimethoxy(3,3,3-trifluoropropyl)silane",CO[Si](CCC(F)(F)F)(OC)OC,8524,429-60-7,JLGNHOJUQFHYEZ-UHFFFAOYSA-N,218.25,silicon
+"Trimethoxy(3,3,4,4,5,5,6,6,7,7,8,8,8-tridecafluorooctyl)silane",CO[Si](CCC(C(C(C(C(C(F)(F)F)(F)F)(F)F)(F)F)(F)F)(F)F)(OC)OC,14713,85857-16-5,BVQYIDJXNYHKRK-UHFFFAOYSA-N,468.28,silicon
+Trimethoxypropylsilane,CCC[Si](OC)(OC)OC,728,1067-25-0,HQYALQRYBUJWDH-UHFFFAOYSA-N,164.27,silicon
+Trimethylchlorosilane,C[Si](C)(C)Cl,13493,75-77-4,IJOOHPMOJXWVHK-UHFFFAOYSA-N,108.64,silicon
+Trimethylsilanol,C[Si](C)(C)O,723,1066-40-6,AAPLIUHOKVUFCC-UHFFFAOYSA-N,90.2,silicon
+Trimethylsilyl acetate,CC(=O)O[Si](C)(C)C,6527,2754-27-0,QHUNJMXHQHHWQP-UHFFFAOYSA-N,132.23,silicon
+Trimethylsilyl trifluoromethanesulfonate,C[Si](C)(C)OS(=O)(=O)C(F)(F)F,6538,27607-77-8,FTVLMFQEYACZNP-UHFFFAOYSA-N,222.26,silicon
+Trimethylsilyl trihydrogen silicate,C[Si](C)(C)O[Si](O)(O)O,9941,56275-01-5,MNTALGTVSQTALQ-UHFFFAOYSA-N,168.3,silicon
+Tris(2-methoxyethoxy)vinylsilane,COCCO[Si](C=C)(OCCOC)OCCOC,731,1067-53-4,WOXXJEVNDJOOLV-UHFFFAOYSA-N,280.39,silicon
+Tris(dimethylamino)methylsilane,CN(C)[Si](C)(N(C)C)N(C)C,8012,3768-57-8,AHKKZIUZTWZKDR-UHFFFAOYSA-N,175.35,silicon
+Vinyltriacetoxysilane,CC(=O)O[Si](C=C)(OC(=O)C)OC(=O)C,8346,4130-08-9,NOZAQBYNLKNDRT-UHFFFAOYSA-N,232.26,silicon
+Vinyltriethoxysilane,CCO[Si](C=C)(OCC)OCC,13946,78-08-0,FWDBOZPQNFPOLF-UHFFFAOYSA-N,190.31,silicon
+Vinyltriisopropoxysilane,CC(C)O[Si](C=C)(OC(C)C)OC(C)C,4229,18023-33-1,MABAWBWRUSBLKQ-UHFFFAOYSA-N,232.39,silicon
+Vinyltrimethoxysilane,CO[Si](C=C)(OC)OC,6553,2768-02-7,NKSJNEHGWDZZQF-UHFFFAOYSA-N,148.23,silicon
+Vinyltrimethylsilane,C[Si](C)(C)C=C,13531,754-05-2,GCSJLQSCSDMKTP-UHFFFAOYSA-N,100.23,silicon
+Vinyltris(methoxypropoxy)silane,COCCCO[Si](C=C)(OCCCOC)OCCCOC,7024,303746-21-6,XSUJDDNOLKLDLF-UHFFFAOYSA-N,322.47,silicon
+Vinyltris(tert-butylperoxy)silane,CC(C)(C)OO[Si](C=C)(OOC(C)(C)C)OOC(C)(C)C,3388,15188-09-7,WCAGGTLUGWSHOV-UHFFFAOYSA-N,322.47,silicon
+4-(tert-Butyldimethylsilyloxy)phenylboronic acid,B(C1=CC=C(C=C1)O[Si](C)(C)C(C)(C)C)(O)O,3635,159191-56-7,NVHHEADQQACSCJ-UHFFFAOYSA-N,252.19,silicon+boron

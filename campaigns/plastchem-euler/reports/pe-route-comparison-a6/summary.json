@@ -1,0 +1,271 @@
+{
+  "utc": "2026-09-22T04:35:05.361807+00:00",
+  "intersection": 32,
+  "comparison_pairs": 128,
+  "paired_predictions": 128,
+  "failures": [],
+  "metrics": {
+    "all": {
+      "n": 128,
+      "slope": 0.9806288421782665,
+      "intercept": -0.26938556938500086,
+      "residual_sd_n_minus_2": 0.4352198526176478,
+      "sign_changed_pairs": 5,
+      "sign_changed_solvents": [
+        "1,2-propanediol",
+        "acetylacetone",
+        "dimethyl sulfoxide",
+        "dodecane",
+        "ethanol"
+      ],
+      "largest_disagreements": [
+        {
+          "solute": "DEHP",
+          "solvent": "water",
+          "A": -7.714031368442084,
+          "B": -9.968770000809284,
+          "delta": -2.2547386323672
+        },
+        {
+          "solute": "BBP",
+          "solvent": "chloroform",
+          "A": 4.581770340604947,
+          "B": 2.6281424352046248,
+          "delta": -1.9536279054003218
+        },
+        {
+          "solute": "DEP",
+          "solvent": "chloroform",
+          "A": 4.280103608232408,
+          "B": 2.3912305890228147,
+          "delta": -1.8888730192095933
+        },
+        {
+          "solute": "DEHP",
+          "solvent": "chloroform",
+          "A": 4.741043128856455,
+          "B": 2.8938504175043986,
+          "delta": -1.847192711352056
+        },
+        {
+          "solute": "DBP",
+          "solvent": "chloroform",
+          "A": 4.372871637317256,
+          "B": 2.7224606228411874,
+          "delta": -1.6504110144760684
+        }
+      ]
+    },
+    "DEP": {
+      "n": 32,
+      "slope": 0.8203408402139962,
+      "intercept": -0.046619440488368746,
+      "residual_sd_n_minus_2": 0.38039083038038585,
+      "sign_changed_pairs": 0,
+      "sign_changed_solvents": [],
+      "largest_disagreements": [
+        {
+          "solute": "DEP",
+          "solvent": "chloroform",
+          "A": 4.280103608232408,
+          "B": 2.3912305890228147,
+          "delta": -1.8888730192095933
+        },
+        {
+          "solute": "DEP",
+          "solvent": "water",
+          "A": -1.9966438034294312,
+          "B": -3.2306834351635443,
+          "delta": -1.2340396317341131
+        },
+        {
+          "solute": "DEP",
+          "solvent": "dichloromethane",
+          "A": 3.2249997035266245,
+          "B": 2.0787045551975956,
+          "delta": -1.146295148329029
+        },
+        {
+          "solute": "DEP",
+          "solvent": "acetone",
+          "A": 1.5320174914245737,
+          "B": 1.2775572346045685,
+          "delta": -0.25446025682000517
+        },
+        {
+          "solute": "DEP",
+          "solvent": "acetic acid",
+          "A": 0.9947239798586586,
+          "B": 0.7498287965314439,
+          "delta": -0.24489518332721472
+        }
+      ]
+    },
+    "DBP": {
+      "n": 32,
+      "slope": 0.9237106600635737,
+      "intercept": -0.13404633269381047,
+      "residual_sd_n_minus_2": 0.3711970989428578,
+      "sign_changed_pairs": 1,
+      "sign_changed_solvents": [
+        "1,2-propanediol"
+      ],
+      "largest_disagreements": [
+        {
+          "solute": "DBP",
+          "solvent": "chloroform",
+          "A": 4.372871637317256,
+          "B": 2.7224606228411874,
+          "delta": -1.6504110144760684
+        },
+        {
+          "solute": "DBP",
+          "solvent": "water",
+          "A": -4.329687640439367,
+          "B": -5.4133222733066235,
+          "delta": -1.0836346328672564
+        },
+        {
+          "solute": "DBP",
+          "solvent": "dichloromethane",
+          "A": 3.2142182517149784,
+          "B": 2.1905170691794362,
+          "delta": -1.0237011825355422
+        },
+        {
+          "solute": "DBP",
+          "solvent": "acetone",
+          "A": 1.364516791679955,
+          "B": 1.0441893556444815,
+          "delta": -0.32032743603547353
+        },
+        {
+          "solute": "DBP",
+          "solvent": "n,n-dimethylformamide",
+          "A": 1.2776872785345397,
+          "B": 1.0021972739174876,
+          "delta": -0.2754900046170521
+        }
+      ]
+    },
+    "BBP": {
+      "n": 32,
+      "slope": 0.9453821168697154,
+      "intercept": -0.24369744863757736,
+      "residual_sd_n_minus_2": 0.4391433281516045,
+      "sign_changed_pairs": 0,
+      "sign_changed_solvents": [],
+      "largest_disagreements": [
+        {
+          "solute": "BBP",
+          "solvent": "chloroform",
+          "A": 4.581770340604947,
+          "B": 2.6281424352046248,
+          "delta": -1.9536279054003218
+        },
+        {
+          "solute": "BBP",
+          "solvent": "water",
+          "A": -4.2128372134271945,
+          "B": -5.6961089919562475,
+          "delta": -1.483271778529053
+        },
+        {
+          "solute": "BBP",
+          "solvent": "dichloromethane",
+          "A": 3.58784563003827,
+          "B": 2.3654413790068083,
+          "delta": -1.2224042510314619
+        },
+        {
+          "solute": "BBP",
+          "solvent": "acetone",
+          "A": 1.9755665846737096,
+          "B": 1.5495302236834076,
+          "delta": -0.42603636099030195
+        },
+        {
+          "solute": "BBP",
+          "solvent": "n,n-dimethylformamide",
+          "A": 1.9302948416220773,
+          "B": 1.5444339000605105,
+          "delta": -0.3858609415615668
+        }
+      ]
+    },
+    "DEHP": {
+      "n": 32,
+      "slope": 1.061892229089093,
+      "intercept": -0.46164526154830854,
+      "residual_sd_n_minus_2": 0.4753944323419527,
+      "sign_changed_pairs": 4,
+      "sign_changed_solvents": [
+        "acetylacetone",
+        "dimethyl sulfoxide",
+        "dodecane",
+        "ethanol"
+      ],
+      "largest_disagreements": [
+        {
+          "solute": "DEHP",
+          "solvent": "water",
+          "A": -7.714031368442084,
+          "B": -9.968770000809284,
+          "delta": -2.2547386323672
+        },
+        {
+          "solute": "DEHP",
+          "solvent": "chloroform",
+          "A": 4.741043128856455,
+          "B": 2.8938504175043986,
+          "delta": -1.847192711352056
+        },
+        {
+          "solute": "DEHP",
+          "solvent": "dichloromethane",
+          "A": 3.3097926406576046,
+          "B": 2.1419319807427235,
+          "delta": -1.167860659914881
+        },
+        {
+          "solute": "DEHP",
+          "solvent": "acetone",
+          "A": 1.230618513331682,
+          "B": 0.6404282319695069,
+          "delta": -0.5901902813621751
+        },
+        {
+          "solute": "DEHP",
+          "solvent": "acetylacetone",
+          "A": 0.4074306745581532,
+          "B": -0.18065485551719146,
+          "delta": -0.5880855300753447
+        }
+      ]
+    }
+  },
+  "energy_summary": {
+    "A": {
+      "n90": 7,
+      "partition_sum_relative_to_minimum": 3.0928969669380826,
+      "energy_definition": "Gaussian COSMO corrected total energy from source mcos"
+    },
+    "B": {
+      "n90": 6,
+      "partition_sum_relative_to_minimum": 2.967276370143377,
+      "energy_definition": "ORCA COSMORS solute energy from surface"
+    },
+    "B_OPT": {
+      "n90": 6,
+      "partition_sum_relative_to_minimum": 3.0255279295202393,
+      "energy_definition": "ORCA gas-phase OPT electronic energy; sensitivity basis"
+    }
+  },
+  "dropped": [
+    {
+      "solvent": "xylene",
+      "reason": "not in resolved campaign references"
+    }
+  ],
+  "confound": "Routes differ simultaneously in QC engine, parameterisation and re-optimised geometry. This measures the entire route; no parameterisation-only attribution is possible."
+}

@@ -1,0 +1,10 @@
+# Live campaign data and runtime caches
+/state/
+/logs/
+__pycache__/
+*.py[cod]
+
+# Explicit files greater than 10,000,000 bytes
+/logs/campaign-changes.jsonl
+/logs/chunk-release-loop.jsonl
+/state/campaign-v1/remote-records.json

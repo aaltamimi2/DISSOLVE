@@ -1,0 +1,30 @@
+{
+  "utc": "2026-09-22T13:43:15.936803+00:00",
+  "counts": {
+    "evoh": 11,
+    "nylon6": 20,
+    "nylon66": 28,
+    "pe": 31,
+    "pp": 25,
+    "pvc": 27,
+    "pvdf": 24
+  },
+  "denominator_conformers": 166,
+  "denominator_predictions": 896,
+  "source_scripts": {
+    "compare_pe_routes_a6.py": "c366a57624b573e0e3c3c9af93d17ba07368dda471311e7ade4ba939556c55d7",
+    "pe_a6_existing_convention.py": "157a238689f070ad2acbc67330872f87d052b746affa1b0a175bf3da19bdf615"
+  },
+  "excluded": [
+    "PET",
+    "PS",
+    "polyethersulfone",
+    "nitrocellulose",
+    "polyurethane",
+    "PC",
+    "PETG"
+  ],
+  "idle_worker_stopped": [
+    "3377731"
+  ]
+}

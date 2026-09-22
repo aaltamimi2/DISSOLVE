@@ -1,0 +1,56 @@
+{
+  "utc": "2026-09-22T04:27:35.963382+00:00",
+  "denominator": 31,
+  "accepted": 31,
+  "failed": 0,
+  "unique_representatives": 26,
+  "merge_count": 5,
+  "temperature_K": 298.15,
+  "energy_basis": "gas-phase OPT electronic energy, BP86/def2-TZVP(-f); not vibrational free energy",
+  "merge_criteria": {
+    "heavy_atom_symmetry_aligned_rmsd_A_max": 0.1,
+    "absolute_opt_energy_difference_hartree_max": 1e-05,
+    "assignment": "Compare directly with lowest-energy accepted representative; no transitive chaining"
+  },
+  "merges": [
+    {
+      "entry_id": "pe__config_6040",
+      "merged_into": "pe__config_3410",
+      "heavy_atom_symmetry_aligned_rmsd_A": 3.129783084366829e-05,
+      "absolute_opt_energy_difference_hartree": 9.860059435595758e-10
+    },
+    {
+      "entry_id": "pe__config_4140",
+      "merged_into": "pe__config_4170",
+      "heavy_atom_symmetry_aligned_rmsd_A": 1.1970496441040093e-06,
+      "absolute_opt_energy_difference_hartree": 7.469793672498781e-10
+    },
+    {
+      "entry_id": "pe__config_7530",
+      "merged_into": "pe__config_7520",
+      "heavy_atom_symmetry_aligned_rmsd_A": 0.00011138685138791317,
+      "absolute_opt_energy_difference_hartree": 3.203797405149089e-08
+    },
+    {
+      "entry_id": "pe__config_1960",
+      "merged_into": "pe__config_1950",
+      "heavy_atom_symmetry_aligned_rmsd_A": 3.1064638645792276e-05,
+      "absolute_opt_energy_difference_hartree": 8.349729796464089e-10
+    },
+    {
+      "entry_id": "pe__config_2070",
+      "merged_into": "pe__config_1950",
+      "heavy_atom_symmetry_aligned_rmsd_A": 7.288729316569306e-05,
+      "absolute_opt_energy_difference_hartree": 2.2189965420693625e-09
+    }
+  ],
+  "raw_weight_sum": 1.0,
+  "unique_representative_weight_sum": 0.9999999999999998,
+  "notes": [
+    "All 31 rows retained; failed rows carry no weight or invented energy",
+    "Raw row weights retain source-library duplication; representative weights count each merged basin once",
+    "No polymer-contaminant partition coefficient computed",
+    "Runner resource metadata retains the initial 72-hour submission request; authoritative scheduler readback after the owner-directed update confirms PE at 3 hours"
+  ],
+  "volume_conversion_source": "opencosmorspy/input_parsers.py ORCA volume parser: bohr^3 times 0.52917721092^3"
+}

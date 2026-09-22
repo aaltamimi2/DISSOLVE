@@ -1,0 +1,19 @@
+"""Finish presentation metadata and manifest from the completed full readback verification."""
+import json,csv,hashlib,datetime,os,shutil
+from pathlib import Path
+from PIL import Image
+R=Path('/home/aaltamimi2/plastchem-euler');D=Path('/mnt/r/plastchem-euler/progress-2026-09-17/contaminant-overview-draft-v1');sha=lambda p:hashlib.sha256(Path(p).read_bytes()).hexdigest()
+v=json.loads((D/'verification.json').read_text());assert v['source_result_files_readback_verified']==10949 and v['predictions']==70572 and v['matrix_matches_csv']
+original_verification_sha=sha(D/'verification.json');pred=list(csv.DictReader((D/'predictions.csv').open()));source_hashes={Path(r['source_path']):r['source_sha256'] for r in pred};assert len(source_hashes)==10949
+actual_names={D/'snapshot'/kind/name for kind in ['panel','octanol'] for name in os.listdir(D/'snapshot'/kind)};assert actual_names==set(source_hashes)
+assert sha(D/'contaminant-data-overview-draft.png')==sha(R/'contaminant-data-overview-draft-2026-09-17.png');im=Image.open(D/'contaminant-data-overview-draft.png');assert all(abs(x-300)<.01 for x in im.info['dpi'])
+v.update(local_png_sha256=sha(D/'contaminant-data-overview-draft.png'),png_dimensions=list(im.size),png_dpi=im.info['dpi'],presentation_metadata_refreshed_utc=datetime.datetime.now(datetime.timezone.utc).isoformat(),previous_verification_sha256=original_verification_sha,metadata_correction='Final footer says campaign failures; numerical values and matrix unchanged; update image hash after caption edit',predictions_csv_sha256=sha(D/'predictions.csv'),matrix_sha256=sha(D/'heatmap-matrix.npz'))
+(D/'verification.json').write_text(json.dumps(v,indent=2)+'\n')
+for name in ['render_contaminant_overview_20260917.py','seal_contaminant_overview_20260917.py',Path(__file__).name]:shutil.copyfile(R/'scripts'/name,D/'code'/name)
+spec=R/'reports/progress-2026-09-17/CONTAMINANT_OVERVIEW_AND_CALCULATION_SPEC.md';shutil.copyfile(spec,D/spec.name)
+report=(D/'REPORT.md').read_text().replace('ORCA: 5,803 accepted / 21 failed / 0 running / 0 not yet run, denominator 5,824.', 'Campaign outcomes: 5,803 accepted / 21 failed / 0 running / 0 not yet run, denominator 5,824. The 21 failed dispositions are 16 integrity/connectivity failures, two geometry nonconvergences, and three preflight failures; they are not 21 DFT execution failures.')
+report+='\nGray-cell reasons are tabulated in `cell-status-counts.csv` and `missingness-summary.json`: 208,908 future-grid cells not launched; 115,063 cells awaiting existing panel work; 11,606 without compatible solvent surfaces; 61 dilution failures. Presentation metadata was refreshed after the final footer wording correction; numeric data and the passed readback checks were unchanged.\n';(D/'REPORT.md').write_text(report)
+artifacts={p for p in D.iterdir() if p.is_file() and p.name!='SHA256SUMS'} | {p for p in (D/'code').iterdir() if p.is_file()};hashes=dict(source_hashes);hashes.update({p:sha(p) for p in artifacts});(D/'SHA256SUMS').write_text(''.join(h+'  '+str(p.relative_to(D))+'\n' for p,h in sorted(hashes.items())))
+receipt={'utc':datetime.datetime.now(datetime.timezone.utc).isoformat(),'root':str(D),'files':len(hashes),'manifest_sha256':sha(D/'SHA256SUMS'),'verification':v,'numerical_checks':'All source files were read back in the completed verifier before this manifest-only handoff; no duplicate scientific or raw-source audit run'};(R/'state/contaminant-overview-draft-20260917.json').write_text(json.dumps(receipt,indent=2)+'\n')
+(R/'reports/progress-2026-09-17/REPORT.md').write_text(report.replace('](contaminant-data-overview-draft.png)',f']({D}/contaminant-data-overview-draft.png)').replace('](CONTAMINANT_OVERVIEW_AND_CALCULATION_SPEC.md)',f']({spec})'))
+print(json.dumps({k:v for k,v in receipt.items() if k!='verification'}))
