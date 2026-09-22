@@ -1,0 +1,714 @@
+{
+  "schema": "RESULTS.fixtures.v1",
+  "fixture_count": 101,
+  "accepted_count": 101,
+  "rows": [
+    {
+      "fixture_id": "F-MATCH-1",
+      "family": "F-MATCH",
+      "ok": true,
+      "failing_keys": [],
+      "halt": null
+    },
+    {
+      "fixture_id": "F-MATCH-2",
+      "family": "F-MATCH",
+      "ok": true,
+      "failing_keys": [],
+      "halt": null
+    },
+    {
+      "fixture_id": "F-MATCH-3",
+      "family": "F-MATCH",
+      "ok": true,
+      "failing_keys": [],
+      "halt": null
+    },
+    {
+      "fixture_id": "F-MATCH-4",
+      "family": "F-MATCH",
+      "ok": true,
+      "failing_keys": [],
+      "halt": null
+    },
+    {
+      "fixture_id": "F-MATCH-5",
+      "family": "F-MATCH",
+      "ok": true,
+      "failing_keys": [],
+      "halt": null
+    },
+    {
+      "fixture_id": "F-MATCH-6",
+      "family": "F-MATCH",
+      "ok": true,
+      "failing_keys": [],
+      "halt": null
+    },
+    {
+      "fixture_id": "F-ID-1",
+      "family": "F-ID",
+      "ok": true,
+      "failing_keys": [],
+      "halt": null
+    },
+    {
+      "fixture_id": "F-ID-1b",
+      "family": "F-ID",
+      "ok": true,
+      "failing_keys": [],
+      "halt": null
+    },
+    {
+      "fixture_id": "F-ID-2",
+      "family": "F-ID",
+      "ok": true,
+      "failing_keys": [],
+      "halt": null
+    },
+    {
+      "fixture_id": "F-ID-3",
+      "family": "F-ID",
+      "ok": true,
+      "failing_keys": [],
+      "halt": null
+    },
+    {
+      "fixture_id": "F-ID-4",
+      "family": "F-ID",
+      "ok": true,
+      "failing_keys": [],
+      "halt": null
+    },
+    {
+      "fixture_id": "F-ID-5",
+      "family": "F-ID",
+      "ok": true,
+      "failing_keys": [],
+      "halt": null
+    },
+    {
+      "fixture_id": "F-ID-6",
+      "family": "F-ID",
+      "ok": true,
+      "failing_keys": [],
+      "halt": null
+    },
+    {
+      "fixture_id": "F-ID-7",
+      "family": "F-ID",
+      "ok": true,
+      "failing_keys": [],
+      "halt": null
+    },
+    {
+      "fixture_id": "F-ID-8",
+      "family": "F-ID",
+      "ok": true,
+      "failing_keys": [],
+      "halt": null
+    },
+    {
+      "fixture_id": "F-M4-1",
+      "family": "F-M4",
+      "ok": true,
+      "failing_keys": [],
+      "halt": null
+    },
+    {
+      "fixture_id": "F-M4-2",
+      "family": "F-M4",
+      "ok": true,
+      "failing_keys": [],
+      "halt": null
+    },
+    {
+      "fixture_id": "F-COUNT-1",
+      "family": "F-COUNT",
+      "ok": true,
+      "failing_keys": [],
+      "halt": null
+    },
+    {
+      "fixture_id": "F-COUNT-2",
+      "family": "F-COUNT",
+      "ok": true,
+      "failing_keys": [],
+      "halt": null
+    },
+    {
+      "fixture_id": "F-COUNT-3",
+      "family": "F-COUNT",
+      "ok": true,
+      "failing_keys": [],
+      "halt": null
+    },
+    {
+      "fixture_id": "F-COUNT-4",
+      "family": "F-COUNT",
+      "ok": true,
+      "failing_keys": [],
+      "halt": null
+    },
+    {
+      "fixture_id": "F-COUNT-5",
+      "family": "F-COUNT",
+      "ok": true,
+      "failing_keys": [],
+      "halt": null
+    },
+    {
+      "fixture_id": "F-COUNT-6",
+      "family": "F-COUNT",
+      "ok": true,
+      "failing_keys": [],
+      "halt": null
+    },
+    {
+      "fixture_id": "F-COUNT-7",
+      "family": "F-COUNT",
+      "ok": true,
+      "failing_keys": [],
+      "halt": null
+    },
+    {
+      "fixture_id": "F-COUNT-8",
+      "family": "F-COUNT",
+      "ok": true,
+      "failing_keys": [],
+      "halt": null
+    },
+    {
+      "fixture_id": "F-COUNT-9",
+      "family": "F-COUNT",
+      "ok": true,
+      "failing_keys": [],
+      "halt": null
+    },
+    {
+      "fixture_id": "F-COUNT-10",
+      "family": "F-COUNT",
+      "ok": true,
+      "failing_keys": [],
+      "halt": null
+    },
+    {
+      "fixture_id": "F-COUNT-11",
+      "family": "F-COUNT",
+      "ok": true,
+      "failing_keys": [],
+      "halt": null
+    },
+    {
+      "fixture_id": "F-COUNT-12",
+      "family": "F-COUNT",
+      "ok": true,
+      "failing_keys": [],
+      "halt": null
+    },
+    {
+      "fixture_id": "F-COUNT-13",
+      "family": "F-COUNT",
+      "ok": true,
+      "failing_keys": [],
+      "halt": null
+    },
+    {
+      "fixture_id": "F-COUNT-14",
+      "family": "F-COUNT",
+      "ok": true,
+      "failing_keys": [],
+      "halt": null
+    },
+    {
+      "fixture_id": "F-REF-1",
+      "family": "F-REF",
+      "ok": true,
+      "failing_keys": [],
+      "halt": null
+    },
+    {
+      "fixture_id": "F-REF-2",
+      "family": "F-REF",
+      "ok": true,
+      "failing_keys": [],
+      "halt": null
+    },
+    {
+      "fixture_id": "F-REF-3",
+      "family": "F-REF",
+      "ok": true,
+      "failing_keys": [],
+      "halt": null
+    },
+    {
+      "fixture_id": "F-REF-4",
+      "family": "F-REF",
+      "ok": true,
+      "failing_keys": [],
+      "halt": null
+    },
+    {
+      "fixture_id": "F-REF-5",
+      "family": "F-REF",
+      "ok": true,
+      "failing_keys": [],
+      "halt": null
+    },
+    {
+      "fixture_id": "F-REF-6",
+      "family": "F-REF",
+      "ok": true,
+      "failing_keys": [],
+      "halt": null
+    },
+    {
+      "fixture_id": "F-REF-7",
+      "family": "F-REF",
+      "ok": true,
+      "failing_keys": [],
+      "halt": null
+    },
+    {
+      "fixture_id": "F-REF-8",
+      "family": "F-REF",
+      "ok": true,
+      "failing_keys": [],
+      "halt": null
+    },
+    {
+      "fixture_id": "F-EQ-1",
+      "family": "F-EQ",
+      "ok": true,
+      "failing_keys": [],
+      "halt": null
+    },
+    {
+      "fixture_id": "F-EQ-2",
+      "family": "F-EQ",
+      "ok": true,
+      "failing_keys": [],
+      "halt": null
+    },
+    {
+      "fixture_id": "F-EQ-3",
+      "family": "F-EQ",
+      "ok": true,
+      "failing_keys": [],
+      "halt": null
+    },
+    {
+      "fixture_id": "F-EQ-4a",
+      "family": "F-EQ",
+      "ok": true,
+      "failing_keys": [],
+      "halt": null
+    },
+    {
+      "fixture_id": "F-EQ-4b",
+      "family": "F-EQ",
+      "ok": true,
+      "failing_keys": [],
+      "halt": null
+    },
+    {
+      "fixture_id": "F-EQ-5a",
+      "family": "F-EQ",
+      "ok": true,
+      "failing_keys": [],
+      "halt": null
+    },
+    {
+      "fixture_id": "F-EQ-5b",
+      "family": "F-EQ",
+      "ok": true,
+      "failing_keys": [],
+      "halt": null
+    },
+    {
+      "fixture_id": "F-EQ-5c",
+      "family": "F-EQ",
+      "ok": true,
+      "failing_keys": [],
+      "halt": null
+    },
+    {
+      "fixture_id": "F-EQ-6",
+      "family": "F-EQ",
+      "ok": true,
+      "failing_keys": [],
+      "halt": null
+    },
+    {
+      "fixture_id": "F-EQ-7",
+      "family": "F-EQ",
+      "ok": true,
+      "failing_keys": [],
+      "halt": null
+    },
+    {
+      "fixture_id": "F-EQ-8a",
+      "family": "F-EQ",
+      "ok": true,
+      "failing_keys": [],
+      "halt": null
+    },
+    {
+      "fixture_id": "F-EQ-8b",
+      "family": "F-EQ",
+      "ok": true,
+      "failing_keys": [],
+      "halt": null
+    },
+    {
+      "fixture_id": "F-EQ-9",
+      "family": "F-EQ",
+      "ok": true,
+      "failing_keys": [],
+      "halt": null
+    },
+    {
+      "fixture_id": "F-TEXT-1",
+      "family": "F-TEXT",
+      "ok": true,
+      "failing_keys": [],
+      "halt": null
+    },
+    {
+      "fixture_id": "F-EMIT-1",
+      "family": "F-EMIT",
+      "ok": true,
+      "failing_keys": [],
+      "halt": null
+    },
+    {
+      "fixture_id": "F-ID-9",
+      "family": "F-ID",
+      "ok": true,
+      "failing_keys": [],
+      "halt": "canonicalization_collision"
+    },
+    {
+      "fixture_id": "F-ID-10",
+      "family": "F-ID",
+      "ok": true,
+      "failing_keys": [],
+      "halt": "reference_duplicate_atom"
+    },
+    {
+      "fixture_id": "F-ID-11",
+      "family": "F-ID",
+      "ok": true,
+      "failing_keys": [],
+      "halt": "id_collision"
+    },
+    {
+      "fixture_id": "F-COUNT-15",
+      "family": "F-COUNT",
+      "ok": true,
+      "failing_keys": [],
+      "halt": null
+    },
+    {
+      "fixture_id": "F-TEXT-2",
+      "family": "F-TEXT",
+      "ok": true,
+      "failing_keys": [],
+      "halt": null
+    },
+    {
+      "fixture_id": "F-TEXT-3",
+      "family": "F-TEXT",
+      "ok": true,
+      "failing_keys": [],
+      "halt": null
+    },
+    {
+      "fixture_id": "F-EQ-10",
+      "family": "F-EQ",
+      "ok": true,
+      "failing_keys": [],
+      "halt": null
+    },
+    {
+      "fixture_id": "F-EQ-11",
+      "family": "F-EQ",
+      "ok": true,
+      "failing_keys": [],
+      "halt": null
+    },
+    {
+      "fixture_id": "F-EQ-12",
+      "family": "F-EQ",
+      "ok": true,
+      "failing_keys": [],
+      "halt": null
+    },
+    {
+      "fixture_id": "F-EQ-13",
+      "family": "F-EQ",
+      "ok": true,
+      "failing_keys": [],
+      "halt": null
+    },
+    {
+      "fixture_id": "F-RS-1",
+      "family": "F-RS",
+      "ok": true,
+      "failing_keys": [],
+      "halt": null
+    },
+    {
+      "fixture_id": "F-RS-2",
+      "family": "F-RS",
+      "ok": true,
+      "failing_keys": [],
+      "halt": null
+    },
+    {
+      "fixture_id": "F-RS-3",
+      "family": "F-RS",
+      "ok": true,
+      "failing_keys": [],
+      "halt": null
+    },
+    {
+      "fixture_id": "F-RS-4",
+      "family": "F-RS",
+      "ok": true,
+      "failing_keys": [],
+      "halt": null
+    },
+    {
+      "fixture_id": "F-EMIT-2",
+      "family": "F-EMIT",
+      "ok": true,
+      "failing_keys": [],
+      "halt": null
+    },
+    {
+      "fixture_id": "F-ID-1c",
+      "family": "F-ID",
+      "ok": true,
+      "failing_keys": [],
+      "halt": null
+    },
+    {
+      "fixture_id": "F-MATCH-7",
+      "family": "F-MATCH",
+      "ok": true,
+      "failing_keys": [],
+      "halt": null
+    },
+    {
+      "fixture_id": "F-EMIT-3",
+      "family": "F-EMIT",
+      "ok": true,
+      "failing_keys": [],
+      "halt": null
+    },
+    {
+      "fixture_id": "F-CB-1",
+      "family": "F-CB",
+      "ok": true,
+      "failing_keys": [],
+      "halt": null
+    },
+    {
+      "fixture_id": "F-CB-2",
+      "family": "F-CB",
+      "ok": true,
+      "failing_keys": [],
+      "halt": null
+    },
+    {
+      "fixture_id": "F-CB-3",
+      "family": "F-CB",
+      "ok": true,
+      "failing_keys": [],
+      "halt": null
+    },
+    {
+      "fixture_id": "F-CB-4",
+      "family": "F-CB",
+      "ok": true,
+      "failing_keys": [],
+      "halt": null
+    },
+    {
+      "fixture_id": "F-CB-5",
+      "family": "F-CB",
+      "ok": true,
+      "failing_keys": [],
+      "halt": null
+    },
+    {
+      "fixture_id": "F-CB-6",
+      "family": "F-CB",
+      "ok": true,
+      "failing_keys": [],
+      "halt": null
+    },
+    {
+      "fixture_id": "F-CB-7",
+      "family": "F-CB",
+      "ok": true,
+      "failing_keys": [],
+      "halt": null
+    },
+    {
+      "fixture_id": "F-CB-8",
+      "family": "F-CB",
+      "ok": true,
+      "failing_keys": [],
+      "halt": null
+    },
+    {
+      "fixture_id": "F-CB-9",
+      "family": "F-CB",
+      "ok": true,
+      "failing_keys": [],
+      "halt": null
+    },
+    {
+      "fixture_id": "F-CB-10",
+      "family": "F-CB",
+      "ok": true,
+      "failing_keys": [],
+      "halt": "stub_visibility_conflict"
+    },
+    {
+      "fixture_id": "F-STRAT-1",
+      "family": "F-STRAT",
+      "ok": true,
+      "failing_keys": [],
+      "halt": null
+    },
+    {
+      "fixture_id": "F-STRAT-2",
+      "family": "F-STRAT",
+      "ok": true,
+      "failing_keys": [],
+      "halt": null
+    },
+    {
+      "fixture_id": "F-STRAT-3",
+      "family": "F-STRAT",
+      "ok": true,
+      "failing_keys": [],
+      "halt": null
+    },
+    {
+      "fixture_id": "F-STRAT-4",
+      "family": "F-STRAT",
+      "ok": true,
+      "failing_keys": [],
+      "halt": null
+    },
+    {
+      "fixture_id": "F-RS-5",
+      "family": "F-RS",
+      "ok": true,
+      "failing_keys": [],
+      "halt": null
+    },
+    {
+      "fixture_id": "F-RS-6",
+      "family": "F-RS",
+      "ok": true,
+      "failing_keys": [],
+      "halt": null
+    },
+    {
+      "fixture_id": "F-RS-7",
+      "family": "F-RS",
+      "ok": true,
+      "failing_keys": [],
+      "halt": null
+    },
+    {
+      "fixture_id": "F-PERT-1",
+      "family": "F-PERT",
+      "ok": true,
+      "failing_keys": [],
+      "halt": null
+    },
+    {
+      "fixture_id": "F-PERT-2",
+      "family": "F-PERT",
+      "ok": true,
+      "failing_keys": [],
+      "halt": null
+    },
+    {
+      "fixture_id": "F-PERT-3",
+      "family": "F-PERT",
+      "ok": true,
+      "failing_keys": [],
+      "halt": null
+    },
+    {
+      "fixture_id": "F-PERT-4",
+      "family": "F-PERT",
+      "ok": true,
+      "failing_keys": [],
+      "halt": null
+    },
+    {
+      "fixture_id": "F-EMIT-4",
+      "family": "F-EMIT",
+      "ok": true,
+      "failing_keys": [],
+      "halt": null
+    },
+    {
+      "fixture_id": "F-PERT-5",
+      "family": "F-PERT",
+      "ok": true,
+      "failing_keys": [],
+      "halt": null
+    },
+    {
+      "fixture_id": "F-PERT-6",
+      "family": "F-PERT",
+      "ok": true,
+      "failing_keys": [],
+      "halt": null
+    },
+    {
+      "fixture_id": "F-STRAT-5",
+      "family": "F-STRAT",
+      "ok": true,
+      "failing_keys": [],
+      "halt": null
+    },
+    {
+      "fixture_id": "F-RS-8",
+      "family": "F-RS",
+      "ok": true,
+      "failing_keys": [],
+      "halt": null
+    },
+    {
+      "fixture_id": "F-EMIT-5",
+      "family": "F-EMIT",
+      "ok": true,
+      "failing_keys": [],
+      "halt": null
+    },
+    {
+      "fixture_id": "F-EMIT-6",
+      "family": "F-EMIT",
+      "ok": true,
+      "failing_keys": [],
+      "halt": null
+    },
+    {
+      "fixture_id": "F-EMIT-7",
+      "family": "F-EMIT",
+      "ok": true,
+      "failing_keys": [],
+      "halt": null
+    }
+  ]
+}

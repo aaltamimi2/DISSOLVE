@@ -23,9 +23,9 @@ from dissolve import registry, safety
 from dissolve.cli import EXPECTED_REGISTRY_NAMES, doctor_report
 from dissolve.contracts import parse_tool_result
 
-_SNAPSHOT = Path.home() / "dissolve-v12-audit/safety/pubchem_safety_snapshot.duckdb"
+_SNAPSHOT = Path.home() / "dissolve-v12-audit/safety/pubchem_safety_snapshot.v2.duckdb"
 _SNAPSHOT_SHA256 = (
-    "0aaa5de41367051ceca656982d3828bd40474343f2f14f404638b33bf6d5029d"
+    "9f4082e0844ab18698fd229986d215fc7403767961c53bc5ac548875daaae0f7"
 )
 _LIVE_HEADINGS = (
     "Flash Point", "Autoignition Temperature", "Vapor Pressure",
@@ -33,7 +33,7 @@ _LIVE_HEADINGS = (
     "Environmental Biodegradation",
     "NIOSH Recommendations", "OSHA Standards",
 )
-_FETCHED_AT = "2026-08-24T21:35:39.134855+00:00"
+_FETCHED_AT = "2026-08-28T21:29:23.217777+00:00"
 _TOLUENE = "Toluene"
 _TOLUENE_CID = 1140
 _MISS_CID = 1
@@ -148,9 +148,9 @@ def test_cid_outside_snapshot_is_named_miss(monkeypatch):
     assert "safety_profile" not in payload
 
 
-def test_decoy_same_size_file_is_digest_mismatch(monkeypatch):
-    decoy = _ROOT / "src" / "dissolve" / "data" / "contaminants.duckdb"
-    assert decoy.is_file()
+def test_decoy_same_size_file_is_digest_mismatch(tmp_path, monkeypatch):
+    decoy = tmp_path / "decoy.duckdb"
+    decoy.write_bytes(b"\x00" * _SNAPSHOT.stat().st_size)
     assert decoy.stat().st_size == _SNAPSHOT.stat().st_size
     assert hashlib.sha256(decoy.read_bytes()).hexdigest() != _SNAPSHOT_SHA256
     monkeypatch.setenv("DISSOLVE_SAFETY_SNAPSHOT", str(decoy))

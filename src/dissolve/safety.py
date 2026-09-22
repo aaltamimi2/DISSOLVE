@@ -19,7 +19,7 @@ from datetime import datetime, timezone
 from functools import lru_cache
 from importlib.resources import files
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any, Literal, Mapping, Optional, Sequence
 
 import duckdb
 
@@ -47,10 +47,10 @@ _HEADINGS = (
 )
 _HEADING_ERROR_KEY = "_dissolve_heading_error"
 _SNAPSHOT_SHA256 = (
-    "0aaa5de41367051ceca656982d3828bd40474343f2f14f404638b33bf6d5029d"
+    "9f4082e0844ab18698fd229986d215fc7403767961c53bc5ac548875daaae0f7"
 )
 _SNAPSHOT_DEFAULT = Path.home() / (
-    "dissolve-v12-audit/safety/pubchem_safety_snapshot.duckdb"
+    "dissolve-v12-audit/safety/pubchem_safety_snapshot.v2.duckdb"
 )
 _BROKEN_BIODEGRADATION_HEADING = "Biodegradation"
 
@@ -493,6 +493,8 @@ def _snapshot_pubchem(cid: int) -> dict[str, Any]:
         "failed_headings": failed,
         "heading_errors": heading_errors,
         "_origin": origin,
+        "ghs_basis": record.get("ghs_basis"),
+        "ghs_nonbasis_severe": _json_field(record.get("ghs_nonbasis_severe")) or [],
     }
 
 
@@ -572,6 +574,400 @@ def _assessment(
     }
 
 
+_CHEM21_RECIPE = "Prat2016_CHEM21_GreenChem_18_288"
+_CHEM21_H_TOKEN = re.compile(r"\bH[2-4]\d{2}")
+_CHEM21_RESISTIVITY_THRESHOLD_OHM_M = 1.0e8
+# "chem21" is the default CHEM21 metric: the WORST of Safety/Health/Environment
+# (Table 6 band, then max). An agent that asks for CHEM21 without naming a
+# sub-score gets worst-of-three; "chem21_safety" is the explicit opt-in.
+_CHEM21_METRIC_ALIASES = {"chem21": "chem21_worst"}
+
+_CHEM21_PAYLOAD_KEYS = (
+    "chem21_safety_score",
+    "chem21_health_score",
+    "chem21_environment_score",
+    "chem21_default_ranking",
+    "chem21_safety_band",
+    "chem21_recipe",
+    "chem21_inputs",
+    "chem21_adjustments",
+    "chem21_unavailable_reason",
+    "chem21_ghs_source",
+    "chem21_admission_signal_word",
+    "chem21_snapshot_signal_word",
+    "chem21_signal_word_agreement",
+)
+_CHEM21_HEALTH_TABLE: tuple[tuple[int, frozenset[str]], ...] = (
+    (9, frozenset({"H340", "H350", "H360", "H300", "H310", "H330"})),
+    (7, frozenset({"H314"})),
+    (6, frozenset({
+        "H341", "H351", "H361", "H370", "H372", "H301", "H311", "H331",
+    })),
+    (4, frozenset({"H334", "H318"})),
+    (2, frozenset({
+        "H304", "H371", "H373", "H302", "H312", "H332", "H336", "EUH070",
+        "H315", "H317", "H319", "H335", "EUH066",
+    })),
+)
+_CHEM21_HEALTH_TRIGGER = frozenset({
+    code for _, codes in _CHEM21_HEALTH_TABLE for code in codes
+})
+
+
+def _chem21_is_water(solvent: str, cas_number: Optional[str] = None) -> bool:
+    key = _key(solvent)
+    cas = str(cas_number or "").strip()
+    return key in {"water", "h2o"} or cas == "7732-18-5"
+
+
+def _chem21_parse_codes(statements: Sequence[Any]) -> list[str]:
+    found: set[str] = set()
+    for item in statements or []:
+        text = str(item)
+        found.update(_CHEM21_H_TOKEN.findall(text))
+        for token in ("EUH070", "EUH066", "EUH019"):
+            if token in text:
+                found.add(token)
+    return sorted(found)
+
+
+def _chem21_safety_basic(flash_c: float) -> int:
+    if flash_c < -20.0:
+        return 7
+    if flash_c < 0.0:
+        return 5
+    if flash_c < 24.0:
+        return 4
+    if flash_c <= 60.0:
+        return 3
+    return 1
+
+
+def _chem21_band(score: Optional[int]) -> Optional[str]:
+    if score is None:
+        return None
+    if score <= 3:
+        return "green"
+    if score <= 6:
+        return "yellow"
+    return "red"
+
+
+def _chem21_health_base(codes: set[str]) -> Optional[int]:
+    present = codes & _CHEM21_HEALTH_TRIGGER
+    if not present:
+        return None
+    return max(
+        figure
+        for figure, group in _CHEM21_HEALTH_TABLE
+        if present & group
+    )
+
+
+def _chem21_environment_bp(bp_c: float) -> int:
+    if bp_c < 50.0 or bp_c > 200.0:
+        return 7
+    if 70.0 <= bp_c <= 139.0:
+        return 3
+    return 5
+
+
+def _chem21_ranking(
+    safety_score: Optional[int],
+    health_score: int,
+    environment_score: int,
+) -> tuple[Optional[str], Optional[str]]:
+    if safety_score is None:
+        return None, "safety_score_missing"
+    scores = (safety_score, health_score, environment_score)
+    if any(item >= 8 for item in scores):
+        return "hazardous", None
+    if sum(1 for item in scores if 7 <= item <= 10) >= 2:
+        return "hazardous", None
+    if 7 in scores:
+        return "problematic", None
+    if sum(1 for item in scores if 4 <= item <= 6) >= 2:
+        return "problematic", None
+    return "recommended", None
+
+
+_CHEM21_BAND_ORDINAL = {"recommended": 0, "problematic": 1, "hazardous": 2}
+
+
+def _chem21_worst(payload: Mapping[str, Any]) -> Optional[int]:
+    safety_score = payload.get("chem21_safety_score")
+    if safety_score is None:
+        return None
+    s = int(safety_score)
+    h = int(payload["chem21_health_score"])
+    e = int(payload["chem21_environment_score"])
+    ranking, _reason = _chem21_ranking(s, h, e)
+    if ranking is None:
+        return None
+    return 10 * _CHEM21_BAND_ORDINAL[ranking] + max(s, h, e)
+
+
+@lru_cache(maxsize=2_048)
+def _chem21_load_inputs(solvent: str) -> dict[str, Any]:
+    local = _local_properties(solvent)
+    admission = thermo.get_solvent_admission_record(solvent)
+    cas = str(local.get("cas_number") or admission.get("cas_number") or "") or None
+    bp = _number(local.get("boiling_point_c"))
+    if bp is None:
+        bp = _number(admission.get("boiling_point_c"))
+    cid = _number(local.get("cid"))
+    if cid is None:
+        cid = _number(admission.get("cid"))
+    pubchem: dict[str, Any] = {}
+    unavailable: Optional[str] = None
+    if cid is None:
+        unavailable = "safety_snapshot_miss"
+    else:
+        try:
+            pubchem = _snapshot_pubchem(int(cid))
+        except SafetySnapshotRefuse as error:
+            unavailable = error.error_code
+            pubchem = {}
+    ghs = pubchem.get("ghs") or {}
+    statements = list(ghs.get("hazard_statements") or [])
+    admission_n = admission.get("n_ghs_statements")
+    try:
+        admission_n_int = int(admission_n) if admission_n is not None else None
+    except (TypeError, ValueError):
+        admission_n_int = None
+    admission_signal = str(admission.get("ghs_signal_word") or "").strip() or None
+    snapshot_signal = str(ghs.get("signal_word") or "").strip() or None
+    return {
+        "boiling_point_c": bp,
+        "flash_point_c": _number(pubchem.get("flash_point_c")),
+        "autoignition_c": _number(pubchem.get("autoignition_c")),
+        "statements": statements,
+        "pictograms": list(ghs.get("pictograms") or []),
+        "cas_number": cas,
+        "admission_signal_word": admission_signal,
+        "snapshot_signal_word": snapshot_signal,
+        "n_ghs_statements": admission_n_int,
+        "resistivity_ohm_m": None,
+        "decomposition_energy_j_g": None,
+        "unavailable_reason": unavailable,
+        "ghs_basis": pubchem.get("ghs_basis"),
+        "ghs_nonbasis_severe": list(pubchem.get("ghs_nonbasis_severe") or []),
+    }
+
+
+def _chem21_score_from_inputs(solvent: str, inputs: Mapping[str, Any]) -> dict[str, Any]:
+    statements = list(inputs.get("statements") or [])
+    codes = set(_chem21_parse_codes(statements))
+    bp = _number(inputs.get("boiling_point_c"))
+    flash = _number(inputs.get("flash_point_c"))
+    ait = _number(inputs.get("autoignition_c"))
+    cas = str(inputs.get("cas_number") or "") or None
+    resistivity = _number(inputs.get("resistivity_ohm_m"))
+    admission_n = inputs.get("n_ghs_statements")
+    try:
+        admission_n_int = int(admission_n) if admission_n is not None else None
+    except (TypeError, ValueError):
+        admission_n_int = None
+    v2_schema = inputs.get("ghs_basis") is not None
+    truncated = (not v2_schema) and (
+        len(statements) >= 6
+        or (admission_n_int is not None and admission_n_int > len(statements))
+    )
+    water = _chem21_is_water(solvent, cas)
+    euh019 = "EUH019" in codes
+    h420 = "H420" in codes
+    unavailable = inputs.get("unavailable_reason")
+    if unavailable is None and flash is None:
+        unavailable = "flash_point_missing"
+
+    if flash is None:
+        safety_score = None
+        ait_applied = False
+        euh019_applied = False
+        resistivity_applied = False
+        clamped = False
+    else:
+        safety_score = _chem21_safety_basic(flash)
+        ait_applied = ait is not None and ait < 200.0
+        euh019_applied = euh019
+        resistivity_applied = (
+            resistivity is not None
+            and resistivity > _CHEM21_RESISTIVITY_THRESHOLD_OHM_M
+        )
+        if ait_applied:
+            safety_score += 1
+        if euh019_applied:
+            safety_score += 1
+        if resistivity_applied:
+            safety_score += 1
+        clamped = safety_score > 10
+        if clamped:
+            safety_score = 10
+
+    if water:
+        health = 1
+        health_bp_applied = False
+    else:
+        base = _chem21_health_base(codes)
+        bp_below = bp is not None and bp < 85.0
+        if base is None:
+            health = 6 if bp_below else 5
+            health_bp_applied = bp_below
+        else:
+            health = base + (1 if bp_below else 0)
+            health_bp_applied = bp_below
+            if health > 10:
+                health = 10
+
+    env_default = False
+    env_bp_applied = False
+    if water:
+        environment = 1
+    else:
+        figures: list[int] = []
+        if h420:
+            figures.append(10)
+        if codes & {"H400", "H410", "H411"}:
+            figures.append(7)
+        if codes & {"H412", "H413"}:
+            figures.append(5)
+        if bp is not None:
+            figures.append(_chem21_environment_bp(bp))
+            env_bp_applied = True
+        if not (codes & {"H400", "H410", "H411", "H412", "H413", "H420"}):
+            figures.append(5)
+            env_default = True
+        environment = max(figures) if figures else 5
+
+    ranking, ranking_reason = _chem21_ranking(safety_score, health, environment)
+    if ranking_reason and unavailable is None:
+        unavailable = ranking_reason
+    admission_signal = str(inputs.get("admission_signal_word") or "").strip() or None
+    snapshot_signal = str(inputs.get("snapshot_signal_word") or "").strip() or None
+    if admission_signal is None or snapshot_signal is None:
+        agreement: Optional[bool] = None
+    else:
+        agreement = admission_signal.casefold() == snapshot_signal.casefold()
+    return {
+        "chem21_safety_score": safety_score,
+        "chem21_health_score": health,
+        "chem21_environment_score": environment,
+        "chem21_default_ranking": ranking,
+        "chem21_safety_band": _chem21_band(safety_score),
+        "chem21_recipe": _CHEM21_RECIPE,
+        "chem21_inputs": {
+            "boiling_point_c": bp,
+            "flash_point_c": flash,
+            "autoignition_c": ait,
+            "h_codes": sorted(codes),
+            "euh019": euh019,
+            "h420": h420,
+            "statements_n": len(statements),
+            "statements_truncated": truncated,
+            "reach_registration": "unknown",
+            "resistivity_ohm_m": resistivity,
+            "decomposition_energy_j_g": None,
+            "ghs_basis": inputs.get("ghs_basis"),
+            "nonbasis_severe": list(inputs.get("ghs_nonbasis_severe") or []),
+        },
+        "chem21_adjustments": {
+            "ait_adjustment_applied": bool(flash is not None and ait_applied),
+            "euh019_adjustment_applied": bool(flash is not None and euh019_applied),
+            "resistivity_adjustment_applied": bool(
+                flash is not None and resistivity_applied
+            ),
+            "decomposition_override": "not_assessed",
+            "health_bp_below_85_applied": health_bp_applied,
+            "environment_default_for_unknown_reach": env_default,
+            "environment_bp_applied": env_bp_applied,
+        },
+        "chem21_unavailable_reason": unavailable,
+        "chem21_ghs_source": "pubchem_safety_snapshot",
+        "chem21_admission_signal_word": admission_signal,
+        "chem21_snapshot_signal_word": snapshot_signal,
+        "chem21_signal_word_agreement": agreement,
+    }
+
+
+def score_chem21_she(
+    solvent: str,
+    *,
+    inputs: Optional[Mapping[str, Any]] = None,
+) -> dict[str, Any]:
+    """Published CHEM21 Safety / Health / Environment scores. Higher is worse."""
+    loaded = dict(inputs) if inputs is not None else dict(_chem21_load_inputs(solvent))
+    loaded["statements"] = list(loaded.get("statements") or [])
+    return _chem21_score_from_inputs(str(solvent), loaded)
+
+
+def chem21_snapshot_join_census() -> dict[str, Any]:
+    """Re-derive the admitted snapshot join through the production cid path."""
+    rows = thermo._solvent_admission_rows()
+    digest = _SNAPSHOT_SHA256
+    loaded = _load_snapshot()
+    snap_cids = {
+        int(item[0])
+        for item in loaded["connection"].execute("SELECT cid FROM pubchem_safety").fetchall()
+    }
+    joined = 0
+    flash = 0
+    admission_absent: list[dict[str, Any]] = []
+    for key, rec in sorted(rows.items(), key=lambda item: str(item[1].get("interp_key") or item[0])):
+        local = _local_properties(key)
+        prod_cid = _number(local.get("cid"))
+        adm_cid = _number(rec.get("cid"))
+        interp = str(rec.get("interp_key") or key)
+        if prod_cid is not None:
+            try:
+                pub = _snapshot_pubchem(int(prod_cid))
+            except SafetySnapshotRefuse:
+                pub = None
+            else:
+                joined += 1
+                if pub.get("flash_point_c") is not None:
+                    flash += 1
+        if adm_cid is None or int(adm_cid) not in snap_cids:
+            admission_absent.append({
+                "interp_key": interp,
+                "admission_cid": None if adm_cid is None else int(adm_cid),
+                "production_cid": None if prod_cid is None else int(prod_cid),
+            })
+    common_flash = 0
+    for key in thermo.COMMON_INTERP_KEYS:
+        local = _local_properties(key)
+        cid = _number(local.get("cid"))
+        if cid is None:
+            continue
+        try:
+            pub = _snapshot_pubchem(int(cid))
+        except SafetySnapshotRefuse:
+            continue
+        if pub.get("flash_point_c") is not None:
+            common_flash += 1
+    return {
+        "snapshot_digest": loaded["digest"],
+        "expected_snapshot_digest": digest,
+        "admitted": len(rows),
+        "production_join": joined,
+        "production_flash": flash,
+        "common": len(thermo.COMMON_INTERP_KEYS),
+        "common_flash": common_flash,
+        "admission_cid_absent_from_snapshot": admission_absent,
+    }
+
+
+def _chem21_ceiling_disclosure(
+    ceiling: Optional[float], *, supplied: bool,
+) -> dict[str, Any]:
+    return {
+        "maximum_chem21_score": ceiling,
+        "maximum_chem21_score_source": "user" if supplied else "default",
+        "maximum_chem21_score_citation_status": (
+            "user_requested" if supplied else "not_applied"
+        ),
+    }
+
+
 def build_safety_profile(
     solvent_name: str, operating_temp_c: Optional[float] = None, include_pubchem: bool = True,
 ) -> dict[str, Any]:
@@ -620,6 +1016,27 @@ def build_safety_profile(
         gaps.append("ld50_values")
     if not pubchem.get("occupational_exposure_limits"):
         gaps.append("occupational_exposure_limits")
+    if include_pubchem and pubchem:
+        ghs = pubchem.get("ghs") or {}
+        admission = thermo.get_solvent_admission_record(name)
+        chem21 = score_chem21_she(name, inputs={
+            "boiling_point_c": physical["boiling_point_c"],
+            "flash_point_c": physical["flash_point_c"],
+            "autoignition_c": physical["autoignition_c"],
+            "statements": list(ghs.get("hazard_statements") or []),
+            "cas_number": cas or None,
+            "admission_signal_word": (
+                str(admission.get("ghs_signal_word") or "").strip() or None
+            ),
+            "snapshot_signal_word": str(ghs.get("signal_word") or "").strip() or None,
+            "n_ghs_statements": admission.get("n_ghs_statements"),
+            "resistivity_ohm_m": None,
+            "decomposition_energy_j_g": None,
+        })
+        if chem21.get("chem21_safety_score") is None:
+            gaps.append("chem21_safety_score")
+    else:
+        chem21 = {}
     return {
         "identity": {"name": name, "cas_number": cas or None, "pubchem_cid": cid},
         "physical_properties": physical,
@@ -653,6 +1070,7 @@ def build_safety_profile(
             "pubchem_heading_errors": pubchem.get("heading_errors") or {},
             "curated_peroxide": curated.get("source_url"),
         },
+        **chem21,
     }
 
 
@@ -740,6 +1158,11 @@ def _row(profile: dict[str, Any]) -> dict[str, Any]:
         "sds_storage_category": profile["peroxide_risk"].get("sds_storage_category"),
         "data_gaps": profile["data_gaps"], "provenance": profile["provenance"],
         "field_origin": profile.get("field_origin") or {},
+        "chem21_safety_score": profile.get("chem21_safety_score"),
+        "chem21_health_score": profile.get("chem21_health_score"),
+        "chem21_environment_score": profile.get("chem21_environment_score"),
+        "chem21_default_ranking": profile.get("chem21_default_ranking"),
+        "chem21_safety_band": profile.get("chem21_safety_band"),
     }
 
 
@@ -1049,6 +1472,17 @@ def format_safety_card(profile: dict[str, Any]) -> str:
         f"BP: {value(row.get('boiling_point_c'))} C  |  Flash: {value(row.get('flash_point_c'))} C  |  Autoignition: {value(row.get('autoignition_c'))} C",
         f"Vapor pressure: {value(row.get('vapor_pressure_kpa'), 2)} kPa @ {value(row.get('vapor_pressure_temp_c'))} C  |  Volatility: {row.get('volatility_class')}",
     ]
+    if profile.get("chem21_recipe"):
+        lines.insert(3, (
+            "CHEM21 Safety (1–10, higher = more hazardous): "
+            + (
+                "not available"
+                if row.get("chem21_safety_score") is None
+                else str(int(row["chem21_safety_score"]))
+            )
+            + "  |  ranking: "
+            + str(row.get("chem21_default_ranking") or "not available")
+        ))
     if row.get("operating_temp_c") is not None:
         lines.extend([
             "PROCESS TEMPERATURE",
@@ -1442,8 +1876,10 @@ def screen_green_solvent_candidates(
     minimum_target_solubility_wt_pct: float = 5.0,
     minimum_selectivity_points: float = 5.0,
     limit: int = 5,
+    metric: Optional[Literal["g_score", "chem21", "chem21_safety", "chem21_worst"]] = None,
+    maximum_chem21_score: Optional[float] = None,
 ) -> str:
-    """Apply sourced green/safety filters before thermodynamic tie-breaks.
+    """Apply sourced green/safety filters before thermodynamic tie-breaks; metric g_score (default) or chem21 = CHEM21 worst of Safety/Health/Environment, the default CHEM21 metric (chem21_safety opts into the Safety sub-score alone).
 
     ``require_atmospheric=None`` keeps missing boiling-point data while
     excluding known-too-low conditions; ``True`` excludes both and ``False``
@@ -1468,6 +1904,27 @@ def screen_green_solvent_candidates(
     if ambiguity:
         return ambiguity
     target = thermo.resolve_polymer(str(target_polymer))
+    metric_token = None if metric is None else str(metric).strip()
+    if metric_token == "":
+        metric_token = None
+    metric_token = _CHEM21_METRIC_ALIASES.get(metric_token, metric_token)
+    if metric_token is None or metric_token == "g_score":
+        use_g_metric = True
+        metric_token = "g_score"
+    elif metric_token in {"chem21_safety", "chem21_worst"}:
+        use_g_metric = False
+    else:
+        return tool_error(
+            tool,
+            "metric must be g_score, chem21 (= chem21_worst, the default CHEM21 metric), chem21_safety, or chem21_worst.",
+            error_code="invalid_metric",
+        )
+    if use_g_metric and maximum_chem21_score is not None:
+        return tool_error(
+            tool,
+            "maximum_chem21_score applies only when metric is a CHEM21 score.",
+            error_code="invalid_metric_filter",
+        )
     try:
         # A domain referent is never invented by a literal default: an
         # absent bound resolves to the engine's typed fitted window.
@@ -1486,10 +1943,15 @@ def screen_green_solvent_candidates(
         solubility_floor = float(minimum_target_solubility_wt_pct)
         selectivity_floor = float(minimum_selectivity_points)
         bounded_limit = max(1, min(int(limit), 10))
+        supplied_chem21_ceiling = maximum_chem21_score is not None
+        chem21_ceiling = (
+            None if maximum_chem21_score is None else float(maximum_chem21_score)
+        )
     except (TypeError, ValueError):
         return tool_error(tool, "Bounds, thresholds, and limit must be numeric.", error_code="invalid_numeric_input")
     if not all(math.isfinite(value) for value in (
         lower, upper, g_floor, solubility_floor, selectivity_floor,
+        *(() if chem21_ceiling is None else (chem21_ceiling,)),
     )) or upper < lower:
         return tool_error(tool, "Bounds and thresholds must be finite and ordered.", error_code="invalid_numeric_input")
     if unsupported or target not in polymers:
@@ -1525,6 +1987,7 @@ def screen_green_solvent_candidates(
     if not temperatures:
         return tool_error(tool, "No temperatures remain inside the requested bound.", error_code="empty_temperature_grid")
     eligible, chlorinated, below_g, missing_g, no_condition = [], [], [], [], []
+    missing_chem21, above_chem21 = [], []
     atmospheric_exclusions = _atmospheric_exclusion_counts()
     sources: list[str] = []
     for solvent_key in sorted(thermo.get_available_solvents()):
@@ -1535,15 +1998,34 @@ def screen_green_solvent_candidates(
         )
         canonical = thermo.canonical_solvent_name(solvent_key)
         g_score = _number(score.get("g_score"))
-        if g_score is None:
-            missing_g.append(canonical)
-            continue
+        chem21_payload = None
+        chem21_metric_value = None
+        if use_g_metric:
+            if g_score is None:
+                missing_g.append(canonical)
+                continue
+        else:
+            chem21_payload = score_chem21_she(canonical)
+            chem21_metric_value = (
+                chem21_payload.get("chem21_safety_score")
+                if metric_token == "chem21_safety"
+                else _chem21_worst(chem21_payload)
+            )
+            if chem21_metric_value is None:
+                missing_chem21.append(canonical)
+                continue
+            if g_score is None:
+                missing_g.append(canonical)
         contains_chlorine = "Cl" in str(score.get("smiles") or "")
         if exclude_chlorinated and contains_chlorine:
             chlorinated.append(canonical)
             continue
-        if g_score < g_floor:
-            below_g.append(canonical)
+        if use_g_metric:
+            if g_score < g_floor:
+                below_g.append(canonical)
+                continue
+        elif chem21_ceiling is not None and float(chem21_metric_value) > chem21_ceiling:
+            above_chem21.append(canonical)
             continue
         condition = None
         boiling = thermo.get_boiling_point(solvent_key)
@@ -1602,7 +2084,10 @@ def screen_green_solvent_candidates(
                     "boiling_point_margin_c": None if boiling is None else boiling - temperature,
                     "atmospheric_feasible": None if boiling is None else temperature < boiling,
                     "g_score": g_score,
-                    "g_score_rating": "Excellent" if g_score >= 8.0 else "Good",
+                    "g_score_rating": (
+                        None if g_score is None
+                        else "Excellent" if g_score >= 8.0 else "Good"
+                    ),
                     "g_score_source": score.get("source"),
                     "g_score_is_ml_predicted": bool(score.get("ml_predicted")),
                     "g_score_uncertainty": score.get("uncertainty"),
@@ -1611,6 +2096,20 @@ def screen_green_solvent_candidates(
                     "contains_chlorine": contains_chlorine,
                     **thermo.get_solvent_hazard_framing(solvent_key),
                 }
+                if chem21_payload is not None:
+                    condition["chem21_safety_score"] = chem21_payload[
+                        "chem21_safety_score"
+                    ]
+                    condition["chem21_health_score"] = chem21_payload[
+                        "chem21_health_score"
+                    ]
+                    condition["chem21_environment_score"] = chem21_payload[
+                        "chem21_environment_score"
+                    ]
+                    condition["chem21_worst"] = _chem21_worst(chem21_payload)
+                    condition["chem21_default_ranking"] = chem21_payload[
+                        "chem21_default_ranking"
+                    ]
                 sources.append(str(score.get("source") or ""))
                 break
         if condition is None:
@@ -1620,24 +2119,88 @@ def screen_green_solvent_candidates(
                 no_condition.append(canonical)
         else:
             eligible.append(condition)
-    eligible.sort(key=lambda row: (
-        -float(row["g_score"]), float(row["temperature_c"]),
-        -float(row["selectivity_pct"]), str(row["solvent"]),
-    ))
+    if use_g_metric:
+        eligible.sort(key=lambda row: (
+            -float(row["g_score"]), float(row["temperature_c"]),
+            -float(row["selectivity_pct"]), str(row["solvent"]),
+        ))
+    else:
+        metric_field = (
+            "chem21_safety_score" if metric_token == "chem21_safety"
+            else "chem21_worst"
+        )
+        eligible.sort(key=lambda row: (
+            float(row[metric_field]), float(row["temperature_c"]),
+            -float(row["selectivity_pct"]), str(row["solvent"]),
+        ))
     ranked = eligible[:bounded_limit]
     for rank, row in enumerate(ranked, 1):
         row["rank"] = rank
-    display_lines = [
-        "Green-first filter: non-chlorinated; G-score >= " + f"{g_floor:g}.",
-        f"{'Rank':<5} {'Solvent':<22} {'G':>6} {'T C':>7} {'Target wt%':>10} {'Gap pts':>9}",
-        "─" * 64,
-        *(
-            f"{row['rank']:<5} {str(row['solvent'])[:22]:<22} {row['g_score']:>6.3f} "
-            f"{row['temperature_c']:>7.1f} {row['target_solubility_pct']:>9.3f} "
-            f"{row['selectivity_pct']:>9.3f}"
-            for row in ranked
-        ),
-    ]
+    if use_g_metric:
+        display_lines = [
+            "Green-first filter: non-chlorinated; G-score >= " + f"{g_floor:g}.",
+            f"{'Rank':<5} {'Solvent':<22} {'G':>6} {'T C':>7} {'Target wt%':>10} {'Gap pts':>9}",
+            "─" * 64,
+            *(
+                f"{row['rank']:<5} {str(row['solvent'])[:22]:<22} {row['g_score']:>6.3f} "
+                f"{row['temperature_c']:>7.1f} {row['target_solubility_pct']:>9.3f} "
+                f"{row['selectivity_pct']:>9.3f}"
+                for row in ranked
+            ),
+        ]
+        ranking_basis = (
+            "G-score descending, then lower qualifying temperature and higher selectivity"
+        )
+        metric_extra: dict[str, Any] = {}
+        metric_warnings = [
+            f"G-score >= {g_floor:g} is an EHS screening cutoff, not proof of low process hazard.",
+            f"The {solubility_floor:g} wt% target-solubility and {selectivity_floor:g}-percentage-point selectivity references are screening heuristics, not recovery or purity criteria.",
+            "Normal-boiling-point feasibility is an operability check; flash point, toxicity, and heated handling still require candidate-specific assessment.",
+            *_g_floor_warnings(supplied=supplied_g_floor),
+        ]
+        floor_block = {
+            **_g_floor_disclosure(g_floor, supplied=supplied_g_floor),
+            "g_score_rating_floor": (
+                "Excellent" if g_floor >= 8.0 else "Good" if g_floor >= 6.0 else "Problematic"
+            ),
+        }
+    else:
+        metric_field = (
+            "chem21_safety_score" if metric_token == "chem21_safety"
+            else "chem21_worst"
+        )
+        label = (
+            "CHEM21 Safety" if metric_token == "chem21_safety"
+            else "CHEM21 worst of S/H/E"
+        )
+        display_lines = [
+            f"Green-first filter: non-chlorinated; {label} (lower is better).",
+            f"{'Rank':<5} {'Solvent':<22} {'C21':>6} {'T C':>7} {'Target wt%':>10} {'Gap pts':>9}",
+            "─" * 64,
+            *(
+                f"{row['rank']:<5} {str(row['solvent'])[:22]:<22} {row[metric_field]:>6.0f} "
+                f"{row['temperature_c']:>7.1f} {row['target_solubility_pct']:>9.3f} "
+                f"{row['selectivity_pct']:>9.3f}"
+                for row in ranked
+            ),
+        ]
+        ranking_basis = (
+            f"{label} ascending, then lower qualifying temperature and higher selectivity"
+        )
+        metric_extra = {
+            "metric": metric_token,
+            **_chem21_ceiling_disclosure(
+                chem21_ceiling, supplied=supplied_chem21_ceiling,
+            ),
+            "excluded_missing_chem21_count": len(set(missing_chem21)),
+            "excluded_above_chem21_score_count": len(set(above_chem21)),
+        }
+        metric_warnings = [
+            f"{label} is a published hazard score (1–10, higher = more hazardous), not a G-score.",
+            f"The {solubility_floor:g} wt% target-solubility and {selectivity_floor:g}-percentage-point selectivity references are screening heuristics, not recovery or purity criteria.",
+            "Normal-boiling-point feasibility is an operability check; flash point, toxicity, and heated handling still require candidate-specific assessment.",
+        ]
+        floor_block = {}
     return tool_success(
         tool, display=_box("DISSOLVE GREEN-FIRST SOLVENT SCREEN", display_lines),
         analysis_type="green_first_solvent_screen", polymers=polymers,
@@ -1645,8 +2208,7 @@ def screen_green_solvent_candidates(
         temperature_min_c=lower, temperature_max_c=upper,
         strict_maximum=bool(strict_maximum), require_atmospheric=require_atmospheric,
         exclude_chlorinated=bool(exclude_chlorinated),
-        **_g_floor_disclosure(g_floor, supplied=supplied_g_floor),
-        g_score_rating_floor=("Excellent" if g_floor >= 8.0 else "Good" if g_floor >= 6.0 else "Problematic"),
+        **floor_block,
         minimum_target_solubility_wt_pct=solubility_floor,
         minimum_selectivity_points=selectivity_floor,
         condition_selection=(
@@ -1657,7 +2219,7 @@ def screen_green_solvent_candidates(
             if require_atmospheric is None else
             "lowest screened temperature meeting both thermodynamic references"
         ),
-        ranking_basis="G-score descending, then lower qualifying temperature and higher selectivity",
+        ranking_basis=ranking_basis,
         eligible_candidate_count=len(eligible), ranked_candidates=ranked,
         excluded_chlorinated=sorted(set(chlorinated)),
         excluded_below_g_score_count=len(set(below_g)),
@@ -1674,14 +2236,206 @@ def screen_green_solvent_candidates(
             "kind": "green_solvent_screen", "format": "text",
             "title": "Green-first solvent screen",
         },
-        warnings=[
-            f"G-score >= {g_floor:g} is an EHS screening cutoff, not proof of low process hazard.",
-            f"The {solubility_floor:g} wt% target-solubility and {selectivity_floor:g}-percentage-point selectivity references are screening heuristics, not recovery or purity criteria.",
-            "Normal-boiling-point feasibility is an operability check; flash point, toxicity, and heated handling still require candidate-specific assessment.",
-            *_g_floor_warnings(supplied=supplied_g_floor),
-        ],
+        warnings=metric_warnings,
         model_basis="green-first filter over the unified grid-first solubility model and sourced solvent scores",
         **thermo.solvent_scope_stamp(),
+        **metric_extra,
+    )
+
+
+def _route_substitutions_chem21(
+    *,
+    tool: str,
+    metric_token: str,
+    chem21_ceiling: Optional[float],
+    supplied_chem21_ceiling: bool,
+    polymers: list[str],
+    lower: float,
+    upper: float,
+    temperatures: list[float],
+    strict_maximum: bool,
+    require_atmospheric: Optional[bool],
+    retention: float,
+    include_pubchem: bool,
+    stages: list[dict[str, Any]],
+    remaining: list[str],
+    source_families: list[str],
+) -> str:
+    """CHEM21 metric path for route substitutions. v5 §4.2. Not used on the default IDENT path."""
+    from .tools import _screen_direction
+
+    def _metric_value(payload: Mapping[str, Any]) -> Optional[int]:
+        if metric_token == "chem21_safety":
+            raw = payload.get("chem21_safety_score")
+            return None if raw is None else int(raw)
+        return _chem21_worst(payload)
+
+    scored_stages: list[dict[str, Any]] = []
+    for stage in stages:
+        payload = score_chem21_she(str(stage["solvent"]))
+        value = _metric_value(payload)
+        scored_stages.append({**stage, "chem21_payload": payload, "chem21_metric_value": value})
+    finite = [item for item in scored_stages if item["chem21_metric_value"] is not None]
+    if not finite:
+        return tool_error(
+            tool,
+            "No route stage has a finite CHEM21 Safety score.",
+            error_code="missing_chem21_score",
+        )
+    worst = max(finite, key=lambda item: float(item["chem21_metric_value"]))
+    candidates, screened, atmospheric_exclusions, _ = _screen_direction(
+        worst["dissolved_polymer"], worst["retained_polymers"], temperatures,
+        require_atmospheric, 12,
+    )
+    current_key = str(worst["solvent_data_key"])
+    minimum_selectivity = float(worst["selectivity_pct"]) * retention
+    substitutions: list[dict[str, Any]] = []
+    missing_chem21: list[str] = []
+    above_chem21: list[str] = []
+    for candidate in candidates:
+        candidate_key = thermo.resolve_solvent(str(candidate.get("solvent") or ""))
+        if candidate_key == current_key or float(candidate.get("selectivity_pct") or -math.inf) < minimum_selectivity:
+            continue
+        try:
+            safety_row = _row(build_safety_profile(
+                str(candidate["solvent"]), float(candidate["temperature_c"]), bool(include_pubchem)
+            ))
+        except SafetySnapshotRefuse as error:
+            return _refuse_snapshot(tool, error)
+        payload = score_chem21_she(str(candidate["solvent"]))
+        value = _metric_value(payload)
+        if value is None:
+            missing_chem21.append(str(candidate.get("solvent") or ""))
+            continue
+        if chem21_ceiling is not None and float(value) > chem21_ceiling:
+            above_chem21.append(str(candidate.get("solvent") or ""))
+            continue
+        sources = _model_source_families(safety_row)
+        safety_row["source_families"] = sources
+        source_families.extend(sources)
+        current_g = _number(worst["safety"].get("g_score"))
+        candidate_g = _number(safety_row.get("g_score"))
+        g_change = None if current_g is None or candidate_g is None else candidate_g - current_g
+        candidate_selectivity = float(candidate["selectivity_pct"])
+        substitutions.append({
+            **{key: candidate.get(key) for key in (
+                "solvent", "temperature_c", "target_solubility_pct",
+                "max_off_target_solubility_pct", "off_target_solubilities_pct",
+                "limiting_off_target_polymer", "selectivity_pct",
+                "boiling_point_c", "boiling_point_margin_c", "atmospheric_feasible",
+            )},
+            "selectivity_loss_points": float(worst["selectivity_pct"]) - candidate_selectivity,
+            "selectivity_retained_fraction": (
+                None if not worst["selectivity_pct"]
+                else candidate_selectivity / float(worst["selectivity_pct"])
+            ),
+            "g_score_change": g_change,
+            "higher_g_score": bool(g_change is not None and g_change > 0.0),
+            "chem21_safety_score": payload.get("chem21_safety_score"),
+            "chem21_health_score": payload.get("chem21_health_score"),
+            "chem21_environment_score": payload.get("chem21_environment_score"),
+            "chem21_worst": _chem21_worst(payload),
+            "chem21_metric_value": value,
+            "heating_risk_improved": (
+                _RISK_PRIORITY.get(str(safety_row.get("heating_risk_level")), 0)
+                < _RISK_PRIORITY.get(str(worst["safety"].get("heating_risk_level")), 0)
+            ),
+            "flash_point_change_c": (
+                None if safety_row.get("flash_point_c") is None or worst["safety"].get("flash_point_c") is None
+                else float(safety_row["flash_point_c"]) - float(worst["safety"]["flash_point_c"])
+            ),
+            "flash_point_decrease_c": (
+                None if safety_row.get("flash_point_c") is None or worst["safety"].get("flash_point_c") is None
+                else float(worst["safety"]["flash_point_c"]) - float(safety_row["flash_point_c"])
+            ),
+            "safety": _decision_safety(safety_row),
+        })
+    substitutions.sort(key=lambda item: (
+        float(item["chem21_metric_value"]),
+        float(item["selectivity_loss_points"]),
+        str(item.get("solvent") or ""),
+    ))
+    current_value = float(worst["chem21_metric_value"])
+    recommended = next(
+        (item for item in substitutions if float(item["chem21_metric_value"]) < current_value),
+        None,
+    )
+    updated_route = None
+    if recommended:
+        updated_steps = []
+        for stage in stages:
+            selected = recommended if stage["stage"] == worst["stage"] else stage
+            updated_steps.append({
+                "dissolved_polymer": stage["dissolved_polymer"],
+                "solvent": selected["solvent"],
+                "temperature_c": selected["temperature_c"],
+            })
+        final_residue = remaining[0] if len(remaining) == 1 else None
+        updated_route = {
+            "complete": final_residue is not None,
+            "best_sequence": [item["dissolved_polymer"] for item in updated_steps]
+            + ([final_residue] if final_residue else []),
+            "steps": updated_steps, "final_residue": final_residue,
+            "unresolved_polymers": [] if final_residue else list(remaining),
+        }
+    current_display = {**worst, "safety": worst["safety"]}
+    display = _format_substitution_comparison(current_display, recommended, retention)
+    comparison_rows = [worst["safety"]] + ([recommended["safety"]] if recommended else [])
+    atmospheric_candidate_scope = (
+        "strictly atmospheric" if require_atmospheric is True
+        else "thermodynamic" if require_atmospheric is False
+        else "known-atmospheric-or-unknown-BP"
+    )
+    label = (
+        "CHEM21 Safety" if metric_token == "chem21_safety"
+        else "CHEM21 worst of S/H/E"
+    )
+    metric_extra: dict[str, Any] = {
+        "metric": metric_token,
+        **_chem21_ceiling_disclosure(chem21_ceiling, supplied=supplied_chem21_ceiling),
+        "eligible_candidate_count": len(substitutions),
+        "excluded_missing_chem21_count": len(set(missing_chem21)),
+        "excluded_above_chem21_score_count": len(set(above_chem21)),
+    }
+    if metric_token == "chem21_worst":
+        metric_extra["chem21_ranking_rule"] = "table6_band_then_max"
+    return tool_success(
+        tool, display=display, analysis_type="route_solvent_substitution_screen",
+        polymers=polymers, temperature_min_c=lower, temperature_max_c=upper,
+        evaluated_temperature_max_c=max(temperatures), strict_maximum=strict_maximum,
+        require_atmospheric=require_atmospheric,
+        min_selectivity_retention_fraction=retention,
+        minimum_comparable_selectivity_points=minimum_selectivity,
+        route_stage_assessments=scored_stages, worst_stage=worst,
+        worst_stage_basis={
+            "method": f"max {label} among stages with a finite Safety score",
+            "priority": [label],
+        },
+        candidate_substitutions=substitutions,
+        recommended_substitution=recommended,
+        no_higher_g_score_comparable_substitution=recommended is None,
+        recommended_route=updated_route,
+        route_update_status=("model_screened_substitution" if updated_route else "unchanged"),
+        comparison_rows=comparison_rows,
+        candidate_conditions=[
+            {"solvent_name": row["solvent"], "operating_temp_c": row["temperature_c"]}
+            for row in [worst, *substitutions]
+        ],
+        screened_conditions=screened, **atmospheric_exclusions,
+        selection_basis=(
+            f"strictly lower {label} among {atmospheric_candidate_scope} "
+            f"candidates retaining at least {retention:.0%} of the current "
+            "modeled selectivity"
+        ),
+        provenance={"source_families": list(dict.fromkeys(source_families))},
+        artifact={"kind": "route_solvent_substitution", "format": "text", "title": "Route solvent substitution"},
+        warnings=[
+            f"{label} is a published hazard score (1–10, higher = more hazardous), not a G-score.",
+            "A lower CHEM21 score does not imply safer heated operation; compare flash point and heating risk separately.",
+            "Selectivity is a modeled percentage-point difference, not recovery or purity.",
+            "The substituted route remains model-screened and requires experimental validation.",
+        ],
+        **metric_extra,
     )
 
 
@@ -1694,8 +2448,10 @@ def screen_route_solvent_substitutions(
     require_atmospheric: Optional[bool] = None,
     min_selectivity_retention_fraction: float = 0.8,
     include_pubchem: bool = True,
+    metric: Optional[Literal["g_score", "chem21", "chem21_safety", "chem21_worst"]] = None,
+    maximum_chem21_score: Optional[float] = None,
 ) -> str:
-    """Screen a whole route and replace its worst solvent without hard-coded candidates.
+    """Screen a whole route and replace its worst solvent without hard-coded candidates; metric g_score (default) or chem21 = CHEM21 worst of Safety/Health/Environment, the default CHEM21 metric.
 
     ``require_atmospheric=None`` keeps missing boiling-point data while
     excluding known-too-low conditions; ``True`` excludes both and ``False``
@@ -1724,6 +2480,36 @@ def screen_route_solvent_substitutions(
         return tool_error(tool, "Bounds and retention fraction must be finite and ordered.", error_code="invalid_numeric_input")
     if not 0.0 < retention <= 1.0:
         return tool_error(tool, "Retention fraction must be in (0, 1].", error_code="invalid_retention_fraction")
+    metric_token = None if metric is None else str(metric).strip()
+    if metric_token == "":
+        metric_token = None
+    metric_token = _CHEM21_METRIC_ALIASES.get(metric_token, metric_token)
+    if metric_token is None or metric_token == "g_score":
+        use_g_metric = True
+        metric_token = "g_score"
+    elif metric_token in {"chem21_safety", "chem21_worst"}:
+        use_g_metric = False
+    else:
+        return tool_error(
+            tool,
+            "metric must be g_score, chem21 (= chem21_worst, the default CHEM21 metric), chem21_safety, or chem21_worst.",
+            error_code="invalid_metric",
+        )
+    if use_g_metric and maximum_chem21_score is not None:
+        return tool_error(
+            tool,
+            "maximum_chem21_score applies only when metric is a CHEM21 score.",
+            error_code="invalid_metric_filter",
+        )
+    supplied_chem21_ceiling = maximum_chem21_score is not None
+    try:
+        chem21_ceiling = (
+            None if maximum_chem21_score is None else float(maximum_chem21_score)
+        )
+    except (TypeError, ValueError):
+        return tool_error(tool, "Bounds and retention fraction must be numeric.", error_code="invalid_numeric_input")
+    if chem21_ceiling is not None and not math.isfinite(chem21_ceiling):
+        return tool_error(tool, "Bounds and retention fraction must be finite and ordered.", error_code="invalid_numeric_input")
 
     from .tools import _pair_result, _screen_direction, _temperature_grid
 
@@ -1779,6 +2565,24 @@ def screen_route_solvent_substitutions(
             "safety": _decision_safety(safety_row),
         })
         remaining.remove(target)
+    if not use_g_metric:
+        return _route_substitutions_chem21(
+            tool=tool,
+            metric_token=metric_token,
+            chem21_ceiling=chem21_ceiling,
+            supplied_chem21_ceiling=supplied_chem21_ceiling,
+            polymers=polymers,
+            lower=lower,
+            upper=upper,
+            temperatures=temperatures,
+            strict_maximum=bool(strict_maximum),
+            require_atmospheric=require_atmospheric,
+            retention=retention,
+            include_pubchem=bool(include_pubchem),
+            stages=stages,
+            remaining=remaining,
+            source_families=source_families,
+        )
     worst = max(stages, key=lambda item: _safety_priority(item["safety"]))
     candidates, screened, atmospheric_exclusions, _ = _screen_direction(
         worst["dissolved_polymer"], worst["retained_polymers"], temperatures,
