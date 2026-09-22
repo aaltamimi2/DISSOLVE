@@ -19,10 +19,7 @@ from typing import Any, Literal, Mapping, Optional, Sequence
 from .contracts import tool_error, tool_success
 from . import tea_contracts
 from .landscape import _carried_safety_standing, axis_span
-from .session import (
-    candidate_evidence, current_tool_session,
-    resolve_candidate_argument,
-)
+from .session import candidate_evidence, current_tool_session
 
 _ASSET = Path(str(files("dissolve").joinpath("data/optimization.json.gz")))
 _ASSET_SHA256 = "ffa6141a23ef0364f9d8e7734399922a71fc421e3a581105b7b4da75370b1258"

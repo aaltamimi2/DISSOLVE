@@ -25,10 +25,7 @@ from typing import Any, Literal, Mapping, Optional, Sequence
 from . import tea_contracts, tea_polymer_parameters, tea_worker
 from . import thermodynamics as thermo
 from .contracts import parse_tool_result, tool_error, tool_success
-from .session import (
-    candidate_evidence, current_tool_session, handle_rows, load_handle,
-    resolve_candidate_argument,
-)
+from .session import candidate_evidence, current_tool_session, handle_rows, load_handle
 from .tools import _InputError, _polymer_ambiguity_detail
 
 _ASSET = Path(str(files("dissolve").joinpath("data/tea_cache.json.gz")))
@@ -10910,12 +10907,6 @@ def _classify_live_feed_polymers(
             seen_unmodelled.add(key)
             unmodelled.append(str(identity))
     return tuple(unrecognised), tuple(unmodelled)
-
-
-def _unsupported_live_feed_polymers(names: Sequence[str]) -> tuple[str, ...]:
-    """Return recognised feed identities that have no live TEA process model."""
-    _unrecognised, unmodelled = _classify_live_feed_polymers(names)
-    return unmodelled
 
 
 def _join_polymer_names(names: Sequence[str]) -> str:

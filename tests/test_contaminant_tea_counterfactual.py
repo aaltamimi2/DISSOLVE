@@ -17,7 +17,7 @@ for _path in (str(_ROOT), str(_ROOT / "src"), str(_ROOT / "tests")):
 
 from dissolve import separation, tea
 from dissolve.contracts import parse_tool_result
-from dissolve.session import bind_tool_session, new_session, store_handle
+from dissolve.session import bind_tool_session, new_session
 
 from test_evaluate_process import (
     _ROUTE_CAPACITY,

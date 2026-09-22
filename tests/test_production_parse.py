@@ -51,7 +51,7 @@ def _docling_bridge():
 def test_production_parse_raises_when_docling_fails_and_does_not_call_fallbacks(monkeypatch, tmp_path):
     pdf = tmp_path / "probe.pdf"
     pdf.write_bytes(b"%PDF-1.4 forced-failure")
-    calls = {"pypdf": 0, "deepdoc": 0}
+    calls = {"pypdf": 0}
 
     def boom(path):
         raise research.LiteratureContractError(
@@ -62,53 +62,45 @@ def test_production_parse_raises_when_docling_fails_and_does_not_call_fallbacks(
         calls["pypdf"] += 1
         raise AssertionError("pypdf must not run on a production Docling failure")
 
-    def count_deepdoc(*_args, **_kwargs):
-        calls["deepdoc"] += 1
-        raise AssertionError("DeepDoc must not run on a production Docling failure")
 
     monkeypatch.setattr(research, "_run_docling", boom)
-    monkeypatch.setattr(research, "_run_deepdoc", count_deepdoc)
     monkeypatch.setattr(literature_ingest, "_pypdf_bridge", count_pypdf)
 
     with pytest.raises(research.LiteratureContractError) as caught:
         literature_ingest._parse(_acquire(pdf))
     assert caught.value.code == "parser_backend_failed"
     assert caught.value.details.get("backend") == "docling"
-    assert calls == {"pypdf": 0, "deepdoc": 0}
+    assert calls == {"pypdf": 0}
 
 
 def test_production_structure_parse_does_not_call_deepdoc_on_docling_failure(monkeypatch, tmp_path):
     pdf = tmp_path / "probe.pdf"
     pdf.write_bytes(b"%PDF-1.4 forced-failure")
-    calls = {"deepdoc": 0, "pypdf": 0}
+    calls = {"pypdf": 0}
 
     def boom(path):
         raise research.LiteratureContractError(
             "parser_backend_failed", "forced Docling failure", backend="docling",
         )
 
-    def count_deepdoc(*_args, **_kwargs):
-        calls["deepdoc"] += 1
-        raise AssertionError("DeepDoc must not run")
 
     def count_pypdf(*_args, **_kwargs):
         calls["pypdf"] += 1
         raise AssertionError("pypdf must not run")
 
     monkeypatch.setattr(research, "_run_docling", boom)
-    monkeypatch.setattr(research, "_run_deepdoc", count_deepdoc)
     monkeypatch.setattr(literature_ingest, "_pypdf_bridge", count_pypdf)
 
     with pytest.raises(research.LiteratureContractError) as caught:
         research.parse_document_structure(_acquire(pdf))
     assert caught.value.code == "parser_backend_failed"
-    assert calls == {"deepdoc": 0, "pypdf": 0}
+    assert calls == {"pypdf": 0}
 
 
 def test_corrupt_pdf_failure_is_loud_and_names_docling(monkeypatch, tmp_path):
     pdf = tmp_path / "corrupt.pdf"
     pdf.write_bytes(b"not-a-pdf")
-    calls = {"pypdf": 0, "deepdoc": 0}
+    calls = {"pypdf": 0}
 
     class _FailingConverter:
         def convert(self, path):
@@ -127,25 +119,21 @@ def test_corrupt_pdf_failure_is_loud_and_names_docling(monkeypatch, tmp_path):
         calls["pypdf"] += 1
         raise AssertionError("pypdf must not run on a corrupt PDF")
 
-    def count_deepdoc(*_args, **_kwargs):
-        calls["deepdoc"] += 1
-        raise AssertionError("DeepDoc must not run on a corrupt PDF")
 
     monkeypatch.setattr(research.importlib, "import_module", fake_import)
-    monkeypatch.setattr(research, "_run_deepdoc", count_deepdoc)
     monkeypatch.setattr(literature_ingest, "_pypdf_bridge", count_pypdf)
 
     with pytest.raises(research.LiteratureContractError) as caught:
         literature_ingest._parse(_acquire(pdf))
     assert caught.value.code == "parser_backend_failed"
     assert caught.value.details.get("backend") == "docling"
-    assert calls == {"pypdf": 0, "deepdoc": 0}
+    assert calls == {"pypdf": 0}
 
 
 def test_production_parse_refuses_a_non_docling_bridge(monkeypatch, tmp_path):
     pdf = tmp_path / "probe.pdf"
     pdf.write_bytes(b"%PDF-1.4")
-    calls = {"pypdf": 0, "deepdoc": 0}
+    calls = {"pypdf": 0}
 
     def lie(_path):
         return {
@@ -164,47 +152,38 @@ def test_production_parse_refuses_a_non_docling_bridge(monkeypatch, tmp_path):
         calls["pypdf"] += 1
         raise AssertionError("pypdf bridge must not be the production fallback")
 
-    def count_deepdoc(*_args, **_kwargs):
-        calls["deepdoc"] += 1
-        raise AssertionError("DeepDoc must not run")
 
     monkeypatch.setattr(research, "_run_docling", lie)
-    monkeypatch.setattr(research, "_run_deepdoc", count_deepdoc)
     monkeypatch.setattr(literature_ingest, "_pypdf_bridge", count_pypdf)
 
     with pytest.raises(research.LiteratureContractError) as caught:
         literature_ingest._parse(_acquire(pdf))
     assert caught.value.code in {"parser_identity_lie", "undisclosed_parser_fallback"}
     assert calls["pypdf"] == 0
-    assert calls["deepdoc"] == 0
 
 
 def test_production_parse_keeps_a_named_docling_success(monkeypatch, tmp_path):
     pdf = tmp_path / "probe.pdf"
     pdf.write_bytes(b"%PDF-1.4 ok")
-    calls = {"pypdf": 0, "deepdoc": 0}
+    calls = {"pypdf": 0}
 
     def count_pypdf(*_args, **_kwargs):
         calls["pypdf"] += 1
         raise AssertionError("pypdf must not run on a Docling success")
 
-    def count_deepdoc(*_args, **_kwargs):
-        calls["deepdoc"] += 1
-        raise AssertionError("DeepDoc must not run on a Docling success")
 
     monkeypatch.setattr(research, "_run_docling", lambda _path: _docling_bridge())
-    monkeypatch.setattr(research, "_run_deepdoc", count_deepdoc)
     monkeypatch.setattr(literature_ingest, "_pypdf_bridge", count_pypdf)
 
     parsed = literature_ingest._parse(_acquire(pdf))
     assert parsed["parser_backend"] == "docling"
     assert parsed["fallback_reason"] is None
     assert parsed["blocks"][0]["text"] == "production docling prose"
-    assert calls == {"pypdf": 0, "deepdoc": 0}
+    assert calls == {"pypdf": 0}
 
 
 def _suffix_fallback_spies(monkeypatch):
-    calls = {"docling": 0, "pypdf": 0, "deepdoc": 0}
+    calls = {"docling": 0, "pypdf": 0}
 
     def count_docling(*_args, **_kwargs):
         calls["docling"] += 1
@@ -214,12 +193,8 @@ def _suffix_fallback_spies(monkeypatch):
         calls["pypdf"] += 1
         raise AssertionError("pypdf must not run on a JATS/local-text suffix")
 
-    def count_deepdoc(*_args, **_kwargs):
-        calls["deepdoc"] += 1
-        raise AssertionError("DeepDoc must not run on a JATS/local-text suffix")
 
     monkeypatch.setattr(research, "_run_docling", count_docling)
-    monkeypatch.setattr(research, "_run_deepdoc", count_deepdoc)
     monkeypatch.setattr(literature_ingest, "_pypdf_bridge", count_pypdf)
     return calls
 
@@ -237,7 +212,7 @@ def test_production_parse_refuses_xml_jats_suffix_and_does_not_call_fallbacks(mo
         literature_ingest._parse(_acquire(xml))
     assert caught.value.code == "parser_identity_lie"
     assert caught.value.details.get("parser_backend") == "jats"
-    assert calls == {"docling": 0, "pypdf": 0, "deepdoc": 0}
+    assert calls == {"docling": 0, "pypdf": 0}
 
 
 def test_production_parse_refuses_shtml_as_local_text_not_docling(monkeypatch, tmp_path):
@@ -250,7 +225,7 @@ def test_production_parse_refuses_shtml_as_local_text_not_docling(monkeypatch, t
         literature_ingest._parse(_acquire(shtml))
     assert caught.value.code == "parser_identity_lie"
     assert caught.value.details.get("parser_backend") == "local_text"
-    assert calls == {"docling": 0, "pypdf": 0, "deepdoc": 0}
+    assert calls == {"docling": 0, "pypdf": 0}
 
 
 def test_production_parse_refuses_unlisted_suffix_without_allowlist_membership(monkeypatch, tmp_path):
@@ -263,7 +238,7 @@ def test_production_parse_refuses_unlisted_suffix_without_allowlist_membership(m
         literature_ingest._parse(_acquire(odd))
     assert caught.value.code == "parser_identity_lie"
     assert caught.value.details.get("parser_backend") == "local_text"
-    assert calls == {"docling": 0, "pypdf": 0, "deepdoc": 0}
+    assert calls == {"docling": 0, "pypdf": 0}
 
 
 def test_production_parse_refuses_htm_as_local_text_not_docling(monkeypatch, tmp_path):
@@ -276,7 +251,7 @@ def test_production_parse_refuses_htm_as_local_text_not_docling(monkeypatch, tmp
         literature_ingest._parse(_acquire(htm))
     assert caught.value.code == "parser_identity_lie"
     assert caught.value.details.get("parser_backend") == "local_text"
-    assert calls == {"docling": 0, "pypdf": 0, "deepdoc": 0}
+    assert calls == {"docling": 0, "pypdf": 0}
 
 
 def test_production_parse_refuses_html_as_local_text_not_docling(monkeypatch, tmp_path):
@@ -289,7 +264,7 @@ def test_production_parse_refuses_html_as_local_text_not_docling(monkeypatch, tm
         literature_ingest._parse(_acquire(html))
     assert caught.value.code == "parser_identity_lie"
     assert caught.value.details.get("parser_backend") == "local_text"
-    assert calls == {"docling": 0, "pypdf": 0, "deepdoc": 0}
+    assert calls == {"docling": 0, "pypdf": 0}
 
 
 def test_production_parse_refuses_xhtml_as_jats_not_docling(monkeypatch, tmp_path):
@@ -306,7 +281,7 @@ def test_production_parse_refuses_xhtml_as_jats_not_docling(monkeypatch, tmp_pat
         literature_ingest._parse(_acquire(xhtml))
     assert caught.value.code == "parser_identity_lie"
     assert caught.value.details.get("parser_backend") == "jats"
-    assert calls == {"docling": 0, "pypdf": 0, "deepdoc": 0}
+    assert calls == {"docling": 0, "pypdf": 0}
 
 
 def test_production_parse_refuses_nxml_as_jats_not_local_text(monkeypatch, tmp_path):
@@ -323,7 +298,7 @@ def test_production_parse_refuses_nxml_as_jats_not_local_text(monkeypatch, tmp_p
         literature_ingest._parse(_acquire(nxml))
     assert caught.value.code == "parser_identity_lie"
     assert caught.value.details.get("parser_backend") == "jats"
-    assert calls == {"docling": 0, "pypdf": 0, "deepdoc": 0}
+    assert calls == {"docling": 0, "pypdf": 0}
 
 
 def test_production_parse_refuses_txt_local_text_suffix_and_does_not_call_fallbacks(monkeypatch, tmp_path):
@@ -335,7 +310,7 @@ def test_production_parse_refuses_txt_local_text_suffix_and_does_not_call_fallba
         literature_ingest._parse(_acquire(txt))
     assert caught.value.code == "parser_identity_lie"
     assert caught.value.details.get("parser_backend") == "local_text"
-    assert calls == {"docling": 0, "pypdf": 0, "deepdoc": 0}
+    assert calls == {"docling": 0, "pypdf": 0}
 
 
 def test_production_parse_refuses_md_local_text_suffix_and_does_not_call_fallbacks(monkeypatch, tmp_path):
@@ -347,7 +322,7 @@ def test_production_parse_refuses_md_local_text_suffix_and_does_not_call_fallbac
         literature_ingest._parse(_acquire(md))
     assert caught.value.code == "parser_identity_lie"
     assert caught.value.details.get("parser_backend") == "local_text"
-    assert calls == {"docling": 0, "pypdf": 0, "deepdoc": 0}
+    assert calls == {"docling": 0, "pypdf": 0}
 
 
 def test_production_parse_suffix_refuse_names_the_stamped_backend(monkeypatch, tmp_path):
@@ -382,4 +357,4 @@ def test_production_parse_suffix_refuse_names_the_stamped_backend(monkeypatch, t
     assert caught.value.details.get("parser_backend") == "pypdf"
     assert caught.value.details.get("fallback_reason") == "forced_suffix_stamp"
     assert jats_calls["n"] == 1
-    assert calls == {"docling": 0, "pypdf": 0, "deepdoc": 0}
+    assert calls == {"docling": 0, "pypdf": 0}

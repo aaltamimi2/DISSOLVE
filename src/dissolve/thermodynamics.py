@@ -24,9 +24,6 @@ FITTED_TEMP_MIN_C = 25.0
 FITTED_TEMP_MAX_C = 160.0
 SENSITIVITY_EXTRAPOLATION_MAX_C = 200.0
 EXTENDED_ADMISSION_MIN_BOILING_POINT_C = 25.0
-EXTENDED_SOURCE_ASSET_SHA256 = (
-    "963e5da06463ed6fbd29f44f8d8366d9fb6ac4a84da6c6ebf4d47c2d64e4c638"
-)
 
 
 def polymer_label_key(value: str) -> str:
@@ -203,13 +200,6 @@ def get_connection() -> duckdb.DuckDBPyConnection:
         )
         _LOCAL.connection = connection
     return connection
-
-
-@lru_cache(maxsize=1)
-def _thermodynamic_metadata() -> dict[str, str]:
-    return dict(get_connection().execute(
-        "SELECT key, value FROM thermodynamic_metadata"
-    ).fetchall())
 
 
 @lru_cache(maxsize=1)
@@ -404,124 +394,6 @@ def expand_polymer_identity(
     record = POLYMER_IDENTITIES[identity]
     members = tuple(str(item) for item in record.get("thermodynamic_members", (identity,)))
     return tuple(item for item in members if item in candidates)
-
-
-@lru_cache(maxsize=1)
-def _polymer_mention_surfaces() -> tuple[tuple[str, str], ...]:
-    surfaces = {
-        (alias, identity)
-        for identity in POLYMER_IDENTITIES
-        for alias in _identity_aliases(identity)
-    }
-    return tuple(sorted(surfaces, key=lambda item: (-len(item[0]), item[0].casefold())))
-
-
-def find_polymer_mentions(text: str) -> list[tuple[str, str]]:
-    """Extract non-overlapping user labels using the canonical identity registry."""
-    matches: list[tuple[int, int, str, str]] = []
-    for surface, identity in _polymer_mention_surfaces():
-        for match in re.finditer(
-            rf"(?<![A-Za-z0-9]){re.escape(surface)}(?![A-Za-z0-9])", text, re.I,
-        ):
-            matches.append((match.start(), match.end(), match.group(0), identity))
-    selected: list[tuple[int, int, str, str]] = []
-    for candidate in sorted(matches, key=lambda item: (item[0], -(item[1] - item[0]))):
-        if any(candidate[0] < item[1] and item[0] < candidate[1] for item in selected):
-            continue
-        selected.append(candidate)
-    identities = {item[3] for item in selected}
-    selected = [
-        item for item in selected
-        if not (
-            POLYMER_IDENTITIES[item[3]].get("thermodynamic_members")
-            and any(
-                member in identities
-                for member in POLYMER_IDENTITIES[item[3]]["thermodynamic_members"]
-            )
-        )
-    ]
-    return [(label, identity) for _, _, label, identity in sorted(selected)]
-
-
-def named_polymer_identities(text: str) -> tuple[str, ...]:
-    """Return registry identities the user actually named, with family expansion.
-
-    An invented second polymer is not a named identity. Family labels such as
-    PE authorize every thermodynamic member; a point identity authorizes itself.
-    """
-    identities: list[str] = []
-    for label, identity in find_polymer_mentions(text):
-        members = expand_polymer_identity(label)
-        for item in members or (identity,):
-            if item not in identities:
-                identities.append(item)
-    return tuple(identities)
-
-
-def context_polymer_identities(payload: dict | None) -> tuple[str, ...]:
-    """Return established polymer identities from typed session or plan context.
-
-    The bounded prompt projection may drop the top-level polymers list.
-    Candidate rows, routes, and declared feeds remain the durable prior.
-    """
-    if not isinstance(payload, dict):
-        return ()
-    identities: list[str] = []
-
-    def add(value: object) -> None:
-        texts: list[str] = []
-        if isinstance(value, dict):
-            texts.extend(str(item).strip() for item in value)
-        elif isinstance(value, (list, tuple, set)):
-            texts.extend(str(item).strip() for item in value)
-        else:
-            texts.append(str(value or "").strip())
-        for text in texts:
-            if not text:
-                continue
-            members = expand_polymer_identity(text)
-            identity = resolve_polymer(text) if not members else None
-            for item in members or ((identity,) if identity else ()):
-                if item and item not in identities:
-                    identities.append(item)
-
-    add(payload.get("polymers"))
-    declared = payload.get("declared_deliverable")
-    if isinstance(declared, dict):
-        for field in ("polymers", "feed_polymers", "target_polymers"):
-            add(declared.get(field))
-    constraints = payload.get("planning_constraints")
-    if isinstance(constraints, dict):
-        add(constraints.get("required_feed_polymers"))
-    for row in payload.get("last_candidates") or []:
-        if not isinstance(row, dict):
-            continue
-        add(row.get("first_polymer"))
-        add(row.get("second_polymer"))
-        add(row.get("dissolved_polymer"))
-        add(row.get("polymer"))
-        add(row.get("other_polymer_crossings"))
-        add(row.get("retained_polymers"))
-        add(row.get("polymers"))
-    route = payload.get("last_route")
-    if isinstance(route, dict):
-        add(route.get("final_residue"))
-        for step in route.get("steps") or []:
-            if isinstance(step, dict):
-                add(step.get("dissolved_polymer"))
-                add(step.get("retained_polymers"))
-    cycle = payload.get("last_process_cycle")
-    if isinstance(cycle, dict):
-        add(cycle.get("recovered_polymer"))
-        add(cycle.get("sacrificial_getter_polymer"))
-    analysis = payload.get("last_analysis")
-    if isinstance(analysis, dict):
-        add(analysis.get("requested_polymers"))
-        add(analysis.get("modeled_polymers"))
-        for pair in analysis.get("ranked_pairs") or []:
-            if isinstance(pair, dict):
-                add(pair.get("polymers"))
-    return tuple(identities)
 
 
 def resolve_polymer(name: str, known: Optional[set[str]] = None) -> Optional[str]:
@@ -826,10 +698,6 @@ def get_available_solvents_for_polymer(polymer: str) -> set[str]:
     }
 
 
-def get_available_pairs() -> set[tuple[str, str]]:
-    return set(_usable_grid_pairs())
-
-
 def get_all_solvents_selectivity(
     target: str, others: list[str], temperature_c: float
 ) -> list[dict]:
@@ -1061,5 +929,3 @@ def get_boiling_point(solvent: str) -> Optional[float]:
     return _property(solvent, "boiling_point_c")
 
 
-def get_logp(solvent: str) -> Optional[float]:
-    return _property(solvent, "logp")

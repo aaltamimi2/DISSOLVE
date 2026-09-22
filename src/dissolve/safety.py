@@ -52,7 +52,6 @@ _SNAPSHOT_SHA256 = (
 _SNAPSHOT_DEFAULT = Path.home() / (
     "dissolve-v12-audit/safety/pubchem_safety_snapshot.v2.duckdb"
 )
-_BROKEN_BIODEGRADATION_HEADING = "Biodegradation"
 
 
 class SafetySnapshotRefuse(Exception):
@@ -898,62 +897,6 @@ def score_chem21_she(
     loaded = dict(inputs) if inputs is not None else dict(_chem21_load_inputs(solvent))
     loaded["statements"] = list(loaded.get("statements") or [])
     return _chem21_score_from_inputs(str(solvent), loaded)
-
-
-def chem21_snapshot_join_census() -> dict[str, Any]:
-    """Re-derive the admitted snapshot join through the production cid path."""
-    rows = thermo._solvent_admission_rows()
-    digest = _SNAPSHOT_SHA256
-    loaded = _load_snapshot()
-    snap_cids = {
-        int(item[0])
-        for item in loaded["connection"].execute("SELECT cid FROM pubchem_safety").fetchall()
-    }
-    joined = 0
-    flash = 0
-    admission_absent: list[dict[str, Any]] = []
-    for key, rec in sorted(rows.items(), key=lambda item: str(item[1].get("interp_key") or item[0])):
-        local = _local_properties(key)
-        prod_cid = _number(local.get("cid"))
-        adm_cid = _number(rec.get("cid"))
-        interp = str(rec.get("interp_key") or key)
-        if prod_cid is not None:
-            try:
-                pub = _snapshot_pubchem(int(prod_cid))
-            except SafetySnapshotRefuse:
-                pub = None
-            else:
-                joined += 1
-                if pub.get("flash_point_c") is not None:
-                    flash += 1
-        if adm_cid is None or int(adm_cid) not in snap_cids:
-            admission_absent.append({
-                "interp_key": interp,
-                "admission_cid": None if adm_cid is None else int(adm_cid),
-                "production_cid": None if prod_cid is None else int(prod_cid),
-            })
-    common_flash = 0
-    for key in thermo.COMMON_INTERP_KEYS:
-        local = _local_properties(key)
-        cid = _number(local.get("cid"))
-        if cid is None:
-            continue
-        try:
-            pub = _snapshot_pubchem(int(cid))
-        except SafetySnapshotRefuse:
-            continue
-        if pub.get("flash_point_c") is not None:
-            common_flash += 1
-    return {
-        "snapshot_digest": loaded["digest"],
-        "expected_snapshot_digest": digest,
-        "admitted": len(rows),
-        "production_join": joined,
-        "production_flash": flash,
-        "common": len(thermo.COMMON_INTERP_KEYS),
-        "common_flash": common_flash,
-        "admission_cid_absent_from_snapshot": admission_absent,
-    }
 
 
 def _chem21_ceiling_disclosure(

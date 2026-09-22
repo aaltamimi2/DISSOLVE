@@ -11,4 +11,4 @@ __version__ = "0.1"
 #: rename is one edit, and so a v11 artifact is never mistaken for a v12 one.
 RELEASE = "dissolve-v12-0.1"
 
-from .registry import REGISTRY, BY_NAME, call  # noqa: F401
+from .registry import REGISTRY, BY_NAME  # noqa: F401

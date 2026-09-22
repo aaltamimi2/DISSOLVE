@@ -17,7 +17,7 @@ import re
 import statistics
 import unicodedata
 from collections import Counter, defaultdict
-from datetime import date, datetime, timezone
+from datetime import datetime, timezone
 from html.parser import HTMLParser
 from pathlib import Path
 from typing import Any, Literal, Mapping, NoReturn, Optional, Sequence
@@ -61,7 +61,6 @@ _CORPUS_PROFILE_BGE10 = "bge10"
 _SUPPORTED_CORPUS_PROFILES = frozenset({_CORPUS_PROFILE_MINILM, _CORPUS_PROFILE_BGE10})
 _ENV_CORPUS_PROFILE = "DISSOLVE_CORPUS_PROFILE"
 _ENV_BGE10_MANIFEST = "DISSOLVE_BGE10_MANIFEST"
-_ENV_RESEARCH_HOME = "DISSOLVE_RESEARCH_HOME"
 _ENV_CORPUS_DIR = "DISSOLVE_CORPUS_DIR"
 _PRODUCT_MANIFEST_NAME = "INDEX.t5.unsealed.v1.json"
 _BGE_MODEL_ID = "BAAI/bge-base-en-v1.5"
@@ -846,62 +845,6 @@ def _run_docling(path: Path) -> dict[str, Any]:
         ) from error
 
 
-def _deepdoc_bridge(result: Any, *, version: str, fallback_reason: str) -> dict[str, Any]:
-    try:
-        boxes, raw_tables = result
-    except (TypeError, ValueError) as error:
-        raise LiteratureContractError(
-            "deepdoc_contract_mismatch", "DeepDoc did not return its boxes-and-tables result."
-        ) from error
-    items = []
-    for order, box in enumerate(boxes or []):
-        text = _object_value(box, "text") or _object_value(box, "content") or ""
-        if not str(text).strip():
-            continue
-        layout = _enum_text(_object_value(box, "layout_type", _object_value(box, "type", "text")))
-        items.append({
-            "id": _object_value(box, "id"), "label": layout, "order": order,
-            "page": _object_value(box, "page_number", _object_value(box, "page")),
-            "bbox": _object_value(box, "bbox", _object_value(box, "position")),
-            "section_path": list(_object_value(box, "section_path", []) or []),
-            "text": str(text), "confidence": _object_value(box, "confidence", 1.0),
-        })
-    tables = []
-    for raw in raw_tables or []:
-        if not isinstance(raw, Mapping):
-            continue
-        tables.append(dict(raw))
-    return {
-        "backend": "deepdoc", "version": version, "items": items, "tables": tables,
-        "quality_flags": ["ocr_used"], "fallback_reason": fallback_reason,
-    }
-
-
-def _run_deepdoc(path: Path, *, fallback_reason: str) -> dict[str, Any]:
-    try:
-        parser_type = importlib.import_module("deepdoc.parser").PdfParser
-        version = getattr(importlib.import_module("deepdoc"), "__version__", "unknown")
-    except (ImportError, AttributeError) as error:
-        raise LiteratureContractError(
-            "parser_backend_unavailable",
-            "DeepDoc fallback is unavailable; install a compatible RAGFlow DeepDoc environment.",
-            backend="deepdoc", fallback_reason=fallback_reason,
-        ) from error
-    try:
-        return _deepdoc_bridge(
-            parser_type()(str(path), auto_rotate_tables=False),
-            version=str(version), fallback_reason=fallback_reason,
-        )
-    except LiteratureContractError:
-        raise
-    except Exception as error:  # optional fallback errors vary by RAGFlow release
-        raise LiteratureContractError(
-            "parser_backend_failed", "DeepDoc could not parse the acquired artifact.",
-            backend="deepdoc", error_type=type(error).__name__,
-            fallback_reason=fallback_reason,
-        ) from error
-
-
 def _source_artifact(acquisition: Mapping[str, Any]) -> Mapping[str, Any]:
     document = acquisition.get("document") or {}
     source_sha = document.get("content_sha256")
@@ -1128,22 +1071,6 @@ def _experiment_source_path(
             artifact_id=source.get("artifact_id"), packed_path=str(path),
         )
     return path
-
-
-def mem_available_bytes() -> int:
-    """Current MemAvailable. C3 refuses a parse when this is below the C1 guard."""
-    for line in Path("/proc/meminfo").read_text().splitlines():
-        if line.startswith("MemAvailable:"):
-            return int(line.split()[1]) * 1024
-    raise LiteratureContractError(
-        "meminfo_missing",
-        "MemAvailable is required before a Docling parse may start.",
-    )
-
-
-def parse_start_allowed(*, ceiling_bytes: int = PEAK_RSS_CEILING_BYTES) -> bool:
-    """True iff MemAvailable >= C1 peak + 512 MiB. A false value defers; it does not hope."""
-    return mem_available_bytes() >= int(ceiling_bytes) + PEAK_RSS_HEADROOM_BYTES
 
 
 def parse_experiment_document(
@@ -1393,24 +1320,6 @@ def build_canonical_document(
     }
 
 
-def load_sealed_gold_facts(path: str | Path) -> dict[str, Any]:
-    """Load gold v1. Abort if the bytes are not the sealed digest."""
-    raw = Path(path).read_bytes()
-    digest = hashlib.sha256(raw).hexdigest()
-    if digest != _GOLD_FACTS_V1_SHA256:
-        raise LiteratureContractError(
-            "gold_digest_mismatch",
-            "Scorer aborts when gold_facts.v1.json is not the sealed digest.",
-            path=str(path), digest=digest, required=_GOLD_FACTS_V1_SHA256,
-        )
-    payload = json.loads(raw.decode("utf-8"))
-    if not isinstance(payload, dict) or not isinstance(payload.get("facts"), list):
-        raise LiteratureContractError(
-            "invalid_gold_facts", "Sealed gold must be an object with a facts list.",
-        )
-    return payload
-
-
 def _chunk_header(heading: Sequence[str] | None) -> str:
     return " > ".join(str(part) for part in (heading or []) if str(part).strip())
 
@@ -1432,14 +1341,6 @@ def _make_chunk(
     if page is not None:
         chunk["page"] = page
     return chunk
-
-
-def _canonical_slice_ok(canonical: Mapping[str, Any], chunk: Mapping[str, Any]) -> bool:
-    start, end = chunk.get("char_start"), chunk.get("char_end")
-    if start is None or end is None:
-        return False
-    text = str(canonical.get("canonical_text") or "")
-    return text[int(start):int(end)] == chunk.get("body")
 
 
 def _unit_from_block(block: Mapping[str, Any]) -> dict[str, Any]:
@@ -1537,45 +1438,6 @@ def _pack_units(
     return chunks
 
 
-def chunk_s0_production_pypdf(
-    page_texts: Sequence[str], *, target: int = _CHUNK_TARGET, overlap: int = _CHUNK_OVERLAP,
-) -> list[dict[str, Any]]:
-    """S0: production `_paragraph_chunks` on pypdf page text. Not a Docling function."""
-    chunks: list[dict[str, Any]] = []
-    for page_number, page_text in enumerate(page_texts, 1):
-        for section, body in _paragraph_chunks(page_text, target=target, overlap=overlap):
-            if not str(body).strip():
-                continue
-            chunks.append(_make_chunk(
-                strategy="S0_production_pypdf", index=len(chunks) + 1,
-                body=body, header=str(section or ""),
-                char_start=None, char_end=None, page=page_number,
-            ))
-    return chunks
-
-
-def chunk_s1_naive_char(
-    canonical: Mapping[str, Any], *, target: int = _CHUNK_TARGET, overlap: int = _CHUNK_OVERLAP,
-) -> list[dict[str, Any]]:
-    """S1: sliding window on canonical_text, ignoring block kinds. Negative control."""
-    text = str(canonical.get("canonical_text") or "")
-    chunks: list[dict[str, Any]] = []
-    start = 0
-    n = len(text)
-    while start < n:
-        end = min(start + target, n)
-        chunks.append(_make_chunk(
-            strategy="S1_naive_char", index=len(chunks) + 1,
-            body=text[start:end], header="",
-            char_start=start, char_end=end,
-        ))
-        if end >= n:
-            break
-        nxt = end - overlap
-        start = end if nxt <= start else nxt
-    return chunks
-
-
 def chunk_s2_block_pack(
     canonical: Mapping[str, Any], *, target: int = _CHUNK_TARGET,
 ) -> list[dict[str, Any]]:
@@ -1586,94 +1448,12 @@ def chunk_s2_block_pack(
     )
 
 
-def chunk_s3_section_pack(
-    canonical: Mapping[str, Any], *, target: int = _CHUNK_TARGET,
-) -> list[dict[str, Any]]:
-    units = [_unit_from_block(block) for block in canonical.get("blocks") or []]
-    return _pack_units(
-        units, str(canonical.get("canonical_text") or ""),
-        strategy="S3_section_pack", target=target, start_new_on_heading=True,
-    )
-
-
-def chunk_s4_sentence_pack(
-    canonical: Mapping[str, Any], *, target: int = _CHUNK_TARGET,
-) -> list[dict[str, Any]]:
-    units: list[dict[str, Any]] = []
-    for block in canonical.get("blocks") or []:
-        units.extend(_sentence_units(block))
-    return _pack_units(
-        units, str(canonical.get("canonical_text") or ""),
-        strategy="S4_sentence_pack", target=target,
-    )
-
-
-def chunk_s5_table_plus_neighbors(
-    canonical: Mapping[str, Any], *, target: int = _CHUNK_TARGET,
-) -> list[dict[str, Any]]:
-    text = str(canonical.get("canonical_text") or "")
-    blocks = list(canonical.get("blocks") or [])
-    by_id = {str(block.get("block_id")): i for i, block in enumerate(blocks)}
-    covered: set[int] = set()
-    table_chunks: list[dict[str, Any]] = []
-    for table in canonical.get("tables") or []:
-        table_id = str(table.get("table_id") or "")
-        if table_id not in by_id:
-            continue
-        members = [blocks[by_id[table_id]]]
-        idx = by_id[table_id]
-        for prev in range(idx - 1, -1, -1):
-            kind = str(blocks[prev].get("kind") or "")
-            if kind in {"header", "footer"}:
-                continue
-            members.append(blocks[prev])
-            break
-        caption_id = table.get("caption_block_id") or blocks[idx].get("caption_ref")
-        if caption_id and str(caption_id) in by_id:
-            members.append(blocks[by_id[str(caption_id)]])
-        start = min(int(item["char_start"]) for item in members)
-        end = max(int(item["char_end"]) for item in members)
-        heading = list(blocks[idx].get("nearest_preceding_heading") or [])
-        table_chunks.append(_make_chunk(
-            strategy="S5_table_plus_neighbors", index=len(table_chunks) + 1,
-            body=text[start:end], header=_chunk_header(heading),
-            char_start=start, char_end=end,
-        ))
-        for i, block in enumerate(blocks):
-            if int(block["char_start"]) >= start and int(block["char_end"]) <= end:
-                covered.add(i)
-    remaining = [_unit_from_block(block) for i, block in enumerate(blocks) if i not in covered]
-    rest = _pack_units(
-        remaining, text, strategy="S5_table_plus_neighbors",
-        target=target, start_new_on_heading=True,
-    )
-    combined = table_chunks + rest
-    for index, chunk in enumerate(combined, 1):
-        chunk["chunk_id"] = f"S5_table_plus_neighbors-{index:04d}"
-        chunk["strategy"] = "S5_table_plus_neighbors"
-    return combined
-
-
-_C6_CHUNKERS = {
-    "S0_production_pypdf": None,
-    "S1_naive_char": chunk_s1_naive_char,
-    "S2_block_pack": chunk_s2_block_pack,
-    "S3_section_pack": chunk_s3_section_pack,
-    "S4_sentence_pack": chunk_s4_sentence_pack,
-    "S5_table_plus_neighbors": chunk_s5_table_plus_neighbors,
-}
-
-
 def _intersects(cs: int, ce: int, ss: int, se: int) -> bool:
     return cs < se and ss < ce
 
 
 def _covers(cs: int, ce: int, ss: int, se: int) -> bool:
     return cs <= ss and ce >= se
-
-
-def _proper_subset(cs: int, ce: int, ss: int, se: int) -> bool:
-    return ss <= cs and ce <= se and (cs > ss or ce < se)
 
 
 def _atomic_spans(canonical: Mapping[str, Any], kinds: set[str]) -> list[tuple[int, int]]:
@@ -1800,10 +1580,6 @@ def rebound_blocks_for_table(
     return associated
 
 
-def _table_rebound_text(canonical: Mapping[str, Any], table: Mapping[str, Any]) -> str:
-    return _join_match_parts(*(block.get("text") for block in rebound_blocks_for_table(canonical, table)))
-
-
 def _body_plus_rebound_text(
     body: str, canonical: Mapping[str, Any], table: Mapping[str, Any],
 ) -> str:
@@ -1859,23 +1635,6 @@ def apply_table_rebound(
     return attached
 
 
-def _chunk_rebound_corpus(
-    chunk: Mapping[str, Any],
-    canonical: Mapping[str, Any],
-    tables_by_span: Mapping[tuple[int, int], Mapping[str, Any]],
-) -> str:
-    if "body_plus_rebound" in chunk:
-        return str(chunk.get("body_plus_rebound") or "")
-    body = _chunk_body_text(chunk)
-    start, end = chunk.get("char_start"), chunk.get("char_end")
-    if start is None or end is None:
-        return body
-    table = tables_by_span.get((int(start), int(end)))
-    if table is None:
-        return body
-    return _body_plus_rebound_text(body, canonical, table)
-
-
 def table_atomic_fraction(chunks: Sequence[Mapping[str, Any]], canonical: Mapping[str, Any]) -> float | None:
     tables = list(canonical.get("tables") or [])
     if not tables:
@@ -1891,357 +1650,12 @@ def table_atomic_fraction(chunks: Sequence[Mapping[str, Any]], canonical: Mappin
     return hits / len(tables)
 
 
-def _needle_hit(corpus: str, needle: Any) -> bool:
-    return str(needle).casefold() in str(corpus).casefold()
-
-
-def _body_has_all_needles(body: str, needles: Mapping[str, Any]) -> bool:
-    return all(_needle_hit(body, value) for value in needles.values())
-
-
-def official_contain_bound_fact_eligible(fact: Mapping[str, Any]) -> bool:
-    """Official contain_bound_fact is a bound-fact score, not string existence.
-
-    Ensemble accept test 2: a ``scoring_class=string_existence`` row must not
-    satisfy official ``contain_bound_fact``. Empty ``needles`` is vacuously
-    true in ``_body_has_all_needles`` and must not be scored as bound. Gold v1
-    rows have nonempty needles and no ``scoring_class`` and stay eligible.
-    Ensemble ``gold`` / ``gold_unsealed`` ``bound_fact`` rows need all four named
-    needles so a one-key row cannot dummy-score True if the set invariant is
-    bypassed. ``awaiting_C`` table-cell candidates are not gold yet.
-    """
-    if str(fact.get("scoring_class") or "") == "string_existence":
-        return False
-    if str(fact.get("status") or "") in {
-        "awaiting_C", "awaiting_needles", "disputed", "diagnostic_not_fact",
-    }:
-        return False
-    needles = fact.get("needles") or {}
-    filled = sum(
-        1
-        for key in ("polymer", "solvent", "temperature", "value")
-        if str(needles.get(key) or "").strip()
-    )
-    # Ensemble gold_unsealed is four named keys. Gold v1 has no scoring_class
-    # and stays on nonempty needles (two of twelve facts are not four-key).
-    if (
-        str(fact.get("scoring_class") or "") == "bound_fact"
-        and str(fact.get("status") or "") in {"gold", "gold_unsealed"}
-        and filled != 4
-    ):
-        return False
-    if not any(str(value or "").strip() for value in needles.values()):
-        return False
-    return True
-
-
-def _page6_table_spans(canonical: Mapping[str, Any]) -> list[tuple[int, int]]:
-    return [
-        (int(table["char_start"]), int(table["char_end"]))
-        for table in canonical.get("tables") or []
-        if table.get("page") == 6
-    ]
-
-
-def _locus_table_spans(canonical: Mapping[str, Any]) -> dict[str, tuple[int, int]]:
-    labels: dict[str, tuple[int, int]] = {}
-    blocks = list(canonical.get("blocks") or [])
-    by_id = {str(block.get("block_id")): block for block in blocks}
-    for table in canonical.get("tables") or []:
-        span = (int(table["char_start"]), int(table["char_end"]))
-        candidates: list[str] = []
-        caption_id = table.get("caption_block_id") or (by_id.get(str(table.get("table_id"))) or {}).get("caption_ref")
-        if caption_id and str(caption_id) in by_id:
-            candidates.append(str(by_id[str(caption_id)].get("text") or ""))
-        table_idx = next(
-            (i for i, block in enumerate(blocks) if block.get("block_id") == table.get("table_id")),
-            None,
-        )
-        if table_idx is not None:
-            for prev in reversed(blocks[:table_idx]):
-                kind = str(prev.get("kind") or "")
-                if kind == "table":
-                    break
-                candidates.append(str(prev.get("text") or ""))
-                if kind == "heading":
-                    break
-            for nxt in blocks[table_idx + 1:]:
-                kind = str(nxt.get("kind") or "")
-                if kind in {"table", "heading"}:
-                    break
-                candidates.append(str(nxt.get("text") or ""))
-        for text in candidates:
-            match = _TABLE_LABEL_RE.match(text)
-            if match:
-                labels.setdefault(f"Table {match.group(1)}", span)
-                break
-    return labels
-
-
 def chunk_sparse_corpus(chunk: Mapping[str, Any]) -> str:
     """C7c: rank on rebound when present. Official body-only scores do not use this."""
     rebound = str(chunk.get("body_plus_rebound") or "").strip()
     if rebound:
         return rebound
     return _chunk_body_text(chunk)
-
-
-def _bm25_top5_on(
-    query: str,
-    chunks: Sequence[Mapping[str, Any]],
-    corpus_of,
-) -> list[Mapping[str, Any]]:
-    rows = [{"text": str(corpus_of(chunk) or "")} for chunk in chunks]
-    scores = _bm25(_tokens(query), rows)
-    ranked = sorted(
-        zip(scores, range(len(chunks)), chunks),
-        key=lambda item: (-item[0], item[1]),
-    )
-    return [chunk for _, _, chunk in ranked[:5]]
-
-
-def _bm25_top5(query: str, chunks: Sequence[Mapping[str, Any]]) -> list[Mapping[str, Any]]:
-    """Official v2 §7 ranking: chunk body only."""
-    return _bm25_top5_on(query, chunks, _chunk_body_text)
-
-
-def score_chunks_against_facts(
-    chunks: Sequence[Mapping[str, Any]],
-    facts: Sequence[Mapping[str, Any]],
-    canonical: Mapping[str, Any],
-    *,
-    strategy: str,
-) -> dict[str, Any]:
-    """v2 §7 metrics. Does not blend an F1. Offset metrics skipped for S0."""
-    page6 = _page6_table_spans(canonical)
-    locus_spans = _locus_table_spans(canonical)
-    tables_by_span = {
-        (int(table["char_start"]), int(table["char_end"])): table
-        for table in canonical.get("tables") or []
-        if table.get("char_start") is not None and table.get("char_end") is not None
-    }
-    offsetful = strategy != "S0_production_pypdf"
-    per_fact: list[dict[str, Any]] = []
-    cross_hits = 0
-    for fact in facts:
-        fact_id = str(fact.get("fact_id") or "")
-        needles = dict(fact.get("needles") or {})
-        locus = str(fact.get("locus") or "")
-        parse_gated = locus.casefold().startswith("fig") or int(fact.get("page") or 0) == 6
-        parse_miss = parse_gated and not page6
-        bodies = [_chunk_body_text(chunk) for chunk in chunks]
-        if "value" in needles:
-            contain_value = any(_needle_hit(body, needles.get("value")) for body in bodies)
-        else:
-            contain_value = any(
-                _needle_hit(body, value) for body in bodies for value in needles.values()
-            )
-        bound_chunks = [chunk for chunk in chunks if _body_has_all_needles(_chunk_body_text(chunk), needles)]
-        contain_bound_fact = bool(bound_chunks)
-        rebound_bound_chunks = [
-            chunk for chunk in chunks
-            if _body_has_all_needles(_chunk_rebound_corpus(chunk, canonical, tables_by_span), needles)
-        ]
-        contain_bound_fact_rebound = bool(rebound_bound_chunks)
-        if parse_gated and contain_bound_fact:
-            contain_bound_fact = any(
-                chunk.get("char_start") is not None
-                and any(
-                    _intersects(int(chunk["char_start"]), int(chunk["char_end"]), span[0], span[1])
-                    for span in page6
-                )
-                for chunk in bound_chunks
-            ) if page6 else False
-        if parse_gated and contain_bound_fact_rebound:
-            contain_bound_fact_rebound = any(
-                chunk.get("char_start") is not None
-                and any(
-                    _intersects(int(chunk["char_start"]), int(chunk["char_end"]), span[0], span[1])
-                    for span in page6
-                )
-                for chunk in rebound_bound_chunks
-            ) if page6 else False
-        header_only = False
-        if not contain_bound_fact:
-            header_only = any(
-                _body_has_all_needles(str(chunk.get("header") or ""), needles)
-                and not _body_has_all_needles(_chunk_body_text(chunk), needles)
-                for chunk in chunks
-            )
-        query = str(fact.get("query") or "")
-        top5 = _bm25_top5(query, chunks) if query else []
-        top5_rebound = (
-            _bm25_top5_on(
-                query, chunks,
-                lambda chunk: _chunk_rebound_corpus(chunk, canonical, tables_by_span),
-            )
-            if query else []
-        )
-        retrievable = any(_body_has_all_needles(_chunk_body_text(chunk), needles) for chunk in top5)
-        retrievable_rebound = any(
-            _body_has_all_needles(_chunk_rebound_corpus(chunk, canonical, tables_by_span), needles)
-            for chunk in top5_rebound
-        )
-        if parse_gated and retrievable and page6:
-            retrievable = any(
-                _body_has_all_needles(_chunk_body_text(chunk), needles)
-                and chunk.get("char_start") is not None
-                and any(
-                    _intersects(int(chunk["char_start"]), int(chunk["char_end"]), span[0], span[1])
-                    for span in page6
-                )
-                for chunk in top5
-            )
-        if parse_gated and retrievable_rebound and page6:
-            retrievable_rebound = any(
-                _body_has_all_needles(_chunk_rebound_corpus(chunk, canonical, tables_by_span), needles)
-                and chunk.get("char_start") is not None
-                and any(
-                    _intersects(int(chunk["char_start"]), int(chunk["char_end"]), span[0], span[1])
-                    for span in page6
-                )
-                for chunk in top5_rebound
-            )
-        severed = False
-        severed_ctx = False
-        table_span = locus_spans.get(locus) if locus.startswith("Table ") else None
-        table_obj = tables_by_span.get(table_span) if table_span else None
-        if offsetful and table_span and "value" in needles:
-            rebound_txt = _table_rebound_text(canonical, table_obj) if table_obj is not None else ""
-            for chunk in chunks:
-                start, end = chunk.get("char_start"), chunk.get("char_end")
-                if start is None or end is None:
-                    continue
-                body = _chunk_body_text(chunk)
-                value_hit = _needle_hit(body, needles.get("value"))
-                bound_on_body = _body_has_all_needles(body, needles)
-                subset = _proper_subset(int(start), int(end), table_span[0], table_span[1])
-                if value_hit and not bound_on_body and subset:
-                    severed = True
-                if (
-                    value_hit
-                    and not bound_on_body
-                    and not subset
-                    and rebound_txt
-                ):
-                    missing = [value for value in needles.values() if not _needle_hit(body, value)]
-                    if any(_needle_hit(rebound_txt, missing_needle) for missing_needle in missing):
-                        severed_ctx = True
-        if not official_contain_bound_fact_eligible(fact):
-            contain_bound_fact = False
-            contain_bound_fact_rebound = False
-            retrievable = False
-            retrievable_rebound = False
-            header_only = False
-        row = {
-            "fact_id": fact_id,
-            "parse_miss": parse_miss,
-            "contain_value": contain_value,
-            "contain_bound_fact": None if parse_miss else contain_bound_fact,
-            "contain_bound_fact_rebound": None if parse_miss else contain_bound_fact_rebound,
-            "retrievable": None if parse_miss else retrievable,
-            "retrievable_rebound": None if parse_miss else retrievable_rebound,
-            "condition_severed_inside_table": None if (parse_miss or not offsetful) else severed,
-            "condition_severed_from_context": None if (parse_miss or not offsetful) else severed_ctx,
-            "header_only_hit": header_only,
-        }
-        per_fact.append(row)
-        if parse_miss:
-            continue
-        value_a = needles.get("value")
-        if value_a is None or not contain_bound_fact:
-            continue
-        for other in facts:
-            if other is fact:
-                continue
-            if str(other.get("locus") or "") == locus:
-                continue
-            other_needles = dict(other.get("needles") or {})
-            other_value = other_needles.get("value")
-            if other_value is None:
-                continue
-            for chunk in bound_chunks:
-                if _needle_hit(_chunk_body_text(chunk), other_value):
-                    cross_hits += 1
-                    break
-    scored = [row for row in per_fact if not row["parse_miss"]]
-    return {
-        "strategy": strategy,
-        "n_chunks": len(chunks),
-        "table_splits": chunk_splits_atomic(chunks, canonical, {"table"}) if offsetful else None,
-        "formula_splits": chunk_splits_atomic(chunks, canonical, {"formula"}) if offsetful else None,
-        "caption_splits": chunk_splits_atomic(chunks, canonical, {"caption"}) if offsetful else None,
-        "table_atomic": table_atomic_fraction(chunks, canonical) if offsetful else None,
-        "n_parse_miss": sum(1 for row in per_fact if row["parse_miss"]),
-        "n_contain_value": sum(1 for row in scored if row["contain_value"]),
-        "n_contain_bound_fact": sum(1 for row in scored if row["contain_bound_fact"]),
-        "n_contain_bound_fact_rebound": sum(1 for row in scored if row["contain_bound_fact_rebound"]),
-        "n_retrievable": sum(1 for row in scored if row["retrievable"]),
-        "n_retrievable_rebound": sum(1 for row in scored if row["retrievable_rebound"]),
-        "n_condition_severed_inside_table": sum(
-            1 for row in scored if row["condition_severed_inside_table"]
-        ),
-        "n_condition_severed_from_context": sum(
-            1 for row in scored if row["condition_severed_from_context"]
-        ),
-        "cross_fact_hits": cross_hits,
-        "facts": per_fact,
-    }
-
-
-def pypdf_page_texts_from_persist(parsed: Mapping[str, Any]) -> list[str]:
-    """Rebuild page strings from a saved pypdf persist. Does not call Docling."""
-    by_page: dict[int, list[str]] = {}
-    for block in parsed.get("blocks") or []:
-        page = int(block.get("page") or 0)
-        by_page.setdefault(page, []).append(str(block.get("text") or ""))
-    return ["\n\n".join(by_page[page]) for page in sorted(by_page)]
-
-
-def sweep_one_paper_chunking(
-    canonical: Mapping[str, Any],
-    pypdf_page_texts: Sequence[str],
-    gold_path: str | Path,
-) -> dict[str, Any]:
-    """C6 one-paper sweep. Pure functions of saved artifacts. Names all six strategies."""
-    gold = load_sealed_gold_facts(gold_path)
-    facts = list(gold.get("facts") or [])
-    built: dict[str, list[dict[str, Any]]] = {
-        "S0_production_pypdf": chunk_s0_production_pypdf(pypdf_page_texts),
-        "S1_naive_char": chunk_s1_naive_char(canonical),
-        "S2_block_pack": chunk_s2_block_pack(canonical),
-        "S3_section_pack": chunk_s3_section_pack(canonical),
-        "S4_sentence_pack": chunk_s4_sentence_pack(canonical),
-        "S5_table_plus_neighbors": chunk_s5_table_plus_neighbors(canonical),
-    }
-    if tuple(built) != _C6_STRATEGY_IDS:
-        raise LiteratureContractError(
-            "c6_strategy_omitted",
-            "C6 record must name all six strategies S0–S5.",
-            strategies=list(built),
-        )
-    strategies = {
-        name: score_chunks_against_facts(chunks, facts, canonical, strategy=name)
-        for name, chunks in built.items()
-    }
-    return {
-        "schema": "dissolve.one-paper-chunk-sweep.v1",
-        "checkpoint": "C6",
-        "source_pdf_sha256": canonical.get("source_pdf_sha256"),
-        "gold_sha256": _GOLD_FACTS_V1_SHA256,
-        "strategies_named": list(_C6_STRATEGY_IDS),
-        "did_not_invoke_docling": True,
-        "did_not_start_C3": True,
-        "did_not_start_C7": True,
-        "c9_all_six_still_run": True,
-        "probe_does_not_prune": (
-            "This one-paper sweep does not drop a strategy from C9. "
-            "S0–S5 all remain rows at corpus scale regardless of probe numbers."
-        ),
-        "strategies": strategies,
-        "n_facts": len(facts),
-        "page6_table_spans": len(_page6_table_spans(canonical)),
-    }
 
 
 def _normalize_reported_unit(unit: str) -> tuple[str, str | None]:
@@ -2870,38 +2284,6 @@ def validate_extraction_batch(
         "retained_unvalidated_count": sum(not item["claim_eligible"] for item in validations),
         "records": validations,
     }
-
-
-def _record_entities_and_quantities(record: Mapping[str, Any]) -> tuple[list[str], list[dict[str, Any]]]:
-    record_class = str(record["record_class"])
-    entities: list[str] = []
-    quantities: list[dict[str, Any]] = []
-    for field in {
-        "SolubilityPoint": ("polymer", "solvent"),
-        "ChiParameter": ("component_a", "component_b"),
-        "HSPRecord": ("material",),
-        "PartitionRecord": ("contaminant", "phase_a", "phase_b"),
-        "LeachingRecord": ("feed_material", "contaminant", "extraction_solvent"),
-        "TgRecord": ("material",),
-    }.get(record_class, ()):
-        entities.append(str(record[field]["canonical_id"]))
-    for field in {
-        "SolubilityPoint": ("temperature", "solubility"),
-        "ChiParameter": ("chi",), "HSPRecord": ("dD", "dP", "dH", "r0"),
-        "PartitionRecord": ("partition_value",), "LeachingRecord": ("response",),
-        "TgRecord": ("tg",),
-    }.get(record_class, ()):
-        if record.get(field) is not None:
-            quantities.append(dict(record[field]))
-    if record_class == "ProcessClaim":
-        entities.extend(str(item["canonical_id"]) for item in record["inputs"])
-        entities.append(str(record["patent_document_id"]))
-    elif record_class == "CompositionClaim":
-        entities.extend(str(item["material"]["canonical_id"]) for item in record["components"])
-        entities.append(str(record["patent_document_id"]))
-        quantities.extend(dict(item["amount"]) for item in record["components"] if item["amount"] is not None)
-    quantities.extend(dict(item) for item in (record.get("conditions") or {}).get("quantities") or [])
-    return list(dict.fromkeys(entities)), quantities
 
 
 _GRAPH_TABLES = (
@@ -3537,388 +2919,6 @@ def merge_literature_graph(
     finally:
         connection.close()
 
-
-def inspect_literature_graph(
-    library_id: str = "owner-main", *, root: str | Path | None = None,
-) -> dict[str, Any]:
-    """Return bounded storage counts for one named library without creating it."""
-    scoped = _slug(library_id)
-    path = literature_graph_path(scoped, root=root)
-    if not path.is_file():
-        return {
-            "schema": "dissolve.graph-status.v1", "library_id": scoped,
-            "graph_path": str(path), "exists": False,
-            "counts": {name: 0 for name in _GRAPH_TABLES}, "stale_topics": [],
-        }
-    connection = duckdb.connect(str(path), read_only=True)
-    try:
-        counts = {
-            table: connection.execute(
-                f"SELECT count(*) FROM {table} WHERE library_id = ?", [scoped],
-            ).fetchone()[0]
-            for table in _GRAPH_TABLES
-        }
-        stale_topics = [
-            row[0] for row in connection.execute(
-                "SELECT topic_key FROM kg_summaries WHERE library_id = ? AND status = 'stale' ORDER BY topic_key",
-                [scoped],
-            ).fetchall()
-        ]
-    finally:
-        connection.close()
-    return {
-        "schema": "dissolve.graph-status.v1", "library_id": scoped,
-        "graph_path": str(path), "exists": True, "counts": counts,
-        "stale_topics": stale_topics,
-    }
-
-
-def _date_parts(value: Any) -> str | None:
-    if not value:
-        return None
-    if isinstance(value, str):
-        try:
-            return date.fromisoformat(value[:10]).isoformat()
-        except ValueError:
-            year = re.search(r"\b(?:18|19|20|21)\d{2}\b", value)
-            return f"{year.group()}-01-01" if year else None
-    if isinstance(value, Mapping):
-        parts = value.get("date-parts") or value.get("date_parts")
-        if isinstance(parts, list) and parts and isinstance(parts[0], list):
-            parts = parts[0]
-        if isinstance(parts, list) and parts:
-            year, month, day = int(parts[0]), int(parts[1] if len(parts) > 1 else 1), int(parts[2] if len(parts) > 2 else 1)
-            try:
-                return date(year, month, day).isoformat()
-            except ValueError:
-                return None
-    return None
-
-
-def normalize_recorded_metadata_response(source: str, payload: Mapping[str, Any]) -> list[dict[str, Any]]:
-    """Normalize recorded provider-shaped metadata without making a provider call."""
-    source_key = str(source or "").casefold().replace("-", "_")
-    rows: list[dict[str, Any]] = []
-    if source_key == "crossref":
-        native_rows = (payload.get("message") or {}).get("items") or []
-        for item in native_rows:
-            titles = item.get("title") or []
-            title = titles[0] if isinstance(titles, list) and titles else titles
-            authors = [
-                " ".join(part for part in (str(row.get("given") or "").strip(), str(row.get("family") or "").strip()) if part)
-                for row in item.get("author") or []
-            ]
-            published = _date_parts(item.get("published-print") or item.get("published-online") or item.get("issued"))
-            rows.append({
-                "document_kind": "paper", "source": "crossref",
-                "source_record_id": str(item.get("DOI") or item.get("URL") or ""),
-                "title": _clean(title, 500),
-                "abstract": _clean(item.get("abstract"), 2_000) or None,
-                "authors": [value for value in authors if value],
-                "published_date": published, "updated_date": _date_parts(item.get("indexed", {}).get("date-time")),
-                "doi": str(item.get("DOI") or "").casefold() or None,
-                "arxiv_id": None, "patent_number": None, "family_id": None,
-                "url": item.get("URL"),
-            })
-    elif source_key in {"semantic_scholar", "semanticscholar"}:
-        for item in payload.get("data") or []:
-            identifiers = item.get("externalIds") or {}
-            rows.append({
-                "document_kind": "paper", "source": "semantic_scholar",
-                "source_record_id": str(item.get("paperId") or ""),
-                "title": _clean(item.get("title"), 500),
-                "abstract": _clean(item.get("abstract"), 2_000) or None,
-                "authors": [_clean(row.get("name"), 160) for row in item.get("authors") or [] if row.get("name")],
-                "published_date": _date_parts(item.get("publicationDate") or str(item.get("year") or "")),
-                "updated_date": None,
-                "doi": str(identifiers.get("DOI") or "").casefold() or None,
-                "arxiv_id": str(identifiers.get("ArXiv") or "") or None,
-                "patent_number": None, "family_id": None, "url": item.get("url"),
-            })
-    elif source_key in {"uspto", "patentsview"}:
-        native_rows = payload.get("patents") or payload.get("results") or []
-        for item in native_rows:
-            patent_number = str(item.get("patent_number") or item.get("patent_id") or "")
-            rows.append({
-                "document_kind": "patent", "source": source_key,
-                "source_record_id": patent_number,
-                "title": _clean(item.get("patent_title") or item.get("title"), 500),
-                "abstract": _clean(item.get("patent_abstract") or item.get("abstract"), 2_000) or None,
-                "authors": [str(value) for value in item.get("inventors") or []],
-                "published_date": _date_parts(item.get("publication_date") or item.get("patent_date")),
-                "updated_date": _date_parts(item.get("updated_date")),
-                "doi": None, "arxiv_id": None,
-                "patent_number": patent_number or None,
-                "family_id": str(item.get("family_id") or "") or None,
-                "priority_dates": sorted(set(str(value) for value in item.get("priority_dates") or [])),
-                "url": item.get("url"),
-            })
-    else:
-        raise LiteratureContractError(
-            "metadata_source_unsupported",
-            "Recorded metadata source must be crossref, semantic_scholar, uspto, or patentsview.",
-            source=source,
-        )
-    invalid = [index for index, row in enumerate(rows) if not row["title"] or not row["source_record_id"]]
-    if invalid:
-        raise LiteratureContractError(
-            "metadata_record_identity_missing",
-            "Recorded metadata rows require a title and source-native record identity.",
-            source=source_key, indexes=invalid,
-        )
-    return rows
-
-
-_METADATA_STRONG_IDENTITY_ORDER = ("patent_family", "doi", "arxiv", "patent")
-
-
-def _metadata_identities(row: Mapping[str, Any]) -> dict[str, str]:
-    """Return every usable identity rather than selecting one lossy winner."""
-    kind = str(row.get("document_kind") or "unknown")
-    identities: dict[str, str] = {}
-    if row.get("family_id"):
-        identities["patent_family"] = re.sub(
-            r"[^A-Z0-9]", "", str(row["family_id"]).upper(),
-        )
-    if row.get("doi"):
-        identities["doi"] = (
-            str(row["doi"]).casefold()
-            .removeprefix("https://doi.org/").removeprefix("doi:")
-        )
-    if row.get("arxiv_id"):
-        identities["arxiv"] = re.sub(
-            r"v\d+$", "", str(row["arxiv_id"]).casefold(),
-        )
-    if row.get("patent_number"):
-        identities["patent"] = re.sub(
-            r"[^A-Z0-9]", "", str(row["patent_number"]).upper(),
-        )
-    title = " ".join(_tokens(str(row.get("title") or "")))
-    year = str(row.get("published_date") or "")[:4]
-    identities[f"{kind}_title_year"] = f"{title}|{year}"
-    return {basis: value for basis, value in identities.items() if value}
-
-
-def _metadata_components(rows: Sequence[Mapping[str, Any]]) -> list[list[int]]:
-    """Link compatible metadata identities while keeping ambiguous titles split."""
-    identities = [_metadata_identities(row) for row in rows]
-    parents = list(range(len(rows)))
-    component_strong = [{
-        basis: {identity[basis]} for basis in _METADATA_STRONG_IDENTITY_ORDER
-        if identity.get(basis)
-    } for identity in identities]
-
-    def find(index: int) -> int:
-        while parents[index] != index:
-            parents[index] = parents[parents[index]]
-            index = parents[index]
-        return index
-
-    def union(left: int, right: int) -> bool:
-        left_root, right_root = find(left), find(right)
-        if left_root == right_root:
-            return True
-        shared_family = bool(
-            component_strong[left_root].get("patent_family", set())
-            & component_strong[right_root].get("patent_family", set())
-        )
-        for basis in _METADATA_STRONG_IDENTITY_ORDER:
-            values = (
-                component_strong[left_root].get(basis, set())
-                | component_strong[right_root].get(basis, set())
-            )
-            # Different jurisdiction/publication numbers are expected members
-            # of one explicitly shared patent family, not an identity conflict.
-            if basis == "patent" and shared_family:
-                continue
-            if len(values) > 1:
-                return False
-        parents[right_root] = left_root
-        for basis, values in component_strong[right_root].items():
-            component_strong[left_root].setdefault(basis, set()).update(values)
-        return True
-
-    # Exact durable identifiers are authoritative links only when another
-    # durable identifier of the same namespace does not contradict the link.
-    strong_buckets: dict[tuple[str, str], list[int]] = defaultdict(list)
-    for index, identity in enumerate(identities):
-        for basis in _METADATA_STRONG_IDENTITY_ORDER:
-            if identity.get(basis):
-                strong_buckets[(basis, identity[basis])].append(index)
-    for bucket in strong_buckets.values():
-        for index in bucket[1:]:
-            union(bucket[0], index)
-
-    weak_buckets: dict[tuple[str, str], list[int]] = defaultdict(list)
-    for index, identity in enumerate(identities):
-        for basis, value in identity.items():
-            if basis not in _METADATA_STRONG_IDENTITY_ORDER:
-                weak_buckets[(basis, value)].append(index)
-    for bucket in weak_buckets.values():
-        roots = sorted({find(index) for index in bucket})
-        if len(roots) < 2:
-            continue
-        root_members = {
-            root: [index for index in range(len(rows)) if find(index) == root]
-            for root in roots
-        }
-        strong_values = {
-            basis: {
-                identities[index][basis]
-                for members in root_members.values() for index in members
-                if identities[index].get(basis)
-            }
-            for basis in _METADATA_STRONG_IDENTITY_ORDER
-        }
-        # A title/year is useful corroboration only when it does not point at
-        # multiple durable identifiers of the same kind. In the ambiguous case
-        # even an identifier-free row remains separate instead of being joined
-        # to whichever provider happened to sort first.
-        if any(len(values) > 1 for values in strong_values.values()):
-            continue
-        for root in roots[1:]:
-            union(roots[0], root)
-
-    grouped: dict[int, list[int]] = defaultdict(list)
-    for index in range(len(rows)):
-        grouped[find(index)].append(index)
-    return sorted(grouped.values(), key=lambda members: min(members))
-
-
-def _metadata_component_identity(
-    group: Sequence[Mapping[str, Any]],
-) -> tuple[str, str, list[str]]:
-    identities = [_metadata_identities(row) for row in group]
-    keys = sorted({
-        f"{basis}:{value}"
-        for identity in identities for basis, value in identity.items()
-    })
-    for basis in _METADATA_STRONG_IDENTITY_ORDER:
-        values = sorted({identity[basis] for identity in identities if identity.get(basis)})
-        if values:
-            return basis, values[0], keys
-    basis, value = next(iter(identities[0].items()))
-    return basis, value, keys
-
-
-def _metadata_date(value: Any) -> date | None:
-    normalized = _date_parts(value)
-    return date.fromisoformat(normalized) if normalized else None
-
-
-def merge_rank_literature_metadata(
-    rows: Sequence[Mapping[str, Any]], *, query: str = "",
-    date_from: str | None = None, date_through: str | None = None, limit: int = 50,
-) -> dict[str, Any]:
-    """Deduplicate recorded metadata and rank it with explicit date handling."""
-    try:
-        lower = date.fromisoformat(date_from) if date_from else None
-        upper = date.fromisoformat(date_through) if date_through else None
-    except ValueError as error:
-        raise LiteratureContractError(
-            "metadata_date_bound_invalid", "Metadata date bounds must be ISO dates (YYYY-MM-DD)."
-        ) from error
-    if lower and upper and lower > upper:
-        raise LiteratureContractError(
-            "metadata_date_bounds_inverted", "Metadata date_from exceeds date_through."
-        )
-    if not isinstance(limit, int) or isinstance(limit, bool) or not 1 <= limit <= 1_000:
-        raise LiteratureContractError(
-            "metadata_limit_invalid", "Metadata merge limit must be an integer from 1 through 1000."
-        )
-    included, excluded = [], []
-    for raw in rows:
-        row = dict(raw)
-        if not row.get("title") or not row.get("source") or not row.get("source_record_id"):
-            raise LiteratureContractError(
-                "metadata_record_identity_missing",
-                "Normalized metadata requires title, source, and source_record_id.",
-            )
-        published = _metadata_date(row.get("published_date"))
-        if (lower or upper) and published is None:
-            excluded.append({
-                "source": row["source"], "source_record_id": row["source_record_id"],
-                "reason": "publication_date_unavailable_for_explicit_bound",
-            })
-            continue
-        if lower and published and published < lower:
-            excluded.append({"source": row["source"], "source_record_id": row["source_record_id"], "reason": "before_date_from"})
-            continue
-        if upper and published and published > upper:
-            excluded.append({"source": row["source"], "source_record_id": row["source_record_id"], "reason": "after_date_through"})
-            continue
-        included.append(row)
-
-    merged = []
-    variant_fields = ("title", "abstract", "published_date", "updated_date", "doi", "arxiv_id", "patent_number", "family_id", "url")
-    components = _metadata_components(included)
-    component_groups = [[included[index] for index in members] for members in components]
-    identified_groups = [(*_metadata_component_identity(group), group) for group in component_groups]
-    for basis, key, identity_keys, group in sorted(
-        identified_groups, key=lambda item: (item[0], item[1]),
-    ):
-        ranked_group = sorted(
-            group,
-            key=lambda row: (
-                -sum(value not in (None, "", []) for value in row.values()),
-                -len(str(row.get("abstract") or "")),
-                str(row.get("source")), str(row.get("source_record_id")),
-            ),
-        )
-        primary = ranked_group[0]
-        variants = {
-            field: sorted({_canonical_payload(row.get(field)) for row in group if row.get(field) not in (None, "", [])})
-            for field in variant_fields
-        }
-        variants = {
-            field: [json.loads(value) for value in values]
-            for field, values in variants.items() if len(values) > 1
-        }
-        merged.append({
-            "document_key": f"{basis}:{key}", "dedup_basis": basis,
-            "identity_keys": identity_keys,
-            **{field: primary.get(field) for field in variant_fields},
-            "document_kind": primary.get("document_kind"),
-            "authors": sorted({str(author) for row in group for author in row.get("authors") or []}),
-            "sources": sorted({str(row["source"]) for row in group}),
-            "source_records": [
-                {"source": row["source"], "source_record_id": row["source_record_id"],
-                 "normalized_sha256": _payload_sha256(row)}
-                for row in sorted(group, key=lambda value: (str(value["source"]), str(value["source_record_id"])))
-            ],
-            "field_variants": variants,
-            "metadata_conflict": bool(variants),
-        })
-
-    query_tokens = set(_tokens(query))
-    known_dates = [_metadata_date(row.get("published_date")) for row in merged]
-    anchor = upper or max((value for value in known_dates if value), default=date(2000, 1, 1))
-    recency_intent = bool(query_tokens & {"current", "latest", "recent", "today", "review"})
-    for row in merged:
-        searchable = set(_tokens(" ".join([
-            str(row.get("title") or ""), str(row.get("abstract") or ""),
-            " ".join(row.get("authors") or []),
-        ])))
-        relevance = len(query_tokens & searchable) / len(query_tokens) if query_tokens else 0.0
-        published = _metadata_date(row.get("published_date"))
-        age_years = max(0.0, (anchor - published).days / 365.25) if published else 100.0
-        recency = 1.0 / (1.0 + age_years / 5.0) if published else 0.0
-        completeness = min(1.0, sum(row.get(field) not in (None, "", []) for field in variant_fields) / 6.0)
-        weights = (0.70, 0.25, 0.05) if recency_intent else (0.85, 0.10, 0.05)
-        row["ranking"] = {
-            "query_relevance": round(relevance, 6), "date_recency": round(recency, 6),
-            "metadata_completeness": round(completeness, 6),
-            "score": round(weights[0] * relevance + weights[1] * recency + weights[2] * completeness, 6),
-            "date_anchor": anchor.isoformat(), "recency_intent": recency_intent,
-        }
-    merged.sort(key=lambda row: (-row["ranking"]["score"], row["document_key"]))
-    return {
-        "schema": "dissolve.metadata-merge.v1", "query": query,
-        "date_bounds": {"from": date_from, "through": date_through},
-        "input_count": len(rows), "included_count": len(included),
-        "deduplicated_count": len(merged), "excluded": excluded,
-        "results": merged[:limit], "truncated": len(merged) > limit,
-    }
 
 
 def _corpus_dir() -> Path:
@@ -5350,16 +4350,6 @@ def _active_lexicon() -> Sequence[Mapping[str, Any]]:
     return _committed_lexicon()
 
 
-@contextmanager
-def bm25_lexicon(entries: Sequence[Mapping[str, Any]] | None):
-    """Override the query-side BM25 lexicon. [] is the empty-lexicon control."""
-    token = _LEXICON_OVERRIDE.set(entries)
-    try:
-        yield
-    finally:
-        _LEXICON_OVERRIDE.reset(token)
-
-
 _EXPANSION_STOP = frozenset({
     "low", "high", "linear", "density", "vinyl", "alcohol", "solvent",
     "methyl", "ethyl", "ether", "acid", "targeted", "recovery",
@@ -5906,16 +4896,6 @@ def inspect_literature_corpus(
         results=hybrid, correlation=correlation,
         scoring_basis="0.55 dense + 0.40 BM25 + transparent section boost",
     )
-
-
-def _declared_knowledgebase(
-    context: dict[str, Any],
-) -> str | None:
-    value = context.get("declared_knowledgebase")
-    if value is None:
-        return None
-    declared = str(value).strip()
-    return declared or None
 
 
 # This late import keeps the typed orchestration module free to reuse the

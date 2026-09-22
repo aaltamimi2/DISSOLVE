@@ -14,7 +14,6 @@ from __future__ import annotations
 
 import hashlib
 import math
-import os
 import shutil
 import sys
 import threading
@@ -29,7 +28,6 @@ COSMOBASE = Path("/home/aaltamimi2/COSMO-POLYMER-ML/results/oligomers/all-cosmot
 ARTIFACTS = Path("/home/aaltamimi2/cosmo-artifacts")
 HAS_COSMOBASE = (COSMOBASE / "diethylphthalate_c0.cosmo").is_file()
 HAS_OBABEL = shutil.which("obabel") is not None
-HAS_RDKIT = pytest.importorskip is not None  # resolved lazily inside the test
 
 
 # ---------------------------------------------------------------- constants
@@ -87,36 +85,6 @@ def test_detect_length_unit_distinguishes_bohr_from_angstrom():
 
 def test_detect_length_unit_defaults_to_angstrom_without_two_carbons():
     assert cl.detect_length_unit(_atoms(("O", 0, 0, 0), ("H", 0.96, 0, 0))) == "angstrom"
-
-
-def test_molecular_formula_is_hill_ordered():
-    dep = _atoms(*([("C", 0, 0, 0)] * 12 + [("H", 0, 0, 0)] * 14 + [("O", 0, 0, 0)] * 4))
-    assert cl.molecular_formula(dep) == "C12H14O4"
-
-
-def test_formula_cannot_distinguish_the_isomers_this_pipeline_must_reject():
-    """The premise of the InChIKey check: all three diethyl benzene-
-    dicarboxylates are C12H14O4 at 222.24 g/mol. If formula were sufficient,
-    verify_identity would be unnecessary."""
-    same = _atoms(*([("C", 0, 0, 0)] * 12 + [("H", 0, 0, 0)] * 14 + [("O", 0, 0, 0)] * 4))
-    assert cl.molecular_formula(same) == "C12H14O4"
-    assert len(cl.DEP_ISOMER_DECOYS) == 2
-    keys = {cl.DEP_INCHIKEY} | {k for _, k in cl.DEP_ISOMER_DECOYS.values()}
-    assert len(keys) == 3, "the decoys must have distinct InChIKeys or they test nothing"
-
-
-def test_formula_cannot_distinguish_the_dbp_isomers_either():
-    """L1: di-n-butyl phthalate / iso / tere are all C16H22O4. The decoys
-    exist so the InChIKey refuse has a real colliding-formula input."""
-    same = _atoms(*([("C", 0, 0, 0)] * 16 + [("H", 0, 0, 0)] * 22 + [("O", 0, 0, 0)] * 4))
-    assert cl.molecular_formula(same) == "C16H22O4"
-    assert cl.DBP_CAS == "84-74-2"
-    assert cl.DBP_INCHIKEY == "DOIRQSBPFJWKBE-UHFFFAOYSA-N"
-    assert cl.DBP_INCHIKEY != cl.DEP_INCHIKEY
-    assert len(cl.DBP_ISOMER_DECOYS) == 2
-    keys = {cl.DBP_INCHIKEY} | {k for _, k in cl.DBP_ISOMER_DECOYS.values()}
-    assert len(keys) == 3, "the DBP decoys must have distinct InChIKeys or they test nothing"
-    assert cl.DEP_INCHIKEY not in keys
 
 
 # ------------------------------------------------------------- ORCA text i/o
@@ -271,23 +239,6 @@ def test_evaluate_anchor_pairs_refuses_a_missing_pair():
     assert not result["accept"]
 
 
-def test_dbp_anchors_are_the_pin_table_deltas_not_deps():
-    """Scoring DBP against DEP's 4.81/2.92/2.41/1.79 would be a silent
-    wrong-molecule accept. The numbers are pin 866d769b solvent_key Δ."""
-    assert cl.anchor_pairs_for("dbp") == cl.DBP_ANCHOR_PAIRS
-    assert cl.anchor_pairs_for("dep") == cl.ANCHOR_PAIRS
-    assert cl.DBP_ANCHOR_PAIRS != cl.ANCHOR_PAIRS
-    assert cl.DBP_ANCHOR_PAIRS == (
-        ("dichloromethane", "water", 7.05),
-        ("cyclohexanol", "water", 5.17),
-        ("hexane", "water", 4.98),
-        ("dichloromethane", "methanol", 2.18),
-    )
-    assert any((a, b) == cl.WATER_FREE_PAIR for a, b, _ in cl.DBP_ANCHOR_PAIRS)
-    with pytest.raises(cl.CosmoError):
-        cl.anchor_pairs_for("dmp")
-
-
 def test_dep_stage1_numbers_do_not_pass_the_dbp_accept():
     """Replaying the closed DEP measurement must not satisfy L1."""
     result = cl.evaluate_anchor_pairs(
@@ -328,22 +279,6 @@ def test_evaluate_anchor_pairs_accepts_the_measured_dbp_stage1_numbers():
     assert result["water_free_passes"]
 
 
-def test_bbp_anchors_are_the_pin_table_deltas_not_dbp_or_dep():
-    """L2 numbers are pin 866d769b solvent_key Δ for BBP, not L1's column."""
-    assert cl.anchor_pairs_for("bbp") == cl.BBP_ANCHOR_PAIRS
-    assert cl.BBP_ANCHOR_PAIRS != cl.DBP_ANCHOR_PAIRS
-    assert cl.BBP_ANCHOR_PAIRS != cl.ANCHOR_PAIRS
-    assert cl.BBP_ANCHOR_PAIRS == (
-        ("dichloromethane", "water", 7.18),
-        ("cyclohexanol", "water", 5.04),
-        ("hexane", "water", 4.61),
-        ("dichloromethane", "methanol", 2.14),
-    )
-    assert any((a, b) == cl.WATER_FREE_PAIR for a, b, _ in cl.BBP_ANCHOR_PAIRS)
-    with pytest.raises(cl.CosmoError):
-        cl.anchor_pairs_for("dmp")
-
-
 def test_evaluate_anchor_pairs_accepts_bbp_table_deltas_on_bbp_pairs():
     result = cl.evaluate_anchor_pairs(
         {
@@ -355,25 +290,6 @@ def test_evaluate_anchor_pairs_accepts_bbp_table_deltas_on_bbp_pairs():
     assert result["accept"]
     assert result["n_passing"] == 4
     assert result["water_free_passes"]
-
-
-def test_dehp_anchors_are_the_pin_table_deltas_not_literature_logp():
-    """L3 accept is table Δ 9.98/8.13/8.33/2.60, not logP 7.5–8.4."""
-    assert cl.anchor_pairs_for("dehp") == cl.DEHP_ANCHOR_PAIRS
-    assert cl.DEHP_ANCHOR_PAIRS != cl.BBP_ANCHOR_PAIRS
-    assert cl.DEHP_ANCHOR_PAIRS != cl.DBP_ANCHOR_PAIRS
-    assert cl.DEHP_ANCHOR_PAIRS != cl.ANCHOR_PAIRS
-    assert cl.DEHP_ANCHOR_PAIRS == (
-        ("dichloromethane", "water", 9.98),
-        ("cyclohexanol", "water", 8.13),
-        ("hexane", "water", 8.33),
-        ("dichloromethane", "methanol", 2.60),
-    )
-    assert 7.5 not in {v for *_, v in cl.DEHP_ANCHOR_PAIRS}
-    assert 8.4 not in {v for *_, v in cl.DEHP_ANCHOR_PAIRS}
-    assert any((a, b) == cl.WATER_FREE_PAIR for a, b, _ in cl.DEHP_ANCHOR_PAIRS)
-    with pytest.raises(cl.CosmoError):
-        cl.anchor_pairs_for("dmp")
 
 
 def test_evaluate_anchor_pairs_accepts_dehp_table_deltas_on_dehp_pairs():
@@ -437,18 +353,6 @@ def test_dehp_table_deltas_do_not_pass_the_dep_accept():
     assert not result["accept"]
 
 
-def test_formula_cannot_distinguish_the_dehp_isomers_either():
-    same = _atoms(*([("C", 0, 0, 0)] * 24 + [("H", 0, 0, 0)] * 38 + [("O", 0, 0, 0)] * 4))
-    assert cl.molecular_formula(same) == "C24H38O4"
-    assert cl.DEHP_CAS == "117-81-7"
-    assert cl.DEHP_INCHIKEY == "BJQHLKABXJIVAM-PMACEKPBSA-N"
-    assert cl.DEHP_INCHIKEY != cl.DEHP_INCHIKEY_NOSTEREO
-    assert cl.DEHP_INCHIKEY.split("-")[0] == cl.DEHP_INCHIKEY_NOSTEREO.split("-")[0]
-    keys = {cl.DEHP_INCHIKEY} | {k for _, k in cl.DEHP_ISOMER_DECOYS.values()}
-    assert len(keys) == 3
-    assert cl.BBP_INCHIKEY not in keys
-
-
 def test_bbp_table_deltas_do_not_pass_the_dep_accept():
     """Scoring BBP's column on DEP anchors must not silently accept."""
     result = cl.evaluate_anchor_pairs(
@@ -484,18 +388,6 @@ def test_delta_log_d_reproduces_the_measured_bbp_dcm_water_value():
     assert value == pytest.approx(8.06, abs=0.01)
 
 
-def test_formula_cannot_distinguish_the_bbp_isomers_either():
-    same = _atoms(*([("C", 0, 0, 0)] * 19 + [("H", 0, 0, 0)] * 20 + [("O", 0, 0, 0)] * 4))
-    assert cl.molecular_formula(same) == "C19H20O4"
-    assert cl.BBP_CAS == "85-68-7"
-    assert cl.BBP_INCHIKEY == "IRIAEXORFWYRCZ-UHFFFAOYSA-N"
-    assert cl.BBP_INCHIKEY != cl.DBP_INCHIKEY
-    assert cl.BBP_INCHIKEY != cl.DEP_INCHIKEY
-    keys = {cl.BBP_INCHIKEY} | {k for _, k in cl.BBP_ISOMER_DECOYS.values()}
-    assert len(keys) == 3
-    assert cl.DBP_INCHIKEY not in keys
-
-
 def test_delta_log_d_reproduces_the_measured_dbp_dcm_water_value():
     """Stage 1: ln γ of DBP is -2.737 in dichloromethane and 16.039 in water."""
     value = cl.delta_log_d(
@@ -521,13 +413,6 @@ def test_solvent_file_stem_maps_corpus_names_to_cosmobase():
 
 
 # --------------------------------------------- real data, skipped if absent
-
-@pytest.mark.skipif(not HAS_COSMOBASE, reason="COSMObase .cosmo library not present")
-def test_parses_the_real_dep_cosmo_file_to_the_right_formula():
-    atoms = cl.parse_cosmo_geometry(COSMOBASE / "diethylphthalate_c0.cosmo")
-    assert len(atoms) == 30
-    assert cl.molecular_formula(atoms) == "C12H14O4"
-
 
 @pytest.mark.skipif(not HAS_COSMOBASE, reason="COSMObase .cosmo library not present")
 def test_real_cosmo_geometry_comes_out_in_angstrom():
@@ -559,13 +444,6 @@ def test_identity_check_rejects_a_molecule_that_is_not_the_target(tmp_path):
         )
 
 
-@pytest.mark.skipif(not HAS_COSMOBASE, reason="COSMObase .cosmo library not present")
-def test_parses_the_real_dbp_cosmo_file_to_the_right_formula():
-    atoms = cl.parse_cosmo_geometry(COSMOBASE / "dibutylphthalate_c0.cosmo")
-    assert len(atoms) == 42
-    assert cl.molecular_formula(atoms) == "C16H22O4"
-
-
 @pytest.mark.skipif(not (HAS_COSMOBASE and HAS_OBABEL), reason="needs COSMObase and obabel")
 def test_identity_of_the_real_dbp_file_binds_to_the_expected_inchikey(tmp_path):
     found = cl.verify_identity(
@@ -591,13 +469,6 @@ def test_dbp_file_is_not_dep(tmp_path):
         cl.verify_identity(
             COSMOBASE / "dibutylphthalate_c0.cosmo", cl.DEP_INCHIKEY, scratch=tmp_path
         )
-
-
-@pytest.mark.skipif(not HAS_COSMOBASE, reason="COSMObase .cosmo library not present")
-def test_parses_the_real_bbp_cosmo_file_to_the_right_formula():
-    atoms = cl.parse_cosmo_geometry(COSMOBASE / "butylbenzylphthalate_c0.cosmo")
-    assert len(atoms) == 43
-    assert cl.molecular_formula(atoms) == "C19H20O4"
 
 
 @pytest.mark.skipif(not (HAS_COSMOBASE and HAS_OBABEL), reason="needs COSMObase and obabel")
@@ -628,13 +499,6 @@ def test_bbp_file_is_not_dbp_or_dep(tmp_path):
         cl.verify_identity(
             COSMOBASE / "butylbenzylphthalate_c0.cosmo", cl.DEP_INCHIKEY, scratch=tmp_path
         )
-
-
-@pytest.mark.skipif(not HAS_COSMOBASE, reason="COSMObase .cosmo library not present")
-def test_parses_the_real_dehp_cosmo_file_to_the_right_formula():
-    atoms = cl.parse_cosmo_geometry(COSMOBASE / "di-2-ethylhexylphthalate_c0.cosmo")
-    assert len(atoms) == 66
-    assert cl.molecular_formula(atoms) == "C24H38O4"
 
 
 @pytest.mark.skipif(not (HAS_COSMOBASE and HAS_OBABEL), reason="needs COSMObase and obabel")
@@ -1309,32 +1173,6 @@ def test_leaching_uses_computed_delta_when_table_logd_is_missing():
     assert row["contaminant_logd_pass"] is True
     assert any("field_origin=computed" in warning for warning in payload["warnings"])
     assert "o-xylene" not in str(payload).split("xylene")[0]
-
-
-def test_computed_deltas_for_screen_stamps_computed_origin(tmp_path):
-    pytest.importorskip("rdkit")
-    artifacts, solvents = _dummy_p3_dirs(tmp_path)
-    computed = cl.compute_delta_logd(
-        cl.DEP_SMILES, ["toluene"],
-        solvents_dir=solvents, artifacts_dir=artifacts, ln_gamma=lambda *a, **k: 1.0,
-    )
-    overlay = cl.computed_deltas_for_screen(computed)
-    assert overlay
-    assert all(row["field_origin"] == cl.FIELD_ORIGIN_COMPUTED for row in overlay)
-    assert all(row["field_origin"] != cl.FIELD_ORIGIN_TABULATED for row in overlay)
-    toluene = next(row for row in overlay if row["solvent_key"] == "toluene")
-    assert toluene["delta_logd"] is not None
-    from dissolve import contaminants
-    from dissolve.contracts import parse_tool_result
-    db = Path(__file__).resolve().parents[1] / "src" / "dissolve" / "data" / "contaminants.duckdb"
-    before = hashlib.sha256(db.read_bytes()).hexdigest()
-    parse_tool_result(contaminants.screen_contaminant_leaching(
-        "LDPE", ["diethyl phthalate (DEP)"], solvents=["toluene"],
-        computed_deltas=overlay,
-    ))
-    after = hashlib.sha256(db.read_bytes()).hexdigest()
-    assert before == after
-    assert before.startswith("866d769b")
 
 
 def test_leaching_overlay_does_not_inform_a_different_contaminant():

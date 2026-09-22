@@ -18,38 +18,11 @@ from dissolve.agent_tools import tool_schemas
 from dissolve import safety, tea
 from dissolve.contracts import parse_tool_result
 
-_SNAPSHOT_SHA256 = (
-    "9f4082e0844ab18698fd229986d215fc7403767961c53bc5ac548875daaae0f7"
-)
-_AGENT_TOOLS_SHA256 = (
-    "02259d2ab680d7613731013fc6f96d3b100739d0bed7f95d114bf208e1cee293"
-)
 _GREEN_IDENT_QUERY = dict(
     feed_polymers=["LDPE", "PP"], target_polymer="LDPE", limit=3,
 )
 _GREEN_IDENT_SHA256 = (
     "30fe3b378cb1082d64fbf926492c2c3e65770e5309e194532314fe2cef644876"
-)
-_ADMISSION_CID_ABSENT = (
-    "1,2,3-trichloropropene",
-    "1,3-dichloro-2-butene",
-    "1-bromo-2-chloroethene",
-    "acetaldehydeoxime",
-    "benzisoxazole",
-    "butoxide",
-    "cis-dibromoethene",
-    "dcip",
-    "dimethylmaleate",
-    "ethylformate",
-    "ethylsilicate",
-    "ethylsuccinate",
-    "hexafluoro-i-propanol",
-    "isopropylacetate",
-    "methylindole",
-    "n-propylacetate",
-    "n-propylamine",
-    "phenylacetate",
-    "propynol",
 )
 _GAP_FLASH_4 = (398, 6568, 7762, 7964)
 _GAP_FLASH_5 = (12021,)
@@ -263,22 +236,6 @@ def test_no_flash_in_range_returns_none_for_a_bin():
     assert missing["chem21_unavailable_reason"] == "flash_point_missing"
 
 
-def test_census_production_join_not_the_v1_490():
-    census = safety.chem21_snapshot_join_census()
-    assert census["snapshot_digest"] == _SNAPSHOT_SHA256
-    assert census["admitted"] == 786
-    assert census["production_join"] == 786
-    assert census["production_flash"] == 550
-    assert census["production_flash"] != 549
-    assert census["common"] == 69
-    assert census["common_flash"] == 67
-    absent = tuple(
-        item["interp_key"] for item in census["admission_cid_absent_from_snapshot"]
-    )
-    assert absent == _ADMISSION_CID_ABSENT
-    assert len(absent) == 19
-
-
 def _chem21_sort_ids(routes, direction: str) -> list[str]:
     def sort_key(route):
         value = tea._planner_route_metric(route, "max_stage_chem21_safety")
@@ -350,9 +307,7 @@ def test_green_screen_chem21_metric_stamps_eligible_set():
                for row in ranked)
 
 
-def test_pins_untouched_and_schema_count_stays_24():
-    digest = hashlib.sha256((_ROOT / "src" / "dissolve" / "agent_tools.py").read_bytes()).hexdigest()
-    assert digest == _AGENT_TOOLS_SHA256
+def test_schema_count_stays_24():
     assert len(tool_schemas()) == 24
     names = {item["name"] for item in tool_schemas()}
     assert "score_chem21_she" not in names

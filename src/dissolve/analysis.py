@@ -28,15 +28,6 @@ _MAX_HSP_PAIRS = 400
 _MAX_NUMERIC_SERIES = 20
 _MAX_SAMPLES = 500
 
-# Evidence keys deliberately preserve parenthetical content, signs, percentages,
-# and quality marks. They case-fold, normalize whitespace/degree notation, and
-# remove only other separators. Identity aliases are resolved centrally in
-# thermodynamics; this key is only a collision-checked last resort for raw labels.
-HSP_EVIDENCE_LABEL_NORMALIZER = (
-    "casefold; degree->word; preserve (), +, -, %, and ?; "
-    "other non-alphanumerics->space; collapse whitespace"
-)
-
 
 @lru_cache(maxsize=1)
 def asset_payload() -> dict[str, Any]:

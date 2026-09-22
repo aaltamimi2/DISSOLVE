@@ -49,7 +49,7 @@ def _pypdf_bridge_stub(path, fallback_reason):
 def test_docling_failure_raises_instead_of_returning_pypdf(monkeypatch, tmp_path):
     pdf = tmp_path / "probe.pdf"
     pdf.write_bytes(b"%PDF-1.4 forced-failure")
-    calls = {"pypdf": 0, "deepdoc": 0, "cascade": 0}
+    calls = {"pypdf": 0, "cascade": 0}
 
     def boom(path):
         raise research.LiteratureContractError(
@@ -60,23 +60,19 @@ def test_docling_failure_raises_instead_of_returning_pypdf(monkeypatch, tmp_path
         calls["pypdf"] += 1
         raise AssertionError("pypdf must not run on a Docling experiment parse")
 
-    def count_deepdoc(*args, **kwargs):
-        calls["deepdoc"] += 1
-        raise AssertionError("DeepDoc must not run on a Docling experiment parse")
 
     def count_cascade(*args, **kwargs):
         calls["cascade"] += 1
         raise AssertionError("production _parse cascade must not run")
 
     monkeypatch.setattr(research, "_run_docling", boom)
-    monkeypatch.setattr(research, "_run_deepdoc", count_deepdoc)
     monkeypatch.setattr(literature_ingest, "_pypdf_bridge", count_pypdf)
     monkeypatch.setattr(literature_ingest, "_parse", count_cascade)
 
     with pytest.raises(research.LiteratureContractError) as caught:
         research.parse_experiment_document(_acquire(pdf), backend="docling")
     assert caught.value.code == "parser_backend_failed"
-    assert calls == {"pypdf": 0, "deepdoc": 0, "cascade": 0}
+    assert calls == {"pypdf": 0, "cascade": 0}
 
 
 def test_pypdf_control_arm_is_named_not_a_docling_fallback(monkeypatch, tmp_path):
@@ -87,7 +83,6 @@ def test_pypdf_control_arm_is_named_not_a_docling_fallback(monkeypatch, tmp_path
         raise AssertionError("Docling must not run on the named pypdf control arm")
 
     monkeypatch.setattr(research, "_run_docling", boom)
-    monkeypatch.setattr(research, "_run_deepdoc", boom)
     monkeypatch.setattr(literature_ingest, "_pypdf_bridge", _pypdf_bridge_stub)
 
     parsed = research.parse_experiment_document(

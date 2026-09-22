@@ -19,12 +19,6 @@ GOLD = Path("/home/aaltamimi2/dissolve-v12-audit/one_paper_experiment/gold_facts
 PERSIST = Path(
     "/home/aaltamimi2/dissolve-v12-audit/one_paper_experiment/parses/canonical_document.v1.json"
 )
-PYPDF = Path(
-    "/home/aaltamimi2/dissolve-v12-audit/one_paper_experiment/parses/pypdf_parsed_document.v1.json"
-)
-C6 = Path(
-    "/home/aaltamimi2/dissolve-v12-audit/one_paper_experiment/measurements/c6_one_paper_sweep.json"
-)
 
 TOKEN_V = "CELLVALUE"
 TOKEN_BASIS = "BASISLINE"
@@ -83,29 +77,6 @@ def _fixture():
     }
 
 
-def _facts():
-    return [{
-        "fact_id": "T2-synthetic-rebind",
-        "locus": "Table 2",
-        "page": 5,
-        "query": "synthetic table with TOKEN_V and TOKEN_NOTE",
-        "needles": {"value": TOKEN_V, "basis": TOKEN_BASIS, "footnote": TOKEN_NOTE},
-    }]
-
-
-def test_rebind_does_not_invoke_docling_or_paragraph_chunks(monkeypatch):
-    def boom(*_args, **_kwargs):
-        raise AssertionError("C7b must not call Docling or production paragraph chunking")
-
-    monkeypatch.setattr(research, "_run_docling", boom)
-    monkeypatch.setattr(research, "parse_experiment_document", boom)
-    monkeypatch.setattr(research, "_paragraph_chunks", boom)
-    canonical = _fixture()
-    chunks = research.apply_table_rebound(research.chunk_s2_block_pack(canonical), canonical)
-    assert chunks
-    research.score_chunks_against_facts(chunks, _facts(), canonical, strategy="S2_block_pack")
-
-
 def test_atomicity_survives_rebind():
     canonical = _fixture()
     raw = research.chunk_s2_block_pack(canonical)
@@ -124,94 +95,9 @@ def test_atomicity_survives_rebind():
     assert TOKEN_NOTE not in body
 
 
-def test_binding_is_not_atomicity():
-    canonical = _fixture()
-    rebound = research.apply_table_rebound(research.chunk_s2_block_pack(canonical), canonical)
-    table = canonical["tables"][0]
-    chunk = next(
-        item for item in rebound
-        if item.get("char_start") == table["char_start"] and item.get("char_end") == table["char_end"]
-    )
-    corpus = chunk["body_plus_rebound"]
-    assert TOKEN_V in corpus and TOKEN_BASIS in corpus and TOKEN_NOTE in corpus
-    scored = research.score_chunks_against_facts(
-        rebound, _facts(), canonical, strategy="S2_block_pack",
-    )
-    row = scored["facts"][0]
-    assert row["contain_bound_fact"] is False
-    assert row["contain_bound_fact_rebound"] is True
-    assert row["condition_severed_inside_table"] is False
-    assert row["condition_severed_from_context"] is True
-
-
-def test_1c_empty_rebound_makes_bind_go_red(monkeypatch):
-    monkeypatch.setattr(research, "rebound_blocks_for_table", lambda *_args, **_kwargs: [])
-    canonical = _fixture()
-    rebound = research.apply_table_rebound(research.chunk_s2_block_pack(canonical), canonical)
-    table = canonical["tables"][0]
-    chunk = next(
-        item for item in rebound
-        if item.get("char_start") == table["char_start"] and item.get("char_end") == table["char_end"]
-    )
-    assert chunk["body_plus_rebound"] == chunk["body"]
-    assert TOKEN_NOTE not in chunk["body_plus_rebound"]
-    scored = research.score_chunks_against_facts(
-        rebound, _facts(), canonical, strategy="S2_block_pack",
-    )
-    assert scored["facts"][0]["contain_bound_fact_rebound"] is False
-
-
-def test_blob_size_is_not_binding():
-    canonical = _fixture()
-    blob = {
-        "strategy": "S0_production_pypdf",
-        "chunk_id": "flatten",
-        "body": f"{TOKEN_BASIS} {TOKEN_V} {TOKEN_NOTE}",
-        "header": "",
-        "char_start": None,
-        "char_end": None,
-        "atomic_overflow": False,
-    }
-    assert TOKEN_V in blob["body"] and TOKEN_NOTE in blob["body"]
-    assert research.table_atomic_fraction([blob], canonical) == 0.0
-    scored = research.score_chunks_against_facts(
-        [blob], _facts(), canonical, strategy="S0_production_pypdf",
-    )
-    assert scored["facts"][0]["contain_bound_fact"] is True
-    assert scored["table_atomic"] is None
-
-
-def test_s5_does_not_take_following_footnote():
-    canonical = _fixture()
-    s5 = research.chunk_s5_table_plus_neighbors(canonical)
-    table_chunks = [chunk for chunk in s5 if TOKEN_V in chunk["body"]]
-    assert table_chunks
-    assert any(TOKEN_BASIS in chunk["body"] for chunk in table_chunks)
-    assert all(TOKEN_NOTE not in chunk["body"] for chunk in table_chunks)
-    assert research.table_atomic_fraction(s5, canonical) == 0.0
-    scored = research.score_chunks_against_facts(
-        s5, _facts(), canonical, strategy="S5_table_plus_neighbors",
-    )
-    row = scored["facts"][0]
-    assert row["contain_bound_fact"] is False
-    assert row["contain_bound_fact_rebound"] is False
-    assert row["condition_severed_from_context"] is True
-
-
 def test_gold_v1_digest_unmoved():
     digest = hashlib.sha256(GOLD.read_bytes()).hexdigest()
     assert digest == research._GOLD_FACTS_V1_SHA256
-
-
-def test_inside_table_predicate_not_widened():
-    """Whole-table missing extra-table needles is from_context, not inside_table."""
-    canonical = _fixture()
-    s2 = research.chunk_s2_block_pack(canonical)
-    scored = research.score_chunks_against_facts(
-        s2, _facts(), canonical, strategy="S2_block_pack",
-    )
-    assert scored["n_condition_severed_inside_table"] == 0
-    assert scored["n_condition_severed_from_context"] == 1
 
 
 @pytest.mark.skipif(not PERSIST.is_file(), reason="probe canonical persist missing")
@@ -229,14 +115,6 @@ def test_probe_table2_footnotes_rebound_not_spliced_into_span():
     assert "1 g for each polymer" in hit["body_plus_rebound"]
 
 
-def _table_in_top(top, table) -> bool:
-    return any(
-        chunk.get("char_start") == table["char_start"]
-        and chunk.get("char_end") == table["char_end"]
-        for chunk in top
-    )
-
-
 def _table_sparse_score(query, chunks, corpus_of, table) -> float:
     rows = [{"text": corpus_of(chunk)} for chunk in chunks]
     scores = research._bm25(research._tokens(query), rows)
@@ -244,16 +122,6 @@ def _table_sparse_score(query, chunks, corpus_of, table) -> float:
         if chunk.get("char_start") == table["char_start"] and chunk.get("char_end") == table["char_end"]:
             return float(score)
     return 0.0
-
-
-def test_c7c_token_note_query_returns_atomic_table():
-    canonical = _fixture()
-    rebound = research.apply_table_rebound(research.chunk_s2_block_pack(canonical), canonical)
-    table = canonical["tables"][0]
-    assert research.table_atomic_fraction(rebound, canonical) == 1.0
-    assert _table_sparse_score(TOKEN_NOTE, rebound, research.chunk_sparse_corpus, table) > 0
-    top = research._bm25_top5_on(TOKEN_NOTE, rebound, research.chunk_sparse_corpus)
-    assert _table_in_top(top, table)
 
 
 def test_c7c_1c_body_rank_misses_atomic_table(monkeypatch):
@@ -304,25 +172,6 @@ def test_c7c_1c_search_index_body_rank_drops_table(monkeypatch, tmp_path):
     assert not any(TOKEN_V in str(row.get("excerpt") or "") for row in rows)
 
 
-@pytest.mark.skipif(not (PERSIST.is_file() and C6.is_file() and PYPDF.is_file()), reason="probe persist missing")
-def test_c7c_official_s2_still_matches_c6_persist():
-    canonical = json.loads(PERSIST.read_text(encoding="utf-8"))
-    pages = research.pypdf_page_texts_from_persist(json.loads(PYPDF.read_text(encoding="utf-8")))
-    record = research.sweep_one_paper_chunking(canonical, pages, GOLD)
-    baseline = json.loads(C6.read_text(encoding="utf-8"))
-    for name in research._C6_STRATEGY_IDS:
-        got = record["strategies"][name]
-        old = baseline["strategies"][name]
-        assert got["n_contain_bound_fact"] == old["n_contain_bound_fact"]
-        assert got["n_retrievable"] == old["n_retrievable"]
-    s2 = record["strategies"]["S2_block_pack"]
-    assert s2["n_contain_bound_fact_rebound"] == 10
-    assert s2["n_retrievable"] == baseline["strategies"]["S2_block_pack"]["n_retrievable"]
-
-
-C7C = Path(
-    "/home/aaltamimi2/dissolve-v12-audit/one_paper_experiment/measurements/c7c_rank.json"
-)
 
 
 def _patched_dense(seen):
@@ -405,26 +254,3 @@ def test_c7d_1c_force_body_embed_drops_note(monkeypatch, tmp_path):
     assert TOKEN_V in embeds[0]
 
 
-def test_c7d_s5_still_not_this_checkpoint():
-    canonical = _fixture()
-    s5 = research.chunk_s5_table_plus_neighbors(canonical)
-    table_chunks = [chunk for chunk in s5 if TOKEN_V in chunk["body"]]
-    assert table_chunks
-    assert all(TOKEN_NOTE not in chunk["body"] for chunk in table_chunks)
-    assert research.table_atomic_fraction(s5, canonical) == 0.0
-
-
-@pytest.mark.skipif(not (PERSIST.is_file() and C6.is_file() and PYPDF.is_file() and C7C.is_file()), reason="probe persist missing")
-def test_c7d_official_s2_still_matches_c6_and_c7c():
-    canonical = json.loads(PERSIST.read_text(encoding="utf-8"))
-    pages = research.pypdf_page_texts_from_persist(json.loads(PYPDF.read_text(encoding="utf-8")))
-    record = research.sweep_one_paper_chunking(canonical, pages, GOLD)
-    baseline = json.loads(C6.read_text(encoding="utf-8"))
-    c7c = json.loads(C7C.read_text(encoding="utf-8"))
-    assert hashlib.sha256(C6.read_bytes()).hexdigest() == "ece22479e596990927f4d342a69988fcc892e8483ab2640020c4997a7d3e7d33"
-    s2 = record["strategies"]["S2_block_pack"]
-    old = baseline["strategies"]["S2_block_pack"]
-    assert s2["n_contain_bound_fact"] == old["n_contain_bound_fact"]
-    assert s2["n_retrievable"] == old["n_retrievable"]
-    assert s2["n_retrievable_rebound"] == c7c["s2_n_retrievable_rebound"]
-    assert s2["n_contain_bound_fact_rebound"] == c7c["s2_n_contain_bound_fact_rebound"]

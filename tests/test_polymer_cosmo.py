@@ -121,17 +121,6 @@ def test_coord_rad_only_file_is_refused():
     assert exc.value.error_code == pc.SURFACE_DISCARDED
 
 
-def test_unconverted_gaussian_is_named_refuse(tmp_path):
-    raw = tmp_path / "raw.cosmo"
-    raw.write_text(pc.split_mcos(_PE)[0].gaussian_body)
-    with pytest.raises(pc.PolymerCosmoError) as exc:
-        pc.refuse_unconverted(raw)
-    assert exc.value.error_code == pc.GAUSSIAN_UNCONVERTED
-    with pytest.raises(pc.PolymerCosmoError) as exc2:
-        pc.refuse_unconverted(_PE)
-    assert exc2.value.error_code == pc.MCOS_NOT_SPLIT
-
-
 def test_measured_oligomer_sizes_are_identity_not_a_job_launch():
     assert pc.DFT_JOB_ORDER[0] == ("pe", 38)
     assert pc.DFT_JOB_ORDER[-1] == ("ps", 104)

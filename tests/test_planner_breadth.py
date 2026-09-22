@@ -5,7 +5,6 @@ Screens stay 2^N − N − 1. No silent clamp of m or B. No live BioSTEAM.
 from __future__ import annotations
 
 import inspect
-import json
 import math
 import sys
 from pathlib import Path

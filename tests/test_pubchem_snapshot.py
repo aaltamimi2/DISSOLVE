@@ -9,7 +9,6 @@ import os
 import urllib.parse
 from pathlib import Path
 
-import pytest
 
 _ROOT = Path(__file__).resolve().parents[1]
 import sys

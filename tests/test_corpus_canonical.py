@@ -25,7 +25,6 @@ C1_CEILING_BYTES = 3_501_953_024
 TEMP_RE = research._CANONICAL_TEMPERATURE_RE
 
 
-pytestmark = pytest.mark.skipif(not MANIFEST.is_file(), reason="C3 canonical manifest not built")
 
 
 def _census_in_scope() -> set[str]:

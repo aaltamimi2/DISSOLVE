@@ -202,13 +202,6 @@ def test_encode_failure_does_not_retry(monkeypatch):
     assert len(_encode_calls(fake)) == 1
 
 
-def _embedder(model_id, vectors, *, calls):
-    def fake(texts, selected=None):
-        calls.append((list(texts), selected))
-        return model_id, copy.deepcopy(vectors)
-    return fake
-
-
 def _fault_vectors(kind: str, dim: int) -> list[list[float]]:
     good = [_unit(dim, 0), _unit(dim, 1)]
     if kind == "too_few":

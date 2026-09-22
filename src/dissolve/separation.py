@@ -11,10 +11,7 @@ from langchain_core.tools import InjectedToolArg
 from . import contaminants as contaminant_screens
 from . import thermodynamics as thermo
 from .contracts import parse_tool_result, tool_error, tool_success
-from .session import (
-    candidate_evidence, current_tool_session,
-    resolve_candidate_argument,
-)
+from .session import current_tool_session
 from .tools import (
     _InputError,
     _atmospheric_exclusion_applies, _atmospheric_exclusion_counts,
@@ -25,14 +22,6 @@ from .tools import (
     _with_solvent_scope,
     normalize_feed_composition, screen_polymer_separation,
 )
-
-
-def _context_declared_solvents(context: dict[str, Any]) -> list[str]:
-    """Prefer the typed deliverable, then the same dual-key rule on context."""
-    declared = context.get("declared_deliverable")
-    if has_declared_solvents(declared):
-        return declared_solvents(declared)
-    return declared_solvents(context)
 
 
 def _feed_names(values: object) -> tuple[list[str], list[str]]:
@@ -49,22 +38,6 @@ def _feed_names(values: object) -> tuple[list[str], list[str]]:
             if resolved not in names:
                 names.append(resolved)
     return names, list(dict.fromkeys(unsupported))
-
-
-def _argument_polymer_identities(value: object) -> list[str]:
-    if isinstance(value, (list, tuple)):
-        identities: list[str] = []
-        for item in value:
-            identities.extend(_argument_polymer_identities(item))
-        return identities
-    text = str(value or "").strip()
-    if not text:
-        return []
-    members = thermo.expand_polymer_identity(text)
-    if members:
-        return list(members)
-    resolved = thermo.resolve_polymer(text)
-    return [resolved or text]
 
 
 def resolve_polymer_data_scope(
@@ -167,25 +140,6 @@ def resolve_polymer_data_scope(
             "then checksummed HSP Random Forest fallback"
         ),
     )
-
-
-def _declared_material_labels(context: dict[str, Any]) -> list[str]:
-    declared = context.get("declared_deliverable")
-    if not isinstance(declared, dict):
-        return []
-    labels: list[str] = []
-    for field in (
-        "polymers", "solvents", "feed_polymers", "target_polymers",
-        "candidate_solvents",
-    ):
-        values = declared.get(field)
-        if not isinstance(values, list):
-            continue
-        for value in values:
-            label = str(value).strip()
-            if label and label not in labels:
-                labels.append(label)
-    return labels
 
 
 def lookup_material_database_membership(material_names: list[str]) -> str:

@@ -123,7 +123,6 @@ GENERIC_FACTORY_PRECIPITATION_TAU_H = 0.5
 # and stores wt/vol = percent/100. Temperatures on the request are °C;
 # the plant setters add 273.15. Named package steps store Kelvin and wt/vol.
 KELVIN_OFFSET = 273.15
-CONFIG_CAPACITY_IS_WT_PERCENT = True
 
 
 _INSPECTION_KIND = {

@@ -19,7 +19,6 @@ _SCHEMA = "dissolve.literature-graph-ingest.v1"
 _MODEL_ID = "openai:muse-spark-1.2"
 _MODEL_LABEL = "muse-spark-1.2"
 _JATS_XML_SUFFIXES = frozenset({".xml", ".nxml", ".xhtml"})
-_JATS_TEXT_SUFFIXES = frozenset({".txt", ".md", ".html", ".htm"})
 _PRODUCTION_PDF_SUFFIXES = frozenset({".pdf"})
 _BASE_URL = "https://api.meta.ai/v1"
 _PROMPT_VERSION = "typed-literature-extraction-v2"
@@ -722,84 +721,3 @@ def ingest_literature_graph(
     )
 
 
-def compare_literature_engines(
-    paths: Sequence[str | Path], *, library_id: str, knowledgebase: str,
-    probe_queries: Sequence[str], root: str | Path | None = None, extractor: Any | None = None,
-) -> dict[str, Any]:
-    """Run identical sources through legacy passage RAG and the typed graph path."""
-    from . import research
-    started = time.monotonic()
-    prior_root = os.environ.get("DISSOLVE_RESEARCH_HOME")
-    if root is not None:
-        os.environ["DISSOLVE_RESEARCH_HOME"] = str(Path(root).expanduser().resolve() / "legacy")
-    try:
-        legacy_payload = parse_tool_result(research.ingest_literature_documents(
-            [str(Path(path).expanduser().resolve()) for path in paths], knowledgebase=knowledgebase,
-        ))
-        legacy_ingest_s = time.monotonic() - started
-        probes = []
-        for query in probe_queries:
-            result = parse_tool_result(research.search_literature_corpus(
-                query, knowledgebase=knowledgebase, top_k=5, retrieval_mode="sparse",
-            ))
-            probes.append({"query": query, "result": result["data"]})
-    finally:
-        if prior_root is None:
-            os.environ.pop("DISSOLVE_RESEARCH_HOME", None)
-        else:
-            os.environ["DISSOLVE_RESEARCH_HOME"] = prior_root
-    graph_started = time.monotonic()
-    graph = ingest_literature_graph_data(paths, library_id=library_id, root=root, extractor=extractor)
-    return {
-        "schema": "dissolve.literature-engine-comparison.v1", "library_id": library_id,
-        "sources": [str(Path(path).expanduser().resolve()) for path in paths],
-        "legacy": {
-            "ingest": legacy_payload["data"], "probe_results": probes,
-            "latency_s": round(legacy_ingest_s, 4), "estimated_cost_usd": 0.0,
-        },
-        "graph": {"documents": graph["documents"], "records": graph["records"], "validation": graph["validation"], "telemetry": graph["telemetry"],
-                  "merge": graph["merge"], "latency_s": round(time.monotonic() - graph_started, 4)},
-    }
-
-
-def build_benchmark_predictions(
-    graph_result: Mapping[str, Any], gold: Mapping[str, Any],
-) -> dict[str, Any]:
-    """Project one graph run into the existing P3 scorer container without changing records."""
-    scored_classes = set((gold.get("matching_policies") or {}).keys())
-    source_to_gold: dict[str, str] = {}
-    gold_documents = []
-    for item in gold.get("documents") or []:
-        document = dict(item.get("document") or {})
-        document_id = str(document.get("document_id") or "")
-        gold_documents.append(document_id)
-        for artifact in item.get("source_artifacts") or []:
-            if artifact.get("sha256"):
-                source_to_gold[str(artifact["sha256"])] = document_id
-    annotations: dict[str, list[dict[str, Any]]] = {document_id: [] for document_id in gold_documents}
-    for index, record in enumerate(graph_result.get("records") or []):
-        if record.get("record_class") not in scored_classes:
-            continue
-        evidence = list(record.get("evidence") or [])
-        source_hash = str(evidence[0].get("source_sha256") or "") if evidence else ""
-        document_id = source_to_gold.get(source_hash)
-        if document_id is None:
-            continue
-        status = record.get("status")
-        disposition = (
-            "positive" if status == "validated"
-            else "pending_identity" if status == "pending_identity"
-            else "rejected_candidate"
-        )
-        annotations[document_id].append({
-            "prediction_id": f"PRED-{_sha({'record': record.get('record_id'), 'index': index})[:24].upper()}",
-            "disposition": disposition, "record": dict(record),
-        })
-    return {
-        "schema": "dissolve.literature-benchmark-predictions.v1",
-        "gold_set_id": gold.get("gold_set_id"),
-        "documents": [{
-            "document_id": document_id, "recovered_landmarks": [],
-            "annotations": annotations[document_id],
-        } for document_id in gold_documents],
-    }

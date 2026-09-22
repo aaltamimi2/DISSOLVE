@@ -91,7 +91,6 @@ MIN_PAIRS_PASSING = 3
 #: (4 rotatable bonds). DEHP has 14, and its literature logP spans 7.5-8.4 --
 #: a reference spread wider than the method error cannot falsify anything.
 DEP_SMILES = "CCOC(=O)c1ccccc1C(=O)OCC"
-DEP_CAS = "84-66-2"
 DEP_INCHIKEY = "FLKPEMZONWLCSK-UHFFFAOYSA-N"
 
 #: The isomers that formula and mass CANNOT distinguish from the target.
@@ -193,28 +192,6 @@ DEHP_ANCHOR_PAIRS: tuple[tuple[str, str, float], ...] = (
 )
 WATER_FREE_PAIR = ("dichloromethane", "methanol")
 
-
-def anchor_pairs_for(solute: str) -> tuple[tuple[str, str, float], ...]:
-    """Table-Δ anchors for a named ladder solute.
-
-    DEP stays the default ``ANCHOR_PAIRS`` so existing callers do not silently
-    score a new molecule against DEP's numbers. A solute that is not yet
-    pinned raises rather than inventing a column.
-    """
-    key = solute.strip().lower()
-    if key in {"dep", "diethylphthalate", "diethyl phthalate"}:
-        return ANCHOR_PAIRS
-    if key in {"dbp", "dibutylphthalate", "di-n-butyl phthalate", "dibutyl phthalate"}:
-        return DBP_ANCHOR_PAIRS
-    if key in {"bbp", "butylbenzylphthalate", "butyl benzyl phthalate"}:
-        return BBP_ANCHOR_PAIRS
-    if key in {"dehp", "di-2-ethylhexylphthalate", "di-(2-ethylhexyl) phthalate",
-               "diethylhexylphthalate"}:
-        return DEHP_ANCHOR_PAIRS
-    raise CosmoError(
-        f"no table-Δ anchors pinned for solute {solute!r}; "
-        "the phthalate ladder pins DEP/DBP/BBP/DEHP only"
-    )
 
 #: Our solvent names -> COSMObase file stems. Needed because the corpus and the
 #: .cosmo library disagree on naming for a third of the solvents.
@@ -427,16 +404,6 @@ def detect_length_unit(atoms: Sequence[Atom]) -> str:
         for i, a in enumerate(carbons) for b in carbons[i + 1:]
     )
     return "bohr" if shortest > 2.2 else "angstrom"
-
-
-def molecular_formula(atoms: Sequence[Atom]) -> str:
-    """Hill-order formula. Sufficient to catch a truncated file, NOT sufficient
-    to bind identity -- the DEP isomers share a formula. Use `verify_identity`."""
-    counts: dict[str, int] = {}
-    for a in atoms:
-        counts[a.element] = counts.get(a.element, 0) + 1
-    ordered = [e for e in ("C", "H") if e in counts] + sorted(e for e in counts if e not in ("C", "H"))
-    return "".join(f"{e}{counts[e]}" if counts[e] > 1 else e for e in ordered)
 
 
 def write_xyz(atoms: Sequence[Atom], path: str | Path, comment: str = "") -> Path:
@@ -1039,12 +1006,6 @@ def resolve_solvent(
     payload["success"] = True
     payload["error_code"] = None
     return payload
-
-
-def resolve_solvents(
-    names: Sequence[str], *, solvents_dir: str | Path | None = None,
-) -> list[dict[str, Any]]:
-    return [resolve_solvent(name, solvents_dir=solvents_dir) for name in names]
 
 
 def solvent_route_coverage(*, solvents_dir: str | Path | None = None) -> dict[str, Any]:
@@ -2260,38 +2221,6 @@ def compute_delta_logd(
         row["field_origin"] = FIELD_ORIGIN_COMPUTED
         payload["results"].append(row)
     return payload
-
-
-def computed_deltas_for_screen(payload: Mapping[str, Any]) -> list[dict[str, Any]]:
-    """Shape P-3/P-4 results for ``screen_contaminant_leaching``.
-
-    Every overlay row is ``field_origin=computed``. A computed number cannot
-    wear the tabulated label. Does not write ``logd``.
-    """
-    rows: list[dict[str, Any]] = []
-    nested = payload.get("results") or []
-    for row in nested:
-        if not isinstance(row, Mapping):
-            continue
-        inner = row.get("results")
-        if isinstance(inner, list) and row.get("line") is not None:
-            rows.extend(computed_deltas_for_screen(row))
-            continue
-        if not row.get("success") or row.get("delta_logd") is None:
-            continue
-        rows.append({
-            "solvent_key": row.get("solvent_key") or row.get("query"),
-            "query": row.get("query"),
-            "delta_logd": row["delta_logd"],
-            "reference": row.get("reference") or payload.get("reference"),
-            "field_origin": FIELD_ORIGIN_COMPUTED,
-            "validation_status": row.get("validation_status") or payload.get("validation_status"),
-            "validated_ok": row.get("validated_ok", payload.get("validated_ok")),
-            "route": row.get("route"),
-            "parameterisation": row.get("parameterisation"),
-            "inchikey": payload.get("inchikey") or row.get("inchikey"),
-        })
-    return rows
 
 
 def compute_delta_logd_batch(

@@ -386,10 +386,3 @@ def reorder_window(
     return reordered + rest
 
 
-def reorder_chunks(
-    query: str,
-    chunks: Sequence[Any],
-    rerank_mode: str = "off",
-) -> list[Any]:
-    ranked = [(0.0, 0.0, 0.0, 0.0, chunk, 0.0) for chunk in chunks]
-    return [item[4] for item in reorder_window(query, ranked, rerank_mode)]

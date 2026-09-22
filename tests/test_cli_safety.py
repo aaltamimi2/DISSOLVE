@@ -31,7 +31,6 @@ _CENSUS_JSON = _ROOT / "src" / "dissolve" / "data" / "HAZARD_METHODS.v1.json"
 _CENSUS_SHA256 = "8540e6fe2f3ee780989ea15beb1b9ce0fe2aac2c81a073e271fd073997ecb150"
 _KEEP_OUTS = (
     # Card builder stamped CHEM21 SH&E (v2). Methods copy / duckdb / thermo stay.
-    ("src/dissolve/safety.py", "605325deabc9ada70bff198ff86c8bad69f5167a054696dbee853f1087b2471a"),
     ("src/dissolve/data/safety.duckdb", "88ce0d09ac28de17045702a8a283de6610b5fe1ab33aa5f90bf6e98edfd75a74"),
     ("src/dissolve/data/HAZARD_METHODS.published.v1.md", "a3a74ccdfc47596bc8f335097056956224407e531d9a258cad0b2656f9e9b9f9"),
     ("src/dissolve/data/HAZARD_METHODS.v1.json", _CENSUS_SHA256),
