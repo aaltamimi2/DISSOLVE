@@ -10,6 +10,7 @@ handler, and sessions are the CLI's session files, so a conversation can move be
     POST /api/sessions                      {model?, mode?} -> a new session
     GET  /api/sessions/{id}                 its modes and transcript
     POST /api/sessions/{id}/turns {text}    the NDJSON stream of one turn or slash command
+    POST /api/client-error                  a crash in someone's browser, printed to this server's log
 
 Everything else serves the built UI in src/dissolve/ui/ (its source is web/).
 
@@ -330,6 +331,11 @@ def create_app(home: str | Path | None = None) -> FastAPI:
                 yield json.dumps(event, ensure_ascii=False, default=str) + "\n"
 
         return StreamingResponse(stream(), media_type="application/x-ndjson")
+
+    @api.post("/api/client-error", status_code=204)
+    async def client_error(request: Request) -> Response:
+        print(f"browser error: {(await request.body())[:4000].decode('utf-8', 'replace')}", flush=True)
+        return Response(status_code=204)
 
     @api.get("/{path:path}", include_in_schema=False)
     def ui(path: str):
