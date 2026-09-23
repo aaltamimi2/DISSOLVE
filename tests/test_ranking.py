@@ -3088,40 +3088,6 @@ def test_alias_only_row_does_not_fill_named(monkeypatch, value, value_2, value_3
     assert {row[value_4] for row in keys} == {value_3}
 
 
-def test_named_slice_at_wrong_price_does_not_fill(monkeypatch):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    session = new_session()
-    with bind_tool_session(session):
-        handle = _plant_handle(
-            session,
-            _complete_d18_rows(
-                energy_case="C1",
-                dissolution_temperature_c=90.0,
-                precipitation_temperature_c=40.0,
-                solvent_price_usd_per_kg=1.5,
-            ),
-        )
-        payload = _data(tea.rank_landscape(
-            **_sequence_kwargs(
-                handle=handle,
-                process_config={
-                    **_CAP_20KT,
-                    "energy_case": "C1",
-                    "dissolution_temperature_c": 90.0,
-                    "precipitation_temperature_c": 40.0,
-                    "solvent_price_usd_per_kg": 2.0,
-                },
-            ),
-        ))
-    assert payload.get("error_code") == "incomplete_stage_basis_grid"
-    keys = payload["missing_keys"]
-    assert len(keys) == 4
-    assert {row["energy_case"] for row in keys} == {"C1"}
-    assert {row["dissolution_temperature_c"] for row in keys} == {90.0}
-    assert {row["precipitation_temperature_c"] for row in keys} == {40.0}
-    assert {row["solvent_price_usd_per_kg"] for row in keys} == {2.0}
-
-
 @pytest.mark.parametrize(
     ('value', 'value_2', 'value_3'),
     [
@@ -3164,43 +3130,6 @@ def test_omitted_2(monkeypatch, value, value_2, value_3):
     for row in payload["missing_keys"]:
         assert row.get(value_2) is None
         assert row.get(value_3) != value
-
-
-def test_named_slice_at_wrong_loss_does_not_fill(monkeypatch):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    session = new_session()
-    with bind_tool_session(session):
-        handle = _plant_handle(
-            session,
-            _complete_d18_rows(
-                energy_case="C1",
-                dissolution_temperature_c=90.0,
-                precipitation_temperature_c=40.0,
-                solvent_price_usd_per_kg=2.0,
-                solvent_loss_pct=0.5,
-            ),
-        )
-        payload = _data(tea.rank_landscape(
-            **_sequence_kwargs(
-                handle=handle,
-                process_config={
-                    **_CAP_20KT,
-                    "energy_case": "C1",
-                    "dissolution_temperature_c": 90.0,
-                    "precipitation_temperature_c": 40.0,
-                    "solvent_price_usd_per_kg": 2.0,
-                    "solvent_loss_pct": 3.0,
-                },
-            ),
-        ))
-    assert payload.get("error_code") == "incomplete_stage_basis_grid"
-    keys = payload["missing_keys"]
-    assert len(keys) == 4
-    assert {row["energy_case"] for row in keys} == {"C1"}
-    assert {row["dissolution_temperature_c"] for row in keys} == {90.0}
-    assert {row["precipitation_temperature_c"] for row in keys} == {40.0}
-    assert {row["solvent_price_usd_per_kg"] for row in keys} == {2.0}
-    assert {row["solvent_loss_pct"] for row in keys} == {3.0}
 
 
 @pytest.mark.parametrize(
@@ -3393,46 +3322,6 @@ def test_named_default_slice_completes_on_matching_rows(monkeypatch, field, valu
     assert "missing_keys" not in payload
 
 
-def test_named_slice_at_wrong_distance_does_not_fill(monkeypatch):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    session = new_session()
-    with bind_tool_session(session):
-        handle = _plant_handle(
-            session,
-            _complete_d18_rows(
-                energy_case="C1",
-                dissolution_temperature_c=90.0,
-                precipitation_temperature_c=40.0,
-                solvent_price_usd_per_kg=2.0,
-                solvent_loss_pct=3.0,
-                feedstock_distance_km=100.0,
-            ),
-        )
-        payload = _data(tea.rank_landscape(
-            **_sequence_kwargs(
-                handle=handle,
-                process_config={
-                    **_CAP_20KT,
-                    "energy_case": "C1",
-                    "dissolution_temperature_c": 90.0,
-                    "precipitation_temperature_c": 40.0,
-                    "solvent_price_usd_per_kg": 2.0,
-                    "solvent_loss_pct": 3.0,
-                    "feedstock_distance_km": 250.0,
-                },
-            ),
-        ))
-    assert payload.get("error_code") == "incomplete_stage_basis_grid"
-    keys = payload["missing_keys"]
-    assert len(keys) == 4
-    assert {row["energy_case"] for row in keys} == {"C1"}
-    assert {row["dissolution_temperature_c"] for row in keys} == {90.0}
-    assert {row["precipitation_temperature_c"] for row in keys} == {40.0}
-    assert {row["solvent_price_usd_per_kg"] for row in keys} == {2.0}
-    assert {row["solvent_loss_pct"] for row in keys} == {3.0}
-    assert {row["feedstock_distance_km"] for row in keys} == {250.0}
-
-
 @pytest.mark.parametrize(
     'dissolution_capacity',
     [
@@ -3462,49 +3351,6 @@ def test_plant_capacity_is_not_dissolution_capacity(monkeypatch):
         assert row.get("dissolution_capacity") is None
 
 
-def test_named_slice_at_wrong_dissolution_capacity_does_not_fill(monkeypatch):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    session = new_session()
-    with bind_tool_session(session):
-        handle = _plant_handle(
-            session,
-            _complete_d18_rows(
-                energy_case="C1",
-                dissolution_temperature_c=90.0,
-                precipitation_temperature_c=40.0,
-                solvent_price_usd_per_kg=2.0,
-                solvent_loss_pct=3.0,
-                feedstock_distance_km=250.0,
-                dissolution_capacity=3.0,
-            ),
-        )
-        payload = _data(tea.rank_landscape(
-            **_sequence_kwargs(
-                handle=handle,
-                process_config={
-                    **_CAP_20KT,
-                    "energy_case": "C1",
-                    "dissolution_temperature_c": 90.0,
-                    "precipitation_temperature_c": 40.0,
-                    "solvent_price_usd_per_kg": 2.0,
-                    "solvent_loss_pct": 3.0,
-                    "feedstock_distance_km": 250.0,
-                    "dissolution_capacity": 5.0,
-                },
-            ),
-        ))
-    assert payload.get("error_code") == "incomplete_stage_basis_grid"
-    keys = payload["missing_keys"]
-    assert len(keys) == 4
-    assert {row["energy_case"] for row in keys} == {"C1"}
-    assert {row["dissolution_temperature_c"] for row in keys} == {90.0}
-    assert {row["precipitation_temperature_c"] for row in keys} == {40.0}
-    assert {row["solvent_price_usd_per_kg"] for row in keys} == {2.0}
-    assert {row["solvent_loss_pct"] for row in keys} == {3.0}
-    assert {row["feedstock_distance_km"] for row in keys} == {250.0}
-    assert {row["dissolution_capacity"] for row in keys} == {5.0}
-
-
 @pytest.mark.parametrize(
     'labor_cost_usd_per_employee_yr',
     [
@@ -3523,52 +3369,6 @@ def test_when_omitted_2(monkeypatch, labor_cost_usd_per_employee_yr):
     assert payload.get("error_code") == "sequence_coupling_unproven"
     assert "pending_blockers" not in payload
     assert "landscape_points" not in payload
-
-
-def test_named_slice_at_wrong_labor_does_not_fill(monkeypatch):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    session = new_session()
-    with bind_tool_session(session):
-        handle = _plant_handle(
-            session,
-            _complete_d18_rows(
-                energy_case="C1",
-                dissolution_temperature_c=90.0,
-                precipitation_temperature_c=40.0,
-                solvent_price_usd_per_kg=2.0,
-                solvent_loss_pct=3.0,
-                feedstock_distance_km=250.0,
-                dissolution_capacity=5.0,
-                labor_cost_usd_per_employee_yr=120_000.0,
-            ),
-        )
-        payload = _data(tea.rank_landscape(
-            **_sequence_kwargs(
-                handle=handle,
-                process_config={
-                    **_CAP_20KT,
-                    "energy_case": "C1",
-                    "dissolution_temperature_c": 90.0,
-                    "precipitation_temperature_c": 40.0,
-                    "solvent_price_usd_per_kg": 2.0,
-                    "solvent_loss_pct": 3.0,
-                    "feedstock_distance_km": 250.0,
-                    "dissolution_capacity": 5.0,
-                    "labor_cost_usd_per_employee_yr": 150_000.0,
-                },
-            ),
-        ))
-    assert payload.get("error_code") == "incomplete_stage_basis_grid"
-    keys = payload["missing_keys"]
-    assert len(keys) == 4
-    assert {row["energy_case"] for row in keys} == {"C1"}
-    assert {row["dissolution_temperature_c"] for row in keys} == {90.0}
-    assert {row["precipitation_temperature_c"] for row in keys} == {40.0}
-    assert {row["solvent_price_usd_per_kg"] for row in keys} == {2.0}
-    assert {row["solvent_loss_pct"] for row in keys} == {3.0}
-    assert {row["feedstock_distance_km"] for row in keys} == {250.0}
-    assert {row["dissolution_capacity"] for row in keys} == {5.0}
-    assert {row["labor_cost_usd_per_employee_yr"] for row in keys} == {150_000.0}
 
 
 @pytest.mark.parametrize(
@@ -3627,49 +3427,6 @@ def test_sell_leftover_does_not_stamp_burn_cases(monkeypatch, value, value_2, ke
     for row in payload["missing_keys"]:
         assert row.get(value) is True
         assert row.get(value_2) is None
-
-
-def test_named_slice_at_wrong_sell_does_not_fill(monkeypatch):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    session = new_session()
-    with bind_tool_session(session):
-        handle = _plant_handle(
-            session,
-            _complete_d18_rows(
-                energy_case="C1",
-                dissolution_temperature_c=90.0,
-                precipitation_temperature_c=40.0,
-                solvent_price_usd_per_kg=2.0,
-                solvent_loss_pct=3.0,
-                feedstock_distance_km=250.0,
-                dissolution_capacity=5.0,
-                labor_cost_usd_per_employee_yr=150_000.0,
-                sell_leftover_plastic=False,
-            ),
-        )
-        payload = _data(tea.rank_landscape(
-            **_sequence_kwargs(
-                handle=handle,
-                process_config={
-                    **_CAP_20KT,
-                    "energy_case": "C1",
-                    "dissolution_temperature_c": 90.0,
-                    "precipitation_temperature_c": 40.0,
-                    "solvent_price_usd_per_kg": 2.0,
-                    "solvent_loss_pct": 3.0,
-                    "feedstock_distance_km": 250.0,
-                    "dissolution_capacity": 5.0,
-                    "labor_cost_usd_per_employee_yr": 150_000.0,
-                    "sell_leftover_plastic": True,
-                },
-            ),
-        ))
-    assert payload.get("error_code") == "incomplete_stage_basis_grid"
-    keys = payload["missing_keys"]
-    assert len(keys) == 4
-    assert {row["energy_case"] for row in keys} == {"C1"}
-    assert {row["labor_cost_usd_per_employee_yr"] for row in keys} == {150_000.0}
-    assert {row["sell_leftover_plastic"] for row in keys} == {True}
 
 
 @pytest.mark.parametrize(
@@ -3736,50 +3493,6 @@ def test_named(monkeypatch, value, value_2, value_3, key, value_4):
     keys = payload["missing_keys"]
     assert len(keys) == 4
     assert {row[value_3] for row in keys} == {value_2}
-    assert {row["burn_leftover_plastic"] for row in keys} == {True}
-
-
-def test_named_slice_at_wrong_burn_does_not_fill(monkeypatch):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    session = new_session()
-    with bind_tool_session(session):
-        handle = _plant_handle(
-            session,
-            _complete_d18_rows(
-                energy_case="C1",
-                dissolution_temperature_c=90.0,
-                precipitation_temperature_c=40.0,
-                solvent_price_usd_per_kg=2.0,
-                solvent_loss_pct=3.0,
-                feedstock_distance_km=250.0,
-                dissolution_capacity=5.0,
-                labor_cost_usd_per_employee_yr=150_000.0,
-                sell_leftover_plastic=True,
-                burn_leftover_plastic=False,
-            ),
-        )
-        payload = _data(tea.rank_landscape(
-            **_sequence_kwargs(
-                handle=handle,
-                process_config={
-                    **_CAP_20KT,
-                    "energy_case": "C1",
-                    "dissolution_temperature_c": 90.0,
-                    "precipitation_temperature_c": 40.0,
-                    "solvent_price_usd_per_kg": 2.0,
-                    "solvent_loss_pct": 3.0,
-                    "feedstock_distance_km": 250.0,
-                    "dissolution_capacity": 5.0,
-                    "labor_cost_usd_per_employee_yr": 150_000.0,
-                    "sell_leftover_plastic": True,
-                    "burn_leftover_plastic": True,
-                },
-            ),
-        ))
-    assert payload.get("error_code") == "incomplete_stage_basis_grid"
-    keys = payload["missing_keys"]
-    assert len(keys) == 4
-    assert {row["sell_leftover_plastic"] for row in keys} == {True}
     assert {row["burn_leftover_plastic"] for row in keys} == {True}
 
 
@@ -3854,52 +3567,6 @@ def test_named_2(monkeypatch, value, value_2, value_3, key, value_4):
     keys = payload["missing_keys"]
     assert len(keys) == 4
     assert {row[value_3] for row in keys} == {value_2}
-
-
-def test_named_slice_at_wrong_format_does_not_fill(monkeypatch):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    session = new_session()
-    with bind_tool_session(session):
-        handle = _plant_handle(
-            session,
-            _complete_d18_rows(
-                energy_case="C1",
-                dissolution_temperature_c=90.0,
-                precipitation_temperature_c=40.0,
-                solvent_price_usd_per_kg=2.0,
-                solvent_loss_pct=3.0,
-                feedstock_distance_km=250.0,
-                dissolution_capacity=5.0,
-                labor_cost_usd_per_employee_yr=150_000.0,
-                sell_leftover_plastic=True,
-                burn_leftover_plastic=True,
-                precipitation_temperature_format="constant",
-            ),
-        )
-        payload = _data(tea.rank_landscape(
-            **_sequence_kwargs(
-                handle=handle,
-                process_config={
-                    **_CAP_20KT,
-                    "energy_case": "C1",
-                    "dissolution_temperature_c": 90.0,
-                    "precipitation_temperature_c": 40.0,
-                    "solvent_price_usd_per_kg": 2.0,
-                    "solvent_loss_pct": 3.0,
-                    "feedstock_distance_km": 250.0,
-                    "dissolution_capacity": 5.0,
-                    "labor_cost_usd_per_employee_yr": 150_000.0,
-                    "sell_leftover_plastic": True,
-                    "burn_leftover_plastic": True,
-                    "precipitation_temperature_format": "drop",
-                },
-            ),
-        ))
-    assert payload.get("error_code") == "incomplete_stage_basis_grid"
-    keys = payload["missing_keys"]
-    assert len(keys) == 4
-    assert {row["burn_leftover_plastic"] for row in keys} == {True}
-    assert {row["precipitation_temperature_format"] for row in keys} == {"drop"}
 
 
 @pytest.mark.parametrize(
@@ -4081,54 +3748,6 @@ def test_precipitation_configuration_does_not_stamp_irr(monkeypatch):
         assert row.get("irr") is None
 
 
-def test_named_slice_at_wrong_configuration_does_not_fill(monkeypatch):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    session = new_session()
-    with bind_tool_session(session):
-        handle = _plant_handle(
-            session,
-            _complete_d18_rows(
-                energy_case="C1",
-                dissolution_temperature_c=90.0,
-                precipitation_temperature_c=40.0,
-                solvent_price_usd_per_kg=2.0,
-                solvent_loss_pct=3.0,
-                feedstock_distance_km=250.0,
-                dissolution_capacity=5.0,
-                labor_cost_usd_per_employee_yr=150_000.0,
-                sell_leftover_plastic=True,
-                burn_leftover_plastic=True,
-                precipitation_temperature_format="drop",
-                precipitation_configuration=_IHT,
-            ),
-        )
-        payload = _data(tea.rank_landscape(
-            **_sequence_kwargs(
-                handle=handle,
-                process_config={
-                    **_CAP_20KT,
-                    "energy_case": "C1",
-                    "dissolution_temperature_c": 90.0,
-                    "precipitation_temperature_c": 40.0,
-                    "solvent_price_usd_per_kg": 2.0,
-                    "solvent_loss_pct": 3.0,
-                    "feedstock_distance_km": 250.0,
-                    "dissolution_capacity": 5.0,
-                    "labor_cost_usd_per_employee_yr": 150_000.0,
-                    "sell_leftover_plastic": True,
-                    "burn_leftover_plastic": True,
-                    "precipitation_temperature_format": "drop",
-                    "precipitation_configuration": _MIX,
-                },
-            ),
-        ))
-    assert payload.get("error_code") == "incomplete_stage_basis_grid"
-    keys = payload["missing_keys"]
-    assert len(keys) == 4
-    assert {row["precipitation_temperature_format"] for row in keys} == {"drop"}
-    assert {row["precipitation_configuration"] for row in keys} == {_MIX}
-
-
 def test_mixed_configuration_handle_leaves_the_unmatched_remnant(monkeypatch):
     _forbid_live_rank_solvent_maps(monkeypatch)
     rows = _complete_d18_rows(precipitation_configuration=_MIX)
@@ -4223,56 +3842,6 @@ def test_precipitation_configuration_does_not_stamp_irr_on_this_slice(monkeypatc
         assert row.get("irr") is None
 
 
-def test_named_slice_at_wrong_irr_does_not_fill(monkeypatch):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    session = new_session()
-    with bind_tool_session(session):
-        handle = _plant_handle(
-            session,
-            _complete_d18_rows(
-                energy_case="C1",
-                dissolution_temperature_c=90.0,
-                precipitation_temperature_c=40.0,
-                solvent_price_usd_per_kg=2.0,
-                solvent_loss_pct=3.0,
-                feedstock_distance_km=250.0,
-                dissolution_capacity=5.0,
-                labor_cost_usd_per_employee_yr=150_000.0,
-                sell_leftover_plastic=True,
-                burn_leftover_plastic=True,
-                precipitation_temperature_format="drop",
-                precipitation_configuration=_MIX,
-                irr=0.10,
-            ),
-        )
-        payload = _data(tea.rank_landscape(
-            **_sequence_kwargs(
-                handle=handle,
-                process_config={
-                    **_CAP_20KT,
-                    "energy_case": "C1",
-                    "dissolution_temperature_c": 90.0,
-                    "precipitation_temperature_c": 40.0,
-                    "solvent_price_usd_per_kg": 2.0,
-                    "solvent_loss_pct": 3.0,
-                    "feedstock_distance_km": 250.0,
-                    "dissolution_capacity": 5.0,
-                    "labor_cost_usd_per_employee_yr": 150_000.0,
-                    "sell_leftover_plastic": True,
-                    "burn_leftover_plastic": True,
-                    "precipitation_temperature_format": "drop",
-                    "precipitation_configuration": _MIX,
-                    "irr": 0.12,
-                },
-            ),
-        ))
-    assert payload.get("error_code") == "incomplete_stage_basis_grid"
-    keys = payload["missing_keys"]
-    assert len(keys) == 4
-    assert {row["precipitation_configuration"] for row in keys} == {_MIX}
-    assert {row["irr"] for row in keys} == {0.12}
-
-
 @pytest.mark.parametrize(
     'income_tax',
     [
@@ -4289,58 +3858,6 @@ def test_income_tax_rows_still_complete_when_omitted(monkeypatch, income_tax):
     assert payload.get("error_code") == "sequence_coupling_unproven"
     assert "pending_blockers" not in payload
     assert "landscape_points" not in payload
-
-
-def test_named_slice_at_wrong_income_tax_does_not_fill(monkeypatch):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    session = new_session()
-    with bind_tool_session(session):
-        handle = _plant_handle(
-            session,
-            _complete_d18_rows(
-                energy_case="C1",
-                dissolution_temperature_c=90.0,
-                precipitation_temperature_c=40.0,
-                solvent_price_usd_per_kg=2.0,
-                solvent_loss_pct=3.0,
-                feedstock_distance_km=250.0,
-                dissolution_capacity=5.0,
-                labor_cost_usd_per_employee_yr=150_000.0,
-                sell_leftover_plastic=True,
-                burn_leftover_plastic=True,
-                precipitation_temperature_format="drop",
-                precipitation_configuration=_MIX,
-                irr=0.12,
-                income_tax=0.21,
-            ),
-        )
-        payload = _data(tea.rank_landscape(
-            **_sequence_kwargs(
-                handle=handle,
-                process_config={
-                    **_CAP_20KT,
-                    "energy_case": "C1",
-                    "dissolution_temperature_c": 90.0,
-                    "precipitation_temperature_c": 40.0,
-                    "solvent_price_usd_per_kg": 2.0,
-                    "solvent_loss_pct": 3.0,
-                    "feedstock_distance_km": 250.0,
-                    "dissolution_capacity": 5.0,
-                    "labor_cost_usd_per_employee_yr": 150_000.0,
-                    "sell_leftover_plastic": True,
-                    "burn_leftover_plastic": True,
-                    "precipitation_temperature_format": "drop",
-                    "precipitation_configuration": _MIX,
-                    "irr": 0.12,
-                    "income_tax": 0.25,
-                },
-            ),
-        ))
-    assert payload.get("error_code") == "incomplete_stage_basis_grid"
-    keys = payload["missing_keys"]
-    assert len(keys) == 4
-    assert {row["irr"] for row in keys} == {0.12}
-    assert {row["income_tax"] for row in keys} == {0.25}
 
 
 @pytest.mark.parametrize(
@@ -4393,60 +3910,6 @@ def test_operating_days_rows_still_complete_when_omitted(monkeypatch, operating_
     assert "landscape_points" not in payload
 
 
-def test_named_slice_at_wrong_operating_days_does_not_fill(monkeypatch):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    session = new_session()
-    with bind_tool_session(session):
-        handle = _plant_handle(
-            session,
-            _complete_d18_rows(
-                energy_case="C1",
-                dissolution_temperature_c=90.0,
-                precipitation_temperature_c=40.0,
-                solvent_price_usd_per_kg=2.0,
-                solvent_loss_pct=3.0,
-                feedstock_distance_km=250.0,
-                dissolution_capacity=5.0,
-                labor_cost_usd_per_employee_yr=150_000.0,
-                sell_leftover_plastic=True,
-                burn_leftover_plastic=True,
-                precipitation_temperature_format="drop",
-                precipitation_configuration=_MIX,
-                irr=0.12,
-                income_tax=0.25,
-                operating_days=350.4,
-            ),
-        )
-        payload = _data(tea.rank_landscape(
-            **_sequence_kwargs(
-                handle=handle,
-                process_config={
-                    **_CAP_20KT,
-                    "energy_case": "C1",
-                    "dissolution_temperature_c": 90.0,
-                    "precipitation_temperature_c": 40.0,
-                    "solvent_price_usd_per_kg": 2.0,
-                    "solvent_loss_pct": 3.0,
-                    "feedstock_distance_km": 250.0,
-                    "dissolution_capacity": 5.0,
-                    "labor_cost_usd_per_employee_yr": 150_000.0,
-                    "sell_leftover_plastic": True,
-                    "burn_leftover_plastic": True,
-                    "precipitation_temperature_format": "drop",
-                    "precipitation_configuration": _MIX,
-                    "irr": 0.12,
-                    "income_tax": 0.25,
-                    "operating_days": 365,
-                },
-            ),
-        ))
-    assert payload.get("error_code") == "incomplete_stage_basis_grid"
-    keys = payload["missing_keys"]
-    assert len(keys) == 4
-    assert {row["income_tax"] for row in keys} == {0.25}
-    assert {row["operating_days"] for row in keys} == {365.0}
-
-
 @pytest.mark.parametrize(
     'labor_burden',
     [
@@ -4463,62 +3926,6 @@ def test_labor_burden_rows_still_complete_when_omitted(monkeypatch, labor_burden
     assert payload.get("error_code") == "sequence_coupling_unproven"
     assert "pending_blockers" not in payload
     assert "landscape_points" not in payload
-
-
-def test_named_slice_at_wrong_labor_burden_does_not_fill(monkeypatch):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    session = new_session()
-    with bind_tool_session(session):
-        handle = _plant_handle(
-            session,
-            _complete_d18_rows(
-                energy_case="C1",
-                dissolution_temperature_c=90.0,
-                precipitation_temperature_c=40.0,
-                solvent_price_usd_per_kg=2.0,
-                solvent_loss_pct=3.0,
-                feedstock_distance_km=250.0,
-                dissolution_capacity=5.0,
-                labor_cost_usd_per_employee_yr=150_000.0,
-                sell_leftover_plastic=True,
-                burn_leftover_plastic=True,
-                precipitation_temperature_format="drop",
-                precipitation_configuration=_MIX,
-                irr=0.12,
-                income_tax=0.25,
-                operating_days=365.0,
-                labor_burden=0.90,
-            ),
-        )
-        payload = _data(tea.rank_landscape(
-            **_sequence_kwargs(
-                handle=handle,
-                process_config={
-                    **_CAP_20KT,
-                    "energy_case": "C1",
-                    "dissolution_temperature_c": 90.0,
-                    "precipitation_temperature_c": 40.0,
-                    "solvent_price_usd_per_kg": 2.0,
-                    "solvent_loss_pct": 3.0,
-                    "feedstock_distance_km": 250.0,
-                    "dissolution_capacity": 5.0,
-                    "labor_cost_usd_per_employee_yr": 150_000.0,
-                    "sell_leftover_plastic": True,
-                    "burn_leftover_plastic": True,
-                    "precipitation_temperature_format": "drop",
-                    "precipitation_configuration": _MIX,
-                    "irr": 0.12,
-                    "income_tax": 0.25,
-                    "operating_days": 365,
-                    "labor_burden": 1.5,
-                },
-            ),
-        ))
-    assert payload.get("error_code") == "incomplete_stage_basis_grid"
-    keys = payload["missing_keys"]
-    assert len(keys) == 4
-    assert {row["operating_days"] for row in keys} == {365.0}
-    assert {row["labor_burden"] for row in keys} == {1.5}
 
 
 @pytest.mark.parametrize(
@@ -4594,64 +4001,6 @@ def test_finance_interest_does_not_stamp_finance_years_or_irr_cases(monkeypatch,
         assert row.get(value_5) is None
 
 
-def test_named_slice_at_wrong_finance_interest_does_not_fill(monkeypatch):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    session = new_session()
-    with bind_tool_session(session):
-        handle = _plant_handle(
-            session,
-            _complete_d18_rows(
-                energy_case="C1",
-                dissolution_temperature_c=90.0,
-                precipitation_temperature_c=40.0,
-                solvent_price_usd_per_kg=2.0,
-                solvent_loss_pct=3.0,
-                feedstock_distance_km=250.0,
-                dissolution_capacity=5.0,
-                labor_cost_usd_per_employee_yr=150_000.0,
-                sell_leftover_plastic=True,
-                burn_leftover_plastic=True,
-                precipitation_temperature_format="drop",
-                precipitation_configuration=_MIX,
-                irr=0.12,
-                income_tax=0.25,
-                operating_days=365.0,
-                labor_burden=1.5,
-                finance_interest=0.08,
-            ),
-        )
-        payload = _data(tea.rank_landscape(
-            **_sequence_kwargs(
-                handle=handle,
-                process_config={
-                    **_CAP_20KT,
-                    "energy_case": "C1",
-                    "dissolution_temperature_c": 90.0,
-                    "precipitation_temperature_c": 40.0,
-                    "solvent_price_usd_per_kg": 2.0,
-                    "solvent_loss_pct": 3.0,
-                    "feedstock_distance_km": 250.0,
-                    "dissolution_capacity": 5.0,
-                    "labor_cost_usd_per_employee_yr": 150_000.0,
-                    "sell_leftover_plastic": True,
-                    "burn_leftover_plastic": True,
-                    "precipitation_temperature_format": "drop",
-                    "precipitation_configuration": _MIX,
-                    "irr": 0.12,
-                    "income_tax": 0.25,
-                    "operating_days": 365,
-                    "labor_burden": 1.5,
-                    "finance_interest": 0.12,
-                },
-            ),
-        ))
-    assert payload.get("error_code") == "incomplete_stage_basis_grid"
-    keys = payload["missing_keys"]
-    assert len(keys) == 4
-    assert {row["labor_burden"] for row in keys} == {1.5}
-    assert {row["finance_interest"] for row in keys} == {0.12}
-
-
 @pytest.mark.parametrize(
     'finance_years',
     [
@@ -4668,66 +4017,6 @@ def test_finance_years_rows_still_complete_when_omitted(monkeypatch, finance_yea
     assert payload.get("error_code") == "sequence_coupling_unproven"
     assert "pending_blockers" not in payload
     assert "landscape_points" not in payload
-
-
-def test_named_slice_at_wrong_finance_years_does_not_fill(monkeypatch):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    session = new_session()
-    with bind_tool_session(session):
-        handle = _plant_handle(
-            session,
-            _complete_d18_rows(
-                energy_case="C1",
-                dissolution_temperature_c=90.0,
-                precipitation_temperature_c=40.0,
-                solvent_price_usd_per_kg=2.0,
-                solvent_loss_pct=3.0,
-                feedstock_distance_km=250.0,
-                dissolution_capacity=5.0,
-                labor_cost_usd_per_employee_yr=150_000.0,
-                sell_leftover_plastic=True,
-                burn_leftover_plastic=True,
-                precipitation_temperature_format="drop",
-                precipitation_configuration=_MIX,
-                irr=0.12,
-                income_tax=0.25,
-                operating_days=365.0,
-                labor_burden=1.5,
-                finance_interest=0.12,
-                finance_years=10,
-            ),
-        )
-        payload = _data(tea.rank_landscape(
-            **_sequence_kwargs(
-                handle=handle,
-                process_config={
-                    **_CAP_20KT,
-                    "energy_case": "C1",
-                    "dissolution_temperature_c": 90.0,
-                    "precipitation_temperature_c": 40.0,
-                    "solvent_price_usd_per_kg": 2.0,
-                    "solvent_loss_pct": 3.0,
-                    "feedstock_distance_km": 250.0,
-                    "dissolution_capacity": 5.0,
-                    "labor_cost_usd_per_employee_yr": 150_000.0,
-                    "sell_leftover_plastic": True,
-                    "burn_leftover_plastic": True,
-                    "precipitation_temperature_format": "drop",
-                    "precipitation_configuration": _MIX,
-                    "irr": 0.12,
-                    "income_tax": 0.25,
-                    "operating_days": 365,
-                    "labor_burden": 1.5,
-                    "finance_interest": 0.12,
-                    "finance_years": 15,
-                },
-            ),
-        ))
-    assert payload.get("error_code") == "incomplete_stage_basis_grid"
-    keys = payload["missing_keys"]
-    assert len(keys) == 4
-    assert {row["finance_interest"] for row in keys} == {0.12}
-    assert {row["finance_years"] for row in keys} == {15.0}
 
 
 @pytest.mark.parametrize(
@@ -4750,68 +4039,6 @@ def test_finance_fraction_rows_still_complete_when_omitted(monkeypatch, finance_
     assert "landscape_points" not in payload
 
 
-def test_named_slice_at_wrong_finance_fraction_does_not_fill(monkeypatch):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    session = new_session()
-    with bind_tool_session(session):
-        handle = _plant_handle(
-            session,
-            _complete_d18_rows(
-                energy_case="C1",
-                dissolution_temperature_c=90.0,
-                precipitation_temperature_c=40.0,
-                solvent_price_usd_per_kg=2.0,
-                solvent_loss_pct=3.0,
-                feedstock_distance_km=250.0,
-                dissolution_capacity=5.0,
-                labor_cost_usd_per_employee_yr=150_000.0,
-                sell_leftover_plastic=True,
-                burn_leftover_plastic=True,
-                precipitation_temperature_format="drop",
-                precipitation_configuration=_MIX,
-                irr=0.12,
-                income_tax=0.25,
-                operating_days=365.0,
-                labor_burden=1.5,
-                finance_interest=0.12,
-                finance_years=15,
-                finance_fraction=0.0,
-            ),
-        )
-        payload = _data(tea.rank_landscape(
-            **_sequence_kwargs(
-                handle=handle,
-                process_config={
-                    **_CAP_20KT,
-                    "energy_case": "C1",
-                    "dissolution_temperature_c": 90.0,
-                    "precipitation_temperature_c": 40.0,
-                    "solvent_price_usd_per_kg": 2.0,
-                    "solvent_loss_pct": 3.0,
-                    "feedstock_distance_km": 250.0,
-                    "dissolution_capacity": 5.0,
-                    "labor_cost_usd_per_employee_yr": 150_000.0,
-                    "sell_leftover_plastic": True,
-                    "burn_leftover_plastic": True,
-                    "precipitation_temperature_format": "drop",
-                    "precipitation_configuration": _MIX,
-                    "irr": 0.12,
-                    "income_tax": 0.25,
-                    "operating_days": 365,
-                    "labor_burden": 1.5,
-                    "finance_interest": 0.12,
-                    "finance_years": 15,
-                    "finance_fraction": 0.4,
-                },
-            ),
-        ))
-    assert payload.get("error_code") == "incomplete_stage_basis_grid"
-    keys = payload["missing_keys"]
-    assert len(keys) == 4
-    assert {row["finance_years"] for row in keys} == {15.0}
-    assert {row["finance_fraction"] for row in keys} == {0.4}
-
-
 @pytest.mark.parametrize(
     'startup_months',
     [
@@ -4830,70 +4057,6 @@ def test_startup_months_rows_still_complete_when_omitted(monkeypatch, startup_mo
     assert payload.get("error_code") == "sequence_coupling_unproven"
     assert "pending_blockers" not in payload
     assert "landscape_points" not in payload
-
-
-def test_named_slice_at_wrong_startup_months_does_not_fill(monkeypatch):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    session = new_session()
-    with bind_tool_session(session):
-        handle = _plant_handle(
-            session,
-            _complete_d18_rows(
-                energy_case="C1",
-                dissolution_temperature_c=90.0,
-                precipitation_temperature_c=40.0,
-                solvent_price_usd_per_kg=2.0,
-                solvent_loss_pct=3.0,
-                feedstock_distance_km=250.0,
-                dissolution_capacity=5.0,
-                labor_cost_usd_per_employee_yr=150_000.0,
-                sell_leftover_plastic=True,
-                burn_leftover_plastic=True,
-                precipitation_temperature_format="drop",
-                precipitation_configuration=_MIX,
-                irr=0.12,
-                income_tax=0.25,
-                operating_days=365.0,
-                labor_burden=1.5,
-                finance_interest=0.12,
-                finance_years=15,
-                finance_fraction=0.4,
-                startup_months=3,
-            ),
-        )
-        payload = _data(tea.rank_landscape(
-            **_sequence_kwargs(
-                handle=handle,
-                process_config={
-                    **_CAP_20KT,
-                    "energy_case": "C1",
-                    "dissolution_temperature_c": 90.0,
-                    "precipitation_temperature_c": 40.0,
-                    "solvent_price_usd_per_kg": 2.0,
-                    "solvent_loss_pct": 3.0,
-                    "feedstock_distance_km": 250.0,
-                    "dissolution_capacity": 5.0,
-                    "labor_cost_usd_per_employee_yr": 150_000.0,
-                    "sell_leftover_plastic": True,
-                    "burn_leftover_plastic": True,
-                    "precipitation_temperature_format": "drop",
-                    "precipitation_configuration": _MIX,
-                    "irr": 0.12,
-                    "income_tax": 0.25,
-                    "operating_days": 365,
-                    "labor_burden": 1.5,
-                    "finance_interest": 0.12,
-                    "finance_years": 15,
-                    "finance_fraction": 0.4,
-                    "startup_months": 6,
-                },
-            ),
-        ))
-    assert payload.get("error_code") == "incomplete_stage_basis_grid"
-    keys = payload["missing_keys"]
-    assert len(keys) == 4
-    assert {row["finance_fraction"] for row in keys} == {0.4}
-    assert {row["startup_months"] for row in keys} == {6.0}
 
 
 @pytest.mark.parametrize(
@@ -4916,72 +4079,6 @@ def test_startup_FOCfrac_rows_still_complete_when_omitted(monkeypatch, startup_F
     assert "landscape_points" not in payload
 
 
-def test_named_slice_at_wrong_startup_FOCfrac_does_not_fill(monkeypatch):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    session = new_session()
-    with bind_tool_session(session):
-        handle = _plant_handle(
-            session,
-            _complete_d18_rows(
-                energy_case="C1",
-                dissolution_temperature_c=90.0,
-                precipitation_temperature_c=40.0,
-                solvent_price_usd_per_kg=2.0,
-                solvent_loss_pct=3.0,
-                feedstock_distance_km=250.0,
-                dissolution_capacity=5.0,
-                labor_cost_usd_per_employee_yr=150_000.0,
-                sell_leftover_plastic=True,
-                burn_leftover_plastic=True,
-                precipitation_temperature_format="drop",
-                precipitation_configuration=_MIX,
-                irr=0.12,
-                income_tax=0.25,
-                operating_days=365.0,
-                labor_burden=1.5,
-                finance_interest=0.12,
-                finance_years=15,
-                finance_fraction=0.4,
-                startup_months=6,
-                startup_FOCfrac=1.0,
-            ),
-        )
-        payload = _data(tea.rank_landscape(
-            **_sequence_kwargs(
-                handle=handle,
-                process_config={
-                    **_CAP_20KT,
-                    "energy_case": "C1",
-                    "dissolution_temperature_c": 90.0,
-                    "precipitation_temperature_c": 40.0,
-                    "solvent_price_usd_per_kg": 2.0,
-                    "solvent_loss_pct": 3.0,
-                    "feedstock_distance_km": 250.0,
-                    "dissolution_capacity": 5.0,
-                    "labor_cost_usd_per_employee_yr": 150_000.0,
-                    "sell_leftover_plastic": True,
-                    "burn_leftover_plastic": True,
-                    "precipitation_temperature_format": "drop",
-                    "precipitation_configuration": _MIX,
-                    "irr": 0.12,
-                    "income_tax": 0.25,
-                    "operating_days": 365,
-                    "labor_burden": 1.5,
-                    "finance_interest": 0.12,
-                    "finance_years": 15,
-                    "finance_fraction": 0.4,
-                    "startup_months": 6,
-                    "startup_FOCfrac": 0.5,
-                },
-            ),
-        ))
-    assert payload.get("error_code") == "incomplete_stage_basis_grid"
-    keys = payload["missing_keys"]
-    assert len(keys) == 4
-    assert {row["startup_months"] for row in keys} == {6.0}
-    assert {row["startup_FOCfrac"] for row in keys} == {0.5}
-
-
 @pytest.mark.parametrize(
     'startup_VOCfrac',
     [
@@ -5000,74 +4097,6 @@ def test_startup_VOCfrac_rows_still_complete_when_omitted(monkeypatch, startup_V
     assert payload.get("error_code") == "sequence_coupling_unproven"
     assert "pending_blockers" not in payload
     assert "landscape_points" not in payload
-
-
-def test_named_slice_at_wrong_startup_VOCfrac_does_not_fill(monkeypatch):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    session = new_session()
-    with bind_tool_session(session):
-        handle = _plant_handle(
-            session,
-            _complete_d18_rows(
-                energy_case="C1",
-                dissolution_temperature_c=90.0,
-                precipitation_temperature_c=40.0,
-                solvent_price_usd_per_kg=2.0,
-                solvent_loss_pct=3.0,
-                feedstock_distance_km=250.0,
-                dissolution_capacity=5.0,
-                labor_cost_usd_per_employee_yr=150_000.0,
-                sell_leftover_plastic=True,
-                burn_leftover_plastic=True,
-                precipitation_temperature_format="drop",
-                precipitation_configuration=_MIX,
-                irr=0.12,
-                income_tax=0.25,
-                operating_days=365.0,
-                labor_burden=1.5,
-                finance_interest=0.12,
-                finance_years=15,
-                finance_fraction=0.4,
-                startup_months=6,
-                startup_FOCfrac=0.5,
-                startup_VOCfrac=0.75,
-            ),
-        )
-        payload = _data(tea.rank_landscape(
-            **_sequence_kwargs(
-                handle=handle,
-                process_config={
-                    **_CAP_20KT,
-                    "energy_case": "C1",
-                    "dissolution_temperature_c": 90.0,
-                    "precipitation_temperature_c": 40.0,
-                    "solvent_price_usd_per_kg": 2.0,
-                    "solvent_loss_pct": 3.0,
-                    "feedstock_distance_km": 250.0,
-                    "dissolution_capacity": 5.0,
-                    "labor_cost_usd_per_employee_yr": 150_000.0,
-                    "sell_leftover_plastic": True,
-                    "burn_leftover_plastic": True,
-                    "precipitation_temperature_format": "drop",
-                    "precipitation_configuration": _MIX,
-                    "irr": 0.12,
-                    "income_tax": 0.25,
-                    "operating_days": 365,
-                    "labor_burden": 1.5,
-                    "finance_interest": 0.12,
-                    "finance_years": 15,
-                    "finance_fraction": 0.4,
-                    "startup_months": 6,
-                    "startup_FOCfrac": 0.5,
-                    "startup_VOCfrac": 0.5,
-                },
-            ),
-        ))
-    assert payload.get("error_code") == "incomplete_stage_basis_grid"
-    keys = payload["missing_keys"]
-    assert len(keys) == 4
-    assert {row["startup_FOCfrac"] for row in keys} == {0.5}
-    assert {row["startup_VOCfrac"] for row in keys} == {0.5}
 
 
 @pytest.mark.parametrize(
@@ -5090,76 +4119,6 @@ def test_startup_salesfrac_rows_still_complete_when_omitted(monkeypatch, startup
     assert "landscape_points" not in payload
 
 
-def test_named_slice_at_wrong_startup_salesfrac_does_not_fill(monkeypatch):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    session = new_session()
-    with bind_tool_session(session):
-        handle = _plant_handle(
-            session,
-            _complete_d18_rows(
-                energy_case="C1",
-                dissolution_temperature_c=90.0,
-                precipitation_temperature_c=40.0,
-                solvent_price_usd_per_kg=2.0,
-                solvent_loss_pct=3.0,
-                feedstock_distance_km=250.0,
-                dissolution_capacity=5.0,
-                labor_cost_usd_per_employee_yr=150_000.0,
-                sell_leftover_plastic=True,
-                burn_leftover_plastic=True,
-                precipitation_temperature_format="drop",
-                precipitation_configuration=_MIX,
-                irr=0.12,
-                income_tax=0.25,
-                operating_days=365.0,
-                labor_burden=1.5,
-                finance_interest=0.12,
-                finance_years=15,
-                finance_fraction=0.4,
-                startup_months=6,
-                startup_FOCfrac=0.5,
-                startup_VOCfrac=0.5,
-                startup_salesfrac=0.5,
-            ),
-        )
-        payload = _data(tea.rank_landscape(
-            **_sequence_kwargs(
-                handle=handle,
-                process_config={
-                    **_CAP_20KT,
-                    "energy_case": "C1",
-                    "dissolution_temperature_c": 90.0,
-                    "precipitation_temperature_c": 40.0,
-                    "solvent_price_usd_per_kg": 2.0,
-                    "solvent_loss_pct": 3.0,
-                    "feedstock_distance_km": 250.0,
-                    "dissolution_capacity": 5.0,
-                    "labor_cost_usd_per_employee_yr": 150_000.0,
-                    "sell_leftover_plastic": True,
-                    "burn_leftover_plastic": True,
-                    "precipitation_temperature_format": "drop",
-                    "precipitation_configuration": _MIX,
-                    "irr": 0.12,
-                    "income_tax": 0.25,
-                    "operating_days": 365,
-                    "labor_burden": 1.5,
-                    "finance_interest": 0.12,
-                    "finance_years": 15,
-                    "finance_fraction": 0.4,
-                    "startup_months": 6,
-                    "startup_FOCfrac": 0.5,
-                    "startup_VOCfrac": 0.5,
-                    "startup_salesfrac": 0.25,
-                },
-            ),
-        ))
-    assert payload.get("error_code") == "incomplete_stage_basis_grid"
-    keys = payload["missing_keys"]
-    assert len(keys) == 4
-    assert {row["startup_VOCfrac"] for row in keys} == {0.5}
-    assert {row["startup_salesfrac"] for row in keys} == {0.25}
-
-
 @pytest.mark.parametrize(
     'WC_over_FCI',
     [
@@ -5178,78 +4137,6 @@ def test_WC_over_FCI_rows_still_complete_when_omitted(monkeypatch, WC_over_FCI):
     assert payload.get("error_code") == "sequence_coupling_unproven"
     assert "pending_blockers" not in payload
     assert "landscape_points" not in payload
-
-
-def test_named_slice_at_wrong_WC_over_FCI_does_not_fill(monkeypatch):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    session = new_session()
-    with bind_tool_session(session):
-        handle = _plant_handle(
-            session,
-            _complete_d18_rows(
-                energy_case="C1",
-                dissolution_temperature_c=90.0,
-                precipitation_temperature_c=40.0,
-                solvent_price_usd_per_kg=2.0,
-                solvent_loss_pct=3.0,
-                feedstock_distance_km=250.0,
-                dissolution_capacity=5.0,
-                labor_cost_usd_per_employee_yr=150_000.0,
-                sell_leftover_plastic=True,
-                burn_leftover_plastic=True,
-                precipitation_temperature_format="drop",
-                precipitation_configuration=_MIX,
-                irr=0.12,
-                income_tax=0.25,
-                operating_days=365.0,
-                labor_burden=1.5,
-                finance_interest=0.12,
-                finance_years=15,
-                finance_fraction=0.4,
-                startup_months=6,
-                startup_FOCfrac=0.5,
-                startup_VOCfrac=0.5,
-                startup_salesfrac=0.25,
-                WC_over_FCI=0.05,
-            ),
-        )
-        payload = _data(tea.rank_landscape(
-            **_sequence_kwargs(
-                handle=handle,
-                process_config={
-                    **_CAP_20KT,
-                    "energy_case": "C1",
-                    "dissolution_temperature_c": 90.0,
-                    "precipitation_temperature_c": 40.0,
-                    "solvent_price_usd_per_kg": 2.0,
-                    "solvent_loss_pct": 3.0,
-                    "feedstock_distance_km": 250.0,
-                    "dissolution_capacity": 5.0,
-                    "labor_cost_usd_per_employee_yr": 150_000.0,
-                    "sell_leftover_plastic": True,
-                    "burn_leftover_plastic": True,
-                    "precipitation_temperature_format": "drop",
-                    "precipitation_configuration": _MIX,
-                    "irr": 0.12,
-                    "income_tax": 0.25,
-                    "operating_days": 365,
-                    "labor_burden": 1.5,
-                    "finance_interest": 0.12,
-                    "finance_years": 15,
-                    "finance_fraction": 0.4,
-                    "startup_months": 6,
-                    "startup_FOCfrac": 0.5,
-                    "startup_VOCfrac": 0.5,
-                    "startup_salesfrac": 0.25,
-                    "WC_over_FCI": 0.10,
-                },
-            ),
-        ))
-    assert payload.get("error_code") == "incomplete_stage_basis_grid"
-    keys = payload["missing_keys"]
-    assert len(keys) == 4
-    assert {row["startup_salesfrac"] for row in keys} == {0.25}
-    assert {row["WC_over_FCI"] for row in keys} == {0.10}
 
 
 @pytest.mark.parametrize(
@@ -5272,80 +4159,6 @@ def test_warehouse_rows_still_complete_when_omitted(monkeypatch, warehouse):
     assert "landscape_points" not in payload
 
 
-def test_named_slice_at_wrong_warehouse_does_not_fill(monkeypatch):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    session = new_session()
-    with bind_tool_session(session):
-        handle = _plant_handle(
-            session,
-            _complete_d18_rows(
-                energy_case="C1",
-                dissolution_temperature_c=90.0,
-                precipitation_temperature_c=40.0,
-                solvent_price_usd_per_kg=2.0,
-                solvent_loss_pct=3.0,
-                feedstock_distance_km=250.0,
-                dissolution_capacity=5.0,
-                labor_cost_usd_per_employee_yr=150_000.0,
-                sell_leftover_plastic=True,
-                burn_leftover_plastic=True,
-                precipitation_temperature_format="drop",
-                precipitation_configuration=_MIX,
-                irr=0.12,
-                income_tax=0.25,
-                operating_days=365.0,
-                labor_burden=1.5,
-                finance_interest=0.12,
-                finance_years=15,
-                finance_fraction=0.4,
-                startup_months=6,
-                startup_FOCfrac=0.5,
-                startup_VOCfrac=0.5,
-                startup_salesfrac=0.25,
-                WC_over_FCI=0.10,
-                warehouse=0.04,
-            ),
-        )
-        payload = _data(tea.rank_landscape(
-            **_sequence_kwargs(
-                handle=handle,
-                process_config={
-                    **_CAP_20KT,
-                    "energy_case": "C1",
-                    "dissolution_temperature_c": 90.0,
-                    "precipitation_temperature_c": 40.0,
-                    "solvent_price_usd_per_kg": 2.0,
-                    "solvent_loss_pct": 3.0,
-                    "feedstock_distance_km": 250.0,
-                    "dissolution_capacity": 5.0,
-                    "labor_cost_usd_per_employee_yr": 150_000.0,
-                    "sell_leftover_plastic": True,
-                    "burn_leftover_plastic": True,
-                    "precipitation_temperature_format": "drop",
-                    "precipitation_configuration": _MIX,
-                    "irr": 0.12,
-                    "income_tax": 0.25,
-                    "operating_days": 365,
-                    "labor_burden": 1.5,
-                    "finance_interest": 0.12,
-                    "finance_years": 15,
-                    "finance_fraction": 0.4,
-                    "startup_months": 6,
-                    "startup_FOCfrac": 0.5,
-                    "startup_VOCfrac": 0.5,
-                    "startup_salesfrac": 0.25,
-                    "WC_over_FCI": 0.10,
-                    "warehouse": 0.10,
-                },
-            ),
-        ))
-    assert payload.get("error_code") == "incomplete_stage_basis_grid"
-    keys = payload["missing_keys"]
-    assert len(keys) == 4
-    assert {row["WC_over_FCI"] for row in keys} == {0.10}
-    assert {row["warehouse"] for row in keys} == {0.10}
-
-
 @pytest.mark.parametrize(
     'site_development',
     [
@@ -5364,82 +4177,6 @@ def test_site_development_rows_still_complete_when_omitted(monkeypatch, site_dev
     assert payload.get("error_code") == "sequence_coupling_unproven"
     assert "pending_blockers" not in payload
     assert "landscape_points" not in payload
-
-
-def test_named_slice_at_wrong_site_development_does_not_fill(monkeypatch):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    session = new_session()
-    with bind_tool_session(session):
-        handle = _plant_handle(
-            session,
-            _complete_d18_rows(
-                energy_case="C1",
-                dissolution_temperature_c=90.0,
-                precipitation_temperature_c=40.0,
-                solvent_price_usd_per_kg=2.0,
-                solvent_loss_pct=3.0,
-                feedstock_distance_km=250.0,
-                dissolution_capacity=5.0,
-                labor_cost_usd_per_employee_yr=150_000.0,
-                sell_leftover_plastic=True,
-                burn_leftover_plastic=True,
-                precipitation_temperature_format="drop",
-                precipitation_configuration=_MIX,
-                irr=0.12,
-                income_tax=0.25,
-                operating_days=365.0,
-                labor_burden=1.5,
-                finance_interest=0.12,
-                finance_years=15,
-                finance_fraction=0.4,
-                startup_months=6,
-                startup_FOCfrac=0.5,
-                startup_VOCfrac=0.5,
-                startup_salesfrac=0.25,
-                WC_over_FCI=0.10,
-                warehouse=0.10,
-                site_development=0.09,
-            ),
-        )
-        payload = _data(tea.rank_landscape(
-            **_sequence_kwargs(
-                handle=handle,
-                process_config={
-                    **_CAP_20KT,
-                    "energy_case": "C1",
-                    "dissolution_temperature_c": 90.0,
-                    "precipitation_temperature_c": 40.0,
-                    "solvent_price_usd_per_kg": 2.0,
-                    "solvent_loss_pct": 3.0,
-                    "feedstock_distance_km": 250.0,
-                    "dissolution_capacity": 5.0,
-                    "labor_cost_usd_per_employee_yr": 150_000.0,
-                    "sell_leftover_plastic": True,
-                    "burn_leftover_plastic": True,
-                    "precipitation_temperature_format": "drop",
-                    "precipitation_configuration": _MIX,
-                    "irr": 0.12,
-                    "income_tax": 0.25,
-                    "operating_days": 365,
-                    "labor_burden": 1.5,
-                    "finance_interest": 0.12,
-                    "finance_years": 15,
-                    "finance_fraction": 0.4,
-                    "startup_months": 6,
-                    "startup_FOCfrac": 0.5,
-                    "startup_VOCfrac": 0.5,
-                    "startup_salesfrac": 0.25,
-                    "WC_over_FCI": 0.10,
-                    "warehouse": 0.10,
-                    "site_development": 0.10,
-                },
-            ),
-        ))
-    assert payload.get("error_code") == "incomplete_stage_basis_grid"
-    keys = payload["missing_keys"]
-    assert len(keys) == 4
-    assert {row["warehouse"] for row in keys} == {0.10}
-    assert {row["site_development"] for row in keys} == {0.10}
 
 
 @pytest.mark.parametrize(
@@ -5462,84 +4199,6 @@ def test_additional_piping_rows_still_complete_when_omitted(monkeypatch, additio
     assert "landscape_points" not in payload
 
 
-def test_named_slice_at_wrong_additional_piping_does_not_fill(monkeypatch):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    session = new_session()
-    with bind_tool_session(session):
-        handle = _plant_handle(
-            session,
-            _complete_d18_rows(
-                energy_case="C1",
-                dissolution_temperature_c=90.0,
-                precipitation_temperature_c=40.0,
-                solvent_price_usd_per_kg=2.0,
-                solvent_loss_pct=3.0,
-                feedstock_distance_km=250.0,
-                dissolution_capacity=5.0,
-                labor_cost_usd_per_employee_yr=150_000.0,
-                sell_leftover_plastic=True,
-                burn_leftover_plastic=True,
-                precipitation_temperature_format="drop",
-                precipitation_configuration=_MIX,
-                irr=0.12,
-                income_tax=0.25,
-                operating_days=365.0,
-                labor_burden=1.5,
-                finance_interest=0.12,
-                finance_years=15,
-                finance_fraction=0.4,
-                startup_months=6,
-                startup_FOCfrac=0.5,
-                startup_VOCfrac=0.5,
-                startup_salesfrac=0.25,
-                WC_over_FCI=0.10,
-                warehouse=0.10,
-                site_development=0.10,
-                additional_piping=0.045,
-            ),
-        )
-        payload = _data(tea.rank_landscape(
-            **_sequence_kwargs(
-                handle=handle,
-                process_config={
-                    **_CAP_20KT,
-                    "energy_case": "C1",
-                    "dissolution_temperature_c": 90.0,
-                    "precipitation_temperature_c": 40.0,
-                    "solvent_price_usd_per_kg": 2.0,
-                    "solvent_loss_pct": 3.0,
-                    "feedstock_distance_km": 250.0,
-                    "dissolution_capacity": 5.0,
-                    "labor_cost_usd_per_employee_yr": 150_000.0,
-                    "sell_leftover_plastic": True,
-                    "burn_leftover_plastic": True,
-                    "precipitation_temperature_format": "drop",
-                    "precipitation_configuration": _MIX,
-                    "irr": 0.12,
-                    "income_tax": 0.25,
-                    "operating_days": 365,
-                    "labor_burden": 1.5,
-                    "finance_interest": 0.12,
-                    "finance_years": 15,
-                    "finance_fraction": 0.4,
-                    "startup_months": 6,
-                    "startup_FOCfrac": 0.5,
-                    "startup_VOCfrac": 0.5,
-                    "startup_salesfrac": 0.25,
-                    "WC_over_FCI": 0.10,
-                    "warehouse": 0.10,
-                    "site_development": 0.10,
-                    "additional_piping": 0.10,
-                },
-            ),
-        ))
-    assert payload.get("error_code") == "incomplete_stage_basis_grid"
-    keys = payload["missing_keys"]
-    assert len(keys) == 4
-    assert {row["site_development"] for row in keys} == {0.10}
-    assert {row["additional_piping"] for row in keys} == {0.10}
-
-
 @pytest.mark.parametrize(
     'proratable_costs',
     [
@@ -5558,86 +4217,6 @@ def test_proratable_costs_rows_still_complete_when_omitted(monkeypatch, proratab
     assert payload.get("error_code") == "sequence_coupling_unproven"
     assert "pending_blockers" not in payload
     assert "landscape_points" not in payload
-
-
-def test_named_slice_at_wrong_proratable_costs_does_not_fill(monkeypatch):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    session = new_session()
-    with bind_tool_session(session):
-        handle = _plant_handle(
-            session,
-            _complete_d18_rows(
-                energy_case="C1",
-                dissolution_temperature_c=90.0,
-                precipitation_temperature_c=40.0,
-                solvent_price_usd_per_kg=2.0,
-                solvent_loss_pct=3.0,
-                feedstock_distance_km=250.0,
-                dissolution_capacity=5.0,
-                labor_cost_usd_per_employee_yr=150_000.0,
-                sell_leftover_plastic=True,
-                burn_leftover_plastic=True,
-                precipitation_temperature_format="drop",
-                precipitation_configuration=_MIX,
-                irr=0.12,
-                income_tax=0.25,
-                operating_days=365.0,
-                labor_burden=1.5,
-                finance_interest=0.12,
-                finance_years=15,
-                finance_fraction=0.4,
-                startup_months=6,
-                startup_FOCfrac=0.5,
-                startup_VOCfrac=0.5,
-                startup_salesfrac=0.25,
-                WC_over_FCI=0.10,
-                warehouse=0.10,
-                site_development=0.10,
-                additional_piping=0.10,
-                proratable_costs=0.10,
-            ),
-        )
-        payload = _data(tea.rank_landscape(
-            **_sequence_kwargs(
-                handle=handle,
-                process_config={
-                    **_CAP_20KT,
-                    "energy_case": "C1",
-                    "dissolution_temperature_c": 90.0,
-                    "precipitation_temperature_c": 40.0,
-                    "solvent_price_usd_per_kg": 2.0,
-                    "solvent_loss_pct": 3.0,
-                    "feedstock_distance_km": 250.0,
-                    "dissolution_capacity": 5.0,
-                    "labor_cost_usd_per_employee_yr": 150_000.0,
-                    "sell_leftover_plastic": True,
-                    "burn_leftover_plastic": True,
-                    "precipitation_temperature_format": "drop",
-                    "precipitation_configuration": _MIX,
-                    "irr": 0.12,
-                    "income_tax": 0.25,
-                    "operating_days": 365,
-                    "labor_burden": 1.5,
-                    "finance_interest": 0.12,
-                    "finance_years": 15,
-                    "finance_fraction": 0.4,
-                    "startup_months": 6,
-                    "startup_FOCfrac": 0.5,
-                    "startup_VOCfrac": 0.5,
-                    "startup_salesfrac": 0.25,
-                    "WC_over_FCI": 0.10,
-                    "warehouse": 0.10,
-                    "site_development": 0.10,
-                    "additional_piping": 0.10,
-                    "proratable_costs": 0.20,
-                },
-            ),
-        ))
-    assert payload.get("error_code") == "incomplete_stage_basis_grid"
-    keys = payload["missing_keys"]
-    assert len(keys) == 4
-    assert {row["additional_piping"] for row in keys} == {0.10}
-    assert {row["proratable_costs"] for row in keys} == {0.20}
 
 
 @pytest.mark.parametrize(
@@ -5660,88 +4239,6 @@ def test_field_expenses_rows_still_complete_when_omitted(monkeypatch, field_expe
     assert "landscape_points" not in payload
 
 
-def test_named_slice_at_wrong_field_expenses_does_not_fill(monkeypatch):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    session = new_session()
-    with bind_tool_session(session):
-        handle = _plant_handle(
-            session,
-            _complete_d18_rows(
-                energy_case="C1",
-                dissolution_temperature_c=90.0,
-                precipitation_temperature_c=40.0,
-                solvent_price_usd_per_kg=2.0,
-                solvent_loss_pct=3.0,
-                feedstock_distance_km=250.0,
-                dissolution_capacity=5.0,
-                labor_cost_usd_per_employee_yr=150_000.0,
-                sell_leftover_plastic=True,
-                burn_leftover_plastic=True,
-                precipitation_temperature_format="drop",
-                precipitation_configuration=_MIX,
-                irr=0.12,
-                income_tax=0.25,
-                operating_days=365.0,
-                labor_burden=1.5,
-                finance_interest=0.12,
-                finance_years=15,
-                finance_fraction=0.4,
-                startup_months=6,
-                startup_FOCfrac=0.5,
-                startup_VOCfrac=0.5,
-                startup_salesfrac=0.25,
-                WC_over_FCI=0.10,
-                warehouse=0.10,
-                site_development=0.10,
-                additional_piping=0.10,
-                proratable_costs=0.20,
-                field_expenses=0.10,
-            ),
-        )
-        payload = _data(tea.rank_landscape(
-            **_sequence_kwargs(
-                handle=handle,
-                process_config={
-                    **_CAP_20KT,
-                    "energy_case": "C1",
-                    "dissolution_temperature_c": 90.0,
-                    "precipitation_temperature_c": 40.0,
-                    "solvent_price_usd_per_kg": 2.0,
-                    "solvent_loss_pct": 3.0,
-                    "feedstock_distance_km": 250.0,
-                    "dissolution_capacity": 5.0,
-                    "labor_cost_usd_per_employee_yr": 150_000.0,
-                    "sell_leftover_plastic": True,
-                    "burn_leftover_plastic": True,
-                    "precipitation_temperature_format": "drop",
-                    "precipitation_configuration": _MIX,
-                    "irr": 0.12,
-                    "income_tax": 0.25,
-                    "operating_days": 365,
-                    "labor_burden": 1.5,
-                    "finance_interest": 0.12,
-                    "finance_years": 15,
-                    "finance_fraction": 0.4,
-                    "startup_months": 6,
-                    "startup_FOCfrac": 0.5,
-                    "startup_VOCfrac": 0.5,
-                    "startup_salesfrac": 0.25,
-                    "WC_over_FCI": 0.10,
-                    "warehouse": 0.10,
-                    "site_development": 0.10,
-                    "additional_piping": 0.10,
-                    "proratable_costs": 0.20,
-                    "field_expenses": 0.20,
-                },
-            ),
-        ))
-    assert payload.get("error_code") == "incomplete_stage_basis_grid"
-    keys = payload["missing_keys"]
-    assert len(keys) == 4
-    assert {row["proratable_costs"] for row in keys} == {0.20}
-    assert {row["field_expenses"] for row in keys} == {0.20}
-
-
 @pytest.mark.parametrize(
     'construction',
     [
@@ -5760,90 +4257,6 @@ def test_construction_rows_still_complete_when_omitted(monkeypatch, construction
     assert payload.get("error_code") == "sequence_coupling_unproven"
     assert "pending_blockers" not in payload
     assert "landscape_points" not in payload
-
-
-def test_named_slice_at_wrong_construction_does_not_fill(monkeypatch):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    session = new_session()
-    with bind_tool_session(session):
-        handle = _plant_handle(
-            session,
-            _complete_d18_rows(
-                energy_case="C1",
-                dissolution_temperature_c=90.0,
-                precipitation_temperature_c=40.0,
-                solvent_price_usd_per_kg=2.0,
-                solvent_loss_pct=3.0,
-                feedstock_distance_km=250.0,
-                dissolution_capacity=5.0,
-                labor_cost_usd_per_employee_yr=150_000.0,
-                sell_leftover_plastic=True,
-                burn_leftover_plastic=True,
-                precipitation_temperature_format="drop",
-                precipitation_configuration=_MIX,
-                irr=0.12,
-                income_tax=0.25,
-                operating_days=365.0,
-                labor_burden=1.5,
-                finance_interest=0.12,
-                finance_years=15,
-                finance_fraction=0.4,
-                startup_months=6,
-                startup_FOCfrac=0.5,
-                startup_VOCfrac=0.5,
-                startup_salesfrac=0.25,
-                WC_over_FCI=0.10,
-                warehouse=0.10,
-                site_development=0.10,
-                additional_piping=0.10,
-                proratable_costs=0.20,
-                field_expenses=0.20,
-                construction=0.20,
-            ),
-        )
-        payload = _data(tea.rank_landscape(
-            **_sequence_kwargs(
-                handle=handle,
-                process_config={
-                    **_CAP_20KT,
-                    "energy_case": "C1",
-                    "dissolution_temperature_c": 90.0,
-                    "precipitation_temperature_c": 40.0,
-                    "solvent_price_usd_per_kg": 2.0,
-                    "solvent_loss_pct": 3.0,
-                    "feedstock_distance_km": 250.0,
-                    "dissolution_capacity": 5.0,
-                    "labor_cost_usd_per_employee_yr": 150_000.0,
-                    "sell_leftover_plastic": True,
-                    "burn_leftover_plastic": True,
-                    "precipitation_temperature_format": "drop",
-                    "precipitation_configuration": _MIX,
-                    "irr": 0.12,
-                    "income_tax": 0.25,
-                    "operating_days": 365,
-                    "labor_burden": 1.5,
-                    "finance_interest": 0.12,
-                    "finance_years": 15,
-                    "finance_fraction": 0.4,
-                    "startup_months": 6,
-                    "startup_FOCfrac": 0.5,
-                    "startup_VOCfrac": 0.5,
-                    "startup_salesfrac": 0.25,
-                    "WC_over_FCI": 0.10,
-                    "warehouse": 0.10,
-                    "site_development": 0.10,
-                    "additional_piping": 0.10,
-                    "proratable_costs": 0.20,
-                    "field_expenses": 0.20,
-                    "construction": 0.10,
-                },
-            ),
-        ))
-    assert payload.get("error_code") == "incomplete_stage_basis_grid"
-    keys = payload["missing_keys"]
-    assert len(keys) == 4
-    assert {row["field_expenses"] for row in keys} == {0.20}
-    assert {row["construction"] for row in keys} == {0.10}
 
 
 @pytest.mark.parametrize(
@@ -5866,92 +4279,6 @@ def test_contingency_rows_still_complete_when_omitted(monkeypatch, contingency):
     assert "landscape_points" not in payload
 
 
-def test_named_slice_at_wrong_contingency_does_not_fill(monkeypatch):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    session = new_session()
-    with bind_tool_session(session):
-        handle = _plant_handle(
-            session,
-            _complete_d18_rows(
-                energy_case="C1",
-                dissolution_temperature_c=90.0,
-                precipitation_temperature_c=40.0,
-                solvent_price_usd_per_kg=2.0,
-                solvent_loss_pct=3.0,
-                feedstock_distance_km=250.0,
-                dissolution_capacity=5.0,
-                labor_cost_usd_per_employee_yr=150_000.0,
-                sell_leftover_plastic=True,
-                burn_leftover_plastic=True,
-                precipitation_temperature_format="drop",
-                precipitation_configuration=_MIX,
-                irr=0.12,
-                income_tax=0.25,
-                operating_days=365.0,
-                labor_burden=1.5,
-                finance_interest=0.12,
-                finance_years=15,
-                finance_fraction=0.4,
-                startup_months=6,
-                startup_FOCfrac=0.5,
-                startup_VOCfrac=0.5,
-                startup_salesfrac=0.25,
-                WC_over_FCI=0.10,
-                warehouse=0.10,
-                site_development=0.10,
-                additional_piping=0.10,
-                proratable_costs=0.20,
-                field_expenses=0.20,
-                construction=0.10,
-                contingency=0.4,
-            ),
-        )
-        payload = _data(tea.rank_landscape(
-            **_sequence_kwargs(
-                handle=handle,
-                process_config={
-                    **_CAP_20KT,
-                    "energy_case": "C1",
-                    "dissolution_temperature_c": 90.0,
-                    "precipitation_temperature_c": 40.0,
-                    "solvent_price_usd_per_kg": 2.0,
-                    "solvent_loss_pct": 3.0,
-                    "feedstock_distance_km": 250.0,
-                    "dissolution_capacity": 5.0,
-                    "labor_cost_usd_per_employee_yr": 150_000.0,
-                    "sell_leftover_plastic": True,
-                    "burn_leftover_plastic": True,
-                    "precipitation_temperature_format": "drop",
-                    "precipitation_configuration": _MIX,
-                    "irr": 0.12,
-                    "income_tax": 0.25,
-                    "operating_days": 365,
-                    "labor_burden": 1.5,
-                    "finance_interest": 0.12,
-                    "finance_years": 15,
-                    "finance_fraction": 0.4,
-                    "startup_months": 6,
-                    "startup_FOCfrac": 0.5,
-                    "startup_VOCfrac": 0.5,
-                    "startup_salesfrac": 0.25,
-                    "WC_over_FCI": 0.10,
-                    "warehouse": 0.10,
-                    "site_development": 0.10,
-                    "additional_piping": 0.10,
-                    "proratable_costs": 0.20,
-                    "field_expenses": 0.20,
-                    "construction": 0.10,
-                    "contingency": 0.10,
-                },
-            ),
-        ))
-    assert payload.get("error_code") == "incomplete_stage_basis_grid"
-    keys = payload["missing_keys"]
-    assert len(keys) == 4
-    assert {row["construction"] for row in keys} == {0.10}
-    assert {row["contingency"] for row in keys} == {0.10}
-
-
 @pytest.mark.parametrize(
     'other_indirect_costs',
     [
@@ -5970,94 +4297,6 @@ def test_other_indirect_costs_rows_still_complete_when_omitted(monkeypatch, othe
     assert payload.get("error_code") == "sequence_coupling_unproven"
     assert "pending_blockers" not in payload
     assert "landscape_points" not in payload
-
-
-def test_named_slice_at_wrong_other_indirect_costs_does_not_fill(monkeypatch):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    session = new_session()
-    with bind_tool_session(session):
-        handle = _plant_handle(
-            session,
-            _complete_d18_rows(
-                energy_case="C1",
-                dissolution_temperature_c=90.0,
-                precipitation_temperature_c=40.0,
-                solvent_price_usd_per_kg=2.0,
-                solvent_loss_pct=3.0,
-                feedstock_distance_km=250.0,
-                dissolution_capacity=5.0,
-                labor_cost_usd_per_employee_yr=150_000.0,
-                sell_leftover_plastic=True,
-                burn_leftover_plastic=True,
-                precipitation_temperature_format="drop",
-                precipitation_configuration=_MIX,
-                irr=0.12,
-                income_tax=0.25,
-                operating_days=365.0,
-                labor_burden=1.5,
-                finance_interest=0.12,
-                finance_years=15,
-                finance_fraction=0.4,
-                startup_months=6,
-                startup_FOCfrac=0.5,
-                startup_VOCfrac=0.5,
-                startup_salesfrac=0.25,
-                WC_over_FCI=0.10,
-                warehouse=0.10,
-                site_development=0.10,
-                additional_piping=0.10,
-                proratable_costs=0.20,
-                field_expenses=0.20,
-                construction=0.10,
-                contingency=0.10,
-                other_indirect_costs=0.10,
-            ),
-        )
-        payload = _data(tea.rank_landscape(
-            **_sequence_kwargs(
-                handle=handle,
-                process_config={
-                    **_CAP_20KT,
-                    "energy_case": "C1",
-                    "dissolution_temperature_c": 90.0,
-                    "precipitation_temperature_c": 40.0,
-                    "solvent_price_usd_per_kg": 2.0,
-                    "solvent_loss_pct": 3.0,
-                    "feedstock_distance_km": 250.0,
-                    "dissolution_capacity": 5.0,
-                    "labor_cost_usd_per_employee_yr": 150_000.0,
-                    "sell_leftover_plastic": True,
-                    "burn_leftover_plastic": True,
-                    "precipitation_temperature_format": "drop",
-                    "precipitation_configuration": _MIX,
-                    "irr": 0.12,
-                    "income_tax": 0.25,
-                    "operating_days": 365,
-                    "labor_burden": 1.5,
-                    "finance_interest": 0.12,
-                    "finance_years": 15,
-                    "finance_fraction": 0.4,
-                    "startup_months": 6,
-                    "startup_FOCfrac": 0.5,
-                    "startup_VOCfrac": 0.5,
-                    "startup_salesfrac": 0.25,
-                    "WC_over_FCI": 0.10,
-                    "warehouse": 0.10,
-                    "site_development": 0.10,
-                    "additional_piping": 0.10,
-                    "proratable_costs": 0.20,
-                    "field_expenses": 0.20,
-                    "construction": 0.10,
-                    "contingency": 0.10,
-                    "other_indirect_costs": 0.20,
-                },
-            ),
-        ))
-    assert payload.get("error_code") == "incomplete_stage_basis_grid"
-    keys = payload["missing_keys"]
-    assert len(keys) == 4
-    assert {row["contingency"] for row in keys} == {0.10}
-    assert {row["other_indirect_costs"] for row in keys} == {0.20}
 
 
 @pytest.mark.parametrize(
@@ -6080,96 +4319,6 @@ def test_property_insurance_rows_still_complete_when_omitted(monkeypatch, proper
     assert "landscape_points" not in payload
 
 
-def test_named_slice_at_wrong_property_insurance_does_not_fill(monkeypatch):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    session = new_session()
-    with bind_tool_session(session):
-        handle = _plant_handle(
-            session,
-            _complete_d18_rows(
-                energy_case="C1",
-                dissolution_temperature_c=90.0,
-                precipitation_temperature_c=40.0,
-                solvent_price_usd_per_kg=2.0,
-                solvent_loss_pct=3.0,
-                feedstock_distance_km=250.0,
-                dissolution_capacity=5.0,
-                labor_cost_usd_per_employee_yr=150_000.0,
-                sell_leftover_plastic=True,
-                burn_leftover_plastic=True,
-                precipitation_temperature_format="drop",
-                precipitation_configuration=_MIX,
-                irr=0.12,
-                income_tax=0.25,
-                operating_days=365.0,
-                labor_burden=1.5,
-                finance_interest=0.12,
-                finance_years=15,
-                finance_fraction=0.4,
-                startup_months=6,
-                startup_FOCfrac=0.5,
-                startup_VOCfrac=0.5,
-                startup_salesfrac=0.25,
-                WC_over_FCI=0.10,
-                warehouse=0.10,
-                site_development=0.10,
-                additional_piping=0.10,
-                proratable_costs=0.20,
-                field_expenses=0.20,
-                construction=0.10,
-                contingency=0.10,
-                other_indirect_costs=0.20,
-                property_insurance=0.007,
-            ),
-        )
-        payload = _data(tea.rank_landscape(
-            **_sequence_kwargs(
-                handle=handle,
-                process_config={
-                    **_CAP_20KT,
-                    "energy_case": "C1",
-                    "dissolution_temperature_c": 90.0,
-                    "precipitation_temperature_c": 40.0,
-                    "solvent_price_usd_per_kg": 2.0,
-                    "solvent_loss_pct": 3.0,
-                    "feedstock_distance_km": 250.0,
-                    "dissolution_capacity": 5.0,
-                    "labor_cost_usd_per_employee_yr": 150_000.0,
-                    "sell_leftover_plastic": True,
-                    "burn_leftover_plastic": True,
-                    "precipitation_temperature_format": "drop",
-                    "precipitation_configuration": _MIX,
-                    "irr": 0.12,
-                    "income_tax": 0.25,
-                    "operating_days": 365,
-                    "labor_burden": 1.5,
-                    "finance_interest": 0.12,
-                    "finance_years": 15,
-                    "finance_fraction": 0.4,
-                    "startup_months": 6,
-                    "startup_FOCfrac": 0.5,
-                    "startup_VOCfrac": 0.5,
-                    "startup_salesfrac": 0.25,
-                    "WC_over_FCI": 0.10,
-                    "warehouse": 0.10,
-                    "site_development": 0.10,
-                    "additional_piping": 0.10,
-                    "proratable_costs": 0.20,
-                    "field_expenses": 0.20,
-                    "construction": 0.10,
-                    "contingency": 0.10,
-                    "other_indirect_costs": 0.20,
-                    "property_insurance": 0.10,
-                },
-            ),
-        ))
-    assert payload.get("error_code") == "incomplete_stage_basis_grid"
-    keys = payload["missing_keys"]
-    assert len(keys) == 4
-    assert {row["other_indirect_costs"] for row in keys} == {0.20}
-    assert {row["property_insurance"] for row in keys} == {0.10}
-
-
 @pytest.mark.parametrize(
     'maintenance',
     [
@@ -6190,7 +4339,143 @@ def test_maintenance_rows_still_complete_when_omitted(monkeypatch, maintenance):
     assert "landscape_points" not in payload
 
 
-def test_named_slice_at_wrong_maintenance_does_not_fill(monkeypatch):
+# Fields a named TEA slice must match, in the order the cases below add them: the value planted in the
+# rows when the field is the wrong one, the value planted once it matches, and the value requested.
+_NAMED_SLICE_FIELDS = (
+    ("solvent_price_usd_per_kg", 1.5, 2.0, 2.0),
+    ("solvent_loss_pct", 0.5, 3.0, 3.0),
+    ("feedstock_distance_km", 100.0, 250.0, 250.0),
+    ("dissolution_capacity", 3.0, 5.0, 5.0),
+    ("labor_cost_usd_per_employee_yr", 120000.0, 150000.0, 150000.0),
+    ("sell_leftover_plastic", False, True, True),
+    ("burn_leftover_plastic", False, True, True),
+    ("precipitation_temperature_format", "constant", "drop", "drop"),
+    ("precipitation_configuration", _IHT, _MIX, _MIX),
+    ("irr", 0.1, 0.12, 0.12),
+    ("income_tax", 0.21, 0.25, 0.25),
+    ("operating_days", 350.4, 365.0, 365),
+    ("labor_burden", 0.9, 1.5, 1.5),
+    ("finance_interest", 0.08, 0.12, 0.12),
+    ("finance_years", 10, 15, 15),
+    ("finance_fraction", 0.0, 0.4, 0.4),
+    ("startup_months", 3, 6, 6),
+    ("startup_FOCfrac", 1.0, 0.5, 0.5),
+    ("startup_VOCfrac", 0.75, 0.5, 0.5),
+    ("startup_salesfrac", 0.5, 0.25, 0.25),
+    ("WC_over_FCI", 0.05, 0.1, 0.1),
+    ("warehouse", 0.04, 0.1, 0.1),
+    ("site_development", 0.09, 0.1, 0.1),
+    ("additional_piping", 0.045, 0.1, 0.1),
+    ("proratable_costs", 0.1, 0.2, 0.2),
+    ("field_expenses", 0.1, 0.2, 0.2),
+    ("construction", 0.2, 0.1, 0.1),
+    ("contingency", 0.4, 0.1, 0.1),
+    ("other_indirect_costs", 0.1, 0.2, 0.2),
+    ("property_insurance", 0.007, 0.1, 0.1),
+    ("maintenance", 0.03, 0.1, 0.1),
+)
+
+
+@pytest.mark.parametrize(
+    "wrong, checks",
+    [
+        pytest.param(
+            0,
+            {
+                "energy_case": "C1",
+                "dissolution_temperature_c": 90.0,
+                "precipitation_temperature_c": 40.0,
+                "solvent_price_usd_per_kg": 2.0,
+            },
+            id="price",
+        ),
+        pytest.param(
+            1,
+            {
+                "energy_case": "C1",
+                "dissolution_temperature_c": 90.0,
+                "precipitation_temperature_c": 40.0,
+                "solvent_price_usd_per_kg": 2.0,
+                "solvent_loss_pct": 3.0,
+            },
+            id="loss",
+        ),
+        pytest.param(
+            2,
+            {
+                "energy_case": "C1",
+                "dissolution_temperature_c": 90.0,
+                "precipitation_temperature_c": 40.0,
+                "solvent_price_usd_per_kg": 2.0,
+                "solvent_loss_pct": 3.0,
+                "feedstock_distance_km": 250.0,
+            },
+            id="distance",
+        ),
+        pytest.param(
+            3,
+            {
+                "energy_case": "C1",
+                "dissolution_temperature_c": 90.0,
+                "precipitation_temperature_c": 40.0,
+                "solvent_price_usd_per_kg": 2.0,
+                "solvent_loss_pct": 3.0,
+                "feedstock_distance_km": 250.0,
+                "dissolution_capacity": 5.0,
+            },
+            id="dissolution_capacity",
+        ),
+        pytest.param(
+            4,
+            {
+                "energy_case": "C1",
+                "dissolution_temperature_c": 90.0,
+                "precipitation_temperature_c": 40.0,
+                "solvent_price_usd_per_kg": 2.0,
+                "solvent_loss_pct": 3.0,
+                "feedstock_distance_km": 250.0,
+                "dissolution_capacity": 5.0,
+                "labor_cost_usd_per_employee_yr": 150000.0,
+            },
+            id="labor",
+        ),
+        pytest.param(
+            5,
+            {"energy_case": "C1", "labor_cost_usd_per_employee_yr": 150000.0, "sell_leftover_plastic": True},
+            id="sell",
+        ),
+        pytest.param(6, {"sell_leftover_plastic": True, "burn_leftover_plastic": True}, id="burn"),
+        pytest.param(7, {"burn_leftover_plastic": True, "precipitation_temperature_format": "drop"}, id="format"),
+        pytest.param(
+            8, {"precipitation_temperature_format": "drop", "precipitation_configuration": _MIX}, id="configuration"
+        ),
+        pytest.param(9, {"precipitation_configuration": _MIX, "irr": 0.12}, id="irr"),
+        pytest.param(10, {"irr": 0.12, "income_tax": 0.25}, id="income_tax"),
+        pytest.param(11, {"income_tax": 0.25, "operating_days": 365.0}, id="operating_days"),
+        pytest.param(12, {"operating_days": 365.0, "labor_burden": 1.5}, id="labor_burden"),
+        pytest.param(13, {"labor_burden": 1.5, "finance_interest": 0.12}, id="finance_interest"),
+        pytest.param(14, {"finance_interest": 0.12, "finance_years": 15.0}, id="finance_years"),
+        pytest.param(15, {"finance_years": 15.0, "finance_fraction": 0.4}, id="finance_fraction"),
+        pytest.param(16, {"finance_fraction": 0.4, "startup_months": 6.0}, id="startup_months"),
+        pytest.param(17, {"startup_months": 6.0, "startup_FOCfrac": 0.5}, id="startup_FOCfrac"),
+        pytest.param(18, {"startup_FOCfrac": 0.5, "startup_VOCfrac": 0.5}, id="startup_VOCfrac"),
+        pytest.param(19, {"startup_VOCfrac": 0.5, "startup_salesfrac": 0.25}, id="startup_salesfrac"),
+        pytest.param(20, {"startup_salesfrac": 0.25, "WC_over_FCI": 0.1}, id="WC_over_FCI"),
+        pytest.param(21, {"WC_over_FCI": 0.1, "warehouse": 0.1}, id="warehouse"),
+        pytest.param(22, {"warehouse": 0.1, "site_development": 0.1}, id="site_development"),
+        pytest.param(23, {"site_development": 0.1, "additional_piping": 0.1}, id="additional_piping"),
+        pytest.param(24, {"additional_piping": 0.1, "proratable_costs": 0.2}, id="proratable_costs"),
+        pytest.param(25, {"proratable_costs": 0.2, "field_expenses": 0.2}, id="field_expenses"),
+        pytest.param(26, {"field_expenses": 0.2, "construction": 0.1}, id="construction"),
+        pytest.param(27, {"construction": 0.1, "contingency": 0.1}, id="contingency"),
+        pytest.param(28, {"contingency": 0.1, "other_indirect_costs": 0.2}, id="other_indirect_costs"),
+        pytest.param(29, {"other_indirect_costs": 0.2, "property_insurance": 0.1}, id="property_insurance"),
+        pytest.param(30, {"property_insurance": 0.1, "maintenance": 0.1}, id="maintenance"),
+    ],
+)
+def test_named_slice_at_wrong_field_does_not_fill(monkeypatch, wrong, checks):
+    field, stored, _, requested = _NAMED_SLICE_FIELDS[wrong]
+    earlier = _NAMED_SLICE_FIELDS[:wrong]
     _forbid_live_rank_solvent_maps(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
@@ -6200,86 +4485,30 @@ def test_named_slice_at_wrong_maintenance_does_not_fill(monkeypatch):
                 energy_case="C1",
                 dissolution_temperature_c=90.0,
                 precipitation_temperature_c=40.0,
-                solvent_price_usd_per_kg=2.0,
-                solvent_loss_pct=3.0,
-                feedstock_distance_km=250.0,
-                dissolution_capacity=5.0,
-                labor_cost_usd_per_employee_yr=150_000.0,
-                sell_leftover_plastic=True,
-                burn_leftover_plastic=True,
-                precipitation_temperature_format="drop",
-                precipitation_configuration=_MIX,
-                irr=0.12,
-                income_tax=0.25,
-                operating_days=365.0,
-                labor_burden=1.5,
-                finance_interest=0.12,
-                finance_years=15,
-                finance_fraction=0.4,
-                startup_months=6,
-                startup_FOCfrac=0.5,
-                startup_VOCfrac=0.5,
-                startup_salesfrac=0.25,
-                WC_over_FCI=0.10,
-                warehouse=0.10,
-                site_development=0.10,
-                additional_piping=0.10,
-                proratable_costs=0.20,
-                field_expenses=0.20,
-                construction=0.10,
-                contingency=0.10,
-                other_indirect_costs=0.20,
-                property_insurance=0.10,
-                maintenance=0.03,
+                **{name: value for name, _, value, _ in earlier},
+                **{field: stored},
             ),
         )
-        payload = _data(tea.rank_landscape(
-            **_sequence_kwargs(
-                handle=handle,
-                process_config={
-                    **_CAP_20KT,
-                    "energy_case": "C1",
-                    "dissolution_temperature_c": 90.0,
-                    "precipitation_temperature_c": 40.0,
-                    "solvent_price_usd_per_kg": 2.0,
-                    "solvent_loss_pct": 3.0,
-                    "feedstock_distance_km": 250.0,
-                    "dissolution_capacity": 5.0,
-                    "labor_cost_usd_per_employee_yr": 150_000.0,
-                    "sell_leftover_plastic": True,
-                    "burn_leftover_plastic": True,
-                    "precipitation_temperature_format": "drop",
-                    "precipitation_configuration": _MIX,
-                    "irr": 0.12,
-                    "income_tax": 0.25,
-                    "operating_days": 365,
-                    "labor_burden": 1.5,
-                    "finance_interest": 0.12,
-                    "finance_years": 15,
-                    "finance_fraction": 0.4,
-                    "startup_months": 6,
-                    "startup_FOCfrac": 0.5,
-                    "startup_VOCfrac": 0.5,
-                    "startup_salesfrac": 0.25,
-                    "WC_over_FCI": 0.10,
-                    "warehouse": 0.10,
-                    "site_development": 0.10,
-                    "additional_piping": 0.10,
-                    "proratable_costs": 0.20,
-                    "field_expenses": 0.20,
-                    "construction": 0.10,
-                    "contingency": 0.10,
-                    "other_indirect_costs": 0.20,
-                    "property_insurance": 0.10,
-                    "maintenance": 0.10,
-                },
-            ),
-        ))
+        payload = _data(
+            tea.rank_landscape(
+                **_sequence_kwargs(
+                    handle=handle,
+                    process_config={
+                        **_CAP_20KT,
+                        "energy_case": "C1",
+                        "dissolution_temperature_c": 90.0,
+                        "precipitation_temperature_c": 40.0,
+                        **{name: value for name, _, _, value in earlier},
+                        field: requested,
+                    },
+                )
+            )
+        )
     assert payload.get("error_code") == "incomplete_stage_basis_grid"
     keys = payload["missing_keys"]
     assert len(keys) == 4
-    assert {row["property_insurance"] for row in keys} == {0.10}
-    assert {row["maintenance"] for row in keys} == {0.10}
+    for key, expected in checks.items():
+        assert {row[key] for row in keys} == {expected}
 
 
 @pytest.mark.parametrize(
