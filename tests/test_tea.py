@@ -22,15 +22,14 @@ from rich.console import Console
 
 from dissolve import (
     agent,
-    landscape,
-    optimization,
     separation,
     tea,
+    tea_ranking,
     tea_worker,
     thermodynamics,
 )
-from dissolve import optimization as O
 from dissolve import tea_polymer_parameters as params
+from dissolve import tea_ranking as O
 from dissolve.agent import CONSUMERS, UNWIRED, dispatch, tool_schemas
 from dissolve.cli import EXPECTED_REGISTRY_NAMES, CliApp, doctor_report
 from dissolve.contracts import parse_tool_result
@@ -129,11 +128,11 @@ def test_evaluate_process_is_registered_lookup_engine_stays():
     assert "evaluate_stored_route_tea_lca" not in UNWIRED
     assert "optimize_stored_route" not in agent.BY_NAME
     assert "optimize_stored_route" not in EXPECTED_REGISTRY_NAMES
-    assert callable(optimization.optimize_stored_route)
+    assert callable(tea_ranking.optimize_stored_route)
     assert "optimize_stored_route" not in UNWIRED
     assert "pareto_optimize_stored_route" not in agent.BY_NAME
     assert "pareto_optimize_stored_route" not in EXPECTED_REGISTRY_NAMES
-    assert callable(optimization.pareto_optimize_stored_route)
+    assert callable(tea_ranking.pareto_optimize_stored_route)
     assert "pareto_optimize_stored_route" not in UNWIRED
     assert UNWIRED == frozenset()
     assert "evaluate_process" not in UNWIRED
@@ -400,7 +399,7 @@ def test_route_missing_handle_is_named_refuse(monkeypatch):
 def test_campaign_lookup_via_filter(monkeypatch, tmp_path):
     _forbid_live(monkeypatch)
     registry_path = _write_registry(tmp_path, {_CANONICAL: _sealed_entry()})
-    monkeypatch.setenv(landscape.REGISTRY_ENV, str(registry_path))
+    monkeypatch.setenv(tea_ranking.REGISTRY_ENV, str(registry_path))
     direct = _data(tea.lookup_admitted_process_records(
         source="campaign",
         campaign_fingerprint=_CANONICAL,
@@ -8065,7 +8064,7 @@ def test_residual_route_sort_is_not_applicable(monkeypatch):
 
 def test_residual_route_does_not_read_getattr_source_state(monkeypatch):
     monkeypatch.setattr(
-        optimization,
+        tea_ranking,
         "_source_state",
         lambda: (_ for _ in ()).throw(
             AssertionError("residual_route must not getattr last_route")
@@ -8160,7 +8159,7 @@ def test_residual_route_pareto_returns_landscape_and_frontier(monkeypatch):
     for axis, values in ((x_key, costs), (y_key, emissions)):
         span = spans[axis]
         assert span["min"] <= span["p05"] <= span["p95"] <= span["max"]
-        assert span == optimization.axis_span(values)
+        assert span == tea_ranking.axis_span(values)
     slice0 = (payload.get("slices") or [{}])[0]
     assert slice0.get("axis_spans") == spans
     grouping = payload.get("grouping") or {}
@@ -8236,8 +8235,8 @@ def test_pareto_name_retired_both_successors_serve(monkeypatch):
         old = dispatch("pareto_optimize_stored_route")
         assert old.get("available") is False
         assert old.get("refusal") == "unknown_tool"
-    assert callable(optimization.pareto_optimize_stored_route)
-    engine = _data(optimization.pareto_optimize_stored_route())
+    assert callable(tea_ranking.pareto_optimize_stored_route)
+    engine = _data(tea_ranking.pareto_optimize_stored_route())
     assert engine.get("error_code") == "invalid_pareto_basis"
     assert engine.get("tool_name") == "pareto_optimize_stored_route"
 
@@ -8261,8 +8260,8 @@ def test_dispatch_residual_route_issues_handle(monkeypatch):
         old = dispatch("optimize_stored_route")
         assert old.get("available") is False
         assert old.get("refusal") == "unknown_tool"
-        assert callable(optimization.optimize_stored_route)
-        engine = _data(optimization.optimize_stored_route())
+        assert callable(tea_ranking.optimize_stored_route)
+        engine = _data(tea_ranking.optimize_stored_route())
         assert engine.get("error_code") == "invalid_optimization_basis"
         assert engine.get("tool_name") == "optimize_stored_route"
 
@@ -8282,13 +8281,13 @@ def test_objective_on_process_rows_is_not_applicable(monkeypatch):
 def test_residual_pareto_quality_matches_fraction_and_sparse_definition():
     one = {"total_cost": 1.0, "emissions": 2.0}
     two = {"total_cost": 3.0, "emissions": 1.0}
-    star = optimization._residual_pareto_quality(
+    star = tea_ranking._residual_pareto_quality(
         [one, two], [one], "total_cost", "emissions",
     )
     assert star["frontier_fraction"] == 0.5
     assert star["sparse_frontier"] is True
     assert star["cheapest_equals_lowest_y"] is True
-    tradeoff = optimization._residual_pareto_quality(
+    tradeoff = tea_ranking._residual_pareto_quality(
         [one, two], [one, two], "total_cost", "emissions",
     )
     assert tradeoff["frontier_fraction"] == 1.0
@@ -8299,12 +8298,12 @@ def test_residual_pareto_quality_matches_fraction_and_sparse_definition():
     assert spans["total_cost"]["max"] == 3.0
     assert spans["emissions"]["min"] == 1.0
     assert spans["emissions"]["max"] == 2.0
-    singleton = optimization._residual_pareto_quality(
+    singleton = tea_ranking._residual_pareto_quality(
         [one], [one], "total_cost", "emissions",
     )
     cost_span = singleton["axis_spans"]["total_cost"]
     assert cost_span["min"] == cost_span["p05"] == cost_span["p95"] == cost_span["max"] == 1.0
-    generic = optimization._metric_generic_tradeoff(
+    generic = tea_ranking._metric_generic_tradeoff(
         [one, two], "total_cost", "emissions", cheapest_equals_lowest_y=False,
     )
     assert generic is not None
@@ -8318,10 +8317,10 @@ def test_residual_pareto_quality_matches_fraction_and_sparse_definition():
     assert generic["delta_y"] == -1.0
     assert generic["x_ratio"] == 3.0
     assert "incremental_annual_cost_usd" not in generic
-    assert optimization._metric_generic_tradeoff(
+    assert tea_ranking._metric_generic_tradeoff(
         [one], "total_cost", "emissions", cheapest_equals_lowest_y=False,
     ) is None
-    assert optimization._metric_generic_tradeoff(
+    assert tea_ranking._metric_generic_tradeoff(
         [one, two], "total_cost", "emissions", cheapest_equals_lowest_y=True,
     ) is None
 

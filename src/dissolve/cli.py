@@ -866,9 +866,9 @@ def doctor_report(
     from dissolve import (
         analysis,
         contaminants,
-        optimization,
         safety,
         tea,
+        tea_ranking,
         thermodynamics,
     )
     from dissolve.agent import BY_NAME, REGISTRY
@@ -904,7 +904,7 @@ def doctor_report(
         ("contaminants", contaminants._ASSET, contaminants._ASSET_SHA256),
         ("analysis", analysis._ASSET, analysis._ASSET_SHA256),
         ("tea", tea._ASSET, tea._ASSET_SHA256),
-        ("optimization", optimization._ASSET, optimization._ASSET_SHA256),
+        ("optimization", tea_ranking._ASSET, tea_ranking._ASSET_SHA256),
     ]
     bad_assets = []
     safety_digest = None

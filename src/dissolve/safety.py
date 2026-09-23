@@ -26,10 +26,11 @@ import duckdb
 from . import thermodynamics as thermo
 from .contracts import tool_error, tool_success
 from .session import (
-    candidate_evidence, current_tool_session,
+    candidate_evidence,
+    current_tool_session,
     resolve_candidate_argument,
 )
-from .tools import _polymer_ambiguity_error
+from .thermodynamics import _polymer_ambiguity_error
 
 _ASSET = Path(str(files("dissolve").joinpath("data/safety.duckdb")))
 _ASSET_SHA256 = "88ce0d09ac28de17045702a8a283de6610b5fe1ab33aa5f90bf6e98edfd75a74"
@@ -1918,8 +1919,9 @@ def screen_green_solvent_candidates(
     if len(polymers) < 2:
         return tool_error(tool, "At least two distinct feed polymers are required.", error_code="invalid_feed")
     retained = [polymer for polymer in polymers if polymer != target]
-    from .tools import (
-        _atmospheric_exclusion_applies, _atmospheric_exclusion_counts,
+    from .thermodynamics import (
+        _atmospheric_exclusion_applies,
+        _atmospheric_exclusion_counts,
         _atmospheric_exclusion_reason,
         _temperature_grid,
     )
@@ -2203,7 +2205,7 @@ def _route_substitutions_chem21(
     source_families: list[str],
 ) -> str:
     """CHEM21 metric path for route substitutions. v5 §4.2. Not used on the default IDENT path."""
-    from .tools import _screen_direction
+    from .thermodynamics import _screen_direction
 
     def _metric_value(payload: Mapping[str, Any]) -> Optional[int]:
         if metric_token == "chem21_safety":
@@ -2452,7 +2454,7 @@ def screen_route_solvent_substitutions(
     if chem21_ceiling is not None and not math.isfinite(chem21_ceiling):
         return tool_error(tool, "Bounds and retention fraction must be finite and ordered.", error_code="invalid_numeric_input")
 
-    from .tools import _pair_result, _screen_direction, _temperature_grid
+    from .thermodynamics import _pair_result, _screen_direction, _temperature_grid
 
     temperatures = _temperature_grid(lower, upper, 5.0, bool(strict_maximum))
     if not temperatures:

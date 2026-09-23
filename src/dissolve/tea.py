@@ -28,7 +28,7 @@ from . import tea_polymer_parameters, tea_worker
 from . import thermodynamics as thermo
 from .contracts import parse_tool_result, tool_error, tool_success
 from .session import candidate_evidence, current_tool_session, handle_rows, load_handle
-from .tools import _InputError, _polymer_ambiguity_detail
+from .thermodynamics import _InputError, _polymer_ambiguity_detail
 
 # --- tea_contracts: Closed registry vocabulary for admitted TEA/LCA record selection.
 
@@ -5943,7 +5943,7 @@ def _lookup_campaign_process_records(
     process_config: Optional[dict[str, Any]],
     allow_partial_campaign: bool,
 ) -> str:
-    from . import landscape
+    from . import tea_ranking
 
     if not str(campaign_fingerprint or "").strip():
         return tool_error(
@@ -5991,14 +5991,14 @@ def _lookup_campaign_process_records(
             tool, str(error), error_code="invalid_admitted_record_query",
         )
     try:
-        payload = landscape.consume_campaign_lookup(
+        payload = tea_ranking.consume_campaign_lookup(
             fingerprint=campaign_fingerprint,
             requested=requested,
             polymers=polymers,
             solvent=resolved_solvent,
             allow_partial=allow_partial_campaign,
         )
-    except landscape.CampaignConsumeError as error:
+    except tea_ranking.CampaignConsumeError as error:
         return tool_error(
             tool, str(error), error_code=error.error_code, **error.details,
         )
@@ -7115,7 +7115,7 @@ def _load_process_rows_handle(
 
 def _load_residual_route_source(handle: Any) -> dict[str, Any]:
     """F source from a successful mode=route handle. Never last_route."""
-    from . import optimization
+    from . import tea_ranking
 
     token = handle.strip() if isinstance(handle, str) else ""
     if not isinstance(handle, str) or not token:
@@ -7155,7 +7155,7 @@ def _load_residual_route_source(handle: Any) -> dict[str, Any]:
         if isinstance(stages, list) and stages:
             tea_payload["comparison_rows"] = copy.deepcopy(stages)
     try:
-        return optimization._source_from_route_and_tea(route, tea_payload)
+        return tea_ranking._source_from_route_and_tea(route, tea_payload)
     except ValueError as error:
         raise _ScenarioInputError(
             str(error),
@@ -9272,7 +9272,7 @@ def _rank_residual_route(
     composition_slices: Any,
 ) -> str:
     """Prefix × leftover tech of one costed route. Handle, never last_route."""
-    from . import optimization
+    from . import tea_ranking
 
     tool = "rank_landscape"
     inapplicable = [
@@ -9370,7 +9370,7 @@ def _rank_residual_route(
             polymer_market_values_usd_per_mt
         )
     return _stamp_screen_to_economics_order(
-        optimization.rank_residual_route(source, **kwargs),
+        tea_ranking.rank_residual_route(source, **kwargs),
         order,
     )
 
@@ -9648,7 +9648,7 @@ def _planner_pareto_quality(
     y_key: str,
 ) -> dict[str, Any]:
     """§9.2.2 quality block on planner_routes pareto. Thermo/greenness axes."""
-    from .landscape import axis_span
+    from .tea_ranking import axis_span
 
     n_landscape = len(landscape)
     n_frontier = len(frontier)
@@ -10390,7 +10390,7 @@ def rank_landscape(
             error_code="invalid_admitted_record_query",
         ), order,
         )
-    from . import landscape
+    from . import tea_ranking
 
     requested = dict(process_config or {})
     if energy_cases:
@@ -10435,19 +10435,19 @@ def rank_landscape(
                 ).strip()
                 supplied_fp = str(campaign_fingerprint or "").strip()
                 if supplied_fp and supplied_fp.casefold() != handle_fp.casefold():
-                    raise landscape.CampaignConsumeError(
+                    raise tea_ranking.CampaignConsumeError(
                         "campaign_fingerprint disagrees with the handle",
                         error_code="campaign_fingerprint_mismatch",
                         supplied=supplied_fp,
                         canonical=handle_fp,
                     )
                 if requested:
-                    landscape.prepare_registered_campaign(
+                    tea_ranking.prepare_registered_campaign(
                         fingerprint=handle_fp,
                         requested=requested,
                         allow_partial=allow_partial_campaign,
                     )
-                payload = landscape.rank_handle_process_rows(
+                payload = tea_ranking.rank_handle_process_rows(
                     rows,
                     polymers=polymers,
                     solvent=resolved_solvent,
@@ -10467,7 +10467,7 @@ def rank_landscape(
                     **payload,
                 ), order,
                 )
-            payload = landscape.rank_handle_process_rows(
+            payload = tea_ranking.rank_handle_process_rows(
                 rows,
                 polymers=polymers,
                 solvent=resolved_solvent,
@@ -10481,7 +10481,7 @@ def rank_landscape(
                 tool, str(error), error_code=error.error_code, **error.details,
             ), order,
             )
-        except landscape.CampaignConsumeError as error:
+        except tea_ranking.CampaignConsumeError as error:
             return _stamp_screen_to_economics_order(
                 tool_error(
                 tool, str(error), error_code=error.error_code, **error.details,
@@ -10497,12 +10497,12 @@ def rank_landscape(
         ), order,
         )
     try:
-        bound = landscape.prepare_registered_campaign(
+        bound = tea_ranking.prepare_registered_campaign(
             fingerprint=campaign_fingerprint,
             requested=requested,
             allow_partial=allow_partial_campaign,
         )
-        payload = landscape.rank_process_rows(
+        payload = tea_ranking.rank_process_rows(
             bound,
             polymers=polymers,
             solvent=resolved_solvent,
@@ -10510,7 +10510,7 @@ def rank_landscape(
             operation=operation_token,
             sort_metric=process_rows_sort_metric,
         )
-    except landscape.CampaignConsumeError as error:
+    except tea_ranking.CampaignConsumeError as error:
         return _stamp_screen_to_economics_order(
             tool_error(
             tool, str(error), error_code=error.error_code, **error.details,

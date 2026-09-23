@@ -14,7 +14,7 @@ from typing import Any, Literal, Optional
 
 from . import thermodynamics as thermo
 from .contracts import tool_error, tool_success
-from .tools import _polymer_ambiguity_error
+from .thermodynamics import _polymer_ambiguity_error
 
 _ASSET = Path(__file__).with_name("data") / "analysis.json.gz"
 _ASSET_SHA256 = "6fa37a21e4ff492654172883ca3a941f7820b704f899ad86839d1fe9e17ee9a0"

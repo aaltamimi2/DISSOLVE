@@ -13,9 +13,10 @@ from typing import Any, Mapping, Optional, Sequence
 
 import duckdb
 
-from . import session, thermodynamics as thermo
+from . import session
+from . import thermodynamics as thermo
 from .contracts import parse_tool_result, tool_error, tool_success
-from .tools import _polymer_ambiguity_error
+from .thermodynamics import _polymer_ambiguity_error
 
 _ASSET = Path(str(files("dissolve").joinpath("data/contaminants.duckdb")))
 _ASSET_SHA256 = "866d769b6a140bf289c5036fd5c0d7d2b6f424cb7994e71c76e16a1a1d9a4c5f"

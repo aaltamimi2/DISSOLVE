@@ -6,13 +6,13 @@ import inspect
 import json
 from pathlib import Path
 
-from dissolve import agent, analysis, landscape, tea
+from dissolve import agent, analysis, tea, tea_ranking
 from dissolve import thermodynamics as thermo
 from dissolve.agent import dispatch, tool_schemas
 from dissolve.cli import EXPECTED_REGISTRY_NAMES, CliApp, _parse_solvents_slash
 from dissolve.contracts import parse_tool_result
 from dissolve.session import bind_tool_session, new_session
-from dissolve.tools import solubility_query
+from dissolve.thermodynamics import solubility_query
 
 # --- from test_lookup_parity.py: §10.1 lookup capability-parity on evaluate_process(mode=lookup).
 _SEALED = Path(
@@ -131,7 +131,7 @@ def test_missing_polymer_is_named_not_a_cache_dump(monkeypatch):
 def test_campaign_lookup_may_omit_polymer(monkeypatch, tmp_path):
     _forbid_live(monkeypatch)
     registry_path = _write_registry(tmp_path, {_CANONICAL: _sealed_entry()})
-    monkeypatch.setenv(landscape.REGISTRY_ENV, str(registry_path))
+    monkeypatch.setenv(tea_ranking.REGISTRY_ENV, str(registry_path))
     payload = _data(tea.lookup_admitted_process_records(
         source="campaign",
         campaign_fingerprint=_CANONICAL,
@@ -441,7 +441,7 @@ def test_omit_solvents_common_shrinks_axis_not_fitted_count():
 
 
 def test_under_coverage_denominator_is_scope_n():
-    from dissolve.tools import screen_polymer_separation
+    from dissolve.thermodynamics import screen_polymer_separation
 
     payload = _data_solvent_scope(screen_polymer_separation(
         feed_polymers=["LDPE", "PP"],
@@ -460,7 +460,7 @@ def test_under_coverage_denominator_is_scope_n():
 
 
 def test_unknown_solvents_available_count_stays_on_the_990():
-    from dissolve.tools import screen_polymer_separation
+    from dissolve.thermodynamics import screen_polymer_separation
 
     query = _data_solvent_scope(solubility_query(
         polymers=["LDPE"], solvents=["not-a-real-solvent-xx"],

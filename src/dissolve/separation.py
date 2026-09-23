@@ -11,15 +11,19 @@ from . import contaminants as contaminant_screens
 from . import thermodynamics as thermo
 from .contracts import parse_tool_result, tool_error, tool_success
 from .session import current_tool_session
-from .tools import (
-    _InputError,
-    _atmospheric_exclusion_applies, _atmospheric_exclusion_counts,
+from .thermodynamics import (
+    _atmospheric_exclusion_applies,
+    _atmospheric_exclusion_counts,
     _atmospheric_exclusion_reason,
+    _InputError,
     _polymer_ambiguity_error,
     _refuse_solvents_out_of_scope,
-    _screen_catalog_provenance, _solvent_resolution_error, _temperature_grid,
+    _screen_catalog_provenance,
+    _solvent_resolution_error,
+    _temperature_grid,
     _with_solvent_scope,
-    normalize_feed_composition, screen_polymer_separation,
+    normalize_feed_composition,
+    screen_polymer_separation,
 )
 
 
@@ -1498,7 +1502,8 @@ def screen_precipitation_order(
     )
     selected = matching[:limit]
     from .safety import (
-        condition_operability, merge_condition_operability,
+        condition_operability,
+        merge_condition_operability,
         recommended_condition_operability,
     )
 
