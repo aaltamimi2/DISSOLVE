@@ -298,14 +298,14 @@ function QuickActionCard({ action, onPick }: { action: QuickAction; onPick: (exa
 }
 
 export function Welcome({ onPick, features }: { onPick: (example: Example) => void; features: Features }) {
+  const topics = ["polymer solubility", "separation planning", "solvent safety", "contaminant removal"];
+  if (features.tea) topics.push("techno-economics");
+  if (features.literature) topics.push("the literature");
   return (
     <div className="rise mx-auto flex w-full max-w-5xl flex-col items-center px-4 pb-6 pt-10 text-center sm:pt-16">
       <BrandMark size={64} />
       <h2 className="mt-4 font-headline text-2xl font-semibold tracking-tight text-ink">DISSOLVE Agent</h2>
-      <p className="mt-2 max-w-xl text-ink-2">
-        Ask about polymer solubility, separation planning, solvent safety, contaminant removal, techno-economics and the
-        literature.
-      </p>
+      <p className="mt-2 max-w-xl text-ink-2">Ask about {`${topics.slice(0, -1).join(", ")} and ${topics.at(-1)}`}.</p>
       <div className="mt-8 grid w-full grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
         {offeredActions(features).map((action) => (
           <QuickActionCard key={action.label} action={action} onPick={onPick} />
@@ -313,7 +313,7 @@ export function Welcome({ onPick, features }: { onPick: (example: Example) => vo
       </div>
       <p className="mt-4 font-headline text-xs text-ink-3">
         Click a card to cycle through its examples · type <kbd className="rounded bg-muted px-1">/</kbd> for modes such as
-        /contaminant and /literature
+        /contaminant and {features.literature ? "/literature" : "/solvents"}
       </p>
     </div>
   );
