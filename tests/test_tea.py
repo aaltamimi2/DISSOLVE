@@ -2171,37 +2171,191 @@ def test_cache_evaluate_echoes_projected_income_tax(monkeypatch):
     )
 
 
-def test_cache_mode_refuses_operating_days_override_instead_of_the_other_plant(
-    monkeypatch,
+@pytest.mark.parametrize(
+    "message, recorded, requested, field, other_field",
+    [
+        pytest.param(
+            "operating_days mismatch must not fall through to live",
+            350.4,
+            300.0,
+            "operating_days",
+            "income_tax",
+            id="operating_days",
+        ),
+        pytest.param(
+            "labor_burden mismatch must not fall through to live",
+            0.9,
+            0.5,
+            "labor_burden",
+            "operating_days",
+            id="labor_burden",
+        ),
+        pytest.param(
+            "finance_interest mismatch must not fall through to live",
+            0.08,
+            0.12,
+            "finance_interest",
+            "labor_burden",
+            id="finance_interest",
+        ),
+        pytest.param(
+            "finance_years mismatch must not fall through to live",
+            10,
+            15,
+            "finance_years",
+            "finance_interest",
+            id="finance_years",
+        ),
+        pytest.param(
+            "finance_fraction mismatch must not fall through to live",
+            0.0,
+            0.4,
+            "finance_fraction",
+            "finance_years",
+            id="finance_fraction",
+        ),
+        pytest.param(
+            "startup_months mismatch must not fall through to live",
+            3,
+            6,
+            "startup_months",
+            "finance_fraction",
+            id="startup_months",
+        ),
+        pytest.param(
+            "startup_FOCfrac mismatch must not fall through to live",
+            1,
+            0.5,
+            "startup_FOCfrac",
+            "startup_months",
+            id="startup_FOCfrac",
+        ),
+        pytest.param(
+            "startup_VOCfrac mismatch must not fall through to live",
+            0.75,
+            0.5,
+            "startup_VOCfrac",
+            "startup_FOCfrac",
+            id="startup_VOCfrac",
+        ),
+        pytest.param(
+            "startup_salesfrac mismatch must not fall through to live",
+            0.5,
+            0.8,
+            "startup_salesfrac",
+            "startup_VOCfrac",
+            id="startup_salesfrac",
+        ),
+        pytest.param(
+            "WC_over_FCI mismatch must not fall through to live",
+            0.05,
+            0.1,
+            "WC_over_FCI",
+            "startup_salesfrac",
+            id="wc_over_fci",
+        ),
+        pytest.param(
+            "warehouse mismatch must not fall through to live", 0.04, 0.08, "warehouse", "WC_over_FCI", id="warehouse"
+        ),
+        pytest.param(
+            "site_development mismatch must not fall through to live",
+            0.09,
+            0.18,
+            "site_development",
+            "warehouse",
+            id="site_development",
+        ),
+        pytest.param(
+            "additional_piping mismatch must not fall through to live",
+            0.045,
+            0.09,
+            "additional_piping",
+            "site_development",
+            id="additional_piping",
+        ),
+        pytest.param(
+            "proratable_costs mismatch must not fall through to live",
+            0.1,
+            0.2,
+            "proratable_costs",
+            "additional_piping",
+            id="proratable_costs",
+        ),
+        pytest.param(
+            "field_expenses mismatch must not fall through to live",
+            0.1,
+            0.2,
+            "field_expenses",
+            "proratable_costs",
+            id="field_expenses",
+        ),
+        pytest.param(
+            "construction mismatch must not fall through to live",
+            0.2,
+            0.4,
+            "construction",
+            "field_expenses",
+            id="construction",
+        ),
+        pytest.param(
+            "contingency mismatch must not fall through to live",
+            0.4,
+            0.8,
+            "contingency",
+            "construction",
+            id="contingency",
+        ),
+        pytest.param(
+            "other_indirect_costs mismatch must not fall through to live",
+            0.1,
+            0.2,
+            "other_indirect_costs",
+            "contingency",
+            id="other_indirect_costs",
+        ),
+        pytest.param(
+            "property_insurance mismatch must not fall through to live",
+            0.007,
+            0.014,
+            "property_insurance",
+            "other_indirect_costs",
+            id="property_insurance",
+        ),
+        pytest.param(
+            "maintenance mismatch must not fall through to live",
+            0.03,
+            0.06,
+            "maintenance",
+            "property_insurance",
+            id="maintenance",
+        ),
+    ],
+)
+def test_cache_mode_refuses_override_instead_of_the_other_plant(
+    monkeypatch, message, recorded, requested, field, other_field
 ):
     record = _record_with_energy("C1")
     recorded_msp = float(record["result"]["tea"]["msp_usd_per_kg"])
 
     def forbidden_live(config, timeout_seconds):
-        raise AssertionError(
-            "operating_days mismatch must not fall through to live"
-        )
+        raise AssertionError(message)
 
     monkeypatch.setattr(tea, "_live", forbidden_live)
-    payload = _data_tea_exposed_coefficients(tea.evaluate_tea_lca_scenarios(
-        [_public_from_record_tea_exposed_coefficients(record, operating_days=300.0)],
-        engine_mode="cache",
-    ))
+    payload = _data_tea_exposed_coefficients(
+        tea.evaluate_tea_lca_scenarios(
+            [_public_from_record_tea_exposed_coefficients(record, **{field: requested})], engine_mode="cache"
+        )
+    )
     assert payload.get("success") is False
     assert payload.get("error_code") == "cache_flowsheet_mismatch"
     row = (payload.get("failures") or [])[0]
     assert row.get("msp_usd_per_kg") is None
     assert row.get("msp_usd_per_kg") != recorded_msp
-    days = next(
-        item for item in row["flowsheet_switch_deltas"]
-        if item["field"] == "operating_days"
-    )
-    assert days["recorded_value"] == pytest.approx(350.4)
-    assert days["requested_value"] == pytest.approx(300.0)
-    assert row.get("operating_days") == pytest.approx(300.0)
-    assert not any(
-        item["field"] == "income_tax" for item in row["flowsheet_switch_deltas"]
-    )
+    delta = next((item for item in row["flowsheet_switch_deltas"] if item["field"] == field))
+    assert delta["recorded_value"] == pytest.approx(recorded)
+    assert delta["requested_value"] == pytest.approx(requested)
+    assert row.get(field) == pytest.approx(requested)
+    assert not any((item["field"] == other_field for item in row["flowsheet_switch_deltas"]))
 
 
 def test_cache_evaluate_echoes_projected_operating_days(monkeypatch):
@@ -2243,138 +2397,68 @@ def test_cache_evaluate_echoes_projected_operating_days(monkeypatch):
     )
 
 
-def test_nonpositive_operating_days_is_refused():
+@pytest.mark.parametrize(
+    "field, value",
+    [
+        pytest.param("operating_days", 0, id="nonpositive_operating_days_is_refused"),
+        pytest.param("finance_interest", 8, id="percent_integer_finance_interest_is_refused"),
+        pytest.param("finance_fraction", 40, id="percent_integer_finance_fraction_is_refused"),
+        pytest.param("startup_months", 13, id="startup_months_above_one_year_is_refused"),
+        pytest.param("startup_FOCfrac", 50, id="percent_integer_startup_FOCfrac_is_refused"),
+        pytest.param("startup_VOCfrac", 75, id="percent_integer_startup_VOCfrac_is_refused"),
+        pytest.param("startup_salesfrac", 50, id="percent_integer_startup_salesfrac_is_refused"),
+        pytest.param("WC_over_FCI", 5, id="percent_integer_wc_over_fci_is_refused"),
+        pytest.param("warehouse", 4, id="percent_integer_warehouse_is_refused"),
+        pytest.param("site_development", 9, id="percent_integer_site_development_is_refused"),
+        pytest.param("additional_piping", 5, id="percent_integer_additional_piping_is_refused"),
+        pytest.param("proratable_costs", 10, id="percent_integer_proratable_costs_is_refused"),
+        pytest.param("field_expenses", 10, id="percent_integer_field_expenses_is_refused"),
+        pytest.param("construction", 20, id="percent_integer_construction_is_refused"),
+        pytest.param("contingency", 40, id="percent_integer_contingency_is_refused"),
+        pytest.param("other_indirect_costs", 10, id="percent_integer_other_indirect_costs_is_refused"),
+        pytest.param("property_insurance", 7, id="percent_integer_property_insurance_is_refused"),
+        pytest.param("maintenance", 3, id="percent_integer_maintenance_is_refused"),
+        pytest.param("duration", 30, id="years_scalar_is_not_duration"),
+        pytest.param("income_tax", 21, id="percent_integer_income_tax_is_refused"),
+    ],
+)
+def test_invalid_scenario_override_is_refused(field, value):
     record = _record_with_energy("C1")
     with pytest.raises(tea._ScenarioInputError) as caught:
-        tea._scenario_config(_public_from_record_tea_exposed_coefficients(record, operating_days=0))
+        tea._scenario_config(_public_from_record_tea_exposed_coefficients(record, **{field: value}))
     assert caught.value.error_code == "invalid_scenario"
-    assert caught.value.details["field"] == "operating_days"
+    assert caught.value.details["field"] == field
 
 
-def test_cache_mode_refuses_labor_burden_override_instead_of_the_other_plant(
-    monkeypatch,
-):
-    record = _record_with_energy("C1")
-    recorded_msp = float(record["result"]["tea"]["msp_usd_per_kg"])
-
-    def forbidden_live(config, timeout_seconds):
-        raise AssertionError(
-            "labor_burden mismatch must not fall through to live"
-        )
-
-    monkeypatch.setattr(tea, "_live", forbidden_live)
-    payload = _data_tea_exposed_coefficients(tea.evaluate_tea_lca_scenarios(
-        [_public_from_record_tea_exposed_coefficients(record, labor_burden=0.50)],
-        engine_mode="cache",
-    ))
-    assert payload.get("success") is False
-    assert payload.get("error_code") == "cache_flowsheet_mismatch"
-    row = (payload.get("failures") or [])[0]
-    assert row.get("msp_usd_per_kg") is None
-    assert row.get("msp_usd_per_kg") != recorded_msp
-    burden = next(
-        item for item in row["flowsheet_switch_deltas"]
-        if item["field"] == "labor_burden"
-    )
-    assert burden["recorded_value"] == pytest.approx(0.90)
-    assert burden["requested_value"] == pytest.approx(0.50)
-    assert row.get("labor_burden") == pytest.approx(0.50)
-    assert not any(
-        item["field"] == "operating_days"
-        for item in row["flowsheet_switch_deltas"]
-    )
-
-
-def test_negative_labor_burden_is_refused():
+@pytest.mark.parametrize(
+    "field, magnitude",
+    [
+        pytest.param("labor_burden", 0.1, id="labor_burden"),
+        pytest.param("finance_interest", 0.01, id="finance_interest"),
+        pytest.param("finance_fraction", 0.1, id="finance_fraction"),
+        pytest.param("startup_months", 1, id="startup_months"),
+        pytest.param("startup_FOCfrac", 0.1, id="startup_FOCfrac"),
+        pytest.param("startup_VOCfrac", 0.1, id="startup_VOCfrac"),
+        pytest.param("startup_salesfrac", 0.1, id="startup_salesfrac"),
+        pytest.param("WC_over_FCI", 0.1, id="wc_over_fci"),
+        pytest.param("warehouse", 0.1, id="warehouse"),
+        pytest.param("site_development", 0.1, id="site_development"),
+        pytest.param("additional_piping", 0.1, id="additional_piping"),
+        pytest.param("proratable_costs", 0.1, id="proratable_costs"),
+        pytest.param("field_expenses", 0.1, id="field_expenses"),
+        pytest.param("construction", 0.1, id="construction"),
+        pytest.param("contingency", 0.1, id="contingency"),
+        pytest.param("other_indirect_costs", 0.1, id="other_indirect_costs"),
+        pytest.param("property_insurance", 0.1, id="property_insurance"),
+        pytest.param("maintenance", 0.1, id="maintenance"),
+    ],
+)
+def test_negative_override_is_refused(field, magnitude):
     record = _record_with_energy("C1")
     with pytest.raises(tea._ScenarioInputError) as caught:
-        tea._scenario_config(_public_from_record_tea_exposed_coefficients(record, labor_burden=-0.1))
+        tea._scenario_config(_public_from_record_tea_exposed_coefficients(record, **{field: -magnitude}))
     assert caught.value.error_code == "invalid_scenario"
-    assert caught.value.details["field"] == "labor_burden"
-
-
-def test_cache_mode_refuses_finance_interest_override_instead_of_the_other_plant(
-    monkeypatch,
-):
-    record = _record_with_energy("C1")
-    recorded_msp = float(record["result"]["tea"]["msp_usd_per_kg"])
-
-    def forbidden_live(config, timeout_seconds):
-        raise AssertionError(
-            "finance_interest mismatch must not fall through to live"
-        )
-
-    monkeypatch.setattr(tea, "_live", forbidden_live)
-    payload = _data_tea_exposed_coefficients(tea.evaluate_tea_lca_scenarios(
-        [_public_from_record_tea_exposed_coefficients(record, finance_interest=0.12)],
-        engine_mode="cache",
-    ))
-    assert payload.get("success") is False
-    assert payload.get("error_code") == "cache_flowsheet_mismatch"
-    row = (payload.get("failures") or [])[0]
-    assert row.get("msp_usd_per_kg") is None
-    assert row.get("msp_usd_per_kg") != recorded_msp
-    rate = next(
-        item for item in row["flowsheet_switch_deltas"]
-        if item["field"] == "finance_interest"
-    )
-    assert rate["recorded_value"] == pytest.approx(0.08)
-    assert rate["requested_value"] == pytest.approx(0.12)
-    assert row.get("finance_interest") == pytest.approx(0.12)
-    assert not any(
-        item["field"] == "labor_burden"
-        for item in row["flowsheet_switch_deltas"]
-    )
-
-
-def test_negative_finance_interest_is_refused():
-    record = _record_with_energy("C1")
-    with pytest.raises(tea._ScenarioInputError) as caught:
-        tea._scenario_config(_public_from_record_tea_exposed_coefficients(record, finance_interest=-0.01))
-    assert caught.value.error_code == "invalid_scenario"
-    assert caught.value.details["field"] == "finance_interest"
-
-
-def test_percent_integer_finance_interest_is_refused():
-    record = _record_with_energy("C1")
-    with pytest.raises(tea._ScenarioInputError) as caught:
-        tea._scenario_config(_public_from_record_tea_exposed_coefficients(record, finance_interest=8))
-    assert caught.value.error_code == "invalid_scenario"
-    assert caught.value.details["field"] == "finance_interest"
-
-
-def test_cache_mode_refuses_finance_years_override_instead_of_the_other_plant(
-    monkeypatch,
-):
-    record = _record_with_energy("C1")
-    recorded_msp = float(record["result"]["tea"]["msp_usd_per_kg"])
-
-    def forbidden_live(config, timeout_seconds):
-        raise AssertionError(
-            "finance_years mismatch must not fall through to live"
-        )
-
-    monkeypatch.setattr(tea, "_live", forbidden_live)
-    payload = _data_tea_exposed_coefficients(tea.evaluate_tea_lca_scenarios(
-        [_public_from_record_tea_exposed_coefficients(record, finance_years=15)],
-        engine_mode="cache",
-    ))
-    assert payload.get("success") is False
-    assert payload.get("error_code") == "cache_flowsheet_mismatch"
-    row = (payload.get("failures") or [])[0]
-    assert row.get("msp_usd_per_kg") is None
-    assert row.get("msp_usd_per_kg") != recorded_msp
-    years = next(
-        item for item in row["flowsheet_switch_deltas"]
-        if item["field"] == "finance_years"
-    )
-    assert years["recorded_value"] == pytest.approx(10)
-    assert years["requested_value"] == pytest.approx(15)
-    assert row.get("finance_years") == pytest.approx(15)
-    assert not any(
-        item["field"] == "finance_interest"
-        for item in row["flowsheet_switch_deltas"]
-    )
+    assert caught.value.details["field"] == field
 
 
 @pytest.mark.parametrize(
@@ -2392,403 +2476,55 @@ def test_finance_years_is_refused(finance_years):
     assert caught.value.details["field"] == "finance_years"
 
 
-def test_cache_mode_refuses_finance_fraction_override_instead_of_the_other_plant(
-    monkeypatch,
-):
-    record = _record_with_energy("C1")
-    recorded_msp = float(record["result"]["tea"]["msp_usd_per_kg"])
-
-    def forbidden_live(config, timeout_seconds):
-        raise AssertionError(
-            "finance_fraction mismatch must not fall through to live"
-        )
-
-    monkeypatch.setattr(tea, "_live", forbidden_live)
-    payload = _data_tea_exposed_coefficients(tea.evaluate_tea_lca_scenarios(
-        [_public_from_record_tea_exposed_coefficients(record, finance_fraction=0.4)],
-        engine_mode="cache",
-    ))
-    assert payload.get("success") is False
-    assert payload.get("error_code") == "cache_flowsheet_mismatch"
-    row = (payload.get("failures") or [])[0]
-    assert row.get("msp_usd_per_kg") is None
-    assert row.get("msp_usd_per_kg") != recorded_msp
-    fraction = next(
-        item for item in row["flowsheet_switch_deltas"]
-        if item["field"] == "finance_fraction"
-    )
-    assert fraction["recorded_value"] == pytest.approx(0.0)
-    assert fraction["requested_value"] == pytest.approx(0.4)
-    assert row.get("finance_fraction") == pytest.approx(0.4)
-    assert not any(
-        item["field"] == "finance_years"
-        for item in row["flowsheet_switch_deltas"]
-    )
-
-
-def test_full_debt_finance_fraction_is_a_legal_override(monkeypatch):
+@pytest.mark.parametrize(
+    "message, requested, field",
+    [
+        pytest.param(
+            "finance_fraction=1.0 is 100 percent debt, not invalid_scenario",
+            1.0,
+            "finance_fraction",
+            id="full_debt_finance_fraction",
+        ),
+        pytest.param(
+            "startup_months=0 is a legal override, not invalid_scenario", 0, "startup_months", id="zero_startup_months"
+        ),
+        pytest.param(
+            "startup_FOCfrac=0 is a legal override, not invalid_scenario",
+            0,
+            "startup_FOCfrac",
+            id="zero_startup_FOCfrac",
+        ),
+        pytest.param(
+            "startup_VOCfrac=1.0 is 100 percent VOC, not invalid_scenario",
+            1.0,
+            "startup_VOCfrac",
+            id="full_startup_VOCfrac",
+        ),
+        pytest.param(
+            "startup_salesfrac=1.0 is 100 percent sales, not invalid_scenario",
+            1.0,
+            "startup_salesfrac",
+            id="full_startup_salesfrac",
+        ),
+    ],
+)
+def test_boundary_override_reaches_the_flowsheet_check(monkeypatch, message, requested, field):
     record = _record_with_energy("C1")
 
     def forbidden_live(config, timeout_seconds):
-        raise AssertionError(
-            "finance_fraction=1.0 is 100 percent debt, not invalid_scenario"
-        )
+        raise AssertionError(message)
 
     monkeypatch.setattr(tea, "_live", forbidden_live)
-    payload = _data_tea_exposed_coefficients(tea.evaluate_tea_lca_scenarios(
-        [_public_from_record_tea_exposed_coefficients(record, finance_fraction=1.0)],
-        engine_mode="cache",
-    ))
+    payload = _data_tea_exposed_coefficients(
+        tea.evaluate_tea_lca_scenarios(
+            [_public_from_record_tea_exposed_coefficients(record, **{field: requested})], engine_mode="cache"
+        )
+    )
     assert payload.get("success") is False
     assert payload.get("error_code") == "cache_flowsheet_mismatch"
     row = (payload.get("failures") or [])[0]
-    fraction = next(
-        item for item in row["flowsheet_switch_deltas"]
-        if item["field"] == "finance_fraction"
-    )
-    assert fraction["requested_value"] == pytest.approx(1.0)
-
-
-def test_negative_finance_fraction_is_refused():
-    record = _record_with_energy("C1")
-    with pytest.raises(tea._ScenarioInputError) as caught:
-        tea._scenario_config(_public_from_record_tea_exposed_coefficients(record, finance_fraction=-0.1))
-    assert caught.value.error_code == "invalid_scenario"
-    assert caught.value.details["field"] == "finance_fraction"
-
-
-def test_percent_integer_finance_fraction_is_refused():
-    record = _record_with_energy("C1")
-    with pytest.raises(tea._ScenarioInputError) as caught:
-        tea._scenario_config(_public_from_record_tea_exposed_coefficients(record, finance_fraction=40))
-    assert caught.value.error_code == "invalid_scenario"
-    assert caught.value.details["field"] == "finance_fraction"
-
-
-def test_cache_mode_refuses_startup_months_override_instead_of_the_other_plant(
-    monkeypatch,
-):
-    record = _record_with_energy("C1")
-    recorded_msp = float(record["result"]["tea"]["msp_usd_per_kg"])
-
-    def forbidden_live(config, timeout_seconds):
-        raise AssertionError(
-            "startup_months mismatch must not fall through to live"
-        )
-
-    monkeypatch.setattr(tea, "_live", forbidden_live)
-    payload = _data_tea_exposed_coefficients(tea.evaluate_tea_lca_scenarios(
-        [_public_from_record_tea_exposed_coefficients(record, startup_months=6)],
-        engine_mode="cache",
-    ))
-    assert payload.get("success") is False
-    assert payload.get("error_code") == "cache_flowsheet_mismatch"
-    row = (payload.get("failures") or [])[0]
-    assert row.get("msp_usd_per_kg") is None
-    assert row.get("msp_usd_per_kg") != recorded_msp
-    months = next(
-        item for item in row["flowsheet_switch_deltas"]
-        if item["field"] == "startup_months"
-    )
-    assert months["recorded_value"] == pytest.approx(3)
-    assert months["requested_value"] == pytest.approx(6)
-    assert row.get("startup_months") == pytest.approx(6)
-    assert not any(
-        item["field"] == "finance_fraction"
-        for item in row["flowsheet_switch_deltas"]
-    )
-
-
-def test_zero_startup_months_is_a_legal_override(monkeypatch):
-    record = _record_with_energy("C1")
-
-    def forbidden_live(config, timeout_seconds):
-        raise AssertionError(
-            "startup_months=0 is a legal override, not invalid_scenario"
-        )
-
-    monkeypatch.setattr(tea, "_live", forbidden_live)
-    payload = _data_tea_exposed_coefficients(tea.evaluate_tea_lca_scenarios(
-        [_public_from_record_tea_exposed_coefficients(record, startup_months=0)],
-        engine_mode="cache",
-    ))
-    assert payload.get("success") is False
-    assert payload.get("error_code") == "cache_flowsheet_mismatch"
-    row = (payload.get("failures") or [])[0]
-    months = next(
-        item for item in row["flowsheet_switch_deltas"]
-        if item["field"] == "startup_months"
-    )
-    assert months["requested_value"] == pytest.approx(0)
-
-
-def test_negative_startup_months_is_refused():
-    record = _record_with_energy("C1")
-    with pytest.raises(tea._ScenarioInputError) as caught:
-        tea._scenario_config(_public_from_record_tea_exposed_coefficients(record, startup_months=-1))
-    assert caught.value.error_code == "invalid_scenario"
-    assert caught.value.details["field"] == "startup_months"
-
-
-def test_startup_months_above_one_year_is_refused():
-    record = _record_with_energy("C1")
-    with pytest.raises(tea._ScenarioInputError) as caught:
-        tea._scenario_config(_public_from_record_tea_exposed_coefficients(record, startup_months=13))
-    assert caught.value.error_code == "invalid_scenario"
-    assert caught.value.details["field"] == "startup_months"
-
-
-def test_cache_mode_refuses_startup_FOCfrac_override_instead_of_the_other_plant(
-    monkeypatch,
-):
-    record = _record_with_energy("C1")
-    recorded_msp = float(record["result"]["tea"]["msp_usd_per_kg"])
-
-    def forbidden_live(config, timeout_seconds):
-        raise AssertionError(
-            "startup_FOCfrac mismatch must not fall through to live"
-        )
-
-    monkeypatch.setattr(tea, "_live", forbidden_live)
-    payload = _data_tea_exposed_coefficients(tea.evaluate_tea_lca_scenarios(
-        [_public_from_record_tea_exposed_coefficients(record, startup_FOCfrac=0.5)],
-        engine_mode="cache",
-    ))
-    assert payload.get("success") is False
-    assert payload.get("error_code") == "cache_flowsheet_mismatch"
-    row = (payload.get("failures") or [])[0]
-    assert row.get("msp_usd_per_kg") is None
-    assert row.get("msp_usd_per_kg") != recorded_msp
-    fraction = next(
-        item for item in row["flowsheet_switch_deltas"]
-        if item["field"] == "startup_FOCfrac"
-    )
-    assert fraction["recorded_value"] == pytest.approx(1)
-    assert fraction["requested_value"] == pytest.approx(0.5)
-    assert row.get("startup_FOCfrac") == pytest.approx(0.5)
-    assert not any(
-        item["field"] == "startup_months"
-        for item in row["flowsheet_switch_deltas"]
-    )
-
-
-def test_zero_startup_FOCfrac_is_a_legal_override(monkeypatch):
-    record = _record_with_energy("C1")
-
-    def forbidden_live(config, timeout_seconds):
-        raise AssertionError(
-            "startup_FOCfrac=0 is a legal override, not invalid_scenario"
-        )
-
-    monkeypatch.setattr(tea, "_live", forbidden_live)
-    payload = _data_tea_exposed_coefficients(tea.evaluate_tea_lca_scenarios(
-        [_public_from_record_tea_exposed_coefficients(record, startup_FOCfrac=0)],
-        engine_mode="cache",
-    ))
-    assert payload.get("success") is False
-    assert payload.get("error_code") == "cache_flowsheet_mismatch"
-    row = (payload.get("failures") or [])[0]
-    fraction = next(
-        item for item in row["flowsheet_switch_deltas"]
-        if item["field"] == "startup_FOCfrac"
-    )
-    assert fraction["requested_value"] == pytest.approx(0)
-
-
-def test_negative_startup_FOCfrac_is_refused():
-    record = _record_with_energy("C1")
-    with pytest.raises(tea._ScenarioInputError) as caught:
-        tea._scenario_config(_public_from_record_tea_exposed_coefficients(record, startup_FOCfrac=-0.1))
-    assert caught.value.error_code == "invalid_scenario"
-    assert caught.value.details["field"] == "startup_FOCfrac"
-
-
-def test_percent_integer_startup_FOCfrac_is_refused():
-    record = _record_with_energy("C1")
-    with pytest.raises(tea._ScenarioInputError) as caught:
-        tea._scenario_config(_public_from_record_tea_exposed_coefficients(record, startup_FOCfrac=50))
-    assert caught.value.error_code == "invalid_scenario"
-    assert caught.value.details["field"] == "startup_FOCfrac"
-
-
-def test_cache_mode_refuses_startup_VOCfrac_override_instead_of_the_other_plant(
-    monkeypatch,
-):
-    record = _record_with_energy("C1")
-    recorded_msp = float(record["result"]["tea"]["msp_usd_per_kg"])
-
-    def forbidden_live(config, timeout_seconds):
-        raise AssertionError(
-            "startup_VOCfrac mismatch must not fall through to live"
-        )
-
-    monkeypatch.setattr(tea, "_live", forbidden_live)
-    payload = _data_tea_exposed_coefficients(tea.evaluate_tea_lca_scenarios(
-        [_public_from_record_tea_exposed_coefficients(record, startup_VOCfrac=0.5)],
-        engine_mode="cache",
-    ))
-    assert payload.get("success") is False
-    assert payload.get("error_code") == "cache_flowsheet_mismatch"
-    row = (payload.get("failures") or [])[0]
-    assert row.get("msp_usd_per_kg") is None
-    assert row.get("msp_usd_per_kg") != recorded_msp
-    fraction = next(
-        item for item in row["flowsheet_switch_deltas"]
-        if item["field"] == "startup_VOCfrac"
-    )
-    assert fraction["recorded_value"] == pytest.approx(0.75)
-    assert fraction["requested_value"] == pytest.approx(0.5)
-    assert row.get("startup_VOCfrac") == pytest.approx(0.5)
-    assert not any(
-        item["field"] == "startup_FOCfrac"
-        for item in row["flowsheet_switch_deltas"]
-    )
-
-
-def test_full_startup_VOCfrac_is_a_legal_override(monkeypatch):
-    record = _record_with_energy("C1")
-
-    def forbidden_live(config, timeout_seconds):
-        raise AssertionError(
-            "startup_VOCfrac=1.0 is 100 percent VOC, not invalid_scenario"
-        )
-
-    monkeypatch.setattr(tea, "_live", forbidden_live)
-    payload = _data_tea_exposed_coefficients(tea.evaluate_tea_lca_scenarios(
-        [_public_from_record_tea_exposed_coefficients(record, startup_VOCfrac=1.0)],
-        engine_mode="cache",
-    ))
-    assert payload.get("success") is False
-    assert payload.get("error_code") == "cache_flowsheet_mismatch"
-    row = (payload.get("failures") or [])[0]
-    fraction = next(
-        item for item in row["flowsheet_switch_deltas"]
-        if item["field"] == "startup_VOCfrac"
-    )
-    assert fraction["requested_value"] == pytest.approx(1.0)
-
-
-def test_negative_startup_VOCfrac_is_refused():
-    record = _record_with_energy("C1")
-    with pytest.raises(tea._ScenarioInputError) as caught:
-        tea._scenario_config(_public_from_record_tea_exposed_coefficients(record, startup_VOCfrac=-0.1))
-    assert caught.value.error_code == "invalid_scenario"
-    assert caught.value.details["field"] == "startup_VOCfrac"
-
-
-def test_percent_integer_startup_VOCfrac_is_refused():
-    record = _record_with_energy("C1")
-    with pytest.raises(tea._ScenarioInputError) as caught:
-        tea._scenario_config(_public_from_record_tea_exposed_coefficients(record, startup_VOCfrac=75))
-    assert caught.value.error_code == "invalid_scenario"
-    assert caught.value.details["field"] == "startup_VOCfrac"
-
-
-def test_cache_mode_refuses_startup_salesfrac_override_instead_of_the_other_plant(
-    monkeypatch,
-):
-    record = _record_with_energy("C1")
-    recorded_msp = float(record["result"]["tea"]["msp_usd_per_kg"])
-
-    def forbidden_live(config, timeout_seconds):
-        raise AssertionError(
-            "startup_salesfrac mismatch must not fall through to live"
-        )
-
-    monkeypatch.setattr(tea, "_live", forbidden_live)
-    payload = _data_tea_exposed_coefficients(tea.evaluate_tea_lca_scenarios(
-        [_public_from_record_tea_exposed_coefficients(record, startup_salesfrac=0.8)],
-        engine_mode="cache",
-    ))
-    assert payload.get("success") is False
-    assert payload.get("error_code") == "cache_flowsheet_mismatch"
-    row = (payload.get("failures") or [])[0]
-    assert row.get("msp_usd_per_kg") is None
-    assert row.get("msp_usd_per_kg") != recorded_msp
-    fraction = next(
-        item for item in row["flowsheet_switch_deltas"]
-        if item["field"] == "startup_salesfrac"
-    )
-    assert fraction["recorded_value"] == pytest.approx(0.5)
-    assert fraction["requested_value"] == pytest.approx(0.8)
-    assert row.get("startup_salesfrac") == pytest.approx(0.8)
-    assert not any(
-        item["field"] == "startup_VOCfrac"
-        for item in row["flowsheet_switch_deltas"]
-    )
-
-
-def test_full_startup_salesfrac_is_a_legal_override(monkeypatch):
-    record = _record_with_energy("C1")
-
-    def forbidden_live(config, timeout_seconds):
-        raise AssertionError(
-            "startup_salesfrac=1.0 is 100 percent sales, not invalid_scenario"
-        )
-
-    monkeypatch.setattr(tea, "_live", forbidden_live)
-    payload = _data_tea_exposed_coefficients(tea.evaluate_tea_lca_scenarios(
-        [_public_from_record_tea_exposed_coefficients(record, startup_salesfrac=1.0)],
-        engine_mode="cache",
-    ))
-    assert payload.get("success") is False
-    assert payload.get("error_code") == "cache_flowsheet_mismatch"
-    row = (payload.get("failures") or [])[0]
-    fraction = next(
-        item for item in row["flowsheet_switch_deltas"]
-        if item["field"] == "startup_salesfrac"
-    )
-    assert fraction["requested_value"] == pytest.approx(1.0)
-
-
-def test_negative_startup_salesfrac_is_refused():
-    record = _record_with_energy("C1")
-    with pytest.raises(tea._ScenarioInputError) as caught:
-        tea._scenario_config(_public_from_record_tea_exposed_coefficients(record, startup_salesfrac=-0.1))
-    assert caught.value.error_code == "invalid_scenario"
-    assert caught.value.details["field"] == "startup_salesfrac"
-
-
-def test_percent_integer_startup_salesfrac_is_refused():
-    record = _record_with_energy("C1")
-    with pytest.raises(tea._ScenarioInputError) as caught:
-        tea._scenario_config(_public_from_record_tea_exposed_coefficients(record, startup_salesfrac=50))
-    assert caught.value.error_code == "invalid_scenario"
-    assert caught.value.details["field"] == "startup_salesfrac"
-
-
-def test_cache_mode_refuses_wc_over_fci_override_instead_of_the_other_plant(
-    monkeypatch,
-):
-    record = _record_with_energy("C1")
-    recorded_msp = float(record["result"]["tea"]["msp_usd_per_kg"])
-
-    def forbidden_live(config, timeout_seconds):
-        raise AssertionError(
-            "WC_over_FCI mismatch must not fall through to live"
-        )
-
-    monkeypatch.setattr(tea, "_live", forbidden_live)
-    payload = _data_tea_exposed_coefficients(tea.evaluate_tea_lca_scenarios(
-        [_public_from_record_tea_exposed_coefficients(record, WC_over_FCI=0.10)],
-        engine_mode="cache",
-    ))
-    assert payload.get("success") is False
-    assert payload.get("error_code") == "cache_flowsheet_mismatch"
-    row = (payload.get("failures") or [])[0]
-    assert row.get("msp_usd_per_kg") is None
-    assert row.get("msp_usd_per_kg") != recorded_msp
-    fraction = next(
-        item for item in row["flowsheet_switch_deltas"]
-        if item["field"] == "WC_over_FCI"
-    )
-    assert fraction["recorded_value"] == pytest.approx(0.05)
-    assert fraction["requested_value"] == pytest.approx(0.10)
-    assert row.get("WC_over_FCI") == pytest.approx(0.10)
-    assert not any(
-        item["field"] == "startup_salesfrac"
-        for item in row["flowsheet_switch_deltas"]
-    )
+    delta = next((item for item in row["flowsheet_switch_deltas"] if item["field"] == field))
+    assert delta["requested_value"] == pytest.approx(requested)
 
 
 @pytest.mark.parametrize(
@@ -2821,56 +2557,6 @@ def test_wc_over_fci_is_a_legal_override(monkeypatch, value, value_2, WC_over_FC
     assert fraction["requested_value"] == pytest.approx(value_2)
 
 
-def test_negative_wc_over_fci_is_refused():
-    record = _record_with_energy("C1")
-    with pytest.raises(tea._ScenarioInputError) as caught:
-        tea._scenario_config(_public_from_record_tea_exposed_coefficients(record, WC_over_FCI=-0.1))
-    assert caught.value.error_code == "invalid_scenario"
-    assert caught.value.details["field"] == "WC_over_FCI"
-
-
-def test_percent_integer_wc_over_fci_is_refused():
-    record = _record_with_energy("C1")
-    with pytest.raises(tea._ScenarioInputError) as caught:
-        tea._scenario_config(_public_from_record_tea_exposed_coefficients(record, WC_over_FCI=5))
-    assert caught.value.error_code == "invalid_scenario"
-    assert caught.value.details["field"] == "WC_over_FCI"
-
-
-def test_cache_mode_refuses_warehouse_override_instead_of_the_other_plant(
-    monkeypatch,
-):
-    record = _record_with_energy("C1")
-    recorded_msp = float(record["result"]["tea"]["msp_usd_per_kg"])
-
-    def forbidden_live(config, timeout_seconds):
-        raise AssertionError(
-            "warehouse mismatch must not fall through to live"
-        )
-
-    monkeypatch.setattr(tea, "_live", forbidden_live)
-    payload = _data_tea_exposed_coefficients(tea.evaluate_tea_lca_scenarios(
-        [_public_from_record_tea_exposed_coefficients(record, warehouse=0.08)],
-        engine_mode="cache",
-    ))
-    assert payload.get("success") is False
-    assert payload.get("error_code") == "cache_flowsheet_mismatch"
-    row = (payload.get("failures") or [])[0]
-    assert row.get("msp_usd_per_kg") is None
-    assert row.get("msp_usd_per_kg") != recorded_msp
-    fraction = next(
-        item for item in row["flowsheet_switch_deltas"]
-        if item["field"] == "warehouse"
-    )
-    assert fraction["recorded_value"] == pytest.approx(0.04)
-    assert fraction["requested_value"] == pytest.approx(0.08)
-    assert row.get("warehouse") == pytest.approx(0.08)
-    assert not any(
-        item["field"] == "WC_over_FCI"
-        for item in row["flowsheet_switch_deltas"]
-    )
-
-
 @pytest.mark.parametrize(
     ('value', 'value_2', 'warehouse'),
     [
@@ -2899,56 +2585,6 @@ def test_warehouse_is_a_legal_override(monkeypatch, value, value_2, warehouse):
         if item["field"] == "warehouse"
     )
     assert fraction["requested_value"] == pytest.approx(value_2)
-
-
-def test_negative_warehouse_is_refused():
-    record = _record_with_energy("C1")
-    with pytest.raises(tea._ScenarioInputError) as caught:
-        tea._scenario_config(_public_from_record_tea_exposed_coefficients(record, warehouse=-0.1))
-    assert caught.value.error_code == "invalid_scenario"
-    assert caught.value.details["field"] == "warehouse"
-
-
-def test_percent_integer_warehouse_is_refused():
-    record = _record_with_energy("C1")
-    with pytest.raises(tea._ScenarioInputError) as caught:
-        tea._scenario_config(_public_from_record_tea_exposed_coefficients(record, warehouse=4))
-    assert caught.value.error_code == "invalid_scenario"
-    assert caught.value.details["field"] == "warehouse"
-
-
-def test_cache_mode_refuses_site_development_override_instead_of_the_other_plant(
-    monkeypatch,
-):
-    record = _record_with_energy("C1")
-    recorded_msp = float(record["result"]["tea"]["msp_usd_per_kg"])
-
-    def forbidden_live(config, timeout_seconds):
-        raise AssertionError(
-            "site_development mismatch must not fall through to live"
-        )
-
-    monkeypatch.setattr(tea, "_live", forbidden_live)
-    payload = _data_tea_exposed_coefficients(tea.evaluate_tea_lca_scenarios(
-        [_public_from_record_tea_exposed_coefficients(record, site_development=0.18)],
-        engine_mode="cache",
-    ))
-    assert payload.get("success") is False
-    assert payload.get("error_code") == "cache_flowsheet_mismatch"
-    row = (payload.get("failures") or [])[0]
-    assert row.get("msp_usd_per_kg") is None
-    assert row.get("msp_usd_per_kg") != recorded_msp
-    fraction = next(
-        item for item in row["flowsheet_switch_deltas"]
-        if item["field"] == "site_development"
-    )
-    assert fraction["recorded_value"] == pytest.approx(0.09)
-    assert fraction["requested_value"] == pytest.approx(0.18)
-    assert row.get("site_development") == pytest.approx(0.18)
-    assert not any(
-        item["field"] == "warehouse"
-        for item in row["flowsheet_switch_deltas"]
-    )
 
 
 @pytest.mark.parametrize(
@@ -2981,56 +2617,6 @@ def test_site_development_is_a_legal_override(monkeypatch, value, value_2, site_
     assert fraction["requested_value"] == pytest.approx(value_2)
 
 
-def test_negative_site_development_is_refused():
-    record = _record_with_energy("C1")
-    with pytest.raises(tea._ScenarioInputError) as caught:
-        tea._scenario_config(_public_from_record_tea_exposed_coefficients(record, site_development=-0.1))
-    assert caught.value.error_code == "invalid_scenario"
-    assert caught.value.details["field"] == "site_development"
-
-
-def test_percent_integer_site_development_is_refused():
-    record = _record_with_energy("C1")
-    with pytest.raises(tea._ScenarioInputError) as caught:
-        tea._scenario_config(_public_from_record_tea_exposed_coefficients(record, site_development=9))
-    assert caught.value.error_code == "invalid_scenario"
-    assert caught.value.details["field"] == "site_development"
-
-
-def test_cache_mode_refuses_additional_piping_override_instead_of_the_other_plant(
-    monkeypatch,
-):
-    record = _record_with_energy("C1")
-    recorded_msp = float(record["result"]["tea"]["msp_usd_per_kg"])
-
-    def forbidden_live(config, timeout_seconds):
-        raise AssertionError(
-            "additional_piping mismatch must not fall through to live"
-        )
-
-    monkeypatch.setattr(tea, "_live", forbidden_live)
-    payload = _data_tea_exposed_coefficients(tea.evaluate_tea_lca_scenarios(
-        [_public_from_record_tea_exposed_coefficients(record, additional_piping=0.09)],
-        engine_mode="cache",
-    ))
-    assert payload.get("success") is False
-    assert payload.get("error_code") == "cache_flowsheet_mismatch"
-    row = (payload.get("failures") or [])[0]
-    assert row.get("msp_usd_per_kg") is None
-    assert row.get("msp_usd_per_kg") != recorded_msp
-    fraction = next(
-        item for item in row["flowsheet_switch_deltas"]
-        if item["field"] == "additional_piping"
-    )
-    assert fraction["recorded_value"] == pytest.approx(0.045)
-    assert fraction["requested_value"] == pytest.approx(0.09)
-    assert row.get("additional_piping") == pytest.approx(0.09)
-    assert not any(
-        item["field"] == "site_development"
-        for item in row["flowsheet_switch_deltas"]
-    )
-
-
 @pytest.mark.parametrize(
     ('value', 'value_2', 'additional_piping'),
     [
@@ -3059,56 +2645,6 @@ def test_additional_piping_is_a_legal_override(monkeypatch, value, value_2, addi
         if item["field"] == "additional_piping"
     )
     assert fraction["requested_value"] == pytest.approx(value_2)
-
-
-def test_negative_additional_piping_is_refused():
-    record = _record_with_energy("C1")
-    with pytest.raises(tea._ScenarioInputError) as caught:
-        tea._scenario_config(_public_from_record_tea_exposed_coefficients(record, additional_piping=-0.1))
-    assert caught.value.error_code == "invalid_scenario"
-    assert caught.value.details["field"] == "additional_piping"
-
-
-def test_percent_integer_additional_piping_is_refused():
-    record = _record_with_energy("C1")
-    with pytest.raises(tea._ScenarioInputError) as caught:
-        tea._scenario_config(_public_from_record_tea_exposed_coefficients(record, additional_piping=5))
-    assert caught.value.error_code == "invalid_scenario"
-    assert caught.value.details["field"] == "additional_piping"
-
-
-def test_cache_mode_refuses_proratable_costs_override_instead_of_the_other_plant(
-    monkeypatch,
-):
-    record = _record_with_energy("C1")
-    recorded_msp = float(record["result"]["tea"]["msp_usd_per_kg"])
-
-    def forbidden_live(config, timeout_seconds):
-        raise AssertionError(
-            "proratable_costs mismatch must not fall through to live"
-        )
-
-    monkeypatch.setattr(tea, "_live", forbidden_live)
-    payload = _data_tea_exposed_coefficients(tea.evaluate_tea_lca_scenarios(
-        [_public_from_record_tea_exposed_coefficients(record, proratable_costs=0.20)],
-        engine_mode="cache",
-    ))
-    assert payload.get("success") is False
-    assert payload.get("error_code") == "cache_flowsheet_mismatch"
-    row = (payload.get("failures") or [])[0]
-    assert row.get("msp_usd_per_kg") is None
-    assert row.get("msp_usd_per_kg") != recorded_msp
-    fraction = next(
-        item for item in row["flowsheet_switch_deltas"]
-        if item["field"] == "proratable_costs"
-    )
-    assert fraction["recorded_value"] == pytest.approx(0.10)
-    assert fraction["requested_value"] == pytest.approx(0.20)
-    assert row.get("proratable_costs") == pytest.approx(0.20)
-    assert not any(
-        item["field"] == "additional_piping"
-        for item in row["flowsheet_switch_deltas"]
-    )
 
 
 @pytest.mark.parametrize(
@@ -3141,56 +2677,6 @@ def test_proratable_costs_is_a_legal_override(monkeypatch, value, value_2, prora
     assert fraction["requested_value"] == pytest.approx(value_2)
 
 
-def test_negative_proratable_costs_is_refused():
-    record = _record_with_energy("C1")
-    with pytest.raises(tea._ScenarioInputError) as caught:
-        tea._scenario_config(_public_from_record_tea_exposed_coefficients(record, proratable_costs=-0.1))
-    assert caught.value.error_code == "invalid_scenario"
-    assert caught.value.details["field"] == "proratable_costs"
-
-
-def test_percent_integer_proratable_costs_is_refused():
-    record = _record_with_energy("C1")
-    with pytest.raises(tea._ScenarioInputError) as caught:
-        tea._scenario_config(_public_from_record_tea_exposed_coefficients(record, proratable_costs=10))
-    assert caught.value.error_code == "invalid_scenario"
-    assert caught.value.details["field"] == "proratable_costs"
-
-
-def test_cache_mode_refuses_field_expenses_override_instead_of_the_other_plant(
-    monkeypatch,
-):
-    record = _record_with_energy("C1")
-    recorded_msp = float(record["result"]["tea"]["msp_usd_per_kg"])
-
-    def forbidden_live(config, timeout_seconds):
-        raise AssertionError(
-            "field_expenses mismatch must not fall through to live"
-        )
-
-    monkeypatch.setattr(tea, "_live", forbidden_live)
-    payload = _data_tea_exposed_coefficients(tea.evaluate_tea_lca_scenarios(
-        [_public_from_record_tea_exposed_coefficients(record, field_expenses=0.20)],
-        engine_mode="cache",
-    ))
-    assert payload.get("success") is False
-    assert payload.get("error_code") == "cache_flowsheet_mismatch"
-    row = (payload.get("failures") or [])[0]
-    assert row.get("msp_usd_per_kg") is None
-    assert row.get("msp_usd_per_kg") != recorded_msp
-    fraction = next(
-        item for item in row["flowsheet_switch_deltas"]
-        if item["field"] == "field_expenses"
-    )
-    assert fraction["recorded_value"] == pytest.approx(0.10)
-    assert fraction["requested_value"] == pytest.approx(0.20)
-    assert row.get("field_expenses") == pytest.approx(0.20)
-    assert not any(
-        item["field"] == "proratable_costs"
-        for item in row["flowsheet_switch_deltas"]
-    )
-
-
 @pytest.mark.parametrize(
     ('value', 'value_2', 'field_expenses'),
     [
@@ -3219,56 +2705,6 @@ def test_field_expenses_is_a_legal_override(monkeypatch, value, value_2, field_e
         if item["field"] == "field_expenses"
     )
     assert fraction["requested_value"] == pytest.approx(value_2)
-
-
-def test_negative_field_expenses_is_refused():
-    record = _record_with_energy("C1")
-    with pytest.raises(tea._ScenarioInputError) as caught:
-        tea._scenario_config(_public_from_record_tea_exposed_coefficients(record, field_expenses=-0.1))
-    assert caught.value.error_code == "invalid_scenario"
-    assert caught.value.details["field"] == "field_expenses"
-
-
-def test_percent_integer_field_expenses_is_refused():
-    record = _record_with_energy("C1")
-    with pytest.raises(tea._ScenarioInputError) as caught:
-        tea._scenario_config(_public_from_record_tea_exposed_coefficients(record, field_expenses=10))
-    assert caught.value.error_code == "invalid_scenario"
-    assert caught.value.details["field"] == "field_expenses"
-
-
-def test_cache_mode_refuses_construction_override_instead_of_the_other_plant(
-    monkeypatch,
-):
-    record = _record_with_energy("C1")
-    recorded_msp = float(record["result"]["tea"]["msp_usd_per_kg"])
-
-    def forbidden_live(config, timeout_seconds):
-        raise AssertionError(
-            "construction mismatch must not fall through to live"
-        )
-
-    monkeypatch.setattr(tea, "_live", forbidden_live)
-    payload = _data_tea_exposed_coefficients(tea.evaluate_tea_lca_scenarios(
-        [_public_from_record_tea_exposed_coefficients(record, construction=0.40)],
-        engine_mode="cache",
-    ))
-    assert payload.get("success") is False
-    assert payload.get("error_code") == "cache_flowsheet_mismatch"
-    row = (payload.get("failures") or [])[0]
-    assert row.get("msp_usd_per_kg") is None
-    assert row.get("msp_usd_per_kg") != recorded_msp
-    fraction = next(
-        item for item in row["flowsheet_switch_deltas"]
-        if item["field"] == "construction"
-    )
-    assert fraction["recorded_value"] == pytest.approx(0.20)
-    assert fraction["requested_value"] == pytest.approx(0.40)
-    assert row.get("construction") == pytest.approx(0.40)
-    assert not any(
-        item["field"] == "field_expenses"
-        for item in row["flowsheet_switch_deltas"]
-    )
 
 
 @pytest.mark.parametrize(
@@ -3301,56 +2737,6 @@ def test_construction_is_a_legal_override(monkeypatch, value, value_2, construct
     assert fraction["requested_value"] == pytest.approx(value_2)
 
 
-def test_negative_construction_is_refused():
-    record = _record_with_energy("C1")
-    with pytest.raises(tea._ScenarioInputError) as caught:
-        tea._scenario_config(_public_from_record_tea_exposed_coefficients(record, construction=-0.1))
-    assert caught.value.error_code == "invalid_scenario"
-    assert caught.value.details["field"] == "construction"
-
-
-def test_percent_integer_construction_is_refused():
-    record = _record_with_energy("C1")
-    with pytest.raises(tea._ScenarioInputError) as caught:
-        tea._scenario_config(_public_from_record_tea_exposed_coefficients(record, construction=20))
-    assert caught.value.error_code == "invalid_scenario"
-    assert caught.value.details["field"] == "construction"
-
-
-def test_cache_mode_refuses_contingency_override_instead_of_the_other_plant(
-    monkeypatch,
-):
-    record = _record_with_energy("C1")
-    recorded_msp = float(record["result"]["tea"]["msp_usd_per_kg"])
-
-    def forbidden_live(config, timeout_seconds):
-        raise AssertionError(
-            "contingency mismatch must not fall through to live"
-        )
-
-    monkeypatch.setattr(tea, "_live", forbidden_live)
-    payload = _data_tea_exposed_coefficients(tea.evaluate_tea_lca_scenarios(
-        [_public_from_record_tea_exposed_coefficients(record, contingency=0.80)],
-        engine_mode="cache",
-    ))
-    assert payload.get("success") is False
-    assert payload.get("error_code") == "cache_flowsheet_mismatch"
-    row = (payload.get("failures") or [])[0]
-    assert row.get("msp_usd_per_kg") is None
-    assert row.get("msp_usd_per_kg") != recorded_msp
-    fraction = next(
-        item for item in row["flowsheet_switch_deltas"]
-        if item["field"] == "contingency"
-    )
-    assert fraction["recorded_value"] == pytest.approx(0.4)
-    assert fraction["requested_value"] == pytest.approx(0.80)
-    assert row.get("contingency") == pytest.approx(0.80)
-    assert not any(
-        item["field"] == "construction"
-        for item in row["flowsheet_switch_deltas"]
-    )
-
-
 @pytest.mark.parametrize(
     ('value', 'value_2', 'contingency'),
     [
@@ -3379,56 +2765,6 @@ def test_contingency_is_a_legal_override(monkeypatch, value, value_2, contingenc
         if item["field"] == "contingency"
     )
     assert fraction["requested_value"] == pytest.approx(value_2)
-
-
-def test_negative_contingency_is_refused():
-    record = _record_with_energy("C1")
-    with pytest.raises(tea._ScenarioInputError) as caught:
-        tea._scenario_config(_public_from_record_tea_exposed_coefficients(record, contingency=-0.1))
-    assert caught.value.error_code == "invalid_scenario"
-    assert caught.value.details["field"] == "contingency"
-
-
-def test_percent_integer_contingency_is_refused():
-    record = _record_with_energy("C1")
-    with pytest.raises(tea._ScenarioInputError) as caught:
-        tea._scenario_config(_public_from_record_tea_exposed_coefficients(record, contingency=40))
-    assert caught.value.error_code == "invalid_scenario"
-    assert caught.value.details["field"] == "contingency"
-
-
-def test_cache_mode_refuses_other_indirect_costs_override_instead_of_the_other_plant(
-    monkeypatch,
-):
-    record = _record_with_energy("C1")
-    recorded_msp = float(record["result"]["tea"]["msp_usd_per_kg"])
-
-    def forbidden_live(config, timeout_seconds):
-        raise AssertionError(
-            "other_indirect_costs mismatch must not fall through to live"
-        )
-
-    monkeypatch.setattr(tea, "_live", forbidden_live)
-    payload = _data_tea_exposed_coefficients(tea.evaluate_tea_lca_scenarios(
-        [_public_from_record_tea_exposed_coefficients(record, other_indirect_costs=0.20)],
-        engine_mode="cache",
-    ))
-    assert payload.get("success") is False
-    assert payload.get("error_code") == "cache_flowsheet_mismatch"
-    row = (payload.get("failures") or [])[0]
-    assert row.get("msp_usd_per_kg") is None
-    assert row.get("msp_usd_per_kg") != recorded_msp
-    fraction = next(
-        item for item in row["flowsheet_switch_deltas"]
-        if item["field"] == "other_indirect_costs"
-    )
-    assert fraction["recorded_value"] == pytest.approx(0.10)
-    assert fraction["requested_value"] == pytest.approx(0.20)
-    assert row.get("other_indirect_costs") == pytest.approx(0.20)
-    assert not any(
-        item["field"] == "contingency"
-        for item in row["flowsheet_switch_deltas"]
-    )
 
 
 @pytest.mark.parametrize(
@@ -3461,56 +2797,6 @@ def test_other_indirect_costs_is_a_legal_override(monkeypatch, value, value_2, o
     assert fraction["requested_value"] == pytest.approx(value_2)
 
 
-def test_negative_other_indirect_costs_is_refused():
-    record = _record_with_energy("C1")
-    with pytest.raises(tea._ScenarioInputError) as caught:
-        tea._scenario_config(_public_from_record_tea_exposed_coefficients(record, other_indirect_costs=-0.1))
-    assert caught.value.error_code == "invalid_scenario"
-    assert caught.value.details["field"] == "other_indirect_costs"
-
-
-def test_percent_integer_other_indirect_costs_is_refused():
-    record = _record_with_energy("C1")
-    with pytest.raises(tea._ScenarioInputError) as caught:
-        tea._scenario_config(_public_from_record_tea_exposed_coefficients(record, other_indirect_costs=10))
-    assert caught.value.error_code == "invalid_scenario"
-    assert caught.value.details["field"] == "other_indirect_costs"
-
-
-def test_cache_mode_refuses_property_insurance_override_instead_of_the_other_plant(
-    monkeypatch,
-):
-    record = _record_with_energy("C1")
-    recorded_msp = float(record["result"]["tea"]["msp_usd_per_kg"])
-
-    def forbidden_live(config, timeout_seconds):
-        raise AssertionError(
-            "property_insurance mismatch must not fall through to live"
-        )
-
-    monkeypatch.setattr(tea, "_live", forbidden_live)
-    payload = _data_tea_exposed_coefficients(tea.evaluate_tea_lca_scenarios(
-        [_public_from_record_tea_exposed_coefficients(record, property_insurance=0.014)],
-        engine_mode="cache",
-    ))
-    assert payload.get("success") is False
-    assert payload.get("error_code") == "cache_flowsheet_mismatch"
-    row = (payload.get("failures") or [])[0]
-    assert row.get("msp_usd_per_kg") is None
-    assert row.get("msp_usd_per_kg") != recorded_msp
-    fraction = next(
-        item for item in row["flowsheet_switch_deltas"]
-        if item["field"] == "property_insurance"
-    )
-    assert fraction["recorded_value"] == pytest.approx(0.007)
-    assert fraction["requested_value"] == pytest.approx(0.014)
-    assert row.get("property_insurance") == pytest.approx(0.014)
-    assert not any(
-        item["field"] == "other_indirect_costs"
-        for item in row["flowsheet_switch_deltas"]
-    )
-
-
 @pytest.mark.parametrize(
     ('value', 'value_2', 'property_insurance'),
     [
@@ -3541,56 +2827,6 @@ def test_property_insurance_is_a_legal_override(monkeypatch, value, value_2, pro
     assert fraction["requested_value"] == pytest.approx(value_2)
 
 
-def test_negative_property_insurance_is_refused():
-    record = _record_with_energy("C1")
-    with pytest.raises(tea._ScenarioInputError) as caught:
-        tea._scenario_config(_public_from_record_tea_exposed_coefficients(record, property_insurance=-0.1))
-    assert caught.value.error_code == "invalid_scenario"
-    assert caught.value.details["field"] == "property_insurance"
-
-
-def test_percent_integer_property_insurance_is_refused():
-    record = _record_with_energy("C1")
-    with pytest.raises(tea._ScenarioInputError) as caught:
-        tea._scenario_config(_public_from_record_tea_exposed_coefficients(record, property_insurance=7))
-    assert caught.value.error_code == "invalid_scenario"
-    assert caught.value.details["field"] == "property_insurance"
-
-
-def test_cache_mode_refuses_maintenance_override_instead_of_the_other_plant(
-    monkeypatch,
-):
-    record = _record_with_energy("C1")
-    recorded_msp = float(record["result"]["tea"]["msp_usd_per_kg"])
-
-    def forbidden_live(config, timeout_seconds):
-        raise AssertionError(
-            "maintenance mismatch must not fall through to live"
-        )
-
-    monkeypatch.setattr(tea, "_live", forbidden_live)
-    payload = _data_tea_exposed_coefficients(tea.evaluate_tea_lca_scenarios(
-        [_public_from_record_tea_exposed_coefficients(record, maintenance=0.06)],
-        engine_mode="cache",
-    ))
-    assert payload.get("success") is False
-    assert payload.get("error_code") == "cache_flowsheet_mismatch"
-    row = (payload.get("failures") or [])[0]
-    assert row.get("msp_usd_per_kg") is None
-    assert row.get("msp_usd_per_kg") != recorded_msp
-    fraction = next(
-        item for item in row["flowsheet_switch_deltas"]
-        if item["field"] == "maintenance"
-    )
-    assert fraction["recorded_value"] == pytest.approx(0.03)
-    assert fraction["requested_value"] == pytest.approx(0.06)
-    assert row.get("maintenance") == pytest.approx(0.06)
-    assert not any(
-        item["field"] == "property_insurance"
-        for item in row["flowsheet_switch_deltas"]
-    )
-
-
 @pytest.mark.parametrize(
     ('value', 'value_2', 'maintenance'),
     [
@@ -3619,22 +2855,6 @@ def test_maintenance_is_a_legal_override(monkeypatch, value, value_2, maintenanc
         if item["field"] == "maintenance"
     )
     assert fraction["requested_value"] == pytest.approx(value_2)
-
-
-def test_negative_maintenance_is_refused():
-    record = _record_with_energy("C1")
-    with pytest.raises(tea._ScenarioInputError) as caught:
-        tea._scenario_config(_public_from_record_tea_exposed_coefficients(record, maintenance=-0.1))
-    assert caught.value.error_code == "invalid_scenario"
-    assert caught.value.details["field"] == "maintenance"
-
-
-def test_percent_integer_maintenance_is_refused():
-    record = _record_with_energy("C1")
-    with pytest.raises(tea._ScenarioInputError) as caught:
-        tea._scenario_config(_public_from_record_tea_exposed_coefficients(record, maintenance=3))
-    assert caught.value.error_code == "invalid_scenario"
-    assert caught.value.details["field"] == "maintenance"
 
 
 @pytest.mark.parametrize(
@@ -3891,14 +3111,6 @@ def test_c2_still_carries_duration():
     assert tea._cache_index().get(tea._config_key(reconstructed))["label"] == (
         record["label"]
     )
-
-
-def test_years_scalar_is_not_duration():
-    record = _record_with_energy("C1")
-    with pytest.raises(tea._ScenarioInputError) as caught:
-        tea._scenario_config(_public_from_record_tea_exposed_coefficients(record, duration=30))
-    assert caught.value.error_code == "invalid_scenario"
-    assert caught.value.details["field"] == "duration"
 
 
 def test_three_year_duration_is_refused():
@@ -4204,14 +3416,6 @@ def test_omitted_evaluate_echoes_production_lang_factor(monkeypatch):
     row = (payload.get("comparison_rows") or [])[0]
     assert row.get("lang_factor") is None
     assert row.get("msp_usd_per_kg") == pytest.approx(recorded_msp)
-
-
-def test_percent_integer_income_tax_is_refused():
-    record = _record_with_energy("C1")
-    with pytest.raises(tea._ScenarioInputError) as caught:
-        tea._scenario_config(_public_from_record_tea_exposed_coefficients(record, income_tax=21))
-    assert caught.value.error_code == "invalid_scenario"
-    assert caught.value.details["field"] == "income_tax"
 
 
 def test_other_g_constructor_coefficients_are_not_dumped():

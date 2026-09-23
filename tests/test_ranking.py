@@ -2326,50 +2326,141 @@ def test_omitted_energy_case_is_not_a_silent_c1(monkeypatch):
         assert row.get("energy_case") != "C1"
 
 
-def test_c2_rows_still_complete_when_energy_case_is_omitted(monkeypatch):
+@pytest.mark.parametrize(
+    "field, planted",
+    [
+        pytest.param("energy_case", "C2", id="c2_rows_still_complete_when_energy_case_is"),
+        pytest.param("dissolution_temperature_c", 80.0, id="planted_t_still_completes_when_dissolution_t_is"),
+        pytest.param("precipitation_temperature_c", 35.0, id="planted_t_still_completes_when_precipitation_t_is"),
+        pytest.param("solvent_price_usd_per_kg", 1.5, id="planted_price_still_completes_when_solvent_price_is"),
+        pytest.param("solvent_loss_pct", 0.5, id="planted_loss_still_completes_when_solvent_loss_is"),
+        pytest.param("steam_power_depreciation", "MACRS20", id="default_steam_power_rows_still_complete_when"),
+    ],
+)
+def test_planted_rows_still_complete_when_the_field_is_omitted(monkeypatch, field, planted):
     _forbid_live_rank_solvent_maps(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
-        handle = _plant_handle(session, _complete_d18_rows(energy_case="C2"))
+        handle = _plant_handle(session, _complete_d18_rows(**{field: planted}))
         payload = _data(tea.rank_landscape(**_sequence_kwargs(handle=handle)))
     assert payload.get("error_code") == "sequence_coupling_unproven"
     assert "pending_blockers" not in payload
     assert "landscape_points" not in payload
 
 
-def test_named_c1_slice_does_not_accept_c2_rows(monkeypatch):
+@pytest.mark.parametrize(
+    "missing, field, planted, requested",
+    [
+        pytest.param("C1", "energy_case", "C2", "C1", id="c1_slice_does_not_accept_c2_rows"),
+        pytest.param(90.0, "dissolution_temperature_c", 80.0, 90.0, id="dissolution_t_does_not_accept_another_t"),
+        pytest.param(40.0, "precipitation_temperature_c", 35.0, 40.0, id="precipitation_t_does_not_accept_another_t"),
+        pytest.param(2.0, "solvent_price_usd_per_kg", 1.5, 2.0, id="solvent_price_does_not_accept_another_price"),
+        pytest.param(3.0, "solvent_loss_pct", 0.5, 3.0, id="solvent_loss_does_not_accept_another_loss"),
+        pytest.param(
+            250.0, "feedstock_distance_km", 100.0, 250.0, id="feedstock_distance_does_not_accept_another_distance"
+        ),
+        pytest.param(5.0, "dissolution_capacity", 3.0, 5.0, id="dissolution_capacity_does_not_accept_another_capacity"),
+        pytest.param(
+            150000.0, "labor_cost_usd_per_employee_yr", 120000.0, 150000.0, id="labor_does_not_accept_another_labor"
+        ),
+        pytest.param(True, "sell_leftover_plastic", False, True, id="true_does_not_accept_false_rows"),
+        pytest.param(True, "burn_leftover_plastic", False, True, id="burn_true_does_not_accept_false_rows"),
+        pytest.param(
+            "drop", "precipitation_temperature_format", "constant", "drop", id="drop_does_not_accept_constant_rows"
+        ),
+        pytest.param(0.12, "irr", 0.1, 0.12, id="irr_does_not_accept_default_rows"),
+        pytest.param(0.25, "income_tax", 0.21, 0.25, id="income_tax_does_not_accept_default_rows"),
+        pytest.param(365.0, "operating_days", 350.4, 365, id="operating_days_does_not_accept_default_rows"),
+        pytest.param(1.5, "labor_burden", 0.9, 1.5, id="labor_burden_does_not_accept_default_rows"),
+        pytest.param(0.12, "finance_interest", 0.08, 0.12, id="finance_interest_does_not_accept_default_rows"),
+        pytest.param(15.0, "finance_years", 10, 15, id="finance_years_does_not_accept_default_rows"),
+        pytest.param(0.4, "finance_fraction", 0.0, 0.4, id="finance_fraction_does_not_accept_default_rows"),
+        pytest.param(6.0, "startup_months", 3, 6, id="startup_months_does_not_accept_default_rows"),
+        pytest.param(0.5, "startup_FOCfrac", 1.0, 0.5, id="startup_FOCfrac_does_not_accept_default_rows"),
+        pytest.param(0.5, "startup_VOCfrac", 0.75, 0.5, id="startup_VOCfrac_does_not_accept_default_rows"),
+        pytest.param(0.25, "startup_salesfrac", 0.5, 0.25, id="startup_salesfrac_does_not_accept_default_rows"),
+        pytest.param(0.1, "WC_over_FCI", 0.05, 0.1, id="WC_over_FCI_does_not_accept_default_rows"),
+        pytest.param(0.1, "warehouse", 0.04, 0.1, id="warehouse_does_not_accept_default_rows"),
+        pytest.param(0.1, "site_development", 0.09, 0.1, id="site_development_does_not_accept_default_rows"),
+        pytest.param(0.1, "additional_piping", 0.045, 0.1, id="additional_piping_does_not_accept_default_rows"),
+        pytest.param(0.2, "proratable_costs", 0.1, 0.2, id="proratable_costs_does_not_accept_default_rows"),
+        pytest.param(0.2, "field_expenses", 0.1, 0.2, id="field_expenses_does_not_accept_default_rows"),
+        pytest.param(0.1, "construction", 0.2, 0.1, id="construction_does_not_accept_default_rows"),
+        pytest.param(0.1, "contingency", 0.4, 0.1, id="contingency_does_not_accept_default_rows"),
+        pytest.param(0.2, "other_indirect_costs", 0.1, 0.2, id="other_indirect_costs_does_not_accept_default_rows"),
+        pytest.param(0.1, "property_insurance", 0.007, 0.1, id="property_insurance_does_not_accept_default_rows"),
+        pytest.param(0.1, "maintenance", 0.03, 0.1, id="maintenance_does_not_accept_default_rows"),
+        pytest.param("MACRS5", "depreciation", "MACRS7", "MACRS5", id="depreciation_does_not_accept_default_rows"),
+        pytest.param(
+            "MACRS7", "steam_power_depreciation", "MACRS20", "MACRS7", id="steam_power_does_not_accept_default_rows"
+        ),
+    ],
+)
+def test_named_slice_does_not_accept_other_rows(monkeypatch, missing, field, planted, requested):
     _forbid_live_rank_solvent_maps(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
-        handle = _plant_handle(session, _complete_d18_rows(energy_case="C2"))
-        payload = _data(tea.rank_landscape(
-            **_sequence_kwargs(
-                handle=handle,
-                process_config={**_CAP_20KT, "energy_case": "C1"},
-            ),
-        ))
+        handle = _plant_handle(session, _complete_d18_rows(**{field: planted}))
+        payload = _data(
+            tea.rank_landscape(**_sequence_kwargs(handle=handle, process_config={**_CAP_20KT, field: requested}))
+        )
     assert payload.get("error_code") == "incomplete_stage_basis_grid"
     assert payload.get("error_code") != "sequence_coupling_unproven"
     keys = payload["missing_keys"]
     assert len(keys) == 4
-    assert {row["energy_case"] for row in keys} == {"C1"}
-    assert payload["pending_blockers"][0]["error_type"] == (
-        "sequence_coupling_unproven"
-    )
+    assert {row[field] for row in keys} == {missing}
+    assert payload["pending_blockers"][0]["error_type"] == "sequence_coupling_unproven"
     assert "landscape_points" not in payload
 
 
-def test_named_c1_slice_completes_on_c1_rows(monkeypatch):
+@pytest.mark.parametrize(
+    "field, planted, requested",
+    [
+        pytest.param("energy_case", "C1", "C1", id="c1_slice_completes_on_c1"),
+        pytest.param("dissolution_temperature_c", 90.0, 90.0, id="dissolution_t_completes_on_matching"),
+        pytest.param("precipitation_temperature_c", 40.0, 40.0, id="precipitation_t_completes_on_matching"),
+        pytest.param("solvent_price_usd_per_kg", 2.0, 2.0, id="solvent_price_completes_on_matching"),
+        pytest.param("solvent_loss_pct", 3.0, 3.0, id="solvent_loss_completes_on_matching"),
+        pytest.param("feedstock_distance_km", 250.0, 250.0, id="feedstock_distance_completes_on_matching"),
+        pytest.param("dissolution_capacity", 5.0, 5.0, id="dissolution_capacity_completes_on_matching"),
+        pytest.param("labor_cost_usd_per_employee_yr", 150000.0, 150000.0, id="labor_completes_on_matching"),
+        pytest.param("sell_leftover_plastic", True, True, id="true_completes_on_matching"),
+        pytest.param("burn_leftover_plastic", True, True, id="burn_true_completes_on_matching"),
+        pytest.param("precipitation_temperature_format", "drop", "drop", id="drop_completes_on_matching"),
+        pytest.param("irr", 0.12, 0.12, id="irr_completes_on_matching"),
+        pytest.param("income_tax", 0.25, 0.25, id="income_tax_completes_on_matching"),
+        pytest.param("operating_days", 365.0, 365, id="operating_days_completes_on_matching"),
+        pytest.param("labor_burden", 1.5, 1.5, id="labor_burden_completes_on_matching"),
+        pytest.param("finance_interest", 0.12, 0.12, id="finance_interest_completes_on_matching"),
+        pytest.param("finance_years", 15, 15, id="finance_years_completes_on_matching"),
+        pytest.param("finance_fraction", 0.4, 0.4, id="finance_fraction_completes_on_matching"),
+        pytest.param("startup_months", 6, 6, id="startup_months_completes_on_matching"),
+        pytest.param("startup_FOCfrac", 0.5, 0.5, id="startup_FOCfrac_completes_on_matching"),
+        pytest.param("startup_VOCfrac", 0.5, 0.5, id="startup_VOCfrac_completes_on_matching"),
+        pytest.param("startup_salesfrac", 0.25, 0.25, id="startup_salesfrac_completes_on_matching"),
+        pytest.param("WC_over_FCI", 0.1, 0.1, id="WC_over_FCI_completes_on_matching"),
+        pytest.param("warehouse", 0.1, 0.1, id="warehouse_completes_on_matching"),
+        pytest.param("site_development", 0.1, 0.1, id="site_development_completes_on_matching"),
+        pytest.param("additional_piping", 0.1, 0.1, id="additional_piping_completes_on_matching"),
+        pytest.param("proratable_costs", 0.2, 0.2, id="proratable_costs_completes_on_matching"),
+        pytest.param("field_expenses", 0.2, 0.2, id="field_expenses_completes_on_matching"),
+        pytest.param("construction", 0.1, 0.1, id="construction_completes_on_matching"),
+        pytest.param("contingency", 0.1, 0.1, id="contingency_completes_on_matching"),
+        pytest.param("other_indirect_costs", 0.2, 0.2, id="other_indirect_costs_completes_on_matching"),
+        pytest.param("property_insurance", 0.1, 0.1, id="property_insurance_completes_on_matching"),
+        pytest.param("maintenance", 0.1, 0.1, id="maintenance_completes_on_matching"),
+        pytest.param("depreciation", "MACRS5", "MACRS5", id="depreciation_completes_on_matching"),
+        pytest.param("steam_power_depreciation", "MACRS7", "MACRS7", id="steam_power_completes_on_matching"),
+    ],
+)
+def test_named_slice_completes_on_matching_rows(monkeypatch, field, planted, requested):
     _forbid_live_rank_solvent_maps(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
-        handle = _plant_handle(session, _complete_d18_rows(energy_case="C1"))
-        payload = _data(tea.rank_landscape(
-            **_sequence_kwargs(
-                handle=handle,
-                process_config={**_CAP_20KT, "energy_case": "C1"},
-            ),
-        ))
+        handle = _plant_handle(session, _complete_d18_rows(**{field: planted}))
+        payload = _data(
+            tea.rank_landscape(**_sequence_kwargs(handle=handle, process_config={**_CAP_20KT, field: requested}))
+        )
     assert payload.get("error_code") == "sequence_coupling_unproven"
     assert "pending_blockers" not in payload
     assert "missing_keys" not in payload
@@ -2468,62 +2559,6 @@ def test_omitted(monkeypatch, value):
     assert payload.get("error_code") == "incomplete_stage_basis_grid"
     for row in payload["missing_keys"]:
         assert row.get(value) is None
-
-
-def test_planted_t_still_completes_when_dissolution_t_is_omitted(monkeypatch):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    session = new_session()
-    with bind_tool_session(session):
-        handle = _plant_handle(
-            session, _complete_d18_rows(dissolution_temperature_c=80.0),
-        )
-        payload = _data(tea.rank_landscape(**_sequence_kwargs(handle=handle)))
-    assert payload.get("error_code") == "sequence_coupling_unproven"
-    assert "pending_blockers" not in payload
-    assert "landscape_points" not in payload
-
-
-def test_named_dissolution_t_does_not_accept_another_t(monkeypatch):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    session = new_session()
-    with bind_tool_session(session):
-        handle = _plant_handle(
-            session, _complete_d18_rows(dissolution_temperature_c=80.0),
-        )
-        payload = _data(tea.rank_landscape(
-            **_sequence_kwargs(
-                handle=handle,
-                process_config={**_CAP_20KT, "dissolution_temperature_c": 90.0},
-            ),
-        ))
-    assert payload.get("error_code") == "incomplete_stage_basis_grid"
-    assert payload.get("error_code") != "sequence_coupling_unproven"
-    keys = payload["missing_keys"]
-    assert len(keys) == 4
-    assert {row["dissolution_temperature_c"] for row in keys} == {90.0}
-    assert payload["pending_blockers"][0]["error_type"] == (
-        "sequence_coupling_unproven"
-    )
-    assert "landscape_points" not in payload
-
-
-def test_named_dissolution_t_completes_on_matching_rows(monkeypatch):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    session = new_session()
-    with bind_tool_session(session):
-        handle = _plant_handle(
-            session, _complete_d18_rows(dissolution_temperature_c=90.0),
-        )
-        payload = _data(tea.rank_landscape(
-            **_sequence_kwargs(
-                handle=handle,
-                process_config={**_CAP_20KT, "dissolution_temperature_c": 90.0},
-            ),
-        ))
-    assert payload.get("error_code") == "sequence_coupling_unproven"
-    assert "pending_blockers" not in payload
-    assert "missing_keys" not in payload
-    assert "landscape_points" not in payload
 
 
 @pytest.mark.parametrize(
@@ -2637,13 +2672,54 @@ def test_c1_at_wrong_t_does_not_fill_named_c1_and_t(monkeypatch):
     assert {row["dissolution_temperature_c"] for row in keys} == {90.0}
 
 
-def test_dissolution_temperature_c_kwarg_is_unknown_extra(monkeypatch):
+@pytest.mark.parametrize(
+    "field, value",
+    [
+        pytest.param("dissolution_temperature_c", 90.0, id="dissolution_temperature_c"),
+        pytest.param("precipitation_temperature_c", 40.0, id="precipitation_temperature_c"),
+        pytest.param("precipitation_temp_c", 40.0, id="precipitation_temp_c"),
+        pytest.param("solvent_price_usd_per_kg", 2.0, id="solvent_price_usd_per_kg"),
+        pytest.param("solvent_price", 2.0, id="solvent_price"),
+        pytest.param("solvent_loss_pct", 3.0, id="solvent_loss_pct"),
+        pytest.param("feedstock_distance_km", 250.0, id="feedstock_distance_km"),
+        pytest.param("dissolution_capacity", 5.0, id="dissolution_capacity"),
+        pytest.param("labor_cost_usd_per_employee_yr", 150000.0, id="labor_cost_usd_per_employee_yr"),
+        pytest.param("labor_cost", 150000.0, id="labor_cost"),
+        pytest.param("sell_leftover_plastic", True, id="sell_leftover_plastic"),
+        pytest.param("burn_leftover_plastic", True, id="burn_leftover_plastic"),
+        pytest.param("precipitation_temperature_format", "drop", id="precipitation_temperature_format"),
+        pytest.param("irr", 0.12, id="irr"),
+        pytest.param("income_tax", 0.25, id="income_tax"),
+        pytest.param("operating_days", 365, id="operating_days"),
+        pytest.param("labor_burden", 1.5, id="labor_burden"),
+        pytest.param("finance_interest", 0.12, id="finance_interest"),
+        pytest.param("finance_years", 15, id="finance_years"),
+        pytest.param("finance_fraction", 0.4, id="finance_fraction"),
+        pytest.param("startup_months", 6, id="startup_months"),
+        pytest.param("startup_FOCfrac", 0.5, id="startup_FOCfrac"),
+        pytest.param("startup_VOCfrac", 0.5, id="startup_VOCfrac"),
+        pytest.param("startup_salesfrac", 0.25, id="startup_salesfrac"),
+        pytest.param("WC_over_FCI", 0.1, id="WC_over_FCI"),
+        pytest.param("warehouse", 0.1, id="warehouse"),
+        pytest.param("site_development", 0.1, id="site_development"),
+        pytest.param("additional_piping", 0.1, id="additional_piping"),
+        pytest.param("proratable_costs", 0.2, id="proratable_costs"),
+        pytest.param("field_expenses", 0.2, id="field_expenses"),
+        pytest.param("construction", 0.1, id="construction"),
+        pytest.param("contingency", 0.1, id="contingency"),
+        pytest.param("other_indirect_costs", 0.2, id="other_indirect_costs"),
+        pytest.param("property_insurance", 0.1, id="property_insurance"),
+        pytest.param("maintenance", 0.1, id="maintenance"),
+        pytest.param("depreciation", "MACRS5", id="depreciation"),
+        pytest.param("steam_power_depreciation", "MACRS7", id="steam_power"),
+        pytest.param("lang_factor", 3.0, id="lang_factor"),
+    ],
+)
+def test_process_field_kwarg_is_unknown_extra(monkeypatch, field, value):
     _forbid_live_rank_solvent_maps(monkeypatch)
-    payload = _data(tea.rank_landscape(
-        **_sequence_kwargs(dissolution_temperature_c=90.0),
-    ))
+    payload = _data(tea.rank_landscape(**_sequence_kwargs(**{field: value})))
     assert payload.get("error_code") == "unknown_process_field"
-    assert payload.get("extra_keys") == ["dissolution_temperature_c"]
+    assert payload.get("extra_keys") == [field]
     assert payload.get("error_code") != "incomplete_stage_basis_grid"
 
 
@@ -2830,62 +2906,6 @@ def test_empty_precipitation_t_is_the_omitted_grain_cases(monkeypatch, value, ke
         assert row.get(value) is None
 
 
-def test_planted_t_still_completes_when_precipitation_t_is_omitted(monkeypatch):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    session = new_session()
-    with bind_tool_session(session):
-        handle = _plant_handle(
-            session, _complete_d18_rows(precipitation_temperature_c=35.0),
-        )
-        payload = _data(tea.rank_landscape(**_sequence_kwargs(handle=handle)))
-    assert payload.get("error_code") == "sequence_coupling_unproven"
-    assert "pending_blockers" not in payload
-    assert "landscape_points" not in payload
-
-
-def test_named_precipitation_t_does_not_accept_another_t(monkeypatch):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    session = new_session()
-    with bind_tool_session(session):
-        handle = _plant_handle(
-            session, _complete_d18_rows(precipitation_temperature_c=35.0),
-        )
-        payload = _data(tea.rank_landscape(
-            **_sequence_kwargs(
-                handle=handle,
-                process_config={**_CAP_20KT, "precipitation_temperature_c": 40.0},
-            ),
-        ))
-    assert payload.get("error_code") == "incomplete_stage_basis_grid"
-    assert payload.get("error_code") != "sequence_coupling_unproven"
-    keys = payload["missing_keys"]
-    assert len(keys) == 4
-    assert {row["precipitation_temperature_c"] for row in keys} == {40.0}
-    assert payload["pending_blockers"][0]["error_type"] == (
-        "sequence_coupling_unproven"
-    )
-    assert "landscape_points" not in payload
-
-
-def test_named_precipitation_t_completes_on_matching_rows(monkeypatch):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    session = new_session()
-    with bind_tool_session(session):
-        handle = _plant_handle(
-            session, _complete_d18_rows(precipitation_temperature_c=40.0),
-        )
-        payload = _data(tea.rank_landscape(
-            **_sequence_kwargs(
-                handle=handle,
-                process_config={**_CAP_20KT, "precipitation_temperature_c": 40.0},
-            ),
-        ))
-    assert payload.get("error_code") == "sequence_coupling_unproven"
-    assert "pending_blockers" not in payload
-    assert "missing_keys" not in payload
-    assert "landscape_points" not in payload
-
-
 @pytest.mark.parametrize(
     ('value', 'value_2', 'key', 'key_2', 'value_3', 'value_4'),
     [
@@ -2986,23 +3006,56 @@ def test_c1_and_dissolution_t_at_wrong_precip_do_not_fill(monkeypatch):
     assert {row["precipitation_temperature_c"] for row in keys} == {40.0}
 
 
-def test_mixed_precip_handle_leaves_the_unmatched_remnant(monkeypatch):
+@pytest.mark.parametrize(
+    "remnant, field, missing, planted, requested",
+    [
+        pytest.param(35.0, "precipitation_temperature_c", 40.0, 40.0, 40.0, id="precip"),
+        pytest.param(1.5, "solvent_price_usd_per_kg", 2.0, 2.0, 2.0, id="price"),
+        pytest.param(0.5, "solvent_loss_pct", 3.0, 3.0, 3.0, id="loss"),
+        pytest.param(100.0, "feedstock_distance_km", 250.0, 250.0, 250.0, id="distance"),
+        pytest.param(3.0, "dissolution_capacity", 5.0, 5.0, 5.0, id="capacity"),
+        pytest.param(120000.0, "labor_cost_usd_per_employee_yr", 150000.0, 150000.0, 150000.0, id="labor"),
+        pytest.param("constant", "precipitation_temperature_format", "drop", "drop", "drop", id="format"),
+        pytest.param(0.1, "irr", 0.12, 0.12, 0.12, id="irr"),
+        pytest.param(0.21, "income_tax", 0.25, 0.25, 0.25, id="income_tax"),
+        pytest.param(350.4, "operating_days", 365.0, 365.0, 365, id="operating_days"),
+        pytest.param(0.9, "labor_burden", 1.5, 1.5, 1.5, id="labor_burden"),
+        pytest.param(0.08, "finance_interest", 0.12, 0.12, 0.12, id="finance_interest"),
+        pytest.param(10, "finance_years", 15.0, 15, 15, id="finance_years"),
+        pytest.param(0.0, "finance_fraction", 0.4, 0.4, 0.4, id="finance_fraction"),
+        pytest.param(3, "startup_months", 6.0, 6, 6, id="startup_months"),
+        pytest.param(1.0, "startup_FOCfrac", 0.5, 0.5, 0.5, id="startup_FOCfrac"),
+        pytest.param(0.75, "startup_VOCfrac", 0.5, 0.5, 0.5, id="startup_VOCfrac"),
+        pytest.param(0.5, "startup_salesfrac", 0.25, 0.25, 0.25, id="startup_salesfrac"),
+        pytest.param(0.05, "WC_over_FCI", 0.1, 0.1, 0.1, id="WC_over_FCI"),
+        pytest.param(0.04, "warehouse", 0.1, 0.1, 0.1, id="warehouse"),
+        pytest.param(0.09, "site_development", 0.1, 0.1, 0.1, id="site_development"),
+        pytest.param(0.045, "additional_piping", 0.1, 0.1, 0.1, id="additional_piping"),
+        pytest.param(0.1, "proratable_costs", 0.2, 0.2, 0.2, id="proratable_costs"),
+        pytest.param(0.1, "field_expenses", 0.2, 0.2, 0.2, id="field_expenses"),
+        pytest.param(0.2, "construction", 0.1, 0.1, 0.1, id="construction"),
+        pytest.param(0.4, "contingency", 0.1, 0.1, 0.1, id="contingency"),
+        pytest.param(0.1, "other_indirect_costs", 0.2, 0.2, 0.2, id="other_indirect_costs"),
+        pytest.param(0.007, "property_insurance", 0.1, 0.1, 0.1, id="property_insurance"),
+        pytest.param(0.03, "maintenance", 0.1, 0.1, 0.1, id="maintenance"),
+        pytest.param("MACRS7", "depreciation", "MACRS5", "MACRS5", "MACRS5", id="depreciation"),
+        pytest.param("MACRS20", "steam_power_depreciation", "MACRS7", "MACRS7", "MACRS7", id="steam_power"),
+    ],
+)
+def test_mixed_handle_leaves_the_unmatched_remnant(monkeypatch, remnant, field, missing, planted, requested):
     _forbid_live_rank_solvent_maps(monkeypatch)
-    rows = _complete_d18_rows(precipitation_temperature_c=40.0)
-    rows[-1]["precipitation_temperature_c"] = 35.0
+    rows = _complete_d18_rows(**{field: planted})
+    rows[-1][field] = remnant
     session = new_session()
     with bind_tool_session(session):
         handle = _plant_handle(session, rows)
-        payload = _data(tea.rank_landscape(
-            **_sequence_kwargs(
-                handle=handle,
-                process_config={**_CAP_20KT, "precipitation_temperature_c": 40.0},
-            ),
-        ))
+        payload = _data(
+            tea.rank_landscape(**_sequence_kwargs(handle=handle, process_config={**_CAP_20KT, field: requested}))
+        )
     assert payload.get("error_code") == "incomplete_stage_basis_grid"
     keys = payload["missing_keys"]
     assert len(keys) == 1
-    assert keys[0]["precipitation_temperature_c"] == 40.0
+    assert keys[0][field] == missing
     assert keys[0]["polymer"] == "EVOH"
     assert keys[0]["target_mass_percent"] == 100.0
 
@@ -3033,82 +3086,6 @@ def test_alias_only_row_does_not_fill_named(monkeypatch, value, value_2, value_3
     keys = payload["missing_keys"]
     assert len(keys) == 4
     assert {row[value_4] for row in keys} == {value_3}
-
-
-def test_precipitation_temperature_c_kwarg_is_unknown_extra(monkeypatch):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    payload = _data(tea.rank_landscape(
-        **_sequence_kwargs(precipitation_temperature_c=40.0),
-    ))
-    assert payload.get("error_code") == "unknown_process_field"
-    assert payload.get("extra_keys") == ["precipitation_temperature_c"]
-    assert payload.get("error_code") != "incomplete_stage_basis_grid"
-
-
-def test_precipitation_temp_c_kwarg_is_unknown_extra(monkeypatch):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    payload = _data(tea.rank_landscape(
-        **_sequence_kwargs(precipitation_temp_c=40.0),
-    ))
-    assert payload.get("error_code") == "unknown_process_field"
-    assert payload.get("extra_keys") == ["precipitation_temp_c"]
-    assert payload.get("error_code") != "incomplete_stage_basis_grid"
-
-
-def test_planted_price_still_completes_when_solvent_price_is_omitted(monkeypatch):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    session = new_session()
-    with bind_tool_session(session):
-        handle = _plant_handle(
-            session, _complete_d18_rows(solvent_price_usd_per_kg=1.5),
-        )
-        payload = _data(tea.rank_landscape(**_sequence_kwargs(handle=handle)))
-    assert payload.get("error_code") == "sequence_coupling_unproven"
-    assert "pending_blockers" not in payload
-    assert "landscape_points" not in payload
-
-
-def test_named_solvent_price_does_not_accept_another_price(monkeypatch):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    session = new_session()
-    with bind_tool_session(session):
-        handle = _plant_handle(
-            session, _complete_d18_rows(solvent_price_usd_per_kg=1.5),
-        )
-        payload = _data(tea.rank_landscape(
-            **_sequence_kwargs(
-                handle=handle,
-                process_config={**_CAP_20KT, "solvent_price_usd_per_kg": 2.0},
-            ),
-        ))
-    assert payload.get("error_code") == "incomplete_stage_basis_grid"
-    assert payload.get("error_code") != "sequence_coupling_unproven"
-    keys = payload["missing_keys"]
-    assert len(keys) == 4
-    assert {row["solvent_price_usd_per_kg"] for row in keys} == {2.0}
-    assert payload["pending_blockers"][0]["error_type"] == (
-        "sequence_coupling_unproven"
-    )
-    assert "landscape_points" not in payload
-
-
-def test_named_solvent_price_completes_on_matching_rows(monkeypatch):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    session = new_session()
-    with bind_tool_session(session):
-        handle = _plant_handle(
-            session, _complete_d18_rows(solvent_price_usd_per_kg=2.0),
-        )
-        payload = _data(tea.rank_landscape(
-            **_sequence_kwargs(
-                handle=handle,
-                process_config={**_CAP_20KT, "solvent_price_usd_per_kg": 2.0},
-            ),
-        ))
-    assert payload.get("error_code") == "sequence_coupling_unproven"
-    assert "pending_blockers" not in payload
-    assert "missing_keys" not in payload
-    assert "landscape_points" not in payload
 
 
 def test_named_slice_at_wrong_price_does_not_fill(monkeypatch):
@@ -3143,47 +3120,6 @@ def test_named_slice_at_wrong_price_does_not_fill(monkeypatch):
     assert {row["dissolution_temperature_c"] for row in keys} == {90.0}
     assert {row["precipitation_temperature_c"] for row in keys} == {40.0}
     assert {row["solvent_price_usd_per_kg"] for row in keys} == {2.0}
-
-
-def test_mixed_price_handle_leaves_the_unmatched_remnant(monkeypatch):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    rows = _complete_d18_rows(solvent_price_usd_per_kg=2.0)
-    rows[-1]["solvent_price_usd_per_kg"] = 1.5
-    session = new_session()
-    with bind_tool_session(session):
-        handle = _plant_handle(session, rows)
-        payload = _data(tea.rank_landscape(
-            **_sequence_kwargs(
-                handle=handle,
-                process_config={**_CAP_20KT, "solvent_price_usd_per_kg": 2.0},
-            ),
-        ))
-    assert payload.get("error_code") == "incomplete_stage_basis_grid"
-    keys = payload["missing_keys"]
-    assert len(keys) == 1
-    assert keys[0]["solvent_price_usd_per_kg"] == 2.0
-    assert keys[0]["polymer"] == "EVOH"
-    assert keys[0]["target_mass_percent"] == 100.0
-
-
-def test_solvent_price_usd_per_kg_kwarg_is_unknown_extra(monkeypatch):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    payload = _data(tea.rank_landscape(
-        **_sequence_kwargs(solvent_price_usd_per_kg=2.0),
-    ))
-    assert payload.get("error_code") == "unknown_process_field"
-    assert payload.get("extra_keys") == ["solvent_price_usd_per_kg"]
-    assert payload.get("error_code") != "incomplete_stage_basis_grid"
-
-
-def test_solvent_price_kwarg_is_unknown_extra(monkeypatch):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    payload = _data(tea.rank_landscape(
-        **_sequence_kwargs(solvent_price=2.0),
-    ))
-    assert payload.get("error_code") == "unknown_process_field"
-    assert payload.get("extra_keys") == ["solvent_price"]
-    assert payload.get("error_code") != "incomplete_stage_basis_grid"
 
 
 @pytest.mark.parametrize(
@@ -3230,62 +3166,6 @@ def test_omitted_2(monkeypatch, value, value_2, value_3):
         assert row.get(value_3) != value
 
 
-def test_planted_loss_still_completes_when_solvent_loss_is_omitted(monkeypatch):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    session = new_session()
-    with bind_tool_session(session):
-        handle = _plant_handle(
-            session, _complete_d18_rows(solvent_loss_pct=0.5),
-        )
-        payload = _data(tea.rank_landscape(**_sequence_kwargs(handle=handle)))
-    assert payload.get("error_code") == "sequence_coupling_unproven"
-    assert "pending_blockers" not in payload
-    assert "landscape_points" not in payload
-
-
-def test_named_solvent_loss_does_not_accept_another_loss(monkeypatch):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    session = new_session()
-    with bind_tool_session(session):
-        handle = _plant_handle(
-            session, _complete_d18_rows(solvent_loss_pct=0.5),
-        )
-        payload = _data(tea.rank_landscape(
-            **_sequence_kwargs(
-                handle=handle,
-                process_config={**_CAP_20KT, "solvent_loss_pct": 3.0},
-            ),
-        ))
-    assert payload.get("error_code") == "incomplete_stage_basis_grid"
-    assert payload.get("error_code") != "sequence_coupling_unproven"
-    keys = payload["missing_keys"]
-    assert len(keys) == 4
-    assert {row["solvent_loss_pct"] for row in keys} == {3.0}
-    assert payload["pending_blockers"][0]["error_type"] == (
-        "sequence_coupling_unproven"
-    )
-    assert "landscape_points" not in payload
-
-
-def test_named_solvent_loss_completes_on_matching_rows(monkeypatch):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    session = new_session()
-    with bind_tool_session(session):
-        handle = _plant_handle(
-            session, _complete_d18_rows(solvent_loss_pct=3.0),
-        )
-        payload = _data(tea.rank_landscape(
-            **_sequence_kwargs(
-                handle=handle,
-                process_config={**_CAP_20KT, "solvent_loss_pct": 3.0},
-            ),
-        ))
-    assert payload.get("error_code") == "sequence_coupling_unproven"
-    assert "pending_blockers" not in payload
-    assert "missing_keys" not in payload
-    assert "landscape_points" not in payload
-
-
 def test_named_slice_at_wrong_loss_does_not_fill(monkeypatch):
     _forbid_live_rank_solvent_maps(monkeypatch)
     session = new_session()
@@ -3321,27 +3201,6 @@ def test_named_slice_at_wrong_loss_does_not_fill(monkeypatch):
     assert {row["precipitation_temperature_c"] for row in keys} == {40.0}
     assert {row["solvent_price_usd_per_kg"] for row in keys} == {2.0}
     assert {row["solvent_loss_pct"] for row in keys} == {3.0}
-
-
-def test_mixed_loss_handle_leaves_the_unmatched_remnant(monkeypatch):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    rows = _complete_d18_rows(solvent_loss_pct=3.0)
-    rows[-1]["solvent_loss_pct"] = 0.5
-    session = new_session()
-    with bind_tool_session(session):
-        handle = _plant_handle(session, rows)
-        payload = _data(tea.rank_landscape(
-            **_sequence_kwargs(
-                handle=handle,
-                process_config={**_CAP_20KT, "solvent_loss_pct": 3.0},
-            ),
-        ))
-    assert payload.get("error_code") == "incomplete_stage_basis_grid"
-    keys = payload["missing_keys"]
-    assert len(keys) == 1
-    assert keys[0]["solvent_loss_pct"] == 3.0
-    assert keys[0]["polymer"] == "EVOH"
-    assert keys[0]["target_mass_percent"] == 100.0
 
 
 @pytest.mark.parametrize(
@@ -3397,16 +3256,6 @@ def test_rows_without(monkeypatch, value, value_2, key, value_3):
     assert {row[value_2] for row in keys} == {value}
 
 
-def test_solvent_loss_pct_kwarg_is_unknown_extra(monkeypatch):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    payload = _data(tea.rank_landscape(
-        **_sequence_kwargs(solvent_loss_pct=3.0),
-    ))
-    assert payload.get("error_code") == "unknown_process_field"
-    assert payload.get("extra_keys") == ["solvent_loss_pct"]
-    assert payload.get("error_code") != "incomplete_stage_basis_grid"
-
-
 @pytest.mark.parametrize(
     'feedstock_distance_km',
     [
@@ -3427,81 +3276,118 @@ def test_omitted_3(monkeypatch, feedstock_distance_km):
     assert "landscape_points" not in payload
 
 
-def test_named_feedstock_distance_does_not_accept_another_distance(monkeypatch):
+@pytest.mark.parametrize(
+    "missing, field, planted, requested",
+    [
+        pytest.param(0.0, "feedstock_distance_km", 100.0, 0.0, id="zero_does_not_accept_another_distance"),
+        pytest.param(3.0, "dissolution_capacity", 5.0, 3.0, id="default_capacity_does_not_accept_another_capacity"),
+        pytest.param(
+            120000.0,
+            "labor_cost_usd_per_employee_yr",
+            150000.0,
+            120000.0,
+            id="default_labor_does_not_accept_another_labor",
+        ),
+        pytest.param(False, "sell_leftover_plastic", True, False, id="false_does_not_accept_true_rows"),
+        pytest.param(False, "burn_leftover_plastic", True, False, id="burn_false_does_not_accept_true_rows"),
+        pytest.param(
+            "constant", "precipitation_temperature_format", "drop", "constant", id="constant_does_not_accept_drop_rows"
+        ),
+        pytest.param(0.1, "irr", 0.12, 0.1, id="default_irr_does_not_accept_other_rows"),
+        pytest.param(0.21, "income_tax", 0.25, 0.21, id="default_income_tax_does_not_accept_other_rows"),
+        pytest.param(350.4, "operating_days", 365.0, 350.4, id="default_operating_days_does_not_accept_other_rows"),
+        pytest.param(0.9, "labor_burden", 1.5, 0.9, id="default_labor_burden_does_not_accept_other_rows"),
+        pytest.param(0.08, "finance_interest", 0.12, 0.08, id="default_finance_interest_does_not_accept_other_rows"),
+        pytest.param(10.0, "finance_years", 15, 10, id="default_finance_years_does_not_accept_other_rows"),
+        pytest.param(0.0, "finance_fraction", 0.4, 0.0, id="default_finance_fraction_does_not_accept_other_rows"),
+        pytest.param(3.0, "startup_months", 6, 3, id="default_startup_months_does_not_accept_other_rows"),
+        pytest.param(1.0, "startup_FOCfrac", 0.5, 1.0, id="default_startup_FOCfrac_does_not_accept_other_rows"),
+        pytest.param(0.75, "startup_VOCfrac", 0.5, 0.75, id="default_startup_VOCfrac_does_not_accept_other_rows"),
+        pytest.param(0.5, "startup_salesfrac", 0.25, 0.5, id="default_startup_salesfrac_does_not_accept_other_rows"),
+        pytest.param(0.05, "WC_over_FCI", 0.1, 0.05, id="default_WC_over_FCI_does_not_accept_other_rows"),
+        pytest.param(0.04, "warehouse", 0.1, 0.04, id="default_warehouse_does_not_accept_other_rows"),
+        pytest.param(0.09, "site_development", 0.1, 0.09, id="default_site_development_does_not_accept_other_rows"),
+        pytest.param(0.045, "additional_piping", 0.1, 0.045, id="default_additional_piping_does_not_accept_other_rows"),
+        pytest.param(0.1, "proratable_costs", 0.2, 0.1, id="default_proratable_costs_does_not_accept_other_rows"),
+        pytest.param(0.1, "field_expenses", 0.2, 0.1, id="default_field_expenses_does_not_accept_other_rows"),
+        pytest.param(0.2, "construction", 0.1, 0.2, id="default_construction_does_not_accept_other_rows"),
+        pytest.param(0.4, "contingency", 0.1, 0.4, id="default_contingency_does_not_accept_other_rows"),
+        pytest.param(
+            0.1, "other_indirect_costs", 0.2, 0.1, id="default_other_indirect_costs_does_not_accept_other_rows"
+        ),
+        pytest.param(
+            0.007, "property_insurance", 0.1, 0.007, id="default_property_insurance_does_not_accept_other_rows"
+        ),
+        pytest.param(0.03, "maintenance", 0.1, 0.03, id="default_maintenance_does_not_accept_other_rows"),
+        pytest.param(
+            "MACRS7", "depreciation", "MACRS5", "MACRS7", id="default_depreciation_does_not_accept_other_rows"
+        ),
+        pytest.param(
+            "MACRS20",
+            "steam_power_depreciation",
+            "MACRS7",
+            "MACRS20",
+            id="default_steam_power_does_not_accept_other_rows",
+        ),
+    ],
+)
+def test_named_default_slice_does_not_accept_other_rows(monkeypatch, missing, field, planted, requested):
     _forbid_live_rank_solvent_maps(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
-        handle = _plant_handle(
-            session, _complete_d18_rows(feedstock_distance_km=100.0),
+        handle = _plant_handle(session, _complete_d18_rows(**{field: planted}))
+        payload = _data(
+            tea.rank_landscape(**_sequence_kwargs(handle=handle, process_config={**_CAP_20KT, field: requested}))
         )
-        payload = _data(tea.rank_landscape(
-            **_sequence_kwargs(
-                handle=handle,
-                process_config={**_CAP_20KT, "feedstock_distance_km": 250.0},
-            ),
-        ))
     assert payload.get("error_code") == "incomplete_stage_basis_grid"
-    assert payload.get("error_code") != "sequence_coupling_unproven"
     keys = payload["missing_keys"]
     assert len(keys) == 4
-    assert {row["feedstock_distance_km"] for row in keys} == {250.0}
-    assert payload["pending_blockers"][0]["error_type"] == (
-        "sequence_coupling_unproven"
-    )
-    assert "landscape_points" not in payload
+    assert {row[field] for row in keys} == {missing}
 
 
-def test_named_zero_does_not_accept_another_distance(monkeypatch):
+@pytest.mark.parametrize(
+    "field, value",
+    [
+        pytest.param("feedstock_distance_km", 0.0, id="zero_completes_on_matching_zero"),
+        pytest.param("dissolution_capacity", 3.0, id="default_completes_on_matching_default"),
+        pytest.param("labor_cost_usd_per_employee_yr", 120000.0, id="default_labor_completes_on_matching_default"),
+        pytest.param("sell_leftover_plastic", False, id="false_completes_on_matching_false"),
+        pytest.param("burn_leftover_plastic", False, id="burn_false_completes_on_matching_false"),
+        pytest.param("precipitation_temperature_format", "constant", id="constant_completes_on_matching_constant"),
+        pytest.param("irr", 0.1, id="default_irr_completes_on_matching_default"),
+        pytest.param("income_tax", 0.21, id="default_income_tax_completes_on_matching_default"),
+        pytest.param("operating_days", 350.4, id="default_operating_days_completes_on_matching_default"),
+        pytest.param("labor_burden", 0.9, id="default_labor_burden_completes_on_matching_default"),
+        pytest.param("finance_interest", 0.08, id="default_finance_interest_completes_on_matching_default"),
+        pytest.param("finance_years", 10, id="default_finance_years_completes_on_matching_default"),
+        pytest.param("finance_fraction", 0.0, id="default_finance_fraction_completes_on_matching_default"),
+        pytest.param("startup_months", 3, id="default_startup_months_completes_on_matching_default"),
+        pytest.param("startup_FOCfrac", 1.0, id="default_startup_FOCfrac_completes_on_matching_default"),
+        pytest.param("startup_VOCfrac", 0.75, id="default_startup_VOCfrac_completes_on_matching_default"),
+        pytest.param("startup_salesfrac", 0.5, id="default_startup_salesfrac_completes_on_matching_default"),
+        pytest.param("WC_over_FCI", 0.05, id="default_WC_over_FCI_completes_on_matching_default"),
+        pytest.param("warehouse", 0.04, id="default_warehouse_completes_on_matching_default"),
+        pytest.param("site_development", 0.09, id="default_site_development_completes_on_matching_default"),
+        pytest.param("additional_piping", 0.045, id="default_additional_piping_completes_on_matching_default"),
+        pytest.param("proratable_costs", 0.1, id="default_proratable_costs_completes_on_matching_default"),
+        pytest.param("field_expenses", 0.1, id="default_field_expenses_completes_on_matching_default"),
+        pytest.param("construction", 0.2, id="default_construction_completes_on_matching_default"),
+        pytest.param("contingency", 0.4, id="default_contingency_completes_on_matching_default"),
+        pytest.param("other_indirect_costs", 0.1, id="default_other_indirect_costs_completes_on_matching_default"),
+        pytest.param("property_insurance", 0.007, id="default_property_insurance_completes_on_matching_default"),
+        pytest.param("maintenance", 0.03, id="default_maintenance_completes_on_matching_default"),
+        pytest.param("depreciation", "MACRS7", id="default_depreciation_completes_on_matching_default"),
+        pytest.param("steam_power_depreciation", "MACRS20", id="default_steam_power_completes_on_matching_default"),
+    ],
+)
+def test_named_default_slice_completes_on_matching_rows(monkeypatch, field, value):
     _forbid_live_rank_solvent_maps(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
-        handle = _plant_handle(
-            session, _complete_d18_rows(feedstock_distance_km=100.0),
+        handle = _plant_handle(session, _complete_d18_rows(**{field: value}))
+        payload = _data(
+            tea.rank_landscape(**_sequence_kwargs(handle=handle, process_config={**_CAP_20KT, field: value}))
         )
-        payload = _data(tea.rank_landscape(
-            **_sequence_kwargs(
-                handle=handle,
-                process_config={**_CAP_20KT, "feedstock_distance_km": 0.0},
-            ),
-        ))
-    assert payload.get("error_code") == "incomplete_stage_basis_grid"
-    keys = payload["missing_keys"]
-    assert len(keys) == 4
-    assert {row["feedstock_distance_km"] for row in keys} == {0.0}
-
-
-def test_named_feedstock_distance_completes_on_matching_rows(monkeypatch):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    session = new_session()
-    with bind_tool_session(session):
-        handle = _plant_handle(
-            session, _complete_d18_rows(feedstock_distance_km=250.0),
-        )
-        payload = _data(tea.rank_landscape(
-            **_sequence_kwargs(
-                handle=handle,
-                process_config={**_CAP_20KT, "feedstock_distance_km": 250.0},
-            ),
-        ))
-    assert payload.get("error_code") == "sequence_coupling_unproven"
-    assert "pending_blockers" not in payload
-    assert "missing_keys" not in payload
-    assert "landscape_points" not in payload
-
-
-def test_named_zero_completes_on_matching_zero_rows(monkeypatch):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    session = new_session()
-    with bind_tool_session(session):
-        handle = _plant_handle(
-            session, _complete_d18_rows(feedstock_distance_km=0.0),
-        )
-        payload = _data(tea.rank_landscape(
-            **_sequence_kwargs(
-                handle=handle,
-                process_config={**_CAP_20KT, "feedstock_distance_km": 0.0},
-            ),
-        ))
     assert payload.get("error_code") == "sequence_coupling_unproven"
     assert "pending_blockers" not in payload
     assert "missing_keys" not in payload
@@ -3547,37 +3433,6 @@ def test_named_slice_at_wrong_distance_does_not_fill(monkeypatch):
     assert {row["feedstock_distance_km"] for row in keys} == {250.0}
 
 
-def test_mixed_distance_handle_leaves_the_unmatched_remnant(monkeypatch):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    rows = _complete_d18_rows(feedstock_distance_km=250.0)
-    rows[-1]["feedstock_distance_km"] = 100.0
-    session = new_session()
-    with bind_tool_session(session):
-        handle = _plant_handle(session, rows)
-        payload = _data(tea.rank_landscape(
-            **_sequence_kwargs(
-                handle=handle,
-                process_config={**_CAP_20KT, "feedstock_distance_km": 250.0},
-            ),
-        ))
-    assert payload.get("error_code") == "incomplete_stage_basis_grid"
-    keys = payload["missing_keys"]
-    assert len(keys) == 1
-    assert keys[0]["feedstock_distance_km"] == 250.0
-    assert keys[0]["polymer"] == "EVOH"
-    assert keys[0]["target_mass_percent"] == 100.0
-
-
-def test_feedstock_distance_km_kwarg_is_unknown_extra(monkeypatch):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    payload = _data(tea.rank_landscape(
-        **_sequence_kwargs(feedstock_distance_km=250.0),
-    ))
-    assert payload.get("error_code") == "unknown_process_field"
-    assert payload.get("extra_keys") == ["feedstock_distance_km"]
-    assert payload.get("error_code") != "incomplete_stage_basis_grid"
-
-
 @pytest.mark.parametrize(
     'dissolution_capacity',
     [
@@ -3596,86 +3451,6 @@ def test_when_omitted(monkeypatch, dissolution_capacity):
     assert payload.get("error_code") == "sequence_coupling_unproven"
     assert "pending_blockers" not in payload
     assert "landscape_points" not in payload
-
-
-def test_named_dissolution_capacity_does_not_accept_another_capacity(monkeypatch):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    session = new_session()
-    with bind_tool_session(session):
-        handle = _plant_handle(
-            session, _complete_d18_rows(dissolution_capacity=3.0),
-        )
-        payload = _data(tea.rank_landscape(
-            **_sequence_kwargs(
-                handle=handle,
-                process_config={**_CAP_20KT, "dissolution_capacity": 5.0},
-            ),
-        ))
-    assert payload.get("error_code") == "incomplete_stage_basis_grid"
-    assert payload.get("error_code") != "sequence_coupling_unproven"
-    keys = payload["missing_keys"]
-    assert len(keys) == 4
-    assert {row["dissolution_capacity"] for row in keys} == {5.0}
-    assert payload["pending_blockers"][0]["error_type"] == (
-        "sequence_coupling_unproven"
-    )
-    assert "landscape_points" not in payload
-
-
-def test_named_default_capacity_does_not_accept_another_capacity(monkeypatch):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    session = new_session()
-    with bind_tool_session(session):
-        handle = _plant_handle(
-            session, _complete_d18_rows(dissolution_capacity=5.0),
-        )
-        payload = _data(tea.rank_landscape(
-            **_sequence_kwargs(
-                handle=handle,
-                process_config={**_CAP_20KT, "dissolution_capacity": 3.0},
-            ),
-        ))
-    assert payload.get("error_code") == "incomplete_stage_basis_grid"
-    keys = payload["missing_keys"]
-    assert len(keys) == 4
-    assert {row["dissolution_capacity"] for row in keys} == {3.0}
-
-
-def test_named_dissolution_capacity_completes_on_matching_rows(monkeypatch):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    session = new_session()
-    with bind_tool_session(session):
-        handle = _plant_handle(
-            session, _complete_d18_rows(dissolution_capacity=5.0),
-        )
-        payload = _data(tea.rank_landscape(
-            **_sequence_kwargs(
-                handle=handle,
-                process_config={**_CAP_20KT, "dissolution_capacity": 5.0},
-            ),
-        ))
-    assert payload.get("error_code") == "sequence_coupling_unproven"
-    assert "pending_blockers" not in payload
-    assert "missing_keys" not in payload
-    assert "landscape_points" not in payload
-
-
-def test_named_default_completes_on_matching_default_rows(monkeypatch):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    session = new_session()
-    with bind_tool_session(session):
-        handle = _plant_handle(
-            session, _complete_d18_rows(dissolution_capacity=3.0),
-        )
-        payload = _data(tea.rank_landscape(
-            **_sequence_kwargs(
-                handle=handle,
-                process_config={**_CAP_20KT, "dissolution_capacity": 3.0},
-            ),
-        ))
-    assert payload.get("error_code") == "sequence_coupling_unproven"
-    assert "pending_blockers" not in payload
-    assert "missing_keys" not in payload
 
 
 def test_plant_capacity_is_not_dissolution_capacity(monkeypatch):
@@ -3730,37 +3505,6 @@ def test_named_slice_at_wrong_dissolution_capacity_does_not_fill(monkeypatch):
     assert {row["dissolution_capacity"] for row in keys} == {5.0}
 
 
-def test_mixed_capacity_handle_leaves_the_unmatched_remnant(monkeypatch):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    rows = _complete_d18_rows(dissolution_capacity=5.0)
-    rows[-1]["dissolution_capacity"] = 3.0
-    session = new_session()
-    with bind_tool_session(session):
-        handle = _plant_handle(session, rows)
-        payload = _data(tea.rank_landscape(
-            **_sequence_kwargs(
-                handle=handle,
-                process_config={**_CAP_20KT, "dissolution_capacity": 5.0},
-            ),
-        ))
-    assert payload.get("error_code") == "incomplete_stage_basis_grid"
-    keys = payload["missing_keys"]
-    assert len(keys) == 1
-    assert keys[0]["dissolution_capacity"] == 5.0
-    assert keys[0]["polymer"] == "EVOH"
-    assert keys[0]["target_mass_percent"] == 100.0
-
-
-def test_dissolution_capacity_kwarg_is_unknown_extra(monkeypatch):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    payload = _data(tea.rank_landscape(
-        **_sequence_kwargs(dissolution_capacity=5.0),
-    ))
-    assert payload.get("error_code") == "unknown_process_field"
-    assert payload.get("extra_keys") == ["dissolution_capacity"]
-    assert payload.get("error_code") != "incomplete_stage_basis_grid"
-
-
 @pytest.mark.parametrize(
     'labor_cost_usd_per_employee_yr',
     [
@@ -3779,98 +3523,6 @@ def test_when_omitted_2(monkeypatch, labor_cost_usd_per_employee_yr):
     assert payload.get("error_code") == "sequence_coupling_unproven"
     assert "pending_blockers" not in payload
     assert "landscape_points" not in payload
-
-
-def test_named_labor_does_not_accept_another_labor(monkeypatch):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    session = new_session()
-    with bind_tool_session(session):
-        handle = _plant_handle(
-            session, _complete_d18_rows(labor_cost_usd_per_employee_yr=120_000.0),
-        )
-        payload = _data(tea.rank_landscape(
-            **_sequence_kwargs(
-                handle=handle,
-                process_config={
-                    **_CAP_20KT,
-                    "labor_cost_usd_per_employee_yr": 150_000.0,
-                },
-            ),
-        ))
-    assert payload.get("error_code") == "incomplete_stage_basis_grid"
-    assert payload.get("error_code") != "sequence_coupling_unproven"
-    keys = payload["missing_keys"]
-    assert len(keys) == 4
-    assert {row["labor_cost_usd_per_employee_yr"] for row in keys} == {150_000.0}
-    assert payload["pending_blockers"][0]["error_type"] == (
-        "sequence_coupling_unproven"
-    )
-    assert "landscape_points" not in payload
-
-
-def test_named_default_labor_does_not_accept_another_labor(monkeypatch):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    session = new_session()
-    with bind_tool_session(session):
-        handle = _plant_handle(
-            session, _complete_d18_rows(labor_cost_usd_per_employee_yr=150_000.0),
-        )
-        payload = _data(tea.rank_landscape(
-            **_sequence_kwargs(
-                handle=handle,
-                process_config={
-                    **_CAP_20KT,
-                    "labor_cost_usd_per_employee_yr": 120_000.0,
-                },
-            ),
-        ))
-    assert payload.get("error_code") == "incomplete_stage_basis_grid"
-    keys = payload["missing_keys"]
-    assert len(keys) == 4
-    assert {row["labor_cost_usd_per_employee_yr"] for row in keys} == {120_000.0}
-
-
-def test_named_labor_completes_on_matching_rows(monkeypatch):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    session = new_session()
-    with bind_tool_session(session):
-        handle = _plant_handle(
-            session, _complete_d18_rows(labor_cost_usd_per_employee_yr=150_000.0),
-        )
-        payload = _data(tea.rank_landscape(
-            **_sequence_kwargs(
-                handle=handle,
-                process_config={
-                    **_CAP_20KT,
-                    "labor_cost_usd_per_employee_yr": 150_000.0,
-                },
-            ),
-        ))
-    assert payload.get("error_code") == "sequence_coupling_unproven"
-    assert "pending_blockers" not in payload
-    assert "missing_keys" not in payload
-    assert "landscape_points" not in payload
-
-
-def test_named_default_labor_completes_on_matching_default_rows(monkeypatch):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    session = new_session()
-    with bind_tool_session(session):
-        handle = _plant_handle(
-            session, _complete_d18_rows(labor_cost_usd_per_employee_yr=120_000.0),
-        )
-        payload = _data(tea.rank_landscape(
-            **_sequence_kwargs(
-                handle=handle,
-                process_config={
-                    **_CAP_20KT,
-                    "labor_cost_usd_per_employee_yr": 120_000.0,
-                },
-            ),
-        ))
-    assert payload.get("error_code") == "sequence_coupling_unproven"
-    assert "pending_blockers" not in payload
-    assert "missing_keys" not in payload
 
 
 def test_named_slice_at_wrong_labor_does_not_fill(monkeypatch):
@@ -3919,50 +3571,6 @@ def test_named_slice_at_wrong_labor_does_not_fill(monkeypatch):
     assert {row["labor_cost_usd_per_employee_yr"] for row in keys} == {150_000.0}
 
 
-def test_mixed_labor_handle_leaves_the_unmatched_remnant(monkeypatch):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    rows = _complete_d18_rows(labor_cost_usd_per_employee_yr=150_000.0)
-    rows[-1]["labor_cost_usd_per_employee_yr"] = 120_000.0
-    session = new_session()
-    with bind_tool_session(session):
-        handle = _plant_handle(session, rows)
-        payload = _data(tea.rank_landscape(
-            **_sequence_kwargs(
-                handle=handle,
-                process_config={
-                    **_CAP_20KT,
-                    "labor_cost_usd_per_employee_yr": 150_000.0,
-                },
-            ),
-        ))
-    assert payload.get("error_code") == "incomplete_stage_basis_grid"
-    keys = payload["missing_keys"]
-    assert len(keys) == 1
-    assert keys[0]["labor_cost_usd_per_employee_yr"] == 150_000.0
-    assert keys[0]["polymer"] == "EVOH"
-    assert keys[0]["target_mass_percent"] == 100.0
-
-
-def test_labor_cost_usd_per_employee_yr_kwarg_is_unknown_extra(monkeypatch):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    payload = _data(tea.rank_landscape(
-        **_sequence_kwargs(labor_cost_usd_per_employee_yr=150_000.0),
-    ))
-    assert payload.get("error_code") == "unknown_process_field"
-    assert payload.get("extra_keys") == ["labor_cost_usd_per_employee_yr"]
-    assert payload.get("error_code") != "incomplete_stage_basis_grid"
-
-
-def test_labor_cost_kwarg_is_unknown_extra(monkeypatch):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    payload = _data(tea.rank_landscape(
-        **_sequence_kwargs(labor_cost=150_000.0),
-    ))
-    assert payload.get("error_code") == "unknown_process_field"
-    assert payload.get("extra_keys") == ["labor_cost"]
-    assert payload.get("error_code") != "incomplete_stage_basis_grid"
-
-
 @pytest.mark.parametrize(
     ('value', 'value_2'),
     [
@@ -3997,86 +3605,6 @@ def test_rows_still_complete_when_sell_is_omitted(monkeypatch, sell_leftover_pla
     assert payload.get("error_code") == "sequence_coupling_unproven"
     assert "pending_blockers" not in payload
     assert "landscape_points" not in payload
-
-
-def test_named_true_does_not_accept_false_rows(monkeypatch):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    session = new_session()
-    with bind_tool_session(session):
-        handle = _plant_handle(
-            session, _complete_d18_rows(sell_leftover_plastic=False),
-        )
-        payload = _data(tea.rank_landscape(
-            **_sequence_kwargs(
-                handle=handle,
-                process_config={**_CAP_20KT, "sell_leftover_plastic": True},
-            ),
-        ))
-    assert payload.get("error_code") == "incomplete_stage_basis_grid"
-    assert payload.get("error_code") != "sequence_coupling_unproven"
-    keys = payload["missing_keys"]
-    assert len(keys) == 4
-    assert {row["sell_leftover_plastic"] for row in keys} == {True}
-    assert payload["pending_blockers"][0]["error_type"] == (
-        "sequence_coupling_unproven"
-    )
-    assert "landscape_points" not in payload
-
-
-def test_named_false_does_not_accept_true_rows(monkeypatch):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    session = new_session()
-    with bind_tool_session(session):
-        handle = _plant_handle(
-            session, _complete_d18_rows(sell_leftover_plastic=True),
-        )
-        payload = _data(tea.rank_landscape(
-            **_sequence_kwargs(
-                handle=handle,
-                process_config={**_CAP_20KT, "sell_leftover_plastic": False},
-            ),
-        ))
-    assert payload.get("error_code") == "incomplete_stage_basis_grid"
-    keys = payload["missing_keys"]
-    assert len(keys) == 4
-    assert {row["sell_leftover_plastic"] for row in keys} == {False}
-
-
-def test_named_true_completes_on_matching_rows(monkeypatch):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    session = new_session()
-    with bind_tool_session(session):
-        handle = _plant_handle(
-            session, _complete_d18_rows(sell_leftover_plastic=True),
-        )
-        payload = _data(tea.rank_landscape(
-            **_sequence_kwargs(
-                handle=handle,
-                process_config={**_CAP_20KT, "sell_leftover_plastic": True},
-            ),
-        ))
-    assert payload.get("error_code") == "sequence_coupling_unproven"
-    assert "pending_blockers" not in payload
-    assert "missing_keys" not in payload
-    assert "landscape_points" not in payload
-
-
-def test_named_false_completes_on_matching_false_rows(monkeypatch):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    session = new_session()
-    with bind_tool_session(session):
-        handle = _plant_handle(
-            session, _complete_d18_rows(sell_leftover_plastic=False),
-        )
-        payload = _data(tea.rank_landscape(
-            **_sequence_kwargs(
-                handle=handle,
-                process_config={**_CAP_20KT, "sell_leftover_plastic": False},
-            ),
-        ))
-    assert payload.get("error_code") == "sequence_coupling_unproven"
-    assert "pending_blockers" not in payload
-    assert "missing_keys" not in payload
 
 
 @pytest.mark.parametrize(
@@ -4144,35 +3672,25 @@ def test_named_slice_at_wrong_sell_does_not_fill(monkeypatch):
     assert {row["sell_leftover_plastic"] for row in keys} == {True}
 
 
-def test_mixed_sell_handle_leaves_the_unmatched_remnant(monkeypatch):
+@pytest.mark.parametrize(
+    "field", [pytest.param("sell_leftover_plastic", id="sell"), pytest.param("burn_leftover_plastic", id="burn")]
+)
+def test_mixed_leftover_handle_leaves_the_unmatched_remnant(monkeypatch, field):
     _forbid_live_rank_solvent_maps(monkeypatch)
-    rows = _complete_d18_rows(sell_leftover_plastic=True)
-    rows[-1]["sell_leftover_plastic"] = False
+    rows = _complete_d18_rows(**{field: True})
+    rows[-1][field] = False
     session = new_session()
     with bind_tool_session(session):
         handle = _plant_handle(session, rows)
-        payload = _data(tea.rank_landscape(
-            **_sequence_kwargs(
-                handle=handle,
-                process_config={**_CAP_20KT, "sell_leftover_plastic": True},
-            ),
-        ))
+        payload = _data(
+            tea.rank_landscape(**_sequence_kwargs(handle=handle, process_config={**_CAP_20KT, field: True}))
+        )
     assert payload.get("error_code") == "incomplete_stage_basis_grid"
     keys = payload["missing_keys"]
     assert len(keys) == 1
-    assert keys[0]["sell_leftover_plastic"] is True
+    assert keys[0][field] is True
     assert keys[0]["polymer"] == "EVOH"
     assert keys[0]["target_mass_percent"] == 100.0
-
-
-def test_sell_leftover_plastic_kwarg_is_unknown_extra(monkeypatch):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    payload = _data(tea.rank_landscape(
-        **_sequence_kwargs(sell_leftover_plastic=True),
-    ))
-    assert payload.get("error_code") == "unknown_process_field"
-    assert payload.get("extra_keys") == ["sell_leftover_plastic"]
-    assert payload.get("error_code") != "incomplete_stage_basis_grid"
 
 
 @pytest.mark.parametrize(
@@ -4193,86 +3711,6 @@ def test_burn_rows_still_complete_when_omitted(monkeypatch, burn_leftover_plasti
     assert payload.get("error_code") == "sequence_coupling_unproven"
     assert "pending_blockers" not in payload
     assert "landscape_points" not in payload
-
-
-def test_named_burn_true_does_not_accept_false_rows(monkeypatch):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    session = new_session()
-    with bind_tool_session(session):
-        handle = _plant_handle(
-            session, _complete_d18_rows(burn_leftover_plastic=False),
-        )
-        payload = _data(tea.rank_landscape(
-            **_sequence_kwargs(
-                handle=handle,
-                process_config={**_CAP_20KT, "burn_leftover_plastic": True},
-            ),
-        ))
-    assert payload.get("error_code") == "incomplete_stage_basis_grid"
-    assert payload.get("error_code") != "sequence_coupling_unproven"
-    keys = payload["missing_keys"]
-    assert len(keys) == 4
-    assert {row["burn_leftover_plastic"] for row in keys} == {True}
-    assert payload["pending_blockers"][0]["error_type"] == (
-        "sequence_coupling_unproven"
-    )
-    assert "landscape_points" not in payload
-
-
-def test_named_burn_false_does_not_accept_true_rows(monkeypatch):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    session = new_session()
-    with bind_tool_session(session):
-        handle = _plant_handle(
-            session, _complete_d18_rows(burn_leftover_plastic=True),
-        )
-        payload = _data(tea.rank_landscape(
-            **_sequence_kwargs(
-                handle=handle,
-                process_config={**_CAP_20KT, "burn_leftover_plastic": False},
-            ),
-        ))
-    assert payload.get("error_code") == "incomplete_stage_basis_grid"
-    keys = payload["missing_keys"]
-    assert len(keys) == 4
-    assert {row["burn_leftover_plastic"] for row in keys} == {False}
-
-
-def test_named_burn_true_completes_on_matching_rows(monkeypatch):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    session = new_session()
-    with bind_tool_session(session):
-        handle = _plant_handle(
-            session, _complete_d18_rows(burn_leftover_plastic=True),
-        )
-        payload = _data(tea.rank_landscape(
-            **_sequence_kwargs(
-                handle=handle,
-                process_config={**_CAP_20KT, "burn_leftover_plastic": True},
-            ),
-        ))
-    assert payload.get("error_code") == "sequence_coupling_unproven"
-    assert "pending_blockers" not in payload
-    assert "missing_keys" not in payload
-    assert "landscape_points" not in payload
-
-
-def test_named_burn_false_completes_on_matching_false_rows(monkeypatch):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    session = new_session()
-    with bind_tool_session(session):
-        handle = _plant_handle(
-            session, _complete_d18_rows(burn_leftover_plastic=False),
-        )
-        payload = _data(tea.rank_landscape(
-            **_sequence_kwargs(
-                handle=handle,
-                process_config={**_CAP_20KT, "burn_leftover_plastic": False},
-            ),
-        ))
-    assert payload.get("error_code") == "sequence_coupling_unproven"
-    assert "pending_blockers" not in payload
-    assert "missing_keys" not in payload
 
 
 @pytest.mark.parametrize(
@@ -4345,37 +3783,6 @@ def test_named_slice_at_wrong_burn_does_not_fill(monkeypatch):
     assert {row["burn_leftover_plastic"] for row in keys} == {True}
 
 
-def test_mixed_burn_handle_leaves_the_unmatched_remnant(monkeypatch):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    rows = _complete_d18_rows(burn_leftover_plastic=True)
-    rows[-1]["burn_leftover_plastic"] = False
-    session = new_session()
-    with bind_tool_session(session):
-        handle = _plant_handle(session, rows)
-        payload = _data(tea.rank_landscape(
-            **_sequence_kwargs(
-                handle=handle,
-                process_config={**_CAP_20KT, "burn_leftover_plastic": True},
-            ),
-        ))
-    assert payload.get("error_code") == "incomplete_stage_basis_grid"
-    keys = payload["missing_keys"]
-    assert len(keys) == 1
-    assert keys[0]["burn_leftover_plastic"] is True
-    assert keys[0]["polymer"] == "EVOH"
-    assert keys[0]["target_mass_percent"] == 100.0
-
-
-def test_burn_leftover_plastic_kwarg_is_unknown_extra(monkeypatch):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    payload = _data(tea.rank_landscape(
-        **_sequence_kwargs(burn_leftover_plastic=True),
-    ))
-    assert payload.get("error_code") == "unknown_process_field"
-    assert payload.get("extra_keys") == ["burn_leftover_plastic"]
-    assert payload.get("error_code") != "incomplete_stage_basis_grid"
-
-
 @pytest.mark.parametrize(
     'precipitation_temperature_format',
     [
@@ -4395,104 +3802,6 @@ def test_format_rows_still_complete_when_omitted(monkeypatch, precipitation_temp
     assert payload.get("error_code") == "sequence_coupling_unproven"
     assert "pending_blockers" not in payload
     assert "landscape_points" not in payload
-
-
-def test_named_drop_does_not_accept_constant_rows(monkeypatch):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    session = new_session()
-    with bind_tool_session(session):
-        handle = _plant_handle(
-            session,
-            _complete_d18_rows(precipitation_temperature_format="constant"),
-        )
-        payload = _data(tea.rank_landscape(
-            **_sequence_kwargs(
-                handle=handle,
-                process_config={
-                    **_CAP_20KT,
-                    "precipitation_temperature_format": "drop",
-                },
-            ),
-        ))
-    assert payload.get("error_code") == "incomplete_stage_basis_grid"
-    assert payload.get("error_code") != "sequence_coupling_unproven"
-    keys = payload["missing_keys"]
-    assert len(keys) == 4
-    assert {row["precipitation_temperature_format"] for row in keys} == {"drop"}
-    assert payload["pending_blockers"][0]["error_type"] == (
-        "sequence_coupling_unproven"
-    )
-    assert "landscape_points" not in payload
-
-
-def test_named_constant_does_not_accept_drop_rows(monkeypatch):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    session = new_session()
-    with bind_tool_session(session):
-        handle = _plant_handle(
-            session,
-            _complete_d18_rows(precipitation_temperature_format="drop"),
-        )
-        payload = _data(tea.rank_landscape(
-            **_sequence_kwargs(
-                handle=handle,
-                process_config={
-                    **_CAP_20KT,
-                    "precipitation_temperature_format": "constant",
-                },
-            ),
-        ))
-    assert payload.get("error_code") == "incomplete_stage_basis_grid"
-    keys = payload["missing_keys"]
-    assert len(keys) == 4
-    assert {row["precipitation_temperature_format"] for row in keys} == {
-        "constant",
-    }
-
-
-def test_named_drop_completes_on_matching_rows(monkeypatch):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    session = new_session()
-    with bind_tool_session(session):
-        handle = _plant_handle(
-            session,
-            _complete_d18_rows(precipitation_temperature_format="drop"),
-        )
-        payload = _data(tea.rank_landscape(
-            **_sequence_kwargs(
-                handle=handle,
-                process_config={
-                    **_CAP_20KT,
-                    "precipitation_temperature_format": "drop",
-                },
-            ),
-        ))
-    assert payload.get("error_code") == "sequence_coupling_unproven"
-    assert "pending_blockers" not in payload
-    assert "missing_keys" not in payload
-    assert "landscape_points" not in payload
-
-
-def test_named_constant_completes_on_matching_constant_rows(monkeypatch):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    session = new_session()
-    with bind_tool_session(session):
-        handle = _plant_handle(
-            session,
-            _complete_d18_rows(precipitation_temperature_format="constant"),
-        )
-        payload = _data(tea.rank_landscape(
-            **_sequence_kwargs(
-                handle=handle,
-                process_config={
-                    **_CAP_20KT,
-                    "precipitation_temperature_format": "constant",
-                },
-            ),
-        ))
-    assert payload.get("error_code") == "sequence_coupling_unproven"
-    assert "pending_blockers" not in payload
-    assert "missing_keys" not in payload
 
 
 @pytest.mark.parametrize(
@@ -4593,40 +3902,6 @@ def test_named_slice_at_wrong_format_does_not_fill(monkeypatch):
     assert {row["precipitation_temperature_format"] for row in keys} == {"drop"}
 
 
-def test_mixed_format_handle_leaves_the_unmatched_remnant(monkeypatch):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    rows = _complete_d18_rows(precipitation_temperature_format="drop")
-    rows[-1]["precipitation_temperature_format"] = "constant"
-    session = new_session()
-    with bind_tool_session(session):
-        handle = _plant_handle(session, rows)
-        payload = _data(tea.rank_landscape(
-            **_sequence_kwargs(
-                handle=handle,
-                process_config={
-                    **_CAP_20KT,
-                    "precipitation_temperature_format": "drop",
-                },
-            ),
-        ))
-    assert payload.get("error_code") == "incomplete_stage_basis_grid"
-    keys = payload["missing_keys"]
-    assert len(keys) == 1
-    assert keys[0]["precipitation_temperature_format"] == "drop"
-    assert keys[0]["polymer"] == "EVOH"
-    assert keys[0]["target_mass_percent"] == 100.0
-
-
-def test_precipitation_temperature_format_kwarg_is_unknown_extra(monkeypatch):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    payload = _data(tea.rank_landscape(
-        **_sequence_kwargs(precipitation_temperature_format="drop"),
-    ))
-    assert payload.get("error_code") == "unknown_process_field"
-    assert payload.get("extra_keys") == ["precipitation_temperature_format"]
-    assert payload.get("error_code") != "incomplete_stage_basis_grid"
-
-
 @pytest.mark.parametrize(
     ('value', 'key', 'value_2'),
     [
@@ -4688,26 +3963,12 @@ def test_omitted_precipitation_configuration_is_not_a_silent_integrated(monkeypa
         assert row.get("precipitation_configuration") != _IHT
 
 
-def test_integrated_config_rows_still_complete_when_omitted(monkeypatch):
+@pytest.mark.parametrize("configuration", [pytest.param(_IHT, id="integrated"), pytest.param(_MIX, id="mixing")])
+def test_config_rows_still_complete_when_omitted(monkeypatch, configuration):
     _forbid_live_rank_solvent_maps(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
-        handle = _plant_handle(
-            session, _complete_d18_rows(precipitation_configuration=_IHT),
-        )
-        payload = _data(tea.rank_landscape(**_sequence_kwargs(handle=handle)))
-    assert payload.get("error_code") == "sequence_coupling_unproven"
-    assert "pending_blockers" not in payload
-    assert "landscape_points" not in payload
-
-
-def test_mixing_config_rows_still_complete_when_omitted(monkeypatch):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    session = new_session()
-    with bind_tool_session(session):
-        handle = _plant_handle(
-            session, _complete_d18_rows(precipitation_configuration=_MIX),
-        )
+        handle = _plant_handle(session, _complete_d18_rows(precipitation_configuration=configuration))
         payload = _data(tea.rank_landscape(**_sequence_kwargs(handle=handle)))
     assert payload.get("error_code") == "sequence_coupling_unproven"
     assert "pending_blockers" not in payload
@@ -4949,78 +4210,6 @@ def test_irr_rows_still_complete_when_omitted(monkeypatch, irr):
     assert "landscape_points" not in payload
 
 
-def test_named_irr_does_not_accept_default_rows(monkeypatch):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    session = new_session()
-    with bind_tool_session(session):
-        handle = _plant_handle(session, _complete_d18_rows(irr=0.10))
-        payload = _data(tea.rank_landscape(
-            **_sequence_kwargs(
-                handle=handle,
-                process_config={**_CAP_20KT, "irr": 0.12},
-            ),
-        ))
-    assert payload.get("error_code") == "incomplete_stage_basis_grid"
-    assert payload.get("error_code") != "sequence_coupling_unproven"
-    keys = payload["missing_keys"]
-    assert len(keys) == 4
-    assert {row["irr"] for row in keys} == {0.12}
-    assert payload["pending_blockers"][0]["error_type"] == (
-        "sequence_coupling_unproven"
-    )
-    assert "landscape_points" not in payload
-
-
-def test_named_default_irr_does_not_accept_other_rows(monkeypatch):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    session = new_session()
-    with bind_tool_session(session):
-        handle = _plant_handle(session, _complete_d18_rows(irr=0.12))
-        payload = _data(tea.rank_landscape(
-            **_sequence_kwargs(
-                handle=handle,
-                process_config={**_CAP_20KT, "irr": 0.10},
-            ),
-        ))
-    assert payload.get("error_code") == "incomplete_stage_basis_grid"
-    keys = payload["missing_keys"]
-    assert len(keys) == 4
-    assert {row["irr"] for row in keys} == {0.10}
-
-
-def test_named_irr_completes_on_matching_rows(monkeypatch):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    session = new_session()
-    with bind_tool_session(session):
-        handle = _plant_handle(session, _complete_d18_rows(irr=0.12))
-        payload = _data(tea.rank_landscape(
-            **_sequence_kwargs(
-                handle=handle,
-                process_config={**_CAP_20KT, "irr": 0.12},
-            ),
-        ))
-    assert payload.get("error_code") == "sequence_coupling_unproven"
-    assert "pending_blockers" not in payload
-    assert "missing_keys" not in payload
-    assert "landscape_points" not in payload
-
-
-def test_named_default_irr_completes_on_matching_default_rows(monkeypatch):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    session = new_session()
-    with bind_tool_session(session):
-        handle = _plant_handle(session, _complete_d18_rows(irr=0.10))
-        payload = _data(tea.rank_landscape(
-            **_sequence_kwargs(
-                handle=handle,
-                process_config={**_CAP_20KT, "irr": 0.10},
-            ),
-        ))
-    assert payload.get("error_code") == "sequence_coupling_unproven"
-    assert "pending_blockers" not in payload
-    assert "missing_keys" not in payload
-
-
 def test_precipitation_configuration_does_not_stamp_irr_on_this_slice(monkeypatch):
     _forbid_live_rank_solvent_maps(monkeypatch)
     payload = _data(tea.rank_landscape(
@@ -5084,35 +4273,6 @@ def test_named_slice_at_wrong_irr_does_not_fill(monkeypatch):
     assert {row["irr"] for row in keys} == {0.12}
 
 
-def test_mixed_irr_handle_leaves_the_unmatched_remnant(monkeypatch):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    rows = _complete_d18_rows(irr=0.12)
-    rows[-1]["irr"] = 0.10
-    session = new_session()
-    with bind_tool_session(session):
-        handle = _plant_handle(session, rows)
-        payload = _data(tea.rank_landscape(
-            **_sequence_kwargs(
-                handle=handle,
-                process_config={**_CAP_20KT, "irr": 0.12},
-            ),
-        ))
-    assert payload.get("error_code") == "incomplete_stage_basis_grid"
-    keys = payload["missing_keys"]
-    assert len(keys) == 1
-    assert keys[0]["irr"] == 0.12
-    assert keys[0]["polymer"] == "EVOH"
-    assert keys[0]["target_mass_percent"] == 100.0
-
-
-def test_irr_kwarg_is_unknown_extra(monkeypatch):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    payload = _data(tea.rank_landscape(**_sequence_kwargs(irr=0.12)))
-    assert payload.get("error_code") == "unknown_process_field"
-    assert payload.get("extra_keys") == ["irr"]
-    assert payload.get("error_code") != "incomplete_stage_basis_grid"
-
-
 @pytest.mark.parametrize(
     'income_tax',
     [
@@ -5129,78 +4289,6 @@ def test_income_tax_rows_still_complete_when_omitted(monkeypatch, income_tax):
     assert payload.get("error_code") == "sequence_coupling_unproven"
     assert "pending_blockers" not in payload
     assert "landscape_points" not in payload
-
-
-def test_named_income_tax_does_not_accept_default_rows(monkeypatch):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    session = new_session()
-    with bind_tool_session(session):
-        handle = _plant_handle(session, _complete_d18_rows(income_tax=0.21))
-        payload = _data(tea.rank_landscape(
-            **_sequence_kwargs(
-                handle=handle,
-                process_config={**_CAP_20KT, "income_tax": 0.25},
-            ),
-        ))
-    assert payload.get("error_code") == "incomplete_stage_basis_grid"
-    assert payload.get("error_code") != "sequence_coupling_unproven"
-    keys = payload["missing_keys"]
-    assert len(keys) == 4
-    assert {row["income_tax"] for row in keys} == {0.25}
-    assert payload["pending_blockers"][0]["error_type"] == (
-        "sequence_coupling_unproven"
-    )
-    assert "landscape_points" not in payload
-
-
-def test_named_default_income_tax_does_not_accept_other_rows(monkeypatch):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    session = new_session()
-    with bind_tool_session(session):
-        handle = _plant_handle(session, _complete_d18_rows(income_tax=0.25))
-        payload = _data(tea.rank_landscape(
-            **_sequence_kwargs(
-                handle=handle,
-                process_config={**_CAP_20KT, "income_tax": 0.21},
-            ),
-        ))
-    assert payload.get("error_code") == "incomplete_stage_basis_grid"
-    keys = payload["missing_keys"]
-    assert len(keys) == 4
-    assert {row["income_tax"] for row in keys} == {0.21}
-
-
-def test_named_income_tax_completes_on_matching_rows(monkeypatch):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    session = new_session()
-    with bind_tool_session(session):
-        handle = _plant_handle(session, _complete_d18_rows(income_tax=0.25))
-        payload = _data(tea.rank_landscape(
-            **_sequence_kwargs(
-                handle=handle,
-                process_config={**_CAP_20KT, "income_tax": 0.25},
-            ),
-        ))
-    assert payload.get("error_code") == "sequence_coupling_unproven"
-    assert "pending_blockers" not in payload
-    assert "missing_keys" not in payload
-    assert "landscape_points" not in payload
-
-
-def test_named_default_income_tax_completes_on_matching_default_rows(monkeypatch):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    session = new_session()
-    with bind_tool_session(session):
-        handle = _plant_handle(session, _complete_d18_rows(income_tax=0.21))
-        payload = _data(tea.rank_landscape(
-            **_sequence_kwargs(
-                handle=handle,
-                process_config={**_CAP_20KT, "income_tax": 0.21},
-            ),
-        ))
-    assert payload.get("error_code") == "sequence_coupling_unproven"
-    assert "pending_blockers" not in payload
-    assert "missing_keys" not in payload
 
 
 def test_named_slice_at_wrong_income_tax_does_not_fill(monkeypatch):
@@ -5255,35 +4343,6 @@ def test_named_slice_at_wrong_income_tax_does_not_fill(monkeypatch):
     assert {row["income_tax"] for row in keys} == {0.25}
 
 
-def test_mixed_income_tax_handle_leaves_the_unmatched_remnant(monkeypatch):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    rows = _complete_d18_rows(income_tax=0.25)
-    rows[-1]["income_tax"] = 0.21
-    session = new_session()
-    with bind_tool_session(session):
-        handle = _plant_handle(session, rows)
-        payload = _data(tea.rank_landscape(
-            **_sequence_kwargs(
-                handle=handle,
-                process_config={**_CAP_20KT, "income_tax": 0.25},
-            ),
-        ))
-    assert payload.get("error_code") == "incomplete_stage_basis_grid"
-    keys = payload["missing_keys"]
-    assert len(keys) == 1
-    assert keys[0]["income_tax"] == 0.25
-    assert keys[0]["polymer"] == "EVOH"
-    assert keys[0]["target_mass_percent"] == 100.0
-
-
-def test_income_tax_kwarg_is_unknown_extra(monkeypatch):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    payload = _data(tea.rank_landscape(**_sequence_kwargs(income_tax=0.25)))
-    assert payload.get("error_code") == "unknown_process_field"
-    assert payload.get("extra_keys") == ["income_tax"]
-    assert payload.get("error_code") != "incomplete_stage_basis_grid"
-
-
 @pytest.mark.parametrize(
     ('key', 'value'),
     [
@@ -5332,80 +4391,6 @@ def test_operating_days_rows_still_complete_when_omitted(monkeypatch, operating_
     assert payload.get("error_code") == "sequence_coupling_unproven"
     assert "pending_blockers" not in payload
     assert "landscape_points" not in payload
-
-
-def test_named_operating_days_does_not_accept_default_rows(monkeypatch):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    session = new_session()
-    with bind_tool_session(session):
-        handle = _plant_handle(session, _complete_d18_rows(operating_days=350.4))
-        payload = _data(tea.rank_landscape(
-            **_sequence_kwargs(
-                handle=handle,
-                process_config={**_CAP_20KT, "operating_days": 365},
-            ),
-        ))
-    assert payload.get("error_code") == "incomplete_stage_basis_grid"
-    assert payload.get("error_code") != "sequence_coupling_unproven"
-    keys = payload["missing_keys"]
-    assert len(keys) == 4
-    assert {row["operating_days"] for row in keys} == {365.0}
-    assert payload["pending_blockers"][0]["error_type"] == (
-        "sequence_coupling_unproven"
-    )
-    assert "landscape_points" not in payload
-
-
-def test_named_default_operating_days_does_not_accept_other_rows(monkeypatch):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    session = new_session()
-    with bind_tool_session(session):
-        handle = _plant_handle(session, _complete_d18_rows(operating_days=365.0))
-        payload = _data(tea.rank_landscape(
-            **_sequence_kwargs(
-                handle=handle,
-                process_config={**_CAP_20KT, "operating_days": 350.4},
-            ),
-        ))
-    assert payload.get("error_code") == "incomplete_stage_basis_grid"
-    keys = payload["missing_keys"]
-    assert len(keys) == 4
-    assert {row["operating_days"] for row in keys} == {350.4}
-
-
-def test_named_operating_days_completes_on_matching_rows(monkeypatch):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    session = new_session()
-    with bind_tool_session(session):
-        handle = _plant_handle(session, _complete_d18_rows(operating_days=365.0))
-        payload = _data(tea.rank_landscape(
-            **_sequence_kwargs(
-                handle=handle,
-                process_config={**_CAP_20KT, "operating_days": 365},
-            ),
-        ))
-    assert payload.get("error_code") == "sequence_coupling_unproven"
-    assert "pending_blockers" not in payload
-    assert "missing_keys" not in payload
-    assert "landscape_points" not in payload
-
-
-def test_named_default_operating_days_completes_on_matching_default_rows(
-    monkeypatch,
-):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    session = new_session()
-    with bind_tool_session(session):
-        handle = _plant_handle(session, _complete_d18_rows(operating_days=350.4))
-        payload = _data(tea.rank_landscape(
-            **_sequence_kwargs(
-                handle=handle,
-                process_config={**_CAP_20KT, "operating_days": 350.4},
-            ),
-        ))
-    assert payload.get("error_code") == "sequence_coupling_unproven"
-    assert "pending_blockers" not in payload
-    assert "missing_keys" not in payload
 
 
 def test_named_slice_at_wrong_operating_days_does_not_fill(monkeypatch):
@@ -5462,35 +4447,6 @@ def test_named_slice_at_wrong_operating_days_does_not_fill(monkeypatch):
     assert {row["operating_days"] for row in keys} == {365.0}
 
 
-def test_mixed_operating_days_handle_leaves_the_unmatched_remnant(monkeypatch):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    rows = _complete_d18_rows(operating_days=365.0)
-    rows[-1]["operating_days"] = 350.4
-    session = new_session()
-    with bind_tool_session(session):
-        handle = _plant_handle(session, rows)
-        payload = _data(tea.rank_landscape(
-            **_sequence_kwargs(
-                handle=handle,
-                process_config={**_CAP_20KT, "operating_days": 365},
-            ),
-        ))
-    assert payload.get("error_code") == "incomplete_stage_basis_grid"
-    keys = payload["missing_keys"]
-    assert len(keys) == 1
-    assert keys[0]["operating_days"] == 365.0
-    assert keys[0]["polymer"] == "EVOH"
-    assert keys[0]["target_mass_percent"] == 100.0
-
-
-def test_operating_days_kwarg_is_unknown_extra(monkeypatch):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    payload = _data(tea.rank_landscape(**_sequence_kwargs(operating_days=365)))
-    assert payload.get("error_code") == "unknown_process_field"
-    assert payload.get("extra_keys") == ["operating_days"]
-    assert payload.get("error_code") != "incomplete_stage_basis_grid"
-
-
 @pytest.mark.parametrize(
     'labor_burden',
     [
@@ -5507,80 +4463,6 @@ def test_labor_burden_rows_still_complete_when_omitted(monkeypatch, labor_burden
     assert payload.get("error_code") == "sequence_coupling_unproven"
     assert "pending_blockers" not in payload
     assert "landscape_points" not in payload
-
-
-def test_named_labor_burden_does_not_accept_default_rows(monkeypatch):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    session = new_session()
-    with bind_tool_session(session):
-        handle = _plant_handle(session, _complete_d18_rows(labor_burden=0.90))
-        payload = _data(tea.rank_landscape(
-            **_sequence_kwargs(
-                handle=handle,
-                process_config={**_CAP_20KT, "labor_burden": 1.5},
-            ),
-        ))
-    assert payload.get("error_code") == "incomplete_stage_basis_grid"
-    assert payload.get("error_code") != "sequence_coupling_unproven"
-    keys = payload["missing_keys"]
-    assert len(keys) == 4
-    assert {row["labor_burden"] for row in keys} == {1.5}
-    assert payload["pending_blockers"][0]["error_type"] == (
-        "sequence_coupling_unproven"
-    )
-    assert "landscape_points" not in payload
-
-
-def test_named_default_labor_burden_does_not_accept_other_rows(monkeypatch):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    session = new_session()
-    with bind_tool_session(session):
-        handle = _plant_handle(session, _complete_d18_rows(labor_burden=1.5))
-        payload = _data(tea.rank_landscape(
-            **_sequence_kwargs(
-                handle=handle,
-                process_config={**_CAP_20KT, "labor_burden": 0.90},
-            ),
-        ))
-    assert payload.get("error_code") == "incomplete_stage_basis_grid"
-    keys = payload["missing_keys"]
-    assert len(keys) == 4
-    assert {row["labor_burden"] for row in keys} == {0.90}
-
-
-def test_named_labor_burden_completes_on_matching_rows(monkeypatch):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    session = new_session()
-    with bind_tool_session(session):
-        handle = _plant_handle(session, _complete_d18_rows(labor_burden=1.5))
-        payload = _data(tea.rank_landscape(
-            **_sequence_kwargs(
-                handle=handle,
-                process_config={**_CAP_20KT, "labor_burden": 1.5},
-            ),
-        ))
-    assert payload.get("error_code") == "sequence_coupling_unproven"
-    assert "pending_blockers" not in payload
-    assert "missing_keys" not in payload
-    assert "landscape_points" not in payload
-
-
-def test_named_default_labor_burden_completes_on_matching_default_rows(
-    monkeypatch,
-):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    session = new_session()
-    with bind_tool_session(session):
-        handle = _plant_handle(session, _complete_d18_rows(labor_burden=0.90))
-        payload = _data(tea.rank_landscape(
-            **_sequence_kwargs(
-                handle=handle,
-                process_config={**_CAP_20KT, "labor_burden": 0.90},
-            ),
-        ))
-    assert payload.get("error_code") == "sequence_coupling_unproven"
-    assert "pending_blockers" not in payload
-    assert "missing_keys" not in payload
 
 
 def test_named_slice_at_wrong_labor_burden_does_not_fill(monkeypatch):
@@ -5639,35 +4521,6 @@ def test_named_slice_at_wrong_labor_burden_does_not_fill(monkeypatch):
     assert {row["labor_burden"] for row in keys} == {1.5}
 
 
-def test_mixed_labor_burden_handle_leaves_the_unmatched_remnant(monkeypatch):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    rows = _complete_d18_rows(labor_burden=1.5)
-    rows[-1]["labor_burden"] = 0.90
-    session = new_session()
-    with bind_tool_session(session):
-        handle = _plant_handle(session, rows)
-        payload = _data(tea.rank_landscape(
-            **_sequence_kwargs(
-                handle=handle,
-                process_config={**_CAP_20KT, "labor_burden": 1.5},
-            ),
-        ))
-    assert payload.get("error_code") == "incomplete_stage_basis_grid"
-    keys = payload["missing_keys"]
-    assert len(keys) == 1
-    assert keys[0]["labor_burden"] == 1.5
-    assert keys[0]["polymer"] == "EVOH"
-    assert keys[0]["target_mass_percent"] == 100.0
-
-
-def test_labor_burden_kwarg_is_unknown_extra(monkeypatch):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    payload = _data(tea.rank_landscape(**_sequence_kwargs(labor_burden=1.5)))
-    assert payload.get("error_code") == "unknown_process_field"
-    assert payload.get("extra_keys") == ["labor_burden"]
-    assert payload.get("error_code") != "incomplete_stage_basis_grid"
-
-
 @pytest.mark.parametrize(
     ('key', 'value'),
     [
@@ -5703,88 +4556,6 @@ def test_finance_interest_rows_still_complete_when_omitted(monkeypatch, finance_
     assert payload.get("error_code") == "sequence_coupling_unproven"
     assert "pending_blockers" not in payload
     assert "landscape_points" not in payload
-
-
-def test_named_finance_interest_does_not_accept_default_rows(monkeypatch):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    session = new_session()
-    with bind_tool_session(session):
-        handle = _plant_handle(
-            session, _complete_d18_rows(finance_interest=0.08),
-        )
-        payload = _data(tea.rank_landscape(
-            **_sequence_kwargs(
-                handle=handle,
-                process_config={**_CAP_20KT, "finance_interest": 0.12},
-            ),
-        ))
-    assert payload.get("error_code") == "incomplete_stage_basis_grid"
-    assert payload.get("error_code") != "sequence_coupling_unproven"
-    keys = payload["missing_keys"]
-    assert len(keys) == 4
-    assert {row["finance_interest"] for row in keys} == {0.12}
-    assert payload["pending_blockers"][0]["error_type"] == (
-        "sequence_coupling_unproven"
-    )
-    assert "landscape_points" not in payload
-
-
-def test_named_default_finance_interest_does_not_accept_other_rows(monkeypatch):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    session = new_session()
-    with bind_tool_session(session):
-        handle = _plant_handle(
-            session, _complete_d18_rows(finance_interest=0.12),
-        )
-        payload = _data(tea.rank_landscape(
-            **_sequence_kwargs(
-                handle=handle,
-                process_config={**_CAP_20KT, "finance_interest": 0.08},
-            ),
-        ))
-    assert payload.get("error_code") == "incomplete_stage_basis_grid"
-    keys = payload["missing_keys"]
-    assert len(keys) == 4
-    assert {row["finance_interest"] for row in keys} == {0.08}
-
-
-def test_named_finance_interest_completes_on_matching_rows(monkeypatch):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    session = new_session()
-    with bind_tool_session(session):
-        handle = _plant_handle(
-            session, _complete_d18_rows(finance_interest=0.12),
-        )
-        payload = _data(tea.rank_landscape(
-            **_sequence_kwargs(
-                handle=handle,
-                process_config={**_CAP_20KT, "finance_interest": 0.12},
-            ),
-        ))
-    assert payload.get("error_code") == "sequence_coupling_unproven"
-    assert "pending_blockers" not in payload
-    assert "missing_keys" not in payload
-    assert "landscape_points" not in payload
-
-
-def test_named_default_finance_interest_completes_on_matching_default_rows(
-    monkeypatch,
-):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    session = new_session()
-    with bind_tool_session(session):
-        handle = _plant_handle(
-            session, _complete_d18_rows(finance_interest=0.08),
-        )
-        payload = _data(tea.rank_landscape(
-            **_sequence_kwargs(
-                handle=handle,
-                process_config={**_CAP_20KT, "finance_interest": 0.08},
-            ),
-        ))
-    assert payload.get("error_code") == "sequence_coupling_unproven"
-    assert "pending_blockers" not in payload
-    assert "missing_keys" not in payload
 
 
 @pytest.mark.parametrize(
@@ -5881,37 +4652,6 @@ def test_named_slice_at_wrong_finance_interest_does_not_fill(monkeypatch):
     assert {row["finance_interest"] for row in keys} == {0.12}
 
 
-def test_mixed_finance_interest_handle_leaves_the_unmatched_remnant(monkeypatch):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    rows = _complete_d18_rows(finance_interest=0.12)
-    rows[-1]["finance_interest"] = 0.08
-    session = new_session()
-    with bind_tool_session(session):
-        handle = _plant_handle(session, rows)
-        payload = _data(tea.rank_landscape(
-            **_sequence_kwargs(
-                handle=handle,
-                process_config={**_CAP_20KT, "finance_interest": 0.12},
-            ),
-        ))
-    assert payload.get("error_code") == "incomplete_stage_basis_grid"
-    keys = payload["missing_keys"]
-    assert len(keys) == 1
-    assert keys[0]["finance_interest"] == 0.12
-    assert keys[0]["polymer"] == "EVOH"
-    assert keys[0]["target_mass_percent"] == 100.0
-
-
-def test_finance_interest_kwarg_is_unknown_extra(monkeypatch):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    payload = _data(tea.rank_landscape(
-        **_sequence_kwargs(finance_interest=0.12),
-    ))
-    assert payload.get("error_code") == "unknown_process_field"
-    assert payload.get("extra_keys") == ["finance_interest"]
-    assert payload.get("error_code") != "incomplete_stage_basis_grid"
-
-
 @pytest.mark.parametrize(
     'finance_years',
     [
@@ -5928,80 +4668,6 @@ def test_finance_years_rows_still_complete_when_omitted(monkeypatch, finance_yea
     assert payload.get("error_code") == "sequence_coupling_unproven"
     assert "pending_blockers" not in payload
     assert "landscape_points" not in payload
-
-
-def test_named_finance_years_does_not_accept_default_rows(monkeypatch):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    session = new_session()
-    with bind_tool_session(session):
-        handle = _plant_handle(session, _complete_d18_rows(finance_years=10))
-        payload = _data(tea.rank_landscape(
-            **_sequence_kwargs(
-                handle=handle,
-                process_config={**_CAP_20KT, "finance_years": 15},
-            ),
-        ))
-    assert payload.get("error_code") == "incomplete_stage_basis_grid"
-    assert payload.get("error_code") != "sequence_coupling_unproven"
-    keys = payload["missing_keys"]
-    assert len(keys) == 4
-    assert {row["finance_years"] for row in keys} == {15.0}
-    assert payload["pending_blockers"][0]["error_type"] == (
-        "sequence_coupling_unproven"
-    )
-    assert "landscape_points" not in payload
-
-
-def test_named_default_finance_years_does_not_accept_other_rows(monkeypatch):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    session = new_session()
-    with bind_tool_session(session):
-        handle = _plant_handle(session, _complete_d18_rows(finance_years=15))
-        payload = _data(tea.rank_landscape(
-            **_sequence_kwargs(
-                handle=handle,
-                process_config={**_CAP_20KT, "finance_years": 10},
-            ),
-        ))
-    assert payload.get("error_code") == "incomplete_stage_basis_grid"
-    keys = payload["missing_keys"]
-    assert len(keys) == 4
-    assert {row["finance_years"] for row in keys} == {10.0}
-
-
-def test_named_finance_years_completes_on_matching_rows(monkeypatch):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    session = new_session()
-    with bind_tool_session(session):
-        handle = _plant_handle(session, _complete_d18_rows(finance_years=15))
-        payload = _data(tea.rank_landscape(
-            **_sequence_kwargs(
-                handle=handle,
-                process_config={**_CAP_20KT, "finance_years": 15},
-            ),
-        ))
-    assert payload.get("error_code") == "sequence_coupling_unproven"
-    assert "pending_blockers" not in payload
-    assert "missing_keys" not in payload
-    assert "landscape_points" not in payload
-
-
-def test_named_default_finance_years_completes_on_matching_default_rows(
-    monkeypatch,
-):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    session = new_session()
-    with bind_tool_session(session):
-        handle = _plant_handle(session, _complete_d18_rows(finance_years=10))
-        payload = _data(tea.rank_landscape(
-            **_sequence_kwargs(
-                handle=handle,
-                process_config={**_CAP_20KT, "finance_years": 10},
-            ),
-        ))
-    assert payload.get("error_code") == "sequence_coupling_unproven"
-    assert "pending_blockers" not in payload
-    assert "missing_keys" not in payload
 
 
 def test_named_slice_at_wrong_finance_years_does_not_fill(monkeypatch):
@@ -6064,35 +4730,6 @@ def test_named_slice_at_wrong_finance_years_does_not_fill(monkeypatch):
     assert {row["finance_years"] for row in keys} == {15.0}
 
 
-def test_mixed_finance_years_handle_leaves_the_unmatched_remnant(monkeypatch):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    rows = _complete_d18_rows(finance_years=15)
-    rows[-1]["finance_years"] = 10
-    session = new_session()
-    with bind_tool_session(session):
-        handle = _plant_handle(session, rows)
-        payload = _data(tea.rank_landscape(
-            **_sequence_kwargs(
-                handle=handle,
-                process_config={**_CAP_20KT, "finance_years": 15},
-            ),
-        ))
-    assert payload.get("error_code") == "incomplete_stage_basis_grid"
-    keys = payload["missing_keys"]
-    assert len(keys) == 1
-    assert keys[0]["finance_years"] == 15.0
-    assert keys[0]["polymer"] == "EVOH"
-    assert keys[0]["target_mass_percent"] == 100.0
-
-
-def test_finance_years_kwarg_is_unknown_extra(monkeypatch):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    payload = _data(tea.rank_landscape(**_sequence_kwargs(finance_years=15)))
-    assert payload.get("error_code") == "unknown_process_field"
-    assert payload.get("extra_keys") == ["finance_years"]
-    assert payload.get("error_code") != "incomplete_stage_basis_grid"
-
-
 @pytest.mark.parametrize(
     'finance_fraction',
     [
@@ -6111,88 +4748,6 @@ def test_finance_fraction_rows_still_complete_when_omitted(monkeypatch, finance_
     assert payload.get("error_code") == "sequence_coupling_unproven"
     assert "pending_blockers" not in payload
     assert "landscape_points" not in payload
-
-
-def test_named_finance_fraction_does_not_accept_default_rows(monkeypatch):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    session = new_session()
-    with bind_tool_session(session):
-        handle = _plant_handle(
-            session, _complete_d18_rows(finance_fraction=0.0),
-        )
-        payload = _data(tea.rank_landscape(
-            **_sequence_kwargs(
-                handle=handle,
-                process_config={**_CAP_20KT, "finance_fraction": 0.4},
-            ),
-        ))
-    assert payload.get("error_code") == "incomplete_stage_basis_grid"
-    assert payload.get("error_code") != "sequence_coupling_unproven"
-    keys = payload["missing_keys"]
-    assert len(keys) == 4
-    assert {row["finance_fraction"] for row in keys} == {0.4}
-    assert payload["pending_blockers"][0]["error_type"] == (
-        "sequence_coupling_unproven"
-    )
-    assert "landscape_points" not in payload
-
-
-def test_named_default_finance_fraction_does_not_accept_other_rows(monkeypatch):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    session = new_session()
-    with bind_tool_session(session):
-        handle = _plant_handle(
-            session, _complete_d18_rows(finance_fraction=0.4),
-        )
-        payload = _data(tea.rank_landscape(
-            **_sequence_kwargs(
-                handle=handle,
-                process_config={**_CAP_20KT, "finance_fraction": 0.0},
-            ),
-        ))
-    assert payload.get("error_code") == "incomplete_stage_basis_grid"
-    keys = payload["missing_keys"]
-    assert len(keys) == 4
-    assert {row["finance_fraction"] for row in keys} == {0.0}
-
-
-def test_named_finance_fraction_completes_on_matching_rows(monkeypatch):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    session = new_session()
-    with bind_tool_session(session):
-        handle = _plant_handle(
-            session, _complete_d18_rows(finance_fraction=0.4),
-        )
-        payload = _data(tea.rank_landscape(
-            **_sequence_kwargs(
-                handle=handle,
-                process_config={**_CAP_20KT, "finance_fraction": 0.4},
-            ),
-        ))
-    assert payload.get("error_code") == "sequence_coupling_unproven"
-    assert "pending_blockers" not in payload
-    assert "missing_keys" not in payload
-    assert "landscape_points" not in payload
-
-
-def test_named_default_finance_fraction_completes_on_matching_default_rows(
-    monkeypatch,
-):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    session = new_session()
-    with bind_tool_session(session):
-        handle = _plant_handle(
-            session, _complete_d18_rows(finance_fraction=0.0),
-        )
-        payload = _data(tea.rank_landscape(
-            **_sequence_kwargs(
-                handle=handle,
-                process_config={**_CAP_20KT, "finance_fraction": 0.0},
-            ),
-        ))
-    assert payload.get("error_code") == "sequence_coupling_unproven"
-    assert "pending_blockers" not in payload
-    assert "missing_keys" not in payload
 
 
 def test_named_slice_at_wrong_finance_fraction_does_not_fill(monkeypatch):
@@ -6257,39 +4812,6 @@ def test_named_slice_at_wrong_finance_fraction_does_not_fill(monkeypatch):
     assert {row["finance_fraction"] for row in keys} == {0.4}
 
 
-def test_mixed_finance_fraction_handle_leaves_the_unmatched_remnant(
-    monkeypatch,
-):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    rows = _complete_d18_rows(finance_fraction=0.4)
-    rows[-1]["finance_fraction"] = 0.0
-    session = new_session()
-    with bind_tool_session(session):
-        handle = _plant_handle(session, rows)
-        payload = _data(tea.rank_landscape(
-            **_sequence_kwargs(
-                handle=handle,
-                process_config={**_CAP_20KT, "finance_fraction": 0.4},
-            ),
-        ))
-    assert payload.get("error_code") == "incomplete_stage_basis_grid"
-    keys = payload["missing_keys"]
-    assert len(keys) == 1
-    assert keys[0]["finance_fraction"] == 0.4
-    assert keys[0]["polymer"] == "EVOH"
-    assert keys[0]["target_mass_percent"] == 100.0
-
-
-def test_finance_fraction_kwarg_is_unknown_extra(monkeypatch):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    payload = _data(tea.rank_landscape(
-        **_sequence_kwargs(finance_fraction=0.4),
-    ))
-    assert payload.get("error_code") == "unknown_process_field"
-    assert payload.get("extra_keys") == ["finance_fraction"]
-    assert payload.get("error_code") != "incomplete_stage_basis_grid"
-
-
 @pytest.mark.parametrize(
     'startup_months',
     [
@@ -6308,88 +4830,6 @@ def test_startup_months_rows_still_complete_when_omitted(monkeypatch, startup_mo
     assert payload.get("error_code") == "sequence_coupling_unproven"
     assert "pending_blockers" not in payload
     assert "landscape_points" not in payload
-
-
-def test_named_startup_months_does_not_accept_default_rows(monkeypatch):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    session = new_session()
-    with bind_tool_session(session):
-        handle = _plant_handle(
-            session, _complete_d18_rows(startup_months=3),
-        )
-        payload = _data(tea.rank_landscape(
-            **_sequence_kwargs(
-                handle=handle,
-                process_config={**_CAP_20KT, "startup_months": 6},
-            ),
-        ))
-    assert payload.get("error_code") == "incomplete_stage_basis_grid"
-    assert payload.get("error_code") != "sequence_coupling_unproven"
-    keys = payload["missing_keys"]
-    assert len(keys) == 4
-    assert {row["startup_months"] for row in keys} == {6.0}
-    assert payload["pending_blockers"][0]["error_type"] == (
-        "sequence_coupling_unproven"
-    )
-    assert "landscape_points" not in payload
-
-
-def test_named_default_startup_months_does_not_accept_other_rows(monkeypatch):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    session = new_session()
-    with bind_tool_session(session):
-        handle = _plant_handle(
-            session, _complete_d18_rows(startup_months=6),
-        )
-        payload = _data(tea.rank_landscape(
-            **_sequence_kwargs(
-                handle=handle,
-                process_config={**_CAP_20KT, "startup_months": 3},
-            ),
-        ))
-    assert payload.get("error_code") == "incomplete_stage_basis_grid"
-    keys = payload["missing_keys"]
-    assert len(keys) == 4
-    assert {row["startup_months"] for row in keys} == {3.0}
-
-
-def test_named_startup_months_completes_on_matching_rows(monkeypatch):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    session = new_session()
-    with bind_tool_session(session):
-        handle = _plant_handle(
-            session, _complete_d18_rows(startup_months=6),
-        )
-        payload = _data(tea.rank_landscape(
-            **_sequence_kwargs(
-                handle=handle,
-                process_config={**_CAP_20KT, "startup_months": 6},
-            ),
-        ))
-    assert payload.get("error_code") == "sequence_coupling_unproven"
-    assert "pending_blockers" not in payload
-    assert "missing_keys" not in payload
-    assert "landscape_points" not in payload
-
-
-def test_named_default_startup_months_completes_on_matching_default_rows(
-    monkeypatch,
-):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    session = new_session()
-    with bind_tool_session(session):
-        handle = _plant_handle(
-            session, _complete_d18_rows(startup_months=3),
-        )
-        payload = _data(tea.rank_landscape(
-            **_sequence_kwargs(
-                handle=handle,
-                process_config={**_CAP_20KT, "startup_months": 3},
-            ),
-        ))
-    assert payload.get("error_code") == "sequence_coupling_unproven"
-    assert "pending_blockers" not in payload
-    assert "missing_keys" not in payload
 
 
 def test_named_slice_at_wrong_startup_months_does_not_fill(monkeypatch):
@@ -6456,37 +4896,6 @@ def test_named_slice_at_wrong_startup_months_does_not_fill(monkeypatch):
     assert {row["startup_months"] for row in keys} == {6.0}
 
 
-def test_mixed_startup_months_handle_leaves_the_unmatched_remnant(monkeypatch):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    rows = _complete_d18_rows(startup_months=6)
-    rows[-1]["startup_months"] = 3
-    session = new_session()
-    with bind_tool_session(session):
-        handle = _plant_handle(session, rows)
-        payload = _data(tea.rank_landscape(
-            **_sequence_kwargs(
-                handle=handle,
-                process_config={**_CAP_20KT, "startup_months": 6},
-            ),
-        ))
-    assert payload.get("error_code") == "incomplete_stage_basis_grid"
-    keys = payload["missing_keys"]
-    assert len(keys) == 1
-    assert keys[0]["startup_months"] == 6.0
-    assert keys[0]["polymer"] == "EVOH"
-    assert keys[0]["target_mass_percent"] == 100.0
-
-
-def test_startup_months_kwarg_is_unknown_extra(monkeypatch):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    payload = _data(tea.rank_landscape(
-        **_sequence_kwargs(startup_months=6),
-    ))
-    assert payload.get("error_code") == "unknown_process_field"
-    assert payload.get("extra_keys") == ["startup_months"]
-    assert payload.get("error_code") != "incomplete_stage_basis_grid"
-
-
 @pytest.mark.parametrize(
     'startup_FOCfrac',
     [
@@ -6505,88 +4914,6 @@ def test_startup_FOCfrac_rows_still_complete_when_omitted(monkeypatch, startup_F
     assert payload.get("error_code") == "sequence_coupling_unproven"
     assert "pending_blockers" not in payload
     assert "landscape_points" not in payload
-
-
-def test_named_startup_FOCfrac_does_not_accept_default_rows(monkeypatch):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    session = new_session()
-    with bind_tool_session(session):
-        handle = _plant_handle(
-            session, _complete_d18_rows(startup_FOCfrac=1.0),
-        )
-        payload = _data(tea.rank_landscape(
-            **_sequence_kwargs(
-                handle=handle,
-                process_config={**_CAP_20KT, "startup_FOCfrac": 0.5},
-            ),
-        ))
-    assert payload.get("error_code") == "incomplete_stage_basis_grid"
-    assert payload.get("error_code") != "sequence_coupling_unproven"
-    keys = payload["missing_keys"]
-    assert len(keys) == 4
-    assert {row["startup_FOCfrac"] for row in keys} == {0.5}
-    assert payload["pending_blockers"][0]["error_type"] == (
-        "sequence_coupling_unproven"
-    )
-    assert "landscape_points" not in payload
-
-
-def test_named_default_startup_FOCfrac_does_not_accept_other_rows(monkeypatch):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    session = new_session()
-    with bind_tool_session(session):
-        handle = _plant_handle(
-            session, _complete_d18_rows(startup_FOCfrac=0.5),
-        )
-        payload = _data(tea.rank_landscape(
-            **_sequence_kwargs(
-                handle=handle,
-                process_config={**_CAP_20KT, "startup_FOCfrac": 1.0},
-            ),
-        ))
-    assert payload.get("error_code") == "incomplete_stage_basis_grid"
-    keys = payload["missing_keys"]
-    assert len(keys) == 4
-    assert {row["startup_FOCfrac"] for row in keys} == {1.0}
-
-
-def test_named_startup_FOCfrac_completes_on_matching_rows(monkeypatch):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    session = new_session()
-    with bind_tool_session(session):
-        handle = _plant_handle(
-            session, _complete_d18_rows(startup_FOCfrac=0.5),
-        )
-        payload = _data(tea.rank_landscape(
-            **_sequence_kwargs(
-                handle=handle,
-                process_config={**_CAP_20KT, "startup_FOCfrac": 0.5},
-            ),
-        ))
-    assert payload.get("error_code") == "sequence_coupling_unproven"
-    assert "pending_blockers" not in payload
-    assert "missing_keys" not in payload
-    assert "landscape_points" not in payload
-
-
-def test_named_default_startup_FOCfrac_completes_on_matching_default_rows(
-    monkeypatch,
-):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    session = new_session()
-    with bind_tool_session(session):
-        handle = _plant_handle(
-            session, _complete_d18_rows(startup_FOCfrac=1.0),
-        )
-        payload = _data(tea.rank_landscape(
-            **_sequence_kwargs(
-                handle=handle,
-                process_config={**_CAP_20KT, "startup_FOCfrac": 1.0},
-            ),
-        ))
-    assert payload.get("error_code") == "sequence_coupling_unproven"
-    assert "pending_blockers" not in payload
-    assert "missing_keys" not in payload
 
 
 def test_named_slice_at_wrong_startup_FOCfrac_does_not_fill(monkeypatch):
@@ -6655,37 +4982,6 @@ def test_named_slice_at_wrong_startup_FOCfrac_does_not_fill(monkeypatch):
     assert {row["startup_FOCfrac"] for row in keys} == {0.5}
 
 
-def test_mixed_startup_FOCfrac_handle_leaves_the_unmatched_remnant(monkeypatch):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    rows = _complete_d18_rows(startup_FOCfrac=0.5)
-    rows[-1]["startup_FOCfrac"] = 1.0
-    session = new_session()
-    with bind_tool_session(session):
-        handle = _plant_handle(session, rows)
-        payload = _data(tea.rank_landscape(
-            **_sequence_kwargs(
-                handle=handle,
-                process_config={**_CAP_20KT, "startup_FOCfrac": 0.5},
-            ),
-        ))
-    assert payload.get("error_code") == "incomplete_stage_basis_grid"
-    keys = payload["missing_keys"]
-    assert len(keys) == 1
-    assert keys[0]["startup_FOCfrac"] == 0.5
-    assert keys[0]["polymer"] == "EVOH"
-    assert keys[0]["target_mass_percent"] == 100.0
-
-
-def test_startup_FOCfrac_kwarg_is_unknown_extra(monkeypatch):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    payload = _data(tea.rank_landscape(
-        **_sequence_kwargs(startup_FOCfrac=0.5),
-    ))
-    assert payload.get("error_code") == "unknown_process_field"
-    assert payload.get("extra_keys") == ["startup_FOCfrac"]
-    assert payload.get("error_code") != "incomplete_stage_basis_grid"
-
-
 @pytest.mark.parametrize(
     'startup_VOCfrac',
     [
@@ -6704,88 +5000,6 @@ def test_startup_VOCfrac_rows_still_complete_when_omitted(monkeypatch, startup_V
     assert payload.get("error_code") == "sequence_coupling_unproven"
     assert "pending_blockers" not in payload
     assert "landscape_points" not in payload
-
-
-def test_named_startup_VOCfrac_does_not_accept_default_rows(monkeypatch):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    session = new_session()
-    with bind_tool_session(session):
-        handle = _plant_handle(
-            session, _complete_d18_rows(startup_VOCfrac=0.75),
-        )
-        payload = _data(tea.rank_landscape(
-            **_sequence_kwargs(
-                handle=handle,
-                process_config={**_CAP_20KT, "startup_VOCfrac": 0.5},
-            ),
-        ))
-    assert payload.get("error_code") == "incomplete_stage_basis_grid"
-    assert payload.get("error_code") != "sequence_coupling_unproven"
-    keys = payload["missing_keys"]
-    assert len(keys) == 4
-    assert {row["startup_VOCfrac"] for row in keys} == {0.5}
-    assert payload["pending_blockers"][0]["error_type"] == (
-        "sequence_coupling_unproven"
-    )
-    assert "landscape_points" not in payload
-
-
-def test_named_default_startup_VOCfrac_does_not_accept_other_rows(monkeypatch):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    session = new_session()
-    with bind_tool_session(session):
-        handle = _plant_handle(
-            session, _complete_d18_rows(startup_VOCfrac=0.5),
-        )
-        payload = _data(tea.rank_landscape(
-            **_sequence_kwargs(
-                handle=handle,
-                process_config={**_CAP_20KT, "startup_VOCfrac": 0.75},
-            ),
-        ))
-    assert payload.get("error_code") == "incomplete_stage_basis_grid"
-    keys = payload["missing_keys"]
-    assert len(keys) == 4
-    assert {row["startup_VOCfrac"] for row in keys} == {0.75}
-
-
-def test_named_startup_VOCfrac_completes_on_matching_rows(monkeypatch):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    session = new_session()
-    with bind_tool_session(session):
-        handle = _plant_handle(
-            session, _complete_d18_rows(startup_VOCfrac=0.5),
-        )
-        payload = _data(tea.rank_landscape(
-            **_sequence_kwargs(
-                handle=handle,
-                process_config={**_CAP_20KT, "startup_VOCfrac": 0.5},
-            ),
-        ))
-    assert payload.get("error_code") == "sequence_coupling_unproven"
-    assert "pending_blockers" not in payload
-    assert "missing_keys" not in payload
-    assert "landscape_points" not in payload
-
-
-def test_named_default_startup_VOCfrac_completes_on_matching_default_rows(
-    monkeypatch,
-):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    session = new_session()
-    with bind_tool_session(session):
-        handle = _plant_handle(
-            session, _complete_d18_rows(startup_VOCfrac=0.75),
-        )
-        payload = _data(tea.rank_landscape(
-            **_sequence_kwargs(
-                handle=handle,
-                process_config={**_CAP_20KT, "startup_VOCfrac": 0.75},
-            ),
-        ))
-    assert payload.get("error_code") == "sequence_coupling_unproven"
-    assert "pending_blockers" not in payload
-    assert "missing_keys" not in payload
 
 
 def test_named_slice_at_wrong_startup_VOCfrac_does_not_fill(monkeypatch):
@@ -6856,37 +5070,6 @@ def test_named_slice_at_wrong_startup_VOCfrac_does_not_fill(monkeypatch):
     assert {row["startup_VOCfrac"] for row in keys} == {0.5}
 
 
-def test_mixed_startup_VOCfrac_handle_leaves_the_unmatched_remnant(monkeypatch):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    rows = _complete_d18_rows(startup_VOCfrac=0.5)
-    rows[-1]["startup_VOCfrac"] = 0.75
-    session = new_session()
-    with bind_tool_session(session):
-        handle = _plant_handle(session, rows)
-        payload = _data(tea.rank_landscape(
-            **_sequence_kwargs(
-                handle=handle,
-                process_config={**_CAP_20KT, "startup_VOCfrac": 0.5},
-            ),
-        ))
-    assert payload.get("error_code") == "incomplete_stage_basis_grid"
-    keys = payload["missing_keys"]
-    assert len(keys) == 1
-    assert keys[0]["startup_VOCfrac"] == 0.5
-    assert keys[0]["polymer"] == "EVOH"
-    assert keys[0]["target_mass_percent"] == 100.0
-
-
-def test_startup_VOCfrac_kwarg_is_unknown_extra(monkeypatch):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    payload = _data(tea.rank_landscape(
-        **_sequence_kwargs(startup_VOCfrac=0.5),
-    ))
-    assert payload.get("error_code") == "unknown_process_field"
-    assert payload.get("extra_keys") == ["startup_VOCfrac"]
-    assert payload.get("error_code") != "incomplete_stage_basis_grid"
-
-
 @pytest.mark.parametrize(
     'startup_salesfrac',
     [
@@ -6905,90 +5088,6 @@ def test_startup_salesfrac_rows_still_complete_when_omitted(monkeypatch, startup
     assert payload.get("error_code") == "sequence_coupling_unproven"
     assert "pending_blockers" not in payload
     assert "landscape_points" not in payload
-
-
-def test_named_startup_salesfrac_does_not_accept_default_rows(monkeypatch):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    session = new_session()
-    with bind_tool_session(session):
-        handle = _plant_handle(
-            session, _complete_d18_rows(startup_salesfrac=0.5),
-        )
-        payload = _data(tea.rank_landscape(
-            **_sequence_kwargs(
-                handle=handle,
-                process_config={**_CAP_20KT, "startup_salesfrac": 0.25},
-            ),
-        ))
-    assert payload.get("error_code") == "incomplete_stage_basis_grid"
-    assert payload.get("error_code") != "sequence_coupling_unproven"
-    keys = payload["missing_keys"]
-    assert len(keys) == 4
-    assert {row["startup_salesfrac"] for row in keys} == {0.25}
-    assert payload["pending_blockers"][0]["error_type"] == (
-        "sequence_coupling_unproven"
-    )
-    assert "landscape_points" not in payload
-
-
-def test_named_default_startup_salesfrac_does_not_accept_other_rows(
-    monkeypatch,
-):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    session = new_session()
-    with bind_tool_session(session):
-        handle = _plant_handle(
-            session, _complete_d18_rows(startup_salesfrac=0.25),
-        )
-        payload = _data(tea.rank_landscape(
-            **_sequence_kwargs(
-                handle=handle,
-                process_config={**_CAP_20KT, "startup_salesfrac": 0.5},
-            ),
-        ))
-    assert payload.get("error_code") == "incomplete_stage_basis_grid"
-    keys = payload["missing_keys"]
-    assert len(keys) == 4
-    assert {row["startup_salesfrac"] for row in keys} == {0.5}
-
-
-def test_named_startup_salesfrac_completes_on_matching_rows(monkeypatch):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    session = new_session()
-    with bind_tool_session(session):
-        handle = _plant_handle(
-            session, _complete_d18_rows(startup_salesfrac=0.25),
-        )
-        payload = _data(tea.rank_landscape(
-            **_sequence_kwargs(
-                handle=handle,
-                process_config={**_CAP_20KT, "startup_salesfrac": 0.25},
-            ),
-        ))
-    assert payload.get("error_code") == "sequence_coupling_unproven"
-    assert "pending_blockers" not in payload
-    assert "missing_keys" not in payload
-    assert "landscape_points" not in payload
-
-
-def test_named_default_startup_salesfrac_completes_on_matching_default_rows(
-    monkeypatch,
-):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    session = new_session()
-    with bind_tool_session(session):
-        handle = _plant_handle(
-            session, _complete_d18_rows(startup_salesfrac=0.5),
-        )
-        payload = _data(tea.rank_landscape(
-            **_sequence_kwargs(
-                handle=handle,
-                process_config={**_CAP_20KT, "startup_salesfrac": 0.5},
-            ),
-        ))
-    assert payload.get("error_code") == "sequence_coupling_unproven"
-    assert "pending_blockers" not in payload
-    assert "missing_keys" not in payload
 
 
 def test_named_slice_at_wrong_startup_salesfrac_does_not_fill(monkeypatch):
@@ -7061,39 +5160,6 @@ def test_named_slice_at_wrong_startup_salesfrac_does_not_fill(monkeypatch):
     assert {row["startup_salesfrac"] for row in keys} == {0.25}
 
 
-def test_mixed_startup_salesfrac_handle_leaves_the_unmatched_remnant(
-    monkeypatch,
-):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    rows = _complete_d18_rows(startup_salesfrac=0.25)
-    rows[-1]["startup_salesfrac"] = 0.5
-    session = new_session()
-    with bind_tool_session(session):
-        handle = _plant_handle(session, rows)
-        payload = _data(tea.rank_landscape(
-            **_sequence_kwargs(
-                handle=handle,
-                process_config={**_CAP_20KT, "startup_salesfrac": 0.25},
-            ),
-        ))
-    assert payload.get("error_code") == "incomplete_stage_basis_grid"
-    keys = payload["missing_keys"]
-    assert len(keys) == 1
-    assert keys[0]["startup_salesfrac"] == 0.25
-    assert keys[0]["polymer"] == "EVOH"
-    assert keys[0]["target_mass_percent"] == 100.0
-
-
-def test_startup_salesfrac_kwarg_is_unknown_extra(monkeypatch):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    payload = _data(tea.rank_landscape(
-        **_sequence_kwargs(startup_salesfrac=0.25),
-    ))
-    assert payload.get("error_code") == "unknown_process_field"
-    assert payload.get("extra_keys") == ["startup_salesfrac"]
-    assert payload.get("error_code") != "incomplete_stage_basis_grid"
-
-
 @pytest.mark.parametrize(
     'WC_over_FCI',
     [
@@ -7112,88 +5178,6 @@ def test_WC_over_FCI_rows_still_complete_when_omitted(monkeypatch, WC_over_FCI):
     assert payload.get("error_code") == "sequence_coupling_unproven"
     assert "pending_blockers" not in payload
     assert "landscape_points" not in payload
-
-
-def test_named_WC_over_FCI_does_not_accept_default_rows(monkeypatch):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    session = new_session()
-    with bind_tool_session(session):
-        handle = _plant_handle(
-            session, _complete_d18_rows(WC_over_FCI=0.05),
-        )
-        payload = _data(tea.rank_landscape(
-            **_sequence_kwargs(
-                handle=handle,
-                process_config={**_CAP_20KT, "WC_over_FCI": 0.10},
-            ),
-        ))
-    assert payload.get("error_code") == "incomplete_stage_basis_grid"
-    assert payload.get("error_code") != "sequence_coupling_unproven"
-    keys = payload["missing_keys"]
-    assert len(keys) == 4
-    assert {row["WC_over_FCI"] for row in keys} == {0.10}
-    assert payload["pending_blockers"][0]["error_type"] == (
-        "sequence_coupling_unproven"
-    )
-    assert "landscape_points" not in payload
-
-
-def test_named_default_WC_over_FCI_does_not_accept_other_rows(monkeypatch):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    session = new_session()
-    with bind_tool_session(session):
-        handle = _plant_handle(
-            session, _complete_d18_rows(WC_over_FCI=0.10),
-        )
-        payload = _data(tea.rank_landscape(
-            **_sequence_kwargs(
-                handle=handle,
-                process_config={**_CAP_20KT, "WC_over_FCI": 0.05},
-            ),
-        ))
-    assert payload.get("error_code") == "incomplete_stage_basis_grid"
-    keys = payload["missing_keys"]
-    assert len(keys) == 4
-    assert {row["WC_over_FCI"] for row in keys} == {0.05}
-
-
-def test_named_WC_over_FCI_completes_on_matching_rows(monkeypatch):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    session = new_session()
-    with bind_tool_session(session):
-        handle = _plant_handle(
-            session, _complete_d18_rows(WC_over_FCI=0.10),
-        )
-        payload = _data(tea.rank_landscape(
-            **_sequence_kwargs(
-                handle=handle,
-                process_config={**_CAP_20KT, "WC_over_FCI": 0.10},
-            ),
-        ))
-    assert payload.get("error_code") == "sequence_coupling_unproven"
-    assert "pending_blockers" not in payload
-    assert "missing_keys" not in payload
-    assert "landscape_points" not in payload
-
-
-def test_named_default_WC_over_FCI_completes_on_matching_default_rows(
-    monkeypatch,
-):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    session = new_session()
-    with bind_tool_session(session):
-        handle = _plant_handle(
-            session, _complete_d18_rows(WC_over_FCI=0.05),
-        )
-        payload = _data(tea.rank_landscape(
-            **_sequence_kwargs(
-                handle=handle,
-                process_config={**_CAP_20KT, "WC_over_FCI": 0.05},
-            ),
-        ))
-    assert payload.get("error_code") == "sequence_coupling_unproven"
-    assert "pending_blockers" not in payload
-    assert "missing_keys" not in payload
 
 
 def test_named_slice_at_wrong_WC_over_FCI_does_not_fill(monkeypatch):
@@ -7268,37 +5252,6 @@ def test_named_slice_at_wrong_WC_over_FCI_does_not_fill(monkeypatch):
     assert {row["WC_over_FCI"] for row in keys} == {0.10}
 
 
-def test_mixed_WC_over_FCI_handle_leaves_the_unmatched_remnant(monkeypatch):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    rows = _complete_d18_rows(WC_over_FCI=0.10)
-    rows[-1]["WC_over_FCI"] = 0.05
-    session = new_session()
-    with bind_tool_session(session):
-        handle = _plant_handle(session, rows)
-        payload = _data(tea.rank_landscape(
-            **_sequence_kwargs(
-                handle=handle,
-                process_config={**_CAP_20KT, "WC_over_FCI": 0.10},
-            ),
-        ))
-    assert payload.get("error_code") == "incomplete_stage_basis_grid"
-    keys = payload["missing_keys"]
-    assert len(keys) == 1
-    assert keys[0]["WC_over_FCI"] == 0.10
-    assert keys[0]["polymer"] == "EVOH"
-    assert keys[0]["target_mass_percent"] == 100.0
-
-
-def test_WC_over_FCI_kwarg_is_unknown_extra(monkeypatch):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    payload = _data(tea.rank_landscape(
-        **_sequence_kwargs(WC_over_FCI=0.10),
-    ))
-    assert payload.get("error_code") == "unknown_process_field"
-    assert payload.get("extra_keys") == ["WC_over_FCI"]
-    assert payload.get("error_code") != "incomplete_stage_basis_grid"
-
-
 @pytest.mark.parametrize(
     'warehouse',
     [
@@ -7317,88 +5270,6 @@ def test_warehouse_rows_still_complete_when_omitted(monkeypatch, warehouse):
     assert payload.get("error_code") == "sequence_coupling_unproven"
     assert "pending_blockers" not in payload
     assert "landscape_points" not in payload
-
-
-def test_named_warehouse_does_not_accept_default_rows(monkeypatch):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    session = new_session()
-    with bind_tool_session(session):
-        handle = _plant_handle(
-            session, _complete_d18_rows(warehouse=0.04),
-        )
-        payload = _data(tea.rank_landscape(
-            **_sequence_kwargs(
-                handle=handle,
-                process_config={**_CAP_20KT, "warehouse": 0.10},
-            ),
-        ))
-    assert payload.get("error_code") == "incomplete_stage_basis_grid"
-    assert payload.get("error_code") != "sequence_coupling_unproven"
-    keys = payload["missing_keys"]
-    assert len(keys) == 4
-    assert {row["warehouse"] for row in keys} == {0.10}
-    assert payload["pending_blockers"][0]["error_type"] == (
-        "sequence_coupling_unproven"
-    )
-    assert "landscape_points" not in payload
-
-
-def test_named_default_warehouse_does_not_accept_other_rows(monkeypatch):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    session = new_session()
-    with bind_tool_session(session):
-        handle = _plant_handle(
-            session, _complete_d18_rows(warehouse=0.10),
-        )
-        payload = _data(tea.rank_landscape(
-            **_sequence_kwargs(
-                handle=handle,
-                process_config={**_CAP_20KT, "warehouse": 0.04},
-            ),
-        ))
-    assert payload.get("error_code") == "incomplete_stage_basis_grid"
-    keys = payload["missing_keys"]
-    assert len(keys) == 4
-    assert {row["warehouse"] for row in keys} == {0.04}
-
-
-def test_named_warehouse_completes_on_matching_rows(monkeypatch):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    session = new_session()
-    with bind_tool_session(session):
-        handle = _plant_handle(
-            session, _complete_d18_rows(warehouse=0.10),
-        )
-        payload = _data(tea.rank_landscape(
-            **_sequence_kwargs(
-                handle=handle,
-                process_config={**_CAP_20KT, "warehouse": 0.10},
-            ),
-        ))
-    assert payload.get("error_code") == "sequence_coupling_unproven"
-    assert "pending_blockers" not in payload
-    assert "missing_keys" not in payload
-    assert "landscape_points" not in payload
-
-
-def test_named_default_warehouse_completes_on_matching_default_rows(
-    monkeypatch,
-):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    session = new_session()
-    with bind_tool_session(session):
-        handle = _plant_handle(
-            session, _complete_d18_rows(warehouse=0.04),
-        )
-        payload = _data(tea.rank_landscape(
-            **_sequence_kwargs(
-                handle=handle,
-                process_config={**_CAP_20KT, "warehouse": 0.04},
-            ),
-        ))
-    assert payload.get("error_code") == "sequence_coupling_unproven"
-    assert "pending_blockers" not in payload
-    assert "missing_keys" not in payload
 
 
 def test_named_slice_at_wrong_warehouse_does_not_fill(monkeypatch):
@@ -7475,37 +5346,6 @@ def test_named_slice_at_wrong_warehouse_does_not_fill(monkeypatch):
     assert {row["warehouse"] for row in keys} == {0.10}
 
 
-def test_mixed_warehouse_handle_leaves_the_unmatched_remnant(monkeypatch):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    rows = _complete_d18_rows(warehouse=0.10)
-    rows[-1]["warehouse"] = 0.04
-    session = new_session()
-    with bind_tool_session(session):
-        handle = _plant_handle(session, rows)
-        payload = _data(tea.rank_landscape(
-            **_sequence_kwargs(
-                handle=handle,
-                process_config={**_CAP_20KT, "warehouse": 0.10},
-            ),
-        ))
-    assert payload.get("error_code") == "incomplete_stage_basis_grid"
-    keys = payload["missing_keys"]
-    assert len(keys) == 1
-    assert keys[0]["warehouse"] == 0.10
-    assert keys[0]["polymer"] == "EVOH"
-    assert keys[0]["target_mass_percent"] == 100.0
-
-
-def test_warehouse_kwarg_is_unknown_extra(monkeypatch):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    payload = _data(tea.rank_landscape(
-        **_sequence_kwargs(warehouse=0.10),
-    ))
-    assert payload.get("error_code") == "unknown_process_field"
-    assert payload.get("extra_keys") == ["warehouse"]
-    assert payload.get("error_code") != "incomplete_stage_basis_grid"
-
-
 @pytest.mark.parametrize(
     'site_development',
     [
@@ -7524,88 +5364,6 @@ def test_site_development_rows_still_complete_when_omitted(monkeypatch, site_dev
     assert payload.get("error_code") == "sequence_coupling_unproven"
     assert "pending_blockers" not in payload
     assert "landscape_points" not in payload
-
-
-def test_named_site_development_does_not_accept_default_rows(monkeypatch):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    session = new_session()
-    with bind_tool_session(session):
-        handle = _plant_handle(
-            session, _complete_d18_rows(site_development=0.09),
-        )
-        payload = _data(tea.rank_landscape(
-            **_sequence_kwargs(
-                handle=handle,
-                process_config={**_CAP_20KT, "site_development": 0.10},
-            ),
-        ))
-    assert payload.get("error_code") == "incomplete_stage_basis_grid"
-    assert payload.get("error_code") != "sequence_coupling_unproven"
-    keys = payload["missing_keys"]
-    assert len(keys) == 4
-    assert {row["site_development"] for row in keys} == {0.10}
-    assert payload["pending_blockers"][0]["error_type"] == (
-        "sequence_coupling_unproven"
-    )
-    assert "landscape_points" not in payload
-
-
-def test_named_default_site_development_does_not_accept_other_rows(monkeypatch):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    session = new_session()
-    with bind_tool_session(session):
-        handle = _plant_handle(
-            session, _complete_d18_rows(site_development=0.10),
-        )
-        payload = _data(tea.rank_landscape(
-            **_sequence_kwargs(
-                handle=handle,
-                process_config={**_CAP_20KT, "site_development": 0.09},
-            ),
-        ))
-    assert payload.get("error_code") == "incomplete_stage_basis_grid"
-    keys = payload["missing_keys"]
-    assert len(keys) == 4
-    assert {row["site_development"] for row in keys} == {0.09}
-
-
-def test_named_site_development_completes_on_matching_rows(monkeypatch):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    session = new_session()
-    with bind_tool_session(session):
-        handle = _plant_handle(
-            session, _complete_d18_rows(site_development=0.10),
-        )
-        payload = _data(tea.rank_landscape(
-            **_sequence_kwargs(
-                handle=handle,
-                process_config={**_CAP_20KT, "site_development": 0.10},
-            ),
-        ))
-    assert payload.get("error_code") == "sequence_coupling_unproven"
-    assert "pending_blockers" not in payload
-    assert "missing_keys" not in payload
-    assert "landscape_points" not in payload
-
-
-def test_named_default_site_development_completes_on_matching_default_rows(
-    monkeypatch,
-):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    session = new_session()
-    with bind_tool_session(session):
-        handle = _plant_handle(
-            session, _complete_d18_rows(site_development=0.09),
-        )
-        payload = _data(tea.rank_landscape(
-            **_sequence_kwargs(
-                handle=handle,
-                process_config={**_CAP_20KT, "site_development": 0.09},
-            ),
-        ))
-    assert payload.get("error_code") == "sequence_coupling_unproven"
-    assert "pending_blockers" not in payload
-    assert "missing_keys" not in payload
 
 
 def test_named_slice_at_wrong_site_development_does_not_fill(monkeypatch):
@@ -7684,39 +5442,6 @@ def test_named_slice_at_wrong_site_development_does_not_fill(monkeypatch):
     assert {row["site_development"] for row in keys} == {0.10}
 
 
-def test_mixed_site_development_handle_leaves_the_unmatched_remnant(
-    monkeypatch,
-):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    rows = _complete_d18_rows(site_development=0.10)
-    rows[-1]["site_development"] = 0.09
-    session = new_session()
-    with bind_tool_session(session):
-        handle = _plant_handle(session, rows)
-        payload = _data(tea.rank_landscape(
-            **_sequence_kwargs(
-                handle=handle,
-                process_config={**_CAP_20KT, "site_development": 0.10},
-            ),
-        ))
-    assert payload.get("error_code") == "incomplete_stage_basis_grid"
-    keys = payload["missing_keys"]
-    assert len(keys) == 1
-    assert keys[0]["site_development"] == 0.10
-    assert keys[0]["polymer"] == "EVOH"
-    assert keys[0]["target_mass_percent"] == 100.0
-
-
-def test_site_development_kwarg_is_unknown_extra(monkeypatch):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    payload = _data(tea.rank_landscape(
-        **_sequence_kwargs(site_development=0.10),
-    ))
-    assert payload.get("error_code") == "unknown_process_field"
-    assert payload.get("extra_keys") == ["site_development"]
-    assert payload.get("error_code") != "incomplete_stage_basis_grid"
-
-
 @pytest.mark.parametrize(
     'additional_piping',
     [
@@ -7735,90 +5460,6 @@ def test_additional_piping_rows_still_complete_when_omitted(monkeypatch, additio
     assert payload.get("error_code") == "sequence_coupling_unproven"
     assert "pending_blockers" not in payload
     assert "landscape_points" not in payload
-
-
-def test_named_additional_piping_does_not_accept_default_rows(monkeypatch):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    session = new_session()
-    with bind_tool_session(session):
-        handle = _plant_handle(
-            session, _complete_d18_rows(additional_piping=0.045),
-        )
-        payload = _data(tea.rank_landscape(
-            **_sequence_kwargs(
-                handle=handle,
-                process_config={**_CAP_20KT, "additional_piping": 0.10},
-            ),
-        ))
-    assert payload.get("error_code") == "incomplete_stage_basis_grid"
-    assert payload.get("error_code") != "sequence_coupling_unproven"
-    keys = payload["missing_keys"]
-    assert len(keys) == 4
-    assert {row["additional_piping"] for row in keys} == {0.10}
-    assert payload["pending_blockers"][0]["error_type"] == (
-        "sequence_coupling_unproven"
-    )
-    assert "landscape_points" not in payload
-
-
-def test_named_default_additional_piping_does_not_accept_other_rows(
-    monkeypatch,
-):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    session = new_session()
-    with bind_tool_session(session):
-        handle = _plant_handle(
-            session, _complete_d18_rows(additional_piping=0.10),
-        )
-        payload = _data(tea.rank_landscape(
-            **_sequence_kwargs(
-                handle=handle,
-                process_config={**_CAP_20KT, "additional_piping": 0.045},
-            ),
-        ))
-    assert payload.get("error_code") == "incomplete_stage_basis_grid"
-    keys = payload["missing_keys"]
-    assert len(keys) == 4
-    assert {row["additional_piping"] for row in keys} == {0.045}
-
-
-def test_named_additional_piping_completes_on_matching_rows(monkeypatch):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    session = new_session()
-    with bind_tool_session(session):
-        handle = _plant_handle(
-            session, _complete_d18_rows(additional_piping=0.10),
-        )
-        payload = _data(tea.rank_landscape(
-            **_sequence_kwargs(
-                handle=handle,
-                process_config={**_CAP_20KT, "additional_piping": 0.10},
-            ),
-        ))
-    assert payload.get("error_code") == "sequence_coupling_unproven"
-    assert "pending_blockers" not in payload
-    assert "missing_keys" not in payload
-    assert "landscape_points" not in payload
-
-
-def test_named_default_additional_piping_completes_on_matching_default_rows(
-    monkeypatch,
-):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    session = new_session()
-    with bind_tool_session(session):
-        handle = _plant_handle(
-            session, _complete_d18_rows(additional_piping=0.045),
-        )
-        payload = _data(tea.rank_landscape(
-            **_sequence_kwargs(
-                handle=handle,
-                process_config={**_CAP_20KT, "additional_piping": 0.045},
-            ),
-        ))
-    assert payload.get("error_code") == "sequence_coupling_unproven"
-    assert "pending_blockers" not in payload
-    assert "missing_keys" not in payload
 
 
 def test_named_slice_at_wrong_additional_piping_does_not_fill(monkeypatch):
@@ -7899,39 +5540,6 @@ def test_named_slice_at_wrong_additional_piping_does_not_fill(monkeypatch):
     assert {row["additional_piping"] for row in keys} == {0.10}
 
 
-def test_mixed_additional_piping_handle_leaves_the_unmatched_remnant(
-    monkeypatch,
-):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    rows = _complete_d18_rows(additional_piping=0.10)
-    rows[-1]["additional_piping"] = 0.045
-    session = new_session()
-    with bind_tool_session(session):
-        handle = _plant_handle(session, rows)
-        payload = _data(tea.rank_landscape(
-            **_sequence_kwargs(
-                handle=handle,
-                process_config={**_CAP_20KT, "additional_piping": 0.10},
-            ),
-        ))
-    assert payload.get("error_code") == "incomplete_stage_basis_grid"
-    keys = payload["missing_keys"]
-    assert len(keys) == 1
-    assert keys[0]["additional_piping"] == 0.10
-    assert keys[0]["polymer"] == "EVOH"
-    assert keys[0]["target_mass_percent"] == 100.0
-
-
-def test_additional_piping_kwarg_is_unknown_extra(monkeypatch):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    payload = _data(tea.rank_landscape(
-        **_sequence_kwargs(additional_piping=0.10),
-    ))
-    assert payload.get("error_code") == "unknown_process_field"
-    assert payload.get("extra_keys") == ["additional_piping"]
-    assert payload.get("error_code") != "incomplete_stage_basis_grid"
-
-
 @pytest.mark.parametrize(
     'proratable_costs',
     [
@@ -7950,88 +5558,6 @@ def test_proratable_costs_rows_still_complete_when_omitted(monkeypatch, proratab
     assert payload.get("error_code") == "sequence_coupling_unproven"
     assert "pending_blockers" not in payload
     assert "landscape_points" not in payload
-
-
-def test_named_proratable_costs_does_not_accept_default_rows(monkeypatch):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    session = new_session()
-    with bind_tool_session(session):
-        handle = _plant_handle(
-            session, _complete_d18_rows(proratable_costs=0.10),
-        )
-        payload = _data(tea.rank_landscape(
-            **_sequence_kwargs(
-                handle=handle,
-                process_config={**_CAP_20KT, "proratable_costs": 0.20},
-            ),
-        ))
-    assert payload.get("error_code") == "incomplete_stage_basis_grid"
-    assert payload.get("error_code") != "sequence_coupling_unproven"
-    keys = payload["missing_keys"]
-    assert len(keys) == 4
-    assert {row["proratable_costs"] for row in keys} == {0.20}
-    assert payload["pending_blockers"][0]["error_type"] == (
-        "sequence_coupling_unproven"
-    )
-    assert "landscape_points" not in payload
-
-
-def test_named_default_proratable_costs_does_not_accept_other_rows(monkeypatch):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    session = new_session()
-    with bind_tool_session(session):
-        handle = _plant_handle(
-            session, _complete_d18_rows(proratable_costs=0.20),
-        )
-        payload = _data(tea.rank_landscape(
-            **_sequence_kwargs(
-                handle=handle,
-                process_config={**_CAP_20KT, "proratable_costs": 0.10},
-            ),
-        ))
-    assert payload.get("error_code") == "incomplete_stage_basis_grid"
-    keys = payload["missing_keys"]
-    assert len(keys) == 4
-    assert {row["proratable_costs"] for row in keys} == {0.10}
-
-
-def test_named_proratable_costs_completes_on_matching_rows(monkeypatch):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    session = new_session()
-    with bind_tool_session(session):
-        handle = _plant_handle(
-            session, _complete_d18_rows(proratable_costs=0.20),
-        )
-        payload = _data(tea.rank_landscape(
-            **_sequence_kwargs(
-                handle=handle,
-                process_config={**_CAP_20KT, "proratable_costs": 0.20},
-            ),
-        ))
-    assert payload.get("error_code") == "sequence_coupling_unproven"
-    assert "pending_blockers" not in payload
-    assert "missing_keys" not in payload
-    assert "landscape_points" not in payload
-
-
-def test_named_default_proratable_costs_completes_on_matching_default_rows(
-    monkeypatch,
-):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    session = new_session()
-    with bind_tool_session(session):
-        handle = _plant_handle(
-            session, _complete_d18_rows(proratable_costs=0.10),
-        )
-        payload = _data(tea.rank_landscape(
-            **_sequence_kwargs(
-                handle=handle,
-                process_config={**_CAP_20KT, "proratable_costs": 0.10},
-            ),
-        ))
-    assert payload.get("error_code") == "sequence_coupling_unproven"
-    assert "pending_blockers" not in payload
-    assert "missing_keys" not in payload
 
 
 def test_named_slice_at_wrong_proratable_costs_does_not_fill(monkeypatch):
@@ -8114,39 +5640,6 @@ def test_named_slice_at_wrong_proratable_costs_does_not_fill(monkeypatch):
     assert {row["proratable_costs"] for row in keys} == {0.20}
 
 
-def test_mixed_proratable_costs_handle_leaves_the_unmatched_remnant(
-    monkeypatch,
-):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    rows = _complete_d18_rows(proratable_costs=0.20)
-    rows[-1]["proratable_costs"] = 0.10
-    session = new_session()
-    with bind_tool_session(session):
-        handle = _plant_handle(session, rows)
-        payload = _data(tea.rank_landscape(
-            **_sequence_kwargs(
-                handle=handle,
-                process_config={**_CAP_20KT, "proratable_costs": 0.20},
-            ),
-        ))
-    assert payload.get("error_code") == "incomplete_stage_basis_grid"
-    keys = payload["missing_keys"]
-    assert len(keys) == 1
-    assert keys[0]["proratable_costs"] == 0.20
-    assert keys[0]["polymer"] == "EVOH"
-    assert keys[0]["target_mass_percent"] == 100.0
-
-
-def test_proratable_costs_kwarg_is_unknown_extra(monkeypatch):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    payload = _data(tea.rank_landscape(
-        **_sequence_kwargs(proratable_costs=0.20),
-    ))
-    assert payload.get("error_code") == "unknown_process_field"
-    assert payload.get("extra_keys") == ["proratable_costs"]
-    assert payload.get("error_code") != "incomplete_stage_basis_grid"
-
-
 @pytest.mark.parametrize(
     'field_expenses',
     [
@@ -8165,88 +5658,6 @@ def test_field_expenses_rows_still_complete_when_omitted(monkeypatch, field_expe
     assert payload.get("error_code") == "sequence_coupling_unproven"
     assert "pending_blockers" not in payload
     assert "landscape_points" not in payload
-
-
-def test_named_field_expenses_does_not_accept_default_rows(monkeypatch):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    session = new_session()
-    with bind_tool_session(session):
-        handle = _plant_handle(
-            session, _complete_d18_rows(field_expenses=0.10),
-        )
-        payload = _data(tea.rank_landscape(
-            **_sequence_kwargs(
-                handle=handle,
-                process_config={**_CAP_20KT, "field_expenses": 0.20},
-            ),
-        ))
-    assert payload.get("error_code") == "incomplete_stage_basis_grid"
-    assert payload.get("error_code") != "sequence_coupling_unproven"
-    keys = payload["missing_keys"]
-    assert len(keys) == 4
-    assert {row["field_expenses"] for row in keys} == {0.20}
-    assert payload["pending_blockers"][0]["error_type"] == (
-        "sequence_coupling_unproven"
-    )
-    assert "landscape_points" not in payload
-
-
-def test_named_default_field_expenses_does_not_accept_other_rows(monkeypatch):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    session = new_session()
-    with bind_tool_session(session):
-        handle = _plant_handle(
-            session, _complete_d18_rows(field_expenses=0.20),
-        )
-        payload = _data(tea.rank_landscape(
-            **_sequence_kwargs(
-                handle=handle,
-                process_config={**_CAP_20KT, "field_expenses": 0.10},
-            ),
-        ))
-    assert payload.get("error_code") == "incomplete_stage_basis_grid"
-    keys = payload["missing_keys"]
-    assert len(keys) == 4
-    assert {row["field_expenses"] for row in keys} == {0.10}
-
-
-def test_named_field_expenses_completes_on_matching_rows(monkeypatch):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    session = new_session()
-    with bind_tool_session(session):
-        handle = _plant_handle(
-            session, _complete_d18_rows(field_expenses=0.20),
-        )
-        payload = _data(tea.rank_landscape(
-            **_sequence_kwargs(
-                handle=handle,
-                process_config={**_CAP_20KT, "field_expenses": 0.20},
-            ),
-        ))
-    assert payload.get("error_code") == "sequence_coupling_unproven"
-    assert "pending_blockers" not in payload
-    assert "missing_keys" not in payload
-    assert "landscape_points" not in payload
-
-
-def test_named_default_field_expenses_completes_on_matching_default_rows(
-    monkeypatch,
-):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    session = new_session()
-    with bind_tool_session(session):
-        handle = _plant_handle(
-            session, _complete_d18_rows(field_expenses=0.10),
-        )
-        payload = _data(tea.rank_landscape(
-            **_sequence_kwargs(
-                handle=handle,
-                process_config={**_CAP_20KT, "field_expenses": 0.10},
-            ),
-        ))
-    assert payload.get("error_code") == "sequence_coupling_unproven"
-    assert "pending_blockers" not in payload
-    assert "missing_keys" not in payload
 
 
 def test_named_slice_at_wrong_field_expenses_does_not_fill(monkeypatch):
@@ -8331,37 +5742,6 @@ def test_named_slice_at_wrong_field_expenses_does_not_fill(monkeypatch):
     assert {row["field_expenses"] for row in keys} == {0.20}
 
 
-def test_mixed_field_expenses_handle_leaves_the_unmatched_remnant(monkeypatch):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    rows = _complete_d18_rows(field_expenses=0.20)
-    rows[-1]["field_expenses"] = 0.10
-    session = new_session()
-    with bind_tool_session(session):
-        handle = _plant_handle(session, rows)
-        payload = _data(tea.rank_landscape(
-            **_sequence_kwargs(
-                handle=handle,
-                process_config={**_CAP_20KT, "field_expenses": 0.20},
-            ),
-        ))
-    assert payload.get("error_code") == "incomplete_stage_basis_grid"
-    keys = payload["missing_keys"]
-    assert len(keys) == 1
-    assert keys[0]["field_expenses"] == 0.20
-    assert keys[0]["polymer"] == "EVOH"
-    assert keys[0]["target_mass_percent"] == 100.0
-
-
-def test_field_expenses_kwarg_is_unknown_extra(monkeypatch):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    payload = _data(tea.rank_landscape(
-        **_sequence_kwargs(field_expenses=0.20),
-    ))
-    assert payload.get("error_code") == "unknown_process_field"
-    assert payload.get("extra_keys") == ["field_expenses"]
-    assert payload.get("error_code") != "incomplete_stage_basis_grid"
-
-
 @pytest.mark.parametrize(
     'construction',
     [
@@ -8380,88 +5760,6 @@ def test_construction_rows_still_complete_when_omitted(monkeypatch, construction
     assert payload.get("error_code") == "sequence_coupling_unproven"
     assert "pending_blockers" not in payload
     assert "landscape_points" not in payload
-
-
-def test_named_construction_does_not_accept_default_rows(monkeypatch):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    session = new_session()
-    with bind_tool_session(session):
-        handle = _plant_handle(
-            session, _complete_d18_rows(construction=0.20),
-        )
-        payload = _data(tea.rank_landscape(
-            **_sequence_kwargs(
-                handle=handle,
-                process_config={**_CAP_20KT, "construction": 0.10},
-            ),
-        ))
-    assert payload.get("error_code") == "incomplete_stage_basis_grid"
-    assert payload.get("error_code") != "sequence_coupling_unproven"
-    keys = payload["missing_keys"]
-    assert len(keys) == 4
-    assert {row["construction"] for row in keys} == {0.10}
-    assert payload["pending_blockers"][0]["error_type"] == (
-        "sequence_coupling_unproven"
-    )
-    assert "landscape_points" not in payload
-
-
-def test_named_default_construction_does_not_accept_other_rows(monkeypatch):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    session = new_session()
-    with bind_tool_session(session):
-        handle = _plant_handle(
-            session, _complete_d18_rows(construction=0.10),
-        )
-        payload = _data(tea.rank_landscape(
-            **_sequence_kwargs(
-                handle=handle,
-                process_config={**_CAP_20KT, "construction": 0.20},
-            ),
-        ))
-    assert payload.get("error_code") == "incomplete_stage_basis_grid"
-    keys = payload["missing_keys"]
-    assert len(keys) == 4
-    assert {row["construction"] for row in keys} == {0.20}
-
-
-def test_named_construction_completes_on_matching_rows(monkeypatch):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    session = new_session()
-    with bind_tool_session(session):
-        handle = _plant_handle(
-            session, _complete_d18_rows(construction=0.10),
-        )
-        payload = _data(tea.rank_landscape(
-            **_sequence_kwargs(
-                handle=handle,
-                process_config={**_CAP_20KT, "construction": 0.10},
-            ),
-        ))
-    assert payload.get("error_code") == "sequence_coupling_unproven"
-    assert "pending_blockers" not in payload
-    assert "missing_keys" not in payload
-    assert "landscape_points" not in payload
-
-
-def test_named_default_construction_completes_on_matching_default_rows(
-    monkeypatch,
-):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    session = new_session()
-    with bind_tool_session(session):
-        handle = _plant_handle(
-            session, _complete_d18_rows(construction=0.20),
-        )
-        payload = _data(tea.rank_landscape(
-            **_sequence_kwargs(
-                handle=handle,
-                process_config={**_CAP_20KT, "construction": 0.20},
-            ),
-        ))
-    assert payload.get("error_code") == "sequence_coupling_unproven"
-    assert "pending_blockers" not in payload
-    assert "missing_keys" not in payload
 
 
 def test_named_slice_at_wrong_construction_does_not_fill(monkeypatch):
@@ -8548,37 +5846,6 @@ def test_named_slice_at_wrong_construction_does_not_fill(monkeypatch):
     assert {row["construction"] for row in keys} == {0.10}
 
 
-def test_mixed_construction_handle_leaves_the_unmatched_remnant(monkeypatch):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    rows = _complete_d18_rows(construction=0.10)
-    rows[-1]["construction"] = 0.20
-    session = new_session()
-    with bind_tool_session(session):
-        handle = _plant_handle(session, rows)
-        payload = _data(tea.rank_landscape(
-            **_sequence_kwargs(
-                handle=handle,
-                process_config={**_CAP_20KT, "construction": 0.10},
-            ),
-        ))
-    assert payload.get("error_code") == "incomplete_stage_basis_grid"
-    keys = payload["missing_keys"]
-    assert len(keys) == 1
-    assert keys[0]["construction"] == 0.10
-    assert keys[0]["polymer"] == "EVOH"
-    assert keys[0]["target_mass_percent"] == 100.0
-
-
-def test_construction_kwarg_is_unknown_extra(monkeypatch):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    payload = _data(tea.rank_landscape(
-        **_sequence_kwargs(construction=0.10),
-    ))
-    assert payload.get("error_code") == "unknown_process_field"
-    assert payload.get("extra_keys") == ["construction"]
-    assert payload.get("error_code") != "incomplete_stage_basis_grid"
-
-
 @pytest.mark.parametrize(
     'contingency',
     [
@@ -8597,88 +5864,6 @@ def test_contingency_rows_still_complete_when_omitted(monkeypatch, contingency):
     assert payload.get("error_code") == "sequence_coupling_unproven"
     assert "pending_blockers" not in payload
     assert "landscape_points" not in payload
-
-
-def test_named_contingency_does_not_accept_default_rows(monkeypatch):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    session = new_session()
-    with bind_tool_session(session):
-        handle = _plant_handle(
-            session, _complete_d18_rows(contingency=0.4),
-        )
-        payload = _data(tea.rank_landscape(
-            **_sequence_kwargs(
-                handle=handle,
-                process_config={**_CAP_20KT, "contingency": 0.10},
-            ),
-        ))
-    assert payload.get("error_code") == "incomplete_stage_basis_grid"
-    assert payload.get("error_code") != "sequence_coupling_unproven"
-    keys = payload["missing_keys"]
-    assert len(keys) == 4
-    assert {row["contingency"] for row in keys} == {0.10}
-    assert payload["pending_blockers"][0]["error_type"] == (
-        "sequence_coupling_unproven"
-    )
-    assert "landscape_points" not in payload
-
-
-def test_named_default_contingency_does_not_accept_other_rows(monkeypatch):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    session = new_session()
-    with bind_tool_session(session):
-        handle = _plant_handle(
-            session, _complete_d18_rows(contingency=0.10),
-        )
-        payload = _data(tea.rank_landscape(
-            **_sequence_kwargs(
-                handle=handle,
-                process_config={**_CAP_20KT, "contingency": 0.4},
-            ),
-        ))
-    assert payload.get("error_code") == "incomplete_stage_basis_grid"
-    keys = payload["missing_keys"]
-    assert len(keys) == 4
-    assert {row["contingency"] for row in keys} == {0.4}
-
-
-def test_named_contingency_completes_on_matching_rows(monkeypatch):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    session = new_session()
-    with bind_tool_session(session):
-        handle = _plant_handle(
-            session, _complete_d18_rows(contingency=0.10),
-        )
-        payload = _data(tea.rank_landscape(
-            **_sequence_kwargs(
-                handle=handle,
-                process_config={**_CAP_20KT, "contingency": 0.10},
-            ),
-        ))
-    assert payload.get("error_code") == "sequence_coupling_unproven"
-    assert "pending_blockers" not in payload
-    assert "missing_keys" not in payload
-    assert "landscape_points" not in payload
-
-
-def test_named_default_contingency_completes_on_matching_default_rows(
-    monkeypatch,
-):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    session = new_session()
-    with bind_tool_session(session):
-        handle = _plant_handle(
-            session, _complete_d18_rows(contingency=0.4),
-        )
-        payload = _data(tea.rank_landscape(
-            **_sequence_kwargs(
-                handle=handle,
-                process_config={**_CAP_20KT, "contingency": 0.4},
-            ),
-        ))
-    assert payload.get("error_code") == "sequence_coupling_unproven"
-    assert "pending_blockers" not in payload
-    assert "missing_keys" not in payload
 
 
 def test_named_slice_at_wrong_contingency_does_not_fill(monkeypatch):
@@ -8767,37 +5952,6 @@ def test_named_slice_at_wrong_contingency_does_not_fill(monkeypatch):
     assert {row["contingency"] for row in keys} == {0.10}
 
 
-def test_mixed_contingency_handle_leaves_the_unmatched_remnant(monkeypatch):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    rows = _complete_d18_rows(contingency=0.10)
-    rows[-1]["contingency"] = 0.4
-    session = new_session()
-    with bind_tool_session(session):
-        handle = _plant_handle(session, rows)
-        payload = _data(tea.rank_landscape(
-            **_sequence_kwargs(
-                handle=handle,
-                process_config={**_CAP_20KT, "contingency": 0.10},
-            ),
-        ))
-    assert payload.get("error_code") == "incomplete_stage_basis_grid"
-    keys = payload["missing_keys"]
-    assert len(keys) == 1
-    assert keys[0]["contingency"] == 0.10
-    assert keys[0]["polymer"] == "EVOH"
-    assert keys[0]["target_mass_percent"] == 100.0
-
-
-def test_contingency_kwarg_is_unknown_extra(monkeypatch):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    payload = _data(tea.rank_landscape(
-        **_sequence_kwargs(contingency=0.10),
-    ))
-    assert payload.get("error_code") == "unknown_process_field"
-    assert payload.get("extra_keys") == ["contingency"]
-    assert payload.get("error_code") != "incomplete_stage_basis_grid"
-
-
 @pytest.mark.parametrize(
     'other_indirect_costs',
     [
@@ -8816,90 +5970,6 @@ def test_other_indirect_costs_rows_still_complete_when_omitted(monkeypatch, othe
     assert payload.get("error_code") == "sequence_coupling_unproven"
     assert "pending_blockers" not in payload
     assert "landscape_points" not in payload
-
-
-def test_named_other_indirect_costs_does_not_accept_default_rows(monkeypatch):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    session = new_session()
-    with bind_tool_session(session):
-        handle = _plant_handle(
-            session, _complete_d18_rows(other_indirect_costs=0.10),
-        )
-        payload = _data(tea.rank_landscape(
-            **_sequence_kwargs(
-                handle=handle,
-                process_config={**_CAP_20KT, "other_indirect_costs": 0.20},
-            ),
-        ))
-    assert payload.get("error_code") == "incomplete_stage_basis_grid"
-    assert payload.get("error_code") != "sequence_coupling_unproven"
-    keys = payload["missing_keys"]
-    assert len(keys) == 4
-    assert {row["other_indirect_costs"] for row in keys} == {0.20}
-    assert payload["pending_blockers"][0]["error_type"] == (
-        "sequence_coupling_unproven"
-    )
-    assert "landscape_points" not in payload
-
-
-def test_named_default_other_indirect_costs_does_not_accept_other_rows(
-    monkeypatch,
-):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    session = new_session()
-    with bind_tool_session(session):
-        handle = _plant_handle(
-            session, _complete_d18_rows(other_indirect_costs=0.20),
-        )
-        payload = _data(tea.rank_landscape(
-            **_sequence_kwargs(
-                handle=handle,
-                process_config={**_CAP_20KT, "other_indirect_costs": 0.10},
-            ),
-        ))
-    assert payload.get("error_code") == "incomplete_stage_basis_grid"
-    keys = payload["missing_keys"]
-    assert len(keys) == 4
-    assert {row["other_indirect_costs"] for row in keys} == {0.10}
-
-
-def test_named_other_indirect_costs_completes_on_matching_rows(monkeypatch):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    session = new_session()
-    with bind_tool_session(session):
-        handle = _plant_handle(
-            session, _complete_d18_rows(other_indirect_costs=0.20),
-        )
-        payload = _data(tea.rank_landscape(
-            **_sequence_kwargs(
-                handle=handle,
-                process_config={**_CAP_20KT, "other_indirect_costs": 0.20},
-            ),
-        ))
-    assert payload.get("error_code") == "sequence_coupling_unproven"
-    assert "pending_blockers" not in payload
-    assert "missing_keys" not in payload
-    assert "landscape_points" not in payload
-
-
-def test_named_default_other_indirect_costs_completes_on_matching_default_rows(
-    monkeypatch,
-):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    session = new_session()
-    with bind_tool_session(session):
-        handle = _plant_handle(
-            session, _complete_d18_rows(other_indirect_costs=0.10),
-        )
-        payload = _data(tea.rank_landscape(
-            **_sequence_kwargs(
-                handle=handle,
-                process_config={**_CAP_20KT, "other_indirect_costs": 0.10},
-            ),
-        ))
-    assert payload.get("error_code") == "sequence_coupling_unproven"
-    assert "pending_blockers" not in payload
-    assert "missing_keys" not in payload
 
 
 def test_named_slice_at_wrong_other_indirect_costs_does_not_fill(monkeypatch):
@@ -8990,39 +6060,6 @@ def test_named_slice_at_wrong_other_indirect_costs_does_not_fill(monkeypatch):
     assert {row["other_indirect_costs"] for row in keys} == {0.20}
 
 
-def test_mixed_other_indirect_costs_handle_leaves_the_unmatched_remnant(
-    monkeypatch,
-):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    rows = _complete_d18_rows(other_indirect_costs=0.20)
-    rows[-1]["other_indirect_costs"] = 0.10
-    session = new_session()
-    with bind_tool_session(session):
-        handle = _plant_handle(session, rows)
-        payload = _data(tea.rank_landscape(
-            **_sequence_kwargs(
-                handle=handle,
-                process_config={**_CAP_20KT, "other_indirect_costs": 0.20},
-            ),
-        ))
-    assert payload.get("error_code") == "incomplete_stage_basis_grid"
-    keys = payload["missing_keys"]
-    assert len(keys) == 1
-    assert keys[0]["other_indirect_costs"] == 0.20
-    assert keys[0]["polymer"] == "EVOH"
-    assert keys[0]["target_mass_percent"] == 100.0
-
-
-def test_other_indirect_costs_kwarg_is_unknown_extra(monkeypatch):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    payload = _data(tea.rank_landscape(
-        **_sequence_kwargs(other_indirect_costs=0.20),
-    ))
-    assert payload.get("error_code") == "unknown_process_field"
-    assert payload.get("extra_keys") == ["other_indirect_costs"]
-    assert payload.get("error_code") != "incomplete_stage_basis_grid"
-
-
 @pytest.mark.parametrize(
     'property_insurance',
     [
@@ -9041,90 +6078,6 @@ def test_property_insurance_rows_still_complete_when_omitted(monkeypatch, proper
     assert payload.get("error_code") == "sequence_coupling_unproven"
     assert "pending_blockers" not in payload
     assert "landscape_points" not in payload
-
-
-def test_named_property_insurance_does_not_accept_default_rows(monkeypatch):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    session = new_session()
-    with bind_tool_session(session):
-        handle = _plant_handle(
-            session, _complete_d18_rows(property_insurance=0.007),
-        )
-        payload = _data(tea.rank_landscape(
-            **_sequence_kwargs(
-                handle=handle,
-                process_config={**_CAP_20KT, "property_insurance": 0.10},
-            ),
-        ))
-    assert payload.get("error_code") == "incomplete_stage_basis_grid"
-    assert payload.get("error_code") != "sequence_coupling_unproven"
-    keys = payload["missing_keys"]
-    assert len(keys) == 4
-    assert {row["property_insurance"] for row in keys} == {0.10}
-    assert payload["pending_blockers"][0]["error_type"] == (
-        "sequence_coupling_unproven"
-    )
-    assert "landscape_points" not in payload
-
-
-def test_named_default_property_insurance_does_not_accept_other_rows(
-    monkeypatch,
-):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    session = new_session()
-    with bind_tool_session(session):
-        handle = _plant_handle(
-            session, _complete_d18_rows(property_insurance=0.10),
-        )
-        payload = _data(tea.rank_landscape(
-            **_sequence_kwargs(
-                handle=handle,
-                process_config={**_CAP_20KT, "property_insurance": 0.007},
-            ),
-        ))
-    assert payload.get("error_code") == "incomplete_stage_basis_grid"
-    keys = payload["missing_keys"]
-    assert len(keys) == 4
-    assert {row["property_insurance"] for row in keys} == {0.007}
-
-
-def test_named_property_insurance_completes_on_matching_rows(monkeypatch):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    session = new_session()
-    with bind_tool_session(session):
-        handle = _plant_handle(
-            session, _complete_d18_rows(property_insurance=0.10),
-        )
-        payload = _data(tea.rank_landscape(
-            **_sequence_kwargs(
-                handle=handle,
-                process_config={**_CAP_20KT, "property_insurance": 0.10},
-            ),
-        ))
-    assert payload.get("error_code") == "sequence_coupling_unproven"
-    assert "pending_blockers" not in payload
-    assert "missing_keys" not in payload
-    assert "landscape_points" not in payload
-
-
-def test_named_default_property_insurance_completes_on_matching_default_rows(
-    monkeypatch,
-):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    session = new_session()
-    with bind_tool_session(session):
-        handle = _plant_handle(
-            session, _complete_d18_rows(property_insurance=0.007),
-        )
-        payload = _data(tea.rank_landscape(
-            **_sequence_kwargs(
-                handle=handle,
-                process_config={**_CAP_20KT, "property_insurance": 0.007},
-            ),
-        ))
-    assert payload.get("error_code") == "sequence_coupling_unproven"
-    assert "pending_blockers" not in payload
-    assert "missing_keys" not in payload
 
 
 def test_named_slice_at_wrong_property_insurance_does_not_fill(monkeypatch):
@@ -9217,39 +6170,6 @@ def test_named_slice_at_wrong_property_insurance_does_not_fill(monkeypatch):
     assert {row["property_insurance"] for row in keys} == {0.10}
 
 
-def test_mixed_property_insurance_handle_leaves_the_unmatched_remnant(
-    monkeypatch,
-):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    rows = _complete_d18_rows(property_insurance=0.10)
-    rows[-1]["property_insurance"] = 0.007
-    session = new_session()
-    with bind_tool_session(session):
-        handle = _plant_handle(session, rows)
-        payload = _data(tea.rank_landscape(
-            **_sequence_kwargs(
-                handle=handle,
-                process_config={**_CAP_20KT, "property_insurance": 0.10},
-            ),
-        ))
-    assert payload.get("error_code") == "incomplete_stage_basis_grid"
-    keys = payload["missing_keys"]
-    assert len(keys) == 1
-    assert keys[0]["property_insurance"] == 0.10
-    assert keys[0]["polymer"] == "EVOH"
-    assert keys[0]["target_mass_percent"] == 100.0
-
-
-def test_property_insurance_kwarg_is_unknown_extra(monkeypatch):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    payload = _data(tea.rank_landscape(
-        **_sequence_kwargs(property_insurance=0.10),
-    ))
-    assert payload.get("error_code") == "unknown_process_field"
-    assert payload.get("extra_keys") == ["property_insurance"]
-    assert payload.get("error_code") != "incomplete_stage_basis_grid"
-
-
 @pytest.mark.parametrize(
     'maintenance',
     [
@@ -9268,88 +6188,6 @@ def test_maintenance_rows_still_complete_when_omitted(monkeypatch, maintenance):
     assert payload.get("error_code") == "sequence_coupling_unproven"
     assert "pending_blockers" not in payload
     assert "landscape_points" not in payload
-
-
-def test_named_maintenance_does_not_accept_default_rows(monkeypatch):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    session = new_session()
-    with bind_tool_session(session):
-        handle = _plant_handle(
-            session, _complete_d18_rows(maintenance=0.03),
-        )
-        payload = _data(tea.rank_landscape(
-            **_sequence_kwargs(
-                handle=handle,
-                process_config={**_CAP_20KT, "maintenance": 0.10},
-            ),
-        ))
-    assert payload.get("error_code") == "incomplete_stage_basis_grid"
-    assert payload.get("error_code") != "sequence_coupling_unproven"
-    keys = payload["missing_keys"]
-    assert len(keys) == 4
-    assert {row["maintenance"] for row in keys} == {0.10}
-    assert payload["pending_blockers"][0]["error_type"] == (
-        "sequence_coupling_unproven"
-    )
-    assert "landscape_points" not in payload
-
-
-def test_named_default_maintenance_does_not_accept_other_rows(monkeypatch):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    session = new_session()
-    with bind_tool_session(session):
-        handle = _plant_handle(
-            session, _complete_d18_rows(maintenance=0.10),
-        )
-        payload = _data(tea.rank_landscape(
-            **_sequence_kwargs(
-                handle=handle,
-                process_config={**_CAP_20KT, "maintenance": 0.03},
-            ),
-        ))
-    assert payload.get("error_code") == "incomplete_stage_basis_grid"
-    keys = payload["missing_keys"]
-    assert len(keys) == 4
-    assert {row["maintenance"] for row in keys} == {0.03}
-
-
-def test_named_maintenance_completes_on_matching_rows(monkeypatch):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    session = new_session()
-    with bind_tool_session(session):
-        handle = _plant_handle(
-            session, _complete_d18_rows(maintenance=0.10),
-        )
-        payload = _data(tea.rank_landscape(
-            **_sequence_kwargs(
-                handle=handle,
-                process_config={**_CAP_20KT, "maintenance": 0.10},
-            ),
-        ))
-    assert payload.get("error_code") == "sequence_coupling_unproven"
-    assert "pending_blockers" not in payload
-    assert "missing_keys" not in payload
-    assert "landscape_points" not in payload
-
-
-def test_named_default_maintenance_completes_on_matching_default_rows(
-    monkeypatch,
-):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    session = new_session()
-    with bind_tool_session(session):
-        handle = _plant_handle(
-            session, _complete_d18_rows(maintenance=0.03),
-        )
-        payload = _data(tea.rank_landscape(
-            **_sequence_kwargs(
-                handle=handle,
-                process_config={**_CAP_20KT, "maintenance": 0.03},
-            ),
-        ))
-    assert payload.get("error_code") == "sequence_coupling_unproven"
-    assert "pending_blockers" not in payload
-    assert "missing_keys" not in payload
 
 
 def test_named_slice_at_wrong_maintenance_does_not_fill(monkeypatch):
@@ -9444,37 +6282,6 @@ def test_named_slice_at_wrong_maintenance_does_not_fill(monkeypatch):
     assert {row["maintenance"] for row in keys} == {0.10}
 
 
-def test_mixed_maintenance_handle_leaves_the_unmatched_remnant(monkeypatch):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    rows = _complete_d18_rows(maintenance=0.10)
-    rows[-1]["maintenance"] = 0.03
-    session = new_session()
-    with bind_tool_session(session):
-        handle = _plant_handle(session, rows)
-        payload = _data(tea.rank_landscape(
-            **_sequence_kwargs(
-                handle=handle,
-                process_config={**_CAP_20KT, "maintenance": 0.10},
-            ),
-        ))
-    assert payload.get("error_code") == "incomplete_stage_basis_grid"
-    keys = payload["missing_keys"]
-    assert len(keys) == 1
-    assert keys[0]["maintenance"] == 0.10
-    assert keys[0]["polymer"] == "EVOH"
-    assert keys[0]["target_mass_percent"] == 100.0
-
-
-def test_maintenance_kwarg_is_unknown_extra(monkeypatch):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    payload = _data(tea.rank_landscape(
-        **_sequence_kwargs(maintenance=0.10),
-    ))
-    assert payload.get("error_code") == "unknown_process_field"
-    assert payload.get("extra_keys") == ["maintenance"]
-    assert payload.get("error_code") != "incomplete_stage_basis_grid"
-
-
 @pytest.mark.parametrize(
     'depreciation',
     [
@@ -9493,88 +6300,6 @@ def test_depreciation_rows_still_complete_when_omitted(monkeypatch, depreciation
     assert payload.get("error_code") == "sequence_coupling_unproven"
     assert "pending_blockers" not in payload
     assert "landscape_points" not in payload
-
-
-def test_named_depreciation_does_not_accept_default_rows(monkeypatch):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    session = new_session()
-    with bind_tool_session(session):
-        handle = _plant_handle(
-            session, _complete_d18_rows(depreciation="MACRS7"),
-        )
-        payload = _data(tea.rank_landscape(
-            **_sequence_kwargs(
-                handle=handle,
-                process_config={**_CAP_20KT, "depreciation": "MACRS5"},
-            ),
-        ))
-    assert payload.get("error_code") == "incomplete_stage_basis_grid"
-    assert payload.get("error_code") != "sequence_coupling_unproven"
-    keys = payload["missing_keys"]
-    assert len(keys) == 4
-    assert {row["depreciation"] for row in keys} == {"MACRS5"}
-    assert payload["pending_blockers"][0]["error_type"] == (
-        "sequence_coupling_unproven"
-    )
-    assert "landscape_points" not in payload
-
-
-def test_named_default_depreciation_does_not_accept_other_rows(monkeypatch):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    session = new_session()
-    with bind_tool_session(session):
-        handle = _plant_handle(
-            session, _complete_d18_rows(depreciation="MACRS5"),
-        )
-        payload = _data(tea.rank_landscape(
-            **_sequence_kwargs(
-                handle=handle,
-                process_config={**_CAP_20KT, "depreciation": "MACRS7"},
-            ),
-        ))
-    assert payload.get("error_code") == "incomplete_stage_basis_grid"
-    keys = payload["missing_keys"]
-    assert len(keys) == 4
-    assert {row["depreciation"] for row in keys} == {"MACRS7"}
-
-
-def test_named_depreciation_completes_on_matching_rows(monkeypatch):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    session = new_session()
-    with bind_tool_session(session):
-        handle = _plant_handle(
-            session, _complete_d18_rows(depreciation="MACRS5"),
-        )
-        payload = _data(tea.rank_landscape(
-            **_sequence_kwargs(
-                handle=handle,
-                process_config={**_CAP_20KT, "depreciation": "MACRS5"},
-            ),
-        ))
-    assert payload.get("error_code") == "sequence_coupling_unproven"
-    assert "pending_blockers" not in payload
-    assert "missing_keys" not in payload
-    assert "landscape_points" not in payload
-
-
-def test_named_default_depreciation_completes_on_matching_default_rows(
-    monkeypatch,
-):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    session = new_session()
-    with bind_tool_session(session):
-        handle = _plant_handle(
-            session, _complete_d18_rows(depreciation="MACRS7"),
-        )
-        payload = _data(tea.rank_landscape(
-            **_sequence_kwargs(
-                handle=handle,
-                process_config={**_CAP_20KT, "depreciation": "MACRS7"},
-            ),
-        ))
-    assert payload.get("error_code") == "sequence_coupling_unproven"
-    assert "pending_blockers" not in payload
-    assert "missing_keys" not in payload
 
 
 @pytest.mark.parametrize(
@@ -9598,37 +6323,6 @@ def test_does_not_stamp_unbound_g_fields(monkeypatch, value, value_2, value_3, v
         assert row.get(value_3) is None
         assert row.get(value_4) is None
         assert row.get(value_5) is None
-
-
-def test_mixed_depreciation_handle_leaves_the_unmatched_remnant(monkeypatch):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    rows = _complete_d18_rows(depreciation="MACRS5")
-    rows[-1]["depreciation"] = "MACRS7"
-    session = new_session()
-    with bind_tool_session(session):
-        handle = _plant_handle(session, rows)
-        payload = _data(tea.rank_landscape(
-            **_sequence_kwargs(
-                handle=handle,
-                process_config={**_CAP_20KT, "depreciation": "MACRS5"},
-            ),
-        ))
-    assert payload.get("error_code") == "incomplete_stage_basis_grid"
-    keys = payload["missing_keys"]
-    assert len(keys) == 1
-    assert keys[0]["depreciation"] == "MACRS5"
-    assert keys[0]["polymer"] == "EVOH"
-    assert keys[0]["target_mass_percent"] == 100.0
-
-
-def test_depreciation_kwarg_is_unknown_extra(monkeypatch):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    payload = _data(tea.rank_landscape(
-        **_sequence_kwargs(depreciation="MACRS5"),
-    ))
-    assert payload.get("error_code") == "unknown_process_field"
-    assert payload.get("extra_keys") == ["depreciation"]
-    assert payload.get("error_code") != "incomplete_stage_basis_grid"
 
 
 def test_array_depreciation_is_not_a_remnant_listing(monkeypatch):
@@ -9708,19 +6402,21 @@ def test_named_default_duration_does_not_accept_other_rows(monkeypatch):
     assert {tuple(row["duration"]) for row in keys} == {(2025, 2055)}
 
 
-def test_named_duration_completes_on_matching_rows(monkeypatch):
+@pytest.mark.parametrize(
+    "field, first, second",
+    [
+        pytest.param("duration", 2025, 2045, id="duration"),
+        pytest.param("construction_schedule", 0.5, 0.5, id="construction_schedule"),
+    ],
+)
+def test_named_pair_completes_on_matching_rows(monkeypatch, field, first, second):
     _forbid_live_rank_solvent_maps(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
-        handle = _plant_handle(
-            session, _complete_d18_rows(duration=[2025, 2045]),
+        handle = _plant_handle(session, _complete_d18_rows(**{field: [first, second]}))
+        payload = _data(
+            tea.rank_landscape(**_sequence_kwargs(handle=handle, process_config={**_CAP_20KT, field: (first, second)}))
         )
-        payload = _data(tea.rank_landscape(
-            **_sequence_kwargs(
-                handle=handle,
-                process_config={**_CAP_20KT, "duration": (2025, 2045)},
-            ),
-        ))
     assert payload.get("error_code") == "sequence_coupling_unproven"
     assert "pending_blockers" not in payload
     assert "missing_keys" not in payload
@@ -9937,25 +6633,6 @@ def test_named_default_construction_schedule_does_not_accept_other_rows(monkeypa
     }
 
 
-def test_named_construction_schedule_completes_on_matching_rows(monkeypatch):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    session = new_session()
-    with bind_tool_session(session):
-        handle = _plant_handle(
-            session, _complete_d18_rows(construction_schedule=[0.5, 0.5]),
-        )
-        payload = _data(tea.rank_landscape(
-            **_sequence_kwargs(
-                handle=handle,
-                process_config={**_CAP_20KT, "construction_schedule": (0.5, 0.5)},
-            ),
-        ))
-    assert payload.get("error_code") == "sequence_coupling_unproven"
-    assert "pending_blockers" not in payload
-    assert "missing_keys" not in payload
-    assert "landscape_points" not in payload
-
-
 def test_named_default_construction_schedule_is_holdable(monkeypatch):
     _forbid_live_rank_solvent_maps(monkeypatch)
     payload = _data(tea.rank_landscape(
@@ -10030,134 +6707,6 @@ def test_construction_schedule_kwarg_is_unknown_extra(monkeypatch):
     assert payload.get("error_code") != "incomplete_stage_basis_grid"
 
 
-def test_default_steam_power_rows_still_complete_when_omitted(monkeypatch):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    session = new_session()
-    with bind_tool_session(session):
-        handle = _plant_handle(
-            session, _complete_d18_rows(steam_power_depreciation="MACRS20"),
-        )
-        payload = _data(tea.rank_landscape(**_sequence_kwargs(handle=handle)))
-    assert payload.get("error_code") == "sequence_coupling_unproven"
-    assert "pending_blockers" not in payload
-    assert "landscape_points" not in payload
-
-
-def test_named_steam_power_does_not_accept_default_rows(monkeypatch):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    session = new_session()
-    with bind_tool_session(session):
-        handle = _plant_handle(
-            session, _complete_d18_rows(steam_power_depreciation="MACRS20"),
-        )
-        payload = _data(tea.rank_landscape(
-            **_sequence_kwargs(
-                handle=handle,
-                process_config={**_CAP_20KT, "steam_power_depreciation": "MACRS7"},
-            ),
-        ))
-    assert payload.get("error_code") == "incomplete_stage_basis_grid"
-    assert payload.get("error_code") != "sequence_coupling_unproven"
-    keys = payload["missing_keys"]
-    assert len(keys) == 4
-    assert {row["steam_power_depreciation"] for row in keys} == {"MACRS7"}
-    assert payload["pending_blockers"][0]["error_type"] == (
-        "sequence_coupling_unproven"
-    )
-    assert "landscape_points" not in payload
-
-
-def test_named_default_steam_power_does_not_accept_other_rows(monkeypatch):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    session = new_session()
-    with bind_tool_session(session):
-        handle = _plant_handle(
-            session, _complete_d18_rows(steam_power_depreciation="MACRS7"),
-        )
-        payload = _data(tea.rank_landscape(
-            **_sequence_kwargs(
-                handle=handle,
-                process_config={
-                    **_CAP_20KT, "steam_power_depreciation": "MACRS20",
-                },
-            ),
-        ))
-    assert payload.get("error_code") == "incomplete_stage_basis_grid"
-    keys = payload["missing_keys"]
-    assert len(keys) == 4
-    assert {row["steam_power_depreciation"] for row in keys} == {"MACRS20"}
-
-
-def test_named_steam_power_completes_on_matching_rows(monkeypatch):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    session = new_session()
-    with bind_tool_session(session):
-        handle = _plant_handle(
-            session, _complete_d18_rows(steam_power_depreciation="MACRS7"),
-        )
-        payload = _data(tea.rank_landscape(
-            **_sequence_kwargs(
-                handle=handle,
-                process_config={**_CAP_20KT, "steam_power_depreciation": "MACRS7"},
-            ),
-        ))
-    assert payload.get("error_code") == "sequence_coupling_unproven"
-    assert "pending_blockers" not in payload
-    assert "missing_keys" not in payload
-    assert "landscape_points" not in payload
-
-
-def test_named_default_steam_power_completes_on_matching_default_rows(monkeypatch):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    session = new_session()
-    with bind_tool_session(session):
-        handle = _plant_handle(
-            session, _complete_d18_rows(steam_power_depreciation="MACRS20"),
-        )
-        payload = _data(tea.rank_landscape(
-            **_sequence_kwargs(
-                handle=handle,
-                process_config={
-                    **_CAP_20KT, "steam_power_depreciation": "MACRS20",
-                },
-            ),
-        ))
-    assert payload.get("error_code") == "sequence_coupling_unproven"
-    assert "pending_blockers" not in payload
-    assert "missing_keys" not in payload
-
-
-def test_mixed_steam_power_handle_leaves_the_unmatched_remnant(monkeypatch):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    rows = _complete_d18_rows(steam_power_depreciation="MACRS7")
-    rows[-1]["steam_power_depreciation"] = "MACRS20"
-    session = new_session()
-    with bind_tool_session(session):
-        handle = _plant_handle(session, rows)
-        payload = _data(tea.rank_landscape(
-            **_sequence_kwargs(
-                handle=handle,
-                process_config={**_CAP_20KT, "steam_power_depreciation": "MACRS7"},
-            ),
-        ))
-    assert payload.get("error_code") == "incomplete_stage_basis_grid"
-    keys = payload["missing_keys"]
-    assert len(keys) == 1
-    assert keys[0]["steam_power_depreciation"] == "MACRS7"
-    assert keys[0]["polymer"] == "EVOH"
-    assert keys[0]["target_mass_percent"] == 100.0
-
-
-def test_steam_power_kwarg_is_unknown_extra(monkeypatch):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    payload = _data(tea.rank_landscape(
-        **_sequence_kwargs(steam_power_depreciation="MACRS7"),
-    ))
-    assert payload.get("error_code") == "unknown_process_field"
-    assert payload.get("extra_keys") == ["steam_power_depreciation"]
-    assert payload.get("error_code") != "incomplete_stage_basis_grid"
-
-
 def test_c2_named_steam_power_is_energy_case_contract(monkeypatch):
     _forbid_live_rank_solvent_maps(monkeypatch)
     payload = _data(tea.rank_landscape(
@@ -10196,16 +6745,6 @@ def test_zero_lang_factor_is_not_a_listing(monkeypatch):
     ))
     assert payload.get("error_code") == "invalid_admitted_record_query"
     assert payload.get("field") == "lang_factor"
-
-
-def test_lang_factor_kwarg_is_unknown_extra(monkeypatch):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    payload = _data(tea.rank_landscape(
-        **_sequence_kwargs(lang_factor=3.0),
-    ))
-    assert payload.get("error_code") == "unknown_process_field"
-    assert payload.get("extra_keys") == ["lang_factor"]
-    assert payload.get("error_code") != "incomplete_stage_basis_grid"
 
 
 # --- from test_screen_to_economics_order.py: Closed screen_to_economics_order. Default independent. No router.

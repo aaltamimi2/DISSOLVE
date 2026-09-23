@@ -6210,7 +6210,14 @@ def test_lookup_energy_cases_and_sensitivity_parameter_still_serve(monkeypatch):
     assert sensitivity.get("error_code") != "not_applicable_in_mode"
 
 
-def test_dispatch_evaluate_parameter_is_named_refuse(monkeypatch):
+@pytest.mark.parametrize(
+    "field, list_field, value, list_value",
+    [
+        pytest.param("parameter", "energy_cases", "solvent_price", "C1", id="parameter"),
+        pytest.param("record_form", "requested_metrics", "per_record", "gwp", id="record_form"),
+    ],
+)
+def test_dispatch_evaluate_refuses_scenario_only_arguments(monkeypatch, field, list_field, value, list_value):
     record = _record_by_label("ldpe-route-c1")
     _forbid_live(monkeypatch)
     session = new_session()
@@ -6220,7 +6227,7 @@ def test_dispatch_evaluate_parameter_is_named_refuse(monkeypatch):
             mode="evaluate",
             process_config=_public_from_record(record),
             engine_mode="cache",
-            parameter="solvent_price",
+            **{field: value},
         )
         assert refused.get("available") is False
         assert refused.get("refusal") == "not_applicable_in_mode"
@@ -6230,7 +6237,7 @@ def test_dispatch_evaluate_parameter_is_named_refuse(monkeypatch):
             mode="evaluate",
             process_config=_public_from_record(record),
             engine_mode="cache",
-            energy_cases=["C1"],
+            **{list_field: [list_value]},
         )
         assert energy.get("available") is False
         assert energy.get("refusal") == "not_applicable_in_mode"
@@ -6287,33 +6294,6 @@ def test_lookup_still_accepts_record_form_and_requested_metrics(monkeypatch):
     assert payload.get("success") is True
     assert payload["record_form"] == "grouped_comparison"
     assert payload["requested_metrics"] == ["etox", "energy"]
-
-
-def test_dispatch_evaluate_record_form_is_named_refuse(monkeypatch):
-    record = _record_by_label("ldpe-route-c1")
-    _forbid_live(monkeypatch)
-    session = new_session()
-    with bind_tool_session(session):
-        refused = dispatch(
-            "evaluate_process",
-            mode="evaluate",
-            process_config=_public_from_record(record),
-            engine_mode="cache",
-            record_form="per_record",
-        )
-        assert refused.get("available") is False
-        assert refused.get("refusal") == "not_applicable_in_mode"
-        assert "handle" not in refused
-        metrics = dispatch(
-            "evaluate_process",
-            mode="evaluate",
-            process_config=_public_from_record(record),
-            engine_mode="cache",
-            requested_metrics=["gwp"],
-        )
-        assert metrics.get("available") is False
-        assert metrics.get("refusal") == "not_applicable_in_mode"
-        assert "handle" not in metrics
 
 
 def test_lookup_leftover_extra_is_unknown_process_field(monkeypatch):

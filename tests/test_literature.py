@@ -1928,129 +1928,73 @@ def _suffix_fallback_spies(monkeypatch):
     return calls
 
 
-def test_production_parse_refuses_xml_jats_suffix_and_does_not_call_fallbacks(monkeypatch, tmp_path):
-    xml = tmp_path / "probe.xml"
-    xml.write_text(
-        "<article><article-title>Suffix probe</article-title>"
-        "<p>jats body text for the identity check</p></article>",
-        encoding="utf-8",
-    )
+@pytest.mark.parametrize(
+    "filename, content, backend",
+    [
+        pytest.param(
+            "probe.xml",
+            "<article><article-title>Suffix probe</article-title><p>jats body text for the identity check</p></article>",
+            "jats",
+            id="xml_jats_suffix_and_does_not_call_fallbacks",
+        ),
+        pytest.param(
+            "probe.shtml",
+            "<p>shtml body text for the identity check</p>\n",
+            "local_text",
+            id="shtml_as_local_text_not_docling",
+        ),
+        pytest.param(
+            "probe.notajats",
+            "odd suffix body for the identity check\n",
+            "local_text",
+            id="unlisted_suffix_without_allowlist_membership",
+        ),
+        pytest.param(
+            "probe.htm",
+            "<p>htm body text for the identity check</p>\n",
+            "local_text",
+            id="htm_as_local_text_not_docling",
+        ),
+        pytest.param(
+            "probe.html",
+            "<p>html body text for the identity check</p>\n",
+            "local_text",
+            id="html_as_local_text_not_docling",
+        ),
+        pytest.param(
+            "probe.xhtml",
+            "<article><article-title>XHTML probe</article-title><p>xhtml body text for the identity check</p></article>",
+            "jats",
+            id="xhtml_as_jats_not_docling",
+        ),
+        pytest.param(
+            "probe.nxml",
+            "<article><article-title>NXML probe</article-title><p>nxml body text for the identity check</p></article>",
+            "jats",
+            id="nxml_as_jats_not_local_text",
+        ),
+        pytest.param(
+            "probe.txt",
+            "local text body for the identity check\n",
+            "local_text",
+            id="txt_local_text_suffix_and_does_not_call_fallbacks",
+        ),
+        pytest.param(
+            "probe.md",
+            "markdown body for the identity check\n",
+            "local_text",
+            id="md_local_text_suffix_and_does_not_call_fallbacks",
+        ),
+    ],
+)
+def test_production_parse_refuses_non_docling_suffix(monkeypatch, tmp_path, filename, content, backend):
+    path = tmp_path / filename
+    path.write_text(content, encoding="utf-8")
     calls = _suffix_fallback_spies(monkeypatch)
-
     with pytest.raises(research.LiteratureContractError) as caught:
-        literature_ingest._parse(_acquire_production_parse(xml))
+        literature_ingest._parse(_acquire_production_parse(path))
     assert caught.value.code == "parser_identity_lie"
-    assert caught.value.details.get("parser_backend") == "jats"
-    assert calls == {"docling": 0, "pypdf": 0}
-
-
-def test_production_parse_refuses_shtml_as_local_text_not_docling(monkeypatch, tmp_path):
-    """87cc348 residual: unlisted suffixes must not reach Docling. .shtml is the named leftover."""
-    shtml = tmp_path / "probe.shtml"
-    shtml.write_text("<p>shtml body text for the identity check</p>\n", encoding="utf-8")
-    calls = _suffix_fallback_spies(monkeypatch)
-
-    with pytest.raises(research.LiteratureContractError) as caught:
-        literature_ingest._parse(_acquire_production_parse(shtml))
-    assert caught.value.code == "parser_identity_lie"
-    assert caught.value.details.get("parser_backend") == "local_text"
-    assert calls == {"docling": 0, "pypdf": 0}
-
-
-def test_production_parse_refuses_unlisted_suffix_without_allowlist_membership(monkeypatch, tmp_path):
-    """1c: a new allowlist row for .shtml would stay green. The PDF-only predicate must bind."""
-    odd = tmp_path / "probe.notajats"
-    odd.write_text("odd suffix body for the identity check\n", encoding="utf-8")
-    calls = _suffix_fallback_spies(monkeypatch)
-
-    with pytest.raises(research.LiteratureContractError) as caught:
-        literature_ingest._parse(_acquire_production_parse(odd))
-    assert caught.value.code == "parser_identity_lie"
-    assert caught.value.details.get("parser_backend") == "local_text"
-    assert calls == {"docling": 0, "pypdf": 0}
-
-
-def test_production_parse_refuses_htm_as_local_text_not_docling(monkeypatch, tmp_path):
-    """11efc46 residual: .htm must stamp local_text, not fall through to Docling or jats."""
-    htm = tmp_path / "probe.htm"
-    htm.write_text("<p>htm body text for the identity check</p>\n", encoding="utf-8")
-    calls = _suffix_fallback_spies(monkeypatch)
-
-    with pytest.raises(research.LiteratureContractError) as caught:
-        literature_ingest._parse(_acquire_production_parse(htm))
-    assert caught.value.code == "parser_identity_lie"
-    assert caught.value.details.get("parser_backend") == "local_text"
-    assert calls == {"docling": 0, "pypdf": 0}
-
-
-def test_production_parse_refuses_html_as_local_text_not_docling(monkeypatch, tmp_path):
-    """a5a43c0 residual: .html must stamp local_text, not fall through to Docling or jats."""
-    html = tmp_path / "probe.html"
-    html.write_text("<p>html body text for the identity check</p>\n", encoding="utf-8")
-    calls = _suffix_fallback_spies(monkeypatch)
-
-    with pytest.raises(research.LiteratureContractError) as caught:
-        literature_ingest._parse(_acquire_production_parse(html))
-    assert caught.value.code == "parser_identity_lie"
-    assert caught.value.details.get("parser_backend") == "local_text"
-    assert calls == {"docling": 0, "pypdf": 0}
-
-
-def test_production_parse_refuses_xhtml_as_jats_not_docling(monkeypatch, tmp_path):
-    """08b2f0f residual: .xhtml must stamp jats, not fall through to Docling."""
-    xhtml = tmp_path / "probe.xhtml"
-    xhtml.write_text(
-        "<article><article-title>XHTML probe</article-title>"
-        "<p>xhtml body text for the identity check</p></article>",
-        encoding="utf-8",
-    )
-    calls = _suffix_fallback_spies(monkeypatch)
-
-    with pytest.raises(research.LiteratureContractError) as caught:
-        literature_ingest._parse(_acquire_production_parse(xhtml))
-    assert caught.value.code == "parser_identity_lie"
-    assert caught.value.details.get("parser_backend") == "jats"
-    assert calls == {"docling": 0, "pypdf": 0}
-
-
-def test_production_parse_refuses_nxml_as_jats_not_local_text(monkeypatch, tmp_path):
-    """b45a1b4 residual: .nxml must stamp jats, not fall through to Docling or local_text."""
-    nxml = tmp_path / "probe.nxml"
-    nxml.write_text(
-        "<article><article-title>NXML probe</article-title>"
-        "<p>nxml body text for the identity check</p></article>",
-        encoding="utf-8",
-    )
-    calls = _suffix_fallback_spies(monkeypatch)
-
-    with pytest.raises(research.LiteratureContractError) as caught:
-        literature_ingest._parse(_acquire_production_parse(nxml))
-    assert caught.value.code == "parser_identity_lie"
-    assert caught.value.details.get("parser_backend") == "jats"
-    assert calls == {"docling": 0, "pypdf": 0}
-
-
-def test_production_parse_refuses_txt_local_text_suffix_and_does_not_call_fallbacks(monkeypatch, tmp_path):
-    txt = tmp_path / "probe.txt"
-    txt.write_text("local text body for the identity check\n", encoding="utf-8")
-    calls = _suffix_fallback_spies(monkeypatch)
-
-    with pytest.raises(research.LiteratureContractError) as caught:
-        literature_ingest._parse(_acquire_production_parse(txt))
-    assert caught.value.code == "parser_identity_lie"
-    assert caught.value.details.get("parser_backend") == "local_text"
-    assert calls == {"docling": 0, "pypdf": 0}
-
-
-def test_production_parse_refuses_md_local_text_suffix_and_does_not_call_fallbacks(monkeypatch, tmp_path):
-    md = tmp_path / "probe.md"
-    md.write_text("markdown body for the identity check\n", encoding="utf-8")
-    calls = _suffix_fallback_spies(monkeypatch)
-
-    with pytest.raises(research.LiteratureContractError) as caught:
-        literature_ingest._parse(_acquire_production_parse(md))
-    assert caught.value.code == "parser_identity_lie"
-    assert caught.value.details.get("parser_backend") == "local_text"
+    assert caught.value.details.get("parser_backend") == backend
     assert calls == {"docling": 0, "pypdf": 0}
 
 
