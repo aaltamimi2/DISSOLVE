@@ -22,8 +22,8 @@ import {
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode, type RefObject } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import type { Command, Doctor, Model, SessionRow, SessionState, ToolCall } from "./api";
-import { family, MODE_CHIPS, QUICK_ACTIONS, type Example, type QuickAction } from "./content";
+import type { Command, Doctor, Features, Model, SessionRow, SessionState, ToolCall } from "./api";
+import { family, MODE_CHIPS, offeredActions, type Example, type QuickAction } from "./content";
 
 export type ChatMessage =
   | { id: string; role: "user"; text: string }
@@ -297,7 +297,7 @@ function QuickActionCard({ action, onPick }: { action: QuickAction; onPick: (exa
   );
 }
 
-export function Welcome({ onPick }: { onPick: (example: Example) => void }) {
+export function Welcome({ onPick, features }: { onPick: (example: Example) => void; features: Features }) {
   return (
     <div className="rise mx-auto flex w-full max-w-5xl flex-col items-center px-4 pb-6 pt-10 text-center sm:pt-16">
       <BrandMark size={64} />
@@ -307,7 +307,7 @@ export function Welcome({ onPick }: { onPick: (example: Example) => void }) {
         literature.
       </p>
       <div className="mt-8 grid w-full grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        {QUICK_ACTIONS.map((action) => (
+        {offeredActions(features).map((action) => (
           <QuickActionCard key={action.label} action={action} onPick={onPick} />
         ))}
       </div>
@@ -633,7 +633,7 @@ export function Composer(props: {
       <div className="mx-auto w-full max-w-[860px]">
         {props.state && (
           <div className="mb-2 flex flex-wrap items-center gap-1.5">
-            {MODE_CHIPS.map((chip) => (
+            {MODE_CHIPS.filter((chip) => commandOf(chip.command)).map((chip) => (
               <ModeChip
                 key={chip.command}
                 label={chip.label}

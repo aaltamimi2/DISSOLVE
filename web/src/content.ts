@@ -13,9 +13,10 @@ import {
   type LucideIcon,
 } from "lucide-react";
 
-/** An example prompt; `needs` is the slash command a card applies first (literature tools are off by default). */
-export type Example = { text: string; needs?: string };
-export type QuickAction = { label: string; blurb: string; icon: LucideIcon; examples: Example[] };
+/** An example prompt; `needs` is the slash command a card applies first (literature tools are off by default),
+ * `feature` what it relies on that a small deployment may not offer. */
+export type Example = { text: string; needs?: string; feature?: "literature" | "tea" };
+export type QuickAction = { label: string; blurb: string; icon: LucideIcon; examples: Example[]; feature?: "literature" | "tea" };
 
 export const QUICK_ACTIONS: QuickAction[] = [
   {
@@ -55,6 +56,7 @@ export const QUICK_ACTIONS: QuickAction[] = [
     label: "TEA + LCA",
     blurb: "Minimum selling price, GWP and sensitivity from live BioSTEAM",
     icon: Calculator,
+    feature: "tea",
     examples: [
       { text: "What are the MSP and GWP for recovering LDPE with dodecane at 20,000 t/yr under energy case C1?" },
       { text: "Compare energy cases C1, C2 and C3 for LDPE recovery with dodecane." },
@@ -91,6 +93,7 @@ export const QUICK_ACTIONS: QuickAction[] = [
     label: "Research + RAG",
     blurb: "The pinned literature corpus, papers and patents",
     icon: BookOpen,
+    feature: "literature",
     examples: [
       { text: "What does the literature corpus report about selective dissolution of EVOH from multilayer films?", needs: "/literature corpus" },
       { text: "Search the corpus for dissolution temperatures of LDPE in xylene.", needs: "/literature corpus" },
@@ -103,7 +106,7 @@ export const QUICK_ACTIONS: QuickAction[] = [
     blurb: "Plan, check safety and cost in one request",
     icon: Rocket,
     examples: [
-      { text: "For LDPE/EVOH/PET multilayer film: plan the separation, check each solvent's safety, and cost the LDPE stage." },
+      { text: "For LDPE/EVOH/PET multilayer film: plan the separation, check each solvent's safety, and cost the LDPE stage.", feature: "tea" },
       { text: "I have mixed PE, PS and PET waste. Plan a separation sequence, suggest greener solvents where possible, and summarize the tradeoffs." },
       {
         text: "Plan an HDPE/EVOH separation with a DEHP wash step, then compare its solvent safety with a dissolution-based removal route.",
@@ -161,6 +164,17 @@ const FAMILY_OF: Record<string, keyof typeof FAMILIES> = {
 };
 
 export const family = (tool: string): Family => FAMILIES[FAMILY_OF[tool] ?? "results"];
+
+/** The cards and examples this deployment can answer. */
+export function offeredActions(features: { literature: boolean; tea: boolean }): QuickAction[] {
+  const offered = (feature?: "literature" | "tea") => !feature || features[feature];
+  return QUICK_ACTIONS.filter((action) => offered(action.feature))
+    .map((action) => ({
+      ...action,
+      examples: action.examples.filter((e) => offered(e.feature ?? (e.needs?.startsWith("/literature") ? "literature" : undefined))),
+    }))
+    .filter((action) => action.examples.length > 0);
+}
 
 /** The session modes the composer shows, in order, with how each reads on its chip. */
 export const MODE_CHIPS = [

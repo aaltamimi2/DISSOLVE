@@ -31,6 +31,9 @@ export type Command = { command: string; summary: string; state?: keyof SessionS
 export type SessionRow = { session_id: string; updated_at: string | null; title: string | null; turns: number; model: string | null };
 export type DoctorCheck = { name: string; status: "pass" | "warn" | "fail" | "not_required" | string; detail: string };
 export type Doctor = { ready: boolean; checks: DoctorCheck[] };
+/** What this deployment offers; a small host switches literature and live TEA off. */
+export type Features = { literature: boolean; tea: boolean };
+export type Health = { ok: boolean; release: string; ui_built: boolean; features: Features };
 
 export type TurnEvent =
   | { event: "turn.started"; text: string }
@@ -62,6 +65,7 @@ const post = (body: unknown): RequestInit => ({
 });
 
 export const api = {
+  health: () => json<Health>("/api/health"),
   doctor: (refresh = false) => json<Doctor>(`/api/doctor${refresh ? "?refresh=true" : ""}`),
   models: () => json<Model[]>("/api/models"),
   commands: () => json<Command[]>("/api/commands"),
