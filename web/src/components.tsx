@@ -19,7 +19,7 @@ import {
   X,
   XCircle,
 } from "lucide-react";
-import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode, type RefObject } from "react";
+import { Component, useEffect, useMemo, useRef, useState, type ErrorInfo, type KeyboardEvent, type ReactNode, type RefObject } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import type { Command, Doctor, Features, Model, SessionRow, SessionState, ToolCall } from "./api";
@@ -76,9 +76,51 @@ export function StatusBadge({ doctor, onClick }: { doctor: Doctor | null; onClic
       }}
     >
       {!doctor ? <Loader2 size={14} className="animate-spin" /> : ready ? <CheckCircle2 size={14} /> : <AlertCircle size={14} />}
-      {!doctor ? "Checking" : ready ? "Ready" : `Limited · ${failing.length}`}
+      <span className="hidden sm:inline">{!doctor ? "Checking" : ready ? "Ready" : `Limited · ${failing.length}`}</span>
     </button>
   );
+}
+
+/** Keeps a crash in the browser (a translator or extension rewriting the page, say) from leaving a blank page: it
+ * says so, offers a reload, and sends the error to the server's log, the only place a hosted copy can see it. */
+export class Boundary extends Component<{ children: ReactNode }, { error: Error | null }> {
+  state: { error: Error | null } = { error: null };
+
+  static getDerivedStateFromError(error: Error) {
+    return { error };
+  }
+
+  componentDidCatch(error: Error, info: ErrorInfo) {
+    const report = { message: String(error.message), stack: error.stack?.slice(0, 1500), component: info.componentStack?.slice(0, 1500), agent: navigator.userAgent };
+    fetch("/api/client-error", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(report), keepalive: true }).catch(() => undefined);
+  }
+
+  render() {
+    const { error } = this.state;
+    if (!error) return this.props.children;
+    return (
+      <div className="flex h-dvh items-center justify-center bg-canvas px-4 text-ink">
+        <div className="w-full max-w-lg rounded-2xl border border-line bg-surface p-6 shadow-soft">
+          <div className="flex items-center gap-3">
+            <BrandMark size={40} />
+            <h1 className="font-headline text-lg font-semibold">The page stopped drawing</h1>
+          </div>
+          <p className="mt-3 text-ink-2">
+            Something in this browser interrupted the page. Your conversation is saved on the server, and reloading brings it
+            back. If it happens again, try with page translation and extensions switched off for this site.
+          </p>
+          <pre className="mt-3 max-h-32 overflow-auto whitespace-pre-wrap rounded-lg bg-muted p-3 font-mono text-xs text-ink-2">{error.message}</pre>
+          <button
+            type="button"
+            onClick={() => window.location.reload()}
+            className="mt-4 flex items-center gap-2 rounded-lg bg-brand px-4 py-2 font-headline text-sm font-medium text-white hover:bg-brand-hover"
+          >
+            <RefreshCw size={14} /> Reload
+          </button>
+        </div>
+      </div>
+    );
+  }
 }
 
 export function Header(props: {

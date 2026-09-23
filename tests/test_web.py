@@ -150,6 +150,15 @@ def test_a_hosted_copy_asks_for_its_password(serve):
     assert http.get("/api/models", auth=("dissolve", "s3cret")).status_code == 200
 
 
+def test_a_browser_crash_reaches_the_server_log(serve, capfd):
+    http = serve(DISSOLVE_WEB_PASSWORD="s3cret")
+    report = {"message": "Failed to execute 'insertBefore' on 'Node'", "agent": "a test browser"}
+    assert http.post("/api/client-error", json=report).status_code == 401  # not a way past the password
+    assert http.post("/api/client-error", json=report, auth=("dissolve", "s3cret")).status_code == 204
+    logged = capfd.readouterr().out
+    assert "browser error:" in logged and "insertBefore" in logged and "a test browser" in logged
+
+
 def test_a_small_host_switches_literature_and_tea_off(serve):
     http = serve(DISSOLVE_WEB_DISABLE="literature,tea")
     assert http.get("/api/health").json()["features"] == {"literature": False, "tea": False}
