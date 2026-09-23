@@ -3,8 +3,8 @@
 #
 # The first run sets everything up, then starts the agent:
 #   - uv, the Python package manager (into .tools/ if it is not already installed);
-#   - .venv, the agent on Python 3.11 with exactly the versions in uv.lock;
-#   - .venv-tea, the live-TEA worker on Python 3.12 with exactly requirements-tea.txt;
+#   - .venv, the agent on Python 3.11 with exactly the versions in uv.lock (about 8 GB on Linux: torch's CUDA build);
+#   - .venv-tea, the live-TEA worker on Python 3.12 with exactly requirements-tea.txt (about 0.7 GB);
 #   - the pinned literature models (BGE encoder, reranker, Docling), about 2 GB, once.
 # Later runs only start the agent. `./dissolve doctor` checks the setup; `./dissolve test` runs the test suite.
 #

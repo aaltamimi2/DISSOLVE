@@ -20,6 +20,7 @@ STRAP/
 /vendor/plastics/
 /.venv-tea
 
-# Built by ./dissolve: the agent environment and a private uv.
+# Built by ./dissolve: the agent environment, its editable-install metadata, and a private uv.
 /.venv/
 /.tools/
+*.egg-info/
