@@ -15,8 +15,8 @@ from pathlib import Path
 import pytest
 from rich.console import Console
 
-from dissolve import registry, safety, separation, tea
-from dissolve.agent_tools import PUBCHEM, source_basis_for, tool_schemas
+from dissolve import agent, safety, separation, tea
+from dissolve.agent import PUBCHEM, source_basis_for, tool_schemas
 from dissolve.cli import (
     EXPECTED_REGISTRY_NAMES,
     PUBLISHED_HAZARD_METHODS_COPY,
@@ -542,7 +542,7 @@ def test_planner_chem21_alias_resolves_to_worst_not_a_third_objective():
 
 
 def test_agent_surface_names_worst_of_three_as_the_default_chem21_metric():
-    from dissolve.agent_tools import tool_schemas
+    from dissolve.agent import tool_schemas
     schemas = {t["name"]: t for t in tool_schemas()}
     assert len(schemas) == 24
     for name in ("screen_green_solvent_candidates", "screen_route_solvent_substitutions"):
@@ -609,8 +609,8 @@ def _empty_payload(_url: str) -> dict:
 
 
 def test_registry_keeps_cid_tool_after_thermal_estimator_retirement():
-    names = {tool.name for tool in registry.REGISTRY}
-    assert len(registry.REGISTRY) == 29
+    names = {tool.name for tool in agent.REGISTRY}
+    assert len(agent.REGISTRY) == 29
     assert len(EXPECTED_REGISTRY_NAMES) == 29
     assert names == EXPECTED_REGISTRY_NAMES
     assert "fetch_solvent_safety_by_cid" in names
@@ -622,7 +622,7 @@ def test_registry_keeps_cid_tool_after_thermal_estimator_retirement():
 
 def test_cached_card_via_registry_is_snapshot_with_network_forbidden(monkeypatch):
     _forbid_network(monkeypatch)
-    raw = registry.call(
+    raw = agent.call(
         "get_solvent_safety_card",
         solvent_name=_TOLUENE,
         include_pubchem=True,
@@ -650,21 +650,21 @@ def test_cached_card_via_registry_is_snapshot_with_network_forbidden(monkeypatch
 
 def test_screens_and_compare_complete_offline(monkeypatch):
     _forbid_network(monkeypatch)
-    green = _data(registry.call(
+    green = _data(agent.call(
         "screen_green_solvent_candidates",
         feed_polymers=["LDPE", "PP"],
         target_polymer="LDPE",
         limit=3,
     ))
     assert green["success"] is True
-    compare = _data(registry.call(
+    compare = _data(agent.call(
         "compare_solvent_safety_at_conditions",
         candidates=[{"solvent_name": _TOLUENE, "operating_temp_c": 80}],
         include_pubchem=True,
     ))
     assert compare["success"] is True
     assert "source: live" not in json.dumps(compare)
-    route = _data(registry.call(
+    route = _data(agent.call(
         "screen_route_solvent_substitutions",
         feed_polymers=["LDPE", "PP"],
         route_steps=[{
@@ -684,7 +684,7 @@ def test_cid_outside_snapshot_is_named_miss(monkeypatch):
         safety, "_local_properties",
         lambda query: {"name": query, "cid": _MISS_CID},
     )
-    payload = _data(registry.call(
+    payload = _data(agent.call(
         "get_solvent_safety_card",
         solvent_name="not-in-snapshot",
         include_pubchem=True,
@@ -702,7 +702,7 @@ def test_decoy_same_size_file_is_digest_mismatch(tmp_path, monkeypatch):
     assert decoy.stat().st_size == _SNAPSHOT.stat().st_size
     assert hashlib.sha256(decoy.read_bytes()).hexdigest() != _SNAPSHOT_SHA256
     monkeypatch.setenv("DISSOLVE_SAFETY_SNAPSHOT", str(decoy))
-    payload = _data(registry.call(
+    payload = _data(agent.call(
         "get_solvent_safety_card",
         solvent_name=_TOLUENE,
         include_pubchem=True,
@@ -807,7 +807,7 @@ def _same(got, want) -> bool:
 
 def test_biodegradation_after_rename_vs_broken_heading(monkeypatch):
     _forbid_network(monkeypatch)
-    payload = _data(registry.call(
+    payload = _data(agent.call(
         "get_solvent_safety_card",
         solvent_name=_TOLUENE,
         include_pubchem=True,
@@ -838,7 +838,7 @@ def test_cid_path_cassette_fetches_eight_names_never_biodegradation(monkeypatch)
     safety._heading.cache_clear()
     safety._pubchem.cache_clear()
     before = hashlib.sha256(_SNAPSHOT.read_bytes()).hexdigest()
-    payload = _data(registry.call("fetch_solvent_safety_by_cid", cid=_TOLUENE_CID))
+    payload = _data(agent.call("fetch_solvent_safety_by_cid", cid=_TOLUENE_CID))
     after = hashlib.sha256(_SNAPSHOT.read_bytes()).hexdigest()
     assert payload["success"] is True
     assert payload["persisted"] is False
@@ -851,10 +851,10 @@ def test_cid_path_cassette_fetches_eight_names_never_biodegradation(monkeypatch)
     assert payload["field_origin"] or payload["safety_profile"]["provenance"]["pubchem_source"] == "live"
     signature = inspect.signature(safety.fetch_solvent_safety_by_cid)
     assert list(signature.parameters) == ["cid"]
-    missing = _data(registry.call("fetch_solvent_safety_by_cid"))
+    missing = _data(agent.call("fetch_solvent_safety_by_cid"))
     assert missing["success"] is False
     assert missing["error_code"] == "missing_cid"
-    invalid = _data(registry.call("fetch_solvent_safety_by_cid", cid="toluene"))
+    invalid = _data(agent.call("fetch_solvent_safety_by_cid", cid="toluene"))
     assert invalid["success"] is False
     assert invalid["error_code"] == "invalid_cid"
 

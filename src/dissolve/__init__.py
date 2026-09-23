@@ -1,7 +1,9 @@
-"""DISSOLVE v12 — clean-room routing/validation experiment.
+"""DISSOLVE: a tool-using agent for solvent-based plastic separation (STRAP).
 
-Inherits the thermodynamic data asset and nothing else. No routing, no
-validation, no answer layer carried over from v11.
+The model calls deterministic engines (thermodynamics, separation, safety, TEA/LCA,
+contaminants, and the literature corpus) through one flat registry, `agent.REGISTRY`.
+`corpus.py` rebuilds a literature index from your own PDFs with the recipe the served
+corpus was built with.
 """
 
 __version__ = "0.1"
@@ -11,4 +13,4 @@ __version__ = "0.1"
 #: rename is one edit, and so a v11 artifact is never mistaken for a v12 one.
 RELEASE = "dissolve-v12-0.1"
 
-from .registry import REGISTRY, BY_NAME  # noqa: F401
+from .agent import BY_NAME, REGISTRY  # noqa: F401

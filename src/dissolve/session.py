@@ -309,7 +309,8 @@ def _subject_arg_names() -> tuple[frozenset[str], frozenset[str]]:
     global _POLY_FROM_SIG, _TEMP_FROM_SIG
     if _POLY_FROM_SIG is None:
         import inspect as _inspect
-        from dissolve import registry as _registry
+
+        from dissolve import agent as _registry
         poly, temp = set(), set()
         for spec in _registry.REGISTRY:
             for name in _inspect.signature(spec.fn).parameters:

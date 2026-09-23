@@ -15,7 +15,7 @@ from dissolve import (
     separation,
     tea,
 )
-from dissolve.agent_tools import (
+from dissolve.agent import (
     CONSUMERS,
     SYSTEM_PROMPT,
     dispatch,

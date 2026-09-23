@@ -6,9 +6,9 @@ import inspect
 import json
 from pathlib import Path
 
-from dissolve import analysis, landscape, registry, tea
+from dissolve import agent, analysis, landscape, tea
 from dissolve import thermodynamics as thermo
-from dissolve.agent_tools import dispatch, tool_schemas
+from dissolve.agent import dispatch, tool_schemas
 from dissolve.cli import EXPECTED_REGISTRY_NAMES, CliApp, _parse_solvents_slash
 from dissolve.contracts import parse_tool_result
 from dissolve.session import bind_tool_session, new_session
@@ -87,8 +87,8 @@ def _sealed_entry() -> dict:
 
 
 def test_lookup_name_is_unregistered_successor_stays():
-    assert "lookup_admitted_process_records" not in registry.BY_NAME
-    assert "evaluate_process" in registry.BY_NAME
+    assert "lookup_admitted_process_records" not in agent.BY_NAME
+    assert "evaluate_process" in agent.BY_NAME
     assert callable(tea.lookup_admitted_process_records)
 
 
@@ -723,12 +723,12 @@ def _result(raw: str) -> dict:
 
 
 def test_a1_exactly_one_removal_by_identity_against_parent_30():
-    now = frozenset(registry.BY_NAME)
+    now = frozenset(agent.BY_NAME)
     assert (_PARENT_REGISTRY_NAMES - now) == frozenset({"estimate_thermal_properties"})
     assert (now - _PARENT_REGISTRY_NAMES) == frozenset()
     assert len(now) == 29
     assert now == EXPECTED_REGISTRY_NAMES
-    assert len(registry.REGISTRY) == 29
+    assert len(agent.REGISTRY) == 29
     assert len(tool_schemas()) == 24
     assert "fetch_solvent_safety_by_cid" in now
     assert "estimate_thermal_properties" not in now

@@ -1,19 +1,144 @@
-"""One generic wrapper, result_read, source_basis, handle issue, system prompt."""
+"""The agent: the flat tool registry, the one generic tool wrapper the model calls through, and the turn loop."""
 from __future__ import annotations
 
-import inspect, json
+import inspect
+import json
+import os
+import sys
 from collections.abc import Sequence as AbcSeq
+from dataclasses import dataclass
 from types import UnionType
-from typing import Annotated, Any, Literal, Union, get_args, get_origin, get_type_hints
+from typing import (
+    Annotated,
+    Any,
+    Callable,
+    Literal,
+    NamedTuple,
+    Union,
+    get_args,
+    get_origin,
+    get_type_hints,
+)
 
-from dissolve import registry
 from dissolve.contracts import parse_tool_result
 from dissolve.session import (
-    append_reported, bind_handle_rows, current_tool_session,
-    engine_kwargs_for_handle, handle_rows, load_handle, note_in_play,
-    primary_row_key, record_tool_call, store_handle,
+    CompactionBudgetError,
+    append_reported,
+    bind_handle_rows,
+    bind_tool_session,
+    compact_messages,
+    context_window,
+    current_tool_session,
+    engine_kwargs_for_handle,
+    handle_rows,
+    load_handle,
+    note_in_play,
+    open_turn_record,
+    primary_row_key,
+    record_tool_call,
+    store_handle,
 )
 from dissolve.thermodynamics import expand_polymer_identity, get_available_solvents
+
+from . import (
+    analysis,
+    contaminants,
+    research,
+    safety,
+    separation,
+    tea,
+    tools,
+)
+
+# --- registry: The flat tool registry. Every tool, one list, no routing.
+#
+# v11 put these behind ten specialists, each with its own prompt, policy, context
+# projector, plan validator and completion requirements — so reaching a tool meant
+# a routing decision, and a routing decision is a second thing that can be wrong.
+# Here they are flat. The model sees all of them and picks.
+#
+# Nothing in this file decides anything. It imports functions and lists them. If
+# you find yourself adding a condition here, that is routing coming back.
+#
+# PROVENANCE: every tool returns the v11 envelope from `contracts.py` —
+# `{"display": str, "data": {...}}` on success, with `success: false` and an
+# `error_code` on refusal. The `basis` hook the flat harness will want is not
+# uniformly present yet: some tools state their source inside `data`
+# (`source_table`, `cache_match_status`, `provenance`, `evidence_class`) and some
+# do not. That is deliberate for now — the tools are ported raw and unedited
+# beyond decoupling, so what they claim about their own sources is exactly what
+# v11 claimed. Normalising that into one declared `basis` enum is a later pass,
+# and doing it now would mean inventing provenance for tools that never stated it.
+
+
+
+class Tool(NamedTuple):
+    name: str
+    fn: Callable[..., str]
+    engine: str
+    summary: str
+
+
+def _s(fn: Callable[..., Any]) -> str:
+    doc = (fn.__doc__ or "").strip().splitlines()
+    return doc[0] if doc else ""
+
+
+def _t(fn: Callable[..., Any], engine: str) -> Tool:
+    return Tool(fn.__name__, fn, engine, _s(fn))
+
+
+REGISTRY: tuple[Tool, ...] = tuple([
+    # --- thermodynamics: grid query and separation screens ---
+    _t(tools.solubility_query, "thermodynamics"),
+    _t(tools.screen_polymer_separation, "thermodynamics"),
+    _t(tools.screen_pairwise_solubility_overlap, "thermodynamics"),
+    # --- separation: routes, precipitation protocol, membership ---
+    _t(separation.resolve_polymer_data_scope, "separation"),
+    _t(separation.lookup_material_database_membership, "separation"),
+    _t(separation.plan_multistage_separation, "separation"),
+    _t(separation.screen_precipitation_order, "separation"),
+    _t(separation.screen_cool_then_reheat_getter, "separation"),
+    # --- safety ---
+    _t(safety.get_solvent_safety_card, "safety"),
+    _t(safety.compare_solvent_safety_at_conditions, "safety"),
+    _t(safety.screen_green_solvent_candidates, "safety"),
+    _t(safety.screen_route_solvent_substitutions, "safety"),
+    _t(safety.fetch_solvent_safety_by_cid, "safety"),
+    # --- TEA / LCA ---
+    _t(tea.evaluate_process, "tea"),
+    _t(tea.rank_landscape, "tea"),
+    # --- Hansen parameters, thermal properties, numeric analysis ---
+    _t(analysis.lookup_hansen_parameters, "analysis"),
+    _t(analysis.screen_hansen_compatibility, "analysis"),
+    _t(analysis.lookup_glass_transition, "analysis"),
+    _t(analysis.list_thermal_evidence, "analysis"),
+    _t(analysis.analyze_numeric_samples, "analysis"),
+    # --- contaminant removal ---
+    _t(contaminants.screen_contaminant_leaching, "contaminants"),
+    _t(contaminants.screen_contaminant_strap_removal, "contaminants"),
+    _t(contaminants.compare_contaminant_removal_modes, "contaminants"),
+    # --- retrieval-augmented literature ---
+    _t(research.search_scholarly_literature, "research"),
+    _t(research.search_patent_literature, "research"),
+    _t(research.ingest_literature_documents, "research"),
+    _t(research.search_literature_corpus, "research"),
+    _t(research.inspect_literature_corpus, "research"),
+    _t(research.ingest_literature_graph, "research"),
+])
+
+BY_NAME: dict[str, Tool] = {t.name: t for t in REGISTRY}
+
+
+def call(name: str, /, **kwargs: Any) -> str:
+    """Invoke a registered tool by name. Unknown name raises — it never guesses."""
+    if name not in BY_NAME:
+        raise KeyError(f"no such tool: {name!r}")
+    return BY_NAME[name].fn(**kwargs)
+
+
+# --- agent_tools: One generic wrapper, result_read, source_basis, handle issue, system prompt.
+
 
 UNWIRED = frozenset()
 PUBCHEM = frozenset({
@@ -185,7 +310,7 @@ def source_basis_for(name: str, data: dict[str, Any], kwargs: dict[str, Any]) ->
         and str(data.get("source") or "").strip().casefold() == "planner_routes"
     ):
         return "cosmo_rs_grid"
-    eng = registry.BY_NAME[name].engine
+    eng = BY_NAME[name].engine
     if eng == "safety":
         if name == "fetch_solvent_safety_by_cid":
             return "pubchem_live"
@@ -250,7 +375,7 @@ def offered_tool_names(session: Any = None) -> frozenset[str]:
     Scholarly is LITERATURE_SCHOLARLY_TOOLS, not "registry minus ingest".
     Ingest is not a map key and is not in any map value.
     """
-    names = {spec.name for spec in registry.REGISTRY}
+    names = {spec.name for spec in REGISTRY}
     names -= LITERATURE_AGENT_TOOLS
     names |= offered_literature_names(session)
     return frozenset(names)
@@ -294,7 +419,7 @@ def _schema_item(spec: Any) -> dict[str, Any]:
 
 def tool_schema_for(name: str) -> dict[str, Any]:
     """Schema for one registry name. Not an offer; ingest stays inspectable."""
-    return _schema_item(registry.BY_NAME[name])
+    return _schema_item(BY_NAME[name])
 
 
 def tool_schemas(session: Any = None) -> list[dict[str, Any]]:
@@ -308,7 +433,7 @@ def tool_schemas(session: Any = None) -> list[dict[str, Any]]:
         }, "required": ["handle"]},
     }]
     offered = offered_tool_names(session)
-    for spec in registry.REGISTRY:
+    for spec in REGISTRY:
         if spec.name not in offered:
             continue
         out.append(_schema_item(spec))
@@ -415,9 +540,9 @@ def _issue_handle(record, tool, basis, data, payload, display=None):
 
 def _invoke(name, kwargs):
     try:
-        return parse_tool_result(registry.call(name, **kwargs)), None
+        return parse_tool_result(call(name, **kwargs)), None
     except KeyError as e:
-        if name not in registry.BY_NAME:
+        if name not in BY_NAME:
             return None, _refuse("unknown_tool", name=name)
         return None, _refuse("tool_exception", error=f"KeyError: {e}")
     except (TypeError, ValueError) as e:
@@ -458,7 +583,7 @@ def dispatch(name: str, **kwargs: Any) -> dict[str, Any]:
             detail="reads session state through an interface v12 removed; pending an engine pass to accept a handle",
         )
         return _emit(name, kwargs, out, out)
-    if name not in registry.BY_NAME:
+    if name not in BY_NAME:
         out = _refuse("unknown_tool", name=name)
         return _emit(name, kwargs, out, out)
     if name in LITERATURE_AGENT_TOOLS and name not in offered_tool_names(current_tool_session()):
@@ -598,3 +723,258 @@ between two tool results (a recovery window, a gap) is arithmetic
 you must not perform; if the user needs the difference, say the
 two numbers and that you did not subtract them.
 """
+
+
+# --- agent_harness: The turn loop: one user turn runs tool calls until the model answers; `python -m dissolve.agent "question"` runs one.
+
+
+@dataclass(frozen=True)
+class ToolEvent:
+    name: str
+    args: dict
+    result: dict
+
+@dataclass(frozen=True)
+class TurnResult:
+    answer: str
+    status: str
+    tool_trace: list[ToolEvent]
+    turn_record: str
+    tool_rounds: int = 0
+    usage: dict | None = None
+
+def _oai_msgs(messages):
+    out = []
+    for m in messages:
+        if m["role"] == "assistant" and m.get("tool_calls"):
+            tcs = [{"id": c["id"], "type": "function",
+                    "function": {"name": c["name"], "arguments": json.dumps(c.get("args") or {})}}
+                   for c in m["tool_calls"]]
+            out.append({"role": "assistant", "content": m.get("content") or None, "tool_calls": tcs})
+        elif m["role"] == "tool":
+            out.append({"role": "tool", "tool_call_id": m.get("tool_call_id"), "content": m.get("content") or ""})
+        else:
+            out.append({"role": m["role"], "content": m.get("content") or ""})
+    return out
+
+def _ant_msgs(messages):
+    sys, rest = "", []
+    for m in messages:
+        if m["role"] == "system":
+            sys = m.get("content") or ""
+        elif m["role"] == "assistant":
+            blocks = ([{"type": "text", "text": m["content"]}] if m.get("content") else []) + [
+                {"type": "tool_use", "id": c["id"], "name": c["name"], "input": c.get("args") or {}}
+                for c in m.get("tool_calls") or []
+            ]
+            rest.append({"role": "assistant", "content": blocks or ""})
+        elif m["role"] == "tool":
+            block = {"type": "tool_result", "tool_use_id": m.get("tool_call_id"), "content": m.get("content") or ""}
+            if rest and rest[-1]["role"] == "user" and isinstance(rest[-1]["content"], list):
+                rest[-1]["content"].append(block)
+            else:
+                rest.append({"role": "user", "content": [block]})
+        else:
+            rest.append({"role": "user", "content": m.get("content") or ""})
+    return sys, rest
+
+class MissingProviderKey(Exception): pass
+
+def _usage(kind, resp):
+    raw = getattr(resp, "usage_metadata" if kind == "google_genai" else "usage", None)
+    if raw is None:
+        return None
+    names = {
+        "anthropic": ("input_tokens", "output_tokens", None),
+        "google_genai": ("prompt_token_count", "candidates_token_count", "total_token_count"),
+    }.get(kind, ("prompt_tokens", "completion_tokens", "total_tokens"))
+    input_name, output_name, total_name = names
+    inp = getattr(raw, input_name, None)
+    outp = getattr(raw, output_name, None)
+    tot = getattr(raw, total_name, None) if total_name else None
+    usage = {}
+    if inp is not None:
+        usage["input_tokens"] = int(inp)
+    if outp is not None:
+        usage["output_tokens"] = int(outp)
+    if tot is not None:
+        usage["total_tokens"] = int(tot)
+    if (
+        kind == "anthropic"
+        and "total_tokens" not in usage
+        and "input_tokens" in usage
+        and "output_tokens" in usage
+    ):
+        usage["total_tokens"] = usage["input_tokens"] + usage["output_tokens"]
+    return usage or None
+
+def _fold_usage(acc):
+    if not acc or any(item is None for item in acc):
+        return None
+    keys = {key for item in acc for key in item}
+    return {key: sum(item[key] for item in acc if key in item) for key in keys}
+
+def complete(messages, tools, *, model, api_base=None, api_key_env=None):
+    kind, _, ident = model.partition(":")
+    ident = ident or model
+    if kind not in ("anthropic", "google_genai", "openai"):
+        raise ValueError(f"unknown model prefix: {kind!r}")
+    key = (os.environ.get(api_key_env) or "").strip() if api_key_env else None
+    if api_key_env and not key:
+        raise MissingProviderKey(f"missing environment variable {api_key_env}")
+    if kind == "anthropic":
+        import anthropic
+        sys, rest = _ant_msgs(messages)
+        ant = [{"name": t["name"], "description": t.get("description") or "", "input_schema": t["parameters"]} for t in tools]
+        resp = anthropic.Anthropic(api_key=key).messages.create(
+            model=ident, system=sys, messages=rest, tools=ant, max_tokens=8192)
+        text = "".join(getattr(b, "text", "") for b in resp.content if getattr(b, "type", "") == "text")
+        calls = [{"id": b.id, "name": b.name, "args": dict(b.input or {})}
+                 for b in resp.content if getattr(b, "type", "") == "tool_use"]
+        return {"text": text, "tool_calls": calls, "usage": _usage(kind, resp)}
+    if kind == "google_genai":
+        from google import genai
+        from google.genai import types
+        decls = [types.FunctionDeclaration(name=t["name"], description=t.get("description") or "", parameters=t["parameters"]) for t in tools]
+        sys = next((m.get("content") or "" for m in messages if m["role"] == "system"), "")
+        resp = genai.Client(api_key=key).models.generate_content(
+            model=ident, contents=_gen_contents(messages),
+            config=types.GenerateContentConfig(system_instruction=sys, tools=[types.Tool(function_declarations=decls)]))
+        calls = [{"id": getattr(c, "id", "") or "", "name": c.name, "args": dict(c.args or {})}
+                 for c in (getattr(resp, "function_calls", None) or [])]
+        return {"text": getattr(resp, "text", None) or "", "tool_calls": calls, "usage": _usage(kind, resp)}
+    if kind == "openai":
+        from openai import OpenAI
+        oai = [{"type": "function", "function": {"name": t["name"], "description": t.get("description") or "", "parameters": t["parameters"]}} for t in tools]
+        resp = OpenAI(api_key=key or None, base_url=api_base or None).chat.completions.create(
+            model=ident, messages=_oai_msgs(messages), tools=oai)
+        msg = resp.choices[0].message
+        calls = []
+        for c in msg.tool_calls or []:
+            try:
+                args = json.loads(c.function.arguments or "{}")
+            except json.JSONDecodeError:
+                args = {}
+            calls.append({"id": c.id, "name": c.function.name, "args": args})
+        return {"text": msg.content or "", "tool_calls": calls, "usage": _usage(kind, resp)}
+
+def _gen_contents(messages):
+    from google.genai import types
+    contents = []
+    for m in messages:
+        if m["role"] == "system":
+            continue
+        if m["role"] == "assistant":
+            parts = []
+            if m.get("content"):
+                parts.append(types.Part.from_text(text=m["content"]))
+            for c in m.get("tool_calls") or []:
+                parts.append(types.Part.from_function_call(name=c["name"], args=c.get("args") or {}))
+            if parts:
+                contents.append(types.Content(role="model", parts=parts))
+        elif m["role"] == "tool":
+            try:
+                resp = json.loads(m.get("content") or "{}")
+            except json.JSONDecodeError:
+                resp = {"result": m.get("content") or ""}
+            if not isinstance(resp, dict):
+                resp = {"result": resp}
+            contents.append(types.Content(role="user", parts=[
+                types.Part.from_function_response(name=m.get("name") or "", response=resp)]))
+        else:
+            contents.append(types.Content(role="user", parts=[types.Part.from_text(text=m.get("content") or "")]))
+    return contents
+
+def run_turn(
+    query: str, *, session: dict, model: str, messages: list | None = None,
+    on_event: Callable[[ToolEvent], None] | None = None,
+    api_base: str | None = None, api_key_env: str | None = None,
+) -> TurnResult:
+    schemas = tool_schemas(session)
+    if messages is None:
+        msgs = [{"role": "system", "content": SYSTEM_PROMPT}, {"role": "user", "content": query}]
+    else:
+        msgs = messages
+        if not msgs or msgs[0].get("role") != "system":
+            msgs.insert(0, {"role": "system", "content": SYSTEM_PROMPT})
+        msgs.append({"role": "user", "content": query})
+    trace: list[ToolEvent] = []
+    rounds = 0
+    acc = []
+    with bind_tool_session(session) as bound:
+        tid = open_turn_record(bound)
+        for _ in range(30):
+            try:
+                reply = complete(msgs, schemas, model=model, api_base=api_base, api_key_env=api_key_env)
+            except MissingProviderKey as e:
+                return TurnResult(
+                    answer=str(e), status="provider_error",
+                    tool_trace=trace, turn_record=tid, tool_rounds=rounds,
+                    usage=_fold_usage(acc),
+                )
+            except Exception as e:
+                return TurnResult(
+                    answer=f"provider error: {type(e).__name__}: {e}",
+                    status="provider_error", tool_trace=trace, turn_record=tid,
+                    tool_rounds=rounds, usage=_fold_usage(acc),
+                )
+            acc.append(reply.get("usage"))
+            calls, text = reply.get("tool_calls") or [], reply.get("text") or ""
+            if not calls:
+                msgs.append({"role": "assistant", "content": text})
+                return TurnResult(
+                    answer=text, status="ok", tool_trace=trace,
+                    turn_record=tid, tool_rounds=rounds, usage=_fold_usage(acc),
+                )
+            rounds += 1
+            msgs.append({"role": "assistant", "content": text, "tool_calls": calls})
+            for call in calls:
+                args = call.get("args") or {}
+                if isinstance(args, str):
+                    try:
+                        args = json.loads(args)
+                    except json.JSONDecodeError:
+                        args = {}
+                result = dispatch(call["name"], **args)
+                event = ToolEvent(name=call["name"], args=args, result=result)
+                trace.append(event)
+                if on_event:
+                    on_event(event)
+                msgs.append({
+                    "role": "tool", "tool_call_id": call.get("id"),
+                    "name": call["name"], "content": json.dumps(result),
+                })
+            try:
+                compact_messages(msgs, bound, window=context_window(model))
+            except CompactionBudgetError as e:
+                return TurnResult(
+                    answer=str(e), status="compaction_error",
+                    tool_trace=trace, turn_record=tid, tool_rounds=rounds,
+                    usage=_fold_usage(acc),
+                )
+        return TurnResult(
+            answer="round cap (30) reached; see the tool trace for what was retrieved. No guessed answer.",
+            status="round_cap", tool_trace=trace, turn_record=tid,
+            tool_rounds=rounds, usage=_fold_usage(acc),
+        )
+
+def _main() -> None:
+    import argparse
+
+    from dissolve.cli import DEFAULT_MODEL, CliApp, _tool_event_summary, main
+    if len(sys.argv) < 2 or sys.argv[1].startswith("-"):
+        raise SystemExit(main())
+    p = argparse.ArgumentParser()
+    p.add_argument("query")
+    p.add_argument("--model", default=DEFAULT_MODEL)
+    ns = p.parse_args()
+    app = CliApp(model_alias=ns.model, persist=True, quiet=True, require_key=False)
+    result = app.ask(ns.query)
+    for ev in result.tool_trace:
+        print(f"tool  {_tool_event_summary(ev)}")
+    print(result.answer)
+    print(f"status={result.status}")
+    raise SystemExit(0 if result.status == "ok" else 1)
+
+if __name__ == "__main__":
+    _main()

@@ -15,10 +15,9 @@ from pathlib import Path
 import pytest
 from rich.console import Console
 
-from dissolve import agent_harness, agent_tools, cli, registry, research, tea
+from dissolve import agent, cli, research, tea
 from dissolve import session as sess
-from dissolve.agent_harness import ToolEvent, TurnResult, run_turn
-from dissolve.agent_tools import (
+from dissolve.agent import (
     LITERATURE_AGENT_TOOLS,
     LITERATURE_CORPUS_TOOLS,
     LITERATURE_INGEST_TOOLS,
@@ -27,10 +26,13 @@ from dissolve.agent_tools import (
     LITERATURE_SCHOLARLY_TOOLS,
     SYSTEM_PROMPT,
     UNWIRED,
+    ToolEvent,
+    TurnResult,
     dispatch,
     literature_agent_mode,
     offered_tool_names,
     result_read,
+    run_turn,
     source_basis_for,
     tool_schema_for,
     tool_schemas,
@@ -65,7 +67,7 @@ from dissolve.session import (
 from dissolve.thermodynamics import get_available_solvents
 
 # --- from test_acceptance.py: §10 acceptance tests. Stub the provider. Test 5 is identity-sensitive.
-_real_bind = agent_tools.bind_handle_rows
+_real_bind = agent.bind_handle_rows
 
 
 Q1 = "What is the solubility of LDPE in dodecane at 140 C?"
@@ -282,7 +284,7 @@ def _play(monkeypatch, steps):
         n["i"] += 1
         return step(messages) if callable(step) else step
 
-    monkeypatch.setattr(agent_harness, "complete", fake)
+    monkeypatch.setattr(agent, "complete", fake)
     return n
 
 
@@ -298,7 +300,7 @@ def _forty_copy_probe():
     """Auditor bind: 40 copies of one valid screen row. Counts pass; identities do not."""
     bound_ids = []
     session = new_session()
-    agent_tools.bind_handle_rows = _spy_bind(bound_ids, _bind_copies_of_first_row)
+    agent.bind_handle_rows = _spy_bind(bound_ids, _bind_copies_of_first_row)
     try:
         with bind_tool_session(session) as rec:
             screen = dispatch(
@@ -322,7 +324,7 @@ def _forty_copy_probe():
                 "transient": "last_candidates" in rec,
             }
     finally:
-        agent_tools.bind_handle_rows = _real_bind
+        agent.bind_handle_rows = _real_bind
 
 
 def test_acceptance_5_identity_predicate_is_red_on_forty_copies_of_one_row():
@@ -340,7 +342,7 @@ def test_acceptance_5_identity_predicate_is_red_on_forty_copies_of_one_row():
 def test_acceptance_5_screen_then_safety_identities_and_answer(monkeypatch):
     bound_ids = []
     monkeypatch.setattr(
-        "dissolve.agent_tools.bind_handle_rows",
+        "dissolve.agent.bind_handle_rows",
         _spy_bind(bound_ids, _real_bind),
     )
 
@@ -843,14 +845,14 @@ def test_answer_matcher_does_not_split_a_nested_exact_name():
 # --- from test_agent_tools.py: Dispatch, result_read, handle issue, and the loop — chunk 2 obligations.
 def _loop_call_graph():
     """Functions in the harness/wrapper/session modules reachable from run_turn."""
-    mods = (agent_harness, agent_tools, sess)
+    mods = (agent, agent, sess)
     catalog = {
         name: obj
         for mod in mods for name, obj in vars(mod).items()
         if inspect.isfunction(obj) and inspect.getmodule(obj) in mods
     }
     seen: set = set()
-    stack = [agent_harness.run_turn]
+    stack = [agent.run_turn]
     while stack:
         fn = stack.pop()
         if fn in seen:
@@ -935,7 +937,7 @@ def _forced_compact_turn(monkeypatch, session):
             return {"text": "", "tool_calls": [{"id": "1", "name": "no_such_tool", "args": {}}]}
         return {"text": "done", "tool_calls": []}
 
-    monkeypatch.setattr(agent_harness, "complete", fake_complete)
+    monkeypatch.setattr(agent, "complete", fake_complete)
     result = run_turn(
         "CURRENT-QUERY", session=session,
         model="openai:muse-spark-1.2", messages=history,
@@ -1195,7 +1197,7 @@ def test_loop_prose_does_not_gate_or_read_record(monkeypatch):
     def fake_complete(messages, tools, **kwargs):
         return {"text": "The recovery window is 46 C.", "tool_calls": []}
 
-    monkeypatch.setattr(agent_harness, "complete", fake_complete)
+    monkeypatch.setattr(agent, "complete", fake_complete)
     result = run_turn("q", session=session, model="openai:x")
     assert result.status == "ok"
     assert result.answer == "The recovery window is 46 C."
@@ -1207,7 +1209,7 @@ def test_loop_prose_does_not_gate_or_read_record(monkeypatch):
     assert result.turn_record
     assert load_turn_record(session, result.turn_record) == []
     assert "_turn" not in session
-    src = Path(agent_harness.__file__).read_text()
+    src = Path(agent.__file__).read_text()
     assert "numeral_scan" not in src
     assert "Callable[[ToolEvent], None]" in inspect.getsource(run_turn)
     assert "bound[\"tool_rounds\"]" not in src
@@ -1216,14 +1218,14 @@ def test_loop_prose_does_not_gate_or_read_record(monkeypatch):
     graph = _loop_call_graph()
     assert sess.compact_messages in graph
     assert sess._summary_text in graph
-    assert agent_tools._emit in graph
+    assert agent._emit in graph
     assert sess.load_turn_record not in graph
     assert _archive_readers_in_loop_graph() == []
-    assert "result_read" not in inspect.getsource(agent_tools._emit)
+    assert "result_read" not in inspect.getsource(agent._emit)
 
 
 def test_system_prompt_reports_engine_inclusivity_not_user_strictness():
-    prompt = agent_tools.SYSTEM_PROMPT
+    prompt = agent.SYSTEM_PROMPT
     assert "bounds_are_inclusive" in prompt
     assert "A count for >= 5 / <= 1 is not a count for > 5 / < 1" in prompt
 
@@ -1345,7 +1347,7 @@ def test_loop_turn_record_survives_bind_and_is_not_a_gate(monkeypatch):
             }
         return {"text": "92.5 wt%", "tool_calls": []}
 
-    monkeypatch.setattr(agent_harness, "complete", fake_complete)
+    monkeypatch.setattr(agent, "complete", fake_complete)
     result = run_turn("q", session=session, model="openai:x")
     assert result.status == "ok"
     assert result.answer == "92.5 wt%"
@@ -1540,7 +1542,7 @@ def test_run_turn_appends_query_and_mutates_caller_messages(monkeypatch):
         seen["contents"] = [m.get("content") for m in messages]
         return {"text": "new answer", "tool_calls": []}
 
-    monkeypatch.setattr(agent_harness, "complete", fake_complete)
+    monkeypatch.setattr(agent, "complete", fake_complete)
     result = run_turn("NEW-MARKER", session=session, model="openai:x", messages=history)
     assert result.status == "ok"
     assert seen["same"] is True
@@ -1563,7 +1565,7 @@ def test_google_contents_keep_function_call_and_response():
             "content": json.dumps({"available": True}),
         },
     ]
-    contents = agent_harness._gen_contents(msgs)
+    contents = agent._gen_contents(msgs)
     assert contents[0].role == "user"
     assert contents[1].role == "model"
     assert contents[1].parts[-1].function_call.name == "solubility_query"
@@ -1756,10 +1758,10 @@ def test_append_reported_dedupes_overlapping_page_identities():
 
 
 def test_in_play_keys_come_from_registered_signatures():
-    from dissolve import registry
+    from dissolve import agent
     poly, temp = sess._subject_arg_names()
     found_poly, found_temp = set(), set()
-    for spec in registry.REGISTRY:
+    for spec in agent.REGISTRY:
         for name in inspect.signature(spec.fn).parameters:
             low = name.lower()
             if "polymer" in low:
@@ -1821,8 +1823,8 @@ def test_run_turn_production_timing_keeps_current_group_and_meets_budget(monkeyp
         compact_messages(messages, record, **kwargs)
         return None
 
-    monkeypatch.setattr(agent_harness, "complete", fake_complete)
-    monkeypatch.setattr(agent_harness, "compact_messages", spy)
+    monkeypatch.setattr(agent, "complete", fake_complete)
+    monkeypatch.setattr(agent, "compact_messages", spy)
     result = run_turn(
         "CURRENT-QUERY", session=new_session(),
         model="openai:muse-spark-1.2", messages=history,
@@ -1862,8 +1864,8 @@ def test_run_turn_counts_rounds_not_history_delta(monkeypatch):
         )
         del messages[start:end]
 
-    monkeypatch.setattr(agent_harness, "complete", fake_complete)
-    monkeypatch.setattr(agent_harness, "compact_messages", fake_compact)
+    monkeypatch.setattr(agent, "complete", fake_complete)
+    monkeypatch.setattr(agent, "compact_messages", fake_compact)
     before = sum(1 for m in history if m.get("role") == "assistant" and m.get("tool_calls"))
     session = new_session()
     result = run_turn("NOW", session=session, model="openai:x", messages=history)
@@ -1882,36 +1884,36 @@ def test_run_turn_counts_rounds_not_history_delta(monkeypatch):
 def test_usage_reads_each_adapter_shape_and_keeps_absent_distinct_from_zero():
     from types import SimpleNamespace
     zero = SimpleNamespace(prompt_tokens=0, completion_tokens=0, total_tokens=0)
-    assert agent_harness._usage("openai", SimpleNamespace(usage=SimpleNamespace(total_tokens=18))) == {
+    assert agent._usage("openai", SimpleNamespace(usage=SimpleNamespace(total_tokens=18))) == {
         "total_tokens": 18,
     }
-    assert agent_harness._usage(
+    assert agent._usage(
         "anthropic", SimpleNamespace(usage=SimpleNamespace(input_tokens=10, output_tokens=8)),
     ) == {"input_tokens": 10, "output_tokens": 8, "total_tokens": 18}
-    assert agent_harness._usage(
+    assert agent._usage(
         "google_genai", SimpleNamespace(usage_metadata=SimpleNamespace(
             prompt_token_count=3, candidates_token_count=5, total_token_count=8,
         )),
     ) == {"input_tokens": 3, "output_tokens": 5, "total_tokens": 8}
-    assert agent_harness._usage(
+    assert agent._usage(
         "openai", SimpleNamespace(usage=SimpleNamespace(prompt_tokens=3, completion_tokens=5)),
     ) == {"input_tokens": 3, "output_tokens": 5}
-    assert agent_harness._usage(
+    assert agent._usage(
         "google_genai", SimpleNamespace(usage_metadata=SimpleNamespace(
             prompt_token_count=3, candidates_token_count=5,
         )),
     ) == {"input_tokens": 3, "output_tokens": 5}
-    assert agent_harness._usage("openai", SimpleNamespace(usage=None)) is None
-    assert agent_harness._usage("openai", SimpleNamespace()) is None
-    assert agent_harness._usage("openai", SimpleNamespace(usage=SimpleNamespace())) is None
-    assert agent_harness._usage("anthropic", SimpleNamespace(usage=SimpleNamespace())) is None
-    assert agent_harness._usage(
+    assert agent._usage("openai", SimpleNamespace(usage=None)) is None
+    assert agent._usage("openai", SimpleNamespace()) is None
+    assert agent._usage("openai", SimpleNamespace(usage=SimpleNamespace())) is None
+    assert agent._usage("anthropic", SimpleNamespace(usage=SimpleNamespace())) is None
+    assert agent._usage(
         "anthropic", SimpleNamespace(usage=SimpleNamespace(input_tokens=0, output_tokens=0)),
     ) == {"input_tokens": 0, "output_tokens": 0, "total_tokens": 0}
-    assert agent_harness._usage("anthropic", SimpleNamespace(usage=SimpleNamespace(input_tokens=10))) == {
+    assert agent._usage("anthropic", SimpleNamespace(usage=SimpleNamespace(input_tokens=10))) == {
         "input_tokens": 10,
     }
-    assert agent_harness._usage("openai", SimpleNamespace(usage=zero)) == {
+    assert agent._usage("openai", SimpleNamespace(usage=zero)) == {
         "input_tokens": 0, "output_tokens": 0, "total_tokens": 0,
     }
 
@@ -1927,7 +1929,7 @@ def test_complete_keeps_openai_usage(monkeypatch):
             self.chat = SimpleNamespace(completions=SimpleNamespace(create=lambda **k: resp))
     monkeypatch.setattr(openai, "OpenAI", Client)
     monkeypatch.setenv("K", "x")
-    out = agent_harness.complete(
+    out = agent.complete(
         [{"role": "user", "content": "q"}], [], model="openai:x", api_key_env="K",
     )
     assert out["text"] == "done"
@@ -1947,7 +1949,7 @@ def test_run_turn_folds_usage_and_does_not_write_session_keys(monkeypatch):
             }
         return {"text": "done", "tool_calls": [], "usage": {"total_tokens": 11}}
 
-    monkeypatch.setattr(agent_harness, "complete", fake_complete)
+    monkeypatch.setattr(agent, "complete", fake_complete)
     session = new_session()
     result = run_turn("q", session=session, model="openai:x")
     assert result.status == "ok"
@@ -1970,7 +1972,7 @@ def test_run_turn_usage_is_none_if_any_round_omits_it(monkeypatch):
             }
         return {"text": "done", "tool_calls": [], "usage": None}
 
-    monkeypatch.setattr(agent_harness, "complete", fake_complete)
+    monkeypatch.setattr(agent, "complete", fake_complete)
     result = run_turn("q", session=new_session(), model="openai:x")
     assert result.status == "ok"
     assert result.usage is None
@@ -1990,8 +1992,8 @@ def test_run_turn_passes_alias_window(monkeypatch):
         hits.append((messages[-1].get("role"), kwargs.get("window")))
         return compact_messages(messages, record, **kwargs)
 
-    monkeypatch.setattr(agent_harness, "complete", fake_complete)
-    monkeypatch.setattr(agent_harness, "compact_messages", spy)
+    monkeypatch.setattr(agent, "complete", fake_complete)
+    monkeypatch.setattr(agent, "compact_messages", spy)
     result = run_turn("q", session=new_session(), model="openai:foo-8k")
     assert result.status == "compaction_error"
     assert "target=" in result.answer
@@ -2019,8 +2021,8 @@ def test_compaction_error_matches_every_emitted_tool_id(monkeypatch):
         compact_ids.append([m.get("tool_call_id") for m in messages if m.get("role") == "tool"])
         return compact_messages(messages, record, **kwargs)
 
-    monkeypatch.setattr(agent_harness, "complete", fake_complete)
-    monkeypatch.setattr(agent_harness, "compact_messages", spy)
+    monkeypatch.setattr(agent, "complete", fake_complete)
+    monkeypatch.setattr(agent, "compact_messages", spy)
     result = run_turn("q", session=session, model="openai:foo-8k", messages=history)
     assert result.status == "compaction_error"
     assert n["i"] == 1
@@ -2036,11 +2038,11 @@ def test_compaction_error_matches_every_emitted_tool_id(monkeypatch):
     assert received == emitted
     rows = load_turn_record(session, result.turn_record)
     assert [row["tool"] for row in rows] == ["no_such_tool", "no_such_tool"]
-    oai = agent_harness._oai_msgs(history)
+    oai = agent._oai_msgs(history)
     oai_call = [c["id"] for m in oai for c in (m.get("tool_calls") or [])]
     oai_resp = [m.get("tool_call_id") for m in oai if m.get("role") == "tool"]
     assert oai_call == oai_resp == emitted
-    _, ant = agent_harness._ant_msgs(history)
+    _, ant = agent._ant_msgs(history)
     uses, tres = [], []
     for msg in ant:
         blocks = msg.get("content")
@@ -2053,7 +2055,7 @@ def test_compaction_error_matches_every_emitted_tool_id(monkeypatch):
                 tres.append(block.get("tool_use_id"))
     assert uses == tres == emitted
     calls = frs = 0
-    for content in agent_harness._gen_contents(history):
+    for content in agent._gen_contents(history):
         for part in content.parts:
             fc, fr = getattr(part, "function_call", None), getattr(part, "function_response", None)
             if fc is not None and getattr(fc, "name", None):
@@ -2180,11 +2182,10 @@ def test_doctor_checks_key_assets_registry_duckdb(tmp_path, monkeypatch):
 
 
 def test_doctor_fails_when_a_declared_tool_is_missing(tmp_path, monkeypatch):
-    import dissolve.registry as registry
 
-    shortened = tuple(t for t in registry.REGISTRY if t.name != "ingest_literature_graph")
-    monkeypatch.setattr(registry, "REGISTRY", shortened)
-    monkeypatch.setattr(registry, "BY_NAME", {t.name: t for t in shortened})
+    shortened = tuple(t for t in agent.REGISTRY if t.name != "ingest_literature_graph")
+    monkeypatch.setattr(agent, "REGISTRY", shortened)
+    monkeypatch.setattr(agent, "BY_NAME", {t.name: t for t in shortened})
     monkeypatch.delenv("META_MUSE_API_KEY", raising=False)
     report = doctor_report(tmp_path, model_alias="muse-spark")
     check = next(c for c in report["checks"] if c["name"] == "Tool registry")
@@ -2194,9 +2195,8 @@ def test_doctor_fails_when_a_declared_tool_is_missing(tmp_path, monkeypatch):
 
 
 def test_doctor_registry_fails_on_duplicate_names(tmp_path, monkeypatch):
-    import dissolve.registry as registry
 
-    monkeypatch.setattr(registry, "REGISTRY", registry.REGISTRY + registry.REGISTRY[:1])
+    monkeypatch.setattr(agent, "REGISTRY", agent.REGISTRY + agent.REGISTRY[:1])
     monkeypatch.delenv("META_MUSE_API_KEY", raising=False)
     report = doctor_report(tmp_path, model_alias="muse-spark")
     check = next(c for c in report["checks"] if c["name"] == "Tool registry")
@@ -2319,20 +2319,19 @@ def test_startup_requires_named_key(tmp_path, monkeypatch):
 
 
 def test_harness_without_query_launches_cli(monkeypatch):
-    monkeypatch.setattr(sys, "argv", ["agent_harness.py"])
+    monkeypatch.setattr(sys, "argv", ["agent.py"])
     monkeypatch.setattr(cli, "main", lambda argv=None: 17)
     with pytest.raises(SystemExit) as exc:
-        agent_harness._main()
+        agent._main()
     assert exc.value.code == 17
 
 
 def test_cli_does_not_call_registry(monkeypatch, tmp_path):
-    import dissolve.registry as registry
 
     def boom(*a, **k):
         raise AssertionError("CLI must not call registry.call")
 
-    monkeypatch.setattr(registry, "call", boom)
+    monkeypatch.setattr(agent, "call", boom)
     monkeypatch.setattr(cli, "run_turn", _ok_turn)
     app, _ = _app(tmp_path, monkeypatch)
     app.ask("q")
@@ -2438,7 +2437,7 @@ def test_resume_missing_handle_is_named_refusal_not_crash(tmp_path, monkeypatch)
             ]}
         return {"text": "the handle is gone", "tool_calls": []}
 
-    monkeypatch.setattr(agent_harness, "complete", fake_complete)
+    monkeypatch.setattr(agent, "complete", fake_complete)
     monkeypatch.setattr(cli, "run_turn", _ok_turn)
     app, _ = _app(tmp_path, monkeypatch)
     app.ask("screen LDPE")
@@ -2448,7 +2447,7 @@ def test_resume_missing_handle_is_named_refusal_not_crash(tmp_path, monkeypatch)
     payload["session"]["_turn"] = "turn-1"
     payload["session"]["turn_records"] = {"turn-1": [{"tool": "old"}]}
     path.write_text(json.dumps(payload), encoding="utf-8")
-    monkeypatch.setattr(cli, "run_turn", agent_harness.run_turn)
+    monkeypatch.setattr(cli, "run_turn", agent.run_turn)
     app2, _ = _app(tmp_path, monkeypatch)
     assert app2.session.get("handles") == {}
     assert "_turn" not in app2.session
@@ -2487,7 +2486,7 @@ def test_incomplete_round_drops_the_user_group(tmp_path, monkeypatch):
         "metadata": {"model": "muse-spark", "mode": "review"},
     }
     (root / "session.json").write_text(json.dumps(payload), encoding="utf-8")
-    monkeypatch.setattr(agent_harness, "complete", fake_complete)
+    monkeypatch.setattr(agent, "complete", fake_complete)
     app, _ = _app(tmp_path, monkeypatch)
     assert not any(m.get("content") == "OLD MUTATING REQUEST" for m in app.messages)
     app.ask("NEW REQUEST")
@@ -2631,10 +2630,10 @@ def test_oneshot_resolves_through_cli_table(monkeypatch, tmp_path):
 
     monkeypatch.setenv("META_MUSE_API_KEY", "test-key")
     monkeypatch.setenv("DISSOLVE_HOME", str(tmp_path))
-    monkeypatch.setattr(sys, "argv", ["agent_harness.py", "hello"])
+    monkeypatch.setattr(sys, "argv", ["agent.py", "hello"])
     monkeypatch.setattr(cli, "run_turn", fake_run_turn)
     with pytest.raises(SystemExit) as exc:
-        agent_harness._main()
+        agent._main()
     assert exc.value.code == 0
     assert seen["query"] == "hello"
     assert seen["model"] == "openai:muse-spark-1.2"
@@ -2646,16 +2645,16 @@ def test_positional_oneshot_persists_exact_tool_result(tmp_path, monkeypatch, ca
     home = tmp_path / "dissolve-home"
     monkeypatch.setenv("META_MUSE_API_KEY", "test-key")
     monkeypatch.setenv("DISSOLVE_HOME", str(home))
-    monkeypatch.setattr(sys, "argv", ["agent_harness.py", "what is the safety of dodecane?"])
+    monkeypatch.setattr(sys, "argv", ["agent.py", "what is the safety of dodecane?"])
     monkeypatch.setattr(
-        agent_harness, "complete",
+        agent, "complete",
         _complete_one_tool(
             "get_solvent_safety_card",
             {"solvent_name": "dodecane", "include_pubchem": False},
         ),
     )
     try:
-        agent_harness._main()
+        agent._main()
     except SystemExit as exc:
         assert exc.code == 0
     sessions = list(home.glob("sessions/*/session.json"))
@@ -2678,9 +2677,9 @@ def test_positional_oneshot_persists_exact_tool_result(tmp_path, monkeypatch, ca
 def test_positional_oneshot_missing_key_is_provider_error(tmp_path, monkeypatch, capsys):
     monkeypatch.delenv("META_MUSE_API_KEY", raising=False)
     monkeypatch.setenv("DISSOLVE_HOME", str(tmp_path / "home"))
-    monkeypatch.setattr(sys, "argv", ["agent_harness.py", "hello"])
+    monkeypatch.setattr(sys, "argv", ["agent.py", "hello"])
     try:
-        agent_harness._main()
+        agent._main()
     except SystemExit:
         pass
     except RuntimeError as exc:
@@ -2716,7 +2715,7 @@ def test_usage_is_display_only_except_the_cost_line(tmp_path, monkeypatch):
         def fake_complete(messages, tools, *, _usage=usage, **kwargs):
             return {"text": "same-answer", "tool_calls": [], "usage": _usage}
 
-        monkeypatch.setattr(agent_harness, "complete", fake_complete)
+        monkeypatch.setattr(agent, "complete", fake_complete)
         console, buf = _console()
         app = CliApp(
             session_id=f"usage-{i}",
@@ -2908,7 +2907,7 @@ def _complete_one_tool(name, args):
 
 
 def _run_one_tool(monkeypatch, name, args):
-    monkeypatch.setattr(agent_harness, "complete", _complete_one_tool(name, args))
+    monkeypatch.setattr(agent, "complete", _complete_one_tool(name, args))
     events = []
     result = run_turn(
         "q", session=new_session(), model="openai:x", on_event=events.append,
@@ -4992,7 +4991,7 @@ def _data(raw: str) -> dict:
 
 
 def _plan(**kwargs) -> dict:
-    return _data(registry.BY_NAME[_PLAN].fn(**kwargs))
+    return _data(agent.BY_NAME[_PLAN].fn(**kwargs))
 
 
 def _first_stage_identities(payload: dict) -> dict[str, set[tuple]]:
@@ -6502,10 +6501,10 @@ def test_off_default_six_literature_tools_absent_from_agent_list():
     names = _literature_names()
     assert names == set()
     assert LITERATURE_AGENT_TOOLS.isdisjoint(offered_tool_names())
-    assert "ingest_literature_documents" in registry.BY_NAME
-    assert "ingest_literature_graph" in registry.BY_NAME
+    assert "ingest_literature_documents" in agent.BY_NAME
+    assert "ingest_literature_graph" in agent.BY_NAME
     assert len(EXPECTED_REGISTRY_NAMES) == 29
-    assert len(registry.REGISTRY) == 29
+    assert len(agent.REGISTRY) == 29
 
 
 def test_corpus_offers_exactly_two_local_tools_and_network_does_not_fire(monkeypatch, tmp_path):
@@ -6598,7 +6597,7 @@ def test_slash_sets_and_on_does_not_write(tmp_path, monkeypatch):
 
 
 def test_emptying_ingest_tools_does_not_put_ingest_on_scholarly(monkeypatch):
-    from dissolve import agent_tools as tools
+    from dissolve import agent as tools
     monkeypatch.setattr(tools, "LITERATURE_INGEST_TOOLS", frozenset())
     scholarly = {"literature_mode": {"mode": "scholarly"}}
     offered = {item["name"] for item in tools.tool_schemas(scholarly)}

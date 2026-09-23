@@ -21,9 +21,9 @@ import pytest
 from rich.console import Console
 
 from dissolve import (
+    agent,
     landscape,
     optimization,
-    registry,
     separation,
     tea,
     tea_worker,
@@ -31,7 +31,7 @@ from dissolve import (
 )
 from dissolve import optimization as O
 from dissolve import tea_polymer_parameters as params
-from dissolve.agent_tools import CONSUMERS, UNWIRED, dispatch, tool_schemas
+from dissolve.agent import CONSUMERS, UNWIRED, dispatch, tool_schemas
 from dissolve.cli import EXPECTED_REGISTRY_NAMES, CliApp, doctor_report
 from dissolve.contracts import parse_tool_result
 from dissolve.session import (
@@ -112,26 +112,26 @@ def _parity_keys(payload: dict) -> dict:
 
 
 def test_evaluate_process_is_registered_lookup_engine_stays():
-    assert "evaluate_process" in registry.BY_NAME
+    assert "evaluate_process" in agent.BY_NAME
     assert "evaluate_process" in EXPECTED_REGISTRY_NAMES
-    assert "lookup_admitted_process_records" not in registry.BY_NAME
+    assert "lookup_admitted_process_records" not in agent.BY_NAME
     assert "lookup_admitted_process_records" not in EXPECTED_REGISTRY_NAMES
     assert callable(tea.lookup_admitted_process_records)
-    assert "evaluate_tea_lca_scenarios" not in registry.BY_NAME
+    assert "evaluate_tea_lca_scenarios" not in agent.BY_NAME
     assert "evaluate_tea_lca_scenarios" not in EXPECTED_REGISTRY_NAMES
     assert callable(tea.evaluate_tea_lca_scenarios)
-    assert "analyze_tea_sensitivity" not in registry.BY_NAME
+    assert "analyze_tea_sensitivity" not in agent.BY_NAME
     assert "analyze_tea_sensitivity" not in EXPECTED_REGISTRY_NAMES
     assert callable(tea.analyze_tea_sensitivity)
-    assert "evaluate_stored_route_tea_lca" not in registry.BY_NAME
+    assert "evaluate_stored_route_tea_lca" not in agent.BY_NAME
     assert "evaluate_stored_route_tea_lca" not in EXPECTED_REGISTRY_NAMES
     assert callable(tea.evaluate_stored_route_tea_lca)
     assert "evaluate_stored_route_tea_lca" not in UNWIRED
-    assert "optimize_stored_route" not in registry.BY_NAME
+    assert "optimize_stored_route" not in agent.BY_NAME
     assert "optimize_stored_route" not in EXPECTED_REGISTRY_NAMES
     assert callable(optimization.optimize_stored_route)
     assert "optimize_stored_route" not in UNWIRED
-    assert "pareto_optimize_stored_route" not in registry.BY_NAME
+    assert "pareto_optimize_stored_route" not in agent.BY_NAME
     assert "pareto_optimize_stored_route" not in EXPECTED_REGISTRY_NAMES
     assert callable(optimization.pareto_optimize_stored_route)
     assert "pareto_optimize_stored_route" not in UNWIRED
@@ -141,11 +141,11 @@ def test_evaluate_process_is_registered_lookup_engine_stays():
     assert "evaluate_tea_lca_scenarios" not in tea.PROCESS_CONFIRM_TOOLS
     assert "analyze_tea_sensitivity" not in tea.PROCESS_CONFIRM_TOOLS
     assert len(EXPECTED_REGISTRY_NAMES) == 29
-    assert len(registry.REGISTRY) == 29
+    assert len(agent.REGISTRY) == 29
     assert "fetch_solvent_safety_by_cid" in EXPECTED_REGISTRY_NAMES
     assert "estimate_thermal_properties" not in EXPECTED_REGISTRY_NAMES
-    assert "estimate_thermal_properties" not in registry.BY_NAME
-    assert "fetch_solvent_safety_by_cid" in registry.BY_NAME
+    assert "estimate_thermal_properties" not in agent.BY_NAME
+    assert "fetch_solvent_safety_by_cid" in agent.BY_NAME
     retired = dispatch("evaluate_tea_lca_scenarios")
     assert retired.get("available") is False
     assert retired.get("refusal") == "unknown_tool"
@@ -1344,7 +1344,7 @@ _EXACT_PLANNER_ROUTE: tuple[dict, dict] | None = None
 
 
 def _plan_routes(feed: tuple[str, str], composition: dict[str, float]) -> list[dict]:
-    result = _data(registry.BY_NAME["plan_multistage_separation"].fn(
+    result = _data(agent.BY_NAME["plan_multistage_separation"].fn(
         feed_polymers=list(feed),
         feed_mass_fractions=dict(composition),
         top_k_routes=10,
@@ -1700,7 +1700,7 @@ class RouteProbe:
 
 
 def _plan(feed: tuple[str, str], composition: dict[str, float]) -> list[dict]:
-    result = _data(registry.BY_NAME["plan_multistage_separation"].fn(
+    result = _data(agent.BY_NAME["plan_multistage_separation"].fn(
         feed_polymers=list(feed),
         feed_mass_fractions=dict(composition),
         top_k_routes=10,
@@ -5026,9 +5026,9 @@ def test_registry_stays_two_public_tea_names():
     assert "rank_landscape" in names
     assert "plan_then_tea" not in names
     assert names.count("evaluate_process") == 1
-    assert len(registry.REGISTRY) == 29
-    assert "fetch_solvent_safety_by_cid" in registry.BY_NAME
-    assert "estimate_thermal_properties" not in registry.BY_NAME
+    assert len(agent.REGISTRY) == 29
+    assert "fetch_solvent_safety_by_cid" in agent.BY_NAME
+    assert "estimate_thermal_properties" not in agent.BY_NAME
     assert UNWIRED == frozenset()
 
 

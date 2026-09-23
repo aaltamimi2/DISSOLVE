@@ -19,7 +19,6 @@ from pathlib import Path
 from types import MappingProxyType
 from typing import Any, Callable, Sequence
 
-
 try:
     import readline  # noqa: F401
 except ImportError:  # pragma: no cover
@@ -32,9 +31,8 @@ from rich.prompt import Prompt
 from rich.table import Table
 from rich.text import Text
 
-from dissolve.agent_harness import ToolEvent, TurnResult, run_turn
-from dissolve.agent_tools import SYSTEM_PROMPT
 from dissolve import RELEASE, tea
+from dissolve.agent import SYSTEM_PROMPT, ToolEvent, TurnResult, run_turn
 from dissolve.contracts import normalize_json
 from dissolve.session import SessionRecord, handle_total, new_session
 
@@ -753,7 +751,7 @@ DEFAULT_MODEL = "muse-spark"
 
 # Declared post-consolidation public roster. Doctor compares the live
 # registry to this list, not to BY_NAME. Changing the surface is two
-# edits: registry.py and this set.
+# edits: agent.py (the registry) and this set.
 EXPECTED_REGISTRY_NAMES: frozenset[str] = frozenset((
     "solubility_query",
     "screen_polymer_separation",
@@ -865,8 +863,15 @@ def _drop_incomplete_tool_round(messages: list) -> list:
 def doctor_report(
     home: str | Path | None = None, *, model_alias: str | None = None,
 ) -> dict[str, Any]:
-    from dissolve import analysis, contaminants, optimization, safety, tea, thermodynamics
-    from dissolve.registry import BY_NAME, REGISTRY
+    from dissolve import (
+        analysis,
+        contaminants,
+        optimization,
+        safety,
+        tea,
+        thermodynamics,
+    )
+    from dissolve.agent import BY_NAME, REGISTRY
 
     checks: list[dict[str, Any]] = []
 
@@ -2553,15 +2558,15 @@ class CliApp:
         return result
 
     def run(self) -> None:
-        from dissolve import agent_harness
-        original_dispatch = agent_harness.dispatch
+        from dissolve import agent
+        original_dispatch = agent.dispatch
 
         def wrapped_dispatch(name: str, **kwargs: Any) -> Any:
             return self._cli_direct_dispatch(original_dispatch, name, kwargs)
 
         self.banner()
         self._cli_direct_active = True
-        agent_harness.dispatch = wrapped_dispatch
+        agent.dispatch = wrapped_dispatch
         try:
             while True:
                 try:
@@ -2579,7 +2584,7 @@ class CliApp:
                 except (RuntimeError, ValueError) as error:
                     self.console.print(f"[red]Error:[/] {error}")
         finally:
-            agent_harness.dispatch = original_dispatch
+            agent.dispatch = original_dispatch
             self._cli_direct_active = False
 
 
