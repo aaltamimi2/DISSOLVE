@@ -87,8 +87,13 @@ export default function App() {
     document.documentElement.dataset.theme = theme;
     remember("dissolve-theme", theme);
   }, [theme]);
-  useEffect(() => remember("dissolve-sidebar", sidebar ? "open" : "closed"), [sidebar]);
-  useEffect(() => bottom.current?.scrollIntoView({ behavior: "smooth", block: "end" }), [messages]);
+  // Effects return nothing: React calls a returned value as the cleanup, and newer Chrome's scrollIntoView returns a Promise.
+  useEffect(() => {
+    remember("dissolve-sidebar", sidebar ? "open" : "closed");
+  }, [sidebar]);
+  useEffect(() => {
+    bottom.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+  }, [messages]);
 
   const openSession = useCallback(
     async (id: string) => {
