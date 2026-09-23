@@ -2327,12 +2327,96 @@ def test_omitted_energy_case_is_not_a_silent_c1(monkeypatch):
 @pytest.mark.parametrize(
     "field, planted",
     [
-        pytest.param("energy_case", "C2", id="c2_rows_still_complete_when_energy_case_is"),
-        pytest.param("dissolution_temperature_c", 80.0, id="planted_t_still_completes_when_dissolution_t_is"),
-        pytest.param("precipitation_temperature_c", 35.0, id="planted_t_still_completes_when_precipitation_t_is"),
-        pytest.param("solvent_price_usd_per_kg", 1.5, id="planted_price_still_completes_when_solvent_price_is"),
-        pytest.param("solvent_loss_pct", 0.5, id="planted_loss_still_completes_when_solvent_loss_is"),
-        pytest.param("steam_power_depreciation", "MACRS20", id="default_steam_power_rows_still_complete_when"),
+        pytest.param(
+            "energy_case",
+            "C2",
+            id="planted_rows_still_complete_when_the_field_is_omitted-c2_rows_still_complete_when_energy_case_is",
+        ),
+        pytest.param(
+            "dissolution_temperature_c",
+            80.0,
+            id="planted_rows_still_complete_when_the_field_is_omitted-planted_t_still_completes_when_dissolution_t_is",
+        ),
+        pytest.param(
+            "precipitation_temperature_c",
+            35.0,
+            id="planted_rows_still_complete_when_the_field_is_omitted-planted_t_still_completes_when_precipitation_t_is",
+        ),
+        pytest.param(
+            "solvent_price_usd_per_kg",
+            1.5,
+            id="planted_rows_still_complete_when_the_field_is_omitted-planted_price_still_completes_when_solvent_price_is",
+        ),
+        pytest.param(
+            "solvent_loss_pct",
+            0.5,
+            id="planted_rows_still_complete_when_the_field_is_omitted-planted_loss_still_completes_when_solvent_loss_is",
+        ),
+        pytest.param(
+            "steam_power_depreciation",
+            "MACRS20",
+            id="planted_rows_still_complete_when_the_field_is_omitted-default_steam_power_rows_still_complete_when",
+        ),
+        pytest.param("feedstock_distance_km", 100.0, id="omitted_3-planted_distance_still_completes_when"),
+        pytest.param("feedstock_distance_km", 0.0, id="omitted_3-zero_rows_still_complete_when_distance_is"),
+        pytest.param("dissolution_capacity", 5.0, id="when_omitted-planted_capacity_still_completes"),
+        pytest.param("dissolution_capacity", 3.0, id="when_omitted-default_capacity_rows_still_complete"),
+        pytest.param("labor_cost_usd_per_employee_yr", 150000.0, id="when_omitted_2-planted_labor_still_completes"),
+        pytest.param("labor_cost_usd_per_employee_yr", 120000.0, id="when_omitted_2-default_labor_rows_still_complete"),
+        pytest.param("sell_leftover_plastic", False, id="rows_still_complete_when_sell_is_omitted-false"),
+        pytest.param("sell_leftover_plastic", True, id="rows_still_complete_when_sell_is_omitted-true"),
+        pytest.param("burn_leftover_plastic", False, id="burn_rows_still_complete_when_omitted-false"),
+        pytest.param("burn_leftover_plastic", True, id="burn_rows_still_complete_when_omitted-true"),
+        pytest.param(
+            "precipitation_temperature_format", "constant", id="format_rows_still_complete_when_omitted-constant"
+        ),
+        pytest.param("precipitation_temperature_format", "drop", id="format_rows_still_complete_when_omitted-drop"),
+        pytest.param("irr", 0.1, id="irr_rows_still_complete_when_omitted-default"),
+        pytest.param("irr", 0.12, id="irr_rows_still_complete_when_omitted-named"),
+        pytest.param("income_tax", 0.21, id="income_tax_rows_still_complete_when_omitted-default"),
+        pytest.param("income_tax", 0.25, id="income_tax_rows_still_complete_when_omitted-named"),
+        pytest.param("operating_days", 350.4, id="operating_days_rows_still_complete_when_omitted-default"),
+        pytest.param("operating_days", 365.0, id="operating_days_rows_still_complete_when_omitted-named"),
+        pytest.param("labor_burden", 0.9, id="labor_burden_rows_still_complete_when_omitted-default"),
+        pytest.param("labor_burden", 1.5, id="labor_burden_rows_still_complete_when_omitted-above_one"),
+        pytest.param("finance_interest", 0.08, id="finance_interest_rows_still_complete_when_omitted-default"),
+        pytest.param("finance_interest", 0.12, id="finance_interest_rows_still_complete_when_omitted-named"),
+        pytest.param("finance_years", 10, id="finance_years_rows_still_complete_when_omitted-default"),
+        pytest.param("finance_years", 15, id="finance_years_rows_still_complete_when_omitted-named"),
+        pytest.param("finance_fraction", 0.0, id="finance_fraction_rows_still_complete_when_omitted-default"),
+        pytest.param("finance_fraction", 0.4, id="finance_fraction_rows_still_complete_when_omitted-named"),
+        pytest.param("startup_months", 3, id="startup_months_rows_still_complete_when_omitted-default"),
+        pytest.param("startup_months", 6, id="startup_months_rows_still_complete_when_omitted-named"),
+        pytest.param("startup_FOCfrac", 1.0, id="startup_FOCfrac_rows_still_complete_when_omitted-default"),
+        pytest.param("startup_FOCfrac", 0.5, id="startup_FOCfrac_rows_still_complete_when_omitted-named"),
+        pytest.param("startup_VOCfrac", 0.75, id="startup_VOCfrac_rows_still_complete_when_omitted-default"),
+        pytest.param("startup_VOCfrac", 0.5, id="startup_VOCfrac_rows_still_complete_when_omitted-named"),
+        pytest.param("startup_salesfrac", 0.5, id="startup_salesfrac_rows_still_complete_when_omitted-default"),
+        pytest.param("startup_salesfrac", 0.25, id="startup_salesfrac_rows_still_complete_when_omitted-named"),
+        pytest.param("WC_over_FCI", 0.05, id="WC_over_FCI_rows_still_complete_when_omitted-default"),
+        pytest.param("WC_over_FCI", 0.1, id="WC_over_FCI_rows_still_complete_when_omitted-named"),
+        pytest.param("warehouse", 0.04, id="warehouse_rows_still_complete_when_omitted-default"),
+        pytest.param("warehouse", 0.1, id="warehouse_rows_still_complete_when_omitted-named"),
+        pytest.param("site_development", 0.09, id="site_development_rows_still_complete_when_omitted-default"),
+        pytest.param("site_development", 0.1, id="site_development_rows_still_complete_when_omitted-named"),
+        pytest.param("additional_piping", 0.045, id="additional_piping_rows_still_complete_when_omitted-default"),
+        pytest.param("additional_piping", 0.1, id="additional_piping_rows_still_complete_when_omitted-named"),
+        pytest.param("proratable_costs", 0.1, id="proratable_costs_rows_still_complete_when_omitted-default"),
+        pytest.param("proratable_costs", 0.2, id="proratable_costs_rows_still_complete_when_omitted-named"),
+        pytest.param("field_expenses", 0.1, id="field_expenses_rows_still_complete_when_omitted-default"),
+        pytest.param("field_expenses", 0.2, id="field_expenses_rows_still_complete_when_omitted-named"),
+        pytest.param("construction", 0.2, id="construction_rows_still_complete_when_omitted-default"),
+        pytest.param("construction", 0.1, id="construction_rows_still_complete_when_omitted-named"),
+        pytest.param("contingency", 0.4, id="contingency_rows_still_complete_when_omitted-default"),
+        pytest.param("contingency", 0.1, id="contingency_rows_still_complete_when_omitted-named"),
+        pytest.param("other_indirect_costs", 0.1, id="other_indirect_costs_rows_still_complete_when_omitted-default"),
+        pytest.param("other_indirect_costs", 0.2, id="other_indirect_costs_rows_still_complete_when_omitted-named"),
+        pytest.param("property_insurance", 0.007, id="property_insurance_rows_still_complete_when_omitted-default"),
+        pytest.param("property_insurance", 0.1, id="property_insurance_rows_still_complete_when_omitted-named"),
+        pytest.param("maintenance", 0.03, id="maintenance_rows_still_complete_when_omitted-default"),
+        pytest.param("maintenance", 0.1, id="maintenance_rows_still_complete_when_omitted-named"),
+        pytest.param("depreciation", "MACRS7", id="depreciation_rows_still_complete_when_omitted-default"),
+        pytest.param("depreciation", "MACRS5", id="depreciation_rows_still_complete_when_omitted-named"),
     ],
 )
 def test_planted_rows_still_complete_when_the_field_is_omitted(monkeypatch, field, planted):
@@ -3184,26 +3268,6 @@ def test_rows_without(monkeypatch, value, value_2, key, value_3):
 
 
 @pytest.mark.parametrize(
-    'feedstock_distance_km',
-    [
-        pytest.param(100.0, id='planted_distance_still_completes_when'),
-        pytest.param(0.0, id='zero_rows_still_complete_when_distance_is'),
-    ],
-)
-def test_omitted_3(monkeypatch, feedstock_distance_km):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    session = new_session()
-    with bind_tool_session(session):
-        handle = _plant_handle(
-            session, _complete_d18_rows(feedstock_distance_km=feedstock_distance_km),
-        )
-        payload = _data(tea.rank_landscape(**_sequence_kwargs(handle=handle)))
-    assert payload.get("error_code") == "sequence_coupling_unproven"
-    assert "pending_blockers" not in payload
-    assert "landscape_points" not in payload
-
-
-@pytest.mark.parametrize(
     "missing, field, planted, requested",
     [
         pytest.param(0.0, "feedstock_distance_km", 100.0, 0.0, id="zero_does_not_accept_another_distance"),
@@ -3320,26 +3384,6 @@ def test_named_default_slice_completes_on_matching_rows(monkeypatch, field, valu
     assert "missing_keys" not in payload
 
 
-@pytest.mark.parametrize(
-    'dissolution_capacity',
-    [
-        pytest.param(5.0, id='planted_capacity_still_completes'),
-        pytest.param(3.0, id='default_capacity_rows_still_complete'),
-    ],
-)
-def test_when_omitted(monkeypatch, dissolution_capacity):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    session = new_session()
-    with bind_tool_session(session):
-        handle = _plant_handle(
-            session, _complete_d18_rows(dissolution_capacity=dissolution_capacity),
-        )
-        payload = _data(tea.rank_landscape(**_sequence_kwargs(handle=handle)))
-    assert payload.get("error_code") == "sequence_coupling_unproven"
-    assert "pending_blockers" not in payload
-    assert "landscape_points" not in payload
-
-
 def test_plant_capacity_is_not_dissolution_capacity(monkeypatch):
     _forbid_live_rank_solvent_maps(monkeypatch)
     payload = _data(tea.rank_landscape(**_sequence_kwargs()))
@@ -3347,26 +3391,6 @@ def test_plant_capacity_is_not_dissolution_capacity(monkeypatch):
     for row in payload["missing_keys"]:
         assert row.get("processing_capacity_mt_per_yr") is not None
         assert row.get("dissolution_capacity") is None
-
-
-@pytest.mark.parametrize(
-    'labor_cost_usd_per_employee_yr',
-    [
-        pytest.param(150000.0, id='planted_labor_still_completes'),
-        pytest.param(120000.0, id='default_labor_rows_still_complete'),
-    ],
-)
-def test_when_omitted_2(monkeypatch, labor_cost_usd_per_employee_yr):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    session = new_session()
-    with bind_tool_session(session):
-        handle = _plant_handle(
-            session, _complete_d18_rows(labor_cost_usd_per_employee_yr=labor_cost_usd_per_employee_yr),
-        )
-        payload = _data(tea.rank_landscape(**_sequence_kwargs(handle=handle)))
-    assert payload.get("error_code") == "sequence_coupling_unproven"
-    assert "pending_blockers" not in payload
-    assert "landscape_points" not in payload
 
 
 @pytest.mark.parametrize(
@@ -3383,26 +3407,6 @@ def test_omitted_leftover_is_not_a_silent_false(monkeypatch, value, value_2):
     for row in payload["missing_keys"]:
         assert row.get(value) is None
         assert row.get(value_2) is not False
-
-
-@pytest.mark.parametrize(
-    'sell_leftover_plastic',
-    [
-        pytest.param(False, id='false'),
-        pytest.param(True, id='true'),
-    ],
-)
-def test_rows_still_complete_when_sell_is_omitted(monkeypatch, sell_leftover_plastic):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    session = new_session()
-    with bind_tool_session(session):
-        handle = _plant_handle(
-            session, _complete_d18_rows(sell_leftover_plastic=sell_leftover_plastic),
-        )
-        payload = _data(tea.rank_landscape(**_sequence_kwargs(handle=handle)))
-    assert payload.get("error_code") == "sequence_coupling_unproven"
-    assert "pending_blockers" not in payload
-    assert "landscape_points" not in payload
 
 
 @pytest.mark.parametrize(
@@ -3449,26 +3453,6 @@ def test_mixed_leftover_handle_leaves_the_unmatched_remnant(monkeypatch, field):
 
 
 @pytest.mark.parametrize(
-    'burn_leftover_plastic',
-    [
-        pytest.param(False, id='false'),
-        pytest.param(True, id='true'),
-    ],
-)
-def test_burn_rows_still_complete_when_omitted(monkeypatch, burn_leftover_plastic):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    session = new_session()
-    with bind_tool_session(session):
-        handle = _plant_handle(
-            session, _complete_d18_rows(burn_leftover_plastic=burn_leftover_plastic),
-        )
-        payload = _data(tea.rank_landscape(**_sequence_kwargs(handle=handle)))
-    assert payload.get("error_code") == "sequence_coupling_unproven"
-    assert "pending_blockers" not in payload
-    assert "landscape_points" not in payload
-
-
-@pytest.mark.parametrize(
     ('value', 'value_2', 'value_3', 'key', 'value_4'),
     [
         pytest.param('leftover_disposition_conflict', True, 'sell_leftover_plastic', 'sell_leftover_plastic', True, id='sell_and_burn_true_does_not_fire_disposition_conflict'),
@@ -3492,27 +3476,6 @@ def test_named(monkeypatch, value, value_2, value_3, key, value_4):
     assert len(keys) == 4
     assert {row[value_3] for row in keys} == {value_2}
     assert {row["burn_leftover_plastic"] for row in keys} == {True}
-
-
-@pytest.mark.parametrize(
-    'precipitation_temperature_format',
-    [
-        pytest.param('constant', id='constant'),
-        pytest.param('drop', id='drop'),
-    ],
-)
-def test_format_rows_still_complete_when_omitted(monkeypatch, precipitation_temperature_format):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    session = new_session()
-    with bind_tool_session(session):
-        handle = _plant_handle(
-            session,
-            _complete_d18_rows(precipitation_temperature_format=precipitation_temperature_format),
-        )
-        payload = _data(tea.rank_landscape(**_sequence_kwargs(handle=handle)))
-    assert payload.get("error_code") == "sequence_coupling_unproven"
-    assert "pending_blockers" not in payload
-    assert "landscape_points" not in payload
 
 
 @pytest.mark.parametrize(
@@ -3809,24 +3772,6 @@ def test_nested_precipitation_configuration_does_not_count(monkeypatch):
         assert row.get("precipitation_configuration") is None
 
 
-@pytest.mark.parametrize(
-    'irr',
-    [
-        pytest.param(0.1, id='default'),
-        pytest.param(0.12, id='named'),
-    ],
-)
-def test_irr_rows_still_complete_when_omitted(monkeypatch, irr):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    session = new_session()
-    with bind_tool_session(session):
-        handle = _plant_handle(session, _complete_d18_rows(irr=irr))
-        payload = _data(tea.rank_landscape(**_sequence_kwargs(handle=handle)))
-    assert payload.get("error_code") == "sequence_coupling_unproven"
-    assert "pending_blockers" not in payload
-    assert "landscape_points" not in payload
-
-
 def test_precipitation_configuration_does_not_stamp_irr_on_this_slice(monkeypatch):
     _forbid_live_rank_solvent_maps(monkeypatch)
     payload = _data(tea.rank_landscape(
@@ -3838,24 +3783,6 @@ def test_precipitation_configuration_does_not_stamp_irr_on_this_slice(monkeypatc
     for row in payload["missing_keys"]:
         assert row.get("precipitation_configuration") == _MIX
         assert row.get("irr") is None
-
-
-@pytest.mark.parametrize(
-    'income_tax',
-    [
-        pytest.param(0.21, id='default'),
-        pytest.param(0.25, id='named'),
-    ],
-)
-def test_income_tax_rows_still_complete_when_omitted(monkeypatch, income_tax):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    session = new_session()
-    with bind_tool_session(session):
-        handle = _plant_handle(session, _complete_d18_rows(income_tax=income_tax))
-        payload = _data(tea.rank_landscape(**_sequence_kwargs(handle=handle)))
-    assert payload.get("error_code") == "sequence_coupling_unproven"
-    assert "pending_blockers" not in payload
-    assert "landscape_points" not in payload
 
 
 @pytest.mark.parametrize(
@@ -3891,42 +3818,6 @@ def test_negative_is_not_a_remnant_listing(monkeypatch, key, value):
 
 
 @pytest.mark.parametrize(
-    'operating_days',
-    [
-        pytest.param(350.4, id='default'),
-        pytest.param(365.0, id='named'),
-    ],
-)
-def test_operating_days_rows_still_complete_when_omitted(monkeypatch, operating_days):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    session = new_session()
-    with bind_tool_session(session):
-        handle = _plant_handle(session, _complete_d18_rows(operating_days=operating_days))
-        payload = _data(tea.rank_landscape(**_sequence_kwargs(handle=handle)))
-    assert payload.get("error_code") == "sequence_coupling_unproven"
-    assert "pending_blockers" not in payload
-    assert "landscape_points" not in payload
-
-
-@pytest.mark.parametrize(
-    'labor_burden',
-    [
-        pytest.param(0.9, id='default'),
-        pytest.param(1.5, id='above_one'),
-    ],
-)
-def test_labor_burden_rows_still_complete_when_omitted(monkeypatch, labor_burden):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    session = new_session()
-    with bind_tool_session(session):
-        handle = _plant_handle(session, _complete_d18_rows(labor_burden=labor_burden))
-        payload = _data(tea.rank_landscape(**_sequence_kwargs(handle=handle)))
-    assert payload.get("error_code") == "sequence_coupling_unproven"
-    assert "pending_blockers" not in payload
-    assert "landscape_points" not in payload
-
-
-@pytest.mark.parametrize(
     ('key', 'value'),
     [
         pytest.param('labor_burden', 0.1, id='labor_burden'),
@@ -3941,26 +3832,6 @@ def test_negative_is_not_a_remnant_listing_2(monkeypatch, key, value):
     assert payload.get("error_code") == "invalid_admitted_record_query"
     assert payload.get("error_code") != "incomplete_stage_basis_grid"
     assert payload.get("error_code") != "invalid_scenario"
-
-
-@pytest.mark.parametrize(
-    'finance_interest',
-    [
-        pytest.param(0.08, id='default'),
-        pytest.param(0.12, id='named'),
-    ],
-)
-def test_finance_interest_rows_still_complete_when_omitted(monkeypatch, finance_interest):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    session = new_session()
-    with bind_tool_session(session):
-        handle = _plant_handle(
-            session, _complete_d18_rows(finance_interest=finance_interest),
-        )
-        payload = _data(tea.rank_landscape(**_sequence_kwargs(handle=handle)))
-    assert payload.get("error_code") == "sequence_coupling_unproven"
-    assert "pending_blockers" not in payload
-    assert "landscape_points" not in payload
 
 
 @pytest.mark.parametrize(
@@ -3997,344 +3868,6 @@ def test_finance_interest_does_not_stamp_finance_years_or_irr_cases(monkeypatch,
         assert row.get(value_3) is None
         assert row.get(value_4) is None
         assert row.get(value_5) is None
-
-
-@pytest.mark.parametrize(
-    'finance_years',
-    [
-        pytest.param(10, id='default'),
-        pytest.param(15, id='named'),
-    ],
-)
-def test_finance_years_rows_still_complete_when_omitted(monkeypatch, finance_years):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    session = new_session()
-    with bind_tool_session(session):
-        handle = _plant_handle(session, _complete_d18_rows(finance_years=finance_years))
-        payload = _data(tea.rank_landscape(**_sequence_kwargs(handle=handle)))
-    assert payload.get("error_code") == "sequence_coupling_unproven"
-    assert "pending_blockers" not in payload
-    assert "landscape_points" not in payload
-
-
-@pytest.mark.parametrize(
-    'finance_fraction',
-    [
-        pytest.param(0.0, id='default'),
-        pytest.param(0.4, id='named'),
-    ],
-)
-def test_finance_fraction_rows_still_complete_when_omitted(monkeypatch, finance_fraction):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    session = new_session()
-    with bind_tool_session(session):
-        handle = _plant_handle(
-            session, _complete_d18_rows(finance_fraction=finance_fraction),
-        )
-        payload = _data(tea.rank_landscape(**_sequence_kwargs(handle=handle)))
-    assert payload.get("error_code") == "sequence_coupling_unproven"
-    assert "pending_blockers" not in payload
-    assert "landscape_points" not in payload
-
-
-@pytest.mark.parametrize(
-    'startup_months',
-    [
-        pytest.param(3, id='default'),
-        pytest.param(6, id='named'),
-    ],
-)
-def test_startup_months_rows_still_complete_when_omitted(monkeypatch, startup_months):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    session = new_session()
-    with bind_tool_session(session):
-        handle = _plant_handle(
-            session, _complete_d18_rows(startup_months=startup_months),
-        )
-        payload = _data(tea.rank_landscape(**_sequence_kwargs(handle=handle)))
-    assert payload.get("error_code") == "sequence_coupling_unproven"
-    assert "pending_blockers" not in payload
-    assert "landscape_points" not in payload
-
-
-@pytest.mark.parametrize(
-    'startup_FOCfrac',
-    [
-        pytest.param(1.0, id='default'),
-        pytest.param(0.5, id='named'),
-    ],
-)
-def test_startup_FOCfrac_rows_still_complete_when_omitted(monkeypatch, startup_FOCfrac):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    session = new_session()
-    with bind_tool_session(session):
-        handle = _plant_handle(
-            session, _complete_d18_rows(startup_FOCfrac=startup_FOCfrac),
-        )
-        payload = _data(tea.rank_landscape(**_sequence_kwargs(handle=handle)))
-    assert payload.get("error_code") == "sequence_coupling_unproven"
-    assert "pending_blockers" not in payload
-    assert "landscape_points" not in payload
-
-
-@pytest.mark.parametrize(
-    'startup_VOCfrac',
-    [
-        pytest.param(0.75, id='default'),
-        pytest.param(0.5, id='named'),
-    ],
-)
-def test_startup_VOCfrac_rows_still_complete_when_omitted(monkeypatch, startup_VOCfrac):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    session = new_session()
-    with bind_tool_session(session):
-        handle = _plant_handle(
-            session, _complete_d18_rows(startup_VOCfrac=startup_VOCfrac),
-        )
-        payload = _data(tea.rank_landscape(**_sequence_kwargs(handle=handle)))
-    assert payload.get("error_code") == "sequence_coupling_unproven"
-    assert "pending_blockers" not in payload
-    assert "landscape_points" not in payload
-
-
-@pytest.mark.parametrize(
-    'startup_salesfrac',
-    [
-        pytest.param(0.5, id='default'),
-        pytest.param(0.25, id='named'),
-    ],
-)
-def test_startup_salesfrac_rows_still_complete_when_omitted(monkeypatch, startup_salesfrac):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    session = new_session()
-    with bind_tool_session(session):
-        handle = _plant_handle(
-            session, _complete_d18_rows(startup_salesfrac=startup_salesfrac),
-        )
-        payload = _data(tea.rank_landscape(**_sequence_kwargs(handle=handle)))
-    assert payload.get("error_code") == "sequence_coupling_unproven"
-    assert "pending_blockers" not in payload
-    assert "landscape_points" not in payload
-
-
-@pytest.mark.parametrize(
-    'WC_over_FCI',
-    [
-        pytest.param(0.05, id='default'),
-        pytest.param(0.1, id='named'),
-    ],
-)
-def test_WC_over_FCI_rows_still_complete_when_omitted(monkeypatch, WC_over_FCI):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    session = new_session()
-    with bind_tool_session(session):
-        handle = _plant_handle(
-            session, _complete_d18_rows(WC_over_FCI=WC_over_FCI),
-        )
-        payload = _data(tea.rank_landscape(**_sequence_kwargs(handle=handle)))
-    assert payload.get("error_code") == "sequence_coupling_unproven"
-    assert "pending_blockers" not in payload
-    assert "landscape_points" not in payload
-
-
-@pytest.mark.parametrize(
-    'warehouse',
-    [
-        pytest.param(0.04, id='default'),
-        pytest.param(0.1, id='named'),
-    ],
-)
-def test_warehouse_rows_still_complete_when_omitted(monkeypatch, warehouse):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    session = new_session()
-    with bind_tool_session(session):
-        handle = _plant_handle(
-            session, _complete_d18_rows(warehouse=warehouse),
-        )
-        payload = _data(tea.rank_landscape(**_sequence_kwargs(handle=handle)))
-    assert payload.get("error_code") == "sequence_coupling_unproven"
-    assert "pending_blockers" not in payload
-    assert "landscape_points" not in payload
-
-
-@pytest.mark.parametrize(
-    'site_development',
-    [
-        pytest.param(0.09, id='default'),
-        pytest.param(0.1, id='named'),
-    ],
-)
-def test_site_development_rows_still_complete_when_omitted(monkeypatch, site_development):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    session = new_session()
-    with bind_tool_session(session):
-        handle = _plant_handle(
-            session, _complete_d18_rows(site_development=site_development),
-        )
-        payload = _data(tea.rank_landscape(**_sequence_kwargs(handle=handle)))
-    assert payload.get("error_code") == "sequence_coupling_unproven"
-    assert "pending_blockers" not in payload
-    assert "landscape_points" not in payload
-
-
-@pytest.mark.parametrize(
-    'additional_piping',
-    [
-        pytest.param(0.045, id='default'),
-        pytest.param(0.1, id='named'),
-    ],
-)
-def test_additional_piping_rows_still_complete_when_omitted(monkeypatch, additional_piping):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    session = new_session()
-    with bind_tool_session(session):
-        handle = _plant_handle(
-            session, _complete_d18_rows(additional_piping=additional_piping),
-        )
-        payload = _data(tea.rank_landscape(**_sequence_kwargs(handle=handle)))
-    assert payload.get("error_code") == "sequence_coupling_unproven"
-    assert "pending_blockers" not in payload
-    assert "landscape_points" not in payload
-
-
-@pytest.mark.parametrize(
-    'proratable_costs',
-    [
-        pytest.param(0.1, id='default'),
-        pytest.param(0.2, id='named'),
-    ],
-)
-def test_proratable_costs_rows_still_complete_when_omitted(monkeypatch, proratable_costs):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    session = new_session()
-    with bind_tool_session(session):
-        handle = _plant_handle(
-            session, _complete_d18_rows(proratable_costs=proratable_costs),
-        )
-        payload = _data(tea.rank_landscape(**_sequence_kwargs(handle=handle)))
-    assert payload.get("error_code") == "sequence_coupling_unproven"
-    assert "pending_blockers" not in payload
-    assert "landscape_points" not in payload
-
-
-@pytest.mark.parametrize(
-    'field_expenses',
-    [
-        pytest.param(0.1, id='default'),
-        pytest.param(0.2, id='named'),
-    ],
-)
-def test_field_expenses_rows_still_complete_when_omitted(monkeypatch, field_expenses):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    session = new_session()
-    with bind_tool_session(session):
-        handle = _plant_handle(
-            session, _complete_d18_rows(field_expenses=field_expenses),
-        )
-        payload = _data(tea.rank_landscape(**_sequence_kwargs(handle=handle)))
-    assert payload.get("error_code") == "sequence_coupling_unproven"
-    assert "pending_blockers" not in payload
-    assert "landscape_points" not in payload
-
-
-@pytest.mark.parametrize(
-    'construction',
-    [
-        pytest.param(0.2, id='default'),
-        pytest.param(0.1, id='named'),
-    ],
-)
-def test_construction_rows_still_complete_when_omitted(monkeypatch, construction):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    session = new_session()
-    with bind_tool_session(session):
-        handle = _plant_handle(
-            session, _complete_d18_rows(construction=construction),
-        )
-        payload = _data(tea.rank_landscape(**_sequence_kwargs(handle=handle)))
-    assert payload.get("error_code") == "sequence_coupling_unproven"
-    assert "pending_blockers" not in payload
-    assert "landscape_points" not in payload
-
-
-@pytest.mark.parametrize(
-    'contingency',
-    [
-        pytest.param(0.4, id='default'),
-        pytest.param(0.1, id='named'),
-    ],
-)
-def test_contingency_rows_still_complete_when_omitted(monkeypatch, contingency):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    session = new_session()
-    with bind_tool_session(session):
-        handle = _plant_handle(
-            session, _complete_d18_rows(contingency=contingency),
-        )
-        payload = _data(tea.rank_landscape(**_sequence_kwargs(handle=handle)))
-    assert payload.get("error_code") == "sequence_coupling_unproven"
-    assert "pending_blockers" not in payload
-    assert "landscape_points" not in payload
-
-
-@pytest.mark.parametrize(
-    'other_indirect_costs',
-    [
-        pytest.param(0.1, id='default'),
-        pytest.param(0.2, id='named'),
-    ],
-)
-def test_other_indirect_costs_rows_still_complete_when_omitted(monkeypatch, other_indirect_costs):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    session = new_session()
-    with bind_tool_session(session):
-        handle = _plant_handle(
-            session, _complete_d18_rows(other_indirect_costs=other_indirect_costs),
-        )
-        payload = _data(tea.rank_landscape(**_sequence_kwargs(handle=handle)))
-    assert payload.get("error_code") == "sequence_coupling_unproven"
-    assert "pending_blockers" not in payload
-    assert "landscape_points" not in payload
-
-
-@pytest.mark.parametrize(
-    'property_insurance',
-    [
-        pytest.param(0.007, id='default'),
-        pytest.param(0.1, id='named'),
-    ],
-)
-def test_property_insurance_rows_still_complete_when_omitted(monkeypatch, property_insurance):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    session = new_session()
-    with bind_tool_session(session):
-        handle = _plant_handle(
-            session, _complete_d18_rows(property_insurance=property_insurance),
-        )
-        payload = _data(tea.rank_landscape(**_sequence_kwargs(handle=handle)))
-    assert payload.get("error_code") == "sequence_coupling_unproven"
-    assert "pending_blockers" not in payload
-    assert "landscape_points" not in payload
-
-
-@pytest.mark.parametrize(
-    'maintenance',
-    [
-        pytest.param(0.03, id='default'),
-        pytest.param(0.1, id='named'),
-    ],
-)
-def test_maintenance_rows_still_complete_when_omitted(monkeypatch, maintenance):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    session = new_session()
-    with bind_tool_session(session):
-        handle = _plant_handle(
-            session, _complete_d18_rows(maintenance=maintenance),
-        )
-        payload = _data(tea.rank_landscape(**_sequence_kwargs(handle=handle)))
-    assert payload.get("error_code") == "sequence_coupling_unproven"
-    assert "pending_blockers" not in payload
-    assert "landscape_points" not in payload
 
 
 # Fields a named TEA slice must match, in the order the cases below add them: the value planted in the
@@ -4507,26 +4040,6 @@ def test_named_slice_at_wrong_field_does_not_fill(monkeypatch, wrong, checks):
     assert len(keys) == 4
     for key, expected in checks.items():
         assert {row[key] for row in keys} == {expected}
-
-
-@pytest.mark.parametrize(
-    'depreciation',
-    [
-        pytest.param('MACRS7', id='default'),
-        pytest.param('MACRS5', id='named'),
-    ],
-)
-def test_depreciation_rows_still_complete_when_omitted(monkeypatch, depreciation):
-    _forbid_live_rank_solvent_maps(monkeypatch)
-    session = new_session()
-    with bind_tool_session(session):
-        handle = _plant_handle(
-            session, _complete_d18_rows(depreciation=depreciation),
-        )
-        payload = _data(tea.rank_landscape(**_sequence_kwargs(handle=handle)))
-    assert payload.get("error_code") == "sequence_coupling_unproven"
-    assert "pending_blockers" not in payload
-    assert "landscape_points" not in payload
 
 
 @pytest.mark.parametrize(

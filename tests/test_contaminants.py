@@ -1782,52 +1782,24 @@ def test_dep_stage1_numbers_do_not_pass_the_dbp_accept():
 
 
 @pytest.mark.parametrize(
-    ('value', 'value_2', 'value_3', 'value_4'),
+    "dcm_water, cyclohexanol_water, hexane_water, dcm_methanol, pairs",
     [
-        pytest.param(7.05, 5.17, 4.98, 2.18, id='dbp_numbers_on_dbp_pairs'),
-        pytest.param(7.61, 5.88, 5.64, 1.92, id='the_measured_dbp_stage1_numbers'),
+        pytest.param(7.05, 5.17, 4.98, 2.18, "DBP_ANCHOR_PAIRS", id="dbp_numbers_on_dbp_pairs"),
+        pytest.param(7.61, 5.88, 5.64, 1.92, "DBP_ANCHOR_PAIRS", id="the_measured_dbp_stage1_numbers"),
+        pytest.param(7.18, 5.04, 4.61, 2.14, "BBP_ANCHOR_PAIRS", id="bbp_table_deltas_on_bbp_pairs"),
+        pytest.param(8.06, 6.3, 5.94, 1.92, "BBP_ANCHOR_PAIRS", id="the_measured_bbp_stage1_numbers"),
+        pytest.param(9.98, 8.13, 8.33, 2.6, "DEHP_ANCHOR_PAIRS", id="dehp_table_deltas_on_dehp_pairs"),
     ],
 )
-def test_evaluate_anchor_pairs_accepts(value, value_2, value_3, value_4):
+def test_evaluate_anchor_pairs_accepts(dcm_water, cyclohexanol_water, hexane_water, dcm_methanol, pairs):
     result = cl.evaluate_anchor_pairs(
         {
-            "dichloromethane-water": value, "cyclohexanol-water": value_2,
-            "hexane-water": value_3, "dichloromethane-methanol": value_4,
+            "dichloromethane-water": dcm_water,
+            "cyclohexanol-water": cyclohexanol_water,
+            "hexane-water": hexane_water,
+            "dichloromethane-methanol": dcm_methanol,
         },
-        pairs=cl.DBP_ANCHOR_PAIRS,
-    )
-    assert result["accept"]
-    assert result["n_passing"] == 4
-    assert result["water_free_passes"]
-
-
-@pytest.mark.parametrize(
-    ('value', 'value_2', 'value_3', 'value_4'),
-    [
-        pytest.param(7.18, 5.04, 4.61, 2.14, id='bbp_table_deltas_on_bbp_pairs'),
-        pytest.param(8.06, 6.3, 5.94, 1.92, id='the_measured_bbp_stage1_numbers'),
-    ],
-)
-def test_evaluate_anchor_pairs_accepts_2(value, value_2, value_3, value_4):
-    result = cl.evaluate_anchor_pairs(
-        {
-            "dichloromethane-water": value, "cyclohexanol-water": value_2,
-            "hexane-water": value_3, "dichloromethane-methanol": value_4,
-        },
-        pairs=cl.BBP_ANCHOR_PAIRS,
-    )
-    assert result["accept"]
-    assert result["n_passing"] == 4
-    assert result["water_free_passes"]
-
-
-def test_evaluate_anchor_pairs_accepts_dehp_table_deltas_on_dehp_pairs():
-    result = cl.evaluate_anchor_pairs(
-        {
-            "dichloromethane-water": 9.98, "cyclohexanol-water": 8.13,
-            "hexane-water": 8.33, "dichloromethane-methanol": 2.60,
-        },
-        pairs=cl.DEHP_ANCHOR_PAIRS,
+        pairs=getattr(cl, pairs),
     )
     assert result["accept"]
     assert result["n_passing"] == 4

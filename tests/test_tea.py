@@ -2063,37 +2063,39 @@ def test_c2_does_not_carry_natural_gas_price():
 
 
 @pytest.mark.parametrize(
-    ('key', 'value'),
+    "field, value",
     [
-        pytest.param('irr', 0.15, id='irr_override_does_not_share_the_twelve_only'),
-        pytest.param('income_tax', 0.3, id='income_tax_override_does_not_share_the_twelve_only'),
-        pytest.param('operating_days', 300.0, id='operating_days_override_does_not_share_the_twelve_only'),
-        pytest.param('labor_burden', 0.5, id='labor_burden_override_does_not_share_the_twelve_only'),
-        pytest.param('finance_interest', 0.12, id='finance_interest_override_does_not_share_the_twelve_only'),
-        pytest.param('finance_years', 15, id='finance_years_override_does_not_share_the_twelve_only'),
-        pytest.param('finance_fraction', 0.4, id='finance_fraction_override_does_not_share_the_twelve_only'),
-        pytest.param('startup_months', 6, id='startup_months_override_does_not_share_the_twelve_only'),
-        pytest.param('startup_FOCfrac', 0.5, id='startup_FOCfrac_override_does_not_share_the_twelve_only'),
-        pytest.param('startup_VOCfrac', 0.5, id='startup_VOCfrac_override_does_not_share_the_twelve_only'),
-        pytest.param('startup_salesfrac', 0.8, id='startup_salesfrac_override_does_not_share_the_twelve_only'),
-        pytest.param('WC_over_FCI', 0.1, id='wc_over_fci_override_does_not_share_the_twelve_only'),
-        pytest.param('warehouse', 0.08, id='warehouse_override_does_not_share_the_twelve_only'),
-        pytest.param('site_development', 0.18, id='site_development_override_does_not_share_the_twelve_only'),
-        pytest.param('additional_piping', 0.09, id='additional_piping_override_does_not_share_the_twelve_only'),
-        pytest.param('proratable_costs', 0.2, id='proratable_costs_override_does_not_share_the_twelve_only'),
-        pytest.param('field_expenses', 0.2, id='field_expenses_override_does_not_share_the_twelve_only'),
-        pytest.param('construction', 0.4, id='construction_override_does_not_share_the_twelve_only'),
-        pytest.param('contingency', 0.8, id='contingency_override_does_not_share_the_twelve_only'),
-        pytest.param('other_indirect_costs', 0.2, id='other_indirect_costs_override_does_not_share_the_twelve_only'),
-        pytest.param('property_insurance', 0.014, id='property_insurance_override_does_not_share_the_twelve_only'),
-        pytest.param('maintenance', 0.06, id='maintenance_override_does_not_share_the_twelve_only'),
-        pytest.param('depreciation', 'MACRS5', id='depreciation_override_does_not_share_the_twelve_only'),
-        pytest.param('steam_power_depreciation', 'MACRS7', id='steam_power_depreciation_override_does_not_share_the'),
+        pytest.param("irr", 0.15, id="irr_override_does_not_share_the_twelve_only"),
+        pytest.param("income_tax", 0.3, id="income_tax_override_does_not_share_the_twelve_only"),
+        pytest.param("operating_days", 300.0, id="operating_days_override_does_not_share_the_twelve_only"),
+        pytest.param("labor_burden", 0.5, id="labor_burden_override_does_not_share_the_twelve_only"),
+        pytest.param("finance_interest", 0.12, id="finance_interest_override_does_not_share_the_twelve_only"),
+        pytest.param("finance_years", 15, id="finance_years_override_does_not_share_the_twelve_only"),
+        pytest.param("finance_fraction", 0.4, id="finance_fraction_override_does_not_share_the_twelve_only"),
+        pytest.param("startup_months", 6, id="startup_months_override_does_not_share_the_twelve_only"),
+        pytest.param("startup_FOCfrac", 0.5, id="startup_FOCfrac_override_does_not_share_the_twelve_only"),
+        pytest.param("startup_VOCfrac", 0.5, id="startup_VOCfrac_override_does_not_share_the_twelve_only"),
+        pytest.param("startup_salesfrac", 0.8, id="startup_salesfrac_override_does_not_share_the_twelve_only"),
+        pytest.param("WC_over_FCI", 0.1, id="wc_over_fci_override_does_not_share_the_twelve_only"),
+        pytest.param("warehouse", 0.08, id="warehouse_override_does_not_share_the_twelve_only"),
+        pytest.param("site_development", 0.18, id="site_development_override_does_not_share_the_twelve_only"),
+        pytest.param("additional_piping", 0.09, id="additional_piping_override_does_not_share_the_twelve_only"),
+        pytest.param("proratable_costs", 0.2, id="proratable_costs_override_does_not_share_the_twelve_only"),
+        pytest.param("field_expenses", 0.2, id="field_expenses_override_does_not_share_the_twelve_only"),
+        pytest.param("construction", 0.4, id="construction_override_does_not_share_the_twelve_only"),
+        pytest.param("contingency", 0.8, id="contingency_override_does_not_share_the_twelve_only"),
+        pytest.param("other_indirect_costs", 0.2, id="other_indirect_costs_override_does_not_share_the_twelve_only"),
+        pytest.param("property_insurance", 0.014, id="property_insurance_override_does_not_share_the_twelve_only"),
+        pytest.param("maintenance", 0.06, id="maintenance_override_does_not_share_the_twelve_only"),
+        pytest.param("depreciation", "MACRS5", id="depreciation_override_does_not_share_the_twelve_only"),
+        pytest.param("steam_power_depreciation", "MACRS7", id="steam_power_depreciation_override_does_not_share_the"),
+        pytest.param("depreciation", "MACRS07", id="macrs7"),
+        pytest.param("steam_power_depreciation", "MACRS07", id="macrs20_on_steam_power"),
     ],
 )
-def test_serve_key(key, value):
+def test_override_does_not_share_the_serve_key(field, value):
     record = _record_with_energy("C1")
-    overridden = {**dict(record["config"]), key: value}
+    overridden = {**dict(record["config"]), field: value}
     assert tea._config_key(record["config"]) != tea._config_key(overridden)
     assert tea._cache_index().get(tea._config_key(overridden)) is None
 
@@ -2397,35 +2399,88 @@ def test_cache_evaluate_echoes_projected_operating_days(monkeypatch):
 
 
 @pytest.mark.parametrize(
-    "field, value",
+    "energy_case, error_code, field, value",
     [
-        pytest.param("operating_days", 0, id="nonpositive_operating_days_is_refused"),
-        pytest.param("finance_interest", 8, id="percent_integer_finance_interest_is_refused"),
-        pytest.param("finance_fraction", 40, id="percent_integer_finance_fraction_is_refused"),
-        pytest.param("startup_months", 13, id="startup_months_above_one_year_is_refused"),
-        pytest.param("startup_FOCfrac", 50, id="percent_integer_startup_FOCfrac_is_refused"),
-        pytest.param("startup_VOCfrac", 75, id="percent_integer_startup_VOCfrac_is_refused"),
-        pytest.param("startup_salesfrac", 50, id="percent_integer_startup_salesfrac_is_refused"),
-        pytest.param("WC_over_FCI", 5, id="percent_integer_wc_over_fci_is_refused"),
-        pytest.param("warehouse", 4, id="percent_integer_warehouse_is_refused"),
-        pytest.param("site_development", 9, id="percent_integer_site_development_is_refused"),
-        pytest.param("additional_piping", 5, id="percent_integer_additional_piping_is_refused"),
-        pytest.param("proratable_costs", 10, id="percent_integer_proratable_costs_is_refused"),
-        pytest.param("field_expenses", 10, id="percent_integer_field_expenses_is_refused"),
-        pytest.param("construction", 20, id="percent_integer_construction_is_refused"),
-        pytest.param("contingency", 40, id="percent_integer_contingency_is_refused"),
-        pytest.param("other_indirect_costs", 10, id="percent_integer_other_indirect_costs_is_refused"),
-        pytest.param("property_insurance", 7, id="percent_integer_property_insurance_is_refused"),
-        pytest.param("maintenance", 3, id="percent_integer_maintenance_is_refused"),
-        pytest.param("duration", 30, id="years_scalar_is_not_duration"),
-        pytest.param("income_tax", 21, id="percent_integer_income_tax_is_refused"),
+        pytest.param("C1", "invalid_scenario", "operating_days", 0, id="nonpositive_operating_days_is_refused"),
+        pytest.param("C1", "invalid_scenario", "finance_interest", 8, id="percent_integer_finance_interest_is_refused"),
+        pytest.param(
+            "C1", "invalid_scenario", "finance_fraction", 40, id="percent_integer_finance_fraction_is_refused"
+        ),
+        pytest.param("C1", "invalid_scenario", "startup_months", 13, id="startup_months_above_one_year_is_refused"),
+        pytest.param("C1", "invalid_scenario", "startup_FOCfrac", 50, id="percent_integer_startup_FOCfrac_is_refused"),
+        pytest.param("C1", "invalid_scenario", "startup_VOCfrac", 75, id="percent_integer_startup_VOCfrac_is_refused"),
+        pytest.param(
+            "C1", "invalid_scenario", "startup_salesfrac", 50, id="percent_integer_startup_salesfrac_is_refused"
+        ),
+        pytest.param("C1", "invalid_scenario", "WC_over_FCI", 5, id="percent_integer_wc_over_fci_is_refused"),
+        pytest.param("C1", "invalid_scenario", "warehouse", 4, id="percent_integer_warehouse_is_refused"),
+        pytest.param("C1", "invalid_scenario", "site_development", 9, id="percent_integer_site_development_is_refused"),
+        pytest.param(
+            "C1", "invalid_scenario", "additional_piping", 5, id="percent_integer_additional_piping_is_refused"
+        ),
+        pytest.param(
+            "C1", "invalid_scenario", "proratable_costs", 10, id="percent_integer_proratable_costs_is_refused"
+        ),
+        pytest.param("C1", "invalid_scenario", "field_expenses", 10, id="percent_integer_field_expenses_is_refused"),
+        pytest.param("C1", "invalid_scenario", "construction", 20, id="percent_integer_construction_is_refused"),
+        pytest.param("C1", "invalid_scenario", "contingency", 40, id="percent_integer_contingency_is_refused"),
+        pytest.param(
+            "C1", "invalid_scenario", "other_indirect_costs", 10, id="percent_integer_other_indirect_costs_is_refused"
+        ),
+        pytest.param(
+            "C1", "invalid_scenario", "property_insurance", 7, id="percent_integer_property_insurance_is_refused"
+        ),
+        pytest.param("C1", "invalid_scenario", "maintenance", 3, id="percent_integer_maintenance_is_refused"),
+        pytest.param("C1", "invalid_scenario", "duration", 30, id="years_scalar_is_not_duration"),
+        pytest.param("C1", "invalid_scenario", "income_tax", 21, id="percent_integer_income_tax_is_refused"),
+        pytest.param("C1", "invalid_scenario", "finance_years", 0, id="nonpositive"),
+        pytest.param("C1", "invalid_scenario", "finance_years", 10.5, id="noninteger"),
+        pytest.param("C1", "invalid_scenario", "depreciation", "macrs7", id="lowercase_depreciation_is"),
+        pytest.param("C1", "invalid_scenario", "depreciation", 7, id="integer_depreciation_years_are"),
+        pytest.param("C1", "invalid_scenario", "depreciation", "MACRS4", id="unimplemented_macrs_years_are"),
+        pytest.param(
+            "C1", "invalid_scenario", "construction_schedule", 3, id="scalar_years_is_not_construction_schedule"
+        ),
+        pytest.param(
+            "C1",
+            "invalid_scenario",
+            "construction_schedule",
+            "0.08, 0.60, 0.32",
+            id="string_construction_schedule_is_refused",
+        ),
+        pytest.param(
+            "C2",
+            "energy_case_contract",
+            "steam_power_depreciation",
+            "MACRS20",
+            id="c2_steam_power_depreciation_is_energy_case_contract",
+        ),
+        pytest.param(
+            "C1",
+            "invalid_scenario",
+            "steam_power_depreciation",
+            "macrs20",
+            id="lowercase_steam_power_depreciation_is_refused",
+        ),
+        pytest.param(
+            "C1", "invalid_scenario", "steam_power_depreciation", 20, id="integer_steam_power_depreciation_is_refused"
+        ),
+        pytest.param(
+            "C1",
+            "invalid_scenario",
+            "steam_power_depreciation",
+            "MACRS4",
+            id="unimplemented_steam_power_macrs_years_are_refused",
+        ),
+        pytest.param("C1", "invalid_scenario", "lang_factor", "3.0", id="string"),
+        pytest.param("C1", "invalid_scenario", "lang_factor", True, id="true"),
     ],
 )
-def test_invalid_scenario_override_is_refused(field, value):
-    record = _record_with_energy("C1")
+def test_invalid_scenario_override_is_refused(energy_case, error_code, field, value):
+    record = _record_with_energy(energy_case)
     with pytest.raises(tea._ScenarioInputError) as caught:
         tea._scenario_config(_public_from_record_tea_exposed_coefficients(record, **{field: value}))
-    assert caught.value.error_code == "invalid_scenario"
+    assert caught.value.error_code == error_code
     assert caught.value.details["field"] == field
 
 
@@ -2461,49 +2516,169 @@ def test_negative_override_is_refused(field, magnitude):
 
 
 @pytest.mark.parametrize(
-    'finance_years',
-    [
-        pytest.param(0, id='nonpositive'),
-        pytest.param(10.5, id='noninteger'),
-    ],
-)
-def test_finance_years_is_refused(finance_years):
-    record = _record_with_energy("C1")
-    with pytest.raises(tea._ScenarioInputError) as caught:
-        tea._scenario_config(_public_from_record_tea_exposed_coefficients(record, finance_years=finance_years))
-    assert caught.value.error_code == "invalid_scenario"
-    assert caught.value.details["field"] == "finance_years"
-
-
-@pytest.mark.parametrize(
     "message, requested, field",
     [
         pytest.param(
             "finance_fraction=1.0 is 100 percent debt, not invalid_scenario",
             1.0,
             "finance_fraction",
-            id="full_debt_finance_fraction",
+            id="boundary_override_reaches_the_flowsheet_check-full_debt_finance_fraction",
         ),
         pytest.param(
-            "startup_months=0 is a legal override, not invalid_scenario", 0, "startup_months", id="zero_startup_months"
+            "startup_months=0 is a legal override, not invalid_scenario",
+            0,
+            "startup_months",
+            id="boundary_override_reaches_the_flowsheet_check-zero_startup_months",
         ),
         pytest.param(
             "startup_FOCfrac=0 is a legal override, not invalid_scenario",
             0,
             "startup_FOCfrac",
-            id="zero_startup_FOCfrac",
+            id="boundary_override_reaches_the_flowsheet_check-zero_startup_FOCfrac",
         ),
         pytest.param(
             "startup_VOCfrac=1.0 is 100 percent VOC, not invalid_scenario",
             1.0,
             "startup_VOCfrac",
-            id="full_startup_VOCfrac",
+            id="boundary_override_reaches_the_flowsheet_check-full_startup_VOCfrac",
         ),
         pytest.param(
             "startup_salesfrac=1.0 is 100 percent sales, not invalid_scenario",
             1.0,
             "startup_salesfrac",
-            id="full_startup_salesfrac",
+            id="boundary_override_reaches_the_flowsheet_check-full_startup_salesfrac",
+        ),
+        pytest.param(
+            "WC_over_FCI=0 is no working capital, not invalid_scenario",
+            0,
+            "WC_over_FCI",
+            id="wc_over_fci_is_a_legal_override-zero",
+        ),
+        pytest.param(
+            "WC_over_FCI=1.0 is 100 percent of FCI, not invalid_scenario",
+            1.0,
+            "WC_over_FCI",
+            id="wc_over_fci_is_a_legal_override-full",
+        ),
+        pytest.param(
+            "warehouse=0 is no warehouse factor, not invalid_scenario",
+            0,
+            "warehouse",
+            id="warehouse_is_a_legal_override-zero",
+        ),
+        pytest.param(
+            "warehouse=1.0 is 100 percent of ISBL DPI, not invalid_scenario",
+            1.0,
+            "warehouse",
+            id="warehouse_is_a_legal_override-full",
+        ),
+        pytest.param(
+            "site_development=0 is no site factor, not invalid_scenario",
+            0,
+            "site_development",
+            id="site_development_is_a_legal_override-zero",
+        ),
+        pytest.param(
+            "site_development=1.0 is 100 percent of ISBL DPI, not invalid_scenario",
+            1.0,
+            "site_development",
+            id="site_development_is_a_legal_override-full",
+        ),
+        pytest.param(
+            "additional_piping=0 is no piping factor, not invalid_scenario",
+            0,
+            "additional_piping",
+            id="additional_piping_is_a_legal_override-zero",
+        ),
+        pytest.param(
+            "additional_piping=1.0 is 100 percent of ISBL DPI, not invalid_scenario",
+            1.0,
+            "additional_piping",
+            id="additional_piping_is_a_legal_override-full",
+        ),
+        pytest.param(
+            "proratable_costs=0 is no proratable factor, not invalid_scenario",
+            0,
+            "proratable_costs",
+            id="proratable_costs_is_a_legal_override-zero",
+        ),
+        pytest.param(
+            "proratable_costs=1.0 is 100 percent of DPI, not invalid_scenario",
+            1.0,
+            "proratable_costs",
+            id="proratable_costs_is_a_legal_override-full",
+        ),
+        pytest.param(
+            "field_expenses=0 is no field factor, not invalid_scenario",
+            0,
+            "field_expenses",
+            id="field_expenses_is_a_legal_override-zero",
+        ),
+        pytest.param(
+            "field_expenses=1.0 is 100 percent of DPI, not invalid_scenario",
+            1.0,
+            "field_expenses",
+            id="field_expenses_is_a_legal_override-full",
+        ),
+        pytest.param(
+            "construction=0 is no construction factor, not invalid_scenario",
+            0,
+            "construction",
+            id="construction_is_a_legal_override-zero",
+        ),
+        pytest.param(
+            "construction=1.0 is 100 percent of DPI, not invalid_scenario",
+            1.0,
+            "construction",
+            id="construction_is_a_legal_override-full",
+        ),
+        pytest.param(
+            "contingency=0 is no contingency factor, not invalid_scenario",
+            0,
+            "contingency",
+            id="contingency_is_a_legal_override-zero",
+        ),
+        pytest.param(
+            "contingency=1.0 is 100 percent of DPI, not invalid_scenario",
+            1.0,
+            "contingency",
+            id="contingency_is_a_legal_override-full",
+        ),
+        pytest.param(
+            "other_indirect_costs=0 is no other-indirect factor, not invalid_scenario",
+            0,
+            "other_indirect_costs",
+            id="other_indirect_costs_is_a_legal_override-zero",
+        ),
+        pytest.param(
+            "other_indirect_costs=1.0 is 100 percent of DPI, not invalid_scenario",
+            1.0,
+            "other_indirect_costs",
+            id="other_indirect_costs_is_a_legal_override-full",
+        ),
+        pytest.param(
+            "property_insurance=0 is no insurance factor, not invalid_scenario",
+            0,
+            "property_insurance",
+            id="property_insurance_is_a_legal_override-zero",
+        ),
+        pytest.param(
+            "property_insurance=1.0 is 100 percent of FCI, not invalid_scenario",
+            1.0,
+            "property_insurance",
+            id="property_insurance_is_a_legal_override-full",
+        ),
+        pytest.param(
+            "maintenance=0 is no maintenance factor, not invalid_scenario",
+            0,
+            "maintenance",
+            id="maintenance_is_a_legal_override-zero",
+        ),
+        pytest.param(
+            "maintenance=1.0 is 100 percent of ISBL DPI, not invalid_scenario",
+            1.0,
+            "maintenance",
+            id="maintenance_is_a_legal_override-full",
         ),
     ],
 )
@@ -2527,336 +2702,6 @@ def test_boundary_override_reaches_the_flowsheet_check(monkeypatch, message, req
 
 
 @pytest.mark.parametrize(
-    ('value', 'value_2', 'WC_over_FCI'),
-    [
-        pytest.param('WC_over_FCI=0 is no working capital, not invalid_scenario', 0, 0, id='zero'),
-        pytest.param('WC_over_FCI=1.0 is 100 percent of FCI, not invalid_scenario', 1.0, 1.0, id='full'),
-    ],
-)
-def test_wc_over_fci_is_a_legal_override(monkeypatch, value, value_2, WC_over_FCI):
-    record = _record_with_energy("C1")
-
-    def forbidden_live(config, timeout_seconds):
-        raise AssertionError(
-            value
-        )
-
-    monkeypatch.setattr(tea, "_live", forbidden_live)
-    payload = _data_tea_exposed_coefficients(tea.evaluate_tea_lca_scenarios(
-        [_public_from_record_tea_exposed_coefficients(record, WC_over_FCI=WC_over_FCI)],
-        engine_mode="cache",
-    ))
-    assert payload.get("success") is False
-    assert payload.get("error_code") == "cache_flowsheet_mismatch"
-    row = (payload.get("failures") or [])[0]
-    fraction = next(
-        item for item in row["flowsheet_switch_deltas"]
-        if item["field"] == "WC_over_FCI"
-    )
-    assert fraction["requested_value"] == pytest.approx(value_2)
-
-
-@pytest.mark.parametrize(
-    ('value', 'value_2', 'warehouse'),
-    [
-        pytest.param('warehouse=0 is no warehouse factor, not invalid_scenario', 0, 0, id='zero'),
-        pytest.param('warehouse=1.0 is 100 percent of ISBL DPI, not invalid_scenario', 1.0, 1.0, id='full'),
-    ],
-)
-def test_warehouse_is_a_legal_override(monkeypatch, value, value_2, warehouse):
-    record = _record_with_energy("C1")
-
-    def forbidden_live(config, timeout_seconds):
-        raise AssertionError(
-            value
-        )
-
-    monkeypatch.setattr(tea, "_live", forbidden_live)
-    payload = _data_tea_exposed_coefficients(tea.evaluate_tea_lca_scenarios(
-        [_public_from_record_tea_exposed_coefficients(record, warehouse=warehouse)],
-        engine_mode="cache",
-    ))
-    assert payload.get("success") is False
-    assert payload.get("error_code") == "cache_flowsheet_mismatch"
-    row = (payload.get("failures") or [])[0]
-    fraction = next(
-        item for item in row["flowsheet_switch_deltas"]
-        if item["field"] == "warehouse"
-    )
-    assert fraction["requested_value"] == pytest.approx(value_2)
-
-
-@pytest.mark.parametrize(
-    ('value', 'value_2', 'site_development'),
-    [
-        pytest.param('site_development=0 is no site factor, not invalid_scenario', 0, 0, id='zero'),
-        pytest.param('site_development=1.0 is 100 percent of ISBL DPI, not invalid_scenario', 1.0, 1.0, id='full'),
-    ],
-)
-def test_site_development_is_a_legal_override(monkeypatch, value, value_2, site_development):
-    record = _record_with_energy("C1")
-
-    def forbidden_live(config, timeout_seconds):
-        raise AssertionError(
-            value
-        )
-
-    monkeypatch.setattr(tea, "_live", forbidden_live)
-    payload = _data_tea_exposed_coefficients(tea.evaluate_tea_lca_scenarios(
-        [_public_from_record_tea_exposed_coefficients(record, site_development=site_development)],
-        engine_mode="cache",
-    ))
-    assert payload.get("success") is False
-    assert payload.get("error_code") == "cache_flowsheet_mismatch"
-    row = (payload.get("failures") or [])[0]
-    fraction = next(
-        item for item in row["flowsheet_switch_deltas"]
-        if item["field"] == "site_development"
-    )
-    assert fraction["requested_value"] == pytest.approx(value_2)
-
-
-@pytest.mark.parametrize(
-    ('value', 'value_2', 'additional_piping'),
-    [
-        pytest.param('additional_piping=0 is no piping factor, not invalid_scenario', 0, 0, id='zero'),
-        pytest.param('additional_piping=1.0 is 100 percent of ISBL DPI, not invalid_scenario', 1.0, 1.0, id='full'),
-    ],
-)
-def test_additional_piping_is_a_legal_override(monkeypatch, value, value_2, additional_piping):
-    record = _record_with_energy("C1")
-
-    def forbidden_live(config, timeout_seconds):
-        raise AssertionError(
-            value
-        )
-
-    monkeypatch.setattr(tea, "_live", forbidden_live)
-    payload = _data_tea_exposed_coefficients(tea.evaluate_tea_lca_scenarios(
-        [_public_from_record_tea_exposed_coefficients(record, additional_piping=additional_piping)],
-        engine_mode="cache",
-    ))
-    assert payload.get("success") is False
-    assert payload.get("error_code") == "cache_flowsheet_mismatch"
-    row = (payload.get("failures") or [])[0]
-    fraction = next(
-        item for item in row["flowsheet_switch_deltas"]
-        if item["field"] == "additional_piping"
-    )
-    assert fraction["requested_value"] == pytest.approx(value_2)
-
-
-@pytest.mark.parametrize(
-    ('value', 'value_2', 'proratable_costs'),
-    [
-        pytest.param('proratable_costs=0 is no proratable factor, not invalid_scenario', 0, 0, id='zero'),
-        pytest.param('proratable_costs=1.0 is 100 percent of DPI, not invalid_scenario', 1.0, 1.0, id='full'),
-    ],
-)
-def test_proratable_costs_is_a_legal_override(monkeypatch, value, value_2, proratable_costs):
-    record = _record_with_energy("C1")
-
-    def forbidden_live(config, timeout_seconds):
-        raise AssertionError(
-            value
-        )
-
-    monkeypatch.setattr(tea, "_live", forbidden_live)
-    payload = _data_tea_exposed_coefficients(tea.evaluate_tea_lca_scenarios(
-        [_public_from_record_tea_exposed_coefficients(record, proratable_costs=proratable_costs)],
-        engine_mode="cache",
-    ))
-    assert payload.get("success") is False
-    assert payload.get("error_code") == "cache_flowsheet_mismatch"
-    row = (payload.get("failures") or [])[0]
-    fraction = next(
-        item for item in row["flowsheet_switch_deltas"]
-        if item["field"] == "proratable_costs"
-    )
-    assert fraction["requested_value"] == pytest.approx(value_2)
-
-
-@pytest.mark.parametrize(
-    ('value', 'value_2', 'field_expenses'),
-    [
-        pytest.param('field_expenses=0 is no field factor, not invalid_scenario', 0, 0, id='zero'),
-        pytest.param('field_expenses=1.0 is 100 percent of DPI, not invalid_scenario', 1.0, 1.0, id='full'),
-    ],
-)
-def test_field_expenses_is_a_legal_override(monkeypatch, value, value_2, field_expenses):
-    record = _record_with_energy("C1")
-
-    def forbidden_live(config, timeout_seconds):
-        raise AssertionError(
-            value
-        )
-
-    monkeypatch.setattr(tea, "_live", forbidden_live)
-    payload = _data_tea_exposed_coefficients(tea.evaluate_tea_lca_scenarios(
-        [_public_from_record_tea_exposed_coefficients(record, field_expenses=field_expenses)],
-        engine_mode="cache",
-    ))
-    assert payload.get("success") is False
-    assert payload.get("error_code") == "cache_flowsheet_mismatch"
-    row = (payload.get("failures") or [])[0]
-    fraction = next(
-        item for item in row["flowsheet_switch_deltas"]
-        if item["field"] == "field_expenses"
-    )
-    assert fraction["requested_value"] == pytest.approx(value_2)
-
-
-@pytest.mark.parametrize(
-    ('value', 'value_2', 'construction'),
-    [
-        pytest.param('construction=0 is no construction factor, not invalid_scenario', 0, 0, id='zero'),
-        pytest.param('construction=1.0 is 100 percent of DPI, not invalid_scenario', 1.0, 1.0, id='full'),
-    ],
-)
-def test_construction_is_a_legal_override(monkeypatch, value, value_2, construction):
-    record = _record_with_energy("C1")
-
-    def forbidden_live(config, timeout_seconds):
-        raise AssertionError(
-            value
-        )
-
-    monkeypatch.setattr(tea, "_live", forbidden_live)
-    payload = _data_tea_exposed_coefficients(tea.evaluate_tea_lca_scenarios(
-        [_public_from_record_tea_exposed_coefficients(record, construction=construction)],
-        engine_mode="cache",
-    ))
-    assert payload.get("success") is False
-    assert payload.get("error_code") == "cache_flowsheet_mismatch"
-    row = (payload.get("failures") or [])[0]
-    fraction = next(
-        item for item in row["flowsheet_switch_deltas"]
-        if item["field"] == "construction"
-    )
-    assert fraction["requested_value"] == pytest.approx(value_2)
-
-
-@pytest.mark.parametrize(
-    ('value', 'value_2', 'contingency'),
-    [
-        pytest.param('contingency=0 is no contingency factor, not invalid_scenario', 0, 0, id='zero'),
-        pytest.param('contingency=1.0 is 100 percent of DPI, not invalid_scenario', 1.0, 1.0, id='full'),
-    ],
-)
-def test_contingency_is_a_legal_override(monkeypatch, value, value_2, contingency):
-    record = _record_with_energy("C1")
-
-    def forbidden_live(config, timeout_seconds):
-        raise AssertionError(
-            value
-        )
-
-    monkeypatch.setattr(tea, "_live", forbidden_live)
-    payload = _data_tea_exposed_coefficients(tea.evaluate_tea_lca_scenarios(
-        [_public_from_record_tea_exposed_coefficients(record, contingency=contingency)],
-        engine_mode="cache",
-    ))
-    assert payload.get("success") is False
-    assert payload.get("error_code") == "cache_flowsheet_mismatch"
-    row = (payload.get("failures") or [])[0]
-    fraction = next(
-        item for item in row["flowsheet_switch_deltas"]
-        if item["field"] == "contingency"
-    )
-    assert fraction["requested_value"] == pytest.approx(value_2)
-
-
-@pytest.mark.parametrize(
-    ('value', 'value_2', 'other_indirect_costs'),
-    [
-        pytest.param('other_indirect_costs=0 is no other-indirect factor, not invalid_scenario', 0, 0, id='zero'),
-        pytest.param('other_indirect_costs=1.0 is 100 percent of DPI, not invalid_scenario', 1.0, 1.0, id='full'),
-    ],
-)
-def test_other_indirect_costs_is_a_legal_override(monkeypatch, value, value_2, other_indirect_costs):
-    record = _record_with_energy("C1")
-
-    def forbidden_live(config, timeout_seconds):
-        raise AssertionError(
-            value
-        )
-
-    monkeypatch.setattr(tea, "_live", forbidden_live)
-    payload = _data_tea_exposed_coefficients(tea.evaluate_tea_lca_scenarios(
-        [_public_from_record_tea_exposed_coefficients(record, other_indirect_costs=other_indirect_costs)],
-        engine_mode="cache",
-    ))
-    assert payload.get("success") is False
-    assert payload.get("error_code") == "cache_flowsheet_mismatch"
-    row = (payload.get("failures") or [])[0]
-    fraction = next(
-        item for item in row["flowsheet_switch_deltas"]
-        if item["field"] == "other_indirect_costs"
-    )
-    assert fraction["requested_value"] == pytest.approx(value_2)
-
-
-@pytest.mark.parametrize(
-    ('value', 'value_2', 'property_insurance'),
-    [
-        pytest.param('property_insurance=0 is no insurance factor, not invalid_scenario', 0, 0, id='zero'),
-        pytest.param('property_insurance=1.0 is 100 percent of FCI, not invalid_scenario', 1.0, 1.0, id='full'),
-    ],
-)
-def test_property_insurance_is_a_legal_override(monkeypatch, value, value_2, property_insurance):
-    record = _record_with_energy("C1")
-
-    def forbidden_live(config, timeout_seconds):
-        raise AssertionError(
-            value
-        )
-
-    monkeypatch.setattr(tea, "_live", forbidden_live)
-    payload = _data_tea_exposed_coefficients(tea.evaluate_tea_lca_scenarios(
-        [_public_from_record_tea_exposed_coefficients(record, property_insurance=property_insurance)],
-        engine_mode="cache",
-    ))
-    assert payload.get("success") is False
-    assert payload.get("error_code") == "cache_flowsheet_mismatch"
-    row = (payload.get("failures") or [])[0]
-    fraction = next(
-        item for item in row["flowsheet_switch_deltas"]
-        if item["field"] == "property_insurance"
-    )
-    assert fraction["requested_value"] == pytest.approx(value_2)
-
-
-@pytest.mark.parametrize(
-    ('value', 'value_2', 'maintenance'),
-    [
-        pytest.param('maintenance=0 is no maintenance factor, not invalid_scenario', 0, 0, id='zero'),
-        pytest.param('maintenance=1.0 is 100 percent of ISBL DPI, not invalid_scenario', 1.0, 1.0, id='full'),
-    ],
-)
-def test_maintenance_is_a_legal_override(monkeypatch, value, value_2, maintenance):
-    record = _record_with_energy("C1")
-
-    def forbidden_live(config, timeout_seconds):
-        raise AssertionError(
-            value
-        )
-
-    monkeypatch.setattr(tea, "_live", forbidden_live)
-    payload = _data_tea_exposed_coefficients(tea.evaluate_tea_lca_scenarios(
-        [_public_from_record_tea_exposed_coefficients(record, maintenance=maintenance)],
-        engine_mode="cache",
-    ))
-    assert payload.get("success") is False
-    assert payload.get("error_code") == "cache_flowsheet_mismatch"
-    row = (payload.get("failures") or [])[0]
-    fraction = next(
-        item for item in row["flowsheet_switch_deltas"]
-        if item["field"] == "maintenance"
-    )
-    assert fraction["requested_value"] == pytest.approx(value_2)
-
-
-@pytest.mark.parametrize(
     ('key', 'value'),
     [
         pytest.param('depreciation', 'MACRS7', id='explicit_default_depreciation_shares_the_serve_key'),
@@ -2870,20 +2715,6 @@ def test_explicit_default_depreciation_shares_the_serve_key_2(key, value):
     assert tea._cache_index().get(tea._config_key(explicit))["label"] == (
         record["label"]
     )
-
-
-@pytest.mark.parametrize(
-    'key',
-    [
-        pytest.param('depreciation', id='macrs7'),
-        pytest.param('steam_power_depreciation', id='macrs20_on_steam_power'),
-    ],
-)
-def test_macrs07_does_not_fold_to(key):
-    record = _record_with_energy("C1")
-    padded = {**dict(record["config"]), key: "MACRS07"}
-    assert tea._config_key(record["config"]) != tea._config_key(padded)
-    assert tea._cache_index().get(tea._config_key(padded)) is None
 
 
 def test_cache_mode_refuses_depreciation_override_instead_of_the_other_plant(
@@ -2974,22 +2805,6 @@ def test_maintenance_override_does_not_emit_a_depreciation_delta(monkeypatch):
         item["field"] == "depreciation"
         for item in row["flowsheet_switch_deltas"]
     )
-
-
-@pytest.mark.parametrize(
-    'depreciation',
-    [
-        pytest.param('macrs7', id='lowercase_depreciation_is'),
-        pytest.param(7, id='integer_depreciation_years_are'),
-        pytest.param('MACRS4', id='unimplemented_macrs_years_are'),
-    ],
-)
-def test_refused(depreciation):
-    record = _record_with_energy("C1")
-    with pytest.raises(tea._ScenarioInputError) as caught:
-        tea._scenario_config(_public_from_record_tea_exposed_coefficients(record, depreciation=depreciation))
-    assert caught.value.error_code == "invalid_scenario"
-    assert caught.value.details["field"] == "depreciation"
 
 
 def test_array_depreciation_is_refused():
@@ -3205,23 +3020,6 @@ def test_c2_still_carries_construction_schedule():
     )
 
 
-@pytest.mark.parametrize(
-    'construction_schedule',
-    [
-        pytest.param(3, id='scalar_years_is_not_construction_schedule'),
-        pytest.param('0.08, 0.60, 0.32', id='string_construction_schedule_is_refused'),
-    ],
-)
-def test_scalar_years_is_not_construction_schedule_cases(construction_schedule):
-    record = _record_with_energy("C1")
-    with pytest.raises(tea._ScenarioInputError) as caught:
-        tea._scenario_config(
-            _public_from_record_tea_exposed_coefficients(record, construction_schedule=construction_schedule),
-        )
-    assert caught.value.error_code == "invalid_scenario"
-    assert caught.value.details["field"] == "construction_schedule"
-
-
 def test_empty_construction_schedule_is_refused():
     record = _record_with_energy("C1")
     with pytest.raises(tea._ScenarioInputError) as caught:
@@ -3279,25 +3077,6 @@ def test_cache_mode_refuses_steam_power_depreciation_override_instead_of_the_oth
         item["field"] == "lang_factor"
         for item in row["flowsheet_switch_deltas"]
     )
-
-
-@pytest.mark.parametrize(
-    ('value', 'value_2', 'steam_power_depreciation'),
-    [
-        pytest.param('C2', 'energy_case_contract', 'MACRS20', id='c2_steam_power_depreciation_is_energy_case_contract'),
-        pytest.param('C1', 'invalid_scenario', 'macrs20', id='lowercase_steam_power_depreciation_is_refused'),
-        pytest.param('C1', 'invalid_scenario', 20, id='integer_steam_power_depreciation_is_refused'),
-        pytest.param('C1', 'invalid_scenario', 'MACRS4', id='unimplemented_steam_power_macrs_years_are_refused'),
-    ],
-)
-def test_c2_steam_power_depreciation_is_energy_case_contract_cases(value, value_2, steam_power_depreciation):
-    record = _record_with_energy(value)
-    with pytest.raises(tea._ScenarioInputError) as caught:
-        tea._scenario_config(_public_from_record_tea_exposed_coefficients(
-            record, steam_power_depreciation=steam_power_depreciation,
-        ))
-    assert caught.value.error_code == value_2
-    assert caught.value.details["field"] == "steam_power_depreciation"
 
 
 def test_array_steam_power_depreciation_is_refused():
@@ -3372,21 +3151,6 @@ def test_zero_is_not_the_production_lang_factor(monkeypatch):
     monkeypatch.setattr(tea, "_live", forbidden_live)
     with pytest.raises(tea._ScenarioInputError) as caught:
         tea._scenario_config(_public_from_record_tea_exposed_coefficients(record, lang_factor=0))
-    assert caught.value.error_code == "invalid_scenario"
-    assert caught.value.details["field"] == "lang_factor"
-
-
-@pytest.mark.parametrize(
-    'lang_factor',
-    [
-        pytest.param('3.0', id='string'),
-        pytest.param(True, id='true'),
-    ],
-)
-def test_lang_factor_is_refused(lang_factor):
-    record = _record_with_energy("C1")
-    with pytest.raises(tea._ScenarioInputError) as caught:
-        tea._scenario_config(_public_from_record_tea_exposed_coefficients(record, lang_factor=lang_factor))
     assert caught.value.error_code == "invalid_scenario"
     assert caught.value.details["field"] == "lang_factor"
 
