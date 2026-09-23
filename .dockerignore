@@ -1,0 +1,9 @@
+.git
+.venv
+.venv-tea
+.tools
+vendor
+web/node_modules
+campaigns
+tests
+**/__pycache__

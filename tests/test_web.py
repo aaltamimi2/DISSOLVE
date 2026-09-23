@@ -13,23 +13,37 @@ from dissolve import agent, cli, web
 
 
 @pytest.fixture
-def client(tmp_path, monkeypatch):
-    """The real server on an ephemeral port, in this process so the scripted model applies."""
+def serve(tmp_path, monkeypatch):
+    """Start the real server on an ephemeral port, in this process so the scripted model applies; env first."""
     monkeypatch.setenv("META_MUSE_API_KEY", "test-key")
     monkeypatch.setattr(web, "STATIC", tmp_path / "ui")
-    app = web.create_app(tmp_path / "home")
-    server = uvicorn.Server(uvicorn.Config(app, host="127.0.0.1", port=0, log_level="warning", ws="none"))
-    thread = threading.Thread(target=server.run, daemon=True)
-    thread.start()
-    deadline = time.monotonic() + 20
-    while not server.started and time.monotonic() < deadline:
-        time.sleep(0.02)
-    port = server.servers[0].sockets[0].getsockname()[1]
-    with httpx.Client(base_url=f"http://127.0.0.1:{port}", timeout=30) as http:
+    running = []
+
+    def start(**env):
+        for key, value in env.items():
+            monkeypatch.setenv(key, value)
+        app = web.create_app(tmp_path / "home")
+        server = uvicorn.Server(uvicorn.Config(app, host="127.0.0.1", port=0, log_level="warning", ws="none"))
+        thread = threading.Thread(target=server.run, daemon=True)
+        thread.start()
+        deadline = time.monotonic() + 20
+        while not server.started and time.monotonic() < deadline:
+            time.sleep(0.02)
+        http = httpx.Client(base_url=f"http://127.0.0.1:{server.servers[0].sockets[0].getsockname()[1]}", timeout=30)
         http.app = app
-        yield http
-    server.should_exit = True
-    thread.join(10)
+        running.append((server, thread, http))
+        return http
+
+    yield start
+    for server, thread, http in running:
+        http.close()
+        server.should_exit = True
+        thread.join(10)
+
+
+@pytest.fixture
+def client(serve):
+    return serve()
 
 
 def _script(monkeypatch, steps):
@@ -125,6 +139,26 @@ def test_the_ui_is_served_and_the_api_is_not_shadowed(client, tmp_path):
     assert client.get("/assets/app.js").text == "ok"
     assert client.get("/api/nope").status_code == 404
     assert client.get("/..%2Fpyproject.toml").text == "<div id=root></div>"
+
+
+def test_a_hosted_copy_asks_for_its_password(serve):
+    http = serve(DISSOLVE_WEB_PASSWORD="s3cret")
+    assert http.get("/api/health").status_code == 200  # the platform's health check stays open
+    denied = http.get("/api/models")
+    assert (denied.status_code, denied.headers["www-authenticate"]) == (401, 'Basic realm="DISSOLVE"')
+    assert http.get("/", auth=("dissolve", "wrong")).status_code == 401
+    assert http.get("/api/models", auth=("dissolve", "s3cret")).status_code == 200
+
+
+def test_a_small_host_switches_literature_and_tea_off(serve):
+    http = serve(DISSOLVE_WEB_DISABLE="literature,tea")
+    assert http.get("/api/health").json()["features"] == {"literature": False, "tea": False}
+    assert "/literature" not in [row["command"] for row in http.get("/api/commands").json()]
+    session_id = http.post("/api/sessions", json={}).json()["session_id"]
+    refused = _stream(http, session_id, "/literature corpus")[1]
+    assert "Literature search is off on this deployment" in refused["text"]
+    assert refused["state"]["literature"] == "off"
+    assert _stream(http, session_id, "/literature off")[1]["state"]["literature"] == "off"
 
 
 def test_the_built_ui_ships_with_the_package():
