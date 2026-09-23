@@ -182,6 +182,9 @@ LITERATURE_AGENT_TOOLS = (
 _POLY_ARGS = ("polymers", "feed_polymers", "target_polymer", "target_polymers")
 _POLY_KEYS = ("polymer", "polymer_id", "target_polymer", "dissolved_polymer")
 _PAGE, _BYTE, _LIM = 20, 8192, 50
+# The most one page of rows may put in the model's context. A contaminant class screened in every solvent
+# nests 26 records in each row, which made a 20-row first page 250 KB and ended the turn at compaction.
+_PAGE_BYTES = 24576
 _ENGINE_BASIS = {
     "thermodynamics": "cosmo_rs_grid", "separation": "cosmo_rs_grid",
     "optimization": "optimization_workbook", "contaminants": "contaminant_workbook",
@@ -190,6 +193,26 @@ _ENGINE_BASIS = {
 
 def _refuse(refusal: str, **extra: Any) -> dict[str, Any]:
     return {"available": False, "refusal": refusal, **extra}
+
+def _is_rows(value: Any) -> bool:
+    return isinstance(value, list) and bool(value) and all(isinstance(item, dict) for item in value)
+
+def _rows_that_fit(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Whole rows, as many as fit _PAGE_BYTES, and never fewer than one."""
+    used = 0
+    for n, row in enumerate(rows):
+        used += len(json.dumps(row)) + 2
+        if n and used > _PAGE_BYTES:
+            return rows[:n]
+    return rows
+
+def _first_page(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Whole rows when they fit _PAGE_BYTES. Otherwise each row's nested row lists show as counts (result_read
+    returns rows whole), and then as many rows as fit."""
+    if len(json.dumps(rows)) > _PAGE_BYTES:
+        rows = [{k: f"{len(v)} entries; result_read returns this row whole" if _is_rows(v) else v
+                 for k, v in row.items()} for row in rows]
+    return _rows_that_fit(rows)
 
 def result_read(
     handle: str = "", offset: int = 0, limit: int = 20, page: str | None = None,
@@ -217,7 +240,7 @@ def result_read(
     except (TypeError, ValueError):
         lim = _PAGE
     lim = max(0, min(lim, _LIM))
-    window = rows[off:off + lim]
+    window = _rows_that_fit(rows[off:off + lim])
     return {
         "available": True, "source_basis": stored.get("source_basis"),
         "handle": token, "total": len(rows), "offset": off,
@@ -527,12 +550,8 @@ def _issue_handle(record, tool, basis, data, payload, display=None):
     if always and not over:
         return {**payload, "handle": name, "total": n_rows}
     rows = handle_rows(load_handle(record, name))
-    top = rows[:_PAGE]
-    rest = {
-        k: v for k, v in data.items()
-        if k in _COMPACT_KEEP_LISTS
-        or not (isinstance(v, list) and v and all(isinstance(i, dict) for i in v))
-    }
+    top = _first_page(rows[:_PAGE])
+    rest = {k: v for k, v in data.items() if k in _COMPACT_KEEP_LISTS or not _is_rows(v)}
     return {
         "available": True, "source_basis": basis, "handle": name,
         "total": len(rows), "shown": len(top), "top": top, "data": rest,
@@ -708,10 +727,12 @@ single polymer.
 
 Large results come back as a handle, a total, and the first page
 (top). total is not something you infer from how many rows you can
-see. To read more rows, call result_read(handle, offset, limit). To
-hand a shortlist to a downstream tool, pass the handle. Do not retype
-the rows. If you do not have a handle and the user did not name the
-subjects, you do not have candidates.
+see. To read more rows, call result_read(handle, offset, limit). A
+page too large for your context shows each nested list in a row as
+its count; result_read returns rows whole, as many as fit, so read on
+from offset + returned. To hand a shortlist to a downstream tool, pass
+the handle. Do not retype the rows. If you do not have a handle and
+the user did not name the subjects, you do not have candidates.
 
 Literature search and ingest tools are ordinary tools on your list.
 Call them directly. There is no research sub-agent.

@@ -1004,6 +1004,26 @@ def test_result_read_pages_exact_rows_without_second_handle():
         assert clamped["returned"] <= 50
 
 
+def test_a_contaminant_class_fits_the_context_and_pages_whole_rows():
+    """PFAS on LDPE nests 26 records in each of 32 solvent rows. The 20-row first page was 250 KB, and the owner's
+    turn ended at compaction. The first page now shows those lists as counts; result_read returns whole rows that fit."""
+    with _bound() as rec:
+        screen = dispatch("screen_contaminant_leaching", target_polymer="LDPE", contaminants=["PFAS"])
+        exact = handle_rows(load_handle(rec, screen["handle"]))
+        assert len(json.dumps(exact[:20])) > 10 * agent._PAGE_BYTES  # the defect's scale
+        assert len(json.dumps(screen)) < 2 * agent._PAGE_BYTES
+        assert screen["shown"] == len(screen["top"]) == 20 and screen["total"] == len(exact)
+        for shown, row in zip(screen["top"], exact):
+            assert shown["contaminants"] == f"{len(row['contaminants'])} entries; result_read returns this row whole"
+            assert {k: v for k, v in shown.items() if k != "contaminants"} == {k: v for k, v in row.items() if k != "contaminants"}
+        page = dispatch("result_read", handle=screen["handle"], offset=0, limit=20)
+        assert 1 <= page["returned"] < 20 and page["data"]["rows"] == exact[:page["returned"]]
+        assert len(json.dumps(page["data"]["rows"])) <= agent._PAGE_BYTES
+        assert dispatch("result_read", handle=screen["handle"], offset=5, limit=1)["data"]["rows"] == exact[5:6]
+        small = dispatch("screen_contaminant_leaching", target_polymer="LDPE", contaminants=["DEHP"])
+        assert small["top"] == handle_rows(load_handle(rec, small["handle"]))[:20]  # a page that fits is unchanged
+
+
 def test_large_unrecognised_contaminant_comparison_named_refusal():
     with _bound() as rec:
         out = dispatch(
