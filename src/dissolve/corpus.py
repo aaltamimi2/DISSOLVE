@@ -15,6 +15,7 @@ anyone holding the same PDFs can confirm they reproduced it.
     python -m dissolve.corpus add PAPER.pdf ...          [--corpus DIR]
     python -m dissolve.corpus build PAPER.pdf ...        [--corpus DIR]
     python -m dissolve.corpus verify REFERENCE_DIR       [--corpus DIR]
+    python -m dissolve.corpus prefetch                   (download the pinned models once; ./dissolve runs it)
 """
 
 from __future__ import annotations
@@ -254,6 +255,18 @@ def verify(corpus: Path, reference: Path = SHIPPED) -> dict[str, Any]:
     }
 
 
+def prefetch() -> dict[str, Any]:
+    """Download the pinned models once, so a first search or ingest does not stall on them: the BGE encoder,
+    the pair reranker (hash-checked) and Docling's PDF layout, table and OCR models."""
+    from docling.datamodel.base_models import InputFormat
+    from docling.document_converter import DocumentConverter
+
+    research._dense_vectors(["prefetch"])
+    reranker = research._verify_pair_artifacts(research._pair_dir())
+    DocumentConverter().initialize_pipeline(InputFormat.PDF)
+    return {"encoder": BGE_ID, "reranker": reranker, "docling": "PDF pipeline ready"}
+
+
 def read_index(path: Path) -> dict[str, Any]:
     with gzip.open(path, "rt", encoding="utf-8") as handle:
         return json.load(handle)
@@ -322,12 +335,16 @@ def _sha256(data: bytes) -> str:
 
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="python -m dissolve.corpus", description=__doc__.split("\n\n")[0])
-    parser.add_argument("command", choices=("add", "build", "verify"))
-    parser.add_argument("paths", nargs="+", type=Path)
+    parser.add_argument("command", choices=("add", "build", "verify", "prefetch"))
+    parser.add_argument("paths", nargs="*", type=Path)
     parser.add_argument("--corpus", type=Path, default=None, help="release directory (default: DISSOLVE_CORPUS_DIR)")
     args = parser.parse_args(argv)
+    if (args.command == "prefetch") != (not args.paths):
+        parser.error("prefetch takes no paths; add, build and verify need at least one")
     corpus = args.corpus or research._corpus_dir()
-    if args.command == "add":
+    if args.command == "prefetch":
+        result = prefetch()
+    elif args.command == "add":
         result = add(args.paths, corpus)
     elif args.command == "build":
         result = build(args.paths, corpus)

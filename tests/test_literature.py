@@ -6,6 +6,7 @@ import copy
 import gzip
 import hashlib
 import inspect
+import importlib
 import json
 import math
 import os
@@ -1049,6 +1050,20 @@ def test_ingest_reports_an_unsupported_file_and_keeps_going(tmp_path, monkeypatc
     )
     assert result["documents_added"] == 1
     assert result["failures"] == ["notes.docx: unsupported document type .docx"]
+
+
+def test_prefetch_loads_the_three_pinned_models_and_takes_no_paths(monkeypatch, tmp_path):
+    loaded = []
+    monkeypatch.setattr(research, "_dense_vectors", lambda texts, model_name=None: loaded.append("encoder") or (BGE_MODEL, []))
+    monkeypatch.setattr(research, "_pair_dir", lambda: tmp_path)
+    monkeypatch.setattr(research, "_verify_pair_artifacts", lambda directory: loaded.append("reranker") or str(directory))
+    converter = importlib.import_module("docling.document_converter").DocumentConverter
+    monkeypatch.setattr(converter, "initialize_pipeline", lambda self, fmt: loaded.append(f"docling {fmt.name}"))
+    assert corpus.main(["prefetch"]) == 0
+    assert loaded == ["encoder", "reranker", "docling PDF"]
+    for argv in (["prefetch", "paper.pdf"], ["add"]):
+        with pytest.raises(SystemExit):
+            corpus.main(argv)
 
 
 @pytest.mark.skipif(not os.getenv("DISSOLVE_CORPUS_REFERENCE"), reason="set DISSOLVE_CORPUS_REFERENCE to a directory with canonical/")

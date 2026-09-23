@@ -1643,6 +1643,28 @@ def test_detect_length_unit_defaults_to_angstrom_without_two_carbons():
 
 # ------------------------------------------------------------- ORCA text i/o
 
+def test_new_simulations_are_optional_and_the_doctor_says_where_to_get_them(monkeypatch, tmp_path):
+    from dissolve.cli import doctor_report
+
+    monkeypatch.delenv("ORCA_BIN", raising=False)
+    monkeypatch.setenv(cl.COSMO_PYTHON_ENV, str(tmp_path / "no-python"))
+    monkeypatch.setattr(shutil, "which", lambda name: None)
+    check = next(c for c in doctor_report(tmp_path)["checks"] if c["name"] == "New COSMO simulations")
+    assert check["status"] == "not_required"
+    assert check["found"] == {"ORCA 6": False, "openCOSMO-RS": False, "Open Babel": False}
+    for where in ("orcaforum.kofo.mpg.de", "TUHH-TVT/opencosmorspy", cl.COSMO_PYTHON_ENV, "obabel"):
+        assert where in check["detail"]
+    monkeypatch.setenv("ORCA_BIN", "/opt/orca/orca")
+    monkeypatch.setenv(cl.COSMO_PYTHON_ENV, sys.executable)
+    monkeypatch.setattr(shutil, "which", lambda name: f"/usr/bin/{name}")
+    check = next(c for c in doctor_report(tmp_path)["checks"] if c["name"] == "New COSMO simulations")
+    assert check["status"] == "pass"
+    with pytest.raises(cl.CosmoDependencyError, match="orcaforum.kofo.mpg.de"):
+        monkeypatch.delenv("ORCA_BIN")
+        monkeypatch.setattr(shutil, "which", lambda name: None)
+        cl.run_solute_dft_orca({"work_dir": tmp_path, "inchikey": "X", "smiles": "C"})
+
+
 def test_orca_opt_input_names_the_parameterised_level():
     text = cl.orca_opt_input(_atoms(("H", 0, 0, 0), ("H", 0, 0, 0.74)))
     assert "! OPT BP86 def2-TZVP(-f) TightSCF" in text

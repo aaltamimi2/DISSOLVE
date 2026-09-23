@@ -1,0 +1,61 @@
+#!/usr/bin/env bash
+# DISSOLVE from a fresh clone in one command:  ./dissolve [CLI arguments]
+#
+# The first run sets everything up, then starts the agent:
+#   - uv, the Python package manager (into .tools/ if it is not already installed);
+#   - .venv, the agent on Python 3.11 with exactly the versions in uv.lock;
+#   - .venv-tea, the live-TEA worker on Python 3.12 with exactly requirements-tea.txt;
+#   - the pinned literature models (BGE encoder, reranker, Docling), about 2 GB, once.
+# Later runs only start the agent. `./dissolve doctor` checks the setup; `./dissolve test` runs the test suite.
+#
+# The model key comes from the environment or from ~/.dissolve/credentials.env. Live TEA also needs the
+# plastics process model in vendor/plastics. New COSMO surfaces need ORCA and openCOSMO-RS; `./dissolve doctor`
+# says where to get them.
+set -euo pipefail
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
+say() { printf 'dissolve: %s\n' "$*" >&2; }
+
+UV="$(command -v uv || true)"
+if [ -z "$UV" ]; then
+  UV="$ROOT/.tools/uv"
+  if [ ! -x "$UV" ]; then
+    say "installing uv into $ROOT/.tools"
+    curl -LsSf https://astral.sh/uv/install.sh | env UV_INSTALL_DIR="$ROOT/.tools" UV_NO_MODIFY_PATH=1 sh >/dev/null
+  fi
+fi
+
+[ -d "$ROOT/.venv" ] || say "first run: building the agent environment (.venv)"
+"$UV" sync --project "$ROOT" --locked --quiet
+
+if [ ! -f "$ROOT/.venv/.dissolve-tea-ready" ]; then
+  say "building the live-TEA worker environment (.venv-tea, Python 3.12)"
+  # --no-config: the agent's pins in pyproject.toml are not the worker's
+  [ -x "$ROOT/.venv-tea/bin/python" ] || "$UV" venv --no-config --quiet --python 3.12 "$ROOT/.venv-tea"
+  "$UV" pip install --no-config --quiet --python "$ROOT/.venv-tea/bin/python" -r "$ROOT/requirements-tea.txt"
+  touch "$ROOT/.venv/.dissolve-tea-ready"
+fi
+
+if [ ! -f "$ROOT/.venv/.dissolve-models-ready" ]; then
+  say "downloading the pinned literature models (once)"
+  if "$ROOT/.venv/bin/python" -m dissolve.corpus prefetch >/dev/null; then
+    touch "$ROOT/.venv/.dissolve-models-ready"
+  else
+    say "model download failed; the literature tools will retry on first use"
+  fi
+fi
+
+if [ "${1:-}" = test ]; then
+  shift
+  cd "$ROOT" && exec "$ROOT/.venv/bin/python" -m pytest "$@"
+fi
+
+if [ -z "${META_MUSE_API_KEY:-}${GOOGLE_API_KEY:-}${ANTHROPIC_API_KEY:-}" ]; then
+  CREDENTIALS="${DISSOLVE_HOME:-$HOME/.dissolve}/credentials.env"
+  if [ -r "$CREDENTIALS" ]; then
+    set -a; . "$CREDENTIALS"; set +a
+  else
+    say "no model key: export one, or put it in $CREDENTIALS (META_MUSE_API_KEY for the default model;"
+    say "GOOGLE_API_KEY with --model gemini; ANTHROPIC_API_KEY with --model claude)"
+  fi
+fi
+exec "$ROOT/.venv/bin/dissolve" "$@"

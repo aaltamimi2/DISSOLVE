@@ -9,6 +9,7 @@ import json
 import math
 import os
 import re
+import shutil
 import sys
 import time
 import uuid
@@ -1016,6 +1017,23 @@ def doctor_report(
         parameter_surface=live_tea.get("parameter_surface"),
         plastics_layout=live_tea.get("plastics_layout"),
         execution_path=execution_path,
+    )
+
+    from dissolve import cosmo_logp
+
+    tools = {  # what new solute or solvent COSMO surfaces need, and where to get it
+        "ORCA 6": (bool(os.getenv("ORCA_BIN") or shutil.which("orca")),
+                   "https://orcaforum.kofo.mpg.de, free for academic use; `orca` on PATH or ORCA_BIN"),
+        "openCOSMO-RS": (cosmo_logp._cosmo_python().is_file(),
+                         f"https://github.com/TUHH-TVT/opencosmorspy in the Python named by {cosmo_logp.COSMO_PYTHON_ENV}"),
+        "Open Babel": (bool(shutil.which("obabel")), "`obabel` on PATH"),
+    }
+    missing = [f"{name} ({where})" for name, (found, where) in tools.items() if not found]
+    add(
+        "New COSMO simulations", "not_required" if missing else "pass",
+        "optional: new COSMO surfaces need " + "; ".join(missing) + ". Stored results and lookups work without them."
+        if missing else "ORCA, openCOSMO-RS and Open Babel found",
+        found={name: found for name, (found, _where) in tools.items()},
     )
 
     return {

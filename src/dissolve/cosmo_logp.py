@@ -1427,11 +1427,17 @@ def _classify_job_solvents(
     return held, missing_orca, unavailable
 
 
+ORCA_MISSING = (
+    "ORCA is not installed. New COSMO surfaces need ORCA 6 (free for academic use after registering at "
+    "https://orcaforum.kofo.mpg.de); put `orca` on PATH or set ORCA_BIN."
+)
+
+
 def run_solute_dft_orca(ctx: Mapping[str, Any]) -> dict[str, Any]:
     """Serial ORCA geometry + COSMO surface for one solute. No ``%pal``."""
     orca = os.environ.get("ORCA_BIN") or shutil.which("orca")
     if not orca:
-        raise CosmoDependencyError("orca is not available")
+        raise CosmoDependencyError(ORCA_MISSING)
     work = Path(ctx["work_dir"])
     work.mkdir(parents=True, exist_ok=True)
     inchikey = str(ctx["inchikey"])
@@ -1800,7 +1806,7 @@ def run_solvent_dft_orca(ctx: Mapping[str, Any]) -> dict[str, Any]:
     """Serial ORCA geometry + COSMO surface for one library solvent. No ``%pal``."""
     orca = os.environ.get("ORCA_BIN") or shutil.which("orca")
     if not orca:
-        raise CosmoDependencyError("orca is not available")
+        raise CosmoDependencyError(ORCA_MISSING)
     work = Path(ctx["work_dir"])
     work.mkdir(parents=True, exist_ok=True)
     inchikey = str(ctx["inchikey"])

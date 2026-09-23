@@ -4387,9 +4387,10 @@ def live_engine_status() -> dict[str, Any]:
             "detail": (
                 "Live BioSTEAM execution requires Python 3.12 or newer. "
                 f"This process is Python {platform.python_version()}. "
-                "Set DISSOLVE_TEA_PYTHON to the dissolve-tea-312 interpreter "
-                "(biosteam==2.52.17, thermosteam==0.52.16) and "
-                "DISSOLVE_PLASTICS_PATH to unpublished plastics 0.1.4. "
+                "Build the worker environment with ./dissolve (.venv-tea: "
+                "requirements-tea.txt, biosteam==2.52.17, thermosteam==0.52.16) "
+                "or set DISSOLVE_TEA_PYTHON to one, and put unpublished plastics "
+                "0.1.4 in vendor/plastics or DISSOLVE_PLASTICS_PATH. "
                 "Public plastics 0.1.3 is incompatible."
             ),
         }
@@ -4640,7 +4641,8 @@ def live_environment_report() -> dict[str, Any]:
     if sys.version_info < (3, 12) and not configured_python:
         why.append(
             f"this process is Python {platform.python_version()}, "
-            "which is below 3.12, and DISSOLVE_TEA_PYTHON is unset"
+            "which is below 3.12, there is no .venv-tea (./dissolve builds it), "
+            "and DISSOLVE_TEA_PYTHON is unset"
         )
     elif configured_python and shutil.which(
         os.path.expanduser(configured_python)
@@ -4649,7 +4651,7 @@ def live_environment_report() -> dict[str, Any]:
             f"DISSOLVE_TEA_PYTHON={configured_python} is not an executable"
         )
     if not plastics:
-        why.append("DISSOLVE_PLASTICS_PATH is unset")
+        why.append("the plastics model is not in vendor/plastics and DISSOLVE_PLASTICS_PATH is unset")
     elif layout is None or layout.get("layout") == "unrecognised":
         why.append(
             f"the plastics package is missing under {plastics}"
@@ -5028,8 +5030,9 @@ def _live_tea_blocker() -> dict[str, Any] | None:
             f"{status.get('detail') or status.get('reason')}"
         ),
         "live_tea_reason": status.get("reason"),
-        "remediation": "Run `dissolve doctor`. Live TEA needs the plastics process model and a Python 3.12 worker "
-        "with biosteam==2.52.17 and thermosteam==0.52.16 (DISSOLVE_PLASTICS_PATH, DISSOLVE_TEA_PYTHON).",
+        "remediation": "Run `dissolve doctor` (./dissolve doctor in a checkout). Live TEA needs the plastics process "
+        "model (vendor/plastics or DISSOLVE_PLASTICS_PATH) and the Python 3.12 worker environment that ./dissolve "
+        "builds (.venv-tea or DISSOLVE_TEA_PYTHON).",
     }
 
 
