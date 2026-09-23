@@ -25,3 +25,6 @@ STRAP/
 /.venv/
 /.tools/
 *.egg-info/
+
+# The web UI's toolchain; its build ships in src/dissolve/ui.
+/web/node_modules/
