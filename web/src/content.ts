@@ -103,7 +103,7 @@ export const QUICK_ACTIONS: QuickAction[] = [
   },
   {
     label: "Integrated Workflow",
-    blurb: "Plan, check safety and cost in one request",
+    blurb: "Plan, check safety and weigh tradeoffs in one request",
     icon: Rocket,
     examples: [
       { text: "For LDPE/EVOH/PET multilayer film: plan the separation, check each solvent's safety, and cost the LDPE stage.", feature: "tea" },
