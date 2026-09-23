@@ -39,6 +39,27 @@ def _live_tea_works(monkeypatch, tmp_path):
     monkeypatch.setattr(tea, "_REPO_TEA_PYTHON", tmp_path / "no-venv-tea" / "python")
     monkeypatch.setattr(tea.tea_polymer_parameters, "VENDORED_PLASTICS", tmp_path / "no-vendored-plastics")
 
+
+@pytest.fixture(autouse=True)
+def _cosmo_jobs_in_tmp(monkeypatch, tmp_path):
+    """COSMO jobs, DFT slot locks and ORCA surfaces never land in ~/cosmo-artifacts."""
+    monkeypatch.setenv(cl.JOBS_DIR_ENV, str(tmp_path / "cosmo-jobs"))
+    monkeypatch.setenv(cl.ARTIFACTS_DIR_ENV, str(tmp_path / "cosmo-artifacts"))
+
+
+# Not published: COSMObase (licensed COSMOtherm solvent files), the ORCA surfaces computed on the owner's machine, and
+# the ORCA polymer COSMO outputs. New surfaces need ORCA 6 and openCOSMO-RS, so these tests skip where they are absent.
+needs_cosmobase = pytest.mark.skipif(
+    not cl.DEFAULT_COSMOBASE_SOLVENTS_DIR.is_dir(), reason="needs COSMObase (licensed COSMOtherm solvent files)",
+)
+needs_held_surfaces = pytest.mark.skipif(
+    not (cl.DEFAULT_COSMOBASE_SOLVENTS_DIR.is_dir() and cl.DEFAULT_ORCA_ARTIFACTS_DIR.is_dir()),
+    reason="needs COSMObase and ORCA solvent surfaces (new ones need ORCA 6 and openCOSMO-RS)",
+)
+needs_polymer_cosmo = pytest.mark.skipif(
+    not pc.POLYMER_SOURCE_DIR.is_dir(), reason=f"needs the ORCA polymer COSMO outputs in {pc.POLYMER_SOURCE_DIR}",
+)
+
 # --- from test_contaminant_aliases.py: Commit F: table lookup + served identity. No query-time parser.
 _ROOT = Path(__file__).resolve().parents[1]
 
@@ -545,11 +566,11 @@ def test_logp_absolute_is_refused_and_does_not_persist(tmp_path, monkeypatch):
     assert "dft=not_run" in buf.getvalue() or "dft=not_run" in text or "absolute_logp_refused" in text
 
 
+@needs_held_surfaces
 def test_logp_prints_delta_against_named_water_when_gamma_is_mocked(
     tmp_path, monkeypatch,
 ):
-    from dissolve import cosmo_logp as cl
-
+    monkeypatch.delenv(cl.ARTIFACTS_DIR_ENV)  # reads this machine's held ORCA surfaces
     monkeypatch.setattr(
         cl, "ln_gamma_infinite_dilution",
         lambda *a, **k: 1.0,
@@ -577,6 +598,7 @@ def test_logp_prints_delta_against_named_water_when_gamma_is_mocked(
             raise AssertionError(line)
 
 
+@needs_cosmobase
 def test_logp_unknown_smiles_is_no_validation_basis(tmp_path, monkeypatch):
     monkeypatch.setenv("DISSOLVE_COSMO_JOBS_DIR", str(tmp_path / "jobs"))
     monkeypatch.setenv("DISSOLVE_COSMO_ARTIFACTS_DIR", str(tmp_path / "orca"))
@@ -594,9 +616,9 @@ def test_logp_unknown_smiles_is_no_validation_basis(tmp_path, monkeypatch):
     assert "contaminant_mode" not in app.session
 
 
+@needs_held_surfaces
 def test_logp_file_is_not_a_persistent_mode_and_continues_after_a_refusal(tmp_path, monkeypatch):
-    from dissolve import cosmo_logp as cl
-
+    monkeypatch.delenv(cl.ARTIFACTS_DIR_ENV)  # reads this machine's held ORCA surfaces
     monkeypatch.setattr(cl, "ln_gamma_infinite_dilution", lambda *a, **k: 1.0)
     smiles_file = tmp_path / "batch.smi"
     smiles_file.write_text("\n".join([cl.DEP_SMILES, "not_a_smiles", "CCO"]) + "\n")
@@ -1550,10 +1572,10 @@ def test_specified_rt_fallback_still_passes_strap():
 
 
 # --- from test_cosmo_logp.py: ORCA_LOGP_SCOPE.v1 accept tests.
-COSMOBASE = (Path.home() / "COSMO-POLYMER-ML/results/oligomers/all-cosmotherm-solvents")
+COSMOBASE = cl.DEFAULT_COSMOBASE_SOLVENTS_DIR
 
 
-ARTIFACTS = (Path.home() / "cosmo-artifacts")
+ARTIFACTS = cl.DEFAULT_ORCA_ARTIFACTS_DIR.parent
 
 
 HAS_COSMOBASE = (COSMOBASE / "diethylphthalate_c0.cosmo").is_file()
@@ -2809,6 +2831,7 @@ def test_p4b_interpreter_without_opencosmorspy_refuses_and_does_not_recurse(tmp_
 def test_p4b_unparseable_stdout_and_timeout_are_named_refuses(tmp_path, monkeypatch):
     pytest.importorskip("rdkit")
     artifacts, solvents = _dummy_p3_dirs(tmp_path)
+    monkeypatch.setenv(cl.COSMO_PYTHON_ENV, sys.executable)
 
     def fake_run(*_a, **_k):
         return type("R", (), {
@@ -3588,6 +3611,7 @@ def test_does_not_import_broken_converter_or_orca_runner():
     assert "_discard_unverified" not in _SRC
 
 
+@needs_polymer_cosmo
 def test_split_pe_is_one_conformer_not_two():
     recs = pc.split_mcos(_PE)
     assert len(recs) == 1
@@ -3605,6 +3629,7 @@ def test_split_pe_is_one_conformer_not_two():
     assert sum(int(ch) for ch in rec.w_vector) != 1
 
 
+@needs_polymer_cosmo
 def test_split_pvc_config_9400():
     recs = pc.split_mcos(_PVC)
     assert len(recs) == 1
@@ -3619,6 +3644,7 @@ def test_split_pvc_config_9400():
     assert atoms[0]["symbol"] == "c"
 
 
+@needs_polymer_cosmo
 def test_pvc_w_is_atom_mask_not_boltzmann():
     masks = [pc.split_mcos(p)[0].w_vector for p in sorted(_PVC.parent.glob("*.mcos"))]
     assert len(masks) == 27
@@ -3626,6 +3652,7 @@ def test_pvc_w_is_atom_mask_not_boltzmann():
     assert len(masks[0]) == 44
 
 
+@needs_polymer_cosmo
 def test_convert_pvc_keeps_full_surface(tmp_path):
     converted = pc.convert_gaussian_cosmo(_PVC, tmp_path / "pvc.cosmo")
     assert converted.n_atoms == 44
@@ -3658,6 +3685,7 @@ def test_convert_pvc_keeps_full_surface(tmp_path):
     )
 
 
+@needs_polymer_cosmo
 def test_convert_pet_91_not_91_segments(tmp_path):
     converted = pc.convert_gaussian_cosmo(_PET, tmp_path / "pet.cosmo")
     assert converted.n_atoms == 91
@@ -3666,6 +3694,7 @@ def test_convert_pet_91_not_91_segments(tmp_path):
     assert converted.n_segments != converted.n_atoms
 
 
+@needs_polymer_cosmo
 def test_coord_rad_only_file_is_refused():
     rec = pc.split_mcos(_PVC)[0]
     fake = [{"area": 1.0} for _ in range(rec.n_atoms)]
@@ -3680,6 +3709,7 @@ def test_measured_oligomer_sizes_are_identity_not_a_job_launch():
     assert [n for _, n in pc.DFT_JOB_ORDER] == [38, 44, 44, 48, 62, 84, 91, 104]
 
 
+@needs_polymer_cosmo
 def test_pe_converted_identity_is_n_dodecane_surface(tmp_path):
     converted = pc.convert_gaussian_cosmo(_PE, tmp_path / "pe.cosmo")
     rec = pc.split_mcos(_PE)[0]
@@ -3703,6 +3733,7 @@ def test_pe_converted_identity_is_n_dodecane_surface(tmp_path):
     assert len(first_atom) == 6
 
 
+@needs_polymer_cosmo
 def test_coord_car_not_coord_rad_for_geometry():
     rec = pc.split_mcos(_PE)[0]
     atoms = pc.parse_coord_car_atoms(rec.gaussian_body)
@@ -3713,6 +3744,7 @@ def test_coord_car_not_coord_rad_for_geometry():
     assert symbols.count("H") == 26
 
 
+@needs_polymer_cosmo
 def test_converted_file_has_coord_car_then_nine_field_segments(tmp_path):
     converted = pc.convert_gaussian_cosmo(_PE, tmp_path / "pe.cosmo")
     text = converted.path.read_text()
@@ -3734,6 +3766,7 @@ def test_converted_file_has_coord_car_then_nine_field_segments(tmp_path):
     assert converted.n_segments != converted.n_atoms
 
 
+@needs_polymer_cosmo
 def test_pvdf_is_2883_segments_not_44():
     src = pc.first_source_file("pvdf")
     rec = pc.split_mcos(src)[0]
@@ -3790,6 +3823,7 @@ def test_24a_parameterization_is_refused(tmp_path):
     assert "24a" not in str(pc.COSMOBASE_PARAMETERISATION)
 
 
+@needs_polymer_cosmo
 def test_r1_identity_still_refuses_n_segments_eq_n_atoms():
     rec = pc.split_mcos(pc.PVC_MCOS)[0]
     fake = [{"area": 1.0} for _ in range(rec.n_atoms)]
@@ -3894,10 +3928,7 @@ def test_bridged_dep_toluene_ln_gamma_matches_isolated_2002():
 
 
 # --- from test_campaign_basis.py: campaign_basis.v1 projection: held switches join without a campaign rerun.
-_PAIR_CAMPAIGN = Path(
-    f"{Path.home()}/dissolve-v12-campaign/"
-    "polymer-solvent-tea-lca-20260818/run_definition.json"
-)
+_PAIR_CAMPAIGN = tea_ranking.SHIPPED_CAMPAIGN / "run_definition.json"
 
 
 _SECONDS_PER_PAIR = 6991.363639038995 / 462
@@ -4234,10 +4265,7 @@ def test_declared_switch_in_fixed_fields_is_held_not_stamped():
 
 
 # --- from test_campaign_consume.py: Bind a registered campaign to lookup without ingesting JSONL into cache.
-_SEALED = Path(
-    f"{Path.home()}/dissolve-v12-campaign/"
-    "polymer-solvent-tea-lca-20260818"
-)
+_SEALED = tea_ranking.SHIPPED_CAMPAIGN
 
 
 _CANONICAL = (
@@ -4389,7 +4417,7 @@ def _mini_campaign(
     }
 
 
-def test_empty_registry_is_unregistered(monkeypatch, tmp_path):
+def test_unset_registry_registers_only_the_shipped_campaign(monkeypatch, tmp_path):
     monkeypatch.delenv(tea_ranking.REGISTRY_ENV, raising=False)
     data = _data_campaign_consume(tea.lookup_admitted_process_records(
         source="campaign",
@@ -4397,8 +4425,13 @@ def test_empty_registry_is_unregistered(monkeypatch, tmp_path):
     ))
     assert data["success"] is False
     assert data["error_code"] == "campaign_not_registered"
-    assert data["n_registered"] == 0
+    assert data["n_registered"] == 1
     assert data["supplied"] == _OTHER
+    shipped = _data_campaign_consume(tea.lookup_admitted_process_records(
+        source="campaign", campaign_fingerprint=_CANONICAL, target_polymer="LDPE",
+    ))
+    assert (shipped["success"], shipped["campaign_fingerprint"]) == (True, _CANONICAL)
+    assert shipped["n_rows_consumed"] >= 1
 
 
 def test_missing_fingerprint_is_first(monkeypatch, tmp_path):

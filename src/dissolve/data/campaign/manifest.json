@@ -1,0 +1,110 @@
+{
+  "DISSOLVE_PLASTICS_PATH": "/home/aaltamimi2/langchain-STRAP-v8/reference-scripts/plastics-master-3",
+  "DISSOLVE_TEA_PYTHON": "/home/aaltamimi2/anaconda3/envs/dissolve-tea-312/bin/python",
+  "aggregate_pair_wall_seconds": 6991.363639038995,
+  "all_twelve_fields_explicit": true,
+  "append_log_fingerprint": "8b11ee68ce9948418872d892076bf275cb8b0dc1f95e72b0af80bbd2ac1eee3a",
+  "artifact_sha256": {
+    "process_rows_jsonl": "9d4b3931afb8cae02d8eb066f18e09afeea7565c3c929d113fb01ce7a0b7d892",
+    "raw_append_jsonl": "0ab666bf8efbb0fc932152a4636566e4c47a949cf99d16c8dca782219791e2c2",
+    "run_definition_json": "ecbb1c4cbc7c05d35a619a26cbcaee45c7b50f7d70443b00d657e1ac3d9925c4"
+  },
+  "campaign": "polymer-solvent-tea-lca-20260818",
+  "campaign_fingerprint": "ef62efb3a708d782ce58cac3295cc9de71b0a7e8d076f6ca79f1ba5830a29636",
+  "campaign_fingerprint_basis": "dissolve.process_campaign_definition.v2",
+  "census": {
+    "pair_count": 462,
+    "per_polymer": {
+      "EVOH": 55,
+      "LDPE": 60,
+      "NYLON6": 25,
+      "NYLON66": 41,
+      "PC": 50,
+      "PES": 15,
+      "PET": 46,
+      "PP": 53,
+      "PS": 57,
+      "PVC": 60
+    },
+    "priced_solvent_count": 61,
+    "temperature_counts": {
+      "100.0": 28,
+      "105.0": 20,
+      "110.0": 22,
+      "115.0": 25,
+      "120.0": 19,
+      "125.0": 20,
+      "130.0": 21,
+      "135.0": 21,
+      "140.0": 18,
+      "145.0": 19,
+      "150.0": 16,
+      "155.0": 11,
+      "160.0": 17,
+      "25.0": 26,
+      "30.0": 9,
+      "35.0": 8,
+      "40.0": 7,
+      "45.0": 8,
+      "50.0": 9,
+      "55.0": 7,
+      "60.0": 12,
+      "65.0": 10,
+      "70.0": 6,
+      "75.0": 13,
+      "80.0": 21,
+      "85.0": 17,
+      "90.0": 18,
+      "95.0": 34
+    }
+  },
+  "complete": true,
+  "counts": {
+    "attempted": 462,
+    "failed": 54,
+    "succeeded": 408
+  },
+  "created_at": "2026-08-19T03:38:03.368465+00:00",
+  "end_timestamp": "2026-08-19T05:36:37.718568+00:00",
+  "failure_reasons": {
+    "lca_factor_basis_unavailable": 15,
+    "priced_solvent_unmodellable": 39
+  },
+  "finalized_at": "2026-08-19T05:40:45.566149+00:00",
+  "fingerprint_history": {
+    "append_log": "The original durable log carries append_log_fingerprint from line 1; it covers exact pair/config definitions, selection, source commit, and asset identities.",
+    "first_verified_after_directive_recorded_count": 87,
+    "strengthened_identity": "Runtime engine versions became an owner requirement after the append run began. No result was rerun and the append log was not rewritten. process_rows.jsonl is the canonical consumer export and carries the strengthened fingerprint plus append_log_fingerprint on every row."
+  },
+  "fixed_basis": {
+    "dissolution_capacity": 3.0,
+    "energy_case": "C1",
+    "feedstock_distance_km": 0.0,
+    "labor_cost": 120000.0,
+    "precipitation_temperature_c": 35.0,
+    "processing_capacity": 20000.0,
+    "solvent_loss_pct": 0.01,
+    "target_plastic_percent": 55.0
+  },
+  "plastics_path": "/home/aaltamimi2/langchain-STRAP-v8/reference-scripts/plastics-master-3",
+  "process_rows_jsonl": "/home/aaltamimi2/dissolve-v12-campaign/polymer-solvent-tea-lca-20260818/process_rows.jsonl",
+  "raw_append_jsonl": "/home/aaltamimi2/dissolve-v12-campaign/polymer-solvent-tea-lca-20260818/results.jsonl",
+  "results_jsonl": "/home/aaltamimi2/dissolve-v12-campaign/polymer-solvent-tea-lca-20260818/results.jsonl",
+  "run_definition": "/home/aaltamimi2/dissolve-v12-campaign/polymer-solvent-tea-lca-20260818/run_definition.json",
+  "run_definition_sha256": "ef62efb3a708d782ce58cac3295cc9de71b0a7e8d076f6ca79f1ba5830a29636",
+  "runtime_engine_versions": {
+    "biosteam": "2.52.17",
+    "plastics": "0.1.4",
+    "python": "3.12.13",
+    "thermosteam": "0.52.16"
+  },
+  "schema_version": 2,
+  "selection_rule": "For each live-admitted polymer except duplicate HDPE and each priced solvent, choose the lowest stored 25-160 C grid node whose solubility is at least 5 wt%.",
+  "source_commit": "29705daadd66b2e8a728e35dc9c09fd519f43a06",
+  "source_repository": "/home/aaltamimi2/dissolve-v12-work",
+  "start_timestamp": "2026-08-19T03:39:22.700378+00:00",
+  "tea_cache_asset_sha256": "f95dff48c68d57543e472ece51b59f4d807326cee432f1a1138029efcee12173",
+  "tea_python": "/home/aaltamimi2/anaconda3/envs/dissolve-tea-312/bin/python",
+  "thermodynamics_asset_sha256": "4aa3adc7af54c295c6a647bb8b04a72b0ffc0a7adc75ec4b9d920099df0311dc",
+  "total_wall_clock_seconds": 7035.01819
+}

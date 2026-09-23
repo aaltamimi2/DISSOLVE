@@ -26,10 +26,7 @@ def _live_tea_works(monkeypatch, tmp_path):
     monkeypatch.setattr(tea.tea_polymer_parameters, "VENDORED_PLASTICS", tmp_path / "no-vendored-plastics")
 
 # --- from test_lookup_parity.py: §10.1 lookup capability-parity on evaluate_process(mode=lookup).
-_SEALED = Path(
-    f"{Path.home()}/dissolve-v12-campaign/"
-    "polymer-solvent-tea-lca-20260818"
-)
+_SEALED = tea_ranking.SHIPPED_CAMPAIGN
 
 
 _CANONICAL = (

@@ -39,7 +39,7 @@ build-backend = "setuptools.build_meta"
 where = ["src"]
 
 [tool.setuptools.package-data]
-dissolve = ["data/*", "data/corpus/*", "cosmo_workers/*.py"]
+dissolve = ["data/*", "data/corpus/*", "data/campaign/*", "cosmo_workers/*.py"]
 
 [tool.pytest.ini_options]
 pythonpath = ["src"]

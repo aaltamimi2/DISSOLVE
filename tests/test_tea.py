@@ -55,10 +55,7 @@ def _live_tea_works(monkeypatch, tmp_path):
     monkeypatch.setattr(tea.tea_polymer_parameters, "VENDORED_PLASTICS", tmp_path / "no-vendored-plastics")
 
 # --- from test_evaluate_process.py: evaluate_process lookup, evaluate, sensitivity, and route.
-_SEALED = Path(
-    f"{Path.home()}/dissolve-v12-campaign/"
-    "polymer-solvent-tea-lca-20260818"
-)
+_SEALED = tea_ranking.SHIPPED_CAMPAIGN
 
 
 _CANONICAL = (
@@ -3591,9 +3588,10 @@ def test_worker_scenario_reads_switches_from_config():
 
 
 # --- from test_tea_polymer_parameters.py: Live TEA admission, parameter surface, and standing — no BioSTEAM.
-_REAL_PLASTICS_PARENT = Path(
-    f"{Path.home()}/langchain-STRAP-v8/reference-scripts/plastics-master-3"
-)
+# This checkout's live-TEA environment (both gitignored until plastics is published), read before the autouse fixture
+# hides them from every other test.
+_REAL_PLASTICS_PARENT = tea.tea_polymer_parameters.VENDORED_PLASTICS
+_CHECKOUT_TEA_PYTHON = tea._REPO_TEA_PYTHON
 
 
 _FIXTURE_OUTLINE = '''
@@ -4349,9 +4347,7 @@ def test_runpy_child_returns_named_json_for_refused_target(monkeypatch):
     this machine, use them — that is the path that was dead.
     """
     tea._LIVE_CHILD_HANDSHAKE_CACHE.clear()
-    live_python = Path(
-        f"{Path.home()}/anaconda3/envs/dissolve-tea-312/bin/python"
-    )
+    live_python = _CHECKOUT_TEA_PYTHON
     if live_python.is_file():
         monkeypatch.setenv("DISSOLVE_TEA_PYTHON", str(live_python))
     else:
@@ -4381,9 +4377,7 @@ def test_runpy_child_returns_named_json_for_refused_target(monkeypatch):
 
 def test_live_engine_status_exercises_runpy_child(monkeypatch):
     """Readiness must start the documented child, not only hash and probe."""
-    live_python = Path(
-        f"{Path.home()}/anaconda3/envs/dissolve-tea-312/bin/python"
-    )
+    live_python = _CHECKOUT_TEA_PYTHON
     plastics_ok = (
         _REAL_PLASTICS_PARENT / "plastics" / "strap" / "property_package.py"
     ).is_file()
@@ -4402,9 +4396,7 @@ def test_live_engine_status_exercises_runpy_child(monkeypatch):
 
 
 def test_readiness_fails_closed_when_child_writes_no_json(monkeypatch):
-    live_python = Path(
-        f"{Path.home()}/anaconda3/envs/dissolve-tea-312/bin/python"
-    )
+    live_python = _CHECKOUT_TEA_PYTHON
     plastics_ok = (
         _REAL_PLASTICS_PARENT / "plastics" / "strap" / "property_package.py"
     ).is_file()
@@ -4635,7 +4627,7 @@ def test_readiness_rejects_resolved_python_below_3_12(tmp_path, monkeypatch):
 
 
 def test_group_meeting_interpreter_is_not_ready(monkeypatch):
-    interpreter = (Path.home() / "anaconda3/envs/group-meeting/bin/python")
+    interpreter = (Path.home() / "anaconda3/envs/group-meeting/bin/python")  # Python 3.11 with the TEA packages
     plastics = (
         _REAL_PLASTICS_PARENT / "plastics" / "strap" / "property_package.py"
     )

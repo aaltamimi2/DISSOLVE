@@ -288,6 +288,16 @@ def held_field_mismatches(
 # --- campaign_consume: Locate and integrity-bind a registered campaign. Do not ingest JSONL into cache.
 
 REGISTRY_ENV = "DISSOLVE_CAMPAIGN_REGISTRY"
+#: The sealed polymer-solvent TEA/LCA campaign (462 rows) ships with the package and is the registry
+#: when DISSOLVE_CAMPAIGN_REGISTRY is unset. Its manifest pins the two consumed artifacts by sha256.
+SHIPPED_CAMPAIGN = Path(str(files("dissolve").joinpath("data/campaign")))
+_SHIPPED_REGISTRY = {
+    "ef62efb3a708d782ce58cac3295cc9de71b0a7e8d076f6ca79f1ba5830a29636": {
+        "manifest_path": str(SHIPPED_CAMPAIGN / "manifest.json"),
+        "manifest_sha256": "763c3b52306bda21653749b2378d4b17da9ba394b6683d1055a838e1fa5ec347",
+        "append_log_aliases": ["8b11ee68ce9948418872d892076bf275cb8b0dc1f95e72b0af80bbd2ac1eee3a"],
+    },
+}
 _HEX64 = re.compile(r"^[0-9a-f]{64}$")
 _ARTIFACT_FILES = (
     ("run_definition.json", "run_definition_json"),
@@ -336,12 +346,12 @@ def load_campaign_registry(path: str | None = None) -> dict[str, Any]:
     raw = str(
         path if path is not None else os.getenv(REGISTRY_ENV) or ""
     ).strip()
-    if not raw:
-        return {"entries": {}, "n_registered": 0, "aliases": {}}
     registry_path = Path(raw).expanduser()
     try:
-        text = registry_path.read_text(encoding="utf-8")
-        parsed = json.loads(text, object_pairs_hook=_duplicate_object)
+        parsed = (
+            json.loads(registry_path.read_text(encoding="utf-8"), object_pairs_hook=_duplicate_object)
+            if raw else _SHIPPED_REGISTRY
+        )
     except CampaignConsumeError:
         raise
     except (OSError, UnicodeDecodeError, json.JSONDecodeError) as error:

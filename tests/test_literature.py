@@ -262,10 +262,11 @@ _HEADING_FILL = research._HEADING_FILL_KEY
 _TEMP_RE = research._CANONICAL_TEMPERATURE_RE
 
 
-_MEASURE_SCRIPTS = (
-    (Path.home() / "dissolve-v12-audit/one_paper_experiment/measure_step2.py"),
-    (Path.home() / "dissolve-v12-audit/one_paper_experiment/measure_step3_pypdf.py"),
-    (Path.home() / "dissolve-v12-audit/one_paper_experiment/measure_parse.py"),
+# The corpus audit tree records how the shipped corpus was measured. It is not published, so its tests skip elsewhere.
+AUDIT = Path.home() / "dissolve-v12-audit"
+needs_audit = pytest.mark.skipif(not AUDIT.is_dir(), reason=f"reads the unpublished corpus audit tree {AUDIT}")
+_MEASURE_SCRIPTS = tuple(
+    AUDIT / "one_paper_experiment" / name for name in ("measure_step2.py", "measure_step3_pypdf.py", "measure_parse.py")
 )
 
 
@@ -621,6 +622,7 @@ def test_c26_figure_artifacts_missing_absent_from_code_and_payload():
     assert "figure_artifacts_missing" not in (doc.get("quality_flags") or [])
 
 
+@needs_audit
 def test_measurement_scripts_deleted_the_block_key_allowlist():
     needle = re.compile(
         r"""["']block_id["']\s*,\s*["']kind["']\s*,\s*["']reading_order["']"""
@@ -709,9 +711,6 @@ def test_envelope_schema_and_separators_unowned():
 
 
 # --- from test_canonical_ingest.py: C7: canonical documents reach the portable index. Not C3. Not C8.
-PERSIST = Path(
-    f"{Path.home()}/dissolve-v12-audit/one_paper_experiment/parses/canonical_document.v1.json"
-)
 
 
 def _canon() -> dict:
@@ -767,11 +766,12 @@ def _canon() -> dict:
 
 def _ingest_canonical(monkeypatch, tmp_path, canonical: dict, knowledgebase: str = "c7-join"):
     monkeypatch.setenv("DISSOLVE_RESEARCH_HOME", str(tmp_path))
+    # the chunk plumbing is under test, not the encoder: a stand-in that answers as the pinned BGE model
+    monkeypatch.setattr(research, "_dense_vectors", lambda texts, model_name=None: (
+        BGE_MODEL, [_unit_embedding_recipe(BGE_DIM, 0) for _ in texts]))
     path = tmp_path / "canonical_document.v1.json"
     path.write_text(json.dumps(canonical), encoding="utf-8")
-    return research._ingest_inputs(
-        [str(path)], [], knowledgebase, True, 4, False,
-    )
+    return research._ingest_inputs([str(path)], [], knowledgebase, True, 4)
 
 
 def _search_rows(payload: dict) -> list[dict]:
@@ -1066,16 +1066,10 @@ def test_known_answer_every_shipped_chunk_reproduces_from_its_canonical_document
 
 
 # --- from test_corpus_canonical.py: C3: 21 canonical documents. Not C8. Loads persist; does not call Docling.
-CENSUS = (Path.home() / "dissolve-v12-audit/corpus/CENSUS.v1.json")
-
-
-MANIFEST = (Path.home() / "dissolve-v12-audit/corpus/CANONICAL_MANIFEST.v1.json")
-
-
-CANON_DIR = (Path.home() / "dissolve-v12-audit/corpus/canonical")
-
-
-PARSED_DIR = (Path.home() / "dissolve-v12-audit/corpus/parsed")
+CENSUS = AUDIT / "corpus/CENSUS.v1.json"
+MANIFEST = AUDIT / "corpus/CANONICAL_MANIFEST.v1.json"
+CANON_DIR = AUDIT / "corpus/canonical"
+PARSED_DIR = AUDIT / "corpus/parsed"
 
 
 PROBE_SHA = "1af857ee2e8299d6d0a586216ead5109a9b4293505585edf76da3bca9772ad21"
@@ -1114,6 +1108,7 @@ def _parsed_corpus_canonical(sha: str) -> dict:
     return json.loads((PARSED_DIR / f"{sha}.v1.json").read_text(encoding="utf-8"))
 
 
+@needs_audit
 def test_manifest_sha_set_equals_census_indexed_union_held_out():
     manifest = _manifest()
     shas = [row["pdf_sha256"] for row in manifest["documents"]]
@@ -1124,6 +1119,7 @@ def test_manifest_sha_set_equals_census_indexed_union_held_out():
     assert PATENT_SHA not in set(shas)
 
 
+@needs_audit
 def test_every_row_is_docling_with_null_fallback():
     for row in _manifest()["documents"]:
         assert row["parser_backend"] == "docling"
@@ -1135,6 +1131,7 @@ def test_every_row_is_docling_with_null_fallback():
         )
 
 
+@needs_audit
 def test_1a_on_all_21_persisted_canonicals():
     for row in _manifest()["documents"]:
         doc = _canonical_corpus_canonical(row["pdf_sha256"])
@@ -1158,6 +1155,7 @@ def test_1a_on_all_21_persisted_canonicals():
             )
 
 
+@needs_audit
 def test_1b_rebuild_from_saved_parsed_on_all_21(monkeypatch):
     """1b is a property of build_canonical_document. Re-run it; do not re-Docling."""
     events = _install_order_spies(monkeypatch)
@@ -1175,6 +1173,7 @@ def test_1b_rebuild_from_saved_parsed_on_all_21(monkeypatch):
         _assert_1a(doc)
 
 
+@needs_audit
 def test_c25_glyphs_on_all_21_and_report_temperatures():
     counts = []
     for row in _manifest()["documents"]:
@@ -1198,6 +1197,7 @@ def test_c25_glyphs_on_all_21_and_report_temperatures():
     assert len(counts) == 21
 
 
+@needs_audit
 def test_c35_start_guard_and_recorded_breaches():
     """C3.5 after e1388ba OBJECT: start-guard held; C1 peak not silently raised; breaches listed."""
     assert research.PEAK_RSS_CEILING_BYTES == C1_CEILING_BYTES
