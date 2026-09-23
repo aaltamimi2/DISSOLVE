@@ -1657,9 +1657,12 @@ def test_compact_refuses_when_reported_template_cannot_fit():
 
 
 def test_context_window_defaults_only_when_alias_omits_it():
-    assert context_window("openai:muse-spark-1.2") == 128_000
+    assert context_window("openai:gemini-3.1-flash") == 128_000
     assert context_window("openai:foo-8k") == 8_000
     assert context_window("openai:foo-256k") == 256_000
+    # Muse Spark takes 1,048,576 tokens; 256k is the working window the owner chose for now.
+    for muse in ("openai:muse-spark-1.3", "openai:muse-spark-1.2", "openai:muse-spark-1.3-contributor"):
+        assert context_window(muse) == 256_000
 
 
 def test_compaction_does_not_read_turn_records():
@@ -1822,8 +1825,9 @@ def test_data_scope_notes_operating_temperature():
 def test_run_turn_production_timing_keeps_current_group_and_meets_budget(monkeypatch):
     n = {"i": 0}
     windows = []
-    history = [
-        {"role": "user", "content": "OLD " + ("x" * 490_000)},
+    window = context_window("openai:muse-spark-1.2")
+    history = [  # just past window - reserve once the tool round lands (4 characters per estimated token)
+        {"role": "user", "content": "OLD " + ("x" * (4 * window - 22_000))},
         {"role": "assistant", "content": "old answer"},
     ]
 
@@ -1838,8 +1842,7 @@ def test_run_turn_production_timing_keeps_current_group_and_meets_budget(monkeyp
         assert not (
             messages[lead].get("role") == "assistant" and messages[lead].get("tool_calls")
         )
-        target = context_window("openai:muse-spark-1.2") - 8_000
-        assert estimated_tokens(messages) <= target
+        assert estimated_tokens(messages) <= window - 8_000
         return {"text": "done", "tool_calls": []}
 
     def spy(messages, record, **kwargs):
@@ -1856,7 +1859,7 @@ def test_run_turn_production_timing_keeps_current_group_and_meets_budget(monkeyp
     )
     assert result.status == "ok"
     assert n["i"] == 2
-    assert windows == [128_000]
+    assert windows == [window]
     assert history[-1]["role"] == "assistant"
     users = [m for m in history if m.get("role") == "user"]
     assert any("CURRENT-QUERY" in str(u.get("content")) for u in users)
@@ -2155,7 +2158,7 @@ def _ok_turn(query, *, session, model, messages, on_event, api_base, api_key_env
 def test_resolve_model_aliases_and_default():
     alias, spec = resolve_model("muse")
     assert alias == "muse-spark"
-    assert spec.model == "openai:muse-spark-1.2"
+    assert spec.model == "openai:muse-spark-1.3"
     assert spec.env_var == "META_MUSE_API_KEY"
     assert spec.base_url == "https://api.meta.ai/v1"
     with pytest.raises(ValueError, match="Unknown model alias"):
@@ -2661,7 +2664,7 @@ def test_oneshot_resolves_through_cli_table(monkeypatch, tmp_path):
         agent._main()
     assert exc.value.code == 0
     assert seen["query"] == "hello"
-    assert seen["model"] == "openai:muse-spark-1.2"
+    assert seen["model"] == "openai:muse-spark-1.3"
     assert seen["api_base"] == "https://api.meta.ai/v1"
     assert seen["api_key_env"] == "META_MUSE_API_KEY"
 

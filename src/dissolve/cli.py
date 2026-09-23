@@ -743,7 +743,7 @@ MODELS = {
         "General reasoning",
     ),
     "muse-spark": ModelSpec(
-        "Meta Muse Spark 1.2", "openai:muse-spark-1.2", "META_MUSE_API_KEY",
+        "Meta Muse Spark 1.3", "openai:muse-spark-1.3", "META_MUSE_API_KEY",
         "Reasoning model · Meta API", "https://api.meta.ai/v1",
     ),
 }

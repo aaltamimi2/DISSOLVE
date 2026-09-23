@@ -354,13 +354,18 @@ def estimated_tokens(messages: list) -> int:
     return sum(len(json.dumps(m, default=str)) for m in messages) // 4
 
 
+# Working windows well inside the provider's limit: Muse Spark 1.2 and 1.3 take 1,048,576 tokens
+# (dev.meta.ai/docs/models). 256k is the owner's stopgap until a single query needs fewer tokens.
+_FAMILY_WINDOWS = {"muse_spark": 256_000}
+
+
 def context_window(model: str) -> int:
-    """Tokens; 128k unless the alias itself names a *k window."""
+    """Tokens: the alias's own *k window, else its family's working window, else 128k."""
     ident = (model.partition(":")[2] or model).replace("-", "_")
     for part in reversed(ident.split("_")):
         if part.endswith("k") and part[:-1].isdigit() and int(part[:-1]):
             return int(part[:-1]) * 1000
-    return 128_000
+    return next((window for family, window in _FAMILY_WINDOWS.items() if ident.startswith(family)), 128_000)
 
 
 def _summary_text(record: dict[str, Any]) -> str:
