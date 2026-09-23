@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import copy
+import functools
 import gzip
 import hashlib
 import json
@@ -22,7 +23,7 @@ from importlib.resources import files
 from itertools import combinations
 from pathlib import Path
 from types import MappingProxyType
-from typing import Any, Iterable, Literal, Mapping, Optional, Sequence
+from typing import Any, Callable, Iterable, Literal, Mapping, Optional, Sequence
 
 from . import tea_polymer_parameters, tea_worker
 from . import thermodynamics as thermo
@@ -4193,10 +4194,21 @@ def _cache_index() -> dict[str, dict[str, Any]]:
     return {_config_key(item["config"]): item for item in _records()}
 
 
-def _tea_worker_python() -> str:
-    """Resolve the isolated worker interpreter without changing the default."""
+#: The live-TEA worker environment a source checkout sets up next to the code (kept out of git).
+_REPO_TEA_PYTHON = Path(__file__).resolve().parents[2] / ".venv-tea" / "bin" / "python"
+
+
+def _configured_tea_python() -> str:
+    """DISSOLVE_TEA_PYTHON, else the checkout's .venv-tea interpreter, else ''."""
     configured = str(os.getenv(_TEA_WORKER_PYTHON_ENV) or "").strip()
-    return os.path.expanduser(configured) if configured else sys.executable
+    if configured:
+        return os.path.expanduser(configured)
+    return str(_REPO_TEA_PYTHON) if _REPO_TEA_PYTHON.exists() else ""
+
+
+def _tea_worker_python() -> str:
+    """The isolated worker interpreter: the configured one, else this interpreter."""
+    return _configured_tea_python() or sys.executable
 
 
 def _tea_worker_source_provenance() -> tuple[dict[str, Any], Optional[str]]:
@@ -4218,8 +4230,9 @@ def _tea_worker_environment() -> dict[str, str]:
     """Expose this source tree and the optional process model to the worker."""
     environment = os.environ.copy()
     python_paths = [str(Path(__file__).resolve().parents[1])]
-    if path := str(os.getenv("DISSOLVE_PLASTICS_PATH") or "").strip():
-        python_paths.append(str(Path(path).expanduser().resolve()))
+    if (plastics := tea_polymer_parameters.resolve_plastics_path()) is not None:
+        python_paths.append(str(plastics))
+        environment["DISSOLVE_PLASTICS_PATH"] = str(plastics)
     python_paths.extend(
         item for item in environment.get("PYTHONPATH", "").split(os.pathsep)
         if item
@@ -4364,10 +4377,9 @@ def _live_cited_package_provenance(path: str) -> tuple[dict[str, Any], Optional[
 
 
 def live_engine_status() -> dict[str, Any]:
-    path = str(os.getenv("DISSOLVE_PLASTICS_PATH") or "").strip()
-    configured_python = bool(
-        str(os.getenv(_TEA_WORKER_PYTHON_ENV) or "").strip()
-    )
+    plastics = tea_polymer_parameters.resolve_plastics_path()
+    path = str(plastics) if plastics is not None else ""
+    configured_python = bool(_configured_tea_python())
     worker_python = _tea_worker_python()
     if not configured_python and sys.version_info < (3, 12):
         return {
@@ -4598,9 +4610,9 @@ def live_environment_report() -> dict[str, Any]:
     before anyone rediscovers it at the moment of failure.
     """
     status = live_engine_status()
-    configured_python = str(os.getenv(_TEA_WORKER_PYTHON_ENV) or "").strip()
-    plastics = str(os.getenv("DISSOLVE_PLASTICS_PATH") or "").strip()
-    root = tea_polymer_parameters.resolve_plastics_path(plastics or None)
+    configured_python = _configured_tea_python()
+    root = tea_polymer_parameters.resolve_plastics_path()
+    plastics = str(root) if root is not None else ""
     layout = (
         tea_polymer_parameters.plastics_layout_diagnosis(root)
         if root is not None else None
@@ -4678,7 +4690,7 @@ def live_environment_report() -> dict[str, Any]:
         reason = "plastics_path_inner_package_dir"
         why_text = "; ".join(why)
     else:
-        check_status = "warn"
+        check_status = "fail"
         why_text = "; ".join(why) if why else str(status.get("detail") or reason)
     return {
         "check_status": check_status,
@@ -4747,8 +4759,8 @@ def live_child_handshake(
         _tea_worker_python(),
         str(provenance.get("worker_source_path") or ""),
         str(provenance.get("expected_worker_source_sha256") or ""),
-        str(os.getenv(_TEA_WORKER_PYTHON_ENV) or ""),
-        str(os.getenv("DISSOLVE_PLASTICS_PATH") or ""),
+        _configured_tea_python(),
+        str(tea_polymer_parameters.resolve_plastics_path() or ""),
     )
     cached = _LIVE_CHILD_HANDSHAKE_CACHE.get(key)
     if cached is not None:
@@ -4995,16 +5007,56 @@ def _live(config: dict[str, Any], timeout_seconds: int) -> dict[str, Any]:
     return result
 
 
+_ENGINE_MODES = ("auto", "live")
+_LIVE_VERIFIED: ContextVar[bool] = ContextVar("live_tea_verified", default=False)
+
+
+def _live_tea_blocker() -> dict[str, Any] | None:
+    """Why TEA cannot answer now, or None. Every TEA answer needs a working live engine: a stored
+    result is the memo of that engine (its process model is hash-pinned to the one that made the
+    cache), never a stand-in for it."""
+    if _LIVE_VERIFIED.get():
+        return None
+    status = live_engine_status()
+    if status.get("available"):
+        return None
+    return {
+        "success": False,
+        "error_type": "live_tea_unavailable",
+        "error": (
+            "Live TEA is not available, so no TEA result is served, not even a stored one: "
+            f"{status.get('detail') or status.get('reason')}"
+        ),
+        "live_tea_reason": status.get("reason"),
+        "remediation": "Run `dissolve doctor`. Live TEA needs the plastics process model and a Python 3.12 worker "
+        "with biosteam==2.52.17 and thermosteam==0.52.16 (DISSOLVE_PLASTICS_PATH, DISSOLVE_TEA_PYTHON).",
+    }
+
+
+def _requires_live_tea(function: Callable[..., str]) -> Callable[..., str]:
+    """TEA entry points refuse unless live TEA works, then run with that check done once."""
+    @functools.wraps(function)
+    def guarded(*args: Any, **kwargs: Any) -> str:
+        blocker = _live_tea_blocker()
+        if blocker is not None:
+            return tool_error(
+                function.__name__, blocker["error"], error_code="live_tea_unavailable",
+                live_tea_reason=blocker["live_tea_reason"], remediation=blocker["remediation"],
+            )
+        token = _LIVE_VERIFIED.set(True)
+        try:
+            return function(*args, **kwargs)
+        finally:
+            _LIVE_VERIFIED.reset(token)
+    return guarded
+
+
 def _would_start_live_child(config: dict[str, Any], engine_mode: str) -> bool:
     """Detect a live BioSTEAM child without starting it."""
     mode = str(engine_mode or "auto").strip().casefold()
-    if mode == "live":
+    if mode == "live" or "lca_cfs" in config:
         return True
-    if mode != "auto":
-        return False
-    if "lca_cfs" in config:
-        return True
-    return _cache_index().get(_config_key(config)) is None
+    return mode == "auto" and _cache_index().get(_config_key(config)) is None
 
 
 def _unconfirmed_live_tea_error(
@@ -5013,12 +5065,14 @@ def _unconfirmed_live_tea_error(
     engine_mode: str,
     confirm_live_tea: Optional[bool],
 ) -> str | None:
-    """Refuse before any child when live work is requested without confirm.
+    """Refuse before any child when live work is requested without confirm, or engine_mode is not auto or live.
 
     Applies to screening_shortlist, a scenarios list, a stored route,
     and a sensitivity sweep. Omit is false.
     """
     named_mode = str(engine_mode or "auto")
+    if named_mode.strip().casefold() not in _ENGINE_MODES:
+        return tool_error(tool, "engine_mode must be auto or live", error_code="invalid_engine_mode", engine_mode=named_mode)
     live_flags = [
         _would_start_live_child(config, named_mode) for config in configs
     ]
@@ -5026,6 +5080,12 @@ def _unconfirmed_live_tea_error(
     if n_live <= 0 or confirm_live_tea is True:
         return None
     seconds = _LIVE_TEA_SECONDS_PER_PAIR
+    # A stored plant that matches the twelve but not the switches is never served; say which switch differs.
+    other_plants = [
+        {"cache_record_label": analog.get("label"), "flowsheet_switch_deltas": deltas}
+        for config, flag in zip(configs, live_flags)
+        if flag and (analog := _record_for_design_point(config)) is not None and (deltas := _flowsheet_switch_deltas(config))
+    ]
     return tool_error(
         tool,
         "live TEA children require confirm_live_tea=true",
@@ -5036,75 +5096,50 @@ def _unconfirmed_live_tea_error(
         seconds_per_pair=seconds,
         estimated_wall_seconds=float(n_live) * seconds,
         per_stage_per_ordering=True,
+        **({"stored_plant_differs": other_plants} if other_plants else {}),
     )
 
 
-def _run(config: dict[str, Any], engine_mode: str, timeout_seconds: int) -> dict[str, Any]:
-    mode = str(engine_mode or "auto").strip().casefold()
-    if mode not in {"auto", "cache", "live"}:
-        return {"success": False, "error": "engine_mode must be auto, cache, or live", "error_type": "invalid_engine_mode"}
-    lca_override = "lca_cfs" in config
+def _cached_result(config: dict[str, Any]) -> dict[str, Any] | None:
+    """The stored live result for exactly this configuration, or None (an lca_cfs override is never stored)."""
     record = _cache_index().get(_config_key(config))
-    if mode != "live" and record and not lca_override:
-        result = copy.deepcopy(record["result"])
-        operations = result.get("operations") or {}
-        for field in (
-            "electricity_consumed_mj_per_kg", "heating_duty_mj_per_kg",
-            "cooling_duty_mj_per_kg", "total_energy_mj_per_kg",
-            "electricity_intensity_mj_per_kg",
-        ):
-            if operations.get(field) is not None:
-                operations[field] = float(operations[field]) / _LEGACY_OPERATING_HOURS
-        result["energy_normalization"] = {
-            "status": "corrected_legacy_annual_hour_basis",
-            "operating_hours_per_year": _LEGACY_OPERATING_HOURS,
-            "basis": "BioSTEAM annual kWh-or-kJ divided by annual resin kg",
-        }
-        metric_status = _cache_lca_metric_status(
-            config, result.get("lca") or {},
-        )
-        result.update({
-            "engine_mode": "cache", "cache_match_status": "exact",
-            "cache_record_label": record["label"], "config": config,
-            "lca_metric_status": metric_status,
-            "lca_status_definitions": _lca_status_definitions(metric_status),
-        })
-        return _coerce_nonfinite_served_tea(result)
-    if mode == "cache":
-        if lca_override:
-            return {
-                "success": False,
-                "error": (
-                    "An lca_cfs override requires live execution; cached LCA "
-                    "values were generated with the governed factor table."
-                ),
-                "error_type": "cache_lca_override_unsupported",
-                "engine_mode": "cache",
-                "cache_match_status": "not_applicable",
-                "config": config,
-            }
-        analog = _record_for_design_point(config)
-        deltas = _flowsheet_switch_deltas(config)
-        if analog is not None and deltas:
-            return {
-                "success": False,
-                "error": (
-                    "A cached record matches the D-8 twelve but not the "
-                    "flowsheet switches; refusing to serve the other plant's "
-                    "MSP."
-                ),
-                "error_type": "cache_flowsheet_mismatch",
-                "engine_mode": "cache",
-                "cache_match_status": "miss",
-                "config": config,
-                "cache_record_label": analog.get("label"),
-                "flowsheet_switch_deltas": deltas,
-            }
-        return {
-            "success": False, "error": "No exact cached simulation matches this configuration.",
-            "error_type": "cache_miss", "engine_mode": "cache",
-            "cache_match_status": "miss", "config": config,
-        }
+    if not record or "lca_cfs" in config:
+        return None
+    result = copy.deepcopy(record["result"])
+    operations = result.get("operations") or {}
+    for field in (
+        "electricity_consumed_mj_per_kg", "heating_duty_mj_per_kg",
+        "cooling_duty_mj_per_kg", "total_energy_mj_per_kg",
+        "electricity_intensity_mj_per_kg",
+    ):
+        if operations.get(field) is not None:
+            operations[field] = float(operations[field]) / _LEGACY_OPERATING_HOURS
+    result["energy_normalization"] = {
+        "status": "corrected_legacy_annual_hour_basis",
+        "operating_hours_per_year": _LEGACY_OPERATING_HOURS,
+        "basis": "BioSTEAM annual kWh-or-kJ divided by annual resin kg",
+    }
+    metric_status = _cache_lca_metric_status(config, result.get("lca") or {})
+    result.update({
+        "engine_mode": "cache", "cache_match_status": "exact",
+        "cache_record_label": record["label"], "config": config,
+        "lca_metric_status": metric_status,
+        "lca_status_definitions": _lca_status_definitions(metric_status),
+    })
+    return _coerce_nonfinite_served_tea(result)
+
+
+def _run(config: dict[str, Any], engine_mode: str, timeout_seconds: int) -> dict[str, Any]:
+    """auto serves the stored live result for exactly this configuration, else runs live; live always runs.
+    Neither answers unless live TEA works."""
+    mode = str(engine_mode or "auto").strip().casefold()
+    if mode not in _ENGINE_MODES:
+        return {"success": False, "error": "engine_mode must be auto or live", "error_type": "invalid_engine_mode"}
+    blocker = _live_tea_blocker()
+    if blocker is not None:
+        return {**blocker, "engine_mode": mode, "cache_match_status": "not_consulted", "config": config}
+    if mode == "auto" and (cached := _cached_result(config)) is not None:
+        return cached
     result = _live(config, timeout_seconds)
     result.update({
         "engine_mode": "live", "cache_match_status": "bypassed" if mode == "live" else "miss",
@@ -5442,7 +5477,6 @@ _NONFINITE_SERVED_TEA_ERROR_TYPES = frozenset({
 })
 _PROMOTED_ALL_FAIL_ERROR_TYPES = frozenset({
     "priced_solvent_unmodellable",
-    "cache_flowsheet_mismatch",
     "no_finite_msp",
     "tea_cashflow_undefined",
     "no_finite_gwp",
@@ -5859,7 +5893,7 @@ def _normalize_sensitivity_labels(
 
 def _normalized_admitted_record(record: dict[str, Any]) -> dict[str, Any]:
     config = copy.deepcopy(record.get("config") or {})
-    result = _run(config, "cache", 1)
+    result = _cached_result(config) or {}
     label = str(record.get("label") or "")
     axis = _sensitivity_axis_for_record(label)
     level = (
@@ -6010,6 +6044,7 @@ def _lookup_campaign_process_records(
     )
 
 
+@_requires_live_tea
 def lookup_admitted_process_records(
     target_polymer: str | list[str] | None = None,
     solvent: Optional[str] = None,
@@ -6721,6 +6756,7 @@ def _load_stored_route_from_handle(
     )
 
 
+@_requires_live_tea
 def evaluate_process(
     mode: Optional[str] = None,
     lookup_filter: Optional[dict[str, Any]] = None,
@@ -9586,6 +9622,7 @@ def _rank_planner_routes(
     )
 
 
+@_requires_live_tea
 def rank_landscape(
     source: Literal[
         "process_rows", "residual_route", "superstructure", "planner_routes"
@@ -10009,6 +10046,7 @@ def rank_landscape(
     )
 
 
+@_requires_live_tea
 def evaluate_tea_lca_scenarios(
     scenarios: Optional[list[dict[str, Any]]] = None,
     engine_mode: str = "auto",
@@ -11025,6 +11063,7 @@ def _feed_tea_basis_gap(
     ))
 
 
+@_requires_live_tea
 def evaluate_stored_route_tea_lca(
     feed_mass_fractions: Optional[dict[str, float]] = None,
     processing_capacity_mt_per_yr: Optional[float] = None,
@@ -11869,7 +11908,7 @@ def evaluate_stored_route_tea_lca(
         rows.append(row)
         if not result.get("success"):
             if result.get("error_type") in {
-                "cache_miss", "python_version", "surrogate_unavailable",
+                "python_version", "surrogate_unavailable",
                 "insufficient_surrogate_evidence",
             }:
                 design_point = (
@@ -12203,6 +12242,7 @@ _INAPPLICABLE_ON_SENSITIVITY = {
 }
 
 
+@_requires_live_tea
 def analyze_tea_sensitivity(
     scenario: Optional[dict[str, Any]] = None,
     parameter: str = "",

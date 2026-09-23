@@ -6,6 +6,8 @@ import inspect
 import json
 from pathlib import Path
 
+import pytest
+
 from dissolve import agent, analysis, tea, tea_ranking
 from dissolve import thermodynamics as thermo
 from dissolve.agent import dispatch, tool_schemas
@@ -13,6 +15,15 @@ from dissolve.cli import EXPECTED_REGISTRY_NAMES, CliApp, _parse_solvents_slash
 from dissolve.contracts import parse_tool_result
 from dissolve.session import bind_tool_session, new_session
 from dissolve.thermodynamics import solubility_query
+
+
+@pytest.fixture(autouse=True)
+def _live_tea_works(monkeypatch, tmp_path):
+    """TEA answers only when live TEA works; these tests stand in a working engine (tests of the check itself
+    override this) and never see this checkout's own live environment (.venv-tea, vendor/plastics)."""
+    monkeypatch.setattr(tea, "_live_tea_blocker", lambda: None)
+    monkeypatch.setattr(tea, "_REPO_TEA_PYTHON", tmp_path / "no-venv-tea" / "python")
+    monkeypatch.setattr(tea.tea_polymer_parameters, "VENDORED_PLASTICS", tmp_path / "no-vendored-plastics")
 
 # --- from test_lookup_parity.py: §10.1 lookup capability-parity on evaluate_process(mode=lookup).
 _SEALED = Path(

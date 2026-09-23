@@ -66,6 +66,15 @@ from dissolve.session import (
 )
 from dissolve.thermodynamics import get_available_solvents
 
+
+@pytest.fixture(autouse=True)
+def _live_tea_works(monkeypatch, tmp_path):
+    """TEA answers only when live TEA works; these tests stand in a working engine (tests of the check itself
+    override this) and never see this checkout's own live environment (.venv-tea, vendor/plastics)."""
+    monkeypatch.setattr(tea, "_live_tea_blocker", lambda: None)
+    monkeypatch.setattr(tea, "_REPO_TEA_PYTHON", tmp_path / "no-venv-tea" / "python")
+    monkeypatch.setattr(tea.tea_polymer_parameters, "VENDORED_PLASTICS", tmp_path / "no-vendored-plastics")
+
 # --- from test_acceptance.py: §10 acceptance tests. Stub the provider. Test 5 is identity-sensitive.
 _real_bind = agent.bind_handle_rows
 
@@ -634,15 +643,15 @@ def test_acceptance_6_large_screen_handle_and_follow_up(monkeypatch):
     assert third in second.answer
 
 
-def test_acceptance_7_tea_outside_cache_is_a_miss(monkeypatch):
+def test_acceptance_7_tea_outside_cache_needs_a_confirmed_live_run(monkeypatch):
     def answer(messages):
         payload = _tool_json(messages, "evaluate_process")
-        status = payload["data"].get("cache_match_status")
+        code = payload["data"].get("error_code")
         return {
             "text": (
-                f"Refusal {payload.get('refusal')}. cache_match_status {status}. "
-                "This is a miss, not an exact prior simulation of HDPE/dodecane "
-                "at 1 Mt/yr."
+                f"Refusal {payload.get('refusal')}. error_code {code}. "
+                "No stored simulation of HDPE/dodecane at 1 Mt/yr exists; costing it "
+                "needs a confirmed live TEA run."
             ),
             "tool_calls": [],
         }
@@ -652,7 +661,7 @@ def test_acceptance_7_tea_outside_cache_is_a_miss(monkeypatch):
             "id": "t", "name": "evaluate_process",
             "args": {
                 "mode": "evaluate",
-                "engine_mode": "cache",
+                "engine_mode": "auto",
                 "process_config": {
                     "target_polymer": "HDPE", "solvent": "dodecane",
                     "target_mass_percent": 60.0,
@@ -674,16 +683,12 @@ def test_acceptance_7_tea_outside_cache_is_a_miss(monkeypatch):
     assert result.status == "ok"
     ev = result.tool_trace[0]
     data = ev.result["data"]
-    assert data.get("cache_match_status") in {"miss", "surrogate"}
-    if data.get("cache_match_status") == "surrogate":
-        assert ev.result.get("source_basis") == "tea_screening_analog"
-        assert "analog" in result.answer.lower()
-        assert "simulation of" not in result.answer.lower()
-    else:
-        assert ev.result.get("available") is False
-        assert "miss" in result.answer.lower()
-        assert "tea_cache_exact" not in result.answer
-        assert "cache_match_status exact" not in result.answer.lower()
+    assert data.get("error_code") == "live_tea_cost_confirmation_required"
+    assert (data.get("n_live"), data.get("n_cache")) == (1, 0)
+    assert ev.result.get("available") is False
+    assert "confirmed live tea run" in result.answer.lower()
+    assert "tea_cache_exact" not in result.answer
+    assert "msp_usd_per_kg" not in json.dumps(data)
 
 
 def test_acceptance_composition_cannot_cost_the_ranked_screen(monkeypatch):
@@ -743,7 +748,7 @@ def test_acceptance_composition_cannot_cost_the_ranked_screen(monkeypatch):
                 "id": "p2", "name": "evaluate_process",
                 "args": {
                     "mode": "evaluate",
-                    "engine_mode": "cache",
+                    "engine_mode": "auto",
                     "process_config": _complete_ldpe_dodecane_c1_cache_scenario(),
                 },
             }],
@@ -3275,7 +3280,7 @@ def test_first_old_evaluate_name_shortlist_seeds_the_sheet(
                 "energy_case": "C1",
                 "target_mass_percent": 55.0,
             },
-            "engine_mode": "cache",
+            "engine_mode": "auto",
         },
     )
     assert result == {"success": True}
@@ -3286,7 +3291,7 @@ def test_first_old_evaluate_name_shortlist_seeds_the_sheet(
     assert seen[0]["target_mass_percent"] == 55.0
     assert captured["name"] == "evaluate_process"
     assert captured["kwargs"]["process_config"] is sheet
-    assert captured["kwargs"]["engine_mode"] == "cache"
+    assert captured["kwargs"]["engine_mode"] == "auto"
     assert "screening_shortlist" not in captured["kwargs"]
     assert "held_process_basis" not in captured["kwargs"]
     assert app._confirmation_sheet_submitted is True
@@ -3391,7 +3396,7 @@ def test_first_old_sensitivity_name_shortlist_seeds_the_sheet(
                 "target_mass_percent": 55.0,
             },
             "parameter": "solvent_price",
-            "engine_mode": "cache",
+            "engine_mode": "auto",
         },
     )
     assert result == {"success": True}
@@ -3403,7 +3408,7 @@ def test_first_old_sensitivity_name_shortlist_seeds_the_sheet(
     assert captured["name"] == "evaluate_process"
     assert captured["kwargs"]["process_config"] is sheet
     assert captured["kwargs"]["parameter"] == "solvent_price"
-    assert captured["kwargs"]["engine_mode"] == "cache"
+    assert captured["kwargs"]["engine_mode"] == "auto"
     assert "screening_shortlist" not in captured["kwargs"]
     assert "held_process_basis" not in captured["kwargs"]
     assert app._confirmation_sheet_submitted is True
@@ -3526,7 +3531,7 @@ def test_later_evaluate_runs_the_confirmed_buffer_not_model_args(
         "evaluate_process",
         {
             "mode": "evaluate",
-            "engine_mode": "cache",
+            "engine_mode": "live",
             "process_config": {"target_polymer": "LDPE", "irr": 0.15},
         },
     )
@@ -3535,7 +3540,7 @@ def test_later_evaluate_runs_the_confirmed_buffer_not_model_args(
     second = captured[1]["kwargs"]
     assert second["process_config"] is sheet
     assert second["process_config"]["irr"] == pytest.approx(0.10)
-    assert second["engine_mode"] == "cache"
+    assert second["engine_mode"] == "live"
     assert sheet["irr"] != 0.15
     app._cli_direct_dispatch(
         original,
@@ -3712,7 +3717,7 @@ def test_first_evaluate_process_shortlist_pops_handoff_and_seeds_the_sheet(
                 "energy_case": "C1",
                 "target_mass_percent": 55.0,
             },
-            "engine_mode": "cache",
+            "engine_mode": "auto",
         },
     )
     assert result == {"success": True}
@@ -3723,7 +3728,7 @@ def test_first_evaluate_process_shortlist_pops_handoff_and_seeds_the_sheet(
     assert seen[0]["target_mass_percent"] == 55.0
     assert captured["name"] == "evaluate_process"
     assert captured["kwargs"]["process_config"] is sheet
-    assert captured["kwargs"]["engine_mode"] == "cache"
+    assert captured["kwargs"]["engine_mode"] == "auto"
     assert "screening_shortlist" not in captured["kwargs"]
     assert "held_process_basis" not in captured["kwargs"]
     assert "process_configs" not in captured["kwargs"]
@@ -3753,7 +3758,7 @@ def test_non_tty_evaluate_process_keeps_the_handoff(tmp_path, monkeypatch):
             "items": [{"target_polymer": "LDPE", "solvent": "Dodecane"}],
         },
         "held_process_basis": {"energy_case": "C1"},
-        "engine_mode": "cache",
+        "engine_mode": "auto",
     }
     app._cli_direct_dispatch(original, "evaluate_process", model_args)
     assert captured["kwargs"] == model_args
@@ -3825,7 +3830,7 @@ def test_later_evaluate_process_runs_the_confirmed_buffer(
         "evaluate_process",
         {
             "mode": "evaluate",
-            "engine_mode": "cache",
+            "engine_mode": "live",
             "process_config": {"target_polymer": "LDPE", "irr": 0.15},
         },
     )
@@ -3834,7 +3839,7 @@ def test_later_evaluate_process_runs_the_confirmed_buffer(
     second = captured[1]["kwargs"]
     assert second["process_config"] is sheet
     assert second["process_config"]["irr"] == pytest.approx(0.10)
-    assert second["engine_mode"] == "cache"
+    assert second["engine_mode"] == "live"
     assert "process_configs" not in second
     assert sheet["irr"] != 0.15
 
@@ -3906,13 +3911,13 @@ def test_later_sensitivity_keeps_parameter_and_uses_confirmed_buffer(
         {
             "mode": "sensitivity",
             "parameter": "solvent_price",
-            "engine_mode": "cache",
+            "engine_mode": "live",
             "process_config": {"irr": 0.20},
         },
     )
     assert captured[1]["process_config"] is sheet
     assert captured[1]["parameter"] == "solvent_price"
-    assert captured[1]["engine_mode"] == "cache"
+    assert captured[1]["engine_mode"] == "live"
     assert sheet["irr"] != 0.20
 
 
@@ -3942,12 +3947,12 @@ def test_evaluate_process_route_mode_opens_the_sheet_without_process_config(
     result = app._cli_direct_dispatch(
         original,
         "evaluate_process",
-        {"mode": "route", "handle": "plan-1", "engine_mode": "cache"},
+        {"mode": "route", "handle": "plan-1", "engine_mode": "auto"},
     )
     assert result == {"success": True}
     assert captured["name"] == "evaluate_process"
     assert captured["kwargs"]["handle"] == "plan-1"
-    assert captured["kwargs"]["engine_mode"] == "cache"
+    assert captured["kwargs"]["engine_mode"] == "auto"
     assert "process_config" not in captured["kwargs"]
     assert "process_configs" not in captured["kwargs"]
     assert captured["kwargs"]["processing_capacity_mt_per_yr"] == 20_000.0
@@ -3988,12 +3993,12 @@ def test_later_route_keeps_handle_and_does_not_inject_process_config(
     app._cli_direct_dispatch(
         original,
         "evaluate_process",
-        {"mode": "route", "handle": "plan-1", "engine_mode": "cache"},
+        {"mode": "route", "handle": "plan-1", "engine_mode": "live"},
     )
     assert captured[0]["process_config"] is sheet
     assert captured[1]["handle"] == "plan-1"
     assert "process_config" not in captured[1]
-    assert captured[1]["engine_mode"] == "cache"
+    assert captured[1]["engine_mode"] == "live"
     assert captured[1]["processing_capacity_mt_per_yr"] == 20_000.0
 
 
@@ -4080,7 +4085,7 @@ def test_flatten_shortlist_mints_from_screen_on_the_envelope(
                 "energy_case": "C1",
                 "target_mass_percent": 55.0,
             },
-            "engine_mode": "cache",
+            "engine_mode": "auto",
         },
     )
     assert "screening_shortlist" not in captured["kwargs"]
@@ -5841,7 +5846,7 @@ def test_evaluate_refuses_each_lookup_selector(monkeypatch):
     for name, value in sent.items():
         payload = _data_not_applicable_in_mode(tea.evaluate_tea_lca_scenarios(
             [scenario],
-            engine_mode="cache",
+            engine_mode="auto",
             **{name: value},
         ))
         assert payload.get("error_code") == "not_applicable_in_mode"
@@ -5850,7 +5855,7 @@ def test_evaluate_refuses_each_lookup_selector(monkeypatch):
         assert "comparison_rows" not in payload
     empty = _data_not_applicable_in_mode(tea.evaluate_tea_lca_scenarios(
         [scenario],
-        engine_mode="cache",
+        engine_mode="auto",
         sensitivity_axes=[],
     ))
     assert empty.get("error_code") == "not_applicable_in_mode"
@@ -5862,7 +5867,7 @@ def test_nested_selector_stays_unknown_process_field(monkeypatch):
     _forbid_live(monkeypatch)
     payload = _data_not_applicable_in_mode(tea.evaluate_tea_lca_scenarios(
         [_public_from_record(record, sensitivity_axes=["solvent_price"])],
-        engine_mode="cache",
+        engine_mode="auto",
     ))
     assert payload.get("error_code") == "unknown_process_field"
     assert payload.get("error_code") != "not_applicable_in_mode"
@@ -5875,7 +5880,7 @@ def test_unknown_top_level_kwarg_is_unknown_process_field(monkeypatch):
     _forbid_live(monkeypatch)
     leftover = _data_not_applicable_in_mode(tea.evaluate_tea_lca_scenarios(
         [scenario],
-        engine_mode="cache",
+        engine_mode="auto",
         not_a_lookup_selector=True,
     ))
     assert leftover.get("error_code") == "unknown_process_field"
@@ -5885,21 +5890,21 @@ def test_unknown_top_level_kwarg_is_unknown_process_field(monkeypatch):
     assert "comparison_rows" not in leftover
     other = _data_not_applicable_in_mode(tea.evaluate_tea_lca_scenarios(
         [scenario],
-        engine_mode="cache",
+        engine_mode="auto",
         also_not_a_field=1,
     ))
     assert other.get("extra_keys") == ["also_not_a_field"]
     assert other.get("extra_keys") != leftover.get("extra_keys")
     pair = _data_not_applicable_in_mode(tea.evaluate_tea_lca_scenarios(
         [scenario],
-        engine_mode="cache",
+        engine_mode="auto",
         not_a_lookup_selector=True,
         also_not_a_field=1,
     ))
     assert pair.get("extra_keys") == ["also_not_a_field", "not_a_lookup_selector"]
     mixed = _data_not_applicable_in_mode(tea.evaluate_tea_lca_scenarios(
         [scenario],
-        engine_mode="cache",
+        engine_mode="auto",
         sensitivity_axes=["solvent_price"],
         not_a_lookup_selector=True,
     ))
@@ -5909,7 +5914,7 @@ def test_unknown_top_level_kwarg_is_unknown_process_field(monkeypatch):
     wrap = _data_not_applicable_in_mode(tea.evaluate_process(
         mode="evaluate",
         process_config=scenario,
-        engine_mode="cache",
+        engine_mode="auto",
         not_a_lookup_selector=True,
     ))
     assert wrap.get("error_code") == "unknown_process_field"
@@ -5922,7 +5927,7 @@ def test_evaluate_without_selectors_still_serves_cache(monkeypatch):
     _forbid_live(monkeypatch)
     payload = _data_not_applicable_in_mode(tea.evaluate_tea_lca_scenarios(
         [_public_from_record(record)],
-        engine_mode="cache",
+        engine_mode="auto",
     ))
     assert payload.get("success") is True
     assert payload.get("error_code") != "not_applicable_in_mode"
@@ -5951,7 +5956,7 @@ def test_dispatch_evaluate_selector_is_named_refuse(monkeypatch):
             "evaluate_process",
             mode="evaluate",
             process_config=_public_from_record(record),
-            engine_mode="cache",
+            engine_mode="auto",
             sensitivity_axes=["solvent_price"],
         )
         assert refused.get("available") is False
@@ -5961,7 +5966,7 @@ def test_dispatch_evaluate_selector_is_named_refuse(monkeypatch):
             "evaluate_process",
             mode="evaluate",
             process_config=_public_from_record(record),
-            engine_mode="cache",
+            engine_mode="auto",
         )
         assert served.get("available") is True
         assert served.get("source_basis") == "tea_cache_exact"
@@ -5970,7 +5975,7 @@ def test_dispatch_evaluate_selector_is_named_refuse(monkeypatch):
             "evaluate_process",
             mode="evaluate",
             process_config=_public_from_record(record),
-            engine_mode="cache",
+            engine_mode="auto",
             not_a_lookup_selector=True,
         )
         assert extra.get("available") is False
@@ -5996,7 +6001,7 @@ def test_evaluate_refuses_sensitivity_scalars(monkeypatch):
         assert name not in eval_props
         payload = _data_not_applicable_in_mode(tea.evaluate_tea_lca_scenarios(
             [scenario],
-            engine_mode="cache",
+            engine_mode="auto",
             **{name: value},
         ))
         assert payload.get("error_code") == "not_applicable_in_mode"
@@ -6016,7 +6021,7 @@ def test_evaluate_refuses_lookup_energy_cases_list(monkeypatch):
     ).parameters
     payload = _data_not_applicable_in_mode(tea.evaluate_tea_lca_scenarios(
         [_public_from_record(record)],
-        engine_mode="cache",
+        engine_mode="auto",
         energy_cases=["C1"],
     ))
     assert payload.get("error_code") == "not_applicable_in_mode"
@@ -6024,13 +6029,13 @@ def test_evaluate_refuses_lookup_energy_cases_list(monkeypatch):
     assert payload.get("inapplicable_fields") == ["energy_cases"]
     empty = _data_not_applicable_in_mode(tea.evaluate_tea_lca_scenarios(
         [_public_from_record(record)],
-        engine_mode="cache",
+        engine_mode="auto",
         energy_cases=[],
     ))
     assert empty.get("error_code") == "not_applicable_in_mode"
     nested = _data_not_applicable_in_mode(tea.evaluate_tea_lca_scenarios(
         [_public_from_record(record, energy_cases=["C1"])],
-        engine_mode="cache",
+        engine_mode="auto",
     ))
     assert nested.get("error_code") == "unknown_process_field"
     assert nested.get("error_code") != "not_applicable_in_mode"
@@ -6042,7 +6047,7 @@ def test_mixed_wrong_mode_scalars_name_each_home(monkeypatch):
     _forbid_live(monkeypatch)
     payload = _data_not_applicable_in_mode(tea.evaluate_tea_lca_scenarios(
         [_public_from_record(record)],
-        engine_mode="cache",
+        engine_mode="auto",
         energy_cases=["C1"],
         parameter="solvent_price",
     ))
@@ -6079,7 +6084,7 @@ def test_sensitivity_refuses_screening_handoff(monkeypatch):
     payload = _data_not_applicable_in_mode(tea.analyze_tea_sensitivity(
         scenario,
         parameter="solvent_price",
-        engine_mode="cache",
+        engine_mode="auto",
         screening_shortlist=shortlist,
     ))
     assert payload.get("error_code") == "not_applicable_in_mode"
@@ -6093,7 +6098,7 @@ def test_sensitivity_refuses_screening_handoff(monkeypatch):
     both = _data_not_applicable_in_mode(tea.analyze_tea_sensitivity(
         scenario,
         parameter="solvent_price",
-        engine_mode="cache",
+        engine_mode="auto",
         screening_shortlist=shortlist,
         held_process_basis={"energy_case": "C1"},
     ))
@@ -6105,7 +6110,7 @@ def test_sensitivity_refuses_screening_handoff(monkeypatch):
     held = _data_not_applicable_in_mode(tea.analyze_tea_sensitivity(
         scenario,
         parameter="solvent_price",
-        engine_mode="cache",
+        engine_mode="auto",
         held_process_basis={"energy_case": "C1"},
     ))
     assert held.get("error_code") == "not_applicable_in_mode"
@@ -6113,7 +6118,7 @@ def test_sensitivity_refuses_screening_handoff(monkeypatch):
     leftover = _data_not_applicable_in_mode(tea.analyze_tea_sensitivity(
         scenario,
         parameter="solvent_price",
-        engine_mode="cache",
+        engine_mode="auto",
         not_a_sensitivity_field=1,
     ))
     assert leftover.get("error_code") == "unknown_process_field"
@@ -6125,7 +6130,7 @@ def test_sensitivity_refuses_screening_handoff(monkeypatch):
         mode="sensitivity",
         process_config=scenario,
         parameter="solvent_price",
-        engine_mode="cache",
+        engine_mode="auto",
         not_a_sensitivity_field=1,
     ))
     assert wrap.get("error_code") == "unknown_process_field"
@@ -6134,7 +6139,7 @@ def test_sensitivity_refuses_screening_handoff(monkeypatch):
     mixed = _data_not_applicable_in_mode(tea.analyze_tea_sensitivity(
         scenario,
         parameter="solvent_price",
-        engine_mode="cache",
+        engine_mode="auto",
         screening_shortlist=shortlist,
         not_a_sensitivity_field=1,
     ))
@@ -6154,7 +6159,7 @@ def test_dispatch_sensitivity_handoff_is_named_refuse(monkeypatch):
             mode="sensitivity",
             process_config=scenario,
             parameter="solvent_price",
-            engine_mode="cache",
+            engine_mode="auto",
             screening_shortlist={
                 "source": "explicit",
                 "items": [{
@@ -6172,7 +6177,7 @@ def test_dispatch_sensitivity_handoff_is_named_refuse(monkeypatch):
             mode="sensitivity",
             process_config=scenario,
             parameter="solvent_price",
-            engine_mode="cache",
+            engine_mode="auto",
         )
         assert served.get("available") is True
         assert served.get("source_basis") == "tea_cache_exact"
@@ -6182,7 +6187,7 @@ def test_dispatch_sensitivity_handoff_is_named_refuse(monkeypatch):
             mode="sensitivity",
             process_config=scenario,
             parameter="solvent_price",
-            engine_mode="cache",
+            engine_mode="auto",
             not_a_sensitivity_field=1,
         )
         assert extra.get("available") is False
@@ -6203,7 +6208,7 @@ def test_lookup_energy_cases_and_sensitivity_parameter_still_serve(monkeypatch):
     sensitivity = _data_not_applicable_in_mode(tea.analyze_tea_sensitivity(
         _public_from_record(record),
         parameter="solvent_price",
-        engine_mode="cache",
+        engine_mode="auto",
     ))
     assert sensitivity.get("success") is True
     assert sensitivity.get("error_code") != "not_applicable_in_mode"
@@ -6225,7 +6230,7 @@ def test_dispatch_evaluate_refuses_scenario_only_arguments(monkeypatch, field, l
             "evaluate_process",
             mode="evaluate",
             process_config=_public_from_record(record),
-            engine_mode="cache",
+            engine_mode="auto",
             **{field: value},
         )
         assert refused.get("available") is False
@@ -6235,7 +6240,7 @@ def test_dispatch_evaluate_refuses_scenario_only_arguments(monkeypatch, field, l
             "evaluate_process",
             mode="evaluate",
             process_config=_public_from_record(record),
-            engine_mode="cache",
+            engine_mode="auto",
             **{list_field: [list_value]},
         )
         assert energy.get("available") is False
@@ -6258,7 +6263,7 @@ def test_evaluate_refuses_record_form_and_requested_metrics(monkeypatch):
         assert name not in eval_props
         payload = _data_not_applicable_in_mode(tea.evaluate_tea_lca_scenarios(
             [scenario],
-            engine_mode="cache",
+            engine_mode="auto",
             **{name: value},
         ))
         assert payload.get("error_code") == "not_applicable_in_mode"
@@ -6268,14 +6273,14 @@ def test_evaluate_refuses_record_form_and_requested_metrics(monkeypatch):
         assert "comparison_rows" not in payload
     empty = _data_not_applicable_in_mode(tea.evaluate_tea_lca_scenarios(
         [scenario],
-        engine_mode="cache",
+        engine_mode="auto",
         requested_metrics=[],
     ))
     assert empty.get("error_code") == "not_applicable_in_mode"
     assert empty.get("inapplicable_fields") == ["requested_metrics"]
     nested = _data_not_applicable_in_mode(tea.evaluate_tea_lca_scenarios(
         [_public_from_record(record, record_form="per_record")],
-        engine_mode="cache",
+        engine_mode="auto",
     ))
     assert nested.get("error_code") == "unknown_process_field"
     assert nested.get("error_code") != "not_applicable_in_mode"
@@ -6371,7 +6376,7 @@ def test_evaluate_process_top_level_selector_is_not_applicable(monkeypatch):
     payload = _data_not_applicable_in_mode(tea.evaluate_process(
         mode="evaluate",
         process_config=scenario,
-        engine_mode="cache",
+        engine_mode="auto",
         sensitivity_axes=["solvent_price"],
     ))
     assert payload.get("error_code") == "not_applicable_in_mode"
@@ -6385,7 +6390,7 @@ def test_evaluate_process_top_level_selector_is_not_applicable(monkeypatch):
     energy = _data_not_applicable_in_mode(tea.evaluate_process(
         mode="evaluate",
         process_config=scenario,
-        engine_mode="cache",
+        engine_mode="auto",
         energy_cases=["C1"],
     ))
     assert energy.get("error_code") == "not_applicable_in_mode"
@@ -6393,7 +6398,7 @@ def test_evaluate_process_top_level_selector_is_not_applicable(monkeypatch):
     leftover = _data_not_applicable_in_mode(tea.evaluate_process(
         mode="evaluate",
         process_config=scenario,
-        engine_mode="cache",
+        engine_mode="auto",
         not_a_lookup_selector=True,
     ))
     assert leftover.get("error_code") == "unknown_process_field"
@@ -6401,7 +6406,7 @@ def test_evaluate_process_top_level_selector_is_not_applicable(monkeypatch):
     mixed = _data_not_applicable_in_mode(tea.evaluate_process(
         mode="evaluate",
         process_config=scenario,
-        engine_mode="cache",
+        engine_mode="auto",
         sensitivity_axes=["solvent_price"],
         not_a_lookup_selector=True,
     ))
@@ -6438,7 +6443,7 @@ def test_dispatch_evaluate_process_selector_is_named_refuse(monkeypatch):
             "evaluate_process",
             mode="evaluate",
             process_config=scenario,
-            engine_mode="cache",
+            engine_mode="auto",
             sensitivity_axes=["solvent_price"],
         )
         assert refused.get("available") is False
@@ -6448,7 +6453,7 @@ def test_dispatch_evaluate_process_selector_is_named_refuse(monkeypatch):
             "evaluate_process",
             mode="evaluate",
             process_config=scenario,
-            engine_mode="cache",
+            engine_mode="auto",
             not_a_lookup_selector=True,
         )
         assert extra.get("available") is False
@@ -6458,7 +6463,7 @@ def test_dispatch_evaluate_process_selector_is_named_refuse(monkeypatch):
             "evaluate_process",
             mode="evaluate",
             process_config=scenario,
-            engine_mode="cache",
+            engine_mode="auto",
         )
         assert served.get("available") is True
         assert served.get("handle")

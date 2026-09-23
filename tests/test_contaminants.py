@@ -30,6 +30,15 @@ from dissolve.contracts import parse_tool_result
 from dissolve.cosmo_logp import COSMOBASE_PARAMETERISATION, Atom
 from dissolve.session import bind_tool_session, new_session
 
+
+@pytest.fixture(autouse=True)
+def _live_tea_works(monkeypatch, tmp_path):
+    """TEA answers only when live TEA works; these tests stand in a working engine (tests of the check itself
+    override this) and never see this checkout's own live environment (.venv-tea, vendor/plastics)."""
+    monkeypatch.setattr(tea, "_live_tea_blocker", lambda: None)
+    monkeypatch.setattr(tea, "_REPO_TEA_PYTHON", tmp_path / "no-venv-tea" / "python")
+    monkeypatch.setattr(tea.tea_polymer_parameters, "VENDORED_PLASTICS", tmp_path / "no-vendored-plastics")
+
 # --- from test_contaminant_aliases.py: Commit F: table lookup + served identity. No query-time parser.
 _ROOT = Path(__file__).resolve().parents[1]
 

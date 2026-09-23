@@ -28,6 +28,15 @@ from dissolve.cli import (
 from dissolve.contracts import parse_tool_result
 from dissolve.session import bind_tool_session, new_session, store_handle
 
+
+@pytest.fixture(autouse=True)
+def _live_tea_works(monkeypatch, tmp_path):
+    """TEA answers only when live TEA works; these tests stand in a working engine (tests of the check itself
+    override this) and never see this checkout's own live environment (.venv-tea, vendor/plastics)."""
+    monkeypatch.setattr(tea, "_live_tea_blocker", lambda: None)
+    monkeypatch.setattr(tea, "_REPO_TEA_PYTHON", tmp_path / "no-venv-tea" / "python")
+    monkeypatch.setattr(tea.tea_polymer_parameters, "VENDORED_PLASTICS", tmp_path / "no-vendored-plastics")
+
 # --- from test_chem21_she.py: CHEM21 SH&E scorer and G-score-alternative rerank (spec v2).
 _GREEN_IDENT_QUERY = dict(
     feed_polymers=["LDPE", "PP"], target_polymer="LDPE", limit=3,
@@ -939,7 +948,7 @@ def test_evaluate_comparison_rows_stamp_not_requested(monkeypatch):
     _forbid_live(monkeypatch)
     c1 = _record_by_label("ldpe-route-c1")
     payload = _data_evaluate_safety_standing(tea.evaluate_tea_lca_scenarios(
-        [_public_from_record(c1)], engine_mode="cache",
+        [_public_from_record(c1)], engine_mode="auto",
     ))
     assert payload.get("success") is True
     rows = payload["comparison_rows"]
@@ -954,7 +963,7 @@ def test_evaluate_process_evaluate_stamps_not_requested(monkeypatch):
     payload = _data_evaluate_safety_standing(tea.evaluate_process(
         mode="evaluate",
         process_config=_public_from_record(c1),
-        engine_mode="cache",
+        engine_mode="auto",
     ))
     assert payload.get("success") is True
     assert payload["comparison_rows"][0]["safety_standing"] == {
@@ -968,7 +977,7 @@ def test_two_row_evaluate_stamps_every_comparison_row(monkeypatch):
     c2 = _record_by_label("ldpe-route-c2")
     payload = _data_evaluate_safety_standing(tea.evaluate_tea_lca_scenarios(
         [_public_from_record(c1), _public_from_record(c2)],
-        engine_mode="cache",
+        engine_mode="auto",
     ))
     assert payload.get("success") is True
     rows = payload["comparison_rows"]
@@ -1019,7 +1028,7 @@ def test_rank_copies_producer_not_requested(monkeypatch):
     with bind_tool_session(session):
         first = _data_evaluate_safety_standing(tea.evaluate_tea_lca_scenarios(
             [_public_from_record(c1), _public_from_record(c2)],
-            engine_mode="cache",
+            engine_mode="auto",
         ))
         handle = store_handle(
             session,
@@ -1058,7 +1067,7 @@ def test_sensitivity_rows_stamp_not_requested(monkeypatch):
     payload = _data_evaluate_safety_standing(tea.analyze_tea_sensitivity(
         _public_from_record(c1),
         parameter="solvent_price",
-        engine_mode="cache",
+        engine_mode="auto",
     ))
     assert payload.get("success") is True
     rows = payload["sensitivity_rows"]
@@ -1078,7 +1087,7 @@ def test_evaluate_process_sensitivity_stamps_not_requested(monkeypatch):
         mode="sensitivity",
         process_config=_public_from_record(c1),
         parameter="solvent_price",
-        engine_mode="cache",
+        engine_mode="auto",
     ))
     assert payload.get("success") is True
     assert "safety_standing" not in payload
@@ -1101,7 +1110,7 @@ def test_incomplete_sensitivity_does_not_stamp_rows(monkeypatch):
             "dissolution_temperature_c": cfg["dissolution_temperature_c"],
         },
         parameter="solvent_price",
-        engine_mode="cache",
+        engine_mode="auto",
     ))
     assert payload.get("error_code") == "incomplete_process_config"
     assert "sensitivity_rows" not in payload

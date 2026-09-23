@@ -42,6 +42,18 @@ from dissolve.session import (
     store_handle,
 )
 
+
+_LIVE_TEA_BLOCKER = tea._live_tea_blocker  # the real check, for the tests of it
+
+
+@pytest.fixture(autouse=True)
+def _live_tea_works(monkeypatch, tmp_path):
+    """TEA answers only when live TEA works; these tests stand in a working engine (tests of the check itself
+    override this) and never see this checkout's own live environment (.venv-tea, vendor/plastics)."""
+    monkeypatch.setattr(tea, "_live_tea_blocker", lambda: None)
+    monkeypatch.setattr(tea, "_REPO_TEA_PYTHON", tmp_path / "no-venv-tea" / "python")
+    monkeypatch.setattr(tea.tea_polymer_parameters, "VENDORED_PLASTICS", tmp_path / "no-vendored-plastics")
+
 # --- from test_evaluate_process.py: evaluate_process lookup, evaluate, sensitivity, and route.
 _SEALED = Path(
     f"{Path.home()}/dissolve-v12-campaign/"
@@ -67,6 +79,13 @@ def _data(raw: str) -> dict:
     assert set(envelope) == {"display", "data"}
     assert isinstance(envelope["data"], dict)
     return envelope["data"]
+
+
+def _live_run_fails(monkeypatch, error_type="timeout"):
+    """A confirmed live run that produces no result: its row fails and quotes nothing."""
+    monkeypatch.setattr(tea, "_live", lambda config, timeout_seconds: {
+        "success": False, "error_type": error_type, "error": "the live TEA run produced no result",
+    })
 
 
 def _forbid_live(monkeypatch):
@@ -515,12 +534,12 @@ def _evaluate_parity(payload: dict) -> dict:
 
 def test_evaluate_mode_without_config_is_missing_scenarios(monkeypatch):
     _forbid_live(monkeypatch)
-    payload = _data(tea.evaluate_process(mode="evaluate", engine_mode="cache"))
+    payload = _data(tea.evaluate_process(mode="evaluate", engine_mode="auto"))
     assert payload.get("success") is False
     assert payload.get("error_code") == "missing_scenarios"
     assert payload.get("error_code") != "tool_not_wired"
     assert payload.get("tool_name") == "evaluate_process"
-    dispatched = dispatch("evaluate_process", mode="evaluate", engine_mode="cache")
+    dispatched = dispatch("evaluate_process", mode="evaluate", engine_mode="auto")
     assert dispatched.get("available") is False
     assert dispatched.get("refusal") == "missing_scenarios"
 
@@ -530,12 +549,12 @@ def test_evaluate_mode_singular_config_matches_old_name(monkeypatch):
     _forbid_live(monkeypatch)
     twelve = _public_from_record(record)
     direct = _data(tea.evaluate_tea_lca_scenarios(
-        [twelve], engine_mode="cache",
+        [twelve], engine_mode="auto",
     ))
     wrapped = _data(tea.evaluate_process(
         mode="evaluate",
         process_config=twelve,
-        engine_mode="cache",
+        engine_mode="auto",
     ))
     assert wrapped.get("tool_name") == "evaluate_process"
     assert direct.get("tool_name") == "evaluate_tea_lca_scenarios"
@@ -549,7 +568,7 @@ def test_evaluate_mode_singular_config_matches_old_name(monkeypatch):
     other = _data(tea.evaluate_process(
         mode="evaluate",
         process_config=_public_from_record(sibling),
-        engine_mode="cache",
+        engine_mode="auto",
     ))
     assert other.get("success") is True
     assert _evaluate_parity(other)["polymers"] != _evaluate_parity(wrapped)["polymers"]
@@ -566,11 +585,11 @@ def test_evaluate_mode_batch_process_configs_matches_old_name(monkeypatch):
     )
     _forbid_live(monkeypatch)
     batch = [_public_from_record(c1), _public_from_record(c2)]
-    direct = _data(tea.evaluate_tea_lca_scenarios(batch, engine_mode="cache"))
+    direct = _data(tea.evaluate_tea_lca_scenarios(batch, engine_mode="auto"))
     wrapped = _data(tea.evaluate_process(
         mode="evaluate",
         process_configs=batch,
-        engine_mode="cache",
+        engine_mode="auto",
     ))
     assert wrapped.get("success") is True
     assert wrapped.get("tool_name") == "evaluate_process"
@@ -589,12 +608,12 @@ def test_evaluate_mode_incomplete_lists_missing_public_fields(monkeypatch):
         "dissolution_temperature_c": cfg["dissolution_temperature_c"],
     }
     direct = _data(tea.evaluate_tea_lca_scenarios(
-        [partial], engine_mode="cache",
+        [partial], engine_mode="auto",
     ))
     wrapped = _data(tea.evaluate_process(
         mode="evaluate",
         process_config=partial,
-        engine_mode="cache",
+        engine_mode="auto",
     ))
     assert wrapped.get("error_code") == "incomplete_process_config"
     assert wrapped.get("missing") == list(tea._NINE_HELD_PUBLIC_FIELDS)
@@ -612,7 +631,7 @@ def test_evaluate_mode_temperature_c_is_unknown_extra(monkeypatch):
             record,
             temperature_c=record["config"]["dissolution_temperature_c"],
         ),
-        engine_mode="cache",
+        engine_mode="auto",
     ))
     assert payload.get("error_code") == "unknown_process_field"
     assert "temperature_c" in list(payload.get("extra_keys") or [])
@@ -646,7 +665,7 @@ def test_evaluate_mode_transcript_dict_refuses_unknown_keys_at_ingest(monkeypatc
     payload = _data(tea.evaluate_process(
         mode="evaluate",
         process_config=dict(_TRANSCRIPT_PROCESS_CONFIG),
-        engine_mode="cache",
+        engine_mode="auto",
     ))
     assert payload.get("success") is False
     assert payload.get("error_code") == "unknown_process_field"
@@ -664,7 +683,7 @@ def test_evaluate_mode_process_configs_transcript_item_refuses(monkeypatch):
     payload = _data(tea.evaluate_process(
         mode="evaluate",
         process_configs=[dict(_TRANSCRIPT_PROCESS_CONFIG)],
-        engine_mode="cache",
+        engine_mode="auto",
     ))
     assert payload.get("error_code") == "unknown_process_field"
     assert payload.get("extra_keys") == [
@@ -677,7 +696,7 @@ def test_evaluate_mode_real_public_names_do_not_refuse_on_field_names(monkeypatc
     payload = _data(tea.evaluate_process(
         mode="evaluate",
         process_config=dict(_FOUR_PUBLIC_NAMES),
-        engine_mode="cache",
+        engine_mode="auto",
     ))
     assert payload.get("error_code") != "unknown_process_field"
     assert payload.get("error_code") == "incomplete_process_config"
@@ -716,7 +735,7 @@ def test_evaluate_mode_dual_key_conflict_refuses(monkeypatch):
     payload = _data(tea.evaluate_process(
         mode="evaluate",
         process_config=config,
-        engine_mode="cache",
+        engine_mode="auto",
     ))
     assert payload.get("error_code") == "conflicting_process_field"
     collisions = payload.get("collisions") or []
@@ -732,7 +751,7 @@ def test_evaluate_mode_agreeing_dual_keys_are_not_a_field_name_refusal(monkeypat
     payload = _data(tea.evaluate_process(
         mode="evaluate",
         process_config=config,
-        engine_mode="cache",
+        engine_mode="auto",
     ))
     assert payload.get("error_code") != "unknown_process_field"
     assert payload.get("error_code") != "conflicting_process_field"
@@ -749,7 +768,7 @@ def test_evaluate_mode_allowed_extras_are_not_unknown(monkeypatch):
             "facilities": (),
             "turbogenerator": (),
         },
-        engine_mode="cache",
+        engine_mode="auto",
     ))
     assert payload.get("error_code") != "unknown_process_field"
     assert payload.get("error_code") == "incomplete_process_config"
@@ -766,7 +785,7 @@ def test_evaluate_mode_screening_temperature_c_still_maps(monkeypatch):
         mode="evaluate",
         screening_shortlist=shortlist,
         held_process_basis=_held_from_record(record),
-        engine_mode="cache",
+        engine_mode="auto",
     ))
     assert payload.get("error_code") != "unknown_process_field"
 
@@ -781,7 +800,7 @@ def test_omitting_dissolution_capacity_lists_it_defaulted_at_3(monkeypatch):
     payload = _data(tea.evaluate_process(
         mode="evaluate",
         process_config=config,
-        engine_mode="cache",
+        engine_mode="auto",
     ))
     assert payload.get("error_code") != "unknown_process_field"
     assert payload.get("silently_defaulted", {}).get("dissolution_capacity") == 3.0
@@ -795,7 +814,7 @@ def test_named_dissolution_capacity_is_not_a_silent_default(monkeypatch):
     payload = _data(tea.evaluate_process(
         mode="evaluate",
         process_config=dict(_FOUR_PUBLIC_NAMES),
-        engine_mode="cache",
+        engine_mode="auto",
     ))
     silent = payload.get("silently_defaulted") or {}
     assert "dissolution_capacity" not in silent
@@ -808,7 +827,7 @@ def test_transcript_dict_does_not_reach_silent_defaults(monkeypatch):
     payload = _data(tea.evaluate_process(
         mode="evaluate",
         process_config=dict(_TRANSCRIPT_PROCESS_CONFIG),
-        engine_mode="cache",
+        engine_mode="auto",
     ))
     assert payload.get("error_code") == "unknown_process_field"
     assert "silently_defaulted" not in payload
@@ -821,7 +840,7 @@ def test_complete_twelve_success_lists_unnamed_first_run_defaults(monkeypatch):
     payload = _data(tea.evaluate_process(
         mode="evaluate",
         process_config=config,
-        engine_mode="cache",
+        engine_mode="auto",
     ))
     assert payload.get("success") is True
     silent = payload.get("silently_defaulted") or {}
@@ -842,7 +861,7 @@ def test_complete_twelve_omitting_capacity_lists_default_3_without_msp(monkeypat
     payload = _data(tea.evaluate_process(
         mode="evaluate",
         process_config=config,
-        engine_mode="cache",
+        engine_mode="auto",
     ))
     assert payload.get("success") is not True
     assert payload.get("silently_defaulted", {}).get("dissolution_capacity") == 3.0
@@ -860,7 +879,7 @@ def test_capacity_alias_is_named_not_defaulted(monkeypatch):
             "dissolution_temperature_c": 105.0,
             "dissolution_capacity": 14.54225715,
         },
-        engine_mode="cache",
+        engine_mode="auto",
     ))
     assert "dissolution_capacity" not in (payload.get("silently_defaulted") or {})
 
@@ -872,7 +891,7 @@ def test_handoff_from_screen_is_not_overwritten_by_default(monkeypatch):
         mode="evaluate",
         screening_shortlist=_shortlist(_item_from_record(record)),
         held_process_basis=_held_from_record(record),
-        engine_mode="cache",
+        engine_mode="auto",
     ))
     assert payload.get("success") is True
     origin = payload["comparison_rows"][0]["field_origin"]
@@ -893,7 +912,7 @@ def test_complete_twelve_success_quotes_the_46_field_c1_basis(monkeypatch):
     payload = _data(tea.evaluate_process(
         mode="evaluate",
         process_config=_public_from_record(record),
-        engine_mode="cache",
+        engine_mode="auto",
     ))
     assert payload.get("success") is True
     basis = payload.get("process_basis") or []
@@ -912,7 +931,7 @@ def test_c2_success_quotes_the_44_field_basis(monkeypatch):
     payload = _data(tea.evaluate_process(
         mode="evaluate",
         process_config=_public_from_record(record),
-        engine_mode="cache",
+        engine_mode="auto",
     ))
     assert payload.get("success") is True
     basis = payload.get("process_basis") or []
@@ -928,7 +947,7 @@ def test_four_field_payload_has_no_msp(monkeypatch):
     payload = _data(tea.evaluate_process(
         mode="evaluate",
         process_config=dict(_FOUR_PUBLIC_NAMES),
-        engine_mode="cache",
+        engine_mode="auto",
     ))
     assert payload.get("success") is not True
     assert "msp_usd_per_kg" not in payload
@@ -954,7 +973,7 @@ def test_evaluate_mode_parameter_is_not_applicable(monkeypatch):
         mode="evaluate",
         process_config=_public_from_record(record),
         parameter="solvent_price",
-        engine_mode="cache",
+        engine_mode="auto",
     ))
     assert payload.get("error_code") == "not_applicable_in_mode"
     assert payload.get("inapplicable_fields") == ["parameter"]
@@ -968,7 +987,7 @@ def test_evaluate_mode_too_many_process_configs(monkeypatch):
     payload = _data(tea.evaluate_process(
         mode="evaluate",
         process_configs=[twelve] * 21,
-        engine_mode="cache",
+        engine_mode="auto",
     ))
     assert payload.get("error_code") == "too_many_scenarios"
     assert payload.get("tool_name") == "evaluate_process"
@@ -979,12 +998,12 @@ def test_evaluate_mode_shortlist_without_held_lists_the_nine(monkeypatch):
     _forbid_live(monkeypatch)
     shortlist = _shortlist(_item_from_record(record))
     direct = _data(tea.evaluate_tea_lca_scenarios(
-        screening_shortlist=shortlist, engine_mode="cache",
+        screening_shortlist=shortlist, engine_mode="auto",
     ))
     wrapped = _data(tea.evaluate_process(
         mode="evaluate",
         screening_shortlist=shortlist,
-        engine_mode="cache",
+        engine_mode="auto",
     ))
     assert wrapped.get("error_code") == "screening_basis_incomplete"
     assert wrapped.get("missing") == list(tea._NINE_HELD_PUBLIC_FIELDS)
@@ -1002,13 +1021,13 @@ def test_evaluate_mode_shortlist_plus_held_matches_old_name(monkeypatch):
     direct = _data(tea.evaluate_tea_lca_scenarios(
         screening_shortlist=shortlist,
         held_process_basis=held,
-        engine_mode="cache",
+        engine_mode="auto",
     ))
     wrapped = _data(tea.evaluate_process(
         mode="evaluate",
         screening_shortlist=shortlist,
         held_process_basis=held,
-        engine_mode="cache",
+        engine_mode="auto",
     ))
     assert wrapped.get("tool_name") == "evaluate_process"
     assert direct.get("tool_name") == "evaluate_tea_lca_scenarios"
@@ -1032,7 +1051,7 @@ def test_evaluate_mode_process_config_and_shortlist_conflict(monkeypatch):
         process_config=_public_from_record(record),
         screening_shortlist=_shortlist(_item_from_record(record)),
         held_process_basis=_held_from_record(record),
-        engine_mode="cache",
+        engine_mode="auto",
     ))
     assert payload.get("error_code") == "conflicting_evaluate_composition"
     assert payload.get("tool_name") == "evaluate_process"
@@ -1047,7 +1066,7 @@ def test_screening_handoff_on_sensitivity_and_route_is_not_applicable(monkeypatc
         process_config=_public_from_record(record),
         screening_shortlist=shortlist,
         parameter="solvent_price",
-        engine_mode="cache",
+        engine_mode="auto",
     ))
     assert sensitivity.get("error_code") == "not_applicable_in_mode"
     assert sensitivity.get("inapplicable_fields") == ["screening_shortlist"]
@@ -1072,7 +1091,7 @@ def test_dispatch_evaluate_mode_shortlist_issues_handle(monkeypatch):
             mode="evaluate",
             screening_shortlist=_shortlist(_item_from_record(record)),
             held_process_basis=_held_from_record(record),
-            engine_mode="cache",
+            engine_mode="auto",
         )
         assert out.get("available") is True
         assert out.get("handle")
@@ -1091,7 +1110,7 @@ def test_evaluate_mode_process_configs_must_be_a_list(monkeypatch):
     payload = _data(tea.evaluate_process(
         mode="evaluate",
         process_configs=_public_from_record(record),
-        engine_mode="cache",
+        engine_mode="auto",
     ))
     assert payload.get("error_code") == "invalid_admitted_record_query"
     assert payload.get("field") == "process_configs"
@@ -1106,7 +1125,7 @@ def test_evaluate_mode_inherits_omitted_fields_from_handle(monkeypatch):
         first = _data(tea.evaluate_process(
             mode="evaluate",
             process_config=_public_from_record(record),
-            engine_mode="cache",
+            engine_mode="auto",
         ))
         handle = store_handle(
             session,
@@ -1122,7 +1141,7 @@ def test_evaluate_mode_inherits_omitted_fields_from_handle(monkeypatch):
                 "dissolution_temperature_c": cfg["dissolution_temperature_c"],
             },
             handle=handle,
-            engine_mode="cache",
+            engine_mode="auto",
         ))
         direct = _data(tea.evaluate_tea_lca_scenarios(
             [{
@@ -1131,7 +1150,7 @@ def test_evaluate_mode_inherits_omitted_fields_from_handle(monkeypatch):
                 "dissolution_temperature_c": cfg["dissolution_temperature_c"],
             }],
             handle=handle,
-            engine_mode="cache",
+            engine_mode="auto",
         ))
     assert wrapped.get("success") is True
     origin = wrapped["comparison_rows"][0]["field_origin"]
@@ -1152,7 +1171,7 @@ def test_dispatch_evaluate_mode_issues_handle(monkeypatch):
             "evaluate_process",
             mode="evaluate",
             process_config=_public_from_record(record),
-            engine_mode="cache",
+            engine_mode="auto",
         )
         assert out.get("available") is True
         assert out.get("handle")
@@ -1204,7 +1223,7 @@ def test_sensitivity_mode_process_configs_is_not_applicable(monkeypatch):
         mode="sensitivity",
         process_configs=[_public_from_record(record)],
         parameter="solvent_price",
-        engine_mode="cache",
+        engine_mode="auto",
     ))
     assert payload.get("error_code") == "not_applicable_in_mode"
     assert payload.get("inapplicable_fields") == ["process_configs"]
@@ -1216,13 +1235,13 @@ def test_sensitivity_mode_solvent_price_matches_old_name(monkeypatch):
     _forbid_live(monkeypatch)
     twelve = _public_from_record(record)
     direct = _data(tea.analyze_tea_sensitivity(
-        twelve, parameter="solvent_price", engine_mode="cache",
+        twelve, parameter="solvent_price", engine_mode="auto",
     ))
     wrapped = _data(tea.evaluate_process(
         mode="sensitivity",
         process_config=twelve,
         parameter="solvent_price",
-        engine_mode="cache",
+        engine_mode="auto",
     ))
     assert wrapped.get("tool_name") == "evaluate_process"
     assert direct.get("tool_name") == "analyze_tea_sensitivity"
@@ -1241,13 +1260,13 @@ def test_sensitivity_mode_incomplete_lists_missing_public_fields(monkeypatch):
         "dissolution_temperature_c": cfg["dissolution_temperature_c"],
     }
     direct = _data(tea.analyze_tea_sensitivity(
-        partial, parameter="solvent_price", engine_mode="cache",
+        partial, parameter="solvent_price", engine_mode="auto",
     ))
     wrapped = _data(tea.evaluate_process(
         mode="sensitivity",
         process_config=partial,
         parameter="solvent_price",
-        engine_mode="cache",
+        engine_mode="auto",
     ))
     assert wrapped.get("error_code") == "incomplete_process_config"
     assert wrapped.get("missing") == list(tea._NINE_HELD_PUBLIC_FIELDS)
@@ -1265,7 +1284,7 @@ def test_sensitivity_mode_inherits_baseline_from_evaluate_handle(monkeypatch):
         first = _data(tea.evaluate_process(
             mode="evaluate",
             process_config=_public_from_record(record),
-            engine_mode="cache",
+            engine_mode="auto",
         ))
         handle = store_handle(
             session,
@@ -1282,7 +1301,7 @@ def test_sensitivity_mode_inherits_baseline_from_evaluate_handle(monkeypatch):
             },
             parameter="solvent_price",
             handle=handle,
-            engine_mode="cache",
+            engine_mode="auto",
             analysis_mode="tornado",
         ))
         direct = _data(tea.analyze_tea_sensitivity(
@@ -1293,7 +1312,7 @@ def test_sensitivity_mode_inherits_baseline_from_evaluate_handle(monkeypatch):
             },
             parameter="solvent_price",
             handle=handle,
-            engine_mode="cache",
+            engine_mode="auto",
             analysis_mode="tornado",
         ))
     assert wrapped.get("success") is True
@@ -1316,7 +1335,7 @@ def test_dispatch_sensitivity_mode_issues_handle(monkeypatch):
             mode="sensitivity",
             process_config=_public_from_record(record),
             parameter="solvent_price",
-            engine_mode="cache",
+            engine_mode="auto",
         )
         assert out.get("available") is True
         assert out.get("handle")
@@ -1472,7 +1491,7 @@ def test_route_unknown_handle_is_named(monkeypatch):
         payload = _data(tea.evaluate_process(
             mode="route",
             handle="no-such-handle",
-            engine_mode="cache",
+            engine_mode="auto",
         ))
     assert payload.get("error_code") == "unknown_handle"
     assert payload.get("error_code") != "tool_not_wired"
@@ -1487,7 +1506,7 @@ def test_route_evaluate_handle_is_not_a_route(monkeypatch):
         first = _data(tea.evaluate_process(
             mode="evaluate",
             process_config=_public_from_record(record),
-            engine_mode="cache",
+            engine_mode="auto",
         ))
         handle = store_handle(
             session,
@@ -1498,7 +1517,7 @@ def test_route_evaluate_handle_is_not_a_route(monkeypatch):
         payload = _data(tea.evaluate_process(
             mode="route",
             handle=handle,
-            engine_mode="cache",
+            engine_mode="auto",
         ))
     assert payload.get("error_code") == "not_route_handle"
     assert payload.get("error_code") != "tool_not_wired"
@@ -1517,7 +1536,7 @@ def test_route_mode_matches_old_name_on_planner_route(monkeypatch):
             processing_capacity_mt_per_yr=_ROUTE_CAPACITY,
             energy_case=_ROUTE_ENERGY,
             precipitation_temperature_c=_ROUTE_PRECIP,
-            engine_mode="cache",
+            engine_mode="auto",
         ))
         assert session.get("last_route") is None
         assert getattr(session, "last_route", None) is None
@@ -1534,7 +1553,7 @@ def test_route_mode_matches_old_name_on_planner_route(monkeypatch):
         processing_capacity_mt_per_yr=_ROUTE_CAPACITY,
         energy_case=_ROUTE_ENERGY,
         precipitation_temperature_c=_ROUTE_PRECIP,
-        engine_mode="cache",
+        engine_mode="auto",
     ))
     assert wrapped.get("tool_name") == "evaluate_process"
     assert direct.get("tool_name") == "evaluate_stored_route_tea_lca"
@@ -1558,7 +1577,7 @@ def test_dispatch_route_mode_issues_handle(monkeypatch):
             processing_capacity_mt_per_yr=_ROUTE_CAPACITY,
             energy_case=_ROUTE_ENERGY,
             precipitation_temperature_c=_ROUTE_PRECIP,
-            engine_mode="cache",
+            engine_mode="auto",
         )
         assert out.get("available") is True
         assert out.get("handle")
@@ -1604,7 +1623,7 @@ def test_route_mode_row_id_costs_a_real_handle(monkeypatch):
             processing_capacity_mt_per_yr=_ROUTE_CAPACITY,
             energy_case=_ROUTE_ENERGY,
             precipitation_temperature_c=_ROUTE_PRECIP,
-            engine_mode="cache",
+            engine_mode="auto",
         ))
         assert missing.get("error_code") == "ambiguous_handle_row"
         assert missing.get("error_code") != "tool_not_wired"
@@ -1615,7 +1634,7 @@ def test_route_mode_row_id_costs_a_real_handle(monkeypatch):
             processing_capacity_mt_per_yr=_ROUTE_CAPACITY,
             energy_case=_ROUTE_ENERGY,
             precipitation_temperature_c=_ROUTE_PRECIP,
-            engine_mode="cache",
+            engine_mode="auto",
         ))
         assert session.get("last_route") is None
         assert getattr(session, "last_route", None) is None
@@ -1661,7 +1680,7 @@ def test_route_mode_stage_identity_mismatch(monkeypatch):
             processing_capacity_mt_per_yr=_ROUTE_CAPACITY,
             energy_case=_ROUTE_ENERGY,
             precipitation_temperature_c=_ROUTE_PRECIP,
-            engine_mode="cache",
+            engine_mode="auto",
         ))
     assert payload.get("success") is False
     assert payload.get("error_code") == "stage_identity_mismatch"
@@ -1847,7 +1866,7 @@ def no_pair_probe() -> RouteProbe:
     )
 
 
-def _evaluate(monkeypatch, probe: RouteProbe) -> dict:
+def _evaluate(monkeypatch, probe: RouteProbe, **overrides) -> dict:
     calls = 0
 
     def current_state():
@@ -1864,8 +1883,9 @@ def _evaluate(monkeypatch, probe: RouteProbe) -> dict:
         processing_capacity_mt_per_yr=CAPACITY,
         energy_case=ENERGY_CASE,
         precipitation_temperature_c=PRECIPITATION_C,
-        engine_mode="cache",
+        engine_mode="auto",
         allow_screening_estimate=False,
+        **overrides,
     ))
     assert calls > 0, "stored-route TEA did not consume the supplied session route"
     return result
@@ -1888,7 +1908,11 @@ def test_d8_equal_weight_route_refuses_reference_design_point_substitution(
     monkeypatch, exact_probe,
 ):
     _exact, equal = exact_probe
-    result = _evaluate(monkeypatch, equal)
+    unconfirmed = _evaluate(monkeypatch, equal)
+    assert unconfirmed.get("error_code") == "live_tea_cost_confirmation_required"
+    assert unconfirmed.get("n_live") == 1
+    _live_run_fails(monkeypatch, "python_version")
+    result = _evaluate(monkeypatch, equal, confirm_live_tea=True)
 
     assert result.get("success") is False
     assert result.get("error_code") == "route_stage_design_point_unavailable"
@@ -1924,7 +1948,8 @@ def test_d8_no_pair_route_keeps_generic_process_basis_refusal(
     monkeypatch.setattr(
         tea, "_reference_design_point_contract", traced_reference_contract,
     )
-    result = _evaluate(monkeypatch, no_pair_probe)
+    _live_run_fails(monkeypatch, "python_version")
+    result = _evaluate(monkeypatch, no_pair_probe, confirm_live_tea=True)
 
     assert len(contract_results) == 1, (
         "the no-pair probe did not reach the complete-config reference split"
@@ -2100,7 +2125,7 @@ def test_override_does_not_share_the_serve_key(field, value):
     assert tea._cache_index().get(tea._config_key(overridden)) is None
 
 
-def test_cache_mode_refuses_irr_override_instead_of_the_other_plant(monkeypatch):
+def test_stored_record_is_not_served_for_irr_override_instead_of_the_other_plant(monkeypatch):
     record = _record_with_energy("C1")
     recorded_msp = float(record["result"]["tea"]["msp_usd_per_kg"])
 
@@ -2110,11 +2135,11 @@ def test_cache_mode_refuses_irr_override_instead_of_the_other_plant(monkeypatch)
     monkeypatch.setattr(tea, "_live", forbidden_live)
     payload = _data_tea_exposed_coefficients(tea.evaluate_tea_lca_scenarios(
         [_public_from_record_tea_exposed_coefficients(record, irr=0.15)],
-        engine_mode="cache",
+        engine_mode="auto",
     ))
     assert payload.get("success") is False
-    assert payload.get("error_code") == "cache_flowsheet_mismatch"
-    row = (payload.get("failures") or [])[0]
+    assert payload.get("error_code") == "live_tea_cost_confirmation_required"
+    row = payload["stored_plant_differs"][0]
     assert row.get("msp_usd_per_kg") is None
     assert row.get("msp_usd_per_kg") != recorded_msp
     irr = next(
@@ -2125,7 +2150,7 @@ def test_cache_mode_refuses_irr_override_instead_of_the_other_plant(monkeypatch)
     assert irr["requested_value"] == pytest.approx(0.15)
 
 
-def test_cache_mode_refuses_income_tax_override_instead_of_the_other_plant(
+def test_stored_record_is_not_served_for_income_tax_override_instead_of_the_other_plant(
     monkeypatch,
 ):
     record = _record_with_energy("C1")
@@ -2137,11 +2162,11 @@ def test_cache_mode_refuses_income_tax_override_instead_of_the_other_plant(
     monkeypatch.setattr(tea, "_live", forbidden_live)
     payload = _data_tea_exposed_coefficients(tea.evaluate_tea_lca_scenarios(
         [_public_from_record_tea_exposed_coefficients(record, income_tax=0.30)],
-        engine_mode="cache",
+        engine_mode="auto",
     ))
     assert payload.get("success") is False
-    assert payload.get("error_code") == "cache_flowsheet_mismatch"
-    row = (payload.get("failures") or [])[0]
+    assert payload.get("error_code") == "live_tea_cost_confirmation_required"
+    row = payload["stored_plant_differs"][0]
     assert row.get("msp_usd_per_kg") is None
     assert row.get("msp_usd_per_kg") != recorded_msp
     tax = next(
@@ -2150,7 +2175,6 @@ def test_cache_mode_refuses_income_tax_override_instead_of_the_other_plant(
     )
     assert tax["recorded_value"] == pytest.approx(0.21)
     assert tax["requested_value"] == pytest.approx(0.30)
-    assert row.get("income_tax") == pytest.approx(0.30)
 
 
 def test_cache_evaluate_echoes_projected_income_tax(monkeypatch):
@@ -2162,7 +2186,7 @@ def test_cache_evaluate_echoes_projected_income_tax(monkeypatch):
     monkeypatch.setattr(tea, "_live", forbidden_live)
     payload = _data_tea_exposed_coefficients(tea.evaluate_tea_lca_scenarios(
         [_public_from_record_tea_exposed_coefficients(record)],
-        engine_mode="cache",
+        engine_mode="auto",
     ))
     assert payload.get("success") is True
     row = payload["comparison_rows"][0]
@@ -2332,7 +2356,7 @@ def test_cache_evaluate_echoes_projected_income_tax(monkeypatch):
         ),
     ],
 )
-def test_cache_mode_refuses_override_instead_of_the_other_plant(
+def test_stored_record_is_not_served_for_override_instead_of_the_other_plant(
     monkeypatch, message, recorded, requested, field, other_field
 ):
     record = _record_with_energy("C1")
@@ -2344,18 +2368,17 @@ def test_cache_mode_refuses_override_instead_of_the_other_plant(
     monkeypatch.setattr(tea, "_live", forbidden_live)
     payload = _data_tea_exposed_coefficients(
         tea.evaluate_tea_lca_scenarios(
-            [_public_from_record_tea_exposed_coefficients(record, **{field: requested})], engine_mode="cache"
+            [_public_from_record_tea_exposed_coefficients(record, **{field: requested})], engine_mode="auto"
         )
     )
     assert payload.get("success") is False
-    assert payload.get("error_code") == "cache_flowsheet_mismatch"
-    row = (payload.get("failures") or [])[0]
+    assert payload.get("error_code") == "live_tea_cost_confirmation_required"
+    row = payload["stored_plant_differs"][0]
     assert row.get("msp_usd_per_kg") is None
     assert row.get("msp_usd_per_kg") != recorded_msp
     delta = next((item for item in row["flowsheet_switch_deltas"] if item["field"] == field))
     assert delta["recorded_value"] == pytest.approx(recorded)
     assert delta["requested_value"] == pytest.approx(requested)
-    assert row.get(field) == pytest.approx(requested)
     assert not any((item["field"] == other_field for item in row["flowsheet_switch_deltas"]))
 
 
@@ -2368,7 +2391,7 @@ def test_cache_evaluate_echoes_projected_operating_days(monkeypatch):
     monkeypatch.setattr(tea, "_live", forbidden_live)
     payload = _data_tea_exposed_coefficients(tea.evaluate_tea_lca_scenarios(
         [_public_from_record_tea_exposed_coefficients(record)],
-        engine_mode="cache",
+        engine_mode="auto",
     ))
     assert payload.get("success") is True
     row = payload["comparison_rows"][0]
@@ -2691,12 +2714,12 @@ def test_boundary_override_reaches_the_flowsheet_check(monkeypatch, message, req
     monkeypatch.setattr(tea, "_live", forbidden_live)
     payload = _data_tea_exposed_coefficients(
         tea.evaluate_tea_lca_scenarios(
-            [_public_from_record_tea_exposed_coefficients(record, **{field: requested})], engine_mode="cache"
+            [_public_from_record_tea_exposed_coefficients(record, **{field: requested})], engine_mode="auto"
         )
     )
     assert payload.get("success") is False
-    assert payload.get("error_code") == "cache_flowsheet_mismatch"
-    row = (payload.get("failures") or [])[0]
+    assert payload.get("error_code") == "live_tea_cost_confirmation_required"
+    row = payload["stored_plant_differs"][0]
     delta = next((item for item in row["flowsheet_switch_deltas"] if item["field"] == field))
     assert delta["requested_value"] == pytest.approx(requested)
 
@@ -2717,7 +2740,7 @@ def test_explicit_default_depreciation_shares_the_serve_key_2(key, value):
     )
 
 
-def test_cache_mode_refuses_depreciation_override_instead_of_the_other_plant(
+def test_stored_record_is_not_served_for_depreciation_override_instead_of_the_other_plant(
     monkeypatch,
 ):
     record = _record_with_energy("C1")
@@ -2731,11 +2754,11 @@ def test_cache_mode_refuses_depreciation_override_instead_of_the_other_plant(
     monkeypatch.setattr(tea, "_live", forbidden_live)
     payload = _data_tea_exposed_coefficients(tea.evaluate_tea_lca_scenarios(
         [_public_from_record_tea_exposed_coefficients(record, depreciation="MACRS5")],
-        engine_mode="cache",
+        engine_mode="auto",
     ))
     assert payload.get("success") is False
-    assert payload.get("error_code") == "cache_flowsheet_mismatch"
-    row = (payload.get("failures") or [])[0]
+    assert payload.get("error_code") == "live_tea_cost_confirmation_required"
+    row = payload["stored_plant_differs"][0]
     assert row.get("msp_usd_per_kg") is None
     assert row.get("msp_usd_per_kg") != recorded_msp
     schedule = next(
@@ -2744,7 +2767,6 @@ def test_cache_mode_refuses_depreciation_override_instead_of_the_other_plant(
     )
     assert schedule["recorded_value"] == "MACRS7"
     assert schedule["requested_value"] == "MACRS5"
-    assert row.get("depreciation") == "MACRS5"
     assert not any(
         item["field"] == "maintenance"
         for item in row["flowsheet_switch_deltas"]
@@ -2762,23 +2784,21 @@ def test_macrs20_is_plant_depreciation_not_steam_power(monkeypatch):
     monkeypatch.setattr(tea, "_live", forbidden_live)
     payload = _data_tea_exposed_coefficients(tea.evaluate_tea_lca_scenarios(
         [_public_from_record_tea_exposed_coefficients(record, depreciation="MACRS20")],
-        engine_mode="cache",
+        engine_mode="auto",
     ))
     assert payload.get("success") is False
-    assert payload.get("error_code") == "cache_flowsheet_mismatch"
-    row = (payload.get("failures") or [])[0]
+    assert payload.get("error_code") == "live_tea_cost_confirmation_required"
+    row = payload["stored_plant_differs"][0]
     schedule = next(
         item for item in row["flowsheet_switch_deltas"]
         if item["field"] == "depreciation"
     )
     assert schedule["recorded_value"] == "MACRS7"
     assert schedule["requested_value"] == "MACRS20"
-    assert row.get("depreciation") == "MACRS20"
     assert not any(
         item["field"] == "steam_power_depreciation"
         for item in row["flowsheet_switch_deltas"]
     )
-    assert row.get("steam_power_depreciation") == "MACRS20"
 
 
 def test_maintenance_override_does_not_emit_a_depreciation_delta(monkeypatch):
@@ -2792,10 +2812,10 @@ def test_maintenance_override_does_not_emit_a_depreciation_delta(monkeypatch):
     monkeypatch.setattr(tea, "_live", forbidden_live)
     payload = _data_tea_exposed_coefficients(tea.evaluate_tea_lca_scenarios(
         [_public_from_record_tea_exposed_coefficients(record, maintenance=0.06)],
-        engine_mode="cache",
+        engine_mode="auto",
     ))
-    assert payload.get("error_code") == "cache_flowsheet_mismatch"
-    row = (payload.get("failures") or [])[0]
+    assert payload.get("error_code") == "live_tea_cost_confirmation_required"
+    row = payload["stored_plant_differs"][0]
     fraction = next(
         item for item in row["flowsheet_switch_deltas"]
         if item["field"] == "maintenance"
@@ -2842,7 +2862,7 @@ def test_serve_key_2(key, value, value_2):
     assert tea._cache_index().get(tea._config_key(overridden)) is None
 
 
-def test_cache_mode_refuses_duration_override_instead_of_the_other_plant(
+def test_stored_record_is_not_served_for_duration_override_instead_of_the_other_plant(
     monkeypatch,
 ):
     record = _record_with_energy("C1")
@@ -2856,11 +2876,11 @@ def test_cache_mode_refuses_duration_override_instead_of_the_other_plant(
     monkeypatch.setattr(tea, "_live", forbidden_live)
     payload = _data_tea_exposed_coefficients(tea.evaluate_tea_lca_scenarios(
         [_public_from_record_tea_exposed_coefficients(record, duration=[2025, 2045])],
-        engine_mode="cache",
+        engine_mode="auto",
     ))
     assert payload.get("success") is False
-    assert payload.get("error_code") == "cache_flowsheet_mismatch"
-    row = (payload.get("failures") or [])[0]
+    assert payload.get("error_code") == "live_tea_cost_confirmation_required"
+    row = payload["stored_plant_differs"][0]
     assert row.get("msp_usd_per_kg") is None
     assert row.get("msp_usd_per_kg") != recorded_msp
     pair = next(
@@ -2869,7 +2889,6 @@ def test_cache_mode_refuses_duration_override_instead_of_the_other_plant(
     )
     assert pair["recorded_value"] == [2025, 2055]
     assert pair["requested_value"] == [2025, 2045]
-    assert row.get("duration") == [2025, 2045]
     assert not any(
         item["field"] == "depreciation"
         for item in row["flowsheet_switch_deltas"]
@@ -2895,10 +2914,10 @@ def test_depreciation_override_does_not_emit_a_duration_delta(monkeypatch):
     monkeypatch.setattr(tea, "_live", forbidden_live)
     payload = _data_tea_exposed_coefficients(tea.evaluate_tea_lca_scenarios(
         [_public_from_record_tea_exposed_coefficients(record, depreciation="MACRS5")],
-        engine_mode="cache",
+        engine_mode="auto",
     ))
-    assert payload.get("error_code") == "cache_flowsheet_mismatch"
-    row = (payload.get("failures") or [])[0]
+    assert payload.get("error_code") == "live_tea_cost_confirmation_required"
+    row = payload["stored_plant_differs"][0]
     schedule = next(
         item for item in row["flowsheet_switch_deltas"]
         if item["field"] == "depreciation"
@@ -2964,7 +2983,7 @@ def test_explicit_default_construction_schedule_shares_the_serve_key():
     )
 
 
-def test_cache_mode_refuses_construction_schedule_override_instead_of_the_other_plant(
+def test_stored_record_is_not_served_for_construction_schedule_override_instead_of_the_other_plant(
     monkeypatch,
 ):
     record = _record_with_energy("C1")
@@ -2978,11 +2997,11 @@ def test_cache_mode_refuses_construction_schedule_override_instead_of_the_other_
     monkeypatch.setattr(tea, "_live", forbidden_live)
     payload = _data_tea_exposed_coefficients(tea.evaluate_tea_lca_scenarios(
         [_public_from_record_tea_exposed_coefficients(record, construction_schedule=[0.5, 0.5])],
-        engine_mode="cache",
+        engine_mode="auto",
     ))
     assert payload.get("success") is False
-    assert payload.get("error_code") == "cache_flowsheet_mismatch"
-    row = (payload.get("failures") or [])[0]
+    assert payload.get("error_code") == "live_tea_cost_confirmation_required"
+    row = payload["stored_plant_differs"][0]
     assert row.get("msp_usd_per_kg") is None
     assert row.get("msp_usd_per_kg") != recorded_msp
     pair = next(
@@ -2991,7 +3010,6 @@ def test_cache_mode_refuses_construction_schedule_override_instead_of_the_other_
     )
     assert pair["recorded_value"] == [0.08, 0.60, 0.32]
     assert pair["requested_value"] == [0.5, 0.5]
-    assert row.get("construction_schedule") == [0.5, 0.5]
     assert not any(
         item["field"] == "duration"
         for item in row["flowsheet_switch_deltas"]
@@ -3040,7 +3058,7 @@ def test_negative_construction_schedule_item_is_refused():
     assert caught.value.details["field"] == "construction_schedule"
 
 
-def test_cache_mode_refuses_steam_power_depreciation_override_instead_of_the_other_plant(
+def test_stored_record_is_not_served_for_steam_power_depreciation_override_instead_of_the_other_plant(
     monkeypatch,
 ):
     record = _record_with_energy("C1")
@@ -3054,11 +3072,11 @@ def test_cache_mode_refuses_steam_power_depreciation_override_instead_of_the_oth
     monkeypatch.setattr(tea, "_live", forbidden_live)
     payload = _data_tea_exposed_coefficients(tea.evaluate_tea_lca_scenarios(
         [_public_from_record_tea_exposed_coefficients(record, steam_power_depreciation="MACRS7")],
-        engine_mode="cache",
+        engine_mode="auto",
     ))
     assert payload.get("success") is False
-    assert payload.get("error_code") == "cache_flowsheet_mismatch"
-    row = (payload.get("failures") or [])[0]
+    assert payload.get("error_code") == "live_tea_cost_confirmation_required"
+    row = payload["stored_plant_differs"][0]
     assert row.get("msp_usd_per_kg") is None
     assert row.get("msp_usd_per_kg") != recorded_msp
     schedule = next(
@@ -3067,12 +3085,10 @@ def test_cache_mode_refuses_steam_power_depreciation_override_instead_of_the_oth
     )
     assert schedule["recorded_value"] == "MACRS20"
     assert schedule["requested_value"] == "MACRS7"
-    assert row.get("steam_power_depreciation") == "MACRS7"
     assert not any(
         item["field"] == "depreciation"
         for item in row["flowsheet_switch_deltas"]
     )
-    assert row.get("depreciation") == "MACRS7"
     assert not any(
         item["field"] == "lang_factor"
         for item in row["flowsheet_switch_deltas"]
@@ -3132,7 +3148,7 @@ def test_lang_factor_present_is_invalid_scenario_not_a_live_plant(monkeypatch):
     assert caught.value.details["field"] == "lang_factor"
     payload = _data_tea_exposed_coefficients(tea.evaluate_tea_lca_scenarios(
         [_public_from_record_tea_exposed_coefficients(record, lang_factor=3.0)],
-        engine_mode="cache",
+        engine_mode="auto",
     ))
     assert payload.get("success") is False
     assert payload.get("error_code") == "invalid_scenario"
@@ -3173,7 +3189,7 @@ def test_omitted_evaluate_echoes_production_lang_factor(monkeypatch):
     monkeypatch.setattr(tea, "_live", forbidden_live)
     payload = _data_tea_exposed_coefficients(tea.evaluate_tea_lca_scenarios(
         [_public_from_record_tea_exposed_coefficients(record)],
-        engine_mode="cache",
+        engine_mode="auto",
     ))
     assert payload.get("success") is True
     row = (payload.get("comparison_rows") or [])[0]
@@ -3271,7 +3287,7 @@ def test_recovery_is_not_in_the_model():
     assert caught.value.error_code == "field_not_in_model"
     payload = _data_tea_exposed_coefficients(tea.evaluate_tea_lca_scenarios(
         [_public_from_record_tea_exposed_coefficients(record, recovery=0.9)],
-        engine_mode="cache",
+        engine_mode="auto",
     ))
     assert payload.get("error_code") == "field_not_in_model"
 
@@ -3434,7 +3450,7 @@ def test_burn_true_does_not_share_the_twelve_only_serve_key():
     assert analog["label"] == record["label"]
 
 
-def test_cache_mode_refuses_flowsheet_mismatch_instead_of_the_other_plant(
+def test_stored_record_is_not_served_for_flowsheet_mismatch_instead_of_the_other_plant(
     monkeypatch,
 ):
     record = _record_with_energy("C1")
@@ -3447,21 +3463,20 @@ def test_cache_mode_refuses_flowsheet_mismatch_instead_of_the_other_plant(
     monkeypatch.setattr(tea, "_live", forbidden_live)
     payload = _data(tea.evaluate_tea_lca_scenarios(
         [_public_from_record_tea_flowsheet_switches(record, burn_leftover_plastic=True)],
-        engine_mode="cache",
+        engine_mode="auto",
     ))
     assert payload.get("success") is False
-    assert payload.get("error_code") == "cache_flowsheet_mismatch"
-    failures = list(payload.get("failures") or [])
+    assert payload.get("error_code") == "live_tea_cost_confirmation_required"
+    failures = list(payload.get("stored_plant_differs") or [])
     assert len(failures) == 1
     row = failures[0]
-    assert row.get("error_type") == "cache_flowsheet_mismatch"
+    assert row["cache_record_label"]
     assert row.get("msp_usd_per_kg") is None
     assert recorded_msp not in (row.get("msp_usd_per_kg"), row.get("tea"))
     deltas = list(row.get("flowsheet_switch_deltas") or [])
     burn = next(item for item in deltas if item["field"] == "burn_leftover_plastic")
     assert burn["recorded_value"] is False
     assert burn["requested_value"] is True
-    assert row.get("burn_leftover_plastic") is True
 
 
 def test_existing_twelve_lookup_still_hits_a_real_record(monkeypatch):
@@ -3473,7 +3488,7 @@ def test_existing_twelve_lookup_still_hits_a_real_record(monkeypatch):
     monkeypatch.setattr(tea, "_live", forbidden_live)
     payload = _data(tea.evaluate_tea_lca_scenarios(
         [_public_from_record_tea_flowsheet_switches(record)],
-        engine_mode="cache",
+        engine_mode="auto",
     ))
     assert payload.get("success") is True
     assert payload.get("engine_mode") == "cache"
@@ -3501,7 +3516,7 @@ def test_leftover_disposition_conflict_refuses_both_true():
             sell_leftover_plastic=True,
             burn_leftover_plastic=True,
         )],
-        engine_mode="cache",
+        engine_mode="auto",
     ))
     assert payload.get("success") is False
     assert payload.get("error_code") == "leftover_disposition_conflict"
@@ -3516,7 +3531,7 @@ def test_burn_requires_facilities_on_c2():
     assert caught.value.error_code == "burn_requires_facilities"
     payload = _data(tea.evaluate_tea_lca_scenarios(
         [_public_from_record_tea_flowsheet_switches(record, burn_leftover_plastic=True)],
-        engine_mode="cache",
+        engine_mode="auto",
     ))
     assert payload.get("success") is False
     assert payload.get("error_code") == "burn_requires_facilities"
@@ -4077,13 +4092,13 @@ def test_classify_live_feed_uses_parameter_surface_not_old_three_names():
     assert "LDPE" not in unmodelled
 
 
-def test_doctor_reports_live_tea_path_without_requiring_it(tmp_path, monkeypatch):
+def test_doctor_fails_when_live_tea_is_not_configured(tmp_path, monkeypatch):
     monkeypatch.delenv("META_MUSE_API_KEY", raising=False)
     monkeypatch.delenv("DISSOLVE_TEA_PYTHON", raising=False)
     monkeypatch.delenv("DISSOLVE_PLASTICS_PATH", raising=False)
     report = doctor_report(tmp_path, model_alias="muse-spark")
     check = next(c for c in report["checks"] if c["name"] == "Live TEA")
-    assert check["status"] in {"pass", "warn", "fail"}
+    assert check["status"] == "fail"  # TEA answers nothing without live TEA, so this is not optional
     assert check["parameter_surface"].endswith("tea_polymer_parameters.py")
     assert "PES" in check["admitted_live_targets"]
     assert "PU" in check["refused_grid_targets"]
@@ -4096,13 +4111,59 @@ def test_doctor_reports_live_tea_path_without_requiring_it(tmp_path, monkeypatch
     assert check.get("execution_path")
     assert "ModuleNotFoundError: duckdb" in check["execution_path"]
     assert check.get("why_unavailable")
-    # Unconfigured live TEA must not flip doctor to fail by itself.
-    if check["status"] == "warn":
-        live_is_only_fail = not any(
-            item["status"] == "fail" and item["name"] == "Live TEA"
-            for item in report["checks"]
-        )
-        assert live_is_only_fail
+
+
+def _live_tea_down(monkeypatch):
+    monkeypatch.setattr(tea, "_live_tea_blocker", _LIVE_TEA_BLOCKER)
+    monkeypatch.setattr(tea, "live_engine_status", lambda: {
+        "available": False, "reason": "plastics_path_unset", "detail": "DISSOLVE_PLASTICS_PATH is unset",
+    })
+
+
+def test_no_tea_answer_without_live_tea_not_even_a_stored_one(monkeypatch):
+    record = _record_with_energy("C1")
+    recorded_msp = float(record["result"]["tea"]["msp_usd_per_kg"])
+    public = _public_from_record(record)
+    polymer = record["config"]["target_plastic"]
+    _live_tea_down(monkeypatch)
+    calls = {
+        "lookup_admitted_process_records": lambda: tea.lookup_admitted_process_records(target_polymer=polymer),
+        "evaluate_process": lambda: tea.evaluate_process(mode="evaluate", process_config=public),
+        "rank_landscape": lambda: tea.rank_landscape(target_polymer=polymer),
+        "evaluate_tea_lca_scenarios": lambda: tea.evaluate_tea_lca_scenarios([public]),
+        "evaluate_stored_route_tea_lca": lambda: tea.evaluate_stored_route_tea_lca(feed_mass_fractions={polymer: 1.0}),
+        "analyze_tea_sensitivity": lambda: tea.analyze_tea_sensitivity(public, parameter="solvent_price"),
+    }
+    for name, call in calls.items():
+        payload = _data(call())
+        assert (payload["tool_name"], payload["success"], payload["error_code"]) == (name, False, "live_tea_unavailable")
+        assert "DISSOLVE_PLASTICS_PATH is unset" in payload["error"]
+        assert payload["remediation"]
+        assert repr(recorded_msp) not in json.dumps(payload)
+    stored = tea._run(record["config"], "auto", 60)
+    assert (stored["error_type"], stored["cache_match_status"]) == ("live_tea_unavailable", "not_consulted")
+
+
+def test_a_stored_result_serves_once_live_tea_works(monkeypatch):
+    record = _record_with_energy("C1")
+    _forbid_live(monkeypatch)
+    stored = tea._run(record["config"], "auto", 60)
+    assert (stored["success"], stored["engine_mode"], stored["cache_match_status"]) == (True, "cache", "exact")
+    assert stored["tea"]["msp_usd_per_kg"] == pytest.approx(record["result"]["tea"]["msp_usd_per_kg"])
+
+
+def test_cache_is_not_an_engine_mode(monkeypatch):
+    record = _record_with_energy("C1")
+    public = _public_from_record(record)
+    _forbid_live(monkeypatch)
+    for raw in (
+        tea.evaluate_tea_lca_scenarios([public], engine_mode="cache"),
+        tea.evaluate_process(mode="evaluate", process_config=public, engine_mode="cache"),
+        tea.analyze_tea_sensitivity(public, parameter="solvent_price", engine_mode="cache"),
+    ):
+        payload = _data(raw)
+        assert (payload["error_code"], payload["engine_mode"]) == ("invalid_engine_mode", "cache")
+    assert tea._run(record["config"], "cache", 60)["error_type"] == "invalid_engine_mode"
 
 
 def test_public_scenario_overrides_cannot_cite_committed_pair_names(monkeypatch):
@@ -4805,7 +4866,7 @@ def test_shortlist_of_three_without_held_names_the_nine(monkeypatch):
             _item_from_record(mid),
             _item_from_record(high),
         ),
-        engine_mode="cache",
+        engine_mode="auto",
     ))
     assert payload.get("error_code") == "screening_basis_incomplete"
     assert payload.get("missing") == list(tea._NINE_HELD_PUBLIC_FIELDS)
@@ -4817,6 +4878,7 @@ def test_shortlist_of_three_without_held_names_the_nine(monkeypatch):
 def test_feed_basis_cache_serves_admitted_and_fails_unadmitted(monkeypatch):
     low, mid, high = _admitted_ldpe_trio()
     _forbid_live(monkeypatch)
+    _live_run_fails(monkeypatch)
     held = _held_from_record(mid)
     miss = _item_from_record(mid, dissolution_temperature_c=999.0)
     payload = _data(tea.evaluate_process(
@@ -4827,7 +4889,8 @@ def test_feed_basis_cache_serves_admitted_and_fails_unadmitted(monkeypatch):
             miss,
         ),
         held_process_basis=held,
-        engine_mode="cache",
+        engine_mode="auto",
+        confirm_live_tea=True,
     ))
     rows = list(payload.get("comparison_rows") or payload.get("failures") or [])
     assert len(rows) == 3
@@ -4836,7 +4899,7 @@ def test_feed_basis_cache_serves_admitted_and_fails_unadmitted(monkeypatch):
     failed = [row for row in rows if row.get("success") is not True]
     assert len(served) == 2
     assert len(failed) == 1
-    assert failed[0].get("error_type") in {"cache_miss", "no_simulation_result"}
+    assert failed[0].get("error_type") == "timeout"
     assert failed[0].get("msp_usd_per_kg") is None
     origins = served[0]["field_origin"]
     assert origins["target_polymer"] == "from_screen"
@@ -4963,7 +5026,7 @@ def test_confirm_live_tea_on_process_configs_quotes_live_without_starting(
     cache_path = _data(tea.evaluate_process(
         mode="evaluate",
         process_config=twelve,
-        engine_mode="cache",
+        engine_mode="auto",
         confirm_live_tea=True,
     ))
     assert cache_path.get("success") is True
@@ -5213,7 +5276,7 @@ def test_process_rows_rank_keeps_thermo_rank_and_stamps_disagreement(monkeypatch
                 _item_from_record(mid, thermo_rank=3),
             ),
             held_process_basis=_held_from_record(mid),
-            engine_mode="cache",
+            engine_mode="auto",
         ))
         assert first.get("success") is True
         assert [row.get("original_thermo_rank") for row in first["comparison_rows"]] == [
@@ -5271,7 +5334,7 @@ def test_missing_thermo_rank_is_null_and_cannot_claim_disagreement(monkeypatch):
                 _item_from_record(mid),
             ),
             held_process_basis=_held_from_record(mid),
-            engine_mode="cache",
+            engine_mode="auto",
         ))
         handle = store_handle(
             session,
@@ -5368,7 +5431,7 @@ def test_residue_polymer_that_is_not_a_first_stage_is_residue_was_costed(
                 }],
             },
             held_process_basis=_held_from_record(record),
-            engine_mode="cache",
+            engine_mode="auto",
         ))
     assert (residue, record["config"]["solvent"], record["config"][
         "dissolution_temperature_c"
@@ -5426,14 +5489,14 @@ def test_later_stage_identity_at_feed_basis_refuses(monkeypatch):
                 }],
             },
             held_process_basis=_held_from_record(record),
-            engine_mode="cache",
+            engine_mode="auto",
         ))
     assert payload.get("error_code") == "stage_basis_not_derived"
     assert payload.get("named_blocker") == "incomplete_stage_basis_grid"
     assert "comparison_rows" not in payload
 
 
-def test_cache_mode_unadmitted_does_not_quote_live(monkeypatch):
+def test_unadmitted_rows_quote_nothing_until_live_is_confirmed(monkeypatch):
     mid = _record_by_label("ldpe-route-c1")
     _forbid_live(monkeypatch)
     payload = _data(tea.evaluate_process(
@@ -5443,13 +5506,11 @@ def test_cache_mode_unadmitted_does_not_quote_live(monkeypatch):
             _item_from_record(mid, dissolution_temperature_c=998.0, thermo_rank=2),
         ),
         held_process_basis=_held_from_record(mid),
-        engine_mode="cache",
+        engine_mode="auto",
     ))
-    assert payload.get("error_code") != "live_tea_cost_confirmation_required"
-    assert payload.get("error_code") == "no_simulation_result"
-    failures = payload.get("failures") or []
-    assert len(failures) == 2
-    assert {row.get("original_thermo_rank") for row in failures} == {1, 2}
+    assert payload.get("error_code") == "live_tea_cost_confirmation_required"
+    assert (payload.get("n_live"), payload.get("n_cache")) == (2, 0)
+    assert "msp_usd_per_kg" not in json.dumps(payload)
 
 
 # --- from test_lca_cf_gap.py: C-1: describe the two CF gaps; do not admit rows or move the C1/C2/C3 refuse.
@@ -5765,7 +5826,7 @@ def test_coerce_binds_to_the_metric_not_the_input_mass_percent():
         "config": {"target_plastic_percent": 100.0},
     })
     assert finite_at_hundred["success"] is True
-    already = {"success": False, "error_type": "cache_miss"}
+    already = {"success": False, "error_type": "timeout"}
     assert tea._coerce_nonfinite_served_tea(already) is already
     assert tea._coerce_nonfinite_served_gwp(already) is already
 
@@ -5810,10 +5871,7 @@ def test_all_fail_error_code_promotes_only_homogeneous_classified():
         [{"error_type": "priced_solvent_unmodellable"}]
     ) == "priced_solvent_unmodellable"
     assert tea._all_fail_error_code(
-        [{"error_type": "cache_flowsheet_mismatch"}]
-    ) == "cache_flowsheet_mismatch"
-    assert tea._all_fail_error_code(
-        [{"error_type": "cache_miss"}]
+        [{"error_type": "timeout"}]
     ) == "no_simulation_result"
     assert tea._all_fail_error_code([
         {"error_type": "no_finite_msp"},
@@ -5830,7 +5888,7 @@ def test_complete_twelve_cache_still_serves_finite_msp(monkeypatch):
     payload = _data(tea.evaluate_process(
         mode="evaluate",
         process_config=_public_from_record(record),
-        engine_mode="cache",
+        engine_mode="auto",
     ))
     assert payload.get("success") is True
     row = (payload.get("comparison_rows") or [None])[0]
@@ -5850,7 +5908,7 @@ def test_evaluate_injected_null_msp_is_typed_not_typeerror(monkeypatch):
     payload = _data(tea.evaluate_process(
         mode="evaluate",
         process_config=_public_from_record(record),
-        engine_mode="cache",
+        engine_mode="auto",
     ))
     assert payload.get("success") is False
     assert payload.get("error_code") == "tea_cashflow_undefined"
@@ -5871,7 +5929,7 @@ def test_evaluate_injected_null_msp_without_cashflow_promotes_no_finite_msp(
     payload = _data(tea.evaluate_process(
         mode="evaluate",
         process_config=_public_from_record(record),
-        engine_mode="cache",
+        engine_mode="auto",
     ))
     assert payload.get("success") is False
     assert payload.get("error_code") == "no_finite_msp"
@@ -5888,7 +5946,7 @@ def test_evaluate_injected_inf_msp_promotes_no_finite_msp(monkeypatch):
     payload = _data(tea.evaluate_process(
         mode="evaluate",
         process_config=_public_from_record(record),
-        engine_mode="cache",
+        engine_mode="auto",
     ))
     assert payload.get("success") is False
     assert payload.get("error_code") == "no_finite_msp"
@@ -5927,7 +5985,7 @@ def test_evaluate_mixed_d23_types_stay_no_simulation_result(monkeypatch):
             _public_from_record(c1),
             _public_from_record(sibling),
         ],
-        engine_mode="cache",
+        engine_mode="auto",
     ))
     assert payload.get("success") is False
     assert payload.get("error_code") == "no_simulation_result"
@@ -5945,7 +6003,7 @@ def test_evaluate_injected_null_gwp_is_typed_not_untyped_drop(monkeypatch):
     payload = _data(tea.evaluate_process(
         mode="evaluate",
         process_config=_public_from_record(record),
-        engine_mode="cache",
+        engine_mode="auto",
     ))
     assert payload.get("success") is False
     assert payload.get("error_code") == "no_finite_gwp"
@@ -5973,7 +6031,7 @@ def test_evaluate_mixed_null_gwp_keeps_the_finite_sibling(monkeypatch):
             _public_from_record(c1),
             _public_from_record(sibling),
         ],
-        engine_mode="cache",
+        engine_mode="auto",
     ))
     assert payload.get("success") is True
     assert payload.get("completed") == 1
@@ -6000,7 +6058,7 @@ def test_evaluate_mixed_batch_keeps_the_finite_sibling(monkeypatch):
             _public_from_record(c1),
             _public_from_record(sibling),
         ],
-        engine_mode="cache",
+        engine_mode="auto",
     ))
     assert payload.get("success") is True
     assert payload.get("completed") == 1
@@ -6030,7 +6088,7 @@ def test_route_injected_null_msp_is_route_stage_failed(monkeypatch):
             processing_capacity_mt_per_yr=_ROUTE_CAPACITY,
             energy_case=_ROUTE_ENERGY,
             precipitation_temperature_c=_ROUTE_PRECIP,
-            engine_mode="cache",
+            engine_mode="auto",
         ))
     assert payload.get("success") is False
     assert payload.get("error_code") == "route_stage_failed"
@@ -6040,7 +6098,7 @@ def test_route_injected_null_msp_is_route_stage_failed(monkeypatch):
     assert "nan encountered in cashflow array" in str(failed.get("error") or "")
 
 
-def test_route_cache_miss_still_reaches_uncostable_or_design_point(
+def test_route_stage_live_cannot_run_reaches_uncostable_or_design_point(
     monkeypatch,
 ):
     composition, route = _exact_planner_route()
@@ -6049,9 +6107,9 @@ def test_route_cache_miss_still_reaches_uncostable_or_design_point(
     def planted(config, engine_mode, timeout_seconds):
         return {
             "success": False,
-            "error": "No exact cached simulation matches this configuration.",
-            "error_type": "cache_miss",
-            "engine_mode": "cache",
+            "error": "The TEA worker is not Python 3.12.",
+            "error_type": "python_version",
+            "engine_mode": "live",
             "cache_match_status": "miss",
             "config": config,
         }
@@ -6066,7 +6124,7 @@ def test_route_cache_miss_still_reaches_uncostable_or_design_point(
             processing_capacity_mt_per_yr=_ROUTE_CAPACITY,
             energy_case=_ROUTE_ENERGY,
             precipitation_temperature_c=_ROUTE_PRECIP,
-            engine_mode="cache",
+            engine_mode="auto",
         ))
     assert payload.get("success") is False
     assert payload.get("error_code") in {
@@ -6102,7 +6160,7 @@ def test_route_nonfinite_metric_is_not_papered_by_screening_estimate(
             processing_capacity_mt_per_yr=_ROUTE_CAPACITY,
             energy_case=_ROUTE_ENERGY,
             precipitation_temperature_c=_ROUTE_PRECIP,
-            engine_mode="cache",
+            engine_mode="auto",
             allow_screening_estimate=True,
         ))
     assert called["n"] == 0
@@ -6139,7 +6197,7 @@ def _forbid_pair_fill(monkeypatch):
 
 def _store_evaluate_handle(session, record):
     first = _data(tea.evaluate_tea_lca_scenarios(
-        [_public_from_record(record)], engine_mode="cache",
+        [_public_from_record(record)], engine_mode="auto",
     ))
     assert first.get("success") is True
     return store_handle(
@@ -6154,7 +6212,7 @@ def test_evaluate_comparison_rows_carry_the_lookup_twelve(monkeypatch):
     record = _record_with_energy("C1")
     _forbid_pair_fill(monkeypatch)
     payload = _data(tea.evaluate_tea_lca_scenarios(
-        [_public_from_record(record)], engine_mode="cache",
+        [_public_from_record(record)], engine_mode="auto",
     ))
     row = payload["comparison_rows"][0]
     for name in tea._PUBLIC_REQUIRED_FIELDS:
@@ -6174,7 +6232,7 @@ def test_first_incomplete_evaluate_still_refuses_without_handle(monkeypatch):
             "solvent": cfg["solvent"],
             "dissolution_temperature_c": cfg["dissolution_temperature_c"],
         }],
-        engine_mode="cache",
+        engine_mode="auto",
     ))
     assert payload.get("error_code") == "incomplete_process_config"
     assert payload.get("missing") == list(tea._NINE_HELD_PUBLIC_FIELDS)
@@ -6196,7 +6254,7 @@ def test_omitted_nine_inherit_from_evaluate_handle(monkeypatch):
                 "dissolution_temperature_c": cfg["dissolution_temperature_c"],
             }],
             handle=handle,
-            engine_mode="cache",
+            engine_mode="auto",
         ))
     row = payload["comparison_rows"][0]
     origin = row["field_origin"]
@@ -6216,6 +6274,7 @@ def test_override_is_supplied_and_rest_inherited(monkeypatch):
     record = _record_with_energy("C1")
     cfg = record["config"]
     _forbid_pair_fill(monkeypatch)
+    _live_run_fails(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
         handle, _first = _store_evaluate_handle(session, record)
@@ -6227,7 +6286,8 @@ def test_override_is_supplied_and_rest_inherited(monkeypatch):
                 "precipitation_temperature_c": 999.0,
             }],
             handle=handle,
-            engine_mode="cache",
+            engine_mode="auto",
+            confirm_live_tea=True,
         ))
     row = (payload.get("comparison_rows") or payload.get("failures") or [None])[0]
     assert row is not None
@@ -6246,7 +6306,7 @@ def test_handle_only_reruns_the_executed_twelve(monkeypatch):
     with bind_tool_session(session):
         handle, _first = _store_evaluate_handle(session, record)
         payload = _data(tea.evaluate_tea_lca_scenarios(
-            handle=handle, engine_mode="cache",
+            handle=handle, engine_mode="auto",
         ))
     row = payload["comparison_rows"][0]
     origin = row["field_origin"]
@@ -6264,7 +6324,7 @@ def test_complete_scenarios_win_over_leftover_handle(monkeypatch):
         payload = _data(tea.evaluate_tea_lca_scenarios(
             [_public_from_record(record)],
             handle=handle,
-            engine_mode="cache",
+            engine_mode="auto",
         ))
     row = payload["comparison_rows"][0]
     assert "field_origin" not in row
@@ -6286,7 +6346,7 @@ def test_shortlist_without_held_inherits_nine_from_handle(monkeypatch):
                 "items": [_item_from_record(record)],
             },
             handle=handle,
-            engine_mode="cache",
+            engine_mode="auto",
         ))
     row = payload["comparison_rows"][0]
     origin = row["field_origin"]
@@ -6312,7 +6372,7 @@ def test_held_basis_beats_handle_for_the_nine(monkeypatch):
             },
             held_process_basis=_held_from_record(record),
             handle=handle,
-            engine_mode="cache",
+            engine_mode="auto",
         ))
     row = payload["comparison_rows"][0]
     origin = row["field_origin"]
@@ -6341,7 +6401,7 @@ def test_screening_handle_cannot_be_the_inherit_source(monkeypatch):
                 "dissolution_temperature_c": cfg["dissolution_temperature_c"],
             }],
             handle=screen["handle"],
-            engine_mode="cache",
+            engine_mode="auto",
         ))
     assert payload.get("error_code") == "not_economics_handle"
     assert "comparison_rows" not in payload
@@ -6351,6 +6411,7 @@ def test_multi_row_handle_without_row_id_is_ambiguous(monkeypatch):
     record = _record_with_energy("C1")
     cfg = record["config"]
     _forbid_pair_fill(monkeypatch)
+    _live_run_fails(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
         first = _data(tea.evaluate_tea_lca_scenarios(
@@ -6358,7 +6419,8 @@ def test_multi_row_handle_without_row_id_is_ambiguous(monkeypatch):
                 _public_from_record(record),
                 _public_from_record(record, dissolution_temperature_c=999.0),
             ],
-            engine_mode="cache",
+            engine_mode="auto",
+            confirm_live_tea=True,
         ))
         handle = store_handle(
             session,
@@ -6372,7 +6434,7 @@ def test_multi_row_handle_without_row_id_is_ambiguous(monkeypatch):
                 "solvent": cfg["solvent"],
             }],
             handle=handle,
-            engine_mode="cache",
+            engine_mode="auto",
         ))
         selected = _data(tea.evaluate_tea_lca_scenarios(
             [{
@@ -6382,7 +6444,7 @@ def test_multi_row_handle_without_row_id_is_ambiguous(monkeypatch):
             }],
             handle=handle,
             row_id=1,
-            engine_mode="cache",
+            engine_mode="auto",
         ))
     assert missing.get("error_code") == "ambiguous_handle_row"
     assert missing.get("n_rows") == 2
@@ -6404,7 +6466,7 @@ def test_unknown_handle_refuses_incomplete_follow_up(monkeypatch):
             "solvent": cfg["solvent"],
         }],
         handle="ghost-white-fox",
-        engine_mode="cache",
+        engine_mode="auto",
     ))
     assert payload.get("error_code") == "unknown_handle"
 
@@ -6439,7 +6501,7 @@ def test_lookup_row_is_an_economics_inherit_source(monkeypatch):
             }],
             handle=handle,
             row_id=1 if len(rows) > 1 else None,
-            engine_mode="cache",
+            engine_mode="auto",
         ))
     row = payload["comparison_rows"][0]
     assert row["msp_usd_per_kg"] == pytest.approx(recorded_msp)
@@ -6456,7 +6518,7 @@ def test_dispatch_one_scenario_evaluate_issues_handle_and_keeps_rows(monkeypatch
             "evaluate_process",
             mode="evaluate",
             process_config=_public_from_record(record),
-            engine_mode="cache",
+            engine_mode="auto",
         )
         assert out["available"] is True
         assert out.get("handle")
@@ -6476,7 +6538,7 @@ def test_dispatch_one_scenario_evaluate_issues_handle_and_keeps_rows(monkeypatch
                 ],
             },
             handle=out["handle"],
-            engine_mode="cache",
+            engine_mode="auto",
         )
     assert follow["available"] is True
     origin = follow["data"]["comparison_rows"][0]["field_origin"]
@@ -6534,7 +6596,7 @@ def test_polymer_and_solvent_alone_list_missing_public_fields(monkeypatch):
             "target_polymer": cfg["target_plastic"],
             "solvent": cfg["solvent"],
         }],
-        engine_mode="cache",
+        engine_mode="auto",
     ))
     assert payload.get("error_code") == "incomplete_process_config"
     missing = list(payload.get("missing") or [])
@@ -6561,7 +6623,7 @@ def test_polymer_solvent_and_t_lists_the_nine(monkeypatch):
     assert caught.value.error_code == "incomplete_process_config"
     assert caught.value.details["missing"] == list(tea._NINE_HELD_PUBLIC_FIELDS)
     payload = _data(tea.evaluate_tea_lca_scenarios(
-        [scenario], engine_mode="cache",
+        [scenario], engine_mode="auto",
     ))
     assert payload.get("error_code") == "incomplete_process_config"
     assert payload.get("missing") == list(tea._NINE_HELD_PUBLIC_FIELDS)
@@ -6576,7 +6638,7 @@ def test_temperature_c_is_not_an_alias_and_does_not_fill(monkeypatch):
             record,
             temperature_c=record["config"]["dissolution_temperature_c"],
         )],
-        engine_mode="cache",
+        engine_mode="auto",
     ))
     assert payload.get("error_code") == "unknown_process_field"
     assert "temperature_c" in list(payload.get("extra_keys") or [])
@@ -6590,7 +6652,7 @@ def test_temperature_c_rename_does_not_supply_dissolution_t(monkeypatch):
     renamed = scenario.pop("dissolution_temp_c")
     scenario["temperature_c"] = renamed
     payload = _data(tea.evaluate_tea_lca_scenarios(
-        [scenario], engine_mode="cache",
+        [scenario], engine_mode="auto",
     ))
     assert payload.get("error_code") == "unknown_process_field"
     assert "temperature_c" in list(payload.get("extra_keys") or [])
@@ -6602,7 +6664,7 @@ def test_unknown_extra_key_refuses_a_complete_twelve(monkeypatch):
     _forbid_pair_fill_incomplete_process_config(monkeypatch)
     payload = _data(tea.evaluate_tea_lca_scenarios(
         [_public_from_record_incomplete_process_config(record, not_a_process_field=1)],
-        engine_mode="cache",
+        engine_mode="auto",
     ))
     assert payload.get("error_code") == "unknown_process_field"
     assert "not_a_process_field" in list(payload.get("extra_keys") or [])
@@ -6618,7 +6680,7 @@ def test_complete_twelve_still_hits_the_cache(monkeypatch):
     monkeypatch.setattr(tea, "_live", forbidden_live)
     payload = _data(tea.evaluate_tea_lca_scenarios(
         [_public_from_record_incomplete_process_config(record)],
-        engine_mode="cache",
+        engine_mode="auto",
     ))
     assert payload.get("success") is True
     assert payload.get("cache_match_status") == "exact"
@@ -6632,22 +6694,17 @@ def test_complete_twelve_at_unmatched_t_is_a_miss_not_a_fill(monkeypatch):
     recorded_msp = float(record["result"]["tea"]["msp_usd_per_kg"])
 
     def forbidden_live(config, timeout_seconds):
-        raise AssertionError("cache miss must not fall through to live")
+        raise AssertionError("an unconfirmed miss must not start live")
 
     monkeypatch.setattr(tea, "_live", forbidden_live)
     payload = _data(tea.evaluate_tea_lca_scenarios(
         [_public_from_record_incomplete_process_config(record, dissolution_temp_c=999.0)],
-        engine_mode="cache",
+        engine_mode="auto",
     ))
     assert payload.get("success") is False
-    assert payload.get("cache_match_status") == "miss"
-    assert payload.get("error_code") != "incomplete_process_config"
-    failures = list(payload.get("failures") or [])
-    assert failures
-    assert failures[0].get("msp_usd_per_kg") is None
-    assert recorded_msp not in (
-        failures[0].get("msp_usd_per_kg"), failures[0].get("tea"),
-    )
+    assert payload.get("error_code") == "live_tea_cost_confirmation_required"
+    assert (payload.get("n_live"), payload.get("n_cache")) == (1, 0)
+    assert repr(recorded_msp) not in json.dumps(payload)
 
 
 def test_omitted_switches_on_a_complete_twelve_keep_production(monkeypatch):
@@ -6663,7 +6720,7 @@ def test_omitted_switches_on_a_complete_twelve_keep_production(monkeypatch):
     assert reconstructed["irr"] == pytest.approx(0.10)
     payload = _data(tea.evaluate_tea_lca_scenarios(
         [_public_from_record_incomplete_process_config(record)],
-        engine_mode="cache",
+        engine_mode="auto",
     ))
     assert payload.get("cache_match_status") == "exact"
 
@@ -6679,7 +6736,7 @@ def test_sensitivity_refuses_the_same_incomplete_nine(monkeypatch):
             "dissolution_temperature_c": cfg["dissolution_temperature_c"],
         },
         parameter="target_mass_percent",
-        engine_mode="cache",
+        engine_mode="auto",
     ))
     assert payload.get("error_code") == "incomplete_process_config"
     assert payload.get("missing") == list(tea._NINE_HELD_PUBLIC_FIELDS)
@@ -6708,7 +6765,7 @@ def test_worker_internal_names_satisfy_the_public_twelve(monkeypatch):
             "dissolution_capacity": cfg["dissolution_capacity"],
             "labor_cost": cfg["labor_cost"],
         }],
-        engine_mode="cache",
+        engine_mode="auto",
     ))
     assert payload.get("success") is True
     assert payload.get("cache_match_status") == "exact"
@@ -6744,7 +6801,7 @@ def test_evaluate_still_refuses_a_d8_overlay_without_the_twelve(monkeypatch):
     _forbid_pair_fill_incomplete_process_config(monkeypatch)
     payload = _data(tea.evaluate_tea_lca_scenarios(
         [_d8_overlay_from_record(record)],
-        engine_mode="cache",
+        engine_mode="auto",
     ))
     assert payload.get("error_code") == "incomplete_process_config"
     assert payload.get("missing") == list(tea._D8_REMAINDER_PUBLIC_FIELDS)
@@ -6758,7 +6815,7 @@ def test_sensitivity_still_refuses_a_d8_overlay_without_the_twelve(monkeypatch):
     payload = _data(tea.analyze_tea_sensitivity(
         _d8_overlay_from_record(record),
         parameter="target_mass_percent",
-        engine_mode="cache",
+        engine_mode="auto",
     ))
     assert payload.get("error_code") == "incomplete_process_config"
     assert payload.get("missing") == list(tea._D8_REMAINDER_PUBLIC_FIELDS)
@@ -6779,7 +6836,7 @@ def test_unknown_parameter_lists_capacity_and_labour(monkeypatch):
     payload = _data(tea.analyze_tea_sensitivity(
         _public_from_record(record),
         parameter="recovery",
-        engine_mode="cache",
+        engine_mode="auto",
     ))
     assert payload.get("error_code") == "unsupported_parameter"
     supported = list(payload.get("supported_parameters") or [])
@@ -6794,7 +6851,7 @@ def test_energy_case_is_still_unsupported(monkeypatch):
     payload = _data(tea.analyze_tea_sensitivity(
         _public_from_record(record),
         parameter="energy_case",
-        engine_mode="cache",
+        engine_mode="auto",
     ))
     assert payload.get("error_code") == "unsupported_parameter"
 
@@ -6805,18 +6862,19 @@ def test_dissolution_capacity_is_no_longer_unsupported(monkeypatch):
     discovered = _data(tea.analyze_tea_sensitivity(
         _public_from_record(record),
         parameter="dissolution_capacity",
-        engine_mode="cache",
+        engine_mode="auto",
     ))
     wrapped = _data(tea.evaluate_process(
         mode="sensitivity",
         process_config=_public_from_record(record),
         parameter="dissolution_capacity",
-        engine_mode="cache",
+        engine_mode="auto",
     ))
     assert discovered.get("error_code") != "unsupported_parameter"
     assert discovered.get("error_code") == "insufficient_sensitivity_values"
     assert wrapped.get("error_code") == "insufficient_sensitivity_values"
     assert wrapped.get("tool_name") == "evaluate_process"
+    _live_run_fails(monkeypatch)
     swept = _data(tea.analyze_tea_sensitivity(
         _public_from_record(record),
         parameter="dissolution_capacity",
@@ -6824,7 +6882,8 @@ def test_dissolution_capacity_is_no_longer_unsupported(monkeypatch):
             float(record["config"]["dissolution_capacity"]),
             float(record["config"]["dissolution_capacity"]) + 1.0,
         ],
-        engine_mode="cache",
+        engine_mode="auto",
+        confirm_live_tea=True,
     ))
     assert swept.get("error_code") != "unsupported_parameter"
     assert swept.get("error_code") == "insufficient_sensitivity_results"
@@ -6848,18 +6907,19 @@ def test_labor_cost_public_alias_is_no_longer_unsupported(monkeypatch):
     discovered = _data(tea.analyze_tea_sensitivity(
         _public_from_record(record),
         parameter="labor_cost_usd_per_employee_yr",
-        engine_mode="cache",
+        engine_mode="auto",
     ))
     wrapped = _data(tea.evaluate_process(
         mode="sensitivity",
         process_config=_public_from_record(record),
         parameter="labor_cost",
-        engine_mode="cache",
+        engine_mode="auto",
     ))
     assert discovered.get("error_code") != "unsupported_parameter"
     assert discovered.get("error_code") == "insufficient_sensitivity_values"
     assert wrapped.get("error_code") == "insufficient_sensitivity_values"
     assert wrapped.get("tool_name") == "evaluate_process"
+    _live_run_fails(monkeypatch)
     swept = _data(tea.analyze_tea_sensitivity(
         _public_from_record(record),
         parameter="labor_cost",
@@ -6867,7 +6927,8 @@ def test_labor_cost_public_alias_is_no_longer_unsupported(monkeypatch):
             float(record["config"]["labor_cost"]),
             float(record["config"]["labor_cost"]) + 1000.0,
         ],
-        engine_mode="cache",
+        engine_mode="auto",
+        confirm_live_tea=True,
     ))
     assert swept.get("error_code") != "unsupported_parameter"
     assert swept.get("error_code") == "insufficient_sensitivity_results"
@@ -6887,7 +6948,7 @@ def test_solvent_price_sweep_still_serves(monkeypatch):
     payload = _data(tea.analyze_tea_sensitivity(
         _public_from_record(record),
         parameter="solvent_price",
-        engine_mode="cache",
+        engine_mode="auto",
     ))
     assert payload.get("success") is True
     assert len(payload["sensitivity_rows"]) >= 2
@@ -6908,7 +6969,7 @@ def test_sensitivity_rows_carry_the_executed_twelve(monkeypatch):
     payload = _data(tea.analyze_tea_sensitivity(
         _public_from_record(record),
         parameter="solvent_price",
-        engine_mode="cache",
+        engine_mode="auto",
     ))
     assert payload.get("success") is True
     rows = payload["sensitivity_rows"]
@@ -6932,7 +6993,7 @@ def test_first_incomplete_sensitivity_still_refuses_without_handle(monkeypatch):
             "dissolution_temperature_c": cfg["dissolution_temperature_c"],
         },
         parameter="solvent_price",
-        engine_mode="cache",
+        engine_mode="auto",
     ))
     assert payload.get("error_code") == "incomplete_process_config"
     assert payload.get("missing") == list(tea._NINE_HELD_PUBLIC_FIELDS)
@@ -6954,7 +7015,7 @@ def test_sensitivity_inherits_baseline_from_evaluate_handle(monkeypatch):
             },
             parameter="solvent_price",
             handle=handle,
-            engine_mode="cache",
+            engine_mode="auto",
             analysis_mode="tornado",
         ))
     assert payload.get("success") is True
@@ -6980,7 +7041,7 @@ def test_handle_only_sensitivity_inherits_the_executed_twelve(monkeypatch):
         payload = _data(tea.analyze_tea_sensitivity(
             parameter="solvent_price",
             handle=handle,
-            engine_mode="cache",
+            engine_mode="auto",
             analysis_mode="tornado",
         ))
     assert payload.get("success") is True
@@ -7000,7 +7061,7 @@ def test_complete_sensitivity_scenario_wins_over_leftover_handle(monkeypatch):
             _public_from_record(record),
             parameter="solvent_price",
             handle=handle,
-            engine_mode="cache",
+            engine_mode="auto",
         ))
     assert payload.get("success") is True
     assert "field_origin" not in payload
@@ -7026,7 +7087,7 @@ def test_screening_handle_cannot_be_sensitivity_baseline(monkeypatch):
             },
             parameter="solvent_price",
             handle=screen["handle"],
-            engine_mode="cache",
+            engine_mode="auto",
         ))
     assert payload.get("error_code") == "not_economics_handle"
 
@@ -7041,7 +7102,7 @@ def test_evaluate_can_inherit_from_a_sensitivity_row(monkeypatch):
         sweep = _data(tea.analyze_tea_sensitivity(
             _public_from_record(record),
             parameter="solvent_price",
-            engine_mode="cache",
+            engine_mode="auto",
         ))
         handle = store_handle(
             session,
@@ -7056,7 +7117,7 @@ def test_evaluate_can_inherit_from_a_sensitivity_row(monkeypatch):
                 "dissolution_temperature_c": cfg["dissolution_temperature_c"],
             }],
             handle=handle,
-            engine_mode="cache",
+            engine_mode="auto",
         ))
         baseline_index = next(
             index
@@ -7071,7 +7132,7 @@ def test_evaluate_can_inherit_from_a_sensitivity_row(monkeypatch):
             }],
             handle=handle,
             row_id=baseline_index,
-            engine_mode="cache",
+            engine_mode="auto",
         ))
     assert missing.get("error_code") == "ambiguous_handle_row"
     row = follow["comparison_rows"][0]
@@ -7089,7 +7150,7 @@ def test_dispatch_tornado_from_evaluate_handle(monkeypatch):
             "evaluate_process",
             mode="evaluate",
             process_config=_public_from_record(record),
-            engine_mode="cache",
+            engine_mode="auto",
         )
         tornado = dispatch(
             "evaluate_process",
@@ -7097,7 +7158,7 @@ def test_dispatch_tornado_from_evaluate_handle(monkeypatch):
             parameter="solvent_price",
             analysis_mode="tornado",
             handle=evaluated["handle"],
-            engine_mode="cache",
+            engine_mode="auto",
         )
     assert tornado["available"] is True
     assert tornado.get("handle")
@@ -7388,7 +7449,7 @@ def _forbid_live_rank_evaluate_handle(monkeypatch):
 
 def _store_evaluate(session, scenarios):
     first = _data_rank_evaluate_handle(tea.evaluate_tea_lca_scenarios(
-        scenarios, engine_mode="cache",
+        scenarios, engine_mode="auto",
     ))
     assert first.get("success") is True
     return store_handle(
@@ -7443,7 +7504,7 @@ def test_evaluate_handle_carries_bound_safety_standing(monkeypatch):
     with bind_tool_session(session):
         first = _data_rank_evaluate_handle(tea.evaluate_tea_lca_scenarios(
             [_public_from_record(c1), _public_from_record(c2)],
-            engine_mode="cache",
+            engine_mode="auto",
         ))
         assert first.get("success") is True
         rows = list(first["comparison_rows"])
@@ -7553,13 +7614,13 @@ def test_evaluate_process_sensitivity_handle_ranks(monkeypatch):
             mode="sensitivity",
             process_config=_public_from_record(record),
             parameter="solvent_price",
-            engine_mode="cache",
+            engine_mode="auto",
         )
         retired = dispatch(
             "analyze_tea_sensitivity",
             scenario=_public_from_record(record),
             parameter="solvent_price",
-            engine_mode="cache",
+            engine_mode="auto",
         )
         assert wrapped.get("available") is True
         assert retired.get("available") is False
@@ -7567,7 +7628,7 @@ def test_evaluate_process_sensitivity_handle_ranks(monkeypatch):
         engine = _data_rank_evaluate_handle(tea.analyze_tea_sensitivity(
             _public_from_record(record),
             parameter="solvent_price",
-            engine_mode="cache",
+            engine_mode="auto",
         ))
         engine_handle = store_handle(
             session,
@@ -7735,7 +7796,7 @@ def test_dispatch_ranks_the_evaluate_handle(monkeypatch):
             "evaluate_process",
             mode="evaluate",
             process_configs=[_public_from_record(c1), _public_from_record(c2)],
-            engine_mode="cache",
+            engine_mode="auto",
         )
         assert evaluated.get("available") is True
         handle = evaluated.get("handle")
@@ -7769,7 +7830,7 @@ def _costed_route_handle(session, monkeypatch):
         processing_capacity_mt_per_yr=_ROUTE_CAPACITY,
         energy_case=_ROUTE_ENERGY,
         precipitation_temperature_c=_ROUTE_PRECIP,
-        engine_mode="cache",
+        engine_mode="auto",
     ))
     assert payload.get("success") is True
     return store_handle(
@@ -7977,7 +8038,7 @@ def test_pareto_name_retired_both_successors_serve(monkeypatch):
                 _public_from_record(c1),
                 _public_from_record(c2),
             ],
-            engine_mode="cache",
+            engine_mode="auto",
         ))
         assert batch.get("success") is True
         batch_handle = store_handle(
@@ -8142,7 +8203,7 @@ def _cost(monkeypatch, composition: dict, route: dict) -> dict:
             processing_capacity_mt_per_yr=_ROUTE_CAPACITY,
             energy_case=_ROUTE_ENERGY,
             precipitation_temperature_c=_ROUTE_PRECIP,
-            engine_mode="cache",
+            engine_mode="auto",
         ))
 
 

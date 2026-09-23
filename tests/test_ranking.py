@@ -26,6 +26,15 @@ from dissolve.cli import EXPECTED_REGISTRY_NAMES
 from dissolve.contracts import parse_tool_result
 from dissolve.session import bind_tool_session, new_session, store_handle
 
+
+@pytest.fixture(autouse=True)
+def _live_tea_works(monkeypatch, tmp_path):
+    """TEA answers only when live TEA works; these tests stand in a working engine (tests of the check itself
+    override this) and never see this checkout's own live environment (.venv-tea, vendor/plastics)."""
+    monkeypatch.setattr(tea, "_live_tea_blocker", lambda: None)
+    monkeypatch.setattr(tea, "_REPO_TEA_PYTHON", tmp_path / "no-venv-tea" / "python")
+    monkeypatch.setattr(tea.tea_polymer_parameters, "VENDORED_PLASTICS", tmp_path / "no-vendored-plastics")
+
 # --- from test_rank_campaign_handle.py: A campaign lookup handle is a process_rows rank source. Not a live child.
 _SEALED = Path(
     f"{Path.home()}/dissolve-v12-campaign/"
@@ -258,7 +267,7 @@ def test_evaluate_handle_still_ignores_campaign_held_constraints(monkeypatch):
     with bind_tool_session(session):
         first = _data(tea.evaluate_tea_lca_scenarios(
             [_public_from_record(c1), _public_from_record(c2)],
-            engine_mode="cache",
+            engine_mode="auto",
         ))
         handle = store_handle(
             session,
@@ -512,7 +521,7 @@ def test_rank_points_without_normalized_twelve_are_not_an_inherit_source(
             parameter="solvent_price",
             handle=handle,
             row_id=1,
-            engine_mode="cache",
+            engine_mode="auto",
         ))
     assert payload.get("error_code") == "not_economics_handle"
 
@@ -553,14 +562,14 @@ def test_tornado_inherits_from_a_ranked_cache_identity(monkeypatch, tmp_path):
         missing = _data(tea.analyze_tea_sensitivity(
             parameter="solvent_price",
             handle=handle,
-            engine_mode="cache",
+            engine_mode="auto",
             analysis_mode="tornado",
         ))
         tornado = _data(tea.analyze_tea_sensitivity(
             parameter="solvent_price",
             handle=handle,
             row_id="cache-hit",
-            engine_mode="cache",
+            engine_mode="auto",
             analysis_mode="tornado",
         ))
     assert missing.get("error_code") == "ambiguous_handle_row"
@@ -617,13 +626,13 @@ def test_grouped_fronts_flatten_for_inherit(monkeypatch, tmp_path):
         missing = _data(tea.analyze_tea_sensitivity(
             parameter="solvent_price",
             handle=handle,
-            engine_mode="cache",
+            engine_mode="auto",
         ))
         tornado = _data(tea.analyze_tea_sensitivity(
             parameter="solvent_price",
             handle=handle,
             row_id="cache-hit",
-            engine_mode="cache",
+            engine_mode="auto",
             analysis_mode="tornado",
         ))
     assert missing.get("error_code") == "ambiguous_handle_row"
@@ -4686,12 +4695,12 @@ def test_evaluate_process_stamps_the_payload_not_the_rows(monkeypatch):
     omitted = _data(tea.evaluate_process(
         mode="evaluate",
         process_config=_public_from_record(c1),
-        engine_mode="cache",
+        engine_mode="auto",
     ))
     thermo = _data(tea.evaluate_process(
         mode="evaluate",
         process_config=_public_from_record(c1),
-        engine_mode="cache",
+        engine_mode="auto",
         screen_to_economics_order="thermo_then_economics",
     ))
     lookup = _data(tea.evaluate_process(
@@ -4707,7 +4716,7 @@ def test_evaluate_process_stamps_the_payload_not_the_rows(monkeypatch):
         mode="sensitivity",
         process_config=_public_from_record(c1),
         parameter="solvent_price",
-        engine_mode="cache",
+        engine_mode="auto",
         screen_to_economics_order="independent",
     ))
     assert omitted.get("success") is True
@@ -4735,7 +4744,7 @@ def test_invalid_order_is_named(monkeypatch, tmp_path):
     wrapped = _data(tea.evaluate_process(
         mode="evaluate",
         process_config=_public_from_record(_record_by_label("ldpe-route-c1")),
-        engine_mode="cache",
+        engine_mode="auto",
         screen_to_economics_order="parallel",
     ))
     missing_mode = _data(tea.evaluate_process(
@@ -4774,7 +4783,7 @@ def test_leftover_extra_still_wins_before_invalid_order(monkeypatch):
     assert "screen_to_economics_order" not in payload
     old = _data(tea.evaluate_tea_lca_scenarios(
         [_public_from_record(_record_by_label("ldpe-route-c1"))],
-        engine_mode="cache",
+        engine_mode="auto",
         screen_to_economics_order="independent",
     ))
     assert old.get("error_code") == "unknown_process_field"
@@ -4822,13 +4831,13 @@ def test_dispatch_evaluate_process_binds_the_token(monkeypatch):
         "evaluate_process",
         mode="evaluate",
         process_config=_public_from_record(c1),
-        engine_mode="cache",
+        engine_mode="auto",
     )
     thermo = dispatch(
         "evaluate_process",
         mode="evaluate",
         process_config=_public_from_record(c1),
-        engine_mode="cache",
+        engine_mode="auto",
         screen_to_economics_order="thermo_then_economics",
     )
     assert omitted.get("available") is True
@@ -4839,7 +4848,7 @@ def test_dispatch_evaluate_process_binds_the_token(monkeypatch):
         "evaluate_process",
         mode="evaluate",
         process_config=_public_from_record(c1),
-        engine_mode="cache",
+        engine_mode="auto",
         screen_to_economics_order="pipeline",
     )
     assert refused.get("available") is False
@@ -4852,7 +4861,7 @@ def test_lang_factor_present_is_invalid_scenario(monkeypatch):
     payload = _data(tea.evaluate_process(
         mode="evaluate",
         process_config=_public_from_record(c1, lang_factor=3.0),
-        engine_mode="cache",
+        engine_mode="auto",
         screen_to_economics_order="independent",
     ))
     assert payload.get("error_code") == "invalid_scenario"
@@ -4921,7 +4930,7 @@ def test_shortlist_without_held_basis_lists_the_nine(monkeypatch):
     _forbid_pair_fill(monkeypatch)
     payload = _data_screening_handoff(tea.evaluate_tea_lca_scenarios(
         screening_shortlist=_shortlist(_item_from_record(record)),
-        engine_mode="cache",
+        engine_mode="auto",
     ))
     assert payload.get("error_code") == "screening_basis_incomplete"
     assert payload.get("missing") == list(tea._NINE_HELD_PUBLIC_FIELDS)
@@ -4936,7 +4945,7 @@ def test_held_basis_missing_one_field_names_only_that_field(monkeypatch):
     payload = _data_screening_handoff(tea.evaluate_tea_lca_scenarios(
         screening_shortlist=_shortlist(_item_from_record(record)),
         held_process_basis=held,
-        engine_mode="cache",
+        engine_mode="auto",
     ))
     assert payload.get("error_code") == "screening_basis_incomplete"
     assert payload.get("missing") == ["energy_case"]
@@ -4950,7 +4959,7 @@ def test_shortlist_item_missing_t_is_screening_shortlist_incomplete(monkeypatch)
     payload = _data_screening_handoff(tea.evaluate_tea_lca_scenarios(
         screening_shortlist=_shortlist(item),
         held_process_basis=_held_from_record(record),
-        engine_mode="cache",
+        engine_mode="auto",
     ))
     assert payload.get("error_code") == "screening_shortlist_incomplete"
     assert payload.get("item_index") == 0
@@ -4972,7 +4981,7 @@ def test_temperature_c_on_shortlist_item_maps_and_hits_cache(monkeypatch):
     payload = _data_screening_handoff(tea.evaluate_tea_lca_scenarios(
         screening_shortlist=_shortlist(item),
         held_process_basis=_held_from_record(record),
-        engine_mode="cache",
+        engine_mode="auto",
     ))
     assert payload.get("success") is True
     assert payload.get("cache_match_status") == "exact"
@@ -5000,7 +5009,7 @@ def test_temperature_c_on_process_config_still_refuses(monkeypatch):
             "temperature_c": cfg["dissolution_temperature_c"],
             **_held_from_record(record),
         }],
-        engine_mode="cache",
+        engine_mode="auto",
     ))
     assert payload.get("error_code") == "unknown_process_field"
     assert "temperature_c" in list(payload.get("extra_keys") or [])
@@ -5015,7 +5024,7 @@ def test_screening_shortlist_inside_process_config_is_unknown(monkeypatch):
             **_held_from_record(record),
             "screening_shortlist": {"source": "explicit", "items": []},
         }],
-        engine_mode="cache",
+        engine_mode="auto",
     ))
     assert payload.get("error_code") == "unknown_process_field"
     assert "screening_shortlist" in list(payload.get("extra_keys") or [])
@@ -5028,7 +5037,7 @@ def test_scenarios_and_shortlist_together_conflict(monkeypatch):
         [{**_item_from_record(record), **_held_from_record(record)}],
         screening_shortlist=_shortlist(_item_from_record(record)),
         held_process_basis=_held_from_record(record),
-        engine_mode="cache",
+        engine_mode="auto",
     ))
     assert payload.get("error_code") == "conflicting_evaluate_composition"
 
@@ -5040,7 +5049,7 @@ def test_expansion_cap_matches_evaluate(monkeypatch):
     payload = _data_screening_handoff(tea.evaluate_tea_lca_scenarios(
         screening_shortlist=_shortlist(*items),
         held_process_basis=_held_from_record(record),
-        engine_mode="cache",
+        engine_mode="auto",
     ))
     assert payload.get("error_code") == "too_many_scenarios"
 
@@ -5050,35 +5059,31 @@ def test_two_item_expansion_is_two_rows_not_one_fill(monkeypatch):
     recorded_msp = float(record["result"]["tea"]["msp_usd_per_kg"])
 
     def forbidden_live(config, timeout_seconds):
-        raise AssertionError("cache-only expansion must not start live")
+        raise AssertionError("an unconfirmed expansion must not start live")
 
     monkeypatch.setattr(tea, "_live", forbidden_live)
-    payload = _data_screening_handoff(tea.evaluate_tea_lca_scenarios(
+    arguments = dict(
         screening_shortlist=_shortlist(
             _item_from_record(record),
             _item_from_record(record, dissolution_temperature_c=999.0),
         ),
         held_process_basis=_held_from_record(record),
-        engine_mode="cache",
-    ))
-    rows = list(payload.get("comparison_rows") or payload.get("failures") or [])
-    assert payload.get("error_code") == "no_simulation_result" or payload.get(
-        "completed"
-    ) == 1
-    if payload.get("success") is True:
-        assert payload.get("completed") == 1
-        assert payload.get("failed") == 1
-        assert len(payload["comparison_rows"]) == 2
-        assert payload["comparison_rows"][0]["msp_usd_per_kg"] == pytest.approx(
-            recorded_msp
-        )
-        assert payload["comparison_rows"][1]["msp_usd_per_kg"] is None
-    else:
-        failures = list(payload.get("failures") or [])
-        assert len(failures) == 2
-        assert recorded_msp not in (
-            failures[1].get("msp_usd_per_kg"), failures[1].get("tea"),
-        )
+        engine_mode="auto",
+    )
+    payload = _data_screening_handoff(tea.evaluate_tea_lca_scenarios(**arguments))
+    # the stored row is one cache row, the unstored one a live child: two rows, not one row filled twice
+    assert payload.get("error_code") == "live_tea_cost_confirmation_required"
+    assert (payload.get("n_live"), payload.get("n_cache")) == (1, 1)
+    monkeypatch.setattr(tea, "_live", lambda config, timeout_seconds: {
+        "success": False, "error_type": "timeout", "error": "the live TEA run produced no result",
+    })
+    payload = _data_screening_handoff(tea.evaluate_tea_lca_scenarios(**arguments, confirm_live_tea=True))
+    assert payload.get("success") is True
+    assert payload.get("completed") == 1
+    assert payload.get("failed") == 1
+    assert len(payload["comparison_rows"]) == 2
+    assert payload["comparison_rows"][0]["msp_usd_per_kg"] == pytest.approx(recorded_msp)
+    assert payload["comparison_rows"][1]["msp_usd_per_kg"] is None
 
 
 def test_polymer_solvent_t_as_process_config_is_still_incomplete(monkeypatch):
@@ -5086,7 +5091,7 @@ def test_polymer_solvent_t_as_process_config_is_still_incomplete(monkeypatch):
     _forbid_pair_fill(monkeypatch)
     payload = _data_screening_handoff(tea.evaluate_tea_lca_scenarios(
         [_item_from_record(record)],
-        engine_mode="cache",
+        engine_mode="auto",
     ))
     assert payload.get("error_code") == "incomplete_process_config"
     assert payload.get("missing") == list(tea._NINE_HELD_PUBLIC_FIELDS)

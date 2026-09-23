@@ -15,3 +15,7 @@ STRAP/
 # RSC, Elsevier and friends are the publisher's copyright and must not be
 # redistributed through this repo.
 *.pdf
+
+# Not published yet: the plastics process model and the live-TEA worker environment stay local.
+/vendor/plastics/
+/.venv-tea

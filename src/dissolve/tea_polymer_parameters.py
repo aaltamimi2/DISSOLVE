@@ -1207,13 +1207,18 @@ def cited_package_hash_mismatches(
     return tuple(mismatches)
 
 
+#: Where a source checkout keeps the plastics process model until it is published (kept out of git).
+VENDORED_PLASTICS = Path(__file__).resolve().parents[2] / "vendor" / "plastics"
+
+
 def resolve_plastics_path(path: Optional[str] = None) -> Optional[Path]:
+    """The plastics model root: ``path``, else DISSOLVE_PLASTICS_PATH, else the checkout's vendor/plastics."""
     raw = str(
         path if path is not None else os.getenv("DISSOLVE_PLASTICS_PATH") or ""
     ).strip()
-    if not raw:
-        return None
-    return Path(raw).expanduser().resolve()
+    if raw:
+        return Path(raw).expanduser().resolve()
+    return VENDORED_PLASTICS if (VENDORED_PLASTICS / "plastics").is_dir() else None
 
 
 def resolve_strap_file(
