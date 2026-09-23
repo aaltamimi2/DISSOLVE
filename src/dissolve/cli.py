@@ -2718,7 +2718,7 @@ def _process_request_plant(kwargs: Mapping[str, Any]) -> str:
 
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="DISSOLVE advanced recycling agent")
-    parser.add_argument("command", nargs="?", choices=("doctor",))
+    parser.add_argument("command", nargs="?", choices=("doctor", "web"))
     parser.add_argument("--session")
     parser.add_argument("--model")
     parser.add_argument("--mode", choices=("review", "auto"))
@@ -2726,10 +2726,16 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--no-persist", action="store_true")
     parser.add_argument("--once", metavar="QUERY")
     parser.add_argument("--stream-json", action="store_true")
+    parser.add_argument("--host", default="127.0.0.1", help="web: address to serve on (0.0.0.0 exposes the agent)")
+    parser.add_argument("--port", type=int, default=8765, help="web: port to serve on")
     args = parser.parse_args(argv)
     if args.stream_json and not args.once:
         parser.error("--stream-json requires --once")
     console = Console()
+    if args.command == "web":
+        from dissolve import web
+
+        return web.serve(host=args.host, port=args.port, home=args.home)
     if args.command == "doctor":
         try:
             alias = args.model
