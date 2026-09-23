@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import importlib.util
 import math
-import os
 import re
 import sys
 import tempfile
@@ -41,7 +40,6 @@ def _load_cosmo_logp():
 
 _cl = _load_cosmo_logp()
 BOHR_TO_ANGSTROM = _cl.BOHR_TO_ANGSTROM
-COSMO_TIMEOUT_ENV = _cl.COSMO_TIMEOUT_ENV
 COSMOBASE_PARAMETERISATION = _cl.COSMOBASE_PARAMETERISATION
 DEFAULT_COSMO_PYTHON = _cl.DEFAULT_COSMO_PYTHON
 DEP_INCHIKEY = _cl.DEP_INCHIKEY
@@ -50,7 +48,6 @@ KNOWN_METHOD_FAILURES = _cl.KNOWN_METHOD_FAILURES
 Atom = _cl.Atom
 CosmoError = _cl.CosmoError
 boltzmann_combine = _cl.boltzmann_combine
-cosmobase_solute_path = _cl.cosmobase_solute_path
 cosmotherm_file_for = _cl.cosmotherm_file_for
 delta_log_d = _cl.delta_log_d
 linear_fit = _cl.linear_fit
@@ -80,11 +77,9 @@ DFT_JOB_ORDER: tuple[tuple[str, int], ...] = (
 
 ENGINE_GAUSSIAN_CONVERTED = "gaussian_converted"
 ROUTE_POLYMER_COSMO = "polymer_cosmo"
-GAUSSIAN_UNCONVERTED = "gaussian_cosmo_unconverted"
 MCOS_NOT_SPLIT = "mcos_not_split"
 SURFACE_DISCARDED = "surface_discarded"
 WRONG_PHASE_ROLE = "wrong_phase_role"
-SOLVENT_NOT_AVAILABLE = "solvent_not_available"
 VOLUME_NOT_AVAILABLE = "volume_not_available"
 PARAMETERISATION_24A_REFUSED = "parameterisation_24a_refused"
 TURBOMOLE_2002_PARAMETERIZATION = "default_turbomole"
@@ -100,14 +95,6 @@ DEFAULT_DEP_SOLUTE_COSMO = Path(
 DEFAULT_SOLVENTS_DIR = Path(
     f"{Path.home()}/COSMO-POLYMER-ML/results/oligomers/all-cosmotherm-solvents"
 )
-#: Water-referenced control (drop chloroform only). Not a target to beat.
-WATER_REFERENCED_CONTROL = {
-    "n": 30,
-    "slope": 0.928,
-    "r_squared": 0.909,
-    "residual_sd": 0.257,
-    "chloroform": "dropped",
-}
 
 POLYMER_SOURCE_DIR = (Path.home() / "polymers_cosmo")
 PE_MCOS = POLYMER_SOURCE_DIR / "pe_mcos" / "config_1010.mcos"

@@ -1,41 +1,47 @@
 """Tea tests."""
 from __future__ import annotations
 
+import ast
 import copy
 import hashlib
+import inspect
+import io
 import json
 import math
+import shutil
+import struct
+import subprocess
+import sys
+from collections import Counter
+from dataclasses import dataclass, replace
 from pathlib import Path
 from types import SimpleNamespace
-import pytest
-from dissolve.agent_tools import UNWIRED, dispatch, tool_schemas
-from dissolve import campaign_consume, optimization, registry, tea, thermodynamics
-from dissolve.cli import EXPECTED_REGISTRY_NAMES
-from dissolve.session import bind_tool_session, load_handle, new_session, store_handle
-from dataclasses import dataclass
-from dissolve import tea, tea_worker
-import ast
-import shutil
-import sys
-from dataclasses import replace
-from dissolve import tea, tea_polymer_parameters as params, tea_worker
-from dissolve.cli import doctor_report
-import inspect
-import subprocess
-from collections import Counter
-from dissolve.session import (
-    bind_tool_session, handle_rows, load_handle, new_session, store_handle,
-)
-from dissolve.cli import CliApp
-from rich.console import Console
-import io
-from dissolve import optimization as O, tea
-from dissolve.session import bind_tool_session, current_tool_session, new_session
-from dissolve.agent_tools import CONSUMERS, dispatch, tool_schemas
-from dissolve.contracts import parse_tool_result
-import struct
-from dissolve import separation, tea
 
+import pytest
+from rich.console import Console
+
+from dissolve import (
+    campaign_consume,
+    optimization,
+    registry,
+    separation,
+    tea,
+    tea_worker,
+    thermodynamics,
+)
+from dissolve import optimization as O
+from dissolve import tea_polymer_parameters as params
+from dissolve.agent_tools import CONSUMERS, UNWIRED, dispatch, tool_schemas
+from dissolve.cli import EXPECTED_REGISTRY_NAMES, CliApp, doctor_report
+from dissolve.contracts import parse_tool_result
+from dissolve.session import (
+    bind_tool_session,
+    current_tool_session,
+    handle_rows,
+    load_handle,
+    new_session,
+    store_handle,
+)
 
 # --- from test_evaluate_process.py: evaluate_process lookup, evaluate, sensitivity, and route.
 _SEALED = Path(

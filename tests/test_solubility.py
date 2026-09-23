@@ -5,16 +5,14 @@ import hashlib
 import inspect
 import json
 from pathlib import Path
+
+from dissolve import analysis, campaign_consume, registry, tea
+from dissolve import thermodynamics as thermo
 from dissolve.agent_tools import dispatch, tool_schemas
-from dissolve import campaign_consume, registry, tea
-from dissolve.cli import CliApp, _parse_solvents_slash
+from dissolve.cli import EXPECTED_REGISTRY_NAMES, CliApp, _parse_solvents_slash
 from dissolve.contracts import parse_tool_result
 from dissolve.session import bind_tool_session, new_session
 from dissolve.tools import solubility_query
-from dissolve import thermodynamics as thermo
-from dissolve import analysis, registry
-from dissolve.cli import EXPECTED_REGISTRY_NAMES
-
 
 # --- from test_lookup_parity.py: §10.1 lookup capability-parity on evaluate_process(mode=lookup).
 _SEALED = Path(
@@ -488,6 +486,7 @@ def test_unknown_solvents_available_count_stays_on_the_990():
 
 def test_session_default_and_clear(tmp_path, monkeypatch):
     import io
+
     from rich.console import Console
 
     monkeypatch.setenv("META_MUSE_API_KEY", "test-key")
@@ -518,6 +517,7 @@ def test_session_default_and_clear(tmp_path, monkeypatch):
 
 def test_bare_solvents_non_tty_prints_status(tmp_path, monkeypatch):
     import io
+
     from rich.console import Console
 
     monkeypatch.setenv("META_MUSE_API_KEY", "test-key")
@@ -536,6 +536,7 @@ def test_bare_solvents_non_tty_prints_status(tmp_path, monkeypatch):
 
 def test_bare_solvents_dumb_term_prints_status(tmp_path, monkeypatch):
     import io
+
     from rich.console import Console
 
     monkeypatch.setenv("META_MUSE_API_KEY", "test-key")
@@ -560,6 +561,7 @@ def test_bare_solvents_dumb_term_prints_status(tmp_path, monkeypatch):
 
 def test_bare_solvents_stdout_pipe_prints_status(tmp_path, monkeypatch):
     import io
+
     from rich.console import Console
 
     monkeypatch.setenv("META_MUSE_API_KEY", "test-key")
@@ -577,7 +579,9 @@ def test_bare_solvents_stdout_pipe_prints_status(tmp_path, monkeypatch):
 
 def test_bare_solvents_picker_sets_common(tmp_path, monkeypatch):
     import io
+
     from rich.console import Console
+
     from dissolve.cli import _solvents_picker_options
 
     monkeypatch.setenv("META_MUSE_API_KEY", "test-key")
@@ -605,6 +609,7 @@ def test_bare_solvents_picker_sets_common(tmp_path, monkeypatch):
 
 def test_bare_solvents_picker_rejects_unknown(tmp_path, monkeypatch):
     import io
+
     from rich.console import Console
 
     monkeypatch.setenv("META_MUSE_API_KEY", "test-key")
@@ -619,6 +624,7 @@ def test_bare_solvents_picker_rejects_unknown(tmp_path, monkeypatch):
 
 def test_bare_solvents_quiet_never_prompts(tmp_path, monkeypatch):
     import io
+
     from rich.console import Console
 
     monkeypatch.setenv("META_MUSE_API_KEY", "test-key")

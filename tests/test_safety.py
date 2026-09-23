@@ -1,34 +1,32 @@
 """Safety tests."""
 from __future__ import annotations
 
+import copy
 import hashlib
+import inspect
+import io
 import json
 import math
-from pathlib import Path
-import pytest
-from dissolve.agent_tools import tool_schemas
-from dissolve import safety, tea
-from dissolve.contracts import parse_tool_result
-import inspect
 import os
-import urllib.parse
-from dissolve.agent_tools import PUBCHEM, source_basis_for
-from dissolve import registry, safety
-from dissolve.cli import EXPECTED_REGISTRY_NAMES, doctor_report
-from dissolve.session import bind_tool_session, new_session, store_handle
-from dissolve import separation
-import copy
-import io
 import re
+import urllib.parse
+from pathlib import Path
+
+import pytest
 from rich.console import Console
+
+from dissolve import registry, safety, separation, tea
+from dissolve.agent_tools import PUBCHEM, source_basis_for, tool_schemas
 from dissolve.cli import (
-    CliApp,
+    EXPECTED_REGISTRY_NAMES,
     PUBLISHED_HAZARD_METHODS_COPY,
+    CliApp,
     doctor_report,
     format_published_hazard_methods_copy,
     published_hazard_methods_doctor_check,
 )
-
+from dissolve.contracts import parse_tool_result
+from dissolve.session import bind_tool_session, new_session, store_handle
 
 # --- from test_chem21_she.py: CHEM21 SH&E scorer and G-score-alternative rerank (spec v2).
 _GREEN_IDENT_QUERY = dict(
@@ -476,6 +474,7 @@ def test_truncation_schema_must_fire_two_sided():
 
 def test_ghs_basis_distribution_production():
     from collections import Counter
+
     from dissolve import thermodynamics as thermo
     counts = Counter()
     for key in thermo._solvent_admission_rows():

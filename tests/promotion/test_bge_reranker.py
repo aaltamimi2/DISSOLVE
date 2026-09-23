@@ -9,7 +9,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from dissolve import research, rerank
+from dissolve import rerank, research
 from dissolve.contracts import parse_tool_result
 
 PRODUCT_KB = "t5-indexed-unsealed"

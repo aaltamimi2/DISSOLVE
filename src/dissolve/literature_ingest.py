@@ -10,10 +10,10 @@ import re
 import time
 from collections import Counter
 from pathlib import Path
-from typing import Any, Callable, Mapping, Sequence
+from typing import Any, Mapping, Sequence
 from xml.etree import ElementTree
 
-from .contracts import parse_tool_result, tool_error, tool_success
+from .contracts import tool_error, tool_success
 
 _SCHEMA = "dissolve.literature-graph-ingest.v1"
 _MODEL_ID = "openai:muse-spark-1.2"

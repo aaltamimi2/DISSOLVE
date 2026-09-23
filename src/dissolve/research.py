@@ -16,7 +16,7 @@ import os
 import re
 import statistics
 import unicodedata
-from collections import Counter, defaultdict
+from collections import Counter
 from datetime import datetime, timezone
 from html.parser import HTMLParser
 from pathlib import Path
@@ -26,7 +26,6 @@ from urllib.parse import urlencode, urlparse
 from urllib.request import Request, urlopen
 from xml.etree import ElementTree
 
-from contextlib import contextmanager
 from contextvars import ContextVar
 
 import duckdb
@@ -579,17 +578,7 @@ _CANONICAL_DROP_KEYS = {
     "caption_ref_origin",
 }
 _CHUNK_TARGET = 1_400
-_CHUNK_OVERLAP = 180
 _ATOMIC_CHUNK_KINDS = frozenset({"table", "formula", "caption"})
-_C6_STRATEGY_IDS = (
-    "S0_production_pypdf",
-    "S1_naive_char",
-    "S2_block_pack",
-    "S3_section_pack",
-    "S4_sentence_pack",
-    "S5_table_plus_neighbors",
-)
-_SENTENCE_SPLIT_RE = re.compile(r"(?<=[.!?])\s+(?=[A-Z])")
 _TABLE_LABEL_RE = re.compile(r"^\s*Table\s+(\d+)\b", re.IGNORECASE)
 _FOOTNOTE_MARKER_RE = re.compile(r"^[*†‡§]+$")
 _PARSE_QUALITY_FLAGS = {
@@ -1352,28 +1341,6 @@ def _unit_from_block(block: Mapping[str, Any]) -> dict[str, Any]:
         "atomic": kind in _ATOMIC_CHUNK_KINDS,
         "block_id": block.get("block_id"),
     }
-
-
-def _sentence_units(block: Mapping[str, Any]) -> list[dict[str, Any]]:
-    text = str(block.get("text") or "")
-    base = int(block["char_start"])
-    if str(block.get("kind")) not in {"paragraph", "list_item"} or not text:
-        return [_unit_from_block(block)]
-    spans: list[tuple[int, int]] = []
-    cursor = 0
-    for match in _SENTENCE_SPLIT_RE.finditer(text):
-        if match.start() > cursor:
-            spans.append((base + cursor, base + match.start()))
-        cursor = match.end()
-    if cursor < len(text):
-        spans.append((base + cursor, base + len(text)))
-    if not spans:
-        return [_unit_from_block(block)]
-    heading = list(block.get("nearest_preceding_heading") or [])
-    return [{
-        "char_start": start, "char_end": end, "kind": str(block.get("kind") or "paragraph"),
-        "heading": heading, "atomic": False, "block_id": block.get("block_id"),
-    } for start, end in spans if end > start]
 
 
 def _pack_units(
@@ -4899,4 +4866,4 @@ def inspect_literature_corpus(
 
 # This late import keeps the typed orchestration module free to reuse the
 # contracts above lazily without a module-initialization cycle.
-from .literature_ingest import ingest_literature_graph
+from .literature_ingest import ingest_literature_graph  # noqa: F401  (re-exported for the registry)

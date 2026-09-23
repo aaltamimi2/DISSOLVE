@@ -3,33 +3,32 @@ from __future__ import annotations
 
 import hashlib
 import inspect
+import io
 import json
+import math
+import shutil
+import subprocess
+import sys
+import threading
+import time
 from collections import defaultdict
 from pathlib import Path
-from dissolve import contaminants, separation
-from dissolve.contracts import parse_tool_result
+
 import pytest
-import io
 from rich.console import Console
+
+from dissolve import campaign_basis, campaign_consume, contaminants, separation, tea
+from dissolve import contaminants as C
+from dissolve import cosmo_logp as cl
+from dissolve import polymer_cosmo as pc
 from dissolve.cli import (
     CliApp,
     _format_contaminant_default,
     _parse_contaminant_slash,
 )
-from dissolve.session import bind_tool_session, new_session
-from dissolve import contaminants as C
-import math
-import shutil
-import sys
-import threading
-import time
-from dissolve import cosmo_logp as cl
-from dissolve import polymer_cosmo as pc
+from dissolve.contracts import parse_tool_result
 from dissolve.cosmo_logp import COSMOBASE_PARAMETERISATION, Atom
-import subprocess
-from dissolve import campaign_basis, tea
-from dissolve import campaign_basis, campaign_consume, tea
-
+from dissolve.session import bind_tool_session, new_session
 
 # --- from test_contaminant_aliases.py: Commit F: table lookup + served identity. No query-time parser.
 _ROOT = Path(__file__).resolve().parents[1]
@@ -664,8 +663,9 @@ def test_logp_job_xor_and_status_query(tmp_path, monkeypatch):
 def test_logp_new_smiles_returns_handle_and_estimate_without_blocking(
     tmp_path, monkeypatch,
 ):
-    import time
     import threading
+    import time
+
     from dissolve import cosmo_logp as cl
 
     monkeypatch.setenv("DISSOLVE_COSMO_JOBS_DIR", str(tmp_path / "jobs"))
@@ -707,8 +707,9 @@ def test_logp_new_smiles_returns_handle_and_estimate_without_blocking(
 
 
 def test_logp_solvent_dft_returns_handle_without_blocking(tmp_path, monkeypatch):
-    import time
     import threading
+    import time
+
     from dissolve import cosmo_logp as cl
 
     monkeypatch.setenv("DISSOLVE_COSMO_JOBS_DIR", str(tmp_path / "jobs"))

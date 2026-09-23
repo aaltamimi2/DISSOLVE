@@ -1,23 +1,22 @@
 """Literature tests."""
 from __future__ import annotations
 
-import inspect
-import json
-from pathlib import Path
-from dissolve import research
-from dissolve.contracts import parse_tool_result
-import math
 import ast
 import copy
-import re
-import pytest
 import gzip
-import os
-from dissolve import corpus, research
-from types import SimpleNamespace
-from dissolve import literature_ingest, research
 import hashlib
+import inspect
+import json
+import math
+import os
+import re
+from pathlib import Path
+from types import SimpleNamespace
 
+import pytest
+
+from dissolve import corpus, literature_ingest, research
+from dissolve.contracts import parse_tool_result
 
 # --- from test_abstention_a1l.py: A-1L: surface sparse_raw_score; live hybrid default finds T5. No MiniLM. No gold needles.
 PAPER = "aa" * 32
@@ -1014,7 +1013,6 @@ def test_chunk_records_stamp_page_section_kind_and_identity():
     assert first["kind"] == "text" and second["kind"] == "table"
     assert first["section"] == "" and first["section_origin"] is None
     assert first["text"] == first["body"] and first["token_estimate"] == -(-len(first["body"]) // 4)
-    import hashlib
     assert first["sha256"] == hashlib.sha256(first["body"].encode()).hexdigest()
 
 

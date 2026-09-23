@@ -6,7 +6,7 @@ import hashlib
 import json
 from dataclasses import dataclass
 from types import MappingProxyType
-from typing import Any, Iterable, Mapping
+from typing import Any, Iterable
 
 
 def route_evidence_signature(route: Any) -> str | None:
@@ -58,52 +58,6 @@ class TeaEnergyCaseContract:
 
     name: str
     aliases: tuple[str, ...]
-
-
-@dataclass(frozen=True)
-class TeaEnergyCaseScopeContract:
-    """One finite selection over admitted energy cases."""
-
-    name: str
-    aliases: tuple[str, ...]
-    cases: tuple[str, ...]
-
-
-@dataclass(frozen=True)
-class TeaAdmittedProcessGroupContract:
-    """One process identity represented by exact admitted cache records."""
-
-    name: str
-    target_polymer: str
-    solvent: str
-    target_aliases: tuple[str, ...]
-    solvent_aliases: tuple[str, ...]
-
-
-@dataclass(frozen=True)
-class TeaProcessGroupScopeContract:
-    """One finite selection over admitted process groups."""
-
-    name: str
-    aliases: tuple[str, ...]
-    group_names: tuple[str, ...]
-
-
-@dataclass(frozen=True)
-class TeaCapacityUnitContract:
-    """One capacity phrase and its conversion to metric tonnes per year."""
-
-    name: str
-    aliases: tuple[str, ...]
-    mt_per_year_factor: float
-
-
-@dataclass(frozen=True)
-class TeaToolBoundaryContract:
-    """One manifest-selected TEA execution lane."""
-
-    mode: str
-    tool_name: str
 
 
 TEA_SENSITIVITY_AXIS_REGISTRY = (
@@ -211,22 +165,6 @@ TEA_ENERGY_CASE_REGISTRY = (
     ),
 )
 
-@dataclass(frozen=True)
-class TeaRecordCardBoundaryContract:
-    """The record field whose distinct values are the coverage boundaries.
-
-    ``config_key`` is the admitted-cache spelling and ``metadata_key`` the
-    spelling the same boundary takes in artifact metadata. They differ
-    ("target_plastic" vs "target_polymers"), and stating the mapping once
-    here is what stops a consumer from guessing which vocabulary an
-    artifact speaks.
-    """
-
-    name: str
-    config_key: str
-    metadata_key: str
-
-
 def normalize_tea_vocabulary(value: object) -> str:
     """Normalize case and separators without interpreting request prose."""
     groups: list[str] = []
@@ -307,78 +245,3 @@ def tea_sensitivity_levels(value: object) -> tuple[str, ...]:
     return contract.levels if contract is not None else ()
 
 
-_TEA_CONFIG_LABEL_SUFFIXES = (
-    "_usd_per_kg",
-    "_usd_per_employee_yr",
-    "_mt_per_yr",
-    "_percent",
-    "_pct",
-    "_km",
-    "_c",
-)
-
-
-@dataclass(frozen=True)
-class TeaConfigFieldContract:
-    """One numeric source-locked TEA configuration field.
-
-    ``config_key`` is the admitted-cache spelling. ``observation_keys`` are
-    the spellings the same field takes at the observation boundary — the
-    compacted ``record_assumptions`` manifest and the admitted-record
-    summaries. ``unit`` is the money unit class a truthful prose mention of
-    the value carries (``None`` when the field never appears as a money
-    literal). ``label`` is derived mechanically from the configuration key
-    so claim binding never depends on hand-picked vocabulary.
-    """
-
-    config_key: str
-    observation_keys: tuple[str, ...]
-    unit: str | None
-    label: str
-
-
-def _tea_config_field(
-    config_key: str,
-    observation_keys: tuple[str, ...],
-    unit: str | None,
-) -> TeaConfigFieldContract:
-    label = config_key
-    for suffix in _TEA_CONFIG_LABEL_SUFFIXES:
-        if label.endswith(suffix):
-            label = label[: -len(suffix)]
-            break
-    return TeaConfigFieldContract(
-        config_key=config_key,
-        observation_keys=observation_keys,
-        unit=unit,
-        label=label.replace("_", " "),
-    )
-
-
-TEA_CONFIG_FIELD_CONTRACTS: tuple[TeaConfigFieldContract, ...] = (
-    _tea_config_field(
-        "solvent_price", ("solvent_price_usd_per_kg",), "USD/kg",
-    ),
-    _tea_config_field(
-        "labor_cost",
-        ("labor_cost", "labor_cost_usd_per_employee_yr"),
-        "USD/yr",
-    ),
-    _tea_config_field(
-        "target_plastic_percent", ("target_mass_percent",), "%",
-    ),
-    _tea_config_field(
-        "processing_capacity", ("processing_capacity_mt_per_yr",), "mt/yr",
-    ),
-    _tea_config_field(
-        "dissolution_temperature_c", ("dissolution_temperature_c",), "°C",
-    ),
-    _tea_config_field(
-        "precipitation_temperature_c", ("precipitation_temperature_c",), "°C",
-    ),
-    _tea_config_field("solvent_loss_pct", ("solvent_loss_pct",), "%"),
-    _tea_config_field(
-        "feedstock_distance_km", ("feedstock_distance_km",), "km",
-    ),
-    _tea_config_field("dissolution_capacity", ("dissolution_capacity",), None),
-)

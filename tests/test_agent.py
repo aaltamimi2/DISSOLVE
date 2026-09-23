@@ -1,43 +1,23 @@
 """Agent tests."""
 from __future__ import annotations
 
-import json
-import re
-from contextlib import contextmanager
-from pathlib import Path
-import pytest
-from dissolve import agent_harness
-from dissolve import agent_tools
-from dissolve.agent_harness import run_turn
-from dissolve.agent_tools import SYSTEM_PROMPT, dispatch
-from dissolve.session import (
-    bind_tool_session, handle_rows, load_handle, new_session,
-)
-from dissolve.thermodynamics import get_available_solvents
-from dissolve import tea
 import ast
 import inspect
+import io
+import json
+import math
+import re
 import sys
 import textwrap
-from dissolve.agent_harness import TurnResult, run_turn
-from dissolve.agent_tools import UNWIRED, dispatch, result_read, source_basis_for, tool_schema_for, tool_schemas
-from dissolve import session as sess
-from dissolve.session import (
-    CompactionBudgetError, append_reported, bind_tool_session,
-    compact_messages, context_window, current_tool_session,
-    estimated_tokens, handle_rows, load_handle, load_turn_record,
-    new_session, open_turn_record, store_handle,
-)
-import io
+from contextlib import contextmanager
+from pathlib import Path
+
+import pytest
 from rich.console import Console
+
+from dissolve import agent_harness, agent_tools, cli, registry, research, tea
+from dissolve import session as sess
 from dissolve.agent_harness import ToolEvent, TurnResult, run_turn
-from dissolve import cli
-from dissolve.cli import CliApp, EXPECTED_REGISTRY_NAMES, doctor_report, main, resolve_model
-import math
-from dissolve import registry, tea
-from dissolve.cli import CliApp, _parse_breadth_slash
-from dissolve.contracts import parse_tool_result
-from dissolve.session import bind_tool_session, load_handle, new_session, primary_row_key
 from dissolve.agent_tools import (
     LITERATURE_AGENT_TOOLS,
     LITERATURE_CORPUS_TOOLS,
@@ -45,19 +25,44 @@ from dissolve.agent_tools import (
     LITERATURE_MODE_SURFACE,
     LITERATURE_NETWORK_TOOLS,
     LITERATURE_SCHOLARLY_TOOLS,
+    SYSTEM_PROMPT,
+    UNWIRED,
     dispatch,
     literature_agent_mode,
     offered_tool_names,
+    result_read,
+    source_basis_for,
+    tool_schema_for,
     tool_schemas,
 )
-from dissolve import registry, research
 from dissolve.cli import (
-    CliApp,
     EXPECTED_REGISTRY_NAMES,
+    CliApp,
     _format_literature_default,
+    _parse_breadth_slash,
     _parse_literature_slash,
+    doctor_report,
+    main,
+    resolve_model,
 )
-
+from dissolve.contracts import parse_tool_result
+from dissolve.session import (
+    CompactionBudgetError,
+    append_reported,
+    bind_tool_session,
+    compact_messages,
+    context_window,
+    current_tool_session,
+    estimated_tokens,
+    handle_rows,
+    load_handle,
+    load_turn_record,
+    new_session,
+    open_turn_record,
+    primary_row_key,
+    store_handle,
+)
+from dissolve.thermodynamics import get_available_solvents
 
 # --- from test_acceptance.py: §10 acceptance tests. Stub the provider. Test 5 is identity-sensitive.
 _real_bind = agent_tools.bind_handle_rows
@@ -1913,6 +1918,7 @@ def test_usage_reads_each_adapter_shape_and_keeps_absent_distinct_from_zero():
 
 def test_complete_keeps_openai_usage(monkeypatch):
     from types import SimpleNamespace
+
     import openai
     msg = SimpleNamespace(content="done", tool_calls=[])
     resp = SimpleNamespace(usage=SimpleNamespace(total_tokens=18), choices=[SimpleNamespace(message=msg)])
@@ -5616,8 +5622,9 @@ def test_registry_still_two_public_tea_names_and_planner_is_not_new():
 
 def test_slash_breadth_sets_and_clear_drops(tmp_path, monkeypatch):
     monkeypatch.setenv("META_MUSE_API_KEY", "test-key")
-    from rich.console import Console
     import io
+
+    from rich.console import Console
     console = Console(file=io.StringIO(), force_terminal=True, width=80, color_system=None)
     app = CliApp(
         session_id="breadth-session",
@@ -5645,8 +5652,9 @@ def test_slash_breadth_sets_and_clear_drops(tmp_path, monkeypatch):
 def test_bare_breadth_non_tty_prints_status(tmp_path, monkeypatch):
     monkeypatch.setenv("META_MUSE_API_KEY", "test-key")
     monkeypatch.setattr("sys.stdin.isatty", lambda: False)
-    from rich.console import Console
     import io
+
+    from rich.console import Console
     buf = io.StringIO()
     app = CliApp(
         session_id="breadth-status",
@@ -5660,9 +5668,11 @@ def test_bare_breadth_non_tty_prints_status(tmp_path, monkeypatch):
 
 def test_bare_breadth_picker_presets_and_all(tmp_path, monkeypatch):
     monkeypatch.setenv("META_MUSE_API_KEY", "test-key")
-    from rich.console import Console
     import io
-    from dissolve.cli import _breadth_picker_options, _PICKER_BREADTH_PRESETS
+
+    from rich.console import Console
+
+    from dissolve.cli import _PICKER_BREADTH_PRESETS, _breadth_picker_options
 
     options, selected = _breadth_picker_options(None)
     assert selected == 0
@@ -5690,9 +5700,11 @@ def test_bare_breadth_picker_presets_and_all(tmp_path, monkeypatch):
 
 def test_bare_breadth_picker_custom_bound(tmp_path, monkeypatch):
     monkeypatch.setenv("META_MUSE_API_KEY", "test-key")
-    from rich.console import Console
     import io
-    from dissolve.cli import _parse_picker_custom_breadth, _parse_breadth_slash
+
+    from rich.console import Console
+
+    from dissolve.cli import _parse_breadth_slash, _parse_picker_custom_breadth
 
     assert _parse_picker_custom_breadth("20")["breadth"] == 20
     try:
@@ -5729,8 +5741,9 @@ def test_bare_breadth_picker_custom_bound(tmp_path, monkeypatch):
 
 def test_bare_breadth_picker_window_followup(tmp_path, monkeypatch):
     monkeypatch.setenv("META_MUSE_API_KEY", "test-key")
-    from rich.console import Console
     import io
+
+    from rich.console import Console
     app = CliApp(
         session_id="breadth-window",
         store_root=tmp_path,

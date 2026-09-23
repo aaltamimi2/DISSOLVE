@@ -2,21 +2,31 @@
 from __future__ import annotations
 
 import hashlib
-import json
-from pathlib import Path
-from dissolve.agent_tools import SYSTEM_PROMPT, dispatch, source_basis_for
-from dissolve import campaign_consume, landscape, tea
-from dissolve.session import bind_tool_session, new_session, store_handle
-from dissolve import campaign_basis, campaign_consume, landscape, tea
-import math
-import pytest
-from dissolve.agent_tools import CONSUMERS, dispatch, tool_schemas
-from dissolve.cli import EXPECTED_REGISTRY_NAMES
 import inspect
-from dissolve import campaign_basis, campaign_consume, safety, tea
-from dissolve import separation, tea
-from dissolve.contracts import parse_tool_result
+import json
+import math
+from pathlib import Path
 
+import pytest
+
+from dissolve import (
+    campaign_basis,
+    campaign_consume,
+    landscape,
+    safety,
+    separation,
+    tea,
+)
+from dissolve.agent_tools import (
+    CONSUMERS,
+    SYSTEM_PROMPT,
+    dispatch,
+    source_basis_for,
+    tool_schemas,
+)
+from dissolve.cli import EXPECTED_REGISTRY_NAMES
+from dissolve.contracts import parse_tool_result
+from dissolve.session import bind_tool_session, new_session, store_handle
 
 # --- from test_rank_campaign_handle.py: A campaign lookup handle is a process_rows rank source. Not a live child.
 _SEALED = Path(

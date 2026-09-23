@@ -56,7 +56,7 @@ import uuid
 from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Callable, Iterable, Mapping, Sequence
+from typing import Any, Callable, Mapping, Sequence
 
 # --- physical constants -------------------------------------------------
 BOHR_TO_ANGSTROM = 0.529177210903
@@ -107,7 +107,6 @@ DEP_ISOMER_DECOYS = {
 #: CAS from ``contaminant_cas_phthalates.local.v1.json``.
 #: SMILES is the Kekulé form of that perceived connectivity.
 DBP_SMILES = "CCCCOC(=O)c1ccccc1C(=O)OCCCC"
-DBP_CAS = "84-74-2"
 DBP_INCHIKEY = "DOIRQSBPFJWKBE-UHFFFAOYSA-N"
 
 #: 1,3- and 1,4-dibutyl benzenedicarboxylates. Same formula C16H22O4 as
@@ -122,7 +121,6 @@ DBP_ISOMER_DECOYS = {
 #: ``butylbenzylphthalate_c0.cosmo`` via ``parse_cosmo_geometry`` + obabel.
 #: CAS from ``contaminant_cas_phthalates.local.v1.json``. Not a registry fetch.
 BBP_SMILES = "CCCCOC(=O)c1ccccc1C(=O)OCc1ccccc1"
-BBP_CAS = "85-68-7"
 BBP_INCHIKEY = "IRIAEXORFWYRCZ-UHFFFAOYSA-N"
 
 #: 1,3- and 1,4-butyl benzyl benzenedicarboxylates. Same formula C19H20O4
@@ -140,7 +138,6 @@ BBP_ISOMER_DECOYS = {
 #: NOT this file. CAS from ``contaminant_cas_phthalates.local.v1.json``.
 #: Literature logP 7.5–8.4 is not the accept test — the table Δ are.
 DEHP_SMILES = "c1cc(C(=O)OC[C@@H](CC)CCCC)c(C(=O)OC[C@@H](CC)CCCC)cc1"
-DEHP_CAS = "117-81-7"
 DEHP_INCHIKEY = "BJQHLKABXJIVAM-PMACEKPBSA-N"
 DEHP_INCHIKEY_NOSTEREO = "BJQHLKABXJIVAM-UHFFFAOYSA-N"
 
