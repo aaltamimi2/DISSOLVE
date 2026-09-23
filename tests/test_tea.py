@@ -21,7 +21,7 @@ import pytest
 from rich.console import Console
 
 from dissolve import (
-    campaign_consume,
+    landscape,
     optimization,
     registry,
     separation,
@@ -400,7 +400,7 @@ def test_route_missing_handle_is_named_refuse(monkeypatch):
 def test_campaign_lookup_via_filter(monkeypatch, tmp_path):
     _forbid_live(monkeypatch)
     registry_path = _write_registry(tmp_path, {_CANONICAL: _sealed_entry()})
-    monkeypatch.setenv(campaign_consume.REGISTRY_ENV, str(registry_path))
+    monkeypatch.setenv(landscape.REGISTRY_ENV, str(registry_path))
     direct = _data(tea.lookup_admitted_process_records(
         source="campaign",
         campaign_fingerprint=_CANONICAL,

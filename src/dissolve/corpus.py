@@ -31,7 +31,7 @@ from pathlib import Path
 from typing import Any, Mapping, Sequence
 
 from . import research
-from .literature_ingest import _local_acquisition
+from .research import _local_acquisition
 
 T5_TARGET = 1_400
 MINILM_ID = research._MINILM_MODEL_ID

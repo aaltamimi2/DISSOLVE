@@ -11,15 +11,16 @@ import os
 import shutil
 import subprocess
 from functools import lru_cache
-from importlib.metadata import PackageNotFoundError, version as package_version
+from importlib.metadata import PackageNotFoundError
+from importlib.metadata import version as package_version
 from importlib.resources import files
 from pathlib import Path
 from typing import Any, Literal, Mapping, Optional, Sequence
 
 from .contracts import tool_error, tool_success
-from . import tea_contracts
 from .landscape import _carried_safety_standing, axis_span
 from .session import candidate_evidence, current_tool_session
+from .tea import route_evidence_signature
 
 _ASSET = Path(str(files("dissolve").joinpath("data/optimization.json.gz")))
 _ASSET_SHA256 = "ffa6141a23ef0364f9d8e7734399922a71fc421e3a581105b7b4da75370b1258"
@@ -147,7 +148,7 @@ def _source_from_route_and_tea(
     rows = list(tea.get("comparison_rows") or [])
     if not rows or any(row.get("stage") is None for row in rows):
         raise ValueError("Stored TEA/LCA state lacks stage metrics")
-    expected_signature = tea_contracts.route_evidence_signature(route)
+    expected_signature = route_evidence_signature(route)
     if tea.get("route_signature") != expected_signature:
         raise ValueError("Stored TEA/LCA state is stale for the current route")
     route_steps = list(route.get("steps") or [])

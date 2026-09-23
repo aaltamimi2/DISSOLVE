@@ -17,7 +17,7 @@ from pathlib import Path
 import pytest
 from rich.console import Console
 
-from dissolve import campaign_basis, campaign_consume, contaminants, separation, tea
+from dissolve import contaminants, landscape, separation, tea
 from dissolve import contaminants as C
 from dissolve import cosmo_logp as cl
 from dissolve import polymer_cosmo as pc
@@ -3924,7 +3924,7 @@ _SECONDS_PER_PAIR = 6991.363639038995 / 462
 
 def _minimal_v2(**overrides):
     definition = {
-        "schema": campaign_basis.CAMPAIGN_DEFINITION_SCHEMA_V2,
+        "schema": landscape.CAMPAIGN_DEFINITION_SCHEMA_V2,
         "fixed_fields": {
             "target_plastic_percent": 55.0,
             "processing_capacity": 20_000.0,
@@ -3951,7 +3951,7 @@ def _minimal_v2(**overrides):
 
 def test_pair_campaign_projects_and_is_not_incomplete():
     run = json.loads(_PAIR_CAMPAIGN.read_text(encoding="utf-8"))
-    projected = campaign_basis.project_campaign_basis_v1(run)
+    projected = landscape.project_campaign_basis_v1(run)
     basis = projected["campaign_basis"]
     assert projected["campaign_basis_projection"] == "campaign_basis.v1"
     assert basis["complete"] is True
@@ -3978,8 +3978,8 @@ def test_pair_campaign_projects_and_is_not_incomplete():
 
 def test_sixty_fifteen_c2_is_exactly_three_held_mismatches():
     run = json.loads(_PAIR_CAMPAIGN.read_text(encoding="utf-8"))
-    projected = campaign_basis.project_campaign_basis_v1(run)
-    result = campaign_basis.held_field_mismatches(
+    projected = landscape.project_campaign_basis_v1(run)
+    result = landscape.held_field_mismatches(
         projected,
         {
             "target_mass_percent": 60.0,
@@ -4010,8 +4010,8 @@ def test_sixty_fifteen_c2_is_exactly_three_held_mismatches():
 
 
 def test_burn_true_is_switch_mismatch_not_a_ranking():
-    projected = campaign_basis.project_campaign_basis_v1(_minimal_v2())
-    result = campaign_basis.held_field_mismatches(
+    projected = landscape.project_campaign_basis_v1(_minimal_v2())
+    result = landscape.held_field_mismatches(
         projected, {"burn_leftover_plastic": True},
     )
     assert result["error_code"] == "campaign_basis_mismatch"
@@ -4053,8 +4053,8 @@ def test_burn_true_is_switch_mismatch_not_a_ranking():
     ],
 )
 def test_override_is_coefficient_mismatch(value, key, value_2, value_3, value_4):
-    projected = campaign_basis.project_campaign_basis_v1(_minimal_v2())
-    result = campaign_basis.held_field_mismatches(
+    projected = landscape.project_campaign_basis_v1(_minimal_v2())
+    result = landscape.held_field_mismatches(
         projected, {key: value_2},
     )
     assert result["error_code"] == "campaign_basis_mismatch"
@@ -4072,8 +4072,8 @@ def test_override_is_coefficient_mismatch(value, key, value_2, value_3, value_4)
     ],
 )
 def test_depreciation_override_is_coefficient_mismatch_2(value, value_2, value_3, key, value_4):
-    projected = campaign_basis.project_campaign_basis_v1(_minimal_v2())
-    result = campaign_basis.held_field_mismatches(
+    projected = landscape.project_campaign_basis_v1(_minimal_v2())
+    result = landscape.held_field_mismatches(
         projected, {key: value_4},
     )
     assert result["error_code"] == "campaign_basis_mismatch"
@@ -4092,8 +4092,8 @@ def test_depreciation_override_is_coefficient_mismatch_2(value, value_2, value_3
     ],
 )
 def test_matching_is_not_a_held_mismatch(key, value):
-    projected = campaign_basis.project_campaign_basis_v1(_minimal_v2())
-    result = campaign_basis.held_field_mismatches(
+    projected = landscape.project_campaign_basis_v1(_minimal_v2())
+    result = landscape.held_field_mismatches(
         projected, {key: value},
     )
     assert result["mismatches"] == []
@@ -4101,8 +4101,8 @@ def test_matching_is_not_a_held_mismatch(key, value):
 
 
 def test_duration_override_is_coefficient_mismatch():
-    projected = campaign_basis.project_campaign_basis_v1(_minimal_v2())
-    result = campaign_basis.held_field_mismatches(
+    projected = landscape.project_campaign_basis_v1(_minimal_v2())
+    result = landscape.held_field_mismatches(
         projected, {"duration": [2025, 2045]},
     )
     assert result["error_code"] == "campaign_basis_mismatch"
@@ -4113,8 +4113,8 @@ def test_duration_override_is_coefficient_mismatch():
 
 
 def test_matching_default_duration_is_not_a_held_mismatch():
-    projected = campaign_basis.project_campaign_basis_v1(_minimal_v2())
-    result = campaign_basis.held_field_mismatches(
+    projected = landscape.project_campaign_basis_v1(_minimal_v2())
+    result = landscape.held_field_mismatches(
         projected, {"duration": [2025, 2055]},
     )
     assert result["mismatches"] == []
@@ -4122,8 +4122,8 @@ def test_matching_default_duration_is_not_a_held_mismatch():
 
 
 def test_construction_schedule_override_is_coefficient_mismatch():
-    projected = campaign_basis.project_campaign_basis_v1(_minimal_v2())
-    result = campaign_basis.held_field_mismatches(
+    projected = landscape.project_campaign_basis_v1(_minimal_v2())
+    result = landscape.held_field_mismatches(
         projected, {"construction_schedule": [0.5, 0.5]},
     )
     assert result["error_code"] == "campaign_basis_mismatch"
@@ -4134,8 +4134,8 @@ def test_construction_schedule_override_is_coefficient_mismatch():
 
 
 def test_matching_default_construction_schedule_is_not_a_held_mismatch():
-    projected = campaign_basis.project_campaign_basis_v1(_minimal_v2())
-    result = campaign_basis.held_field_mismatches(
+    projected = landscape.project_campaign_basis_v1(_minimal_v2())
+    result = landscape.held_field_mismatches(
         projected, {"construction_schedule": [0.08, 0.60, 0.32]},
     )
     assert result["mismatches"] == []
@@ -4143,8 +4143,8 @@ def test_matching_default_construction_schedule_is_not_a_held_mismatch():
 
 
 def test_lang_factor_override_is_coefficient_mismatch():
-    projected = campaign_basis.project_campaign_basis_v1(_minimal_v2())
-    result = campaign_basis.held_field_mismatches(
+    projected = landscape.project_campaign_basis_v1(_minimal_v2())
+    result = landscape.held_field_mismatches(
         projected, {"lang_factor": 3.0},
     )
     assert result["error_code"] == "campaign_basis_mismatch"
@@ -4155,8 +4155,8 @@ def test_lang_factor_override_is_coefficient_mismatch():
 
 
 def test_polymer_only_is_not_a_held_mismatch():
-    projected = campaign_basis.project_campaign_basis_v1(_minimal_v2())
-    result = campaign_basis.held_field_mismatches(
+    projected = landscape.project_campaign_basis_v1(_minimal_v2())
+    result = landscape.held_field_mismatches(
         projected, {"target_polymer": "LDPE", "solvent": "Toluene"},
     )
     assert result["mismatches"] == []
@@ -4164,8 +4164,8 @@ def test_polymer_only_is_not_a_held_mismatch():
 
 
 def test_matching_held_values_are_not_mismatch():
-    projected = campaign_basis.project_campaign_basis_v1(_minimal_v2())
-    result = campaign_basis.held_field_mismatches(
+    projected = landscape.project_campaign_basis_v1(_minimal_v2())
+    result = landscape.held_field_mismatches(
         projected,
         {
             "target_mass_percent": 55.0,
@@ -4181,8 +4181,8 @@ def test_matching_held_values_are_not_mismatch():
 def test_held_values_come_from_the_run_definition_not_a_constant():
     definition = _minimal_v2()
     definition["fixed_fields"]["target_plastic_percent"] = 50.0
-    projected = campaign_basis.project_campaign_basis_v1(definition)
-    result = campaign_basis.held_field_mismatches(
+    projected = landscape.project_campaign_basis_v1(definition)
+    result = landscape.held_field_mismatches(
         projected, {"target_mass_percent": 55.0},
     )
     assert result["mismatches"][0]["campaign_value"] == pytest.approx(50)
@@ -4190,8 +4190,8 @@ def test_held_values_come_from_the_run_definition_not_a_constant():
 
 
 def test_missing_v2_pieces_are_incomplete_not_mismatch():
-    with pytest.raises(campaign_basis.CampaignBasisIncomplete) as caught:
-        campaign_basis.project_campaign_basis_v1({"schema": "other"})
+    with pytest.raises(landscape.CampaignBasisIncomplete) as caught:
+        landscape.project_campaign_basis_v1({"schema": "other"})
     assert caught.value.error_code == "campaign_basis_incomplete"
     assert set(caught.value.details["missing"]) == {
         "schema", "fixed_fields", "setpoint_rule", "pair_definitions",
@@ -4202,15 +4202,15 @@ def test_wrong_schema_is_incomplete_even_with_the_rest():
     definition = _minimal_v2(
         schema="dissolve.ldpe_feed_quality_campaign_definition.v1",
     )
-    with pytest.raises(campaign_basis.CampaignBasisIncomplete) as caught:
-        campaign_basis.project_campaign_basis_v1(definition)
+    with pytest.raises(landscape.CampaignBasisIncomplete) as caught:
+        landscape.project_campaign_basis_v1(definition)
     assert "schema" in caught.value.details["missing"]
 
 
 def test_absence_of_switches_in_fixed_fields_is_not_incomplete():
     definition = _minimal_v2()
     assert "burn_leftover_plastic" not in definition["fixed_fields"]
-    projected = campaign_basis.project_campaign_basis_v1(definition)
+    projected = landscape.project_campaign_basis_v1(definition)
     assert projected["campaign_basis"]["complete"] is True
     assert projected["campaign_basis"]["field_role"]["sell_leftover_plastic"][
         "value"
@@ -4218,8 +4218,8 @@ def test_absence_of_switches_in_fixed_fields_is_not_incomplete():
 
 
 def test_two_switch_request_names_both_fields():
-    projected = campaign_basis.project_campaign_basis_v1(_minimal_v2())
-    result = campaign_basis.held_field_mismatches(
+    projected = landscape.project_campaign_basis_v1(_minimal_v2())
+    result = landscape.held_field_mismatches(
         projected,
         {
             "sell_leftover_plastic": True,
@@ -4237,14 +4237,14 @@ def test_two_switch_request_names_both_fields():
 def test_declared_switch_in_fixed_fields_is_held_not_stamped():
     definition = _minimal_v2()
     definition["fixed_fields"]["burn_leftover_plastic"] = True
-    projected = campaign_basis.project_campaign_basis_v1(definition)
+    projected = landscape.project_campaign_basis_v1(definition)
     role = projected["campaign_basis"]["field_role"]["burn_leftover_plastic"]
     assert role == {
         "role": "held",
         "value": True,
         "projection": "fixed_fields",
     }
-    result = campaign_basis.held_field_mismatches(
+    result = landscape.held_field_mismatches(
         projected, {"burn_leftover_plastic": False},
     )
     assert result["error_code"] == "campaign_basis_mismatch"
@@ -4296,14 +4296,14 @@ def _sealed_entry() -> dict:
 
 def _lookup(monkeypatch, registry_path: Path, **kwargs):
     monkeypatch.setenv(
-        campaign_consume.REGISTRY_ENV, str(registry_path),
+        landscape.REGISTRY_ENV, str(registry_path),
     )
     return _data_campaign_consume(tea.lookup_admitted_process_records(**kwargs))
 
 
 def _minimal_definition(**overrides):
     definition = {
-        "schema": campaign_basis.CAMPAIGN_DEFINITION_SCHEMA_V2,
+        "schema": landscape.CAMPAIGN_DEFINITION_SCHEMA_V2,
         "fixed_fields": {
             "target_plastic_percent": 55.0,
             "processing_capacity": 20_000.0,
@@ -4345,7 +4345,7 @@ def _mini_campaign(
     root = tmp_path / "mini_campaign"
     root.mkdir()
     run_definition = definition if definition is not None else _minimal_definition()
-    canonical = campaign_consume.canonical_json_digest(run_definition)
+    canonical = landscape.canonical_json_digest(run_definition)
     run_path = root / "run_definition.json"
     run_path.write_text(json.dumps(run_definition), encoding="utf-8")
     if rows is None:
@@ -4409,7 +4409,7 @@ def _mini_campaign(
 
 
 def test_empty_registry_is_unregistered(monkeypatch, tmp_path):
-    monkeypatch.delenv(campaign_consume.REGISTRY_ENV, raising=False)
+    monkeypatch.delenv(landscape.REGISTRY_ENV, raising=False)
     data = _data_campaign_consume(tea.lookup_admitted_process_records(
         source="campaign",
         campaign_fingerprint=_OTHER,
@@ -4630,7 +4630,7 @@ def test_stale_canonical_after_python_change_is_fingerprint_mismatch(
     definition = json.loads(mini["run_path"].read_text(encoding="utf-8"))
     definition["runtime_engine_versions"]["python"] = "3.11.0"
     mini["run_path"].write_text(json.dumps(definition), encoding="utf-8")
-    new_digest = campaign_consume.canonical_json_digest(definition)
+    new_digest = landscape.canonical_json_digest(definition)
     assert new_digest != stale
     manifest = json.loads(mini["manifest_path"].read_text(encoding="utf-8"))
     manifest["artifact_sha256"]["run_definition_json"] = hashlib.sha256(
@@ -4692,7 +4692,7 @@ def test_alias_claimed_by_two_canonicals_is_ambiguous(monkeypatch, tmp_path):
 
 
 def test_default_lookup_stays_on_the_admitted_cache(monkeypatch, tmp_path):
-    monkeypatch.delenv(campaign_consume.REGISTRY_ENV, raising=False)
+    monkeypatch.delenv(landscape.REGISTRY_ENV, raising=False)
     data = _data_campaign_consume(tea.lookup_admitted_process_records(target_polymer="LDPE"))
     assert data["success"] is True
     assert data["engine_mode"] == "cache"
@@ -4734,7 +4734,7 @@ def test_results_jsonl_is_not_consumed(monkeypatch, tmp_path):
 
 def test_mixed_row_fingerprint_is_mismatch(monkeypatch, tmp_path):
     definition = _minimal_definition()
-    canonical = campaign_consume.canonical_json_digest(definition)
+    canonical = landscape.canonical_json_digest(definition)
     mini = _mini_campaign(
         tmp_path,
         definition=definition,

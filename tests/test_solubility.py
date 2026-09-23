@@ -6,7 +6,7 @@ import inspect
 import json
 from pathlib import Path
 
-from dissolve import analysis, campaign_consume, registry, tea
+from dissolve import analysis, landscape, registry, tea
 from dissolve import thermodynamics as thermo
 from dissolve.agent_tools import dispatch, tool_schemas
 from dissolve.cli import EXPECTED_REGISTRY_NAMES, CliApp, _parse_solvents_slash
@@ -131,7 +131,7 @@ def test_missing_polymer_is_named_not_a_cache_dump(monkeypatch):
 def test_campaign_lookup_may_omit_polymer(monkeypatch, tmp_path):
     _forbid_live(monkeypatch)
     registry_path = _write_registry(tmp_path, {_CANONICAL: _sealed_entry()})
-    monkeypatch.setenv(campaign_consume.REGISTRY_ENV, str(registry_path))
+    monkeypatch.setenv(landscape.REGISTRY_ENV, str(registry_path))
     payload = _data(tea.lookup_admitted_process_records(
         source="campaign",
         campaign_fingerprint=_CANONICAL,

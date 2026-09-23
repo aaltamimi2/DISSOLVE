@@ -17,7 +17,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from dissolve import corpus, literature_ingest, rerank, research
+from dissolve import corpus, research
 from dissolve.contracts import parse_tool_result
 
 # --- from test_literature.py: Literature tests.
@@ -1675,8 +1675,8 @@ def test_docling_failure_raises_instead_of_returning_pypdf(monkeypatch, tmp_path
         raise AssertionError("production _parse cascade must not run")
 
     monkeypatch.setattr(research, "_run_docling", boom)
-    monkeypatch.setattr(literature_ingest, "_pypdf_bridge", count_pypdf)
-    monkeypatch.setattr(literature_ingest, "_parse", count_cascade)
+    monkeypatch.setattr(research, "_pypdf_bridge", count_pypdf)
+    monkeypatch.setattr(research, "_parse", count_cascade)
 
     with pytest.raises(research.LiteratureContractError) as caught:
         research.parse_experiment_document(_acquire_experiment_parse(pdf), backend="docling")
@@ -1692,7 +1692,7 @@ def test_pypdf_control_arm_is_named_not_a_docling_fallback(monkeypatch, tmp_path
         raise AssertionError("Docling must not run on the named pypdf control arm")
 
     monkeypatch.setattr(research, "_run_docling", boom)
-    monkeypatch.setattr(literature_ingest, "_pypdf_bridge", _pypdf_bridge_stub)
+    monkeypatch.setattr(research, "_pypdf_bridge", _pypdf_bridge_stub)
 
     parsed = research.parse_experiment_document(
         _acquire_experiment_parse(pdf), backend="pypdf", parsed_at="2026-08-20T00:00:00+00:00",
@@ -1796,10 +1796,10 @@ def test_production_parse_raises_when_docling_fails_and_does_not_call_fallbacks(
 
 
     monkeypatch.setattr(research, "_run_docling", boom)
-    monkeypatch.setattr(literature_ingest, "_pypdf_bridge", count_pypdf)
+    monkeypatch.setattr(research, "_pypdf_bridge", count_pypdf)
 
     with pytest.raises(research.LiteratureContractError) as caught:
-        literature_ingest._parse(_acquire_production_parse(pdf))
+        research._parse(_acquire_production_parse(pdf))
     assert caught.value.code == "parser_backend_failed"
     assert caught.value.details.get("backend") == "docling"
     assert calls == {"pypdf": 0}
@@ -1821,7 +1821,7 @@ def test_production_structure_parse_does_not_call_deepdoc_on_docling_failure(mon
         raise AssertionError("pypdf must not run")
 
     monkeypatch.setattr(research, "_run_docling", boom)
-    monkeypatch.setattr(literature_ingest, "_pypdf_bridge", count_pypdf)
+    monkeypatch.setattr(research, "_pypdf_bridge", count_pypdf)
 
     with pytest.raises(research.LiteratureContractError) as caught:
         research.parse_document_structure(_acquire_production_parse(pdf))
@@ -1853,10 +1853,10 @@ def test_corrupt_pdf_failure_is_loud_and_names_docling(monkeypatch, tmp_path):
 
 
     monkeypatch.setattr(research.importlib, "import_module", fake_import)
-    monkeypatch.setattr(literature_ingest, "_pypdf_bridge", count_pypdf)
+    monkeypatch.setattr(research, "_pypdf_bridge", count_pypdf)
 
     with pytest.raises(research.LiteratureContractError) as caught:
-        literature_ingest._parse(_acquire_production_parse(pdf))
+        research._parse(_acquire_production_parse(pdf))
     assert caught.value.code == "parser_backend_failed"
     assert caught.value.details.get("backend") == "docling"
     assert calls == {"pypdf": 0}
@@ -1886,10 +1886,10 @@ def test_production_parse_refuses_a_non_docling_bridge(monkeypatch, tmp_path):
 
 
     monkeypatch.setattr(research, "_run_docling", lie)
-    monkeypatch.setattr(literature_ingest, "_pypdf_bridge", count_pypdf)
+    monkeypatch.setattr(research, "_pypdf_bridge", count_pypdf)
 
     with pytest.raises(research.LiteratureContractError) as caught:
-        literature_ingest._parse(_acquire_production_parse(pdf))
+        research._parse(_acquire_production_parse(pdf))
     assert caught.value.code in {"parser_identity_lie", "undisclosed_parser_fallback"}
     assert calls["pypdf"] == 0
 
@@ -1905,9 +1905,9 @@ def test_production_parse_keeps_a_named_docling_success(monkeypatch, tmp_path):
 
 
     monkeypatch.setattr(research, "_run_docling", lambda _path: _docling_bridge())
-    monkeypatch.setattr(literature_ingest, "_pypdf_bridge", count_pypdf)
+    monkeypatch.setattr(research, "_pypdf_bridge", count_pypdf)
 
-    parsed = literature_ingest._parse(_acquire_production_parse(pdf))
+    parsed = research._parse(_acquire_production_parse(pdf))
     assert parsed["parser_backend"] == "docling"
     assert parsed["fallback_reason"] is None
     assert parsed["blocks"][0]["text"] == "production docling prose"
@@ -1927,7 +1927,7 @@ def _suffix_fallback_spies(monkeypatch):
 
 
     monkeypatch.setattr(research, "_run_docling", count_docling)
-    monkeypatch.setattr(literature_ingest, "_pypdf_bridge", count_pypdf)
+    monkeypatch.setattr(research, "_pypdf_bridge", count_pypdf)
     return calls
 
 
@@ -1995,7 +1995,7 @@ def test_production_parse_refuses_non_docling_suffix(monkeypatch, tmp_path, file
     path.write_text(content, encoding="utf-8")
     calls = _suffix_fallback_spies(monkeypatch)
     with pytest.raises(research.LiteratureContractError) as caught:
-        literature_ingest._parse(_acquire_production_parse(path))
+        research._parse(_acquire_production_parse(path))
     assert caught.value.code == "parser_identity_lie"
     assert caught.value.details.get("parser_backend") == backend
     assert calls == {"docling": 0, "pypdf": 0}
@@ -2025,10 +2025,10 @@ def test_production_parse_suffix_refuse_names_the_stamped_backend(monkeypatch, t
             "fallback_reason": "forced_suffix_stamp",
         }
 
-    monkeypatch.setattr(literature_ingest, "_jats_bridge", lie_bridge)
+    monkeypatch.setattr(research, "_jats_bridge", lie_bridge)
 
     with pytest.raises(research.LiteratureContractError) as caught:
-        literature_ingest._parse(_acquire_production_parse(xml))
+        research._parse(_acquire_production_parse(xml))
     assert caught.value.code == "parser_identity_lie"
     assert caught.value.details.get("parser_backend") == "pypdf"
     assert caught.value.details.get("fallback_reason") == "forced_suffix_stamp"
@@ -2389,7 +2389,7 @@ def _install_scores(monkeypatch, dense, sparse):
 
     monkeypatch.setattr(research, "_dense_query_scores", fake_dense)
     monkeypatch.setattr(research, "_query_sparse_raw", fake_sparse)
-    monkeypatch.setattr(research.rerank, "reorder_window", fake_reorder)
+    monkeypatch.setattr(research, "reorder_window", fake_reorder)
     return dense_calls, sparse_calls, rerank_captures
 
 
@@ -2449,7 +2449,7 @@ class TestBgeFusion:
             lambda *args, **kwargs: (_ for _ in ()).throw(RuntimeError("model forbidden")),
         )
         monkeypatch.setattr(
-            research.rerank,
+            research,
             "_load_cross_encoder",
             lambda *args, **kwargs: (_ for _ in ()).throw(RuntimeError("model forbidden")),
         )
@@ -2895,22 +2895,22 @@ class PairBackend:
 
 
 def _reset_pair_state():
-    rerank._PAIR_BACKEND = None
-    rerank._PAIR_INTEROP_READY = False
+    research._PAIR_BACKEND = None
+    research._PAIR_INTEROP_READY = False
 
 
 def _touch_pair_dir(path: Path) -> Path:
     path.mkdir(parents=True, exist_ok=True)
-    for name in rerank.PAIR_RERANKER_FILE_SHA256:
+    for name in research.PAIR_RERANKER_FILE_SHA256:
         (path / name).write_bytes(b"synthetic-pair-artifact")
     return path
 
 
 def _pass_hashes(monkeypatch):
     monkeypatch.setattr(
-        rerank,
+        research,
         "_hash_pair_file",
-        lambda path: rerank.PAIR_RERANKER_FILE_SHA256[Path(path).name],
+        lambda path: research.PAIR_RERANKER_FILE_SHA256[Path(path).name],
     )
 
 
@@ -2918,7 +2918,7 @@ def _install_backend(monkeypatch, tmp_path, backend: PairBackend) -> PairBackend
     pair_dir = _touch_pair_dir(tmp_path / "pair-reranker")
     monkeypatch.setenv("DISSOLVE_BGE_RERANKER_DIR", str(pair_dir))
     _pass_hashes(monkeypatch)
-    original = rerank.importlib.import_module
+    original = research.importlib.import_module
 
     def fake_import(name, *args, **kwargs):
         if name == "torch":
@@ -2927,7 +2927,7 @@ def _install_backend(monkeypatch, tmp_path, backend: PairBackend) -> PairBackend
             return backend.transformers
         return original(name, *args, **kwargs)
 
-    monkeypatch.setattr(rerank.importlib, "import_module", fake_import)
+    monkeypatch.setattr(research.importlib, "import_module", fake_import)
     return backend
 
 
@@ -2977,7 +2977,7 @@ class TestBgeReranker:
             lambda *args, **kwargs: (_ for _ in ()).throw(RuntimeError("model forbidden")),
         )
         monkeypatch.setattr(
-            research.rerank,
+            research,
             "_load_cross_encoder",
             lambda *args, **kwargs: (_ for _ in ()).throw(RuntimeError("model forbidden")),
         )
@@ -2985,13 +2985,13 @@ class TestBgeReranker:
         _reset_pair_state()
 
     def test_rrf_empty_and_known_orders(self):
-        assert rerank.fuse_rrf60([], []) == []
-        tied = rerank.fuse_rrf60([_row("a"), _row("b")], [_row("b"), _row("a")])
+        assert research.fuse_rrf60([], []) == []
+        tied = research.fuse_rrf60([_row("a"), _row("b")], [_row("b"), _row("a")])
         assert _ranked_ids(tied) == ["a", "b"]
         assert tied[0][0] == _rrf(1, 2)
         assert tied[1][0] == _rrf(2, 1)
         assert tied[0][0] == tied[1][0]
-        flipped = rerank.fuse_rrf60(
+        flipped = research.fuse_rrf60(
             [_row("a"), _row("b"), _row("c")],
             [_row("c"), _row("b"), _row("a")],
         )
@@ -3004,26 +3004,26 @@ class TestBgeReranker:
 
     def test_rrf_membership_mismatch_and_duplicates_fail(self):
         with pytest.raises(ValueError, match="rrf_membership"):
-            rerank.fuse_rrf60([_row("a"), _row("b")], [_row("a")])
+            research.fuse_rrf60([_row("a"), _row("b")], [_row("a")])
         with pytest.raises(ValueError, match="rrf_membership"):
-            rerank.fuse_rrf60([_row("a"), _row("b")], [_row("a"), _row("c")])
+            research.fuse_rrf60([_row("a"), _row("b")], [_row("a"), _row("c")])
         with pytest.raises(ValueError, match="rrf_duplicate"):
-            rerank.fuse_rrf60([_row("a"), _row("a")], [_row("a"), _row("b")])
+            research.fuse_rrf60([_row("a"), _row("a")], [_row("a"), _row("b")])
         with pytest.raises(ValueError, match="rrf_duplicate"):
-            rerank.fuse_rrf60([_row("a"), _row("b")], [_row("b"), _row("b")])
+            research.fuse_rrf60([_row("a"), _row("b")], [_row("b"), _row("b")])
 
     def test_pair_equal_logits_keep_original_order(self, monkeypatch, tmp_path):
         backend = PairBackend(logits_by_passage={"zb": 0.5, "aa": 0.5})
         _install_backend(monkeypatch, tmp_path, backend)
         ranked = [_row("z", body="zb"), _row("a", body="aa")]
-        out = rerank.reorder_window(QUERY, ranked, rerank.PAIR_RERANK_MODE)
+        out = research.reorder_window(QUERY, ranked, research.PAIR_RERANK_MODE)
         assert _ranked_ids(out) == ["z", "a"]
 
     def test_pair_tiny_logit_delta_beats_rounding(self, monkeypatch, tmp_path):
         backend = PairBackend(logits_by_passage={"left": 1.0, "right": 1.0 + 1e-8})
         _install_backend(monkeypatch, tmp_path, backend)
         ranked = [_row("m", body="left"), _row("a", body="right")]
-        out = rerank.reorder_window(QUERY, ranked, rerank.PAIR_RERANK_MODE)
+        out = research.reorder_window(QUERY, ranked, research.PAIR_RERANK_MODE)
         assert _ranked_ids(out) == ["a", "m"]
         assert out[0][0] - out[1][0] == pytest.approx(1e-8)
 
@@ -3038,8 +3038,8 @@ class TestBgeReranker:
     def test_pair_nonfinite_logits_fail_closed(self, monkeypatch, tmp_path, rows):
         backend = PairBackend(logit_batches=[rows])
         _install_backend(monkeypatch, tmp_path, backend)
-        with pytest.raises(rerank.RerankBlocked):
-            rerank.reorder_window(QUERY, [_row("a"), _row("b")], rerank.PAIR_RERANK_MODE)
+        with pytest.raises(research.RerankBlocked):
+            research.reorder_window(QUERY, [_row("a"), _row("b")], research.PAIR_RERANK_MODE)
 
     def test_pair_wrong_logit_shapes_fail_closed(self, monkeypatch, tmp_path):
         ranked = [_row("a"), _row("b")]
@@ -3056,8 +3056,8 @@ class TestBgeReranker:
             (WideModel,),
             {"owner_ref": backend},
         )
-        with pytest.raises(rerank.RerankBlocked):
-            rerank.reorder_window(QUERY, ranked, rerank.PAIR_RERANK_MODE)
+        with pytest.raises(research.RerankBlocked):
+            research.reorder_window(QUERY, ranked, research.PAIR_RERANK_MODE)
 
         _reset_pair_state()
 
@@ -3077,8 +3077,8 @@ class TestBgeReranker:
             (FlatModel,),
             {"owner_ref": backend},
         )
-        with pytest.raises(rerank.RerankBlocked):
-            rerank.reorder_window(QUERY, ranked, rerank.PAIR_RERANK_MODE)
+        with pytest.raises(research.RerankBlocked):
+            research.reorder_window(QUERY, ranked, research.PAIR_RERANK_MODE)
 
         _reset_pair_state()
 
@@ -3095,8 +3095,8 @@ class TestBgeReranker:
             (CubeModel,),
             {"owner_ref": backend},
         )
-        with pytest.raises(rerank.RerankBlocked):
-            rerank.reorder_window(QUERY, ranked, rerank.PAIR_RERANK_MODE)
+        with pytest.raises(research.RerankBlocked):
+            research.reorder_window(QUERY, ranked, research.PAIR_RERANK_MODE)
 
     def test_window_twenty_batches_and_rest_excluded(self, monkeypatch, tmp_path):
         monkeypatch.setenv("DISSOLVE_CORPUS_PROFILE", "bge10")
@@ -3109,15 +3109,15 @@ class TestBgeReranker:
         backend = PairBackend(logits_by_passage=logits)
         _install_backend(monkeypatch, tmp_path, backend)
         rrf_calls: list[tuple[list[str], list[str]]] = []
-        real_fuse = rerank.fuse_rrf60
+        real_fuse = research.fuse_rrf60
 
         def spy_fuse(before, pair):
             rrf_calls.append((_ranked_ids(list(before)), _ranked_ids(list(pair))))
             return real_fuse(before, pair)
 
-        monkeypatch.setattr(rerank, "fuse_rrf60", spy_fuse)
+        monkeypatch.setattr(research, "fuse_rrf60", spy_fuse)
         rows = research._search_index(
-            index, QUERY, 5, "hybrid", rerank_mode=rerank.PAIR_RERANK_MODE,
+            index, QUERY, 5, "hybrid", rerank_mode=research.PAIR_RERANK_MODE,
         )
         scored_passages = [passage for _q, passages, _kw in FakeTokenizer.encode_calls for passage in passages]
         assert [len(call[1]) for call in FakeTokenizer.encode_calls] == [8, 8, 4]
@@ -3139,12 +3139,12 @@ class TestBgeReranker:
 
         def counted_hash(path):
             hash_calls.append(Path(path).name)
-            return rerank.PAIR_RERANKER_FILE_SHA256[Path(path).name]
+            return research.PAIR_RERANKER_FILE_SHA256[Path(path).name]
 
-        monkeypatch.setattr(rerank, "_hash_pair_file", counted_hash)
+        monkeypatch.setattr(research, "_hash_pair_file", counted_hash)
         ranked = [_row("c0"), _row("c1")]
-        rerank.reorder_window(QUERY, ranked, rerank.PAIR_RERANK_MODE)
-        rerank.reorder_window(QUERY, ranked, rerank.PAIR_RERANK_MODE)
+        research.reorder_window(QUERY, ranked, research.PAIR_RERANK_MODE)
+        research.reorder_window(QUERY, ranked, research.PAIR_RERANK_MODE)
         tokenizer_loads = [call for call in backend.load_calls if call[0] == "tokenizer"]
         model_loads = [call for call in backend.load_calls if call[0] == "model"]
         assert len(tokenizer_loads) == 1
@@ -3163,8 +3163,8 @@ class TestBgeReranker:
         assert encode_kwargs["truncation"] == "longest_first"
         assert encode_kwargs["max_length"] == 512
         assert encode_kwargs["return_tensors"] == "pt"
-        assert hash_calls == list(rerank.PAIR_RERANKER_FILE_SHA256)
-        model = rerank._PAIR_BACKEND[1]
+        assert hash_calls == list(research.PAIR_RERANKER_FILE_SHA256)
+        model = research._PAIR_BACKEND[1]
         assert model.calls[0] == ("to", "cpu")
         assert ("float",) in model.calls
         assert ("eval",) in model.calls
@@ -3180,36 +3180,36 @@ class TestBgeReranker:
             hash_calls.append(Path(path).name)
             if not allow["ok"]:
                 return "0" * 64
-            return rerank.PAIR_RERANKER_FILE_SHA256[Path(path).name]
+            return research.PAIR_RERANKER_FILE_SHA256[Path(path).name]
 
         def fail_import(name, *args, **kwargs):
             import_calls.append(name)
             raise ImportError("synthetic import failure")
 
-        monkeypatch.setattr(rerank, "_hash_pair_file", counted_hash)
-        monkeypatch.setattr(rerank.importlib, "import_module", fail_import)
+        monkeypatch.setattr(research, "_hash_pair_file", counted_hash)
+        monkeypatch.setattr(research.importlib, "import_module", fail_import)
         ranked = [_row("a")]
-        with pytest.raises(rerank.RerankBlocked):
-            rerank.reorder_window(QUERY, ranked, rerank.PAIR_RERANK_MODE)
-        assert rerank._PAIR_BACKEND is None
-        assert hash_calls == list(rerank.PAIR_RERANKER_FILE_SHA256)
+        with pytest.raises(research.RerankBlocked):
+            research.reorder_window(QUERY, ranked, research.PAIR_RERANK_MODE)
+        assert research._PAIR_BACKEND is None
+        assert hash_calls == list(research.PAIR_RERANKER_FILE_SHA256)
         assert import_calls == ["torch"]
         allow["ok"] = False
         hash_calls.clear()
         import_calls.clear()
-        with pytest.raises(rerank.RerankBlocked):
-            rerank.reorder_window(QUERY, ranked, rerank.PAIR_RERANK_MODE)
+        with pytest.raises(research.RerankBlocked):
+            research.reorder_window(QUERY, ranked, research.PAIR_RERANK_MODE)
         assert hash_calls == ["config.json"]
         assert import_calls == []
-        assert rerank._PAIR_BACKEND is None
+        assert research._PAIR_BACKEND is None
 
     def test_cached_backend_rejects_changed_or_missing_directory(self, monkeypatch, tmp_path):
         backend = PairBackend(logits_by_passage={MATCH_TEXT: 1.0})
         pair_dir = _touch_pair_dir(tmp_path / "pair-reranker")
         _install_backend(monkeypatch, tmp_path, backend)
         ranked = [_row("c0")]
-        rerank.reorder_window(QUERY, ranked, rerank.PAIR_RERANK_MODE)
-        assert rerank._PAIR_BACKEND is not None
+        research.reorder_window(QUERY, ranked, research.PAIR_RERANK_MODE)
+        assert research._PAIR_BACKEND is not None
         loads = len(backend.load_calls)
         encodes = len(FakeTokenizer.encode_calls)
         other = _touch_pair_dir(tmp_path / "other-pair")
@@ -3219,57 +3219,57 @@ class TestBgeReranker:
             hashed_roots.append(str(Path(path).resolve().parent))
             if Path(path).resolve().parent == other.resolve():
                 return "0" * 64
-            return rerank.PAIR_RERANKER_FILE_SHA256[Path(path).name]
+            return research.PAIR_RERANKER_FILE_SHA256[Path(path).name]
 
-        monkeypatch.setattr(rerank, "_hash_pair_file", selective_hash)
+        monkeypatch.setattr(research, "_hash_pair_file", selective_hash)
         monkeypatch.setenv("DISSOLVE_BGE_RERANKER_DIR", str(other))
-        with pytest.raises(rerank.RerankBlocked):
-            rerank.reorder_window(QUERY, ranked, rerank.PAIR_RERANK_MODE)
+        with pytest.raises(research.RerankBlocked):
+            research.reorder_window(QUERY, ranked, research.PAIR_RERANK_MODE)
         assert hashed_roots and hashed_roots[0] == str(other.resolve())
         assert len(backend.load_calls) == loads
         assert len(FakeTokenizer.encode_calls) == encodes
-        assert rerank._PAIR_BACKEND is None
+        assert research._PAIR_BACKEND is None
 
         monkeypatch.setenv("DISSOLVE_BGE_RERANKER_DIR", str(pair_dir))
-        rerank.reorder_window(QUERY, ranked, rerank.PAIR_RERANK_MODE)
-        assert rerank._PAIR_BACKEND is not None
+        research.reorder_window(QUERY, ranked, research.PAIR_RERANK_MODE)
+        assert research._PAIR_BACKEND is not None
         recached_loads = len(backend.load_calls)
         recached_encodes = len(FakeTokenizer.encode_calls)
         assert recached_loads > loads
         monkeypatch.delenv("DISSOLVE_BGE_RERANKER_DIR", raising=False)
-        with pytest.raises(rerank.RerankBlocked):
-            rerank.reorder_window(QUERY, ranked, rerank.PAIR_RERANK_MODE)
+        with pytest.raises(research.RerankBlocked):
+            research.reorder_window(QUERY, ranked, research.PAIR_RERANK_MODE)
         assert len(backend.load_calls) == recached_loads
         assert len(FakeTokenizer.encode_calls) == recached_encodes
-        assert rerank._PAIR_BACKEND is None
+        assert research._PAIR_BACKEND is None
 
     def test_missing_and_mismatched_artifacts_fail_closed(self, monkeypatch, tmp_path):
         missing = tmp_path / "missing"
         missing.mkdir()
         monkeypatch.setenv("DISSOLVE_BGE_RERANKER_DIR", str(missing))
-        with pytest.raises(rerank.RerankBlocked):
-            rerank.reorder_window(QUERY, [_row("a")], rerank.PAIR_RERANK_MODE)
+        with pytest.raises(research.RerankBlocked):
+            research.reorder_window(QUERY, [_row("a")], research.PAIR_RERANK_MODE)
         pair_dir = _touch_pair_dir(tmp_path / "bad-hash")
         monkeypatch.setenv("DISSOLVE_BGE_RERANKER_DIR", str(pair_dir))
-        with pytest.raises(rerank.RerankBlocked):
-            rerank.reorder_window(QUERY, [_row("a")], rerank.PAIR_RERANK_MODE)
+        with pytest.raises(research.RerankBlocked):
+            research.reorder_window(QUERY, [_row("a")], research.PAIR_RERANK_MODE)
         monkeypatch.delenv("DISSOLVE_BGE_RERANKER_DIR", raising=False)
-        with pytest.raises(rerank.RerankBlocked):
-            rerank.reorder_window(QUERY, [_row("a")], rerank.PAIR_RERANK_MODE)
+        with pytest.raises(research.RerankBlocked):
+            research.reorder_window(QUERY, [_row("a")], research.PAIR_RERANK_MODE)
 
     def test_incompatible_config_and_cross_encoder_not_substituted(self, monkeypatch, tmp_path):
         backend = PairBackend(model_spec={"model_type": "bert", "num_labels": 1})
         _install_backend(monkeypatch, tmp_path, backend)
-        with pytest.raises(rerank.RerankBlocked):
-            rerank.reorder_window(QUERY, [_row("a")], rerank.PAIR_RERANK_MODE)
-        assert rerank._PAIR_BACKEND is None
+        with pytest.raises(research.RerankBlocked):
+            research.reorder_window(QUERY, [_row("a")], research.PAIR_RERANK_MODE)
+        assert research._PAIR_BACKEND is None
         _reset_pair_state()
         backend = PairBackend(model_spec={"model_type": "xlm-roberta", "num_labels": 2})
         _install_backend(monkeypatch, tmp_path, backend)
-        with pytest.raises(rerank.RerankBlocked):
-            rerank.reorder_window(QUERY, [_row("a")], rerank.PAIR_RERANK_MODE)
+        with pytest.raises(research.RerankBlocked):
+            research.reorder_window(QUERY, [_row("a")], research.PAIR_RERANK_MODE)
         with pytest.raises(RuntimeError, match="model forbidden"):
-            rerank.reorder_window(QUERY, [_row("a")], "cross_encoder")
+            research.reorder_window(QUERY, [_row("a")], "cross_encoder")
 
     def test_public_product_invokes_pair_and_rrf(self, monkeypatch, tmp_path):
         monkeypatch.setenv("DISSOLVE_CORPUS_PROFILE", "bge10")
@@ -3283,13 +3283,13 @@ class TestBgeReranker:
         backend = PairBackend(logits_by_passage={"pa": 0.0, "pb": 1.0, "pc": 2.0})
         _install_backend(monkeypatch, tmp_path, backend)
         rrf_calls: list[tuple[list[str], list[str]]] = []
-        real_fuse = rerank.fuse_rrf60
+        real_fuse = research.fuse_rrf60
 
         def spy_fuse(before, pair):
             rrf_calls.append((_ranked_ids(list(before)), _ranked_ids(list(pair))))
             return real_fuse(before, pair)
 
-        monkeypatch.setattr(rerank, "fuse_rrf60", spy_fuse)
+        monkeypatch.setattr(research, "fuse_rrf60", spy_fuse)
         parsed = _public(monkeypatch, index, top_k=3)
         data = parsed["data"]
         assert data["success"] is True
@@ -3307,7 +3307,7 @@ class TestBgeReranker:
         _install_backend(monkeypatch, tmp_path, backend)
         rrf_calls: list = []
         monkeypatch.setattr(
-            rerank,
+            research,
             "fuse_rrf60",
             lambda *args, **kwargs: rrf_calls.append(args) or (_ for _ in ()).throw(AssertionError("rrf")),
         )
@@ -3382,7 +3382,7 @@ class TestBgeReranker:
         assert expected != "BODY-ONLY"
         backend = PairBackend(logits_by_passage={expected: 1.5, "BODY-ONLY": 9.0, "TEXT-ONLY": 8.0})
         _install_backend(monkeypatch, tmp_path, backend)
-        out = rerank.reorder_window(QUERY, [(0.0, 0.0, 0.0, 0.0, chunk, 0.0)], rerank.PAIR_RERANK_MODE)
+        out = research.reorder_window(QUERY, [(0.0, 0.0, 0.0, 0.0, chunk, 0.0)], research.PAIR_RERANK_MODE)
         assert FakeTokenizer.encode_calls
         queries, passages, _kwargs = FakeTokenizer.encode_calls[0]
         assert passages == [expected]
@@ -3562,7 +3562,7 @@ class TestEmbeddingRecipe:
             lambda: tmp_path / "canonical" / "manifest.json",
         )
         monkeypatch.setattr(
-            research.rerank,
+            research,
             "_load_cross_encoder",
             lambda *args, **kwargs: (_ for _ in ()).throw(RuntimeError("model forbidden")),
         )
@@ -3896,7 +3896,7 @@ class TestManifestFailclosed:
             lambda *args, **kwargs: (_ for _ in ()).throw(RuntimeError("model forbidden")),
         )
         monkeypatch.setattr(
-            research.rerank,
+            research,
             "_load_cross_encoder",
             lambda *args, **kwargs: (_ for _ in ()).throw(RuntimeError("model forbidden")),
         )
@@ -4447,7 +4447,7 @@ class TestProfileRouting:
             lambda *args, **kwargs: (_ for _ in ()).throw(RuntimeError("model forbidden")),
         )
         monkeypatch.setattr(
-            research.rerank,
+            research,
             "_load_cross_encoder",
             lambda *args, **kwargs: (_ for _ in ()).throw(RuntimeError("model forbidden")),
         )

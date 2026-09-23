@@ -10,8 +10,6 @@ from pathlib import Path
 import pytest
 
 from dissolve import (
-    campaign_basis,
-    campaign_consume,
     landscape,
     safety,
     separation,
@@ -116,7 +114,7 @@ def _public_from_record(record: dict, **overrides) -> dict:
 
 def test_campaign_lookup_handle_ranks_without_rereading_jsonl(monkeypatch, tmp_path):
     registry = _write_registry(tmp_path, {_CANONICAL: _sealed_entry()})
-    monkeypatch.setenv(campaign_consume.REGISTRY_ENV, str(registry))
+    monkeypatch.setenv(landscape.REGISTRY_ENV, str(registry))
     _forbid_live(monkeypatch)
     reads = _count_jsonl(monkeypatch)
     session = new_session()
@@ -148,7 +146,7 @@ def test_campaign_lookup_handle_ranks_without_rereading_jsonl(monkeypatch, tmp_p
 
 def test_campaign_handle_held_mismatch_is_not_a_ranking(monkeypatch, tmp_path):
     registry = _write_registry(tmp_path, {_CANONICAL: _sealed_entry()})
-    monkeypatch.setenv(campaign_consume.REGISTRY_ENV, str(registry))
+    monkeypatch.setenv(landscape.REGISTRY_ENV, str(registry))
     _forbid_live(monkeypatch)
     reads = _count_jsonl(monkeypatch)
     session = new_session()
@@ -195,7 +193,7 @@ def test_campaign_handle_held_mismatch_is_not_a_ranking(monkeypatch, tmp_path):
 
 def test_ldpe_campaign_lookup_handle_is_one_polymer_front(monkeypatch, tmp_path):
     registry = _write_registry(tmp_path, {_CANONICAL: _sealed_entry()})
-    monkeypatch.setenv(campaign_consume.REGISTRY_ENV, str(registry))
+    monkeypatch.setenv(landscape.REGISTRY_ENV, str(registry))
     _forbid_live(monkeypatch)
     reads = _count_jsonl(monkeypatch)
     session = new_session()
@@ -228,7 +226,7 @@ def test_disagreeing_fingerprint_on_campaign_handle_mismatches(
     monkeypatch, tmp_path,
 ):
     registry = _write_registry(tmp_path, {_CANONICAL: _sealed_entry()})
-    monkeypatch.setenv(campaign_consume.REGISTRY_ENV, str(registry))
+    monkeypatch.setenv(landscape.REGISTRY_ENV, str(registry))
     _forbid_live(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
@@ -310,7 +308,7 @@ def test_campaign_lookup_basis_is_not_cache_exact():
 
 def test_dispatch_mints_a_campaign_lookup_handle(monkeypatch, tmp_path):
     registry = _write_registry(tmp_path, {_CANONICAL: _sealed_entry()})
-    monkeypatch.setenv(campaign_consume.REGISTRY_ENV, str(registry))
+    monkeypatch.setenv(landscape.REGISTRY_ENV, str(registry))
     _forbid_live(monkeypatch)
     reads = _count_jsonl(monkeypatch)
     session = new_session()
@@ -394,7 +392,7 @@ def _write_registry_rank_handle_inherit(tmp_path: Path, entries: dict) -> Path:
 
 def _minimal_definition(**overrides):
     definition = {
-        "schema": campaign_basis.CAMPAIGN_DEFINITION_SCHEMA_V2,
+        "schema": landscape.CAMPAIGN_DEFINITION_SCHEMA_V2,
         "fixed_fields": {
             "target_plastic_percent": 55.0,
             "processing_capacity": 20_000.0,
@@ -421,7 +419,7 @@ def _mini(tmp_path, rows, definition=None):
     root = tmp_path / "mini_campaign"
     root.mkdir()
     run_definition = definition if definition is not None else _minimal_definition()
-    canonical = campaign_consume.canonical_json_digest(run_definition)
+    canonical = landscape.canonical_json_digest(run_definition)
     run_path = root / "run_definition.json"
     run_path.write_text(json.dumps(run_definition), encoding="utf-8")
     rows_path = root / "process_rows.jsonl"
@@ -453,7 +451,7 @@ def _mini(tmp_path, rows, definition=None):
 
 
 def _rank(monkeypatch, registry_path: Path, **kwargs):
-    monkeypatch.setenv(campaign_consume.REGISTRY_ENV, str(registry_path))
+    monkeypatch.setenv(landscape.REGISTRY_ENV, str(registry_path))
     return _data(tea.rank_landscape(**kwargs))
 
 
@@ -495,7 +493,7 @@ def test_rank_points_without_normalized_twelve_are_not_an_inherit_source(
 ):
     _forbid_live_rank_handle_inherit(monkeypatch)
     definition = _minimal_definition()
-    canonical = campaign_consume.canonical_json_digest(definition)
+    canonical = landscape.canonical_json_digest(definition)
     canonical, entry = _mini(tmp_path, [
         _success_row(canonical, "a", "LDPE", "Toluene", 1.0, 0.4),
         _success_row(canonical, "b", "LDPE", "Xylene", 2.0, 0.8),
@@ -524,7 +522,7 @@ def test_tornado_inherits_from_a_ranked_cache_identity(monkeypatch, tmp_path):
     cfg = record["config"]
     _forbid_live_rank_handle_inherit(monkeypatch)
     definition = _minimal_definition()
-    canonical = campaign_consume.canonical_json_digest(definition)
+    canonical = landscape.canonical_json_digest(definition)
     canonical, entry = _mini(tmp_path, [
         _success_row(
             canonical, "cache-hit", cfg["target_plastic"], "Dodecane",
@@ -581,7 +579,7 @@ def test_grouped_fronts_flatten_for_inherit(monkeypatch, tmp_path):
     cfg = record["config"]
     _forbid_live_rank_handle_inherit(monkeypatch)
     definition = _minimal_definition()
-    canonical = campaign_consume.canonical_json_digest(definition)
+    canonical = landscape.canonical_json_digest(definition)
     canonical, entry = _mini(tmp_path, [
         _success_row(
             canonical, "cache-hit", "LDPE", "Dodecane",
@@ -743,7 +741,7 @@ def test_evaluated_safety_standing_is_carried_not_filtered(monkeypatch, tmp_path
         {"config_sent": {"target_plastic": "LDPE", "solvent": "toluene"}},
         {"config_sent": {"target_plastic": "LDPE", "solvent": "xylene"}},
     ])
-    canonical = campaign_consume.canonical_json_digest(definition)
+    canonical = landscape.canonical_json_digest(definition)
     toluene = _success_row_rank_landscape(canonical, "p1", "LDPE", "Toluene", 1.0, 0.4)
     toluene["safety_standing"] = {
         "status": "evaluated",
@@ -775,7 +773,7 @@ def test_unavailable_safety_standing_is_carried(monkeypatch, tmp_path):
         {"config_sent": {"target_plastic": "LDPE", "solvent": "toluene"}},
         {"config_sent": {"target_plastic": "LDPE", "solvent": "xylene"}},
     ])
-    canonical = campaign_consume.canonical_json_digest(definition)
+    canonical = landscape.canonical_json_digest(definition)
     missing = _success_row_rank_landscape(canonical, "p1", "LDPE", "Toluene", 1.0, 0.4)
     missing["safety_standing"] = {"status": "unavailable"}
     sibling = _success_row_rank_landscape(canonical, "p2", "LDPE", "Xylene", 2.0, 0.8)
@@ -795,7 +793,7 @@ def test_illegal_safety_status_is_not_copied(monkeypatch, tmp_path):
         {"config_sent": {"target_plastic": "LDPE", "solvent": "toluene"}},
         {"config_sent": {"target_plastic": "LDPE", "solvent": "xylene"}},
     ])
-    canonical = campaign_consume.canonical_json_digest(definition)
+    canonical = landscape.canonical_json_digest(definition)
     bad = _success_row_rank_landscape(canonical, "p1", "LDPE", "Toluene", 1.0, 0.4)
     bad["safety_standing"] = {"status": "fail", "excluded": True}
     sibling = _success_row_rank_landscape(canonical, "p2", "LDPE", "Xylene", 2.0, 0.8)
@@ -811,7 +809,7 @@ def test_illegal_safety_status_is_not_copied(monkeypatch, tmp_path):
 
 
 def test_residual_route_campaign_fingerprint_is_not_applicable(monkeypatch, tmp_path):
-    monkeypatch.delenv(campaign_consume.REGISTRY_ENV, raising=False)
+    monkeypatch.delenv(landscape.REGISTRY_ENV, raising=False)
     data = _data(tea.rank_landscape(
         source="residual_route", campaign_fingerprint=_CANONICAL,
     ))
@@ -834,7 +832,7 @@ def test_epsilon_not_applicable_on_process_rows(monkeypatch, tmp_path):
 
 def test_one_usable_row_is_landscape_too_small(monkeypatch, tmp_path):
     definition = _minimal_definition()
-    canonical = campaign_consume.canonical_json_digest(definition)
+    canonical = landscape.canonical_json_digest(definition)
     canonical, entry = _mini(tmp_path, [
         _success_row_rank_landscape(canonical, "p1", "LDPE", "Toluene", 1.0, 0.4),
         _fail_row(canonical, "p2", "LDPE", "priced_solvent_unmodellable"),
@@ -849,7 +847,7 @@ def test_one_usable_row_is_landscape_too_small(monkeypatch, tmp_path):
 
 def test_two_point_total_order_serves_sparse_frontier(monkeypatch, tmp_path):
     definition = _minimal_definition()
-    canonical = campaign_consume.canonical_json_digest(definition)
+    canonical = landscape.canonical_json_digest(definition)
     canonical, entry = _mini(tmp_path, [
         _success_row_rank_landscape(canonical, "p1", "LDPE", "Toluene", 1.0, 0.4),
         _success_row_rank_landscape(canonical, "p2", "LDPE", "Xylene", 2.0, 0.8),
@@ -876,7 +874,7 @@ def test_two_point_total_order_serves_sparse_frontier(monkeypatch, tmp_path):
 
 def test_pareto_returns_landscape_and_frontier(monkeypatch, tmp_path):
     definition = _minimal_definition()
-    canonical = campaign_consume.canonical_json_digest(definition)
+    canonical = landscape.canonical_json_digest(definition)
     canonical, entry = _mini(tmp_path, [
         _success_row_rank_landscape(canonical, "a", "LDPE", "Toluene", 1.0, 1.0),
         _success_row_rank_landscape(canonical, "b", "LDPE", "Xylene", 2.0, 2.0),
@@ -901,7 +899,7 @@ def test_pareto_returns_landscape_and_frontier(monkeypatch, tmp_path):
 
 def test_default_grouping_does_not_mix_polymers(monkeypatch, tmp_path):
     definition = _minimal_definition()
-    canonical = campaign_consume.canonical_json_digest(definition)
+    canonical = landscape.canonical_json_digest(definition)
     canonical, entry = _mini(tmp_path, [
         _success_row_rank_landscape(canonical, "a", "LDPE", "Toluene", 1.0, 1.0),
         _success_row_rank_landscape(canonical, "b", "LDPE", "Xylene", 2.0, 0.5),
@@ -934,7 +932,7 @@ def test_default_grouping_does_not_mix_polymers(monkeypatch, tmp_path):
 
 def test_sort_has_no_frontier_array(monkeypatch, tmp_path):
     definition = _minimal_definition()
-    canonical = campaign_consume.canonical_json_digest(definition)
+    canonical = landscape.canonical_json_digest(definition)
     canonical, entry = _mini(tmp_path, [
         _success_row_rank_landscape(canonical, "b", "LDPE", "Xylene", 2.0, 0.8),
         _success_row_rank_landscape(canonical, "a", "LDPE", "Toluene", 1.0, 0.4),
@@ -1011,7 +1009,7 @@ def test_quantile_type7_matches_the_spec():
 
 
 def test_cache_lookup_still_default(monkeypatch, tmp_path):
-    monkeypatch.delenv(campaign_consume.REGISTRY_ENV, raising=False)
+    monkeypatch.delenv(landscape.REGISTRY_ENV, raising=False)
     data = _data(tea.lookup_admitted_process_records(target_polymer="LDPE"))
     assert data["success"] is True
     assert data["engine_mode"] == "cache"
@@ -5037,7 +5035,7 @@ def _two_row_mini(tmp_path):
         {"config_sent": {"target_plastic": "LDPE", "solvent": "toluene"}},
         {"config_sent": {"target_plastic": "LDPE", "solvent": "xylene"}},
     ])
-    canonical = campaign_consume.canonical_json_digest(definition)
+    canonical = landscape.canonical_json_digest(definition)
     toluene = _success_row_screen_to_economics_order(canonical, "p1", "LDPE", "Toluene", 1.0, 0.4)
     toluene["safety_standing"] = {
         "status": "evaluated",

@@ -16,17 +16,257 @@ import subprocess
 import sys
 import textwrap
 from contextvars import ContextVar
+from dataclasses import dataclass
 from functools import lru_cache
 from importlib.resources import files
 from itertools import combinations
 from pathlib import Path
-from typing import Any, Literal, Mapping, Optional, Sequence
+from types import MappingProxyType
+from typing import Any, Iterable, Literal, Mapping, Optional, Sequence
 
-from . import tea_contracts, tea_polymer_parameters, tea_worker
+from . import tea_polymer_parameters, tea_worker
 from . import thermodynamics as thermo
 from .contracts import parse_tool_result, tool_error, tool_success
 from .session import candidate_evidence, current_tool_session, handle_rows, load_handle
 from .tools import _InputError, _polymer_ambiguity_detail
+
+# --- tea_contracts: Closed registry vocabulary for admitted TEA/LCA record selection.
+
+def route_evidence_signature(route: Any) -> str | None:
+    """Return the canonical identity used to bind route-derived evidence."""
+    if not isinstance(route, dict) or not route:
+        return None
+    canonical = json.dumps(route, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(canonical.encode()).hexdigest()[:16]
+
+
+@dataclass(frozen=True)
+class TeaSensitivityAxisContract:
+    """One admitted sensitivity axis and its model-facing aliases."""
+
+    name: str
+    aliases: tuple[str, ...]
+    cache_label_token: str
+
+
+@dataclass(frozen=True)
+class TeaSensitivityLevelSelectorContract:
+    """One bounded selection over sensitivity-record levels."""
+
+    name: str
+    aliases: tuple[str, ...]
+    levels: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class TeaRecordFormContract:
+    """One output cardinality form for admitted records."""
+
+    name: str
+    aliases: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class TeaRecordSelectorContract:
+    """One typed identity or record-coordinate selector."""
+
+    name: str
+    aliases: tuple[str, ...]
+    tool_argument: str
+
+
+@dataclass(frozen=True)
+class TeaEnergyCaseContract:
+    """One admitted energy case and its bounded model-facing aliases."""
+
+    name: str
+    aliases: tuple[str, ...]
+
+
+TEA_SENSITIVITY_AXIS_REGISTRY = (
+    TeaSensitivityAxisContract(
+        "solvent_price",
+        ("price", "solvent_cost"),
+        "price",
+    ),
+    TeaSensitivityAxisContract(
+        "plant_scale",
+        (
+            "scale", "capacity", "processing_capacity",
+            "plant capacity", "plant size",
+        ),
+        "scale",
+    ),
+    TeaSensitivityAxisContract(
+        "solvent_loss",
+        (
+            "loss", "solvent_makeup",
+        ),
+        "loss",
+    ),
+    TeaSensitivityAxisContract(
+        "dissolution_temperature",
+        (
+            "dissolution_temp", "dissolution",
+        ),
+        "dissolution",
+    ),
+    TeaSensitivityAxisContract(
+        "precipitation_temperature",
+        (
+            "precipitation_temp", "precipitation",
+        ),
+        "precipitation",
+    ),
+    TeaSensitivityAxisContract(
+        "feedstock_distance",
+        (
+            "distance", "transport_distance",
+        ),
+        "distance",
+    ),
+    TeaSensitivityAxisContract(
+        "feed_composition",
+        (
+            "feed", "target_fraction", "target plastic fraction",
+        ),
+        "feed",
+    ),
+)
+
+TEA_SENSITIVITY_LEVEL_SELECTOR_REGISTRY = (
+    TeaSensitivityLevelSelectorContract(
+        "low_high",
+        (
+            "lows and highs", "low and high", "low high pair",
+            "extremes",
+        ),
+        ("low", "high"),
+    ),
+)
+
+TEA_RECORD_FORM_REGISTRY = (
+    TeaRecordFormContract(
+        "per_record",
+        ("individual records", "recordwise"),
+    ),
+    TeaRecordFormContract(
+        "grouped_comparison",
+        (
+            "aggregate", "comparison", "aggregate comparison", "grouped",
+        ),
+    ),
+)
+
+TEA_ENERGY_CASE_REGISTRY = (
+    TeaEnergyCaseContract(
+        "C1",
+        (
+            "case 1",
+            "CHP",
+            "onsite CHP",
+            "on site boiler and turbogenerator",
+            "combined heat and power",
+        ),
+    ),
+    TeaEnergyCaseContract(
+        "C2",
+        (
+            "case 2",
+            "grid electricity",
+            "grid power",
+            "grid only",
+        ),
+    ),
+    TeaEnergyCaseContract(
+        "C3",
+        (
+            "case 3",
+            "hybrid",
+            "grid plus onsite boiler",
+        ),
+    ),
+)
+
+def normalize_tea_vocabulary(value: object) -> str:
+    """Normalize case and separators without interpreting request prose."""
+    groups: list[str] = []
+    current: list[str] = []
+    for character in str(value or "").casefold():
+        if character.isalnum():
+            current.append(character)
+        elif current:
+            groups.append("".join(current))
+            current = []
+    if current:
+        groups.append("".join(current))
+    return "_".join(groups)
+
+
+def _index(
+    contracts: Iterable[
+        TeaSensitivityAxisContract
+        | TeaSensitivityLevelSelectorContract
+        | TeaRecordFormContract
+        | TeaRecordSelectorContract
+    ],
+) -> MappingProxyType:
+    indexed = {}
+    for contract in contracts:
+        for value in (contract.name, *contract.aliases):
+            normalized = normalize_tea_vocabulary(value)
+            if not normalized or normalized in indexed:
+                raise ValueError(
+                    f"Duplicate TEA vocabulary value: {value!r}",
+                )
+            indexed[normalized] = contract
+    return MappingProxyType(indexed)
+
+
+_SENSITIVITY_LEVEL_SELECTOR_BY_NAME = _index(
+    TEA_SENSITIVITY_LEVEL_SELECTOR_REGISTRY,
+)
+_RECORD_FORM_BY_NAME = _index(TEA_RECORD_FORM_REGISTRY)
+_ENERGY_CASE_BY_NAME = _index(TEA_ENERGY_CASE_REGISTRY)
+
+CANONICAL_TEA_SENSITIVITY_AXES = tuple(
+    item.name for item in TEA_SENSITIVITY_AXIS_REGISTRY
+)
+CANONICAL_TEA_SENSITIVITY_LEVEL_SELECTORS = tuple(
+    item.name for item in TEA_SENSITIVITY_LEVEL_SELECTOR_REGISTRY
+)
+CANONICAL_TEA_RECORD_FORMS = tuple(
+    item.name for item in TEA_RECORD_FORM_REGISTRY
+)
+TEA_SENSITIVITY_CACHE_TOKEN_BY_AXIS = MappingProxyType({
+    item.name: item.cache_label_token
+    for item in TEA_SENSITIVITY_AXIS_REGISTRY
+})
+
+
+def _canonical(value: object, indexed: MappingProxyType) -> str:
+    contract = indexed.get(normalize_tea_vocabulary(value))
+    return contract.name if contract is not None else str(value or "")
+
+
+def canonical_tea_sensitivity_level_selector(value: object) -> str:
+    return _canonical(value, _SENSITIVITY_LEVEL_SELECTOR_BY_NAME)
+
+
+def canonical_tea_record_form(value: object) -> str:
+    return _canonical(value, _RECORD_FORM_BY_NAME)
+
+
+def canonical_tea_energy_case(value: object) -> str:
+    return _canonical(value, _ENERGY_CASE_BY_NAME)
+
+
+def tea_sensitivity_levels(value: object) -> tuple[str, ...]:
+    contract = _SENSITIVITY_LEVEL_SELECTOR_BY_NAME.get(
+        normalize_tea_vocabulary(value),
+    )
+    return contract.levels if contract is not None else ()
+
 
 _ASSET = Path(str(files("dissolve").joinpath("data/tea_cache.json.gz")))
 _ASSET_SHA256 = "f95dff48c68d57543e472ece51b59f4d807326cee432f1a1138029efcee12173"
@@ -371,19 +611,19 @@ _ADMITTED_RECORD_METRIC_ALIASES = {
 }
 _SENSITIVITY_AXIS_ALIASES = {
     item.name: item.aliases
-    for item in tea_contracts.TEA_SENSITIVITY_AXIS_REGISTRY
+    for item in TEA_SENSITIVITY_AXIS_REGISTRY
 }
 _SENSITIVITY_LABEL_TOKEN_BY_AXIS = dict(
-    tea_contracts.TEA_SENSITIVITY_CACHE_TOKEN_BY_AXIS,
+    TEA_SENSITIVITY_CACHE_TOKEN_BY_AXIS,
 )
 TeaSensitivityAxis = Literal.__getitem__(
-    tea_contracts.CANONICAL_TEA_SENSITIVITY_AXES,
+    CANONICAL_TEA_SENSITIVITY_AXES,
 )
 TeaSensitivityLevelSelector = Literal.__getitem__(
-    tea_contracts.CANONICAL_TEA_SENSITIVITY_LEVEL_SELECTORS,
+    CANONICAL_TEA_SENSITIVITY_LEVEL_SELECTORS,
 )
 TeaRecordForm = Literal.__getitem__(
-    tea_contracts.CANONICAL_TEA_RECORD_FORMS,
+    CANONICAL_TEA_RECORD_FORMS,
 )
 
 
@@ -5566,7 +5806,7 @@ def _process_details(label: str, result: dict[str, Any]) -> Optional[dict[str, A
 
 
 def _lookup_token(value: Any) -> str:
-    return tea_contracts.normalize_tea_vocabulary(value)
+    return normalize_tea_vocabulary(value)
 
 
 def _sensitivity_axis_for_record(label: str) -> str | None:
@@ -5703,7 +5943,7 @@ def _lookup_campaign_process_records(
     process_config: Optional[dict[str, Any]],
     allow_partial_campaign: bool,
 ) -> str:
-    from . import campaign_consume
+    from . import landscape
 
     if not str(campaign_fingerprint or "").strip():
         return tool_error(
@@ -5751,14 +5991,14 @@ def _lookup_campaign_process_records(
             tool, str(error), error_code="invalid_admitted_record_query",
         )
     try:
-        payload = campaign_consume.consume_campaign_lookup(
+        payload = landscape.consume_campaign_lookup(
             fingerprint=campaign_fingerprint,
             requested=requested,
             polymers=polymers,
             solvent=resolved_solvent,
             allow_partial=allow_partial_campaign,
         )
-    except campaign_consume.CampaignConsumeError as error:
+    except landscape.CampaignConsumeError as error:
         return tool_error(
             tool, str(error), error_code=error.error_code, **error.details,
         )
@@ -5897,7 +6137,7 @@ def lookup_admitted_process_records(
             available_metrics=list(_ADMITTED_RECORD_METRICS),
         )
     requested_cases = list(dict.fromkeys(
-        tea_contracts.canonical_tea_energy_case(value)
+        canonical_tea_energy_case(value)
         for value in energy_cases or []
         if str(value or "").strip()
     ))
@@ -5927,7 +6167,7 @@ def lookup_admitted_process_records(
             ),
         )
     canonical_level_selector = (
-        tea_contracts.canonical_tea_sensitivity_level_selector(
+        canonical_tea_sensitivity_level_selector(
             sensitivity_level_selector,
         )
         if sensitivity_level_selector is not None else None
@@ -5935,26 +6175,26 @@ def lookup_admitted_process_records(
     if (
         canonical_level_selector is not None
         and canonical_level_selector
-        not in tea_contracts.CANONICAL_TEA_SENSITIVITY_LEVEL_SELECTORS
+        not in CANONICAL_TEA_SENSITIVITY_LEVEL_SELECTORS
     ):
         return tool_error(
             tool,
             "Unknown sensitivity level selector.",
             error_code="unknown_sensitivity_level_selector",
             available_sensitivity_level_selectors=list(
-                tea_contracts.CANONICAL_TEA_SENSITIVITY_LEVEL_SELECTORS,
+                CANONICAL_TEA_SENSITIVITY_LEVEL_SELECTORS,
             ),
         )
-    canonical_record_form = tea_contracts.canonical_tea_record_form(
+    canonical_record_form = canonical_tea_record_form(
         record_form,
     )
-    if canonical_record_form not in tea_contracts.CANONICAL_TEA_RECORD_FORMS:
+    if canonical_record_form not in CANONICAL_TEA_RECORD_FORMS:
         return tool_error(
             tool,
             "Unknown admitted-record output form.",
             error_code="unknown_admitted_record_form",
             available_record_forms=list(
-                tea_contracts.CANONICAL_TEA_RECORD_FORMS,
+                CANONICAL_TEA_RECORD_FORMS,
             ),
         )
 
@@ -5998,7 +6238,7 @@ def lookup_admitted_process_records(
                 f"-route-{case.casefold()}" for case in cases
             ))
         ]
-    selected_levels = tea_contracts.tea_sensitivity_levels(
+    selected_levels = tea_sensitivity_levels(
         canonical_level_selector,
     )
     if sensitivity_requested and selected_levels:
@@ -6013,7 +6253,7 @@ def lookup_admitted_process_records(
             else:
                 by_axis.setdefault(axis, []).append(record)
         selected = list(ungrouped)
-        for axis in tea_contracts.CANONICAL_TEA_SENSITIVITY_AXES:
+        for axis in CANONICAL_TEA_SENSITIVITY_AXES:
             records = by_axis.get(axis, [])
             endpoint_records = [
                 record for record in records
@@ -6141,7 +6381,7 @@ def lookup_admitted_process_records(
         requested_energy_cases=requested_cases or list(_ENERGY_CASES),
         selected_sensitivity_labels=[
             axis
-            for axis in tea_contracts.CANONICAL_TEA_SENSITIVITY_AXES
+            for axis in CANONICAL_TEA_SENSITIVITY_AXES
             if axis in axes
         ],
         sensitivity_level_selector=canonical_level_selector,
@@ -9198,6 +9438,7 @@ def _density_table() -> dict[str, Any]:
     import hashlib as _hashlib
     import json as _json
     import os as _os
+
     import duckdb as _duckdb
     path = Path(_os.environ.get("DISSOLVE_DENSITY_TABLE") or _DENSITY_TABLE_DEFAULT)
     if not path.is_file():
@@ -10149,7 +10390,7 @@ def rank_landscape(
             error_code="invalid_admitted_record_query",
         ), order,
         )
-    from . import campaign_consume, landscape
+    from . import landscape
 
     requested = dict(process_config or {})
     if energy_cases:
@@ -10194,14 +10435,14 @@ def rank_landscape(
                 ).strip()
                 supplied_fp = str(campaign_fingerprint or "").strip()
                 if supplied_fp and supplied_fp.casefold() != handle_fp.casefold():
-                    raise campaign_consume.CampaignConsumeError(
+                    raise landscape.CampaignConsumeError(
                         "campaign_fingerprint disagrees with the handle",
                         error_code="campaign_fingerprint_mismatch",
                         supplied=supplied_fp,
                         canonical=handle_fp,
                     )
                 if requested:
-                    campaign_consume.prepare_registered_campaign(
+                    landscape.prepare_registered_campaign(
                         fingerprint=handle_fp,
                         requested=requested,
                         allow_partial=allow_partial_campaign,
@@ -10240,7 +10481,7 @@ def rank_landscape(
                 tool, str(error), error_code=error.error_code, **error.details,
             ), order,
             )
-        except campaign_consume.CampaignConsumeError as error:
+        except landscape.CampaignConsumeError as error:
             return _stamp_screen_to_economics_order(
                 tool_error(
                 tool, str(error), error_code=error.error_code, **error.details,
@@ -10256,7 +10497,7 @@ def rank_landscape(
         ), order,
         )
     try:
-        bound = campaign_consume.prepare_registered_campaign(
+        bound = landscape.prepare_registered_campaign(
             fingerprint=campaign_fingerprint,
             requested=requested,
             allow_partial=allow_partial_campaign,
@@ -10269,7 +10510,7 @@ def rank_landscape(
             operation=operation_token,
             sort_metric=process_rows_sort_metric,
         )
-    except campaign_consume.CampaignConsumeError as error:
+    except landscape.CampaignConsumeError as error:
         return _stamp_screen_to_economics_order(
             tool_error(
             tool, str(error), error_code=error.error_code, **error.details,
@@ -12198,7 +12439,7 @@ def evaluate_stored_route_tea_lca(
                         ],
                         route_source="typed_session_state",
                         route_signature=(
-                            tea_contracts.route_evidence_signature(route)
+                            route_evidence_signature(route)
                         ),
                         consumed_route=route,
                         feed_mass_fractions=composition,
@@ -12251,7 +12492,7 @@ def evaluate_stored_route_tea_lca(
                     can_estimate_msp=False,
                     can_estimate_gwp=False,
                     route_source="typed_session_state",
-                    route_signature=tea_contracts.route_evidence_signature(route),
+                    route_signature=route_evidence_signature(route),
                     consumed_route=route,
                     feed_mass_fractions=composition,
                     processing_capacity_mt_per_yr=capacity,
@@ -12299,7 +12540,7 @@ def evaluate_stored_route_tea_lca(
                 dissolved_polymer=polymer,
                 executed_target_polymer=executed,
                 route_source="typed_session_state",
-                route_signature=tea_contracts.route_evidence_signature(route),
+                route_signature=route_evidence_signature(route),
                 consumed_route=route,
                 failed_stage=row,
                 completed_stage_results=rows[:-1],
@@ -12380,7 +12621,7 @@ def evaluate_stored_route_tea_lca(
         route_source="typed_session_state",
         feed_composition_source=composition_source,
         requested_metrics=metrics,
-        route_signature=tea_contracts.route_evidence_signature(route),
+        route_signature=route_evidence_signature(route),
         consumed_route=route, feed_mass_fractions=composition,
         processing_capacity_mt_per_yr=capacity, energy_case=selected_energy_case,
         energy_case_description=_ENERGY_CASES.get(selected_energy_case),
