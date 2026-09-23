@@ -8,6 +8,7 @@ import inspect
 import io
 import json
 import math
+import os
 import shutil
 import struct
 import subprocess
@@ -4111,6 +4112,43 @@ def test_doctor_fails_when_live_tea_is_not_configured(tmp_path, monkeypatch):
     assert check.get("why_unavailable")
 
 
+# The stored results are live results: each record's LCA came from a live run of its configuration (2026-09-22).
+_LIVE_GWP = {"ldpe-route-c1": 0.620715487270307, "ldpe-route-c2": 0.9825799139489072, "ldpe-route-c3": 0.9652122846784537}
+
+
+def test_stored_lca_is_the_live_result_with_its_coverage(monkeypatch):
+    _forbid_live(monkeypatch)
+    generator = tea.cache_payload()["generator"]
+    regenerated = generator["lca_regenerated_live"]
+    assert regenerated["process_model_sha256"] == generator["process_model_sha256"]
+    assert {key: regenerated["runtime_versions"][key] for key in ("biosteam", "thermosteam", "biorefineries")} == (
+        tea._expected_live_runtime_versions()
+    )
+    for label, gwp in _LIVE_GWP.items():
+        record = _record_by_label(label)
+        served = tea._run(record["config"], "auto", 60)
+        assert (served["engine_mode"], served["lca"]["gwp_kg_co2e_per_kg"]) == ("cache", gwp)
+        assert served["lca_coverage"]["lca_metrics_status"] == "partial"
+        assert "lca_metric_status" not in served and "electricity_intensity_mj_per_kg" not in served["operations"]
+    rows = _data(tea.evaluate_tea_lca_scenarios([_public_from_record(_record_by_label(label)) for label in _LIVE_GWP]))
+    assert rows["lowest_gwp_scenario"] == "scenario-1"  # C1 is lowest once the natural-gas double count is gone
+    assert any("Uncharacterized active contributors" in gap for gap in rows["process_data_gaps"])
+
+
+@pytest.mark.skipif(not os.getenv("DISSOLVE_LIVE_TEA_KNOWN_ANSWER"), reason="set DISSOLVE_LIVE_TEA_KNOWN_ANSWER=1 to run live TEA")
+def test_known_answer_one_stored_record_per_energy_case_reproduces_live(monkeypatch):
+    """Runs BioSTEAM three times (about 40 s); hold /tmp/dissolve-tea-worker.lock if other live TEA work may run."""
+    monkeypatch.setattr(tea, "_live_tea_blocker", _LIVE_TEA_BLOCKER)
+    monkeypatch.setattr(tea, "_REPO_TEA_PYTHON", _CHECKOUT_TEA_PYTHON)
+    monkeypatch.setattr(tea.tea_polymer_parameters, "VENDORED_PLASTICS", _REAL_PLASTICS_PARENT)
+    for label in _LIVE_GWP:
+        record = _record_by_label(label)
+        live = tea._live(record["config"], 600)
+        for block in ("tea", "lca"):
+            for key, stored in record["result"][block].items():
+                assert live[block][key] == pytest.approx(stored, rel=1e-12), (label, key)
+
+
 def _live_tea_down(monkeypatch):
     monkeypatch.setattr(tea, "_live_tea_blocker", _LIVE_TEA_BLOCKER)
     monkeypatch.setattr(tea, "live_engine_status", lambda: {
@@ -7480,8 +7518,7 @@ def test_evaluate_batch_handle_ranks_without_fingerprint(monkeypatch):
         for name in tea._PUBLIC_REQUIRED_FIELDS:
             assert point.get(name) is not None
         assert point["target_polymer"] == "LDPE"
-        assert point["lca_coverage"]
-        assert point["lca_coverage"].get("lca_metric_status")
+        assert point["lca_coverage"]["status"] == "partial"  # the live run's own coverage, stored with its values
         assert point["safety_standing"]["status"] == "not_requested"
         assert "engine_envelope" not in point
     assert payload["n_frontier_points"] >= 1
@@ -7741,9 +7778,6 @@ def test_mixed_fingerprints_on_one_handle_refuse(monkeypatch):
         "gwp_kg_co2e_per_kg": 0.4,
         "success": True,
         "engine_mode": "cache",
-        "lca_metric_status": {
-            "gwp_kg_co2e_per_kg": "cache_gwp_natural_gas_combustion_double_count",
-        },
         "campaign_fingerprint": "aa" * 32,
         "label": "row-a",
     })

@@ -895,14 +895,8 @@ def _lca_standing(comparison: Mapping[str, Any]) -> dict[str, Any] | None:
                 "lca_metrics_status": coverage.get("lca_metrics_status"),
                 "metric_coverage_status": coverage.get("metric_coverage_status"),
             }
-            metric_status = coverage.get("lca_metric_status")
-            if isinstance(metric_status, dict) and metric_status:
-                standing["lca_metric_status"] = dict(metric_status)
             return standing
         return dict(coverage)
-    metric_status = comparison.get("lca_metric_status")
-    if isinstance(metric_status, dict) and metric_status:
-        return {"lca_metric_status": dict(metric_status)}
     return None
 
 
@@ -1282,9 +1276,6 @@ def economics_row_as_process_row(
     coverage = row.get("lca_coverage")
     if isinstance(coverage, dict) and coverage:
         comparison["lca_coverage"] = coverage
-    metric_status = row.get("lca_metric_status")
-    if isinstance(metric_status, dict) and metric_status:
-        comparison["lca_metric_status"] = dict(metric_status)
     payload = {
         "pair_id": _pair_id_for_economics_row(row, index),
         "polymer": public.get("target_polymer") or row.get("polymer"),

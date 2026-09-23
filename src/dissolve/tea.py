@@ -270,7 +270,7 @@ def tea_sensitivity_levels(value: object) -> tuple[str, ...]:
 
 
 _ASSET = Path(str(files("dissolve").joinpath("data/tea_cache.json.gz")))
-_ASSET_SHA256 = "f95dff48c68d57543e472ece51b59f4d807326cee432f1a1138029efcee12173"
+_ASSET_SHA256 = "0be09099dc2c994e9a47eef65b8da458c468599e50b8cde47786ca3210a2df93"
 _LCA_FACTORS_ASSET = Path(str(
     files("dissolve").joinpath("data/tea_lca_characterization_factors.json")
 ))
@@ -516,72 +516,6 @@ _LCA_COMPARISON_METRIC_UNITS = {
     "htnc_ctuh_per_kg": "CTUh/kg product",
     "etox_ctue_per_kg": "CTUe/kg product",
 }
-_CACHE_GWP_STATUS_CODE = "cache_gwp_natural_gas_combustion_double_count"
-_CACHE_GWP_GRID_STATUS_CODE = "cache_gwp_grid_method_unharmonized"
-_CACHE_PROPAGATED_GWP_STATUS_CODE = (
-    "cache_propagated_gwp_not_current_for_scientific_use"
-)
-_CACHE_TOXICITY_STATUS_CODE = "cache_grid_toxicity_method_unharmonized"
-_TOXICITY_METRIC_FIELDS = (
-    "htc_ctuh_per_kg", "htnc_ctuh_per_kg", "etox_ctue_per_kg",
-)
-_LCA_STATUS_DEFINITIONS = {
-    _CACHE_GWP_STATUS_CODE: {
-        "status": "superseded_by_known_defect",
-        "defect": "natural_gas_combustion_double_count",
-        "reason": (
-            "The cache generator applied a natural-gas factor that includes "
-            "combustion while the process inventory also counted stack CO2."
-        ),
-        "served_value_role": "published_cache_record_for_comparability_only",
-        "current_scientific_use": "not_admitted",
-        "corrected_value_source": (
-            "rerun the same complete scenario with engine_mode=live"
-        ),
-        "corrected_value_substituted_in_cache_payload": False,
-    },
-    _CACHE_GWP_GRID_STATUS_CODE: {
-        "status": "method_unharmonized",
-        "issue": "cache_and_live_grid_gwp_methods_differ",
-        "reason": (
-            "C2 has no natural-gas facilities, so its cache GWP does not carry "
-            "the combustion double count. Its cache and live electricity "
-            "characterization methods differ and the governing method choice "
-            "has not been harmonized."
-        ),
-        "served_value_role": "published_cache_record_for_comparability_only",
-        "current_scientific_use": "not_admitted",
-        "comparison_value_source": (
-            "rerun the same complete scenario with engine_mode=live"
-        ),
-        "method_choice_status": "pending",
-        "live_value_substituted_in_cache_payload": False,
-    },
-    _CACHE_PROPAGATED_GWP_STATUS_CODE: {
-        "status": "not_current_for_scientific_use",
-        "reason": (
-            "This comparison, ranking, or aggregate includes cache GWP inputs "
-            "that are not admitted for current scientific use. Inspect the "
-            "input metric statuses for the governing defect or method gap."
-        ),
-        "served_value_role": "cache_provenance_comparison_only",
-        "current_scientific_use": "not_admitted",
-        "corrected_value_source": (
-            "rerun every contributing complete scenario with engine_mode=live"
-        ),
-        "corrected_value_substituted_in_cache_payload": False,
-    },
-    _CACHE_TOXICITY_STATUS_CODE: {
-        "status": "method_unharmonized",
-        "issue": "cache_and_live_toxicity_characterization_methods_differ",
-        "reason": (
-            "The C2/C3 cache generator replaces electricity and steam "
-            "characterization rather than completing the live method."
-        ),
-        "served_value_role": "published_cache_record_for_comparability_only",
-        "comparison_to_live": "not_admitted_as_same_method",
-    },
-}
 _ADMITTED_RECORD_METRICS = {
     "msp": ("economics", "msp_usd_per_kg", "USD/kg product"),
     "tci": ("economics", "tci_usd", "USD"),
@@ -626,172 +560,6 @@ TeaSensitivityLevelSelector = Literal.__getitem__(
 TeaRecordForm = Literal.__getitem__(
     CANONICAL_TEA_RECORD_FORMS,
 )
-
-
-def _cache_lca_metric_status(
-    config: dict[str, Any], lca: dict[str, Any],
-) -> dict[str, str]:
-    """Bind cache-method qualifications to every affected emitted metric.
-
-    The predicate follows the generation method, not a list of the six route
-    labels that exposed it. C1/C3 cache GWP carries the known natural-gas
-    boundary defect; C2 carries the separate unresolved grid-method status.
-    C2/C3 toxicity values carry their own method qualification. C1 toxicity
-    and all financial fields remain unqualified.
-    """
-    status = {}
-    energy_case = str(config.get("energy_case") or "").upper()
-    if lca.get("gwp_kg_co2e_per_kg") is not None:
-        status["gwp_kg_co2e_per_kg"] = (
-            _CACHE_GWP_GRID_STATUS_CODE
-            if energy_case == "C2" else _CACHE_GWP_STATUS_CODE
-        )
-    if energy_case in {"C2", "C3"}:
-        status.update({
-            field: _CACHE_TOXICITY_STATUS_CODE
-            for field in _TOXICITY_METRIC_FIELDS
-            if lca.get(field) is not None
-        })
-    return status
-
-
-def _lca_status_definitions(
-    metric_status: dict[str, str],
-) -> dict[str, dict[str, Any]]:
-    """Return governed definitions for the status references in one row."""
-    return {
-        code: copy.deepcopy(_LCA_STATUS_DEFINITIONS[code])
-        for code in dict.fromkeys(metric_status.values())
-    }
-
-
-def _collect_lca_status_definitions(
-    rows: Sequence[dict[str, Any]],
-) -> dict[str, dict[str, Any]]:
-    """Collect definitions from result or projected-row status references."""
-    codes = {
-        str(code)
-        for row in rows
-        if isinstance(row, dict)
-        for code in (row.get("lca_metric_status") or {}).values()
-    }
-    definitions = {
-        str(code): copy.deepcopy(definition)
-        for row in rows
-        if isinstance(row, dict)
-        for code, definition in (
-            row.get("lca_status_definitions") or {}
-        ).items()
-    }
-    for code in codes:
-        definitions.setdefault(
-            code, copy.deepcopy(_LCA_STATUS_DEFINITIONS[code]),
-        )
-    return definitions
-
-
-def _lca_method_status_by_energy_case(
-    rows: Sequence[dict[str, Any]],
-) -> dict[str, dict[str, str | list[str]]]:
-    """Bind exceptional metric methods to their stable energy-case identity."""
-    by_case: dict[str, dict[str, str | list[str]]] = {}
-
-    def add(case: str, field: str, code: str) -> None:
-        case_status = by_case.setdefault(str(case).upper(), {})
-        previous = case_status.get(field)
-        if previous is None:
-            case_status[field] = code
-        elif isinstance(previous, list):
-            if code not in previous:
-                previous.append(code)
-        elif previous != code:
-            case_status[field] = [previous, code]
-
-    for row in rows:
-        if not isinstance(row, dict):
-            continue
-        for case, status in (
-            row.get("lca_method_status_by_energy_case") or {}
-        ).items():
-            if isinstance(status, dict):
-                for field, codes in status.items():
-                    if field not in {
-                        "gwp_kg_co2e_per_kg", *_TOXICITY_METRIC_FIELDS,
-                    }:
-                        continue
-                    for code in codes if isinstance(codes, list) else [codes]:
-                        add(str(case), str(field), str(code))
-        config = row.get("config") or {}
-        case = row.get("energy_case") or config.get("energy_case")
-        status = row.get("lca_metric_status") or {}
-        if case and status:
-            for field, code in status.items():
-                if field in {
-                    "gwp_kg_co2e_per_kg", *_TOXICITY_METRIC_FIELDS,
-                }:
-                    add(str(case), str(field), str(code))
-    return dict(sorted(by_case.items()))
-
-
-def _cache_lca_status_gaps(
-    rows: Sequence[dict[str, Any]],
-) -> list[str]:
-    """State exceptional cache-method qualifications in ordinary language."""
-    definitions = _collect_lca_status_definitions(rows)
-    gaps = []
-    if (
-        _CACHE_GWP_STATUS_CODE in definitions
-        or _CACHE_GWP_GRID_STATUS_CODE in definitions
-        or _CACHE_PROPAGATED_GWP_STATUS_CODE in definitions
-    ):
-        if (
-            _CACHE_GWP_STATUS_CODE in definitions
-        ):
-            gaps.append(
-                "Cached C1/C3 GWP is a published record superseded by a known "
-                "natural-gas combustion double count; use engine_mode=live for "
-                "corrected complete-scenario values."
-            )
-        if (
-            _CACHE_GWP_GRID_STATUS_CODE in definitions
-        ):
-            gaps.append(
-                "Cached C2 GWP is retained only as the published record. C2 has "
-                "no natural-gas combustion double count, but its cache and live "
-                "grid-characterization methods are not harmonized."
-            )
-    if _CACHE_TOXICITY_STATUS_CODE in definitions:
-        gaps.append(
-            "Cached C2/C3 HTC, HTNC, and ETOX use an unharmonized "
-            "electricity/steam characterization method and must not be "
-            "compared with live toxicity as though the methods were identical."
-        )
-    return gaps
-
-
-def _has_noncurrent_cache_gwp(rows: Sequence[dict[str, Any]]) -> bool:
-    """Whether any input GWP is not admitted for current scientific use."""
-    superseded_codes = {
-        _CACHE_GWP_STATUS_CODE,
-        _CACHE_GWP_GRID_STATUS_CODE,
-        _CACHE_PROPAGATED_GWP_STATUS_CODE,
-    }
-    return any(
-        code in superseded_codes
-        for row in rows if isinstance(row, dict)
-        for code in (row.get("lca_metric_status") or {}).values()
-    )
-
-
-def _propagated_gwp_metric_status(
-    rows: Sequence[dict[str, Any]], fields: Sequence[str],
-) -> dict[str, str]:
-    """Qualify each GWP-derived field when any contributing input is stale."""
-    if not _has_noncurrent_cache_gwp(rows):
-        return {}
-    return {
-        field: _CACHE_PROPAGATED_GWP_STATUS_CODE for field in fields
-    }
 
 
 def _finite(value: Any, field: str) -> float:
@@ -3938,8 +3706,6 @@ def _sensitivity_row_process_fields(
     public["gwp_kg_co2e_per_kg"] = lca_block.get("gwp_kg_co2e_per_kg")
     if source.get("lca_coverage"):
         public["lca_coverage"] = copy.deepcopy(source["lca_coverage"])
-    if source.get("lca_metric_status"):
-        public["lca_metric_status"] = copy.deepcopy(source["lca_metric_status"])
     if source.get("process_parameter_status"):
         public["process_parameter_status"] = copy.deepcopy(
             source["process_parameter_status"],
@@ -5113,7 +4879,6 @@ def _cached_result(config: dict[str, Any]) -> dict[str, Any] | None:
     for field in (
         "electricity_consumed_mj_per_kg", "heating_duty_mj_per_kg",
         "cooling_duty_mj_per_kg", "total_energy_mj_per_kg",
-        "electricity_intensity_mj_per_kg",
     ):
         if operations.get(field) is not None:
             operations[field] = float(operations[field]) / _LEGACY_OPERATING_HOURS
@@ -5122,12 +4887,9 @@ def _cached_result(config: dict[str, Any]) -> dict[str, Any] | None:
         "operating_hours_per_year": _LEGACY_OPERATING_HOURS,
         "basis": "BioSTEAM annual kWh-or-kJ divided by annual resin kg",
     }
-    metric_status = _cache_lca_metric_status(config, result.get("lca") or {})
     result.update({
         "engine_mode": "cache", "cache_match_status": "exact",
         "cache_record_label": record["label"], "config": config,
-        "lca_metric_status": metric_status,
-        "lca_status_definitions": _lca_status_definitions(metric_status),
     })
     return _coerce_nonfinite_served_tea(result)
 
@@ -5397,13 +5159,6 @@ def _screening_estimate(
         for row in temperature_rows
     }
     assumptions = cache_payload().get("solvent_assumptions") or {}
-    metric_status = {
-        "gwp_kg_co2e_per_kg": (
-            _CACHE_GWP_GRID_STATUS_CODE
-            if str(config.get("energy_case") or "").upper() == "C2"
-            else _CACHE_GWP_STATUS_CODE
-        ),
-    }
     return {
         "success": True,
         "tea": {key: estimates[key] for key in (
@@ -5413,8 +5168,6 @@ def _screening_estimate(
         "operations": {"total_energy_mj_per_kg": estimates["total_energy_mj_per_kg"]},
         "engine_mode": "screening_estimate", "cache_match_status": "surrogate",
         "config": config,
-        "lca_metric_status": metric_status,
-        "lca_status_definitions": _lca_status_definitions(metric_status),
         "energy_normalization": {
             "status": "corrected_legacy_annual_hour_basis",
             "operating_hours_per_year": _LEGACY_OPERATING_HOURS,
@@ -5684,14 +5437,6 @@ def _comparison_row(label: str, result: dict[str, Any]) -> dict[str, Any]:
         "estimate_basis": result.get("estimate_basis"),
         **(
             {
-                "lca_metric_status": copy.deepcopy(
-                    result["lca_metric_status"],
-                )
-            }
-            if result.get("lca_metric_status") else {}
-        ),
-        **(
-            {
                 "process_parameter_status": copy.deepcopy(
                     result["process_parameter_status"],
                 )
@@ -5767,16 +5512,15 @@ def _comparison_metric_units(
     return units
 
 
-def _live_toxicity_data_gaps(
+def _lca_coverage_gaps(
     results: Sequence[dict[str, Any]],
 ) -> list[str]:
-    """Disclose partial live characterization on the public tool payload."""
+    """Disclose partial LCA characterization, for live results and the stored copies of them."""
     partial = [
         result for result in results
         if (result.get("lca_coverage") or {}).get("lca_metrics_status")
         == "partial"
-        and result.get("engine_mode") == "live"
-        and result.get("success") is True
+        and result.get("success") is not False
     ]
     if not partial:
         return []
@@ -5914,9 +5658,7 @@ def _normalized_admitted_record(record: dict[str, Any]) -> dict[str, Any]:
         "energy_normalization": copy.deepcopy(
             result.get("energy_normalization") or {},
         ),
-        "lca_metric_status": copy.deepcopy(
-            result.get("lca_metric_status") or {},
-        ),
+        **({"lca_coverage": copy.deepcopy(result["lca_coverage"])} if result.get("lca_coverage") else {}),
         "cache_stored_basis": cache_record_stored_basis(config),
     }
 
@@ -5954,10 +5696,8 @@ def _admitted_record_summary(record: dict[str, Any]) -> dict[str, Any]:
             "sensitivity_axis": record["sensitivity_axis"],
             "sensitivity_level": record.get("sensitivity_level"),
         })
-    if record.get("lca_metric_status"):
-        summary["lca_metric_status"] = copy.deepcopy(
-            record["lca_metric_status"],
-        )
+    if record.get("lca_coverage"):
+        summary["lca_coverage"] = copy.deepcopy(record["lca_coverage"])
     for _metric, (section, field, _unit) in (
         _ADMITTED_RECORD_METRICS.items()
     ):
@@ -6391,9 +6131,6 @@ def lookup_admitted_process_records(
         "record_id": row["record_id"],
         **copy.deepcopy(row["config"]),
     } for row in normalized_records]
-    status_definitions = _collect_lca_status_definitions(
-        normalized_records,
-    )
     stored_basis_statuses = [
         str((row.get("cache_stored_basis") or {}).get("status") or "")
         for row in normalized_records
@@ -6445,15 +6182,11 @@ def lookup_admitted_process_records(
             else "complete_stored_basis"
         ),
         records_with_incomplete_stored_basis=incomplete_stored,
-        lca_method_status_by_energy_case=_lca_method_status_by_energy_case(
-            normalized_records,
-        ),
-        lca_status_definitions=status_definitions,
         provenance=_provenance(["cache"]),
         process_data_gaps=[
             "These are admitted single-process records, not a newly integrated "
             "multistage route or experimental recovery/purity result.",
-            *_cache_lca_status_gaps(normalized_records),
+            *_lca_coverage_gaps(normalized_records),
         ],
         warnings=[
             "Energy intensities apply the recorded legacy annual-hour "
@@ -10216,13 +9949,6 @@ def evaluate_tea_lca_scenarios(
     by_msp = sorted(successes, key=lambda row: float(row["msp_usd_per_kg"]))
     by_gwp = sorted(successes, key=lambda row: float(row["gwp_kg_co2e_per_kg"]))
     modes = [str(row["engine_mode"]) for row in successes]
-    comparison_status = _propagated_gwp_metric_status(
-        successes, ("lowest_gwp_scenario",),
-    )
-    status_definitions = {
-        **_collect_lca_status_definitions(results),
-        **_lca_status_definitions(comparison_status),
-    }
     process_details = [
         detail for label, result in zip(labels, results)
         if (detail := _process_details(label, result)) is not None
@@ -10234,29 +9960,12 @@ def evaluate_tea_lca_scenarios(
         scenarios_requested=len(scenarios), completed=len(successes), failed=len(failures),
         comparison_rows=rows, lowest_msp_scenario=by_msp[0]["label"],
         lowest_gwp_scenario=by_gwp[0]["label"], energy_cases=_ENERGY_CASES,
-        **(
-            {
-                "lca_metric_status": comparison_status,
-                "lca_method_status_by_energy_case": (
-                    _lca_method_status_by_energy_case(results)
-                ),
-                "lca_status_definitions": status_definitions,
-                "gwp_ranking_status": {
-                "status": "published_cache_comparison_only",
-                "current_scientific_ranking": False,
-                "lowest_cached_record_scenario": by_gwp[0]["label"],
-                "reason": _CACHE_PROPAGATED_GWP_STATUS_CODE,
-                },
-            }
-            if comparison_status else {}
-        ),
         metric_units=_comparison_metric_units(rows),
         process_details=process_details,
         process_data_gaps=(
             ["Cached corpus does not contain unit-level equipment sizes or full stream mass balances."]
             if set(modes) == {"cache"} else []
-        ) + _live_toxicity_data_gaps(results)
-        + _cache_lca_status_gaps(results),
+        ) + _lca_coverage_gaps(results),
         provenance=_provenance(modes),
         warnings=[
             "Cached results are exact prior subprocess simulations, never interpolated process economics.",
@@ -11212,9 +10921,6 @@ def evaluate_stored_route_tea_lca(
                 "mass_weighted_recovered_gwp_kg_co2e_per_kg": variant.get(
                     "mass_weighted_recovered_gwp_kg_co2e_per_kg"
                 ),
-                "lca_metric_status": copy.deepcopy(
-                    variant.get("lca_metric_status") or {}
-                ),
                 "total_stage_tci_usd": variant.get("total_stage_tci_usd"),
                 "total_stage_aoc_usd_per_yr": variant.get(
                     "total_stage_aoc_usd_per_yr"
@@ -11240,9 +10946,6 @@ def evaluate_stored_route_tea_lca(
                 route_source="typed_session_state",
                 requested_metrics=metrics,
                 comparison_rows=rows,
-                lca_status_definitions=_collect_lca_status_definitions(
-                    [variant for _label, _route, variant in variant_results]
-                ),
                 missing_basis_codes=sorted({
                     code for row in failed
                     for code in row.get("missing_basis_codes") or [
@@ -11252,9 +10955,6 @@ def evaluate_stored_route_tea_lca(
                 warnings=[
                     "No cross-route MSP or GWP difference was calculated.",
                     "Thermodynamic selectivity and safety scores cannot substitute for a common TEA/LCA basis.",
-                    *_cache_lca_status_gaps(
-                        [variant for _label, _route, variant in variant_results]
-                    ),
                 ],
             )
         original, substituted = rows
@@ -11274,18 +10974,6 @@ def evaluate_stored_route_tea_lca(
             else "screening_estimate" if modes == {"screening_estimate"}
             else "mixed_exact_and_screening"
         )
-        comparison_status = _propagated_gwp_metric_status(
-            rows,
-            (
-                "gwp_difference_substituted_minus_original_kg_co2e_per_kg",
-            ) if gwp_delta is not None else (),
-        )
-        status_definitions = {
-            **_collect_lca_status_definitions(
-                [variant for _label, _route, variant in variant_results]
-            ),
-            **_lca_status_definitions(comparison_status),
-        }
         return tool_success(
             tool,
             analysis_type="route_substitution_tea_lca_comparison",
@@ -11314,21 +11002,6 @@ def evaluate_stored_route_tea_lca(
             comparison_evidence_class=evidence_class,
             msp_difference_substituted_minus_original_usd_per_kg=msp_delta,
             gwp_difference_substituted_minus_original_kg_co2e_per_kg=gwp_delta,
-            **(
-                {
-                "lca_metric_status": comparison_status,
-                "lca_method_status_by_energy_case": (
-                    _lca_method_status_by_energy_case(
-                        [
-                            variant
-                            for _label, _route, variant in variant_results
-                        ]
-                    )
-                ),
-                "lca_status_definitions": status_definitions,
-                }
-                if status_definitions else {}
-            ),
             provenance={
                 "original_route_signature": original.get("route_signature"),
                 "substituted_route_signature": substituted.get("route_signature"),
@@ -11336,9 +11009,6 @@ def evaluate_stored_route_tea_lca(
             warnings=[
                 "The original and substituted routes share feed, capacity, energy case, and metric definitions, but their evidence classes remain distinct.",
                 "A screening-estimate difference is not an experimentally validated cost or carbon premium.",
-                *_cache_lca_status_gaps(
-                    [variant for _label, _route, variant in variant_results]
-                ),
             ],
         )
     if feed_polymers and route:
@@ -11609,16 +11279,6 @@ def evaluate_stored_route_tea_lca(
             msp = float(result["mass_weighted_recovered_msp_usd_per_kg"])
             gwp = float(result["mass_weighted_recovered_gwp_kg_co2e_per_kg"])
             annual_gwp = float(result["modeled_dissolution_stage_gwp_t_co2e_per_yr"])
-            row_status = _propagated_gwp_metric_status(
-                [result],
-                (
-                    "gwp_kg_co2e_per_kg", "gwp_t_co2e_per_mt",
-                    "gwp_change_t_co2e_per_mt_from_baseline",
-                    "gwp_change_percent_from_baseline",
-                    "modeled_dissolution_stage_gwp_t_co2e_per_yr",
-                    "annual_gwp_factor_from_baseline",
-                ),
-            )
             scale_rows.append({
                 "label": f"{capacity:g}-mt-per-yr",
                 "processing_capacity_mt_per_yr": capacity,
@@ -11642,10 +11302,6 @@ def evaluate_stored_route_tea_lca(
                 "gwp_change_percent_from_baseline": 100.0 * (gwp / baseline_gwp - 1.0),
                 "modeled_dissolution_stage_gwp_t_co2e_per_yr": annual_gwp,
                 "annual_gwp_factor_from_baseline": annual_gwp / baseline_annual_gwp,
-                **(
-                    {"lca_metric_status": row_status}
-                    if row_status else {}
-                ),
             })
         selected = scale_results[-1]
         analog_solvents = sorted({
@@ -11671,14 +11327,6 @@ def evaluate_stored_route_tea_lca(
         process_gaps = list(dict.fromkeys(
             str(gap) for result in scale_results for gap in result.get("process_data_gaps") or []
         ))
-        scale_status = _propagated_gwp_metric_status(
-            scale_results,
-            ("scale_gwp_comparison",),
-        )
-        status_definitions = {
-            **_collect_lca_status_definitions(scale_results),
-            **_lca_status_definitions(scale_status),
-        }
         return tool_success(
             tool, analysis_type="multistage_route_scale_comparison",
             engine_mode=modes[0] if len(set(modes)) == 1 else "mixed",
@@ -11701,16 +11349,6 @@ def evaluate_stored_route_tea_lca(
             energy_case_description=selected.get("energy_case_description"),
             stage_results=selected.get("stage_results"),
             scale_comparison_rows=scale_rows,
-            **(
-                {
-                    "lca_metric_status": scale_status,
-                    "lca_method_status_by_energy_case": (
-                        _lca_method_status_by_energy_case(scale_results)
-                    ),
-                    "lca_status_definitions": status_definitions,
-                }
-                if status_definitions else {}
-            ),
             scale_comparison_basis=(
                 "same stored route, typed feed composition, energy case, dissolution setpoints, "
                 "and precipitation setpoint at every capacity"
@@ -11725,7 +11363,6 @@ def evaluate_stored_route_tea_lca(
             provenance=selected.get("provenance"),
             process_data_gaps=list(dict.fromkeys([
                 *process_gaps,
-                *_cache_lca_status_gaps(scale_results),
             ])),
             estimate_quality="screening_only" if estimate else "exact_simulation_evidence",
             estimate_limitations=(
@@ -11973,9 +11610,6 @@ def evaluate_stored_route_tea_lca(
                         requested_metrics=metrics,
                         failed_stage=row,
                         completed_stage_results=rows[:-1],
-                        lca_status_definitions=(
-                            _collect_lca_status_definitions(results)
-                        ),
                         missing_basis_codes=[
                             "exact_route_stage_design_point",
                             "route_stage_process_evidence",
@@ -11996,7 +11630,6 @@ def evaluate_stored_route_tea_lca(
                             "Reference design points describe their own plant "
                             "basis and cannot be substituted into this route "
                             "cost or ranking.",
-                            *_cache_lca_status_gaps(results),
                         ],
                         warnings=[
                             "No MSP, TCI, AOC, GWP, or energy value was "
@@ -12025,9 +11658,6 @@ def evaluate_stored_route_tea_lca(
                     requested_metrics=metrics,
                     failed_stage=row,
                     completed_stage_results=rows[:-1],
-                    lca_status_definitions=_collect_lca_status_definitions(
-                        results,
-                    ),
                     missing_basis_codes=[
                         "route_stage_process_evidence",
                         "exact_or_admitted_analog_process_basis",
@@ -12039,7 +11669,6 @@ def evaluate_stored_route_tea_lca(
                     process_data_gaps=[
                         "The thermodynamic route is complete, but a complete separation route is not itself a TEA/LCA process basis.",
                         f"The admitted cache has no process analog for {polymer}; records for other polymers are not substituted.",
-                        *_cache_lca_status_gaps(results),
                     ],
                     warnings=[
                         "No MSP, TCI, AOC, GWP, or energy value was calculated for the full route.",
@@ -12051,8 +11680,6 @@ def evaluate_stored_route_tea_lca(
                 error_code="route_stage_failed", failed_stage=row,
                 completed_stage_results=rows[:-1], route_source="typed_session_state",
                 consumed_route=route, live_engine=live_engine_status(),
-                lca_status_definitions=_collect_lca_status_definitions(results),
-                process_data_gaps=_cache_lca_status_gaps(results),
             )
         executed = _executed_stage_polymer(result)
         if _key(executed) != _key(polymer):
@@ -12074,12 +11701,6 @@ def evaluate_stored_route_tea_lca(
             row["modeled_stage_product_mt_per_yr"]
             * float(row["gwp_kg_co2e_per_kg"])
         )
-        if (row.get("lca_metric_status") or {}).get(
-            "gwp_kg_co2e_per_kg"
-        ):
-            row["lca_metric_status"][
-                "modeled_stage_gwp_t_co2e_per_yr"
-            ] = _CACHE_PROPAGATED_GWP_STATUS_CODE
         remaining.pop(polymer)
     dissolution_stage_fraction = sum(
         float(row["original_feed_mass_fraction"]) for row in rows
@@ -12114,25 +11735,7 @@ def evaluate_stored_route_tea_lca(
             float(row["modeled_stage_gwp_t_co2e_per_yr"]) / total_stage_gwp
             if total_stage_gwp > 0 else 0.0
         )
-        if (row.get("lca_metric_status") or {}).get(
-            "gwp_kg_co2e_per_kg"
-        ):
-            row["lca_metric_status"][
-                "modeled_stage_gwp_contribution_fraction"
-            ] = _CACHE_PROPAGATED_GWP_STATUS_CODE
     dominant_gwp = max(rows, key=lambda row: float(row["modeled_stage_gwp_t_co2e_per_yr"]))
-    aggregate_status = _propagated_gwp_metric_status(
-        rows,
-        (
-            "mass_weighted_recovered_gwp_kg_co2e_per_kg",
-            "modeled_dissolution_stage_gwp_t_co2e_per_yr",
-            "dominant_gwp_stage",
-        ),
-    )
-    status_definitions = {
-        **_collect_lca_status_definitions(results),
-        **_lca_status_definitions(aggregate_status),
-    }
     return tool_success(
         tool, analysis_type="multistage_route_tea_lca",
         engine_mode=modes[0] if len(set(modes)) == 1 else "mixed",
@@ -12158,16 +11761,6 @@ def evaluate_stored_route_tea_lca(
         mass_weighted_recovered_msp_usd_per_kg=weighted("msp_usd_per_kg"),
         mass_weighted_recovered_gwp_kg_co2e_per_kg=weighted("gwp_kg_co2e_per_kg"),
         modeled_dissolution_stage_gwp_t_co2e_per_yr=total_stage_gwp,
-        **(
-            {
-                "lca_metric_status": aggregate_status,
-                "lca_method_status_by_energy_case": (
-                    _lca_method_status_by_energy_case(results)
-                ),
-                "lca_status_definitions": status_definitions,
-            }
-            if aggregate_status else {}
-        ),
         dominant_gwp_stage={
             key: dominant_gwp[key] for key in (
                 "stage", "polymer", "solvent",
@@ -12205,8 +11798,7 @@ def evaluate_stored_route_tea_lca(
             "No cached temperature sensitivity was available for: "
             + ", ".join(missing_temperature_adjustment) + "."
         ] if missing_temperature_adjustment else []) if uses_estimate else [])
-        + _live_toxicity_data_gaps(results)
-        + _cache_lca_status_gaps(results),
+        + _lca_coverage_gaps(results),
         estimate_quality="screening_only" if uses_estimate else "exact_simulation_evidence",
         estimate_limitations=(
             {
@@ -12390,9 +11982,6 @@ def analyze_tea_sensitivity(
     rows = []
     for value, result in zip(requested_values, results):
         measured = _metric(result, metric) if result.get("success") else None
-        source_status = (result.get("lca_metric_status") or {}).get(
-            "gwp_kg_co2e_per_kg"
-        ) if metric == "gwp_kg_co2e_per_kg" else None
         run_config = dict(result.get("config") or {**baseline, field: value})
         row = {
             "parameter": field, "value": value, "metric": metric,
@@ -12400,10 +11989,6 @@ def analyze_tea_sensitivity(
             "engine_mode": result.get("engine_mode"),
             "cache_record_label": result.get("cache_record_label"),
             **_sensitivity_row_process_fields(run_config, result),
-            **(
-                {"lca_metric_status": {"metric_value": source_status}}
-                if source_status else {}
-            ),
             **(
                 {
                     key: copy.deepcopy(result[key])
@@ -12425,21 +12010,6 @@ def analyze_tea_sensitivity(
     values_out = [float(row["metric_value"]) for row in successes]
     baseline_row = min(successes, key=lambda row: abs(float(row["value"]) - float(baseline[field])))
     modes = [str(row["engine_mode"]) for row in successes]
-    conclusion_status = (
-        {
-            field: _CACHE_PROPAGATED_GWP_STATUS_CODE
-            for field in (
-                "baseline_metric_value", "minimum_metric_value",
-                "maximum_metric_value", "metric_span",
-                "sample_median_metric_value",
-            )
-        }
-        if _has_noncurrent_cache_gwp(successes) else {}
-    )
-    status_definitions = {
-        **_collect_lca_status_definitions(results),
-        **_lca_status_definitions(conclusion_status),
-    }
     return tool_success(
         tool, analysis_type=f"tea_{mode}", engine_mode=modes[0] if len(set(modes)) == 1 else "mixed",
         polymer=baseline["target_plastic"], solvent=baseline["solvent"],
@@ -12454,22 +12024,7 @@ def analyze_tea_sensitivity(
         metric_span=max(values_out) - min(values_out),
         sample_median_metric_value=statistics.median(values_out),
         sample_count=len(successes),
-        **(
-            {
-                "lca_metric_status": conclusion_status,
-                "lca_method_status_by_energy_case": (
-                    _lca_method_status_by_energy_case(results)
-                ),
-                "lca_status_definitions": status_definitions,
-                "metric_analysis_status": {
-                    "status": "published_cache_comparison_only",
-                    "current_scientific_conclusion": False,
-                    "reason": _CACHE_PROPAGATED_GWP_STATUS_CODE,
-                },
-            }
-            if conclusion_status else {}
-        ),
-        process_data_gaps=_cache_lca_status_gaps(results),
+        process_data_gaps=_lca_coverage_gaps(results),
         provenance=_provenance(modes),
         warnings=[
             "This is a one-parameter scenario analysis; it does not establish causal sensitivity outside the evaluated values.",

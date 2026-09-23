@@ -17,8 +17,8 @@ Every solubility-grid polymer appears here, including polymers we
 refuse to simulate. Absence from this table is a refusal, not a
 fall-through to the generic factory.
 
-Standing (same shape as ``lca_metric_status`` / D-8)
-----------------------------------------------------
+Standing (a code that travels with each served number; D-8)
+------------------------------------------------------------
 ``validated``     a number produced from this parameter may be treated
                   as a defended process assumption. For process steps
                   that means the assumptions that actually reached the
@@ -89,8 +89,7 @@ PROCESS_PARAMETER_STATUS_DEFINITION = {
     "can_cite_as_validated_process": False,
 }
 
-# Costed fields that inherit process-parameter standing. Parallel to
-# lca_metric_status: the number is present; the code travels with it.
+# Costed fields that inherit process-parameter standing: the number is present; the code travels with it.
 LIVE_COSTED_METRIC_FIELDS = (
     "msp_usd_per_kg",
     "tci_usd",
