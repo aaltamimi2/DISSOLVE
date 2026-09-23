@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { api, type Command, type Doctor, type Model, type SessionRow, type SessionState, type StoredMessage, type TurnEvent } from "./api";
+import { api, type Command, type Doctor, type Features, type Model, type SessionRow, type SessionState, type StoredMessage, type TurnEvent } from "./api";
 import { Composer, Header, MessageView, Sidebar, Toast, Welcome, type ChatMessage } from "./components";
 import type { Example } from "./content";
 
@@ -67,6 +67,7 @@ export default function App() {
   const [busy, setBusy] = useState(false);
   const [toast, setToast] = useState<{ text: string; kind: "info" | "error" } | null>(null);
   const [preferredModel, setPreferredModel] = useState(() => remembered("dissolve-model") ?? "");
+  const [features, setFeatures] = useState<Features>({ literature: true, tea: true });
   const bottom = useRef<HTMLDivElement>(null);
   const composer = useRef<HTMLTextAreaElement>(null);
   const sessionRef = useRef<SessionState | null>(null);
@@ -107,6 +108,7 @@ export default function App() {
   );
 
   useEffect(() => {
+    api.health().then((h) => setFeatures(h.features)).catch(() => undefined);
     api.models().then(setModels).catch(() => undefined);
     api.commands().then(setCommands).catch((e: Error) => notify(`The DISSOLVE server is unreachable: ${e.message}`, "error"));
     refreshSessions();
@@ -232,7 +234,7 @@ export default function App() {
         <main className="flex min-w-0 flex-1 flex-col">
           <div className="min-h-0 flex-1 overflow-y-auto">
             {messages.length === 0 ? (
-              <Welcome onPick={pick} />
+              <Welcome onPick={pick} features={features} />
             ) : (
               <div className="mx-auto w-full max-w-[860px] space-y-5 px-4 py-6">
                 {messages.map((m) => (
