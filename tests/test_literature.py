@@ -10,14 +10,17 @@ import json
 import math
 import os
 import re
+import statistics
+from contextlib import nullcontext
 from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
 
-from dissolve import corpus, literature_ingest, research
+from dissolve import corpus, literature_ingest, rerank, research
 from dissolve.contracts import parse_tool_result
 
+# --- from test_literature.py: Literature tests.
 # --- from test_abstention_a1l.py: A-1L: surface sparse_raw_score; live hybrid default finds T5. No MiniLM. No gold needles.
 PAPER = "aa" * 32
 
@@ -2263,3 +2266,2940 @@ def test_c7d_1c_force_body_embed_drops_note(monkeypatch, tmp_path):
     assert embeds
     assert TOKEN_NOTE not in embeds[0]
     assert TOKEN_V in embeds[0]
+
+
+# --- from test_bge_fusion.py: Synthetic BGE10 fusion and public retrieval-diagnostic tests. No real corpus.
+PRODUCT_KB = "t5-indexed-unsealed"
+
+
+INDEPENDENT_KB = "synth-user-lib"
+
+
+QUERY = "zympoly"
+
+
+UNCHANGED_FLOOR = 0.3698406656908355
+
+
+MATCH_TEXT = "zympoly solventblend"
+
+
+NOMATCH_TEXT = "solventblend only"
+
+
+MINILM_MODEL = "sentence-transformers/all-MiniLM-L6-v2"
+
+
+def _zscores(values: list[float]) -> list[float]:
+    sequence = [float(value) for value in values]
+    if len(sequence) < 2:
+        return [0.0] * len(sequence)
+    variance = statistics.pvariance(sequence)
+    if variance <= 0.0:
+        return [0.0] * len(sequence)
+    mean = statistics.fmean(sequence)
+    scale = math.sqrt(variance)
+    return [(value - mean) / scale for value in sequence]
+
+
+def _chunk_bge_fusion(
+    chunk_id: str,
+    *,
+    title: str = "",
+    section: str = "",
+    text: str = MATCH_TEXT,
+) -> dict:
+    return {
+        "chunk_id": chunk_id,
+        "title": title,
+        "section": section,
+        "text": text,
+        "body": text,
+        "source": "synthetic-local",
+    }
+
+
+def _bge_dense(chunk_ids: list[str]) -> dict:
+    return {
+        "model": research._BGE_MODEL_ID,
+        "dim": research._BGE_DIM,
+        "query_instruction": research._BGE_QUERY_INSTRUCTION,
+        "passage_instruction": research._BGE_PASSAGE_INSTRUCTION,
+        "encoder_revision": research._BGE_ENCODER_REVISION,
+        "chunk_ids": list(chunk_ids),
+        "vectors": [[0.0] * research._BGE_DIM for _ in chunk_ids],
+    }
+
+
+def _minilm_dense(chunk_ids: list[str]) -> dict:
+    return {
+        "model": MINILM_MODEL,
+        "dim": 384,
+        "chunk_ids": list(chunk_ids),
+        "vectors": [[0.0] * 384 for _ in chunk_ids],
+    }
+
+
+def _index_bge_fusion(
+    chunks: list[dict],
+    *,
+    knowledgebase: str = PRODUCT_KB,
+    identity: str = "bge",
+    floor: float | None = None,
+) -> dict:
+    ids = [str(chunk["chunk_id"]) for chunk in chunks]
+    payload = {
+        "schema": "dissolve.literature-index.v1",
+        "knowledgebase": knowledgebase,
+        "documents": [],
+        "chunks": chunks,
+        "dense": _bge_dense(ids) if identity == "bge" else _minilm_dense(ids),
+    }
+    if floor is not None:
+        payload["abstention"] = {
+            "statistic": "query_idf_coverage",
+            "percentile": 5,
+            "floor": floor,
+            "calibrated_at": "2020-01-01T00:00:00+00:00",
+            "note": "synthetic-gate",
+        }
+    return payload
+
+
+def _ids(rows: list[dict]) -> list[str]:
+    return [str(row["chunk_id"]) for row in rows]
+
+
+def _install_scores(monkeypatch, dense, sparse):
+    dense_calls: list[str] = []
+    sparse_calls: list[str] = []
+    rerank_captures: list[list[str]] = []
+
+    def fake_dense(index, chunks, query):
+        dense_calls.append(query)
+        return [float(value) for value in dense]
+
+    def fake_sparse(query, rows):
+        sparse_calls.append(query)
+        return [float(value) for value in sparse]
+
+    def fake_reorder(query, ranked, rerank_mode="off"):
+        rerank_captures.append([item[4]["chunk_id"] for item in ranked])
+        return ranked
+
+    monkeypatch.setattr(research, "_dense_query_scores", fake_dense)
+    monkeypatch.setattr(research, "_query_sparse_raw", fake_sparse)
+    monkeypatch.setattr(research.rerank, "reorder_window", fake_reorder)
+    return dense_calls, sparse_calls, rerank_captures
+
+
+def _search(index, monkeypatch, dense, sparse, *, top_k=10, mode="hybrid", **kwargs):
+    counters = _install_scores(monkeypatch, dense, sparse)
+    rows = research._search_index(index, QUERY, top_k, mode, **kwargs)
+    return rows, counters
+
+
+def _public(monkeypatch, index, *, top_k=5, mode="hybrid", knowledgebase=PRODUCT_KB):
+    monkeypatch.setattr(research, "_load_index", lambda kb: index)
+    return parse_tool_result(
+        research.search_literature_corpus(
+            QUERY,
+            knowledgebase=knowledgebase,
+            top_k=top_k,
+            retrieval_mode=mode,
+        )
+    )
+
+
+def _three(*, abstract=False, ids=None, titles=None, texts=None):
+    ids = ids or ["c0", "c1", "c2"]
+    titles = titles or ["", "", ""]
+    texts = texts or [MATCH_TEXT, MATCH_TEXT, MATCH_TEXT]
+    chunks = []
+    for i, chunk_id in enumerate(ids):
+        section = "abstract" if abstract and i == 0 else ""
+        chunks.append(_chunk_bge_fusion(chunk_id, title=titles[i], section=section, text=texts[i]))
+    return chunks
+
+
+class TestBgeFusion:
+    """Synthetic BGE10 fusion and public retrieval-diagnostic tests. No real corpus."""
+
+    @pytest.fixture(autouse=True)
+    def _isolate(self, monkeypatch, tmp_path):
+        monkeypatch.delenv("DISSOLVE_RESEARCH_HOME", raising=False)
+        monkeypatch.delenv("DISSOLVE_CORPUS_PROFILE", raising=False)
+        monkeypatch.delenv("DISSOLVE_BGE10_MANIFEST", raising=False)
+        monkeypatch.delenv("DISSOLVE_EMBEDDING_MODEL", raising=False)
+        monkeypatch.setattr(research, "_research_root", lambda: tmp_path / "research-home")
+        monkeypatch.setattr(
+            research,
+            "_canonical_product_index_path",
+            lambda: tmp_path / "canonical" / "product.json.gz",
+        )
+        monkeypatch.setattr(
+            research,
+            "_product_manifest_path",
+            lambda: tmp_path / "canonical" / "manifest.json",
+        )
+        monkeypatch.setattr(research, "_committed_lexicon", lambda: [])
+        monkeypatch.setattr(
+            research,
+            "_dense_vectors",
+            lambda *args, **kwargs: (_ for _ in ()).throw(RuntimeError("model forbidden")),
+        )
+        monkeypatch.setattr(
+            research.rerank,
+            "_load_cross_encoder",
+            lambda *args, **kwargs: (_ for _ in ()).throw(RuntimeError("model forbidden")),
+        )
+        yield tmp_path
+
+    def test_section_removal_uses_zscore_not_boost(self, monkeypatch):
+        monkeypatch.setenv("DISSOLVE_CORPUS_PROFILE", "bge10")
+        index = _index_bge_fusion(_three(abstract=True))
+        rows, counters = _search(index, monkeypatch, [0.10, 0.11, 0.12], [1.0, 1.0, 1.0])
+        assert _ids(rows) == ["c2", "c1", "c0"]
+        assert [row["section_boost"] for row in rows] == [0.0, 0.0, 0.0]
+        z_dense = _zscores([0.10, 0.11, 0.12])
+        assert [row["dense_score"] for row in rows] == [round(z_dense[i], 6) for i in (2, 1, 0)]
+        assert [row["sparse_score"] for row in rows] == [0.0, 0.0, 0.0]
+        assert counters[0] and counters[2]
+
+    def test_zscore_vs_max_normalization_order(self, monkeypatch):
+        monkeypatch.setenv("DISSOLVE_CORPUS_PROFILE", "bge10")
+        index = _index_bge_fusion(_three())
+        rows, _counters = _search(index, monkeypatch, [0.1, 0.2, 0.3], [3.0, 2.0, 1.0])
+        assert _ids(rows) == ["c2", "c1", "c0"]
+        assert rows[2]["final_score"] < 0.0
+        assert set(_ids(rows)) == {"c0", "c1", "c2"}
+
+    def test_population_excludes_ineligible_sparse_zero(self, monkeypatch):
+        monkeypatch.setenv("DISSOLVE_CORPUS_PROFILE", "bge10")
+        chunks = _three() + [_chunk_bge_fusion("c3")]
+        index = _index_bge_fusion(chunks)
+        rows, _counters = _search(
+            index,
+            monkeypatch,
+            [0.9, 0.2, 0.1, 999.0],
+            [1.0, 2.0, 3.0, 0.0],
+        )
+        assert _ids(rows) == ["c0", "c2", "c1"]
+        assert "c3" not in _ids(rows)
+        eligible_dense = _zscores([0.9, 0.2, 0.1])
+        eligible_sparse = _zscores([1.0, 2.0, 3.0])
+        assert rows[0]["dense_score"] == round(eligible_dense[0], 6)
+        assert rows[0]["sparse_score"] == round(eligible_sparse[0], 6)
+
+    def test_constant_channels_lexicographic_chunk_id(self, monkeypatch):
+        monkeypatch.setenv("DISSOLVE_CORPUS_PROFILE", "bge10")
+        index = _index_bge_fusion(_three(ids=["c2", "c1", "c0"]))
+        rows, _counters = _search(index, monkeypatch, [0.4, 0.4, 0.4], [2.0, 2.0, 2.0])
+        assert _ids(rows) == ["c0", "c1", "c2"]
+        assert [row["dense_score"] for row in rows] == [0.0, 0.0, 0.0]
+        assert [row["sparse_score"] for row in rows] == [0.0, 0.0, 0.0]
+
+    def test_gate_first_below_unchanged_floor(self, monkeypatch):
+        monkeypatch.setenv("DISSOLVE_CORPUS_PROFILE", "bge10")
+        index = _index_bge_fusion(
+            _three(texts=[NOMATCH_TEXT, NOMATCH_TEXT, NOMATCH_TEXT]),
+            floor=UNCHANGED_FLOOR,
+        )
+        rows, counters = _search(index, monkeypatch, [0.9, 0.8, 0.7], [1.0, 1.0, 1.0])
+        assert rows == []
+        assert counters[0] == []
+        assert counters[2] == []
+        parsed = _public(monkeypatch, index, mode="hybrid")
+        data = parsed["data"]
+        assert data["success"] is True
+        assert data["result_count"] == 0
+        assert data["reason"] == "abstained_below_floor"
+        assert data["floor"] == round(UNCHANGED_FLOOR, 6)
+
+    def test_singleton_zero_standardized_components(self, monkeypatch):
+        monkeypatch.setenv("DISSOLVE_CORPUS_PROFILE", "bge10")
+        index = _index_bge_fusion([_chunk_bge_fusion("c0")])
+        rows, _counters = _search(index, monkeypatch, [0.77], [4.2], top_k=5)
+        assert _ids(rows) == ["c0"]
+        assert rows[0]["dense_score"] == 0.0
+        assert rows[0]["sparse_score"] == 0.0
+        assert rows[0]["section_boost"] == 0.0
+        assert rows[0]["final_score"] == 0.0
+
+    def test_empty_corpus_reason_without_model_calls(self, monkeypatch):
+        empty = {
+            "schema": "dissolve.literature-index.v1",
+            "knowledgebase": PRODUCT_KB,
+            "documents": [],
+            "chunks": [],
+            "dense": None,
+        }
+        dense_calls, sparse_calls, rerank_captures = _install_scores(monkeypatch, [], [])
+        parsed = _public(monkeypatch, empty)
+        data = parsed["data"]
+        assert data["success"] is False
+        assert data["error_code"] == "empty_corpus"
+        assert data["reason"] == "empty_corpus"
+        assert dense_calls == []
+        assert rerank_captures == []
+        assert sparse_calls == []
+
+    def test_no_sparse_match_without_floor(self, monkeypatch):
+        monkeypatch.setenv("DISSOLVE_CORPUS_PROFILE", "bge10")
+        index = _index_bge_fusion(_three())
+        rows, counters = _search(index, monkeypatch, [0.9, 0.8, 0.7], [0.0, 0.0, 0.0])
+        assert rows == []
+        assert counters[0] == []
+        assert counters[2] == []
+        parsed = _public(monkeypatch, index)
+        data = parsed["data"]
+        assert data["success"] is True
+        assert data["result_count"] == 0
+        assert data["reason"] == "no_sparse_match"
+        assert "results" in data
+        assert data["results"] == []
+
+    def test_gate_first_when_floor_and_no_sparse_coincide(self, monkeypatch):
+        monkeypatch.setenv("DISSOLVE_CORPUS_PROFILE", "bge10")
+        index = _index_bge_fusion(_three(), floor=UNCHANGED_FLOOR)
+        _install_scores(monkeypatch, [0.9, 0.8, 0.7], [0.0, 0.0, 0.0])
+        parsed = _public(monkeypatch, index)
+        assert parsed["data"]["reason"] == "abstained_below_floor"
+        assert parsed["data"]["result_count"] == 0
+
+    def test_public_depths_five_ten_twenty(self, monkeypatch):
+        monkeypatch.setenv("DISSOLVE_CORPUS_PROFILE", "bge10")
+        chunks = [_chunk_bge_fusion(f"c{i:02d}") for i in range(25)]
+        index = _index_bge_fusion(chunks)
+        dense = [float(i) for i in range(25)]
+        sparse = [1.0] * 25
+        _install_scores(monkeypatch, dense, sparse)
+        for depth in (5, 10, 20):
+            parsed = _public(monkeypatch, index, top_k=depth)
+            data = parsed["data"]
+            assert data["success"] is True
+            assert data["result_count"] == depth
+            assert len(data["results"]) == depth
+            assert "reason" not in data
+
+    def test_minilm_rollback_section_and_max_norm(self, monkeypatch):
+        monkeypatch.setenv("DISSOLVE_CORPUS_PROFILE", "minilm")
+        section_index = _index_bge_fusion(_three(abstract=True), identity="minilm")
+        section_rows, _c1 = _search(
+            section_index, monkeypatch, [0.10, 0.11, 0.12], [1.0, 1.0, 1.0],
+        )
+        assert _ids(section_rows) == ["c0", "c2", "c1"]
+        assert section_rows[0]["section_boost"] == 0.05
+        max_index = _index_bge_fusion(_three(), identity="minilm")
+        max_rows, _c2 = _search(max_index, monkeypatch, [0.1, 0.2, 0.3], [3.0, 2.0, 1.0])
+        assert _ids(max_rows) == ["c0", "c1", "c2"]
+        bge_identity = _index_bge_fusion(_three(abstract=True), identity="bge")
+        rollback_bge, _c3 = _search(
+            bge_identity, monkeypatch, [0.10, 0.11, 0.12], [1.0, 1.0, 1.0],
+        )
+        assert _ids(rollback_bge) == ["c0", "c2", "c1"]
+        assert rollback_bge[0]["section_boost"] == 0.05
+
+    def test_dense_clip_before_standardization_changes_order(self, monkeypatch):
+        monkeypatch.setenv("DISSOLVE_CORPUS_PROFILE", "bge10")
+        index = _index_bge_fusion(_three())
+        rows, _counters = _search(index, monkeypatch, [-1.0, 0.0, 0.2], [1.0, 4.0, 1.0])
+        assert _ids(rows) == ["c2", "c1", "c0"]
+        clipped = _zscores([0.0, 0.0, 0.2])
+        assert rows[0]["dense_score"] == round(clipped[2], 6)
+
+    def test_title_secondary_key_on_tied_scores(self, monkeypatch):
+        monkeypatch.setenv("DISSOLVE_CORPUS_PROFILE", "bge10")
+        index = _index_bge_fusion(_three(titles=["m", "a", "z"]))
+        rows, _counters = _search(index, monkeypatch, [0.5, 0.5, 0.5], [1.0, 1.0, 1.0])
+        assert _ids(rows) == ["c1", "c0", "c2"]
+
+    def test_zero_variance_and_negative_fused_tail_kept(self, monkeypatch):
+        monkeypatch.setenv("DISSOLVE_CORPUS_PROFILE", "bge10")
+        index = _index_bge_fusion(_three())
+        rows, _counters = _search(index, monkeypatch, [0.1, 0.2, 0.3], [3.0, 2.0, 1.0], top_k=3)
+        assert _ids(rows) == ["c2", "c1", "c0"]
+        assert rows[-1]["final_score"] < 0.0
+        assert len(rows) == 3
+
+    def test_population_includes_outlier_outside_top_twenty(self, monkeypatch):
+        monkeypatch.setenv("DISSOLVE_CORPUS_PROFILE", "bge10")
+        chunks = [_chunk_bge_fusion(f"c{i:02d}") for i in range(21)]
+        index = _index_bge_fusion(chunks)
+        dense = [float(i) for i in range(21)]
+        sparse = [1.0] * 21
+        rows, counters = _search(index, monkeypatch, dense, sparse, top_k=20)
+        assert len(rows) == 20
+        assert "c00" not in _ids(rows)
+        assert rows[0]["chunk_id"] == "c20"
+        expected = _zscores(dense)
+        assert rows[0]["dense_score"] == round(expected[20], 6)
+        assert rows[0]["dense_score"] != round(_zscores(dense[1:])[-1], 6)
+        assert counters[2][0] == [f"c{i:02d}" for i in range(20, -1, -1)]
+
+    def test_gate_equality_is_not_abstention(self, monkeypatch):
+        monkeypatch.setenv("DISSOLVE_CORPUS_PROFILE", "bge10")
+        equal = _index_bge_fusion(_three(), floor=1.0)
+        rows, counters = _search(equal, monkeypatch, [0.3, 0.2, 0.1], [1.0, 1.0, 1.0])
+        assert _ids(rows) == ["c0", "c1", "c2"]
+        assert counters[0]
+        strict = _index_bge_fusion(_three(), floor=1.0000001)
+        empty, counters_strict = _search(
+            strict, monkeypatch, [0.3, 0.2, 0.1], [1.0, 1.0, 1.0],
+        )
+        assert empty == []
+        assert counters_strict[0] == []
+
+    def test_nonproduct_keeps_max_norm_under_bge_profile(self, monkeypatch):
+        monkeypatch.setenv("DISSOLVE_CORPUS_PROFILE", "bge10")
+        index = _index_bge_fusion(_three(abstract=True), knowledgebase=INDEPENDENT_KB)
+        rows, _counters = _search(index, monkeypatch, [0.10, 0.11, 0.12], [1.0, 1.0, 1.0])
+        assert _ids(rows) == ["c0", "c2", "c1"]
+        assert rows[0]["section_boost"] == 0.05
+
+    def test_product_minilm_identity_not_silently_substituted(self, monkeypatch):
+        monkeypatch.setenv("DISSOLVE_CORPUS_PROFILE", "bge10")
+        index = _index_bge_fusion(_three(abstract=True), identity="minilm")
+        rows, _counters = _search(index, monkeypatch, [0.10, 0.11, 0.12], [1.0, 1.0, 1.0])
+        assert _ids(rows) == ["c0", "c2", "c1"]
+        assert rows[0]["section_boost"] == 0.05
+
+    def test_legacy_sparse_mode_keeps_section_boost_on_bge_identity(self, monkeypatch):
+        monkeypatch.setenv("DISSOLVE_CORPUS_PROFILE", "bge10")
+        chunks = [_chunk_bge_fusion("c0"), _chunk_bge_fusion("c1"), _chunk_bge_fusion("c2", section="abstract")]
+        index = _index_bge_fusion(chunks)
+        rows, counters = _search(
+            index, monkeypatch, [0.10, 0.11, 0.12], [1.0, 1.0, 1.0], mode="sparse",
+        )
+        assert _ids(rows) == ["c2", "c0", "c1"]
+        assert rows[0]["section_boost"] == 0.05
+        assert counters[0] == []
+
+    def test_explicit_weights_still_apply_on_bge_path(self, monkeypatch):
+        monkeypatch.setenv("DISSOLVE_CORPUS_PROFILE", "bge10")
+        index = _index_bge_fusion(_three())
+        rows, _counters = _search(
+            index,
+            monkeypatch,
+            [0.1, 0.2, 0.3],
+            [3.0, 2.0, 1.0],
+            w_dense=0.0,
+            w_sparse=1.0,
+        )
+        assert _ids(rows) == ["c0", "c1", "c2"]
+        z_sparse = _zscores([3.0, 2.0, 1.0])
+        assert rows[0]["sparse_score"] == round(z_sparse[0], 6)
+        assert rows[0]["section_boost"] == 0.0
+
+
+# --- from test_bge_reranker.py: Synthetic BGE pair-reranker and RRF60 tests. No real model or cache.
+BGE_QUERY_PREFIX = research._BGE_QUERY_INSTRUCTION
+
+
+PINNED_REVISION = "2cfc18c9415c912f9d8155881c133215df768a70"
+
+
+def _rrf(rank_before: int, rank_pair: int) -> float:
+    return 1.0 / (60 + rank_before) + 1.0 / (60 + rank_pair)
+
+
+def _chunk_bge_reranker(
+    chunk_id: str,
+    *,
+    title: str = "",
+    section: str = "",
+    text: str = MATCH_TEXT,
+    body: str | None = None,
+    caption: str = "",
+    body_plus_rebound: str = "",
+) -> dict:
+    payload = {
+        "chunk_id": chunk_id,
+        "title": title,
+        "section": section,
+        "text": text,
+        "body": MATCH_TEXT if body is None else body,
+        "caption": caption,
+        "source": "synthetic-local",
+    }
+    if body_plus_rebound:
+        payload["body_plus_rebound"] = body_plus_rebound
+    return payload
+
+
+def _row(chunk_id: str, **chunk_fields) -> tuple:
+    return (0.0, 0.0, 0.0, 0.0, _chunk_bge_reranker(chunk_id, **chunk_fields), 0.0)
+
+
+def _index_bge_reranker(
+    chunks: list[dict],
+    *,
+    knowledgebase: str = PRODUCT_KB,
+    identity: str = "bge",
+    floor: float | None = None,
+) -> dict:
+    ids = [str(chunk["chunk_id"]) for chunk in chunks]
+    payload = {
+        "schema": "dissolve.literature-index.v1",
+        "knowledgebase": knowledgebase,
+        "documents": [],
+        "chunks": chunks,
+        "dense": _bge_dense(ids) if identity == "bge" else _minilm_dense(ids),
+    }
+    if floor is not None:
+        payload["abstention"] = {
+            "statistic": "query_idf_coverage",
+            "percentile": 5,
+            "floor": floor,
+            "calibrated_at": "2020-01-01T00:00:00+00:00",
+            "note": "synthetic-gate",
+        }
+    return payload
+
+
+def _ranked_ids(ranked: list[tuple]) -> list[str]:
+    return [item[4]["chunk_id"] for item in ranked]
+
+
+class FakeScalar:
+    def __init__(self, value):
+        self._value = value
+
+    def item(self):
+        return self._value
+
+
+class FakeTensor:
+    def __init__(self, rows, dtype):
+        self._rows = rows
+        self.shape = (len(rows), len(rows[0]) if rows else 0)
+        self.dtype = dtype
+        self.ndim = 2
+
+    def __getitem__(self, idx):
+        if not isinstance(idx, tuple) or len(idx) != 2:
+            raise TypeError("expected pair index")
+        return FakeScalar(self._rows[idx[0]][idx[1]])
+
+    def to(self, device):
+        return self
+
+
+class FakeTokenizer:
+    encode_calls: list
+
+    def __init__(self, owner):
+        self.owner = owner
+
+    @classmethod
+    def from_pretrained(cls, *args, **kwargs):
+        cls.owner_ref.load_calls.append(("tokenizer", args, kwargs))
+        return cls(cls.owner_ref)
+
+    def __call__(self, queries, passages, **kwargs):
+        type(self).encode_calls.append((list(queries), list(passages), dict(kwargs)))
+        return {"input_ids": FakeTensor([[1] for _ in passages], self.owner.torch.float32)}
+
+
+class FakeModel:
+    def __init__(self, owner, *, model_type="xlm-roberta", num_labels=1):
+        self.owner = owner
+        self.config = SimpleNamespace(model_type=model_type, num_labels=num_labels)
+        self.calls = []
+
+    @classmethod
+    def from_pretrained(cls, *args, **kwargs):
+        cls.owner_ref.load_calls.append(("model", args, kwargs))
+        spec = cls.owner_ref.model_spec
+        return cls(
+            cls.owner_ref,
+            model_type=spec.get("model_type", "xlm-roberta"),
+            num_labels=spec.get("num_labels", 1),
+        )
+
+    def to(self, device):
+        self.calls.append(("to", device))
+        return self
+
+    def float(self):
+        self.calls.append(("float",))
+        return self
+
+    def eval(self):
+        self.calls.append(("eval",))
+        return self
+
+    def __call__(self, **kwargs):
+        self.calls.append(("forward", kwargs))
+        batch = 1
+        if "input_ids" in kwargs:
+            batch = kwargs["input_ids"].shape[0]
+        rows = self.owner.next_logits(batch)
+        return SimpleNamespace(logits=FakeTensor(rows, self.owner.torch.float32))
+
+
+class FakeTorch:
+    def __init__(self):
+        self.float32 = object()
+        self.thread_calls: list[int] = []
+        self.interop_calls: list[int] = []
+        self._interop = None
+        self.inference_calls = 0
+
+    def set_num_threads(self, count):
+        self.thread_calls.append(int(count))
+
+    def set_num_interop_threads(self, count):
+        if self._interop is not None:
+            raise RuntimeError("illegal interop reset")
+        self._interop = int(count)
+        self.interop_calls.append(int(count))
+
+    def get_num_interop_threads(self):
+        return 1 if self._interop is None else self._interop
+
+    def inference_mode(self):
+        self.inference_calls += 1
+        return nullcontext()
+
+
+class PairBackend:
+    def __init__(self, logits_by_passage=None, logit_batches=None, model_spec=None):
+        self.torch = FakeTorch()
+        self.load_calls: list[tuple] = []
+        self.logits_by_passage = logits_by_passage or {}
+        self.logit_batches = list(logit_batches or [])
+        self.model_spec = model_spec or {}
+        self._batch_i = 0
+        FakeTokenizer.owner_ref = self
+        FakeTokenizer.encode_calls = []
+        FakeModel.owner_ref = self
+        self.transformers = SimpleNamespace(
+            AutoTokenizer=FakeTokenizer,
+            AutoModelForSequenceClassification=FakeModel,
+        )
+
+    def next_logits(self, batch_count: int):
+        if self.logit_batches:
+            rows = self.logit_batches[self._batch_i]
+            self._batch_i += 1
+            return rows
+        encoded = FakeTokenizer.encode_calls[-1]
+        passages = encoded[1]
+        rows = []
+        for passage in passages:
+            rows.append([float(self.logits_by_passage.get(passage, 0.0))])
+        if len(rows) != batch_count:
+            rows = [[0.0] for _ in range(batch_count)]
+        return rows
+
+
+def _reset_pair_state():
+    rerank._PAIR_BACKEND = None
+    rerank._PAIR_INTEROP_READY = False
+
+
+def _touch_pair_dir(path: Path) -> Path:
+    path.mkdir(parents=True, exist_ok=True)
+    for name in rerank.PAIR_RERANKER_FILE_SHA256:
+        (path / name).write_bytes(b"synthetic-pair-artifact")
+    return path
+
+
+def _pass_hashes(monkeypatch):
+    monkeypatch.setattr(
+        rerank,
+        "_hash_pair_file",
+        lambda path: rerank.PAIR_RERANKER_FILE_SHA256[Path(path).name],
+    )
+
+
+def _install_backend(monkeypatch, tmp_path, backend: PairBackend) -> PairBackend:
+    pair_dir = _touch_pair_dir(tmp_path / "pair-reranker")
+    monkeypatch.setenv("DISSOLVE_BGE_RERANKER_DIR", str(pair_dir))
+    _pass_hashes(monkeypatch)
+    original = rerank.importlib.import_module
+
+    def fake_import(name, *args, **kwargs):
+        if name == "torch":
+            return backend.torch
+        if name == "transformers":
+            return backend.transformers
+        return original(name, *args, **kwargs)
+
+    monkeypatch.setattr(rerank.importlib, "import_module", fake_import)
+    return backend
+
+
+def _install_scores_bge_reranker(monkeypatch, dense, sparse):
+    dense_calls: list[str] = []
+    sparse_calls: list[str] = []
+
+    def fake_dense(index, chunks, query):
+        dense_calls.append(query)
+        return [float(value) for value in dense]
+
+    def fake_sparse(query, rows):
+        sparse_calls.append(query)
+        return [float(value) for value in sparse]
+
+    monkeypatch.setattr(research, "_dense_query_scores", fake_dense)
+    monkeypatch.setattr(research, "_query_sparse_raw", fake_sparse)
+    return dense_calls, sparse_calls
+
+
+class TestBgeReranker:
+    """Synthetic BGE pair-reranker and RRF60 tests. No real model or cache."""
+
+    @pytest.fixture(autouse=True)
+    def _isolate(self, monkeypatch, tmp_path):
+        _reset_pair_state()
+        monkeypatch.delenv("DISSOLVE_RESEARCH_HOME", raising=False)
+        monkeypatch.delenv("DISSOLVE_CORPUS_PROFILE", raising=False)
+        monkeypatch.delenv("DISSOLVE_BGE10_MANIFEST", raising=False)
+        monkeypatch.delenv("DISSOLVE_EMBEDDING_MODEL", raising=False)
+        monkeypatch.delenv("DISSOLVE_BGE_RERANKER_DIR", raising=False)
+        monkeypatch.setattr(research, "_research_root", lambda: tmp_path / "research-home")
+        monkeypatch.setattr(
+            research,
+            "_canonical_product_index_path",
+            lambda: tmp_path / "canonical" / "product.json.gz",
+        )
+        monkeypatch.setattr(
+            research,
+            "_product_manifest_path",
+            lambda: tmp_path / "canonical" / "manifest.json",
+        )
+        monkeypatch.setattr(research, "_committed_lexicon", lambda: [])
+        monkeypatch.setattr(
+            research,
+            "_dense_vectors",
+            lambda *args, **kwargs: (_ for _ in ()).throw(RuntimeError("model forbidden")),
+        )
+        monkeypatch.setattr(
+            research.rerank,
+            "_load_cross_encoder",
+            lambda *args, **kwargs: (_ for _ in ()).throw(RuntimeError("model forbidden")),
+        )
+        yield tmp_path
+        _reset_pair_state()
+
+    def test_rrf_empty_and_known_orders(self):
+        assert rerank.fuse_rrf60([], []) == []
+        tied = rerank.fuse_rrf60([_row("a"), _row("b")], [_row("b"), _row("a")])
+        assert _ranked_ids(tied) == ["a", "b"]
+        assert tied[0][0] == _rrf(1, 2)
+        assert tied[1][0] == _rrf(2, 1)
+        assert tied[0][0] == tied[1][0]
+        flipped = rerank.fuse_rrf60(
+            [_row("a"), _row("b"), _row("c")],
+            [_row("c"), _row("b"), _row("a")],
+        )
+        assert _ranked_ids(flipped) == ["a", "c", "b"]
+        assert flipped[0][0] == _rrf(1, 3)
+        assert flipped[1][0] == _rrf(3, 1)
+        assert flipped[2][0] == _rrf(2, 2)
+        assert flipped[0][0] == flipped[1][0]
+        assert flipped[0][0] > flipped[2][0]
+
+    def test_rrf_membership_mismatch_and_duplicates_fail(self):
+        with pytest.raises(ValueError, match="rrf_membership"):
+            rerank.fuse_rrf60([_row("a"), _row("b")], [_row("a")])
+        with pytest.raises(ValueError, match="rrf_membership"):
+            rerank.fuse_rrf60([_row("a"), _row("b")], [_row("a"), _row("c")])
+        with pytest.raises(ValueError, match="rrf_duplicate"):
+            rerank.fuse_rrf60([_row("a"), _row("a")], [_row("a"), _row("b")])
+        with pytest.raises(ValueError, match="rrf_duplicate"):
+            rerank.fuse_rrf60([_row("a"), _row("b")], [_row("b"), _row("b")])
+
+    def test_pair_equal_logits_keep_original_order(self, monkeypatch, tmp_path):
+        backend = PairBackend(logits_by_passage={"zb": 0.5, "aa": 0.5})
+        _install_backend(monkeypatch, tmp_path, backend)
+        ranked = [_row("z", body="zb"), _row("a", body="aa")]
+        out = rerank.reorder_window(QUERY, ranked, rerank.PAIR_RERANK_MODE)
+        assert _ranked_ids(out) == ["z", "a"]
+
+    def test_pair_tiny_logit_delta_beats_rounding(self, monkeypatch, tmp_path):
+        backend = PairBackend(logits_by_passage={"left": 1.0, "right": 1.0 + 1e-8})
+        _install_backend(monkeypatch, tmp_path, backend)
+        ranked = [_row("m", body="left"), _row("a", body="right")]
+        out = rerank.reorder_window(QUERY, ranked, rerank.PAIR_RERANK_MODE)
+        assert _ranked_ids(out) == ["a", "m"]
+        assert out[0][0] - out[1][0] == pytest.approx(1e-8)
+
+    @pytest.mark.parametrize(
+        "rows",
+        [
+            [[math.nan], [0.0]],
+            [[math.inf], [0.0]],
+            [[-math.inf], [0.0]],
+        ],
+    )
+    def test_pair_nonfinite_logits_fail_closed(self, monkeypatch, tmp_path, rows):
+        backend = PairBackend(logit_batches=[rows])
+        _install_backend(monkeypatch, tmp_path, backend)
+        with pytest.raises(rerank.RerankBlocked):
+            rerank.reorder_window(QUERY, [_row("a"), _row("b")], rerank.PAIR_RERANK_MODE)
+
+    def test_pair_wrong_logit_shapes_fail_closed(self, monkeypatch, tmp_path):
+        ranked = [_row("a"), _row("b")]
+
+        class WideModel(FakeModel):
+            def __call__(self, **kwargs):
+                return SimpleNamespace(
+                    logits=FakeTensor([[0.0, 1.0], [0.0, 1.0]], self.owner.torch.float32)
+                )
+
+        backend = _install_backend(monkeypatch, tmp_path, PairBackend())
+        backend.transformers.AutoModelForSequenceClassification = type(
+            "Wide",
+            (WideModel,),
+            {"owner_ref": backend},
+        )
+        with pytest.raises(rerank.RerankBlocked):
+            rerank.reorder_window(QUERY, ranked, rerank.PAIR_RERANK_MODE)
+
+        _reset_pair_state()
+
+        class FlatTensor:
+            shape = (2,)
+            dtype = backend.torch.float32
+
+            def __getitem__(self, idx):
+                raise AssertionError("1d logits must fail before scoring")
+
+        class FlatModel(FakeModel):
+            def __call__(self, **kwargs):
+                return SimpleNamespace(logits=FlatTensor())
+
+        backend.transformers.AutoModelForSequenceClassification = type(
+            "Flat",
+            (FlatModel,),
+            {"owner_ref": backend},
+        )
+        with pytest.raises(rerank.RerankBlocked):
+            rerank.reorder_window(QUERY, ranked, rerank.PAIR_RERANK_MODE)
+
+        _reset_pair_state()
+
+        class CubeTensor:
+            shape = (2, 1, 1)
+            dtype = backend.torch.float32
+
+        class CubeModel(FakeModel):
+            def __call__(self, **kwargs):
+                return SimpleNamespace(logits=CubeTensor())
+
+        backend.transformers.AutoModelForSequenceClassification = type(
+            "Cube",
+            (CubeModel,),
+            {"owner_ref": backend},
+        )
+        with pytest.raises(rerank.RerankBlocked):
+            rerank.reorder_window(QUERY, ranked, rerank.PAIR_RERANK_MODE)
+
+    def test_window_twenty_batches_and_rest_excluded(self, monkeypatch, tmp_path):
+        monkeypatch.setenv("DISSOLVE_CORPUS_PROFILE", "bge10")
+        chunks = [_chunk_bge_reranker(f"c{i:02d}", body=f"p{i:02d}") for i in range(25)]
+        index = _index_bge_reranker(chunks)
+        dense = [float(i) for i in range(25)]
+        sparse = [1.0] * 25
+        _install_scores_bge_reranker(monkeypatch, dense, sparse)
+        logits = {f"p{i:02d}": float(i) for i in range(25)}
+        backend = PairBackend(logits_by_passage=logits)
+        _install_backend(monkeypatch, tmp_path, backend)
+        rrf_calls: list[tuple[list[str], list[str]]] = []
+        real_fuse = rerank.fuse_rrf60
+
+        def spy_fuse(before, pair):
+            rrf_calls.append((_ranked_ids(list(before)), _ranked_ids(list(pair))))
+            return real_fuse(before, pair)
+
+        monkeypatch.setattr(rerank, "fuse_rrf60", spy_fuse)
+        rows = research._search_index(
+            index, QUERY, 5, "hybrid", rerank_mode=rerank.PAIR_RERANK_MODE,
+        )
+        scored_passages = [passage for _q, passages, _kw in FakeTokenizer.encode_calls for passage in passages]
+        assert [len(call[1]) for call in FakeTokenizer.encode_calls] == [8, 8, 4]
+        assert scored_passages == [f"p{i:02d}" for i in range(24, 4, -1)]
+        assert "p04" not in scored_passages
+        assert rrf_calls and len(rrf_calls[0][0]) == 20
+        assert rrf_calls[0][0] == [f"c{i:02d}" for i in range(24, 4, -1)]
+        assert set(rrf_calls[0][0]) == set(rrf_calls[0][1])
+        assert "c04" not in rrf_calls[0][0]
+        assert len(rows) == 5
+        assert "c04" not in _ids(rows)
+        assert "c00" not in _ids(rows)
+
+    def test_loader_records_and_single_init(self, monkeypatch, tmp_path):
+        pair_dir = _touch_pair_dir(tmp_path / "pair-reranker")
+        backend = PairBackend(logits_by_passage={MATCH_TEXT: 1.0})
+        _install_backend(monkeypatch, tmp_path, backend)
+        hash_calls: list[str] = []
+
+        def counted_hash(path):
+            hash_calls.append(Path(path).name)
+            return rerank.PAIR_RERANKER_FILE_SHA256[Path(path).name]
+
+        monkeypatch.setattr(rerank, "_hash_pair_file", counted_hash)
+        ranked = [_row("c0"), _row("c1")]
+        rerank.reorder_window(QUERY, ranked, rerank.PAIR_RERANK_MODE)
+        rerank.reorder_window(QUERY, ranked, rerank.PAIR_RERANK_MODE)
+        tokenizer_loads = [call for call in backend.load_calls if call[0] == "tokenizer"]
+        model_loads = [call for call in backend.load_calls if call[0] == "model"]
+        assert len(tokenizer_loads) == 1
+        assert len(model_loads) == 1
+        for _kind, args, kwargs in backend.load_calls:
+            assert args[0] == str(pair_dir.resolve())
+            assert kwargs["revision"] == PINNED_REVISION
+            assert kwargs["local_files_only"] is True
+        assert tokenizer_loads[0][2]["use_fast"] is True
+        assert tokenizer_loads[0][2]["truncation_side"] == "right"
+        assert model_loads[0][2]["torch_dtype"] is backend.torch.float32
+        assert backend.torch.thread_calls == [8]
+        assert backend.torch.interop_calls == [1]
+        encode_kwargs = FakeTokenizer.encode_calls[0][2]
+        assert encode_kwargs["padding"] is True
+        assert encode_kwargs["truncation"] == "longest_first"
+        assert encode_kwargs["max_length"] == 512
+        assert encode_kwargs["return_tensors"] == "pt"
+        assert hash_calls == list(rerank.PAIR_RERANKER_FILE_SHA256)
+        model = rerank._PAIR_BACKEND[1]
+        assert model.calls[0] == ("to", "cpu")
+        assert ("float",) in model.calls
+        assert ("eval",) in model.calls
+
+    def test_failed_init_retry_rehashes_changed_digest(self, monkeypatch, tmp_path):
+        pair_dir = _touch_pair_dir(tmp_path / "pair-reranker")
+        monkeypatch.setenv("DISSOLVE_BGE_RERANKER_DIR", str(pair_dir))
+        hash_calls: list[str] = []
+        allow = {"ok": True}
+        import_calls: list[str] = []
+
+        def counted_hash(path):
+            hash_calls.append(Path(path).name)
+            if not allow["ok"]:
+                return "0" * 64
+            return rerank.PAIR_RERANKER_FILE_SHA256[Path(path).name]
+
+        def fail_import(name, *args, **kwargs):
+            import_calls.append(name)
+            raise ImportError("synthetic import failure")
+
+        monkeypatch.setattr(rerank, "_hash_pair_file", counted_hash)
+        monkeypatch.setattr(rerank.importlib, "import_module", fail_import)
+        ranked = [_row("a")]
+        with pytest.raises(rerank.RerankBlocked):
+            rerank.reorder_window(QUERY, ranked, rerank.PAIR_RERANK_MODE)
+        assert rerank._PAIR_BACKEND is None
+        assert hash_calls == list(rerank.PAIR_RERANKER_FILE_SHA256)
+        assert import_calls == ["torch"]
+        allow["ok"] = False
+        hash_calls.clear()
+        import_calls.clear()
+        with pytest.raises(rerank.RerankBlocked):
+            rerank.reorder_window(QUERY, ranked, rerank.PAIR_RERANK_MODE)
+        assert hash_calls == ["config.json"]
+        assert import_calls == []
+        assert rerank._PAIR_BACKEND is None
+
+    def test_cached_backend_rejects_changed_or_missing_directory(self, monkeypatch, tmp_path):
+        backend = PairBackend(logits_by_passage={MATCH_TEXT: 1.0})
+        pair_dir = _touch_pair_dir(tmp_path / "pair-reranker")
+        _install_backend(monkeypatch, tmp_path, backend)
+        ranked = [_row("c0")]
+        rerank.reorder_window(QUERY, ranked, rerank.PAIR_RERANK_MODE)
+        assert rerank._PAIR_BACKEND is not None
+        loads = len(backend.load_calls)
+        encodes = len(FakeTokenizer.encode_calls)
+        other = _touch_pair_dir(tmp_path / "other-pair")
+        hashed_roots: list[str] = []
+
+        def selective_hash(path):
+            hashed_roots.append(str(Path(path).resolve().parent))
+            if Path(path).resolve().parent == other.resolve():
+                return "0" * 64
+            return rerank.PAIR_RERANKER_FILE_SHA256[Path(path).name]
+
+        monkeypatch.setattr(rerank, "_hash_pair_file", selective_hash)
+        monkeypatch.setenv("DISSOLVE_BGE_RERANKER_DIR", str(other))
+        with pytest.raises(rerank.RerankBlocked):
+            rerank.reorder_window(QUERY, ranked, rerank.PAIR_RERANK_MODE)
+        assert hashed_roots and hashed_roots[0] == str(other.resolve())
+        assert len(backend.load_calls) == loads
+        assert len(FakeTokenizer.encode_calls) == encodes
+        assert rerank._PAIR_BACKEND is None
+
+        monkeypatch.setenv("DISSOLVE_BGE_RERANKER_DIR", str(pair_dir))
+        rerank.reorder_window(QUERY, ranked, rerank.PAIR_RERANK_MODE)
+        assert rerank._PAIR_BACKEND is not None
+        recached_loads = len(backend.load_calls)
+        recached_encodes = len(FakeTokenizer.encode_calls)
+        assert recached_loads > loads
+        monkeypatch.delenv("DISSOLVE_BGE_RERANKER_DIR", raising=False)
+        with pytest.raises(rerank.RerankBlocked):
+            rerank.reorder_window(QUERY, ranked, rerank.PAIR_RERANK_MODE)
+        assert len(backend.load_calls) == recached_loads
+        assert len(FakeTokenizer.encode_calls) == recached_encodes
+        assert rerank._PAIR_BACKEND is None
+
+    def test_missing_and_mismatched_artifacts_fail_closed(self, monkeypatch, tmp_path):
+        missing = tmp_path / "missing"
+        missing.mkdir()
+        monkeypatch.setenv("DISSOLVE_BGE_RERANKER_DIR", str(missing))
+        with pytest.raises(rerank.RerankBlocked):
+            rerank.reorder_window(QUERY, [_row("a")], rerank.PAIR_RERANK_MODE)
+        pair_dir = _touch_pair_dir(tmp_path / "bad-hash")
+        monkeypatch.setenv("DISSOLVE_BGE_RERANKER_DIR", str(pair_dir))
+        with pytest.raises(rerank.RerankBlocked):
+            rerank.reorder_window(QUERY, [_row("a")], rerank.PAIR_RERANK_MODE)
+        monkeypatch.delenv("DISSOLVE_BGE_RERANKER_DIR", raising=False)
+        with pytest.raises(rerank.RerankBlocked):
+            rerank.reorder_window(QUERY, [_row("a")], rerank.PAIR_RERANK_MODE)
+
+    def test_incompatible_config_and_cross_encoder_not_substituted(self, monkeypatch, tmp_path):
+        backend = PairBackend(model_spec={"model_type": "bert", "num_labels": 1})
+        _install_backend(monkeypatch, tmp_path, backend)
+        with pytest.raises(rerank.RerankBlocked):
+            rerank.reorder_window(QUERY, [_row("a")], rerank.PAIR_RERANK_MODE)
+        assert rerank._PAIR_BACKEND is None
+        _reset_pair_state()
+        backend = PairBackend(model_spec={"model_type": "xlm-roberta", "num_labels": 2})
+        _install_backend(monkeypatch, tmp_path, backend)
+        with pytest.raises(rerank.RerankBlocked):
+            rerank.reorder_window(QUERY, [_row("a")], rerank.PAIR_RERANK_MODE)
+        with pytest.raises(RuntimeError, match="model forbidden"):
+            rerank.reorder_window(QUERY, [_row("a")], "cross_encoder")
+
+    def test_public_product_invokes_pair_and_rrf(self, monkeypatch, tmp_path):
+        monkeypatch.setenv("DISSOLVE_CORPUS_PROFILE", "bge10")
+        chunks = [
+            _chunk_bge_reranker("a", body="pa"),
+            _chunk_bge_reranker("b", body="pb"),
+            _chunk_bge_reranker("c", body="pc"),
+        ]
+        index = _index_bge_reranker(chunks)
+        _install_scores_bge_reranker(monkeypatch, [0.3, 0.2, 0.1], [1.0, 1.0, 1.0])
+        backend = PairBackend(logits_by_passage={"pa": 0.0, "pb": 1.0, "pc": 2.0})
+        _install_backend(monkeypatch, tmp_path, backend)
+        rrf_calls: list[tuple[list[str], list[str]]] = []
+        real_fuse = rerank.fuse_rrf60
+
+        def spy_fuse(before, pair):
+            rrf_calls.append((_ranked_ids(list(before)), _ranked_ids(list(pair))))
+            return real_fuse(before, pair)
+
+        monkeypatch.setattr(rerank, "fuse_rrf60", spy_fuse)
+        parsed = _public(monkeypatch, index, top_k=3)
+        data = parsed["data"]
+        assert data["success"] is True
+        assert _ids(data["results"]) == ["a", "c", "b"]
+        assert rrf_calls[0][0] == ["a", "b", "c"]
+        assert rrf_calls[0][1] == ["c", "b", "a"]
+        expected = _rrf(1, 3)
+        assert data["results"][0]["final_score"] == round(expected, 6)
+        assert data["results"][0]["final_score"] == data["results"][1]["final_score"]
+        assert FakeTokenizer.encode_calls
+        assert backend.load_calls
+
+    def test_gate_minilm_and_nonproduct_skip_pair(self, monkeypatch, tmp_path):
+        backend = PairBackend(logits_by_passage={MATCH_TEXT: 9.0})
+        _install_backend(monkeypatch, tmp_path, backend)
+        rrf_calls: list = []
+        monkeypatch.setattr(
+            rerank,
+            "fuse_rrf60",
+            lambda *args, **kwargs: rrf_calls.append(args) or (_ for _ in ()).throw(AssertionError("rrf")),
+        )
+
+        monkeypatch.setenv("DISSOLVE_CORPUS_PROFILE", "bge10")
+        gated = _index_bge_reranker(
+            [_chunk_bge_reranker("c0", text=NOMATCH_TEXT, body=NOMATCH_TEXT),
+             _chunk_bge_reranker("c1", text=NOMATCH_TEXT, body=NOMATCH_TEXT),
+             _chunk_bge_reranker("c2", text=NOMATCH_TEXT, body=NOMATCH_TEXT)],
+            floor=UNCHANGED_FLOOR,
+        )
+        _install_scores_bge_reranker(monkeypatch, [0.9, 0.8, 0.7], [1.0, 1.0, 1.0])
+        parsed = _public(monkeypatch, gated)
+        assert parsed["data"]["reason"] == "abstained_below_floor"
+        assert parsed["data"]["result_count"] == 0
+        assert FakeTokenizer.encode_calls == []
+        assert rrf_calls == []
+        assert backend.load_calls == []
+
+        monkeypatch.setenv("DISSOLVE_CORPUS_PROFILE", "minilm")
+        minilm_index = _index_bge_reranker([_chunk_bge_reranker("c0"), _chunk_bge_reranker("c1"), _chunk_bge_reranker("c2")], identity="minilm")
+        _install_scores_bge_reranker(monkeypatch, [0.10, 0.11, 0.12], [1.0, 1.0, 1.0])
+        parsed = _public(monkeypatch, minilm_index, top_k=3)
+        assert parsed["data"]["success"] is True
+        assert FakeTokenizer.encode_calls == []
+        assert rrf_calls == []
+
+        monkeypatch.setenv("DISSOLVE_CORPUS_PROFILE", "bge10")
+        other = _index_bge_reranker([_chunk_bge_reranker("c0"), _chunk_bge_reranker("c1"), _chunk_bge_reranker("c2")], knowledgebase=INDEPENDENT_KB)
+        _install_scores_bge_reranker(monkeypatch, [0.10, 0.11, 0.12], [1.0, 1.0, 1.0])
+        parsed = _public(monkeypatch, other, top_k=3, knowledgebase=INDEPENDENT_KB)
+        assert parsed["data"]["success"] is True
+        assert FakeTokenizer.encode_calls == []
+        assert rrf_calls == []
+
+    def test_public_depths_and_no_sparse_reason(self, monkeypatch, tmp_path):
+        monkeypatch.setenv("DISSOLVE_CORPUS_PROFILE", "bge10")
+        chunks = [_chunk_bge_reranker(f"c{i:02d}", body=f"p{i:02d}") for i in range(25)]
+        index = _index_bge_reranker(chunks)
+        dense = [float(i) for i in range(25)]
+        sparse = [1.0] * 25
+        _install_scores_bge_reranker(monkeypatch, dense, sparse)
+        backend = PairBackend(logits_by_passage={f"p{i:02d}": 0.0 for i in range(25)})
+        _install_backend(monkeypatch, tmp_path, backend)
+        for depth in (5, 10, 20):
+            FakeTokenizer.encode_calls.clear()
+            parsed = _public(monkeypatch, index, top_k=depth)
+            data = parsed["data"]
+            assert data["success"] is True
+            assert data["result_count"] == depth
+            assert len(data["results"]) == depth
+            assert "reason" not in data
+            scored = [p for _q, passages, _kw in FakeTokenizer.encode_calls for p in passages]
+            assert len(scored) == 20
+        empty_sparse = _index_bge_reranker([_chunk_bge_reranker("c0"), _chunk_bge_reranker("c1"), _chunk_bge_reranker("c2")])
+        _install_scores_bge_reranker(monkeypatch, [0.9, 0.8, 0.7], [0.0, 0.0, 0.0])
+        FakeTokenizer.encode_calls.clear()
+        parsed = _public(monkeypatch, empty_sparse)
+        assert parsed["data"]["reason"] == "no_sparse_match"
+        assert FakeTokenizer.encode_calls == []
+
+    def test_canonical_passage_and_query_has_no_prefix(self, monkeypatch, tmp_path):
+        chunk = _chunk_bge_reranker(
+            "disc",
+            text="TEXT-ONLY",
+            body="BODY-ONLY",
+            caption="CAPTION-ONLY",
+            body_plus_rebound="REBOUND-ONLY",
+        )
+        expected = research.chunk_sparse_corpus(chunk)
+        assert expected == "REBOUND-ONLY"
+        assert expected != "BODY-ONLY"
+        backend = PairBackend(logits_by_passage={expected: 1.5, "BODY-ONLY": 9.0, "TEXT-ONLY": 8.0})
+        _install_backend(monkeypatch, tmp_path, backend)
+        out = rerank.reorder_window(QUERY, [(0.0, 0.0, 0.0, 0.0, chunk, 0.0)], rerank.PAIR_RERANK_MODE)
+        assert FakeTokenizer.encode_calls
+        queries, passages, _kwargs = FakeTokenizer.encode_calls[0]
+        assert passages == [expected]
+        assert queries == [QUERY]
+        assert not any(text.startswith(BGE_QUERY_PREFIX) for text in queries)
+        assert BGE_QUERY_PREFIX not in queries[0]
+        assert out[0][0] == 1.5
+
+
+# --- from test_embedding_recipe.py: Synthetic encoder identity and in-memory embedding tests. No real model.
+MINILM_DIM = 384
+
+
+BGE_MODEL = research._BGE_MODEL_ID
+
+
+BGE_DIM = research._BGE_DIM
+
+
+BGE_REVISION = research._BGE_ENCODER_REVISION
+
+
+BGE_QUERY = research._BGE_QUERY_INSTRUCTION
+
+
+CHUNK_A = "synth-embed-a"
+
+
+CHUNK_B = "synth-embed-b"
+
+
+TEXT_A = "zympoly passage solventblend"
+
+
+TEXT_B = "helioxane passage solventblend"
+
+
+KB = "synth-embed-lib"
+
+
+def _unit_embedding_recipe(dim: int, axis: int) -> list[float]:
+    row = [0.0] * dim
+    row[axis] = 1.0
+    return row
+
+
+def _chunk_embedding_recipe(chunk_id: str, text: str) -> dict:
+    return {
+        "chunk_id": chunk_id,
+        "text": text,
+        "body": text,
+        "sha256": f"sha-{chunk_id}",
+        "document_id": "D-synth",
+        "title": "Synthetic embed",
+        "source": "synthetic-local",
+    }
+
+
+def _index_embedding_recipe() -> dict:
+    return {
+        "schema": "dissolve.literature-index.v1",
+        "knowledgebase": KB,
+        "documents": [{"document_id": "D-synth", "sha256": "doc-synth", "title": "Synthetic embed"}],
+        "chunks": [_chunk_embedding_recipe(CHUNK_A, TEXT_A), _chunk_embedding_recipe(CHUNK_B, TEXT_B)],
+        "dense": None,
+    }
+
+
+def _prepared() -> list[str]:
+    return [research.chunk_sparse_corpus(chunk) for chunk in _index_embedding_recipe()["chunks"]]
+
+
+class FakeSentenceTransformer:
+    calls: list[tuple[str, tuple, dict]]
+
+    def __init__(self, *args, **kwargs):
+        type(self).calls.append(("init", args, kwargs))
+        fail = getattr(type(self), "fail_init", False)
+        if fail:
+            raise RuntimeError("synthetic load failure")
+
+    def encode(self, texts, **kwargs):
+        type(self).calls.append(("encode", (texts,), kwargs))
+        if getattr(type(self), "fail_encode", False):
+            raise RuntimeError("synthetic encode failure")
+        output = getattr(type(self), "output")
+        if callable(output):
+            return output(texts)
+        return output
+
+
+def _install_fake_st(monkeypatch, *, output, fail_init=False, fail_encode=False):
+    FakeSentenceTransformer.calls = []
+    FakeSentenceTransformer.fail_init = fail_init
+    FakeSentenceTransformer.fail_encode = fail_encode
+    FakeSentenceTransformer.output = output
+    module = SimpleNamespace(SentenceTransformer=FakeSentenceTransformer)
+    original = research.importlib.import_module
+
+    def fake_import(name, *args, **kwargs):
+        if name == "sentence_transformers":
+            return module
+        return original(name, *args, **kwargs)
+
+    monkeypatch.setattr(research.importlib, "import_module", fake_import)
+    return FakeSentenceTransformer
+
+
+def _init_calls(fake):
+    return [item for item in fake.calls if item[0] == "init"]
+
+
+def _encode_calls(fake):
+    return [item for item in fake.calls if item[0] == "encode"]
+
+
+def _fault_vectors(kind: str, dim: int) -> list[list[float]]:
+    good = [_unit_embedding_recipe(dim, 0), _unit_embedding_recipe(dim, 1)]
+    if kind == "too_few":
+        return [good[0]]
+    if kind == "too_many":
+        return [good[0], good[1], _unit_embedding_recipe(dim, 2 % dim)]
+    if kind == "ragged":
+        return [good[0], good[1][:-1]]
+    if kind == "zero":
+        return [good[0], [0.0] * dim]
+    if kind == "non_unit":
+        row = list(good[1])
+        row[1] = 2.0
+        return [good[0], row]
+    if kind == "nan":
+        row = list(good[1])
+        row[0] = math.nan
+        return [good[0], row]
+    if kind == "inf":
+        row = list(good[1])
+        row[0] = math.inf
+        return [good[0], row]
+    raise AssertionError(kind)
+
+
+def _run_ingest(monkeypatch, *, model_id, vectors, save_calls):
+    payload = _index_embedding_recipe()
+    monkeypatch.setattr(research, "_load_index", lambda knowledgebase: copy.deepcopy(payload))
+    seen_texts: list[list[str]] = []
+
+    def fake_dense(texts, model_name=None):
+        seen_texts.append(list(texts))
+        return model_id, copy.deepcopy(vectors)
+
+    def fake_save(index):
+        save_calls.append(copy.deepcopy(index))
+        return Path("synth-not-written.json.gz")
+
+    monkeypatch.setattr(research, "_dense_vectors", fake_dense)
+    monkeypatch.setattr(research, "_save_index", fake_save)
+    return research._ingest_inputs([], [], KB, False, 20, True), seen_texts
+
+
+class TestEmbeddingRecipe:
+    """Synthetic encoder identity and in-memory embedding tests. No real model."""
+
+    @pytest.fixture(autouse=True)
+    def _isolate(self, monkeypatch, tmp_path):
+        monkeypatch.delenv("DISSOLVE_RESEARCH_HOME", raising=False)
+        monkeypatch.delenv("DISSOLVE_CORPUS_PROFILE", raising=False)
+        monkeypatch.delenv("DISSOLVE_BGE10_MANIFEST", raising=False)
+        monkeypatch.delenv("DISSOLVE_EMBEDDING_MODEL", raising=False)
+        monkeypatch.setattr(
+            research,
+            "_canonical_product_index_path",
+            lambda: tmp_path / "canonical" / "product.json.gz",
+        )
+        monkeypatch.setattr(
+            research,
+            "_product_manifest_path",
+            lambda: tmp_path / "canonical" / "manifest.json",
+        )
+        monkeypatch.setattr(
+            research.rerank,
+            "_load_cross_encoder",
+            lambda *args, **kwargs: (_ for _ in ()).throw(RuntimeError("model forbidden")),
+        )
+        yield {"tmp_path": tmp_path}
+
+    def test_bge_constructor_pins_revision_and_cpu(self, monkeypatch):
+        prepared = list(_prepared())
+        fake = _install_fake_st(monkeypatch, output=[_unit_embedding_recipe(BGE_DIM, 0), _unit_embedding_recipe(BGE_DIM, 1)])
+        model_id, vectors = research._dense_vectors(prepared, BGE_MODEL)
+        inits = _init_calls(fake)
+        encodes = _encode_calls(fake)
+        assert model_id == BGE_MODEL
+        assert len(inits) == 1
+        assert inits[0][1] == (BGE_MODEL,)
+        assert inits[0][2] == {"revision": BGE_REVISION, "device": "cpu"}
+        assert len(encodes) == 1
+        received = encodes[0][1][0]
+        assert [item.encode("utf-8") for item in received] == [item.encode("utf-8") for item in prepared]
+        assert encodes[0][2] == {"normalize_embeddings": True, "show_progress_bar": False}
+        assert all(not item.startswith(BGE_QUERY) for item in received)
+        assert vectors == [_unit_embedding_recipe(BGE_DIM, 0), _unit_embedding_recipe(BGE_DIM, 1)]
+        assert inits[0][1][0] != MINILM_MODEL
+
+    def test_minilm_no_argument_selection(self, monkeypatch):
+        prepared = list(_prepared())
+        fake = _install_fake_st(monkeypatch, output=[_unit_embedding_recipe(MINILM_DIM, 0), _unit_embedding_recipe(MINILM_DIM, 1)])
+        model_id, _vectors = research._dense_vectors(prepared)
+        inits = _init_calls(fake)
+        assert model_id == MINILM_MODEL
+        assert inits[0][1] == (MINILM_MODEL,)
+        assert inits[0][2] == {}
+        assert inits[0][1][0] != BGE_MODEL
+
+    def test_explicit_minilm_ignores_bge_environment(self, monkeypatch):
+        monkeypatch.setenv("DISSOLVE_EMBEDDING_MODEL", BGE_MODEL)
+        prepared = list(_prepared())
+        fake = _install_fake_st(monkeypatch, output=[_unit_embedding_recipe(MINILM_DIM, 0)])
+        model_id, _vectors = research._dense_vectors([prepared[0]], MINILM_MODEL)
+        inits = _init_calls(fake)
+        assert model_id == MINILM_MODEL
+        assert inits[0][1] == (MINILM_MODEL,)
+        assert inits[0][2] == {}
+        assert "revision" not in inits[0][2]
+
+    def test_output_rounds_to_eight_decimals(self, monkeypatch):
+        raw = 0.123456789123
+        _install_fake_st(monkeypatch, output=[[raw, 0.0]])
+        _model_id, vectors = research._dense_vectors(["alpha"], MINILM_MODEL)
+        assert vectors == [[round(raw, 8), 0.0]]
+        assert vectors[0][0] == 0.12345679
+
+    def test_env_selected_bge_uses_pinned_constructor(self, monkeypatch):
+        monkeypatch.setenv("DISSOLVE_EMBEDDING_MODEL", BGE_MODEL)
+        fake = _install_fake_st(monkeypatch, output=[_unit_embedding_recipe(BGE_DIM, 0)])
+        model_id, _vectors = research._dense_vectors(["alpha"])
+        inits = _init_calls(fake)
+        assert model_id == BGE_MODEL
+        assert inits[0][1] == (BGE_MODEL,)
+        assert inits[0][2] == {"revision": BGE_REVISION, "device": "cpu"}
+
+    def test_load_failure_does_not_retry_or_substitute(self, monkeypatch):
+        fake = _install_fake_st(monkeypatch, output=[[1.0]], fail_init=True)
+        with pytest.raises(RuntimeError, match="could not be loaded or evaluated"):
+            research._dense_vectors(["alpha"], BGE_MODEL)
+        assert len(_init_calls(fake)) == 1
+        assert _encode_calls(fake) == []
+        assert _init_calls(fake)[0][1] == (BGE_MODEL,)
+
+    def test_encode_failure_does_not_retry(self, monkeypatch):
+        fake = _install_fake_st(monkeypatch, output=[[1.0]], fail_encode=True)
+        with pytest.raises(RuntimeError, match="could not be loaded or evaluated"):
+            research._dense_vectors(["alpha"], BGE_MODEL)
+        assert len(_init_calls(fake)) == 1
+        assert len(_encode_calls(fake)) == 1
+
+    def test_ingest_bge_metadata_and_passage_inputs(self, monkeypatch):
+        saves: list[dict] = []
+        result, seen_texts = _run_ingest(
+            monkeypatch,
+            model_id=BGE_MODEL,
+            vectors=[_unit_embedding_recipe(BGE_DIM, 0), _unit_embedding_recipe(BGE_DIM, 1)],
+            save_calls=saves,
+        )
+        assert result["dense_index_built"] is True
+        assert result["dense_model"] == BGE_MODEL
+        assert seen_texts == [_prepared()]
+        assert all(not text.startswith(BGE_QUERY) for text in seen_texts[0])
+        assert len(saves) == 1
+        dense = saves[0]["dense"]
+        assert dense["model"] == BGE_MODEL
+        assert dense["dim"] == BGE_DIM
+        assert dense["chunk_ids"] == [CHUNK_A, CHUNK_B]
+        assert dense["query_instruction"] == BGE_QUERY
+        assert dense["passage_instruction"] == ""
+        assert dense["encoder_revision"] == BGE_REVISION
+        assert dense["refuse_rule"] == research._REFUSE_RULE_SPARSE_GATED
+
+    def test_ingest_minilm_stamps_actual_dim(self, monkeypatch):
+        saves: list[dict] = []
+        _result, _seen = _run_ingest(
+            monkeypatch,
+            model_id=MINILM_MODEL,
+            vectors=[_unit_embedding_recipe(MINILM_DIM, 0), _unit_embedding_recipe(MINILM_DIM, 1)],
+            save_calls=saves,
+        )
+        dense = saves[0]["dense"]
+        assert dense["model"] == MINILM_MODEL
+        assert dense["dim"] == MINILM_DIM
+        assert "query_instruction" not in dense
+        assert dense["refuse_rule"] == research._REFUSE_RULE_SPARSE_GATED
+
+    @pytest.mark.parametrize(
+        "kind",
+        ["too_few", "too_many", "ragged", "zero", "non_unit", "nan", "inf"],
+    )
+    def test_ingest_malformed_vectors_do_not_save(self, kind, monkeypatch):
+        saves: list[dict] = []
+        with pytest.raises(research.LiteratureContractError) as caught:
+            _run_ingest(
+                monkeypatch,
+                model_id=BGE_MODEL,
+                vectors=_fault_vectors(kind, BGE_DIM),
+                save_calls=saves,
+            )
+        assert caught.value.code == "dense_vectors_invalid"
+        assert saves == []
+        assert TEXT_A not in str(caught.value)
+        assert TEXT_B not in str(caught.value)
+        assert "injected" not in str(caught.value)
+
+
+# --- from test_manifest_failclosed.py: Synthetic fail-closed tests for canonical product manifest and sidecar load.
+_OMIT = object()
+
+
+SIDECAR_KB = "t5-promoted-unsealed"
+
+
+INDEX_SCHEMA = "dissolve.literature-index.v1"
+
+
+PRODUCT_CHUNK = "synth-product-chunk"
+
+
+SIDECAR_CHUNK = "synth-sidecar-chunk"
+
+
+INDEPENDENT_CHUNK = "synth-independent-chunk"
+
+
+PRODUCT_TEXT = "zympoly product solventblend"
+
+
+SIDECAR_TEXT = "helioxane sidecar solventblend"
+
+
+INDEPENDENT_TEXT = "zympoly independent solventblend"
+
+
+UNION_FLOOR = 0.25
+
+
+LEAK_MARKERS = (
+    "JSONDecodeError",
+    "OSError",
+    "PermissionError",
+    "BadGzipFile",
+    "UnicodeDecodeError",
+    "OverflowError",
+    "zlib.error",
+    "Expecting value",
+    "Not a gzipped file",
+    "codec can't decode",
+    "invalid start byte",
+    "injected",
+)
+
+
+def _sha256(path: Path) -> str:
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def _snapshot(paths: list[Path]) -> dict[str, str | None]:
+    out: dict[str, str | None] = {}
+    for path in paths:
+        key = str(path)
+        if path.is_file():
+            out[key] = _sha256(path)
+        elif path.exists():
+            out[key] = "exists"
+        else:
+            out[key] = None
+    return out
+
+
+def _write_json(path: Path, payload: object) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(payload), encoding="utf-8")
+
+
+def _write_gzip_json(path: Path, payload: object) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with gzip.open(path, "wt", encoding="utf-8") as handle:
+        json.dump(payload, handle)
+
+
+def _make_index(knowledgebase: str, chunk_id: str, text: str, doc_key: str) -> dict:
+    return {
+        "schema": INDEX_SCHEMA,
+        "knowledgebase": knowledgebase,
+        "documents": [{
+            "document_id": f"D-{doc_key}",
+            "sha256": hashlib.sha256(doc_key.encode("utf-8")).hexdigest(),
+            "title": f"Synthetic {doc_key}",
+            "source": "synthetic-local",
+        }],
+        "chunks": [{
+            "chunk_id": chunk_id,
+            "sha256": hashlib.sha256(text.encode("utf-8")).hexdigest(),
+            "document_id": f"D-{doc_key}",
+            "title": f"Synthetic {doc_key}",
+            "source": "synthetic-local",
+            "text": text,
+            "body": text,
+        }],
+        "dense": None,
+    }
+
+
+def _abstention(floor: float) -> dict:
+    return {
+        "statistic": "query_idf_coverage",
+        "percentile": 5,
+        "floor": floor,
+        "calibrated_at": "2020-01-01T00:00:00+00:00",
+        "note": "synthetic-gate",
+    }
+
+
+def _public_search(query: str = QUERY, knowledgebase: str = PRODUCT_KB) -> dict:
+    return parse_tool_result(
+        research.search_literature_corpus(
+            query,
+            knowledgebase=knowledgebase,
+            top_k=5,
+            retrieval_mode="sparse",
+        )
+    )
+
+
+def _chunk_ids(index: dict) -> set[str]:
+    return {str(chunk.get("chunk_id") or "") for chunk in (index.get("chunks") or [])}
+
+
+def _assert_no_leak(text: str, query: str, paths: list[Path]) -> None:
+    assert query not in text
+    lowered = text.casefold()
+    for marker in LEAK_MARKERS:
+        assert marker.casefold() not in lowered
+    for path in paths:
+        assert str(path) not in text
+        assert path.name not in text
+
+
+def _assert_public_failure(parsed: dict, query: str, paths: list[Path]) -> None:
+    data = parsed["data"]
+    assert data["success"] is False
+    assert data["error_code"] == "corpus_read_failed"
+    assert data["tool_name"] == "search_literature_corpus"
+    assert "results" not in data
+    _assert_no_leak(parsed["display"], query, paths)
+    _assert_no_leak(str(data.get("error") or ""), query, paths)
+
+
+def _assert_helper_refusal(knowledgebase: str, query: str, paths: list[Path]) -> None:
+    with pytest.raises(research.LiteratureContractError) as caught:
+        research._load_index(knowledgebase)
+    message = str(caught.value)
+    _assert_no_leak(message, query, paths)
+
+
+@pytest.fixture
+def forbid_ranking(monkeypatch):
+    monkeypatch.setattr(
+        research,
+        "_search_index",
+        lambda *args, **kwargs: (_ for _ in ()).throw(
+            AssertionError("ranking reached on failure path")
+        ),
+    )
+
+
+def _seed_product(paths: dict, *, floor: float | None = UNION_FLOOR, promoted: object = _OMIT) -> None:
+    _write_gzip_json(
+        paths["index_path"],
+        _make_index(PRODUCT_KB, PRODUCT_CHUNK, PRODUCT_TEXT, "product"),
+    )
+    manifest: dict = {"schema": "synthetic.product-manifest.v1", "knowledgebase": PRODUCT_KB}
+    if floor is not None:
+        manifest["abstention"] = _abstention(floor)
+    if promoted is not _OMIT:
+        manifest["promoted"] = promoted
+    _write_json(paths["manifest_path"], manifest)
+
+
+def _seed_sidecar(tmp_path: Path, *, knowledgebase: str = SIDECAR_KB, extra: dict | None = None) -> Path:
+    sidecar_path = tmp_path / "sidecar.json.gz"
+    payload = _make_index(knowledgebase, SIDECAR_CHUNK, SIDECAR_TEXT, "sidecar")
+    if extra:
+        payload.update(extra)
+    _write_gzip_json(sidecar_path, payload)
+    return sidecar_path
+
+
+def _tracked(paths: dict, extra: list[Path] | None = None) -> list[Path]:
+    items = [paths["index_path"], paths["manifest_path"]]
+    if extra:
+        items.extend(extra)
+    return items
+
+
+class TestManifestFailclosed:
+    """Synthetic fail-closed tests for canonical product manifest and sidecar load."""
+
+    @pytest.fixture(autouse=True)
+    def _isolate(self, monkeypatch, tmp_path):
+        monkeypatch.delenv("DISSOLVE_RESEARCH_HOME", raising=False)
+        monkeypatch.setattr(
+            research,
+            "_dense_vectors",
+            lambda *args, **kwargs: (_ for _ in ()).throw(RuntimeError("model forbidden")),
+        )
+        monkeypatch.setattr(
+            research.rerank,
+            "_load_cross_encoder",
+            lambda *args, **kwargs: (_ for _ in ()).throw(RuntimeError("model forbidden")),
+        )
+        index_path = tmp_path / "canonical" / "product.json.gz"
+        manifest_path = tmp_path / "canonical" / "manifest.json"
+        monkeypatch.setattr(research, "_canonical_product_index_path", lambda: index_path)
+        monkeypatch.setattr(research, "_product_manifest_path", lambda: manifest_path)
+        yield {
+            "index_path": index_path,
+            "manifest_path": manifest_path,
+            "tmp_path": tmp_path,
+        }
+
+    def test_valid_product_sidecar_union(self, _isolate):
+        sidecar_path = _seed_sidecar(_isolate["tmp_path"])
+        _seed_product(
+            _isolate,
+            promoted={"knowledgebase": SIDECAR_KB, "index_path": str(sidecar_path)},
+        )
+        tracked = _tracked(_isolate, [sidecar_path])
+        before = _snapshot(tracked)
+        loaded = research._load_index(PRODUCT_KB)
+        assert _chunk_ids(loaded) == {PRODUCT_CHUNK, SIDECAR_CHUNK}
+        assert loaded["abstention"] == _abstention(UNION_FLOOR)
+        parsed = _public_search()
+        data = parsed["data"]
+        assert data["success"] is True
+        assert data["floor"] == UNION_FLOOR
+        returned = {row["chunk_id"] for row in data["results"]}
+        assert PRODUCT_CHUNK in returned
+        sidecar_hit = _public_search("helioxane")
+        assert sidecar_hit["data"]["success"] is True
+        assert SIDECAR_CHUNK in {row["chunk_id"] for row in sidecar_hit["data"]["results"]}
+        assert _snapshot(tracked) == before
+
+    def test_valid_product_only_manifest(self, _isolate):
+        _seed_product(_isolate, floor=None)
+        sidecar_path = _seed_sidecar(_isolate["tmp_path"])
+        tracked = _tracked(_isolate, [sidecar_path])
+        before = _snapshot(tracked)
+        loaded = research._load_index(PRODUCT_KB)
+        assert _chunk_ids(loaded) == {PRODUCT_CHUNK}
+        assert "abstention" not in loaded
+        assert "promoted" not in json.loads(_isolate["manifest_path"].read_text(encoding="utf-8"))
+        parsed = _public_search()
+        assert parsed["data"]["success"] is True
+        assert parsed["data"]["floor"] is None
+        assert {row["chunk_id"] for row in parsed["data"]["results"]} == {PRODUCT_CHUNK}
+        assert _snapshot(tracked) == before
+
+    def test_valid_zero_floor(self, _isolate):
+        _seed_product(_isolate, floor=0.0)
+        tracked = _tracked(_isolate)
+        before = _snapshot(tracked)
+        loaded = research._load_index(PRODUCT_KB)
+        assert loaded["abstention"]["floor"] == 0.0
+        parsed = _public_search()
+        data = parsed["data"]
+        assert data["success"] is True
+        assert data["floor"] == 0.0
+        assert data["result_count"] >= 1
+        assert _snapshot(tracked) == before
+
+    def test_noncanonical_independent_index(self, _isolate, monkeypatch):
+        home = _isolate["tmp_path"] / "research-home"
+        monkeypatch.setenv("DISSOLVE_RESEARCH_HOME", str(home))
+        independent = home / f"{INDEPENDENT_KB}.json.gz"
+        _write_gzip_json(
+            independent,
+            _make_index(INDEPENDENT_KB, INDEPENDENT_CHUNK, INDEPENDENT_TEXT, "independent"),
+        )
+        _isolate["manifest_path"].parent.mkdir(parents=True, exist_ok=True)
+        _isolate["manifest_path"].write_text("{", encoding="utf-8")
+        tracked = _tracked(_isolate, [independent])
+        before = _snapshot(tracked)
+        loaded = research._load_index(INDEPENDENT_KB)
+        assert _chunk_ids(loaded) == {INDEPENDENT_CHUNK}
+        parsed = _public_search(knowledgebase=INDEPENDENT_KB)
+        assert parsed["data"]["success"] is True
+        assert {row["chunk_id"] for row in parsed["data"]["results"]} == {INDEPENDENT_CHUNK}
+        assert _snapshot(tracked) == before
+
+    @pytest.mark.parametrize(
+        "case",
+        ["missing", "unreadable", "malformed", "non_object"],
+        ids=["missing", "unreadable", "malformed", "non_object"],
+    )
+    def test_canonical_manifest_faults(self, case, _isolate, monkeypatch, forbid_ranking):
+        _write_gzip_json(
+            _isolate["index_path"],
+            _make_index(PRODUCT_KB, PRODUCT_CHUNK, PRODUCT_TEXT, "product"),
+        )
+        manifest_path = _isolate["manifest_path"]
+        if case == "missing":
+            if manifest_path.exists():
+                manifest_path.unlink()
+        elif case == "unreadable":
+            _write_json(manifest_path, {"abstention": _abstention(UNION_FLOOR)})
+            real = Path.read_text
+
+            def fake_read(self, *args, **kwargs):
+                if self.resolve() == manifest_path.resolve():
+                    raise OSError("injected")
+                return real(self, *args, **kwargs)
+
+            monkeypatch.setattr(Path, "read_text", fake_read)
+        elif case == "malformed":
+            manifest_path.parent.mkdir(parents=True, exist_ok=True)
+            manifest_path.write_text("{", encoding="utf-8")
+        else:
+            _write_json(manifest_path, ["not-an-object"])
+        tracked = _tracked(_isolate)
+        before = _snapshot(tracked)
+        _assert_helper_refusal(PRODUCT_KB, QUERY, tracked)
+        _assert_public_failure(_public_search(), QUERY, tracked)
+        assert _snapshot(tracked) == before
+
+    @pytest.mark.parametrize(
+        "promoted",
+        [None, ["not-mapping"], {}, {"index_path": ""}, {"index_path": "   "}],
+        ids=["null", "list", "empty_mapping", "empty_path", "whitespace_path"],
+    )
+    def test_invalid_promoted_declaration(self, promoted, _isolate, forbid_ranking):
+        _seed_product(_isolate, promoted=promoted)
+        tracked = _tracked(_isolate)
+        before = _snapshot(tracked)
+        _assert_helper_refusal(PRODUCT_KB, QUERY, tracked)
+        _assert_public_failure(_public_search(), QUERY, tracked)
+        assert _snapshot(tracked) == before
+
+    @pytest.mark.parametrize(
+        "case",
+        [
+            "missing",
+            "directory",
+            "unreadable",
+            "bad_gzip",
+            "bad_json",
+            "non_object",
+            "wrong_schema",
+            "mismatched_knowledgebase",
+        ],
+    )
+    def test_advertised_sidecar_faults(self, case, _isolate, monkeypatch, forbid_ranking):
+        tmp_path = _isolate["tmp_path"]
+        sidecar_path = tmp_path / "sidecar.json.gz"
+        extra: list[Path] = [sidecar_path]
+        if case == "missing":
+            _seed_product(
+                _isolate,
+                promoted={"knowledgebase": SIDECAR_KB, "index_path": str(sidecar_path)},
+            )
+        elif case == "directory":
+            sidecar_path.mkdir(parents=True)
+            _seed_product(
+                _isolate,
+                promoted={"knowledgebase": SIDECAR_KB, "index_path": str(sidecar_path)},
+            )
+        elif case == "unreadable":
+            sidecar_path = _seed_sidecar(tmp_path)
+            extra = [sidecar_path]
+            _seed_product(
+                _isolate,
+                promoted={"knowledgebase": SIDECAR_KB, "index_path": str(sidecar_path)},
+            )
+            real = research.gzip.open
+
+            def fake_open(path, *args, **kwargs):
+                if Path(path).resolve() == sidecar_path.resolve():
+                    raise OSError("injected")
+                return real(path, *args, **kwargs)
+
+            monkeypatch.setattr(research.gzip, "open", fake_open)
+        elif case == "bad_gzip":
+            sidecar_path.write_bytes(b"not-gzip-bytes")
+            _seed_product(
+                _isolate,
+                promoted={"knowledgebase": SIDECAR_KB, "index_path": str(sidecar_path)},
+            )
+        elif case == "bad_json":
+            sidecar_path.parent.mkdir(parents=True, exist_ok=True)
+            with gzip.open(sidecar_path, "wt", encoding="utf-8") as handle:
+                handle.write("{")
+            _seed_product(
+                _isolate,
+                promoted={"knowledgebase": SIDECAR_KB, "index_path": str(sidecar_path)},
+            )
+        elif case == "non_object":
+            _write_gzip_json(sidecar_path, ["not-an-object"])
+            _seed_product(
+                _isolate,
+                promoted={"knowledgebase": SIDECAR_KB, "index_path": str(sidecar_path)},
+            )
+        elif case == "wrong_schema":
+            sidecar_path = _seed_sidecar(tmp_path, extra={"schema": "dissolve.literature-index.v0"})
+            extra = [sidecar_path]
+            _seed_product(
+                _isolate,
+                promoted={"knowledgebase": SIDECAR_KB, "index_path": str(sidecar_path)},
+            )
+        else:
+            sidecar_path = _seed_sidecar(tmp_path, knowledgebase=PRODUCT_KB)
+            extra = [sidecar_path]
+            _seed_product(
+                _isolate,
+                promoted={"knowledgebase": SIDECAR_KB, "index_path": str(sidecar_path)},
+            )
+        tracked = _tracked(_isolate, extra)
+        before = _snapshot(tracked)
+        _assert_helper_refusal(PRODUCT_KB, QUERY, tracked)
+        _assert_public_failure(_public_search(), QUERY, tracked)
+        assert _snapshot(tracked) == before
+
+    @pytest.mark.parametrize(
+        "block",
+        [
+            ["not-mapping"],
+            {"statistic": "query_idf_coverage"},
+            {"floor": None},
+            {"floor": True},
+            {"floor": False},
+            {"floor": math.nan},
+            {"floor": math.inf},
+            {"floor": -math.inf},
+        ],
+        ids=[
+            "list",
+            "missing_floor",
+            "null_floor",
+            "bool_true",
+            "bool_false",
+            "nan",
+            "inf",
+            "ninf",
+        ],
+    )
+    def test_malformed_present_abstention(self, block, _isolate, forbid_ranking):
+        _write_gzip_json(
+            _isolate["index_path"],
+            _make_index(PRODUCT_KB, PRODUCT_CHUNK, PRODUCT_TEXT, "product"),
+        )
+        _write_json(_isolate["manifest_path"], {"knowledgebase": PRODUCT_KB, "abstention": block})
+        tracked = _tracked(_isolate)
+        before = _snapshot(tracked)
+        _assert_helper_refusal(PRODUCT_KB, QUERY, tracked)
+        _assert_public_failure(_public_search(), QUERY, tracked)
+        assert _snapshot(tracked) == before
+
+    def test_canonical_manifest_undecodable_bytes(self, _isolate, forbid_ranking):
+        _write_gzip_json(
+            _isolate["index_path"],
+            _make_index(PRODUCT_KB, PRODUCT_CHUNK, PRODUCT_TEXT, "product"),
+        )
+        manifest_path = _isolate["manifest_path"]
+        manifest_path.parent.mkdir(parents=True, exist_ok=True)
+        manifest_path.write_bytes(b"\xff")
+        tracked = _tracked(_isolate)
+        before = _snapshot(tracked)
+        _assert_helper_refusal(PRODUCT_KB, QUERY, tracked)
+        _assert_public_failure(_public_search(), QUERY, tracked)
+        assert _snapshot(tracked) == before
+
+    def test_abstention_floor_overflow(self, _isolate, forbid_ranking):
+        _write_gzip_json(
+            _isolate["index_path"],
+            _make_index(PRODUCT_KB, PRODUCT_CHUNK, PRODUCT_TEXT, "product"),
+        )
+        _write_json(
+            _isolate["manifest_path"],
+            {"knowledgebase": PRODUCT_KB, "abstention": {"floor": 10 ** 400}},
+        )
+        tracked = _tracked(_isolate)
+        before = _snapshot(tracked)
+        _assert_helper_refusal(PRODUCT_KB, QUERY, tracked)
+        _assert_public_failure(_public_search(), QUERY, tracked)
+        assert _snapshot(tracked) == before
+
+    def test_advertised_sidecar_truncated_gzip(self, _isolate, forbid_ranking):
+        sidecar_path = _isolate["tmp_path"] / "sidecar.json.gz"
+        sidecar_path.write_bytes(b"\x1f\x8b\x08\x00\x00\x00\x00\x00\x00\x03\x07" + b"\x00" * 16)
+        _seed_product(
+            _isolate,
+            promoted={"knowledgebase": SIDECAR_KB, "index_path": str(sidecar_path)},
+        )
+        tracked = _tracked(_isolate, [sidecar_path])
+        before = _snapshot(tracked)
+        _assert_helper_refusal(PRODUCT_KB, QUERY, tracked)
+        _assert_public_failure(_public_search(), QUERY, tracked)
+        assert _snapshot(tracked) == before
+
+
+# --- from test_profile_routing.py: Synthetic profile-routing and compatible-dense-union tests. No real corpus.
+BGE_CHUNK_A = "synth-bge-chunk-a"
+
+
+BGE_CHUNK_B = "synth-bge-chunk-b"
+
+
+BGE_TEXT_A = "zympoly bge solventblend"
+
+
+BGE_TEXT_B = "helioxane bge solventblend"
+
+
+BGE_FLOOR = 0.3698406656908355
+
+
+BGE_QUERY_INSTRUCTION = research._BGE_QUERY_INSTRUCTION
+
+
+BGE_PASSAGE_INSTRUCTION = research._BGE_PASSAGE_INSTRUCTION
+
+
+def _unit_profile_routing(dim: int, axis: int) -> list[float]:
+    row = [0.0] * dim
+    row[axis] = 1.0
+    return row
+
+
+def _doc(doc_key: str) -> dict:
+    return {
+        "document_id": f"D-{doc_key}",
+        "sha256": hashlib.sha256(doc_key.encode("utf-8")).hexdigest(),
+        "title": f"Synthetic {doc_key}",
+        "source": "synthetic-local",
+    }
+
+
+def _chunk_profile_routing(chunk_id: str, text: str, doc_key: str) -> dict:
+    return {
+        "chunk_id": chunk_id,
+        "sha256": hashlib.sha256(text.encode("utf-8")).hexdigest(),
+        "document_id": f"D-{doc_key}",
+        "title": f"Synthetic {doc_key}",
+        "source": "synthetic-local",
+        "text": text,
+        "body": text,
+    }
+
+
+def _make_index_profile_routing(
+    knowledgebase: str,
+    chunks: list[tuple[str, str, str]],
+    *,
+    dense: dict | None = None,
+    abstention: object = _OMIT,
+) -> dict:
+    payload: dict = {
+        "schema": INDEX_SCHEMA,
+        "knowledgebase": knowledgebase,
+        "documents": [_doc(doc_key) for _, _, doc_key in chunks],
+        "chunks": [_chunk_profile_routing(chunk_id, text, doc_key) for chunk_id, text, doc_key in chunks],
+        "dense": dense,
+    }
+    if abstention is not _OMIT:
+        payload["abstention"] = abstention
+    return payload
+
+
+def _dense(
+    chunk_ids: list[str],
+    vectors: list[list[float]],
+    *,
+    model: str | None = MINILM_MODEL,
+    dim: int | None = MINILM_DIM,
+    **meta: object,
+) -> dict:
+    block: dict = {
+        "chunk_ids": list(chunk_ids),
+        "vectors": vectors,
+    }
+    if model is not None:
+        block["model"] = model
+    if dim is not None:
+        block["dim"] = dim
+    block.update(meta)
+    return block
+
+
+def _minilm_dense_profile_routing(chunk_ids: list[str], axes: list[int], **meta: object) -> dict:
+    return _dense(
+        chunk_ids,
+        [_unit_profile_routing(MINILM_DIM, axis) for axis in axes],
+        model=MINILM_MODEL,
+        dim=MINILM_DIM,
+        **meta,
+    )
+
+
+def _bge_dense_profile_routing(chunk_ids: list[str], axes: list[int], **meta: object) -> dict:
+    meta.setdefault("query_instruction", BGE_QUERY_INSTRUCTION)
+    meta.setdefault("passage_instruction", BGE_PASSAGE_INSTRUCTION)
+    meta.setdefault("encoder_revision", BGE_REVISION)
+    return _dense(
+        chunk_ids,
+        [_unit_profile_routing(BGE_DIM, axis) for axis in axes],
+        model=BGE_MODEL,
+        dim=BGE_DIM,
+        **meta,
+    )
+
+
+def _chunk_ids_profile_routing(index: dict) -> list[str]:
+    return [str(chunk.get("chunk_id") or "") for chunk in (index.get("chunks") or [])]
+
+
+def _assert_helper_refusal_profile_routing(knowledgebase: str, query: str, paths: list[Path]) -> None:
+    with pytest.raises(research.LiteratureContractError) as caught:
+        research._load_index(knowledgebase)
+    _assert_no_leak(str(caught.value), query, paths)
+
+
+def _assert_union_refusal(left: dict, right: dict) -> None:
+    original_left = json.dumps(left, sort_keys=True)
+    original_right = json.dumps(right, sort_keys=True)
+    with pytest.raises(research.LiteratureContractError) as caught:
+        research._union_product_and_sidecar(left, right)
+    assert caught.value.code == "dense_union_incompatible"
+    assert json.dumps(left, sort_keys=True) == original_left
+    assert json.dumps(right, sort_keys=True) == original_right
+
+
+def _seed_product_profile_routing(paths: dict, *, floor: float | None = UNION_FLOOR, promoted: object = _OMIT, dense=None) -> None:
+    payload = _make_index_profile_routing(
+        PRODUCT_KB,
+        [(PRODUCT_CHUNK, PRODUCT_TEXT, "product")],
+        dense=dense,
+    )
+    _write_gzip_json(paths["index_path"], payload)
+    manifest: dict = {"schema": "synthetic.product-manifest.v1", "knowledgebase": PRODUCT_KB}
+    if floor is not None:
+        manifest["abstention"] = _abstention(floor)
+    if promoted is not _OMIT:
+        manifest["promoted"] = promoted
+    _write_json(paths["manifest_path"], manifest)
+
+
+def _seed_sidecar_profile_routing(tmp_path: Path, *, dense=None, extra: dict | None = None) -> Path:
+    sidecar_path = tmp_path / "sidecar.json.gz"
+    payload = _make_index_profile_routing(
+        SIDECAR_KB,
+        [(SIDECAR_CHUNK, SIDECAR_TEXT, "sidecar")],
+        dense=dense,
+    )
+    if extra:
+        payload.update(extra)
+    _write_gzip_json(sidecar_path, payload)
+    return sidecar_path
+
+
+def _seed_minilm_pair(paths: dict, *, product_dense=None, sidecar_dense=None) -> Path:
+    sidecar_path = _seed_sidecar_profile_routing(paths["tmp_path"], dense=sidecar_dense)
+    _seed_product_profile_routing(
+        paths,
+        promoted={"knowledgebase": SIDECAR_KB, "index_path": str(sidecar_path)},
+        dense=product_dense,
+    )
+    return sidecar_path
+
+
+def _bge_index_payload() -> dict:
+    return _make_index_profile_routing(
+        PRODUCT_KB,
+        [
+            (BGE_CHUNK_A, BGE_TEXT_A, "bge-a"),
+            (BGE_CHUNK_B, BGE_TEXT_B, "bge-b"),
+        ],
+        dense=_bge_dense_profile_routing([BGE_CHUNK_A, BGE_CHUNK_B], [0, 1]),
+    )
+
+
+def _seed_bge(paths: dict, *, relative: bool = False, mutate_manifest=None, mutate_index=None) -> dict:
+    root = paths["tmp_path"] / "bge"
+    index_path = root / "indexes" / "bge.json.gz"
+    payload = _bge_index_payload()
+    if mutate_index is not None:
+        payload = mutate_index(payload)
+    _write_gzip_json(index_path, payload)
+    manifest_path = root / "BGE10.manifest.json"
+    declared_index = "indexes/bge.json.gz" if relative else str(index_path)
+    manifest = {
+        "knowledgebase": PRODUCT_KB,
+        "index_path": declared_index,
+        "gzip_sha256": _sha256(index_path),
+        "dense": {
+            "model": BGE_MODEL,
+            "dim": BGE_DIM,
+            "query_instruction": BGE_QUERY_INSTRUCTION,
+            "passage_instruction": BGE_PASSAGE_INSTRUCTION,
+            "encoder_revision": BGE_REVISION,
+            "chunk_ids": [BGE_CHUNK_A, BGE_CHUNK_B],
+        },
+        "abstention": _abstention(BGE_FLOOR),
+    }
+    if mutate_manifest is not None:
+        manifest = mutate_manifest(manifest, index_path)
+    _write_json(manifest_path, manifest)
+    return {
+        "manifest_path": manifest_path,
+        "index_path": index_path,
+        "payload": payload,
+    }
+
+
+def _spy_paths(monkeypatch) -> list[Path]:
+    seen: list[Path] = []
+
+    def remember(path: Path) -> None:
+        try:
+            seen.append(path.resolve())
+        except OSError:
+            seen.append(path)
+
+    real_open = research.gzip.open
+
+    def fake_open(path, *args, **kwargs):
+        remember(Path(path))
+        return real_open(path, *args, **kwargs)
+
+    real_read_text = Path.read_text
+    real_read_bytes = Path.read_bytes
+
+    def fake_read_text(self, *args, **kwargs):
+        remember(self)
+        return real_read_text(self, *args, **kwargs)
+
+    def fake_read_bytes(self, *args, **kwargs):
+        remember(self)
+        return real_read_bytes(self, *args, **kwargs)
+
+    monkeypatch.setattr(research.gzip, "open", fake_open)
+    monkeypatch.setattr(Path, "read_text", fake_read_text)
+    monkeypatch.setattr(Path, "read_bytes", fake_read_bytes)
+    return seen
+
+
+class TestProfileRouting:
+    """Synthetic profile-routing and compatible-dense-union tests. No real corpus."""
+
+    @pytest.fixture(autouse=True)
+    def _isolate(self, monkeypatch, tmp_path):
+        monkeypatch.delenv("DISSOLVE_RESEARCH_HOME", raising=False)
+        monkeypatch.delenv("DISSOLVE_CORPUS_PROFILE", raising=False)
+        monkeypatch.delenv("DISSOLVE_BGE10_MANIFEST", raising=False)
+        monkeypatch.setattr(
+            research,
+            "_dense_vectors",
+            lambda *args, **kwargs: (_ for _ in ()).throw(RuntimeError("model forbidden")),
+        )
+        monkeypatch.setattr(
+            research.rerank,
+            "_load_cross_encoder",
+            lambda *args, **kwargs: (_ for _ in ()).throw(RuntimeError("model forbidden")),
+        )
+        index_path = tmp_path / "canonical" / "product.json.gz"
+        manifest_path = tmp_path / "canonical" / "manifest.json"
+        monkeypatch.setattr(research, "_canonical_product_index_path", lambda: index_path)
+        monkeypatch.setattr(research, "_product_manifest_path", lambda: manifest_path)
+        yield {
+            "index_path": index_path,
+            "manifest_path": manifest_path,
+            "tmp_path": tmp_path,
+        }
+
+    def test_unset_and_explicit_minilm_select_product_sidecar(self, _isolate, monkeypatch):
+        sidecar_path = _seed_minilm_pair(_isolate)
+        tracked = _tracked(_isolate, [sidecar_path])
+        before = _snapshot(tracked)
+        monkeypatch.delenv("DISSOLVE_CORPUS_PROFILE", raising=False)
+        unset_loaded = research._load_index(PRODUCT_KB)
+        unset_search = _public_search()
+        monkeypatch.setenv("DISSOLVE_CORPUS_PROFILE", "minilm")
+        explicit_loaded = research._load_index(PRODUCT_KB)
+        explicit_search = _public_search()
+        assert _chunk_ids_profile_routing(unset_loaded) == [PRODUCT_CHUNK, SIDECAR_CHUNK]
+        assert _chunk_ids_profile_routing(explicit_loaded) == [PRODUCT_CHUNK, SIDECAR_CHUNK]
+        assert unset_loaded["abstention"] == _abstention(UNION_FLOOR)
+        assert explicit_loaded["abstention"] == _abstention(UNION_FLOOR)
+        assert unset_search["data"]["success"] is True
+        assert explicit_search["data"]["success"] is True
+        assert unset_search["data"]["floor"] == UNION_FLOOR
+        assert explicit_search["data"]["floor"] == UNION_FLOOR
+        assert {row["chunk_id"] for row in unset_search["data"]["results"]} == {PRODUCT_CHUNK}
+        assert {row["chunk_id"] for row in _public_search("helioxane")["data"]["results"]} == {SIDECAR_CHUNK}
+        assert _snapshot(tracked) == before
+
+    def test_explicit_bge10_selects_manifest_only(self, _isolate, monkeypatch):
+        sidecar_path = _seed_minilm_pair(_isolate)
+        bge = _seed_bge(_isolate, relative=True)
+        monkeypatch.setenv("DISSOLVE_CORPUS_PROFILE", "bge10")
+        monkeypatch.setenv("DISSOLVE_BGE10_MANIFEST", str(bge["manifest_path"]))
+        real_open = research.gzip.open
+
+        def fake_open(path, *args, **kwargs):
+            resolved = Path(path).resolve()
+            if resolved in {_isolate["index_path"].resolve(), sidecar_path.resolve()}:
+                raise AssertionError("legacy path read")
+            return real_open(path, *args, **kwargs)
+
+        monkeypatch.setattr(research.gzip, "open", fake_open)
+        tracked = _tracked(_isolate, [sidecar_path, bge["index_path"], bge["manifest_path"]])
+        before = _snapshot(tracked)
+        loaded = research._load_index(PRODUCT_KB)
+        assert _chunk_ids_profile_routing(loaded) == [BGE_CHUNK_A, BGE_CHUNK_B]
+        assert loaded["dense"]["model"] == BGE_MODEL
+        assert loaded["dense"]["dim"] == BGE_DIM
+        assert loaded["dense"]["encoder_revision"] == BGE_REVISION
+        assert loaded["abstention"]["floor"] == BGE_FLOOR
+        parsed = _public_search()
+        assert parsed["data"]["success"] is True
+        assert parsed["data"]["floor"] == round(BGE_FLOOR, 6)
+        assert {row["chunk_id"] for row in parsed["data"]["results"]} == {BGE_CHUNK_A}
+        assert _snapshot(tracked) == before
+
+    def test_unknown_profile_refuses_before_ranking(self, _isolate, forbid_ranking, monkeypatch):
+        _seed_minilm_pair(_isolate)
+        monkeypatch.setenv("DISSOLVE_CORPUS_PROFILE", "other")
+        tracked = _tracked(_isolate)
+        before = _snapshot(tracked)
+        _assert_helper_refusal_profile_routing(PRODUCT_KB, QUERY, tracked)
+        _assert_helper_refusal_profile_routing(INDEPENDENT_KB, QUERY, tracked)
+        _assert_public_failure(_public_search(), QUERY, tracked)
+        assert _snapshot(tracked) == before
+
+    @pytest.mark.parametrize(
+        "case",
+        [
+            "missing_env",
+            "empty_env",
+            "missing_file",
+            "malformed",
+            "unreadable",
+            "wrong_digest",
+            "wrong_knowledgebase",
+            "missing_floor",
+            "model_mismatch",
+            "dimension_mismatch",
+            "revision_mismatch",
+            "instruction_mismatch",
+            "index_model_mismatch",
+            "index_dimension_mismatch",
+            "index_revision_mismatch",
+            "index_instruction_mismatch",
+        ],
+    )
+    def test_bge10_manifest_and_recipe_faults(self, case, _isolate, forbid_ranking, monkeypatch):
+        def mutate_manifest(manifest, index_path):
+            if case == "wrong_digest":
+                manifest["gzip_sha256"] = "0" * 64
+                return manifest
+            if case == "wrong_knowledgebase":
+                manifest["knowledgebase"] = SIDECAR_KB
+            elif case == "missing_floor":
+                del manifest["abstention"]
+            elif case == "model_mismatch":
+                manifest["dense"]["model"] = MINILM_MODEL
+            elif case == "dimension_mismatch":
+                manifest["dense"]["dim"] = MINILM_DIM
+            elif case == "revision_mismatch":
+                manifest["dense"]["encoder_revision"] = "deadbeef" * 8
+            elif case == "instruction_mismatch":
+                manifest["dense"]["query_instruction"] = "other instruction: "
+            return manifest
+
+        def mutate_index(payload):
+            if case == "index_model_mismatch":
+                payload["dense"]["model"] = MINILM_MODEL
+            elif case == "index_dimension_mismatch":
+                payload["dense"]["dim"] = MINILM_DIM
+            elif case == "index_revision_mismatch":
+                payload["dense"]["encoder_revision"] = "c" * 40
+            elif case == "index_instruction_mismatch":
+                payload["dense"]["query_instruction"] = "other instruction: "
+            return payload
+
+        index_cases = {
+            "index_model_mismatch",
+            "index_dimension_mismatch",
+            "index_revision_mismatch",
+            "index_instruction_mismatch",
+        }
+        skip_manifest = {
+            "missing_env",
+            "empty_env",
+            "missing_file",
+            "malformed",
+            "unreadable",
+            *index_cases,
+        }
+        bge = _seed_bge(
+            _isolate,
+            relative=True,
+            mutate_manifest=None if case in skip_manifest else mutate_manifest,
+            mutate_index=mutate_index if case in index_cases else None,
+        )
+        monkeypatch.setenv("DISSOLVE_CORPUS_PROFILE", "bge10")
+        if case == "missing_env":
+            monkeypatch.delenv("DISSOLVE_BGE10_MANIFEST", raising=False)
+            tracked = _tracked(_isolate, [bge["index_path"], bge["manifest_path"]])
+        elif case == "empty_env":
+            monkeypatch.setenv("DISSOLVE_BGE10_MANIFEST", "  ")
+            tracked = _tracked(_isolate, [bge["index_path"], bge["manifest_path"]])
+        elif case == "missing_file":
+            monkeypatch.setenv("DISSOLVE_BGE10_MANIFEST", str(bge["manifest_path"].with_name("absent.json")))
+            tracked = _tracked(_isolate, [bge["index_path"], bge["manifest_path"]])
+        elif case == "malformed":
+            bge["manifest_path"].write_text("{", encoding="utf-8")
+            monkeypatch.setenv("DISSOLVE_BGE10_MANIFEST", str(bge["manifest_path"]))
+            tracked = _tracked(_isolate, [bge["index_path"], bge["manifest_path"]])
+        elif case == "unreadable":
+            monkeypatch.setenv("DISSOLVE_BGE10_MANIFEST", str(bge["manifest_path"]))
+            real = Path.read_text
+
+            def fake_read(self, *args, **kwargs):
+                if self.resolve() == bge["manifest_path"].resolve():
+                    raise OSError("injected")
+                return real(self, *args, **kwargs)
+
+            monkeypatch.setattr(Path, "read_text", fake_read)
+            tracked = _tracked(_isolate, [bge["index_path"], bge["manifest_path"]])
+        else:
+            monkeypatch.setenv("DISSOLVE_BGE10_MANIFEST", str(bge["manifest_path"]))
+            tracked = _tracked(_isolate, [bge["index_path"], bge["manifest_path"]])
+        before = _snapshot(tracked)
+        _assert_helper_refusal_profile_routing(PRODUCT_KB, QUERY, tracked)
+        _assert_public_failure(_public_search(), QUERY, tracked)
+        assert _snapshot(tracked) == before
+
+    def test_relative_index_path_ignores_cwd(self, _isolate, monkeypatch):
+        bge = _seed_bge(_isolate, relative=True)
+        monkeypatch.setenv("DISSOLVE_CORPUS_PROFILE", "bge10")
+        monkeypatch.setenv("DISSOLVE_BGE10_MANIFEST", str(bge["manifest_path"]))
+        cwd = _isolate["tmp_path"] / "other-cwd"
+        decoy = cwd / "indexes" / "bge.json.gz"
+        _write_gzip_json(
+            decoy,
+            _make_index_profile_routing(PRODUCT_KB, [(INDEPENDENT_CHUNK, INDEPENDENT_TEXT, "decoy")]),
+        )
+        monkeypatch.chdir(cwd)
+        tracked = [bge["index_path"], bge["manifest_path"], decoy]
+        before = _snapshot(tracked)
+        loaded = research._load_index(PRODUCT_KB)
+        assert _chunk_ids_profile_routing(loaded) == [BGE_CHUNK_A, BGE_CHUNK_B]
+        assert INDEPENDENT_CHUNK not in _chunk_ids_profile_routing(loaded)
+        assert _snapshot(tracked) == before
+
+    def test_alias_save_protection_selected_and_original(self, _isolate, monkeypatch):
+        bge = _seed_bge(_isolate)
+        _seed_product_profile_routing(_isolate)
+        monkeypatch.setenv("DISSOLVE_CORPUS_PROFILE", "bge10")
+        monkeypatch.setenv("DISSOLVE_BGE10_MANIFEST", str(bge["manifest_path"]))
+        alias_dir = _isolate["tmp_path"] / "aliases"
+        alias_dir.mkdir()
+        selected_alias = alias_dir / "selected.json.gz"
+        original_alias = alias_dir / "original.json.gz"
+        selected_alias.symlink_to(bge["index_path"].resolve())
+        original_alias.symlink_to(_isolate["index_path"].resolve())
+        payload = _make_index_profile_routing(INDEPENDENT_KB, [(INDEPENDENT_CHUNK, INDEPENDENT_TEXT, "independent")])
+        tracked = [bge["index_path"], _isolate["index_path"], selected_alias, original_alias]
+        before = _snapshot(tracked)
+        monkeypatch.setattr(research, "_index_path", lambda knowledgebase: selected_alias)
+        with pytest.raises(research.LiteratureContractError) as selected:
+            research._save_index(payload)
+        assert selected.value.code == "protected_serving_index"
+        monkeypatch.setattr(research, "_index_path", lambda knowledgebase: original_alias)
+        with pytest.raises(research.LiteratureContractError) as original:
+            research._save_index(payload)
+        assert original.value.code == "protected_serving_index"
+        assert _snapshot(tracked) == before
+
+    def test_noncanonical_independent_of_profile(self, _isolate, monkeypatch):
+        home = _isolate["tmp_path"] / "research-home"
+        independent = home / f"{INDEPENDENT_KB}.json.gz"
+        _write_gzip_json(
+            independent,
+            _make_index_profile_routing(INDEPENDENT_KB, [(INDEPENDENT_CHUNK, INDEPENDENT_TEXT, "independent")]),
+        )
+        bge = _seed_bge(_isolate)
+        _isolate["manifest_path"].parent.mkdir(parents=True, exist_ok=True)
+        _isolate["manifest_path"].write_text("{", encoding="utf-8")
+        monkeypatch.setenv("DISSOLVE_RESEARCH_HOME", str(home))
+        tracked = _tracked(_isolate, [independent, bge["index_path"], bge["manifest_path"]])
+        before = _snapshot(tracked)
+        monkeypatch.delenv("DISSOLVE_CORPUS_PROFILE", raising=False)
+        unset = research._load_index(INDEPENDENT_KB)
+        monkeypatch.setenv("DISSOLVE_CORPUS_PROFILE", "minilm")
+        minilm = research._load_index(INDEPENDENT_KB)
+        monkeypatch.setenv("DISSOLVE_CORPUS_PROFILE", "bge10")
+        monkeypatch.setenv("DISSOLVE_BGE10_MANIFEST", str(bge["manifest_path"]))
+        bge10 = research._load_index(INDEPENDENT_KB)
+        monkeypatch.delenv("DISSOLVE_BGE10_MANIFEST", raising=False)
+        bge10_without_manifest = research._load_index(INDEPENDENT_KB)
+        for loaded in (unset, minilm, bge10, bge10_without_manifest):
+            assert _chunk_ids_profile_routing(loaded) == [INDEPENDENT_CHUNK]
+        parsed = _public_search(knowledgebase=INDEPENDENT_KB)
+        assert parsed["data"]["success"] is True
+        assert {row["chunk_id"] for row in parsed["data"]["results"]} == {INDEPENDENT_CHUNK}
+        assert _snapshot(tracked) == before
+
+    def test_bge10_does_not_fallback_to_research_home(self, _isolate, monkeypatch):
+        home = _isolate["tmp_path"] / "research-home"
+        decoy = home / f"{PRODUCT_KB}.json.gz"
+        _write_gzip_json(
+            decoy,
+            _make_index_profile_routing(PRODUCT_KB, [(INDEPENDENT_CHUNK, INDEPENDENT_TEXT, "decoy")]),
+        )
+        bge = _seed_bge(_isolate)
+        monkeypatch.setenv("DISSOLVE_RESEARCH_HOME", str(home))
+        monkeypatch.setenv("DISSOLVE_CORPUS_PROFILE", "bge10")
+        monkeypatch.setenv("DISSOLVE_BGE10_MANIFEST", str(bge["manifest_path"]))
+        loaded = research._load_index(PRODUCT_KB)
+        assert _chunk_ids_profile_routing(loaded) == [BGE_CHUNK_A, BGE_CHUNK_B]
+        assert INDEPENDENT_CHUNK not in _chunk_ids_profile_routing(loaded)
+
+    def test_minilm_ignores_bge_manifest(self, _isolate, monkeypatch):
+        sidecar_path = _seed_minilm_pair(_isolate)
+        bge = _seed_bge(_isolate)
+        monkeypatch.setenv("DISSOLVE_CORPUS_PROFILE", "minilm")
+        monkeypatch.setenv("DISSOLVE_BGE10_MANIFEST", str(bge["manifest_path"]))
+        real_open = research.gzip.open
+
+        def fake_open(path, *args, **kwargs):
+            if Path(path).resolve() == bge["index_path"].resolve():
+                raise AssertionError("bge index read on minilm profile")
+            return real_open(path, *args, **kwargs)
+
+        monkeypatch.setattr(research.gzip, "open", fake_open)
+        loaded = research._load_index(PRODUCT_KB)
+        assert _chunk_ids_profile_routing(loaded) == [PRODUCT_CHUNK, SIDECAR_CHUNK]
+
+    def test_compatible_minilm_union_aligns_by_id(self, _isolate):
+        product = _make_index_profile_routing(
+            PRODUCT_KB,
+            [(PRODUCT_CHUNK, PRODUCT_TEXT, "product")],
+            dense=_minilm_dense_profile_routing([PRODUCT_CHUNK], [1], query_instruction="", encoder_revision=""),
+            abstention=_abstention(UNION_FLOOR),
+        )
+        sidecar = _make_index_profile_routing(
+            SIDECAR_KB,
+            [(SIDECAR_CHUNK, SIDECAR_TEXT, "sidecar")],
+            dense=_minilm_dense_profile_routing([SIDECAR_CHUNK], [0], query_instruction="", encoder_revision=""),
+        )
+        sidecar["dense"]["chunk_ids"] = [SIDECAR_CHUNK]
+        sidecar["dense"]["vectors"] = [_unit_profile_routing(MINILM_DIM, 0)]
+        product["dense"]["chunk_ids"] = [PRODUCT_CHUNK]
+        product["dense"]["vectors"] = [_unit_profile_routing(MINILM_DIM, 1)]
+        left = json.dumps(product, sort_keys=True)
+        right = json.dumps(sidecar, sort_keys=True)
+        union = research._union_product_and_sidecar(product, sidecar)
+        assert _chunk_ids_profile_routing(union) == [PRODUCT_CHUNK, SIDECAR_CHUNK]
+        assert union["dense"]["chunk_ids"] == [PRODUCT_CHUNK, SIDECAR_CHUNK]
+        assert union["dense"]["vectors"][0] == _unit_profile_routing(MINILM_DIM, 1)
+        assert union["dense"]["vectors"][1] == _unit_profile_routing(MINILM_DIM, 0)
+        assert union["dense"]["model"] == MINILM_MODEL
+        assert union["dense"]["dim"] == MINILM_DIM
+        assert "query_instruction" not in union["dense"]
+        assert "encoder_revision" not in union["dense"]
+        assert union["abstention"] == _abstention(UNION_FLOOR)
+        assert json.dumps(product, sort_keys=True) == left
+        assert json.dumps(sidecar, sort_keys=True) == right
+
+    def test_compatible_minilm_union_reordered_ids(self):
+        product = _make_index_profile_routing(
+            PRODUCT_KB,
+            [
+                (PRODUCT_CHUNK, PRODUCT_TEXT, "product"),
+                ("synth-product-chunk-2", "second product solventblend", "product-2"),
+            ],
+            dense=_minilm_dense_profile_routing([PRODUCT_CHUNK, "synth-product-chunk-2"], [0, 1]),
+        )
+        product["dense"]["chunk_ids"] = ["synth-product-chunk-2", PRODUCT_CHUNK]
+        product["dense"]["vectors"] = [_unit_profile_routing(MINILM_DIM, 1), _unit_profile_routing(MINILM_DIM, 0)]
+        sidecar = _make_index_profile_routing(
+            SIDECAR_KB,
+            [(SIDECAR_CHUNK, SIDECAR_TEXT, "sidecar")],
+            dense=_minilm_dense_profile_routing([SIDECAR_CHUNK], [2]),
+        )
+        union = research._union_product_and_sidecar(product, sidecar)
+        assert union["dense"]["chunk_ids"] == [PRODUCT_CHUNK, "synth-product-chunk-2", SIDECAR_CHUNK]
+        assert union["dense"]["vectors"][0] == _unit_profile_routing(MINILM_DIM, 0)
+        assert union["dense"]["vectors"][1] == _unit_profile_routing(MINILM_DIM, 1)
+        assert union["dense"]["vectors"][2] == _unit_profile_routing(MINILM_DIM, 2)
+
+    def test_compatible_bge_union_preserves_recipe(self):
+        product = _make_index_profile_routing(
+            PRODUCT_KB,
+            [(PRODUCT_CHUNK, PRODUCT_TEXT, "product")],
+            dense=_bge_dense_profile_routing([PRODUCT_CHUNK], [0]),
+            abstention=_abstention(BGE_FLOOR),
+        )
+        sidecar = _make_index_profile_routing(
+            SIDECAR_KB,
+            [(SIDECAR_CHUNK, SIDECAR_TEXT, "sidecar")],
+            dense=_bge_dense_profile_routing([SIDECAR_CHUNK], [3]),
+        )
+        sidecar["dense"]["chunk_ids"] = [SIDECAR_CHUNK]
+        sidecar["dense"]["vectors"] = [_unit_profile_routing(BGE_DIM, 3)]
+        union = research._union_product_and_sidecar(product, sidecar)
+        assert _chunk_ids_profile_routing(union) == [PRODUCT_CHUNK, SIDECAR_CHUNK]
+        assert union["dense"]["model"] == BGE_MODEL
+        assert union["dense"]["dim"] == BGE_DIM
+        assert union["dense"]["query_instruction"] == BGE_QUERY_INSTRUCTION
+        assert union["dense"]["passage_instruction"] == BGE_PASSAGE_INSTRUCTION
+        assert union["dense"]["encoder_revision"] == BGE_REVISION
+        assert union["dense"]["vectors"][0] == _unit_profile_routing(BGE_DIM, 0)
+        assert union["dense"]["vectors"][1] == _unit_profile_routing(BGE_DIM, 3)
+        assert union["abstention"]["floor"] == BGE_FLOOR
+
+    def test_both_sparse_only_union_remains_valid(self):
+        product = _make_index_profile_routing(PRODUCT_KB, [(PRODUCT_CHUNK, PRODUCT_TEXT, "product")])
+        sidecar = _make_index_profile_routing(SIDECAR_KB, [(SIDECAR_CHUNK, SIDECAR_TEXT, "sidecar")])
+        union = research._union_product_and_sidecar(product, sidecar)
+        assert _chunk_ids_profile_routing(union) == [PRODUCT_CHUNK, SIDECAR_CHUNK]
+        assert union.get("dense") in (None, {})
+
+    def test_legacy_optional_metadata_omission_compatible(self):
+        product = _make_index_profile_routing(
+            PRODUCT_KB,
+            [(PRODUCT_CHUNK, PRODUCT_TEXT, "product")],
+            dense=_minilm_dense_profile_routing([PRODUCT_CHUNK], [0]),
+        )
+        sidecar = _make_index_profile_routing(
+            SIDECAR_KB,
+            [(SIDECAR_CHUNK, SIDECAR_TEXT, "sidecar")],
+            dense=_minilm_dense_profile_routing([SIDECAR_CHUNK], [1]),
+        )
+        product["dense"].pop("query_instruction", None)
+        sidecar["dense"].pop("query_instruction", None)
+        product["dense"].pop("encoder_revision", None)
+        sidecar["dense"].pop("encoder_revision", None)
+        union = research._union_product_and_sidecar(product, sidecar)
+        assert union["dense"]["model"] == MINILM_MODEL
+        assert "encoder_revision" not in union["dense"]
+        assert "query_instruction" not in union["dense"]
+
+    @pytest.mark.parametrize(
+        "case",
+        [
+            "mixed_dim",
+            "different_model_same_dim",
+            "different_instruction",
+            "conflicting_revision",
+            "missing_one_dense",
+            "duplicate_ids",
+            "missing_id",
+            "extra_id",
+            "ragged",
+            "nan",
+            "inf",
+            "bool_component",
+        ],
+    )
+    def test_incompatible_union_refuses_and_leaves_inputs(self, case):
+        product = _make_index_profile_routing(
+            PRODUCT_KB,
+            [(PRODUCT_CHUNK, PRODUCT_TEXT, "product")],
+            dense=_minilm_dense_profile_routing([PRODUCT_CHUNK], [0], query_instruction="q", encoder_revision="aaa"),
+        )
+        sidecar = _make_index_profile_routing(
+            SIDECAR_KB,
+            [(SIDECAR_CHUNK, SIDECAR_TEXT, "sidecar")],
+            dense=_minilm_dense_profile_routing([SIDECAR_CHUNK], [1], query_instruction="q", encoder_revision="aaa"),
+        )
+        if case == "mixed_dim":
+            sidecar["dense"] = _dense(
+                [SIDECAR_CHUNK],
+                [_unit_profile_routing(BGE_DIM, 0)],
+                model=MINILM_MODEL,
+                dim=BGE_DIM,
+            )
+        elif case == "different_model_same_dim":
+            sidecar["dense"]["model"] = "sentence-transformers/other-384"
+        elif case == "different_instruction":
+            sidecar["dense"]["query_instruction"] = "other: "
+        elif case == "conflicting_revision":
+            sidecar["dense"]["encoder_revision"] = "bbb"
+        elif case == "missing_one_dense":
+            sidecar["dense"] = None
+        elif case == "duplicate_ids":
+            sidecar["dense"]["chunk_ids"] = [SIDECAR_CHUNK, SIDECAR_CHUNK]
+            sidecar["dense"]["vectors"] = [_unit_profile_routing(MINILM_DIM, 1), _unit_profile_routing(MINILM_DIM, 2)]
+            sidecar["chunks"].append(_chunk_profile_routing(SIDECAR_CHUNK, SIDECAR_TEXT, "sidecar"))
+        elif case == "missing_id":
+            sidecar["dense"]["chunk_ids"] = ["other-chunk"]
+            sidecar["dense"]["vectors"] = [_unit_profile_routing(MINILM_DIM, 1)]
+        elif case == "extra_id":
+            sidecar["dense"]["chunk_ids"] = [SIDECAR_CHUNK, "extra-chunk"]
+            sidecar["dense"]["vectors"] = [_unit_profile_routing(MINILM_DIM, 1), _unit_profile_routing(MINILM_DIM, 2)]
+        elif case == "ragged":
+            sidecar["dense"]["vectors"] = [_unit_profile_routing(MINILM_DIM, 1)[:-1]]
+        elif case == "nan":
+            sidecar["dense"]["vectors"][0][0] = math.nan
+        elif case == "inf":
+            sidecar["dense"]["vectors"][0][0] = math.inf
+        else:
+            sidecar["dense"]["vectors"][0][0] = True
+        _assert_union_refusal(product, sidecar)
+
+    def test_mixed_dimension_union_is_base_counterfactual(self, _isolate, monkeypatch, forbid_ranking):
+        sidecar_path = _seed_minilm_pair(
+            _isolate,
+            product_dense=_minilm_dense_profile_routing([PRODUCT_CHUNK], [0]),
+            sidecar_dense=_dense(
+                [SIDECAR_CHUNK],
+                [_unit_profile_routing(BGE_DIM, 0)],
+                model=BGE_MODEL,
+                dim=BGE_DIM,
+                query_instruction=BGE_QUERY_INSTRUCTION,
+                passage_instruction=BGE_PASSAGE_INSTRUCTION,
+                encoder_revision=BGE_REVISION,
+            ),
+        )
+        tracked = _tracked(_isolate, [sidecar_path])
+        before = _snapshot(tracked)
+        _assert_helper_refusal_profile_routing(PRODUCT_KB, QUERY, tracked)
+        _assert_public_failure(_public_search(), QUERY, tracked)
+        assert _snapshot(tracked) == before
+
+    def test_bge_invalid_norm_and_zero_vector_refuse(self):
+        product = _make_index_profile_routing(
+            PRODUCT_KB,
+            [(PRODUCT_CHUNK, PRODUCT_TEXT, "product")],
+            dense=_bge_dense_profile_routing([PRODUCT_CHUNK], [0]),
+        )
+        sidecar_norm = _make_index_profile_routing(
+            SIDECAR_KB,
+            [(SIDECAR_CHUNK, SIDECAR_TEXT, "sidecar")],
+            dense=_bge_dense_profile_routing([SIDECAR_CHUNK], [1]),
+        )
+        sidecar_norm["dense"]["vectors"][0][0] = 0.5
+        _assert_union_refusal(product, sidecar_norm)
+        sidecar_zero = _make_index_profile_routing(
+            SIDECAR_KB,
+            [(SIDECAR_CHUNK, SIDECAR_TEXT, "sidecar")],
+            dense=_bge_dense_profile_routing([SIDECAR_CHUNK], [1]),
+        )
+        sidecar_zero["dense"]["vectors"][0] = [0.0] * BGE_DIM
+        _assert_union_refusal(product, sidecar_zero)
+
+    def test_bge_known_unit_vectors_pass(self):
+        product = _make_index_profile_routing(
+            PRODUCT_KB,
+            [(PRODUCT_CHUNK, PRODUCT_TEXT, "product")],
+            dense=_bge_dense_profile_routing([PRODUCT_CHUNK], [0]),
+        )
+        sidecar = _make_index_profile_routing(
+            SIDECAR_KB,
+            [(SIDECAR_CHUNK, SIDECAR_TEXT, "sidecar")],
+            dense=_bge_dense_profile_routing([SIDECAR_CHUNK], [1]),
+        )
+        union = research._union_product_and_sidecar(product, sidecar)
+        assert union["dense"]["vectors"][0] == _unit_profile_routing(BGE_DIM, 0)
+        assert union["dense"]["vectors"][1] == _unit_profile_routing(BGE_DIM, 1)
+
+    def test_profile_switch_has_no_stale_cache_or_writes(self, _isolate, monkeypatch):
+        sidecar_path = _seed_minilm_pair(
+            _isolate,
+            product_dense=_minilm_dense_profile_routing([PRODUCT_CHUNK], [0]),
+            sidecar_dense=_minilm_dense_profile_routing([SIDECAR_CHUNK], [1]),
+        )
+        bge = _seed_bge(_isolate, relative=True)
+        tracked = _tracked(_isolate, [sidecar_path, bge["index_path"], bge["manifest_path"]])
+        before = _snapshot(tracked)
+        seen = _spy_paths(monkeypatch)
+        monkeypatch.setenv("DISSOLVE_CORPUS_PROFILE", "bge10")
+        monkeypatch.setenv("DISSOLVE_BGE10_MANIFEST", str(bge["manifest_path"]))
+        bge_loaded = research._load_index(PRODUCT_KB)
+        assert _chunk_ids_profile_routing(bge_loaded) == [BGE_CHUNK_A, BGE_CHUNK_B]
+        assert bge_loaded["dense"]["model"] == BGE_MODEL
+        assert bge_loaded["dense"]["encoder_revision"] == BGE_REVISION
+        bge_seen = set(seen)
+        assert bge["index_path"].resolve() in bge_seen
+        assert _isolate["index_path"].resolve() not in bge_seen
+        assert sidecar_path.resolve() not in bge_seen
+        seen.clear()
+        monkeypatch.setenv("DISSOLVE_CORPUS_PROFILE", "minilm")
+        minilm_loaded = research._load_index(PRODUCT_KB)
+        assert _chunk_ids_profile_routing(minilm_loaded) == [PRODUCT_CHUNK, SIDECAR_CHUNK]
+        assert minilm_loaded["dense"]["model"] == MINILM_MODEL
+        assert minilm_loaded["dense"].get("encoder_revision") is None
+        assert minilm_loaded["dense"]["dim"] == MINILM_DIM
+        minilm_seen = set(seen)
+        assert _isolate["index_path"].resolve() in minilm_seen
+        assert bge["index_path"].resolve() not in minilm_seen
+        seen.clear()
+        monkeypatch.setenv("DISSOLVE_CORPUS_PROFILE", "bge10")
+        again = research._load_index(PRODUCT_KB)
+        assert _chunk_ids_profile_routing(again) == [BGE_CHUNK_A, BGE_CHUNK_B]
+        assert again["dense"]["model"] == BGE_MODEL
+        assert again["dense"]["encoder_revision"] == BGE_REVISION
+        assert again["dense"]["dim"] == BGE_DIM
+        assert _snapshot(tracked) == before
+        parsed = _public_search()
+        assert parsed["data"]["success"] is True
+        assert parsed["data"]["floor"] == round(BGE_FLOOR, 6)
+
+    def test_unsupported_routing_counterfactual_without_profile_env(self, _isolate, monkeypatch):
+        bge = _seed_bge(_isolate)
+        _seed_minilm_pair(_isolate)
+        monkeypatch.delenv("DISSOLVE_CORPUS_PROFILE", raising=False)
+        monkeypatch.setenv("DISSOLVE_BGE10_MANIFEST", str(bge["manifest_path"]))
+        loaded = research._load_index(PRODUCT_KB)
+        assert _chunk_ids_profile_routing(loaded) == [PRODUCT_CHUNK, SIDECAR_CHUNK]
+        monkeypatch.setenv("DISSOLVE_CORPUS_PROFILE", "bge10")
+        routed = research._load_index(PRODUCT_KB)
+        assert _chunk_ids_profile_routing(routed) == [BGE_CHUNK_A, BGE_CHUNK_B]
+
+    def test_bge10_verified_bytes_load_unchanged_positive(self, _isolate, monkeypatch):
+        bge = _seed_bge(_isolate)
+        monkeypatch.setenv("DISSOLVE_CORPUS_PROFILE", "bge10")
+        monkeypatch.setenv("DISSOLVE_BGE10_MANIFEST", str(bge["manifest_path"]))
+        tracked = [bge["index_path"], bge["manifest_path"]]
+        before = _snapshot(tracked)
+        loaded = research._load_index(PRODUCT_KB)
+        assert _chunk_ids_profile_routing(loaded) == [BGE_CHUNK_A, BGE_CHUNK_B]
+        assert loaded["dense"]["chunk_ids"] == [BGE_CHUNK_A, BGE_CHUNK_B]
+        assert loaded["dense"]["model"] == BGE_MODEL
+        assert loaded["dense"]["encoder_revision"] == BGE_REVISION
+        assert _snapshot(tracked) == before
+
+    def test_bge10_digest_read_swap_never_returns_replacement(self, _isolate, monkeypatch):
+        bge = _seed_bge(_isolate)
+        replacement = _make_index_profile_routing(
+            PRODUCT_KB,
+            [(INDEPENDENT_CHUNK, INDEPENDENT_TEXT, "swap")],
+            dense=_bge_dense_profile_routing([INDEPENDENT_CHUNK], [5]),
+        )
+        monkeypatch.setenv("DISSOLVE_CORPUS_PROFILE", "bge10")
+        monkeypatch.setenv("DISSOLVE_BGE10_MANIFEST", str(bge["manifest_path"]))
+        real_read = Path.read_bytes
+        swapped = {"done": False}
+
+        def fake_read(self, *args, **kwargs):
+            data = real_read(self, *args, **kwargs)
+            if self.resolve() == bge["index_path"].resolve() and not swapped["done"]:
+                swapped["done"] = True
+                _write_gzip_json(bge["index_path"], replacement)
+            return data
+
+        monkeypatch.setattr(Path, "read_bytes", fake_read)
+        try:
+            loaded = research._load_index(PRODUCT_KB)
+        except research.LiteratureContractError:
+            return
+        assert _chunk_ids_profile_routing(loaded) == [BGE_CHUNK_A, BGE_CHUNK_B]
+        assert INDEPENDENT_CHUNK not in _chunk_ids_profile_routing(loaded)
+        assert loaded["dense"]["chunk_ids"] == [BGE_CHUNK_A, BGE_CHUNK_B]
+
+    def test_bge10_corrupt_compression_refuses(self, _isolate, forbid_ranking, monkeypatch):
+        bge = _seed_bge(_isolate)
+        bge["index_path"].write_bytes(b"not-gzip")
+        manifest = json.loads(bge["manifest_path"].read_text(encoding="utf-8"))
+        manifest["gzip_sha256"] = _sha256(bge["index_path"])
+        _write_json(bge["manifest_path"], manifest)
+        monkeypatch.setenv("DISSOLVE_CORPUS_PROFILE", "bge10")
+        monkeypatch.setenv("DISSOLVE_BGE10_MANIFEST", str(bge["manifest_path"]))
+        tracked = [bge["index_path"], bge["manifest_path"]]
+        before = _snapshot(tracked)
+        _assert_helper_refusal_profile_routing(PRODUCT_KB, QUERY, tracked)
+        _assert_public_failure(_public_search(), QUERY, tracked)
+        assert _snapshot(tracked) == before
+
+    def test_bge10_manifest_ordered_chunk_ids_accepted(self, _isolate, monkeypatch):
+        bge = _seed_bge(_isolate)
+        monkeypatch.setenv("DISSOLVE_CORPUS_PROFILE", "bge10")
+        monkeypatch.setenv("DISSOLVE_BGE10_MANIFEST", str(bge["manifest_path"]))
+        loaded = research._load_index(PRODUCT_KB)
+        assert _chunk_ids_profile_routing(loaded) == [BGE_CHUNK_A, BGE_CHUNK_B]
+        assert loaded["dense"]["chunk_ids"] == [BGE_CHUNK_A, BGE_CHUNK_B]
+
+    @pytest.mark.parametrize(
+        "case",
+        [
+            "missing",
+            "null",
+            "wrong_type",
+            "duplicate",
+            "missing_member",
+            "extra_member",
+            "reordered",
+        ],
+    )
+    def test_bge10_manifest_chunk_ids_required_against_index(self, case, _isolate, forbid_ranking, monkeypatch):
+        def mutate_manifest(manifest, index_path):
+            if case == "missing":
+                del manifest["dense"]["chunk_ids"]
+            elif case == "null":
+                manifest["dense"]["chunk_ids"] = None
+            elif case == "wrong_type":
+                manifest["dense"]["chunk_ids"] = BGE_CHUNK_A
+            elif case == "duplicate":
+                manifest["dense"]["chunk_ids"] = [BGE_CHUNK_A, BGE_CHUNK_B, BGE_CHUNK_A]
+            elif case == "missing_member":
+                manifest["dense"]["chunk_ids"] = [BGE_CHUNK_A]
+            elif case == "extra_member":
+                manifest["dense"]["chunk_ids"] = [BGE_CHUNK_A, BGE_CHUNK_B, INDEPENDENT_CHUNK]
+            else:
+                manifest["dense"]["chunk_ids"] = [BGE_CHUNK_B, BGE_CHUNK_A]
+            return manifest
+
+        bge = _seed_bge(_isolate, mutate_manifest=mutate_manifest)
+        monkeypatch.setenv("DISSOLVE_CORPUS_PROFILE", "bge10")
+        monkeypatch.setenv("DISSOLVE_BGE10_MANIFEST", str(bge["manifest_path"]))
+        tracked = [bge["index_path"], bge["manifest_path"]]
+        before = _snapshot(tracked)
+        _assert_helper_refusal_profile_routing(PRODUCT_KB, QUERY, tracked)
+        _assert_public_failure(_public_search(), QUERY, tracked)
+        assert _snapshot(tracked) == before
+
+    def test_empty_product_valid_sidecar_preserves_ids_and_recipe(self):
+        product = _make_index_profile_routing(PRODUCT_KB, [])
+        sidecar = _make_index_profile_routing(
+            SIDECAR_KB,
+            [(SIDECAR_CHUNK, SIDECAR_TEXT, "sidecar")],
+            dense=_bge_dense_profile_routing([SIDECAR_CHUNK], [3]),
+        )
+        union = research._union_product_and_sidecar(product, sidecar)
+        assert _chunk_ids_profile_routing(union) == [SIDECAR_CHUNK]
+        assert union["dense"]["chunk_ids"] == [SIDECAR_CHUNK]
+        assert union["dense"]["vectors"] == [_unit_profile_routing(BGE_DIM, 3)]
+        assert union["dense"]["model"] == BGE_MODEL
+        assert union["dense"]["dim"] == BGE_DIM
+        assert union["dense"]["query_instruction"] == BGE_QUERY_INSTRUCTION
+        assert union["dense"]["passage_instruction"] == BGE_PASSAGE_INSTRUCTION
+        assert union["dense"]["encoder_revision"] == BGE_REVISION
+
+    def test_empty_product_invalid_sidecar_zero_vector_refuses(self):
+        product = _make_index_profile_routing(PRODUCT_KB, [])
+        sidecar = _make_index_profile_routing(
+            SIDECAR_KB,
+            [(SIDECAR_CHUNK, SIDECAR_TEXT, "sidecar")],
+            dense=_bge_dense_profile_routing([SIDECAR_CHUNK], [1]),
+        )
+        sidecar["dense"]["vectors"][0] = [0.0] * BGE_DIM
+        _assert_union_refusal(product, sidecar)
+
+    def test_empty_product_sparse_sidecar_union_remains_valid(self):
+        product = _make_index_profile_routing(PRODUCT_KB, [])
+        sidecar = _make_index_profile_routing(SIDECAR_KB, [(SIDECAR_CHUNK, SIDECAR_TEXT, "sidecar")])
+        union = research._union_product_and_sidecar(product, sidecar)
+        assert _chunk_ids_profile_routing(union) == [SIDECAR_CHUNK]
+        assert union.get("dense") in (None, {})
+
+    def test_no_extra_invalid_product_membership_refuses(self):
+        product = _make_index_profile_routing(
+            PRODUCT_KB,
+            [(PRODUCT_CHUNK, PRODUCT_TEXT, "product")],
+            dense=_bge_dense_profile_routing(["wrong-id"], [0]),
+        )
+        sidecar = _make_index_profile_routing(
+            SIDECAR_KB,
+            [(PRODUCT_CHUNK, PRODUCT_TEXT, "product")],
+            dense=_bge_dense_profile_routing([PRODUCT_CHUNK], [0]),
+        )
+        _assert_union_refusal(product, sidecar)
+
+    def test_fully_overlapping_valid_union_no_duplicate_vectors(self):
+        product = _make_index_profile_routing(
+            PRODUCT_KB,
+            [(PRODUCT_CHUNK, PRODUCT_TEXT, "product")],
+            dense=_bge_dense_profile_routing([PRODUCT_CHUNK], [0]),
+        )
+        sidecar = _make_index_profile_routing(
+            SIDECAR_KB,
+            [(PRODUCT_CHUNK, PRODUCT_TEXT, "product")],
+            dense=_bge_dense_profile_routing([PRODUCT_CHUNK], [0]),
+        )
+        union = research._union_product_and_sidecar(product, sidecar)
+        assert _chunk_ids_profile_routing(union) == [PRODUCT_CHUNK]
+        assert union["dense"]["chunk_ids"] == [PRODUCT_CHUNK]
+        assert union["dense"]["vectors"] == [_unit_profile_routing(BGE_DIM, 0)]
+        assert len(union["dense"]["vectors"]) == 1
+        assert union["dense"]["model"] == BGE_MODEL
+        assert union["dense"]["encoder_revision"] == BGE_REVISION
+
+    def test_fully_overlapping_valid_minilm_union_no_duplicate_vectors(self):
+        product = _make_index_profile_routing(
+            PRODUCT_KB,
+            [(PRODUCT_CHUNK, PRODUCT_TEXT, "product")],
+            dense=_minilm_dense_profile_routing([PRODUCT_CHUNK], [0]),
+        )
+        sidecar = _make_index_profile_routing(
+            SIDECAR_KB,
+            [(PRODUCT_CHUNK, PRODUCT_TEXT, "product")],
+            dense=_minilm_dense_profile_routing([PRODUCT_CHUNK], [1]),
+        )
+        union = research._union_product_and_sidecar(product, sidecar)
+        assert _chunk_ids_profile_routing(union) == [PRODUCT_CHUNK]
+        assert union["dense"]["chunk_ids"] == [PRODUCT_CHUNK]
+        assert union["dense"]["vectors"] == [_unit_profile_routing(MINILM_DIM, 0)]
+        assert len(union["dense"]["vectors"]) == 1
+        assert union["dense"]["model"] == MINILM_MODEL
+
+    def test_no_extra_invalid_sidecar_membership_refuses(self):
+        product = _make_index_profile_routing(
+            PRODUCT_KB,
+            [(PRODUCT_CHUNK, PRODUCT_TEXT, "product")],
+            dense=_minilm_dense_profile_routing([PRODUCT_CHUNK], [0]),
+        )
+        sidecar = _make_index_profile_routing(
+            SIDECAR_KB,
+            [(PRODUCT_CHUNK, PRODUCT_TEXT, "product")],
+            dense=_minilm_dense_profile_routing([PRODUCT_CHUNK], [1]),
+        )
+        sidecar["dense"]["chunk_ids"] = ["synthetic-wrong"]
+        _assert_union_refusal(product, sidecar)
