@@ -1,0 +1,23 @@
+# DigitalOcean App Platform: the hosted web app (see the Dockerfile). Every push to the branch rebuilds and redeploys.
+# Secret values are never in this file; they are set on the app and kept encrypted there.
+name: dissolve
+region: nyc
+services:
+  - name: web
+    dockerfile_path: Dockerfile
+    github:
+      repo: aaltamimi2/DISSOLVE
+      branch: main-cleanup-frontend
+      deploy_on_push: true
+    http_port: 8080
+    instance_size_slug: apps-s-1vcpu-1gb-fixed
+    instance_count: 1
+    health_check:
+      http_path: /api/health
+    envs:
+      - key: META_MUSE_API_KEY
+        type: SECRET
+        scope: RUN_TIME
+      - key: DISSOLVE_WEB_PASSWORD
+        type: SECRET
+        scope: RUN_TIME

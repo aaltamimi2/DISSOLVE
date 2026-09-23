@@ -12,23 +12,29 @@ handler, and sessions are the CLI's session files, so a conversation can move be
     POST /api/sessions/{id}/turns {text}    the NDJSON stream of one turn or slash command
 
 Everything else serves the built UI in src/dissolve/ui/ (its source is web/).
+
+A hosted copy sets DISSOLVE_WEB_PASSWORD (the whole site asks for it; /api/health stays open for the
+platform's checks) and, on a small instance, DISSOLVE_WEB_DISABLE=literature,tea: the literature models
+alone need 1.8 GB and a live TEA run 0.9 GB more, so a 1 GB host offers everything else.
 """
 
 from __future__ import annotations
 
+import base64
 import io
 import json
 import os
 import queue
 import re
+import secrets
 import threading
 import time
 import uuid
 from pathlib import Path
 from typing import Any, Iterator, Optional
 
-from fastapi import FastAPI, HTTPException
-from fastapi.responses import FileResponse, HTMLResponse, StreamingResponse
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.responses import FileResponse, HTMLResponse, Response, StreamingResponse
 from pydantic import BaseModel
 from rich.console import Console
 
@@ -58,9 +64,15 @@ def _options(rows: list[tuple[Any, str]]) -> list[dict[str, str]]:
     ]
 
 
-def commands() -> list[dict[str, Any]]:
+def features() -> dict[str, bool]:
+    """What this deployment offers; DISSOLVE_WEB_DISABLE lists what a small host switches off."""
+    off = {item.strip().casefold() for item in os.getenv("DISSOLVE_WEB_DISABLE", "").split(",") if item.strip()}
+    return {"literature": "literature" not in off, "tea": "tea" not in off}
+
+
+def commands(offered: dict[str, bool] | None = None) -> list[dict[str, Any]]:
     """The CLI's slash commands; the mode options come from the CLI's own pickers."""
-    return [
+    rows = [
         {"command": "/contaminant", "state": "contaminant", "summary": "How contaminant removal enters separation plans",
          "options": _options(cli._contaminant_picker_options("")[0])
          + [{"value": "compare", "description": "compare leaching and STRAP removal for the last contaminant screen"}]},
@@ -80,6 +92,7 @@ def commands() -> list[dict[str, Any]]:
         {"command": "/safety", "summary": "How the published hazard scores were built", "options": []},
         {"command": "/clear", "summary": "Clear this conversation's messages and handles", "options": []},
     ]
+    return [row for row in rows if row["command"] != "/literature" or (offered or features())["literature"]]
 
 
 def _state(app: cli.CliApp) -> dict[str, Any]:
@@ -185,14 +198,18 @@ def transcript(app: cli.CliApp) -> list[dict[str, Any]]:
     return out
 
 
-def _run(app: cli.CliApp, text: str, events: "queue.Queue[dict[str, Any] | None]") -> None:
+def _run(app: cli.CliApp, text: str, events: "queue.Queue[dict[str, Any] | None]", offered: dict[str, bool]) -> None:
     started = time.monotonic()
     events.put({"event": "turn.started", "session_id": app.store.session_id, "text": text})
     try:
         if text.startswith("/"):
-            command = text.split()[0].casefold()
+            command, *rest = text.split()
+            command = command.casefold()
             if command in _CLI_ONLY:
                 output = _CLI_ONLY[command] or f"{command} has no effect in the web app."
+            elif command == "/literature" and not offered["literature"] and rest and rest[0].casefold() != "off":
+                output = ("Literature search is off on this deployment: its models need more memory than this server "
+                          "has. Run DISSOLVE locally (./dissolve web) to use it.")
             else:
                 buffer = app.console.file
                 start = buffer.tell()
@@ -236,18 +253,31 @@ def create_app(home: str | Path | None = None) -> FastAPI:
     api = FastAPI(title="DISSOLVE", version=RELEASE, docs_url="/api/docs", openapi_url="/api/openapi.json")
     sessions = api.state.sessions = Sessions(home)
     doctor_cache: dict[str, Any] = {}
+    offered = features()
+
+    if password := os.getenv("DISSOLVE_WEB_PASSWORD"):
+        expected = ("Basic " + base64.b64encode(f"{os.getenv('DISSOLVE_WEB_USER', 'dissolve')}:{password}".encode()).decode()).encode()
+
+        @api.middleware("http")
+        async def require_password(request: Request, call_next):
+            if request.url.path == "/api/health" or secrets.compare_digest(request.headers.get("authorization", "").encode(), expected):
+                return await call_next(request)
+            return Response(status_code=401, headers={"WWW-Authenticate": 'Basic realm="DISSOLVE"'})
 
     @api.get("/api/health")
     def health() -> dict[str, Any]:
-        return {"ok": True, "release": RELEASE, "ui_built": (STATIC / "index.html").is_file()}
+        return {"ok": True, "release": RELEASE, "ui_built": (STATIC / "index.html").is_file(), "features": offered}
 
     @api.get("/api/doctor")
     def doctor(refresh: bool = False) -> dict[str, Any]:
         if refresh or time.monotonic() - doctor_cache.get("at", -1e9) > _DOCTOR_SECONDS:
             report = cli.doctor_report(home)
+            checks = [{key: check.get(key) for key in ("name", "status", "detail")} for check in report["checks"]]
+            for check in checks:
+                if check["name"] == "Live TEA" and not offered["tea"]:  # off by design here, not broken
+                    check.update(status="not_required", detail="Live TEA is switched off on this deployment.")
             doctor_cache.update(at=time.monotonic(), report={
-                "ready": report["ready"],
-                "checks": [{key: check.get(key) for key in ("name", "status", "detail")} for check in report["checks"]],
+                "ready": not any(check["status"] == "fail" for check in checks), "checks": checks,
             })
         return doctor_cache["report"]
 
@@ -259,7 +289,7 @@ def create_app(home: str | Path | None = None) -> FastAPI:
 
     @api.get("/api/commands")
     def command_list() -> list[dict[str, Any]]:
-        return commands()
+        return commands(offered)
 
     @api.get("/api/sessions")
     def session_list() -> list[dict[str, Any]]:
@@ -289,7 +319,7 @@ def create_app(home: str | Path | None = None) -> FastAPI:
 
         def work() -> None:
             try:
-                _run(app, text, events)
+                _run(app, text, events, offered)
             finally:
                 lock.release()
 
