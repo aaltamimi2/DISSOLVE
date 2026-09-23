@@ -8,14 +8,13 @@ import gzip
 import hashlib
 import html
 import importlib
-import io
 import json
 import math
 import mimetypes
 import os
-import random
 import re
 import statistics
+import tempfile
 import time
 import unicodedata
 import zlib
@@ -736,11 +735,9 @@ def ingest_literature_graph(
 
 # --- rerank: Gated-hybrid top-20 rerank. Named cross-encoder or BLOCKED. No silent substitute.
 
-CROSS_ENCODER_ID = "cross-encoder/ms-marco-MiniLM-L-6-v2"
 WINDOW = 20
-SHUFFLE_SEED = 20260830
 PAIR_RERANK_MODE = "bge_pair"
-MODES = frozenset({"off", "cross_encoder", "shuffle", PAIR_RERANK_MODE})
+MODES = frozenset({"off", PAIR_RERANK_MODE})
 PAIR_RERANKER_ID = "BAAI/bge-reranker-base"
 PAIR_RERANKER_REVISION = "2cfc18c9415c912f9d8155881c133215df768a70"
 PAIR_RERANKER_MODEL_TYPE = "xlm-roberta"
@@ -760,7 +757,6 @@ PAIR_RERANKER_FILE_SHA256 = {
     "tokenizer_config.json": "a1d6bc8734a6f635dc158508bef000f8e2e5a759c7d92f984b2c86e5ff53425b",
 }
 
-_MODEL: Any = None
 _PAIR_BACKEND: Any = None
 _PAIR_INTEROP_READY = False
 
@@ -773,33 +769,8 @@ class RerankBlocked(RuntimeError):
         self.code = "rerank_blocked"
 
 
-def _passage(chunk: Any) -> str:
-    if chunk.get("body") is not None:
-        return str(chunk.get("body") or "")
-    return str(chunk.get("text") or "")
-
-
 def _pair_passage(chunk: Any) -> str:
     return chunk_sparse_corpus(chunk)
-
-
-def _load_cross_encoder():
-    global _MODEL
-    if _MODEL is not None:
-        return _MODEL
-    try:
-        from sentence_transformers import CrossEncoder
-        _MODEL = CrossEncoder(CROSS_ENCODER_ID)
-    except Exception as error:
-        raise RerankBlocked("rerank_blocked") from error
-    return _MODEL
-
-
-def _score_pairs(query: str, passages: Sequence[str]) -> list[float]:
-    model = _load_cross_encoder()
-    pairs = [(str(query or ""), str(passage or "")) for passage in passages]
-    scores = model.predict(pairs, show_progress_bar=False)
-    return [float(score) for score in scores]
 
 
 def _hash_pair_file(path: Path) -> str:
@@ -813,11 +784,27 @@ def _hash_pair_file(path: Path) -> str:
     return digest.hexdigest()
 
 
+def _pinned_reranker_snapshot() -> Path:
+    """The pinned reranker's Hugging Face snapshot, downloaded on first use."""
+    hub = importlib.import_module("huggingface_hub")
+    return Path(hub.snapshot_download(
+        PAIR_RERANKER_ID, revision=PAIR_RERANKER_REVISION, allow_patterns=sorted(PAIR_RERANKER_FILE_SHA256),
+    ))
+
+
 def _pair_dir() -> Path:
+    """The pinned reranker: DISSOLVE_BGE_RERANKER_DIR if set (a blank value blocks), else the Hugging
+    Face snapshot at the pinned revision, downloaded on first use. Its files are hash-checked either way."""
     raw = os.getenv(_ENV_BGE_RERANKER_DIR)
-    if not isinstance(raw, str) or not raw.strip():
-        raise RerankBlocked("rerank_blocked")
-    directory = Path(raw).expanduser()
+    if raw is not None:
+        if not raw.strip():
+            raise RerankBlocked("rerank_blocked")
+        directory = Path(raw).expanduser()
+    else:
+        try:
+            directory = _pinned_reranker_snapshot()
+        except Exception as error:  # no hub client, offline without a cached snapshot, or a failed download
+            raise RerankBlocked("rerank_blocked") from error
     if not directory.is_dir():
         raise RerankBlocked("rerank_blocked")
     return directory
@@ -1073,42 +1060,18 @@ def reorder_window(
     ranked: list[tuple[Any, ...]],
     rerank_mode: str = "off",
 ) -> list[tuple[Any, ...]]:
-    """Reorder ranked[:20] only. Identity when off. Shuffle is not a shipped arm."""
+    """Reorder ranked[:20] with the pinned bge-reranker-base pair scores. Identity when off."""
     mode = _normalize_mode(rerank_mode)
-    if not ranked or mode == "off":
-        return ranked
     window = list(ranked[:WINDOW])
-    rest = list(ranked[WINDOW:])
-    if not window:
+    if mode == "off" or not window:
         return ranked
-    if mode == "shuffle":
-        rng = random.Random(SHUFFLE_SEED)
-        rng.shuffle(window)
-        return window + rest
-    if mode == PAIR_RERANK_MODE:
-        _unique_ids(window)
-        passages = [_pair_passage(item[4]) for item in window]
-        scores = _score_bge_pairs(query, passages)
-        if len(scores) != len(window):
-            raise RerankBlocked("rerank_blocked")
-        order = sorted(range(len(window)), key=lambda i: (-float(scores[i]), i))
-        reordered: list[tuple[Any, ...]] = []
-        for i in order:
-            item = window[i]
-            reordered.append((
-                float(scores[i]), item[1], item[2], item[3], item[4], item[5],
-            ))
-        return reordered + rest
-    passages = [_passage(item[4]) for item in window]
-    scores = _score_pairs(query, passages)
+    _unique_ids(window)
+    scores = _score_bge_pairs(query, [_pair_passage(item[4]) for item in window])
+    if len(scores) != len(window):
+        raise RerankBlocked("rerank_blocked")
     order = sorted(range(len(window)), key=lambda i: (-float(scores[i]), i))
-    reordered = []
-    for i in order:
-        item = window[i]
-        reordered.append((
-            float(scores[i]), item[1], item[2], item[3], item[4], item[5],
-        ))
-    return reordered + rest
+    reordered = [(float(scores[i]), *window[i][1:6]) for i in order]
+    return reordered + list(ranked[WINDOW:])
 
 
 _INDEX_SCHEMA = "dissolve.literature-index.v1"
@@ -1116,11 +1079,10 @@ _PARSED_DOCUMENT_SCHEMA = "dissolve.parsed-document.v1"
 _CANONICAL_DOCUMENT_SCHEMA = "dissolve.canonical-document.v1"
 _HTTP_LIMIT = 25 * 1024 * 1024
 _MAX_DOCUMENTS = 40
-_MAX_CHUNKS = 12_000
 _USER_AGENT = "DISSOLVE-v11/0.4 literature client"
 _SUPPORTED_SCHOLAR = {"arxiv", "google_scholar", "web_of_science"}
 _SUPPORTED_PATENTS = {"google_patents", "patentsview"}
-_TEXT_SUFFIXES = {".txt", ".md", ".markdown", ".html", ".htm"}
+_INGEST_SUFFIXES = frozenset({".pdf", ".html", ".htm", ".xhtml", ".md", ".markdown", ".txt", ".json"})
 _STOPWORDS = {
     "a", "an", "and", "are", "as", "at", "be", "by", "for", "from",
     "how", "in", "is", "it", "of", "on", "or", "that", "the", "their",
@@ -1128,18 +1090,13 @@ _STOPWORDS = {
 }
 _HYBRID_DENSE_WEIGHT = 0.55
 _HYBRID_SPARSE_WEIGHT = 0.40
-_MINILM_DIM = 384
-_MINILM_MODEL_ID = "sentence-transformers/all-MiniLM-L6-v2"
 _REFUSE_RULE_SPARSE_GATED = "sparse_gated"
 _PRODUCT_KNOWLEDGEBASE = "t5-indexed-unsealed"
-_SIDECAR_KNOWLEDGEBASE = "t5-promoted-unsealed"
-_CORPUS_PROFILE_MINILM = "minilm"
-_CORPUS_PROFILE_BGE10 = "bge10"
-_SUPPORTED_CORPUS_PROFILES = frozenset({_CORPUS_PROFILE_MINILM, _CORPUS_PROFILE_BGE10})
-_ENV_CORPUS_PROFILE = "DISSOLVE_CORPUS_PROFILE"
 _ENV_BGE10_MANIFEST = "DISSOLVE_BGE10_MANIFEST"
 _ENV_CORPUS_DIR = "DISSOLVE_CORPUS_DIR"
-_PRODUCT_MANIFEST_NAME = "INDEX.t5.unsealed.v1.json"
+#: The release the package ships: the paper's 39 papers, T5 chunks, BGE-base vectors.
+_SHIPPED_CORPUS_DIR = Path(__file__).resolve().parent / "data" / "corpus"
+_RELEASE_MANIFEST = "manifest.json"
 _BGE_MODEL_ID = "BAAI/bge-base-en-v1.5"
 _BGE_DIM = 768
 _BGE_QUERY_INSTRUCTION = "Represent this sentence for searching relevant passages: "
@@ -1452,7 +1409,7 @@ def search_scholarly_literature(
         urls = [row["pdf_url"] for row in deduplicated if row.get("pdf_url")][:max(1, min(max_save, 5))]
         try:
             metadata = {row["pdf_url"]: row for row in deduplicated if row.get("pdf_url")}
-            save_result = _ingest_inputs([], urls, knowledgebase, False, len(urls), False, metadata) if urls else {
+            save_result = _ingest_inputs([], urls, knowledgebase, False, len(urls), metadata) if urls else {
                 "documents_added": 0, "chunks_added": 0, "failures": ["No downloadable PDF was returned."],
             }
         except (OSError, ValueError, RuntimeError, json.JSONDecodeError) as error:
@@ -1587,7 +1544,7 @@ def search_patent_literature(
         urls = [row["pdf_url"] for row in rows if row.get("pdf_url")][:max(1, min(max_save, 5))]
         try:
             metadata = {row["pdf_url"]: row for row in rows if row.get("pdf_url")}
-            save_result = _ingest_inputs([], urls, knowledgebase, False, len(urls), False, metadata) if urls else {
+            save_result = _ingest_inputs([], urls, knowledgebase, False, len(urls), metadata) if urls else {
                 "documents_added": 0, "chunks_added": 0, "failures": ["No downloadable patent PDF was returned."],
             }
         except (OSError, ValueError, RuntimeError, json.JSONDecodeError) as error:
@@ -1655,8 +1612,6 @@ _CANONICAL_DROP_KEYS = {
     "nearest_preceding_heading", "nearest_preceding_heading_origin",
     "caption_ref_origin",
 }
-_CHUNK_TARGET = 1_400
-_ATOMIC_CHUNK_KINDS = frozenset({"table", "formula", "caption"})
 _TABLE_LABEL_RE = re.compile(r"^\s*Table\s+(\d+)\b", re.IGNORECASE)
 _FOOTNOTE_MARKER_RE = re.compile(r"^[*†‡§]+$")
 _PARSE_QUALITY_FLAGS = {
@@ -2389,139 +2344,6 @@ def _chunk_header(heading: Sequence[str] | None) -> str:
     return " > ".join(str(part) for part in (heading or []) if str(part).strip())
 
 
-def _make_chunk(
-    *, strategy: str, index: int, body: str, header: str,
-    char_start: int | None, char_end: int | None,
-    atomic_overflow: bool = False, page: int | None = None,
-) -> dict[str, Any]:
-    chunk: dict[str, Any] = {
-        "strategy": strategy,
-        "chunk_id": f"{strategy}-{index:04d}",
-        "body": body,
-        "header": header,
-        "char_start": char_start,
-        "char_end": char_end,
-        "atomic_overflow": atomic_overflow,
-    }
-    if page is not None:
-        chunk["page"] = page
-    return chunk
-
-
-def _unit_from_block(block: Mapping[str, Any]) -> dict[str, Any]:
-    kind = str(block.get("kind") or "other")
-    return {
-        "char_start": int(block["char_start"]),
-        "char_end": int(block["char_end"]),
-        "kind": kind,
-        "heading": list(block.get("nearest_preceding_heading") or []),
-        "atomic": kind in _ATOMIC_CHUNK_KINDS,
-        "block_id": block.get("block_id"),
-    }
-
-
-def _pack_units(
-    units: Sequence[Mapping[str, Any]],
-    canonical_text: str,
-    *,
-    strategy: str,
-    target: int = _CHUNK_TARGET,
-    start_new_on_heading: bool = False,
-) -> list[dict[str, Any]]:
-    chunks: list[dict[str, Any]] = []
-
-    def emit(start: int, end: int, heading: Sequence[str], overflow: bool) -> None:
-        chunks.append(_make_chunk(
-            strategy=strategy, index=len(chunks) + 1,
-            body=canonical_text[start:end], header=_chunk_header(heading),
-            char_start=start, char_end=end, atomic_overflow=overflow,
-        ))
-
-    buf_start: int | None = None
-    buf_end: int | None = None
-    buf_heading: list[str] = []
-    buf_overflow = False
-    buf_started_heading: tuple[str, ...] | None = None
-
-    def flush() -> None:
-        nonlocal buf_start, buf_end, buf_heading, buf_overflow, buf_started_heading
-        if buf_start is None or buf_end is None:
-            return
-        emit(buf_start, buf_end, buf_heading, buf_overflow)
-        buf_start = buf_end = None
-        buf_heading = []
-        buf_overflow = False
-        buf_started_heading = None
-
-    for unit in units:
-        start, end = int(unit["char_start"]), int(unit["char_end"])
-        heading = list(unit.get("heading") or [])
-        heading_key = tuple(heading)
-        atomic = bool(unit.get("atomic"))
-        overflow = atomic and (end - start) > target
-        if start_new_on_heading and buf_start is not None and unit.get("kind") == "heading":
-            flush()
-        if buf_start is not None and buf_end is not None and start > buf_end + 2:
-            flush()
-        if atomic:
-            flush()
-            emit(start, end, heading, overflow)
-            continue
-        if buf_start is None:
-            buf_start, buf_end, buf_heading = start, end, heading
-            buf_started_heading = heading_key
-            continue
-        if (end - buf_start) > target:
-            flush()
-            buf_start, buf_end, buf_heading = start, end, heading
-            buf_started_heading = heading_key
-            continue
-        buf_end = end
-    flush()
-    return chunks
-
-
-def chunk_s2_block_pack(
-    canonical: Mapping[str, Any], *, target: int = _CHUNK_TARGET,
-) -> list[dict[str, Any]]:
-    units = [_unit_from_block(block) for block in canonical.get("blocks") or []]
-    return _pack_units(
-        units, str(canonical.get("canonical_text") or ""),
-        strategy="S2_block_pack", target=target,
-    )
-
-
-def _intersects(cs: int, ce: int, ss: int, se: int) -> bool:
-    return cs < se and ss < ce
-
-
-def _covers(cs: int, ce: int, ss: int, se: int) -> bool:
-    return cs <= ss and ce >= se
-
-
-def _atomic_spans(canonical: Mapping[str, Any], kinds: set[str]) -> list[tuple[int, int]]:
-    spans = []
-    for block in canonical.get("blocks") or []:
-        if str(block.get("kind")) in kinds:
-            spans.append((int(block["char_start"]), int(block["char_end"])))
-    return spans
-
-
-def chunk_splits_atomic(chunks: Sequence[Mapping[str, Any]], canonical: Mapping[str, Any], kinds: set[str]) -> int:
-    """Count chunks that intersect an atomic span without covering it."""
-    splits = 0
-    for span_start, span_end in _atomic_spans(canonical, kinds):
-        for chunk in chunks:
-            start, end = chunk.get("char_start"), chunk.get("char_end")
-            if start is None or end is None:
-                continue
-            if _intersects(int(start), int(end), span_start, span_end) and not _covers(
-                int(start), int(end), span_start, span_end,
-            ):
-                splits += 1
-    return splits
-
-
 def _chunk_body_text(chunk: Mapping[str, Any]) -> str:
     if chunk.get("body") is not None:
         return str(chunk.get("body") or "")
@@ -2676,21 +2498,6 @@ def apply_table_rebound(
         item["body_plus_rebound"] = _body_plus_rebound_text(body, canonical, table)
         attached.append(item)
     return attached
-
-
-def table_atomic_fraction(chunks: Sequence[Mapping[str, Any]], canonical: Mapping[str, Any]) -> float | None:
-    tables = list(canonical.get("tables") or [])
-    if not tables:
-        return None
-    hits = 0
-    for table in tables:
-        ts, te = int(table["char_start"]), int(table["char_end"])
-        if any(
-            chunk.get("char_start") == ts and chunk.get("char_end") == te
-            for chunk in chunks
-        ):
-            hits += 1
-    return hits / len(tables)
 
 
 def chunk_sparse_corpus(chunk: Mapping[str, Any]) -> str:
@@ -3965,71 +3772,24 @@ def merge_literature_graph(
 
 
 def _corpus_dir() -> Path:
-    """Where the served corpus lives: its manifest, and the base and sidecar indexes under indexes/."""
+    """The working corpus release (manifest.json and index.json.gz); ingest grows it."""
     return Path(os.getenv(_ENV_CORPUS_DIR, "~/.dissolve/corpus")).expanduser()
 
 
-def _canonical_product_index_path() -> Path:
-    return _corpus_dir() / "indexes" / f"{_PRODUCT_KNOWLEDGEBASE}.json.gz"
-
-
 def _index_path(knowledgebase: str) -> Path:
-    slug = _slug(knowledgebase)
-    if "DISSOLVE_RESEARCH_HOME" not in os.environ and slug == _PRODUCT_KNOWLEDGEBASE:
-        product = _canonical_product_index_path()
-        if product.exists():
-            return product
-    return _research_root() / f"{slug}.json.gz"
+    return _research_root() / f"{_slug(knowledgebase)}.json.gz"
 
 
 def _empty_index(knowledgebase: str) -> dict[str, Any]:
     return {"schema": _INDEX_SCHEMA, "knowledgebase": _slug(knowledgebase), "documents": [], "chunks": [], "dense": None}
 
 
-def _product_manifest_path() -> Path:
-    return _corpus_dir() / _PRODUCT_MANIFEST_NAME
-
-
 def _read_text_file(path: Path) -> str:
     return path.read_text(encoding="utf-8")
 
 
-def _read_gzip_json(path: Path) -> Any:
-    with gzip.open(path, "rt", encoding="utf-8") as handle:
-        return json.load(handle)
-
-
 def _read_gzip_json_bytes(raw: bytes) -> Any:
     return json.loads(gzip.decompress(raw).decode("utf-8"))
-
-
-def _load_canonical_manifest() -> dict[str, Any]:
-    path = _product_manifest_path()
-    if not path.is_file():
-        raise LiteratureContractError(
-            "canonical_manifest_missing",
-            "Canonical product manifest is missing.",
-        )
-    try:
-        text = _read_text_file(path)
-    except (OSError, UnicodeDecodeError):
-        raise LiteratureContractError(
-            "canonical_manifest_unreadable",
-            "Canonical product manifest is unreadable.",
-        ) from None
-    try:
-        payload = json.loads(text)
-    except json.JSONDecodeError:
-        raise LiteratureContractError(
-            "canonical_manifest_malformed",
-            "Canonical product manifest is malformed.",
-        ) from None
-    if not isinstance(payload, dict):
-        raise LiteratureContractError(
-            "canonical_manifest_invalid",
-            "Canonical product manifest is not an object.",
-        )
-    return payload
 
 
 def _manifest_abstention(manifest: Mapping[str, Any]) -> dict[str, Any] | None:
@@ -4062,121 +3822,6 @@ def _manifest_abstention(manifest: Mapping[str, Any]) -> dict[str, Any] | None:
     return dict(block)
 
 
-def _sidecar_index_from_manifest(manifest: Mapping[str, Any]) -> dict[str, Any] | None:
-    if "promoted" not in manifest:
-        return None
-    block = manifest["promoted"]
-    if not isinstance(block, Mapping):
-        raise LiteratureContractError(
-            "promoted_declaration_invalid",
-            "Promoted sidecar declaration is invalid.",
-        )
-    raw_path = block.get("index_path")
-    if not isinstance(raw_path, str) or not raw_path.strip():
-        raise LiteratureContractError(
-            "promoted_path_missing",
-            "Promoted sidecar path is missing.",
-        )
-    path = Path(raw_path).expanduser()
-    if not path.is_absolute():
-        path = _product_manifest_path().parent / path
-    if path.is_dir():
-        raise LiteratureContractError(
-            "promoted_sidecar_not_file",
-            "Promoted sidecar is not a file.",
-        )
-    if not path.is_file():
-        raise LiteratureContractError(
-            "promoted_sidecar_missing",
-            "Promoted sidecar is missing.",
-        )
-    try:
-        payload = _read_gzip_json(path)
-    except json.JSONDecodeError:
-        raise LiteratureContractError(
-            "promoted_sidecar_malformed",
-            "Promoted sidecar is malformed.",
-        ) from None
-    except gzip.BadGzipFile:
-        raise LiteratureContractError(
-            "promoted_sidecar_invalid_gzip",
-            "Promoted sidecar is not valid gzip.",
-        ) from None
-    except zlib.error:
-        raise LiteratureContractError(
-            "promoted_sidecar_invalid_gzip",
-            "Promoted sidecar is not valid gzip.",
-        ) from None
-    except OSError:
-        raise LiteratureContractError(
-            "promoted_sidecar_unreadable",
-            "Promoted sidecar is unreadable.",
-        ) from None
-    except (UnicodeDecodeError, EOFError):
-        raise LiteratureContractError(
-            "promoted_sidecar_unreadable",
-            "Promoted sidecar is unreadable.",
-        ) from None
-    if not isinstance(payload, dict):
-        raise LiteratureContractError(
-            "promoted_sidecar_not_object",
-            "Promoted sidecar is not an object.",
-        )
-    if payload.get("schema") != _INDEX_SCHEMA:
-        raise LiteratureContractError(
-            "promoted_sidecar_schema",
-            "Promoted sidecar schema is incompatible.",
-        )
-    declared = block.get("knowledgebase")
-    if declared is None:
-        expected = _SIDECAR_KNOWLEDGEBASE
-    elif not isinstance(declared, str) or not declared.strip():
-        raise LiteratureContractError(
-            "promoted_declaration_invalid",
-            "Promoted sidecar declaration is invalid.",
-        )
-    else:
-        try:
-            expected = _slug(declared)
-        except ValueError:
-            raise LiteratureContractError(
-                "promoted_declaration_invalid",
-                "Promoted sidecar declaration is invalid.",
-            ) from None
-    if expected == _PRODUCT_KNOWLEDGEBASE or payload.get("knowledgebase") != expected:
-        raise LiteratureContractError(
-            "promoted_sidecar_knowledgebase",
-            "Promoted sidecar knowledgebase is mismatched.",
-        )
-    return payload
-
-
-def _corpus_profile() -> str:
-    """Return the active corpus profile.
-
-    Precedence: DISSOLVE_CORPUS_PROFILE selects minilm or bge10. Unset keeps
-    minilm. Explicit minilm is rollback. Unknown values fail closed. Canonical
-    bge10 uses DISSOLVE_BGE10_MANIFEST only; DISSOLVE_RESEARCH_HOME remains
-    available for MiniLM and noncanonical libraries and is not a bge10
-    fallback.
-    """
-    raw = os.getenv(_ENV_CORPUS_PROFILE)
-    if raw is None:
-        return _CORPUS_PROFILE_MINILM
-    if not isinstance(raw, str):
-        raise LiteratureContractError(
-            "corpus_profile_invalid",
-            "Corpus profile is not supported.",
-        )
-    profile = raw.strip()
-    if profile in _SUPPORTED_CORPUS_PROFILES:
-        return profile
-    raise LiteratureContractError(
-        "corpus_profile_invalid",
-        "Corpus profile is not supported.",
-    )
-
-
 def _is_product_knowledgebase(knowledgebase: str) -> bool:
     return _slug(knowledgebase) == _PRODUCT_KNOWLEDGEBASE
 
@@ -4198,66 +3843,6 @@ def _finite_int(value: Any, code: str, message: str) -> int:
     if not math.isfinite(numeric) or int(numeric) != numeric:
         raise LiteratureContractError(code, message)
     return int(numeric)
-
-
-def _optional_str_meta(
-    block: Mapping[str, Any],
-    key: str,
-    *,
-    empty_is_missing: bool,
-) -> str | None:
-    if key not in block:
-        return None
-    value = block.get(key)
-    if value is None:
-        return None
-    if not isinstance(value, str):
-        _dense_union_error()
-    if empty_is_missing and value == "":
-        return None
-    return value
-
-
-def _optional_dim(block: Mapping[str, Any]) -> int | None:
-    if "dim" not in block:
-        return None
-    return _finite_int(
-        block.get("dim"),
-        "dense_union_incompatible",
-        "Dense union members are incompatible.",
-    )
-
-
-def _agree_optional_text(
-    left: Mapping[str, Any],
-    right: Mapping[str, Any],
-    key: str,
-    *,
-    empty_is_missing: bool,
-) -> str | None:
-    left_value = _optional_str_meta(left, key, empty_is_missing=empty_is_missing)
-    right_value = _optional_str_meta(right, key, empty_is_missing=empty_is_missing)
-    if left_value != right_value:
-        _dense_union_error()
-    return left_value
-
-
-def _dense_present(index: Mapping[str, Any]) -> bool:
-    return index.get("dense") not in (None, {})
-
-
-def _as_dense_mapping(index: Mapping[str, Any]) -> Mapping[str, Any]:
-    dense = index.get("dense")
-    if not isinstance(dense, Mapping):
-        _dense_union_error()
-    return dense
-
-
-def _side_chunk_ids(chunks: Sequence[Any]) -> list[str]:
-    ids = [str(chunk.get("chunk_id") or "") for chunk in chunks]
-    if any(not item for item in ids) or len(ids) != len(set(ids)):
-        _dense_union_error()
-    return ids
 
 
 def _validate_dense_rows(
@@ -4296,145 +3881,6 @@ def _validate_dense_rows(
     return rows
 
 
-def _validated_dense_side(
-    index: Mapping[str, Any],
-    chunks: Sequence[Any],
-) -> dict[str, Any]:
-    dense = _as_dense_mapping(index)
-    side_ids = _side_chunk_ids(chunks)
-    recorded_ids = dense.get("chunk_ids")
-    if not isinstance(recorded_ids, list):
-        _dense_union_error()
-    ids = [str(item) for item in recorded_ids]
-    if set(ids) != set(side_ids) or len(ids) != len(side_ids):
-        _dense_union_error()
-    recorded_dim = _optional_dim(dense)
-    vectors = dense.get("vectors")
-    if not isinstance(vectors, list) or not vectors:
-        if side_ids:
-            _dense_union_error()
-        inferred_dim = recorded_dim
-        if inferred_dim is None:
-            _dense_union_error()
-        rows: list[list[float]] = []
-    else:
-        first = vectors[0]
-        if not isinstance(first, (list, tuple)) or not first:
-            _dense_union_error()
-        inferred_dim = len(first)
-        if recorded_dim is not None and recorded_dim != inferred_dim:
-            _dense_union_error()
-        if recorded_dim is None:
-            recorded_dim = inferred_dim
-    if recorded_dim is None or recorded_dim <= 0:
-        _dense_union_error()
-    model = _optional_str_meta(dense, "model", empty_is_missing=True)
-    require_bge = model == _BGE_MODEL_ID
-    empty_is_missing = not require_bge
-    if require_bge and recorded_dim != _BGE_DIM:
-        _dense_union_error()
-    rows = _validate_dense_rows(
-        ids,
-        vectors if isinstance(vectors, list) else [],
-        dim=recorded_dim,
-        require_bge_geometry=require_bge,
-    )
-    by_id = {chunk_id: vector for chunk_id, vector in zip(ids, rows)}
-    return {
-        "block": dense,
-        "ids": side_ids,
-        "by_id": by_id,
-        "dim": recorded_dim,
-        "model": model,
-        "query_instruction": _optional_str_meta(
-            dense, "query_instruction", empty_is_missing=empty_is_missing
-        ),
-        "passage_instruction": _optional_str_meta(
-            dense, "passage_instruction", empty_is_missing=empty_is_missing
-        ),
-        "encoder_revision": _optional_str_meta(
-            dense, "encoder_revision", empty_is_missing=empty_is_missing
-        ),
-        "refuse_rule": _optional_str_meta(dense, "refuse_rule", empty_is_missing=True),
-        "recipe_source": _optional_str_meta(dense, "recipe_source", empty_is_missing=True),
-    }
-
-
-def _union_dense_blocks(
-    product: Mapping[str, Any],
-    sidecar: Mapping[str, Any],
-    extra_chunks: Sequence[Any],
-) -> dict[str, Any] | None:
-    extra = bool(extra_chunks)
-    product_chunks = list(product.get("chunks") or [])
-    sidecar_chunks = list(sidecar.get("chunks") or [])
-    product_dense = _dense_present(product)
-    sidecar_dense = _dense_present(sidecar)
-    if extra:
-        if product_chunks and product_dense != sidecar_dense:
-            _dense_union_error()
-        if not product_chunks and sidecar_dense and not product_dense:
-            _validated_dense_side(sidecar, sidecar_chunks)
-            return dict(_as_dense_mapping(sidecar))
-        if not product_dense and not sidecar_dense:
-            dense = product.get("dense")
-            return None if dense in (None, {}) else dict(_as_dense_mapping(product))
-    elif not extra:
-        dense = product.get("dense")
-        if sidecar_dense:
-            _validated_dense_side(sidecar, sidecar_chunks)
-        if dense in (None, {}):
-            return None
-        _validated_dense_side(product, product_chunks)
-        return dict(dense) if isinstance(dense, Mapping) else dense
-    left = _validated_dense_side(product, product_chunks)
-    right = _validated_dense_side(sidecar, sidecar_chunks)
-    if left["dim"] != right["dim"] or left["model"] != right["model"]:
-        _dense_union_error()
-    empty_is_missing = left["model"] != _BGE_MODEL_ID
-    for key in (
-        "query_instruction",
-        "passage_instruction",
-        "encoder_revision",
-        "refuse_rule",
-        "recipe_source",
-    ):
-        if key in {"query_instruction", "passage_instruction", "encoder_revision"}:
-            _agree_optional_text(
-                left["block"],
-                right["block"],
-                key,
-                empty_is_missing=empty_is_missing,
-            )
-        elif left[key] != right[key]:
-            _dense_union_error()
-    ordered_ids = list(left["ids"]) + [str(chunk.get("chunk_id") or "") for chunk in extra_chunks]
-    vectors = [left["by_id"][chunk_id] for chunk_id in left["ids"]]
-    for chunk in extra_chunks:
-        chunk_id = str(chunk.get("chunk_id") or "")
-        if chunk_id not in right["by_id"]:
-            _dense_union_error()
-        vectors.append(right["by_id"][chunk_id])
-    merged: dict[str, Any] = {
-        "chunk_ids": ordered_ids,
-        "vectors": vectors,
-        "dim": left["dim"],
-    }
-    if left["model"] is not None:
-        merged["model"] = left["model"]
-    for key in (
-        "query_instruction",
-        "passage_instruction",
-        "encoder_revision",
-        "refuse_rule",
-        "recipe_source",
-    ):
-        value = left[key]
-        if value is not None:
-            merged[key] = value
-    return merged
-
-
 def _resolve_against(base: Path, raw: str) -> Path:
     path = Path(raw).expanduser()
     if not path.is_absolute():
@@ -4447,10 +3893,13 @@ def _bge_serving_error(code: str, message: str) -> NoReturn:
 
 
 def _declared_bge10_manifest_path() -> Path | None:
+    """The BGE10 release to serve: DISSOLVE_BGE10_MANIFEST if set (a blank value is missing), else the
+    working release in DISSOLVE_CORPUS_DIR, else the release the package ships."""
     raw = os.getenv(_ENV_BGE10_MANIFEST)
-    if not isinstance(raw, str) or not raw.strip():
-        return None
-    return Path(raw.strip()).expanduser()
+    if raw is not None:
+        return Path(raw.strip()).expanduser() if raw.strip() else None
+    working = _corpus_dir() / _RELEASE_MANIFEST
+    return working if working.is_file() else _SHIPPED_CORPUS_DIR / _RELEASE_MANIFEST
 
 
 def _declared_bge10_index_path() -> Path | None:
@@ -4470,12 +3919,8 @@ def _declared_bge10_index_path() -> Path | None:
 
 
 def _protected_index_targets() -> list[Path]:
-    targets = [_canonical_product_index_path()]
-    if _corpus_profile() == _CORPUS_PROFILE_BGE10:
-        declared = _declared_bge10_index_path()
-        if declared is not None:
-            targets.append(declared)
-    return targets
+    declared = _declared_bge10_index_path()
+    return [] if declared is None else [declared]
 
 
 def _require_bge_recipe_fields(block: Mapping[str, Any], code: str) -> dict[str, Any]:
@@ -4504,13 +3949,12 @@ def _require_bge_recipe_fields(block: Mapping[str, Any], code: str) -> dict[str,
 
 
 def _load_bge10_manifest() -> tuple[Path, dict[str, Any]]:
-    raw = os.getenv(_ENV_BGE10_MANIFEST)
-    if not isinstance(raw, str) or not raw.strip():
+    path = _declared_bge10_manifest_path()
+    if path is None:
         _bge_serving_error(
             "bge10_manifest_missing",
             "BGE serving manifest is missing.",
         )
-    path = Path(raw.strip()).expanduser()
     if not path.is_file():
         _bge_serving_error(
             "bge10_manifest_missing",
@@ -4707,42 +4151,9 @@ def _load_bge10_product_index() -> dict[str, Any]:
     return out
 
 
-def _union_product_and_sidecar(
-    product: Mapping[str, Any],
-    sidecar: Mapping[str, Any],
-) -> dict[str, Any]:
-    known = {str(chunk.get("chunk_id") or "") for chunk in (product.get("chunks") or [])}
-    extra_chunks = []
-    for chunk in sidecar.get("chunks") or []:
-        chunk_id = str(chunk.get("chunk_id") or "")
-        if not chunk_id or chunk_id in known:
-            continue
-        extra_chunks.append(chunk)
-        known.add(chunk_id)
-    known_docs = {str(row.get("sha256") or "") for row in (product.get("documents") or [])}
-    extra_docs = []
-    for row in sidecar.get("documents") or []:
-        sha = str(row.get("sha256") or "")
-        if not sha or sha in known_docs:
-            continue
-        extra_docs.append(row)
-        known_docs.add(sha)
-    dense = _union_dense_blocks(product, sidecar, extra_chunks)
-    out = dict(product)
-    out["chunks"] = list(product.get("chunks") or []) + extra_chunks
-    out["documents"] = list(product.get("documents") or []) + extra_docs
-    if extra_chunks:
-        if dense is None:
-            if _dense_present(product):
-                out["dense"] = None
-        else:
-            out["dense"] = dense
-    return out
-
-
 def _load_index(knowledgebase: str) -> dict[str, Any]:
-    profile = _corpus_profile()
-    if _is_product_knowledgebase(knowledgebase) and profile == _CORPUS_PROFILE_BGE10:
+    """The product knowledgebase is the served BGE10 release; any other name is a library under DISSOLVE_RESEARCH_HOME."""
+    if _is_product_knowledgebase(knowledgebase):
         return _load_bge10_product_index()
     path = _index_path(knowledgebase)
     if not path.exists():
@@ -4751,15 +4162,6 @@ def _load_index(knowledgebase: str) -> dict[str, Any]:
         payload = json.load(handle)
     if payload.get("schema") != _INDEX_SCHEMA or payload.get("knowledgebase") != _slug(knowledgebase):
         raise ValueError("unsupported or mismatched literature index")
-    if path.resolve() == _canonical_product_index_path().resolve():
-        manifest = _load_canonical_manifest()
-        sidecar = _sidecar_index_from_manifest(manifest)
-        if sidecar is not None:
-            payload = _union_product_and_sidecar(payload, sidecar)
-        block = _manifest_abstention(manifest)
-        if block is not None:
-            payload = dict(payload)
-            payload["abstention"] = block
     return payload
 
 
@@ -4784,103 +4186,6 @@ def _save_index(index: dict[str, Any]) -> Path:
     return path
 
 
-def _pdf_pages(data: bytes) -> list[dict[str, Any]]:
-    try:
-        reader_type = importlib.import_module("pypdf").PdfReader
-    except (ImportError, AttributeError) as error:
-        raise RuntimeError("PDF ingestion requires pip install '.[literature]'.") from error
-    reader = reader_type(io.BytesIO(data))
-    return [{"page": index + 1, "text": page.extract_text() or ""} for index, page in enumerate(reader.pages)]
-
-
-def _json_documents(data: bytes, source: str) -> list[dict[str, Any]]:
-    text = data.decode("utf-8")
-    if source.casefold().endswith(".jsonl"):
-        value: Any = [json.loads(line) for line in text.splitlines() if line.strip()]
-    else:
-        value = json.loads(text)
-    if isinstance(value, dict) and value.get("schema") == _CANONICAL_DOCUMENT_SCHEMA:
-        return [{
-            "title": Path(urlparse(source).path).stem or source,
-            "source": source,
-            "canonical_document": value,
-            "url": value.get("url"), "doi": value.get("doi"), "year": value.get("year"),
-        }]
-    if isinstance(value, dict) and isinstance(value.get("documents"), list):
-        value = value["documents"]
-    if isinstance(value, dict):
-        value = [value]
-    if not isinstance(value, list):
-        raise ValueError("JSON corpus input must be a document object or list")
-    records = []
-    for item in value:
-        if not isinstance(item, dict):
-            continue
-        content = item.get("text") or item.get("content") or item.get("abstract")
-        if not content:
-            continue
-        records.append({
-            "title": _clean(item.get("title") or source, 300), "source": source,
-            "url": item.get("url"), "doi": item.get("doi"), "year": item.get("year"),
-            "pages": [{"page": item.get("page"), "text": str(content)}],
-        })
-    return records
-
-
-def _records_from_bytes(data: bytes, source: str) -> list[dict[str, Any]]:
-    suffix = Path(urlparse(source).path).suffix.casefold()
-    if data.startswith(b"%PDF") or suffix == ".pdf":
-        return [{"title": Path(urlparse(source).path).stem or source, "source": source, "pages": _pdf_pages(data)}]
-    if suffix in {".json", ".jsonl"}:
-        return _json_documents(data, source)
-    if suffix not in _TEXT_SUFFIXES and suffix:
-        raise ValueError(f"unsupported document type: {suffix}")
-    text = data.decode("utf-8", errors="replace")
-    if suffix in {".html", ".htm"}:
-        text = re.sub(r"<[^>]+>", " ", text)
-    return [{"title": Path(urlparse(source).path).stem or source, "source": source, "pages": [{"page": None, "text": text}]}]
-
-
-def _expand_paths(paths: list[str], maximum: int) -> list[Path]:
-    expanded: list[Path] = []
-    allowed = _TEXT_SUFFIXES | {".pdf", ".json", ".jsonl"}
-    for raw in paths:
-        path = Path(raw).expanduser().resolve()
-        if path.is_dir():
-            expanded.extend(item for item in sorted(path.rglob("*")) if item.is_file() and item.suffix.casefold() in allowed)
-        else:
-            expanded.append(path)
-        if len(expanded) >= maximum:
-            break
-    return expanded[:maximum]
-
-
-def _paragraph_chunks(text: str, target: int = 1_400, overlap: int = 180) -> list[tuple[str, str]]:
-    cleaned = re.sub(r"\r\n?", "\n", str(text or ""))
-    paragraphs = [re.sub(r"\s+", " ", item).strip() for item in re.split(r"\n\s*\n", cleaned) if item.strip()]
-    section = "body"
-    chunks: list[tuple[str, str]] = []
-    buffer = ""
-    for paragraph in paragraphs:
-        if paragraph.startswith("#") or (len(paragraph) < 100 and not re.search(r"[.!?]$", paragraph)):
-            section = paragraph.lstrip("# ")[:120] or section
-        while len(paragraph) > target:
-            piece, paragraph = paragraph[:target], paragraph[target - overlap:]
-            if buffer:
-                chunks.append((section, buffer))
-                buffer = ""
-            chunks.append((section, piece))
-        candidate = f"{buffer}\n\n{paragraph}".strip()
-        if buffer and len(candidate) > target:
-            chunks.append((section, buffer))
-            buffer = f"{buffer[-overlap:]} {paragraph}".strip()
-        else:
-            buffer = candidate
-    if buffer:
-        chunks.append((section, buffer))
-    return chunks
-
-
 def _generated_dense_error() -> NoReturn:
     raise LiteratureContractError(
         "dense_vectors_invalid",
@@ -4889,9 +4194,9 @@ def _generated_dense_error() -> NoReturn:
 
 
 def _compatible_embedding_dim(model_name: str) -> int:
-    if model_name == _BGE_MODEL_ID:
-        return _BGE_DIM
-    return _MINILM_DIM
+    if model_name != _BGE_MODEL_ID:
+        raise LiteratureContractError("dense_model", "Corpora are embedded with the pinned BGE-base encoder only.")
+    return _BGE_DIM
 
 
 def _bge_generated_recipe_fields() -> dict[str, str]:
@@ -4976,7 +4281,7 @@ def _dense_vectors(texts: list[str], model_name: str | None = None) -> tuple[str
         model_type = importlib.import_module("sentence_transformers").SentenceTransformer
     except (ImportError, AttributeError) as error:
         raise RuntimeError("Dense indexing requires pip install '.[literature]'.") from error
-    selected = model_name or os.getenv("DISSOLVE_EMBEDDING_MODEL", _MINILM_MODEL_ID)
+    selected = model_name or _BGE_MODEL_ID
     try:
         if selected == _BGE_MODEL_ID:
             model = model_type(
@@ -4992,238 +4297,130 @@ def _dense_vectors(texts: list[str], model_name: str | None = None) -> tuple[str
     return selected, [[round(float(value), 8) for value in row] for row in encoded]
 
 
-def _first_overlapping_block(canonical: Mapping[str, Any], start: int, end: int) -> Mapping[str, Any] | None:
-    for block in canonical.get("blocks") or []:
-        try:
-            b_start, b_end = int(block["char_start"]), int(block["char_end"])
-        except (KeyError, TypeError, ValueError):
-            continue
-        if b_start < end and start < b_end:
-            return block
-    return None
+def _expand_paths(paths: list[str], maximum: int) -> list[Path]:
+    expanded: list[Path] = []
+    for raw in paths:
+        path = Path(raw).expanduser().resolve()
+        if path.is_dir():
+            expanded.extend(item for item in sorted(path.rglob("*")) if item.is_file() and item.suffix.casefold() in _INGEST_SUFFIXES)
+        else:
+            expanded.append(path)
+        if len(expanded) >= maximum:
+            break
+    return expanded[:maximum]
 
 
-def _table_caption_and_basis(canonical: Mapping[str, Any], table: Mapping[str, Any]) -> tuple[str | None, str | None]:
-    """Caption and preceding prose carried alongside an atomic table chunk. Not in the span."""
-    blocks = list(canonical.get("blocks") or [])
-    by_id = {str(block.get("block_id")): i for i, block in enumerate(blocks)}
-    table_id = str(table.get("table_id") or "")
-    idx = by_id.get(table_id)
-    caption = None
-    cap_id = table.get("caption_block_id")
-    if idx is not None:
-        cap_id = cap_id or blocks[idx].get("caption_ref")
-    if cap_id:
-        for block in blocks:
-            if str(block.get("block_id")) == str(cap_id):
-                caption = str(block.get("text") or "") or None
-                break
-    basis = None
-    if idx is None:
-        return caption, basis
-    window = blocks[max(0, idx - 3):idx]
-    for block in reversed(window):
-        kind = str(block.get("kind") or "")
-        text = str(block.get("text") or "").strip()
-        if not text:
-            continue
-        if kind == "caption" and not caption:
-            caption = text
-        elif kind == "paragraph" and not basis:
-            basis = text
-    return caption, basis
-
-
-def _index_chunks_from_canonical(canonical: Mapping[str, Any]) -> list[dict[str, Any]]:
-    """C7 join + C7b rebound sidecar. Atomic table spans. No _paragraph_chunks."""
-    packed = chunk_s2_block_pack(canonical)
-    tables = {
-        (int(table["char_start"]), int(table["char_end"])): table
-        for table in canonical.get("tables") or []
-        if table.get("char_start") is not None and table.get("char_end") is not None
-    }
-    rows: list[dict[str, Any]] = []
-    for item in packed:
-        start, end = int(item["char_start"]), int(item["char_end"])
-        table = tables.get((start, end))
-        block = _first_overlapping_block(canonical, start, end) or {}
-        origin = block.get("nearest_preceding_heading_origin")
-        heading = list(block.get("nearest_preceding_heading") or [])
-        caption = basis = None
-        if table is not None:
-            caption, basis = _table_caption_and_basis(canonical, table)
-        rows.append({
-            "text": item["body"],
-            "body": item["body"],
-            "char_start": start,
-            "char_end": end,
-            "page": block.get("page"),
-            "section": _chunk_header(heading) if origin == "parser_supplied" else "",
-            "section_origin": origin,
-            "nearest_preceding_heading": heading,
-            "caption": caption,
-            "basis": basis,
-            "kind": "table" if table is not None else block.get("kind"),
-        })
-    return apply_table_rebound(rows, canonical)
-
-
-def _ingest_inputs(
-    paths: list[str], urls: list[str], knowledgebase: str, replace: bool,
-    max_documents: int, build_dense_index: bool,
-    metadata_by_url: Optional[dict[str, dict[str, Any]]] = None,
-) -> dict[str, Any]:
-    maximum = max(1, min(int(max_documents or 1), _MAX_DOCUMENTS))
-    index = _empty_index(knowledgebase) if replace else _load_index(knowledgebase)
-    records: list[dict[str, Any]] = []
+def _ingest_sources(
+    paths: list[str], urls: list[str], maximum: int,
+    metadata_by_url: Optional[dict[str, dict[str, Any]]], scratch: Path,
+) -> tuple[list[tuple[Path, dict[str, Any]]], list[str]]:
+    """Files Docling can read, each with its citation labels. URLs are downloaded into ``scratch``;
+    plain text is handed to Docling as Markdown."""
+    sources: list[tuple[Path, dict[str, Any]]] = []
     failures: list[str] = []
     for path in _expand_paths(paths, maximum):
-        try:
-            if not path.is_file():
-                raise ValueError("path is not a file")
-            records.extend(_records_from_bytes(path.read_bytes(), str(path)))
-        except (OSError, ValueError, RuntimeError, json.JSONDecodeError) as error:
-            failures.append(f"{path.name}: {str(error)[:160]}")
-    for url in urls[:max(0, maximum - len(records))]:
+        suffix = path.suffix.casefold()
+        if not path.is_file():
+            failures.append(f"{path.name}: path is not a file")
+        elif suffix not in _INGEST_SUFFIXES:
+            failures.append(f"{path.name}: unsupported document type {suffix or '(none)'}")
+        else:
+            title = path.stem.replace("_", " ").replace("-", " ").strip() or path.name
+            sources.append((path, {"title": title, "source": str(path)}))
+    for url in urls[:max(0, maximum - len(sources))]:
         if urlparse(url).scheme not in {"http", "https"}:
             failures.append("URL must use http or https")
             continue
         try:
-            downloaded = _records_from_bytes(
-                _request_bytes(url, source="document download", timeout=60), url,
-            )
-            metadata = (metadata_by_url or {}).get(url) or {}
-            for record in downloaded:
-                record.update({
-                    key: metadata[key] for key in ("title", "url", "doi", "year")
-                    if metadata.get(key) is not None
-                })
-            records.extend(downloaded)
-        except (ResearchNetworkError, ValueError, RuntimeError, json.JSONDecodeError) as error:
+            data = _request_bytes(url, source="document download", timeout=60)
+        except (ResearchNetworkError, ValueError, RuntimeError) as error:
             failures.append(f"download: {str(error)[:160]}")
-    existing_documents = {item["sha256"] for item in index["documents"]}
-    existing_chunks = {item["sha256"] for item in index["chunks"]}
-    documents_added = 0
-    chunks_added = 0
-    for record in records[:maximum]:
-        canonical = record.get("canonical_document")
-        if isinstance(canonical, Mapping) and canonical.get("schema") == _CANONICAL_DOCUMENT_SCHEMA:
-            document_sha = str(canonical.get("source_pdf_sha256") or "")
-            if not document_sha:
-                document_sha = hashlib.sha256(
-                    str(canonical.get("canonical_text") or "").encode()
-                ).hexdigest()
-            if not str(canonical.get("canonical_text") or "").strip() or document_sha in existing_documents:
-                continue
-            document_id = f"D{document_sha[:16]}"
-            index["documents"].append({
-                "document_id": document_id, "sha256": document_sha,
-                "title": _clean(record.get("title"), 300), "source": str(record.get("source") or ""),
-                "url": record.get("url") or (record.get("source") if str(record.get("source", "")).startswith("http") else None),
-                "doi": record.get("doi"), "year": record.get("year"), "ingested_at": _now(),
-                "parser_backend": canonical.get("parser_backend"),
-                "parser_version": canonical.get("parser_version"),
-                "fallback_reason": canonical.get("fallback_reason"),
-            })
-            existing_documents.add(document_sha)
-            documents_added += 1
-            chunk_index = 0
-            for derived in _index_chunks_from_canonical(canonical):
-                text = str(derived.get("text") or "")
-                if not text.strip():
-                    continue
-                chunk_sha = hashlib.sha256(text.encode()).hexdigest()
-                if chunk_sha in existing_chunks:
-                    continue
-                chunk_index += 1
-                index["chunks"].append({
-                    "chunk_id": f"K{document_sha[:10]}-{chunk_index:04d}", "sha256": chunk_sha,
-                    "document_id": document_id, "title": _clean(record.get("title"), 300),
-                    "source": str(record.get("source") or ""), "url": record.get("url"),
-                    "doi": record.get("doi"), "year": record.get("year"),
-                    "page": derived.get("page"),
-                    "section": derived.get("section") or "",
-                    "section_origin": derived.get("section_origin"),
-                    "nearest_preceding_heading": derived.get("nearest_preceding_heading") or [],
-                    "caption": derived.get("caption"),
-                    "basis": derived.get("basis"),
-                    "footnotes": derived.get("footnotes"),
-                    "rebound_block_ids": list(derived.get("rebound_block_ids") or []),
-                    "body_plus_rebound": derived.get("body_plus_rebound"),
-                    "kind": derived.get("kind"),
-                    "char_start": derived.get("char_start"),
-                    "char_end": derived.get("char_end"),
-                    "text": text,
-                    "token_estimate": max(1, math.ceil(len(text) / 4)),
-                })
-                existing_chunks.add(chunk_sha)
-                chunks_added += 1
-                if len(index["chunks"]) >= _MAX_CHUNKS:
-                    break
             continue
-        joined = "\n".join(str(page.get("text") or "") for page in record.get("pages") or [])
-        document_sha = hashlib.sha256(joined.encode()).hexdigest()
-        if not joined.strip() or document_sha in existing_documents:
-            continue
-        document_id = f"D{document_sha[:16]}"
-        index["documents"].append({
-            "document_id": document_id, "sha256": document_sha,
-            "title": _clean(record.get("title"), 300), "source": str(record.get("source") or ""),
-            "url": record.get("url") or (record.get("source") if str(record.get("source", "")).startswith("http") else None),
-            "doi": record.get("doi"), "year": record.get("year"), "ingested_at": _now(),
+        suffix = ".pdf" if data.startswith(b"%PDF") else Path(urlparse(url).path).suffix.casefold() or ".html"
+        target = scratch / f"{hashlib.sha256(data).hexdigest()[:16]}{suffix}"
+        target.write_bytes(data)
+        labels = {"title": Path(urlparse(url).path).stem or url, "source": url, "url": url}
+        labels.update({
+            key: value for key, value in ((metadata_by_url or {}).get(url) or {}).items()
+            if key in ("title", "url", "doi", "year") and value is not None
         })
-        existing_documents.add(document_sha)
-        documents_added += 1
-        chunk_index = 0
-        for page in record.get("pages") or []:
-            for section, text in _paragraph_chunks(page.get("text") or ""):
-                chunk_sha = hashlib.sha256(text.encode()).hexdigest()
-                if chunk_sha in existing_chunks:
-                    continue
-                chunk_index += 1
-                index["chunks"].append({
-                    "chunk_id": f"K{document_sha[:10]}-{chunk_index:04d}", "sha256": chunk_sha,
-                    "document_id": document_id, "title": _clean(record.get("title"), 300),
-                    "source": str(record.get("source") or ""), "url": record.get("url"),
-                    "doi": record.get("doi"), "year": record.get("year"),
-                    "page": page.get("page"), "section": section, "text": text,
-                    "token_estimate": max(1, math.ceil(len(text) / 4)),
-                })
-                existing_chunks.add(chunk_sha)
-                chunks_added += 1
-                if len(index["chunks"]) >= _MAX_CHUNKS:
-                    break
-            if len(index["chunks"]) >= _MAX_CHUNKS:
-                break
-    dense_warning = None
-    if build_dense_index and index["chunks"]:
-        chunk_ids = [str(item["chunk_id"]) for item in index["chunks"]]
-        model_name, vectors = _dense_vectors(
-            [chunk_sparse_corpus(item) for item in index["chunks"]]
-        )
-        dim = _assert_generated_dense_vectors(
-            vectors,
-            expected_count=len(chunk_ids),
-            model_name=model_name,
-        )
-        index["dense"] = _attach_generated_recipe({
-            "model": model_name,
-            "vectors": vectors,
-            "built_at": _now(),
-            "dim": dim,
-            "chunk_ids": chunk_ids,
-            "refuse_rule": _REFUSE_RULE_SPARSE_GATED,
-        })
-    elif chunks_added and index.get("dense"):
-        index["dense"] = None
-        dense_warning = "Dense vectors were invalidated by new chunks; rebuild explicitly."
-    path = _save_index(index) if documents_added or replace or build_dense_index else _index_path(knowledgebase)
+        sources.append((target, labels))
+    ready = []
+    for path, labels in sources[:maximum]:
+        if path.suffix.casefold() in {".txt", ".markdown"}:
+            markdown = scratch / f"{path.stem}.md"
+            markdown.write_bytes(path.read_bytes())
+            path = markdown
+        ready.append((path, labels))
+    return ready, failures
+
+
+def _ingest_inputs(
+    paths: list[str], urls: list[str], knowledgebase: str, replace: bool, max_documents: int,
+    metadata_by_url: Optional[dict[str, dict[str, Any]]] = None,
+) -> dict[str, Any]:
+    """Add documents with the recipe the served corpus was built with (``dissolve.corpus``):
+    Docling canonical document, T5 chunks, BGE-base vectors one paper per batch.
+
+    The product knowledgebase grows the working release (seeded from the shipped one); any other
+    name is a separate library, served by the same engine.
+    """
+    from . import corpus
+    maximum = max(1, min(int(max_documents or 1), _MAX_DOCUMENTS))
+    slug = _slug(knowledgebase)
+    product = _is_product_knowledgebase(slug)
+    release = None
+    if product:
+        if os.getenv(_ENV_BGE10_MANIFEST) is not None:
+            raise LiteratureContractError(
+                "protected_serving_index",
+                "The served corpus is pinned by DISSOLVE_BGE10_MANIFEST; unset it to grow the working release.",
+            )
+        release = corpus.working_release()
+        index = None if replace else corpus.read_release(release)[1]
+    else:
+        index = None if replace else _load_index(slug)
+        if index is not None and not index["chunks"]:
+            index = None
+        if index is not None and not _bge10_recipe_identity(index):
+            raise LiteratureContractError(
+                "ingest_recipe_mismatch",
+                f"Knowledgebase {slug!r} was built with an older ingest recipe; ingest into a new knowledgebase.",
+            )
+    present = {doc["sha256"] for doc in (index or {}).get("documents") or []}
+    before = len((index or {}).get("chunks") or [])
+    added = 0
+    with tempfile.TemporaryDirectory(prefix="dissolve-ingest-") as scratch:
+        sources, failures = _ingest_sources(paths, urls, maximum, metadata_by_url, Path(scratch))
+        for path, labels in sources:
+            try:
+                for sha, canonical in corpus._papers([path], present):
+                    index = corpus.build_index(
+                        [(sha, canonical)], corpus.BASE_KB if product else slug,
+                        previous=index, model=corpus.BGE_ID, metadata={sha: labels},
+                    )
+                    added += 1
+            except (OSError, ValueError, RuntimeError, json.JSONDecodeError) as error:
+                failures.append(f"{path.name}: {str(error)[:160]}")
+    if index is None:
+        index = _empty_index(slug)
+    if release is not None:
+        if added or replace:
+            corpus.write_release(release, index)
+        location = release / corpus.RELEASE_MANIFEST
+    elif added or replace:
+        index = dict(index, abstention={"floor": corpus.ABSTENTION["floor"]})
+        location = _save_index(index)
+    else:
+        location = _index_path(slug)
+    dense = index.get("dense") or {}
     return {
-        "knowledgebase": index["knowledgebase"], "index_path": str(path),
-        "documents_added": documents_added, "chunks_added": chunks_added,
+        "knowledgebase": index["knowledgebase"], "index_path": str(location),
+        "documents_added": added, "chunks_added": len(index["chunks"]) - before,
         "document_count": len(index["documents"]), "chunk_count": len(index["chunks"]),
-        "dense_index_built": bool(index.get("dense")), "dense_model": (index.get("dense") or {}).get("model"),
-        "failures": failures, "warnings": [dense_warning] if dense_warning else [],
+        "encoder": dense.get("model"), "encoder_revision": dense.get("encoder_revision"),
+        "chunker": f"T5 block pack, target {corpus.T5_TARGET}",
+        "failures": failures, "warnings": [],
     }
 
 
@@ -5232,31 +4429,27 @@ def ingest_literature_documents(
     urls: Optional[list[str]] = None,
     knowledgebase: str = "user-library",
     max_documents: int = 20,
-    build_dense_index: bool = False,
 ) -> str:
-    """Ingest explicit PDF/text/HTML/JSON sources into a portable local corpus."""
+    """Ingest PDF, HTML or Markdown documents with the served corpus's recipe (Docling, T5 chunks, BGE-base)."""
     tool = "ingest_literature_documents"
     path_items, url_items = _items(paths), _items(urls)
     if not path_items and not url_items:
         return tool_error(tool, "At least one path or URL is required.", error_code="missing_document_source")
     try:
-        result = _ingest_inputs(path_items, url_items, knowledgebase, False, max_documents, build_dense_index)
+        result = _ingest_inputs(path_items, url_items, knowledgebase, False, max_documents)
+    except LiteratureContractError as error:
+        return tool_error(tool, str(error), error_code=error.code, **error.details)
     except (OSError, ValueError, RuntimeError, json.JSONDecodeError) as error:
         return tool_error(tool, str(error), error_code="corpus_ingestion_failed")
     if not result["documents_added"] and result["failures"]:
         return tool_error(tool, "No document was ingested.", error_code="corpus_ingestion_failed", **result)
-    result_warnings = list(result.pop("warnings", []))
     return tool_success(
         tool,
-        display=_table(("Knowledgebase", "Documents", "Chunks", "Dense"), [(
-            result["knowledgebase"], result["document_count"], result["chunk_count"], result["dense_index_built"],
+        display=_table(("Knowledgebase", "Documents", "Chunks", "Encoder"), [(
+            result["knowledgebase"], result["document_count"], result["chunk_count"], result["encoder"],
         )]),
         analysis_type="corpus_ingestion", **result,
         corpus_schema=_INDEX_SCHEMA,
-        warnings=[
-            *result_warnings,
-            "The index is regenerable user state; source documents and provenance remain authoritative.",
-        ],
     )
 
 
@@ -5504,7 +4697,7 @@ def _chunk_paper_sha256(index: Mapping[str, Any], chunk: Mapping[str, Any]) -> s
 
 
 def _dense_recorded_dim(dense: Mapping[str, Any], ordered: Sequence[Sequence[float]]) -> int:
-    """Dim from the loaded dense block, not the MiniLM constant. 384 gzip still records 384."""
+    """Dim from the loaded dense block."""
     recorded = dense.get("dim")
     if recorded is not None:
         return int(recorded)
@@ -5566,9 +4759,8 @@ def _population_zscores(values: Sequence[float]) -> list[float]:
     return [(value - mean) / scale for value in sequence]
 
 
-def _loaded_bge10_product_identity(index: Mapping[str, Any]) -> bool:
-    if not _is_product_knowledgebase(str(index.get("knowledgebase") or "")):
-        return False
+def _bge10_recipe_identity(index: Mapping[str, Any]) -> bool:
+    """True when the index's vectors are the pinned BGE recipe, whichever knowledgebase it holds."""
     dense = index.get("dense")
     if not isinstance(dense, Mapping):
         return False
@@ -5588,11 +4780,7 @@ def _loaded_bge10_product_identity(index: Mapping[str, Any]) -> bool:
 
 
 def _bge10_hybrid_fusion_enabled(index: Mapping[str, Any]) -> bool:
-    try:
-        selected = _corpus_profile()
-    except LiteratureContractError:
-        return False
-    return selected == _CORPUS_PROFILE_BGE10 and _loaded_bge10_product_identity(index)
+    return _bge10_recipe_identity(index)
 
 
 def _hybrid_passage_parts(
@@ -5852,6 +5040,17 @@ def inspect_literature_corpus(
         return tool_error(tool, f"Unknown diagnostic operation: {operation}.", error_code="unknown_diagnostic")
     if operation == "status":
         rows = []
+        served = _declared_bge10_manifest_path()
+        if served is not None and served.is_file():
+            try:
+                manifest = json.loads(_read_text_file(served))
+                rows.append({
+                    "knowledgebase": manifest.get("knowledgebase"), "documents": manifest.get("n_documents"),
+                    "chunks": manifest.get("n_chunks"), "dense_index_available": True,
+                    "index_path": str(served.parent / str(manifest.get("index_path") or "")), "served_release": True,
+                })
+            except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+                rows.append({"knowledgebase": _PRODUCT_KNOWLEDGEBASE, "error": "unreadable manifest", "index_path": str(served)})
         root = _research_root()
         for path in sorted(root.glob("*.json.gz")) if root.exists() else []:
             try:

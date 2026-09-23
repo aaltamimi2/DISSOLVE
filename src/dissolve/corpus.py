@@ -1,19 +1,20 @@
-"""Build or grow a literature corpus exactly the way the served DISSOLVE corpus was built.
+"""Build or grow a literature corpus the way the served DISSOLVE corpus was built.
 
-PDF -> Docling 2.121.0 canonical document -> T5 chunks (whole parser blocks packed up to
-1,400 characters, never split) -> index records -> MiniLM vectors, written in the layout the
-literature tools serve from ``DISSOLVE_CORPUS_DIR``. ``build`` writes the base index and
-``add`` grows the promoted sidecar, which is how the served corpus went from 19 to 39
-papers. ``bge`` writes the BGE10 artifact (one index over base and sidecar, BGE vectors).
+Recipe: Docling 2.121.0 canonical document -> T5 chunks (whole parser blocks packed up to 1,400
+characters, never split) -> BGE-base-en-v1.5 vectors at the pinned revision, one paper per batch.
+The literature tools serve a corpus with BM25 and dense z-score fusion, the abstention gate and
+the pinned bge-reranker-base pair rerank with reciprocal-rank fusion (the BGE10 configuration).
 
-The manifest lists every chunk's paper, offsets and sha256 but no text, so anyone holding
-the same PDFs can check they reproduced these chunks exactly without the papers ever being
-published: ``verify`` compares a corpus against such a manifest.
+A release is a directory holding index.json.gz and manifest.json. The package ships the paper's
+release (39 papers, 1,841 chunks) in data/corpus. The working release is DISSOLVE_CORPUS_DIR
+(default ~/.dissolve/corpus); it starts as a copy of the shipped one, ``add`` grows it, and the
+agent's ingest tool runs the same code. ``build`` starts a release from your papers alone.
+``verify`` compares a release with a reference chunk by chunk (paper, offsets, text hash), so
+anyone holding the same PDFs can confirm they reproduced it.
 
-    python -m dissolve.corpus build PAPER.pdf ... [--corpus DIR]
-    python -m dissolve.corpus add PAPER.pdf ...   [--corpus DIR]
-    python -m dissolve.corpus bge OUT_DIR         [--corpus DIR] [--reuse INDEX.json.gz]
-    python -m dissolve.corpus verify MANIFEST.json [--corpus DIR]
+    python -m dissolve.corpus add PAPER.pdf ...          [--corpus DIR]
+    python -m dissolve.corpus build PAPER.pdf ...        [--corpus DIR]
+    python -m dissolve.corpus verify REFERENCE_DIR       [--corpus DIR]
 """
 
 from __future__ import annotations
@@ -25,31 +26,36 @@ import io
 import json
 import math
 import resource
+import shutil
 import sys
 import time
 from pathlib import Path
-from typing import Any, Mapping, Sequence
+from typing import Any, Iterable, Mapping, Sequence
 
 from . import research
 from .research import _local_acquisition
 
 T5_TARGET = 1_400
-MINILM_ID = research._MINILM_MODEL_ID
+BGE_ID = research._BGE_MODEL_ID
 BASE_KB = research._PRODUCT_KNOWLEDGEBASE
-SIDECAR_KB = research._SIDECAR_KNOWLEDGEBASE
-MANIFEST_NAME = research._PRODUCT_MANIFEST_NAME
+RELEASE_INDEX = "index.json.gz"
+RELEASE_MANIFEST = "manifest.json"
+SHIPPED = Path(__file__).resolve().parent / "data" / "corpus"
 #: The answer gate: 5th percentile of query_idf_coverage, calibrated 2026-09-09 against the
 #: private benchmark. Nobody can recalibrate it without that benchmark, so it ships as is.
 ABSTENTION = {"statistic": "query_idf_coverage", "percentile": 5, "floor": 0.3698406656908355}
+#: The measured standing of the BGE10 configuration: better than MiniLM at every depth, and
+#: still below the pre-registered served floor (196 of 228 against 206 at k=5).
 BGE_STATUS = "exploratory-below-floor"
+_METADATA_KEYS = ("title", "source", "url", "doi", "year")
 
 
-def canonical_from_pdf(pdf: Path) -> dict[str, Any]:
-    """Parse one PDF with Docling into the canonical document the chunker reads."""
-    pdf = Path(pdf)
-    sha = _sha256(pdf.read_bytes())
+def canonical_from_file(path: Path) -> dict[str, Any]:
+    """Parse one document with Docling into the canonical document the chunker reads."""
+    path = Path(path)
+    sha = _sha256(path.read_bytes())
     started = time.perf_counter()
-    parsed = research.parse_experiment_document(_local_acquisition(pdf, f"corpus-{sha[:12]}"), backend="docling")
+    parsed = research.parse_experiment_document(_local_acquisition(path, f"corpus-{sha[:12]}"), backend="docling")
     peak = int(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss) * 1024
     return research.build_canonical_document(
         parsed, parse_metrics={"wall_s": time.perf_counter() - started, "peak_rss_bytes": peak},
@@ -121,15 +127,25 @@ def build_index(
     knowledgebase: str,
     *,
     previous: Mapping[str, Any] | None = None,
-    model: str = MINILM_ID,
+    model: str = BGE_ID,
+    metadata: Mapping[str, Mapping[str, Any]] | None = None,
 ) -> dict[str, Any]:
-    """Index ``papers`` (``(pdf_sha256, canonical)`` in order), appended to ``previous`` if given.
+    """Index ``papers`` (``(sha256, canonical)`` in order), appended to ``previous`` if given.
 
     Only chunks new to the index are embedded; existing vectors are carried over unchanged.
+    ``metadata`` (by paper sha256) labels documents and their chunks for citation; it never
+    changes the text that is ranked or embedded.
     """
     old = previous or {"chunks": [], "documents": [], "dense": None}
     known = {doc["sha256"] for doc in old["documents"]}
-    new = [row for sha, canonical in papers if sha not in known for row in chunk_records(canonical, sha)]
+    labels = metadata or {}
+    new = []
+    for sha, canonical in papers:
+        if sha in known:
+            continue
+        for row in chunk_records(canonical, sha):
+            row.update({key: value for key, value in (labels.get(sha) or {}).items() if key in _METADATA_KEYS and value is not None})
+            new.append(row)
     chunks = list(old["chunks"]) + new
     shas = sorted(known | {sha for sha, _ in papers})
     vectors = list((old.get("dense") or {}).get("vectors") or [])
@@ -141,13 +157,19 @@ def build_index(
             fresh, expected_count=len(new), model_name=model, expected_dim=research._compatible_embedding_dim(model),
         )
         vectors += fresh
+    earlier = {doc["sha256"]: doc for doc in old["documents"]}
+    documents = []
+    for sha in shas:
+        document = dict(earlier.get(sha) or {
+            "document_id": f"D{sha[:16]}", "sha256": sha, "title": "", "source": "", "parser_backend": "docling",
+        })
+        if sha not in earlier:
+            document.update({key: value for key, value in (labels.get(sha) or {}).items() if key in _METADATA_KEYS and value is not None})
+        documents.append(document)
     return {
         "schema": research._INDEX_SCHEMA,
         "knowledgebase": knowledgebase,
-        "documents": [
-            {"document_id": f"D{sha[:16]}", "sha256": sha, "title": "", "source": "", "parser_backend": "docling"}
-            for sha in shas
-        ],
+        "documents": documents,
         "chunks": chunks,
         "dense": research._attach_generated_recipe({
             "model": model,
@@ -158,88 +180,77 @@ def build_index(
     }
 
 
-def build(pdfs: Sequence[Path], corpus: Path) -> dict[str, Any]:
-    """Write the base index for ``pdfs`` and a fresh manifest; replaces any sidecar."""
-    base = build_index([_paper(pdf) for pdf in pdfs], BASE_KB)
-    return _write(corpus, base, None)
+# --- releases -------------------------------------------------------------------------------
 
 
-def add(pdfs: Sequence[Path], corpus: Path) -> dict[str, Any]:
-    """Grow the promoted sidecar with ``pdfs``; the base index is left untouched.
-
-    Papers are added one at a time, each paper's chunks embedded on their own, which is how
-    the served sidecar grew (embedding batches pad differently, so the batching matters).
-    """
-    base = read_index(corpus / "indexes" / f"{BASE_KB}.json.gz")
-    sidecar_path = corpus / "indexes" / f"{SIDECAR_KB}.json.gz"
-    sidecar = read_index(sidecar_path) if sidecar_path.is_file() else None
-    in_base = {doc["sha256"] for doc in base["documents"]}
-    for paper in map(_paper, pdfs):
-        if paper[0] not in in_base:
-            sidecar = build_index([paper], SIDECAR_KB, previous=sidecar)
-    return _write(corpus, base, sidecar)
+def working_release(corpus: Path | None = None) -> Path:
+    """The release ``add`` grows: DISSOLVE_CORPUS_DIR, seeded from the shipped release on first use."""
+    directory = Path(corpus) if corpus is not None else research._corpus_dir()
+    if not (directory / RELEASE_MANIFEST).is_file():
+        directory.mkdir(parents=True, exist_ok=True)
+        for name in (RELEASE_INDEX, RELEASE_MANIFEST):
+            shutil.copyfile(SHIPPED / name, directory / name)
+    return directory
 
 
-def bge_artifact(corpus: Path, out: Path, *, reuse: Path | None = None) -> dict[str, Any]:
-    """Write the BGE10 artifact: one index over base and sidecar with BGE vectors.
+def read_release(directory: Path) -> tuple[dict[str, Any], dict[str, Any]]:
+    manifest = json.loads((Path(directory) / RELEASE_MANIFEST).read_text(encoding="utf-8"))
+    return manifest, read_index(Path(directory) / str(manifest.get("index_path") or RELEASE_INDEX))
 
-    Vectors for chunk ids present in ``reuse`` (an earlier BGE index) are carried over; only
-    the rest are encoded.
-    """
-    manifest = json.loads((corpus / MANIFEST_NAME).read_text(encoding="utf-8"))
-    base = read_index(corpus / "indexes" / f"{BASE_KB}.json.gz")
-    sidecar_path = corpus / "indexes" / f"{SIDECAR_KB}.json.gz"
-    sidecar = read_index(sidecar_path) if sidecar_path.is_file() else {"chunks": [], "documents": []}
-    chunks = list(base["chunks"]) + list(sidecar["chunks"])
-    old: dict[str, list[float]] = {}
-    if reuse is not None:
-        dense = read_index(reuse)["dense"]
-        old = dict(zip(dense["chunk_ids"], dense["vectors"]))
-    missing = [row for row in chunks if row["chunk_id"] not in old]
-    if missing:
-        _, fresh = research._dense_vectors([research.chunk_sparse_corpus(row) for row in missing], research._BGE_MODEL_ID)
-        old.update(zip((row["chunk_id"] for row in missing), fresh))
-    ids = [row["chunk_id"] for row in chunks]
-    index = {
-        "schema": research._INDEX_SCHEMA,
-        "knowledgebase": BASE_KB,
-        "abstention": {"floor": manifest.get("abstention", ABSTENTION)["floor"]},
-        "documents": list(base["documents"]) + list(sidecar["documents"]),
-        "chunks": chunks,
-        "dense": research._attach_generated_recipe({
-            "model": research._BGE_MODEL_ID, "dim": research._BGE_DIM, "chunk_ids": ids, "vectors": [old[i] for i in ids],
-        }),
-    }
-    out.mkdir(parents=True, exist_ok=True)
-    digest = _write_gzip(out / "index.json.gz", index)
-    bge_manifest = {
-        "knowledgebase": BASE_KB,
-        "index_path": "index.json.gz",
-        "gzip_sha256": digest,
-        "dense": {
-            key: index["dense"][key]
-            for key in ("model", "dim", "query_instruction", "passage_instruction", "encoder_revision", "chunk_ids")
-        },
-        "abstention": dict(index["abstention"]),
-        "n_vectors": len(ids),
-        "n_chunks": len(chunks),
+
+def add(sources: Sequence[Path], corpus: Path | None = None) -> dict[str, Any]:
+    """Grow the working release with ``sources``, one paper per embedding batch; papers already in it are skipped."""
+    directory = working_release(corpus)
+    _, index = read_release(directory)
+    present = {doc["sha256"] for doc in index["documents"]}
+    for sha, canonical in _papers(sources, present):
+        index = build_index([(sha, canonical)], index["knowledgebase"], previous=index, model=BGE_ID)
+    return write_release(directory, index)
+
+
+def build(sources: Sequence[Path], corpus: Path) -> dict[str, Any]:
+    """Write a new release holding only ``sources``, one paper per embedding batch."""
+    index: dict[str, Any] | None = None
+    for sha, canonical in _papers(sources, set()):
+        index = build_index([(sha, canonical)], BASE_KB, previous=index, model=BGE_ID)
+    if index is None:
+        raise ValueError("no document was indexed")
+    return write_release(Path(corpus), index)
+
+
+def write_release(directory: Path, index: Mapping[str, Any]) -> dict[str, Any]:
+    """Write ``index`` and the manifest that binds it; the manifest lands last, so a torn write fails closed."""
+    directory = Path(directory)
+    directory.mkdir(parents=True, exist_ok=True)
+    index = dict(index, abstention={"floor": ABSTENTION["floor"]})
+    dense = index["dense"]
+    manifest = {
+        "knowledgebase": index["knowledgebase"],
+        "index_path": RELEASE_INDEX,
+        "gzip_sha256": _write_gzip(directory / RELEASE_INDEX, index),
+        "dense": {key: dense[key] for key in ("model", "dim", "query_instruction", "passage_instruction", "encoder_revision", "chunk_ids")},
+        "abstention": {"floor": ABSTENTION["floor"]},
+        "n_vectors": len(dense["vectors"]),
+        "n_chunks": len(index["chunks"]),
         "n_documents": len(index["documents"]),
         "status": BGE_STATUS,
     }
-    (out / "manifest.json").write_text(json.dumps(bge_manifest, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
-    return bge_manifest
+    temporary = directory / (RELEASE_MANIFEST + ".tmp")
+    temporary.write_text(json.dumps(manifest, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    temporary.replace(directory / RELEASE_MANIFEST)
+    return manifest
 
 
-def verify(corpus: Path, published: Mapping[str, Any]) -> dict[str, Any]:
-    """Compare this corpus's chunks with a published manifest, chunk by chunk (no text needed)."""
-    ours = {row["chunk_id"]: row for row in _chunk_list(corpus)}
-    theirs = {row["chunk_id"]: row for row in published.get("chunks") or []}
+def verify(corpus: Path, reference: Path = SHIPPED) -> dict[str, Any]:
+    """Compare a release's chunks with a reference release, chunk by chunk (paper, offsets, text hash)."""
+    ours = {row["chunk_id"]: _public(row) for row in read_release(Path(corpus))[1]["chunks"]}
+    theirs = {row["chunk_id"]: _public(row) for row in read_release(Path(reference))[1]["chunks"]}
     differing = sorted(cid for cid in ours.keys() & theirs.keys() if ours[cid] != theirs[cid])
     return {
         "matching": len(ours.keys() & theirs.keys()) - len(differing),
         "differing": differing,
         "only_here": sorted(ours.keys() - theirs.keys()),
-        "only_published": sorted(theirs.keys() - ours.keys()),
+        "only_reference": sorted(theirs.keys() - ours.keys()),
     }
 
 
@@ -248,51 +259,29 @@ def read_index(path: Path) -> dict[str, Any]:
         return json.load(handle)
 
 
-def _write(corpus: Path, base: Mapping[str, Any], sidecar: Mapping[str, Any] | None) -> dict[str, Any]:
-    indexes = corpus / "indexes"
-    indexes.mkdir(parents=True, exist_ok=True)
-    manifest: dict[str, Any] = {
-        "schema": "dissolve.corpus-manifest.v1",
-        "recipe": {"parser": "docling 2.121.0", "chunker": f"T5 block pack, target {T5_TARGET}", "embedder": MINILM_ID},
-        "knowledgebase": BASE_KB,
-        "index_path": f"indexes/{BASE_KB}.json.gz",
-        "gzip_sha256": _write_gzip(indexes / f"{BASE_KB}.json.gz", base),
-        "n_papers": len(base["documents"]),
-        "n_chunks": len(base["chunks"]),
-        "abstention": dict(ABSTENTION),
-    }
-    stale = indexes / f"{SIDECAR_KB}.json.gz"
-    if sidecar is not None:
-        manifest["promoted"] = {
-            "knowledgebase": SIDECAR_KB,
-            "index_path": f"indexes/{SIDECAR_KB}.json.gz",
-            "gzip_sha256": _write_gzip(stale, sidecar),
-            "n_papers": len(sidecar["documents"]),
-            "n_chunks": len(sidecar["chunks"]),
-        }
-    elif stale.exists():
-        stale.unlink()
-    manifest["chunks"] = [_public(row) for index in (base, sidecar) if index for row in index["chunks"]]
-    (corpus / MANIFEST_NAME).write_text(json.dumps(manifest, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
-    return manifest
-
-
-def _chunk_list(corpus: Path) -> list[dict[str, Any]]:
-    rows = list(read_index(corpus / "indexes" / f"{BASE_KB}.json.gz")["chunks"])
-    sidecar = corpus / "indexes" / f"{SIDECAR_KB}.json.gz"
-    if sidecar.is_file():
-        rows += read_index(sidecar)["chunks"]
-    return [_public(row) for row in rows]
+def _papers(sources: Iterable[Path], present: set[str]) -> Iterable[tuple[str, dict[str, Any]]]:
+    """(sha256, canonical) for each source not already ``present``; a canonical-document JSON is used as is."""
+    for source in sources:
+        source = Path(source)
+        if source.suffix.casefold() == ".json":
+            canonical = json.loads(source.read_text(encoding="utf-8"))
+            sha = str(canonical.get("source_pdf_sha256") or "")
+            if canonical.get("schema") != research._CANONICAL_DOCUMENT_SCHEMA or not sha:
+                raise ValueError(f"{source.name}: a JSON source must be a canonical document")
+        else:
+            sha = _sha256(source.read_bytes())
+            if sha in present:
+                continue
+            canonical = canonical_from_file(source)
+            sha = str(canonical["source_pdf_sha256"])
+        if sha not in present:
+            present.add(sha)
+            yield sha, canonical
 
 
 def _public(row: Mapping[str, Any]) -> dict[str, Any]:
     keys = ("chunk_id", "paper_sha256", "char_start", "char_end", "sha256")
     return {key: row[key] for key in keys}
-
-
-def _paper(pdf: Path) -> tuple[str, dict[str, Any]]:
-    canonical = canonical_from_pdf(Path(pdf))
-    return str(canonical["source_pdf_sha256"]), canonical
 
 
 def _write_gzip(path: Path, payload: Mapping[str, Any]) -> str:
@@ -333,23 +322,20 @@ def _sha256(data: bytes) -> str:
 
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="python -m dissolve.corpus", description=__doc__.split("\n\n")[0])
-    parser.add_argument("command", choices=("build", "add", "bge", "verify"))
+    parser.add_argument("command", choices=("add", "build", "verify"))
     parser.add_argument("paths", nargs="+", type=Path)
-    parser.add_argument("--corpus", type=Path, default=None, help="corpus directory (default: DISSOLVE_CORPUS_DIR)")
-    parser.add_argument("--reuse", type=Path, default=None, help="bge: earlier BGE index whose vectors to carry over")
+    parser.add_argument("--corpus", type=Path, default=None, help="release directory (default: DISSOLVE_CORPUS_DIR)")
     args = parser.parse_args(argv)
     corpus = args.corpus or research._corpus_dir()
-    if args.command == "build":
-        result = build(args.paths, corpus)
-    elif args.command == "add":
+    if args.command == "add":
         result = add(args.paths, corpus)
-    elif args.command == "bge":
-        result = bge_artifact(corpus, args.paths[0], reuse=args.reuse)
+    elif args.command == "build":
+        result = build(args.paths, corpus)
     else:
-        result = verify(corpus, json.loads(args.paths[0].read_text(encoding="utf-8")))
-    summary = {key: value for key, value in result.items() if key != "chunks"}
+        result = verify(corpus, args.paths[0])
+    summary = {key: value for key, value in result.items() if key not in ("chunks", "dense")}
     print(json.dumps(summary, indent=2, ensure_ascii=False))
-    return 1 if args.command == "verify" and (result["differing"] or result["only_published"]) else 0
+    return 1 if args.command == "verify" and (result["differing"] or result["only_reference"]) else 0
 
 
 if __name__ == "__main__":
