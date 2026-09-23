@@ -6,7 +6,8 @@
 #   - .venv, the agent on Python 3.11 with exactly the versions in uv.lock (about 8 GB on Linux: torch's CUDA build);
 #   - .venv-tea, the live-TEA worker on Python 3.12 with exactly requirements-tea.txt (about 0.7 GB);
 #   - the pinned literature models (BGE encoder, reranker, Docling), about 2 GB, once.
-# Later runs only start the agent. `./dissolve doctor` checks the setup; `./dissolve test` runs the test suite.
+# Later runs only start the agent. `./dissolve web` serves it in the browser (http://127.0.0.1:8765);
+# `./dissolve doctor` checks the setup; `./dissolve test` runs the test suite.
 #
 # The model key comes from the environment or from ~/.dissolve/credentials.env. Live TEA also needs the
 # plastics process model in vendor/plastics. New COSMO surfaces need ORCA and openCOSMO-RS; `./dissolve doctor`
