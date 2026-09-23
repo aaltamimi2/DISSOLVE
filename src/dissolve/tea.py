@@ -7389,169 +7389,77 @@ def _requested_energy_case(process_config: Any) -> str | None:
     return token
 
 
-def _requested_dissolution_temperature_c(process_config: Any) -> float | None:
-    """Held dissolution T from process_config. Do not default a cache T."""
-    if not isinstance(process_config, dict):
-        return None
-    if (
-        "dissolution_temperature_c" in process_config
-        and process_config["dissolution_temperature_c"] not in (None, "")
-    ):
-        raw = process_config["dissolution_temperature_c"]
-    elif (
-        "dissolution_temp_c" in process_config
-        and process_config["dissolution_temp_c"] not in (None, "")
-    ):
-        raw = process_config["dissolution_temp_c"]
-    else:
-        return None
-    return round(_finite(raw, "dissolution_temperature_c"), 10)
+def _held_value(process_config: Any, *keys: str) -> Any:
+    """The first of `keys` the request sets to something other than None or "", else None."""
+    if isinstance(process_config, dict):
+        for key in keys:
+            if key in process_config and process_config[key] not in (None, ""):
+                return process_config[key]
+    return None
 
 
-def _requested_precipitation_temperature_c(process_config: Any) -> float | None:
-    """Held precipitation T from process_config. Do not default a cache T."""
-    if not isinstance(process_config, dict):
-        return None
-    if (
-        "precipitation_temperature_c" in process_config
-        and process_config["precipitation_temperature_c"] not in (None, "")
-    ):
-        raw = process_config["precipitation_temperature_c"]
-    elif (
-        "precipitation_temp_c" in process_config
-        and process_config["precipitation_temp_c"] not in (None, "")
-    ):
-        raw = process_config["precipitation_temp_c"]
-    else:
-        return None
-    return round(_finite(raw, "precipitation_temperature_c"), 10)
+def _requested_number(process_config: Any, field: str, *aliases: str) -> float | None:
+    """A held number from the request, under its public name or an accepted alias. Never defaulted."""
+    value = _held_value(process_config, field, *aliases)
+    return None if value is None else round(_finite(value, field), 10)
 
 
-def _requested_solvent_price_usd_per_kg(process_config: Any) -> float | None:
-    """Held solvent price from process_config. Do not default a cache price."""
-    if not isinstance(process_config, dict):
-        return None
-    if (
-        "solvent_price_usd_per_kg" in process_config
-        and process_config["solvent_price_usd_per_kg"] not in (None, "")
-    ):
-        raw = process_config["solvent_price_usd_per_kg"]
-    elif (
-        "solvent_price" in process_config
-        and process_config["solvent_price"] not in (None, "")
-    ):
-        raw = process_config["solvent_price"]
-    else:
-        return None
-    return round(_finite(raw, "solvent_price_usd_per_kg"), 10)
+# Each fraction's example quotes the worker default it must not fall back to.
+_HELD_FRACTION_EXAMPLES = {
+    'finance_fraction': '0.4 is 40 percent',
+    'startup_FOCfrac': '1 is 100 percent',
+    'startup_VOCfrac': '0.75 is 75 percent',
+    'startup_salesfrac': '0.5 is 50 percent',
+    'WC_over_FCI': '0.05 is 5 percent',
+    'warehouse': '0.04 is 4 percent',
+    'site_development': '0.09 is 9 percent',
+    'additional_piping': '0.045 is 4.5 percent',
+    'proratable_costs': '0.10 is 10 percent',
+    'field_expenses': '0.10 is 10 percent',
+    'construction': '0.20 is 20 percent',
+    'contingency': '0.4 is 40 percent',
+    'other_indirect_costs': '0.10 is 10 percent',
+    'property_insurance': '0.007 is 0.7 percent',
+    'maintenance': '0.03 is 3 percent',
+}
 
 
-def _requested_solvent_loss_pct(process_config: Any) -> float | None:
-    """Held solvent loss from process_config. Do not default 0.01."""
-    if not isinstance(process_config, dict):
+def _requested_fraction(process_config: Any, field: str) -> float | None:
+    """A held fraction from the request. Never defaulted; a percent integer is refused."""
+    value = _held_value(process_config, field)
+    if value is None:
         return None
-    if (
-        "solvent_loss_pct" not in process_config
-        or process_config["solvent_loss_pct"] in (None, "")
-    ):
-        return None
-    return round(
-        _finite(process_config["solvent_loss_pct"], "solvent_loss_pct"), 10,
-    )
+    fraction = _finite(value, field)
+    if fraction > 1:
+        raise _ScenarioInputError(
+            f"{field} is a fraction ({_HELD_FRACTION_EXAMPLES[field]}), not a percent integer.",
+            error_code="invalid_admitted_record_query",
+            field=field,
+            supplied=value,
+        )
+    if not 0 <= fraction <= 1:
+        raise _ScenarioInputError(
+            f"{field} must be a fraction in [0, 1].",
+            error_code="invalid_admitted_record_query",
+            field=field,
+            supplied=value,
+        )
+    return round(fraction, 10)
 
 
-def _requested_feedstock_distance_km(process_config: Any) -> float | None:
-    """Held haul distance from process_config. Do not default 0 km."""
-    if not isinstance(process_config, dict):
-        return None
-    if (
-        "feedstock_distance_km" not in process_config
-        or process_config["feedstock_distance_km"] in (None, "")
-    ):
-        return None
-    return round(
-        _finite(process_config["feedstock_distance_km"], "feedstock_distance_km"),
-        10,
-    )
-
-
-def _requested_dissolution_capacity(process_config: Any) -> float | None:
-    """Held dissolution capacity from process_config. Do not default 3.0."""
-    if not isinstance(process_config, dict):
-        return None
-    if (
-        "dissolution_capacity" not in process_config
-        or process_config["dissolution_capacity"] in (None, "")
-    ):
-        return None
-    return round(
-        _finite(process_config["dissolution_capacity"], "dissolution_capacity"),
-        10,
-    )
-
-
-def _requested_labor_cost_usd_per_employee_yr(
-    process_config: Any,
-) -> float | None:
-    """Held labor cost from process_config. Do not default 120000."""
-    if not isinstance(process_config, dict):
-        return None
-    if (
-        "labor_cost_usd_per_employee_yr" in process_config
-        and process_config["labor_cost_usd_per_employee_yr"] not in (None, "")
-    ):
-        raw = process_config["labor_cost_usd_per_employee_yr"]
-    elif (
-        "labor_cost" in process_config
-        and process_config["labor_cost"] not in (None, "")
-    ):
-        raw = process_config["labor_cost"]
-    else:
-        return None
-    return round(_finite(raw, "labor_cost_usd_per_employee_yr"), 10)
-
-
-def _requested_sell_leftover_plastic(process_config: Any) -> bool | None:
-    """Held leftover-sale switch. Do not default False."""
-    if not isinstance(process_config, dict):
-        return None
-    if (
-        "sell_leftover_plastic" not in process_config
-        or process_config["sell_leftover_plastic"] in (None, "")
-    ):
+def _requested_switch(process_config: Any, field: str) -> bool | None:
+    """A held on/off switch from the request. Never defaulted."""
+    value = _held_value(process_config, field)
+    if value is None:
         return None
     try:
-        return _coerce_flowsheet_bool(
-            process_config["sell_leftover_plastic"], "sell_leftover_plastic",
-        )
+        return _coerce_flowsheet_bool(value, field)
     except _ScenarioInputError:
         raise _ScenarioInputError(
-            "sell_leftover_plastic must be a boolean",
+            f"{field} must be a boolean",
             error_code="invalid_admitted_record_query",
-            field="sell_leftover_plastic",
-            supplied=process_config["sell_leftover_plastic"],
-        )
-
-
-def _requested_burn_leftover_plastic(process_config: Any) -> bool | None:
-    """Held leftover-burn switch. Do not default False."""
-    if not isinstance(process_config, dict):
-        return None
-    if (
-        "burn_leftover_plastic" not in process_config
-        or process_config["burn_leftover_plastic"] in (None, "")
-    ):
-        return None
-    try:
-        return _coerce_flowsheet_bool(
-            process_config["burn_leftover_plastic"], "burn_leftover_plastic",
-        )
-    except _ScenarioInputError:
-        raise _ScenarioInputError(
-            "burn_leftover_plastic must be a boolean",
-            error_code="invalid_admitted_record_query",
-            field="burn_leftover_plastic",
-            supplied=process_config["burn_leftover_plastic"],
+            field=field,
+            supplied=value,
         )
 
 
@@ -7749,34 +7657,6 @@ def _requested_finance_years(process_config: Any) -> float | None:
     return round(years, 10)
 
 
-def _requested_finance_fraction(process_config: Any) -> float | None:
-    """Held finance fraction. Do not default 0."""
-    if not isinstance(process_config, dict):
-        return None
-    if (
-        "finance_fraction" not in process_config
-        or process_config["finance_fraction"] in (None, "")
-    ):
-        return None
-    fraction = _finite(process_config["finance_fraction"], "finance_fraction")
-    if fraction > 1:
-        raise _ScenarioInputError(
-            "finance_fraction is a fraction (0.4 is 40 percent), not a "
-            "percent integer.",
-            error_code="invalid_admitted_record_query",
-            field="finance_fraction",
-            supplied=process_config["finance_fraction"],
-        )
-    if not 0 <= fraction <= 1:
-        raise _ScenarioInputError(
-            "finance_fraction must be a fraction in [0, 1].",
-            error_code="invalid_admitted_record_query",
-            field="finance_fraction",
-            supplied=process_config["finance_fraction"],
-        )
-    return round(fraction, 10)
-
-
 def _requested_startup_months(process_config: Any) -> float | None:
     """Held startup months. Do not default 3."""
     if not isinstance(process_config, dict):
@@ -7802,402 +7682,6 @@ def _requested_startup_months(process_config: Any) -> float | None:
             supplied=process_config["startup_months"],
         )
     return round(months, 10)
-
-
-def _requested_startup_FOCfrac(process_config: Any) -> float | None:
-    """Held startup FOC fraction. Do not default 1."""
-    if not isinstance(process_config, dict):
-        return None
-    if (
-        "startup_FOCfrac" not in process_config
-        or process_config["startup_FOCfrac"] in (None, "")
-    ):
-        return None
-    fraction = _finite(process_config["startup_FOCfrac"], "startup_FOCfrac")
-    if fraction > 1:
-        raise _ScenarioInputError(
-            "startup_FOCfrac is a fraction (1 is 100 percent), not a "
-            "percent integer.",
-            error_code="invalid_admitted_record_query",
-            field="startup_FOCfrac",
-            supplied=process_config["startup_FOCfrac"],
-        )
-    if not 0 <= fraction <= 1:
-        raise _ScenarioInputError(
-            "startup_FOCfrac must be a fraction in [0, 1].",
-            error_code="invalid_admitted_record_query",
-            field="startup_FOCfrac",
-            supplied=process_config["startup_FOCfrac"],
-        )
-    return round(fraction, 10)
-
-
-def _requested_startup_VOCfrac(process_config: Any) -> float | None:
-    """Held startup VOC fraction. Do not default 0.75."""
-    if not isinstance(process_config, dict):
-        return None
-    if (
-        "startup_VOCfrac" not in process_config
-        or process_config["startup_VOCfrac"] in (None, "")
-    ):
-        return None
-    fraction = _finite(process_config["startup_VOCfrac"], "startup_VOCfrac")
-    if fraction > 1:
-        raise _ScenarioInputError(
-            "startup_VOCfrac is a fraction (0.75 is 75 percent), not a "
-            "percent integer.",
-            error_code="invalid_admitted_record_query",
-            field="startup_VOCfrac",
-            supplied=process_config["startup_VOCfrac"],
-        )
-    if not 0 <= fraction <= 1:
-        raise _ScenarioInputError(
-            "startup_VOCfrac must be a fraction in [0, 1].",
-            error_code="invalid_admitted_record_query",
-            field="startup_VOCfrac",
-            supplied=process_config["startup_VOCfrac"],
-        )
-    return round(fraction, 10)
-
-
-def _requested_startup_salesfrac(process_config: Any) -> float | None:
-    """Held startup sales fraction. Do not default 0.5."""
-    if not isinstance(process_config, dict):
-        return None
-    if (
-        "startup_salesfrac" not in process_config
-        or process_config["startup_salesfrac"] in (None, "")
-    ):
-        return None
-    fraction = _finite(process_config["startup_salesfrac"], "startup_salesfrac")
-    if fraction > 1:
-        raise _ScenarioInputError(
-            "startup_salesfrac is a fraction (0.5 is 50 percent), not a "
-            "percent integer.",
-            error_code="invalid_admitted_record_query",
-            field="startup_salesfrac",
-            supplied=process_config["startup_salesfrac"],
-        )
-    if not 0 <= fraction <= 1:
-        raise _ScenarioInputError(
-            "startup_salesfrac must be a fraction in [0, 1].",
-            error_code="invalid_admitted_record_query",
-            field="startup_salesfrac",
-            supplied=process_config["startup_salesfrac"],
-        )
-    return round(fraction, 10)
-
-
-def _requested_WC_over_FCI(process_config: Any) -> float | None:
-    """Held working-capital fraction. Do not default 0.05."""
-    if not isinstance(process_config, dict):
-        return None
-    if (
-        "WC_over_FCI" not in process_config
-        or process_config["WC_over_FCI"] in (None, "")
-    ):
-        return None
-    fraction = _finite(process_config["WC_over_FCI"], "WC_over_FCI")
-    if fraction > 1:
-        raise _ScenarioInputError(
-            "WC_over_FCI is a fraction (0.05 is 5 percent), not a "
-            "percent integer.",
-            error_code="invalid_admitted_record_query",
-            field="WC_over_FCI",
-            supplied=process_config["WC_over_FCI"],
-        )
-    if not 0 <= fraction <= 1:
-        raise _ScenarioInputError(
-            "WC_over_FCI must be a fraction in [0, 1].",
-            error_code="invalid_admitted_record_query",
-            field="WC_over_FCI",
-            supplied=process_config["WC_over_FCI"],
-        )
-    return round(fraction, 10)
-
-
-def _requested_warehouse(process_config: Any) -> float | None:
-    """Held warehouse factor. Do not default 0.04."""
-    if not isinstance(process_config, dict):
-        return None
-    if (
-        "warehouse" not in process_config
-        or process_config["warehouse"] in (None, "")
-    ):
-        return None
-    fraction = _finite(process_config["warehouse"], "warehouse")
-    if fraction > 1:
-        raise _ScenarioInputError(
-            "warehouse is a fraction (0.04 is 4 percent), not a "
-            "percent integer.",
-            error_code="invalid_admitted_record_query",
-            field="warehouse",
-            supplied=process_config["warehouse"],
-        )
-    if not 0 <= fraction <= 1:
-        raise _ScenarioInputError(
-            "warehouse must be a fraction in [0, 1].",
-            error_code="invalid_admitted_record_query",
-            field="warehouse",
-            supplied=process_config["warehouse"],
-        )
-    return round(fraction, 10)
-
-
-def _requested_site_development(process_config: Any) -> float | None:
-    """Held site-development factor. Do not default 0.09."""
-    if not isinstance(process_config, dict):
-        return None
-    if (
-        "site_development" not in process_config
-        or process_config["site_development"] in (None, "")
-    ):
-        return None
-    fraction = _finite(process_config["site_development"], "site_development")
-    if fraction > 1:
-        raise _ScenarioInputError(
-            "site_development is a fraction (0.09 is 9 percent), not a "
-            "percent integer.",
-            error_code="invalid_admitted_record_query",
-            field="site_development",
-            supplied=process_config["site_development"],
-        )
-    if not 0 <= fraction <= 1:
-        raise _ScenarioInputError(
-            "site_development must be a fraction in [0, 1].",
-            error_code="invalid_admitted_record_query",
-            field="site_development",
-            supplied=process_config["site_development"],
-        )
-    return round(fraction, 10)
-
-
-def _requested_additional_piping(process_config: Any) -> float | None:
-    """Held additional-piping factor. Do not default 0.045."""
-    if not isinstance(process_config, dict):
-        return None
-    if (
-        "additional_piping" not in process_config
-        or process_config["additional_piping"] in (None, "")
-    ):
-        return None
-    fraction = _finite(process_config["additional_piping"], "additional_piping")
-    if fraction > 1:
-        raise _ScenarioInputError(
-            "additional_piping is a fraction (0.045 is 4.5 percent), not a "
-            "percent integer.",
-            error_code="invalid_admitted_record_query",
-            field="additional_piping",
-            supplied=process_config["additional_piping"],
-        )
-    if not 0 <= fraction <= 1:
-        raise _ScenarioInputError(
-            "additional_piping must be a fraction in [0, 1].",
-            error_code="invalid_admitted_record_query",
-            field="additional_piping",
-            supplied=process_config["additional_piping"],
-        )
-    return round(fraction, 10)
-
-
-def _requested_proratable_costs(process_config: Any) -> float | None:
-    """Held proratable-costs factor. Do not default 0.10."""
-    if not isinstance(process_config, dict):
-        return None
-    if (
-        "proratable_costs" not in process_config
-        or process_config["proratable_costs"] in (None, "")
-    ):
-        return None
-    fraction = _finite(process_config["proratable_costs"], "proratable_costs")
-    if fraction > 1:
-        raise _ScenarioInputError(
-            "proratable_costs is a fraction (0.10 is 10 percent), not a "
-            "percent integer.",
-            error_code="invalid_admitted_record_query",
-            field="proratable_costs",
-            supplied=process_config["proratable_costs"],
-        )
-    if not 0 <= fraction <= 1:
-        raise _ScenarioInputError(
-            "proratable_costs must be a fraction in [0, 1].",
-            error_code="invalid_admitted_record_query",
-            field="proratable_costs",
-            supplied=process_config["proratable_costs"],
-        )
-    return round(fraction, 10)
-
-
-def _requested_field_expenses(process_config: Any) -> float | None:
-    """Held field-expenses factor. Do not default 0.10."""
-    if not isinstance(process_config, dict):
-        return None
-    if (
-        "field_expenses" not in process_config
-        or process_config["field_expenses"] in (None, "")
-    ):
-        return None
-    fraction = _finite(process_config["field_expenses"], "field_expenses")
-    if fraction > 1:
-        raise _ScenarioInputError(
-            "field_expenses is a fraction (0.10 is 10 percent), not a "
-            "percent integer.",
-            error_code="invalid_admitted_record_query",
-            field="field_expenses",
-            supplied=process_config["field_expenses"],
-        )
-    if not 0 <= fraction <= 1:
-        raise _ScenarioInputError(
-            "field_expenses must be a fraction in [0, 1].",
-            error_code="invalid_admitted_record_query",
-            field="field_expenses",
-            supplied=process_config["field_expenses"],
-        )
-    return round(fraction, 10)
-
-
-def _requested_construction(process_config: Any) -> float | None:
-    """Held construction factor. Do not default 0.20."""
-    if not isinstance(process_config, dict):
-        return None
-    if (
-        "construction" not in process_config
-        or process_config["construction"] in (None, "")
-    ):
-        return None
-    fraction = _finite(process_config["construction"], "construction")
-    if fraction > 1:
-        raise _ScenarioInputError(
-            "construction is a fraction (0.20 is 20 percent), not a "
-            "percent integer.",
-            error_code="invalid_admitted_record_query",
-            field="construction",
-            supplied=process_config["construction"],
-        )
-    if not 0 <= fraction <= 1:
-        raise _ScenarioInputError(
-            "construction must be a fraction in [0, 1].",
-            error_code="invalid_admitted_record_query",
-            field="construction",
-            supplied=process_config["construction"],
-        )
-    return round(fraction, 10)
-
-
-def _requested_contingency(process_config: Any) -> float | None:
-    """Held contingency factor. Do not default 0.4."""
-    if not isinstance(process_config, dict):
-        return None
-    if (
-        "contingency" not in process_config
-        or process_config["contingency"] in (None, "")
-    ):
-        return None
-    fraction = _finite(process_config["contingency"], "contingency")
-    if fraction > 1:
-        raise _ScenarioInputError(
-            "contingency is a fraction (0.4 is 40 percent), not a "
-            "percent integer.",
-            error_code="invalid_admitted_record_query",
-            field="contingency",
-            supplied=process_config["contingency"],
-        )
-    if not 0 <= fraction <= 1:
-        raise _ScenarioInputError(
-            "contingency must be a fraction in [0, 1].",
-            error_code="invalid_admitted_record_query",
-            field="contingency",
-            supplied=process_config["contingency"],
-        )
-    return round(fraction, 10)
-
-
-def _requested_other_indirect_costs(process_config: Any) -> float | None:
-    """Held other-indirect-costs factor. Do not default 0.10."""
-    if not isinstance(process_config, dict):
-        return None
-    if (
-        "other_indirect_costs" not in process_config
-        or process_config["other_indirect_costs"] in (None, "")
-    ):
-        return None
-    fraction = _finite(
-        process_config["other_indirect_costs"], "other_indirect_costs",
-    )
-    if fraction > 1:
-        raise _ScenarioInputError(
-            "other_indirect_costs is a fraction (0.10 is 10 percent), not a "
-            "percent integer.",
-            error_code="invalid_admitted_record_query",
-            field="other_indirect_costs",
-            supplied=process_config["other_indirect_costs"],
-        )
-    if not 0 <= fraction <= 1:
-        raise _ScenarioInputError(
-            "other_indirect_costs must be a fraction in [0, 1].",
-            error_code="invalid_admitted_record_query",
-            field="other_indirect_costs",
-            supplied=process_config["other_indirect_costs"],
-        )
-    return round(fraction, 10)
-
-
-def _requested_property_insurance(process_config: Any) -> float | None:
-    """Held property-insurance factor. Do not default 0.007."""
-    if not isinstance(process_config, dict):
-        return None
-    if (
-        "property_insurance" not in process_config
-        or process_config["property_insurance"] in (None, "")
-    ):
-        return None
-    fraction = _finite(
-        process_config["property_insurance"], "property_insurance",
-    )
-    if fraction > 1:
-        raise _ScenarioInputError(
-            "property_insurance is a fraction (0.007 is 0.7 percent), not a "
-            "percent integer.",
-            error_code="invalid_admitted_record_query",
-            field="property_insurance",
-            supplied=process_config["property_insurance"],
-        )
-    if not 0 <= fraction <= 1:
-        raise _ScenarioInputError(
-            "property_insurance must be a fraction in [0, 1].",
-            error_code="invalid_admitted_record_query",
-            field="property_insurance",
-            supplied=process_config["property_insurance"],
-        )
-    return round(fraction, 10)
-
-
-def _requested_maintenance(process_config: Any) -> float | None:
-    """Held maintenance factor. Do not default 0.03."""
-    if not isinstance(process_config, dict):
-        return None
-    if (
-        "maintenance" not in process_config
-        or process_config["maintenance"] in (None, "")
-    ):
-        return None
-    fraction = _finite(process_config["maintenance"], "maintenance")
-    if fraction > 1:
-        raise _ScenarioInputError(
-            "maintenance is a fraction (0.03 is 3 percent), not a "
-            "percent integer.",
-            error_code="invalid_admitted_record_query",
-            field="maintenance",
-            supplied=process_config["maintenance"],
-        )
-    if not 0 <= fraction <= 1:
-        raise _ScenarioInputError(
-            "maintenance must be a fraction in [0, 1].",
-            error_code="invalid_admitted_record_query",
-            field="maintenance",
-            supplied=process_config["maintenance"],
-        )
-    return round(fraction, 10)
 
 
 def _requested_depreciation(process_config: Any) -> str | None:
@@ -8991,22 +8475,22 @@ def _refuse_listed_or_complete(
     held = {
         "energy_case": _requested_energy_case(process_config),
         "dissolution_temperature_c": (
-            _requested_dissolution_temperature_c(process_config)
+            _requested_number(process_config, "dissolution_temperature_c", "dissolution_temp_c")
         ),
         "precipitation_temperature_c": (
-            _requested_precipitation_temperature_c(process_config)
+            _requested_number(process_config, "precipitation_temperature_c", "precipitation_temp_c")
         ),
         "solvent_price_usd_per_kg": (
-            _requested_solvent_price_usd_per_kg(process_config)
+            _requested_number(process_config, "solvent_price_usd_per_kg", "solvent_price")
         ),
-        "solvent_loss_pct": _requested_solvent_loss_pct(process_config),
-        "feedstock_distance_km": _requested_feedstock_distance_km(process_config),
-        "dissolution_capacity": _requested_dissolution_capacity(process_config),
+        "solvent_loss_pct": _requested_number(process_config, "solvent_loss_pct"),
+        "feedstock_distance_km": _requested_number(process_config, "feedstock_distance_km"),
+        "dissolution_capacity": _requested_number(process_config, "dissolution_capacity"),
         "labor_cost_usd_per_employee_yr": (
-            _requested_labor_cost_usd_per_employee_yr(process_config)
+            _requested_number(process_config, "labor_cost_usd_per_employee_yr", "labor_cost")
         ),
-        "sell_leftover_plastic": _requested_sell_leftover_plastic(process_config),
-        "burn_leftover_plastic": _requested_burn_leftover_plastic(process_config),
+        "sell_leftover_plastic": _requested_switch(process_config, "sell_leftover_plastic"),
+        "burn_leftover_plastic": _requested_switch(process_config, "burn_leftover_plastic"),
         "precipitation_temperature_format": (
             _requested_precipitation_temperature_format(process_config)
         ),
@@ -9019,24 +8503,22 @@ def _refuse_listed_or_complete(
         "labor_burden": _requested_labor_burden(process_config),
         "finance_interest": _requested_finance_interest(process_config),
         "finance_years": _requested_finance_years(process_config),
-        "finance_fraction": _requested_finance_fraction(process_config),
+        "finance_fraction": _requested_fraction(process_config, "finance_fraction"),
         "startup_months": _requested_startup_months(process_config),
-        "startup_FOCfrac": _requested_startup_FOCfrac(process_config),
-        "startup_VOCfrac": _requested_startup_VOCfrac(process_config),
-        "startup_salesfrac": _requested_startup_salesfrac(process_config),
-        "WC_over_FCI": _requested_WC_over_FCI(process_config),
-        "warehouse": _requested_warehouse(process_config),
-        "site_development": _requested_site_development(process_config),
-        "additional_piping": _requested_additional_piping(process_config),
-        "proratable_costs": _requested_proratable_costs(process_config),
-        "field_expenses": _requested_field_expenses(process_config),
-        "construction": _requested_construction(process_config),
-        "contingency": _requested_contingency(process_config),
-        "other_indirect_costs": _requested_other_indirect_costs(
-            process_config,
-        ),
-        "property_insurance": _requested_property_insurance(process_config),
-        "maintenance": _requested_maintenance(process_config),
+        "startup_FOCfrac": _requested_fraction(process_config, "startup_FOCfrac"),
+        "startup_VOCfrac": _requested_fraction(process_config, "startup_VOCfrac"),
+        "startup_salesfrac": _requested_fraction(process_config, "startup_salesfrac"),
+        "WC_over_FCI": _requested_fraction(process_config, "WC_over_FCI"),
+        "warehouse": _requested_fraction(process_config, "warehouse"),
+        "site_development": _requested_fraction(process_config, "site_development"),
+        "additional_piping": _requested_fraction(process_config, "additional_piping"),
+        "proratable_costs": _requested_fraction(process_config, "proratable_costs"),
+        "field_expenses": _requested_fraction(process_config, "field_expenses"),
+        "construction": _requested_fraction(process_config, "construction"),
+        "contingency": _requested_fraction(process_config, "contingency"),
+        "other_indirect_costs": _requested_fraction(process_config, "other_indirect_costs"),
+        "property_insurance": _requested_fraction(process_config, "property_insurance"),
+        "maintenance": _requested_fraction(process_config, "maintenance"),
         "duration": _requested_duration(process_config),
         "depreciation": _requested_depreciation(process_config),
         "construction_schedule": _requested_construction_schedule(
