@@ -7,7 +7,7 @@ Every ORCA/openCOSMO surface (`.orcacosmo`) computed for the PlastChem contamina
 
 - `contaminants/<InChIKey>.orcacosmo`: 5,830 contaminant surfaces, one per structure. This is the frozen cohort:
   5,803 main-tier and 27 tier-2 structures.
-- `polymers/<polymer>/<polymer>__config_<n>.orcacosmo`: 274 oligomer conformer surfaces for 14 polymers.
+- `polymers/<polymer>/<polymer>__<conformer>.orcacosmo`: 274 oligomer conformer surfaces for 14 polymers.
   - The 10 complete ensembles are used in the data: EVOH, nylon 6, nylon 6,6, PC, PE, PET, PP, PS, PVC, PVDF (236
     conformers).
   - The other four were incomplete and are excluded from the ensembles: nitrocellulose, PETG, polyethersulfone and
@@ -24,12 +24,14 @@ Every ORCA/openCOSMO surface (`.orcacosmo`) computed for the PlastChem contamina
 - Conformers:
   - Contaminants: RDKit ETKDGv3 generates up to 300 candidates, MMFF94 minimises them, and the lowest-energy one goes
     to DFT.
-  - Polymers: supplied oligomer geometries, then the same two ORCA steps.
+  - Polymers: oligomer conformers from COSMOtherm conformer files, then the same two ORCA steps.
 - Solvents: the common-69 geometries started from COSMObase structures. The surfaces here are the new ORCA outputs;
   no COSMObase file is included.
 - Thermodynamics: openCOSMO-RS with the 24a parameterization at 298.15 K.
 - The scripts are in `../scripts/`. The per-stage workers, Slurm files, manifests, pins and the frozen cohort are in
   `../calculation-files/`.
+- Each molecule's ORCA inputs, optimised geometry, COSMO-step log and run record are in `../orca-calculation-files/`.
+- `build_export.py` assembled this folder's archive.
 
 ## Checks
 
@@ -40,7 +42,7 @@ Every ORCA/openCOSMO surface (`.orcacosmo`) computed for the PlastChem contamina
 ## Not included
 
 - The licensed COSMObase/COSMOtherm `.cosmo` surfaces used only for route comparisons.
-- ORCA output logs.
+- ORCA inputs, logs and run records. They are in `../orca-calculation-files/`, except the optimisation logs.
 
 ## Reassemble
 
