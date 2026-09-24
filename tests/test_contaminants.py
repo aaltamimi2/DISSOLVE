@@ -4843,7 +4843,7 @@ def test_derived_temperature_not_produced_is_mismatch(monkeypatch, tmp_path):
     assert matching["success"] is True
 
 
-def _plastchem_release(root, *, status="complete"):
+def _plastchem_release(root, *, status="complete", logp=None):
     """A five-contaminant release in the campaign's delivery schema: one failed calculation, two solvents, PE and PP."""
     import csv, gzip, hashlib
     rel = root / "release"
@@ -4858,7 +4858,7 @@ def _plastchem_release(root, *, status="complete"):
         for key, name, smiles, cas, pid in people:
             writer.writerow([key, name, smiles, cas, pid, "100", "main", "converged", key, "", ""])
         writer.writerow(["EEEE-E", "Epsilonate", "OC", "", "5", "90", "main", "failed", "", "scf_not_converged", ""])
-    logp = {"AAAA-A": 0.8, "BBBB-B": -0.3, "CCCC-C": 0.5, "DDDD-D": 0.4}
+    logp = logp or {"AAAA-A": 0.8, "BBBB-B": -0.3, "CCCC-C": 0.5, "DDDD-D": 0.4}
     # RT: A one phase, C unresolved, D two phases at 5 wt%; high (120 °C): all one phase
     lle = {"AAAA-A": ("single_liquid_phase", True, 100.0, True), "BBBB-B": ("single_liquid_phase", True, 100.0, True),
            "CCCC-C": ("grid_or_tie_line_unresolved", False, None, None), "DDDD-D": ("two_liquid_phases", True, 5.0, False)}
@@ -4924,3 +4924,25 @@ def test_plastchem_screen_serves_one_polymer_one_solvent(tmp_path, monkeypatch):
     assert hot["miscibility_regime"] == "high" and hot["rows"][0]["leaching_verdict"] == "polymer dissolves"
     assert _data(contaminants.screen_contaminant_partitioning("LDPE", "anisole"))["error_code"] == "solvent_not_in_panel"
     assert _data(contaminants.screen_contaminant_partitioning("PET", "dodecane"))["error_code"] == "polymer_not_in_release"
+
+
+def test_plastchem_screen_states_the_partition_size_and_bounds_extremes(tmp_path, monkeypatch):
+    """LDPE into dodecane put every contaminant at logP -0.17 to -0.11, and the answer read "stays in polymer" for all.
+    The strict-sign verdict stays (owner, 2026-09-24); the size is shown with it, and past ±6 only the bound."""
+    asset = tmp_path / "asset.duckdb"
+    monkeypatch.setenv("DISSOLVE_PLASTCHEM_ASSET", str(asset))
+    extremes = {"AAAA-A": 19.45, "BBBB-B": -0.15, "CCCC-C": -24.0, "DDDD-D": 0.004}
+    plastchem_release.promote_opencosmo_release(_plastchem_release(tmp_path, logp=extremes), asset)
+    contaminants._LOCAL.__dict__.pop("plastchem", None)
+    out = _data(contaminants.screen_contaminant_partitioning("LDPE", "dodecane"))
+    rows = {row["contaminant"]: row for row in out["rows"]}
+    assert rows["Betaamide"]["leaching_verdict"] == "stays in polymer"
+    assert (rows["Betaamide"]["logp_solvent_over_polymer"], rows["Betaamide"]["partition_coefficient_k"]) == (-0.15, 0.71)
+    assert (rows["Alphaester"]["logp_solvent_over_polymer"], rows["Alphaester"]["partition_coefficient_k"]) == ("> 6", "> 10^6")
+    assert (rows["Gammaol"]["logp_solvent_over_polymer"], rows["Gammaol"]["partition_coefficient_k"]) == ("< -6", "< 10^-6")
+    assert rows["Deltaone"]["logp_solvent_over_polymer"] == 0.004  # never rounded to a zero that contradicts its sign
+    assert out["rows"][0]["contaminant"] == "Alphaester"  # ranked by the number, not the bound
+    assert out["logp_range"] == {"min": "< -6", "median": -0.073, "max": "> 6", "count": 4}
+    assert out["logp_range_by_verdict"]["stays in polymer"] == {"min": "< -6", "median": "< -6", "max": -0.15, "count": 2}
+    assert out["near_even_count"] == 2
+    assert "19.45" not in json.dumps(out) and "24.0" not in json.dumps(out)

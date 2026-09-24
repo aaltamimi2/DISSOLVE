@@ -15,7 +15,7 @@ from pathlib import Path
 import pytest
 from rich.console import Console
 
-from dissolve import agent, cli, research, tea
+from dissolve import agent, cli, contaminants, research, tea
 from dissolve import session as sess
 from dissolve.agent import (
     LITERATURE_AGENT_TOOLS,
@@ -1017,6 +1017,22 @@ def test_a_contaminant_class_fits_the_context_and_pages_whole_rows():
         assert small["top"] == handle_rows(load_handle(rec, small["handle"]))[:20]  # a page that fits is unchanged
 
 
+def test_the_model_sees_a_log_ratio_past_six_as_its_bound_and_engines_keep_the_number():
+    """DEHP into water is logD -8.21 in the workbook. Past ±6 a substance is effectively all in one phase, so the model
+    gets "< -6" (owner, 2026-09-24). The separation planner compares logD by calling the tool directly: it keeps -8.21."""
+    direct = _data(contaminants.screen_contaminant_leaching("LDPE", ["DEHP"]))
+    water = next(row for row in direct["candidate_solvents"] if row["solvent"] == "water")
+    assert water["contaminants"][0]["logd"] == water["contaminant_logd_min"] == -8.21
+    with _bound() as rec:
+        screen = dispatch("screen_contaminant_leaching", target_polymer="LDPE", contaminants=["DEHP"])
+        seen = next(row for row in handle_rows(load_handle(rec, screen["handle"])) if row["solvent"] == "water")
+        assert seen["contaminants"][0]["logd"] == seen["contaminant_logd_min"] == "< -6"
+        assert "-8.21" not in json.dumps(screen) and "-8.21" not in json.dumps(dispatch(
+            "result_read", handle=screen["handle"], offset=0, limit=50))
+        toluene = next(row for row in handle_rows(load_handle(rec, screen["handle"])) if row["solvent"] == "toluene")
+        assert toluene["contaminants"][0]["logd"] == 0.81  # values inside the bound are unchanged
+
+
 def test_large_unrecognised_contaminant_comparison_named_refusal():
     with _bound() as rec:
         out = dispatch(
@@ -1246,6 +1262,16 @@ def test_system_prompt_reports_engine_inclusivity_not_user_strictness():
     prompt = agent.SYSTEM_PROMPT
     assert "bounds_are_inclusive" in prompt
     assert "A count for >= 5 / <= 1 is not a count for > 5 / < 1" in prompt
+
+
+def test_system_prompt_gives_a_partition_its_size_and_claims_only_the_validation_that_exists():
+    """The LDPE/dodecane answer said "stays in polymer" for logP -0.15, a nearly even split; and the prompt called every
+    PlastChem prediction validated, when the COSMOtherm workbook covers PVC with eight phthalates only."""
+    prompt = " ".join(agent.SYSTEM_PROMPT.split())
+    assert "When |logP| is below 0.5 (K 0.3 to 3), say the substance splits nearly evenly between the phases" in prompt
+    assert 'A value shown as "> 6" or "< -6" means effectively all in one phase' in prompt
+    assert "checked against the COSMOtherm workbook only for PVC with eight phthalates" in prompt
+    assert "validated against the COSMOtherm workbook" not in prompt
 
 
 def test_turn_record_every_result_exact_ordered_durable():

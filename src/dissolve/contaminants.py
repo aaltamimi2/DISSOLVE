@@ -1499,6 +1499,41 @@ def _plastchem() -> duckdb.DuckDBPyConnection | None:
     return connection
 
 
+LOG_DISPLAY_BOUND = 6.0
+
+
+def bounded_log(value: Any, figures: int | None = 3) -> Any:
+    """A log10 partition value as shown: past ±6 its bound, where the substance is effectively all in one phase;
+    otherwise the value to `figures` significant figures (None keeps it). Significant figures, not decimals, keep a
+    tiny positive value positive beside a strict-sign verdict."""
+    if value is None or isinstance(value, (str, bool)):
+        return value
+    if value > LOG_DISPLAY_BOUND:
+        return f"> {LOG_DISPLAY_BOUND:g}"
+    if value < -LOG_DISPLAY_BOUND:
+        return f"< -{LOG_DISPLAY_BOUND:g}"
+    return value if figures is None else float(f"{value:.{figures}g}")
+
+
+def _partition_coefficient(logp: Any) -> Any:
+    """K = 10^logP to two significant figures, or its bound."""
+    if logp is None:
+        return None
+    if abs(logp) > LOG_DISPLAY_BOUND:
+        return f"{'>' if logp > 0 else '<'} 10^{'' if logp > 0 else '-'}{LOG_DISPLAY_BOUND:g}"
+    return float(f"{10 ** logp:.2g}")
+
+
+def _logp_range(values: list[Any]) -> dict[str, Any] | None:
+    ordered = sorted(value for value in values if value is not None)
+    if not ordered:
+        return None
+    mid = len(ordered) // 2
+    median = ordered[mid] if len(ordered) % 2 else (ordered[mid - 1] + ordered[mid]) / 2
+    return {"min": bounded_log(ordered[0]), "median": bounded_log(median), "max": bounded_log(ordered[-1]),
+            "count": len(ordered)}
+
+
 def _leaching_verdict(logp: Any, miscible: Any, polymer_status: str) -> str:
     if polymer_status == "dissolving":
         return "polymer dissolves"
@@ -1574,7 +1609,8 @@ def screen_contaminant_partitioning(
             continue
         rows.append({
             "contaminant": name, "inchikey": inchikey, "cas": cas,
-            "logp_solvent_over_polymer": logp, "partition_status": logp_status,
+            "logp_solvent_over_polymer": logp, "partition_coefficient_k": _partition_coefficient(logp),
+            "partition_status": logp_status,
             "partitions_toward": None if logp is None else "solvent" if logp > 0 else "polymer",
             "miscible_at_15_wt_pct": miscible, "miscibility_state": lle_status,
             "contaminant_solubility_wt_pct": wt if lle_status == "two_liquid_phases" else None,
@@ -1583,6 +1619,12 @@ def screen_contaminant_partitioning(
     order = {"leaches": 0, "undetermined": 1, "not miscible": 2, "stays in polymer": 3, "polymer dissolves": 4}
     rows.sort(key=lambda row: (order[row["leaching_verdict"]], -(row["logp_solvent_over_polymer"] or -1e9)))
     verdicts = {name: sum(row["leaching_verdict"] == name for row in rows) for name in order}
+    logps = [row["logp_solvent_over_polymer"] for row in rows]
+    by_verdict = {name: _logp_range([row["logp_solvent_over_polymer"] for row in rows if row["leaching_verdict"] == name])
+                  for name in order if verdicts[name]}
+    near_even = sum(logp is not None and abs(logp) < 0.5 for logp in logps)
+    for row in rows:
+        row["logp_solvent_over_polymer"] = bounded_log(row["logp_solvent_over_polymer"])
     meta = dict(con.execute("SELECT key, value FROM metadata").fetchall())
     return tool_success(
         tool,
@@ -1595,8 +1637,12 @@ def screen_contaminant_partitioning(
         served_convention=meta.get("served_convention"), release_status=meta.get("release_status"),
         evaluated=len(rows), verdict_counts=verdicts,
         partitions_toward_solvent=sum(row["partitions_toward"] == "solvent" for row in rows),
+        logp_range=_logp_range(logps), logp_range_by_verdict=by_verdict, near_even_count=near_even,
         rows=rows, unsupported_contaminants=unknown, ambiguous_contaminants=ambiguous,
         not_computed_contaminants=not_computed,
         method="Leaches when logP(solvent/polymer) > 0, the contaminant is miscible with the solvent at 15 wt%, "
-               "and the polymer does not dissolve; logP is for the neutral species at 25 °C.",
+               "and the polymer does not dissolve; logP is for the neutral species at 25 °C. logP is log10 of the "
+               "solvent/polymer concentration ratio and K = 10^logP. near_even_count counts |logP| < 0.5 "
+               "(K 0.3-3), a nearly even split whatever the verdict. Past ±6 values are shown as bounds: "
+               "effectively all in one phase.",
     )

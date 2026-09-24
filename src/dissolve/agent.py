@@ -208,6 +208,20 @@ def _rows_that_fit(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
             return rows[:n]
     return rows
 
+# Log10 partition fields as the model sees them. Past ±6 a substance is effectively all in one phase, so the model
+# gets the bound, not the number (owner, 2026-09-24). Engines that compare logD call the tools directly and keep it.
+_BOUNDED_LOG_KEYS = frozenset({
+    "logd", "tabulated_logd", "computed_delta_logd", "contaminant_logd_min", "logp_solvent_over_polymer",
+})
+
+def _bound_logs(value: Any) -> Any:
+    if isinstance(value, dict):
+        return {k: contaminants.bounded_log(v, None) if k in _BOUNDED_LOG_KEYS and isinstance(v, (int, float))
+                else _bound_logs(v) for k, v in value.items()}
+    if isinstance(value, list):
+        return [_bound_logs(item) for item in value]
+    return value
+
 def _first_page(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """Whole rows when they fit _PAGE_BYTES. Otherwise each row's nested row lists show as counts (result_read
     returns rows whole), and then as many rows as fit."""
@@ -646,6 +660,7 @@ def dispatch(name: str, **kwargs: Any) -> dict[str, Any]:
         parsed, err = _invoke(name, call_kwargs)
     if err:
         return _emit(name, kwargs, err, err)
+    parsed = {**parsed, "data": _bound_logs(parsed["data"])}
     data, display = parsed["data"], parsed.get("display")
     if not data.get("success"):
         out = to_contract(parsed, None)
@@ -717,8 +732,9 @@ themselves; name a token this prompt does not define as it is:
 - Contaminant screens are contaminant_workbook screening proxies.
 - PlastChem partitioning and miscibility (source_basis opencosmo_24a)
   are DISSOLVE's openCOSMO-RS 24a predictions for neutral species,
-  logP at 25 °C, validated against the COSMOtherm workbook; they are
-  not measurements. Use screen_contaminant_partitioning for PlastChem
+  logP at 25 °C. They were checked against the COSMOtherm workbook only
+  for PVC with eight phthalates; other polymers have no COSMO-RS check.
+  They are not measurements. Use screen_contaminant_partitioning for PlastChem
   contaminants; the workbook screens cover its 34 PFAS and
   phthalates.
 - Optimization figures are optimization_workbook.
@@ -833,6 +849,14 @@ table): what it measures, its scale and which direction is better.
   solubility sphere (likely to dissolve it), above 1 outside.
 - Selectivity (percentage points): the dissolved polymer's solubility
   minus the retained polymer's, as the tool reports it.
+- logP or logD: log10 of the ratio of a substance's concentration in the
+  solvent to its concentration in the polymer; positive favours the
+  solvent, and K is the ratio itself. Give the size with the direction,
+  as a range when there are many rows. When |logP| is below 0.5 (K 0.3
+  to 3), say the substance splits nearly evenly between the phases,
+  whatever the verdict says. A value shown as "> 6" or "< -6" means
+  effectively all in one phase: say that, and never write a larger
+  number.
 """
 
 
