@@ -310,21 +310,22 @@ def _pubchem_contributed(obj: Any) -> bool:
     return any(_pubchem_contributed(v) for v in obj.values())
 
 def _snapshot_origin(data: dict[str, Any]) -> bool:
-    if not isinstance(data, dict):
-        return False
-    candidates = [data, data.get("provenance"), data.get("safety_profile")]
-    profile = data.get("safety_profile")
-    if isinstance(profile, dict):
-        candidates.append(profile.get("provenance"))
-    for obj in candidates:
-        if isinstance(obj, dict) and obj.get("pubchem_source") == "snapshot":
-            return True
-    origin = data.get("field_origin")
-    if isinstance(origin, dict):
-        for stamp in origin.values():
-            if isinstance(stamp, dict) and stamp.get("source") == "snapshot":
-                return True
-    return False
+    """True when a result's PubChem fields came from DISSOLVE's cached snapshot. The safety tools stamp each field's
+    origin, often inside per-solvent rows, so every level is searched; a live stamp anywhere means live."""
+    origins, stack = set(), [data]
+    while stack:
+        obj = stack.pop()
+        if isinstance(obj, list):
+            stack.extend(obj)
+        elif isinstance(obj, dict):
+            if obj.get("pubchem_source") in ("snapshot", "live"):
+                origins.add(obj["pubchem_source"])
+            stamps = obj.get("field_origin")
+            if isinstance(stamps, dict):
+                origins.update(s["source"] for s in stamps.values()
+                               if isinstance(s, dict) and s.get("source") in ("snapshot", "live"))
+            stack.extend(obj.values())
+    return "snapshot" in origins and "live" not in origins
 
 def source_basis_for(name: str, data: dict[str, Any], kwargs: dict[str, Any]) -> str | None:
     if name == "lookup_material_database_membership":
@@ -684,12 +685,17 @@ line that starts "Source:". Write the meanings below, never the tokens
 themselves; name a token this prompt does not define as it is:
 - Solubility values are COSMO-RS predictions (source_basis
   cosmo_rs_grid), not measurements.
-- PubChem safety fields are fetched live (source_basis pubchem_live)
-  with no retrieval date. Local-only safety cards are source_basis
-  safety_local. include_pubchem defaults to false; pass true when the
-  live fields are the question, which includes any request for CHEM21
-  Safety/Health/Environment scores or a safety ranking: those scores
-  need hazard statements the local cards do not hold. A row field named basis on
+- PubChem fields fetched live in this call are source_basis
+  pubchem_live, with no retrieval date. DISSOLVE's local safety store,
+  its safety cards and its cached PubChem snapshot, is source_basis
+  safety_local. include_pubchem adds the PubChem fields (GHS hazard
+  statements, flash point, exposure limits) from that snapshot, with no
+  network call; it defaults to false. Pass true when those fields are
+  the question, which includes any request for CHEM21
+  Safety/Health/Environment scores or a safety ranking.
+  fetch_solvent_safety_by_cid queries PubChem live: use it only when the
+  user asks for current PubChem data or a solvent is missing from the
+  snapshot. A row field named basis on
   a safety card is an averaging time (for example 8-hour TWA), not
   the source of the card.
 - A TEA cache hit is an exact prior simulation (source_basis
@@ -708,7 +714,8 @@ themselves; name a token this prompt does not define as it is:
 - Contaminant screens are contaminant_workbook screening proxies.
 - Optimization figures are optimization_workbook.
 - identity_registry is DISSOLVE's material identity registry;
-  safety_local is its local safety-card store; provider_metadata is a
+  safety_local is its local safety store (safety cards and a cached
+  PubChem snapshot); provider_metadata is a
   literature provider's record; analysis_asset is a stored analysis
   dataset. Claim nothing more about them.
 - Screening thresholds (1, 5, 10 wt%) are engine defaults, not process

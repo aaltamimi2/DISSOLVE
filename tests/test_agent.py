@@ -1480,6 +1480,22 @@ def test_pubchem_basis_requires_live_contribution():
     assert source_basis_for("get_solvent_safety_card", live, {"include_pubchem": False}) == "safety_local"
 
 
+def test_cached_pubchem_fields_are_not_labeled_live():
+    """The comparison tool stamps each row's PubChem fields "snapshot"; the label only read the top level, so cached
+    fields were called pubchem_live and answers said "fetched live from PubChem"."""
+    row = {"solvent": "toluene", "provenance": {"pubchem": "https://pubchem.ncbi.nlm.nih.gov/compound/1140",
+                                                "pubchem_failed_headings": []},
+           "field_origin": {"flash_point_c": {"source": "snapshot"}}}
+    cached = {"success": True, "comparison_rows": [row]}
+    live = {"success": True, "comparison_rows": [{**row, "field_origin": {"flash_point_c": {"source": "live"}}}]}
+    assert source_basis_for("compare_solvent_safety_at_conditions", cached, {"include_pubchem": True}) == "safety_local"
+    assert source_basis_for("compare_solvent_safety_at_conditions", live, {"include_pubchem": True}) == "pubchem_live"
+    with _bound():
+        out = dispatch("compare_solvent_safety_at_conditions", include_pubchem=True, candidates=[
+            {"solvent": "toluene", "temperature_c": 100.0}, {"solvent": "dimethyl sulfoxide", "temperature_c": 140.0}])
+    assert out["available"] is True and out["source_basis"] == "safety_local"
+
+
 def test_missing_provider_key_names_the_environment_variable(monkeypatch):
     monkeypatch.delenv("META_MUSE_API_KEY", raising=False)
     result = run_turn(
