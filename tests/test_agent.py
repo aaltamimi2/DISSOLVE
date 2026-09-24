@@ -2349,6 +2349,11 @@ def test_a_repeated_table_separator_is_dropped():
     assert agent._complete_tables(two_tables) == two_tables
     dashes_in_data = "| A | B |\n|---|---|\n| --- | 1 |"
     assert agent._complete_tables(dashes_in_data) == dashes_in_data  # one data cell of dashes is still data
+    # the same glitch with the stray text in a cell of its own (the integrated example, 2026-09-24)
+    wide = "| A | B | C | D |\n|---|---|---|---|\n|---|---|すすめます|---|\n| x | 1 | 2 | 3 |"
+    assert agent._complete_tables(wide) == "| A | B | C | D |\n|---|---|---|---|\n| x | 1 | 2 | 3 |"
+    placeholders = "| A | B | C |\n|---|---|---|\n| residue | — | — |"
+    assert agent._complete_tables(placeholders) == placeholders  # em-dash placeholders are data
 
 
 def test_text_right_under_a_table_is_moved_out_of_it():

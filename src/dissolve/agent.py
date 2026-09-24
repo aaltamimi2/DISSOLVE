@@ -890,8 +890,12 @@ liquid and vapour), never as bare codes.
 _PIPE_ROW = re.compile(r"^\s*\|.*\|\s*$")
 _PIPE_SEPARATOR = re.compile(r"^\s*\|(\s*:?-{3,}:?\s*\|)+\s*$")
 
+_DASH_CELL = re.compile(r"^\s*:?-{3,}:?\s*$")
+
 def _separator_like(line: str) -> bool:
-    return all("---" in cell for cell in line.strip().strip("|").split("|"))
+    """A repeated separator, even with stray text in it: every cell holds ---, or most cells are nothing but dashes."""
+    cells = line.strip().strip("|").split("|")
+    return all("---" in cell for cell in cells) or sum(bool(_DASH_CELL.match(cell)) for cell in cells) * 2 > len(cells)
 
 def _complete_tables(text: str) -> str:
     """Give a pipe table its missing header separator, drop a repeated one, and end it with a blank line. Without the
