@@ -119,6 +119,7 @@ REGISTRY: tuple[Tool, ...] = tuple([
     _t(contaminants.screen_contaminant_leaching, "contaminants"),
     _t(contaminants.screen_contaminant_strap_removal, "contaminants"),
     _t(contaminants.compare_contaminant_removal_modes, "contaminants"),
+    _t(contaminants.screen_contaminant_partitioning, "contaminants"),
     # --- retrieval-augmented literature ---
     _t(research.search_scholarly_literature, "research"),
     _t(research.search_patent_literature, "research"),
@@ -330,6 +331,8 @@ def _snapshot_origin(data: dict[str, Any]) -> bool:
 def source_basis_for(name: str, data: dict[str, Any], kwargs: dict[str, Any]) -> str | None:
     if name == "lookup_material_database_membership":
         return "identity_registry"
+    if name == "screen_contaminant_partitioning":
+        return "opencosmo_24a"
     if (
         name == "rank_landscape"
         and str(data.get("source") or "").strip().casefold() == "planner_routes"
@@ -712,6 +715,12 @@ themselves; name a token this prompt does not define as it is:
 - Hansen curated rows are qualitative_hansen_parameters, not
   solubilities. An HSP random-forest row is hsp_fallback.
 - Contaminant screens are contaminant_workbook screening proxies.
+- PlastChem partitioning and miscibility (source_basis opencosmo_24a)
+  are DISSOLVE's openCOSMO-RS 24a predictions for neutral species,
+  logP at 25 °C, validated against the COSMOtherm workbook; they are
+  not measurements. Use screen_contaminant_partitioning for PlastChem
+  contaminants; the workbook screens cover its 34 PFAS and
+  phthalates.
 - Optimization figures are optimization_workbook.
 - identity_registry is DISSOLVE's material identity registry;
   safety_local is its local safety store (safety cards and a cached
@@ -733,11 +742,11 @@ with neighbouring nodes — report the neighbours, do not invent a value
 at the requested temperature. Unknown solvents come back with an
 identity verdict (nonsense vs known chemical without grid values) and
 at most five near-miss names — do not substitute the top hit.
-Ambiguous polymer family names expand to every stored-grid member
-or refuse ambiguous_polymer with the members (polyethylene is LDPE
-and HDPE; nylon is NYLON6 and NYLON66). Report every member. Do not
-pick HDPE. Do not treat a Hansen catalog row labelled PE as a
-single polymer.
+PE and polyethylene mean LDPE unless the user names HDPE. Other
+polymer family names expand to every stored-grid member or refuse
+ambiguous_polymer with the members (nylon is NYLON6 and NYLON66);
+report every member. Do not treat a Hansen catalog row labelled PE as
+a single polymer.
 
 Large results come back as a handle, a total, and the first page
 (top). total is not something you infer from how many rows you can

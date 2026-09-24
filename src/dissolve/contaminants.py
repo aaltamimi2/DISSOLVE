@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import math
+import os
 import threading
 from dataclasses import dataclass
 from functools import lru_cache
@@ -1468,3 +1469,134 @@ def evaluate_contaminant_at_feed_state(
             requested=path,
         ))["data"]
     return parse_tool_result(raw)["data"]
+
+
+# --- PlastChem, promoted from the openCOSMO-RS campaign. Every accepted PlastChem contaminant is partitioned between
+# each campaign polymer and each panel solvent (neutral species, 298.15 K) and checked for liquid-liquid miscibility
+# with each solvent at room temperature and at the workbook's high temperature. plastchem_release builds the asset
+# from a sealed release (this module only reads it); until then the screen refuses with plastchem_data_unavailable.
+
+_PLASTCHEM_ASSET = Path(str(files("dissolve").joinpath("data/plastchem_opencosmo.duckdb")))
+_SERVED_CONVENTION = "normalized"  # owner, 2026-09-23 ("may revisit"); the existing convention is stored beside it
+_MISCIBLE_BASIS = "15 wt%"  # the paper's cutoff; the owner set its basis to wt% (2026-09-23)
+_PLASTCHEM_THRESHOLDS = {
+    "swelling_min_wt_pct": _DEFAULT_SWELLING_MIN,
+    "swelling_max_wt_pct": _DEFAULT_SWELLING_MAX,
+    "dissolution_min_wt_pct": _DEFAULT_DISSOLUTION_MIN,
+}
+
+
+def _plastchem() -> duckdb.DuckDBPyConnection | None:
+    """The promoted asset, read-only; DISSOLVE_PLASTCHEM_ASSET points elsewhere (tests, a staged release)."""
+    path = Path(os.environ.get("DISSOLVE_PLASTCHEM_ASSET") or _PLASTCHEM_ASSET)
+    cached = getattr(_LOCAL, "plastchem", None)
+    if cached and cached[0] == path:
+        return cached[1]
+    if not path.is_file():
+        return None
+    connection = duckdb.connect(str(path), read_only=True)
+    _LOCAL.plastchem = (path, connection)
+    return connection
+
+
+def _leaching_verdict(logp: Any, miscible: Any, polymer_status: str) -> str:
+    if polymer_status == "dissolving":
+        return "polymer dissolves"
+    if logp is not None and logp <= 0:
+        return "stays in polymer"
+    if miscible is False:
+        return "not miscible"
+    if logp is None or miscible is None or polymer_status.startswith("unsupported"):
+        return "undetermined"
+    return "leaches"
+
+
+def screen_contaminant_partitioning(
+    polymer: str, solvent: str, contaminants: str | list[str] | None = None, temperature_c: float = 25.0,
+) -> str:
+    """Screen PlastChem contaminants (all 5,830, or those named) for leaching from one polymer into one solvent."""
+    tool = "screen_contaminant_partitioning"
+    con = _plastchem()
+    if con is None:
+        return tool_error(tool, "The PlastChem contaminant release has not been promoted into DISSOLVE yet.",
+                          error_code="plastchem_data_unavailable")
+    product = thermo.resolve_polymer(polymer) or str(polymer).strip().upper()
+    mapped = con.execute("SELECT campaign, conformers, shared_model FROM polymers WHERE product = ?",
+                         [product]).fetchone()
+    if mapped is None:
+        known = [row[0] for row in con.execute("SELECT product FROM polymers ORDER BY 1").fetchall()]
+        return tool_error(tool, f"No PlastChem partitioning for {polymer}.", error_code="polymer_not_in_release",
+                          requested_polymer=polymer, available_polymers=known)
+    panel = [row[0] for row in con.execute("SELECT DISTINCT solvent FROM partition ORDER BY 1").fetchall()]
+    keys = set(_solvent_keys(solvent)) | {_key(solvent)}
+    solvent_key = next((key for key in panel if key in keys), None)
+    if solvent_key is None:
+        return tool_error(tool, f"{solvent} is not in the 32-solvent panel.", error_code="solvent_not_in_panel",
+                          requested_solvent=solvent, panel_solvents=panel)
+    requested = list(contaminants or []) if not isinstance(contaminants, str) else [contaminants]
+    if isinstance(contaminants, str) and contaminants.lstrip().startswith("["):
+        try:  # providers serialize arrays as JSON strings; names like "1,6-hexanediyl dioleate" are never comma-split
+            requested = [str(item) for item in json.loads(contaminants)]
+        except json.JSONDecodeError:
+            pass
+    unknown, ambiguous, chosen = [], {}, []
+    if not requested or [_key(item) for item in requested] == ["all"]:
+        chosen = [row[0] for row in con.execute("SELECT id FROM contaminants WHERE computed").fetchall()]
+    for item in requested if chosen == [] else []:
+        hits = [row[0] for row in con.execute("SELECT DISTINCT id FROM aliases WHERE alias = ?",
+                                              [_key(item)]).fetchall()]
+        if len(hits) > 1:
+            ambiguous[str(item)] = [row[0] for row in con.execute(
+                "SELECT name || ' (' || inchikey || ')' FROM contaminants WHERE id IN (SELECT unnest(?))", [hits]).fetchall()]
+        elif hits:
+            chosen.append(hits[0])
+        else:
+            unknown.append(str(item))
+    regimes = dict(con.execute("SELECT regime, max(temperature_c) FROM lle WHERE solvent = ? GROUP BY 1",
+                               [solvent_key]).fetchall())
+    high = regimes.get("high")
+    regime = "high" if high is not None and temperature_c >= (25.0 + high) / 2.0 else "rt"
+    state = _polymer_status(product, solvent_key, temperature_c, _PLASTCHEM_THRESHOLDS)
+    rows, not_computed = [], []
+    records = con.execute(
+        """SELECT c.inchikey, c.name, c.cas, c.computed, c.status, c.reason, p.logp, p.status, l.miscible,
+                  l.status, l.wt_percent
+           FROM contaminants c
+           LEFT JOIN partition p ON p.id = c.id AND p.solvent = ? AND p.polymer = ?
+           LEFT JOIN lle l ON l.id = c.id AND l.solvent = ? AND l.regime = ?
+           WHERE c.id IN (SELECT unnest(?))""",
+        [solvent_key, mapped[0], solvent_key, regime, sorted(set(chosen))],
+    ).fetchall()
+    for inchikey, name, cas, computed, status, reason, logp, logp_status, miscible, lle_status, wt in records:
+        if not computed:
+            not_computed.append({"contaminant": name, "inchikey": inchikey, "campaign_status": status,
+                                 "reason": reason})
+            continue
+        rows.append({
+            "contaminant": name, "inchikey": inchikey, "cas": cas,
+            "logp_solvent_over_polymer": logp, "partition_status": logp_status,
+            "partitions_toward": None if logp is None else "solvent" if logp > 0 else "polymer",
+            "miscible_at_15_wt_pct": miscible, "miscibility_state": lle_status,
+            "contaminant_solubility_wt_pct": wt if lle_status == "two_liquid_phases" else None,
+            "leaching_verdict": _leaching_verdict(logp, miscible, state["status"]),
+        })
+    order = {"leaches": 0, "undetermined": 1, "not miscible": 2, "stays in polymer": 3, "polymer dissolves": 4}
+    rows.sort(key=lambda row: (order[row["leaching_verdict"]], -(row["logp_solvent_over_polymer"] or -1e9)))
+    verdicts = {name: sum(row["leaching_verdict"] == name for row in rows) for name in order}
+    meta = dict(con.execute("SELECT key, value FROM metadata").fetchall())
+    return tool_success(
+        tool,
+        display=f"{len(rows)} PlastChem contaminants, {product} into {solvent_key}: {verdicts['leaches']} leach.",
+        polymer=product, polymer_model=f"{mapped[0]} oligomer ensemble ({mapped[1]} conformers)",
+        polymer_model_shared_with_other_materials=bool(mapped[2]),
+        solvent=solvent_key, temperature_c=temperature_c, logp_temperature_c=25.0,
+        miscibility_regime=regime, miscibility_temperature_c=regimes.get(regime), miscibility_basis=_MISCIBLE_BASIS,
+        polymer_state=state, polymer_state_basis="stored COSMO-RS polymer solubility grid (legacy)",
+        served_convention=meta.get("served_convention"), release_status=meta.get("release_status"),
+        evaluated=len(rows), verdict_counts=verdicts,
+        partitions_toward_solvent=sum(row["partitions_toward"] == "solvent" for row in rows),
+        rows=rows, unsupported_contaminants=unknown, ambiguous_contaminants=ambiguous,
+        not_computed_contaminants=not_computed,
+        method="Leaches when logP(solvent/polymer) > 0, the contaminant is miscible with the solvent at 15 wt%, "
+               "and the polymer does not dissolve; logP is for the neutral species at 25 °C.",
+    )

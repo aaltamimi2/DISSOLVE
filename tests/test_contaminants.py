@@ -14,10 +14,11 @@ import time
 from collections import defaultdict
 from pathlib import Path
 
+import duckdb
 import pytest
 from rich.console import Console
 
-from dissolve import contaminants, separation, tea, tea_ranking
+from dissolve import contaminants, plastchem_release, separation, tea, tea_ranking
 from dissolve import contaminants as C
 from dissolve import cosmo_logp as cl
 from dissolve import polymer_cosmo as pc
@@ -4840,3 +4841,86 @@ def test_derived_temperature_not_produced_is_mismatch(monkeypatch, tmp_path):
         dissolution_temperature_c=95.0,
     )
     assert matching["success"] is True
+
+
+def _plastchem_release(root, *, status="complete"):
+    """A five-contaminant release in the campaign's delivery schema: one failed calculation, two solvents, PE and PP."""
+    import csv, gzip, hashlib
+    rel = root / "release"
+    rel.mkdir()
+    header = ["input_inchikey", "name", "smiles", "cas", "plastchem_id", "molecular_weight_g_mol", "tier",
+              "campaign_status_at_snapshot", "perceived_inchikey", "failure_mode", "exclusion_reason"]
+    people = [("AAAA-A", "Alphaester", "C", "111-11-1", "1"), ("BBBB-B", "Betaamide", "N", "", "2"),
+              ("CCCC-C", "Gammaol", "O", "", "3"), ("DDDD-D", "Deltaone", "CC", "", "4")]
+    with gzip.open(rel / "contaminants.csv.gz", "wt", newline="") as handle:
+        writer = csv.writer(handle)
+        writer.writerow(header)
+        for key, name, smiles, cas, pid in people:
+            writer.writerow([key, name, smiles, cas, pid, "100", "main", "converged", key, "", ""])
+        writer.writerow(["EEEE-E", "Epsilonate", "OC", "", "5", "90", "main", "failed", "", "scf_not_converged", ""])
+    logp = {"AAAA-A": 0.8, "BBBB-B": -0.3, "CCCC-C": 0.5, "DDDD-D": 0.4}
+    # RT: A one phase, C unresolved, D two phases at 5 wt%; high (120 °C): all one phase
+    lle = {"AAAA-A": ("single_liquid_phase", True, 100.0, True), "BBBB-B": ("single_liquid_phase", True, 100.0, True),
+           "CCCC-C": ("grid_or_tie_line_unresolved", False, None, None), "DDDD-D": ("two_liquid_phases", True, 5.0, False)}
+    con = duckdb.connect()
+    part = [(key, solvent, polymer, convention, value + (0.1 if convention == "existing" else 0.0), "predicted")
+            for key, value in logp.items() for solvent in ("dodecane", "toluene") for polymer in ("pe", "pp")
+            for convention in ("normalized", "existing")]
+    con.execute("CREATE TABLE p (input_inchikey VARCHAR, product_solvent_key VARCHAR, campaign_polymer VARCHAR, "
+                "convention VARCHAR, logP_concentration DOUBLE, status VARCHAR)")
+    con.executemany("INSERT INTO p VALUES (?, ?, ?, ?, ?, ?)", part)
+    con.execute(f"COPY p TO '{rel / 'partition.parquet'}' (FORMAT parquet)")
+    rows = [(key, solvent, "RT", 298.15, *lle[key]) for key in lle for solvent in ("dodecane", "toluene")]
+    rows += [(key, solvent, "high", 393.15, "single_liquid_phase", True, 100.0, True)
+             for key in lle for solvent in ("dodecane", "toluene")]
+    con.execute("CREATE TABLE l (input_inchikey VARCHAR, product_solvent_key VARCHAR, temperature_regime VARCHAR, "
+                "temperature_K DOUBLE, status VARCHAR, value_validated BOOLEAN, solute_wt_percent_solubility DOUBLE, "
+                "above_15_wt_percent BOOLEAN)")
+    con.executemany("INSERT INTO l VALUES (?, ?, ?, ?, ?, ?, ?, ?)", rows)
+    con.execute(f"COPY l TO '{rel / 'binary-lle.parquet'}' (FORMAT parquet)")
+    (rel / "polymer-product-map.csv").write_text(
+        "product_polymer_key,campaign_polymer,shared_model_multiple_materials,conformer_count,"
+        "legacy_solubility_available,mapping_note\n"
+        "LDPE,pe,True,31,True,shared\nHDPE,pe,True,31,True,shared\nPP,pp,False,25,True,exact\n")
+    files = {path.name: {"sha256": hashlib.sha256(path.read_bytes()).hexdigest()} for path in rel.iterdir()}
+    (rel / "manifest.json").write_text(json.dumps({"status": status, "cohort_sha256": "test", "files": files}))
+    return rel
+
+
+def test_plastchem_promotion_checks_the_release_and_refuses_a_preview(tmp_path):
+    rel = _plastchem_release(tmp_path, status="partial_preview_not_a_release")
+    with pytest.raises(ValueError, match="not complete"):
+        plastchem_release.promote_opencosmo_release(rel, tmp_path / "asset.duckdb")
+    info = plastchem_release.promote_opencosmo_release(rel, tmp_path / "asset.duckdb", allow_preview=True)
+    assert (info["contaminants"], info["computed"], info["partition"], info["lle"]) == (5, 4, 16, 16)
+    (rel / "polymer-product-map.csv").write_text("tampered\n")
+    with pytest.raises(ValueError, match="does not match the release manifest"):
+        plastchem_release.promote_opencosmo_release(rel, tmp_path / "asset.duckdb", allow_preview=True)
+
+
+def test_plastchem_screen_serves_one_polymer_one_solvent(tmp_path, monkeypatch):
+    asset = tmp_path / "asset.duckdb"
+    monkeypatch.setenv("DISSOLVE_PLASTCHEM_ASSET", str(asset))
+    missing = _data(contaminants.screen_contaminant_partitioning("LDPE", "dodecane"))
+    assert missing["error_code"] == "plastchem_data_unavailable"
+    plastchem_release.promote_opencosmo_release(_plastchem_release(tmp_path), asset)
+    contaminants._LOCAL.__dict__.pop("plastchem", None)
+    every = _data(contaminants.screen_contaminant_partitioning("PE", "dodecane"))  # PE means LDPE
+    assert every["polymer"] == "LDPE" and every["polymer_model"].startswith("pe oligomer ensemble (31")
+    assert every["miscibility_regime"] == "rt" and every["polymer_state"]["status"] != "dissolving"
+    verdicts = {row["contaminant"]: row["leaching_verdict"] for row in every["rows"]}
+    assert verdicts == {"Alphaester": "leaches", "Betaamide": "stays in polymer",
+                        "Gammaol": "undetermined", "Deltaone": "not miscible"}
+    assert every["rows"][0]["contaminant"] == "Alphaester" and every["verdict_counts"]["leaches"] == 1
+    named = _data(contaminants.screen_contaminant_partitioning(
+        "LDPE", "Toluene", ["111-11-1", "betaamide", "CCCC-C", "plastchem 4", "Epsilonate", "nonsense"]))
+    assert sorted(row["contaminant"] for row in named["rows"]) == ["Alphaester", "Betaamide", "Deltaone", "Gammaol"]
+    assert named["unsupported_contaminants"] == ["nonsense"]
+    assert named["not_computed_contaminants"][0]["reason"] == "scf_not_converged"
+    as_json = _data(contaminants.screen_contaminant_partitioning("LDPE", "dodecane", '["Alphaester", "1,6-nope"]'))
+    assert [row["contaminant"] for row in as_json["rows"]] == ["Alphaester"]
+    assert as_json["unsupported_contaminants"] == ["1,6-nope"]  # a comma inside a name is not a separator
+    hot = _data(contaminants.screen_contaminant_partitioning("LDPE", "dodecane", ["Alphaester"], temperature_c=120.0))
+    assert hot["miscibility_regime"] == "high" and hot["rows"][0]["leaching_verdict"] == "polymer dissolves"
+    assert _data(contaminants.screen_contaminant_partitioning("LDPE", "anisole"))["error_code"] == "solvent_not_in_panel"
+    assert _data(contaminants.screen_contaminant_partitioning("PET", "dodecane"))["error_code"] == "polymer_not_in_release"

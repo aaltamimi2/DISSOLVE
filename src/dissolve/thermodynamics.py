@@ -63,11 +63,9 @@ POLYMER_IDENTITIES: dict[str, dict[str, tuple[str, ...] | str]] = {
     "PC": {"aliases": ("polycarbonate",)},
     "PE": {
         "aliases": ("polyethylene",),
-        "thermodynamic_members": ("LDPE", "HDPE"),
-        # Retains the pinned low-level v10 point alias. Collection-valued user
-        # boundaries expand thermodynamic_members; scalar roles reject a
-        # multi-member family before calling the point resolver.
-        "point_default": "HDPE",
+        # Owner rule (2026-09-23): PE means LDPE across the whole agent unless the user names HDPE.
+        "thermodynamic_members": ("LDPE",),
+        "point_default": "LDPE",
     },
     "PEEK": {"aliases": ("polyether ether ketone", "polyetheretherketone")},
     "PES": {"aliases": ("polyethersulfone", "polyether sulfone")},

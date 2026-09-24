@@ -540,7 +540,7 @@ def test_acceptance_3_unregistered_solvent_does_not_substitute(monkeypatch):
     assert "dodecane at 140" not in result.answer.lower()
 
 
-def test_acceptance_4_polyethylene_expands_or_refuses_both_members(monkeypatch):
+def test_acceptance_4_polyethylene_means_ldpe(monkeypatch):
     def answer(messages):
         payload = _tool_json(messages, "solubility_query")
         if payload.get("available"):
@@ -571,18 +571,11 @@ def test_acceptance_4_polyethylene_expands_or_refuses_both_members(monkeypatch):
     assert result.status == "ok"
     ev = result.tool_trace[0]
     answer = result.answer
-    if ev.result.get("available"):
-        polymers = [row["polymer"] for row in ev.result["data"]["results"]]
-        assert set(polymers) == {"LDPE", "HDPE"}
-        assert "LDPE" in answer and "HDPE" in answer
-        for row in ev.result["data"]["results"]:
-            assert str(row["solubility_pct"]) in answer
-    else:
-        assert ev.result.get("refusal") == "ambiguous_polymer"
-        blob = json.dumps(ev.result)
-        assert "LDPE" in blob and "HDPE" in blob
-        assert "LDPE" in answer and "HDPE" in answer
-    assert not (answer.count("HDPE") and "LDPE" not in answer)
+    # Owner rule (2026-09-23): polyethylene means LDPE unless the user names HDPE.
+    assert ev.result.get("available") is True
+    assert [row["polymer"] for row in ev.result["data"]["results"]] == ["LDPE"]
+    assert "LDPE" in answer and "HDPE" not in answer
+    assert str(ev.result["data"]["results"][0]["solubility_pct"]) in answer
 
 
 def test_acceptance_6_large_screen_handle_and_follow_up(monkeypatch):
@@ -1387,7 +1380,7 @@ def test_loop_turn_record_survives_bind_and_is_not_a_gate(monkeypatch):
     assert result.status != "verifier_failed"
 
 
-def test_unknown_tool_and_polyethylene_not_picked():
+def test_unknown_tool_and_polyethylene_means_ldpe():
     with _bound():
         assert dispatch("not_a_tool")["refusal"] == "unknown_tool"
         out = dispatch(
@@ -1396,7 +1389,9 @@ def test_unknown_tool_and_polyethylene_not_picked():
         )
         assert out["available"] is True
         polymers = {row.get("polymer") for row in out["data"].get("results") or []}
-        assert polymers == {"LDPE", "HDPE"}
+        assert polymers == {"LDPE"}  # PE means LDPE unless the user names HDPE
+        named = dispatch("solubility_query", polymers=["HDPE"], solvents=["dodecane"], temperatures=[140.0])
+        assert {row.get("polymer") for row in named["data"].get("results") or []} == {"HDPE"}
 
 
 def _row_keys(data):
@@ -2213,9 +2208,9 @@ def test_doctor_checks_key_assets_registry_duckdb(tmp_path, monkeypatch):
     assert "duckdb" in names
     by_name = {c["name"]: c for c in report["checks"]}
     assert by_name["Tool registry"]["status"] == "pass"
-    assert by_name["Tool registry"]["detail"] == "29 registered names"
+    assert by_name["Tool registry"]["detail"] == "30 registered names"
     assert by_name["Tool registry"]["registered"] == len(EXPECTED_REGISTRY_NAMES)
-    assert len(EXPECTED_REGISTRY_NAMES) == 29
+    assert len(EXPECTED_REGISTRY_NAMES) == 30
     assert "fetch_solvent_safety_by_cid" in EXPECTED_REGISTRY_NAMES
     assert "estimate_thermal_properties" not in EXPECTED_REGISTRY_NAMES
     assert "normalize_feed_composition" not in EXPECTED_REGISTRY_NAMES
@@ -6580,8 +6575,8 @@ def test_off_default_six_literature_tools_absent_from_agent_list():
     assert LITERATURE_AGENT_TOOLS.isdisjoint(offered_tool_names())
     assert "ingest_literature_documents" in agent.BY_NAME
     assert "ingest_literature_graph" in agent.BY_NAME
-    assert len(EXPECTED_REGISTRY_NAMES) == 29
-    assert len(agent.REGISTRY) == 29
+    assert len(EXPECTED_REGISTRY_NAMES) == 30
+    assert len(agent.REGISTRY) == 30
 
 
 def test_corpus_offers_exactly_two_local_tools_and_network_does_not_fire(monkeypatch, tmp_path):
