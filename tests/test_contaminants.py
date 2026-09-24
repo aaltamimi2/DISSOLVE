@@ -4843,10 +4843,10 @@ def test_derived_temperature_not_produced_is_mismatch(monkeypatch, tmp_path):
     assert matching["success"] is True
 
 
-def _plastchem_release(root, *, status="complete", logp=None):
+def _plastchem_release(root, *, status="complete", logp=None, name="release", solvents=("dodecane", "toluene")):
     """A five-contaminant release in the campaign's delivery schema: one failed calculation, two solvents, PE and PP."""
     import csv, gzip, hashlib
-    rel = root / "release"
+    rel = root / name
     rel.mkdir()
     header = ["input_inchikey", "name", "smiles", "cas", "plastchem_id", "molecular_weight_g_mol", "tier",
               "campaign_status_at_snapshot", "perceived_inchikey", "failure_mode", "exclusion_reason"]
@@ -4864,15 +4864,15 @@ def _plastchem_release(root, *, status="complete", logp=None):
            "CCCC-C": ("grid_or_tie_line_unresolved", False, None, None), "DDDD-D": ("two_liquid_phases", True, 5.0, False)}
     con = duckdb.connect()
     part = [(key, solvent, polymer, convention, value + (0.1 if convention == "existing" else 0.0), "predicted")
-            for key, value in logp.items() for solvent in ("dodecane", "toluene") for polymer in ("pe", "pp")
+            for key, value in logp.items() for solvent in solvents for polymer in ("pe", "pp")
             for convention in ("normalized", "existing")]
     con.execute("CREATE TABLE p (input_inchikey VARCHAR, product_solvent_key VARCHAR, campaign_polymer VARCHAR, "
                 "convention VARCHAR, logP_concentration DOUBLE, status VARCHAR)")
     con.executemany("INSERT INTO p VALUES (?, ?, ?, ?, ?, ?)", part)
     con.execute(f"COPY p TO '{rel / 'partition.parquet'}' (FORMAT parquet)")
-    rows = [(key, solvent, "RT", 298.15, *lle[key]) for key in lle for solvent in ("dodecane", "toluene")]
+    rows = [(key, solvent, "RT", 298.15, *lle[key]) for key in lle for solvent in solvents]
     rows += [(key, solvent, "high", 393.15, "single_liquid_phase", True, 100.0, True)
-             for key in lle for solvent in ("dodecane", "toluene")]
+             for key in lle for solvent in solvents]
     con.execute("CREATE TABLE l (input_inchikey VARCHAR, product_solvent_key VARCHAR, temperature_regime VARCHAR, "
                 "temperature_K DOUBLE, status VARCHAR, value_validated BOOLEAN, solute_wt_percent_solubility DOUBLE, "
                 "above_15_wt_percent BOOLEAN)")
@@ -4946,3 +4946,42 @@ def test_plastchem_screen_states_the_partition_size_and_bounds_extremes(tmp_path
     assert out["logp_range_by_verdict"]["stays in polymer"] == {"min": "< -6", "median": "< -6", "max": -0.15, "count": 2}
     assert out["near_even_count"] == 2
     assert "19.45" not in json.dumps(out) and "24.0" not in json.dumps(out)
+
+
+def _reseal(rel):
+    """Rewrite a test release's manifest after editing one of its files."""
+    import hashlib
+    manifest = json.loads((rel / "manifest.json").read_text())
+    manifest["files"] = {path.name: {"sha256": hashlib.sha256(path.read_bytes()).hexdigest()}
+                         for path in rel.iterdir() if path.name != "manifest.json"}
+    (rel / "manifest.json").write_text(json.dumps(manifest))
+
+
+def test_plastchem_extension_release_adds_solvents_for_the_same_contaminants(tmp_path, monkeypatch):
+    """The 39 common solvents arrive as a second release (A-10). The asset serves the union, and refuses an extension
+    that repeats a served solvent or describes other contaminants or polymers."""
+    asset = tmp_path / "asset.duckdb"
+    monkeypatch.setenv("DISSOLVE_PLASTCHEM_ASSET", str(asset))
+    base = _plastchem_release(tmp_path)
+    ext = _plastchem_release(tmp_path, name="ext39", solvents=("anisole",))
+    info = plastchem_release.promote_opencosmo_release(base, asset, extensions=[ext])
+    assert (info["solvents"], info["partition"], info["computed"]) == (3, 24, 4)
+    assert [(r["release"], r["solvents"]) for r in json.loads(info["releases"])] == [("release", 2), ("ext39", 1)]
+    contaminants._LOCAL.__dict__.pop("plastchem", None)
+    added = _data(contaminants.screen_contaminant_partitioning("LDPE", "anisole"))
+    assert added["solvent"] == "anisole" and added["evaluated"] == 4
+    missing = _data(contaminants.screen_contaminant_partitioning("LDPE", "benzene"))
+    assert missing["error_code"] == "solvent_not_in_panel" and "3-solvent panel" in missing["error"]
+    clash = _plastchem_release(tmp_path, name="clash", solvents=("toluene", "benzene"))
+    with pytest.raises(ValueError, match="clash repeats solvents release already serves: toluene"):
+        plastchem_release.promote_opencosmo_release(base, tmp_path / "clash.duckdb", extensions=[clash])
+    other = _plastchem_release(tmp_path, name="other", solvents=("benzene",))
+    (other / "polymer-product-map.csv").write_text(
+        "product_polymer_key,campaign_polymer,shared_model_multiple_materials,conformer_count,"
+        "legacy_solubility_available,mapping_note\nPP,pp,False,25,True,exact\n")
+    _reseal(other)
+    with pytest.raises(ValueError, match="other/polymer-product-map.csv differs from the base release"):
+        plastchem_release.promote_opencosmo_release(base, tmp_path / "other.duckdb", extensions=[other])
+    preview = _plastchem_release(tmp_path, name="preview", solvents=("benzene",), status="partial_preview_not_a_release")
+    with pytest.raises(ValueError, match="not complete"):
+        plastchem_release.promote_opencosmo_release(base, tmp_path / "preview.duckdb", extensions=[preview])

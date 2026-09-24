@@ -1566,7 +1566,7 @@ def screen_contaminant_partitioning(
     keys = set(_solvent_keys(solvent)) | {_key(solvent)}
     solvent_key = next((key for key in panel if key in keys), None)
     if solvent_key is None:
-        return tool_error(tool, f"{solvent} is not in the 32-solvent panel.", error_code="solvent_not_in_panel",
+        return tool_error(tool, f"{solvent} is not in the {len(panel)}-solvent panel.", error_code="solvent_not_in_panel",
                           requested_solvent=solvent, panel_solvents=panel)
     requested = list(contaminants or []) if not isinstance(contaminants, str) else [contaminants]
     if isinstance(contaminants, str) and contaminants.lstrip().startswith("["):
