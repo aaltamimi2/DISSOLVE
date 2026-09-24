@@ -13,11 +13,17 @@
   --text-tertiary: #999999;
   --border-color: #e5e7eb;
   --border-hover: #cbd5e0;
-  --primary: #c77b4a;
-  --primary-hover: #b36a3d;
-  --primary-light: #e8c4ad;
-  --primary-tint: rgba(199, 123, 74, 0.1);
-  --success: #10b981;
+  /* The agent logo's palette: hard-hat gold for fills (navy text on them), a darker gold for text, navy and teal accents. */
+  --primary: #d2a047;
+  --primary-hover: #dfb05a;
+  --primary-light: #efce8c;
+  --primary-tint: rgba(210, 160, 71, 0.14);
+  --on-primary: #1e3d52;
+  --primary-ink: #8a6418;
+  --navy: #1e3d52;
+  --link: #2c6262;
+  --link-hover: #1e3d52;
+  --success: #2f7f73;
   --error: #ef4444;
   --warning: #f59e0b;
   --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
@@ -36,11 +42,16 @@
   --text-tertiary: #94a3b8;
   --border-color: #334155;
   --border-hover: #475569;
-  --primary: #d4936f;
-  --primary-hover: #e8b896;
-  --primary-light: #8b6045;
-  --primary-tint: rgba(212, 147, 111, 0.14);
-  --success: #34d399;
+  --primary: #dfb05a;
+  --primary-hover: #efce8c;
+  --primary-light: #8d743b;
+  --primary-tint: rgba(223, 176, 90, 0.16);
+  --on-primary: #1e3d52;
+  --primary-ink: #e6bf72;
+  --navy: #28485f;
+  --link: #7cc4b6;
+  --link-hover: #a9dcd2;
+  --success: #5da99c;
   --error: #f87171;
   --warning: #fbbf24;
   --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.3);
@@ -63,6 +74,9 @@
   --color-brand-hover: var(--primary-hover);
   --color-brand-soft: var(--primary-light);
   --color-brand-tint: var(--primary-tint);
+  --color-on-brand: var(--on-primary);
+  --color-brand-ink: var(--primary-ink);
+  --color-navy: var(--navy);
   --color-ok: var(--success);
   --color-bad: var(--error);
   --color-warn: var(--warning);
@@ -99,7 +113,7 @@
     transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease;
   }
   :focus-visible {
-    outline: 2px solid var(--primary);
+    outline: 2px solid var(--primary-ink);
     outline-offset: 2px;
   }
   ::-webkit-scrollbar {
@@ -159,11 +173,11 @@
   color: var(--text-primary);
 }
 .markdown-content a {
-  color: var(--primary);
+  color: var(--link);
   text-decoration: underline;
   text-underline-offset: 2px;
 }
-.markdown-content a:hover { color: var(--primary-hover); }
+.markdown-content a:hover { color: var(--link-hover); }
 .markdown-content code {
   background-color: var(--bg-tertiary);
   padding: 0.15em 0.4em;
