@@ -70,7 +70,7 @@ export const QUICK_ACTIONS: QuickAction[] = [
     icon: Thermometer,
     examples: [
       { text: "What are the Hansen solubility parameters of PVDF, and which solvents fall inside its interaction sphere?" },
-      { text: "Screen the Hansen compatibility of PET with DMSO, NMP and benzyl alcohol." },
+      { text: "Screen the Hansen compatibility of PET with DMSO, NMP, cyclohexanone and dichloromethane." },
       { text: "What is the glass transition temperature of PET, and what evidence supports it?" },
       { text: "Compare the Hansen distances of toluene and xylene to polystyrene." },
     ],
