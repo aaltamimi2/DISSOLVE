@@ -17,8 +17,8 @@ STRAP/
 *.pdf
 
 # Not published yet: the plastics process model and the live-TEA worker environment stay local.
-/vendor/plastics/
-/vendor/opencosmo-solvents/
+/vendor/plastics
+/vendor/opencosmo-solvents
 /.venv-tea
 
 # Built by ./dissolve: the agent environment, its editable-install metadata, and a private uv.
