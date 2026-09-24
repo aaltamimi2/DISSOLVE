@@ -219,8 +219,11 @@
   font-size: 0.84rem;
   font-variant-numeric: tabular-nums;
 }
+/* Cells never break a word apart: a wide table scrolls inside .table-wrap instead of printing "Cycloh exanon e". */
 .markdown-content th,
 .markdown-content td {
+  overflow-wrap: normal;
+  word-break: normal;
   padding: 0.45rem 0.7rem;
   text-align: left;
   border-bottom: 1px solid var(--border-color);
