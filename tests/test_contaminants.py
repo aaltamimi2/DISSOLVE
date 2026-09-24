@@ -278,9 +278,10 @@ def test_lookup_is_the_table_and_the_parser_is_gone():
     supported, unsupported, families, _uncovered = contaminants._expand(
         ["DEHP", "117-81-7", "2-ethylhexyl", "heptafluoropropoxy", "PFOA"]
     )
-    assert supported == ["di-(2-ethylhexyl) phthalate (DEHP)"]
-    assert families == ["Phthalates"]
-    assert unsupported == ["2-ethylhexyl", "heptafluoropropoxy", "PFOA"]
+    # PFOA resolves through the explicit acronym table (2026-09-24), not a parser: name fragments still do not.
+    assert supported == ["di-(2-ethylhexyl) phthalate (DEHP)", "Perfluorooctanoic Acid"]
+    assert families == ["PFAS", "Phthalates"]
+    assert unsupported == ["2-ethylhexyl", "heptafluoropropoxy"]
     refuse = _data(contaminants.screen_contaminant_leaching(
         "LDPE", ["2-ethylhexyl", "heptafluoropropoxy"],
     ))
@@ -5003,3 +5004,23 @@ def test_plastchem_extension_release_adds_solvents_for_the_same_contaminants(tmp
     preview = _plastchem_release(tmp_path, name="preview", solvents=("benzene",), status="partial_preview_not_a_release")
     with pytest.raises(ValueError, match="not complete"):
         plastchem_release.promote_opencosmo_release(base, tmp_path / "preview.duckdb", extensions=[preview])
+
+
+def test_pfas_acronyms_reach_the_workbook_screens():
+    """"Which wash solvents remove PFOA from LDPE" came back unsupported: the workbook names its 26 PFAS in full
+    (2026-09-24). Standard acronyms now resolve to the workbook's own entries."""
+    lookup = contaminants._contaminant_lookup()
+    assert all(contaminants._key(acronym) in lookup for acronym in contaminants._PFAS_ACRONYMS)
+    assert lookup[contaminants._key("PFOA")].name == "Perfluorooctanoic Acid"
+    assert lookup[contaminants._key("F-53B")].family == "PFAS"
+    data = _data(contaminants.screen_contaminant_leaching("LDPE", ["PFOA", "PFOS"]))
+    assert data["supported_contaminants"] == ["Perfluorooctanoic Acid", "Perfluorooctanesulfonic acid"]
+
+
+def test_a_workbook_refusal_points_to_the_plastchem_screen():
+    """"For HDPE containing bisphenol A, compare removal by washing with removal by dissolution" stopped at the
+    workbook's refusal, though the PlastChem screen computes BPA (2026-09-24). The refusal now names what it covers."""
+    data = _data(contaminants.compare_contaminant_removal_modes("HDPE", ["bisphenol A", "unobtainium"]))
+    assert data["error_code"] == "unsupported_contaminants"
+    assert data["plastchem_partitioning_covers"] == ["bisphenol A"]
+    assert "screen_contaminant_partitioning covers bisphenol A" in data["error"]

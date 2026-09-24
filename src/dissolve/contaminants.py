@@ -164,9 +164,28 @@ class _ResolvedContaminant:
         return self.resolution_basis == "cas_verified"
 
 
+# Standard acronyms for the workbook's 26 PFAS, which it names in full: "Which wash solvents remove PFOA from LDPE"
+# came back unsupported (2026-09-24). Each points at the workbook's own entry; one it lacks adds nothing.
+_PFAS_ACRONYMS = {
+    "PFBA": "perfluorobutanoic acid", "PFPeA": "perfluoropentanoic acid", "PFHxA": "perfluorohexanoic acid",
+    "PFHpA": "perfluoroheptanoic acid", "PFOA": "perfluorooctanoic acid", "PFNA": "perfluorononanoic acid",
+    "PFDA": "perfluorodecanoic acid", "PFUnDA": "perfluoroundecanoic acid", "PFUnA": "perfluoroundecanoic acid",
+    "PFDoDA": "perfluorododecanoic acid", "PFDoA": "perfluorododecanoic acid", "PFTrDA": "perfluorotridecanoic acid",
+    "PFTeDA": "perfluorotetradecanoic acid", "PFBS": "perfluorobutanesulfonic acid",
+    "PFPeS": "perfluoropentanesulfonic acid", "PFHxS": "perfluorohexanesulfonic acid",
+    "PFHpS": "perfluoroheptanesulfonic acid", "PFOS": "perfluorooctanesulfonic acid", "PFNS": "perfluorononanesulfonate",
+    "PFDS": "perfluorodecanesulfonic acid", "PFUnDS": "perfluoroundecanesulfonic acid",
+    "PFDoDS": "perfluorododecanesulfonic acid", "PFTrDS": "perfluorotridecanesulfonic acid",
+    "HFPO-DA": "2,3,3,3-tetrafluoro-2-(heptafluoropropoxy)propanoic acid",
+    "GenX": "ammonium 2,3,3,3-tetrafluoro-2-(heptafluoropropoxy)propanoate",
+    "ADONA": "ammonium 4,8-dioxa-3h-perfluorononanoate", "NaDONA": "sodium dodecafluoro-3h-4, 8-dioxanonanoate",
+    "F-53B": "potassium 9-chlorohexadecafluoro-3-oxanonane-1-sulfonate",
+}
+
+
 @lru_cache(maxsize=1)
 def _contaminant_lookup() -> dict[str, _ResolvedContaminant]:
-    """Folded alias → catalog identity. Table only; no parse fallback."""
+    """Folded alias → catalog identity: the catalog table, plus standard PFAS acronyms for entries it names in full."""
     result: dict[str, _ResolvedContaminant] = {}
     for alias, key, name, family, cas, basis, cid in _connection().execute(
         "SELECT alias, contaminant_key, canonical_name, family, "
@@ -187,6 +206,10 @@ def _contaminant_lookup() -> dict[str, _ResolvedContaminant]:
                 pubchem_cid=cid,
             ),
         )
+    for acronym, name in _PFAS_ACRONYMS.items():
+        identity = result.get(_key(name))
+        if identity is not None:
+            result.setdefault(_key(acronym), identity)
     return result
 
 
@@ -904,12 +927,16 @@ def _inputs(
             ],
         )
     if not supported:
+        elsewhere = _in_plastchem(unsupported or requested)
         return {}, tool_error(
-            tool, "None of the requested contaminants are supported.",
+            tool, "None of the requested contaminants are supported." + (
+                f" screen_contaminant_partitioning covers {', '.join(elsewhere)} (PlastChem; one polymer and one "
+                "solvent per call)." if elsewhere else ""),
             error_code="unsupported_contaminants", target_polymer=target,
             other_polymers=others, unsupported_other_polymers=missing_others,
             requested_contaminants=requested,
             unsupported_contaminants=unsupported or requested,
+            plastchem_partitioning_covers=elsewhere,
             supported_families=sorted(_families()),
             warnings=[
                 "No contaminant-specific solvent, wash chemistry, physical-sorting "
@@ -1484,6 +1511,17 @@ _PLASTCHEM_THRESHOLDS = {
     "swelling_max_wt_pct": _DEFAULT_SWELLING_MAX,
     "dissolution_min_wt_pct": _DEFAULT_DISSOLUTION_MIN,
 }
+
+
+def _in_plastchem(names: Sequence[str]) -> list[str]:
+    """The names the PlastChem screen computes. A workbook screen that refuses them says so, so the agent can turn
+    to it: "compare removal of bisphenol A from HDPE" stopped at the workbook's refusal (2026-09-24)."""
+    con = _plastchem()
+    if con is None:
+        return []
+    return [str(name) for name in names if con.execute(
+        "SELECT 1 FROM aliases a JOIN contaminants c ON c.id = a.id WHERE a.alias = ? AND c.computed LIMIT 1",
+        [_key(name)]).fetchone()]
 
 
 def _plastchem() -> duckdb.DuckDBPyConnection | None:
