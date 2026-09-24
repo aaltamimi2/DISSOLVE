@@ -1,0 +1,350 @@
+{
+  "utc": "2026-09-24T00:15:20.760328+00:00",
+  "cohort_sha256": "400e809c9adbaf41ce69dc1686106673ad8522aa6fc8967930c6f10a32e63f5c",
+  "status_snapshot_sha256": "792e98a7166eef69d6acc05ecd6f82415b755e0e57c04225fb7ef6f41c19521b",
+  "decision": "continue",
+  "measured_calibration_cpu_hours": 15.091944444444444,
+  "population_weighted_cpu_hours": 2998.6178703703704,
+  "planning_allowance_fraction": 0.25,
+  "authorized_cpu_hours": 3748.272337962963,
+  "engineering_range_cpu_hours": [
+    2819.4224999999997,
+    3963.1062500000003
+  ],
+  "range_note": "Weighted sample minima to weighted maxima plus 25%; engineering sensitivity envelope, not a statistical confidence interval. Deliberate sample; unseen outliers remain possible.",
+  "by_tier_cpu_hours_without_allowance": {
+    "main": 2982.5153703703704,
+    "tier2": 16.1025
+  },
+  "strata": [
+    {
+      "stratum": "01_le30_N",
+      "population": 725,
+      "sample_n": 3,
+      "sample_cpu_seconds": [
+        1814,
+        1931,
+        2185
+      ],
+      "projected_cpu_hours": 398.07870370370375
+    },
+    {
+      "stratum": "01_le30_noN",
+      "population": 1909,
+      "sample_n": 3,
+      "sample_cpu_seconds": [
+        1625,
+        1686,
+        1746
+      ],
+      "projected_cpu_hours": 893.8715740740741
+    },
+    {
+      "stratum": "02_31_50_N",
+      "population": 466,
+      "sample_n": 3,
+      "sample_cpu_seconds": [
+        1758,
+        2286,
+        2056
+      ],
+      "projected_cpu_hours": 263.2037037037037
+    },
+    {
+      "stratum": "02_31_50_noN",
+      "population": 1545,
+      "sample_n": 3,
+      "sample_cpu_seconds": [
+        1739,
+        1851,
+        1877
+      ],
+      "projected_cpu_hours": 782.0847222222222
+    },
+    {
+      "stratum": "03_51_80_N",
+      "population": 250,
+      "sample_n": 3,
+      "sample_cpu_seconds": [
+        2307,
+        2490,
+        2166
+      ],
+      "projected_cpu_hours": 161.18055555555554
+    },
+    {
+      "stratum": "03_51_80_noN",
+      "population": 820,
+      "sample_n": 3,
+      "sample_cpu_seconds": [
+        2032,
+        1773,
+        1919
+      ],
+      "projected_cpu_hours": 434.6
+    },
+    {
+      "stratum": "04_gt80_N",
+      "population": 10,
+      "sample_n": 3,
+      "sample_cpu_seconds": [
+        2097,
+        2121,
+        2430
+      ],
+      "projected_cpu_hours": 6.155555555555556
+    },
+    {
+      "stratum": "04_gt80_noN",
+      "population": 78,
+      "sample_n": 3,
+      "sample_cpu_seconds": [
+        1970,
+        1992,
+        2039
+      ],
+      "projected_cpu_hours": 43.340555555555554
+    },
+    {
+      "stratum": "tier2",
+      "population": 27,
+      "sample_n": 3,
+      "sample_cpu_seconds": [
+        2192,
+        2150,
+        2099
+      ],
+      "projected_cpu_hours": 16.1025
+    }
+  ],
+  "samples": {
+    "2843": {
+      "cpu_seconds": 1814,
+      "initial_cpu_seconds": 1793,
+      "recovery_cpu_seconds": 21,
+      "partition_seconds": 723.8294909839751,
+      "lle_seconds": 1084.0116478739074,
+      "inchikey": "MWCLLHOVUTZFKS-UHFFFAOYSA-N"
+    },
+    "4475": {
+      "cpu_seconds": 1931,
+      "initial_cpu_seconds": 1914,
+      "recovery_cpu_seconds": 17,
+      "partition_seconds": 752.9054425079376,
+      "lle_seconds": 1173.6460005430272,
+      "inchikey": "ULHFFAFDSSHFDA-UHFFFAOYSA-N"
+    },
+    "956": {
+      "cpu_seconds": 2185,
+      "initial_cpu_seconds": 2168,
+      "recovery_cpu_seconds": 17,
+      "partition_seconds": 772.0632409480168,
+      "lle_seconds": 1406.857071661856,
+      "inchikey": "FBMQNRKSAWNXBT-UHFFFAOYSA-N"
+    },
+    "170": {
+      "cpu_seconds": 1625,
+      "initial_cpu_seconds": 1603,
+      "recovery_cpu_seconds": 22,
+      "partition_seconds": 696.2292945189402,
+      "lle_seconds": 924.6428435581038,
+      "inchikey": "ATQUFXWBVZUTKO-UHFFFAOYSA-N"
+    },
+    "5341": {
+      "cpu_seconds": 1686,
+      "initial_cpu_seconds": 1667,
+      "recovery_cpu_seconds": 19,
+      "partition_seconds": 736.933067157981,
+      "lle_seconds": 943.9596751548816,
+      "inchikey": "YDZCHDQXPLJVBG-UHFFFAOYSA-N"
+    },
+    "507": {
+      "cpu_seconds": 1746,
+      "initial_cpu_seconds": 1725,
+      "recovery_cpu_seconds": 21,
+      "partition_seconds": 760.6704025170766,
+      "lle_seconds": 979.7882803600514,
+      "inchikey": "CEXQWAAGPPNOQF-UHFFFAOYSA-N"
+    },
+    "702": {
+      "cpu_seconds": 1758,
+      "initial_cpu_seconds": 1738,
+      "recovery_cpu_seconds": 20,
+      "partition_seconds": 771.8421820199583,
+      "lle_seconds": 980.549934194074,
+      "inchikey": "DBKDVEPBROVGLY-UHFFFAOYSA-N"
+    },
+    "1819": {
+      "cpu_seconds": 2286,
+      "initial_cpu_seconds": 2271,
+      "recovery_cpu_seconds": 15,
+      "partition_seconds": 801.2331502829911,
+      "lle_seconds": 1480.3485067439033,
+      "inchikey": "ILRSCQWREDREME-UHFFFAOYSA-N"
+    },
+    "912": {
+      "cpu_seconds": 2056,
+      "initial_cpu_seconds": 2044,
+      "recovery_cpu_seconds": 12,
+      "partition_seconds": 861.2433479060419,
+      "lle_seconds": 1190.5424221819267,
+      "inchikey": "DXWHZJXKTHGHQF-UHFFFAOYSA-N"
+    },
+    "1986": {
+      "cpu_seconds": 1739,
+      "initial_cpu_seconds": 1720,
+      "recovery_cpu_seconds": 19,
+      "partition_seconds": 781.720828503836,
+      "lle_seconds": 951.4577933839755,
+      "inchikey": "JFTSYAALCNQOKO-UHFFFAOYSA-N"
+    },
+    "898": {
+      "cpu_seconds": 1851,
+      "initial_cpu_seconds": 1834,
+      "recovery_cpu_seconds": 17,
+      "partition_seconds": 834.6989345729817,
+      "lle_seconds": 1009.7134980959818,
+      "inchikey": "DWNAQMUDCDVSLT-UHFFFAOYSA-N"
+    },
+    "4587": {
+      "cpu_seconds": 1877,
+      "initial_cpu_seconds": 1862,
+      "recovery_cpu_seconds": 15,
+      "partition_seconds": 844.5568435230525,
+      "lle_seconds": 1027.57448820211,
+      "inchikey": "UYXTWWCETRIEDR-UHFFFAOYSA-N"
+    },
+    "4142": {
+      "cpu_seconds": 2307,
+      "initial_cpu_seconds": 2296,
+      "recovery_cpu_seconds": 11,
+      "partition_seconds": 875.9958737621782,
+      "lle_seconds": 1425.6797353030415,
+      "inchikey": "SFIHQZFZMWZOJV-HZJYTTRNSA-N"
+    },
+    "2068": {
+      "cpu_seconds": 2490,
+      "initial_cpu_seconds": 2480,
+      "recovery_cpu_seconds": 10,
+      "partition_seconds": 898.6298301629722,
+      "lle_seconds": 1585.6329429510515,
+      "inchikey": "JOIUZBTWMAYEQW-UHFFFAOYSA-N"
+    },
+    "3694": {
+      "cpu_seconds": 2166,
+      "initial_cpu_seconds": 2166,
+      "recovery_cpu_seconds": 0,
+      "partition_seconds": 962.9467692809412,
+      "lle_seconds": 1199.9264478660189,
+      "inchikey": "QKOWXXDOHMJOMQ-UHFFFAOYSA-N"
+    },
+    "2711": {
+      "cpu_seconds": 2032,
+      "initial_cpu_seconds": 2019,
+      "recovery_cpu_seconds": 13,
+      "partition_seconds": 838.7950473220553,
+      "lle_seconds": 1188.1892157860566,
+      "inchikey": "MHVJRKBZMUDEEV-APQLOABGSA-N"
+    },
+    "1609": {
+      "cpu_seconds": 1773,
+      "initial_cpu_seconds": 1773,
+      "recovery_cpu_seconds": 0,
+      "partition_seconds": 820.8905619370053,
+      "lle_seconds": 949.5235373560572,
+      "inchikey": "HPGHRGIPHODCEW-UHFFFAOYSA-N"
+    },
+    "3177": {
+      "cpu_seconds": 1919,
+      "initial_cpu_seconds": 1919,
+      "recovery_cpu_seconds": 0,
+      "partition_seconds": 891.6775222959695,
+      "lle_seconds": 1024.9786562969675,
+      "inchikey": "OFEMBBUDYGTDON-UHFFFAOYSA-N"
+    },
+    "4504": {
+      "cpu_seconds": 2097,
+      "initial_cpu_seconds": 2097,
+      "recovery_cpu_seconds": 0,
+      "partition_seconds": 936.1824511169689,
+      "lle_seconds": 1158.815646724077,
+      "inchikey": "UONLDZHKYCFZRW-UHFFFAOYSA-N"
+    },
+    "2055": {
+      "cpu_seconds": 2121,
+      "initial_cpu_seconds": 2121,
+      "recovery_cpu_seconds": 0,
+      "partition_seconds": 946.3317531549837,
+      "lle_seconds": 1172.558616153081,
+      "inchikey": "JMUOXOJMXILBTE-UHFFFAOYSA-N"
+    },
+    "4324": {
+      "cpu_seconds": 2430,
+      "initial_cpu_seconds": 2430,
+      "recovery_cpu_seconds": 0,
+      "partition_seconds": 1025.108567069983,
+      "lle_seconds": 1402.72580917296,
+      "inchikey": "SZQRSDJOAHBRSI-UHFFFAOYSA-N"
+    },
+    "1857": {
+      "cpu_seconds": 1970,
+      "initial_cpu_seconds": 1970,
+      "recovery_cpu_seconds": 0,
+      "partition_seconds": 913.0914994849591,
+      "lle_seconds": 1054.8703524250304,
+      "inchikey": "IOWILYDIQORSRC-UHFFFAOYSA-N"
+    },
+    "3620": {
+      "cpu_seconds": 1992,
+      "initial_cpu_seconds": 1992,
+      "recovery_cpu_seconds": 0,
+      "partition_seconds": 976.7693948349915,
+      "lle_seconds": 1012.8673251960427,
+      "inchikey": "PZUXYVVFGLRVRG-UHFFFAOYSA-N"
+    },
+    "5742": {
+      "cpu_seconds": 2039,
+      "initial_cpu_seconds": 2039,
+      "recovery_cpu_seconds": 0,
+      "partition_seconds": 991.5136315580457,
+      "lle_seconds": 1045.6213249280117,
+      "inchikey": "ZTLKOYAJKRWSKL-UHFFFAOYSA-N"
+    },
+    "5806": {
+      "cpu_seconds": 2192,
+      "initial_cpu_seconds": 2192,
+      "recovery_cpu_seconds": 0,
+      "partition_seconds": 800.6096076180693,
+      "lle_seconds": 1388.729969457956,
+      "inchikey": "DMPXHEMGDYKSFL-UHFFFAOYSA-N"
+    },
+    "5827": {
+      "cpu_seconds": 2150,
+      "initial_cpu_seconds": 2150,
+      "recovery_cpu_seconds": 0,
+      "partition_seconds": 866.7945737720001,
+      "lle_seconds": 1280.8304628318874,
+      "inchikey": "VMRGZRVLZQSNHC-UHFFFAOYSA-N"
+    },
+    "5829": {
+      "cpu_seconds": 2099,
+      "initial_cpu_seconds": 2099,
+      "recovery_cpu_seconds": 0,
+      "partition_seconds": 997.0997721129097,
+      "lle_seconds": 1099.2181725910632,
+      "inchikey": "ZNRNSKNVPBUUNI-CLFAGFIQSA-N"
+    }
+  },
+  "lle_status_counts": {
+    "single_liquid_phase": 1543,
+    "two_liquid_phases": 180,
+    "grid_or_tie_line_unresolved": 5
+  },
+  "peak_rss_kib": 2244288,
+  "scope_counts": {
+    "partition_each_convention": 1865600,
+    "lle": 373120
+  },
+  "cost_gate_cpu_hours": 6000,
+  "staging_recovery_cpu_included": true
+}

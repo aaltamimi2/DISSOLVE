@@ -1,0 +1,8 @@
+{
+  "utc": "2026-09-23T22:39:58.656756+00:00",
+  "mode": "82partition",
+  "squeue": "",
+  "sacct": "",
+  "shared_cap": 64,
+  "throttle": 8
+}

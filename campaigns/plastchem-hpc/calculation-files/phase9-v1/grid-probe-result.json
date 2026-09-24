@@ -1,0 +1,72 @@
+{
+  "status": "passed",
+  "rows": [
+    {
+      "solute_sha256": "ca19f9cebd7b5434541aa74bcd1d1cedfa6c7458aba426f7753c7ac982dcbfe7",
+      "phase_sha256": "da09de46b52463d51ad9534346ff47eeda0d2e24803a67a00503ff65cd77f750",
+      "temperature_K": 298.15,
+      "n": 344,
+      "old_seconds": 1.2495227090548724,
+      "new_seconds": 0.313785866019316,
+      "max_abs_ln_gamma_error": 2.1316282072803006e-14
+    },
+    {
+      "solute_sha256": "74a44a31aec2d986fb323839fa71c4ad79ae437e670996af4bb740e3f2bf03ab",
+      "phase_sha256": "da09de46b52463d51ad9534346ff47eeda0d2e24803a67a00503ff65cd77f750",
+      "temperature_K": 372.15,
+      "n": 344,
+      "old_seconds": 0.8498971160734072,
+      "new_seconds": 0.20697767403908074,
+      "max_abs_ln_gamma_error": 4.973799150320701e-14
+    },
+    {
+      "solute_sha256": "9eb48822be98f05682b89338c583802d55e3dbfb38bf3fb59e948618cd6570bd",
+      "phase_sha256": "1e861827634c7652fb2fd022abb044d725049447359b0a6b3a1ff0be8d059f2c",
+      "temperature_K": 298.15,
+      "n": 344,
+      "old_seconds": 0.32774404902011156,
+      "new_seconds": 0.04961893998552114,
+      "max_abs_ln_gamma_error": 2.1316282072803006e-14
+    },
+    {
+      "solute_sha256": "8d35233e9b0e92cbafbdb95fd4eaa56bb8631f305802dfe85e8f2a942da60a1b",
+      "phase_sha256": "927615828ad0d18576e7cf29e149e4c2f0401d2501d23a20dcb0383a252fc5f4",
+      "temperature_K": 337.15,
+      "n": 344,
+      "old_seconds": 0.8569429389899597,
+      "new_seconds": 0.19703364197630435,
+      "max_abs_ln_gamma_error": 2.4868995751603507e-14
+    },
+    {
+      "solute_sha256": "f03011ad82420d2914804e6583fc1be9c79d9b90e1ab0640f3e7bb2bbd3dba10",
+      "phase_sha256": "da09de46b52463d51ad9534346ff47eeda0d2e24803a67a00503ff65cd77f750",
+      "temperature_K": 298.15,
+      "n": 344,
+      "old_seconds": 1.4671629630029202,
+      "new_seconds": 0.37828822794836015,
+      "max_abs_ln_gamma_error": 1.5987211554602254e-14
+    },
+    {
+      "solute_sha256": "c24644d2f0d476352b1ae1d0f59524128f03c9cae4bb36ed8536060ff8f757fa",
+      "phase_sha256": "da09de46b52463d51ad9534346ff47eeda0d2e24803a67a00503ff65cd77f750",
+      "temperature_K": 298.15,
+      "n": 344,
+      "old_seconds": 2.182687537977472,
+      "new_seconds": 0.6867541059618816,
+      "max_abs_ln_gamma_error": 2.6645352591003757e-14
+    },
+    {
+      "solute_sha256": "c082e7f605ac1b6b43402db8e83c4768cbdf9c5f2990bacba502f802b5204da7",
+      "phase_sha256": "da09de46b52463d51ad9534346ff47eeda0d2e24803a67a00503ff65cd77f750",
+      "temperature_K": 298.15,
+      "n": 344,
+      "old_seconds": 2.456692256964743,
+      "new_seconds": 0.7943939100950956,
+      "max_abs_ln_gamma_error": 3.197442310920451e-14
+    }
+  ],
+  "driver_sha256": "ed8f202d429050bea9c03d85a53148a492353146dc187a364a51bc0c85e88e19",
+  "grid_sha256": "e4c68346047b1a348c4fddae39826ba37c213cb2bb042f6f29f8bd747670844b",
+  "peak_rss_kib": 465504,
+  "job_id": "68345"
+}

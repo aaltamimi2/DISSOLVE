@@ -1,0 +1,8 @@
+{
+  "utc": "2026-09-24T00:17:11.870998+00:00",
+  "squeue": "",
+  "sacct": "",
+  "mode": "production",
+  "throttle": 27,
+  "shared_cap": 64
+}

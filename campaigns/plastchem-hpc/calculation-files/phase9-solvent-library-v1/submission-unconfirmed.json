@@ -1,0 +1,60 @@
+{
+  "utc": "2026-09-24T06:35:17.433115+00:00",
+  "name": "contam-phase9-common-solvents-v1",
+  "operations": [
+    {
+      "command": [
+        "squeue",
+        "-h",
+        "-r",
+        "-u",
+        "aaltamimi2",
+        "--name=contam-phase9-common-solvents-v1",
+        "-o",
+        "%i|%T|%R"
+      ],
+      "returncode": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "sacct",
+        "-nP",
+        "-u",
+        "aaltamimi2",
+        "--starttime=2026-09-23",
+        "--name=contam-phase9-common-solvents-v1",
+        "--format=JobID,JobName%60,State,Elapsed,NodeList"
+      ],
+      "returncode": 0,
+      "stdout": "",
+      "stderr": ""
+    }
+  ],
+  "A_launch_utc": "2026-09-24T06:34:43.826177+00:00",
+  "A_job_id": "68503",
+  "squeue_reconciliation": "",
+  "sacct_reconciliation": "",
+  "command": [
+    "sbatch",
+    "--parsable",
+    "--hold",
+    "--job-name=contam-phase9-common-solvents-v1",
+    "--partition=research",
+    "--constraint=milan&cpu",
+    "--exclude=euler09,euler10",
+    "--nodes=1",
+    "--ntasks=1",
+    "--cpus-per-task=1",
+    "--mem=4G",
+    "--time=08:00:00",
+    "--no-requeue",
+    "--signal=B:USR1@120",
+    "--array=0-68%4",
+    "--chdir=/srv/home/aaltamimi2/plastchem-euler/phase9-solvent-library-v1",
+    "--output=/srv/home/aaltamimi2/plastchem-euler/phase9-solvent-library-v1/logs/%A_%a.out",
+    "--error=/srv/home/aaltamimi2/plastchem-euler/phase9-solvent-library-v1/logs/%A_%a.err",
+    "--wrap=. \"$HOME/plastchem-euler/orca-env.sh\"; exec python3 phase9_solvent_runner.py solvent_library"
+  ]
+}

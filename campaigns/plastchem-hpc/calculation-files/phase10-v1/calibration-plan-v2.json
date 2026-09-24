@@ -1,0 +1,2834 @@
+{
+  "scope": "A-10 measured calibration; not production clearance",
+  "manifest_sha256": "e8117a67ffff1ccd6357a2efe22e02cddaae47073483bead944efcce06c9a79a",
+  "chunks": [
+    [
+      {
+        "id": "cohort-00604",
+        "reference": "production",
+        "reference_index": 604,
+        "inchikey": "CQOVPNPJLQNMDC-UHFFFAOYSA-N",
+        "surface": "../phase83-v1/surfaces/f7549eaba043813ba414f1d6528f1122e3c283b12d0a8397e3ffd6b693833fbc.orcacosmo",
+        "surface_sha256": "f7549eaba043813ba414f1d6528f1122e3c283b12d0a8397e3ffd6b693833fbc",
+        "molecular_weight_g_mol": 226.23,
+        "primary_partition": "../phase9-v1/production-results-v1/0005/partition/cohort-00604.json",
+        "primary_plan_sha256": "ce19da895df90f231ab91a1b50fc617f78a16684f6445e4b4ef220bef1bfe6c0",
+        "stratum": "01_le30_N",
+        "name": "L-HISTIDINE, N-beta-ALANYL-",
+        "atoms": 30,
+        "input_smiles": "C1=C(NC=N1)CC(C(=O)O)NC(=O)CCN",
+        "calibration_reasons": [
+          "prior unresolved systems: 4"
+        ],
+        "control_original_batch": [
+          {
+            "id": "cohort-00595",
+            "surface": "../phase83-v1/surfaces/b3acb2deb8a674df7fcd5403c3a6d79c003a303ba650f5128ac23ea319355ba7.orcacosmo",
+            "surface_sha256": "b3acb2deb8a674df7fcd5403c3a6d79c003a303ba650f5128ac23ea319355ba7"
+          },
+          {
+            "id": "cohort-00596",
+            "surface": "../phase83-v1/surfaces/612378e8878413750dd29687e7babf3c97610a202bbd083090501e1c18258120.orcacosmo",
+            "surface_sha256": "612378e8878413750dd29687e7babf3c97610a202bbd083090501e1c18258120"
+          },
+          {
+            "id": "cohort-00597",
+            "surface": "../phase83-v1/surfaces/02a174567628a5ee50d704daf706ec7dcc9c345c5c5332b5f1a8872c213ac432.orcacosmo",
+            "surface_sha256": "02a174567628a5ee50d704daf706ec7dcc9c345c5c5332b5f1a8872c213ac432"
+          },
+          {
+            "id": "cohort-00598",
+            "surface": "../phase83-v1/surfaces/1bbb5ea4d8946d1f5b6fafbef492c9c2cc4e0d65a8b97206f3dd289178d5bf53.orcacosmo",
+            "surface_sha256": "1bbb5ea4d8946d1f5b6fafbef492c9c2cc4e0d65a8b97206f3dd289178d5bf53"
+          },
+          {
+            "id": "cohort-00599",
+            "surface": "../phase83-v1/surfaces/c35b0aeda896514c999df1744c0ac0d0ab77d2f077e9d69aefa7fb1f71c8e4f0.orcacosmo",
+            "surface_sha256": "c35b0aeda896514c999df1744c0ac0d0ab77d2f077e9d69aefa7fb1f71c8e4f0"
+          },
+          {
+            "id": "cohort-00600",
+            "surface": "../phase83-v1/surfaces/02d5101287701d0242963c97f29c187afb7ba518e9bb39b75c12f696e3afdb26.orcacosmo",
+            "surface_sha256": "02d5101287701d0242963c97f29c187afb7ba518e9bb39b75c12f696e3afdb26"
+          },
+          {
+            "id": "cohort-00601",
+            "surface": "../phase83-v1/surfaces/8a3558edefcad0731dd701572a86f877ffed3bbbc6855aa61bf2a5c54ec42168.orcacosmo",
+            "surface_sha256": "8a3558edefcad0731dd701572a86f877ffed3bbbc6855aa61bf2a5c54ec42168"
+          },
+          {
+            "id": "cohort-00602",
+            "surface": "../phase83-v1/surfaces/9e5276611c1d1ba2eed1b49abe2edef60474afb089de3e06c64529cbf07c280a.orcacosmo",
+            "surface_sha256": "9e5276611c1d1ba2eed1b49abe2edef60474afb089de3e06c64529cbf07c280a"
+          },
+          {
+            "id": "cohort-00603",
+            "surface": "../phase83-v1/surfaces/8395395a7ba1ebe87e8e8938b406824a1e2635450367d16499202be068cda5c8.orcacosmo",
+            "surface_sha256": "8395395a7ba1ebe87e8e8938b406824a1e2635450367d16499202be068cda5c8"
+          },
+          {
+            "id": "cohort-00604",
+            "surface": "../phase83-v1/surfaces/f7549eaba043813ba414f1d6528f1122e3c283b12d0a8397e3ffd6b693833fbc.orcacosmo",
+            "surface_sha256": "f7549eaba043813ba414f1d6528f1122e3c283b12d0a8397e3ffd6b693833fbc"
+          }
+        ]
+      },
+      {
+        "id": "cohort-00719",
+        "reference": "production",
+        "reference_index": 719,
+        "inchikey": "DCXYFEDJOCDNAF-REOHCLBHSA-N",
+        "surface": "../phase83-v1/surfaces/217c408238f93c37a5a3ab7bef644f6cdefeda94977bb33e39c4ce6dfab42eef.orcacosmo",
+        "surface_sha256": "217c408238f93c37a5a3ab7bef644f6cdefeda94977bb33e39c4ce6dfab42eef",
+        "molecular_weight_g_mol": 132.12,
+        "primary_partition": "../phase9-v1/production-results-v1/0006/partition/cohort-00719.json",
+        "primary_plan_sha256": "ce19da895df90f231ab91a1b50fc617f78a16684f6445e4b4ef220bef1bfe6c0",
+        "stratum": "01_le30_N",
+        "name": "Asparagine",
+        "atoms": 17,
+        "input_smiles": "C([C@@H](C(=O)O)N)C(=O)N",
+        "calibration_reasons": [
+          "prior unresolved systems: 4"
+        ],
+        "control_original_batch": [
+          {
+            "id": "cohort-00716",
+            "surface": "../phase83-v1/surfaces/08c7a3bf3a0fb3da635e9998566852cfa4590697c37a18e63bcec4a57e76d0bb.orcacosmo",
+            "surface_sha256": "08c7a3bf3a0fb3da635e9998566852cfa4590697c37a18e63bcec4a57e76d0bb"
+          },
+          {
+            "id": "cohort-00717",
+            "surface": "../phase83-v1/surfaces/7365f5d4d20bc75dcfb5e5a2951bb048998f1030eadc889c7469a6c72ce43a69.orcacosmo",
+            "surface_sha256": "7365f5d4d20bc75dcfb5e5a2951bb048998f1030eadc889c7469a6c72ce43a69"
+          },
+          {
+            "id": "cohort-00718",
+            "surface": "../phase83-v1/surfaces/b94635fa3f05f9c636dd36fd19832b19a3d7ea3654435705ef6e0b22a592d050.orcacosmo",
+            "surface_sha256": "b94635fa3f05f9c636dd36fd19832b19a3d7ea3654435705ef6e0b22a592d050"
+          },
+          {
+            "id": "cohort-00719",
+            "surface": "../phase83-v1/surfaces/217c408238f93c37a5a3ab7bef644f6cdefeda94977bb33e39c4ce6dfab42eef.orcacosmo",
+            "surface_sha256": "217c408238f93c37a5a3ab7bef644f6cdefeda94977bb33e39c4ce6dfab42eef"
+          },
+          {
+            "id": "cohort-00720",
+            "surface": "../phase83-v1/surfaces/1d5b9643a4eecad0428aed6a98711b77cb37fb8b528b05b949c1f5070deee2c6.orcacosmo",
+            "surface_sha256": "1d5b9643a4eecad0428aed6a98711b77cb37fb8b528b05b949c1f5070deee2c6"
+          },
+          {
+            "id": "cohort-00721",
+            "surface": "../phase83-v1/surfaces/ef96c5687700ce6e3fba4b8f33a93ec4d6d6da9136718c7b051c7f5039e138be.orcacosmo",
+            "surface_sha256": "ef96c5687700ce6e3fba4b8f33a93ec4d6d6da9136718c7b051c7f5039e138be"
+          },
+          {
+            "id": "cohort-00722",
+            "surface": "../phase83-v1/surfaces/cb6b66d6b0992bc1f2b49cf9231dc7f1de46aba7bded5ca8bf817a324503669e.orcacosmo",
+            "surface_sha256": "cb6b66d6b0992bc1f2b49cf9231dc7f1de46aba7bded5ca8bf817a324503669e"
+          },
+          {
+            "id": "cohort-00723",
+            "surface": "../phase83-v1/surfaces/b77bfaf1e17fcf93ce91b8086f9e827bbda277fc50c8c1a25de031337f863d8d.orcacosmo",
+            "surface_sha256": "b77bfaf1e17fcf93ce91b8086f9e827bbda277fc50c8c1a25de031337f863d8d"
+          },
+          {
+            "id": "cohort-00724",
+            "surface": "../phase83-v1/surfaces/595e0959f17ee8e6207c76d1f505659ab261ae85c9b45c91badfa2fff5d5a39d.orcacosmo",
+            "surface_sha256": "595e0959f17ee8e6207c76d1f505659ab261ae85c9b45c91badfa2fff5d5a39d"
+          },
+          {
+            "id": "cohort-00725",
+            "surface": "../phase83-v1/surfaces/e1b50d3da8bbeb7694445c5c5899a08274b555562929f9c227851d3c395e35f7.orcacosmo",
+            "surface_sha256": "e1b50d3da8bbeb7694445c5c5899a08274b555562929f9c227851d3c395e35f7"
+          }
+        ]
+      },
+      {
+        "id": "cohort-00956",
+        "reference": "production_chunk_measurement",
+        "reference_index": 956,
+        "inchikey": "FBMQNRKSAWNXBT-UHFFFAOYSA-N",
+        "surface": "../phase83-v1/surfaces/c082e7f605ac1b6b43402db8e83c4768cbdf9c5f2990bacba502f802b5204da7.orcacosmo",
+        "surface_sha256": "c082e7f605ac1b6b43402db8e83c4768cbdf9c5f2990bacba502f802b5204da7",
+        "molecular_weight_g_mol": 238.24,
+        "primary_partition": "../phase9-v1/chunk-probe-results-v1/0000/partition/cohort-00956.json",
+        "primary_plan_sha256": "cff1b4286be45b8d35fd582f9bd8fa82126f2a03a66a4832180d21f305c4e9e3",
+        "stratum": "01_le30_N",
+        "name": "1,4-Diaminoanthraquinone",
+        "atoms": 28,
+        "input_smiles": "C1=CC=C2C(=C1)C(=O)C3=C(C=CC(=C3C2=O)N)N",
+        "calibration_reasons": [
+          "original three-per-stratum calibration"
+        ],
+        "control_original_batch": [
+          {
+            "id": "cohort-02843",
+            "surface": "../phase83-v1/surfaces/f03011ad82420d2914804e6583fc1be9c79d9b90e1ab0640f3e7bb2bbd3dba10.orcacosmo",
+            "surface_sha256": "f03011ad82420d2914804e6583fc1be9c79d9b90e1ab0640f3e7bb2bbd3dba10"
+          },
+          {
+            "id": "cohort-04475",
+            "surface": "../phase83-v1/surfaces/c24644d2f0d476352b1ae1d0f59524128f03c9cae4bb36ed8536060ff8f757fa.orcacosmo",
+            "surface_sha256": "c24644d2f0d476352b1ae1d0f59524128f03c9cae4bb36ed8536060ff8f757fa"
+          },
+          {
+            "id": "cohort-00956",
+            "surface": "../phase83-v1/surfaces/c082e7f605ac1b6b43402db8e83c4768cbdf9c5f2990bacba502f802b5204da7.orcacosmo",
+            "surface_sha256": "c082e7f605ac1b6b43402db8e83c4768cbdf9c5f2990bacba502f802b5204da7"
+          },
+          {
+            "id": "cohort-00170",
+            "surface": "../phase83-v1/surfaces/470a5f26388851508cb79ff387b8cd617394e7ed2ebe1b0a0719bdbcc4367ddc.orcacosmo",
+            "surface_sha256": "470a5f26388851508cb79ff387b8cd617394e7ed2ebe1b0a0719bdbcc4367ddc"
+          },
+          {
+            "id": "cohort-05341",
+            "surface": "../phase83-v1/surfaces/b146e982bc68c81df841b67c8c35b22ff82fd231ae24e6a37a57db2096ae59b7.orcacosmo",
+            "surface_sha256": "b146e982bc68c81df841b67c8c35b22ff82fd231ae24e6a37a57db2096ae59b7"
+          },
+          {
+            "id": "cohort-00507",
+            "surface": "../phase83-v1/surfaces/208a888a9dc7c91c117ae7f0576c41959bb7536e6353f3a890a19b3fc7b0d9b3.orcacosmo",
+            "surface_sha256": "208a888a9dc7c91c117ae7f0576c41959bb7536e6353f3a890a19b3fc7b0d9b3"
+          },
+          {
+            "id": "cohort-00702",
+            "surface": "../phase83-v1/surfaces/8f6810181156990afca9a5a997749b6f2a9dc10225629a4116c0283dda86d84d.orcacosmo",
+            "surface_sha256": "8f6810181156990afca9a5a997749b6f2a9dc10225629a4116c0283dda86d84d"
+          },
+          {
+            "id": "cohort-01819",
+            "surface": "../phase83-v1/surfaces/e63ce513d8002f619e30de96605ed7d11c3f72bf38021dd3e1e2962bcf4f8079.orcacosmo",
+            "surface_sha256": "e63ce513d8002f619e30de96605ed7d11c3f72bf38021dd3e1e2962bcf4f8079"
+          },
+          {
+            "id": "cohort-00912",
+            "surface": "../phase83-v1/surfaces/5ccd8c09eed448a1e565814be8b084e39fdb17609474483b8e161efd1d1b63e2.orcacosmo",
+            "surface_sha256": "5ccd8c09eed448a1e565814be8b084e39fdb17609474483b8e161efd1d1b63e2"
+          },
+          {
+            "id": "cohort-01986",
+            "surface": "../phase83-v1/surfaces/6195d511bf1501ef51422b789ac80508222dc40dd14b0e1d31fcbdd439a44807.orcacosmo",
+            "surface_sha256": "6195d511bf1501ef51422b789ac80508222dc40dd14b0e1d31fcbdd439a44807"
+          }
+        ]
+      },
+      {
+        "id": "cohort-02843",
+        "reference": "production_chunk_measurement",
+        "reference_index": 2843,
+        "inchikey": "MWCLLHOVUTZFKS-UHFFFAOYSA-N",
+        "surface": "../phase83-v1/surfaces/f03011ad82420d2914804e6583fc1be9c79d9b90e1ab0640f3e7bb2bbd3dba10.orcacosmo",
+        "surface_sha256": "f03011ad82420d2914804e6583fc1be9c79d9b90e1ab0640f3e7bb2bbd3dba10",
+        "molecular_weight_g_mol": 111.1,
+        "primary_partition": "../phase9-v1/chunk-probe-results-v1/0000/partition/cohort-02843.json",
+        "primary_plan_sha256": "cff1b4286be45b8d35fd582f9bd8fa82126f2a03a66a4832180d21f305c4e9e3",
+        "stratum": "01_le30_N",
+        "name": "Methyl 2-cyanoacrylate",
+        "atoms": 13,
+        "input_smiles": "COC(=O)C(=C)C#N",
+        "calibration_reasons": [
+          "original three-per-stratum calibration"
+        ],
+        "control_original_batch": [
+          {
+            "id": "cohort-02843",
+            "surface": "../phase83-v1/surfaces/f03011ad82420d2914804e6583fc1be9c79d9b90e1ab0640f3e7bb2bbd3dba10.orcacosmo",
+            "surface_sha256": "f03011ad82420d2914804e6583fc1be9c79d9b90e1ab0640f3e7bb2bbd3dba10"
+          },
+          {
+            "id": "cohort-04475",
+            "surface": "../phase83-v1/surfaces/c24644d2f0d476352b1ae1d0f59524128f03c9cae4bb36ed8536060ff8f757fa.orcacosmo",
+            "surface_sha256": "c24644d2f0d476352b1ae1d0f59524128f03c9cae4bb36ed8536060ff8f757fa"
+          },
+          {
+            "id": "cohort-00956",
+            "surface": "../phase83-v1/surfaces/c082e7f605ac1b6b43402db8e83c4768cbdf9c5f2990bacba502f802b5204da7.orcacosmo",
+            "surface_sha256": "c082e7f605ac1b6b43402db8e83c4768cbdf9c5f2990bacba502f802b5204da7"
+          },
+          {
+            "id": "cohort-00170",
+            "surface": "../phase83-v1/surfaces/470a5f26388851508cb79ff387b8cd617394e7ed2ebe1b0a0719bdbcc4367ddc.orcacosmo",
+            "surface_sha256": "470a5f26388851508cb79ff387b8cd617394e7ed2ebe1b0a0719bdbcc4367ddc"
+          },
+          {
+            "id": "cohort-05341",
+            "surface": "../phase83-v1/surfaces/b146e982bc68c81df841b67c8c35b22ff82fd231ae24e6a37a57db2096ae59b7.orcacosmo",
+            "surface_sha256": "b146e982bc68c81df841b67c8c35b22ff82fd231ae24e6a37a57db2096ae59b7"
+          },
+          {
+            "id": "cohort-00507",
+            "surface": "../phase83-v1/surfaces/208a888a9dc7c91c117ae7f0576c41959bb7536e6353f3a890a19b3fc7b0d9b3.orcacosmo",
+            "surface_sha256": "208a888a9dc7c91c117ae7f0576c41959bb7536e6353f3a890a19b3fc7b0d9b3"
+          },
+          {
+            "id": "cohort-00702",
+            "surface": "../phase83-v1/surfaces/8f6810181156990afca9a5a997749b6f2a9dc10225629a4116c0283dda86d84d.orcacosmo",
+            "surface_sha256": "8f6810181156990afca9a5a997749b6f2a9dc10225629a4116c0283dda86d84d"
+          },
+          {
+            "id": "cohort-01819",
+            "surface": "../phase83-v1/surfaces/e63ce513d8002f619e30de96605ed7d11c3f72bf38021dd3e1e2962bcf4f8079.orcacosmo",
+            "surface_sha256": "e63ce513d8002f619e30de96605ed7d11c3f72bf38021dd3e1e2962bcf4f8079"
+          },
+          {
+            "id": "cohort-00912",
+            "surface": "../phase83-v1/surfaces/5ccd8c09eed448a1e565814be8b084e39fdb17609474483b8e161efd1d1b63e2.orcacosmo",
+            "surface_sha256": "5ccd8c09eed448a1e565814be8b084e39fdb17609474483b8e161efd1d1b63e2"
+          },
+          {
+            "id": "cohort-01986",
+            "surface": "../phase83-v1/surfaces/6195d511bf1501ef51422b789ac80508222dc40dd14b0e1d31fcbdd439a44807.orcacosmo",
+            "surface_sha256": "6195d511bf1501ef51422b789ac80508222dc40dd14b0e1d31fcbdd439a44807"
+          }
+        ]
+      },
+      {
+        "id": "cohort-03928",
+        "reference": "production",
+        "reference_index": 3928,
+        "inchikey": "RKXYMLOOMRYDON-UHFFFAOYSA-N",
+        "surface": "../phase83-v1/surfaces/8fe9df26c93bd420d489757b7d38bd1e0f356b8e0738627d37ea203f044595a3.orcacosmo",
+        "surface_sha256": "8fe9df26c93bd420d489757b7d38bd1e0f356b8e0738627d37ea203f044595a3",
+        "molecular_weight_g_mol": 246.19,
+        "primary_partition": "../phase9-v1/production-results-v1/0038/partition/cohort-03928.json",
+        "primary_plan_sha256": "ce19da895df90f231ab91a1b50fc617f78a16684f6445e4b4ef220bef1bfe6c0",
+        "stratum": "01_le30_N",
+        "name": "2,8-Diaminopyrimido(5,4-g)pteridine-4,6(1H,7H)-dione",
+        "atoms": 24,
+        "input_smiles": "C12=C(N=C3C(=N1)C(=O)NC(=N3)N)N=C(NC2=O)N",
+        "calibration_reasons": [
+          "prior unresolved systems: 7"
+        ],
+        "control_original_batch": [
+          {
+            "id": "cohort-03920",
+            "surface": "../phase83-v1/surfaces/515f7ca2ca89e6c62f018efd1952d10e967367b699675ddcf28569f585174662.orcacosmo",
+            "surface_sha256": "515f7ca2ca89e6c62f018efd1952d10e967367b699675ddcf28569f585174662"
+          },
+          {
+            "id": "cohort-03921",
+            "surface": "../phase83-v1/surfaces/cd187544adf9dbd096d0b306a9893f11304a5afe4da076e41cae275ec29007b2.orcacosmo",
+            "surface_sha256": "cd187544adf9dbd096d0b306a9893f11304a5afe4da076e41cae275ec29007b2"
+          },
+          {
+            "id": "cohort-03922",
+            "surface": "../phase83-v1/surfaces/31bb15884536db45519ff4d6b92e7bfd8f6ee05b2e2cfd3f5e67ad9e03ea6b1d.orcacosmo",
+            "surface_sha256": "31bb15884536db45519ff4d6b92e7bfd8f6ee05b2e2cfd3f5e67ad9e03ea6b1d"
+          },
+          {
+            "id": "cohort-03923",
+            "surface": "../phase83-v1/surfaces/e7f02530fea07b5fe29767b6beb3d4877ef902ed93692f850867cd8848cbcd0c.orcacosmo",
+            "surface_sha256": "e7f02530fea07b5fe29767b6beb3d4877ef902ed93692f850867cd8848cbcd0c"
+          },
+          {
+            "id": "cohort-03924",
+            "surface": "../phase83-v1/surfaces/8dd630e0e998d68ded69d5cf00bfca963ec8189c77a7e4c4b9fe841f04c4e2e4.orcacosmo",
+            "surface_sha256": "8dd630e0e998d68ded69d5cf00bfca963ec8189c77a7e4c4b9fe841f04c4e2e4"
+          },
+          {
+            "id": "cohort-03925",
+            "surface": "../phase83-v1/surfaces/25f160323e3295e9bbd23953f4d9f3bb039e4381f92fd24cc108691cffed577d.orcacosmo",
+            "surface_sha256": "25f160323e3295e9bbd23953f4d9f3bb039e4381f92fd24cc108691cffed577d"
+          },
+          {
+            "id": "cohort-03926",
+            "surface": "../phase83-v1/surfaces/41f4f6ffba207e56901ebf7a6804ce9df662486a04a89efbb01b75961f19ad9a.orcacosmo",
+            "surface_sha256": "41f4f6ffba207e56901ebf7a6804ce9df662486a04a89efbb01b75961f19ad9a"
+          },
+          {
+            "id": "cohort-03927",
+            "surface": "../phase83-v1/surfaces/292d063c8fd2f96d27b45e3b9edcbd5fca20f942683db5d878ef2756e499ca97.orcacosmo",
+            "surface_sha256": "292d063c8fd2f96d27b45e3b9edcbd5fca20f942683db5d878ef2756e499ca97"
+          },
+          {
+            "id": "cohort-03928",
+            "surface": "../phase83-v1/surfaces/8fe9df26c93bd420d489757b7d38bd1e0f356b8e0738627d37ea203f044595a3.orcacosmo",
+            "surface_sha256": "8fe9df26c93bd420d489757b7d38bd1e0f356b8e0738627d37ea203f044595a3"
+          },
+          {
+            "id": "cohort-03929",
+            "surface": "../phase83-v1/surfaces/656a1d78fc9299eeca236e46f2cfa42183e2af52d52d6c053926a2e035306917.orcacosmo",
+            "surface_sha256": "656a1d78fc9299eeca236e46f2cfa42183e2af52d52d6c053926a2e035306917"
+          }
+        ]
+      },
+      {
+        "id": "cohort-04475",
+        "reference": "production_chunk_measurement",
+        "reference_index": 4475,
+        "inchikey": "ULHFFAFDSSHFDA-UHFFFAOYSA-N",
+        "surface": "../phase83-v1/surfaces/c24644d2f0d476352b1ae1d0f59524128f03c9cae4bb36ed8536060ff8f757fa.orcacosmo",
+        "surface_sha256": "c24644d2f0d476352b1ae1d0f59524128f03c9cae4bb36ed8536060ff8f757fa",
+        "molecular_weight_g_mol": 137.18,
+        "primary_partition": "../phase9-v1/chunk-probe-results-v1/0000/partition/cohort-04475.json",
+        "primary_plan_sha256": "cff1b4286be45b8d35fd582f9bd8fa82126f2a03a66a4832180d21f305c4e9e3",
+        "stratum": "01_le30_N",
+        "name": "o-Phenetidine",
+        "atoms": 21,
+        "input_smiles": "CCOC1=CC=CC=C1N",
+        "calibration_reasons": [
+          "original three-per-stratum calibration"
+        ],
+        "control_original_batch": [
+          {
+            "id": "cohort-02843",
+            "surface": "../phase83-v1/surfaces/f03011ad82420d2914804e6583fc1be9c79d9b90e1ab0640f3e7bb2bbd3dba10.orcacosmo",
+            "surface_sha256": "f03011ad82420d2914804e6583fc1be9c79d9b90e1ab0640f3e7bb2bbd3dba10"
+          },
+          {
+            "id": "cohort-04475",
+            "surface": "../phase83-v1/surfaces/c24644d2f0d476352b1ae1d0f59524128f03c9cae4bb36ed8536060ff8f757fa.orcacosmo",
+            "surface_sha256": "c24644d2f0d476352b1ae1d0f59524128f03c9cae4bb36ed8536060ff8f757fa"
+          },
+          {
+            "id": "cohort-00956",
+            "surface": "../phase83-v1/surfaces/c082e7f605ac1b6b43402db8e83c4768cbdf9c5f2990bacba502f802b5204da7.orcacosmo",
+            "surface_sha256": "c082e7f605ac1b6b43402db8e83c4768cbdf9c5f2990bacba502f802b5204da7"
+          },
+          {
+            "id": "cohort-00170",
+            "surface": "../phase83-v1/surfaces/470a5f26388851508cb79ff387b8cd617394e7ed2ebe1b0a0719bdbcc4367ddc.orcacosmo",
+            "surface_sha256": "470a5f26388851508cb79ff387b8cd617394e7ed2ebe1b0a0719bdbcc4367ddc"
+          },
+          {
+            "id": "cohort-05341",
+            "surface": "../phase83-v1/surfaces/b146e982bc68c81df841b67c8c35b22ff82fd231ae24e6a37a57db2096ae59b7.orcacosmo",
+            "surface_sha256": "b146e982bc68c81df841b67c8c35b22ff82fd231ae24e6a37a57db2096ae59b7"
+          },
+          {
+            "id": "cohort-00507",
+            "surface": "../phase83-v1/surfaces/208a888a9dc7c91c117ae7f0576c41959bb7536e6353f3a890a19b3fc7b0d9b3.orcacosmo",
+            "surface_sha256": "208a888a9dc7c91c117ae7f0576c41959bb7536e6353f3a890a19b3fc7b0d9b3"
+          },
+          {
+            "id": "cohort-00702",
+            "surface": "../phase83-v1/surfaces/8f6810181156990afca9a5a997749b6f2a9dc10225629a4116c0283dda86d84d.orcacosmo",
+            "surface_sha256": "8f6810181156990afca9a5a997749b6f2a9dc10225629a4116c0283dda86d84d"
+          },
+          {
+            "id": "cohort-01819",
+            "surface": "../phase83-v1/surfaces/e63ce513d8002f619e30de96605ed7d11c3f72bf38021dd3e1e2962bcf4f8079.orcacosmo",
+            "surface_sha256": "e63ce513d8002f619e30de96605ed7d11c3f72bf38021dd3e1e2962bcf4f8079"
+          },
+          {
+            "id": "cohort-00912",
+            "surface": "../phase83-v1/surfaces/5ccd8c09eed448a1e565814be8b084e39fdb17609474483b8e161efd1d1b63e2.orcacosmo",
+            "surface_sha256": "5ccd8c09eed448a1e565814be8b084e39fdb17609474483b8e161efd1d1b63e2"
+          },
+          {
+            "id": "cohort-01986",
+            "surface": "../phase83-v1/surfaces/6195d511bf1501ef51422b789ac80508222dc40dd14b0e1d31fcbdd439a44807.orcacosmo",
+            "surface_sha256": "6195d511bf1501ef51422b789ac80508222dc40dd14b0e1d31fcbdd439a44807"
+          }
+        ]
+      },
+      {
+        "id": "cohort-05552",
+        "reference": "production",
+        "reference_index": 5552,
+        "inchikey": "YZEZMSPGIPTEBA-UHFFFAOYSA-N",
+        "surface": "../phase83-v1/surfaces/55d0a5b3941e41e7e3710725483bd043b4c9a6584c31d15b55ccb3ad50e6d596.orcacosmo",
+        "surface_sha256": "55d0a5b3941e41e7e3710725483bd043b4c9a6584c31d15b55ccb3ad50e6d596",
+        "molecular_weight_g_mol": 235.21,
+        "primary_partition": "../phase9-v1/production-results-v1/0054/partition/cohort-05552.json",
+        "primary_plan_sha256": "ce19da895df90f231ab91a1b50fc617f78a16684f6445e4b4ef220bef1bfe6c0",
+        "stratum": "01_le30_N",
+        "name": "2,2'-Iminobis[4,6-diamino-1,3,5-triazine]",
+        "atoms": 26,
+        "input_smiles": "C1(=NC(=NC(=N1)NC2=NC(=NC(=N2)N)N)N)N",
+        "calibration_reasons": [
+          "population maximum nitrogen_atoms"
+        ],
+        "control_original_batch": [
+          {
+            "id": "cohort-05546",
+            "surface": "../phase83-v1/surfaces/df53b20c3f598a88ce61f8a111585d0df015f559c438698f5da9284833b016b6.orcacosmo",
+            "surface_sha256": "df53b20c3f598a88ce61f8a111585d0df015f559c438698f5da9284833b016b6"
+          },
+          {
+            "id": "cohort-05547",
+            "surface": "../phase83-v1/surfaces/ed08329e4ecc16098aec04ee9122a66f9089d64f8d3901c4278633ed8f93a28d.orcacosmo",
+            "surface_sha256": "ed08329e4ecc16098aec04ee9122a66f9089d64f8d3901c4278633ed8f93a28d"
+          },
+          {
+            "id": "cohort-05548",
+            "surface": "../phase83-v1/surfaces/082e002bcac6eab6c9d61abb2c10eb07f9900feb6d0f57941676697c62751f00.orcacosmo",
+            "surface_sha256": "082e002bcac6eab6c9d61abb2c10eb07f9900feb6d0f57941676697c62751f00"
+          },
+          {
+            "id": "cohort-05549",
+            "surface": "../phase83-v1/surfaces/7d057ef8c5571b3dc56da4d5007fe4b588a19f4ed784b8338e67be6a6b5f0890.orcacosmo",
+            "surface_sha256": "7d057ef8c5571b3dc56da4d5007fe4b588a19f4ed784b8338e67be6a6b5f0890"
+          },
+          {
+            "id": "cohort-05550",
+            "surface": "../phase83-v1/surfaces/5eea4db28a8ebefd03868d07e973e5a4c0aa9d913a4ff01841b7af144574d3d2.orcacosmo",
+            "surface_sha256": "5eea4db28a8ebefd03868d07e973e5a4c0aa9d913a4ff01841b7af144574d3d2"
+          },
+          {
+            "id": "cohort-05551",
+            "surface": "../phase83-v1/surfaces/548ef45993de14c6d39ace11794a7f3596b2e4220467ea3e328b74f06b467c0d.orcacosmo",
+            "surface_sha256": "548ef45993de14c6d39ace11794a7f3596b2e4220467ea3e328b74f06b467c0d"
+          },
+          {
+            "id": "cohort-05552",
+            "surface": "../phase83-v1/surfaces/55d0a5b3941e41e7e3710725483bd043b4c9a6584c31d15b55ccb3ad50e6d596.orcacosmo",
+            "surface_sha256": "55d0a5b3941e41e7e3710725483bd043b4c9a6584c31d15b55ccb3ad50e6d596"
+          },
+          {
+            "id": "cohort-05553",
+            "surface": "../phase83-v1/surfaces/38a346b0d0468fff6b6f8bf3399af917a14c04adcdbe0af879a221d71b834553.orcacosmo",
+            "surface_sha256": "38a346b0d0468fff6b6f8bf3399af917a14c04adcdbe0af879a221d71b834553"
+          },
+          {
+            "id": "cohort-05554",
+            "surface": "../phase83-v1/surfaces/f381a70f3f9b2261786d0f7fd077676a21476381e07042c47da6637fde5bfbc6.orcacosmo",
+            "surface_sha256": "f381a70f3f9b2261786d0f7fd077676a21476381e07042c47da6637fde5bfbc6"
+          },
+          {
+            "id": "cohort-05555",
+            "surface": "../phase83-v1/surfaces/3c77b007dc233d8f9ff5b546bcdc28116caea7f27a346a7b4b28165d79b90ba5.orcacosmo",
+            "surface_sha256": "3c77b007dc233d8f9ff5b546bcdc28116caea7f27a346a7b4b28165d79b90ba5"
+          }
+        ]
+      }
+    ],
+    [
+      {
+        "id": "cohort-00170",
+        "reference": "production_chunk_measurement",
+        "reference_index": 170,
+        "inchikey": "ATQUFXWBVZUTKO-UHFFFAOYSA-N",
+        "surface": "../phase83-v1/surfaces/470a5f26388851508cb79ff387b8cd617394e7ed2ebe1b0a0719bdbcc4367ddc.orcacosmo",
+        "surface_sha256": "470a5f26388851508cb79ff387b8cd617394e7ed2ebe1b0a0719bdbcc4367ddc",
+        "molecular_weight_g_mol": 82.14,
+        "primary_partition": "../phase9-v1/chunk-probe-results-v1/0000/partition/cohort-00170.json",
+        "primary_plan_sha256": "cff1b4286be45b8d35fd582f9bd8fa82126f2a03a66a4832180d21f305c4e9e3",
+        "stratum": "01_le30_noN",
+        "name": "1-Methylcyclopentene",
+        "atoms": 16,
+        "input_smiles": "CC1=CCCC1",
+        "calibration_reasons": [
+          "original three-per-stratum calibration"
+        ],
+        "control_original_batch": [
+          {
+            "id": "cohort-02843",
+            "surface": "../phase83-v1/surfaces/f03011ad82420d2914804e6583fc1be9c79d9b90e1ab0640f3e7bb2bbd3dba10.orcacosmo",
+            "surface_sha256": "f03011ad82420d2914804e6583fc1be9c79d9b90e1ab0640f3e7bb2bbd3dba10"
+          },
+          {
+            "id": "cohort-04475",
+            "surface": "../phase83-v1/surfaces/c24644d2f0d476352b1ae1d0f59524128f03c9cae4bb36ed8536060ff8f757fa.orcacosmo",
+            "surface_sha256": "c24644d2f0d476352b1ae1d0f59524128f03c9cae4bb36ed8536060ff8f757fa"
+          },
+          {
+            "id": "cohort-00956",
+            "surface": "../phase83-v1/surfaces/c082e7f605ac1b6b43402db8e83c4768cbdf9c5f2990bacba502f802b5204da7.orcacosmo",
+            "surface_sha256": "c082e7f605ac1b6b43402db8e83c4768cbdf9c5f2990bacba502f802b5204da7"
+          },
+          {
+            "id": "cohort-00170",
+            "surface": "../phase83-v1/surfaces/470a5f26388851508cb79ff387b8cd617394e7ed2ebe1b0a0719bdbcc4367ddc.orcacosmo",
+            "surface_sha256": "470a5f26388851508cb79ff387b8cd617394e7ed2ebe1b0a0719bdbcc4367ddc"
+          },
+          {
+            "id": "cohort-05341",
+            "surface": "../phase83-v1/surfaces/b146e982bc68c81df841b67c8c35b22ff82fd231ae24e6a37a57db2096ae59b7.orcacosmo",
+            "surface_sha256": "b146e982bc68c81df841b67c8c35b22ff82fd231ae24e6a37a57db2096ae59b7"
+          },
+          {
+            "id": "cohort-00507",
+            "surface": "../phase83-v1/surfaces/208a888a9dc7c91c117ae7f0576c41959bb7536e6353f3a890a19b3fc7b0d9b3.orcacosmo",
+            "surface_sha256": "208a888a9dc7c91c117ae7f0576c41959bb7536e6353f3a890a19b3fc7b0d9b3"
+          },
+          {
+            "id": "cohort-00702",
+            "surface": "../phase83-v1/surfaces/8f6810181156990afca9a5a997749b6f2a9dc10225629a4116c0283dda86d84d.orcacosmo",
+            "surface_sha256": "8f6810181156990afca9a5a997749b6f2a9dc10225629a4116c0283dda86d84d"
+          },
+          {
+            "id": "cohort-01819",
+            "surface": "../phase83-v1/surfaces/e63ce513d8002f619e30de96605ed7d11c3f72bf38021dd3e1e2962bcf4f8079.orcacosmo",
+            "surface_sha256": "e63ce513d8002f619e30de96605ed7d11c3f72bf38021dd3e1e2962bcf4f8079"
+          },
+          {
+            "id": "cohort-00912",
+            "surface": "../phase83-v1/surfaces/5ccd8c09eed448a1e565814be8b084e39fdb17609474483b8e161efd1d1b63e2.orcacosmo",
+            "surface_sha256": "5ccd8c09eed448a1e565814be8b084e39fdb17609474483b8e161efd1d1b63e2"
+          },
+          {
+            "id": "cohort-01986",
+            "surface": "../phase83-v1/surfaces/6195d511bf1501ef51422b789ac80508222dc40dd14b0e1d31fcbdd439a44807.orcacosmo",
+            "surface_sha256": "6195d511bf1501ef51422b789ac80508222dc40dd14b0e1d31fcbdd439a44807"
+          }
+        ]
+      },
+      {
+        "id": "cohort-00507",
+        "reference": "production_chunk_measurement",
+        "reference_index": 507,
+        "inchikey": "CEXQWAAGPPNOQF-UHFFFAOYSA-N",
+        "surface": "../phase83-v1/surfaces/208a888a9dc7c91c117ae7f0576c41959bb7536e6353f3a890a19b3fc7b0d9b3.orcacosmo",
+        "surface_sha256": "208a888a9dc7c91c117ae7f0576c41959bb7536e6353f3a890a19b3fc7b0d9b3",
+        "molecular_weight_g_mol": 206.24,
+        "primary_partition": "../phase9-v1/chunk-probe-results-v1/0000/partition/cohort-00507.json",
+        "primary_plan_sha256": "cff1b4286be45b8d35fd582f9bd8fa82126f2a03a66a4832180d21f305c4e9e3",
+        "stratum": "01_le30_noN",
+        "name": "2-Phenoxyethyl methacrylate",
+        "atoms": 29,
+        "input_smiles": "CC(=C)C(=O)OCCOC1=CC=CC=C1",
+        "calibration_reasons": [
+          "original three-per-stratum calibration"
+        ],
+        "control_original_batch": [
+          {
+            "id": "cohort-02843",
+            "surface": "../phase83-v1/surfaces/f03011ad82420d2914804e6583fc1be9c79d9b90e1ab0640f3e7bb2bbd3dba10.orcacosmo",
+            "surface_sha256": "f03011ad82420d2914804e6583fc1be9c79d9b90e1ab0640f3e7bb2bbd3dba10"
+          },
+          {
+            "id": "cohort-04475",
+            "surface": "../phase83-v1/surfaces/c24644d2f0d476352b1ae1d0f59524128f03c9cae4bb36ed8536060ff8f757fa.orcacosmo",
+            "surface_sha256": "c24644d2f0d476352b1ae1d0f59524128f03c9cae4bb36ed8536060ff8f757fa"
+          },
+          {
+            "id": "cohort-00956",
+            "surface": "../phase83-v1/surfaces/c082e7f605ac1b6b43402db8e83c4768cbdf9c5f2990bacba502f802b5204da7.orcacosmo",
+            "surface_sha256": "c082e7f605ac1b6b43402db8e83c4768cbdf9c5f2990bacba502f802b5204da7"
+          },
+          {
+            "id": "cohort-00170",
+            "surface": "../phase83-v1/surfaces/470a5f26388851508cb79ff387b8cd617394e7ed2ebe1b0a0719bdbcc4367ddc.orcacosmo",
+            "surface_sha256": "470a5f26388851508cb79ff387b8cd617394e7ed2ebe1b0a0719bdbcc4367ddc"
+          },
+          {
+            "id": "cohort-05341",
+            "surface": "../phase83-v1/surfaces/b146e982bc68c81df841b67c8c35b22ff82fd231ae24e6a37a57db2096ae59b7.orcacosmo",
+            "surface_sha256": "b146e982bc68c81df841b67c8c35b22ff82fd231ae24e6a37a57db2096ae59b7"
+          },
+          {
+            "id": "cohort-00507",
+            "surface": "../phase83-v1/surfaces/208a888a9dc7c91c117ae7f0576c41959bb7536e6353f3a890a19b3fc7b0d9b3.orcacosmo",
+            "surface_sha256": "208a888a9dc7c91c117ae7f0576c41959bb7536e6353f3a890a19b3fc7b0d9b3"
+          },
+          {
+            "id": "cohort-00702",
+            "surface": "../phase83-v1/surfaces/8f6810181156990afca9a5a997749b6f2a9dc10225629a4116c0283dda86d84d.orcacosmo",
+            "surface_sha256": "8f6810181156990afca9a5a997749b6f2a9dc10225629a4116c0283dda86d84d"
+          },
+          {
+            "id": "cohort-01819",
+            "surface": "../phase83-v1/surfaces/e63ce513d8002f619e30de96605ed7d11c3f72bf38021dd3e1e2962bcf4f8079.orcacosmo",
+            "surface_sha256": "e63ce513d8002f619e30de96605ed7d11c3f72bf38021dd3e1e2962bcf4f8079"
+          },
+          {
+            "id": "cohort-00912",
+            "surface": "../phase83-v1/surfaces/5ccd8c09eed448a1e565814be8b084e39fdb17609474483b8e161efd1d1b63e2.orcacosmo",
+            "surface_sha256": "5ccd8c09eed448a1e565814be8b084e39fdb17609474483b8e161efd1d1b63e2"
+          },
+          {
+            "id": "cohort-01986",
+            "surface": "../phase83-v1/surfaces/6195d511bf1501ef51422b789ac80508222dc40dd14b0e1d31fcbdd439a44807.orcacosmo",
+            "surface_sha256": "6195d511bf1501ef51422b789ac80508222dc40dd14b0e1d31fcbdd439a44807"
+          }
+        ]
+      },
+      {
+        "id": "cohort-01058",
+        "reference": "production",
+        "reference_index": 1058,
+        "inchikey": "FLKPEMZONWLCSK-UHFFFAOYSA-N",
+        "surface": "../phase83-v1/surfaces/ca19f9cebd7b5434541aa74bcd1d1cedfa6c7458aba426f7753c7ac982dcbfe7.orcacosmo",
+        "surface_sha256": "ca19f9cebd7b5434541aa74bcd1d1cedfa6c7458aba426f7753c7ac982dcbfe7",
+        "molecular_weight_g_mol": 222.24,
+        "primary_partition": "../phase9-v1/production-results-v1/0009/partition/cohort-01058.json",
+        "primary_plan_sha256": "ce19da895df90f231ab91a1b50fc617f78a16684f6445e4b4ef220bef1bfe6c0",
+        "stratum": "01_le30_noN",
+        "name": "Diethyl Phthalate",
+        "atoms": 30,
+        "input_smiles": "CCOC(=O)C1=CC=CC=C1C(=O)OCC",
+        "calibration_reasons": [
+          "phthalate anchor"
+        ],
+        "control_original_batch": [
+          {
+            "id": "cohort-01049",
+            "surface": "../phase83-v1/surfaces/41a8652c05caed523d45ab73db81be6299eae801db327bed45e049a6fac012aa.orcacosmo",
+            "surface_sha256": "41a8652c05caed523d45ab73db81be6299eae801db327bed45e049a6fac012aa"
+          },
+          {
+            "id": "cohort-01050",
+            "surface": "../phase83-v1/surfaces/9c2e42ecd38ac4e9a19c24f94560e4a1ae851e01f32591206efbd8388944e57a.orcacosmo",
+            "surface_sha256": "9c2e42ecd38ac4e9a19c24f94560e4a1ae851e01f32591206efbd8388944e57a"
+          },
+          {
+            "id": "cohort-01051",
+            "surface": "../phase83-v1/surfaces/a6e7730d8d0cf72f0aac4d5d2195548882e5983e47d66a2794522fe8dacc3ad5.orcacosmo",
+            "surface_sha256": "a6e7730d8d0cf72f0aac4d5d2195548882e5983e47d66a2794522fe8dacc3ad5"
+          },
+          {
+            "id": "cohort-01052",
+            "surface": "../phase83-v1/surfaces/59d8f110ca9d19d8764aa6cfd8f8ca3b2cb2e0a50ba755000d4016479384906e.orcacosmo",
+            "surface_sha256": "59d8f110ca9d19d8764aa6cfd8f8ca3b2cb2e0a50ba755000d4016479384906e"
+          },
+          {
+            "id": "cohort-01053",
+            "surface": "../phase83-v1/surfaces/48c87bef250a73b7fa2ac2645133af80b1baf6940bf303084518f3ba3ee10d6e.orcacosmo",
+            "surface_sha256": "48c87bef250a73b7fa2ac2645133af80b1baf6940bf303084518f3ba3ee10d6e"
+          },
+          {
+            "id": "cohort-01054",
+            "surface": "../phase83-v1/surfaces/2c9b97b6f6e5daac00b964da587fc8d90ba687632e460152e61dcddd19f38a90.orcacosmo",
+            "surface_sha256": "2c9b97b6f6e5daac00b964da587fc8d90ba687632e460152e61dcddd19f38a90"
+          },
+          {
+            "id": "cohort-01055",
+            "surface": "../phase83-v1/surfaces/b0cbb7143bdf714eab218e821adad73919394e01d130ad38ab92e647742e7b57.orcacosmo",
+            "surface_sha256": "b0cbb7143bdf714eab218e821adad73919394e01d130ad38ab92e647742e7b57"
+          },
+          {
+            "id": "cohort-01056",
+            "surface": "../phase83-v1/surfaces/08019090173af7f56615339123892bb2e1d39c3ae0ca971022b194ee7dc7e434.orcacosmo",
+            "surface_sha256": "08019090173af7f56615339123892bb2e1d39c3ae0ca971022b194ee7dc7e434"
+          },
+          {
+            "id": "cohort-01057",
+            "surface": "../phase83-v1/surfaces/f59f26fe8c10dcb2ef79b0b4d764d4928f22984063fec04a4514d32377db5729.orcacosmo",
+            "surface_sha256": "f59f26fe8c10dcb2ef79b0b4d764d4928f22984063fec04a4514d32377db5729"
+          },
+          {
+            "id": "cohort-01058",
+            "surface": "../phase83-v1/surfaces/ca19f9cebd7b5434541aa74bcd1d1cedfa6c7458aba426f7753c7ac982dcbfe7.orcacosmo",
+            "surface_sha256": "ca19f9cebd7b5434541aa74bcd1d1cedfa6c7458aba426f7753c7ac982dcbfe7"
+          }
+        ]
+      },
+      {
+        "id": "cohort-05341",
+        "reference": "production_chunk_measurement",
+        "reference_index": 5341,
+        "inchikey": "YDZCHDQXPLJVBG-UHFFFAOYSA-N",
+        "surface": "../phase83-v1/surfaces/b146e982bc68c81df841b67c8c35b22ff82fd231ae24e6a37a57db2096ae59b7.orcacosmo",
+        "surface_sha256": "b146e982bc68c81df841b67c8c35b22ff82fd231ae24e6a37a57db2096ae59b7",
+        "molecular_weight_g_mol": 142.2,
+        "primary_partition": "../phase9-v1/chunk-probe-results-v1/0000/partition/cohort-05341.json",
+        "primary_plan_sha256": "cff1b4286be45b8d35fd582f9bd8fa82126f2a03a66a4832180d21f305c4e9e3",
+        "stratum": "01_le30_noN",
+        "name": "Hexenyl acetate",
+        "atoms": 24,
+        "input_smiles": "CCCCC=COC(=O)C",
+        "calibration_reasons": [
+          "original three-per-stratum calibration"
+        ],
+        "control_original_batch": [
+          {
+            "id": "cohort-02843",
+            "surface": "../phase83-v1/surfaces/f03011ad82420d2914804e6583fc1be9c79d9b90e1ab0640f3e7bb2bbd3dba10.orcacosmo",
+            "surface_sha256": "f03011ad82420d2914804e6583fc1be9c79d9b90e1ab0640f3e7bb2bbd3dba10"
+          },
+          {
+            "id": "cohort-04475",
+            "surface": "../phase83-v1/surfaces/c24644d2f0d476352b1ae1d0f59524128f03c9cae4bb36ed8536060ff8f757fa.orcacosmo",
+            "surface_sha256": "c24644d2f0d476352b1ae1d0f59524128f03c9cae4bb36ed8536060ff8f757fa"
+          },
+          {
+            "id": "cohort-00956",
+            "surface": "../phase83-v1/surfaces/c082e7f605ac1b6b43402db8e83c4768cbdf9c5f2990bacba502f802b5204da7.orcacosmo",
+            "surface_sha256": "c082e7f605ac1b6b43402db8e83c4768cbdf9c5f2990bacba502f802b5204da7"
+          },
+          {
+            "id": "cohort-00170",
+            "surface": "../phase83-v1/surfaces/470a5f26388851508cb79ff387b8cd617394e7ed2ebe1b0a0719bdbcc4367ddc.orcacosmo",
+            "surface_sha256": "470a5f26388851508cb79ff387b8cd617394e7ed2ebe1b0a0719bdbcc4367ddc"
+          },
+          {
+            "id": "cohort-05341",
+            "surface": "../phase83-v1/surfaces/b146e982bc68c81df841b67c8c35b22ff82fd231ae24e6a37a57db2096ae59b7.orcacosmo",
+            "surface_sha256": "b146e982bc68c81df841b67c8c35b22ff82fd231ae24e6a37a57db2096ae59b7"
+          },
+          {
+            "id": "cohort-00507",
+            "surface": "../phase83-v1/surfaces/208a888a9dc7c91c117ae7f0576c41959bb7536e6353f3a890a19b3fc7b0d9b3.orcacosmo",
+            "surface_sha256": "208a888a9dc7c91c117ae7f0576c41959bb7536e6353f3a890a19b3fc7b0d9b3"
+          },
+          {
+            "id": "cohort-00702",
+            "surface": "../phase83-v1/surfaces/8f6810181156990afca9a5a997749b6f2a9dc10225629a4116c0283dda86d84d.orcacosmo",
+            "surface_sha256": "8f6810181156990afca9a5a997749b6f2a9dc10225629a4116c0283dda86d84d"
+          },
+          {
+            "id": "cohort-01819",
+            "surface": "../phase83-v1/surfaces/e63ce513d8002f619e30de96605ed7d11c3f72bf38021dd3e1e2962bcf4f8079.orcacosmo",
+            "surface_sha256": "e63ce513d8002f619e30de96605ed7d11c3f72bf38021dd3e1e2962bcf4f8079"
+          },
+          {
+            "id": "cohort-00912",
+            "surface": "../phase83-v1/surfaces/5ccd8c09eed448a1e565814be8b084e39fdb17609474483b8e161efd1d1b63e2.orcacosmo",
+            "surface_sha256": "5ccd8c09eed448a1e565814be8b084e39fdb17609474483b8e161efd1d1b63e2"
+          },
+          {
+            "id": "cohort-01986",
+            "surface": "../phase83-v1/surfaces/6195d511bf1501ef51422b789ac80508222dc40dd14b0e1d31fcbdd439a44807.orcacosmo",
+            "surface_sha256": "6195d511bf1501ef51422b789ac80508222dc40dd14b0e1d31fcbdd439a44807"
+          }
+        ]
+      }
+    ],
+    [
+      {
+        "id": "cohort-00702",
+        "reference": "production_chunk_measurement",
+        "reference_index": 702,
+        "inchikey": "DBKDVEPBROVGLY-UHFFFAOYSA-N",
+        "surface": "../phase83-v1/surfaces/8f6810181156990afca9a5a997749b6f2a9dc10225629a4116c0283dda86d84d.orcacosmo",
+        "surface_sha256": "8f6810181156990afca9a5a997749b6f2a9dc10225629a4116c0283dda86d84d",
+        "molecular_weight_g_mol": 225.28,
+        "primary_partition": "../phase9-v1/chunk-probe-results-v1/0000/partition/cohort-00702.json",
+        "primary_plan_sha256": "cff1b4286be45b8d35fd582f9bd8fa82126f2a03a66a4832180d21f305c4e9e3",
+        "stratum": "02_31_50_N",
+        "name": "4-[Ethyl(phenyl)amino]benzaldehyde",
+        "atoms": 32,
+        "input_smiles": "CCN(C1=CC=CC=C1)C2=CC=C(C=C2)C=O",
+        "calibration_reasons": [
+          "original three-per-stratum calibration"
+        ],
+        "control_original_batch": [
+          {
+            "id": "cohort-02843",
+            "surface": "../phase83-v1/surfaces/f03011ad82420d2914804e6583fc1be9c79d9b90e1ab0640f3e7bb2bbd3dba10.orcacosmo",
+            "surface_sha256": "f03011ad82420d2914804e6583fc1be9c79d9b90e1ab0640f3e7bb2bbd3dba10"
+          },
+          {
+            "id": "cohort-04475",
+            "surface": "../phase83-v1/surfaces/c24644d2f0d476352b1ae1d0f59524128f03c9cae4bb36ed8536060ff8f757fa.orcacosmo",
+            "surface_sha256": "c24644d2f0d476352b1ae1d0f59524128f03c9cae4bb36ed8536060ff8f757fa"
+          },
+          {
+            "id": "cohort-00956",
+            "surface": "../phase83-v1/surfaces/c082e7f605ac1b6b43402db8e83c4768cbdf9c5f2990bacba502f802b5204da7.orcacosmo",
+            "surface_sha256": "c082e7f605ac1b6b43402db8e83c4768cbdf9c5f2990bacba502f802b5204da7"
+          },
+          {
+            "id": "cohort-00170",
+            "surface": "../phase83-v1/surfaces/470a5f26388851508cb79ff387b8cd617394e7ed2ebe1b0a0719bdbcc4367ddc.orcacosmo",
+            "surface_sha256": "470a5f26388851508cb79ff387b8cd617394e7ed2ebe1b0a0719bdbcc4367ddc"
+          },
+          {
+            "id": "cohort-05341",
+            "surface": "../phase83-v1/surfaces/b146e982bc68c81df841b67c8c35b22ff82fd231ae24e6a37a57db2096ae59b7.orcacosmo",
+            "surface_sha256": "b146e982bc68c81df841b67c8c35b22ff82fd231ae24e6a37a57db2096ae59b7"
+          },
+          {
+            "id": "cohort-00507",
+            "surface": "../phase83-v1/surfaces/208a888a9dc7c91c117ae7f0576c41959bb7536e6353f3a890a19b3fc7b0d9b3.orcacosmo",
+            "surface_sha256": "208a888a9dc7c91c117ae7f0576c41959bb7536e6353f3a890a19b3fc7b0d9b3"
+          },
+          {
+            "id": "cohort-00702",
+            "surface": "../phase83-v1/surfaces/8f6810181156990afca9a5a997749b6f2a9dc10225629a4116c0283dda86d84d.orcacosmo",
+            "surface_sha256": "8f6810181156990afca9a5a997749b6f2a9dc10225629a4116c0283dda86d84d"
+          },
+          {
+            "id": "cohort-01819",
+            "surface": "../phase83-v1/surfaces/e63ce513d8002f619e30de96605ed7d11c3f72bf38021dd3e1e2962bcf4f8079.orcacosmo",
+            "surface_sha256": "e63ce513d8002f619e30de96605ed7d11c3f72bf38021dd3e1e2962bcf4f8079"
+          },
+          {
+            "id": "cohort-00912",
+            "surface": "../phase83-v1/surfaces/5ccd8c09eed448a1e565814be8b084e39fdb17609474483b8e161efd1d1b63e2.orcacosmo",
+            "surface_sha256": "5ccd8c09eed448a1e565814be8b084e39fdb17609474483b8e161efd1d1b63e2"
+          },
+          {
+            "id": "cohort-01986",
+            "surface": "../phase83-v1/surfaces/6195d511bf1501ef51422b789ac80508222dc40dd14b0e1d31fcbdd439a44807.orcacosmo",
+            "surface_sha256": "6195d511bf1501ef51422b789ac80508222dc40dd14b0e1d31fcbdd439a44807"
+          }
+        ]
+      },
+      {
+        "id": "cohort-00912",
+        "reference": "production_chunk_measurement",
+        "reference_index": 912,
+        "inchikey": "DXWHZJXKTHGHQF-UHFFFAOYSA-N",
+        "surface": "../phase83-v1/surfaces/5ccd8c09eed448a1e565814be8b084e39fdb17609474483b8e161efd1d1b63e2.orcacosmo",
+        "surface_sha256": "5ccd8c09eed448a1e565814be8b084e39fdb17609474483b8e161efd1d1b63e2",
+        "molecular_weight_g_mol": 324.4,
+        "primary_partition": "../phase9-v1/chunk-probe-results-v1/0000/partition/cohort-00912.json",
+        "primary_plan_sha256": "cff1b4286be45b8d35fd582f9bd8fa82126f2a03a66a4832180d21f305c4e9e3",
+        "stratum": "02_31_50_N",
+        "name": "2-Butyl-6-(butylamino)-1H-benz(de)isoquinoline-1,3(2H)-dione",
+        "atoms": 48,
+        "input_smiles": "CCCCNC1=C2C=CC=C3C2=C(C=C1)C(=O)N(C3=O)CCCC",
+        "calibration_reasons": [
+          "original three-per-stratum calibration"
+        ],
+        "control_original_batch": [
+          {
+            "id": "cohort-02843",
+            "surface": "../phase83-v1/surfaces/f03011ad82420d2914804e6583fc1be9c79d9b90e1ab0640f3e7bb2bbd3dba10.orcacosmo",
+            "surface_sha256": "f03011ad82420d2914804e6583fc1be9c79d9b90e1ab0640f3e7bb2bbd3dba10"
+          },
+          {
+            "id": "cohort-04475",
+            "surface": "../phase83-v1/surfaces/c24644d2f0d476352b1ae1d0f59524128f03c9cae4bb36ed8536060ff8f757fa.orcacosmo",
+            "surface_sha256": "c24644d2f0d476352b1ae1d0f59524128f03c9cae4bb36ed8536060ff8f757fa"
+          },
+          {
+            "id": "cohort-00956",
+            "surface": "../phase83-v1/surfaces/c082e7f605ac1b6b43402db8e83c4768cbdf9c5f2990bacba502f802b5204da7.orcacosmo",
+            "surface_sha256": "c082e7f605ac1b6b43402db8e83c4768cbdf9c5f2990bacba502f802b5204da7"
+          },
+          {
+            "id": "cohort-00170",
+            "surface": "../phase83-v1/surfaces/470a5f26388851508cb79ff387b8cd617394e7ed2ebe1b0a0719bdbcc4367ddc.orcacosmo",
+            "surface_sha256": "470a5f26388851508cb79ff387b8cd617394e7ed2ebe1b0a0719bdbcc4367ddc"
+          },
+          {
+            "id": "cohort-05341",
+            "surface": "../phase83-v1/surfaces/b146e982bc68c81df841b67c8c35b22ff82fd231ae24e6a37a57db2096ae59b7.orcacosmo",
+            "surface_sha256": "b146e982bc68c81df841b67c8c35b22ff82fd231ae24e6a37a57db2096ae59b7"
+          },
+          {
+            "id": "cohort-00507",
+            "surface": "../phase83-v1/surfaces/208a888a9dc7c91c117ae7f0576c41959bb7536e6353f3a890a19b3fc7b0d9b3.orcacosmo",
+            "surface_sha256": "208a888a9dc7c91c117ae7f0576c41959bb7536e6353f3a890a19b3fc7b0d9b3"
+          },
+          {
+            "id": "cohort-00702",
+            "surface": "../phase83-v1/surfaces/8f6810181156990afca9a5a997749b6f2a9dc10225629a4116c0283dda86d84d.orcacosmo",
+            "surface_sha256": "8f6810181156990afca9a5a997749b6f2a9dc10225629a4116c0283dda86d84d"
+          },
+          {
+            "id": "cohort-01819",
+            "surface": "../phase83-v1/surfaces/e63ce513d8002f619e30de96605ed7d11c3f72bf38021dd3e1e2962bcf4f8079.orcacosmo",
+            "surface_sha256": "e63ce513d8002f619e30de96605ed7d11c3f72bf38021dd3e1e2962bcf4f8079"
+          },
+          {
+            "id": "cohort-00912",
+            "surface": "../phase83-v1/surfaces/5ccd8c09eed448a1e565814be8b084e39fdb17609474483b8e161efd1d1b63e2.orcacosmo",
+            "surface_sha256": "5ccd8c09eed448a1e565814be8b084e39fdb17609474483b8e161efd1d1b63e2"
+          },
+          {
+            "id": "cohort-01986",
+            "surface": "../phase83-v1/surfaces/6195d511bf1501ef51422b789ac80508222dc40dd14b0e1d31fcbdd439a44807.orcacosmo",
+            "surface_sha256": "6195d511bf1501ef51422b789ac80508222dc40dd14b0e1d31fcbdd439a44807"
+          }
+        ]
+      },
+      {
+        "id": "cohort-01819",
+        "reference": "production_chunk_measurement",
+        "reference_index": 1819,
+        "inchikey": "ILRSCQWREDREME-UHFFFAOYSA-N",
+        "surface": "../phase83-v1/surfaces/e63ce513d8002f619e30de96605ed7d11c3f72bf38021dd3e1e2962bcf4f8079.orcacosmo",
+        "surface_sha256": "e63ce513d8002f619e30de96605ed7d11c3f72bf38021dd3e1e2962bcf4f8079",
+        "molecular_weight_g_mol": 199.33,
+        "primary_partition": "../phase9-v1/chunk-probe-results-v1/0000/partition/cohort-01819.json",
+        "primary_plan_sha256": "cff1b4286be45b8d35fd582f9bd8fa82126f2a03a66a4832180d21f305c4e9e3",
+        "stratum": "02_31_50_N",
+        "name": "Dodecanamide",
+        "atoms": 39,
+        "input_smiles": "CCCCCCCCCCCC(=O)N",
+        "calibration_reasons": [
+          "original three-per-stratum calibration"
+        ],
+        "control_original_batch": [
+          {
+            "id": "cohort-02843",
+            "surface": "../phase83-v1/surfaces/f03011ad82420d2914804e6583fc1be9c79d9b90e1ab0640f3e7bb2bbd3dba10.orcacosmo",
+            "surface_sha256": "f03011ad82420d2914804e6583fc1be9c79d9b90e1ab0640f3e7bb2bbd3dba10"
+          },
+          {
+            "id": "cohort-04475",
+            "surface": "../phase83-v1/surfaces/c24644d2f0d476352b1ae1d0f59524128f03c9cae4bb36ed8536060ff8f757fa.orcacosmo",
+            "surface_sha256": "c24644d2f0d476352b1ae1d0f59524128f03c9cae4bb36ed8536060ff8f757fa"
+          },
+          {
+            "id": "cohort-00956",
+            "surface": "../phase83-v1/surfaces/c082e7f605ac1b6b43402db8e83c4768cbdf9c5f2990bacba502f802b5204da7.orcacosmo",
+            "surface_sha256": "c082e7f605ac1b6b43402db8e83c4768cbdf9c5f2990bacba502f802b5204da7"
+          },
+          {
+            "id": "cohort-00170",
+            "surface": "../phase83-v1/surfaces/470a5f26388851508cb79ff387b8cd617394e7ed2ebe1b0a0719bdbcc4367ddc.orcacosmo",
+            "surface_sha256": "470a5f26388851508cb79ff387b8cd617394e7ed2ebe1b0a0719bdbcc4367ddc"
+          },
+          {
+            "id": "cohort-05341",
+            "surface": "../phase83-v1/surfaces/b146e982bc68c81df841b67c8c35b22ff82fd231ae24e6a37a57db2096ae59b7.orcacosmo",
+            "surface_sha256": "b146e982bc68c81df841b67c8c35b22ff82fd231ae24e6a37a57db2096ae59b7"
+          },
+          {
+            "id": "cohort-00507",
+            "surface": "../phase83-v1/surfaces/208a888a9dc7c91c117ae7f0576c41959bb7536e6353f3a890a19b3fc7b0d9b3.orcacosmo",
+            "surface_sha256": "208a888a9dc7c91c117ae7f0576c41959bb7536e6353f3a890a19b3fc7b0d9b3"
+          },
+          {
+            "id": "cohort-00702",
+            "surface": "../phase83-v1/surfaces/8f6810181156990afca9a5a997749b6f2a9dc10225629a4116c0283dda86d84d.orcacosmo",
+            "surface_sha256": "8f6810181156990afca9a5a997749b6f2a9dc10225629a4116c0283dda86d84d"
+          },
+          {
+            "id": "cohort-01819",
+            "surface": "../phase83-v1/surfaces/e63ce513d8002f619e30de96605ed7d11c3f72bf38021dd3e1e2962bcf4f8079.orcacosmo",
+            "surface_sha256": "e63ce513d8002f619e30de96605ed7d11c3f72bf38021dd3e1e2962bcf4f8079"
+          },
+          {
+            "id": "cohort-00912",
+            "surface": "../phase83-v1/surfaces/5ccd8c09eed448a1e565814be8b084e39fdb17609474483b8e161efd1d1b63e2.orcacosmo",
+            "surface_sha256": "5ccd8c09eed448a1e565814be8b084e39fdb17609474483b8e161efd1d1b63e2"
+          },
+          {
+            "id": "cohort-01986",
+            "surface": "../phase83-v1/surfaces/6195d511bf1501ef51422b789ac80508222dc40dd14b0e1d31fcbdd439a44807.orcacosmo",
+            "surface_sha256": "6195d511bf1501ef51422b789ac80508222dc40dd14b0e1d31fcbdd439a44807"
+          }
+        ]
+      },
+      {
+        "id": "cohort-02877",
+        "reference": "production",
+        "reference_index": 2877,
+        "inchikey": "NAXYKJVXULDOFW-UHFFFAOYSA-N",
+        "surface": "../phase83-v1/surfaces/b49292bd8ca9e6d45a0a023e9c9cc6ede6df76105d4b209e133a41d5d1b5a912.orcacosmo",
+        "surface_sha256": "b49292bd8ca9e6d45a0a023e9c9cc6ede6df76105d4b209e133a41d5d1b5a912",
+        "molecular_weight_g_mol": 254.37,
+        "primary_partition": "../phase9-v1/production-results-v1/0027/partition/cohort-02877.json",
+        "primary_plan_sha256": "ce19da895df90f231ab91a1b50fc617f78a16684f6445e4b4ef220bef1bfe6c0",
+        "stratum": "02_31_50_N",
+        "name": "[4-[(4-Aminocyclohexyl)methyl]cyclohexyl]carbamic acid",
+        "atoms": 44,
+        "input_smiles": "C1CC(CCC1CC2CCC(CC2)NC(=O)O)N",
+        "calibration_reasons": [
+          "prior unresolved systems: 5"
+        ],
+        "control_original_batch": [
+          {
+            "id": "cohort-02877",
+            "surface": "../phase83-v1/surfaces/b49292bd8ca9e6d45a0a023e9c9cc6ede6df76105d4b209e133a41d5d1b5a912.orcacosmo",
+            "surface_sha256": "b49292bd8ca9e6d45a0a023e9c9cc6ede6df76105d4b209e133a41d5d1b5a912"
+          },
+          {
+            "id": "cohort-02878",
+            "surface": "../phase83-v1/surfaces/4d0890767d5acacbe8410a583561c560d8dcb8261723a850d7bd2b9ffbe1c2ad.orcacosmo",
+            "surface_sha256": "4d0890767d5acacbe8410a583561c560d8dcb8261723a850d7bd2b9ffbe1c2ad"
+          },
+          {
+            "id": "cohort-02879",
+            "surface": "../phase83-v1/surfaces/c710d753675dd739511bd9b0ba8ac0773a6c4a5f77179cbdb7da847f3a6f7437.orcacosmo",
+            "surface_sha256": "c710d753675dd739511bd9b0ba8ac0773a6c4a5f77179cbdb7da847f3a6f7437"
+          },
+          {
+            "id": "cohort-02880",
+            "surface": "../phase83-v1/surfaces/ae1ba86d3f5bd54ed08d3aebf90d56c7ba46bab3f26d396902628e152f039056.orcacosmo",
+            "surface_sha256": "ae1ba86d3f5bd54ed08d3aebf90d56c7ba46bab3f26d396902628e152f039056"
+          },
+          {
+            "id": "cohort-02881",
+            "surface": "../phase83-v1/surfaces/3458a955eb8832aa150d7e3f71b7794b37664e1e0ae5db61fd7b11186647746f.orcacosmo",
+            "surface_sha256": "3458a955eb8832aa150d7e3f71b7794b37664e1e0ae5db61fd7b11186647746f"
+          },
+          {
+            "id": "cohort-02882",
+            "surface": "../phase83-v1/surfaces/fe5ebbba4a46f6069dd1c581dc79f4da45ab7c4f15be9b6ba970468b3028c557.orcacosmo",
+            "surface_sha256": "fe5ebbba4a46f6069dd1c581dc79f4da45ab7c4f15be9b6ba970468b3028c557"
+          },
+          {
+            "id": "cohort-02883",
+            "surface": "../phase83-v1/surfaces/7aa06062a6c0f76ed3223eb317cde03f1e1c8ffb12d8872e3aa79cb4433d6b9a.orcacosmo",
+            "surface_sha256": "7aa06062a6c0f76ed3223eb317cde03f1e1c8ffb12d8872e3aa79cb4433d6b9a"
+          },
+          {
+            "id": "cohort-02884",
+            "surface": "../phase83-v1/surfaces/9a38a0da17ad242cb876d1dd5d8538e631b7e2f745fe28631aa6ac49f207bf22.orcacosmo",
+            "surface_sha256": "9a38a0da17ad242cb876d1dd5d8538e631b7e2f745fe28631aa6ac49f207bf22"
+          },
+          {
+            "id": "cohort-02885",
+            "surface": "../phase83-v1/surfaces/a28377055c8f8c285da1fcf439b3e7e58126a70f506c5a4cba8efb094001584c.orcacosmo",
+            "surface_sha256": "a28377055c8f8c285da1fcf439b3e7e58126a70f506c5a4cba8efb094001584c"
+          },
+          {
+            "id": "cohort-02886",
+            "surface": "../phase83-v1/surfaces/bfa8b74e547221f39912c7f5e26081b94c172f551d15828d9ec01823d3b40f96.orcacosmo",
+            "surface_sha256": "bfa8b74e547221f39912c7f5e26081b94c172f551d15828d9ec01823d3b40f96"
+          }
+        ]
+      }
+    ],
+    [
+      {
+        "id": "cohort-00818",
+        "reference": "production",
+        "reference_index": 818,
+        "inchikey": "DOIRQSBPFJWKBE-UHFFFAOYSA-N",
+        "surface": "../phase83-v1/surfaces/9eb48822be98f05682b89338c583802d55e3dbfb38bf3fb59e948618cd6570bd.orcacosmo",
+        "surface_sha256": "9eb48822be98f05682b89338c583802d55e3dbfb38bf3fb59e948618cd6570bd",
+        "molecular_weight_g_mol": 278.34,
+        "primary_partition": "../phase9-v1/production-results-v1/0007/partition/cohort-00818.json",
+        "primary_plan_sha256": "ce19da895df90f231ab91a1b50fc617f78a16684f6445e4b4ef220bef1bfe6c0",
+        "stratum": "02_31_50_noN",
+        "name": "Dibutyl Phthalate",
+        "atoms": 42,
+        "input_smiles": "CCCCOC(=O)C1=CC=CC=C1C(=O)OCCCC",
+        "calibration_reasons": [
+          "phthalate anchor"
+        ],
+        "control_original_batch": [
+          {
+            "id": "cohort-00816",
+            "surface": "../phase83-v1/surfaces/51bb3d3c8802600fd8c0cd8dc03c5c509d0b7a70d997ee3599373797550bbc9e.orcacosmo",
+            "surface_sha256": "51bb3d3c8802600fd8c0cd8dc03c5c509d0b7a70d997ee3599373797550bbc9e"
+          },
+          {
+            "id": "cohort-00817",
+            "surface": "../phase83-v1/surfaces/3907d228c1862442ddc790d6c9619b8068e11c63d764a4846df52637654c4c33.orcacosmo",
+            "surface_sha256": "3907d228c1862442ddc790d6c9619b8068e11c63d764a4846df52637654c4c33"
+          },
+          {
+            "id": "cohort-00818",
+            "surface": "../phase83-v1/surfaces/9eb48822be98f05682b89338c583802d55e3dbfb38bf3fb59e948618cd6570bd.orcacosmo",
+            "surface_sha256": "9eb48822be98f05682b89338c583802d55e3dbfb38bf3fb59e948618cd6570bd"
+          },
+          {
+            "id": "cohort-00819",
+            "surface": "../phase83-v1/surfaces/ef792229942b7dde1dd6e2d7264ec13daf55bebdd1532fe67ff5f18a0b60c510.orcacosmo",
+            "surface_sha256": "ef792229942b7dde1dd6e2d7264ec13daf55bebdd1532fe67ff5f18a0b60c510"
+          },
+          {
+            "id": "cohort-00820",
+            "surface": "../phase83-v1/surfaces/0b5a06dcbd984c249c03fe6cf1e747f12d1ed4c6c6459724fc5f78066e2f8328.orcacosmo",
+            "surface_sha256": "0b5a06dcbd984c249c03fe6cf1e747f12d1ed4c6c6459724fc5f78066e2f8328"
+          },
+          {
+            "id": "cohort-00821",
+            "surface": "../phase83-v1/surfaces/5ffdbf13922137136e4d34566bb65c00ae29c44e00f87ea44ba4d5c54efb634b.orcacosmo",
+            "surface_sha256": "5ffdbf13922137136e4d34566bb65c00ae29c44e00f87ea44ba4d5c54efb634b"
+          },
+          {
+            "id": "cohort-00822",
+            "surface": "../phase83-v1/surfaces/9cc0a3f4250262be98d69e468690c0e69454ee75f12469d57e96f35880f69241.orcacosmo",
+            "surface_sha256": "9cc0a3f4250262be98d69e468690c0e69454ee75f12469d57e96f35880f69241"
+          },
+          {
+            "id": "cohort-00823",
+            "surface": "../phase83-v1/surfaces/eea8029a4208a25e33bb30809557ed1f3ff048dcc3b12b202ac6696d412410d0.orcacosmo",
+            "surface_sha256": "eea8029a4208a25e33bb30809557ed1f3ff048dcc3b12b202ac6696d412410d0"
+          },
+          {
+            "id": "cohort-00824",
+            "surface": "../phase83-v1/surfaces/902af2ddf84fbc32047c628800f7795d552632da393a5ab22fa1d7bf77695a96.orcacosmo",
+            "surface_sha256": "902af2ddf84fbc32047c628800f7795d552632da393a5ab22fa1d7bf77695a96"
+          },
+          {
+            "id": "cohort-00825",
+            "surface": "../phase83-v1/surfaces/bc76e8b0afc909ea0991600f53b3c1ed4885d4ed01b29d47f8d4f1155d7e534c.orcacosmo",
+            "surface_sha256": "bc76e8b0afc909ea0991600f53b3c1ed4885d4ed01b29d47f8d4f1155d7e534c"
+          }
+        ]
+      },
+      {
+        "id": "cohort-00898",
+        "reference": "production_chunk_measurement",
+        "reference_index": 898,
+        "inchikey": "DWNAQMUDCDVSLT-UHFFFAOYSA-N",
+        "surface": "../phase83-v1/surfaces/dd0cbe9e60778b5acd3046aa2ba0eb4a7461fe409153daafe6835f348adc4388.orcacosmo",
+        "surface_sha256": "dd0cbe9e60778b5acd3046aa2ba0eb4a7461fe409153daafe6835f348adc4388",
+        "molecular_weight_g_mol": 318.3,
+        "primary_partition": "../phase9-v1/chunk-probe-results-v1/0000/partition/cohort-00898.json",
+        "primary_plan_sha256": "cff1b4286be45b8d35fd582f9bd8fa82126f2a03a66a4832180d21f305c4e9e3",
+        "stratum": "02_31_50_noN",
+        "name": "Diphenyl phthalate",
+        "atoms": 38,
+        "input_smiles": "C1=CC=C(C=C1)OC(=O)C2=CC=CC=C2C(=O)OC3=CC=CC=C3",
+        "calibration_reasons": [
+          "original three-per-stratum calibration"
+        ],
+        "control_original_batch": [
+          {
+            "id": "cohort-00898",
+            "surface": "../phase83-v1/surfaces/dd0cbe9e60778b5acd3046aa2ba0eb4a7461fe409153daafe6835f348adc4388.orcacosmo",
+            "surface_sha256": "dd0cbe9e60778b5acd3046aa2ba0eb4a7461fe409153daafe6835f348adc4388"
+          },
+          {
+            "id": "cohort-04587",
+            "surface": "../phase83-v1/surfaces/cf6f05fc0e876c8b0057f3aa6a1178006d0b0ee84bef7c536bacbe3e8a19e716.orcacosmo",
+            "surface_sha256": "cf6f05fc0e876c8b0057f3aa6a1178006d0b0ee84bef7c536bacbe3e8a19e716"
+          },
+          {
+            "id": "cohort-04142",
+            "surface": "../phase83-v1/surfaces/2f9a732d1c17e877ee84f74550a1b0bab64799051a85bbd2407dc460a3a7ebf1.orcacosmo",
+            "surface_sha256": "2f9a732d1c17e877ee84f74550a1b0bab64799051a85bbd2407dc460a3a7ebf1"
+          },
+          {
+            "id": "cohort-02068",
+            "surface": "../phase83-v1/surfaces/4c7a70a5f9a9b1ec13bdd47e5abe9dcc5ecc98f42cbf4411f5bfad3d4098f424.orcacosmo",
+            "surface_sha256": "4c7a70a5f9a9b1ec13bdd47e5abe9dcc5ecc98f42cbf4411f5bfad3d4098f424"
+          },
+          {
+            "id": "cohort-03694",
+            "surface": "../phase83-v1/surfaces/771fedc387089d612d660a5d569954f61ca42d6e235e9fb9af0708b63e1bcb6d.orcacosmo",
+            "surface_sha256": "771fedc387089d612d660a5d569954f61ca42d6e235e9fb9af0708b63e1bcb6d"
+          },
+          {
+            "id": "cohort-02711",
+            "surface": "../phase83-v1/surfaces/409e0a5ad67fad812b3084bb4d501cf9c26925b244c22264872a35e2dedda9b9.orcacosmo",
+            "surface_sha256": "409e0a5ad67fad812b3084bb4d501cf9c26925b244c22264872a35e2dedda9b9"
+          },
+          {
+            "id": "cohort-01609",
+            "surface": "../phase83-v1/surfaces/117307a409a4fdb5e03d2f839eb84dd48f4106823ac3a401e007d9a1fbcc51a7.orcacosmo",
+            "surface_sha256": "117307a409a4fdb5e03d2f839eb84dd48f4106823ac3a401e007d9a1fbcc51a7"
+          },
+          {
+            "id": "cohort-03177",
+            "surface": "../phase83-v1/surfaces/478c408c894ac68b4a3c919b74047fd976d49a4b30eaa83e5fa466fec47060e4.orcacosmo",
+            "surface_sha256": "478c408c894ac68b4a3c919b74047fd976d49a4b30eaa83e5fa466fec47060e4"
+          },
+          {
+            "id": "cohort-04504",
+            "surface": "../phase83-v1/surfaces/195e319c0b3b5136c7fb411e7a7b459d6eb190d6265ba73f7b578e0527711aa8.orcacosmo",
+            "surface_sha256": "195e319c0b3b5136c7fb411e7a7b459d6eb190d6265ba73f7b578e0527711aa8"
+          },
+          {
+            "id": "cohort-02055",
+            "surface": "../phase83-v1/surfaces/58ab7c94a79b64f27e6cb6af5570f7d6adf44500029922d2136efcf634fc09ac.orcacosmo",
+            "surface_sha256": "58ab7c94a79b64f27e6cb6af5570f7d6adf44500029922d2136efcf634fc09ac"
+          }
+        ]
+      },
+      {
+        "id": "cohort-01874",
+        "reference": "production",
+        "reference_index": 1874,
+        "inchikey": "IRIAEXORFWYRCZ-UHFFFAOYSA-N",
+        "surface": "../phase83-v1/surfaces/8d35233e9b0e92cbafbdb95fd4eaa56bb8631f305802dfe85e8f2a942da60a1b.orcacosmo",
+        "surface_sha256": "8d35233e9b0e92cbafbdb95fd4eaa56bb8631f305802dfe85e8f2a942da60a1b",
+        "molecular_weight_g_mol": 312.4,
+        "primary_partition": "../phase9-v1/production-results-v1/0017/partition/cohort-01874.json",
+        "primary_plan_sha256": "ce19da895df90f231ab91a1b50fc617f78a16684f6445e4b4ef220bef1bfe6c0",
+        "stratum": "02_31_50_noN",
+        "name": "Benzyl butyl phthalate",
+        "atoms": 43,
+        "input_smiles": "CCCCOC(=O)C1=CC=CC=C1C(=O)OCC2=CC=CC=C2",
+        "calibration_reasons": [
+          "phthalate anchor"
+        ],
+        "control_original_batch": [
+          {
+            "id": "cohort-01872",
+            "surface": "../phase83-v1/surfaces/17525b7b5cc2ee720134334f7d1ca64543e612be4834932222b817e580b71d7f.orcacosmo",
+            "surface_sha256": "17525b7b5cc2ee720134334f7d1ca64543e612be4834932222b817e580b71d7f"
+          },
+          {
+            "id": "cohort-01873",
+            "surface": "../phase83-v1/surfaces/4ef7a633a668f3576c912fe1cb8d51dbc23b233b517ef08c3e6f00c6537bb981.orcacosmo",
+            "surface_sha256": "4ef7a633a668f3576c912fe1cb8d51dbc23b233b517ef08c3e6f00c6537bb981"
+          },
+          {
+            "id": "cohort-01874",
+            "surface": "../phase83-v1/surfaces/8d35233e9b0e92cbafbdb95fd4eaa56bb8631f305802dfe85e8f2a942da60a1b.orcacosmo",
+            "surface_sha256": "8d35233e9b0e92cbafbdb95fd4eaa56bb8631f305802dfe85e8f2a942da60a1b"
+          },
+          {
+            "id": "cohort-01875",
+            "surface": "../phase83-v1/surfaces/a4daf3530dae8d82289e4ca7b739e6bc47d5bb8d7ee173da33c30033effdb948.orcacosmo",
+            "surface_sha256": "a4daf3530dae8d82289e4ca7b739e6bc47d5bb8d7ee173da33c30033effdb948"
+          },
+          {
+            "id": "cohort-01876",
+            "surface": "../phase83-v1/surfaces/dbdd4c14d63e3ad52c0a6524e0bb89faa4928540361b96de6041172e588c415a.orcacosmo",
+            "surface_sha256": "dbdd4c14d63e3ad52c0a6524e0bb89faa4928540361b96de6041172e588c415a"
+          },
+          {
+            "id": "cohort-01877",
+            "surface": "../phase83-v1/surfaces/d486b0ef509ff02eee103ab3395aa77e278855488c727540b024b677fb427906.orcacosmo",
+            "surface_sha256": "d486b0ef509ff02eee103ab3395aa77e278855488c727540b024b677fb427906"
+          },
+          {
+            "id": "cohort-01878",
+            "surface": "../phase83-v1/surfaces/1941e251a04334bb8d84032dc24377cc6930c09d9cd402e844f82b4c815ad3be.orcacosmo",
+            "surface_sha256": "1941e251a04334bb8d84032dc24377cc6930c09d9cd402e844f82b4c815ad3be"
+          },
+          {
+            "id": "cohort-01879",
+            "surface": "../phase83-v1/surfaces/c8ade8c56c5b52a1227419848f5c0f234044a2f2d248e0aea42ab1cc554cda06.orcacosmo",
+            "surface_sha256": "c8ade8c56c5b52a1227419848f5c0f234044a2f2d248e0aea42ab1cc554cda06"
+          },
+          {
+            "id": "cohort-01880",
+            "surface": "../phase83-v1/surfaces/a1d2c945dc834ddadfce3c366aeea901dbd78aeaa2dd2eebb73daa1b741f2dbe.orcacosmo",
+            "surface_sha256": "a1d2c945dc834ddadfce3c366aeea901dbd78aeaa2dd2eebb73daa1b741f2dbe"
+          },
+          {
+            "id": "cohort-01881",
+            "surface": "../phase83-v1/surfaces/0938a5acd8ff0b0b83d604aa69daaf3cd84052af72f5080b1788cb9e3c3052f3.orcacosmo",
+            "surface_sha256": "0938a5acd8ff0b0b83d604aa69daaf3cd84052af72f5080b1788cb9e3c3052f3"
+          }
+        ]
+      },
+      {
+        "id": "cohort-01986",
+        "reference": "production_chunk_measurement",
+        "reference_index": 1986,
+        "inchikey": "JFTSYAALCNQOKO-UHFFFAOYSA-N",
+        "surface": "../phase83-v1/surfaces/6195d511bf1501ef51422b789ac80508222dc40dd14b0e1d31fcbdd439a44807.orcacosmo",
+        "surface_sha256": "6195d511bf1501ef51422b789ac80508222dc40dd14b0e1d31fcbdd439a44807",
+        "molecular_weight_g_mol": 190.28,
+        "primary_partition": "../phase9-v1/chunk-probe-results-v1/0000/partition/cohort-01986.json",
+        "primary_plan_sha256": "cff1b4286be45b8d35fd582f9bd8fa82126f2a03a66a4832180d21f305c4e9e3",
+        "stratum": "02_31_50_noN",
+        "name": "3-(4-Ethylphenyl)-2,2-dimethylpropanal",
+        "atoms": 32,
+        "input_smiles": "CCC1=CC=C(C=C1)CC(C)(C)C=O",
+        "calibration_reasons": [
+          "original three-per-stratum calibration"
+        ],
+        "control_original_batch": [
+          {
+            "id": "cohort-02843",
+            "surface": "../phase83-v1/surfaces/f03011ad82420d2914804e6583fc1be9c79d9b90e1ab0640f3e7bb2bbd3dba10.orcacosmo",
+            "surface_sha256": "f03011ad82420d2914804e6583fc1be9c79d9b90e1ab0640f3e7bb2bbd3dba10"
+          },
+          {
+            "id": "cohort-04475",
+            "surface": "../phase83-v1/surfaces/c24644d2f0d476352b1ae1d0f59524128f03c9cae4bb36ed8536060ff8f757fa.orcacosmo",
+            "surface_sha256": "c24644d2f0d476352b1ae1d0f59524128f03c9cae4bb36ed8536060ff8f757fa"
+          },
+          {
+            "id": "cohort-00956",
+            "surface": "../phase83-v1/surfaces/c082e7f605ac1b6b43402db8e83c4768cbdf9c5f2990bacba502f802b5204da7.orcacosmo",
+            "surface_sha256": "c082e7f605ac1b6b43402db8e83c4768cbdf9c5f2990bacba502f802b5204da7"
+          },
+          {
+            "id": "cohort-00170",
+            "surface": "../phase83-v1/surfaces/470a5f26388851508cb79ff387b8cd617394e7ed2ebe1b0a0719bdbcc4367ddc.orcacosmo",
+            "surface_sha256": "470a5f26388851508cb79ff387b8cd617394e7ed2ebe1b0a0719bdbcc4367ddc"
+          },
+          {
+            "id": "cohort-05341",
+            "surface": "../phase83-v1/surfaces/b146e982bc68c81df841b67c8c35b22ff82fd231ae24e6a37a57db2096ae59b7.orcacosmo",
+            "surface_sha256": "b146e982bc68c81df841b67c8c35b22ff82fd231ae24e6a37a57db2096ae59b7"
+          },
+          {
+            "id": "cohort-00507",
+            "surface": "../phase83-v1/surfaces/208a888a9dc7c91c117ae7f0576c41959bb7536e6353f3a890a19b3fc7b0d9b3.orcacosmo",
+            "surface_sha256": "208a888a9dc7c91c117ae7f0576c41959bb7536e6353f3a890a19b3fc7b0d9b3"
+          },
+          {
+            "id": "cohort-00702",
+            "surface": "../phase83-v1/surfaces/8f6810181156990afca9a5a997749b6f2a9dc10225629a4116c0283dda86d84d.orcacosmo",
+            "surface_sha256": "8f6810181156990afca9a5a997749b6f2a9dc10225629a4116c0283dda86d84d"
+          },
+          {
+            "id": "cohort-01819",
+            "surface": "../phase83-v1/surfaces/e63ce513d8002f619e30de96605ed7d11c3f72bf38021dd3e1e2962bcf4f8079.orcacosmo",
+            "surface_sha256": "e63ce513d8002f619e30de96605ed7d11c3f72bf38021dd3e1e2962bcf4f8079"
+          },
+          {
+            "id": "cohort-00912",
+            "surface": "../phase83-v1/surfaces/5ccd8c09eed448a1e565814be8b084e39fdb17609474483b8e161efd1d1b63e2.orcacosmo",
+            "surface_sha256": "5ccd8c09eed448a1e565814be8b084e39fdb17609474483b8e161efd1d1b63e2"
+          },
+          {
+            "id": "cohort-01986",
+            "surface": "../phase83-v1/surfaces/6195d511bf1501ef51422b789ac80508222dc40dd14b0e1d31fcbdd439a44807.orcacosmo",
+            "surface_sha256": "6195d511bf1501ef51422b789ac80508222dc40dd14b0e1d31fcbdd439a44807"
+          }
+        ]
+      },
+      {
+        "id": "cohort-03270",
+        "reference": "production",
+        "reference_index": 3270,
+        "inchikey": "OOHPORRAEMMMCX-UHFFFAOYSA-N",
+        "surface": "../phase83-v1/surfaces/2027b28ae6c4eb79303d61376d1ea9ec8cb2e8bd4bc2f755991d00da9ec4b488.orcacosmo",
+        "surface_sha256": "2027b28ae6c4eb79303d61376d1ea9ec8cb2e8bd4bc2f755991d00da9ec4b488",
+        "molecular_weight_g_mol": 260.4,
+        "primary_partition": "../phase9-v1/production-results-v1/0031/partition/cohort-03270.json",
+        "primary_plan_sha256": "ce19da895df90f231ab91a1b50fc617f78a16684f6445e4b4ef220bef1bfe6c0",
+        "stratum": "02_31_50_noN",
+        "name": "Dodecahedrane",
+        "atoms": 40,
+        "input_smiles": "C12C3C4C5C1C6C7C2C8C3C9C4C1C5C6C2C7C8C9C12",
+        "calibration_reasons": [
+          "prior unresolved systems: 41",
+          "population maximum rings"
+        ],
+        "control_original_batch": [
+          {
+            "id": "cohort-03268",
+            "surface": "../phase83-v1/surfaces/dc34a3ab82c1aa8281e42c070f9ba0c0c499f5831d17aa2b9adb0e09d0abc10c.orcacosmo",
+            "surface_sha256": "dc34a3ab82c1aa8281e42c070f9ba0c0c499f5831d17aa2b9adb0e09d0abc10c"
+          },
+          {
+            "id": "cohort-03269",
+            "surface": "../phase83-v1/surfaces/b613a1ec9de37a2d532165d038b134fe1433811395b30c0c16630d2d97394770.orcacosmo",
+            "surface_sha256": "b613a1ec9de37a2d532165d038b134fe1433811395b30c0c16630d2d97394770"
+          },
+          {
+            "id": "cohort-03270",
+            "surface": "../phase83-v1/surfaces/2027b28ae6c4eb79303d61376d1ea9ec8cb2e8bd4bc2f755991d00da9ec4b488.orcacosmo",
+            "surface_sha256": "2027b28ae6c4eb79303d61376d1ea9ec8cb2e8bd4bc2f755991d00da9ec4b488"
+          },
+          {
+            "id": "cohort-03271",
+            "surface": "../phase83-v1/surfaces/b0a53fa75deb4fef6e474ca67a76de849085745248195bbefa78c4fd580c93b8.orcacosmo",
+            "surface_sha256": "b0a53fa75deb4fef6e474ca67a76de849085745248195bbefa78c4fd580c93b8"
+          },
+          {
+            "id": "cohort-03272",
+            "surface": "../phase83-v1/surfaces/d3a7a8c24880d686d3cbc7d034b812a5fe568a551347765965de027120e6b25b.orcacosmo",
+            "surface_sha256": "d3a7a8c24880d686d3cbc7d034b812a5fe568a551347765965de027120e6b25b"
+          },
+          {
+            "id": "cohort-03273",
+            "surface": "../phase83-v1/surfaces/7cb6091cbd0fb551bb1deb7f2cb5ebbe44b090986c9025c6c4d655d3ce38fa73.orcacosmo",
+            "surface_sha256": "7cb6091cbd0fb551bb1deb7f2cb5ebbe44b090986c9025c6c4d655d3ce38fa73"
+          },
+          {
+            "id": "cohort-03274",
+            "surface": "../phase83-v1/surfaces/56b1665a4d94e72230d94ab861c72c823625ae9a46a96c6b79578602ee2dfb55.orcacosmo",
+            "surface_sha256": "56b1665a4d94e72230d94ab861c72c823625ae9a46a96c6b79578602ee2dfb55"
+          },
+          {
+            "id": "cohort-03275",
+            "surface": "../phase83-v1/surfaces/695edfe80c736deb51e039214b9900ba2ecce04231c2fc9b42e63681683e12d5.orcacosmo",
+            "surface_sha256": "695edfe80c736deb51e039214b9900ba2ecce04231c2fc9b42e63681683e12d5"
+          },
+          {
+            "id": "cohort-03276",
+            "surface": "../phase83-v1/surfaces/b837726429ccdff60c92a405149f6f56fd94782281b1f694671cbc6460dce8ef.orcacosmo",
+            "surface_sha256": "b837726429ccdff60c92a405149f6f56fd94782281b1f694671cbc6460dce8ef"
+          },
+          {
+            "id": "cohort-03277",
+            "surface": "../phase83-v1/surfaces/f231078fc48d50dae358ef95a4405eb28efb7372208e488bb9998d402220c28e.orcacosmo",
+            "surface_sha256": "f231078fc48d50dae358ef95a4405eb28efb7372208e488bb9998d402220c28e"
+          }
+        ]
+      },
+      {
+        "id": "cohort-04587",
+        "reference": "production_chunk_measurement",
+        "reference_index": 4587,
+        "inchikey": "UYXTWWCETRIEDR-UHFFFAOYSA-N",
+        "surface": "../phase83-v1/surfaces/cf6f05fc0e876c8b0057f3aa6a1178006d0b0ee84bef7c536bacbe3e8a19e716.orcacosmo",
+        "surface_sha256": "cf6f05fc0e876c8b0057f3aa6a1178006d0b0ee84bef7c536bacbe3e8a19e716",
+        "molecular_weight_g_mol": 302.36,
+        "primary_partition": "../phase9-v1/chunk-probe-results-v1/0000/partition/cohort-04587.json",
+        "primary_plan_sha256": "cff1b4286be45b8d35fd582f9bd8fa82126f2a03a66a4832180d21f305c4e9e3",
+        "stratum": "02_31_50_noN",
+        "name": "Tributyrin",
+        "atoms": 47,
+        "input_smiles": "CCCC(=O)OCC(COC(=O)CCC)OC(=O)CCC",
+        "calibration_reasons": [
+          "original three-per-stratum calibration"
+        ],
+        "control_original_batch": [
+          {
+            "id": "cohort-00898",
+            "surface": "../phase83-v1/surfaces/dd0cbe9e60778b5acd3046aa2ba0eb4a7461fe409153daafe6835f348adc4388.orcacosmo",
+            "surface_sha256": "dd0cbe9e60778b5acd3046aa2ba0eb4a7461fe409153daafe6835f348adc4388"
+          },
+          {
+            "id": "cohort-04587",
+            "surface": "../phase83-v1/surfaces/cf6f05fc0e876c8b0057f3aa6a1178006d0b0ee84bef7c536bacbe3e8a19e716.orcacosmo",
+            "surface_sha256": "cf6f05fc0e876c8b0057f3aa6a1178006d0b0ee84bef7c536bacbe3e8a19e716"
+          },
+          {
+            "id": "cohort-04142",
+            "surface": "../phase83-v1/surfaces/2f9a732d1c17e877ee84f74550a1b0bab64799051a85bbd2407dc460a3a7ebf1.orcacosmo",
+            "surface_sha256": "2f9a732d1c17e877ee84f74550a1b0bab64799051a85bbd2407dc460a3a7ebf1"
+          },
+          {
+            "id": "cohort-02068",
+            "surface": "../phase83-v1/surfaces/4c7a70a5f9a9b1ec13bdd47e5abe9dcc5ecc98f42cbf4411f5bfad3d4098f424.orcacosmo",
+            "surface_sha256": "4c7a70a5f9a9b1ec13bdd47e5abe9dcc5ecc98f42cbf4411f5bfad3d4098f424"
+          },
+          {
+            "id": "cohort-03694",
+            "surface": "../phase83-v1/surfaces/771fedc387089d612d660a5d569954f61ca42d6e235e9fb9af0708b63e1bcb6d.orcacosmo",
+            "surface_sha256": "771fedc387089d612d660a5d569954f61ca42d6e235e9fb9af0708b63e1bcb6d"
+          },
+          {
+            "id": "cohort-02711",
+            "surface": "../phase83-v1/surfaces/409e0a5ad67fad812b3084bb4d501cf9c26925b244c22264872a35e2dedda9b9.orcacosmo",
+            "surface_sha256": "409e0a5ad67fad812b3084bb4d501cf9c26925b244c22264872a35e2dedda9b9"
+          },
+          {
+            "id": "cohort-01609",
+            "surface": "../phase83-v1/surfaces/117307a409a4fdb5e03d2f839eb84dd48f4106823ac3a401e007d9a1fbcc51a7.orcacosmo",
+            "surface_sha256": "117307a409a4fdb5e03d2f839eb84dd48f4106823ac3a401e007d9a1fbcc51a7"
+          },
+          {
+            "id": "cohort-03177",
+            "surface": "../phase83-v1/surfaces/478c408c894ac68b4a3c919b74047fd976d49a4b30eaa83e5fa466fec47060e4.orcacosmo",
+            "surface_sha256": "478c408c894ac68b4a3c919b74047fd976d49a4b30eaa83e5fa466fec47060e4"
+          },
+          {
+            "id": "cohort-04504",
+            "surface": "../phase83-v1/surfaces/195e319c0b3b5136c7fb411e7a7b459d6eb190d6265ba73f7b578e0527711aa8.orcacosmo",
+            "surface_sha256": "195e319c0b3b5136c7fb411e7a7b459d6eb190d6265ba73f7b578e0527711aa8"
+          },
+          {
+            "id": "cohort-02055",
+            "surface": "../phase83-v1/surfaces/58ab7c94a79b64f27e6cb6af5570f7d6adf44500029922d2136efcf634fc09ac.orcacosmo",
+            "surface_sha256": "58ab7c94a79b64f27e6cb6af5570f7d6adf44500029922d2136efcf634fc09ac"
+          }
+        ]
+      }
+    ],
+    [
+      {
+        "id": "cohort-01369",
+        "reference": "production",
+        "reference_index": 1369,
+        "inchikey": "GUBZLBFYUBKAGY-UHFFFAOYSA-N",
+        "surface": "../phase83-v1/surfaces/29969e38423caeb62d9fef05e0cc3e3b3d0d7450afc00aea2b2313e2ae02a26b.orcacosmo",
+        "surface_sha256": "29969e38423caeb62d9fef05e0cc3e3b3d0d7450afc00aea2b2313e2ae02a26b",
+        "molecular_weight_g_mol": 462.5,
+        "primary_partition": "../phase9-v1/production-results-v1/0012/partition/cohort-01369.json",
+        "primary_plan_sha256": "ce19da895df90f231ab91a1b50fc617f78a16684f6445e4b4ef220bef1bfe6c0",
+        "stratum": "03_51_80_N",
+        "name": "Diindolo[3,2,1-de:3',2',1'-ij][1,5]naphthyridine-6,13-dione, 7,14-diphenyl-",
+        "atoms": 54,
+        "input_smiles": "C1=CC=C(C=C1)C2=C3C4=CC=CC=C4N5C3=C6C(=C(C5=O)C7=CC=CC=C7)C8=CC=CC=C8N6C2=O",
+        "calibration_reasons": [
+          "population maximum aromatic_atoms"
+        ],
+        "control_original_batch": [
+          {
+            "id": "cohort-01369",
+            "surface": "../phase83-v1/surfaces/29969e38423caeb62d9fef05e0cc3e3b3d0d7450afc00aea2b2313e2ae02a26b.orcacosmo",
+            "surface_sha256": "29969e38423caeb62d9fef05e0cc3e3b3d0d7450afc00aea2b2313e2ae02a26b"
+          },
+          {
+            "id": "cohort-01370",
+            "surface": "../phase83-v1/surfaces/d7a370327e1320e22f979c40e7551fd4e743bdd6c0c4d8fa6114c00708241e62.orcacosmo",
+            "surface_sha256": "d7a370327e1320e22f979c40e7551fd4e743bdd6c0c4d8fa6114c00708241e62"
+          },
+          {
+            "id": "cohort-01371",
+            "surface": "../phase83-v1/surfaces/c163458c5b2073a28a28eb8d21dcb0d272719585a6b0c9541e5993f119690b4e.orcacosmo",
+            "surface_sha256": "c163458c5b2073a28a28eb8d21dcb0d272719585a6b0c9541e5993f119690b4e"
+          },
+          {
+            "id": "cohort-01372",
+            "surface": "../phase83-v1/surfaces/2fdd69af480a6d18bcfa21884a878f75a56738b26b179323614b75a1bd9c78d1.orcacosmo",
+            "surface_sha256": "2fdd69af480a6d18bcfa21884a878f75a56738b26b179323614b75a1bd9c78d1"
+          },
+          {
+            "id": "cohort-01373",
+            "surface": "../phase83-v1/surfaces/18854b7cef20fed2a0eee71b91e10bcfbf87246680f0a92c6672fc06574110c8.orcacosmo",
+            "surface_sha256": "18854b7cef20fed2a0eee71b91e10bcfbf87246680f0a92c6672fc06574110c8"
+          },
+          {
+            "id": "cohort-01374",
+            "surface": "../phase83-v1/surfaces/dcfa6b2bc839f5ba92044d7a6b185dfa5a8751d8ba52874fdafebb6c8b2be2c9.orcacosmo",
+            "surface_sha256": "dcfa6b2bc839f5ba92044d7a6b185dfa5a8751d8ba52874fdafebb6c8b2be2c9"
+          },
+          {
+            "id": "cohort-01375",
+            "surface": "../phase83-v1/surfaces/347af82fbe075d8f26afeabd5e648a00fb81c7e84f3938507d39f55e9bb30a83.orcacosmo",
+            "surface_sha256": "347af82fbe075d8f26afeabd5e648a00fb81c7e84f3938507d39f55e9bb30a83"
+          },
+          {
+            "id": "cohort-01376",
+            "surface": "../phase83-v1/surfaces/b6d96db852141c4a9a7c7695c9ed57ca5a56642427cc86a13a86de816e2ef70f.orcacosmo",
+            "surface_sha256": "b6d96db852141c4a9a7c7695c9ed57ca5a56642427cc86a13a86de816e2ef70f"
+          },
+          {
+            "id": "cohort-01377",
+            "surface": "../phase83-v1/surfaces/02bfda7ad0fd83dfcc7830e759234afb61917e5837a4deed2fc64cd52df3b4c8.orcacosmo",
+            "surface_sha256": "02bfda7ad0fd83dfcc7830e759234afb61917e5837a4deed2fc64cd52df3b4c8"
+          },
+          {
+            "id": "cohort-01378",
+            "surface": "../phase83-v1/surfaces/e8fe596887043409eff7916f2b3489bcf958ceb245f03641667bd05b2af5b8c1.orcacosmo",
+            "surface_sha256": "e8fe596887043409eff7916f2b3489bcf958ceb245f03641667bd05b2af5b8c1"
+          }
+        ]
+      },
+      {
+        "id": "cohort-02068",
+        "reference": "production_chunk_measurement",
+        "reference_index": 2068,
+        "inchikey": "JOIUZBTWMAYEQW-UHFFFAOYSA-N",
+        "surface": "../phase83-v1/surfaces/4c7a70a5f9a9b1ec13bdd47e5abe9dcc5ecc98f42cbf4411f5bfad3d4098f424.orcacosmo",
+        "surface_sha256": "4c7a70a5f9a9b1ec13bdd47e5abe9dcc5ecc98f42cbf4411f5bfad3d4098f424",
+        "molecular_weight_g_mol": 357.5,
+        "primary_partition": "../phase9-v1/chunk-probe-results-v1/0000/partition/cohort-02068.json",
+        "primary_plan_sha256": "cff1b4286be45b8d35fd582f9bd8fa82126f2a03a66a4832180d21f305c4e9e3",
+        "stratum": "03_51_80_N",
+        "name": "Hexanoic acid, 6-[[6-[(6-amino-1-oxohexyl)amino]-1-oxohexyl]amino]-",
+        "atoms": 60,
+        "input_smiles": "C(CCC(=O)NCCCCCC(=O)NCCCCCC(=O)O)CCN",
+        "calibration_reasons": [
+          "original three-per-stratum calibration"
+        ],
+        "control_original_batch": [
+          {
+            "id": "cohort-00898",
+            "surface": "../phase83-v1/surfaces/dd0cbe9e60778b5acd3046aa2ba0eb4a7461fe409153daafe6835f348adc4388.orcacosmo",
+            "surface_sha256": "dd0cbe9e60778b5acd3046aa2ba0eb4a7461fe409153daafe6835f348adc4388"
+          },
+          {
+            "id": "cohort-04587",
+            "surface": "../phase83-v1/surfaces/cf6f05fc0e876c8b0057f3aa6a1178006d0b0ee84bef7c536bacbe3e8a19e716.orcacosmo",
+            "surface_sha256": "cf6f05fc0e876c8b0057f3aa6a1178006d0b0ee84bef7c536bacbe3e8a19e716"
+          },
+          {
+            "id": "cohort-04142",
+            "surface": "../phase83-v1/surfaces/2f9a732d1c17e877ee84f74550a1b0bab64799051a85bbd2407dc460a3a7ebf1.orcacosmo",
+            "surface_sha256": "2f9a732d1c17e877ee84f74550a1b0bab64799051a85bbd2407dc460a3a7ebf1"
+          },
+          {
+            "id": "cohort-02068",
+            "surface": "../phase83-v1/surfaces/4c7a70a5f9a9b1ec13bdd47e5abe9dcc5ecc98f42cbf4411f5bfad3d4098f424.orcacosmo",
+            "surface_sha256": "4c7a70a5f9a9b1ec13bdd47e5abe9dcc5ecc98f42cbf4411f5bfad3d4098f424"
+          },
+          {
+            "id": "cohort-03694",
+            "surface": "../phase83-v1/surfaces/771fedc387089d612d660a5d569954f61ca42d6e235e9fb9af0708b63e1bcb6d.orcacosmo",
+            "surface_sha256": "771fedc387089d612d660a5d569954f61ca42d6e235e9fb9af0708b63e1bcb6d"
+          },
+          {
+            "id": "cohort-02711",
+            "surface": "../phase83-v1/surfaces/409e0a5ad67fad812b3084bb4d501cf9c26925b244c22264872a35e2dedda9b9.orcacosmo",
+            "surface_sha256": "409e0a5ad67fad812b3084bb4d501cf9c26925b244c22264872a35e2dedda9b9"
+          },
+          {
+            "id": "cohort-01609",
+            "surface": "../phase83-v1/surfaces/117307a409a4fdb5e03d2f839eb84dd48f4106823ac3a401e007d9a1fbcc51a7.orcacosmo",
+            "surface_sha256": "117307a409a4fdb5e03d2f839eb84dd48f4106823ac3a401e007d9a1fbcc51a7"
+          },
+          {
+            "id": "cohort-03177",
+            "surface": "../phase83-v1/surfaces/478c408c894ac68b4a3c919b74047fd976d49a4b30eaa83e5fa466fec47060e4.orcacosmo",
+            "surface_sha256": "478c408c894ac68b4a3c919b74047fd976d49a4b30eaa83e5fa466fec47060e4"
+          },
+          {
+            "id": "cohort-04504",
+            "surface": "../phase83-v1/surfaces/195e319c0b3b5136c7fb411e7a7b459d6eb190d6265ba73f7b578e0527711aa8.orcacosmo",
+            "surface_sha256": "195e319c0b3b5136c7fb411e7a7b459d6eb190d6265ba73f7b578e0527711aa8"
+          },
+          {
+            "id": "cohort-02055",
+            "surface": "../phase83-v1/surfaces/58ab7c94a79b64f27e6cb6af5570f7d6adf44500029922d2136efcf634fc09ac.orcacosmo",
+            "surface_sha256": "58ab7c94a79b64f27e6cb6af5570f7d6adf44500029922d2136efcf634fc09ac"
+          }
+        ]
+      },
+      {
+        "id": "cohort-03694",
+        "reference": "production_chunk_measurement",
+        "reference_index": 3694,
+        "inchikey": "QKOWXXDOHMJOMQ-UHFFFAOYSA-N",
+        "surface": "../phase83-v1/surfaces/771fedc387089d612d660a5d569954f61ca42d6e235e9fb9af0708b63e1bcb6d.orcacosmo",
+        "surface_sha256": "771fedc387089d612d660a5d569954f61ca42d6e235e9fb9af0708b63e1bcb6d",
+        "molecular_weight_g_mol": 478.6,
+        "primary_partition": "../phase9-v1/chunk-probe-results-v1/0000/partition/cohort-03694.json",
+        "primary_plan_sha256": "cff1b4286be45b8d35fd582f9bd8fa82126f2a03a66a4832180d21f305c4e9e3",
+        "stratum": "03_51_80_N",
+        "name": "1,3,5-Tris(6-isocyanatohexyl)biuret",
+        "atoms": 72,
+        "input_smiles": "C(CCCN=C=O)CCNC(=O)N(CCCCCCN=C=O)C(=O)NCCCCCCN=C=O",
+        "calibration_reasons": [
+          "original three-per-stratum calibration"
+        ],
+        "control_original_batch": [
+          {
+            "id": "cohort-00898",
+            "surface": "../phase83-v1/surfaces/dd0cbe9e60778b5acd3046aa2ba0eb4a7461fe409153daafe6835f348adc4388.orcacosmo",
+            "surface_sha256": "dd0cbe9e60778b5acd3046aa2ba0eb4a7461fe409153daafe6835f348adc4388"
+          },
+          {
+            "id": "cohort-04587",
+            "surface": "../phase83-v1/surfaces/cf6f05fc0e876c8b0057f3aa6a1178006d0b0ee84bef7c536bacbe3e8a19e716.orcacosmo",
+            "surface_sha256": "cf6f05fc0e876c8b0057f3aa6a1178006d0b0ee84bef7c536bacbe3e8a19e716"
+          },
+          {
+            "id": "cohort-04142",
+            "surface": "../phase83-v1/surfaces/2f9a732d1c17e877ee84f74550a1b0bab64799051a85bbd2407dc460a3a7ebf1.orcacosmo",
+            "surface_sha256": "2f9a732d1c17e877ee84f74550a1b0bab64799051a85bbd2407dc460a3a7ebf1"
+          },
+          {
+            "id": "cohort-02068",
+            "surface": "../phase83-v1/surfaces/4c7a70a5f9a9b1ec13bdd47e5abe9dcc5ecc98f42cbf4411f5bfad3d4098f424.orcacosmo",
+            "surface_sha256": "4c7a70a5f9a9b1ec13bdd47e5abe9dcc5ecc98f42cbf4411f5bfad3d4098f424"
+          },
+          {
+            "id": "cohort-03694",
+            "surface": "../phase83-v1/surfaces/771fedc387089d612d660a5d569954f61ca42d6e235e9fb9af0708b63e1bcb6d.orcacosmo",
+            "surface_sha256": "771fedc387089d612d660a5d569954f61ca42d6e235e9fb9af0708b63e1bcb6d"
+          },
+          {
+            "id": "cohort-02711",
+            "surface": "../phase83-v1/surfaces/409e0a5ad67fad812b3084bb4d501cf9c26925b244c22264872a35e2dedda9b9.orcacosmo",
+            "surface_sha256": "409e0a5ad67fad812b3084bb4d501cf9c26925b244c22264872a35e2dedda9b9"
+          },
+          {
+            "id": "cohort-01609",
+            "surface": "../phase83-v1/surfaces/117307a409a4fdb5e03d2f839eb84dd48f4106823ac3a401e007d9a1fbcc51a7.orcacosmo",
+            "surface_sha256": "117307a409a4fdb5e03d2f839eb84dd48f4106823ac3a401e007d9a1fbcc51a7"
+          },
+          {
+            "id": "cohort-03177",
+            "surface": "../phase83-v1/surfaces/478c408c894ac68b4a3c919b74047fd976d49a4b30eaa83e5fa466fec47060e4.orcacosmo",
+            "surface_sha256": "478c408c894ac68b4a3c919b74047fd976d49a4b30eaa83e5fa466fec47060e4"
+          },
+          {
+            "id": "cohort-04504",
+            "surface": "../phase83-v1/surfaces/195e319c0b3b5136c7fb411e7a7b459d6eb190d6265ba73f7b578e0527711aa8.orcacosmo",
+            "surface_sha256": "195e319c0b3b5136c7fb411e7a7b459d6eb190d6265ba73f7b578e0527711aa8"
+          },
+          {
+            "id": "cohort-02055",
+            "surface": "../phase83-v1/surfaces/58ab7c94a79b64f27e6cb6af5570f7d6adf44500029922d2136efcf634fc09ac.orcacosmo",
+            "surface_sha256": "58ab7c94a79b64f27e6cb6af5570f7d6adf44500029922d2136efcf634fc09ac"
+          }
+        ]
+      },
+      {
+        "id": "cohort-04142",
+        "reference": "production_chunk_measurement",
+        "reference_index": 4142,
+        "inchikey": "SFIHQZFZMWZOJV-HZJYTTRNSA-N",
+        "surface": "../phase83-v1/surfaces/2f9a732d1c17e877ee84f74550a1b0bab64799051a85bbd2407dc460a3a7ebf1.orcacosmo",
+        "surface_sha256": "2f9a732d1c17e877ee84f74550a1b0bab64799051a85bbd2407dc460a3a7ebf1",
+        "molecular_weight_g_mol": 279.5,
+        "primary_partition": "../phase9-v1/chunk-probe-results-v1/0000/partition/cohort-04142.json",
+        "primary_plan_sha256": "cff1b4286be45b8d35fd582f9bd8fa82126f2a03a66a4832180d21f305c4e9e3",
+        "stratum": "03_51_80_N",
+        "name": "Linoleamide",
+        "atoms": 53,
+        "input_smiles": "CCCCC/C=C\\C/C=C\\CCCCCCCC(=O)N",
+        "calibration_reasons": [
+          "original three-per-stratum calibration"
+        ],
+        "control_original_batch": [
+          {
+            "id": "cohort-00898",
+            "surface": "../phase83-v1/surfaces/dd0cbe9e60778b5acd3046aa2ba0eb4a7461fe409153daafe6835f348adc4388.orcacosmo",
+            "surface_sha256": "dd0cbe9e60778b5acd3046aa2ba0eb4a7461fe409153daafe6835f348adc4388"
+          },
+          {
+            "id": "cohort-04587",
+            "surface": "../phase83-v1/surfaces/cf6f05fc0e876c8b0057f3aa6a1178006d0b0ee84bef7c536bacbe3e8a19e716.orcacosmo",
+            "surface_sha256": "cf6f05fc0e876c8b0057f3aa6a1178006d0b0ee84bef7c536bacbe3e8a19e716"
+          },
+          {
+            "id": "cohort-04142",
+            "surface": "../phase83-v1/surfaces/2f9a732d1c17e877ee84f74550a1b0bab64799051a85bbd2407dc460a3a7ebf1.orcacosmo",
+            "surface_sha256": "2f9a732d1c17e877ee84f74550a1b0bab64799051a85bbd2407dc460a3a7ebf1"
+          },
+          {
+            "id": "cohort-02068",
+            "surface": "../phase83-v1/surfaces/4c7a70a5f9a9b1ec13bdd47e5abe9dcc5ecc98f42cbf4411f5bfad3d4098f424.orcacosmo",
+            "surface_sha256": "4c7a70a5f9a9b1ec13bdd47e5abe9dcc5ecc98f42cbf4411f5bfad3d4098f424"
+          },
+          {
+            "id": "cohort-03694",
+            "surface": "../phase83-v1/surfaces/771fedc387089d612d660a5d569954f61ca42d6e235e9fb9af0708b63e1bcb6d.orcacosmo",
+            "surface_sha256": "771fedc387089d612d660a5d569954f61ca42d6e235e9fb9af0708b63e1bcb6d"
+          },
+          {
+            "id": "cohort-02711",
+            "surface": "../phase83-v1/surfaces/409e0a5ad67fad812b3084bb4d501cf9c26925b244c22264872a35e2dedda9b9.orcacosmo",
+            "surface_sha256": "409e0a5ad67fad812b3084bb4d501cf9c26925b244c22264872a35e2dedda9b9"
+          },
+          {
+            "id": "cohort-01609",
+            "surface": "../phase83-v1/surfaces/117307a409a4fdb5e03d2f839eb84dd48f4106823ac3a401e007d9a1fbcc51a7.orcacosmo",
+            "surface_sha256": "117307a409a4fdb5e03d2f839eb84dd48f4106823ac3a401e007d9a1fbcc51a7"
+          },
+          {
+            "id": "cohort-03177",
+            "surface": "../phase83-v1/surfaces/478c408c894ac68b4a3c919b74047fd976d49a4b30eaa83e5fa466fec47060e4.orcacosmo",
+            "surface_sha256": "478c408c894ac68b4a3c919b74047fd976d49a4b30eaa83e5fa466fec47060e4"
+          },
+          {
+            "id": "cohort-04504",
+            "surface": "../phase83-v1/surfaces/195e319c0b3b5136c7fb411e7a7b459d6eb190d6265ba73f7b578e0527711aa8.orcacosmo",
+            "surface_sha256": "195e319c0b3b5136c7fb411e7a7b459d6eb190d6265ba73f7b578e0527711aa8"
+          },
+          {
+            "id": "cohort-02055",
+            "surface": "../phase83-v1/surfaces/58ab7c94a79b64f27e6cb6af5570f7d6adf44500029922d2136efcf634fc09ac.orcacosmo",
+            "surface_sha256": "58ab7c94a79b64f27e6cb6af5570f7d6adf44500029922d2136efcf634fc09ac"
+          }
+        ]
+      }
+    ],
+    [
+      {
+        "id": "cohort-00310",
+        "reference": "production",
+        "reference_index": 310,
+        "inchikey": "BJQHLKABXJIVAM-UHFFFAOYSA-N",
+        "surface": "../phase83-v1/surfaces/74a44a31aec2d986fb323839fa71c4ad79ae437e670996af4bb740e3f2bf03ab.orcacosmo",
+        "surface_sha256": "74a44a31aec2d986fb323839fa71c4ad79ae437e670996af4bb740e3f2bf03ab",
+        "molecular_weight_g_mol": 390.6,
+        "primary_partition": "../phase9-v1/production-results-v1/0002/partition/cohort-00310.json",
+        "primary_plan_sha256": "ce19da895df90f231ab91a1b50fc617f78a16684f6445e4b4ef220bef1bfe6c0",
+        "stratum": "03_51_80_noN",
+        "name": "Bis(2-ethylhexyl) phthalate",
+        "atoms": 66,
+        "input_smiles": "CCCCC(CC)COC(=O)C1=CC=CC=C1C(=O)OCC(CC)CCCC",
+        "calibration_reasons": [
+          "phthalate anchor"
+        ],
+        "control_original_batch": [
+          {
+            "id": "cohort-00304",
+            "surface": "../phase83-v1/surfaces/21ccd6812eff70574f9e8ca256e4990e7cce3d0bb32ea6a4ed79351fb54cafb1.orcacosmo",
+            "surface_sha256": "21ccd6812eff70574f9e8ca256e4990e7cce3d0bb32ea6a4ed79351fb54cafb1"
+          },
+          {
+            "id": "cohort-00305",
+            "surface": "../phase83-v1/surfaces/34ec3696465352f2f71ebe0e9c067675bf2422c6efb7398e2a333f6d2f725788.orcacosmo",
+            "surface_sha256": "34ec3696465352f2f71ebe0e9c067675bf2422c6efb7398e2a333f6d2f725788"
+          },
+          {
+            "id": "cohort-00306",
+            "surface": "../phase83-v1/surfaces/5798b36d347f9e72806ea4f8a4a7babfaadc273e42c21b35262754dbaa565cfc.orcacosmo",
+            "surface_sha256": "5798b36d347f9e72806ea4f8a4a7babfaadc273e42c21b35262754dbaa565cfc"
+          },
+          {
+            "id": "cohort-00307",
+            "surface": "../phase83-v1/surfaces/b4da4f61f6f87dfe82393ba0a09600e42a615320aa8f94da3659f9823c324c2a.orcacosmo",
+            "surface_sha256": "b4da4f61f6f87dfe82393ba0a09600e42a615320aa8f94da3659f9823c324c2a"
+          },
+          {
+            "id": "cohort-00308",
+            "surface": "../phase83-v1/surfaces/6073076f7ae8a2bb5d6ba1a646396b3d5d9a7e578f3248bc4b6c337a0e08b9c7.orcacosmo",
+            "surface_sha256": "6073076f7ae8a2bb5d6ba1a646396b3d5d9a7e578f3248bc4b6c337a0e08b9c7"
+          },
+          {
+            "id": "cohort-00309",
+            "surface": "../phase83-v1/surfaces/e784f7abc2d4f5cbd49fadf81bd8850b12eb781b95f31fe8829acaefaf7602cf.orcacosmo",
+            "surface_sha256": "e784f7abc2d4f5cbd49fadf81bd8850b12eb781b95f31fe8829acaefaf7602cf"
+          },
+          {
+            "id": "cohort-00310",
+            "surface": "../phase83-v1/surfaces/74a44a31aec2d986fb323839fa71c4ad79ae437e670996af4bb740e3f2bf03ab.orcacosmo",
+            "surface_sha256": "74a44a31aec2d986fb323839fa71c4ad79ae437e670996af4bb740e3f2bf03ab"
+          },
+          {
+            "id": "cohort-00311",
+            "surface": "../phase83-v1/surfaces/c91f2a1e40236e5ada3f1026295d72b5a629f369f090b17c8750ce9cca64eaea.orcacosmo",
+            "surface_sha256": "c91f2a1e40236e5ada3f1026295d72b5a629f369f090b17c8750ce9cca64eaea"
+          },
+          {
+            "id": "cohort-00312",
+            "surface": "../phase83-v1/surfaces/e410a4dbef0531de58bef9741d08af9c6a3b12de965a47dedf94cc3f9d706ea7.orcacosmo",
+            "surface_sha256": "e410a4dbef0531de58bef9741d08af9c6a3b12de965a47dedf94cc3f9d706ea7"
+          },
+          {
+            "id": "cohort-00313",
+            "surface": "../phase83-v1/surfaces/394b362bd301cb46077ff0000eee77fca8bf589833c72b4ad46580d504f6fe33.orcacosmo",
+            "surface_sha256": "394b362bd301cb46077ff0000eee77fca8bf589833c72b4ad46580d504f6fe33"
+          }
+        ]
+      },
+      {
+        "id": "cohort-01609",
+        "reference": "production_chunk_measurement",
+        "reference_index": 1609,
+        "inchikey": "HPGHRGIPHODCEW-UHFFFAOYSA-N",
+        "surface": "../phase83-v1/surfaces/117307a409a4fdb5e03d2f839eb84dd48f4106823ac3a401e007d9a1fbcc51a7.orcacosmo",
+        "surface_sha256": "117307a409a4fdb5e03d2f839eb84dd48f4106823ac3a401e007d9a1fbcc51a7",
+        "molecular_weight_g_mol": 340.5,
+        "primary_partition": "../phase9-v1/chunk-probe-results-v1/0000/partition/cohort-01609.json",
+        "primary_plan_sha256": "cff1b4286be45b8d35fd582f9bd8fa82126f2a03a66a4832180d21f305c4e9e3",
+        "stratum": "03_51_80_noN",
+        "name": "Ethyl 8-[3-[(3-pentyloxiran-2-yl)methyl]oxiran-2-yl]octanoate",
+        "atoms": 60,
+        "input_smiles": "CCCCCC1C(O1)CC2C(O2)CCCCCCCC(=O)OCC",
+        "calibration_reasons": [
+          "original three-per-stratum calibration"
+        ],
+        "control_original_batch": [
+          {
+            "id": "cohort-00898",
+            "surface": "../phase83-v1/surfaces/dd0cbe9e60778b5acd3046aa2ba0eb4a7461fe409153daafe6835f348adc4388.orcacosmo",
+            "surface_sha256": "dd0cbe9e60778b5acd3046aa2ba0eb4a7461fe409153daafe6835f348adc4388"
+          },
+          {
+            "id": "cohort-04587",
+            "surface": "../phase83-v1/surfaces/cf6f05fc0e876c8b0057f3aa6a1178006d0b0ee84bef7c536bacbe3e8a19e716.orcacosmo",
+            "surface_sha256": "cf6f05fc0e876c8b0057f3aa6a1178006d0b0ee84bef7c536bacbe3e8a19e716"
+          },
+          {
+            "id": "cohort-04142",
+            "surface": "../phase83-v1/surfaces/2f9a732d1c17e877ee84f74550a1b0bab64799051a85bbd2407dc460a3a7ebf1.orcacosmo",
+            "surface_sha256": "2f9a732d1c17e877ee84f74550a1b0bab64799051a85bbd2407dc460a3a7ebf1"
+          },
+          {
+            "id": "cohort-02068",
+            "surface": "../phase83-v1/surfaces/4c7a70a5f9a9b1ec13bdd47e5abe9dcc5ecc98f42cbf4411f5bfad3d4098f424.orcacosmo",
+            "surface_sha256": "4c7a70a5f9a9b1ec13bdd47e5abe9dcc5ecc98f42cbf4411f5bfad3d4098f424"
+          },
+          {
+            "id": "cohort-03694",
+            "surface": "../phase83-v1/surfaces/771fedc387089d612d660a5d569954f61ca42d6e235e9fb9af0708b63e1bcb6d.orcacosmo",
+            "surface_sha256": "771fedc387089d612d660a5d569954f61ca42d6e235e9fb9af0708b63e1bcb6d"
+          },
+          {
+            "id": "cohort-02711",
+            "surface": "../phase83-v1/surfaces/409e0a5ad67fad812b3084bb4d501cf9c26925b244c22264872a35e2dedda9b9.orcacosmo",
+            "surface_sha256": "409e0a5ad67fad812b3084bb4d501cf9c26925b244c22264872a35e2dedda9b9"
+          },
+          {
+            "id": "cohort-01609",
+            "surface": "../phase83-v1/surfaces/117307a409a4fdb5e03d2f839eb84dd48f4106823ac3a401e007d9a1fbcc51a7.orcacosmo",
+            "surface_sha256": "117307a409a4fdb5e03d2f839eb84dd48f4106823ac3a401e007d9a1fbcc51a7"
+          },
+          {
+            "id": "cohort-03177",
+            "surface": "../phase83-v1/surfaces/478c408c894ac68b4a3c919b74047fd976d49a4b30eaa83e5fa466fec47060e4.orcacosmo",
+            "surface_sha256": "478c408c894ac68b4a3c919b74047fd976d49a4b30eaa83e5fa466fec47060e4"
+          },
+          {
+            "id": "cohort-04504",
+            "surface": "../phase83-v1/surfaces/195e319c0b3b5136c7fb411e7a7b459d6eb190d6265ba73f7b578e0527711aa8.orcacosmo",
+            "surface_sha256": "195e319c0b3b5136c7fb411e7a7b459d6eb190d6265ba73f7b578e0527711aa8"
+          },
+          {
+            "id": "cohort-02055",
+            "surface": "../phase83-v1/surfaces/58ab7c94a79b64f27e6cb6af5570f7d6adf44500029922d2136efcf634fc09ac.orcacosmo",
+            "surface_sha256": "58ab7c94a79b64f27e6cb6af5570f7d6adf44500029922d2136efcf634fc09ac"
+          }
+        ]
+      },
+      {
+        "id": "cohort-02711",
+        "reference": "production_chunk_measurement",
+        "reference_index": 2711,
+        "inchikey": "MHVJRKBZMUDEEV-APQLOABGSA-N",
+        "surface": "../phase83-v1/surfaces/409e0a5ad67fad812b3084bb4d501cf9c26925b244c22264872a35e2dedda9b9.orcacosmo",
+        "surface_sha256": "409e0a5ad67fad812b3084bb4d501cf9c26925b244c22264872a35e2dedda9b9",
+        "molecular_weight_g_mol": 302.5,
+        "primary_partition": "../phase9-v1/chunk-probe-results-v1/0000/partition/cohort-02711.json",
+        "primary_plan_sha256": "cff1b4286be45b8d35fd582f9bd8fa82126f2a03a66a4832180d21f305c4e9e3",
+        "stratum": "03_51_80_noN",
+        "name": "Pimaric acid",
+        "atoms": 52,
+        "input_smiles": "C[C@]1(CC[C@H]2C(=C1)CC[C@@H]3[C@@]2(CCC[C@@]3(C)C(=O)O)C)C=C",
+        "calibration_reasons": [
+          "original three-per-stratum calibration"
+        ],
+        "control_original_batch": [
+          {
+            "id": "cohort-00898",
+            "surface": "../phase83-v1/surfaces/dd0cbe9e60778b5acd3046aa2ba0eb4a7461fe409153daafe6835f348adc4388.orcacosmo",
+            "surface_sha256": "dd0cbe9e60778b5acd3046aa2ba0eb4a7461fe409153daafe6835f348adc4388"
+          },
+          {
+            "id": "cohort-04587",
+            "surface": "../phase83-v1/surfaces/cf6f05fc0e876c8b0057f3aa6a1178006d0b0ee84bef7c536bacbe3e8a19e716.orcacosmo",
+            "surface_sha256": "cf6f05fc0e876c8b0057f3aa6a1178006d0b0ee84bef7c536bacbe3e8a19e716"
+          },
+          {
+            "id": "cohort-04142",
+            "surface": "../phase83-v1/surfaces/2f9a732d1c17e877ee84f74550a1b0bab64799051a85bbd2407dc460a3a7ebf1.orcacosmo",
+            "surface_sha256": "2f9a732d1c17e877ee84f74550a1b0bab64799051a85bbd2407dc460a3a7ebf1"
+          },
+          {
+            "id": "cohort-02068",
+            "surface": "../phase83-v1/surfaces/4c7a70a5f9a9b1ec13bdd47e5abe9dcc5ecc98f42cbf4411f5bfad3d4098f424.orcacosmo",
+            "surface_sha256": "4c7a70a5f9a9b1ec13bdd47e5abe9dcc5ecc98f42cbf4411f5bfad3d4098f424"
+          },
+          {
+            "id": "cohort-03694",
+            "surface": "../phase83-v1/surfaces/771fedc387089d612d660a5d569954f61ca42d6e235e9fb9af0708b63e1bcb6d.orcacosmo",
+            "surface_sha256": "771fedc387089d612d660a5d569954f61ca42d6e235e9fb9af0708b63e1bcb6d"
+          },
+          {
+            "id": "cohort-02711",
+            "surface": "../phase83-v1/surfaces/409e0a5ad67fad812b3084bb4d501cf9c26925b244c22264872a35e2dedda9b9.orcacosmo",
+            "surface_sha256": "409e0a5ad67fad812b3084bb4d501cf9c26925b244c22264872a35e2dedda9b9"
+          },
+          {
+            "id": "cohort-01609",
+            "surface": "../phase83-v1/surfaces/117307a409a4fdb5e03d2f839eb84dd48f4106823ac3a401e007d9a1fbcc51a7.orcacosmo",
+            "surface_sha256": "117307a409a4fdb5e03d2f839eb84dd48f4106823ac3a401e007d9a1fbcc51a7"
+          },
+          {
+            "id": "cohort-03177",
+            "surface": "../phase83-v1/surfaces/478c408c894ac68b4a3c919b74047fd976d49a4b30eaa83e5fa466fec47060e4.orcacosmo",
+            "surface_sha256": "478c408c894ac68b4a3c919b74047fd976d49a4b30eaa83e5fa466fec47060e4"
+          },
+          {
+            "id": "cohort-04504",
+            "surface": "../phase83-v1/surfaces/195e319c0b3b5136c7fb411e7a7b459d6eb190d6265ba73f7b578e0527711aa8.orcacosmo",
+            "surface_sha256": "195e319c0b3b5136c7fb411e7a7b459d6eb190d6265ba73f7b578e0527711aa8"
+          },
+          {
+            "id": "cohort-02055",
+            "surface": "../phase83-v1/surfaces/58ab7c94a79b64f27e6cb6af5570f7d6adf44500029922d2136efcf634fc09ac.orcacosmo",
+            "surface_sha256": "58ab7c94a79b64f27e6cb6af5570f7d6adf44500029922d2136efcf634fc09ac"
+          }
+        ]
+      },
+      {
+        "id": "cohort-03177",
+        "reference": "production_chunk_measurement",
+        "reference_index": 3177,
+        "inchikey": "OFEMBBUDYGTDON-UHFFFAOYSA-N",
+        "surface": "../phase83-v1/surfaces/478c408c894ac68b4a3c919b74047fd976d49a4b30eaa83e5fa466fec47060e4.orcacosmo",
+        "surface_sha256": "478c408c894ac68b4a3c919b74047fd976d49a4b30eaa83e5fa466fec47060e4",
+        "molecular_weight_g_mol": 354.7,
+        "primary_partition": "../phase9-v1/chunk-probe-results-v1/0000/partition/cohort-03177.json",
+        "primary_plan_sha256": "cff1b4286be45b8d35fd582f9bd8fa82126f2a03a66a4832180d21f305c4e9e3",
+        "stratum": "03_51_80_noN",
+        "name": "Cetyl octyl ether",
+        "atoms": 75,
+        "input_smiles": "CCCCCCCCCCCCCCCCOCCCCCCCC",
+        "calibration_reasons": [
+          "original three-per-stratum calibration"
+        ],
+        "control_original_batch": [
+          {
+            "id": "cohort-00898",
+            "surface": "../phase83-v1/surfaces/dd0cbe9e60778b5acd3046aa2ba0eb4a7461fe409153daafe6835f348adc4388.orcacosmo",
+            "surface_sha256": "dd0cbe9e60778b5acd3046aa2ba0eb4a7461fe409153daafe6835f348adc4388"
+          },
+          {
+            "id": "cohort-04587",
+            "surface": "../phase83-v1/surfaces/cf6f05fc0e876c8b0057f3aa6a1178006d0b0ee84bef7c536bacbe3e8a19e716.orcacosmo",
+            "surface_sha256": "cf6f05fc0e876c8b0057f3aa6a1178006d0b0ee84bef7c536bacbe3e8a19e716"
+          },
+          {
+            "id": "cohort-04142",
+            "surface": "../phase83-v1/surfaces/2f9a732d1c17e877ee84f74550a1b0bab64799051a85bbd2407dc460a3a7ebf1.orcacosmo",
+            "surface_sha256": "2f9a732d1c17e877ee84f74550a1b0bab64799051a85bbd2407dc460a3a7ebf1"
+          },
+          {
+            "id": "cohort-02068",
+            "surface": "../phase83-v1/surfaces/4c7a70a5f9a9b1ec13bdd47e5abe9dcc5ecc98f42cbf4411f5bfad3d4098f424.orcacosmo",
+            "surface_sha256": "4c7a70a5f9a9b1ec13bdd47e5abe9dcc5ecc98f42cbf4411f5bfad3d4098f424"
+          },
+          {
+            "id": "cohort-03694",
+            "surface": "../phase83-v1/surfaces/771fedc387089d612d660a5d569954f61ca42d6e235e9fb9af0708b63e1bcb6d.orcacosmo",
+            "surface_sha256": "771fedc387089d612d660a5d569954f61ca42d6e235e9fb9af0708b63e1bcb6d"
+          },
+          {
+            "id": "cohort-02711",
+            "surface": "../phase83-v1/surfaces/409e0a5ad67fad812b3084bb4d501cf9c26925b244c22264872a35e2dedda9b9.orcacosmo",
+            "surface_sha256": "409e0a5ad67fad812b3084bb4d501cf9c26925b244c22264872a35e2dedda9b9"
+          },
+          {
+            "id": "cohort-01609",
+            "surface": "../phase83-v1/surfaces/117307a409a4fdb5e03d2f839eb84dd48f4106823ac3a401e007d9a1fbcc51a7.orcacosmo",
+            "surface_sha256": "117307a409a4fdb5e03d2f839eb84dd48f4106823ac3a401e007d9a1fbcc51a7"
+          },
+          {
+            "id": "cohort-03177",
+            "surface": "../phase83-v1/surfaces/478c408c894ac68b4a3c919b74047fd976d49a4b30eaa83e5fa466fec47060e4.orcacosmo",
+            "surface_sha256": "478c408c894ac68b4a3c919b74047fd976d49a4b30eaa83e5fa466fec47060e4"
+          },
+          {
+            "id": "cohort-04504",
+            "surface": "../phase83-v1/surfaces/195e319c0b3b5136c7fb411e7a7b459d6eb190d6265ba73f7b578e0527711aa8.orcacosmo",
+            "surface_sha256": "195e319c0b3b5136c7fb411e7a7b459d6eb190d6265ba73f7b578e0527711aa8"
+          },
+          {
+            "id": "cohort-02055",
+            "surface": "../phase83-v1/surfaces/58ab7c94a79b64f27e6cb6af5570f7d6adf44500029922d2136efcf634fc09ac.orcacosmo",
+            "surface_sha256": "58ab7c94a79b64f27e6cb6af5570f7d6adf44500029922d2136efcf634fc09ac"
+          }
+        ]
+      }
+    ],
+    [
+      {
+        "id": "cohort-02055",
+        "reference": "production_chunk_measurement",
+        "reference_index": 2055,
+        "inchikey": "JMUOXOJMXILBTE-UHFFFAOYSA-N",
+        "surface": "../phase83-v1/surfaces/58ab7c94a79b64f27e6cb6af5570f7d6adf44500029922d2136efcf634fc09ac.orcacosmo",
+        "surface_sha256": "58ab7c94a79b64f27e6cb6af5570f7d6adf44500029922d2136efcf634fc09ac",
+        "molecular_weight_g_mol": 423.7,
+        "primary_partition": "../phase9-v1/chunk-probe-results-v1/0000/partition/cohort-02055.json",
+        "primary_plan_sha256": "cff1b4286be45b8d35fd582f9bd8fa82126f2a03a66a4832180d21f305c4e9e3",
+        "stratum": "04_gt80_N",
+        "name": "(2,2,6,6-Tetramethylpiperidin-4-yl) octadecanoate",
+        "atoms": 83,
+        "input_smiles": "CCCCCCCCCCCCCCCCCC(=O)OC1CC(NC(C1)(C)C)(C)C",
+        "calibration_reasons": [
+          "original three-per-stratum calibration"
+        ],
+        "control_original_batch": [
+          {
+            "id": "cohort-00898",
+            "surface": "../phase83-v1/surfaces/dd0cbe9e60778b5acd3046aa2ba0eb4a7461fe409153daafe6835f348adc4388.orcacosmo",
+            "surface_sha256": "dd0cbe9e60778b5acd3046aa2ba0eb4a7461fe409153daafe6835f348adc4388"
+          },
+          {
+            "id": "cohort-04587",
+            "surface": "../phase83-v1/surfaces/cf6f05fc0e876c8b0057f3aa6a1178006d0b0ee84bef7c536bacbe3e8a19e716.orcacosmo",
+            "surface_sha256": "cf6f05fc0e876c8b0057f3aa6a1178006d0b0ee84bef7c536bacbe3e8a19e716"
+          },
+          {
+            "id": "cohort-04142",
+            "surface": "../phase83-v1/surfaces/2f9a732d1c17e877ee84f74550a1b0bab64799051a85bbd2407dc460a3a7ebf1.orcacosmo",
+            "surface_sha256": "2f9a732d1c17e877ee84f74550a1b0bab64799051a85bbd2407dc460a3a7ebf1"
+          },
+          {
+            "id": "cohort-02068",
+            "surface": "../phase83-v1/surfaces/4c7a70a5f9a9b1ec13bdd47e5abe9dcc5ecc98f42cbf4411f5bfad3d4098f424.orcacosmo",
+            "surface_sha256": "4c7a70a5f9a9b1ec13bdd47e5abe9dcc5ecc98f42cbf4411f5bfad3d4098f424"
+          },
+          {
+            "id": "cohort-03694",
+            "surface": "../phase83-v1/surfaces/771fedc387089d612d660a5d569954f61ca42d6e235e9fb9af0708b63e1bcb6d.orcacosmo",
+            "surface_sha256": "771fedc387089d612d660a5d569954f61ca42d6e235e9fb9af0708b63e1bcb6d"
+          },
+          {
+            "id": "cohort-02711",
+            "surface": "../phase83-v1/surfaces/409e0a5ad67fad812b3084bb4d501cf9c26925b244c22264872a35e2dedda9b9.orcacosmo",
+            "surface_sha256": "409e0a5ad67fad812b3084bb4d501cf9c26925b244c22264872a35e2dedda9b9"
+          },
+          {
+            "id": "cohort-01609",
+            "surface": "../phase83-v1/surfaces/117307a409a4fdb5e03d2f839eb84dd48f4106823ac3a401e007d9a1fbcc51a7.orcacosmo",
+            "surface_sha256": "117307a409a4fdb5e03d2f839eb84dd48f4106823ac3a401e007d9a1fbcc51a7"
+          },
+          {
+            "id": "cohort-03177",
+            "surface": "../phase83-v1/surfaces/478c408c894ac68b4a3c919b74047fd976d49a4b30eaa83e5fa466fec47060e4.orcacosmo",
+            "surface_sha256": "478c408c894ac68b4a3c919b74047fd976d49a4b30eaa83e5fa466fec47060e4"
+          },
+          {
+            "id": "cohort-04504",
+            "surface": "../phase83-v1/surfaces/195e319c0b3b5136c7fb411e7a7b459d6eb190d6265ba73f7b578e0527711aa8.orcacosmo",
+            "surface_sha256": "195e319c0b3b5136c7fb411e7a7b459d6eb190d6265ba73f7b578e0527711aa8"
+          },
+          {
+            "id": "cohort-02055",
+            "surface": "../phase83-v1/surfaces/58ab7c94a79b64f27e6cb6af5570f7d6adf44500029922d2136efcf634fc09ac.orcacosmo",
+            "surface_sha256": "58ab7c94a79b64f27e6cb6af5570f7d6adf44500029922d2136efcf634fc09ac"
+          }
+        ]
+      },
+      {
+        "id": "cohort-04324",
+        "reference": "production_chunk_measurement",
+        "reference_index": 4324,
+        "inchikey": "SZQRSDJOAHBRSI-UHFFFAOYSA-N",
+        "surface": "../phase83-v1/surfaces/d57f7825140293a45a9cb10eaa568168d7de4c4a0b06906341259341f97f90a1.orcacosmo",
+        "surface_sha256": "d57f7825140293a45a9cb10eaa568168d7de4c4a0b06906341259341f97f90a1",
+        "molecular_weight_g_mol": 480.8,
+        "primary_partition": "../phase9-v1/chunk-probe-results-v1/0000/partition/cohort-04324.json",
+        "primary_plan_sha256": "cff1b4286be45b8d35fd582f9bd8fa82126f2a03a66a4832180d21f305c4e9e3",
+        "stratum": "04_gt80_N",
+        "name": "N,N'-Ethylenebismyristamide",
+        "atoms": 94,
+        "input_smiles": "CCCCCCCCCCCCCC(=O)NCCNC(=O)CCCCCCCCCCCCC",
+        "calibration_reasons": [
+          "original three-per-stratum calibration"
+        ],
+        "control_original_batch": [
+          {
+            "id": "cohort-04324",
+            "surface": "../phase83-v1/surfaces/d57f7825140293a45a9cb10eaa568168d7de4c4a0b06906341259341f97f90a1.orcacosmo",
+            "surface_sha256": "d57f7825140293a45a9cb10eaa568168d7de4c4a0b06906341259341f97f90a1"
+          },
+          {
+            "id": "cohort-01857",
+            "surface": "../phase83-v1/surfaces/4eb081cca3ff5e89901effff232880f20d43fc77b2df9ad719c371ca252a5961.orcacosmo",
+            "surface_sha256": "4eb081cca3ff5e89901effff232880f20d43fc77b2df9ad719c371ca252a5961"
+          },
+          {
+            "id": "cohort-03620",
+            "surface": "../phase83-v1/surfaces/37e7d44d225f4cec2e3362d65dfae1349ad6b4d7584268bf1e59ac85ea1c8b0b.orcacosmo",
+            "surface_sha256": "37e7d44d225f4cec2e3362d65dfae1349ad6b4d7584268bf1e59ac85ea1c8b0b"
+          },
+          {
+            "id": "cohort-05742",
+            "surface": "../phase83-v1/surfaces/39b5bfc3b143ae5e7f94bfb5a3735ea7ea5fa024adc7be71c59e407c6fcf8e41.orcacosmo",
+            "surface_sha256": "39b5bfc3b143ae5e7f94bfb5a3735ea7ea5fa024adc7be71c59e407c6fcf8e41"
+          },
+          {
+            "id": "cohort-05806",
+            "surface": "../phase83-v1/surfaces/28f418c99aefcabfeea9209d28f1ee99c0646efb1df02ebba07b1c27914fab63.orcacosmo",
+            "surface_sha256": "28f418c99aefcabfeea9209d28f1ee99c0646efb1df02ebba07b1c27914fab63"
+          },
+          {
+            "id": "cohort-05827",
+            "surface": "../phase83-v1/surfaces/c1e0df41eefe06d2524916dd5bf18dee7e6acafb996fe8910fe4a613e486c254.orcacosmo",
+            "surface_sha256": "c1e0df41eefe06d2524916dd5bf18dee7e6acafb996fe8910fe4a613e486c254"
+          },
+          {
+            "id": "cohort-05829",
+            "surface": "../phase83-v1/surfaces/82a613f2878b8c9c6140c51da3f457f6f32777a91be6e3208a87e81e554f610b.orcacosmo",
+            "surface_sha256": "82a613f2878b8c9c6140c51da3f457f6f32777a91be6e3208a87e81e554f610b"
+          },
+          {
+            "id": "cohort-00000",
+            "surface": "../phase83-v1/surfaces/4d27e86d555f5f46398a864b6e3e15c160d229588f031ffc909b41966b3be017.orcacosmo",
+            "surface_sha256": "4d27e86d555f5f46398a864b6e3e15c160d229588f031ffc909b41966b3be017"
+          },
+          {
+            "id": "cohort-00001",
+            "surface": "../phase83-v1/surfaces/b853dc13fa88332afddd694ea33bc6e2643d59399ca9c7cfc5554985f98df78e.orcacosmo",
+            "surface_sha256": "b853dc13fa88332afddd694ea33bc6e2643d59399ca9c7cfc5554985f98df78e"
+          },
+          {
+            "id": "cohort-00002",
+            "surface": "../phase83-v1/surfaces/905b779ba8208f6cc8e3f11cb5f64bdfd07484dbdf50d941313e164db6c0fee9.orcacosmo",
+            "surface_sha256": "905b779ba8208f6cc8e3f11cb5f64bdfd07484dbdf50d941313e164db6c0fee9"
+          }
+        ]
+      },
+      {
+        "id": "cohort-04504",
+        "reference": "production_chunk_measurement",
+        "reference_index": 4504,
+        "inchikey": "UONLDZHKYCFZRW-UHFFFAOYSA-N",
+        "surface": "../phase83-v1/surfaces/195e319c0b3b5136c7fb411e7a7b459d6eb190d6265ba73f7b578e0527711aa8.orcacosmo",
+        "surface_sha256": "195e319c0b3b5136c7fb411e7a7b459d6eb190d6265ba73f7b578e0527711aa8",
+        "molecular_weight_g_mol": 450.7,
+        "primary_partition": "../phase9-v1/chunk-probe-results-v1/0000/partition/cohort-04504.json",
+        "primary_plan_sha256": "cff1b4286be45b8d35fd582f9bd8fa82126f2a03a66a4832180d21f305c4e9e3",
+        "stratum": "04_gt80_N",
+        "name": "Formamide, N,N'-1,6-hexanediylbis[N-(2,2,6,6-tetramethyl-4-piperidinyl)-",
+        "atoms": 82,
+        "input_smiles": "CC1(CC(CC(N1)(C)C)N(CCCCCCN(C=O)C2CC(NC(C2)(C)C)(C)C)C=O)C",
+        "calibration_reasons": [
+          "original three-per-stratum calibration"
+        ],
+        "control_original_batch": [
+          {
+            "id": "cohort-00898",
+            "surface": "../phase83-v1/surfaces/dd0cbe9e60778b5acd3046aa2ba0eb4a7461fe409153daafe6835f348adc4388.orcacosmo",
+            "surface_sha256": "dd0cbe9e60778b5acd3046aa2ba0eb4a7461fe409153daafe6835f348adc4388"
+          },
+          {
+            "id": "cohort-04587",
+            "surface": "../phase83-v1/surfaces/cf6f05fc0e876c8b0057f3aa6a1178006d0b0ee84bef7c536bacbe3e8a19e716.orcacosmo",
+            "surface_sha256": "cf6f05fc0e876c8b0057f3aa6a1178006d0b0ee84bef7c536bacbe3e8a19e716"
+          },
+          {
+            "id": "cohort-04142",
+            "surface": "../phase83-v1/surfaces/2f9a732d1c17e877ee84f74550a1b0bab64799051a85bbd2407dc460a3a7ebf1.orcacosmo",
+            "surface_sha256": "2f9a732d1c17e877ee84f74550a1b0bab64799051a85bbd2407dc460a3a7ebf1"
+          },
+          {
+            "id": "cohort-02068",
+            "surface": "../phase83-v1/surfaces/4c7a70a5f9a9b1ec13bdd47e5abe9dcc5ecc98f42cbf4411f5bfad3d4098f424.orcacosmo",
+            "surface_sha256": "4c7a70a5f9a9b1ec13bdd47e5abe9dcc5ecc98f42cbf4411f5bfad3d4098f424"
+          },
+          {
+            "id": "cohort-03694",
+            "surface": "../phase83-v1/surfaces/771fedc387089d612d660a5d569954f61ca42d6e235e9fb9af0708b63e1bcb6d.orcacosmo",
+            "surface_sha256": "771fedc387089d612d660a5d569954f61ca42d6e235e9fb9af0708b63e1bcb6d"
+          },
+          {
+            "id": "cohort-02711",
+            "surface": "../phase83-v1/surfaces/409e0a5ad67fad812b3084bb4d501cf9c26925b244c22264872a35e2dedda9b9.orcacosmo",
+            "surface_sha256": "409e0a5ad67fad812b3084bb4d501cf9c26925b244c22264872a35e2dedda9b9"
+          },
+          {
+            "id": "cohort-01609",
+            "surface": "../phase83-v1/surfaces/117307a409a4fdb5e03d2f839eb84dd48f4106823ac3a401e007d9a1fbcc51a7.orcacosmo",
+            "surface_sha256": "117307a409a4fdb5e03d2f839eb84dd48f4106823ac3a401e007d9a1fbcc51a7"
+          },
+          {
+            "id": "cohort-03177",
+            "surface": "../phase83-v1/surfaces/478c408c894ac68b4a3c919b74047fd976d49a4b30eaa83e5fa466fec47060e4.orcacosmo",
+            "surface_sha256": "478c408c894ac68b4a3c919b74047fd976d49a4b30eaa83e5fa466fec47060e4"
+          },
+          {
+            "id": "cohort-04504",
+            "surface": "../phase83-v1/surfaces/195e319c0b3b5136c7fb411e7a7b459d6eb190d6265ba73f7b578e0527711aa8.orcacosmo",
+            "surface_sha256": "195e319c0b3b5136c7fb411e7a7b459d6eb190d6265ba73f7b578e0527711aa8"
+          },
+          {
+            "id": "cohort-02055",
+            "surface": "../phase83-v1/surfaces/58ab7c94a79b64f27e6cb6af5570f7d6adf44500029922d2136efcf634fc09ac.orcacosmo",
+            "surface_sha256": "58ab7c94a79b64f27e6cb6af5570f7d6adf44500029922d2136efcf634fc09ac"
+          }
+        ]
+      }
+    ],
+    [
+      {
+        "id": "cohort-01857",
+        "reference": "production_chunk_measurement",
+        "reference_index": 1857,
+        "inchikey": "IOWILYDIQORSRC-UHFFFAOYSA-N",
+        "surface": "../phase83-v1/surfaces/4eb081cca3ff5e89901effff232880f20d43fc77b2df9ad719c371ca252a5961.orcacosmo",
+        "surface_sha256": "4eb081cca3ff5e89901effff232880f20d43fc77b2df9ad719c371ca252a5961",
+        "molecular_weight_g_mol": 472.7,
+        "primary_partition": "../phase9-v1/chunk-probe-results-v1/0000/partition/cohort-01857.json",
+        "primary_plan_sha256": "cff1b4286be45b8d35fd582f9bd8fa82126f2a03a66a4832180d21f305c4e9e3",
+        "stratum": "04_gt80_noN",
+        "name": "Dicyclohexyl 21-crown-7",
+        "atoms": 81,
+        "input_smiles": "C1CCC(CC1)C2(COCCOCCOCCOCCOCCOCCO2)C3CCCCC3",
+        "calibration_reasons": [
+          "original three-per-stratum calibration"
+        ],
+        "control_original_batch": [
+          {
+            "id": "cohort-04324",
+            "surface": "../phase83-v1/surfaces/d57f7825140293a45a9cb10eaa568168d7de4c4a0b06906341259341f97f90a1.orcacosmo",
+            "surface_sha256": "d57f7825140293a45a9cb10eaa568168d7de4c4a0b06906341259341f97f90a1"
+          },
+          {
+            "id": "cohort-01857",
+            "surface": "../phase83-v1/surfaces/4eb081cca3ff5e89901effff232880f20d43fc77b2df9ad719c371ca252a5961.orcacosmo",
+            "surface_sha256": "4eb081cca3ff5e89901effff232880f20d43fc77b2df9ad719c371ca252a5961"
+          },
+          {
+            "id": "cohort-03620",
+            "surface": "../phase83-v1/surfaces/37e7d44d225f4cec2e3362d65dfae1349ad6b4d7584268bf1e59ac85ea1c8b0b.orcacosmo",
+            "surface_sha256": "37e7d44d225f4cec2e3362d65dfae1349ad6b4d7584268bf1e59ac85ea1c8b0b"
+          },
+          {
+            "id": "cohort-05742",
+            "surface": "../phase83-v1/surfaces/39b5bfc3b143ae5e7f94bfb5a3735ea7ea5fa024adc7be71c59e407c6fcf8e41.orcacosmo",
+            "surface_sha256": "39b5bfc3b143ae5e7f94bfb5a3735ea7ea5fa024adc7be71c59e407c6fcf8e41"
+          },
+          {
+            "id": "cohort-05806",
+            "surface": "../phase83-v1/surfaces/28f418c99aefcabfeea9209d28f1ee99c0646efb1df02ebba07b1c27914fab63.orcacosmo",
+            "surface_sha256": "28f418c99aefcabfeea9209d28f1ee99c0646efb1df02ebba07b1c27914fab63"
+          },
+          {
+            "id": "cohort-05827",
+            "surface": "../phase83-v1/surfaces/c1e0df41eefe06d2524916dd5bf18dee7e6acafb996fe8910fe4a613e486c254.orcacosmo",
+            "surface_sha256": "c1e0df41eefe06d2524916dd5bf18dee7e6acafb996fe8910fe4a613e486c254"
+          },
+          {
+            "id": "cohort-05829",
+            "surface": "../phase83-v1/surfaces/82a613f2878b8c9c6140c51da3f457f6f32777a91be6e3208a87e81e554f610b.orcacosmo",
+            "surface_sha256": "82a613f2878b8c9c6140c51da3f457f6f32777a91be6e3208a87e81e554f610b"
+          },
+          {
+            "id": "cohort-00000",
+            "surface": "../phase83-v1/surfaces/4d27e86d555f5f46398a864b6e3e15c160d229588f031ffc909b41966b3be017.orcacosmo",
+            "surface_sha256": "4d27e86d555f5f46398a864b6e3e15c160d229588f031ffc909b41966b3be017"
+          },
+          {
+            "id": "cohort-00001",
+            "surface": "../phase83-v1/surfaces/b853dc13fa88332afddd694ea33bc6e2643d59399ca9c7cfc5554985f98df78e.orcacosmo",
+            "surface_sha256": "b853dc13fa88332afddd694ea33bc6e2643d59399ca9c7cfc5554985f98df78e"
+          },
+          {
+            "id": "cohort-00002",
+            "surface": "../phase83-v1/surfaces/905b779ba8208f6cc8e3f11cb5f64bdfd07484dbdf50d941313e164db6c0fee9.orcacosmo",
+            "surface_sha256": "905b779ba8208f6cc8e3f11cb5f64bdfd07484dbdf50d941313e164db6c0fee9"
+          }
+        ]
+      },
+      {
+        "id": "cohort-03620",
+        "reference": "production_chunk_measurement",
+        "reference_index": 3620,
+        "inchikey": "PZUXYVVFGLRVRG-UHFFFAOYSA-N",
+        "surface": "../phase83-v1/surfaces/37e7d44d225f4cec2e3362d65dfae1349ad6b4d7584268bf1e59ac85ea1c8b0b.orcacosmo",
+        "surface_sha256": "37e7d44d225f4cec2e3362d65dfae1349ad6b4d7584268bf1e59ac85ea1c8b0b",
+        "molecular_weight_g_mol": 454.7,
+        "primary_partition": "../phase9-v1/chunk-probe-results-v1/0000/partition/cohort-03620.json",
+        "primary_plan_sha256": "cff1b4286be45b8d35fd582f9bd8fa82126f2a03a66a4832180d21f305c4e9e3",
+        "stratum": "04_gt80_noN",
+        "name": "Sebacic acid, decyl octyl ester",
+        "atoms": 86,
+        "input_smiles": "CCCCCCCCCCOC(=O)CCCCCCCCC(=O)OCCCCCCCC",
+        "calibration_reasons": [
+          "original three-per-stratum calibration"
+        ],
+        "control_original_batch": [
+          {
+            "id": "cohort-04324",
+            "surface": "../phase83-v1/surfaces/d57f7825140293a45a9cb10eaa568168d7de4c4a0b06906341259341f97f90a1.orcacosmo",
+            "surface_sha256": "d57f7825140293a45a9cb10eaa568168d7de4c4a0b06906341259341f97f90a1"
+          },
+          {
+            "id": "cohort-01857",
+            "surface": "../phase83-v1/surfaces/4eb081cca3ff5e89901effff232880f20d43fc77b2df9ad719c371ca252a5961.orcacosmo",
+            "surface_sha256": "4eb081cca3ff5e89901effff232880f20d43fc77b2df9ad719c371ca252a5961"
+          },
+          {
+            "id": "cohort-03620",
+            "surface": "../phase83-v1/surfaces/37e7d44d225f4cec2e3362d65dfae1349ad6b4d7584268bf1e59ac85ea1c8b0b.orcacosmo",
+            "surface_sha256": "37e7d44d225f4cec2e3362d65dfae1349ad6b4d7584268bf1e59ac85ea1c8b0b"
+          },
+          {
+            "id": "cohort-05742",
+            "surface": "../phase83-v1/surfaces/39b5bfc3b143ae5e7f94bfb5a3735ea7ea5fa024adc7be71c59e407c6fcf8e41.orcacosmo",
+            "surface_sha256": "39b5bfc3b143ae5e7f94bfb5a3735ea7ea5fa024adc7be71c59e407c6fcf8e41"
+          },
+          {
+            "id": "cohort-05806",
+            "surface": "../phase83-v1/surfaces/28f418c99aefcabfeea9209d28f1ee99c0646efb1df02ebba07b1c27914fab63.orcacosmo",
+            "surface_sha256": "28f418c99aefcabfeea9209d28f1ee99c0646efb1df02ebba07b1c27914fab63"
+          },
+          {
+            "id": "cohort-05827",
+            "surface": "../phase83-v1/surfaces/c1e0df41eefe06d2524916dd5bf18dee7e6acafb996fe8910fe4a613e486c254.orcacosmo",
+            "surface_sha256": "c1e0df41eefe06d2524916dd5bf18dee7e6acafb996fe8910fe4a613e486c254"
+          },
+          {
+            "id": "cohort-05829",
+            "surface": "../phase83-v1/surfaces/82a613f2878b8c9c6140c51da3f457f6f32777a91be6e3208a87e81e554f610b.orcacosmo",
+            "surface_sha256": "82a613f2878b8c9c6140c51da3f457f6f32777a91be6e3208a87e81e554f610b"
+          },
+          {
+            "id": "cohort-00000",
+            "surface": "../phase83-v1/surfaces/4d27e86d555f5f46398a864b6e3e15c160d229588f031ffc909b41966b3be017.orcacosmo",
+            "surface_sha256": "4d27e86d555f5f46398a864b6e3e15c160d229588f031ffc909b41966b3be017"
+          },
+          {
+            "id": "cohort-00001",
+            "surface": "../phase83-v1/surfaces/b853dc13fa88332afddd694ea33bc6e2643d59399ca9c7cfc5554985f98df78e.orcacosmo",
+            "surface_sha256": "b853dc13fa88332afddd694ea33bc6e2643d59399ca9c7cfc5554985f98df78e"
+          },
+          {
+            "id": "cohort-00002",
+            "surface": "../phase83-v1/surfaces/905b779ba8208f6cc8e3f11cb5f64bdfd07484dbdf50d941313e164db6c0fee9.orcacosmo",
+            "surface_sha256": "905b779ba8208f6cc8e3f11cb5f64bdfd07484dbdf50d941313e164db6c0fee9"
+          }
+        ]
+      },
+      {
+        "id": "cohort-05742",
+        "reference": "production_chunk_measurement",
+        "reference_index": 5742,
+        "inchikey": "ZTLKOYAJKRWSKL-UHFFFAOYSA-N",
+        "surface": "../phase83-v1/surfaces/39b5bfc3b143ae5e7f94bfb5a3735ea7ea5fa024adc7be71c59e407c6fcf8e41.orcacosmo",
+        "surface_sha256": "39b5bfc3b143ae5e7f94bfb5a3735ea7ea5fa024adc7be71c59e407c6fcf8e41",
+        "molecular_weight_g_mol": 450.9,
+        "primary_partition": "../phase9-v1/chunk-probe-results-v1/0000/partition/cohort-05742.json",
+        "primary_plan_sha256": "cff1b4286be45b8d35fd582f9bd8fa82126f2a03a66a4832180d21f305c4e9e3",
+        "stratum": "04_gt80_noN",
+        "name": "11-Decyldocosane",
+        "atoms": 98,
+        "input_smiles": "CCCCCCCCCCCC(CCCCCCCCCC)CCCCCCCCCC",
+        "calibration_reasons": [
+          "original three-per-stratum calibration"
+        ],
+        "control_original_batch": [
+          {
+            "id": "cohort-04324",
+            "surface": "../phase83-v1/surfaces/d57f7825140293a45a9cb10eaa568168d7de4c4a0b06906341259341f97f90a1.orcacosmo",
+            "surface_sha256": "d57f7825140293a45a9cb10eaa568168d7de4c4a0b06906341259341f97f90a1"
+          },
+          {
+            "id": "cohort-01857",
+            "surface": "../phase83-v1/surfaces/4eb081cca3ff5e89901effff232880f20d43fc77b2df9ad719c371ca252a5961.orcacosmo",
+            "surface_sha256": "4eb081cca3ff5e89901effff232880f20d43fc77b2df9ad719c371ca252a5961"
+          },
+          {
+            "id": "cohort-03620",
+            "surface": "../phase83-v1/surfaces/37e7d44d225f4cec2e3362d65dfae1349ad6b4d7584268bf1e59ac85ea1c8b0b.orcacosmo",
+            "surface_sha256": "37e7d44d225f4cec2e3362d65dfae1349ad6b4d7584268bf1e59ac85ea1c8b0b"
+          },
+          {
+            "id": "cohort-05742",
+            "surface": "../phase83-v1/surfaces/39b5bfc3b143ae5e7f94bfb5a3735ea7ea5fa024adc7be71c59e407c6fcf8e41.orcacosmo",
+            "surface_sha256": "39b5bfc3b143ae5e7f94bfb5a3735ea7ea5fa024adc7be71c59e407c6fcf8e41"
+          },
+          {
+            "id": "cohort-05806",
+            "surface": "../phase83-v1/surfaces/28f418c99aefcabfeea9209d28f1ee99c0646efb1df02ebba07b1c27914fab63.orcacosmo",
+            "surface_sha256": "28f418c99aefcabfeea9209d28f1ee99c0646efb1df02ebba07b1c27914fab63"
+          },
+          {
+            "id": "cohort-05827",
+            "surface": "../phase83-v1/surfaces/c1e0df41eefe06d2524916dd5bf18dee7e6acafb996fe8910fe4a613e486c254.orcacosmo",
+            "surface_sha256": "c1e0df41eefe06d2524916dd5bf18dee7e6acafb996fe8910fe4a613e486c254"
+          },
+          {
+            "id": "cohort-05829",
+            "surface": "../phase83-v1/surfaces/82a613f2878b8c9c6140c51da3f457f6f32777a91be6e3208a87e81e554f610b.orcacosmo",
+            "surface_sha256": "82a613f2878b8c9c6140c51da3f457f6f32777a91be6e3208a87e81e554f610b"
+          },
+          {
+            "id": "cohort-00000",
+            "surface": "../phase83-v1/surfaces/4d27e86d555f5f46398a864b6e3e15c160d229588f031ffc909b41966b3be017.orcacosmo",
+            "surface_sha256": "4d27e86d555f5f46398a864b6e3e15c160d229588f031ffc909b41966b3be017"
+          },
+          {
+            "id": "cohort-00001",
+            "surface": "../phase83-v1/surfaces/b853dc13fa88332afddd694ea33bc6e2643d59399ca9c7cfc5554985f98df78e.orcacosmo",
+            "surface_sha256": "b853dc13fa88332afddd694ea33bc6e2643d59399ca9c7cfc5554985f98df78e"
+          },
+          {
+            "id": "cohort-00002",
+            "surface": "../phase83-v1/surfaces/905b779ba8208f6cc8e3f11cb5f64bdfd07484dbdf50d941313e164db6c0fee9.orcacosmo",
+            "surface_sha256": "905b779ba8208f6cc8e3f11cb5f64bdfd07484dbdf50d941313e164db6c0fee9"
+          }
+        ]
+      }
+    ],
+    [
+      {
+        "id": "cohort-05806",
+        "reference": "production_chunk_measurement",
+        "reference_index": 5806,
+        "inchikey": "DMPXHEMGDYKSFL-UHFFFAOYSA-N",
+        "surface": "../phase83-v1/surfaces/28f418c99aefcabfeea9209d28f1ee99c0646efb1df02ebba07b1c27914fab63.orcacosmo",
+        "surface_sha256": "28f418c99aefcabfeea9209d28f1ee99c0646efb1df02ebba07b1c27914fab63",
+        "molecular_weight_g_mol": 620.67,
+        "primary_partition": "../phase9-v1/chunk-probe-results-v1/0000/partition/cohort-05806.json",
+        "primary_plan_sha256": "cff1b4286be45b8d35fd582f9bd8fa82126f2a03a66a4832180d21f305c4e9e3",
+        "stratum": "tier2",
+        "name": "Butanamide, 2,2'-((3,3'-dimethoxy(1,1'-biphenyl)-4,4'-diyl)bis(2,1-diazenediyl))bis(3-oxo-N-phenyl-",
+        "atoms": 78,
+        "input_smiles": "CC(=O)C(C(=O)NC1=CC=CC=C1)N=NC2=C(C=C(C=C2)C3=CC(=C(C=C3)N=NC(C(=O)C)C(=O)NC4=CC=CC=C4)OC)OC",
+        "calibration_reasons": [
+          "original three-per-stratum calibration"
+        ],
+        "control_original_batch": [
+          {
+            "id": "cohort-04324",
+            "surface": "../phase83-v1/surfaces/d57f7825140293a45a9cb10eaa568168d7de4c4a0b06906341259341f97f90a1.orcacosmo",
+            "surface_sha256": "d57f7825140293a45a9cb10eaa568168d7de4c4a0b06906341259341f97f90a1"
+          },
+          {
+            "id": "cohort-01857",
+            "surface": "../phase83-v1/surfaces/4eb081cca3ff5e89901effff232880f20d43fc77b2df9ad719c371ca252a5961.orcacosmo",
+            "surface_sha256": "4eb081cca3ff5e89901effff232880f20d43fc77b2df9ad719c371ca252a5961"
+          },
+          {
+            "id": "cohort-03620",
+            "surface": "../phase83-v1/surfaces/37e7d44d225f4cec2e3362d65dfae1349ad6b4d7584268bf1e59ac85ea1c8b0b.orcacosmo",
+            "surface_sha256": "37e7d44d225f4cec2e3362d65dfae1349ad6b4d7584268bf1e59ac85ea1c8b0b"
+          },
+          {
+            "id": "cohort-05742",
+            "surface": "../phase83-v1/surfaces/39b5bfc3b143ae5e7f94bfb5a3735ea7ea5fa024adc7be71c59e407c6fcf8e41.orcacosmo",
+            "surface_sha256": "39b5bfc3b143ae5e7f94bfb5a3735ea7ea5fa024adc7be71c59e407c6fcf8e41"
+          },
+          {
+            "id": "cohort-05806",
+            "surface": "../phase83-v1/surfaces/28f418c99aefcabfeea9209d28f1ee99c0646efb1df02ebba07b1c27914fab63.orcacosmo",
+            "surface_sha256": "28f418c99aefcabfeea9209d28f1ee99c0646efb1df02ebba07b1c27914fab63"
+          },
+          {
+            "id": "cohort-05827",
+            "surface": "../phase83-v1/surfaces/c1e0df41eefe06d2524916dd5bf18dee7e6acafb996fe8910fe4a613e486c254.orcacosmo",
+            "surface_sha256": "c1e0df41eefe06d2524916dd5bf18dee7e6acafb996fe8910fe4a613e486c254"
+          },
+          {
+            "id": "cohort-05829",
+            "surface": "../phase83-v1/surfaces/82a613f2878b8c9c6140c51da3f457f6f32777a91be6e3208a87e81e554f610b.orcacosmo",
+            "surface_sha256": "82a613f2878b8c9c6140c51da3f457f6f32777a91be6e3208a87e81e554f610b"
+          },
+          {
+            "id": "cohort-00000",
+            "surface": "../phase83-v1/surfaces/4d27e86d555f5f46398a864b6e3e15c160d229588f031ffc909b41966b3be017.orcacosmo",
+            "surface_sha256": "4d27e86d555f5f46398a864b6e3e15c160d229588f031ffc909b41966b3be017"
+          },
+          {
+            "id": "cohort-00001",
+            "surface": "../phase83-v1/surfaces/b853dc13fa88332afddd694ea33bc6e2643d59399ca9c7cfc5554985f98df78e.orcacosmo",
+            "surface_sha256": "b853dc13fa88332afddd694ea33bc6e2643d59399ca9c7cfc5554985f98df78e"
+          },
+          {
+            "id": "cohort-00002",
+            "surface": "../phase83-v1/surfaces/905b779ba8208f6cc8e3f11cb5f64bdfd07484dbdf50d941313e164db6c0fee9.orcacosmo",
+            "surface_sha256": "905b779ba8208f6cc8e3f11cb5f64bdfd07484dbdf50d941313e164db6c0fee9"
+          }
+        ]
+      },
+      {
+        "id": "cohort-05819",
+        "reference": "production",
+        "reference_index": 5819,
+        "inchikey": "NJIMZDGGLTUCPX-UHFFFAOYSA-N",
+        "surface": "../phase83-v1/surfaces/c90998c483a5046adb4f7af5031844c705c1bf682dad0f149fcbb8251da46233.orcacosmo",
+        "surface_sha256": "c90998c483a5046adb4f7af5031844c705c1bf682dad0f149fcbb8251da46233",
+        "molecular_weight_g_mol": 649.19,
+        "primary_partition": "../phase9-v1/production-results-v1/0057/partition/cohort-05819.json",
+        "primary_plan_sha256": "ce19da895df90f231ab91a1b50fc617f78a16684f6445e4b4ef220bef1bfe6c0",
+        "stratum": "tier2",
+        "name": "Behenyl behenate",
+        "atoms": 134,
+        "input_smiles": "CCCCCCCCCCCCCCCCCCCCCCOC(=O)CCCCCCCCCCCCCCCCCCCCC",
+        "calibration_reasons": [
+          "population maximum atoms",
+          "population maximum rotatable_bonds"
+        ],
+        "control_original_batch": [
+          {
+            "id": "cohort-05818",
+            "surface": "../phase83-v1/surfaces/4b718cb2bed1e51e17e13ef1b9cfe9c8c8b9b8aac46adaf34b976f88f8ddeed0.orcacosmo",
+            "surface_sha256": "4b718cb2bed1e51e17e13ef1b9cfe9c8c8b9b8aac46adaf34b976f88f8ddeed0"
+          },
+          {
+            "id": "cohort-05819",
+            "surface": "../phase83-v1/surfaces/c90998c483a5046adb4f7af5031844c705c1bf682dad0f149fcbb8251da46233.orcacosmo",
+            "surface_sha256": "c90998c483a5046adb4f7af5031844c705c1bf682dad0f149fcbb8251da46233"
+          },
+          {
+            "id": "cohort-05820",
+            "surface": "../phase83-v1/surfaces/9b08842b1ab7bb124c7b8b823effc2fe3cae0dd0d521aaa299c2c6492b82cfd3.orcacosmo",
+            "surface_sha256": "9b08842b1ab7bb124c7b8b823effc2fe3cae0dd0d521aaa299c2c6492b82cfd3"
+          },
+          {
+            "id": "cohort-05821",
+            "surface": "../phase83-v1/surfaces/d1c62c3e4281a87b87b14b2270fe539361613a2f5ec991621ba995c23732c636.orcacosmo",
+            "surface_sha256": "d1c62c3e4281a87b87b14b2270fe539361613a2f5ec991621ba995c23732c636"
+          },
+          {
+            "id": "cohort-05822",
+            "surface": "../phase83-v1/surfaces/7b1090937dc35a4ab1065d43f30ad11418f346fa86aafd0c2b0514ac327ec311.orcacosmo",
+            "surface_sha256": "7b1090937dc35a4ab1065d43f30ad11418f346fa86aafd0c2b0514ac327ec311"
+          },
+          {
+            "id": "cohort-05823",
+            "surface": "../phase83-v1/surfaces/2f3c22d0182f9b4ebfb19e6ae24fc681e1ac2c5336b3062edac060659564e3cd.orcacosmo",
+            "surface_sha256": "2f3c22d0182f9b4ebfb19e6ae24fc681e1ac2c5336b3062edac060659564e3cd"
+          },
+          {
+            "id": "cohort-05824",
+            "surface": "../phase83-v1/surfaces/340bf60e1823dabc9fdcbe9fed317dbba3bdf4c00a619216574c472c157c26c1.orcacosmo",
+            "surface_sha256": "340bf60e1823dabc9fdcbe9fed317dbba3bdf4c00a619216574c472c157c26c1"
+          },
+          {
+            "id": "cohort-05825",
+            "surface": "../phase83-v1/surfaces/53ae24319c39e1945504569b46bb4bf3d458866b3cce2b28e355bce7d97684ba.orcacosmo",
+            "surface_sha256": "53ae24319c39e1945504569b46bb4bf3d458866b3cce2b28e355bce7d97684ba"
+          },
+          {
+            "id": "cohort-05826",
+            "surface": "../phase83-v1/surfaces/8ec069d18623dfeaa07e917d6908f9229635776b22e58b2e8fd0c89c09bad4e0.orcacosmo",
+            "surface_sha256": "8ec069d18623dfeaa07e917d6908f9229635776b22e58b2e8fd0c89c09bad4e0"
+          },
+          {
+            "id": "cohort-05828",
+            "surface": "../phase83-v1/surfaces/b670d309df9ce4f65b16e0c6850b79aa8562d05694fbb1c90a3100449f568b8b.orcacosmo",
+            "surface_sha256": "b670d309df9ce4f65b16e0c6850b79aa8562d05694fbb1c90a3100449f568b8b"
+          }
+        ]
+      },
+      {
+        "id": "cohort-05822",
+        "reference": "production",
+        "reference_index": 5822,
+        "inchikey": "QRNJAQUNBRODGN-UHFFFAOYSA-N",
+        "surface": "../phase83-v1/surfaces/7b1090937dc35a4ab1065d43f30ad11418f346fa86aafd0c2b0514ac327ec311.orcacosmo",
+        "surface_sha256": "7b1090937dc35a4ab1065d43f30ad11418f346fa86aafd0c2b0514ac327ec311",
+        "molecular_weight_g_mol": 674.61,
+        "primary_partition": "../phase9-v1/production-results-v1/0057/partition/cohort-05822.json",
+        "primary_plan_sha256": "ce19da895df90f231ab91a1b50fc617f78a16684f6445e4b4ef220bef1bfe6c0",
+        "stratum": "tier2",
+        "name": "1,2,4,5-Benzenetetracarboxylic acid, 1,4-bis[2-[(2-methyl-1-oxo-2-propen-1-yl)oxy]-1-[[(2-methyl-1-oxo-2-propen-1-yl)oxy]methyl]ethyl] ester",
+        "atoms": 82,
+        "input_smiles": "CC(=C)C(=O)OCC(COC(=O)C(=C)C)OC(=O)C1=CC(=C(C=C1C(=O)O)C(=O)OC(COC(=O)C(=C)C)COC(=O)C(=C)C)C(=O)O",
+        "calibration_reasons": [
+          "population maximum oxygen_atoms"
+        ],
+        "control_original_batch": [
+          {
+            "id": "cohort-05818",
+            "surface": "../phase83-v1/surfaces/4b718cb2bed1e51e17e13ef1b9cfe9c8c8b9b8aac46adaf34b976f88f8ddeed0.orcacosmo",
+            "surface_sha256": "4b718cb2bed1e51e17e13ef1b9cfe9c8c8b9b8aac46adaf34b976f88f8ddeed0"
+          },
+          {
+            "id": "cohort-05819",
+            "surface": "../phase83-v1/surfaces/c90998c483a5046adb4f7af5031844c705c1bf682dad0f149fcbb8251da46233.orcacosmo",
+            "surface_sha256": "c90998c483a5046adb4f7af5031844c705c1bf682dad0f149fcbb8251da46233"
+          },
+          {
+            "id": "cohort-05820",
+            "surface": "../phase83-v1/surfaces/9b08842b1ab7bb124c7b8b823effc2fe3cae0dd0d521aaa299c2c6492b82cfd3.orcacosmo",
+            "surface_sha256": "9b08842b1ab7bb124c7b8b823effc2fe3cae0dd0d521aaa299c2c6492b82cfd3"
+          },
+          {
+            "id": "cohort-05821",
+            "surface": "../phase83-v1/surfaces/d1c62c3e4281a87b87b14b2270fe539361613a2f5ec991621ba995c23732c636.orcacosmo",
+            "surface_sha256": "d1c62c3e4281a87b87b14b2270fe539361613a2f5ec991621ba995c23732c636"
+          },
+          {
+            "id": "cohort-05822",
+            "surface": "../phase83-v1/surfaces/7b1090937dc35a4ab1065d43f30ad11418f346fa86aafd0c2b0514ac327ec311.orcacosmo",
+            "surface_sha256": "7b1090937dc35a4ab1065d43f30ad11418f346fa86aafd0c2b0514ac327ec311"
+          },
+          {
+            "id": "cohort-05823",
+            "surface": "../phase83-v1/surfaces/2f3c22d0182f9b4ebfb19e6ae24fc681e1ac2c5336b3062edac060659564e3cd.orcacosmo",
+            "surface_sha256": "2f3c22d0182f9b4ebfb19e6ae24fc681e1ac2c5336b3062edac060659564e3cd"
+          },
+          {
+            "id": "cohort-05824",
+            "surface": "../phase83-v1/surfaces/340bf60e1823dabc9fdcbe9fed317dbba3bdf4c00a619216574c472c157c26c1.orcacosmo",
+            "surface_sha256": "340bf60e1823dabc9fdcbe9fed317dbba3bdf4c00a619216574c472c157c26c1"
+          },
+          {
+            "id": "cohort-05825",
+            "surface": "../phase83-v1/surfaces/53ae24319c39e1945504569b46bb4bf3d458866b3cce2b28e355bce7d97684ba.orcacosmo",
+            "surface_sha256": "53ae24319c39e1945504569b46bb4bf3d458866b3cce2b28e355bce7d97684ba"
+          },
+          {
+            "id": "cohort-05826",
+            "surface": "../phase83-v1/surfaces/8ec069d18623dfeaa07e917d6908f9229635776b22e58b2e8fd0c89c09bad4e0.orcacosmo",
+            "surface_sha256": "8ec069d18623dfeaa07e917d6908f9229635776b22e58b2e8fd0c89c09bad4e0"
+          },
+          {
+            "id": "cohort-05828",
+            "surface": "../phase83-v1/surfaces/b670d309df9ce4f65b16e0c6850b79aa8562d05694fbb1c90a3100449f568b8b.orcacosmo",
+            "surface_sha256": "b670d309df9ce4f65b16e0c6850b79aa8562d05694fbb1c90a3100449f568b8b"
+          }
+        ]
+      },
+      {
+        "id": "cohort-05827",
+        "reference": "production_chunk_measurement",
+        "reference_index": 5827,
+        "inchikey": "VMRGZRVLZQSNHC-UHFFFAOYSA-N",
+        "surface": "../phase83-v1/surfaces/c1e0df41eefe06d2524916dd5bf18dee7e6acafb996fe8910fe4a613e486c254.orcacosmo",
+        "surface_sha256": "c1e0df41eefe06d2524916dd5bf18dee7e6acafb996fe8910fe4a613e486c254",
+        "molecular_weight_g_mol": 505.92,
+        "primary_partition": "../phase9-v1/chunk-probe-results-v1/0000/partition/cohort-05827.json",
+        "primary_plan_sha256": "cff1b4286be45b8d35fd582f9bd8fa82126f2a03a66a4832180d21f305c4e9e3",
+        "stratum": "tier2",
+        "name": "N-octadec-9-enylhexadecanamide",
+        "atoms": 103,
+        "input_smiles": "CCCCCCCCCCCCCCCC(=O)NCCCCCCCCC=CCCCCCCCC",
+        "calibration_reasons": [
+          "original three-per-stratum calibration"
+        ],
+        "control_original_batch": [
+          {
+            "id": "cohort-04324",
+            "surface": "../phase83-v1/surfaces/d57f7825140293a45a9cb10eaa568168d7de4c4a0b06906341259341f97f90a1.orcacosmo",
+            "surface_sha256": "d57f7825140293a45a9cb10eaa568168d7de4c4a0b06906341259341f97f90a1"
+          },
+          {
+            "id": "cohort-01857",
+            "surface": "../phase83-v1/surfaces/4eb081cca3ff5e89901effff232880f20d43fc77b2df9ad719c371ca252a5961.orcacosmo",
+            "surface_sha256": "4eb081cca3ff5e89901effff232880f20d43fc77b2df9ad719c371ca252a5961"
+          },
+          {
+            "id": "cohort-03620",
+            "surface": "../phase83-v1/surfaces/37e7d44d225f4cec2e3362d65dfae1349ad6b4d7584268bf1e59ac85ea1c8b0b.orcacosmo",
+            "surface_sha256": "37e7d44d225f4cec2e3362d65dfae1349ad6b4d7584268bf1e59ac85ea1c8b0b"
+          },
+          {
+            "id": "cohort-05742",
+            "surface": "../phase83-v1/surfaces/39b5bfc3b143ae5e7f94bfb5a3735ea7ea5fa024adc7be71c59e407c6fcf8e41.orcacosmo",
+            "surface_sha256": "39b5bfc3b143ae5e7f94bfb5a3735ea7ea5fa024adc7be71c59e407c6fcf8e41"
+          },
+          {
+            "id": "cohort-05806",
+            "surface": "../phase83-v1/surfaces/28f418c99aefcabfeea9209d28f1ee99c0646efb1df02ebba07b1c27914fab63.orcacosmo",
+            "surface_sha256": "28f418c99aefcabfeea9209d28f1ee99c0646efb1df02ebba07b1c27914fab63"
+          },
+          {
+            "id": "cohort-05827",
+            "surface": "../phase83-v1/surfaces/c1e0df41eefe06d2524916dd5bf18dee7e6acafb996fe8910fe4a613e486c254.orcacosmo",
+            "surface_sha256": "c1e0df41eefe06d2524916dd5bf18dee7e6acafb996fe8910fe4a613e486c254"
+          },
+          {
+            "id": "cohort-05829",
+            "surface": "../phase83-v1/surfaces/82a613f2878b8c9c6140c51da3f457f6f32777a91be6e3208a87e81e554f610b.orcacosmo",
+            "surface_sha256": "82a613f2878b8c9c6140c51da3f457f6f32777a91be6e3208a87e81e554f610b"
+          },
+          {
+            "id": "cohort-00000",
+            "surface": "../phase83-v1/surfaces/4d27e86d555f5f46398a864b6e3e15c160d229588f031ffc909b41966b3be017.orcacosmo",
+            "surface_sha256": "4d27e86d555f5f46398a864b6e3e15c160d229588f031ffc909b41966b3be017"
+          },
+          {
+            "id": "cohort-00001",
+            "surface": "../phase83-v1/surfaces/b853dc13fa88332afddd694ea33bc6e2643d59399ca9c7cfc5554985f98df78e.orcacosmo",
+            "surface_sha256": "b853dc13fa88332afddd694ea33bc6e2643d59399ca9c7cfc5554985f98df78e"
+          },
+          {
+            "id": "cohort-00002",
+            "surface": "../phase83-v1/surfaces/905b779ba8208f6cc8e3f11cb5f64bdfd07484dbdf50d941313e164db6c0fee9.orcacosmo",
+            "surface_sha256": "905b779ba8208f6cc8e3f11cb5f64bdfd07484dbdf50d941313e164db6c0fee9"
+          }
+        ]
+      },
+      {
+        "id": "cohort-05829",
+        "reference": "production_chunk_measurement",
+        "reference_index": 5829,
+        "inchikey": "ZNRNSKNVPBUUNI-CLFAGFIQSA-N",
+        "surface": "../phase83-v1/surfaces/82a613f2878b8c9c6140c51da3f457f6f32777a91be6e3208a87e81e554f610b.orcacosmo",
+        "surface_sha256": "82a613f2878b8c9c6140c51da3f457f6f32777a91be6e3208a87e81e554f610b",
+        "molecular_weight_g_mol": 647.08,
+        "primary_partition": "../phase9-v1/chunk-probe-results-v1/0000/partition/cohort-05829.json",
+        "primary_plan_sha256": "cff1b4286be45b8d35fd582f9bd8fa82126f2a03a66a4832180d21f305c4e9e3",
+        "stratum": "tier2",
+        "name": "1,6-Hexanediyl dioleate",
+        "atoms": 124,
+        "input_smiles": "CCCCCCCC/C=C\\CCCCCCCC(=O)OCCCCCCOC(=O)CCCCCCC/C=C\\CCCCCCCC",
+        "calibration_reasons": [
+          "original three-per-stratum calibration"
+        ],
+        "control_original_batch": [
+          {
+            "id": "cohort-04324",
+            "surface": "../phase83-v1/surfaces/d57f7825140293a45a9cb10eaa568168d7de4c4a0b06906341259341f97f90a1.orcacosmo",
+            "surface_sha256": "d57f7825140293a45a9cb10eaa568168d7de4c4a0b06906341259341f97f90a1"
+          },
+          {
+            "id": "cohort-01857",
+            "surface": "../phase83-v1/surfaces/4eb081cca3ff5e89901effff232880f20d43fc77b2df9ad719c371ca252a5961.orcacosmo",
+            "surface_sha256": "4eb081cca3ff5e89901effff232880f20d43fc77b2df9ad719c371ca252a5961"
+          },
+          {
+            "id": "cohort-03620",
+            "surface": "../phase83-v1/surfaces/37e7d44d225f4cec2e3362d65dfae1349ad6b4d7584268bf1e59ac85ea1c8b0b.orcacosmo",
+            "surface_sha256": "37e7d44d225f4cec2e3362d65dfae1349ad6b4d7584268bf1e59ac85ea1c8b0b"
+          },
+          {
+            "id": "cohort-05742",
+            "surface": "../phase83-v1/surfaces/39b5bfc3b143ae5e7f94bfb5a3735ea7ea5fa024adc7be71c59e407c6fcf8e41.orcacosmo",
+            "surface_sha256": "39b5bfc3b143ae5e7f94bfb5a3735ea7ea5fa024adc7be71c59e407c6fcf8e41"
+          },
+          {
+            "id": "cohort-05806",
+            "surface": "../phase83-v1/surfaces/28f418c99aefcabfeea9209d28f1ee99c0646efb1df02ebba07b1c27914fab63.orcacosmo",
+            "surface_sha256": "28f418c99aefcabfeea9209d28f1ee99c0646efb1df02ebba07b1c27914fab63"
+          },
+          {
+            "id": "cohort-05827",
+            "surface": "../phase83-v1/surfaces/c1e0df41eefe06d2524916dd5bf18dee7e6acafb996fe8910fe4a613e486c254.orcacosmo",
+            "surface_sha256": "c1e0df41eefe06d2524916dd5bf18dee7e6acafb996fe8910fe4a613e486c254"
+          },
+          {
+            "id": "cohort-05829",
+            "surface": "../phase83-v1/surfaces/82a613f2878b8c9c6140c51da3f457f6f32777a91be6e3208a87e81e554f610b.orcacosmo",
+            "surface_sha256": "82a613f2878b8c9c6140c51da3f457f6f32777a91be6e3208a87e81e554f610b"
+          },
+          {
+            "id": "cohort-00000",
+            "surface": "../phase83-v1/surfaces/4d27e86d555f5f46398a864b6e3e15c160d229588f031ffc909b41966b3be017.orcacosmo",
+            "surface_sha256": "4d27e86d555f5f46398a864b6e3e15c160d229588f031ffc909b41966b3be017"
+          },
+          {
+            "id": "cohort-00001",
+            "surface": "../phase83-v1/surfaces/b853dc13fa88332afddd694ea33bc6e2643d59399ca9c7cfc5554985f98df78e.orcacosmo",
+            "surface_sha256": "b853dc13fa88332afddd694ea33bc6e2643d59399ca9c7cfc5554985f98df78e"
+          },
+          {
+            "id": "cohort-00002",
+            "surface": "../phase83-v1/surfaces/905b779ba8208f6cc8e3f11cb5f64bdfd07484dbdf50d941313e164db6c0fee9.orcacosmo",
+            "surface_sha256": "905b779ba8208f6cc8e3f11cb5f64bdfd07484dbdf50d941313e164db6c0fee9"
+          }
+        ]
+      }
+    ]
+  ],
+  "subbatch": 10,
+  "grid_batch": 256,
+  "output": "calibration-results-v2",
+  "cost_limit_CPU_h": 510,
+  "production_chunk_size": 100,
+  "constraint": "(milan|genoa)&cpu",
+  "worker_pins_file": "worker-pins-v2.json",
+  "control_design": "Exact original A-9 subbatch membership and order; tolerance unchanged at 1e-9"
+}

@@ -1,0 +1,9 @@
+"""Extend reference coverage without changing any already-selected observation."""
+from pathlib import Path
+import json,csv,hashlib,datetime
+R=Path('/mnt/r/plastchem-euler');D=R/'combined-validation-references-2026-09-17-later';D.mkdir(exist_ok=False)
+p=R/'combined-validation-references-2026-09-17/experimental-reference-candidates.csv';q=R/'measured-expansion-2026-09-17-later/newly-covered-candidates.csv';old=list(csv.DictReader(p.open()));new=list(csv.DictReader(q.open()));keys={r['input_inchikey'] for r in old};assert not keys&{r['input_inchikey'] for r in new};rows=old+new;assert len(rows)==len({r['input_inchikey'] for r in rows})
+with (D/'experimental-reference-candidates.csv').open('w',newline='') as f:
+ w=csv.DictWriter(f,fieldnames=list(old[0]));w.writeheader();w.writerows(rows)
+s={'utc':datetime.datetime.now(datetime.timezone.utc).isoformat(),'preserved_selections':len(old),'added_observations':len(new),'selected_entries':len(rows),'connectivity_blocks':len({r['input_inchikey'].split('-')[0] for r in rows}),'sources':{str(x):hashlib.sha256(x.read_bytes()).hexdigest() for x in [p,q]},'selection':'All previous choices retained verbatim. Add only newly covered OPERA observed references; no prediction-dependent selection.'}
+(D/'summary.json').write_text(json.dumps(s,indent=2)+'\n');(D/'REPORT.md').write_text('# Extended selected references\n\n'+json.dumps(s,indent=2)+'\n\nCoverage counts are not paired accuracy counts. Source citations and original retrieval times are retained per row. No existing result package changed.\n');(D/Path(__file__).name).write_bytes(Path(__file__).read_bytes());(D/'artifacts.sha256').write_text(''.join(hashlib.sha256(p.read_bytes()).hexdigest()+'  '+p.name+'\n' for p in sorted(D.iterdir()) if p.is_file() and p.name!='artifacts.sha256'));print(json.dumps(s))

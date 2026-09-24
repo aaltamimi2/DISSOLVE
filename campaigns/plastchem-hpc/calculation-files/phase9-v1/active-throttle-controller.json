@@ -1,0 +1,9 @@
+{
+  "utc": "2026-09-24T17:36:19.682081+00:00",
+  "filename": "phase9_throttle_remote_v6.py",
+  "sha256": "6ba886e34cc08bf9b937924d5041948bca8c740fa2696188e80c9a099eb62f80",
+  "cap": 64,
+  "primary_release_id": "91b2ab133c17e5c66557c483ff84fbeca297682d5bd622a404ecba2746b23080",
+  "authority": "A-10 under owner-authorized shared cap 64; primary release complete",
+  "purpose": "Borrow currently idle capacity; preserve actual running reservations and guard tier-2 dependency transition"
+}

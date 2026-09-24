@@ -1,0 +1,66 @@
+{
+  "name": "contam-phase10-retry-tail0057",
+  "utc": "2026-09-24T18:48:57.423953+00:00",
+  "purpose": "extension_recovery",
+  "indices": [
+    0,
+    1,
+    2
+  ],
+  "operations": [
+    {
+      "command": [
+        "squeue",
+        "-h",
+        "-r",
+        "-u",
+        "aaltamimi2",
+        "--name=contam-phase10-retry-tail0057",
+        "-o",
+        "%i|%j|%T"
+      ],
+      "returncode": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "sacct",
+        "-nP",
+        "-u",
+        "aaltamimi2",
+        "--starttime=2026-09-24",
+        "--name=contam-phase10-retry-tail0057",
+        "--format=JobID%40,JobName%60,State,Elapsed,NodeList"
+      ],
+      "returncode": 0,
+      "stdout": "",
+      "stderr": ""
+    }
+  ],
+  "assignment_sha256": "357930aaffa16419ddf64cc02c0c95f79f68072c2fb9666c3f28c650dd8049df",
+  "reconciliation": {
+    "squeue": "",
+    "sacct": ""
+  },
+  "command": [
+    "sbatch",
+    "--parsable",
+    "--hold",
+    "--job-name=contam-phase10-retry-tail0057",
+    "--partition=research",
+    "--constraint=(milan|genoa)&cpu",
+    "--exclude=euler09,euler10",
+    "--nodes=1",
+    "--ntasks=1",
+    "--cpus-per-task=1",
+    "--mem=4G",
+    "--time=08:00:00",
+    "--no-requeue",
+    "--array=0-2%3",
+    "--chdir=/srv/home/aaltamimi2/plastchem-euler/phase10-v1",
+    "--output=/srv/home/aaltamimi2/plastchem-euler/phase10-v1/logs/tail-%A_%a.out",
+    "--error=/srv/home/aaltamimi2/plastchem-euler/phase10-v1/logs/tail-%A_%a.err",
+    "--wrap=export OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1 PYTHONPATH=../phase8-v1; ../phase8-v1/venv/bin/python -u phase10_tail_helper.py tail-0057-v1/assignment.json \"$SLURM_ARRAY_TASK_ID\""
+  ]
+}

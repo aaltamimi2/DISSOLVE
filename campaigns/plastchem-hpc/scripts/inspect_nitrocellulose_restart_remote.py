@@ -3,7 +3,9 @@ import json,subprocess,hashlib,re,datetime,math
 from pathlib import Path
 R=Path.home()/'plastchem-euler/polymer-v1';models=json.loads((R/'body/manifest.json').read_text())['molecules'];target=models[166:173];assert len(target)==7 and all(m['polymer']=='nitrocellulose' for m in target)
 a=subprocess.run(['sacct','-j','65676','--starttime=2026-09-21','-nP','--format=JobID,State,ElapsedRaw,ExitCode'],capture_output=True,text=True,check=True).stdout;states={v[0]:v for line in a.splitlines() if len(v:=line.split('|'))>=4}
-q=subprocess.run(['squeue','-h','-r','-j','65676','-o','%i|%T'],capture_output=True,text=True,check=True).stdout;active={line.split('|')[0] for line in q.splitlines()};rows=[]
+# Completed arrays can leave squeue's job-ID lookup before sacct expires them.
+# Query the user's queue; absence is combined with terminal accounting below.
+q=subprocess.run(['squeue','-h','-r','-u','aaltamimi2','-o','%i|%T'],capture_output=True,text=True,check=True).stdout;active={line.split('|')[0] for line in q.splitlines()};rows=[]
 def sha(p):
  h=hashlib.sha256()
  with p.open('rb') as f:

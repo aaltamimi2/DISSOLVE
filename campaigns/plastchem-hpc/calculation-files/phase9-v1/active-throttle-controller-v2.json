@@ -1,0 +1,12 @@
+{
+  "utc": "2026-09-24T06:41:33.527175+00:00",
+  "filename": "phase9_throttle_remote_v2.py",
+  "sha256": "40a24bb65699290509786d38204e004f6c0266c3f8b8f68b3831a29d807b7ad8",
+  "authority": "A-1 explicit exclusion of job 50511 belonging to another campaign; owner-authorized shared cap remains 64 for this lane",
+  "excluded_external_job": {
+    "job_id": "50511",
+    "job_name": "slab125-mixed-50ns"
+  },
+  "launch_controller_preserved": "/mnt/r/plastchem-euler/phase9-v1/phase9_throttle_remote.py",
+  "change": "Only job 50511 with its verified other-campaign name is excluded from lane queue control and reported separately. All other unexpected research allocations still fail closed. No numerical worker change."
+}

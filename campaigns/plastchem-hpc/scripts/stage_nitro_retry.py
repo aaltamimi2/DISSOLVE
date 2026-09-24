@@ -1,7 +1,7 @@
 """Build isolated 48-hour geometry restart, only for confirmed time-limit exits."""
 import json,hashlib,copy
 from pathlib import Path
-from identity_campaign import verify
+from bounded_geometry_identity import verify
 R=Path(__file__).resolve().parents[1];P=R/'state/polymer-v1';S=P/'nitro-retry1';S.mkdir(exist_ok=True);(S/'body').mkdir(exist_ok=True)
 inv=json.loads((P/'nitro-salvage-inventory.json').read_text());original=json.loads((P/'body/manifest.json').read_text());selected=[]
 for row in inv['rows']:

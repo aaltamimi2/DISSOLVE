@@ -1,0 +1,106 @@
+{
+  "cohort_sha256": "400e809c9adbaf41ce69dc1686106673ad8522aa6fc8967930c6f10a32e63f5c",
+  "strata": {
+    "01_le30_N": {
+      "population": 725,
+      "selected_indices": [
+        2843,
+        4475,
+        956
+      ]
+    },
+    "01_le30_noN": {
+      "population": 1909,
+      "selected_indices": [
+        170,
+        5341,
+        507
+      ]
+    },
+    "02_31_50_N": {
+      "population": 466,
+      "selected_indices": [
+        702,
+        1819,
+        912
+      ]
+    },
+    "02_31_50_noN": {
+      "population": 1545,
+      "selected_indices": [
+        1986,
+        898,
+        4587
+      ]
+    },
+    "03_51_80_N": {
+      "population": 250,
+      "selected_indices": [
+        4142,
+        2068,
+        3694
+      ]
+    },
+    "03_51_80_noN": {
+      "population": 820,
+      "selected_indices": [
+        2711,
+        1609,
+        3177
+      ]
+    },
+    "04_gt80_N": {
+      "population": 10,
+      "selected_indices": [
+        4504,
+        2055,
+        4324
+      ]
+    },
+    "04_gt80_noN": {
+      "population": 78,
+      "selected_indices": [
+        1857,
+        3620,
+        5742
+      ]
+    },
+    "tier2": {
+      "population": 27,
+      "selected_indices": [
+        5806,
+        5827,
+        5829
+      ]
+    }
+  },
+  "indices": [
+    2843,
+    4475,
+    956,
+    170,
+    5341,
+    507,
+    702,
+    1819,
+    912,
+    1986,
+    898,
+    4587,
+    4142,
+    2068,
+    3694,
+    2711,
+    1609,
+    3177,
+    4504,
+    2055,
+    4324,
+    1857,
+    3620,
+    5742,
+    5806,
+    5827,
+    5829
+  ]
+}

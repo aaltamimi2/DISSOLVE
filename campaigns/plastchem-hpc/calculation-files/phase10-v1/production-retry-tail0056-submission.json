@@ -1,0 +1,106 @@
+{
+  "name": "contam-phase10-retry-tail0056",
+  "utc": "2026-09-24T18:46:09.916241+00:00",
+  "purpose": "extension_recovery",
+  "indices": [
+    0,
+    1,
+    2
+  ],
+  "operations": [
+    {
+      "command": [
+        "squeue",
+        "-h",
+        "-r",
+        "-u",
+        "aaltamimi2",
+        "--name=contam-phase10-retry-tail0056",
+        "-o",
+        "%i|%j|%T"
+      ],
+      "returncode": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "sacct",
+        "-nP",
+        "-u",
+        "aaltamimi2",
+        "--starttime=2026-09-24",
+        "--name=contam-phase10-retry-tail0056",
+        "--format=JobID%40,JobName%60,State,Elapsed,NodeList"
+      ],
+      "returncode": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "sbatch",
+        "--parsable",
+        "--hold",
+        "--job-name=contam-phase10-retry-tail0056",
+        "--partition=research",
+        "--constraint=(milan|genoa)&cpu",
+        "--exclude=euler09,euler10",
+        "--nodes=1",
+        "--ntasks=1",
+        "--cpus-per-task=1",
+        "--mem=4G",
+        "--time=08:00:00",
+        "--no-requeue",
+        "--array=0-2%3",
+        "--chdir=/srv/home/aaltamimi2/plastchem-euler/phase10-v1",
+        "--output=/srv/home/aaltamimi2/plastchem-euler/phase10-v1/logs/tail-%A_%a.out",
+        "--error=/srv/home/aaltamimi2/plastchem-euler/phase10-v1/logs/tail-%A_%a.err",
+        "--wrap=export OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1 PYTHONPATH=../phase8-v1; ../phase8-v1/venv/bin/python -u phase10_tail_helper.py tail-0056-v1/assignment.json \"$SLURM_ARRAY_TASK_ID\""
+      ],
+      "returncode": 0,
+      "stdout": "69096\n",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "scontrol",
+        "show",
+        "job",
+        "69096",
+        "-o"
+      ],
+      "returncode": 0,
+      "stdout": "JobId=69096 ArrayJobId=69096 ArrayTaskId=0-2%3 ArrayTaskThrottle=3 JobName=contam-phase10-retry-tail0056 UserId=aaltamimi2(18803) GroupId=pvt-aaltamimi2(18803) MCS_label=N/A Priority=0 Nice=0 Account=(null) QOS=normal JobState=PENDING Reason=JobHeldUser Dependency=(null) Requeue=0 Restarts=0 BatchFlag=1 Reboot=0 ExitCode=0:0 RunTime=00:00:00 TimeLimit=08:00:00 TimeMin=N/A SubmitTime=2026-09-24T13:46:10 EligibleTime=Unknown AccrueTime=Unknown StartTime=Unknown EndTime=Unknown Deadline=N/A SuspendTime=None SecsPreSuspend=0 LastSchedEval=2026-09-24T13:46:10 Scheduler=Main Partition=research AllocNode:Sid=0.0.0.0:3554594 ReqNodeList=(null) ExcNodeList=euler[09-10] NodeList= NumNodes=1-1 NumCPUs=1 NumTasks=1 CPUs/Task=1 ReqB:S:C:T=0:0:*:* ReqTRES=cpu=1,mem=4G,node=1,billing=1 AllocTRES=(null) Socks/Node=* NtasksPerN:B:S:C=0:0:*:* CoreSpec=* MinCPUsNode=1 MinMemoryNode=4G MinTmpDiskNode=0 Features=(milan|genoa)&cpu DelayBoot=00:00:00 OverSubscribe=OK Contiguous=0 Licenses=(null) LicensesAlloc=(null) Network=(null) Command=(null) WorkDir=/srv/home/aaltamimi2/plastchem-euler/phase10-v1 StdErr=/srv/home/aaltamimi2/plastchem-euler/phase10-v1/logs/tail-69096_4294967294.err StdIn=/dev/null StdOut=/srv/home/aaltamimi2/plastchem-euler/phase10-v1/logs/tail-69096_4294967294.out TresPerTask=cpu=1 \n",
+      "stderr": ""
+    }
+  ],
+  "assignment_sha256": "83c96283ed41dbb561a69638d0af80f448646463fe2dc5237f41a1db3b1a5977",
+  "reconciliation": {
+    "squeue": "",
+    "sacct": ""
+  },
+  "command": [
+    "sbatch",
+    "--parsable",
+    "--hold",
+    "--job-name=contam-phase10-retry-tail0056",
+    "--partition=research",
+    "--constraint=(milan|genoa)&cpu",
+    "--exclude=euler09,euler10",
+    "--nodes=1",
+    "--ntasks=1",
+    "--cpus-per-task=1",
+    "--mem=4G",
+    "--time=08:00:00",
+    "--no-requeue",
+    "--array=0-2%3",
+    "--chdir=/srv/home/aaltamimi2/plastchem-euler/phase10-v1",
+    "--output=/srv/home/aaltamimi2/plastchem-euler/phase10-v1/logs/tail-%A_%a.out",
+    "--error=/srv/home/aaltamimi2/plastchem-euler/phase10-v1/logs/tail-%A_%a.err",
+    "--wrap=export OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1 PYTHONPATH=../phase8-v1; ../phase8-v1/venv/bin/python -u phase10_tail_helper.py tail-0056-v1/assignment.json \"$SLURM_ARRAY_TASK_ID\""
+  ],
+  "job_id": "69096",
+  "decision": "submitted_held_for_shared_cap_controller",
+  "scheduler_readback": "JobId=69096 ArrayJobId=69096 ArrayTaskId=0-2%3 ArrayTaskThrottle=3 JobName=contam-phase10-retry-tail0056 UserId=aaltamimi2(18803) GroupId=pvt-aaltamimi2(18803) MCS_label=N/A Priority=0 Nice=0 Account=(null) QOS=normal JobState=PENDING Reason=JobHeldUser Dependency=(null) Requeue=0 Restarts=0 BatchFlag=1 Reboot=0 ExitCode=0:0 RunTime=00:00:00 TimeLimit=08:00:00 TimeMin=N/A SubmitTime=2026-09-24T13:46:10 EligibleTime=Unknown AccrueTime=Unknown StartTime=Unknown EndTime=Unknown Deadline=N/A SuspendTime=None SecsPreSuspend=0 LastSchedEval=2026-09-24T13:46:10 Scheduler=Main Partition=research AllocNode:Sid=0.0.0.0:3554594 ReqNodeList=(null) ExcNodeList=euler[09-10] NodeList= NumNodes=1-1 NumCPUs=1 NumTasks=1 CPUs/Task=1 ReqB:S:C:T=0:0:*:* ReqTRES=cpu=1,mem=4G,node=1,billing=1 AllocTRES=(null) Socks/Node=* NtasksPerN:B:S:C=0:0:*:* CoreSpec=* MinCPUsNode=1 MinMemoryNode=4G MinTmpDiskNode=0 Features=(milan|genoa)&cpu DelayBoot=00:00:00 OverSubscribe=OK Contiguous=0 Licenses=(null) LicensesAlloc=(null) Network=(null) Command=(null) WorkDir=/srv/home/aaltamimi2/plastchem-euler/phase10-v1 StdErr=/srv/home/aaltamimi2/plastchem-euler/phase10-v1/logs/tail-69096_4294967294.err StdIn=/dev/null StdOut=/srv/home/aaltamimi2/plastchem-euler/phase10-v1/logs/tail-69096_4294967294.out TresPerTask=cpu=1 \n"
+}

@@ -1,0 +1,123 @@
+{
+  "utc": "2026-09-24T06:33:53.834235+00:00",
+  "status": "complete_cost_measurement_not_production_clearance",
+  "lle_systems": 6400,
+  "lle_denominator": 6400,
+  "partition_units": 100,
+  "chunk_denominator": 100,
+  "completion_record_collected": true,
+  "remaining_LLE_transfers": 0,
+  "remaining_partition_transfers": 0,
+  "production_sized_calibration_comparison": {
+    "partition_rows": 17280,
+    "lle_systems": 1728,
+    "maximum_logP_difference": 1.5986078345520127e-06,
+    "errors": [],
+    "status": "passed"
+  },
+  "measured_chunk_wall_seconds": 12887.76998120104,
+  "peak_rss_kib": 2295732,
+  "parse_seconds": 232.51223922008649,
+  "partition_seconds": 494.7028426519828,
+  "lle_seconds": 12109.507247154019,
+  "non_LLE_overhead_seconds_per_solute": 43.50402727213339,
+  "population_weighted_cpu_hours": 190.1111569629514,
+  "planning_cpu_hours_with_25_percent_allowance": 237.63894620368927,
+  "engineering_range_cpu_hours": [
+    158.64276850271415,
+    225.82073710480012
+  ],
+  "engineering_range_note": "Within-stratum extrema from three deliberate calibration molecules; not a confidence interval.",
+  "diagnostic_allocated_cpu_hours_to_snapshot": 6.0775,
+  "planning_cpu_hours_including_diagnostics": 243.71644620368926,
+  "limit_cpu_hours": 500,
+  "cost_gate_passes": true,
+  "statuses": {
+    "two_liquid_phases": 623,
+    "single_liquid_phase": 5772,
+    "grid_or_tie_line_unresolved": 5
+  },
+  "strata": [
+    {
+      "stratum": "01_le30_N",
+      "population": 725,
+      "calibration_seconds": [
+        71.97421837842558,
+        109.25862674147356,
+        166.20629553950857
+      ]
+    },
+    {
+      "stratum": "01_le30_noN",
+      "population": 1909,
+      "calibration_seconds": [
+        45.05244241806213,
+        48.426532490877435,
+        49.511907715699635
+      ]
+    },
+    {
+      "stratum": "02_31_50_N",
+      "population": 466,
+      "calibration_seconds": [
+        57.862996005686,
+        179.72125113999937,
+        110.81953029055148
+      ]
+    },
+    {
+      "stratum": "02_31_50_noN",
+      "population": 1545,
+      "calibration_seconds": [
+        48.17613475990947,
+        56.85213370609563,
+        65.3980362751754
+      ]
+    },
+    {
+      "stratum": "03_51_80_N",
+      "population": 250,
+      "calibration_seconds": [
+        177.8439305089414,
+        227.03120428265538,
+        112.31526276608929
+      ]
+    },
+    {
+      "stratum": "03_51_80_noN",
+      "population": 820,
+      "calibration_seconds": [
+        110.196865553502,
+        51.62879198428709,
+        61.096606682403944
+      ]
+    },
+    {
+      "stratum": "04_gt80_N",
+      "population": 10,
+      "calibration_seconds": [
+        112.39755475101992,
+        118.9542814292945,
+        181.51338681869674
+      ]
+    },
+    {
+      "stratum": "04_gt80_noN",
+      "population": 78,
+      "calibration_seconds": [
+        77.72864284797106,
+        63.70555313304067,
+        57.335270081995986
+      ]
+    },
+    {
+      "stratum": "tier2",
+      "population": 27,
+      "calibration_seconds": [
+        167.44853978068568,
+        135.08953136450145,
+        70.0826162052108
+      ]
+    }
+  ]
+}

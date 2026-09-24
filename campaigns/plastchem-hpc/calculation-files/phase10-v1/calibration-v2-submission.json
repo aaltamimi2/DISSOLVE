@@ -1,0 +1,117 @@
+{
+  "name": "contam-phase10-calibration-v2",
+  "purpose": "extension_calibration",
+  "utc": "2026-09-24T13:41:10.946709+00:00",
+  "operations": [
+    {
+      "command": [
+        "squeue",
+        "-h",
+        "-r",
+        "-u",
+        "aaltamimi2",
+        "--name=contam-phase10-calibration-v1",
+        "-o",
+        "%i|%T"
+      ],
+      "returncode": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "sacct",
+        "-nP",
+        "-j",
+        "68833",
+        "--format=JobID,State,ElapsedRaw,ExitCode"
+      ],
+      "returncode": 0,
+      "stdout": "68833_0|FAILED|60|1:0\n68833_0.batch|FAILED|60|1:0\n68833_1|FAILED|58|1:0\n68833_1.batch|FAILED|58|1:0\n68833_2|FAILED|58|1:0\n68833_2.batch|FAILED|58|1:0\n68833_3|FAILED|58|1:0\n68833_3.batch|FAILED|58|1:0\n68833_4|FAILED|58|1:0\n68833_4.batch|FAILED|58|1:0\n68833_5|FAILED|58|1:0\n68833_5.batch|FAILED|58|1:0\n68833_6|FAILED|57|1:0\n68833_6.batch|FAILED|57|1:0\n68833_7|FAILED|57|1:0\n68833_7.batch|FAILED|57|1:0\n68833_8|FAILED|60|1:0\n68833_8.batch|FAILED|60|1:0\n",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "squeue",
+        "-h",
+        "-r",
+        "-u",
+        "aaltamimi2",
+        "--name=contam-phase10-calibration-v2",
+        "-o",
+        "%i|%T|%R"
+      ],
+      "returncode": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "sacct",
+        "-nP",
+        "-u",
+        "aaltamimi2",
+        "--starttime=2026-09-24",
+        "--name=contam-phase10-calibration-v2",
+        "--format=JobID,JobName%60,State,Elapsed,NodeList"
+      ],
+      "returncode": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "sbatch",
+        "--parsable",
+        "--hold",
+        "--job-name=contam-phase10-calibration-v2",
+        "--partition=research",
+        "--constraint=(milan|genoa)&cpu",
+        "--exclude=euler09,euler10",
+        "--nodes=1",
+        "--ntasks=1",
+        "--cpus-per-task=1",
+        "--mem=4G",
+        "--time=04:00:00",
+        "--no-requeue",
+        "--array=0-8%9",
+        "--chdir=/srv/home/aaltamimi2/plastchem-euler/phase10-v1",
+        "--output=/srv/home/aaltamimi2/plastchem-euler/phase10-v1/logs/calibration-v2-%A_%a.out",
+        "--error=/srv/home/aaltamimi2/plastchem-euler/phase10-v1/logs/calibration-v2-%A_%a.err",
+        "--wrap=export OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1 PYTHONPATH=../phase8-v1; ../phase8-v1/venv/bin/python -u phase10_worker_v2.py calibration-plan-v2.json \"$SLURM_ARRAY_TASK_ID\""
+      ],
+      "returncode": 0,
+      "stdout": "68851\n",
+      "stderr": ""
+    }
+  ],
+  "previous_attempt_accounting": "68833_0|FAILED|60|1:0\n68833_0.batch|FAILED|60|1:0\n68833_1|FAILED|58|1:0\n68833_1.batch|FAILED|58|1:0\n68833_2|FAILED|58|1:0\n68833_2.batch|FAILED|58|1:0\n68833_3|FAILED|58|1:0\n68833_3.batch|FAILED|58|1:0\n68833_4|FAILED|58|1:0\n68833_4.batch|FAILED|58|1:0\n68833_5|FAILED|58|1:0\n68833_5.batch|FAILED|58|1:0\n68833_6|FAILED|57|1:0\n68833_6.batch|FAILED|57|1:0\n68833_7|FAILED|57|1:0\n68833_7.batch|FAILED|57|1:0\n68833_8|FAILED|60|1:0\n68833_8.batch|FAILED|60|1:0\n",
+  "previous_attempt_outcome": "Control reproduction failure before extension activities/LLE; preserved separately",
+  "squeue_reconciliation": "",
+  "sacct_reconciliation": "",
+  "plan_sha256": "9c3634328fad19238e80287ffdb543e175d7a6986f901bb3b373addc29fc773c",
+  "command": [
+    "sbatch",
+    "--parsable",
+    "--hold",
+    "--job-name=contam-phase10-calibration-v2",
+    "--partition=research",
+    "--constraint=(milan|genoa)&cpu",
+    "--exclude=euler09,euler10",
+    "--nodes=1",
+    "--ntasks=1",
+    "--cpus-per-task=1",
+    "--mem=4G",
+    "--time=04:00:00",
+    "--no-requeue",
+    "--array=0-8%9",
+    "--chdir=/srv/home/aaltamimi2/plastchem-euler/phase10-v1",
+    "--output=/srv/home/aaltamimi2/plastchem-euler/phase10-v1/logs/calibration-v2-%A_%a.out",
+    "--error=/srv/home/aaltamimi2/plastchem-euler/phase10-v1/logs/calibration-v2-%A_%a.err",
+    "--wrap=export OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1 PYTHONPATH=../phase8-v1; ../phase8-v1/venv/bin/python -u phase10_worker_v2.py calibration-plan-v2.json \"$SLURM_ARRAY_TASK_ID\""
+  ],
+  "job_id": "68851",
+  "decision": "submitted_held_for_shared_allocator",
+  "initial_throttle": 9,
+  "submitted_utc": "2026-09-24T13:41:11.176277+00:00"
+}

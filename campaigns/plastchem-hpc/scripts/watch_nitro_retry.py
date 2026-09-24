@@ -4,7 +4,7 @@ os.environ['OMP_NUM_THREADS']='1';os.environ['OPENBLAS_NUM_THREADS']='1'
 import json,time,subprocess,hashlib,shlex
 from pathlib import Path
 from euler_transport import run
-from identity_campaign import verify
+from bounded_geometry_identity import verify
 R=Path(__file__).resolve().parents[1];P=R/'state/polymer-v1';S=P/'nitro-retry1';D=Path('/mnt/r/plastchem-euler/polymer-v1/nitro-retry1/results');D.mkdir(parents=True,exist_ok=True)
 def write(p,x):
  p.parent.mkdir(parents=True,exist_ok=True);t=p.with_suffix('.tmp');t.write_text(json.dumps(x,indent=2)+'\n');t.replace(p)

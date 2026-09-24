@@ -1,0 +1,12 @@
+{
+  "utc": "2026-09-23T23:56:44.497380+00:00",
+  "command": [
+    "scontrol",
+    "update",
+    "JobId=68207",
+    "TimeLimit=00:30:00"
+  ],
+  "queue_before": "68207_0|PENDING\n68207_1|PENDING\n68207_2|PENDING\n68207_3|PENDING\n68207_4|PENDING\n68207_5|PENDING\n68207_6|PENDING\n68207_7|PENDING\n68207_8|PENDING\n68207_9|PENDING\n68207_10|PENDING\n68207_11|PENDING\n68207_12|PENDING\n68207_13|PENDING\n68207_14|PENDING\n",
+  "scheduler_readback": "JobId=68207 ArrayJobId=68207 ArrayTaskId=0-14%16 ArrayTaskThrottle=16 JobName=contam-phase83-staging-repair-v1 UserId=aaltamimi2(18803) GroupId=pvt-aaltamimi2(18803) MCS_label=N/A Priority=1 Nice=0 Account=(null) QOS=normal JobState=PENDING Reason=None Dependency=afterany:68169_*(unfulfilled) Requeue=0 Restarts=0 BatchFlag=1 Reboot=0 ExitCode=0:0 RunTime=00:00:00 TimeLimit=00:30:00 TimeMin=N/A SubmitTime=2026-09-23T18:41:57 EligibleTime=Unknown AccrueTime=Unknown StartTime=Unknown EndTime=Unknown Deadline=N/A SuspendTime=None SecsPreSuspend=0 LastSchedEval=2026-09-23T18:41:57 Scheduler=Main Partition=research AllocNode:Sid=0.0.0.0:3194162 ReqNodeList=(null) ExcNodeList=euler[09-10] NodeList= NumNodes=1 NumCPUs=1 NumTasks=1 CPUs/Task=1 ReqB:S:C:T=0:0:*:* ReqTRES=cpu=1,mem=4G,node=1,billing=1 AllocTRES=(null) Socks/Node=* NtasksPerN:B:S:C=0:0:*:* CoreSpec=* MinCPUsNode=1 MinMemoryNode=4G MinTmpDiskNode=0 Features=milan&cpu DelayBoot=00:00:00 OverSubscribe=OK Contiguous=0 Licenses=(null) LicensesAlloc=(null) Network=(null) Command=/srv/home/aaltamimi2/plastchem-euler/phase83-v1/repair.sbatch WorkDir=/srv/home/aaltamimi2/plastchem-euler/phase83-v1 StdErr=/srv/home/aaltamimi2/plastchem-euler/phase83-v1/logs/68207_4294967294.err StdIn=/dev/null StdOut=/srv/home/aaltamimi2/plastchem-euler/phase83-v1/logs/68207_4294967294.out TresPerTask=cpu=1 \n",
+  "reason": "Cached numerical calculations retained; recovery of provenance-stage result writes only; no overlapping attempts"
+}

@@ -1,0 +1,9 @@
+{
+  "original_worker_sha256": "1f1a2a34ab90c484c5429516a91cc1f5787e35980ea38a2bc8dc0d0fe82a200e",
+  "cpu_worker_sha256": "1c2e5910904db8d8068fd964278f92188e31c988cb3d5711426b1d0361bf3f16",
+  "only_changes": {
+    "assert 'EPYC 7763' in execution['cpu_model'],execution": "assert ('EPYC 7763' in execution['cpu_model'] or 'EPYC 9' in execution['cpu_model']),execution",
+    "assert os.environ.get('SLURM_JOB_ID'),'Euler allocation required'": "assert os.environ.get('SLURM_JOB_ID'),'Euler allocation required'\n    assert int(os.environ['SLURM_JOB_NUM_NODES'])==1\n    assert int(os.environ['SLURM_NTASKS'])==1\n    assert int(os.environ['SLURM_CPUS_PER_TASK'])==1"
+  },
+  "scientific_numerical_body_unchanged": true
+}

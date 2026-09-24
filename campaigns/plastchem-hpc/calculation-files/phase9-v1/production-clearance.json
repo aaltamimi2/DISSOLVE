@@ -1,0 +1,39 @@
+{
+  "status": "passed",
+  "utc": "2026-09-24T06:34:40.021429+00:00",
+  "authority": "A-9 NOTE and A-9 CLARIFICATION, CHARTER.txt",
+  "charter_sha256": "da578d40dae713f31d89694c6352d2530fab5c7f448822ea8e545b25de8611b1",
+  "limit_cpu_hours": 500,
+  "constraint": "(milan|genoa)&cpu",
+  "file_pins": {
+    "gate-comparison-final.json": "75a24526e61cd5eb8151a8305bd140d741fb5d76cab6c2f06673b91e6caac9b8",
+    "chunk-cost-final.json": "391cc92680fc50b11e5445b470865c9439d9572a6aca4bdc8e87b35c34601668",
+    "production-plan.json": "ce19da895df90f231ab91a1b50fc617f78a16684f6445e4b4ef220bef1bfe6c0",
+    "phase9_worker.py": "1f1a2a34ab90c484c5429516a91cc1f5787e35980ea38a2bc8dc0d0fe82a200e",
+    "phase9_profiles.py": "0113145c2aa1fe9e2581678741734bcae6651a2303d53d78344798da4ac0bb77",
+    "phase9_grid.py": "e4c68346047b1a348c4fddae39826ba37c213cb2bb042f6f29f8bd747670844b",
+    "phase9_entry.py": "ab949d2aca0688e3bd8ff338dad9f2731c7201efa9c0c6eca4b1c1c3ad87b024",
+    "phase9_throttle_remote.py": "41cde5f17fb38fe9cf83bbe1143a67e40eda6dc22eb4d8c726e5527310b6776b",
+    "submit_phase9_production_remote.py": "96a025e3bd7c6e6aedb7ffc44ad9405733c032027417bb10b0bb18f1041e098e",
+    "entry-resume-test.json": "ea54770da4402529aa03d2a296e31349ee562a11de8f0af658182df06f5b1173",
+    "finite-dilution-clarification.json": "60c93b370433413be69fb8a163523fd0223294a89763cd74178bffcd27359a84",
+    "chunk-probe-plan.json": "cff1b4286be45b8d35fd582f9bd8fa82126f2a03a66a4832180d21f305c4e9e3",
+    "phase9_worker_cpu.py": "1c2e5910904db8d8068fd964278f92188e31c988cb3d5711426b1d0361bf3f16",
+    "cpu-worker-guard-diff.json": "0b999742a8495278d3002072cf0b18abc7fece328a5ac8b92e4549c6f96d75be",
+    "genoa-comparison.json": "63701909739d077b4f25665944243d723128df1dbc83bbc359612d25cc953d69"
+  },
+  "probe_complete_sha256": "9b74db4234e2a9eeed85c6cfb6b2406fa94d67bca2fc1a6200c496d76c02c223",
+  "entry_resume_test": {
+    "status": "completed_chunk_verified_and_skipped",
+    "chunk": 3,
+    "complete_sha256": "661032390f61b232cd3c1a4faa6669ec4e66904cf3a47d01437a509d65bed78d",
+    "original_execution": {
+      "job_id": "68346",
+      "array_task_id": "3",
+      "node": "euler144.engr.wisc.edu",
+      "cpu_model": "AMD EPYC 7763 64-Core Processor"
+    },
+    "entry_sha256": "ab949d2aca0688e3bd8ff338dad9f2731c7201efa9c0c6eca4b1c1c3ad87b024",
+    "no_scientific_calculation": true
+  }
+}

@@ -1,0 +1,88 @@
+{
+  "name": "contam-phase10-calibration-v1",
+  "purpose": "extension_calibration",
+  "utc": "2026-09-24T13:31:19.067938+00:00",
+  "operations": [
+    {
+      "command": [
+        "squeue",
+        "-h",
+        "-r",
+        "-u",
+        "aaltamimi2",
+        "--name=contam-phase10-calibration-v1",
+        "-o",
+        "%i|%T|%R"
+      ],
+      "returncode": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "sacct",
+        "-nP",
+        "-u",
+        "aaltamimi2",
+        "--starttime=2026-09-24",
+        "--name=contam-phase10-calibration-v1",
+        "--format=JobID,JobName%60,State,Elapsed,NodeList"
+      ],
+      "returncode": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "sbatch",
+        "--parsable",
+        "--hold",
+        "--job-name=contam-phase10-calibration-v1",
+        "--partition=research",
+        "--constraint=(milan|genoa)&cpu",
+        "--exclude=euler09,euler10",
+        "--nodes=1",
+        "--ntasks=1",
+        "--cpus-per-task=1",
+        "--mem=4G",
+        "--time=04:00:00",
+        "--no-requeue",
+        "--array=0-8%9",
+        "--chdir=/srv/home/aaltamimi2/plastchem-euler/phase10-v1",
+        "--output=/srv/home/aaltamimi2/plastchem-euler/phase10-v1/logs/calibration-%A_%a.out",
+        "--error=/srv/home/aaltamimi2/plastchem-euler/phase10-v1/logs/calibration-%A_%a.err",
+        "--wrap=export OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1 PYTHONPATH=../phase8-v1; ../phase8-v1/venv/bin/python -u phase10_worker.py calibration-plan.json \"$SLURM_ARRAY_TASK_ID\""
+      ],
+      "returncode": 0,
+      "stdout": "68833\n",
+      "stderr": ""
+    }
+  ],
+  "squeue_reconciliation": "",
+  "sacct_reconciliation": "",
+  "plan_sha256": "e51405069bf0c532c5bdb204ee8f95404be891b60e868cb1fce01ff36e6ee8d0",
+  "command": [
+    "sbatch",
+    "--parsable",
+    "--hold",
+    "--job-name=contam-phase10-calibration-v1",
+    "--partition=research",
+    "--constraint=(milan|genoa)&cpu",
+    "--exclude=euler09,euler10",
+    "--nodes=1",
+    "--ntasks=1",
+    "--cpus-per-task=1",
+    "--mem=4G",
+    "--time=04:00:00",
+    "--no-requeue",
+    "--array=0-8%9",
+    "--chdir=/srv/home/aaltamimi2/plastchem-euler/phase10-v1",
+    "--output=/srv/home/aaltamimi2/plastchem-euler/phase10-v1/logs/calibration-%A_%a.out",
+    "--error=/srv/home/aaltamimi2/plastchem-euler/phase10-v1/logs/calibration-%A_%a.err",
+    "--wrap=export OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1 PYTHONPATH=../phase8-v1; ../phase8-v1/venv/bin/python -u phase10_worker.py calibration-plan.json \"$SLURM_ARRAY_TASK_ID\""
+  ],
+  "job_id": "68833",
+  "decision": "submitted_held_for_shared_allocator",
+  "initial_throttle": 9,
+  "submitted_utc": "2026-09-24T13:31:19.318124+00:00"
+}

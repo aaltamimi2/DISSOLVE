@@ -1,0 +1,50 @@
+{
+  "utc": "2026-09-24T04:07:44.829538+00:00",
+  "status": "passed",
+  "tolerance": 1e-09,
+  "counts": {
+    "phase_ln_gamma": 2144,
+    "LLE_systems": 512,
+    "logP_x": 5120,
+    "logP_concentration": 5120,
+    "ln_gamma_polymer": 5120,
+    "ln_gamma_solvent": 5120
+  },
+  "expected_counts": {
+    "phase_ln_gamma": 2144,
+    "logP_x": 5120,
+    "logP_concentration": 5120,
+    "ln_gamma_polymer": 5120,
+    "ln_gamma_solvent": 5120,
+    "LLE_systems": 512
+  },
+  "maximum_absolute_differences": {
+    "phase_ln_gamma": 2.842170943040401e-14,
+    "logP_x": 1.149080830487037e-14,
+    "logP_concentration": 1.1546319456101628e-14,
+    "ln_gamma_polymer": 1.2212453270876722e-14,
+    "ln_gamma_solvent": 1.4210854715202004e-14
+  },
+  "errors": [],
+  "execution": {
+    "milan": {
+      "job_id": "68346",
+      "array_task_id": "3",
+      "node": "euler144.engr.wisc.edu",
+      "cpu_model": "AMD EPYC 7763 64-Core Processor"
+    },
+    "genoa": {
+      "job_id": "68360",
+      "array_task_id": "0",
+      "node": "euler153.engr.wisc.edu",
+      "cpu_model": "AMD EPYC 9634 84-Core Processor"
+    }
+  },
+  "scope": "Every partition value on both bases, every pure-phase solute ln gamma, every recorded effective polymer/solvent ln gamma; every LLE status and both 15% verdicts. Same surfaces and environment.",
+  "plan_sha256": "0b0cf09a1b1e391366d81a9d757adbab8c7838b608454af18f5bbc1e59acf5e5",
+  "worker_cpu_sha256": "1c2e5910904db8d8068fd964278f92188e31c988cb3d5711426b1d0361bf3f16",
+  "complete_checkpoint_pins": {
+    "gate-results-v1/0003/complete.json": "661032390f61b232cd3c1a4faa6669ec4e66904cf3a47d01437a509d65bed78d",
+    "genoa-gate-results-v2/0000/complete.json": "e86b02b7c1f1eefbf5b440037e67dd2173a28ca9a6b1f34710b779d9758a98ec"
+  }
+}

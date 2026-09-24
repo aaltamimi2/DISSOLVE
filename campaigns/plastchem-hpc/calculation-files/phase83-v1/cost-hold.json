@@ -1,0 +1,451 @@
+{
+  "active": true,
+  "utc": "2026-09-24T01:37:25.708986+00:00",
+  "reason": "A-8 calibrated planning total now exceeds 6000 CPU-hours",
+  "cost_reassessment": {
+    "utc": "2026-09-24T01:35:58.974531+00:00",
+    "snapshot_utc": "2026-09-24T01:34:24.396563+00:00",
+    "cohort_sha256": "400e809c9adbaf41ce69dc1686106673ad8522aa6fc8967930c6f10a32e63f5c",
+    "original_calibration_sha256": "f3a1ebfc62521242f78217381dcbd1830ec707053ffe1ce3a13d68fa30913734",
+    "snapshot_sha256": "04a68e932db27153cf9ee1ad1f482d2fc88cf6c3f451a4d3766d8b3a851a0f60",
+    "decision": "stop_cost_gate",
+    "measured_first_wave_n": 27,
+    "all_first_wave_terminal": true,
+    "first_wave_allocated_cpu_hours": 28.14,
+    "population_with_current_stratum_measurement": 5465,
+    "denominator": 5830,
+    "population_weighted_cpu_hours": 5824.814050925926,
+    "planning_allowance_fraction": 0.25,
+    "planning_total_cpu_hours": 7281.017563657407,
+    "engineering_sensitivity_range_cpu_hours": [
+      5107.553333333333,
+      8114.562500000001
+    ],
+    "cost_gate_cpu_hours": 6000,
+    "strata": [
+      {
+        "stratum": "01_le30_N",
+        "population": 725,
+        "source": "first_production_wave",
+        "sample_n": 4,
+        "sample_allocated_cpu_seconds": [
+          3516,
+          4209,
+          3890,
+          3408
+        ],
+        "projected_cpu_hours": 756.3663194444445
+      },
+      {
+        "stratum": "01_le30_noN",
+        "population": 1909,
+        "source": "first_production_wave",
+        "sample_n": 9,
+        "sample_allocated_cpu_seconds": [
+          3582,
+          3531,
+          3493,
+          3482,
+          3549,
+          3612,
+          3123,
+          3678,
+          3921
+        ],
+        "projected_cpu_hours": 1883.723425925926
+      },
+      {
+        "stratum": "02_31_50_N",
+        "population": 466,
+        "source": "first_production_wave",
+        "sample_n": 4,
+        "sample_allocated_cpu_seconds": [
+          3097,
+          4449,
+          4156,
+          4565
+        ],
+        "projected_cpu_hours": 526.4181944444445
+      },
+      {
+        "stratum": "02_31_50_noN",
+        "population": 1545,
+        "source": "first_production_wave",
+        "sample_n": 5,
+        "sample_allocated_cpu_seconds": [
+          3397,
+          4030,
+          3354,
+          2984,
+          3576
+        ],
+        "projected_cpu_hours": 1488.4358333333332
+      },
+      {
+        "stratum": "03_51_80_N",
+        "population": 250,
+        "source": "original_calibration_unrepresented_in_first_wave",
+        "sample_n": 3,
+        "sample_allocated_cpu_seconds": [
+          2307,
+          2490,
+          2166
+        ],
+        "projected_cpu_hours": 161.18055555555554
+      },
+      {
+        "stratum": "03_51_80_noN",
+        "population": 820,
+        "source": "first_production_wave",
+        "sample_n": 5,
+        "sample_allocated_cpu_seconds": [
+          4408,
+          4292,
+          4225,
+          3962,
+          3815
+        ],
+        "projected_cpu_hours": 943.091111111111
+      },
+      {
+        "stratum": "04_gt80_N",
+        "population": 10,
+        "source": "original_calibration_unrepresented_in_first_wave",
+        "sample_n": 3,
+        "sample_allocated_cpu_seconds": [
+          2097,
+          2121,
+          2430
+        ],
+        "projected_cpu_hours": 6.155555555555556
+      },
+      {
+        "stratum": "04_gt80_noN",
+        "population": 78,
+        "source": "original_calibration_unrepresented_in_first_wave",
+        "sample_n": 3,
+        "sample_allocated_cpu_seconds": [
+          1970,
+          1992,
+          2039
+        ],
+        "projected_cpu_hours": 43.340555555555554
+      },
+      {
+        "stratum": "tier2",
+        "population": 27,
+        "source": "original_calibration_unrepresented_in_first_wave",
+        "sample_n": 3,
+        "sample_allocated_cpu_seconds": [
+          2192,
+          2150,
+          2099
+        ],
+        "projected_cpu_hours": 16.1025
+      }
+    ],
+    "measurements": [
+      {
+        "task": 0,
+        "index": 0,
+        "input_inchikey": "AANMVENRNJYEMK-UHFFFAOYSA-N",
+        "name": "4-Isopropyl-2-cyclohexenone",
+        "stratum": "01_le30_noN",
+        "allocated_cpu_seconds": 3582,
+        "partition_seconds": 743.6352933100425,
+        "lle_seconds": 2834.7635771399364,
+        "wall_seconds": 3578.400228807004
+      },
+      {
+        "task": 1,
+        "index": 1,
+        "input_inchikey": "AAQDYYFAFXGBFZ-UHFFFAOYSA-N",
+        "name": "Tetrahydrofurfuryl acetate",
+        "stratum": "01_le30_noN",
+        "allocated_cpu_seconds": 3531,
+        "partition_seconds": 754.3099181019934,
+        "lle_seconds": 2773.3545511739794,
+        "wall_seconds": 3527.6655392979737
+      },
+      {
+        "task": 2,
+        "index": 2,
+        "input_inchikey": "AAUHUDBDDBJONC-UHFFFAOYSA-N",
+        "name": "3-Heptene, 3-methyl-",
+        "stratum": "01_le30_noN",
+        "allocated_cpu_seconds": 3493,
+        "partition_seconds": 738.6291918030474,
+        "lle_seconds": 2750.942642431939,
+        "wall_seconds": 3489.5728899789974
+      },
+      {
+        "task": 3,
+        "index": 3,
+        "input_inchikey": "ABIPNDAVRBMCHV-UHFFFAOYSA-N",
+        "name": "1,1-Dimethyltetralin",
+        "stratum": "01_le30_noN",
+        "allocated_cpu_seconds": 3482,
+        "partition_seconds": 736.226803259924,
+        "lle_seconds": 2742.5718780750176,
+        "wall_seconds": 3478.8000068808906
+      },
+      {
+        "task": 4,
+        "index": 4,
+        "input_inchikey": "ABMKWMASVFVTMD-UHFFFAOYSA-N",
+        "name": "2,2'-Dimethylbiphenyl",
+        "stratum": "01_le30_noN",
+        "allocated_cpu_seconds": 3549,
+        "partition_seconds": 752.7268467510585,
+        "lle_seconds": 2792.484786109999,
+        "wall_seconds": 3545.212963165017
+      },
+      {
+        "task": 5,
+        "index": 5,
+        "input_inchikey": "ABMULKFGWTYIIK-UHFFFAOYSA-N",
+        "name": "2-Hexylphenol",
+        "stratum": "02_31_50_noN",
+        "allocated_cpu_seconds": 3397,
+        "partition_seconds": 769.5833160910988,
+        "lle_seconds": 2623.861475814949,
+        "wall_seconds": 3393.4460114710964
+      },
+      {
+        "task": 6,
+        "index": 6,
+        "input_inchikey": "ABRWCGWMRMPLID-HMUOIZGVSA-N",
+        "name": "5alpha-Cholestan-3beta-ol, 2-methylene-",
+        "stratum": "03_51_80_noN",
+        "allocated_cpu_seconds": 4408,
+        "partition_seconds": 877.5980774039635,
+        "lle_seconds": 3526.9551241929876,
+        "wall_seconds": 4404.554343293887
+      },
+      {
+        "task": 7,
+        "index": 7,
+        "input_inchikey": "ABUZDQCQXDZFRG-UHFFFAOYSA-N",
+        "name": "Adipic acid, methyl vinyl ester",
+        "stratum": "01_le30_noN",
+        "allocated_cpu_seconds": 3612,
+        "partition_seconds": 771.5347913369769,
+        "lle_seconds": 2836.8441570010036,
+        "wall_seconds": 3608.380179604981
+      },
+      {
+        "task": 8,
+        "index": 8,
+        "input_inchikey": "ABXXXZLVKKIAGK-UHFFFAOYSA-N",
+        "name": "Isooctyl epoxyoctadecanoate",
+        "stratum": "03_51_80_noN",
+        "allocated_cpu_seconds": 4292,
+        "partition_seconds": 925.5393090570578,
+        "lle_seconds": 3362.5009091680404,
+        "wall_seconds": 4288.040726094041
+      },
+      {
+        "task": 9,
+        "index": 9,
+        "input_inchikey": "ACDUHTSVVVHMGU-UHFFFAOYSA-N",
+        "name": "Hexadecan-3-ol",
+        "stratum": "03_51_80_noN",
+        "allocated_cpu_seconds": 4225,
+        "partition_seconds": 836.3500152230263,
+        "lle_seconds": 3384.7821361940587,
+        "wall_seconds": 4221.133316438994
+      },
+      {
+        "task": 10,
+        "index": 10,
+        "input_inchikey": "ACTNHJDHMQSOGL-UHFFFAOYSA-N",
+        "name": "N1,N1-Dibenzylethane-1,2-diamine",
+        "stratum": "02_31_50_N",
+        "allocated_cpu_seconds": 3097,
+        "partition_seconds": 811.8580618890701,
+        "lle_seconds": 2281.9489456369774,
+        "wall_seconds": 3093.8082348320168
+      },
+      {
+        "task": 11,
+        "index": 11,
+        "input_inchikey": "ACUZDYFTRHEKOS-UHFFFAOYSA-N",
+        "name": "2-Decanol",
+        "stratum": "02_31_50_noN",
+        "allocated_cpu_seconds": 4030,
+        "partition_seconds": 781.3542242780095,
+        "lle_seconds": 3244.7371369249886,
+        "wall_seconds": 4026.0925713400356
+      },
+      {
+        "task": 12,
+        "index": 12,
+        "input_inchikey": "ACYBVNYNIZTUIL-UHFFFAOYSA-N",
+        "name": "N-Benzylethylenediamine",
+        "stratum": "01_le30_N",
+        "allocated_cpu_seconds": 3516,
+        "partition_seconds": 778.8388098919531,
+        "lle_seconds": 2733.2162046269514,
+        "wall_seconds": 3512.056293006055
+      },
+      {
+        "task": 13,
+        "index": 13,
+        "input_inchikey": "ACYOLKMEHHTLAB-UHFFFAOYSA-N",
+        "name": "12-Methylbenz(a)anthracene",
+        "stratum": "02_31_50_noN",
+        "allocated_cpu_seconds": 3354,
+        "partition_seconds": 777.5159032359952,
+        "lle_seconds": 2572.8547534990357,
+        "wall_seconds": 3350.371869627037
+      },
+      {
+        "task": 14,
+        "index": 14,
+        "input_inchikey": "ADAHGVUHKDNLEB-UHFFFAOYSA-N",
+        "name": "Bis(2,3-epoxycyclopentyl) ether",
+        "stratum": "01_le30_noN",
+        "allocated_cpu_seconds": 3123,
+        "partition_seconds": 763.8961549339583,
+        "lle_seconds": 2355.8365183050046,
+        "wall_seconds": 3119.733952987939
+      },
+      {
+        "task": 15,
+        "index": 15,
+        "input_inchikey": "ADCWDMYESTYBBN-UHFFFAOYSA-N",
+        "name": "Disperse Red 17",
+        "stratum": "02_31_50_N",
+        "allocated_cpu_seconds": 4449,
+        "partition_seconds": 863.2834117130842,
+        "lle_seconds": 3582.317958358908,
+        "wall_seconds": 4445.602524523041
+      },
+      {
+        "task": 16,
+        "index": 16,
+        "input_inchikey": "ADFXKUOMJKEIND-UHFFFAOYSA-N",
+        "name": "1,3-Dicyclohexylurea",
+        "stratum": "02_31_50_N",
+        "allocated_cpu_seconds": 4156,
+        "partition_seconds": 596.0977367690066,
+        "lle_seconds": 3556.4653774499893,
+        "wall_seconds": 4152.564195023966
+      },
+      {
+        "task": 17,
+        "index": 17,
+        "input_inchikey": "ADGJZVKOKVENDN-UHFFFAOYSA-N",
+        "name": "N-(Butoxymethyl)methacrylamide",
+        "stratum": "01_le30_N",
+        "allocated_cpu_seconds": 4209,
+        "partition_seconds": 574.5485162560362,
+        "lle_seconds": 3630.514448376023,
+        "wall_seconds": 4205.063946068985
+      },
+      {
+        "task": 18,
+        "index": 18,
+        "input_inchikey": "ADHNUPOJJCKWRT-JLXBFWJWSA-N",
+        "name": "Octadecadienoic acid",
+        "stratum": "03_51_80_noN",
+        "allocated_cpu_seconds": 3962,
+        "partition_seconds": 634.2317180590471,
+        "lle_seconds": 3324.445569047937,
+        "wall_seconds": 3958.6784062320367
+      },
+      {
+        "task": 19,
+        "index": 19,
+        "input_inchikey": "ADOBXTDBFNCOBN-UHFFFAOYSA-N",
+        "name": "1-Heptadecene",
+        "stratum": "03_51_80_noN",
+        "allocated_cpu_seconds": 3815,
+        "partition_seconds": 599.8024194169557,
+        "lle_seconds": 3211.687361554941,
+        "wall_seconds": 3811.4908157689497
+      },
+      {
+        "task": 20,
+        "index": 20,
+        "input_inchikey": "ADOQBZAVKYCFOI-HWKANZROSA-N",
+        "name": "(E)-2-Dodecene",
+        "stratum": "02_31_50_noN",
+        "allocated_cpu_seconds": 2984,
+        "partition_seconds": 568.745106009068,
+        "lle_seconds": 2411.612539372989,
+        "wall_seconds": 2980.358820514055
+      },
+      {
+        "task": 21,
+        "index": 21,
+        "input_inchikey": "ADQJFBQXLAAVQA-UHFFFAOYSA-N",
+        "name": "1-Methyl-2-propylcyclopentane",
+        "stratum": "01_le30_noN",
+        "allocated_cpu_seconds": 3678,
+        "partition_seconds": 538.6738558589714,
+        "lle_seconds": 3135.75779225491,
+        "wall_seconds": 3674.4328575399704
+      },
+      {
+        "task": 22,
+        "index": 22,
+        "input_inchikey": "ADSOSINJPNKUJK-UHFFFAOYSA-N",
+        "name": "2-Butylpyridine",
+        "stratum": "01_le30_N",
+        "allocated_cpu_seconds": 3890,
+        "partition_seconds": 546.306658928981,
+        "lle_seconds": 3340.0249964400427,
+        "wall_seconds": 3886.3327741549583
+      },
+      {
+        "task": 23,
+        "index": 23,
+        "input_inchikey": "ADTJPOBHAXXXFS-UHFFFAOYSA-N",
+        "name": "N-(3-(Dimethylamino)propyl)acrylamide",
+        "stratum": "01_le30_N",
+        "allocated_cpu_seconds": 3408,
+        "partition_seconds": 561.9637089530006,
+        "lle_seconds": 2842.8281012140214,
+        "wall_seconds": 3404.7929184539244
+      },
+      {
+        "task": 24,
+        "index": 24,
+        "input_inchikey": "ADUAASDQTXSPNT-NYYWCZLTSA-N",
+        "name": "C.I. Direct Yellow 24",
+        "stratum": "02_31_50_N",
+        "allocated_cpu_seconds": 4565,
+        "partition_seconds": 508.81662784994114,
+        "lle_seconds": 4052.1205763589824,
+        "wall_seconds": 4560.938203037949
+      },
+      {
+        "task": 25,
+        "index": 25,
+        "input_inchikey": "AEIJTFQOBWATKX-UHFFFAOYSA-N",
+        "name": "1,2-Octanediol",
+        "stratum": "01_le30_noN",
+        "allocated_cpu_seconds": 3921,
+        "partition_seconds": 449.4615890040295,
+        "lle_seconds": 3467.929481746978,
+        "wall_seconds": 3917.3921934840037
+      },
+      {
+        "task": 26,
+        "index": 26,
+        "input_inchikey": "AEMFNILZOJDQLW-QAGGRKNESA-N",
+        "name": "Androstenedione",
+        "stratum": "02_31_50_noN",
+        "allocated_cpu_seconds": 3576,
+        "partition_seconds": 468.9225713920314,
+        "lle_seconds": 3103.3356166220037,
+        "wall_seconds": 3572.259260221035
+      }
+    ],
+    "limitations": "Not a statistical confidence interval. First 27 production tasks are a fixed nonrandom cohort. Five represented strata use complete current allocated runtimes; four unrepresented strata retain original calibration values and may understate current I/O waiting. Timing is conditional on this observed execution regime. All 27 tasks are included, including the slowest; no incomplete task is discarded. This is a cost reassessment, not a correction to thermodynamic predictions."
+  },
+  "owner_directive": "A-8 NOTE HOLD THE 8.3 PRODUCTION QUEUE; THE WORKER IS BEING REDESIGNED",
+  "owner_hold_utc": "2026-09-24T02:25:15.557862+00:00",
+  "awaiting": "replacement-design amendment"
+}

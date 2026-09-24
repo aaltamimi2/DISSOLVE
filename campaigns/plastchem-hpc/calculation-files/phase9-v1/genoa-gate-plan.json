@@ -1,0 +1,93 @@
+{
+  "scope": "Owner-authorized Genoa usability repeat of validated Milan gate chunk 3, all eight workbook molecules",
+  "chunks": [
+    [
+      {
+        "id": "validation-BBP",
+        "reference": "phase82",
+        "reference_name": "BBP",
+        "inchikey": "IRIAEXORFWYRCZ-UHFFFAOYSA-N",
+        "surface": "../phase8-v1/surfaces/8d35233e9b0e92cbafbdb95fd4eaa56bb8631f305802dfe85e8f2a942da60a1b.orcacosmo",
+        "surface_sha256": "8d35233e9b0e92cbafbdb95fd4eaa56bb8631f305802dfe85e8f2a942da60a1b",
+        "molecular_weight_g_mol": 312.4
+      },
+      {
+        "id": "validation-DBP",
+        "reference": "phase82",
+        "reference_name": "DBP",
+        "inchikey": "DOIRQSBPFJWKBE-UHFFFAOYSA-N",
+        "surface": "../phase8-v1/surfaces/9eb48822be98f05682b89338c583802d55e3dbfb38bf3fb59e948618cd6570bd.orcacosmo",
+        "surface_sha256": "9eb48822be98f05682b89338c583802d55e3dbfb38bf3fb59e948618cd6570bd",
+        "molecular_weight_g_mol": 278.34
+      },
+      {
+        "id": "validation-DEHP",
+        "reference": "phase82",
+        "reference_name": "DEHP",
+        "inchikey": "BJQHLKABXJIVAM-UHFFFAOYSA-N",
+        "surface": "../phase8-v1/surfaces/74a44a31aec2d986fb323839fa71c4ad79ae437e670996af4bb740e3f2bf03ab.orcacosmo",
+        "surface_sha256": "74a44a31aec2d986fb323839fa71c4ad79ae437e670996af4bb740e3f2bf03ab",
+        "molecular_weight_g_mol": 390.6
+      },
+      {
+        "id": "validation-DEP",
+        "reference": "phase82",
+        "reference_name": "DEP",
+        "inchikey": "FLKPEMZONWLCSK-UHFFFAOYSA-N",
+        "surface": "../phase8-v1/surfaces/ca19f9cebd7b5434541aa74bcd1d1cedfa6c7458aba426f7753c7ac982dcbfe7.orcacosmo",
+        "surface_sha256": "ca19f9cebd7b5434541aa74bcd1d1cedfa6c7458aba426f7753c7ac982dcbfe7",
+        "molecular_weight_g_mol": 222.24
+      },
+      {
+        "id": "validation-DiDP",
+        "reference": "phase82",
+        "reference_name": "DiDP",
+        "inchikey": "ZVFDTKUVRCTHQE-UHFFFAOYSA-N",
+        "surface": "../phase8-v1/surfaces/a3e6aa5fc749bf0cf48260ae828f93bfaf793664e6bb06f84d97441f18a1c094.orcacosmo",
+        "surface_sha256": "a3e6aa5fc749bf0cf48260ae828f93bfaf793664e6bb06f84d97441f18a1c094",
+        "molecular_weight_g_mol": 446.7
+      },
+      {
+        "id": "validation-DiNP",
+        "reference": "phase82",
+        "reference_name": "DiNP",
+        "inchikey": "HBGGXOJOCNVPFY-UHFFFAOYSA-N",
+        "surface": "../phase8-v1/surfaces/7feea89366dc96dfc427c5ad9c1c010cc7de9a5fc5fd854dc94a2c8dc7aa3753.orcacosmo",
+        "surface_sha256": "7feea89366dc96dfc427c5ad9c1c010cc7de9a5fc5fd854dc94a2c8dc7aa3753",
+        "molecular_weight_g_mol": 418.6
+      },
+      {
+        "id": "validation-DnHP",
+        "reference": "phase82",
+        "reference_name": "DnHP",
+        "inchikey": "KCXZNSGUUQJJTR-UHFFFAOYSA-N",
+        "surface": "../phase8-v1/surfaces/a70b33f8cf01035ead5b95b4f05030ced45c614fc148ac8c108e4542ee42f233.orcacosmo",
+        "surface_sha256": "a70b33f8cf01035ead5b95b4f05030ced45c614fc148ac8c108e4542ee42f233",
+        "molecular_weight_g_mol": 334.4
+      },
+      {
+        "id": "validation-DnOP",
+        "reference": "phase82",
+        "reference_name": "DnOP",
+        "inchikey": "MQIUGAXCHLFZKX-UHFFFAOYSA-N",
+        "surface": "../phase8-v1/surfaces/4bac79b91eee2097c3fb9aed981005a595e6ca373de4ff675e514477141de21c.orcacosmo",
+        "surface_sha256": "4bac79b91eee2097c3fb9aed981005a595e6ca373de4ff675e514477141de21c",
+        "molecular_weight_g_mol": 390.6
+      }
+    ]
+  ],
+  "subbatch": 10,
+  "grid_batch": 256,
+  "output": "genoa-gate-results-v2",
+  "manifest_sha256": "a24d1c80b2cae8bc19a23edcc7c0a6b3431b3dc46a6fbe15bf1f419929a61272",
+  "validation_sha256": "4e89584c59701383ddc044295d0d833dd8bb5c4040dfadd5f597a4b219b9dc21",
+  "cohort_sha256": "400e809c9adbaf41ce69dc1686106673ad8522aa6fc8967930c6f10a32e63f5c",
+  "expected_calibration_units": 27,
+  "expected_workbook_units": 8,
+  "selected_sizes_provisional_until_euler_sweep": false,
+  "sweep_sha256": "1565c2fa2ddc5a5faedc75cdd96cfe1f8da80029ba3300120daba4c4e1e9d7c5",
+  "grid_probe_sha256": "e71367905e6bf6787bacff0e014015e8c4eff5b81ab37c359d5e1b57319ea228",
+  "milan_reference_root": "gate-results-v1/0003",
+  "worker_module": "phase9_worker_cpu",
+  "attempt": 2
+}

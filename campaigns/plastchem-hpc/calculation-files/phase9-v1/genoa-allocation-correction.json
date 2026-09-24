@@ -1,0 +1,54 @@
+{
+  "utc": "2026-09-24T03:48:04.908609+00:00",
+  "reason": "Diagnostic nodelist unexpectedly reserved every Genoa node (8 CPUs); allocation error, not chemistry failure",
+  "job_id": "68359",
+  "commands": [
+    {
+      "command": [
+        "scontrol",
+        "show",
+        "job",
+        "68359",
+        "-o"
+      ],
+      "returncode": 0,
+      "stdout": "JobId=68359 ArrayJobId=68359 ArrayTaskId=0 ArrayTaskThrottle=1 JobName=contam-phase9-genoa-gate-v1 UserId=aaltamimi2(18803) GroupId=pvt-aaltamimi2(18803) MCS_label=N/A Priority=14 Nice=0 Account=(null) QOS=normal JobState=RUNNING Reason=None Dependency=(null) Requeue=0 Restarts=0 BatchFlag=1 Reboot=0 ExitCode=0:0 RunTime=00:02:11 TimeLimit=08:00:00 TimeMin=N/A SubmitTime=2026-09-23T22:45:37 EligibleTime=2026-09-23T22:45:37 AccrueTime=2026-09-23T22:45:37 StartTime=2026-09-23T22:45:53 EndTime=2026-09-24T06:45:53 Deadline=N/A PreemptEligibleTime=2026-09-23T22:45:53 PreemptTime=None SuspendTime=None SecsPreSuspend=0 LastSchedEval=2026-09-23T22:45:53 Scheduler=Backfill Partition=research AllocNode:Sid=0.0.0.0:3285629 ReqNodeList=euler[146-153] ExcNodeList=euler[09-10] NodeList=euler[146-153] BatchHost=euler146 NumNodes=8 NumCPUs=8 NumTasks=8 CPUs/Task=1 ReqB:S:C:T=0:0:*:* ReqTRES=cpu=8,mem=32G,node=8,billing=8 AllocTRES=cpu=8,mem=32G,node=8,billing=8 Socks/Node=* NtasksPerN:B:S:C=0:0:*:* CoreSpec=* MinCPUsNode=1 MinMemoryNode=4G MinTmpDiskNode=0 Features=genoa&cpu DelayBoot=00:00:00 OverSubscribe=OK Contiguous=0 Licenses=(null) LicensesAlloc=(null) Network=(null) Command=(null) WorkDir=/srv/home/aaltamimi2/plastchem-euler/phase9-v1 StdErr=/srv/home/aaltamimi2/plastchem-euler/phase9-v1/logs/genoa-gate-68359_0.err StdIn=/dev/null StdOut=/srv/home/aaltamimi2/plastchem-euler/phase9-v1/logs/genoa-gate-68359_0.out TresPerTask=cpu=1 \n",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "scancel",
+        "68359"
+      ],
+      "returncode": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "squeue",
+        "-h",
+        "-r",
+        "-j",
+        "68359",
+        "-o",
+        "%i|%T|%C|%N|%R"
+      ],
+      "returncode": 0,
+      "stdout": "68359_0|COMPLETING|8|euler146|euler146\n",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "sacct",
+        "-nP",
+        "-j",
+        "68359",
+        "--format=JobID,State,ElapsedRaw,AllocCPUS,NodeList"
+      ],
+      "returncode": 0,
+      "stdout": "68359_0|CANCELLED by 18803|131|8|euler[146-153]\n68359_0.batch|CANCELLED|131|1|euler146\n",
+      "stderr": ""
+    }
+  ]
+}

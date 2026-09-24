@@ -1,0 +1,89 @@
+{
+  "utc": "2026-09-14T22:35:17.948501+00:00",
+  "task": "54798_3677",
+  "inchikey": "KBPLFHHGFOOTCA-UHFFFAOYSA-N",
+  "operations": [
+    {
+      "command": [
+        "scontrol",
+        "show",
+        "job",
+        "54798_3677",
+        "-o"
+      ],
+      "returncode": 0,
+      "stdout": "JobId=54798 ArrayJobId=54798 ArrayTaskId=3677 ArrayTaskThrottle=28 JobName=contam-p2-main-c007-v1 UserId=aaltamimi2(18803) GroupId=pvt-aaltamimi2(18803) MCS_label=N/A Priority=1 Nice=0 Account=(null) QOS=normal JobState=PENDING Reason=Dependency Dependency=afterany:54797_*(unfulfilled) Requeue=0 Restarts=0 BatchFlag=1 Reboot=0 ExitCode=0:0 RunTime=00:00:00 TimeLimit=1-00:00:00 TimeMin=N/A SubmitTime=2026-09-13T00:23:34 EligibleTime=Unknown AccrueTime=Unknown StartTime=Unknown EndTime=Unknown Deadline=N/A SuspendTime=None SecsPreSuspend=0 LastSchedEval=2026-09-13T00:23:34 Scheduler=Main Partition=research AllocNode:Sid=0.0.0.0:2336400 ReqNodeList=(null) ExcNodeList=euler[09-10] NodeList= NumNodes=1-1 NumCPUs=1 NumTasks=1 CPUs/Task=1 ReqB:S:C:T=0:0:*:* ReqTRES=cpu=1,mem=4G,node=1,billing=1 AllocTRES=(null) Socks/Node=* NtasksPerN:B:S:C=0:0:*:* CoreSpec=* MinCPUsNode=1 MinMemoryNode=4G MinTmpDiskNode=0 Features=milan&cpu DelayBoot=00:00:00 OverSubscribe=OK Contiguous=0 Licenses=(null) LicensesAlloc=(null) Network=(null) Command=/srv/home/aaltamimi2/plastchem-euler/campaign-v1/campaign-main_le80.sbatch WorkDir=/srv/home/aaltamimi2/plastchem-euler/campaign-v1 StdErr=/srv/home/aaltamimi2/plastchem-euler/campaign-v1/logs/54798_3677.err StdIn=/dev/null StdOut=/srv/home/aaltamimi2/plastchem-euler/campaign-v1/logs/54798_3677.out TresPerTask=cpu=1 \n",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "scontrol",
+        "show",
+        "job",
+        "54798_3678",
+        "-o"
+      ],
+      "returncode": 0,
+      "stdout": "JobId=54798 ArrayJobId=54798 ArrayTaskId=3678 ArrayTaskThrottle=28 JobName=contam-p2-main-c007-v1 UserId=aaltamimi2(18803) GroupId=pvt-aaltamimi2(18803) MCS_label=N/A Priority=1 Nice=0 Account=(null) QOS=normal JobState=PENDING Reason=Dependency Dependency=afterany:54797_*(unfulfilled) Requeue=0 Restarts=0 BatchFlag=1 Reboot=0 ExitCode=0:0 RunTime=00:00:00 TimeLimit=1-00:00:00 TimeMin=N/A SubmitTime=2026-09-13T00:23:34 EligibleTime=Unknown AccrueTime=Unknown StartTime=Unknown EndTime=Unknown Deadline=N/A SuspendTime=None SecsPreSuspend=0 LastSchedEval=2026-09-13T00:23:34 Scheduler=Main Partition=research AllocNode:Sid=0.0.0.0:2336400 ReqNodeList=(null) ExcNodeList=euler[09-10] NodeList= NumNodes=1-1 NumCPUs=1 NumTasks=1 CPUs/Task=1 ReqB:S:C:T=0:0:*:* ReqTRES=cpu=1,mem=4G,node=1,billing=1 AllocTRES=(null) Socks/Node=* NtasksPerN:B:S:C=0:0:*:* CoreSpec=* MinCPUsNode=1 MinMemoryNode=4G MinTmpDiskNode=0 Features=milan&cpu DelayBoot=00:00:00 OverSubscribe=OK Contiguous=0 Licenses=(null) LicensesAlloc=(null) Network=(null) Command=/srv/home/aaltamimi2/plastchem-euler/campaign-v1/campaign-main_le80.sbatch WorkDir=/srv/home/aaltamimi2/plastchem-euler/campaign-v1 StdErr=/srv/home/aaltamimi2/plastchem-euler/campaign-v1/logs/54798_3678.err StdIn=/dev/null StdOut=/srv/home/aaltamimi2/plastchem-euler/campaign-v1/logs/54798_3678.out TresPerTask=cpu=1 \n",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "squeue",
+        "-h",
+        "-r",
+        "-u",
+        "aaltamimi2",
+        "-p",
+        "research",
+        "-t",
+        "RUNNING,CONFIGURING,COMPLETING",
+        "-o",
+        "%i|%C"
+      ],
+      "returncode": 0,
+      "stdout": "54733_41|1\n54733_40|1\n54733_39|1\n54733_37|1\n54755_494|1\n54786_501|1\n54786_502|1\n54786_503|1\n54786_504|1\n54786_505|1\n54786_506|1\n54786_507|1\n54786_508|1\n54786_509|1\n54786_510|1\n54786_511|1\n54786_512|1\n54786_513|1\n54786_514|1\n54786_515|1\n54786_516|1\n54786_517|1\n54786_518|1\n54786_519|1\n54786_520|1\n54786_521|1\n54786_522|1\n54786_523|1\n54786_500|1\n",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "scontrol",
+        "update",
+        "JobId=54798_3677",
+        "Dependency="
+      ],
+      "returncode": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "scontrol",
+        "show",
+        "job",
+        "54798_3677",
+        "-o"
+      ],
+      "returncode": 0,
+      "stdout": "JobId=57269 ArrayJobId=54798 ArrayTaskId=3677 ArrayTaskThrottle=28 JobName=contam-p2-main-c007-v1 UserId=aaltamimi2(18803) GroupId=pvt-aaltamimi2(18803) MCS_label=N/A Priority=1 Nice=0 Account=(null) QOS=normal JobState=PENDING Reason=None Dependency=(null) Requeue=0 Restarts=0 BatchFlag=1 Reboot=0 ExitCode=0:0 RunTime=00:00:00 TimeLimit=1-00:00:00 TimeMin=N/A SubmitTime=2026-09-13T00:23:34 EligibleTime=2026-09-14T17:35:18 AccrueTime=Unknown StartTime=Unknown EndTime=Unknown Deadline=N/A SuspendTime=None SecsPreSuspend=0 LastSchedEval=2026-09-13T00:23:34 Scheduler=Main Partition=research AllocNode:Sid=0.0.0.0:2336400 ReqNodeList=(null) ExcNodeList=euler[09-10] NodeList= NumNodes=1-1 NumCPUs=1 NumTasks=1 CPUs/Task=1 ReqB:S:C:T=0:0:*:* ReqTRES=cpu=1,mem=4G,node=1,billing=1 AllocTRES=(null) Socks/Node=* NtasksPerN:B:S:C=0:0:*:* CoreSpec=* MinCPUsNode=1 MinMemoryNode=4G MinTmpDiskNode=0 Features=milan&cpu DelayBoot=00:00:00 OverSubscribe=OK Contiguous=0 Licenses=(null) LicensesAlloc=(null) Network=(null) Command=/srv/home/aaltamimi2/plastchem-euler/campaign-v1/campaign-main_le80.sbatch WorkDir=/srv/home/aaltamimi2/plastchem-euler/campaign-v1 StdErr=/srv/home/aaltamimi2/plastchem-euler/campaign-v1/logs/54798_3677.err StdIn=/dev/null StdOut=/srv/home/aaltamimi2/plastchem-euler/campaign-v1/logs/54798_3677.out TresPerTask=cpu=1 \n",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "scontrol",
+        "show",
+        "job",
+        "54798_3678",
+        "-o"
+      ],
+      "returncode": 0,
+      "stdout": "JobId=54798 ArrayJobId=54798 ArrayTaskId=3678 ArrayTaskThrottle=28 JobName=contam-p2-main-c007-v1 UserId=aaltamimi2(18803) GroupId=pvt-aaltamimi2(18803) MCS_label=N/A Priority=1 Nice=0 Account=(null) QOS=normal JobState=PENDING Reason=Dependency Dependency=afterany:54797_*(unfulfilled) Requeue=0 Restarts=0 BatchFlag=1 Reboot=0 ExitCode=0:0 RunTime=00:00:00 TimeLimit=1-00:00:00 TimeMin=N/A SubmitTime=2026-09-13T00:23:34 EligibleTime=Unknown AccrueTime=Unknown StartTime=Unknown EndTime=Unknown Deadline=N/A SuspendTime=None SecsPreSuspend=0 LastSchedEval=2026-09-13T00:23:34 Scheduler=Main Partition=research AllocNode:Sid=0.0.0.0:2336400 ReqNodeList=(null) ExcNodeList=euler[09-10] NodeList= NumNodes=1-1 NumCPUs=1 NumTasks=1 CPUs/Task=1 ReqB:S:C:T=0:0:*:* ReqTRES=cpu=1,mem=4G,node=1,billing=1 AllocTRES=(null) Socks/Node=* NtasksPerN:B:S:C=0:0:*:* CoreSpec=* MinCPUsNode=1 MinMemoryNode=4G MinTmpDiskNode=0 Features=milan&cpu DelayBoot=00:00:00 OverSubscribe=OK Contiguous=0 Licenses=(null) LicensesAlloc=(null) Network=(null) Command=/srv/home/aaltamimi2/plastchem-euler/campaign-v1/campaign-main_le80.sbatch WorkDir=/srv/home/aaltamimi2/plastchem-euler/campaign-v1 StdErr=/srv/home/aaltamimi2/plastchem-euler/campaign-v1/logs/54798_3678.err StdIn=/dev/null StdOut=/srv/home/aaltamimi2/plastchem-euler/campaign-v1/logs/54798_3678.out TresPerTask=cpu=1 \n",
+      "stderr": ""
+    }
+  ],
+  "active_cpus_before": 29,
+  "verified": true,
+  "sibling_dependency_unchanged": true,
+  "new_jobs_submitted": 0,
+  "campaign_denominator": 5824
+}

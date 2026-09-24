@@ -1,0 +1,53 @@
+{
+  "utc": "2026-09-24T14:24:38.961389+00:00",
+  "status": "passed",
+  "authority": "A-10: <=510 CPU-hours after measured calibration; original release has priority",
+  "charter_sha256": "86195f2b6d3775565daf5570755a62f1a99ac6b45cc6964998fb34bcf037faf9",
+  "measured_observation_sha256": "eb14d1a0db45eddd1bb8a829a31e0c01be2cfa35e0cf0d4f8bdbcc08bbaa455d",
+  "finalizer_sha256": "64ccd1bb2d59a5c1acb35c0e805280c006711e37b142fea1f71e015bc466505a",
+  "file_pins": {
+    "manifest.json": "e8117a67ffff1ccd6357a2efe22e02cddaae47073483bead944efcce06c9a79a",
+    "calibration-plan-v2.json": "9c3634328fad19238e80287ffdb543e175d7a6986f901bb3b373addc29fc773c",
+    "production-plan.json": "45b2e90e8874875c1f496065d0b9a45ca2e5b10e05f4c763c2025027b570fbe5",
+    "worker-pins-v2.json": "5b4eb3a18358fefcd80583aa852528bcbfe43730bd091714d27f0fb8f973a7b9",
+    "phase10_worker_v2.py": "6009d0a3d16277ea49bb6dd27a7febc8e0033e1f78d27fa5b394fbf3160cc8ef",
+    "phase9_worker_cpu.py": "1c2e5910904db8d8068fd964278f92188e31c988cb3d5711426b1d0361bf3f16",
+    "phase9_profiles.py": "0113145c2aa1fe9e2581678741734bcae6651a2303d53d78344798da4ac0bb77",
+    "phase9_grid.py": "e4c68346047b1a348c4fddae39826ba37c213cb2bb042f6f29f8bd747670844b",
+    "phase9_failure_policy.py": "e77434846fa4db3fc033d4f79c3293a0ba7d7f8fbc972d06fe7b652c589db321"
+  },
+  "calibration_molecules": 40,
+  "LLE_systems": 1560,
+  "exact_batch_control_comparisons": 80,
+  "max_control_difference": 0.0,
+  "LLE_statuses": {
+    "two_liquid_phases": 166,
+    "single_liquid_phase": 1350,
+    "grid_or_tie_line_unresolved": 12,
+    "activity_nonconvergence": 32
+  },
+  "CPU_models": [
+    "AMD EPYC 7763 64-Core Processor"
+  ],
+  "peak_RSS_MiB": 1207.69140625,
+  "projected_CPU_h": 179.823132986957,
+  "limit_CPU_h": 510,
+  "engineering_sensitivity_CPU_h": [
+    88.17993424498631,
+    323.23795221654933
+  ],
+  "sensitivity_interpretation": "Observed per-stratum minimum/maximum molecule costs and parse rates; not a confidence interval or bound on unmeasured chemistry.",
+  "costs_CPU_h": {
+    "LLE_full_cohort_stratum_weighted": 117.32212388235669,
+    "parse_actual_production_profile_count": 0.8148241200426437,
+    "reuse_partition_with_batch_size_correction": 23.501336164944043,
+    "one_minute_per_chunk_startup": 0.9666666666666667,
+    "all_calibration_allocated_including_failed_first_attempt": 1.5669444444444445
+  },
+  "planned_profile_parses": 8748,
+  "allowance_fraction": 0.25,
+  "projection_note": "Full 5830 LLE/partition cost plus measured calibration is conservative: 40 calibrated units are actually reused.",
+  "production_units": 5790,
+  "reused_units": 40,
+  "chunks": 58
+}

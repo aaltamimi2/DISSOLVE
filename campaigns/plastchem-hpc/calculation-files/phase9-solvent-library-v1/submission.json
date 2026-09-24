@@ -1,0 +1,102 @@
+{
+  "utc": "2026-09-24T06:35:17.433115+00:00",
+  "name": "contam-phase9-common-solvents-v1",
+  "operations": [
+    {
+      "command": [
+        "squeue",
+        "-h",
+        "-r",
+        "-u",
+        "aaltamimi2",
+        "--name=contam-phase9-common-solvents-v1",
+        "-o",
+        "%i|%T|%R"
+      ],
+      "returncode": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "sacct",
+        "-nP",
+        "-u",
+        "aaltamimi2",
+        "--starttime=2026-09-23",
+        "--name=contam-phase9-common-solvents-v1",
+        "--format=JobID,JobName%60,State,Elapsed,NodeList"
+      ],
+      "returncode": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "sbatch",
+        "--parsable",
+        "--hold",
+        "--job-name=contam-phase9-common-solvents-v1",
+        "--partition=research",
+        "--constraint=milan&cpu",
+        "--exclude=euler09,euler10",
+        "--nodes=1",
+        "--ntasks=1",
+        "--cpus-per-task=1",
+        "--mem=4G",
+        "--time=08:00:00",
+        "--no-requeue",
+        "--signal=B:USR1@120",
+        "--array=0-68%4",
+        "--chdir=/srv/home/aaltamimi2/plastchem-euler/phase9-solvent-library-v1",
+        "--output=/srv/home/aaltamimi2/plastchem-euler/phase9-solvent-library-v1/logs/%A_%a.out",
+        "--error=/srv/home/aaltamimi2/plastchem-euler/phase9-solvent-library-v1/logs/%A_%a.err",
+        "--wrap=. \"$HOME/plastchem-euler/orca-env.sh\"; exec python3 phase9_solvent_runner.py solvent_library"
+      ],
+      "returncode": 0,
+      "stdout": "68561\n",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "scontrol",
+        "show",
+        "job",
+        "68561",
+        "-o"
+      ],
+      "returncode": 0,
+      "stdout": "JobId=68561 ArrayJobId=68561 ArrayTaskId=0-68%4 ArrayTaskThrottle=4 JobName=contam-phase9-common-solvents-v1 UserId=aaltamimi2(18803) GroupId=pvt-aaltamimi2(18803) MCS_label=N/A Priority=0 Nice=0 Account=(null) QOS=normal JobState=PENDING Reason=JobHeldUser Dependency=(null) Requeue=0 Restarts=0 BatchFlag=1 Reboot=0 ExitCode=0:0 RunTime=00:00:00 TimeLimit=08:00:00 TimeMin=N/A SubmitTime=2026-09-24T01:35:17 EligibleTime=Unknown AccrueTime=Unknown StartTime=Unknown EndTime=Unknown Deadline=N/A SuspendTime=None SecsPreSuspend=0 LastSchedEval=2026-09-24T01:35:17 Scheduler=Main Partition=research AllocNode:Sid=0.0.0.0:3334551 ReqNodeList=(null) ExcNodeList=euler[09-10] NodeList= NumNodes=1-1 NumCPUs=1 NumTasks=1 CPUs/Task=1 ReqB:S:C:T=0:0:*:* ReqTRES=cpu=1,mem=4G,node=1,billing=1 AllocTRES=(null) Socks/Node=* NtasksPerN:B:S:C=0:0:*:* CoreSpec=* MinCPUsNode=1 MinMemoryNode=4G MinTmpDiskNode=0 Features=milan&cpu DelayBoot=00:00:00 OverSubscribe=OK Contiguous=0 Licenses=(null) LicensesAlloc=(null) Network=(null) Command=(null) WorkDir=/srv/home/aaltamimi2/plastchem-euler/phase9-solvent-library-v1 StdErr=/srv/home/aaltamimi2/plastchem-euler/phase9-solvent-library-v1/logs/68561_4294967294.err StdIn=/dev/null StdOut=/srv/home/aaltamimi2/plastchem-euler/phase9-solvent-library-v1/logs/68561_4294967294.out TresPerTask=cpu=1 \n",
+      "stderr": ""
+    }
+  ],
+  "A_launch_utc": "2026-09-24T06:34:43.826177+00:00",
+  "A_job_id": "68503",
+  "squeue_reconciliation": "",
+  "sacct_reconciliation": "",
+  "job_id": "68561",
+  "decision": "submitted_held_for_A_priority",
+  "submitted_utc": "2026-09-24T06:35:17.561691+00:00",
+  "command": [
+    "sbatch",
+    "--parsable",
+    "--hold",
+    "--job-name=contam-phase9-common-solvents-v1",
+    "--partition=research",
+    "--constraint=milan&cpu",
+    "--exclude=euler09,euler10",
+    "--nodes=1",
+    "--ntasks=1",
+    "--cpus-per-task=1",
+    "--mem=4G",
+    "--time=08:00:00",
+    "--no-requeue",
+    "--signal=B:USR1@120",
+    "--array=0-68%4",
+    "--chdir=/srv/home/aaltamimi2/plastchem-euler/phase9-solvent-library-v1",
+    "--output=/srv/home/aaltamimi2/plastchem-euler/phase9-solvent-library-v1/logs/%A_%a.out",
+    "--error=/srv/home/aaltamimi2/plastchem-euler/phase9-solvent-library-v1/logs/%A_%a.err",
+    "--wrap=. \"$HOME/plastchem-euler/orca-env.sh\"; exec python3 phase9_solvent_runner.py solvent_library"
+  ],
+  "scheduler_readback": "JobId=68561 ArrayJobId=68561 ArrayTaskId=0-68%4 ArrayTaskThrottle=4 JobName=contam-phase9-common-solvents-v1 UserId=aaltamimi2(18803) GroupId=pvt-aaltamimi2(18803) MCS_label=N/A Priority=0 Nice=0 Account=(null) QOS=normal JobState=PENDING Reason=JobHeldUser Dependency=(null) Requeue=0 Restarts=0 BatchFlag=1 Reboot=0 ExitCode=0:0 RunTime=00:00:00 TimeLimit=08:00:00 TimeMin=N/A SubmitTime=2026-09-24T01:35:17 EligibleTime=Unknown AccrueTime=Unknown StartTime=Unknown EndTime=Unknown Deadline=N/A SuspendTime=None SecsPreSuspend=0 LastSchedEval=2026-09-24T01:35:17 Scheduler=Main Partition=research AllocNode:Sid=0.0.0.0:3334551 ReqNodeList=(null) ExcNodeList=euler[09-10] NodeList= NumNodes=1-1 NumCPUs=1 NumTasks=1 CPUs/Task=1 ReqB:S:C:T=0:0:*:* ReqTRES=cpu=1,mem=4G,node=1,billing=1 AllocTRES=(null) Socks/Node=* NtasksPerN:B:S:C=0:0:*:* CoreSpec=* MinCPUsNode=1 MinMemoryNode=4G MinTmpDiskNode=0 Features=milan&cpu DelayBoot=00:00:00 OverSubscribe=OK Contiguous=0 Licenses=(null) LicensesAlloc=(null) Network=(null) Command=(null) WorkDir=/srv/home/aaltamimi2/plastchem-euler/phase9-solvent-library-v1 StdErr=/srv/home/aaltamimi2/plastchem-euler/phase9-solvent-library-v1/logs/68561_4294967294.err StdIn=/dev/null StdOut=/srv/home/aaltamimi2/plastchem-euler/phase9-solvent-library-v1/logs/68561_4294967294.out TresPerTask=cpu=1 \n"
+}

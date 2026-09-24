@@ -1,0 +1,918 @@
+{
+  "scope": "A-9 full 100-contaminant chunk runtime/memory measurement before production; same frozen surfaces and grid",
+  "chunks": [
+    [
+      {
+        "id": "cohort-02843",
+        "reference": "production_chunk_measurement",
+        "reference_index": 2843,
+        "inchikey": "MWCLLHOVUTZFKS-UHFFFAOYSA-N",
+        "surface": "../phase83-v1/surfaces/f03011ad82420d2914804e6583fc1be9c79d9b90e1ab0640f3e7bb2bbd3dba10.orcacosmo",
+        "surface_sha256": "f03011ad82420d2914804e6583fc1be9c79d9b90e1ab0640f3e7bb2bbd3dba10",
+        "molecular_weight_g_mol": 111.1
+      },
+      {
+        "id": "cohort-04475",
+        "reference": "production_chunk_measurement",
+        "reference_index": 4475,
+        "inchikey": "ULHFFAFDSSHFDA-UHFFFAOYSA-N",
+        "surface": "../phase83-v1/surfaces/c24644d2f0d476352b1ae1d0f59524128f03c9cae4bb36ed8536060ff8f757fa.orcacosmo",
+        "surface_sha256": "c24644d2f0d476352b1ae1d0f59524128f03c9cae4bb36ed8536060ff8f757fa",
+        "molecular_weight_g_mol": 137.18
+      },
+      {
+        "id": "cohort-00956",
+        "reference": "production_chunk_measurement",
+        "reference_index": 956,
+        "inchikey": "FBMQNRKSAWNXBT-UHFFFAOYSA-N",
+        "surface": "../phase83-v1/surfaces/c082e7f605ac1b6b43402db8e83c4768cbdf9c5f2990bacba502f802b5204da7.orcacosmo",
+        "surface_sha256": "c082e7f605ac1b6b43402db8e83c4768cbdf9c5f2990bacba502f802b5204da7",
+        "molecular_weight_g_mol": 238.24
+      },
+      {
+        "id": "cohort-00170",
+        "reference": "production_chunk_measurement",
+        "reference_index": 170,
+        "inchikey": "ATQUFXWBVZUTKO-UHFFFAOYSA-N",
+        "surface": "../phase83-v1/surfaces/470a5f26388851508cb79ff387b8cd617394e7ed2ebe1b0a0719bdbcc4367ddc.orcacosmo",
+        "surface_sha256": "470a5f26388851508cb79ff387b8cd617394e7ed2ebe1b0a0719bdbcc4367ddc",
+        "molecular_weight_g_mol": 82.14
+      },
+      {
+        "id": "cohort-05341",
+        "reference": "production_chunk_measurement",
+        "reference_index": 5341,
+        "inchikey": "YDZCHDQXPLJVBG-UHFFFAOYSA-N",
+        "surface": "../phase83-v1/surfaces/b146e982bc68c81df841b67c8c35b22ff82fd231ae24e6a37a57db2096ae59b7.orcacosmo",
+        "surface_sha256": "b146e982bc68c81df841b67c8c35b22ff82fd231ae24e6a37a57db2096ae59b7",
+        "molecular_weight_g_mol": 142.2
+      },
+      {
+        "id": "cohort-00507",
+        "reference": "production_chunk_measurement",
+        "reference_index": 507,
+        "inchikey": "CEXQWAAGPPNOQF-UHFFFAOYSA-N",
+        "surface": "../phase83-v1/surfaces/208a888a9dc7c91c117ae7f0576c41959bb7536e6353f3a890a19b3fc7b0d9b3.orcacosmo",
+        "surface_sha256": "208a888a9dc7c91c117ae7f0576c41959bb7536e6353f3a890a19b3fc7b0d9b3",
+        "molecular_weight_g_mol": 206.24
+      },
+      {
+        "id": "cohort-00702",
+        "reference": "production_chunk_measurement",
+        "reference_index": 702,
+        "inchikey": "DBKDVEPBROVGLY-UHFFFAOYSA-N",
+        "surface": "../phase83-v1/surfaces/8f6810181156990afca9a5a997749b6f2a9dc10225629a4116c0283dda86d84d.orcacosmo",
+        "surface_sha256": "8f6810181156990afca9a5a997749b6f2a9dc10225629a4116c0283dda86d84d",
+        "molecular_weight_g_mol": 225.28
+      },
+      {
+        "id": "cohort-01819",
+        "reference": "production_chunk_measurement",
+        "reference_index": 1819,
+        "inchikey": "ILRSCQWREDREME-UHFFFAOYSA-N",
+        "surface": "../phase83-v1/surfaces/e63ce513d8002f619e30de96605ed7d11c3f72bf38021dd3e1e2962bcf4f8079.orcacosmo",
+        "surface_sha256": "e63ce513d8002f619e30de96605ed7d11c3f72bf38021dd3e1e2962bcf4f8079",
+        "molecular_weight_g_mol": 199.33
+      },
+      {
+        "id": "cohort-00912",
+        "reference": "production_chunk_measurement",
+        "reference_index": 912,
+        "inchikey": "DXWHZJXKTHGHQF-UHFFFAOYSA-N",
+        "surface": "../phase83-v1/surfaces/5ccd8c09eed448a1e565814be8b084e39fdb17609474483b8e161efd1d1b63e2.orcacosmo",
+        "surface_sha256": "5ccd8c09eed448a1e565814be8b084e39fdb17609474483b8e161efd1d1b63e2",
+        "molecular_weight_g_mol": 324.4
+      },
+      {
+        "id": "cohort-01986",
+        "reference": "production_chunk_measurement",
+        "reference_index": 1986,
+        "inchikey": "JFTSYAALCNQOKO-UHFFFAOYSA-N",
+        "surface": "../phase83-v1/surfaces/6195d511bf1501ef51422b789ac80508222dc40dd14b0e1d31fcbdd439a44807.orcacosmo",
+        "surface_sha256": "6195d511bf1501ef51422b789ac80508222dc40dd14b0e1d31fcbdd439a44807",
+        "molecular_weight_g_mol": 190.28
+      },
+      {
+        "id": "cohort-00898",
+        "reference": "production_chunk_measurement",
+        "reference_index": 898,
+        "inchikey": "DWNAQMUDCDVSLT-UHFFFAOYSA-N",
+        "surface": "../phase83-v1/surfaces/dd0cbe9e60778b5acd3046aa2ba0eb4a7461fe409153daafe6835f348adc4388.orcacosmo",
+        "surface_sha256": "dd0cbe9e60778b5acd3046aa2ba0eb4a7461fe409153daafe6835f348adc4388",
+        "molecular_weight_g_mol": 318.3
+      },
+      {
+        "id": "cohort-04587",
+        "reference": "production_chunk_measurement",
+        "reference_index": 4587,
+        "inchikey": "UYXTWWCETRIEDR-UHFFFAOYSA-N",
+        "surface": "../phase83-v1/surfaces/cf6f05fc0e876c8b0057f3aa6a1178006d0b0ee84bef7c536bacbe3e8a19e716.orcacosmo",
+        "surface_sha256": "cf6f05fc0e876c8b0057f3aa6a1178006d0b0ee84bef7c536bacbe3e8a19e716",
+        "molecular_weight_g_mol": 302.36
+      },
+      {
+        "id": "cohort-04142",
+        "reference": "production_chunk_measurement",
+        "reference_index": 4142,
+        "inchikey": "SFIHQZFZMWZOJV-HZJYTTRNSA-N",
+        "surface": "../phase83-v1/surfaces/2f9a732d1c17e877ee84f74550a1b0bab64799051a85bbd2407dc460a3a7ebf1.orcacosmo",
+        "surface_sha256": "2f9a732d1c17e877ee84f74550a1b0bab64799051a85bbd2407dc460a3a7ebf1",
+        "molecular_weight_g_mol": 279.5
+      },
+      {
+        "id": "cohort-02068",
+        "reference": "production_chunk_measurement",
+        "reference_index": 2068,
+        "inchikey": "JOIUZBTWMAYEQW-UHFFFAOYSA-N",
+        "surface": "../phase83-v1/surfaces/4c7a70a5f9a9b1ec13bdd47e5abe9dcc5ecc98f42cbf4411f5bfad3d4098f424.orcacosmo",
+        "surface_sha256": "4c7a70a5f9a9b1ec13bdd47e5abe9dcc5ecc98f42cbf4411f5bfad3d4098f424",
+        "molecular_weight_g_mol": 357.5
+      },
+      {
+        "id": "cohort-03694",
+        "reference": "production_chunk_measurement",
+        "reference_index": 3694,
+        "inchikey": "QKOWXXDOHMJOMQ-UHFFFAOYSA-N",
+        "surface": "../phase83-v1/surfaces/771fedc387089d612d660a5d569954f61ca42d6e235e9fb9af0708b63e1bcb6d.orcacosmo",
+        "surface_sha256": "771fedc387089d612d660a5d569954f61ca42d6e235e9fb9af0708b63e1bcb6d",
+        "molecular_weight_g_mol": 478.6
+      },
+      {
+        "id": "cohort-02711",
+        "reference": "production_chunk_measurement",
+        "reference_index": 2711,
+        "inchikey": "MHVJRKBZMUDEEV-APQLOABGSA-N",
+        "surface": "../phase83-v1/surfaces/409e0a5ad67fad812b3084bb4d501cf9c26925b244c22264872a35e2dedda9b9.orcacosmo",
+        "surface_sha256": "409e0a5ad67fad812b3084bb4d501cf9c26925b244c22264872a35e2dedda9b9",
+        "molecular_weight_g_mol": 302.5
+      },
+      {
+        "id": "cohort-01609",
+        "reference": "production_chunk_measurement",
+        "reference_index": 1609,
+        "inchikey": "HPGHRGIPHODCEW-UHFFFAOYSA-N",
+        "surface": "../phase83-v1/surfaces/117307a409a4fdb5e03d2f839eb84dd48f4106823ac3a401e007d9a1fbcc51a7.orcacosmo",
+        "surface_sha256": "117307a409a4fdb5e03d2f839eb84dd48f4106823ac3a401e007d9a1fbcc51a7",
+        "molecular_weight_g_mol": 340.5
+      },
+      {
+        "id": "cohort-03177",
+        "reference": "production_chunk_measurement",
+        "reference_index": 3177,
+        "inchikey": "OFEMBBUDYGTDON-UHFFFAOYSA-N",
+        "surface": "../phase83-v1/surfaces/478c408c894ac68b4a3c919b74047fd976d49a4b30eaa83e5fa466fec47060e4.orcacosmo",
+        "surface_sha256": "478c408c894ac68b4a3c919b74047fd976d49a4b30eaa83e5fa466fec47060e4",
+        "molecular_weight_g_mol": 354.7
+      },
+      {
+        "id": "cohort-04504",
+        "reference": "production_chunk_measurement",
+        "reference_index": 4504,
+        "inchikey": "UONLDZHKYCFZRW-UHFFFAOYSA-N",
+        "surface": "../phase83-v1/surfaces/195e319c0b3b5136c7fb411e7a7b459d6eb190d6265ba73f7b578e0527711aa8.orcacosmo",
+        "surface_sha256": "195e319c0b3b5136c7fb411e7a7b459d6eb190d6265ba73f7b578e0527711aa8",
+        "molecular_weight_g_mol": 450.7
+      },
+      {
+        "id": "cohort-02055",
+        "reference": "production_chunk_measurement",
+        "reference_index": 2055,
+        "inchikey": "JMUOXOJMXILBTE-UHFFFAOYSA-N",
+        "surface": "../phase83-v1/surfaces/58ab7c94a79b64f27e6cb6af5570f7d6adf44500029922d2136efcf634fc09ac.orcacosmo",
+        "surface_sha256": "58ab7c94a79b64f27e6cb6af5570f7d6adf44500029922d2136efcf634fc09ac",
+        "molecular_weight_g_mol": 423.7
+      },
+      {
+        "id": "cohort-04324",
+        "reference": "production_chunk_measurement",
+        "reference_index": 4324,
+        "inchikey": "SZQRSDJOAHBRSI-UHFFFAOYSA-N",
+        "surface": "../phase83-v1/surfaces/d57f7825140293a45a9cb10eaa568168d7de4c4a0b06906341259341f97f90a1.orcacosmo",
+        "surface_sha256": "d57f7825140293a45a9cb10eaa568168d7de4c4a0b06906341259341f97f90a1",
+        "molecular_weight_g_mol": 480.8
+      },
+      {
+        "id": "cohort-01857",
+        "reference": "production_chunk_measurement",
+        "reference_index": 1857,
+        "inchikey": "IOWILYDIQORSRC-UHFFFAOYSA-N",
+        "surface": "../phase83-v1/surfaces/4eb081cca3ff5e89901effff232880f20d43fc77b2df9ad719c371ca252a5961.orcacosmo",
+        "surface_sha256": "4eb081cca3ff5e89901effff232880f20d43fc77b2df9ad719c371ca252a5961",
+        "molecular_weight_g_mol": 472.7
+      },
+      {
+        "id": "cohort-03620",
+        "reference": "production_chunk_measurement",
+        "reference_index": 3620,
+        "inchikey": "PZUXYVVFGLRVRG-UHFFFAOYSA-N",
+        "surface": "../phase83-v1/surfaces/37e7d44d225f4cec2e3362d65dfae1349ad6b4d7584268bf1e59ac85ea1c8b0b.orcacosmo",
+        "surface_sha256": "37e7d44d225f4cec2e3362d65dfae1349ad6b4d7584268bf1e59ac85ea1c8b0b",
+        "molecular_weight_g_mol": 454.7
+      },
+      {
+        "id": "cohort-05742",
+        "reference": "production_chunk_measurement",
+        "reference_index": 5742,
+        "inchikey": "ZTLKOYAJKRWSKL-UHFFFAOYSA-N",
+        "surface": "../phase83-v1/surfaces/39b5bfc3b143ae5e7f94bfb5a3735ea7ea5fa024adc7be71c59e407c6fcf8e41.orcacosmo",
+        "surface_sha256": "39b5bfc3b143ae5e7f94bfb5a3735ea7ea5fa024adc7be71c59e407c6fcf8e41",
+        "molecular_weight_g_mol": 450.9
+      },
+      {
+        "id": "cohort-05806",
+        "reference": "production_chunk_measurement",
+        "reference_index": 5806,
+        "inchikey": "DMPXHEMGDYKSFL-UHFFFAOYSA-N",
+        "surface": "../phase83-v1/surfaces/28f418c99aefcabfeea9209d28f1ee99c0646efb1df02ebba07b1c27914fab63.orcacosmo",
+        "surface_sha256": "28f418c99aefcabfeea9209d28f1ee99c0646efb1df02ebba07b1c27914fab63",
+        "molecular_weight_g_mol": 620.67
+      },
+      {
+        "id": "cohort-05827",
+        "reference": "production_chunk_measurement",
+        "reference_index": 5827,
+        "inchikey": "VMRGZRVLZQSNHC-UHFFFAOYSA-N",
+        "surface": "../phase83-v1/surfaces/c1e0df41eefe06d2524916dd5bf18dee7e6acafb996fe8910fe4a613e486c254.orcacosmo",
+        "surface_sha256": "c1e0df41eefe06d2524916dd5bf18dee7e6acafb996fe8910fe4a613e486c254",
+        "molecular_weight_g_mol": 505.92
+      },
+      {
+        "id": "cohort-05829",
+        "reference": "production_chunk_measurement",
+        "reference_index": 5829,
+        "inchikey": "ZNRNSKNVPBUUNI-CLFAGFIQSA-N",
+        "surface": "../phase83-v1/surfaces/82a613f2878b8c9c6140c51da3f457f6f32777a91be6e3208a87e81e554f610b.orcacosmo",
+        "surface_sha256": "82a613f2878b8c9c6140c51da3f457f6f32777a91be6e3208a87e81e554f610b",
+        "molecular_weight_g_mol": 647.08
+      },
+      {
+        "id": "cohort-00000",
+        "reference": "production_chunk_measurement",
+        "reference_index": 0,
+        "inchikey": "AANMVENRNJYEMK-UHFFFAOYSA-N",
+        "surface": "../phase83-v1/surfaces/4d27e86d555f5f46398a864b6e3e15c160d229588f031ffc909b41966b3be017.orcacosmo",
+        "surface_sha256": "4d27e86d555f5f46398a864b6e3e15c160d229588f031ffc909b41966b3be017",
+        "molecular_weight_g_mol": 138.21
+      },
+      {
+        "id": "cohort-00001",
+        "reference": "production_chunk_measurement",
+        "reference_index": 1,
+        "inchikey": "AAQDYYFAFXGBFZ-UHFFFAOYSA-N",
+        "surface": "../phase83-v1/surfaces/b853dc13fa88332afddd694ea33bc6e2643d59399ca9c7cfc5554985f98df78e.orcacosmo",
+        "surface_sha256": "b853dc13fa88332afddd694ea33bc6e2643d59399ca9c7cfc5554985f98df78e",
+        "molecular_weight_g_mol": 144.17
+      },
+      {
+        "id": "cohort-00002",
+        "reference": "production_chunk_measurement",
+        "reference_index": 2,
+        "inchikey": "AAUHUDBDDBJONC-UHFFFAOYSA-N",
+        "surface": "../phase83-v1/surfaces/905b779ba8208f6cc8e3f11cb5f64bdfd07484dbdf50d941313e164db6c0fee9.orcacosmo",
+        "surface_sha256": "905b779ba8208f6cc8e3f11cb5f64bdfd07484dbdf50d941313e164db6c0fee9",
+        "molecular_weight_g_mol": 112.21
+      },
+      {
+        "id": "cohort-00003",
+        "reference": "production_chunk_measurement",
+        "reference_index": 3,
+        "inchikey": "ABIPNDAVRBMCHV-UHFFFAOYSA-N",
+        "surface": "../phase83-v1/surfaces/4d2b7f3bedb39a64839b079fcced8f61611f03acece5de82195c70d2a1fb66b7.orcacosmo",
+        "surface_sha256": "4d2b7f3bedb39a64839b079fcced8f61611f03acece5de82195c70d2a1fb66b7",
+        "molecular_weight_g_mol": 160.25
+      },
+      {
+        "id": "cohort-00004",
+        "reference": "production_chunk_measurement",
+        "reference_index": 4,
+        "inchikey": "ABMKWMASVFVTMD-UHFFFAOYSA-N",
+        "surface": "../phase83-v1/surfaces/e24222cb76b4c5e77d722abf172df6e283ada3bfb91bb11d66c182a241a0f0ae.orcacosmo",
+        "surface_sha256": "e24222cb76b4c5e77d722abf172df6e283ada3bfb91bb11d66c182a241a0f0ae",
+        "molecular_weight_g_mol": 182.26
+      },
+      {
+        "id": "cohort-00005",
+        "reference": "production_chunk_measurement",
+        "reference_index": 5,
+        "inchikey": "ABMULKFGWTYIIK-UHFFFAOYSA-N",
+        "surface": "../phase83-v1/surfaces/2677204558741ac040d2621329dfa4732e0dac16e066a0478f502bb1ee08976e.orcacosmo",
+        "surface_sha256": "2677204558741ac040d2621329dfa4732e0dac16e066a0478f502bb1ee08976e",
+        "molecular_weight_g_mol": 178.27
+      },
+      {
+        "id": "cohort-00006",
+        "reference": "production_chunk_measurement",
+        "reference_index": 6,
+        "inchikey": "ABRWCGWMRMPLID-HMUOIZGVSA-N",
+        "surface": "../phase83-v1/surfaces/5661f8478530963d34c6291ffe9c3ca4636c912450a2b1fc921c430ec2f8250c.orcacosmo",
+        "surface_sha256": "5661f8478530963d34c6291ffe9c3ca4636c912450a2b1fc921c430ec2f8250c",
+        "molecular_weight_g_mol": 400.7
+      },
+      {
+        "id": "cohort-00007",
+        "reference": "production_chunk_measurement",
+        "reference_index": 7,
+        "inchikey": "ABUZDQCQXDZFRG-UHFFFAOYSA-N",
+        "surface": "../phase83-v1/surfaces/d8c39eed1586f171f826060f80902c0ac44fbf1580a3ab745972b0d27f216e2f.orcacosmo",
+        "surface_sha256": "d8c39eed1586f171f826060f80902c0ac44fbf1580a3ab745972b0d27f216e2f",
+        "molecular_weight_g_mol": 186.2
+      },
+      {
+        "id": "cohort-00008",
+        "reference": "production_chunk_measurement",
+        "reference_index": 8,
+        "inchikey": "ABXXXZLVKKIAGK-UHFFFAOYSA-N",
+        "surface": "../phase83-v1/surfaces/a25fc6456fa662e7e2e0a3488d45fcc006f67bcfccedbfc90f191478cb3a85b7.orcacosmo",
+        "surface_sha256": "a25fc6456fa662e7e2e0a3488d45fcc006f67bcfccedbfc90f191478cb3a85b7",
+        "molecular_weight_g_mol": 410.7
+      },
+      {
+        "id": "cohort-00009",
+        "reference": "production_chunk_measurement",
+        "reference_index": 9,
+        "inchikey": "ACDUHTSVVVHMGU-UHFFFAOYSA-N",
+        "surface": "../phase83-v1/surfaces/9950245aa1971e311150d01235ac19ee14e38d10e9b42052fc6382521974c902.orcacosmo",
+        "surface_sha256": "9950245aa1971e311150d01235ac19ee14e38d10e9b42052fc6382521974c902",
+        "molecular_weight_g_mol": 242.44
+      },
+      {
+        "id": "cohort-00010",
+        "reference": "production_chunk_measurement",
+        "reference_index": 10,
+        "inchikey": "ACTNHJDHMQSOGL-UHFFFAOYSA-N",
+        "surface": "../phase83-v1/surfaces/eff99de56fbaa4841cb24ad3d135206dc865bc65d011b2de530c1a9450a937e6.orcacosmo",
+        "surface_sha256": "eff99de56fbaa4841cb24ad3d135206dc865bc65d011b2de530c1a9450a937e6",
+        "molecular_weight_g_mol": 240.34
+      },
+      {
+        "id": "cohort-00011",
+        "reference": "production_chunk_measurement",
+        "reference_index": 11,
+        "inchikey": "ACUZDYFTRHEKOS-UHFFFAOYSA-N",
+        "surface": "../phase83-v1/surfaces/17311e19b221c0252c7e614301f425e165810d7ee146da3b895a88c413d5fc55.orcacosmo",
+        "surface_sha256": "17311e19b221c0252c7e614301f425e165810d7ee146da3b895a88c413d5fc55",
+        "molecular_weight_g_mol": 158.28
+      },
+      {
+        "id": "cohort-00012",
+        "reference": "production_chunk_measurement",
+        "reference_index": 12,
+        "inchikey": "ACYBVNYNIZTUIL-UHFFFAOYSA-N",
+        "surface": "../phase83-v1/surfaces/fb8fbfada5392816a38ff026a09a00c2795a54b7a479ee8e1f905be2d779ae5e.orcacosmo",
+        "surface_sha256": "fb8fbfada5392816a38ff026a09a00c2795a54b7a479ee8e1f905be2d779ae5e",
+        "molecular_weight_g_mol": 150.22
+      },
+      {
+        "id": "cohort-00013",
+        "reference": "production_chunk_measurement",
+        "reference_index": 13,
+        "inchikey": "ACYOLKMEHHTLAB-UHFFFAOYSA-N",
+        "surface": "../phase83-v1/surfaces/db993dc4de3160e0a7130cd952d1c86c152a0cf0b7a33e22bcac676b0f60a016.orcacosmo",
+        "surface_sha256": "db993dc4de3160e0a7130cd952d1c86c152a0cf0b7a33e22bcac676b0f60a016",
+        "molecular_weight_g_mol": 242.3
+      },
+      {
+        "id": "cohort-00014",
+        "reference": "production_chunk_measurement",
+        "reference_index": 14,
+        "inchikey": "ADAHGVUHKDNLEB-UHFFFAOYSA-N",
+        "surface": "../phase83-v1/surfaces/92f337f95aa1e3dcbc037d1835612f94dd3355905c225bf5fc4f1d59c4de73cc.orcacosmo",
+        "surface_sha256": "92f337f95aa1e3dcbc037d1835612f94dd3355905c225bf5fc4f1d59c4de73cc",
+        "molecular_weight_g_mol": 182.22
+      },
+      {
+        "id": "cohort-00015",
+        "reference": "production_chunk_measurement",
+        "reference_index": 15,
+        "inchikey": "ADCWDMYESTYBBN-UHFFFAOYSA-N",
+        "surface": "../phase83-v1/surfaces/bf4fbfdf8c2bef8f416cc6b452949d02f9bb8532f6daf4159a6947282cf8bc89.orcacosmo",
+        "surface_sha256": "bf4fbfdf8c2bef8f416cc6b452949d02f9bb8532f6daf4159a6947282cf8bc89",
+        "molecular_weight_g_mol": 344.4
+      },
+      {
+        "id": "cohort-00016",
+        "reference": "production_chunk_measurement",
+        "reference_index": 16,
+        "inchikey": "ADFXKUOMJKEIND-UHFFFAOYSA-N",
+        "surface": "../phase83-v1/surfaces/ffeff233618ebd65c57d5c0c193de4d67dd1a0d8d6371f279cc9461206893d23.orcacosmo",
+        "surface_sha256": "ffeff233618ebd65c57d5c0c193de4d67dd1a0d8d6371f279cc9461206893d23",
+        "molecular_weight_g_mol": 224.34
+      },
+      {
+        "id": "cohort-00017",
+        "reference": "production_chunk_measurement",
+        "reference_index": 17,
+        "inchikey": "ADGJZVKOKVENDN-UHFFFAOYSA-N",
+        "surface": "../phase83-v1/surfaces/79dc2ccee9436160a821107630754d34b87a6f893fcbec7e5127d292505a3f8d.orcacosmo",
+        "surface_sha256": "79dc2ccee9436160a821107630754d34b87a6f893fcbec7e5127d292505a3f8d",
+        "molecular_weight_g_mol": 171.24
+      },
+      {
+        "id": "cohort-00018",
+        "reference": "production_chunk_measurement",
+        "reference_index": 18,
+        "inchikey": "ADHNUPOJJCKWRT-JLXBFWJWSA-N",
+        "surface": "../phase83-v1/surfaces/5479c6a1253d9014d0137cc4516852f84abd344d12fc6699019dd7f46c234d7b.orcacosmo",
+        "surface_sha256": "5479c6a1253d9014d0137cc4516852f84abd344d12fc6699019dd7f46c234d7b",
+        "molecular_weight_g_mol": 280.4
+      },
+      {
+        "id": "cohort-00019",
+        "reference": "production_chunk_measurement",
+        "reference_index": 19,
+        "inchikey": "ADOBXTDBFNCOBN-UHFFFAOYSA-N",
+        "surface": "../phase83-v1/surfaces/5ad7dc27e9b1ab335ccf3a67aff4ad0ba8894eb0ffe698ed021686528c54dae9.orcacosmo",
+        "surface_sha256": "5ad7dc27e9b1ab335ccf3a67aff4ad0ba8894eb0ffe698ed021686528c54dae9",
+        "molecular_weight_g_mol": 238.5
+      },
+      {
+        "id": "cohort-00020",
+        "reference": "production_chunk_measurement",
+        "reference_index": 20,
+        "inchikey": "ADOQBZAVKYCFOI-HWKANZROSA-N",
+        "surface": "../phase83-v1/surfaces/506dd0ac7478519ee180b9a139391add8d32c89a58bc81b2b9983ac8e725af19.orcacosmo",
+        "surface_sha256": "506dd0ac7478519ee180b9a139391add8d32c89a58bc81b2b9983ac8e725af19",
+        "molecular_weight_g_mol": 168.32
+      },
+      {
+        "id": "cohort-00021",
+        "reference": "production_chunk_measurement",
+        "reference_index": 21,
+        "inchikey": "ADQJFBQXLAAVQA-UHFFFAOYSA-N",
+        "surface": "../phase83-v1/surfaces/b0378539531d4c8a0d76f125b7884776193168a54f77e2ecb784af6707941b04.orcacosmo",
+        "surface_sha256": "b0378539531d4c8a0d76f125b7884776193168a54f77e2ecb784af6707941b04",
+        "molecular_weight_g_mol": 126.24
+      },
+      {
+        "id": "cohort-00022",
+        "reference": "production_chunk_measurement",
+        "reference_index": 22,
+        "inchikey": "ADSOSINJPNKUJK-UHFFFAOYSA-N",
+        "surface": "../phase83-v1/surfaces/1d523d4364adaf876b2248cddf765810e58fb8308e81bdfef406af3a74a6c3bc.orcacosmo",
+        "surface_sha256": "1d523d4364adaf876b2248cddf765810e58fb8308e81bdfef406af3a74a6c3bc",
+        "molecular_weight_g_mol": 135.21
+      },
+      {
+        "id": "cohort-00023",
+        "reference": "production_chunk_measurement",
+        "reference_index": 23,
+        "inchikey": "ADTJPOBHAXXXFS-UHFFFAOYSA-N",
+        "surface": "../phase83-v1/surfaces/ec3684a13d4543aa80f647b38e091452f2aac08d8077c228ef8e0daece968705.orcacosmo",
+        "surface_sha256": "ec3684a13d4543aa80f647b38e091452f2aac08d8077c228ef8e0daece968705",
+        "molecular_weight_g_mol": 156.23
+      },
+      {
+        "id": "cohort-00024",
+        "reference": "production_chunk_measurement",
+        "reference_index": 24,
+        "inchikey": "ADUAASDQTXSPNT-NYYWCZLTSA-N",
+        "surface": "../phase83-v1/surfaces/6b697b8c3a566a8e156124035c105340142a3f83259834fc41d58b21b7653879.orcacosmo",
+        "surface_sha256": "6b697b8c3a566a8e156124035c105340142a3f83259834fc41d58b21b7653879",
+        "molecular_weight_g_mol": 296.32
+      },
+      {
+        "id": "cohort-00025",
+        "reference": "production_chunk_measurement",
+        "reference_index": 25,
+        "inchikey": "AEIJTFQOBWATKX-UHFFFAOYSA-N",
+        "surface": "../phase83-v1/surfaces/241cc71bb6828d38d19dfa09384020eb46f30a008a829fe0741cd5830ddbb2cc.orcacosmo",
+        "surface_sha256": "241cc71bb6828d38d19dfa09384020eb46f30a008a829fe0741cd5830ddbb2cc",
+        "molecular_weight_g_mol": 146.23
+      },
+      {
+        "id": "cohort-00026",
+        "reference": "production_chunk_measurement",
+        "reference_index": 26,
+        "inchikey": "AEMFNILZOJDQLW-QAGGRKNESA-N",
+        "surface": "../phase83-v1/surfaces/0b4f8823268ce509f19d3adcee33443f04de9ec7f233a15f7bbab9be5c8c6e6f.orcacosmo",
+        "surface_sha256": "0b4f8823268ce509f19d3adcee33443f04de9ec7f233a15f7bbab9be5c8c6e6f",
+        "molecular_weight_g_mol": 286.4
+      },
+      {
+        "id": "cohort-00027",
+        "reference": "production_chunk_measurement",
+        "reference_index": 27,
+        "inchikey": "AEMRFAOFKBGASW-UHFFFAOYSA-N",
+        "surface": "../phase83-v1/surfaces/4215e1803ecd8541c45b4b315abd04cffd4d80fa4fddd9408143ec7fe30a9f74.orcacosmo",
+        "surface_sha256": "4215e1803ecd8541c45b4b315abd04cffd4d80fa4fddd9408143ec7fe30a9f74",
+        "molecular_weight_g_mol": 76.05
+      },
+      {
+        "id": "cohort-00028",
+        "reference": "production_chunk_measurement",
+        "reference_index": 28,
+        "inchikey": "AEPUKSBIJZXFCI-UHFFFAOYSA-N",
+        "surface": "../phase83-v1/surfaces/ebe3466d10f336a75880dbf95bb7b739b6ff938933cba3e5a0f1a7dd93add6fe.orcacosmo",
+        "surface_sha256": "ebe3466d10f336a75880dbf95bb7b739b6ff938933cba3e5a0f1a7dd93add6fe",
+        "molecular_weight_g_mol": 368.5
+      },
+      {
+        "id": "cohort-00029",
+        "reference": "production_chunk_measurement",
+        "reference_index": 29,
+        "inchikey": "AEPWOCLBLLCOGZ-UHFFFAOYSA-N",
+        "surface": "../phase83-v1/surfaces/3ad9af0b0ef79a98ffbe137dab8c9091fdb228db41a95830f71753bd026de16c.orcacosmo",
+        "surface_sha256": "3ad9af0b0ef79a98ffbe137dab8c9091fdb228db41a95830f71753bd026de16c",
+        "molecular_weight_g_mol": 125.13
+      },
+      {
+        "id": "cohort-00030",
+        "reference": "production_chunk_measurement",
+        "reference_index": 30,
+        "inchikey": "AERBNCYCJBRYDG-UHFFFAOYSA-N",
+        "surface": "../phase83-v1/surfaces/9e3d15162afbe1d3f3288faa1ff5de3486ee6d925ec1cbf514eadea18d23ccbe.orcacosmo",
+        "surface_sha256": "9e3d15162afbe1d3f3288faa1ff5de3486ee6d925ec1cbf514eadea18d23ccbe",
+        "molecular_weight_g_mol": 317.5
+      },
+      {
+        "id": "cohort-00031",
+        "reference": "production_chunk_measurement",
+        "reference_index": 31,
+        "inchikey": "AERGGMDNGDDGPI-HOTGVXAUSA-N",
+        "surface": "../phase83-v1/surfaces/533444edde544c1fd4be0ad0de10ea9af086307ee2b44fc52f72468b65c7d9da.orcacosmo",
+        "surface_sha256": "533444edde544c1fd4be0ad0de10ea9af086307ee2b44fc52f72468b65c7d9da",
+        "molecular_weight_g_mol": 208.3
+      },
+      {
+        "id": "cohort-00032",
+        "reference": "production_chunk_measurement",
+        "reference_index": 32,
+        "inchikey": "AERGGMDNGDDGPI-IYBDPMFKSA-N",
+        "surface": "../phase83-v1/surfaces/86aafe3685fca3fef6f7a9701bd28aec3b1b663a3c2154f0e76de348c6e4f50e.orcacosmo",
+        "surface_sha256": "86aafe3685fca3fef6f7a9701bd28aec3b1b663a3c2154f0e76de348c6e4f50e",
+        "molecular_weight_g_mol": 208.3
+      },
+      {
+        "id": "cohort-00033",
+        "reference": "production_chunk_measurement",
+        "reference_index": 33,
+        "inchikey": "AERGGMDNGDDGPI-UHFFFAOYSA-N",
+        "surface": "../phase83-v1/surfaces/3fb7169bef5634ca6f077f0a3d6d85c81449c6c91af80a8f9b82babedb8060c2.orcacosmo",
+        "surface_sha256": "3fb7169bef5634ca6f077f0a3d6d85c81449c6c91af80a8f9b82babedb8060c2",
+        "molecular_weight_g_mol": 208.3
+      },
+      {
+        "id": "cohort-00034",
+        "reference": "production_chunk_measurement",
+        "reference_index": 34,
+        "inchikey": "AEUORZZHALJMBM-UHFFFAOYSA-N",
+        "surface": "../phase83-v1/surfaces/a7bd0f6dd065a88c2bd5fd6fb3e4b33d152b59ada6e2dae0531a28964965376c.orcacosmo",
+        "surface_sha256": "a7bd0f6dd065a88c2bd5fd6fb3e4b33d152b59ada6e2dae0531a28964965376c",
+        "molecular_weight_g_mol": 326.4
+      },
+      {
+        "id": "cohort-00035",
+        "reference": "production_chunk_measurement",
+        "reference_index": 35,
+        "inchikey": "AFABGHUZZDYHJO-UHFFFAOYSA-N",
+        "surface": "../phase83-v1/surfaces/f0d960e4239981da2ab088c580c50f2fec4c64b684cd83e0050ac89bf68020f3.orcacosmo",
+        "surface_sha256": "f0d960e4239981da2ab088c580c50f2fec4c64b684cd83e0050ac89bf68020f3",
+        "molecular_weight_g_mol": 86.18
+      },
+      {
+        "id": "cohort-00036",
+        "reference": "production_chunk_measurement",
+        "reference_index": 36,
+        "inchikey": "AFBPFSWMIHJQDM-UHFFFAOYSA-N",
+        "surface": "../phase83-v1/surfaces/ab527950740f4c7c5cbc611f6879c228ce2fdea5b65625f6f5f40b93c0c9b536.orcacosmo",
+        "surface_sha256": "ab527950740f4c7c5cbc611f6879c228ce2fdea5b65625f6f5f40b93c0c9b536",
+        "molecular_weight_g_mol": 107.15
+      },
+      {
+        "id": "cohort-00037",
+        "reference": "production_chunk_measurement",
+        "reference_index": 37,
+        "inchikey": "AFEYPUTUUQHPJT-UHFFFAOYSA-N",
+        "surface": "../phase83-v1/surfaces/93ebeaa99f8a79717e8e3e8b08ffc2b8004e84358f164aa78cc6f7999df9590e.orcacosmo",
+        "surface_sha256": "93ebeaa99f8a79717e8e3e8b08ffc2b8004e84358f164aa78cc6f7999df9590e",
+        "molecular_weight_g_mol": 134.22
+      },
+      {
+        "id": "cohort-00038",
+        "reference": "production_chunk_measurement",
+        "reference_index": 38,
+        "inchikey": "AFFLGGQVNFXPEV-UHFFFAOYSA-N",
+        "surface": "../phase83-v1/surfaces/c1f2bc7d6f355bd33a94cfb0e9a254192705b880a658bed611dec6ec618b2560.orcacosmo",
+        "surface_sha256": "c1f2bc7d6f355bd33a94cfb0e9a254192705b880a658bed611dec6ec618b2560",
+        "molecular_weight_g_mol": 140.27
+      },
+      {
+        "id": "cohort-00039",
+        "reference": "production_chunk_measurement",
+        "reference_index": 39,
+        "inchikey": "AFKUSTCGONJZHE-UHFFFAOYSA-N",
+        "surface": "../phase83-v1/surfaces/801348d6b881e6952862403a924839367dfe0071fb4138cb019ed532810e9321.orcacosmo",
+        "surface_sha256": "801348d6b881e6952862403a924839367dfe0071fb4138cb019ed532810e9321",
+        "molecular_weight_g_mol": 254.5
+      },
+      {
+        "id": "cohort-00040",
+        "reference": "production_chunk_measurement",
+        "reference_index": 40,
+        "inchikey": "AFNWSIIBAYUTTL-UHFFFAOYSA-N",
+        "surface": "../phase83-v1/surfaces/c34faf4aa2f8138fdde56d74ddd56cad23f3b03229129d327a72b7cbce48a1e4.orcacosmo",
+        "surface_sha256": "c34faf4aa2f8138fdde56d74ddd56cad23f3b03229129d327a72b7cbce48a1e4",
+        "molecular_weight_g_mol": 194.36
+      },
+      {
+        "id": "cohort-00041",
+        "reference": "production_chunk_measurement",
+        "reference_index": 41,
+        "inchikey": "AFSIMBWBBOJPJG-UHFFFAOYSA-N",
+        "surface": "../phase83-v1/surfaces/1558d767dd3548f241f331c927424cbdc2a7a1342ac6cc560e85a4b3e0b7948a.orcacosmo",
+        "surface_sha256": "1558d767dd3548f241f331c927424cbdc2a7a1342ac6cc560e85a4b3e0b7948a",
+        "molecular_weight_g_mol": 310.5
+      },
+      {
+        "id": "cohort-00042",
+        "reference": "production_chunk_measurement",
+        "reference_index": 42,
+        "inchikey": "AFUVERHXBGWDBX-UHFFFAOYSA-N",
+        "surface": "../phase83-v1/surfaces/e33a5c0531ffb52890624459ae8ed8cb6ebe7544ab6167966263bafd3c890aff.orcacosmo",
+        "surface_sha256": "e33a5c0531ffb52890624459ae8ed8cb6ebe7544ab6167966263bafd3c890aff",
+        "molecular_weight_g_mol": 206.28
+      },
+      {
+        "id": "cohort-00043",
+        "reference": "production_chunk_measurement",
+        "reference_index": 43,
+        "inchikey": "AFYCEAFSNDLKSX-UHFFFAOYSA-N",
+        "surface": "../phase83-v1/surfaces/e9feea06d54dd849607951ce707601bb21036918768d82c90adfe54a6e69fa24.orcacosmo",
+        "surface_sha256": "e9feea06d54dd849607951ce707601bb21036918768d82c90adfe54a6e69fa24",
+        "molecular_weight_g_mol": 231.29
+      },
+      {
+        "id": "cohort-00044",
+        "reference": "production_chunk_measurement",
+        "reference_index": 44,
+        "inchikey": "AFZZFBZPHUDOLV-UHFFFAOYSA-N",
+        "surface": "../phase83-v1/surfaces/df312639218b74beb8f5539129941cd87774144f3e36925419c5a8114bd03e12.orcacosmo",
+        "surface_sha256": "df312639218b74beb8f5539129941cd87774144f3e36925419c5a8114bd03e12",
+        "molecular_weight_g_mol": 270.37
+      },
+      {
+        "id": "cohort-00045",
+        "reference": "production_chunk_measurement",
+        "reference_index": 45,
+        "inchikey": "AGEXUCKZTAUZJM-UHFFFAOYSA-N",
+        "surface": "../phase83-v1/surfaces/567da6b7f795ef74371a1a506e7c8fc915005785793456166cec349e28537a50.orcacosmo",
+        "surface_sha256": "567da6b7f795ef74371a1a506e7c8fc915005785793456166cec349e28537a50",
+        "molecular_weight_g_mol": 417.5
+      },
+      {
+        "id": "cohort-00046",
+        "reference": "production_chunk_measurement",
+        "reference_index": 46,
+        "inchikey": "AGKBXKFWMQLFGZ-UHFFFAOYSA-N",
+        "surface": "../phase83-v1/surfaces/cba68b183353ecdc3af8abfd4e62301f645053bb46c2465685bb363b79288595.orcacosmo",
+        "surface_sha256": "cba68b183353ecdc3af8abfd4e62301f645053bb46c2465685bb363b79288595",
+        "molecular_weight_g_mol": 270.28
+      },
+      {
+        "id": "cohort-00047",
+        "reference": "production_chunk_measurement",
+        "reference_index": 47,
+        "inchikey": "AGNLJNRENXLLQO-UHFFFAOYSA-N",
+        "surface": "../phase83-v1/surfaces/3adcde927a1dc559f46d4da83fd453643b07e53cf592a33022137809efb6ab0e.orcacosmo",
+        "surface_sha256": "3adcde927a1dc559f46d4da83fd453643b07e53cf592a33022137809efb6ab0e",
+        "molecular_weight_g_mol": 226.35
+      },
+      {
+        "id": "cohort-00048",
+        "reference": "production_chunk_measurement",
+        "reference_index": 48,
+        "inchikey": "AGNTUZCMJBTHOG-UHFFFAOYSA-N",
+        "surface": "../phase83-v1/surfaces/ea5a7869bde6d38291278239f99dfc81942a3ee156119ed413081a8b2b22df50.orcacosmo",
+        "surface_sha256": "ea5a7869bde6d38291278239f99dfc81942a3ee156119ed413081a8b2b22df50",
+        "molecular_weight_g_mol": 240.25
+      },
+      {
+        "id": "cohort-00049",
+        "reference": "production_chunk_measurement",
+        "reference_index": 49,
+        "inchikey": "AGPLQTQFIZBOLI-UHFFFAOYSA-N",
+        "surface": "../phase83-v1/surfaces/cb1908a540c28165a323239b59f760d7dbf005da50320c86b6bb0feea6029f69.orcacosmo",
+        "surface_sha256": "cb1908a540c28165a323239b59f760d7dbf005da50320c86b6bb0feea6029f69",
+        "molecular_weight_g_mol": 244.3
+      },
+      {
+        "id": "cohort-00050",
+        "reference": "production_chunk_measurement",
+        "reference_index": 50,
+        "inchikey": "AGRIQBHIKABLPJ-UHFFFAOYSA-N",
+        "surface": "../phase83-v1/surfaces/794245f54230ca18eb4880e2c37f1bc7ca2a933425f224df04391706d56b828d.orcacosmo",
+        "surface_sha256": "794245f54230ca18eb4880e2c37f1bc7ca2a933425f224df04391706d56b828d",
+        "molecular_weight_g_mol": 99.13
+      },
+      {
+        "id": "cohort-00051",
+        "reference": "production_chunk_measurement",
+        "reference_index": 51,
+        "inchikey": "AGUBCDYYAKENKG-YVNJGZBMSA-N",
+        "surface": "../phase83-v1/surfaces/8182793d4c83f4db8c7e5982486b80605ae8d8397b63bcc473298ada017174ab.orcacosmo",
+        "surface_sha256": "8182793d4c83f4db8c7e5982486b80605ae8d8397b63bcc473298ada017174ab",
+        "molecular_weight_g_mol": 330.5
+      },
+      {
+        "id": "cohort-00052",
+        "reference": "production_chunk_measurement",
+        "reference_index": 52,
+        "inchikey": "AGVKXDPPPSLISR-UHFFFAOYSA-N",
+        "surface": "../phase83-v1/surfaces/a042488714d131997426e6fb479371055fce7dd4a213002d63893ff514750a24.orcacosmo",
+        "surface_sha256": "a042488714d131997426e6fb479371055fce7dd4a213002d63893ff514750a24",
+        "molecular_weight_g_mol": 127.23
+      },
+      {
+        "id": "cohort-00053",
+        "reference": "production_chunk_measurement",
+        "reference_index": 53,
+        "inchikey": "AHAMRTRAKUNZMP-UHFFFAOYSA-N",
+        "surface": "../phase83-v1/surfaces/aee125f3c67b1ec5e3890fd8cb542e1766518f4933bd45696e4fbba1e985680b.orcacosmo",
+        "surface_sha256": "aee125f3c67b1ec5e3890fd8cb542e1766518f4933bd45696e4fbba1e985680b",
+        "molecular_weight_g_mol": 406.7
+      },
+      {
+        "id": "cohort-00054",
+        "reference": "production_chunk_measurement",
+        "reference_index": 54,
+        "inchikey": "AHDSRXYHVZECER-UHFFFAOYSA-N",
+        "surface": "../phase83-v1/surfaces/25f8aa60460cef641e415f250e5adc046252028f89735d059c77e7e09412f30b.orcacosmo",
+        "surface_sha256": "25f8aa60460cef641e415f250e5adc046252028f89735d059c77e7e09412f30b",
+        "molecular_weight_g_mol": 265.39
+      },
+      {
+        "id": "cohort-00055",
+        "reference": "production_chunk_measurement",
+        "reference_index": 55,
+        "inchikey": "AHHGVKNOSDJAQN-FPLPWBNLSA-N",
+        "surface": "../phase83-v1/surfaces/6b0d027139d7676869ef29d2fc7b3b8304f23330472af7c2b9b53456e43c8e52.orcacosmo",
+        "surface_sha256": "6b0d027139d7676869ef29d2fc7b3b8304f23330472af7c2b9b53456e43c8e52",
+        "molecular_weight_g_mol": 188.26
+      },
+      {
+        "id": "cohort-00056",
+        "reference": "production_chunk_measurement",
+        "reference_index": 56,
+        "inchikey": "AHIPJALLQVEEQF-UHFFFAOYSA-N",
+        "surface": "../phase83-v1/surfaces/b2d670bd944b02bfd76b938f48a2eb4c6bd540207c49a97f2d2f8815f363a018.orcacosmo",
+        "surface_sha256": "b2d670bd944b02bfd76b938f48a2eb4c6bd540207c49a97f2d2f8815f363a018",
+        "molecular_weight_g_mol": 277.31
+      },
+      {
+        "id": "cohort-00057",
+        "reference": "production_chunk_measurement",
+        "reference_index": 57,
+        "inchikey": "AHMSERHYRMNFKO-UHFFFAOYSA-N",
+        "surface": "../phase83-v1/surfaces/0a723badf8bca5871a37b70ea1228a0a2e5f0c10511474fcfab3999532ca5b64.orcacosmo",
+        "surface_sha256": "0a723badf8bca5871a37b70ea1228a0a2e5f0c10511474fcfab3999532ca5b64",
+        "molecular_weight_g_mol": 170.25
+      },
+      {
+        "id": "cohort-00058",
+        "reference": "production_chunk_measurement",
+        "reference_index": 58,
+        "inchikey": "AHNZGLABLPCXKB-UHFFFAOYSA-N",
+        "surface": "../phase83-v1/surfaces/fafd1899e8ea9af2d3845d3cbfc7e013a66881027598486a5c1374908d39b6bc.orcacosmo",
+        "surface_sha256": "fafd1899e8ea9af2d3845d3cbfc7e013a66881027598486a5c1374908d39b6bc",
+        "molecular_weight_g_mol": 194.36
+      },
+      {
+        "id": "cohort-00059",
+        "reference": "production_chunk_measurement",
+        "reference_index": 59,
+        "inchikey": "AHQSSWHOKBCJFA-WUKNDPDISA-N",
+        "surface": "../phase83-v1/surfaces/44f94e0f15030b926224c9d8fd4e4c8f80c1b52392a29055f2b29fd1abab2b8e.orcacosmo",
+        "surface_sha256": "44f94e0f15030b926224c9d8fd4e4c8f80c1b52392a29055f2b29fd1abab2b8e",
+        "molecular_weight_g_mol": 266.5
+      },
+      {
+        "id": "cohort-00060",
+        "reference": "production_chunk_measurement",
+        "reference_index": 60,
+        "inchikey": "AHRSDJSWAISEMM-UHFFFAOYSA-N",
+        "surface": "../phase83-v1/surfaces/2b8800db8e5e592c77abec464499a99becda57e4aeeff3ee61bd69940622649a.orcacosmo",
+        "surface_sha256": "2b8800db8e5e592c77abec464499a99becda57e4aeeff3ee61bd69940622649a",
+        "molecular_weight_g_mol": 272.25
+      },
+      {
+        "id": "cohort-00061",
+        "reference": "production_chunk_measurement",
+        "reference_index": 61,
+        "inchikey": "AHSGHEXYEABOKT-UHFFFAOYSA-N",
+        "surface": "../phase83-v1/surfaces/2594f8aa882fcc1109b1089fcd82b1a03aff3e3e1455758b80e05148e280e761.orcacosmo",
+        "surface_sha256": "2594f8aa882fcc1109b1089fcd82b1a03aff3e3e1455758b80e05148e280e761",
+        "molecular_weight_g_mol": 358.4
+      },
+      {
+        "id": "cohort-00062",
+        "reference": "production_chunk_measurement",
+        "reference_index": 62,
+        "inchikey": "AHWMWMNEYBHQNL-UHFFFAOYSA-N",
+        "surface": "../phase83-v1/surfaces/028e283e1a9831bef4cc1c4e70897f927dd234773cb9789ed227021b8d612006.orcacosmo",
+        "surface_sha256": "028e283e1a9831bef4cc1c4e70897f927dd234773cb9789ed227021b8d612006",
+        "molecular_weight_g_mol": 262.31
+      },
+      {
+        "id": "cohort-00063",
+        "reference": "production_chunk_measurement",
+        "reference_index": 63,
+        "inchikey": "AIJULSRZWUXGPQ-UHFFFAOYSA-N",
+        "surface": "../phase83-v1/surfaces/989e222383e736e67c73d068067f435175e4b7b677526f7f255e23ec4841fd7b.orcacosmo",
+        "surface_sha256": "989e222383e736e67c73d068067f435175e4b7b677526f7f255e23ec4841fd7b",
+        "molecular_weight_g_mol": 72.06
+      },
+      {
+        "id": "cohort-00064",
+        "reference": "production_chunk_measurement",
+        "reference_index": 64,
+        "inchikey": "AILNGZQURMVSDH-UHFFFAOYSA-N",
+        "surface": "../phase83-v1/surfaces/7b8bcb38aeef62286fc440ef376e57c79fc82039720d2a9f2f3cdae1bd1fc425.orcacosmo",
+        "surface_sha256": "7b8bcb38aeef62286fc440ef376e57c79fc82039720d2a9f2f3cdae1bd1fc425",
+        "molecular_weight_g_mol": 242.27
+      },
+      {
+        "id": "cohort-00065",
+        "reference": "production_chunk_measurement",
+        "reference_index": 65,
+        "inchikey": "AISZSTYLOVXFII-CMDGGOBGSA-N",
+        "surface": "../phase83-v1/surfaces/fcf79939fb98adee1f7e15000d9142258965744aceb08cf57970f0b2eb81a43d.orcacosmo",
+        "surface_sha256": "fcf79939fb98adee1f7e15000d9142258965744aceb08cf57970f0b2eb81a43d",
+        "molecular_weight_g_mol": 170.25
+      },
+      {
+        "id": "cohort-00066",
+        "reference": "production_chunk_measurement",
+        "reference_index": 66,
+        "inchikey": "AISZSTYLOVXFII-UHFFFAOYSA-N",
+        "surface": "../phase83-v1/surfaces/2d7e76ad11febfd040275334039f4dc409fdc4eb707eaf8b9e8967f3128c0920.orcacosmo",
+        "surface_sha256": "2d7e76ad11febfd040275334039f4dc409fdc4eb707eaf8b9e8967f3128c0920",
+        "molecular_weight_g_mol": 170.25
+      },
+      {
+        "id": "cohort-00067",
+        "reference": "production_chunk_measurement",
+        "reference_index": 67,
+        "inchikey": "AJBDZJRXIGPVIO-UHFFFAOYSA-N",
+        "surface": "../phase83-v1/surfaces/d7547f8afe12c1f8d81898e3b5d24834b33ea7980418b800666ced5583a82497.orcacosmo",
+        "surface_sha256": "d7547f8afe12c1f8d81898e3b5d24834b33ea7980418b800666ced5583a82497",
+        "molecular_weight_g_mol": 188.26
+      },
+      {
+        "id": "cohort-00068",
+        "reference": "production_chunk_measurement",
+        "reference_index": 68,
+        "inchikey": "AJKOAOUQPNLZTF-UHFFFAOYSA-N",
+        "surface": "../phase83-v1/surfaces/8ca8fbb280dbf8aec754f600ea833cd5a27378fb2676cd76e877f152218e4637.orcacosmo",
+        "surface_sha256": "8ca8fbb280dbf8aec754f600ea833cd5a27378fb2676cd76e877f152218e4637",
+        "molecular_weight_g_mol": 385.4
+      },
+      {
+        "id": "cohort-00069",
+        "reference": "production_chunk_measurement",
+        "reference_index": 69,
+        "inchikey": "AJKVQEKCUACUMD-UHFFFAOYSA-N",
+        "surface": "../phase83-v1/surfaces/17e11a064ccee4c321cdde0780b39b5890bb1a3523a5c3fb393baea95ed1f3c2.orcacosmo",
+        "surface_sha256": "17e11a064ccee4c321cdde0780b39b5890bb1a3523a5c3fb393baea95ed1f3c2",
+        "molecular_weight_g_mol": 121.14
+      },
+      {
+        "id": "cohort-00070",
+        "reference": "production_chunk_measurement",
+        "reference_index": 70,
+        "inchikey": "AJTXHMVZAVWDOU-UHFFFAOYSA-N",
+        "surface": "../phase83-v1/surfaces/8bd86ed63e31d5273d4ac16bbdb7010e0968982bea71aaf452a90b12277787d2.orcacosmo",
+        "surface_sha256": "8bd86ed63e31d5273d4ac16bbdb7010e0968982bea71aaf452a90b12277787d2",
+        "molecular_weight_g_mol": 256.38
+      },
+      {
+        "id": "cohort-00071",
+        "reference": "production_chunk_measurement",
+        "reference_index": 71,
+        "inchikey": "AKGGYBADQZYZPD-UHFFFAOYSA-N",
+        "surface": "../phase83-v1/surfaces/28993e370f4ac152e7cb886ba4bf3c7b833189a84ea9cee4acb5d65f00245417.orcacosmo",
+        "surface_sha256": "28993e370f4ac152e7cb886ba4bf3c7b833189a84ea9cee4acb5d65f00245417",
+        "molecular_weight_g_mol": 148.2
+      },
+      {
+        "id": "cohort-00072",
+        "reference": "production_chunk_measurement",
+        "reference_index": 72,
+        "inchikey": "AKMGDTMKQDDQNP-UHFFFAOYSA-N",
+        "surface": "../phase83-v1/surfaces/2ee311362fcbd3e5c83beb445fbc29a4e87b31acc8d9b118bbcbf18d21b7d678.orcacosmo",
+        "surface_sha256": "2ee311362fcbd3e5c83beb445fbc29a4e87b31acc8d9b118bbcbf18d21b7d678",
+        "molecular_weight_g_mol": 298.3
+      }
+    ]
+  ],
+  "subbatch": 10,
+  "grid_batch": 256,
+  "output": "chunk-probe-results-v1",
+  "manifest_sha256": "a24d1c80b2cae8bc19a23edcc7c0a6b3431b3dc46a6fbe15bf1f419929a61272",
+  "validation_sha256": "4e89584c59701383ddc044295d0d833dd8bb5c4040dfadd5f597a4b219b9dc21",
+  "cohort_sha256": "400e809c9adbaf41ce69dc1686106673ad8522aa6fc8967930c6f10a32e63f5c",
+  "expected_calibration_units": 27,
+  "expected_workbook_units": 0,
+  "selected_sizes_provisional_until_euler_sweep": false,
+  "sweep_sha256": "1565c2fa2ddc5a5faedc75cdd96cfe1f8da80029ba3300120daba4c4e1e9d7c5",
+  "grid_probe_sha256": "e71367905e6bf6787bacff0e014015e8c4eff5b81ab37c359d5e1b57319ea228"
+}

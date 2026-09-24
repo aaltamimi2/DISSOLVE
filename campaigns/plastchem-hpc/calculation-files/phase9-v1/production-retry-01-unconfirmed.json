@@ -1,0 +1,99 @@
+{
+  "utc": "2026-09-24T07:40:11.414543+00:00",
+  "name": "contam-phase9-retry-01",
+  "indices": [
+    31
+  ],
+  "operations": [
+    {
+      "command": [
+        "squeue",
+        "-h",
+        "-r",
+        "-u",
+        "aaltamimi2",
+        "--name=contam-phase9-retry-01",
+        "-o",
+        "%i|%j|%T"
+      ],
+      "returncode": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "sacct",
+        "-nP",
+        "-u",
+        "aaltamimi2",
+        "--starttime=today",
+        "--name=contam-phase9-retry-01",
+        "--format=JobID%40,JobName%60,State,Elapsed,NodeList"
+      ],
+      "returncode": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "squeue",
+        "-h",
+        "-r",
+        "-j",
+        "68503",
+        "-o",
+        "%i|%T"
+      ],
+      "returncode": 0,
+      "stdout": "68503_57|RUNNING\n68503_56|RUNNING\n68503_55|RUNNING\n68503_54|RUNNING\n68503_53|RUNNING\n68503_52|RUNNING\n68503_51|RUNNING\n68503_50|RUNNING\n68503_49|RUNNING\n68503_48|RUNNING\n68503_47|RUNNING\n68503_46|RUNNING\n68503_45|RUNNING\n68503_44|RUNNING\n68503_43|RUNNING\n68503_42|RUNNING\n68503_41|RUNNING\n68503_40|RUNNING\n68503_39|RUNNING\n68503_38|RUNNING\n68503_37|RUNNING\n68503_36|RUNNING\n68503_35|RUNNING\n68503_34|RUNNING\n68503_33|RUNNING\n68503_32|RUNNING\n68503_30|RUNNING\n68503_29|RUNNING\n68503_28|RUNNING\n68503_27|RUNNING\n68503_26|RUNNING\n68503_25|RUNNING\n68503_24|RUNNING\n68503_23|RUNNING\n68503_22|RUNNING\n68503_21|RUNNING\n68503_20|RUNNING\n68503_19|RUNNING\n68503_18|RUNNING\n68503_17|RUNNING\n68503_16|RUNNING\n68503_15|RUNNING\n68503_14|RUNNING\n68503_13|RUNNING\n68503_12|RUNNING\n68503_11|RUNNING\n68503_10|RUNNING\n68503_9|RUNNING\n68503_8|RUNNING\n68503_7|RUNNING\n68503_6|RUNNING\n68503_5|RUNNING\n68503_4|RUNNING\n68503_3|RUNNING\n68503_2|RUNNING\n68503_1|RUNNING\n68503_0|RUNNING\n",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "sacct",
+        "-nP",
+        "-j",
+        "68503_31",
+        "--format=JobID%40,State%30,ElapsedRaw,ExitCode"
+      ],
+      "returncode": 0,
+      "stdout": "68503_31|FAILED|1616|1:0\n68503_31.batch|FAILED|1616|1:0\n",
+      "stderr": ""
+    }
+  ],
+  "recovery_policy": "Per-system exact binary-grid nonconvergence is recorded with null values; unchanged solver and existing sealed checkpoints reused",
+  "recovery_code_pins": {
+    "phase9_failure_policy.py": "e77434846fa4db3fc033d4f79c3293a0ba7d7f8fbc972d06fe7b652c589db321",
+    "phase9_retry_entry.py": "c3c7e2020c0eedcd2b413d65adfccfeffc2abda7c4aabea6ada308aa3fee9226",
+    "phase9_throttle_remote_v3.py": "548846606abf35fc1065a2399836c83008ab1d91355f499de1973c5b79da6def",
+    "submit_phase9_recovery_remote.py": "dabdd2b7ddf3a22b79d4c6f969cece6ec3811183f41fcab8e77a5699a3ddeae9"
+  },
+  "reconciliation": {
+    "squeue": "",
+    "sacct": ""
+  },
+  "original_accounting": "68503_31|FAILED|1616|1:0\n68503_31.batch|FAILED|1616|1:0\n",
+  "original_error_pins": {
+    "logs/production-68503_31.err": "4745ca5efbd3804161b56756af1440a6697369c9f888cd36f6517f9756468f0f"
+  },
+  "command": [
+    "sbatch",
+    "--parsable",
+    "--hold",
+    "--job-name=contam-phase9-retry-01",
+    "--partition=research",
+    "--constraint=(milan|genoa)&cpu",
+    "--exclude=euler09,euler10",
+    "--nodes=1",
+    "--ntasks=1",
+    "--cpus-per-task=1",
+    "--mem=4G",
+    "--time=08:00:00",
+    "--no-requeue",
+    "--array=31%1",
+    "--chdir=/srv/home/aaltamimi2/plastchem-euler/phase9-v1",
+    "--output=/srv/home/aaltamimi2/plastchem-euler/phase9-v1/logs/recovery-%A_%a.out",
+    "--error=/srv/home/aaltamimi2/plastchem-euler/phase9-v1/logs/recovery-%A_%a.err",
+    "--wrap=export OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1 PYTHONPATH=../phase8-v1; ../phase8-v1/venv/bin/python -u phase9_retry_entry.py production-plan.json \"$SLURM_ARRAY_TASK_ID\""
+  ]
+}

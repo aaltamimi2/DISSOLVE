@@ -1,0 +1,304 @@
+{
+  "status": "complete",
+  "rows": [
+    {
+      "index": 2055,
+      "name": "(2,2,6,6-Tetramethylpiperidin-4-yl) octadecanoate",
+      "inchikey": "JMUOXOJMXILBTE-UHFFFAOYSA-N",
+      "solute_surface_sha256": "58ab7c94a79b64f27e6cb6af5570f7d6adf44500029922d2136efcf634fc09ac",
+      "water_surface_sha256": "da09de46b52463d51ad9534346ff47eeda0d2e24803a67a00503ff65cd77f750",
+      "ordinary_samples": [
+        {
+          "x": 0.0,
+          "ln_gamma": 31.530016426437314
+        },
+        {
+          "x": 1e-08,
+          "ln_gamma": 31.530004716555126
+        },
+        {
+          "x": 1e-07,
+          "ln_gamma": 31.52989932797007
+        },
+        {
+          "x": 1e-06,
+          "ln_gamma": 31.52884547724353
+        },
+        {
+          "x": 1e-05,
+          "ln_gamma": 31.51831048109758
+        }
+      ],
+      "old_samples": [
+        {
+          "x": 1e-05,
+          "ln_gamma": 31.51831048109758
+        },
+        {
+          "x": 1e-06,
+          "ln_gamma": 31.52884547724353
+        }
+      ],
+      "old_converged_ln_gamma": 31.52884547724353,
+      "cached_x0_ln_gamma": 31.530016426437314,
+      "gate_x0_ln_gamma": 31.530016426437317,
+      "ordinary_vs_cached_x0_log10": 0.0,
+      "ordinary_vs_gate_x0_log10": -1.5429239464852591e-15,
+      "old_first_vs_ordinary_x1e5_log10": 0.0,
+      "finite_x1e5_minus_x0_log10": -0.00508382746650781
+    },
+    {
+      "index": 4324,
+      "name": "N,N'-Ethylenebismyristamide",
+      "inchikey": "SZQRSDJOAHBRSI-UHFFFAOYSA-N",
+      "solute_surface_sha256": "d57f7825140293a45a9cb10eaa568168d7de4c4a0b06906341259341f97f90a1",
+      "water_surface_sha256": "da09de46b52463d51ad9534346ff47eeda0d2e24803a67a00503ff65cd77f750",
+      "ordinary_samples": [
+        {
+          "x": 0.0,
+          "ln_gamma": 29.652489271759947
+        },
+        {
+          "x": 1e-08,
+          "ln_gamma": 29.652474768844854
+        },
+        {
+          "x": 1e-07,
+          "ln_gamma": 29.652344243134316
+        },
+        {
+          "x": 1e-06,
+          "ln_gamma": 29.65103903806515
+        },
+        {
+          "x": 1e-05,
+          "ln_gamma": 29.637992188843633
+        }
+      ],
+      "old_samples": [
+        {
+          "x": 1e-05,
+          "ln_gamma": 29.637992188843633
+        },
+        {
+          "x": 1e-06,
+          "ln_gamma": 29.65103903806515
+        },
+        {
+          "x": 1e-07,
+          "ln_gamma": 29.652344243134316
+        }
+      ],
+      "old_converged_ln_gamma": 29.652344243134316,
+      "cached_x0_ln_gamma": 29.652489271759947,
+      "gate_x0_ln_gamma": 29.65248673799033,
+      "ordinary_vs_cached_x0_log10": 0.0,
+      "ordinary_vs_gate_x0_log10": 1.100402163177131e-06,
+      "old_first_vs_ordinary_x1e5_log10": 0.0,
+      "finite_x1e5_minus_x0_log10": -0.006296003114249176
+    },
+    {
+      "index": 3620,
+      "name": "Sebacic acid, decyl octyl ester",
+      "inchikey": "PZUXYVVFGLRVRG-UHFFFAOYSA-N",
+      "solute_surface_sha256": "37e7d44d225f4cec2e3362d65dfae1349ad6b4d7584268bf1e59ac85ea1c8b0b",
+      "water_surface_sha256": "da09de46b52463d51ad9534346ff47eeda0d2e24803a67a00503ff65cd77f750",
+      "ordinary_samples": [
+        {
+          "x": 0.0,
+          "ln_gamma": 32.690839154272204
+        },
+        {
+          "x": 1e-08,
+          "ln_gamma": 32.69082595154498
+        },
+        {
+          "x": 1e-07,
+          "ln_gamma": 32.69070712744606
+        },
+        {
+          "x": 1e-06,
+          "ln_gamma": 32.68951893062765
+        },
+        {
+          "x": 1e-05,
+          "ln_gamma": 32.67764137779015
+        }
+      ],
+      "old_samples": [
+        {
+          "x": 1e-05,
+          "ln_gamma": 32.67764137779015
+        },
+        {
+          "x": 1e-06,
+          "ln_gamma": 32.68951893062765
+        },
+        {
+          "x": 1e-07,
+          "ln_gamma": 32.69070712744606
+        }
+      ],
+      "old_converged_ln_gamma": 32.69070712744606,
+      "cached_x0_ln_gamma": 32.690839154272204,
+      "gate_x0_ln_gamma": 32.69083673328876,
+      "ordinary_vs_cached_x0_log10": 0.0,
+      "ordinary_vs_gate_x0_log10": 1.051419749710972e-06,
+      "old_first_vs_ordinary_x1e5_log10": 0.0,
+      "finite_x1e5_minus_x0_log10": -0.0057317214995476476
+    },
+    {
+      "index": 5742,
+      "name": "11-Decyldocosane",
+      "inchikey": "ZTLKOYAJKRWSKL-UHFFFAOYSA-N",
+      "solute_surface_sha256": "39b5bfc3b143ae5e7f94bfb5a3735ea7ea5fa024adc7be71c59e407c6fcf8e41",
+      "water_surface_sha256": "da09de46b52463d51ad9534346ff47eeda0d2e24803a67a00503ff65cd77f750",
+      "ordinary_samples": [
+        {
+          "x": 0.0,
+          "ln_gamma": 45.76165715830723
+        },
+        {
+          "x": 1e-08,
+          "ln_gamma": 45.76163868972253
+        },
+        {
+          "x": 1e-07,
+          "ln_gamma": 45.76147247311754
+        },
+        {
+          "x": 1e-06,
+          "ln_gamma": 45.75981037212072
+        },
+        {
+          "x": 1e-05,
+          "ln_gamma": 45.743195864888015
+        }
+      ],
+      "old_samples": [
+        {
+          "x": 1e-05,
+          "ln_gamma": 45.743195864888015
+        },
+        {
+          "x": 1e-06,
+          "ln_gamma": 45.75981037212072
+        },
+        {
+          "x": 1e-07,
+          "ln_gamma": 45.76147247311754
+        }
+      ],
+      "old_converged_ln_gamma": 45.76147247311754,
+      "cached_x0_ln_gamma": 45.76165715830723,
+      "gate_x0_ln_gamma": 45.76165463872393,
+      "ordinary_vs_cached_x0_log10": 0.0,
+      "ordinary_vs_gate_x0_log10": 1.0942411228239646e-06,
+      "old_first_vs_ordinary_x1e5_log10": 0.0,
+      "finite_x1e5_minus_x0_log10": -0.00801763786076169
+    },
+    {
+      "index": 5827,
+      "name": "N-octadec-9-enylhexadecanamide",
+      "inchikey": "VMRGZRVLZQSNHC-UHFFFAOYSA-N",
+      "solute_surface_sha256": "c1e0df41eefe06d2524916dd5bf18dee7e6acafb996fe8910fe4a613e486c254",
+      "water_surface_sha256": "da09de46b52463d51ad9534346ff47eeda0d2e24803a67a00503ff65cd77f750",
+      "ordinary_samples": [
+        {
+          "x": 0.0,
+          "ln_gamma": 38.51020562686962
+        },
+        {
+          "x": 1e-08,
+          "ln_gamma": 38.51018679077485
+        },
+        {
+          "x": 1e-07,
+          "ln_gamma": 38.51001726666124
+        },
+        {
+          "x": 1e-06,
+          "ln_gamma": 38.508322098694634
+        },
+        {
+          "x": 1e-05,
+          "ln_gamma": 38.49137773276094
+        }
+      ],
+      "old_samples": [
+        {
+          "x": 1e-05,
+          "ln_gamma": 38.49137773276094
+        },
+        {
+          "x": 1e-06,
+          "ln_gamma": 38.508322098694634
+        },
+        {
+          "x": 1e-07,
+          "ln_gamma": 38.51001726666124
+        }
+      ],
+      "old_converged_ln_gamma": 38.51001726666124,
+      "cached_x0_ln_gamma": 38.51020562686962,
+      "gate_x0_ln_gamma": 38.51020296561956,
+      "ordinary_vs_cached_x0_log10": 0.0,
+      "ordinary_vs_gate_x0_log10": 1.1557662150047817e-06,
+      "old_first_vs_ordinary_x1e5_log10": 0.0,
+      "finite_x1e5_minus_x0_log10": -0.008176850517259393
+    },
+    {
+      "index": 5829,
+      "name": "1,6-Hexanediyl dioleate",
+      "inchikey": "ZNRNSKNVPBUUNI-CLFAGFIQSA-N",
+      "solute_surface_sha256": "82a613f2878b8c9c6140c51da3f457f6f32777a91be6e3208a87e81e554f610b",
+      "water_surface_sha256": "da09de46b52463d51ad9534346ff47eeda0d2e24803a67a00503ff65cd77f750",
+      "ordinary_samples": [
+        {
+          "x": 0.0,
+          "ln_gamma": 47.339651105900636
+        },
+        {
+          "x": 1e-08,
+          "ln_gamma": 47.33962365245823
+        },
+        {
+          "x": 1e-07,
+          "ln_gamma": 47.33937657279981
+        },
+        {
+          "x": 1e-06,
+          "ln_gamma": 47.336905907290706
+        },
+        {
+          "x": 1e-05,
+          "ln_gamma": 47.31221235241551
+        }
+      ],
+      "old_samples": [
+        {
+          "x": 1e-05,
+          "ln_gamma": 47.31221235241551
+        },
+        {
+          "x": 1e-06,
+          "ln_gamma": 47.336905907290706
+        },
+        {
+          "x": 1e-07,
+          "ln_gamma": 47.33937657279981
+        }
+      ],
+      "old_converged_ln_gamma": 47.33937657279981,
+      "cached_x0_ln_gamma": 47.339651105900636,
+      "gate_x0_ln_gamma": 47.33964777953071,
+      "ordinary_vs_cached_x0_log10": 0.0,
+      "ordinary_vs_gate_x0_log10": 1.4446241044764409e-06,
+      "old_first_vs_ordinary_x1e5_log10": 0.0,
+      "finite_x1e5_minus_x0_log10": -0.011916499228894964
+    }
+  ],
+  "job_id": "68352",
+  "driver_sha256": "b9fd42440a9378194386c453c45800a536322cd1c980cd019fdf781d929ff4b3",
+  "cpu_model": "AMD EPYC 7763 64-Core Processor"
+}

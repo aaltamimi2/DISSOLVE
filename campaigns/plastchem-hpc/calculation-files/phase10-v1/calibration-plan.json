@@ -1,0 +1,752 @@
+{
+  "scope": "A-10 measured calibration; not production clearance",
+  "manifest_sha256": "e8117a67ffff1ccd6357a2efe22e02cddaae47073483bead944efcce06c9a79a",
+  "chunks": [
+    [
+      {
+        "id": "cohort-00604",
+        "reference": "production",
+        "reference_index": 604,
+        "inchikey": "CQOVPNPJLQNMDC-UHFFFAOYSA-N",
+        "surface": "../phase83-v1/surfaces/f7549eaba043813ba414f1d6528f1122e3c283b12d0a8397e3ffd6b693833fbc.orcacosmo",
+        "surface_sha256": "f7549eaba043813ba414f1d6528f1122e3c283b12d0a8397e3ffd6b693833fbc",
+        "molecular_weight_g_mol": 226.23,
+        "primary_partition": "../phase9-v1/production-results-v1/0005/partition/cohort-00604.json",
+        "primary_plan_sha256": "ce19da895df90f231ab91a1b50fc617f78a16684f6445e4b4ef220bef1bfe6c0",
+        "stratum": "01_le30_N",
+        "name": "L-HISTIDINE, N-beta-ALANYL-",
+        "atoms": 30,
+        "input_smiles": "C1=C(NC=N1)CC(C(=O)O)NC(=O)CCN",
+        "calibration_reasons": [
+          "prior unresolved systems: 4"
+        ]
+      },
+      {
+        "id": "cohort-00719",
+        "reference": "production",
+        "reference_index": 719,
+        "inchikey": "DCXYFEDJOCDNAF-REOHCLBHSA-N",
+        "surface": "../phase83-v1/surfaces/217c408238f93c37a5a3ab7bef644f6cdefeda94977bb33e39c4ce6dfab42eef.orcacosmo",
+        "surface_sha256": "217c408238f93c37a5a3ab7bef644f6cdefeda94977bb33e39c4ce6dfab42eef",
+        "molecular_weight_g_mol": 132.12,
+        "primary_partition": "../phase9-v1/production-results-v1/0006/partition/cohort-00719.json",
+        "primary_plan_sha256": "ce19da895df90f231ab91a1b50fc617f78a16684f6445e4b4ef220bef1bfe6c0",
+        "stratum": "01_le30_N",
+        "name": "Asparagine",
+        "atoms": 17,
+        "input_smiles": "C([C@@H](C(=O)O)N)C(=O)N",
+        "calibration_reasons": [
+          "prior unresolved systems: 4"
+        ]
+      },
+      {
+        "id": "cohort-00956",
+        "reference": "production_chunk_measurement",
+        "reference_index": 956,
+        "inchikey": "FBMQNRKSAWNXBT-UHFFFAOYSA-N",
+        "surface": "../phase83-v1/surfaces/c082e7f605ac1b6b43402db8e83c4768cbdf9c5f2990bacba502f802b5204da7.orcacosmo",
+        "surface_sha256": "c082e7f605ac1b6b43402db8e83c4768cbdf9c5f2990bacba502f802b5204da7",
+        "molecular_weight_g_mol": 238.24,
+        "primary_partition": "../phase9-v1/chunk-probe-results-v1/0000/partition/cohort-00956.json",
+        "primary_plan_sha256": "cff1b4286be45b8d35fd582f9bd8fa82126f2a03a66a4832180d21f305c4e9e3",
+        "stratum": "01_le30_N",
+        "name": "1,4-Diaminoanthraquinone",
+        "atoms": 28,
+        "input_smiles": "C1=CC=C2C(=C1)C(=O)C3=C(C=CC(=C3C2=O)N)N",
+        "calibration_reasons": [
+          "original three-per-stratum calibration"
+        ]
+      },
+      {
+        "id": "cohort-02843",
+        "reference": "production_chunk_measurement",
+        "reference_index": 2843,
+        "inchikey": "MWCLLHOVUTZFKS-UHFFFAOYSA-N",
+        "surface": "../phase83-v1/surfaces/f03011ad82420d2914804e6583fc1be9c79d9b90e1ab0640f3e7bb2bbd3dba10.orcacosmo",
+        "surface_sha256": "f03011ad82420d2914804e6583fc1be9c79d9b90e1ab0640f3e7bb2bbd3dba10",
+        "molecular_weight_g_mol": 111.1,
+        "primary_partition": "../phase9-v1/chunk-probe-results-v1/0000/partition/cohort-02843.json",
+        "primary_plan_sha256": "cff1b4286be45b8d35fd582f9bd8fa82126f2a03a66a4832180d21f305c4e9e3",
+        "stratum": "01_le30_N",
+        "name": "Methyl 2-cyanoacrylate",
+        "atoms": 13,
+        "input_smiles": "COC(=O)C(=C)C#N",
+        "calibration_reasons": [
+          "original three-per-stratum calibration"
+        ]
+      },
+      {
+        "id": "cohort-03928",
+        "reference": "production",
+        "reference_index": 3928,
+        "inchikey": "RKXYMLOOMRYDON-UHFFFAOYSA-N",
+        "surface": "../phase83-v1/surfaces/8fe9df26c93bd420d489757b7d38bd1e0f356b8e0738627d37ea203f044595a3.orcacosmo",
+        "surface_sha256": "8fe9df26c93bd420d489757b7d38bd1e0f356b8e0738627d37ea203f044595a3",
+        "molecular_weight_g_mol": 246.19,
+        "primary_partition": "../phase9-v1/production-results-v1/0038/partition/cohort-03928.json",
+        "primary_plan_sha256": "ce19da895df90f231ab91a1b50fc617f78a16684f6445e4b4ef220bef1bfe6c0",
+        "stratum": "01_le30_N",
+        "name": "2,8-Diaminopyrimido(5,4-g)pteridine-4,6(1H,7H)-dione",
+        "atoms": 24,
+        "input_smiles": "C12=C(N=C3C(=N1)C(=O)NC(=N3)N)N=C(NC2=O)N",
+        "calibration_reasons": [
+          "prior unresolved systems: 7"
+        ]
+      },
+      {
+        "id": "cohort-04475",
+        "reference": "production_chunk_measurement",
+        "reference_index": 4475,
+        "inchikey": "ULHFFAFDSSHFDA-UHFFFAOYSA-N",
+        "surface": "../phase83-v1/surfaces/c24644d2f0d476352b1ae1d0f59524128f03c9cae4bb36ed8536060ff8f757fa.orcacosmo",
+        "surface_sha256": "c24644d2f0d476352b1ae1d0f59524128f03c9cae4bb36ed8536060ff8f757fa",
+        "molecular_weight_g_mol": 137.18,
+        "primary_partition": "../phase9-v1/chunk-probe-results-v1/0000/partition/cohort-04475.json",
+        "primary_plan_sha256": "cff1b4286be45b8d35fd582f9bd8fa82126f2a03a66a4832180d21f305c4e9e3",
+        "stratum": "01_le30_N",
+        "name": "o-Phenetidine",
+        "atoms": 21,
+        "input_smiles": "CCOC1=CC=CC=C1N",
+        "calibration_reasons": [
+          "original three-per-stratum calibration"
+        ]
+      },
+      {
+        "id": "cohort-05552",
+        "reference": "production",
+        "reference_index": 5552,
+        "inchikey": "YZEZMSPGIPTEBA-UHFFFAOYSA-N",
+        "surface": "../phase83-v1/surfaces/55d0a5b3941e41e7e3710725483bd043b4c9a6584c31d15b55ccb3ad50e6d596.orcacosmo",
+        "surface_sha256": "55d0a5b3941e41e7e3710725483bd043b4c9a6584c31d15b55ccb3ad50e6d596",
+        "molecular_weight_g_mol": 235.21,
+        "primary_partition": "../phase9-v1/production-results-v1/0054/partition/cohort-05552.json",
+        "primary_plan_sha256": "ce19da895df90f231ab91a1b50fc617f78a16684f6445e4b4ef220bef1bfe6c0",
+        "stratum": "01_le30_N",
+        "name": "2,2'-Iminobis[4,6-diamino-1,3,5-triazine]",
+        "atoms": 26,
+        "input_smiles": "C1(=NC(=NC(=N1)NC2=NC(=NC(=N2)N)N)N)N",
+        "calibration_reasons": [
+          "population maximum nitrogen_atoms"
+        ]
+      }
+    ],
+    [
+      {
+        "id": "cohort-00170",
+        "reference": "production_chunk_measurement",
+        "reference_index": 170,
+        "inchikey": "ATQUFXWBVZUTKO-UHFFFAOYSA-N",
+        "surface": "../phase83-v1/surfaces/470a5f26388851508cb79ff387b8cd617394e7ed2ebe1b0a0719bdbcc4367ddc.orcacosmo",
+        "surface_sha256": "470a5f26388851508cb79ff387b8cd617394e7ed2ebe1b0a0719bdbcc4367ddc",
+        "molecular_weight_g_mol": 82.14,
+        "primary_partition": "../phase9-v1/chunk-probe-results-v1/0000/partition/cohort-00170.json",
+        "primary_plan_sha256": "cff1b4286be45b8d35fd582f9bd8fa82126f2a03a66a4832180d21f305c4e9e3",
+        "stratum": "01_le30_noN",
+        "name": "1-Methylcyclopentene",
+        "atoms": 16,
+        "input_smiles": "CC1=CCCC1",
+        "calibration_reasons": [
+          "original three-per-stratum calibration"
+        ]
+      },
+      {
+        "id": "cohort-00507",
+        "reference": "production_chunk_measurement",
+        "reference_index": 507,
+        "inchikey": "CEXQWAAGPPNOQF-UHFFFAOYSA-N",
+        "surface": "../phase83-v1/surfaces/208a888a9dc7c91c117ae7f0576c41959bb7536e6353f3a890a19b3fc7b0d9b3.orcacosmo",
+        "surface_sha256": "208a888a9dc7c91c117ae7f0576c41959bb7536e6353f3a890a19b3fc7b0d9b3",
+        "molecular_weight_g_mol": 206.24,
+        "primary_partition": "../phase9-v1/chunk-probe-results-v1/0000/partition/cohort-00507.json",
+        "primary_plan_sha256": "cff1b4286be45b8d35fd582f9bd8fa82126f2a03a66a4832180d21f305c4e9e3",
+        "stratum": "01_le30_noN",
+        "name": "2-Phenoxyethyl methacrylate",
+        "atoms": 29,
+        "input_smiles": "CC(=C)C(=O)OCCOC1=CC=CC=C1",
+        "calibration_reasons": [
+          "original three-per-stratum calibration"
+        ]
+      },
+      {
+        "id": "cohort-01058",
+        "reference": "production",
+        "reference_index": 1058,
+        "inchikey": "FLKPEMZONWLCSK-UHFFFAOYSA-N",
+        "surface": "../phase83-v1/surfaces/ca19f9cebd7b5434541aa74bcd1d1cedfa6c7458aba426f7753c7ac982dcbfe7.orcacosmo",
+        "surface_sha256": "ca19f9cebd7b5434541aa74bcd1d1cedfa6c7458aba426f7753c7ac982dcbfe7",
+        "molecular_weight_g_mol": 222.24,
+        "primary_partition": "../phase9-v1/production-results-v1/0009/partition/cohort-01058.json",
+        "primary_plan_sha256": "ce19da895df90f231ab91a1b50fc617f78a16684f6445e4b4ef220bef1bfe6c0",
+        "stratum": "01_le30_noN",
+        "name": "Diethyl Phthalate",
+        "atoms": 30,
+        "input_smiles": "CCOC(=O)C1=CC=CC=C1C(=O)OCC",
+        "calibration_reasons": [
+          "phthalate anchor"
+        ]
+      },
+      {
+        "id": "cohort-05341",
+        "reference": "production_chunk_measurement",
+        "reference_index": 5341,
+        "inchikey": "YDZCHDQXPLJVBG-UHFFFAOYSA-N",
+        "surface": "../phase83-v1/surfaces/b146e982bc68c81df841b67c8c35b22ff82fd231ae24e6a37a57db2096ae59b7.orcacosmo",
+        "surface_sha256": "b146e982bc68c81df841b67c8c35b22ff82fd231ae24e6a37a57db2096ae59b7",
+        "molecular_weight_g_mol": 142.2,
+        "primary_partition": "../phase9-v1/chunk-probe-results-v1/0000/partition/cohort-05341.json",
+        "primary_plan_sha256": "cff1b4286be45b8d35fd582f9bd8fa82126f2a03a66a4832180d21f305c4e9e3",
+        "stratum": "01_le30_noN",
+        "name": "Hexenyl acetate",
+        "atoms": 24,
+        "input_smiles": "CCCCC=COC(=O)C",
+        "calibration_reasons": [
+          "original three-per-stratum calibration"
+        ]
+      }
+    ],
+    [
+      {
+        "id": "cohort-00702",
+        "reference": "production_chunk_measurement",
+        "reference_index": 702,
+        "inchikey": "DBKDVEPBROVGLY-UHFFFAOYSA-N",
+        "surface": "../phase83-v1/surfaces/8f6810181156990afca9a5a997749b6f2a9dc10225629a4116c0283dda86d84d.orcacosmo",
+        "surface_sha256": "8f6810181156990afca9a5a997749b6f2a9dc10225629a4116c0283dda86d84d",
+        "molecular_weight_g_mol": 225.28,
+        "primary_partition": "../phase9-v1/chunk-probe-results-v1/0000/partition/cohort-00702.json",
+        "primary_plan_sha256": "cff1b4286be45b8d35fd582f9bd8fa82126f2a03a66a4832180d21f305c4e9e3",
+        "stratum": "02_31_50_N",
+        "name": "4-[Ethyl(phenyl)amino]benzaldehyde",
+        "atoms": 32,
+        "input_smiles": "CCN(C1=CC=CC=C1)C2=CC=C(C=C2)C=O",
+        "calibration_reasons": [
+          "original three-per-stratum calibration"
+        ]
+      },
+      {
+        "id": "cohort-00912",
+        "reference": "production_chunk_measurement",
+        "reference_index": 912,
+        "inchikey": "DXWHZJXKTHGHQF-UHFFFAOYSA-N",
+        "surface": "../phase83-v1/surfaces/5ccd8c09eed448a1e565814be8b084e39fdb17609474483b8e161efd1d1b63e2.orcacosmo",
+        "surface_sha256": "5ccd8c09eed448a1e565814be8b084e39fdb17609474483b8e161efd1d1b63e2",
+        "molecular_weight_g_mol": 324.4,
+        "primary_partition": "../phase9-v1/chunk-probe-results-v1/0000/partition/cohort-00912.json",
+        "primary_plan_sha256": "cff1b4286be45b8d35fd582f9bd8fa82126f2a03a66a4832180d21f305c4e9e3",
+        "stratum": "02_31_50_N",
+        "name": "2-Butyl-6-(butylamino)-1H-benz(de)isoquinoline-1,3(2H)-dione",
+        "atoms": 48,
+        "input_smiles": "CCCCNC1=C2C=CC=C3C2=C(C=C1)C(=O)N(C3=O)CCCC",
+        "calibration_reasons": [
+          "original three-per-stratum calibration"
+        ]
+      },
+      {
+        "id": "cohort-01819",
+        "reference": "production_chunk_measurement",
+        "reference_index": 1819,
+        "inchikey": "ILRSCQWREDREME-UHFFFAOYSA-N",
+        "surface": "../phase83-v1/surfaces/e63ce513d8002f619e30de96605ed7d11c3f72bf38021dd3e1e2962bcf4f8079.orcacosmo",
+        "surface_sha256": "e63ce513d8002f619e30de96605ed7d11c3f72bf38021dd3e1e2962bcf4f8079",
+        "molecular_weight_g_mol": 199.33,
+        "primary_partition": "../phase9-v1/chunk-probe-results-v1/0000/partition/cohort-01819.json",
+        "primary_plan_sha256": "cff1b4286be45b8d35fd582f9bd8fa82126f2a03a66a4832180d21f305c4e9e3",
+        "stratum": "02_31_50_N",
+        "name": "Dodecanamide",
+        "atoms": 39,
+        "input_smiles": "CCCCCCCCCCCC(=O)N",
+        "calibration_reasons": [
+          "original three-per-stratum calibration"
+        ]
+      },
+      {
+        "id": "cohort-02877",
+        "reference": "production",
+        "reference_index": 2877,
+        "inchikey": "NAXYKJVXULDOFW-UHFFFAOYSA-N",
+        "surface": "../phase83-v1/surfaces/b49292bd8ca9e6d45a0a023e9c9cc6ede6df76105d4b209e133a41d5d1b5a912.orcacosmo",
+        "surface_sha256": "b49292bd8ca9e6d45a0a023e9c9cc6ede6df76105d4b209e133a41d5d1b5a912",
+        "molecular_weight_g_mol": 254.37,
+        "primary_partition": "../phase9-v1/production-results-v1/0027/partition/cohort-02877.json",
+        "primary_plan_sha256": "ce19da895df90f231ab91a1b50fc617f78a16684f6445e4b4ef220bef1bfe6c0",
+        "stratum": "02_31_50_N",
+        "name": "[4-[(4-Aminocyclohexyl)methyl]cyclohexyl]carbamic acid",
+        "atoms": 44,
+        "input_smiles": "C1CC(CCC1CC2CCC(CC2)NC(=O)O)N",
+        "calibration_reasons": [
+          "prior unresolved systems: 5"
+        ]
+      }
+    ],
+    [
+      {
+        "id": "cohort-00818",
+        "reference": "production",
+        "reference_index": 818,
+        "inchikey": "DOIRQSBPFJWKBE-UHFFFAOYSA-N",
+        "surface": "../phase83-v1/surfaces/9eb48822be98f05682b89338c583802d55e3dbfb38bf3fb59e948618cd6570bd.orcacosmo",
+        "surface_sha256": "9eb48822be98f05682b89338c583802d55e3dbfb38bf3fb59e948618cd6570bd",
+        "molecular_weight_g_mol": 278.34,
+        "primary_partition": "../phase9-v1/production-results-v1/0007/partition/cohort-00818.json",
+        "primary_plan_sha256": "ce19da895df90f231ab91a1b50fc617f78a16684f6445e4b4ef220bef1bfe6c0",
+        "stratum": "02_31_50_noN",
+        "name": "Dibutyl Phthalate",
+        "atoms": 42,
+        "input_smiles": "CCCCOC(=O)C1=CC=CC=C1C(=O)OCCCC",
+        "calibration_reasons": [
+          "phthalate anchor"
+        ]
+      },
+      {
+        "id": "cohort-00898",
+        "reference": "production_chunk_measurement",
+        "reference_index": 898,
+        "inchikey": "DWNAQMUDCDVSLT-UHFFFAOYSA-N",
+        "surface": "../phase83-v1/surfaces/dd0cbe9e60778b5acd3046aa2ba0eb4a7461fe409153daafe6835f348adc4388.orcacosmo",
+        "surface_sha256": "dd0cbe9e60778b5acd3046aa2ba0eb4a7461fe409153daafe6835f348adc4388",
+        "molecular_weight_g_mol": 318.3,
+        "primary_partition": "../phase9-v1/chunk-probe-results-v1/0000/partition/cohort-00898.json",
+        "primary_plan_sha256": "cff1b4286be45b8d35fd582f9bd8fa82126f2a03a66a4832180d21f305c4e9e3",
+        "stratum": "02_31_50_noN",
+        "name": "Diphenyl phthalate",
+        "atoms": 38,
+        "input_smiles": "C1=CC=C(C=C1)OC(=O)C2=CC=CC=C2C(=O)OC3=CC=CC=C3",
+        "calibration_reasons": [
+          "original three-per-stratum calibration"
+        ]
+      },
+      {
+        "id": "cohort-01874",
+        "reference": "production",
+        "reference_index": 1874,
+        "inchikey": "IRIAEXORFWYRCZ-UHFFFAOYSA-N",
+        "surface": "../phase83-v1/surfaces/8d35233e9b0e92cbafbdb95fd4eaa56bb8631f305802dfe85e8f2a942da60a1b.orcacosmo",
+        "surface_sha256": "8d35233e9b0e92cbafbdb95fd4eaa56bb8631f305802dfe85e8f2a942da60a1b",
+        "molecular_weight_g_mol": 312.4,
+        "primary_partition": "../phase9-v1/production-results-v1/0017/partition/cohort-01874.json",
+        "primary_plan_sha256": "ce19da895df90f231ab91a1b50fc617f78a16684f6445e4b4ef220bef1bfe6c0",
+        "stratum": "02_31_50_noN",
+        "name": "Benzyl butyl phthalate",
+        "atoms": 43,
+        "input_smiles": "CCCCOC(=O)C1=CC=CC=C1C(=O)OCC2=CC=CC=C2",
+        "calibration_reasons": [
+          "phthalate anchor"
+        ]
+      },
+      {
+        "id": "cohort-01986",
+        "reference": "production_chunk_measurement",
+        "reference_index": 1986,
+        "inchikey": "JFTSYAALCNQOKO-UHFFFAOYSA-N",
+        "surface": "../phase83-v1/surfaces/6195d511bf1501ef51422b789ac80508222dc40dd14b0e1d31fcbdd439a44807.orcacosmo",
+        "surface_sha256": "6195d511bf1501ef51422b789ac80508222dc40dd14b0e1d31fcbdd439a44807",
+        "molecular_weight_g_mol": 190.28,
+        "primary_partition": "../phase9-v1/chunk-probe-results-v1/0000/partition/cohort-01986.json",
+        "primary_plan_sha256": "cff1b4286be45b8d35fd582f9bd8fa82126f2a03a66a4832180d21f305c4e9e3",
+        "stratum": "02_31_50_noN",
+        "name": "3-(4-Ethylphenyl)-2,2-dimethylpropanal",
+        "atoms": 32,
+        "input_smiles": "CCC1=CC=C(C=C1)CC(C)(C)C=O",
+        "calibration_reasons": [
+          "original three-per-stratum calibration"
+        ]
+      },
+      {
+        "id": "cohort-03270",
+        "reference": "production",
+        "reference_index": 3270,
+        "inchikey": "OOHPORRAEMMMCX-UHFFFAOYSA-N",
+        "surface": "../phase83-v1/surfaces/2027b28ae6c4eb79303d61376d1ea9ec8cb2e8bd4bc2f755991d00da9ec4b488.orcacosmo",
+        "surface_sha256": "2027b28ae6c4eb79303d61376d1ea9ec8cb2e8bd4bc2f755991d00da9ec4b488",
+        "molecular_weight_g_mol": 260.4,
+        "primary_partition": "../phase9-v1/production-results-v1/0031/partition/cohort-03270.json",
+        "primary_plan_sha256": "ce19da895df90f231ab91a1b50fc617f78a16684f6445e4b4ef220bef1bfe6c0",
+        "stratum": "02_31_50_noN",
+        "name": "Dodecahedrane",
+        "atoms": 40,
+        "input_smiles": "C12C3C4C5C1C6C7C2C8C3C9C4C1C5C6C2C7C8C9C12",
+        "calibration_reasons": [
+          "prior unresolved systems: 41",
+          "population maximum rings"
+        ]
+      },
+      {
+        "id": "cohort-04587",
+        "reference": "production_chunk_measurement",
+        "reference_index": 4587,
+        "inchikey": "UYXTWWCETRIEDR-UHFFFAOYSA-N",
+        "surface": "../phase83-v1/surfaces/cf6f05fc0e876c8b0057f3aa6a1178006d0b0ee84bef7c536bacbe3e8a19e716.orcacosmo",
+        "surface_sha256": "cf6f05fc0e876c8b0057f3aa6a1178006d0b0ee84bef7c536bacbe3e8a19e716",
+        "molecular_weight_g_mol": 302.36,
+        "primary_partition": "../phase9-v1/chunk-probe-results-v1/0000/partition/cohort-04587.json",
+        "primary_plan_sha256": "cff1b4286be45b8d35fd582f9bd8fa82126f2a03a66a4832180d21f305c4e9e3",
+        "stratum": "02_31_50_noN",
+        "name": "Tributyrin",
+        "atoms": 47,
+        "input_smiles": "CCCC(=O)OCC(COC(=O)CCC)OC(=O)CCC",
+        "calibration_reasons": [
+          "original three-per-stratum calibration"
+        ]
+      }
+    ],
+    [
+      {
+        "id": "cohort-01369",
+        "reference": "production",
+        "reference_index": 1369,
+        "inchikey": "GUBZLBFYUBKAGY-UHFFFAOYSA-N",
+        "surface": "../phase83-v1/surfaces/29969e38423caeb62d9fef05e0cc3e3b3d0d7450afc00aea2b2313e2ae02a26b.orcacosmo",
+        "surface_sha256": "29969e38423caeb62d9fef05e0cc3e3b3d0d7450afc00aea2b2313e2ae02a26b",
+        "molecular_weight_g_mol": 462.5,
+        "primary_partition": "../phase9-v1/production-results-v1/0012/partition/cohort-01369.json",
+        "primary_plan_sha256": "ce19da895df90f231ab91a1b50fc617f78a16684f6445e4b4ef220bef1bfe6c0",
+        "stratum": "03_51_80_N",
+        "name": "Diindolo[3,2,1-de:3',2',1'-ij][1,5]naphthyridine-6,13-dione, 7,14-diphenyl-",
+        "atoms": 54,
+        "input_smiles": "C1=CC=C(C=C1)C2=C3C4=CC=CC=C4N5C3=C6C(=C(C5=O)C7=CC=CC=C7)C8=CC=CC=C8N6C2=O",
+        "calibration_reasons": [
+          "population maximum aromatic_atoms"
+        ]
+      },
+      {
+        "id": "cohort-02068",
+        "reference": "production_chunk_measurement",
+        "reference_index": 2068,
+        "inchikey": "JOIUZBTWMAYEQW-UHFFFAOYSA-N",
+        "surface": "../phase83-v1/surfaces/4c7a70a5f9a9b1ec13bdd47e5abe9dcc5ecc98f42cbf4411f5bfad3d4098f424.orcacosmo",
+        "surface_sha256": "4c7a70a5f9a9b1ec13bdd47e5abe9dcc5ecc98f42cbf4411f5bfad3d4098f424",
+        "molecular_weight_g_mol": 357.5,
+        "primary_partition": "../phase9-v1/chunk-probe-results-v1/0000/partition/cohort-02068.json",
+        "primary_plan_sha256": "cff1b4286be45b8d35fd582f9bd8fa82126f2a03a66a4832180d21f305c4e9e3",
+        "stratum": "03_51_80_N",
+        "name": "Hexanoic acid, 6-[[6-[(6-amino-1-oxohexyl)amino]-1-oxohexyl]amino]-",
+        "atoms": 60,
+        "input_smiles": "C(CCC(=O)NCCCCCC(=O)NCCCCCC(=O)O)CCN",
+        "calibration_reasons": [
+          "original three-per-stratum calibration"
+        ]
+      },
+      {
+        "id": "cohort-03694",
+        "reference": "production_chunk_measurement",
+        "reference_index": 3694,
+        "inchikey": "QKOWXXDOHMJOMQ-UHFFFAOYSA-N",
+        "surface": "../phase83-v1/surfaces/771fedc387089d612d660a5d569954f61ca42d6e235e9fb9af0708b63e1bcb6d.orcacosmo",
+        "surface_sha256": "771fedc387089d612d660a5d569954f61ca42d6e235e9fb9af0708b63e1bcb6d",
+        "molecular_weight_g_mol": 478.6,
+        "primary_partition": "../phase9-v1/chunk-probe-results-v1/0000/partition/cohort-03694.json",
+        "primary_plan_sha256": "cff1b4286be45b8d35fd582f9bd8fa82126f2a03a66a4832180d21f305c4e9e3",
+        "stratum": "03_51_80_N",
+        "name": "1,3,5-Tris(6-isocyanatohexyl)biuret",
+        "atoms": 72,
+        "input_smiles": "C(CCCN=C=O)CCNC(=O)N(CCCCCCN=C=O)C(=O)NCCCCCCN=C=O",
+        "calibration_reasons": [
+          "original three-per-stratum calibration"
+        ]
+      },
+      {
+        "id": "cohort-04142",
+        "reference": "production_chunk_measurement",
+        "reference_index": 4142,
+        "inchikey": "SFIHQZFZMWZOJV-HZJYTTRNSA-N",
+        "surface": "../phase83-v1/surfaces/2f9a732d1c17e877ee84f74550a1b0bab64799051a85bbd2407dc460a3a7ebf1.orcacosmo",
+        "surface_sha256": "2f9a732d1c17e877ee84f74550a1b0bab64799051a85bbd2407dc460a3a7ebf1",
+        "molecular_weight_g_mol": 279.5,
+        "primary_partition": "../phase9-v1/chunk-probe-results-v1/0000/partition/cohort-04142.json",
+        "primary_plan_sha256": "cff1b4286be45b8d35fd582f9bd8fa82126f2a03a66a4832180d21f305c4e9e3",
+        "stratum": "03_51_80_N",
+        "name": "Linoleamide",
+        "atoms": 53,
+        "input_smiles": "CCCCC/C=C\\C/C=C\\CCCCCCCC(=O)N",
+        "calibration_reasons": [
+          "original three-per-stratum calibration"
+        ]
+      }
+    ],
+    [
+      {
+        "id": "cohort-00310",
+        "reference": "production",
+        "reference_index": 310,
+        "inchikey": "BJQHLKABXJIVAM-UHFFFAOYSA-N",
+        "surface": "../phase83-v1/surfaces/74a44a31aec2d986fb323839fa71c4ad79ae437e670996af4bb740e3f2bf03ab.orcacosmo",
+        "surface_sha256": "74a44a31aec2d986fb323839fa71c4ad79ae437e670996af4bb740e3f2bf03ab",
+        "molecular_weight_g_mol": 390.6,
+        "primary_partition": "../phase9-v1/production-results-v1/0002/partition/cohort-00310.json",
+        "primary_plan_sha256": "ce19da895df90f231ab91a1b50fc617f78a16684f6445e4b4ef220bef1bfe6c0",
+        "stratum": "03_51_80_noN",
+        "name": "Bis(2-ethylhexyl) phthalate",
+        "atoms": 66,
+        "input_smiles": "CCCCC(CC)COC(=O)C1=CC=CC=C1C(=O)OCC(CC)CCCC",
+        "calibration_reasons": [
+          "phthalate anchor"
+        ]
+      },
+      {
+        "id": "cohort-01609",
+        "reference": "production_chunk_measurement",
+        "reference_index": 1609,
+        "inchikey": "HPGHRGIPHODCEW-UHFFFAOYSA-N",
+        "surface": "../phase83-v1/surfaces/117307a409a4fdb5e03d2f839eb84dd48f4106823ac3a401e007d9a1fbcc51a7.orcacosmo",
+        "surface_sha256": "117307a409a4fdb5e03d2f839eb84dd48f4106823ac3a401e007d9a1fbcc51a7",
+        "molecular_weight_g_mol": 340.5,
+        "primary_partition": "../phase9-v1/chunk-probe-results-v1/0000/partition/cohort-01609.json",
+        "primary_plan_sha256": "cff1b4286be45b8d35fd582f9bd8fa82126f2a03a66a4832180d21f305c4e9e3",
+        "stratum": "03_51_80_noN",
+        "name": "Ethyl 8-[3-[(3-pentyloxiran-2-yl)methyl]oxiran-2-yl]octanoate",
+        "atoms": 60,
+        "input_smiles": "CCCCCC1C(O1)CC2C(O2)CCCCCCCC(=O)OCC",
+        "calibration_reasons": [
+          "original three-per-stratum calibration"
+        ]
+      },
+      {
+        "id": "cohort-02711",
+        "reference": "production_chunk_measurement",
+        "reference_index": 2711,
+        "inchikey": "MHVJRKBZMUDEEV-APQLOABGSA-N",
+        "surface": "../phase83-v1/surfaces/409e0a5ad67fad812b3084bb4d501cf9c26925b244c22264872a35e2dedda9b9.orcacosmo",
+        "surface_sha256": "409e0a5ad67fad812b3084bb4d501cf9c26925b244c22264872a35e2dedda9b9",
+        "molecular_weight_g_mol": 302.5,
+        "primary_partition": "../phase9-v1/chunk-probe-results-v1/0000/partition/cohort-02711.json",
+        "primary_plan_sha256": "cff1b4286be45b8d35fd582f9bd8fa82126f2a03a66a4832180d21f305c4e9e3",
+        "stratum": "03_51_80_noN",
+        "name": "Pimaric acid",
+        "atoms": 52,
+        "input_smiles": "C[C@]1(CC[C@H]2C(=C1)CC[C@@H]3[C@@]2(CCC[C@@]3(C)C(=O)O)C)C=C",
+        "calibration_reasons": [
+          "original three-per-stratum calibration"
+        ]
+      },
+      {
+        "id": "cohort-03177",
+        "reference": "production_chunk_measurement",
+        "reference_index": 3177,
+        "inchikey": "OFEMBBUDYGTDON-UHFFFAOYSA-N",
+        "surface": "../phase83-v1/surfaces/478c408c894ac68b4a3c919b74047fd976d49a4b30eaa83e5fa466fec47060e4.orcacosmo",
+        "surface_sha256": "478c408c894ac68b4a3c919b74047fd976d49a4b30eaa83e5fa466fec47060e4",
+        "molecular_weight_g_mol": 354.7,
+        "primary_partition": "../phase9-v1/chunk-probe-results-v1/0000/partition/cohort-03177.json",
+        "primary_plan_sha256": "cff1b4286be45b8d35fd582f9bd8fa82126f2a03a66a4832180d21f305c4e9e3",
+        "stratum": "03_51_80_noN",
+        "name": "Cetyl octyl ether",
+        "atoms": 75,
+        "input_smiles": "CCCCCCCCCCCCCCCCOCCCCCCCC",
+        "calibration_reasons": [
+          "original three-per-stratum calibration"
+        ]
+      }
+    ],
+    [
+      {
+        "id": "cohort-02055",
+        "reference": "production_chunk_measurement",
+        "reference_index": 2055,
+        "inchikey": "JMUOXOJMXILBTE-UHFFFAOYSA-N",
+        "surface": "../phase83-v1/surfaces/58ab7c94a79b64f27e6cb6af5570f7d6adf44500029922d2136efcf634fc09ac.orcacosmo",
+        "surface_sha256": "58ab7c94a79b64f27e6cb6af5570f7d6adf44500029922d2136efcf634fc09ac",
+        "molecular_weight_g_mol": 423.7,
+        "primary_partition": "../phase9-v1/chunk-probe-results-v1/0000/partition/cohort-02055.json",
+        "primary_plan_sha256": "cff1b4286be45b8d35fd582f9bd8fa82126f2a03a66a4832180d21f305c4e9e3",
+        "stratum": "04_gt80_N",
+        "name": "(2,2,6,6-Tetramethylpiperidin-4-yl) octadecanoate",
+        "atoms": 83,
+        "input_smiles": "CCCCCCCCCCCCCCCCCC(=O)OC1CC(NC(C1)(C)C)(C)C",
+        "calibration_reasons": [
+          "original three-per-stratum calibration"
+        ]
+      },
+      {
+        "id": "cohort-04324",
+        "reference": "production_chunk_measurement",
+        "reference_index": 4324,
+        "inchikey": "SZQRSDJOAHBRSI-UHFFFAOYSA-N",
+        "surface": "../phase83-v1/surfaces/d57f7825140293a45a9cb10eaa568168d7de4c4a0b06906341259341f97f90a1.orcacosmo",
+        "surface_sha256": "d57f7825140293a45a9cb10eaa568168d7de4c4a0b06906341259341f97f90a1",
+        "molecular_weight_g_mol": 480.8,
+        "primary_partition": "../phase9-v1/chunk-probe-results-v1/0000/partition/cohort-04324.json",
+        "primary_plan_sha256": "cff1b4286be45b8d35fd582f9bd8fa82126f2a03a66a4832180d21f305c4e9e3",
+        "stratum": "04_gt80_N",
+        "name": "N,N'-Ethylenebismyristamide",
+        "atoms": 94,
+        "input_smiles": "CCCCCCCCCCCCCC(=O)NCCNC(=O)CCCCCCCCCCCCC",
+        "calibration_reasons": [
+          "original three-per-stratum calibration"
+        ]
+      },
+      {
+        "id": "cohort-04504",
+        "reference": "production_chunk_measurement",
+        "reference_index": 4504,
+        "inchikey": "UONLDZHKYCFZRW-UHFFFAOYSA-N",
+        "surface": "../phase83-v1/surfaces/195e319c0b3b5136c7fb411e7a7b459d6eb190d6265ba73f7b578e0527711aa8.orcacosmo",
+        "surface_sha256": "195e319c0b3b5136c7fb411e7a7b459d6eb190d6265ba73f7b578e0527711aa8",
+        "molecular_weight_g_mol": 450.7,
+        "primary_partition": "../phase9-v1/chunk-probe-results-v1/0000/partition/cohort-04504.json",
+        "primary_plan_sha256": "cff1b4286be45b8d35fd582f9bd8fa82126f2a03a66a4832180d21f305c4e9e3",
+        "stratum": "04_gt80_N",
+        "name": "Formamide, N,N'-1,6-hexanediylbis[N-(2,2,6,6-tetramethyl-4-piperidinyl)-",
+        "atoms": 82,
+        "input_smiles": "CC1(CC(CC(N1)(C)C)N(CCCCCCN(C=O)C2CC(NC(C2)(C)C)(C)C)C=O)C",
+        "calibration_reasons": [
+          "original three-per-stratum calibration"
+        ]
+      }
+    ],
+    [
+      {
+        "id": "cohort-01857",
+        "reference": "production_chunk_measurement",
+        "reference_index": 1857,
+        "inchikey": "IOWILYDIQORSRC-UHFFFAOYSA-N",
+        "surface": "../phase83-v1/surfaces/4eb081cca3ff5e89901effff232880f20d43fc77b2df9ad719c371ca252a5961.orcacosmo",
+        "surface_sha256": "4eb081cca3ff5e89901effff232880f20d43fc77b2df9ad719c371ca252a5961",
+        "molecular_weight_g_mol": 472.7,
+        "primary_partition": "../phase9-v1/chunk-probe-results-v1/0000/partition/cohort-01857.json",
+        "primary_plan_sha256": "cff1b4286be45b8d35fd582f9bd8fa82126f2a03a66a4832180d21f305c4e9e3",
+        "stratum": "04_gt80_noN",
+        "name": "Dicyclohexyl 21-crown-7",
+        "atoms": 81,
+        "input_smiles": "C1CCC(CC1)C2(COCCOCCOCCOCCOCCOCCO2)C3CCCCC3",
+        "calibration_reasons": [
+          "original three-per-stratum calibration"
+        ]
+      },
+      {
+        "id": "cohort-03620",
+        "reference": "production_chunk_measurement",
+        "reference_index": 3620,
+        "inchikey": "PZUXYVVFGLRVRG-UHFFFAOYSA-N",
+        "surface": "../phase83-v1/surfaces/37e7d44d225f4cec2e3362d65dfae1349ad6b4d7584268bf1e59ac85ea1c8b0b.orcacosmo",
+        "surface_sha256": "37e7d44d225f4cec2e3362d65dfae1349ad6b4d7584268bf1e59ac85ea1c8b0b",
+        "molecular_weight_g_mol": 454.7,
+        "primary_partition": "../phase9-v1/chunk-probe-results-v1/0000/partition/cohort-03620.json",
+        "primary_plan_sha256": "cff1b4286be45b8d35fd582f9bd8fa82126f2a03a66a4832180d21f305c4e9e3",
+        "stratum": "04_gt80_noN",
+        "name": "Sebacic acid, decyl octyl ester",
+        "atoms": 86,
+        "input_smiles": "CCCCCCCCCCOC(=O)CCCCCCCCC(=O)OCCCCCCCC",
+        "calibration_reasons": [
+          "original three-per-stratum calibration"
+        ]
+      },
+      {
+        "id": "cohort-05742",
+        "reference": "production_chunk_measurement",
+        "reference_index": 5742,
+        "inchikey": "ZTLKOYAJKRWSKL-UHFFFAOYSA-N",
+        "surface": "../phase83-v1/surfaces/39b5bfc3b143ae5e7f94bfb5a3735ea7ea5fa024adc7be71c59e407c6fcf8e41.orcacosmo",
+        "surface_sha256": "39b5bfc3b143ae5e7f94bfb5a3735ea7ea5fa024adc7be71c59e407c6fcf8e41",
+        "molecular_weight_g_mol": 450.9,
+        "primary_partition": "../phase9-v1/chunk-probe-results-v1/0000/partition/cohort-05742.json",
+        "primary_plan_sha256": "cff1b4286be45b8d35fd582f9bd8fa82126f2a03a66a4832180d21f305c4e9e3",
+        "stratum": "04_gt80_noN",
+        "name": "11-Decyldocosane",
+        "atoms": 98,
+        "input_smiles": "CCCCCCCCCCCC(CCCCCCCCCC)CCCCCCCCCC",
+        "calibration_reasons": [
+          "original three-per-stratum calibration"
+        ]
+      }
+    ],
+    [
+      {
+        "id": "cohort-05806",
+        "reference": "production_chunk_measurement",
+        "reference_index": 5806,
+        "inchikey": "DMPXHEMGDYKSFL-UHFFFAOYSA-N",
+        "surface": "../phase83-v1/surfaces/28f418c99aefcabfeea9209d28f1ee99c0646efb1df02ebba07b1c27914fab63.orcacosmo",
+        "surface_sha256": "28f418c99aefcabfeea9209d28f1ee99c0646efb1df02ebba07b1c27914fab63",
+        "molecular_weight_g_mol": 620.67,
+        "primary_partition": "../phase9-v1/chunk-probe-results-v1/0000/partition/cohort-05806.json",
+        "primary_plan_sha256": "cff1b4286be45b8d35fd582f9bd8fa82126f2a03a66a4832180d21f305c4e9e3",
+        "stratum": "tier2",
+        "name": "Butanamide, 2,2'-((3,3'-dimethoxy(1,1'-biphenyl)-4,4'-diyl)bis(2,1-diazenediyl))bis(3-oxo-N-phenyl-",
+        "atoms": 78,
+        "input_smiles": "CC(=O)C(C(=O)NC1=CC=CC=C1)N=NC2=C(C=C(C=C2)C3=CC(=C(C=C3)N=NC(C(=O)C)C(=O)NC4=CC=CC=C4)OC)OC",
+        "calibration_reasons": [
+          "original three-per-stratum calibration"
+        ]
+      },
+      {
+        "id": "cohort-05819",
+        "reference": "production",
+        "reference_index": 5819,
+        "inchikey": "NJIMZDGGLTUCPX-UHFFFAOYSA-N",
+        "surface": "../phase83-v1/surfaces/c90998c483a5046adb4f7af5031844c705c1bf682dad0f149fcbb8251da46233.orcacosmo",
+        "surface_sha256": "c90998c483a5046adb4f7af5031844c705c1bf682dad0f149fcbb8251da46233",
+        "molecular_weight_g_mol": 649.19,
+        "primary_partition": "../phase9-v1/production-results-v1/0057/partition/cohort-05819.json",
+        "primary_plan_sha256": "ce19da895df90f231ab91a1b50fc617f78a16684f6445e4b4ef220bef1bfe6c0",
+        "stratum": "tier2",
+        "name": "Behenyl behenate",
+        "atoms": 134,
+        "input_smiles": "CCCCCCCCCCCCCCCCCCCCCCOC(=O)CCCCCCCCCCCCCCCCCCCCC",
+        "calibration_reasons": [
+          "population maximum atoms",
+          "population maximum rotatable_bonds"
+        ]
+      },
+      {
+        "id": "cohort-05822",
+        "reference": "production",
+        "reference_index": 5822,
+        "inchikey": "QRNJAQUNBRODGN-UHFFFAOYSA-N",
+        "surface": "../phase83-v1/surfaces/7b1090937dc35a4ab1065d43f30ad11418f346fa86aafd0c2b0514ac327ec311.orcacosmo",
+        "surface_sha256": "7b1090937dc35a4ab1065d43f30ad11418f346fa86aafd0c2b0514ac327ec311",
+        "molecular_weight_g_mol": 674.61,
+        "primary_partition": "../phase9-v1/production-results-v1/0057/partition/cohort-05822.json",
+        "primary_plan_sha256": "ce19da895df90f231ab91a1b50fc617f78a16684f6445e4b4ef220bef1bfe6c0",
+        "stratum": "tier2",
+        "name": "1,2,4,5-Benzenetetracarboxylic acid, 1,4-bis[2-[(2-methyl-1-oxo-2-propen-1-yl)oxy]-1-[[(2-methyl-1-oxo-2-propen-1-yl)oxy]methyl]ethyl] ester",
+        "atoms": 82,
+        "input_smiles": "CC(=C)C(=O)OCC(COC(=O)C(=C)C)OC(=O)C1=CC(=C(C=C1C(=O)O)C(=O)OC(COC(=O)C(=C)C)COC(=O)C(=C)C)C(=O)O",
+        "calibration_reasons": [
+          "population maximum oxygen_atoms"
+        ]
+      },
+      {
+        "id": "cohort-05827",
+        "reference": "production_chunk_measurement",
+        "reference_index": 5827,
+        "inchikey": "VMRGZRVLZQSNHC-UHFFFAOYSA-N",
+        "surface": "../phase83-v1/surfaces/c1e0df41eefe06d2524916dd5bf18dee7e6acafb996fe8910fe4a613e486c254.orcacosmo",
+        "surface_sha256": "c1e0df41eefe06d2524916dd5bf18dee7e6acafb996fe8910fe4a613e486c254",
+        "molecular_weight_g_mol": 505.92,
+        "primary_partition": "../phase9-v1/chunk-probe-results-v1/0000/partition/cohort-05827.json",
+        "primary_plan_sha256": "cff1b4286be45b8d35fd582f9bd8fa82126f2a03a66a4832180d21f305c4e9e3",
+        "stratum": "tier2",
+        "name": "N-octadec-9-enylhexadecanamide",
+        "atoms": 103,
+        "input_smiles": "CCCCCCCCCCCCCCCC(=O)NCCCCCCCCC=CCCCCCCCC",
+        "calibration_reasons": [
+          "original three-per-stratum calibration"
+        ]
+      },
+      {
+        "id": "cohort-05829",
+        "reference": "production_chunk_measurement",
+        "reference_index": 5829,
+        "inchikey": "ZNRNSKNVPBUUNI-CLFAGFIQSA-N",
+        "surface": "../phase83-v1/surfaces/82a613f2878b8c9c6140c51da3f457f6f32777a91be6e3208a87e81e554f610b.orcacosmo",
+        "surface_sha256": "82a613f2878b8c9c6140c51da3f457f6f32777a91be6e3208a87e81e554f610b",
+        "molecular_weight_g_mol": 647.08,
+        "primary_partition": "../phase9-v1/chunk-probe-results-v1/0000/partition/cohort-05829.json",
+        "primary_plan_sha256": "cff1b4286be45b8d35fd582f9bd8fa82126f2a03a66a4832180d21f305c4e9e3",
+        "stratum": "tier2",
+        "name": "1,6-Hexanediyl dioleate",
+        "atoms": 124,
+        "input_smiles": "CCCCCCCC/C=C\\CCCCCCCC(=O)OCCCCCCOC(=O)CCCCCCC/C=C\\CCCCCCCC",
+        "calibration_reasons": [
+          "original three-per-stratum calibration"
+        ]
+      }
+    ]
+  ],
+  "subbatch": 10,
+  "grid_batch": 256,
+  "output": "calibration-results-v1",
+  "cost_limit_CPU_h": 510,
+  "production_chunk_size": 100,
+  "constraint": "(milan|genoa)&cpu"
+}

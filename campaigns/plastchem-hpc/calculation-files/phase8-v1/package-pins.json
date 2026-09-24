@@ -1,0 +1,10 @@
+{
+  "opencosmorspy/__init__.py": "b6d35d1e45f21ec0667cf030e0e2fb3c4bd3de17683d10615d05beda8edf4a0b",
+  "opencosmorspy/cosmo_visualizations.py": "20a03164c1c51cb01ab1d509c852b338c5fee8c8f58472cc2cea933c2d4d4fc0",
+  "opencosmorspy/cosmors.py": "c643656090306d52f0867ba545a464744345a0a84e5eba89873d501f9005ec69",
+  "opencosmorspy/helper_functions.py": "1e6955465f9be82be78d0971684e784cda381f6713f2d4a3facefc3c1b8b720d",
+  "opencosmorspy/input_parsers.py": "f320966ed9b07c2fa3ad73426bd343b1904bfce07a5eaba12d60b50cbbfb9027",
+  "opencosmorspy/molecules.py": "5f17246da9129eb06b1e1a12a9bd2ccf870fab1cb5343038da17c6e5f6ee9a3b",
+  "opencosmorspy/parameterization.py": "6349784789d255953146b4326be31cd1068956b006280700e1f4900506e8bcce",
+  "opencosmorspy/segtp_collection.py": "802f6c3ba1a1eb0ac1436a230d1aa9baae9fd6df362ae0301086b609e3e3e60c"
+}

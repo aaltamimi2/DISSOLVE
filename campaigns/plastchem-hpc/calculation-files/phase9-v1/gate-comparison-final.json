@@ -1,0 +1,123 @@
+{
+  "utc": "2026-09-24T06:33:42.351315+00:00",
+  "status": "reproduction_passed_cost_pending",
+  "partition_compared": 17792,
+  "partition_denominator": 17792,
+  "lle_compared": 2240,
+  "lle_denominator": 2240,
+  "complete_chunks": 4,
+  "chunk_denominator": 4,
+  "partition_numerical_passes": 17733,
+  "documented_finite_dilution_reference_differences": 59,
+  "partition_clarification_authority": {
+    "authority": "A-9 CLARIFICATION (2026-09-23, orchestrator) \u2014 INFINITE DILUTION IS x = 0 FOR BOTH CONVENTIONS",
+    "charter_sha256": "aed10695b137c7fa05a8c45ce4d3bd60ff14cd06ea48878a03ef908e2a6b328e",
+    "clarification_sha256": "dacac24ac9b8e407eef4d6e30522ec374e97ba8f44fd86b84666b85734144611",
+    "accepted_failure_report_sha256": "548a5b845b1062112220931497269ab3faec2378aa7828f3c2eae93532f1ca3b",
+    "decision": "exact x=0 both conventions; 59 named differences documented, not numerical reproduction passes"
+  },
+  "maximum_logP_error": 0.011903915741946491,
+  "errors": [],
+  "completed_peak_rss_kib": 2279672,
+  "cost_screen": {
+    "strata": [
+      {
+        "stratum": "01_le30_N",
+        "population": 725,
+        "sample_seconds": [
+          73.81025347684044,
+          112.39297325513326,
+          169.03211726841982
+        ],
+        "mean_seconds": 118.4117813334645
+      },
+      {
+        "stratum": "01_le30_noN",
+        "population": 1909,
+        "sample_seconds": [
+          46.27448321960401,
+          49.49382841354236,
+          49.94570328423288
+        ],
+        "mean_seconds": 48.571338305793084
+      },
+      {
+        "stratum": "02_31_50_N",
+        "population": 466,
+        "sample_seconds": [
+          57.77968445827719,
+          180.79721985489596,
+          111.69173472584225
+        ],
+        "mean_seconds": 116.75621301300514
+      },
+      {
+        "stratum": "02_31_50_noN",
+        "population": 1545,
+        "sample_seconds": [
+          49.08501950802747,
+          57.747811840847135,
+          65.63116265402641
+        ],
+        "mean_seconds": 57.487998000967
+      },
+      {
+        "stratum": "03_51_80_N",
+        "population": 250,
+        "sample_seconds": [
+          181.2480391091667,
+          230.90796847676393,
+          113.71212362719234
+        ],
+        "mean_seconds": 175.289377071041
+      },
+      {
+        "stratum": "03_51_80_noN",
+        "population": 820,
+        "sample_seconds": [
+          111.29170184547547,
+          51.922092151478864,
+          61.58724183449522
+        ],
+        "mean_seconds": 74.93367861048318
+      },
+      {
+        "stratum": "04_gt80_N",
+        "population": 10,
+        "sample_seconds": [
+          112.16283579089213,
+          116.54902482172474,
+          181.61235438659787
+        ],
+        "mean_seconds": 136.77473833307158
+      },
+      {
+        "stratum": "04_gt80_noN",
+        "population": 78,
+        "sample_seconds": [
+          77.45296240318567,
+          62.73425849585328,
+          57.17017362115439
+        ],
+        "mean_seconds": 65.78579817339778
+      },
+      {
+        "stratum": "tier2",
+        "population": 27,
+        "sample_seconds": [
+          164.89437444403302,
+          134.3134388398612,
+          68.20037023024634
+        ],
+        "mean_seconds": 122.46939450471352
+      }
+    ],
+    "projected_lle_cpu_hours": 121.35340346914296,
+    "validation_chunk_overhead_seconds_per_solute": 94.52270860673327,
+    "conservative_cpu_hours_at_validation_chunk_size": 274.4276787961582,
+    "planning_cpu_hours_with_25_percent_allowance": 343.03459849519777,
+    "limit_cpu_hours": 500,
+    "full_sized_chunk_measurement_pending": true,
+    "note": "Engineering extrapolation, not a random-sample confidence interval. No final production clearance from this preliminary cost screen alone."
+  }
+}
