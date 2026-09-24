@@ -2285,7 +2285,11 @@ def test_the_prompt_says_how_to_write_an_answer():
     assert "Report the source_basis with the number." not in prompt
     for rule in ("Writing the answer.", "Open with the answer", 'line that starts "Source:"',
                  "Never show field names", "Stop when the results answer the question",
-                 "Do not describe your process", "a |---| separator row"):
+                 "Do not describe your process", "a |---| separator row",
+                 # comparisons and the scores they rank by (separation, safety, Hansen)
+                 "Comparing alternatives", "as safe as its least safe solvent", "cross-check it with the\n  Hansen tools",
+                 "Metrics. Explain each score", "G score:", "CHEM21 Safety, Health and Environment scores",
+                 "RED is the Hansen distance", "any request for CHEM21"):
         assert rule in prompt
 
 
