@@ -965,6 +965,10 @@ def _fold_usage(acc):
     keys = {key for item in acc for key in item}
     return {key: sum(item[key] for item in acc if key in item) for key in keys}
 
+# A provider that is briefly overloaded (503) or rate-limiting (429) is retried with the SDK's backoff
+# before the turn gives up; the SDK default of two retries ended users' turns during short overloads.
+_PROVIDER_RETRIES = 5
+
 def complete(messages, tools, *, model, api_base=None, api_key_env=None):
     kind, _, ident = model.partition(":")
     ident = ident or model
@@ -977,7 +981,7 @@ def complete(messages, tools, *, model, api_base=None, api_key_env=None):
         import anthropic
         sys, rest = _ant_msgs(messages)
         ant = [{"name": t["name"], "description": t.get("description") or "", "input_schema": t["parameters"]} for t in tools]
-        resp = anthropic.Anthropic(api_key=key).messages.create(
+        resp = anthropic.Anthropic(api_key=key, max_retries=_PROVIDER_RETRIES).messages.create(
             model=ident, system=sys, messages=rest, tools=ant, max_tokens=8192)
         text = "".join(getattr(b, "text", "") for b in resp.content if getattr(b, "type", "") == "text")
         calls = [{"id": b.id, "name": b.name, "args": dict(b.input or {})}
@@ -997,7 +1001,7 @@ def complete(messages, tools, *, model, api_base=None, api_key_env=None):
     if kind == "openai":
         from openai import OpenAI
         oai = [{"type": "function", "function": {"name": t["name"], "description": t.get("description") or "", "parameters": t["parameters"]}} for t in tools]
-        resp = OpenAI(api_key=key or None, base_url=api_base or None).chat.completions.create(
+        resp = OpenAI(api_key=key or None, base_url=api_base or None, max_retries=_PROVIDER_RETRIES).chat.completions.create(
             model=ident, messages=_oai_msgs(messages), tools=oai)
         msg = resp.choices[0].message
         calls = []

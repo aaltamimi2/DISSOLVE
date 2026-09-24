@@ -6703,3 +6703,20 @@ def test_emptying_ingest_tools_does_not_put_ingest_on_scholarly(monkeypatch):
     assert "ingest_literature_graph" not in offered
     assert "promote_ingested_paper" not in offered
     assert tools.LITERATURE_MODE_SURFACE["scholarly"] == tools.LITERATURE_SCHOLARLY_TOOLS
+
+
+def test_a_briefly_overloaded_provider_is_retried_before_the_turn_fails(monkeypatch):
+    """Muse Spark answered 503 service_overloaded mid-turn on 2026-09-24, and with the SDK's default two retries the
+    user's turn ended as a provider error. The client now retries with the SDK's backoff before giving up."""
+    import openai
+    seen = {}
+
+    class Recorder:
+        def __init__(self, **kwargs):
+            seen.update(kwargs)
+            raise RuntimeError("constructed")
+
+    monkeypatch.setattr(openai, "OpenAI", Recorder)
+    with pytest.raises(RuntimeError, match="constructed"):
+        agent.complete([{"role": "user", "content": "hi"}], [], model="openai:muse-spark-1.3")
+    assert seen["max_retries"] == agent._PROVIDER_RETRIES >= 5
