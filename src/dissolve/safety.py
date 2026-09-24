@@ -1806,6 +1806,28 @@ def _g_floor_warnings(*, supplied: bool) -> list[str]:
     return [_UNSOURCED_G_FLOOR_WARNING]
 
 
+def _tie_break(row: dict[str, Any]) -> float:
+    """Higher selectivity first; a one-polymer screen has none, so higher solubility of the polymer instead."""
+    value = row.get("selectivity_pct")
+    return float(row["target_solubility_pct"] if value is None else value)
+
+
+def _tie_break_text(retained: list[str]) -> str:
+    return "higher selectivity" if retained else "higher solubility of the polymer"
+
+
+def _heuristics_warning(solubility_floor: float, selectivity_floor: float, retained: list[str]) -> str:
+    if not retained:
+        return f"The {solubility_floor:g} wt% solubility reference is a screening heuristic, not a recovery or purity criterion."
+    return (f"The {solubility_floor:g} wt% target-solubility and {selectivity_floor:g}-percentage-point selectivity "
+            "references are screening heuristics, not recovery or purity criteria.")
+
+
+def _gap_text(row: dict[str, Any]) -> str:
+    value = row.get("selectivity_pct")
+    return "n/a" if value is None else f"{value:.3f}"
+
+
 def screen_green_solvent_candidates(
     feed_polymers: list[str],
     target_polymer: str,
@@ -1821,15 +1843,15 @@ def screen_green_solvent_candidates(
     metric: Optional[Literal["g_score", "chem21", "chem21_safety", "chem21_worst"]] = None,
     maximum_chem21_score: Optional[float] = None,
 ) -> str:
-    """Apply sourced green/safety filters before thermodynamic tie-breaks; metric g_score (default) or chem21 = CHEM21 worst of Safety/Health/Environment, the default CHEM21 metric (chem21_safety opts into the Safety sub-score alone).
+    """Apply sourced green/safety filters before thermodynamic tie-breaks; metric g_score (default) or chem21 = CHEM21 worst of Safety/Health/Environment, the default CHEM21 metric (chem21_safety opts into the Safety sub-score alone). One feed polymer screens greener solvents that dissolve it; several screen solvents that dissolve target_polymer selectively over the rest.
 
     ``require_atmospheric=None`` keeps missing boiling-point data while
     excluding known-too-low conditions; ``True`` excludes both and ``False``
     excludes neither.
     """
     tool = "screen_green_solvent_candidates"
-    if not isinstance(feed_polymers, list) or len(feed_polymers) < 2:
-        return tool_error(tool, "At least two feed polymers are required.", error_code="invalid_feed")
+    if not isinstance(feed_polymers, list) or not feed_polymers:
+        return tool_error(tool, "At least one feed polymer is required.", error_code="invalid_feed")
     requested = list(dict.fromkeys(str(item).strip() for item in feed_polymers if str(item).strip()))
     polymers: list[str] = []
     unsupported: list[str] = []
@@ -1916,8 +1938,6 @@ def screen_green_solvent_candidates(
                 *_g_floor_warnings(supplied=supplied_g_floor),
             ],
         )
-    if len(polymers) < 2:
-        return tool_error(tool, "At least two distinct feed polymers are required.", error_code="invalid_feed")
     retained = [polymer for polymer in polymers if polymer != target]
     from .thermodynamics import (
         _atmospheric_exclusion_applies,
@@ -2004,10 +2024,11 @@ def screen_green_solvent_candidates(
             }
             if target_value is None or any(value is None for value in off_targets.values()):
                 continue
-            limiting = max(off_targets, key=off_targets.get)
-            limiting_value = float(off_targets[limiting])
-            selectivity = float(target_value) - limiting_value
-            if target_value >= solubility_floor and selectivity >= selectivity_floor:
+            # With one polymer there is nothing to keep undissolved, so selectivity does not apply.
+            limiting = max(off_targets, key=off_targets.get) if off_targets else None
+            limiting_value = None if limiting is None else float(off_targets[limiting])
+            selectivity = None if limiting is None else float(target_value) - limiting_value
+            if target_value >= solubility_floor and (selectivity is None or selectivity >= selectivity_floor):
                 if _atmospheric_exclusion_applies(
                     atmospheric_exclusion, require_atmospheric,
                 ):
@@ -2065,7 +2086,7 @@ def screen_green_solvent_candidates(
     if use_g_metric:
         eligible.sort(key=lambda row: (
             -float(row["g_score"]), float(row["temperature_c"]),
-            -float(row["selectivity_pct"]), str(row["solvent"]),
+            -_tie_break(row), str(row["solvent"]),
         ))
     else:
         metric_field = (
@@ -2074,7 +2095,7 @@ def screen_green_solvent_candidates(
         )
         eligible.sort(key=lambda row: (
             float(row[metric_field]), float(row["temperature_c"]),
-            -float(row["selectivity_pct"]), str(row["solvent"]),
+            -_tie_break(row), str(row["solvent"]),
         ))
     ranked = eligible[:bounded_limit]
     for rank, row in enumerate(ranked, 1):
@@ -2087,17 +2108,17 @@ def screen_green_solvent_candidates(
             *(
                 f"{row['rank']:<5} {str(row['solvent'])[:22]:<22} {row['g_score']:>6.3f} "
                 f"{row['temperature_c']:>7.1f} {row['target_solubility_pct']:>9.3f} "
-                f"{row['selectivity_pct']:>9.3f}"
+                f"{_gap_text(row):>9}"
                 for row in ranked
             ),
         ]
         ranking_basis = (
-            "G-score descending, then lower qualifying temperature and higher selectivity"
+            "G-score descending, then lower qualifying temperature and " + _tie_break_text(retained)
         )
         metric_extra: dict[str, Any] = {}
         metric_warnings = [
             f"G-score >= {g_floor:g} is an EHS screening cutoff, not proof of low process hazard.",
-            f"The {solubility_floor:g} wt% target-solubility and {selectivity_floor:g}-percentage-point selectivity references are screening heuristics, not recovery or purity criteria.",
+            _heuristics_warning(solubility_floor, selectivity_floor, retained),
             "Normal-boiling-point feasibility is an operability check; flash point, toxicity, and heated handling still require candidate-specific assessment.",
             *_g_floor_warnings(supplied=supplied_g_floor),
         ]
@@ -2123,12 +2144,12 @@ def screen_green_solvent_candidates(
             *(
                 f"{row['rank']:<5} {str(row['solvent'])[:22]:<22} {row[metric_field]:>6.0f} "
                 f"{row['temperature_c']:>7.1f} {row['target_solubility_pct']:>9.3f} "
-                f"{row['selectivity_pct']:>9.3f}"
+                f"{_gap_text(row):>9}"
                 for row in ranked
             ),
         ]
         ranking_basis = (
-            f"{label} ascending, then lower qualifying temperature and higher selectivity"
+            f"{label} ascending, then lower qualifying temperature and " + _tie_break_text(retained)
         )
         metric_extra = {
             "metric": metric_token,
@@ -2140,7 +2161,7 @@ def screen_green_solvent_candidates(
         }
         metric_warnings = [
             f"{label} is a published hazard score (1–10, higher = more hazardous), not a G-score.",
-            f"The {solubility_floor:g} wt% target-solubility and {selectivity_floor:g}-percentage-point selectivity references are screening heuristics, not recovery or purity criteria.",
+            _heuristics_warning(solubility_floor, selectivity_floor, retained),
             "Normal-boiling-point feasibility is an operability check; flash point, toxicity, and heated handling still require candidate-specific assessment.",
         ]
         floor_block = {}

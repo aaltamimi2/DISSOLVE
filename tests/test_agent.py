@@ -2339,6 +2339,27 @@ def test_answers_get_their_table_separators_back():
         assert agent._complete_tables(untouched) == untouched
 
 
+def test_a_repeated_table_separator_is_dropped():
+    """The safety example came back with a second separator row carrying stray text in one cell (2026-09-24),
+    which the web UI drew as a junk data row. Rows after the separator whose every cell holds --- are dropped."""
+    glitch = "| Solvent | Band |\n|---|---|\n|---|すすめ---|\n| Ethyl acetate | problematic |\n\nSource: z"
+    assert agent._complete_tables(glitch) == "| Solvent | Band |\n|---|---|\n| Ethyl acetate | problematic |\n\nSource: z"
+    assert agent._complete_tables("| A | B |\n|---|---|\n|---|---|\n| x | 1 |") == "| A | B |\n|---|---|\n| x | 1 |"
+    two_tables = "| A |\n|---|\n| x |\n\n| B |\n|---|\n| y |"
+    assert agent._complete_tables(two_tables) == two_tables
+    dashes_in_data = "| A | B |\n|---|---|\n| --- | 1 |"
+    assert agent._complete_tables(dashes_in_data) == dashes_in_data  # one data cell of dashes is still data
+
+
+def test_text_right_under_a_table_is_moved_out_of_it():
+    """The toluene safety card put its legend on the line after the table (2026-09-24); GitHub-flavoured Markdown
+    reads that line as one more table row, so the web UI drew the legend inside the table."""
+    assert agent._complete_tables("| Measure | Score |\n|---|---|\n| Safety | 4 |\nG score is the GSK score.") == (
+        "| Measure | Score |\n|---|---|\n| Safety | 4 |\n\nG score is the GSK score.")
+    spaced = "| A |\n|---|\n| x |\n\nText"
+    assert agent._complete_tables(spaced) == spaced
+
+
 def test_a_new_session_screens_the_common_solvents(tmp_path, monkeypatch):
     """The full grid holds gases and explosives whose predictions clip at 100 wt%; a person opts into it."""
     app, _buf = _app(tmp_path, monkeypatch)
@@ -6720,3 +6741,15 @@ def test_a_briefly_overloaded_provider_is_retried_before_the_turn_fails(monkeypa
     with pytest.raises(RuntimeError, match="constructed"):
         agent.complete([{"role": "user", "content": "hi"}], [], model="openai:muse-spark-1.3")
     assert seen["max_retries"] == agent._PROVIDER_RETRIES >= 5
+
+
+def test_system_prompt_screens_once_and_treats_requirements_as_filters():
+    """The served examples ran 7 to 14 tools where 2 to 4 answered them: solubility screened again with the
+    atmospheric filter, safety cards fetched after the safety comparison, Hansen parameters looked up before the
+    Hansen screen. And "keep LDPE insoluble" came back with DMF, which dissolves 16 wt% LDPE (2026-09-24)."""
+    prompt = " ".join(agent.SYSTEM_PROMPT.split())
+    assert "Call a tool only for what no earlier result holds." in prompt
+    assert "ask the first screen for options that stay liquid there at 1 atm (require_atmospheric)" in prompt
+    assert "A requirement in the question is a filter." in prompt
+    assert "above the engine's insolubility level (1 wt%, the precipitation threshold)" in prompt
+    assert 'a record marked unreviewed_raw is "not yet reviewed"' in prompt

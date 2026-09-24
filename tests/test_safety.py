@@ -1536,3 +1536,21 @@ def test_doctor_check_helper_is_format_only():
 def test_doctor_detail_omits_strike_phrases():
     for phrase in _strike_phrases():
         assert phrase not in _DOCTOR_DETAIL
+
+
+def test_the_green_screen_serves_one_polymer():
+    """"Suggest greener substitutes for DMF when dissolving EVOH" is a one-polymer question. The green screen refused
+    it (it needed two feed polymers), and the agent rebuilt the answer from 13 other calls (2026-09-24). One polymer
+    now ranks the greener solvents that dissolve it; there is nothing to keep undissolved, so no selectivity."""
+    one = json.loads(safety.screen_green_solvent_candidates(feed_polymers=["EVOH"], target_polymer="EVOH", limit=5))["data"]
+    assert one["success"] is True and one["other_polymers"] == []
+    rows = one.get("candidates") or one.get("ranked_candidates") or one.get("rows")
+    assert rows and all(row["selectivity_pct"] is None and row["target_solubility_pct"] >= 5.0 for row in rows)
+    assert [row["g_score"] for row in rows] == sorted((row["g_score"] for row in rows), reverse=True)
+    assert "higher solubility of the polymer" in one["ranking_basis"]
+    assert not any("selectivity references" in warning for warning in one["warnings"])
+    two = json.loads(safety.screen_green_solvent_candidates(feed_polymers=["EVOH", "LDPE"], target_polymer="EVOH", limit=3))["data"]
+    rows = two.get("candidates") or two.get("ranked_candidates") or two.get("rows")
+    assert rows and all(row["selectivity_pct"] >= 5.0 for row in rows)
+    empty = json.loads(safety.screen_green_solvent_candidates(feed_polymers=[], target_polymer="EVOH"))["data"]
+    assert empty["error_code"] == "invalid_feed"

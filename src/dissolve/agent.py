@@ -688,6 +688,14 @@ The architecture is a loop: you call a tool, you read the result, you
 call another tool or you answer. There is no plan to fill in, no
 specialist to route to, no phase to complete.
 
+Call a tool only for what no earlier result holds. A screen's handle
+feeds the safety comparison; the safety comparison already carries each
+solvent's safety-card fields, and the Hansen compatibility screen
+carries the parameters it used, so do not fetch those again one by one.
+When solvents will be used at a temperature, ask the first screen for
+options that stay liquid there at 1 atm (require_atmospheric) unless
+the user mentions pressure, so you screen once.
+
 Never compute, interpolate, average, or estimate. Every numeral in your
 answer came back from a tool call. If a number is not in a tool result,
 you do not have it. Rounding a returned value for display, to three
@@ -798,8 +806,14 @@ a reviewer of the tools.
   that boils below the operating temperature, or a value the tool marks
   as clipped at a limit, is not a recommendation; say what is wrong
   with it instead. Do not mention a limit a value did not reach.
+- A requirement in the question is a filter. When the user says a
+  polymer must stay undissolved (insoluble, retained, intact), leave out
+  options where it dissolves above the engine's insolubility level (1
+  wt%, the precipitation threshold), say how many you left out, and name
+  the level. If none remain, say so first and show the closest.
 - Never show field names, unit tokens, handle names, tool names,
-  true/false flags or status codes. Say what they mean in words.
+  true/false flags or status codes. Say what they mean in words: a
+  record marked unreviewed_raw is "not yet reviewed".
 - A number shown in a table is not repeated in the prose. Aim for the
   shortest answer that supports the decision: usually one table and
   under about 250 words, unless the user asks for detail.
@@ -866,17 +880,32 @@ table): what it measures, its scale and which direction is better.
 _PIPE_ROW = re.compile(r"^\s*\|.*\|\s*$")
 _PIPE_SEPARATOR = re.compile(r"^\s*\|(\s*:?-{3,}:?\s*\|)+\s*$")
 
+def _separator_like(line: str) -> bool:
+    return all("---" in cell for cell in line.strip().strip("|").split("|"))
+
 def _complete_tables(text: str) -> str:
-    """Give a pipe table its missing header separator. Without the |---| row, the CLI's Markdown and the web
-    renderer both show the rows as one paragraph. Tables that have it, and code blocks, are left alone."""
-    lines, out, fenced = text.split("\n"), [], False
+    """Give a pipe table its missing header separator, drop a repeated one, and end it with a blank line. Without the
+    |---| row, the CLI's Markdown and the web renderer both show the rows as one paragraph; a second separator (the
+    model once wrote one with stray text in a cell) renders as a junk data row; and a line of text right under a
+    table is drawn as one more row. Code blocks are left alone."""
+    lines, out, fenced, separated = text.split("\n"), [], False, False
     for i, line in enumerate(lines):
         if line.lstrip().startswith("```"):
             fenced = not fenced
+        row = not fenced and _PIPE_ROW.match(line)
+        if not row:
+            if separated and line.strip():  # text right under a table would render as one more table row
+                out.append("")
+            separated = False
+        elif separated and _separator_like(line):
+            continue
+        elif _PIPE_SEPARATOR.match(line):
+            separated = True
         out.append(line)
-        header = not fenced and _PIPE_ROW.match(line) and not (i and _PIPE_ROW.match(lines[i - 1]))
+        header = row and not (i and _PIPE_ROW.match(lines[i - 1]))
         if header and i + 1 < len(lines) and _PIPE_ROW.match(lines[i + 1]) and not _PIPE_SEPARATOR.match(lines[i + 1]):
             out.append("|" + "---|" * (line.strip().strip("|").count("|") + 1))
+            separated = True
     return "\n".join(out)
 
 @dataclass(frozen=True)
