@@ -519,7 +519,7 @@ def test_session_default_and_clear(tmp_path, monkeypatch):
     assert payload["solvent_scope_origin"] == "session_default"
     assert payload["selection"]["solvent_count"] == 69
     assert app.handle_command("/clear") is False
-    assert "solvent_scope" not in app.session
+    assert app.session["solvent_scope"] == {"scope": "common"}  # a new session screens the curated solvents
     assert "handle_command" not in inspect.getsource(app.ask)
 
 
@@ -538,8 +538,8 @@ def test_bare_solvents_non_tty_prints_status(tmp_path, monkeypatch):
         console=Console(file=buf, force_terminal=True, width=80, color_system=None),
     )
     assert app.handle_command("/solvents") is False
-    assert "solvent_scope" not in app.session
-    assert "solvent_scope=all" in buf.getvalue()
+    assert app.session["solvent_scope"] == {"scope": "common"}
+    assert "solvent_scope=common" in buf.getvalue()
 
 
 def test_bare_solvents_dumb_term_prints_status(tmp_path, monkeypatch):
@@ -563,8 +563,8 @@ def test_bare_solvents_dumb_term_prints_status(tmp_path, monkeypatch):
         console=Console(file=buf),
     )
     assert app.handle_command("/solvents") is False
-    assert "solvent_scope" not in app.session
-    assert "solvent_scope=all" in buf.getvalue()
+    assert app.session["solvent_scope"] == {"scope": "common"}
+    assert "solvent_scope=common" in buf.getvalue()
 
 
 def test_bare_solvents_stdout_pipe_prints_status(tmp_path, monkeypatch):
@@ -582,7 +582,7 @@ def test_bare_solvents_stdout_pipe_prints_status(tmp_path, monkeypatch):
         console=Console(file=buf),
     )
     assert app.handle_command("/solvents") is False
-    assert "solvent_scope" not in app.session
+    assert app.session["solvent_scope"] == {"scope": "common"}
 
 
 def test_bare_solvents_picker_sets_common(tmp_path, monkeypatch):
@@ -627,7 +627,7 @@ def test_bare_solvents_picker_rejects_unknown(tmp_path, monkeypatch):
         console=Console(file=io.StringIO()),
     )
     app._handle_solvents_command([], picker_fn=lambda **_k: "nope")
-    assert "solvent_scope" not in app.session
+    assert app.session["solvent_scope"] == {"scope": "common"}
 
 
 def test_bare_solvents_quiet_never_prompts(tmp_path, monkeypatch):
@@ -646,7 +646,7 @@ def test_bare_solvents_quiet_never_prompts(tmp_path, monkeypatch):
         quiet=True,
     )
     app._handle_solvents_command([], picker_fn=None)
-    assert "solvent_scope" not in app.session
+    assert app.session["solvent_scope"] == {"scope": "common"}
 
 
 def test_query_overrides_session():

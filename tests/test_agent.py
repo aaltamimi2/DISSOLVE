@@ -2279,6 +2279,34 @@ def test_mode_rewrites_system_prompt(tmp_path, monkeypatch):
     assert "auto" in buf.getvalue()
 
 
+def test_the_prompt_says_how_to_write_an_answer():
+    """Answers had become field dumps: a source tag on every value, raw keys, rules recited to the reader."""
+    prompt = agent.SYSTEM_PROMPT
+    assert "Report the source_basis with the number." not in prompt
+    for rule in ("Writing the answer.", "Open with the answer", 'line that starts "Source:"',
+                 "Never show field names", "Stop when the results answer the question",
+                 "Do not describe your process", "a |---| separator row"):
+        assert rule in prompt
+
+
+def test_answers_get_their_table_separators_back():
+    """The model sometimes drops a table's |---| row; the CLI's Markdown and the web UI then show one paragraph."""
+    assert agent._complete_tables("| A | B |\n| x | 1 |\n| y | 2 |\n\nSource: z") == (
+        "| A | B |\n|---|---|\n| x | 1 |\n| y | 2 |\n\nSource: z")
+    for untouched in ("| A | B |\n|---|---|\n| x | 1 |", "```\n| a | b |\n| c | d |\n```", "Value | here", "no table"):
+        assert agent._complete_tables(untouched) == untouched
+
+
+def test_a_new_session_screens_the_common_solvents(tmp_path, monkeypatch):
+    """The full grid holds gases and explosives whose predictions clip at 100 wt%; a person opts into it."""
+    app, _buf = _app(tmp_path, monkeypatch)
+    assert app.session["solvent_scope"]["scope"] == "common"
+    app.handle_command("/solvents all")
+    assert app.session["solvent_scope"]["scope"] == "all"
+    app.handle_command("/clear")
+    assert app.session["solvent_scope"]["scope"] == "common"
+
+
 def test_context_lists_polymers_temps_and_handle_totals(tmp_path, monkeypatch):
     monkeypatch.setattr(cli, "run_turn", _ok_turn)
     app, buf = _app(tmp_path, monkeypatch)

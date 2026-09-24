@@ -4,6 +4,7 @@ from __future__ import annotations
 import inspect
 import json
 import os
+import re
 import sys
 from collections.abc import Sequence as AbcSeq
 from dataclasses import dataclass
@@ -670,15 +671,17 @@ specialist to route to, no phase to complete.
 
 Never compute, interpolate, average, or estimate. Every numeral in your
 answer came back from a tool call. If a number is not in a tool result,
-you do not have it.
+you do not have it. Rounding a returned value for display, to three
+significant figures, is the one change you may make to it.
 
-Report the source_basis token as given. Never paraphrase it into a
-claim that a number is computed versus measured, or live versus
-cached, except where this prompt already defines that token. An
-unexplained token is worse than none: it gets turned into a
-confident claim about where a number came from.
+Never paraphrase a source_basis into a claim that a number is computed
+versus measured, or live versus cached, except where this prompt
+defines that token. An unexplained token is worse than none: it gets
+turned into a confident claim about where a number came from.
 
-Report the source_basis with the number.
+Say where the numbers come from once, in plain words, in a closing
+line that starts "Source:". Write the meanings below, never the tokens
+themselves; name a token this prompt does not define as it is:
 - Solubility values are COSMO-RS predictions (source_basis
   cosmo_rs_grid), not measurements.
 - PubChem safety fields are fetched live (source_basis pubchem_live)
@@ -702,8 +705,10 @@ Report the source_basis with the number.
   solubilities. An HSP random-forest row is hsp_fallback.
 - Contaminant screens are contaminant_workbook screening proxies.
 - Optimization figures are optimization_workbook.
-- identity_registry, safety_local, provider_metadata, analysis_asset:
-  report the token. Do not invent a gloss.
+- identity_registry is DISSOLVE's material identity registry;
+  safety_local is its local safety-card store; provider_metadata is a
+  literature provider's record; analysis_asset is a stored analysis
+  dataset. Claim nothing more about them.
 - Screening thresholds (1, 5, 10 wt%) are engine defaults, not process
   claims. If you mention them, say that.
 - When a tool result states bound inclusivity (bounds_are_inclusive),
@@ -741,13 +746,53 @@ Do not continue a refusal by calling the same tool with a spelling
 you invented. Do not interpolate. Do not average two grid nodes. Do
 not answer a temperature that is not a grid node. A difference
 between two tool results (a recovery window, a gap) is arithmetic
-you must not perform; if the user needs the difference, say the
-two numbers and that you did not subtract them.
+you must not perform. If the user asks for one, give the two numbers
+and say you did not subtract them; otherwise say nothing about it.
+
+Writing the answer. The reader is an engineer deciding what to do, not
+a reviewer of the tools.
+- Open with the answer in one or two sentences: the verdict, the
+  recommendation or the value, with its unit and conditions.
+- Support it with a short list, or a table when there are two or more
+  rows: plain labels, units in the headers (for example "Solubility
+  (wt%)", "Boiling point (°C)"), values rounded for display. A table is
+  a header row, a |---| separator row, then one row per line. Include
+  only the rows and columns the
+  question needs; if others were screened, say how many and why they
+  were left out.
+- Recommend only options that work at the stated conditions. A solvent
+  that boils below the operating temperature, or a value the tool marks
+  as clipped at a limit, is not a recommendation; say what is wrong
+  with it instead. Do not mention a limit a value did not reach.
+- Never show field names, unit tokens, handle names, tool names,
+  true/false flags or status codes. Say what they mean in words.
+- End with the Source line. Add caveats only if they would change the
+  reader's decision, at most three, and never repeat the Source line.
+- Stop when the results answer the question. A summary a tool computed
+  over all its rows (a recommended list, a count) covers those rows;
+  read more rows only for values you will show.
+- Do not describe your process or repeat these instructions.
 """
 
 
 # --- agent_harness: The turn loop: one user turn runs tool calls until the model answers; `python -m dissolve.agent "question"` runs one.
 
+
+_PIPE_ROW = re.compile(r"^\s*\|.*\|\s*$")
+_PIPE_SEPARATOR = re.compile(r"^\s*\|(\s*:?-{3,}:?\s*\|)+\s*$")
+
+def _complete_tables(text: str) -> str:
+    """Give a pipe table its missing header separator. Without the |---| row, the CLI's Markdown and the web
+    renderer both show the rows as one paragraph. Tables that have it, and code blocks, are left alone."""
+    lines, out, fenced = text.split("\n"), [], False
+    for i, line in enumerate(lines):
+        if line.lstrip().startswith("```"):
+            fenced = not fenced
+        out.append(line)
+        header = not fenced and _PIPE_ROW.match(line) and not (i and _PIPE_ROW.match(lines[i - 1]))
+        if header and i + 1 < len(lines) and _PIPE_ROW.match(lines[i + 1]) and not _PIPE_SEPARATOR.match(lines[i + 1]):
+            out.append("|" + "---|" * (line.strip().strip("|").count("|") + 1))
+    return "\n".join(out)
 
 @dataclass(frozen=True)
 class ToolEvent:
@@ -942,6 +987,7 @@ def run_turn(
             acc.append(reply.get("usage"))
             calls, text = reply.get("tool_calls") or [], reply.get("text") or ""
             if not calls:
+                text = _complete_tables(text)
                 msgs.append({"role": "assistant", "content": text})
                 return TurnResult(
                     answer=text, status="ok", tool_trace=trace,

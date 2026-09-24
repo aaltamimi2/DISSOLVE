@@ -39,7 +39,8 @@ from dissolve.session import SessionRecord, handle_total, new_session
 
 _SESSION_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{2,63}$")
 _MODE_LINE = {
-    "review": "Ask before making consequential process assumptions the user did not specify.",
+    "review": ("A tool's own defaults are not your assumptions: answer with them and name them. Ask before "
+               "making consequential process assumptions the user did not specify."),
     "auto": "Make reasonable process assumptions when needed and label them explicitly.",
 }
 _PLANNER_STAGE_CAP = 50
@@ -816,6 +817,9 @@ def _scrub_session(loaded: dict[str, Any] | None) -> SessionRecord:
     """Resume the world. Never restore an in-flight `_turn`."""
     rec = SessionRecord(loaded) if isinstance(loaded, dict) else new_session()
     rec.pop("_turn", None)
+    # A person's session screens the curated solvents unless they choose /solvents all: the full grid
+    # includes gases and explosives whose predictions clip at 100 wt%.
+    rec.setdefault("solvent_scope", {"scope": "common"})
     return rec
 
 
@@ -1518,7 +1522,7 @@ class CliApp:
             else:
                 raise ValueError("Mode must be review or auto")
         elif command == "/clear":
-            self.session = new_session()
+            self.session = _scrub_session(None)
             self.messages = [{"role": "system", "content": _system_prompt(self.mode)}]
             self.last_result = None
             self.last_status = self.last_tool_rounds = self.last_tool_calls = self.last_usage = None
