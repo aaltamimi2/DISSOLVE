@@ -775,12 +775,18 @@ def lookup_hansen_parameters(
 
 
 def screen_hansen_compatibility(
-    polymer_names: list[str], solvent_names: list[str],
+    polymer_names: list[str], solvent_names: Optional[list[str]] = None,
     include_qualified_records: bool = False,
     temperature_c: Optional[float] = None,
 ) -> str:
-    """Compute RED, optionally joined to thermodynamics at one temperature."""
+    """Compute RED, optionally joined to thermodynamics at one temperature. Omit solvent_names to screen DISSOLVE's
+    curated Hansen solvents, which answers which solvents fall inside a polymer's sphere."""
     tool = "screen_hansen_compatibility"
+    # "Which solvents fall inside PVDF's sphere" names none; the agent assembled 69 names, half unlinked (2026-09-24).
+    solvent_set = "requested"
+    if solvent_names is None:
+        solvent_names = [entry["display_name"] for entry in asset_payload()["hsp"]["curated_solvents"]]
+        solvent_set = f"DISSOLVE's {len(solvent_names)} curated Hansen solvents"
     fitted_temperature = None
     if temperature_c is not None:
         try:
@@ -922,7 +928,8 @@ def screen_hansen_compatibility(
             "hsp_thermodynamic_comparison"
             if fitted_temperature is not None else "hsp_red_matrix"
         ), polymers=[item["display_name"] for item in polymers],
-        solvents=[item["display_name"] for item in solvents], rows=rows,
+        solvents=[item["display_name"] for item in solvents], rows=rows, solvent_set=solvent_set,
+        inside_sphere_count=sum(bool(row["inside_hansen_sphere"]) for row in rows),
         joined_rows=joined_rows,
         joined_pair_count=len(joined_rows),
         fitted_temperature_c=fitted_temperature,

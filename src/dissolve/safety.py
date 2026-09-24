@@ -1830,7 +1830,7 @@ def _gap_text(row: dict[str, Any]) -> str:
 
 def screen_green_solvent_candidates(
     feed_polymers: list[str],
-    target_polymer: str,
+    target_polymer: Optional[str] = None,
     temperature_min_c: Optional[float] = None,
     temperature_max_c: Optional[float] = None,
     strict_maximum: bool = False,
@@ -1852,6 +1852,11 @@ def screen_green_solvent_candidates(
     tool = "screen_green_solvent_candidates"
     if not isinstance(feed_polymers, list) or not feed_polymers:
         return tool_error(tool, "At least one feed polymer is required.", error_code="invalid_feed")
+    if target_polymer is None:  # one polymer is its own target; several need it named
+        if len(feed_polymers) > 1:
+            return tool_error(tool, "Name the target_polymer to dissolve when there are several feed polymers.",
+                              error_code="invalid_input")
+        target_polymer = str(feed_polymers[0])
     requested = list(dict.fromkeys(str(item).strip() for item in feed_polymers if str(item).strip()))
     polymers: list[str] = []
     unsupported: list[str] = []

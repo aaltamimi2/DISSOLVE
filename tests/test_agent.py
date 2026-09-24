@@ -6753,3 +6753,34 @@ def test_system_prompt_screens_once_and_treats_requirements_as_filters():
     assert "A requirement in the question is a filter." in prompt
     assert "above the engine's insolubility level (1 wt%, the precipitation threshold)" in prompt
     assert 'a record marked unreviewed_raw is "not yet reviewed"' in prompt
+
+
+def test_system_prompt_samples_ranges_and_names_hazards_in_words():
+    """"How does LDPE's solubility in dodecane change between 80 and 140 °C" was answered from its two ends; a safety
+    table listed bare H-codes; one table said "Sustainability score" where its legend explained "G score" (2026-09-24)."""
+    prompt = " ".join(agent.SYSTEM_PROMPT.split())
+    assert "query the range in steps (every 10 °C for temperatures), not only its ends" in prompt
+    assert "Call each score by the same name in the table header and the legend." in prompt
+    assert "GHS hazard statements are written in words (H225: highly flammable liquid and vapour), never as bare codes." in prompt
+
+
+def test_system_prompt_weighs_a_contradicting_hansen_check_and_skips_membership_lookups():
+    """The HDPE/PP/PS example led with HDPE "dissolving" in propylene glycol while the Hansen check put that solvent
+    at RED 11.7, far outside the sphere; and most example answers opened with a membership lookup the screens do
+    themselves (2026-09-24). The owner asked for Hansen to count in the assessment."""
+    prompt = " ".join(agent.SYSTEM_PROMPT.split())
+    assert "A step the Hansen check contradicts (the solvent far outside the sphere) is weaker evidence" in prompt
+    assert "when another option works on both counts, lead with that one." in prompt
+    assert "Screens resolve polymer and solvent names themselves; look up database membership only when that is the question." in prompt
+
+
+def test_the_hansen_screen_names_the_solvents_inside_a_sphere_on_its_own():
+    """"Which solvents fall inside PVDF's interaction sphere" names no solvents. The screen required a list, so the
+    agent assembled 69 names, half with no Hansen link, and found only DMF (2026-09-24). With no list it now screens
+    DISSOLVE's curated Hansen solvents, which puts the textbook PVDF solvents inside."""
+    data = _data(agent.BY_NAME["screen_hansen_compatibility"].fn(polymer_names=["PVDF"]))
+    inside = {row["solvent"] for row in data["rows"] if row["inside_hansen_sphere"]}
+    assert {"DMF", "NMP"} <= inside and data["inside_sphere_count"] == len([r for r in data["rows"] if r["inside_hansen_sphere"]])
+    assert data["solvent_set"].startswith("DISSOLVE's") and "curated Hansen solvents" in data["solvent_set"]
+    named = _data(agent.BY_NAME["screen_hansen_compatibility"].fn(polymer_names=["PVDF"], solvent_names=["acetone"]))
+    assert named["solvent_set"] == "requested" and {row["solvent"] for row in named["rows"]} == {"Acetone"}

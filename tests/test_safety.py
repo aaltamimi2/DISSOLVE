@@ -1554,3 +1554,7 @@ def test_the_green_screen_serves_one_polymer():
     assert rows and all(row["selectivity_pct"] >= 5.0 for row in rows)
     empty = json.loads(safety.screen_green_solvent_candidates(feed_polymers=[], target_polymer="EVOH"))["data"]
     assert empty["error_code"] == "invalid_feed"
+    implied = json.loads(safety.screen_green_solvent_candidates(feed_polymers=["EVOH"], limit=5))["data"]
+    assert implied["success"] is True and implied["target_polymer"] == "EVOH"  # one polymer is its own target
+    several = json.loads(safety.screen_green_solvent_candidates(feed_polymers=["EVOH", "LDPE"]))["data"]
+    assert several["error_code"] == "invalid_input" and "target_polymer" in several["error"]
