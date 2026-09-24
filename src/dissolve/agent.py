@@ -784,7 +784,11 @@ Comparing alternatives (solvents, routes, conditions).
   as safety, rank by it and show the other criteria as context.
 - A route with several solvents is as safe as its least safe solvent,
   and separates as well as its weakest step, unless the user says
-  otherwise. Say which rule you used.
+  otherwise. Say which rule you used, and apply it to every solvent in
+  the route.
+- Missing data never counts in an option's favour. On a criterion where
+  an option's data are missing, rank it after the options with complete
+  data and name what is missing.
 - Describe a route as its steps in order: the polymer each step
   dissolves, the solvent and temperature, and what is left at the end.
 - When you recommend a solvent for a polymer, cross-check it with the

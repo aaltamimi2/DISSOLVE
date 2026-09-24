@@ -2289,7 +2289,8 @@ def test_the_prompt_says_how_to_write_an_answer():
                  # comparisons and the scores they rank by (separation, safety, Hansen)
                  "Comparing alternatives", "as safe as its least safe solvent", "cross-check it with the\n  Hansen tools",
                  "Metrics. Explain each score", "G score:", "CHEM21 Safety, Health and Environment scores",
-                 "RED is the Hansen distance", "any request for CHEM21"):
+                 "RED is the Hansen distance", "any request for CHEM21",
+                 "Missing data never counts in an option's favour", "apply it to every solvent in\n  the route"):
         assert rule in prompt
 
 
