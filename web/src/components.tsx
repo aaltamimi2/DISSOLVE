@@ -19,6 +19,7 @@ import {
   X,
   XCircle,
 } from "lucide-react";
+import agentLogo from "./assets/dissolve-agent.svg";
 import { Component, useEffect, useMemo, useRef, useState, type ErrorInfo, type KeyboardEvent, type ReactNode, type RefObject } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -33,15 +34,9 @@ export type ChatMessage =
 
 const cx = (...parts: (string | false | null | undefined)[]) => parts.filter(Boolean).join(" ");
 
+/** The DISSOLVE agent: the logo's robot without its wordmark, `size` pixels tall. */
 export function BrandMark({ size = 40 }: { size?: number }) {
-  return (
-    <div
-      className="flex shrink-0 items-center justify-center rounded-xl shadow-soft"
-      style={{ width: size, height: size, background: "linear-gradient(135deg, var(--primary) 0%, var(--primary-hover) 100%)" }}
-    >
-      <FlaskConical size={size * 0.55} color="white" strokeWidth={2} aria-hidden />
-    </div>
-  );
+  return <img src={agentLogo} alt="DISSOLVE agent" draggable={false} className="shrink-0 select-none" style={{ height: size, width: "auto" }} />;
 }
 
 function IconButton({ label, onClick, children, active }: { label: string; onClick: () => void; children: ReactNode; active?: boolean }) {
@@ -53,7 +48,7 @@ function IconButton({ label, onClick, children, active }: { label: string; onCli
       aria-label={label}
       className={cx(
         "flex h-9 items-center gap-2 rounded-lg px-2.5 text-sm font-medium transition-colors",
-        active ? "bg-brand text-white" : "bg-muted text-ink hover:bg-line",
+        active ? "bg-brand text-on-brand" : "bg-muted text-ink hover:bg-line",
       )}
     >
       {children}
@@ -113,7 +108,7 @@ export class Boundary extends Component<{ children: ReactNode }, { error: Error 
           <button
             type="button"
             onClick={() => window.location.reload()}
-            className="mt-4 flex items-center gap-2 rounded-lg bg-brand px-4 py-2 font-headline text-sm font-medium text-white hover:bg-brand-hover"
+            className="mt-4 flex items-center gap-2 rounded-lg bg-brand px-4 py-2 font-headline text-sm font-medium text-on-brand hover:bg-brand-hover"
           >
             <RefreshCw size={14} /> Reload
           </button>
@@ -326,10 +321,10 @@ function QuickActionCard({ action, onPick }: { action: QuickAction; onPick: (exa
       aria-label={`${action.label}: insert example ${((shown + 1) % count) + 1} of ${count}`}
     >
       <span className="flex items-center justify-between">
-        <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-tint text-brand transition-colors group-hover:bg-brand group-hover:text-white">
+        <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-tint text-brand-ink transition-colors group-hover:bg-brand group-hover:text-on-brand">
           <Icon size={17} aria-hidden />
         </span>
-        <span className="rounded-md bg-brand px-1.5 py-0.5 font-headline text-[11px] font-medium text-white">
+        <span className="rounded-md bg-brand px-1.5 py-0.5 font-headline text-[11px] font-medium text-on-brand">
           {Math.max(shown, 0) + 1}/{count}
         </span>
       </span>
@@ -403,7 +398,7 @@ export function ToolTrace({ tools, running }: { tools: ToolCall[]; running?: boo
         className="flex w-full items-center gap-2 px-3 py-2 text-left"
         aria-expanded={expanded}
       >
-        {running ? <Loader2 size={14} className="animate-spin text-brand" /> : <ChevronDown size={14} className={cx("text-ink-3 transition-transform", !open && "-rotate-90")} />}
+        {running ? <Loader2 size={14} className="animate-spin text-brand-ink" /> : <ChevronDown size={14} className={cx("text-ink-3 transition-transform", !open && "-rotate-90")} />}
         <span className="font-headline text-xs font-medium text-ink-2">
           {running
             ? tools.length
@@ -457,7 +452,7 @@ export function MessageView({ message, onCopy }: { message: ChatMessage; onCopy:
   if (message.role === "user") {
     return (
       <div className="rise flex justify-end">
-        <div className="max-w-[85%] whitespace-pre-wrap rounded-2xl rounded-br-md bg-brand px-4 py-2.5 text-[0.95rem] text-white shadow-soft">
+        <div className="max-w-[85%] whitespace-pre-wrap rounded-2xl rounded-br-md bg-navy px-4 py-2.5 text-[0.95rem] text-white shadow-soft">
           {message.text}
         </div>
       </div>
@@ -468,7 +463,7 @@ export function MessageView({ message, onCopy }: { message: ChatMessage; onCopy:
       <div className="rise flex items-start gap-2 rounded-xl border border-dashed border-line px-3 py-2">
         <TerminalSquare size={15} className="mt-0.5 shrink-0 text-ink-3" />
         <div className="min-w-0">
-          <span className="font-mono text-xs font-medium text-brand">{message.command}</span>
+          <span className="font-mono text-xs font-medium text-brand-ink">{message.command}</span>
           <pre className="mt-0.5 overflow-x-auto whitespace-pre-wrap font-mono text-xs text-ink-2">{message.text || "done"}</pre>
         </div>
       </div>
@@ -566,7 +561,7 @@ function ModeChip({
         className={cx(
           "flex items-center gap-1 whitespace-nowrap rounded-full border px-2.5 py-1 font-headline text-xs transition-colors",
           active && label !== "Assumptions" && label !== "Solvents" && label !== "Breadth"
-            ? "border-brand/40 bg-brand-tint text-brand"
+            ? "border-brand/40 bg-brand-tint text-brand-ink"
             : "border-line bg-canvas text-ink-2 hover:text-ink",
         )}
       >
@@ -588,7 +583,7 @@ function ModeChip({
                   }}
                   className="flex w-full items-start gap-2 px-3 py-2 text-left hover:bg-muted"
                 >
-                  <Check size={14} className={cx("mt-0.5 shrink-0", option.value === value ? "text-brand" : "invisible")} />
+                  <Check size={14} className={cx("mt-0.5 shrink-0", option.value === value ? "text-brand-ink" : "invisible")} />
                   <span>
                     <span className="block font-mono text-xs font-medium text-ink">{option.value}</span>
                     <span className="block font-headline text-xs text-ink-2">{option.description}</span>
@@ -698,7 +693,7 @@ export function Composer(props: {
                     onMouseEnter={() => setSelected(i)}
                     className={cx("flex w-full items-baseline gap-3 px-3 py-2 text-left", i === selected && "bg-muted")}
                   >
-                    <span className="shrink-0 font-mono text-sm font-medium text-brand">{item.label}</span>
+                    <span className="shrink-0 font-mono text-sm font-medium text-brand-ink">{item.label}</span>
                     <span className="truncate font-headline text-xs text-ink-2">{item.detail}</span>
                   </button>
                 </li>
@@ -720,7 +715,7 @@ export function Composer(props: {
             onClick={() => send(props.value)}
             disabled={!props.value.trim() || props.busy}
             aria-label={props.busy ? "Working" : "Send"}
-            className="absolute bottom-2 right-2 flex h-9 w-9 items-center justify-center rounded-lg bg-brand text-white transition-colors hover:bg-brand-hover disabled:cursor-not-allowed disabled:bg-muted disabled:text-ink-3"
+            className="absolute bottom-2 right-2 flex h-9 w-9 items-center justify-center rounded-lg bg-brand text-on-brand transition-colors hover:bg-brand-hover disabled:cursor-not-allowed disabled:bg-muted disabled:text-ink-3"
           >
             {props.busy ? <Loader2 size={17} className="animate-spin" /> : <Send size={17} />}
           </button>
