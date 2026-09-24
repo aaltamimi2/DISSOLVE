@@ -23,6 +23,18 @@ import duckdb
 from .contaminants import _MISCIBLE_BASIS, _PLASTCHEM_ASSET, _SERVED_CONVENTION, _key
 
 
+# Plastic additives are asked about by abbreviation ("does DEHP leach"), and PlastChem names them in full. Each
+# abbreviation maps by CAS number to the release's own entry (checked by name when this list was made, 2026-09-24);
+# an abbreviation whose CAS the release lacks adds nothing. Ambiguous ones (DOP, NP) are left out on purpose.
+_ABBREVIATIONS = {
+    "DEHP": "117-81-7", "DBP": "84-74-2", "BBP": "85-68-7", "BBzP": "85-68-7", "DINP": "20548-62-3",
+    "DIDP": "26761-40-0", "DEP": "84-66-2", "DMP": "131-11-3", "DIBP": "84-69-5", "DEHA": "103-23-1",
+    "DEHT": "6422-86-2", "DOTP": "6422-86-2", "DINCH": "166412-78-8", "ATBC": "77-90-7", "TOTM": "3319-31-1",
+    "BPA": "80-05-7", "BPF": "620-92-8", "BHT": "128-37-0", "Irganox 1076": "2082-79-3", "Tinuvin P": "2440-22-4",
+    "Chimassorb 81": "1843-05-6", "TXIB": "6846-50-0",
+}
+
+
 def _checked(release: Path, allow_preview: bool) -> dict[str, Any]:
     """The release's manifest, once every file matches it and the release is complete (or a preview is allowed)."""
     manifest = json.loads((release / "manifest.json").read_text())
@@ -105,6 +117,9 @@ def promote_opencosmo_release(
     rows = con.execute("SELECT id, inchikey, name, cas, plastchem_id, perceived_inchikey FROM contaminants").fetchall()
     aliases = {(_key(value), cid) for cid, inchikey, name, cas, pid, perceived in rows
                for value in (name, cas, inchikey, perceived, pid and f"plastchem {pid}") if value}
+    by_cas = {cas: cid for cid, _, _, cas, _, _ in rows if cas}
+    abbreviations = {(_key(abbr), by_cas[cas]) for abbr, cas in _ABBREVIATIONS.items() if cas in by_cas}
+    aliases |= abbreviations
     con.execute("CREATE TABLE aliases (alias VARCHAR, id INTEGER)")
     con.executemany("INSERT INTO aliases VALUES (?, ?)", sorted(aliases))
     statuses = [manifest.get("status") for manifest in manifests]
@@ -119,6 +134,7 @@ def promote_opencosmo_release(
             for path, status in zip(releases, statuses)]),
         "served_convention": _SERVED_CONVENTION, "miscibility_basis": _MISCIBLE_BASIS,
         "logp_temperature_c": "25.0", "parameterization": "openCOSMO-RS 24a",
+        "abbreviations": str(len(abbreviations)),
     }
     con.execute("CREATE TABLE metadata (key VARCHAR, value VARCHAR)")
     con.executemany("INSERT INTO metadata VALUES (?, ?)", sorted(meta.items()))

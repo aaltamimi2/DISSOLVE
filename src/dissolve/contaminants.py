@@ -1640,6 +1640,9 @@ def screen_contaminant_partitioning(
         logp_range=_logp_range(logps), logp_range_by_verdict=by_verdict, near_even_count=near_even,
         rows=rows, unsupported_contaminants=unknown, ambiguous_contaminants=ambiguous,
         not_computed_contaminants=not_computed,
+        coverage=("PlastChem compounds of carbon, hydrogen, nitrogen and oxygen, found by name, CAS number, InChIKey "
+                  "or common abbreviation. Additives with halogens, sulfur, phosphorus, silicon or boron (PFAS, "
+                  "organophosphates, bisphenol S) are outside it; the workbook screens cover 26 PFAS."),
         method="Leaches when logP(solvent/polymer) > 0, the contaminant is miscible with the solvent at 15 wt%, "
                "and the polymer does not dissolve; logP is for the neutral species at 25 °C. logP is log10 of the "
                "solvent/polymer concentration ratio and K = 10^logP. near_even_count counts |logP| < 0.5 "

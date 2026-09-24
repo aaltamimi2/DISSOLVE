@@ -4948,6 +4948,24 @@ def test_plastchem_screen_states_the_partition_size_and_bounds_extremes(tmp_path
     assert "19.45" not in json.dumps(out) and "24.0" not in json.dumps(out)
 
 
+def test_plastchem_contaminants_are_found_by_common_abbreviation(tmp_path, monkeypatch):
+    """"Does DEHP leach from HDPE" came back with DEHP unsupported: PlastChem names it Bis(2-ethylhexyl) phthalate
+    (2026-09-24). Common additive abbreviations map by CAS number to the release's own entry."""
+    asset = tmp_path / "asset.duckdb"
+    monkeypatch.setenv("DISSOLVE_PLASTCHEM_ASSET", str(asset))
+    rel = _plastchem_release(tmp_path)
+    import gzip
+    text = gzip.decompress((rel / "contaminants.csv.gz").read_bytes()).decode().replace(",111-11-1,", ",117-81-7,")
+    (rel / "contaminants.csv.gz").write_bytes(gzip.compress(text.encode()))
+    _reseal(rel)
+    info = plastchem_release.promote_opencosmo_release(rel, asset)
+    assert info["abbreviations"] == "1"  # only DEHP's CAS is in this release
+    contaminants._LOCAL.__dict__.pop("plastchem", None)
+    out = _data(contaminants.screen_contaminant_partitioning("LDPE", "dodecane", ["DEHP", "dehp", "BPA"]))
+    assert [row["contaminant"] for row in out["rows"]] == ["Alphaester"]  # DEHP twice is still one contaminant
+    assert out["unsupported_contaminants"] == ["BPA"] and "carbon, hydrogen, nitrogen and oxygen" in out["coverage"]
+
+
 def _reseal(rel):
     """Rewrite a test release's manifest after editing one of its files."""
     import hashlib
