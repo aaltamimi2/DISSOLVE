@@ -1,12 +1,12 @@
 # Contaminant ORCA–openCOSMO-RS workflow
 
-Prepared 16 September 2026 from the implemented campaign scripts. This document describes the **methods**, not campaign progress or results. It is a text brief for a future methods figure; no figure is created here.
+Original solvent/water brief prepared 16 September 2026; extended 23 September 2026 for the A-8/A-9 polymer-partition and liquid-liquid-equilibrium workflow. This document describes **methods** for a future methods figure; no methods figure is created here. Sections 1–8 describe the initial solvent/water pipeline. The current A-8/A-9 extension below specifies the additional branches and their execution paths; the dated CSV exports remain historical snapshots.
 
 ## Workflow overview
 
 **Pinned molecular identities → candidate conformer generation → MMFF minimisation and ranking → selection of one conformer → ORCA DFT geometry optimisation → ORCA COSMO surface generation → integrity and connectivity acceptance → openCOSMO-RS activity coefficients → solvent/water partition coefficients.**
 
-The distinction to preserve in the figure is that **multiple geometries are screened with a force field, but only one selected conformer undergoes DFT optimisation and supplies the thermodynamic surface**. There is no conformer-ensemble averaging.
+The distinction to preserve in the figure is that **multiple geometries are screened with a force field, but only one selected conformer undergoes DFT optimisation and supplies the thermodynamic surface**. Each contaminant supplies one DFT surface. The later polymer branch uses explicit polymer-conformer ensemble averaging, described below; this does not add contaminant DFT conformers.
 
 ## 1. Define the eligible structures
 
@@ -131,7 +131,7 @@ log10(K_concentration) = log10(K_x) + log10(V_m,W / V_m,S)
 
 Here `K_x = x_solute,S / x_solute,W`, while `K_concentration = c_solute,S / c_solute,W`; `V_m` is the solvent molar volume in consistent units. Both solvent activity calculations must pass. Molar volumes and their provenance are retained; without a documented volume, the concentration-based value remains unavailable even if a mole-fraction value exists.
 
-These are neutral-solute, liquid-reference predictions. The workflow does not model pH-dependent ionisation/logD, conformer ensembles, polymer partitioning or mixed-solvent equilibria. The validation-only octanol calculation uses dry pure-component references, which differ from mutually saturated experimental octanol/water phases.
+These are neutral-solute, liquid-reference predictions. This initial solvent/water branch does not model pH-dependent ionisation/logD, contaminant conformer ensembles, polymer partitioning or mixed-solvent equilibria. The later A-8/A-9 extension adds polymer-ensemble partitioning and binary liquid-liquid equilibrium from the same accepted contaminant surfaces. The validation-only octanol calculation uses dry pure-component references, which differ from mutually saturated experimental octanol/water phases.
 
 - Full table export: `/home/aaltamimi2/plastchem-euler/scripts/export_thermodynamic_table.py`
 - Per-contaminant panel output: `/mnt/r/plastchem-euler/thermodynamics-v1/<InChIKey>.json`
@@ -165,7 +165,7 @@ Supporting integrity checks are implemented in:
 
 Numerical audits and algebraic solvent-cycle closure check implementation consistency; comparison with qualified experimental measurements is a separate accuracy assessment. Neither should be drawn as proof that all predicted coefficients are experimentally correct.
 
-For the future methods figure, use the eight stages above as the text source. Show the solvent-reference input feeding the openCOSMO-RS stage, and show preparation, ORCA, identity and thermodynamic failures leaving the prediction path as recorded outcomes. Label the conformer funnel “up to 300 candidates → one selected DFT conformer.” Distinguish the local preparation/post-processing stages from the two ORCA stages on Euler. Avoid progress counts, measured-error statistics or result plots in this methods figure.
+For the initial solvent/water methods figure, use the eight stages above as the text source. For the current extended workflow, add the separate A-8/A-9 branches below. Show the solvent-reference input feeding the openCOSMO-RS stage, and show preparation, ORCA, identity and thermodynamic failures leaving the prediction path as recorded outcomes. Label the conformer funnel “up to 300 candidates → one selected DFT conformer.” Distinguish the local preparation/post-processing stages from the two ORCA stages on Euler. Avoid progress counts, measured-error statistics or result plots in this methods figure.
 
 This document is descriptive, not a command sequence to rerun a live campaign. The scripts include locks, state and historical batch assumptions; do not execute all listed files in sequence.
 
@@ -189,6 +189,91 @@ This is not full 32-pair panel completion. Missing values remain blank. Twelve m
 
 
 Latest available-library snapshot (17 September, 13:54 UTC): `/home/aaltamimi2/plastchem-euler/completed-contaminants-2026-09-17T135403Z.csv`. Contains 2,951 structures with names, SMILES and provenance, suitable for RDKit structure rendering. Eligibility requires the new diphenyl-ether pass, so this snapshot is a subset while that pass runs; earlier exports remain unchanged. Nine mole-fraction pairs per molecule; diphenyl-ether concentration values remain blank. Bulk snapshot and exclusions: `/mnt/r/plastchem-euler/exports/completed-20260917T135403Z/`.
+
+
+## A-8/A-9 extension: polymer partitioning and binary LLE
+
+Status, 24 September 2026: production finished and the complete release `promotion-v1` was sealed; DISSOLVE serves it, with the normalized convention chosen by the owner. The sealed release, with its README, summary and validation, is `/mnt/r/plastchem-euler/promotion-v1/`.
+
+This extension reuses accepted contaminant surfaces; it does not repeat contaminant ORCA calculations. It is the current methods specification for the additional thermodynamic quantities. Preparing scripts and a release preview does not mean the full production set has finished.
+
+The methods figure should branch after **accepted surface + verified identities**:
+
+1. **Solvent/water partitioning**, as in the original workflow above.
+2. **Solvent/polymer partitioning at infinite dilution**, using a solvent surface and an explicitly averaged polymer-conformer ensemble.
+3. **Contaminant/solvent binary LLE**, using finite-composition activity curves and a coexistence solver.
+
+LLE is evaluated from its own finite-composition curve; it must not be drawn as a result derived from a single infinite-dilution coefficient. None of these branches supplies a new polymer solid-liquid solubility model: the product's polymer S(T) input remains legacy data.
+
+### Inputs, CPU scope and reuse
+
+Contaminants still contribute one accepted ORCA surface per structure. Polymer conformers start from the independently supplied geometry library and each undergo the same frozen two-stage ORCA recipe. Every conformer remains represented; optimisation merges are recorded rather than silently dropping ensemble members.
+
+All ORCA work, including new common-solvent references, stays on Milan. Activity/LLE calculations may run on Milan or Genoa after the owner-required numerical usability comparison; each job records its actual CPU model. This CPU exception does not apply to DFT. Each calculation job remains serial, with one CPU and 4 GB under the shared cap of 64.
+
+- Frozen contaminant cohort and surface identities: `/mnt/r/plastchem-euler/phase83-v1/cohort.json`
+- Polymer conformers, energies, cavity volumes and solvent references: `/mnt/r/plastchem-euler/phase8-v1/manifest.json`
+- Workbook quantities, temperatures and source definitions: `/mnt/r/plastchem-euler/phase8-v1/validation-inputs.json`
+- Pinned thermodynamic environment: `/mnt/r/plastchem-euler/phase8-v1/package-pins.json`
+
+A job parses each contaminant and phase surface once. Compact sigma profiles are reused through independently indexed engine objects; mutable segment-index state is not shared between engines. Partition solves use measured small sub-batches, with every contaminant at exact **x = 0** and the phase at mole fraction one, relative to pure-component reference states. Checkpointed production uses chunks of contaminants, with sealed output after each phase and each LLE system; retries retain completed evidence.
+
+- Parsed-profile cache and independent engine assembly: `/home/aaltamimi2/plastchem-euler/scripts/phase9_profiles.py`
+- Frozen Milan scientific worker: `/home/aaltamimi2/plastchem-euler/scripts/phase9_worker.py`
+- Numerically identical worker with owner-authorised CPU/resource assertions: `/home/aaltamimi2/plastchem-euler/scripts/phase9_worker_cpu.py`
+- Resume entry point and completed-chunk verification: `/home/aaltamimi2/plastchem-euler/scripts/phase9_entry.py`
+- Gated launch orchestration: `/home/aaltamimi2/plastchem-euler/scripts/launch_phase9.py`
+- Shared-cap allocation controller: `/home/aaltamimi2/plastchem-euler/scripts/phase9_throttle_remote.py`
+
+### Infinite-dilution solvent/polymer partitioning
+
+For polymer conformer c, the normalized ensemble uses Boltzmann weights from relative energies and an inverse-activity average:
+
+```text
+w_c = exp[-(E_c - E_min)/(R T)] / sum_c exp[-(E_c - E_min)/(R T)]
+ln(gamma_polymer) = -ln[sum_c w_c exp(-ln(gamma_c))]
+V_polymer = sum_c w_c V_c
+
+logP_x = [ln(gamma_polymer) - ln(gamma_solvent)] / ln(10)
+logP_concentration = logP_x + log10(V_polymer / V_solvent)
+```
+
+The sign is **log10 P(solvent/polymer)**: positive favours the solvent. Partition calculations are at 298.15 K and represent neutral-species, liquid-reference thermodynamics without pH-dependent speciation.
+
+Both normalized and existing ensemble conventions are retained. The existing convention preserves the historical normalization/volume choices, but **both now evaluate activity coefficients at exact x = 0**. The historical first-ladder-sample x = 1e-5 is not relabelled as exact infinite dilution. The owner chooses which convention to promote; no fitted offset or empirical recalibration is applied.
+
+### Binary liquid-liquid equilibrium
+
+At each finite contaminant mole fraction x, the binary calculation obtains both components' activity coefficients. The dimensionless mixing free energy is
+
+```text
+g_mix/(R T) = x ln(x) + (1-x) ln(1-x)
+              + x ln(gamma_contaminant) + (1-x) ln(gamma_solvent)
+```
+
+The lower convex hull identifies potential two-phase regions. Coexistence is refined by equality of both components' chemical potentials and qualified by tangent stability and agreement between the 1,000- and 2,000-interval grids with dilute tails. The vectorized initial grid preserves the validated solver; nonlinear refinement still uses the original activity engine. A coarse-grid screen alone cannot qualify a single-phase result.
+
+The calculation is repeated at 298.15 K and each solvent's literal workbook high temperature. Outputs retain mole-fraction and weight-percent solubility, both phase compositions, tie lines, grid checks, and both 15 mol% and 15 wt% verdicts. The near-threshold indeterminate band and all unresolved statuses remain explicit. This is **binary LLE**, not fusion-corrected solid-liquid solubility or an arbitrary mixed-solvent composition grid.
+
+- Initial-grid activity batching: `/home/aaltamimi2/plastchem-euler/scripts/phase9_grid.py`
+- Unmodified validated coexistence solver: `/mnt/r/plastchem-euler/phase8-v1/phase8_lle.py`
+- Literal reference/basis/layout inventory: `/home/aaltamimi2/plastchem-euler/reports/phase8-0-inventory/REPORT.md`
+
+### Verification and delivery
+
+- Digest-verified collection: `/home/aaltamimi2/plastchem-euler/scripts/collect_phase9.py`
+- Milan reference reproduction: `/home/aaltamimi2/plastchem-euler/scripts/analyze_phase9_gate.py`
+- Genoa-versus-Milan usability comparison: `/home/aaltamimi2/plastchem-euler/scripts/analyze_phase9_genoa.py`
+- Independent reconstruction from recorded activities, provenance and LLE qualification checks: `/home/aaltamimi2/plastchem-euler/scripts/audit_phase9_results.py`
+- Exact-zero workbook comparisons: `/home/aaltamimi2/plastchem-euler/scripts/refresh_phase9_workbook_validation.py`
+- Streaming, completion-gated exporter: `/home/aaltamimi2/plastchem-euler/scripts/build_phase9_release.py`
+- Raw checkpoint archive directory: `/mnt/r/plastchem-euler/phase9-v1/returns/`
+- Rehearsal output, explicitly partial and not promotable: `/mnt/r/plastchem-euler/phase9-v1/release-preview-v1/`
+- Final target, created only after complete-cohort checks: `/mnt/r/plastchem-euler/promotion-v1/`
+
+The delivery separates `partition.parquet`, `binary-lle.parquet`, `contaminants.csv.gz`, and an explicit polymer-to-product mapping, with hashes and validation provenance. PE maps to both LDPE and HDPE without inventing distinct crystallinity or fusion properties. Failed, excluded, unresolved and not-run identities remain visible. Surface reuse, numerical agreement and algebraic audits are distinct from comparison with measured experimental data.
+
+For the methods figure, show **one contaminant surface reused**, **multiple explicit polymer conformers averaged**, and **a separate finite-composition LLE branch**. The added activity/LLE work runs on Euler; local collection, arithmetic audit and delivery packaging remain serial and memory limited. Do not use progress counts, error statistics or the partial preview as evidence that production has finished. No methods figure is generated by this document.
 
 ## Polymer conformer inputs (amendment A-5)
 
