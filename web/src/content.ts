@@ -26,8 +26,8 @@ export const QUICK_ACTIONS: QuickAction[] = [
     examples: [
       { text: "Which solvents dissolve PS at 100 °C? Include boiling points and safety scores." },
       { text: "Find solvents that dissolve EVOH at 120 °C while keeping LDPE insoluble, then rank them by safety." },
-      { text: "Screen PET dissolution solvents below 140 °C and summarize the top candidates by hazard score and boiling point." },
-      { text: "Is LDPE soluble in dodecane at 110 °C? Show the solubility data behind the answer." },
+      { text: "Which solvents dissolve PET below 140 °C? Compare the top candidates' CHEM21 safety scores and boiling points." },
+      { text: "How does the solubility of LDPE in dodecane change between 80 and 140 °C?" },
     ],
   },
   {
@@ -37,8 +37,8 @@ export const QUICK_ACTIONS: QuickAction[] = [
     examples: [
       { text: "Design a separation sequence for LDPE/EVOH/PET multilayer film and justify each solvent choice." },
       { text: "Find the optimal separation order and temperatures for HDPE, PP and PS mixed waste." },
-      { text: "Plan selective dissolution for EVOH/LDPE packaging and flag any narrow boiling-point margins at 1 atm." },
-      { text: "In what order do PS and PMMA precipitate from toluene when the solution is cooled?" },
+      { text: "Plan selective dissolution for PP/PET mixed waste at atmospheric pressure and flag any narrow boiling-point margins." },
+      { text: "HDPE and LDPE are dissolved together in hot xylene. In what order do they precipitate as the solution cools, and at what temperatures?" },
     ],
   },
   {
@@ -48,7 +48,7 @@ export const QUICK_ACTIONS: QuickAction[] = [
     examples: [
       { text: "Compare the safety of acetone, ethyl acetate, THF and methyl acetate at 60 °C." },
       { text: "Suggest greener substitutes for DMF when dissolving EVOH." },
-      { text: "Show the safety card for toluene, including its hazard score and exposure limits." },
+      { text: "Show the safety card for toluene, including its CHEM21 scores and exposure limits." },
       { text: "Find green solvent candidates that dissolve PS below 110 °C." },
     ],
   },
