@@ -31,7 +31,7 @@ const DEFAULTS: SessionState = {
   mode: "review",
   contaminant: "off",
   literature: "off",
-  solvents: "all",
+  solvents: "common",
   breadth: "1",
 };
 
