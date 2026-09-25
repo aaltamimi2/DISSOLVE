@@ -12,6 +12,7 @@ handler, and sessions are the CLI's session files, so a conversation can move be
     POST /api/sessions                      {model?, mode?} -> a new session
     GET  /api/sessions/{id}                 its modes and transcript
     POST /api/sessions/{id}/turns {text}    the NDJSON stream of one turn or slash command
+    DELETE /api/sessions/{id}               remove a chat (with a database, only its owner can)
     POST /api/client-error                  a crash in someone's browser, printed to this server's log
     GET  /api/auth/config  /api/auth/me     whether this server has accounts; who is signed in
     POST /api/auth/signup  /api/auth/login  /api/auth/logout
@@ -37,6 +38,7 @@ import os
 import queue
 import re
 import secrets
+import shutil
 import threading
 import time
 import uuid
@@ -191,6 +193,33 @@ class Sessions:
             self.locks[session_id] = threading.Lock()
             self.owners[session_id] = owner
             return self.apps[session_id], self.locks[session_id]
+
+    def delete(self, session_id: str, *, user: str | None = None) -> None:
+        """Remove a chat: its database rows, or its folder when there is no database. A chat another account owns is
+        "no such session", and one with a turn running cannot go until the turn ends."""
+        if not cli._SESSION_RE.fullmatch(session_id):
+            raise HTTPException(404, "no such session")
+        owner = (user or "").casefold()
+        with self.guard:
+            lock = self.locks.get(session_id)
+            if lock is not None and self.db is not None and self.owners.get(session_id) != owner:
+                raise HTTPException(404, "no such session")
+            if lock is not None and not lock.acquire(blocking=False):
+                raise HTTPException(409, "An answer is still running in this chat; delete it when it has finished.")
+            try:
+                if self.db is not None:
+                    if not web_accounts.delete_session(self.db, session_id, owner):
+                        raise HTTPException(404, "no such session")
+                else:
+                    folder = self.root() / session_id
+                    if not (folder / "session.json").is_file():
+                        raise HTTPException(404, "no such session")
+                    shutil.rmtree(folder)
+                for table in (self.apps, self.locks, self.owners):
+                    table.pop(session_id, None)
+            finally:
+                if lock is not None:
+                    lock.release()
 
     def listing(self, limit: int = 50, user: str | None = None) -> list[dict[str, Any]]:
         if self.db is not None:
@@ -494,6 +523,11 @@ def create_app(home: str | Path | None = None) -> FastAPI:
     def session_get(session_id: str, request: Request) -> dict[str, Any]:
         app, _lock = sessions.open(session_id, user=user_of(request))
         return {**_state(app), "messages": transcript(app)}
+
+    @api.delete("/api/sessions/{session_id}")
+    def session_delete(session_id: str, request: Request) -> dict[str, Any]:
+        sessions.delete(session_id, user=user_of(request))
+        return {"deleted": session_id}
 
     @api.post("/api/sessions/{session_id}/turns")
     def session_turn(session_id: str, body: Turn, request: Request) -> StreamingResponse:

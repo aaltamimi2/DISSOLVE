@@ -97,6 +97,7 @@ export const api = {
     json<Me>("/api/auth/signup", post({ username, password, access_code })),
   logout: () => json<{ ok: boolean }>("/api/auth/logout", post({})),
   session: (id: string) => json<SessionState & { messages: StoredMessage[] }>(`/api/sessions/${id}`),
+  deleteSession: (id: string) => json<{ deleted: string }>(`/api/sessions/${id}`, { method: "DELETE" }),
   newSession: (model?: string) => json<SessionState>("/api/sessions", post(model ? { model } : {})),
 
   /** Run one message or slash command; onEvent sees each event as it arrives. */

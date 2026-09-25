@@ -25,6 +25,8 @@
   --link-hover: #1e3d52;
   --success: #2f7f73;
   --error: #ef4444;
+  /* Fills for destructive buttons: white on it is 6.5:1, where white on --error is 3.8:1. */
+  --danger: #b91c1c;
   --warning: #f59e0b;
   --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
   --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
@@ -53,6 +55,7 @@
   --link-hover: #a9dcd2;
   --success: #5da99c;
   --error: #f87171;
+  --danger: #b91c1c;
   --warning: #fbbf24;
   --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.3);
   --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.5);
@@ -79,6 +82,7 @@
   --color-navy: var(--navy);
   --color-ok: var(--success);
   --color-bad: var(--error);
+  --color-danger: var(--danger);
   --color-warn: var(--warning);
   --shadow-soft: var(--shadow-sm);
   --shadow-lift: var(--shadow-md);

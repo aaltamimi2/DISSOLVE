@@ -279,3 +279,34 @@ def test_each_account_sees_only_its_chats_and_they_outlive_a_redeploy(serve, tmp
     kept = again.get(f"/api/sessions/{session_id}").json()
     assert kept["contaminant"] == "leaching"
     assert [(m["role"], m["text"][:8]) for m in kept["messages"]] == [("user", "Hansen p"), ("assistant", "Toluene:")]
+
+
+def test_a_chat_can_be_deleted_by_its_owner_only(serve, tmp_path, client):
+    """There was no way to delete a chat (owner, 2026-09-25). Its owner now can; nobody else can, and an answer that
+    is still running keeps it until it finishes."""
+    session_id = client.post("/api/sessions", json={}).json()["session_id"]  # no database: session files
+    _stream(client, session_id, "/contaminant leaching")
+    folder = tmp_path / "home" / "sessions" / session_id
+    assert folder.is_dir()
+    held = client.app.state.sessions.locks[session_id]
+    held.acquire()  # as a running turn holds it
+    assert client.delete(f"/api/sessions/{session_id}").status_code == 409
+    held.release()
+    assert client.delete(f"/api/sessions/{session_id}").json() == {"deleted": session_id}
+    assert not folder.exists() and client.get(f"/api/sessions/{session_id}").status_code == 404
+    assert client.delete(f"/api/sessions/{session_id}").status_code == 404
+    assert session_id not in [row["session_id"] for row in client.get("/api/sessions").json()]
+
+    alice = _accounts(serve, tmp_path)  # with a database: only the owner
+    _sign_up(alice, "alice")
+    kept = alice.post("/api/sessions", json={}).json()["session_id"]
+    _stream(alice, kept, "/contaminant leaching")
+    with httpx.Client(base_url=str(alice.base_url), timeout=30) as bob:
+        _sign_up(bob, "bob")
+        assert bob.delete(f"/api/sessions/{kept}").status_code == 404
+    assert alice.get(f"/api/sessions/{kept}").status_code == 200
+    assert alice.delete(f"/api/sessions/{kept}").status_code == 200
+    assert alice.get("/api/sessions").json() == []
+    again = _accounts(serve, tmp_path)  # the deletion outlives a redeploy too
+    again.post("/api/auth/login", json={"username": "alice", "password": "correct horse"})
+    assert again.get("/api/sessions").json() == [] and again.get(f"/api/sessions/{kept}").status_code == 404
