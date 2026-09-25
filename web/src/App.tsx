@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   api,
+  SIGNED_OUT,
   type Command,
   type ContaminantFamily,
   type Doctor,
@@ -11,7 +12,7 @@ import {
   type StoredMessage,
   type TurnEvent,
 } from "./api";
-import { Composer, Header, MessageView, Sidebar, Toast, Welcome, type ChatMessage } from "./components";
+import { Composer, Header, MessageView, Sidebar, SignIn, Toast, Welcome, type ChatMessage } from "./components";
 import type { Example } from "./content";
 
 const uid = () => Math.random().toString(36).slice(2);
@@ -64,7 +65,41 @@ function toMarkdown(messages: ChatMessage[], state: SessionState | null): string
   return lines.join("\n");
 }
 
+/** A server with accounts shows the sign-in page until someone signs in; a local one opens straight away. */
 export default function App() {
+  const [auth, setAuth] = useState<{ accounts: boolean; accessCode: boolean; user: string | null } | null>(null);
+  useEffect(() => {
+    let live = true;
+    const load = async () => {
+      try {
+        const config = await api.authConfig();
+        const me = config.accounts ? await api.me().catch(() => null) : null;
+        if (live) setAuth({ accounts: config.accounts, accessCode: config.access_code, user: me?.username ?? null });
+      } catch {
+        if (live) setAuth({ accounts: false, accessCode: false, user: null });
+      }
+    };
+    void load();
+    const signedOut = () => setAuth((current) => (current?.accounts ? { ...current, user: null } : current));
+    window.addEventListener(SIGNED_OUT, signedOut);
+    return () => {
+      live = false;
+      window.removeEventListener(SIGNED_OUT, signedOut);
+    };
+  }, []);
+  if (!auth) return <div className="h-dvh bg-canvas" />;
+  if (auth.accounts && !auth.user) {
+    return <SignIn accessCode={auth.accessCode} onSignedIn={(user) => setAuth({ ...auth, user })} />;
+  }
+  const signOut = async () => {
+    await api.logout().catch(() => undefined);
+    setAuth({ ...auth, user: null });
+  };
+  return <Workspace key={auth.user ?? "local"} user={auth.user} onSignOut={auth.accounts ? signOut : undefined} />;
+}
+
+function Workspace({ user, onSignOut }: { user: string | null; onSignOut?: () => void }) {
+  const lastSession = user ? `dissolve-session:${user.toLowerCase()}` : "dissolve-session";
   const [theme, setTheme] = useState<"light" | "dark">(() => (remembered("dissolve-theme") === "dark" ? "dark" : "light"));
   const [sidebar, setSidebar] = useState(() => (remembered("dissolve-sidebar") ?? (window.innerWidth >= 1024 ? "open" : "closed")) === "open");
   const [tab, setTab] = useState<"conversations" | "system">("conversations");
@@ -114,14 +149,14 @@ export default function App() {
         const { messages: stored, ...current } = loaded;
         setState(current);
         setMessages(fromStored(stored));
-        remember("dissolve-session", id);
+        remember(lastSession, id);
         if (window.innerWidth < 1024) setSidebar(false);
       } catch (e) {
-        remember("dissolve-session", null);
+        remember(lastSession, null);
         notify((e as Error).message, "error");
       }
     },
-    [notify],
+    [notify, lastSession],
   );
 
   useEffect(() => {
@@ -131,16 +166,16 @@ export default function App() {
     api.contaminantFamilies().then(setFamilies).catch(() => undefined);
     refreshSessions();
     refreshDoctor();
-    const last = remembered("dissolve-session");
+    const last = remembered(lastSession);
     if (last) void openSession(last);
-  }, [notify, openSession, refreshDoctor, refreshSessions]);
+  }, [notify, openSession, refreshDoctor, refreshSessions, lastSession]);
 
   const ensureSession = async (): Promise<string> => {
     if (sessionRef.current) return sessionRef.current.session_id;
     const created = await api.newSession(preferredModel || undefined);
     sessionRef.current = created;
     setState(created);
-    remember("dissolve-session", created.session_id);
+    remember(lastSession, created.session_id);
     return created.session_id;
   };
 
@@ -200,7 +235,7 @@ export default function App() {
     sessionRef.current = null;
     setMessages([]);
     setInput("");
-    remember("dissolve-session", null);
+    remember(lastSession, null);
   };
 
   const exportChat = () => {
@@ -236,6 +271,8 @@ export default function App() {
         onTheme={() => setTheme(theme === "light" ? "dark" : "light")}
         onExport={exportChat}
         onNewChat={newChat}
+        user={user}
+        onSignOut={onSignOut}
       />
       <div className="flex min-h-0 flex-1">
         <Sidebar
