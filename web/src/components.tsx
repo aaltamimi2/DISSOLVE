@@ -9,6 +9,7 @@ import {
   Download,
   FlaskConical,
   Loader2,
+  LogOut,
   MessageSquarePlus,
   Moon,
   PanelLeft,
@@ -23,18 +24,20 @@ import agentLogo from "./assets/dissolve-agent.svg";
 import {
   Component,
   useEffect,
+  useId,
   useLayoutEffect,
   useMemo,
   useRef,
   useState,
   type ErrorInfo,
+  type FormEvent,
   type KeyboardEvent,
   type ReactNode,
   type RefObject,
 } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import type { Command, ContaminantFamily, Doctor, Features, Model, SessionRow, SessionState, ToolCall } from "./api";
+import { api, type Command, type ContaminantFamily, type Doctor, type Features, type Model, type SessionRow, type SessionState, type ToolCall } from "./api";
 import { family, MODE_CHIPS, offeredActions, type Example, type QuickAction } from "./content";
 
 export type ChatMessage =
@@ -48,6 +51,161 @@ const cx = (...parts: (string | false | null | undefined)[]) => parts.filter(Boo
 /** The DISSOLVE agent: the logo's robot without its wordmark, `size` pixels tall. */
 export function BrandMark({ size = 40 }: { size?: number }) {
   return <img src={agentLogo} alt="DISSOLVE agent" draggable={false} className="shrink-0 select-none" style={{ height: size, width: "auto" }} />;
+}
+
+function Field(props: {
+  label: string;
+  hint?: string;
+  value: string;
+  onChange: (value: string) => void;
+  type?: string;
+  autoComplete: string;
+  autoFocus?: boolean;
+}) {
+  const id = useId();
+  return (
+    <div>
+      <div className="flex items-baseline justify-between gap-3">
+        <label htmlFor={id} className="font-headline text-xs font-medium text-ink-2">
+          {props.label}
+        </label>
+        {props.hint && (
+          <span id={`${id}-hint`} className="font-headline text-xs text-ink-3">
+            {props.hint}
+          </span>
+        )}
+      </div>
+      <input
+        id={id}
+        aria-describedby={props.hint ? `${id}-hint` : undefined}
+        type={props.type ?? "text"}
+        value={props.value}
+        onChange={(e) => props.onChange(e.target.value)}
+        autoComplete={props.autoComplete}
+        autoFocus={props.autoFocus}
+        required
+        spellCheck={false}
+        className="mt-1 w-full rounded-lg border border-line bg-canvas px-3 py-2 text-[0.95rem] text-ink outline-none focus:border-brand-soft"
+      />
+    </div>
+  );
+}
+
+/** A server with accounts opens here: sign in with a username and a password, or create an account, which asks for
+ * the site's access code when the server has one. Nothing else is asked, and there is no email. */
+export function SignIn({ accessCode, onSignedIn }: { accessCode: boolean; onSignedIn: (username: string) => void }) {
+  const [mode, setMode] = useState<"in" | "up">("in");
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+  const [confirm, setConfirm] = useState("");
+  const [code, setCode] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [theme, setTheme] = useState<"light" | "dark">(() => {
+    try {
+      return localStorage.getItem("dissolve-theme") === "dark" ? "dark" : "light";
+    } catch {
+      return "light";
+    }
+  });
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme;
+    try {
+      localStorage.setItem("dissolve-theme", theme);
+    } catch {
+      /* private mode: the theme simply does not persist */
+    }
+  }, [theme]);
+  const submit = async (e: FormEvent) => {
+    e.preventDefault();
+    if (mode === "up" && password !== confirm) {
+      setError("The two passwords are not the same.");
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    try {
+      const me = mode === "in" ? await api.login(username, password) : await api.signup(username, password, code);
+      onSignedIn(me.username ?? username);
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+  const choose = (next: "in" | "up") => {
+    setMode(next);
+    setError(null);
+  };
+  return (
+    <div className="relative flex min-h-dvh items-center justify-center bg-canvas px-4 py-10 text-ink">
+      <div className="absolute right-4 top-4">
+        <IconButton label={`Switch to ${theme === "light" ? "dark" : "light"} mode`} onClick={() => setTheme(theme === "light" ? "dark" : "light")}>
+          {theme === "light" ? <Moon size={17} /> : <Sun size={17} />}
+        </IconButton>
+      </div>
+      <main className="rise w-full max-w-sm">
+        <div className="flex flex-col items-center text-center">
+          <BrandMark size={76} />
+          <h1 className="mt-4 font-headline text-2xl font-semibold tracking-tight text-ink">DISSOLVE Agent</h1>
+          <p className="mt-1 font-headline text-sm text-ink-2">Advanced polymer separation engineering</p>
+        </div>
+        <form onSubmit={submit} className="mt-7 overflow-hidden rounded-2xl border border-line bg-surface shadow-soft">
+          <div className="h-1 bg-brand" aria-hidden />
+          <div className="p-5">
+            <div role="tablist" aria-label="Sign in or create an account" className="grid grid-cols-2 gap-1 rounded-lg bg-muted p-1">
+              {(["in", "up"] as const).map((m) => (
+                <button
+                  key={m}
+                  type="button"
+                  role="tab"
+                  aria-selected={mode === m}
+                  onClick={() => choose(m)}
+                  className={cx(
+                    "rounded-md py-1.5 font-headline text-sm font-medium transition-colors",
+                    mode === m ? "bg-surface text-ink shadow-soft" : "text-ink-2 hover:text-ink",
+                  )}
+                >
+                  {m === "in" ? "Sign in" : "Create account"}
+                </button>
+              ))}
+            </div>
+            <div className="mt-4 space-y-3">
+              <Field label="Username" value={username} onChange={setUsername} autoComplete="username" autoFocus />
+              <Field
+                label="Password"
+                hint={mode === "up" ? "at least 8 characters" : undefined}
+                type="password"
+                value={password}
+                onChange={setPassword}
+                autoComplete={mode === "in" ? "current-password" : "new-password"}
+              />
+              {mode === "up" && <Field label="Confirm password" type="password" value={confirm} onChange={setConfirm} autoComplete="new-password" />}
+              {mode === "up" && accessCode && (
+                <Field label="Access code" hint="the site password you were given" type="password" value={code} onChange={setCode} autoComplete="off" />
+              )}
+            </div>
+            {error && (
+              <p role="alert" className="mt-3 rounded-lg bg-bad/10 px-3 py-2 font-headline text-sm text-bad">
+                {error}
+              </p>
+            )}
+            <button
+              type="submit"
+              disabled={busy}
+              className="mt-4 flex w-full items-center justify-center gap-2 rounded-lg bg-brand py-2.5 font-headline text-sm font-semibold text-on-brand transition-colors hover:bg-brand-hover disabled:opacity-60"
+            >
+              {busy && <Loader2 size={15} className="animate-spin" />}
+              {mode === "in" ? "Sign in" : "Create account"}
+            </button>
+          </div>
+        </form>
+        <p className="mt-4 text-center font-headline text-xs text-ink-3">
+          Your conversations are saved to your account and kept across updates.
+        </p>
+      </main>
+    </div>
+  );
 }
 
 function IconButton({ label, onClick, children, active }: { label: string; onClick: () => void; children: ReactNode; active?: boolean }) {
@@ -141,6 +299,8 @@ export function Header(props: {
   onTheme: () => void;
   onExport: () => void;
   onNewChat: () => void;
+  user?: string | null;
+  onSignOut?: () => void;
 }) {
   return (
     <header className="z-20 shrink-0 border-b border-line bg-surface/90 backdrop-blur-sm">
@@ -188,6 +348,16 @@ export function Header(props: {
             <MessageSquarePlus size={17} />
             <span className="hidden lg:inline">New</span>
           </IconButton>
+          {props.user && props.onSignOut && (
+            <>
+              <span className="hidden max-w-[10rem] truncate pl-1 font-headline text-sm text-ink-2 md:inline" title={`Signed in as ${props.user}`}>
+                {props.user}
+              </span>
+              <IconButton label={`Sign out ${props.user}`} onClick={props.onSignOut}>
+                <LogOut size={17} />
+              </IconButton>
+            </>
+          )}
         </div>
       </div>
     </header>
