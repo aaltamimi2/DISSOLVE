@@ -3,6 +3,9 @@
 # leaves their stack out and the app switches them off (DISSOLVE_WEB_DISABLE). ./dissolve runs everything locally.
 FROM python:3.11-slim-bookworm
 COPY --from=ghcr.io/astral-sh/uv:0.12.18 /uv /usr/local/bin/uv
+# RDKit's drawing module (the structures in answer tables) needs the X render libraries, which a slim image leaves
+# out: without them the live site answered "libXrender.so.1: cannot open shared object file" (2026-09-25).
+RUN apt-get update && apt-get install -y --no-install-recommends libxrender1 libxext6 && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 COPY pyproject.toml uv.lock ./
 # The locked environment without torch, Docling, sentence-transformers and what only they need.
