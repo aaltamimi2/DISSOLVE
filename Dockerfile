@@ -9,7 +9,9 @@ COPY pyproject.toml uv.lock ./
 RUN uv export --locked --no-dev --no-emit-project --prune torch --prune docling --prune sentence-transformers \
         --prune transformers --prune huggingface-hub --prune langchain --prune langchain-openai --prune pypdf \
         > /tmp/requirements.txt \
-    && uv pip install --system --no-cache -r /tmp/requirements.txt
+    && uv pip install --system --no-cache -r /tmp/requirements.txt \
+    && uv pip install --system --no-cache "psycopg[binary]==3.3.6"
+# psycopg: the hosted app keeps accounts and chats in Postgres (web_accounts.py), so only this image needs a driver.
 COPY src ./src
 RUN uv pip install --system --no-cache --no-deps . && useradd --create-home dissolve
 USER dissolve

@@ -192,3 +192,75 @@ def test_dissolve_web_starts_the_server(monkeypatch, tmp_path):
     monkeypatch.setattr(web, "serve", lambda **kwargs: seen.update(kwargs) or 0)
     assert cli.main(["web", "--port", "9999", "--home", str(tmp_path)]) == 0
     assert seen == {"host": "127.0.0.1", "port": 9999, "home": str(tmp_path)}
+
+
+def _accounts(serve, tmp_path):
+    """A server with accounts: a database (sqlite here, Postgres on the host) and the site password as the sign-up
+    code. Calling it again starts a new server on the same database, as a redeploy does."""
+    return serve(DATABASE_URL=f"sqlite:///{tmp_path / 'web.sqlite3'}", DISSOLVE_WEB_PASSWORD="s3cret")
+
+
+def _sign_up(http, name, password="correct horse"):
+    made = http.post("/api/auth/signup", json={"username": name, "password": password, "access_code": "s3cret"})
+    assert made.status_code == 200, made.text
+    return made
+
+
+def test_people_sign_up_with_a_username_and_password(serve, tmp_path):
+    """Everyone shared one site password, so everyone saw everyone's chats (owner, 2026-09-24). Each person now has
+    an account: a username and a password, no email. Sign-up needs the site's access code, so a stranger who finds
+    the site cannot spend its model credits."""
+    http = _accounts(serve, tmp_path)
+    assert http.get("/api/auth/config").json() == {"accounts": True, "access_code": True}
+    assert http.get("/api/health").status_code == 200
+    assert http.get("/api/sessions").status_code == 401
+    assert http.get("/api/sessions", auth=("dissolve", "s3cret")).status_code == 401  # the shared password is not a way in
+    details = lambda r: (r.status_code, r.json()["detail"])  # noqa: E731
+    no_code = http.post("/api/auth/signup", json={"username": "Alice", "password": "correct horse"})
+    assert details(no_code)[0] == 403
+    short = http.post("/api/auth/signup", json={"username": "Alice", "password": "short", "access_code": "s3cret"})
+    assert details(short) == (400, "A password needs at least 8 characters.")
+    spaced = http.post("/api/auth/signup", json={"username": "a b", "password": "correct horse", "access_code": "s3cret"})
+    assert details(spaced)[0] == 400
+    made = _sign_up(http, "Alice")
+    assert made.json()["username"] == "Alice"
+    cookie = made.headers["set-cookie"]
+    assert "dissolve_login=" in cookie and "HttpOnly" in cookie and "samesite=lax" in cookie.lower()
+    assert http.get("/api/auth/me").json()["username"] == "Alice"
+    taken = http.post("/api/auth/signup", json={"username": "alice", "password": "another one", "access_code": "s3cret"})
+    assert details(taken) == (409, "That username is taken.")
+    assert http.post("/api/auth/logout").status_code == 200
+    assert http.get("/api/auth/me").status_code == 401 and http.get("/api/sessions").status_code == 401
+    wrong = http.post("/api/auth/login", json={"username": "alice", "password": "wrong horse"})
+    assert details(wrong) == (401, "That username and password do not match an account.")
+    assert http.post("/api/auth/login", json={"username": "ALICE", "password": "correct horse"}).json()["username"] == "Alice"
+    with httpx.Client(base_url=str(http.base_url), timeout=30) as script:  # a script signs in with Basic credentials
+        assert script.get("/api/models", auth=("alice", "correct horse")).status_code == 200
+    for _ in range(10):
+        http.post("/api/auth/login", json={"username": "alice", "password": "guess guess"})
+    assert http.post("/api/auth/login", json={"username": "alice", "password": "correct horse"}).status_code == 429
+
+
+def test_each_account_sees_only_its_chats_and_they_outlive_a_redeploy(serve, tmp_path, monkeypatch):
+    """Chats were files in the container, and every redeploy replaced the container (owner, 2026-09-24). They are
+    now rows in the database, each owned by one account; a new server on the same database finds them."""
+    _script(monkeypatch, [{"text": "Toluene: δD 18.0, δP 1.4, δH 2.0 MPa½.", "tool_calls": []}])
+    alice = _accounts(serve, tmp_path)
+    _sign_up(alice, "alice")
+    session_id = alice.post("/api/sessions", json={}).json()["session_id"]
+    assert _stream(alice, session_id, "/contaminant leaching")[1]["state"]["contaminant"] == "leaching"
+    assert _stream(alice, session_id, "Hansen parameters of toluene?")[-1]["event"] == "turn.completed"
+    with httpx.Client(base_url=str(alice.base_url), timeout=30) as bob:
+        _sign_up(bob, "bob")
+        assert bob.get("/api/sessions").json() == []
+        assert bob.get(f"/api/sessions/{session_id}").status_code == 404
+        assert bob.post(f"/api/sessions/{session_id}/turns", json={"text": "/context"}).status_code == 404
+    assert not (tmp_path / "home" / "sessions").exists()  # nothing in the container to lose
+    again = _accounts(serve, tmp_path)  # the redeploy: a new server, nothing carried over but the database
+    assert again.get("/api/sessions").status_code == 401
+    assert again.post("/api/auth/login", json={"username": "alice", "password": "correct horse"}).status_code == 200
+    (row,) = again.get("/api/sessions").json()
+    assert (row["session_id"], row["title"], row["turns"]) == (session_id, "Hansen parameters of toluene?", 1)
+    kept = again.get(f"/api/sessions/{session_id}").json()
+    assert kept["contaminant"] == "leaching"
+    assert [(m["role"], m["text"][:8]) for m in kept["messages"]] == [("user", "Hansen p"), ("assistant", "Toluene:")]
