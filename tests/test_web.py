@@ -74,6 +74,16 @@ def test_the_api_is_the_cli_surface(client):
     assert commands["/literature"]["options"][1]["description"] == "local pinned index, offline"
 
 
+def test_the_family_picker_lists_what_each_family_screens(client):
+    """In contaminant mode the composer offers the contaminant families, since nobody knows 5,830 names (owner,
+    2026-09-24). Each carries the term a question uses and the members the screens evaluate."""
+    families = {row["name"]: row for row in client.get("/api/contaminant-families").json()}
+    assert families["Bisphenols"]["term"] == "bisphenols" and families["Bisphenols"]["count"] == 24
+    assert "Bisphenol A" in families["Bisphenols"]["members"]
+    assert families["UV stabilizers"]["examples"] == ["UV-328", "Tinuvin P", "Octabenzone"]
+    assert families["PFAS"]["source"] == "workbook"
+
+
 def test_a_turn_streams_its_tool_calls_then_the_answer(client, monkeypatch):
     _script(monkeypatch, [
         {"text": "", "tool_calls": [{"id": "t1", "name": "lookup_hansen_parameters",
