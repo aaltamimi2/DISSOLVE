@@ -238,6 +238,18 @@ function Workspace({ user, onSignOut }: { user: string | null; onSignOut?: () =>
     remember(lastSession, null);
   };
 
+  const deleteSession = async (id: string) => {
+    try {
+      await api.deleteSession(id);
+      if (sessionRef.current?.session_id === id) newChat();
+      notify("Chat deleted");
+    } catch (e) {
+      notify((e as Error).message, "error");
+    } finally {
+      refreshSessions();
+    }
+  };
+
   const exportChat = () => {
     const blob = new Blob([toMarkdown(messages, state)], { type: "text/markdown" });
     const link = document.createElement("a");
@@ -283,6 +295,7 @@ function Workspace({ user, onSignOut }: { user: string | null; onSignOut?: () =>
           sessions={sessions}
           current={state?.session_id ?? null}
           onOpenSession={openSession}
+          onDeleteSession={deleteSession}
           doctor={doctor}
           onRefreshDoctor={() => refreshDoctor(true)}
         />
