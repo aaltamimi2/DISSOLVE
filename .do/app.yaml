@@ -1,5 +1,6 @@
 # DigitalOcean App Platform: the hosted web app (see the Dockerfile). Every push to the branch rebuilds and redeploys.
-# Secret values are never in this file; they are set on the app and kept encrypted there.
+# Secret values are never in this file; they are set on the app and kept encrypted there. Accounts and chats live in
+# the attached dev database (db), which a redeploy leaves alone; DISSOLVE_WEB_PASSWORD is the sign-up access code.
 name: dissolve
 region: nyc
 services:
@@ -21,3 +22,10 @@ services:
       - key: DISSOLVE_WEB_PASSWORD
         type: SECRET
         scope: RUN_TIME
+      - key: DATABASE_URL
+        scope: RUN_TIME
+        value: ${db.DATABASE_URL}
+databases:
+  - name: db
+    engine: PG
+    production: false
