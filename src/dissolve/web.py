@@ -8,6 +8,7 @@ handler, and sessions are the CLI's session files, so a conversation can move be
 
     GET  /api/health  /api/doctor  /api/models  /api/commands  /api/sessions
     GET  /api/contaminant-families          the families a question can name instead of their members
+    GET  /api/structure.svg?smiles=...&size=small|large    an RDKit drawing, for answer tables with a SMILES column
     POST /api/sessions                      {model?, mode?} -> a new session
     GET  /api/sessions/{id}                 its modes and transcript
     POST /api/sessions/{id}/turns {text}    the NDJSON stream of one turn or slash command
@@ -39,6 +40,7 @@ import secrets
 import threading
 import time
 import uuid
+from functools import lru_cache
 from pathlib import Path
 from typing import Any, Iterator, Optional
 
@@ -295,6 +297,31 @@ def _run(app: cli.CliApp, text: str, events: "queue.Queue[dict[str, Any] | None]
         events.put(None)
 
 
+_DRAWING_SIZES = {"small": (180, 120), "large": (640, 440)}  # a table thumbnail; the view a click opens
+
+
+@lru_cache(maxsize=4096)
+def depict(smiles: str, size: str = "large") -> str | None:
+    """An RDKit drawing of a molecule as SVG, on a white card that reads in either theme; None when RDKit cannot read
+    the SMILES. Each size is drawn for itself: one drawing shrunk into a table cell left its bonds hair-thin."""
+    if not smiles or len(smiles) > 600 or size not in _DRAWING_SIZES:
+        return None
+    from rdkit import Chem, RDLogger
+    from rdkit.Chem.Draw import rdMolDraw2D
+
+    RDLogger.DisableLog("rdApp.*")
+    mol = Chem.MolFromSmiles(smiles)
+    if mol is None:
+        return None
+    drawer = rdMolDraw2D.MolDraw2DSVG(*_DRAWING_SIZES[size])
+    options = drawer.drawOptions()
+    options.clearBackground = True
+    options.padding = 0.06
+    rdMolDraw2D.PrepareAndDrawMolecule(drawer, mol)
+    drawer.FinishDrawing()
+    return drawer.GetDrawingText()
+
+
 def _basic(request: Request) -> tuple[str, str] | None:
     """HTTP Basic credentials, for scripts that call the API without a browser's sign-in cookie."""
     header = request.headers.get("authorization", "")
@@ -440,6 +467,16 @@ def create_app(home: str | Path | None = None) -> FastAPI:
         if "families" not in family_cache:  # read once: the assets do not change while the server runs
             family_cache["families"] = contaminants.contaminant_families()
         return family_cache["families"]
+
+    @api.get("/api/structure.svg", include_in_schema=False)
+    def structure(smiles: str = "", size: str = "large") -> Response:
+        svg = depict(smiles.strip(), size)
+        if svg is None:
+            raise HTTPException(422, "RDKit cannot draw that SMILES.")
+        return Response(svg, media_type="image/svg+xml", headers={
+            "Cache-Control": "private, max-age=604800",
+            "Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'",  # an image, never a page
+        })
 
     @api.get("/api/sessions")
     def session_list(request: Request) -> list[dict[str, Any]]:

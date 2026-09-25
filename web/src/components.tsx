@@ -37,6 +37,7 @@ import {
 } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import { rehypeStructures, STRUCTURE_URL } from "./structures";
 import { api, type Command, type ContaminantFamily, type Doctor, type Features, type Model, type SessionRow, type SessionState, type ToolCall } from "./api";
 import { family, MODE_CHIPS, offeredActions, type Example, type QuickAction } from "./content";
 
@@ -605,12 +606,71 @@ export function ToolTrace({ tools, running }: { tools: ToolCall[]; running?: boo
   );
 }
 
+/** A molecule drawn in an answer table: a thumbnail that fits the row, and a larger view with its SMILES on click. */
+function Structure({ src, smiles, name }: { src: string; smiles: string; name: string }) {
+  const [open, setOpen] = useState(false);
+  const [failed, setFailed] = useState(false);
+  useEffect(() => {
+    if (!open) return;
+    const escape = (e: globalThis.KeyboardEvent) => {
+      if (e.key === "Escape") setOpen(false);
+    };
+    document.addEventListener("keydown", escape);
+    return () => document.removeEventListener("keydown", escape);
+  }, [open]);
+  if (failed) return <span className="text-ink-2">no drawing</span>;
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        title="Click to enlarge"
+        aria-label={`Enlarge the structure of ${name}`}
+        className="block rounded-md border border-line bg-white p-0.5 transition-shadow hover:shadow-lift"
+      >
+        <img src={`${src}&size=small`} alt={`Structure of ${name}`} loading="lazy" onError={() => setFailed(true)} className="h-16 w-24 object-contain" />
+      </button>
+      {open && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label={`Structure of ${name}`}
+          onClick={() => setOpen(false)}
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 p-4"
+        >
+          <figure onClick={(e) => e.stopPropagation()} className="rise w-[min(42rem,100%)] rounded-2xl border border-line bg-surface p-4 shadow-float">
+            <div className="rounded-xl bg-white p-2">
+              <img src={`${src}&size=large`} alt={`Structure of ${name}`} className="h-auto w-full" />
+            </div>
+            <figcaption className="mt-3 flex items-start justify-between gap-3">
+              <span className="min-w-0">
+                {name !== smiles && <span className="block font-headline text-sm font-semibold text-ink">{name}</span>}
+                <code className="block break-all font-mono text-xs text-ink-2">{smiles}</code>
+              </span>
+              <button type="button" onClick={() => setOpen(false)} className="shrink-0 rounded-lg bg-muted px-3 py-1.5 font-headline text-sm text-ink hover:bg-line">
+                Close
+              </button>
+            </figcaption>
+          </figure>
+        </div>
+      )}
+    </>
+  );
+}
+
 function Markdown({ text }: { text: string }) {
   return (
     <div className="markdown-content">
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
+        rehypePlugins={[rehypeStructures]}
         components={{
+          img: ({ node: _node, src, alt, title, ...rest }) =>
+            typeof src === "string" && src.startsWith(STRUCTURE_URL) ? (
+              <Structure src={src} smiles={alt ?? ""} name={title || alt || ""} />
+            ) : (
+              <img src={src} alt={alt} title={title} {...rest} />
+            ),
           a: ({ node: _node, children, ...rest }) => (
             <a {...rest} target="_blank" rel="noopener noreferrer">
               {children}
