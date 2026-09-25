@@ -46,6 +46,13 @@ export type ContaminantFamily = {
   source: "plastchem" | "workbook";
 };
 
+/** A server with a database has accounts; `access_code` says whether sign-up asks for the site's code. */
+export type AuthConfig = { accounts: boolean; access_code: boolean };
+export type Me = { username: string | null; created_at?: string };
+
+/** Fired when the server answers 401: the sign-in has expired, or was signed out elsewhere. */
+export const SIGNED_OUT = "dissolve:signed-out";
+
 export type TurnEvent =
   | { event: "turn.started"; text: string }
   | ({ event: "tool" } & ToolCall)
@@ -64,6 +71,7 @@ async function json<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(path, init);
   if (!response.ok) {
     const body = await response.json().catch(() => ({}));
+    if (response.status === 401 && !path.startsWith("/api/auth/")) window.dispatchEvent(new Event(SIGNED_OUT));
     throw new Error((body as { detail?: string }).detail || `${response.status} ${response.statusText}`);
   }
   return response.json() as Promise<T>;
@@ -82,12 +90,19 @@ export const api = {
   commands: () => json<Command[]>("/api/commands"),
   sessions: () => json<SessionRow[]>("/api/sessions"),
   contaminantFamilies: () => json<ContaminantFamily[]>("/api/contaminant-families"),
+  authConfig: () => json<AuthConfig>("/api/auth/config"),
+  me: () => json<Me>("/api/auth/me"),
+  login: (username: string, password: string) => json<Me>("/api/auth/login", post({ username, password })),
+  signup: (username: string, password: string, access_code: string) =>
+    json<Me>("/api/auth/signup", post({ username, password, access_code })),
+  logout: () => json<{ ok: boolean }>("/api/auth/logout", post({})),
   session: (id: string) => json<SessionState & { messages: StoredMessage[] }>(`/api/sessions/${id}`),
   newSession: (model?: string) => json<SessionState>("/api/sessions", post(model ? { model } : {})),
 
   /** Run one message or slash command; onEvent sees each event as it arrives. */
   async turn(sessionId: string, text: string, onEvent: (event: TurnEvent) => void): Promise<void> {
     const response = await fetch(`/api/sessions/${sessionId}/turns`, post({ text }));
+    if (response.status === 401) window.dispatchEvent(new Event(SIGNED_OUT));
     if (!response.ok || !response.body) {
       const body = await response.json().catch(() => ({}));
       throw new Error((body as { detail?: string }).detail || `${response.status} ${response.statusText}`);

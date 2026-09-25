@@ -12,12 +12,19 @@ handler, and sessions are the CLI's session files, so a conversation can move be
     GET  /api/sessions/{id}                 its modes and transcript
     POST /api/sessions/{id}/turns {text}    the NDJSON stream of one turn or slash command
     POST /api/client-error                  a crash in someone's browser, printed to this server's log
+    GET  /api/auth/config  /api/auth/me     whether this server has accounts; who is signed in
+    POST /api/auth/signup  /api/auth/login  /api/auth/logout
 
 Everything else serves the built UI in src/dissolve/ui/ (its source is web/).
 
-A hosted copy sets DISSOLVE_WEB_PASSWORD (the whole site asks for it; /api/health stays open for the
-platform's checks) and, on a small instance, DISSOLVE_WEB_DISABLE=literature,tea: the literature models
-alone need 1.8 GB and a live TEA run 0.9 GB more, so a 1 GB host offers everything else.
+With DATABASE_URL set, people have accounts (web_accounts.py): each signs up with a username and a password, sees
+only their own chats, and keeps them across redeploys, because accounts and chats live in that database and not in
+the container. Sign-up asks for DISSOLVE_SIGNUP_CODE (by default DISSOLVE_WEB_PASSWORD) so that a stranger who finds
+the site cannot spend its model credits. Without a database, DISSOLVE_WEB_PASSWORD makes the whole site ask for one
+shared password and sessions are files, as a local `dissolve web` keeps them.
+
+On a small instance DISSOLVE_WEB_DISABLE=literature,tea: the literature models alone need 1.8 GB and a live TEA run
+0.9 GB more, so a 1 GB host offers everything else.
 """
 
 from __future__ import annotations
@@ -36,11 +43,12 @@ from pathlib import Path
 from typing import Any, Iterator, Optional
 
 from fastapi import FastAPI, HTTPException, Request
-from fastapi.responses import FileResponse, HTMLResponse, Response, StreamingResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response, StreamingResponse
 from pydantic import BaseModel
 from rich.console import Console
+from starlette.concurrency import run_in_threadpool
 
-from dissolve import RELEASE, cli, contaminants
+from dissolve import RELEASE, cli, contaminants, web_accounts
 from dissolve.agent import ToolEvent
 
 STATIC = Path(__file__).with_name("ui")
@@ -56,6 +64,16 @@ class NewSession(BaseModel):
 
 class Turn(BaseModel):
     text: str
+
+
+class Credentials(BaseModel):
+    username: str = ""
+    password: str = ""
+    access_code: Optional[str] = None
+
+
+COOKIE = "dissolve_login"
+_ATTEMPTS, _ATTEMPT_WINDOW_S = 10, 600.0  # failed sign-ins per address and username before a pause
 
 
 def _options(rows: list[tuple[Any, str]]) -> list[dict[str, str]]:
@@ -128,36 +146,53 @@ def _tool(event: ToolEvent) -> dict[str, Any]:
 
 
 class Sessions:
-    """One CliApp per session, as the CLI would hold it; a lock keeps one turn per session at a time."""
+    """One CliApp per session, as the CLI would hold it; a lock keeps one turn per session at a time. With a database
+    each session belongs to one account, and another account's session is "no such session"."""
 
-    def __init__(self, home: str | Path | None = None):
+    def __init__(self, home: str | Path | None = None, db: web_accounts.Database | None = None):
         self.home = home
+        self.db = db
         self.apps: dict[str, cli.CliApp] = {}
         self.locks: dict[str, threading.Lock] = {}
+        self.owners: dict[str, str] = {}
         self.guard = threading.Lock()
 
     def root(self) -> Path:
         return Path(self.home or os.getenv("DISSOLVE_HOME") or Path.home() / ".dissolve").expanduser() / "sessions"
 
-    def open(self, session_id: str, *, create: bool = False, model: str | None = None, mode: str | None = None):
+    def open(self, session_id: str, *, user: str | None = None, create: bool = False, model: str | None = None,
+             mode: str | None = None):
         if not cli._SESSION_RE.fullmatch(session_id):
             raise HTTPException(404, "no such session")
+        owner = (user or "").casefold()
         with self.guard:
-            if session_id not in self.apps:
-                if not create and not (self.root() / session_id / "session.json").is_file():
+            if session_id in self.apps:
+                if self.db is not None and self.owners[session_id] != owner:
                     raise HTTPException(404, "no such session")
-                console = Console(file=io.StringIO(), width=100, color_system=None, highlight=False, soft_wrap=True)
-                try:
-                    self.apps[session_id] = cli.CliApp(
-                        session_id=session_id, model_alias=model, mode=mode, store_root=self.home,
-                        console=console, quiet=True, require_key=False,
-                    )
-                except ValueError as error:
-                    raise HTTPException(400, str(error)) from error
-                self.locks[session_id] = threading.Lock()
+                return self.apps[session_id], self.locks[session_id]
+            store = None
+            if self.db is not None:
+                kept = web_accounts.session_owner(self.db, session_id)
+                if (kept is None and not create) or (kept is not None and kept != owner):
+                    raise HTTPException(404, "no such session")
+                store = web_accounts.DbStore(self.db, session_id, owner)
+            elif not create and not (self.root() / session_id / "session.json").is_file():
+                raise HTTPException(404, "no such session")
+            console = Console(file=io.StringIO(), width=100, color_system=None, highlight=False, soft_wrap=True)
+            try:
+                self.apps[session_id] = cli.CliApp(
+                    session_id=session_id, model_alias=model, mode=mode, store_root=self.home,
+                    console=console, quiet=True, require_key=False, store=store,
+                )
+            except ValueError as error:
+                raise HTTPException(400, str(error)) from error
+            self.locks[session_id] = threading.Lock()
+            self.owners[session_id] = owner
             return self.apps[session_id], self.locks[session_id]
 
-    def listing(self, limit: int = 50) -> list[dict[str, Any]]:
+    def listing(self, limit: int = 50, user: str | None = None) -> list[dict[str, Any]]:
+        if self.db is not None:
+            return web_accounts.list_sessions(self.db, user or "", limit)
         rows = []
         for path in self.root().glob("*/session.json"):
             try:
@@ -174,16 +209,25 @@ class Sessions:
         return rows[:limit]
 
 
+def _events(app: cli.CliApp) -> list[dict[str, Any]]:
+    """The session's recorded events, from the database store or the transcript file."""
+    if hasattr(app.store, "events"):
+        return app.store.events()
+    path = app.store.transcript_path
+    rows = []
+    for line in path.read_text(encoding="utf-8").splitlines() if path.is_file() else []:
+        try:
+            rows.append(json.loads(line))
+        except json.JSONDecodeError:
+            continue
+    return rows
+
+
 def transcript(app: cli.CliApp) -> list[dict[str, Any]]:
     """The session's turns: each user message, then the answer with the tool calls it made."""
     out: list[dict[str, Any]] = []
     tools: list[dict[str, Any]] = []
-    path = app.store.transcript_path
-    for line in path.read_text(encoding="utf-8").splitlines() if path.is_file() else []:
-        try:
-            row = json.loads(line)
-        except json.JSONDecodeError:
-            continue
+    for row in _events(app):
         role = row.get("role")
         if role == "user":
             out.append({"role": "user", "text": row.get("content") or ""})
@@ -251,14 +295,45 @@ def _run(app: cli.CliApp, text: str, events: "queue.Queue[dict[str, Any] | None]
         events.put(None)
 
 
+def _basic(request: Request) -> tuple[str, str] | None:
+    """HTTP Basic credentials, for scripts that call the API without a browser's sign-in cookie."""
+    header = request.headers.get("authorization", "")
+    if not header.startswith("Basic "):
+        return None
+    try:
+        name, _, secret = base64.b64decode(header[6:]).decode("utf-8").partition(":")
+    except (ValueError, UnicodeDecodeError):
+        return None
+    return name, secret
+
+
 def create_app(home: str | Path | None = None) -> FastAPI:
     api = FastAPI(title="DISSOLVE", version=RELEASE, docs_url="/api/docs", openapi_url="/api/openapi.json")
-    sessions = api.state.sessions = Sessions(home)
+    database = os.getenv("DATABASE_URL", "").strip()
+    db = web_accounts.Database(database) if database else None
+    accounts = web_accounts.Accounts(db) if db is not None else None
+    sessions = api.state.sessions = Sessions(home, db)
     doctor_cache: dict[str, Any] = {}
     family_cache: dict[str, Any] = {}
+    failures: dict[tuple[str, str], list[float]] = {}
     offered = features()
+    signup_code = os.getenv("DISSOLVE_SIGNUP_CODE", os.getenv("DISSOLVE_WEB_PASSWORD", ""))
 
-    if password := os.getenv("DISSOLVE_WEB_PASSWORD"):
+    if accounts is not None:
+        @api.middleware("http")
+        async def require_account(request: Request, call_next):
+            path = request.url.path
+            if not path.startswith("/api/") or path == "/api/health" or path.startswith("/api/auth/"):
+                return await call_next(request)  # the UI itself, which shows the sign-in page, and signing in
+            user = await run_in_threadpool(accounts.user_for, request.cookies.get(COOKIE))
+            if user is None and (basic := _basic(request)):
+                user = await run_in_threadpool(accounts.check, *basic)
+            if user is None:
+                return JSONResponse({"detail": "Sign in to use DISSOLVE."}, status_code=401)
+            request.state.user = user
+            return await call_next(request)
+
+    elif password := os.getenv("DISSOLVE_WEB_PASSWORD"):
         expected = ("Basic " + base64.b64encode(f"{os.getenv('DISSOLVE_WEB_USER', 'dissolve')}:{password}".encode()).decode()).encode()
 
         @api.middleware("http")
@@ -266,6 +341,72 @@ def create_app(home: str | Path | None = None) -> FastAPI:
             if request.url.path == "/api/health" or secrets.compare_digest(request.headers.get("authorization", "").encode(), expected):
                 return await call_next(request)
             return Response(status_code=401, headers={"WWW-Authenticate": 'Basic realm="DISSOLVE"'})
+
+    def user_of(request: Request) -> str | None:
+        return getattr(request.state, "user", None)
+
+    def signed_in(response: Response, request: Request, name: str) -> dict[str, Any]:
+        secure = request.url.scheme == "https" or request.headers.get("x-forwarded-proto") == "https"
+        response.set_cookie(COOKIE, accounts.sign_in(name), max_age=web_accounts.LOGIN_DAYS * 86400, httponly=True,
+                            samesite="lax", secure=secure, path="/")
+        return accounts.profile(name)
+
+    def throttled(request: Request, username: str) -> tuple[str, str]:
+        key = (request.client.host if request.client else "", username.strip().casefold())
+        recent = [t for t in failures.get(key, []) if time.monotonic() - t < _ATTEMPT_WINDOW_S]
+        failures[key] = recent
+        if len(recent) >= _ATTEMPTS:
+            raise HTTPException(429, "Too many attempts. Wait a few minutes and try again.")
+        return key
+
+    @api.get("/api/auth/config")
+    def auth_config() -> dict[str, Any]:
+        return {"accounts": accounts is not None, "access_code": accounts is not None and bool(signup_code)}
+
+    @api.post("/api/auth/signup")
+    def signup(body: Credentials, request: Request, response: Response) -> dict[str, Any]:
+        if accounts is None:
+            raise HTTPException(404, "This server has no accounts.")
+        key = throttled(request, "signup")
+        if signup_code and not secrets.compare_digest((body.access_code or "").encode(), signup_code.encode()):
+            failures[key].append(time.monotonic())
+            raise HTTPException(403, "That access code is not right. Ask whoever gave you this site for it.")
+        try:
+            name = accounts.create(body.username, body.password)
+        except ValueError as error:
+            raise HTTPException(400, str(error)) from error
+        except LookupError as error:
+            raise HTTPException(409, str(error)) from error
+        return signed_in(response, request, name)
+
+    @api.post("/api/auth/login")
+    def login(body: Credentials, request: Request, response: Response) -> dict[str, Any]:
+        if accounts is None:
+            raise HTTPException(404, "This server has no accounts.")
+        key = throttled(request, body.username)
+        name = accounts.check(body.username, body.password)
+        if name is None:
+            failures[key].append(time.monotonic())
+            raise HTTPException(401, "That username and password do not match an account.")
+        return signed_in(response, request, name)
+
+    @api.post("/api/auth/logout")
+    def logout(request: Request, response: Response) -> dict[str, Any]:
+        if accounts is not None:
+            accounts.sign_out(request.cookies.get(COOKIE))
+        response.delete_cookie(COOKIE, path="/")
+        return {"ok": True}
+
+    @api.get("/api/auth/me")
+    def me(request: Request) -> dict[str, Any]:
+        if accounts is None:
+            return {"username": None}
+        name = accounts.user_for(request.cookies.get(COOKIE))
+        if name is None and (basic := _basic(request)):
+            name = accounts.check(*basic)
+        if name is None:
+            raise HTTPException(401, "Sign in to use DISSOLVE.")
+        return accounts.profile(name)
 
     @api.get("/api/health")
     def health() -> dict[str, Any]:
@@ -301,27 +442,28 @@ def create_app(home: str | Path | None = None) -> FastAPI:
         return family_cache["families"]
 
     @api.get("/api/sessions")
-    def session_list() -> list[dict[str, Any]]:
-        return sessions.listing()
+    def session_list(request: Request) -> list[dict[str, Any]]:
+        return sessions.listing(user=user_of(request))
 
     @api.post("/api/sessions")
-    def session_new(body: NewSession) -> dict[str, Any]:
+    def session_new(body: NewSession, request: Request) -> dict[str, Any]:
         if body.model is not None and cli.MODEL_ALIASES.get(body.model, body.model) not in cli.MODELS:
             raise HTTPException(400, f"Unknown model alias: {body.model}")
-        app, _lock = sessions.open(uuid.uuid4().hex[:12], create=True, model=body.model, mode=body.mode)
+        app, _lock = sessions.open(uuid.uuid4().hex[:12], user=user_of(request), create=True, model=body.model,
+                                   mode=body.mode)
         return _state(app)
 
     @api.get("/api/sessions/{session_id}")
-    def session_get(session_id: str) -> dict[str, Any]:
-        app, _lock = sessions.open(session_id)
+    def session_get(session_id: str, request: Request) -> dict[str, Any]:
+        app, _lock = sessions.open(session_id, user=user_of(request))
         return {**_state(app), "messages": transcript(app)}
 
     @api.post("/api/sessions/{session_id}/turns")
-    def session_turn(session_id: str, body: Turn) -> StreamingResponse:
+    def session_turn(session_id: str, body: Turn, request: Request) -> StreamingResponse:
         text = body.text.strip()
         if not text:
             raise HTTPException(400, "empty message")
-        app, lock = sessions.open(session_id)
+        app, lock = sessions.open(session_id, user=user_of(request))
         if not lock.acquire(blocking=False):
             raise HTTPException(409, "a turn is already running in this session")
         events: queue.Queue[dict[str, Any] | None] = queue.Queue()
