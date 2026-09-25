@@ -70,7 +70,7 @@ function Field(props: {
           {props.label}
         </label>
         {props.hint && (
-          <span id={`${id}-hint`} className="font-headline text-xs text-ink-3">
+          <span id={`${id}-hint`} className="font-headline text-xs text-ink-2">
             {props.hint}
           </span>
         )}
@@ -200,7 +200,7 @@ export function SignIn({ accessCode, onSignedIn }: { accessCode: boolean; onSign
             </button>
           </div>
         </form>
-        <p className="mt-4 text-center font-headline text-xs text-ink-3">
+        <p className="mt-4 text-center font-headline text-xs text-ink-2">
           Your conversations are saved to your account and kept across updates.
         </p>
       </main>
@@ -529,8 +529,8 @@ export function Welcome({ onPick, features }: { onPick: (example: Example) => vo
           <QuickActionCard key={action.label} action={action} onPick={onPick} />
         ))}
       </div>
-      <p className="mt-4 font-headline text-xs text-ink-3">
-        Click a card to cycle through its examples · type <kbd className="rounded bg-muted px-1">/</kbd> for modes such as
+      <p className="mt-5 font-headline text-[13px] text-ink-2">
+        Click a card to cycle through its examples · type <kbd className="rounded border border-line bg-muted px-1.5 text-xs text-ink">/</kbd> for modes such as
         /contaminant and {features.literature ? "/literature" : "/solvents"}
       </p>
     </div>
@@ -797,7 +797,7 @@ function FamiliesChip({ families, onPick }: { families: ContaminantFamily[]; onP
         onClick={() => setOpen(!open)}
         aria-expanded={open}
         title="Search contaminants by family"
-        className="flex items-center gap-1 whitespace-nowrap rounded-full border border-brand/40 bg-brand-tint px-2.5 py-1 font-headline text-xs text-brand-ink transition-colors"
+        className="flex items-center gap-1 whitespace-nowrap rounded-full border border-brand/40 bg-brand-tint px-2.5 py-1 font-headline text-[13px] text-brand-ink transition-colors"
       >
         <span className="font-medium">Families</span>
         <span className="text-ink-2">{families.length}</span>
@@ -819,7 +819,7 @@ function FamiliesChip({ families, onPick }: { families: ContaminantFamily[]; onP
               onChange={(e) => setFilter(e.target.value)}
               placeholder="Filter families or contaminants…"
               aria-label="Filter families or contaminants"
-              className="mt-2 w-full rounded-lg border border-line bg-canvas px-2.5 py-1.5 font-headline text-sm text-ink outline-none placeholder:text-ink-3 focus:border-brand-soft"
+              className="mt-2 w-full rounded-lg border border-line bg-canvas px-2.5 py-1.5 font-headline text-sm text-ink outline-none placeholder:text-ink-2 focus:border-brand-soft"
             />
           </div>
           <ul className="max-h-80 overflow-y-auto py-1">
@@ -903,7 +903,7 @@ function ModeChip({
       document.removeEventListener("keydown", escape);
     };
   }, [open]);
-  const active = value !== "off";
+  const highlighted = value !== "off" && label !== "Assumptions" && label !== "Solvents" && label !== "Breadth";
   return (
     <div ref={ref} className="relative">
       <button
@@ -912,13 +912,11 @@ function ModeChip({
         aria-expanded={open}
         title={command?.summary}
         className={cx(
-          "flex items-center gap-1 whitespace-nowrap rounded-full border px-2.5 py-1 font-headline text-xs transition-colors",
-          active && label !== "Assumptions" && label !== "Solvents" && label !== "Breadth"
-            ? "border-brand/40 bg-brand-tint text-brand-ink"
-            : "border-line bg-canvas text-ink-2 hover:text-ink",
+          "flex items-center gap-1 whitespace-nowrap rounded-full border px-2.5 py-1 font-headline text-[13px] transition-colors",
+          highlighted ? "border-brand/40 bg-brand-tint text-brand-ink" : "border-line bg-canvas text-ink hover:border-line-strong",
         )}
       >
-        <span className="text-ink-3">{command?.command ?? label}</span>
+        <span className={highlighted ? undefined : "text-ink-2"}>{command?.command ?? label}</span>
         <span className="font-medium">{value}</span>
         <ChevronDown size={12} />
       </button>
@@ -927,7 +925,7 @@ function ModeChip({
           className="absolute bottom-full left-0 z-30 mb-2 w-80 max-w-[calc(100vw-2rem)] overflow-hidden rounded-xl border border-line bg-elevated shadow-float"
           style={{ left: shift }}
         >
-          <p className="border-b border-line px-3 py-2 font-headline text-xs text-ink-3">{command.summary}</p>
+          <p className="border-b border-line px-3 py-2 font-headline text-xs text-ink-2">{command.summary}</p>
           <ul className="max-h-72 overflow-y-auto py-1">
             {command.options.map((option) => (
               <li key={option.value}>
@@ -1093,7 +1091,7 @@ export function Composer(props: {
               contaminantMode ? "Name a contaminant or a family such as bisphenols…" : "Ask DISSOLVE… or type / for modes and commands"
             }
             aria-label="Message"
-            className="block max-h-[220px] min-h-[52px] w-full resize-none rounded-xl border border-line bg-canvas py-3.5 pl-4 pr-14 text-[0.95rem] text-ink shadow-soft outline-none placeholder:text-ink-3 focus:border-brand-soft"
+            className="block max-h-[220px] min-h-[52px] w-full resize-none rounded-xl border border-line bg-canvas py-3.5 pl-4 pr-14 font-headline text-[0.95rem] text-ink shadow-soft outline-none placeholder:text-ink-2 focus:border-brand-soft"
           />
           <button
             type="button"
@@ -1105,7 +1103,7 @@ export function Composer(props: {
             {props.busy ? <Loader2 size={17} className="animate-spin" /> : <Send size={17} />}
           </button>
         </div>
-        <p className="mt-1.5 hidden text-center font-mono text-[11px] text-ink-3 sm:block" aria-hidden>
+        <p className="mt-1.5 hidden text-center font-headline text-xs text-ink-2 sm:block" aria-hidden>
           {items.some((item) => item.family) ? "Tab completes the family · Enter sends" : "Enter to send · Shift+Enter for a new line · / for commands"}
         </p>
       </div>
