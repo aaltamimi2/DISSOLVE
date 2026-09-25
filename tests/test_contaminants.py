@@ -5143,3 +5143,28 @@ def test_family_builder_refuses_ambiguous_names_and_says_why_members_are_missing
         plastchem_release.build_families(workbook, out, asset=asset, specs=[{**spec, "aliases": ("alphaester",)}])
     with pytest.raises(ValueError, match="does not resolve to a family member"):
         plastchem_release.build_families(workbook, out, asset=asset, specs=[{**spec, "examples": ("Betaamide",)}])
+
+
+def test_screened_rows_and_lookups_carry_each_contaminants_smiles():
+    """"What's the SMILES of each of these?" after a slip-agent screen came back "the system output does not include
+    SMILES" (owner, 2026-09-25), though the release records one for every contaminant. Screen rows carry it now, and a
+    lookup gives identities without a polymer or solvent."""
+    screened = _data(contaminants.screen_contaminant_partitioning("PP", "ethanol", ["erucamide"]))
+    assert screened["rows"][0]["smiles"] == "CCCCCCCC/C=C\\CCCCCCCCCCCC(=O)N"
+    found = _data(contaminants.lookup_plastchem_contaminants(["slip agents", "BHT", "unobtainium"]))
+    assert (found["found"], found["computed"], found["unsupported_contaminants"]) == (9, 9, ["unobtainium"])
+    bht = next(row for row in found["rows"] if row["contaminant"] == "Butylated Hydroxytoluene")
+    assert bht["smiles"] == "CC1=CC(=C(C(=C1)C(C)(C)C)O)C(C)(C)C" and bht["families"] == ["Alkylphenols", "Antioxidants"]
+    assert bht["cas"] == "128-37-0" and bht["molecular_weight_g_mol"] == 220.35
+    assert [f["family"] for f in found["family_coverage"]] == ["Slip agents"]
+    assert all(row["smiles"] for row in found["rows"])
+    pending = _data(contaminants.lookup_plastchem_contaminants("terephthalates"))
+    assert (pending["found"], pending["computed"]) == (21, 16)  # trimellitates still in the held tier 2
+    tri = next(row for row in pending["rows"] if row["contaminant"] == "Tris(2-ethylhexyl) trimellitate")
+    assert tri["computed"] is False and tri["campaign_status"] == "not_yet_run" and tri["smiles"]
+    empty = _data(contaminants.lookup_plastchem_contaminants([]))
+    assert empty["error_code"] == "no_contaminants_named"
+    from dissolve import agent
+    assert agent.source_basis_for("lookup_plastchem_contaminants", {}, {}) == "plastchem_identity"
+    prompt = " ".join(agent.SYSTEM_PROMPT.split())
+    assert "table column headed SMILES, each in backticks" in prompt and "lookup_plastchem_contaminants" in prompt

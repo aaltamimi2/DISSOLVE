@@ -1664,6 +1664,74 @@ def _leaching_verdict(logp: Any, miscible: Any, polymer_status: str) -> str:
     return "leaches"
 
 
+def _requested(contaminants: str | list[str] | None) -> list[str]:
+    requested = list(contaminants or []) if not isinstance(contaminants, str) else [contaminants]
+    if isinstance(contaminants, str) and contaminants.lstrip().startswith("["):
+        try:  # providers serialize arrays as JSON strings; names like "1,6-hexanediyl dioleate" are never comma-split
+            requested = [str(item) for item in json.loads(contaminants)]
+        except json.JSONDecodeError:
+            pass
+    return requested
+
+
+def _resolve_plastchem(con: duckdb.DuckDBPyConnection, requested: Sequence[str]
+                       ) -> tuple[list[int], list[dict[str, Any]], list[str], dict[str, list[str]]]:
+    """Release ids for names, CAS numbers, InChIKeys, abbreviations and families; with the families asked for, the
+    names nothing matched, and the names that match more than one contaminant."""
+    chosen, families, unknown, ambiguous = [], [], [], {}
+    for item in requested:
+        family = _plastchem_family(item)
+        if family is not None:  # every member the release holds; those it did not compute are listed as such
+            families.append(family)
+            chosen.extend(row[0] for row in con.execute(
+                "SELECT id FROM contaminants WHERE inchikey IN (SELECT unnest(?))", [family["members"]]).fetchall())
+            continue
+        hits = [row[0] for row in con.execute("SELECT DISTINCT id FROM aliases WHERE alias = ?",
+                                              [_key(item)]).fetchall()]
+        if len(hits) > 1:
+            ambiguous[str(item)] = [row[0] for row in con.execute(
+                "SELECT name || ' (' || inchikey || ')' FROM contaminants WHERE id IN (SELECT unnest(?))", [hits]).fetchall()]
+        elif hits:
+            chosen.append(hits[0])
+        else:
+            unknown.append(str(item))
+    return chosen, families, unknown, ambiguous
+
+
+def lookup_plastchem_contaminants(contaminants: str | list[str]) -> str:
+    """Look up PlastChem contaminants by name, CAS number, InChIKey, abbreviation or family (phthalates, antioxidants, ...): each one's name, CAS number, InChIKey, SMILES, molecular weight and families, and whether the openCOSMO-RS release computed it."""
+    tool = "lookup_plastchem_contaminants"
+    con = _plastchem()
+    if con is None:
+        return tool_error(tool, "The PlastChem contaminant release has not been promoted into DISSOLVE yet.",
+                          error_code="plastchem_data_unavailable")
+    requested = _requested(contaminants)
+    if not requested:
+        return tool_error(tool, "Name at least one contaminant or family.", error_code="no_contaminants_named")
+    chosen, families, unknown, ambiguous = _resolve_plastchem(con, requested)
+    member_of: dict[str, list[str]] = {}
+    for family in _family_table():
+        for key in family["members"]:
+            member_of.setdefault(key, []).append(family["name"])
+    rows = [{"contaminant": name, "cas": cas, "inchikey": key, "smiles": smiles,
+             "molecular_weight_g_mol": None if weight is None else round(weight, 2), "families": member_of.get(key, []),
+             "computed": bool(computed), "campaign_status": status}
+            for name, cas, key, smiles, weight, computed, status in con.execute(
+                """SELECT name, cas, inchikey, smiles, molecular_weight, computed, status FROM contaminants
+                   WHERE id IN (SELECT unnest(?)) ORDER BY lower(name)""", [sorted(set(chosen))]).fetchall()]
+    done = [row for row in rows if row["computed"]]
+    pending = [row for row in rows if not row["computed"]]
+    coverage = [_family_coverage(family, done, pending) for family in families]
+    return tool_success(
+        tool,
+        display=f"{len(rows)} PlastChem contaminants found, {len(done)} computed.",
+        rows=rows, found=len(rows), computed=len(done), unsupported_contaminants=unknown,
+        ambiguous_contaminants=ambiguous, **({"family_coverage": coverage} if coverage else {}),
+        identity_basis="PubChem's names, CAS numbers, InChIKeys and SMILES as the PlastChem release records them; "
+                       "identities, not predictions",
+    )
+
+
 def screen_contaminant_partitioning(
     polymer: str, solvent: str, contaminants: str | list[str] | None = None, temperature_c: float = 25.0,
 ) -> str:
@@ -1686,31 +1754,12 @@ def screen_contaminant_partitioning(
     if solvent_key is None:
         return tool_error(tool, f"{solvent} is not in the {len(panel)}-solvent panel.", error_code="solvent_not_in_panel",
                           requested_solvent=solvent, panel_solvents=panel)
-    requested = list(contaminants or []) if not isinstance(contaminants, str) else [contaminants]
-    if isinstance(contaminants, str) and contaminants.lstrip().startswith("["):
-        try:  # providers serialize arrays as JSON strings; names like "1,6-hexanediyl dioleate" are never comma-split
-            requested = [str(item) for item in json.loads(contaminants)]
-        except json.JSONDecodeError:
-            pass
-    unknown, ambiguous, chosen, families = [], {}, [], []
+    requested = _requested(contaminants)
     if not requested or [_key(item) for item in requested] == ["all"]:
         chosen = [row[0] for row in con.execute("SELECT id FROM contaminants WHERE computed").fetchall()]
-    for item in requested if chosen == [] else []:
-        family = _plastchem_family(item)
-        if family is not None:  # every member the release holds; those it did not compute are listed as such
-            families.append(family)
-            chosen.extend(row[0] for row in con.execute(
-                "SELECT id FROM contaminants WHERE inchikey IN (SELECT unnest(?))", [family["members"]]).fetchall())
-            continue
-        hits = [row[0] for row in con.execute("SELECT DISTINCT id FROM aliases WHERE alias = ?",
-                                              [_key(item)]).fetchall()]
-        if len(hits) > 1:
-            ambiguous[str(item)] = [row[0] for row in con.execute(
-                "SELECT name || ' (' || inchikey || ')' FROM contaminants WHERE id IN (SELECT unnest(?))", [hits]).fetchall()]
-        elif hits:
-            chosen.append(hits[0])
-        else:
-            unknown.append(str(item))
+        families, unknown, ambiguous = [], [], {}
+    else:
+        chosen, families, unknown, ambiguous = _resolve_plastchem(con, requested)
     regimes = dict(con.execute("SELECT regime, max(temperature_c) FROM lle WHERE solvent = ? GROUP BY 1",
                                [solvent_key]).fetchall())
     high = regimes.get("high")
@@ -1718,7 +1767,7 @@ def screen_contaminant_partitioning(
     state = _polymer_status(product, solvent_key, temperature_c, _PLASTCHEM_THRESHOLDS)
     rows, not_computed = [], []
     records = con.execute(
-        """SELECT c.inchikey, c.name, c.cas, c.computed, c.status, c.reason, p.logp, p.status, l.miscible,
+        """SELECT c.inchikey, c.name, c.cas, c.smiles, c.computed, c.status, c.reason, p.logp, p.status, l.miscible,
                   l.status, l.wt_percent
            FROM contaminants c
            LEFT JOIN partition p ON p.id = c.id AND p.solvent = ? AND p.polymer = ?
@@ -1726,13 +1775,13 @@ def screen_contaminant_partitioning(
            WHERE c.id IN (SELECT unnest(?))""",
         [solvent_key, mapped[0], solvent_key, regime, sorted(set(chosen))],
     ).fetchall()
-    for inchikey, name, cas, computed, status, reason, logp, logp_status, miscible, lle_status, wt in records:
+    for inchikey, name, cas, smiles, computed, status, reason, logp, logp_status, miscible, lle_status, wt in records:
         if not computed:
             not_computed.append({"contaminant": name, "inchikey": inchikey, "campaign_status": status,
                                  "reason": reason})
             continue
         rows.append({
-            "contaminant": name, "inchikey": inchikey, "cas": cas,
+            "contaminant": name, "inchikey": inchikey, "cas": cas, "smiles": smiles,
             "logp_solvent_over_polymer": logp, "partition_coefficient_k": _partition_coefficient(logp),
             "partition_status": logp_status,
             "partitions_toward": None if logp is None else "solvent" if logp > 0 else "polymer",

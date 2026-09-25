@@ -763,11 +763,12 @@ def _result(raw: str) -> dict:
 def test_a1_exactly_one_removal_by_identity_against_parent_30():
     now = frozenset(agent.BY_NAME)
     assert (_PARENT_REGISTRY_NAMES - now) == frozenset({"estimate_thermal_properties"})
-    assert (now - _PARENT_REGISTRY_NAMES) == frozenset({"screen_contaminant_partitioning"})  # added 2026-09-24
-    assert len(now) == 30
+    assert (now - _PARENT_REGISTRY_NAMES) == frozenset({
+        "screen_contaminant_partitioning", "lookup_plastchem_contaminants"})  # added 2026-09-24 and 2026-09-25
+    assert len(now) == 31
     assert now == EXPECTED_REGISTRY_NAMES
-    assert len(agent.REGISTRY) == 30
-    assert len(tool_schemas()) == 25
+    assert len(agent.REGISTRY) == 31
+    assert len(tool_schemas()) == 26
     assert "fetch_solvent_safety_by_cid" in now
     assert "estimate_thermal_properties" not in now
     names = {item["name"] for item in tool_schemas()}

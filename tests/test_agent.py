@@ -2246,9 +2246,9 @@ def test_doctor_checks_key_assets_registry_duckdb(tmp_path, monkeypatch):
     assert "duckdb" in names
     by_name = {c["name"]: c for c in report["checks"]}
     assert by_name["Tool registry"]["status"] == "pass"
-    assert by_name["Tool registry"]["detail"] == "30 registered names"
+    assert by_name["Tool registry"]["detail"] == "31 registered names"
     assert by_name["Tool registry"]["registered"] == len(EXPECTED_REGISTRY_NAMES)
-    assert len(EXPECTED_REGISTRY_NAMES) == 30
+    assert len(EXPECTED_REGISTRY_NAMES) == 31
     assert "fetch_solvent_safety_by_cid" in EXPECTED_REGISTRY_NAMES
     assert "estimate_thermal_properties" not in EXPECTED_REGISTRY_NAMES
     assert "normalize_feed_composition" not in EXPECTED_REGISTRY_NAMES
@@ -6639,8 +6639,8 @@ def test_off_default_six_literature_tools_absent_from_agent_list():
     assert LITERATURE_AGENT_TOOLS.isdisjoint(offered_tool_names())
     assert "ingest_literature_documents" in agent.BY_NAME
     assert "ingest_literature_graph" in agent.BY_NAME
-    assert len(EXPECTED_REGISTRY_NAMES) == 30
-    assert len(agent.REGISTRY) == 30
+    assert len(EXPECTED_REGISTRY_NAMES) == 31
+    assert len(agent.REGISTRY) == 31
 
 
 def test_corpus_offers_exactly_two_local_tools_and_network_does_not_fire(monkeypatch, tmp_path):

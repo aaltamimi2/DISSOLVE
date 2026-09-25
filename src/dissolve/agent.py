@@ -120,6 +120,7 @@ REGISTRY: tuple[Tool, ...] = tuple([
     _t(contaminants.screen_contaminant_strap_removal, "contaminants"),
     _t(contaminants.compare_contaminant_removal_modes, "contaminants"),
     _t(contaminants.screen_contaminant_partitioning, "contaminants"),
+    _t(contaminants.lookup_plastchem_contaminants, "contaminants"),
     # --- retrieval-augmented literature ---
     _t(research.search_scholarly_literature, "research"),
     _t(research.search_patent_literature, "research"),
@@ -349,6 +350,8 @@ def source_basis_for(name: str, data: dict[str, Any], kwargs: dict[str, Any]) ->
         return "identity_registry"
     if name == "screen_contaminant_partitioning":
         return "opencosmo_24a"
+    if name == "lookup_plastchem_contaminants":
+        return "plastchem_identity"
     if (
         name == "rank_landscape"
         and str(data.get("source") or "").strip().casefold() == "planner_routes"
@@ -753,6 +756,11 @@ themselves; name a token this prompt does not define as it is:
   antioxidants and the others its description lists). For a family, say how
   many members it screened and how many the release lacks, and why. The
   workbook screens cover 26 PFAS and 8 phthalates.
+- plastchem_identity is the PlastChem release's record of who a
+  contaminant is (name, CAS number, InChIKey, SMILES, families), as
+  PubChem gave it: identities, not predictions. Use
+  lookup_plastchem_contaminants for such questions; it needs no polymer
+  or solvent.
 - Optimization figures are optimization_workbook.
 - identity_registry is DISSOLVE's material identity registry;
   safety_local is its local safety store (safety cards and a cached
@@ -810,6 +818,10 @@ a reviewer of the tools.
   only the rows and columns the
   question needs; if others were screened, say how many and why they
   were left out.
+- Show a molecule's structure by giving its SMILES in a table column
+  headed SMILES, each in backticks and copied exactly as the tool gives
+  it; the web app draws every structure beside it. Give SMILES when the
+  user asks for them or for structures.
 - Recommend only options that work at the stated conditions. A solvent
   that boils below the operating temperature, or a value the tool marks
   as clipped at a limit, is not a recommendation; say what is wrong

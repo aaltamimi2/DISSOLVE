@@ -1320,7 +1320,7 @@ def test_exclude_safety_fail_stays_unknown_extra(monkeypatch):
 def test_maps_are_optional_schema_args_not_a_35th_name(monkeypatch):
     _forbid_live_rank_solvent_maps(monkeypatch)
     assert "rank_landscape" not in CONSUMERS
-    assert len(EXPECTED_REGISTRY_NAMES) == 30
+    assert len(EXPECTED_REGISTRY_NAMES) == 31
     assert "fetch_solvent_safety_by_cid" in EXPECTED_REGISTRY_NAMES
     assert "estimate_thermal_properties" not in EXPECTED_REGISTRY_NAMES
     props = {
@@ -5106,7 +5106,7 @@ def test_objective_registered_lower_is_better_and_alias_resolves():
     assert tea._PLANNER_SORT_OBJECTIVES[KEY] == "min"
     assert tea._PLANNER_OBJECTIVE_ALIASES["max_stage_specific_volume"] == KEY
     assert "max_stage_specific_volume" not in tea._PLANNER_SORT_OBJECTIVES   # alias, not a second key
-    assert len(tool_schemas()) == 25
+    assert len(tool_schemas()) == 26
 
 
 def test_table_loads_and_digest_is_checked_not_trusted(monkeypatch):
