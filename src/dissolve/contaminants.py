@@ -1664,6 +1664,25 @@ def _leaching_verdict(logp: Any, miscible: Any, polymer_status: str) -> str:
     return "leaches"
 
 
+def _plastchem_solvent(con: duckdb.DuckDBPyConnection, solvent: str, tool: str) -> tuple[str | None, str | None]:
+    """The panel's key for a solvent, or a refusal that names the panel and its close relatives: "xylene" is mixed or
+    p-xylene, and the panel computed o-xylene (2026-09-25)."""
+    panel = [row[0] for row in con.execute("SELECT DISTINCT solvent FROM partition ORDER BY 1").fetchall()]
+    keys = set(_solvent_keys(solvent)) | {_key(solvent)}
+    solvent_key = next((key for key in panel if key in keys), None)
+    if solvent_key is not None:
+        return solvent_key, None
+    def words(name: str) -> set[str]:
+        return {word for word in name.replace("-", " ").replace(",", " ").split() if len(word) > 3}
+
+    asked = words(_key(solvent))  # a word inside another counts: "xylenes" and "o-xylene", "propanol" and "isopropanol"
+    close = [key for key in panel if any(a in w or w in a for a in asked for w in words(key))]
+    detail = f" Close panel solvents: {', '.join(close)}." if close else ""
+    return None, tool_error(tool, f"{solvent} is not in the {len(panel)}-solvent panel.{detail}",
+                            error_code="solvent_not_in_panel", requested_solvent=solvent, panel_solvents=panel,
+                            closest_panel_solvents=close)
+
+
 def _requested(contaminants: str | list[str] | None) -> list[str]:
     requested = list(contaminants or []) if not isinstance(contaminants, str) else [contaminants]
     if isinstance(contaminants, str) and contaminants.lstrip().startswith("["):
@@ -1698,8 +1717,8 @@ def _resolve_plastchem(con: duckdb.DuckDBPyConnection, requested: Sequence[str]
     return chosen, families, unknown, ambiguous
 
 
-def lookup_plastchem_contaminants(contaminants: str | list[str]) -> str:
-    """Look up PlastChem contaminants by name, CAS number, InChIKey, abbreviation or family (phthalates, antioxidants, ...): each one's name, CAS number, InChIKey, SMILES, molecular weight and families, and whether the openCOSMO-RS release computed it."""
+def lookup_plastchem_contaminants(contaminants: str | list[str], solvent: str | None = None) -> str:
+    """Look up PlastChem contaminants by name, CAS number, InChIKey, abbreviation or family (phthalates, antioxidants, ...): each one's name, CAS number, InChIKey, SMILES, molecular weight and families, and whether the openCOSMO-RS release computed it; with a solvent, also its miscibility with that solvent and its logP between the solvent and every polymer, no polymer needed."""
     tool = "lookup_plastchem_contaminants"
     con = _plastchem()
     if con is None:
@@ -1708,6 +1727,11 @@ def lookup_plastchem_contaminants(contaminants: str | list[str]) -> str:
     requested = _requested(contaminants)
     if not requested:
         return tool_error(tool, "Name at least one contaminant or family.", error_code="no_contaminants_named")
+    solvent_key = None
+    if solvent:
+        solvent_key, refusal = _plastchem_solvent(con, solvent, tool)
+        if refusal is not None:
+            return refusal
     chosen, families, unknown, ambiguous = _resolve_plastchem(con, requested)
     member_of: dict[str, list[str]] = {}
     for family in _family_table():
@@ -1722,14 +1746,52 @@ def lookup_plastchem_contaminants(contaminants: str | list[str]) -> str:
     done = [row for row in rows if row["computed"]]
     pending = [row for row in rows if not row["computed"]]
     coverage = [_family_coverage(family, done, pending) for family in families]
+    solvent_fields: dict[str, Any] = {}
+    if solvent_key is not None:
+        _add_solvent_data(con, solvent_key, done)
+        solvent_fields = {
+            "solvent": solvent_key,
+            "solvent_method": "miscibility: the contaminant and the solvent alone, one liquid phase at 15 wt% or not, at "
+                              "25 °C and at the solvent's high temperature, with the solubility in wt% where two phases "
+                              "form. logP: log10 of the solvent/polymer concentration ratio for the neutral species at "
+                              "25 °C, positive favouring the solvent, one per polymer model; past ±6 the bound.",
+        }
     return tool_success(
         tool,
-        display=f"{len(rows)} PlastChem contaminants found, {len(done)} computed.",
+        display=f"{len(rows)} PlastChem contaminants found, {len(done)} computed"
+                + (f"; in {solvent_key}." if solvent_key else "."),
         rows=rows, found=len(rows), computed=len(done), unsupported_contaminants=unknown,
-        ambiguous_contaminants=ambiguous, **({"family_coverage": coverage} if coverage else {}),
+        ambiguous_contaminants=ambiguous, **({"family_coverage": coverage} if coverage else {}), **solvent_fields,
         identity_basis="PubChem's names, CAS numbers, InChIKeys and SMILES as the PlastChem release records them; "
                        "identities, not predictions",
     )
+
+
+def _add_solvent_data(con: duckdb.DuckDBPyConnection, solvent_key: str, rows: list[dict[str, Any]]) -> None:
+    """Give each computed row its miscibility with one solvent and its logP between that solvent and every polymer
+    model. LDPE and HDPE share one polyethylene model, so they share a column."""
+    labels: dict[str, list[str]] = {}
+    for product, campaign in con.execute("SELECT product, campaign FROM polymers ORDER BY product").fetchall():
+        labels.setdefault(campaign, []).append(product)
+    label = {campaign: "/".join(products) for campaign, products in labels.items()}
+    keys = [row["inchikey"] for row in rows]
+    logp: dict[str, dict[str, Any]] = {}
+    for key, polymer, value in con.execute(
+            """SELECT c.inchikey, p.polymer, p.logp FROM partition p JOIN contaminants c ON c.id = p.id
+               WHERE p.solvent = ? AND c.inchikey IN (SELECT unnest(?)) ORDER BY p.polymer""",
+            [solvent_key, keys]).fetchall():
+        logp.setdefault(key, {})[label.get(polymer, polymer)] = bounded_log(value)
+    miscibility: dict[str, list[dict[str, Any]]] = {}
+    for key, regime, temperature, status, miscible, weight in con.execute(
+            """SELECT c.inchikey, l.regime, l.temperature_c, l.status, l.miscible, l.wt_percent FROM lle l
+               JOIN contaminants c ON c.id = l.id WHERE l.solvent = ? AND c.inchikey IN (SELECT unnest(?))
+               ORDER BY l.temperature_c""", [solvent_key, keys]).fetchall():
+        miscibility.setdefault(key, []).append({
+            "temperature_c": round(temperature, 1), "miscible_at_15_wt_pct": miscible,
+            "solubility_wt_pct": weight if status == "two_liquid_phases" else None, "state": status})
+    for row in rows:
+        row["in_solvent"] = {"miscibility": miscibility.get(row["inchikey"], []),
+                             "logp_solvent_over_polymer": logp.get(row["inchikey"], {})}
 
 
 def screen_contaminant_partitioning(
@@ -1748,12 +1810,9 @@ def screen_contaminant_partitioning(
         known = [row[0] for row in con.execute("SELECT product FROM polymers ORDER BY 1").fetchall()]
         return tool_error(tool, f"No PlastChem partitioning for {polymer}.", error_code="polymer_not_in_release",
                           requested_polymer=polymer, available_polymers=known)
-    panel = [row[0] for row in con.execute("SELECT DISTINCT solvent FROM partition ORDER BY 1").fetchall()]
-    keys = set(_solvent_keys(solvent)) | {_key(solvent)}
-    solvent_key = next((key for key in panel if key in keys), None)
-    if solvent_key is None:
-        return tool_error(tool, f"{solvent} is not in the {len(panel)}-solvent panel.", error_code="solvent_not_in_panel",
-                          requested_solvent=solvent, panel_solvents=panel)
+    solvent_key, refusal = _plastchem_solvent(con, solvent, tool)
+    if refusal is not None:
+        return refusal
     requested = _requested(contaminants)
     if not requested or [_key(item) for item in requested] == ["all"]:
         chosen = [row[0] for row in con.execute("SELECT id FROM contaminants WHERE computed").fetchall()]

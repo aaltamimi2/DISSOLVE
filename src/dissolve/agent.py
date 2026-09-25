@@ -350,8 +350,8 @@ def source_basis_for(name: str, data: dict[str, Any], kwargs: dict[str, Any]) ->
         return "identity_registry"
     if name == "screen_contaminant_partitioning":
         return "opencosmo_24a"
-    if name == "lookup_plastchem_contaminants":
-        return "plastchem_identity"
+    if name == "lookup_plastchem_contaminants":  # with a solvent it also gives openCOSMO-RS predictions
+        return "opencosmo_24a" if kwargs.get("solvent") else "plastchem_identity"
     if (
         name == "rank_landscape"
         and str(data.get("source") or "").strip().casefold() == "planner_routes"
@@ -761,6 +761,14 @@ themselves; name a token this prompt does not define as it is:
   PubChem gave it: identities, not predictions. Use
   lookup_plastchem_contaminants for such questions; it needs no polymer
   or solvent.
+- A contaminant in one solvent needs no polymer: give
+  lookup_plastchem_contaminants the solvent, and it returns the
+  contaminant's miscibility with that solvent and its logP between the
+  solvent and every polymer. Show those rather than asking which
+  polymer; logP always compares the solvent with a polymer, so label
+  each value with its polymer. When a solvent is not in the panel, the
+  refusal names close panel solvents (o-xylene for xylene): use the
+  closest and say which one you used.
 - Optimization figures are optimization_workbook.
 - identity_registry is DISSOLVE's material identity registry;
   safety_local is its local safety store (safety cards and a cached

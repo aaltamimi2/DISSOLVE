@@ -5168,3 +5168,29 @@ def test_screened_rows_and_lookups_carry_each_contaminants_smiles():
     assert agent.source_basis_for("lookup_plastchem_contaminants", {}, {}) == "plastchem_identity"
     prompt = " ".join(agent.SYSTEM_PROMPT.split())
     assert "table column headed SMILES, each in backticks" in prompt and "lookup_plastchem_contaminants" in prompt
+
+
+def test_a_contaminant_in_one_solvent_needs_no_polymer():
+    """"What is their logD or logP in xylene?" after a slip-agent answer came back as a question: which polymer, and
+    which xylene (owner, 2026-09-25). The release has each contaminant's miscibility with a solvent, which needs no
+    polymer, and a logP against every polymer; the lookup now gives both, and a solvent the panel lacks names its close
+    relatives."""
+    refused = _data(contaminants.lookup_plastchem_contaminants("slip agents", solvent="xylene"))
+    assert refused["error_code"] == "solvent_not_in_panel" and refused["closest_panel_solvents"] == ["o-xylene"]
+    assert "Close panel solvents: o-xylene." in refused["error"]
+    screen = _data(contaminants.screen_contaminant_partitioning("PP", "xylenes", ["erucamide"]))
+    assert screen["closest_panel_solvents"] == ["o-xylene"]  # the screen names them too
+    found = _data(contaminants.lookup_plastchem_contaminants("slip agents", solvent="o-xylene"))
+    assert found["solvent"] == "o-xylene" and "one per polymer model" in found["solvent_method"]
+    erucamide = next(row for row in found["rows"] if row["contaminant"] == "Erucamide")["in_solvent"]
+    assert [m["temperature_c"] for m in erucamide["miscibility"]] == [25.0, 120.0]
+    assert erucamide["miscibility"][0]["miscible_at_15_wt_pct"] is True
+    assert set(erucamide["logp_solvent_over_polymer"]) == {"EVOH", "NYLON6", "NYLON66", "PC", "HDPE/LDPE", "PET", "PP",
+                                                          "PS", "PVC", "PVDF"}
+    assert erucamide["logp_solvent_over_polymer"]["PP"] == 1.31
+    assert all("in_solvent" in row for row in found["rows"])
+    plain = _data(contaminants.lookup_plastchem_contaminants("erucamide"))
+    assert "in_solvent" not in plain["rows"][0] and "solvent" not in plain  # identity alone without a solvent
+    from dissolve import agent
+    assert "needs no polymer" in " ".join(agent.SYSTEM_PROMPT.split())
+    assert agent.source_basis_for("lookup_plastchem_contaminants", {}, {"solvent": "o-xylene"}) == "opencosmo_24a"
