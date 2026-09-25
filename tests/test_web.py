@@ -84,6 +84,21 @@ def test_the_family_picker_lists_what_each_family_screens(client):
     assert families["PFAS"]["source"] == "workbook"
 
 
+def test_answer_tables_get_structures_drawn_from_their_smiles(client):
+    """"What's the SMILES of each of these?" should come with each structure (owner, 2026-09-25). The page asks the
+    server for an RDKit drawing of every SMILES in a table's SMILES column."""
+    erucamide = client.get("/api/structure.svg", params={"smiles": "CCCCCCCC/C=C\\CCCCCCCCCCCC(=O)N"})
+    assert erucamide.status_code == 200 and erucamide.headers["content-type"].startswith("image/svg+xml")
+    assert "<svg" in erucamide.text and "viewBox" in erucamide.text  # scales from thumbnail to full view
+    assert "default-src 'none'" in erucamide.headers["content-security-policy"]
+    assert client.get("/api/structure.svg", params={"smiles": "C1CC"}).status_code == 422  # an unclosed ring
+    assert client.get("/api/structure.svg", params={"smiles": "C" * 700}).status_code == 422
+    assert client.get("/api/structure.svg").status_code == 422
+    small = client.get("/api/structure.svg", params={"smiles": "CCO", "size": "small"}).text
+    assert "width='180px'" in small and "width='640px'" in client.get("/api/structure.svg", params={"smiles": "CCO"}).text
+    assert client.get("/api/structure.svg", params={"smiles": "CCO", "size": "huge"}).status_code == 422
+
+
 def test_a_turn_streams_its_tool_calls_then_the_answer(client, monkeypatch):
     _script(monkeypatch, [
         {"text": "", "tool_calls": [{"id": "t1", "name": "lookup_hansen_parameters",

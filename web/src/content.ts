@@ -156,6 +156,7 @@ const FAMILY_OF: Record<string, keyof typeof FAMILIES> = {
   screen_contaminant_strap_removal: "contaminants",
   compare_contaminant_removal_modes: "contaminants",
   screen_contaminant_partitioning: "contaminants",
+  lookup_plastchem_contaminants: "contaminants",
   search_scholarly_literature: "literature",
   search_patent_literature: "literature",
   ingest_literature_documents: "literature",
