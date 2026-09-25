@@ -34,6 +34,17 @@ export type Doctor = { ready: boolean; checks: DoctorCheck[] };
 /** What this deployment offers; a small host switches literature and live TEA off. */
 export type Features = { literature: boolean; tea: boolean };
 export type Health = { ok: boolean; release: string; ui_built: boolean; features: Features };
+/** A contaminant family a question can name instead of its members; `term` is how a question says it. */
+export type ContaminantFamily = {
+  name: string;
+  term: string;
+  description: string;
+  aliases: string[];
+  examples: string[];
+  count: number;
+  members: string[];
+  source: "plastchem" | "workbook";
+};
 
 export type TurnEvent =
   | { event: "turn.started"; text: string }
@@ -70,6 +81,7 @@ export const api = {
   models: () => json<Model[]>("/api/models"),
   commands: () => json<Command[]>("/api/commands"),
   sessions: () => json<SessionRow[]>("/api/sessions"),
+  contaminantFamilies: () => json<ContaminantFamily[]>("/api/contaminant-families"),
   session: (id: string) => json<SessionState & { messages: StoredMessage[] }>(`/api/sessions/${id}`),
   newSession: (model?: string) => json<SessionState>("/api/sessions", post(model ? { model } : {})),
 
