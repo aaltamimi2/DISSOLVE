@@ -11,6 +11,7 @@ import {
   Loader2,
   LogOut,
   MessageSquarePlus,
+  Trash2,
   Moon,
   PanelLeft,
   RefreshCw,
@@ -388,10 +389,12 @@ export function Sidebar(props: {
   sessions: SessionRow[];
   current: string | null;
   onOpenSession: (id: string) => void;
+  onDeleteSession: (id: string) => void;
   doctor: Doctor | null;
   onRefreshDoctor: () => void;
 }) {
   const [expanded, setExpanded] = useState<string | null>(null);
+  const [confirming, setConfirming] = useState<string | null>(null);
   if (!props.open) return null;
   return (
     <>
@@ -418,26 +421,61 @@ export function Sidebar(props: {
         <div className="min-h-0 flex-1 overflow-y-auto p-2">
           {props.tab === "conversations" ? (
             props.sessions.length === 0 ? (
-              <p className="px-3 py-6 text-center font-headline text-sm text-ink-3">No conversations yet.</p>
+              <p className="px-3 py-6 text-center font-headline text-sm text-ink-2">No conversations yet.</p>
             ) : (
               <ul className="space-y-0.5">
-                {props.sessions.map((row) => (
-                  <li key={row.session_id}>
-                    <button
-                      type="button"
-                      onClick={() => props.onOpenSession(row.session_id)}
-                      className={cx(
-                        "w-full rounded-lg px-3 py-2 text-left",
-                        row.session_id === props.current ? "bg-brand-tint" : "hover:bg-muted",
-                      )}
+                {props.sessions.map((row) => {
+                  const title = row.title || "Untitled conversation";
+                  if (confirming === row.session_id) {
+                    return (
+                      <li key={row.session_id} className="rounded-lg border border-bad/30 bg-bad/5 px-3 py-2">
+                        <span className="line-clamp-1 font-headline text-sm text-ink">{title}</span>
+                        <span className="mt-1 flex items-center gap-2">
+                          <span className="flex-1 font-headline text-xs text-ink-2">Delete this chat for good?</span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setConfirming(null);
+                              props.onDeleteSession(row.session_id);
+                            }}
+                            className="rounded-md bg-danger px-2.5 py-1 font-headline text-xs font-semibold text-white hover:opacity-90"
+                          >
+                            Delete
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setConfirming(null)}
+                            className="rounded-md bg-muted px-2.5 py-1 font-headline text-xs text-ink hover:bg-line"
+                          >
+                            Cancel
+                          </button>
+                        </span>
+                      </li>
+                    );
+                  }
+                  return (
+                    <li
+                      key={row.session_id}
+                      className={cx("group flex items-start rounded-lg", row.session_id === props.current ? "bg-brand-tint" : "hover:bg-muted")}
                     >
-                      <span className="line-clamp-2 font-headline text-sm text-ink">{row.title || "Untitled conversation"}</span>
-                      <span className="mt-0.5 block font-headline text-xs text-ink-3">
-                        {ago(row.updated_at)} · {row.turns} turn{row.turns === 1 ? "" : "s"}
-                      </span>
-                    </button>
-                  </li>
-                ))}
+                      <button type="button" onClick={() => props.onOpenSession(row.session_id)} className="min-w-0 flex-1 px-3 py-2 text-left">
+                        <span className="line-clamp-2 font-headline text-sm text-ink">{title}</span>
+                        <span className="mt-0.5 block font-headline text-xs text-ink-2">
+                          {ago(row.updated_at)} · {row.turns} turn{row.turns === 1 ? "" : "s"}
+                        </span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setConfirming(row.session_id)}
+                        aria-label={`Delete chat: ${title}`}
+                        title="Delete this chat"
+                        className="m-1.5 shrink-0 rounded-md p-1.5 text-ink-2 hover:bg-bad/10 hover:text-bad focus:opacity-100 lg:opacity-0 lg:group-hover:opacity-100"
+                      >
+                        <Trash2 size={15} />
+                      </button>
+                    </li>
+                  );
+                })}
               </ul>
             )
           ) : (
@@ -1171,12 +1209,15 @@ export function Composer(props: {
   );
 }
 
+/** A short notice. Gold carries navy text and errors a deep red: white on the gold was 2.4:1. */
 export function Toast({ text, kind }: { text: string; kind: "info" | "error" }) {
   return (
     <div
       role="status"
-      className="rise fixed right-4 top-16 z-50 rounded-lg px-4 py-2 font-headline text-sm text-white shadow-float"
-      style={{ backgroundColor: kind === "error" ? "var(--error)" : "var(--primary)" }}
+      className={cx(
+        "rise fixed right-4 top-16 z-50 rounded-lg px-4 py-2 font-headline text-sm font-medium shadow-float",
+        kind === "error" ? "bg-danger text-white" : "bg-brand text-on-brand",
+      )}
     >
       {text}
     </div>
