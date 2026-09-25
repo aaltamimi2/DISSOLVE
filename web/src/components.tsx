@@ -20,10 +20,21 @@ import {
   XCircle,
 } from "lucide-react";
 import agentLogo from "./assets/dissolve-agent.svg";
-import { Component, useEffect, useMemo, useRef, useState, type ErrorInfo, type KeyboardEvent, type ReactNode, type RefObject } from "react";
+import {
+  Component,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ErrorInfo,
+  type KeyboardEvent,
+  type ReactNode,
+  type RefObject,
+} from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import type { Command, Doctor, Features, Model, SessionRow, SessionState, ToolCall } from "./api";
+import type { Command, ContaminantFamily, Doctor, Features, Model, SessionRow, SessionState, ToolCall } from "./api";
 import { family, MODE_CHIPS, offeredActions, type Example, type QuickAction } from "./content";
 
 export type ChatMessage =
@@ -509,7 +520,8 @@ export function MessageView({ message, onCopy }: { message: ChatMessage; onCopy:
   );
 }
 
-type PaletteItem = { label: string; detail: string; insert: string; complete: boolean };
+/** `family` marks a family-name completion: Tab or a click takes it, and Enter still sends the message. */
+type PaletteItem = { label: string; detail: string; insert: string; complete: boolean; family?: boolean };
 
 function palette(value: string, commands: Command[]): PaletteItem[] {
   if (!value.startsWith("/") || value.includes("\n")) return [];
@@ -526,6 +538,176 @@ function palette(value: string, commands: Command[]): PaletteItem[] {
     .map((o) => ({ label: `${command!.command} ${o.value}`, detail: o.description, insert: `${command!.command} ${o.value}`, complete: true }));
 }
 
+/** How far left a chip's menu, at most `width` pixels wide, must move to stay on screen. At phone width a chip
+ * wraps anywhere in its row, and a menu hanging past the right edge scrolled the whole page sideways. */
+function useOnScreen(anchor: RefObject<HTMLElement | null>, open: boolean, width: number): number {
+  const [shift, setShift] = useState(0);
+  useLayoutEffect(() => {
+    if (!open || !anchor.current) {
+      setShift(0);
+      return;
+    }
+    const left = anchor.current.getBoundingClientRect().left;
+    setShift(Math.min(0, window.innerWidth - 16 - (left + Math.min(width, window.innerWidth - 32))));
+  }, [anchor, open, width]);
+  return shift;
+}
+
+/** Contaminant families whose name the message is in the middle of typing ("which bisph"), at least four letters in
+ * and from the start of a word. The completion keeps the word the user began, a family's name or one of its aliases. */
+function familySuggestions(value: string, families: ContaminantFamily[]): PaletteItem[] {
+  if (value.startsWith("/")) return [];
+  const lower = value.toLowerCase();
+  const items: PaletteItem[] = [];
+  for (const f of families) {
+    const match = [f.term, ...f.aliases]
+      .map((word) => {
+        const w = word.toLowerCase();
+        for (let n = Math.min(w.length - 1, lower.length); n >= 4; n--) {
+          const start = lower.length - n;
+          if ((start === 0 || /[\s(,;"']/.test(lower[start - 1])) && w.startsWith(lower.slice(start))) return { word, start };
+        }
+        return null;
+      })
+      .find((m) => m !== null);
+    if (match) {
+      items.push({
+        label: f.name,
+        detail: `${f.count} contaminants · ${f.description}`,
+        insert: `${value.slice(0, match.start)}${match.word} `,
+        complete: false,
+        family: true,
+      });
+    }
+  }
+  return items;
+}
+
+/** Contaminant mode's family picker: a family inserts its name, which searches all its members; opening one lists
+ * the members, and the filter matches families and member names alike. */
+function FamiliesChip({ families, onPick }: { families: ContaminantFamily[]; onPick: (text: string, starter: string) => void }) {
+  const [open, setOpen] = useState(false);
+  const [filter, setFilter] = useState("");
+  const [expanded, setExpanded] = useState<string | null>(null);
+  const ref = useRef<HTMLDivElement>(null);
+  const input = useRef<HTMLInputElement>(null);
+  const shift = useOnScreen(ref, open, 384);
+  // Focus without scrolling: autoFocus scrolled the page sideways before the menu had moved on screen.
+  useEffect(() => {
+    if (open) input.current?.focus({ preventScroll: true });
+  }, [open]);
+  useEffect(() => {
+    if (!open) return;
+    const close = (e: MouseEvent) => !ref.current?.contains(e.target as Node) && setOpen(false);
+    const escape = (e: globalThis.KeyboardEvent) => e.key === "Escape" && setOpen(false);
+    document.addEventListener("mousedown", close);
+    document.addEventListener("keydown", escape);
+    return () => {
+      document.removeEventListener("mousedown", close);
+      document.removeEventListener("keydown", escape);
+    };
+  }, [open]);
+  const q = filter.trim().toLowerCase();
+  const shown = families
+    .map((f) => {
+      const named = [f.name, f.term, ...f.aliases, f.description].some((text) => text.toLowerCase().includes(q));
+      const members = q ? f.members.filter((m) => m.toLowerCase().includes(q)) : [];
+      return { f, named, members };
+    })
+    .filter(({ named, members }) => !q || named || members.length > 0);
+  const pick = (text: string, starter: string) => {
+    setOpen(false);
+    setFilter("");
+    onPick(text, starter);
+  };
+  return (
+    <div ref={ref} className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen(!open)}
+        aria-expanded={open}
+        title="Search contaminants by family"
+        className="flex items-center gap-1 whitespace-nowrap rounded-full border border-brand/40 bg-brand-tint px-2.5 py-1 font-headline text-xs text-brand-ink transition-colors"
+      >
+        <span className="font-medium">Families</span>
+        <span className="text-ink-2">{families.length}</span>
+        <ChevronDown size={12} />
+      </button>
+      {open && (
+        <div
+          className="absolute bottom-full left-0 z-30 mb-2 w-[min(24rem,calc(100vw-2rem))] overflow-hidden rounded-xl border border-line bg-elevated shadow-float"
+          style={{ left: shift }}
+        >
+          <div className="border-b border-line px-3 py-2">
+            <p className="font-headline text-xs text-ink-2">
+              Pick a family to search all its members, or open one to pick a single contaminant.
+            </p>
+            <input
+              ref={input}
+              type="search"
+              value={filter}
+              onChange={(e) => setFilter(e.target.value)}
+              placeholder="Filter families or contaminants…"
+              aria-label="Filter families or contaminants"
+              className="mt-2 w-full rounded-lg border border-line bg-canvas px-2.5 py-1.5 font-headline text-sm text-ink outline-none placeholder:text-ink-3 focus:border-brand-soft"
+            />
+          </div>
+          <ul className="max-h-80 overflow-y-auto py-1">
+            {shown.map(({ f, members }) => {
+              const listed = members.length ? members : expanded === f.name ? f.members : [];
+              return (
+                <li key={f.name}>
+                  <div className="flex items-stretch hover:bg-muted">
+                    <button type="button" onClick={() => pick(f.term, `Which ${f.term} leach from`)} className="min-w-0 flex-1 px-3 py-2 text-left">
+                      <span className="flex items-baseline gap-2">
+                        <span className="font-headline text-sm font-medium text-ink">{f.name}</span>
+                        <span className="font-mono text-xs text-ink-2">{f.count}</span>
+                        {f.source === "workbook" && <span className="rounded bg-muted px-1 font-headline text-[11px] text-ink-2">workbook</span>}
+                      </span>
+                      <span className="block font-headline text-xs text-ink-2">
+                        {f.description} · e.g. {f.examples.join(", ")}
+                      </span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setExpanded(expanded === f.name ? null : f.name)}
+                      aria-expanded={listed.length > 0}
+                      aria-label={`Show the ${f.count} ${f.name.toLowerCase()}`}
+                      className="px-2.5 text-ink-3 hover:text-ink"
+                    >
+                      <ChevronRight size={15} className={cx("transition-transform", listed.length > 0 && "rotate-90")} />
+                    </button>
+                  </div>
+                  {listed.length > 0 && (
+                    <ul className="mx-3 mb-1.5 max-h-48 overflow-y-auto border-l border-line pl-2">
+                      {listed.map((m) => (
+                        <li key={m}>
+                          <button
+                            type="button"
+                            onClick={() => pick(m, `Does ${m} leach from`)}
+                            className="w-full rounded px-1.5 py-1 text-left font-headline text-xs text-ink hover:bg-muted"
+                          >
+                            {m}
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </li>
+              );
+            })}
+            {shown.length === 0 && (
+              <li className="px-3 py-2 font-headline text-xs text-ink-2">
+                Nothing matches “{filter.trim()}”. The agent also finds contaminants by name, CAS number or abbreviation.
+              </li>
+            )}
+          </ul>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function ModeChip({
   label,
   value,
@@ -539,6 +721,7 @@ function ModeChip({
 }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+  const shift = useOnScreen(ref, open, 320);
   useEffect(() => {
     if (!open) return;
     const close = (e: MouseEvent) => !ref.current?.contains(e.target as Node) && setOpen(false);
@@ -570,7 +753,10 @@ function ModeChip({
         <ChevronDown size={12} />
       </button>
       {open && command && (
-        <div className="absolute bottom-full left-0 z-30 mb-2 w-80 overflow-hidden rounded-xl border border-line bg-elevated shadow-float">
+        <div
+          className="absolute bottom-full left-0 z-30 mb-2 w-80 max-w-[calc(100vw-2rem)] overflow-hidden rounded-xl border border-line bg-elevated shadow-float"
+          style={{ left: shift }}
+        >
           <p className="border-b border-line px-3 py-2 font-headline text-xs text-ink-3">{command.summary}</p>
           <ul className="max-h-72 overflow-y-auto py-1">
             {command.options.map((option) => (
@@ -604,13 +790,19 @@ export function Composer(props: {
   onSend: (text: string) => void;
   busy: boolean;
   commands: Command[];
+  families: ContaminantFamily[];
   state: SessionState | null;
   inputRef: RefObject<HTMLTextAreaElement | null>;
 }) {
   const ref = props.inputRef;
   const [selected, setSelected] = useState(0);
   const [dismissed, setDismissed] = useState(false);
-  const items = useMemo(() => (dismissed ? [] : palette(props.value, props.commands)), [dismissed, props.value, props.commands]);
+  const contaminantMode = (props.state?.contaminant ?? "off") !== "off";
+  const items = useMemo(() => {
+    if (dismissed) return [];
+    const commands = palette(props.value, props.commands);
+    return commands.length || !contaminantMode ? commands : familySuggestions(props.value, props.families);
+  }, [dismissed, props.value, props.commands, props.families, contaminantMode]);
 
   useEffect(() => {
     setSelected(0);
@@ -636,6 +828,24 @@ export function Composer(props: {
     if (item.complete) send(item.insert);
     else props.onChange(item.insert);
   };
+  // A picked family or contaminant goes where the cursor is; into an empty composer it starts a question.
+  const insert = (text: string, starter: string) => {
+    const el = ref.current;
+    const value = props.value;
+    const start = value.trim() ? (el?.selectionStart ?? value.length) : 0;
+    const end = value.trim() ? (el?.selectionEnd ?? value.length) : value.length;
+    const before = value.trim() ? value.slice(0, start) : "";
+    const after = value.trim() ? value.slice(end) : "";
+    const piece = value.trim() ? text : `${starter} `;
+    const lead = before && !/\s$/.test(before) ? " " : "";
+    const tail = after && !/^[\s,.?!;:]/.test(after) ? " " : "";
+    props.onChange(`${before}${lead}${piece}${tail}${after}`);
+    const caret = (before + lead + piece).length;
+    requestAnimationFrame(() => {
+      el?.focus();
+      el?.setSelectionRange(caret, caret);
+    });
+  };
   const onKey = (e: KeyboardEvent<HTMLTextAreaElement>) => {
     if (items.length) {
       if (e.key === "ArrowDown" || e.key === "ArrowUp") {
@@ -652,7 +862,7 @@ export function Composer(props: {
         setDismissed(true);
         return;
       }
-      if (e.key === "Enter" && !e.shiftKey && items[selected].insert.trim() !== props.value.trim()) {
+      if (e.key === "Enter" && !e.shiftKey && !items[selected].family && items[selected].insert.trim() !== props.value.trim()) {
         e.preventDefault();
         choose(items[selected]);
         return;
@@ -679,6 +889,7 @@ export function Composer(props: {
                 onPick={(text) => !props.busy && props.onSend(text)}
               />
             ))}
+            {contaminantMode && props.families.length > 0 && <FamiliesChip families={props.families} onPick={insert} />}
           </div>
         )}
         <div className="relative">
@@ -693,7 +904,9 @@ export function Composer(props: {
                     onMouseEnter={() => setSelected(i)}
                     className={cx("flex w-full items-baseline gap-3 px-3 py-2 text-left", i === selected && "bg-muted")}
                   >
-                    <span className="shrink-0 font-mono text-sm font-medium text-brand-ink">{item.label}</span>
+                    <span className={cx("shrink-0 text-sm font-medium text-brand-ink", item.family ? "font-headline" : "font-mono")}>
+                      {item.label}
+                    </span>
                     <span className="truncate font-headline text-xs text-ink-2">{item.detail}</span>
                   </button>
                 </li>
@@ -706,7 +919,9 @@ export function Composer(props: {
             value={props.value}
             onChange={(e) => props.onChange(e.target.value)}
             onKeyDown={onKey}
-            placeholder="Ask DISSOLVE… or type / for modes and commands"
+            placeholder={
+              contaminantMode ? "Name a contaminant or a family such as bisphenols…" : "Ask DISSOLVE… or type / for modes and commands"
+            }
             aria-label="Message"
             className="block max-h-[220px] min-h-[52px] w-full resize-none rounded-xl border border-line bg-canvas py-3.5 pl-4 pr-14 text-[0.95rem] text-ink shadow-soft outline-none placeholder:text-ink-3 focus:border-brand-soft"
           />
@@ -721,7 +936,7 @@ export function Composer(props: {
           </button>
         </div>
         <p className="mt-1.5 hidden text-center font-mono text-[11px] text-ink-3 sm:block" aria-hidden>
-          Enter to send · Shift+Enter for a new line · / for commands
+          {items.some((item) => item.family) ? "Tab completes the family · Enter sends" : "Enter to send · Shift+Enter for a new line · / for commands"}
         </p>
       </div>
     </div>
