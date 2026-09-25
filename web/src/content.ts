@@ -77,11 +77,12 @@ export const QUICK_ACTIONS: QuickAction[] = [
   },
   {
     label: "Contaminant Removal",
-    blurb: "Leaching of 5,830 PlastChem additives, washes and removal routes",
+    blurb: "Leaching of 5,830 PlastChem additives by name or family, washes and removal routes",
     icon: AlertTriangle,
     examples: [
       { text: "Which wash solvents remove DEHP from LDPE without dissolving it?" },
       { text: "Do DEHP, DBP, BPA and BHT leach from HDPE into ethanol?" },
+      { text: "Which antioxidants leach from PP into ethanol?" },
       { text: "Compare ethanol, acetone and water for washing bisphenol A out of polycarbonate." },
       {
         text: "Plan an LDPE/EVOH separation that also removes DEHP by washing against the remaining polymers.",

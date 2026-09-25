@@ -1,5 +1,16 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { api, type Command, type Doctor, type Features, type Model, type SessionRow, type SessionState, type StoredMessage, type TurnEvent } from "./api";
+import {
+  api,
+  type Command,
+  type ContaminantFamily,
+  type Doctor,
+  type Features,
+  type Model,
+  type SessionRow,
+  type SessionState,
+  type StoredMessage,
+  type TurnEvent,
+} from "./api";
 import { Composer, Header, MessageView, Sidebar, Toast, Welcome, type ChatMessage } from "./components";
 import type { Example } from "./content";
 
@@ -68,6 +79,7 @@ export default function App() {
   const [toast, setToast] = useState<{ text: string; kind: "info" | "error" } | null>(null);
   const [preferredModel, setPreferredModel] = useState(() => remembered("dissolve-model") ?? "");
   const [features, setFeatures] = useState<Features>({ literature: true, tea: true });
+  const [families, setFamilies] = useState<ContaminantFamily[]>([]);
   const bottom = useRef<HTMLDivElement>(null);
   const composer = useRef<HTMLTextAreaElement>(null);
   const sessionRef = useRef<SessionState | null>(null);
@@ -116,6 +128,7 @@ export default function App() {
     api.health().then((h) => setFeatures(h.features)).catch(() => undefined);
     api.models().then(setModels).catch(() => undefined);
     api.commands().then(setCommands).catch((e: Error) => notify(`The DISSOLVE server is unreachable: ${e.message}`, "error"));
+    api.contaminantFamilies().then(setFamilies).catch(() => undefined);
     refreshSessions();
     refreshDoctor();
     const last = remembered("dissolve-session");
@@ -249,7 +262,16 @@ export default function App() {
               </div>
             )}
           </div>
-          <Composer value={input} onChange={setInput} onSend={run} busy={busy} commands={commands} state={state ?? DEFAULTS} inputRef={composer} />
+          <Composer
+            value={input}
+            onChange={setInput}
+            onSend={run}
+            busy={busy}
+            commands={commands}
+            families={families}
+            state={state ?? DEFAULTS}
+            inputRef={composer}
+          />
         </main>
       </div>
       {toast && <Toast text={toast.text} kind={toast.kind} />}

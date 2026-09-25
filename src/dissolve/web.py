@@ -7,6 +7,7 @@ A turn streams the events `dissolve --once --stream-json` prints, one JSON objec
 handler, and sessions are the CLI's session files, so a conversation can move between the two.
 
     GET  /api/health  /api/doctor  /api/models  /api/commands  /api/sessions
+    GET  /api/contaminant-families          the families a question can name instead of their members
     POST /api/sessions                      {model?, mode?} -> a new session
     GET  /api/sessions/{id}                 its modes and transcript
     POST /api/sessions/{id}/turns {text}    the NDJSON stream of one turn or slash command
@@ -39,7 +40,7 @@ from fastapi.responses import FileResponse, HTMLResponse, Response, StreamingRes
 from pydantic import BaseModel
 from rich.console import Console
 
-from dissolve import RELEASE, cli
+from dissolve import RELEASE, cli, contaminants
 from dissolve.agent import ToolEvent
 
 STATIC = Path(__file__).with_name("ui")
@@ -254,6 +255,7 @@ def create_app(home: str | Path | None = None) -> FastAPI:
     api = FastAPI(title="DISSOLVE", version=RELEASE, docs_url="/api/docs", openapi_url="/api/openapi.json")
     sessions = api.state.sessions = Sessions(home)
     doctor_cache: dict[str, Any] = {}
+    family_cache: dict[str, Any] = {}
     offered = features()
 
     if password := os.getenv("DISSOLVE_WEB_PASSWORD"):
@@ -291,6 +293,12 @@ def create_app(home: str | Path | None = None) -> FastAPI:
     @api.get("/api/commands")
     def command_list() -> list[dict[str, Any]]:
         return commands(offered)
+
+    @api.get("/api/contaminant-families")
+    def contaminant_families() -> list[dict[str, Any]]:
+        if "families" not in family_cache:  # read once: the assets do not change while the server runs
+            family_cache["families"] = contaminants.contaminant_families()
+        return family_cache["families"]
 
     @api.get("/api/sessions")
     def session_list() -> list[dict[str, Any]]:
