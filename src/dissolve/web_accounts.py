@@ -6,7 +6,7 @@ for local trials and the tests. Without one, `dissolve web` keeps session files 
 A person signs up with a username and a password, nothing else. A sign-in sets an HttpOnly cookie, and scripts may send
 the same username and password as HTTP Basic credentials instead. A chat belongs to the account that started it: the
 list shows only your own, and another account's chat is "no such session". Accounts and chats stay until someone
-deletes them on purpose; nothing here removes them.
+deletes them on purpose: its owner, from the chat list, or whoever runs the database.
 """
 
 from __future__ import annotations
@@ -205,6 +205,15 @@ class DbStore:
 def session_owner(db: Database, session_id: str) -> str | None:
     row = db.run("SELECT owner FROM sessions WHERE session_id = ?", (session_id,), fetch="one")
     return row[0] if row else None
+
+
+def delete_session(db: Database, session_id: str, owner: str) -> bool:
+    """Remove one of the owner's chats with its transcript. Another account's chat is left alone (False)."""
+    if session_owner(db, session_id) != owner.casefold():
+        return False
+    db.run("DELETE FROM transcript WHERE session_id = ?", (session_id,))
+    db.run("DELETE FROM sessions WHERE session_id = ? AND owner = ?", (session_id, owner.casefold()))
+    return True
 
 
 def list_sessions(db: Database, owner: str, limit: int = 50) -> list[dict[str, Any]]:
