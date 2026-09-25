@@ -523,6 +523,36 @@ def test_session_default_and_clear(tmp_path, monkeypatch):
     assert "handle_command" not in inspect.getsource(app.ask)
 
 
+def test_a_session_can_live_in_a_store_the_caller_supplies(tmp_path, monkeypatch):
+    """The hosted web app lost every chat at each redeploy: sessions were files in its container (owner, 2026-09-24).
+    CliApp now takes any store with _Store's load, save and append, and a database keeps the web app's."""
+    import io
+
+    from rich.console import Console
+
+    class MemoryStore:
+        def __init__(self):
+            self.session_id, self.state, self.events = "kept-session", None, []
+
+        def load(self):
+            return self.state
+
+        def save(self, payload):
+            self.state = json.loads(json.dumps(payload))
+
+        def append(self, role, content, **metadata):
+            self.events.append((role, content))
+
+    monkeypatch.setenv("META_MUSE_API_KEY", "test-key")
+    store = MemoryStore()
+    app = CliApp(store=store, console=Console(file=io.StringIO()))
+    assert app.handle_command("/solvents all") is False
+    assert store.state["session"]["solvent_scope"] == {"scope": "all"}
+    assert app.store is store and store.events == []  # a slash command changes state; it is not a chat turn
+    again = CliApp(store=store, console=Console(file=io.StringIO()))  # a new process, as after a redeploy
+    assert again.session["solvent_scope"] == {"scope": "all"} and again.store.session_id == "kept-session"
+
+
 def test_bare_solvents_non_tty_prints_status(tmp_path, monkeypatch):
     import io
 

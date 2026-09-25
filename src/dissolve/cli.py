@@ -1354,9 +1354,11 @@ class CliApp:
         event_sink: Callable[[dict[str, Any]], None] | None = None,
         quiet: bool = False,
         require_key: bool = True,
+        store: Any = None,
     ):
         self.console = console or Console()
-        self.store = _Store(session_id, store_root)
+        # Any object with _Store's session_id, load, save and append; the web app passes one kept in its database.
+        self.store = store if store is not None else _Store(session_id, store_root)
         self.persist = persist
         self.event_sink = event_sink
         self.quiet = quiet
