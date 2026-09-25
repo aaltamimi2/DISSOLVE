@@ -1504,6 +1504,7 @@ def evaluate_contaminant_at_feed_state(
 # from a sealed release (this module only reads it); until then the screen refuses with plastchem_data_unavailable.
 
 _PLASTCHEM_ASSET = Path(str(files("dissolve").joinpath("data/plastchem_opencosmo.duckdb")))
+_PLASTCHEM_FAMILIES = Path(str(files("dissolve").joinpath("data/plastchem_families.json")))
 _SERVED_CONVENTION = "normalized"  # owner, 2026-09-23 ("may revisit"); the existing convention is stored beside it
 _MISCIBLE_BASIS = "15 wt%"  # the paper's cutoff; the owner set its basis to wt% (2026-09-23)
 _PLASTCHEM_THRESHOLDS = {
@@ -1514,14 +1515,93 @@ _PLASTCHEM_THRESHOLDS = {
 
 
 def _in_plastchem(names: Sequence[str]) -> list[str]:
-    """The names the PlastChem screen computes. A workbook screen that refuses them says so, so the agent can turn
-    to it: "compare removal of bisphenol A from HDPE" stopped at the workbook's refusal (2026-09-24)."""
+    """The names the PlastChem screen computes, contaminants or families. A workbook screen that refuses them says so,
+    so the agent can turn to it: "compare removal of bisphenol A from HDPE" stopped at the workbook's refusal
+    (2026-09-24)."""
     con = _plastchem()
     if con is None:
         return []
-    return [str(name) for name in names if con.execute(
-        "SELECT 1 FROM aliases a JOIN contaminants c ON c.id = a.id WHERE a.alias = ? AND c.computed LIMIT 1",
-        [_key(name)]).fetchone()]
+    covered = []
+    for name in names:
+        family = _plastchem_family(name)
+        if family is not None:
+            hit = con.execute("SELECT 1 FROM contaminants WHERE computed AND inchikey IN (SELECT unnest(?)) LIMIT 1",
+                              [family["members"]]).fetchone()
+        else:
+            hit = con.execute("SELECT 1 FROM aliases a JOIN contaminants c ON c.id = a.id WHERE a.alias = ? "
+                              "AND c.computed LIMIT 1", [_key(name)]).fetchone()
+        if hit:
+            covered.append(str(name))
+    return covered
+
+
+@lru_cache(maxsize=1)
+def _family_table() -> tuple[dict[str, Any], ...]:
+    """The contaminant families a user can search by, built by `plastchem_release --families` from the PlastChem
+    workbook: plain names ("bisphenols", "UV stabilizers"), aliases, and members by InChIKey, with the PlastChem
+    entries the release lacks and why."""
+    if not _PLASTCHEM_FAMILIES.is_file():
+        return ()
+    return tuple(json.loads(_PLASTCHEM_FAMILIES.read_text(encoding="utf-8"))["families"])
+
+
+def _plastchem_family(name: Any) -> dict[str, Any] | None:
+    """The family a name asks for, or None. "All bisphenols", "the bisphenol family" and "Bisphenols" are one."""
+    key = _key(name)
+    key = key.removeprefix("all ").removeprefix("the ")
+    for suffix in (" family", " class", " group"):
+        key = key.removesuffix(suffix)
+    for family in _family_table():
+        names = {_key(family["name"]), _key(family["term"]), *map(_key, family["aliases"])}
+        if key in names:
+            return family
+    return None
+
+
+def _cas_like(name: str) -> bool:
+    """A bare CAS number, which PlastChem uses as the name of an entry PubChem did not name."""
+    parts = name.split("-")
+    return len(parts) == 3 and all(part.isdigit() for part in parts)
+
+
+def _family_coverage(family: dict[str, Any], rows: list[dict[str, Any]],
+                     not_computed: list[dict[str, Any]]) -> dict[str, Any]:
+    """How much of a family a screen covered: members screened, members the campaign has not computed, and the
+    PlastChem entries the release lacks, counted by reason, with a few named."""
+    keys = set(family["members"])
+    outside = family["outside_release"]
+    reasons: dict[str, int] = {}
+    for item in outside:
+        reasons[item["reason"]] = reasons.get(item["reason"], 0) + 1
+    named = sorted((item for item in outside if not _cas_like(item["name"])), key=lambda item: len(item["name"]))
+    return {
+        "family": family["name"], "description": family["description"], "basis": family["basis"],
+        "screened": sum(row["inchikey"] in keys for row in rows),
+        "not_computed": sum(item["inchikey"] in keys for item in not_computed),
+        "outside_release": len(outside), "outside_release_by_reason": reasons,
+        "outside_release_examples": [f"{item['name']} ({item['reason']})" for item in named[:5]],
+    }
+
+
+def contaminant_families() -> list[dict[str, Any]]:
+    """The families a user can search contaminants by, for pickers: each PlastChem family with the members the release
+    computed, then any workbook family the release has none of (PFAS), which the workbook screens serve."""
+    con = _plastchem()
+    out = []
+    for family in _family_table():
+        members = [name for (name,) in con.execute(
+            "SELECT name FROM contaminants WHERE computed AND inchikey IN (SELECT unnest(?)) ORDER BY lower(name)",
+            [family["members"]]).fetchall()] if con is not None else []
+        out.append({"name": family["name"], "term": family["term"], "description": family["description"],
+                    "aliases": family["aliases"], "examples": family["examples"], "count": len(members),
+                    "members": members, "source": "plastchem"})
+    covered = {_key(alias) for item in out for alias in (item["name"], item["term"], *item["aliases"])}
+    for family, names in _families().items():
+        if _key(family) not in covered:
+            out.append({"name": family, "term": family, "aliases": [], "examples": names[:3], "count": len(names),
+                        "description": "in the COSMOtherm workbook screens; the PlastChem release has none",
+                        "members": names, "source": "workbook"})
+    return out
 
 
 def _plastchem() -> duckdb.DuckDBPyConnection | None:
@@ -1587,7 +1667,7 @@ def _leaching_verdict(logp: Any, miscible: Any, polymer_status: str) -> str:
 def screen_contaminant_partitioning(
     polymer: str, solvent: str, contaminants: str | list[str] | None = None, temperature_c: float = 25.0,
 ) -> str:
-    """Screen PlastChem contaminants (all 5,830, or those named) for leaching from one polymer into one solvent."""
+    """Screen PlastChem contaminants for leaching from one polymer into one solvent: all 5,830, those named, or whole families (phthalates, terephthalates, bisphenols, alkylphenols, antioxidants, UV stabilizers, benzophenones, aromatic amines, slip agents, salicylates, parabens)."""
     tool = "screen_contaminant_partitioning"
     con = _plastchem()
     if con is None:
@@ -1612,10 +1692,16 @@ def screen_contaminant_partitioning(
             requested = [str(item) for item in json.loads(contaminants)]
         except json.JSONDecodeError:
             pass
-    unknown, ambiguous, chosen = [], {}, []
+    unknown, ambiguous, chosen, families = [], {}, [], []
     if not requested or [_key(item) for item in requested] == ["all"]:
         chosen = [row[0] for row in con.execute("SELECT id FROM contaminants WHERE computed").fetchall()]
     for item in requested if chosen == [] else []:
+        family = _plastchem_family(item)
+        if family is not None:  # every member the release holds; those it did not compute are listed as such
+            families.append(family)
+            chosen.extend(row[0] for row in con.execute(
+                "SELECT id FROM contaminants WHERE inchikey IN (SELECT unnest(?))", [family["members"]]).fetchall())
+            continue
         hits = [row[0] for row in con.execute("SELECT DISTINCT id FROM aliases WHERE alias = ?",
                                               [_key(item)]).fetchall()]
         if len(hits) > 1:
@@ -1654,6 +1740,9 @@ def screen_contaminant_partitioning(
             "contaminant_solubility_wt_pct": wt if lle_status == "two_liquid_phases" else None,
             "leaching_verdict": _leaching_verdict(logp, miscible, state["status"]),
         })
+        if families:
+            names = [family["name"] for family in families if inchikey in family["members"]]
+            rows[-1]["family"] = ", ".join(names) or None
     order = {"leaches": 0, "undetermined": 1, "not miscible": 2, "stays in polymer": 3, "polymer dissolves": 4}
     rows.sort(key=lambda row: (order[row["leaching_verdict"]], -(row["logp_solvent_over_polymer"] or -1e9)))
     verdicts = {name: sum(row["leaching_verdict"] == name for row in rows) for name in order}
@@ -1664,9 +1753,12 @@ def screen_contaminant_partitioning(
     for row in rows:
         row["logp_solvent_over_polymer"] = bounded_log(row["logp_solvent_over_polymer"])
     meta = dict(con.execute("SELECT key, value FROM metadata").fetchall())
+    asked = f" ({', '.join(family['term'] for family in families)})" if families else ""
+    coverage = [_family_coverage(family, rows, not_computed) for family in families]
     return tool_success(
         tool,
-        display=f"{len(rows)} PlastChem contaminants, {product} into {solvent_key}: {verdicts['leaches']} leach.",
+        display=(f"{len(rows)} PlastChem contaminants{asked}, {product} into {solvent_key}: "
+                 f"{verdicts['leaches']} leach."),
         polymer=product, polymer_model=f"{mapped[0]} oligomer ensemble ({mapped[1]} conformers)",
         polymer_model_shared_with_other_materials=bool(mapped[2]),
         solvent=solvent_key, temperature_c=temperature_c, logp_temperature_c=25.0,
@@ -1677,10 +1769,11 @@ def screen_contaminant_partitioning(
         partitions_toward_solvent=sum(row["partitions_toward"] == "solvent" for row in rows),
         logp_range=_logp_range(logps), logp_range_by_verdict=by_verdict, near_even_count=near_even,
         rows=rows, unsupported_contaminants=unknown, ambiguous_contaminants=ambiguous,
-        not_computed_contaminants=not_computed,
-        coverage=("PlastChem compounds of carbon, hydrogen, nitrogen and oxygen, found by name, CAS number, InChIKey "
-                  "or common abbreviation. Additives with halogens, sulfur, phosphorus, silicon or boron (PFAS, "
-                  "organophosphates, bisphenol S) are outside it; the workbook screens cover 26 PFAS."),
+        not_computed_contaminants=not_computed, **({"family_coverage": coverage} if coverage else {}),
+        coverage=("PlastChem compounds of carbon, hydrogen, nitrogen and oxygen, found by name, CAS number, InChIKey, "
+                  "common abbreviation or family (" + ", ".join(f["term"] for f in _family_table()) + "). "
+                  "Additives with halogens, sulfur, phosphorus, silicon or boron (PFAS, organophosphates, bisphenol S) "
+                  "are outside it; the workbook screens cover 26 PFAS."),
         method="Leaches when logP(solvent/polymer) > 0, the contaminant is miscible with the solvent at 15 wt%, "
                "and the polymer does not dissolve; logP is for the neutral species at 25 °C. logP is log10 of the "
                "solvent/polymer concentration ratio and K = 10^logP. near_even_count counts |logP| < 0.5 "

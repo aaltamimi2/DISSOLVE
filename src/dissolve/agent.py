@@ -155,7 +155,9 @@ _PROCESS_ECONOMICS_HANDLE_TOOLS = frozenset({
 _ALWAYS_HANDLE_TOOLS = _PROCESS_ECONOMICS_HANDLE_TOOLS | frozenset({
     "plan_multistage_separation",
 })
-_COMPACT_KEEP_LISTS = frozenset({"ranked_path_index", "stage1_shortlists"})
+# Record lists a paged result keeps in the model's view; every other one waits for result_read. A family screen's
+# coverage (how many members it screened, how many the release lacks and why) went missing from the answer.
+_COMPACT_KEEP_LISTS = frozenset({"ranked_path_index", "stage1_shortlists", "family_coverage"})
 _OMIT = frozenset({"temperature_step_c", "save_to_corpus"})
 # Closed keep-out. Not a /literature mode. Retrieval-then-ingest is a later
 # spec with an owner decision and a floor re-derive; it does not widen scholarly.
@@ -747,8 +749,10 @@ themselves; name a token this prompt does not define as it is:
   logP at 25 °C. They were checked against the COSMOtherm workbook only
   for PVC with eight phthalates; other polymers have no COSMO-RS check.
   They are not measurements. Use screen_contaminant_partitioning for PlastChem
-  contaminants; the workbook screens cover its 34 PFAS and
-  phthalates.
+  contaminants, named one by one or as a family (phthalates, bisphenols,
+  antioxidants and the others its description lists). For a family, say how
+  many members it screened and how many the release lacks, and why. The
+  workbook screens cover 26 PFAS and 8 phthalates.
 - Optimization figures are optimization_workbook.
 - identity_registry is DISSOLVE's material identity registry;
   safety_local is its local safety store (safety cards and a cached

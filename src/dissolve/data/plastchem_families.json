@@ -1,0 +1,1539 @@
+{
+ "source": {
+  "workbook": "plastchem_db_v1.0.xlsx",
+  "sha256": "df4ccad3b238b3b76d180db48892c9c17e7cd823cecb495e7888ea0690216984"
+ },
+ "checked_against_manifest_sha256": "91b2ab133c17e5c66557c483ff84fbeca297682d5bd622a404ecba2746b23080",
+ "families": [
+  {
+   "name": "Phthalates",
+   "term": "phthalates",
+   "aliases": [
+    "phthalate",
+    "phthalate esters",
+    "phthalate plasticizers",
+    "ortho-phthalates",
+    "orthophthalates",
+    "o-phthalates"
+   ],
+   "description": "ortho-phthalate plasticizers",
+   "basis": "PlastChem group orthophthalates",
+   "examples": [
+    "DEHP",
+    "DBP",
+    "BBP"
+   ],
+   "members": [
+    "ALEROMXYYSQFLX-UHFFFAOYSA-N",
+    "AVOLBYOSCILFLL-UHFFFAOYSA-N",
+    "BCSGAWBQJHXXSE-UHFFFAOYSA-N",
+    "BJQHLKABXJIVAM-UHFFFAOYSA-N",
+    "CMCJNODIWQEOAI-UHFFFAOYSA-N",
+    "DOIRQSBPFJWKBE-UHFFFAOYSA-N",
+    "DROMNWUQASBTFM-UHFFFAOYSA-N",
+    "DWNAQMUDCDVSLT-UHFFFAOYSA-N",
+    "FLKPEMZONWLCSK-UHFFFAOYSA-N",
+    "GWGJJINTDSPRJM-UHFFFAOYSA-N",
+    "HBGGXOJOCNVPFY-UHFFFAOYSA-N",
+    "HSUIVCLOAAJSRE-UHFFFAOYSA-N",
+    "IJFPVINAQGWBRJ-UHFFFAOYSA-N",
+    "IPKKHRVROFYTEK-UHFFFAOYSA-N",
+    "IRIAEXORFWYRCZ-UHFFFAOYSA-N",
+    "JANBFCARANRIKJ-UHFFFAOYSA-N",
+    "JOHNPRHIYSPRSW-SVBPBHIXSA-N",
+    "JQCXWCOOWVGKMT-UHFFFAOYSA-N",
+    "KCXZNSGUUQJJTR-UHFFFAOYSA-N",
+    "LBKFHGHXATXEBY-UHFFFAOYSA-N",
+    "LGBAGUMSAPUZPU-UHFFFAOYSA-N",
+    "LVAGMBHLXLZJKZ-UHFFFAOYSA-N",
+    "MCXWUHMDAJQKBI-UHFFFAOYSA-N",
+    "MGWAVDBGNNKXQV-UHFFFAOYSA-N",
+    "MQHNKCZKNAJROC-UHFFFAOYSA-N",
+    "MQIUGAXCHLFZKX-UHFFFAOYSA-N",
+    "MTYUOIVEVPTXFX-UHFFFAOYSA-N",
+    "NIQCNGHVCWTJSM-UHFFFAOYSA-N",
+    "NJMAFLHPUNGKOD-UHFFFAOYSA-N",
+    "PGIBJVOPLXHHGS-UHFFFAOYSA-N",
+    "QQVHEQUEHCEAKS-UHFFFAOYSA-N",
+    "QUDWYFHPNIMBFC-UHFFFAOYSA-N",
+    "QWDBCIAVABMJPP-UHFFFAOYSA-N",
+    "RKELNIPLHQEBJO-UHFFFAOYSA-N",
+    "RVBLXUAPXWEIPM-UHFFFAOYSA-N",
+    "UCVPKAZCQPRWAY-UHFFFAOYSA-N",
+    "VOWAEIGWURALJQ-UHFFFAOYSA-N",
+    "XNGIFLGASWRNHJ-UHFFFAOYSA-N",
+    "YCZJVRCZIPDYHH-UHFFFAOYSA-N",
+    "YZBOVSFWWNVKRJ-UHFFFAOYSA-N",
+    "ZEJZEEQJSOINEV-UHFFFAOYSA-N",
+    "ZVFDTKUVRCTHQE-UHFFFAOYSA-N"
+   ],
+   "outside_release": [
+    {
+     "name": "111381-91-0",
+     "inchikey": null,
+     "reason": "no structure in PubChem"
+    },
+    {
+     "name": "2-O-nonyl 1-O-octyl benzene-1,2-dicarboxylate",
+     "inchikey": "ZKHMKHBSASMXEZ-UHFFFAOYSA-N",
+     "reason": "a mixture or polymer, not one structure"
+    },
+    {
+     "name": "3,4-Bis(3-methylbutyl)phthalate",
+     "inchikey": "YRWFRHKQYQHUTP-UHFFFAOYSA-L",
+     "reason": "an ion"
+    },
+    {
+     "name": "68515-43-5",
+     "inchikey": null,
+     "reason": "a mixture or polymer, not one structure"
+    },
+    {
+     "name": "68515-51-5",
+     "inchikey": null,
+     "reason": "a mixture or polymer, not one structure"
+    },
+    {
+     "name": "90193-76-3",
+     "inchikey": null,
+     "reason": "a mixture or polymer, not one structure"
+    },
+    {
+     "name": "Benzyl octyl phthalate",
+     "inchikey": "WHHSHXMIKFVAEK-UHFFFAOYSA-N",
+     "reason": "a mixture or polymer, not one structure"
+    },
+    {
+     "name": "Bis(3-ethyl-2-methylpentyl) benzene-1,2-dicarboxylate",
+     "inchikey": "KRGVDPMPDFERJD-UHFFFAOYSA-N",
+     "reason": "a mixture or polymer, not one structure"
+    },
+    {
+     "name": "Decan-1-ol;hexan-1-ol;octan-1-ol;phthalic acid",
+     "inchikey": "ODAHYWDYDTUVMD-UHFFFAOYSA-N",
+     "reason": "a mixture or polymer, not one structure"
+    },
+    {
+     "name": "Disodium phthalate",
+     "inchikey": "HQWKKEIVHQXCPI-UHFFFAOYSA-L",
+     "reason": "a salt or a mixture of molecules"
+    },
+    {
+     "name": "Hexadecanoic acid;octadecanoic acid;phthalic acid",
+     "inchikey": "LIQNHLWRKRZUFV-UHFFFAOYSA-N",
+     "reason": "a mixture or polymer, not one structure"
+    },
+    {
+     "name": "Phthalic acid, heptyl undecyl ester",
+     "inchikey": "ILVKYQKHSCWQAW-UHFFFAOYSA-N",
+     "reason": "a mixture or polymer, not one structure"
+    }
+   ]
+  },
+  {
+   "name": "Terephthalates",
+   "term": "terephthalates",
+   "aliases": [
+    "terephthalate",
+    "terephthalate esters",
+    "isophthalates",
+    "trimellitates"
+   ],
+   "description": "terephthalate, isophthalate and trimellitate esters",
+   "basis": "PlastChem group isophthalates_terephthalates_trimellitates",
+   "examples": [
+    "DEHT",
+    "Dimethyl terephthalate",
+    "Dibutyl terephthalate"
+   ],
+   "members": [
+    "FHESUNXRPBHDQM-UHFFFAOYSA-N",
+    "FJFYFBRNDHRTHL-UHFFFAOYSA-N",
+    "GRPURDFRFHUDSP-UHFFFAOYSA-N",
+    "JNXDCMUUZNIWPQ-UHFFFAOYSA-N",
+    "KHDNBLKBTBOSDJ-UHFFFAOYSA-N",
+    "KKEYFWRCBNTPAC-UHFFFAOYSA-N",
+    "KRADHMIOFJQKEZ-UHFFFAOYSA-N",
+    "LQLQDKBJAIILIQ-UHFFFAOYSA-N",
+    "MJHNUUNSCNRGJE-UHFFFAOYSA-N",
+    "MXHBQKVKHGQWRB-UHFFFAOYSA-N",
+    "ONIHPYYWNBVMID-UHFFFAOYSA-N",
+    "OOORLLSLMPBSPT-UHFFFAOYSA-N",
+    "QQVIHTHCMHWDBS-UHFFFAOYSA-N",
+    "RJIFVNWOLLIBJV-UHFFFAOYSA-N",
+    "ROPPTGKKZZDFJN-UHFFFAOYSA-N",
+    "RWPICVVBGZBXNA-UHFFFAOYSA-N",
+    "VNGOYPQMJFJDLV-UHFFFAOYSA-N",
+    "WDRCVXGINNJWPH-UHFFFAOYSA-N",
+    "WOZVHXUHUFLZGK-UHFFFAOYSA-N",
+    "WXZOXVVKILCOPG-UHFFFAOYSA-N",
+    "YPDXSCXISVYHOB-UHFFFAOYSA-N"
+   ],
+   "outside_release": [
+    {
+     "name": "1163775-81-2",
+     "inchikey": null,
+     "reason": "a mixture or polymer, not one structure"
+    },
+    {
+     "name": "1571954-81-8",
+     "inchikey": null,
+     "reason": "a mixture or polymer, not one structure"
+    },
+    {
+     "name": "67989-23-5",
+     "inchikey": null,
+     "reason": "no structure in PubChem"
+    },
+    {
+     "name": "90218-76-1",
+     "inchikey": null,
+     "reason": "a mixture or polymer, not one structure"
+    },
+    {
+     "name": "94279-36-4",
+     "inchikey": null,
+     "reason": "a mixture or polymer, not one structure"
+    },
+    {
+     "name": "Einecs 272-413-6",
+     "inchikey": "FCKXCXDSXHADAX-UHFFFAOYSA-N",
+     "reason": "a mixture or polymer, not one structure"
+    },
+    {
+     "name": "Tri(tridecyl) benzene-1,2,4-tricarboxylate",
+     "inchikey": "RKPOLXDFMLKRHE-UHFFFAOYSA-N",
+     "reason": "heavier than 700 g/mol"
+    },
+    {
+     "name": "Triisotridecyl trimellitate",
+     "inchikey": "IGQFKXMQIMEIJV-UHFFFAOYSA-N",
+     "reason": "heavier than 700 g/mol"
+    }
+   ]
+  },
+  {
+   "name": "Bisphenols",
+   "term": "bisphenols",
+   "aliases": [
+    "bisphenol analogues",
+    "bisphenol analogs"
+   ],
+   "description": "bisphenol A and its analogues",
+   "basis": "PlastChem group bisphenols",
+   "examples": [
+    "BPA",
+    "BPF",
+    "Bisphenol B"
+   ],
+   "members": [
+    "AZZWZMUXHALBCQ-UHFFFAOYSA-N",
+    "BATCUENAARTUKW-UHFFFAOYSA-N",
+    "BRPSWMCDEYMRPE-UHFFFAOYSA-N",
+    "GIXXQTYGFOHYPT-UHFFFAOYSA-N",
+    "HCZKYJDFEPMADG-UHFFFAOYSA-N",
+    "HTVITOHKHWFJKO-UHFFFAOYSA-N",
+    "IISBACLAFKSPIT-UHFFFAOYSA-N",
+    "KJFMBFZCATUALV-UHFFFAOYSA-N",
+    "LVLNPXCISNPHLE-UHFFFAOYSA-N",
+    "MDWVSAYEQPLWMX-UHFFFAOYSA-N",
+    "MLCQXUZZAXKTSG-UHFFFAOYSA-N",
+    "MQCPOLNSJCWPGT-UHFFFAOYSA-N",
+    "PFANXOISJYKQRP-UHFFFAOYSA-N",
+    "PRWJPWSKLXYEPD-UHFFFAOYSA-N",
+    "PVFQHGDIOXNKIC-UHFFFAOYSA-N",
+    "PXKLMJQFEQBVLD-UHFFFAOYSA-N",
+    "RXNYJUSEXLAVNQ-UHFFFAOYSA-N",
+    "SDDLEVPIDBLVHC-UHFFFAOYSA-N",
+    "UMPGNGRIGSEMTC-UHFFFAOYSA-N",
+    "VKOUCJUTMGHNOR-UHFFFAOYSA-N",
+    "VOWWYDCFAISREI-UHFFFAOYSA-N",
+    "WOCGGVRGNIEDSZ-UHFFFAOYSA-N",
+    "WXNRYSGJLQFHBR-UHFFFAOYSA-N",
+    "YWFPGFJLYRKYJZ-UHFFFAOYSA-N",
+    "ZDRSNHRWLQQICP-UHFFFAOYSA-N"
+   ],
+   "outside_release": [
+    {
+     "name": "4,4'-Sulfonyldiphenol",
+     "inchikey": "VPWNQTHUCYMVMZ-UHFFFAOYSA-N",
+     "reason": "contains sulfur"
+    },
+    {
+     "name": "4,4'-Sulphonylbis(2,6-dibromophenol)",
+     "inchikey": "JHJUYGMZIWDHMO-UHFFFAOYSA-N",
+     "reason": "contains bromine and sulfur"
+    },
+    {
+     "name": "4,4'-Thiobis(6-tert-butyl-m-cresol)",
+     "inchikey": "HXIQYSLFEXIOAV-UHFFFAOYSA-N",
+     "reason": "contains sulfur"
+    },
+    {
+     "name": "Bisphenol AF",
+     "inchikey": "ZFVMWEVVKGLCIJ-UHFFFAOYSA-N",
+     "reason": "contains fluorine"
+    },
+    {
+     "name": "Bisphenol C",
+     "inchikey": "OWEYKIWAZBBXJK-UHFFFAOYSA-N",
+     "reason": "contains chlorine"
+    },
+    {
+     "name": "Ethylene bis[3,3-bis(3-tert-butyl-4-hydroxyphenyl)butyrate]",
+     "inchikey": "JOWXNCPELQZFHF-UHFFFAOYSA-N",
+     "reason": "heavier than 700 g/mol"
+    },
+    {
+     "name": "Tetrabromobisphenol A",
+     "inchikey": "VEORPZCZECFIRK-UHFFFAOYSA-N",
+     "reason": "contains bromine"
+    },
+    {
+     "name": "Tetrachlorobisphenol A",
+     "inchikey": "KYPYTERUKNKOLP-UHFFFAOYSA-N",
+     "reason": "contains chlorine"
+    },
+    {
+     "name": "Tribromobisphenol A",
+     "inchikey": "WYBOEVJIVYIEJL-UHFFFAOYSA-N",
+     "reason": "contains bromine"
+    }
+   ]
+  },
+  {
+   "name": "Alkylphenols",
+   "term": "alkylphenols",
+   "aliases": [
+    "alkylphenol",
+    "alkyl phenols"
+   ],
+   "description": "butyl-, octyl- and nonylphenols and their ethoxylates",
+   "basis": "PlastChem group alkylphenols",
+   "examples": [
+    "4-Nonylphenol",
+    "4-tert-Octylphenol",
+    "4-tert-Butylphenol"
+   ],
+   "members": [
+    "AOOKHLGAVNECET-UHFFFAOYSA-N",
+    "BFZOTKYPSZSDEV-UHFFFAOYSA-N",
+    "BGLUSMSXKMBLFS-UHFFFAOYSA-N",
+    "BLXVTZPGEOGTGG-UHFFFAOYSA-N",
+    "BVUXDWXKPROUDO-UHFFFAOYSA-N",
+    "DKCPKDPYUFEZCP-UHFFFAOYSA-N",
+    "DXCHWXWXYPEZKM-UHFFFAOYSA-N",
+    "FBWNMEQMRUMQSO-UHFFFAOYSA-N",
+    "HHRACYLRBOUBKM-UHFFFAOYSA-N",
+    "ICKWICRCANNIBI-UHFFFAOYSA-N",
+    "IGFHQQFPSIBGKE-UHFFFAOYSA-N",
+    "IJWXCYSPVNCDMA-UHFFFAOYSA-N",
+    "ISAVYTVYFVQUDY-UHFFFAOYSA-N",
+    "JYCQQPHGFMYQCF-UHFFFAOYSA-N",
+    "KDBZVULQVCUNNA-UHFFFAOYSA-N",
+    "KUXGUCNZFCVULO-UHFFFAOYSA-N",
+    "LHPPDQUVECZQSW-UHFFFAOYSA-N",
+    "LXWZXEJDKYWBOW-UHFFFAOYSA-N",
+    "NLZUEZXRPGMBCV-UHFFFAOYSA-N",
+    "NRZWYNLTFLDQQX-UHFFFAOYSA-N",
+    "PFEFOYRSMXVNEL-UHFFFAOYSA-N",
+    "PXMJCECEFTYEKE-UHFFFAOYSA-N",
+    "QHPQWRBYOIRBIT-UHFFFAOYSA-N",
+    "QQKQQJZGUCFUPP-UHFFFAOYSA-N",
+    "ROEHFIIRMUXFRR-UHFFFAOYSA-N",
+    "RYIHVIPUIXFRNI-UHFFFAOYSA-N",
+    "SCXYLTWTWUGEAA-UHFFFAOYSA-N",
+    "SLUKQUGVTITNSY-UHFFFAOYSA-N",
+    "UTXPMECBRCEYCI-UHFFFAOYSA-N",
+    "VDOJQPKPGQMNDA-UHFFFAOYSA-N",
+    "VFONHVBSRNKIAY-UHFFFAOYSA-N",
+    "VMZVBRIIHDRYGK-UHFFFAOYSA-N",
+    "VQQLTEBUMLSLFJ-UHFFFAOYSA-N",
+    "WJQOZHYUIDYNHM-UHFFFAOYSA-N",
+    "WYSSJDOPILWQDC-UHFFFAOYSA-N",
+    "XXPRRHYTDCWGRP-UHFFFAOYSA-N",
+    "YKFKEYKJGVSEIX-UHFFFAOYSA-N",
+    "ZDWSNKPLZUXBPE-UHFFFAOYSA-N",
+    "ZZZRZBIPCKQDQR-UHFFFAOYSA-N"
+   ],
+   "outside_release": [
+    {
+     "name": "1,3,5-Trimethyl-2,4,6-tris(3,5-di-tert-butyl-4-hydroxybenzyl)benzene",
+     "inchikey": "VSAWBBYYMBQKIK-UHFFFAOYSA-N",
+     "reason": "heavier than 700 g/mol"
+    },
+    {
+     "name": "1-Ethoxy-4-(7-methyloctyl)benzene",
+     "inchikey": "IRTXCPKNZUZNMH-UHFFFAOYSA-N",
+     "reason": "a mixture or polymer, not one structure"
+    },
+    {
+     "name": "192268-65-8",
+     "inchikey": null,
+     "reason": "a mixture or polymer, not one structure"
+    },
+    {
+     "name": "2,4-Di-tert-butyl-6-(5-chloro-2H-benzotriazol-2-yl)phenol",
+     "inchikey": "UWSMKYBKUPAEJQ-UHFFFAOYSA-N",
+     "reason": "contains chlorine"
+    },
+    {
+     "name": "2-(2-Nonylphenoxy)ethanol;phosphoric acid",
+     "inchikey": "XBOKDEIRXXZSES-UHFFFAOYSA-N",
+     "reason": "a mixture or polymer, not one structure"
+    },
+    {
+     "name": "2-[2-[2-[2-(4-Nonylphenoxy)ethoxy]ethoxy]ethoxy]ethyl hydrogen sulfate",
+     "inchikey": "JYUQOKPBOVCAMU-UHFFFAOYSA-N",
+     "reason": "a mixture or polymer, not one structure"
+    },
+    {
+     "name": "2-[4-(2-Ethylhexyl)phenoxy]ethanol",
+     "inchikey": "PRAQADPDFMLFFB-UHFFFAOYSA-N",
+     "reason": "a mixture or polymer, not one structure"
+    },
+    {
+     "name": "27177-08-8",
+     "inchikey": null,
+     "reason": "no structure in PubChem"
+    },
+    {
+     "name": "4-((4,6-Bis(octylthio)-1,3,5-triazin-2-yl)amino)-2,6-di-tert-butylphenol",
+     "inchikey": "QRLSTWVLSWCGBT-UHFFFAOYSA-N",
+     "reason": "contains sulfur"
+    },
+    {
+     "name": "4-Methoxypicolinamide",
+     "inchikey": "DYHMIVKBJSIOCH-UHFFFAOYSA-N",
+     "reason": "a mixture or polymer, not one structure"
+    },
+    {
+     "name": "52503-15-8",
+     "inchikey": null,
+     "reason": "a mixture or polymer, not one structure"
+    },
+    {
+     "name": "55348-40-8",
+     "inchikey": null,
+     "reason": "a mixture or polymer, not one structure"
+    },
+    {
+     "name": "68649-55-8",
+     "inchikey": null,
+     "reason": "a mixture or polymer, not one structure"
+    },
+    {
+     "name": "68891-21-4",
+     "inchikey": null,
+     "reason": "a mixture or polymer, not one structure"
+    },
+    {
+     "name": "72580-36-0",
+     "inchikey": null,
+     "reason": "a mixture or polymer, not one structure"
+    },
+    {
+     "name": "9004-87-9",
+     "inchikey": null,
+     "reason": "a mixture or polymer, not one structure"
+    },
+    {
+     "name": "9036-19-5",
+     "inchikey": null,
+     "reason": "a mixture or polymer, not one structure"
+    },
+    {
+     "name": "9063-89-2",
+     "inchikey": null,
+     "reason": "a mixture or polymer, not one structure"
+    },
+    {
+     "name": "9081-17-8",
+     "inchikey": null,
+     "reason": "a mixture or polymer, not one structure"
+    },
+    {
+     "name": "Disodium;1-octyl-2-(2-octylphenoxy)benzene;sulfate",
+     "inchikey": "XVLPMZKXEMTANJ-UHFFFAOYSA-L",
+     "reason": "a mixture or polymer, not one structure"
+    },
+    {
+     "name": "Iosan",
+     "inchikey": "YEQXATXYMAVRAO-UHFFFAOYSA-N",
+     "reason": "a salt or a mixture of molecules"
+    },
+    {
+     "name": "Sodium nonylphenyl ether sulfate",
+     "inchikey": "ZZMDMGNQUXYKQX-UHFFFAOYSA-L",
+     "reason": "a mixture or polymer, not one structure"
+    },
+    {
+     "name": "Sodium octylphenoxyethoxyethyl sulfonate",
+     "inchikey": "XBMBHKZYEXQONC-UHFFFAOYSA-M",
+     "reason": "a salt or a mixture of molecules"
+    },
+    {
+     "name": "Tris(2,4-di-tert-butylphenyl) phosphite",
+     "inchikey": "JKIJEFPNVSHHEI-UHFFFAOYSA-N",
+     "reason": "contains phosphorus"
+    },
+    {
+     "name": "Tris(2,4-ditert-butylphenyl)phosphate",
+     "inchikey": "AZSKHRTUXHLAHS-UHFFFAOYSA-N",
+     "reason": "contains phosphorus"
+    }
+   ]
+  },
+  {
+   "name": "Antioxidants",
+   "term": "antioxidants",
+   "aliases": [
+    "antioxidant",
+    "phenolic antioxidants",
+    "hindered phenols",
+    "aminic antioxidants"
+   ],
+   "description": "hindered-phenol, aminic, phosphite and thioester antioxidants, gallates and tocopherols",
+   "basis": "any of hindered phenol, cycloalkyl phenol, diarylamine, phenylenediamine, dihydroquinoline, gallate, chromanol, benzofuranone, phosphite, thiodipropionate; excluding anthraquinone, ring aryl ketone, azo, nitro, nitroso, aryl acid, dimethylaminoaryl, benzotriazole uva, triazine uva",
+   "examples": [
+    "BHT",
+    "2,4-Di-tert-butylphenol",
+    "Alpha-Tocopherol"
+   ],
+   "members": [
+    "AKNMPWVTPUHKCG-UHFFFAOYSA-N",
+    "APTGHASZJUAUCP-UHFFFAOYSA-N",
+    "BFZOTKYPSZSDEV-UHFFFAOYSA-N",
+    "BGNXCDMCOKJUMV-UHFFFAOYSA-N",
+    "BKZXZGWHTRCFPX-UHFFFAOYSA-N",
+    "BONQQGMOTXODRC-UHFFFAOYSA-N",
+    "BVUXDWXKPROUDO-UHFFFAOYSA-N",
+    "BWBGTUYNAMKJAI-UHFFFAOYSA-N",
+    "CVVFFUKULYKOJR-UHFFFAOYSA-N",
+    "CZNRFEXEPBITDS-UHFFFAOYSA-N",
+    "DECIPOUIJURFOJ-UHFFFAOYSA-N",
+    "DKCPKDPYUFEZCP-UHFFFAOYSA-N",
+    "DMBHHRLKUKUOEG-UHFFFAOYSA-N",
+    "DMLLDZGHGNLZNW-UHFFFAOYSA-N",
+    "DNCLEPRFPJLBTQ-UHFFFAOYSA-N",
+    "DNYCICZKXQGHBJ-UHFFFAOYSA-N",
+    "DOFLWDGGNKBGSL-UHFFFAOYSA-N",
+    "DOZRDZLFLOODMB-UHFFFAOYSA-N",
+    "DXCHWXWXYPEZKM-UHFFFAOYSA-N",
+    "FCDMUZZVRLCTLQ-UHFFFAOYSA-N",
+    "FCQAFXHLHBGGSK-UHFFFAOYSA-N",
+    "FLPKSBDJMLUTEX-UHFFFAOYSA-N",
+    "FMUYQRFTLHAARI-UHFFFAOYSA-N",
+    "FOUNRKRNEDRUPL-UHFFFAOYSA-N",
+    "FSWDLYNGJBGFJH-UHFFFAOYSA-N",
+    "GACQLWFABDKVAX-UHFFFAOYSA-N",
+    "GDGDLBOVIAWEAD-UHFFFAOYSA-N",
+    "GPNYZBKIGXGYNU-UHFFFAOYSA-N",
+    "GQBHYWDCHSZDQU-UHFFFAOYSA-N",
+    "GSOYMOAPJZYXTB-UHFFFAOYSA-N",
+    "GVJHHUAWPYXKBD-IEOSBIPESA-N",
+    "GVJHHUAWPYXKBD-UHFFFAOYSA-N",
+    "GZIFEOYASATJEH-VHFRWLAGSA-N",
+    "HCILJBJJZALOAL-UHFFFAOYSA-N",
+    "HKLPOBRVSAUJSG-UHFFFAOYSA-N",
+    "HNURKXXMYARGAY-UHFFFAOYSA-N",
+    "HQSOHEURLMFXBX-UHFFFAOYSA-N",
+    "ICKWICRCANNIBI-UHFFFAOYSA-N",
+    "IKEHOXWJQXIQAG-UHFFFAOYSA-N",
+    "IORUEKDKNHHQAL-UHFFFAOYSA-N",
+    "JFGVTUJBHHZRAB-UHFFFAOYSA-N",
+    "JFYKXFLSIZYLRY-UHFFFAOYSA-N",
+    "JGJQYHBWTHQSPR-UHFFFAOYSA-N",
+    "JIEWQZNTUPWNMX-UHFFFAOYSA-N",
+    "JQTYAZKTBXWQOM-UHFFFAOYSA-N",
+    "JTMODJXOTWYBOZ-UHFFFAOYSA-N",
+    "JTTMYKSFKOOQLP-UHFFFAOYSA-N",
+    "JUHXTONDLXIGGK-UHFFFAOYSA-N",
+    "JZODKRWQWUWGCD-UHFFFAOYSA-N",
+    "KDBZVULQVCUNNA-UHFFFAOYSA-N",
+    "KEQFTVQCIQJIQW-UHFFFAOYSA-N",
+    "KGRVJHAUYBGFFP-UHFFFAOYSA-N",
+    "KJEKRODBOPOEGG-UHFFFAOYSA-N",
+    "KJYSXRBJOSZLEL-UHFFFAOYSA-N",
+    "LLLUKUXKUSKFLO-UHFFFAOYSA-N",
+    "LRRMGPGVHYPBPL-UHFFFAOYSA-N",
+    "LXWZXEJDKYWBOW-UHFFFAOYSA-N",
+    "LZHCVNIARUXHAL-UHFFFAOYSA-N",
+    "MDWVSAYEQPLWMX-UHFFFAOYSA-N",
+    "MDZBMZIJIUEQJS-UHFFFAOYSA-N",
+    "MFSAJLWSXLIOHZ-UHFFFAOYSA-N",
+    "MRBKEAMVRSLQPH-UHFFFAOYSA-N",
+    "MWJFTXUNWYQEIU-UHFFFAOYSA-N",
+    "MZMTWFVMIMBDGQ-UHFFFAOYSA-N",
+    "NBJDNCGUUVZUIB-UHFFFAOYSA-N",
+    "NLZUEZXRPGMBCV-UHFFFAOYSA-N",
+    "NRPKURNSADTHLJ-UHFFFAOYSA-N",
+    "NZYMWGXNIUZYRC-UHFFFAOYSA-N",
+    "ODADKLYLWWCHNB-LDYBVBFYSA-N",
+    "OKOBUGCCXMIKDM-UHFFFAOYSA-N",
+    "OLGBEZPVDGIRFI-UHFFFAOYSA-N",
+    "OPEKHRGERHDLRK-UHFFFAOYSA-N",
+    "OPLCSTZDXXUYDU-UHFFFAOYSA-N",
+    "OSFOTMWFXQGWKZ-UHFFFAOYSA-N",
+    "OUBMGJOQLXMSNT-UHFFFAOYSA-N",
+    "OXWDLAHVJDUQJM-UHFFFAOYSA-N",
+    "PFANXOISJYKQRP-UHFFFAOYSA-N",
+    "PFEFOYRSMXVNEL-UHFFFAOYSA-N",
+    "PHXLONCQBNATSL-UHFFFAOYSA-N",
+    "PJZLSMMERMMQBJ-UHFFFAOYSA-N",
+    "PRKFEDZJXPHATD-OCOZRVBESA-N",
+    "PRWJPWSKLXYEPD-UHFFFAOYSA-N",
+    "PXMJCECEFTYEKE-UHFFFAOYSA-N",
+    "QAPVYZRWKDXNDK-UHFFFAOYSA-N",
+    "QFTSXPJTPSOVJG-UHFFFAOYSA-N",
+    "QSRJVOOOWGXUDY-UHFFFAOYSA-N",
+    "QUEDXNHFTDJVIY-DQCZWYHMSA-N",
+    "QUEDXNHFTDJVIY-UHFFFAOYSA-N",
+    "QZDIGKQKIYTXIS-UHFFFAOYSA-N",
+    "RACMGQBQYYWANW-UHFFFAOYSA-N",
+    "RHUDXYFLPVGKFS-UHFFFAOYSA-N",
+    "ROEHFIIRMUXFRR-UHFFFAOYSA-N",
+    "RPWFJAMTCNSJKK-UHFFFAOYSA-N",
+    "RQYISMPLEFNMLU-UHFFFAOYSA-N",
+    "RRUHMDSGRHUALW-UHFFFAOYSA-N",
+    "SCXYLTWTWUGEAA-UHFFFAOYSA-N",
+    "SDJUKATYFRSDAS-UHFFFAOYSA-N",
+    "SEBPXHSZHLFWRL-UHFFFAOYSA-N",
+    "SIOCOHKVFYNZJP-UHFFFAOYSA-N",
+    "SKDGWNHUETZZCS-UHFFFAOYSA-N",
+    "SLUKQUGVTITNSY-UHFFFAOYSA-N",
+    "SSDSCDGVMJFTEQ-UHFFFAOYSA-N",
+    "STLLXWLDRUVCHL-UHFFFAOYSA-N",
+    "UHJVLUYSDYOULM-UHFFFAOYSA-N",
+    "UHPDROGOQWZCNC-UHFFFAOYSA-N",
+    "UJAWGGOCYUPCPS-UHFFFAOYSA-N",
+    "UPVYFJALDJUSOV-UHFFFAOYSA-N",
+    "UTGQNNCQYDRXCH-UHFFFAOYSA-N",
+    "UYHCLPYFSWPVDZ-UHFFFAOYSA-N",
+    "VCOONNWIINSFBA-UHFFFAOYSA-N",
+    "VDOJQPKPGQMNDA-UHFFFAOYSA-N",
+    "VETPHHXZEJAYOB-UHFFFAOYSA-N",
+    "VMZVBRIIHDRYGK-UHFFFAOYSA-N",
+    "VQQLTEBUMLSLFJ-UHFFFAOYSA-N",
+    "WEZBHKGNUIINBQ-UHFFFAOYSA-N",
+    "WGJPGMJLARWHRK-UHFFFAOYSA-N",
+    "WJQOZHYUIDYNHM-UHFFFAOYSA-N",
+    "WMVJWKURWRGJCI-UHFFFAOYSA-N",
+    "WPMYUUITDBHVQZ-UHFFFAOYSA-N",
+    "WYSSJDOPILWQDC-UHFFFAOYSA-N",
+    "XKBGEVHKVFIMLY-UHFFFAOYSA-N",
+    "XOPOEBVTQYAOSV-UHFFFAOYSA-N",
+    "XOUQAVYLRNOXDO-UHFFFAOYSA-N",
+    "XQVWYOYUZDUNRW-UHFFFAOYSA-N",
+    "XSXWOBXNYNULJG-UHFFFAOYSA-N",
+    "XYXJKPCGSGVSBO-UHFFFAOYSA-N",
+    "YFEJFIBZPXJRSI-UHFFFAOYSA-N",
+    "YSLFJMFSTOJEDL-UHFFFAOYSA-N",
+    "ZCWSUZJGZZFSHM-UHFFFAOYSA-N",
+    "ZDRSNHRWLQQICP-UHFFFAOYSA-N",
+    "ZJNLYGOUHDJHMG-UHFFFAOYSA-N",
+    "ZMRCFZFFKWFWSK-UHFFFAOYSA-N",
+    "ZNRLMGFXSPUZNR-UHFFFAOYSA-N",
+    "ZRMMVODKVLXCBB-UHFFFAOYSA-N",
+    "ZTHYODDOHIVTJV-UHFFFAOYSA-N",
+    "ZVVFVKJZNVSANF-UHFFFAOYSA-N",
+    "ZZMVLMVFYMGSMY-UHFFFAOYSA-N",
+    "ZZZRZBIPCKQDQR-UHFFFAOYSA-N"
+   ],
+   "outside_release": [
+    {
+     "name": "(2,4,6-Trioxo-1,3,5-triazine-1,3,5(2H,4H,6H)-triyl)tri-2,1-ethanediyl tris(3,5-di-tert-butyl-4-hydroxyhydrocinnamate)",
+     "inchikey": "MQRCHVBRBGNZGJ-UHFFFAOYSA-N",
+     "reason": "heavier than 700 g/mol"
+    },
+    {
+     "name": "1,3,2-Dioxaphosphorinane, 5-butyl-5-ethyl-2-[2,4,6-tris(1,1-dimethylethyl)phenoxy]-",
+     "inchikey": "HVDJXXVDNDLBQY-UHFFFAOYSA-N",
+     "reason": "contains phosphorus"
+    },
+    {
+     "name": "1,3,5-Trimethyl-2,4,6-tris(3,5-di-tert-butyl-4-hydroxybenzyl)benzene",
+     "inchikey": "VSAWBBYYMBQKIK-UHFFFAOYSA-N",
+     "reason": "heavier than 700 g/mol"
+    },
+    {
+     "name": "1,3,5-Tris(3,5-di-tert-butyl-4-hydroxybenzyl)-1,3,5-triazinane-2,4,6-trione",
+     "inchikey": "VNQNXQYZMPJLQX-UHFFFAOYSA-N",
+     "reason": "heavier than 700 g/mol"
+    },
+    {
+     "name": "1,3,5-Tris(3,5-di-tert-butyl-4-hydroxyhydrocinnamoyl)hexahydro-S-triazine",
+     "inchikey": "VMDYMJSKWCVEEB-UHFFFAOYSA-N",
+     "reason": "heavier than 700 g/mol"
+    },
+    {
+     "name": "1,4-Benzenedicarboxylic acid, bis[2-(1,1-dimethylethyl)-6-[[3-(1,1-dimethylethyl)-2-hydroxy-5-methylphenyl]methyl]-4-methylphenyl] ester",
+     "inchikey": "JWXSMZJIYUUXSV-UHFFFAOYSA-N",
+     "reason": "heavier than 700 g/mol"
+    },
+    {
+     "name": "12H-Dibenzo[d,g][1,3,2]dioxaphosphocin, 2,4,8,10-tetrakis(1,1-dimethylethyl)-6-[(2-ethylhexyl)oxy]-",
+     "inchikey": "LOMJGCFEVIUZMW-UHFFFAOYSA-N",
+     "reason": "contains phosphorus"
+    },
+    {
+     "name": "2(3H)-Benzofuranone, 5,7-bis(1,1-dimethylethyl)-3-[3,5-dimethyl-4-[[2,4,8,10-tetrakis(1,1-dimethylethyl)-12-methyl-12H-dibenzo[d,g][1,3,2]dioxaphosphocin-6-yl]oxy]phenyl]-",
+     "inchikey": "LXQBVTPPBNWKGG-UHFFFAOYSA-N",
+     "reason": "contains phosphorus"
+    },
+    {
+     "name": "2,2'-Thiobis(6-tert-butyl-p-cresol)",
+     "inchikey": "MQWCQFCZUNBTCM-UHFFFAOYSA-N",
+     "reason": "contains sulfur"
+    },
+    {
+     "name": "2,4,8,10-Tetrakis(1,1-dimethylethyl)-6-(octyloxy)-12H-dibenzo[d,g][1,3,2]dioxaphosphocin",
+     "inchikey": "FGYJSJUSODGXAR-UHFFFAOYSA-N",
+     "reason": "contains phosphorus"
+    },
+    {
+     "name": "2,4,8,10-Tetraoxa-3,9-diphosphaspiro(5.5)undecane, 3,9-bis(2,4,6-tris(1,1-dimethylethyl)phenoxy)-",
+     "inchikey": "SHDUFLICMXOBPA-UHFFFAOYSA-N",
+     "reason": "contains phosphorus"
+    },
+    {
+     "name": "2,6-Di-t-butyl-4-[3-(2,3-epoxypropylthio)propyl]phenol",
+     "inchikey": "DHRMIZQRCVSJKS-UHFFFAOYSA-N",
+     "reason": "contains sulfur"
+    },
+    {
+     "name": "2,6-Dichloro-N-phenylaniline",
+     "inchikey": "HDUUZPLYVVQTKN-UHFFFAOYSA-N",
+     "reason": "contains chlorine"
+    },
+    {
+     "name": "2-Ethylhexyl diphenyl phosphite",
+     "inchikey": "XKZGIJICHCVXFV-UHFFFAOYSA-N",
+     "reason": "contains phosphorus"
+    },
+    {
+     "name": "2-Mercapto-N-(4-(phenylamino)phenyl)acetamide",
+     "inchikey": "PTQUXQSEBAQTFZ-UHFFFAOYSA-N",
+     "reason": "contains sulfur"
+    },
+    {
+     "name": "2-ethyl-N-(2-ethyl-3-prop-2-enylphenyl)-3,5-bis(prop-2-enyl)aniline",
+     "inchikey": "CJFAGAXJFSYDLE-UHFFFAOYSA-N",
+     "reason": "a mixture or polymer, not one structure"
+    },
+    {
+     "name": "3,10-Bis((4-amino-2,5-disulphophenyl)amino)-6,13-dichlorotriphenodioxazine-4,11-disulphonic acid",
+     "inchikey": "KTAOIBPHDVTOGV-UHFFFAOYSA-N",
+     "reason": "contains chlorine and sulfur"
+    },
+    {
+     "name": "3,9-Bis(2,4-di-tert-butylphenoxy)-2,4,8,10-tetraoxa-3,9-diphosphaspiro[5.5]undecane",
+     "inchikey": "AIBRSVLEQRWAEG-UHFFFAOYSA-N",
+     "reason": "contains phosphorus"
+    },
+    {
+     "name": "3,9-Bis(2,4-dicumylphenoxy)-2,4,8,10-tetraoxa-3,9-diphosphaspiro[5.5]undecane",
+     "inchikey": "WBWXVCMXGYSMQA-UHFFFAOYSA-N",
+     "reason": "contains phosphorus"
+    },
+    {
+     "name": "3,9-Diphenoxy-2,4,8,10-tetraoxa-3,9-diphosphaspiro[5.5]undecane",
+     "inchikey": "SDCYWERHEYVPHL-UHFFFAOYSA-N",
+     "reason": "contains phosphorus"
+    },
+    {
+     "name": "4,4'-Thiobis(2-tert-butyl-6-methylphenol)",
+     "inchikey": "YFHKLSPMRRWLKI-UHFFFAOYSA-N",
+     "reason": "contains sulfur"
+    },
+    {
+     "name": "4,4'-Thiobis(6-tert-butyl-m-cresol)",
+     "inchikey": "HXIQYSLFEXIOAV-UHFFFAOYSA-N",
+     "reason": "contains sulfur"
+    },
+    {
+     "name": "4-((4,6-Bis(octylthio)-1,3,5-triazin-2-yl)amino)-2,6-di-tert-butylphenol",
+     "inchikey": "QRLSTWVLSWCGBT-UHFFFAOYSA-N",
+     "reason": "contains sulfur"
+    },
+    {
+     "name": "5,5-Dimethyl-2-phenoxy-1,3,2-dioxaphosphinane",
+     "inchikey": "JSVDMQKVGLGYCM-UHFFFAOYSA-N",
+     "reason": "contains phosphorus"
+    },
+    {
+     "name": "Benzenepropanoic acid, 3,5-bis(1,1-dimethylethyl)-4-hydroxy-, 1-(2-(3-(3,5-bis(1,1-dimethylethyl)-4-hydroxyphenyl)-1-oxopropoxy)ethyl)-2,2,6,6-tetramethyl-4-piperidinyl ester",
+     "inchikey": "SKMNWICOBCDSSQ-UHFFFAOYSA-N",
+     "reason": "heavier than 700 g/mol"
+    },
+    {
+     "name": "Benzenesulfonamide, 4-methyl-N-[4-(phenylamino)phenyl]-",
+     "inchikey": "KEZPMZSDLBJCHH-UHFFFAOYSA-N",
+     "reason": "contains sulfur"
+    },
+    {
+     "name": "Benzenesulfonic acid, [[4-[[4-(phenylamino)phenyl][4-(phenylimino)-2,5-cyclohexadien-1-ylidene]methyl]phenyl]amino]-",
+     "inchikey": "XRICJEBVEBHBGH-UHFFFAOYSA-N",
+     "reason": "contains sulfur"
+    },
+    {
+     "name": "Benzylium, alpha,alpha-bis[4-[(2-cyanoethyl)ethylamino]-o-tolyl]-p-(p-toluidino)-",
+     "inchikey": "APZBICDSKWNWLQ-UHFFFAOYSA-O",
+     "reason": "an ion"
+    },
+    {
+     "name": "Bis(2,4-DI-tert-butyl-6-methyl phenyl) ethyl phosphite",
+     "inchikey": "ZEFSGHVBJCEKAZ-UHFFFAOYSA-N",
+     "reason": "contains phosphorus"
+    },
+    {
+     "name": "Bis(2,6-di-tert-butyl-4-methylphenyl)pentaerythritol diphosphite",
+     "inchikey": "SSADPHQCUURWSW-UHFFFAOYSA-N",
+     "reason": "contains phosphorus"
+    },
+    {
+     "name": "Bis(2-ethylhexyl) phenyl phosphite",
+     "inchikey": "AAQUCXJJDQZZOJ-UHFFFAOYSA-N",
+     "reason": "contains phosphorus"
+    },
+    {
+     "name": "CID 118856488",
+     "inchikey": "NQDBYHFVTPWKLW-UHFFFAOYSA-N",
+     "reason": "a mixture or polymer, not one structure"
+    },
+    {
+     "name": "CID 78577443",
+     "inchikey": "VWKAFYWVDIOMSL-PMFFMQSYSA-N",
+     "reason": "a mixture or polymer, not one structure"
+    },
+    {
+     "name": "Decyl diphenyl phosphite",
+     "inchikey": "GLOQRSIADGSLRX-UHFFFAOYSA-N",
+     "reason": "contains phosphorus"
+    },
+    {
+     "name": "Di(tridecyl) thiodipropionate",
+     "inchikey": "MZHULIWXRDLGRR-UHFFFAOYSA-N",
+     "reason": "contains sulfur"
+    },
+    {
+     "name": "Didecyl phenyl phosphite",
+     "inchikey": "NMAKPIATXQEXBT-UHFFFAOYSA-N",
+     "reason": "contains phosphorus"
+    },
+    {
+     "name": "Diethyl 3,5-di-tert-butyl-4-hydroxybenzylphosphonate",
+     "inchikey": "GJDRKHHGPHLVNI-UHFFFAOYSA-N",
+     "reason": "contains phosphorus"
+    },
+    {
+     "name": "Diisodecyl phenyl phosphite",
+     "inchikey": "SXXILWLQSQDLDL-UHFFFAOYSA-N",
+     "reason": "contains phosphorus"
+    },
+    {
+     "name": "Diisooctyl phenyl phosphite",
+     "inchikey": "GPKQLHLOONCFDY-UHFFFAOYSA-N",
+     "reason": "contains phosphorus"
+    },
+    {
+     "name": "Diisotridecyl phenyl phosphite",
+     "inchikey": "ZCEURBBJHMJEOG-UHFFFAOYSA-N",
+     "reason": "contains phosphorus"
+    },
+    {
+     "name": "Dilauryl thiodipropionate",
+     "inchikey": "GHKOFFNLGXMVNJ-UHFFFAOYSA-N",
+     "reason": "contains sulfur"
+    },
+    {
+     "name": "Dimethyl 3,3'-thiodipropionate",
+     "inchikey": "MYWWWNVEZBAKHR-UHFFFAOYSA-N",
+     "reason": "contains sulfur"
+    },
+    {
+     "name": "Dimyristyl thiodipropionate",
+     "inchikey": "LVEOKSIILWWVEO-UHFFFAOYSA-N",
+     "reason": "contains sulfur"
+    },
+    {
+     "name": "Dioleyl 3,3'-thiodipropionate",
+     "inchikey": "NTPFJSYVROWMFR-CLFAGFIQSA-N",
+     "reason": "contains sulfur"
+    },
+    {
+     "name": "Distearyl thiodipropionate",
+     "inchikey": "PWWSSIYVTQUJQQ-UHFFFAOYSA-N",
+     "reason": "contains sulfur"
+    },
+    {
+     "name": "Ethylene bis[3,3-bis(3-tert-butyl-4-hydroxyphenyl)butyrate]",
+     "inchikey": "JOWXNCPELQZFHF-UHFFFAOYSA-N",
+     "reason": "heavier than 700 g/mol"
+    },
+    {
+     "name": "Gallotannin",
+     "inchikey": "LRBQNJMCXXYXIU-PPKXGCFTSA-N",
+     "reason": "heavier than 700 g/mol"
+    },
+    {
+     "name": "Irganox 1035",
+     "inchikey": "VFBJXXJYHWLXRM-UHFFFAOYSA-N",
+     "reason": "contains sulfur"
+    },
+    {
+     "name": "Irganox 858",
+     "inchikey": "FURXDDVXYNEWJD-UHFFFAOYSA-N",
+     "reason": "contains sulfur"
+    },
+    {
+     "name": "Isodecyl diphenyl phosphite",
+     "inchikey": "ADRNSOYXKABLGT-UHFFFAOYSA-N",
+     "reason": "contains phosphorus"
+    },
+    {
+     "name": "Isooctyl diphenyl phosphite",
+     "inchikey": "YEQHNTCMAVPEKP-UHFFFAOYSA-N",
+     "reason": "contains phosphorus"
+    },
+    {
+     "name": "Methyl diphenylphosphite",
+     "inchikey": "NYCZNDFWFCCTPA-UHFFFAOYSA-N",
+     "reason": "contains phosphorus"
+    },
+    {
+     "name": "Octadecyl 3-[[3-(dodecyloxy)-3-oxopropyl]thio]propionate",
+     "inchikey": "RRZCFXQTVDJDGF-UHFFFAOYSA-N",
+     "reason": "contains sulfur"
+    },
+    {
+     "name": "Octyl diphenyl phosphite",
+     "inchikey": "AXRSHKZFNKUGQB-UHFFFAOYSA-N",
+     "reason": "contains phosphorus"
+    },
+    {
+     "name": "Octyl-3,5-di-tert-butyl-4-hydroxy-hydrocinnamate",
+     "inchikey": "CFXCGWWYIDZIMU-UHFFFAOYSA-N",
+     "reason": "a mixture or polymer, not one structure"
+    },
+    {
+     "name": "Oxybis(1-methylethylene) tetraphenyl diphosphite",
+     "inchikey": "XZZWOTQMUOIIFX-UHFFFAOYSA-N",
+     "reason": "contains phosphorus"
+    },
+    {
+     "name": "Oxybispropylenebis((1,5,9,13,17,21-hexamethyl-7,15,23,23-tetraphenoxy-3,6,8,11,14,16,19,22-octaoxa-7,15,23-triphosphatricos-1-yl)(phenyl)phosphine)",
+     "inchikey": "SLTPOEHKGGIZLE-UHFFFAOYSA-N",
+     "reason": "contains phosphorus"
+    },
+    {
+     "name": "Pentaerythritol tetrakis(3-(3,5-di-tert-butyl-4-hydroxyphenyl)propionate)",
+     "inchikey": "BGYHLZZASRKEJE-UHFFFAOYSA-N",
+     "reason": "heavier than 700 g/mol"
+    },
+    {
+     "name": "Pentaerythritol tris(3,5-di-tert-butyl-4-hydroxyhydrocinnamate)",
+     "inchikey": "PLTOWUBLEPQHQC-UHFFFAOYSA-N",
+     "reason": "heavier than 700 g/mol"
+    },
+    {
+     "name": "Phenol, 2,2'-methylenebis(6-(1,1-dimethylethyl)-4-methyl-, phosphite (3:1)",
+     "inchikey": "XDJMVQWHMUCIMI-UHFFFAOYSA-N",
+     "reason": "contains phosphorus"
+    },
+    {
+     "name": "Phenol, 2,2'-thiobis(6-tert-butyl-4-chloro-",
+     "inchikey": "STBISWCOPIJZJA-UHFFFAOYSA-N",
+     "reason": "contains chlorine and sulfur"
+    },
+    {
+     "name": "Phenol, 2,6-bis((3-(1,1-dimethylethyl)-2-hydroxy-5-methylphenyl)octahydro-4,7-methano-1H-indenyl)-4-methyl-",
+     "inchikey": "HCAQPAMZCORZDE-UHFFFAOYSA-N",
+     "reason": "heavier than 700 g/mol"
+    },
+    {
+     "name": "Phenothiazine",
+     "inchikey": "WJFKNYWRSNBZNX-UHFFFAOYSA-N",
+     "reason": "contains sulfur"
+    },
+    {
+     "name": "Phosphonic acid, [[3,5-bis(1,1-dimethylethyl)-4-hydroxyphenyl]methyl]-, dioctadecyl ester",
+     "inchikey": "SAJFQHPVIYPPEY-UHFFFAOYSA-N",
+     "reason": "contains phosphorus"
+    },
+    {
+     "name": "Phosphorous acid, 2-(1,1-dimethylethyl)-4-[1-[3-(1,1-dimethylethyl)-4-hydroxyphenyl]-1-methylethyl]phenyl bis(4-nonylphenyl) ester",
+     "inchikey": "GVCIJKWSBDKBJP-UHFFFAOYSA-N",
+     "reason": "contains phosphorus"
+    },
+    {
+     "name": "Phosphorous acid, dodecyl bis[4-[1-(4-hydroxyphenyl)-1-methylethyl]phenyl] ester",
+     "inchikey": "LUIHRDSKVKNQKL-UHFFFAOYSA-N",
+     "reason": "contains phosphorus"
+    },
+    {
+     "name": "Propanoic acid, 3,3'-thiobis-, dihexadecyl ester",
+     "inchikey": "IXDBUVCZCLQKJF-UHFFFAOYSA-N",
+     "reason": "contains sulfur"
+    },
+    {
+     "name": "Propanoic acid, 3-(dodecylthio)-, 2-(1,1-dimethylethyl)-4-((5-(1,1-dimethylethyl)-4-hydroxy-2-methylphenyl)thio)-5-methylphenyl ester",
+     "inchikey": "JGLKESSHJGLOFL-UHFFFAOYSA-N",
+     "reason": "contains sulfur"
+    },
+    {
+     "name": "Sumilizer AG 80",
+     "inchikey": "CGRTZESQZZGAAU-UHFFFAOYSA-N",
+     "reason": "heavier than 700 g/mol"
+    },
+    {
+     "name": "Sumilizer GP",
+     "inchikey": "MSXXDBCLAKQJQT-UHFFFAOYSA-N",
+     "reason": "contains phosphorus"
+    },
+    {
+     "name": "Tetraisodecyl bisphenol A diphosphite",
+     "inchikey": "NXWSPAKNTFSINP-UHFFFAOYSA-N",
+     "reason": "contains phosphorus"
+    },
+    {
+     "name": "Tri-o-tolyl phosphite",
+     "inchikey": "BKHZQJRTFNFCTG-UHFFFAOYSA-N",
+     "reason": "contains phosphorus"
+    },
+    {
+     "name": "Tri-p-tolyl phosphite",
+     "inchikey": "FEVFLQDDNUQKRY-UHFFFAOYSA-N",
+     "reason": "a mixture or polymer, not one structure"
+    },
+    {
+     "name": "Triphenyl phosphite",
+     "inchikey": "HVLLSGMXQDNUAL-UHFFFAOYSA-N",
+     "reason": "contains phosphorus"
+    },
+    {
+     "name": "Tris(2,4-di-tert-butylphenyl) phosphite",
+     "inchikey": "JKIJEFPNVSHHEI-UHFFFAOYSA-N",
+     "reason": "contains phosphorus"
+    },
+    {
+     "name": "Tris(2-cyclohexylphenyl) phosphite",
+     "inchikey": "XUHUMYVYHLHMCD-UHFFFAOYSA-N",
+     "reason": "contains phosphorus"
+    },
+    {
+     "name": "Tris(4-nonylphenyl) phosphite",
+     "inchikey": "MGMXGCZJYUCMGY-UHFFFAOYSA-N",
+     "reason": "contains phosphorus"
+    },
+    {
+     "name": "Tris(dinonylphenyl) phosphite",
+     "inchikey": "WRSPWQHUHVRNFV-UHFFFAOYSA-N",
+     "reason": "contains phosphorus"
+    },
+    {
+     "name": "Tris(nonylphenyl) phosphite",
+     "inchikey": "WGKLOLBTFWFKOD-UHFFFAOYSA-N",
+     "reason": "contains phosphorus"
+    },
+    {
+     "name": "Tris[2-tert-butyl-4-(5-tert-butyl-4-hydroxy-2-methylphenyl)sulfanyl-5-methylphenyl] phosphite",
+     "inchikey": "BZOOHIARAFBZEV-UHFFFAOYSA-N",
+     "reason": "contains phosphorus and sulfur"
+    },
+    {
+     "name": "[2-Tert-butyl-4-[1-[5-tert-butyl-4-di(tridecoxy)phosphanyloxy-2-methylphenyl]butyl]-5-methylphenyl] ditridecyl phosphite",
+     "inchikey": "BWCBWCHWFIPXMJ-UHFFFAOYSA-N",
+     "reason": "contains phosphorus"
+    }
+   ]
+  },
+  {
+   "name": "UV stabilizers",
+   "term": "UV stabilizers",
+   "aliases": [
+    "uv stabilizer",
+    "uv stabilisers",
+    "uv stabiliser",
+    "uv-stabilizers",
+    "uv absorbers",
+    "uv absorber",
+    "light stabilizers",
+    "uv filters"
+   ],
+   "description": "benzotriazole, triazine and benzophenone UV absorbers and hindered-amine light stabilizers",
+   "basis": "any of benzotriazole uva, triazine uva, hydroxybenzophenone, hals, cyanoacrylate, oxanilide, aryl salicylate, benzylidene malonate",
+   "examples": [
+    "UV-328",
+    "Tinuvin P",
+    "Octabenzone"
+   ],
+   "members": [
+    "ARVUDIQYNJVQIW-UHFFFAOYSA-N",
+    "CMBCMPYRBVJZDI-UHFFFAOYSA-N",
+    "CMXLJKWFEJEFJE-UHFFFAOYSA-N",
+    "CQNQNWUSTVCIDH-UHFFFAOYSA-N",
+    "CSGAUKGQUCHWDP-UHFFFAOYSA-N",
+    "DBOSBRHMHBENLP-UHFFFAOYSA-N",
+    "DOZGRCMRCPSZHG-UHFFFAOYSA-N",
+    "DRXGKQPTFWTTJW-UHFFFAOYSA-N",
+    "DXGLGDHPHMLXJC-UHFFFAOYSA-N",
+    "FBIXXCXCZOZFCO-UHFFFAOYSA-N",
+    "FDCDWHGYQOJMTQ-UHFFFAOYSA-N",
+    "FJGQBLRYBUAASW-UHFFFAOYSA-N",
+    "FLPKSBDJMLUTEX-UHFFFAOYSA-N",
+    "FMJSMJQBSVNSBF-UHFFFAOYSA-N",
+    "FQUNFJULCYSSOP-UHFFFAOYSA-N",
+    "FTVFPPFZRRKJIH-UHFFFAOYSA-N",
+    "FTWUXYZHDFCGSV-UHFFFAOYSA-N",
+    "GMBXBKNMMIWUED-UHFFFAOYSA-N",
+    "HAFKWVXPFIPBEJ-UHFFFAOYSA-N",
+    "HDFZSCWOTBYTQF-UHFFFAOYSA-N",
+    "HJIAMFHSAAEUKR-UHFFFAOYSA-N",
+    "HLVLKTYUBIGFFB-UHFFFAOYSA-N",
+    "HMYBQGXAGRYFPW-UHFFFAOYSA-N",
+    "IAJNXBNRYMEYAZ-UHFFFAOYSA-N",
+    "IKVDJWHQFRZZOT-UHFFFAOYSA-N",
+    "IMNBHNRXUAJVQE-UHFFFAOYSA-N",
+    "ITLDHFORLZTRJI-UHFFFAOYSA-N",
+    "IVVLFHBYPHTMJU-UHFFFAOYSA-N",
+    "IYAZLDLPUNDVAG-UHFFFAOYSA-N",
+    "JMFYZMAVUHNCPW-UHFFFAOYSA-N",
+    "JMUOXOJMXILBTE-UHFFFAOYSA-N",
+    "KGBWWTXUSOPASH-UHFFFAOYSA-N",
+    "KZURVTKPVNKEKH-UHFFFAOYSA-N",
+    "LEVFXWNQQSSNAC-UHFFFAOYSA-N",
+    "LGLRENMSBBZYTN-UHFFFAOYSA-N",
+    "LHPPDQUVECZQSW-UHFFFAOYSA-N",
+    "LUZAAKNZQSYDKP-UHFFFAOYSA-N",
+    "MCPKSFINULVDNX-UHFFFAOYSA-N",
+    "MEZZCSHVIGVWFI-UHFFFAOYSA-N",
+    "NMMXJQKTXREVGN-UHFFFAOYSA-N",
+    "NWPIOULNZLJZHU-UHFFFAOYSA-N",
+    "OLBWDGJTEXRJLY-UHFFFAOYSA-N",
+    "OLFNXLXEGXRUOI-UHFFFAOYSA-N",
+    "OTCWVYFQGYOYJO-UHFFFAOYSA-N",
+    "OYGYNUPKLMDVHM-UHFFFAOYSA-N",
+    "OYNOCRWQLLIRON-UHFFFAOYSA-N",
+    "PIPJHDJQUXGVNR-UHFFFAOYSA-N",
+    "PKMUFPSSPIYKPU-UHFFFAOYSA-N",
+    "PUKBPIIUNNWYDU-UHFFFAOYSA-N",
+    "QGWXNCIQTGYQLM-UHFFFAOYSA-N",
+    "QUAMTGJKVDWJEQ-UHFFFAOYSA-N",
+    "RKMGAJGJIURJSJ-UHFFFAOYSA-N",
+    "RSOILICUEWXSLA-UHFFFAOYSA-N",
+    "RTNVDKBRTXEWQE-UHFFFAOYSA-N",
+    "SAEZGDDJKSBNPT-UHFFFAOYSA-N",
+    "SKBPTWWRZPECDT-XMTFNYHQSA-N",
+    "SLXIKWJMGICOAO-UHFFFAOYSA-N",
+    "SODJJEXAWOSSON-UHFFFAOYSA-N",
+    "STEYNUVPFMIUOY-UHFFFAOYSA-N",
+    "SXJSETSRWNDWPP-UHFFFAOYSA-N",
+    "TWRXLSBOPJJNHZ-UHFFFAOYSA-N",
+    "UFLXKQBCEYNCDU-UHFFFAOYSA-N",
+    "UKJARPDLRWBRAX-UHFFFAOYSA-N",
+    "UONLDZHKYCFZRW-UHFFFAOYSA-N",
+    "UUINYPIVWRZHAG-UHFFFAOYSA-N",
+    "UZOYICMDDCNJJG-UHFFFAOYSA-N",
+    "UZUNCLSDTUBVCN-UHFFFAOYSA-N",
+    "VCYCUECVHJJFIQ-UHFFFAOYSA-N",
+    "VDVUCLWJZJHFAV-UHFFFAOYSA-N",
+    "VQMHSKWEJGIXGA-UHFFFAOYSA-N",
+    "VXTRPEFUPWORNH-UHFFFAOYSA-N",
+    "VYCDFODYRFOXDA-UHFFFAOYSA-N",
+    "WXHVQMGINBSVAY-UHFFFAOYSA-N",
+    "WXNRYSGJLQFHBR-UHFFFAOYSA-N",
+    "WYLMGXULBMHUDT-UHFFFAOYSA-N",
+    "XITRBUPOXXBIJN-UHFFFAOYSA-N",
+    "XTXAZHSPVHPNSL-UHFFFAOYSA-N",
+    "XYUSZWLCQQSJCS-UHFFFAOYSA-N",
+    "YIMHRDBSVCPJOV-UHFFFAOYSA-N",
+    "YKONWVIRECCMQE-UHFFFAOYSA-N",
+    "YPKXSQQKOYQHPK-UHFFFAOYSA-N",
+    "YUOKTNQLLUHUEK-UHFFFAOYSA-N",
+    "ZBNMOUGFCKAGGQ-UHFFFAOYSA-N",
+    "ZDXCWZKQDWCCMJ-UHFFFAOYSA-N",
+    "ZMIFHAGGIBCROR-UHFFFAOYSA-N",
+    "ZMWRRFHBXARRRT-UHFFFAOYSA-N",
+    "ZQBAKBUEJOMQEX-UHFFFAOYSA-N",
+    "ZSSVCEUEVMALRD-UHFFFAOYSA-N",
+    "ZXDDPOHVAMWLBH-UHFFFAOYSA-N"
+   ],
+   "outside_release": [
+    {
+     "name": "(Dichloromethyl){3-[(2,2,6,6-tetramethylpiperidin-4-yl)oxy]propyl}silylidene",
+     "inchikey": "PVKQHOWRPWTXGL-UHFFFAOYSA-N",
+     "reason": "a mixture or polymer, not one structure"
+    },
+    {
+     "name": "1,2,3,4-Butanetetracarboxylic acid, 1,2,2,6,6-pentamethyl-4-piperidinyl tridecyl ester",
+     "inchikey": "JGWNUTNRGYFHGD-UHFFFAOYSA-L",
+     "reason": "an ion"
+    },
+    {
+     "name": "1,2,3,4-Butanetetracarboxylic acid, 1,2,3,4-tetrakis(1,2,2,6,6-pentamethyl-4-piperidinyl) ester",
+     "inchikey": "WUPCFMITFBVJMS-UHFFFAOYSA-N",
+     "reason": "heavier than 700 g/mol"
+    },
+    {
+     "name": "1,2,3,4-Butanetetracarboxylic acid, 2,2,6,6-tetramethyl-4-piperidinyl tridecyl ester",
+     "inchikey": "YBCHZIOIOXESGA-UHFFFAOYSA-L",
+     "reason": "an ion"
+    },
+    {
+     "name": "1,2,3-Tris(1,2,2,6,6-pentamethyl-4-piperidyl) 4-tridecyl butane-1,2,3,4-tetracarboxylate",
+     "inchikey": "VPOQXYQZFBITQK-UHFFFAOYSA-N",
+     "reason": "heavier than 700 g/mol"
+    },
+    {
+     "name": "1-Piperidinyloxy, 4,4'-((1,10-dioxo-1,10-decanediyl)bis(oxy))bis(2,2,6,6-tetramethyl-",
+     "inchikey": "XVJWWMHPPKXKRU-UHFFFAOYSA-N",
+     "reason": "not in the campaign's input list"
+    },
+    {
+     "name": "2'-Fluoro-2-hydroxy-4-methoxybenzophenone",
+     "inchikey": "VVOYPINUWBAVQM-UHFFFAOYSA-N",
+     "reason": "contains fluorine"
+    },
+    {
+     "name": "2,2-Bis(((2-cyano-3,3-diphenylacryloyl)oxy)methyl)propane-1,3-diyl bis(2-cyano-3,3-diphenylacrylate)",
+     "inchikey": "CVSXFBFIOUYODT-UHFFFAOYSA-N",
+     "reason": "heavier than 700 g/mol"
+    },
+    {
+     "name": "2,4-Di-tert-butyl-6-(5-chloro-2H-benzotriazol-2-yl)phenol",
+     "inchikey": "UWSMKYBKUPAEJQ-UHFFFAOYSA-N",
+     "reason": "contains chlorine"
+    },
+    {
+     "name": "2,9,11,13,15,22,24,26,27,28-Decaazatricyclo(21.3.1.110,14)octacosa-1(27),10,12,14(28),23,25-hexaene-12,25-diamine, N12,N25-bis(1,1,3,3-tetramethylbutyl)-2,9,15,22-tetrakis(2,2,6,6-tetramethyl-4-piperidinyl)-",
+     "inchikey": "QMXSCDIANZDPCU-UHFFFAOYSA-N",
+     "reason": "heavier than 700 g/mol"
+    },
+    {
+     "name": "2-(4-Methoxy-2,2,6,6-tetramethylpiperidin-1-yl)ethyl 4-oxopentanoate",
+     "inchikey": "CTJXKCPBMVLOQI-UHFFFAOYSA-N",
+     "reason": "a mixture or polymer, not one structure"
+    },
+    {
+     "name": "4-(5-Chloro-2H-benzo[d][1,2,3]triazol-2-yl)-3-hydroxyphenyl benzoate",
+     "inchikey": "HWSDZRBDEVTBSM-UHFFFAOYSA-N",
+     "reason": "contains chlorine"
+    },
+    {
+     "name": "4-Acetamido-2,2,6,6-tetramethylpiperidine 1-oxyl",
+     "inchikey": "UXBLSWOMIHTQPH-UHFFFAOYSA-N",
+     "reason": "not in the campaign's input list"
+    },
+    {
+     "name": "4-[3-(Diethoxymethylsilyl)propoxy]-2,2,6,6-tetramethylpiperidine",
+     "inchikey": "PTUAFEVULPLJPF-UHFFFAOYSA-N",
+     "reason": "contains silicon"
+    },
+    {
+     "name": "5-Chloro-2-hydroxy-4-methylbenzophenone",
+     "inchikey": "IOGQACQRFGDUPT-UHFFFAOYSA-N",
+     "reason": "contains chlorine"
+    },
+    {
+     "name": "Benzenepropanoic acid, 3,5-bis(1,1-dimethylethyl)-4-hydroxy-, 1-(2-(3-(3,5-bis(1,1-dimethylethyl)-4-hydroxyphenyl)-1-oxopropoxy)ethyl)-2,2,6,6-tetramethyl-4-piperidinyl ester",
+     "inchikey": "SKMNWICOBCDSSQ-UHFFFAOYSA-N",
+     "reason": "heavier than 700 g/mol"
+    },
+    {
+     "name": "Benzenepropanoic acid, 3-(2H-benzotriazol-2-yl)-5-(1,1-dimethylethyl)-4-hydroxy-, methyl ester",
+     "inchikey": "UJRDRFZCRQNLJM-UHFFFAOYSA-N",
+     "reason": "a mixture or polymer, not one structure"
+    },
+    {
+     "name": "Benzenepropanoic acid, 3-(5-chloro-2H-benzotriazol-2-yl)-5-(1,1-dimethylethyl)-4-hydroxy-, 2-ethylhexyl ester",
+     "inchikey": "AWEVLIFGIMIQHY-UHFFFAOYSA-N",
+     "reason": "contains chlorine"
+    },
+    {
+     "name": "Bis(2-(4-(4,6-diphenyl-1,3,5-triazin-2-yl)-3-hydroxyphenoxy)ethyl) dodecanedioate",
+     "inchikey": "ZHHPLZHAFGMOKL-UHFFFAOYSA-N",
+     "reason": "heavier than 700 g/mol"
+    },
+    {
+     "name": "Bumetrizole",
+     "inchikey": "OCWYEMOEOGEQAN-UHFFFAOYSA-N",
+     "reason": "contains chlorine"
+    },
+    {
+     "name": "Chimassorb 119",
+     "inchikey": "OWXXKGVQBCBSFJ-UHFFFAOYSA-N",
+     "reason": "heavier than 700 g/mol"
+    },
+    {
+     "name": "Chimassorb 2020",
+     "inchikey": "YXHRTMJUSBVGMX-UHFFFAOYSA-N",
+     "reason": "a mixture or polymer, not one structure"
+    },
+    {
+     "name": "Dimethyl-[methyl-[3-(2,2,6,6-tetramethylpiperidin-4-yl)oxypropyl]-trimethylsilyloxysilyl]oxy-trimethylsilyloxysilane",
+     "inchikey": "GBOJXOZBXODHLW-UHFFFAOYSA-N",
+     "reason": "a mixture or polymer, not one structure"
+    },
+    {
+     "name": "Ethanol, 2,2'-[[4,6-bis[butyl[1-(cyclohexyloxy)-2,2,6,6-tetramethyl-4-piperidinyl]amino]-1,3,5-triazin-2-yl]imino]bis-",
+     "inchikey": "YSNHIFDTKFOOER-UHFFFAOYSA-N",
+     "reason": "heavier than 700 g/mol"
+    },
+    {
+     "name": "Octyl 3-(3-(2H-benzo[d][1,2,3]triazol-2-yl)-5-(tert-butyl)-4-hydroxyphenyl)propanoate",
+     "inchikey": "XQAABEDPVQWFPN-UHFFFAOYSA-N",
+     "reason": "a mixture or polymer, not one structure"
+    },
+    {
+     "name": "Octyl 5-tert-butyl-3-(5-chloro-2H-benzotriazole-2-yl)-4-hydroxybenzenepropionate",
+     "inchikey": "DMFXLIFZVRXRRR-UHFFFAOYSA-N",
+     "reason": "contains chlorine"
+    },
+    {
+     "name": "Sulisobenzone",
+     "inchikey": "CXVGEDCSTKKODG-UHFFFAOYSA-N",
+     "reason": "contains sulfur"
+    },
+    {
+     "name": "Tempol",
+     "inchikey": "UZFMOKQJFYMBGY-UHFFFAOYSA-N",
+     "reason": "not in the campaign's input list"
+    },
+    {
+     "name": "Tetrakis(2,2,6,6-tetramethyl-4-piperidyl) butane-1,2,3,4-tetracarboxylate",
+     "inchikey": "NZNAAUDJKMURFU-UHFFFAOYSA-N",
+     "reason": "heavier than 700 g/mol"
+    }
+   ]
+  },
+  {
+   "name": "Benzophenones",
+   "term": "benzophenones",
+   "aliases": [
+    "benzophenone derivatives"
+   ],
+   "description": "benzophenone photoinitiators and UV absorbers",
+   "basis": "PlastChem group acetophenones_benzophenones; with a benzophenone core",
+   "examples": [
+    "Benzophenone",
+    "Oxybenzone",
+    "4-Methylbenzophenone"
+   ],
+   "members": [
+    "ARVUDIQYNJVQIW-UHFFFAOYSA-N",
+    "CKGKXGQVRVAKEA-UHFFFAOYSA-N",
+    "DXGLGDHPHMLXJC-UHFFFAOYSA-N",
+    "HJIAMFHSAAEUKR-UHFFFAOYSA-N",
+    "HPAFOABSQZMTHE-UHFFFAOYSA-N",
+    "IMNBHNRXUAJVQE-UHFFFAOYSA-N",
+    "LYXOWKPVTCPORE-UHFFFAOYSA-N",
+    "MEZZCSHVIGVWFI-UHFFFAOYSA-N",
+    "NPFYZDNDJHZQKY-UHFFFAOYSA-N",
+    "QUAMTGJKVDWJEQ-UHFFFAOYSA-N",
+    "RWCCWEUUXYIKHB-UHFFFAOYSA-N",
+    "RXNYJUSEXLAVNQ-UHFFFAOYSA-N",
+    "SODJJEXAWOSSON-UHFFFAOYSA-N",
+    "SXJSETSRWNDWPP-UHFFFAOYSA-N",
+    "URBLVRAVOIVZFJ-UHFFFAOYSA-N",
+    "VQVIHDPBMFABCQ-UHFFFAOYSA-N",
+    "VVBLNCFGVYUYGU-UHFFFAOYSA-N",
+    "VYHBFRJRBHMIQZ-UHFFFAOYSA-N",
+    "WXNRYSGJLQFHBR-UHFFFAOYSA-N",
+    "WXPWZZHELZEVPO-UHFFFAOYSA-N",
+    "ZXDDPOHVAMWLBH-UHFFFAOYSA-N"
+   ],
+   "outside_release": [
+    {
+     "name": "2,5-Dichlorobenzophenone",
+     "inchikey": "FAVKIHMGRWRACA-UHFFFAOYSA-N",
+     "reason": "contains chlorine"
+    },
+    {
+     "name": "3-Chlorobenzophenone",
+     "inchikey": "CPLWKNRPZVNELG-UHFFFAOYSA-N",
+     "reason": "contains chlorine"
+    },
+    {
+     "name": "4,4'-Difluorobenzophenone",
+     "inchikey": "LSQARZALBDFYQZ-UHFFFAOYSA-N",
+     "reason": "contains fluorine"
+    },
+    {
+     "name": "4-Chloro-4'-hydroxybenzophenone",
+     "inchikey": "RUETVLNXAGWCDS-UHFFFAOYSA-N",
+     "reason": "contains chlorine"
+    },
+    {
+     "name": "4-Chlorobenzophenone",
+     "inchikey": "UGVRJVHOJNYEHR-UHFFFAOYSA-N",
+     "reason": "contains chlorine"
+    },
+    {
+     "name": "Sulisobenzone",
+     "inchikey": "CXVGEDCSTKKODG-UHFFFAOYSA-N",
+     "reason": "contains sulfur"
+    }
+   ]
+  },
+  {
+   "name": "Aromatic amines",
+   "term": "aromatic amines",
+   "aliases": [
+    "aromatic amine",
+    "primary aromatic amines",
+    "arylamines"
+   ],
+   "description": "primary aromatic amines",
+   "basis": "PlastChem group aromatic_amines",
+   "examples": [
+    "4,4'-Methylenedianiline",
+    "o-Toluidine",
+    "2,4-Diaminotoluene"
+   ],
+   "members": [
+    "BAHPQISAXRFLCL-UHFFFAOYSA-N",
+    "BMIPMKQAAJKBKP-UHFFFAOYSA-N",
+    "DMVOXQPQNTYEKQ-UHFFFAOYSA-N",
+    "DSBIJCMXAIKKKI-UHFFFAOYSA-N",
+    "HFACYLZERDEVSX-UHFFFAOYSA-N",
+    "HLBLWEWZXPIGSM-UHFFFAOYSA-N",
+    "JBIJLHTVPXGSAM-UHFFFAOYSA-N",
+    "JRBJSXQPQWSCCF-UHFFFAOYSA-N",
+    "NUIURNJTPRWVAP-UHFFFAOYSA-N",
+    "PFRYFZZSECNQOL-UHFFFAOYSA-N",
+    "QPQKUYVSJWQSDY-UHFFFAOYSA-N",
+    "RNVCVTLRINQCPJ-UHFFFAOYSA-N",
+    "VMPITZXILSNTON-UHFFFAOYSA-N",
+    "VOZKAJLKRJDJLL-UHFFFAOYSA-N",
+    "WECDUOXQLAIPQW-UHFFFAOYSA-N",
+    "WXWCDTXEKCVRRO-UHFFFAOYSA-N",
+    "YBRVSVVVWCFQMG-UHFFFAOYSA-N"
+   ],
+   "outside_release": [
+    {
+     "name": "3,3'-Dichlorobenzidine",
+     "inchikey": "HUWXDEQWWKGHRV-UHFFFAOYSA-N",
+     "reason": "contains chlorine"
+    },
+    {
+     "name": "4,4'-Methylenebis(2-chloroaniline)",
+     "inchikey": "IBOFVQJTBBUKMU-UHFFFAOYSA-N",
+     "reason": "contains chlorine"
+    },
+    {
+     "name": "4,4'-Thiodianiline",
+     "inchikey": "ICNFHJVPAJKPHW-UHFFFAOYSA-N",
+     "reason": "contains sulfur"
+    },
+    {
+     "name": "4-Chloro-2-methylaniline",
+     "inchikey": "CXNVOWPRHWWCQR-UHFFFAOYSA-N",
+     "reason": "contains chlorine"
+    },
+    {
+     "name": "4-Chloroaniline",
+     "inchikey": "QSNSCYSYFYORTR-UHFFFAOYSA-N",
+     "reason": "contains chlorine"
+    }
+   ]
+  },
+  {
+   "name": "Slip agents",
+   "term": "slip agents",
+   "aliases": [
+    "slip agent",
+    "slip additives",
+    "fatty acid amides",
+    "fatty amides"
+   ],
+   "description": "fatty acid amides",
+   "basis": "PlastChem group aliphatic_primary_amides; at least 12 carbons",
+   "examples": [
+    "Erucamide",
+    "Oleamide",
+    "Octadecanamide"
+   ],
+   "members": [
+    "FATBGEAMYMYZAF-KTKRTIGZSA-N",
+    "HSEMFIZWXHQJAE-UHFFFAOYSA-N",
+    "ILRSCQWREDREME-UHFFFAOYSA-N",
+    "LYRFLYHAGKPMFH-UHFFFAOYSA-N",
+    "OOCSVLHOTKHEFZ-UHFFFAOYSA-N",
+    "ORAWFNKFUWGRJG-UHFFFAOYSA-N",
+    "QEALYLRSRQDCRA-UHFFFAOYSA-N",
+    "UAUDZVJPLUQNMU-KTKRTIGZSA-N"
+   ],
+   "outside_release": []
+  },
+  {
+   "name": "Salicylates",
+   "term": "salicylates",
+   "aliases": [
+    "salicylate esters"
+   ],
+   "description": "salicylate esters",
+   "basis": "PlastChem group salicylate_esters",
+   "examples": [
+    "Methyl salicylate",
+    "Homosalate",
+    "2-Ethylhexyl salicylate"
+   ],
+   "members": [
+    "BSYNRYMUTXBXSQ-UHFFFAOYSA-N",
+    "DUKPKQFHJQGTGU-UHFFFAOYSA-N",
+    "FMRHJJZUHUTGKE-UHFFFAOYSA-N",
+    "GYCKQBWUSACYIF-UHFFFAOYSA-N",
+    "IEPWIPZLLIOZLU-ARJAWSKDSA-N",
+    "LCMNCRZMVCRJNZ-UHFFFAOYSA-N",
+    "OSWPMRLSEDHDFF-UHFFFAOYSA-N",
+    "RANVDUNFZBMTBK-UHFFFAOYSA-N",
+    "WSSJONWNBBTCMG-UHFFFAOYSA-N",
+    "ZCTQGTTXIYCGGC-UHFFFAOYSA-N",
+    "ZQBAKBUEJOMQEX-UHFFFAOYSA-N"
+   ],
+   "outside_release": []
+  },
+  {
+   "name": "Parabens",
+   "term": "parabens",
+   "aliases": [
+    "paraben",
+    "4-hydroxybenzoates"
+   ],
+   "description": "4-hydroxybenzoate esters",
+   "basis": "PlastChem group parabens",
+   "examples": [
+    "Methylparaben",
+    "Propylparaben",
+    "Butylparaben"
+   ],
+   "members": [
+    "CMHMMKSPYOOVGI-UHFFFAOYSA-N",
+    "FJKROLUGYXJWQN-UHFFFAOYSA-N",
+    "LXCFILQKKLGQFO-UHFFFAOYSA-N",
+    "MOZDKDIOPSPTBH-UHFFFAOYSA-N",
+    "NUVBSKCKDOMJSU-UHFFFAOYSA-N",
+    "QELSKZZBTMNZEB-UHFFFAOYSA-N",
+    "QFOHBWFCKVYLES-UHFFFAOYSA-N"
+   ],
+   "outside_release": [
+    {
+     "name": "201305-16-0",
+     "inchikey": null,
+     "reason": "a mixture or polymer, not one structure"
+    },
+    {
+     "name": "Propylparaben sodium",
+     "inchikey": "IXMINYBUNCWGER-UHFFFAOYSA-M",
+     "reason": "a salt or a mixture of molecules"
+    },
+    {
+     "name": "Sodium ethylparaben",
+     "inchikey": "QYNMSPKSYXPZHG-UHFFFAOYSA-M",
+     "reason": "a salt or a mixture of molecules"
+    }
+   ]
+  }
+ ]
+}

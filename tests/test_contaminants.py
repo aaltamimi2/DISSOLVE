@@ -5024,3 +5024,122 @@ def test_a_workbook_refusal_points_to_the_plastchem_screen():
     assert data["error_code"] == "unsupported_contaminants"
     assert data["plastchem_partitioning_covers"] == ["bisphenol A"]
     assert "screen_contaminant_partitioning covers bisphenol A" in data["error"]
+
+
+def _plastchem_family_rows(family: str) -> dict[str, str]:
+    """name -> inchikey of a family's computed members in the served release."""
+    con = contaminants._plastchem()
+    members = contaminants._plastchem_family(family)["members"]
+    return dict(con.execute("SELECT name, inchikey FROM contaminants WHERE computed AND inchikey IN (SELECT unnest(?))",
+                            [members]).fetchall())
+
+
+def test_a_family_name_screens_every_computed_member():
+    """Nobody knows the names of 5,830 contaminants (owner, 2026-09-24): "bisphenols" was unsupported, so a user had
+    to name each one. A family name now screens every member the release computed, and says what it lacks."""
+    out = _data(contaminants.screen_contaminant_partitioning("PC", "ethanol", ["bisphenols"]))
+    assert out["unsupported_contaminants"] == [] and out["evaluated"] == 24
+    assert {row["family"] for row in out["rows"]} == {"Bisphenols"}
+    assert "Bisphenol A" in {row["contaminant"] for row in out["rows"]}
+    (family,) = out["family_coverage"]
+    assert (family["family"], family["screened"], family["not_computed"], family["outside_release"]) == (
+        "Bisphenols", 24, 1, 9)
+    assert family["outside_release_by_reason"]["contains sulfur"] == 2  # bisphenol S among them
+    assert "Bisphenol AF (contains fluorine)" in family["outside_release_examples"]
+    # the ways a question names a family are one family; a compound is still a compound
+    same = [_data(contaminants.screen_contaminant_partitioning("PC", "ethanol", [name]))["evaluated"]
+            for name in ("Phthalates", "the phthalate family", "ortho-phthalates", "all phthalates")]
+    assert same == [40, 40, 40, 40]
+    one = _data(contaminants.screen_contaminant_partitioning("PC", "ethanol", ["benzophenone"]))
+    assert [row["contaminant"] for row in one["rows"]] == ["Benzophenone"] and "family_coverage" not in one
+    # a family and a member named with it are screened once
+    both = _data(contaminants.screen_contaminant_partitioning("PP", "ethanol", ["antioxidants", "BHT", "slip agents"]))
+    assert both["evaluated"] == 120 + 8
+    assert [f["family"] for f in both["family_coverage"]] == ["Antioxidants", "Slip agents"]
+    assert "family (phthalates, terephthalates, bisphenols" in both["coverage"]
+
+
+def test_family_members_are_what_their_plain_names_say():
+    """PlastChem's "phenolic antioxidants" group is mostly bisphenols and lacks BHT, its benzotriazole group mixes UV
+    absorbers with corrosion inhibitors, and its "Antioxidant" label also tags methanol. The plain names are held to
+    what they say (2026-09-24)."""
+    antioxidants = _plastchem_family_rows("antioxidants")
+    for name in ("Butylated Hydroxytoluene", "2,4-Di-tert-butylphenol", "Alpha-Tocopherol", "Propyl gallate",
+                 "N-(1,3-Dimethylbutyl)-N'-phenyl-p-phenylenediamine", "2,2,4-Trimethyl-1,2-dihydroquinoline"):
+        assert name in antioxidants, name
+    for name in ("Bisphenol A", "Methanol", "Acetic Acid", "2,2-Bis(2-hydroxyphenyl)propane", "UV-328",
+                 "3H-Dibenz[f,ij]isoquinoline-2,7-dione, 3-methyl-6-[(4-methylphenyl)amino]-"):
+        assert name not in antioxidants, name
+    uv = _plastchem_family_rows("UV stabilizers")
+    for name in ("UV-328", "Drometrizole", "Octabenzone", "Bis(2,2,6,6-tetramethyl-4-piperidyl) sebacate", "Octocrylene"):
+        assert name in uv, name
+    for name in ("1H-Benzotriazole", "5-Methyl-1H-benzotriazole", "Benzophenone"):
+        assert name not in uv, name
+    slip = set(_plastchem_family_rows("slip agents"))
+    assert {"Erucamide", "Oleamide"} <= slip and not {"Formamide", "Acetamide"} & slip
+    benzophenones = set(_plastchem_family_rows("benzophenones"))
+    assert "Michler's ketone" in benzophenones and not {"1,4-Benzoquinone", "Acetophenone"} & benzophenones
+    con = contaminants._plastchem()
+    first_line = contaminants.screen_contaminant_partitioning.__doc__.splitlines()[0]
+    for family in contaminants._family_table():
+        assert family["term"] in first_line, family["name"]  # the agent sees every family in the tool description
+        for alias in (family["name"], family["term"], *family["aliases"]):
+            assert not con.execute("SELECT 1 FROM aliases WHERE alias = ?", [contaminants._key(alias)]).fetchone()
+        for example in family["examples"]:  # what the family picker shows resolves as typed
+            hits = _data(contaminants.screen_contaminant_partitioning("LDPE", "ethanol", [example]))["rows"]
+            assert len(hits) == 1 and hits[0]["inchikey"] in family["members"], (family["name"], example)
+
+
+def test_a_workbook_refusal_points_to_a_plastchem_family():
+    data = _data(contaminants.compare_contaminant_removal_modes("HDPE", ["bisphenols"]))
+    assert data["error_code"] == "unsupported_contaminants"
+    assert data["plastchem_partitioning_covers"] == ["bisphenols"]
+
+
+def test_contaminant_families_for_pickers():
+    """The web app's family picker lists what each family screens: the PlastChem families with their computed
+    members, then PFAS, which only the workbook screens serve."""
+    families = contaminants.contaminant_families()
+    assert [(f["name"], f["count"], f["source"]) for f in families] == [
+        ("Phthalates", 40, "plastchem"), ("Terephthalates", 16, "plastchem"), ("Bisphenols", 24, "plastchem"),
+        ("Alkylphenols", 37, "plastchem"), ("Antioxidants", 120, "plastchem"), ("UV stabilizers", 74, "plastchem"),
+        ("Benzophenones", 21, "plastchem"), ("Aromatic amines", 17, "plastchem"), ("Slip agents", 8, "plastchem"),
+        ("Salicylates", 11, "plastchem"), ("Parabens", 7, "plastchem"), ("PFAS", 26, "workbook")]
+    phthalates = families[0]
+    assert "Bis(2-ethylhexyl) phthalate" in phthalates["members"] and phthalates["examples"] == ["DEHP", "DBP", "BBP"]
+
+
+def test_family_builder_refuses_ambiguous_names_and_says_why_members_are_missing(tmp_path, monkeypatch):
+    """The family builder reads the PlastChem workbook's layout: section headers, then column names, then entries."""
+    openpyxl = pytest.importorskip("openpyxl")
+    asset = tmp_path / "asset.duckdb"
+    plastchem_release.promote_opencosmo_release(_plastchem_release(tmp_path), asset)
+    columns = ["plastchem_ID", "cas", "pubchem_name", "isomeric_smiles", "canonical_smiles", "inchikey",
+               "molecular_weight", "inorganic_compounds", "organometallics", "UVCBs", "polymers", "mixtures", "esters"]
+    entries = [  # the release computes AAAA-A and DDDD-D; the rest are PlastChem entries it lacks
+        (1, "111-11-1", "Alphaester", "CCOC(C)=O", None, "AAAA-A", 88, None, None, None, None, None, 1),
+        (4, "", "Deltaone", "CC(C)=O", None, "DDDD-D", 58, None, None, None, None, None, 1),
+        (9, "", "Thioester", "CCSC(C)=O", None, "SSSS-S", 104, None, None, None, None, None, 1),
+        (10, "", "Ester blend", None, None, None, None, None, None, 1, None, None, 1),
+        (11, "", "Not an ester", "CCO", None, "ZZZZ-Z", 46, None, None, None, None, None, None),
+    ]
+    book = openpyxl.Workbook()
+    sheet = book.active
+    sheet.title = "Full database"
+    sheet.append(["Identifiers"] + [None] * (len(columns) - 1))
+    sheet.append(columns)
+    for entry in entries:
+        sheet.append(list(entry))
+    workbook = tmp_path / "plastchem.xlsx"
+    book.save(workbook)
+    spec = {"name": "Esters", "term": "esters", "group": "esters", "aliases": ("ester",), "description": "esters",
+            "examples": ("Alphaester",)}
+    out = tmp_path / "families.json"
+    assert plastchem_release.build_families(workbook, out, asset=asset, specs=[spec]) == {"Esters": 2}
+    (family,) = json.loads(out.read_text())["families"]
+    assert [(item["name"], item["reason"]) for item in family["outside_release"]] == [
+        ("Ester blend", "a mixture or polymer, not one structure"), ("Thioester", "contains sulfur")]
+    with pytest.raises(ValueError, match="names a contaminant"):
+        plastchem_release.build_families(workbook, out, asset=asset, specs=[{**spec, "aliases": ("alphaester",)}])
+    with pytest.raises(ValueError, match="does not resolve to a family member"):
+        plastchem_release.build_families(workbook, out, asset=asset, specs=[{**spec, "examples": ("Betaamide",)}])

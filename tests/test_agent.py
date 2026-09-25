@@ -1017,6 +1017,18 @@ def test_a_contaminant_class_fits_the_context_and_pages_whole_rows():
         assert small["top"] == handle_rows(load_handle(rec, small["handle"]))[:20]  # a page that fits is unchanged
 
 
+def test_a_family_screen_shows_the_model_what_the_family_lacks():
+    """"Which antioxidants leach from PP into ethanol" paged its 120 rows, and the compact view dropped the family's
+    coverage: the answer never said 81 PlastChem antioxidants are outside the release (2026-09-24)."""
+    with _bound():
+        screen = dispatch("screen_contaminant_partitioning", polymer="PP", solvent="ethanol",
+                          contaminants=["antioxidants"])
+        assert screen["handle"] and screen["total"] == 120 and screen["shown"] < 120
+        (coverage,) = screen["data"]["family_coverage"]
+        assert (coverage["screened"], coverage["not_computed"], coverage["outside_release"]) == (120, 18, 81)
+        assert coverage["outside_release_by_reason"]["contains phosphorus"] == 39
+
+
 def test_the_model_sees_a_log_ratio_past_six_as_its_bound_and_engines_keep_the_number():
     """DEHP into water is logD -8.21 in the workbook. Past ±6 a substance is effectively all in one phase, so the model
     gets "< -6" (owner, 2026-09-24). The separation planner compares logD by calling the tool directly: it keeps -8.21."""
