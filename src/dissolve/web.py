@@ -13,11 +13,17 @@ handler, and sessions are the CLI's session files, so a conversation can move be
     GET  /api/sessions/{id}                 its modes and transcript
     POST /api/sessions/{id}/turns {text}    the NDJSON stream of one turn or slash command
     DELETE /api/sessions/{id}               remove a chat (with a database, only its owner can)
+    GET  /api/sessions/{id}/tea-sheet       the TEA panel: a sheet waiting for an answer, a run, the last results
+    POST /api/sessions/{id}/tea-sheet/check {sheet_id, values, ranges, drop} -> plants, stored, time, refused plants
+    POST /api/sessions/{id}/tea-sheet       {sheet_id, action: run|cancel|stop, values, ranges, drop}
     POST /api/client-error                  a crash in someone's browser, printed to this server's log
     GET  /api/auth/config  /api/auth/me     whether this server has accounts; who is signed in
     POST /api/auth/signup  /api/auth/login  /api/auth/logout
 
 Everything else serves the built UI in src/dissolve/ui/ (its source is web/).
+
+In a review-mode chat a plant TEA the model starts waits for the person in the TEA panel (web_tea.py): every field
+the CLI's process sheet shows, with ranges, checked before anything runs.
 
 With DATABASE_URL set, people have accounts (web_accounts.py): each signs up with a username and a password, sees
 only their own chats, and keeps them across redeploys, because accounts and chats live in that database and not in
@@ -52,7 +58,7 @@ from pydantic import BaseModel
 from rich.console import Console
 from starlette.concurrency import run_in_threadpool
 
-from dissolve import RELEASE, cli, contaminants, web_accounts
+from dissolve import RELEASE, cli, contaminants, web_accounts, web_tea
 from dissolve.agent import ToolEvent
 
 STATIC = Path(__file__).with_name("ui")
@@ -68,6 +74,14 @@ class NewSession(BaseModel):
 
 class Turn(BaseModel):
     text: str
+
+
+class SheetAnswer(BaseModel):
+    sheet_id: str
+    action: str = "run"
+    values: dict[str, Any] = {}
+    ranges: dict[str, Any] = {}
+    drop: list[int] = []
 
 
 class Credentials(BaseModel):
@@ -158,6 +172,7 @@ class Sessions:
         self.db = db
         self.apps: dict[str, cli.CliApp] = {}
         self.locks: dict[str, threading.Lock] = {}
+        self.panels: dict[str, web_tea.Panel] = {}
         self.owners: dict[str, str] = {}
         self.guard = threading.Lock()
 
@@ -191,6 +206,7 @@ class Sessions:
             except ValueError as error:
                 raise HTTPException(400, str(error)) from error
             self.locks[session_id] = threading.Lock()
+            self.panels[session_id] = web_tea.Panel()
             self.owners[session_id] = owner
             return self.apps[session_id], self.locks[session_id]
 
@@ -215,7 +231,7 @@ class Sessions:
                     if not (folder / "session.json").is_file():
                         raise HTTPException(404, "no such session")
                     shutil.rmtree(folder)
-                for table in (self.apps, self.locks, self.owners):
+                for table in (self.apps, self.locks, self.panels, self.owners):
                     table.pop(session_id, None)
             finally:
                 if lock is not None:
@@ -275,7 +291,8 @@ def transcript(app: cli.CliApp) -> list[dict[str, Any]]:
     return out
 
 
-def _run(app: cli.CliApp, text: str, events: "queue.Queue[dict[str, Any] | None]", offered: dict[str, bool]) -> None:
+def _run(app: cli.CliApp, text: str, events: "queue.Queue[dict[str, Any] | None]", offered: dict[str, bool],
+         panel: web_tea.Panel | None = None) -> None:
     started = time.monotonic()
     events.put({"event": "turn.started", "session_id": app.store.session_id, "text": text})
     try:
@@ -313,9 +330,11 @@ def _run(app: cli.CliApp, text: str, events: "queue.Queue[dict[str, Any] | None]
         original = app._print_tool_event
         app.event_sink = sink
         app._print_tool_event = on_tool  # the CLI's own recorder, then the stream
+        turn = web_tea.TURN.set(web_tea.Turn(panel, app, events.put) if panel is not None and offered["tea"] else None)
         try:
             app.ask(text)
         finally:
+            web_tea.TURN.reset(turn)
             app.event_sink = None
             del app._print_tool_event
     except (RuntimeError, ValueError) as error:
@@ -374,6 +393,8 @@ def create_app(home: str | Path | None = None) -> FastAPI:
     failures: dict[tuple[str, str], list[float]] = {}
     offered = features()
     signup_code = os.getenv("DISSOLVE_SIGNUP_CODE", os.getenv("DISSOLVE_WEB_PASSWORD", ""))
+    if offered["tea"]:
+        web_tea.install()  # a plant TEA in a review-mode chat waits for the person in the TEA panel
 
     if accounts is not None:
         @api.middleware("http")
@@ -539,9 +560,11 @@ def create_app(home: str | Path | None = None) -> FastAPI:
             raise HTTPException(409, "a turn is already running in this session")
         events: queue.Queue[dict[str, Any] | None] = queue.Queue()
 
+        panel = sessions.panels.get(session_id)
+
         def work() -> None:
             try:
-                _run(app, text, events, offered)
+                _run(app, text, events, offered, panel)
             finally:
                 lock.release()
 
@@ -552,6 +575,31 @@ def create_app(home: str | Path | None = None) -> FastAPI:
                 yield json.dumps(event, ensure_ascii=False, default=str) + "\n"
 
         return StreamingResponse(stream(), media_type="application/x-ndjson")
+
+    def panel_of(session_id: str, request: Request) -> web_tea.Panel:
+        sessions.open(session_id, user=user_of(request))  # another account's chat is "no such session"
+        return sessions.panels[session_id]
+
+    @api.get("/api/sessions/{session_id}/tea-sheet")
+    def tea_sheet(session_id: str, request: Request) -> dict[str, Any]:
+        return panel_of(session_id, request).state()
+
+    @api.post("/api/sessions/{session_id}/tea-sheet/check")
+    def tea_sheet_check(session_id: str, body: SheetAnswer, request: Request) -> dict[str, Any]:
+        try:
+            return panel_of(session_id, request).check(body.sheet_id, body.values, body.ranges, body.drop)
+        except web_tea.Conflict as error:
+            raise HTTPException(409, str(error)) from error
+
+    @api.post("/api/sessions/{session_id}/tea-sheet")
+    def tea_sheet_answer(session_id: str, body: SheetAnswer, request: Request) -> dict[str, Any]:
+        try:
+            return panel_of(session_id, request).respond(body.sheet_id, body.action, body.values, body.ranges,
+                                                         body.drop)
+        except web_tea.Conflict as error:
+            raise HTTPException(409, str(error)) from error
+        except web_tea.SheetError as error:
+            raise HTTPException(422, {"message": str(error), **error.detail}) from error
 
     @api.post("/api/client-error", status_code=204)
     async def client_error(request: Request) -> Response:

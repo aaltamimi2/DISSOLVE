@@ -39,12 +39,25 @@ import {
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { rehypeStructures, STRUCTURE_URL } from "./structures";
-import { api, type Command, type ContaminantFamily, type Doctor, type Features, type Model, type SessionRow, type SessionState, type ToolCall } from "./api";
+import { api, type Command, type ContaminantFamily, type Doctor, type Features, type Model, type SessionRow, type SessionState, type TeaResult, type ToolCall } from "./api";
 import { family, MODE_CHIPS, offeredActions, type Example, type QuickAction } from "./content";
+import { TeaNotice } from "./tea";
 
 export type ChatMessage =
   | { id: string; role: "user"; text: string }
-  | { id: string; role: "assistant"; text: string; tools: ToolCall[]; status?: string | null; elapsed?: number; running?: boolean }
+  | {
+      id: string;
+      role: "assistant";
+      text: string;
+      tools: ToolCall[];
+      status?: string | null;
+      elapsed?: number;
+      running?: boolean;
+      /** A TEA this answer started: waiting for the person in the panel, running, or finished with results. */
+      tea?: "waiting" | "running";
+      teaProgress?: string;
+      teaResult?: TeaResult;
+    }
   | { id: string; role: "command"; command: string; text: string }
   | { id: string; role: "error"; text: string };
 
@@ -727,7 +740,7 @@ function Markdown({ text }: { text: string }) {
   );
 }
 
-export function MessageView({ message, onCopy }: { message: ChatMessage; onCopy: (text: string) => void }) {
+export function MessageView({ message, onCopy, onOpenTea }: { message: ChatMessage; onCopy: (text: string) => void; onOpenTea?: (result?: TeaResult) => void }) {
   if (message.role === "user") {
     return (
       <div className="rise flex justify-end">
@@ -764,6 +777,7 @@ export function MessageView({ message, onCopy }: { message: ChatMessage; onCopy:
       <div className="min-w-0 flex-1">
         <div className="rounded-2xl rounded-tl-md border border-line bg-surface px-4 py-3 shadow-soft">
           <ToolTrace tools={message.tools} running={message.running} />
+          {onOpenTea && <TeaNotice state={message.tea} progress={message.teaProgress} result={message.teaResult} onOpen={() => onOpenTea(message.teaResult)} />}
           {message.running && !message.text ? (
             <div className="typing-dots flex gap-1 py-1" aria-label="Working">
               <span />
