@@ -16,7 +16,7 @@ services:
     health_check:
       http_path: /api/health
     envs:
-      - key: META_MUSE_API_KEY
+      - key: OPENROUTER_API_KEY
         type: SECRET
         scope: RUN_TIME
       - key: DISSOLVE_WEB_PASSWORD
