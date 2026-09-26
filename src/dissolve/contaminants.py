@@ -1010,7 +1010,11 @@ def _leaching(inputs: dict[str, Any]) -> dict[str, Any]:
     for solvent in list(dict.fromkeys(_key(item) for item in candidates)):
         upper = _upper(solvent, inputs["maximum"])
         regime = _regime(solvent, upper)
-        temperature = upper if regime == "t_higher" else min(upper, 25.0)
+        # The polymer's solubility exists only at grid nodes: a hot wash runs at the highest node at or below the
+        # boiling-point cap. At the cap itself (ethanol: 77.2 °C) the lookup found nothing and failed the wash as an
+        # "unsupported pair" although the miscibility and logD checks had passed (review finding A06-R1).
+        wanted = upper if regime == "t_higher" else min(upper, 25.0)
+        temperature = max((node for node in thermo._grid_nodes() if node <= wanted), default=wanted)
         contaminants, minimum, miscible, positive = _contaminant_rows(
             solvent, inputs["supported"], regime,
             computed_by_pair=_index_computed_deltas(inputs.get("computed_deltas")),
@@ -1053,6 +1057,10 @@ def _leaching(inputs: dict[str, Any]) -> dict[str, Any]:
         rows.append({
             "solvent": solvent, "passes": passes, "mode": "leaching",
             "operating_temperature_c": temperature,
+            "operating_temperature_basis": (
+                "requested or capped temperature, a grid node" if temperature == wanted
+                else f"highest solubility-grid node at or below {wanted:g} °C (the boiling-point or requested cap)"
+            ),
             "boiling_point_c": thermo.get_boiling_point(solvent),
             "contaminant_miscibility_pass": miscible,
             "contaminant_logd_pass": positive, "contaminant_logd_min": minimum,

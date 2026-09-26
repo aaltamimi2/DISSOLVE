@@ -30,7 +30,7 @@ import duckdb
 from . import safety
 
 PEROXIDE_TABLE = Path(str(files("dissolve").joinpath("data/peroxide_formers.v1.json")))
-EU_CLASSIFICATION = Path(str(files("dissolve").joinpath("data/eu_classification.v1.json")))
+EU_CLASSIFICATION = Path(str(files("dissolve").joinpath("data/eu_classification.v2.json")))
 # The classification bases under which a solvent's REACH status sets the CHEM21 Health/Environment rule. For "no EU
 # classification found" (in ECHA, but no usable entry) the status is withheld, so the untested default applies.
 _REACH_RULE_BASES = frozenset({"EU classification", "not classified in the EU"})
@@ -97,7 +97,7 @@ def _phrases(records: list[dict[str, Any]]) -> dict[str, str]:
 
 def eu_ghs(fields: dict[str, Any], eu: dict[str, Any], phrases: dict[str, str]) -> dict[str, Any]:
     """The hazard statements, signal word and pictograms under the solvent's own EU classification (see
-    eu_classification.v1.json). PubChem's lines stay as provenance; a severe code PubChem carries that the EU
+    eu_classification.v2.json). PubChem's lines stay as provenance; a severe code PubChem carries that the EU
     classification does not is surfaced, not served."""
     codes = list(eu.get("codes") or [])
     statements = [phrases.get(code, code) for code in codes]
@@ -230,14 +230,17 @@ def build(raw: Path, out: Path, fetched_at_utc: str) -> str:
         "headings": json.dumps(list(safety._HEADINGS)),
         "parser": "dissolve.safety._pubchem_fields (shared with live safety cards)",
         "flash_point_rule": "lowest value a second source confirms within 3 °C, else the median of the sources; "
-                            "a hyphen between numbers is a range; bounds count only when nothing else exists",
+                            "a lower closed-cup value from ICSC or NIOSH, or one a second source confirms, replaces "
+                            "it (never a higher one); a hyphen between numbers is a range; bounds count only when "
+                            "nothing else exists",
         "autoignition_rule": "lowest stated value; spread across sources recorded",
         "vapor_pressure_rule": "value nearest 25 °C within 15-35 °C, else one with no stated temperature, else the "
                                "value measured nearest 25 °C",
-        "ghs_basis_rule": "the solvent's own EU classification (eu_classification.v1.json): harmonised classes from "
-                          "CLP Annex VI, other classes from the lead REACH registrant, else the majority of at least "
-                          "10 notifying companies; no national list; PubChem's wording for each code; signal word "
-                          "and pictograms follow the statements",
+        "ghs_basis_rule": "the solvent's own EU classification (eu_classification.v2.json): harmonised classes from "
+                          "CLP Annex VI, other classes from the lead REACH registrant's records for the substance "
+                          "itself (special grades left out; the most severe code per class), else the majority of at "
+                          "least 10 notifying companies; no national list; PubChem's wording for each code; signal "
+                          "word and pictograms follow the statements",
         "eu_classification": EU_CLASSIFICATION.name,
         "peroxide_formers": PEROXIDE_TABLE.name,
         "chem21_rule": "Prat et al. 2016 recipe (safety._chem21_score_from_inputs) on these fields; non-flammable "

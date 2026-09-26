@@ -5194,3 +5194,28 @@ def test_a_contaminant_in_one_solvent_needs_no_polymer():
     from dissolve import agent
     assert "needs no polymer" in " ".join(agent.SYSTEM_PROMPT.split())
     assert agent.source_basis_for("lookup_plastchem_contaminants", {}, {"solvent": "o-xylene"}) == "opencosmo_24a"
+
+
+def test_a_hot_wash_runs_at_a_grid_node_below_the_boiling_point():
+    """Ethanol's cap is 77.2 °C (1 °C below boiling), which is not a grid node: the LDPE lookup found nothing and the
+    wash failed as an unsupported pair although miscibility and logD passed (review finding A06-R1, live-checked).
+    The wash now runs at the highest node at or below the cap and says so."""
+    from dissolve import contaminants as screens
+    from dissolve.contracts import parse_tool_result as parse
+    data = parse(screens.screen_contaminant_leaching(
+        target_polymer="LDPE", contaminants=["PFOA"], solvents=["ethanol"]))["data"]
+    row = next(row for row in data["candidate_solvents"] if row["solvent"] == "ethanol")
+    assert row["operating_temperature_c"] == 75.0 and "77.2" in row["operating_temperature_basis"]
+    assert row["target_polymer_status"] != "unsupported_pair"
+    assert row["passes"] is True
+
+
+def test_a_wash_that_clashes_with_its_neighbour_gives_way_to_the_next_passing_solvent():
+    """Once a hot wash ran on a grid node, triethylamine passed at 85 °C and sat next to a 25 °C triethylamine
+    dissolution, so the whole plan was refused as an incompatible wash temperature. The next passing solvent that
+    does not clash is used, and the skipped one is named."""
+    payload = _plan_contaminant_planner_embed(_TRIPLE, contaminants="PFAS", contaminant_mode="leaching")
+    assert payload["success"] is True
+    wash = next(step for step in payload["steps"] if step.get("step_kind") == "wash")
+    assert wash["skipped_for_adjacent_temperature_clash"] == ["triethylamine"]
+    assert wash["solvent"] == wash["recommended_solvents"][1]

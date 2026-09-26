@@ -255,11 +255,14 @@ def _threshold_crossing(
         low_t, low_value = numeric[index - 1]
         high_t, high_value = numeric[index]
         if low_value < threshold <= high_value:
-            fraction = (threshold - low_value) / (high_value - low_value)
+            # The crossing lies between two stored nodes; a temperature between them is an interpolation the grid
+            # cannot back (LDPE in toluene read 61.16 °C, where no state exists). Report the first node below the
+            # threshold on cooling, where the polymer has precipitated, and the bracket (review finding A04-R1).
             return {
-                "temperature_c": round(low_t + fraction * (high_t - low_t), 6),
+                "temperature_c": low_t,
+                "bracket_c": [low_t, high_t],
                 "status": "crossing_within_screen",
-                "method": thermo.GRID_INTERPOLATION,
+                "method": thermo.GRID_EXACT,
             }
     return {
         "temperature_c": None,
@@ -1443,6 +1446,11 @@ def screen_precipitation_order(
                 for polymer, crossing in crossings.items()
                 if crossing.get("method") is not None
             },
+            # Each crossing lies between these two grid nodes; the proxy temperatures are the lower node of each.
+            "crossing_brackets_c": {
+                polymer: crossing["bracket_c"]
+                for polymer, crossing in crossings.items() if crossing.get("bracket_c")
+            },
             "boiling_point_c": boiling_point,
             "boiling_point_margin_c": (
                 None if boiling_point is None else round(boiling_point - dissolution, 6)
@@ -2052,6 +2060,8 @@ def finish_route(route: dict[str, Any], *, feed_polymers: Sequence[str]) -> dict
 
 
 def _min_stage_g_score(steps: Any) -> float | None:
+    """The route's least green stage, or None when any stage has no G score: a minimum over the scored stages alone
+    would make a route with an unscored solvent look greener than it is."""
     scores = []
     for item in steps or []:
         if not isinstance(item, dict):
@@ -2059,9 +2069,10 @@ def _min_stage_g_score(steps: Any) -> float | None:
         try:
             score = float(item.get("g_score"))
         except (TypeError, ValueError):
-            continue
-        if math.isfinite(score):
-            scores.append(score)
+            return None
+        if not math.isfinite(score):
+            return None
+        scores.append(score)
     return min(scores) if scores else None
 
 
@@ -2262,50 +2273,59 @@ def _embed_leaching_route(
     winner = max(considered, key=_position_objective)
     screen = winner["screen"]
     recommended = list(winner["recommended_solvents"])
-    chosen = None
-    if recommended:
-        chosen = next(
-            (
-                row for row in (screen.get("candidate_solvents") or [])
-                if contaminant_screens._key(row.get("solvent"))
-                == contaminant_screens._key(recommended[0])
-            ),
-            None,
-        )
-    wash = {
-        "step_kind": "wash",
-        "path": "leaching",
-        "contaminants_targeted": list(supported),
-        "solvent": recommended[0] if recommended else None,
-        "temperature_c": (
-            None if not isinstance(chosen, dict)
-            else chosen.get("operating_temperature_c")
-        ),
-        "feed_state_at_step": winner["feed_state_at_step"],
-        "other_polymers": winner["other_polymers"],
-        "passes": bool(recommended),
-        "recommended_solvents": recommended,
-        "threshold_citation_status": winner.get("threshold_citation_status"),
-        "passing_count": winner["passing_count"],
-        "contaminant_logd_min": winner.get("contaminant_logd_min"),
-        "position_index": winner["index"],
-        "objective": (
-            "higher passing_count, then higher contaminant_logd_min "
-            "among passing candidates, then earlier index"
-        ),
+    rows_by_solvent = {
+        contaminant_screens._key(row.get("solvent")): row for row in (screen.get("candidate_solvents") or [])
     }
-    steps = list(dissolutions)
-    steps.insert(int(winner["index"]), wash)
-    if _wash_temperature_conflict(steps, step_c):
+
+    def wash_step(solvent: Any) -> dict[str, Any]:
+        chosen = rows_by_solvent.get(contaminant_screens._key(solvent)) if solvent else None
+        return {
+            "step_kind": "wash",
+            "path": "leaching",
+            "contaminants_targeted": list(supported),
+            "solvent": solvent,
+            "temperature_c": (
+                None if not isinstance(chosen, dict)
+                else chosen.get("operating_temperature_c")
+            ),
+            "feed_state_at_step": winner["feed_state_at_step"],
+            "other_polymers": winner["other_polymers"],
+            "passes": bool(recommended),
+            "recommended_solvents": recommended,
+            "threshold_citation_status": winner.get("threshold_citation_status"),
+            "passing_count": winner["passing_count"],
+            "contaminant_logd_min": winner.get("contaminant_logd_min"),
+            "position_index": winner["index"],
+            "objective": (
+                "higher passing_count, then higher contaminant_logd_min "
+                "among passing candidates, then earlier index"
+            ),
+        }
+
+    # The first recommended solvent that does not clash with an adjacent dissolution in the same solvent. Once a hot
+    # wash ran on a grid node, triethylamine passed at 85 °C and sat next to a 25 °C triethylamine dissolution; the
+    # plan was refused although other passing solvents did not clash.
+    skipped: list[Any] = []
+    for solvent in recommended or [None]:
+        wash = wash_step(solvent)
+        steps = list(dissolutions)
+        steps.insert(int(winner["index"]), wash)
+        if not _wash_temperature_conflict(steps, step_c):
+            break
+        skipped.append(solvent)
+    else:
+        first = wash_step(recommended[0] if recommended else None)
         return tool_error(
             "plan_multistage_separation",
             "Leaching wash and an adjacent dissolution name the same solvent "
             "at temperatures more than temperature_step_c apart.",
             error_code="incompatible_wash_temperature",
-            wash_solvent=wash.get("solvent"),
-            wash_temperature_c=wash.get("temperature_c"),
+            wash_solvent=first.get("solvent"),
+            wash_temperature_c=first.get("temperature_c"),
             position_index=winner["index"],
         )
+    if skipped:
+        wash["skipped_for_adjacent_temperature_clash"] = skipped
     finished = finish_route({**route, "steps": steps}, feed_polymers=names)
     finished["positions_considered"] = published
     finished["chosen_wash_position"] = winner["index"]
@@ -2740,6 +2760,14 @@ def plan_multistage_separation(
         strict_maximum=bool(strict_maximum),
         temperature_step_c=step_c,
         temperature_scope=temperature_scope,
+        # In plain words, as the screen says it: with no temperature in the question each step is at its own best
+        # grid temperature, so the answer must say so (review finding A04-R2).
+        temperature_basis=(
+            ("not stated" if temperature_scope == "full_stored_grid_domain" else "range")
+            + ": each step at its own best grid temperature between "
+            + f"{float(root_screen.get('temperature_min_c', lower)):g} and "
+            + f"{float(root_screen.get('temperature_max_c', upper)):g} °C"
+        ),
         require_atmospheric=require_atmospheric,
         **atmospheric_exclusions,
         min_target_solubility_pct=min_target,

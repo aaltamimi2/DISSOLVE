@@ -1163,6 +1163,15 @@ def analyze_numeric_samples(
     )
 
 
+def _contains_word(query: str, texts: list[str]) -> bool:
+    """A query of at least three characters found as a whole word ("HDPE" in "High-density polyethylene (HDPE)"),
+    never inside one: "PE" used to match PEO, poly(pentadecalactone) and perfluoroalkoxy resin."""
+    if len(query) < 3:
+        return False
+    pattern = re.compile(rf"(?<![0-9a-z]){re.escape(query)}(?![0-9a-z])")
+    return any(pattern.search(text.casefold()) for text in texts)
+
+
 def lookup_glass_transition(polymer_query: str, top_k: int = 5) -> str:
     """Search the checksummed Tg snapshot while preserving row provenance."""
     tool = "lookup_glass_transition"
@@ -1187,10 +1196,10 @@ def lookup_glass_transition(polymer_query: str, top_k: int = 5) -> str:
             score, match = 100, "exact_name_or_tag"
         elif qualified_query_key and qualified_query_key in name_keys:
             score, match = 90, "qualified_name"
-        elif any(normalized in name.casefold() for name in names):
-            score, match = 85, "name_substring"
-        elif any(normalized in tag.casefold() for tag in tags):
-            score, match = 60, "tag_substring"
+        elif _contains_word(normalized, names):
+            score, match = 85, "name_contains_word"
+        elif _contains_word(normalized, tags):
+            score, match = 60, "tag_contains_word"
         else:
             continue
         candidates.append((score, index, match, entry))

@@ -839,3 +839,74 @@ def test_an_out_of_scope_refusal_names_its_remedy():
         polymers=["LDPE"], solvents=["h2o"], temperatures=[80.0], solvent_scope="all"))
     assert served["success"] is True
     assert "repeat that call once with\nsolvent_scope='all'" in agent.SYSTEM_PROMPT
+
+
+def test_saturation_ceilings_do_not_crowd_resolved_values_out_of_the_shortlist():
+    """EVOH at 25 °C: five solvents on the 100 wt% saturation ceiling filled the default shortlist, so the answer had
+    no resolved value to lead with (the prompt shows a capped option after resolved ones; review finding A03-R2).
+    The ceilings keep their places (the planner and the TEA design points rely on them), and as many of the next
+    resolved rows that meet the threshold follow them."""
+    rows = parse_tool_result(thermo.screen_polymer_separation(
+        feed_polymers=["EVOH"], temperature_min_c=25.0, temperature_max_c=25.0,
+        ranking_mode="absolute_solubility", require_atmospheric=True))["data"]["ranked_candidates"]
+    ceilings = [row for row in rows if row["is_clipped"]]
+    resolved = [row for row in rows if not row["is_clipped"]]
+    assert len(ceilings) == 5 and len({row["rank"] for row in ceilings}) == 1
+    assert len(resolved) == 5 and all(row["meets_solubility_threshold"] for row in resolved)
+    assert rows[:5] == ceilings
+
+
+def test_keeping_a_polymer_intact_is_a_screen_limit_not_a_selectivity_cutoff():
+    """"Dissolve PS but keep PP intact" listed 4 of the 7 solvents that meet both limits: a hidden 5-point selectivity
+    cutoff dropped ethyl acetate (PS 5.39, PP 0.39 wt%), cyclohexanone and benzene, and the qualifying count still
+    included THF, which dissolves PP at 1.99 wt%. With max_retained_pct the tool applies the user's two limits; without
+    it, the count of intact solvents is published beside the selectivity count."""
+    solvents = ["acetone", "DMF", "MEK", "cyclopentanone", "ethyl acetate", "cyclohexanone", "benzene", "THF",
+                "tetrahydropyran", "toluene"]
+    query = dict(feed_polymers=["PS", "PP"], target_polymers=["PS"], temperature_min_c=25.0, temperature_max_c=25.0,
+                 require_atmospheric=True, solvents=solvents, top_k=10)
+    plain = parse_tool_result(thermo.screen_polymer_separation(**query))["data"]
+    assert plain["qualifying_total_by_target"] == {"PS": 6}
+    assert plain["retained_intact_total_by_target"] == {"PS": 7}
+    intact = parse_tool_result(thermo.screen_polymer_separation(**query, max_retained_pct=1.0))["data"]
+    assert intact["qualifying_total_by_target"] == {"PS": 7}
+    qualifying = [row["solvent"] for row in intact["ranked_candidates"] if row["meets_intact_limits"]]
+    assert "Ethyl acetate" in qualifying and "Tetrahydrofuran (THF)" not in qualifying
+    assert all(row["max_off_target_solubility_pct"] <= 1.0 for row in intact["ranked_candidates"][:7])
+    assert intact["qualifying_rule"] == "target >= 5 wt% and every retained polymer <= 1 wt%"
+
+
+def test_a_short_glass_transition_query_matches_whole_words_only():
+    """"PE" returned the polyethylene row and also PEO, poly(pentadecalactone) and perfluoroalkoxy resin, whose names
+    merely contain the letters (review finding A08-R1, live-checked). A partial match must be a whole word of at least
+    three characters; "HDPE" still finds the row named "High-density polyethylene (HDPE)"."""
+    names = lambda query: [(m["names"][0], m["match_type"]) for m in  # noqa: E731
+                           parse_tool_result(analysis.lookup_glass_transition(query))["data"]["matches"]]
+    assert names("PE") == [("PE", "exact_name_or_tag")]
+    assert ("High-density polyethylene (HDPE)", "name_contains_word") in names("HDPE")
+    assert all("PEO" != name for name, _ in names("PE"))
+
+
+def test_a_precipitation_crossing_is_a_grid_node_with_its_bracket():
+    """LDPE in toluene passes 1 wt% between the 60 and 65 °C nodes. The tool published 61.16 °C, an interpolation the
+    grid cannot back, and the solubility states at that temperature then came back empty (review finding A04-R1).
+    The crossing is now the first node below the threshold on cooling, with its bracket."""
+    from dissolve import separation
+    crossing = separation._threshold_crossing("LDPE", "toluene", 60.0, 100.0, 1.0)
+    assert crossing == {"temperature_c": 60.0, "bracket_c": [60.0, 65.0], "status": "crossing_within_screen",
+                        "method": thermo.GRID_EXACT}
+    assert thermo.get_solubility_result("LDPE", "toluene", 60.0)["available"] is True
+
+
+def test_a_screen_and_a_plan_say_which_temperature_each_row_stands_at():
+    """With no temperature in the question each solvent sits at its own best grid point on 25-160 °C: 'which solvent
+    separates PS from PVC?' came back as 145-160 °C conditions, and nothing told the answer to say so (review
+    findings A03-R1, A04-R2)."""
+    from dissolve import separation
+    basis = lambda **kw: parse_tool_result(thermo.screen_polymer_separation(  # noqa: E731
+        feed_polymers=["PS", "PVC"], **kw))["data"]["temperature_basis"]
+    assert basis() == "not stated: each solvent at its own best grid temperature between 25 and 160 °C"
+    assert basis(temperature_min_c=25.0, temperature_max_c=25.0) == "stated: 25 °C"
+    assert basis(temperature_min_c=60.0, temperature_max_c=120.0).startswith("range: ")
+    plan = parse_tool_result(separation.plan_multistage_separation(feed_polymers=["PS", "PP", "PET"]))["data"]
+    assert plan["temperature_basis"] == "not stated: each step at its own best grid temperature between 25 and 160 °C"

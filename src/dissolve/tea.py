@@ -8852,8 +8852,23 @@ _STAGE_VALUES = {
 
 
 def _stage_values(steps: Any, stage_value: Callable[[dict[str, Any]], float | None]) -> list[float]:
-    return [value for item in steps or [] if isinstance(item, dict)
-            for value in [stage_value(item)] if value is not None]
+    """Every stage's value, or none when a stage has no value: a route is as safe or as green as its worst stage,
+    and an unscored stage leaves that unknown (an aggregate over the scored stages alone would flatter the route)."""
+    values = [stage_value(item) for item in steps or [] if isinstance(item, dict)]
+    return [] if any(value is None for value in values) else values
+
+
+def _route_least_safe_stage(route: dict[str, Any]) -> dict[str, Any]:
+    """The CHEM21 band and worst score of the route's least safe stage. max_stage_chem21_worst is only the sort key
+    (10 × band ordinal + the highest of Safety, Health and Environment), not a score to report."""
+    from .safety import _CHEM21_BAND_ORDINAL
+    keys = _stage_values(route.get("steps"), _stage_chem21_worst)
+    if not keys:
+        return {"chem21_least_safe_band": None, "chem21_least_safe_worst_score": None}
+    key = int(max(keys))
+    ordinal = (key - 1) // 10
+    band = next(name for name, value in _CHEM21_BAND_ORDINAL.items() if value == ordinal)
+    return {"chem21_least_safe_band": band, "chem21_least_safe_worst_score": key - 10 * ordinal}
 
 
 def _planner_min_stage_g_score(steps: Any) -> float | None:
@@ -9022,6 +9037,7 @@ def _planner_route_point(
         point[y_metric] = _planner_route_metric(route, y_metric)
     if "max_stage_chem21_worst" in {objective, x_metric, y_metric}:
         point["chem21_ranking_rule"] = "table6_band_then_max"
+        point.update(_route_least_safe_stage(route))
     if objective == "max_stage_specific_volume_l_per_kg":
         point["specific_volume_rule"] = "max_stage_1000_over_rho_25C"
         point["specific_volume_is_cost_metric"] = False

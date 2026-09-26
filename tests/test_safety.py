@@ -43,8 +43,10 @@ _GREEN_IDENT_QUERY = dict(
 )
 
 
+# Re-pinned 2026-09-26: screens now count a solvent left out for a retained polymer without a stored value
+# (excluded_for_missing_retained_value); nothing else in the payload moved, and default and explicit still agree.
 _GREEN_IDENT_SHA256 = (
-    "30fe3b378cb1082d64fbf926492c2c3e65770e5309e194532314fe2cef644876"
+    "b4729cac31888b1d4b1d55fa1b277091525d54b3a2c2c28908ff6bf3348973d9"
 )
 
 
@@ -194,7 +196,7 @@ def test_snapshot_data_gap_payload_has_every_key():
             out["chem21_adjustments"]["euh019_adjustment_applied"]
         ) + int(out["chem21_adjustments"]["resistivity_adjustment_applied"])
     assert out["chem21_ghs_source"] == "pubchem_safety_snapshot"
-    assert out["chem21_inputs"]["reach_registration"] == "registered"  # from ECHA CHEM (eu_classification.v1.json)
+    assert out["chem21_inputs"]["reach_registration"] == "registered"  # from ECHA CHEM (eu_classification.v2.json)
     assert out["chem21_inputs"]["resistivity_ohm_m"] is None
 
 
@@ -353,10 +355,11 @@ _SUBSTITUTION_IDENT_QUERY = dict(
 )
 
 
-# Re-pinned 2026-09-25 for the v3 safety snapshot (the payload carries the corrected safety fields); the default
-# and the explicit g_score payloads are still identical, which is what this pins.
+# Re-pinned 2026-09-25 for the v3 safety snapshot (the payload carries the corrected safety fields), and 2026-09-26
+# for the rebuilt snapshot and the new excluded_for_missing_retained_value count; the default and the explicit
+# g_score payloads are still identical, which is what this pins.
 _SUBSTITUTION_IDENT_SHA256 = (
-    "1cc6c6dc73769577b675809b714fc46a374ee48292544b17d4d4ec38bafce0b5"
+    "8bf886252be3a8504ecd0f956f6dfc290a7ae44e3ff18177cd05e7b14cc69a82"
 )
 
 
@@ -459,6 +462,69 @@ def test_planner_route_point_stamps_table6_rule():
     assert point["max_stage_chem21_worst"] == 4
 
 
+def test_planner_route_point_reports_the_least_safe_band_and_score_not_the_sort_key():
+    """A route ranking showed the sort key 17.0 as a CHEM21 score; it is 10 × band + the worst score."""
+    route = {
+        "sequence": ["PP", "PS"], "solvent_mapping": {}, "complete": True, "bottleneck_selectivity_pct": 1.0,
+        "peak_temperature_c": 160.0,
+        "steps": [
+            {"chem21_safety_score": 1, "chem21_health_score": 2, "chem21_environment_score": 7, "g_score": 5.4},
+            {"chem21_safety_score": 3, "chem21_health_score": 2, "chem21_environment_score": 3, "g_score": 6.1},
+        ],
+    }
+    point = tea._planner_route_point(
+        route, handle="h", original_rank=1, new_rank=1,
+        objective="max_stage_chem21_worst", x_metric=None, y_metric=None,
+    )
+    assert point["max_stage_chem21_worst"] == 17
+    assert (point["chem21_least_safe_band"], point["chem21_least_safe_worst_score"]) == ("problematic", 7)
+    assert point["min_stage_g_score"] == 5.4
+
+
+def test_a_route_with_an_unscored_stage_has_no_route_value():
+    """A minimum or maximum over the scored stages alone flattered a route with an unscored solvent."""
+    steps = [{"chem21_safety_score": 1, "chem21_health_score": 2, "chem21_environment_score": 7, "g_score": 8.0},
+             {"g_score": None}]
+    route = {"sequence": ["PP", "PS"], "solvent_mapping": {}, "complete": True, "steps": steps}
+    assert tea._planner_route_metric(route, "min_stage_g_score") is None
+    assert tea._planner_route_metric(route, "max_stage_chem21_worst") is None
+    point = tea._planner_route_point(
+        route, handle="h", original_rank=1, new_rank=1,
+        objective="max_stage_chem21_worst", x_metric=None, y_metric=None,
+    )
+    assert point["chem21_least_safe_band"] is None
+    assert separation._min_stage_g_score(steps) is None
+    assert separation._min_stage_g_score([{"g_score": 8.0}, {"g_score": 6.0}]) == 6.0
+
+
+def test_a_chem21_ranking_reads_the_snapshot_without_include_pubchem():
+    """Without include_pubchem every solvent used to rank as missing its CHEM21 score (review finding A01-R1)."""
+    out = parse_tool_result(safety.compare_solvent_safety_at_conditions(
+        candidates=[{"solvent_name": "toluene"}, {"solvent_name": "ethanol"}, {"solvent_name": "THF"}],
+        include_pubchem=False, rank_by="chem21",
+    ))
+    ranking = out["data"]["ranking"]
+    assert [entry["missing"] for entry in ranking] == [None, None, None]
+    assert [entry["solvent"] for entry in ranking][:2] == ["Ethanol", "Toluene"]
+
+
+def test_a_solvent_without_a_flash_point_says_whether_it_burns():
+    """Dichloromethane read as 'flash point not available', though CHEM21 scores it non-flammable. Only the sources'
+    own 'does not burn' removes the gap: without a flammability statement a liquid can still flash above 60 °C."""
+    dcm = safety.build_safety_profile("dichloromethane", include_pubchem=True)
+    chloroform = safety.build_safety_profile("chloroform", include_pubchem=True)
+    assert dcm["physical_properties"]["flash_point_c"] is None
+    assert dcm["physical_properties"]["flash_point_note"] == (
+        "not in the sources; not classified as flammable (no flammability hazard statement)")
+    assert "flash_point_c" in dcm["data_gaps"]
+    assert chloroform["physical_properties"]["flash_point_note"] == "none: its sources say it does not burn"
+    assert "flash_point_c" not in chloroform["data_gaps"]
+    card = parse_tool_result(safety.get_solvent_safety_card("dichloromethane", include_pubchem=True))
+    assert "not classified as flammable" in card["display"]
+    assert card["data"]["comparison_rows"][0]["flash_point_note"].startswith("not in the sources")
+    assert "flash_point_note" not in safety.build_safety_profile("toluene", include_pubchem=True)["physical_properties"]
+
+
 _SEVEN = [
     "H301: synthetic statement one",   "H302: synthetic statement two",
     "H311: synthetic statement three", "H312: synthetic statement four",
@@ -497,10 +563,10 @@ def test_ghs_basis_distribution_production():
     for key in thermo._solvent_admission_rows():
         out = safety.score_chem21_she(key)
         counts[out["chem21_inputs"].get("ghs_basis")] += 1
-    # v3 serves each solvent's own EU classification (eu_classification.v1.json); no national list is a basis.
-    assert counts["EU classification"] == 701
+    # v3 serves each solvent's own EU classification (eu_classification.v2.json); no national list is a basis.
+    assert counts["EU classification"] == 702          # 701 before every lead-registrant record was read
     assert counts["not classified in the EU"] == 44
-    assert counts["no EU classification found"] == 37
+    assert counts["no EU classification found"] == 36
     assert counts["no EU data"] == 4
     assert sum(counts.values()) == 786
 
@@ -582,7 +648,7 @@ _SNAPSHOT = safety._SNAPSHOT_DEFAULT
 
 # v3, rebuilt 2026-09-25 from the same pull with the corrected readers (safety_snapshot.py).
 _SNAPSHOT_SHA256 = (
-    "7a5d090a4ed4832d48dd4f4b0cd9f10a0fbf532900e099ca3ae2667bedc28d38"
+    "320a77f59c33ea5cc2b50be2d9308382bab404c40c9eae981a1ef438207a930f"
 )
 
 
@@ -1673,7 +1739,9 @@ def test_chem21_scores_are_stored_and_follow_the_guide_where_the_data_allow():
     from dissolve import safety_snapshot
     agreement = safety_snapshot.guide_agreement(safety._SNAPSHOT_DEFAULT)
     assert agreement["flash_same_band"] >= 59 and agreement["flash_points"] == 62
-    assert agreement["all_three_scores"] >= 37 and agreement["default_ranking"] >= 57
+    # 37 and 57 before the lead registrants' own records were read: their current classifications add hazards the
+    # 2016 guide predates (cyclohexanone's serious eye damage, toluene's and xylene's chronic aquatic hazard).
+    assert agreement["all_three_scores"] >= 36 and agreement["default_ranking"] >= 56
 
 
 def test_peroxide_classes_come_from_the_sourced_lists():
@@ -1709,6 +1777,41 @@ def test_safety_comparison_ranks_every_candidate_with_ties_and_missing_scores_la
     assert refused["error_code"] == "invalid_rank_by"
 
 
+def test_hazard_statements_read_every_lead_registrant_record_for_the_substance_itself():
+    """The EU classification read only a lead dossier's first GHS record. In 76 dossiers that record is the Annex VI
+    entry alone, so dichloromethane was served as 'suspected of causing cancer' only and o-xylene without its
+    aspiration hazard. Now every record for the substance itself counts, and a record for a special grade is left out
+    (toluene's '>= 0.1 % benzene' commercial grade would add carcinogenicity and mutagenicity)."""
+    codes = lambda cid: {code for text in safety._snapshot_pubchem(cid)["ghs"]["hazard_statements"]  # noqa: E731
+                         for code in safety._GHS_CODE.findall(text)}
+    assert codes(6344) == {"H315", "H319", "H336", "H351"}                  # dichloromethane
+    assert {"H304", "H319", "H335"} <= codes(7237)                          # o-xylene
+    assert "H318" in codes(7967) and safety._snapshot_pubchem(7967)["ghs"]["signal_word"] == "Danger"  # cyclohexanone
+    assert not {"H340", "H350"} & codes(1140)                               # toluene
+    from dissolve import safety_snapshot
+    rows = {row["cid"]: row for row in json.loads(safety_snapshot.EU_CLASSIFICATION.read_text())["rows"]}
+    assert rows[1140]["lead_records_left_out"] == [
+        "003 | Toluene (commercial grade) self-classification (>= 0.1% Benzene)"]
+    assert rows[6344]["code_sources"]["H336"] == "lead REACH registrant"
+
+
+def test_a_closed_cup_flash_point_may_lower_the_reading_never_raise_it():
+    """Acetonitrile read 5.6 °C from four open-cup sources against ICSC's standard 2 °C closed cup. A closed-cup rule
+    that could also raise values picked mislabelled ones (2-methyl-2-butanol 19 -> 67 °C), so it only lowers."""
+    assert safety._snapshot_pubchem(6342)["flash_point_c"] == 2.0
+    reading = safety._flash_point_reading([
+        ("ILO-WHO International Chemical Safety Cards (ICSCs)", "2 °C c.c."),
+        ("Hazardous Substances Data Bank (HSDB)", "42 °F (6 °C) (Open Cup)"),
+        ("OSHA", "42 °F (open cup)"),
+    ])
+    assert reading["value_c"] == 2.0 and reading["basis"].startswith("closed cup (ILO-WHO")
+    higher = safety._flash_point_reading([
+        ("ILO-WHO International Chemical Safety Cards (ICSCs)", "67 °C c.c."),
+        ("Hazardous Substances Data Bank (HSDB)", "19 °C"), ("Haz-Map", "19.4 °C"),
+    ])
+    assert higher["value_c"] == 19.0
+
+
 def test_abbreviations_and_spelled_out_names_find_their_solvent():
     """"Is NMP safe to use?" got "DISSOLVE has no safety values for NMP": the record is filed as
     "N-Methyl-2-Pyrrolidone (NMP)" and neither "NMP" nor "N-methyl-2-pyrrolidone" reached it."""
@@ -1732,7 +1835,8 @@ def test_hazard_statements_follow_each_solvents_own_eu_classification():
     assert codes(284) == {"H226", "H290", "H302", "H314", "H318", "H331"}   # formic acid: its harmonised entry
     assert codes(962) == set() and safety._snapshot_pubchem(962)["ghs"]["signal_word"] is None   # water
     assert codes(1030) == set()                                              # propylene glycol: not classified
-    assert codes(7843) == {"H220"}                    # butane; its "containing >= 0.1 % butadiene" entry is not it
+    # butane: its "containing >= 0.1 % butadiene" entry is not it; H280 is its registrant's record for the pure grade
+    assert codes(7843) == {"H220", "H280"}
     ethanol = safety._snapshot_pubchem(702)
     assert ethanol["eu_code_sources"] == {"H225": "EU harmonised (CLP Annex VI)", "H319": "lead REACH registrant"}
     stored = safety._snapshot_chem21(702)

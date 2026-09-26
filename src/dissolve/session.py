@@ -509,6 +509,16 @@ def bind_handle_rows(record: dict[str, Any], handle: str) -> Iterator[None]:
         "total": len(rows),
         "source_tool": stored["tool"],
     }
+    # A screen whose rows are its default shortlist says so, and how many met its threshold: a tool that ranks the
+    # rows can then refuse to present a shortlist as the screen.
+    exact = stored.get("exact") if isinstance(stored.get("exact"), dict) else {}
+    qualifying = exact.get("qualifying_total_by_target")
+    if (exact.get("shortlist_is_default") and isinstance(qualifying, dict)
+            and isinstance(exact.get("shortlist_per_target"), int)):
+        source["shortlist"] = {
+            "per_target": exact["shortlist_per_target"],
+            "qualifying_total_by_target": {str(k): int(v) for k, v in qualifying.items() if isinstance(v, (int, float))},
+        }
     try:
         record["last_candidates"] = rows
         record["last_candidates_source"] = source

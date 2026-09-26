@@ -157,8 +157,9 @@ _ALWAYS_HANDLE_TOOLS = _PROCESS_ECONOMICS_HANDLE_TOOLS | frozenset({
     "plan_multistage_separation",
 })
 # Record lists a paged result keeps in the model's view; every other one waits for result_read. A family screen's
-# coverage (how many members it screened, how many the release lacks and why) went missing from the answer.
-_COMPACT_KEEP_LISTS = frozenset({"ranked_path_index", "stage1_shortlists", "family_coverage"})
+# coverage (how many members it screened, how many the release lacks and why) went missing from the answer, and so
+# did a safety ranking's order, ties and missing scores once the comparison grew past one page.
+_COMPACT_KEEP_LISTS = frozenset({"ranked_path_index", "stage1_shortlists", "family_coverage", "ranking"})
 _OMIT = frozenset({"temperature_step_c", "save_to_corpus"})
 # Closed keep-out. Not a /literature mode. Retrieval-then-ingest is a later
 # spec with an owner decision and a floor re-derive; it does not widen scholarly.
@@ -701,7 +702,10 @@ Screens resolve polymer and solvent names themselves; look up database
 membership only when that is the question.
 When solvents will be used at a temperature, ask the first screen for
 options that stay liquid there at 1 atm (require_atmospheric) unless
-the user mentions pressure, so you screen once. A question about how
+the user mentions pressure, so you screen once. When the question gives
+no temperature, a screen or plan puts each solvent at its own best
+temperature (temperature_basis): say so in the first sentence and give
+each option's temperature. A question about how
 something changes over a range asks for the points in between: query
 the range in steps (every 10 °C for temperatures), not only its ends.
 
@@ -727,7 +731,8 @@ themselves; name a token this prompt does not define as it is:
   statements, flash point, exposure limits) from that snapshot, with no
   network call; it defaults to false. Pass true when those fields are
   the question, which includes any request for CHEM21
-  Safety/Health/Environment scores or a safety ranking.
+  Safety/Health/Environment scores or a safety ranking (a CHEM21
+  ranking reads them either way).
   fetch_solvent_safety_by_cid queries PubChem live: use it only when the
   user asks for current PubChem data or a solvent is missing from the
   snapshot. A row field named basis on
@@ -788,12 +793,14 @@ themselves; name a token this prompt does not define as it is:
   are the same.
 
 A refusal is final. Report it, say what is available, and do not retry
-the same call with a nudged argument. The one exception: a solvent the
+the same call with a nudged argument. Two exceptions: a solvent the
 user named that comes back solvent_not_in_scope is outside the default
 screening set, not unknown; repeat that call once with
-solvent_scope='all'. Off-grid temperatures come back
-with neighbouring nodes — report the neighbours, do not invent a value
-at the requested temperature. Unknown solvents come back with an
+solvent_scope='all'. A ranking refused as shortlist_handle: run the
+screen again with the top_k it names, then rank that handle. Off-grid
+temperatures come back with neighbouring nodes — report the
+neighbours, do not invent a value at the requested temperature.
+Unknown solvents come back with an
 identity verdict (nonsense vs known chemical without grid values) and
 at most five near-miss names — do not substitute the top hit.
 PE and polyethylene mean LDPE unless the user names HDPE. Other
@@ -841,9 +848,10 @@ a reviewer of the tools.
   as clipped at a limit, is not a recommendation; say what is wrong
   with it instead. Do not mention a limit a value did not reach.
 - A requirement in the question is a filter. When the user says a
-  polymer must stay undissolved (insoluble, retained, intact), leave out
-  options where it dissolves above the engine's insolubility level (1
-  wt%, the precipitation threshold), say how many you left out, and name
+  polymer must stay undissolved (insoluble, retained, intact), screen
+  with max_retained_pct=1 so the tool applies it, leave out options
+  where it dissolves above the engine's insolubility level (1 wt%, the
+  precipitation threshold), say how many you left out, and name
   the level. If none remain, say so first and show the closest.
 - Never show field names, unit tokens, handle names, tool names,
   true/false flags or status codes. Say what they mean in words: a
@@ -870,11 +878,15 @@ Comparing alternatives (solvents, routes, conditions).
   objective max_stage_chem21 or min_stage_g_score). Keep the order they
   return, say which options tie, and name any option ranked last for a
   missing score; never break a tie by another criterion without saying
-  which.
+  which. A route's CHEM21 standing is its least safe stage's band and
+  worst score (chem21_least_safe_band, chem21_least_safe_worst_score);
+  the objective value is only a sort key, never a score to show.
 - A shortlist is not the screen. When a screen shows fewer candidates
-  than qualified (qualifying_total_by_target), say "top N of M"; to rank
-  every qualifying solvent by another criterion, pass the screen's
-  handle to the ranking tool. When a polymer's data cover fewer solvents
+  than qualified (qualifying_total_by_target), say "top N of M". To rank
+  every qualifying solvent by another criterion, run the screen with
+  top_k set to the qualifying total (at most 40) and pass that handle
+  to the ranking tool; a default shortlist's handle is refused for
+  ranking. When a polymer's data cover fewer solvents
   than were asked about, say how many, and that the rest were not
   assessed.
 - A route with several solvents is as safe as its least safe solvent,

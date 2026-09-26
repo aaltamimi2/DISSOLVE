@@ -1168,6 +1168,37 @@ def test_include_pubchem_wrapper_default_false():
         assert out["data"].get("include_pubchem") is False
 
 
+def test_a_chem21_ranking_through_the_wrapper_needs_no_include_pubchem():
+    """The wrapper sets an omitted include_pubchem to false; a CHEM21 ranking must still see the scores."""
+    with _bound():
+        out = dispatch(
+            "compare_solvent_safety_at_conditions", rank_by="chem21",
+            candidates=[{"solvent_name": "toluene"}, {"solvent_name": "ethanol"}],
+        )
+        assert [entry["missing"] for entry in out["data"]["ranking"]] == [None, None]
+
+
+def test_ranking_a_default_shortlist_is_refused_and_the_full_screen_is_ranked():
+    """Ranking a screen's handle ranked only its default shortlist (5 of 8 PVC solvents in the validation); the
+    safest-solvent table then left out two solvents tied for second. The refusal names the top_k to re-run with,
+    and the ranking list survives the compact view of a large comparison."""
+    query = dict(feed_polymers=["PVC"], temperature_min_c=25.0, temperature_max_c=25.0,
+                 ranking_mode="absolute_solubility", require_atmospheric=True)
+    with _bound():
+        screen = dispatch("screen_polymer_separation", **query)
+        qualifying = screen["data"]["qualifying_total_by_target"]["PVC"]
+        assert screen["total"] < qualifying
+        refused = dispatch("compare_solvent_safety_at_conditions", handle=screen["handle"], rank_by="chem21")
+        assert refused["refusal"] == "shortlist_handle"
+        top_k = min(qualifying, 40)
+        assert f"top_k={top_k}" in refused["data"]["remedy"]
+        assert dispatch("compare_solvent_safety_at_conditions", handle=screen["handle"])["available"] is True
+        full = dispatch("screen_polymer_separation", **query, top_k=top_k)
+        ranked = dispatch("compare_solvent_safety_at_conditions", handle=full["handle"], rank_by="chem21")
+        assert "handle" in ranked
+        assert ranked["data"]["ranked_total"] == top_k == len(ranked["data"]["ranking"])
+
+
 def test_schemas_handle_only_on_consumer_and_omit_injected():
     schemas = {s["name"]: s for s in tool_schemas()}
     assert "result_read" in schemas

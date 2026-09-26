@@ -47,11 +47,12 @@ _HEADINGS = (
     "NIOSH Recommendations", "OSHA Standards",
 )
 _HEADING_ERROR_KEY = "_dissolve_heading_error"
-# v3 (2026-09-25): rebuilt from the same 2026-08-28 PubChem pull with the corrected readers, plus the peroxide-former
-# table and stored CHEM21 scores (python -m dissolve.safety_snapshot build). Its content digest is
-# 5659c9e1109b03dccb7234e418ec313a95746ccd303d07f3b0124f6531de0e3d.
+# v3 (2026-09-25, rebuilt 2026-09-26): the same 2026-08-28 PubChem pull with the corrected readers, the peroxide-former
+# table, stored CHEM21 scores, and the EU classification v2 (every lead-registrant record for the substance itself)
+# plus the lower-only closed-cup flash point (python -m dissolve.safety_snapshot build). Its content digest is
+# ebc5303cddbf2c7ce8a152a4ad530c8345be7265485fd8b7ceb5cdee103f3303.
 _SNAPSHOT_SHA256 = (
-    "7a5d090a4ed4832d48dd4f4b0cd9f10a0fbf532900e099ca3ae2667bedc28d38"
+    "320a77f59c33ea5cc2b50be2d9308382bab404c40c9eae981a1ef438207a930f"
 )
 _SNAPSHOT_DEFAULT = Path(str(files("dissolve").joinpath("data/pubchem_safety_snapshot.v3.duckdb")))
 
@@ -344,9 +345,14 @@ _TOLERANCE = re.compile(r"(?:\+\s*or\s*-|\+/-|±)\s*\d+(?:\.\d+)?", re.I)  # the
 _THOUSANDS = re.compile(r"(?<![\d.])(\d{1,3}(?:,\d{3})+)(?![\d])")
 
 
+def _clean_temperature_text(text: str) -> str:
+    return _THOUSANDS.sub(lambda m: m.group(1).replace(",", ""), _TOLERANCE.sub(" ", _plain(text)))
+
+
 def _temperature_values(text: str, kelvin: bool = False) -> list[dict[str, Any]]:
-    """Temperatures in one string as [{'c', 'end'}]; a range gives both ends. Kelvin only when asked."""
-    cleaned = _THOUSANDS.sub(lambda m: m.group(1).replace(",", ""), _TOLERANCE.sub(" ", _plain(text)))
+    """Temperatures in one string as [{'c', 'start', 'end'}] (positions in the cleaned text); a range gives both
+    ends. Kelvin only when asked."""
+    cleaned = _clean_temperature_text(text)
     found: list[dict[str, Any]] = []
     for match in _TEMPERATURE.finditer(cleaned):
         if match.group("s") is not None:
@@ -355,10 +361,10 @@ def _temperature_values(text: str, kelvin: bool = False) -> list[dict[str, Any]]
             pairs = [(match.group("a"), match.group("ua") or match.group("ub")), (match.group("b"), match.group("ub"))]
         for value, unit in pairs:
             celsius = float(value) if unit.upper() == "C" else (float(value) - 32.0) * 5.0 / 9.0
-            found.append({"c": celsius, "end": match.end()})
+            found.append({"c": celsius, "start": match.start(), "end": match.end()})
     if kelvin:
         for match in re.finditer(r"(?<![\w.])(\d+(?:\.\d+)?)\s*K\b", cleaned):
-            found.append({"c": float(match.group(1)) - 273.15, "end": match.end()})
+            found.append({"c": float(match.group(1)) - 273.15, "start": match.start(), "end": match.end()})
     return found
 
 
@@ -370,6 +376,28 @@ _NONFLAMMABLE_TEXT = re.compile(
 _FLAMMABLE_GAS_TEXT = re.compile(r"\bflammable gas\b|\bNA \(Gas\)", re.I)
 _EXPLODES_TEXT = re.compile(r"\bexplodes?\b", re.I)
 _BOUND = re.compile(r"\b(?:below|above|less than|greater than|under|over)\b|[<>≤≥]", re.I)
+# Closed-cup values from these sources may lower a flash point without a second source (standard, curated values).
+_CLOSED_CUP_TRUSTED = ("International Chemical Safety Cards", "National Institute for Occupational Safety and Health")
+
+
+def _cup_label(cleaned: str, found: list[dict[str, Any]], index: int) -> str:
+    """The cup a value was measured in: the first cup label after it (up to the next value or the clause's end),
+    else the last one before it in its clause ("closed cup: 92 °F"), else the string's only kind of label."""
+    item = found[index]
+    clause_start = cleaned.rfind(";", 0, item["start"]) + 1
+    clause_end = cleaned.find(";", item["end"])
+    clause_end = len(cleaned) if clause_end < 0 else clause_end
+    following = next((other["start"] for other in found[index + 1:] if other["start"] > item["start"]), clause_end)
+
+    def labels(segment: str) -> list[tuple[int, str]]:
+        return sorted([(m.start(), "closed cup") for m in _CLOSED_CUP.finditer(segment)]
+                      + [(m.start(), "open cup") for m in _OPEN_CUP.finditer(segment)])
+
+    after, before = labels(cleaned[item["end"]:min(following, clause_end)]), labels(cleaned[clause_start:item["start"]])
+    if after or before:
+        return after[0][1] if after else before[-1][1]
+    kinds = {kind for _, kind in labels(cleaned)}
+    return kinds.pop() if len(kinds) == 1 else "unspecified"
 _CLASS_DEFINITION = re.compile(r"\bclass\s+I[ABC]?\b|\bcategory\b", re.I)
 
 
@@ -378,12 +406,20 @@ def _flash_point_reading(pairs: list[tuple[str, str]], tolerance_c: float = 3.0)
     One value per (source, string, method), a range giving its lower end. Class-definition text is set aside, and
     bounds ("above 200 °F") count only when nothing else exists. With no plain value, text saying the solvent does
     not burn makes it non-flammable (the CHEM21 guide scores that safety 1); a flammable gas or an explosive is named
-    as such. Scored on the CHEM21 guide's 62 published flash points: 59 in the right band (54 before the fix)."""
-    values = []
+    as such. Scored on the CHEM21 guide's 62 published flash points: 59 in the right band (54 before the fix).
+
+    A lower closed-cup value then replaces that reading, never a higher one, when ICSC or NIOSH gives it or a second
+    source confirms it within 3 °C: open-cup values run high (acetonitrile read 5.6 °C from four open-cup sources
+    against the standard 2 °C closed cup). A closed-cup rule that may also raise values picked mislabelled ones."""
+    values, closed = [], []
     for source, text in pairs:
         found = _temperature_values(text)
         if not found or (_CLASS_DEFINITION.search(text) and not _BOUND.search(text)):
             continue
+        if not _BOUND.search(text):
+            cleaned = _clean_temperature_text(text)
+            closed += [{"c": item["c"], "source": source} for index, item in enumerate(found)
+                       if _cup_label(cleaned, found, index) == "closed cup"]
         by_method: dict[str, list[float]] = {}
         for item in found:
             tail = text[item["end"]: item["end"] + 25]
@@ -406,13 +442,20 @@ def _flash_point_reading(pairs: list[tuple[str, str]], tolerance_c: float = 3.0)
     pool = plain or values
     if not pool:
         return reading
-    for item in sorted(pool, key=lambda entry: entry["c"]):
-        if any(other["source"] != item["source"] and abs(other["c"] - item["c"]) <= tolerance_c for other in pool):
-            return {**reading, "value_c": item["c"], "basis": "lowest value a second source confirms within 3 °C"}
-    basis = "single value" if len(pool) == 1 else "median of the sources (no two agree within 3 °C)"
-    if not plain:
-        basis += ", from a bound"
-    return {**reading, "value_c": _median([item["c"] for item in pool]), "basis": basis}
+    confirmed = lambda item: any(  # noqa: E731
+        other["source"] != item["source"] and abs(other["c"] - item["c"]) <= tolerance_c for other in pool)
+    base = next((item for item in sorted(pool, key=lambda entry: entry["c"]) if confirmed(item)), None)
+    if base is not None:
+        reading = {**reading, "value_c": base["c"], "basis": "lowest value a second source confirms within 3 °C"}
+    else:
+        basis = "single value" if len(pool) == 1 else "median of the sources (no two agree within 3 °C)"
+        reading = {**reading, "value_c": _median([item["c"] for item in pool]),
+                   "basis": basis + ("" if plain else ", from a bound")}
+    cup = next((item for item in sorted(closed, key=lambda entry: entry["c"])
+                if any(name in item["source"] for name in _CLOSED_CUP_TRUSTED) or confirmed(item)), None)
+    if plain and cup is not None and cup["c"] < reading["value_c"]:
+        reading = {**reading, "value_c": cup["c"], "basis": f"closed cup ({cup['source']}), below the other sources"}
+    return reading
 
 
 def _median(values: list[float]) -> float:
@@ -1406,6 +1449,16 @@ def build_safety_profile(
             gaps.append("chem21_safety_score")
     else:
         chem21 = {}
+    # A solvent CHEM21 scores as non-flammable has no flash point value; say why. Only the sources' own "does not
+    # burn" means there is none: without a flammability statement a liquid may still have a flash point above 60 °C
+    # (combustible, not classified), so then the value stays a gap.
+    inputs = chem21.get("chem21_inputs") or {}
+    if physical["flash_point_c"] is None and inputs.get("nonflammable"):
+        if pubchem.get("nonflammable"):
+            physical["flash_point_note"] = "none: its sources say it does not burn"
+            gaps = [gap for gap in gaps if gap != "flash_point_c"]
+        else:
+            physical["flash_point_note"] = "not in the sources; not classified as flammable (no flammability hazard statement)"
     return {
         "identity": {"name": name, "cas_number": cas or None, "pubchem_cid": cid},
         "physical_properties": physical,
@@ -1514,6 +1567,7 @@ def _row(profile: dict[str, Any]) -> dict[str, Any]:
         "boiling_margin_c": _round_sig(assessment["boiling_margin_c"]),
         "atmospheric_feasible": assessment["atmospheric_feasible"],
         "flash_point_c": _round_sig(physical["flash_point_c"]),
+        **({"flash_point_note": physical["flash_point_note"]} if physical.get("flash_point_note") else {}),
         "operating_at_or_above_flash_point": assessment["operating_at_or_above_flash_point"],
         "autoignition_c": _round_sig(physical["autoignition_c"]),
         "autoignition_margin_c": _round_sig(assessment["autoignition_margin_c"]),
@@ -1852,7 +1906,8 @@ def format_safety_card(profile: dict[str, Any]) -> str:
         f"CAS: {identity.get('cas_number') or 'not available'}  |  PubChem CID: {identity.get('pubchem_cid') or 'not available'}",
         f"G-score: {value(row.get('g_score'), 2)}  |  LogP: {value(row.get('logp'), 2)}",
         "THERMAL / VOLATILITY",
-        f"BP: {value(row.get('boiling_point_c'))} C  |  Flash: {value(row.get('flash_point_c'))} C  |  Autoignition: {value(row.get('autoignition_c'))} C",
+        f"BP: {value(row.get('boiling_point_c'))} C  |  Flash: "
+        f"{row.get('flash_point_note') or value(row.get('flash_point_c')) + ' C'}  |  Autoignition: {value(row.get('autoignition_c'))} C",
         f"Vapor pressure: {value(row.get('vapor_pressure_kpa'), 2)} kPa @ {value(row.get('vapor_pressure_temp_c'))} C  |  Volatility: {row.get('volatility_class')}",
     ]
     if profile.get("chem21_recipe"):
@@ -1921,7 +1976,8 @@ def format_safety_comparison(rows: list[dict[str, Any]], ranked_by: Optional[str
         lines.append(
             f"{display_name[:20]:<20} {value(row['operating_temp_c']):>6} "
             f"{value(row['boiling_point_c']):>6} {value(row['boiling_margin_c']):>6} "
-            f"{value(row['flash_point_c']):>6} {value(row['autoignition_margin_c']):>6} "
+            f"{'none' if str(row.get('flash_point_note') or '').startswith('none') else value(row['flash_point_c']):>6} "
+            f"{value(row['autoignition_margin_c']):>6} "
             f"{value(row['g_score']):>5} {str(row.get('ghs_signal_word') or '—')[:7]:<7} "
             f"{str(row['heating_risk_level']):<10}"
         )
@@ -2156,7 +2212,9 @@ def compare_solvent_safety_at_conditions(
     Without rank_by the candidates keep their given order and at most `limit` are compared. With rank_by, up to 40
     candidates (named, or inherited from the screen just run) are ranked by that criterion: `ranking` lists every one
     with its rank, value, and whether it ties or lacks the score, and `comparison_rows` gives the full safety detail of
-    the first `limit`. A missing score never counts in a candidate's favour: it ranks after every scored one.
+    the first `limit`. A missing score never counts in a candidate's favour: it ranks after every scored one. A CHEM21
+    ranking reads the snapshot's fields whatever include_pubchem says. A screen's handle that holds only its default
+    shortlist is refused for ranking; the refusal names the top_k that screens every qualifying solvent.
     """
     tool = "compare_solvent_safety_at_conditions"
     if rank_by is not None and rank_by not in _RANK_RULES:
@@ -2189,6 +2247,20 @@ def compare_solvent_safety_at_conditions(
     )
     if not candidates:
         return tool_error(tool, "At least one candidate object is required.", error_code="missing_candidates")
+    # Ranking a screen's default shortlist would rank only its most soluble rows, not every solvent that qualified.
+    shortlist = (candidate_source or {}).get("shortlist") if inherited and rank_by else None
+    if shortlist and max(shortlist["qualifying_total_by_target"].values(), default=0) > shortlist["per_target"]:
+        qualifying = max(shortlist["qualifying_total_by_target"].values())
+        return tool_error(
+            tool,
+            f"This handle holds the screen's default shortlist ({shortlist['per_target']} per target), not all "
+            f"{qualifying} solvents that qualified.",
+            error_code="shortlist_handle",
+            qualifying_total_by_target=shortlist["qualifying_total_by_target"],
+            shortlist_per_target=shortlist["per_target"],
+            remedy=(f"Run the same screen again with top_k={min(qualifying, _RANK_CANDIDATE_CAP)} and rank that "
+                    "handle, so every qualifying solvent is ranked."),
+        )
     try:
         bounded = max(1, min(int(limit), 10))
     except (TypeError, ValueError):
@@ -2208,9 +2280,11 @@ def compare_solvent_safety_at_conditions(
             seen.add(key)
         if len(normalized) >= (_RANK_CANDIDATE_CAP if rank_by else bounded):
             break
+    # CHEM21 scores come from the snapshot's fields, so a CHEM21 ranking reads them whatever include_pubchem says.
+    use_pubchem = bool(include_pubchem) or rank_by in ("chem21", "chem21_safety")
     try:
         profiles = [
-            build_safety_profile(item["solvent_name"], item["operating_temp_c"], bool(include_pubchem))
+            build_safety_profile(item["solvent_name"], item["operating_temp_c"], use_pubchem)
             for item in normalized
         ]
     except SafetySnapshotRefuse as error:

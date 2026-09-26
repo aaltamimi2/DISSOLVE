@@ -1986,11 +1986,17 @@ def normalize_feed_composition(
 
 
 def _atmospheric_exclusion_counts() -> dict[str, int]:
-    """Return the shared, explicit vocabulary for atmospheric exclusions."""
+    """Return the shared, explicit vocabulary for screen exclusions: the atmospheric ones, and a solvent left out
+    because a retained polymer has no stored value there (it cannot be shown to stay intact)."""
     return {
         "excluded_for_missing_boiling_point": 0,
         "excluded_for_boiling_point": 0,
+        "excluded_for_missing_retained_value": 0,
     }
+
+
+# The engine's insolubility level: a retained polymer at or below it counts as intact (the precipitation threshold).
+_INTACT_LIMIT_PCT = 1.0
 
 
 def _atmospheric_exclusion_reason(
@@ -2041,6 +2047,8 @@ def _screen_direction(
     solubility_threshold_pct: float = 5.0,
     common_temperature_counts: Optional[dict[float, dict[str, int]]] = None,
     common_temperature_candidates: Optional[dict[float, list[dict]]] = None,
+    max_retained_pct: Optional[float] = None,
+    default_shortlist: bool = False,
 ) -> tuple[list[dict], int, dict[str, int], list[dict]]:
     best_by_solvent, screened = {}, 0
     atmospheric_exclusions = _atmospheric_exclusion_counts()
@@ -2098,6 +2106,7 @@ def _screen_direction(
                 for polymer, evidence in off_target_evidence.items()
             }
             if any(value is None for value in off_targets.values()):
+                atmospheric_exclusions["excluded_for_missing_retained_value"] += 1
                 continue
             if ranking_mode == "separation_gap":
                 limiting = min(
@@ -2151,8 +2160,17 @@ def _screen_direction(
                 ),
                 "is_clipped": clipped,
                 "clip_limit_wt_percent": 100.0,
+                # Whether every retained polymer stays at or below the intact limit (the requested one, else the
+                # engine's 1 wt%); with max_retained_pct it is the qualifying test together with the target level.
+                "retained_intact": (
+                    None if not off_targets else max(float(v) for v in off_targets.values())
+                    <= (_INTACT_LIMIT_PCT if max_retained_pct is None else max_retained_pct)
+                ),
                 **get_solvent_hazard_framing(solvent_key),
             }
+            if max_retained_pct is not None and ranking_mode == "target_dissolution" and off_targets:
+                candidate["meets_intact_limits"] = bool(
+                    candidate["meets_solubility_threshold"] and candidate["retained_intact"])
             if ranking_mode == "separation_gap":
                 candidate.update({
                     "minimum_target_off_target_gap_pct": score,
@@ -2175,9 +2193,24 @@ def _screen_direction(
             if existing_priority is None or candidate_priority > existing_priority:
                 best_by_solvent[key] = candidate
     ranked, ranked_all = _rank_screen_candidates(
-        list(best_by_solvent.values()), limit, ranking_mode,
+        list(best_by_solvent.values()), limit, ranking_mode, default_shortlist=default_shortlist,
     )
     return ranked, screened, atmospheric_exclusions, ranked_all
+
+
+def _meets_screen(item: dict) -> bool:
+    """Whether a row meets its screen's threshold: the intact limits when asked for, else the selectivity or the
+    solubility threshold."""
+    if "meets_intact_limits" in item:
+        return bool(item["meets_intact_limits"])
+    selective = item.get("meets_selectivity_threshold")
+    return bool(item.get("meets_solubility_threshold") if selective is None else selective)
+
+
+def _screen_order(item: dict) -> tuple:
+    """Rows that meet the screen's threshold first (under the intact limits that is not the score order), then by
+    score. A saturated 100 wt% cell keeps its place: the planner's steps and TEA design points rely on it."""
+    return (not _meets_screen(item), -item["ranking_score"], -item["target_solubility_pct"], item["solvent"])
 
 
 def _rank_screen_candidates(
@@ -2186,16 +2219,19 @@ def _rank_screen_candidates(
     ranking_mode: Literal[
         "target_dissolution", "separation_gap", "absolute_solubility",
     ],
+    *,
+    default_shortlist: bool = False,
 ) -> tuple[list[dict], list[dict]]:
-    """Sort and annotate one candidate population without changing its scope."""
-    ranked_all = sorted(
-        candidates,
-        key=lambda item: (
-            -item["ranking_score"], -item["target_solubility_pct"],
-            item["solvent"],
-        ),
-    )
+    """Sort and annotate one candidate population without changing its scope (order: _screen_order). 100 wt%
+    ceilings keep their places, and as many of the next resolved rows that meet the threshold follow them: five
+    ceilings used to fill the shortlist, and the answer then had no resolved value to lead with (the prompt shows a
+    capped option after the resolved ones; review finding A03-R2)."""
+    ranked_all = sorted(candidates, key=_screen_order)
     ranked = ranked_all[:limit]
+    ceilings = sum(1 for item in ranked if item.get("is_clipped") is True)
+    if ceilings and default_shortlist:     # a top_k the caller chose is kept exactly
+        ranked += [item for item in ranked_all[limit:]
+                   if item.get("is_clipped") is not True and _meets_screen(item)][:ceilings]
     from .safety import condition_operability, merge_condition_operability
 
     for item in ranked:
@@ -2228,6 +2264,7 @@ def screen_polymer_separation(
     top_k: Optional[int] = None,
     min_solubility_pct: float = 5.0,
     minimum_qualifying_solvent_count: Optional[int] = None,
+    max_retained_pct: Optional[float] = None,
 ) -> str:
     """Adaptively screen absolute dissolution or target/off-target separation.
 
@@ -2253,6 +2290,11 @@ def screen_polymer_separation(
     result then reports full-candidate counts at each common grid setpoint;
     never infer that answer from the per-solvent best-temperature shortlist.
     Saturated 100 wt% ceilings qualify through 100 and share a ceiling rank.
+
+    ``max_retained_pct`` is the "keep the others intact" limit: with it, a solvent qualifies when the target reaches
+    ``min_solubility_pct`` and every retained polymer stays at or below this wt% (the engine's insolubility level is
+    1); selectivity only orders them. Without it, target dissolution qualifies on a selectivity of at least 5 points,
+    which does not keep a retained polymer intact: ``retained_intact_total_by_target`` counts the solvents that do.
 
     ``require_atmospheric`` is tri-state: ``None`` keeps solvents with missing
     boiling-point data but excludes conditions at or above a recorded boiling
@@ -2348,6 +2390,14 @@ def screen_polymer_separation(
         scoped = _refuse_solvents_out_of_scope(tool, constrained_solvents)
         if scoped is not None:
             return scoped
+    if max_retained_pct is not None:
+        try:
+            max_retained_pct = float(max_retained_pct)
+        except (TypeError, ValueError):
+            max_retained_pct = math.nan
+        if not math.isfinite(max_retained_pct) or max_retained_pct < 0:
+            return tool_error(tool, "max_retained_pct must be a finite wt% of at least 0.",
+                              error_code="invalid_max_retained_pct")
     temperatures = _temperature_grid(start, end, step, bool(strict_maximum))
     if not temperatures:
         return tool_error(tool, "No temperatures remain after applying bounds.", error_code="empty_temperature_grid")
@@ -2402,6 +2452,7 @@ def screen_polymer_separation(
         candidate_limit = 5 if single else 3
     directions, combined, recommendations = [], [], {}
     qualifying_totals: dict[str, int] = {}
+    intact_totals: dict[str, int] = {}
     screened_conditions = 0
     atmospheric_exclusions = _atmospheric_exclusion_counts()
     common_temperature_counts = (
@@ -2434,6 +2485,8 @@ def screen_polymer_separation(
             solubility_threshold,
             common_temperature_counts,
             common_temperature_candidates,
+            max_retained_pct if not single and ranking_mode == "target_dissolution" else None,
+            default_shortlist=top_k is None,
         )
         if (
             common_temperature_counts is not None
@@ -2463,7 +2516,7 @@ def screen_polymer_separation(
                     else min(len(shared_population), 50)
                 )
                 candidates, complete_candidates = _rank_screen_candidates(
-                    shared_population, shared_limit, ranking_mode,
+                    shared_population, shared_limit, ranking_mode, default_shortlist=top_k is None,
                 )
                 ranked_candidate_population = (
                     "qualifying_stored_grid_candidates_at_lowest_common_temperature"
@@ -2505,8 +2558,12 @@ def screen_polymer_separation(
         threshold_field = (
             "meets_solubility_threshold"
             if single or ranking_mode == "absolute_solubility"
+            else "meets_intact_limits" if max_retained_pct is not None and ranking_mode == "target_dissolution"
             else "meets_selectivity_threshold"
         )
+        if not single and ranking_mode == "target_dissolution":
+            intact_totals[target] = sum(1 for item in complete_candidates
+                                        if item.get("meets_solubility_threshold") and item.get("retained_intact"))
         predicted_viable = bool(best and best[threshold_field])
         strong_overlap = bool(
             ranking_mode == "target_dissolution"
@@ -2544,12 +2601,11 @@ def screen_polymer_separation(
                 None if predicted_viable
                 else "no_candidate_met_solubility_threshold"
                 if single or ranking_mode == "absolute_solubility"
+                else "no_candidate_met_intact_limits" if threshold_field == "meets_intact_limits"
                 else "no_candidate_met_selectivity_threshold"
             ),
         })
-    combined.sort(key=lambda item: (
-        -item["ranking_score"], -item["target_solubility_pct"], item["solvent"],
-    ))
+    combined.sort(key=_screen_order)
     if single or ranking_mode == "absolute_solubility":
         _assign_clipped_ceiling_ranks(
             combined, rank_key="overall_rank",
@@ -2757,7 +2813,30 @@ def screen_polymer_separation(
         screened_directions=directions,
         # A shortlist is not the screen: how many solvents met the threshold for each target, against how many
         # ranked_candidates shows (the default keeps 5 for one polymer, 3 per target otherwise).
+        # Which temperature each row stands at. With no temperature in the question every solvent is at its own
+        # best grid point on 25-160 °C, so a question placed nowhere can come back as a 140 °C recipe; the answer
+        # must say so (review findings A03-R1, A04-R2).
+        temperature_basis=(
+            f"stated: {start:g} °C" if len(temperatures) == 1
+            else f"not stated: each solvent at its own best grid temperature between {min(temperatures):g} and "
+                 f"{max(temperatures):g} °C"
+            if temperature_min_c is None and temperature_max_c is None
+            else f"range: each solvent at its own best grid temperature between {min(temperatures):g} and "
+                 f"{max(temperatures):g} °C"
+        ),
         qualifying_total_by_target=qualifying_totals,
+        # How many of the screened solvents reach the target level and keep every retained polymer intact (at or
+        # below max_retained_pct, else 1 wt%); qualifying_total_by_target counts the screen's own rule.
+        retained_intact_total_by_target=intact_totals or None,
+        max_retained_pct=max_retained_pct,
+        qualifying_rule=(
+            f"target >= {solubility_threshold:g} wt% and every retained polymer <= {max_retained_pct:g} wt%"
+            if max_retained_pct is not None and not single and ranking_mode == "target_dissolution"
+            else "selectivity >= 5 points (retained polymers may still dissolve; see retained_intact_total_by_target)"
+            if not single and ranking_mode == "target_dissolution"
+            else "minimum gap >= 5 points" if ranking_mode == "separation_gap"
+            else f"target >= {solubility_threshold:g} wt%"
+        ),
         shortlist_per_target=candidate_limit,
         shortlist_is_default=top_k is None,
         ranked_candidates=combined,

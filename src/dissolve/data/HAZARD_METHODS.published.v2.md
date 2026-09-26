@@ -1,8 +1,8 @@
 # Hazard Analysis, v2: the PubChem safety snapshot (published Methods)
 
 Snapshot `pubchem_safety_snapshot.v3.duckdb`, pinned in `safety._SNAPSHOT_SHA256`, with its content digest recorded
-beside the pin. Built on 2026-09-25 by `python -m dissolve.safety_snapshot build` from the PubChem pull of 987
-solvents taken 2026-08-28 (`_pull_checkpoint.v2.jsonl`, 38 MB, kept outside the repository). This document supersedes
+beside the pin. Built on 2026-09-25, and rebuilt on 2026-09-26 with the EU classification v2 and the closed-cup flash
+point rule, by `python -m dissolve.safety_snapshot build` from the PubChem pull of 987 solvents taken 2026-08-28 (`_pull_checkpoint.v2.jsonl`, 38 MB, kept outside the repository). This document supersedes
 v1's statements about PubChem fields: they are served from this pinned snapshot with no network call, and the fields
 are read as described below. v1's G-score and green-screen sections still hold.
 
@@ -32,10 +32,10 @@ the source PubChem names for it.
 
 | Field | Rule |
 |---|---|
-| Flash point | The lowest value a second, different source confirms within 3 °C; else the median of the sources. A range gives its lower end, a hyphen between numbers is a range, and a "±" tolerance is dropped. Bounds ("above 200 °F") count only when nothing else exists, and class-definition text is set aside. With no plain value, text saying the solvent does not burn marks it non-flammable. Flammable gases and explosives are marked as such |
+| Flash point | The lowest value a second, different source confirms within 3 °C; else the median of the sources. A lower closed-cup value then replaces that reading, never a higher one, when ICSC or NIOSH gives it or a second source confirms it (open-cup values run high: acetonitrile read 5.6 °C from four open-cup sources against ICSC's 2 °C closed cup; 31 solvents move down, none up). A range gives its lower end, a hyphen between numbers is a range, and a "±" tolerance is dropped. Bounds ("above 200 °F") count only when nothing else exists, and class-definition text is set aside. With no plain value, text saying the solvent does not burn marks it non-flammable. Flammable gases and explosives are marked as such |
 | Autoignition | The lowest stated value (the conservative choice), with the spread across sources |
 | Vapour pressure | The value whose stated temperature is nearest 25 °C, within 15–35 °C; else a value with no stated temperature (PubChem's bare "[mmHg]" values are room-temperature ones); else the value measured nearest 25 °C. The basis is stored |
-| Hazard statements | The solvent's own EU classification (`eu_classification.v1.json`): harmonised hazard classes from CLP Annex VI, the other classes from the lead REACH registrant, else from the classification at least half of at least 10 notifying companies give. The entries are found by the EC and index numbers ECHA assigns to the CAS number; entries for another composition (a "reaction mass", a mixture, "containing ≥ 0.1 % butadiene") are left out. A majority "not classified" means not classified. No national list is used, and "no EU data" is never read as safe. Each code takes PubChem's most common wording. Every PubChem line is kept as provenance, and severe codes PubChem lists that the classification does not are surfaced |
+| Hazard statements | The solvent's own EU classification (`eu_classification.v2.json`): harmonised hazard classes from CLP Annex VI, the other classes from the lead REACH registrant's own classification of the substance, else from the classification at least half of at least 10 notifying companies give. Every GHS record of the lead dossier counts when it covers the substance's own compositions; a record for a special grade (an impurity at or above a threshold, a technical, commercial, raw or crude grade, a solution or a reaction mass) is left out, and within one hazard class the most severe code is kept. Version 1 read only the first record, which in 76 dossiers is the Annex VI entry alone: dichloromethane was served as "suspected of causing cancer" only, without its skin and eye irritation and drowsiness. Each row lists the records used and left out. The entries are found by the EC and index numbers ECHA assigns to the CAS number; entries for another composition (a "reaction mass", a mixture, "containing ≥ 0.1 % butadiene") are left out. A majority "not classified" means not classified. No national list is used, and "no EU data" is never read as safe. Each code takes PubChem's most common wording. Every PubChem line is kept as provenance, and severe codes PubChem lists that the classification does not are surfaced |
 | Signal word, pictograms | From the kept statements: Danger if any kept statement carries Danger. Pictograms follow the CLP precedence rules |
 | Exposure limits | Every current limit an authority states, labelled 8- or 10-hour TWA, STEL or ceiling. Vacated or proposed limits and notes without a value are left out |
 | LD50, LC50 | Up to five each: oral first, then dermal, then inhalation; rat, then mouse, then rabbit |
@@ -89,18 +89,23 @@ The guide's published values are `chem21_guide.v1.json` (the ACS GCI Pharmaceuti
 guide's tables, with its checksum). They are known answers only, never an input. Against the guide, matched by CAS
 number:
 
-| | v2 snapshot | v3, corrected readers | v3, plus EU classification and REACH |
-|---|---|---|---|
-| Flash points in the right Safety band (of 62) | 54 | 59 | 59 |
-| All three scores equal (of 66) | 13 | 17 | 37 |
-| Default ranking equal (of 66) | 34 | 42 | 57 |
+| | v2 snapshot | v3, corrected readers | v3, plus EU classification and REACH | v3, plus every lead record and closed cup (2026-09-26) |
+|---|---|---|---|---|
+| Flash points in the right Safety band (of 62) | 54 | 59 | 59 | 59 |
+| All three scores equal (of 66) | 13 | 17 | 37 | 36 |
+| Default ranking equal (of 66) | 34 | 42 | 57 | 56 |
+
+The last column agrees with the 2016 guide once less on each count: cyclohexanone's current registrant classification
+adds serious eye damage (Health 2 → 4, problematic), and toluene's and xylene's add a chronic aquatic hazard
+(Environment 3 → 5).
 
 The three flash-point misses:
 - CPME and 2-MeTHF have no PubChem flash point.
 - Chlorobenzene is 23.9 °C against the guide's 29 °C, on a band edge.
 
-The 9 remaining ranking differences:
-- **EU reclassifications since the 2016 guide (3):** MIBK and 1,4-dioxane (carcinogenicity) and isoamyl alcohol.
+The 10 remaining ranking differences:
+- **EU classifications newer than the 2016 guide (4):** MIBK and 1,4-dioxane (carcinogenicity), isoamyl alcohol, and
+  cyclohexanone (its registrant's serious eye damage).
 - **Adjustments DISSOLVE cannot assess (5):**
   - the peroxide or static-charge point for MTBE and anisole;
   - no PubChem flash point for CPME and 2-MeTHF;
