@@ -15,7 +15,7 @@ from dissolve import agent, cli, web
 @pytest.fixture
 def serve(tmp_path, monkeypatch):
     """Start the real server on an ephemeral port, in this process so the scripted model applies; env first."""
-    monkeypatch.setenv("META_MUSE_API_KEY", "test-key")
+    monkeypatch.setenv("OPENROUTER_API_KEY", "test-key")
     monkeypatch.setattr(web, "STATIC", tmp_path / "ui")
     running = []
 
@@ -106,7 +106,7 @@ def test_a_turn_streams_its_tool_calls_then_the_answer(client, monkeypatch):
         {"text": "Toluene: δD 18.0, δP 1.4, δH 2.0 MPa½.", "tool_calls": []},
     ])
     state = client.post("/api/sessions", json={}).json()
-    assert (state["model"], state["mode"], state["contaminant"], state["literature"]) == ("muse-spark", "review", "off", "off")
+    assert (state["model"], state["mode"], state["contaminant"], state["literature"]) == ("openrouter-gemini-flash", "review", "off", "off")
     events = _stream(client, state["session_id"], "Hansen parameters of toluene?")
     assert [e["event"] for e in events] == ["turn.started", "tool", "turn.completed"]
     tool = events[1]
@@ -138,9 +138,9 @@ def test_slash_commands_run_through_the_cli_handler(client, monkeypatch):
 def test_a_missing_model_key_is_an_error_not_a_call(client, monkeypatch):
     calls = _script(monkeypatch, [])
     session_id = client.post("/api/sessions", json={}).json()["session_id"]
-    monkeypatch.delenv("META_MUSE_API_KEY")
+    monkeypatch.delenv("OPENROUTER_API_KEY")
     events = _stream(client, session_id, "Which solvents dissolve PS near 100 C?")
-    assert events[-1]["event"] == "error" and "META_MUSE_API_KEY is required" in events[-1]["message"]
+    assert events[-1]["event"] == "error" and "OPENROUTER_API_KEY is required" in events[-1]["message"]
     assert calls["n"] == 0
 
 
