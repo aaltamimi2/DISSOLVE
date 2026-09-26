@@ -5236,3 +5236,97 @@ def test_route_safety_rank_needs_no_tea_but_economics_still_does(monkeypatch):
     assert [p["original_thermo_rank"] for p in out["landscape_points"]] == [2, 1]
     refused = json.loads(tea.rank_landscape(target_polymer="LDPE"))["data"]
     assert refused["error_code"] == "live_tea_unavailable"
+
+
+# --- Cursor code review, ranking findings (2026-09-26): each test fails on 32a755de.
+
+def test_a_success_without_lca_coverage_is_excluded_by_name():
+    """B05-R1, B10-R2: every live and cached result carries lca_coverage (regenerated 2026-09-22); a row without it
+    (a screening estimate) was excluded as a generic not_usable."""
+    rows = [_success_row("c", "p1", "LDPE", "toluene", 1.2, 2.0), _success_row("c", "p2", "LDPE", "xylene", 1.5, 2.4)]
+    rows[1]["comparison_row"].pop("lca_coverage")
+    usable, excluded, by_type = tea_ranking.project_usable(rows, canonical="c")
+    assert [point["pair_id"] for point in usable] == ["p1"]
+    assert excluded[0]["error_type"] == "missing_lca_coverage"
+    assert by_type == {"missing_lca_coverage": 1}
+
+
+def test_rows_sharing_a_pair_id_stay_two_points():
+    """B05-R2, B10-R2: frontier flags and rank joins keyed on pair_id, so two unlabeled LDPE|toluene|C1 rows at 80
+    and 120 C were both marked frontier and one dropped out of the ranks."""
+    rows = [
+        _success_row("c", "LDPE|toluene|C1", "LDPE", "toluene", 1.2, 2.0),
+        _success_row("c", "LDPE|toluene|C1", "LDPE", "toluene", 1.5, 2.4),
+    ]
+    usable, _excluded, _by_type = tea_ranking.project_usable(rows, canonical="c")
+    assert [point["pair_id"] for point in usable] == ["LDPE|toluene|C1", "LDPE|toluene|C1#2"]
+    block = tea_ranking.quality_block(usable, grouping={})
+    assert [point["is_frontier"] for point in block["landscape_points"]] == [True, False]
+
+
+def test_a_polymer_with_one_usable_design_is_named_in_a_grouped_frontier():
+    """B05-R3, B10-R2: PVC with one usable row vanished from grouped_fronts and from every excluded list."""
+    rows = [
+        _success_row("c", f"pet-{index}", "PET", solvent, msp, gwp)
+        for index, (solvent, msp, gwp) in enumerate((("gvl", 1.2, 2.5), ("nmp", 1.6, 2.0), ("dmso", 1.4, 2.2)))
+    ] + [_success_row("c", "pvc-0", "PVC", "thf", 1.1, 3.0)]
+    usable, excluded, by_type = tea_ranking.project_usable(rows, canonical="c")
+    payload = tea_ranking._rank_usable_population(
+        usable, excluded, by_type, n_rows_read=len(rows), polymer_grouping="per_target_polymer",
+        operation="pareto_dominance",
+    )
+    assert [group["target_polymer"] for group in payload["grouped_fronts"]] == ["PET"]
+    single = payload["polymers_with_one_usable_design"]
+    assert [item["target_polymer"] for item in single] == ["PVC"]
+    assert single[0]["point"]["pair_id"] == "pvc-0"
+
+
+def test_a_stage_without_an_energy_intensity_leaves_the_design_energy_unknown():
+    """B05-R4, B10-R2: a missing stage energy counted as 0 MJ, so a design with that stage looked no more
+    energy-intensive than one without it."""
+    stage = {"stage": 1, "solvent": "s", "dissolution_temperature_c": 100.0, "tci_usd": 1e6,
+             "aoc_usd_per_yr": 1e5, "gwp_kg_co2e_per_kg": 1.0}
+    source = {"composition": {"LDPE": 0.6, "PET": 0.4}, "feed_mt_per_yr": 1000.0, "stages": [
+        {**stage, "polymer": "LDPE", "total_energy_mj_per_kg": 5.0},
+        {**stage, "stage": 2, "polymer": "PET"},
+    ]}
+    points, _rejected = tea_ranking._landscape(
+        source, scenario="A", recovery_yield=0.9, market_values={"LDPE": 1000.0, "PET": 1000.0},
+    )
+    by_stages = {}
+    for point in points:
+        by_stages.setdefault(point["active_recovery_stages"], []).append(point["energy_mj_per_yr"])
+    assert all(value is None for value in by_stages[2])
+    assert all(value is not None for value in by_stages.get(1, []) + by_stages.get(0, []))
+
+
+def test_two_names_for_one_requested_campaign_field_that_disagree_are_refused():
+    """B05-R6: target_mass_percent 60 and target_plastic_percent 80 became one field holding 80."""
+    with pytest.raises(tea_ranking.CampaignConsumeError) as error:
+        tea_ranking.publicize_requested_fields({"target_mass_percent": 60, "target_plastic_percent": 80})
+    assert error.value.error_code == "conflicting_process_field"
+    assert tea_ranking.publicize_requested_fields(
+        {"target_mass_percent": 60, "target_plastic_percent": 60},
+    )["target_mass_percent"] == 60
+
+
+def test_drop_ranks_stored_drop_rows_but_a_missing_drop_cell_cannot_be_run_here(monkeypatch):
+    """B03-R6, B10-R3: rank held 'drop' and matched stored drop rows; evaluate refuses drop on this instance. A grid
+    missing a drop cell said only that the grid was incomplete; it now says the cell cannot be run here, and
+    evaluate's refusal stays field_not_on_this_instance."""
+    _forbid_live_rank_solvent_maps(monkeypatch)
+    payload = _data(tea.rank_landscape(**_sequence_kwargs(
+        process_config={**_CAP_20KT, "precipitation_temperature_format": "drop"},
+    )))
+    assert payload.get("error_code") == "incomplete_stage_basis_grid"
+    assert payload["cannot_run_here"]["error_code"] == "field_not_on_this_instance"
+    session = new_session()
+    with bind_tool_session(session):
+        handle = _plant_handle(session, _complete_d18_rows(precipitation_temperature_format="drop"))
+        complete = _data(tea.rank_landscape(**_sequence_kwargs(
+            handle=handle, process_config={**_CAP_20KT, "precipitation_temperature_format": "drop"},
+        )))
+    assert complete.get("error_code") != "incomplete_stage_basis_grid"
+    with pytest.raises(tea._ScenarioInputError) as refused:
+        tea._validated_flowsheet_switches({"precipitation_temperature_format": "drop"}, energy_case="C1")
+    assert refused.value.error_code == "field_not_on_this_instance"

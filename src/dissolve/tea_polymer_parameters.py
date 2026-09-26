@@ -65,7 +65,7 @@ import os
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import AbstractSet, Any, Iterable, Mapping, Optional
+from typing import AbstractSet, Any, Iterable, Mapping, Optional, Sequence
 
 VALIDATED = "validated"
 PROVISIONAL = "provisional"
@@ -257,7 +257,7 @@ def _generic_process() -> ProcessAssumptions:
     )
 
 
-def _pe_chemical() -> ChemicalAssumptions:
+def _pe_chemical(*, standing: str = VALIDATED, source_note: str = "") -> ChemicalAssumptions:
     return ChemicalAssumptions(
         formula="C2H4",
         rho_kg_m3=920.0,  # 0.5 * (880 + 960), LDPE–HDPE midpoint in the draft
@@ -265,8 +265,8 @@ def _pe_chemical() -> ChemicalAssumptions:
         tm_k=398.15,  # 0.5 * (115 + 135) + 273.15
         tb_k=None,
         lhv_note="261.0 * MW(C2H4); NIST jresv78An5p611 cited in the draft",
-        standing=VALIDATED,
-        source="plastics 0.1.4 property_package.PE",
+        standing=standing,
+        source="plastics 0.1.4 property_package.PE" + source_note,
     )
 
 
@@ -347,10 +347,18 @@ POLYMERS: dict[str, PolymerRow] = {
         grid_name="HDPE",
         identity_in_model="PE",
         admission=ADMISSION_LIVE,
-        chemical=_pe_chemical(),
+        # The PE row's 920 kg/m3 density is in the LDPE range (HDPE is 940-970 kg/m3), so an HDPE run uses a
+        # chemistry that is not HDPE's and is never cited as the validated PE/Toluene process.
+        chemical=_pe_chemical(
+            standing=PROVISIONAL,
+            source_note=" (LDPE-range density 920 kg/m3 applied to HDPE)",
+        ),
         oligomer=_pe_oligomer(),
         process=_generic_process(),
-        notes="Same PE identity as LDPE. See LDPE notes.",
+        notes=(
+            "Same PE identity as LDPE, with the PE row's LDPE-range properties; provisional for HDPE. "
+            "See LDPE notes."
+        ),
     ),
     "EVOH": PolymerRow(
         grid_name="EVOH",
@@ -1423,11 +1431,30 @@ def _constructor_calls(tree: ast.AST, name: str) -> list[ast.Call]:
     return found
 
 
-def _step_string(args: list[ast.AST], index: int) -> Optional[str]:
-    if index >= len(args) or not isinstance(args[index], ast.Constant):
+# Constructor parameter order in plastics 0.1.4 (dissolution_steps.py, precipitation_steps.py).
+_DISSOLUTION_STEP_PARAMETERS = (
+    "plastic", "dissolved_plastic", "solvent", "reaction", "capacity", "solvent_content", "T", "tau",
+)
+_PRECIPITATION_STEP_PARAMETERS = (
+    "solvent", "plastic", "dissolved_plastic", "solubility", "precipitate_solvent_content",
+    "screw_press_solvent_content", "T", "tau", "T_condensation",
+)
+
+
+def _call_arguments(call: ast.Call, names: Sequence[str]) -> dict[str, ast.AST]:
+    """Constructor arguments by parameter name, whether passed by position or by keyword."""
+    bound = {name: node for name, node in zip(names, call.args)}
+    for keyword in call.keywords:
+        if keyword.arg is not None:
+            bound[keyword.arg] = keyword.value
+    return bound
+
+
+def _named_string(bound: Mapping[str, ast.AST], name: str) -> Optional[str]:
+    node = bound.get(name)
+    if not isinstance(node, ast.Constant):
         return None
-    value = args[index].value
-    return value if isinstance(value, str) else None
+    return node.value if isinstance(node.value, str) else None
 
 
 def package_dissolution_steps_from_source(
@@ -1437,13 +1464,14 @@ def package_dissolution_steps_from_source(
     tree = _parse_strap_source(path)
     steps: dict[tuple[str, str], dict[str, float]] = {}
     for call in _constructor_calls(tree, "DissolutionStep"):
-        plastic = _step_string(call.args, 0)
-        solvent = _step_string(call.args, 2)
-        if plastic is None or solvent is None or len(call.args) < 8:
+        bound = _call_arguments(call, _DISSOLUTION_STEP_PARAMETERS)
+        plastic = _named_string(bound, "plastic")
+        solvent = _named_string(bound, "solvent")
+        if plastic is None or solvent is None or not {"capacity", "T", "tau"} <= set(bound):
             continue
-        capacity = _ast_number(call.args[4])
-        temperature_k = _ast_number(call.args[6])
-        tau = _ast_number(call.args[7])
+        capacity = _ast_number(bound["capacity"])
+        temperature_k = _ast_number(bound["T"])
+        tau = _ast_number(bound["tau"])
         if capacity is None or temperature_k is None or tau is None:
             continue
         steps[(plastic, solvent.casefold())] = {
@@ -1461,13 +1489,14 @@ def package_precipitation_steps_from_source(
     tree = _parse_strap_source(path)
     steps: dict[tuple[str, str], dict[str, float]] = {}
     for call in _constructor_calls(tree, "PrecipitationStep"):
-        solvent = _step_string(call.args, 0)
-        plastic = _step_string(call.args, 1)
-        if plastic is None or solvent is None or len(call.args) < 8:
+        bound = _call_arguments(call, _PRECIPITATION_STEP_PARAMETERS)
+        solvent = _named_string(bound, "solvent")
+        plastic = _named_string(bound, "plastic")
+        if plastic is None or solvent is None or not {"solubility", "T", "tau"} <= set(bound):
             continue
-        solubility = _ast_number(call.args[3])
-        temperature_k = _ast_number(call.args[6])
-        tau = _ast_number(call.args[7])
+        solubility = _ast_number(bound["solubility"])
+        temperature_k = _ast_number(bound["T"])
+        tau = _ast_number(bound["tau"])
         if solubility is None or temperature_k is None or tau is None:
             continue
         steps[(plastic, solvent.casefold())] = {

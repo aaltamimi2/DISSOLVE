@@ -18,7 +18,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from types import MappingProxyType
-from typing import Any, Callable, Sequence
+from typing import Any, Callable, Mapping, Sequence
 
 try:
     import readline  # noqa: F401
@@ -820,7 +820,13 @@ def _is_v12_session(payload: Any) -> bool:
 
 
 def _system_prompt(mode: str) -> str:
-    return f"{SYSTEM_PROMPT}\n\nCLI interaction mode: {mode}. {_MODE_LINE[mode]}"
+    from dissolve.agent import tea_switched_off
+    tea_line = (
+        "\n\nTEA is switched off on this deployment: say that a cost, selling price or GWP cannot be computed here, "
+        "and give the solubility, safety and separation answers the tools can."
+        if tea_switched_off() else ""
+    )
+    return f"{SYSTEM_PROMPT}\n\nCLI interaction mode: {mode}. {_MODE_LINE[mode]}{tea_line}"
 
 
 def _scrub_session(loaded: dict[str, Any] | None) -> SessionRecord:
@@ -1395,6 +1401,7 @@ class CliApp:
         self.last_usage = meta.get("last_usage")
         self._process_buffer: dict[str, Any] | None = None
         self._confirmation_sheet_submitted = False
+        self._confirmed_plant_request: str | None = None
         self._sheet_field_origin: dict[str, str] | None = None
         self._cli_direct_active = False
         self._save()
@@ -1540,6 +1547,7 @@ class CliApp:
             self.last_status = self.last_tool_rounds = self.last_tool_calls = self.last_usage = None
             self._process_buffer = None
             self._confirmation_sheet_submitted = False
+            self._confirmed_plant_request = None
             self._sheet_field_origin = None
             self._save()
             self.console.print("Messages and handles cleared.")
@@ -2288,9 +2296,15 @@ class CliApp:
             except ValueError as error:
                 self.console.print(f"[red]{error}[/]")
 
-    def _confirm_seed(self, scenario: dict[str, Any] | None) -> dict[str, Any]:
-        """Prefer a /process buffer. Never overlay model args onto it."""
+    def _confirm_seed(
+        self, scenario: dict[str, Any] | None, *, proposed_change: bool = False,
+    ) -> dict[str, Any]:
+        """Prefer a /process buffer. Never overlay model args onto it, except when the model contradicts a plant the
+        person already confirmed: then the sheet shows the confirmed plant with the model's named values in place, so
+        the person sees exactly what would change."""
         if self._process_buffer is not None:
+            if proposed_change and isinstance(scenario, dict):
+                return _overlay_on_sheet(self._process_buffer, scenario)
             return self._process_buffer
         return tea.seed_public_process_config(scenario)
 
@@ -2447,6 +2461,7 @@ class CliApp:
         kwargs: dict[str, Any],
         *,
         prompt_fn: Callable[..., str] | None = None,
+        proposed_change: bool = False,
     ) -> dict[str, Any] | None:
         if name == "evaluate_process":
             mode = str(kwargs.get("mode") or "").strip().casefold()
@@ -2483,7 +2498,9 @@ class CliApp:
             )
             for item in ingest_items:
                 tea._refuse_process_config_ingest(item)
-            seed = self._confirm_seed(seed_src if isinstance(seed_src, dict) else None)
+            seed = self._confirm_seed(
+                seed_src if isinstance(seed_src, dict) else None, proposed_change=proposed_change,
+            )
             snapshot = copy.deepcopy(seed)
             caller = seed_src if isinstance(kwargs.get("process_config"), dict) or configs else None
             preview = self._preview_sheet_field_origin(
@@ -2526,11 +2543,14 @@ class CliApp:
         )
         if not armed:
             return original(name, **kwargs)
-        if self._confirmation_sheet_submitted:
+        if self._confirmation_sheet_submitted and self._same_confirmed_plant(kwargs):
             kwargs = self._bind_confirmed_process(name, kwargs)
-            return self._stamp_confirmation_field_origin(original(name, **kwargs))
+            return self._stamp_confirmation_field_origin(_run_confirmed(original, name, kwargs))
+        requested_plant = _process_request_plant(kwargs)
         try:
-            confirmed = self._confirm_tool_kwargs(name, kwargs)
+            confirmed = self._confirm_tool_kwargs(
+                name, kwargs, proposed_change=self._confirmation_sheet_submitted,
+            )
         except tea._ScenarioInputError as error:
             payload: dict[str, Any] = {
                 "success": False,
@@ -2550,7 +2570,39 @@ class CliApp:
             }
         kwargs = confirmed
         self._confirmation_sheet_submitted = True
-        return self._stamp_confirmation_field_origin(original(name, **kwargs))
+        self._confirmed_plant_request = requested_plant
+        return self._stamp_confirmation_field_origin(_run_confirmed(original, name, kwargs))
+
+    def _same_confirmed_plant(self, kwargs: dict[str, Any]) -> bool:
+        """Whether a later process call stays on the plant the person confirmed. It does when it repeats the call made
+        at confirmation, or when every value it names agrees with the confirmed sheet (a bare {"target_polymer":
+        "LDPE"} leans on the sheet for the rest). A value that contradicts the sheet (PS in toluene after a
+        confirmed PET in THF, or irr 0.15 against a confirmed 0.10) opens the sheet again: the person sees the change
+        instead of the confirmed plant running silently under the new question."""
+        if _process_request_plant(kwargs) == self._confirmed_plant_request:
+            return True
+        if kwargs.get("handle") is not None or kwargs.get("row_id") is not None:
+            return False  # another stored route: its capacity, energy case and precipitation are confirmed afresh
+        sheet = self._process_buffer or {}
+        named: list[dict[str, Any]] = []
+        for item in [kwargs.get("process_config"), *list(kwargs.get("process_configs") or [])]:
+            if isinstance(item, dict):
+                named.append(item)
+        if isinstance(kwargs.get("held_process_basis"), dict):
+            named.append(kwargs["held_process_basis"])
+        shortlist = kwargs.get("screening_shortlist")
+        for item in (shortlist.get("items") or []) if isinstance(shortlist, dict) else []:
+            if isinstance(item, dict):
+                named.append({
+                    "target_polymer": item.get("target_polymer") or item.get("target_plastic"),
+                    "solvent": item.get("solvent"),
+                    "dissolution_temperature_c": next(
+                        (item[key] for key in ("dissolution_temperature_c", "dissolution_temp_c", "temperature_c")
+                         if item.get(key) is not None),
+                        None,
+                    ),
+                })
+        return all(_agrees_with_sheet(item, sheet) for item in named)
 
     def ask(self, query: str) -> TurnResult:
         self._append("user", query, mode=self.mode, model=self.model_alias)
@@ -2620,6 +2672,48 @@ class CliApp:
         finally:
             agent.dispatch = original_dispatch
             self._cli_direct_active = False
+
+
+def _run_confirmed(original: Callable[..., Any], name: str, kwargs: dict[str, Any]) -> Any:
+    """Run a process tool whose plant a person confirmed on the sheet; its result says so."""
+    token = tea.PROCESS_CONFIRMATION.set("confirmed_on_sheet")
+    try:
+        return original(name, **kwargs)
+    finally:
+        tea.PROCESS_CONFIRMATION.reset(token)
+
+
+def _overlay_on_sheet(sheet: Mapping[str, Any], scenario: Mapping[str, Any]) -> dict[str, Any]:
+    """The confirmed sheet with each plant value the model names put in its public field."""
+    proposed = copy.deepcopy(dict(sheet))
+    for key, value in scenario.items():
+        if value is None or str(key).startswith("_") or key == "label":
+            continue
+        public = tea._process_config_public_name(str(key)) or str(key)
+        proposed[public] = tea._energy_case_token(value) if public == "energy_case" else value
+    return proposed
+
+
+def _agrees_with_sheet(config: Mapping[str, Any], sheet: Mapping[str, Any]) -> bool:
+    """Every plant value the model names equals the confirmed sheet's (aliases and solvent names resolved)."""
+    for key, value in config.items():
+        if value is None or str(key).startswith("_") or key == "label":
+            continue
+        public = tea._process_config_public_name(str(key)) or str(key)
+        if public not in sheet or not tea._process_config_values_equivalent(public, sheet[public], value):
+            return False
+    return True
+
+
+def _process_request_plant(kwargs: Mapping[str, Any]) -> str:
+    """The plant a process tool call names (its configs, screening handoff, or route handle), as one comparable
+    string; the mode and sweep arguments are left out, so a sensitivity run on a confirmed plant stays bound."""
+    plant = {
+        key: kwargs[key]
+        for key in ("process_config", "process_configs", "screening_shortlist", "held_process_basis", "handle", "row_id")
+        if kwargs.get(key) is not None
+    }
+    return json.dumps(plant, sort_keys=True, default=str)
 
 
 def main(argv: Sequence[str] | None = None) -> int:

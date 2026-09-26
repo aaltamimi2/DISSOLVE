@@ -197,7 +197,8 @@ def test_schema_uses_two_typed_objects_not_top_level_polymer():
     assert props["confirm_live_tea"]["type"] == "boolean"
     assert "target_polymer" not in props
     assert "solvent" not in props
-    assert "parameter" not in props
+    assert props["parameter"]["type"] == "string"  # sensitivity mode's swept field (the model never sent it unlisted)
+    assert props["values"]["type"] == "array"
     assert "scenarios" not in props
     assert "feed_mass_fractions" not in props
     required = _schema("evaluate_process")["parameters"].get("required") or []
@@ -954,12 +955,20 @@ def test_four_field_payload_has_no_msp(monkeypatch):
     assert len(payload.get("process_basis") or []) == 46
 
 
-def test_confirmation_abort_shape_has_no_msp():
-    abort = {
-        "success": False,
-        "error": "Process confirmation aborted; the model args did not run.",
-        "error_code": "process_confirmation_aborted",
-    }
+def test_confirmation_abort_shape_has_no_msp(tmp_path, monkeypatch):
+    """B09-R3: this asserted on a dict built in the test. It now aborts the real CLI sheet: nothing runs and the
+    refusal carries no price."""
+    monkeypatch.setattr(sys.stdin, "isatty", lambda: True)
+    app = CliApp(session_id="abort-check", store_root=tmp_path, persist=False, require_key=False)
+    monkeypatch.setattr(app, "_edit_process_sheet", lambda seed, **kwargs: None)
+    ran = []
+    app._cli_direct_active = True
+    abort = app._cli_direct_dispatch(
+        lambda name, **kwargs: ran.append(kwargs), "evaluate_process",
+        {"mode": "evaluate", "process_config": {"target_polymer": "LDPE", "solvent": "Dodecane"}},
+    )
+    assert ran == []
+    assert abort["error_code"] == "process_confirmation_aborted"
     assert "msp_usd_per_kg" not in abort
     assert "comparison_rows" not in abort
 
@@ -5068,7 +5077,8 @@ def test_confirm_live_tea_false_on_empty_scenarios_is_not_inapplicable():
     payload = _data(tea.evaluate_tea_lca_scenarios(
         [], confirm_live_tea=False,
     ))
-    assert payload.get("error_code") != "not_applicable_in_mode"
+    assert payload.get("success") is False
+    assert payload.get("error_code") == "missing_scenarios"  # B09-R4: the code, not only "not X"
     assert payload.get("inapplicable_fields") != ["confirm_live_tea"]
 
 
@@ -5810,12 +5820,24 @@ def test_safe_still_swallows_for_equipment():
     ) is None
 
 
-def test_nonfinite_tci_without_msp_is_tea_cashflow_undefined():
+def test_a_missing_capital_or_operating_cost_is_named_not_an_undefined_cashflow():
+    """B02-R4: a null TCI or AOC beside a finite selling price was typed tea_cashflow_undefined. The worker and the
+    parent now name it; the cash-flow type is kept for the engine's own cash-flow failure."""
     refusal = tea_worker._nonfinite_served_tea_refusal(
         ["tci_usd", "aoc_usd_per_yr"],
         ["served metric was None"],
     )
-    assert refusal["error_type"] == "tea_cashflow_undefined"
+    assert refusal["error_type"] == "no_finite_capital_or_operating_cost"
+    assert tea_worker._nonfinite_served_tea_refusal(["tci_usd"], ["cashflow could not be solved"])["error_type"] == (
+        "tea_cashflow_undefined"
+    )
+    assert tea_worker._nonfinite_served_tea_refusal(["msp_usd_per_kg"], [])["error_type"] == "no_finite_msp"
+    parent = tea._coerce_nonfinite_served_tea({
+        "success": True, "tea": {"msp_usd_per_kg": 1.5, "tci_usd": None, "aoc_usd_per_yr": 2.0e6},
+    })
+    assert parent["error_type"] == "no_finite_capital_or_operating_cost"
+    assert parent["nonfinite_served_metrics"] == ["tci_usd"]
+    assert "no_finite_capital_or_operating_cost" in tea._PROMOTED_ALL_FAIL_ERROR_TYPES
 
 
 def test_coerce_binds_to_the_metric_not_the_input_mass_percent():
@@ -6157,11 +6179,7 @@ def test_route_stage_live_cannot_run_reaches_uncostable_or_design_point(
             engine_mode="auto",
         ))
     assert payload.get("success") is False
-    assert payload.get("error_code") in {
-        "uncostable_route_stage",
-        "route_stage_design_point_unavailable",
-    }
-    assert payload.get("error_code") != "route_stage_failed"
+    assert payload.get("error_code") == "uncostable_route_stage"  # B09-R4: one code, not either of two
 
 
 def test_route_nonfinite_metric_is_not_papered_by_screening_estimate(
@@ -7387,8 +7405,7 @@ def test_insufficient_feed_optimization_basis_is_unreachable_without_session():
     data = _data_optimization_basis_gap(O.pareto_optimize_stored_route(
         x_metric="total_cost", y_metric="circularity",
     ))
-    assert data.get("error_code") != "insufficient_feed_optimization_basis"
-    assert data.get("error_code") != "insufficient_optimization_basis"
+    assert data.get("error_code") == "invalid_pareto_basis"  # B09-R4: the code, not only "neither of two"
 
 
 def test_insufficient_feed_optimization_basis_is_reachable_from_last_tea():
@@ -7522,7 +7539,9 @@ def test_evaluate_batch_handle_ranks_without_fingerprint(monkeypatch):
         assert point["safety_standing"]["status"] == "not_requested"
         assert "engine_envelope" not in point
     assert payload["n_frontier_points"] >= 1
-    assert payload["sparse_frontier"] is True or payload["n_frontier_points"] >= 1
+    assert payload["sparse_frontier"] is (  # B09-R4: the definition, not a disjunction already true above
+        payload["n_frontier_points"] == 1 or payload["cheapest_equals_lowest_y"]
+    )
 
 
 def test_evaluate_handle_carries_bound_safety_standing(monkeypatch):
@@ -7985,9 +8004,11 @@ def test_residual_route_pareto_returns_landscape_and_frontier(monkeypatch):
     n_front = payload["n_frontier_points"]
     assert payload.get("frontier_fraction") == n_front / n_land
     assert payload.get("sparse_frontier") is (
-        n_front == 1 or payload.get("cheapest_equals_lowest_y") is True
+        n_front == 1 or payload.get("best_x_equals_best_y") is True
     )
-    assert isinstance(payload.get("cheapest_equals_lowest_y"), bool)
+    assert isinstance(payload.get("best_x_equals_best_y"), bool)
+    assert "cheapest_equals_lowest_y" not in payload
+    assert payload["best_x_point"]["total_cost"] == min(float(point["total_cost"]) for point in frontier)
     assert payload.get("sparse_frontier") is not None
     for point in landscape + frontier + [payload["cheapest_point"]]:
         assert point["safety_standing"]["status"] in {
@@ -8022,7 +8043,7 @@ def test_residual_route_pareto_returns_landscape_and_frontier(monkeypatch):
     assert grouping.get("feed_mt_per_yr") == payload.get("feed_mt_per_yr")
     assert slice0.get("grouping") == grouping
     tradeoff = payload.get("frontier_tradeoff")
-    if payload.get("cheapest_equals_lowest_y") or n_front < 2:
+    if payload.get("best_x_equals_best_y") or n_front < 2:
         assert tradeoff is None
     else:
         assert tradeoff is not None
@@ -8035,10 +8056,10 @@ def test_residual_route_pareto_returns_landscape_and_frontier(monkeypatch):
         assert "incremental_annual_cost_usd" not in tradeoff
         cheapest_x = min(float(point[x_key]) for point in frontier)
         best_y = min(float(point[y_key]) for point in frontier)
-        assert tradeoff["x_at_cheapest"] == cheapest_x
+        assert tradeoff["x_at_best_x"] == cheapest_x
         assert tradeoff["y_at_best_y"] == best_y
-        assert tradeoff["delta_x"] == tradeoff["x_at_best_y"] - tradeoff["x_at_cheapest"]
-        assert tradeoff["delta_y"] == tradeoff["y_at_best_y"] - tradeoff["y_at_cheapest"]
+        assert tradeoff["delta_x"] == tradeoff["x_at_best_y"] - tradeoff["x_at_best_x"]
+        assert tradeoff["delta_y"] == tradeoff["y_at_best_y"] - tradeoff["y_at_best_x"]
         assert slice0.get("frontier_tradeoff") == tradeoff
 
 
@@ -8137,12 +8158,12 @@ def test_residual_pareto_quality_matches_fraction_and_sparse_definition():
     )
     assert star["frontier_fraction"] == 0.5
     assert star["sparse_frontier"] is True
-    assert star["cheapest_equals_lowest_y"] is True
+    assert star["best_x_equals_best_y"] is True
     tradeoff = tea_ranking._residual_pareto_quality(
         [one, two], [one, two], "total_cost", "emissions",
     )
     assert tradeoff["frontier_fraction"] == 1.0
-    assert tradeoff["cheapest_equals_lowest_y"] is False
+    assert tradeoff["best_x_equals_best_y"] is False
     assert tradeoff["sparse_frontier"] is False
     spans = star["axis_spans"]
     assert spans["total_cost"]["min"] == 1.0
@@ -8155,13 +8176,13 @@ def test_residual_pareto_quality_matches_fraction_and_sparse_definition():
     cost_span = singleton["axis_spans"]["total_cost"]
     assert cost_span["min"] == cost_span["p05"] == cost_span["p95"] == cost_span["max"] == 1.0
     generic = tea_ranking._metric_generic_tradeoff(
-        [one, two], "total_cost", "emissions", cheapest_equals_lowest_y=False,
+        [one, two], "total_cost", "emissions", best_x_equals_best_y=False,
     )
     assert generic is not None
     assert generic["x_metric"] == "total_cost"
     assert generic["y_metric"] == "emissions"
-    assert generic["x_at_cheapest"] == 1.0
-    assert generic["y_at_cheapest"] == 2.0
+    assert generic["x_at_best_x"] == 1.0
+    assert generic["y_at_best_x"] == 2.0
     assert generic["x_at_best_y"] == 3.0
     assert generic["y_at_best_y"] == 1.0
     assert generic["delta_x"] == 2.0
@@ -8169,11 +8190,17 @@ def test_residual_pareto_quality_matches_fraction_and_sparse_definition():
     assert generic["x_ratio"] == 3.0
     assert "incremental_annual_cost_usd" not in generic
     assert tea_ranking._metric_generic_tradeoff(
-        [one], "total_cost", "emissions", cheapest_equals_lowest_y=False,
+        [one], "total_cost", "emissions", best_x_equals_best_y=False,
     ) is None
     assert tea_ranking._metric_generic_tradeoff(
-        [one, two], "total_cost", "emissions", cheapest_equals_lowest_y=True,
+        [one, two], "total_cost", "emissions", best_x_equals_best_y=True,
     ) is None
+    # B05-R5: on a profit axis the x extreme is the highest profit, which is not the lowest total cost
+    rich = {"total_cost": 5.0, "profit": 9.0, "circularity": 0.2}
+    lean = {"total_cost": 1.0, "profit": 2.0, "circularity": 0.9}
+    profit = tea_ranking._residual_pareto_quality([rich, lean], [rich, lean], "profit", "circularity")
+    assert profit["best_x_equals_best_y"] is False
+    assert tea_ranking._axis_extreme([rich, lean], "profit", "max") is rich
 
 
 def test_residual_route_optimum_omits_frontier_fraction(monkeypatch):
@@ -8309,34 +8336,9 @@ _BLOCKER = "incomplete_stage_basis_grid"
 _WASH_BASIS = ("solvent_charge", "vessel", "residence_time", "waste_mass")
 
 
-# Measured on fff5c2c. The spec draft said position 0 would be costed.
-# Hold-to 5 refused that number; both wash rows refuse. Write it that way.
-ROUTING_TABLE = (
-    {
-        "step_kind": "leaching wash, position 0",
-        "reaches_tea": True,
-        "identity": "step_kind=wash",
-        "recovers": 0.0,
-        "before_cl4": "free — dropped by ident[0]",
-        "after_cl4": "refuse incomplete_stage_basis_grid",
-    },
-    {
-        "step_kind": "leaching wash, later position",
-        "reaches_tea": True,
-        "identity": "step_kind=wash",
-        "recovers": 0.0,
-        "before_cl4": "free — dropped by ident[0]",
-        "after_cl4": "refuse incomplete_stage_basis_grid",
-    },
-    {
-        "step_kind": "STRAP dissolution w/ contaminants",
-        "reaches_tea": True,
-        "identity": "dissolution (polymer, solvent, T)",
-        "recovers": "the polymer",
-        "before_cl4": "costed",
-        "after_cl4": "unchanged — stamp inert",
-    },
-)
+# Measured on fff5c2c: a leaching wash (at position 0 or later) reaches TEA and refuses
+# incomplete_stage_basis_grid; a STRAP dissolution with contaminants is costed as before. The wash and
+# STRAP tests below exercise each case (the routing table that restated this was a literal in this file).
 
 
 def _data_contaminant_leftovers_cl6(raw: str) -> dict:
@@ -8352,21 +8354,6 @@ def _refuse_fields(payload: dict) -> None:
     assert payload.get("disposal_cost") == "not_costed"
     assert not isinstance(payload.get("disposal_cost"), (int, float))
     assert payload.get("per_stage_usd_per_kg") is None
-
-
-def test_routing_table_names_three_contaminant_step_kinds():
-    kinds = [row["step_kind"] for row in ROUTING_TABLE]
-    assert kinds == [
-        "leaching wash, position 0",
-        "leaching wash, later position",
-        "STRAP dissolution w/ contaminants",
-    ]
-    assert all(row["reaches_tea"] is True for row in ROUTING_TABLE)
-    assert ROUTING_TABLE[0]["after_cl4"] == ROUTING_TABLE[1]["after_cl4"] == (
-        "refuse incomplete_stage_basis_grid"
-    )
-    assert "costed" not in ROUTING_TABLE[0]["after_cl4"]
-    assert ROUTING_TABLE[2]["after_cl4"].startswith("unchanged")
 
 
 def test_leaching_wash_position_0_reaches_tea_and_refuses(monkeypatch):
@@ -8544,3 +8531,427 @@ def test_strap_stamp_is_inert_to_cached_msp(monkeypatch):
         str(row.get("polymer") or row.get("target_plastic") or "").casefold()
         for row in (strap_cost.get("stage_results") or [])
     ]
+
+
+# --- Cursor code review, TEA findings (2026-09-26): each test fails on 32a755de.
+
+_REVIEW_BASE = {
+    "target_polymer": "LDPE", "solvent": "Dodecane", "target_mass_percent": 55.0,
+    "processing_capacity_mt_per_yr": 20000.0, "energy_case": "C1", "dissolution_temperature_c": 145.0,
+    "precipitation_temperature_c": 25.0, "solvent_price_usd_per_kg": 4.08, "solvent_loss_pct": 0.01,
+    "feedstock_distance_km": 0.0, "dissolution_capacity": 3.0, "labor_cost_usd_per_employee_yr": 120000.0,
+}
+
+
+def _review_config(**changes):
+    return tea._scenario_config({**_REVIEW_BASE, **changes})
+
+
+def test_two_names_for_one_field_that_disagree_are_refused_on_the_held_basis_and_on_a_row():
+    """B01-R1, B02-R5: target_mass_percent 5 beside target_plastic_percent 8 (and two capacities) ran whichever key
+    came last; a handle row did the same in frozenset order. Both are refused like a process_config."""
+    held = {
+        "target_mass_percent": 5.0, "target_plastic_percent": 8.0, "processing_capacity_mt_per_yr": 20000.0,
+        "processing_capacity": 5000.0, "energy_case": "C1", "precipitation_temperature_c": 25.0,
+        "solvent_price_usd_per_kg": 1.0, "solvent_loss_pct": 0.01, "feedstock_distance_km": 0.0,
+        "dissolution_capacity": 3.0, "labor_cost_usd_per_employee_yr": 120000.0,
+    }
+    shortlist = {"source": "explicit", "items": [
+        {"target_polymer": "LDPE", "solvent": "toluene", "dissolution_temperature_c": 95},
+    ]}
+    with pytest.raises(tea._ScenarioInputError) as held_error:
+        tea._expand_screening_evaluate_handoff(shortlist, held)
+    assert held_error.value.error_code == "conflicting_process_field"
+    row = {**_REVIEW_BASE, "target_mass_percent": 6.0, "target_plastic_percent": 8.0}
+    with pytest.raises(tea._ScenarioInputError) as row_error:
+        tea._public_twelve_from_row(row)
+    assert row_error.value.error_code == "conflicting_process_field"
+    agreeing = {**_REVIEW_BASE, "target_plastic_percent": 55.0}
+    assert tea._public_twelve_from_row(agreeing)["target_mass_percent"] == 55.0
+
+
+def test_the_retired_data_quality_exclusion_is_gone_from_tea_solvent_resolution():
+    """B01-R2: the exclusion machinery was retired on 2026-08-17 (5734a711); get_fitted_solvent_status returns only
+    available/unavailable, so this branch could never fire."""
+    assert "excluded_data_quality" not in inspect.getsource(tea._resolve_tea_solvent)
+    assert thermodynamics.get_fitted_solvent_status("triethylamine") == "available"
+
+
+def test_energy_case_aliases_mean_the_same_plant_on_the_sheet_the_key_and_evaluate():
+    """B01-R3: "CHP" is the registry's C1. The sheet kept "CHP" and evaluate raised energy_case must be C1, C2, or
+    C3; only the stored-record lookup read the alias."""
+    assert tea.seed_public_process_config({**_REVIEW_BASE, "energy_case": "CHP"})["energy_case"] == "C1"
+    assert _review_config(energy_case="CHP")["energy_case"] == "C1"
+    assert _review_config(energy_case="grid electricity")["energy_case"] == "C2"
+    assert tea._design_point_key(_review_config(energy_case="case 1")) == tea._design_point_key(_review_config())
+
+
+def test_true_and_false_are_not_numbers():
+    """B01-R4: float(True) is 1.0, so operating_days=true costed a plant running one day a year and
+    income_tax=false set the tax to zero."""
+    for field, value in (("operating_days", True), ("income_tax", False), ("labor_burden", True),
+                         ("dissolution_capacity", True)):
+        with pytest.raises((ValueError, tea._ScenarioInputError)):
+            _review_config(**{field: value})
+
+
+def test_a_construction_schedule_must_spend_the_whole_capital():
+    """B01-R5: BioSTEAM spends FCI x each fraction without normalizing; [0.08, 0.60] left 32 % of the capital
+    unspent and [1, 1, 1] tripled it."""
+    for schedule in ([0.08, 0.60], [1, 1, 1], [1.2, -0.2]):
+        with pytest.raises((ValueError, tea._ScenarioInputError)):
+            _review_config(construction_schedule=schedule)
+    assert _review_config(construction_schedule=[0.08, 0.60, 0.32])["construction_schedule"] == (0.08, 0.6, 0.32)
+    assert _review_config(construction_schedule=[0.5, 0.5])["construction_schedule"] == (0.5, 0.5)
+
+
+def test_depreciation_names_are_the_ones_biosteam_runs():
+    """B01-R6: BioSTEAM parses MACRS07 as MACRS7, but the serve key kept "MACRS07"; a bare MACRS passed and then
+    failed inside BioSTEAM, which has MACRS tables for 3-20 years only. Bare SL runs over the venture's years."""
+    assert _review_config(depreciation="MACRS07")["depreciation"] == "MACRS7"
+    assert tea._config_key(_review_config(depreciation="MACRS07")) == tea._config_key(_review_config())
+    with pytest.raises(tea._ScenarioInputError):
+        _review_config(depreciation="MACRS")
+    assert _review_config(depreciation="SL")["depreciation"] == "SL"
+
+
+def test_the_example_reference_design_point_is_the_closest_stored_row():
+    """B01-R7: a C2 request at 10 kt/yr was shown ldpe-route-c1 (energy case and capacity differ) ahead of
+    ldpe-route-c2 (capacity only), because the C1 route label sorted first."""
+    contract = tea._reference_design_point_contract(
+        _review_config(energy_case="C2", processing_capacity_mt_per_yr=10000.0),
+    )
+    first = contract["basis_differences"][0]
+    assert first["reference_record_id"] == "ldpe-route-c2"
+    assert first["differing_fields"] == ["processing_capacity_mt_per_yr"]
+
+
+def test_operating_days_cannot_exceed_a_year():
+    """B01-R8: 9000 operating days was accepted and scaled production as if the plant ran 25 years in one."""
+    with pytest.raises(tea._ScenarioInputError, match="at most 366"):
+        _review_config(operating_days=9000)
+    with pytest.raises(tea._ScenarioInputError, match="at most 366"):
+        tea._requested_operating_days({"operating_days": 400})
+    assert _review_config(operating_days=365)["operating_days"] == 365.0
+
+
+def test_a_failed_worker_handshake_is_tried_again(monkeypatch):
+    """B02-R1: the first handshake result was cached for the life of the process, so one timeout made every later
+    TEA answer, cache hits included, live_tea_unavailable until restart."""
+    results = [
+        {"success": False, "error_type": "timeout"},
+        {"success": False, "error_type": "unsupported_live_target", "target_plastic": "PU"},
+    ]
+    launches = []
+
+    def launch(config, **kwargs):
+        launches.append(config)
+        return results[len(launches) - 1]
+
+    monkeypatch.setattr(tea, "_launch_live_worker", launch)
+    monkeypatch.setattr(tea, "_LIVE_CHILD_HANDSHAKE_CACHE", {})
+    provenance = {"worker_source_path": "/w.py", "expected_worker_source_sha256": "a" * 64}
+    assert tea.live_child_handshake(provenance)["error_type"] == "timeout"
+    assert tea._child_handshake_started(tea.live_child_handshake(provenance))
+    assert tea._child_handshake_started(tea.live_child_handshake(provenance))
+    assert len(launches) == 2
+
+
+def test_a_row_label_is_matched_before_a_position_and_an_integral_float_is_a_position():
+    """B02-R2: row_id "1" returned the first row even when the second row's record_id is "1", and 2.0 was
+    unknown_handle although row 2 exists."""
+    rows = [{"record_id": "a"}, {"record_id": "1"}, {"record_id": "c"}]
+    assert tea._select_economics_handle_row(rows, "1", handle="h") is rows[1]
+    assert tea._select_economics_handle_row(rows, 2.0, handle="h") is rows[1]
+    assert tea._select_economics_handle_row(rows, 3, handle="h") is rows[2]
+    with pytest.raises(tea._ScenarioInputError):
+        tea._select_economics_handle_row(rows, "9", handle="h")
+
+
+def test_a_screening_estimate_below_zero_is_refused_not_served_as_zero(monkeypatch):
+    """B02-R3: each estimate was max(0, x) with success true, so an analog pushed past its fitted range served a
+    free product."""
+    monkeypatch.setattr(tea, "_linear_slope", lambda rows, field, section, metric: -100.0 if section == "tea" else 0.0)
+    result = tea._screening_estimate(_review_config(solvent_price_usd_per_kg=6.0))
+    assert result["success"] is False
+    assert result["error_type"] == "insufficient_surrogate_evidence"
+    assert result["unclamped_estimates"]["msp_usd_per_kg"] < 0
+
+
+def test_a_record_the_current_worker_wrote_is_not_divided_again(monkeypatch):
+    """B02-R6: every exact hit divided energy by 350.4 x 24. The shipped cache is on that legacy basis (LDPE route
+    C1: 38,396 MJ/kg stored, 4.57 served) and still is; a record stamped with the worker's per-kilogram basis is
+    served as stored."""
+    legacy = tea._records()[0]
+    stamped = copy.deepcopy(legacy)
+    stamped["result"]["energy_normalization"] = {"status": "annual_energy_over_annual_product_mass"}
+    stamped["result"]["operations"]["total_energy_mj_per_kg"] = 4.5
+    config = copy.deepcopy(legacy["config"])
+    monkeypatch.setattr(tea, "_cache_index", lambda: {tea._config_key(config): stamped})
+    served = tea._cached_result(config)
+    assert served["operations"]["total_energy_mj_per_kg"] == 4.5
+    monkeypatch.setattr(tea, "_cache_index", lambda: {tea._config_key(config): legacy})
+    raw = legacy["result"]["operations"]["total_energy_mj_per_kg"]
+    assert tea._cached_result(config)["operations"]["total_energy_mj_per_kg"] == pytest.approx(raw / (350.4 * 24))
+
+
+def test_a_string_switch_in_the_serve_key_means_what_it_says():
+    """B02-R7: bool("false") is True, so a raw config with sell_leftover_plastic "false" keyed the selling plant."""
+    base = _review_config()
+    assert tea._config_key({**base, "sell_leftover_plastic": "false"}) == tea._config_key(base)
+    assert tea._config_key({**base, "sell_leftover_plastic": "true"}) != tea._config_key(base)
+
+
+def test_a_sweep_reports_its_base_record_apart_and_grouped_form_says_it_does_not_reshape(monkeypatch):
+    """B03-R3, B03-R1: the C1 route record came back among the sweep's rows, counted and unflagged; grouped_comparison
+    was echoed as if the records had been grouped."""
+    _forbid_live(monkeypatch)
+    payload = _data(tea.lookup_admitted_process_records(
+        target_polymer="LDPE", solvent="Dodecane", sensitivity_axes=["solvent_price"],
+        record_form="grouped_comparison",
+    ))
+    assert payload["success"] is True
+    flags = {row["record_id"]: row["is_baseline"] for row in payload["records"]}
+    assert flags["ldpe-route-c1"] is True
+    assert sum(flags.values()) == 1
+    assert payload["sensitivity_record_count"] == payload["record_count"] - 1
+    assert "does not reshape" in payload["record_form_note"]
+
+
+def test_a_batch_evaluate_names_the_fields_its_scenarios_disagree_on():
+    """B03-R2: the envelope's origin came from the first scenario only; the second's solvent_loss_pct 2 was reported
+    as a default."""
+    first = {k: v for k, v in _REVIEW_BASE.items() if k != "solvent_loss_pct"}
+    second = {**_REVIEW_BASE, "solvent_loss_pct": 2.0}
+    silent, origin, by_scenario = tea._batch_field_origin([first, second])
+    assert origin["solvent_loss_pct"] == "mixed_by_scenario"
+    assert by_scenario["solvent_loss_pct"] == ["default", "supplied"]
+    assert "solvent_loss_pct" not in silent
+    raw = json.dumps({"display": "", "data": {"success": True, "comparison_rows": []}})
+    stamped = json.loads(tea._stamp_evaluate_silent_defaults(
+        raw, field_origin=origin, silently_defaulted=silent, field_origin_by_scenario=by_scenario,
+    ))["data"]
+    assert stamped["field_origin_by_scenario"]["solvent_loss_pct"] == ["default", "supplied"]
+
+
+def test_remnant_cells_that_disagree_each_find_their_own_row():
+    """B03-R4: every row was keyed at the first cell's held value, so cells at 90 and 110 C reported the 110 C cell
+    missing although its row existed."""
+    toluene = tea._public_solvent_token("Toluene")
+    cells = [
+        {"polymer": "LDPE", "solvent": toluene, "target_mass_percent": 55.0, "processing_capacity_mt_per_yr": 20000.0,
+         "dissolution_temperature_c": temperature}
+        for temperature in (90.0, 110.0)
+    ]
+    rows = [
+        {"target_polymer": "LDPE", "solvent": toluene, "target_mass_percent": 55.0,
+         "processing_capacity_mt_per_yr": 20000.0, "dissolution_temperature_c": temperature, "success": True}
+        for temperature in (90.0, 110.0)
+    ]
+    assert tea._unmatched_remnant_keys(cells, rows) == []
+    assert tea._unmatched_remnant_keys(cells, rows[:1]) == [cells[1]]
+
+
+def test_a_stage_with_part_of_its_chem21_scores_is_looked_up():
+    """B03-R7: a stage carrying only a safety score was left unresolved and ranked last."""
+    looked_up = tea._stage_chem21_worst({"solvent": "toluene"})
+    assert looked_up is not None
+    assert tea._stage_chem21_worst({"solvent": "toluene", "chem21_safety_score": 4}) == looked_up
+
+
+def test_one_plant_or_a_list_of_plants_not_both(monkeypatch):
+    """B03-R8: both were run, so the single plant ran twice when it was also in the list."""
+    _forbid_live(monkeypatch)
+    payload = _data(tea.evaluate_process(
+        mode="evaluate", process_config=dict(_REVIEW_BASE), process_configs=[dict(_REVIEW_BASE)],
+    ))
+    assert payload["error_code"] == "conflicting_process_config_arguments"
+
+
+def test_route_fields_left_out_are_the_sheet_defaults_and_say_so(monkeypatch):
+    """B04-R1, B09-R1: omitted capacity, energy case and precipitation ran as 20,000 t/yr, C1 and 25 C and were
+    reported as the case that ran. They now take the first-run sheet's defaults (the generic-factory 35 C
+    precipitation) and come back as defaults."""
+    composition, route = _exact_planner_route()
+    record = _record_by_label("ldpe-route-c1")
+    seen = []
+
+    def planted(config, engine_mode, timeout_seconds):
+        seen.append(dict(config))
+        result = copy.deepcopy(tea._cached_result(record["config"]) or {})
+        result.update({"success": True, "config": config, "engine_mode": "live", "cache_match_status": "miss"})
+        return result
+
+    monkeypatch.setattr(tea, "_run", planted)
+    session = new_session()
+    with bind_tool_session(session):
+        handle = _store_planner_route_handle(session, composition, route)
+        payload = _data(tea.evaluate_process(
+            mode="route", handle=handle, engine_mode="auto", confirm_live_tea=True,
+        ))
+    assert payload.get("success") is True, payload
+    assert payload["field_origin"] == {
+        "processing_capacity_mt_per_yr": "default", "energy_case": "default", "precipitation_temperature_c": "default",
+    }
+    assert payload["silently_defaulted"] == {
+        "processing_capacity_mt_per_yr": 20000.0, "energy_case": "C1",
+        "precipitation_temperature_c": params.GENERIC_FACTORY_PRECIPITATION_T_C,
+    }
+    assert {config["precipitation_temperature_c"] for config in seen} == {params.GENERIC_FACTORY_PRECIPITATION_T_C}
+
+
+def test_a_route_stage_without_gwp_is_a_failed_stage_not_a_crash(monkeypatch):
+    """B04-R7, B09-R2: the route loop checked MSP, TCI and AOC only, then did float(None) on the GWP."""
+    composition, route = _exact_planner_route()
+    _forbid_live(monkeypatch)
+    _plant_success_with_null_gwp(monkeypatch)
+    session = new_session()
+    with bind_tool_session(session):
+        handle = _store_planner_route_handle(session, composition, route)
+        payload = _data(tea.evaluate_process(
+            mode="route", handle=handle, processing_capacity_mt_per_yr=_ROUTE_CAPACITY,
+            energy_case=_ROUTE_ENERGY, precipitation_temperature_c=_ROUTE_PRECIP, engine_mode="auto",
+        ))
+    assert payload.get("success") is False
+    assert payload.get("error_code") == "route_stage_failed"
+    assert (payload.get("failed_stage") or {}).get("error_type") == "no_finite_gwp"
+
+
+def test_specific_volume_is_unknown_when_a_stage_has_no_density():
+    """B04-R2, B10-R1: the max over stages that had a density ranked toluene-then-naphthalene on toluene alone,
+    ahead of routes whose every stage is known."""
+    mixed = {"rank": 1, "steps": [{"solvent": "toluene"}, {"solvent": "naphthalene"}]}
+    whole = {"rank": 2, "steps": [{"solvent": "toluene"}]}
+    assert tea._planner_max_stage_specific_volume(mixed["steps"]) is None
+    assert tea._planner_max_stage_specific_volume(whole["steps"]) is not None
+    assert tea._planner_unresolved_stages(mixed, "max_stage_specific_volume_l_per_kg") == 1
+
+
+def test_pe_in_a_feed_is_ldpe(monkeypatch):
+    """B04-R4: the feed gap asked whether PE meant LDPE or HDPE, against the owner rule that PE is LDPE, and did not
+    ask for "polyethylene"."""
+    for name in ("PE", "polyethylene"):
+        payload = _data(tea._feed_tea_basis_gap(
+            {name: 0.6, "PET": 0.4}, None, processing_capacity_mt_per_yr=20000.0, product_capacity_mt_per_yr=None,
+            comparison_capacities_mt_per_yr=None, energy_case="C1", requested_metrics=["msp"],
+        ))
+        assert "LDPE" in payload["requested_feed_polymers"]
+        assert name not in payload["requested_feed_polymers"]
+        assert "polymer_grade" not in json.dumps(payload)
+
+
+def test_sensitivity_values_are_discovered_only_from_exact_variants(monkeypatch):
+    """B04-R5: values came from stored rows matching the twelve fields only; a baseline that burns its leftover
+    found price points from plants that do not."""
+    _forbid_live(monkeypatch)
+    scenario = dict(_REVIEW_BASE)
+    found = _data(tea.analyze_tea_sensitivity(scenario=scenario, parameter="solvent_price_usd_per_kg"))
+    burning = _data(tea.analyze_tea_sensitivity(
+        scenario={**scenario, "burn_leftover_plastic": True}, parameter="solvent_price_usd_per_kg",
+    ))
+    assert found.get("success") is True, found
+    assert burning.get("error_code") == "insufficient_sensitivity_values"
+
+
+def test_a_shared_lowest_price_names_every_scenario_that_has_it(monkeypatch):
+    """B04-R6: the first scenario after a stable sort was named the lowest, and its equal was not marked."""
+    _forbid_live(monkeypatch)
+    record = _record_by_label("ldpe-route-c1")
+    payload = _data(tea.evaluate_tea_lca_scenarios(
+        [{**_public_from_record(record), "label": "a"}, {**_public_from_record(record), "label": "b"}],
+        engine_mode="auto",
+    ))
+    assert payload["lowest_msp_tied_scenarios"] == ["a", "b"]
+    assert payload["lowest_gwp_tied_scenarios"] == ["a", "b"]
+
+
+def test_hdpe_does_not_cite_the_pe_chemistry_as_validated():
+    """B06-R1: HDPE used the PE row (920 kg/m3, the LDPE range) marked validated, so an HDPE run at the committed
+    PE/Toluene setpoints could be cited as the validated plant."""
+    committed = params.committed_process_for("PE", "toluene")
+    config = params.process_config_from_assumptions(committed)
+    assert params.parameters_are_provisional(params.POLYMERS["HDPE"], "toluene", config) is True
+    assert params.parameters_are_provisional(params.POLYMERS["LDPE"], "toluene", config) is False
+
+
+def test_a_failed_unit_removal_stops_the_run_by_name(monkeypatch):
+    """B06-R3: a failed T1/U1 disconnect was swallowed and the plant simulated with those units."""
+
+    class Unit:
+        def disconnect(self, **kwargs):
+            raise RuntimeError("T1 is not connected")
+
+    class Process:
+        class Scenario:
+            def __init__(self, **kwargs):
+                self.__dict__.update(kwargs)
+
+        def __init__(self, scenario):
+            self.scenario, self.T1, self.U1 = scenario, Unit(), Unit()
+
+    monkeypatch.setattr(tea_worker, "_prepare_engine_solvent", lambda package, config: ("Toluene", {}))
+    with pytest.raises(tea_worker._FlowsheetEditError, match="T1 and U1"):
+        tea_worker._create_and_simulate_process(
+            None, Process, {"target_plastic_percent": 55.0, "processing_capacity": 20000.0},
+            target="PE", energy={"facilities": True, "turbogenerator": True},
+        )
+
+
+def test_worker_switches_read_true_and_false_strings_and_refuse_others():
+    """B06-R5: bool("false") is True, so a string switch that reached the worker sold the leftover plastic."""
+    assert tea_worker._coerce_switch("false", "sell_leftover_plastic") is False
+    assert tea_worker._coerce_switch("True", "sell_leftover_plastic") is True
+    assert tea_worker._coerce_switch(False, "sell_leftover_plastic") is False
+    with pytest.raises(ValueError):
+        tea_worker._coerce_switch("maybe", "sell_leftover_plastic")
+
+
+def test_package_steps_are_read_whether_arguments_are_positional_or_named(tmp_path):
+    """B06-R6: only positional constants were read, so a keyword constructor made the committed pair look missing.
+    The pinned package is positional; this checks the keyword form reads the same numbers."""
+    source = tmp_path / "dissolution_steps.py"
+    source.write_text(
+        "def PE_Toluene_dissolution():\n"
+        "    return DissolutionStep('PE', 'PEoligomer', 'Toluene', reaction, capacity=0.03, solvent_content=0.5,\n"
+        "                           T=368.15, tau=0.5)\n"
+    )
+    steps = params.package_dissolution_steps_from_source(source)
+    assert steps[("PE", "toluene")] == {"capacity_wt_per_vol": 0.03, "temperature_k": 368.15, "tau_h": 0.5}
+
+
+def test_refusals_name_what_the_call_may_contain(monkeypatch):
+    """Found in the live checks (2026-09-26): the model sent lookup_filter {"polymer": ...} and swept fields inside
+    process_config, got refusals that named only the bad key, and after 23 calls concluded wrongly that no
+    solvent-price records are stored. Each refusal now names what the call may contain."""
+    _forbid_live(monkeypatch)
+    lookup = _data(tea.evaluate_process(mode="lookup", lookup_filter={"polymer": "LDPE"}))
+    assert lookup["error_code"] == "unknown_process_field"
+    assert "target_polymer" in lookup["allowed_keys"] and "sensitivity_axes" in lookup["allowed_keys"]
+    assert "a polymer is target_polymer" in lookup["error"]
+    sweep = _data(tea.analyze_tea_sensitivity(scenario=dict(_REVIEW_BASE)))
+    assert sweep["error_code"] == "unsupported_parameter"
+    assert "parameter argument, not inside process_config" in sweep["error"]
+    with pytest.raises(tea._ScenarioInputError) as error:
+        tea._refuse_process_config_ingest({**_REVIEW_BASE, "sensitivity_parameter": "solvent_price"})
+    assert "solvent_price_usd_per_kg" in error.value.details["allowed_fields"]
+
+
+def test_the_evaluate_description_tells_the_model_how_each_mode_is_called():
+    """Found in the live checks (2026-09-26): the model saw only "Typed twelve-field lookup, evaluate, sensitivity,
+    or route." (a tool's description is its docstring's first line), so it never costed a planned route (route
+    needs the top-level handle and row_id) and put the swept field inside process_config."""
+    description = _schema("evaluate_process")["description"]
+    for phrase in ("lookup_filter takes target_polymer", "sensitivity_axes", "top-level parameter",
+                   "top-level handle and row_id", "plan_multistage_separation", "confirm_live_tea=true"):
+        assert phrase in description
+    props = _schema("evaluate_process")["parameters"]["properties"]
+    assert "parameter" in props and "values" in props  # four live sweeps never sent them while they were unlisted
+    assert "target_polymer" not in props  # a plant is still the process_config object
+
+
+def test_the_prompt_does_not_invite_a_claim_that_live_tea_is_missing():
+    """Found in the live checks: "It may not appear in this environment" led the model to answer that live TEA was
+    unavailable on a machine where it runs."""
+    prompt = " ".join(agent.SYSTEM_PROMPT.split())
+    assert "It may not appear in this environment" not in prompt
+    assert "Say live TEA is unavailable only when a TEA tool refused live_tea_unavailable." in prompt

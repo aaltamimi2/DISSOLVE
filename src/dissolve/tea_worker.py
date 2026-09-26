@@ -118,6 +118,24 @@ class _NullBoiler:
         self.blowdown_water = SimpleNamespace(imass={"Water": 0.0})
 
 
+class _FlowsheetEditError(RuntimeError):
+    """T1 and U1 could not be removed: the plant would be simulated with units the admitted cache plant does not
+    have, so the run stops by name instead of returning that plant's numbers."""
+
+
+def _coerce_switch(value: Any, field: str) -> bool:
+    """A leftover-plastic switch as a boolean. The parent sends booleans; the strings true/false/yes/no are read as
+    such, since bool("false") is True, and anything else is refused."""
+    if isinstance(value, bool):
+        return value
+    token = str(value).strip().casefold()
+    if token in {"true", "yes"}:
+        return True
+    if token in {"false", "no"}:
+        return False
+    raise ValueError(f"{field} must be a boolean, not {value!r}")
+
+
 class _LiveSolventModelError(RuntimeError):
     """One admitted solvent reached a failing external-model phase."""
 
@@ -198,10 +216,11 @@ def _nonfinite_served_tea_refusal(
     Bound to the metric property, not to an input value such as 100 wt%.
     """
     cashflow = any("cashflow" in text.casefold() for text in contexts)
+    # The parent's _nonfinite_served_tea_type applies the same rule.
     error_type = (
-        "tea_cashflow_undefined"
-        if cashflow or "msp_usd_per_kg" not in missing
-        else "no_finite_msp"
+        "tea_cashflow_undefined" if cashflow
+        else "no_finite_msp" if "msp_usd_per_kg" in missing
+        else "no_finite_capital_or_operating_cost"
     )
     detail = "Live TEA did not produce a finite served metric ("
     detail += ", ".join(missing) + ")."
@@ -918,11 +937,11 @@ def _create_and_simulate_process(
             solvent=model_solvent, target_plastic=target,
             target_plastic_percent=config["target_plastic_percent"],
             processing_capacity=config["processing_capacity"],
-            sell_leftover_plastic=bool(
-                config.get("sell_leftover_plastic", False)
+            sell_leftover_plastic=_coerce_switch(
+                config.get("sell_leftover_plastic", False), "sell_leftover_plastic",
             ),
-            burn_leftover_plastic=bool(
-                config.get("burn_leftover_plastic", False)
+            burn_leftover_plastic=_coerce_switch(
+                config.get("burn_leftover_plastic", False), "burn_leftover_plastic",
             ),
             facilities=energy["facilities"],
             turbogenerator=energy["turbogenerator"],
@@ -942,8 +961,10 @@ def _create_and_simulate_process(
                     if unit not in (process.T1, process.U1)
                 ]
             )
-        except Exception:
-            pass
+        except Exception as error:
+            raise _FlowsheetEditError(
+                f"could not remove units T1 and U1 from the flowsheet: {type(error).__name__}: {error}"
+            ) from error
         phase = "process_configuration"
         process.tea.labor_cost = config.get("labor_cost", 120_000)
         process.tea.income_tax = float(
@@ -1062,6 +1083,8 @@ def _create_and_simulate_process(
         )
         phase = "process_simulation"
         process.system.simulate()
+    except _FlowsheetEditError:
+        raise  # not a solvent failure: the plant itself could not be built as admitted
     except Exception as error:
         raise _LiveSolventModelError(
             phase, error, engine_identity,
@@ -1226,6 +1249,17 @@ def run(config: dict[str, Any]) -> dict[str, Any]:
             target=target,
             energy=energy,
         )
+    except _FlowsheetEditError as failure:
+        return {
+            "success": False,
+            "error": f"Live TEA did not run: {failure}. No TEA/LCA number was emitted.",
+            "error_type": "flowsheet_edit_failed",
+            "requested_solvent": config.get("_requested_solvent") or config.get("solvent"),
+            "solvent": config.get("solvent"),
+            "target_plastic": original_target,
+            "energy_case": energy_case,
+            "live_provenance": provenance,
+        }
     except _LiveSolventModelError as failure:
         return {
             **_unmodellable_solvent_result(
@@ -1245,6 +1279,8 @@ def run(config: dict[str, Any]) -> dict[str, Any]:
     evaluated_lca = _evaluate_lca_metrics(process)
 
     resin = None
+    # BaselineSTRAPProcess names its recovered-resin stream PE_resin for every target (its own LCA metrics divide by
+    # self.PE_resin.F_mass), so PE_resin is the target's product here, not polyethylene's.
     for name in (f"{target}_resin", "PE_resin", "resin"):
         candidate = getattr(process, name, None)
         if candidate is not None and getattr(candidate, "F_mass", 0) > 0:

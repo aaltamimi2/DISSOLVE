@@ -262,6 +262,13 @@ def canonical_tea_energy_case(value: object) -> str:
     return _canonical(value, _ENERGY_CASE_BY_NAME)
 
 
+def _energy_case_token(value: object) -> str:
+    """C1, C2 or C3 for the case or any registered alias ("CHP", "grid electricity", "case 3"); other text is returned
+    upper-cased for the caller's C1/C2/C3 check to refuse. The sheet, the serve key and evaluate all read it this way,
+    so "CHP" is the C1 plant everywhere, not only in the stored-record lookup."""
+    return canonical_tea_energy_case(value).strip().upper()
+
+
 def tea_sensitivity_levels(value: object) -> tuple[str, ...]:
     contract = _SENSITIVITY_LEVEL_SELECTOR_BY_NAME.get(
         normalize_tea_vocabulary(value),
@@ -351,6 +358,7 @@ _PRECIPITATION_CONFIGURATIONS = frozenset({
 _IRR_DEFAULT = 0.10
 _INCOME_TAX_DEFAULT = 0.21
 _OPERATING_DAYS_DEFAULT = 350.4
+_MAX_OPERATING_DAYS = 366.0
 _LABOR_BURDEN_DEFAULT = 0.90
 _FINANCE_INTEREST_DEFAULT = 0.08
 _FINANCE_YEARS_DEFAULT = 10
@@ -563,6 +571,8 @@ TeaRecordForm = Literal.__getitem__(
 
 
 def _finite(value: Any, field: str) -> float:
+    if isinstance(value, bool):  # float(True) is 1.0: operating_days=true would cost a plant that runs one day a year
+        raise ValueError(f"{field} must be a finite number, not true or false")
     try:
         number = float(value)
     except (TypeError, ValueError) as error:
@@ -1009,7 +1019,7 @@ def public_process_field_names(*, energy_case: str = "C1") -> tuple[str, ...]:
         "feedstock_price_usd_per_kg",
         "centrifuged_plastic_solvent_content_pct",
     )
-    if str(energy_case or "C1").upper() in {"C1", "C3"}:
+    if _energy_case_token(energy_case or "C1") in {"C1", "C3"}:
         names += ("natural_gas_price_usd_per_m3", "steam_power_depreciation")
     return names
 
@@ -1020,7 +1030,7 @@ def first_run_sheet_defaults(*, energy_case: str = "C1") -> dict[str, Any]:
     Precipitation is the generic-factory 35 °C. Headless evaluate does not
     apply a 25 °C leftover or a cache-pair overlay.
     """
-    case = str(energy_case or "C1").upper() or "C1"
+    case = _energy_case_token(energy_case or "C1") or "C1"
     defaults: dict[str, Any] = {
         "target_mass_percent": 60.0,
         "processing_capacity_mt_per_yr": 20_000.0,
@@ -1107,11 +1117,20 @@ def _refuse_process_config_ingest(config: Mapping[str, Any]) -> None:
     unknown = _unknown_process_config_keys(supplied)
     if unknown:
         raise _ScenarioInputError(
-            "unknown extra process field: " + ", ".join(unknown),
+            "unknown extra process field: " + ", ".join(unknown)
+            + "; process_config takes the plant's fields only (allowed_fields lists them); a field to sweep is the "
+            "parameter argument, not a process_config field",
             error_code="unknown_process_field",
             extra_keys=unknown,
+            allowed_fields=sorted({*public_process_field_names(energy_case="C1"), "target_polymer", "solvent", "label"}),
         )
-    collisions = _process_config_collisions(supplied)
+    _refuse_process_config_collisions(supplied, label="process_config")
+
+
+def _refuse_process_config_collisions(config: Mapping[str, Any], *, label: str) -> None:
+    """Two names for one field (target_mass_percent and target_plastic_percent) that disagree are refused, never
+    resolved by whichever key came last."""
+    collisions = _process_config_collisions(config)
     if not collisions:
         return
     parts = [
@@ -1120,7 +1139,7 @@ def _refuse_process_config_ingest(config: Mapping[str, Any]) -> None:
         for item in collisions
     ]
     raise _ScenarioInputError(
-        "conflicting process_config keys for " + "; ".join(parts),
+        f"conflicting {label} keys for " + "; ".join(parts),
         error_code="conflicting_process_field",
         collisions=collisions,
     )
@@ -1142,7 +1161,7 @@ def seed_public_process_config(
         if not str(key).startswith("_")
     }
     _refuse_process_config_ingest(visible)
-    energy = str(raw.get("energy_case") or "C1").upper() or "C1"
+    energy = _energy_case_token(raw.get("energy_case") or "C1") or "C1"
     seeded = first_run_sheet_defaults(energy_case=energy)
     internal_to_public = dict(_DESIGN_POINT_PUBLIC_FIELDS)
     public_names = set(public_process_field_names(energy_case=energy)) | {
@@ -1160,7 +1179,7 @@ def seed_public_process_config(
             public = key
         else:
             continue
-        seeded[public] = value
+        seeded[public] = energy if public == "energy_case" else value
     if energy == "C2":
         seeded.pop("natural_gas_price_usd_per_m3", None)
         seeded.pop("steam_power_depreciation", None)
@@ -1197,7 +1216,7 @@ def silently_defaulted_process_fields(
     lang_factor stays out because first-run leaves it empty.
     """
     raw = dict(config or {})
-    energy = str(raw.get("energy_case") or "C1").upper() or "C1"
+    energy = _energy_case_token(raw.get("energy_case") or "C1") or "C1"
     defaults = first_run_sheet_defaults(energy_case=energy)
     named = caller_named_public_process_fields(raw)
     silent: dict[str, Any] = {}
@@ -1231,7 +1250,7 @@ def _evaluate_energy_case(*sources: Any) -> str:
     for src in sources:
         if not isinstance(src, dict):
             continue
-        token = str(src.get("energy_case") or "").upper().strip()
+        token = _energy_case_token(src.get("energy_case") or "")
         if token in _ENERGY_CASES:
             return token
     return "C1"
@@ -1265,10 +1284,19 @@ def _first_row_field_origin(data: Mapping[str, Any]) -> dict[str, str] | None:
     return None
 
 
+def _tied_lowest(ordered: Sequence[dict[str, Any]], field: str) -> list[str] | None:
+    """Every label sharing the lowest value when two or more do, else None: a stable sort alone would name the first."""
+    low = float(ordered[0][field])
+    tied = [str(row["label"]) for row in ordered if math.isclose(float(row[field]), low, rel_tol=1e-9, abs_tol=1e-12)]
+    return tied if len(tied) > 1 else None
+
+
 def _strip_served_msp(data: dict[str, Any]) -> None:
     """A thin basis must not leave the building with an MSP."""
     data.pop("lowest_msp_scenario", None)
     data.pop("lowest_gwp_scenario", None)
+    data.pop("lowest_msp_tied_scenarios", None)
+    data.pop("lowest_gwp_tied_scenarios", None)
     rows = data.get("comparison_rows")
     if isinstance(rows, list):
         for row in rows:
@@ -1441,8 +1469,8 @@ def _reference_design_point_contract(
     order = sorted(
         range(len(references)),
         key=lambda index: (
-            differences[index]["reference_record_id"] != default_record_id,
             len(differences[index]["differing_fields"]),
+            differences[index]["reference_record_id"] != default_record_id,
             differences[index]["reference_record_id"],
         ),
     )
@@ -1525,20 +1553,6 @@ def _resolve_tea_solvent(value: Any) -> dict[str, Any]:
     resolved = thermo.resolve_solvent(supplied)
     if resolved is None:
         known_identity = thermo.identify_known_solvent(supplied)
-        fitted_status = thermo.get_fitted_solvent_status(supplied)
-        if fitted_status == "excluded_data_quality":
-            canonical = str(
-                (known_identity or {}).get("solvent_name") or supplied
-            )
-            raise _ScenarioInputError(
-                f"Solvent '{supplied or '(missing)'}' is recognized as "
-                f"{canonical} but is excluded from the fitted solvent model "
-                "pending data-quality review; choose another solvent.",
-                error_code="solvent_excluded_data_quality",
-                requested_solvent=supplied or None,
-                canonical_solvent=canonical,
-                solvent_support_status="known_but_excluded",
-            )
         if known_identity is not None:
             canonical = str(
                 known_identity.get("solvent_name") or supplied
@@ -1667,7 +1681,14 @@ def _depreciation_schedule_token(
             continue
         years = token[len(prefix):]
         if years == "":
-            return token
+            if prefix == "MACRS":  # BioSTEAM has MACRS tables for 3-20 years only; a bare MACRS fails at run time
+                raise _ScenarioInputError(
+                    f"{field} MACRS needs a recovery period, such as MACRS7.",
+                    error_code=error_code,
+                    field=field,
+                    supplied=value,
+                )
+            return token  # SL, DDB and SYD without years run over the venture's years
         try:
             count = int(years)
         except ValueError:
@@ -1682,7 +1703,7 @@ def _depreciation_schedule_token(
                 field=field,
                 supplied=value,
             )
-        return token
+        return f"{prefix}{count}"  # "MACRS07" runs as MACRS7 in BioSTEAM; one name keeps one serve key
     raise _ScenarioInputError(
         f"{field} must have format '{{schedule}}{{years}}', where "
         "schedule is MACRS, SL, DDB, or SYD.",
@@ -1743,9 +1764,13 @@ def _duration_pair(value: Any, *, error_code: str) -> tuple[int, int]:
 
 
 def _construction_schedule(
-    value: Any, *, error_code: str,
+    value: Any, *, error_code: str, require_partition: bool = False,
 ) -> tuple[float, ...]:
-    """BioSTEAM construction investment fractions per year. Not a year count."""
+    """BioSTEAM construction investment fractions per year. Not a year count.
+
+    BioSTEAM spends fixed capital as FCI x each fraction, without normalizing, so a schedule a caller supplies
+    (require_partition) must split the whole capital: each fraction in [0, 1] and the fractions summing to 1.
+    [0.08, 0.60] would leave 32 % of the capital unspent and the selling price too low."""
     if isinstance(value, (str, bytes)) or not isinstance(value, (list, tuple)):
         raise _ScenarioInputError(
             "construction_schedule must be a sequence of investment "
@@ -1788,6 +1813,16 @@ def _construction_schedule(
                 supplied=value,
             )
         fractions.append(fraction)
+    if require_partition and (
+        any(fraction > 1 for fraction in fractions) or abs(sum(fractions) - 1.0) > 1e-6
+    ):
+        raise _ScenarioInputError(
+            "construction_schedule fractions must each be at most 1 and sum to 1 "
+            f"(these sum to {sum(fractions):g}), such as (0.08, 0.60, 0.32).",
+            error_code=error_code,
+            field="construction_schedule",
+            supplied=value,
+        )
     return tuple(fractions)
 
 
@@ -1875,9 +1910,9 @@ def _validated_coefficients(
         coefficients["income_tax"] = tax
     if "operating_days" in supplied:
         days = _finite(supplied["operating_days"], "operating_days")
-        if days <= 0:
+        if not 0 < days <= _MAX_OPERATING_DAYS:
             raise _ScenarioInputError(
-                "operating_days must be positive.",
+                f"operating_days must be above 0 and at most {_MAX_OPERATING_DAYS:g} (days in a year).",
                 error_code="invalid_scenario",
                 field="operating_days",
                 supplied=supplied["operating_days"],
@@ -2232,6 +2267,7 @@ def _validated_coefficients(
         coefficients["construction_schedule"] = _construction_schedule(
             supplied["construction_schedule"],
             error_code="invalid_scenario",
+            require_partition=True,
         )
     if "feedstock_price_usd_per_kg" in supplied:
         price = _finite(
@@ -2429,7 +2465,7 @@ def _twelve_normalized(config: dict[str, Any]) -> dict[str, Any]:
     return {
         key: (
             _key(config[key]) if key in {"solvent", "target_plastic"}
-            else str(config[key]).upper() if key == "energy_case"
+            else _energy_case_token(config[key]) if key == "energy_case"
             else round(float(config[key]), 10)
         )
         for key in _CONFIG_FIELDS
@@ -3299,6 +3335,7 @@ def _expand_screening_evaluate_handoff(
             error_code="unknown_process_field",
             extra_keys=unknown_held,
         )
+    _refuse_process_config_collisions(held, label="held_process_basis")
     missing_held = _missing_held_public_fields(held)
     if missing_held:
         raise _ScenarioInputError(
@@ -3355,10 +3392,20 @@ def _public_twelve_from_row(row: dict[str, Any]) -> dict[str, Any] | None:
     public: dict[str, Any] = {}
     for _internal, public_name in _DESIGN_POINT_PUBLIC_FIELDS:
         found = None
-        for key in _PUBLIC_FIELD_SOURCE_KEYS[public_name]:
-            if key in row and _scenario_value_present(row.get(key)):
+        present = [
+            key for key in sorted(_PUBLIC_FIELD_SOURCE_KEYS[public_name])
+            if key in row and _scenario_value_present(row.get(key))
+        ]
+        for key in present:
+            if found is None:
                 found = row[key]
-                break
+            elif not _process_config_values_equivalent(public_name, found, row[key]):
+                raise _ScenarioInputError(
+                    f"the handle row names {public_name} twice with different values: "
+                    + ", ".join(f"{name}={row[name]!r}" for name in present),
+                    error_code="conflicting_process_field",
+                    collisions=[{"public": public_name, "keys": present, "values": [row[name] for name in present]}],
+                )
         if (
             found is None
             and public_name == "target_polymer"
@@ -3414,12 +3461,25 @@ def _select_economics_handle_row(
                 n_rows=len(rows),
             )
         return rows[0]
+    token = str(row_id).strip()
+    labelled = [
+        row for row in rows
+        if token and (
+            str(row.get("label") or "") == token
+            or str(row.get("record_id") or "") == token
+            or str(row.get("pair_id") or "") == token
+        )
+    ]
+    if len(labelled) == 1:  # "1" is a record's id before it is a position
+        return labelled[0]
     index = None
     if isinstance(row_id, int) and not isinstance(row_id, bool):
         index = row_id
+    elif isinstance(row_id, float) and row_id.is_integer():
+        index = int(row_id)
     elif isinstance(row_id, str) and row_id.strip().isdigit():
         index = int(row_id.strip())
-    if index is not None:
+    if index is not None and not labelled:
         if index < 1 or index > len(rows):
             raise _ScenarioInputError(
                 f"row_id {index} is out of range for {len(rows)} rows",
@@ -3429,22 +3489,13 @@ def _select_economics_handle_row(
                 n_rows=len(rows),
             )
         return rows[index - 1]
-    token = str(row_id).strip()
-    matches = [
-        row for row in rows
-        if str(row.get("label") or "") == token
-        or str(row.get("record_id") or "") == token
-        or str(row.get("pair_id") or "") == token
-    ]
-    if len(matches) == 1:
-        return matches[0]
-    if len(matches) > 1:
+    if len(labelled) > 1:
         raise _ScenarioInputError(
             "row_id matches more than one handle row",
             error_code="ambiguous_handle_row",
             handle=handle,
             row_id=row_id,
-            n_rows=len(matches),
+            n_rows=len(labelled),
         )
     raise _ScenarioInputError(
         "row_id does not match a handle row",
@@ -3852,7 +3903,7 @@ def _scenario_config(
         "target_plastic": polymer,
         "solvent": solvent,
     }
-    config["energy_case"] = str(config.get("energy_case") or "").upper()
+    config["energy_case"] = _energy_case_token(config.get("energy_case") or "")
     if config["energy_case"] not in _ENERGY_CASES:
         raise ValueError("energy_case must be C1, C2, or C3")
     for field in _NUMERIC_FIELDS:
@@ -3893,7 +3944,7 @@ def _config_key(config: dict[str, Any]) -> str:
     for key in _FLOWSHEET_SWITCH_FIELDS:
         value = switches[key]
         if isinstance(_FLOWSHEET_SWITCH_DEFAULTS[key], bool):
-            normalized[key] = bool(value)
+            normalized[key] = _coerce_flowsheet_bool(value, key)  # bool("false") would be True
         else:
             normalized[key] = str(value)
     for key, value in _project_coefficients(config).items():
@@ -4544,7 +4595,8 @@ def live_child_handshake(
             ],
         },
     )
-    _LIVE_CHILD_HANDSHAKE_CACHE[key] = result
+    if _child_handshake_started(result):
+        _LIVE_CHILD_HANDSHAKE_CACHE[key] = result
     return result
 
 
@@ -4876,17 +4928,15 @@ def _cached_result(config: dict[str, Any]) -> dict[str, Any] | None:
         return None
     result = copy.deepcopy(record["result"])
     operations = result.get("operations") or {}
-    for field in (
-        "electricity_consumed_mj_per_kg", "heating_duty_mj_per_kg",
-        "cooling_duty_mj_per_kg", "total_energy_mj_per_kg",
-    ):
-        if operations.get(field) is not None:
-            operations[field] = float(operations[field]) / _LEGACY_OPERATING_HOURS
-    result["energy_normalization"] = {
-        "status": "corrected_legacy_annual_hour_basis",
-        "operating_hours_per_year": _LEGACY_OPERATING_HOURS,
-        "basis": "BioSTEAM annual kWh-or-kJ divided by annual resin kg",
-    }
+    if _record_energy_is_legacy(record):
+        for field in _ENERGY_INTENSITY_FIELDS:
+            if operations.get(field) is not None:
+                operations[field] = float(operations[field]) / _LEGACY_OPERATING_HOURS
+        result["energy_normalization"] = {
+            "status": "corrected_legacy_annual_hour_basis",
+            "operating_hours_per_year": _LEGACY_OPERATING_HOURS,
+            "basis": "BioSTEAM annual kWh-or-kJ divided by annual resin kg",
+        }
     result.update({
         "engine_mode": "cache", "cache_match_status": "exact",
         "cache_record_label": record["label"], "config": config,
@@ -5028,12 +5078,24 @@ def _same_config(
     return True
 
 
+_ENERGY_INTENSITY_FIELDS = (
+    "electricity_consumed_mj_per_kg", "heating_duty_mj_per_kg",
+    "cooling_duty_mj_per_kg", "total_energy_mj_per_kg",
+)
+_WORKER_ENERGY_BASIS = "annual_energy_over_annual_product_mass"
+
+
+def _record_energy_is_legacy(record: dict[str, Any]) -> bool:
+    """The shipped cache stores the legacy worker's annual totals over an hourly flow (LDPE route C1: 38,396 MJ/kg
+    stored, 4.57 MJ/kg served) and carries no basis stamp. The current worker stamps its per-kilogram basis, so a
+    record it wrote is served as stored rather than divided a second time."""
+    stamp = (record.get("result") or {}).get("energy_normalization") or {}
+    return str(stamp.get("status") or "") != _WORKER_ENERGY_BASIS
+
+
 def _record_metric(record: dict[str, Any], section: str, field: str) -> float:
     value = float((record["result"].get(section) or {})[field])
-    if section == "operations" and field in {
-        "electricity_consumed_mj_per_kg", "heating_duty_mj_per_kg",
-        "cooling_duty_mj_per_kg", "total_energy_mj_per_kg",
-    }:
+    if section == "operations" and field in _ENERGY_INTENSITY_FIELDS and _record_energy_is_legacy(record):
         value /= _LEGACY_OPERATING_HOURS
     return value
 
@@ -5137,12 +5199,26 @@ def _screening_estimate(
                     config["dissolution_temperature_c"]
                     - float(base_config["dissolution_temperature_c"])
                 )
-            estimates[name] = max(0.0, estimate)
+            estimates[name] = estimate
             exponents[name] = exponent
     except (KeyError, ValueError) as error:
         return {
             "success": False, "error": str(error),
             "error_type": "insufficient_surrogate_evidence", "config": config,
+        }
+    negative = {name: value for name, value in estimates.items() if value < 0}
+    if negative:
+        return {
+            "success": False,
+            "error": (
+                "The cached analog, scaled to this plant, gives a negative "
+                + ", ".join(sorted(negative))
+                + ": the request is outside the range the analog records cover, so no estimate is served."
+            ),
+            "error_type": "insufficient_surrogate_evidence",
+            "unclamped_estimates": negative,
+            "analog_record": base["label"],
+            "config": config,
         }
     capacities = sorted(float(row["config"]["processing_capacity"]) for row in scale_rows)
     requested_capacity = float(config["processing_capacity"])
@@ -5229,14 +5305,25 @@ def _executed_stage_polymer(result: dict[str, Any]) -> str:
 
 _SERVED_TEA_METRIC_KEYS = ("msp_usd_per_kg", "tci_usd", "aoc_usd_per_yr")
 _NONFINITE_SERVED_TEA_ERROR_TYPES = frozenset({
-    "no_finite_msp", "tea_cashflow_undefined",
+    "no_finite_msp", "tea_cashflow_undefined", "no_finite_capital_or_operating_cost",
 })
 _PROMOTED_ALL_FAIL_ERROR_TYPES = frozenset({
     "priced_solvent_unmodellable",
     "no_finite_msp",
     "tea_cashflow_undefined",
+    "no_finite_capital_or_operating_cost",
     "no_finite_gwp",
 })
+
+
+def _nonfinite_served_tea_type(missing: Sequence[str], cashflow_named: bool) -> str:
+    """The cash flow failed (the engine said so), else the selling price is missing, else capital or operating cost.
+    The worker's _nonfinite_served_tea_refusal applies the same rule."""
+    if cashflow_named:
+        return "tea_cashflow_undefined"
+    if "msp_usd_per_kg" in missing:
+        return "no_finite_msp"
+    return "no_finite_capital_or_operating_cost"
 
 
 def _finite_served_number(value: Any) -> bool:
@@ -5265,11 +5352,7 @@ def _coerce_nonfinite_served_tea(result: dict[str, Any]) -> dict[str, Any]:
     out = dict(result)
     out["success"] = False
     cashflow = "cashflow" in str(out.get("error") or "").casefold()
-    out["error_type"] = (
-        "tea_cashflow_undefined"
-        if cashflow or "msp_usd_per_kg" not in missing
-        else "no_finite_msp"
-    )
+    out["error_type"] = _nonfinite_served_tea_type(missing, cashflow)
     out["error"] = (
         str(out.get("error") or "").strip()
         or (
@@ -6127,6 +6210,22 @@ def lookup_admitted_process_records(
         row for row in normalized_records
         if str(row["record_id"]).casefold().endswith("-route-c1")
     ), None)
+    sensitivity_extra: dict[str, Any] = {}
+    if sensitivity_requested:
+        # The C1 route record is each axis's base level (price 4.08 between 2.04 and 6.12). It comes back with the
+        # swept records, flagged, so a sweep is never read as having one more level than it has.
+        for row, summary in zip(normalized_records, comparison_rows):
+            is_base = baseline is not None and row is baseline
+            row["is_baseline"] = is_base
+            summary["is_baseline"] = is_base
+        sensitivity_extra["sensitivity_record_count"] = sum(
+            1 for row in normalized_records if not row.get("is_baseline")
+        )
+    if canonical_record_form == "grouped_comparison":
+        sensitivity_extra["record_form_note"] = (
+            "grouped_comparison does not reshape the records: records and comparison_rows list every stored record, "
+            "one row each, for the answer to compare side by side."
+        )
     assumptions = [{
         "record_id": row["record_id"],
         **copy.deepcopy(row["config"]),
@@ -6167,6 +6266,7 @@ def lookup_admitted_process_records(
         ),
         records=normalized_records,
         comparison_rows=comparison_rows,
+        **sensitivity_extra,
         metric_units=units,
         record_assumptions=assumptions,
         record_basis=(
@@ -6324,18 +6424,54 @@ def _stamp_screen_to_economics_order(raw: str, order: str) -> str:
     )
 
 
+def _batch_field_origin(
+    callers: Sequence[Mapping[str, Any]],
+) -> tuple[dict[str, Any] | None, dict[str, str], dict[str, list[str]] | None]:
+    """Silently defaulted fields, field origin, and per-scenario origins for the fields where scenarios differ.
+
+    One scenario: its own. Several: a field defaulted in every scenario is defaulted; a field one scenario sets and
+    another leaves at the default is "mixed_by_scenario", with each scenario's origin in scenario order, so the
+    envelope never reports the first scenario's origin for all of them."""
+    if not callers:
+        return None, {}, None
+    silents = [silently_defaulted_process_fields(item) for item in callers]
+    origins = [evaluate_caller_field_origin(item) for item in callers]
+    if len(callers) == 1:
+        return silents[0], origins[0], None
+    names = sorted({name for origin in origins for name in origin})
+    merged: dict[str, str] = {}
+    by_scenario: dict[str, list[str]] = {}
+    for name in names:
+        tokens = [origin.get(name, "default") for origin in origins]
+        if len(set(tokens)) == 1:
+            merged[name] = tokens[0]
+        else:
+            merged[name] = "mixed_by_scenario"
+            by_scenario[name] = tokens
+    silent = {
+        name: value for name, value in silents[0].items()
+        if all(name in other for other in silents[1:])
+    }
+    return silent, merged, by_scenario or None
+
+
 def _stamp_evaluate_silent_defaults(
     raw: str,
     *,
     field_origin: Optional[Mapping[str, str]] = None,
     silently_defaulted: Optional[Mapping[str, Any]] = None,
     energy_case: str = "C1",
+    field_origin_by_scenario: Optional[Mapping[str, list[str]]] = None,
 ) -> str:
     """T2 defaults plus T3 basis quote. A thin origin cannot keep an MSP."""
     envelope = json.loads(raw)
     data = envelope.get("data")
     if not isinstance(data, dict):
         return raw
+    if field_origin_by_scenario:
+        data["field_origin_by_scenario"] = {
+            name: list(tokens) for name, tokens in field_origin_by_scenario.items()
+        }
     basis = list(evaluate_process_basis_names(energy_case=energy_case))
     origin = _complete_evaluate_basis_origin(
         field_origin,
@@ -6358,16 +6494,24 @@ def _stamp_evaluate_silent_defaults(
     )
 
 
+# The interactive CLI sets this around a call whose plant a person confirmed on the process sheet. --once, the web
+# app and any other caller run the model's own plant values, and the result says they were not confirmed.
+PROCESS_CONFIRMATION: ContextVar[str] = ContextVar("dissolve_process_confirmation", default="not_confirmed")
+
+
 def _evaluate_process_envelope(
     raw: str,
     *,
     screen_to_economics_order: str,
+    plant_run: bool = False,
 ) -> str:
     envelope = json.loads(raw)
     data = envelope.get("data")
     if isinstance(data, dict):
         data["tool_name"] = "evaluate_process"
         data["screen_to_economics_order"] = screen_to_economics_order
+        if plant_run:
+            data["process_confirmation"] = PROCESS_CONFIRMATION.get()
     return json.dumps(
         envelope, ensure_ascii=False, indent=2, allow_nan=False,
     )
@@ -6502,9 +6646,11 @@ def evaluate_process(
     held_process_basis: Optional[dict[str, Any]] = None,
     screen_to_economics_order: Optional[ScreenToEconomicsOrder] = None,
     confirm_live_tea: Optional[bool] = None,
+    parameter: Optional[str] = None,
+    values: Optional[list[float]] = None,
     **kwargs: Any,
 ) -> str:
-    """Typed twelve-field lookup, evaluate, sensitivity, or route.
+    """Plant economics (TEA/LCA) by mode. lookup: stored records; lookup_filter takes target_polymer, solvent, energy_cases, sensitivity_axes (such as ["solvent_price"]) and record_form. evaluate: process_config (one plant) or process_configs (several) with the public fields target_polymer, solvent, target_mass_percent, processing_capacity_mt_per_yr, energy_case, dissolution_temperature_c, precipitation_temperature_c, solvent_price_usd_per_kg, solvent_loss_pct, feedstock_distance_km, dissolution_capacity and labor_cost_usd_per_employee_yr, all required (flowsheet switches and financial coefficients left out take the first-run defaults). sensitivity: process_config plus the top-level parameter (a field such as solvent_price) and optional values. route: costs a route from plan_multistage_separation, given the top-level handle and row_id (the route's rank), with optional top-level processing_capacity_mt_per_yr, energy_case and precipitation_temperature_c. confirm_live_tea=true runs live BioSTEAM when no stored record matches.
 
     Closed mode: lookup, evaluate, sensitivity, route. lookup uses
     lookup_filter; evaluate uses process_config or process_configs,
@@ -6527,6 +6673,12 @@ def evaluate_process(
     on lookup_filter. Optimization is not a mode. Not a ranking.
     """
     tool = "evaluate_process"
+    # parameter and values are in the schema because the model never sent them otherwise (four live sensitivity
+    # questions on 2026-09-26 put the swept field inside process_config); every mode still reads them from kwargs,
+    # so a mode other than sensitivity refuses them as before.
+    for name, value in (("parameter", parameter), ("values", values)):
+        if value is not None:
+            kwargs[name] = value
     token = str(mode or "").strip().casefold()
     allowed_scalars = _EVALUATE_PROCESS_MODE_SCALARS
     if token == "route":
@@ -6634,11 +6786,15 @@ def evaluate_process(
                 name for name in lookup_filter if name not in _LOOKUP_FILTER_FIELDS
             )
             if extra:
+                allowed = sorted(_LOOKUP_FILTER_FIELDS)
                 return tool_error(
                     tool,
-                    "unknown extra process field: " + ", ".join(extra),
+                    "unknown lookup_filter field: " + ", ".join(extra)
+                    + ". lookup_filter accepts: " + ", ".join(allowed)
+                    + " (a polymer is target_polymer; a sweep is sensitivity_axes, such as [\"solvent_price\"]).",
                     error_code="unknown_process_field",
                     extra_keys=extra,
+                    allowed_keys=allowed,
                 )
             supplied = dict(lookup_filter)
         return _evaluate_process_envelope(
@@ -6715,6 +6871,13 @@ def evaluate_process(
             return tool_error(
                 tool, str(error), error_code=error.error_code, **error.details,
             )
+        if process_config is not None and process_configs is not None:
+            return tool_error(
+                tool,
+                "Send process_config (one plant) or process_configs (several), not both: with both, the single "
+                "plant would also run as part of the list.",
+                error_code="conflicting_process_config_arguments",
+            )
         scenarios: list[dict[str, Any]] | None = None
         if process_config is not None or process_configs is not None:
             scenarios = []
@@ -6733,18 +6896,12 @@ def evaluate_process(
             forwarded["held_process_basis"] = held_process_basis
         if confirm_live_tea is not None:
             forwarded["confirm_live_tea"] = confirm_live_tea
-        caller = process_config if isinstance(process_config, dict) else None
-        if caller is None and process_configs:
-            caller = next(
-                (item for item in process_configs if isinstance(item, dict)),
-                None,
-            )
-        silent = (
-            silently_defaulted_process_fields(caller) if caller is not None else None
-        )
-        origin = (
-            evaluate_caller_field_origin(caller) if caller is not None else {}
-        )
+        callers = [
+            item for item in ([process_config] if process_config is not None else list(process_configs or []))
+            if isinstance(item, dict)
+        ]
+        caller = callers[0] if callers else None
+        silent, origin, by_scenario = _batch_field_origin(callers)
         energy = _evaluate_energy_case(
             caller, held_process_basis, process_config,
         )
@@ -6754,8 +6911,9 @@ def evaluate_process(
                 field_origin=origin,
                 silently_defaulted=silent,
                 energy_case=energy,
+                field_origin_by_scenario=by_scenario,
             ),
-            screen_to_economics_order=order,
+            screen_to_economics_order=order, plant_run=True,
         )
     if token == "sensitivity":
         inapplicable = sorted(
@@ -6794,7 +6952,7 @@ def evaluate_process(
             forwarded["confirm_live_tea"] = confirm_live_tea
         return _evaluate_process_envelope(
             analyze_tea_sensitivity(**forwarded),
-            screen_to_economics_order=order,
+            screen_to_economics_order=order, plant_run=True,
         )
     if process_config is not None:
         return tool_error(
@@ -6842,7 +7000,7 @@ def evaluate_process(
     finally:
         _STORED_ROUTE_OVERRIDE.reset(override)
     return _project_route_comparison_rows(
-        _evaluate_process_envelope(raw, screen_to_economics_order=order),
+        _evaluate_process_envelope(raw, screen_to_economics_order=order, plant_run=True),
     )
 
 
@@ -7151,7 +7309,7 @@ def _requested_energy_case(process_config: Any) -> str | None:
         None, "",
     ):
         return None
-    token = str(process_config["energy_case"]).strip().upper()
+    token = _energy_case_token(process_config["energy_case"])
     if token not in _ENERGY_CASES:
         raise _ScenarioInputError(
             "energy_case must be C1, C2, or C3",
@@ -7344,9 +7502,9 @@ def _requested_operating_days(process_config: Any) -> float | None:
     ):
         return None
     days = _finite(process_config["operating_days"], "operating_days")
-    if days <= 0:
+    if not 0 < days <= _MAX_OPERATING_DAYS:
         raise _ScenarioInputError(
-            "operating_days must be positive.",
+            f"operating_days must be above 0 and at most {_MAX_OPERATING_DAYS:g} (days in a year).",
             error_code="invalid_admitted_record_query",
             field="operating_days",
             supplied=process_config["operating_days"],
@@ -7545,6 +7703,7 @@ def _requested_construction_schedule(
     return _construction_schedule(
         process_config["construction_schedule"],
         error_code="invalid_admitted_record_query",
+        require_partition=True,
     )
 
 
@@ -7748,6 +7907,15 @@ def _incomplete_stage_basis_grid(
                 "status": "would_fire_if_remnant_grid_complete",
             },
         ]
+    if any(str(cell.get("precipitation_temperature_format") or "").strip() == "drop" for cell in missing_keys):
+        # Stored rows made elsewhere may carry 'drop' and still complete the grid; a missing drop cell cannot be run
+        # here, because evaluate on this instance runs precipitation_temperature_format='constant' only.
+        details["cannot_run_here"] = {
+            "field": "precipitation_temperature_format",
+            "requested": "drop",
+            "error_code": "field_not_on_this_instance",
+            "reason": "evaluate on this instance runs precipitation_temperature_format='constant' only",
+        }
     return tool_error(
         "rank_landscape",
         "remnant-basis coefficient table is incomplete",
@@ -8060,9 +8228,25 @@ def _unmatched_remnant_keys(
     missing_keys: list[dict[str, Any]],
     rows: Sequence[dict[str, Any]],
 ) -> list[dict[str, Any]]:
+    """Cells no handle row supplies. Each cell is matched on its own values: cells at 90 and 110 C each find their own
+    row. A field a cell leaves out takes the value another cell holds, as a process_config stamp would."""
+    unmatched: list[dict[str, Any]] = []
+    for cell in missing_keys:
+        key = _cell_remnant_key(cell)
+        if key is not None and key in _present_remnant_keys([cell, *missing_keys], rows):
+            continue
+        unmatched.append(cell)
+    return unmatched
+
+
+def _present_remnant_keys(
+    missing_keys: list[dict[str, Any]],
+    rows: Sequence[dict[str, Any]],
+) -> set[tuple[Any, ...]]:
+    """Remnant keys of the rows, read at the held values: for each field, the first of `missing_keys` that sets it."""
     held_case = next(
         (
-            str(cell["energy_case"]).strip().upper()
+            _energy_case_token(cell["energy_case"])
             for cell in missing_keys
             if cell.get("energy_case") not in (None, "")
         ),
@@ -8227,13 +8411,7 @@ def _unmatched_remnant_keys(
             )
         ) is not None
     }
-    unmatched: list[dict[str, Any]] = []
-    for cell in missing_keys:
-        key = _cell_remnant_key(cell)
-        if key is not None and key in present:
-            continue
-        unmatched.append(cell)
-    return unmatched
+    return present
 
 
 def _refuse_listed_or_complete(
@@ -8758,21 +8936,22 @@ def _density_row(solvent: Any) -> tuple[dict[str, Any] | None, str]:
     return row, ""
 
 
+def _stage_specific_volume(item: dict[str, Any]) -> float | None:
+    raw = item.get("specific_volume_l_per_kg")
+    if raw is None and item.get("solvent"):
+        row, reason = _density_row(item.get("solvent"))
+        raw = None if reason else row["specific_volume_l_per_kg"]
+    try:
+        value = float(raw)
+    except (TypeError, ValueError):
+        return None
+    return value if math.isfinite(value) and value > 0 else None
+
+
 def _planner_max_stage_specific_volume(steps: Any) -> float | None:
-    values: list[float] = []
-    for item in steps or []:
-        if not isinstance(item, dict):
-            continue
-        raw = item.get("specific_volume_l_per_kg")
-        if raw is None and item.get("solvent"):
-            row, reason = _density_row(item.get("solvent"))
-            raw = None if reason else row["specific_volume_l_per_kg"]
-        try:
-            value = float(raw)
-        except (TypeError, ValueError):
-            continue
-        if math.isfinite(value) and value > 0:
-            values.append(value)
+    """The largest stage specific volume, or None when a stage has no effective density: the max over the stages
+    that have one would rank a route on fewer stages than it has, ahead of routes whose every stage is known."""
+    values = _stage_values(steps, _stage_specific_volume)
     return max(values) if values else None
 
 
@@ -8826,10 +9005,10 @@ def _stage_chem21_worst(item: dict[str, Any]) -> float | None:
         safety_score = item.get("chem21_safety_score")
         health = item.get("chem21_health_score")
         environment = item.get("chem21_environment_score")
-        if safety_score is None:
+        if None in (safety_score, health, environment):
             if item.get("solvent"):
                 raw = _chem21_worst(score_chem21_she(str(item["solvent"])))
-        elif health is not None and environment is not None:
+        else:
             try:
                 raw = _chem21_worst({
                     "chem21_safety_score": safety_score,
@@ -8848,6 +9027,7 @@ _STAGE_VALUES = {
     "min_stage_g_score": _stage_g_score,
     "max_stage_chem21_safety": _stage_chem21_safety,
     "max_stage_chem21_worst": _stage_chem21_worst,
+    "max_stage_specific_volume_l_per_kg": _stage_specific_volume,
 }
 
 
@@ -8933,7 +9113,8 @@ def _planner_pareto_quality(
     x_key: str,
     y_key: str,
 ) -> dict[str, Any]:
-    """§9.2.2 quality block on planner_routes pareto. Thermo/greenness axes."""
+    """§9.2.2 quality block on planner_routes pareto. Both axes are thermo/greenness maxima (bottleneck selectivity,
+    minimum stage G), so the x extreme is the best_x point (most selective), never a cost: nothing here is "cheapest"."""
     from .tea_ranking import axis_span
 
     n_landscape = len(landscape)
@@ -8950,19 +9131,19 @@ def _planner_pareto_quality(
         return {
             "frontier_fraction": fraction,
             "sparse_frontier": False,
-            "cheapest_equals_lowest_y": False,
+            "best_x_equals_best_y": False,
             "axis_spans": spans,
-            "cheapest_point": None,
+            "best_x_point": None,
             "knee_status": "not_calculated_no_comparable_designs",
             "frontier_tradeoff": None,
         }
     x_dir = _PLANNER_PARETO_DIRECTIONS[x_key]
     y_dir = _PLANNER_PARETO_DIRECTIONS[y_key]
-    cheapest = _planner_axis_extreme(frontier, x_key, x_dir)
+    best_x = _planner_axis_extreme(frontier, x_key, x_dir)
     best_y = _planner_axis_extreme(frontier, y_key, y_dir)
-    equals = cheapest is best_y or (
-        float(cheapest[x_key]) == float(best_y[x_key])
-        and float(cheapest[y_key]) == float(best_y[y_key])
+    equals = best_x is best_y or (
+        float(best_x[x_key]) == float(best_y[x_key])
+        and float(best_x[y_key]) == float(best_y[y_key])
     )
     if n_frontier == 1 or equals:
         knee_status = "endpoint_only_no_interior_knee"
@@ -8972,11 +9153,11 @@ def _planner_pareto_quality(
         knee_status = "endpoint_only_no_interior_knee"
     tradeoff = None
     if n_frontier >= 2 and not equals:
-        x_at_cheapest = float(cheapest[x_key])
-        y_at_cheapest = float(cheapest[y_key])
+        x_at_best_x = float(best_x[x_key])
+        y_at_best_x = float(best_x[y_key])
         x_at_best_y = float(best_y[x_key])
         y_at_best_y = float(best_y[y_key])
-        delta_y = y_at_best_y - y_at_cheapest
+        delta_y = y_at_best_y - y_at_best_x
         tradeoff = {
             "x_metric": x_key,
             "y_metric": y_key,
@@ -8984,24 +9165,24 @@ def _planner_pareto_quality(
             "y_direction": y_dir,
             "x_units": _PLANNER_PARETO_UNITS[x_key],
             "y_units": _PLANNER_PARETO_UNITS[y_key],
-            "x_at_cheapest": x_at_cheapest,
-            "y_at_cheapest": y_at_cheapest,
+            "x_at_best_x": x_at_best_x,
+            "y_at_best_x": y_at_best_x,
             "x_at_best_y": x_at_best_y,
             "y_at_best_y": y_at_best_y,
-            "delta_x": x_at_best_y - x_at_cheapest,
+            "delta_x": x_at_best_y - x_at_best_x,
             "delta_y": delta_y,
             "delta_y_percent": (
-                100.0 * delta_y / y_at_cheapest if y_at_cheapest else None
+                100.0 * delta_y / y_at_best_x if y_at_best_x else None
             ),
         }
-        if x_at_cheapest > 0:
-            tradeoff["x_ratio"] = x_at_best_y / x_at_cheapest
+        if x_at_best_x > 0:
+            tradeoff["x_ratio"] = x_at_best_y / x_at_best_x
     return {
         "frontier_fraction": fraction,
         "sparse_frontier": n_frontier == 1 or equals,
-        "cheapest_equals_lowest_y": equals,
+        "best_x_equals_best_y": equals,
         "axis_spans": spans,
-        "cheapest_point": dict(cheapest),
+        "best_x_point": dict(best_x),
         "knee_status": knee_status,
         "frontier_tradeoff": tradeoff,
     }
@@ -9047,9 +9228,8 @@ def _planner_route_point(
     if objective == "max_stage_specific_volume_l_per_kg":
         point["specific_volume_rule"] = "max_stage_1000_over_rho_25C"
         point["specific_volume_is_cost_metric"] = False
-        # Stages without an effective density are skipped (the CHEM21 aggregators
-        # share this convention); a route ranked on fewer stages than it has is
-        # optimistic, and says so here rather than silently.
+        # A stage without an effective density leaves the route's value unknown; it ranks after the routes whose
+        # every stage has one, as a CHEM21 or G-score route with an unscored stage does.
         point["specific_volume_unresolved_stages"] = sum(
             1 for item in (route.get("steps") or [])
             if isinstance(item, dict) and item.get("specific_volume_l_per_kg") is None
@@ -9346,10 +9526,20 @@ def _rank_planner_routes(
             order,
         )
     usable = []
+    excluded_routes = []
     for route in routes:
         x_value = _planner_route_metric(route, x_token)
         y_value = _planner_route_metric(route, y_token)
         if x_value is None or y_value is None:
+            missing_axes = [name for name, value in ((x_token, x_value), (y_token, y_value)) if value is None]
+            excluded_routes.append({
+                "original_rank": int(route.get("rank") or 0),
+                "missing_axes": missing_axes,
+                "unresolved_stages": {
+                    name: _planner_unresolved_stages(route, name) for name in missing_axes
+                },
+                "reason": "no value on " + " and ".join(missing_axes) + ": the route cannot be placed on the frontier",
+            })
             continue
         usable.append((route, x_value, y_value))
 
@@ -9398,6 +9588,8 @@ def _rank_planner_routes(
             frontier_points=frontier,
             n_landscape_points=n_landscape,
             n_frontier_points=n_frontier,
+            n_routes_considered=len(routes),
+            excluded_routes=excluded_routes,
             grouping=_planner_grouping(exact),
             **quality,
         ),
@@ -10021,7 +10213,10 @@ def evaluate_tea_lca_scenarios(
         cache_match_status="exact" if set(modes) == {"cache"} else "mixed_or_live",
         scenarios_requested=len(scenarios), completed=len(successes), failed=len(failures),
         comparison_rows=rows, lowest_msp_scenario=by_msp[0]["label"],
-        lowest_gwp_scenario=by_gwp[0]["label"], energy_cases=_ENERGY_CASES,
+        lowest_gwp_scenario=by_gwp[0]["label"],
+        lowest_msp_tied_scenarios=_tied_lowest(by_msp, "msp_usd_per_kg"),
+        lowest_gwp_tied_scenarios=_tied_lowest(by_gwp, "gwp_kg_co2e_per_kg"),
+        energy_cases=_ENERGY_CASES,
         metric_units=_comparison_metric_units(rows),
         process_details=process_details,
         process_data_gaps=(
@@ -10370,7 +10565,7 @@ def _candidate_tea_basis_gap(
             else "total_feed" if processing_capacity_mt_per_yr is not None
             else "unspecified"
         ),
-        energy_case=str(energy_case).upper() if energy_case else None,
+        energy_case=_energy_case_token(energy_case) if energy_case else None,
         product_quality_intent=quality_intent,
         product_quality_validation="not_modeled",
         temperature_min_c=basis.get("temperature_min_c"),
@@ -10515,7 +10710,7 @@ def _unsupported_live_target_feed_error(
         str(row["config"].get("target_plastic"))
         for row in _records() if row.get("config", {}).get("target_plastic")
     })
-    selected_energy_case = str(energy_case).upper() if energy_case else None
+    selected_energy_case = _energy_case_token(energy_case) if energy_case else None
     return tool_error(
         "evaluate_stored_route_tea_lca",
         " ".join(sentences),
@@ -10587,7 +10782,12 @@ def _feed_tea_basis_gap(
         )
     try:
         if feed_mass_fractions:
-            feed = _composition(feed_mass_fractions, resolve_polymers=False)
+            feed = {}
+            for name, fraction in _composition(feed_mass_fractions, resolve_polymers=False).items():
+                # Owner rule (2026-09-23): PE and polyethylene mean LDPE unless the user names HDPE, as the
+                # feed_polymers path below already reads them through expand_polymer_identity.
+                label = "LDPE" if thermo.resolve_polymer_identity(name) == "PE" else name
+                feed[label] = feed.get(label, 0.0) + fraction
             feed_names = list(feed)
         elif isinstance(feed_polymers, list) and feed_polymers:
             feed = {}
@@ -10658,8 +10858,6 @@ def _feed_tea_basis_gap(
             energy_case=energy_case,
         )
 
-    unresolved = [name for name in feed_names if name.casefold() == "pe"]
-    interpretations = {name: ["LDPE", "HDPE"] for name in unresolved}
     missing_codes = ["complete_separation_route", "solvent_selection",
                      "dissolution_collection_setpoints", "recovery_product_basis"]
     missing = [
@@ -10672,12 +10870,6 @@ def _feed_tea_basis_gap(
         missing.insert(
             0,
             "Supply the mass fraction of every named feed polymer; no composition was inferred.",
-        )
-    if unresolved:
-        missing_codes.insert(0, "polymer_grade")
-        missing.insert(
-            0,
-            "Clarify whether PE means LDPE or HDPE; those grades do not share one dissolution route.",
         )
     if capacity is None:
         missing_codes.append("plant_capacity")
@@ -10706,12 +10898,9 @@ def _feed_tea_basis_gap(
     scope_available = all(any(
         re.search(rf"scope[_ -]?{number}\b", key) for key in cache_lca_fields
     ) for number in (1, 2))
-    selected_energy_case = str(energy_case).upper() if energy_case else None
+    selected_energy_case = _energy_case_token(energy_case) if energy_case else None
     if scale_capacities:
-        candidate_targets = sorted(
-            (set(feed_names) - set(unresolved))
-            | {item for values in interpretations.values() for item in values}
-        )
+        candidate_targets = sorted(set(feed_names))
         capacity_ranges = {
             polymer: sorted({
                 float(row["config"]["processing_capacity"])
@@ -10757,8 +10946,6 @@ def _feed_tea_basis_gap(
             route_source="requested_feed_without_route",
             requested_feed_polymers=feed_names,
             requested_feed_mass_fractions=feed,
-            unresolved_polymer_identities=unresolved,
-            supported_interpretations=interpretations,
             requested_capacity_mt_per_yr=capacity,
             requested_capacity_basis="total_feed",
             requested_scale_capacities_mt_per_yr=scale_capacities,
@@ -10781,11 +10968,7 @@ def _feed_tea_basis_gap(
             ],
             warnings=[
                 "Do not infer economies of scale or an emissions-intensity trend from cache-range coverage.",
-                *(
-                    ["Do not silently map generic PE to LDPE or HDPE or combine unmatched stage records."]
-                    if unresolved else
-                    ["The requested polymer identities are explicit; do not introduce a polymer-grade ambiguity."]
-                ),
+                "PE and polyethylene are read as LDPE (owner rule); HDPE is used only when named.",
             ],
         ))
     return _remember_last_tea_envelope(tool_error(
@@ -10799,8 +10982,6 @@ def _feed_tea_basis_gap(
         route_source="requested_feed_without_route",
         requested_feed_polymers=feed_names,
         requested_feed_mass_fractions=feed,
-        unresolved_polymer_identities=unresolved,
-        supported_interpretations=interpretations,
         requested_capacity_mt_per_yr=capacity,
         requested_capacity_basis=(
             "recovered_product" if product_capacity_mt_per_yr is not None
@@ -10828,11 +11009,7 @@ def _feed_tea_basis_gap(
         ],
         warnings=[
             "No MSP, TCI, AOC, or GWP value was calculated.",
-            *(
-                ["Do not silently map generic PE to LDPE or HDPE or combine unmatched stage records."]
-                if unresolved else
-                ["The requested polymer identities are explicit; do not introduce a polymer-grade ambiguity."]
-            ),
+            "PE and polyethylene are read as LDPE (owner rule); HDPE is used only when named.",
         ],
     ))
 
@@ -11057,7 +11234,8 @@ def evaluate_stored_route_tea_lca(
                 ),
                 "energy_case": original.get("energy_case"),
                 "precipitation_temperature_c": (
-                    25.0 if precipitation_temperature_c is None
+                    tea_polymer_parameters.GENERIC_FACTORY_PRECIPITATION_T_C
+                    if precipitation_temperature_c is None
                     else float(precipitation_temperature_c)
                 ),
             },
@@ -11276,9 +11454,27 @@ def evaluate_stored_route_tea_lca(
             ],
             warnings=["No MSP, TCI, AOC, or GWP value was calculated."],
         )
-    feed_capacity = 20_000.0 if processing_capacity_mt_per_yr is None else processing_capacity_mt_per_yr
-    selected_energy_case = str(energy_case or "C1").upper()
-    selected_precipitation_c = 25.0 if precipitation_temperature_c is None else precipitation_temperature_c
+    # An omitted plant field takes the first-run sheet's default (20,000 t/yr, C1, the generic-factory 35 C
+    # precipitation, as evaluate does) and is reported as a default, never as a value the caller chose.
+    sheet_defaults = first_run_sheet_defaults(energy_case=_energy_case_token(energy_case or "C1"))
+    route_defaults = {
+        name: sheet_defaults[name]
+        for name, supplied in (
+            ("processing_capacity_mt_per_yr", processing_capacity_mt_per_yr),
+            ("energy_case", energy_case),
+            ("precipitation_temperature_c", precipitation_temperature_c),
+        )
+        if supplied is None
+    }
+    feed_capacity = (
+        sheet_defaults["processing_capacity_mt_per_yr"] if processing_capacity_mt_per_yr is None
+        else processing_capacity_mt_per_yr
+    )
+    selected_energy_case = _energy_case_token(energy_case or "C1")
+    selected_precipitation_c = (
+        sheet_defaults["precipitation_temperature_c"] if precipitation_temperature_c is None
+        else precipitation_temperature_c
+    )
     if comparison_capacities_mt_per_yr is not None:
         if not isinstance(comparison_capacities_mt_per_yr, list):
             return tool_error(
@@ -11588,14 +11784,15 @@ def evaluate_stored_route_tea_lca(
         except ValueError as error:
             return tool_error(tool, str(error), error_code="invalid_route_stage", stage=index)
         else:
-            result = _coerce_nonfinite_served_tea(
+            result = _coerce_nonfinite_served_gwp(_coerce_nonfinite_served_tea(
                 _run(config, engine_mode, max(1, min(int(timeout_seconds), 600)))
-            )
+            ))
             if (
                 result.get("success") is not True
                 and allow_screening_estimate
                 and result.get("error_type") not in {
                     "invalid_engine_mode",
+                    "no_finite_gwp",
                     *_NONFINITE_SERVED_TEA_ERROR_TYPES,
                 }
             ):
@@ -11814,6 +12011,12 @@ def evaluate_stored_route_tea_lca(
         consumed_route=route, feed_mass_fractions=composition,
         processing_capacity_mt_per_yr=capacity, energy_case=selected_energy_case,
         energy_case_description=_ENERGY_CASES.get(selected_energy_case),
+        precipitation_temperature_c=precipitation,
+        field_origin={
+            name: "default" if name in route_defaults else "supplied"
+            for name in ("processing_capacity_mt_per_yr", "energy_case", "precipitation_temperature_c")
+        },
+        **({"silently_defaulted": dict(route_defaults)} if route_defaults else {}),
         stage_results=rows,
         dissolution_stage_feed_fraction=dissolution_stage_fraction,
         final_residue=route.get("final_residue"),
@@ -11970,11 +12173,15 @@ def analyze_tea_sensitivity(
     )
     mode = str(analysis_mode or "sweep").casefold()
     if field not in _NUMERIC_FIELDS:
+        names = sorted(_NUMERIC_FIELDS)
         return tool_error(
             tool,
-            "Unsupported sensitivity parameter.",
+            (
+                "Name the field to sweep in the parameter argument, not inside process_config"
+                if not field else f"Unsupported sensitivity parameter {field!r}"
+            ) + "; parameter is one of: " + ", ".join(names) + ".",
             error_code="unsupported_parameter",
-            supported_parameters=sorted(_NUMERIC_FIELDS),
+            supported_parameters=names,
         )
     if metric not in _METRICS:
         return tool_error(tool, "Unsupported sensitivity metric.", error_code="unsupported_metric", supported_metrics=sorted(_METRICS))
@@ -12002,21 +12209,17 @@ def analyze_tea_sensitivity(
     except ValueError as error:
         return tool_error(tool, str(error), error_code="invalid_sensitivity_basis")
     if not requested_values:
-        comparison_key = {
-            key: baseline[key]
-            for key in _CONFIG_FIELDS
-            if key != field
-        }
+        # Exact one-at-a-time variants: every serve-key field but the swept one equals the baseline's, switches and
+        # coefficients included, so a stored plant that burns its leftover is never read as a price point.
+        def _key_without_field(config: dict[str, Any]) -> dict[str, Any]:
+            key = json.loads(_config_key(config))
+            key.pop(field, None)
+            return key
+
+        baseline_key = _key_without_field(baseline)
         requested_values = sorted({
             float(record["config"][field]) for record in _records()
-            if all(
-                _key(record["config"][key]) == _key(value)
-                if key in {"solvent", "target_plastic"}
-                else str(record["config"][key]).upper() == str(value).upper()
-                if key == "energy_case"
-                else abs(float(record["config"][key]) - float(value)) < 1e-9
-                for key, value in comparison_key.items()
-            )
+            if _key_without_field(record["config"]) == baseline_key
         })
     requested_values = list(dict.fromkeys([float(baseline[field]), *requested_values]))
     if len(requested_values) < 2:

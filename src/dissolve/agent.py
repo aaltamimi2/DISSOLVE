@@ -419,15 +419,31 @@ def offered_literature_names(session: Any = None) -> frozenset[str]:
     return LITERATURE_MODE_SURFACE[literature_agent_mode(session)]
 
 
+def tea_switched_off() -> bool:
+    """True where the deployment switches TEA off (DISSOLVE_WEB_DISABLE lists tea, as the hosted image does): there is
+    no live TEA engine, so evaluate_process is not offered and rank_landscape ranks planner routes only."""
+    return "tea" in {item.strip().casefold() for item in os.getenv("DISSOLVE_WEB_DISABLE", "").split(",")}
+
+
+def _tea_call_switched_off(name: str, kwargs: dict[str, Any]) -> bool:
+    if not tea_switched_off():
+        return False
+    if name == "evaluate_process":
+        return True
+    return name == "rank_landscape" and str(kwargs.get("source") or "process_rows").strip().casefold() != "planner_routes"
+
+
 def offered_tool_names(session: Any = None) -> frozenset[str]:
     """Agent surface. Strip all six literature names, then add the mode map.
 
     Scholarly is LITERATURE_SCHOLARLY_TOOLS, not "registry minus ingest".
-    Ingest is not a map key and is not in any map value.
+    Ingest is not a map key and is not in any map value. Where TEA is switched off, evaluate_process is not offered.
     """
     names = {spec.name for spec in REGISTRY}
     names -= LITERATURE_AGENT_TOOLS
     names |= offered_literature_names(session)
+    if tea_switched_off():
+        names.discard("evaluate_process")
     return frozenset(names)
 
 
@@ -639,6 +655,16 @@ def dispatch(name: str, **kwargs: Any) -> dict[str, Any]:
             literature_mode=literature_agent_mode(current_tool_session()),
         )
         return _emit(name, kwargs, out, out)
+    if _tea_call_switched_off(name, kwargs):
+        out = _refuse(
+            "tea_switched_off",
+            name=name,
+            detail=(
+                "TEA is switched off on this deployment: no cost, selling price or GWP can be computed here. "
+                "rank_landscape still ranks planner routes (source=planner_routes)."
+            ),
+        )
+        return _emit(name, kwargs, out, out)
     record, call_kwargs, bind = current_tool_session(), dict(kwargs), None
     if name in CONSUMERS:
         if "handle" in kwargs:
@@ -746,7 +772,12 @@ themselves; name a token this prompt does not define as it is:
   tea_screening_analog), not a simulation of the named configuration.
   Say so.
 - A live BioSTEAM run (source_basis tea_live) is a simulation of the
-  named configuration. Say so. It may not appear in this environment.
+  named configuration. Say so. Say live TEA is unavailable only when a
+  TEA tool refused live_tea_unavailable.
+- A TEA result with process_confirmation not_confirmed ran plant values
+  no person confirmed (a one-shot question or the web app): say so, and
+  name the fields that came back as defaults (silently_defaulted, or
+  field_origin default) with their values.
 - Campaign process_rows (source_basis campaign_process_rows) are
   already-run rows consumed from a registered campaign at that
   campaign's held basis. They are not tea_cache_exact and not a live

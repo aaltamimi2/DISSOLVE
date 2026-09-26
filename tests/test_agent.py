@@ -3662,9 +3662,12 @@ def test_sheet_accept_defaults_keeps_the_buffer_object(tmp_path, monkeypatch):
     assert tea.missing_public_process_fields(submitted) == []
 
 
-def test_later_evaluate_runs_the_confirmed_buffer_not_model_args(
+def test_a_later_value_that_contradicts_the_sheet_reopens_it_and_never_runs_unconfirmed(
     tmp_path, monkeypatch,
 ):
+    """After a person confirms irr 0.10, a model call with irr 0.15 opens the sheet again (A02-R1: before, it ran the
+    first sheet silently under any later question), and what runs is what the person confirms, never the model's
+    0.15. A call that only names values the sheet already holds stays bound without a prompt."""
     monkeypatch.setattr(cli, "run_turn", _ok_turn_cli_process_sheet)
     monkeypatch.setattr(sys.stdin, "isatty", lambda: True)
     app, _buf = _app_cli_process_sheet(tmp_path, monkeypatch)
@@ -3705,7 +3708,8 @@ def test_later_evaluate_runs_the_confirmed_buffer_not_model_args(
             "process_config": {"target_polymer": "LDPE", "irr": 0.15},
         },
     )
-    assert len(prompts) == 1
+    assert len(prompts) == 2
+    assert prompts[1]["irr"] == pytest.approx(0.15)
     assert len(captured) == 2
     second = captured[1]["kwargs"]
     assert second["process_config"] is sheet
@@ -3721,10 +3725,48 @@ def test_later_evaluate_runs_the_confirmed_buffer_not_model_args(
             "parameter": "solvent_price",
         },
     )
-    assert len(prompts) == 1
+    assert len(prompts) == 3
     third = captured[2]["kwargs"]
     assert third["process_config"] is sheet
     assert third["parameter"] == "solvent_price"
+    app._cli_direct_dispatch(
+        original,
+        "evaluate_process",
+        {"mode": "sensitivity", "process_config": {"target_polymer": "LDPE"}, "parameter": "solvent_price"},
+    )
+    assert len(prompts) == 3
+    assert captured[3]["kwargs"]["process_config"] is sheet
+
+
+def test_a_different_plant_after_a_confirmed_one_is_confirmed_again(tmp_path, monkeypatch):
+    """The review's case: a person confirms PET in THF; the next question is polystyrene in toluene. The sheet opens
+    again, seeded with the new plant, and the new plant runs. Before, dispatch discarded the polystyrene config and
+    ran PET/THF, and the answer quoted polystyrene."""
+    monkeypatch.setattr(cli, "run_turn", _ok_turn_cli_process_sheet)
+    monkeypatch.setattr(sys.stdin, "isatty", lambda: True)
+    app, _buf = _app_cli_process_sheet(tmp_path, monkeypatch)
+    prompts = []
+
+    def confirm_as_seeded(seed, **kwargs):
+        prompts.append(dict(seed))
+        return seed
+
+    monkeypatch.setattr(app, "_edit_process_sheet", confirm_as_seeded)
+    ran = []
+
+    def original(name, **kwargs):
+        ran.append(kwargs["process_config"])
+        return {"success": True}
+
+    app._cli_direct_active = True
+    for polymer, solvent in (("PET", "THF"), ("PS", "toluene")):
+        app._cli_direct_dispatch(
+            original, "evaluate_process",
+            {"mode": "evaluate", "process_config": {"target_polymer": polymer, "solvent": solvent}},
+        )
+    assert [prompt["target_polymer"] for prompt in prompts] == ["PET", "PS"]
+    assert [config["target_polymer"] for config in ran] == ["PET", "PS"]
+    assert ran[1]["solvent"] == "toluene"
 
 
 def test_later_evaluate_drops_screening_shortlist_from_model_args(
@@ -3961,7 +4003,7 @@ def test_evaluate_process_lookup_mode_does_not_open_the_sheet(
     assert app._confirmation_sheet_submitted is False
 
 
-def test_later_evaluate_process_runs_the_confirmed_buffer(
+def test_a_batch_confirmed_then_a_contradicting_single_config_reopens_the_sheet(
     tmp_path, monkeypatch,
 ):
     monkeypatch.setattr(cli, "run_turn", _ok_turn_cli_process_sheet)
@@ -4004,7 +4046,7 @@ def test_later_evaluate_process_runs_the_confirmed_buffer(
             "process_config": {"target_polymer": "LDPE", "irr": 0.15},
         },
     )
-    assert len(prompts) == 1
+    assert len(prompts) == 2
     assert len(captured) == 2
     second = captured[1]["kwargs"]
     assert second["process_config"] is sheet
@@ -5461,7 +5503,7 @@ def test_planner_routes_pareto_has_f_quality_schema(monkeypatch):
     assert n_front == len(frontier)
     assert data.get("frontier_fraction") == n_front / n_land
     assert data.get("sparse_frontier") is (
-        n_front == 1 or data.get("cheapest_equals_lowest_y") is True
+        n_front == 1 or data.get("best_x_equals_best_y") is True
     )
     assert data.get("knee_status") in {
         "endpoint_only_no_interior_knee",
@@ -5483,10 +5525,16 @@ def test_planner_routes_pareto_has_f_quality_schema(monkeypatch):
     for point in landscape:
         assert point["safety_standing"]["status"] == "not_requested"
         assert point.get("original_thermo_rank")
-    cheapest = data.get("cheapest_point") or {}
-    assert cheapest.get(x_key) == max(float(point[x_key]) for point in frontier)
+    # B03-R5: both axes are thermo/greenness maxima, so the x extreme is the most selective route, never "cheapest"
+    assert "cheapest_point" not in data and "cheapest_equals_lowest_y" not in data
+    # B04-R3: a route without both coordinates is listed with its reason, not dropped from the set compared
+    excluded = data["excluded_routes"]
+    assert data["n_routes_considered"] == n_land + len(excluded)
+    assert all(item["missing_axes"] and item["reason"] for item in excluded)
+    best_x = data.get("best_x_point") or {}
+    assert best_x.get(x_key) == max(float(point[x_key]) for point in frontier)
     tradeoff = data.get("frontier_tradeoff")
-    if data.get("cheapest_equals_lowest_y") or n_front < 2:
+    if data.get("best_x_equals_best_y") or n_front < 2:
         assert tradeoff is None
     else:
         assert tradeoff["x_metric"] == x_key
@@ -5765,7 +5813,7 @@ def test_planner_pareto_quality_star_is_sparse_and_null_tradeoff():
         "bottleneck_selectivity_pct", "min_stage_g_score",
     )
     assert trade["sparse_frontier"] is False
-    assert trade["frontier_tradeoff"]["x_at_cheapest"] == 90.0
+    assert trade["frontier_tradeoff"]["x_at_best_x"] == 90.0
     assert trade["frontier_tradeoff"]["y_at_best_y"] == 8.0
     assert trade["frontier_tradeoff"]["delta_x"] == -10.0
     assert trade["frontier_tradeoff"]["delta_y"] == 3.0
@@ -6168,7 +6216,9 @@ def test_evaluate_refuses_sensitivity_scalars(monkeypatch):
     sensitivity_params = inspect.signature(tea.analyze_tea_sensitivity).parameters
     for name, value in sent.items():
         assert name in sensitivity_params
-        assert name not in eval_props
+        # parameter and values are in the wrapper's schema for sensitivity mode (the model never sent them otherwise);
+        # evaluate still refuses every sensitivity scalar
+        assert (name in eval_props) is (name in {"parameter", "values"})
         payload = _data_not_applicable_in_mode(tea.evaluate_tea_lca_scenarios(
             [scenario],
             engine_mode="auto",
@@ -6907,3 +6957,56 @@ def test_the_prompt_lets_the_tools_rank_and_qualifies_hot_hansen_checks():
     assert 'A shortlist is not the screen. When a screen shows fewer candidates than qualified' in prompt
     assert "for a step above about 60 °C, call the Hansen verdict indicative only, never a contradiction." in prompt
     assert "never by its record label" in prompt
+
+
+
+def test_where_tea_is_switched_off_its_tools_are_withheld_refused_and_the_prompt_says_so(monkeypatch):
+    """A09-R1: the hosted image sets DISSOLVE_WEB_DISABLE=literature,tea and hides the TEA cards, but the model was
+    still offered evaluate_process and every rank_landscape source."""
+    monkeypatch.delenv("DISSOLVE_WEB_DISABLE", raising=False)
+    assert "evaluate_process" in agent.offered_tool_names(None)
+    assert "TEA is switched off" not in cli._system_prompt("review")
+    monkeypatch.setenv("DISSOLVE_WEB_DISABLE", "literature,tea")
+    offered = agent.offered_tool_names(None)
+    assert "evaluate_process" not in offered and "rank_landscape" in offered
+    assert "evaluate_process" not in {schema["name"] for schema in agent.tool_schemas()}
+    assert dispatch("evaluate_process", mode="evaluate")["refusal"] == "tea_switched_off"
+    assert dispatch("rank_landscape", source="process_rows")["refusal"] == "tea_switched_off"
+    assert dispatch("rank_landscape")["refusal"] == "tea_switched_off"  # process_rows is the default source
+    planner = dispatch("rank_landscape", source="planner_routes", handle="no-such-handle")
+    assert planner.get("refusal") != "tea_switched_off"
+    assert "TEA is switched off on this deployment" in cli._system_prompt("review")
+
+
+def test_a_plant_nobody_confirmed_says_so_and_a_sheet_confirmed_one_says_that(tmp_path, monkeypatch):
+    """A02-R2: --once and the web app ran the model's plant values with no confirmation and no sign of it. The
+    result now says whether a person confirmed the plant on the sheet, and the prompt says to disclose it."""
+    raw = json.dumps({"display": "", "data": {"success": True}})
+    unconfirmed = json.loads(tea._evaluate_process_envelope(raw, screen_to_economics_order="x", plant_run=True))
+    assert unconfirmed["data"]["process_confirmation"] == "not_confirmed"
+    lookup = json.loads(tea._evaluate_process_envelope(raw, screen_to_economics_order="x"))
+    assert "process_confirmation" not in lookup["data"]
+    assert "process_confirmation not_confirmed" in " ".join(agent.SYSTEM_PROMPT.split())
+    monkeypatch.setattr(sys.stdin, "isatty", lambda: True)
+    app = CliApp(session_id="confirm-check", store_root=tmp_path, persist=False, require_key=False)
+    monkeypatch.setattr(app, "_edit_process_sheet", lambda seed, **kwargs: seed)
+    seen = []
+    app._cli_direct_active = True
+    app._cli_direct_dispatch(
+        lambda name, **kwargs: seen.append(tea.PROCESS_CONFIRMATION.get()) or {"success": True},
+        "evaluate_process",
+        {"mode": "evaluate", "process_config": {"target_polymer": "LDPE", "solvent": "Dodecane"}},
+    )
+    assert seen == ["confirmed_on_sheet"]
+    assert tea.PROCESS_CONFIRMATION.get() == "not_confirmed"
+
+
+
+def test_evaluate_mode_through_the_wrapper_still_refuses_a_sweep_parameter(monkeypatch):
+    """parameter joined the evaluate_process schema for sensitivity mode; evaluate mode must still refuse it."""
+    _forbid_live(monkeypatch)
+    record = _record_by_label("ldpe-route-c1")
+    payload = _data_not_applicable_in_mode(tea.evaluate_process(
+        mode="evaluate", process_config=_public_from_record(record), parameter="solvent_price",
+    ))
+    assert payload.get("error_code") == "not_applicable_in_mode"

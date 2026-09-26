@@ -568,18 +568,27 @@ def bind_registered_campaign(
 def publicize_requested_fields(requested: Mapping[str, Any] | None) -> dict[str, Any]:
     """Map worker and alias names onto public campaign_basis fields."""
     out: dict[str, Any] = {}
+    named_by: dict[str, str] = {}
     internal_to_public = dict(tea._DESIGN_POINT_PUBLIC_FIELDS)
     aliases = dict(tea._SCENARIO_ALIASES)
     for key, value in dict(requested or {}).items():
         if value is None:
             continue
         if key in internal_to_public:
-            out[internal_to_public[key]] = value
+            public = internal_to_public[key]
         elif key in aliases:
             internal = aliases[key]
-            out[internal_to_public.get(internal, key)] = value
+            public = internal_to_public.get(internal, key)
         else:
-            out[key] = value
+            public = key
+        if public in out and not tea._process_config_values_equivalent(public, out[public], value):
+            raise CampaignConsumeError(
+                f"conflicting requested keys for {public}: {named_by[public]}={out[public]!r} vs {key}={value!r}",
+                error_code="conflicting_process_field",
+                collisions=[{"public": public, "keys": [named_by[public], key], "values": [out[public], value]}],
+            )
+        out[public] = value
+        named_by[public] = key
     cases = out.pop("energy_cases", None)
     if cases is not None:
         if isinstance(cases, (list, tuple)):
@@ -983,38 +992,44 @@ def row_is_usable(
     canonical: str | None,
     skip_campaign_identity: bool = False,
 ) -> bool:
+    return _unusable_reason(
+        point, canonical=canonical, skip_campaign_identity=skip_campaign_identity,
+    ) is None
+
+
+def _unusable_reason(
+    point: Mapping[str, Any],
+    *,
+    canonical: str | None,
+    skip_campaign_identity: bool = False,
+) -> str | None:
+    """Why a row cannot be ranked, or None. A success missing its LCA coverage (a screening estimate) is named as
+    such, not as a generic not_usable."""
     if not skip_campaign_identity:
         fingerprint = str(point.get("campaign_fingerprint") or "").strip().casefold()
         if fingerprint != str(canonical or "").casefold():
-            return False
+            return "campaign_fingerprint_mismatch"
     if str(point.get("outcome") or "") != "success":
-        return False
+        return "failure"
     if not _finite_number(point.get(X_METRIC)):
-        return False
+        return "no_finite_msp"
     if not _finite_number(point.get(Y_METRIC)):
-        return False
+        return "no_finite_gwp"
     coverage = point.get("lca_coverage")
     if not isinstance(coverage, dict) or not coverage:
-        return False
+        return "missing_lca_coverage"
     if skip_campaign_identity:
         from . import tea
 
-        return tea._public_twelve_from_row(dict(point)) is not None
+        try:
+            twelve = tea._public_twelve_from_row(dict(point))
+        except tea._ScenarioInputError as error:
+            return error.error_code
+        return None if twelve is not None else "missing_design_point"
     standing = point.get("standing")
-    if not isinstance(standing, dict) or not standing:
-        return False
-    if not standing.get("process_parameter_status"):
-        return False
-    return True
-
-
-def _exclusion_token(point: Mapping[str, Any]) -> str:
-    token = str(point.get("error_type") or "").strip()
-    if token:
-        return token
-    if str(point.get("outcome") or "") != "success":
-        return "failure"
-    return "not_usable"
+    if not isinstance(standing, dict) or not standing or not standing.get("process_parameter_status"):
+        return "missing_process_standing"
+    return None
 
 
 def frontier_tradeoff(
@@ -1117,16 +1132,24 @@ def project_usable(
     usable: list[dict[str, Any]] = []
     excluded: list[dict[str, Any]] = []
     by_type: Counter[str] = Counter()
+    seen_ids: Counter[str] = Counter()
     for row in rows:
         point = compact_process_row(row)
-        if row_is_usable(
+        reason = _unusable_reason(
             point,
             canonical=canonical,
             skip_campaign_identity=skip_campaign_identity,
-        ):
+        )
+        if reason is None:
+            # B05-R2: frontier flags and rank joins key on pair_id; two rows sharing one (LDPE|toluene|C1 at 80 and
+            # 120 C) must stay two points, so a repeated id gets a #n suffix in row order.
+            pair_id = str(point.get("pair_id") or "")
+            seen_ids[pair_id] += 1
+            if seen_ids[pair_id] > 1:
+                point["pair_id"] = f"{pair_id}#{seen_ids[pair_id]}"
             usable.append(point)
             continue
-        token = _exclusion_token(point)
+        token = str(point.get("error_type") or "").strip() or reason
         by_type[token] += 1
         excluded.append({
             "pair_id": point.get("pair_id"),
@@ -1423,12 +1446,18 @@ def _rank_usable_population(
         }
     if grouping_token == "per_target_polymer" and len(polymers_present) > 1:
         grouped = []
+        single_design = []
         for polymer in polymers_present:
             subset = [
                 point for point in usable
                 if point.get("target_polymer") == polymer
             ]
             if len(subset) < 2:
+                single_design.append({
+                    "target_polymer": polymer,
+                    "point": dict(subset[0]) if subset else None,
+                    "reason": "one usable design: no trade-off to rank for this polymer",
+                })
                 continue
             grouped.append({
                 "target_polymer": polymer,
@@ -1455,6 +1484,7 @@ def _rank_usable_population(
             "polymer_grouping": "per_target_polymer",
             "grouped_fronts": grouped,
             "n_groups": len(grouped),
+            "polymers_with_one_usable_design": single_design,
         }
     grouping = {
         "polymer_grouping": grouping_token,
@@ -1979,12 +2009,12 @@ def _landscape(
             )
             energy = (
                 sum(
-                    float(stage.get("total_energy_mj_per_kg") or 0.0)
+                    float(stage["total_energy_mj_per_kg"])
                     * recovered_by_polymer[str(stage["polymer"])] * 1000.0
                     for stage in active
                 )
                 + residual * float(tech["total_energy"])
-            )
+            ) if all(_finite_number(stage.get("total_energy_mj_per_kg")) for stage in active) else None
             revenue = sum(
                 mass * float(market_values.get(polymer, 0.0))
                 for polymer, mass in recovered_by_polymer.items()
@@ -2154,7 +2184,8 @@ def _residual_pareto_quality(
     x_key: str,
     y_key: str,
 ) -> dict[str, Any]:
-    """F quality fields on residual pareto: fraction, sparse, equality, spans."""
+    """F quality fields on residual pareto: fraction, sparse, equality, spans. The x extreme is the best-x point
+    (lowest cost, highest profit or circularity), so the flag is best_x_equals_best_y, not a cost word."""
     n_landscape = len(landscape)
     n_frontier = len(frontier)
     fraction = (n_frontier / n_landscape) if n_landscape else None
@@ -2163,19 +2194,19 @@ def _residual_pareto_quality(
         return {
             "frontier_fraction": fraction,
             "sparse_frontier": False,
-            "cheapest_equals_lowest_y": False,
+            "best_x_equals_best_y": False,
             "axis_spans": spans,
         }
-    cheapest = _axis_extreme(frontier, x_key, _DIRECTIONS[x_key])
+    best_x = _axis_extreme(frontier, x_key, _DIRECTIONS[x_key])
     best_y = _axis_extreme(frontier, y_key, _DIRECTIONS[y_key])
-    equals = cheapest is best_y or (
-        float(cheapest[x_key]) == float(best_y[x_key])
-        and float(cheapest[y_key]) == float(best_y[y_key])
+    equals = best_x is best_y or (
+        float(best_x[x_key]) == float(best_y[x_key])
+        and float(best_x[y_key]) == float(best_y[y_key])
     )
     return {
         "frontier_fraction": fraction,
         "sparse_frontier": n_frontier == 1 or equals,
-        "cheapest_equals_lowest_y": equals,
+        "best_x_equals_best_y": equals,
         "axis_spans": spans,
     }
 
@@ -2185,18 +2216,18 @@ def _metric_generic_tradeoff(
     x_key: str,
     y_key: str,
     *,
-    cheapest_equals_lowest_y: bool,
+    best_x_equals_best_y: bool,
 ) -> dict[str, Any] | None:
     """§9.2.2 metric-generic tradeoff. Null on a star. F units, not F leaf names."""
-    if len(frontier) < 2 or cheapest_equals_lowest_y:
+    if len(frontier) < 2 or best_x_equals_best_y:
         return None
-    cheapest = _axis_extreme(frontier, x_key, _DIRECTIONS[x_key])
+    best_x = _axis_extreme(frontier, x_key, _DIRECTIONS[x_key])
     best_y = _axis_extreme(frontier, y_key, _DIRECTIONS[y_key])
-    x_at_cheapest = float(cheapest[x_key])
-    y_at_cheapest = float(cheapest[y_key])
+    x_at_best_x = float(best_x[x_key])
+    y_at_best_x = float(best_x[y_key])
     x_at_best_y = float(best_y[x_key])
     y_at_best_y = float(best_y[y_key])
-    delta_y = y_at_best_y - y_at_cheapest
+    delta_y = y_at_best_y - y_at_best_x
     payload: dict[str, Any] = {
         "x_metric": x_key,
         "y_metric": y_key,
@@ -2204,18 +2235,18 @@ def _metric_generic_tradeoff(
         "y_direction": _DIRECTIONS[y_key],
         "x_units": _TRADEOFF_UNITS[x_key],
         "y_units": _TRADEOFF_UNITS[y_key],
-        "x_at_cheapest": x_at_cheapest,
-        "y_at_cheapest": y_at_cheapest,
+        "x_at_best_x": x_at_best_x,
+        "y_at_best_x": y_at_best_x,
         "x_at_best_y": x_at_best_y,
         "y_at_best_y": y_at_best_y,
-        "delta_x": x_at_best_y - x_at_cheapest,
+        "delta_x": x_at_best_y - x_at_best_x,
         "delta_y": delta_y,
         "delta_y_percent": (
-            100.0 * delta_y / y_at_cheapest if y_at_cheapest else None
+            100.0 * delta_y / y_at_best_x if y_at_best_x else None
         ),
     }
-    if x_at_cheapest > 0:
-        payload["x_ratio"] = x_at_best_y / x_at_cheapest
+    if x_at_best_x > 0:
+        payload["x_ratio"] = x_at_best_y / x_at_best_x
     return payload
 
 
@@ -2437,6 +2468,7 @@ def rank_residual_route(
         marked = _stamp_residual_points(marked)
         frontier = _stamp_residual_points(frontier)
         cheapest = _stamp_residual_point(cheapest)
+        best_x = _stamp_residual_point(copy.deepcopy(_axis_extreme(frontier, x_key, _DIRECTIONS[x_key])))
         quality = _residual_pareto_quality(marked, frontier, x_key, y_key)
         grouping = _residual_grouping(source)
         slice_payloads.append({
@@ -2450,11 +2482,12 @@ def rank_residual_route(
             "n_rejected_phantom_designs": len(rejected),
             "knee_point": _stamp_residual_point(knee), "knee_status": knee_status,
             "cheapest_point": cheapest,
+            "best_x_point": best_x,
             "frontier_tradeoff": _metric_generic_tradeoff(
                 frontier,
                 x_key,
                 y_key,
-                cheapest_equals_lowest_y=quality["cheapest_equals_lowest_y"],
+                best_x_equals_best_y=quality["best_x_equals_best_y"],
             ),
             "grouping": grouping,
             **quality,
@@ -2489,18 +2522,19 @@ def rank_residual_route(
         n_frontier_points=n_front,
         frontier_fraction=primary["frontier_fraction"],
         sparse_frontier=primary["sparse_frontier"],
-        cheapest_equals_lowest_y=primary["cheapest_equals_lowest_y"],
+        best_x_equals_best_y=primary["best_x_equals_best_y"],
         axis_spans=primary["axis_spans"],
         knee_point=primary["knee_point"],
         knee_status=primary["knee_status"],
         cheapest_point=primary["cheapest_point"],
+        best_x_point=primary["best_x_point"],
         frontier_tradeoff=primary["frontier_tradeoff"],
         grouping=primary["grouping"],
         slices=[{
             key: item[key] for key in (
                 "slice_id", "feed_mass_fractions", "n_landscape_points",
                 "n_frontier_points", "frontier_fraction", "sparse_frontier",
-                "cheapest_equals_lowest_y", "axis_spans", "knee_point", "cheapest_point",
+                "best_x_equals_best_y", "axis_spans", "knee_point", "cheapest_point", "best_x_point",
                 "knee_status", "frontier_tradeoff", "grouping",
             )
         } for item in slice_payloads],
@@ -2646,6 +2680,10 @@ def pareto_optimize_stored_route(
             if not frontier:
                 continue
             cheapest = copy.deepcopy(min(frontier, key=lambda point: float(point["total_cost"])))
+            best_x = (
+                copy.deepcopy(_axis_extreme(frontier, x_metric, _DIRECTIONS[x_metric]))
+                if x_metric in _DIRECTIONS else cheapest
+            )
             knee = _knee(frontier, x_metric, y_metric)
             knee_status = (
                 "interior_tradeoff"
@@ -2660,7 +2698,7 @@ def pareto_optimize_stored_route(
                 "n_landscape_points": len(landscape), "n_frontier_points": len(frontier),
                 "n_rejected_phantom_designs": len(rejected),
                 "knee_point": knee, "knee_status": knee_status,
-                "cheapest_point": cheapest,
+                "cheapest_point": cheapest, "best_x_point": best_x,
                 "frontier_tradeoff": _cost_emissions_tradeoff(
                     frontier, x_metric, y_metric,
                 ),
@@ -2709,11 +2747,12 @@ def pareto_optimize_stored_route(
         n_frontier_points=primary["n_frontier_points"], points=points,
         knee_point=primary["knee_point"], knee_status=primary["knee_status"],
         cheapest_point=primary["cheapest_point"],
+        best_x_point=primary["best_x_point"],
         frontier_tradeoff=primary["frontier_tradeoff"],
         slices=[{
             key: item[key] for key in (
                 "slice_id", "feed_mass_fractions", "n_landscape_points",
-                "n_frontier_points", "knee_point", "cheapest_point",
+                "n_frontier_points", "knee_point", "cheapest_point", "best_x_point",
                 "knee_status", "frontier_tradeoff",
             )
         } for item in slice_payloads],
