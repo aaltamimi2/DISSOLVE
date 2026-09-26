@@ -49,13 +49,13 @@ if [ "${1:-}" = test ]; then
   cd "$ROOT" && exec "$ROOT/.venv/bin/python" -m pytest "$@"
 fi
 
-if [ -z "${META_MUSE_API_KEY:-}${GOOGLE_API_KEY:-}${ANTHROPIC_API_KEY:-}" ]; then
+if [ -z "${OPENROUTER_API_KEY:-}" ]; then
   CREDENTIALS="${DISSOLVE_HOME:-$HOME/.dissolve}/credentials.env"
   if [ -r "$CREDENTIALS" ]; then
     set -a; . "$CREDENTIALS"; set +a
-  else
-    say "no model key: export one, or put it in $CREDENTIALS (META_MUSE_API_KEY for the default model;"
-    say "GOOGLE_API_KEY with --model gemini; ANTHROPIC_API_KEY with --model claude)"
+  elif [ -z "${META_MUSE_API_KEY:-}${GOOGLE_API_KEY:-}${ANTHROPIC_API_KEY:-}" ]; then
+    say "no model key: export one, or put it in $CREDENTIALS (OPENROUTER_API_KEY for the default model;"
+    say "GOOGLE_API_KEY with --model gemini; ANTHROPIC_API_KEY with --model claude; META_MUSE_API_KEY with --model muse)"
   fi
 fi
 exec "$ROOT/.venv/bin/dissolve" "$@"

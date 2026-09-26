@@ -497,7 +497,7 @@ def test_session_default_and_clear(tmp_path, monkeypatch):
 
     from rich.console import Console
 
-    monkeypatch.setenv("META_MUSE_API_KEY", "test-key")
+    monkeypatch.setenv("OPENROUTER_API_KEY", "test-key")
     app = CliApp(
         session_id="solvents-session",
         store_root=tmp_path,
@@ -543,7 +543,7 @@ def test_a_session_can_live_in_a_store_the_caller_supplies(tmp_path, monkeypatch
         def append(self, role, content, **metadata):
             self.events.append((role, content))
 
-    monkeypatch.setenv("META_MUSE_API_KEY", "test-key")
+    monkeypatch.setenv("OPENROUTER_API_KEY", "test-key")
     store = MemoryStore()
     app = CliApp(store=store, console=Console(file=io.StringIO()))
     assert app.handle_command("/solvents all") is False
@@ -558,7 +558,7 @@ def test_bare_solvents_non_tty_prints_status(tmp_path, monkeypatch):
 
     from rich.console import Console
 
-    monkeypatch.setenv("META_MUSE_API_KEY", "test-key")
+    monkeypatch.setenv("OPENROUTER_API_KEY", "test-key")
     monkeypatch.setattr("sys.stdin.isatty", lambda: False)
     monkeypatch.setattr("sys.stdout.isatty", lambda: True)
     buf = io.StringIO()
@@ -577,7 +577,7 @@ def test_bare_solvents_dumb_term_prints_status(tmp_path, monkeypatch):
 
     from rich.console import Console
 
-    monkeypatch.setenv("META_MUSE_API_KEY", "test-key")
+    monkeypatch.setenv("OPENROUTER_API_KEY", "test-key")
     monkeypatch.setenv("TERM", "dumb")
     monkeypatch.setattr("sys.stdin.isatty", lambda: True)
     monkeypatch.setattr("sys.stdout.isatty", lambda: True)
@@ -602,7 +602,7 @@ def test_bare_solvents_stdout_pipe_prints_status(tmp_path, monkeypatch):
 
     from rich.console import Console
 
-    monkeypatch.setenv("META_MUSE_API_KEY", "test-key")
+    monkeypatch.setenv("OPENROUTER_API_KEY", "test-key")
     monkeypatch.setattr("sys.stdin.isatty", lambda: True)
     monkeypatch.setattr("sys.stdout.isatty", lambda: False)
     buf = io.StringIO()
@@ -622,7 +622,7 @@ def test_bare_solvents_picker_sets_common(tmp_path, monkeypatch):
 
     from dissolve.cli import _solvents_picker_options
 
-    monkeypatch.setenv("META_MUSE_API_KEY", "test-key")
+    monkeypatch.setenv("OPENROUTER_API_KEY", "test-key")
     options, selected = _solvents_picker_options("all")
     assert selected == 1
     labels = " ".join(label for _value, label in options)
@@ -650,7 +650,7 @@ def test_bare_solvents_picker_rejects_unknown(tmp_path, monkeypatch):
 
     from rich.console import Console
 
-    monkeypatch.setenv("META_MUSE_API_KEY", "test-key")
+    monkeypatch.setenv("OPENROUTER_API_KEY", "test-key")
     app = CliApp(
         session_id="solvents-bad",
         store_root=tmp_path,
@@ -665,7 +665,7 @@ def test_bare_solvents_quiet_never_prompts(tmp_path, monkeypatch):
 
     from rich.console import Console
 
-    monkeypatch.setenv("META_MUSE_API_KEY", "test-key")
+    monkeypatch.setenv("OPENROUTER_API_KEY", "test-key")
     monkeypatch.setattr("sys.stdin.isatty", lambda: True)
     monkeypatch.setattr("sys.stdout.isatty", lambda: True)
     buf = io.StringIO()

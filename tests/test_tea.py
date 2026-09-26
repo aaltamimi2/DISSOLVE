@@ -7345,7 +7345,7 @@ def test_preview_does_not_call_live(tmp_path, monkeypatch):
 def test_sheet_print_shows_standing_badge(tmp_path, monkeypatch):
     _write_matching_pe_package(tmp_path)
     monkeypatch.setenv("DISSOLVE_PLASTICS_PATH", str(tmp_path))
-    monkeypatch.setenv("META_MUSE_API_KEY", "test-key")
+    monkeypatch.setenv("OPENROUTER_API_KEY", "test-key")
     buf = io.StringIO()
     app = CliApp(
         session_id="test-session",

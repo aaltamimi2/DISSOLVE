@@ -9442,7 +9442,7 @@ def rank_landscape(
     allow_partial_campaign: bool = False,
     handle: Optional[str] = None,
     planner_solvent_map: Optional[dict[str, Any]] = None,
-    allowed_solvents: Optional[dict[str, Any] | list[Any]] = None,
+    allowed_solvents: Optional[dict[str, list[str]] | list[str]] = None,
     feed_mass_fractions: Optional[dict[str, Any]] = None,
     objective: Optional[str] = None,
     scenario: Optional[str] = None,

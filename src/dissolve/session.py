@@ -355,8 +355,9 @@ def estimated_tokens(messages: list) -> int:
 
 
 # Working windows well inside the provider's limit: Muse Spark 1.2 and 1.3 take 1,048,576 tokens
-# (dev.meta.ai/docs/models). 256k is the owner's stopgap until a single query needs fewer tokens.
-_FAMILY_WINDOWS = {"muse_spark": 256_000}
+# (dev.meta.ai/docs/models), and so does Gemini 3.8 Flash through OpenRouter. 256k is the owner's stopgap
+# until a single query needs fewer tokens.
+_FAMILY_WINDOWS = {"muse_spark": 256_000, "google/gemini": 256_000}
 
 
 def context_window(model: str) -> int:

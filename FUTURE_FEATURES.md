@@ -211,7 +211,7 @@ The two methods rank solvents alike but disagree on the level, and almost always
 
 ### Cut the per-query token use
 
-- The Muse window was raised to 256k (`session._FAMILY_WINDOWS`) as a stopgap, with the owner's note: "once agent is finalized we'll want to clear this up".
+- The Muse window was raised to 256k (`session._FAMILY_WINDOWS`) as a stopgap, with the owner's note: "once agent is finalized we'll want to clear this up". The OpenRouter Gemini default has the same 256k window.
 - The agent still sometimes reads more result pages than it needs. One CLI example made 3 tool calls where 1 would do.
 
 ## Web app and hosting

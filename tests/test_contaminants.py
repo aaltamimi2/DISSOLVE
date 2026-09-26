@@ -372,7 +372,7 @@ def test_served_catalog_marks_only_cas_verified_as_identity_verified():
 
 # --- from test_contaminant_cli.py: v3 §8 commit 1: /contaminant CLI skin, not a solvents bind.
 def _app(tmp_path, monkeypatch, **kwargs):
-    monkeypatch.setenv("META_MUSE_API_KEY", "test-key")
+    monkeypatch.setenv("OPENROUTER_API_KEY", "test-key")
     buf = io.StringIO()
     app = CliApp(
         session_id="contaminant-cli",

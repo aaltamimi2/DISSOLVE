@@ -1459,7 +1459,7 @@ def _strike_phrases() -> tuple[str, ...]:
 
 
 def _app(tmp_path, monkeypatch):
-    monkeypatch.setenv("META_MUSE_API_KEY", "test-key")
+    monkeypatch.setenv("OPENROUTER_API_KEY", "test-key")
     buf = io.StringIO()
     console = Console(file=buf, force_terminal=True, width=80, color_system=None)
     app = CliApp(

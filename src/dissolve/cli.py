@@ -726,10 +726,16 @@ class ModelSpec:
     base_url: str | None = None
 
 
+OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
+
 MODELS = {
+    "openrouter-gemini-flash": ModelSpec(
+        "Gemini 3.8 Flash · OpenRouter", "openai:google/gemini-3.8-flash", "OPENROUTER_API_KEY",
+        "Default · via OpenRouter", OPENROUTER_BASE_URL,
+    ),
     "gemini-flash": ModelSpec(
         "Gemini 3.5 Flash", "google_genai:gemini-3.5-flash", "GOOGLE_API_KEY",
-        "Default · stronger tool reasoning",
+        "Stronger tool reasoning",
     ),
     "gemini-flash-lite": ModelSpec(
         "Gemini 3.1 Flash Lite", "google_genai:gemini-3.1-flash-lite", "GOOGLE_API_KEY",
@@ -748,8 +754,10 @@ MODELS = {
         "Reasoning model · Meta API", "https://api.meta.ai/v1",
     ),
 }
-MODEL_ALIASES = {"gemini": "gemini-flash", "claude": "claude-sonnet", "muse": "muse-spark"}
-DEFAULT_MODEL = "muse-spark"
+MODEL_ALIASES = {
+    "gemini": "gemini-flash", "claude": "claude-sonnet", "muse": "muse-spark", "openrouter": "openrouter-gemini-flash",
+}
+DEFAULT_MODEL = "openrouter-gemini-flash"
 
 # Declared post-consolidation public roster. Doctor compares the live
 # registry to this list, not to BY_NAME. Changing the surface is two
@@ -886,7 +894,7 @@ def doctor_report(
         checks.append({"name": name, "status": status, "detail": detail, **facts})
 
     selected_alias, selected_spec = resolve_model(model_alias or DEFAULT_MODEL)
-    supported_keys = ("GOOGLE_API_KEY", "ANTHROPIC_API_KEY", "META_MUSE_API_KEY")
+    supported_keys = ("OPENROUTER_API_KEY", "GOOGLE_API_KEY", "ANTHROPIC_API_KEY", "META_MUSE_API_KEY")
     available_keys = [name for name in supported_keys if os.getenv(name)]
     selected_provider_ready = bool(os.getenv(selected_spec.env_var))
     provider_detail = (

@@ -1743,6 +1743,8 @@ def test_context_window_defaults_only_when_alias_omits_it():
     # Muse Spark takes 1,048,576 tokens; 256k is the working window the owner chose for now.
     for muse in ("openai:muse-spark-1.3", "openai:muse-spark-1.2", "openai:muse-spark-1.3-contributor"):
         assert context_window(muse) == 256_000
+    # So does Gemini 3.8 Flash through OpenRouter, the default since 2026-09-26.
+    assert context_window(cli.MODELS[cli.DEFAULT_MODEL].model) == 256_000
 
 
 def test_compaction_does_not_read_turn_records():
@@ -2196,7 +2198,7 @@ def _console():
 
 
 def _app(tmp_path, monkeypatch, **kwargs):
-    monkeypatch.setenv("META_MUSE_API_KEY", "test-key")
+    monkeypatch.setenv("OPENROUTER_API_KEY", "test-key")
     console, buf = _console()
     app = CliApp(
         session_id="test-session",
@@ -2241,6 +2243,12 @@ def test_resolve_model_aliases_and_default():
     assert spec.model == "openai:muse-spark-1.3"
     assert spec.env_var == "META_MUSE_API_KEY"
     assert spec.base_url == "https://api.meta.ai/v1"
+    # Meta blocked the project's Muse key on 2026-09-26; the default moved to Gemini through OpenRouter.
+    alias, spec = resolve_model("openrouter")
+    assert alias == cli.DEFAULT_MODEL == "openrouter-gemini-flash"
+    assert spec.model == "openai:google/gemini-3.8-flash"
+    assert spec.env_var == "OPENROUTER_API_KEY"
+    assert spec.base_url == "https://openrouter.ai/api/v1"
     with pytest.raises(ValueError, match="Unknown model alias"):
         resolve_model("not-a-model")
 
@@ -2321,7 +2329,7 @@ def test_persist_roundtrip_messages_and_handle(tmp_path, monkeypatch):
     assert payload["schema_version"] == 2
     assert payload["release"] == "dissolve-v12-0.1"
     assert payload["metadata"]["mode"] == "review"
-    assert payload["metadata"]["model"] == "muse-spark"
+    assert payload["metadata"]["model"] == "openrouter-gemini-flash"
     assert any(m.get("role") == "user" and m.get("content") == "screen LDPE" for m in payload["messages"])
     stored = payload["session"]["handles"]["calm-blue-cat"]
     assert stored["tool"] == "screen_polymer_separation"
@@ -2480,8 +2488,8 @@ def test_compaction_error_uses_notice_panel(tmp_path, monkeypatch):
 
 
 def test_startup_requires_named_key(tmp_path, monkeypatch):
-    monkeypatch.delenv("META_MUSE_API_KEY", raising=False)
-    with pytest.raises(RuntimeError, match="META_MUSE_API_KEY"):
+    monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
+    with pytest.raises(RuntimeError, match="OPENROUTER_API_KEY"):
         CliApp(session_id="key-check", store_root=tmp_path, persist=False, require_key=True)
 
 
@@ -2521,7 +2529,7 @@ def test_banner_subtitle_is_v12_release(tmp_path, monkeypatch):
 
 
 def test_interactive_path_draws_banner_models_and_prompt(tmp_path, monkeypatch):
-    monkeypatch.setenv("META_MUSE_API_KEY", "test-key")
+    monkeypatch.setenv("OPENROUTER_API_KEY", "test-key")
     buf = io.StringIO()
     console = Console(file=buf, width=96, force_terminal=False)
     prompts = []
@@ -2593,7 +2601,7 @@ def test_load_strips_stale_turn_and_incomplete_tool_round(tmp_path, monkeypatch)
 
 
 def test_resume_missing_handle_is_named_refusal_not_crash(tmp_path, monkeypatch):
-    monkeypatch.setenv("META_MUSE_API_KEY", "test-key")
+    monkeypatch.setenv("OPENROUTER_API_KEY", "test-key")
     n = {"i": 0}
 
     def fake_complete(messages, tools, **kwargs):
@@ -2795,7 +2803,7 @@ def test_oneshot_resolves_through_cli_table(monkeypatch, tmp_path):
         seen["query"] = query
         return TurnResult("ok", "ok", [], "turn-1")
 
-    monkeypatch.setenv("META_MUSE_API_KEY", "test-key")
+    monkeypatch.setenv("OPENROUTER_API_KEY", "test-key")
     monkeypatch.setenv("DISSOLVE_HOME", str(tmp_path))
     monkeypatch.setattr(sys, "argv", ["agent.py", "hello"])
     monkeypatch.setattr(cli, "run_turn", fake_run_turn)
@@ -2803,14 +2811,14 @@ def test_oneshot_resolves_through_cli_table(monkeypatch, tmp_path):
         agent._main()
     assert exc.value.code == 0
     assert seen["query"] == "hello"
-    assert seen["model"] == "openai:muse-spark-1.3"
-    assert seen["api_base"] == "https://api.meta.ai/v1"
-    assert seen["api_key_env"] == "META_MUSE_API_KEY"
+    assert seen["model"] == "openai:google/gemini-3.8-flash"
+    assert seen["api_base"] == "https://openrouter.ai/api/v1"
+    assert seen["api_key_env"] == "OPENROUTER_API_KEY"
 
 
 def test_positional_oneshot_persists_exact_tool_result(tmp_path, monkeypatch, capsys):
     home = tmp_path / "dissolve-home"
-    monkeypatch.setenv("META_MUSE_API_KEY", "test-key")
+    monkeypatch.setenv("OPENROUTER_API_KEY", "test-key")
     monkeypatch.setenv("DISSOLVE_HOME", str(home))
     monkeypatch.setattr(sys, "argv", ["agent.py", "what is the safety of dodecane?"])
     monkeypatch.setattr(
@@ -2842,7 +2850,7 @@ def test_positional_oneshot_persists_exact_tool_result(tmp_path, monkeypatch, ca
 
 
 def test_positional_oneshot_missing_key_is_provider_error(tmp_path, monkeypatch, capsys):
-    monkeypatch.delenv("META_MUSE_API_KEY", raising=False)
+    monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
     monkeypatch.setenv("DISSOLVE_HOME", str(tmp_path / "home"))
     monkeypatch.setattr(sys, "argv", ["agent.py", "hello"])
     try:
@@ -2854,7 +2862,7 @@ def test_positional_oneshot_missing_key_is_provider_error(tmp_path, monkeypatch,
     out, err = capsys.readouterr()
     assert "Traceback" not in err
     assert "RuntimeError" not in err
-    assert "missing environment variable META_MUSE_API_KEY" in out
+    assert "missing environment variable OPENROUTER_API_KEY" in out
     assert "status=provider_error" in out
     assert "Traceback" not in out
 
@@ -2867,7 +2875,7 @@ def test_usage_is_display_only_except_the_cost_line(tmp_path, monkeypatch):
         def now(cls, tz=None):
             return datetime(2026, 8, 18, 6, 0, 0, tzinfo=tz or timezone.utc)
 
-    monkeypatch.setenv("META_MUSE_API_KEY", "test-key")
+    monkeypatch.setenv("OPENROUTER_API_KEY", "test-key")
     monkeypatch.setattr(cli, "datetime", FrozenDateTime)
     monkeypatch.setattr(cli.time, "monotonic", lambda: 1000.0)
 
@@ -2984,7 +2992,7 @@ def test_stream_json_emits_complete_tool_result(tmp_path, monkeypatch):
     monkeypatch.setattr(cli, "run_turn", _safety_turn)
     events = []
     console, buf = _console()
-    monkeypatch.setenv("META_MUSE_API_KEY", "test-key")
+    monkeypatch.setenv("OPENROUTER_API_KEY", "test-key")
     app = CliApp(
         session_id="stream-json",
         store_root=tmp_path,
@@ -3185,7 +3193,7 @@ def _console_cli_process_sheet(width=80):
 
 
 def _app_cli_process_sheet(tmp_path, monkeypatch, *, console_width=80, **kwargs):
-    monkeypatch.setenv("META_MUSE_API_KEY", "test-key")
+    monkeypatch.setenv("OPENROUTER_API_KEY", "test-key")
     console, buf = _console_cli_process_sheet(console_width)
     app = CliApp(
         session_id="test-session",
@@ -5787,7 +5795,7 @@ def test_registry_still_two_public_tea_names_and_planner_is_not_new():
 
 
 def test_slash_breadth_sets_and_clear_drops(tmp_path, monkeypatch):
-    monkeypatch.setenv("META_MUSE_API_KEY", "test-key")
+    monkeypatch.setenv("OPENROUTER_API_KEY", "test-key")
     import io
 
     from rich.console import Console
@@ -5816,7 +5824,7 @@ def test_slash_breadth_sets_and_clear_drops(tmp_path, monkeypatch):
 
 
 def test_bare_breadth_non_tty_prints_status(tmp_path, monkeypatch):
-    monkeypatch.setenv("META_MUSE_API_KEY", "test-key")
+    monkeypatch.setenv("OPENROUTER_API_KEY", "test-key")
     monkeypatch.setattr("sys.stdin.isatty", lambda: False)
     import io
 
@@ -5833,7 +5841,7 @@ def test_bare_breadth_non_tty_prints_status(tmp_path, monkeypatch):
 
 
 def test_bare_breadth_picker_presets_and_all(tmp_path, monkeypatch):
-    monkeypatch.setenv("META_MUSE_API_KEY", "test-key")
+    monkeypatch.setenv("OPENROUTER_API_KEY", "test-key")
     import io
 
     from rich.console import Console
@@ -5865,7 +5873,7 @@ def test_bare_breadth_picker_presets_and_all(tmp_path, monkeypatch):
 
 
 def test_bare_breadth_picker_custom_bound(tmp_path, monkeypatch):
-    monkeypatch.setenv("META_MUSE_API_KEY", "test-key")
+    monkeypatch.setenv("OPENROUTER_API_KEY", "test-key")
     import io
 
     from rich.console import Console
@@ -5906,7 +5914,7 @@ def test_bare_breadth_picker_custom_bound(tmp_path, monkeypatch):
 
 
 def test_bare_breadth_picker_window_followup(tmp_path, monkeypatch):
-    monkeypatch.setenv("META_MUSE_API_KEY", "test-key")
+    monkeypatch.setenv("OPENROUTER_API_KEY", "test-key")
     import io
 
     from rich.console import Console
@@ -6633,7 +6641,7 @@ def test_dispatch_evaluate_process_selector_is_named_refuse(monkeypatch):
 
 # --- from test_literature_mode.py: /literature is a tool-list gate. Ingest is never offered. Off is the default.
 def _app_literature_mode(tmp_path, monkeypatch, *, session_id: str = "literature-cli", **kwargs):
-    monkeypatch.setenv("META_MUSE_API_KEY", "test-key")
+    monkeypatch.setenv("OPENROUTER_API_KEY", "test-key")
     buf = io.StringIO()
     app = CliApp(
         session_id=session_id,
@@ -6789,6 +6797,60 @@ def test_a_briefly_overloaded_provider_is_retried_before_the_turn_fails(monkeypa
     with pytest.raises(RuntimeError, match="constructed"):
         agent.complete([{"role": "user", "content": "hi"}], [], model="openai:muse-spark-1.3")
     assert seen["max_retries"] == agent._PROVIDER_RETRIES >= 5
+
+
+def test_every_tool_schema_declares_its_list_items():
+    """Gemini refuses a function declaration whose array has no item type: the first OpenRouter turn on 2026-09-26
+    failed 400 on rank_landscape.allowed_solvents (list[Any]) and screen_contaminant_leaching.computed_deltas (a
+    Mapping, which the schema dropped). Muse accepted both. Every array in every tool now names its items."""
+    def untyped(node, path=()):
+        found = []
+        if isinstance(node, dict):
+            items = node.get("items")
+            if node.get("type") == "array" and not (isinstance(items, dict) and (items.get("type") or items.get("anyOf"))):
+                found.append(path)
+            found += [path + ("anyOf",) for variant in node.get("anyOf") or [] if not variant]
+            for key, value in node.items():
+                found += untyped(value, path + (key,))
+        elif isinstance(node, list):
+            for index, value in enumerate(node):
+                found += untyped(value, path + (index,))
+        return found
+
+    schemas = [agent.tool_schema_for(name) for name in sorted(agent.BY_NAME)] + agent.tool_schemas()
+    assert {s["name"]: untyped(s["parameters"]) for s in schemas if untyped(s["parameters"])} == {}
+    leaching = agent.tool_schema_for("screen_contaminant_leaching")["parameters"]["properties"]["computed_deltas"]
+    assert leaching == {"anyOf": [{"type": "array", "items": {"type": "object"}}, {"type": "object"}]}
+
+
+def test_openrouter_requests_go_only_to_hosts_that_keep_no_prompts_for_training(monkeypatch):
+    """OpenRouter hands a request to one of several hosts for the model, and some hosts train on prompts. The
+    test questions include held-out rows, so every OpenRouter request asks for hosts that collect no data. The
+    Meta endpoint takes no OpenRouter routing field."""
+    import openai
+    sent = []
+
+    class Client:
+        def __init__(self, **kwargs):
+            self.chat = self
+            self.completions = self
+
+        def create(self, **kwargs):
+            sent.append(kwargs)
+            message = type("M", (), {"content": "ok", "tool_calls": None})()
+            return type("R", (), {"choices": [type("C", (), {"message": message})()], "usage": None})()
+
+    monkeypatch.setattr(openai, "OpenAI", Client)
+    monkeypatch.setenv("OPENROUTER_API_KEY", "test-key")
+    monkeypatch.setenv("META_MUSE_API_KEY", "test-key")
+    spec = cli.MODELS[cli.DEFAULT_MODEL]
+    hi = [{"role": "user", "content": "hi"}]
+    assert agent.complete(hi, [], model=spec.model, api_base=spec.base_url, api_key_env=spec.env_var)["text"] == "ok"
+    muse = cli.MODELS["muse-spark"]
+    agent.complete(hi, [], model=muse.model, api_base=muse.base_url, api_key_env=muse.env_var)
+    assert sent[0]["extra_body"] == {"provider": {"data_collection": "deny"}}
+    assert sent[0]["model"] == "google/gemini-3.8-flash"
+    assert "extra_body" not in sent[1]
 
 
 def test_system_prompt_screens_once_and_treats_requirements_as_filters():

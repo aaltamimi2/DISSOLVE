@@ -6,9 +6,11 @@ import json
 import os
 import re
 import sys
+from collections.abc import Mapping as AbcMapping
 from collections.abc import Sequence as AbcSeq
 from dataclasses import dataclass
 from types import UnionType
+from urllib.parse import urlsplit
 from typing import (
     Annotated,
     Any,
@@ -392,7 +394,7 @@ def _ptype(ann: Any) -> dict[str, Any]:
         if args and (item := _ptype(args[0])):
             out["items"] = item
         return out
-    if origin is dict:
+    if origin in (dict, AbcMapping):
         return {"type": "object"}
     return {bool: {"type": "boolean"}, int: {"type": "integer"}, float: {"type": "number"}, str: {"type": "string"}}.get(ann, {})
 
@@ -1073,6 +1075,10 @@ def _fold_usage(acc):
 # before the turn gives up; the SDK default of two retries ended users' turns during short overloads.
 _PROVIDER_RETRIES = 5
 
+# OpenRouter hands each request to one of several hosts for the model. Only hosts that keep no prompts for
+# training may take ours: the test questions include held-out rows that must not reach a training set.
+_EXTRA_BODY_BY_HOST = {"openrouter.ai": {"provider": {"data_collection": "deny"}}}
+
 def complete(messages, tools, *, model, api_base=None, api_key_env=None):
     kind, _, ident = model.partition(":")
     ident = ident or model
@@ -1105,8 +1111,9 @@ def complete(messages, tools, *, model, api_base=None, api_key_env=None):
     if kind == "openai":
         from openai import OpenAI
         oai = [{"type": "function", "function": {"name": t["name"], "description": t.get("description") or "", "parameters": t["parameters"]}} for t in tools]
+        extra = _EXTRA_BODY_BY_HOST.get(urlsplit(api_base or "").hostname or "")
         resp = OpenAI(api_key=key or None, base_url=api_base or None, max_retries=_PROVIDER_RETRIES).chat.completions.create(
-            model=ident, messages=_oai_msgs(messages), tools=oai)
+            model=ident, messages=_oai_msgs(messages), tools=oai, **({"extra_body": extra} if extra else {}))
         msg = resp.choices[0].message
         calls = []
         for c in msg.tool_calls or []:
