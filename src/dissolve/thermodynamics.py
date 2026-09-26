@@ -411,6 +411,33 @@ def resolve_polymer(name: str, known: Optional[set[str]] = None) -> Optional[str
     return str(default) if default in candidates else None
 
 
+_NAME_ANNOTATIONS = frozenset({"DM"})  # "Trinitrotoluene (TNT) (DM)" ends in a data annotation, not a name
+
+
+@lru_cache(maxsize=1)
+def _property_name_labels() -> dict[str, str]:
+    """Labels a property name spells out that no registered alias covers: "N-Methyl-2-Pyrrolidone (NMP)" also answers
+    to "N-Methyl-2-Pyrrolidone" and to "NMP". A label two solvents would share is left out."""
+    registered = _aliases()
+    found: dict[str, Optional[str]] = {}
+    for row in registered.values():
+        match = _TERMINAL_COMPOSITE_LABEL.fullmatch(str(row.get("property_name") or ""))
+        if not match:
+            continue
+        base, tail = match.group(1).strip(), match.group(2).strip()
+        labels = [base.lower()]
+        if re.fullmatch(r"[A-Z]{2,6}", tail) and tail not in _NAME_ANNOTATIONS:
+            labels.append(tail.lower())
+        for label in labels:
+            if label in registered:
+                continue
+            if label in found and found[label] != row.get("interp_key"):
+                found[label] = None
+            else:
+                found.setdefault(label, row.get("interp_key"))
+    return {label: key for label, key in found.items() if key}
+
+
 def _resolve_solvent_atom(name: str, candidates: set[str]) -> Optional[str]:
     """Resolve one exact solvent identity or registered alias without guessing."""
     normalized = str(name).strip().lower()
@@ -424,7 +451,8 @@ def _resolve_solvent_atom(name: str, candidates: set[str]) -> Optional[str]:
         if source_alias in candidates:
             resolved = source_alias
         else:
-            registered_alias = _aliases().get(normalized, {}).get("interp_key")
+            registered_alias = _aliases().get(normalized, {}).get("interp_key") or _property_name_labels().get(
+                normalized)
             if registered_alias in candidates:
                 resolved = str(registered_alias)
     if resolved is None:
@@ -988,6 +1016,8 @@ def _refuse_solvents_out_of_scope(tool: str, resolved: Sequence[str]) -> str | N
         "Solvent(s) not in the active solvent scope: " + ", ".join(outside),
         error_code="solvent_not_in_scope",
         solvents=outside,
+        remedy=("These are outside the default screening set, not unknown. When the user named them, repeat this "
+                "call with solvent_scope='all'."),
         **solvent_scope_stamp(),
     )
 
@@ -2371,6 +2401,7 @@ def screen_polymer_separation(
     else:
         candidate_limit = 5 if single else 3
     directions, combined, recommendations = [], [], {}
+    qualifying_totals: dict[str, int] = {}
     screened_conditions = 0
     atmospheric_exclusions = _atmospheric_exclusion_counts()
     common_temperature_counts = (
@@ -2501,10 +2532,13 @@ def screen_polymer_separation(
                 "lower_hazard_alternatives_truncated", "ghs_danger_unavoidable",
             )},
         } if best else None)
+        qualifying_totals[target] = sum(1 for item in complete_candidates if item.get(threshold_field))
         directions.append({
             "dissolved_polymer": target,
             "retained_polymers": retained,
             "predicted_viable": predicted_viable,
+            "qualifying_total": qualifying_totals[target],
+            "shortlist_size": len(candidates),
             "best_candidate": best,
             "failure_reason": (
                 None if predicted_viable
@@ -2721,6 +2755,11 @@ def screen_polymer_separation(
         solubility_unit="wt_pct_solution_concentration",
         target_recommendations=recommendations,
         screened_directions=directions,
+        # A shortlist is not the screen: how many solvents met the threshold for each target, against how many
+        # ranked_candidates shows (the default keeps 5 for one polymer, 3 per target otherwise).
+        qualifying_total_by_target=qualifying_totals,
+        shortlist_per_target=candidate_limit,
+        shortlist_is_default=top_k is None,
         ranked_candidates=combined,
         recommended_condition=recommended,
         best_result_is_weak=weak,

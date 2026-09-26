@@ -6801,3 +6801,16 @@ def test_the_hansen_screen_names_the_solvents_inside_a_sphere_on_its_own():
     assert data["solvent_set"].startswith("DISSOLVE's") and "curated Hansen solvents" in data["solvent_set"]
     named = _data(agent.BY_NAME["screen_hansen_compatibility"].fn(polymer_names=["PVDF"], solvent_names=["acetone"]))
     assert named["solvent_set"] == "requested" and {row["solvent"] for row in named["rows"]} == {"Acetone"}
+
+
+def test_the_prompt_lets_the_tools_rank_and_qualifies_hot_hansen_checks():
+    """Validation 2026-09-25: ranking by hand broke ties silently and misapplied the least-safe rule; a shortlist
+    passed for the whole screen; and a 160 °C step was called 'contradicted' by room-temperature Hansen parameters,
+    which the owner pointed out cannot contradict it."""
+    prompt = " ".join(agent.SYSTEM_PROMPT.split())
+    assert "Let the tools rank; report their order." in prompt
+    assert "pass rank_by to compare_solvent_safety_at_conditions" in prompt
+    assert "objective max_stage_chem21 or min_stage_g_score" in prompt
+    assert 'A shortlist is not the screen. When a screen shows fewer candidates than qualified' in prompt
+    assert "for a step above about 60 °C, call the Hansen verdict indicative only, never a contradiction." in prompt
+    assert "never by its record label" in prompt

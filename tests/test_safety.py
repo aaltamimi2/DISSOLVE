@@ -1685,3 +1685,37 @@ def test_peroxide_classes_come_from_the_sourced_lists():
     toluene = risk("toluene")
     assert toluene["peroxide_former_class"] == "not listed"
     assert "not a finding that it cannot form peroxides" in toluene["peroxide_former_label"]
+
+
+def test_safety_comparison_ranks_every_candidate_with_ties_and_missing_scores_last():
+    """Validation 2026-09-25: asked to rank solvents by safety, the agent ranked them itself. It broke a three-way
+    CHEM21 tie silently, stated one criterion while its table followed another, and ranked only the first page of a
+    screen. The tool now ranks by a named criterion over every candidate."""
+    names = ["dichloromethane", "THF", "acetone", "ethyl acetate", "cyclohexanone"]
+    out = json.loads(safety.compare_solvent_safety_at_conditions(
+        candidates=[{"solvent_name": name} for name in names], rank_by="chem21", limit=2))["data"]
+    ranking = out["ranking"]
+    assert out["ranked_total"] == 5 and len(out["comparison_rows"]) == 2
+    assert [entry["rank"] for entry in ranking] == [1, 1, 1, 4, 5]
+    assert [entry["tied"] for entry in ranking] == [True, True, True, False, False]
+    assert ranking[-1]["solvent"] == "Dichloromethane" and ranking[-1]["chem21_default_ranking"] == "hazardous"
+    greener = json.loads(safety.compare_solvent_safety_at_conditions(
+        candidates=[{"solvent_name": name} for name in ("dipentene", "acetone", "ethanol")], rank_by="g_score"))["data"]
+    assert [entry["solvent"] for entry in greener["ranking"]][:2] == ["Ethanol", "Acetone"]
+    assert greener["ranking"][-1]["rank"] is None and greener["ranking"][-1]["missing"] == "G score"
+    refused = json.loads(safety.compare_solvent_safety_at_conditions(
+        candidates=[{"solvent_name": "ethanol"}], rank_by="toxicity"))["data"]
+    assert refused["error_code"] == "invalid_rank_by"
+
+
+def test_abbreviations_and_spelled_out_names_find_their_solvent():
+    """"Is NMP safe to use?" got "DISSOLVE has no safety values for NMP": the record is filed as
+    "N-Methyl-2-Pyrrolidone (NMP)" and neither "NMP" nor "N-methyl-2-pyrrolidone" reached it."""
+    from dissolve import thermodynamics as thermo
+    for name in ("NMP", "N-methyl-2-pyrrolidone"):
+        assert thermo.resolve_solvent(name) == "n-methyl-2-pyrrolidinone"
+        assert safety._local_properties(name)["cas_number"] == "872-50-4"
+    assert thermo.resolve_solvent("MIBK") == "4-methyl-2-pentanone"
+    assert thermo.resolve_solvent("DM") is None          # a data annotation, not a name
+    card = safety.build_safety_profile("NMP", include_pubchem=True)
+    assert card["chem21_default_ranking"] == "hazardous"  # as the published CHEM21 guide ranks NMP

@@ -166,6 +166,14 @@ def _local_properties(query: str) -> dict[str, Any]:
                     else admission.get("boiling_point_c")
                 )
             return result
+    resolved = thermo.resolve_solvent(query)  # the grid's resolver knows spelled-out names and abbreviations
+    if resolved and resolved.casefold() != str(query).strip().casefold():
+        alias = thermo._aliases().get(resolved, {})
+        for label in (alias.get("property_name"), alias.get("cas_number")):
+            if label:
+                found = _local_properties(str(label))
+                if found.get("cas_number") or found.get("cid"):
+                    return found
     return {"name": query}
 
 
@@ -1897,9 +1905,10 @@ def format_safety_card(profile: dict[str, Any]) -> str:
     return _box("DISSOLVE SAFETY CARD", lines)
 
 
-def format_safety_comparison(rows: list[dict[str, Any]]) -> str:
+def format_safety_comparison(rows: list[dict[str, Any]], ranked_by: Optional[str] = None) -> str:
     lines = [
-        "Candidate-specific setpoints; input order preserved.",
+        f"Candidate-specific setpoints; ranked by {ranked_by}." if ranked_by
+        else "Candidate-specific setpoints; input order preserved.",
         f"{'Solvent':<20} {'Set C':>6} {'BP C':>6} {'BP Δ':>6} {'Flash':>6} {'AI Δ':>6} {'G':>5} {'GHS':<7} {'Risk':<10}",
         "─" * 96,
     ]
@@ -2116,13 +2125,39 @@ def _normalize_safety_candidate(candidate: Any) -> Any:
     return normalized
 
 
+_RANK_CANDIDATE_CAP = 40
+_RANK_RULES = {
+    "chem21": ("min", "CHEM21 worst of Safety/Health/Environment, the published band (recommended, problematic, "
+                      "hazardous) first, then the highest score; lower is safer"),
+    "chem21_safety": ("min", "CHEM21 Safety score alone; lower is safer"),
+    "g_score": ("max", "GSK G score; higher is greener"),
+}
+
+
+def _rank_value(profile: dict[str, Any], rank_by: str) -> Optional[float]:
+    if rank_by == "chem21":
+        return _number(_chem21_worst(profile))
+    if rank_by == "chem21_safety":
+        return _number(profile.get("chem21_safety_score"))
+    return _number((profile.get("gscore") or {}).get("g_score"))
+
+
 def compare_solvent_safety_at_conditions(
     candidates: list[dict[str, Any]] | None = None,
     include_pubchem: bool = True,
     limit: int = 6,
+    rank_by: Optional[Literal["chem21", "chem21_safety", "g_score"]] = None,
 ) -> str:
-    """Compare ordered process solvents at their own exact candidate temperatures."""
+    """Compare process solvents at their own temperatures; rank_by (chem21, chem21_safety, g_score) ranks every candidate, ties shared and missing scores last.
+
+    Without rank_by the candidates keep their given order and at most `limit` are compared. With rank_by, up to 40
+    candidates (named, or inherited from the screen just run) are ranked by that criterion: `ranking` lists every one
+    with its rank, value, and whether it ties or lacks the score, and `comparison_rows` gives the full safety detail of
+    the first `limit`. A missing score never counts in a candidate's favour: it ranks after every scored one.
+    """
     tool = "compare_solvent_safety_at_conditions"
+    if rank_by is not None and rank_by not in _RANK_RULES:
+        return tool_error(tool, f"rank_by must be one of {sorted(_RANK_RULES)}.", error_code="invalid_rank_by")
     if candidates is not None and not isinstance(candidates, list):
         return tool_error(tool, "Candidates must be a list.", error_code="invalid_candidates")
     if candidates is not None:
@@ -2168,7 +2203,7 @@ def compare_solvent_safety_at_conditions(
         if key not in seen:
             normalized.append({"solvent_name": name, "operating_temp_c": operating})
             seen.add(key)
-        if len(normalized) >= bounded:
+        if len(normalized) >= (_RANK_CANDIDATE_CAP if rank_by else bounded):
             break
     try:
         profiles = [
@@ -2178,15 +2213,49 @@ def compare_solvent_safety_at_conditions(
     except SafetySnapshotRefuse as error:
         return _refuse_snapshot(tool, error)
     rows = [_row(profile) for profile in profiles]
+    ranking: list[dict[str, Any]] = []
+    if rank_by:
+        direction = _RANK_RULES[rank_by][0]
+        values = [_rank_value(profile, rank_by) for profile in profiles]
+        order = sorted(range(len(rows)), key=lambda i: (
+            values[i] is None, (values[i] if direction == "min" else -values[i]) if values[i] is not None else 0.0, i))
+        scored = [values[i] for i in order if values[i] is not None]
+        for i in order:
+            value = values[i]
+            better = sum(1 for other in scored if (other < value if direction == "min" else other > value)) \
+                if value is not None else None
+            entry = {
+                "rank": None if value is None else better + 1,
+                "solvent": rows[i]["solvent"],
+                "operating_temp_c": rows[i]["operating_temp_c"],
+                "tied": value is not None and scored.count(value) > 1,
+                "missing": None if value is not None else ("G score" if rank_by == "g_score" else "CHEM21 score"),
+            }
+            if rank_by == "g_score":
+                entry.update(g_score=rows[i]["g_score"], g_score_is_ml_predicted=rows[i]["g_score_is_ml_predicted"])
+            else:
+                entry.update({key: profiles[i].get(key) for key in (
+                    "chem21_safety_score", "chem21_health_score", "chem21_environment_score", "chem21_default_ranking")})
+            ranking.append(entry)
+        rows = [rows[i] for i in order][:bounded]
     inherited_scope = candidate_source if inherited else None
     source_families = list(dict.fromkeys(
         source for row in rows for source in _model_source_families(row)
     ))
     risk_order = {"critical": 5, "high": 4, "moderate": 3, "low": 2, "incomplete": 1, "not_assessed": 0}
     highest = max((row["heating_risk_level"] for row in rows), key=lambda value: risk_order.get(value, 0))
-    display = format_safety_comparison(rows)
+    display = format_safety_comparison(rows, _RANK_RULES[rank_by][1] if rank_by else None)
+    ranked_fields: dict[str, Any] = {}
+    if rank_by:
+        ranked_fields = {
+            "rank_by": rank_by, "rank_rule": _RANK_RULES[rank_by][1], "ranking": ranking,
+            "ranked_total": len(ranking), "ranked_missing": sum(1 for entry in ranking if entry["rank"] is None),
+        }
+        display = "Ranked by " + _RANK_RULES[rank_by][1] + ": " + "; ".join(
+            f"{entry['rank'] or 'unranked'} {entry['solvent']}" + (" (tie)" if entry["tied"] else "")
+            + (f" (no {entry['missing']})" if entry["missing"] else "") for entry in ranking) + "\n\n" + display
     return tool_success(
-        tool, display=display, comparison_mode="candidate_specific_temperature",
+        tool, display=display, comparison_mode="candidate_specific_temperature", **ranked_fields,
         candidate_count=len(rows), candidate_conditions=normalized,
         candidate_scope_stored_count=(
             len(stored_rows) if inherited_scope else None

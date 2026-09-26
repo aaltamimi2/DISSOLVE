@@ -812,3 +812,30 @@ def test_pet_group_matched_psmiles_pins_373_c_not_the_344_c_ester_form():
     assert matched["groups"] == {
         "ester": 1, "phenylene": 1, "ether": 1, "methylene": 1,
     }
+
+
+def test_a_shortlist_says_how_many_solvents_qualified():
+    """Validation 2026-09-25: the PS-but-not-PP screen returned its default shortlist of three and the answer
+    called them "the 3 screened solvents"; seven qualified. The screen now reports the total per target."""
+    from dissolve import thermodynamics as thermo
+    with bind_tool_session(new_session()):
+        with thermo.bind_query_solvent_scope("common"):
+            data = _data_solvent_scope(thermo.screen_polymer_separation(
+                feed_polymers=["PS", "PP"], target_polymers=["PS"], require_atmospheric=True,
+                temperature_min_c=25.0, temperature_max_c=25.0))
+    assert data["shortlist_is_default"] is True and data["shortlist_per_target"] == 3
+    assert data["qualifying_total_by_target"]["PS"] > len(data["ranked_candidates"])
+    assert data["screened_directions"][0]["qualifying_total"] == data["qualifying_total_by_target"]["PS"]
+
+
+def test_an_out_of_scope_refusal_names_its_remedy():
+    """Validation 2026-09-25: "Does water dissolve LDPE at 80 °C?" was refused (water is outside the 69 common
+    solvents) and the agent, told refusals are final, never asked again. The refusal now says how."""
+    water = _data_solvent_scope(solubility_query(
+        polymers=["LDPE"], solvents=["h2o"], temperatures=[80.0], solvent_scope="common"))
+    assert water["error_code"] == "solvent_not_in_scope"
+    assert "solvent_scope='all'" in water["remedy"]
+    served = _data_solvent_scope(solubility_query(
+        polymers=["LDPE"], solvents=["h2o"], temperatures=[80.0], solvent_scope="all"))
+    assert served["success"] is True
+    assert "repeat that call once with\nsolvent_scope='all'" in agent.SYSTEM_PROMPT

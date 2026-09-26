@@ -8799,72 +8799,84 @@ _PLANNER_PARETO_UNITS = {
 }
 
 
+def _finite_or_none(value: Any) -> float | None:
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return None
+    return number if math.isfinite(number) else None
+
+
+def _stage_g_score(item: dict[str, Any]) -> float | None:
+    return _finite_or_none(item.get("g_score"))
+
+
+def _stage_chem21_safety(item: dict[str, Any]) -> float | None:
+    raw = item.get("chem21_safety_score")
+    if raw is None and item.get("solvent"):
+        from .safety import score_chem21_she
+        raw = score_chem21_she(str(item["solvent"])).get("chem21_safety_score")
+    return _finite_or_none(raw)
+
+
+def _stage_chem21_worst(item: dict[str, Any]) -> float | None:
+    from .safety import _chem21_worst, score_chem21_she
+    raw = item.get("chem21_worst")
+    if raw is None:
+        safety_score = item.get("chem21_safety_score")
+        health = item.get("chem21_health_score")
+        environment = item.get("chem21_environment_score")
+        if safety_score is None:
+            if item.get("solvent"):
+                raw = _chem21_worst(score_chem21_she(str(item["solvent"])))
+        elif health is not None and environment is not None:
+            try:
+                raw = _chem21_worst({
+                    "chem21_safety_score": safety_score,
+                    "chem21_health_score": health,
+                    "chem21_environment_score": environment,
+                })
+            except (TypeError, ValueError):
+                raw = None
+    return _finite_or_none(raw)
+
+
+# The per-stage value behind each safety or greenness objective. A stage without one is unresolved: the route is
+# then ranked after the routes whose every stage has a value, because a missing score never counts in an option's
+# favour (an unscored solvent would otherwise make its route look safer or greener than it is).
+_STAGE_VALUES = {
+    "min_stage_g_score": _stage_g_score,
+    "max_stage_chem21_safety": _stage_chem21_safety,
+    "max_stage_chem21_worst": _stage_chem21_worst,
+}
+
+
+def _stage_values(steps: Any, stage_value: Callable[[dict[str, Any]], float | None]) -> list[float]:
+    return [value for item in steps or [] if isinstance(item, dict)
+            for value in [stage_value(item)] if value is not None]
+
+
 def _planner_min_stage_g_score(steps: Any) -> float | None:
-    scores = []
-    for item in steps or []:
-        if not isinstance(item, dict):
-            continue
-        try:
-            score = float(item.get("g_score"))
-        except (TypeError, ValueError):
-            continue
-        if math.isfinite(score):
-            scores.append(score)
+    scores = _stage_values(steps, _stage_g_score)
     return min(scores) if scores else None
 
 
 def _planner_max_stage_chem21_safety(steps: Any) -> float | None:
-    scores = []
-    for item in steps or []:
-        if not isinstance(item, dict):
-            continue
-        raw = item.get("chem21_safety_score")
-        if raw is None:
-            solvent = item.get("solvent")
-            if solvent:
-                from .safety import score_chem21_she
-                raw = score_chem21_she(str(solvent)).get("chem21_safety_score")
-        try:
-            score = float(raw)
-        except (TypeError, ValueError):
-            continue
-        if math.isfinite(score):
-            scores.append(score)
+    scores = _stage_values(steps, _stage_chem21_safety)
     return max(scores) if scores else None
 
 
 def _planner_max_stage_chem21_worst(steps: Any) -> float | None:
-    from .safety import _chem21_worst, score_chem21_she
-    scores = []
-    for item in steps or []:
-        if not isinstance(item, dict):
-            continue
-        raw = item.get("chem21_worst")
-        if raw is None:
-            safety_score = item.get("chem21_safety_score")
-            health = item.get("chem21_health_score")
-            environment = item.get("chem21_environment_score")
-            if safety_score is None:
-                solvent = item.get("solvent")
-                if solvent:
-                    payload = score_chem21_she(str(solvent))
-                    raw = _chem21_worst(payload)
-            elif health is not None and environment is not None:
-                try:
-                    raw = _chem21_worst({
-                        "chem21_safety_score": safety_score,
-                        "chem21_health_score": health,
-                        "chem21_environment_score": environment,
-                    })
-                except (TypeError, ValueError):
-                    raw = None
-        try:
-            score = float(raw)
-        except (TypeError, ValueError):
-            continue
-        if math.isfinite(score):
-            scores.append(score)
+    scores = _stage_values(steps, _stage_chem21_worst)
     return max(scores) if scores else None
+
+
+def _planner_unresolved_stages(route: dict[str, Any], objective: str) -> int:
+    """How many of the route's stages have no value for a safety or greenness objective (0 for other objectives)."""
+    stage_value = _STAGE_VALUES.get(objective)
+    if stage_value is None:
+        return 0
+    return sum(1 for item in route.get("steps") or [] if isinstance(item, dict) and stage_value(item) is None)
 
 
 def _planner_route_metric(route: dict[str, Any], name: str) -> float | None:
@@ -9250,10 +9262,11 @@ def _rank_planner_routes(
         def sort_key(route: dict[str, Any]) -> tuple[Any, ...]:
             value = _planner_route_metric(route, objective_token)
             missing = value is None
+            incomplete = _planner_unresolved_stages(route, objective_token) > 0
             original = int(route.get("rank") or 0)
             if direction == "max":
-                return (missing, -(value or 0.0), original)
-            return (missing, value if value is not None else math.inf, original)
+                return (missing, incomplete, -(value or 0.0), original)
+            return (missing, incomplete, value if value is not None else math.inf, original)
 
         ranked = sorted(routes, key=sort_key)
         points = [
@@ -9268,6 +9281,18 @@ def _rank_planner_routes(
             )
             for index, route in enumerate(ranked, 1)
         ]
+        if objective_token in _STAGE_VALUES:
+            # Routes whose every stage has a value and whose values are equal are ties: the planner's order only
+            # breaks them, so the answer must say so rather than present one as safer or greener.
+            for route, point in zip(ranked, points):
+                point["unresolved_stages"] = _planner_unresolved_stages(route, objective_token)
+            for point in points:
+                point["tied_with_ranks"] = [
+                    other["rank"] for other in points
+                    if other is not point and point[objective_token] is not None
+                    and other[objective_token] == point[objective_token]
+                    and other["unresolved_stages"] == 0 and point["unresolved_stages"] == 0
+                ]
         return _stamp_screen_to_economics_order(
             tool_success(
                 tool,
@@ -9358,7 +9383,22 @@ def _rank_planner_routes(
     )
 
 
-@_requires_live_tea
+def _live_tea_unless_planner_routes(function: Callable[..., str]) -> Callable[..., str]:
+    """rank_landscape: a plan handle's routes rank on their thermodynamic, CHEM21, G-score and density fields, none of
+    which needs the TEA engine, so source=planner_routes answers without it (the hosted site runs without TEA).
+    Every other source is a TEA answer and keeps the live-TEA requirement."""
+    gated = _requires_live_tea(function)
+
+    @functools.wraps(function)
+    def guarded(*args: Any, **kwargs: Any) -> str:
+        source = kwargs.get("source", args[0] if args else "process_rows")
+        if str(source or "").strip().casefold() == "planner_routes":
+            return function(*args, **kwargs)
+        return gated(*args, **kwargs)
+    return guarded
+
+
+@_live_tea_unless_planner_routes
 def rank_landscape(
     source: Literal[
         "process_rows", "residual_route", "superstructure", "planner_routes"

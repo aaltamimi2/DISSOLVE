@@ -5194,3 +5194,45 @@ def test_live_sort_stamps_proxy_disclosure_and_still_refuses_economics():
         g = _data_specific_volume_rerank(tea.rank_landscape(source="planner_routes", handle=handle,
                                      operation="sort", objective="min_stage_g_score"))
         assert g["success"] is True and "specific_volume_axis" not in g       # stamps only on this objective
+
+
+def _plan_handle(session, routes, breadth=2):
+    return store_handle(session, tool="plan_multistage_separation", source_basis="planner",
+                        data={"success": True, "top_k_sequences": routes, "breadth": breadth, "branch_rule": "count"})
+
+
+def test_route_safety_rank_puts_unscored_routes_last_and_marks_ties():
+    """MUST-FIRE: route 1's second stage has no CHEM21 score. Aggregating over the scored stages only gave it a
+    worst of 7 and led it ahead of the routes scored 17; a missing score never counts in an option's favour."""
+    session = new_session()
+    routes = [
+        {"rank": 1, "steps": [{"chem21_worst": 7}, {"chem21_safety_score": None}]},
+        {"rank": 2, "steps": [{"chem21_worst": 17}]},
+        {"rank": 3, "steps": [{"chem21_worst": 17}]},
+        {"rank": 4, "steps": [{"chem21_worst": 5}]},
+    ]
+    with bind_tool_session(session):
+        out = json.loads(tea.rank_landscape(source="planner_routes", handle=_plan_handle(session, routes),
+                                            operation="sort", objective="max_stage_chem21"))["data"]
+    points = out["landscape_points"]
+    assert [p["original_thermo_rank"] for p in points] == [4, 2, 3, 1]
+    assert [p["unresolved_stages"] for p in points] == [0, 0, 0, 1]
+    assert points[1]["tied_with_ranks"] == [3] and points[2]["tied_with_ranks"] == [2]
+    assert points[0]["tied_with_ranks"] == [] and points[3]["tied_with_ranks"] == []
+
+
+def test_route_safety_rank_needs_no_tea_but_economics_still_does(monkeypatch):
+    """The hosted site runs without the TEA worker. Ranking a plan's routes by CHEM21 or G score uses no TEA, yet
+    the ranker refused with live_tea_unavailable and the model ranked routes by hand, wrongly (validation,
+    2026-09-25)."""
+    monkeypatch.setattr(tea, "_live_tea_blocker", lambda: {
+        "error": "Live TEA is not available", "live_tea_reason": "test", "remediation": "run dissolve doctor"})
+    session = new_session()
+    routes = [{"rank": 1, "steps": [{"g_score": 5.4}, {"g_score": 7.4}]}, {"rank": 2, "steps": [{"g_score": 6.1}]}]
+    with bind_tool_session(session):
+        out = json.loads(tea.rank_landscape(source="planner_routes", handle=_plan_handle(session, routes),
+                                            operation="sort", objective="min_stage_g_score"))["data"]
+    assert out["success"] is True
+    assert [p["original_thermo_rank"] for p in out["landscape_points"]] == [2, 1]
+    refused = json.loads(tea.rank_landscape(target_polymer="LDPE"))["data"]
+    assert refused["error_code"] == "live_tea_unavailable"
