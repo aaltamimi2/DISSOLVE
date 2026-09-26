@@ -1,0 +1,3445 @@
+{
+ "schema": "dissolve.peroxide-formers.v1",
+ "built": "2026-09-25",
+ "purpose": "Which solvents form explosive peroxides, with each list's class. Replaces the 5-row hand-typed table.",
+ "classes": {
+  "A": "severe peroxide hazard on storage without concentration",
+  "B": "peroxide hazard on concentration (distillation, evaporation)",
+  "C": "may autopolymerize from peroxide accumulation",
+  "D": "may form peroxides but cannot clearly be placed in A-C",
+  "disputed": "the lists disagree and only one list gives the class",
+  "not listed": "in none of these lists; no list publishes negatives, so this is not 'does not form peroxides'"
+ },
+ "class_rule": "A name in a list is one vote and a class entry matched by structure (vinyl ethers, other secondary alcohols, glycol ether acetates, dioxanes) half a vote; ties go to Prudent Practices or Illinois; a class only VUMC gives is marked disputed",
+ "chem21_rule": "The CHEM21 guide's +1 Safety point follows the EU peroxide code EUH019 (harmonized); the lab classes do not set it. An ether with no EU status is 'peroxide point not assessed'.",
+ "sources": [
+  {
+   "id": "vumc_html",
+   "url": "https://www.vumc.org/safety/chem/peroxide-forming-chemicals",
+   "sha256": "b62b7cbadfe6fed2cdbf4dc2853608ace850c91de37c95f870bb206c65d0aeed",
+   "use": "cited source; classes A-D parsed"
+  },
+  {
+   "id": "prudent_practices_ch4",
+   "url": "https://nap.nationalacademies.org/read/12654/chapter/5",
+   "sha256": "4800d191b3ca94e115162537015ad9d2b7a9a56907701e5a7c04217eb7f948d2",
+   "use": "NRC 2011 Prudent Practices, ch. 4, Table 4.8 (classes A-C, sources Jackson 1970 and Kelly 1996) and Table 4.9"
+  },
+  {
+   "id": "illinois_drs",
+   "url": "https://drs.illinois.edu/Page/SafetyLibrary/PeroxideFormingChemicals",
+   "sha256": "f41e8ff8ba9fb2370f340dd72f9057a5c66effd34b4d302f178c7d294083902d",
+   "use": "Groups A-C (cites PP 2011, Clark 2001, Kelly 1996)"
+  },
+  {
+   "id": "eu_clp_annex_vi",
+   "url": "https://eur-lex.europa.eu/eli/reg/2008/1272/oj (consolidated 2026-07-01)",
+   "sha256": "602529287cbdbbb80f4bc17404fef58041ce5edf30646509b3cdb6991b7fc8a7",
+   "use": "harmonized entries carrying EUH019 (may form explosive peroxides): 13 entries"
+  }
+ ],
+ "rows": [
+  {
+   "cas": "75-35-4",
+   "name": "1,1-dichloroethylene",
+   "pubchem_cids": [
+    6366
+   ],
+   "peroxide_class": "A",
+   "class_basis": "named in a list",
+   "vumc": "A",
+   "prudent_practices_2011": "A",
+   "illinois_drs": "A/C",
+   "class_entry_rules": null,
+   "eu_euh019": false,
+   "lists_disagree": true,
+   "structural_alert": false,
+   "confidence": "high",
+   "evidence": "named in vumc A, prudent_practices_2011 A, illinois_drs A/C; vumc:A:'Vinylidene chloride'; prudent_practices_2011:A:'Vinylidene chloride'; illinois_drs:A:'Vinylidine chloride'; illinois_drs:C:'Vinyldiene chloride'"
+  },
+  {
+   "cas": "106-99-0",
+   "name": "butadiene",
+   "pubchem_cids": [
+    7845
+   ],
+   "peroxide_class": "A",
+   "class_basis": "named in a list",
+   "vumc": "A/C",
+   "prudent_practices_2011": "A/C",
+   "illinois_drs": "A/C",
+   "class_entry_rules": null,
+   "eu_euh019": false,
+   "lists_disagree": false,
+   "structural_alert": false,
+   "confidence": "high",
+   "evidence": "named in vumc A/C, prudent_practices_2011 A/C, illinois_drs A/C; vumc:A:'Butadiene'; vumc:C:'Butadiene'; prudent_practices_2011:A:'Butadiene'; prudent_practices_2011:C:'Butadiene'; illinois_drs:A:'Butadiene'; illinois_drs:C:'Butadiene'"
+  },
+  {
+   "cas": "126-99-8",
+   "name": "Chloroprene",
+   "pubchem_cids": [
+    31369
+   ],
+   "peroxide_class": "A",
+   "class_basis": "named in a list",
+   "vumc": "A/D",
+   "prudent_practices_2011": "A",
+   "illinois_drs": "A/C",
+   "class_entry_rules": null,
+   "eu_euh019": false,
+   "lists_disagree": true,
+   "structural_alert": false,
+   "confidence": "high",
+   "evidence": "named in vumc A/D, prudent_practices_2011 A, illinois_drs A/C; vumc:A:'Chloroprene'; vumc:D:'2-Chlorobutadiene'; prudent_practices_2011:A:'Chlorobutadiene (chloroprene)'; illinois_drs:A:'Chlorobutadiene (Chloroprene)'; illinois_drs:C:'Chloroprene'"
+  },
+  {
+   "cas": "108-20-3",
+   "name": "Isopropyl Ether",
+   "pubchem_cids": [
+    7914
+   ],
+   "peroxide_class": "A",
+   "class_basis": "named in a list",
+   "vumc": "B",
+   "prudent_practices_2011": "A",
+   "illinois_drs": "A",
+   "class_entry_rules": null,
+   "eu_euh019": true,
+   "lists_disagree": true,
+   "structural_alert": true,
+   "confidence": "high",
+   "evidence": "named in vumc B, prudent_practices_2011 A, illinois_drs A; note: VUMC puts it in Class B; PP 2011 and Illinois put it in A; vumc:B:'Isopropyl ether'; prudent_practices_2011:A:'Isopropyl ether'; illinois_drs:A:'Isopropyl ether'; eu_annex_vi:603-045-00-X"
+  },
+  {
+   "cas": "116-14-3",
+   "name": "tetrafluoroethene",
+   "pubchem_cids": [
+    8301
+   ],
+   "peroxide_class": "A",
+   "class_basis": "named in a list",
+   "vumc": "A/C",
+   "prudent_practices_2011": "A",
+   "illinois_drs": "A/C",
+   "class_entry_rules": null,
+   "eu_euh019": false,
+   "lists_disagree": true,
+   "structural_alert": false,
+   "confidence": "high",
+   "evidence": "named in vumc A/C, prudent_practices_2011 A, illinois_drs A/C; vumc:A:'Tetrafluoroethylene'; vumc:C:'Tetrafluoroethylene'; prudent_practices_2011:A:'Tetrafluoroethylene'; illinois_drs:A:'Tetrafluoroethylene'; illinois_drs:C:'Tetrafluoroethylene'"
+  },
+  {
+   "cas": "79-10-7",
+   "name": "acrylicacid",
+   "pubchem_cids": [
+    6581
+   ],
+   "peroxide_class": "C",
+   "class_basis": "named in a list",
+   "vumc": "C",
+   "prudent_practices_2011": "C",
+   "illinois_drs": "C",
+   "class_entry_rules": null,
+   "eu_euh019": false,
+   "lists_disagree": false,
+   "structural_alert": false,
+   "confidence": "high",
+   "evidence": "named in vumc C, prudent_practices_2011 C, illinois_drs C; vumc:C:'Acrylic acid'; prudent_practices_2011:C:'Acrylic acid'; illinois_drs:C:'Acrylic acid'"
+  },
+  {
+   "cas": "107-13-1",
+   "name": "Acrylonitrile",
+   "pubchem_cids": [
+    7855
+   ],
+   "peroxide_class": "C",
+   "class_basis": "named in a list",
+   "vumc": "C",
+   "prudent_practices_2011": null,
+   "illinois_drs": null,
+   "class_entry_rules": null,
+   "eu_euh019": false,
+   "lists_disagree": false,
+   "structural_alert": false,
+   "confidence": "medium",
+   "evidence": "named in vumc C; vumc:C:'Acrylonitrile'"
+  },
+  {
+   "cas": "689-97-4",
+   "name": "butenyne",
+   "pubchem_cids": [
+    12720
+   ],
+   "peroxide_class": "C",
+   "class_basis": "named in a list",
+   "vumc": "C",
+   "prudent_practices_2011": null,
+   "illinois_drs": "C",
+   "class_entry_rules": null,
+   "eu_euh019": false,
+   "lists_disagree": false,
+   "structural_alert": false,
+   "confidence": "high",
+   "evidence": "named in vumc C, illinois_drs C; vumc:C:'Vinyl acetylene'; illinois_drs:C:'Vinyl acetylene'"
+  },
+  {
+   "cas": "75-01-4",
+   "name": "chloroethene",
+   "pubchem_cids": [
+    6338
+   ],
+   "peroxide_class": "C",
+   "class_basis": "named in a list",
+   "vumc": "C/D",
+   "prudent_practices_2011": "C",
+   "illinois_drs": "C",
+   "class_entry_rules": null,
+   "eu_euh019": false,
+   "lists_disagree": true,
+   "structural_alert": false,
+   "confidence": "high",
+   "evidence": "named in vumc C/D, prudent_practices_2011 C, illinois_drs C; vumc:C:'Vinyl chloride'; vumc:D:'Chloroethylene'; prudent_practices_2011:C:'Vinyl chloride'; illinois_drs:C:'Vinyl chloride'"
+  },
+  {
+   "cas": "79-38-9",
+   "name": "chlorotrifluoroethene",
+   "pubchem_cids": [
+    6594
+   ],
+   "peroxide_class": "C",
+   "class_basis": "named in a list",
+   "vumc": "C",
+   "prudent_practices_2011": "C",
+   "illinois_drs": "C",
+   "class_entry_rules": null,
+   "eu_euh019": false,
+   "lists_disagree": false,
+   "structural_alert": false,
+   "confidence": "high",
+   "evidence": "named in vumc C, prudent_practices_2011 C, illinois_drs C; vumc:C:'Chlorotrifluoroethylene'; prudent_practices_2011:C:'Chlorotrifluoroethylene'; illinois_drs:C:'Chlorotrifluoroethylene'"
+  },
+  {
+   "cas": "140-88-5",
+   "name": "Ethyl Acrylate",
+   "pubchem_cids": [
+    8821
+   ],
+   "peroxide_class": "C",
+   "class_basis": "named in a list",
+   "vumc": null,
+   "prudent_practices_2011": "C",
+   "illinois_drs": "C",
+   "class_entry_rules": null,
+   "eu_euh019": false,
+   "lists_disagree": false,
+   "structural_alert": false,
+   "confidence": "high",
+   "evidence": "named in prudent_practices_2011 C, illinois_drs C; prudent_practices_2011:C:'Ethyl acrylate'; illinois_drs:C:'Ethyl acrylate'"
+  },
+  {
+   "cas": "80-62-6",
+   "name": "methylmethacrylate",
+   "pubchem_cids": [
+    6658
+   ],
+   "peroxide_class": "C",
+   "class_basis": "named in a list",
+   "vumc": "C",
+   "prudent_practices_2011": "C",
+   "illinois_drs": "C",
+   "class_entry_rules": null,
+   "eu_euh019": false,
+   "lists_disagree": false,
+   "structural_alert": false,
+   "confidence": "high",
+   "evidence": "named in vumc C, prudent_practices_2011 C, illinois_drs C; vumc:C:'Methyl methacrylate'; prudent_practices_2011:C:'Methyl methacrylate'; illinois_drs:C:'Methyl methacrylate'"
+  },
+  {
+   "cas": "100-42-5",
+   "name": "Styrene",
+   "pubchem_cids": [
+    7501
+   ],
+   "peroxide_class": "C",
+   "class_basis": "named in a list",
+   "vumc": "C",
+   "prudent_practices_2011": "C",
+   "illinois_drs": "C",
+   "class_entry_rules": null,
+   "eu_euh019": false,
+   "lists_disagree": false,
+   "structural_alert": false,
+   "confidence": "high",
+   "evidence": "named in vumc C, prudent_practices_2011 C, illinois_drs C; vumc:C:'Stryene'; prudent_practices_2011:C:'Styrene'; illinois_drs:C:'Styrene'"
+  },
+  {
+   "cas": "108-05-4",
+   "name": "vinylacetate",
+   "pubchem_cids": [
+    7904
+   ],
+   "peroxide_class": "C",
+   "class_basis": "named in a list",
+   "vumc": "C",
+   "prudent_practices_2011": "C",
+   "illinois_drs": "C",
+   "class_entry_rules": null,
+   "eu_euh019": false,
+   "lists_disagree": false,
+   "structural_alert": false,
+   "confidence": "high",
+   "evidence": "named in vumc C, prudent_practices_2011 C, illinois_drs C; vumc:C:'Vinyl acetate'; prudent_practices_2011:C:'Vinyl acetate'; illinois_drs:C:'Vinyl acetate'"
+  },
+  {
+   "cas": "110-75-8",
+   "name": "(c-chloroethoxy)ethene",
+   "pubchem_cids": [
+    8074
+   ],
+   "peroxide_class": "B",
+   "class_basis": "matched a class entry by structure",
+   "vumc": null,
+   "prudent_practices_2011": null,
+   "illinois_drs": null,
+   "class_entry_rules": "vinyl_ether",
+   "eu_euh019": false,
+   "lists_disagree": false,
+   "structural_alert": true,
+   "confidence": "medium",
+   "evidence": "class entry by structure: vinyl_ether"
+  },
+  {
+   "cas": "105-57-7",
+   "name": "1,1-diethoxyethane",
+   "pubchem_cids": [
+    7765
+   ],
+   "peroxide_class": "B",
+   "class_basis": "named in a list",
+   "vumc": "B/D",
+   "prudent_practices_2011": "B",
+   "illinois_drs": "B",
+   "class_entry_rules": null,
+   "eu_euh019": false,
+   "lists_disagree": true,
+   "structural_alert": true,
+   "confidence": "high",
+   "evidence": "named in vumc B/D, prudent_practices_2011 B, illinois_drs B; vumc:B:'Acetal'; vumc:D:'Diethyl acetal'; prudent_practices_2011:B:'Acetal'; illinois_drs:B:'Acetal'"
+  },
+  {
+   "cas": "57018-52-7",
+   "name": "1-(1,1-dimethylethoxy)-2-propanol",
+   "pubchem_cids": [
+    92629
+   ],
+   "peroxide_class": "B",
+   "class_basis": "matched a class entry by structure",
+   "vumc": null,
+   "prudent_practices_2011": null,
+   "illinois_drs": null,
+   "class_entry_rules": "secondary_alcohol",
+   "eu_euh019": false,
+   "lists_disagree": false,
+   "structural_alert": true,
+   "confidence": "medium",
+   "evidence": "class entry by structure: secondary_alcohol"
+  },
+  {
+   "cas": "5131-66-8",
+   "name": "1-butoxy-2-propanol",
+   "pubchem_cids": [
+    21210
+   ],
+   "peroxide_class": "B",
+   "class_basis": "matched a class entry by structure",
+   "vumc": null,
+   "prudent_practices_2011": null,
+   "illinois_drs": null,
+   "class_entry_rules": "secondary_alcohol",
+   "eu_euh019": false,
+   "lists_disagree": false,
+   "structural_alert": true,
+   "confidence": "medium",
+   "evidence": "class entry by structure: secondary_alcohol"
+  },
+  {
+   "cas": "1569-02-4",
+   "name": "1-ethoxy-2-propanol",
+   "pubchem_cids": [
+    15287
+   ],
+   "peroxide_class": "B",
+   "class_basis": "matched a class entry by structure",
+   "vumc": null,
+   "prudent_practices_2011": null,
+   "illinois_drs": null,
+   "class_entry_rules": "secondary_alcohol",
+   "eu_euh019": false,
+   "lists_disagree": false,
+   "structural_alert": true,
+   "confidence": "medium",
+   "evidence": "class entry by structure: secondary_alcohol"
+  },
+  {
+   "cas": "3944-36-3",
+   "name": "1-isopropoxy-2-propanol",
+   "pubchem_cids": [
+    19846
+   ],
+   "peroxide_class": "B",
+   "class_basis": "matched a class entry by structure",
+   "vumc": null,
+   "prudent_practices_2011": null,
+   "illinois_drs": null,
+   "class_entry_rules": "secondary_alcohol",
+   "eu_euh019": false,
+   "lists_disagree": false,
+   "structural_alert": true,
+   "confidence": "medium",
+   "evidence": "class entry by structure: secondary_alcohol"
+  },
+  {
+   "cas": "3036-66-6",
+   "name": "1-methoxy-1,3-butadiene",
+   "pubchem_cids": [
+    5462719
+   ],
+   "peroxide_class": "B",
+   "class_basis": "matched a class entry by structure",
+   "vumc": null,
+   "prudent_practices_2011": null,
+   "illinois_drs": null,
+   "class_entry_rules": "vinyl_ether",
+   "eu_euh019": false,
+   "lists_disagree": false,
+   "structural_alert": true,
+   "confidence": "medium",
+   "evidence": "class entry by structure: vinyl_ether"
+  },
+  {
+   "cas": "107-98-2",
+   "name": "1-methoxy2-propanol",
+   "pubchem_cids": [
+    7900
+   ],
+   "peroxide_class": "B",
+   "class_basis": "matched a class entry by structure",
+   "vumc": null,
+   "prudent_practices_2011": null,
+   "illinois_drs": null,
+   "class_entry_rules": "secondary_alcohol",
+   "eu_euh019": false,
+   "lists_disagree": false,
+   "structural_alert": true,
+   "confidence": "medium",
+   "evidence": "class entry by structure: secondary_alcohol"
+  },
+  {
+   "cas": "770-35-4",
+   "name": "1-phenoxy-2-propanol",
+   "pubchem_cids": [
+    92839
+   ],
+   "peroxide_class": "B",
+   "class_basis": "matched a class entry by structure",
+   "vumc": null,
+   "prudent_practices_2011": null,
+   "illinois_drs": null,
+   "class_entry_rules": "secondary_alcohol",
+   "eu_euh019": false,
+   "lists_disagree": false,
+   "structural_alert": true,
+   "confidence": "medium",
+   "evidence": "class entry by structure: secondary_alcohol"
+  },
+  {
+   "cas": "1569-01-3",
+   "name": "1-propoxy-2-propanol",
+   "pubchem_cids": [
+    15286
+   ],
+   "peroxide_class": "B",
+   "class_basis": "matched a class entry by structure",
+   "vumc": null,
+   "prudent_practices_2011": null,
+   "illinois_drs": null,
+   "class_entry_rules": "secondary_alcohol",
+   "eu_euh019": false,
+   "lists_disagree": false,
+   "structural_alert": true,
+   "confidence": "medium",
+   "evidence": "class entry by structure: secondary_alcohol"
+  },
+  {
+   "cas": "124-17-4",
+   "name": "2-(2-butoxyethoxy)ethanolacetate",
+   "pubchem_cids": [
+    31288
+   ],
+   "peroxide_class": "B",
+   "class_basis": "matched a class entry by structure",
+   "vumc": null,
+   "prudent_practices_2011": null,
+   "illinois_drs": null,
+   "class_entry_rules": "ethylene_glycol_ether_acetate",
+   "eu_euh019": false,
+   "lists_disagree": false,
+   "structural_alert": true,
+   "confidence": "medium",
+   "evidence": "class entry by structure: ethylene_glycol_ether_acetate"
+  },
+  {
+   "cas": "112-15-2",
+   "name": "2-(2-ethoxyethoxy)-ethanolacetate",
+   "pubchem_cids": [
+    8165
+   ],
+   "peroxide_class": "B",
+   "class_basis": "matched a class entry by structure",
+   "vumc": null,
+   "prudent_practices_2011": null,
+   "illinois_drs": null,
+   "class_entry_rules": "ethylene_glycol_ether_acetate",
+   "eu_euh019": false,
+   "lists_disagree": false,
+   "structural_alert": true,
+   "confidence": "medium",
+   "evidence": "class entry by structure: ethylene_glycol_ether_acetate"
+  },
+  {
+   "cas": "78-92-2",
+   "name": "2-butanol",
+   "pubchem_cids": [
+    6568
+   ],
+   "peroxide_class": "B",
+   "class_basis": "named in a list",
+   "vumc": "C",
+   "prudent_practices_2011": null,
+   "illinois_drs": "B",
+   "class_entry_rules": "secondary_alcohol",
+   "eu_euh019": false,
+   "lists_disagree": true,
+   "structural_alert": false,
+   "confidence": "high",
+   "evidence": "named in vumc C, illinois_drs B; note: VUMC puts it in Class C; Illinois (and Kelly's secondary-alcohol entry) put it in B; vumc:C:'2-butanol'; illinois_drs:B:'2-Butanol'"
+  },
+  {
+   "cas": "112-07-2",
+   "name": "2-butoxyethanolacetate",
+   "pubchem_cids": [
+    8160
+   ],
+   "peroxide_class": "B",
+   "class_basis": "matched a class entry by structure",
+   "vumc": null,
+   "prudent_practices_2011": null,
+   "illinois_drs": null,
+   "class_entry_rules": "ethylene_glycol_ether_acetate",
+   "eu_euh019": false,
+   "lists_disagree": false,
+   "structural_alert": true,
+   "confidence": "medium",
+   "evidence": "class entry by structure: ethylene_glycol_ether_acetate"
+  },
+  {
+   "cas": "543-49-7",
+   "name": "2-heptanol",
+   "pubchem_cids": [
+    10976
+   ],
+   "peroxide_class": "B",
+   "class_basis": "matched a class entry by structure",
+   "vumc": null,
+   "prudent_practices_2011": null,
+   "illinois_drs": null,
+   "class_entry_rules": "secondary_alcohol",
+   "eu_euh019": false,
+   "lists_disagree": false,
+   "structural_alert": false,
+   "confidence": "medium",
+   "evidence": "class entry by structure: secondary_alcohol"
+  },
+  {
+   "cas": "116-11-0",
+   "name": "2-methoxy-1-propene",
+   "pubchem_cids": [
+    8300
+   ],
+   "peroxide_class": "B",
+   "class_basis": "matched a class entry by structure",
+   "vumc": null,
+   "prudent_practices_2011": null,
+   "illinois_drs": null,
+   "class_entry_rules": "vinyl_ether",
+   "eu_euh019": false,
+   "lists_disagree": false,
+   "structural_alert": true,
+   "confidence": "medium",
+   "evidence": "class entry by structure: vinyl_ether"
+  },
+  {
+   "cas": "583-59-5",
+   "name": "2-methylcyclohexanol",
+   "pubchem_cids": [
+    11418
+   ],
+   "peroxide_class": "B",
+   "class_basis": "matched a class entry by structure",
+   "vumc": null,
+   "prudent_practices_2011": null,
+   "illinois_drs": null,
+   "class_entry_rules": "secondary_alcohol",
+   "eu_euh019": false,
+   "lists_disagree": false,
+   "structural_alert": false,
+   "confidence": "medium",
+   "evidence": "class entry by structure: secondary_alcohol"
+  },
+  {
+   "cas": "123-96-6",
+   "name": "2-octanol",
+   "pubchem_cids": [
+    20083
+   ],
+   "peroxide_class": "B",
+   "class_basis": "matched a class entry by structure",
+   "vumc": null,
+   "prudent_practices_2011": null,
+   "illinois_drs": null,
+   "class_entry_rules": "secondary_alcohol",
+   "eu_euh019": false,
+   "lists_disagree": false,
+   "structural_alert": false,
+   "confidence": "medium",
+   "evidence": "class entry by structure: secondary_alcohol"
+  },
+  {
+   "cas": "6032-29-7",
+   "name": "2-Pentanol",
+   "pubchem_cids": [
+    22386
+   ],
+   "peroxide_class": "B",
+   "class_basis": "named in a list",
+   "vumc": "B",
+   "prudent_practices_2011": null,
+   "illinois_drs": "B",
+   "class_entry_rules": "secondary_alcohol",
+   "eu_euh019": false,
+   "lists_disagree": false,
+   "structural_alert": false,
+   "confidence": "high",
+   "evidence": "named in vumc B, illinois_drs B; vumc:B:'2-pentanol'; illinois_drs:B:'2-Pentanol'"
+  },
+  {
+   "cas": "60-12-8",
+   "name": "2-phenylethanol",
+   "pubchem_cids": [
+    6054
+   ],
+   "peroxide_class": "B",
+   "class_basis": "named in a list",
+   "vumc": "B",
+   "prudent_practices_2011": null,
+   "illinois_drs": "B",
+   "class_entry_rules": null,
+   "eu_euh019": false,
+   "lists_disagree": false,
+   "structural_alert": false,
+   "confidence": "high",
+   "evidence": "named in vumc B, illinois_drs B; vumc:B:'2-phenylethanol'; illinois_drs:B:'2-Phenylethanol'"
+  },
+  {
+   "cas": "67-63-0",
+   "name": "2-Propanol",
+   "pubchem_cids": [
+    3776
+   ],
+   "peroxide_class": "B",
+   "class_basis": "named in a list",
+   "vumc": "B",
+   "prudent_practices_2011": null,
+   "illinois_drs": "B",
+   "class_entry_rules": "secondary_alcohol",
+   "eu_euh019": false,
+   "lists_disagree": false,
+   "structural_alert": false,
+   "confidence": "high",
+   "evidence": "named in vumc B, illinois_drs B; vumc:B:'2-propanol (isoproranol, “IPA”)'; illinois_drs:B:'Isopropanol'"
+  },
+  {
+   "cas": "589-82-2",
+   "name": "3-heptanol",
+   "pubchem_cids": [
+    11520
+   ],
+   "peroxide_class": "B",
+   "class_basis": "matched a class entry by structure",
+   "vumc": null,
+   "prudent_practices_2011": null,
+   "illinois_drs": null,
+   "class_entry_rules": "secondary_alcohol",
+   "eu_euh019": false,
+   "lists_disagree": false,
+   "structural_alert": false,
+   "confidence": "medium",
+   "evidence": "class entry by structure: secondary_alcohol"
+  },
+  {
+   "cas": "598-75-4",
+   "name": "3-methyl-2-butanol",
+   "pubchem_cids": [
+    11732
+   ],
+   "peroxide_class": "B",
+   "class_basis": "matched a class entry by structure",
+   "vumc": null,
+   "prudent_practices_2011": null,
+   "illinois_drs": null,
+   "class_entry_rules": "secondary_alcohol",
+   "eu_euh019": false,
+   "lists_disagree": false,
+   "structural_alert": false,
+   "confidence": "medium",
+   "evidence": "class entry by structure: secondary_alcohol"
+  },
+  {
+   "cas": "591-23-1",
+   "name": "3-methylcyclohexanol",
+   "pubchem_cids": [
+    11566
+   ],
+   "peroxide_class": "B",
+   "class_basis": "matched a class entry by structure",
+   "vumc": null,
+   "prudent_practices_2011": null,
+   "illinois_drs": null,
+   "class_entry_rules": "secondary_alcohol",
+   "eu_euh019": false,
+   "lists_disagree": false,
+   "structural_alert": false,
+   "confidence": "medium",
+   "evidence": "class entry by structure: secondary_alcohol"
+  },
+  {
+   "cas": "108-11-2",
+   "name": "4-methyl-2-pentanol",
+   "pubchem_cids": [
+    7910
+   ],
+   "peroxide_class": "B",
+   "class_basis": "named in a list",
+   "vumc": null,
+   "prudent_practices_2011": null,
+   "illinois_drs": "B",
+   "class_entry_rules": "secondary_alcohol",
+   "eu_euh019": false,
+   "lists_disagree": false,
+   "structural_alert": false,
+   "confidence": "medium",
+   "evidence": "named in illinois_drs B; illinois_drs:B:'4-Methyl-2-pentanol'"
+  },
+  {
+   "cas": "108-10-1",
+   "name": "4-methyl-2-pentanone",
+   "pubchem_cids": [
+    7909
+   ],
+   "peroxide_class": "B",
+   "class_basis": "named in a list",
+   "vumc": "B",
+   "prudent_practices_2011": "B",
+   "illinois_drs": "B",
+   "class_entry_rules": null,
+   "eu_euh019": false,
+   "lists_disagree": false,
+   "structural_alert": false,
+   "confidence": "high",
+   "evidence": "named in vumc B, prudent_practices_2011 B, illinois_drs B; vumc:B:'Methyl isobutyl ketone'; prudent_practices_2011:B:'Methyl-isobutyl ketone'; illinois_drs:B:'Methyl-isobutyl ketone'"
+  },
+  {
+   "cas": "75-07-0",
+   "name": "Acetaldehyde",
+   "pubchem_cids": [
+    177
+   ],
+   "peroxide_class": "B",
+   "class_basis": "named in a list",
+   "vumc": "B",
+   "prudent_practices_2011": null,
+   "illinois_drs": "B",
+   "class_entry_rules": null,
+   "eu_euh019": false,
+   "lists_disagree": false,
+   "structural_alert": false,
+   "confidence": "high",
+   "evidence": "named in vumc B, illinois_drs B; vumc:B:'Acetaldehyde'; illinois_drs:B:'Acetaldehyde'"
+  },
+  {
+   "cas": "3917-15-5",
+   "name": "allylvinylether",
+   "pubchem_cids": [
+    221523
+   ],
+   "peroxide_class": "B",
+   "class_basis": "matched a class entry by structure",
+   "vumc": null,
+   "prudent_practices_2011": null,
+   "illinois_drs": null,
+   "class_entry_rules": "vinyl_ether",
+   "eu_euh019": false,
+   "lists_disagree": false,
+   "structural_alert": true,
+   "confidence": "medium",
+   "evidence": "class entry by structure: vinyl_ether"
+  },
+  {
+   "cas": "100-51-6",
+   "name": "benzylalcohol",
+   "pubchem_cids": [
+    244
+   ],
+   "peroxide_class": "B",
+   "class_basis": "named in a list",
+   "vumc": "B",
+   "prudent_practices_2011": null,
+   "illinois_drs": "B",
+   "class_entry_rules": null,
+   "eu_euh019": false,
+   "lists_disagree": false,
+   "structural_alert": false,
+   "confidence": "high",
+   "evidence": "named in vumc B, illinois_drs B; vumc:B:'Benzyl alcohol'; illinois_drs:B:'Benzyl alcohol'"
+  },
+  {
+   "cas": "111-34-2",
+   "name": "butylvinylether",
+   "pubchem_cids": [
+    8108
+   ],
+   "peroxide_class": "B",
+   "class_basis": "named in a list",
+   "vumc": "D",
+   "prudent_practices_2011": null,
+   "illinois_drs": null,
+   "class_entry_rules": "vinyl_ether",
+   "eu_euh019": false,
+   "lists_disagree": false,
+   "structural_alert": true,
+   "confidence": "medium",
+   "evidence": "named in vumc D; vumc:D:'n-Butyl vinyl ether'"
+  },
+  {
+   "cas": "493-01-6",
+   "name": "cis-decalin",
+   "pubchem_cids": [
+    7044
+   ],
+   "peroxide_class": "B",
+   "class_basis": "named in a list",
+   "vumc": "B",
+   "prudent_practices_2011": null,
+   "illinois_drs": "B",
+   "class_entry_rules": null,
+   "eu_euh019": false,
+   "lists_disagree": false,
+   "structural_alert": false,
+   "confidence": "high",
+   "evidence": "named in vumc B, illinois_drs B; vumc:B:'Decahydronaphthalene'; illinois_drs:B:'Decahydronaphthalene (Decalin)'"
+  },
+  {
+   "cas": "108-93-0",
+   "name": "Cyclohexanol",
+   "pubchem_cids": [
+    7966
+   ],
+   "peroxide_class": "B",
+   "class_basis": "named in a list",
+   "vumc": "B",
+   "prudent_practices_2011": null,
+   "illinois_drs": null,
+   "class_entry_rules": "secondary_alcohol",
+   "eu_euh019": false,
+   "lists_disagree": false,
+   "structural_alert": false,
+   "confidence": "medium",
+   "evidence": "named in vumc B; vumc:B:'Cyclohexanol'"
+  },
+  {
+   "cas": "110-83-8",
+   "name": "Cyclohexene",
+   "pubchem_cids": [
+    8079
+   ],
+   "peroxide_class": "B",
+   "class_basis": "named in a list",
+   "vumc": null,
+   "prudent_practices_2011": "B",
+   "illinois_drs": "B",
+   "class_entry_rules": null,
+   "eu_euh019": false,
+   "lists_disagree": false,
+   "structural_alert": false,
+   "confidence": "high",
+   "evidence": "named in prudent_practices_2011 B, illinois_drs B; prudent_practices_2011:B:'Cyclohexene'; illinois_drs:B:'Cyclohexene'"
+  },
+  {
+   "cas": "142-29-0",
+   "name": "cyclopentene",
+   "pubchem_cids": [
+    8882
+   ],
+   "peroxide_class": "B",
+   "class_basis": "named in a list",
+   "vumc": null,
+   "prudent_practices_2011": "B",
+   "illinois_drs": "B",
+   "class_entry_rules": null,
+   "eu_euh019": false,
+   "lists_disagree": false,
+   "structural_alert": false,
+   "confidence": "high",
+   "evidence": "named in prudent_practices_2011 B, illinois_drs B; prudent_practices_2011:B:'Cyclopentene'; illinois_drs:B:'Cyclopentene'"
+  },
+  {
+   "cas": "108-82-7",
+   "name": "Di-Isobutyl Carbinol",
+   "pubchem_cids": [
+    7957
+   ],
+   "peroxide_class": "B",
+   "class_basis": "matched a class entry by structure",
+   "vumc": null,
+   "prudent_practices_2011": null,
+   "illinois_drs": null,
+   "class_entry_rules": "secondary_alcohol",
+   "eu_euh019": false,
+   "lists_disagree": false,
+   "structural_alert": false,
+   "confidence": "medium",
+   "evidence": "class entry by structure: secondary_alcohol"
+  },
+  {
+   "cas": "60-29-7",
+   "name": "diethylether",
+   "pubchem_cids": [
+    3283
+   ],
+   "peroxide_class": "B",
+   "class_basis": "named in a list",
+   "vumc": "B",
+   "prudent_practices_2011": "B",
+   "illinois_drs": "B",
+   "class_entry_rules": null,
+   "eu_euh019": true,
+   "lists_disagree": false,
+   "structural_alert": true,
+   "confidence": "high",
+   "evidence": "named in vumc B, prudent_practices_2011 B, illinois_drs B; vumc:B:'Diethyl ether'; prudent_practices_2011:B:'Diethyl ether'; illinois_drs:B:'Diethyl ether'; eu_annex_vi:603-022-00-4"
+  },
+  {
+   "cas": "111-96-6",
+   "name": "diglyme",
+   "pubchem_cids": [
+    8150
+   ],
+   "peroxide_class": "B",
+   "class_basis": "named in a list",
+   "vumc": "D",
+   "prudent_practices_2011": "B",
+   "illinois_drs": "B",
+   "class_entry_rules": null,
+   "eu_euh019": true,
+   "lists_disagree": true,
+   "structural_alert": true,
+   "confidence": "high",
+   "evidence": "named in vumc D, prudent_practices_2011 B, illinois_drs B; vumc:D:'Bis(2-methoxyethyl) ether'; prudent_practices_2011:B:'Diethylene glycol dimethyl ether (diglyme)'; illinois_drs:B:'Diethylene glycol dimethyl ether'; eu_annex_vi:603-139-00-0"
+  },
+  {
+   "cas": "110-87-2",
+   "name": "Dihydropyran",
+   "pubchem_cids": [
+    8080
+   ],
+   "peroxide_class": "B",
+   "class_basis": "matched a class entry by structure",
+   "vumc": null,
+   "prudent_practices_2011": null,
+   "illinois_drs": null,
+   "class_entry_rules": "vinyl_ether",
+   "eu_euh019": false,
+   "lists_disagree": false,
+   "structural_alert": true,
+   "confidence": "medium",
+   "evidence": "class entry by structure: vinyl_ether"
+  },
+  {
+   "cas": "110-71-4",
+   "name": "Dimethyl Cellosolve",
+   "pubchem_cids": [
+    8071
+   ],
+   "peroxide_class": "B",
+   "class_basis": "named in a list",
+   "vumc": "B",
+   "prudent_practices_2011": "B",
+   "illinois_drs": null,
+   "class_entry_rules": null,
+   "eu_euh019": true,
+   "lists_disagree": false,
+   "structural_alert": true,
+   "confidence": "high",
+   "evidence": "named in vumc B, prudent_practices_2011 B; vumc:B:'Ethylene glycol dimethyl ether'; prudent_practices_2011:B:'Ethylene glycol dimethyl ether (glyme)'; eu_annex_vi:603-031-00-3"
+  },
+  {
+   "cas": "123-91-1",
+   "name": "dioxane",
+   "pubchem_cids": [
+    31275
+   ],
+   "peroxide_class": "B",
+   "class_basis": "named in a list",
+   "vumc": null,
+   "prudent_practices_2011": "B",
+   "illinois_drs": "B",
+   "class_entry_rules": "dioxane_ring",
+   "eu_euh019": true,
+   "lists_disagree": false,
+   "structural_alert": true,
+   "confidence": "high",
+   "evidence": "named in prudent_practices_2011 B, illinois_drs B; prudent_practices_2011:B:'Dioxane (p-dioxane)'; illinois_drs:B:'Dioxane'; eu_annex_vi:603-024-00-5"
+  },
+  {
+   "cas": "29911-27-1",
+   "name": "Dipropylene Glycol Mono n-Propyl Ether",
+   "pubchem_cids": [
+    121752
+   ],
+   "peroxide_class": "B",
+   "class_basis": "matched a class entry by structure",
+   "vumc": null,
+   "prudent_practices_2011": null,
+   "illinois_drs": null,
+   "class_entry_rules": "secondary_alcohol",
+   "eu_euh019": false,
+   "lists_disagree": false,
+   "structural_alert": true,
+   "confidence": "medium",
+   "evidence": "class entry by structure: secondary_alcohol"
+  },
+  {
+   "cas": "29911-28-2",
+   "name": "dipropyleneglycoln-butylether",
+   "pubchem_cids": [
+    24752
+   ],
+   "peroxide_class": "B",
+   "class_basis": "matched a class entry by structure",
+   "vumc": null,
+   "prudent_practices_2011": null,
+   "illinois_drs": null,
+   "class_entry_rules": "secondary_alcohol",
+   "eu_euh019": false,
+   "lists_disagree": false,
+   "structural_alert": true,
+   "confidence": "medium",
+   "evidence": "class entry by structure: secondary_alcohol"
+  },
+  {
+   "cas": "109-92-2",
+   "name": "ethoxy-ethene",
+   "pubchem_cids": [
+    8023
+   ],
+   "peroxide_class": "B",
+   "class_basis": "named in a list",
+   "vumc": "D",
+   "prudent_practices_2011": null,
+   "illinois_drs": null,
+   "class_entry_rules": "vinyl_ether",
+   "eu_euh019": false,
+   "lists_disagree": false,
+   "structural_alert": true,
+   "confidence": "medium",
+   "evidence": "named in vumc D; vumc:D:'Ethyl vinyl ether'"
+  },
+  {
+   "cas": "110-49-6",
+   "name": "ethyleneglycolmonomethyletheracetate",
+   "pubchem_cids": [
+    8054
+   ],
+   "peroxide_class": "B",
+   "class_basis": "matched a class entry by structure",
+   "vumc": null,
+   "prudent_practices_2011": null,
+   "illinois_drs": null,
+   "class_entry_rules": "ethylene_glycol_ether_acetate",
+   "eu_euh019": false,
+   "lists_disagree": false,
+   "structural_alert": true,
+   "confidence": "medium",
+   "evidence": "class entry by structure: ethylene_glycol_ether_acetate"
+  },
+  {
+   "cas": "110-00-9",
+   "name": "Furan",
+   "pubchem_cids": [
+    8029
+   ],
+   "peroxide_class": "B",
+   "class_basis": "named in a list",
+   "vumc": "D",
+   "prudent_practices_2011": "B",
+   "illinois_drs": "B",
+   "class_entry_rules": null,
+   "eu_euh019": true,
+   "lists_disagree": true,
+   "structural_alert": false,
+   "confidence": "high",
+   "evidence": "named in vumc D, prudent_practices_2011 B, illinois_drs B; vumc:D:'Furan'; prudent_practices_2011:B:'Furan'; illinois_drs:B:'Furan'; eu_annex_vi:603-105-00-5"
+  },
+  {
+   "cas": "109-53-5",
+   "name": "isobutylvinylether",
+   "pubchem_cids": [
+    7992
+   ],
+   "peroxide_class": "B",
+   "class_basis": "named in a list",
+   "vumc": "D",
+   "prudent_practices_2011": null,
+   "illinois_drs": null,
+   "class_entry_rules": "vinyl_ether",
+   "eu_euh019": false,
+   "lists_disagree": false,
+   "structural_alert": true,
+   "confidence": "medium",
+   "evidence": "named in vumc D; vumc:D:'Isobutyl vinyl ether'"
+  },
+  {
+   "cas": "123-51-3",
+   "name": "isopentanol",
+   "pubchem_cids": [
+    31260
+   ],
+   "peroxide_class": "B",
+   "class_basis": "named in a list",
+   "vumc": "B",
+   "prudent_practices_2011": null,
+   "illinois_drs": "B",
+   "class_entry_rules": null,
+   "eu_euh019": false,
+   "lists_disagree": false,
+   "structural_alert": false,
+   "confidence": "high",
+   "evidence": "named in vumc B, illinois_drs B; vumc:B:'3-methyl-1 butanol'; illinois_drs:B:'3-Methyl-1-Butanol'"
+  },
+  {
+   "cas": "98-82-8",
+   "name": "isopropylbenzene",
+   "pubchem_cids": [
+    7406
+   ],
+   "peroxide_class": "B",
+   "class_basis": "named in a list",
+   "vumc": "B",
+   "prudent_practices_2011": "B",
+   "illinois_drs": "B",
+   "class_entry_rules": null,
+   "eu_euh019": false,
+   "lists_disagree": false,
+   "structural_alert": false,
+   "confidence": "high",
+   "evidence": "named in vumc B, prudent_practices_2011 B, illinois_drs B; vumc:B:'Cumene'; prudent_practices_2011:B:'Cumene'; illinois_drs:B:'Cumene (isopropylbenzene)'"
+  },
+  {
+   "cas": "96-37-7",
+   "name": "methylcyclopentane",
+   "pubchem_cids": [
+    7296
+   ],
+   "peroxide_class": "B",
+   "class_basis": "named in a list",
+   "vumc": "B",
+   "prudent_practices_2011": "B",
+   "illinois_drs": "B",
+   "class_entry_rules": null,
+   "eu_euh019": false,
+   "lists_disagree": false,
+   "structural_alert": false,
+   "confidence": "high",
+   "evidence": "named in vumc B, prudent_practices_2011 B, illinois_drs B; vumc:B:'Methyl cyclopentane'; prudent_practices_2011:B:'Methyl cyclopentane'; illinois_drs:B:'Methyl cyclopentane'"
+  },
+  {
+   "cas": "107-25-5",
+   "name": "methylvinylether",
+   "pubchem_cids": [
+    7861
+   ],
+   "peroxide_class": "B",
+   "class_basis": "matched a class entry by structure",
+   "vumc": null,
+   "prudent_practices_2011": null,
+   "illinois_drs": null,
+   "class_entry_rules": "vinyl_ether",
+   "eu_euh019": false,
+   "lists_disagree": false,
+   "structural_alert": true,
+   "confidence": "medium",
+   "evidence": "class entry by structure: vinyl_ether"
+  },
+  {
+   "cas": "74-99-7",
+   "name": "propyne",
+   "pubchem_cids": [
+    6335
+   ],
+   "peroxide_class": "B",
+   "class_basis": "named in a list",
+   "vumc": "B",
+   "prudent_practices_2011": "B",
+   "illinois_drs": "B",
+   "class_entry_rules": null,
+   "eu_euh019": false,
+   "lists_disagree": false,
+   "structural_alert": false,
+   "confidence": "high",
+   "evidence": "named in vumc B, prudent_practices_2011 B, illinois_drs B; vumc:B:'Methyl acetylene'; prudent_practices_2011:B:'Methyl acetylene'; illinois_drs:B:'Methyl acetylene'"
+  },
+  {
+   "cas": "453-20-3",
+   "name": "tetrahydro-3-furanol",
+   "pubchem_cids": [
+    9960
+   ],
+   "peroxide_class": "B",
+   "class_basis": "matched a class entry by structure",
+   "vumc": null,
+   "prudent_practices_2011": null,
+   "illinois_drs": null,
+   "class_entry_rules": "secondary_alcohol",
+   "eu_euh019": false,
+   "lists_disagree": false,
+   "structural_alert": true,
+   "confidence": "medium",
+   "evidence": "class entry by structure: secondary_alcohol"
+  },
+  {
+   "cas": "119-64-2",
+   "name": "tetralin",
+   "pubchem_cids": [
+    8404
+   ],
+   "peroxide_class": "B",
+   "class_basis": "named in a list",
+   "vumc": "B",
+   "prudent_practices_2011": "B",
+   "illinois_drs": "B",
+   "class_entry_rules": null,
+   "eu_euh019": true,
+   "lists_disagree": false,
+   "structural_alert": false,
+   "confidence": "high",
+   "evidence": "named in vumc B, prudent_practices_2011 B, illinois_drs B; vumc:B:'Tetrahydronaphthalene'; prudent_practices_2011:B:'Tetrahydronaphthalene'; illinois_drs:B:'Tetrahydronapthelene'; eu_annex_vi:601-045-00-4"
+  },
+  {
+   "cas": "109-99-9",
+   "name": "thf",
+   "pubchem_cids": [
+    8028
+   ],
+   "peroxide_class": "B",
+   "class_basis": "named in a list",
+   "vumc": "B",
+   "prudent_practices_2011": "B",
+   "illinois_drs": "B",
+   "class_entry_rules": null,
+   "eu_euh019": true,
+   "lists_disagree": false,
+   "structural_alert": true,
+   "confidence": "high",
+   "evidence": "named in vumc B, prudent_practices_2011 B, illinois_drs B; vumc:B:'Tetrahydrofuran'; prudent_practices_2011:B:'Tetrahydrofuran'; illinois_drs:B:'Tetrahydrofuran'; eu_annex_vi:603-025-00-0"
+  },
+  {
+   "cas": "493-02-7",
+   "name": "trans-decalin",
+   "pubchem_cids": [
+    7044
+   ],
+   "peroxide_class": "B",
+   "class_basis": "named in a list",
+   "vumc": "B",
+   "prudent_practices_2011": null,
+   "illinois_drs": "B",
+   "class_entry_rules": null,
+   "eu_euh019": false,
+   "lists_disagree": false,
+   "structural_alert": false,
+   "confidence": "high",
+   "evidence": "named in vumc B, illinois_drs B; vumc:B:'Decahydronaphthalene'; illinois_drs:B:'Decahydronaphthalene (Decalin)'"
+  },
+  {
+   "cas": "109-93-3",
+   "name": "Vinyl Ether",
+   "pubchem_cids": [
+    8024
+   ],
+   "peroxide_class": "B",
+   "class_basis": "matched a class entry by structure",
+   "vumc": null,
+   "prudent_practices_2011": null,
+   "illinois_drs": null,
+   "class_entry_rules": "vinyl_ether",
+   "eu_euh019": false,
+   "lists_disagree": false,
+   "structural_alert": false,
+   "confidence": "medium",
+   "evidence": "class entry by structure: vinyl_ether"
+  },
+  {
+   "cas": "926-65-8",
+   "name": "Vinyl Isopropyl Ether",
+   "pubchem_cids": [
+    13557
+   ],
+   "peroxide_class": "B",
+   "class_basis": "matched a class entry by structure",
+   "vumc": null,
+   "prudent_practices_2011": null,
+   "illinois_drs": null,
+   "class_entry_rules": "vinyl_ether",
+   "eu_euh019": false,
+   "lists_disagree": false,
+   "structural_alert": true,
+   "confidence": "medium",
+   "evidence": "class entry by structure: vinyl_ether"
+  },
+  {
+   "cas": "764-47-6",
+   "name": "Vinyl Propyl Ether",
+   "pubchem_cids": [
+    69815
+   ],
+   "peroxide_class": "B",
+   "class_basis": "matched a class entry by structure",
+   "vumc": null,
+   "prudent_practices_2011": null,
+   "illinois_drs": null,
+   "class_entry_rules": "vinyl_ether",
+   "eu_euh019": false,
+   "lists_disagree": false,
+   "structural_alert": true,
+   "confidence": "medium",
+   "evidence": "class entry by structure: vinyl_ether"
+  },
+  {
+   "cas": "112-36-7",
+   "name": "1,1'-oxybis-2-ethoxy-ethane",
+   "pubchem_cids": [
+    8179
+   ],
+   "peroxide_class": "D",
+   "class_basis": "named in a list",
+   "vumc": "D",
+   "prudent_practices_2011": null,
+   "illinois_drs": null,
+   "class_entry_rules": null,
+   "eu_euh019": false,
+   "lists_disagree": false,
+   "structural_alert": true,
+   "confidence": "medium",
+   "evidence": "named in vumc D; vumc:D:'Bis(2-ethoxyethyl)ether'"
+  },
+  {
+   "cas": "534-15-6",
+   "name": "1,1-dimethoxyethane",
+   "pubchem_cids": [
+    10795
+   ],
+   "peroxide_class": "D",
+   "class_basis": "named in a list",
+   "vumc": "D",
+   "prudent_practices_2011": null,
+   "illinois_drs": null,
+   "class_entry_rules": null,
+   "eu_euh019": false,
+   "lists_disagree": false,
+   "structural_alert": true,
+   "confidence": "medium",
+   "evidence": "named in vumc D; vumc:D:'1,1-Dimethoxyethane'"
+  },
+  {
+   "cas": "872-36-6",
+   "name": "1,3-dioxol-2-one",
+   "pubchem_cids": [
+    13385
+   ],
+   "peroxide_class": "D",
+   "class_basis": "named in a list",
+   "vumc": "D",
+   "prudent_practices_2011": null,
+   "illinois_drs": null,
+   "class_entry_rules": null,
+   "eu_euh019": false,
+   "lists_disagree": false,
+   "structural_alert": false,
+   "confidence": "medium",
+   "evidence": "named in vumc D; vumc:D:'Vinylene carbonate'"
+  },
+  {
+   "cas": "614-72-2",
+   "name": "1-chloro-2-ethoxybenzene",
+   "pubchem_cids": [
+    69197
+   ],
+   "peroxide_class": "D",
+   "class_basis": "named in a list",
+   "vumc": "D",
+   "prudent_practices_2011": null,
+   "illinois_drs": null,
+   "class_entry_rules": null,
+   "eu_euh019": false,
+   "lists_disagree": false,
+   "structural_alert": true,
+   "confidence": "medium",
+   "evidence": "named in vumc D; vumc:D:'o-Chorophenetole'"
+  },
+  {
+   "cas": "622-61-7",
+   "name": "1-chloro-4-ethoxybenzene",
+   "pubchem_cids": [
+    69326
+   ],
+   "peroxide_class": "D",
+   "class_basis": "named in a list",
+   "vumc": "D",
+   "prudent_practices_2011": null,
+   "illinois_drs": null,
+   "class_entry_rules": null,
+   "eu_euh019": false,
+   "lists_disagree": false,
+   "structural_alert": true,
+   "confidence": "medium",
+   "evidence": "named in vumc D; vumc:D:'p-Chlorophenetole'"
+  },
+  {
+   "cas": "111-15-9",
+   "name": "2-ethoxyethanolacetate",
+   "pubchem_cids": [
+    8095
+   ],
+   "peroxide_class": "D",
+   "class_basis": "named in a list",
+   "vumc": "D",
+   "prudent_practices_2011": null,
+   "illinois_drs": null,
+   "class_entry_rules": "ethylene_glycol_ether_acetate",
+   "eu_euh019": false,
+   "lists_disagree": false,
+   "structural_alert": true,
+   "confidence": "medium",
+   "evidence": "named in vumc D; vumc:D:'2-Ethoxyethyl acetate'"
+  },
+  {
+   "cas": "97-95-0",
+   "name": "2-ethyl-1-butanol",
+   "pubchem_cids": [
+    7358
+   ],
+   "peroxide_class": "D",
+   "class_basis": "named in a list",
+   "vumc": "D",
+   "prudent_practices_2011": null,
+   "illinois_drs": null,
+   "class_entry_rules": null,
+   "eu_euh019": false,
+   "lists_disagree": false,
+   "structural_alert": false,
+   "confidence": "medium",
+   "evidence": "named in vumc D; vumc:D:'2-Ethylbutanol'"
+  },
+  {
+   "cas": "109-86-4",
+   "name": "2-methoxyethanol",
+   "pubchem_cids": [
+    8019
+   ],
+   "peroxide_class": "D",
+   "class_basis": "named in a list",
+   "vumc": "D",
+   "prudent_practices_2011": null,
+   "illinois_drs": null,
+   "class_entry_rules": null,
+   "eu_euh019": false,
+   "lists_disagree": false,
+   "structural_alert": true,
+   "confidence": "medium",
+   "evidence": "named in vumc D; vumc:D:'2-Methoxyethanol'"
+  },
+  {
+   "cas": "96-47-9",
+   "name": "2-methyltetrahydrofuran",
+   "pubchem_cids": [
+    7301
+   ],
+   "peroxide_class": "D",
+   "class_basis": "named in a list",
+   "vumc": "D",
+   "prudent_practices_2011": null,
+   "illinois_drs": null,
+   "class_entry_rules": null,
+   "eu_euh019": false,
+   "lists_disagree": false,
+   "structural_alert": true,
+   "confidence": "medium",
+   "evidence": "named in vumc D; vumc:D:'2-Methyltetrahydrofuran'"
+  },
+  {
+   "cas": "629-14-1",
+   "name": "3,6-dioxaoctane",
+   "pubchem_cids": [
+    12375
+   ],
+   "peroxide_class": "D",
+   "class_basis": "named in a list",
+   "vumc": "D",
+   "prudent_practices_2011": null,
+   "illinois_drs": null,
+   "class_entry_rules": null,
+   "eu_euh019": true,
+   "lists_disagree": false,
+   "structural_alert": true,
+   "confidence": "high",
+   "evidence": "named in vumc D; vumc:D:'1,2-Diethoxyethane'; eu_annex_vi:603-208-00-5"
+  },
+  {
+   "cas": "110-67-8",
+   "name": "3-Methoxypropionitrile",
+   "pubchem_cids": [
+    61032
+   ],
+   "peroxide_class": "D",
+   "class_basis": "named in a list",
+   "vumc": "D",
+   "prudent_practices_2011": null,
+   "illinois_drs": null,
+   "class_entry_rules": null,
+   "eu_euh019": false,
+   "lists_disagree": false,
+   "structural_alert": true,
+   "confidence": "medium",
+   "evidence": "named in vumc D; vumc:D:'b-Methoxypropionitrile'"
+  },
+  {
+   "cas": "107-02-8",
+   "name": "acrolein",
+   "pubchem_cids": [
+    7847
+   ],
+   "peroxide_class": "D",
+   "class_basis": "named in a list",
+   "vumc": "D",
+   "prudent_practices_2011": null,
+   "illinois_drs": null,
+   "class_entry_rules": null,
+   "eu_euh019": false,
+   "lists_disagree": false,
+   "structural_alert": false,
+   "confidence": "medium",
+   "evidence": "named in vumc D; vumc:D:'Acrolein'"
+  },
+  {
+   "cas": "557-31-3",
+   "name": "allylethylether",
+   "pubchem_cids": [
+    11191
+   ],
+   "peroxide_class": "D",
+   "class_basis": "named in a list",
+   "vumc": "D",
+   "prudent_practices_2011": null,
+   "illinois_drs": null,
+   "class_entry_rules": null,
+   "eu_euh019": false,
+   "lists_disagree": false,
+   "structural_alert": true,
+   "confidence": "medium",
+   "evidence": "named in vumc D; vumc:D:'Allyl ethyl ether'"
+  },
+  {
+   "cas": "539-30-0",
+   "name": "Benzyl Ethyl Ether",
+   "pubchem_cids": [
+    10873
+   ],
+   "peroxide_class": "D",
+   "class_basis": "named in a list",
+   "vumc": "D",
+   "prudent_practices_2011": null,
+   "illinois_drs": null,
+   "class_entry_rules": null,
+   "eu_euh019": false,
+   "lists_disagree": false,
+   "structural_alert": true,
+   "confidence": "medium",
+   "evidence": "named in vumc D; vumc:D:'Benzyl ethyl ether'"
+  },
+  {
+   "cas": "111-44-4",
+   "name": "bis(2-chloroethyl)ether",
+   "pubchem_cids": [
+    8115
+   ],
+   "peroxide_class": "D",
+   "class_basis": "named in a list",
+   "vumc": "D",
+   "prudent_practices_2011": null,
+   "illinois_drs": null,
+   "class_entry_rules": null,
+   "eu_euh019": false,
+   "lists_disagree": false,
+   "structural_alert": true,
+   "confidence": "medium",
+   "evidence": "named in vumc D; vumc:D:'Bis(2-chloroethyl) ether'"
+  },
+  {
+   "cas": "107-30-2",
+   "name": "chloromethoxymethane",
+   "pubchem_cids": [
+    7864
+   ],
+   "peroxide_class": "D",
+   "class_basis": "named in a list",
+   "vumc": "D",
+   "prudent_practices_2011": null,
+   "illinois_drs": null,
+   "class_entry_rules": null,
+   "eu_euh019": false,
+   "lists_disagree": false,
+   "structural_alert": true,
+   "confidence": "medium",
+   "evidence": "named in vumc D; vumc:D:'Chloromethyl methyl ether'"
+  },
+  {
+   "cas": "693-65-2",
+   "name": "di-n-pentylether",
+   "pubchem_cids": [
+    12743
+   ],
+   "peroxide_class": "D",
+   "class_basis": "named in a list",
+   "vumc": "D",
+   "prudent_practices_2011": null,
+   "illinois_drs": null,
+   "class_entry_rules": null,
+   "eu_euh019": false,
+   "lists_disagree": false,
+   "structural_alert": true,
+   "confidence": "medium",
+   "evidence": "named in vumc D; vumc:D:'n-Amyl ether'"
+  },
+  {
+   "cas": "111-43-3",
+   "name": "di-n-propylether",
+   "pubchem_cids": [
+    8114
+   ],
+   "peroxide_class": "D",
+   "class_basis": "named in a list",
+   "vumc": "D",
+   "prudent_practices_2011": null,
+   "illinois_drs": null,
+   "class_entry_rules": null,
+   "eu_euh019": true,
+   "lists_disagree": false,
+   "structural_alert": true,
+   "confidence": "high",
+   "evidence": "named in vumc D; vumc:D:'n-Propyl ether'; eu_annex_vi:603-045-00-X"
+  },
+  {
+   "cas": "557-40-4",
+   "name": "diallylether",
+   "pubchem_cids": [
+    11194
+   ],
+   "peroxide_class": "D",
+   "class_basis": "named in a list",
+   "vumc": "D",
+   "prudent_practices_2011": null,
+   "illinois_drs": null,
+   "class_entry_rules": null,
+   "eu_euh019": false,
+   "lists_disagree": false,
+   "structural_alert": true,
+   "confidence": "medium",
+   "evidence": "named in vumc D; vumc:D:'Allyl ether'; vumc:D:'Diallyl ether'"
+  },
+  {
+   "cas": "103-50-4",
+   "name": "dibenzylether",
+   "pubchem_cids": [
+    7657
+   ],
+   "peroxide_class": "D",
+   "class_basis": "named in a list",
+   "vumc": "D",
+   "prudent_practices_2011": null,
+   "illinois_drs": null,
+   "class_entry_rules": null,
+   "eu_euh019": false,
+   "lists_disagree": false,
+   "structural_alert": true,
+   "confidence": "medium",
+   "evidence": "named in vumc D; vumc:D:'Benzyl ether'"
+  },
+  {
+   "cas": "112-58-3",
+   "name": "Dihexyl Ether",
+   "pubchem_cids": [
+    8198
+   ],
+   "peroxide_class": "D",
+   "class_basis": "named in a list",
+   "vumc": "D",
+   "prudent_practices_2011": null,
+   "illinois_drs": null,
+   "class_entry_rules": null,
+   "eu_euh019": false,
+   "lists_disagree": false,
+   "structural_alert": true,
+   "confidence": "medium",
+   "evidence": "named in vumc D; vumc:D:'n-Hexyl ether'"
+  },
+  {
+   "cas": "109-87-5",
+   "name": "Dimethoxymethane",
+   "pubchem_cids": [
+    8020
+   ],
+   "peroxide_class": "D",
+   "class_basis": "named in a list",
+   "vumc": "D",
+   "prudent_practices_2011": null,
+   "illinois_drs": null,
+   "class_entry_rules": null,
+   "eu_euh019": false,
+   "lists_disagree": false,
+   "structural_alert": true,
+   "confidence": "medium",
+   "evidence": "named in vumc D; vumc:D:'Dimethoxymethane'"
+  },
+  {
+   "cas": "78-59-1",
+   "name": "isophorone",
+   "pubchem_cids": [
+    6544
+   ],
+   "peroxide_class": "D",
+   "class_basis": "named in a list",
+   "vumc": "D",
+   "prudent_practices_2011": null,
+   "illinois_drs": null,
+   "class_entry_rules": null,
+   "eu_euh019": false,
+   "lists_disagree": false,
+   "structural_alert": false,
+   "confidence": "medium",
+   "evidence": "named in vumc D; vumc:D:'Isophorone'"
+  },
+  {
+   "cas": "1634-04-4",
+   "name": "methyl-t-butylether",
+   "pubchem_cids": [
+    15413
+   ],
+   "peroxide_class": "D",
+   "class_basis": "named in a list",
+   "vumc": "D",
+   "prudent_practices_2011": null,
+   "illinois_drs": null,
+   "class_entry_rules": null,
+   "eu_euh019": false,
+   "lists_disagree": false,
+   "structural_alert": true,
+   "confidence": "medium",
+   "evidence": "named in vumc D; vumc:D:'tert-Butyl methyl ether'"
+  },
+  {
+   "cas": "111-66-0",
+   "name": "octene",
+   "pubchem_cids": [
+    8125
+   ],
+   "peroxide_class": "D",
+   "class_basis": "named in a list",
+   "vumc": "D",
+   "prudent_practices_2011": null,
+   "illinois_drs": null,
+   "class_entry_rules": null,
+   "eu_euh019": false,
+   "lists_disagree": false,
+   "structural_alert": false,
+   "confidence": "medium",
+   "evidence": "named in vumc D; vumc:D:'1-Octene'"
+  },
+  {
+   "cas": "542-88-1",
+   "name": "oxybischloromethane",
+   "pubchem_cids": [
+    10967
+   ],
+   "peroxide_class": "D",
+   "class_basis": "named in a list",
+   "vumc": "D",
+   "prudent_practices_2011": null,
+   "illinois_drs": null,
+   "class_entry_rules": null,
+   "eu_euh019": false,
+   "lists_disagree": false,
+   "structural_alert": true,
+   "confidence": "medium",
+   "evidence": "named in vumc D; vumc:D:'Bis(chloromethyl) ether'"
+  },
+  {
+   "cas": "109-67-1",
+   "name": "pentene",
+   "pubchem_cids": [
+    8004
+   ],
+   "peroxide_class": "D",
+   "class_basis": "named in a list",
+   "vumc": "D",
+   "prudent_practices_2011": null,
+   "illinois_drs": null,
+   "class_entry_rules": null,
+   "eu_euh019": false,
+   "lists_disagree": false,
+   "structural_alert": false,
+   "confidence": "medium",
+   "evidence": "named in vumc D; vumc:D:'1-Pentene'"
+  },
+  {
+   "cas": "142-68-7",
+   "name": "thp",
+   "pubchem_cids": [
+    8894
+   ],
+   "peroxide_class": "D",
+   "class_basis": "named in a list",
+   "vumc": "D",
+   "prudent_practices_2011": null,
+   "illinois_drs": null,
+   "class_entry_rules": null,
+   "eu_euh019": false,
+   "lists_disagree": false,
+   "structural_alert": true,
+   "confidence": "medium",
+   "evidence": "named in vumc D; vumc:D:'Tetrahydropyran'"
+  },
+  {
+   "cas": "111-46-6",
+   "name": "diethyleneglycol",
+   "pubchem_cids": [
+    8117
+   ],
+   "peroxide_class": "disputed",
+   "class_basis": "named in a list",
+   "vumc": "B",
+   "prudent_practices_2011": null,
+   "illinois_drs": null,
+   "class_entry_rules": null,
+   "eu_euh019": false,
+   "lists_disagree": false,
+   "structural_alert": true,
+   "confidence": "medium",
+   "evidence": "VUMC only: VUMC Class B only; PP 2011 and Illinois list diethylene glycol DIMETHYL ETHER (diglyme) instead, so this is probably a truncated name; vumc:B:'Diethylene glycol'"
+  },
+  {
+   "cas": "115-10-6",
+   "name": "dimethylether",
+   "pubchem_cids": [
+    8254
+   ],
+   "peroxide_class": "disputed",
+   "class_basis": "named in a list",
+   "vumc": "B",
+   "prudent_practices_2011": null,
+   "illinois_drs": null,
+   "class_entry_rules": null,
+   "eu_euh019": false,
+   "lists_disagree": false,
+   "structural_alert": true,
+   "confidence": "medium",
+   "evidence": "VUMC only: VUMC Class B only; not in PP 2011 or Illinois; vumc:B:'Dimethyl ether'"
+  },
+  {
+   "cas": "102-52-3",
+   "name": "1,1,3,3-tetramethoxypropane",
+   "pubchem_cids": [
+    66019
+   ],
+   "peroxide_class": "not listed",
+   "class_basis": "structural alert only (ether with hydrogens next to the oxygen)",
+   "vumc": null,
+   "prudent_practices_2011": null,
+   "illinois_drs": null,
+   "class_entry_rules": null,
+   "eu_euh019": false,
+   "lists_disagree": false,
+   "structural_alert": true,
+   "confidence": "low",
+   "evidence": "ether with alpha-H (structural alert only)"
+  },
+  {
+   "cas": "112-48-1",
+   "name": "1,2-dibutoxyethane",
+   "pubchem_cids": [
+    8188
+   ],
+   "peroxide_class": "not listed",
+   "class_basis": "structural alert only (ether with hydrogens next to the oxygen)",
+   "vumc": null,
+   "prudent_practices_2011": null,
+   "illinois_drs": null,
+   "class_entry_rules": null,
+   "eu_euh019": false,
+   "lists_disagree": false,
+   "structural_alert": true,
+   "confidence": "low",
+   "evidence": "ether with alpha-H (structural alert only)"
+  },
+  {
+   "cas": "91-16-7",
+   "name": "1,2-Dimethoxybenzene",
+   "pubchem_cids": [
+    7043
+   ],
+   "peroxide_class": "not listed",
+   "class_basis": "structural alert only (ether with hydrogens next to the oxygen)",
+   "vumc": null,
+   "prudent_practices_2011": null,
+   "illinois_drs": null,
+   "class_entry_rules": null,
+   "eu_euh019": false,
+   "lists_disagree": false,
+   "structural_alert": true,
+   "confidence": "low",
+   "evidence": "ether with alpha-H (structural alert only)"
+  },
+  {
+   "cas": "110-88-3",
+   "name": "1,3,5-trioxane",
+   "pubchem_cids": [
+    8081
+   ],
+   "peroxide_class": "not listed",
+   "class_basis": "structural alert only (ether with hydrogens next to the oxygen)",
+   "vumc": null,
+   "prudent_practices_2011": null,
+   "illinois_drs": null,
+   "class_entry_rules": null,
+   "eu_euh019": false,
+   "lists_disagree": false,
+   "structural_alert": true,
+   "confidence": "low",
+   "evidence": "ether with alpha-H (structural alert only)"
+  },
+  {
+   "cas": "274-09-9",
+   "name": "1,3-benzodioxole",
+   "pubchem_cids": [
+    9229
+   ],
+   "peroxide_class": "not listed",
+   "class_basis": "structural alert only (ether with hydrogens next to the oxygen)",
+   "vumc": null,
+   "prudent_practices_2011": null,
+   "illinois_drs": null,
+   "class_entry_rules": null,
+   "eu_euh019": false,
+   "lists_disagree": false,
+   "structural_alert": true,
+   "confidence": "low",
+   "evidence": "ether with alpha-H (structural alert only)"
+  },
+  {
+   "cas": "15980-15-1",
+   "name": "1,4-Thioxane",
+   "pubchem_cids": [
+    27596
+   ],
+   "peroxide_class": "not listed",
+   "class_basis": "structural alert only (ether with hydrogens next to the oxygen)",
+   "vumc": null,
+   "prudent_practices_2011": null,
+   "illinois_drs": null,
+   "class_entry_rules": null,
+   "eu_euh019": false,
+   "lists_disagree": false,
+   "structural_alert": true,
+   "confidence": "low",
+   "evidence": "ether with alpha-H (structural alert only)"
+  },
+  {
+   "cas": "54839-24-6",
+   "name": "1-ethoxy-2-propanol-acetate",
+   "pubchem_cids": [
+    171378
+   ],
+   "peroxide_class": "not listed",
+   "class_basis": "structural alert only (ether with hydrogens next to the oxygen)",
+   "vumc": null,
+   "prudent_practices_2011": null,
+   "illinois_drs": null,
+   "class_entry_rules": null,
+   "eu_euh019": false,
+   "lists_disagree": false,
+   "structural_alert": true,
+   "confidence": "low",
+   "evidence": "ether with alpha-H (structural alert only)"
+  },
+  {
+   "cas": "628-81-9",
+   "name": "1-ethoxybutane",
+   "pubchem_cids": [
+    12355
+   ],
+   "peroxide_class": "not listed",
+   "class_basis": "structural alert only (ether with hydrogens next to the oxygen)",
+   "vumc": null,
+   "prudent_practices_2011": null,
+   "illinois_drs": null,
+   "class_entry_rules": null,
+   "eu_euh019": false,
+   "lists_disagree": false,
+   "structural_alert": true,
+   "confidence": "low",
+   "evidence": "ether with alpha-H (structural alert only)"
+  },
+  {
+   "cas": "108-65-6",
+   "name": "1-methoxy-2-acetoxypropane",
+   "pubchem_cids": [
+    7946
+   ],
+   "peroxide_class": "not listed",
+   "class_basis": "structural alert only (ether with hydrogens next to the oxygen)",
+   "vumc": null,
+   "prudent_practices_2011": null,
+   "illinois_drs": null,
+   "class_entry_rules": null,
+   "eu_euh019": false,
+   "lists_disagree": false,
+   "structural_alert": true,
+   "confidence": "low",
+   "evidence": "ether with alpha-H (structural alert only)"
+  },
+  {
+   "cas": "91-23-6",
+   "name": "1-methoxy-2-nitrobenzene",
+   "pubchem_cids": [
+    7048
+   ],
+   "peroxide_class": "not listed",
+   "class_basis": "structural alert only (ether with hydrogens next to the oxygen)",
+   "vumc": null,
+   "prudent_practices_2011": null,
+   "illinois_drs": null,
+   "class_entry_rules": null,
+   "eu_euh019": false,
+   "lists_disagree": false,
+   "structural_alert": true,
+   "confidence": "low",
+   "evidence": "ether with alpha-H (structural alert only)"
+  },
+  {
+   "cas": "91-10-1",
+   "name": "2,6-dimethoxyphenol",
+   "pubchem_cids": [
+    7041
+   ],
+   "peroxide_class": "not listed",
+   "class_basis": "structural alert only (ether with hydrogens next to the oxygen)",
+   "vumc": null,
+   "prudent_practices_2011": null,
+   "illinois_drs": null,
+   "class_entry_rules": null,
+   "eu_euh019": false,
+   "lists_disagree": false,
+   "structural_alert": true,
+   "confidence": "low",
+   "evidence": "ether with alpha-H (structural alert only)"
+  },
+  {
+   "cas": "1559-35-9",
+   "name": "2-(2-ethylhexyl)oxyethanol",
+   "pubchem_cids": [
+    15260
+   ],
+   "peroxide_class": "not listed",
+   "class_basis": "structural alert only (ether with hydrogens next to the oxygen)",
+   "vumc": null,
+   "prudent_practices_2011": null,
+   "illinois_drs": null,
+   "class_entry_rules": null,
+   "eu_euh019": false,
+   "lists_disagree": false,
+   "structural_alert": true,
+   "confidence": "low",
+   "evidence": "ether with alpha-H (structural alert only)"
+  },
+  {
+   "cas": "111-77-3",
+   "name": "2-(2-methoxyethoxy)ethanol",
+   "pubchem_cids": [
+    8134
+   ],
+   "peroxide_class": "not listed",
+   "class_basis": "structural alert only (ether with hydrogens next to the oxygen)",
+   "vumc": null,
+   "prudent_practices_2011": null,
+   "illinois_drs": null,
+   "class_entry_rules": null,
+   "eu_euh019": false,
+   "lists_disagree": false,
+   "structural_alert": true,
+   "confidence": "low",
+   "evidence": "ether with alpha-H (structural alert only)"
+  },
+  {
+   "cas": "6881-94-3",
+   "name": "2-(2-propoxyethoxy)ethanol",
+   "pubchem_cids": [
+    81313
+   ],
+   "peroxide_class": "not listed",
+   "class_basis": "structural alert only (ether with hydrogens next to the oxygen)",
+   "vumc": null,
+   "prudent_practices_2011": null,
+   "illinois_drs": null,
+   "class_entry_rules": null,
+   "eu_euh019": false,
+   "lists_disagree": false,
+   "structural_alert": true,
+   "confidence": "low",
+   "evidence": "ether with alpha-H (structural alert only)"
+  },
+  {
+   "cas": "112-35-6",
+   "name": "2-2-(2-methoxyethoxy)ethoxyethanol",
+   "pubchem_cids": [
+    8178
+   ],
+   "peroxide_class": "not listed",
+   "class_basis": "structural alert only (ether with hydrogens next to the oxygen)",
+   "vumc": null,
+   "prudent_practices_2011": null,
+   "illinois_drs": null,
+   "class_entry_rules": null,
+   "eu_euh019": false,
+   "lists_disagree": false,
+   "structural_alert": true,
+   "confidence": "low",
+   "evidence": "ether with alpha-H (structural alert only)"
+  },
+  {
+   "cas": "112-59-4",
+   "name": "2-2-(hexyloxy)ethoxyethanol",
+   "pubchem_cids": [
+    8199
+   ],
+   "peroxide_class": "not listed",
+   "class_basis": "structural alert only (ether with hydrogens next to the oxygen)",
+   "vumc": null,
+   "prudent_practices_2011": null,
+   "illinois_drs": null,
+   "class_entry_rules": null,
+   "eu_euh019": false,
+   "lists_disagree": false,
+   "structural_alert": true,
+   "confidence": "low",
+   "evidence": "ether with alpha-H (structural alert only)"
+  },
+  {
+   "cas": "111-76-2",
+   "name": "2-butoxyethanol",
+   "pubchem_cids": [
+    8133
+   ],
+   "peroxide_class": "not listed",
+   "class_basis": "structural alert only (ether with hydrogens next to the oxygen)",
+   "vumc": null,
+   "prudent_practices_2011": null,
+   "illinois_drs": null,
+   "class_entry_rules": null,
+   "eu_euh019": false,
+   "lists_disagree": false,
+   "structural_alert": true,
+   "confidence": "low",
+   "evidence": "ether with alpha-H (structural alert only)"
+  },
+  {
+   "cas": "628-34-2",
+   "name": "2-chloroethylethylether",
+   "pubchem_cids": [
+    12341
+   ],
+   "peroxide_class": "not listed",
+   "class_basis": "structural alert only (ether with hydrogens next to the oxygen)",
+   "vumc": null,
+   "prudent_practices_2011": null,
+   "illinois_drs": null,
+   "class_entry_rules": null,
+   "eu_euh019": false,
+   "lists_disagree": false,
+   "structural_alert": true,
+   "confidence": "low",
+   "evidence": "ether with alpha-H (structural alert only)"
+  },
+  {
+   "cas": "106-74-1",
+   "name": "2-ethoxyethylacrylate",
+   "pubchem_cids": [
+    7827
+   ],
+   "peroxide_class": "not listed",
+   "class_basis": "structural alert only (ether with hydrogens next to the oxygen)",
+   "vumc": null,
+   "prudent_practices_2011": null,
+   "illinois_drs": null,
+   "class_entry_rules": null,
+   "eu_euh019": false,
+   "lists_disagree": false,
+   "structural_alert": true,
+   "confidence": "low",
+   "evidence": "ether with alpha-H (structural alert only)"
+  },
+  {
+   "cas": "112-25-4",
+   "name": "2-hexyloxyethanol",
+   "pubchem_cids": [
+    8170
+   ],
+   "peroxide_class": "not listed",
+   "class_basis": "structural alert only (ether with hydrogens next to the oxygen)",
+   "vumc": null,
+   "prudent_practices_2011": null,
+   "illinois_drs": null,
+   "class_entry_rules": null,
+   "eu_euh019": false,
+   "lists_disagree": false,
+   "structural_alert": true,
+   "confidence": "low",
+   "evidence": "ether with alpha-H (structural alert only)"
+  },
+  {
+   "cas": "109-59-1",
+   "name": "2-isopropoxyethanol",
+   "pubchem_cids": [
+    7996
+   ],
+   "peroxide_class": "not listed",
+   "class_basis": "structural alert only (ether with hydrogens next to the oxygen)",
+   "vumc": null,
+   "prudent_practices_2011": null,
+   "illinois_drs": null,
+   "class_entry_rules": null,
+   "eu_euh019": false,
+   "lists_disagree": false,
+   "structural_alert": true,
+   "confidence": "low",
+   "evidence": "ether with alpha-H (structural alert only)"
+  },
+  {
+   "cas": "135-02-4",
+   "name": "2-methoxybenzaldehyde",
+   "pubchem_cids": [
+    8658
+   ],
+   "peroxide_class": "not listed",
+   "class_basis": "structural alert only (ether with hydrogens next to the oxygen)",
+   "vumc": null,
+   "prudent_practices_2011": null,
+   "illinois_drs": null,
+   "class_entry_rules": null,
+   "eu_euh019": false,
+   "lists_disagree": false,
+   "structural_alert": true,
+   "confidence": "low",
+   "evidence": "ether with alpha-H (structural alert only)"
+  },
+  {
+   "cas": "90-05-1",
+   "name": "2-methoxyphenol",
+   "pubchem_cids": [
+    460
+   ],
+   "peroxide_class": "not listed",
+   "class_basis": "structural alert only (ether with hydrogens next to the oxygen)",
+   "vumc": null,
+   "prudent_practices_2011": null,
+   "illinois_drs": null,
+   "class_entry_rules": null,
+   "eu_euh019": false,
+   "lists_disagree": false,
+   "structural_alert": true,
+   "confidence": "low",
+   "evidence": "ether with alpha-H (structural alert only)"
+  },
+  {
+   "cas": "122-99-6",
+   "name": "2-phenoxyethanol",
+   "pubchem_cids": [
+    31236
+   ],
+   "peroxide_class": "not listed",
+   "class_basis": "structural alert only (ether with hydrogens next to the oxygen)",
+   "vumc": null,
+   "prudent_practices_2011": null,
+   "illinois_drs": null,
+   "class_entry_rules": null,
+   "eu_euh019": false,
+   "lists_disagree": false,
+   "structural_alert": true,
+   "confidence": "low",
+   "evidence": "ether with alpha-H (structural alert only)"
+  },
+  {
+   "cas": "2807-30-9",
+   "name": "2-propoxyethanol",
+   "pubchem_cids": [
+    17756
+   ],
+   "peroxide_class": "not listed",
+   "class_basis": "structural alert only (ether with hydrogens next to the oxygen)",
+   "vumc": null,
+   "prudent_practices_2011": null,
+   "illinois_drs": null,
+   "class_entry_rules": null,
+   "eu_euh019": false,
+   "lists_disagree": false,
+   "structural_alert": true,
+   "confidence": "low",
+   "evidence": "ether with alpha-H (structural alert only)"
+  },
+  {
+   "cas": "2517-43-3",
+   "name": "3-Methoxy Butanol",
+   "pubchem_cids": [
+    17291
+   ],
+   "peroxide_class": "not listed",
+   "class_basis": "structural alert only (ether with hydrogens next to the oxygen)",
+   "vumc": null,
+   "prudent_practices_2011": null,
+   "illinois_drs": null,
+   "class_entry_rules": null,
+   "eu_euh019": false,
+   "lists_disagree": false,
+   "structural_alert": true,
+   "confidence": "low",
+   "evidence": "ether with alpha-H (structural alert only)"
+  },
+  {
+   "cas": "56539-66-3",
+   "name": "3-methoxy-3-methylbutanol",
+   "pubchem_cids": [
+    62118
+   ],
+   "peroxide_class": "not listed",
+   "class_basis": "structural alert only (ether with hydrogens next to the oxygen)",
+   "vumc": null,
+   "prudent_practices_2011": null,
+   "illinois_drs": null,
+   "class_entry_rules": null,
+   "eu_euh019": false,
+   "lists_disagree": false,
+   "structural_alert": true,
+   "confidence": "low",
+   "evidence": "ether with alpha-H (structural alert only)"
+  },
+  {
+   "cas": "623-12-1",
+   "name": "4-chloroanisole",
+   "pubchem_cids": [
+    12167
+   ],
+   "peroxide_class": "not listed",
+   "class_basis": "structural alert only (ether with hydrogens next to the oxygen)",
+   "vumc": null,
+   "prudent_practices_2011": null,
+   "illinois_drs": null,
+   "class_entry_rules": null,
+   "eu_euh019": false,
+   "lists_disagree": false,
+   "structural_alert": true,
+   "confidence": "low",
+   "evidence": "ether with alpha-H (structural alert only)"
+  },
+  {
+   "cas": "100-74-3",
+   "name": "4-Ethyl Morpholine",
+   "pubchem_cids": [
+    7525
+   ],
+   "peroxide_class": "not listed",
+   "class_basis": "structural alert only (ether with hydrogens next to the oxygen)",
+   "vumc": null,
+   "prudent_practices_2011": null,
+   "illinois_drs": null,
+   "class_entry_rules": null,
+   "eu_euh019": false,
+   "lists_disagree": false,
+   "structural_alert": true,
+   "confidence": "low",
+   "evidence": "ether with alpha-H (structural alert only)"
+  },
+  {
+   "cas": "121-33-5",
+   "name": "4-hydroxy-3-methoxybenzaldehyde",
+   "pubchem_cids": [
+    1183
+   ],
+   "peroxide_class": "not listed",
+   "class_basis": "structural alert only (ether with hydrogens next to the oxygen)",
+   "vumc": null,
+   "prudent_practices_2011": null,
+   "illinois_drs": null,
+   "class_entry_rules": null,
+   "eu_euh019": false,
+   "lists_disagree": false,
+   "structural_alert": true,
+   "confidence": "low",
+   "evidence": "ether with alpha-H (structural alert only)"
+  },
+  {
+   "cas": "100-06-1",
+   "name": "4-methoxyacetophenone",
+   "pubchem_cids": [
+    7476
+   ],
+   "peroxide_class": "not listed",
+   "class_basis": "structural alert only (ether with hydrogens next to the oxygen)",
+   "vumc": null,
+   "prudent_practices_2011": null,
+   "illinois_drs": null,
+   "class_entry_rules": null,
+   "eu_euh019": false,
+   "lists_disagree": false,
+   "structural_alert": true,
+   "confidence": "low",
+   "evidence": "ether with alpha-H (structural alert only)"
+  },
+  {
+   "cas": "874-90-8",
+   "name": "4-methoxybenzonitrile",
+   "pubchem_cids": [
+    70129
+   ],
+   "peroxide_class": "not listed",
+   "class_basis": "structural alert only (ether with hydrogens next to the oxygen)",
+   "vumc": null,
+   "prudent_practices_2011": null,
+   "illinois_drs": null,
+   "class_entry_rules": null,
+   "eu_euh019": false,
+   "lists_disagree": false,
+   "structural_alert": true,
+   "confidence": "low",
+   "evidence": "ether with alpha-H (structural alert only)"
+  },
+  {
+   "cas": "627-40-7",
+   "name": "Allyl Methyl Ether",
+   "pubchem_cids": [
+    69392
+   ],
+   "peroxide_class": "not listed",
+   "class_basis": "structural alert only (ether with hydrogens next to the oxygen)",
+   "vumc": null,
+   "prudent_practices_2011": null,
+   "illinois_drs": null,
+   "class_entry_rules": null,
+   "eu_euh019": false,
+   "lists_disagree": false,
+   "structural_alert": true,
+   "confidence": "low",
+   "evidence": "ether with alpha-H (structural alert only)"
+  },
+  {
+   "cas": "104-46-1",
+   "name": "Anethole (Trans)",
+   "pubchem_cids": [
+    637563
+   ],
+   "peroxide_class": "not listed",
+   "class_basis": "structural alert only (ether with hydrogens next to the oxygen)",
+   "vumc": null,
+   "prudent_practices_2011": null,
+   "illinois_drs": null,
+   "class_entry_rules": null,
+   "eu_euh019": false,
+   "lists_disagree": false,
+   "structural_alert": true,
+   "confidence": "low",
+   "evidence": "ether with alpha-H (structural alert only)"
+  },
+  {
+   "cas": "100-66-3",
+   "name": "anisole",
+   "pubchem_cids": [
+    7519
+   ],
+   "peroxide_class": "not listed",
+   "class_basis": "structural alert only (ether with hydrogens next to the oxygen)",
+   "vumc": null,
+   "prudent_practices_2011": null,
+   "illinois_drs": null,
+   "class_entry_rules": null,
+   "eu_euh019": false,
+   "lists_disagree": false,
+   "structural_alert": true,
+   "confidence": "low",
+   "evidence": "ether with alpha-H (structural alert only)"
+  },
+  {
+   "cas": "13057-17-5",
+   "name": "bromomethylmethylether",
+   "pubchem_cids": [
+    83093
+   ],
+   "peroxide_class": "not listed",
+   "class_basis": "structural alert only (ether with hydrogens next to the oxygen)",
+   "vumc": null,
+   "prudent_practices_2011": null,
+   "illinois_drs": null,
+   "class_entry_rules": null,
+   "eu_euh019": false,
+   "lists_disagree": false,
+   "structural_alert": true,
+   "confidence": "low",
+   "evidence": "ether with alpha-H (structural alert only)"
+  },
+  {
+   "cas": "1464-53-5",
+   "name": "Butadienedioxide",
+   "pubchem_cids": [
+    11254
+   ],
+   "peroxide_class": "not listed",
+   "class_basis": "structural alert only (ether with hydrogens next to the oxygen)",
+   "vumc": null,
+   "prudent_practices_2011": null,
+   "illinois_drs": null,
+   "class_entry_rules": null,
+   "eu_euh019": false,
+   "lists_disagree": false,
+   "structural_alert": true,
+   "confidence": "low",
+   "evidence": "ether with alpha-H (structural alert only)"
+  },
+  {
+   "cas": "564-00-1",
+   "name": "butadienedioxide",
+   "pubchem_cids": [
+    233706
+   ],
+   "peroxide_class": "not listed",
+   "class_basis": "structural alert only (ether with hydrogens next to the oxygen)",
+   "vumc": null,
+   "prudent_practices_2011": null,
+   "illinois_drs": null,
+   "class_entry_rules": null,
+   "eu_euh019": false,
+   "lists_disagree": false,
+   "structural_alert": true,
+   "confidence": "low",
+   "evidence": "ether with alpha-H (structural alert only)"
+  },
+  {
+   "cas": "106-88-7",
+   "name": "butoxide",
+   "pubchem_cids": [
+    7834
+   ],
+   "peroxide_class": "not listed",
+   "class_basis": "structural alert only (ether with hydrogens next to the oxygen)",
+   "vumc": null,
+   "prudent_practices_2011": null,
+   "illinois_drs": null,
+   "class_entry_rules": null,
+   "eu_euh019": false,
+   "lists_disagree": false,
+   "structural_alert": true,
+   "confidence": "low",
+   "evidence": "ether with alpha-H (structural alert only)"
+  },
+  {
+   "cas": "5614-37-9",
+   "name": "cyclopentyl-methyl-ether",
+   "pubchem_cids": [
+    138539
+   ],
+   "peroxide_class": "not listed",
+   "class_basis": "structural alert only (ether with hydrogens next to the oxygen)",
+   "vumc": null,
+   "prudent_practices_2011": null,
+   "illinois_drs": null,
+   "class_entry_rules": null,
+   "eu_euh019": false,
+   "lists_disagree": false,
+   "structural_alert": true,
+   "confidence": "low",
+   "evidence": "ether with alpha-H (structural alert only)"
+  },
+  {
+   "cas": "108-60-1",
+   "name": "dcip",
+   "pubchem_cids": [
+    7944
+   ],
+   "peroxide_class": "not listed",
+   "class_basis": "structural alert only (ether with hydrogens next to the oxygen)",
+   "vumc": null,
+   "prudent_practices_2011": null,
+   "illinois_drs": null,
+   "class_entry_rules": null,
+   "eu_euh019": false,
+   "lists_disagree": false,
+   "structural_alert": true,
+   "confidence": "low",
+   "evidence": "ether with alpha-H (structural alert only)"
+  },
+  {
+   "cas": "111-91-1",
+   "name": "di-(2-chloroethoxy)methane",
+   "pubchem_cids": [
+    8147
+   ],
+   "peroxide_class": "not listed",
+   "class_basis": "structural alert only (ether with hydrogens next to the oxygen)",
+   "vumc": null,
+   "prudent_practices_2011": null,
+   "illinois_drs": null,
+   "class_entry_rules": null,
+   "eu_euh019": false,
+   "lists_disagree": false,
+   "structural_alert": true,
+   "confidence": "low",
+   "evidence": "ether with alpha-H (structural alert only)"
+  },
+  {
+   "cas": "142-96-1",
+   "name": "di-n-butylether",
+   "pubchem_cids": [
+    8909
+   ],
+   "peroxide_class": "not listed",
+   "class_basis": "structural alert only (ether with hydrogens next to the oxygen)",
+   "vumc": null,
+   "prudent_practices_2011": null,
+   "illinois_drs": null,
+   "class_entry_rules": null,
+   "eu_euh019": false,
+   "lists_disagree": false,
+   "structural_alert": true,
+   "confidence": "low",
+   "evidence": "ether with alpha-H (structural alert only)"
+  },
+  {
+   "cas": "6863-58-7",
+   "name": "Di-sec-Butyl Ether",
+   "pubchem_cids": [
+    23294
+   ],
+   "peroxide_class": "not listed",
+   "class_basis": "structural alert only (ether with hydrogens next to the oxygen)",
+   "vumc": null,
+   "prudent_practices_2011": null,
+   "illinois_drs": null,
+   "class_entry_rules": null,
+   "eu_euh019": false,
+   "lists_disagree": false,
+   "structural_alert": true,
+   "confidence": "low",
+   "evidence": "ether with alpha-H (structural alert only)"
+  },
+  {
+   "cas": "4885-02-3",
+   "name": "dichloromethylmethylether",
+   "pubchem_cids": [
+    21004
+   ],
+   "peroxide_class": "not listed",
+   "class_basis": "structural alert only (ether with hydrogens next to the oxygen)",
+   "vumc": null,
+   "prudent_practices_2011": null,
+   "illinois_drs": null,
+   "class_entry_rules": null,
+   "eu_euh019": false,
+   "lists_disagree": false,
+   "structural_alert": true,
+   "confidence": "low",
+   "evidence": "ether with alpha-H (structural alert only)"
+  },
+  {
+   "cas": "112-73-2",
+   "name": "diethyleneglycoldibutylether",
+   "pubchem_cids": [
+    8210
+   ],
+   "peroxide_class": "not listed",
+   "class_basis": "structural alert only (ether with hydrogens next to the oxygen)",
+   "vumc": null,
+   "prudent_practices_2011": null,
+   "illinois_drs": null,
+   "class_entry_rules": null,
+   "eu_euh019": false,
+   "lists_disagree": false,
+   "structural_alert": true,
+   "confidence": "low",
+   "evidence": "ether with alpha-H (structural alert only)"
+  },
+  {
+   "cas": "112-34-5",
+   "name": "diethyleneglycolmonobutylether",
+   "pubchem_cids": [
+    8177
+   ],
+   "peroxide_class": "not listed",
+   "class_basis": "structural alert only (ether with hydrogens next to the oxygen)",
+   "vumc": null,
+   "prudent_practices_2011": null,
+   "illinois_drs": null,
+   "class_entry_rules": null,
+   "eu_euh019": false,
+   "lists_disagree": false,
+   "structural_alert": true,
+   "confidence": "low",
+   "evidence": "ether with alpha-H (structural alert only)"
+  },
+  {
+   "cas": "111-90-0",
+   "name": "diethyleneglycolmonoethylether",
+   "pubchem_cids": [
+    8146
+   ],
+   "peroxide_class": "not listed",
+   "class_basis": "structural alert only (ether with hydrogens next to the oxygen)",
+   "vumc": null,
+   "prudent_practices_2011": null,
+   "illinois_drs": null,
+   "class_entry_rules": null,
+   "eu_euh019": false,
+   "lists_disagree": false,
+   "structural_alert": true,
+   "confidence": "low",
+   "evidence": "ether with alpha-H (structural alert only)"
+  },
+  {
+   "cas": "696-59-3",
+   "name": "dimethoxytetrahydrofuran",
+   "pubchem_cids": [
+    79098
+   ],
+   "peroxide_class": "not listed",
+   "class_basis": "structural alert only (ether with hydrogens next to the oxygen)",
+   "vumc": null,
+   "prudent_practices_2011": null,
+   "illinois_drs": null,
+   "class_entry_rules": null,
+   "eu_euh019": false,
+   "lists_disagree": false,
+   "structural_alert": true,
+   "confidence": "low",
+   "evidence": "ether with alpha-H (structural alert only)"
+  },
+  {
+   "cas": "5306-85-4",
+   "name": "dimethylisosorbide",
+   "pubchem_cids": [
+    62990
+   ],
+   "peroxide_class": "not listed",
+   "class_basis": "structural alert only (ether with hydrogens next to the oxygen)",
+   "vumc": null,
+   "prudent_practices_2011": null,
+   "illinois_drs": null,
+   "class_entry_rules": null,
+   "eu_euh019": false,
+   "lists_disagree": false,
+   "structural_alert": true,
+   "confidence": "low",
+   "evidence": "ether with alpha-H (structural alert only)"
+  },
+  {
+   "cas": "646-06-0",
+   "name": "dioxolane",
+   "pubchem_cids": [
+    12586
+   ],
+   "peroxide_class": "not listed",
+   "class_basis": "structural alert only (ether with hydrogens next to the oxygen)",
+   "vumc": null,
+   "prudent_practices_2011": null,
+   "illinois_drs": null,
+   "class_entry_rules": null,
+   "eu_euh019": false,
+   "lists_disagree": false,
+   "structural_alert": true,
+   "confidence": "low",
+   "evidence": "ether with alpha-H (structural alert only)"
+  },
+  {
+   "cas": "25265-71-8",
+   "name": "dipropyleneglycol",
+   "pubchem_cids": [
+    134692469
+   ],
+   "peroxide_class": "not listed",
+   "class_basis": "structural alert only (ether with hydrogens next to the oxygen)",
+   "vumc": null,
+   "prudent_practices_2011": null,
+   "illinois_drs": null,
+   "class_entry_rules": null,
+   "eu_euh019": false,
+   "lists_disagree": false,
+   "structural_alert": true,
+   "confidence": "low",
+   "evidence": "ether with alpha-H (structural alert only)"
+  },
+  {
+   "cas": "34590-94-8",
+   "name": "dipropyleneglycolmethylether",
+   "pubchem_cids": [
+    66984
+   ],
+   "peroxide_class": "not listed",
+   "class_basis": "structural alert only (ether with hydrogens next to the oxygen)",
+   "vumc": null,
+   "prudent_practices_2011": null,
+   "illinois_drs": null,
+   "class_entry_rules": null,
+   "eu_euh019": false,
+   "lists_disagree": false,
+   "structural_alert": true,
+   "confidence": "low",
+   "evidence": "ether with alpha-H (structural alert only)"
+  },
+  {
+   "cas": "88917-22-0",
+   "name": "dpg-monomethyl-ether-acetate",
+   "pubchem_cids": [
+    9815489
+   ],
+   "peroxide_class": "not listed",
+   "class_basis": "structural alert only (ether with hydrogens next to the oxygen)",
+   "vumc": null,
+   "prudent_practices_2011": null,
+   "illinois_drs": null,
+   "class_entry_rules": null,
+   "eu_euh019": false,
+   "lists_disagree": false,
+   "structural_alert": true,
+   "confidence": "low",
+   "evidence": "ether with alpha-H (structural alert only)"
+  },
+  {
+   "cas": "106-89-8",
+   "name": "Epichlorohydrin",
+   "pubchem_cids": [
+    7835
+   ],
+   "peroxide_class": "not listed",
+   "class_basis": "structural alert only (ether with hydrogens next to the oxygen)",
+   "vumc": null,
+   "prudent_practices_2011": null,
+   "illinois_drs": null,
+   "class_entry_rules": null,
+   "eu_euh019": false,
+   "lists_disagree": false,
+   "structural_alert": true,
+   "confidence": "low",
+   "evidence": "ether with alpha-H (structural alert only)"
+  },
+  {
+   "cas": "927-80-0",
+   "name": "ethoxyacetylene",
+   "pubchem_cids": [
+    61239
+   ],
+   "peroxide_class": "not listed",
+   "class_basis": "structural alert only (ether with hydrogens next to the oxygen)",
+   "vumc": null,
+   "prudent_practices_2011": null,
+   "illinois_drs": null,
+   "class_entry_rules": null,
+   "eu_euh019": false,
+   "lists_disagree": false,
+   "structural_alert": true,
+   "confidence": "low",
+   "evidence": "ether with alpha-H (structural alert only)"
+  },
+  {
+   "cas": "103-73-1",
+   "name": "ethoxybenzene",
+   "pubchem_cids": [
+    7674
+   ],
+   "peroxide_class": "not listed",
+   "class_basis": "structural alert only (ether with hydrogens next to the oxygen)",
+   "vumc": null,
+   "prudent_practices_2011": null,
+   "illinois_drs": null,
+   "class_entry_rules": null,
+   "eu_euh019": false,
+   "lists_disagree": false,
+   "structural_alert": true,
+   "confidence": "low",
+   "evidence": "ether with alpha-H (structural alert only)"
+  },
+  {
+   "cas": "110-80-5",
+   "name": "ethoxyethanol",
+   "pubchem_cids": [
+    8076
+   ],
+   "peroxide_class": "not listed",
+   "class_basis": "structural alert only (ether with hydrogens next to the oxygen)",
+   "vumc": null,
+   "prudent_practices_2011": null,
+   "illinois_drs": null,
+   "class_entry_rules": null,
+   "eu_euh019": false,
+   "lists_disagree": false,
+   "structural_alert": true,
+   "confidence": "low",
+   "evidence": "ether with alpha-H (structural alert only)"
+  },
+  {
+   "cas": "7580-85-0",
+   "name": "ethyleneglycoltert-butylether",
+   "pubchem_cids": [
+    24232
+   ],
+   "peroxide_class": "not listed",
+   "class_basis": "structural alert only (ether with hydrogens next to the oxygen)",
+   "vumc": null,
+   "prudent_practices_2011": null,
+   "illinois_drs": null,
+   "class_entry_rules": null,
+   "eu_euh019": false,
+   "lists_disagree": false,
+   "structural_alert": true,
+   "confidence": "low",
+   "evidence": "ether with alpha-H (structural alert only)"
+  },
+  {
+   "cas": "75-21-8",
+   "name": "ethyleneoxide",
+   "pubchem_cids": [
+    6354
+   ],
+   "peroxide_class": "not listed",
+   "class_basis": "structural alert only (ether with hydrogens next to the oxygen)",
+   "vumc": null,
+   "prudent_practices_2011": null,
+   "illinois_drs": null,
+   "class_entry_rules": null,
+   "eu_euh019": false,
+   "lists_disagree": false,
+   "structural_alert": true,
+   "confidence": "low",
+   "evidence": "ether with alpha-H (structural alert only)"
+  },
+  {
+   "cas": "622-08-2",
+   "name": "ethylenglycolmonobenzylether",
+   "pubchem_cids": [
+    12141
+   ],
+   "peroxide_class": "not listed",
+   "class_basis": "structural alert only (ether with hydrogens next to the oxygen)",
+   "vumc": null,
+   "prudent_practices_2011": null,
+   "illinois_drs": null,
+   "class_entry_rules": null,
+   "eu_euh019": false,
+   "lists_disagree": false,
+   "structural_alert": true,
+   "confidence": "low",
+   "evidence": "ether with alpha-H (structural alert only)"
+  },
+  {
+   "cas": "97-53-0",
+   "name": "eugenol",
+   "pubchem_cids": [
+    3314
+   ],
+   "peroxide_class": "not listed",
+   "class_basis": "structural alert only (ether with hydrogens next to the oxygen)",
+   "vumc": null,
+   "prudent_practices_2011": null,
+   "illinois_drs": null,
+   "class_entry_rules": null,
+   "eu_euh019": false,
+   "lists_disagree": false,
+   "structural_alert": true,
+   "confidence": "low",
+   "evidence": "ether with alpha-H (structural alert only)"
+  },
+  {
+   "cas": "1135-24-6",
+   "name": "ferulic_acid",
+   "pubchem_cids": [
+    445858
+   ],
+   "peroxide_class": "not listed",
+   "class_basis": "structural alert only (ether with hydrogens next to the oxygen)",
+   "vumc": null,
+   "prudent_practices_2011": null,
+   "illinois_drs": null,
+   "class_entry_rules": null,
+   "eu_euh019": false,
+   "lists_disagree": false,
+   "structural_alert": true,
+   "confidence": "low",
+   "evidence": "ether with alpha-H (structural alert only)"
+  },
+  {
+   "cas": "556-52-5",
+   "name": "Glycidol",
+   "pubchem_cids": [
+    11164
+   ],
+   "peroxide_class": "not listed",
+   "class_basis": "structural alert only (ether with hydrogens next to the oxygen)",
+   "vumc": null,
+   "prudent_practices_2011": null,
+   "illinois_drs": null,
+   "class_entry_rules": null,
+   "eu_euh019": false,
+   "lists_disagree": false,
+   "structural_alert": true,
+   "confidence": "low",
+   "evidence": "ether with alpha-H (structural alert only)"
+  },
+  {
+   "cas": "765-34-4",
+   "name": "glycidylaldehyde",
+   "pubchem_cids": [
+    13002
+   ],
+   "peroxide_class": "not listed",
+   "class_basis": "structural alert only (ether with hydrogens next to the oxygen)",
+   "vumc": null,
+   "prudent_practices_2011": null,
+   "illinois_drs": null,
+   "class_entry_rules": null,
+   "eu_euh019": false,
+   "lists_disagree": false,
+   "structural_alert": true,
+   "confidence": "low",
+   "evidence": "ether with alpha-H (structural alert only)"
+  },
+  {
+   "cas": "106-91-2",
+   "name": "glycidylmethacrylate",
+   "pubchem_cids": [
+    7837
+   ],
+   "peroxide_class": "not listed",
+   "class_basis": "structural alert only (ether with hydrogens next to the oxygen)",
+   "vumc": null,
+   "prudent_practices_2011": null,
+   "illinois_drs": null,
+   "class_entry_rules": null,
+   "eu_euh019": false,
+   "lists_disagree": false,
+   "structural_alert": true,
+   "confidence": "low",
+   "evidence": "ether with alpha-H (structural alert only)"
+  },
+  {
+   "cas": "375-03-1",
+   "name": "HFE 7000",
+   "pubchem_cids": [
+    2774943
+   ],
+   "peroxide_class": "not listed",
+   "class_basis": "structural alert only (ether with hydrogens next to the oxygen)",
+   "vumc": null,
+   "prudent_practices_2011": null,
+   "illinois_drs": null,
+   "class_entry_rules": null,
+   "eu_euh019": false,
+   "lists_disagree": false,
+   "structural_alert": true,
+   "confidence": "low",
+   "evidence": "ether with alpha-H (structural alert only)"
+  },
+  {
+   "cas": "163702-07-6",
+   "name": "HFE 7100",
+   "pubchem_cids": [
+    164514
+   ],
+   "peroxide_class": "not listed",
+   "class_basis": "structural alert only (ether with hydrogens next to the oxygen)",
+   "vumc": null,
+   "prudent_practices_2011": null,
+   "illinois_drs": null,
+   "class_entry_rules": null,
+   "eu_euh019": false,
+   "lists_disagree": false,
+   "structural_alert": true,
+   "confidence": "low",
+   "evidence": "ether with alpha-H (structural alert only)"
+  },
+  {
+   "cas": "558-30-5",
+   "name": "Isobutyleneoxide",
+   "pubchem_cids": [
+    11208
+   ],
+   "peroxide_class": "not listed",
+   "class_basis": "structural alert only (ether with hydrogens next to the oxygen)",
+   "vumc": null,
+   "prudent_practices_2011": null,
+   "illinois_drs": null,
+   "class_entry_rules": null,
+   "eu_euh019": false,
+   "lists_disagree": false,
+   "structural_alert": true,
+   "confidence": "low",
+   "evidence": "ether with alpha-H (structural alert only)"
+  },
+  {
+   "cas": "107-70-0",
+   "name": "Methoxyhexanone (Pentoxone)",
+   "pubchem_cids": [
+    7884
+   ],
+   "peroxide_class": "not listed",
+   "class_basis": "structural alert only (ether with hydrogens next to the oxygen)",
+   "vumc": null,
+   "prudent_practices_2011": null,
+   "illinois_drs": null,
+   "class_entry_rules": null,
+   "eu_euh019": false,
+   "lists_disagree": false,
+   "structural_alert": true,
+   "confidence": "low",
+   "evidence": "ether with alpha-H (structural alert only)"
+  },
+  {
+   "cas": "497-26-7",
+   "name": "methyldioxolane",
+   "pubchem_cids": [
+    10342
+   ],
+   "peroxide_class": "not listed",
+   "class_basis": "structural alert only (ether with hydrogens next to the oxygen)",
+   "vumc": null,
+   "prudent_practices_2011": null,
+   "illinois_drs": null,
+   "class_entry_rules": null,
+   "eu_euh019": false,
+   "lists_disagree": false,
+   "structural_alert": true,
+   "confidence": "low",
+   "evidence": "ether with alpha-H (structural alert only)"
+  },
+  {
+   "cas": "540-67-0",
+   "name": "methylethylether",
+   "pubchem_cids": [
+    10903
+   ],
+   "peroxide_class": "not listed",
+   "class_basis": "structural alert only (ether with hydrogens next to the oxygen)",
+   "vumc": null,
+   "prudent_practices_2011": null,
+   "illinois_drs": null,
+   "class_entry_rules": null,
+   "eu_euh019": false,
+   "lists_disagree": false,
+   "structural_alert": true,
+   "confidence": "low",
+   "evidence": "ether with alpha-H (structural alert only)"
+  },
+  {
+   "cas": "110-91-8",
+   "name": "morpholine",
+   "pubchem_cids": [
+    8083
+   ],
+   "peroxide_class": "not listed",
+   "class_basis": "structural alert only (ether with hydrogens next to the oxygen)",
+   "vumc": null,
+   "prudent_practices_2011": null,
+   "illinois_drs": null,
+   "class_entry_rules": null,
+   "eu_euh019": false,
+   "lists_disagree": false,
+   "structural_alert": true,
+   "confidence": "low",
+   "evidence": "ether with alpha-H (structural alert only)"
+  },
+  {
+   "cas": "1696-20-4",
+   "name": "N-Acetylmorpholine",
+   "pubchem_cids": [
+    15543
+   ],
+   "peroxide_class": "not listed",
+   "class_basis": "structural alert only (ether with hydrogens next to the oxygen)",
+   "vumc": null,
+   "prudent_practices_2011": null,
+   "illinois_drs": null,
+   "class_entry_rules": null,
+   "eu_euh019": false,
+   "lists_disagree": false,
+   "structural_alert": true,
+   "confidence": "low",
+   "evidence": "ether with alpha-H (structural alert only)"
+  },
+  {
+   "cas": "90-04-0",
+   "name": "o-anisidine",
+   "pubchem_cids": [
+    7000
+   ],
+   "peroxide_class": "not listed",
+   "class_basis": "structural alert only (ether with hydrogens next to the oxygen)",
+   "vumc": null,
+   "prudent_practices_2011": null,
+   "illinois_drs": null,
+   "class_entry_rules": null,
+   "eu_euh019": false,
+   "lists_disagree": false,
+   "structural_alert": true,
+   "confidence": "low",
+   "evidence": "ether with alpha-H (structural alert only)"
+  },
+  {
+   "cas": "503-30-0",
+   "name": "oxetane",
+   "pubchem_cids": [
+    10423
+   ],
+   "peroxide_class": "not listed",
+   "class_basis": "structural alert only (ether with hydrogens next to the oxygen)",
+   "vumc": null,
+   "prudent_practices_2011": null,
+   "illinois_drs": null,
+   "class_entry_rules": null,
+   "eu_euh019": false,
+   "lists_disagree": false,
+   "structural_alert": true,
+   "confidence": "low",
+   "evidence": "ether with alpha-H (structural alert only)"
+  },
+  {
+   "cas": "104-94-9",
+   "name": "p-anisidine",
+   "pubchem_cids": [
+    7732
+   ],
+   "peroxide_class": "not listed",
+   "class_basis": "structural alert only (ether with hydrogens next to the oxygen)",
+   "vumc": null,
+   "prudent_practices_2011": null,
+   "illinois_drs": null,
+   "class_entry_rules": null,
+   "eu_euh019": false,
+   "lists_disagree": false,
+   "structural_alert": true,
+   "confidence": "low",
+   "evidence": "ether with alpha-H (structural alert only)"
+  },
+  {
+   "cas": "459-60-9",
+   "name": "p-Fluoroanisole",
+   "pubchem_cids": [
+    9987
+   ],
+   "peroxide_class": "not listed",
+   "class_basis": "structural alert only (ether with hydrogens next to the oxygen)",
+   "vumc": null,
+   "prudent_practices_2011": null,
+   "illinois_drs": null,
+   "class_entry_rules": null,
+   "eu_euh019": false,
+   "lists_disagree": false,
+   "structural_alert": true,
+   "confidence": "low",
+   "evidence": "ether with alpha-H (structural alert only)"
+  },
+  {
+   "cas": "123-63-7",
+   "name": "Paraldehyde",
+   "pubchem_cids": [
+    31264
+   ],
+   "peroxide_class": "not listed",
+   "class_basis": "structural alert only (ether with hydrogens next to the oxygen)",
+   "vumc": null,
+   "prudent_practices_2011": null,
+   "illinois_drs": null,
+   "class_entry_rules": null,
+   "eu_euh019": false,
+   "lists_disagree": false,
+   "structural_alert": true,
+   "confidence": "low",
+   "evidence": "ether with alpha-H (structural alert only)"
+  },
+  {
+   "cas": "75-56-9",
+   "name": "Propylene Oxide",
+   "pubchem_cids": [
+    6378
+   ],
+   "peroxide_class": "not listed",
+   "class_basis": "structural alert only (ether with hydrogens next to the oxygen)",
+   "vumc": null,
+   "prudent_practices_2011": null,
+   "illinois_drs": null,
+   "class_entry_rules": null,
+   "eu_euh019": false,
+   "lists_disagree": false,
+   "structural_alert": true,
+   "confidence": "low",
+   "evidence": "ether with alpha-H (structural alert only)"
+  },
+  {
+   "cas": "52125-53-8",
+   "name": "propyleneglycolmonoethylether",
+   "pubchem_cids": [
+    93269
+   ],
+   "peroxide_class": "not listed",
+   "class_basis": "structural alert only (ether with hydrogens next to the oxygen)",
+   "vumc": null,
+   "prudent_practices_2011": null,
+   "illinois_drs": null,
+   "class_entry_rules": null,
+   "eu_euh019": false,
+   "lists_disagree": false,
+   "structural_alert": true,
+   "confidence": "low",
+   "evidence": "ether with alpha-H (structural alert only)"
+  },
+  {
+   "cas": "4169-04-4",
+   "name": "propyleneglycolmonophenylether",
+   "pubchem_cids": [
+    20129
+   ],
+   "peroxide_class": "not listed",
+   "class_basis": "structural alert only (ether with hydrogens next to the oxygen)",
+   "vumc": null,
+   "prudent_practices_2011": null,
+   "illinois_drs": null,
+   "class_entry_rules": null,
+   "eu_euh019": false,
+   "lists_disagree": false,
+   "structural_alert": true,
+   "confidence": "low",
+   "evidence": "ether with alpha-H (structural alert only)"
+  },
+  {
+   "cas": "130-95-0",
+   "name": "quinine",
+   "pubchem_cids": [
+    3034034
+   ],
+   "peroxide_class": "not listed",
+   "class_basis": "structural alert only (ether with hydrogens next to the oxygen)",
+   "vumc": null,
+   "prudent_practices_2011": null,
+   "illinois_drs": null,
+   "class_entry_rules": null,
+   "eu_euh019": false,
+   "lists_disagree": false,
+   "structural_alert": true,
+   "confidence": "low",
+   "evidence": "ether with alpha-H (structural alert only)"
+  },
+  {
+   "cas": "96-09-3",
+   "name": "styreneoxide",
+   "pubchem_cids": [
+    7276
+   ],
+   "peroxide_class": "not listed",
+   "class_basis": "structural alert only (ether with hydrogens next to the oxygen)",
+   "vumc": null,
+   "prudent_practices_2011": null,
+   "illinois_drs": null,
+   "class_entry_rules": null,
+   "eu_euh019": false,
+   "lists_disagree": false,
+   "structural_alert": true,
+   "confidence": "low",
+   "evidence": "ether with alpha-H (structural alert only)"
+  },
+  {
+   "cas": "97-99-4",
+   "name": "tetrahydrofurfurylalcohol",
+   "pubchem_cids": [
+    7360
+   ],
+   "peroxide_class": "not listed",
+   "class_basis": "structural alert only (ether with hydrogens next to the oxygen)",
+   "vumc": null,
+   "prudent_practices_2011": null,
+   "illinois_drs": null,
+   "class_entry_rules": null,
+   "eu_euh019": false,
+   "lists_disagree": false,
+   "structural_alert": true,
+   "confidence": "low",
+   "evidence": "ether with alpha-H (structural alert only)"
+  },
+  {
+   "cas": "112-27-6",
+   "name": "triethyleneglycol",
+   "pubchem_cids": [
+    8172
+   ],
+   "peroxide_class": "not listed",
+   "class_basis": "structural alert only (ether with hydrogens next to the oxygen)",
+   "vumc": null,
+   "prudent_practices_2011": null,
+   "illinois_drs": null,
+   "class_entry_rules": null,
+   "eu_euh019": false,
+   "lists_disagree": false,
+   "structural_alert": true,
+   "confidence": "low",
+   "evidence": "ether with alpha-H (structural alert only)"
+  },
+  {
+   "cas": "930-22-3",
+   "name": "vinyloxirane",
+   "pubchem_cids": [
+    13586
+   ],
+   "peroxide_class": "not listed",
+   "class_basis": "structural alert only (ether with hydrogens next to the oxygen)",
+   "vumc": null,
+   "prudent_practices_2011": null,
+   "illinois_drs": null,
+   "class_entry_rules": null,
+   "eu_euh019": false,
+   "lists_disagree": false,
+   "structural_alert": true,
+   "confidence": "low",
+   "evidence": "ether with alpha-H (structural alert only)"
+  }
+ ]
+}

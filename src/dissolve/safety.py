@@ -47,10 +47,13 @@ _HEADINGS = (
     "NIOSH Recommendations", "OSHA Standards",
 )
 _HEADING_ERROR_KEY = "_dissolve_heading_error"
+# v3 (2026-09-25): rebuilt from the same 2026-08-28 PubChem pull with the corrected readers, plus the peroxide-former
+# table and stored CHEM21 scores (python -m dissolve.safety_snapshot build). Its content digest is
+# 15a84085e577fd0f52afa17d8f7f12f1f563b5094c556afc30d1d91dde0052ac.
 _SNAPSHOT_SHA256 = (
-    "9f4082e0844ab18698fd229986d215fc7403767961c53bc5ac548875daaae0f7"
+    "775ce17d9e771ebff674b6b53b598f7e865f8ca4a3fa78d1c6c8a475599dfba3"
 )
-_SNAPSHOT_DEFAULT = Path(str(files("dissolve").joinpath("data/pubchem_safety_snapshot.v2.duckdb")))
+_SNAPSHOT_DEFAULT = Path(str(files("dissolve").joinpath("data/pubchem_safety_snapshot.v3.duckdb")))
 
 
 class SafetySnapshotRefuse(Exception):
@@ -279,48 +282,319 @@ def _strings(node: Any) -> list[str]:
     return list(dict.fromkeys(re.sub(r"\s+", " ", value).strip() for value in values if value))
 
 
-def _temperatures(values: list[str]) -> list[float]:
-    result: list[float] = []
-    for text in values:
-        result.extend(float(value) for value in re.findall(r"(-?\d+(?:\.\d+)?)\s*(?:°\s*)?C\b", text, re.I))
-        result.extend(
-            (float(value) - 32.0) * 5.0 / 9.0
-            for value in re.findall(r"(-?\d+(?:\.\d+)?)\s*(?:°\s*)?F\b", text, re.I)
-        )
-    return result
+# --- PubChem heading readers. The snapshot builder (safety_snapshot.py) and live cards share them, so a value means
+# the same thing whichever way it arrived. Each string keeps the source PubChem names for it, so a value can be
+# checked against the other sources. Fixed 2026-09-25 after an audit of all 987 snapshot solvents: a hyphen was read
+# as a minus sign ("95-96 °F" became -96 °F), the lowest value of every source was kept even when only one source
+# said it, and vapour-pressure and exposure-limit formats were missed.
 
 
-_PRESSURE = re.compile(r"(\d+(?:\.\d+)?)\s*(mmhg|torr|kpa|pa|atm|bar)", re.I)
-
-
-def _vapor_pressure(values: list[str]) -> tuple[Optional[float], Optional[float]]:
-    for text in values:
-        match = _PRESSURE.search(text)
-        if not match:
-            continue
-        pressure, unit = float(match.group(1)), match.group(2).casefold()
-        factors = {"mmhg": 0.133322, "torr": 0.133322, "pa": 0.001, "atm": 101.325, "bar": 100.0, "kpa": 1.0}
-        temperatures = _temperatures([text])
-        return pressure * factors[unit], temperatures[0] if temperatures else None
-    return None, None
-
-
-def _ghs(payload: dict[str, Any]) -> dict[str, Any]:
-    result: dict[str, Any] = {"signal_word": None, "pictograms": [], "hazard_statements": []}
+def _source_strings(payload: Any) -> list[tuple[str, str]]:
+    """(source, text) for every string of one heading payload."""
+    record = (payload or {}).get("Record") or {}
+    references = {item.get("ReferenceNumber"): item for item in record.get("Reference") or []}
+    pairs: list[tuple[str, str]] = []
 
     def walk(node: Any) -> None:
         if isinstance(node, dict):
-            name, value = node.get("Name"), node.get("Value") or {}
-            strings = _strings(value)
-            if name == "Signal" and strings:
-                result["signal_word"] = strings[0]
-            elif name == "GHS Hazard Statements":
-                result["hazard_statements"].extend(strings)
-            elif name == "Pictogram(s)":
+            for info in node.get("Information") or []:
+                value = info.get("Value") or {}
+                source = str((references.get(info.get("ReferenceNumber")) or {}).get("SourceName") or "?")
                 for item in value.get("StringWithMarkup") or []:
-                    for markup in item.get("Markup") or []:
-                        if markup.get("Extra"):
-                            result["pictograms"].append(str(markup["Extra"]))
+                    if isinstance(item, dict) and item.get("String"):
+                        pairs.append((source, _plain(item["String"])))
+                if value.get("Number") is not None:
+                    number = value["Number"]
+                    number = number[0] if isinstance(number, list) and number else number
+                    pairs.append((source, _plain(f"{number} {value.get('Unit') or ''}")))
+            for key, child in node.items():
+                if key != "Information" and isinstance(child, (dict, list)):
+                    walk(child)
+        elif isinstance(node, list):
+            for child in node:
+                walk(child)
+
+    walk(record)
+    return list(dict.fromkeys(pair for pair in pairs if pair[1]))
+
+
+def _plain(text: Any) -> str:
+    value = str(text)
+    for old, new in (("−", "-"), ("–", "-"), ("—", "-"), (" ", " "), ("º", "°"), (" ", " ")):
+        value = value.replace(old, new)
+    return re.sub(r"\s+", " ", value).strip()
+
+
+# A hyphen between two numbers is a range ("95-96 °F"), never a minus sign; "+ or - 10 °F" is a tolerance, not a
+# temperature; "1,004 °F" is one number.
+_TEMPERATURE = re.compile(
+    r"(?P<a>(?<![\w.])-?\d+(?:\.\d+)?)(?:\s*°?\s*(?P<ua>[CF])\b)?\s*(?:-|to)\s*(?P<b>-?\d+(?:\.\d+)?)\s*°?\s*(?P<ub>[CF])\b"
+    r"|(?P<s>(?<![\w.])-?\d+(?:\.\d+)?)\s*°?\s*(?P<us>[CF])\b",
+    re.I,
+)
+_TOLERANCE = re.compile(r"(?:\+\s*or\s*-|\+/-|±)\s*\d+(?:\.\d+)?", re.I)  # the unit stays for the value before it
+_THOUSANDS = re.compile(r"(?<![\d.])(\d{1,3}(?:,\d{3})+)(?![\d])")
+
+
+def _temperature_values(text: str, kelvin: bool = False) -> list[dict[str, Any]]:
+    """Temperatures in one string as [{'c', 'end'}]; a range gives both ends. Kelvin only when asked."""
+    cleaned = _THOUSANDS.sub(lambda m: m.group(1).replace(",", ""), _TOLERANCE.sub(" ", _plain(text)))
+    found: list[dict[str, Any]] = []
+    for match in _TEMPERATURE.finditer(cleaned):
+        if match.group("s") is not None:
+            pairs = [(match.group("s"), match.group("us"))]
+        else:
+            pairs = [(match.group("a"), match.group("ua") or match.group("ub")), (match.group("b"), match.group("ub"))]
+        for value, unit in pairs:
+            celsius = float(value) if unit.upper() == "C" else (float(value) - 32.0) * 5.0 / 9.0
+            found.append({"c": celsius, "end": match.end()})
+    if kelvin:
+        for match in re.finditer(r"(?<![\w.])(\d+(?:\.\d+)?)\s*K\b", cleaned):
+            found.append({"c": float(match.group(1)) - 273.15, "end": match.end()})
+    return found
+
+
+_CLOSED_CUP = re.compile(r"closed[\s-]*cup|\bc\.\s?c\.|\bcc\b|\btcc\b|tag closed|pensky|\bpmcc\b|\(closed\)|closed tester", re.I)
+_OPEN_CUP = re.compile(r"open[\s-]*cup|\bo\.\s?c\.|\boc\b|\bcoc\b|cleveland|\btoc\b|\(open\)|open tester", re.I)
+_NONFLAMMABLE_TEXT = re.compile(
+    r"\bnon-?flammable\b|\bnot flammable\b|\bnon-?combustible\b|\bnot combustible\b|\bdoes not burn\b|\bwill not burn\b"
+    r"|\bnot a flammable\b|^\s*none\b|=\s*none\b|\bno flash\b|^\s*not applicable\b", re.I)
+_FLAMMABLE_GAS_TEXT = re.compile(r"\bflammable gas\b|\bNA \(Gas\)", re.I)
+_EXPLODES_TEXT = re.compile(r"\bexplodes?\b", re.I)
+_BOUND = re.compile(r"\b(?:below|above|less than|greater than|under|over)\b|[<>≤≥]", re.I)
+_CLASS_DEFINITION = re.compile(r"\bclass\s+I[ABC]?\b|\bcategory\b", re.I)
+
+
+def _flash_point_reading(pairs: list[tuple[str, str]], tolerance_c: float = 3.0) -> dict[str, Any]:
+    """The flash point: the lowest value a second source confirms within 3 °C, else the median of the sources.
+    One value per (source, string, method), a range giving its lower end. Class-definition text is set aside, and
+    bounds ("above 200 °F") count only when nothing else exists. With no plain value, text saying the solvent does
+    not burn makes it non-flammable (the CHEM21 guide scores that safety 1); a flammable gas or an explosive is named
+    as such. Scored on the CHEM21 guide's 62 published flash points: 59 in the right band (54 before the fix)."""
+    values = []
+    for source, text in pairs:
+        found = _temperature_values(text)
+        if not found or (_CLASS_DEFINITION.search(text) and not _BOUND.search(text)):
+            continue
+        by_method: dict[str, list[float]] = {}
+        for item in found:
+            tail = text[item["end"]: item["end"] + 25]
+            if _CLOSED_CUP.search(tail) or (_CLOSED_CUP.search(text) and not _OPEN_CUP.search(text)):
+                method = "closed cup"
+            elif _OPEN_CUP.search(tail) or (_OPEN_CUP.search(text) and not _CLOSED_CUP.search(text)):
+                method = "open cup"
+            else:
+                method = "unspecified"
+            by_method.setdefault(method, []).append(item["c"])
+        for method, numbers in by_method.items():
+            values.append({"c": min(numbers), "source": source, "bound": bool(_BOUND.search(text))})
+    plain = [item for item in values if not item["bound"]]
+    texts = [text for _, text in pairs]
+    reading: dict[str, Any] = {"value_c": None, "basis": "no value", "values_n": len(plain), "nonflammable": False,
+                               "flammable_gas": any(_FLAMMABLE_GAS_TEXT.search(text) for text in texts),
+                               "explodes": any(_EXPLODES_TEXT.search(text) for text in texts)}
+    if not plain and not reading["flammable_gas"] and any(_NONFLAMMABLE_TEXT.search(text) for text in texts):
+        return {**reading, "nonflammable": True, "basis": "text says it does not burn"}
+    pool = plain or values
+    if not pool:
+        return reading
+    for item in sorted(pool, key=lambda entry: entry["c"]):
+        if any(other["source"] != item["source"] and abs(other["c"] - item["c"]) <= tolerance_c for other in pool):
+            return {**reading, "value_c": item["c"], "basis": "lowest value a second source confirms within 3 °C"}
+    basis = "single value" if len(pool) == 1 else "median of the sources (no two agree within 3 °C)"
+    if not plain:
+        basis += ", from a bound"
+    return {**reading, "value_c": _median([item["c"] for item in pool]), "basis": basis}
+
+
+def _median(values: list[float]) -> float:
+    ordered = sorted(values)
+    middle = len(ordered) // 2
+    return ordered[middle] if len(ordered) % 2 else (ordered[middle - 1] + ordered[middle]) / 2.0
+
+
+def _autoignition_reading(pairs: list[tuple[str, str]]) -> dict[str, Any]:
+    """The lowest autoignition temperature a source states (the conservative choice) and the sources' spread."""
+    values = [item["c"] for _, text in pairs if not _BOUND.search(text) for item in _temperature_values(text)]
+    if not values:
+        return {"value_c": None, "spread_c": None}
+    return {"value_c": min(values), "spread_c": max(values) - min(values)}
+
+
+_PRESSURE_UNITS = {"mmhg": 0.133322, "torr": 0.133322, "kpa": 1.0, "hpa": 0.1, "mpa": 1000.0, "pa": 0.001,
+                   "atm": 101.325, "mbar": 0.1, "bar": 100.0, "psi": 6.894757}
+_PRESSURE_NUMBER = (r"(?P<m>\d{1,3}(?:,\d{3})+(?:\.\d+)?|\d+(?:\.\d+)?)"
+                    r"(?:\s*[xX×]\s*10\s*(?P<e>[-+]?\s*\d+)|\s*[eE](?P<e2>[-+]?\d+))?")
+_PRESSURE = re.compile(_PRESSURE_NUMBER + r"\s*\[?\s*(?P<u>mm\s*hg|torr|kpa|hpa|mpa|mbar|pa|atm|bar|psi)\b\s*\]?", re.I)
+_PRESSURE_ICSC = re.compile(
+    r"vapou?r pressure,?\s*(?P<u>mm\s*hg|kpa|hpa|mbar|pa|atm|bar)\s*at\s*(?P<t>-?\d+(?:\.\d+)?)\s*°?\s*C\s*:\s*"
+    r"(?P<v>\d{1,3}(?:,\d{3})+(?:\.\d+)?|\d+(?:\.\d+)?)", re.I)
+
+
+def _pressure_factor(unit: str) -> float:
+    unit = re.sub(r"\s+", "", unit.casefold())
+    return _PRESSURE_UNITS["mmhg" if "hg" in unit else unit]
+
+
+def _vapor_pressure_reading(pairs: list[tuple[str, str]]) -> dict[str, Any]:
+    """The vapour pressure whose stated temperature is nearest 25 °C, within 15-35 °C; else a value with no stated
+    temperature (PubChem's bare "[mmHg]" values are room-temperature ones); else the value measured nearest 25 °C.
+    Reads "mm Hg", "[mmHg]", 4.9X10-2 and ICSC's "kPa at 20 °C: 2.3"."""
+    values = []
+    for _, text in pairs:
+        icsc = list(_PRESSURE_ICSC.finditer(text))
+        for match in icsc:
+            values.append({"kpa": float(match.group("v").replace(",", "")) * _pressure_factor(match.group("u")),
+                           "t": float(match.group("t"))})
+        if icsc:
+            continue
+        for clause in text.split(";"):
+            for match in _PRESSURE.finditer(clause):
+                number = float(match.group("m").replace(",", ""))
+                exponent = match.group("e") or match.group("e2")
+                if exponent is not None:
+                    number *= 10.0 ** int(exponent.replace(" ", ""))
+                temperatures = _temperature_values(clause[match.end(): match.end() + 40], kelvin=True)
+                values.append({"kpa": number * _pressure_factor(match.group("u")),
+                                "t": temperatures[0]["c"] if temperatures else None})
+    near = [item for item in values if item["t"] is not None and 15.0 <= item["t"] <= 35.0]
+    unstated = [item for item in values if item["t"] is None]
+    stated = [item for item in values if item["t"] is not None]
+    if near:
+        best, basis = min(near, key=lambda item: (abs(item["t"] - 25.0), item["kpa"])), "value nearest 25 °C"
+    elif unstated:
+        best, basis = unstated[0], "temperature not stated"
+    elif stated:
+        best = min(stated, key=lambda item: abs(item["t"] - 25.0))
+        basis = "no value within 15-35 °C; the value measured nearest 25 °C"
+    else:
+        return {"kpa": None, "t": None, "basis": "no value"}
+    return {"kpa": best["kpa"], "t": best["t"], "basis": basis}
+
+
+_LIMIT_STATEMENT = re.compile(r"recommended exposure limit|permissible exposure limit|\bREL\b|\bPEL\b|time[- ]weighted"
+                              r"|short[- ]term|ceiling|\bTWA\b|\bSTEL\b", re.I)
+_LIMIT_NOT_A_LIMIT = re.compile(r"\bvacated\b|\bquestioned\b|\bproposed\b|\bwithdrawn\b|\brescinded\b", re.I)
+_LIMIT_KINDS = (("TWA", r"time[- ]weighted|\btwa\b"), ("STEL", r"short[- ]term|\bstel\b"),
+                ("ceiling", r"ceiling|\bpeak\b|\bc\s+\d"))
+
+
+def _exposure_limits(pairs: list[tuple[str, str]], authority: str) -> list[dict[str, Any]]:
+    """Every current limit an authority states, one per kind: the time-weighted average first, then the short-term
+    limit and the ceiling. Vacated or proposed limits and notes without a value are left out."""
+    found: dict[str, dict[str, Any]] = {}
+    for _, text in pairs:
+        if _LIMIT_NOT_A_LIMIT.search(text) or not _LIMIT_STATEMENT.search(text):
+            continue
+        ppm = re.search(r"(\d+(?:\.\d+)?)\s*ppm\b", text, re.I)
+        mass = re.search(r"(\d+(?:\.\d+)?)\s*mg/(?:cu\s*m|m(?:3|³))\b", text, re.I)
+        if ppm is None and mass is None:
+            continue
+        lowered = text.casefold()
+        marks = sorted((match.start(), kind) for kind, pattern in _LIMIT_KINDS
+                       for match in [re.search(pattern, lowered)] if match)
+        kind = marks[0][1] if marks else "TWA"
+        if kind in found:
+            continue
+        hours = re.search(r"(\d+(?:\.\d+)?)\s*(?:-|\s)?(?:hr|hour)\b", text, re.I)
+        minutes = re.search(r"(\d+(?:\.\d+)?)\s*(?:-|\s)?min(?:ute)?s?\b", text, re.I)
+        span = (f"{hours.group(1)}-hour " if hours and kind == "TWA"
+                else f"{minutes.group(1)}-minute " if minutes and kind != "TWA" else "")
+        found[kind] = {
+            "authority": authority,
+            "ppm": _number(ppm.group(1)) if ppm else None,
+            "mg_m3": _number(mass.group(1)) if mass else None,
+            "basis": span + kind,
+            "skin": bool(re.search(r"[,.;(\[]\s*skin\b|skin designation|skin notation|\bsk\b", text, re.I)),
+            "reported_text": text[:300],
+        }
+    return [found[kind] for kind in ("TWA", "STEL", "ceiling") if kind in found]
+
+
+def _toxicity_values(pairs: list[tuple[str, str]], kind: str, keep: int = 5) -> list[str]:
+    """The LD50 or LC50 strings, the most-used route and species first (oral, then dermal, then inhalation; rat, then
+    mouse, then rabbit), at most `keep`."""
+    strings = list(dict.fromkeys(text for _, text in pairs if kind in text.upper()))
+
+    def rank(text: str) -> tuple[int, int]:
+        lowered = text.casefold()
+        route = (0 if "oral" in lowered else 1 if "dermal" in lowered or "skin" in lowered
+                 else 2 if "inhal" in lowered else 3)
+        species = 0 if "rat" in lowered else 1 if "mouse" in lowered else 2 if "rabbit" in lowered else 3
+        return route, species
+
+    return sorted(strings, key=rank)[:keep]
+
+
+# --- GHS hazard statements. PubChem lists every source's classification; DISSOLVE's basis is the EU harmonized
+# classification (CLP Annex VI) plus the ECHA C&L notifications that at least 25% of notifiers give. An EU entry
+# PubChem attaches that is another substance (a "reaction mass of", a mixture, "... containing ...", a phlegmatised
+# grade) is left out: isopropanol gained aquatic-toxicity codes and butane carcinogenicity from such entries. The
+# signal word and pictograms follow from the statements kept, not from every line of the sources.
+_GHS_CODE = re.compile(r"\bH[2-4]\d{2}")
+_GHS_SHARE = re.compile(r"\(\s*>?\s*~?\s*(\d+(?:\.\d+)?)\s*%")
+_ECHA_SHARE_THRESHOLD = 25.0
+_GHS_FALLBACK_ORDER = ("Hazardous Chemical Information System (HCIS), Safe Work Australia",
+                       "Hazardous Substances Data Bank (HSDB)", "NITE-CMC")
+_OTHER_SUBSTANCE_ENTRY = re.compile(r"reaction mass|\bmixture\b|\bcontaining\b|phlegmati[sz]ed|\bdesensiti[sz]ed\b", re.I)
+_GHS_SEVERE = frozenset({"H340", "H350", "H360", "H300", "H310", "H330", "H314", "H341", "H351", "H361", "H370",
+                         "H372", "H301", "H311", "H331", "H400", "H410", "H420"})
+_PICTOGRAM_CODES = {
+    "Explosive": {"H200", "H201", "H202", "H203", "H204", "H205", "H240", "H241"},
+    "Flammable": {"H220", "H222", "H223", "H224", "H225", "H226", "H228", "H241", "H242", "H250", "H251", "H252",
+                  "H260", "H261"},
+    "Oxidizer": {"H270", "H271", "H272"},
+    "Compressed Gas": {"H280", "H281"},
+    "Corrosive": {"H290", "H314", "H318"},
+    "Acute Toxic": {"H300", "H301", "H310", "H311", "H330", "H331"},
+    "Health Hazard": {"H304", "H334", "H340", "H341", "H350", "H351", "H360", "H361", "H370", "H371", "H372", "H373"},
+    "Environmental Hazard": {"H400", "H410", "H411"},
+}
+
+
+def _is_eu_harmonized(source: str) -> bool:
+    return source.startswith("Regulation (EC) No 1272/2008")
+
+
+def _is_echa_notified(source: str) -> bool:
+    return "European Chemicals Agency" in source
+
+
+def _pictograms_for(codes: set[str]) -> list[str]:
+    """The CLP pictograms the kept statements carry, with the precedence rules: no exclamation mark beside a skull,
+    nor for irritation beside a corrosion pictogram or respiratory sensitisation."""
+    names = [name for name, group in _PICTOGRAM_CODES.items() if codes & group]
+    irritant = bool(codes & {"H302", "H312", "H332", "H335", "H336", "H420"}) or (
+        bool(codes & {"H315", "H317", "H319"}) and "Corrosive" not in names and "H334" not in codes)
+    if irritant and "Acute Toxic" not in names:
+        names.append("Irritant")
+    return names
+
+
+def _compose_ghs(payload: Any) -> dict[str, Any]:
+    """The hazard statements, signal word and pictograms DISSOLVE serves, with every source's line kept as
+    provenance and severe codes outside the basis surfaced."""
+    record = (payload or {}).get("Record") or {}
+    references = {item.get("ReferenceNumber"): item for item in record.get("Reference") or []}
+    lines: list[tuple[str, str, list[str], Optional[float]]] = []
+    skipped_entries: list[dict[str, Any]] = []
+
+    def walk(node: Any) -> None:
+        if isinstance(node, dict):
+            if node.get("TOCHeading") == "GHS Classification":
+                for info in node.get("Information") or []:
+                    if info.get("Name") != "GHS Hazard Statements":
+                        continue
+                    reference = references.get(info.get("ReferenceNumber")) or {}
+                    source = str(reference.get("SourceName") or "?")
+                    if _is_eu_harmonized(source) and _OTHER_SUBSTANCE_ENTRY.search(str(reference.get("Name") or "")):
+                        skipped_entries.append({"entry": reference.get("SourceID"), "name": reference.get("Name")})
+                        continue
+                    for text in _strings(info.get("Value") or {}):
+                        codes = sorted(set(_GHS_CODE.findall(text)))
+                        if codes:
+                            share = _GHS_SHARE.search(text)
+                            lines.append((source, text, codes, float(share.group(1)) if share else None))
             for child in node.values():
                 if isinstance(child, (dict, list)):
                     walk(child)
@@ -328,27 +602,87 @@ def _ghs(payload: dict[str, Any]) -> dict[str, Any]:
             for child in node:
                 walk(child)
 
-    walk(payload)
-    result["pictograms"] = list(dict.fromkeys(result["pictograms"]))[:6]
-    result["hazard_statements"] = list(dict.fromkeys(result["hazard_statements"]))[:6]
-    return result
+    walk(record)
+    harmonized = {code for source, _, codes, _ in lines if _is_eu_harmonized(source) for code in codes}
+    notified: dict[str, float] = {}
+    for source, _, codes, share in lines:
+        if _is_echa_notified(source):
+            for code in codes:
+                notified[code] = max(notified.get(code, 0.0), 100.0 if share is None else share)
+    if harmonized or notified:
+        basis = "clp_echa"
+        basis_codes = harmonized | {code for code, share in notified.items() if share >= _ECHA_SHARE_THRESHOLD}
+        basis_sources = {source for source, *_ in lines if _is_eu_harmonized(source) or _is_echa_notified(source)}
+    else:
+        basis, basis_codes, basis_sources = "none", set(), set()
+        others = sorted({source for source, *_ in lines},
+                        key=lambda name: (-sum(1 for line in lines if line[0] == name), name))
+        for fallback in [*_GHS_FALLBACK_ORDER, *[name for name in others if name not in _GHS_FALLBACK_ORDER]]:
+            found = {code for source, _, codes, _ in lines if source == fallback for code in codes}
+            if found:
+                basis, basis_codes, basis_sources = fallback, found, {fallback}
+                break
 
+    def text_for(code: str) -> Optional[str]:
+        for source, text, codes, _ in lines:
+            if _is_eu_harmonized(source) and code in codes:
+                return text
+        shares = [(100.0 if share is None else share, text) for source, text, codes, share in lines
+                  if _is_echa_notified(source) and code in codes]
+        if shares:
+            return max(shares)[1]
+        return next((text for source, text, codes, _ in lines if source in basis_sources and code in codes), None)
 
-def _exposure_limit(payload: dict[str, Any], authority: str) -> Optional[dict[str, Any]]:
-    strings = _strings(payload)
-    if not strings:
-        return None
-    text = strings[0]
-    ppm = re.search(r"(\d+(?:\.\d+)?)\s*ppm\b", text, re.I)
-    mass = re.search(r"(\d+(?:\.\d+)?)\s*mg/(?:cu\s*m|m(?:3|³))\b", text, re.I)
-    hours = re.search(r"(\d+(?:\.\d+)?)\s*(?:-|\s)?(?:hr|hour)\b", text, re.I)
+    statements = list(dict.fromkeys(text for text in (text_for(code) for code in sorted(basis_codes)) if text))
+    signals = {match.group(1) for text in statements for match in [re.search(r"\[(Danger|Warning)\b", text)] if match}
+    all_codes = {code for _, _, codes, _ in lines for code in codes}
     return {
-        "authority": authority,
-        "ppm": _number(ppm.group(1)) if ppm else None,
-        "mg_m3": _number(mass.group(1)) if mass else None,
-        "basis": f"{hours.group(1)}-hour TWA" if hours else None,
-        "skin": bool(re.search(r"\bskin(?: designation)?\b", text, re.I)),
-        "reported_text": text[:300],
+        "signal_word": "Danger" if "Danger" in signals else "Warning" if "Warning" in signals else None,
+        "pictograms": _pictograms_for(set(basis_codes)),
+        "hazard_statements": statements,
+        "basis": basis if lines else "none",
+        "basis_codes": sorted(basis_codes),
+        "nonbasis_severe": [
+            {"code": code, "sources": sorted({source for source, _, codes, _ in lines if code in codes}),
+             "echa_share_pct": notified.get(code)}
+            for code in sorted((all_codes - basis_codes) & _GHS_SEVERE)
+        ],
+        "skipped_other_substance_entries": skipped_entries,
+        "provenance": [
+            {"source_name": source, "line_text": text, "codes": codes, "share_pct": share,
+             "in_basis": basis != "none" and bool(set(codes) & basis_codes) and source in basis_sources}
+            for source, text, codes, share in lines
+        ],
+    }
+
+
+def _pubchem_fields(payloads: Mapping[str, Any]) -> dict[str, Any]:
+    """Every field DISSOLVE takes from the PubChem headings of one compound, live or for the snapshot."""
+    flash = _flash_point_reading(_source_strings(payloads.get("Flash Point")))
+    autoignition = _autoignition_reading(_source_strings(payloads.get("Autoignition Temperature")))
+    vapor = _vapor_pressure_reading(_source_strings(payloads.get("Vapor Pressure")))
+    toxicity = _source_strings(payloads.get("Non-Human Toxicity Values"))
+    ghs = _compose_ghs(payloads.get("GHS Classification"))
+    return {
+        "flash_point_c": flash["value_c"],
+        "flash_point_basis": flash["basis"],
+        "nonflammable": flash["nonflammable"],
+        "flammable_gas": flash["flammable_gas"],
+        "explodes": flash["explodes"],
+        "autoignition_c": autoignition["value_c"],
+        "autoignition_spread_c": autoignition["spread_c"],
+        "vapor_pressure_kpa": vapor["kpa"],
+        "vapor_pressure_temp_c": vapor["t"],
+        "vapor_pressure_basis": vapor["basis"],
+        "ghs": {key: ghs[key] for key in ("signal_word", "pictograms", "hazard_statements")},
+        "ghs_composition": ghs,
+        "ld50_values": _toxicity_values(toxicity, "LD50"),
+        "lc50_values": _toxicity_values(toxicity, "LC50"),
+        "biodegradation": [text for _, text in _source_strings(payloads.get("Environmental Biodegradation"))][:5],
+        "occupational_exposure_limits": [
+            *_exposure_limits(_source_strings(payloads.get("NIOSH Recommendations")), "NIOSH REL"),
+            *_exposure_limits(_source_strings(payloads.get("OSHA Standards")), "OSHA PEL"),
+        ],
     }
 
 
@@ -362,26 +696,10 @@ def _pubchem(cid: int) -> dict[str, Any]:
         if isinstance(payload, dict)
         and isinstance(payload.get(_HEADING_ERROR_KEY), dict)
     }
-    flash = _temperatures(_strings(payloads["Flash Point"]))
-    autoignition = _temperatures(_strings(payloads["Autoignition Temperature"]))
-    vapor, vapor_temp = _vapor_pressure(_strings(payloads["Vapor Pressure"]))
-    toxicity = _strings(payloads["Non-Human Toxicity Values"])
-    exposure_limits = [
-        item for item in (
-            _exposure_limit(payloads["NIOSH Recommendations"], "NIOSH REL"),
-            _exposure_limit(payloads["OSHA Standards"], "OSHA PEL"),
-        ) if item is not None
-    ]
+    fields = _pubchem_fields({name: ({} if name in heading_errors else payload) for name, payload in payloads.items()})
+    fields.pop("ghs_composition", None)
     return {
-        "flash_point_c": min(flash) if flash else None,
-        "autoignition_c": min(autoignition) if autoignition else None,
-        "vapor_pressure_kpa": vapor,
-        "vapor_pressure_temp_c": vapor_temp,
-        "ghs": _ghs(payloads["GHS Classification"]),
-        "ld50_values": [value for value in toxicity if "LD50" in value.upper()][:3],
-        "lc50_values": [value for value in toxicity if "LC50" in value.upper()][:3],
-        "biodegradation": _strings(payloads["Environmental Biodegradation"])[:3],
-        "occupational_exposure_limits": exposure_limits,
+        **fields,
         "failed_headings": [
             name for name, payload in payloads.items()
             if not payload or name in heading_errors
@@ -493,7 +811,52 @@ def _snapshot_pubchem(cid: int) -> dict[str, Any]:
         "_origin": origin,
         "ghs_basis": record.get("ghs_basis"),
         "ghs_nonbasis_severe": _json_field(record.get("ghs_nonbasis_severe")) or [],
+        "flash_point_basis": record.get("flash_point_basis"),
+        "nonflammable": bool(record.get("nonflammable")),
+        "flammable_gas": bool(record.get("flammable_gas")),
+        "explodes": bool(record.get("explodes")),
+        "vapor_pressure_basis": record.get("vapor_pressure_basis"),
     }
+
+
+_PEROXIDE_CLASS_LABELS = {
+    "A": "Class A: forms explosive peroxides on storage without being concentrated",
+    "B": "Class B: peroxide hazard when concentrated (distilling, evaporating)",
+    "C": "Class C: peroxides can start a runaway polymerization",
+    "D": "Class D: may form peroxides; not clearly placed in classes A to C",
+    "disputed": "the peroxide-former lists disagree on this solvent",
+    "not listed": ("not in the peroxide-former lists checked (VUMC, Prudent Practices 2011, Illinois DRS, EU EUH019); "
+                   "these lists publish no negatives, so this is not a finding that it cannot form peroxides"),
+}
+
+
+def _snapshot_chem21(cid: Optional[int]) -> Optional[dict[str, Any]]:
+    """The CHEM21 scores the snapshot build computed for this compound, or None when it holds none."""
+    if cid is None:
+        return None
+    connection = _load_snapshot()["connection"]
+    try:
+        row = connection.execute("SELECT payload FROM chem21_scores WHERE cid = ?", [int(cid)]).fetchone()
+    except duckdb.CatalogException:  # a snapshot built before the scores were stored
+        return None
+    return json.loads(row[0]) if row else None
+
+
+def _snapshot_peroxide(cid: Optional[int], cas_number: Optional[str]) -> dict[str, Any]:
+    """The peroxide-former row for this compound (by CID, else CAS), or {} when no list names it."""
+    connection = _load_snapshot()["connection"]
+    try:
+        columns = [item[0] for item in connection.execute("DESCRIBE peroxide_formers").fetchall()]
+    except duckdb.CatalogException:  # a snapshot built before the peroxide table
+        return {}
+    for row in connection.execute("SELECT * FROM peroxide_formers").fetchall():
+        record = dict(zip(columns, row))
+        cids = _json_field(record.get("pubchem_cids")) or []
+        if (cid is not None and int(cid) in cids) or (
+            cas_number and str(record.get("cas") or "").strip() == str(cas_number).strip()
+        ):
+            return record
+    return {}
 
 
 def _origin_stamps(pubchem: dict[str, Any]) -> dict[str, Any]:
@@ -772,20 +1135,29 @@ def _chem21_score_from_inputs(solvent: str, inputs: Mapping[str, Any]) -> dict[s
         or (admission_n_int is not None and admission_n_int > len(statements))
     )
     water = _chem21_is_water(solvent, cas)
-    euh019 = "EUH019" in codes
+    # The guide adds a Safety point for peroxide formers by the EU code EUH019. PubChem never carries EUH codes, so
+    # the flag comes from the peroxide-former table's EU harmonized entries; an ether listed only by the lab lists
+    # is "not assessed", not a point.
+    euh019 = "EUH019" in codes or bool(inputs.get("euh019"))
     h420 = "H420" in codes
+    # A solvent that does not burn has no flash point; the guide scores that Safety 1 (water, dichloromethane).
+    nonflammable = flash is None and bool(inputs.get("nonflammable"))
+    # The guide gives a solvent without health or environmental hazard statements its real score only when it is
+    # fully REACH registered (tested); otherwise the untested default of 5. None means the status is not known.
+    reach = inputs.get("reach_registered")
+    registered = reach is True
     unavailable = inputs.get("unavailable_reason")
-    if unavailable is None and flash is None:
+    if unavailable is None and flash is None and not nonflammable:
         unavailable = "flash_point_missing"
 
-    if flash is None:
+    if flash is None and not nonflammable:
         safety_score = None
         ait_applied = False
         euh019_applied = False
         resistivity_applied = False
         clamped = False
     else:
-        safety_score = _chem21_safety_basic(flash)
+        safety_score = 1 if nonflammable else _chem21_safety_basic(flash)
         ait_applied = ait is not None and ait < 200.0
         euh019_applied = euh019
         resistivity_applied = (
@@ -809,7 +1181,7 @@ def _chem21_score_from_inputs(solvent: str, inputs: Mapping[str, Any]) -> dict[s
         base = _chem21_health_base(codes)
         bp_below = bp is not None and bp < 85.0
         if base is None:
-            health = 6 if bp_below else 5
+            health = (1 if registered else 5) + (1 if bp_below else 0)
             health_bp_applied = bp_below
         else:
             health = base + (1 if bp_below else 0)
@@ -832,7 +1204,7 @@ def _chem21_score_from_inputs(solvent: str, inputs: Mapping[str, Any]) -> dict[s
         if bp is not None:
             figures.append(_chem21_environment_bp(bp))
             env_bp_applied = True
-        if not (codes & {"H400", "H410", "H411", "H412", "H413", "H420"}):
+        if not registered and not (codes & {"H400", "H410", "H411", "H412", "H413", "H420"}):
             figures.append(5)
             env_default = True
         environment = max(figures) if figures else 5
@@ -862,17 +1234,25 @@ def _chem21_score_from_inputs(solvent: str, inputs: Mapping[str, Any]) -> dict[s
             "h420": h420,
             "statements_n": len(statements),
             "statements_truncated": truncated,
-            "reach_registration": "unknown",
+            "reach_registration": "registered" if registered else "not registered" if reach is False else "unknown",
+            "nonflammable": nonflammable,
+            "nonflammable_basis": inputs.get("nonflammable_basis") if nonflammable else None,
+            "peroxide_class": inputs.get("peroxide_class"),
             "resistivity_ohm_m": resistivity,
             "decomposition_energy_j_g": None,
             "ghs_basis": inputs.get("ghs_basis"),
             "nonbasis_severe": list(inputs.get("ghs_nonbasis_severe") or []),
         },
         "chem21_adjustments": {
-            "ait_adjustment_applied": bool(flash is not None and ait_applied),
-            "euh019_adjustment_applied": bool(flash is not None and euh019_applied),
+            "ait_adjustment_applied": bool(safety_score is not None and ait_applied),
+            "euh019_adjustment_applied": bool(safety_score is not None and euh019_applied),
+            "peroxide_point": (
+                "applied (EU EUH019)" if safety_score is not None and euh019_applied
+                else "not assessed (listed as a peroxide former, no EU classification)"
+                if str(inputs.get("peroxide_class") or "") in {"A", "B", "C", "D", "disputed"} else "none"
+            ),
             "resistivity_adjustment_applied": bool(
-                flash is not None and resistivity_applied
+                safety_score is not None and resistivity_applied
             ),
             "decomposition_override": "not_assessed",
             "health_bp_below_85_applied": health_bp_applied,
@@ -887,12 +1267,33 @@ def _chem21_score_from_inputs(solvent: str, inputs: Mapping[str, Any]) -> dict[s
     }
 
 
+def _with_admission_signal(scores: dict[str, Any], solvent: str) -> dict[str, Any]:
+    """Stored scores plus whether the solvent table's signal word agrees with the snapshot's."""
+    admission = str(thermo.get_solvent_admission_record(solvent).get("ghs_signal_word") or "").strip() or None
+    snapshot = scores.get("chem21_snapshot_signal_word")
+    return {**scores, "chem21_admission_signal_word": admission,
+            "chem21_signal_word_agreement": None if admission is None or snapshot is None
+            else admission.casefold() == str(snapshot).casefold()}
+
+
 def score_chem21_she(
     solvent: str,
     *,
     inputs: Optional[Mapping[str, Any]] = None,
 ) -> dict[str, Any]:
-    """Published CHEM21 Safety / Health / Environment scores. Higher is worse."""
+    """Published CHEM21 Safety / Health / Environment scores. Higher is worse. Without inputs, the scores the safety
+    snapshot build stored for the solvent are served, so an answer never recomputes them."""
+    if inputs is None:
+        local = _local_properties(solvent)
+        cid = _number(local.get("cid"))
+        if cid is None:
+            cid = _number(thermo.get_solvent_admission_record(solvent).get("cid"))
+        try:
+            stored = _snapshot_chem21(int(cid)) if cid is not None else None
+        except SafetySnapshotRefuse:
+            stored = None
+        if stored is not None:
+            return _with_admission_signal(stored, solvent)
     loaded = dict(inputs) if inputs is not None else dict(_chem21_load_inputs(solvent))
     loaded["statements"] = list(loaded.get("statements") or [])
     return _chem21_score_from_inputs(str(solvent), loaded)
@@ -952,29 +1353,44 @@ def build_safety_profile(
         gaps.append("vapor_pressure_at_operating_temp")
     if not gscore:
         gaps.append("g_score")
-    if not curated:
+    if not curated and not (include_pubchem and pubchem):
         gaps.append("peroxide_former_class")
     if not pubchem.get("ld50_values"):
         gaps.append("ld50_values")
     if not pubchem.get("occupational_exposure_limits"):
         gaps.append("occupational_exposure_limits")
+    peroxide = _snapshot_peroxide(cid, cas or None) if include_pubchem and pubchem else {}
+    peroxide_class = str(
+        peroxide.get("peroxide_class") or curated.get("peroxide_former_class")
+        or ("not listed" if include_pubchem and pubchem else "unknown")
+    )
     if include_pubchem and pubchem:
         ghs = pubchem.get("ghs") or {}
         admission = thermo.get_solvent_admission_record(name)
-        chem21 = score_chem21_she(name, inputs={
+        admission_signal = str(admission.get("ghs_signal_word") or "").strip() or None
+        snapshot_signal = str(ghs.get("signal_word") or "").strip() or None
+        chem21 = _snapshot_chem21(cid) or score_chem21_she(name, inputs={
             "boiling_point_c": physical["boiling_point_c"],
             "flash_point_c": physical["flash_point_c"],
             "autoignition_c": physical["autoignition_c"],
             "statements": list(ghs.get("hazard_statements") or []),
             "cas_number": cas or None,
-            "admission_signal_word": (
-                str(admission.get("ghs_signal_word") or "").strip() or None
-            ),
-            "snapshot_signal_word": str(ghs.get("signal_word") or "").strip() or None,
+            "nonflammable": pubchem.get("nonflammable"),
+            "euh019": bool(peroxide.get("eu_euh019")),
+            "peroxide_class": peroxide.get("peroxide_class"),
             "n_ghs_statements": admission.get("n_ghs_statements"),
             "resistivity_ohm_m": None,
             "decomposition_energy_j_g": None,
         })
+        chem21 = {
+            **chem21,
+            "chem21_admission_signal_word": admission_signal,
+            "chem21_snapshot_signal_word": snapshot_signal,
+            "chem21_signal_word_agreement": (
+                None if admission_signal is None or snapshot_signal is None
+                else admission_signal.casefold() == snapshot_signal.casefold()
+            ),
+        }
         if chem21.get("chem21_safety_score") is None:
             gaps.append("chem21_safety_score")
     else:
@@ -991,9 +1407,18 @@ def build_safety_profile(
         },
         "occupational_exposure_limits": pubchem.get("occupational_exposure_limits") or [],
         "peroxide_risk": {
-            "peroxide_former_class": curated.get("peroxide_former_class") or "unknown",
-            "peroxide_former_label": curated.get("peroxide_former_label"),
-            "peroxide_notes": curated.get("peroxide_notes"),
+            "peroxide_former_class": peroxide_class,
+            "peroxide_former_label": _PEROXIDE_CLASS_LABELS.get(peroxide_class) or curated.get("peroxide_former_label"),
+            "peroxide_notes": (
+                f"{peroxide.get('class_basis')}; confidence {peroxide.get('confidence')}"
+                + ("; EU harmonized EUH019" if peroxide.get("eu_euh019") else "")
+                + ("; the lists disagree" if peroxide.get("lists_disagree") else "")
+                if peroxide else curated.get("peroxide_notes")
+            ),
+            "peroxide_sources": {
+                "VUMC": peroxide.get("vumc"), "Prudent Practices 2011": peroxide.get("prudent_practices_2011"),
+                "Illinois DRS": peroxide.get("illinois_drs"),
+            } if peroxide else {},
             "sds_storage_category": curated.get("sds_storage_category"),
         },
         "process_temperature_assessment": assessment,
@@ -1006,11 +1431,16 @@ def build_safety_profile(
             "pubchem_source": (pubchem.get("_origin") or {}).get("source"),
             "pubchem_fetched_at": (pubchem.get("_origin") or {}).get("fetched_at"),
             "pubchem_temperature_basis": (
-                "minimum parsed reported value in each PubChem heading" if pubchem else None
+                "flash point: the lowest value a second PubChem source confirms within 3 °C, else the median; "
+                "autoignition: the lowest stated value; vapour pressure: the value nearest 25 °C" if pubchem else None
             ),
             "pubchem_failed_headings": pubchem.get("failed_headings") or [],
             "pubchem_heading_errors": pubchem.get("heading_errors") or {},
             "curated_peroxide": curated.get("source_url"),
+            "peroxide_formers": (
+                "peroxide_formers.v1: VUMC, Prudent Practices 2011, Illinois DRS and EU CLP Annex VI EUH019"
+                if include_pubchem and pubchem else None
+            ),
         },
         **chem21,
     }

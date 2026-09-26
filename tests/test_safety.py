@@ -211,7 +211,9 @@ def test_g_score_and_chem21_are_not_aliases():
 
 
 def test_signal_word_disagreement_still_scores():
-    out = safety.score_chem21_she("1,4-dimethylbenzene")
+    # o-xylene: the solvent table says Warning, the snapshot Danger. (p-xylene agreed once v3's signal word followed
+    # its kept statements instead of every line of the sources.)
+    out = safety.score_chem21_she("1,2-dimethylbenzene")
     assert out["chem21_signal_word_agreement"] is False
     out = safety.score_chem21_she("1-butanol")
     assert out["chem21_signal_word_agreement"] is True
@@ -226,11 +228,15 @@ def test_r1_gap_cids_use_repaired_ladder():
         out = safety.score_chem21_she(f"cid-{cid}", inputs=_inputs(flash_point_c=flash))
         assert out["chem21_safety_score"] == 4
     for cid in _GAP_FLASH_5:
+        # Dimethyl carbonate. v2 kept CAMEO's lone "31 °F" (-0.56 °C, Safety 5); v3 takes the lowest value a second
+        # source confirms, 18 °C (HSDB and ICSC), whose Safety 4 is the published CHEM21 guide's.
         pub = safety._snapshot_pubchem(cid)
         flash = float(pub["flash_point_c"])
-        assert -1.0 < flash < 0.0
+        assert 17.5 < flash < 18.5
         out = safety.score_chem21_she(f"cid-{cid}", inputs=_inputs(flash_point_c=flash))
-        assert out["chem21_safety_score"] == 5
+        assert out["chem21_safety_score"] == 4
+    out = safety.score_chem21_she("cid-12021", inputs=_inputs(flash_point_c=-0.56))
+    assert out["chem21_safety_score"] == 5
 
 
 @pytest.mark.parametrize(
@@ -347,8 +353,10 @@ _SUBSTITUTION_IDENT_QUERY = dict(
 )
 
 
+# Re-pinned 2026-09-25 for the v3 safety snapshot (the payload carries the corrected safety fields); the default
+# and the explicit g_score payloads are still identical, which is what this pins.
 _SUBSTITUTION_IDENT_SHA256 = (
-    "a3ae9073b265c57e7c990c084e1d6686ded77b74334f54de6a9829f576909ee6"
+    "64b5eed5b6440fff6abae576725c56bedcc880d4108a01fb390427e887e6f9d9"
 )
 
 
@@ -489,10 +497,12 @@ def test_ghs_basis_distribution_production():
     for key in thermo._solvent_admission_rows():
         out = safety.score_chem21_she(key)
         counts[out["chem21_inputs"].get("ghs_basis")] += 1
-    assert counts["clp_echa"] == 749
+    # Dimethyl phthalate moved from clp_echa to HSDB in v3: its only EU entry was a peroxide "reaction mass"
+    # containing it, which is another substance.
+    assert counts["clp_echa"] == 748
     assert counts["none"] == 27
     assert counts["NITE-CMC"] == 7
-    assert counts["Hazardous Substances Data Bank (HSDB)"] == 3
+    assert counts["Hazardous Substances Data Bank (HSDB)"] == 4
     assert sum(counts.values()) == 786
 
 
@@ -571,8 +581,9 @@ def test_unknown_metric_still_refuses():
 _SNAPSHOT = safety._SNAPSHOT_DEFAULT
 
 
+# v3, rebuilt 2026-09-25 from the same pull with the corrected readers (safety_snapshot.py).
 _SNAPSHOT_SHA256 = (
-    "9f4082e0844ab18698fd229986d215fc7403767961c53bc5ac548875daaae0f7"
+    "775ce17d9e771ebff674b6b53b598f7e865f8ca4a3fa78d1c6c8a475599dfba3"
 )
 
 
@@ -823,13 +834,9 @@ def test_biodegradation_after_rename_vs_broken_heading(monkeypatch):
     ))
     served = payload["safety_profile"]["toxicity"]["biodegradation"]
     assert served
-    loaded = safety._load_snapshot()
-    broken = loaded["connection"].execute(
-        "SELECT biodegradation_broken_heading FROM pubchem_safety WHERE cid = ?",
-        [_TOLUENE_CID],
-    ).fetchone()[0]
-    parsed = safety._json_field(broken) or []
-    assert parsed == [] or _empty(parsed)
+    # v3 dropped the always-empty column that recorded v1's broken "Biodegradation" heading.
+    columns = {row[0] for row in safety._load_snapshot()["connection"].execute("DESCRIBE pubchem_safety").fetchall()}
+    assert "biodegradation_broken_heading" not in columns
 
 
 def test_cid_path_cassette_fetches_eight_names_never_biodegradation(monkeypatch):
@@ -1558,3 +1565,123 @@ def test_the_green_screen_serves_one_polymer():
     assert implied["success"] is True and implied["target_polymer"] == "EVOH"  # one polymer is its own target
     several = json.loads(safety.screen_green_solvent_candidates(feed_polymers=["EVOH", "LDPE"]))["data"]
     assert several["error_code"] == "invalid_input" and "target_polymer" in several["error"]
+
+
+# --- The PubChem readers and the v3 snapshot (2026-09-25). An audit re-ran the v2 readers on the raw pull of 987
+# solvents: a hyphen was read as a minus sign, the lowest value of any one source was kept, vapour-pressure and
+# exposure-limit formats were missed, and EU entries for other substances were merged in. Each case below is a
+# string or a solvent the v2 snapshot got wrong.
+
+_EU = "Regulation (EC) No 1272/2008 of the European Parliament and of the Council"
+
+
+def _heading_payload(*pairs):
+    references = [{"ReferenceNumber": number, "SourceName": source} for number, (source, _) in enumerate(pairs, 1)]
+    infos = [{"ReferenceNumber": number, "Value": {"StringWithMarkup": [{"String": text}]}}
+             for number, (_, text) in enumerate(pairs, 1)]
+    return {"Record": {"Reference": references, "Section": [{"Information": infos}]}}
+
+
+def test_readers_parse_the_strings_that_broke_the_v2_snapshot():
+    read = lambda *pairs: safety._source_strings(_heading_payload(*pairs))  # noqa: E731
+    # Nitromethane: "95-96 °F" is a range; v2 read -96 °F and stored -71 °C.
+    nitromethane = read(("CAMEO", "95-96 °F"), ("HSDB", "95 °F (35 °C) (Closed Cup)"), ("ICSC", "35 °C c.c."))
+    assert safety._flash_point_reading(nitromethane)["value_c"] == pytest.approx(35.0)
+    # MTBE: HSDB's own "-80 °C" is one source's value; -28 °C is confirmed by another (-14 °F = -25.6 °C).
+    mtbe = read(("CAMEO", "-14 °F (USCG, 1999)"), ("HSDB", "-80 °C"), ("ICSC", "-28 °C c.c."))
+    assert safety._flash_point_reading(mtbe)["value_c"] == pytest.approx(-28.0)
+    assert safety._flash_point_reading(read(("EPA", "None (EPA, 1998)")))["nonflammable"] is True
+    gas = safety._flash_point_reading(read(("CAMEO", "Flammable gas"), ("NIOSH", "NA (Gas)")))
+    assert gas["flammable_gas"] is True and gas["nonflammable"] is False and gas["value_c"] is None
+    # Acetanilide: "+ or - 10 °F" is a tolerance; v2 stored an autoignition of -12 °C.
+    acetanilide = safety._autoignition_reading(read(("HSDB", "985 + or - 10 °F")))
+    assert acetanilide["value_c"] == pytest.approx((985 - 32) * 5 / 9)
+    # Water: PubChem's bare "[mmHg]" value is the room-temperature one, not the 100 °C one.
+    water = read(("Haz-Map", "23.75 [mmHg]"), ("HSDB", "VP: 760 mm Hg at 100 °C"))
+    assert safety._vapor_pressure_reading(water)["kpa"] == pytest.approx(23.75 * 0.133322)
+    # Scientific notation, which v2 read as its first number.
+    assert safety._vapor_pressure_reading(read(("HSDB", "1.6X10-7 mm Hg at 20 °C")))["kpa"] == pytest.approx(
+        1.6e-7 * 0.133322)
+    # Benzene: the NIOSH limit is not the first string; v2 kept a note and lost 0.1 ppm.
+    benzene = read(
+        ("NIOSH", "NIOSH usually recommends that occupational exposures to carcinogens be limited to the lowest "
+                  "feasible concentration."),
+        ("NIOSH", "Recommended Exposure Limit: 10 Hour Time-Weighted Average: 0.1 ppm"),
+        ("NIOSH", "Recommended Exposure Limit: 15 Min Short-Term Exposure Limit: 1 ppm"),
+    )
+    assert [(item["basis"], item["ppm"]) for item in safety._exposure_limits(benzene, "NIOSH REL")] == [
+        ("10-hour TWA", 0.1), ("15-minute STEL", 1.0)]
+    # Ethylene glycol: a sentence about a proposed OSHA ceiling is not a NIOSH limit.
+    glycol = read(("NIOSH", "NIOSH questioned whether the OSHA PEL proposed for ethylene glycol [ceiling 50 ppm] is "
+                            "adequate to protect workers from recognized health hazards."))
+    assert safety._exposure_limits(glycol, "NIOSH REL") == []
+
+
+def test_ghs_leaves_out_another_substances_eu_entry_and_derives_the_signal_word():
+    """Isopropanol's PubChem record carries a second EU entry, a "reaction mass" of another substance, whose eye
+    damage and aquatic toxicity v2 merged in."""
+    payload = {"Record": {
+        "Reference": [
+            {"ReferenceNumber": 1, "SourceName": _EU, "SourceID": "603-117-00-0",
+             "Name": "propan-2-ol; isopropyl alcohol; isopropanol"},
+            {"ReferenceNumber": 2, "SourceName": _EU, "SourceID": "607-403-00-6", "Name": "reaction mass of:..."},
+        ],
+        "Section": [{"TOCHeading": "GHS Classification", "Information": [
+            {"ReferenceNumber": 1, "Name": "GHS Hazard Statements", "Value": {"StringWithMarkup": [
+                {"String": "H225: Highly Flammable liquid and vapor [Danger Flammable liquids]"},
+                {"String": "H319: Causes serious eye irritation [Warning Serious eye damage/eye irritation]"},
+                {"String": "H336: May cause drowsiness or dizziness [Warning Specific target organ toxicity]"}]}},
+            {"ReferenceNumber": 2, "Name": "GHS Hazard Statements", "Value": {"StringWithMarkup": [
+                {"String": "H318: Causes serious eye damage [Danger Serious eye damage/eye irritation]"},
+                {"String": "H400: Very toxic to aquatic life [Warning Hazardous to the aquatic environment]"}]}},
+        ]}],
+    }}
+    ghs = safety._compose_ghs(payload)
+    assert ghs["basis_codes"] == ["H225", "H319", "H336"]
+    assert ghs["signal_word"] == "Danger" and ghs["pictograms"] == ["Flammable", "Irritant"]
+    assert ghs["skipped_other_substance_entries"] == [{"entry": "607-403-00-6", "name": "reaction mass of:..."}]
+
+
+def test_v3_snapshot_serves_the_corrected_values():
+    served = {cid: safety._snapshot_pubchem(cid) for cid in (6375, 174, 15413, 3283, 3776, 7843, 241)}
+    assert served[6375]["flash_point_c"] == pytest.approx(35.0)      # nitromethane; v2 -71
+    assert served[174]["flash_point_c"] == pytest.approx(111.0)      # ethylene glycol; v2 -323
+    assert served[15413]["flash_point_c"] == pytest.approx(-28.0)    # MTBE; v2 -80
+    assert served[3283]["autoignition_c"] == pytest.approx(160.0)    # diethyl ether; v2 -180
+    codes = lambda cid: {code for text in served[cid]["ghs"]["hazard_statements"]  # noqa: E731
+                         for code in safety._GHS_CODE.findall(text)}
+    assert codes(3776) == {"H225", "H319", "H336"}                    # isopropanol's own EU entry only
+    assert not codes(7843) & {"H340", "H350"}                        # butane is not a carcinogen
+    niosh = [item for item in served[241]["occupational_exposure_limits"] if item["authority"] == "NIOSH REL"]
+    assert (niosh[0]["basis"], niosh[0]["ppm"]) == ("10-hour TWA", 0.1)   # benzene
+    from dissolve import safety_snapshot
+    assert safety_snapshot.check(safety._SNAPSHOT_DEFAULT) == []
+
+
+def test_chem21_scores_are_stored_and_follow_the_guide_where_the_data_allow():
+    """The build stores every solvent's CHEM21 scores, and answers read them. Non-flammable solvents score Safety 1
+    and EU EUH019 peroxide formers get the guide's extra point: dichloromethane and THF now equal the published
+    guide. The guide agreement is a floor to raise when REACH registration status arrives."""
+    scores = lambda cid: (lambda c: [c["chem21_safety_score"], c["chem21_health_score"],  # noqa: E731
+                                     c["chem21_environment_score"], c["chem21_default_ranking"]])(
+        safety._snapshot_chem21(cid))
+    assert scores(6344) == [1, 7, 7, "hazardous"]        # dichloromethane: no flash point, no flammability code
+    assert scores(8028) == [6, 7, 5, "problematic"]      # THF: flash -14.5 °C gives 5, +1 for EUH019
+    assert scores(962) == [1, 1, 1, "recommended"]       # water
+    assert scores(174)[0] == 1                           # ethylene glycol, 7 in v2 from its misread flash point
+    stored = safety.score_chem21_she("thf")
+    assert stored["chem21_adjustments"]["peroxide_point"] == "applied (EU EUH019)"
+    from dissolve import safety_snapshot
+    agreement = safety_snapshot.guide_agreement(safety._SNAPSHOT_DEFAULT)
+    assert agreement["flash_same_band"] >= 59 and agreement["flash_points"] == 62
+    assert agreement["all_three_scores"] >= 17 and agreement["default_ranking"] >= 42
+
+
+def test_peroxide_classes_come_from_the_sourced_lists():
+    risk = lambda name: safety.build_safety_profile(name, include_pubchem=True)["peroxide_risk"]  # noqa: E731
+    assert risk("2-propanol")["peroxide_former_class"] == "B"          # v2: unknown
+    assert risk("tetralin")["peroxide_former_class"] == "B" and "EUH019" in risk("tetralin")["peroxide_notes"]
+    assert risk("tetrahydropyran")["peroxide_former_class"] == "D"      # v2 said "not listed", against its source
+    toluene = risk("toluene")
+    assert toluene["peroxide_former_class"] == "not listed"
+    assert "not a finding that it cannot form peroxides" in toluene["peroxide_former_label"]
