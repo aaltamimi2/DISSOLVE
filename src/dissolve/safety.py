@@ -49,9 +49,9 @@ _HEADINGS = (
 _HEADING_ERROR_KEY = "_dissolve_heading_error"
 # v3 (2026-09-25): rebuilt from the same 2026-08-28 PubChem pull with the corrected readers, plus the peroxide-former
 # table and stored CHEM21 scores (python -m dissolve.safety_snapshot build). Its content digest is
-# 15a84085e577fd0f52afa17d8f7f12f1f563b5094c556afc30d1d91dde0052ac.
+# 5659c9e1109b03dccb7234e418ec313a95746ccd303d07f3b0124f6531de0e3d.
 _SNAPSHOT_SHA256 = (
-    "775ce17d9e771ebff674b6b53b598f7e865f8ca4a3fa78d1c6c8a475599dfba3"
+    "7a5d090a4ed4832d48dd4f4b0cd9f10a0fbf532900e099ca3ae2667bedc28d38"
 )
 _SNAPSHOT_DEFAULT = Path(str(files("dissolve").joinpath("data/pubchem_safety_snapshot.v3.duckdb")))
 
@@ -824,6 +824,8 @@ def _snapshot_pubchem(cid: int) -> dict[str, Any]:
         "flammable_gas": bool(record.get("flammable_gas")),
         "explodes": bool(record.get("explodes")),
         "vapor_pressure_basis": record.get("vapor_pressure_basis"),
+        "reach_registered": record.get("reach_registered"),
+        "eu_code_sources": _json_field(record.get("eu_code_sources")) or {},
     }
 
 
@@ -1384,6 +1386,7 @@ def build_safety_profile(
             "statements": list(ghs.get("hazard_statements") or []),
             "cas_number": cas or None,
             "nonflammable": pubchem.get("nonflammable"),
+            "reach_registered": pubchem.get("reach_registered"),
             "euh019": bool(peroxide.get("eu_euh019")),
             "peroxide_class": peroxide.get("peroxide_class"),
             "n_ghs_statements": admission.get("n_ghs_statements"),

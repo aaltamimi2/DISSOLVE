@@ -35,7 +35,7 @@ the source PubChem names for it.
 | Flash point | The lowest value a second, different source confirms within 3 °C; else the median of the sources. A range gives its lower end, a hyphen between numbers is a range, and a "±" tolerance is dropped. Bounds ("above 200 °F") count only when nothing else exists, and class-definition text is set aside. With no plain value, text saying the solvent does not burn marks it non-flammable. Flammable gases and explosives are marked as such |
 | Autoignition | The lowest stated value (the conservative choice), with the spread across sources |
 | Vapour pressure | The value whose stated temperature is nearest 25 °C, within 15–35 °C; else a value with no stated temperature (PubChem's bare "[mmHg]" values are room-temperature ones); else the value measured nearest 25 °C. The basis is stored |
-| Hazard statements | The EU harmonized classification (CLP Annex VI) entries of the substance itself, plus the ECHA C&L notified codes that at least 25% of notifiers give. Entries for another substance ("reaction mass", mixture, "containing …", phlegmatised) are left out and recorded. When neither exists, the fallback is HCIS, then HSDB, then NITE-CMC. Every source line is kept as provenance, and severe codes outside the basis are surfaced |
+| Hazard statements | The solvent's own EU classification (`eu_classification.v1.json`): harmonised hazard classes from CLP Annex VI, the other classes from the lead REACH registrant, else from the classification at least half of at least 10 notifying companies give. The entries are found by the EC and index numbers ECHA assigns to the CAS number; entries for another composition (a "reaction mass", a mixture, "containing ≥ 0.1 % butadiene") are left out. A majority "not classified" means not classified. No national list is used, and "no EU data" is never read as safe. Each code takes PubChem's most common wording. Every PubChem line is kept as provenance, and severe codes PubChem lists that the classification does not are surfaced |
 | Signal word, pictograms | From the kept statements: Danger if any kept statement carries Danger. Pictograms follow the CLP precedence rules |
 | Exposure limits | Every current limit an authority states, labelled 8- or 10-hour TWA, STEL or ceiling. Vacated or proposed limits and notes without a value are left out |
 | LD50, LC50 | Up to five each: oral first, then dermal, then inhalation; rat, then mouse, then rabbit |
@@ -67,8 +67,9 @@ The recipe follows Prat et al., *Green Chem.* 2016, 18, 288 (`safety._chem21_sco
 - **Health and Environment:** from the hazard statements and the boiling point.
   - The guide scores a solvent without such statements as 1 (Health) or its boiling-point band (Environment) only
     when it is fully registered under REACH, and as 5 otherwise.
-  - DISSOLVE does not yet hold REACH registration status, so the untested default applies. This is the largest
-    remaining difference from the guide.
+  - REACH status comes from ECHA CHEM: 703 of the 987 solvents are registered, 267 are not, and 17 are not in ECHA.
+    For a solvent in ECHA without a usable classification the status is withheld, so the untested default
+    applies.
 
 **Not assessed:** the guide's static-charge point (resistivity above 10⁸ Ω·m) and its automatic 10 for high
 decomposition energy (nitromethane). DISSOLVE holds no data for either.
@@ -88,18 +89,24 @@ The guide's published values are `chem21_guide.v1.json` (the ACS GCI Pharmaceuti
 guide's tables, with its checksum). They are known answers only, never an input. Against the guide, matched by CAS
 number:
 
-| | v2 snapshot | v3 snapshot |
-|---|---|---|
-| Flash points in the right Safety band (of 62) | 54 | 59 |
-| All three scores equal (of 66) | 13 | 17 |
-| Default ranking equal (of 66) | 34 | 42 |
+| | v2 snapshot | v3, corrected readers | v3, plus EU classification and REACH |
+|---|---|---|---|
+| Flash points in the right Safety band (of 62) | 54 | 59 | 59 |
+| All three scores equal (of 66) | 13 | 17 | 37 |
+| Default ranking equal (of 66) | 34 | 42 | 57 |
 
 The three flash-point misses:
 - CPME and 2-MeTHF have no PubChem flash point.
 - Chlorobenzene is 23.9 °C against the guide's 29 °C, on a band edge.
 
-The remaining score differences are mostly the REACH default (Environment 5 instead of 3), weakly sourced hazard
-statements, and the two unassessed adjustments.
+The 9 remaining ranking differences:
+- **EU reclassifications since the 2016 guide (3):** MIBK and 1,4-dioxane (carcinogenicity) and isoamyl alcohol.
+- **Adjustments DISSOLVE cannot assess (5):**
+  - the peroxide or static-charge point for MTBE and anisole;
+  - no PubChem flash point for CPME and 2-MeTHF;
+  - nitromethane's decomposition rule.
+- **One data gap:** glycerol has no boiling point in the solvent table, so its Environment score falls back to 5
+  where the guide gives 7.
 
 ## Rebuilding
 

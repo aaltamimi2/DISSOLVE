@@ -194,7 +194,7 @@ def test_snapshot_data_gap_payload_has_every_key():
             out["chem21_adjustments"]["euh019_adjustment_applied"]
         ) + int(out["chem21_adjustments"]["resistivity_adjustment_applied"])
     assert out["chem21_ghs_source"] == "pubchem_safety_snapshot"
-    assert out["chem21_inputs"]["reach_registration"] == "unknown"
+    assert out["chem21_inputs"]["reach_registration"] == "registered"  # from ECHA CHEM (eu_classification.v1.json)
     assert out["chem21_inputs"]["resistivity_ohm_m"] is None
 
 
@@ -211,9 +211,9 @@ def test_g_score_and_chem21_are_not_aliases():
 
 
 def test_signal_word_disagreement_still_scores():
-    # o-xylene: the solvent table says Warning, the snapshot Danger. (p-xylene agreed once v3's signal word followed
-    # its kept statements instead of every line of the sources.)
-    out = safety.score_chem21_she("1,2-dimethylbenzene")
+    # Mesitylene: the solvent table says Warning, the snapshot's EU classification Danger. (The xylenes agree since
+    # the snapshot's statements follow each solvent's own EU classification.)
+    out = safety.score_chem21_she("1,3,5-trimethylbenzene")
     assert out["chem21_signal_word_agreement"] is False
     out = safety.score_chem21_she("1-butanol")
     assert out["chem21_signal_word_agreement"] is True
@@ -356,7 +356,7 @@ _SUBSTITUTION_IDENT_QUERY = dict(
 # Re-pinned 2026-09-25 for the v3 safety snapshot (the payload carries the corrected safety fields); the default
 # and the explicit g_score payloads are still identical, which is what this pins.
 _SUBSTITUTION_IDENT_SHA256 = (
-    "64b5eed5b6440fff6abae576725c56bedcc880d4108a01fb390427e887e6f9d9"
+    "1cc6c6dc73769577b675809b714fc46a374ee48292544b17d4d4ec38bafce0b5"
 )
 
 
@@ -497,12 +497,11 @@ def test_ghs_basis_distribution_production():
     for key in thermo._solvent_admission_rows():
         out = safety.score_chem21_she(key)
         counts[out["chem21_inputs"].get("ghs_basis")] += 1
-    # Dimethyl phthalate moved from clp_echa to HSDB in v3: its only EU entry was a peroxide "reaction mass"
-    # containing it, which is another substance.
-    assert counts["clp_echa"] == 748
-    assert counts["none"] == 27
-    assert counts["NITE-CMC"] == 7
-    assert counts["Hazardous Substances Data Bank (HSDB)"] == 4
+    # v3 serves each solvent's own EU classification (eu_classification.v1.json); no national list is a basis.
+    assert counts["EU classification"] == 701
+    assert counts["not classified in the EU"] == 44
+    assert counts["no EU classification found"] == 37
+    assert counts["no EU data"] == 4
     assert sum(counts.values()) == 786
 
 
@@ -513,7 +512,7 @@ def test_nonbasis_severe_count_production():
         out = safety.score_chem21_she(key)
         if out["chem21_inputs"].get("nonbasis_severe"):
             n += 1
-    assert n == 392
+    assert n == 427  # v3: severe codes PubChem lists that the solvent's own EU classification does not
 
 
 def test_ethanol_nonbasis_disclosure():
@@ -583,7 +582,7 @@ _SNAPSHOT = safety._SNAPSHOT_DEFAULT
 
 # v3, rebuilt 2026-09-25 from the same pull with the corrected readers (safety_snapshot.py).
 _SNAPSHOT_SHA256 = (
-    "775ce17d9e771ebff674b6b53b598f7e865f8ca4a3fa78d1c6c8a475599dfba3"
+    "7a5d090a4ed4832d48dd4f4b0cd9f10a0fbf532900e099ca3ae2667bedc28d38"
 )
 
 
@@ -1674,7 +1673,7 @@ def test_chem21_scores_are_stored_and_follow_the_guide_where_the_data_allow():
     from dissolve import safety_snapshot
     agreement = safety_snapshot.guide_agreement(safety._SNAPSHOT_DEFAULT)
     assert agreement["flash_same_band"] >= 59 and agreement["flash_points"] == 62
-    assert agreement["all_three_scores"] >= 17 and agreement["default_ranking"] >= 42
+    assert agreement["all_three_scores"] >= 37 and agreement["default_ranking"] >= 57
 
 
 def test_peroxide_classes_come_from_the_sourced_lists():
@@ -1691,14 +1690,16 @@ def test_safety_comparison_ranks_every_candidate_with_ties_and_missing_scores_la
     """Validation 2026-09-25: asked to rank solvents by safety, the agent ranked them itself. It broke a three-way
     CHEM21 tie silently, stated one criterion while its table followed another, and ranked only the first page of a
     screen. The tool now ranks by a named criterion over every candidate."""
-    names = ["dichloromethane", "THF", "acetone", "ethyl acetate", "cyclohexanone"]
+    candidates = [{"solvent_name": "dichloromethane"}, {"solvent_name": "ethanol", "operating_temp_c": 25.0},
+                  {"solvent_name": "CPME"}, {"solvent_name": "ethanol", "operating_temp_c": 40.0}]
     out = json.loads(safety.compare_solvent_safety_at_conditions(
-        candidates=[{"solvent_name": name} for name in names], rank_by="chem21", limit=2))["data"]
+        candidates=candidates, rank_by="chem21", limit=2))["data"]
     ranking = out["ranking"]
-    assert out["ranked_total"] == 5 and len(out["comparison_rows"]) == 2
-    assert [entry["rank"] for entry in ranking] == [1, 1, 1, 4, 5]
-    assert [entry["tied"] for entry in ranking] == [True, True, True, False, False]
-    assert ranking[-1]["solvent"] == "Dichloromethane" and ranking[-1]["chem21_default_ranking"] == "hazardous"
+    assert out["ranked_total"] == 4 and len(out["comparison_rows"]) == 2
+    assert [entry["rank"] for entry in ranking] == [1, 1, 3, None]       # ethanol twice ties, CPME has no score
+    assert [entry["tied"] for entry in ranking] == [True, True, False, False]
+    assert ranking[2]["solvent"] == "Dichloromethane" and ranking[2]["chem21_default_ranking"] == "hazardous"
+    assert ranking[3]["missing"] == "CHEM21 score"
     greener = json.loads(safety.compare_solvent_safety_at_conditions(
         candidates=[{"solvent_name": name} for name in ("dipentene", "acetone", "ethanol")], rank_by="g_score"))["data"]
     assert [entry["solvent"] for entry in greener["ranking"]][:2] == ["Ethanol", "Acetone"]
@@ -1719,3 +1720,23 @@ def test_abbreviations_and_spelled_out_names_find_their_solvent():
     assert thermo.resolve_solvent("DM") is None          # a data annotation, not a name
     card = safety.build_safety_profile("NMP", include_pubchem=True)
     assert card["chem21_default_ranking"] == "hazardous"  # as the published CHEM21 guide ranks NMP
+
+
+def test_hazard_statements_follow_each_solvents_own_eu_classification():
+    """The hazard-source investigation (2026-09-25) found PubChem files other substances' entries under a solvent's
+    compound: formic acid carried "fatal if swallowed/inhaled" from a thallium formate notification, water "irritant"
+    from a polymer entry, and propylene glycol "Danger" from Japan's list against the EU's "not classified". The
+    snapshot now serves each solvent's own EU classification, with REACH status for CHEM21."""
+    codes = lambda cid: {code for text in safety._snapshot_pubchem(cid)["ghs"]["hazard_statements"]  # noqa: E731
+                         for code in safety._GHS_CODE.findall(text)}
+    assert codes(284) == {"H226", "H290", "H302", "H314", "H318", "H331"}   # formic acid: its harmonised entry
+    assert codes(962) == set() and safety._snapshot_pubchem(962)["ghs"]["signal_word"] is None   # water
+    assert codes(1030) == set()                                              # propylene glycol: not classified
+    assert codes(7843) == {"H220"}                    # butane; its "containing >= 0.1 % butadiene" entry is not it
+    ethanol = safety._snapshot_pubchem(702)
+    assert ethanol["eu_code_sources"] == {"H225": "EU harmonised (CLP Annex VI)", "H319": "lead REACH registrant"}
+    stored = safety._snapshot_chem21(702)
+    # Registered and without an environmental statement, ethanol gets its boiling-point band (3), not the untested 5:
+    # 4/3/3 recommended, the published CHEM21 guide's scores.
+    assert [stored[key] for key in ("chem21_safety_score", "chem21_health_score", "chem21_environment_score",
+                                    "chem21_default_ranking")] == [4, 3, 3, "recommended"]

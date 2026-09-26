@@ -18,6 +18,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import re
 import sys
 from datetime import datetime, timezone
 from importlib.resources import files
@@ -29,6 +30,10 @@ import duckdb
 from . import safety
 
 PEROXIDE_TABLE = Path(str(files("dissolve").joinpath("data/peroxide_formers.v1.json")))
+EU_CLASSIFICATION = Path(str(files("dissolve").joinpath("data/eu_classification.v1.json")))
+# The classification bases under which a solvent's REACH status sets the CHEM21 Health/Environment rule. For "no EU
+# classification found" (in ECHA, but no usable entry) the status is withheld, so the untested default applies.
+_REACH_RULE_BASES = frozenset({"EU classification", "not classified in the EU"})
 CHEM21_GUIDE = Path(str(files("dissolve").joinpath("data/chem21_guide.v1.json")))
 MIN_GUIDE_FLASH_BANDS = 59  # of the guide's 62 numeric flash points; the audit's rule scored 59 (v2 stored 54)
 THERMODYNAMICS = Path(str(files("dissolve").joinpath("data/thermodynamics.duckdb")))
@@ -42,7 +47,8 @@ SCHEMA = (
         occupational_exposure_limits VARCHAR, n_exposure_limits INTEGER, ld50_values VARCHAR, lc50_values VARCHAR,
         biodegradation VARCHAR, n_failed_headings INTEGER, ghs_basis VARCHAR, ghs_nonbasis_severe VARCHAR,
         ghs_codes_n INTEGER, flash_point_basis VARCHAR, nonflammable BOOLEAN, flammable_gas BOOLEAN,
-        explodes BOOLEAN, autoignition_spread_c DOUBLE, vapor_pressure_basis VARCHAR, ghs_skipped_entries VARCHAR)""",
+        explodes BOOLEAN, autoignition_spread_c DOUBLE, vapor_pressure_basis VARCHAR, ghs_skipped_entries VARCHAR,
+        reach_registered BOOLEAN, eu_code_sources VARCHAR)""",
     "CREATE TABLE pubchem_heading_raw (cid BIGINT, heading VARCHAR, ok BOOLEAN, failure_class VARCHAR, attempts INTEGER)",
     """CREATE TABLE ghs_statement_provenance (cid BIGINT, source_name VARCHAR, share_pct DOUBLE, codes VARCHAR,
         line_text VARCHAR, in_basis BOOLEAN)""",
@@ -72,14 +78,60 @@ def _boiling_points() -> dict[int, float]:
     return found
 
 
+def _phrases(records: list[dict[str, Any]]) -> dict[str, str]:
+    """The text PubChem gives each hazard code, from every line that states exactly one code (share and bracketed
+    counts removed), the most frequent wording per code."""
+    counts: dict[str, dict[str, int]] = {}
+    for record in records:
+        entry = record["headings"].get("GHS Classification") or {}
+        composed = safety._compose_ghs(entry.get("payload") if entry.get("ok") else {})
+        for line in composed["provenance"]:
+            if len(line["codes"]) != 1:
+                continue
+            text = re.sub(r"\s*\(\s*>?\s*~?\s*\d+(?:\.\d+)?\s*%\s*\)", "", line["line_text"])
+            text = re.sub(r"\s+\*+(?=:)", "", text).strip()
+            counts.setdefault(line["codes"][0], {}).setdefault(text, 0)
+            counts[line["codes"][0]][text] += 1
+    return {code: max(texts.items(), key=lambda item: (item[1], -len(item[0])))[0] for code, texts in counts.items()}
+
+
+def eu_ghs(fields: dict[str, Any], eu: dict[str, Any], phrases: dict[str, str]) -> dict[str, Any]:
+    """The hazard statements, signal word and pictograms under the solvent's own EU classification (see
+    eu_classification.v1.json). PubChem's lines stay as provenance; a severe code PubChem carries that the EU
+    classification does not is surfaced, not served."""
+    codes = list(eu.get("codes") or [])
+    statements = [phrases.get(code, code) for code in codes]
+    signals = {match.group(1) for text in statements for match in [re.search(r"\[(Danger|Warning)\b", text)]
+               if match}
+    composition = fields["ghs_composition"]
+    pubchem_codes = {code for line in composition["provenance"] for code in line["codes"]}
+    return {
+        "signal_word": "Danger" if "Danger" in signals else "Warning" if "Warning" in signals else None,
+        "pictograms": safety._pictograms_for(set(codes)),
+        "hazard_statements": statements,
+        "basis": eu.get("basis") or "no EU data",
+        "basis_codes": codes,
+        "nonbasis_severe": [
+            {"code": code, "sources": sorted({line["source_name"] for line in composition["provenance"]
+                                              if code in line["codes"]}), "echa_share_pct": None}
+            for code in sorted((pubchem_codes - set(codes)) & safety._GHS_SEVERE)
+        ],
+        "skipped_other_substance_entries": composition["skipped_other_substance_entries"],
+        "provenance": [{**line, "in_basis": bool(set(line["codes"]) & set(codes))} for line in composition["provenance"]],
+    }
+
+
 def chem21_inputs(fields: dict[str, Any], cas: Optional[str], boiling: Optional[float],
-                  peroxide: Optional[dict[str, Any]]) -> dict[str, Any]:
+                  peroxide: Optional[dict[str, Any]], reach_registered: Optional[bool] = None,
+                  eu_basis: Optional[str] = None) -> dict[str, Any]:
     """What the CHEM21 recipe needs for one compound. A compound with no flash point is non-flammable when its text
-    says so, or when it carries hazard statements and none of them is a flammability statement (dichloromethane,
-    water): the guide scores that Safety 1. A flammable gas stays without a flash point."""
+    says so, or when it is classified, by hazard statements none of which is a flammability statement
+    (dichloromethane) or by the EU's "not classified" (water): the guide scores that Safety 1. A flammable gas stays
+    without a flash point."""
     statements = list((fields.get("ghs") or {}).get("hazard_statements") or [])
     codes = set(safety._chem21_parse_codes(statements))
-    inferred = (fields.get("flash_point_c") is None and not fields.get("flammable_gas") and bool(codes)
+    classified = bool(codes) or eu_basis == "not classified in the EU"
+    inferred = (fields.get("flash_point_c") is None and not fields.get("flammable_gas") and classified
                 and not codes & FLAMMABILITY_CODES)
     return {
         "boiling_point_c": boiling,
@@ -92,7 +144,7 @@ def chem21_inputs(fields: dict[str, Any], cas: Optional[str], boiling: Optional[
                                else "no flash point and no flammability hazard statement" if inferred else None),
         "euh019": bool(peroxide and peroxide.get("eu_euh019")),
         "peroxide_class": (peroxide or {}).get("peroxide_class"),
-        "reach_registered": None,
+        "reach_registered": reach_registered,
         "snapshot_signal_word": (fields.get("ghs") or {}).get("signal_word"),
         "resistivity_ohm_m": None,
         "decomposition_energy_j_g": None,
@@ -117,6 +169,8 @@ def build(raw: Path, out: Path, fetched_at_utc: str) -> str:
         out.unlink()
     boiling = _boiling_points()
     peroxide_rows, peroxide_by_cas, peroxide_by_cid = _peroxide_rows()
+    eu_by_cid = {int(row["cid"]): row for row in json.loads(EU_CLASSIFICATION.read_text(encoding="utf-8"))["rows"]}
+    phrases = _phrases(records)
     connection = duckdb.connect(str(out))
     for statement in SCHEMA:
         connection.execute(statement)
@@ -124,12 +178,18 @@ def build(raw: Path, out: Path, fetched_at_utc: str) -> str:
         cid = int(record["cid"])
         payloads = {heading: (entry["payload"] if entry["ok"] else {}) for heading, entry in record["headings"].items()}
         fields = safety._pubchem_fields(payloads)
+        eu = eu_by_cid.get(cid)
+        if eu is not None:
+            composition = eu_ghs(fields, eu, phrases)
+            fields["ghs_composition"] = composition
+            fields["ghs"] = {key: composition[key] for key in ("signal_word", "pictograms", "hazard_statements")}
         composition = fields["ghs_composition"]
+        reach = eu.get("reach_registered") if eu is not None and eu.get("basis") in _REACH_RULE_BASES else None
         ghs = fields["ghs"]
         limits = fields["occupational_exposure_limits"]
         cas = record.get("cas_number")
         connection.execute(
-            "INSERT INTO pubchem_safety VALUES (" + ",".join("?" * 26) + ")",
+            "INSERT INTO pubchem_safety VALUES (" + ",".join("?" * 28) + ")",
             [cid, record["solvent_name"], cas, fields["flash_point_c"], fields["autoignition_c"],
              fields["vapor_pressure_kpa"], fields["vapor_pressure_temp_c"], ghs["signal_word"],
              json.dumps(ghs["pictograms"]), json.dumps(ghs["hazard_statements"]), json.dumps(limits), len(limits),
@@ -138,7 +198,8 @@ def build(raw: Path, out: Path, fetched_at_utc: str) -> str:
              sum(1 for entry in record["headings"].values() if not entry["ok"]), composition["basis"],
              json.dumps(composition["nonbasis_severe"]), len(composition["basis_codes"]), fields["flash_point_basis"],
              fields["nonflammable"], fields["flammable_gas"], fields["explodes"], fields["autoignition_spread_c"],
-             fields["vapor_pressure_basis"], json.dumps(composition["skipped_other_substance_entries"])])
+             fields["vapor_pressure_basis"], json.dumps(composition["skipped_other_substance_entries"]),
+             reach, json.dumps((eu or {}).get("code_sources") or {})])
         for heading in safety._HEADINGS:
             entry = record["headings"][heading]
             connection.execute("INSERT INTO pubchem_heading_raw VALUES (?,?,?,?,?)",
@@ -149,7 +210,8 @@ def build(raw: Path, out: Path, fetched_at_utc: str) -> str:
                                 line["line_text"], line["in_basis"]])
         peroxide = peroxide_by_cid.get(cid) or peroxide_by_cas.get(str(cas or "").strip())
         scores = safety._chem21_score_from_inputs(
-            record["solvent_name"], chem21_inputs(fields, cas, boiling.get(cid), peroxide))
+            record["solvent_name"], chem21_inputs(fields, cas, boiling.get(cid), peroxide, reach,
+                                                  (eu or {}).get("basis")))
         connection.execute(
             "INSERT INTO chem21_scores VALUES (?,?,?,?,?,?,?,?,?,?)",
             [cid, record["solvent_name"], cas, scores["chem21_safety_score"], scores["chem21_health_score"],
@@ -172,14 +234,15 @@ def build(raw: Path, out: Path, fetched_at_utc: str) -> str:
         "autoignition_rule": "lowest stated value; spread across sources recorded",
         "vapor_pressure_rule": "value nearest 25 °C within 15-35 °C, else one with no stated temperature, else the "
                                "value measured nearest 25 °C",
-        "ghs_basis_rule": "EU harmonized (CLP Annex VI) entries of the substance itself UNION ECHA C&L notified codes "
-                          "with share >= 25%; entries for another substance (reaction mass, mixture, containing, "
-                          "phlegmatised) left out; fallback HCIS -> HSDB -> NITE-CMC when neither exists; signal word "
-                          "and pictograms follow the kept statements",
+        "ghs_basis_rule": "the solvent's own EU classification (eu_classification.v1.json): harmonised classes from "
+                          "CLP Annex VI, other classes from the lead REACH registrant, else the majority of at least "
+                          "10 notifying companies; no national list; PubChem's wording for each code; signal word "
+                          "and pictograms follow the statements",
+        "eu_classification": EU_CLASSIFICATION.name,
         "peroxide_formers": PEROXIDE_TABLE.name,
         "chem21_rule": "Prat et al. 2016 recipe (safety._chem21_score_from_inputs) on these fields; non-flammable "
-                       "scores Safety 1; +1 for EU EUH019 peroxide formers; REACH registration not yet known, so "
-                       "the guide's untested default applies to Health and Environment",
+                       "scores Safety 1; +1 for EU EUH019 peroxide formers; REACH registration from ECHA CHEM sets "
+                       "the guide's Health and Environment rule for solvents without such statements",
     }
     for key, value in metadata.items():
         connection.execute("INSERT INTO snapshot_metadata VALUES (?,?)", [key, value])
