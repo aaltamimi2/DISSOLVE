@@ -8858,6 +8858,11 @@ def _stage_values(steps: Any, stage_value: Callable[[dict[str, Any]], float | No
     return [] if any(value is None for value in values) else values
 
 
+def _route_step_summary(route: dict[str, Any]) -> dict[str, Any]:
+    from .separation import route_step_summary  # imported here, as the stage helpers above import safety
+    return route_step_summary(route)
+
+
 def _route_least_safe_stage(route: dict[str, Any]) -> dict[str, Any]:
     """The CHEM21 band and worst score of the route's least safe stage. max_stage_chem21_worst is only the sort key
     (10 × band ordinal + the highest of Safety, Health and Environment), not a score to report."""
@@ -9023,6 +9028,7 @@ def _planner_route_point(
         "bottleneck_selectivity_pct": route.get("bottleneck_selectivity_pct"),
         "min_stage_g_score": _planner_route_metric(route, "min_stage_g_score"),
         "peak_temperature_c": route.get("peak_temperature_c"),
+        **_route_step_summary(route),
         "safety_standing": {"status": "not_requested"},
     }
     if objective is not None:

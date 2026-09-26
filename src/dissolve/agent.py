@@ -880,7 +880,9 @@ Comparing alternatives (solvents, routes, conditions).
   missing score; never break a tie by another criterion without saying
   which. A route's CHEM21 standing is its least safe stage's band and
   worst score (chem21_least_safe_band, chem21_least_safe_worst_score);
-  the objective value is only a sort key, never a score to show.
+  the objective value is only a sort key, never a score to show. Each
+  route lists its steps with their temperatures (route_steps) and
+  whether it depends on a capped value (depends_on_clipped_value).
 - A shortlist is not the screen. When a screen shows fewer candidates
   than qualified (qualifying_total_by_target), say "top N of M". To rank
   every qualifying solvent by another criterion, run the screen with

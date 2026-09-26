@@ -1844,3 +1844,20 @@ def test_hazard_statements_follow_each_solvents_own_eu_classification():
     # 4/3/3 recommended, the published CHEM21 guide's scores.
     assert [stored[key] for key in ("chem21_safety_score", "chem21_health_score", "chem21_environment_score",
                                     "chem21_default_ranking")] == [4, 3, 3, "recommended"]
+
+
+def test_ranked_routes_carry_each_step_temperature_and_the_capped_flag():
+    """A route ranking named only each route's peak temperature, so four of five routes were given without step
+    temperatures, and whether every route depends on a capped 100 wt% value was left to the model to remember."""
+    route = {"sequence": ["EVOH", "LDPE"], "solvent_mapping": {}, "complete": True, "steps": [
+        {"dissolved_polymer": "EVOH", "solvent": "Triethylamine", "temperature_c": 25.0, "is_clipped": True,
+         "chem21_safety_score": 5, "chem21_health_score": 7, "chem21_environment_score": 3},
+        {"dissolved_polymer": "LDPE", "solvent": "Dodecane", "temperature_c": 145.0, "is_clipped": False,
+         "chem21_safety_score": 1, "chem21_health_score": 2, "chem21_environment_score": 7},
+    ]}
+    point = tea._planner_route_point(route, handle="h", original_rank=1, new_rank=1,
+                                     objective="max_stage_chem21_worst", x_metric=None, y_metric=None)
+    assert [(step["dissolves"], step["temperature_c"]) for step in point["route_steps"]] == [
+        ("EVOH", 25.0), ("LDPE", 145.0)]
+    assert point["depends_on_clipped_value"] is True
+    assert separation._ranked_path_index([route])[0]["depends_on_clipped_value"] is True

@@ -2076,6 +2076,23 @@ def _min_stage_g_score(steps: Any) -> float | None:
     return min(scores) if scores else None
 
 
+def route_step_summary(route: dict[str, Any]) -> dict[str, Any]:
+    """Each step in order with its temperature, and whether any step's value sits on the 100 wt% ceiling. A route
+    ranking named only the peak temperature, so four of five routes were given without step temperatures, and an
+    answer that had said every route depends on a capped value stopped saying it."""
+    steps = [item for item in route.get("steps") or [] if isinstance(item, dict)]
+    return {
+        "route_steps": [{
+            "step_kind": item.get("step_kind") or "dissolution",
+            "dissolves": item.get("dissolved_polymer") or item.get("polymer"),
+            "solvent": item.get("solvent"),
+            "temperature_c": item.get("temperature_c"),
+            "is_clipped": item.get("is_clipped"),
+        } for item in steps],
+        "depends_on_clipped_value": any(item.get("is_clipped") is True for item in steps),
+    }
+
+
 def _ranked_path_index(routes: list[dict[str, Any]]) -> list[dict[str, Any]]:
     index = []
     for route in routes:
@@ -2088,6 +2105,7 @@ def _ranked_path_index(routes: list[dict[str, Any]]) -> list[dict[str, Any]]:
             "min_stage_g_score": _min_stage_g_score(steps),
             "peak_temperature_c": route.get("peak_temperature_c"),
             "solvent_mapping": dict(route.get("solvent_mapping") or {}),
+            **route_step_summary(route),
         })
     return index
 
