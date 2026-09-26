@@ -9,7 +9,7 @@ import httpx
 import pytest
 import uvicorn
 
-from dissolve import agent, cli, web
+from dissolve import agent, cli, tea, web, web_tea
 
 
 @pytest.fixture
@@ -310,3 +310,325 @@ def test_a_chat_can_be_deleted_by_its_owner_only(serve, tmp_path, client):
     again = _accounts(serve, tmp_path)  # the deletion outlives a redeploy too
     again.post("/api/auth/login", json={"username": "alice", "password": "correct horse"})
     assert again.get("/api/sessions").json() == [] and again.get(f"/api/sessions/{kept}").status_code == 404
+
+
+# The TEA panel (web_tea.py): a plant TEA the model starts in a review-mode chat waits for the person.
+
+def _plant():
+    """The twelve design-point fields of a stored plant (LDPE in dodecane, C1), in the public vocabulary."""
+    record = next(r for r in tea._records() if r["label"] == "ldpe-route-c1")
+    public = dict(tea._DESIGN_POINT_PUBLIC_FIELDS)
+    return {public[key]: value for key, value in record["config"].items() if key in public}
+
+
+def _model(monkeypatch, calls, answer="Here are the plants you ran."):
+    """A scripted model: one evaluate_process call per round, then the answer. seen[i] is what call i returned."""
+    seen = []
+
+    def complete(messages, tools, **kwargs):
+        if messages[-1]["role"] == "tool":
+            seen.append(json.loads(messages[-1]["content"]))
+        if len(seen) < len(calls):
+            return {"text": "", "tool_calls": [{"id": f"t{len(seen)}", "name": "evaluate_process",
+                                                "args": calls[len(seen)]}]}
+        return {"text": answer, "tool_calls": []}
+
+    monkeypatch.setattr(agent, "complete", complete)
+    return seen
+
+
+def _engine(monkeypatch, gate=None):
+    """A stub TEA engine for the panel's plant runs: MSP falls with capacity; each call records what it was sent and
+    the confirmation it ran under. gate, when given, holds each plant until the test releases it."""
+    runs = []
+
+    def evaluate_process(**call):
+        if gate is not None:
+            gate.acquire(timeout=10)
+        config = call["process_config"]
+        runs.append({"call": call, "confirmation": tea.PROCESS_CONFIRMATION.get()})
+        capacity = float(config["processing_capacity_mt_per_yr"])
+        row = {"label": config.get("label"), "success": True, "target_polymer": config["target_polymer"],
+               "solvent": config["solvent"], "processing_capacity_mt_per_yr": capacity, "engine_mode": "live",
+               "msp_usd_per_kg": round(2.0 - capacity / 1e6, 4), "gwp_kg_co2e_per_kg": 1.5, "tci_usd": 1.0e7,
+               "aoc_usd_per_yr": 2.0e6, "total_energy_mj_per_kg": 9.0}
+        data = {"success": True, "tool_name": "evaluate_process", "comparison_rows": [row], "warnings": ["stub"],
+                "process_confirmation": tea.PROCESS_CONFIRMATION.get()}
+        return json.dumps({"display": None, "data": data})
+
+    monkeypatch.setattr(tea, "evaluate_process", evaluate_process)
+    monkeypatch.setattr(tea, "_live_tea_blocker", lambda: None)
+    return runs
+
+
+def _tea_turn(http, session_id, text, answer):
+    """Run one turn; when the panel opens, answer(other, sheet) replies over a second connection, as the browser's
+    panel does while the answer is still streaming."""
+    events = []
+    with httpx.Client(base_url=str(http.base_url), cookies=http.cookies, timeout=30) as other:
+        with http.stream("POST", f"/api/sessions/{session_id}/turns", json={"text": text}) as response:
+            assert response.status_code == 200
+            for line in response.iter_lines():
+                if line:
+                    events.append(json.loads(line))
+                    if events[-1]["event"] == "tea.sheet":
+                        answer(other, events[-1]["sheet"])
+    return events
+
+
+def test_a_plant_tea_waits_for_the_panel_and_runs_what_the_person_confirmed(client, monkeypatch):
+    """The web app ran the model's plant values unseen and unconfirmed, with no way to sweep (owner, 2026-09-26). In
+    a review-mode chat the panel now shows every field the CLI's sheet shows; the person edits a field and turns
+    another into a range, and each plant runs confirmed on the sheet."""
+    seen = _model(monkeypatch, [{"mode": "evaluate", "process_config": _plant()}])
+    runs = _engine(monkeypatch)
+    session_id = client.post("/api/sessions", json={}).json()["session_id"]
+    answered = {}
+
+    def answer(http, sheet):
+        answered["sheet"] = sheet
+        assert http.get(f"/api/sessions/{session_id}/tea-sheet").json()["sheet"]["id"] == sheet["id"]  # a reload
+        ranges = {"processing_capacity_mt_per_yr": {"kind": "list", "values": [10000, 20000, 40000]}}
+        report = http.post(f"/api/sessions/{session_id}/tea-sheet/check",
+                           json={"sheet_id": sheet["id"], "values": {"irr": 0.15}, "ranges": ranges}).json()
+        answered["check"] = report
+        ran = http.post(f"/api/sessions/{session_id}/tea-sheet",
+                        json={"sheet_id": sheet["id"], "action": "run", "values": {"irr": 0.15}, "ranges": ranges})
+        assert ran.json() == {"ok": True, "action": "run", "plants": 3}
+        again = http.post(f"/api/sessions/{session_id}/tea-sheet", json={"sheet_id": sheet["id"], "action": "run"})
+        assert again.status_code == 409  # answered once
+
+    events = _tea_turn(client, session_id, "What does LDPE recovery in dodecane cost?", answer)
+    sheet = answered["sheet"]
+    assert len(sheet["fields"]) == 46 and sheet["mode"] == "evaluate"
+    assert sheet["values"]["solvent"] == "Dodecane" and sheet["origin"]["solvent"] == "model"
+    assert (sheet["values"]["irr"], sheet["origin"]["irr"]) == (0.10, "default")
+    irr = next(field for field in sheet["fields"] if field["name"] == "irr")
+    assert (irr["unit"], irr["percent"], irr["rangeable"]) == ("%", True, True)
+    report = answered["check"]
+    assert (report["plants"], report["runnable"], report["invalid"]) == (3, True, [])
+    assert report["stored"] + report["live"] == 3 and report["seconds"] == round(report["live"] * 15.13)
+    kinds = [event["event"] for event in events]
+    assert kinds[:2] == ["turn.started", "tea.sheet"] and kinds[-3:] == ["tea.result", "tool", "turn.completed"]
+    assert kinds.count("tea.progress") == 6  # started and finished, per plant
+    assert [run["confirmation"] for run in runs] == ["confirmed_on_sheet"] * 3
+    assert [run["call"]["process_config"]["processing_capacity_mt_per_yr"] for run in runs] == [10000, 20000, 40000]
+    assert {run["call"]["process_config"]["irr"] for run in runs} == {0.15}
+    assert all(run["call"]["confirm_live_tea"] is True for run in runs)
+    sent = runs[0]["call"]["process_config"]
+    assert len(sent) == 46 and "lang_factor" not in sent  # every field with a value (lang_factor is empty) and a label
+    result = next(event for event in events if event["event"] == "tea.result")
+    assert (result["planned"], result["ran"], result["stopped"]) == (3, 3, False)
+    assert [row["values"] for row in result["rows"]] == [{"processing_capacity_mt_per_yr": v} for v in (10000, 20000, 40000)]
+    assert result["edited_fields"] == ["irr"] and result["handle"]
+    tool = events[-2]
+    assert (tool["name"], tool["ok"], tool["source_basis"]) == ("evaluate_process", True, "tea_live")
+    (returned,) = seen  # what the model read: one evaluate result, through the handle path
+    assert returned["available"] is True and returned["handle"] == result["handle"] and returned["total"] == 3
+    data = returned["data"]
+    assert data["process_confirmation"] == "confirmed_on_sheet" and data["completed"] == 3
+    assert data["lowest_msp_scenario"] == "processing_capacity_mt_per_yr=40000"
+    assert data["panel"]["edited_fields"] == {"irr": {"proposed": 0.1, "ran": 0.15}}
+    assert data["panel"]["ranged_fields"] == {"processing_capacity_mt_per_yr": [10000, 20000, 40000]}
+    assert "irr" not in data["panel"]["defaulted_fields"] and "income_tax" in data["panel"]["defaulted_fields"]
+    state = client.get(f"/api/sessions/{session_id}/tea-sheet").json()
+    assert state["sheet"] is None and state["progress"] is None and state["result"]["handle"] == result["handle"]
+
+
+def test_closing_the_panel_tells_the_model_nothing_ran(client, monkeypatch):
+    """Cancel is the CLI's abort: the model reads process_confirmation_aborted, nothing runs, and a retry in the same
+    answer does not open the panel again."""
+    seen = _model(monkeypatch, [{"mode": "evaluate", "process_config": _plant()}] * 2)
+    runs = _engine(monkeypatch)
+    session_id = client.post("/api/sessions", json={}).json()["session_id"]
+
+    def answer(http, sheet):
+        assert http.post(f"/api/sessions/{session_id}/tea-sheet",
+                         json={"sheet_id": sheet["id"], "action": "cancel"}).json()["action"] == "cancel"
+
+    events = _tea_turn(client, session_id, "What does LDPE recovery cost?", answer)
+    assert [event["event"] for event in events].count("tea.sheet") == 1 and runs == []
+    assert [returned["refusal"] for returned in seen] == ["process_confirmation_aborted"] * 2
+    tools = [event for event in events if event["event"] == "tool"]
+    assert [(tool["ok"], tool["error_code"]) for tool in tools] == [(False, "process_confirmation_aborted")] * 2
+
+
+def test_an_unanswered_panel_expires_as_a_cancel(client, monkeypatch):
+    seen = _model(monkeypatch, [{"mode": "evaluate", "process_config": _plant()}])
+    runs = _engine(monkeypatch)
+    monkeypatch.setattr(web_tea, "WAIT_SECONDS", 0.3)
+    session_id = client.post("/api/sessions", json={}).json()["session_id"]
+    events = _tea_turn(client, session_id, "What does LDPE recovery cost?", lambda http, sheet: None)
+    assert runs == [] and seen[0]["refusal"] == "process_confirmation_aborted"
+    assert next(event for event in events if event["event"] == "tea.closed")["reason"] == "expire"
+    assert "waited 0 minutes" in seen[0]["data"]["error"]
+
+
+def test_auto_mode_and_lookups_run_without_the_panel(client, monkeypatch):
+    """Auto mode is the model's own assumptions, labelled; a lookup of stored records is no plant to confirm."""
+    _model(monkeypatch, [{"mode": "lookup", "lookup_filter": {"target_polymer": "LDPE"}}])
+    runs = _engine(monkeypatch)
+    session_id = client.post("/api/sessions", json={}).json()["session_id"]
+    events = _tea_turn(client, session_id, "Which LDPE plants are stored?", lambda http, sheet: None)
+    assert "tea.sheet" not in [event["event"] for event in events] and events[-1]["event"] == "turn.completed"
+    _model(monkeypatch, [{"mode": "evaluate", "process_config": _plant()}])
+    _stream(client, session_id, "/mode auto")
+    events = _tea_turn(client, session_id, "What does LDPE recovery cost?", lambda http, sheet: None)
+    assert "tea.sheet" not in [event["event"] for event in events] and runs == []  # the registry's own engine ran
+
+
+def test_the_panel_checks_plants_before_anything_runs(client, monkeypatch):
+    """A refused plant is named before the run (irr 110 % is a percent typed as a fraction), and a grid past 200 plants
+    asks for a narrower range; neither starts a plant."""
+    _model(monkeypatch, [{"mode": "evaluate", "process_config": _plant()}])
+    runs = _engine(monkeypatch)
+    session_id = client.post("/api/sessions", json={}).json()["session_id"]
+    seen = {}
+
+    def answer(http, sheet):
+        url = f"/api/sessions/{session_id}/tea-sheet"
+        bad = {"sheet_id": sheet["id"], "ranges": {"irr": {"kind": "list", "values": [0.08, 1.1]}}}
+        seen["bad"] = http.post(url + "/check", json=bad).json()
+        seen["bad_run"] = http.post(url, json={**bad, "action": "run"})
+        wide = {"sheet_id": sheet["id"], "ranges": {
+            "processing_capacity_mt_per_yr": {"kind": "linear", "from": 100, "to": 1_000_000, "step": 10_000},
+            "energy_case": {"kind": "list", "values": ["C1", "C2", "C3"]}}}
+        seen["wide"] = http.post(url + "/check", json=wide).json()
+        feed = {"sheet_id": sheet["id"], "ranges": {
+            "processing_capacity_mt_per_yr": {"kind": "linear", "from": 100, "to": 1_000_000, "step": 10_000}}}
+        seen["feed"] = http.post(url + "/check", json=feed).json()
+        http.post(url, json={"sheet_id": sheet["id"], "action": "cancel"})
+
+    _tea_turn(client, session_id, "What does LDPE recovery cost?", answer)
+    assert (seen["bad"]["runnable"], seen["bad"]["invalid_count"]) == (False, 1)
+    assert seen["bad"]["invalid"][0]["label"] == "irr=1.1" and "fraction" in seen["bad"]["invalid"][0]["error"]
+    assert seen["bad_run"].status_code == 422 and runs == []
+    assert (seen["wide"]["runnable"], seen["wide"]["plants"]) == (False, 300) and "at most 200" in seen["wide"]["error"]
+    assert (seen["feed"]["plants"], seen["feed"]["runnable"], seen["feed"]["confirm"]) == (100, True, True)
+
+
+def test_stop_keeps_the_plants_that_finished(client, monkeypatch):
+    seen = _model(monkeypatch, [{"mode": "evaluate", "process_config": _plant()}])
+    gate = threading.Semaphore(0)
+    runs = _engine(monkeypatch, gate)
+    session_id = client.post("/api/sessions", json={}).json()["session_id"]
+
+    def answer(http, sheet):
+        url = f"/api/sessions/{session_id}/tea-sheet"
+        ranges = {"processing_capacity_mt_per_yr": {"kind": "list", "values": [10000, 20000, 40000]}}
+        http.post(url, json={"sheet_id": sheet["id"], "action": "run", "ranges": ranges})
+        gate.release()  # the first plant finishes
+        deadline = time.monotonic() + 10
+        while not runs and time.monotonic() < deadline:
+            time.sleep(0.02)
+        assert http.post(url, json={"sheet_id": sheet["id"], "action": "stop"}).json()["action"] == "stop"
+        gate.release()  # the second plant was already running; it finishes, the third never starts
+
+    events = _tea_turn(client, session_id, "What does LDPE recovery cost?", answer)
+    result = next(event for event in events if event["event"] == "tea.result")
+    assert (result["planned"], result["ran"], result["stopped"]) == (3, 2, True) and len(runs) == 2
+    assert seen[0]["data"]["panel"]["stopped_early"] is True and seen[0]["data"]["completed"] == 2
+
+
+def test_the_model_sweep_arrives_as_a_range_and_several_plants_stay_paired(client, monkeypatch):
+    """A sensitivity call opens the panel with its parameter ranged over the model's values; plants that differ in
+    two fields together (not a grid) stay one row each."""
+    plant = _plant()
+    xylene = {**plant, "solvent": "toluene", "dissolution_temperature_c": 110.0, "solvent_price_usd_per_kg": 1.1}
+    _model(monkeypatch, [{"mode": "sensitivity", "process_config": plant, "parameter": "solvent_price",
+                          "values": [2.0, 6.0]},
+                         {"mode": "evaluate", "process_configs": [plant, xylene]}])
+    _engine(monkeypatch)
+    session_id = client.post("/api/sessions", json={}).json()["session_id"]
+    sheets = []
+
+    def answer(http, sheet):
+        sheets.append(sheet)
+        http.post(f"/api/sessions/{session_id}/tea-sheet", json={"sheet_id": sheet["id"], "action": "cancel"})
+
+    _tea_turn(client, session_id, "How does the solvent price move the MSP?", answer)
+    assert sheets[0]["mode"] == "sensitivity"
+    assert sheets[0]["ranges"] == {"solvent_price_usd_per_kg": {"kind": "list", "values": [2, 4.08, 6]}}  # with the plant's own
+    assert len(sheets) == 1  # the second call came after a cancel in the same answer
+    _model(monkeypatch, [{"mode": "evaluate", "process_configs": [plant, xylene]}])
+    _tea_turn(client, session_id, "Compare dodecane and toluene.", answer)
+    paired = sheets[1]["paired"]
+    assert paired["fields"] == ["solvent", "dissolution_temperature_c", "solvent_price_usd_per_kg"]
+    assert paired["rows"] == [["Dodecane", 145.0, 4.08], ["toluene", 110.0, 1.1]]
+
+
+def test_another_account_cannot_see_or_answer_the_panel(serve, tmp_path, monkeypatch):
+    _model(monkeypatch, [])
+    alice = _accounts(serve, tmp_path)
+    _sign_up(alice, "alice")
+    session_id = alice.post("/api/sessions", json={}).json()["session_id"]
+    assert alice.get(f"/api/sessions/{session_id}/tea-sheet").json() == {"sheet": None, "progress": None, "result": None}
+    with httpx.Client(base_url=str(alice.base_url), timeout=30) as bob:
+        _sign_up(bob, "bob")
+        assert bob.get(f"/api/sessions/{session_id}/tea-sheet").status_code == 404
+        assert bob.post(f"/api/sessions/{session_id}/tea-sheet",
+                        json={"sheet_id": "x", "action": "cancel"}).status_code == 404
+    assert alice.post(f"/api/sessions/{session_id}/tea-sheet",
+                      json={"sheet_id": "x", "action": "cancel"}).status_code == 409  # nothing is waiting
+
+
+def test_a_plant_the_engine_fails_stays_in_the_results_with_its_reason(client, monkeypatch):
+    """One plant's failure is its row, not the run's end: the others complete, the model reads which failed and why,
+    and the lowest MSP comes from the plants that ran."""
+    seen = _model(monkeypatch, [{"mode": "evaluate", "process_config": _plant()}])
+    runs = _engine(monkeypatch)
+    working = tea.evaluate_process
+
+    def evaluate_process(**call):
+        if call["process_config"]["processing_capacity_mt_per_yr"] == 40000:
+            raise RuntimeError("BioSTEAM did not converge")
+        return working(**call)
+
+    monkeypatch.setattr(tea, "evaluate_process", evaluate_process)
+    session_id = client.post("/api/sessions", json={}).json()["session_id"]
+
+    def answer(http, sheet):
+        ranges = {"processing_capacity_mt_per_yr": {"kind": "list", "values": [10000, 20000, 40000]}}
+        http.post(f"/api/sessions/{session_id}/tea-sheet", json={"sheet_id": sheet["id"], "action": "run", "ranges": ranges})
+
+    events = _tea_turn(client, session_id, "What does LDPE recovery cost?", answer)
+    result = next(event for event in events if event["event"] == "tea.result")
+    assert [row["success"] for row in result["rows"]] == [True, True, False] and len(runs) == 2
+    assert result["rows"][2]["error"] == "RuntimeError: BioSTEAM did not converge"
+    data = seen[0]["data"]
+    assert (data["completed"], data["failed"]) == (2, 1)
+    assert data["lowest_msp_scenario"] == "processing_capacity_mt_per_yr=20000"
+
+
+def test_a_follow_up_keeps_the_plant_the_person_corrected(client, monkeypatch):
+    """The model proposed a dissolution capacity of 0.1 wt/vol %, the person ran 3, and the model's follow-up repeated
+    0.1 (live, 2026-09-26): the panel showed the guess again. The correction now stands while the model repeats its
+    guess, the rest of the person's plant carries to a question about the same polymer and solvent, and a value the
+    model actually changes still comes through."""
+    guess = {**_plant(), "dissolution_capacity": 0.1}
+    _model(monkeypatch, [{"mode": "evaluate", "process_config": guess}])
+    _engine(monkeypatch)
+    session_id = client.post("/api/sessions", json={}).json()["session_id"]
+    sheets = []
+
+    def run_with(values):
+        def answer(http, sheet):
+            sheets.append(sheet)
+            http.post(f"/api/sessions/{session_id}/tea-sheet",
+                      json={"sheet_id": sheet["id"], "action": "run", "values": values})
+        return answer
+
+    _tea_turn(client, session_id, "What does LDPE recovery cost?", run_with({"dissolution_capacity": 3.0,
+                                                                              "feedstock_distance_km": 50.0, "irr": 0.12}))
+    for turn, call in enumerate([guess, {**guess, "dissolution_capacity": 5.0},
+                                 {**_plant(), "solvent": "toluene", "dissolution_temperature_c": 110.0}]):
+        _model(monkeypatch, [{"mode": "evaluate", "process_config": {k: v for k, v in call.items()
+                                                                       if k != "feedstock_distance_km"}}])
+        _tea_turn(client, session_id, f"Follow-up {turn}", run_with({}))
+    shown = [(s["values"]["dissolution_capacity"], s["origin"]["dissolution_capacity"],
+              s["values"]["feedstock_distance_km"], s["origin"]["feedstock_distance_km"], s["values"]["irr"])
+             for s in sheets]
+    assert shown[0] == (0.1, "model", 0.0, "model", 0.1)
+    assert shown[1] == (3.0, "previous", 50.0, "previous", 0.12)  # the guess again: the person's plant stands
+    assert shown[2] == (5.0, "model", 50.0, "previous", 0.12)  # a new value from the model comes through
+    assert shown[3][2:] == (0.0, "default", 0.12)  # another solvent: the plant starts over, the coefficients stay

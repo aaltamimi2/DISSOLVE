@@ -10,10 +10,12 @@ import {
   type SessionRow,
   type SessionState,
   type StoredMessage,
+  type TeaResult,
   type TurnEvent,
 } from "./api";
 import { Composer, Header, MessageView, Sidebar, SignIn, Toast, Welcome, type ChatMessage } from "./components";
 import type { Example } from "./content";
+import { TeaPanel, type TeaView } from "./tea";
 
 const uid = () => Math.random().toString(36).slice(2);
 
@@ -115,10 +117,14 @@ function Workspace({ user, onSignOut }: { user: string | null; onSignOut?: () =>
   const [preferredModel, setPreferredModel] = useState(() => remembered("dissolve-model") ?? "");
   const [features, setFeatures] = useState<Features>({ literature: true, tea: true });
   const [families, setFamilies] = useState<ContaminantFamily[]>([]);
+  const [tea, setTea] = useState<TeaView | null>(null);
+  const [teaOpen, setTeaOpen] = useState(false);
   const bottom = useRef<HTMLDivElement>(null);
   const composer = useRef<HTMLTextAreaElement>(null);
   const sessionRef = useRef<SessionState | null>(null);
   sessionRef.current = state;
+  const teaOffered = useRef(true);
+  teaOffered.current = features.tea;
 
   const notify = useCallback((text: string, kind: "info" | "error" = "info") => {
     setToast({ text, kind });
@@ -150,6 +156,27 @@ function Workspace({ user, onSignOut }: { user: string | null; onSignOut?: () =>
         setState(current);
         setMessages(fromStored(stored));
         remember(lastSession, id);
+        setTea(null);
+        setTeaOpen(false);
+        // A sheet still waiting for an answer comes back after a reload; the last results hang on the last TEA answer.
+        if (teaOffered.current) {
+          api
+            .teaState(id)
+            .then((panel) => {
+              if (panel.sheet) {
+                setTea({ phase: "sheet", sheet: panel.sheet, progress: null, result: null, followed: false });
+                setTeaOpen(true);
+              } else if (panel.progress) setTea({ phase: "running", sheet: null, progress: panel.progress, result: null, followed: false });
+              const result = panel.result;
+              if (result) {
+                setMessages((all) => {
+                  const last = all.map((m) => m.role === "assistant" && m.tools.some((t) => t.name === "evaluate_process")).lastIndexOf(true);
+                  return all.map((m, i) => (i === last && m.role === "assistant" ? { ...m, teaResult: result } : m));
+                });
+              }
+            })
+            .catch(() => undefined);
+        }
         if (window.innerWidth < 1024) setSidebar(false);
       } catch (e) {
         remember(lastSession, null);
@@ -194,6 +221,35 @@ function Workspace({ user, onSignOut }: { user: string | null; onSignOut?: () =>
       else if (event.event === "command.output") {
         setState(event.state);
         setMessages((m) => [...m, { id: uid(), role: "command", command: text, text: event.text }]);
+      } else if (event.event === "tea.sheet") {
+        setTea({ phase: "sheet", sheet: event.sheet, progress: null, result: null, followed: true });
+        setTeaOpen(true);
+        if (window.innerWidth < 1440) setSidebar(false); // the chat keeps room beside the panel
+        update((m) => ({ ...m, tea: "waiting" }));
+      } else if (event.event === "tea.progress") {
+        setTea((t) =>
+          t && {
+            ...t,
+            phase: "running",
+            progress: {
+              sheet_id: event.sheet_id,
+              done: event.done,
+              total: event.total,
+              running: event.running ?? null,
+              rows: [...(t.progress?.sheet_id === event.sheet_id ? t.progress.rows : []), ...(event.rows ?? [])],
+            },
+          },
+        );
+        update((m) => ({ ...m, tea: "running", teaProgress: `${event.done} of ${event.total} plants done` }));
+      } else if (event.event === "tea.result") {
+        const result: TeaResult = { ...event };
+        setTea((t) => ({ phase: "done", sheet: t?.sheet ?? null, progress: null, result, followed: true }));
+        update((m) => ({ ...m, tea: undefined, teaProgress: undefined, teaResult: result }));
+      } else if (event.event === "tea.closed") {
+        setTea((t) => (event.reason === "error" || (t?.phase === "sheet" && t.sheet?.id === event.sheet_id) ? null : t));
+        setTeaOpen(false);
+        if (event.reason === "error") notify(`The TEA run stopped: ${event.message ?? "an error"}`, "error");
+        update((m) => ({ ...m, tea: undefined }));
       } else if (event.event === "turn.completed") {
         setState(event.state);
         update((m) => ({ ...m, text: event.answer, status: event.status, elapsed: event.elapsed_s, running: false }));
@@ -230,10 +286,19 @@ function Workspace({ user, onSignOut }: { user: string | null; onSignOut?: () =>
     if (sessionRef.current) void run(`/model ${alias}`);
   };
 
+  const openTea = (result?: TeaResult) => {
+    if (!(tea && (tea.phase === "sheet" || tea.phase === "running")) && result) {
+      setTea({ phase: "done", sheet: null, progress: null, result, followed: true });
+    }
+    setTeaOpen(true);
+  };
+
   const newChat = () => {
     setState(null);
     sessionRef.current = null;
     setMessages([]);
+    setTea(null);
+    setTeaOpen(false);
     setInput("");
     remember(lastSession, null);
   };
@@ -306,7 +371,7 @@ function Workspace({ user, onSignOut }: { user: string | null; onSignOut?: () =>
             ) : (
               <div className="mx-auto w-full max-w-[860px] space-y-5 px-4 py-6">
                 {messages.map((m) => (
-                  <MessageView key={m.id} message={m} onCopy={copy} />
+                  <MessageView key={m.id} message={m} onCopy={copy} onOpenTea={openTea} />
                 ))}
                 <div ref={bottom} />
               </div>
@@ -323,6 +388,9 @@ function Workspace({ user, onSignOut }: { user: string | null; onSignOut?: () =>
             inputRef={composer}
           />
         </main>
+        {tea && teaOpen && state && (
+          <TeaPanel sessionId={state.session_id} view={tea} onView={setTea} onClose={() => setTeaOpen(false)} notify={notify} />
+        )}
       </div>
       {toast && <Toast text={toast.text} kind={toast.kind} />}
     </div>
