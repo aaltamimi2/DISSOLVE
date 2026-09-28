@@ -237,6 +237,22 @@ def test_a2a4_payload_coverage_star_on_tool(monkeypatch, tmp_path):
     assert "floor" in payload["data"]["results"][0]
 
 
+def test_a_search_returns_each_chunk_whole(monkeypatch, tmp_path):
+    """The excerpt stopped at 600 characters, so a number later in a returned chunk never reached the model (the
+    2026-09-26 review: a melt flow index past character 600 of its table chunk). Only an outsized block is cut, and
+    its row says so."""
+    monkeypatch.setattr(research, "_dense_vectors", _fake_encoder())
+    monkeypatch.setenv("DISSOLVE_RESEARCH_HOME", str(tmp_path))
+    body = "alpha methods solvent " + "filler words " * 80 + "melt flow index 0.34 g/10 min"
+    outsized = "alpha " + "x" * (research.EXCERPT_LIMIT + 500)
+    research._save_index(_index([_chunk("c-a", body), _chunk("c-b", outsized)]))
+    payload = parse_tool_result(research.search_literature_corpus("alpha", knowledgebase=FIXTURE_KB, retrieval_mode="sparse"))
+    rows = {row["chunk_id"]: row for row in payload["data"]["results"]}
+    assert len(body) > 1_000
+    assert rows["c-a"]["excerpt"] == body and rows["c-a"]["excerpt_complete"] is True
+    assert len(rows["c-b"]["excerpt"]) == research.EXCERPT_LIMIT and rows["c-b"]["excerpt_complete"] is False
+
+
 def test_a2a4_payload_echoes_index_floor_on_every_result(monkeypatch, tmp_path):
     monkeypatch.setattr(research, "_dense_vectors", _fake_encoder())
     monkeypatch.setenv("DISSOLVE_RESEARCH_HOME", str(tmp_path))

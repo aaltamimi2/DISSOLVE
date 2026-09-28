@@ -4805,6 +4805,13 @@ def _hybrid_passage_parts(
     return parts
 
 
+#: A search returns each chunk whole. The excerpt used to stop at 600 characters, which cut 1,676 of the 1,841 served
+#: chunks, so a table cell or a number later in a returned chunk never reached the model (review of 2026-09-26). The
+#: longest served chunk is 7,579 characters; this bound only keeps an outsized parser block in a grown corpus from
+#: flooding the context, and a row it cuts says so (excerpt_complete false).
+EXCERPT_LIMIT = 8_000
+
+
 def _ranked_search_rows(
     index: dict[str, Any],
     ranked: list[tuple[Any, ...]],
@@ -4825,6 +4832,7 @@ def _ranked_search_rows(
             )
             if part
         )
+        excerpt = _clean(excerpt_source, EXCERPT_LIMIT + 1)
         coverage = 0.0 if coverage_by_id is None else float(coverage_by_id.get(str(chunk["chunk_id"]), 0.0))
         rows.append({
             "citation_id": f"C{index_number}", "chunk_id": chunk["chunk_id"],
@@ -4838,7 +4846,7 @@ def _ranked_search_rows(
             "caption": chunk.get("caption"),
             "basis": chunk.get("basis"),
             "footnotes": chunk.get("footnotes"),
-            "excerpt": _clean(excerpt_source, 600),
+            "excerpt": excerpt[:EXCERPT_LIMIT], "excerpt_complete": len(excerpt) <= EXCERPT_LIMIT,
             "sparse_score": round(sparse_score, 6), "dense_score": round(dense_score, 6),
             "sparse_raw_score": round(sparse_raw_score, 6),
             "query_idf_coverage": round(coverage, 6),
