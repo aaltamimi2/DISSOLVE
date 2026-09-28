@@ -47,7 +47,7 @@ export type ContaminantFamily = {
 };
 
 /** A server with a database has accounts; `access_code` says whether sign-up asks for the site's code. */
-export type AuthConfig = { accounts: boolean; access_code: boolean };
+export type AuthConfig = { accounts: boolean; access_code: boolean; admin_reads?: boolean };
 export type Me = { username: string | null; created_at?: string };
 
 /** Fired when the server answers 401: the sign-in has expired, or was signed out elsewhere. */
@@ -219,6 +219,9 @@ export const api = {
   session: (id: string) => json<SessionState & { messages: StoredMessage[] }>(`/api/sessions/${id}`),
   deleteSession: (id: string) => json<{ deleted: string }>(`/api/sessions/${id}`, { method: "DELETE" }),
   newSession: (model?: string) => json<SessionState>("/api/sessions", post(model ? { model } : {})),
+  /** Report a problem with one of your answers; the site's admin reads it beside the turn it is about. */
+  report: (id: string, question: string, note: string) =>
+    json<{ report_id: string; saved: boolean }>(`/api/sessions/${id}/reports`, post({ question, note })),
   teaState: (id: string) => json<TeaState>(`/api/sessions/${id}/tea-sheet`),
   teaCheck: (id: string, body: Omit<TeaAnswer, "action">) => json<TeaCheck>(`/api/sessions/${id}/tea-sheet/check`, post(body)),
   teaAnswer: (id: string, body: TeaAnswer) => json<{ ok: boolean; action: string; plants?: number }>(`/api/sessions/${id}/tea-sheet`, post(body)),
