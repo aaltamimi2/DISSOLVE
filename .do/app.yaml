@@ -25,6 +25,10 @@ services:
       - key: DATABASE_URL
         scope: RUN_TIME
         value: ${db.DATABASE_URL}
+      # The read-only admin view (web_admin.py); the owner's copy is in ~/.config/dissolve/admin_token (mode 600).
+      - key: DISSOLVE_ADMIN_TOKEN
+        type: SECRET
+        scope: RUN_TIME
 databases:
   - name: db
     engine: PG
