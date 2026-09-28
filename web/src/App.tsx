@@ -69,16 +69,16 @@ function toMarkdown(messages: ChatMessage[], state: SessionState | null): string
 
 /** A server with accounts shows the sign-in page until someone signs in; a local one opens straight away. */
 export default function App() {
-  const [auth, setAuth] = useState<{ accounts: boolean; accessCode: boolean; user: string | null } | null>(null);
+  const [auth, setAuth] = useState<{ accounts: boolean; accessCode: boolean; adminReads: boolean; user: string | null } | null>(null);
   useEffect(() => {
     let live = true;
     const load = async () => {
       try {
         const config = await api.authConfig();
         const me = config.accounts ? await api.me().catch(() => null) : null;
-        if (live) setAuth({ accounts: config.accounts, accessCode: config.access_code, user: me?.username ?? null });
+        if (live) setAuth({ accounts: config.accounts, accessCode: config.access_code, adminReads: Boolean(config.admin_reads), user: me?.username ?? null });
       } catch {
-        if (live) setAuth({ accounts: false, accessCode: false, user: null });
+        if (live) setAuth({ accounts: false, accessCode: false, adminReads: false, user: null });
       }
     };
     void load();
@@ -91,7 +91,7 @@ export default function App() {
   }, []);
   if (!auth) return <div className="h-dvh bg-canvas" />;
   if (auth.accounts && !auth.user) {
-    return <SignIn accessCode={auth.accessCode} onSignedIn={(user) => setAuth({ ...auth, user })} />;
+    return <SignIn accessCode={auth.accessCode} adminReads={auth.adminReads} onSignedIn={(user) => setAuth({ ...auth, user })} />;
   }
   const signOut = async () => {
     await api.logout().catch(() => undefined);
@@ -324,6 +324,21 @@ function Workspace({ user, onSignOut }: { user: string | null; onSignOut?: () =>
     URL.revokeObjectURL(link.href);
   };
 
+  /** Send a report about the answer at `index`, with the question it answered; true when it was saved. */
+  const report = async (index: number, note: string): Promise<boolean> => {
+    const id = sessionRef.current?.session_id;
+    const question = [...messages.slice(0, index)].reverse().find((m) => m.role === "user");
+    if (!id || !question || question.role !== "user") return false;
+    try {
+      await api.report(id, question.text, note);
+      notify("Report sent. Thank you.");
+      return true;
+    } catch (e) {
+      notify(`The report did not go through: ${(e as Error).message}`, "error");
+      return false;
+    }
+  };
+
   const copy = (text: string) =>
     navigator.clipboard.writeText(text).then(
       () => notify("Copied"),
@@ -370,8 +385,14 @@ function Workspace({ user, onSignOut }: { user: string | null; onSignOut?: () =>
               <Welcome onPick={pick} features={features} />
             ) : (
               <div className="mx-auto w-full max-w-[860px] space-y-5 px-4 py-6">
-                {messages.map((m) => (
-                  <MessageView key={m.id} message={m} onCopy={copy} onOpenTea={openTea} />
+                {messages.map((m, index) => (
+                  <MessageView
+                    key={m.id}
+                    message={m}
+                    onCopy={copy}
+                    onOpenTea={openTea}
+                    onReport={m.role === "assistant" && !m.running && state ? (note) => report(index, note) : undefined}
+                  />
                 ))}
                 <div ref={bottom} />
               </div>

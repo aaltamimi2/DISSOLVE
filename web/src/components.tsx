@@ -7,6 +7,7 @@ import {
   CircleDashed,
   Copy,
   Download,
+  Flag,
   FlaskConical,
   Loader2,
   LogOut,
@@ -108,7 +109,7 @@ function Field(props: {
 
 /** A server with accounts opens here: sign in with a username and a password, or create an account, which asks for
  * the site's access code when the server has one. Nothing else is asked, and there is no email. */
-export function SignIn({ accessCode, onSignedIn }: { accessCode: boolean; onSignedIn: (username: string) => void }) {
+export function SignIn({ accessCode, adminReads, onSignedIn }: { accessCode: boolean; adminReads?: boolean; onSignedIn: (username: string) => void }) {
   const [mode, setMode] = useState<"in" | "up">("in");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -218,6 +219,11 @@ export function SignIn({ accessCode, onSignedIn }: { accessCode: boolean; onSign
         <p className="mt-4 text-center font-headline text-xs text-ink-2">
           Your conversations are saved to your account and kept across updates.
         </p>
+        {adminReads && (
+          <p role="note" className="mt-2 text-center font-headline text-xs text-ink">
+            DISSOLVE is in development, so an admin API can see your questions and the model's answers. Your password is protected, but use one you don't use anywhere else.
+          </p>
+        )}
       </main>
     </div>
   );
@@ -740,7 +746,50 @@ function Markdown({ text }: { text: string }) {
   );
 }
 
-export function MessageView({ message, onCopy, onOpenTea }: { message: ChatMessage; onCopy: (text: string) => void; onOpenTea?: (result?: TeaResult) => void }) {
+/** Report a problem with an answer: an optional note, sent with the question it answers. */
+function ReportForm({ onSend, onClose }: { onSend: (note: string) => Promise<boolean>; onClose: () => void }) {
+  const [note, setNote] = useState("");
+  const [busy, setBusy] = useState(false);
+  const id = useId();
+  return (
+    <form
+      onSubmit={async (e) => {
+        e.preventDefault();
+        setBusy(true);
+        const sent = await onSend(note);
+        setBusy(false);
+        if (sent) onClose();
+      }}
+      className="mt-2 rounded-xl border border-line bg-surface p-3 shadow-soft"
+    >
+      <label htmlFor={id} className="font-headline text-xs font-medium text-ink-2">
+        What went wrong? (optional)
+      </label>
+      <textarea
+        id={id}
+        autoFocus
+        rows={3}
+        maxLength={2000}
+        value={note}
+        onChange={(e) => setNote(e.target.value)}
+        placeholder="A wrong number, a missing solvent, an answer that ignored the question…"
+        className="mt-1 w-full resize-y rounded-lg border border-line bg-canvas px-3 py-2 text-sm text-ink outline-none focus:border-brand-soft"
+      />
+      <div className="mt-2 flex justify-end gap-2">
+        <button type="button" onClick={onClose} className="rounded-lg px-3 py-1.5 font-headline text-sm text-ink-2 hover:bg-muted hover:text-ink">
+          Cancel
+        </button>
+        <button type="submit" disabled={busy} className="flex items-center gap-1.5 rounded-lg bg-brand px-3 py-1.5 font-headline text-sm font-semibold text-on-brand hover:bg-brand-hover disabled:opacity-60">
+          {busy ? <Loader2 size={13} className="animate-spin" /> : <Flag size={13} />} Send report
+        </button>
+      </div>
+    </form>
+  );
+}
+
+export function MessageView({ message, onCopy, onOpenTea, onReport }: { message: ChatMessage; onCopy: (text: string) => void; onOpenTea?: (result?: TeaResult) => void; onReport?: (note: string) => Promise<boolean> }) {
+  const [reporting, setReporting] = useState(false);
+  const [reported, setReported] = useState(false);
   if (message.role === "user") {
     return (
       <div className="rise flex justify-end">
@@ -795,7 +844,28 @@ export function MessageView({ message, onCopy, onOpenTea }: { message: ChatMessa
             <button type="button" onClick={() => onCopy(message.text)} className="flex items-center gap-1 rounded px-1 hover:text-ink">
               <Copy size={12} /> Copy
             </button>
+            {onReport && (
+              <button
+                type="button"
+                onClick={() => setReporting(!reporting)}
+                disabled={reported}
+                aria-expanded={reporting}
+                className="flex items-center gap-1 rounded px-1 hover:text-ink disabled:hover:text-ink-3"
+              >
+                {reported ? <Check size={12} /> : <Flag size={12} />} {reported ? "Reported" : "Report a problem"}
+              </button>
+            )}
           </div>
+        )}
+        {reporting && onReport && (
+          <ReportForm
+            onClose={() => setReporting(false)}
+            onSend={async (note) => {
+              const sent = await onReport(note);
+              if (sent) setReported(true);
+              return sent;
+            }}
+          />
         )}
       </div>
     </div>

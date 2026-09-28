@@ -6,7 +6,8 @@ for local trials and the tests. Without one, `dissolve web` keeps session files 
 A person signs up with a username and a password, nothing else. A sign-in sets an HttpOnly cookie, and scripts may send
 the same username and password as HTTP Basic credentials instead. A chat belongs to the account that started it: the
 list shows only your own, and another account's chat is "no such session". Accounts and chats stay until someone
-deletes them on purpose: its owner, from the chat list, or whoever runs the database.
+deletes them on purpose: its owner, from the chat list, or whoever runs the database. With DISSOLVE_ADMIN_TOKEN set, the
+admin view (web_admin.py) reads every chat, never a password hash or a sign-in token.
 """
 
 from __future__ import annotations
@@ -41,6 +42,10 @@ SCHEMA = (
     "CREATE INDEX IF NOT EXISTS sessions_by_owner ON sessions (owner, updated_at)",
     "CREATE TABLE IF NOT EXISTS transcript (session_id TEXT NOT NULL, seq INTEGER NOT NULL, event TEXT NOT NULL, "
     "PRIMARY KEY (session_id, seq))",
+    # A person's report on one of their answers (web_admin.py): the question it is about, and what went wrong.
+    "CREATE TABLE IF NOT EXISTS reports (report_id TEXT PRIMARY KEY, session_id TEXT NOT NULL, owner TEXT NOT NULL, "
+    "created_at TEXT NOT NULL, note TEXT, question TEXT, question_seq INTEGER)",
+    "CREATE INDEX IF NOT EXISTS reports_by_time ON reports (created_at)",
 )
 
 
