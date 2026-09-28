@@ -226,7 +226,7 @@ def test_people_sign_up_with_a_username_and_password(serve, tmp_path):
     an account: a username and a password, no email. Sign-up needs the site's access code, so a stranger who finds
     the site cannot spend its model credits."""
     http = _accounts(serve, tmp_path)
-    assert http.get("/api/auth/config").json() == {"accounts": True, "access_code": True}
+    assert http.get("/api/auth/config").json() == {"accounts": True, "access_code": True, "admin_reads": False}
     assert http.get("/api/health").status_code == 200
     assert http.get("/api/sessions").status_code == 401
     assert http.get("/api/sessions", auth=("dissolve", "s3cret")).status_code == 401  # the shared password is not a way in
@@ -632,3 +632,134 @@ def test_a_follow_up_keeps_the_plant_the_person_corrected(client, monkeypatch):
     assert shown[1] == (3.0, "previous", 50.0, "previous", 0.12)  # the guess again: the person's plant stands
     assert shown[2] == (5.0, "model", 50.0, "previous", 0.12)  # a new value from the model comes through
     assert shown[3][2:] == (0.0, "default", 0.12)  # another solvent: the plant starts over, the coefficients stay
+
+
+# The admin view (web_admin.py): the owner reads every account's turns to troubleshoot and audit them.
+
+ADMIN = "admin-token-" + "x" * 40
+
+
+def _admin_site(serve, tmp_path, name="web.sqlite3"):
+    return serve(DATABASE_URL=f"sqlite:///{tmp_path / name}", DISSOLVE_WEB_PASSWORD="s3cret", DISSOLVE_ADMIN_TOKEN=ADMIN)
+
+
+def test_the_admin_reads_every_account_without_their_passwords(serve, tmp_path, monkeypatch):
+    """People sent screenshots of problems (owner, 2026-09-28). An admin token now reads every account's chats: the
+    question, each tool call and the answer. It never returns a password hash or a sign-in token, it is not an account,
+    and a signed-in person cannot use the admin view."""
+    _script(monkeypatch, [
+        {"text": "", "tool_calls": [{"id": "t1", "name": "lookup_hansen_parameters",
+                                     "args": {"material_names": ["toluene"], "material_type": "solvent"}}]},
+        {"text": "Toluene: δD 18.0, δP 1.4, δH 2.0 MPa½.", "tool_calls": []},
+        {"text": "PS dissolves in toluene.", "tool_calls": []},
+    ])
+    site = _admin_site(serve, tmp_path)
+    assert site.get("/api/auth/config").json()["admin_reads"] is True  # the sign-up page shows the notice
+    _sign_up(site, "alice")
+    alice_chat = site.post("/api/sessions", json={}).json()["session_id"]
+    _stream(site, alice_chat, "Hansen parameters of toluene?")
+    with httpx.Client(base_url=str(site.base_url), timeout=30) as bob:
+        _sign_up(bob, "bob")
+        bob_chat = bob.post("/api/sessions", json={}).json()["session_id"]
+        _stream(bob, bob_chat, "Which solvents dissolve PS?")
+        assert bob.get("/api/admin/accounts").status_code == 401  # a signed-in person is not the admin
+    admin = {"Authorization": f"Bearer {ADMIN}"}
+    with httpx.Client(base_url=str(site.base_url), timeout=30) as http:  # no cookie: only the token
+        assert http.get("/api/admin/accounts").status_code == 401
+        assert http.get("/api/admin/accounts", headers={"Authorization": f"Bearer {ADMIN}x"}).status_code == 401
+        accounts = http.get("/api/admin/accounts", headers=admin)
+        rows = {row["username"]: row for row in accounts.json()}
+        assert set(rows) == {"alice", "bob"} and (rows["alice"]["chats"], rows["alice"]["turns"]) == (1, 1)
+        assert not any(word in accounts.text for word in ("scrypt", "password", "token_hash"))
+        chats = http.get("/api/admin/chats", headers=admin).json()
+        assert {(chat["owner"], chat["session_id"]) for chat in chats} == {("alice", alice_chat), ("bob", bob_chat)}
+        (turn,) = http.get(f"/api/admin/chats/{alice_chat}", headers=admin).json()["turns"]
+        assert (turn["question"], turn["status"]) == ("Hansen parameters of toluene?", "ok")
+        assert turn["answer"].startswith("Toluene: δD 18.0") and turn["elapsed_s"] >= 0
+        (call,) = turn["tools"]
+        assert (call["name"], call["ok"], call["source_basis"]) == ("lookup_hansen_parameters", True,
+                                                                   "qualitative_hansen_parameters")
+        assert call["args"] == {"material_names": ["toluene"], "material_type": "solvent"} and "result" not in call
+        full = http.get(f"/api/admin/chats/{alice_chat}?full=1", headers=admin).json()
+        assert full["turns"][0]["tools"][0]["result"]["available"] is True
+        recent = http.get("/api/admin/turns?since=1h", headers=admin).json()
+        assert [(t["owner"], t["question"]) for t in recent] == [("bob", "Which solvents dissolve PS?"),
+                                                                 ("alice", "Hansen parameters of toluene?")]
+        assert http.get("/api/sessions", headers=admin).status_code == 401  # the token is no account
+        assert http.get("/api/admin/chats/nosuchchat000", headers=admin).status_code == 404
+
+
+def test_the_admin_view_is_off_without_a_long_token_and_accounts(serve, tmp_path, monkeypatch):
+    site = serve(DATABASE_URL=f"sqlite:///{tmp_path / 'web.sqlite3'}", DISSOLVE_WEB_PASSWORD="s3cret")
+    bearer = {"Authorization": f"Bearer {ADMIN}"}
+    assert site.get("/api/admin/accounts", headers=bearer).status_code == 404
+    assert site.get("/api/auth/config").json()["admin_reads"] is False
+    short = serve(DISSOLVE_ADMIN_TOKEN="too-short")
+    assert short.get("/api/admin/accounts", headers={"Authorization": "Bearer too-short"}).status_code == 404
+    monkeypatch.delenv("DATABASE_URL")
+    monkeypatch.delenv("DISSOLVE_WEB_PASSWORD")
+    local = serve(DISSOLVE_ADMIN_TOKEN=ADMIN)  # session files: one person, no accounts to read
+    assert local.get("/api/admin/accounts", headers=bearer).status_code == 404
+
+
+def test_a_report_reaches_the_admin_with_the_turn_it_is_about(serve, tmp_path, monkeypatch):
+    """A person reports a problem from the answer itself; the admin reads their note beside the question, the tool
+    calls and the answer. Nobody reports on another account's chat."""
+    _script(monkeypatch, [{"text": "PS dissolves in toluene.", "tool_calls": []}])
+    site = _admin_site(serve, tmp_path)
+    _sign_up(site, "alice")
+    chat = site.post("/api/sessions", json={}).json()["session_id"]
+    _stream(site, chat, "Which solvents dissolve PS?")
+    report = site.post(f"/api/sessions/{chat}/reports",
+                       json={"question": "Which solvents dissolve PS? ", "note": "It skipped the safety data."})
+    assert report.status_code == 200 and report.json()["saved"] is True
+    assert site.post(f"/api/sessions/{chat}/reports", json={"question": " ", "note": "x"}).status_code == 400
+    with httpx.Client(base_url=str(site.base_url), timeout=30) as bob:
+        _sign_up(bob, "bob")
+        spam = bob.post(f"/api/sessions/{chat}/reports", json={"question": "Which solvents dissolve PS?", "note": "x"})
+        assert spam.status_code == 404
+    with httpx.Client(base_url=str(site.base_url), timeout=30) as http:
+        (row,) = http.get("/api/admin/reports?since=1h", headers={"Authorization": f"Bearer {ADMIN}"}).json()
+    assert (row["owner"], row["session_id"], row["note"]) == ("alice", chat, "It skipped the safety data.")
+    assert row["question"] == "Which solvents dissolve PS?"
+    assert (row["turn"]["question"], row["turn"]["answer"]) == ("Which solvents dissolve PS?", "PS dissolves in toluene.")
+
+
+def test_the_admin_sees_a_turn_while_it_runs(serve, tmp_path, monkeypatch):
+    """Live troubleshooting: while an answer is still being worked out, the admin sees the question and each tool
+    call so far, even for a chat whose first turn has not finished (its row is saved when the turn ends)."""
+    release = threading.Event()
+    calls = {"n": 0}
+
+    def complete(messages, tools, **kwargs):
+        calls["n"] += 1
+        if calls["n"] == 1:
+            return {"text": "", "tool_calls": [{"id": "t1", "name": "lookup_hansen_parameters",
+                                                "args": {"material_names": ["toluene"], "material_type": "solvent"}}]}
+        release.wait(20)
+        return {"text": "Toluene: δD 18.0.", "tool_calls": []}
+
+    monkeypatch.setattr(agent, "complete", complete)
+    site = _admin_site(serve, tmp_path)
+    _sign_up(site, "alice")
+    chat = site.post("/api/sessions", json={}).json()["session_id"]
+    finished = {}
+    worker = threading.Thread(target=lambda: finished.update(events=_stream(site, chat, "Hansen parameters of toluene?")))
+    worker.start()
+    admin = {"Authorization": f"Bearer {ADMIN}"}
+    with httpx.Client(base_url=str(site.base_url), timeout=30) as http:
+        deadline, live = time.monotonic() + 20, []
+        while time.monotonic() < deadline and not (live and live[0]["tool_calls"] == 1):
+            live = http.get("/api/admin/live", headers=admin).json()
+            time.sleep(0.05)
+        (turn,) = live
+        assert (turn["owner"], turn["session_id"], turn["question"]) == ("alice", chat, "Hansen parameters of toluene?")
+        assert turn["status"] == "running" and turn["running_s"] >= 0
+        assert [call["name"] for call in turn["tools"]] == ["lookup_hansen_parameters"]
+        running = http.get("/api/admin/chats", headers=admin).json()
+        assert (running[0]["session_id"], running[0]["running"], running[0]["title"]) == (
+            chat, True, "Hansen parameters of toluene?")
+        release.set()
+        worker.join(20)
+        assert finished["events"][-1]["event"] == "turn.completed"
+        assert http.get("/api/admin/live", headers=admin).json() == []
