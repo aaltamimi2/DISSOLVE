@@ -16,6 +16,8 @@ handler, and sessions are the CLI's session files, so a conversation can move be
     GET  /api/sessions/{id}/tea-sheet       the TEA panel: a sheet waiting for an answer, a run, the last results
     POST /api/sessions/{id}/tea-sheet/check {sheet_id, values, ranges, drop} -> plants, stored, time, refused plants
     POST /api/sessions/{id}/tea-sheet       {sheet_id, action: run|cancel|stop, values, ranges, drop}
+    POST /api/sessions/{id}/reports         {question, note}: report a problem with one of your answers
+    GET  /api/admin/...                     the read-only admin view (web_admin.py; needs DISSOLVE_ADMIN_TOKEN)
     POST /api/client-error                  a crash in someone's browser, printed to this server's log
     GET  /api/auth/config  /api/auth/me     whether this server has accounts; who is signed in
     POST /api/auth/signup  /api/auth/login  /api/auth/logout
@@ -58,7 +60,7 @@ from pydantic import BaseModel
 from rich.console import Console
 from starlette.concurrency import run_in_threadpool
 
-from dissolve import RELEASE, cli, contaminants, web_accounts, web_tea
+from dissolve import RELEASE, cli, contaminants, web_accounts, web_admin, web_tea
 from dissolve.agent import ToolEvent
 
 STATIC = Path(__file__).with_name("ui")
@@ -74,6 +76,11 @@ class NewSession(BaseModel):
 
 class Turn(BaseModel):
     text: str
+
+
+class ReportBody(BaseModel):
+    question: str = ""
+    note: str = ""
 
 
 class SheetAnswer(BaseModel):
@@ -393,6 +400,8 @@ def create_app(home: str | Path | None = None) -> FastAPI:
     failures: dict[tuple[str, str], list[float]] = {}
     offered = features()
     signup_code = os.getenv("DISSOLVE_SIGNUP_CODE", os.getenv("DISSOLVE_WEB_PASSWORD", ""))
+    admin_key = web_admin.admin_token() if accounts is not None else None
+    admin = web_admin.AdminView(db, sessions) if admin_key else None
     if offered["tea"]:
         web_tea.install()  # a plant TEA in a review-mode chat waits for the person in the TEA panel
 
@@ -400,8 +409,8 @@ def create_app(home: str | Path | None = None) -> FastAPI:
         @api.middleware("http")
         async def require_account(request: Request, call_next):
             path = request.url.path
-            if not path.startswith("/api/") or path == "/api/health" or path.startswith("/api/auth/"):
-                return await call_next(request)  # the UI itself, which shows the sign-in page, and signing in
+            if not path.startswith("/api/") or path == "/api/health" or path.startswith(("/api/auth/", "/api/admin/")):
+                return await call_next(request)  # the UI, signing in, and the admin view (which checks its own token)
             user = await run_in_threadpool(accounts.user_for, request.cookies.get(COOKIE))
             if user is None and (basic := _basic(request)):
                 user = await run_in_threadpool(accounts.check, *basic)
@@ -438,7 +447,8 @@ def create_app(home: str | Path | None = None) -> FastAPI:
 
     @api.get("/api/auth/config")
     def auth_config() -> dict[str, Any]:
-        return {"accounts": accounts is not None, "access_code": accounts is not None and bool(signup_code)}
+        return {"accounts": accounts is not None, "access_code": accounts is not None and bool(signup_code),
+                "admin_reads": admin is not None}
 
     @api.post("/api/auth/signup")
     def signup(body: Credentials, request: Request, response: Response) -> dict[str, Any]:
@@ -600,6 +610,57 @@ def create_app(home: str | Path | None = None) -> FastAPI:
             raise HTTPException(409, str(error)) from error
         except web_tea.SheetError as error:
             raise HTTPException(422, {"message": str(error), **error.detail}) from error
+
+    @api.post("/api/sessions/{session_id}/reports")
+    def session_report(session_id: str, body: ReportBody, request: Request) -> dict[str, Any]:
+        if not body.question.strip():
+            raise HTTPException(400, "Say which question the report is about.")
+        app, _lock = sessions.open(session_id, user=user_of(request))  # only the chat's owner reports on it
+        report = web_admin.save_report(db, app, user_of(request) or "local", body.question, body.note)
+        print(f"report: {report['report_id']} on chat {session_id}", flush=True)
+        return {"report_id": report["report_id"], "saved": True}
+
+    def require_admin(request: Request) -> web_admin.AdminView:
+        if admin is None:
+            raise HTTPException(404, "no such endpoint")
+        key = throttled(request, "admin")
+        if not web_admin.token_matches(request.headers.get("authorization", ""), admin_key):
+            failures[key].append(time.monotonic())
+            print(f"admin: refused {request.method} {request.url.path} from {key[0] or 'unknown'}", flush=True)
+            raise HTTPException(401, "admin token required")
+        query = f"?{request.url.query}" if request.url.query else ""
+        print(f"admin: {request.method} {request.url.path}{query}", flush=True)
+        return admin
+
+    def bounded(limit: int) -> int:
+        return max(1, min(int(limit), 500))
+
+    @api.get("/api/admin/accounts")
+    def admin_accounts(request: Request) -> list[dict[str, Any]]:
+        return require_admin(request).accounts()
+
+    @api.get("/api/admin/chats")
+    def admin_chats(request: Request, owner: str = "", since: str = "", limit: int = 50) -> list[dict[str, Any]]:
+        return require_admin(request).chats(owner or None, web_admin.since_cutoff(since), bounded(limit))
+
+    @api.get("/api/admin/chats/{session_id}")
+    def admin_chat(session_id: str, request: Request, full: bool = False) -> dict[str, Any]:
+        chat = require_admin(request).chat(session_id, full)
+        if chat is None:
+            raise HTTPException(404, "no such session")
+        return chat
+
+    @api.get("/api/admin/turns")
+    def admin_turns(request: Request, owner: str = "", since: str = "", limit: int = 50) -> list[dict[str, Any]]:
+        return require_admin(request).recent_turns(owner or None, web_admin.since_cutoff(since), bounded(limit))
+
+    @api.get("/api/admin/live")
+    def admin_live(request: Request) -> list[dict[str, Any]]:
+        return require_admin(request).live()
+
+    @api.get("/api/admin/reports")
+    def admin_reports(request: Request, since: str = "", limit: int = 50) -> list[dict[str, Any]]:
+        return require_admin(request).reports(web_admin.since_cutoff(since), bounded(limit))
 
     @api.post("/api/client-error", status_code=204)
     async def client_error(request: Request) -> Response:
