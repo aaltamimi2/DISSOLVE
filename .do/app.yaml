@@ -11,7 +11,7 @@ services:
       branch: main-cleanup-frontend
       deploy_on_push: true
     http_port: 8080
-    instance_size_slug: apps-s-1vcpu-1gb-fixed
+    instance_size_slug: basic-s
     instance_count: 1
     health_check:
       http_path: /api/health
