@@ -18,6 +18,7 @@ handler, and sessions are the CLI's session files, so a conversation can move be
     POST /api/sessions/{id}/tea-sheet       {sheet_id, action: run|cancel|stop, values, ranges, drop}
     POST /api/sessions/{id}/reports         {question, note}: report a problem with one of your answers
     GET  /api/admin/...                     the read-only admin view (web_admin.py; needs DISSOLVE_ADMIN_TOKEN)
+    GET  /api/admin/events                  its questions, answers and reports as they happen (server-sent events)
     POST /api/client-error                  a crash in someone's browser, printed to this server's log
     GET  /api/auth/config  /api/auth/me     whether this server has accounts; who is signed in
     POST /api/auth/signup  /api/auth/login  /api/auth/logout
@@ -402,6 +403,7 @@ def create_app(home: str | Path | None = None) -> FastAPI:
     signup_code = os.getenv("DISSOLVE_SIGNUP_CODE", os.getenv("DISSOLVE_WEB_PASSWORD", ""))
     admin_key = web_admin.admin_token() if accounts is not None else None
     admin = web_admin.AdminView(db, sessions) if admin_key else None
+    admin_events = web_admin.AdminEvents() if admin is not None else None
     if offered["tea"]:
         web_tea.install()  # a plant TEA in a review-mode chat waits for the person in the TEA panel
 
@@ -571,10 +573,12 @@ def create_app(home: str | Path | None = None) -> FastAPI:
         events: queue.Queue[dict[str, Any] | None] = queue.Queue()
 
         panel = sessions.panels.get(session_id)
+        sink = events if admin_events is None else web_admin.TurnTee(
+            events, admin_events, session_id, user_of(request) or "local", text)
 
         def work() -> None:
             try:
-                _run(app, text, events, offered, panel)
+                _run(app, text, sink, offered, panel)
             finally:
                 lock.release()
 
@@ -618,6 +622,9 @@ def create_app(home: str | Path | None = None) -> FastAPI:
         app, _lock = sessions.open(session_id, user=user_of(request))  # only the chat's owner reports on it
         report = web_admin.save_report(db, app, user_of(request) or "local", body.question, body.note)
         print(f"report: {report['report_id']} on chat {session_id}", flush=True)
+        if admin_events is not None:
+            admin_events.publish("report", session_id=session_id, owner=report["owner"], report_id=report["report_id"],
+                                 note=report["note"], question=report["question"][:300])
         return {"report_id": report["report_id"], "saved": True}
 
     def require_admin(request: Request) -> web_admin.AdminView:
@@ -661,6 +668,19 @@ def create_app(home: str | Path | None = None) -> FastAPI:
     @api.get("/api/admin/reports")
     def admin_reports(request: Request, since: str = "", limit: int = 50) -> list[dict[str, Any]]:
         return require_admin(request).reports(web_admin.since_cutoff(since), bounded(limit))
+
+    @api.get("/api/admin/events")
+    async def admin_event_stream(request: Request, after: int = 0, follow: bool = True,
+                                 boot: str = "") -> StreamingResponse:
+        """Questions, answers and reports as they happen. A listener that reconnects sends Last-Event-ID and the boot
+        it saw; after a restart the ids start again, so a stale boot gets everything this boot still holds."""
+        require_admin(request)
+        last = request.headers.get("last-event-id", "").strip()
+        start = int(last) if last.isdigit() else max(0, after)
+        if boot and boot != admin_events.boot:
+            start = 0
+        return StreamingResponse(admin_events.stream(start, request, follow), media_type="text/event-stream",
+                                 headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
 
     @api.post("/api/client-error", status_code=204)
     async def client_error(request: Request) -> Response:
