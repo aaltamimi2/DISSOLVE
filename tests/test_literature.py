@@ -3478,6 +3478,15 @@ class TestEmbeddingRecipe:
         assert len(_init_calls(fake)) == 1
         assert len(_encode_calls(fake)) == 1
 
+    def test_the_encoder_is_built_once_per_process(self, monkeypatch):
+        """Every search built a new SentenceTransformer, and each copy stayed in memory until the garbage collector
+        ran (with the index re-read, BGE10 serving measured 5.4 GB instead of 3.0 GB, 2026-09-28). Two queries now share
+        one encoder."""
+        fake = _install_fake_st(monkeypatch, output=[_unit_embedding_recipe(BGE_DIM, 0)])
+        research._dense_vectors(["alpha"], BGE_MODEL)
+        research._dense_vectors(["beta"], BGE_MODEL)
+        assert (len(_init_calls(fake)), len(_encode_calls(fake))) == (1, 2)
+
     def test_ingest_embeds_one_paper_with_the_pinned_bge_recipe(self, monkeypatch, tmp_path):
         saves: list[dict] = []
         result, seen_texts, canonical = _run_ingest(
@@ -4200,6 +4209,20 @@ class TestProfileRouting:
         _assert_helper_refusal_profile_routing(PRODUCT_KB, QUERY, tracked)
         _assert_public_failure(_public_search(), QUERY, tracked)
         assert _snapshot(tracked) == before
+
+    def test_the_served_index_is_parsed_once_and_still_hashed_every_call(self, _isolate, monkeypatch):
+        """Every search re-read, re-hashed and re-parsed the whole release (0.38 s) and left a new copy behind. The
+        parsed index is now kept for the same bytes under the same manifest, but the file is still hashed on every call,
+        so a release damaged after it was loaded is refused as before."""
+        bge = _seed_bge(_isolate)
+        monkeypatch.setenv("DISSOLVE_BGE10_MANIFEST", str(bge["manifest_path"]))
+        parsed: list[int] = []
+        parse = research._read_gzip_json_bytes
+        monkeypatch.setattr(research, "_read_gzip_json_bytes", lambda raw: parsed.append(len(raw)) or parse(raw))
+        first = research._load_index(PRODUCT_KB)
+        assert research._load_index(PRODUCT_KB) is first and len(parsed) == 1
+        bge["index_path"].write_bytes(bge["index_path"].read_bytes() + b"\n")
+        _assert_helper_refusal_profile_routing(PRODUCT_KB, QUERY, [bge["index_path"], bge["manifest_path"]])
 
     def test_bge10_manifest_ordered_chunk_ids_accepted(self, _isolate, monkeypatch):
         bge = _seed_bge(_isolate)

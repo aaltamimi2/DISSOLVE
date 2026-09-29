@@ -15,6 +15,7 @@ import os
 import re
 import statistics
 import tempfile
+import threading
 import time
 import unicodedata
 import zlib
@@ -3997,7 +3998,15 @@ def _bge10_index_digest(value: Any) -> str:
     return digest
 
 
+#: The served index this process has read and validated, under the manifest and index digest it came from.
+_SERVED_INDEX: dict[tuple[str, str, str], dict[str, Any]] = {}
+
+
 def _load_bge10_product_index() -> dict[str, Any]:
+    """The served index. The manifest is checked and the index file hashed on every call (10 ms), so a changed or
+    damaged release is refused as before; only an index already parsed and validated from those same bytes is not
+    parsed again. Every search used to re-read and re-validate the whole release (0.38 s) and leave a new copy behind,
+    which took BGE10 serving from 3.0 to 5.4 GB (2026-09-28). The returned index is shared: never modify it."""
     manifest_path, manifest = _load_bge10_manifest()
     declared_kb = manifest.get("knowledgebase")
     try:
@@ -4060,6 +4069,10 @@ def _load_bge10_product_index() -> dict[str, Any]:
             "bge10_index_digest",
             "BGE serving index digest is invalid.",
         )
+    served = (str(manifest_path), hashlib.sha256(json.dumps(manifest, sort_keys=True, default=str).encode()).hexdigest(),
+              actual_digest)
+    if served in _SERVED_INDEX:  # these very bytes, under this very manifest, were parsed and validated already
+        return _SERVED_INDEX[served]
     try:
         payload = _read_gzip_json_bytes(raw)
     except json.JSONDecodeError:
@@ -4148,6 +4161,8 @@ def _load_bge10_product_index() -> dict[str, Any]:
     )
     out = dict(payload)
     out["abstention"] = abstention
+    _SERVED_INDEX.clear()  # one served release at a time
+    _SERVED_INDEX[served] = out
     return out
 
 
@@ -4276,13 +4291,20 @@ def _assert_generated_dense_vectors(
     return width
 
 
-def _dense_vectors(texts: list[str], model_name: str | None = None) -> tuple[str, list[list[float]]]:
-    try:
-        model_type = importlib.import_module("sentence_transformers").SentenceTransformer
-    except (ImportError, AttributeError) as error:
-        raise RuntimeError("Dense indexing requires pip install '.[literature]'.") from error
-    selected = model_name or _BGE_MODEL_ID
-    try:
+#: The encoders this process holds, by (class, model), each with the library object it was built from.
+_ENCODERS: dict[tuple[Any, str], tuple[Any, Any]] = {}
+_ENCODERS_LOCK = threading.Lock()
+
+
+def _held_encoder(library: Any, selected: str) -> Any:
+    """One encoder per model for the life of the process. Every search used to build a new SentenceTransformer, and
+    each copy stayed in memory until the garbage collector ran. A different library object (a test's stand-in) gets
+    its own encoder."""
+    model_type = library.SentenceTransformer
+    with _ENCODERS_LOCK:
+        held = _ENCODERS.get((model_type, selected))
+        if held is not None and held[0] is library:
+            return held[1]
         if selected == _BGE_MODEL_ID:
             model = model_type(
                 selected,
@@ -4291,6 +4313,19 @@ def _dense_vectors(texts: list[str], model_name: str | None = None) -> tuple[str
             )
         else:
             model = model_type(selected)
+        _ENCODERS[(model_type, selected)] = (library, model)
+        return model
+
+
+def _dense_vectors(texts: list[str], model_name: str | None = None) -> tuple[str, list[list[float]]]:
+    try:
+        library = importlib.import_module("sentence_transformers")
+        library.SentenceTransformer  # noqa: B018  the class must exist before anything is built
+    except (ImportError, AttributeError) as error:
+        raise RuntimeError("Dense indexing requires pip install '.[literature]'.") from error
+    selected = model_name or _BGE_MODEL_ID
+    try:
+        model = _held_encoder(library, selected)
         encoded = model.encode(texts, normalize_embeddings=True, show_progress_bar=False)
     except Exception as error:  # third-party model/cache failures vary by backend
         raise RuntimeError(f"Dense embedding model {selected!r} could not be loaded or evaluated.") from error
