@@ -8,6 +8,8 @@ running now, and the problems people report from an answer.
     GET  /api/admin/turns?owner=&since=&limit=       recent turns across accounts, newest first, for auditing
     GET  /api/admin/live                             turns running now, with the tool calls made so far
     GET  /api/admin/reports?since=&limit=            problems people reported, each with the turn it is about
+    GET  /api/admin/events?after=&follow=            what happens as it happens (server-sent events): a question
+                                                     asked, its answer finished, a report filed
     POST /api/sessions/{id}/reports {question, note}  a person reports a problem with one of their own answers
 
 The admin routes need DISSOLVE_ADMIN_TOKEN (at least 32 characters) on a server with an accounts database, sent as
@@ -19,18 +21,23 @@ one address are paused like wrong passwords.
 
 from __future__ import annotations
 
+import asyncio
+import collections
 import json
 import os
 import secrets
+import threading
 import uuid
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, AsyncIterator
 
 from dissolve import web_accounts
 
 MIN_TOKEN = 32
 MAX_NOTE = 2000
+KEEP_EVENTS = 500
+KEEPALIVE_S = 15.0
 
 
 def admin_token() -> str | None:
@@ -231,6 +238,101 @@ class AdminView:
             out.append({"report_id": report_id, "created_at": created, "owner": who, "session_id": sid, "note": note,
                         "question": question, "turn": turn})
         return out
+
+
+def _sse(data: dict[str, Any], kind: str, event_id: int | None = None) -> str:
+    head = "" if event_id is None else f"id: {event_id}\n"
+    return f"{head}event: {kind}\ndata: {json.dumps(data, ensure_ascii=False, default=str)}\n\n"
+
+
+class AdminEvents:
+    """What happens on the site as it happens: a question asked, its answer finished, a report filed. Each listener on
+    /api/admin/events gets every event the moment it is published, instead of polling. The last KEEP_EVENTS stay in
+    memory, so a listener that reconnects with the last id it saw misses nothing, unless the server restarted in
+    between: the hello event names the boot, and a new boot means the ids started again."""
+
+    def __init__(self, keep: int = KEEP_EVENTS):
+        self.boot = uuid.uuid4().hex[:8]
+        self._lock = threading.Lock()
+        self._recent: collections.deque[dict[str, Any]] = collections.deque(maxlen=keep)
+        self._next = 1
+        self._listeners: list[tuple[asyncio.AbstractEventLoop, asyncio.Queue]] = []
+
+    def publish(self, kind: str, **data: Any) -> dict[str, Any]:
+        with self._lock:
+            event = {"id": self._next, "event": kind, "at": web_accounts._now(), **data}
+            self._next += 1
+            self._recent.append(event)
+            listeners = list(self._listeners)
+        for loop, queue in listeners:  # turns publish from their own threads; each listener waits on its own loop
+            try:
+                loop.call_soon_threadsafe(queue.put_nowait, event)
+            except RuntimeError:  # that listener's loop has closed; its stream removes it on the way out
+                pass
+        return event
+
+    async def stream(self, after: int, request: Any, follow: bool = True) -> AsyncIterator[str]:
+        """The events after `after`, then (with follow) each new one as it is published, with a keepalive comment
+        every KEEPALIVE_S so that no proxy drops a quiet connection."""
+        loop = asyncio.get_running_loop()
+        queue: asyncio.Queue = asyncio.Queue()
+        with self._lock:  # the backlog and the subscription are taken together: nothing is lost or sent twice
+            backlog = [event for event in self._recent if event["id"] > after]
+            last = self._next - 1
+            if follow:
+                self._listeners.append((loop, queue))
+        try:
+            yield _sse({"boot": self.boot, "last_id": last}, "hello")
+            for event in backlog:
+                yield _sse(event, event["event"], event["id"])
+            while follow:
+                try:
+                    event = await asyncio.wait_for(queue.get(), timeout=KEEPALIVE_S)
+                except asyncio.TimeoutError:
+                    if await request.is_disconnected():
+                        break
+                    yield ": keepalive\n\n"
+                    continue
+                yield _sse(event, event["event"], event["id"])
+        finally:
+            with self._lock:
+                if (loop, queue) in self._listeners:
+                    self._listeners.remove((loop, queue))
+
+
+class TurnTee:
+    """A turn's event queue, and the admin events the turn implies as it writes them: the question when it starts, the
+    answer (status, time, tool calls, refusals) when it ends. Published by the turn itself, so a person closing the tab
+    mid-answer changes nothing. Slash commands are settings, not questions, and publish nothing."""
+
+    def __init__(self, target: Any, events: AdminEvents, session_id: str, owner: str, text: str):
+        self.target, self.events = target, events
+        self.base = {"session_id": session_id, "owner": owner}
+        self.text = text
+        self.question = not text.startswith("/")
+        self.tools = 0
+        self.refused: list[str] = []
+
+    def put(self, event: Any) -> None:
+        self.target.put(event)
+        if not self.question or not isinstance(event, dict):
+            return
+        kind = event.get("event")
+        if kind == "turn.started":
+            self.events.publish("question", **self.base, question=self.text)
+        elif kind == "tool":
+            self.tools += 1
+            if not event.get("ok"):
+                self.refused.append(str(event.get("name")))
+        elif kind in ("turn.completed", "error"):
+            answer = str(event.get("answer") or "")
+            self.events.publish(
+                "answer", **self.base, question=self.text[:300],
+                status=event.get("status") if kind == "turn.completed" else "error",
+                elapsed_s=event.get("elapsed_s"), tool_calls=self.tools, refused=list(self.refused),
+                answer=answer[:300], answer_chars=len(answer),
+                **({"message": str(event.get("message") or "")[:300]} if kind == "error" else {}),
+            )
 
 
 def save_report(db: web_accounts.Database | None, app: Any, owner: str, question: str, note: str) -> dict[str, Any]:
