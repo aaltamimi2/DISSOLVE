@@ -9,8 +9,10 @@ import math
 import re
 import sys
 import textwrap
+import time
 from contextlib import contextmanager
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 from rich.console import Console
@@ -6847,6 +6849,70 @@ def test_a_briefly_overloaded_provider_is_retried_before_the_turn_fails(monkeypa
     with pytest.raises(RuntimeError, match="constructed"):
         agent.complete([{"role": "user", "content": "hi"}], [], model="openai:muse-spark-1.3")
     assert seen["max_retries"] == agent._PROVIDER_RETRIES >= 5
+
+
+def _rate_limited_client(monkeypatch, *, reset_in_s: float, failures: int):
+    """A stand-in OpenAI client that answers 429 with OpenRouter's reset in the error body, `failures` times."""
+    import httpx
+    import openai
+    calls: list[int] = []
+
+    class Client:
+        def __init__(self, **kwargs):
+            self.chat = SimpleNamespace(completions=SimpleNamespace(create=self.create))
+
+        def create(self, **kwargs):
+            calls.append(1)
+            if len(calls) <= failures:
+                reset = str(int((time.time() + reset_in_s) * 1000))
+                raise openai.RateLimitError(
+                    "Rate limit exceeded", body={"message": "Rate limit exceeded", "code": 429,
+                                                 "metadata": {"headers": {"X-RateLimit-Reset": reset}}},
+                    response=httpx.Response(429, request=httpx.Request("POST", "https://openrouter.ai/api/v1")))
+            return SimpleNamespace(usage=None, choices=[SimpleNamespace(message=SimpleNamespace(
+                content="PS dissolves in toluene.", tool_calls=None))])
+
+    monkeypatch.setattr(openai, "OpenAI", Client)
+    return calls
+
+
+def test_a_rate_limited_request_waits_for_the_providers_reset(monkeypatch):
+    """OpenRouter allows this account 20 requests a minute and resets on the minute. The SDK's backoff kept retrying
+    inside the used-up minute, and 12 of 20 chained questions asked 6 and 10 at a time ended as provider errors
+    (2026-09-29). A 429 now waits for the reset the provider names, then goes again."""
+    calls = _rate_limited_client(monkeypatch, reset_in_s=7, failures=1)
+    slept: list[float] = []
+    monkeypatch.setattr(agent.time, "sleep", slept.append)
+    reply = agent.complete([{"role": "user", "content": "hi"}], [], model="openai:google/gemini-3.8-flash",
+                           api_base="https://openrouter.ai/api/v1")
+    assert reply["text"] == "PS dissolves in toluene." and len(calls) == 2
+    assert len(slept) == 1 and 6 <= slept[0] <= 9  # the named reset, plus under two seconds of jitter
+
+
+def test_a_turn_that_stays_rate_limited_says_so_plainly(monkeypatch):
+    """When the limit outlasts the wait, the person reads that the model is busy, not the provider's raw error."""
+    import httpx
+    import openai
+
+    def limited(*args, **kwargs):
+        raise openai.RateLimitError("Rate limit exceeded: new-account-rpm", body={"code": 429},
+                                    response=httpx.Response(429, request=httpx.Request("POST", "https://openrouter.ai")))
+
+    monkeypatch.setattr(agent, "complete", limited)
+    result = run_turn("Which solvents dissolve PS?", session=new_session(), model="openai:google/gemini-3.8-flash")
+    assert result.status == "provider_error"
+    assert result.answer.startswith("The model is busy right now") and "RateLimitError" not in result.answer
+
+
+def test_a_rate_limit_that_outlasts_the_wait_still_fails(monkeypatch):
+    calls = _rate_limited_client(monkeypatch, reset_in_s=7, failures=99)
+    slept: list[float] = []
+    monkeypatch.setattr(agent.time, "sleep", slept.append)
+    monkeypatch.setattr(agent, "_RATE_LIMIT_WAIT_S", 3.0)
+    import openai
+    with pytest.raises(openai.RateLimitError):
+        agent.complete([{"role": "user", "content": "hi"}], [], model="openai:google/gemini-3.8-flash")
+    assert (len(calls), slept) == (1, [])
 
 
 def test_every_tool_schema_declares_its_list_items():

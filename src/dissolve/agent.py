@@ -4,8 +4,10 @@ from __future__ import annotations
 import inspect
 import json
 import os
+import random
 import re
 import sys
+import time
 from collections.abc import Mapping as AbcMapping
 from collections.abc import Sequence as AbcSeq
 from dataclasses import dataclass
@@ -1110,6 +1112,34 @@ _PROVIDER_RETRIES = 5
 # training may take ours: the test questions include held-out rows that must not reach a training set.
 _EXTRA_BODY_BY_HOST = {"openrouter.ai": {"provider": {"data_collection": "deny"}}}
 
+# A rate-limited request (429) waits until the provider says it may go again, for up to this long per model call.
+# OpenRouter allows this account 20 requests a minute and resets on the minute; the SDK's backoff (about 15 s over its
+# five tries) kept landing inside the used-up minute, and 12 of 20 chained questions asked 6 and 10 at a time ended
+# as provider errors (stress test on the hosted site, 2026-09-29).
+_RATE_LIMIT_WAIT_S = 150.0
+
+
+def _rate_limit_wait_s(error: Exception) -> float:
+    """Seconds until a rate-limited provider takes requests again. OpenRouter names the reset in the error body
+    (metadata.headers.X-RateLimit-Reset, epoch milliseconds) and may send it as a header; Retry-After is the standard
+    form. A little jitter keeps turns that waited for the same reset from all sending at once."""
+    body = getattr(error, "body", None)
+    body = body.get("error", body) if isinstance(body, dict) else {}
+    named = {**(((body or {}).get("metadata") or {}).get("headers") or {}),
+             **dict(getattr(getattr(error, "response", None), "headers", None) or {})}
+    named = {str(key).casefold(): value for key, value in named.items()}
+    jitter = random.uniform(0.2, 1.5)
+    try:
+        if named.get("x-ratelimit-reset"):
+            value = float(named["x-ratelimit-reset"])
+            reset = value / 1000 if value > 1e11 else value if value > 1e9 else time.time() + value
+            return max(0.5, reset - time.time()) + jitter
+        if named.get("retry-after"):
+            return max(0.5, float(named["retry-after"])) + jitter
+    except (TypeError, ValueError):
+        pass
+    return 5.0 + jitter
+
 def complete(messages, tools, *, model, api_base=None, api_key_env=None):
     kind, _, ident = model.partition(":")
     ident = ident or model
@@ -1140,11 +1170,21 @@ def complete(messages, tools, *, model, api_base=None, api_key_env=None):
                  for c in (getattr(resp, "function_calls", None) or [])]
         return {"text": getattr(resp, "text", None) or "", "tool_calls": calls, "usage": _usage(kind, resp)}
     if kind == "openai":
-        from openai import OpenAI
+        from openai import OpenAI, RateLimitError
         oai = [{"type": "function", "function": {"name": t["name"], "description": t.get("description") or "", "parameters": t["parameters"]}} for t in tools]
         extra = _EXTRA_BODY_BY_HOST.get(urlsplit(api_base or "").hostname or "")
-        resp = OpenAI(api_key=key or None, base_url=api_base or None, max_retries=_PROVIDER_RETRIES).chat.completions.create(
-            model=ident, messages=_oai_msgs(messages), tools=oai, **({"extra_body": extra} if extra else {}))
+        client = OpenAI(api_key=key or None, base_url=api_base or None, max_retries=_PROVIDER_RETRIES)
+        deadline = time.monotonic() + _RATE_LIMIT_WAIT_S
+        while True:
+            try:
+                resp = client.chat.completions.create(
+                    model=ident, messages=_oai_msgs(messages), tools=oai, **({"extra_body": extra} if extra else {}))
+                break
+            except RateLimitError as error:
+                wait = _rate_limit_wait_s(error)
+                if time.monotonic() + wait > deadline:
+                    raise
+                time.sleep(wait)
         msg = resp.choices[0].message
         calls = []
         for c in msg.tool_calls or []:
@@ -1210,8 +1250,12 @@ def run_turn(
                     usage=_fold_usage(acc),
                 )
             except Exception as e:
+                answer = f"provider error: {type(e).__name__}: {e}"
+                if type(e).__name__ == "RateLimitError":  # still limited after complete() waited: say so plainly
+                    answer = ("The model is busy right now: its provider's per-minute request limit for this site "
+                              "stayed used up for over two minutes. Please try again in a minute.")
                 return TurnResult(
-                    answer=f"provider error: {type(e).__name__}: {e}",
+                    answer=answer,
                     status="provider_error", tool_trace=trace, turn_record=tid,
                     tool_rounds=rounds, usage=_fold_usage(acc),
                 )
