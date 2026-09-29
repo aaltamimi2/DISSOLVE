@@ -749,6 +749,15 @@ PAIR_CPU_THREADS = 8
 PAIR_INTEROP_THREADS = 1
 RRF_K = 60
 _ENV_BGE_RERANKER_DIR = "DISSOLVE_BGE_RERANKER_DIR"
+_ENV_PAIR_RERANK = "DISSOLVE_PAIR_RERANK"
+
+
+def pair_rerank_enabled() -> bool:
+    """False where the deployment serves BGE hybrid without the bge-reranker-base pass (DISSOLVE_PAIR_RERANK=off, as the
+    2 GB hosted image does). Measured 2026-09-28 in that image on one CPU: hybrid alone is 0.26 s and 0.8 GB per
+    search, and the reranker adds 14 s and 1.3 GB. The recall is then the BGE-base control's (202 raw, 193 served of
+    228) rather than BGE10's (205, 196)."""
+    return os.getenv(_ENV_PAIR_RERANK, "").strip().casefold() not in {"off", "0", "false", "no"}
 PAIR_RERANKER_FILE_SHA256 = {
     "config.json": "289adf7ada1eb6b4afa7589a48a032d45a076cf2e46dcdb3b4cabc33be14f708",
     "model.safetensors": "ced967c45fd1902eb92716c9ceeca7c95a936770ea9db611f5a841b926e33fbd",
@@ -5009,7 +5018,7 @@ def search_literature_corpus(
         )
     try:
         rerank_mode = "off"
-        if mode == "hybrid" and _bge10_hybrid_fusion_enabled(index):
+        if mode == "hybrid" and _bge10_hybrid_fusion_enabled(index) and pair_rerank_enabled():
             rerank_mode = PAIR_RERANK_MODE
         rows = _search_index(index, query, max(1, min(int(top_k), 20)), mode, rerank_mode=rerank_mode)
     except (ValueError, RuntimeError) as error:
@@ -5037,6 +5046,7 @@ def search_literature_corpus(
         retrieval_mode=mode, dense_index_available=bool(index.get("dense")),
         refuse_rule=_REFUSE_RULE_SPARSE_GATED,
         hybrid_weights={"dense": _HYBRID_DENSE_WEIGHT, "sparse": _HYBRID_SPARSE_WEIGHT},
+        pair_reranker=PAIR_RERANKER_ID if rerank_mode == PAIR_RERANK_MODE else None,
         result_count=len(rows), results=rows, top_score=top_score,
         coverage_star=round(coverage_star(index, query), 6),
         floor=served_floor,

@@ -2384,6 +2384,25 @@ class TestBgeFusion:
         assert data["reason"] == "abstained_below_floor"
         assert data["floor"] == round(UNCHANGED_FLOOR, 6)
 
+    def test_a_host_can_serve_bge_hybrid_without_the_reranker(self, monkeypatch):
+        """The 2 GB hosted image serves BGE hybrid without bge-reranker-base (owner, 2026-09-28): measured in that
+        image on one CPU, hybrid alone is 0.26 s and 0.8 GB per search, against 14.6 s and 2.1 GB with the reranker.
+        With DISSOLVE_PAIR_RERANK=off no pair rerank runs, and every result says which reranker served: none."""
+        monkeypatch.delenv("DISSOLVE_PAIR_RERANK", raising=False)
+        index = _index_bge_fusion(_three())
+        _install_scores(monkeypatch, [0.9, 0.8, 0.7], [1.0, 2.0, 3.0])
+        modes: list[str] = []
+        monkeypatch.setattr(research, "reorder_window",
+                            lambda query, ranked, rerank_mode="off": modes.append(rerank_mode) or ranked)
+        served = _public(monkeypatch, index)["data"]
+        assert research.PAIR_RERANK_MODE in modes and served["pair_reranker"] == research.PAIR_RERANKER_ID
+        modes.clear()
+        monkeypatch.setenv("DISSOLVE_PAIR_RERANK", "off")
+        hosted = _public(monkeypatch, index)["data"]
+        assert (hosted["success"], hosted["retrieval_mode"], hosted["pair_reranker"]) == (True, "hybrid", None)
+        assert research.PAIR_RERANK_MODE not in modes
+        assert _ids(hosted["results"]) == _ids(served["results"])  # the stand-in reranker keeps the order
+
     def test_singleton_zero_standardized_components(self, monkeypatch):
         index = _index_bge_fusion([_chunk_bge_fusion("c0")])
         rows, _counters = _search(index, monkeypatch, [0.77], [4.2], top_k=5)
