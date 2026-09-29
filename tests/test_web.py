@@ -693,6 +693,7 @@ def test_the_admin_view_is_off_without_a_long_token_and_accounts(serve, tmp_path
     site = serve(DATABASE_URL=f"sqlite:///{tmp_path / 'web.sqlite3'}", DISSOLVE_WEB_PASSWORD="s3cret")
     bearer = {"Authorization": f"Bearer {ADMIN}"}
     assert site.get("/api/admin/accounts", headers=bearer).status_code == 404
+    assert site.get("/api/admin/events?follow=0", headers=bearer).status_code == 404
     assert site.get("/api/auth/config").json()["admin_reads"] is False
     short = serve(DISSOLVE_ADMIN_TOKEN="too-short")
     assert short.get("/api/admin/accounts", headers={"Authorization": "Bearer too-short"}).status_code == 404
@@ -723,6 +724,65 @@ def test_a_report_reaches_the_admin_with_the_turn_it_is_about(serve, tmp_path, m
     assert (row["owner"], row["session_id"], row["note"]) == ("alice", chat, "It skipped the safety data.")
     assert row["question"] == "Which solvents dissolve PS?"
     assert (row["turn"]["question"], row["turn"]["answer"]) == ("Which solvents dissolve PS?", "PS dissolves in toluene.")
+
+
+def _sse_events(lines: list[str]) -> list[tuple[str, dict]]:
+    """Server-sent events as (event, data) pairs; keepalive comments are skipped."""
+    out, kind, data = [], None, None
+    for line in lines:
+        if line.startswith("event: "):
+            kind = line[len("event: "):]
+        elif line.startswith("data: "):
+            data = json.loads(line[len("data: "):])
+        elif line == "" and kind:
+            out.append((kind, data))
+            kind, data = None, None
+    return out
+
+
+def test_the_admin_hears_each_question_answer_and_report_as_it_happens(serve, tmp_path, monkeypatch):
+    """The owner wants to know the moment someone asks (2026-09-28), not on a timer: a listener on /api/admin/events
+    gets the question when the turn starts and the answer when it ends, pushed by the server, and each report. A
+    listener that reconnects with the last id it saw gets only what came after. A slash command is not a question."""
+    _script(monkeypatch, [{"text": "PS dissolves in toluene.", "tool_calls": []}])
+    site = _admin_site(serve, tmp_path)
+    admin = {"Authorization": f"Bearer {ADMIN}"}
+    connected, heard = threading.Event(), []
+
+    def listen() -> None:
+        with httpx.Client(base_url=str(site.base_url), timeout=30) as http, \
+                http.stream("GET", "/api/admin/events", headers=admin) as response:
+            lines = []
+            for line in response.iter_lines():
+                lines.append(line)
+                connected.set()
+                events = [event for event in _sse_events(lines) if event[0] != "hello"]
+                if len(events) == 2:
+                    heard.extend(events)
+                    return
+
+    listener = threading.Thread(target=listen)
+    listener.start()
+    assert connected.wait(20)
+    _sign_up(site, "alice")
+    chat = site.post("/api/sessions", json={}).json()["session_id"]
+    _stream(site, chat, "/literature off")
+    _stream(site, chat, "Which solvents dissolve PS?")
+    listener.join(20)
+    (asked_kind, asked), (answered_kind, answered) = heard
+    assert (asked_kind, asked["owner"], asked["session_id"], asked["question"]) == (
+        "question", "alice", chat, "Which solvents dissolve PS?")
+    assert (answered_kind, answered["status"], answered["tool_calls"], answered["answer"]) == (
+        "answer", "ok", 0, "PS dissolves in toluene.")
+    site.post(f"/api/sessions/{chat}/reports", json={"question": "Which solvents dissolve PS?", "note": "No safety data."})
+    with httpx.Client(base_url=str(site.base_url), timeout=30) as http:
+        later = _sse_events(http.get("/api/admin/events?follow=0",
+                                     headers={**admin, "Last-Event-ID": str(answered["id"])}).text.splitlines())
+        assert [kind for kind, _ in later] == ["hello", "report"]
+        assert (later[1][1]["owner"], later[1][1]["note"]) == ("alice", "No safety data.")
+        everything = _sse_events(http.get("/api/admin/events?follow=0", headers=admin).text.splitlines())
+        assert [kind for kind, _ in everything] == ["hello", "question", "answer", "report"]
+        assert http.get("/api/admin/events?follow=0").status_code == 401
 
 
 def test_the_admin_sees_a_turn_while_it_runs(serve, tmp_path, monkeypatch):
