@@ -35,7 +35,9 @@ the site cannot spend its model credits. Without a database, DISSOLVE_WEB_PASSWO
 shared password and sessions are files, as a local `dissolve web` keeps them.
 
 On a small instance DISSOLVE_WEB_DISABLE=literature,tea: the literature models alone need 1.8 GB and a live TEA run
-0.9 GB more, so a 1 GB host offers everything else.
+0.9 GB more, so a 1 GB host offers everything else. The hosted image serves both on 2 GB (see its Dockerfile), with
+three limits from here: DISSOLVE_MAX_TURNS answers at once (TurnSlots), a memory limit on every DuckDB database
+(DISSOLVE_DUCKDB_MEMORY_LIMIT, cap_duckdb) and at most _OPEN_CHATS chats held in memory (Sessions).
 """
 
 from __future__ import annotations
@@ -48,12 +50,14 @@ import queue
 import re
 import secrets
 import shutil
+import tempfile
 import threading
 import time
 import uuid
+from contextlib import contextmanager, nullcontext
 from functools import lru_cache
 from pathlib import Path
-from typing import Any, Iterator, Optional
+from typing import Any, Callable, ContextManager, Iterator, Optional
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response, StreamingResponse
@@ -100,6 +104,11 @@ class Credentials(BaseModel):
 
 COOKIE = "dissolve_login"
 _ATTEMPTS, _ATTEMPT_WINDOW_S = 10, 600.0  # failed sign-ins per address and username before a pause
+_OPEN_CHATS = 24  # chats held in memory; past it the least recently used idle one leaves (Sessions._make_room)
+_IN_FLIGHT_PER_PLACE = 4  # answers in progress in any state (running, waiting for a place or a TEA panel) per place
+_MAX_BODY = 2 * 2**20  # bytes in one request; a body is read whole into memory
+_HELD_S = 60.0  # a chat used this recently stays in memory whatever the count
+_KEPT_RESULTS = 32  # finished TEA tables kept for chats that left memory
 
 
 def _options(rows: list[tuple[Any, str]]) -> list[dict[str, str]]:
@@ -182,6 +191,7 @@ class Sessions:
         self.locks: dict[str, threading.Lock] = {}
         self.panels: dict[str, web_tea.Panel] = {}
         self.owners: dict[str, str] = {}
+        self.used: dict[str, float] = {}  # least recently used first
         self.guard = threading.Lock()
 
     def root(self) -> Path:
@@ -196,6 +206,8 @@ class Sessions:
             if session_id in self.apps:
                 if self.db is not None and self.owners[session_id] != owner:
                     raise HTTPException(404, "no such session")
+                self.used.pop(session_id, None)
+                self.used[session_id] = time.monotonic()
                 return self.apps[session_id], self.locks[session_id]
             store = None
             if self.db is not None:
@@ -205,6 +217,7 @@ class Sessions:
                 store = web_accounts.DbStore(self.db, session_id, owner)
             elif not create and not (self.root() / session_id / "session.json").is_file():
                 raise HTTPException(404, "no such session")
+            self._make_room()
             console = Console(file=io.StringIO(), width=100, color_system=None, highlight=False, soft_wrap=True)
             try:
                 self.apps[session_id] = cli.CliApp(
@@ -214,9 +227,39 @@ class Sessions:
             except ValueError as error:
                 raise HTTPException(400, str(error)) from error
             self.locks[session_id] = threading.Lock()
-            self.panels[session_id] = web_tea.Panel()
+            self.panels.setdefault(session_id, web_tea.Panel())
             self.owners[session_id] = owner
+            self.used[session_id] = time.monotonic()
             return self.apps[session_id], self.locks[session_id]
+
+    def _make_room(self) -> None:
+        """Chats past _OPEN_CHATS leave memory, least recently used first (called with the guard held). Each CliApp
+        holds every message and result of its chat, and one per chat opened since the server started grew without
+        bound. A chat with an answer running, a TEA panel waiting or running, or use in the last _HELD_S stays. One that
+        left is read back from its store when it is opened again; its finished TEA table stays for the last
+        _KEPT_RESULTS such chats."""
+        now = time.monotonic()
+        for session_id, used in list(self.used.items()):
+            if len(self.apps) < _OPEN_CHATS or now - used < _HELD_S:
+                break
+            lock = self.locks[session_id]
+            if not lock.acquire(blocking=False):
+                continue
+            try:
+                panel = self.panels.get(session_id)
+                if panel is not None and (panel.sheet is not None or panel.progress is not None):
+                    continue
+                for table in (self.apps, self.locks, self.owners, self.used):
+                    table.pop(session_id, None)
+                if panel is not None:
+                    self.panels.pop(session_id)
+                    if panel.result is not None:
+                        self.panels[session_id] = panel  # the newest of the kept tables
+            finally:
+                lock.release()
+        left = [session_id for session_id in self.panels if session_id not in self.apps]
+        for session_id in left[:max(0, len(left) - _KEPT_RESULTS)]:
+            del self.panels[session_id]
 
     def delete(self, session_id: str, *, user: str | None = None) -> None:
         """Remove a chat: its database rows, or its folder when there is no database. A chat another account owns is
@@ -239,7 +282,7 @@ class Sessions:
                     if not (folder / "session.json").is_file():
                         raise HTTPException(404, "no such session")
                     shutil.rmtree(folder)
-                for table in (self.apps, self.locks, self.panels, self.owners):
+                for table in (self.apps, self.locks, self.panels, self.owners, self.used):
                     table.pop(session_id, None)
             finally:
                 if lock is not None:
@@ -262,6 +305,93 @@ class Sessions:
             })
         rows.sort(key=lambda row: str(row["updated_at"] or ""), reverse=True)
         return rows[:limit]
+
+
+class TurnSlots:
+    """At most `limit` answers run at once (DISSOLVE_MAX_TURNS; 0 is no limit), so answers that a burst of people start
+    together cannot outgrow the host; the rest wait for a place, and their stream says so every KEEPALIVE_SECONDS. A
+    TEA panel gives its place back while it waits for the person and while its plants run (web_tea.Turn.idle): the
+    TEA worker holds that memory, under its own limit."""
+
+    def __init__(self, limit: int):
+        self.places = threading.BoundedSemaphore(limit) if limit > 0 else None
+        self.most = limit * _IN_FLIGHT_PER_PLACE  # answers in progress at all, each holding its chat in memory
+        self.in_flight = 0
+        self.guard = threading.Lock()
+
+    def enter(self) -> bool:
+        """Count an answer in; False when _IN_FLIGHT_PER_PLACE answers per place are already in progress."""
+        with self.guard:
+            if self.places is not None and self.in_flight >= self.most:
+                return False
+            self.in_flight += 1
+            return True
+
+    def leave(self) -> None:
+        with self.guard:
+            self.in_flight -= 1
+
+    def take(self, send: Callable[[dict[str, Any]], None]) -> None:
+        if self.places is None or self.places.acquire(blocking=False):
+            return
+        send({"event": "turn.queued"})
+        self.places.acquire()
+
+    def give(self) -> None:
+        if self.places is not None:
+            self.places.release()
+
+    @contextmanager
+    def idle(self, send: Callable[[dict[str, Any]], None]) -> Iterator[None]:
+        self.give()
+        try:
+            yield
+        finally:
+            self.take(send)
+
+
+def cap_duckdb(limit: str) -> None:
+    """Every DuckDB database this process opens gets `limit` (DISSOLVE_DUCKDB_MEMORY_LIMIT, e.g. 256MB), one thread,
+    and a temporary directory it can spill to. By default DuckDB lets one database take 80 % of the host's memory and
+    a thread per host CPU, and the hosted site budgets its 2 GB. Every connect call in the package goes through
+    duckdb.connect, so every connection to a file shares one configuration, as DuckDB requires."""
+    import duckdb
+
+    original = getattr(duckdb.connect, "__wrapped__", duckdb.connect)
+    caps = {"memory_limit": limit, "threads": 1, "temp_directory": str(Path(tempfile.gettempdir()) / "dissolve-duckdb")}
+
+    def connect(database: Any = ":memory:", read_only: bool = False, config: Any = None, **kwargs: Any) -> Any:
+        return original(database, read_only=read_only, config={**(config or {}), **caps}, **kwargs)
+
+    connect.__wrapped__ = original  # type: ignore[attr-defined]
+    duckdb.connect = connect
+
+
+class BodyLimit:
+    """Requests with a body past `limit` bytes are refused (413) before they are read: the app reads a body whole into
+    memory, and nothing else bounded its size."""
+
+    def __init__(self, app: Any, limit: int):
+        self.app, self.limit = app, limit
+
+    async def __call__(self, scope: dict[str, Any], receive: Any, send: Any) -> None:
+        if scope["type"] != "http":
+            return await self.app(scope, receive, send)
+        detail = f"A request can carry at most {self.limit // 2**20} MB."
+        declared = dict(scope.get("headers") or []).get(b"content-length", b"")
+        if declared.isdigit() and int(declared) > self.limit:
+            return await JSONResponse({"detail": detail}, status_code=413)(scope, receive, send)
+        seen = 0
+
+        async def counted() -> dict[str, Any]:  # a body sent in chunks, without a length
+            nonlocal seen
+            message = await receive()
+            seen += len(message.get("body", b"")) if message["type"] == "http.request" else 0
+            if seen > self.limit:
+                raise HTTPException(413, detail)  # FastAPI answers any other error while reading a body with a 400
+            return message
+
+        await self.app(scope, counted, send)
 
 
 def _events(app: cli.CliApp) -> list[dict[str, Any]]:
@@ -300,7 +430,7 @@ def transcript(app: cli.CliApp) -> list[dict[str, Any]]:
 
 
 def _run(app: cli.CliApp, text: str, events: "queue.Queue[dict[str, Any] | None]", offered: dict[str, bool],
-         panel: web_tea.Panel | None = None) -> None:
+         panel: web_tea.Panel | None = None, idle: Callable[[], ContextManager[None]] | None = None) -> None:
     started = time.monotonic()
     events.put({"event": "turn.started", "session_id": app.store.session_id, "text": text})
     try:
@@ -338,7 +468,8 @@ def _run(app: cli.CliApp, text: str, events: "queue.Queue[dict[str, Any] | None]
         original = app._print_tool_event
         app.event_sink = sink
         app._print_tool_event = on_tool  # the CLI's own recorder, then the stream
-        turn = web_tea.TURN.set(web_tea.Turn(panel, app, events.put) if panel is not None and offered["tea"] else None)
+        turn = web_tea.TURN.set(web_tea.Turn(panel, app, events.put, idle=idle or nullcontext)
+                                if panel is not None and offered["tea"] else None)
         try:
             app.ask(text)
         finally:
@@ -356,7 +487,7 @@ def _run(app: cli.CliApp, text: str, events: "queue.Queue[dict[str, Any] | None]
 _DRAWING_SIZES = {"small": (180, 120), "large": (640, 440)}  # a table thumbnail; the view a click opens
 
 
-@lru_cache(maxsize=4096)
+@lru_cache(maxsize=1024)  # at most about 30 MB: a drawing is 2 to 28 kB
 def depict(smiles: str, size: str = "large") -> str | None:
     """An RDKit drawing of a molecule as SVG, on a white card that reads in either theme; None when RDKit cannot read
     the SMILES. Each size is drawn for itself: one drawing shrunk into a table cell left its bonds hair-thin."""
@@ -392,6 +523,7 @@ def _basic(request: Request) -> tuple[str, str] | None:
 
 def create_app(home: str | Path | None = None) -> FastAPI:
     api = FastAPI(title="DISSOLVE", version=RELEASE, docs_url="/api/docs", openapi_url="/api/openapi.json")
+    api.add_middleware(BodyLimit, limit=_MAX_BODY)
     database = os.getenv("DATABASE_URL", "").strip()
     db = web_accounts.Database(database) if database else None
     accounts = web_accounts.Accounts(db) if db is not None else None
@@ -399,7 +531,11 @@ def create_app(home: str | Path | None = None) -> FastAPI:
     doctor_cache: dict[str, Any] = {}
     family_cache: dict[str, Any] = {}
     failures: dict[tuple[str, str], list[float]] = {}
+    api.state.failures = failures
     offered = features()
+    slots = api.state.slots = TurnSlots(int(os.getenv("DISSOLVE_MAX_TURNS") or 0))
+    if limit := os.getenv("DISSOLVE_DUCKDB_MEMORY_LIMIT", "").strip():
+        cap_duckdb(limit)
     signup_code = os.getenv("DISSOLVE_SIGNUP_CODE", os.getenv("DISSOLVE_WEB_PASSWORD", ""))
     admin_key = web_admin.admin_token() if accounts is not None else None
     admin = web_admin.AdminView(db, sessions) if admin_key else None
@@ -441,7 +577,11 @@ def create_app(home: str | Path | None = None) -> FastAPI:
 
     def throttled(request: Request, username: str) -> tuple[str, str]:
         key = (request.client.host if request.client else "", username.strip().casefold())
-        recent = [t for t in failures.get(key, []) if time.monotonic() - t < _ATTEMPT_WINDOW_S]
+        now = time.monotonic()
+        if len(failures) > 1000:  # every username tried leaves a key; the ones without a recent failure go
+            for stale in [k for k, times in failures.items() if not times or now - times[-1] >= _ATTEMPT_WINDOW_S]:
+                del failures[stale]
+        recent = [t for t in failures.get(key, []) if now - t < _ATTEMPT_WINDOW_S]
         failures[key] = recent
         if len(recent) >= _ATTEMPTS:
             raise HTTPException(429, "Too many attempts. Wait a few minutes and try again.")
@@ -570,6 +710,10 @@ def create_app(home: str | Path | None = None) -> FastAPI:
         app, lock = sessions.open(session_id, user=user_of(request))
         if not lock.acquire(blocking=False):
             raise HTTPException(409, "a turn is already running in this session")
+        if not slots.enter():
+            lock.release()
+            raise HTTPException(503, "DISSOLVE is answering as many questions as it can hold right now. Try again in a "
+                                     "minute.")
         events: queue.Queue[dict[str, Any] | None] = queue.Queue()
 
         panel = sessions.panels.get(session_id)
@@ -578,14 +722,28 @@ def create_app(home: str | Path | None = None) -> FastAPI:
 
         def work() -> None:
             try:
-                _run(app, text, sink, offered, panel)
+                slots.take(sink.put)
+                try:
+                    _run(app, text, sink, offered, panel, lambda: slots.idle(sink.put))
+                finally:
+                    slots.give()
             finally:
+                slots.leave()
                 lock.release()
 
         threading.Thread(target=work, daemon=True, name=f"dissolve-turn-{session_id}").start()
 
         def stream() -> Iterator[str]:
-            while (event := events.get()) is not None:
+            """The turn's events. A quiet stream (a long tool, a place or the TEA worker still busy) carries a
+            keepalive every KEEPALIVE_SECONDS, which the browser ignores, so no proxy closes it as idle."""
+            while True:
+                try:
+                    event = events.get(timeout=web_tea.KEEPALIVE_SECONDS)
+                except queue.Empty:
+                    yield '{"event": "keepalive"}\n'
+                    continue
+                if event is None:
+                    return
                 yield json.dumps(event, ensure_ascii=False, default=str) + "\n"
 
         return StreamingResponse(stream(), media_type="application/x-ndjson")
