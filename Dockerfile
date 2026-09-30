@@ -2,8 +2,8 @@
 # (2026-09-29) is that it stays under 2 GB in any scenario; the budget is measured and enforced as follows.
 # - Literature search serves BGE hybrid with the pinned int8 ONNX query encoder, and the image has no torch, so no code
 #   path can load one.
-# - One live TEA worker runs at a time, under a kernel memory limit, and dies with its caller
-#   (deploy/tea-python-guarded).
+# - One live TEA worker runs at a time, under a kernel memory limit, and dies with its caller. It is stopped past its
+#   own limit or when the container runs low (deploy/tea-python-guarded).
 # - At most DISSOLVE_MAX_TURNS answers run at once (a TEA panel frees its answer's place while it waits or runs), at
 #   most four times that many are in progress at all, and a request carries at most 2 MB (web.py).
 # - Each DuckDB database is capped (DISSOLVE_DUCKDB_MEMORY_LIMIT), and chats left idle leave memory.
@@ -60,10 +60,12 @@ RUN chmod 755 /usr/local/bin/tea-python-guarded && mkdir -p /opt/tea-cache && ch
 # One thread for every numerical library: the container sees every host CPU, and a dozen threads under a one-CPU quota
 # took a search from 0.26 s to 1.5 s. Two malloc arenas keep threads from each holding memory of their own.
 # numba compiles for a generic x86-64 CPU. It keys its cache on the CPU, and the machine that builds the image
-# (icelake-server) is not the one the site runs on (skylake-avx512, 2026-09-30). With that key, every live run on the
-# site recompiled BioSTEAM's numba code, took 60 s and passed 1,000 MB, so the guard stopped it.
+# (icelake-server) is not the one the site runs on (skylake-avx512, 2026-09-30).
+# The worker's limits are set for the hosted sandbox. There a worker holds about 1,050 MB, because the sandbox counts
+# about 300 MB of mapped libraries and data files as its memory (70 MB on a plain Linux host), so the stop is at
+# 1,300 MB. A worker also yields when the whole container has under 200 MB left, however the memory is split.
 ENV DISSOLVE_PLASTICS_PATH=/opt/plastics DISSOLVE_TEA_PYTHON=/usr/local/bin/tea-python-guarded \
-    DISSOLVE_TEA_MAX_MB=1000 DISSOLVE_TEA_MAX_DATA_MB=950 DISSOLVE_TEA_LOG=/proc/1/fd/1 \
+    DISSOLVE_TEA_MAX_MB=1300 DISSOLVE_TEA_MAX_DATA_MB=950 DISSOLVE_TEA_MIN_FREE_MB=200 DISSOLVE_TEA_LOG=/proc/1/fd/1 \
     NUMBA_CACHE_DIR=/opt/tea-cache/numba NUMBA_CPU_NAME=generic MPLCONFIGDIR=/opt/tea-cache/matplotlib \
     OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 NUMBA_NUM_THREADS=1 MALLOC_ARENA_MAX=2 PYTHONUNBUFFERED=1
 USER dissolve
