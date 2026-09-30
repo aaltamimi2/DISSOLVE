@@ -60,7 +60,8 @@ while :; do
   if [ "$rss" -gt $(( MAX_MB * 1024 )) ]; then
     kill -KILL "$child" 2>/dev/null
     wait "$child" 2>/dev/null
-    message="tea-python-guarded: the TEA worker passed $MAX_MB MB resident and was stopped"
+    message="tea-python-guarded: the TEA worker passed $MAX_MB MB resident after $(( SECONDS - waited )) s"
+    message="$message ($(( peak_data / 1024 )) MB data) and was stopped"
     echo "$message" >&2
     echo "$message" >> "$LOG" 2>/dev/null
     exit 137
