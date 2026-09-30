@@ -78,6 +78,7 @@ export type TeaSheet = {
   id: string;
   mode: "evaluate" | "sensitivity" | "route";
   opened?: "reference" | "previous"; // the TEA sheet button opened it, with the reference plant or the last run
+  solvent_exclusions?: Record<string, string[]>; // solvents live TEA cannot build with a polymer (PS: Styrene)
   title: string;
   groups: string[];
   fields: TeaField[];
