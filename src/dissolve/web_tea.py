@@ -16,9 +16,11 @@ WAIT_SECONDS, returns process_confirmation_aborted, as the CLI's sheet does; Sto
 
 from __future__ import annotations
 
+import functools
 import itertools
 import json
 import math
+import os
 import queue
 import threading
 import time
@@ -35,6 +37,18 @@ CONFIRM_ABOVE = 20  # the engine's own ceiling for one evaluate call; above it t
 WAIT_SECONDS = 1800.0  # an unanswered sheet ends as a cancel, and the chat's turn with it
 KEEPALIVE_SECONDS = 25.0  # a quiet stream is closed by some proxies; the browser ignores tea.waiting
 PLANT_MODES = ("evaluate", "sensitivity", "route")
+
+
+def seconds_per_live_plant() -> float:
+    """What the panel expects one live plant to take: DISSOLVE_TEA_SECONDS_PER_PLANT where a host is slower than the
+    engine's own measure (the hosted site's sandbox takes about 65 s, a workstation 12 to 15)."""
+    raw = (os.getenv("DISSOLVE_TEA_SECONDS_PER_PLANT") or "").strip()
+    try:
+        return float(raw) if raw and float(raw) > 0 else float(tea._LIVE_TEA_SECONDS_PER_PAIR)
+    except ValueError:
+        return float(tea._LIVE_TEA_SECONDS_PER_PAIR)
+
+
 REFERENCE_PLANT = "ldpe-route-c1"  # what the TEA sheet button opens with in a chat that has run no plant
 _ENGINE = threading.Lock()  # one panel's plant at a time: the TEA worker runs one at a time anyway, and a plant waiting
                             # here holds no process
@@ -238,16 +252,43 @@ def _admitted_price(solvent: Any) -> float | None:
         return None
 
 
+# Priced solvents the live process model cannot model: each failed as priced_solvent_unmodellable when run live at
+# the panel's defaults (the reference plant with only the polymer, solvent and price changed), 2026-09-30. Every
+# solvent the panel lists ran live there with LDPE, and every polymer with dodecane.
+UNMODELLABLE_SOLVENTS = frozenset({"Ethylene Dichloride", "Hexamethylphosphoramide", "N-Methyl-2-Pyrrolidone (NMP)",
+                                   "Tetrahydropyran"})
+
+
+def _engine_solvent(row: Mapping[str, Any]) -> str | None:
+    """A priced solvent under the name the engine resolves it to, or None. The table's own key is not always a name
+    the engine takes: acetic_acid, Carbon_disulfide and others were unknown solvents to it."""
+    names = [str(name) for name in (row.get("name_biosteam"), row.get("name_cosmobase")) if name]
+    for name in names + [name.replace("_", " ") for name in names]:
+        try:
+            return str(tea._resolve_tea_solvent(name)["canonical"])
+        except Exception:  # noqa: BLE001 - an unresolved spelling; try the next
+            continue
+    return None
+
+
+@functools.lru_cache(maxsize=1)
 def _catalog() -> dict[str, Any]:
-    """The polymers live TEA admits and the solvents with an admitted price, for the panel's suggestions."""
+    """The panel's dropdowns: the polymers live TEA admits, and the solvents it can cost. Those are the priced ones,
+    under the names the engine resolves, with governed LCA factors (without them no live run can finish:
+    triethylamine and acetaldehyde), less those the live process model cannot model (UNMODELLABLE_SOLVENTS)."""
     polymers = sorted(name for name, row in tea_polymer_parameters.POLYMERS.items()
                       if row.admission == tea_polymer_parameters.ADMISSION_LIVE)
-    solvents = []
+    solvents: dict[str, dict[str, Any]] = {}
     for row in (tea.cache_payload().get("solvent_assumptions") or {}).get("records") or []:
-        name = row.get("name_biosteam") or row.get("name_cosmobase")
-        if name and row.get("price_usd_per_kg") is not None:
-            solvents.append({"name": str(name), "price_usd_per_kg": float(row["price_usd_per_kg"])})
-    return {"polymers": polymers, "solvents": sorted(solvents, key=lambda row: row["name"].casefold())}
+        name = _engine_solvent(row) if row.get("price_usd_per_kg") is not None else None
+        if not name or name in UNMODELLABLE_SOLVENTS or name.casefold() in solvents:
+            continue
+        try:
+            tea._default_live_lca_cfs({"solvent": name, "energy_case": "C1", "target_plastic": "LDPE"})
+        except Exception:  # noqa: BLE001 - no governed LCA factors for this solvent
+            continue
+        solvents[name.casefold()] = {"name": name, "price_usd_per_kg": float(row["price_usd_per_kg"])}
+    return {"polymers": polymers, "solvents": sorted(solvents.values(), key=lambda row: row["name"].casefold())}
 
 
 def _seed(base: Mapping[str, Any], origin: Mapping[str, str], previous: Mapping[str, Any]) -> tuple[dict, dict]:
@@ -439,7 +480,7 @@ def build_sheet(mode: str, kwargs: Mapping[str, Any], previous: Mapping[str, Any
         raise PassThrough from error
     sheet.update(_catalog())
     sheet["limits"] = {"max_plants": MAX_PLANTS, "confirm_above": CONFIRM_ABOVE,
-                       "seconds_per_live_plant": round(tea._LIVE_TEA_SECONDS_PER_PAIR, 2)}
+                       "seconds_per_live_plant": round(seconds_per_live_plant(), 2)}
     sheet["expires_at"] = time.time() + WAIT_SECONDS
     return sheet
 
@@ -581,7 +622,7 @@ def check(sheet: Mapping[str, Any], plants: list[tuple[str, dict]], kwargs: Mapp
                 stored += 1
     return {
         "plants": len(plants), "stored": stored, "live": live,
-        "seconds": round(live * tea._LIVE_TEA_SECONDS_PER_PAIR),
+        "seconds": round(live * seconds_per_live_plant()),
         "invalid": invalid[:25], "invalid_count": len(invalid),
         "confirm": len(plants) > CONFIRM_ABOVE, "runnable": bool(plants) and not invalid,
         "admitted_price": _admitted_price(plants[0][1].get("solvent")) if plants else None,
