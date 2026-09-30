@@ -2310,6 +2310,55 @@ def _three(*, abstract=False, ids=None, titles=None, texts=None):
     return chunks
 
 
+def _onnx_host(monkeypatch, tmp_path, model_bytes: bytes = b"stand-in int8 model"):
+    """A host that names an int8 ONNX query encoder: the model file, its pinned hash and a stand-in tokenizer."""
+    model = tmp_path / "bge-base.int8.onnx"
+    model.write_bytes(model_bytes)
+    monkeypatch.setattr(research, "BGE_ONNX_INT8_SHA256", hashlib.sha256(b"stand-in int8 model").hexdigest())
+    monkeypatch.setenv("DISSOLVE_BGE_ONNX_INT8", str(model))
+    tokenizer = tmp_path / "tokenizer.json"
+    tokenizer.write_text("{}", encoding="utf-8")
+    hub = SimpleNamespace(hf_hub_download=lambda *args, **kwargs: str(tokenizer))
+    real_import = research.importlib.import_module
+    monkeypatch.setattr(research.importlib, "import_module",
+                        lambda name, *args, **kwargs: hub if name == "huggingface_hub" else real_import(name, *args, **kwargs))
+    return model
+
+
+def test_a_host_without_torch_encodes_queries_with_the_pinned_int8_model(monkeypatch, tmp_path):
+    """The hosted site serves search without torch (owner, 2026-09-29, to fit live TEA under 2 GB): the pinned int8
+    ONNX export of the query encoder, hash-checked and held once. The chunk vectors stay the full-precision ones, and
+    every search names the query encoder that served."""
+    _onnx_host(monkeypatch, tmp_path)
+    built, encoded = [], []
+
+    class Encoder:
+        def __init__(self, model_path, tokenizer_path):
+            built.append((model_path.name, tokenizer_path.name))
+
+        def encode(self, texts):
+            encoded.append(list(texts))
+            return [[0.0, 1.0] + [0.0] * (research._BGE_DIM - 2)]
+
+    monkeypatch.setattr(research, "_OnnxQueryEncoder", Encoder)
+    monkeypatch.setattr(research, "_dense_vectors",
+                        lambda *args, **kwargs: (_ for _ in ()).throw(AssertionError("the torch encoder was used")))
+    chunks = _three()
+    index = _index_bge_fusion(chunks)
+    index["dense"]["vectors"] = [[1.0 if i == axis else 0.0 for i in range(research._BGE_DIM)] for axis in range(3)]
+    assert research._dense_query_scores(index, chunks, "polystyrene") == [0.0, 1.0, 0.0]
+    research._dense_query_scores(index, chunks, "polypropylene")
+    assert built == [("bge-base.int8.onnx", "tokenizer.json")]
+    assert encoded[0][0] == research._BGE_QUERY_INSTRUCTION + "polystyrene"
+    assert research.query_encoder_label() == "BAAI/bge-base-en-v1.5 int8 (ONNX)"
+
+
+def test_an_int8_model_that_is_not_the_pinned_one_is_refused(monkeypatch, tmp_path):
+    _onnx_host(monkeypatch, tmp_path, model_bytes=b"some other model")
+    with pytest.raises(RuntimeError, match="bge_onnx_model_mismatch"):
+        research._onnx_query_encoder()
+
+
 class TestBgeFusion:
     """Synthetic BGE10 fusion and public retrieval-diagnostic tests. No real corpus."""
 

@@ -4326,6 +4326,67 @@ def _held_encoder(library: Any, selected: str) -> Any:
         return model
 
 
+#: The query encoder a host without torch uses: the pinned BGE revision's own ONNX export (onnx/model.onnx), its
+#: weights quantized to int8 by onnxruntime 1.23.2 quantize_dynamic(QInt8), which gives identical bytes on every run.
+#: DISSOLVE_BGE_ONNX_INT8 names that file; it is hash-checked before first use and refused if it differs. Only the
+#: query is encoded this way; the served chunk vectors stay the full-precision ones, the pair recall was measured on.
+_ENV_BGE_ONNX_INT8 = "DISSOLVE_BGE_ONNX_INT8"
+BGE_ONNX_FP32_SHA256 = "9bc579acdba21c253c62a9bf866891355a63ffa3442b52c8a37d75b2ccb91848"
+BGE_ONNX_INT8_SHA256 = "520f3e21f4be0c8683013523608b22396648827e5d3e7b721149c9fdb8d8068d"
+_BGE_ONNX_MAX_TOKENS = 512
+
+
+class _OnnxQueryEncoder:
+    """BGE-base as its own pipeline runs it (modules.json, 1_Pooling): its tokenizer truncating at 512 tokens, the CLS
+    token of the last hidden state, then L2 normalization, on ONNX Runtime with no torch."""
+
+    def __init__(self, model_path: Path, tokenizer_path: Path):
+        onnxruntime = importlib.import_module("onnxruntime")
+        tokenizers = importlib.import_module("tokenizers")
+        options = onnxruntime.SessionOptions()
+        options.intra_op_num_threads = int(os.getenv("OMP_NUM_THREADS") or 0)
+        options.inter_op_num_threads = 1
+        self.session = onnxruntime.InferenceSession(str(model_path), options, providers=["CPUExecutionProvider"])
+        self.inputs = {item.name for item in self.session.get_inputs()}
+        self.tokenizer = tokenizers.Tokenizer.from_file(str(tokenizer_path))
+        self.tokenizer.enable_truncation(_BGE_ONNX_MAX_TOKENS)
+        self.tokenizer.enable_padding()
+
+    def encode(self, texts: list[str]) -> list[list[float]]:
+        import numpy
+        batch = self.tokenizer.encode_batch(list(texts))
+        feed = {"input_ids": numpy.array([item.ids for item in batch], dtype=numpy.int64),
+                "attention_mask": numpy.array([item.attention_mask for item in batch], dtype=numpy.int64)}
+        if "token_type_ids" in self.inputs:
+            feed["token_type_ids"] = numpy.array([item.type_ids for item in batch], dtype=numpy.int64)
+        cls = self.session.run(None, feed)[0][:, 0]
+        return (cls / numpy.linalg.norm(cls, axis=1, keepdims=True)).tolist()
+
+
+def _onnx_query_encoder() -> _OnnxQueryEncoder | None:
+    """The int8 ONNX query encoder when DISSOLVE_BGE_ONNX_INT8 names it, held once per process; None when unset."""
+    raw = (os.getenv(_ENV_BGE_ONNX_INT8) or "").strip()
+    if not raw:
+        return None
+    model_path = Path(raw).expanduser()
+    with _ENCODERS_LOCK:
+        held = _ENCODERS.get(("onnx-int8", str(model_path)))
+        if held is not None:
+            return held[1]
+        if not model_path.is_file() or _hash_pair_file(model_path) != BGE_ONNX_INT8_SHA256:
+            raise RuntimeError("bge_onnx_model_mismatch")
+        hub = importlib.import_module("huggingface_hub")
+        tokenizer = Path(hub.hf_hub_download(_BGE_MODEL_ID, "tokenizer.json", revision=_BGE_ENCODER_REVISION))
+        encoder = _OnnxQueryEncoder(model_path, tokenizer)
+        _ENCODERS[("onnx-int8", str(model_path))] = (None, encoder)
+        return encoder
+
+
+def query_encoder_label() -> str:
+    """Which encoder turns a query into its vector on this deployment, as a search result names it."""
+    return "BAAI/bge-base-en-v1.5 int8 (ONNX)" if (os.getenv(_ENV_BGE_ONNX_INT8) or "").strip() else _BGE_MODEL_ID
+
+
 def _dense_vectors(texts: list[str], model_name: str | None = None) -> tuple[str, list[list[float]]]:
     try:
         library = importlib.import_module("sentence_transformers")
@@ -4769,7 +4830,12 @@ def _dense_query_scores(index: Mapping[str, Any], chunks: Sequence[Mapping[str, 
     ordered = [by_id[chunk_id] for chunk_id in store_ids]
     expected_model = dense.get("model")
     query_text = str(dense.get("query_instruction") or "") + query
-    loaded_model, query_vectors = _dense_vectors([query_text], expected_model)
+    onnx = _onnx_query_encoder() if expected_model == _BGE_MODEL_ID else None
+    if onnx is not None:
+        loaded_model = _BGE_MODEL_ID
+        query_vectors = [[round(float(value), 8) for value in row] for row in onnx.encode([query_text])]
+    else:
+        loaded_model, query_vectors = _dense_vectors([query_text], expected_model)
     if expected_model and loaded_model != expected_model:
         raise ValueError("dense_index_unavailable")
     query_vector = query_vectors[0]
@@ -5047,6 +5113,7 @@ def search_literature_corpus(
         refuse_rule=_REFUSE_RULE_SPARSE_GATED,
         hybrid_weights={"dense": _HYBRID_DENSE_WEIGHT, "sparse": _HYBRID_SPARSE_WEIGHT},
         pair_reranker=PAIR_RERANKER_ID if rerank_mode == PAIR_RERANK_MODE else None,
+        query_encoder=query_encoder_label() if mode != "sparse" else None,
         result_count=len(rows), results=rows, top_score=top_score,
         coverage_star=round(coverage_star(index, query), 6),
         floor=served_floor,
