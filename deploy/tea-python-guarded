@@ -6,7 +6,11 @@
 #   quick checks import no BioSTEAM and have short timeouts, so they never wait: the version probe (python -c <probe>)
 #   and the handshake, which sends a plastic the worker refuses before it loads anything.
 # - The worker's anonymous memory has a kernel limit (DISSOLVE_TEA_MAX_DATA_MB, prlimit --data): an allocation past it
-#   fails inside the worker. A worker whose resident memory still passes DISSOLVE_TEA_MAX_MB is stopped.
+#   fails inside the worker. A worker whose resident memory still passes DISSOLVE_TEA_MAX_MB is stopped, and so is one
+#   running while the whole container has less than DISSOLVE_TEA_MIN_FREE_MB left: TEA yields to the site, however
+#   the memory is split between them. The container's free memory is its cgroup's limit less its anonymous and kernel
+#   memory, or, where there is no cgroup file (the hosted site's sandbox), MemAvailable, which the sandbox reports for
+#   itself.
 # - The worker dies with this script (tea.py kills the script when a run times out), and it is the process the kernel
 #   picks first if the container ever runs short of memory.
 #
@@ -16,6 +20,7 @@ set -u
 REAL=${DISSOLVE_TEA_REAL_PYTHON:-/opt/tea/bin/python}
 MAX_MB=${DISSOLVE_TEA_MAX_MB:-950}
 DATA_MB=${DISSOLVE_TEA_MAX_DATA_MB:-0}
+MIN_FREE_MB=${DISSOLVE_TEA_MIN_FREE_MB:-0}
 LOG=${DISSOLVE_TEA_LOG:-/dev/null}
 LOCK=${DISSOLVE_TEA_LOCK:-/tmp/dissolve-tea-worker.lock}
 
@@ -37,6 +42,21 @@ fi
 setpriv --pdeathsig KILL -- "${limits[@]}" "$REAL" "$@" 9>&- &
 child=$!
 exec 8<> <(:)  # an idle pipe: read -t on it sleeps without starting a process
+read_free() {  # sets free: what the container can still use, in MB, without starting a process
+  local key value _ limit=0 used=0
+  free=1000000
+  if [ -r /sys/fs/cgroup/memory.max ] && read -r limit < /sys/fs/cgroup/memory.max && [ "$limit" != max ]; then
+    while read -r key value _; do
+      case $key in anon | kernel | shmem) used=$(( used + value )) ;; esac
+    done < /sys/fs/cgroup/memory.stat
+    free=$(( (limit - used) / 1048576 ))
+  else
+    while IFS=$' \t:' read -r key value _; do
+      [ "$key" = MemAvailable ] && { free=$(( value / 1024 )); return; }
+    done < /proc/meminfo
+  fi
+}
+least_free=1000000
 peak=0
 peak_anon=0
 peak_data=0
@@ -57,6 +77,17 @@ while :; do
   [ "$rss" -gt "$peak" ] && peak=$rss
   [ "$anon" -gt "$peak_anon" ] && peak_anon=$anon
   [ "$data" -gt "$peak_data" ] && peak_data=$data
+  read_free
+  [ "$free" -lt "$least_free" ] && least_free=$free
+  if [ "$worker" = 1 ] && [ "$MIN_FREE_MB" -gt 0 ] && [ "$free" -lt "$MIN_FREE_MB" ]; then
+    kill -KILL "$child" 2>/dev/null
+    wait "$child" 2>/dev/null
+    message="tea-python-guarded: the container had $free MB left (under $MIN_FREE_MB) after $(( SECONDS - waited )) s,"
+    message="$message with the worker at $(( rss / 1024 )) MB, so the worker was stopped"
+    echo "$message" >&2
+    echo "$message" >> "$LOG" 2>/dev/null
+    exit 137
+  fi
   if [ "$rss" -gt $(( MAX_MB * 1024 )) ]; then
     kill -KILL "$child" 2>/dev/null
     wait "$child" 2>/dev/null
@@ -73,6 +104,7 @@ status=$?
 if [ "$worker" = 1 ]; then
   echo "tea-python-guarded: worker peak $(( peak / 1024 )) MB resident ($(( peak_anon / 1024 )) MB anonymous)," \
     "$(( peak_data / 1024 )) MB data," \
-    "$(( SECONDS - waited )) s, after $waited s waiting (exit $status)" >> "$LOG" 2>/dev/null
+    "$(( SECONDS - waited )) s, after $waited s waiting, container at least $least_free MB free (exit $status)" \
+    >> "$LOG" 2>/dev/null
 fi
 exit $status
