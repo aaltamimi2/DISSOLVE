@@ -129,7 +129,7 @@ def test_slash_commands_run_through_the_cli_handler(client, monkeypatch):
     assert "contaminant_mode=leaching" in events[1]["text"]
     assert events[1]["state"]["contaminant"] == "leaching"
     assert _stream(client, session_id, "/literature corpus")[1]["state"]["literature"] == "corpus"
-    assert "interactive CLI editor" in _stream(client, session_id, "/process")[1]["text"]
+    assert "has no effect in the web app" in _stream(client, session_id, "/harness")[1]["text"]  # CLI-only
     assert _stream(client, session_id, "/model nope")[1] == {"event": "error", "message": "Unknown model alias: nope"}
     assert client.get(f"/api/sessions/{session_id}").json()["contaminant"] == "leaching"  # the CLI's session file
     assert calls["n"] == 0
@@ -1061,3 +1061,56 @@ def test_sign_in_attempts_leave_no_key_behind_once_stale(serve, tmp_path, monkey
     for n in range(1200):
         assert site.post("/api/auth/login", json={"username": f"nobody{n}", "password": "wrong"}).status_code == 401
     assert len(site.app.state.failures) <= 1001
+
+
+# The TEA sheet button (/process): the panel without the model (owner, 2026-09-30: "so its easy to check defaults").
+
+def test_the_tea_sheet_button_opens_the_panel_without_the_model(client, monkeypatch):
+    """/process opens the TEA panel with the stored reference plant (LDPE in dodecane, C1) and every default, runs what
+    the person confirms, and issues the result into the chat as a run the model started would be. No model is asked."""
+    monkeypatch.setattr(agent, "complete", lambda *a, **k: (_ for _ in ()).throw(AssertionError("the model was asked")))
+    runs = _engine(monkeypatch)
+    session_id = client.post("/api/sessions", json={}).json()["session_id"]
+    seen = {}
+
+    def answer(http, sheet):
+        seen["sheet"] = sheet
+        ranges = {"processing_capacity_mt_per_yr": {"kind": "list", "values": [10000, 20000]}}
+        assert http.post(f"/api/sessions/{session_id}/tea-sheet", json={
+            "sheet_id": sheet["id"], "action": "run", "values": {"irr": 0.15}, "ranges": ranges}).json()["plants"] == 2
+
+    events = _tea_turn(client, session_id, "/process", answer)
+    sheet = seen["sheet"]
+    assert (sheet["values"]["target_polymer"], sheet["values"]["solvent"], sheet["values"]["energy_case"]) == (
+        "LDPE", "Dodecane", "C1")
+    assert sheet["origin"]["target_polymer"] == "reference" and sheet["origin"]["irr"] == "default"
+    assert sheet["opened"] == "reference"
+    assert len(sheet["fields"]) == 46
+    kinds = [event["event"] for event in events]
+    assert kinds[:2] == ["turn.started", "tea.sheet"] and "tea.result" in kinds
+    output = next(event for event in events if event["event"] == "command.output")
+    assert output["command"] == "/process" and output["text"].startswith("Ran 2 of 2 plants in the TEA panel")
+    assert [run["confirmation"] for run in runs] == ["confirmed_on_sheet"] * 2
+    assert {run["call"]["process_config"]["irr"] for run in runs} == {0.15}
+    handles = client.app.state.sessions.apps[session_id].session["handles"]
+    assert len(handles) == 1 and next(iter(handles.values()))["tool"] == "evaluate_process"
+
+    def check(http, sheet):  # a second open starts from the plant the person last ran here
+        seen["again"] = sheet
+        http.post(f"/api/sessions/{session_id}/tea-sheet", json={"sheet_id": sheet["id"], "action": "cancel"})
+
+    events = _tea_turn(client, session_id, "/process", check)
+    assert seen["again"]["values"]["irr"] == 0.15 and seen["again"]["origin"]["irr"] == "previous"
+    assert seen["again"]["origin"]["target_polymer"] == "previous" and seen["again"]["opened"] == "previous"
+    closed = next(event for event in events if event["event"] == "command.output")
+    assert closed["text"] == "Closed the TEA panel without running a plant." and len(runs) == 2
+
+
+def test_the_tea_sheet_button_is_offered_only_where_tea_runs(serve):
+    """A host with TEA switched off offers no /process, and says why if someone types it."""
+    http = serve(DISSOLVE_WEB_DISABLE="tea")
+    assert "/process" not in {row["command"] for row in http.get("/api/commands").json()}
+    session_id = http.post("/api/sessions", json={}).json()["session_id"]
+    events = _stream(http, session_id, "/process")
+    assert [event["event"] for event in events] == ["turn.started", "command.output"]
+    assert "switches off" in events[-1]["text"]
