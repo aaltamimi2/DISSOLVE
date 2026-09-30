@@ -29,6 +29,12 @@ services:
       - key: DISSOLVE_ADMIN_TOKEN
         type: SECRET
         scope: RUN_TIME
+      # Live TEA's plastics model is fetched at build time from the owner's private repository aaltamimi2/plastics-core
+      # (deploy/fetch_plastics.py), with a read-only token for that repository alone. Only the build's first stage
+      # sees it; the running app never does.
+      - key: PLASTICS_TOKEN
+        type: SECRET
+        scope: BUILD_TIME
 databases:
   - name: db
     engine: PG
