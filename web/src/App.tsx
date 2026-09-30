@@ -407,6 +407,7 @@ function Workspace({ user, onSignOut }: { user: string | null; onSignOut?: () =>
             families={families}
             state={state ?? DEFAULTS}
             inputRef={composer}
+            onTeaSheet={features.tea ? () => void run("/process") : undefined}
           />
         </main>
         {tea && teaOpen && state && (
