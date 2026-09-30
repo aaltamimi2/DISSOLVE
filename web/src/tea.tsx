@@ -349,19 +349,23 @@ function FieldRow(props: {
         <span className={cx("mt-0.5 block font-headline text-[11px]", Math.abs(total - 1) > 1e-6 ? "text-bad" : "text-ink-2")}>Sum {fmt(total * 100, 4)} %</span>
       </span>
     );
-  } else {
+  } else if (props.suggestions) {
+    // Every polymer or solvent live TEA takes, always listed: a datalist showed only the entries matching what the
+    // field already held, so a sheet opened on LDPE in dodecane offered nothing else (owner, 2026-09-30).
+    const current = String(value ?? "");
+    const known = props.suggestions.find((name) => name.toLowerCase() === current.toLowerCase());
     input = (
-      <>
-        <input id={id} list={`${id}-list`} disabled={locked} value={String(value ?? "")} onChange={(e) => props.onValue(e.target.value)} className={inputClass} spellCheck={false} />
-        {props.suggestions && (
-          <datalist id={`${id}-list`}>
-            {props.suggestions.map((name) => (
-              <option key={name} value={name} />
-            ))}
-          </datalist>
-        )}
-      </>
+      <select id={id} disabled={locked} value={known ?? current} onChange={(e) => props.onValue(e.target.value)} className={inputClass}>
+        {!known && <option value={current}>{current || "Choose…"}</option>}
+        {props.suggestions.map((name) => (
+          <option key={name} value={name}>
+            {name.replace(/_/g, " ")}
+          </option>
+        ))}
+      </select>
     );
+  } else {
+    input = <input id={id} disabled={locked} value={String(value ?? "")} onChange={(e) => props.onValue(e.target.value)} className={inputClass} spellCheck={false} />;
   }
   const wide = field.kind === "list" || field.kind === "pair" || field.kind === "choice";
   return (

@@ -72,7 +72,10 @@ USER dissolve
 # Live TEA reproduces the stored results exactly in this image, and numba's cache is filled, so the site's first run
 # compiles nothing.
 RUN python /opt/check_live_tea.py
+# Every TEA number on the site is a live run, never a stored result (owner, 2026-09-30), and the panel's time estimate
+# is the site's: a live plant takes about 65 s in its sandbox.
 ENV HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 DISSOLVE_PAIR_RERANK=off \
-    DISSOLVE_BGE_ONNX_INT8=/opt/models/bge-base.int8.onnx DISSOLVE_MAX_TURNS=8 DISSOLVE_DUCKDB_MEMORY_LIMIT=256MB
+    DISSOLVE_BGE_ONNX_INT8=/opt/models/bge-base.int8.onnx DISSOLVE_MAX_TURNS=8 DISSOLVE_DUCKDB_MEMORY_LIMIT=256MB \
+    DISSOLVE_TEA_STORED_RESULTS=off DISSOLVE_TEA_SECONDS_PER_PLANT=65
 EXPOSE 8080
 CMD ["dissolve", "web", "--host", "0.0.0.0", "--port", "8080"]
