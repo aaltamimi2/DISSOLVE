@@ -4872,12 +4872,22 @@ def _requires_live_tea(function: Callable[..., str]) -> Callable[..., str]:
     return guarded
 
 
+_ENV_STORED_RESULTS = "DISSOLVE_TEA_STORED_RESULTS"
+
+
+def stored_results_off() -> bool:
+    """True where the deployment serves no stored TEA result (DISSOLVE_TEA_STORED_RESULTS=off; the hosted site, owner
+    2026-09-30: "nothing should be from cache for now, live tea runs"). Then every TEA number is a live run: auto runs
+    live even for a stored configuration, lookups refuse, and no route stage falls back to a screening estimate."""
+    return (os.getenv(_ENV_STORED_RESULTS) or "").strip().casefold() in {"off", "0", "false", "no"}
+
+
 def _would_start_live_child(config: dict[str, Any], engine_mode: str) -> bool:
     """Detect a live BioSTEAM child without starting it."""
     mode = str(engine_mode or "auto").strip().casefold()
     if mode == "live" or "lca_cfs" in config:
         return True
-    return mode == "auto" and _cache_index().get(_config_key(config)) is None
+    return mode == "auto" and (stored_results_off() or _cache_index().get(_config_key(config)) is None)
 
 
 def _unconfirmed_live_tea_error(
@@ -4922,7 +4932,10 @@ def _unconfirmed_live_tea_error(
 
 
 def _cached_result(config: dict[str, Any]) -> dict[str, Any] | None:
-    """The stored live result for exactly this configuration, or None (an lca_cfs override is never stored)."""
+    """The stored live result for exactly this configuration, or None (an lca_cfs override is never stored, and a
+    deployment with stored results off serves none)."""
+    if stored_results_off():
+        return None
     record = _cache_index().get(_config_key(config))
     if not record or "lca_cfs" in config:
         return None
@@ -6744,6 +6757,14 @@ def evaluate_process(
             screen_to_economics_order=order,
         )
     if token == "lookup":
+        if stored_results_off():
+            return tool_error(
+                tool,
+                "Stored TEA results are off on this deployment: every TEA number comes from a live run. Evaluate "
+                "the plant (mode evaluate, with confirm_live_tea) instead of looking up stored records.",
+                error_code="stored_results_off",
+                screen_to_economics_order=order,
+            )
         inapplicable_objects = [
             name for name, value in (
                 ("process_config", process_config),
@@ -10442,7 +10463,7 @@ def _candidate_tea_basis_gap(
                 "solvent_price_usd_per_kg": (
                     assumption.get("price_usd_per_kg") if assumption else None
                 ),
-                "exact_target_solvent_cache_record_available": bool(pair_record),
+                "exact_target_solvent_cache_record_available": bool(pair_record) and not stored_results_off(),
             }.items() if value is not None
         })
 
@@ -11790,6 +11811,7 @@ def evaluate_stored_route_tea_lca(
             if (
                 result.get("success") is not True
                 and allow_screening_estimate
+                and not stored_results_off()
                 and result.get("error_type") not in {
                     "invalid_engine_mode",
                     "no_finite_gwp",

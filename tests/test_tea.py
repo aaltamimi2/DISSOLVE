@@ -8955,3 +8955,66 @@ def test_the_prompt_does_not_invite_a_claim_that_live_tea_is_missing():
     prompt = " ".join(agent.SYSTEM_PROMPT.split())
     assert "It may not appear in this environment" not in prompt
     assert "Say live TEA is unavailable only when a TEA tool refused live_tea_unavailable." in prompt
+
+
+# Stored results off: the hosted site serves no stored TEA result (owner, 2026-09-30: "nothing should be from cache for
+# now, live tea runs"), so every TEA number is a live run.
+
+def _stored_plant() -> dict:
+    return copy.deepcopy(next(r for r in tea._records() if r["label"] == "ldpe-route-c1")["config"])
+
+
+def test_a_stored_plant_runs_live_where_stored_results_are_off(monkeypatch):
+    """auto serves the stored result for a configuration the cache holds; with DISSOLVE_TEA_STORED_RESULTS=off the
+    same call runs the live engine, and the panel's check counts it as a live plant."""
+    ran = []
+    monkeypatch.setattr(tea, "_live", lambda config, timeout_seconds: ran.append(config) or {
+        "success": False, "error_type": "timeout", "error": "the live TEA run produced no result"})
+    config = _stored_plant()
+    assert tea._run(config, "auto", 60)["engine_mode"] == "cache" and ran == []
+    assert tea._would_start_live_child(config, "auto") is False
+    monkeypatch.setenv("DISSOLVE_TEA_STORED_RESULTS", "off")
+    assert tea._run(config, "auto", 60)["engine_mode"] == "live" and len(ran) == 1
+    assert tea._would_start_live_child(config, "auto") is True
+    assert tea._cached_result(config) is None
+
+
+def test_lookups_refuse_where_stored_results_are_off(monkeypatch):
+    """A lookup reads stored records only; where they are off it refuses and names the live path instead."""
+    _forbid_live(monkeypatch)
+    assert _data(tea.evaluate_process(mode="lookup", lookup_filter={"target_polymer": "LDPE"})).get("success") is True
+    monkeypatch.setenv("DISSOLVE_TEA_STORED_RESULTS", "off")
+    data = _data(tea.evaluate_process(mode="lookup", lookup_filter={"target_polymer": "LDPE"}))
+    assert data["error_code"] == "stored_results_off" and "live run" in data["error"]
+
+
+def test_a_route_stage_that_fails_live_is_not_estimated_where_stored_results_are_off(monkeypatch):
+    """A route stage whose live run fails may fall back to a screening estimate built from stored plants; where stored
+    results are off it stays a failed stage."""
+    composition, route = _exact_planner_route()
+    _live_run_fails(monkeypatch)
+    called = {"n": 0}
+    real_estimate = tea._screening_estimate
+
+    def traced(config, result):
+        called["n"] += 1
+        return real_estimate(config, result)
+
+    monkeypatch.setattr(tea, "_screening_estimate", traced)
+
+    def cost():
+        session = new_session()
+        with bind_tool_session(session):
+            handle = _store_planner_route_handle(session, composition, route)
+            return _data(tea.evaluate_process(
+                mode="route", handle=handle, processing_capacity_mt_per_yr=_ROUTE_CAPACITY,
+                energy_case=_ROUTE_ENERGY, precipitation_temperature_c=_ROUTE_PRECIP, engine_mode="live",
+                confirm_live_tea=True, allow_screening_estimate=True,
+            ))
+
+    cost()
+    assert called["n"] >= 1  # stored results on: the failed stage is estimated
+    called["n"] = 0
+    monkeypatch.setenv("DISSOLVE_TEA_STORED_RESULTS", "off")
+    payload = cost()
+    assert called["n"] == 0 and payload.get("success") is not True
