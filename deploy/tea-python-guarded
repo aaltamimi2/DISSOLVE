@@ -1,0 +1,77 @@
+#!/bin/bash
+# DISSOLVE_TEA_PYTHON on the hosted image: the interpreter tea.py runs live TEA with, and the limits that keep the site
+# inside its 2 GB. A TEA run can fail; it cannot take the site down.
+#
+# - One worker at a time. A run of tea_worker.py takes a lock that concurrent chats and TEA panels queue on. tea.py's
+#   quick checks import no BioSTEAM and have short timeouts, so they never wait: the version probe (python -c <probe>)
+#   and the handshake, which sends a plastic the worker refuses before it loads anything.
+# - The worker's anonymous memory has a kernel limit (DISSOLVE_TEA_MAX_DATA_MB, prlimit --data): an allocation past it
+#   fails inside the worker. A worker whose resident memory still passes DISSOLVE_TEA_MAX_MB is stopped.
+# - The worker dies with this script (tea.py kills the script when a run times out), and it is the process the kernel
+#   picks first if the container ever runs short of memory.
+#
+# Each run's peak memory goes to DISSOLVE_TEA_LOG (the site log in the image). Otherwise transparent: the same argv,
+# stdin, stdout (tea.py reads the worker's JSON there) and exit code.
+set -u
+REAL=${DISSOLVE_TEA_REAL_PYTHON:-/opt/tea/bin/python}
+MAX_MB=${DISSOLVE_TEA_MAX_MB:-950}
+DATA_MB=${DISSOLVE_TEA_MAX_DATA_MB:-0}
+LOG=${DISSOLVE_TEA_LOG:-/dev/null}
+LOCK=${DISSOLVE_TEA_LOCK:-/tmp/dissolve-tea-worker.lock}
+
+worker=0
+if [ "$#" -ge 4 ] && [ "$1" = "-c" ] && [[ "$3" == *tea_worker.py ]] && [ "$4" != '{"target_plastic": "PU"}' ]; then
+  worker=1
+fi
+echo 1000 > /proc/self/oom_score_adj 2>/dev/null
+waited=0
+if [ "$worker" = 1 ]; then
+  exec 9>"$LOCK"
+  flock 9
+  waited=$SECONDS
+fi
+limits=()
+if [ "$DATA_MB" -gt 0 ]; then
+  limits=(prlimit --data=$(( DATA_MB * 1024 * 1024 )))
+fi
+setpriv --pdeathsig KILL -- "${limits[@]}" "$REAL" "$@" 9>&- &
+child=$!
+exec 8<> <(:)  # an idle pipe: read -t on it sleeps without starting a process
+peak=0
+peak_anon=0
+peak_data=0
+while :; do
+  state=? rss=0 anon=0 data=0
+  while IFS=$' \t:' read -r key value _; do
+    case $key in
+      State) state=$value ;;
+      VmRSS) rss=$value ;;
+      RssAnon) anon=$value ;;
+      VmData) data=$value ;;
+    esac
+  done 2>/dev/null < "/proc/$child/status"
+  case $state in
+    Z | X) break ;;
+    '?') kill -0 "$child" 2>/dev/null || break ;;  # an unreadable status ends the watch only once it has exited
+  esac
+  [ "$rss" -gt "$peak" ] && peak=$rss
+  [ "$anon" -gt "$peak_anon" ] && peak_anon=$anon
+  [ "$data" -gt "$peak_data" ] && peak_data=$data
+  if [ "$rss" -gt $(( MAX_MB * 1024 )) ]; then
+    kill -KILL "$child" 2>/dev/null
+    wait "$child" 2>/dev/null
+    message="tea-python-guarded: the TEA worker passed $MAX_MB MB resident and was stopped"
+    echo "$message" >&2
+    echo "$message" >> "$LOG" 2>/dev/null
+    exit 137
+  fi
+  read -r -t 0.1 -u 8 _
+done
+wait "$child"
+status=$?
+if [ "$worker" = 1 ]; then
+  echo "tea-python-guarded: worker peak $(( peak / 1024 )) MB resident ($(( peak_anon / 1024 )) MB anonymous)," \
+    "$(( peak_data / 1024 )) MB data," \
+    "$(( SECONDS - waited )) s, after $waited s waiting (exit $status)" >> "$LOG" 2>/dev/null
+fi
+exit $status

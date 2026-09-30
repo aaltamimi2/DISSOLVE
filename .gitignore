@@ -20,6 +20,8 @@ STRAP/
 /vendor/plastics
 /vendor/opencosmo-solvents
 /.venv-tea
+# The hosted image's plastics model, when a local image build supplies it (the hosted build fetches it).
+/deploy/plastics-core/
 
 # Built by ./dissolve: the agent environment, its editable-install metadata, and a private uv.
 /.venv/
