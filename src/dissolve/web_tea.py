@@ -28,13 +28,14 @@ from contextvars import ContextVar
 from dataclasses import dataclass
 from typing import Any, Callable, ContextManager, Mapping
 
-from dissolve import agent, tea, tea_polymer_parameters
+from dissolve import agent, session, tea, tea_polymer_parameters
 
 MAX_PLANTS = 200  # a grid past this runs for hours; the footer asks to narrow a range instead
 CONFIRM_ABOVE = 20  # the engine's own ceiling for one evaluate call; above it the panel asks once more
 WAIT_SECONDS = 1800.0  # an unanswered sheet ends as a cancel, and the chat's turn with it
 KEEPALIVE_SECONDS = 25.0  # a quiet stream is closed by some proxies; the browser ignores tea.waiting
 PLANT_MODES = ("evaluate", "sensitivity", "route")
+REFERENCE_PLANT = "ldpe-route-c1"  # what the TEA sheet button opens with in a chat that has run no plant
 _ENGINE = threading.Lock()  # one panel's plant at a time: the TEA worker runs one at a time anyway, and a plant waiting
                             # here holds no process
 ROUTE_FIELDS = ("processing_capacity_mt_per_yr", "energy_case", "precipitation_temperature_c")
@@ -907,6 +908,46 @@ class Turn:
 
 
 TURN: ContextVar[Turn | None] = ContextVar("dissolve_web_tea_turn", default=None)
+
+
+def _reference_plant() -> dict[str, Any]:
+    """The stored reference plant (LDPE in dodecane, C1) in the public vocabulary: its twelve design-point fields."""
+    record = next(r for r in tea._records() if r.get("label") == REFERENCE_PLANT)
+    public = dict(tea._DESIGN_POINT_PUBLIC_FIELDS)
+    return {public[key]: value for key, value in record["config"].items() if key in public}
+
+
+def process_sheet(turn: Turn) -> str:
+    """/process in the web app, the TEA sheet button: the panel without the model, to check the defaults, edit a
+    plant and run it. It opens with the plant last run in this chat, or else the stored reference plant, and runs as a
+    panel the model opened runs; the result is issued into the chat's session as the model's own would be. The command
+    answers with what ran."""
+    if agent.tea_switched_off():
+        return "Live TEA is switched off on this deployment, so there is no TEA panel."
+    if (blocker := tea._live_tea_blocker()) is not None:
+        return str(blocker.get("error") or "Live TEA is not available here.")
+    ran = {name: value for name, value in (turn.panel.previous.get("ran") or {}).items() if value is not None}
+    base, label = (ran, "previous") if ran else (_reference_plant(), "reference")
+    kwargs = {"mode": "evaluate", "process_config": base}
+    try:
+        sheet = build_sheet("evaluate", kwargs, turn.panel.previous)
+    except PassThrough:
+        return "The TEA panel could not open with that plant."
+    sheet["origin"] = {name: label if source == "model" else source for name, source in sheet["origin"].items()}
+    sheet["opened"] = label  # the panel says where the plant came from: no model proposed it
+    with session.bind_tool_session(turn.app.session):
+        payload = turn.panel.ask(turn, sheet, "evaluate_process", kwargs)
+    turn.app._save()
+    data = payload.get("data") or {}
+    if payload.get("refusal") == "process_confirmation_aborted":
+        return "Closed the TEA panel without running a plant."
+    if "panel" not in data:
+        return f"The TEA run stopped: {data.get('error') or payload.get('refusal') or 'no result came back'}."
+    note = data["panel"]
+    handle = f" (result {payload['handle']})" if payload.get("handle") else ""
+    stopped = ", stopped early" if note.get("stopped_early") else ""
+    return (f"Ran {note.get('plants_run')} of {note.get('plants_planned')} plants in the TEA panel{stopped}; the rows "
+            f"are in the panel{handle}.")
 
 
 def _applies(turn: Turn | None, name: str, kwargs: Mapping[str, Any]) -> bool:
