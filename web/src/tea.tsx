@@ -655,7 +655,15 @@ function SheetEditor({ sessionId, sheet, onStarted, onGone, notify }: {
                       rangeError={parsed.errors[field.name]}
                       paired={pairedFields.has(field.name)}
                       invalid={Boolean(bad[field.name])}
-                      suggestions={field.name === "target_polymer" ? sheet.polymers : field.name === "solvent" ? sheet.solvents.map((s) => s.name) : undefined}
+                      suggestions={
+                        field.name === "target_polymer"
+                          ? sheet.polymers
+                          : field.name === "solvent"
+                            ? sheet.solvents
+                                .map((s) => s.name)
+                                .filter((name) => !(sheet.solvent_exclusions?.[String(values.target_polymer ?? "").toUpperCase()] ?? []).includes(name))
+                            : undefined
+                      }
                       note={
                         field.name === "solvent_price_usd_per_kg" &&
                         counted?.admitted_price != null &&

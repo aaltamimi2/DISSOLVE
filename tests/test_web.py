@@ -1154,3 +1154,20 @@ def test_the_panel_offers_every_polymer_and_solvent_live_tea_can_run():
     assert {"Acetic Acid", "Dodecane", "Acetone", "Water"} <= set(names)
     assert not {"Triethylamine", "Acetaldehyde"} & set(names)
     assert not web_tea.UNMODELLABLE_SOLVENTS & set(names) and len(names) == 55
+
+
+def test_the_panel_hides_and_refuses_the_one_pair_live_tea_cannot_build(monkeypatch):
+    """Of the 605 polymer and solvent pairs the panel lists, run live, only PS with styrene failed (the process model
+    cannot build it; styrene works with every other polymer). The panel hides styrene for PS and its check refuses
+    such a plant before anything runs."""
+    monkeypatch.setattr(tea, "_live_tea_blocker", lambda: None)
+    catalog = web_tea._catalog()
+    assert catalog["solvent_exclusions"] == {"PS": ["Styrene"]} and "Styrene" in {s["name"] for s in catalog["solvents"]}
+    for polymer, verdict in (("PS", False), ("LDPE", True)):
+        kwargs = {"mode": "evaluate", "process_config": {**web_tea._reference_plant(), "target_polymer": polymer,
+                                                         "solvent": "Styrene"}}
+        sheet = web_tea.build_sheet("evaluate", kwargs)
+        report = web_tea.check(sheet, web_tea.expand(sheet, {}, {}, []), kwargs)
+        assert report["runnable"] is verdict
+        if not verdict:
+            assert report["invalid"][0]["error_code"] == "unmodellable_pair"
