@@ -22,6 +22,7 @@ const ORIGIN: Record<string, { label: string; title: string; tone: string }> = {
   default: { label: "default", title: "The first-run default the CLI's process sheet uses", tone: "bg-muted text-ink-2" },
   you: { label: "you", title: "You changed this value", tone: "bg-navy text-white" },
   previous: { label: "your last run", title: "Your value from an earlier run in this chat", tone: "bg-navy/15 text-ink" },
+  reference: { label: "reference plant", title: "The stored reference plant (LDPE in dodecane, C1) the TEA sheet button opens with", tone: "bg-muted text-ink-2" },
   admitted: { label: "solvent table", title: "The admitted price of this solvent", tone: "bg-muted text-ink-2" },
   screen: { label: "screen", title: "From the solvent screen", tone: "bg-brand-tint text-brand-ink" },
   inherited: { label: "earlier result", title: "From an earlier result in this chat", tone: "bg-brand-tint text-brand-ink" },
@@ -550,7 +551,13 @@ function SheetEditor({ sessionId, sheet, onStarted, onGone, notify }: {
             ? "The model wants to cost this separation route. Check the plant scale, energy case and precipitation temperature; the route itself comes from the plan."
             : sheet.mode === "sensitivity"
               ? "The model wants a sensitivity run. Its sweep is already a range below; change it, range other fields, or edit the plant."
-              : "The model proposed this plant. Keep the values or change any field; the slider button turns a field into a range, and several ranges run as a grid."}
+              : `${
+                  sheet.opened === "reference"
+                    ? "The stored reference plant (LDPE in dodecane, C1) with every default. Change any field"
+                    : sheet.opened === "previous"
+                      ? "Your last run in this chat. Change any field"
+                      : "The model proposed this plant. Keep the values or change any field"
+                }; the slider button turns a field into a range, and several ranges run as a grid.`}
         </p>
         {route && sheet.route && (
           <ol className="mt-3 space-y-1 rounded-lg border border-line bg-canvas px-3 py-2">
