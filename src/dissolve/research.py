@@ -14,6 +14,7 @@ import mimetypes
 import os
 import re
 import statistics
+import struct
 import tempfile
 import threading
 import time
@@ -21,6 +22,7 @@ import unicodedata
 import zlib
 from collections import Counter
 from contextvars import ContextVar
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from html.parser import HTMLParser
 from pathlib import Path
@@ -4815,6 +4817,12 @@ def _dense_recorded_dim(dense: Mapping[str, Any], ordered: Sequence[Sequence[flo
     return len(ordered[0])
 
 
+#: Where a search records the query vector it built, for the acceptance observer. A search that wants the vector puts
+#: a list here for the length of its own call; every other search leaves it None and nothing is recorded. It is the
+#: encoder's own output, so an observation names the encoder that actually ran rather than the one a label claims.
+_QUERY_VECTOR_SINK: ContextVar[list[list[float]] | None] = ContextVar("dense_query_vector_sink", default=None)
+
+
 def _dense_query_scores(index: Mapping[str, Any], chunks: Sequence[Mapping[str, Any]], query: str) -> list[float]:
     """Query-embed only. Require chunk_id set identity; no positional fallback."""
     dense = index.get("dense") or {}
@@ -4849,6 +4857,9 @@ def _dense_query_scores(index: Mapping[str, Any], chunks: Sequence[Mapping[str, 
     recorded_dim = dense.get("dim")
     if recorded_dim is not None and int(recorded_dim) != expected_dim:
         raise ValueError("dense_index_unavailable")
+    sink = _QUERY_VECTOR_SINK.get()
+    if sink is not None:
+        sink.append([float(value) for value in query_vector])
     return [max(0.0, _cosine(query_vector, vector)) for vector in ordered]
 
 
@@ -4970,16 +4981,68 @@ def _ranked_search_rows(
     return rows
 
 
-def _search_index(
+@dataclass
+class _RankedCandidates:
+    """One search's whole ranked candidate list, and the evidence that produced it.
+
+    The served tool renders `ranked` into rows; the acceptance observer reads the same object. Neither ranks anything
+    of its own, so an observation cannot drift from what the tool answers (FINAL_RAG_EVALUATION_CONTRACT v3 §2).
+
+    `coverage_star` is the gate statistic: the largest query-IDF coverage over the lexically eligible chunks, computed
+    from the same expanded BM25 scores the gate reads. That is not the `coverage_star()` helper a served result
+    displays, which recomputes eligibility from the unexpanded query.
+    """
+
+    ranked: list[tuple[Any, ...]]
+    coverage_by_id: dict[str, float]
+    coverage_star: float
+    floor: float | None
+    gated: bool
+    zero_hit_reason: str | None
+    pair_logits: dict[str, float] = field(default_factory=dict)
+    query_vector: list[float] | None = None
+
+
+def _rank_candidates(
     index: dict[str, Any],
     query: str,
-    top_k: int,
     mode: str,
     *,
     w_dense: float | None = None,
     w_sparse: float | None = None,
     rerank_mode: str = "off",
-) -> list[dict[str, Any]]:
+    apply_gate: bool = True,
+) -> _RankedCandidates:
+    """Rank one query against one index, and record what the ranking rested on.
+
+    With `apply_gate`, an abstaining query stops before any ranking, exactly as the served tool stops. The observer
+    clears it to record the ranking the gate suppressed; the gate decision travels with the result either way, so
+    the served ranking is always this list or nothing.
+    """
+    sink: list[list[float]] = []
+    token = _QUERY_VECTOR_SINK.set(sink)
+    try:
+        result = _rank_candidate_tuples(
+            index, query, mode,
+            w_dense=w_dense, w_sparse=w_sparse, rerank_mode=rerank_mode, apply_gate=apply_gate,
+        )
+    finally:
+        _QUERY_VECTOR_SINK.reset(token)
+    if sink:
+        result.query_vector = sink[0]
+    return result
+
+
+def _rank_candidate_tuples(
+    index: dict[str, Any],
+    query: str,
+    mode: str,
+    *,
+    w_dense: float | None,
+    w_sparse: float | None,
+    rerank_mode: str,
+    apply_gate: bool,
+) -> _RankedCandidates:
     dense_w = _HYBRID_DENSE_WEIGHT if w_dense is None else float(w_dense)
     sparse_w = _HYBRID_SPARSE_WEIGHT if w_sparse is None else float(w_sparse)
     chunks = list(index.get("chunks") or [])
@@ -4987,10 +5050,22 @@ def _search_index(
     sparse_raw = _query_sparse_raw(query, rows)
     coverage_by_id, star = _coverage_from_sparse(query, chunks, sparse_raw)
     floor = _abstention_floor(index)
-    if floor is not None and star < floor:
-        return []
-    if max(sparse_raw, default=0.0) <= 0:
-        return []
+    gated = floor is not None and star < floor
+    no_sparse_match = max(sparse_raw, default=0.0) <= 0
+    if not chunks:
+        reason: str | None = "empty_corpus"
+    elif gated:
+        reason = "abstained_below_floor"
+    elif no_sparse_match:
+        reason = "no_sparse_match"
+    else:
+        reason = None
+    state = {
+        "coverage_by_id": coverage_by_id, "coverage_star": star, "floor": floor,
+        "gated": gated, "zero_hit_reason": reason,
+    }
+    if (apply_gate and gated) or no_sparse_match:
+        return _RankedCandidates(ranked=[], **state)
     if mode == "hybrid":
         if _bge10_hybrid_fusion_enabled(index):
             dense_scores = _dense_query_scores(index, chunks, query)
@@ -5010,9 +5085,12 @@ def _search_index(
             window_n = min(WINDOW, len(ranked))
             before = list(ranked[:window_n])
             ranked = reorder_window(query, ranked, rerank_mode)
+            pair_logits: dict[str, float] = {}
             if str(rerank_mode or "off").strip().casefold() == PAIR_RERANK_MODE:
+                #: reorder_window carries each pair score in slot 0 until RRF60 replaces it with the fused score.
+                pair_logits = {str(item[4]["chunk_id"]): float(item[0]) for item in ranked[:window_n]}
                 ranked = fuse_rrf60(before, list(ranked[:window_n])) + list(ranked[window_n:])
-            return _ranked_search_rows(index, ranked, top_k, coverage_by_id, floor=floor)
+            return _RankedCandidates(ranked=ranked, pair_logits=pair_logits, **state)
         raw_by_id = {str(chunk["chunk_id"]): float(raw) for chunk, raw in zip(chunks, sparse_raw)}
         ranked = []
         for sparse_score, dense_score, boost, chunk in _hybrid_passage_parts(index, query):
@@ -5023,7 +5101,7 @@ def _search_index(
             ))
         ranked.sort(key=lambda item: (-item[0], str(item[4].get("title")), item[4]["chunk_id"]))
         ranked = reorder_window(query, ranked, rerank_mode)
-        return _ranked_search_rows(index, ranked, top_k, coverage_by_id, floor=floor)
+        return _RankedCandidates(ranked=ranked, **state)
     sparse_max = max(sparse_raw)
     sparse = [value / sparse_max for value in sparse_raw]
     dense_scores = [0.0] * len(chunks)
@@ -5044,7 +5122,23 @@ def _search_index(
                 continue
         ranked.append((score, sparse_score, dense_score, boost, chunk, sparse_raw_score))
     ranked.sort(key=lambda item: (-item[0], str(item[4].get("title")), item[4]["chunk_id"]))
-    return _ranked_search_rows(index, ranked, top_k, coverage_by_id, floor=floor)
+    return _RankedCandidates(ranked=ranked, **state)
+
+
+def _search_index(
+    index: dict[str, Any],
+    query: str,
+    top_k: int,
+    mode: str,
+    *,
+    w_dense: float | None = None,
+    w_sparse: float | None = None,
+    rerank_mode: str = "off",
+) -> list[dict[str, Any]]:
+    ranking = _rank_candidates(
+        index, query, mode, w_dense=w_dense, w_sparse=w_sparse, rerank_mode=rerank_mode,
+    )
+    return _ranked_search_rows(index, ranking.ranked, top_k, ranking.coverage_by_id, floor=ranking.floor)
 
 
 def _zero_hit_reason(index: Mapping[str, Any], query: str) -> str | None:
@@ -5130,6 +5224,76 @@ def search_literature_corpus(
         ],
         **extra,
     )
+
+
+#: The acceptance observer's export depth. Contract v3 §7 asks for one depth-50 ranked trace per question, with the
+#: reported depths sliced from it; the served tool keeps its own cap of 20 and is not changed by this.
+OBSERVER_DEPTH = 50
+OBSERVER_SCHEMA = "dissolve.search-observation.v1"
+
+
+def observe_search_ranking(
+    query: str,
+    knowledgebase: str = _PRODUCT_KNOWLEDGEBASE,
+    top_k: int = OBSERVER_DEPTH,
+    retrieval_mode: Literal["sparse", "dense", "hybrid"] = "hybrid",
+) -> dict[str, Any]:
+    """Record what `search_literature_corpus` ranked, to `top_k`, with its gate decision and component scores.
+
+    This is the acceptance observer of FINAL_RAG_EVALUATION_CONTRACT v3 §2. It resolves the index and the rerank mode
+    exactly as the public tool does and then calls the one ranking function the tool calls, so it holds no ranking,
+    no encoder and no threshold of its own. The gate is read, not applied: `ranked_chunk_ids` is the ranking before
+    the gate, and the served ranking is that same list when `gated` is false and empty when it is true.
+
+    It returns identifiers, scores and digests. The query itself never appears in the result.
+    """
+    started = time.perf_counter()
+    mode = str(retrieval_mode or "").casefold()
+    if mode not in {"sparse", "dense", "hybrid"}:
+        raise ValueError("unknown_retrieval_mode")
+    if not str(query or "").strip():
+        raise ValueError("empty_query")
+    index = _load_index(knowledgebase)
+    rerank_mode = "off"
+    if mode == "hybrid" and _bge10_hybrid_fusion_enabled(index) and pair_rerank_enabled():
+        rerank_mode = PAIR_RERANK_MODE
+    ranking = _rank_candidates(index, query, mode, rerank_mode=rerank_mode, apply_gate=False)
+    depth = max(1, int(top_k))
+    window = ranking.ranked[:depth]
+    vector = ranking.query_vector
+    return {
+        "schema": OBSERVER_SCHEMA,
+        "knowledgebase": index["knowledgebase"],
+        "retrieval_mode": mode,
+        "depth": depth,
+        "ranked_chunk_ids": [str(item[4]["chunk_id"]) for item in window],
+        "eligible_count": len(ranking.ranked),
+        "coverage_star": ranking.coverage_star,
+        "floor": ranking.floor,
+        "gated": ranking.gated,
+        "reason": ranking.zero_hit_reason,
+        "components": [
+            {
+                "rank": rank,
+                "chunk_id": str(item[4]["chunk_id"]),
+                "final_score": float(item[0]),
+                "sparse_score": float(item[1]),
+                "dense_score": float(item[2]),
+                "section_boost": float(item[3]),
+                "sparse_raw_score": float(item[5]),
+                "pair_logit": ranking.pair_logits.get(str(item[4]["chunk_id"])),
+            }
+            for rank, item in enumerate(window, 1)
+        ],
+        "query_vector_sha256": None if vector is None else hashlib.sha256(
+            struct.pack(f"<{len(vector)}f", *vector),
+        ).hexdigest(),
+        "query_vector_dim": None if vector is None else len(vector),
+        "query_encoder": query_encoder_label() if mode != "sparse" else None,
+        "pair_reranker": PAIR_RERANKER_ID if rerank_mode == PAIR_RERANK_MODE else None,
+        "pair_reranker_revision": PAIR_RERANKER_REVISION if rerank_mode == PAIR_RERANK_MODE else None,
+        "elapsed_s": time.perf_counter() - started,
+    }
 
 
 def _correlation(left: list[float], right: list[float]) -> float | None:

@@ -13,6 +13,7 @@ import os
 import re
 import shutil
 import statistics
+import struct
 import threading
 import time
 from contextlib import nullcontext
@@ -4389,3 +4390,236 @@ class TestProfileRouting:
         _assert_public_failure(_public_search(), QUERY, tracked)
         assert _snapshot(tracked) == before
 
+
+
+# --- W5: the acceptance observer over the public tool (FINAL_RAG_EVALUATION_CONTRACT v3 §2 and §7).
+#
+# The contract lets an observer expose raw rankings and gate decisions and forbids it to implement a parallel ranker,
+# and it asks for "a synthetic test demonstrating equality with the real tool output". These tests are that
+# demonstration, each with the defect it would have to catch.
+
+
+def _observer_index(count: int = 26, *, floor: float | None = None, match: bool = True) -> dict:
+    """`count` chunks: enough that a depth-50 export runs past both the tool's cap of 20 and the rerank window."""
+    text = MATCH_TEXT if match else NOMATCH_TEXT
+    return _index_bge_fusion([_chunk_bge_fusion(f"o{n:02d}", text=text) for n in range(count)], floor=floor)
+
+
+def _install_sparse(monkeypatch, sparse):
+    """Only the sparse channel is a stand-in, so the real dense path runs and records a real query vector."""
+    monkeypatch.setattr(research, "_query_sparse_raw", lambda query, rows: [float(v) for v in sparse])
+
+
+def _observe_and_serve(monkeypatch, index, *, dense, sparse, mode="hybrid", depth=research.OBSERVER_DEPTH):
+    """One installation of the stand-in scores, then the observer and the public tool over the same index."""
+    _install_scores(monkeypatch, dense, sparse)
+    monkeypatch.setattr(research, "_load_index", lambda knowledgebase: index)
+    observation = research.observe_search_ranking(
+        QUERY, knowledgebase=PRODUCT_KB, top_k=depth, retrieval_mode=mode,
+    )
+    served = {}
+    for k in range(1, 21):
+        parsed = parse_tool_result(
+            research.search_literature_corpus(QUERY, knowledgebase=PRODUCT_KB, top_k=k, retrieval_mode=mode),
+        )
+        served[k] = parsed["data"]
+    return observation, served
+
+
+def _prefix_equality_holds(observation: dict, served: dict) -> bool:
+    """The W5 equality on an ungated query: at every depth the tool answers, its IDs are the observation's first IDs."""
+    return all(
+        [str(row["chunk_id"]) for row in data["results"]] == observation["ranked_chunk_ids"][:k]
+        for k, data in served.items()
+    )
+
+
+def _gate_agreement_holds(observation: dict, served: dict) -> bool:
+    """`gated` is true exactly when the tool answers nothing and says it abstained."""
+    abstained = all(
+        data["result_count"] == 0 and data.get("reason") == "abstained_below_floor" for data in served.values()
+    )
+    return bool(observation["gated"]) is abstained
+
+
+class TestAcceptanceObserver:
+    """Synthetic observer tests. No real corpus, encoder or reranker."""
+
+    @pytest.fixture(autouse=True)
+    def _isolate(self, monkeypatch, tmp_path):
+        monkeypatch.setenv("DISSOLVE_CORPUS_DIR", str(tmp_path / "working-corpus"))
+        monkeypatch.setattr(research, "_pinned_reranker_snapshot", _no_reranker_snapshot)
+        monkeypatch.delenv("DISSOLVE_RESEARCH_HOME", raising=False)
+        monkeypatch.delenv("DISSOLVE_BGE10_MANIFEST", raising=False)
+        monkeypatch.delenv("DISSOLVE_BGE_ONNX_INT8", raising=False)
+        monkeypatch.setenv("DISSOLVE_PAIR_RERANK", "off")
+        monkeypatch.setattr(research, "_research_root", lambda: tmp_path / "research-home")
+        monkeypatch.setattr(research, "_committed_lexicon", lambda: [])
+        monkeypatch.setattr(
+            research, "_dense_vectors",
+            lambda *args, **kwargs: (_ for _ in ()).throw(RuntimeError("model forbidden")),
+        )
+        yield tmp_path
+
+    def test_the_observer_and_the_tool_read_one_ranking(self, monkeypatch):
+        """Every depth the tool answers is a prefix of the observation, and the observation runs past the tool's cap."""
+        index = _observer_index(26)
+        dense = [0.9 - 0.01 * n for n in range(26)]
+        sparse = [float(26 - n) for n in range(26)]
+        observation, served = _observe_and_serve(monkeypatch, index, dense=dense, sparse=sparse)
+        assert _prefix_equality_holds(observation, served)
+        assert observation["gated"] is False and observation["reason"] is None
+        assert observation["eligible_count"] == 26
+        assert len(observation["ranked_chunk_ids"]) == 26  # the whole eligible list, being shorter than 50
+        assert len(served[20]["results"]) == 20
+        capped = parse_tool_result(
+            research.search_literature_corpus(QUERY, knowledgebase=PRODUCT_KB, top_k=50, retrieval_mode="hybrid"),
+        )["data"]
+        assert [str(row["chunk_id"]) for row in capped["results"]] == observation["ranked_chunk_ids"][:20]
+        assert [item["rank"] for item in observation["components"]] == list(range(1, 27))
+        assert [item["chunk_id"] for item in observation["components"]] == observation["ranked_chunk_ids"]
+
+    def test_the_observation_carries_the_component_scores_the_rows_carry(self, monkeypatch):
+        """Component scores are the ranking's own, at full precision; the served rows round the same numbers to six."""
+        index = _observer_index(4)
+        observation, served = _observe_and_serve(
+            monkeypatch, index, dense=[0.9, 0.2, 0.1, 0.4], sparse=[1.0, 2.0, 3.0, 4.0],
+        )
+        rows = {str(row["chunk_id"]): row for row in served[20]["results"]}
+        for item in observation["components"]:
+            row = rows[item["chunk_id"]]
+            for field, key in (
+                ("final_score", "final_score"), ("sparse_score", "sparse_score"),
+                ("dense_score", "dense_score"), ("section_boost", "section_boost"),
+                ("sparse_raw_score", "sparse_raw_score"),
+            ):
+                assert round(item[field], 6) == row[key]
+            assert item["pair_logit"] is None  # no reranker on this deployment
+
+    def test_the_observer_reports_the_gate_the_tool_applies(self, monkeypatch):
+        """Gated exactly when the tool answers nothing and says so, and the suppressed ranking is still recorded."""
+        gated_index = _observer_index(26, floor=UNCHANGED_FLOOR, match=False)
+        dense = [0.9 - 0.01 * n for n in range(26)]
+        sparse = [float(26 - n) for n in range(26)]
+        gated, served = _observe_and_serve(monkeypatch, gated_index, dense=dense, sparse=sparse)
+        assert _gate_agreement_holds(gated, served)
+        assert gated["gated"] is True and gated["reason"] == "abstained_below_floor"
+        assert gated["floor"] == UNCHANGED_FLOOR and gated["coverage_star"] < UNCHANGED_FLOOR
+        assert len(gated["ranked_chunk_ids"]) == 26  # raw is the ranking the gate suppressed
+
+        open_index = _observer_index(26, floor=UNCHANGED_FLOOR, match=True)
+        opened, open_served = _observe_and_serve(monkeypatch, open_index, dense=dense, sparse=sparse)
+        assert _gate_agreement_holds(opened, open_served)
+        assert opened["gated"] is False and _prefix_equality_holds(opened, open_served)
+
+    def test_no_sparse_match_empties_both_sides(self, monkeypatch):
+        """The other zero-hit reason: nothing is lexically eligible, so raw and served are both empty."""
+        index = _observer_index(4)
+        observation, served = _observe_and_serve(
+            monkeypatch, index, dense=[0.9, 0.8, 0.7, 0.6], sparse=[0.0, 0.0, 0.0, 0.0],
+        )
+        assert observation["reason"] == "no_sparse_match" and observation["gated"] is False
+        assert observation["ranked_chunk_ids"] == [] and observation["components"] == []
+        assert all(data["result_count"] == 0 and data["reason"] == "no_sparse_match" for data in served.values())
+        assert _prefix_equality_holds(observation, served)
+
+    def test_a_defective_observation_fails_the_equality(self, monkeypatch):
+        """The counterfactual. Each planted defect is one an observer could plausibly carry, and each must be caught."""
+        index = _observer_index(26)
+        dense = [0.9 - 0.01 * n for n in range(26)]
+        sparse = [float(26 - n) for n in range(26)]
+        observation, served = _observe_and_serve(monkeypatch, index, dense=dense, sparse=sparse)
+        assert _prefix_equality_holds(observation, served)
+
+        resorted = dict(observation, ranked_chunk_ids=sorted(observation["ranked_chunk_ids"], reverse=True))
+        assert resorted["ranked_chunk_ids"] != observation["ranked_chunk_ids"]
+        assert not _prefix_equality_holds(resorted, served)
+
+        truncated = dict(observation, ranked_chunk_ids=observation["ranked_chunk_ids"][:10])
+        assert not _prefix_equality_holds(truncated, served)
+
+        swapped = dict(observation, ranked_chunk_ids=list(observation["ranked_chunk_ids"]))
+        swapped["ranked_chunk_ids"][0], swapped["ranked_chunk_ids"][1] = (
+            swapped["ranked_chunk_ids"][1], swapped["ranked_chunk_ids"][0],
+        )
+        assert not _prefix_equality_holds(swapped, served)
+
+        gated_index = _observer_index(26, floor=UNCHANGED_FLOOR, match=False)
+        gated, gated_served = _observe_and_serve(monkeypatch, gated_index, dense=dense, sparse=sparse)
+        assert _gate_agreement_holds(gated, gated_served)
+        gate_blind = dict(gated, gated=False, ranked_chunk_ids=[])  # an observer that applied the gate and lost raw
+        assert not _gate_agreement_holds(gate_blind, gated_served)
+        gate_deaf = dict(observation, gated=True)  # an observer that gated a query the tool answered
+        assert not _gate_agreement_holds(gate_deaf, served)
+
+    def test_the_observation_digests_the_query_vector_that_was_built(self, monkeypatch):
+        """C-17: the encoder is switched and the label kept. The label cannot catch it; the vector digest does."""
+        index = _observer_index(3)
+        monkeypatch.setattr(research, "_load_index", lambda knowledgebase: index)
+        _install_sparse(monkeypatch, [3.0, 2.0, 1.0])
+        served_vector = [round(math.sin(n) / 32, 8) for n in range(research._BGE_DIM)]
+        monkeypatch.setattr(
+            research, "_dense_vectors",
+            lambda texts, model_name=None: (research._BGE_MODEL_ID, [list(served_vector)]),
+        )
+        observation = research.observe_search_ranking(QUERY, knowledgebase=PRODUCT_KB)
+        assert observation["query_vector_dim"] == research._BGE_DIM
+        assert observation["query_vector_sha256"] == hashlib.sha256(
+            struct.pack(f"<{research._BGE_DIM}f", *served_vector),
+        ).hexdigest()
+        assert observation["query_encoder"] == research._BGE_MODEL_ID
+        rounded = [round(value, 2) for value in served_vector]  # the digest is the encoder's output, not a copy of it
+        assert observation["query_vector_sha256"] != hashlib.sha256(
+            struct.pack(f"<{research._BGE_DIM}f", *rounded),
+        ).hexdigest()
+
+        other_vector = [*served_vector[:-1], served_vector[-1] + 1e-4]
+        monkeypatch.setattr(
+            research, "_dense_vectors",
+            lambda texts, model_name=None: (research._BGE_MODEL_ID, [list(other_vector)]),
+        )
+        switched = research.observe_search_ranking(QUERY, knowledgebase=PRODUCT_KB)
+        assert switched["query_encoder"] == observation["query_encoder"]
+        assert switched["query_vector_sha256"] != observation["query_vector_sha256"]
+
+        sparse_only = research.observe_search_ranking(QUERY, knowledgebase=PRODUCT_KB, retrieval_mode="sparse")
+        assert sparse_only["query_vector_sha256"] is None and sparse_only["query_encoder"] is None
+
+    def test_the_observation_records_the_pair_logits_the_reranker_returned(self, monkeypatch):
+        """Where the reranker runs, the observation keeps its logits beside the fused ranking that replaced them."""
+        monkeypatch.delenv("DISSOLVE_PAIR_RERANK", raising=False)
+        index = _observer_index(3)
+        monkeypatch.setattr(research, "_load_index", lambda knowledgebase: index)
+        _install_scores(monkeypatch, [0.9, 0.8, 0.7], [3.0, 2.0, 1.0])
+        logits = {"o00": -1.5, "o01": 4.25, "o02": 0.5}
+
+        def reranked(query, ranked, rerank_mode="off"):
+            assert rerank_mode == research.PAIR_RERANK_MODE
+            window = [(logits[str(item[4]["chunk_id"])], *item[1:6]) for item in ranked[:research.WINDOW]]
+            window.sort(key=lambda item: -item[0])
+            return window + list(ranked[research.WINDOW:])
+
+        monkeypatch.setattr(research, "reorder_window", reranked)
+        observation = research.observe_search_ranking(QUERY, knowledgebase=PRODUCT_KB)
+        assert observation["pair_reranker"] == research.PAIR_RERANKER_ID
+        assert observation["pair_reranker_revision"] == research.PAIR_RERANKER_REVISION
+        assert {item["chunk_id"]: item["pair_logit"] for item in observation["components"]} == logits
+        assert observation["ranked_chunk_ids"] == ["o01", "o00", "o02"]  # RRF60 over the two orders
+        assert all(item["final_score"] not in logits.values() for item in observation["components"])
+
+    def test_the_observation_never_carries_the_query(self, monkeypatch):
+        """Hold-out discipline: an observation is identifiers, scores and digests. The query text is not in it."""
+        index = _observer_index(4)
+        observation, _served = _observe_and_serve(
+            monkeypatch, index, dense=[0.9, 0.8, 0.7, 0.6], sparse=[4.0, 3.0, 2.0, 1.0],
+        )
+        assert QUERY not in json.dumps(observation)
+        assert "query" not in {key for key in observation if not key.startswith("query_vector")}
+
+    def test_the_observer_refuses_what_the_tool_refuses(self, monkeypatch):
+        index = _observer_index(4)
+        monkeypatch.setattr(research, "_load_index", lambda knowledgebase: index)
+        with pytest.raises(ValueError, match="unknown_retrieval_mode"):
+            research.observe_search_ranking(QUERY, knowledgebase=PRODUCT_KB, retrieval_mode="lexical")
+        with pytest.raises(ValueError, match="empty_query"):
+            research.observe_search_ranking("   ", knowledgebase=PRODUCT_KB)
