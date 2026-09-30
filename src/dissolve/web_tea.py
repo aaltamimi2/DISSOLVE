@@ -257,6 +257,10 @@ def _admitted_price(solvent: Any) -> float | None:
 # solvent the panel lists ran live there with LDPE, and every polymer with dodecane.
 UNMODELLABLE_SOLVENTS = frozenset({"Ethylene Dichloride", "Hexamethylphosphoramide", "N-Methyl-2-Pyrrolidone (NMP)",
                                    "Tetrahydropyran"})
+# Pairs the live process model cannot build although each member works with others: of all 605 pairs of the listed
+# polymers and solvents, run live at the panel's defaults on 2026-09-30, only this one failed (process construction;
+# styrene is polystyrene's monomer). The panel hides the solvent for that polymer and its check refuses the plant.
+UNMODELLABLE_PAIRS = frozenset({("PS", "Styrene")})
 
 
 def _engine_solvent(row: Mapping[str, Any]) -> str | None:
@@ -288,7 +292,11 @@ def _catalog() -> dict[str, Any]:
         except Exception:  # noqa: BLE001 - no governed LCA factors for this solvent
             continue
         solvents[name.casefold()] = {"name": name, "price_usd_per_kg": float(row["price_usd_per_kg"])}
-    return {"polymers": polymers, "solvents": sorted(solvents.values(), key=lambda row: row["name"].casefold())}
+    exclusions: dict[str, list[str]] = {}
+    for polymer, solvent in sorted(UNMODELLABLE_PAIRS):
+        exclusions.setdefault(polymer, []).append(solvent)
+    return {"polymers": polymers, "solvents": sorted(solvents.values(), key=lambda row: row["name"].casefold()),
+            "solvent_exclusions": exclusions}
 
 
 def _seed(base: Mapping[str, Any], origin: Mapping[str, str], previous: Mapping[str, Any]) -> tuple[dict, dict]:
@@ -615,6 +623,12 @@ def check(sheet: Mapping[str, Any], plants: list[tuple[str, dict]], kwargs: Mapp
             except (TypeError, ValueError) as error:
                 invalid.append({"label": label, "error": str(error),
                                 "error_code": getattr(error, "code", "invalid_scenario")})
+                continue
+            pair = (str(config.get("target_plastic") or ""), str(config.get("solvent") or ""))
+            if pair in UNMODELLABLE_PAIRS:
+                invalid.append({"label": label, "error_code": "unmodellable_pair", "error": (
+                    f"Live TEA cannot build {pair[0]} with {pair[1]}: the process model fails while constructing that "
+                    "plant. Choose another solvent.")})
                 continue
             if tea._would_start_live_child(config, _engine_mode(kwargs)):
                 live += 1
