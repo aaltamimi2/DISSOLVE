@@ -23,9 +23,10 @@ import queue
 import threading
 import time
 import uuid
+from contextlib import nullcontext
 from contextvars import ContextVar
 from dataclasses import dataclass
-from typing import Any, Callable, Mapping
+from typing import Any, Callable, ContextManager, Mapping
 
 from dissolve import agent, tea, tea_polymer_parameters
 
@@ -34,6 +35,8 @@ CONFIRM_ABOVE = 20  # the engine's own ceiling for one evaluate call; above it t
 WAIT_SECONDS = 1800.0  # an unanswered sheet ends as a cancel, and the chat's turn with it
 KEEPALIVE_SECONDS = 25.0  # a quiet stream is closed by some proxies; the browser ignores tea.waiting
 PLANT_MODES = ("evaluate", "sensitivity", "route")
+_ENGINE = threading.Lock()  # one panel's plant at a time: the TEA worker runs one at a time anyway, and a plant waiting
+                            # here holds no process
 ROUTE_FIELDS = ("processing_capacity_mt_per_yr", "energy_case", "precipitation_temperature_c")
 C1_C3_ONLY = ("natural_gas_price_usd_per_m3", "steam_power_depreciation")
 GROUPS = ("Plant", "Solvent and feed", "Flowsheet", "Labor and operation", "Finance", "Startup", "Capital factors",
@@ -766,30 +769,31 @@ class Panel:
         with self.guard:
             self.sheet, self.kwargs, self.progress = sheet, dict(kwargs), None
         turn.send({"event": "tea.sheet", "sheet": sheet})
-        deadline = time.monotonic() + WAIT_SECONDS
-        answer: dict[str, Any] = {"action": "expire"}
-        while (remaining := deadline - time.monotonic()) > 0:
-            try:
-                answer = self.answers.get(timeout=min(KEEPALIVE_SECONDS, remaining))
-                break
-            except queue.Empty:
-                turn.send({"event": "tea.waiting", "sheet_id": sheet["id"]})
-        with self.guard:
-            if self.sheet is not None and self.sheet["id"] == sheet["id"]:
-                self.sheet = None
-        if answer["action"] != "run":
-            turn.declined = True
-            turn.send({"event": "tea.closed", "sheet_id": sheet["id"], "reason": answer["action"]})
-            return _aborted("The person closed the TEA panel without running it." if answer["action"] == "cancel"
-                            else f"The TEA panel waited {WAIT_SECONDS / 60:.0f} minutes without an answer.")
-        try:
-            return self._run(turn, sheet, answer, name, kwargs)
-        except Exception as error:  # the answer goes on with the reason, and the panel does not spin forever
-            message = f"{type(error).__name__}: {error}"
+        with turn.idle():  # the person may take minutes, and the plants run in the TEA worker, under its own limit
+            deadline = time.monotonic() + WAIT_SECONDS
+            answer: dict[str, Any] = {"action": "expire"}
+            while (remaining := deadline - time.monotonic()) > 0:
+                try:
+                    answer = self.answers.get(timeout=min(KEEPALIVE_SECONDS, remaining))
+                    break
+                except queue.Empty:
+                    turn.send({"event": "tea.waiting", "sheet_id": sheet["id"]})
             with self.guard:
-                self.progress = None
-            turn.send({"event": "tea.closed", "sheet_id": sheet["id"], "reason": "error", "message": message})
-            return agent._refuse("tool_exception", error=message)
+                if self.sheet is not None and self.sheet["id"] == sheet["id"]:
+                    self.sheet = None
+            if answer["action"] != "run":
+                turn.declined = True
+                turn.send({"event": "tea.closed", "sheet_id": sheet["id"], "reason": answer["action"]})
+                return _aborted("The person closed the TEA panel without running it." if answer["action"] == "cancel"
+                                else f"The TEA panel waited {WAIT_SECONDS / 60:.0f} minutes without an answer.")
+            try:
+                return self._run(turn, sheet, answer, name, kwargs)
+            except Exception as error:  # the answer goes on with the reason, and the panel does not spin forever
+                message = f"{type(error).__name__}: {error}"
+                with self.guard:
+                    self.progress = None
+                turn.send({"event": "tea.closed", "sheet_id": sheet["id"], "reason": "error", "message": message})
+                return agent._refuse("tool_exception", error=message)
 
     def _run(self, turn: "Turn", sheet: dict[str, Any], answer: dict[str, Any], name: str,
              kwargs: dict[str, Any]) -> dict[str, Any]:
@@ -802,13 +806,14 @@ class Panel:
         token = tea.PROCESS_CONFIRMATION.set("confirmed_on_sheet")
         try:
             for index, (label, plant) in enumerate(plants):
-                if self.stop.is_set():
-                    break
-                with self.guard:
-                    self.progress["running"] = label
-                turn.send({"event": "tea.progress", "sheet_id": sheet["id"], "done": index, "total": len(plants),
-                           "running": label})
-                data = _call(sheet, kwargs, label, plant)
+                with _ENGINE:
+                    if self.stop.is_set():
+                        break
+                    with self.guard:
+                        self.progress["running"] = label
+                    turn.send({"event": "tea.progress", "sheet_id": sheet["id"], "done": index, "total": len(plants),
+                               "running": label})
+                    data = _call(sheet, kwargs, label, plant)
                 runs.append((label, plant, data))
                 new = [_panel_row(len(rows) + offset, row, plant, varied)
                        for offset, row in enumerate(_plant_rows(label, data))]
@@ -891,12 +896,14 @@ def _call(sheet: Mapping[str, Any], kwargs: Mapping[str, Any], label: str, plant
 
 @dataclass
 class Turn:
-    """The web turn a dispatch belongs to: its chat's panel, the chat (whose mode decides), and the turn's stream."""
+    """The web turn a dispatch belongs to: its chat's panel, the chat (whose mode decides), and the turn's stream.
+    idle() gives the answer's place among those running at once (web.TurnSlots) back until it ends."""
 
     panel: Panel
     app: Any
     send: Callable[[dict[str, Any]], None]
     declined: bool = False
+    idle: Callable[[], ContextManager[None]] = nullcontext
 
 
 TURN: ContextVar[Turn | None] = ContextVar("dissolve_web_tea_turn", default=None)
