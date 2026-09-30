@@ -59,9 +59,12 @@ COPY deploy/check_live_tea.py /opt/
 RUN chmod 755 /usr/local/bin/tea-python-guarded && mkdir -p /opt/tea-cache && chown dissolve /opt/tea-cache
 # One thread for every numerical library: the container sees every host CPU, and a dozen threads under a one-CPU quota
 # took a search from 0.26 s to 1.5 s. Two malloc arenas keep threads from each holding memory of their own.
+# numba compiles for a generic x86-64 CPU. It keys its cache on the CPU, and the machine that builds the image
+# (icelake-server) is not the one the site runs on (skylake-avx512, 2026-09-30). With that key, every live run on the
+# site recompiled BioSTEAM's numba code, took 60 s and passed 1,000 MB, so the guard stopped it.
 ENV DISSOLVE_PLASTICS_PATH=/opt/plastics DISSOLVE_TEA_PYTHON=/usr/local/bin/tea-python-guarded \
     DISSOLVE_TEA_MAX_MB=1000 DISSOLVE_TEA_MAX_DATA_MB=950 DISSOLVE_TEA_LOG=/proc/1/fd/1 \
-    NUMBA_CACHE_DIR=/opt/tea-cache/numba MPLCONFIGDIR=/opt/tea-cache/matplotlib \
+    NUMBA_CACHE_DIR=/opt/tea-cache/numba NUMBA_CPU_NAME=generic MPLCONFIGDIR=/opt/tea-cache/matplotlib \
     OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 NUMBA_NUM_THREADS=1 MALLOC_ARENA_MAX=2 PYTHONUNBUFFERED=1
 USER dissolve
 # Live TEA reproduces the stored results exactly in this image, and numba's cache is filled, so the site's first run
