@@ -3908,8 +3908,12 @@ def _scenario_config(
         raise ValueError("energy_case must be C1, C2, or C3")
     for field in _NUMERIC_FIELDS:
         config[field] = _finite(config.get(field), field)
-    if not 0 < config["target_plastic_percent"] <= 100:
-        raise ValueError("target_plastic_percent must be above 0 and at most 100")
+    if not 0 < config["target_plastic_percent"] < 100:  # a pure feed: nan cash flow however the leftover is handled
+        raise ValueError(
+            "target_plastic_percent must be above 0 and below 100: the process model costs the feed's other "
+            "plastics, and a feed of only the target polymer leaves its cash flow undefined; use, say, 99 for an "
+            "almost pure feed"
+        )
     if config["processing_capacity"] <= 0 or config["dissolution_capacity"] <= 0:
         raise ValueError("processing and dissolution capacity must be positive")
     if config["solvent_price"] < 0 or config["solvent_loss_pct"] < 0:

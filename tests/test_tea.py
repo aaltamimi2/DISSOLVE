@@ -5134,12 +5134,15 @@ def test_scenarios_confirm_live_tea_runs_children_one_at_a_time(monkeypatch):
 
 
 def _one_step_route_from_record(record: dict) -> tuple[dict, dict]:
+    """The record's own feed as a one-step route: its target at the record's share, the rest a residue (a feed of only
+    the target polymer has no defined cash flow, so the engine refuses it)."""
     cfg = record["config"]
     polymer = cfg["target_plastic"]
-    composition = {polymer: 1.0}
+    share = float(cfg["target_plastic_percent"]) / 100.0
+    composition = {polymer: share, "PP": 1.0 - share}
     route = {
         "complete": True,
-        "final_residue": None,
+        "final_residue": "PP",
         "steps": [{
             "dissolved_polymer": polymer,
             "solvent": cfg["solvent"],
@@ -9018,3 +9021,46 @@ def test_a_route_stage_that_fails_live_is_not_estimated_where_stored_results_are
     monkeypatch.setenv("DISSOLVE_TEA_STORED_RESULTS", "off")
     payload = cost()
     assert called["n"] == 0 and payload.get("success") is not True
+
+
+def test_a_feed_of_only_the_target_polymer_is_refused_before_anything_runs(monkeypatch):
+    """A feed that is 100 % target polymer gave "nan encountered in cashflow array" after a whole live run (65 s on
+    the hosted site) whatever the leftover plastic's switches (2026-09-30): the engine refuses it up front, with the
+    reason, and 99 % still runs."""
+    ran = []
+    monkeypatch.setattr(tea, "_live", lambda config, timeout_seconds: ran.append(config) or {
+        "success": False, "error_type": "timeout", "error": "the live TEA run produced no result"})
+    monkeypatch.setenv("DISSOLVE_TEA_STORED_RESULTS", "off")
+    public = dict(tea._DESIGN_POINT_PUBLIC_FIELDS)
+    plant = {public[key]: value for key, value in _stored_plant().items() if key in public}
+    token = tea.PROCESS_CONFIRMATION.set("confirmed_on_sheet")
+    try:
+        pure = _data(tea.evaluate_process(mode="evaluate", process_config={**plant, "target_mass_percent": 100},
+                                          confirm_live_tea=True))
+        almost = _data(tea.evaluate_process(mode="evaluate", process_config={**plant, "target_mass_percent": 99},
+                                            confirm_live_tea=True))
+    finally:
+        tea.PROCESS_CONFIRMATION.reset(token)
+    reasons = json.dumps(pure)
+    assert "below 100" in reasons and "cash flow undefined" in reasons
+    assert len(ran) == 1 and ran[0]["target_plastic_percent"] == 99
+    assert almost is not None
+
+
+def test_a_route_stage_on_a_feed_of_only_its_polymer_is_refused_with_the_reason(monkeypatch):
+    """A route stage costs its polymer out of a mix; a one-step route over a feed of only that polymer has no defined
+    cash flow, and the engine says so before any live run."""
+    record = _record_by_label("ldpe-route-c1")
+    cfg = record["config"]
+    polymer = cfg["target_plastic"]
+    route = {"complete": True, "final_residue": None, "steps": [
+        {"dissolved_polymer": polymer, "solvent": cfg["solvent"], "temperature_c": cfg["dissolution_temperature_c"]}]}
+    _forbid_live(monkeypatch)
+    monkeypatch.setattr(tea, "current_tool_session", lambda: SimpleNamespace(
+        last_route=copy.deepcopy(route), feed_mass_fractions={polymer: 1.0}))
+    payload = _data(tea.evaluate_stored_route_tea_lca(
+        feed_mass_fractions={polymer: 1.0}, processing_capacity_mt_per_yr=cfg["processing_capacity"],
+        energy_case=cfg["energy_case"], precipitation_temperature_c=cfg["precipitation_temperature_c"],
+        engine_mode="live", confirm_live_tea=True,
+    ))
+    assert payload.get("success") is not True and "below 100" in json.dumps(payload)
