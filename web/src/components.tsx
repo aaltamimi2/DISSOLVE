@@ -1,5 +1,6 @@
 import {
   AlertCircle,
+  Calculator,
   Check,
   CheckCircle2,
   ChevronDown,
@@ -1143,6 +1144,7 @@ export function Composer(props: {
   families: ContaminantFamily[];
   state: SessionState | null;
   inputRef: RefObject<HTMLTextAreaElement | null>;
+  onTeaSheet?: () => void;
 }) {
   const ref = props.inputRef;
   const [selected, setSelected] = useState(0);
@@ -1239,6 +1241,18 @@ export function Composer(props: {
                 onPick={(text) => !props.busy && props.onSend(text)}
               />
             ))}
+            {props.onTeaSheet && (
+              <button
+                type="button"
+                onClick={() => !props.busy && props.onTeaSheet?.()}
+                disabled={props.busy}
+                title="Open the TEA panel with every field: check the defaults, edit a plant and run it. The model is not asked."
+                className="flex items-center gap-1.5 whitespace-nowrap rounded-full border border-line bg-canvas px-2.5 py-1 font-headline text-[13px] text-ink transition-colors hover:border-line-strong disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                <Calculator size={13} className="text-brand-ink" />
+                <span className="font-medium">TEA sheet</span>
+              </button>
+            )}
             {contaminantMode && props.families.length > 0 && <FamiliesChip families={props.families} onPick={insert} />}
           </div>
         )}
