@@ -70,7 +70,7 @@ from dissolve.agent import ToolEvent
 
 STATIC = Path(__file__).with_name("ui")
 _DOCTOR_SECONDS = 120.0
-_CLI_ONLY = {"/process": "The process sheet is an interactive CLI editor; describe the process in your message instead.",
+_CLI_ONLY = {"/process": "The TEA sheet needs live TEA, which this deployment switches off.",
              "/harness": None, "/quit": None, "/exit": None, "/q": None}
 
 
@@ -146,8 +146,12 @@ def commands(offered: dict[str, bool] | None = None) -> list[dict[str, Any]]:
         {"command": "/cost", "summary": "Tool rounds, tool calls and token usage of the last turn", "options": []},
         {"command": "/safety", "summary": "How the published hazard scores were built", "options": []},
         {"command": "/clear", "summary": "Clear this conversation's messages and handles", "options": []},
+        {"command": "/process", "summary": "The TEA panel with every field: check the defaults, edit, run a plant",
+         "options": []},
     ]
-    return [row for row in rows if row["command"] != "/literature" or (offered or features())["literature"]]
+    offered = offered or features()
+    return [row for row in rows if (row["command"] != "/literature" or offered["literature"])
+            and (row["command"] != "/process" or offered["tea"])]
 
 
 def _state(app: cli.CliApp) -> dict[str, Any]:
@@ -437,7 +441,9 @@ def _run(app: cli.CliApp, text: str, events: "queue.Queue[dict[str, Any] | None]
         if text.startswith("/"):
             command, *rest = text.split()
             command = command.casefold()
-            if command in _CLI_ONLY:
+            if command == "/process" and offered["tea"] and panel is not None:  # the TEA sheet button
+                output = web_tea.process_sheet(web_tea.Turn(panel, app, events.put, idle=idle or nullcontext))
+            elif command in _CLI_ONLY:
                 output = _CLI_ONLY[command] or f"{command} has no effect in the web app."
             elif command == "/literature" and not offered["literature"] and rest and rest[0].casefold() != "off":
                 output = ("Literature search is off on this deployment: its models need more memory than this server "
