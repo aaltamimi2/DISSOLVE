@@ -823,3 +823,241 @@ def test_the_admin_sees_a_turn_while_it_runs(serve, tmp_path, monkeypatch):
         worker.join(20)
         assert finished["events"][-1]["event"] == "turn.completed"
         assert http.get("/api/admin/live", headers=admin).json() == []
+
+
+# Limits for the hosted image, which serves live TEA and literature search on 2 GB (owner, 2026-09-29: "under 2GB
+# under any scenario"). The TEA worker's own limits are in deploy/tea-python-guarded.
+
+def _asker(http, session_id, text, events):
+    """A question from its own connection, as a second person asks it; its events land in `events`."""
+    def ask():
+        with httpx.Client(base_url=str(http.base_url), cookies=http.cookies, timeout=30) as own:
+            with own.stream("POST", f"/api/sessions/{session_id}/turns", json={"text": text}) as response:
+                events.extend(json.loads(line) for line in response.iter_lines() if line)
+    thread = threading.Thread(target=ask)
+    thread.start()
+    return thread
+
+
+def test_questions_past_the_limit_wait_for_a_place(serve, monkeypatch):
+    """At most DISSOLVE_MAX_TURNS answers run at once, so questions a burst of people ask together cannot outgrow the
+    host. A question past the limit waits, its stream says so, and its model is not asked until an answer ends."""
+    http = serve(DISSOLVE_MAX_TURNS="1")
+    asked, first_running, release = [], threading.Event(), threading.Event()
+
+    def complete(messages, tools, **kwargs):
+        asked.append(messages[-1]["content"])
+        if asked[-1] == "first":
+            first_running.set()
+            release.wait(20)
+        return {"text": f"An answer to {asked[-1]}.", "tool_calls": []}
+
+    monkeypatch.setattr(agent, "complete", complete)
+    one, two = (http.post("/api/sessions", json={}).json()["session_id"] for _ in range(2))
+    first, second = [], []
+    running = _asker(http, one, "first", first)
+    assert first_running.wait(20)
+    waiting = _asker(http, two, "second", second)
+    deadline = time.monotonic() + 20
+    while not second and time.monotonic() < deadline:
+        time.sleep(0.02)
+    assert second[0]["event"] == "turn.queued" and asked == ["first"]
+    release.set()
+    running.join(20)
+    waiting.join(20)
+    assert asked == ["first", "second"]
+    assert [event["event"] for event in first][-1] == [event["event"] for event in second][-1] == "turn.completed"
+
+
+def test_a_tea_panel_gives_its_place_back_while_it_waits_and_runs(serve, monkeypatch):
+    """A panel can wait half an hour for the person, and its plants run in the TEA worker under the worker's own
+    limit. Meanwhile its answer's place goes to other questions, and the answer takes a place again to finish."""
+    http = serve(DISSOLVE_MAX_TURNS="1")
+    monkeypatch.setattr(web_tea, "WAIT_SECONDS", 5.0)  # holding the place would expire the panel, not hang the test
+
+    def complete(messages, tools, **kwargs):
+        last = messages[-1]
+        if last["role"] == "tool":
+            return {"text": "Here are the plants you ran.", "tool_calls": []}
+        if last["content"] == "What does LDPE recovery cost?":
+            return {"text": "", "tool_calls": [{"id": "t0", "name": "evaluate_process",
+                                                "args": {"mode": "evaluate", "process_config": _plant()}}]}
+        return {"text": "Answered while the panel waited.", "tool_calls": []}
+
+    monkeypatch.setattr(agent, "complete", complete)
+    runs = _engine(monkeypatch)
+    tea_chat, other_chat = (http.post("/api/sessions", json={}).json()["session_id"] for _ in range(2))
+    other = []
+
+    def answer(panel, sheet):
+        _asker(http, other_chat, "Which solvents dissolve PS?", other).join(20)
+        assert panel.post(f"/api/sessions/{tea_chat}/tea-sheet",
+                          json={"sheet_id": sheet["id"], "action": "run"}).json()["plants"] == 1
+
+    events = _tea_turn(http, tea_chat, "What does LDPE recovery cost?", answer)
+    assert [event["event"] for event in other] == ["turn.started", "turn.completed"]  # never queued
+    assert len(runs) == 1 and events[-1]["event"] == "turn.completed"
+    assert next(event for event in events if event["event"] == "tea.result")["ran"] == 1
+
+
+def test_every_duckdb_database_gets_the_limit_and_one_thread(serve, monkeypatch, tmp_path):
+    """DuckDB lets one database take 80 % of the host's memory and a thread per host CPU. With
+    DISSOLVE_DUCKDB_MEMORY_LIMIT every database the package opens gets that limit and one thread: in memory, and a
+    product asset read-only through the package's own connection. The app installs the cap before its first
+    connection, since every connection to one file must share one configuration."""
+    import shutil
+
+    import duckdb
+
+    from dissolve import contaminants
+
+    monkeypatch.setattr(duckdb, "connect", duckdb.connect)  # the cap is undone after this test
+    serve(DISSOLVE_DUCKDB_MEMORY_LIMIT="64MB")
+    asset = tmp_path / "contaminants.duckdb"  # its own database: other tests in this process hold the shipped one open
+    shutil.copy(contaminants._ASSET, asset)
+    monkeypatch.setattr(contaminants, "_ASSET", asset)
+    monkeypatch.setattr(contaminants, "_LOCAL", threading.local())
+    setting = "select current_setting('memory_limit'), current_setting('threads')"
+    assert contaminants._connection().execute(setting).fetchone() == ("61.0 MiB", 1)
+    in_memory = duckdb.connect()
+    assert in_memory.execute(setting).fetchone() == ("61.0 MiB", 1)
+    in_memory.close()
+
+
+def test_chats_past_the_limit_leave_memory_and_read_back_whole(client, monkeypatch):
+    """Every chat opened since the server started stayed in memory with all its messages and results. Past
+    _OPEN_CHATS the least recently used idle chat leaves; opened again it is read back from its store, and a finished
+    TEA table stays with it."""
+    monkeypatch.setattr(web, "_OPEN_CHATS", 2)
+    monkeypatch.setattr(web, "_HELD_S", 0.0)
+    _script(monkeypatch, [{"text": f"Answer {i}.", "tool_calls": []} for i in range(4)])
+    sessions = client.app.state.sessions
+    chats = []
+    for i in range(3):
+        chats.append(client.post("/api/sessions", json={}).json()["session_id"])
+        _stream(client, chats[-1], f"Question {i}?")
+        for lock in sessions.locks.values():  # the turn's thread lets go of its chat just after the stream ends
+            assert lock.acquire(timeout=5)
+            lock.release()
+        if i == 0:
+            sessions.panels[chats[0]].result = {"event": "tea.result", "handle": "tea-1"}
+    assert chats[0] not in sessions.apps and set(chats[1:]) <= set(sessions.apps)
+    assert [message["text"] for message in client.get(f"/api/sessions/{chats[0]}").json()["messages"]] == [
+        "Question 0?", "Answer 0."]
+    assert client.get(f"/api/sessions/{chats[0]}/tea-sheet").json()["result"]["handle"] == "tea-1"
+    assert chats[1] not in sessions.apps  # the next least recently used made room for it
+
+
+def test_a_quiet_answer_stream_carries_keepalives(client, monkeypatch):
+    """A long tool, a wait for a place or for the TEA worker leaves an answer's stream quiet, and a proxy may close a
+    quiet stream as idle; the stream carries a keepalive (which the browser ignores) until the answer comes."""
+    monkeypatch.setattr(web_tea, "KEEPALIVE_SECONDS", 0.1)
+
+    def complete(messages, tools, **kwargs):
+        time.sleep(0.6)
+        return {"text": "A slow answer.", "tool_calls": []}
+
+    monkeypatch.setattr(agent, "complete", complete)
+    session_id = client.post("/api/sessions", json={}).json()["session_id"]
+    kinds = [event["event"] for event in _stream(client, session_id, "Something slow?")]
+    assert kinds.count("keepalive") >= 3 and kinds[-1] == "turn.completed"
+
+
+def test_answers_past_what_the_site_holds_are_refused(serve, monkeypatch):
+    """Each answer in progress holds its chat in memory, whether it runs, waits for a place or waits on a TEA panel,
+    so at most _IN_FLIGHT_PER_PLACE per place are in progress; past that a question is refused (503), not queued."""
+    http = serve(DISSOLVE_MAX_TURNS="1")
+    release = threading.Event()
+
+    def complete(messages, tools, **kwargs):
+        release.wait(20)
+        return {"text": "Done.", "tool_calls": []}
+
+    monkeypatch.setattr(agent, "complete", complete)
+    chats = [http.post("/api/sessions", json={}).json()["session_id"] for _ in range(web._IN_FLIGHT_PER_PLACE + 1)]
+    streams, threads = [[] for _ in chats], []
+    for chat, events in zip(chats[:-1], streams):
+        threads.append(_asker(http, chat, "Hold on?", events))
+    deadline = time.monotonic() + 20
+    while http.app.state.slots.in_flight < web._IN_FLIGHT_PER_PLACE and time.monotonic() < deadline:
+        time.sleep(0.02)
+    refused = http.post(f"/api/sessions/{chats[-1]}/turns", json={"text": "One more?"})
+    assert refused.status_code == 503 and "Try again in a minute" in refused.json()["detail"]
+    release.set()
+    for thread in threads:
+        thread.join(20)
+    assert all(events[-1]["event"] == "turn.completed" for events in streams[:-1])
+    assert http.app.state.slots.in_flight == 0
+    _stream(http, chats[-1], "One more?")  # room again
+
+
+def test_a_request_past_the_body_limit_is_refused_unread(client, monkeypatch):
+    """The app reads a request body whole into memory; one past _MAX_BODY is refused (413), whether it declares its
+    length or streams it in chunks."""
+    monkeypatch.setattr(web, "_MAX_BODY", web._MAX_BODY)  # the limit the app was built with
+    session_id = client.post("/api/sessions", json={}).json()["session_id"]
+    big = "x" * (web._MAX_BODY + 1)
+    declared = client.post(f"/api/sessions/{session_id}/turns", json={"text": big})
+    assert declared.status_code == 413
+
+    def chunks():
+        payload = json.dumps({"text": big}).encode()
+        for start in range(0, len(payload), 65536):
+            yield payload[start:start + 65536]
+
+    streamed = client.post(f"/api/sessions/{session_id}/turns", content=chunks(),
+                           headers={"content-type": "application/json"})
+    assert streamed.status_code == 413
+    _script(monkeypatch, [{"text": "Fine.", "tool_calls": []}])
+    assert _stream(client, session_id, "A normal question?")[-1]["event"] == "turn.completed"
+
+
+def test_two_panels_run_their_plants_one_at_a_time(serve, monkeypatch):
+    """Plants from two chats' TEA panels run one after another: the worker runs one at a time anyway, and a plant that
+    waits in the app holds no process."""
+    http = serve()
+    running, most = [], []
+
+    def complete(messages, tools, **kwargs):
+        if messages[-1]["role"] == "tool":
+            return {"text": "Here are the plants you ran.", "tool_calls": []}
+        return {"text": "", "tool_calls": [{"id": "t0", "name": "evaluate_process",
+                                            "args": {"mode": "evaluate", "process_config": _plant()}}]}
+
+    monkeypatch.setattr(agent, "complete", complete)
+    runs = _engine(monkeypatch)
+    stub = tea.evaluate_process
+
+    def overlapping(**call):
+        running.append(1)
+        most.append(len(running))
+        time.sleep(0.1)
+        running.pop()
+        return stub(**call)
+
+    monkeypatch.setattr(tea, "evaluate_process", overlapping)
+    ranges = {"processing_capacity_mt_per_yr": {"kind": "list", "values": [10000, 20000]}}
+
+    def answer(panel, sheet, chat):
+        panel.post(f"/api/sessions/{chat}/tea-sheet", json={"sheet_id": sheet["id"], "action": "run", "ranges": ranges})
+
+    chats = [http.post("/api/sessions", json={}).json()["session_id"] for _ in range(2)]
+    results = {}
+    threads = [threading.Thread(target=lambda c=chat: results.update(
+        {c: _tea_turn(http, c, "What does LDPE recovery cost?", lambda panel, sheet: answer(panel, sheet, c))}))
+        for chat in chats]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join(30)
+    assert len(runs) == 4 and max(most) == 1
+    assert all(next(e for e in results[c] if e["event"] == "tea.result")["ran"] == 2 for c in chats)
+
+
+def test_sign_in_attempts_leave_no_key_behind_once_stale(serve, tmp_path, monkeypatch):
+    """The sign-in throttle kept a key for every username ever tried; past 1000 keys the stale ones go."""
+    site = serve(DATABASE_URL=f"sqlite:///{tmp_path / 'web.sqlite3'}", DISSOLVE_WEB_PASSWORD="s3cret")
+    monkeypatch.setattr(web, "_ATTEMPT_WINDOW_S", 0.0)  # every failure is stale at once
+    for n in range(1200):
+        assert site.post("/api/auth/login", json={"username": f"nobody{n}", "password": "wrong"}).status_code == 401
+    assert len(site.app.state.failures) <= 1001
