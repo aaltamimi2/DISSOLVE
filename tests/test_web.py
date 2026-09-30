@@ -1114,3 +1114,43 @@ def test_the_tea_sheet_button_is_offered_only_where_tea_runs(serve):
     events = _stream(http, session_id, "/process")
     assert [event["event"] for event in events] == ["turn.started", "command.output"]
     assert "switches off" in events[-1]["text"]
+
+
+def test_the_panels_time_estimate_follows_the_hosts_live_speed(monkeypatch):
+    """The engine's own measure is about 15 s a live plant; the hosted sandbox takes about 65 s, so a host can say so
+    (DISSOLVE_TEA_SECONDS_PER_PLANT) and the panel's estimate follows."""
+    monkeypatch.setattr(tea, "_live_tea_blocker", lambda: None)
+    kwargs = {"mode": "evaluate", "process_config": {**_plant(), "processing_capacity_mt_per_yr": 12345}}
+    monkeypatch.setenv("DISSOLVE_TEA_SECONDS_PER_PLANT", "65")
+    sheet = web_tea.build_sheet("evaluate", kwargs)
+    assert sheet["limits"]["seconds_per_live_plant"] == 65
+    plants = web_tea.expand(sheet, {}, {}, [])
+    report = web_tea.check(sheet, plants, kwargs)
+    assert report["live"] == 1 and report["seconds"] == 65
+
+
+def test_with_stored_results_off_every_plant_in_the_panel_is_live(monkeypatch):
+    """Where the site serves no stored TEA result, the panel's check counts the stored reference plant as a live run
+    too, and the TEA sheet button's plant runs live."""
+    monkeypatch.setattr(tea, "_live_tea_blocker", lambda: None)
+    kwargs = {"mode": "evaluate", "process_config": web_tea._reference_plant()}
+    sheet = web_tea.build_sheet("evaluate", kwargs)
+    plants = web_tea.expand(sheet, {}, {}, [])
+    assert (web_tea.check(sheet, plants, kwargs)["stored"], web_tea.check(sheet, plants, kwargs)["live"]) == (1, 0)
+    monkeypatch.setenv("DISSOLVE_TEA_STORED_RESULTS", "off")
+    assert (web_tea.check(sheet, plants, kwargs)["stored"], web_tea.check(sheet, plants, kwargs)["live"]) == (0, 1)
+
+
+def test_the_panel_offers_every_polymer_and_solvent_live_tea_can_run():
+    """The panel's dropdowns list every polymer live TEA admits and every solvent it can cost, under names the engine
+    takes. The priced table's own keys were not all names the engine knew (acetic_acid), two solvents have no governed
+    LCA factors, and one the process model cannot model (owner, 2026-09-30: "add all that work")."""
+    catalog = web_tea._catalog()
+    assert catalog["polymers"] == ["EVOH", "HDPE", "LDPE", "NYLON6", "NYLON66", "PC", "PES", "PET", "PP", "PS", "PVC"]
+    names = [row["name"] for row in catalog["solvents"]]
+    assert len(names) == len(set(name.casefold() for name in names)) >= 50
+    for name in names:  # every one is a name the engine resolves to itself
+        assert tea._resolve_tea_solvent(name)["canonical"] == name
+    assert {"Acetic Acid", "Dodecane", "Acetone", "Water"} <= set(names)
+    assert not {"Triethylamine", "Acetaldehyde"} & set(names)
+    assert not web_tea.UNMODELLABLE_SOLVENTS & set(names) and len(names) == 55
