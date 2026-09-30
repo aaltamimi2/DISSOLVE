@@ -4351,6 +4351,9 @@ class _OnnxQueryEncoder:
         self.tokenizer = tokenizers.Tokenizer.from_file(str(tokenizer_path))
         self.tokenizer.enable_truncation(_BGE_ONNX_MAX_TOKENS)
         self.tokenizer.enable_padding()
+        # One query at a time: ONNX Runtime's arena keeps its peak, so searches run together would each add their own
+        # working memory for good, and a one-CPU host gains nothing from running them together.
+        self.lock = threading.Lock()
 
     def encode(self, texts: list[str]) -> list[list[float]]:
         import numpy
@@ -4359,7 +4362,8 @@ class _OnnxQueryEncoder:
                 "attention_mask": numpy.array([item.attention_mask for item in batch], dtype=numpy.int64)}
         if "token_type_ids" in self.inputs:
             feed["token_type_ids"] = numpy.array([item.type_ids for item in batch], dtype=numpy.int64)
-        cls = self.session.run(None, feed)[0][:, 0]
+        with self.lock:
+            cls = self.session.run(None, feed)[0][:, 0]
         return (cls / numpy.linalg.norm(cls, axis=1, keepdims=True)).tolist()
 
 

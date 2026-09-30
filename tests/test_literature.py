@@ -13,6 +13,8 @@ import os
 import re
 import shutil
 import statistics
+import threading
+import time
 from contextlib import nullcontext
 from pathlib import Path
 from types import SimpleNamespace
@@ -2357,6 +2359,56 @@ def test_an_int8_model_that_is_not_the_pinned_one_is_refused(monkeypatch, tmp_pa
     _onnx_host(monkeypatch, tmp_path, model_bytes=b"some other model")
     with pytest.raises(RuntimeError, match="bge_onnx_model_mismatch"):
         research._onnx_query_encoder()
+
+
+def test_queries_are_encoded_one_at_a_time(monkeypatch, tmp_path):
+    """ONNX Runtime keeps the peak working memory of the runs it served together, so searches that arrive together on
+    the hosted site are encoded one after another."""
+    import numpy
+
+    model = _onnx_host(monkeypatch, tmp_path)
+    running, most = [], []
+
+    class Session:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def get_inputs(self):
+            return [SimpleNamespace(name="input_ids"), SimpleNamespace(name="attention_mask")]
+
+        def run(self, outputs, feed):
+            running.append(1)
+            most.append(len(running))
+            time.sleep(0.05)
+            running.pop()
+            return [numpy.ones((1, 3, research._BGE_DIM), dtype=numpy.float32)]
+
+    class Tokenizer:
+        @staticmethod
+        def from_file(path):
+            return Tokenizer()
+
+        def enable_truncation(self, limit):
+            pass
+
+        def enable_padding(self):
+            pass
+
+        def encode_batch(self, texts):
+            return [SimpleNamespace(ids=[1, 2, 3], attention_mask=[1, 1, 1], type_ids=[0, 0, 0]) for _ in texts]
+
+    fakes = {"onnxruntime": SimpleNamespace(SessionOptions=SimpleNamespace, InferenceSession=Session),
+             "tokenizers": SimpleNamespace(Tokenizer=Tokenizer)}
+    hub_import = research.importlib.import_module
+    monkeypatch.setattr(research.importlib, "import_module",
+                        lambda name, *args, **kwargs: fakes.get(name) or hub_import(name, *args, **kwargs))
+    encoder = research._OnnxQueryEncoder(model, tmp_path / "tokenizer.json")
+    threads = [threading.Thread(target=encoder.encode, args=([f"query {i}"],)) for i in range(4)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
+    assert len(most) == 4 and max(most) == 1
 
 
 class TestBgeFusion:
