@@ -6,7 +6,7 @@ The literature tools serve a corpus with BM25 and dense z-score fusion, the abst
 the pinned bge-reranker-base pair rerank with reciprocal-rank fusion (the BGE10 configuration).
 
 A release is a directory holding index.json.gz and manifest.json. The package ships the paper's
-release (39 papers, 1,841 chunks) in data/corpus. The working release is DISSOLVE_CORPUS_DIR
+release (61 papers, 3,035 chunks) in data/corpus. The working release is DISSOLVE_CORPUS_DIR
 (default ~/.dissolve/corpus); it starts as a copy of the shipped one, ``add`` grows it, and the
 agent's ingest tool runs the same code. ``build`` starts a release from your papers alone.
 ``verify`` compares a release with a reference chunk by chunk (paper, offsets, text hash), so

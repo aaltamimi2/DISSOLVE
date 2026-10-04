@@ -1106,7 +1106,7 @@ _REFUSE_RULE_SPARSE_GATED = "sparse_gated"
 _PRODUCT_KNOWLEDGEBASE = "t5-indexed-unsealed"
 _ENV_BGE10_MANIFEST = "DISSOLVE_BGE10_MANIFEST"
 _ENV_CORPUS_DIR = "DISSOLVE_CORPUS_DIR"
-#: The release the package ships: the paper's 39 papers, T5 chunks, BGE-base vectors.
+#: The release the package ships: the paper's 61 papers, T5 chunks, BGE-base vectors.
 _SHIPPED_CORPUS_DIR = Path(__file__).resolve().parent / "data" / "corpus"
 _RELEASE_MANIFEST = "manifest.json"
 _BGE_MODEL_ID = "BAAI/bge-base-en-v1.5"
@@ -4930,7 +4930,7 @@ def _hybrid_passage_parts(
     return parts
 
 
-#: A search returns each chunk whole. The excerpt used to stop at 600 characters, which cut 1,676 of the 1,841 served
+#: A search returns each chunk whole. The excerpt used to stop at 600 characters, which cut 1,676 of the 1,841 then served
 #: chunks, so a table cell or a number later in a returned chunk never reached the model (review of 2026-09-26). The
 #: longest served chunk is 7,579 characters; this bound only keeps an outsized parser block in a grown corpus from
 #: flooding the context, and a row it cuts says so (excerpt_complete false).
