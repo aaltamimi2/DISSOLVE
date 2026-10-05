@@ -22,8 +22,11 @@ RUN python /ctx/fetch_plastics.py /plastics
 FROM python:3.11-slim-bookworm
 COPY --from=ghcr.io/astral-sh/uv:0.12.18 /uv /usr/local/bin/uv
 # RDKit's drawing module (the structures in answer tables) needs the X render libraries, which a slim image leaves
-# out: without them the live site answered "libXrender.so.1: cannot open shared object file" (2026-09-25).
-RUN apt-get update && apt-get install -y --no-install-recommends libxrender1 libxext6 && rm -rf /var/lib/apt/lists/*
+# out: without them the live site answered "libXrender.so.1: cannot open shared object file" (2026-09-25). RDKit
+# 2024.03, the first build for NumPy 2, also needs libexpat1: 2023.09 was built for NumPy 1, so every first import
+# under this image's NumPy 2.4.6 logged "_ARRAY_API not found" tracebacks (2026-10-05).
+RUN apt-get update && apt-get install -y --no-install-recommends libxrender1 libxext6 libexpat1 \
+    && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 # The live TEA worker: Python 3.12 with exactly requirements-tea.txt, the environment ./dissolve builds as .venv-tea.
 # Bytecode is compiled here: the worker runs as a user who cannot write it, and every run would compile BioSTEAM again.
