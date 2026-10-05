@@ -256,6 +256,26 @@ def test_people_sign_up_with_a_username_and_password(serve, tmp_path):
     assert http.post("/api/auth/login", json={"username": "alice", "password": "correct horse"}).status_code == 429
 
 
+def test_sign_up_also_takes_a_short_code_typed_any_way(serve, tmp_path):
+    """The site's access code is a long random string, too hard to type from a slide after scanning a QR code (owner,
+    2026-10-05). DISSOLVE_SIGNUP_CODES adds short codes beside it, and the long code keeps working for everyone who
+    already has it. Case, spaces and hyphens do not count, because a phone keyboard capitalises the first letter."""
+    http = serve(DATABASE_URL=f"sqlite:///{tmp_path / 'web.sqlite3'}", DISSOLVE_WEB_PASSWORD="s3cret",
+                 DISSOLVE_SIGNUP_CODES="labtalk2026")
+
+    def status(code, name):
+        body = {"username": name, "password": "correct horse", "access_code": code}
+        return http.post("/api/auth/signup", json=body).status_code
+
+    assert http.get("/api/auth/config").json()["access_code"] is True
+    assert status("s3cret", "Old") == 200
+    assert status("labtalk2026", "Short") == 200
+    assert status("LAB-TALK-2026", "Shouted") == 200
+    assert status(" Labtalk 2026 ", "Phone") == 200
+    assert status("labtalk2025", "Wrong") == 403
+    assert status("", "Empty") == 403
+
+
 def test_each_account_sees_only_its_chats_and_they_outlive_a_redeploy(serve, tmp_path, monkeypatch):
     """Chats were files in the container, and every redeploy replaced the container (owner, 2026-09-24). They are
     now rows in the database, each owned by one account; a new server on the same database finds them."""
