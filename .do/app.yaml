@@ -22,6 +22,10 @@ services:
       - key: DISSOLVE_WEB_PASSWORD
         type: SECRET
         scope: RUN_TIME
+      # Short sign-up codes beside DISSOLVE_WEB_PASSWORD, comma-separated, for people typing one from a slide.
+      - key: DISSOLVE_SIGNUP_CODES
+        type: SECRET
+        scope: RUN_TIME
       - key: DATABASE_URL
         scope: RUN_TIME
         value: ${db.DATABASE_URL}

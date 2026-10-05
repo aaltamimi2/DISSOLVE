@@ -30,9 +30,10 @@ the CLI's process sheet shows, with ranges, checked before anything runs.
 
 With DATABASE_URL set, people have accounts (web_accounts.py): each signs up with a username and a password, sees
 only their own chats, and keeps them across redeploys, because accounts and chats live in that database and not in
-the container. Sign-up asks for DISSOLVE_SIGNUP_CODE (by default DISSOLVE_WEB_PASSWORD) so that a stranger who finds
-the site cannot spend its model credits. Without a database, DISSOLVE_WEB_PASSWORD makes the whole site ask for one
-shared password and sessions are files, as a local `dissolve web` keeps them.
+the container. Sign-up asks for DISSOLVE_SIGNUP_CODE (by default DISSOLVE_WEB_PASSWORD), or any comma-separated code
+in DISSOLVE_SIGNUP_CODES, so that a stranger who finds the site cannot spend its model credits. Case, spaces and
+hyphens in a code do not count, so a short code can be typed from a slide. Without a database, DISSOLVE_WEB_PASSWORD
+makes the whole site ask for one shared password and sessions are files, as a local `dissolve web` keeps them.
 
 On a small instance DISSOLVE_WEB_DISABLE=literature,tea: the literature models alone need 1.8 GB and a live TEA run
 0.9 GB more, so a 1 GB host offers everything else. The hosted image serves both on 2 GB (see its Dockerfile), with
@@ -109,6 +110,24 @@ _IN_FLIGHT_PER_PLACE = 4  # answers in progress in any state (running, waiting f
 _MAX_BODY = 2 * 2**20  # bytes in one request; a body is read whole into memory
 _HELD_S = 60.0  # a chat used this recently stays in memory whatever the count
 _KEPT_RESULTS = 32  # finished TEA tables kept for chats that left memory
+
+
+def _code_key(code: str) -> str:
+    """An access code as people type it: case, spaces and hyphens do not count (a phone capitalises the first letter)."""
+    return re.sub(r"[\s\-]+", "", code or "").casefold()
+
+
+def _signup_codes() -> list[str]:
+    """Every code sign-up accepts: DISSOLVE_SIGNUP_CODE (by default DISSOLVE_WEB_PASSWORD), plus each comma-separated
+    entry of DISSOLVE_SIGNUP_CODES, short codes for people who type them in, say from a slide after scanning a QR code."""
+    codes = [os.getenv("DISSOLVE_SIGNUP_CODE", os.getenv("DISSOLVE_WEB_PASSWORD", ""))]
+    codes += os.getenv("DISSOLVE_SIGNUP_CODES", "").split(",")
+    return [key for key in map(_code_key, codes) if key]
+
+
+def _code_accepted(typed: Optional[str], codes: list[str]) -> bool:
+    key = _code_key(typed or "").encode()
+    return any([secrets.compare_digest(key, code.encode()) for code in codes])  # a list: every code is compared
 
 
 def _options(rows: list[tuple[Any, str]]) -> list[dict[str, str]]:
@@ -542,7 +561,7 @@ def create_app(home: str | Path | None = None) -> FastAPI:
     slots = api.state.slots = TurnSlots(int(os.getenv("DISSOLVE_MAX_TURNS") or 0))
     if limit := os.getenv("DISSOLVE_DUCKDB_MEMORY_LIMIT", "").strip():
         cap_duckdb(limit)
-    signup_code = os.getenv("DISSOLVE_SIGNUP_CODE", os.getenv("DISSOLVE_WEB_PASSWORD", ""))
+    signup_codes = _signup_codes()
     admin_key = web_admin.admin_token() if accounts is not None else None
     admin = web_admin.AdminView(db, sessions) if admin_key else None
     admin_events = web_admin.AdminEvents() if admin is not None else None
@@ -595,7 +614,7 @@ def create_app(home: str | Path | None = None) -> FastAPI:
 
     @api.get("/api/auth/config")
     def auth_config() -> dict[str, Any]:
-        return {"accounts": accounts is not None, "access_code": accounts is not None and bool(signup_code),
+        return {"accounts": accounts is not None, "access_code": accounts is not None and bool(signup_codes),
                 "admin_reads": admin is not None}
 
     @api.post("/api/auth/signup")
@@ -603,7 +622,7 @@ def create_app(home: str | Path | None = None) -> FastAPI:
         if accounts is None:
             raise HTTPException(404, "This server has no accounts.")
         key = throttled(request, "signup")
-        if signup_code and not secrets.compare_digest((body.access_code or "").encode(), signup_code.encode()):
+        if signup_codes and not _code_accepted(body.access_code, signup_codes):
             failures[key].append(time.monotonic())
             raise HTTPException(403, "That access code is not right. Ask whoever gave you this site for it.")
         try:
