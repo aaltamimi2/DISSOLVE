@@ -5219,3 +5219,31 @@ def test_a_wash_that_clashes_with_its_neighbour_gives_way_to_the_next_passing_so
     wash = next(step for step in payload["steps"] if step.get("step_kind") == "wash")
     assert wash["skipped_for_adjacent_temperature_clash"] == ["triethylamine"]
     assert wash["solvent"] == wash["recommended_solvents"][1]
+
+
+def test_one_call_ranks_every_panel_solvent_for_named_contaminants():
+    """"Which solvents can be used to separate bisphenol A from EVOH?" took 20 one-solvent calls on the hosted site
+    and hit the 30-round limit with no answer (2026-10-05). Leaving the solvent out now ranks all 32 panel solvents in
+    one call, and every row equals the one-solvent screen's row for that solvent."""
+    out = _data(contaminants.screen_contaminant_partitioning("EVOH", contaminants=["bisphenol A"]))
+    assert out["mode"] == "solvent_ranking" and out["solvents_screened"] == 32 and out["evaluated"] == 32
+    ranked = out["solvents_where_it_leaches"]["Bisphenol A"]
+    assert ranked[0] == "dimethyl sulfoxide" and {"acetone", "ethanol", "methanol"} <= set(ranked)
+    assert out["polymer_dissolves_in"] == ["isopropylamine", "triethylamine"]
+    assert [row["leaching_verdict"] for row in out["rows"]][: len(ranked)] == ["leaches"] * len(ranked)
+    for row in out["rows"]:
+        one = _data(contaminants.screen_contaminant_partitioning("EVOH", row["solvent"], ["bisphenol A"]))["rows"][0]
+        assert {key: row[key] for key in one} == one, row["solvent"]
+    listed = _data(contaminants.screen_contaminant_partitioning("EVOH", ["ethanol", "1-butanol", "acetone"],
+                                                                "bisphenol A"))
+    assert listed["solvents_screened"] == 2 and listed["unsupported_solvents"] == ["1-butanol"]
+    assert _data(contaminants.screen_contaminant_partitioning("EVOH"))["error_code"] == \
+        "contaminants_needed_to_rank_solvents"
+    first_line = contaminants.screen_contaminant_partitioning.__doc__.splitlines()[0]
+    assert "leave the solvent out" in first_line  # the agent sees only this line
+
+
+def test_a_solvent_outside_the_panel_is_refused_with_the_whole_panel():
+    out = _data(contaminants.lookup_plastchem_contaminants(["bisphenol A"], "1-butanol"))
+    assert out["error_code"] == "solvent_not_in_panel" and len(out["panel_solvents"]) == 32
+    assert all(solvent in out["error"] for solvent in out["panel_solvents"])

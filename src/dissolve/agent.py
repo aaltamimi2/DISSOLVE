@@ -602,6 +602,31 @@ def _issue_handle(record, tool, basis, data, payload, display=None):
         "total": len(rows), "shown": len(top), "top": top, "data": rest,
     }
 
+_ARGUMENT_ERROR = re.compile(
+    r"^(\w+)\(\) (?:missing \d+ required (?:positional |keyword-only )?arguments?: (.+)"
+    r"|got an unexpected keyword argument '(\w+)')$")
+
+
+def _argument_refusal(name: str, error: TypeError) -> dict[str, Any] | None:
+    """A call whose arguments do not fit the tool's own signature, said in words the model can act on. A Python
+    TypeError ("screen_contaminant_partitioning() missing 1 required positional argument: 'solvent'") cost the
+    bisphenol A question a round and told the model nothing it could fix (2026-10-05). Errors raised deeper inside a
+    tool name another function and stay tool_exception."""
+    tool, hit = BY_NAME.get(name), _ARGUMENT_ERROR.match(str(error))
+    if tool is None or hit is None or hit.group(1) != getattr(tool.fn, "__name__", None):
+        return None
+    params = inspect.signature(tool.fn).parameters
+    required = [key for key, param in params.items() if param.default is inspect.Parameter.empty
+                and param.kind in (param.POSITIONAL_OR_KEYWORD, param.KEYWORD_ONLY)]
+    if hit.group(3):
+        return _refuse("unexpected_argument", tool=name, unexpected=hit.group(3), accepted=list(params),
+                       detail=f"{name} takes no argument {hit.group(3)!r}; it accepts {', '.join(params)}.")
+    missing = re.findall(r"'(\w+)'", hit.group(2))
+    return _refuse("missing_argument", tool=name, missing=missing, required=required,
+                   detail=f"{name} needs {', '.join(missing)}; call it again with every required argument "
+                          f"({', '.join(required)}).")
+
+
 def _invoke(name, kwargs):
     try:
         return parse_tool_result(call(name, **kwargs)), None
@@ -609,7 +634,9 @@ def _invoke(name, kwargs):
         if name not in BY_NAME:
             return None, _refuse("unknown_tool", name=name)
         return None, _refuse("tool_exception", error=f"KeyError: {e}")
-    except (TypeError, ValueError) as e:
+    except TypeError as e:
+        return None, _argument_refusal(name, e) or _refuse("tool_exception", error=f"TypeError: {e}")
+    except ValueError as e:
         return None, _refuse("tool_exception", error=f"{type(e).__name__}: {e}")
     except Exception as e:
         return None, _refuse("tool_exception", error=f"{type(e).__name__}: {e}")
@@ -1140,7 +1167,9 @@ def _rate_limit_wait_s(error: Exception) -> float:
         pass
     return 5.0 + jitter
 
-def complete(messages, tools, *, model, api_base=None, api_key_env=None):
+def complete(messages, tools, *, model, api_base=None, api_key_env=None, tool_choice=None):
+    """One model call. tool_choice="none" keeps the tool definitions, which a history with tool calls needs, but
+    lets the model only write: the closing answer at the tool-round limit uses it."""
     kind, _, ident = model.partition(":")
     ident = ident or model
     if kind not in ("anthropic", "google_genai", "openai"):
@@ -1152,8 +1181,9 @@ def complete(messages, tools, *, model, api_base=None, api_key_env=None):
         import anthropic
         sys, rest = _ant_msgs(messages)
         ant = [{"name": t["name"], "description": t.get("description") or "", "input_schema": t["parameters"]} for t in tools]
+        choice = {"tool_choice": {"type": "none"}} if tool_choice == "none" else {}
         resp = anthropic.Anthropic(api_key=key, max_retries=_PROVIDER_RETRIES).messages.create(
-            model=ident, system=sys, messages=rest, tools=ant, max_tokens=8192)
+            model=ident, system=sys, messages=rest, tools=ant, max_tokens=8192, **choice)
         text = "".join(getattr(b, "text", "") for b in resp.content if getattr(b, "type", "") == "text")
         calls = [{"id": b.id, "name": b.name, "args": dict(b.input or {})}
                  for b in resp.content if getattr(b, "type", "") == "tool_use"]
@@ -1165,7 +1195,10 @@ def complete(messages, tools, *, model, api_base=None, api_key_env=None):
         sys = next((m.get("content") or "" for m in messages if m["role"] == "system"), "")
         resp = genai.Client(api_key=key).models.generate_content(
             model=ident, contents=_gen_contents(messages),
-            config=types.GenerateContentConfig(system_instruction=sys, tools=[types.Tool(function_declarations=decls)]))
+            config=types.GenerateContentConfig(
+                system_instruction=sys, tools=[types.Tool(function_declarations=decls)],
+                **({"tool_config": types.ToolConfig(function_calling_config=types.FunctionCallingConfig(mode="NONE"))}
+                   if tool_choice == "none" else {})))
         calls = [{"id": getattr(c, "id", "") or "", "name": c.name, "args": dict(c.args or {})}
                  for c in (getattr(resp, "function_calls", None) or [])]
         return {"text": getattr(resp, "text", None) or "", "tool_calls": calls, "usage": _usage(kind, resp)}
@@ -1178,7 +1211,8 @@ def complete(messages, tools, *, model, api_base=None, api_key_env=None):
         while True:
             try:
                 resp = client.chat.completions.create(
-                    model=ident, messages=_oai_msgs(messages), tools=oai, **({"extra_body": extra} if extra else {}))
+                    model=ident, messages=_oai_msgs(messages), tools=oai, **({"extra_body": extra} if extra else {}),
+                    **({"tool_choice": "none"} if tool_choice == "none" else {}))
                 break
             except RateLimitError as error:
                 wait = _rate_limit_wait_s(error)
@@ -1222,6 +1256,22 @@ def _gen_contents(messages):
             contents.append(types.Content(role="user", parts=[types.Part.from_text(text=m.get("content") or "")]))
     return contents
 
+# The tool-round limit per question, and what happens at it. "Which solvents can be used to separate bisphenol A from
+# EVOH?" spent all 30 rounds on one-solvent lookups and ended with no answer, although its results already held one
+# (2026-10-05). At the limit the model now writes once more, without tools, from the results it has.
+_TOOL_ROUNDS = 30
+_CLOSING_NOTE = ("You have used all {rounds} tool rounds for this question and cannot call tools again. Answer now from "
+                 "the tool results above only: give what they establish, say plainly what you could not check, and "
+                 "do not invent values.")
+_PARTIAL_LEAD = "_Tool limit reached ({rounds} rounds): this answer uses only what was retrieved before it._\n\n"
+
+
+def _tool_round_cap() -> int:
+    """_TOOL_ROUNDS, or DISSOLVE_MAX_TOOL_ROUNDS when set to a positive whole number (tests and drills)."""
+    raw = (os.environ.get("DISSOLVE_MAX_TOOL_ROUNDS") or "").strip()
+    return int(raw) if raw.isdigit() and int(raw) > 0 else _TOOL_ROUNDS
+
+
 def run_turn(
     query: str, *, session: dict, model: str, messages: list | None = None,
     on_event: Callable[[ToolEvent], None] | None = None,
@@ -1238,9 +1288,10 @@ def run_turn(
     trace: list[ToolEvent] = []
     rounds = 0
     acc = []
+    cap = _tool_round_cap()
     with bind_tool_session(session) as bound:
         tid = open_turn_record(bound)
-        for _ in range(30):
+        for _ in range(cap):
             try:
                 reply = complete(msgs, schemas, model=model, api_base=api_base, api_key_env=api_key_env)
             except MissingProviderKey as e:
@@ -1294,8 +1345,25 @@ def run_turn(
                     tool_trace=trace, turn_record=tid, tool_rounds=rounds,
                     usage=_fold_usage(acc),
                 )
+        # The round limit: one closing call with no tools, so what was retrieved still becomes an answer.
+        closing = msgs + [{"role": "user", "content": _CLOSING_NOTE.format(rounds=cap)}]
+        try:
+            reply = complete(closing, schemas, model=model, api_base=api_base, api_key_env=api_key_env,
+                             tool_choice="none")
+        except Exception:  # noqa: BLE001  a failed closing call leaves the limit message, never a crash
+            reply = None
+        text = ((reply or {}).get("text") or "").strip()
+        if reply is not None:
+            acc.append(reply.get("usage"))
+        if text and not reply.get("tool_calls"):
+            text = _PARTIAL_LEAD.format(rounds=cap) + _complete_tables(text)
+            msgs.append({"role": "assistant", "content": text})
+            return TurnResult(
+                answer=text, status="round_cap", tool_trace=trace, turn_record=tid,
+                tool_rounds=rounds, usage=_fold_usage(acc),
+            )
         return TurnResult(
-            answer="round cap (30) reached; see the tool trace for what was retrieved. No guessed answer.",
+            answer=f"round cap ({cap}) reached; see the tool trace for what was retrieved. No guessed answer.",
             status="round_cap", tool_trace=trace, turn_record=tid,
             tool_rounds=rounds, usage=_fold_usage(acc),
         )

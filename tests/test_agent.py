@@ -7076,3 +7076,60 @@ def test_evaluate_mode_through_the_wrapper_still_refuses_a_sweep_parameter(monke
         mode="evaluate", process_config=_public_from_record(record), parameter="solvent_price",
     ))
     assert payload.get("error_code") == "not_applicable_in_mode"
+
+
+def test_the_round_limit_ends_in_an_answer_from_what_was_retrieved(monkeypatch):
+    """"Which solvents can be used to separate bisphenol A from EVOH?" spent all 30 tool rounds and ended "round cap
+    (30) reached ... No guessed answer", although its results already held an answer (hosted site, 2026-10-05). At the
+    limit the model now writes once more, with tools switched off, from what it retrieved; the answer says so."""
+    seen = []
+
+    def fake_complete(messages, tools, **kwargs):
+        seen.append(kwargs.get("tool_choice"))
+        if kwargs.get("tool_choice") == "none":
+            assert tools and "cannot call tools again" in messages[-1]["content"]
+            return {"text": "Ethanol and acetone extract it; the other solvents were not checked.", "tool_calls": []}
+        return {"text": "", "tool_calls": [{"id": f"c{len(seen)}", "name": "no_such_tool", "args": {}}]}
+
+    monkeypatch.setattr(agent, "complete", fake_complete)
+    monkeypatch.setattr(agent, "compact_messages", lambda *args, **kwargs: None)
+    history: list = []
+    result = run_turn("Which solvents?", session=new_session(), model="openai:x", messages=history)
+    assert result.status == "round_cap" and result.tool_rounds == 30 and len(result.tool_trace) == 30
+    assert result.answer.startswith("_Tool limit reached (30 rounds)")
+    assert "Ethanol and acetone extract it" in result.answer
+    assert seen.count("none") == 1 and len(seen) == 31
+    assert history[-1] == {"role": "assistant", "content": result.answer}
+    assert not any("cannot call tools again" in str(message.get("content")) for message in history)
+
+
+def test_a_failed_closing_call_still_ends_with_the_limit_message(monkeypatch):
+    def fake_complete(messages, tools, **kwargs):
+        if kwargs.get("tool_choice") == "none":
+            raise RuntimeError("provider down")
+        return {"text": "", "tool_calls": [{"id": "c", "name": "no_such_tool", "args": {}}]}
+
+    monkeypatch.setenv("DISSOLVE_MAX_TOOL_ROUNDS", "3")
+    monkeypatch.setattr(agent, "complete", fake_complete)
+    monkeypatch.setattr(agent, "compact_messages", lambda *args, **kwargs: None)
+    result = run_turn("Which solvents?", session=new_session(), model="openai:x", messages=[])
+    assert (result.status, result.tool_rounds) == ("round_cap", 3)
+    assert result.answer == "round cap (3) reached; see the tool trace for what was retrieved. No guessed answer."
+
+
+def test_a_call_missing_an_argument_is_refused_in_words_the_model_can_act_on(monkeypatch):
+    """A TypeError from the tool's own signature ("screen_contaminant_partitioning() missing 1 required positional
+    argument: 'solvent'") reached the model as tool_exception and cost a round (2026-10-05). It now names what is
+    missing and what the tool needs; a TypeError raised inside a tool stays tool_exception."""
+    missing = dispatch("screen_contaminant_leaching", contaminants=["PFOA"])
+    assert missing["refusal"] == "missing_argument" and missing["missing"] == ["target_polymer"]
+    assert "target_polymer" in missing["detail"] and "contaminants" in missing["required"]
+    extra = dispatch("screen_contaminant_leaching", target_polymer="LDPE", contaminants=["PFOA"], colour="red")
+    assert extra["refusal"] == "unexpected_argument" and extra["unexpected"] == "colour"
+
+    def inner_failure(name, **kwargs):
+        raise TypeError("helper() missing 1 required positional argument: 'x'")
+
+    monkeypatch.setattr(agent, "call", inner_failure)
+    deep = dispatch("screen_contaminant_leaching", target_polymer="LDPE", contaminants=["PFOA"])
+    assert deep["refusal"] == "tool_exception"

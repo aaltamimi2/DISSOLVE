@@ -2633,7 +2633,9 @@ class CliApp:
         if self.quiet:
             return result
         self.console.print()
-        if result.status in {"round_cap", "provider_error", "compaction_error"}:
+        stopped = result.status in {"provider_error", "compaction_error"} or (
+            result.status == "round_cap" and not result.answer.startswith("_Tool limit reached"))
+        if stopped:  # an answer written at the tool-round limit reads as an answer, its first line saying so
             self.console.print(Panel(result.answer, title="Session budget stopped", style="yellow"))
         else:
             self.console.print(Markdown(result.answer))
