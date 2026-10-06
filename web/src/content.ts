@@ -84,10 +84,7 @@ export const QUICK_ACTIONS: QuickAction[] = [
       { text: "Do DEHP, DBP, BPA and BHT leach from HDPE into ethanol?" },
       { text: "Which antioxidants leach from PP into ethanol?" },
       { text: "Compare ethanol, acetone and water for washing bisphenol A out of polycarbonate." },
-      {
-        text: "Plan an LDPE/EVOH separation that also removes DEHP by washing against the remaining polymers.",
-        needs: "/contaminant leaching",
-      },
+      { text: "Which solvents can be used to separate BHT from LDPE?" },
     ],
   },
   {
@@ -109,10 +106,7 @@ export const QUICK_ACTIONS: QuickAction[] = [
     examples: [
       { text: "For LDPE/EVOH/PET multilayer film: plan the separation, check each solvent's safety, and cost the LDPE stage.", feature: "tea" },
       { text: "I have mixed PE, PS and PET waste. Plan a separation sequence, suggest greener solvents where possible, and summarize the tradeoffs." },
-      {
-        text: "Plan an HDPE/EVOH separation with a DEHP wash step, then compare its solvent safety with a dissolution-based removal route.",
-        needs: "/contaminant leaching",
-      },
+      { text: "Find solvents that dissolve PS at 100 °C while keeping HDPE insoluble, then rank them by safety." },
       { text: "Screen solvents for EVOH at 120 °C, check the literature for precedent, and recommend one.", needs: "/literature corpus" },
     ],
   },
@@ -181,7 +175,6 @@ export function offeredActions(features: { literature: boolean; tea: boolean }):
 
 /** The session modes the composer shows, in order, with how each reads on its chip. */
 export const MODE_CHIPS = [
-  { command: "/contaminant", state: "contaminant", label: "Contaminant" },
   { command: "/literature", state: "literature", label: "Literature" },
   { command: "/solvents", state: "solvents", label: "Solvents" },
   { command: "/breadth", state: "breadth", label: "Breadth" },

@@ -43,7 +43,6 @@ const DEFAULTS: SessionState = {
   model_label: "",
   model_ready: true,
   mode: "review",
-  contaminant: "off",
   literature: "off",
   solvents: "common",
   breadth: "1",
