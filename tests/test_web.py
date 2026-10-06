@@ -68,15 +68,15 @@ def test_the_api_is_the_cli_surface(client):
     assert client.get("/api/health").json()["ok"] is True
     assert [row["alias"] for row in client.get("/api/models").json()] == list(cli.MODELS)
     commands = {row["command"]: row for row in client.get("/api/commands").json()}
-    assert [o["value"] for o in commands["/contaminant"]["options"]] == ["off", "leaching", "strap", "compare"]
+    assert "/contaminant" not in commands  # no contaminant setting in the web app (owner, 2026-10-05)
     assert [o["value"] for o in commands["/literature"]["options"]] == ["off", "corpus", "scholarly"]
     assert [o["value"] for o in commands["/breadth"]["options"]][:5] == ["1", "3", "5", "10", "all"]
     assert commands["/literature"]["options"][1]["description"] == "local pinned index, offline"
 
 
 def test_the_family_picker_lists_what_each_family_screens(client):
-    """In contaminant mode the composer offers the contaminant families, since nobody knows 5,830 names (owner,
-    2026-09-24). Each carries the term a question uses and the members the screens evaluate."""
+    """The contaminant families a question can name, since nobody knows 5,830 names (owner, 2026-09-24). Each carries
+    the term a question uses and the members the screens evaluate."""
     families = {row["name"]: row for row in client.get("/api/contaminant-families").json()}
     assert families["Bisphenols"]["term"] == "bisphenols" and families["Bisphenols"]["count"] == 24
     assert "Bisphenol A" in families["Bisphenols"]["members"]
@@ -106,7 +106,8 @@ def test_a_turn_streams_its_tool_calls_then_the_answer(client, monkeypatch):
         {"text": "Toluene: δD 18.0, δP 1.4, δH 2.0 MPa½.", "tool_calls": []},
     ])
     state = client.post("/api/sessions", json={}).json()
-    assert (state["model"], state["mode"], state["contaminant"], state["literature"]) == ("openrouter-gemini-flash", "review", "off", "off")
+    assert (state["model"], state["mode"], state["literature"]) == ("openrouter-gemini-flash", "review", "off")
+    assert "contaminant" not in state
     events = _stream(client, state["session_id"], "Hansen parameters of toluene?")
     assert [e["event"] for e in events] == ["turn.started", "tool", "turn.completed"]
     tool = events[1]
@@ -124,14 +125,21 @@ def test_a_turn_streams_its_tool_calls_then_the_answer(client, monkeypatch):
 def test_slash_commands_run_through_the_cli_handler(client, monkeypatch):
     calls = _script(monkeypatch, [])
     session_id = client.post("/api/sessions", json={}).json()["session_id"]
-    events = _stream(client, session_id, "/contaminant leaching")
+    events = _stream(client, session_id, "/breadth 3")
     assert [e["event"] for e in events] == ["turn.started", "command.output"]
-    assert "contaminant_mode=leaching" in events[1]["text"]
-    assert events[1]["state"]["contaminant"] == "leaching"
+    assert events[1]["state"]["breadth"] == "3"
     assert _stream(client, session_id, "/literature corpus")[1]["state"]["literature"] == "corpus"
     assert "has no effect in the web app" in _stream(client, session_id, "/harness")[1]["text"]  # CLI-only
     assert _stream(client, session_id, "/model nope")[1] == {"event": "error", "message": "Unknown model alias: nope"}
-    assert client.get(f"/api/sessions/{session_id}").json()["contaminant"] == "leaching"  # the CLI's session file
+    assert client.get(f"/api/sessions/{session_id}").json()["breadth"] == "3"  # the CLI's session file
+    # The contaminant setting is gone (owner, 2026-10-05): the command answers with a note and sets nothing, and
+    # never reaches the CLI (whose /contaminant logp would start a calculation).
+    for text in ("/contaminant leaching", "/contaminant", "/contaminant logp --smiles CCO"):
+        note = _stream(client, session_id, text)
+        assert [e["event"] for e in note] == ["turn.started", "command.output"]
+        assert note[1]["text"].startswith("Contaminant removal has no setting")
+        assert "contaminant" not in note[1]["state"]
+    assert "contaminant" not in client.get(f"/api/sessions/{session_id}").json()
     assert calls["n"] == 0
 
 
@@ -283,7 +291,7 @@ def test_each_account_sees_only_its_chats_and_they_outlive_a_redeploy(serve, tmp
     alice = _accounts(serve, tmp_path)
     _sign_up(alice, "alice")
     session_id = alice.post("/api/sessions", json={}).json()["session_id"]
-    assert _stream(alice, session_id, "/contaminant leaching")[1]["state"]["contaminant"] == "leaching"
+    assert _stream(alice, session_id, "/breadth 3")[1]["state"]["breadth"] == "3"
     assert _stream(alice, session_id, "Hansen parameters of toluene?")[-1]["event"] == "turn.completed"
     with httpx.Client(base_url=str(alice.base_url), timeout=30) as bob:
         _sign_up(bob, "bob")
@@ -297,7 +305,7 @@ def test_each_account_sees_only_its_chats_and_they_outlive_a_redeploy(serve, tmp
     (row,) = again.get("/api/sessions").json()
     assert (row["session_id"], row["title"], row["turns"]) == (session_id, "Hansen parameters of toluene?", 1)
     kept = again.get(f"/api/sessions/{session_id}").json()
-    assert kept["contaminant"] == "leaching"
+    assert kept["breadth"] == "3"
     assert [(m["role"], m["text"][:8]) for m in kept["messages"]] == [("user", "Hansen p"), ("assistant", "Toluene:")]
 
 
@@ -305,7 +313,7 @@ def test_a_chat_can_be_deleted_by_its_owner_only(serve, tmp_path, client):
     """There was no way to delete a chat (owner, 2026-09-25). Its owner now can; nobody else can, and an answer that
     is still running keeps it until it finishes."""
     session_id = client.post("/api/sessions", json={}).json()["session_id"]  # no database: session files
-    _stream(client, session_id, "/contaminant leaching")
+    _stream(client, session_id, "/breadth 3")
     folder = tmp_path / "home" / "sessions" / session_id
     assert folder.is_dir()
     held = client.app.state.sessions.locks[session_id]
@@ -320,7 +328,7 @@ def test_a_chat_can_be_deleted_by_its_owner_only(serve, tmp_path, client):
     alice = _accounts(serve, tmp_path)  # with a database: only the owner
     _sign_up(alice, "alice")
     kept = alice.post("/api/sessions", json={}).json()["session_id"]
-    _stream(alice, kept, "/contaminant leaching")
+    _stream(alice, kept, "/breadth 3")
     with httpx.Client(base_url=str(alice.base_url), timeout=30) as bob:
         _sign_up(bob, "bob")
         assert bob.delete(f"/api/sessions/{kept}").status_code == 404
