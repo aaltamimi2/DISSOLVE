@@ -590,7 +590,7 @@ export function Welcome({ onPick, features }: { onPick: (example: Example) => vo
       </div>
       <p className="mt-5 font-headline text-[13px] text-ink-2">
         Click a card to cycle through its examples · type <kbd className="rounded border border-line bg-muted px-1.5 text-xs text-ink">/</kbd> for modes such as
-        /contaminant and {features.literature ? "/literature" : "/solvents"}
+        {features.literature ? " /literature and /solvents" : " /solvents and /breadth"}
       </p>
     </div>
   );
@@ -1149,12 +1149,14 @@ export function Composer(props: {
   const ref = props.inputRef;
   const [selected, setSelected] = useState(0);
   const [dismissed, setDismissed] = useState(false);
-  const contaminantMode = (props.state?.contaminant ?? "off") !== "off";
+  // The family picker came with the contaminant setting, which the web app no longer has (owner, 2026-10-05). It stays
+  // off, as it was in every chat that never turned that setting on, until contaminants are handled without a setting.
+  const familyPicker = false;
   const items = useMemo(() => {
     if (dismissed) return [];
     const commands = palette(props.value, props.commands);
-    return commands.length || !contaminantMode ? commands : familySuggestions(props.value, props.families);
-  }, [dismissed, props.value, props.commands, props.families, contaminantMode]);
+    return commands.length || !familyPicker ? commands : familySuggestions(props.value, props.families);
+  }, [dismissed, props.value, props.commands, props.families, familyPicker]);
 
   useEffect(() => {
     setSelected(0);
@@ -1253,7 +1255,7 @@ export function Composer(props: {
                 <span className="font-medium">TEA sheet</span>
               </button>
             )}
-            {contaminantMode && props.families.length > 0 && <FamiliesChip families={props.families} onPick={insert} />}
+            {familyPicker && props.families.length > 0 && <FamiliesChip families={props.families} onPick={insert} />}
           </div>
         )}
         <div className="relative">
@@ -1284,7 +1286,7 @@ export function Composer(props: {
             onChange={(e) => props.onChange(e.target.value)}
             onKeyDown={onKey}
             placeholder={
-              contaminantMode ? "Name a contaminant or a family such as bisphenols…" : "Ask DISSOLVE… or type / for modes and commands"
+              familyPicker ? "Name a contaminant or a family such as bisphenols…" : "Ask DISSOLVE… or type / for modes and commands"
             }
             aria-label="Message"
             className="block max-h-[220px] min-h-[52px] w-full resize-none rounded-xl border border-line bg-canvas py-3.5 pl-4 pr-14 font-headline text-[0.95rem] text-ink shadow-soft outline-none placeholder:text-ink-2 focus:border-brand-soft"
