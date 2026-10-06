@@ -728,6 +728,7 @@ EXPECTED_REGISTRY_NAMES: frozenset[str] = frozenset((
     "compare_contaminant_removal_modes",
     "screen_contaminant_partitioning",
     "lookup_plastchem_contaminants",
+    "find_plastchem_contaminants",
     "search_scholarly_literature",
     "search_patent_literature",
     "ingest_literature_documents",

@@ -2070,16 +2070,23 @@ def _sort_by_verdict(rows: list[dict[str, Any]]) -> None:
 
 
 def _partition_sweep(con: duckdb.DuckDBPyConnection, tool: str, product: str, mapped: Sequence[Any],
-                     solvents: list[str], contaminants: str | list[str] | None, temperature_c: float) -> str:
-    """Every panel solvent, or the ones listed, for the named contaminants: which solvents pull them out of the polymer.
-    "Which solvents separate bisphenol A from EVOH?" took 20 one-solvent calls and hit the 30-round limit with no
-    answer (2026-10-05); this ranks the 32 panel solvents in one call."""
+                     solvents: list[str], contaminants: str | list[str] | None, temperature_c: float,
+                     *, selection: Optional[set[int]] = None, structure_fields: Optional[dict[str, Any]] = None) -> str:
+    """Every panel solvent, or the ones listed, for the named contaminants (or a structural class): which solvents
+    pull them out of the polymer. "Which solvents separate bisphenol A from EVOH?" took 20 one-solvent calls and hit
+    the 30-round limit with no answer (2026-10-05); this ranks the 32 panel solvents in one call."""
     requested = _requested(contaminants)
-    if not requested or [_key(item) for item in requested] == ["all"]:
+    every = not requested or [_key(item) for item in requested] == ["all"]
+    if every and selection is None:
         return tool_error(tool, "Name the contaminants or a family to rank solvents for them; to screen all 5,830 "
                                 "contaminants, name one solvent.",
                           error_code="contaminants_needed_to_rank_solvents", polymer=product)
-    chosen, families, unknown, ambiguous = _resolve_plastchem(con, requested)
+    if every:
+        chosen, families, unknown, ambiguous = sorted(selection), [], [], {}
+    else:
+        chosen, families, unknown, ambiguous = _resolve_plastchem(con, requested)
+        if selection is not None:
+            chosen, families = [cid for cid in chosen if cid in selection], []
     panel = [row[0] for row in con.execute("SELECT DISTINCT solvent FROM partition ORDER BY 1").fetchall()]
     keys, unsupported_solvents = [], []
     if not solvents or any(_key(name) == "all" for name in solvents):
@@ -2133,6 +2140,7 @@ def _partition_sweep(con: duckdb.DuckDBPyConnection, tool: str, product: str, ma
         polymer_state_by_solvent=states, polymer_state_basis="stored COSMO-RS polymer solubility grid (legacy)",
         rows=rows, unsupported_contaminants=unknown, ambiguous_contaminants=ambiguous,
         unsupported_solvents=unsupported_solvents, not_computed_contaminants=list(not_computed.values()),
+        **(structure_fields or {}),
         method="Rows are ranked: solvents where the contaminant leaches first, highest logP(solvent/polymer) first. "
                "Leaches when logP(solvent/polymer) > 0, the contaminant is miscible with the solvent at 15 wt%, and "
                "the polymer does not dissolve; logP is for the neutral species at 25 °C and K = 10^logP. "
@@ -2144,13 +2152,31 @@ def _partition_sweep(con: duckdb.DuckDBPyConnection, tool: str, product: str, ma
 def screen_contaminant_partitioning(
     polymer: str, solvent: str | list[str] | None = None, contaminants: str | list[str] | None = None,
     temperature_c: float = 25.0,
+    elements: str | list[str] | None = None,
+    exclude_elements: str | list[str] | None = None,
+    functional_groups: str | list[str] | None = None,
+    mw_min_g_mol: Optional[float] = None,
+    mw_max_g_mol: Optional[float] = None,
 ) -> str:
-    """Screen PlastChem contaminants for leaching from one polymer: with one solvent, all 5,830, those named, or whole families (phthalates, terephthalates, bisphenols, alkylphenols, antioxidants, UV stabilizers, benzophenones, aromatic amines, slip agents, salicylates, parabens); leave the solvent out (or list several) to rank every panel solvent for the named contaminants in one call."""
+    """Screen PlastChem contaminants for leaching from one polymer: with one solvent, all 5,830, those named, whole families (phthalates, terephthalates, bisphenols, alkylphenols, antioxidants, UV stabilizers, benzophenones, aromatic amines, slip agents, salicylates, parabens), or a structural class by elements, functional groups or molecular weight; leave the solvent out (or list several) to rank every panel solvent for the named contaminants in one call."""
+    from . import contaminant_search  # imports this module; loaded here, not at import time
+
     tool = "screen_contaminant_partitioning"
     con = _plastchem()
     if con is None:
         return tool_error(tool, "The PlastChem contaminant release has not been promoted into DISSOLVE yet.",
                           error_code="plastchem_data_unavailable")
+    structure, refusal = contaminant_search.structure_filters(
+        elements, exclude_elements, functional_groups, mw_min_g_mol, mw_max_g_mol,
+    )
+    if refusal is not None:
+        return tool_error(tool, refusal.get("detail") or refusal["error_code"].replace("_", " "), **refusal)
+    selection = contaminant_search.select(structure) if structure else None
+    reason = None if structure is None or selection else contaminant_search.empty_because(structure)
+    structure_fields = {} if structure is None else {
+        "structure_filter": contaminant_search.describe(structure), "structure_selected": len(selection or ()),
+        **({"empty_because": reason} if reason else {}),
+    }
     product = thermo.resolve_polymer(polymer) or str(polymer).strip().upper()
     mapped = con.execute("SELECT campaign, conformers, shared_model FROM polymers WHERE product = ?",
                          [product]).fetchone()
@@ -2160,7 +2186,8 @@ def screen_contaminant_partitioning(
                           requested_polymer=polymer, available_polymers=known)
     solvents = _requested(solvent)
     if not solvents or len(solvents) > 1 or _key(solvents[0]) == "all":
-        return _partition_sweep(con, tool, product, mapped, solvents, contaminants, temperature_c)
+        return _partition_sweep(con, tool, product, mapped, solvents, contaminants, temperature_c,
+                                selection=selection, structure_fields=structure_fields)
     solvent_key, refusal = _plastchem_solvent(con, solvents[0], tool)
     if refusal is not None:
         return refusal
@@ -2170,6 +2197,9 @@ def screen_contaminant_partitioning(
         families, unknown, ambiguous = [], [], {}
     else:
         chosen, families, unknown, ambiguous = _resolve_plastchem(con, requested)
+    if selection is not None:  # a structural class: only its members, within any names or families given
+        chosen = [cid for cid in chosen if cid in selection]
+        families = []  # a narrowed family's coverage would read as missing members; the filter describes the set
     rows, not_computed, state, regime, regimes = _partition_screen(
         con, product, mapped[0], solvent_key, chosen, families, temperature_c)
     order = _VERDICT_ORDER
@@ -2199,6 +2229,7 @@ def screen_contaminant_partitioning(
         logp_range=_logp_range(logps), logp_range_by_verdict=by_verdict, near_even_count=near_even,
         rows=rows, unsupported_contaminants=unknown, ambiguous_contaminants=ambiguous,
         not_computed_contaminants=not_computed, **({"family_coverage": coverage} if coverage else {}),
+        **structure_fields,
         coverage=("PlastChem compounds of carbon, hydrogen, nitrogen and oxygen, found by name, CAS number, InChIKey, "
                   "common abbreviation or family (" + ", ".join(f["term"] for f in _family_table()) + "). "
                   "Additives with halogens, sulfur, phosphorus, silicon or boron (PFAS, organophosphates, bisphenol S) "

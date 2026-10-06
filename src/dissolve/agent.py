@@ -47,6 +47,7 @@ from dissolve.thermodynamics import expand_polymer_identity, get_available_solve
 
 from . import (
     analysis,
+    contaminant_search,
     contaminants,
     research,
     safety,
@@ -125,6 +126,7 @@ REGISTRY: tuple[Tool, ...] = tuple([
     _t(contaminants.compare_contaminant_removal_modes, "contaminants"),
     _t(contaminants.screen_contaminant_partitioning, "contaminants"),
     _t(contaminants.lookup_plastchem_contaminants, "contaminants"),
+    _t(contaminant_search.find_plastchem_contaminants, "contaminants"),
     # --- retrieval-augmented literature ---
     _t(research.search_scholarly_literature, "research"),
     _t(research.search_patent_literature, "research"),
@@ -355,6 +357,8 @@ def source_basis_for(name: str, data: dict[str, Any], kwargs: dict[str, Any]) ->
         return "identity_registry"
     if name == "screen_contaminant_partitioning":
         return "opencosmo_24a"
+    if name == "find_plastchem_contaminants":  # identities and SMILES-derived features, not predictions
+        return "plastchem_identity"
     if name == "lookup_plastchem_contaminants":  # with a solvent it also gives openCOSMO-RS predictions
         return "opencosmo_24a" if kwargs.get("solvent") else "plastchem_identity"
     if (
@@ -834,6 +838,13 @@ themselves; name a token this prompt does not define as it is:
   antioxidants and the others its description lists). For a family, say how
   many members it screened and how many the release lacks, and why. The
   workbook screens cover 26 PFAS and 8 phthalates.
+- To pick contaminants by structure (an element such as N, a functional
+  group such as ester or phenol, a molecular-weight range), use
+  find_plastchem_contaminants, or give the same filters to
+  screen_contaminant_partitioning to screen the class in one call. The
+  release holds only compounds of C, H, N and O: a search for Cl, Br, F, S
+  or P finds nothing in it, and the result's empty_because says so; report
+  that, and that fluorinated PFAS are in the workbook screens.
 - plastchem_identity is the PlastChem release's record of who a
   contaminant is (name, CAS number, InChIKey, SMILES, families), as
   PubChem gave it: identities, not predictions. Use
