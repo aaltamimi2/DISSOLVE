@@ -72,7 +72,11 @@ from dissolve.agent import ToolEvent
 STATIC = Path(__file__).with_name("ui")
 _DOCTOR_SECONDS = 120.0
 _CLI_ONLY = {"/process": "The TEA sheet needs live TEA, which this deployment switches off.",
-             "/harness": None, "/quit": None, "/exit": None, "/q": None}
+             "/harness": None, "/quit": None, "/exit": None, "/q": None,
+             # The web app has no contaminant setting (owner, 2026-10-05): none of the 23 live plans ever ran with one,
+             # and contaminant questions work without it. The CLI keeps /contaminant for now.
+             "/contaminant": "Contaminant removal has no setting: ask about it directly, for example "
+                             "“Which solvents can be used to separate BHT from LDPE?”"}
 
 
 class NewSession(BaseModel):
@@ -147,9 +151,6 @@ def features() -> dict[str, bool]:
 def commands(offered: dict[str, bool] | None = None) -> list[dict[str, Any]]:
     """The CLI's slash commands; the mode options come from the CLI's own pickers."""
     rows = [
-        {"command": "/contaminant", "state": "contaminant", "summary": "How contaminant removal enters separation plans",
-         "options": _options(cli._contaminant_picker_options("")[0])
-         + [{"value": "compare", "description": "compare leaching and STRAP removal for the last contaminant screen"}]},
         {"command": "/literature", "state": "literature", "summary": "Which literature tools the agent may use",
          "options": _options(cli._literature_picker_options("")[0])},
         {"command": "/solvents", "state": "solvents", "summary": "Which solvents screens draw from",
@@ -182,7 +183,6 @@ def _state(app: cli.CliApp) -> dict[str, Any]:
         "model_label": app.model_spec.label,
         "model_ready": bool((os.getenv(app.model_spec.env_var) or "").strip()),
         "mode": app.mode,
-        "contaminant": (session.get("contaminant_mode") or {}).get("mode") or "off",
         "literature": (session.get("literature_mode") or {}).get("mode") or "off",
         "solvents": (session.get("solvent_scope") or {}).get("scope") or "all",
         "breadth": (f"window {breadth.get('selectivity_window_pct')}" if breadth.get("branch_rule") == "window"

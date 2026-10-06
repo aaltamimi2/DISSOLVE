@@ -6,7 +6,6 @@ export type SessionState = {
   model_label: string;
   model_ready: boolean;
   mode: string;
-  contaminant: string;
   literature: string;
   solvents: string;
   breadth: string;
