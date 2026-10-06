@@ -185,24 +185,17 @@ def published_hazard_methods_doctor_check(
     }
 
 
-_CONTAMINANT_USAGE = "usage: /contaminant [off | leaching | strap | swing | compare]"
+# There is no contaminant setting (owner, 2026-10-05): naming a contaminant in a separation question has it assessed.
+_CONTAMINANT_NOTE = (
+    "Contaminant removal has no setting: name the contaminant in your question, for example "
+    "\"Plan a PVC/PET separation that also removes DEHP\". /contaminant logp still computes a partition coefficient."
+)
 _LOGP_USAGE = (
     "usage: /contaminant logp (--smiles <SMILES> | --file <path> | --job <handle> "
     "| --solvent-dft <name>) "
     "[--solvents <name,name>] [--reference <name>] [--absolute] "
     "[--literature-logp <float>]"
 )
-_CONTAMINANT_COMPARE_USAGE = (
-    "usage: /contaminant compare  "
-    "(needs a prior contaminant screen with target_polymer and contaminants)"
-)
-
-
-def _format_contaminant_default(stored: dict[str, Any] | None, *, origin: str) -> str:
-    mode = (stored or {}).get("mode") or "off"
-    return f"contaminant_mode={mode}  ({origin})"
-
-
 def _parse_contaminant_logp(tokens: Sequence[str]) -> dict[str, Any]:
     """One-shot /contaminant logp. Not a persistent contaminant_mode."""
     args = [str(token) for token in tokens[1:]]
@@ -287,21 +280,11 @@ def _parse_contaminant_logp(tokens: Sequence[str]) -> dict[str, Any]:
 
 
 def _parse_contaminant_slash(tokens: Sequence[str]) -> dict[str, Any] | None:
-    """None is the no-argument path. Raises ValueError on a bad token."""
-    if not tokens:
-        return None
-    if str(tokens[0]).strip().casefold() == "logp":
+    """/contaminant logp is the one-shot calculation; anything else gets the note (None). Raises ValueError on a bad
+    logp argument."""
+    if tokens and str(tokens[0]).strip().casefold() == "logp":
         return _parse_contaminant_logp(tokens)
-    if len(tokens) != 1:
-        raise ValueError(_CONTAMINANT_USAGE)
-    token = str(tokens[0]).strip().casefold()
-    if token == "compare":
-        return {"compare": True}
-    if token == "swing":
-        return {"mode": "strap"}
-    if token in {"off", "leaching", "strap"}:
-        return {"mode": token}
-    raise ValueError(_CONTAMINANT_USAGE)
+    return None
 
 
 _LITERATURE_USAGE = "usage: /literature [off | corpus | scholarly]"
@@ -345,49 +328,6 @@ def _literature_picker_options(
         if key == current_mode:
             selected = i
     return options, selected
-
-
-def _contaminant_status_line(stored: dict[str, Any] | None, origin: str) -> str:
-    shown = stored if origin == "session" else None
-    return _format_contaminant_default(shown, origin=origin)
-
-
-def _contaminant_picker_options(
-    current_mode: str,
-) -> tuple[list[tuple[str, str]], int]:
-    rows = (
-        ("off", "1. off        no contaminant embedding"),
-        ("leaching", "2. leaching   wash against remaining polymers"),
-        ("strap", "3. strap      stamp dissolution as the removal"),
-    )
-    options: list[tuple[str, str]] = []
-    selected = 0
-    for i, (key, base) in enumerate(rows):
-        suffix = "      (current)" if key == current_mode else ""
-        options.append((key, base + suffix))
-        if key == current_mode:
-            selected = i
-    return options, selected
-
-
-def _last_contaminant_screen(record: dict[str, Any] | None) -> dict[str, Any] | None:
-    """Prior screen used by /contaminant compare. Missing is usage, not a feed."""
-    if record is None:
-        return None
-    stored = record.get("last_contaminant")
-    if not isinstance(stored, dict):
-        stored = getattr(record, "last_contaminant", None)
-    if not isinstance(stored, dict):
-        return None
-    target = stored.get("target_polymer")
-    contaminants = (
-        stored.get("contaminants")
-        or stored.get("supported_contaminants")
-        or stored.get("requested_contaminants")
-    )
-    if not target or not contaminants:
-        return None
-    return stored
 
 
 def _interactive_stdin(*, quiet: bool) -> bool:
@@ -1650,19 +1590,11 @@ class CliApp:
             return {"scope": chosen}
         return None
 
-    def _handle_contaminant_command(
-        self,
-        tokens: Sequence[str],
-        *,
-        picker_fn: _PickerFn | None = None,
-    ) -> None:
+    def _handle_contaminant_command(self, tokens: Sequence[str]) -> None:
         try:
             stored = _parse_contaminant_slash(tokens)
         except ValueError as error:
             self.console.print(f"[red]{error}[/]")
-            return
-        if stored and stored.get("compare"):
-            self._run_contaminant_compare()
             return
         if stored and stored.get("logp"):
             self._run_contaminant_logp(
@@ -1676,26 +1608,7 @@ class CliApp:
                 literature_logp=stored.get("literature_logp"),
             )
             return
-        if stored is None:
-            current = self.session.get("contaminant_mode")
-            if isinstance(current, dict) and current.get("mode") in {
-                "off", "leaching", "strap",
-            }:
-                shown, origin = current, "session"
-            else:
-                shown, origin = None, "built-in"
-            if not _slash_picker_armed(quiet=self.quiet, picker_fn=picker_fn):
-                self.console.print(_contaminant_status_line(shown, origin))
-                return
-            stored = self._pick_contaminant_mode(
-                (shown or {}).get("mode") or "off", picker_fn=picker_fn,
-            )
-            if stored is None:
-                self.console.print(_contaminant_status_line(shown, origin))
-                return
-        self.session["contaminant_mode"] = stored
-        self._save()
-        self.console.print(_format_contaminant_default(stored, origin="session"))
+        self.console.print(_CONTAMINANT_NOTE)  # nothing is stored: there is no setting to change
 
     def _run_contaminant_logp(
         self, smiles: str | None, *, file: str | None = None,
@@ -1973,24 +1886,6 @@ class CliApp:
                 )
 
 
-    def _pick_contaminant_mode(
-        self,
-        current_mode: str,
-        *,
-        picker_fn: _PickerFn | None = None,
-    ) -> dict[str, Any] | None:
-        options, selected = _contaminant_picker_options(current_mode)
-        chosen = _invoke_picker(
-            "Select contaminant mode",
-            options,
-            selected=selected,
-            quiet=self.quiet,
-            picker_fn=picker_fn,
-        )
-        if chosen in {"off", "leaching", "strap"}:
-            return {"mode": chosen}
-        return None
-
     def _handle_literature_command(
         self,
         tokens: Sequence[str],
@@ -2040,34 +1935,6 @@ class CliApp:
         if chosen in {"off", "corpus", "scholarly"}:
             return {"mode": chosen}
         return None
-
-    def _run_contaminant_compare(self) -> None:
-        prior = _last_contaminant_screen(self.session)
-        if prior is None:
-            self.console.print(_CONTAMINANT_COMPARE_USAGE)
-            return
-        from dissolve import contaminants
-        from dissolve.contracts import parse_tool_result
-
-        raw = contaminants.compare_contaminant_removal_modes(
-            prior["target_polymer"],
-            prior.get("contaminants")
-            or prior.get("supported_contaminants")
-            or prior.get("requested_contaminants"),
-            other_polymers=prior.get("other_polymers"),
-            solvents=prior.get("solvents"),
-            max_temperature_c=prior.get("max_temperature_c", prior.get("temperature_max_c")),
-        )
-        parsed = parse_tool_result(raw)
-        display = parsed.get("display")
-        data = parsed["data"]
-        if display:
-            self.console.print(display)
-        else:
-            self.console.print(
-                f"compare recommended_mode={data.get('recommended_mode')}  "
-                f"success={data.get('success')}"
-            )
 
     def _handle_breadth_command(
         self,

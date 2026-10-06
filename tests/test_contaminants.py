@@ -18,13 +18,12 @@ import duckdb
 import pytest
 from rich.console import Console
 
-from dissolve import contaminants, plastchem_release, separation, tea, tea_ranking
+from dissolve import contaminant_removal, contaminants, plastchem_release, separation, tea, tea_ranking
 from dissolve import contaminants as C
 from dissolve import cosmo_logp as cl
 from dissolve import polymer_cosmo as pc
 from dissolve.cli import (
     CliApp,
-    _format_contaminant_default,
     _parse_contaminant_slash,
 )
 from dissolve.contracts import parse_tool_result
@@ -290,12 +289,9 @@ def test_lookup_is_the_table_and_the_parser_is_gone():
     assert refuse["unsupported_contaminants"] == [
         "2-ethylhexyl", "heptafluoropropoxy",
     ]
-    assert "contaminants" in inspect.signature(
-        separation.plan_multistage_separation,
-    ).parameters
-    assert "contaminant_mode" in inspect.signature(
-        separation.plan_multistage_separation,
-    ).parameters
+    parameters = inspect.signature(separation.plan_multistage_separation).parameters
+    assert "contaminants" in parameters and "contaminant_route" in parameters
+    assert "contaminant_mode" not in parameters  # no setting and no mode argument (owner, 2026-10-05)
     planner = Path(separation.__file__).read_text()
     assert "def plan_multistage_separation_with_contaminants" not in planner
 
@@ -383,120 +379,53 @@ def _app(tmp_path, monkeypatch, **kwargs):
     return app, buf
 
 
-def test_parse_and_format_skin():
-    assert _parse_contaminant_slash([]) is None
-    assert _parse_contaminant_slash(["off"]) == {"mode": "off"}
-    assert _parse_contaminant_slash(["leaching"]) == {"mode": "leaching"}
-    assert _parse_contaminant_slash(["strap"]) == {"mode": "strap"}
-    assert _parse_contaminant_slash(["swing"]) == {"mode": "strap"}
-    assert _parse_contaminant_slash(["compare"]) == {"compare": True}
+def test_only_logp_parses_every_other_token_gets_the_note():
+    """There is no contaminant setting (owner, 2026-10-05): every /contaminant token but logp gets the note (None)
+    and stores nothing; logp still parses its own arguments."""
+    for tokens in ([], ["off"], ["leaching"], ["strap"], ["swing"], ["compare"], ["bind"], ["banana"]):
+        assert _parse_contaminant_slash(tokens) is None
     try:
-        _parse_contaminant_slash(["bind"])
+        _parse_contaminant_slash(["logp"])
         raise AssertionError("expected ValueError")
     except ValueError as error:
-        assert "usage: /contaminant" in str(error)
-    assert _format_contaminant_default(None, origin="built-in") == (
-        "contaminant_mode=off  (built-in)"
-    )
-    assert _format_contaminant_default(
-        {"mode": "strap"}, origin="session",
-    ) == "contaminant_mode=strap  (session)"
+        assert "--smiles" in str(error) and "--file" in str(error)
 
 
-def test_session_set_and_clear(tmp_path, monkeypatch):
-    app, _buf = _app(tmp_path, monkeypatch)
-    assert app.handle_command("/contaminant leaching") is False
-    assert app.session.get("contaminant_mode") == {"mode": "leaching"}
-    assert app.handle_command("/contaminant swing") is False
-    assert app.session.get("contaminant_mode") == {"mode": "strap"}
-    assert app.handle_command("/clear") is False
+def test_old_setting_commands_print_the_note_and_store_nothing(tmp_path, monkeypatch):
+    from dissolve import cli
+
+    app, buf = _app(tmp_path, monkeypatch)
+    for text in ("/contaminant leaching", "/contaminant swing", "/contaminant strap", "/contaminant", "/contaminant compare",
+                 "/contaminant bind"):
+        assert app.handle_command(text) is False
     assert "contaminant_mode" not in app.session
+    assert buf.getvalue().count("Contaminant removal has no setting") == 6
     assert "handle_command" not in inspect.getsource(app.ask)
+    for gone in ("_contaminant_picker_options", "_format_contaminant_default", "_last_contaminant_screen"):
+        assert not hasattr(cli, gone)
+    assert not hasattr(CliApp, "_pick_contaminant_mode") and not hasattr(CliApp, "_run_contaminant_compare")
 
 
-def test_bare_non_tty_prints_status_and_does_not_write(tmp_path, monkeypatch):
-    monkeypatch.setattr("sys.stdin.isatty", lambda: False)
-    monkeypatch.setattr("sys.stdout.isatty", lambda: True)
-    app, buf = _app(tmp_path, monkeypatch)
-    assert app.handle_command("/contaminant") is False
-    assert "contaminant_mode" not in app.session
-    assert "contaminant_mode=off" in buf.getvalue()
-
-
-def test_bare_picker_sets_strap(tmp_path, monkeypatch):
-    from dissolve.cli import _contaminant_picker_options
-
-    options, selected = _contaminant_picker_options("off")
-    assert selected == 0
-    assert [key for key, _label in options] == ["off", "leaching", "strap"]
-    app, _buf = _app(tmp_path, monkeypatch)
-    app._handle_contaminant_command([], picker_fn=lambda **_k: "strap")
-    assert app.session.get("contaminant_mode") == {"mode": "strap"}
-    app._handle_contaminant_command([], picker_fn=lambda **_k: None)
-    assert app.session.get("contaminant_mode") == {"mode": "strap"}
-
-
-@pytest.mark.parametrize(
-    ('value', 'value_2'),
-    [
-        pytest.param('prior contaminant screen', '/contaminant compare', id='compare_without_prior_screen_prints_usage'),
-        pytest.param('usage: /contaminant', '/contaminant solvents', id='bad_token_does_not_write'),
-        pytest.param('invalid_smiles', '/contaminant logp --smiles not_a_smiles', id='logp_invalid_smiles_refuses_without_writing_mode'),
-    ],
-)
-def test_compare_without_prior_screen_prints_usage_cases(tmp_path, monkeypatch, value, value_2):
-    app, buf = _app(tmp_path, monkeypatch)
-    assert app.handle_command(value_2) is False
-    assert "contaminant_mode" not in app.session
-    assert value in buf.getvalue()
-
-
-def test_compare_does_not_persist_a_mode(tmp_path, monkeypatch):
-    app, buf = _app(tmp_path, monkeypatch)
-    app.session["last_contaminant"] = {
-        "target_polymer": "LDPE",
-        "contaminants": ["di-(2-ethylhexyl) phthalate (DEHP)"],
-        "other_polymers": ["EVOH"],
-        "solvents": ["toluene"],
-    }
-    assert app.handle_command("/contaminant compare") is False
-    assert "contaminant_mode" not in app.session
-    assert "recommended_mode" in buf.getvalue()
-
-
-def test_mode_key_does_not_change_planner_or_screens():
-    def run(mode: str | None) -> tuple[str, str, str, str]:
+def test_a_stored_contaminant_mode_changes_nothing():
+    """Chats saved before 2026-10-05 may still hold contaminant_mode, in any shape. Nothing reads it: plans with and
+    without contaminants and the screens come out the same whatever it holds."""
+    def run(mode):
         record = new_session()
         if mode is not None:
-            record["contaminant_mode"] = {"mode": mode}
+            record["contaminant_mode"] = mode
         with bind_tool_session(record):
-            plan = separation.plan_multistage_separation(["LDPE", "PP"])
-            leach = contaminants.screen_contaminant_leaching(
-                "LDPE", ["di-(2-ethylhexyl) phthalate (DEHP)"],
-                solvents=["toluene"],
+            return (
+                separation.plan_multistage_separation(["LDPE", "PP"]),
+                separation.plan_multistage_separation(["LDPE", "PET"], contaminants=["DEHP"]),
+                contaminants.screen_contaminant_leaching(
+                    "LDPE", ["di-(2-ethylhexyl) phthalate (DEHP)"], solvents=["toluene"],
+                ),
             )
-            strap = contaminants.screen_contaminant_strap_removal(
-                "LDPE", ["di-(2-ethylhexyl) phthalate (DEHP)"],
-                other_polymers=["EVOH"], solvents=["toluene"],
-            )
-            compare = contaminants.compare_contaminant_removal_modes(
-                "LDPE", ["di-(2-ethylhexyl) phthalate (DEHP)"],
-                other_polymers=["EVOH"], solvents=["toluene"],
-            )
-        return plan, leach, strap, compare
 
     unset = run(None)
-    assert unset == run("off") == run("leaching") == run("strap")
-    assert _data(unset[1])["success"] is True
-    assert "contaminants" in inspect.signature(
-        separation.plan_multistage_separation,
-    ).parameters
-    assert "bind_query_solvent_scope" not in inspect.getsource(
-        CliApp._handle_contaminant_command,
-    )
-    assert "bind_query_solvent_scope" not in inspect.getsource(
-        CliApp._run_contaminant_compare,
-    )
+    for mode in ({"mode": "off"}, {"mode": "leaching"}, {"mode": "strap"}, {"mode": "swing"}, {"mode": None}, "junk", 7):
+        assert run(mode) == unset
+    assert _data(unset[2])["success"] is True
 
 
 def test_logp_one_shot_parses_smiles_and_does_not_persist_a_mode(tmp_path, monkeypatch):
@@ -534,23 +463,14 @@ def test_logp_solvents_report_routes_and_refuse_a_cousin_substitute(tmp_path, mo
             raise AssertionError(line)
 
 
-def test_logp_is_not_a_persistent_mode_token():
+def test_logp_is_the_only_contaminant_command():
     try:
         _parse_contaminant_slash(["logp"])
         raise AssertionError("expected ValueError")
     except ValueError as error:
         assert "--smiles" in str(error)
         assert "--file" in str(error)
-    try:
-        _parse_contaminant_slash(["banana"])
-        raise AssertionError("expected ValueError")
-    except ValueError as error:
-        assert "usage: /contaminant" in str(error)
-        assert "--smiles" not in str(error)
-        assert "--file" not in str(error)
-        assert "--job" not in str(error)
-        assert "--solvent-dft" not in str(error)
-        assert "--literature-logp" not in str(error)
+    assert _parse_contaminant_slash(["banana"]) is None  # the note, not a usage error
 
 
 def test_logp_absolute_is_refused_and_does_not_persist(tmp_path, monkeypatch):
@@ -864,30 +784,29 @@ def _regimes(row: dict) -> list[str]:
 
 
 def test_argument_junk_refuses_even_without_contaminants():
-    payload = _plan(contaminant_mode="banana")
+    payload = _plan(contaminant_route="banana")
     assert payload["success"] is False
-    assert payload["error_code"] == "invalid_contaminant_mode"
-    assert payload["error_code"] != "unsupported_contaminants"
+    assert payload["error_code"] == "invalid_contaminant_route"
+    with pytest.raises(TypeError):  # the old argument is gone; the agent turns this into unexpected_argument
+        _plan(contaminant_mode="off")
 
 
-def test_argument_strap_or_leaching_without_contaminants_is_a_new_code():
-    strap = _plan(contaminant_mode="strap")
-    leach = _plan(contaminant_mode="leaching")
-    swing = _plan(contaminant_mode="swing")
-    for payload in (strap, leach, swing):
+def test_a_requested_route_needs_contaminants_and_old_tokens_are_not_mapped():
+    for route in ("strap", "wash"):
+        payload = _plan(contaminant_route=route)
         assert payload["success"] is False
-        assert payload["error_code"] == "contaminant_mode_without_contaminants"
-        assert payload["error_code"] != "unsupported_contaminants"
-        assert payload["error_code"] != "invalid_contaminant_mode"
-        assert payload.get("contaminant_mode_origin") == "argument"
+        assert payload["error_code"] == "contaminant_route_without_contaminants"
+    for token in ("leaching", "swing", "off"):  # never silently mapped onto a route
+        payload = _plan(contaminants=_DEHP, contaminant_route=token)
+        assert payload["success"] is False
+        assert payload["error_code"] == "invalid_contaminant_route"
 
 
-def test_argument_off_without_contaminants_is_ident_to_unset():
+def test_auto_without_contaminants_is_identical_to_unset():
     unset = _plan()
-    off = _plan(contaminant_mode="off")
     assert unset["success"] is True
-    assert off == unset
-    assert "wash" not in (off.get("best_sequence") or [])
+    assert _plan(contaminant_route="auto") == unset
+    assert "contaminant_removal" not in unset and "wash" not in (unset.get("best_sequence") or [])
 
 
 def test_session_mode_without_contaminants_stays_a_silent_noop():
@@ -903,31 +822,10 @@ def test_session_mode_without_contaminants_stays_a_silent_noop():
     assert unset == run("off") == run("leaching") == run("strap") == run("banana")
 
 
-def test_helper_distinguishes_argument_from_session():
-    mode, requested, origin = separation._planner_contaminant_mode(None, "strap")
-    assert origin == "argument"
-    assert mode == "without_contaminants"
-    assert requested == []
-    junk, _requested, junk_origin = separation._planner_contaminant_mode(
-        None, "banana",
-    )
-    assert junk == "invalid"
-    assert junk_origin == "argument"
-    record = new_session()
-    record["contaminant_mode"] = {"mode": "strap"}
-    with bind_tool_session(record):
-        session_mode, session_requested, session_origin = (
-            separation._planner_contaminant_mode(None, None)
-        )
-    assert session_origin == "session"
-    assert session_mode is None
-    assert session_requested == []
-
-
 def test_argument_junk_with_dehp_still_invalid():
-    payload = _plan(contaminants=_DEHP, contaminant_mode="banana")
+    payload = _plan(contaminants=_DEHP, contaminant_route="banana")
     assert payload["success"] is False
-    assert payload["error_code"] == "invalid_contaminant_mode"
+    assert payload["error_code"] == "invalid_contaminant_route"
 
 
 def test_accept_test_2_unchanged():
@@ -977,51 +875,40 @@ def _empty_screen(*_args, **_kwargs) -> dict:
     }
 
 
-def test_empty_recommended_omits_wash_and_publishes_reasons():
-    original = contaminants.evaluate_contaminant_at_feed_state
-    contaminants.evaluate_contaminant_at_feed_state = _empty_screen
-    try:
-        payload = separation._embed_leaching_route(
-            _ROUTE,
-            names=["LDPE", "PP"],
-            supported=[_DEHP],
-            solvents=["toluene"],
-            temperature_max_c=None,
-            strict_maximum=False,
-            step_c=5.0,
-        )
-    finally:
-        contaminants.evaluate_contaminant_at_feed_state = original
-    assert isinstance(payload, dict)
-    steps = list(payload.get("steps") or [])
-    considered = list(payload.get("positions_considered") or [])
+def test_no_passing_wash_inserts_nothing_and_says_why(monkeypatch):
+    monkeypatch.setattr(contaminants, "evaluate_contaminant_at_feed_state", _empty_screen)
+    steps, summary = contaminant_removal.assess(
+        _ROUTE, feed=["LDPE", "PP"], supported=[_DEHP], request={"supported": [_DEHP]}, requested_route="wash",
+        maximum=None, strict_maximum=False, step_c=5.0,
+    )
     assert all(item.get("step_kind") != "wash" for item in steps)
-    assert "wash" not in (payload.get("sequence") or [])
-    assert all(not str(item).startswith("wash") for item in (payload.get("sequence") or []))
-    assert len(considered) == 2
-    assert all(item.get("reason") for item in considered)
-    assert all(item.get("passing_count") == 0 for item in considered)
-    assert payload.get("chosen_wash_position") is None
-    assert not any(item.get("caveat") for item in steps)
+    assert (summary["applied_route"], summary["status"]) == ("none", "forced_route_unavailable")
+    assert summary["wash"]["chosen"] is None
+    assert (summary["wash"]["passing_pairs"], summary["wash"]["eligible_pairs"]) == (0, 0)
 
 
-def test_pass_case_still_inserts_wash_at_chosen_position():
-    payload = _data(separation.plan_multistage_separation(
-        _TRIPLE, contaminants=_DEHP, contaminant_mode="leaching",
-        top_k_routes=1, breadth=1,
-    ))
-    assert payload["success"] is True
-    steps = list(payload.get("steps") or [])
-    dissolutions = [item for item in steps if item.get("step_kind") == "dissolution"]
-    washes = [item for item in steps if item.get("step_kind") == "wash"]
-    considered = list(payload.get("positions_considered") or [])
-    assert len(washes) == 1
-    assert washes[0].get("passes") is True
-    assert washes[0].get("path") == "leaching"
-    assert len(considered) == len(dissolutions) + 1
-    assert payload.get("chosen_wash_position") in {item["index"] for item in considered}
-    assert all(item.get("reason") for item in considered)
-    assert "wash" in (payload.get("best_sequence") or [])
+def test_the_rule_places_one_safe_wash_where_it_reaches_every_product():
+    """LDPE/PET/EVOH with DEHP: the planner's stages dissolve at 25 °C (EVOH in triethylamine: no node to cool to, so
+    STRAP fails) and in HFIP (no DEHP data: not checkable). The rule therefore washes, before any dissolution, since a
+    later wash could not reach the products already recovered (D6), with a recommended or problematic solvent (D7) at
+    least 10 °C below its boiling point (D1)."""
+    for route in ("auto", "wash"):
+        payload = _data(separation.plan_multistage_separation(
+            _TRIPLE, contaminants=_DEHP, contaminant_route=route, top_k_routes=1, breadth=1,
+        ))
+        assert payload["success"] is True
+        removal = payload["contaminant_removal"]
+        assert (removal["applied_route"], removal["status"]) == ("wash", "applied_screen_pass")
+        assert removal["selected_by"] == ("rule" if route == "auto" else "user")
+        assert [(s["verdict"], s["reason"]) for s in removal["strap"]["stages"]] == [
+            ("fail", "no_cooling_precipitation"), ("not_checkable", "no_contaminant_data_for_solvent"),
+        ]
+        chosen = removal["wash"]["chosen"]
+        (wash,) = [item for item in payload["steps"] if item.get("step_kind") == "wash"]
+        assert (wash["path"], wash["solvent"], wash["position_index"]) == ("leaching", chosen["solvent"], 0)
+        assert payload["best_sequence"][0] == "wash"
+        assert chosen["chem21_band"] in {"recommended", "problematic"} and chosen["boiling_margin_c"] >= 10.0
+        assert removal["wash"]["excluded"]["prior_product_not_covered"] > 0
 
 
 # --- from test_contaminant_leftovers_cl3.py: CL-3: unspecified_not_a_strap_basis stays; name whether leaching exists.
@@ -1116,19 +1003,10 @@ def _ldpe_step(payload: dict, *, others: set[str] | None = None) -> dict:
 def test_no_parallel_planner():
     source = Path(separation.__file__).read_text()
     assert "def plan_multistage_separation_with_contaminants" not in source
-    assert "def plan_multistage_separation(" in source
-    assert "_embed_leaching_route" in inspect.getsource(
-        separation.plan_multistage_separation,
-    )
-    assert "_stamp_strap_route" in inspect.getsource(
-        separation.plan_multistage_separation,
-    )
-    assert "others_from_feed_state" in inspect.getsource(
-        separation._stamp_strap_route,
-    )
-    assert "others_from_feed_state" in inspect.getsource(
-        separation._embed_leaching_route,
-    )
+    assert "contaminant_removal.assess" in inspect.getsource(separation.plan_multistage_separation)
+    assert "strap_at_stage" in inspect.getsource(contaminant_removal.assess)
+    for gone in ("_embed_leaching_route", "_stamp_strap_route", "_stamp_strap_step", "_planner_contaminant_mode"):
+        assert not hasattr(separation, gone)
 
 
 def test_omitted_contaminants_are_inert_across_session_modes():
@@ -1150,180 +1028,91 @@ def test_omitted_contaminants_are_inert_across_session_modes():
         assert item.get("feed_state_at_step") is None
 
 
-def test_off_plus_contaminants_embeds_nothing_and_does_not_refuse():
-    payload = _plan_contaminant_planner_embed(
-        ["LDPE", "PP"],
-        contaminants=["not-a-real-contaminant", _DEHP],
-        contaminant_mode="off",
-    )
+def test_a_mixed_request_assesses_the_supported_subset_and_says_so():
+    payload = _plan_contaminant_planner_embed(["LDPE", "PP"], contaminants=["not-a-real-contaminant", _DEHP])
     assert payload["success"] is True
-    assert payload["contaminant_mode"] == "off"
-    assert all(not str(item).startswith("wash") for item in payload["best_sequence"])
-    assert "wash" not in (payload.get("solvent_mapping") or {})
-    assert "positions_considered" not in payload
-    assert "strap_evaluations" not in payload
-    for item in payload.get("steps") or []:
-        assert item.get("path") is None
-        assert item.get("feed_state_at_step") is None
+    removal = payload["contaminant_removal"]
+    assert removal["contaminants"]["assessed"] == [_DEHP]
+    assert removal["contaminants"]["unsupported_total"] == 1
+    assert removal["contaminants"]["coverage"] == "only the supported subset was assessed"
+    assert removal["whole_feed_cleanup_validated"] is False
+    assert removal["status"] in {"applied_screen_pass", "no_screen_pass", "not_checkable", "partial_plan"}
 
 
-def test_accept_test_2_through_planner_derived_others():
-    three = _data(separation.plan_multistage_separation(
-        _TRIPLE, contaminants=_DEHP, contaminant_mode="strap",
-        top_k_routes=5, breadth=1,
-    ))
-    two = _data(separation.plan_multistage_separation(
-        _PAIR, contaminants=_DEHP, contaminant_mode="strap",
-        top_k_routes=5, breadth=1,
-    ))
-    assert three["success"] is True
-    assert two["success"] is True
-    assert three["contaminant_mode"] == "strap"
-    assert "wash" not in (three.get("best_sequence") or [])
-    assert "wash" not in (two.get("best_sequence") or [])
-    assert all(
-        item.get("step_kind") != "wash"
-        for route in _published_routes(three)
-        for item in (route.get("steps") or [])
-    )
-    first_state = (three.get("steps") or [{}])[0].get("feed_state_at_step") or {}
-    assert first_state.get("inventory_model") == "none"
-    assert set(first_state.get("polymers") or []) == set(_TRIPLE)
-    ldpe_fail = _ldpe_step(three, others={"PET", "EVOH"})
-    ldpe_pass = _ldpe_step(two, others={"EVOH"})
-    assert ldpe_fail.get("path") == "strap"
-    assert ldpe_pass.get("path") == "strap"
-    assert ldpe_fail["feed_state_at_step"]["inventory_model"] == "none"
-    assert ldpe_pass["feed_state_at_step"]["inventory_model"] == "none"
-    fail_others = contaminants.others_from_feed_state(
-        ldpe_fail["feed_state_at_step"], "LDPE",
-    )
-    pass_others = contaminants.others_from_feed_state(
-        ldpe_pass["feed_state_at_step"], "LDPE",
-    )
-    assert set(fail_others) == {"PET", "EVOH"}
-    assert pass_others == ["EVOH"]
-    fail = contaminants.evaluate_contaminant_at_feed_state(
-        "strap", "LDPE", fail_others, [_DEHP], solvents=["toluene"],
-    )
-    passed = contaminants.evaluate_contaminant_at_feed_state(
-        "strap", "LDPE", pass_others, [_DEHP], solvents=["toluene"],
-    )
-    fail_row = _candidate_contaminant_planner_embed(fail, "toluene")
-    pass_row = _candidate_contaminant_planner_embed(passed, "toluene")
-    assert fail_row.get("passes") is False
-    assert pass_row.get("passes") is True
-    assert _regimes(pass_row) == ["rt", "rt"]
-    if str(ldpe_pass.get("solvent") or "").casefold() == "toluene":
-        assert ldpe_pass.get("passes") is True
-        assert _regimes(ldpe_pass) == ["rt", "rt"]
+def test_strap_is_judged_at_the_stage_temperature_with_the_polymers_present():
+    """LDPE in toluene at 105 °C: STRAP passes with EVOH beside it (0.17 wt%) and fails once PET is present too (1.97
+    wt%, above the 1 wt% proxy). The screen's own search for a better window may not stand in for the stage (CA01)."""
+    fail = contaminants.strap_at_stage("LDPE", "toluene", ["PET", "EVOH"], [_DEHP], 105.0)
+    ok = contaminants.strap_at_stage("LDPE", "toluene", ["EVOH"], [_DEHP], 105.0)
+    assert (fail["verdict"], fail["reason"]) == ("fail", "other_polymer_dissolves")
+    assert (ok["verdict"], ok["dissolution_c"], ok["precipitation_c"]) == ("pass", 105.0, 60.0)
+    plan = _data(separation.plan_multistage_separation(_TRIPLE, contaminants=_DEHP, top_k_routes=5, breadth=1))
+    stages = plan["contaminant_removal"]["strap"]["stages"]
+    dissolutions = [item for item in plan["steps"] if item.get("step_kind") != "wash"]
+    assert [s["temperature_c"] for s in stages] == [float(item["temperature_c"]) for item in dissolutions]
 
 
-def test_stamp_strap_route_flips_on_toluene_when_others_change():
-    fail_route = separation._stamp_strap_route(
-        {
-            "complete": True,
-            "final_residue": "EVOH",
-            "unresolved_polymers": [],
+def test_strap_applies_only_when_every_stage_passes_and_is_never_swapped():
+    def route():
+        return {
+            "complete": True, "final_residue": "EVOH", "unresolved_polymers": [],
             "steps": [{
-                "step_kind": "dissolution",
-                "dissolved_polymer": "LDPE",
-                "solvent": "toluene",
-                "temperature_c": 105.0,
-                "selectivity_pct": 80.0,
-                "target_solubility_pct": 20.0,
-                "off_target_solubilities_pct": {"PET": 0.5, "EVOH": 0.5},
+                "step_kind": "dissolution", "dissolved_polymer": "LDPE", "solvent": "toluene", "temperature_c": 105.0,
+                "selectivity_pct": 80.0, "target_solubility_pct": 20.0, "off_target_solubilities_pct": {"EVOH": 0.5},
             }],
-        },
-        names=_TRIPLE,
-        supported=[_DEHP],
-        temperature_max_c=None,
-        strict_maximum=False,
-    )
-    pass_route = separation._stamp_strap_route(
-        {
-            "complete": True,
-            "final_residue": "EVOH",
-            "unresolved_polymers": [],
-            "steps": [{
-                "step_kind": "dissolution",
-                "dissolved_polymer": "LDPE",
-                "solvent": "toluene",
-                "temperature_c": 105.0,
-                "selectivity_pct": 80.0,
-                "target_solubility_pct": 20.0,
-                "off_target_solubilities_pct": {"EVOH": 0.5},
-            }],
-        },
-        names=_PAIR,
-        supported=[_DEHP],
-        temperature_max_c=None,
-        strict_maximum=False,
-    )
-    fail_step = fail_route["steps"][0]
-    pass_step = pass_route["steps"][0]
-    assert fail_step["other_polymers"] == ["PET", "EVOH"]
-    assert pass_step["other_polymers"] == ["EVOH"]
-    assert fail_step["passes"] is False
-    assert pass_step["passes"] is True
-    assert _regimes(pass_step) == ["rt", "rt"]
-    assert "wash" not in fail_route["sequence"]
-    assert "wash" not in pass_route["sequence"]
-    assert all(
-        row.get("resolution_basis") == "cas_verified"
-        and row.get("identity_verified") is True
-        for row in (pass_step.get("contaminants") or [])
-    )
+        }
+
+    common = dict(supported=[_DEHP], request={"supported": [_DEHP]}, requested_route="strap", maximum=None,
+                  strict_maximum=False, step_c=5.0)
+    steps, ok = contaminant_removal.assess(route(), feed=_PAIR, **common)
+    assert ok["strap"]["all_stages_pass"] is True
+    assert (ok["applied_route"], ok["status"], ok["selected_by"]) == ("strap", "applied_screen_pass", "user")
+    assert (steps[0]["path"], steps[0]["precipitation_temperature_c"]) == ("strap", 60.0)
+    steps, failed = contaminant_removal.assess(route(), feed=_TRIPLE, **common)  # PET present: the stage fails
+    assert failed["strap"]["stages"][0]["verdict"] == "fail"
+    assert (failed["applied_route"], failed["status"]) == ("none", "forced_route_unavailable")
+    assert all(item.get("path") != "strap" and item.get("step_kind") != "wash" for item in steps)
 
 
-def test_owner_example_strap_stamps_each_dissolution_without_a_wash():
-    payload = _plan_contaminant_planner_embed(
-        _TRIPLE, contaminants="PFAS", contaminant_mode="strap",
-    )
+def test_owner_example_strap_reports_every_stage_and_applies_nothing_it_cannot_pass():
+    """The owner's PFAS example asking for STRAP: every dissolution stage is judged at its own temperature; when one
+    fails or cannot be checked, no stamp and no wash are applied, and the wash the rule could have used is still shown."""
+    payload = _plan_contaminant_planner_embed(_TRIPLE, contaminants="PFAS", contaminant_route="strap")
     assert payload["success"] is True
-    assert payload["contaminant_mode"] == "strap"
+    removal = payload["contaminant_removal"]
+    dissolutions = [item for item in payload["steps"] if item.get("dissolved_polymer")]
+    assert len(removal["strap"]["stages"]) == len(dissolutions) == 2
+    assert (removal["applied_route"], removal["status"]) == ("none", "forced_route_unavailable")
+    assert all(item.get("path") is None for item in payload["steps"])
     assert "wash" not in (payload.get("best_sequence") or [])
-    assert "positions_considered" not in payload
-    evaluations = payload.get("strap_evaluations") or []
-    dissolutions = [
-        item for item in (payload.get("steps") or [])
-        if item.get("dissolved_polymer")
-    ]
-    assert evaluations
-    assert len(evaluations) == len(dissolutions)
-    for item in dissolutions:
-        assert item.get("path") == "strap"
-        assert item["feed_state_at_step"]["inventory_model"] == "none"
-        others = contaminants.others_from_feed_state(
-            item["feed_state_at_step"], item["dissolved_polymer"],
-        )
-        assert item.get("other_polymers") == others
+    assert removal["wash"]["chosen"] is not None  # shown, not applied
+    assert removal["contaminants"]["assessed_total"] == 26 and len(removal["contaminants"]["assessed"]) == 8
     catalog = payload.get("contaminant_catalog") or []
     assert len(catalog) == 26
-    assert all(
-        row["resolution_basis"] == "catalog_declared"
-        and row["identity_verified"] is not True
-        for row in catalog
-    )
+    assert all(row["resolution_basis"] == "catalog_declared" and row["identity_verified"] is not True for row in catalog)
 
 
-def test_refusals_stay_constructed():
-    junk = _data(separation.plan_multistage_separation(
-        ["LDPE", "PP"], contaminants="not-a-real-contaminant",
-        contaminant_mode="leaching",
-    ))
-    assert junk["success"] is False
-    assert junk["error_code"] == "unsupported_contaminants"
-    family = _data(separation.plan_multistage_separation(
-        ["LDPE", "PP"], contaminants="BFR", contaminant_mode="leaching",
-    ))
-    assert family["success"] is False
-    assert family["error_code"] == "unsupported_contaminant_family"
+def test_unsupported_contaminants_never_cost_the_separation():
+    """An unsupported name or an uncovered family used to refuse the whole plan. With contaminants always assessed
+    that would block plain separation questions, so the plan stands and says what was not assessed."""
+    plain = _data(separation.plan_multistage_separation(["LDPE", "PP"]))
+    for named in ("not-a-real-contaminant", "BFR"):
+        payload = _data(separation.plan_multistage_separation(["LDPE", "PP"], contaminants=named))
+        assert payload["success"] is True
+        assert payload["best_sequence"] == plain["best_sequence"]
+        removal = payload["contaminant_removal"]
+        assert (removal["status"], removal["applied_route"]) == ("unsupported_request", "none")
+        assert removal["contaminants"]["assessed_total"] == 0
+    assert [row["name"] for row in payload["contaminant_removal"]["contaminants"]["unsupported"]] == ["BFR"]
+    junk = _data(separation.plan_multistage_separation(["LDPE", "PP"], contaminants="not-a-real-contaminant"))
+    (row,) = junk["contaminant_removal"]["contaminants"]["unsupported"]
+    assert row["name"] == "not-a-real-contaminant"
+    assert row["plastchem"] in {"not_found", "unavailable"}
     invalid = _data(separation.plan_multistage_separation(
-        ["LDPE", "PP"], contaminants=_DEHP, contaminant_mode="banana",
+        ["LDPE", "PP"], contaminants=_DEHP, contaminant_route="banana",
     ))
     assert invalid["success"] is False
-    assert invalid["error_code"] == "invalid_contaminant_mode"
+    assert invalid["error_code"] == "invalid_contaminant_route"
 
 
 def test_accept_test_2_on_evaluator_only():
@@ -1361,148 +1150,60 @@ def test_frozen_initial_feed_others_changes_the_toluene_evoh_result():
     assert _regimes(_candidate_contaminant_planner_embed(derived_screen, "toluene")) == ["rt", "rt"]
 
 
-def test_leaching_enumerates_positions_and_names_the_objective():
-    payload = _plan_contaminant_planner_embed(
-        _TRIPLE, contaminants=_DEHP, contaminant_mode="leaching",
-    )
+def test_a_wash_step_names_the_rule_and_carries_no_polymer():
+    payload = _plan_contaminant_planner_embed(_TRIPLE, contaminants=_DEHP, contaminant_route="wash")
     assert payload["success"] is True
-    assert payload["contaminant_mode"] == "leaching"
-    considered = payload.get("positions_considered") or []
-    dissolutions = [
-        item for item in (payload.get("steps") or [])
-        if item.get("step_kind") == "dissolution"
-    ]
-    assert len(considered) == len(dissolutions) + 1
-    assert len(considered) >= 2
-    assert payload.get("chosen_wash_position") in {item["index"] for item in considered}
-    winner = next(
-        item for item in considered
-        if item["index"] == payload["chosen_wash_position"]
-    )
-    assert set(winner) >= {"passing_count", "contaminant_logd_min", "index"}
-    washes = [
-        item for item in (payload.get("steps") or [])
-        if item.get("step_kind") == "wash"
-    ]
-    assert len(washes) == 1
-    wash = washes[0]
-    assert wash["path"] == "leaching"
-    assert wash["feed_state_at_step"]["inventory_model"] == "none"
-    assert "dissolved_polymer" not in wash
-    assert "wash" in (payload.get("best_sequence") or [])
-    assert "wash" not in (payload.get("solvent_mapping") or {})
+    removal = payload["contaminant_removal"]
+    assert removal["rule"]["id"] == contaminant_removal.RULE_ID and removal["rule"]["text"] == contaminant_removal.RULE_TEXT
+    assert removal["rule"]["wash_margin_c"] == 10.0
+    (wash,) = [item for item in payload["steps"] if item.get("step_kind") == "wash"]
+    assert wash["path"] == "leaching" and "dissolved_polymer" not in wash
+    assert wash["polymers_present"] == ["LDPE", "PET", "EVOH"]  # position 0: the whole feed
+    assert "wash" in (payload.get("best_sequence") or []) and "wash" not in (payload.get("solvent_mapping") or {})
     catalog = payload.get("contaminant_catalog") or []
-    assert catalog
-    assert all(row["resolution_basis"] == "cas_verified" for row in catalog)
-    assert all(row["identity_verified"] is True for row in catalog)
-    for item in considered:
-        assert item["feed_state_at_step"]["inventory_model"] == "none"
-        assert "passing_count" in item
-        assert "index" in item
+    assert catalog and all(row["resolution_basis"] == "cas_verified" and row["identity_verified"] is True
+                           for row in catalog)
 
 
-def test_owner_example_leaching_pfas_enumerates_positions():
-    payload = _plan_contaminant_planner_embed(
-        _TRIPLE, contaminants="PFAS", contaminant_mode="leaching",
-    )
+def test_owner_example_wash_for_pfas_reaches_the_whole_feed():
+    payload = _plan_contaminant_planner_embed(_TRIPLE, contaminants="PFAS", contaminant_route="wash")
     assert payload["success"] is True
-    considered = payload.get("positions_considered") or []
-    assert len(considered) >= 2
-    for item in considered:
-        assert item["feed_state_at_step"]["inventory_model"] == "none"
-    winner = next(
-        item for item in considered
-        if item["index"] == payload["chosen_wash_position"]
-    )
-    assert set(winner) >= {"passing_count", "contaminant_logd_min", "index"}
-    assert any(item.get("step_kind") == "wash" for item in payload["steps"])
+    removal = payload["contaminant_removal"]
+    assert (removal["applied_route"], removal["selected_by"]) == ("wash", "user")
+    assert removal["wash"]["chosen"]["position"] == 0
+    assert removal["wash"]["excluded"]["prior_product_not_covered"] > 0
+    assert payload["steps"][0]["step_kind"] == "wash"
+    assert len(json.dumps(removal, ensure_ascii=False).encode("utf-8")) <= contaminant_removal.SUMMARY_BYTES
     catalog = payload.get("contaminant_catalog") or []
     assert len(catalog) == 26
-    assert all(
-        row["resolution_basis"] == "catalog_declared"
-        and row["identity_verified"] is not True
-        for row in catalog
-    )
 
 
-def test_session_leaching_binds_only_when_contaminants_supplied():
-    record = new_session()
-    record["contaminant_mode"] = {"mode": "leaching"}
-    with bind_tool_session(record):
-        payload = _plan_contaminant_planner_embed(["LDPE", "PP"], contaminants=_DEHP)
-    assert payload["success"] is True
-    assert payload["contaminant_mode"] == "leaching"
-    assert payload.get("contaminant_mode_origin") == "session"
-    assert any(item.get("step_kind") == "wash" for item in payload["steps"])
-
-
-def test_wash_temperature_conflict_refuses_without_reordering():
-    adjacent = [
-        {
-            "step_kind": "wash",
-            "solvent": "toluene",
-            "temperature_c": 25.0,
-        },
-        {
-            "step_kind": "dissolution",
-            "dissolved_polymer": "LDPE",
-            "solvent": "toluene",
-            "temperature_c": 105.0,
-        },
-    ]
-    assert separation._wash_temperature_conflict(adjacent, 5.0) is True
-    assert separation._wash_temperature_conflict(
-        [
-            {**adjacent[0], "solvent": "acetone"},
-            adjacent[1],
-        ],
-        5.0,
-    ) is False
+def test_a_clashing_wash_is_excluded_and_never_refuses_the_plan(monkeypatch):
+    """A wash next to a dissolution in the same solvent must run within temperature_step_c of it. A clash used to
+    refuse the whole plan; now the pair is excluded, and with nothing else the plan stands with no removal."""
+    dissolution = {"step_kind": "dissolution", "dissolved_polymer": "LDPE", "solvent": "toluene", "temperature_c": 105.0}
+    assert contaminant_removal._clashes([dissolution], 0, "toluene", 25.0, 5.0) is True
+    assert contaminant_removal._clashes([dissolution], 0, "acetone", 25.0, 5.0) is False
+    assert contaminant_removal._clashes([dissolution], 1, "toluene", 105.0, 5.0) is False
 
     def fake_evaluate(*_args, **_kwargs):
-        return {
-            "success": True,
-            "recommended_solvents": ["toluene"],
-            "candidate_solvents": [{
-                "solvent": "toluene",
-                "passes": True,
-                "operating_temperature_c": 25.0,
-                "contaminant_logd_min": 0.81,
-            }],
-            "threshold_citation_status": "paper_sourced",
-        }
+        return {"success": True, "candidate_solvents": [{
+            "solvent": "toluene", "passes": True, "verdict": "pass", "operating_temperature_c": 25.0,
+            "boiling_margin_c": 85.6, "contaminant_logd_min": 0.81, "chem21_band": "problematic",
+            "chem21_max_subscore": 6, "safety_eligible": True,
+        }]}
 
-    original = contaminants.evaluate_contaminant_at_feed_state
-    contaminants.evaluate_contaminant_at_feed_state = fake_evaluate
-    try:
-        result = separation._embed_leaching_route(
-            {
-                "complete": True,
-                "final_residue": "PP",
-                "unresolved_polymers": [],
-                "steps": [{
-                    "step_kind": "dissolution",
-                    "dissolved_polymer": "LDPE",
-                    "solvent": "toluene",
-                    "temperature_c": 105.0,
-                    "selectivity_pct": 80.0,
-                    "target_solubility_pct": 20.0,
-                    "off_target_solubilities_pct": {"PP": 0.5},
-                }],
-            },
-            names=["LDPE", "PP"],
-            supported=[_DEHP],
-            solvents=["toluene"],
-            temperature_max_c=None,
-            strict_maximum=False,
-            step_c=5.0,
-        )
-    finally:
-        contaminants.evaluate_contaminant_at_feed_state = original
-    assert isinstance(result, str)
-    payload = _data(result)
-    assert payload["success"] is False
-    assert payload["error_code"] == "incompatible_wash_temperature"
+    monkeypatch.setattr(contaminants, "evaluate_contaminant_at_feed_state", fake_evaluate)
+    route = {"complete": True, "final_residue": "PP", "unresolved_polymers": [], "steps": [dict(dissolution)]}
+    steps, summary = contaminant_removal.assess(
+        route, feed=["LDPE", "PP"], supported=[_DEHP], request={"supported": [_DEHP]}, requested_route="auto",
+        maximum=None, strict_maximum=False, step_c=5.0,
+    )
+    assert summary["wash"]["excluded"]["adjacent_temperature_clash"] >= 1
+    assert summary["wash"]["chosen"] is None and summary["wash"]["eligible_pairs"] == 0
+    (stage,) = summary["strap"]["stages"]
+    assert summary["applied_route"] == ("strap" if stage["verdict"] == "pass" else "none")
+    assert all(item.get("step_kind") != "wash" for item in steps)
 
 
 # --- from test_contaminant_refusals.py: v1 hold-to 3 / v3 §6: distinct absence codes, including unspecified STRAP.
@@ -2095,10 +1796,10 @@ def test_leftover_cl1_banana_still_invalid_and_accept_test_2_unchanged():
 
     dehp = "di-(2-ethylhexyl) phthalate (DEHP)"
     junk = parse_tool_result(separation.plan_multistage_separation(
-        ["LDPE", "PP"], top_k_routes=1, breadth=1, contaminant_mode="banana",
+        ["LDPE", "PP"], top_k_routes=1, breadth=1, contaminant_route="banana",
     ))["data"]
     assert junk["success"] is False
-    assert junk["error_code"] == "invalid_contaminant_mode"
+    assert junk["error_code"] == "invalid_contaminant_route"
 
     fail = contaminants.evaluate_contaminant_at_feed_state(
         "strap", "LDPE", ["PET", "EVOH"], [dehp], solvents=["toluene"],
@@ -5196,29 +4897,29 @@ def test_a_contaminant_in_one_solvent_needs_no_polymer():
     assert agent.source_basis_for("lookup_plastchem_contaminants", {}, {"solvent": "o-xylene"}) == "opencosmo_24a"
 
 
-def test_a_hot_wash_runs_at_a_grid_node_below_the_boiling_point():
-    """Ethanol's cap is 77.2 °C (1 °C below boiling), which is not a grid node: the LDPE lookup found nothing and the
-    wash failed as an unsupported pair although miscibility and logD passed (review finding A06-R1, live-checked).
-    The wash now runs at the highest node at or below the cap and says so."""
+def test_a_hot_wash_runs_at_a_grid_node_10_c_below_the_boiling_point():
+    """Ethanol boils at 78.2 °C. A wash first failed at the 1 °C cap (not a grid node: review finding A06-R1), then ran at
+    75 °C, 3 °C from boiling. It now runs at the hottest stored node at least 10 °C below boiling (owner D1)."""
     from dissolve import contaminants as screens
     from dissolve.contracts import parse_tool_result as parse
     data = parse(screens.screen_contaminant_leaching(
         target_polymer="LDPE", contaminants=["PFOA"], solvents=["ethanol"]))["data"]
     row = next(row for row in data["candidate_solvents"] if row["solvent"] == "ethanol")
-    assert row["operating_temperature_c"] == 75.0 and "77.2" in row["operating_temperature_basis"]
+    assert (row["operating_temperature_c"], row["boiling_margin_c"]) == (65.0, 13.2)
+    assert "10 °C below the boiling point" in row["operating_temperature_basis"]
     assert row["target_polymer_status"] != "unsupported_pair"
-    assert row["passes"] is True
+    assert row["passes"] is True and row["verdict"] == "pass"
 
 
-def test_a_wash_that_clashes_with_its_neighbour_gives_way_to_the_next_passing_solvent():
-    """Once a hot wash ran on a grid node, triethylamine passed at 85 °C and sat next to a 25 °C triethylamine
-    dissolution, so the whole plan was refused as an incompatible wash temperature. The next passing solvent that
-    does not clash is used, and the skipped one is named."""
-    payload = _plan_contaminant_planner_embed(_TRIPLE, contaminants="PFAS", contaminant_mode="leaching")
-    assert payload["success"] is True
-    wash = next(step for step in payload["steps"] if step.get("step_kind") == "wash")
-    assert wash["skipped_for_adjacent_temperature_clash"] == ["triethylamine"]
-    assert wash["solvent"] == wash["recommended_solvents"][1]
+def test_a_wash_that_clashes_with_its_neighbour_gives_way_to_the_next_compatible_pair():
+    """Triethylamine passes as a wash beside a 25 °C triethylamine dissolution at another temperature: that pair is
+    excluded and the next compatible pair in the one safety-first order is used, at any position."""
+    payload = _plan_contaminant_planner_embed(_TRIPLE, contaminants="PFAS", contaminant_route="wash")
+    removal = payload["contaminant_removal"]
+    assert removal["wash"]["excluded"]["adjacent_temperature_clash"] == 1
+    assert removal["wash"]["chosen"]["solvent"] != "triethylamine"
+    (wash,) = [item for item in payload["steps"] if item.get("step_kind") == "wash"]
+    assert wash["solvent"] == removal["wash"]["chosen"]["solvent"]
 
 
 def test_one_call_ranks_every_panel_solvent_for_named_contaminants():

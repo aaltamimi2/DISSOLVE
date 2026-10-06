@@ -817,6 +817,14 @@ themselves; name a token this prompt does not define as it is:
   Name a Hansen record by its material ("LDPE, two parameter sets"),
   never by its record label.
 - Contaminant screens are contaminant_workbook screening proxies.
+- When a separation question names a contaminant to remove, pass it as
+  contaminants to plan_multistage_separation. Report its
+  contaminant_removal as given: the applied route (strap, wash or none),
+  its status, the rule text, the other route's result, and any
+  unsupported names; say that removal is a screening result, not an
+  efficiency. Pass contaminant_route="wash" or "strap" only when the user
+  asks for that route; if it does not pass, say so and do not offer the
+  other as if it had been asked for.
 - PlastChem partitioning and miscibility (source_basis opencosmo_24a)
   are DISSOLVE's openCOSMO-RS 24a predictions for neutral species,
   logP at 25 °C. They were checked against the COSMOtherm workbook only

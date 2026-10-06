@@ -1,0 +1,296 @@
+{
+ "source_commit": "a9dfda16",
+ "note": "sha256 of plan_multistage_separation payloads with no contaminants named, captured at main a9dfda16 before the contaminant-always-on change; the planner must reproduce every one byte for byte",
+ "cases": [
+  {
+   "scope": "common",
+   "feed": [
+    "HDPE",
+    "PP",
+    "PS"
+   ],
+   "kwargs": {},
+   "sha256": "e4d274a7d80fab748303d3d815e7e14c28a8767431c6ef47085b3c8e5d364794",
+   "bytes": 65854
+  },
+  {
+   "scope": "common",
+   "feed": [
+    "HDPE",
+    "PP",
+    "PS"
+   ],
+   "kwargs": {
+    "breadth": 3
+   },
+   "sha256": "d61e4f019e8203f6c3ac5fb39e2b316171e2b95b01ffbb3579ac5ce36e03d9e0",
+   "bytes": 58139
+  },
+  {
+   "scope": "common",
+   "feed": [
+    "HDPE",
+    "PP",
+    "PS"
+   ],
+   "kwargs": {
+    "require_atmospheric": true
+   },
+   "sha256": "e12470678bc087ba2e70ca44662e7fc489ed479d60b8eafa8cb28b5432aafc82",
+   "bytes": 65854
+  },
+  {
+   "scope": "common",
+   "feed": [
+    "PP",
+    "PS",
+    "PET"
+   ],
+   "kwargs": {},
+   "sha256": "3d16524a2dce11efff3f932db35f922391dd58cdc5c4008bd7bfc28e55807b49",
+   "bytes": 29236
+  },
+  {
+   "scope": "common",
+   "feed": [
+    "PP",
+    "PS",
+    "PET"
+   ],
+   "kwargs": {
+    "breadth": 3
+   },
+   "sha256": "21a37271bf47889d614f74b9607c5b8c453cc4bc4a9974729108434de487d4a6",
+   "bytes": 46580
+  },
+  {
+   "scope": "common",
+   "feed": [
+    "PP",
+    "PS",
+    "PET"
+   ],
+   "kwargs": {
+    "require_atmospheric": true
+   },
+   "sha256": "f0c158e0918a8bb01cba679ed7bd9bc1af005f1cf57338c5a5b8ef70f2e40773",
+   "bytes": 29236
+  },
+  {
+   "scope": "common",
+   "feed": [
+    "LDPE",
+    "EVOH",
+    "PET"
+   ],
+   "kwargs": {},
+   "sha256": "0a6ba57376b41e39a856c3acecaa991111130d359f13fafcde918016c7b8c458",
+   "bytes": 53717
+  },
+  {
+   "scope": "common",
+   "feed": [
+    "LDPE",
+    "EVOH",
+    "PET"
+   ],
+   "kwargs": {
+    "breadth": 3
+   },
+   "sha256": "a6be09d4b01e8399af052137e94d9ff8d7826b35252ab2ca6bce1397d7d2222e",
+   "bytes": 59416
+  },
+  {
+   "scope": "common",
+   "feed": [
+    "LDPE",
+    "EVOH",
+    "PET"
+   ],
+   "kwargs": {
+    "require_atmospheric": true
+   },
+   "sha256": "ea99f53aa5b02cb6b3c55162fe5d57fe62c728485d28bef91bb844df466f554c",
+   "bytes": 53717
+  },
+  {
+   "scope": "common",
+   "feed": [
+    "PVC",
+    "PET"
+   ],
+   "kwargs": {},
+   "sha256": "b7010ec6a044185a834e30cb13cef4652bdc4122ee7500dc633ca0a91bed554f",
+   "bytes": 7514
+  },
+  {
+   "scope": "common",
+   "feed": [
+    "PVC",
+    "PET"
+   ],
+   "kwargs": {
+    "breadth": 3
+   },
+   "sha256": "ec52e49509a4ddd44029bba71eee5339f94fd53ee72dba4a4292d76c42ea28f9",
+   "bytes": 15519
+  },
+  {
+   "scope": "common",
+   "feed": [
+    "PVC",
+    "PET"
+   ],
+   "kwargs": {
+    "require_atmospheric": true
+   },
+   "sha256": "3a62d651d4e84977e9b2399ba10c42984cc20d45c182f3b892ba62b139d83672",
+   "bytes": 7514
+  },
+  {
+   "scope": "all",
+   "feed": [
+    "HDPE",
+    "PP",
+    "PS"
+   ],
+   "kwargs": {},
+   "sha256": "2ee1fd2744a3576a6323be4a1e4e44243f96c5766a27c0b7d4862d4428df4612",
+   "bytes": 48404
+  },
+  {
+   "scope": "all",
+   "feed": [
+    "HDPE",
+    "PP",
+    "PS"
+   ],
+   "kwargs": {
+    "breadth": 3
+   },
+   "sha256": "6244c3bddc3f86f967952a6aa625bcf886d9f5992ee0fa30cf43647e9cc220a5",
+   "bytes": 51378
+  },
+  {
+   "scope": "all",
+   "feed": [
+    "HDPE",
+    "PP",
+    "PS"
+   ],
+   "kwargs": {
+    "require_atmospheric": true
+   },
+   "sha256": "1766a7bf32271073f595716359714c0e1203567d9e6d2b55af91854eb2a25602",
+   "bytes": 52754
+  },
+  {
+   "scope": "all",
+   "feed": [
+    "PP",
+    "PS",
+    "PET"
+   ],
+   "kwargs": {},
+   "sha256": "dc8069aa2b1d932c45be06094e6b5af2fe9045f4f82ec73f48d966a24f9a6d09",
+   "bytes": 46023
+  },
+  {
+   "scope": "all",
+   "feed": [
+    "PP",
+    "PS",
+    "PET"
+   ],
+   "kwargs": {
+    "breadth": 3
+   },
+   "sha256": "d5ad9414273812e9588877f353d3bd96c1fb724dc85093a1bae217bc4c52dc03",
+   "bytes": 51548
+  },
+  {
+   "scope": "all",
+   "feed": [
+    "PP",
+    "PS",
+    "PET"
+   ],
+   "kwargs": {
+    "require_atmospheric": true
+   },
+   "sha256": "f53c7a7f5d197972d56db692860a44143349c842cde2c0795a85a8d4c3c91094",
+   "bytes": 52787
+  },
+  {
+   "scope": "all",
+   "feed": [
+    "LDPE",
+    "EVOH",
+    "PET"
+   ],
+   "kwargs": {},
+   "sha256": "828b03c77646be36c0710dc275df543b5418a6cc01313d6308f71c0d6a971c04",
+   "bytes": 54629
+  },
+  {
+   "scope": "all",
+   "feed": [
+    "LDPE",
+    "EVOH",
+    "PET"
+   ],
+   "kwargs": {
+    "breadth": 3
+   },
+   "sha256": "b42de3814e3d3281d1e02693a39d926a8b6b17ad1c0096355da512a61ce2e7b4",
+   "bytes": 53783
+  },
+  {
+   "scope": "all",
+   "feed": [
+    "LDPE",
+    "EVOH",
+    "PET"
+   ],
+   "kwargs": {
+    "require_atmospheric": true
+   },
+   "sha256": "feb781cc0076e0629979cb651e0a36667f8b0d605f1093f4a2ea94b1bcf50af9",
+   "bytes": 59400
+  },
+  {
+   "scope": "all",
+   "feed": [
+    "PVC",
+    "PET"
+   ],
+   "kwargs": {},
+   "sha256": "78e5305011b22895d8a1bd3717b53d89ea468a2780b896cb414ed3017404c371",
+   "bytes": 12210
+  },
+  {
+   "scope": "all",
+   "feed": [
+    "PVC",
+    "PET"
+   ],
+   "kwargs": {
+    "breadth": 3
+   },
+   "sha256": "8b9396de719aac1ee8eb8c6f1a71a98c9b6507094a4cd5c3bd0a5cf5452aa522",
+   "bytes": 21769
+  },
+  {
+   "scope": "all",
+   "feed": [
+    "PVC",
+    "PET"
+   ],
+   "kwargs": {
+    "require_atmospheric": true
+   },
+   "sha256": "795ad2cb419a91db074859358deb2e68fa7357f385e83a1512a3ceb6dc629071",
+   "bytes": 12291
+  }
+ ]
+}

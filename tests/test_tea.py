@@ -23,6 +23,8 @@ from rich.console import Console
 
 from dissolve import (
     agent,
+    contaminant_removal,
+    contaminants,
     separation,
     tea,
     tea_ranking,
@@ -8399,42 +8401,28 @@ def test_cited_wash_basis_still_has_no_cost_path(monkeypatch):
     assert set(payload.get("cited_wash_basis") or []) >= set(_WASH_BASIS)
 
 
+def _strap_applied(monkeypatch, composition: dict, route: dict) -> dict:
+    """The route as the removal rule leaves it when STRAP passes at every stage. Contaminants are assessed by a
+    stated rule since 2026-10-05 (there is no setting to force a stamp), so every stage is made to pass and the
+    rule's own code writes the STRAP fields onto the route."""
+    def every_stage_passes(_target, _solvent, _others, _contaminants, dissolution_c, **_kwargs):
+        return {"verdict": "pass", "reason": None, "dissolution_c": dissolution_c, "precipitation_c": 25.0}
+
+    with monkeypatch.context() as patch:
+        patch.setattr(contaminants, "strap_at_stage", every_stage_passes)
+        steps, summary = contaminant_removal.assess(
+            route, feed=list(composition), supported=[_DEHP], request={"supported": [_DEHP]},
+            requested_route="strap", maximum=None, strict_maximum=False, step_c=5.0,
+        )
+    assert (summary["applied_route"], summary["status"]) == ("strap", "applied_screen_pass")
+    return {**copy.deepcopy(route), "steps": steps}
+
+
 def test_strap_dissolution_is_ordinary_and_stamp_inert(monkeypatch):
     composition, unset_route = _exact_planner_route()
-    stamped_plan = _data_contaminant_leftovers_cl6(separation.plan_multistage_separation(
-        list(composition),
-        feed_mass_fractions=dict(composition),
-        contaminants=_DEHP,
-        contaminant_mode="strap",
-        top_k_routes=10,
-        breadth=1,
-    ))
-    assert stamped_plan["success"] is True
-    unset_dissolutions = [
-        (
-            item.get("dissolved_polymer") or item.get("polymer"),
-            item.get("solvent"),
-            item.get("temperature_c"),
-        )
-        for item in unset_route["steps"]
-        if item.get("step_kind") != "wash"
-        and (item.get("dissolved_polymer") or item.get("polymer"))
-    ]
-    stamped_route = next(
-        route
-        for route in (stamped_plan.get("top_k_sequences") or [])
-        if [
-            (
-                item.get("dissolved_polymer") or item.get("polymer"),
-                item.get("solvent"),
-                item.get("temperature_c"),
-            )
-            for item in route.get("steps") or []
-            if item.get("step_kind") != "wash"
-            and (item.get("dissolved_polymer") or item.get("polymer"))
-        ] == unset_dissolutions
-    )
+    stamped_route = _strap_applied(monkeypatch, composition, unset_route)
     assert all(item.get("step_kind") != "wash" for item in stamped_route["steps"])
+    assert any(item.get("contaminant_removal") == "strap" for item in stamped_route["steps"])
     unset_cost = _cost(monkeypatch, composition, unset_route)
     strap_cost = _cost(monkeypatch, composition, stamped_route)
     assert unset_cost["success"] is True
@@ -8454,10 +8442,6 @@ def test_wash_train_formulation_stays_unavailable(monkeypatch):
 
 
 # --- from test_contaminant_tea_counterfactual.py: CL-5: the STRAP stamp is inert to costing. Test-only if MSPs already match.
-def _data_contaminant_tea_counterfactual(raw: str) -> dict:
-    return parse_tool_result(raw)["data"]
-
-
 def _dissolutions(route: dict) -> list[tuple[str, str, float | None]]:
     out = []
     for item in route.get("steps") or []:
@@ -8495,25 +8479,8 @@ def _bits(value: float) -> bytes:
 
 def test_strap_stamp_is_inert_to_cached_msp(monkeypatch):
     composition, unset_route = _exact_planner_route()
-    feed = list(composition)
-    stamped_plan = _data_contaminant_tea_counterfactual(separation.plan_multistage_separation(
-        feed,
-        feed_mass_fractions=dict(composition),
-        contaminants=_DEHP,
-        contaminant_mode="strap",
-        top_k_routes=10,
-        breadth=1,
-    ))
-    assert stamped_plan["success"] is True
-    assert stamped_plan["contaminant_mode"] == "strap"
-    stamped_route = next(
-        (
-            route for route in (stamped_plan.get("top_k_sequences") or [])
-            if _dissolutions(route) == _dissolutions(unset_route)
-        ),
-        None,
-    )
-    assert stamped_route is not None
+    stamped_route = _strap_applied(monkeypatch, composition, unset_route)
+    assert _dissolutions(stamped_route) == _dissolutions(unset_route)
     assert any(item.get("path") == "strap" for item in stamped_route["steps"])
     assert all(item.get("step_kind") != "wash" for item in stamped_route["steps"])
     assert _identities(stamped_route) == _identities(unset_route)

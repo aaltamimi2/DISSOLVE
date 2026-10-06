@@ -1047,22 +1047,20 @@ def test_the_model_sees_a_log_ratio_past_six_as_its_bound_and_engines_keep_the_n
         assert toluene["contaminants"][0]["logd"] == 0.81  # values inside the bound are unchanged
 
 
-def test_large_unrecognised_contaminant_comparison_named_refusal():
+def test_a_large_contaminant_comparison_pages_instead_of_being_refused():
+    """The comparison nested two whole screens and had no row list, so a large one was refused (unaddressable_result)
+    and the model saw nothing. Its route rows are now the page (2026-10-05)."""
     with _bound() as rec:
         out = dispatch(
             "compare_contaminant_removal_modes",
             target_polymer="LDPE", contaminants="PFAS",
         )
-        assert out["available"] is False
-        assert out["refusal"] == "unaddressable_result"
-        assert rec.get("handles") == {}
-        assert "handle" not in out
-        assert len(json.dumps(out)) < 8192
+        assert out.get("refusal") is None and out["available"] is True
+        assert out["handle"] in rec["handles"] and out["total"] > out["shown"] > 0
+        assert {row["route"] for row in handle_rows(load_handle(rec, out["handle"]))} <= {"strap", "wash"}
+        assert len(json.dumps(out)) < 2 * agent._PAGE_BYTES  # the bound every first page keeps
         archived = rec["turn_records"][rec["_turn"]][-1]
-        assert archived["handle"] is None
-        assert set(archived["exact"]) == {"display", "data"}
-        assert archived["exact"]["data"].get("success") is True
-        assert len(json.dumps(archived["exact"])) > 8192
+        assert archived["handle"] == out["handle"]
 
 
 def test_large_unrecognised_precipitation_fallback_named_refusal():
@@ -1333,15 +1331,16 @@ def test_turn_record_every_result_exact_ordered_durable():
             temperature_max_c=140.0, top_k=20,
         )
         refused = dispatch(
-            "compare_contaminant_removal_modes",
-            target_polymer="LDPE", contaminants="PFAS",
+            "screen_precipitation_order",
+            feed_polymers=["LDPE", "PP"], first_polymer="LDPE",
+            second_polymer="PP", min_ordering_window_c=999.0, top_k=5,
         )
         page = dispatch("result_read", handle=screen["handle"], offset=0, limit=5)
         empty = dispatch("result_read", handle="")
         rows = rec["turn_records"][tid]
         assert [r["tool"] for r in rows] == [
             "solubility_query", "screen_polymer_separation",
-            "compare_contaminant_removal_modes", "result_read", "result_read",
+            "screen_precipitation_order", "result_read", "result_read",
         ]
         assert rows[0]["handle"] is None
         assert set(rows[0]["exact"]) == {"display", "data"}
