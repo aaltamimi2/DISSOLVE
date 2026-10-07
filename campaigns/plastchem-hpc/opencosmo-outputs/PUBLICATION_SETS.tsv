@@ -1,0 +1,39 @@
+set	label	name	cas	surfaces	why_no_surface
+PFAS	PFBA	Perfluorobutanoic acid	375-22-4	contaminants/publication-sets/PFAS/Heptafluorobutyric_acid.orcacosmo	
+PFAS	PFPA	Perfluoropentanoic acid	2706-90-3	contaminants/publication-sets/PFAS/Perfluorovaleric_acid.orcacosmo	
+PFAS	PFHxA	Perfluorohexanoic acid	307-24-4	contaminants/publication-sets/PFAS/Perfluorohexanoic_acid.orcacosmo	
+PFAS	PFHA	Perfluoroheptanoic acid	375-85-9	contaminants/publication-sets/PFAS/Perfluoroheptanoic_acid.orcacosmo	
+PFAS	PFOA	Perfluorooctanoic acid	335-67-1	contaminants/publication-sets/PFAS/Perfluorooctanoic_acid.orcacosmo	
+PFAS	PFNA	Perfluorononanoic acid	375-95-1	contaminants/publication-sets/PFAS/Perfluorononanoic_acid.orcacosmo	
+PFAS	PFDA	Perfluorodecanoic acid	335-76-2	contaminants/publication-sets/PFAS/Perfluorodecanoic_acid.orcacosmo	
+PFAS	TFPA	2,3,3,3-Tetrafluoro-2-(heptafluoropropoxy)propanoic acid	13252-13-6	contaminants/publication-sets/PFAS/2,3,3,3-Tetrafluoro-2-(heptafluoropropoxy)propanoic_acid.orcacosmo	
+PFAS	PFTriDA	Perfluorotridecanoic acid	72629-94-8		its ORCA surface converged after the release was frozen; its partition and LLE calculations were not yet run
+PFAS	PFUnDA	Perfluoroundecanoic acid	2058-94-8	contaminants/publication-sets/PFAS/Perfluoroundecanoic_acid.orcacosmo	
+PFAS	PFDoDA	Perfluorododecanoic acid	307-55-1	contaminants/publication-sets/PFAS/Perfluorododecanoic_acid.orcacosmo	
+PFAS	PFTetraDA	Perfluorotetradecanoic acid	376-06-7		heavier than 700 g/mol
+PFAS	PFBS	Perfluorobutanesulfonic acid	375-73-5		contains sulfur
+PFAS	PFPS	Perfluoropentanesulfonic acid	2706-91-4		contains sulfur
+PFAS	PFHxS	Perfluorohexanesulfonic acid	355-46-4		contains sulfur
+PFAS	PFHS	Perfluoroheptanesulfonic acid	375-92-8		contains sulfur
+PFAS	PFOS	Perfluorooctanesulfonic acid	1763-23-1		contains sulfur
+PFAS	PFUnDS	Perfluoroundecanesulfonic acid	749786-16-1		not in PlastChem
+PFAS	PFTriDS	Perfluorotridecanesulfonic acid	791563-89-8		not in PlastChem
+PFAS	PFDS	Perfluorodecanesulfonic acid	335-77-3		contains sulfur
+PFAS	PFDoDS	Perfluorododecanesulfonic acid	79780-39-5		contains sulfur
+PFAS	KClHxDFS	Potassium 9-chlorohexadecafluoro-3-oxanonane-1-sulfonate	73606-19-6		a salt or a mixture of molecules
+PFAS	PFNS	Perfluorononanesulfonate	474511-07-4		not in PlastChem
+PFAS	NaDoDFNt	Sodium dodecafluoro-3H-4,8-dioxanonanoate	2250081-67-3		not in PlastChem
+PFAS	NH4TetraFPt	Ammonium 2,3,3,3-tetrafluoro-2-(heptafluoropropoxy)propanoate	62037-80-3		a salt or a mixture of molecules
+PFAS	NH4PFNt	Ammonium 4,8-dioxa-3H-perfluorononanoate	958445-44-8		a salt or a mixture of molecules
+Phthalates	P1 BBP	Butyl benzyl phthalate	85-68-7	contaminants/publication-sets/Phthalates/Benzyl_butyl_phthalate.orcacosmo	
+Phthalates	P2 DBP	Di-n-butyl phthalate	84-74-2	contaminants/publication-sets/Phthalates/Dibutyl_Phthalate.orcacosmo	
+Phthalates	P3 DEHP	Di-(2-ethylhexyl) phthalate	117-81-7	contaminants/publication-sets/Phthalates/Bis(2-ethylhexyl)_phthalate.orcacosmo	
+Phthalates	P4 DEP	Diethyl phthalate	84-66-2	contaminants/publication-sets/Phthalates/Diethyl_Phthalate.orcacosmo	
+Phthalates	P5 DiDP	Di-isodecyl phthalate	26761-40-0;68515-49-1	contaminants/publication-sets/Phthalates/Diisodecyl_phthalate.orcacosmo	
+Phthalates	P6 DiNP	Di-isononyl phthalate	28553-12-0;68515-48-0	contaminants/publication-sets/Phthalates/Diisononyl_phthalate.orcacosmo	
+Phthalates	P7 DnHP	Di-n-hexyl phthalate	84-75-3	contaminants/publication-sets/Phthalates/Dihexyl_phthalate.orcacosmo	
+Phthalates	P8 DnOP	Di-n-octyl phthalate	117-84-0	contaminants/publication-sets/Phthalates/Dioctyl_phthalate.orcacosmo	
+BFR	Tri-PBDE	2,4,4'-Tribromodiphenyl ether (BDE-28)	41318-75-6	contaminants/publication-sets/BFR/2,4-Dibromo-1-(4-bromophenoxy)benzene.orcacosmo	
+BFR	HBCD	Hexabromocyclododecane: 1,2,5,6,9,10-hexabromocyclododecane and its stereoisomers (alpha, beta, gamma and others)	3194-55-6;134237-50-6;134237-51-7;134237-52-8	contaminants/publication-sets/BFR/(+)-alpha-Hexabromocyclododecane.orcacosmo; contaminants/publication-sets/BFR/(1R,2R,5S,6S,9S,10R)-1,2,5,6,9,10-hexabromocyclododecane.orcacosmo; contaminants/publication-sets/BFR/1,2,5,6,9,10-Hexabromocyclododecane.orcacosmo; contaminants/publication-sets/BFR/Cyclododecane,_1,2,5,6,9,10-hexabromo-,_(1R,2S,5R,6S,9S,10S).orcacosmo; contaminants/publication-sets/BFR/Cyclododecane,_1,2,5,6,9,10-hexabromo-,_(1R,2S,5S,6S,9S,10R).orcacosmo; contaminants/publication-sets/BFR/alpha-Hexabromocyclododecane.orcacosmo; contaminants/publication-sets/BFR/beta-Hexabromocyclododecane.orcacosmo; contaminants/publication-sets/BFR/delta-Hexabromocyclododecane.orcacosmo; contaminants/publication-sets/BFR/gamma-Hexabromocyclododecane.orcacosmo; contaminants/publication-sets/BFR/kappa-HBCD.orcacosmo	
+BFR	DECA	Decabromodiphenyl ether (BDE-209)	1163-19-5		heavier than 700 g/mol
+BFR	TBBPA-dbp	Tetrabromobisphenol A bis(2,3-dibromopropyl ether)	21850-44-2		heavier than 700 g/mol
