@@ -4736,27 +4736,42 @@ def _plastchem_family_rows(family: str) -> dict[str, str]:
                             [members]).fetchall())
 
 
+def _family_counts(name):
+    """(computed members, members not computed, entries outside the release) of one PlastChem family: what a family
+    screen must report, from the family table and the asset rather than numbers that move with each release."""
+    family = next(f for f in contaminants._family_table() if f["name"] == name)
+    computed = {key for (key,) in contaminants._plastchem().execute(
+        "SELECT inchikey FROM contaminants WHERE computed AND inchikey IN (SELECT unnest(?))", [family["members"]]).fetchall()}
+    return len(computed), len(set(family["members"]) - computed), len(family["outside_release"])
+
+
 def test_a_family_name_screens_every_computed_member():
     """Nobody knows the names of 5,830 contaminants (owner, 2026-09-24): "bisphenols" was unsupported, so a user had
     to name each one. A family name now screens every member the release computed, and says what it lacks."""
     out = _data(contaminants.screen_contaminant_partitioning("PC", "ethanol", ["bisphenols"]))
-    assert out["unsupported_contaminants"] == [] and out["evaluated"] == 24
+    screened, not_computed, outside = _family_counts("Bisphenols")
+    assert out["unsupported_contaminants"] == [] and out["evaluated"] == screened > 24  # 24 before the halogen tier
     assert {row["family"] for row in out["rows"]} == {"Bisphenols"}
-    assert "Bisphenol A" in {row["contaminant"] for row in out["rows"]}
+    # tetrabromo- and tetrachlorobisphenol A were outside the CHNO release; the halogen tier (A-11) computed them.
+    # Bisphenol AF converged in ORCA but its LLE was unfinished at the frozen snapshot: a member, reported as pending.
+    assert {"Bisphenol A", "Tetrabromobisphenol A", "Tetrachlorobisphenol A"} <= {row["contaminant"] for row in out["rows"]}
+    (pending,) = [item for item in out["not_computed_contaminants"] if item["contaminant"] == "Bisphenol AF"]
+    assert pending["campaign_status"] == "thermodynamics_pending" and "frozen snapshot" in pending["reason"]
     (family,) = out["family_coverage"]
     assert (family["family"], family["screened"], family["not_computed"], family["outside_release"]) == (
-        "Bisphenols", 24, 1, 9)
-    assert family["outside_release_by_reason"]["contains sulfur"] == 2  # bisphenol S among them
-    assert "Bisphenol AF (contains fluorine)" in family["outside_release_examples"]
+        "Bisphenols", screened, not_computed, outside)
+    # bisphenol S, a thiobis-cresol, and the dibromo sulfonyl bisphenol, whose bromine is no longer a reason
+    assert family["outside_release_by_reason"]["contains sulfur"] == 3
+    assert not any("fluorine" in example or "bromine" in example for example in family["outside_release_examples"])
     # the ways a question names a family are one family; a compound is still a compound
     same = [_data(contaminants.screen_contaminant_partitioning("PC", "ethanol", [name]))["evaluated"]
             for name in ("Phthalates", "the phthalate family", "ortho-phthalates", "all phthalates")]
-    assert same == [40, 40, 40, 40]
+    assert same == [_family_counts("Phthalates")[0]] * 4
     one = _data(contaminants.screen_contaminant_partitioning("PC", "ethanol", ["benzophenone"]))
     assert [row["contaminant"] for row in one["rows"]] == ["Benzophenone"] and "family_coverage" not in one
     # a family and a member named with it are screened once
     both = _data(contaminants.screen_contaminant_partitioning("PP", "ethanol", ["antioxidants", "BHT", "slip agents"]))
-    assert both["evaluated"] == 120 + 8
+    assert both["evaluated"] == _family_counts("Antioxidants")[0] + _family_counts("Slip agents")[0]
     assert [f["family"] for f in both["family_coverage"]] == ["Antioxidants", "Slip agents"]
     assert "family (phthalates, terephthalates, bisphenols" in both["coverage"]
 
@@ -4802,11 +4817,11 @@ def test_contaminant_families_for_pickers():
     """The web app's family picker lists what each family screens: the PlastChem families with their computed
     members, then PFAS, which only the workbook screens serve."""
     families = contaminants.contaminant_families()
+    names = ["Phthalates", "Terephthalates", "Bisphenols", "Alkylphenols", "Antioxidants", "UV stabilizers",
+             "Benzophenones", "Aromatic amines", "Slip agents", "Salicylates", "Parabens"]
     assert [(f["name"], f["count"], f["source"]) for f in families] == [
-        ("Phthalates", 40, "plastchem"), ("Terephthalates", 16, "plastchem"), ("Bisphenols", 24, "plastchem"),
-        ("Alkylphenols", 37, "plastchem"), ("Antioxidants", 120, "plastchem"), ("UV stabilizers", 74, "plastchem"),
-        ("Benzophenones", 21, "plastchem"), ("Aromatic amines", 17, "plastchem"), ("Slip agents", 8, "plastchem"),
-        ("Salicylates", 11, "plastchem"), ("Parabens", 7, "plastchem"), ("PFAS", 26, "workbook")]
+        *[(name, _family_counts(name)[0], "plastchem") for name in names], ("PFAS", 26, "workbook")]
+    assert all(f["count"] == len(f["members"]) > 0 for f in families)
     phthalates = families[0]
     assert "Bis(2-ethylhexyl) phthalate" in phthalates["members"] and phthalates["examples"] == ["DEHP", "DBP", "BBP"]
 
@@ -4860,10 +4875,11 @@ def test_screened_rows_and_lookups_carry_each_contaminants_smiles():
     assert bht["cas"] == "128-37-0" and bht["molecular_weight_g_mol"] == 220.35
     assert [f["family"] for f in found["family_coverage"]] == ["Slip agents"]
     assert all(row["smiles"] for row in found["rows"])
-    pending = _data(contaminants.lookup_plastchem_contaminants("terephthalates"))
-    assert (pending["found"], pending["computed"]) == (21, 16)  # trimellitates still in the held tier 2
-    tri = next(row for row in pending["rows"] if row["contaminant"] == "Tris(2-ethylhexyl) trimellitate")
-    assert tri["computed"] is False and tri["campaign_status"] == "not_yet_run" and tri["smiles"]
+    terephthalates = _data(contaminants.lookup_plastchem_contaminants("terephthalates"))
+    # the trimellitates waited in tier 2 (500-700 g/mol) until A-11 computed every tier-2 structure that converged
+    assert (terephthalates["found"], terephthalates["computed"]) == (21, 21)
+    tri = next(row for row in terephthalates["rows"] if row["contaminant"] == "Tris(2-ethylhexyl) trimellitate")
+    assert tri["computed"] is True and tri["campaign_status"] == "converged" and tri["smiles"]
     empty = _data(contaminants.lookup_plastchem_contaminants([]))
     assert empty["error_code"] == "no_contaminants_named"
     from dissolve import agent

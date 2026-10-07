@@ -3,7 +3,7 @@
   "workbook": "plastchem_db_v1.0.xlsx",
   "sha256": "df4ccad3b238b3b76d180db48892c9c17e7cd823cecb495e7888ea0690216984"
  },
- "checked_against_manifest_sha256": "91b2ab133c17e5c66557c483ff84fbeca297682d5bd622a404ecba2746b23080",
+ "checked_against_manifest_sha256": "e56671451026393c3031da1d0f93d138de9983df62faba27614f336b29f51d05",
  "families": [
   {
    "name": "Phthalates",
@@ -235,10 +235,12 @@
     "HTVITOHKHWFJKO-UHFFFAOYSA-N",
     "IISBACLAFKSPIT-UHFFFAOYSA-N",
     "KJFMBFZCATUALV-UHFFFAOYSA-N",
+    "KYPYTERUKNKOLP-UHFFFAOYSA-N",
     "LVLNPXCISNPHLE-UHFFFAOYSA-N",
     "MDWVSAYEQPLWMX-UHFFFAOYSA-N",
     "MLCQXUZZAXKTSG-UHFFFAOYSA-N",
     "MQCPOLNSJCWPGT-UHFFFAOYSA-N",
+    "OWEYKIWAZBBXJK-UHFFFAOYSA-N",
     "PFANXOISJYKQRP-UHFFFAOYSA-N",
     "PRWJPWSKLXYEPD-UHFFFAOYSA-N",
     "PVFQHGDIOXNKIC-UHFFFAOYSA-N",
@@ -246,12 +248,15 @@
     "RXNYJUSEXLAVNQ-UHFFFAOYSA-N",
     "SDDLEVPIDBLVHC-UHFFFAOYSA-N",
     "UMPGNGRIGSEMTC-UHFFFAOYSA-N",
+    "VEORPZCZECFIRK-UHFFFAOYSA-N",
     "VKOUCJUTMGHNOR-UHFFFAOYSA-N",
     "VOWWYDCFAISREI-UHFFFAOYSA-N",
     "WOCGGVRGNIEDSZ-UHFFFAOYSA-N",
     "WXNRYSGJLQFHBR-UHFFFAOYSA-N",
+    "WYBOEVJIVYIEJL-UHFFFAOYSA-N",
     "YWFPGFJLYRKYJZ-UHFFFAOYSA-N",
-    "ZDRSNHRWLQQICP-UHFFFAOYSA-N"
+    "ZDRSNHRWLQQICP-UHFFFAOYSA-N",
+    "ZFVMWEVVKGLCIJ-UHFFFAOYSA-N"
    ],
    "outside_release": [
     {
@@ -262,7 +267,7 @@
     {
      "name": "4,4'-Sulphonylbis(2,6-dibromophenol)",
      "inchikey": "JHJUYGMZIWDHMO-UHFFFAOYSA-N",
-     "reason": "contains bromine and sulfur"
+     "reason": "contains sulfur"
     },
     {
      "name": "4,4'-Thiobis(6-tert-butyl-m-cresol)",
@@ -270,34 +275,9 @@
      "reason": "contains sulfur"
     },
     {
-     "name": "Bisphenol AF",
-     "inchikey": "ZFVMWEVVKGLCIJ-UHFFFAOYSA-N",
-     "reason": "contains fluorine"
-    },
-    {
-     "name": "Bisphenol C",
-     "inchikey": "OWEYKIWAZBBXJK-UHFFFAOYSA-N",
-     "reason": "contains chlorine"
-    },
-    {
      "name": "Ethylene bis[3,3-bis(3-tert-butyl-4-hydroxyphenyl)butyrate]",
      "inchikey": "JOWXNCPELQZFHF-UHFFFAOYSA-N",
      "reason": "heavier than 700 g/mol"
-    },
-    {
-     "name": "Tetrabromobisphenol A",
-     "inchikey": "VEORPZCZECFIRK-UHFFFAOYSA-N",
-     "reason": "contains bromine"
-    },
-    {
-     "name": "Tetrachlorobisphenol A",
-     "inchikey": "KYPYTERUKNKOLP-UHFFFAOYSA-N",
-     "reason": "contains chlorine"
-    },
-    {
-     "name": "Tribromobisphenol A",
-     "inchikey": "WYBOEVJIVYIEJL-UHFFFAOYSA-N",
-     "reason": "contains bromine"
     }
    ]
   },
@@ -345,6 +325,7 @@
     "SCXYLTWTWUGEAA-UHFFFAOYSA-N",
     "SLUKQUGVTITNSY-UHFFFAOYSA-N",
     "UTXPMECBRCEYCI-UHFFFAOYSA-N",
+    "UWSMKYBKUPAEJQ-UHFFFAOYSA-N",
     "VDOJQPKPGQMNDA-UHFFFAOYSA-N",
     "VFONHVBSRNKIAY-UHFFFAOYSA-N",
     "VMZVBRIIHDRYGK-UHFFFAOYSA-N",
@@ -371,11 +352,6 @@
      "name": "192268-65-8",
      "inchikey": null,
      "reason": "a mixture or polymer, not one structure"
-    },
-    {
-     "name": "2,4-Di-tert-butyl-6-(5-chloro-2H-benzotriazol-2-yl)phenol",
-     "inchikey": "UWSMKYBKUPAEJQ-UHFFFAOYSA-N",
-     "reason": "contains chlorine"
     },
     {
      "name": "2-(2-Nonylphenoxy)ethanol;phosphoric acid",
@@ -535,6 +511,7 @@
     "GVJHHUAWPYXKBD-UHFFFAOYSA-N",
     "GZIFEOYASATJEH-VHFRWLAGSA-N",
     "HCILJBJJZALOAL-UHFFFAOYSA-N",
+    "HDUUZPLYVVQTKN-UHFFFAOYSA-N",
     "HKLPOBRVSAUJSG-UHFFFAOYSA-N",
     "HNURKXXMYARGAY-UHFFFAOYSA-N",
     "HQSOHEURLMFXBX-UHFFFAOYSA-N",
@@ -702,11 +679,6 @@
      "reason": "contains sulfur"
     },
     {
-     "name": "2,6-Dichloro-N-phenylaniline",
-     "inchikey": "HDUUZPLYVVQTKN-UHFFFAOYSA-N",
-     "reason": "contains chlorine"
-    },
-    {
      "name": "2-Ethylhexyl diphenyl phosphite",
      "inchikey": "XKZGIJICHCVXFV-UHFFFAOYSA-N",
      "reason": "contains phosphorus"
@@ -724,7 +696,7 @@
     {
      "name": "3,10-Bis((4-amino-2,5-disulphophenyl)amino)-6,13-dichlorotriphenodioxazine-4,11-disulphonic acid",
      "inchikey": "KTAOIBPHDVTOGV-UHFFFAOYSA-N",
-     "reason": "contains chlorine and sulfur"
+     "reason": "contains sulfur"
     },
     {
      "name": "3,9-Bis(2,4-di-tert-butylphenoxy)-2,4,8,10-tetraoxa-3,9-diphosphaspiro[5.5]undecane",
@@ -944,7 +916,7 @@
     {
      "name": "Phenol, 2,2'-thiobis(6-tert-butyl-4-chloro-",
      "inchikey": "STBISWCOPIJZJA-UHFFFAOYSA-N",
-     "reason": "contains chlorine and sulfur"
+     "reason": "contains sulfur"
     },
     {
      "name": "Phenol, 2,6-bis((3-(1,1-dimethylethyl)-2-hydroxy-5-methylphenyl)octahydro-4,7-methano-1H-indenyl)-4-methyl-",
@@ -1070,11 +1042,13 @@
    ],
    "members": [
     "ARVUDIQYNJVQIW-UHFFFAOYSA-N",
+    "AWEVLIFGIMIQHY-UHFFFAOYSA-N",
     "CMBCMPYRBVJZDI-UHFFFAOYSA-N",
     "CMXLJKWFEJEFJE-UHFFFAOYSA-N",
     "CQNQNWUSTVCIDH-UHFFFAOYSA-N",
     "CSGAUKGQUCHWDP-UHFFFAOYSA-N",
     "DBOSBRHMHBENLP-UHFFFAOYSA-N",
+    "DMFXLIFZVRXRRR-UHFFFAOYSA-N",
     "DOZGRCMRCPSZHG-UHFFFAOYSA-N",
     "DRXGKQPTFWTTJW-UHFFFAOYSA-N",
     "DXGLGDHPHMLXJC-UHFFFAOYSA-N",
@@ -1092,9 +1066,11 @@
     "HJIAMFHSAAEUKR-UHFFFAOYSA-N",
     "HLVLKTYUBIGFFB-UHFFFAOYSA-N",
     "HMYBQGXAGRYFPW-UHFFFAOYSA-N",
+    "HWSDZRBDEVTBSM-UHFFFAOYSA-N",
     "IAJNXBNRYMEYAZ-UHFFFAOYSA-N",
     "IKVDJWHQFRZZOT-UHFFFAOYSA-N",
     "IMNBHNRXUAJVQE-UHFFFAOYSA-N",
+    "IOGQACQRFGDUPT-UHFFFAOYSA-N",
     "ITLDHFORLZTRJI-UHFFFAOYSA-N",
     "IVVLFHBYPHTMJU-UHFFFAOYSA-N",
     "IYAZLDLPUNDVAG-UHFFFAOYSA-N",
@@ -1110,6 +1086,7 @@
     "MEZZCSHVIGVWFI-UHFFFAOYSA-N",
     "NMMXJQKTXREVGN-UHFFFAOYSA-N",
     "NWPIOULNZLJZHU-UHFFFAOYSA-N",
+    "OCWYEMOEOGEQAN-UHFFFAOYSA-N",
     "OLBWDGJTEXRJLY-UHFFFAOYSA-N",
     "OLFNXLXEGXRUOI-UHFFFAOYSA-N",
     "OTCWVYFQGYOYJO-UHFFFAOYSA-N",
@@ -1134,11 +1111,13 @@
     "UKJARPDLRWBRAX-UHFFFAOYSA-N",
     "UONLDZHKYCFZRW-UHFFFAOYSA-N",
     "UUINYPIVWRZHAG-UHFFFAOYSA-N",
+    "UWSMKYBKUPAEJQ-UHFFFAOYSA-N",
     "UZOYICMDDCNJJG-UHFFFAOYSA-N",
     "UZUNCLSDTUBVCN-UHFFFAOYSA-N",
     "VCYCUECVHJJFIQ-UHFFFAOYSA-N",
     "VDVUCLWJZJHFAV-UHFFFAOYSA-N",
     "VQMHSKWEJGIXGA-UHFFFAOYSA-N",
+    "VVOYPINUWBAVQM-UHFFFAOYSA-N",
     "VXTRPEFUPWORNH-UHFFFAOYSA-N",
     "VYCDFODYRFOXDA-UHFFFAOYSA-N",
     "WXHVQMGINBSVAY-UHFFFAOYSA-N",
@@ -1191,19 +1170,9 @@
      "reason": "not in the campaign's input list"
     },
     {
-     "name": "2'-Fluoro-2-hydroxy-4-methoxybenzophenone",
-     "inchikey": "VVOYPINUWBAVQM-UHFFFAOYSA-N",
-     "reason": "contains fluorine"
-    },
-    {
      "name": "2,2-Bis(((2-cyano-3,3-diphenylacryloyl)oxy)methyl)propane-1,3-diyl bis(2-cyano-3,3-diphenylacrylate)",
      "inchikey": "CVSXFBFIOUYODT-UHFFFAOYSA-N",
      "reason": "heavier than 700 g/mol"
-    },
-    {
-     "name": "2,4-Di-tert-butyl-6-(5-chloro-2H-benzotriazol-2-yl)phenol",
-     "inchikey": "UWSMKYBKUPAEJQ-UHFFFAOYSA-N",
-     "reason": "contains chlorine"
     },
     {
      "name": "2,9,11,13,15,22,24,26,27,28-Decaazatricyclo(21.3.1.110,14)octacosa-1(27),10,12,14(28),23,25-hexaene-12,25-diamine, N12,N25-bis(1,1,3,3-tetramethylbutyl)-2,9,15,22-tetrakis(2,2,6,6-tetramethyl-4-piperidinyl)-",
@@ -1216,11 +1185,6 @@
      "reason": "a mixture or polymer, not one structure"
     },
     {
-     "name": "4-(5-Chloro-2H-benzo[d][1,2,3]triazol-2-yl)-3-hydroxyphenyl benzoate",
-     "inchikey": "HWSDZRBDEVTBSM-UHFFFAOYSA-N",
-     "reason": "contains chlorine"
-    },
-    {
      "name": "4-Acetamido-2,2,6,6-tetramethylpiperidine 1-oxyl",
      "inchikey": "UXBLSWOMIHTQPH-UHFFFAOYSA-N",
      "reason": "not in the campaign's input list"
@@ -1229,11 +1193,6 @@
      "name": "4-[3-(Diethoxymethylsilyl)propoxy]-2,2,6,6-tetramethylpiperidine",
      "inchikey": "PTUAFEVULPLJPF-UHFFFAOYSA-N",
      "reason": "contains silicon"
-    },
-    {
-     "name": "5-Chloro-2-hydroxy-4-methylbenzophenone",
-     "inchikey": "IOGQACQRFGDUPT-UHFFFAOYSA-N",
-     "reason": "contains chlorine"
     },
     {
      "name": "Benzenepropanoic acid, 3,5-bis(1,1-dimethylethyl)-4-hydroxy-, 1-(2-(3-(3,5-bis(1,1-dimethylethyl)-4-hydroxyphenyl)-1-oxopropoxy)ethyl)-2,2,6,6-tetramethyl-4-piperidinyl ester",
@@ -1246,19 +1205,9 @@
      "reason": "a mixture or polymer, not one structure"
     },
     {
-     "name": "Benzenepropanoic acid, 3-(5-chloro-2H-benzotriazol-2-yl)-5-(1,1-dimethylethyl)-4-hydroxy-, 2-ethylhexyl ester",
-     "inchikey": "AWEVLIFGIMIQHY-UHFFFAOYSA-N",
-     "reason": "contains chlorine"
-    },
-    {
      "name": "Bis(2-(4-(4,6-diphenyl-1,3,5-triazin-2-yl)-3-hydroxyphenoxy)ethyl) dodecanedioate",
      "inchikey": "ZHHPLZHAFGMOKL-UHFFFAOYSA-N",
      "reason": "heavier than 700 g/mol"
-    },
-    {
-     "name": "Bumetrizole",
-     "inchikey": "OCWYEMOEOGEQAN-UHFFFAOYSA-N",
-     "reason": "contains chlorine"
     },
     {
      "name": "Chimassorb 119",
@@ -1284,11 +1233,6 @@
      "name": "Octyl 3-(3-(2H-benzo[d][1,2,3]triazol-2-yl)-5-(tert-butyl)-4-hydroxyphenyl)propanoate",
      "inchikey": "XQAABEDPVQWFPN-UHFFFAOYSA-N",
      "reason": "a mixture or polymer, not one structure"
-    },
-    {
-     "name": "Octyl 5-tert-butyl-3-(5-chloro-2H-benzotriazole-2-yl)-4-hydroxybenzenepropionate",
-     "inchikey": "DMFXLIFZVRXRRR-UHFFFAOYSA-N",
-     "reason": "contains chlorine"
     },
     {
      "name": "Sulisobenzone",
@@ -1323,18 +1267,23 @@
    "members": [
     "ARVUDIQYNJVQIW-UHFFFAOYSA-N",
     "CKGKXGQVRVAKEA-UHFFFAOYSA-N",
+    "CPLWKNRPZVNELG-UHFFFAOYSA-N",
     "DXGLGDHPHMLXJC-UHFFFAOYSA-N",
+    "FAVKIHMGRWRACA-UHFFFAOYSA-N",
     "HJIAMFHSAAEUKR-UHFFFAOYSA-N",
     "HPAFOABSQZMTHE-UHFFFAOYSA-N",
     "IMNBHNRXUAJVQE-UHFFFAOYSA-N",
+    "LSQARZALBDFYQZ-UHFFFAOYSA-N",
     "LYXOWKPVTCPORE-UHFFFAOYSA-N",
     "MEZZCSHVIGVWFI-UHFFFAOYSA-N",
     "NPFYZDNDJHZQKY-UHFFFAOYSA-N",
     "QUAMTGJKVDWJEQ-UHFFFAOYSA-N",
+    "RUETVLNXAGWCDS-UHFFFAOYSA-N",
     "RWCCWEUUXYIKHB-UHFFFAOYSA-N",
     "RXNYJUSEXLAVNQ-UHFFFAOYSA-N",
     "SODJJEXAWOSSON-UHFFFAOYSA-N",
     "SXJSETSRWNDWPP-UHFFFAOYSA-N",
+    "UGVRJVHOJNYEHR-UHFFFAOYSA-N",
     "URBLVRAVOIVZFJ-UHFFFAOYSA-N",
     "VQVIHDPBMFABCQ-UHFFFAOYSA-N",
     "VVBLNCFGVYUYGU-UHFFFAOYSA-N",
@@ -1344,31 +1293,6 @@
     "ZXDDPOHVAMWLBH-UHFFFAOYSA-N"
    ],
    "outside_release": [
-    {
-     "name": "2,5-Dichlorobenzophenone",
-     "inchikey": "FAVKIHMGRWRACA-UHFFFAOYSA-N",
-     "reason": "contains chlorine"
-    },
-    {
-     "name": "3-Chlorobenzophenone",
-     "inchikey": "CPLWKNRPZVNELG-UHFFFAOYSA-N",
-     "reason": "contains chlorine"
-    },
-    {
-     "name": "4,4'-Difluorobenzophenone",
-     "inchikey": "LSQARZALBDFYQZ-UHFFFAOYSA-N",
-     "reason": "contains fluorine"
-    },
-    {
-     "name": "4-Chloro-4'-hydroxybenzophenone",
-     "inchikey": "RUETVLNXAGWCDS-UHFFFAOYSA-N",
-     "reason": "contains chlorine"
-    },
-    {
-     "name": "4-Chlorobenzophenone",
-     "inchikey": "UGVRJVHOJNYEHR-UHFFFAOYSA-N",
-     "reason": "contains chlorine"
-    },
     {
      "name": "Sulisobenzone",
      "inchikey": "CXVGEDCSTKKODG-UHFFFAOYSA-N",
@@ -1394,15 +1318,19 @@
    "members": [
     "BAHPQISAXRFLCL-UHFFFAOYSA-N",
     "BMIPMKQAAJKBKP-UHFFFAOYSA-N",
+    "CXNVOWPRHWWCQR-UHFFFAOYSA-N",
     "DMVOXQPQNTYEKQ-UHFFFAOYSA-N",
     "DSBIJCMXAIKKKI-UHFFFAOYSA-N",
     "HFACYLZERDEVSX-UHFFFAOYSA-N",
     "HLBLWEWZXPIGSM-UHFFFAOYSA-N",
+    "HUWXDEQWWKGHRV-UHFFFAOYSA-N",
+    "IBOFVQJTBBUKMU-UHFFFAOYSA-N",
     "JBIJLHTVPXGSAM-UHFFFAOYSA-N",
     "JRBJSXQPQWSCCF-UHFFFAOYSA-N",
     "NUIURNJTPRWVAP-UHFFFAOYSA-N",
     "PFRYFZZSECNQOL-UHFFFAOYSA-N",
     "QPQKUYVSJWQSDY-UHFFFAOYSA-N",
+    "QSNSCYSYFYORTR-UHFFFAOYSA-N",
     "RNVCVTLRINQCPJ-UHFFFAOYSA-N",
     "VMPITZXILSNTON-UHFFFAOYSA-N",
     "VOZKAJLKRJDJLL-UHFFFAOYSA-N",
@@ -1412,29 +1340,9 @@
    ],
    "outside_release": [
     {
-     "name": "3,3'-Dichlorobenzidine",
-     "inchikey": "HUWXDEQWWKGHRV-UHFFFAOYSA-N",
-     "reason": "contains chlorine"
-    },
-    {
-     "name": "4,4'-Methylenebis(2-chloroaniline)",
-     "inchikey": "IBOFVQJTBBUKMU-UHFFFAOYSA-N",
-     "reason": "contains chlorine"
-    },
-    {
      "name": "4,4'-Thiodianiline",
      "inchikey": "ICNFHJVPAJKPHW-UHFFFAOYSA-N",
      "reason": "contains sulfur"
-    },
-    {
-     "name": "4-Chloro-2-methylaniline",
-     "inchikey": "CXNVOWPRHWWCQR-UHFFFAOYSA-N",
-     "reason": "contains chlorine"
-    },
-    {
-     "name": "4-Chloroaniline",
-     "inchikey": "QSNSCYSYFYORTR-UHFFFAOYSA-N",
-     "reason": "contains chlorine"
     }
    ]
   },

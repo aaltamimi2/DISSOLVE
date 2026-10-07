@@ -1022,13 +1022,17 @@ def test_a_contaminant_class_fits_the_context_and_pages_whole_rows():
 def test_a_family_screen_shows_the_model_what_the_family_lacks():
     """"Which antioxidants leach from PP into ethanol" paged its 120 rows, and the compact view dropped the family's
     coverage: the answer never said 81 PlastChem antioxidants are outside the release (2026-09-24)."""
+    family = next(f for f in contaminants._family_table() if f["name"] == "Antioxidants")
+    computed = {key for (key,) in contaminants._plastchem().execute(
+        "SELECT inchikey FROM contaminants WHERE computed AND inchikey IN (SELECT unnest(?))", [family["members"]]).fetchall()}
     with _bound():
         screen = dispatch("screen_contaminant_partitioning", polymer="PP", solvent="ethanol",
                           contaminants=["antioxidants"])
-        assert screen["handle"] and screen["total"] == 120 and screen["shown"] < 120
+        assert screen["handle"] and screen["total"] == len(computed) > 120 and screen["shown"] < screen["total"]
         (coverage,) = screen["data"]["family_coverage"]
-        assert (coverage["screened"], coverage["not_computed"], coverage["outside_release"]) == (120, 18, 81)
-        assert coverage["outside_release_by_reason"]["contains phosphorus"] == 39
+        assert (coverage["screened"], coverage["not_computed"], coverage["outside_release"]) == (
+            len(computed), len(set(family["members"]) - computed), len(family["outside_release"]))
+        assert coverage["outside_release_by_reason"]["contains phosphorus"] == 39  # phosphorus stays outside
 
 
 def test_the_model_sees_a_log_ratio_past_six_as_its_bound_and_engines_keep_the_number():

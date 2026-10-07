@@ -5,6 +5,7 @@ are textbook chemistry."""
 from __future__ import annotations
 
 import json
+import re
 
 import pytest
 
@@ -25,23 +26,41 @@ def _keys(data: dict) -> set[str]:
 
 
 def _smiles() -> dict[str, tuple[str, bool]]:
-    """inchikey -> (SMILES, computed). The release writes SMILES in Kekulé form with C, H, N and O only, so an
-    element's capital letter in the text is the element."""
+    """inchikey -> (SMILES, computed)."""
     rows = contaminants._plastchem().execute("SELECT inchikey, smiles, computed FROM contaminants").fetchall()
     return {key: (smiles, bool(computed)) for key, smiles, computed in rows}
 
 
+_TOKEN = re.compile(r"\[(?:\d*)([A-Z][a-z]?|[bcnops])[^\]]*\]|(Cl|Br|[BCNOPSFI]|[bcnops])")
+
+
+def _elements_in(smiles: str) -> set[str]:
+    """Element symbols read from the SMILES text alone, no RDKit: bracket atoms and the organic subset (two-letter
+    Cl and Br before one-letter C and B). Hydrogen counts only where written."""
+    found = set()
+    for bracket, organic in _TOKEN.findall(smiles):
+        symbol = bracket or organic
+        found.add(symbol.capitalize() if symbol in "bcnops" else symbol)
+    return found
+
+
 def test_an_element_search_finds_what_the_smiles_text_holds_and_names_by_symbol_or_word():
     release = _smiles()
-    assert {letter for smiles, _ in release.values() for letter in smiles if letter.isalpha()} == set("CHNO")
-    with_n = {key for key, (smiles, _) in release.items() if "N" in smiles}
-    found = _data(search.find_plastchem_contaminants(elements="N"))
-    assert _keys(found) == with_n and found["total"] == len(with_n) > 1000
+    elements = {key: _elements_in(smiles) for key, (smiles, _) in release.items()}
+    computed = {key for key, (_, done) in release.items() if done}
+    held = set().union(*(elements[key] for key in computed)) | {"H"}
+    assert set(search.release_elements()) == held and not held & {"S", "P", "Si", "B"}
+    for symbol in sorted(held - {"C", "H"}):
+        expected = {key for key, found in elements.items() if symbol in found}
+        found = _data(search.find_plastchem_contaminants(elements=symbol))
+        assert _keys(found) == expected and found["total"] == len(expected) > 0, symbol
+    with_n = {key for key, found in elements.items() if "N" in found}
+    assert len(with_n) > 1000
     assert _keys(_data(search.find_plastchem_contaminants(elements=["nitrogen"]))) == with_n
     without_n = _data(search.find_plastchem_contaminants(exclude_elements="n"))
     assert _keys(without_n) == set(release) - with_n
     both = _data(search.find_plastchem_contaminants(elements=["N", "O"]))
-    assert _keys(both) == {key for key in with_n if "O" in release[key][0]}
+    assert _keys(both) == {key for key in with_n if "O" in elements[key]}
     assert both["described"] == "containing N and O"
 
 
@@ -223,7 +242,9 @@ def test_the_categories_a_picker_would_offer_count_compounds_with_partition_data
     categories = search.search_categories()
     assert categories["available"] is True and categories["compounds"] == len(computed)
     counts = {item["symbol"]: item["count"] for item in categories["elements"]}
-    assert counts == {symbol: sum(symbol in smiles for smiles in computed) for symbol in "CNO"} | {"H": counts["H"]}
+    oracle = [_elements_in(smiles) for smiles in computed]
+    assert {k: v for k, v in counts.items() if k != "H"} == {
+        symbol: sum(symbol in found for found in oracle) for symbol in set().union(*oracle) - {"H"}}
     assert [item["name"] for item in categories["functional_groups"]] == list(search.FUNCTIONAL_GROUPS)
     weights = categories["molecular_weight_g_mol"]
     assert weights["min"] <= weights["median"] <= weights["max"]
