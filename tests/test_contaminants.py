@@ -4862,6 +4862,60 @@ def test_family_builder_refuses_ambiguous_names_and_says_why_members_are_missing
         plastchem_release.build_families(workbook, out, asset=asset, specs=[{**spec, "examples": ("Betaamide",)}])
 
 
+def test_family_builder_takes_a_matching_structure_outside_the_plastchem_group(tmp_path):
+    """PlastChem's orthophthalates group leaves out ortho-phthalate diesters such as bis(2-ethylbutyl) phthalate, so the
+    phthalate family missed 48 computed ones (2026-10-07). A family now also takes, outside its group, an entry whose
+    structure matches: Deltaone, a phthalate diester outside the group, joins; a tetrachlorophthalate and a trimellitate
+    stay out; a matching entry the release lacks is listed with its reason."""
+    openpyxl = pytest.importorskip("openpyxl")
+    asset = tmp_path / "asset.duckdb"
+    plastchem_release.promote_opencosmo_release(_plastchem_release(tmp_path), asset)
+    columns = ["plastchem_ID", "cas", "pubchem_name", "isomeric_smiles", "canonical_smiles", "inchikey",
+               "molecular_weight", "inorganic_compounds", "organometallics", "UVCBs", "polymers", "mixtures",
+               "orthophthalates"]
+    entries = [  # the release computes AAAA-A and DDDD-D
+        (1, "", "Alphaester", "CCCCOC(=O)c1ccccc1C(=O)O", None, "AAAA-A", 222, None, None, None, None, None, 1),
+        (4, "", "Deltaone", "CCC(CC)COC(=O)c1ccccc1C(=O)OCC(CC)CC", None, "DDDD-D", 334, None, None, None, None, None,
+         None),
+        (6, "", "Heptyl undecyl phthalate", "CCCCCCCCCCCOC(=O)c1ccccc1C(=O)OCCCCCCC", None, "PPPP-P", 418, None, None,
+         None, None, None, None),
+        (7, "", "Dipropyl tetrachlorophthalate", "CCCOC(=O)c1c(Cl)c(Cl)c(Cl)c(Cl)c1C(=O)OCCC", None, "TTTT-T", 388,
+         None, None, None, None, None, None),
+        (8, "", "Trimellitate diester", "CCCCC(CC)COC(=O)c1ccc(C(=O)O)cc1C(=O)OCC(CC)CCCC", None, "MMMM-M", 434, None,
+         None, None, None, None, None),
+    ]
+    book = openpyxl.Workbook()
+    sheet = book.active
+    sheet.title = "Full database"
+    sheet.append(["Identifiers"] + [None] * (len(columns) - 1))
+    sheet.append(columns)
+    for entry in entries:
+        sheet.append(list(entry))
+    workbook = tmp_path / "plastchem.xlsx"
+    book.save(workbook)
+    spec = {"name": "Phthalates", "term": "phthalates", "group": "orthophthalates",
+            "or_any": ("ortho_phthalate_diester",), "aliases": ("phthalate",), "description": "phthalates",
+            "examples": ("Deltaone",)}
+    out = tmp_path / "families.json"
+    assert plastchem_release.build_families(workbook, out, asset=asset, specs=[spec]) == {"Phthalates": 2}
+    (family,) = json.loads(out.read_text())["families"]
+    assert [(item["name"], item["reason"]) for item in family["outside_release"]] == [
+        ("Heptyl undecyl phthalate", "not in the campaign's input list")]
+    assert family["basis"] == "PlastChem group orthophthalates, or outside it the structure ortho phthalate diester"
+
+
+def test_the_phthalate_family_holds_the_releases_ortho_phthalate_diesters():
+    """The family the agent screens for "phthalates" takes the diesters PlastChem's group leaves out, and still not a
+    ring-halogenated phthalate, a trimellitate or a fused-ring diester."""
+    found = _data(contaminants.lookup_plastchem_contaminants("phthalates"))
+    names = {row["contaminant"] for row in found["rows"]}
+    assert {"Bis(2-ethylbutyl) phthalate", "Butyl cyclohexyl phthalate", "Bis(2-ethylhexyl) phthalate",
+            "Phthalic acid"} <= names
+    assert not names & {"Diallyl tetrabromophthalate", "1,2,4-Benzenetricarboxylic Acid 1,2-Bis(2-ethylhexyl) Ester",
+                        "Diisobutyl Perylenedicarboxylate"}
+    assert found["computed"] == _family_counts("Phthalates")[0] > 42  # PlastChem's group alone gave 42
+
+
 def test_screened_rows_and_lookups_carry_each_contaminants_smiles():
     """"What's the SMILES of each of these?" after a slip-agent screen came back "the system output does not include
     SMILES" (owner, 2026-09-25), though the release records one for every contaminant. Screen rows carry it now, and a

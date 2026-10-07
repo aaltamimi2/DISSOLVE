@@ -213,6 +213,9 @@ _SMARTS = {
     "aryl_salicylate": "[OX2H]c1ccccc1C(=O)Oc1ccccc1",
     "benzylidene_malonate": "O=C(O[#6])C(=[CH]c1ccccc1)C(=O)O[#6]",
     "benzophenone": "c1ccccc1[CX3;!R](=O)c1ccccc1",
+    # phthalates: a benzene-1,2-dicarboxylate diester whose ring carries nothing else (not a trimellitate, a
+    # tetrahalophthalate or a fused-ring dicarboxylate)
+    "ortho_phthalate_diester": "[#6;!$(C=O)]OC(=O)[c;R1]1[c;R1](C(=O)O[#6;!$(C=O)])[cH;R1][cH;R1][cH;R1][cH;R1]1",
 }
 _ANTIOXIDANT = ("hindered_phenol", "cycloalkyl_phenol", "diarylamine", "phenylenediamine", "dihydroquinoline",
                 "gallate", "chromanol", "benzofuranone", "phosphite", "thiodipropionate")
@@ -222,9 +225,11 @@ _UV = ("benzotriazole_uva", "triazine_uva", "hydroxybenzophenone", "hals", "cyan
        "aryl_salicylate", "benzylidene_malonate")
 
 # name, the term a question uses, aliases, what it holds, and how membership is decided: a PlastChem group ("group"),
-# structures of which any ("any") or all ("all") must match and none ("none") may, and a minimum carbon count.
+# or outside it a structure of which any matches ("or_any"), structures of which any ("any") or all ("all") must match
+# and none ("none") may, and a minimum carbon count.
 _FAMILY_SPECS: tuple[dict[str, Any], ...] = (
-    {"name": "Phthalates", "term": "phthalates", "group": "orthophthalates",
+    # PlastChem's orthophthalates group leaves out ortho-phthalate diesters such as bis(2-ethylbutyl) phthalate
+    {"name": "Phthalates", "term": "phthalates", "group": "orthophthalates", "or_any": ("ortho_phthalate_diester",),
      "aliases": ("phthalate", "phthalate esters", "phthalate plasticizers", "ortho-phthalates", "orthophthalates",
                  "o-phthalates"),
      "description": "ortho-phthalate plasticizers", "examples": ("DEHP", "DBP", "BBP")},
@@ -270,6 +275,8 @@ _ELEMENT_NAMES = {"F": "fluorine", "Cl": "chlorine", "Br": "bromine", "I": "iodi
 
 def _family_basis(spec: dict[str, Any]) -> str:
     parts = [f"PlastChem group {spec['group']}"] if "group" in spec else []
+    if "or_any" in spec:
+        parts[-1] += ", or outside it the structure " + " or ".join(spec["or_any"]).replace("_", " ")
     if "any" in spec:
         parts.append("any of " + ", ".join(spec["any"]).replace("_", " "))
     if "all" in spec:
@@ -340,7 +347,8 @@ def build_families(workbook: str | Path, out: str | Path | None = None, *, asset
     for spec in specs:
         members, outside = set(), {}
         for row, mol in entries:
-            if "group" in spec and row.get(spec["group"]) in (None, 0, "0"):
+            if "group" in spec and row.get(spec["group"]) in (None, 0, "0") and not (
+                    mol is not None and any(mol.HasSubstructMatch(patterns[name]) for name in spec.get("or_any", ()))):
                 continue
             if any(key in spec for key in ("any", "all", "none")) and mol is None:
                 continue
