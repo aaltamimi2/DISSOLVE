@@ -45,17 +45,19 @@ def test_an_element_search_finds_what_the_smiles_text_holds_and_names_by_symbol_
     assert both["described"] == "containing N and O"
 
 
-def test_a_chlorine_search_is_valid_finds_nothing_and_says_why():
-    """The release is C, H, N and O only (the test above proves it from the SMILES). "Cl" and "chlorine" are real
-    elements, so the answer is an explained empty result, not a refusal."""
-    for asked in ("Cl", "chlorine", ["CL"]):
+def test_a_search_for_an_element_the_release_lacks_is_valid_finds_nothing_and_says_why():
+    """Sulfur is a real element no PlastChem structure in the release contains (sulfur, phosphorus, silicon and boron
+    stay outside it), so the answer is an explained empty result, not a refusal, and it names what the release holds."""
+    held = search.release_elements()
+    assert {"C", "H", "N", "O"} <= set(held) and "S" not in held
+    for asked in ("S", "sulfur", ["s"]):
         data = _data(search.find_plastchem_contaminants(elements=asked))
         assert data["success"] is True and data["total"] == 0 and data["matches"] == []
-        assert "contains Cl" in data["empty_because"] and "carbon, hydrogen, nitrogen and oxygen" in data["empty_because"]
-        assert "PFAS" in data["empty_because"]
-    halogen = _data(search.find_plastchem_contaminants(elements="halogen"))
-    assert halogen["total"] == 0 and "contains Br, Cl, F or I:" in halogen["empty_because"]
-    assert _data(search.find_plastchem_contaminants(exclude_elements="halogens"))["total"] == len(_smiles())
+        assert "contains S:" in data["empty_because"] and ", ".join(held[:-1]) + " and " + held[-1] in data["empty_because"]
+        assert "26 PFAS" in data["empty_because"]  # the sulfonated PFAS are in the curated workbook
+    phosphorus = _data(search.find_plastchem_contaminants(elements="P"))
+    assert phosphorus["total"] == 0 and "PFAS" not in phosphorus["empty_because"]
+    assert _data(search.find_plastchem_contaminants(exclude_elements="S"))["total"] == len(_smiles())
     assert "empty_because" not in _data(search.find_plastchem_contaminants(elements="N", mw_max_g_mol=1.0))
 
 
@@ -189,10 +191,10 @@ def test_a_class_ranks_every_panel_solvent_in_one_call_within_the_limit():
 
 
 @pytest.mark.parametrize("solvent", ["ethanol", None])
-def test_a_screen_for_chlorine_compounds_is_empty_and_explained(solvent):
-    data = _data(contaminants.screen_contaminant_partitioning("PVC", solvent=solvent, elements="Cl"))
+def test_a_screen_for_sulfur_compounds_is_empty_and_explained(solvent):
+    data = _data(contaminants.screen_contaminant_partitioning("PVC", solvent=solvent, elements="S"))
     assert data["success"] is True and data["evaluated"] == 0 and data["structure_selected"] == 0
-    assert "contains Cl:" in data["empty_because"] and "carbon, hydrogen, nitrogen and oxygen" in data["empty_because"]
+    assert "contains S:" in data["empty_because"] and "built from C, H, N" in data["empty_because"]
 
 
 def test_a_bad_filter_on_the_screen_is_refused_by_the_screen():
@@ -209,10 +211,10 @@ def test_the_agent_can_call_the_search_and_page_a_large_class():
     assert "find_plastchem_contaminants" in agent.SYSTEM_PROMPT and "empty_because" in agent.SYSTEM_PROMPT
     with bind_tool_session(new_session()):
         paged = agent.dispatch("find_plastchem_contaminants", elements=["N"])
-        empty = agent.dispatch("find_plastchem_contaminants", elements=["Cl"])
+        empty = agent.dispatch("find_plastchem_contaminants", elements=["S"])
     assert paged["available"] is True and paged["total"] > paged["shown"] > 0 and paged["handle"]
     assert paged["source_basis"] == "plastchem_identity"
-    assert "contains Cl" in json.dumps(empty)
+    assert "contains S:" in json.dumps(empty)
 
 
 def test_the_categories_a_picker_would_offer_count_compounds_with_partition_data():

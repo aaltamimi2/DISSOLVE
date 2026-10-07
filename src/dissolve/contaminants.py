@@ -1843,6 +1843,19 @@ def _plastchem() -> duckdb.DuckDBPyConnection | None:
     return connection
 
 
+def _plastchem_coverage(meta: dict[str, Any]) -> str:
+    """What the PlastChem release covers, from the elements the promotion recorded (C, H, N and O before the halogen
+    tier, which added F, Cl, Br and I)."""
+    elements = [e for e in (meta.get("elements") or "C,H,N,O").split(",") if e]
+    outside = [name for symbol, name in (("F", "fluorine"), ("Cl", "chlorine"), ("Br", "bromine"), ("I", "iodine"),
+                                         ("S", "sulfur"), ("P", "phosphorus"), ("Si", "silicon"), ("B", "boron"))
+               if symbol not in elements]
+    built = ", ".join(elements[:-1]) + " and " + elements[-1]
+    return ("PlastChem compounds built from " + built + ", found by name, CAS number, InChIKey, common abbreviation or "
+            "family (" + ", ".join(f["term"] for f in _family_table()) + "). Additives containing "
+            + ", ".join(outside[:-1]) + " or " + outside[-1] + " are outside it; the workbook screens cover 26 PFAS.")
+
+
 LOG_DISPLAY_BOUND = 6.0
 
 
@@ -2078,8 +2091,8 @@ def _partition_sweep(con: duckdb.DuckDBPyConnection, tool: str, product: str, ma
     requested = _requested(contaminants)
     every = not requested or [_key(item) for item in requested] == ["all"]
     if every and selection is None:
-        return tool_error(tool, "Name the contaminants or a family to rank solvents for them; to screen all 5,830 "
-                                "contaminants, name one solvent.",
+        return tool_error(tool, "Name the contaminants or a family to rank solvents for them; to screen every "
+                                "contaminant in the release, name one solvent.",
                           error_code="contaminants_needed_to_rank_solvents", polymer=product)
     if every:
         chosen, families, unknown, ambiguous = sorted(selection), [], [], {}
@@ -2158,7 +2171,7 @@ def screen_contaminant_partitioning(
     mw_min_g_mol: Optional[float] = None,
     mw_max_g_mol: Optional[float] = None,
 ) -> str:
-    """Screen PlastChem contaminants for leaching from one polymer: with one solvent, all 5,830, those named, whole families (phthalates, terephthalates, bisphenols, alkylphenols, antioxidants, UV stabilizers, benzophenones, aromatic amines, slip agents, salicylates, parabens), or a structural class by elements, functional groups or molecular weight; leave the solvent out (or list several) to rank every panel solvent for the named contaminants in one call."""
+    """Screen PlastChem contaminants for leaching from one polymer: with one solvent, all of them, those named, whole families (phthalates, terephthalates, bisphenols, alkylphenols, antioxidants, UV stabilizers, benzophenones, aromatic amines, slip agents, salicylates, parabens), or a structural class by elements, functional groups or molecular weight; leave the solvent out (or list several) to rank every panel solvent for the named contaminants in one call."""
     from . import contaminant_search  # imports this module; loaded here, not at import time
 
     tool = "screen_contaminant_partitioning"
@@ -2230,10 +2243,7 @@ def screen_contaminant_partitioning(
         rows=rows, unsupported_contaminants=unknown, ambiguous_contaminants=ambiguous,
         not_computed_contaminants=not_computed, **({"family_coverage": coverage} if coverage else {}),
         **structure_fields,
-        coverage=("PlastChem compounds of carbon, hydrogen, nitrogen and oxygen, found by name, CAS number, InChIKey, "
-                  "common abbreviation or family (" + ", ".join(f["term"] for f in _family_table()) + "). "
-                  "Additives with halogens, sulfur, phosphorus, silicon or boron (PFAS, organophosphates, bisphenol S) "
-                  "are outside it; the workbook screens cover 26 PFAS."),
+        coverage=_plastchem_coverage(meta),
         method="Leaches when logP(solvent/polymer) > 0, the contaminant is miscible with the solvent at 15 wt%, "
                "and the polymer does not dissolve; logP is for the neutral species at 25 °C. logP is log10 of the "
                "solvent/polymer concentration ratio and K = 10^logP. near_even_count counts |logP| < 0.5 "

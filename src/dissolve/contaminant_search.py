@@ -2,15 +2,16 @@
 functional groups, and a molecular-weight range. Features come from each compound's SMILES (RDKit), computed once per
 release and kept in memory.
 
-The release holds compounds of carbon, hydrogen, nitrogen and oxygen only. A search for a halogen, sulfur,
-phosphorus, silicon or boron is valid and finds nothing in it, and the result says why; the 26 PFAS (fluorine) are in
-the curated workbook, which stores no structures, and are reached as the PFAS family."""
+The release holds compounds built from a fixed set of elements (C, H, N and O, and since the halogen tier of
+2026-10-06 also F, Cl, Br and I). A search for any other element (sulfur, phosphorus, silicon, boron) is valid and
+finds nothing, and the result names the elements the release does hold. The curated workbook's 26 PFAS, which store no
+structures, are reached as the PFAS family."""
 from __future__ import annotations
 
 import math
 from functools import lru_cache
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any, Optional, Sequence
 
 from . import contaminants as screens
 from .contracts import tool_error, tool_success
@@ -240,16 +241,35 @@ def _outside_release(filters: dict[str, Any]) -> list[str]:
     return missing
 
 
+_ELEMENT_ORDER = ("C", "H", "N", "O", "F", "Cl", "Br", "I", "S", "P", "Si", "B")
+# The curated workbook's 26 PFAS: every one has fluorine, the 11 sulfonates sulfur, and F-53B chlorine.
+_WORKBOOK_PFAS_ELEMENTS = {"F", "S", "Cl"}
+
+
+def _spoken(symbols: Sequence[str], joiner: str) -> str:
+    items = list(symbols)
+    return items[0] if len(items) == 1 else ", ".join(items[:-1]) + f" {joiner} " + items[-1]
+
+
+def release_elements() -> list[str]:
+    """The elements the release's compounds are built from, in the usual order (C, H, N, O first)."""
+    asset = _asset_key()
+    present = set().union(*(item[0] for item in _features(asset).values() if item[3])) if asset else set()
+    return sorted(present, key=lambda e: (_ELEMENT_ORDER.index(e) if e in _ELEMENT_ORDER else 99, e))
+
+
 def empty_because(filters: dict[str, Any]) -> Optional[str]:
     """Why a search asking for an element the release lacks finds nothing; None when every element asked for is in
     it (an empty result then needs no excuse)."""
     missing = sorted(set(_outside_release(filters)))
     if not missing:
         return None
-    named = missing[0] if len(missing) == 1 else ", ".join(missing[:-1]) + " or " + missing[-1]
-    return (f"No compound in the PlastChem release contains {named}: the release holds compounds of carbon, "
-            "hydrogen, nitrogen and oxygen only. The 26 PFAS (fluorine) are in the curated workbook, reached as the "
-            "PFAS family.")
+    text = (f"No compound in the PlastChem release contains {_spoken(missing, 'or')}: its compounds are built from "
+            f"{_spoken(release_elements(), 'and')} only.")
+    if _WORKBOOK_PFAS_ELEMENTS.intersection(missing):
+        text += (" The curated workbook's 26 PFAS (all with fluorine, 11 with sulfur, one with chlorine) are reached as "
+                 "the PFAS family.")
+    return text
 
 
 def find_plastchem_contaminants(
@@ -295,7 +315,7 @@ def find_plastchem_contaminants(
         matches=rows, total=len(rows), with_partition_data=sum(row["partition_data"] for row in rows),
         within=named or None, unsupported_contaminants=unknown,
         **({"empty_because": reason} if reason else {}),
-        coverage="PlastChem compounds of carbon, hydrogen, nitrogen and oxygen; features from each SMILES with RDKit",
+        coverage=f"PlastChem compounds built from {_spoken(release_elements(), 'and')}; features from each SMILES with RDKit",
         functional_group_definitions={name: what for name, (_smarts, what) in FUNCTIONAL_GROUPS.items()
                                       if name in filters["functional_groups"]},
         method="Every filter must hold; molecular-weight bounds are inclusive. Functional groups are SMARTS "

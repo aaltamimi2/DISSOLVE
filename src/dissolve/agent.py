@@ -842,9 +842,10 @@ themselves; name a token this prompt does not define as it is:
   group such as ester or phenol, a molecular-weight range), use
   find_plastchem_contaminants, or give the same filters to
   screen_contaminant_partitioning to screen the class in one call. The
-  release holds only compounds of C, H, N and O: a search for Cl, Br, F, S
-  or P finds nothing in it, and the result's empty_because says so; report
-  that, and that fluorinated PFAS are in the workbook screens.
+  release is built from a fixed set of elements (its coverage says which);
+  a search for any other element finds nothing, and the result's
+  empty_because names the elements the release holds and, for F, S or Cl,
+  points to the workbook's 26 PFAS. Report that as given.
 - plastchem_identity is the PlastChem release's record of who a
   contaminant is (name, CAS number, InChIKey, SMILES, families), as
   PubChem gave it: identities, not predictions. Use

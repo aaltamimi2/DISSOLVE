@@ -119,6 +119,8 @@ def promote_opencosmo_release(
            FROM read_csv_auto(?)""",
         [str(release / "polymer-product-map.csv")],
     )
+    elements = _release_elements([smiles for (smiles,) in con.execute(
+        "SELECT smiles FROM contaminants WHERE computed AND smiles IS NOT NULL").fetchall()])
     rows = con.execute("SELECT id, inchikey, name, cas, plastchem_id, perceived_inchikey FROM contaminants").fetchall()
     aliases = {(_key(value), cid) for cid, inchikey, name, cas, pid, perceived in rows
                for value in (name, cas, inchikey, perceived, pid and f"plastchem {pid}") if value}
@@ -139,7 +141,7 @@ def promote_opencosmo_release(
             for path, status in zip(releases, statuses)]),
         "served_convention": _SERVED_CONVENTION, "miscibility_basis": _MISCIBLE_BASIS,
         "logp_temperature_c": "25.0", "parameterization": "openCOSMO-RS 24a",
-        "abbreviations": str(len(abbreviations)),
+        "abbreviations": str(len(abbreviations)), "elements": ",".join(elements),
     }
     con.execute("CREATE TABLE metadata (key VARCHAR, value VARCHAR)")
     con.executemany("INSERT INTO metadata VALUES (?, ?)", sorted(meta.items()))
@@ -152,7 +154,25 @@ def promote_opencosmo_release(
     return {**counts, **meta, "asset": str(target)}
 
 
-# --- Contaminant families. Nobody knows the names of 5,830 contaminants, so a user can ask for a family by a plain
+_ELEMENT_ORDER = ("C", "H", "N", "O", "F", "Cl", "Br", "I", "S", "P", "Si", "B")
+
+
+def _release_elements(smiles: Sequence[str]) -> list[str]:
+    """The elements the computed compounds are built from, C, H, N and O first."""
+    from rdkit import Chem, RDLogger
+
+    RDLogger.DisableLog("rdApp.*")
+    found: set[str] = set()
+    for text in smiles:
+        mol = Chem.MolFromSmiles(text)
+        if mol is not None:
+            found |= {atom.GetSymbol() for atom in mol.GetAtoms()}
+            if any(atom.GetTotalNumHs() for atom in mol.GetAtoms()):
+                found.add("H")
+    return sorted(found, key=lambda e: (_ELEMENT_ORDER.index(e) if e in _ELEMENT_ORDER else 99, e))
+
+
+# --- Contaminant families. Nobody knows the names of thousands of contaminants, so a user can ask for a family by a plain
 # name. Most families are PlastChem's own chemical groups (columns of the workbook's "Full database" sheet). Where the
 # plain name needs it, a structure narrows the group: slip agents are its fatty amides, not formamide. PlastChem has no
 # antioxidant or UV-stabilizer group, and its function labels are no substitute ("Antioxidant" also tags methanol and
@@ -261,8 +281,9 @@ def _family_basis(spec: dict[str, Any]) -> str:
     return "; ".join(parts)
 
 
-def _outside_reason(row: dict[str, Any], mol: Any) -> str:
-    """Why a PlastChem entry of a family is not in the release (which holds neutral CHNO molecules up to 700 g/mol)."""
+def _outside_reason(row: dict[str, Any], mol: Any, held: frozenset[str] = frozenset("CHNO")) -> str:
+    """Why a PlastChem entry of a family is not in the release (neutral molecules up to 700 g/mol built from the
+    elements in `held`)."""
     if row["inorganic_compounds"] or row["organometallics"]:
         return "contains a metal"
     if row["UVCBs"] or row["polymers"] or row["mixtures"]:
@@ -275,7 +296,7 @@ def _outside_reason(row: dict[str, Any], mol: Any) -> str:
 
     if Chem.GetFormalCharge(mol) != 0:
         return "an ion"
-    elements = {atom.GetSymbol() for atom in mol.GetAtoms()} - {"C", "H", "N", "O"}
+    elements = {atom.GetSymbol() for atom in mol.GetAtoms()} - set(held)
     named = sorted(_ELEMENT_NAMES[e] for e in elements if e in _ELEMENT_NAMES)
     if len(named) < len(elements):
         return "contains a metal"
@@ -297,6 +318,7 @@ def build_families(workbook: str | Path, out: str | Path | None = None, *, asset
     workbook, target = Path(workbook), Path(out or _PLASTCHEM_FAMILIES)
     con = duckdb.connect(str(asset or _PLASTCHEM_ASSET), read_only=True)
     released = {key for (key,) in con.execute("SELECT inchikey FROM contaminants").fetchall()}
+    held = frozenset((dict(con.execute("SELECT key, value FROM metadata").fetchall()).get("elements") or "C,H,N,O").split(","))
     aliases = {alias: cid for alias, cid in con.execute("SELECT alias, id FROM aliases").fetchall()}
     ids = {key: cid for cid, key in con.execute("SELECT id, inchikey FROM contaminants").fetchall()}
     patterns = {name: Chem.MolFromSmarts(smarts) for name, smarts in _SMARTS.items()}
@@ -337,7 +359,7 @@ def build_families(workbook: str | Path, out: str | Path | None = None, *, asset
                 members.add(key)
             else:
                 name = str(row.get("pubchem_name") or row.get("cas") or row.get("plastchem_ID"))
-                outside.setdefault(name, {"name": name, "inchikey": key or None, "reason": _outside_reason(row, mol)})
+                outside.setdefault(name, {"name": name, "inchikey": key or None, "reason": _outside_reason(row, mol, held)})
         names = [spec["name"], spec["term"], *spec["aliases"]]
         for alias in map(_key, names):
             if alias in aliases:

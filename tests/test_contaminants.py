@@ -4665,7 +4665,8 @@ def test_plastchem_contaminants_are_found_by_common_abbreviation(tmp_path, monke
     contaminants._LOCAL.__dict__.pop("plastchem", None)
     out = _data(contaminants.screen_contaminant_partitioning("LDPE", "dodecane", ["DEHP", "dehp", "BPA"]))
     assert [row["contaminant"] for row in out["rows"]] == ["Alphaester"]  # DEHP twice is still one contaminant
-    assert out["unsupported_contaminants"] == ["BPA"] and "carbon, hydrogen, nitrogen and oxygen" in out["coverage"]
+    assert out["unsupported_contaminants"] == ["BPA"] and "built from C, H, N and O," in out["coverage"]
+    assert info["elements"] == "C,H,N,O" and "containing fluorine, chlorine" in out["coverage"]  # read from the asset
 
 
 def _reseal(rel):
