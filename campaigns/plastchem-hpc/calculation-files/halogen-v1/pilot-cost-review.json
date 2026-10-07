@@ -1,0 +1,23 @@
+{
+  "utc": "2026-10-07T04:48:22Z",
+  "converged_points": 21,
+  "cpu_models": [
+    "AMD EPYC 7763 64-Core Processor"
+  ],
+  "fit": {
+    "intercept": 1.962531918459774,
+    "slope": 1.4484268939182692,
+    "smearing": 1.069978850437452,
+    "atoms_range": [
+      4,
+      44
+    ]
+  },
+  "median_ratio_to_chno_fit": 1.1673511863211856,
+  "projection_cpu_hours_fit": 309.25096646033626,
+  "projection_cpu_hours_chno_fit_times_ratio": 574.8739566495007,
+  "chno_fit_cpu_hours": 492,
+  "threshold_cpu_hours": 3000,
+  "passes": true,
+  "note": "Fit on converged pilot molecules up to 44 atoms; the tail above that is an extrapolation (the 125-atom pilot member is still running). Both projections are given; the gate uses the larger."
+}

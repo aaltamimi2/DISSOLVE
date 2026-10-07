@@ -1,0 +1,12 @@
+{
+  "input": "/home/aaltamimi2/plastchem-euler/inputs/plastchem_organics_orca_opencosmo_halogen_mw700.csv",
+  "sha256": "d527e3a32738cfc2c0b836ba93062f8d4e2a1380c3602d90582270b9c94f76b5",
+  "rows": 1250,
+  "unique_inchikeys": 1250,
+  "excluded": 0,
+  "isotope_labelled": 0,
+  "atoms_min": 4,
+  "atoms_max": 125,
+  "above80": 5,
+  "chemistry_checks": "funnel reproduced the census exactly (scripts/build_halogen_inputs.py); RDKit InChIKey equals the input key for every structure"
+}

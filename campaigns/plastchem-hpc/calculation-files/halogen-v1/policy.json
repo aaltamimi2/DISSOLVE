@@ -1,0 +1,12 @@
+{
+  "mode": "connectivity_first_block_with_computed_stereochemistry",
+  "authority": "Owner decision A-3 D-IDENT",
+  "charter_sha256": "7161fb7714d6f7937b3cde6b4cb9bee52095207910a8d5167d26e5db746f039a",
+  "require_stereo_layer_match": false,
+  "isotope_policy": "exclude; no parent mapping",
+  "campaign_concurrency_limit": 64,
+  "original_campaign_concurrency_limit": 32,
+  "concurrency_authority": "Owner 2026-09-16: increase concurrency only; keep 4GB",
+  "concurrency_receipt": "state/campaign-v1/resource-increase-2026-09-16.json",
+  "tier_authority": "Amendment A-11"
+}

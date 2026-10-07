@@ -1,66 +1,30 @@
 # PlastChem ORCA calculation files
 
-Each molecule's ORCA/openCOSMO calculation files from the PlastChem contaminant campaign. The archive holds the run
-folder behind every surface in `../opencosmo-outputs/`, plus the 34 runs whose surface was not released.
+Each molecule's ORCA/openCOSMO calculation files. The archive holds the run folder behind every surface in
+`../opencosmo-outputs/`, plus the 193 runs whose surface was not released.
 
 ## Layout inside the archive
 
-Each folder has the same path as its surface, without the extension. For example, `contaminants/<InChIKey>.orcacosmo`
-in the surfaces archive matches `contaminants/<InChIKey>/` here.
+Each folder has the same path as its surface, without the extension: `contaminants/<name>.orcacosmo` in the surfaces
+archive matches `contaminants/<name>/` here, named the same way (see that README).
 
-- `orca-calculation-files/contaminants/<InChIKey>/`: 5,830 folders, one for each released contaminant surface.
-  - 26 contaminants reuse a solvent's surface: toluene, acetone, ethanol and 23 more.
-  - For those, the folder holds the files of the solvent run that produced the surface.
-- `orca-calculation-files/polymers/<polymer>/<conformer>/`: 274 conformer folders.
-- `orca-calculation-files/solvents/panel-32/<name>/`: 32 folders.
-- `orca-calculation-files/solvents/common-69/<name>/`: 69 folders.
-- `<category>/not-in-release/<stage>/<run>/`: 34 run folders whose surface was not released.
-  - These are 23 contaminants, 10 polymer conformers and 1 solvent.
-  - 15 did not finish: 9 polymer conformers and 5 contaminants failed, and 1 polymer conformer stopped during its COSMO
-    step.
-  - 19 converged, but their surface is not in the release. 18 are contaminants. The other is the phase-9
-    γ-valerolactone run; the release uses the campaign's own surface for that solvent.
-- `MANIFEST.tsv`: every file, with its category, identity, name, campaign run folder, released surface, run status,
-  size and SHA-256.
-- `RUNS.tsv`: one row per folder, with the files left out or replaced. It is also committed here.
-
-A run is matched to a released surface when the SHA-256 of its `cosmo.solute.orcacosmo` equals the released file's.
-The status column is the run record's own status when the run finished. Identities were checked afterwards, in the
-cohort freeze (`../calculation-files/phase83-v1/cohort.json`).
+- `orca-calculation-files/contaminants/<name>/`: one folder for each released contaminant surface.
+- `orca-calculation-files/polymers/<polymer>/<conformer>/` and `orca-calculation-files/solvents/.../<name>/`.
+- `<category>/not-in-release/<campaign path>/<InChIKey>/`: 193 run folders whose surface was not
+  released (failed, rejected for identity, interrupted, or replaced by a retry), by campaign:
+  campaign-v1 18, diagnostics-a1 1, halogen-v1 138, halogen-v1/retries/r01 2, phase9-solvent-library-v1 1, pilot-v1 1, polymer-v1 10, tier2-v1 22.
+- `MANIFEST.tsv`: every file, with its category, identity (InChIKey), name, campaign run folder, released surface,
+  run status, size and SHA-256.
+- `RUNS.tsv`: one row per folder, with the files left out or replaced.
 
 ## What each folder holds
 
-- `opt.inp`: the geometry optimisation input (`OPT BP86 def2-TZVP(-f) TightSCF`), with the starting geometry.
-- `optimized.xyz`: the optimised geometry.
-- `cosmo.inp`: the `COSMORS(Water)` step on the optimised geometry.
-- `cosmo.solute_vac.inp`, `cosmo.solute_cpcm.inp` and `cosmo.solvent_cpcm.inp`: the inputs ORCA generates for that
-  step. The solute CPCM step writes the surface.
-- `cosmo.out`: the COSMO step's ORCA log.
-- `result.json`: the run record, with the input identity, the exact inputs, energies, timings and CPU.
-- `cosmo.json` and `cosmo_out.json`: the COSMO step's records.
-
-## Starting geometries from licensed files
-
-Some runs started from geometries read from licensed files:
-
-- The 284 polymer conformers started from COSMOtherm conformer files (`.mcos` or `.cosmo`).
-- 68 of the 69 common solvents started from COSMObase.
-
-For those 352 runs:
-
-- `opt.inp` is left out.
-- Where `result.json` quoted the starting geometry (343 runs), it is replaced by `result.redacted.json`. In that file,
-  the quoted geometry is replaced by a note.
-- Everything ORCA computed is kept.
-
-`verify_orca_archive.py` checks two things: that no packed file from these runs shares more than 10% of its starting
-coordinates, and that every released surface has its folder.
-
-## Not included
-
-- The surfaces themselves. They are in `../opencosmo-outputs/`.
-- Binary intermediates: wavefunctions (`.gbw`), densities and CPCM files.
-- The optimisation log (`opt.out`) and trajectory.
+- `opt.inp`, `optimized.xyz`, `cosmo.inp`, the inputs ORCA generates for the COSMO step, `cosmo.out` (the COSMO step's
+  log), `result.json` (the run record: input identity, exact inputs, energies, timings, CPU) and the COSMO records.
+- Starting geometries read from licensed COSMObase/COSMOtherm files are never included: for those runs `opt.inp` is
+  left out and `result.json` is replaced by `result.redacted.json`.
+- Not included: the surfaces (in `../opencosmo-outputs/`), binary intermediates (`.gbw`, densities, CPCM files), the
+  optimisation log and trajectory.
 
 ## Reassemble
 
@@ -72,11 +36,7 @@ tar -xJf orca-calculation-files.tar.xz
 
 ## Rebuild
 
-`run_pack.sh` runs on Euler against the campaign folder `~/plastchem-euler`. It does four things:
-
-1. Runs `pack_orca_files.py plan`.
-2. Runs `pack_orca_files.py pack`, piped through `xz -T2 -6` and `split -b 95000000`.
-3. Writes `SHA256SUMS`.
-4. Lists the archive.
-
-`verify_orca_archive.py` then checks the result. `../opencosmo-outputs/build_export.py` assembled the surfaces archive.
+`run_export_v2.sh` runs on Euler in `~/opencosmo-export-v2`: `build_export_v2.py` assembles the surfaces from
+`contaminants-v2.tsv` (written by `make_contaminants_tsv.py` from the promotion-v2 release), then `run_pack.sh` packs
+these files and `verify_orca_archive.py` checks that every released surface has its folder and that no licensed
+starting geometry leaked.

@@ -1,0 +1,52 @@
+{
+  "utc": "2026-10-07T04:02:50Z",
+  "rdkit": "2026.03.5",
+  "cases": [
+    {
+      "inchikey": "RZVHIXYEVGDQDX-UHFFFAOYSA-N",
+      "atoms": 24,
+      "original_xyz_sha256": "72becd336985e79dc4edfc08d6ecfeb52b5bfc090f355e04ca22039dc3865196",
+      "repeat_xyz_sha256": "72becd336985e79dc4edfc08d6ecfeb52b5bfc090f355e04ca22039dc3865196",
+      "byte_identical_xyz": true,
+      "same_selected_conformer": true,
+      "wall_seconds": 0.4
+    },
+    {
+      "inchikey": "CYUUZGXOQDCCGH-UHFFFAOYSA-N",
+      "atoms": 74,
+      "original_xyz_sha256": "2721fc222119a4938e88c503f570c73dbdcd9d7af80b546dffa169e5531fd623",
+      "repeat_xyz_sha256": "2721fc222119a4938e88c503f570c73dbdcd9d7af80b546dffa169e5531fd623",
+      "byte_identical_xyz": true,
+      "same_selected_conformer": true,
+      "wall_seconds": 25.1
+    },
+    {
+      "inchikey": "YZUUTMGDONTGTN-UHFFFAOYSA-N",
+      "atoms": 66,
+      "original_xyz_sha256": "f3cb5f96068f32a5ee158aeab5976e03b746b9443fb4cc38cc906a91df4c7ffa",
+      "repeat_xyz_sha256": "f3cb5f96068f32a5ee158aeab5976e03b746b9443fb4cc38cc906a91df4c7ffa",
+      "byte_identical_xyz": true,
+      "same_selected_conformer": true,
+      "wall_seconds": 21.3
+    },
+    {
+      "inchikey": "KWFCZMCFCFEYOP-UHFFFAOYSA-N",
+      "atoms": 29,
+      "original_xyz_sha256": "caaa8d172bef9df0c230f8ca140c7511a9a5bc09c7c43f185da5ee97f699358f",
+      "repeat_xyz_sha256": "caaa8d172bef9df0c230f8ca140c7511a9a5bc09c7c43f185da5ee97f699358f",
+      "byte_identical_xyz": true,
+      "same_selected_conformer": true,
+      "wall_seconds": 0.8
+    },
+    {
+      "inchikey": "NEBNAEMKCGGSIL-UHFFFAOYSA-N",
+      "atoms": 76,
+      "original_xyz_sha256": "24fa9a885eb267edb42f34c54b6e015d16e2cd4bb3fcd7351f6e64d6ec650d55",
+      "repeat_xyz_sha256": "24fa9a885eb267edb42f34c54b6e015d16e2cd4bb3fcd7351f6e64d6ec650d55",
+      "byte_identical_xyz": true,
+      "same_selected_conformer": true,
+      "wall_seconds": 27.2
+    }
+  ],
+  "all_pass": true
+}

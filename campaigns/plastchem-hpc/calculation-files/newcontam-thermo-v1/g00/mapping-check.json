@@ -1,0 +1,17 @@
+{
+  "partition.parquet": {
+    "rows": 2560,
+    "v1_rows": 2560,
+    "matched": true,
+    "mismatched": {},
+    "max_logP_difference": 5.93805352089305e-06
+  },
+  "binary-lle.parquet": {
+    "rows": 256,
+    "v1_rows": 256,
+    "matched": true,
+    "mismatched": {},
+    "max_logP_difference": 0.0
+  },
+  "passed": true
+}

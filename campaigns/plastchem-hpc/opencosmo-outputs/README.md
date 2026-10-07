@@ -1,48 +1,33 @@
 # PlastChem openCOSMO outputs
 
-Every ORCA/openCOSMO surface (`.orcacosmo`) computed for the PlastChem contaminant campaign, 2026-09-12 to
-2026-09-24. These are the surfaces behind the partition and miscibility data DISSOLVE serves.
+Every ORCA/openCOSMO surface (`.orcacosmo`) behind the partition and miscibility data DISSOLVE serves: the
+2026-09-12/24 CHNO campaign and the halogen tier of amendment A-11 (2026-10-06/07).
 
 ## Layout
 
-- `contaminants/<InChIKey>.orcacosmo`: 5,830 contaminant surfaces, one per structure. This is the frozen cohort:
-  5,803 main-tier and 27 tier-2 structures.
-- `polymers/<polymer>/<polymer>__<conformer>.orcacosmo`: 274 oligomer conformer surfaces for 14 polymers.
-  - The 10 complete ensembles are used in the data: EVOH, nylon 6, nylon 6,6, PC, PE, PET, PP, PS, PVC, PVDF (236
-    conformers).
-  - The other four were incomplete and are excluded from the ensembles: nitrocellulose, PETG, polyethersulfone and
-    polyurethane.
+- `contaminants/<name>.orcacosmo`: 7,160 contaminant surfaces, one per structure, named by the
+  contaminant's own name (contaminants/Bis(2-ethylhexyl)_phthalate.orcacosmo is Bis(2-ethylhexyl) phthalate). 5,830 are the promotion-v1 cohort, 219
+  are tier-2 CHNO structures (500-700 g/mol) that converged after it, and 1,111 are the halogen tier (C, H, N
+  and O with F, Cl, Br or I, up to 700 g/mol).
+  - A name is kept as written except where a file system needs otherwise: `/ \ : * ? " < > |` become `-`, spaces
+    become `_`, and names longer than 100 characters are cut at a word boundary. Names equal apart from case carry
+    `_[first InChIKey block]` so every file is unique on case-insensitive systems.
+  - `MANIFEST.tsv` gives each file's InChIKey (column `identity`), name, SHA-256 and campaign source.
+- `polymers/<polymer>/<polymer>__<conformer>.orcacosmo`: 274 oligomer conformer surfaces for
+  13 polymers. The 10 complete ensembles are used in the data: EVOH, nylon 6, nylon 6,6, PC, PE, PET, PP,
+  PS, PVC, PVDF.
 - `solvents/panel-32/<name>.orcacosmo`: the 32 solvent surfaces used for partitioning and miscibility.
-- `solvents/common-69/<name>.orcacosmo`: DISSOLVE's 69 common solvents. 30 of them overlap the panel by identity,
-  with separately computed surfaces, so they are kept apart.
-- `MANIFEST.tsv`: every file, with category, identity, name, SHA-256 and its path in the campaign.
+- `solvents/common-69/<name>.orcacosmo`: DISSOLVE's 69 common solvents, computed separately.
 
 ## How they were made
 
 - Quantum chemistry: ORCA 6.1.1. A gas-phase `OPT BP86 def2-TZVP(-f) TightSCF` optimisation, then `COSMORS(Water)`,
-  whose solute step writes the CPCM surface (BP86/def2-TZVPD).
-- Conformers:
-  - Contaminants: RDKit ETKDGv3 generates up to 300 candidates, MMFF94 minimises them, and the lowest-energy one goes
-    to DFT.
-  - Polymers: oligomer conformers from COSMOtherm conformer files, then the same two ORCA steps.
-- Solvents: the common-69 geometries started from COSMObase structures. The surfaces here are the new ORCA outputs;
-  no COSMObase file is included.
-- Thermodynamics: openCOSMO-RS with the 24a parameterization at 298.15 K.
-- The scripts are in `../scripts/`. The per-stage workers, Slurm files, manifests, pins and the frozen cohort are in
-  `../calculation-files/`.
-- Each molecule's ORCA inputs, optimised geometry, COSMO-step log and run record are in `../orca-calculation-files/`.
-- `build_export.py` assembled this folder's archive.
-
-## Checks
-
-- Contaminant and 32-panel solvent files match the SHA-256 recorded by the campaign (`calculation-files/phase83-v1/
-  cohort.json` and `calculation-files/phase8-v1/manifest.json`). The build refused any mismatch.
-- Polymer and common-solvent hashes are recorded in `MANIFEST.tsv`.
-
-## Not included
-
-- The licensed COSMObase/COSMOtherm `.cosmo` surfaces used only for route comparisons.
-- ORCA inputs, logs and run records. They are in `../orca-calculation-files/`, except the optimisation logs.
+  whose solute step writes the CPCM surface (BP86/def2-TZVPD); def2 basis sets put an ECP on iodine.
+- Conformers: RDKit ETKDGv3 generates up to 300 candidates, MMFF94 minimises them, and the lowest-energy one goes to DFT.
+- Identity: the optimised geometry's connectivity must match the input (D-IDENT); structures whose hydrogen moved
+  (azo pigments becoming hydrazones) were rejected and have no surface here.
+- Thermodynamics: openCOSMO-RS 24a at 298.15 K. The installed 24a class has no iodine dispersion parameter
+  (tau_53); it enters only dG_solv, not the activity coefficients used for partitioning and LLE.
 
 ## Reassemble
 

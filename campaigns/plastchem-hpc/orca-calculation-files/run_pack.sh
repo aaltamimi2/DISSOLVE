@@ -1,7 +1,7 @@
 #!/bin/bash
 # Build orca-archive/ on Euler: plan, pack, xz, split into 95 MB parts, checksums. Detached; progress in orca-archive.log.
 set -o pipefail
-cd ~/opencosmo-export || exit 1
+cd ~/opencosmo-export-v2 || exit 1
 rm -rf orca-archive && mkdir orca-archive
 {
   echo "START $(date)"
@@ -16,4 +16,4 @@ rm -rf orca-archive && mkdir orca-archive
     echo "FAILED $(date)"
   fi
 } > orca-archive.log 2>&1
-rm -rf ~/opencosmo-export/orca-calculation-files   # copy tree left by the stopped copy-based builder
+

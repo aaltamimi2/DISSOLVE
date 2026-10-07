@@ -1,11 +1,11 @@
 """Check the built orca-calculation-files archive from its parts: every released surface has its folder, no opt.inp
 from a COSMObase/COSMOtherm-seeded run, and no packed file of such a run shares more than 10% of that run's starting
-coordinates. Runs on Euler from ~/opencosmo-export."""
+coordinates. Runs on Euler from ~/opencosmo-export-v2."""
 import collections, json, pathlib, re, subprocess, sys, tarfile
 
 HOME = pathlib.Path.home()
 LANE = HOME / "plastchem-euler"
-EXP = HOME / "opencosmo-export"
+EXP = HOME / "opencosmo-export-v2"
 COORD = re.compile(rb"-?\d+\.\d{5,}")
 ROOT = "orca-calculation-files/"
 
