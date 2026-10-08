@@ -1845,15 +1845,20 @@ def _plastchem() -> duckdb.DuckDBPyConnection | None:
 
 def _plastchem_coverage(meta: dict[str, Any]) -> str:
     """What the PlastChem release covers, from the elements the promotion recorded (C, H, N and O before the halogen
-    tier, which added F, Cl, Br and I)."""
+    tier, which added F, Cl, Br and I; the coverage campaign added S, P and Si) and whether it lists salts with their
+    neutral parent (promotion-v4 onward)."""
     elements = [e for e in (meta.get("elements") or "C,H,N,O").split(",") if e]
     outside = [name for symbol, name in (("F", "fluorine"), ("Cl", "chlorine"), ("Br", "bromine"), ("I", "iodine"),
                                          ("S", "sulfur"), ("P", "phosphorus"), ("Si", "silicon"), ("B", "boron"))
                if symbol not in elements]
     built = ", ".join(elements[:-1]) + " and " + elements[-1]
+    salts = (" A salt, ion or hydrate of a computed acid or base (sodium benzoate, say) is found as that neutral "
+             "parent, and its row is the parent's." if int(meta.get("parent_aliases") or 0) else "")
+    either = ", ".join(outside[:-1]) + " or " + outside[-1] if len(outside) > 1 else "".join(outside)
     return ("PlastChem compounds built from " + built + ", found by name, CAS number, InChIKey, common abbreviation or "
-            "family (" + ", ".join(f["term"] for f in _family_table()) + "). Additives containing "
-            + ", ".join(outside[:-1]) + " or " + outside[-1] + " are outside it; the workbook screens cover 26 PFAS.")
+            "family (" + ", ".join(f["term"] for f in _family_table()) + ")." + salts
+            + (" Additives containing " + either + " are outside it." if outside else "")
+            + " The workbook screens cover 26 PFAS.")
 
 
 LOG_DISPLAY_BOUND = 6.0

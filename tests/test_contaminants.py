@@ -5059,6 +5059,23 @@ def test_a_familys_missing_entries_say_why_by_the_coverage_campaigns_rules():
                                              frozenset("CHNO")) == "contains phosphorus"
 
 
+def test_the_coverage_sentence_names_what_the_release_leaves_out_and_how_salts_are_found():
+    """promotion-v4 holds S, P and Si, which left boron alone outside the release, and every screen's coverage read
+    "Additives containing  or boron are outside it" (2026-10-08): the list was joined for two or more elements. One
+    element now reads alone and none drops the clause; a release that lists salts with their neutral parent says so,
+    and the served one finds sodium benzoate as benzoic acid."""
+    v4 = contaminants._plastchem_coverage({"elements": "C,H,N,O,F,Cl,Br,I,S,P,Si", "parent_aliases": "448"})
+    assert "Additives containing boron are outside it." in v4 and "containing  or" not in v4
+    assert "(sodium benzoate, say) is found as that neutral parent" in v4
+    v2 = contaminants._plastchem_coverage({"elements": "C,H,N,O,F,Cl,Br,I"})
+    assert "containing sulfur, phosphorus, silicon or boron are outside it." in v2 and "sodium benzoate" not in v2
+    every = contaminants._plastchem_coverage({"elements": "C,H,N,O,F,Cl,Br,I,S,P,Si,B"})
+    assert "outside" not in every and every.endswith(". The workbook screens cover 26 PFAS.")
+    out = _data(contaminants.screen_contaminant_partitioning("PP", "ethanol", ["sodium benzoate"]))
+    assert [row["contaminant"] for row in out["rows"]] == ["Benzoic Acid"] and out["unsupported_contaminants"] == []
+    assert "neutral parent" in out["coverage"] and "containing  or" not in out["coverage"]
+
+
 def test_the_phthalate_family_holds_the_releases_ortho_phthalate_diesters():
     """The family the agent screens for "phthalates" takes the diesters PlastChem's group leaves out, and still not a
     ring-halogenated phthalate, a trimellitate or a fused-ring diester."""
