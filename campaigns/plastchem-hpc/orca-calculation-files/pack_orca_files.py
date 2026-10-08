@@ -29,6 +29,7 @@ STAGES = {  # stage -> category of its runs, in priority order when two runs gav
     "diagnostics-a1": "contaminants",
     "tier2-v1/time-limit-retry1": "contaminants", "tier2-v1/time-limit-retry2": "contaminants",
     "halogen-v1": "contaminants", "halogen-v1/retries/r01": "contaminants",
+    "publication-v1": "contaminants",  # A-12: the paper's PFAS anions, DECA and TBBPA-dbP
 }
 MARKERS = (b"password", b"passwd", b"secret", b"api_key", b"apikey", b"token", b"begin rsa", b"begin openssh",
            b"@wisc.edu", b"@gmail")
@@ -116,7 +117,12 @@ def plan():
     by_sha = {}
     for hit in released:
         by_sha.setdefault(hit["sha"], []).append(hit)  # 26 contaminants reuse a solvent's surface
+    # run folders kept out of the archive on purpose, one campaign path per line (A-12: the anion runs, whose species
+    # is not the paper's and which the owner asked to keep out of the repo)
+    exclude = set((EXP / "exclude-runs.txt").read_text().split()) if (EXP / "exclude-runs.txt").exists() else set()
     runs = [f"{stage}/runs/{d.name}" for stage in STAGES for d in os.scandir(LANE / stage / "runs") if d.is_dir()]
+    log("run folders excluded on purpose:", sum(run in exclude for run in runs))
+    runs = [run for run in runs if run not in exclude]
     log("run folders:", len(runs))
     described = [d for d in POOL.map(describe, runs) if d is not None]
     log("live run folders skipped:", len(runs) - len(described))

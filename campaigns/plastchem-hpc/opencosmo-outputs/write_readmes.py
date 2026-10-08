@@ -30,9 +30,11 @@ families = json.loads((src / "dissolve/data/plastchem_families.json").read_text(
 by_category = collections.Counter(row["category"] for row in surfaces)
 contaminants = [row for row in surfaces if row["category"] == "contaminant"]
 assert sorted(row["path"] for row in contaminants) == sorted(row["surface"] for row in classified)
-halogen = sum(row["campaign_source"].startswith("halogen-v1") for row in contaminants)
-tier2_later = sum(row["campaign_source"].startswith("tier2-v1") for row in contaminants)
-v1 = len(contaminants) - halogen - tier2_later
+tier_files = [row for row in contaminants if row["campaign_source"].startswith("publication-v1")]
+released = [row for row in contaminants if not row["campaign_source"].startswith("publication-v1")]
+halogen = sum(row["campaign_source"].startswith("halogen-v1") for row in released)
+tier2_later = sum(row["campaign_source"].startswith("tier2-v1") for row in released)
+v1 = len(released) - halogen - tier2_later
 polymers = sorted({row["name"].split("_")[0] for row in surfaces if row["category"] == "polymer conformer"})  # PETG's three connectivities are one polymer
 not_released = [row for row in runs if row["released_surface"] == "not in release"]
 by_stage = collections.Counter(row["run_folder"].split("/runs/")[0] for row in not_released)
@@ -60,13 +62,13 @@ for set_name, title in (("PFAS", "PFAS (ESI Table S7)"), ("BFR", "Brominated fla
     have = sum(bool(item["surfaces"]) for item in items)
     pub_lines += [f"### `publication-sets/{set_name}/`: {title}, {count(f'publication-sets/{set_name}')} files for "
                   f"{have} of its {len(items)} compounds", "",
-                  "| Compound | CAS | File(s), or why there is none |", "|---|---|---|"]
+                  "| Compound | CAS | Species, computed in | File, or why there is none |", "|---|---|---|---|"]
     for item in items:
         files = [path.rsplit("/", 1)[1] for path in item["surfaces"].split("; ") if path]
-        shown = ", ".join(f"`{name}`" for name in files) if len(files) <= 2 else f"{len(files)} files: " + ", ".join(
-            f"`{name}`" for name in files)
+        shown = ", ".join(f"`{name}`" for name in files)
+        where = "A-12" if item["computed_in"].startswith("publication") else "release"
         pub_lines.append(f"| {item['label']}: {item['name']} | {item['cas'].replace(';', ', ')} | "
-                         f"{shown or item['why_no_surface']} |")
+                         f"{item['species']}, {where} | {shown or item['why_no_surface']} |")
     pub_lines.append("")
 
 # Agent families
@@ -100,23 +102,26 @@ for name in order:
         class_lines.append(f"| `{name}/` | {count(f'structure-classes/{name}')} | {what[name]} | "
                            f"{examples(f'structure-classes/{name}')} |")
 
-hbcd_isomer = next((row for row in classified if row["inchikey"].startswith("SHRRVNVEOIKVSG")), None)
+other_hbcd = [row for row in classified if row["inchikey"].startswith("DEIGXXQKDWULML")
+              and "publication-sets" not in row["folder"]]
 example = next(row for row in classified if row["inchikey"] == "BJQHLKABXJIVAM-UHFFFAOYSA-N")
 
 (root / "opencosmo-outputs/README.md").write_text(f"""# PlastChem openCOSMO outputs
 
 Every ORCA/openCOSMO surface (`.orcacosmo`) behind the partition and miscibility data DISSOLVE serves: the
-2026-09-12/24 CHNO campaign and the halogen tier of amendment A-11 (2026-10-06/07). {len(contaminants):,} contaminants:
+2026-09-12/24 CHNO campaign and the halogen tier of amendment A-11 (2026-10-06/07), {len(released):,} contaminants:
 {v1:,} from the promotion-v1 cohort, {tier2_later} tier-2 CHNO structures (500-700 g/mol) that converged after it and
-{halogen:,} from the halogen tier (C, H, N and O with F, Cl, Br or I, up to 700 g/mol).
+{halogen:,} from the halogen tier (C, H, N and O with F, Cl, Br or I, up to 700 g/mol). Also {len(tier_files)}
+surfaces computed for the paper's compounds that the release does not hold (amendment A-12, see section 1).
 
 ## Layout
 
 - `contaminants/<folder>/<name>.orcacosmo`: one surface per contaminant, in exactly one folder: the first of the five
   below that applies to it.
-  1. `publication-sets/` ({top['publication-sets']}): the PFAS, brominated flame retardants and phthalates of Zhou et
-     al., *Solvent-Mediated Contaminant Removal from Plastic Waste Using Thermodynamic Modeling*, Green Chem. 2026
-     (d5gc06059a), from its ESI, and nothing else, so these folders can be used to validate against the paper.
+  1. `publication-sets/` ({top['publication-sets']}): `PFAS/`, `BFR/` and `Phthalates/` hold exactly the compounds of
+     Zhou et al., *Solvent-Mediated Contaminant Removal from Plastic Waste Using Thermodynamic Modeling*, Green Chem.
+     2026 (d5gc06059a), one file each and nothing else, so they can be used to validate against the paper: 26 PFAS,
+     4 brominated flame retardants and 8 phthalates.
      The other members of the same families are in the folders below (other phthalates in
      `agent-families/Phthalates/`, other PFAS in `plastchem-groups/PFASs/`, other PBDEs in
      `structure-classes/polybrominated_diphenyl_ethers/`).
@@ -147,12 +152,23 @@ Every ORCA/openCOSMO surface (`.orcacosmo`) behind the partition and miscibility
 
 ## 1. Publication sets
 
-Matched by CAS number, and by InChIKey where PlastChem files a compound under another CAS (DiNP, DnHP, DnOP). HBCD is
-matched by the connectivity of 1,2,5,6,9,10-hexabromocyclododecane, so every computed stereoisomer is in `BFR/`;
-{"PlastChem files the generic HBCD CAS 25637-99-4 under 1,1,2,2,3,3-hexabromocyclododecane, a" + chr(10) +
- f"different compound, which is in `{hbcd_isomer['folder'].removeprefix('contaminants/')}/` instead." if hbcd_isomer else ""} The
-campaign holds neutral molecules of C, H, N, O, F, Cl, Br and I up to 700 g/mol taken from PlastChem, which is why the
-sulfonic acids, the salts and the heaviest compounds have no file.
+One file per compound of the paper's ESI, in the species the paper modelled. The same files are also on the branch
+as plain files, with each one's ORCA calculation files and its openCOSMO-RS partition and miscibility tables, in
+`../publication-sets/`.
+
+- PFAS (Table S7) are neutral acids, as the paper modelled them: across the paper's 32 solvents its values follow our
+  neutral acids (r = 0.95-0.97) and not the anions (|r| below 0.1). A salt is its parent acid: NH4TetraFPt is TFPA's
+  surface under its own label, and the two ADONA salts (NaDoDFNt, NH4PFNt) are one acid. Ten acids are the release's
+  surfaces; the other 14 (the sulfonic acids, PFNS, the F-53B and ADONA acids, PFTriDA and PFTetraDA) were computed
+  for this set (amendment A-12). A file named for a salt or an anion is named as the acid, with the paper's label,
+  e.g. `Perfluorononanesulfonic_acid_(PFNS).orcacosmo`.
+- Brominated flame retardants (Case Study 1): tri-PBDE is the ESI's 2,4,4'-tribromodiphenyl ether (BDE-28). The
+  paper reports one HBCD value without naming the stereoisomer; the set holds gamma-HBCD, the main component of
+  technical HBCD (the release's {len(other_hbcd)} other 1,2,5,6,9,10-HBCD stereoisomers are in
+  `structure-classes/brominated/`). DECA and TBBPA-dbP are heavier than the release's 700 g/mol limit and were
+  computed for this set (A-12).
+- Phthalates (Table S5): from the release, by CAS number, and by InChIKey where PlastChem files a phthalate under
+  another CAS (DiNP, DnHP, DnOP).
 
 {chr(10).join(pub_lines)}
 ## 2. Agent families
@@ -196,6 +212,10 @@ SMILES); the PBDE class is defined by formula in `classify_contaminants.py`.
   (azo pigments becoming hydrazones) were rejected and have no surface here.
 - Thermodynamics: openCOSMO-RS 24a at 298.15 K. The installed 24a class has no iodine dispersion parameter
   (tau_53); it enters only dG_solv, not the activity coefficients used for partitioning and LLE.
+- Publication-set surfaces of amendment A-12 (the PFAS acids the release lacks, DECA and TBBPA-dbP): the same
+  recipe, structures from PubChem by CAS and checked against PlastChem (the sulfonic acids hold sulfur, and four are
+  above 700 g/mol, both outside the release). Their partition and miscibility rows are in `../publication-sets/`, not
+  in DISSOLVE's served data, whose PFAS values are the paper's own COSMOtherm results.
 - Folders: `classify_contaminants.py` (inputs: `../inputs/publication_sets_zhou2026.json`,
   `../inputs/census/plastchem_db_v1.0_groups_functions.csv` and DISSOLVE's families and structure search).
 
@@ -250,7 +270,7 @@ tar -xJf orca-calculation-files.tar.xz
 
 `run_export_v2.sh` runs on Euler in `~/opencosmo-export-v2`: `build_export_v2.py` assembles the surfaces from
 `contaminants-v2.tsv` (written with `CLASSIFICATION.tsv` and `PUBLICATION_SETS.tsv` by `make_contaminants_tsv.py` from
-the promotion-v2 release), then `run_pack.sh` packs these files and `verify_orca_archive.py` checks that every released
+the promotion-v2 release and the publication tier's verified runs, `publication-v1`), then `run_pack.sh` packs these files and `verify_orca_archive.py` checks that every released
 surface has its folder and that no licensed starting geometry leaked.
 """)
 print("README files written:", len(contaminants), "contaminants;", len(not_released), "runs not in release;",

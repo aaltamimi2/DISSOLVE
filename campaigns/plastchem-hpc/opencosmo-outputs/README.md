@@ -1,17 +1,19 @@
 # PlastChem openCOSMO outputs
 
 Every ORCA/openCOSMO surface (`.orcacosmo`) behind the partition and miscibility data DISSOLVE serves: the
-2026-09-12/24 CHNO campaign and the halogen tier of amendment A-11 (2026-10-06/07). 7,160 contaminants:
+2026-09-12/24 CHNO campaign and the halogen tier of amendment A-11 (2026-10-06/07), 7,161 contaminants:
 5,830 from the promotion-v1 cohort, 219 tier-2 CHNO structures (500-700 g/mol) that converged after it and
-1,111 from the halogen tier (C, H, N and O with F, Cl, Br or I, up to 700 g/mol).
+1,112 from the halogen tier (C, H, N and O with F, Cl, Br or I, up to 700 g/mol). Also 17
+surfaces computed for the paper's compounds that the release does not hold (amendment A-12, see section 1).
 
 ## Layout
 
 - `contaminants/<folder>/<name>.orcacosmo`: one surface per contaminant, in exactly one folder: the first of the five
   below that applies to it.
-  1. `publication-sets/` (29): the PFAS, brominated flame retardants and phthalates of Zhou et
-     al., *Solvent-Mediated Contaminant Removal from Plastic Waste Using Thermodynamic Modeling*, Green Chem. 2026
-     (d5gc06059a), from its ESI, and nothing else, so these folders can be used to validate against the paper.
+  1. `publication-sets/` (38): `PFAS/`, `BFR/` and `Phthalates/` hold exactly the compounds of
+     Zhou et al., *Solvent-Mediated Contaminant Removal from Plastic Waste Using Thermodynamic Modeling*, Green Chem.
+     2026 (d5gc06059a), one file each and nothing else, so they can be used to validate against the paper: 26 PFAS,
+     4 brominated flame retardants and 8 phthalates.
      The other members of the same families are in the folders below (other phthalates in
      `agent-families/Phthalates/`, other PFAS in `plastchem-groups/PFASs/`, other PBDEs in
      `structure-classes/polybrominated_diphenyl_ethers/`).
@@ -20,7 +22,7 @@ Every ORCA/openCOSMO surface (`.orcacosmo`) behind the partition and miscibility
   3. `plastchem-groups/` (1738): the structural groups of the PlastChem database (Wagner et al.
      2024, v1.0), for compounds in no agent family. A compound in several is filed in the most specific (PFAS,
      PBDEs, PCBs and dioxins first; alkanes and alkenes last).
-  4. `structure-classes/` (4823): the rest, by structure: the PBDE congeners, else the
+  4. `structure-classes/` (4832): the rest, by structure: the PBDE congeners, else the
      halogen a compound carries, else its first functional group in DISSOLVE's structure search (in the order of
      the table below), else aliphatic hydrocarbons.
   5. `no-family/` (135): none of the above: mostly organic peroxides, nitrosamines, hydrazines and
@@ -42,65 +44,76 @@ Every ORCA/openCOSMO surface (`.orcacosmo`) behind the partition and miscibility
 
 ## 1. Publication sets
 
-Matched by CAS number, and by InChIKey where PlastChem files a compound under another CAS (DiNP, DnHP, DnOP). HBCD is
-matched by the connectivity of 1,2,5,6,9,10-hexabromocyclododecane, so every computed stereoisomer is in `BFR/`;
-PlastChem files the generic HBCD CAS 25637-99-4 under 1,1,2,2,3,3-hexabromocyclododecane, a
-different compound, which is in `structure-classes/brominated/` instead. The
-campaign holds neutral molecules of C, H, N, O, F, Cl, Br and I up to 700 g/mol taken from PlastChem, which is why the
-sulfonic acids, the salts and the heaviest compounds have no file.
+One file per compound of the paper's ESI, in the species the paper modelled. The same files are also on the branch
+as plain files, with each one's ORCA calculation files and its openCOSMO-RS partition and miscibility tables, in
+`../publication-sets/`.
 
-### `publication-sets/PFAS/`: PFAS (ESI Table S7), 10 files for 10 of its 26 compounds
+- PFAS (Table S7) are neutral acids, as the paper modelled them: across the paper's 32 solvents its values follow our
+  neutral acids (r = 0.95-0.97) and not the anions (|r| below 0.1). A salt is its parent acid: NH4TetraFPt is TFPA's
+  surface under its own label, and the two ADONA salts (NaDoDFNt, NH4PFNt) are one acid. Ten acids are the release's
+  surfaces; the other 14 (the sulfonic acids, PFNS, the F-53B and ADONA acids, PFTriDA and PFTetraDA) were computed
+  for this set (amendment A-12). A file named for a salt or an anion is named as the acid, with the paper's label,
+  e.g. `Perfluorononanesulfonic_acid_(PFNS).orcacosmo`.
+- Brominated flame retardants (Case Study 1): tri-PBDE is the ESI's 2,4,4'-tribromodiphenyl ether (BDE-28). The
+  paper reports one HBCD value without naming the stereoisomer; the set holds gamma-HBCD, the main component of
+  technical HBCD (the release's 9 other 1,2,5,6,9,10-HBCD stereoisomers are in
+  `structure-classes/brominated/`). DECA and TBBPA-dbP are heavier than the release's 700 g/mol limit and were
+  computed for this set (A-12).
+- Phthalates (Table S5): from the release, by CAS number, and by InChIKey where PlastChem files a phthalate under
+  another CAS (DiNP, DnHP, DnOP).
 
-| Compound | CAS | File(s), or why there is none |
-|---|---|---|
-| PFBA: Perfluorobutanoic acid | 375-22-4 | `Heptafluorobutyric_acid.orcacosmo` |
-| PFPA: Perfluoropentanoic acid | 2706-90-3 | `Perfluorovaleric_acid.orcacosmo` |
-| PFHxA: Perfluorohexanoic acid | 307-24-4 | `Perfluorohexanoic_acid.orcacosmo` |
-| PFHA: Perfluoroheptanoic acid | 375-85-9 | `Perfluoroheptanoic_acid.orcacosmo` |
-| PFOA: Perfluorooctanoic acid | 335-67-1 | `Perfluorooctanoic_acid.orcacosmo` |
-| PFNA: Perfluorononanoic acid | 375-95-1 | `Perfluorononanoic_acid.orcacosmo` |
-| PFDA: Perfluorodecanoic acid | 335-76-2 | `Perfluorodecanoic_acid.orcacosmo` |
-| TFPA: 2,3,3,3-Tetrafluoro-2-(heptafluoropropoxy)propanoic acid | 13252-13-6 | `2,3,3,3-Tetrafluoro-2-(heptafluoropropoxy)propanoic_acid.orcacosmo` |
-| PFTriDA: Perfluorotridecanoic acid | 72629-94-8 | its ORCA surface converged after the release was frozen; its partition and LLE calculations were not yet run |
-| PFUnDA: Perfluoroundecanoic acid | 2058-94-8 | `Perfluoroundecanoic_acid.orcacosmo` |
-| PFDoDA: Perfluorododecanoic acid | 307-55-1 | `Perfluorododecanoic_acid.orcacosmo` |
-| PFTetraDA: Perfluorotetradecanoic acid | 376-06-7 | heavier than 700 g/mol |
-| PFBS: Perfluorobutanesulfonic acid | 375-73-5 | contains sulfur |
-| PFPS: Perfluoropentanesulfonic acid | 2706-91-4 | contains sulfur |
-| PFHxS: Perfluorohexanesulfonic acid | 355-46-4 | contains sulfur |
-| PFHS: Perfluoroheptanesulfonic acid | 375-92-8 | contains sulfur |
-| PFOS: Perfluorooctanesulfonic acid | 1763-23-1 | contains sulfur |
-| PFUnDS: Perfluoroundecanesulfonic acid | 749786-16-1 | not in PlastChem |
-| PFTriDS: Perfluorotridecanesulfonic acid | 791563-89-8 | not in PlastChem |
-| PFDS: Perfluorodecanesulfonic acid | 335-77-3 | contains sulfur |
-| PFDoDS: Perfluorododecanesulfonic acid | 79780-39-5 | contains sulfur |
-| KClHxDFS: Potassium 9-chlorohexadecafluoro-3-oxanonane-1-sulfonate | 73606-19-6 | a salt or a mixture of molecules |
-| PFNS: Perfluorononanesulfonate | 474511-07-4 | not in PlastChem |
-| NaDoDFNt: Sodium dodecafluoro-3H-4,8-dioxanonanoate | 2250081-67-3 | not in PlastChem |
-| NH4TetraFPt: Ammonium 2,3,3,3-tetrafluoro-2-(heptafluoropropoxy)propanoate | 62037-80-3 | a salt or a mixture of molecules |
-| NH4PFNt: Ammonium 4,8-dioxa-3H-perfluorononanoate | 958445-44-8 | a salt or a mixture of molecules |
+### `publication-sets/PFAS/`: PFAS (ESI Table S7), 26 files for 26 of its 26 compounds
 
-### `publication-sets/BFR/`: Brominated flame retardants (Case Study 1), 11 files for 2 of its 4 compounds
+| Compound | CAS | Species, computed in | File, or why there is none |
+|---|---|---|---|
+| PFBA: Perfluorobutanoic acid | 375-22-4 | neutral, release | `Heptafluorobutyric_acid.orcacosmo` |
+| PFPA: Perfluoropentanoic acid | 2706-90-3 | neutral, release | `Perfluorovaleric_acid.orcacosmo` |
+| PFHxA: Perfluorohexanoic acid | 307-24-4 | neutral, release | `Perfluorohexanoic_acid.orcacosmo` |
+| PFHA: Perfluoroheptanoic acid | 375-85-9 | neutral, release | `Perfluoroheptanoic_acid.orcacosmo` |
+| PFOA: Perfluorooctanoic acid | 335-67-1 | neutral, release | `Perfluorooctanoic_acid.orcacosmo` |
+| PFNA: Perfluorononanoic acid | 375-95-1 | neutral, release | `Perfluorononanoic_acid.orcacosmo` |
+| PFDA: Perfluorodecanoic acid | 335-76-2 | neutral, release | `Perfluorodecanoic_acid.orcacosmo` |
+| TFPA: 2,3,3,3-Tetrafluoro-2-(heptafluoropropoxy)propanoic acid | 13252-13-6 | neutral, release | `2,3,3,3-Tetrafluoro-2-(heptafluoropropoxy)propanoic_acid.orcacosmo` |
+| PFTriDA: Perfluorotridecanoic acid | 72629-94-8 | neutral, A-12 | `Perfluorotridecanoic_acid_[LVDGGZAZAYHXEY-UHFFFAOYSA-N#PFTriDA].orcacosmo` |
+| PFUnDA: Perfluoroundecanoic acid | 2058-94-8 | neutral, release | `Perfluoroundecanoic_acid.orcacosmo` |
+| PFDoDA: Perfluorododecanoic acid | 307-55-1 | neutral, release | `Perfluorododecanoic_acid.orcacosmo` |
+| PFTetraDA: Perfluorotetradecanoic acid | 376-06-7 | neutral, A-12 | `Perfluorotetradecanoic_acid.orcacosmo` |
+| PFBS: Perfluorobutanesulfonic acid | 375-73-5 | neutral, A-12 | `Perfluorobutanesulfonic_acid.orcacosmo` |
+| PFPS: Perfluoropentanesulfonic acid | 2706-91-4 | neutral, A-12 | `Perfluoropentanesulfonic_acid.orcacosmo` |
+| PFHxS: Perfluorohexanesulfonic acid | 355-46-4 | neutral, A-12 | `Perfluorohexanesulfonic_acid.orcacosmo` |
+| PFHS: Perfluoroheptanesulfonic acid | 375-92-8 | neutral, A-12 | `Perfluoroheptanesulfonic_acid.orcacosmo` |
+| PFOS: Perfluorooctanesulfonic acid | 1763-23-1 | neutral, A-12 | `Perfluorooctanesulfonic_acid.orcacosmo` |
+| PFUnDS: Perfluoroundecanesulfonic acid | 749786-16-1 | neutral, A-12 | `Perfluoroundecanesulfonic_acid.orcacosmo` |
+| PFTriDS: Perfluorotridecanesulfonic acid | 791563-89-8 | neutral, A-12 | `Perfluorotridecanesulfonic_acid.orcacosmo` |
+| PFDS: Perfluorodecanesulfonic acid | 335-77-3 | neutral, A-12 | `Perfluorodecanesulfonic_acid.orcacosmo` |
+| PFDoDS: Perfluorododecanesulfonic acid | 79780-39-5 | neutral, A-12 | `Perfluorododecanesulfonic_acid.orcacosmo` |
+| KClHxDFS: Potassium 9-chlorohexadecafluoro-3-oxanonane-1-sulfonate | 73606-19-6 | neutral, A-12 | `9-Chlorohexadecafluoro-3-oxanonane-1-sulfonic_acid_(KClHxDFS).orcacosmo` |
+| PFNS: Perfluorononanesulfonate | 474511-07-4 | neutral, A-12 | `Perfluorononanesulfonic_acid_(PFNS).orcacosmo` |
+| NaDoDFNt: Sodium dodecafluoro-3H-4,8-dioxanonanoate | 2250081-67-3 | neutral, A-12 | `Dodecafluoro-3H-4,8-dioxanonanoic_acid_(NaDoDFNt).orcacosmo` |
+| NH4TetraFPt: Ammonium 2,3,3,3-tetrafluoro-2-(heptafluoropropoxy)propanoate | 62037-80-3 | neutral, release | `2,3,3,3-Tetrafluoro-2-(heptafluoropropoxy)propanoic_acid_(NH4TetraFPt).orcacosmo` |
+| NH4PFNt: Ammonium 4,8-dioxa-3H-perfluorononanoate | 958445-44-8 | neutral, A-12 | `4,8-Dioxa-3H-perfluorononanoic_acid_(NH4PFNt).orcacosmo` |
 
-| Compound | CAS | File(s), or why there is none |
-|---|---|---|
-| Tri-PBDE: 2,4,4'-Tribromodiphenyl ether (BDE-28) | 41318-75-6 | `2,4-Dibromo-1-(4-bromophenoxy)benzene.orcacosmo` |
-| HBCD: Hexabromocyclododecane: 1,2,5,6,9,10-hexabromocyclododecane and its stereoisomers (alpha, beta, gamma and others) | 3194-55-6, 134237-50-6, 134237-51-7, 134237-52-8 | 10 files: `(+)-alpha-Hexabromocyclododecane.orcacosmo`, `(1R,2R,5S,6S,9S,10R)-1,2,5,6,9,10-hexabromocyclododecane.orcacosmo`, `1,2,5,6,9,10-Hexabromocyclododecane.orcacosmo`, `Cyclododecane,_1,2,5,6,9,10-hexabromo-,_(1R,2S,5R,6S,9S,10S).orcacosmo`, `Cyclododecane,_1,2,5,6,9,10-hexabromo-,_(1R,2S,5S,6S,9S,10R).orcacosmo`, `alpha-Hexabromocyclododecane.orcacosmo`, `beta-Hexabromocyclododecane.orcacosmo`, `delta-Hexabromocyclododecane.orcacosmo`, `gamma-Hexabromocyclododecane.orcacosmo`, `kappa-HBCD.orcacosmo` |
-| DECA: Decabromodiphenyl ether (BDE-209) | 1163-19-5 | heavier than 700 g/mol |
-| TBBPA-dbp: Tetrabromobisphenol A bis(2,3-dibromopropyl ether) | 21850-44-2 | heavier than 700 g/mol |
+### `publication-sets/BFR/`: Brominated flame retardants (Case Study 1), 4 files for 4 of its 4 compounds
+
+| Compound | CAS | Species, computed in | File, or why there is none |
+|---|---|---|---|
+| Tri-PBDE: 2,4,4'-Tribromodiphenyl ether (BDE-28) | 41318-75-6 | neutral, release | `2,4-Dibromo-1-(4-bromophenoxy)benzene.orcacosmo` |
+| HBCD: Hexabromocyclododecane (gamma-HBCD; the paper does not name the stereoisomer) | 134237-52-8 | neutral, release | `gamma-Hexabromocyclododecane.orcacosmo` |
+| DECA: Decabromodiphenyl ether (BDE-209) | 1163-19-5 | neutral, A-12 | `Decabromodiphenyl_ether_(BDE-209).orcacosmo` |
+| TBBPA-dbp: Tetrabromobisphenol A bis(2,3-dibromopropyl ether) | 21850-44-2 | neutral, A-12 | `Tetrabromobisphenol_A_bis(2,3-dibromopropyl_ether).orcacosmo` |
 
 ### `publication-sets/Phthalates/`: Phthalates (ESI Table S5), 8 files for 8 of its 8 compounds
 
-| Compound | CAS | File(s), or why there is none |
-|---|---|---|
-| P1 BBP: Butyl benzyl phthalate | 85-68-7 | `Benzyl_butyl_phthalate.orcacosmo` |
-| P2 DBP: Di-n-butyl phthalate | 84-74-2 | `Dibutyl_Phthalate.orcacosmo` |
-| P3 DEHP: Di-(2-ethylhexyl) phthalate | 117-81-7 | `Bis(2-ethylhexyl)_phthalate.orcacosmo` |
-| P4 DEP: Diethyl phthalate | 84-66-2 | `Diethyl_Phthalate.orcacosmo` |
-| P5 DiDP: Di-isodecyl phthalate | 26761-40-0, 68515-49-1 | `Diisodecyl_phthalate.orcacosmo` |
-| P6 DiNP: Di-isononyl phthalate | 28553-12-0, 68515-48-0 | `Diisononyl_phthalate.orcacosmo` |
-| P7 DnHP: Di-n-hexyl phthalate | 84-75-3 | `Dihexyl_phthalate.orcacosmo` |
-| P8 DnOP: Di-n-octyl phthalate | 117-84-0 | `Dioctyl_phthalate.orcacosmo` |
+| Compound | CAS | Species, computed in | File, or why there is none |
+|---|---|---|---|
+| P1 BBP: Butyl benzyl phthalate | 85-68-7 | neutral, release | `Benzyl_butyl_phthalate.orcacosmo` |
+| P2 DBP: Di-n-butyl phthalate | 84-74-2 | neutral, release | `Dibutyl_Phthalate.orcacosmo` |
+| P3 DEHP: Di-(2-ethylhexyl) phthalate | 117-81-7 | neutral, release | `Bis(2-ethylhexyl)_phthalate.orcacosmo` |
+| P4 DEP: Diethyl phthalate | 84-66-2 | neutral, release | `Diethyl_Phthalate.orcacosmo` |
+| P5 DiDP: Di-isodecyl phthalate | 26761-40-0, 68515-49-1 | neutral, release | `Diisodecyl_phthalate.orcacosmo` |
+| P6 DiNP: Di-isononyl phthalate | 28553-12-0, 68515-48-0 | neutral, release | `Diisononyl_phthalate.orcacosmo` |
+| P7 DnHP: Di-n-hexyl phthalate | 84-75-3 | neutral, release | `Dihexyl_phthalate.orcacosmo` |
+| P8 DnOP: Di-n-octyl phthalate | 117-84-0 | neutral, release | `Dioctyl_phthalate.orcacosmo` |
 
 ## 2. Agent families
 
@@ -181,7 +194,7 @@ SMILES); the PBDE class is defined by formula in `classify_contaminants.py`.
 | `polybrominated_diphenyl_ethers/` | 157 | PBDE congeners: C12H(10-n)Br(n)O, two benzene rings joined by an ether oxygen, with nothing but bromine on them | Tribromodiphenyl ether; 1-Bromo-2-phenoxybenzene; 1-Bromo-3-phenoxybenzene |
 | `fluorinated/` | 39 | carries fluorine and no other halogen | Etoxazole; Fluorobenzene; Vinyl fluoride |
 | `chlorinated/` | 337 | carries chlorine and no other halogen | Mirex; Aldrite; Chloral |
-| `brominated/` | 116 | carries bromine and no other halogen | Bronopol; Bromoform; Bromobenzene |
+| `brominated/` | 125 | carries bromine and no other halogen | Bronopol; Bromoform; kappa-HBCD |
 | `iodinated/` | 11 | carries iodine and no other halogen | Iodoform; Iodoethane; Iodobenzene |
 | `several_halogens/` | 35 | carries two or more of F, Cl, Br and I | Cyfluthrin; Flufenoxuron; Bromochloromethane |
 | `isocyanate/` | 48 | N=C=O | Methyl Isocyanate; Phenyl isocyanate; Dodecyl isocyanate |
@@ -224,6 +237,10 @@ SMILES); the PBDE class is defined by formula in `classify_contaminants.py`.
   (azo pigments becoming hydrazones) were rejected and have no surface here.
 - Thermodynamics: openCOSMO-RS 24a at 298.15 K. The installed 24a class has no iodine dispersion parameter
   (tau_53); it enters only dG_solv, not the activity coefficients used for partitioning and LLE.
+- Publication-set surfaces of amendment A-12 (the PFAS acids the release lacks, DECA and TBBPA-dbP): the same
+  recipe, structures from PubChem by CAS and checked against PlastChem (the sulfonic acids hold sulfur, and four are
+  above 700 g/mol, both outside the release). Their partition and miscibility rows are in `../publication-sets/`, not
+  in DISSOLVE's served data, whose PFAS values are the paper's own COSMOtherm results.
 - Folders: `classify_contaminants.py` (inputs: `../inputs/publication_sets_zhou2026.json`,
   `../inputs/census/plastchem_db_v1.0_groups_functions.csv` and DISSOLVE's families and structure search).
 

@@ -63,10 +63,33 @@ def gate_units():
     return {key: dict(base["frozen"][key], source="gate_reproduction") for key in base["anchors"].values()}
 
 
+def publication_units():
+    """A-12: the publication tier's verified surfaces (the paper's PFAS as anions, DECA, TBBPA-dbP) not yet staged."""
+    state = R / "state/publication-v1"
+    manifest = {m["inchikey"]: m for group in ("publication", "neutral") if (state / group / "manifest.json").exists()
+                for m in json.loads((state / group / "manifest.json").read_text())["molecules"]}
+    done = {key for meta in OUT.glob("*/batch.json") for key in json.loads(meta.read_text())["keys"]}
+    out = {}
+    for path in sorted((state / "records").glob("*.json")):
+        r = json.loads(path.read_text())
+        if r.get("status") != "verified" or r["inchikey"] in done:
+            continue
+        surface = state / "incoming/returns" / r["inchikey"] / "surface.orcacosmo"
+        assert sha(surface) == r["surface_sha256"], r["inchikey"]
+        m = manifest[r["inchikey"]]
+        out[r["inchikey"]] = dict(inchikey=r["inchikey"], name=m["name"], surface=str(surface),
+                                  surface_sha256=r["surface_sha256"], atoms=m["atoms"],
+                                  molecular_weight_g_mol=float(m["molecular_weight_g_mol"]), tier=m["tier"],
+                                  source="publication_verified", charge=m["charge"], labels=m["labels"])
+    return out
+
+
 def candidates(source):
     """Accepted surfaces not in promotion-v1, with their record and returned surface on R:."""
     if source == "gate":
         return gate_units()
+    if source == "publication":
+        return publication_units()
     records = R / f"state/{'tier2-v1' if source == 'tier2' else 'halogen-v1'}/records"
     results = B / f"{'tier2-v1' if source == 'tier2' else 'halogen-v1'}/results"
     done = served_v1() | {key for meta in OUT.glob("*/batch.json") for key in json.loads(meta.read_text())["keys"]}
@@ -135,7 +158,9 @@ def stage(batch, source, limit):
             purpose="A-11 production", inputs=remote_inputs, inputs_sha256=sha(out / "inputs.json"), keys=chunk,
             polymers=POLYMERS, solvents=solvents, solvent_mode="fresh", direct_solvent_controls=[],
             subbatch=PARTITION_KEYS, output=f"{REMOTE}/{batch}/results/partition-{index:04d}", code_pins=code_pins))
-    systems = [dict(inchikey=k, solvent=s, regime=g) for k in keys for s in solvents for g in ("RT", "high")]
+    # binary LLE of a bare anion with a solvent has no counter-ion: miscibility only for neutral structures (A-12)
+    systems = [dict(inchikey=k, solvent=s, regime=g) for k in keys if units[k].get("charge", 0) == 0
+               for s in solvents for g in ("RT", "high")]
     lle = [systems[i:i + LLE_SYSTEMS] for i in range(0, len(systems), LLE_SYSTEMS)]
     for index, chunk in enumerate(lle):
         write(out / "plans" / f"lle-{index:04d}.json", dict(
@@ -186,6 +211,8 @@ def submit(batch):
     assert not receipt.exists(), "already submitted"
     ids = {}
     for kind, count in (("partition", meta["partition_plans"]), ("lle", meta["lle_plans"])):
+        if not count:
+            continue
         result = check(run("ssh", ["euler", f"cd {REMOTE}/{batch} && sbatch --parsable --array=0-{count - 1}%{THROTTLE[kind]} {kind}.sbatch"],
                            capture_output=True, text=True))
         ids[kind] = result.stdout.strip().split(";")[0]
@@ -251,7 +278,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("action", choices=["stage", "submit", "status", "collect"])
     parser.add_argument("batch")
-    parser.add_argument("source", nargs="?", choices=["gate", "tier2", "halogen"])
+    parser.add_argument("source", nargs="?", choices=["gate", "tier2", "halogen", "publication"])
     parser.add_argument("--limit", type=int)
     parser.add_argument("--partial", action="store_true", help="collect: take the compacted plans now")
     args = parser.parse_args()

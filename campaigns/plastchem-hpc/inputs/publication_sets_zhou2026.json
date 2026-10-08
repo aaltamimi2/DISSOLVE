@@ -1,6 +1,6 @@
 {
  "source": "Zhou, Ikegwu, Radkevich, Ra, Liburd, Huber, Zavala and Van Lehn, Solvent-Mediated Contaminant Removal from Plastic Waste Using Thermodynamic Modeling, Green Chem. 2026 (d5gc06059a). ESI: Table S7 (26 PFAS with CASRN), Table S5 (eight phthalates P1-P8), Tables S1-S4 and S8-S9 (four BFRs of Case Study 1).",
- "matching": "By CAS number against the PlastChem release, and by InChIKey where given (fourth field): a full key names one structure (where PlastChem files a phthalate under another CAS), a first block (14 characters) every stereoisomer of one connectivity. HBCD is matched by the connectivity of 1,2,5,6,9,10-hexabromocyclododecane: PlastChem files the generic HBCD CAS 25637-99-4 under 1,1,2,2,3,3-hexabromocyclododecane, a different compound, so that CAS is not used.",
+ "matching": "The paper modelled every compound neutral, its PFAS as the parent acids (a salt as its acid: its values for NH4TetraFPt equal TFPA's, and its two ADONA salts are identical). A compound the publication tier computed (amendment A-12: the PFAS acids the release lacks, DECA and TBBPA-dbP; state/publication-v1) takes its surface from there. The others are matched in the PlastChem release by CAS number, and by InChIKey where given (fourth field): where PlastChem files a phthalate under another CAS, NH4TetraFPt (TFPA's acid) and HBCD, which the paper reports as one compound without naming the stereoisomer: gamma-HBCD, the main component of technical HBCD.",
  "sets": {
   "PFAS": [
    [
@@ -126,7 +126,8 @@
    [
     "NH4TetraFPt",
     "Ammonium 2,3,3,3-tetrafluoro-2-(heptafluoropropoxy)propanoate",
-    "62037-80-3"
+    "62037-80-3",
+    "CSEBNABAWMZWIF-UHFFFAOYSA-N"
    ],
    [
     "NH4PFNt",
@@ -187,9 +188,9 @@
    ],
    [
     "HBCD",
-    "Hexabromocyclododecane: 1,2,5,6,9,10-hexabromocyclododecane and its stereoisomers (alpha, beta, gamma and others)",
-    "3194-55-6;134237-50-6;134237-51-7;134237-52-8",
-    "DEIGXXQKDWULML"
+    "Hexabromocyclododecane (gamma-HBCD; the paper does not name the stereoisomer)",
+    "134237-52-8",
+    "DEIGXXQKDWULML-MOCCIAMBSA-N"
    ],
    [
     "DECA",

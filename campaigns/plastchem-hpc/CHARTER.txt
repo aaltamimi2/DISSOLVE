@@ -913,3 +913,51 @@ Milan is saturated (other users plus our ORCA tail), and the h04 batch waited on
 Genoa may run partition and LLE calculations, no DFT; Genoa's gate matched Milan to 1e-9 with identical verdicts),
 h04's pending tasks and every later thermodynamics batch run on genoa&cpu, inside the shared cap of 64. Each
 plan's CPU models are recorded in its compact header and on every release row. All ORCA stays on Milan.
+
+AMENDMENT A-12 (2026-10-07, orchestrator, OWNER-REQUESTED) — PUBLICATION SETS OF ZHOU ET AL. 2026, EXACTLY
+
+Owner, 2026-10-07: "make the numbers match exactly. i am pretty sure the salts didnt have the counter cation (just
+treated the PFAS as negatively charged)" (for a collaborator; the publication-set folders are for validation).
+
+1. Scope: the compounds of Zhou et al., Green Chem. 2026 (d5gc06059a), ESI: 26 PFAS (Table S7), 4 BFRs (Case Study
+   1: tri-PBDE, HBCD, DECA, TBBPA-dbP) and 8 phthalates (Table S5). The release already holds the 8 phthalates,
+   BDE-28 (the ESI's 2,4,4'-tribromodiphenyl ether) and gamma-HBCD (the paper does not name its HBCD stereoisomer;
+   gamma is the main component of technical HBCD). New here: 24 PFAS anions, DECA and TBBPA-dbP.
+2. PFAS species: each as its anion, no counter-cation, acids included. The paper's own values (d5gc06059a2_suppl.xlsx,
+   PFAS_log_D) show acids and salts were one species: ammonium GenX (25) equals TFPA (8) to 1e-8 and the two ADONA
+   salts (24, 26) are identical. So 26 PFAS are 24 distinct anions (8 = 25, 24 = 26). Structures from PubChem by CAS
+   (cache inputs/publication_pubchem_zhou2026.json), checked against PlastChem's connectivity where it has the
+   compound. Built by scripts/build_publication_inputs.py: manifest state/publication-v1/publication/manifest.json
+   sha256 1aeb2d9b6afcc3505b685b5b30cb51005cc36ea139b6fb7459391fd1bcedbd1b.
+3. Exceptions to the frozen scope, for these 26 structures only: net charge -1 (the ORCA input reads the charge from
+   the manifest; bond perception for D-IDENT is given the charge), sulfur (sulfonates), and MW above 700 g/mol
+   (PFTriDS 749, PFTetraDA 713, DECA 959, TBBPA-dbP 944). The method is otherwise the frozen recipe: ETKDGv3 seed
+   12345, 300 conformers, MMFF94, one conformer to DFT; ORCA 6.1.1 OPT BP86 def2-TZVP(-f) TightSCF, then
+   COSMORS(Water) (BP86/def2-TZVPD); D-IDENT on connectivity.
+4. Execution: its own array contam-publication-v1: research, milan&cpu, euler09/10 excluded, 1 CPU, 4 GB, 72 h,
+   inside the shared cap of 64.
+5. Surfaces only: these go into the archives' publication-sets folders. No thermodynamics and no release row (ions,
+   sulfur and the heavy BFRs are outside promotion-v2); DISSOLVE's PFAS values stay the paper's COSMOtherm workbook.
+   The release's 10 neutral PFAS acids stay in the release and leave the publication-sets folder.
+A-12 NOTE (2026-10-07 22:20 UTC, orchestrator) — HBCD IN THE BFR SET
+After submission, inputs/publication_sets_zhou2026.json changed only in its BFR HBCD entry (gamma-HBCD alone, by
+full InChIKey, instead of every 1,2,5,6,9,10 stereoisomer) and its matching note: the paper reports one HBCD value, so
+the set holds one HBCD file. The 26 submitted structures and their manifest are unchanged.
+A-12 NOTE (2026-10-07 23:30 UTC, orchestrator, OWNER-REQUESTED) — THERMODYNAMICS FOR THE PUBLICATION TIER
+Owner, 2026-10-07, on learning the A-12 runs had surfaces and ORCA's water dG_solv only: "finish this". So item 5's
+"no thermodynamics" is lifted for these 26 structures: partition (the 32-solvent panel x the 10 polymer ensembles,
+both conventions) with the A-11 supplement workers on Genoa, batches p00 (the first 19 verified) and p01 (the rest),
+through scripts/newcontam_thermo.py (source "publication"). Binary LLE only for the neutral structures (DECA,
+TBBPA-dbP): a bare anion with a solvent has no counter-ion. openCOSMORS24a has tau_16 (sulfur); it was parameterised
+on neutral molecules, so anion values are an extrapolation, as the paper's COSMOtherm anion values are. Still no
+release row: the results go to the publication-sets tables on the branch.
+A-12 NOTE (2026-10-08 01:30 UTC, orchestrator, OWNER-DECIDED) — PFAS SPECIES CORRECTED TO NEUTRAL ACIDS
+The paper's own PFAS values (d5gc06059a2_suppl.xlsx, PFAS_log_D, 32 solvents) follow our neutral acids (r 0.95-0.97,
+RMSE 0.6-0.9 for all ten PFAS acids the release has) and not the A-12 anions (|r| < 0.1; sulfonates and salts as
+anions at most 0.36). So the paper modelled every PFAS neutral and each salt as its parent acid; the anion premise was
+wrong. Owner chose "Neutral acids", and: "dont committ these anions". Done: 14 neutral acids the release lacks
+(PFTriDA, PFTetraDA, nine sulfonic acids, PFNS acid, F-53B acid, ADONA acid) built by build_publication_inputs.py
+--neutral (manifest state/publication-v1/neutral/manifest.json), submitted as contam-publication-n1 (job 77609), their
+thermodynamics batch p02 with LLE. NH4TetraFPt is TFPA's release surface under its own label. The 24 anion runs (job
+77437) and their partition rows (p00, p01) stay in campaign storage only; the branch's publication commits that held
+them were rewritten (old head 90e577e9 kept as a local tag and an R: bundle) to 8225ffbf and da1b1b47.
