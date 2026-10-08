@@ -4,7 +4,9 @@ Every ORCA/openCOSMO surface (`.orcacosmo`) behind the partition and miscibility
 2026-09-12/24 CHNO campaign and the halogen tier of amendment A-11 (2026-10-06/07), 7,161 contaminants:
 5,830 from the promotion-v1 cohort, 219 tier-2 CHNO structures (500-700 g/mol) that converged after it and
 1,112 from the halogen tier (C, H, N and O with F, Cl, Br or I, up to 700 g/mol). Also 17
-surfaces computed for the paper's compounds that the release does not hold (amendment A-12, see section 1).
+surfaces computed for the paper's compounds (amendment A-12, see section 1), which the release has served since
+promotion-v3 (2026-10-08). How much of PlastChem this covers, and what cannot or should not be computed, is in
+[Coverage of PlastChem](#coverage-of-plastchem).
 
 ## Layout
 
@@ -228,6 +230,54 @@ SMILES); the PBDE class is defined by formula in `classify_contaminants.py`.
 | `long_alkyl_chain/` | 33 | seven or more CH2 in a row | 9-Nonadecene; 2-Tetradecene; Octyl formate |
 | `aliphatic_hydrocarbons/` | 89 | carbon and hydrogen only, and none of the classes above (no aromatic ring, no seven-CH2 chain) | 2-Nonene; Isoprene; Valencene |
 
+## Coverage of PlastChem
+
+Every entry of PlastChem v1.0 (17,932 in its full database) is in exactly one row of the first table, by the
+first rule that applies in the order `../scripts/plastchem_coverage.py` tries them. Past the PlastChem flags, the
+molecule judged is the one that would be computed: the entry's organic molecule in neutral form, so a salt or ion is
+its parent acid or base (as Zhou et al. 2026 modelled their PFAS salts) and water of hydration is dropped. Iodine
+counts as parameterized: openCOSMO-RS 24a lacks only its dispersion constant, which enters solvation free energies
+and not partitioning or miscibility.
+
+| Entries | Count | Rule |
+|---|---:|---|
+| Served | 7,444 | the release computed it (by PlastChem ID; by InChIKey only if PlastChem does not flag it a UVCB, polymer or mixture) |
+| Served as its parent | 200 | a salt, ion or hydrate whose neutral parent the release computed: it needs only an alias |
+| To compute | 1,983 | simulable, not yet computed: 1,887 structures |
+| Should not be computed | 1,942 | below |
+| Cannot be computed | 6,363 | below |
+
+| Cannot: no single molecule | Entries | Why |
+|---|---:|---|
+| no single structure | 3,667 | PlastChem flags it a UVCB, polymer or mixture; a SMILES it carries is usually a monomer or one component (PlastChem's own authors count these entries as not assessable as one structure) |
+| no structure | 2,554 | no SMILES |
+| several molecules | 135 | its SMILES lists different organic molecules (reaction products, adducts, salts of two organic ions), copies of one neutral molecule, or an organic molecule beside a neutral partner that is not a counter-ion (an ester written as alcohol and acid) |
+| unparsable | 7 | its SMILES does not parse |
+
+| Should not: outside openCOSMO-RS 24a or the recipe | Entries | Why |
+|---|---:|---|
+| inorganic | 991 | PlastChem's inorganic flag, or no organic molecule |
+| metal | 667 | PlastChem's organometallic flag, a metal bonded in the molecule, a salt of a metal other than Li, Na, K, Rb and Cs (metal soaps such as zinc stearate), or an organometallic written as ions. openCOSMO-RS 24a has no metal parameters, and a higher level of theory would not supply them: its parameters are fitted to BP86/def2-TZVPD surfaces |
+| permanent ion | 117 | still charged once neutralized (quaternary ammonium and the like) |
+| large and flexible | 87 | above 700 g/mol with more than 20 rotatable bonds: one conformer cannot represent it |
+| no parameters | 52 | an element without openCOSMO-RS 24a parameters: B, Ge, As, Se, Sb or Te |
+| radical | 18 | open-shell as written: nitroxide stabilizers such as Tempol, and hydrosilanes whose SMILES lacks the hydrogen on silicon; the recipe computes closed-shell molecules |
+| isotope-labelled | 10 | owner decision D-ISO: excluded, never mapped to the unlabelled compound |
+
+That leaves 9,627 simulable entries. The release serves 7,444 of them (77.3%) and 200 more through their parent (79.4%
+together); 95% needs 1,502 more entries. The 1,887 structures still to compute are 1,456 with sulfur, phosphorus or
+silicon (held back by every tier so far), 264 halogenated and 167 of C, H, N and O only; 515 are the neutral parents
+of salts and 334 are above 700 g/mol (rigid enough for one conformer). 116 already have surfaces whose partition and
+miscibility were not finished when the release was frozen, 9 were still running and 57 failed; the other 1,705 were
+never run: about 3,200 CPU-hours of ORCA by the campaign's cost fit (median 40 atoms with hydrogens; 77 above the 107
+atoms the fit was made on). The cheapest 1,409 structures, the unfinished ones first, reach 95% for about 880 ORCA
+CPU-hours.
+
+`../reports/plastchem-coverage-2026-10-08/PLASTCHEM_COVERAGE.tsv` has one row per PlastChem entry: its bucket and
+reason, and for the simulable ones the molecule that would be computed (InChIKey, SMILES, g/mol, atoms with hydrogens)
+and the release status; `summary.json` has the counts. Both are made by `../scripts/plastchem_coverage.py` from the
+census export of the PlastChem workbook and the served release (promotion-v3).
+
 ## How they were made
 
 - Quantum chemistry: ORCA 6.1.1. A gas-phase `OPT BP86 def2-TZVP(-f) TightSCF` optimisation, then `COSMORS(Water)`,
@@ -237,10 +287,11 @@ SMILES); the PBDE class is defined by formula in `classify_contaminants.py`.
   (azo pigments becoming hydrazones) were rejected and have no surface here.
 - Thermodynamics: openCOSMO-RS 24a at 298.15 K. The installed 24a class has no iodine dispersion parameter
   (tau_53); it enters only dG_solv, not the activity coefficients used for partitioning and LLE.
-- Publication-set surfaces of amendment A-12 (the PFAS acids the release lacks, DECA and TBBPA-dbP): the same
-  recipe, structures from PubChem by CAS and checked against PlastChem (the sulfonic acids hold sulfur, and four are
-  above 700 g/mol, both outside the release). Their partition and miscibility rows are in `../publication-sets/`, not
-  in DISSOLVE's served data, whose PFAS values are the paper's own COSMOtherm results.
+- Publication-set surfaces of amendment A-12 (the PFAS acids the release lacked, DECA and TBBPA-dbP): the same
+  recipe, structures from PubChem by CAS and checked against PlastChem. The sulfonic acids hold sulfur and four are
+  above 700 g/mol, so the campaign's own tiers had left them out. Since promotion-v3 (2026-10-08) DISSOLVE serves
+  their partition and miscibility rows with the rest of the release; they are also in `../publication-sets/`, and
+  DISSOLVE's workbook screens still hold the paper's own COSMOtherm values for its 26 PFAS and 8 phthalates.
 - Folders: `classify_contaminants.py` (inputs: `../inputs/publication_sets_zhou2026.json`,
   `../inputs/census/plastchem_db_v1.0_groups_functions.csv` and DISSOLVE's families and structure search).
 

@@ -8,6 +8,7 @@ import csv
 import json
 import os
 import sys
+import textwrap
 from pathlib import Path
 
 root = Path(sys.argv[1])
@@ -102,6 +103,74 @@ for name in order:
         class_lines.append(f"| `{name}/` | {count(f'structure-classes/{name}')} | {what[name]} | "
                            f"{examples(f'structure-classes/{name}')} |")
 
+# Coverage of PlastChem: the latest report of scripts/plastchem_coverage.py
+coverage_json = sorted((root / "reports").glob("plastchem-coverage-*/summary.json"))[-1]
+cov = json.loads(coverage_json.read_text())
+cov_dir = "../" + str(coverage_json.parent.relative_to(root))
+why = cov["reasons"]
+out = {"cannot": sum(n for k, n in why.items() if k.startswith("cannot:")),
+       "should not": sum(n for k, n in why.items() if k.startswith("should not:"))}
+parents = cov["buckets"]["served as its parent"]
+new_orca = cov["orca_new_structures"]
+route = cov["cheapest_route_to_95_percent"]
+cannot_rows = [
+    ("no single structure", "PlastChem flags it a UVCB, polymer or mixture; a SMILES it carries is usually a monomer or one "
+                            "component (PlastChem's own authors count these entries as not assessable as one structure)"),
+    ("no structure", "no SMILES"),
+    ("several molecules", "its SMILES lists different organic molecules (reaction products, adducts, salts of two organic "
+                          "ions), copies of one neutral molecule, or an organic molecule beside a neutral partner that is "
+                          "not a counter-ion (an ester written as alcohol and acid)"),
+    ("unparsable", "its SMILES does not parse"),
+]
+should_rows = [
+    ("inorganic", "PlastChem's inorganic flag, or no organic molecule"),
+    ("metal", "PlastChem's organometallic flag, a metal bonded in the molecule, a salt of a metal other than Li, Na, K, Rb "
+              "and Cs (metal soaps such as zinc stearate), or an organometallic written as ions. openCOSMO-RS 24a has no "
+              "metal parameters, and a higher level of theory would not supply them: its parameters are fitted to "
+              "BP86/def2-TZVPD surfaces"),
+    ("permanent ion", "still charged once neutralized (quaternary ammonium and the like)"),
+    ("large and flexible", "above 700 g/mol with more than 20 rotatable bonds: one conformer cannot represent it"),
+    ("no parameters", "an element without openCOSMO-RS 24a parameters: B, Ge, As, Se, Sb or Te"),
+    ("radical", "open-shell as written: nitroxide stabilizers such as Tempol, and hydrosilanes whose SMILES lacks the "
+                "hydrogen on silicon; the recipe computes closed-shell molecules"),
+    ("isotope-labelled", "owner decision D-ISO: excluded, never mapped to the unlabelled compound"),
+]
+coverage_lines = ["| Entries | Count | Rule |", "|---|---:|---|",
+                  f"| Served | {cov['buckets']['served']:,} | the release computed it (by PlastChem ID; by InChIKey only if "
+                  f"PlastChem does not flag it a UVCB, polymer or mixture) |",
+                  f"| Served as its parent | {parents:,} | a salt, ion or hydrate whose neutral parent the release "
+                  f"computed: it needs only an alias |",
+                  f"| To compute | {cov['buckets']['to compute']:,} | simulable, not yet computed: "
+                  f"{cov['structures_to_compute']:,} structures |",
+                  f"| Should not be computed | {out['should not']:,} | below |",
+                  f"| Cannot be computed | {out['cannot']:,} | below |",
+                  "", "| Cannot: no single molecule | Entries | Why |", "|---|---:|---|"]
+coverage_lines += [f"| {name} | {why.get('cannot: ' + name, 0):,} | {text} |" for name, text in cannot_rows]
+coverage_lines += ["", "| Should not: outside openCOSMO-RS 24a or the recipe | Entries | Why |", "|---|---:|---|"]
+coverage_lines += [f"| {name} | {why.get('should not: ' + name, 0):,} | {text} |" for name, text in should_rows]
+by_status = cov["structures_by_release_status"]
+by_elements = cov["structures_by_elements"]
+coverage_text = "\n\n".join(textwrap.fill(paragraph, 118) for paragraph in (
+    f"That leaves {cov['simulable']:,} simulable entries. The release serves {cov['buckets']['served']:,} of them "
+    f"({cov['served_share']:.1%}) and {parents:,} more through their parent ({cov['served_with_parents_share']:.1%} "
+    f"together); 95% needs {cov['entries_short_of_95_percent']:,} more entries. The {cov['structures_to_compute']:,} "
+    f"structures still to compute are {by_elements.get('S, P or Si', 0):,} with sulfur, phosphorus or silicon (held "
+    f"back by every tier so far), {by_elements.get('halogen', 0):,} halogenated and {by_elements.get('CHNO', 0):,} of "
+    f"C, H, N and O only; {cov['structures_as_parents']:,} are the neutral parents of salts and "
+    f"{cov['structures_above_700_g_mol']:,} are above 700 g/mol (rigid enough for one conformer). "
+    f"{by_status.get('thermodynamics_pending', 0)} already have surfaces whose partition and miscibility were not "
+    f"finished when the release was frozen, {by_status.get('running', 0)} were still running and "
+    f"{by_status.get('failed', 0)} failed; the other {new_orca:,} were never run: about "
+    f"{round(cov['orca_new_cpu_hours'], -2):,} CPU-hours of ORCA by the campaign's cost fit (median "
+    f"{cov['orca_new_atoms_median']} atoms with hydrogens; {cov['orca_new_above_107_atoms']} above the 107 atoms the "
+    f"fit was made on). The cheapest {route['structures']:,} structures, the unfinished ones first, reach 95% for "
+    f"about {round(route['orca_cpu_hours'], -1):,} ORCA CPU-hours.",
+    f"`{cov_dir}/PLASTCHEM_COVERAGE.tsv` has one row per PlastChem entry: its bucket and reason, and for the simulable "
+    f"ones the molecule that would be computed (InChIKey, SMILES, g/mol, atoms with hydrogens) and the release "
+    f"status; `summary.json` has the counts. Both are made by `../scripts/plastchem_coverage.py` from the census "
+    f"export of the PlastChem workbook and the served release ({cov['inputs']['release']}).",
+))
+
 other_hbcd = [row for row in classified if row["inchikey"].startswith("DEIGXXQKDWULML")
               and "publication-sets" not in row["folder"]]
 example = next(row for row in classified if row["inchikey"] == "BJQHLKABXJIVAM-UHFFFAOYSA-N")
@@ -112,7 +181,9 @@ Every ORCA/openCOSMO surface (`.orcacosmo`) behind the partition and miscibility
 2026-09-12/24 CHNO campaign and the halogen tier of amendment A-11 (2026-10-06/07), {len(released):,} contaminants:
 {v1:,} from the promotion-v1 cohort, {tier2_later} tier-2 CHNO structures (500-700 g/mol) that converged after it and
 {halogen:,} from the halogen tier (C, H, N and O with F, Cl, Br or I, up to 700 g/mol). Also {len(tier_files)}
-surfaces computed for the paper's compounds that the release does not hold (amendment A-12, see section 1).
+surfaces computed for the paper's compounds (amendment A-12, see section 1), which the release has served since
+promotion-v3 (2026-10-08). How much of PlastChem this covers, and what cannot or should not be computed, is in
+[Coverage of PlastChem](#coverage-of-plastchem).
 
 ## Layout
 
@@ -203,6 +274,19 @@ SMILES); the PBDE class is defined by formula in `classify_contaminants.py`.
 
 {chr(10).join(class_lines)}
 
+## Coverage of PlastChem
+
+Every entry of PlastChem v1.0 ({cov['entries']:,} in its full database) is in exactly one row of the first table, by the
+first rule that applies in the order `../scripts/plastchem_coverage.py` tries them. Past the PlastChem flags, the
+molecule judged is the one that would be computed: the entry's organic molecule in neutral form, so a salt or ion is
+its parent acid or base (as Zhou et al. 2026 modelled their PFAS salts) and water of hydration is dropped. Iodine
+counts as parameterized: openCOSMO-RS 24a lacks only its dispersion constant, which enters solvation free energies
+and not partitioning or miscibility.
+
+{chr(10).join(coverage_lines)}
+
+{coverage_text}
+
 ## How they were made
 
 - Quantum chemistry: ORCA 6.1.1. A gas-phase `OPT BP86 def2-TZVP(-f) TightSCF` optimisation, then `COSMORS(Water)`,
@@ -212,10 +296,11 @@ SMILES); the PBDE class is defined by formula in `classify_contaminants.py`.
   (azo pigments becoming hydrazones) were rejected and have no surface here.
 - Thermodynamics: openCOSMO-RS 24a at 298.15 K. The installed 24a class has no iodine dispersion parameter
   (tau_53); it enters only dG_solv, not the activity coefficients used for partitioning and LLE.
-- Publication-set surfaces of amendment A-12 (the PFAS acids the release lacks, DECA and TBBPA-dbP): the same
-  recipe, structures from PubChem by CAS and checked against PlastChem (the sulfonic acids hold sulfur, and four are
-  above 700 g/mol, both outside the release). Their partition and miscibility rows are in `../publication-sets/`, not
-  in DISSOLVE's served data, whose PFAS values are the paper's own COSMOtherm results.
+- Publication-set surfaces of amendment A-12 (the PFAS acids the release lacked, DECA and TBBPA-dbP): the same
+  recipe, structures from PubChem by CAS and checked against PlastChem. The sulfonic acids hold sulfur and four are
+  above 700 g/mol, so the campaign's own tiers had left them out. Since promotion-v3 (2026-10-08) DISSOLVE serves
+  their partition and miscibility rows with the rest of the release; they are also in `../publication-sets/`, and
+  DISSOLVE's workbook screens still hold the paper's own COSMOtherm values for its 26 PFAS and 8 phthalates.
 - Folders: `classify_contaminants.py` (inputs: `../inputs/publication_sets_zhou2026.json`,
   `../inputs/census/plastchem_db_v1.0_groups_functions.csv` and DISSOLVE's families and structure search).
 

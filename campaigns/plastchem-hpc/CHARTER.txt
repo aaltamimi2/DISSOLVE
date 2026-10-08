@@ -961,3 +961,169 @@ wrong. Owner chose "Neutral acids", and: "dont committ these anions". Done: 14 n
 thermodynamics batch p02 with LLE. NH4TetraFPt is TFPA's release surface under its own label. The 24 anion runs (job
 77437) and their partition rows (p00, p01) stay in campaign storage only; the branch's publication commits that held
 them were rewritten (old head 90e577e9 kept as a local tag and an R: bundle) to 8225ffbf and da1b1b47.
+
+AMENDMENT A-13 (2026-10-08, orchestrator, OWNER-REQUESTED) — COVERAGE CAMPAIGN: 95%+ OF THE SIMULABLE PLASTCHEM
+ENTRIES, LIGHTEST FIRST, RELEASED IN BATCHES TO THE LIVE APP
+
+Owner, 2026-10-08: "decide what we literally cant (no structure) or shouldnt simulate at all. then of the ones that
+can be simulated we want to hit 95% coverage", then: "hand the computation off to another opus 5.5 max effort session
+... inform it of the 95+% coverage goal. explain how we've done these calculations on euler etc. tell it to go from
+lowest to highest MW. anytime a contaminant finishes, tell it to push to github and redeploy the frontend so the
+number card on contaminant button updates and so that this contaminant count is accurate (you decide if it makes more
+sense to only push and redeploy in batches e.g., 5 or 10 finished). it may also need to update families so these new
+contaminants can be organized correctly ... it must follow your same structure for commiting the contaminants (i.e.
+full name etc) it must also use your same procedure for orca + opencosmo (i.e. low energy conformers)."
+
+0. Lane. A separate Claude Code session (Opus 5.5, max effort), tmux session claude-contam-coverage, working
+   directory ~/plastchem-euler, runs this amendment end to end and is called "the coverage lane" below. It owns:
+   arrays contam-coverage-* on Euler and ~/plastchem-euler/coverage-v1 there; state/coverage-v1 and
+   reports/coverage-v1 here; /mnt/r/plastchem-euler/coverage-thermo-v1 and promotion-v4 onward on R:; and, for the
+   campaign's duration, every DISSOLVE commit that carries a contaminant release (the asset, the families, the
+   campaign folder, the tests those touch, the frontend count). While state/coverage-v1/COMMIT_WINDOW exists the lane
+   is inside a commit-sync-deploy sequence and no other session commits to ~/dissolve-main-cleanup or
+   ~/dissolve-main-cleanup-frontend.
+
+1. What counts (the triage of 2026-10-08, scripts/plastchem_coverage.py; its docstring is the rule set; report in
+   reports/plastchem-coverage-2026-10-08 and in DISSOLVE campaigns/plastchem-hpc/reports/, README section "Coverage of
+   PlastChem" of opencosmo-outputs). Of 17,932 PlastChem v1.0 entries: cannot 6,363 (3,667 UVCB/polymer/mixture, equal
+   to PlastChem's published count; 2,554 without SMILES; 135 listing several molecules; 7 unparsable); should not
+   1,942 (991 inorganic, 667 metal, 117 permanent ions, 87 above 700 g/mol with > 20 rotatable bonds, 52 B/Ge/As/Se/
+   Sb/Te, 18 radicals, 10 isotope-labelled). Simulable 9,627 = served 7,444 + served through a computed neutral parent
+   200 + to compute 1,983 entries (1,887 structures). The owner quoted "Simulable 11,512": that was the orchestrator's
+   first pass, which counted the 1,070 UVCB/polymer/mixture entries that carry a monomer's SMILES, polyvalent-metal
+   soaps as their parent acids and esters written as their reactants. 9,627 is the corrected set; the lane does not
+   change the rules without the owner.
+   Goal: at least 95% of the simulable entries served, directly or through an alias to their computed neutral parent:
+   9,146 entries, 1,502 more than promotion-v3. Then continue down the list to its end unless the owner stops it.
+
+2. Inputs (pinned, read-only; built by scripts/build_coverage_worklist.py from the triage's PLASTCHEM_COVERAGE.tsv):
+   inputs/plastchem_coverage_a13_worklist.csv
+     sha256 40b4ca4ef3237e7947dfd77beab339a0acca5beb4fb732b135b0f8ce228683e2. 1,887 structures in the owner's order,
+     molecular weight ascending (48.1 to 1,598.4 g/mol), then atoms, then InChIKey. Per row: the neutral species to
+     compute (InChIKey, SMILES), g/mol, atoms with H, elements, kind (S, P or Si 1,456; halogen 264; CHNO 167), the
+     release status of structures promotion-v3 lists but has not computed (116 thermodynamics_pending, 9 running,
+     57 failed; 1,705 never run), the PlastChem entries it serves (served_entries_direct, served_entries_as_parent),
+     a name (505 rows need the neutral parent's PubChem name by InChIKey), PlastChem groups, and the families it
+     would join (families_existing by DISSOLVE's specs, families_proposed below).
+   inputs/plastchem_coverage_a13_parent_aliases.csv
+     sha256 5466119e66c53f997912d23e4e562b0c8547b948f159a7cc15c25dda724a543c. 200 entries whose neutral parent is
+     already computed: they need only an alias (name and CAS to the parent's row).
+   In this order, 95% is crossed at row 1,420 (623.5 g/mol) if every row converges, about 1,320 ORCA CPU-hours by the
+   campaign fit; the whole list is about 3,400.
+
+3. Recipe: the frozen 24a recipe, unchanged (A-4, A-11 item 2, A-12 item 3). RDKit ETKDGv3, random seed 12345, up to
+   300 conformers (pruneRmsThresh 0.5), MMFF94 minimisation (maxIters 2000), the lowest-MMFF-energy conformer to DFT
+   (one conformer; no force-field substitution: a molecule MMFF94 cannot type fails as mmff_parameters_unavailable).
+   ORCA 6.1.1, serial: "! OPT BP86 def2-TZVP(-f) TightSCF", %maxcore 1500, neutral singlet "* xyz 0 1"; then
+   "! COSMORS(Water)", whose solute step writes the .orcacosmo surface (BP86/def2-TZVPD). Identity by D-IDENT: the
+   optimised geometry's connectivity must match the input (no stereo requirement), recorded with the perceived key.
+   Thermodynamics: openCOSMO-RS 24a at 298.15 K, the 32-solvent panel x the 10 converged polymer ensembles (EVOH,
+   nylon 6, nylon 6,6, PC, PE, PET, PP, PS, PVC, PVDF), both conventions, and binary LLE (RT and high), with the
+   supplement workers whose reproduction matched promotion-v1 to 1e-15 (scripts/newcontam_thermo.py).
+   Templates, end to end: the halogen tier (build_halogen_inputs.py, prepare_halogen.py, stage_halogen.py,
+   halogen.sbatch, halogen_runner.py, submit_halogen_remote.py, watch_halogen.py, collect_halogen_remote.py,
+   halogen_retry.py, summarize_halogen.py) and the publication tier (build_publication_inputs.py, prepare_publication.py,
+   stage_publication.py, publication.sbatch, publication_runner.py, collect_publication.py). Copy them to coverage
+   versions; do not edit the frozen tiers' scripts.
+   S, P and Si enter the campaign's own tiers for the first time (S only through A-12's PFAS acids so far):
+   openCOSMORS24a has tau for S, P and Si, def2-TZVP covers them, MMFF94 types them. Any change of method (functional,
+   basis, conformer count, conformer choice, solvation, identity rule, charge) needs the owner. Resource changes for
+   large molecules (memory, walltime) are allowed and recorded per row.
+
+4. Execution on Euler (euler.engr.wisc.edu, ssh alias "euler", remote root /srv/home/aaltamimi2/plastchem-euler):
+   arrays contam-coverage-cNN in work-list order: --partition=research --constraint=milan&cpu
+   --exclude=euler09,euler10, 1 node, 1 task, 1 CPU, --mem=4G (raise only after an out-of-memory failure, by row),
+   --time=72:00:00, --signal=B:USR1@120, --no-requeue; the runner refuses a non-AMD-EPYC or non-AVX2 node. ORCA runs
+   on Milan only. Thermodynamics may run on genoa&cpu (A-9 note: Genoa matched Milan to 1e-9 with identical
+   verdicts). The campaign's shared cap is 64 running jobs (ORCA plus thermodynamics; newcontam_thermo.py throttles
+   thermodynamics to 8 so ORCA keeps 56). Other projects of the same account also use Euler (the titania UCST lane);
+   count only this campaign's jobs against 64, read squeue before every submission, and report if the scheduler's own
+   limits bind. Every ssh/scp goes through scripts/euler_transport.py (multiplexed, persistent backoff); end ad-hoc
+   remote commands with "; true" so an expected nonzero exit does not trip the backoff. Copies to R: use scp, never
+   rsync. Watchers still running from earlier phases (watch_phase83.py, watch_chunk_release.py,
+   watch_research_capacity.py, watch_halogen.py) are not stopped without the owner; watch_phase83.py rewrites
+   reports/phase83-2026-09-23/*.md, so never commit those two files.
+
+5. Order and first steps.
+   a. Harvest first (no ORCA needed): the 116 thermodynamics_pending and 9 running halogen rows of the A-11 freeze;
+      check their state on Euler and run their thermodynamics.
+   b. Then submit strictly in work-list order, lightest first, in chunks of about 100 rows.
+   c. Gate G1 after the first 100 new rows converge, before releasing the rest: failure rate (D-IDENT rejections are
+      results, not failures) at most 10%; cost per structure against the fit, refit with the CPU model named, and the
+      projection for the whole list at most 6,000 ORCA CPU-hours; octanol-water logP of the new S, P and Si structures
+      against measured values (the campaign's CompTox experimental set, as in the CHNO parity plots) with RMSE and bias
+      reported beside the CHNO campaign's. Stop and report to the owner if any of these fails, or if the S, P or Si
+      RMSE is above 1.5 times the CHNO value or its mean bias is above 1 log unit.
+   d. Failed rows of earlier tiers (57): retry once, unchanged recipe, only scheduler_signal_* and walltime_censored;
+      inspect ValueError and geometry_nonconvergence before any retry; return_integrity_or_connectivity (D-IDENT) and
+      mmff_parameters_unavailable are final results.
+
+6. Release cadence (orchestrator's decision on the owner's "5 or 10"): a release when at least 100 new contaminants
+   are complete (surface accepted, all 320 partition and 64 LLE rows), or when 24 hours have passed since the last
+   release and at least 10 are complete; also at the 95% crossing and at the end. Reason: every release re-commits
+   DISSOLVE's 46 MB asset, so releases of 10 would add about 190 copies of it to git history (gigabytes) and cost a
+   6-minute suite and a 3-5 minute deploy each; about 20 releases keep the count current within a day.
+
+7. Each release, in order:
+   a. Release promotion-vN on R: (v4 first; never overwrite one), cumulative: the previous release unchanged plus the
+      new complete structures, same schema and manifest (contaminants.csv.gz, partition.parquet, binary-lle.parquet,
+      polymer-product-map.csv, manifest.json with sha256 and status complete), tier "coverage". Generalise
+      build_promotion_v3.py rather than editing it. Each row's plastchem_id lists every PlastChem entry it serves
+      (direct and as parent).
+   b. Names, the A-11 rule: a contaminant's own name (its PlastChem/PubChem name; a neutral parent with no PlastChem
+      entry of its own takes PubChem's name for its InChIKey, cached under inputs/ like A-12's PubChem cache); a salt
+      or ion is named as its parent (tier_name in classify_contaminants.py), and the salts' names and CAS numbers
+      become aliases. Aliases: the 200 of the parent-alias input go in with the first release, later salts with their
+      parent. Generalise promote_opencosmo_release's publication-labels.csv reading so a release can carry these
+      aliases, with the same refusals (unknown InChIKey; an alias that would also name another contaminant) and tests.
+   c. DISSOLVE (load the dissolve-commit-sync skill first and follow it): python -m dissolve.plastchem_release
+      /mnt/r/plastchem-euler/promotion-vN; python -m dissolve.plastchem_release --families <the pinned workbook>
+      (~/dissolve-v12-builder-1/plastchem-contaminants/plastchem_db_v1.0.xlsx, sha256 df4ccad3...); the coverage
+      report again (campaigns/plastchem-hpc/scripts/plastchem_coverage.py ASSET reports/plastchem-coverage-DATE) and
+      the READMEs (opencosmo-outputs/write_readmes.py campaigns/plastchem-hpc).
+   d. Archives, the same structure (A-11 item 7; owner: "same structure ... full name"): every new contaminant's
+      surface and ORCA run folder named by contaminant_folder_names.py and filed by classify_contaminants.py
+      (publication set > agent family > PlastChem group > structure class > no-family), with MANIFEST.tsv,
+      CLASSIFICATION.tsv and SHA256SUMS rows and verify_orca_archive.py clean (never a licensed COSMObase/COSMOtherm
+      starting geometry). Each release is its own archive set (new .tar.xz parts named for the release, 95 MB split);
+      the existing parts are never rewritten. The READMEs' Reassemble sections say how to unpack every set.
+   e. Tests: update every test that pins release facts (counts; "sulfur finds 11"; "phosphorus is the element the
+      release lacks"; scope_note; family sizes) to the new truth, with a counterfactual wherever behaviour changes;
+      the full suite passes ("N passed, 2 skipped", audit 0, home writes 0).
+   f. Commit to main (explicit paths, no attribution trailers), ~/bin/dissolve-sync; then the card: the blurb in
+      ~/dissolve-main-cleanup-frontend/web/src/content.ts ("Leaching of 7,176 plastic additives and contaminants ...")
+      carries the asset's computed count; build, tests/test_web.py, commit, dissolve-sync; deploy_watch.sh until
+      ACTIVE; one livecheck.py question that names a contaminant of this release. Making the card read the count from
+      the server instead is allowed (Procedure B, screenshots) if it stays exact.
+   g. Mirror the campaign's new scripts, inputs and this charter into DISSOLVE campaigns/plastchem-hpc (as 03d54178).
+
+8. Families (orchestrator's guardrails; projections in the work list's two family columns).
+   a. Existing families gain members on rebuild: Antioxidants +71 (phosphites, thioesters), UV stabilizers +11,
+      Bisphenols +6 (BPS and thio-bisphenols), Alkylphenols +6, Phthalates +2, Aromatic amines +1, Benzophenones +1.
+   b. build_families matches only an entry's own InChIKey and evaluates SMARTS only on single-fragment SMILES, so a
+      salt served through its parent joins no family. Map entries to served rows by PlastChem ID (the release's
+      plastchem_id lists) and evaluate the SMARTS on the served structure; test it with a salt.
+   c. New families, PlastChem-group based like most existing ones: Organophosphates (group organophosphates; 220 of
+      the list), Siloxanes and silanes (silanes_siloxanes_silicones; 246), Benzothiazoles (benzothiazole; 17), Azo dyes
+      (azodyes; 51). Add each to _FAMILY_SPECS once three of its members are computed and named (they are its
+      examples; the builder refuses an example that is not a member and an alias that names a contaminant). The
+      archive's agent-families folders follow.
+   d. PFAS (group PFASs; 97 of the list, and every PFAS already served): owner decision first. A release PFAS family
+      would replace the workbook PFAS family in family questions (src/dissolve/contaminants.py, the families table
+      near line 1814), so "PFAS" questions would be answered from openCOSMO-RS rows instead of the paper's
+      COSMOtherm workbook.
+   e. The other 1,216 structures join no family; the archive files them by PlastChem group or structure class.
+
+9. Reporting and stops. state/coverage-v1/STATUS.json after every step (counts by stage: harvested, submitted,
+   running, converged, failed, rejected, thermodynamics done, released; coverage % of 9,627; ORCA CPU-hours used and
+   projected; last release, commits and deploy; next action; blockers). A dated A-13 NOTE in this charter for every
+   gate, decision and release. Stop and ask the owner in the session at: G1 failing, a projection above 6,000 ORCA
+   CPU-hours, any method change, any deletion of results or history, the PFAS family, the 95% crossing (report, then
+   continue), and the end.
+
+10. Rules that stand (owner and campaign): no attribution trailers in DISSOLVE commits; push only through
+    ~/bin/dissolve-sync, never force main or main-backup, never push ~/plastchem-euler; stage explicit paths only; no
+    bare git stash; no pkill -f; one heavy local job at a time (suite, release build, collection; a BioSTEAM TEA run
+    is guarded and must not overlap); never print the site password, tokens or the check account's password; nothing
+    from COSMObase/COSMOtherm in git; D-ISO: isotope-labelled entries stay excluded; scp not rsync for R:; keep the
+    Euler cap; never stop another session or watcher without the owner.

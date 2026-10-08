@@ -1,0 +1,201 @@
+plastchem_id,name,cas,form,parent_inchikey,parent_smiles
+221,Potassium laurate,10124-65-9,salt,POULHZVOKOAJMA-UHFFFAOYSA-N,CCCCCCCCCCCC(=O)O
+262,Monosodium dichlorophene,10187-52-7,salt,MDNWOSOZYLHTCG-UHFFFAOYSA-N,Oc1ccc(Cl)cc1Cc1cc(Cl)ccc1O
+471,Tetrasodium ethylenediaminetetraacetate dihydrate,10378-23-1,salt,KCXVZYZYPLLWCC-UHFFFAOYSA-N,O=C(O)CN(CCN(CC(=O)O)CC(=O)O)CC(=O)O
+910,Perfluorohexanesulfonate,108427-53-8,ion,QZHDEAJFRJCDMF-UHFFFAOYSA-N,O=S(=O)(O)C(F)(F)C(F)(F)C(F)(F)C(F)(F)C(F)(F)C(F)(F)F
+1552,Sodium perfluoro-2-ethylhexanoate,1195164-59-0,salt,NJLCWERAEIXEIB-UHFFFAOYSA-N,O=C(O)C(F)(C(F)(F)C(F)(F)F)C(F)(F)C(F)(F)C(F)(F)C(F)(F)F
+2098,Potassium Acetate,127-08-2,salt,QTBSBXVTEAMEQO-UHFFFAOYSA-N,CC(=O)O
+2099,Sodium Acetate,127-09-3,salt,QTBSBXVTEAMEQO-UHFFFAOYSA-N,CC(=O)O
+2247,Ammonium perfluoro-2-ethylhexanoate,13058-06-5,salt,NJLCWERAEIXEIB-UHFFFAOYSA-N,O=C(O)C(F)(C(F)(F)C(F)(F)F)C(F)(F)C(F)(F)C(F)(F)C(F)(F)F
+2258,Pentetate trisodium,13078-36-9,salt,QPCDCPDFJACHGM-UHFFFAOYSA-N,O=C(O)CN(CCN(CC(=O)O)CC(=O)O)CCN(CC(=O)O)CC(=O)O
+2273,Potassium malonate,13095-67-5,salt,OFOBLEOULBTSOW-UHFFFAOYSA-N,O=C(O)CC(=O)O
+2280,Sodium pentachlorophenate,131-52-2,salt,IZUPBVBPLAPZRR-UHFFFAOYSA-N,Oc1c(Cl)c(Cl)c(Cl)c(Cl)c1Cl
+2386,"Sodium [1,1'-biphenyl]-2-olate",132-27-4,salt,LLEMOWNGBBNAJR-UHFFFAOYSA-N,Oc1ccccc1-c1ccccc1
+2432,Lithium methacrylate,13234-23-6,salt,CERQOIWHTDAKMF-UHFFFAOYSA-N,C=C(C)C(=O)O
+2433,Tetrasodium ethylenediaminetetraacetate tetrahydrate,13235-36-4,salt,KCXVZYZYPLLWCC-UHFFFAOYSA-N,O=C(O)CN(CCN(CC(=O)O)CC(=O)O)CC(=O)O
+2503,Sodium 12-hydroxyoctadecanoate,13329-67-4,salt,ULQISTXYYBZJSJ-UHFFFAOYSA-N,CCCCCCC(O)CCCCCCCCCCC(=O)O
+2537,"1,2,3-Propanetricarboxylic acid, 2-hydroxy-, octadecyl ester",1337-33-3,ion,REVZBRXEBPWDRA-UHFFFAOYSA-N,CCCCCCCCCCCCCCCCCCOC(=O)CC(O)(CC(=O)O)C(=O)O
+2561,O-Anisidine hydrochloride,134-29-2,salt,VMPITZXILSNTON-UHFFFAOYSA-N,COc1ccccc1N
+2698,"4,4'-Methylenedianiline dihydrochloride",13552-44-8,salt,YBRVSVVVWCFQMG-UHFFFAOYSA-N,Nc1ccc(Cc2ccc(N)cc2)cc1
+2733,5-Amino-1H-tetrazole potassium salt,136369-04-5,salt,ULRPISSMEBPJLN-UHFFFAOYSA-N,Nc1nnn[nH]1
+2755,Sodium N-lauroylsarcosinate,137-16-6,salt,BACYUWVYYTXETD-UHFFFAOYSA-N,CCCCCCCCCCCC(=O)N(C)CC(=O)O
+2762,Sodium propionate,137-40-6,salt,XBDQKXXYIPTUBI-UHFFFAOYSA-N,CCC(=O)O
+2771,o-Phenylphenol potassium salt,13707-65-8,salt,LLEMOWNGBBNAJR-UHFFFAOYSA-N,Oc1ccccc1-c1ccccc1
+2818,Aminobenzoate potassium,138-84-1,salt,ALYNCZNDIQEVRV-UHFFFAOYSA-N,Nc1ccc(C(=O)O)cc1
+2868,EDTA disodium salt,139-33-3,salt,KCXVZYZYPLLWCC-UHFFFAOYSA-N,O=C(O)CN(CCN(CC(=O)O)CC(=O)O)CC(=O)O
+2876,Trisodium HEDTA,139-89-9,salt,URDCARMUOSMFFI-UHFFFAOYSA-N,O=C(O)CN(CCO)CCN(CC(=O)O)CC(=O)O
+2916,Pentasodium diethylenetriaminepentaacetate,140-01-2,salt,QPCDCPDFJACHGM-UHFFFAOYSA-N,O=C(O)CN(CCN(CC(=O)O)CC(=O)O)CCN(CC(=O)O)CC(=O)O
+2981,Sodium formate,141-53-7,salt,BDAGIHXWWSANSR-UHFFFAOYSA-N,O=CO
+3011,Aniline hydrochloride,142-04-1,salt,PAYRUJLWNCNPSJ-UHFFFAOYSA-N,Nc1ccccc1
+3076,Potassium oleate,143-18-0,salt,ZQPPMHVWECSIRJ-KTKRTIGZSA-N,CCCCCCCC/C=C\CCCCCCCC(=O)O
+3077,Sodium Oleate,143-19-1,salt,ZQPPMHVWECSIRJ-KTKRTIGZSA-N,CCCCCCCC/C=C\CCCCCCCC(=O)O
+3099,Abietic Acid Sodium Salt,14351-66-7,salt,RSWGJHLUYNHPMX-UHFFFAOYSA-N,CC(C)C1=CC2=CCC3C(C)(C(=O)O)CCCC3(C)C2CC1
+3113,"1,2,3-Propanetricarboxylic acid, 2-hydroxy-, disodium salt",144-33-2,salt,KRKNYBCHXYNGOX-UHFFFAOYSA-N,O=C(O)CC(O)(CC(=O)O)C(=O)O
+3282,"1,2-Ethanediamine, phosphate",14852-17-6,salt,PIICEJLVQHRZGT-UHFFFAOYSA-N,NCCN
+3333,Edetate trisodium,150-38-9,salt,KCXVZYZYPLLWCC-UHFFFAOYSA-N,O=C(O)CN(CCN(CC(=O)O)CC(=O)O)CC(=O)O
+3340,Sodium Succinate,150-90-3,salt,KDYFGRWQOYBRFD-UHFFFAOYSA-N,O=C(O)CCC(=O)O
+3404,"1H-Benzotriazole, sodium salt",15217-42-2,salt,QRUDEWIWKLJBPS-UHFFFAOYSA-N,c1ccc2[nH]nnc2c1
+3460,Lithium ricinoleate,15467-06-8,salt,WBHHMMIMDMUBKC-QJWNTBNXSA-N,CCCCCC[C@@H](O)C/C=C\CCCCCCCC(=O)O
+3479,Melamine pyrophosphate,15541-60-3,salt,JDSHMPZPIAZGSV-UHFFFAOYSA-N,Nc1nc(N)nc(N)n1
+3564,Sodium p-chloro-m-cresolate,15733-22-9,salt,CFKMVGJGLGKFKI-UHFFFAOYSA-N,Cc1cc(O)ccc1Cl
+3569,Potassium glycinate,15743-44-9,salt,DHMQDGOQFOQNFH-UHFFFAOYSA-N,NCC(=O)O
+3641,Ethylenediaminetetraacetic acid triammonium salt,15934-01-7,salt,KCXVZYZYPLLWCC-UHFFFAOYSA-N,O=C(O)CN(CCN(CC(=O)O)CC(=O)O)CC(=O)O
+3649,Disodium phthalate,15968-01-1,salt,XNGIFLGASWRNHJ-UHFFFAOYSA-N,O=C(O)c1ccccc1C(=O)O
+3864,Ammonium myristate,16530-71-5,salt,TUNFSRHWOTWDNC-UHFFFAOYSA-N,CCCCCCCCCCCCCC(=O)O
+3874,Lithium octanoate,16577-52-9,salt,WWZKQHOCKIZLMA-UHFFFAOYSA-N,CCCCCCCC(=O)O
+3916,Lithium heptanoate,16761-13-0,salt,MNWFXJYAOYHMED-UHFFFAOYSA-N,CCCCCCC(=O)O
+4035,Disodium sebacate,17265-14-4,salt,CXMXRPHRNRROMY-UHFFFAOYSA-N,O=C(O)CCCCCCCCC(=O)O
+4102,Monosodium ethylenediaminetetraacetate,17421-79-3,salt,KCXVZYZYPLLWCC-UHFFFAOYSA-N,O=C(O)CN(CCN(CC(=O)O)CC(=O)O)CC(=O)O
+4137,Edetate tripotassium,17572-97-3,salt,KCXVZYZYPLLWCC-UHFFFAOYSA-N,O=C(O)CN(CCN(CC(=O)O)CC(=O)O)CC(=O)O
+4225,Sodium perfluoro-6-methylheptanoate,18017-22-6,salt,KPBOPOXIOBBZTR-UHFFFAOYSA-N,O=C(O)C(F)(F)C(F)(F)C(F)(F)C(F)(F)C(F)(C(F)(F)F)C(F)(F)F
+4311,Methacrylate,18358-13-9,ion,CERQOIWHTDAKMF-UHFFFAOYSA-N,C=C(C)C(=O)O
+4316,Octadecylamine hydrochloride,1838-08-0,salt,REYJJPSVUYRZGE-UHFFFAOYSA-N,CCCCCCCCCCCCCCCCCCN
+4368,Ammonium Benzoate,1863-63-4,salt,WPYMKLBDIGXBTP-UHFFFAOYSA-N,O=C(O)c1ccccc1
+4484,Monosodium citrate,18996-35-5,salt,KRKNYBCHXYNGOX-UHFFFAOYSA-N,O=C(O)CC(O)(CC(=O)O)C(=O)O
+4613,Ammonium perfluoro-6-methylheptanoate,19742-57-5,salt,KPBOPOXIOBBZTR-UHFFFAOYSA-N,O=C(O)C(F)(F)C(F)(F)C(F)(F)C(F)(F)C(F)(C(F)(F)F)C(F)(F)F
+4616,Sodium 2-ethylhexanoate,19766-89-3,salt,OBETXYAYXDNJHR-UHFFFAOYSA-N,CCCCC(CC)C(=O)O
+4639,Sodium Caprylate,1984-06-1,salt,WWZKQHOCKIZLMA-UHFFFAOYSA-N,CCCCCCCC(=O)O
+4663,"Glycine, N,N'-1,2-ethanediylbis[N-(carboxymethyl)-, dipotassium salt",2001-94-7,salt,KCXVZYZYPLLWCC-UHFFFAOYSA-N,O=C(O)CN(CCN(CC(=O)O)CC(=O)O)CC(=O)O
+4693,"1,3,5-Triazine-2,4,6-triamine, phosphate",20208-95-1,salt,JDSHMPZPIAZGSV-UHFFFAOYSA-N,Nc1nc(N)nc(N)n1
+4727,Lithium decanoate,20336-95-2,salt,GHVNFZFCNZKVNT-UHFFFAOYSA-N,CCCCCCCCCC(=O)O
+4728,Lithium myristate,20336-96-3,salt,TUNFSRHWOTWDNC-UHFFFAOYSA-N,CCCCCCCCCCCCCC(=O)O
+4757,Lithium palmitate,20466-33-5,salt,IPCSVZSSVZVIGE-UHFFFAOYSA-N,CCCCCCCCCCCCCCCC(=O)O
+4812,Glycine sodium salt hydrate,207300-76-3,salt,DHMQDGOQFOQNFH-UHFFFAOYSA-N,NCC(=O)O
+4814,"Ethanol, 2-amino-, nitrate (salt)",20748-72-5,salt,HZAXFHJVJLSVMW-UHFFFAOYSA-N,NCCO
+4832,"Glycine, N,N'-1,2-ethanediylbis[N-(carboxymethyl)-, diammonium salt",20824-56-0,salt,KCXVZYZYPLLWCC-UHFFFAOYSA-N,O=C(O)CN(CCN(CC(=O)O)CC(=O)O)CC(=O)O
+4892,4-Biphenylamine hydrochloride,2113-61-3,salt,DMVOXQPQNTYEKQ-UHFFFAOYSA-N,Nc1ccc(-c2ccccc2)cc1
+4894,Benzidine sulfate,21136-70-9,salt,HFACYLZERDEVSX-UHFFFAOYSA-N,Nc1ccc(-c2ccc(N)cc2)cc1
+4908,"2H-Azepin-2-one, hexahydro-, sodium salt",2123-24-2,salt,JBKVHLHDHHXQEQ-UHFFFAOYSA-N,O=C1CCCCCN1
+4977,Ammonium undecafluorohexanoate,21615-47-4,salt,PXUULQAPEKKVAH-UHFFFAOYSA-N,O=C(O)C(F)(F)C(F)(F)C(F)(F)C(F)(F)C(F)(F)F
+5029,"1,3,5-Triazine-2,4,6-triamine, phosphate",218768-84-4,salt,JDSHMPZPIAZGSV-UHFFFAOYSA-N,Nc1nc(N)nc(N)n1
+5140,"1,3,5-Triazine-2,4,6(1H,3H,5H)-trione, 1,3-dichloro-, potassium salt",2244-21-5,salt,CEJLBZWIKQJOAT-UHFFFAOYSA-N,O=c1nc(O)n(Cl)c(=O)n1Cl
+5148,Tetraammonium ethylenediaminetetraacetate,22473-78-5,salt,KCXVZYZYPLLWCC-UHFFFAOYSA-N,O=C(O)CN(CCN(CC(=O)O)CC(=O)O)CC(=O)O
+5206,"Benzenamine, 2-methyl-4-[(2-methylphenyl)azo]-, monohydrochloride",2298-13-7,salt,PFRYFZZSECNQOL-UHFFFAOYSA-N,Cc1cc(N=Nc2ccccc2C)ccc1N
+5239,Potassium abietate,23250-44-4,salt,RSWGJHLUYNHPMX-UHFFFAOYSA-N,CC(C)C1=CC2=CCC3C(C)(C(=O)O)CCCC3(C)C2CC1
+5343,Potassium perfluorooctanoate,2395-00-8,salt,SNGREZUHAYWORS-UHFFFAOYSA-N,O=C(O)C(F)(F)C(F)(F)C(F)(F)C(F)(F)C(F)(F)C(F)(F)C(F)(F)F
+5424,Ammonium laurate,2437-23-2,salt,POULHZVOKOAJMA-UHFFFAOYSA-N,CCCCCCCCCCCC(=O)O
+5448,"Phenol, 4,4'-(1-methylethylidene)bis-, disodium salt",2444-90-8,salt,IISBACLAFKSPIT-UHFFFAOYSA-N,CC(C)(c1ccc(O)cc1)c1ccc(O)cc1
+5490,Potassium Sorbate,24634-61-5,salt,WSWCOQWTEOXDQX-MQQKCMAXSA-N,C/C=C/C=C/C(=O)O
+5493,Auramine O,2465-27-2,salt,JPIYZTWMUGTEHX-UHFFFAOYSA-N,CN(C)c1ccc(C(=N)c2ccc(N(C)C)cc2)cc1
+5916,Potassium;prop-2-enoate;prop-2-enoic acid,25608-12-2,salt,NIXOWILDQLNWCW-UHFFFAOYSA-N,C=CC(=O)O
+6149,Sodium cyanurate,2624-17-1,salt,ZFSLODLOARCGLH-UHFFFAOYSA-N,O=c1[nH]c(=O)[nH]c(=O)[nH]1
+6416,Sodium glyoxylate,2706-75-4,salt,HHLFWLYXYJOTON-UHFFFAOYSA-N,O=CC(=O)O
+6601,Potassium perfluorooctanesulfonate,2795-39-3,salt,YFSUTJLHUFNCNZ-UHFFFAOYSA-N,O=S(=O)(O)C(F)(F)C(F)(F)C(F)(F)C(F)(F)C(F)(F)C(F)(F)C(F)(F)C(F)(F)F
+6637,Sodium dehydroabietate,28161-39-9,salt,NFWKVWVWBFBAOV-MISYRCLQSA-N,CC(C)c1ccc2c(c1)CC[C@H]1[C@](C)(C(=O)O)CCC[C@]21C
+6777,Troclosene sodium,2893-78-9,salt,CEJLBZWIKQJOAT-UHFFFAOYSA-N,O=c1nc(O)n(Cl)c(=O)n1Cl
+6802,"Ammonium 1,1,2,2,3,3,4,4,5,5,6,6,7,7,8,8,8-heptadecafluorooctane-1-sulfonate",29081-56-9,salt,YFSUTJLHUFNCNZ-UHFFFAOYSA-N,O=S(=O)(O)C(F)(F)C(F)(F)C(F)(F)C(F)(F)C(F)(F)C(F)(F)C(F)(F)C(F)(F)F
+6824,Monosodium succinate,2922-54-5,salt,KDYFGRWQOYBRFD-UHFFFAOYSA-N,O=C(O)CCC(=O)O
+6826,Lithium trifluoroacetate,2923-17-3,salt,DTQVDTLACAAQTR-UHFFFAOYSA-N,O=C(O)C(F)(F)F
+6839,"1,3,5-Triazine-2,4,6-triamine, hydrobromide",29305-12-2,salt,JDSHMPZPIAZGSV-UHFFFAOYSA-N,Nc1nc(N)nc(N)n1
+6861,Potassium nonafluoro-1-butanesulfonate,29420-49-3,salt,JGTNAGYHADQMCM-UHFFFAOYSA-N,O=S(=O)(O)C(F)(F)C(F)(F)C(F)(F)C(F)(F)F
+6867,Lithium perfluorooctane sulfonate,29457-72-5,salt,YFSUTJLHUFNCNZ-UHFFFAOYSA-N,O=S(=O)(O)C(F)(F)C(F)(F)C(F)(F)C(F)(F)C(F)(F)C(F)(F)C(F)(F)C(F)(F)F
+6868,Potassium perfluoro-6-methylheptanoate,29457-73-6,salt,KPBOPOXIOBBZTR-UHFFFAOYSA-N,O=C(O)C(F)(F)C(F)(F)C(F)(F)C(F)(F)C(F)(C(F)(F)F)C(F)(F)F
+6894,"1,3,5-Triazine-2,4,6(1H,3H,5H)-trione, 1,3,5-trichloro-, sodium salt",29680-41-9,salt,YRIZYWQGELRKNT-UHFFFAOYSA-N,O=c1n(Cl)c(=O)n(Cl)c(=O)n1Cl
+6928,"Ethanol, 2,2'-iminobis-, phosphate (salt)",29870-32-4,salt,ZBCBWPMODOFKDW-UHFFFAOYSA-N,OCCNCCO
+6981,Diammonium citrate,3012-65-5,salt,KRKNYBCHXYNGOX-UHFFFAOYSA-N,O=C(O)CC(O)(CC(=O)O)C(=O)O
+7033,Potassium sodium tartrate,304-59-6,salt,FEWJPZIEWOKRBE-JCYAYHJZSA-N,O=C(O)[C@H](O)[C@@H](O)C(=O)O
+7175,Ammonium nonadecafluorodecanoate,3108-42-7,salt,PCIUEQPBYFRTEM-UHFFFAOYSA-N,O=C(O)C(F)(F)C(F)(F)C(F)(F)C(F)(F)C(F)(F)C(F)(F)C(F)(F)C(F)(F)C(F)(F)F
+7198,Dicyclohexylamine nitrite,3129-91-7,salt,XBPCUCUWBYBCDP-UHFFFAOYSA-N,C1CCC(NC2CCCCC2)CC1
+7253,Potassium 2-ethylhexanoate,3164-85-0,salt,OBETXYAYXDNJHR-UHFFFAOYSA-N,CCCCC(CC)C(=O)O
+7255,4-Chloro-2-methylaniline hydrochloride,3165-93-3,salt,CXNVOWPRHWWCQR-UHFFFAOYSA-N,Cc1cc(Cl)ccc1N
+7307,Phthalate,3198-29-6,ion,XNGIFLGASWRNHJ-UHFFFAOYSA-N,O=C(O)c1ccccc1C(=O)O
+7318,2-Amino-2-methyl-1-propanol hydrochloride,3207-12-3,salt,CBTVGIZVANVGBH-UHFFFAOYSA-N,CC(C)(N)CO
+7393,Potassium propionate,327-62-8,salt,XBDQKXXYIPTUBI-UHFFFAOYSA-N,CCC(=O)O
+7516,Sodium perfluorooctanoate,335-95-5,salt,SNGREZUHAYWORS-UHFFFAOYSA-N,O=C(O)C(F)(F)C(F)(F)C(F)(F)C(F)(F)C(F)(F)C(F)(F)C(F)(F)F
+7572,Sodium undecylenate,3398-33-2,salt,FRPZMMHWLSIFAZ-UHFFFAOYSA-N,C=CCCCCCCCCC(=O)O
+7638,Triammonium citrate,3458-72-8,salt,KRKNYBCHXYNGOX-UHFFFAOYSA-N,O=C(O)CC(O)(CC(=O)O)C(=O)O
+7711,Sodium ethylparaben,35285-68-8,salt,NUVBSKCKDOMJSU-UHFFFAOYSA-N,CCOC(=O)c1ccc(O)cc1
+7712,Propylparaben sodium,35285-69-9,salt,QELSKZZBTMNZEB-UHFFFAOYSA-N,CCCOC(=O)c1ccc(O)cc1
+7795,Dipotassium hydrogen citrate,3609-96-9,salt,KRKNYBCHXYNGOX-UHFFFAOYSA-N,O=C(O)CC(O)(CC(=O)O)C(=O)O
+7993,Carbendazim hydrochloride,37574-18-8,salt,TWFZGCMQGLPBSX-UHFFFAOYSA-N,COC(=O)Nc1nc2ccccc2[nH]1
+8028,"Sodium 2,4,6-trichlorophenolate",3784-03-0,salt,LINPIYWFGCPVIE-UHFFFAOYSA-N,Oc1c(Cl)cc(Cl)cc1Cl
+8059,Ammonium perfluorooctanoate,3825-26-1,salt,SNGREZUHAYWORS-UHFFFAOYSA-N,O=C(O)C(F)(F)C(F)(F)C(F)(F)C(F)(F)C(F)(F)C(F)(F)C(F)(F)F
+8063,Sodium perfluorodecanoate,3830-45-3,salt,PCIUEQPBYFRTEM-UHFFFAOYSA-N,O=C(O)C(F)(F)C(F)(F)C(F)(F)C(F)(F)C(F)(F)C(F)(F)C(F)(F)C(F)(F)C(F)(F)F
+8113,"1-Pentanesulfonic acid, 1,1,2,2,3,3,4,4,5,5,5-undecafluoro-, potassium salt",3872-25-1,salt,ACEKLXZRZOWKRY-UHFFFAOYSA-N,O=S(=O)(O)C(F)(F)C(F)(F)C(F)(F)C(F)(F)C(F)(F)F
+8146,"2,4-Diaminoanisole sulfate",39156-41-7,salt,BAHPQISAXRFLCL-UHFFFAOYSA-N,COc1ccc(N)cc1N
+8156,Sodium chloroacetate,3926-62-3,salt,FOCAUTSVDIKZOP-UHFFFAOYSA-N,O=C(O)CCl
+8307,Sodium palmitate,408-35-5,salt,IPCSVZSSVZVIGE-UHFFFAOYSA-N,CCCCCCCCCCCCCCCC(=O)O
+8377,Ammonium perfluorononanoate,4149-60-4,salt,UZUFPBIDKMEQEQ-UHFFFAOYSA-N,O=C(O)C(F)(F)C(F)(F)C(F)(F)C(F)(F)C(F)(F)C(F)(F)C(F)(F)C(F)(F)F
+8387,"1,3,5-Triazine-2,4,6-triamine, phosphate",41583-09-9,salt,JDSHMPZPIAZGSV-UHFFFAOYSA-N,Nc1nc(N)nc(N)n1
+8605,Ammonium dihydrogen citrate,4450-94-6,salt,KRKNYBCHXYNGOX-UHFFFAOYSA-N,O=C(O)CC(O)(CC(=O)O)C(=O)O
+8739,Lithium stearate,4485-12-5,salt,QIQXTHQIDYTFRH-UHFFFAOYSA-N,CCCCCCCCCCCCCCCCCC(=O)O
+8745,Lithium docosanoate,4499-91-6,salt,UKMSUNONTOPOIO-UHFFFAOYSA-N,CCCCCCCCCCCCCCCCCCCCCC(=O)O
+8748,"2,2,3,3,4,4,4-Heptafluorobutanoate",45048-62-2,ion,YPJUNDFVDDCYIH-UHFFFAOYSA-N,O=C(O)C(F)(F)C(F)(F)C(F)(F)F
+8754,Perfluorobutanesulfonate,45187-15-3,ion,JGTNAGYHADQMCM-UHFFFAOYSA-N,O=S(=O)(O)C(F)(F)C(F)(F)C(F)(F)C(F)(F)F
+8759,Pentadecafluorooctanoate,45285-51-6,ion,SNGREZUHAYWORS-UHFFFAOYSA-N,O=C(O)C(F)(F)C(F)(F)C(F)(F)C(F)(F)C(F)(F)C(F)(F)C(F)(F)F
+8761,Perfluorooctanesulfonate,45298-90-6,ion,YFSUTJLHUFNCNZ-UHFFFAOYSA-N,O=S(=O)(O)C(F)(F)C(F)(F)C(F)(F)C(F)(F)C(F)(F)C(F)(F)C(F)(F)C(F)(F)F
+8793,4-Hydroxybenzoate,456-23-5,ion,FJKROLUGYXJWQN-UHFFFAOYSA-N,O=C(O)c1ccc(O)cc1
+8801,Pubchem_57350056,45738-97-4,salt,FDGQSTZJBFJUBT-UHFFFAOYSA-N,O=c1[nH]cnc2nc[nH]c12
+8945,Urea phosphate,4861-19-2,salt,XSQUKJJJFZCRTK-UHFFFAOYSA-N,NC(N)=O
+9021,Guanidine Hydrochloride,50-01-1,salt,ZRALSGWEFCBTJO-UHFFFAOYSA-N,N=C(N)N
+9102,Dimethylamine hydrochloride,506-59-2,salt,ROSDSFDQCJNGOL-UHFFFAOYSA-N,CNC
+9104,Urea hydrochloride,506-89-8,salt,XSQUKJJJFZCRTK-UHFFFAOYSA-N,NC(N)=O
+9107,Trisodium nitrilotriacetate,5064-31-3,salt,MGFYIUFZLHCRTH-UHFFFAOYSA-N,O=C(O)CN(CC(=O)O)CC(=O)O
+9161,"Benzenamine, 2-methyl-5-nitro-, monohydrochloride",51085-52-0,salt,DSBIJCMXAIKKKI-UHFFFAOYSA-N,Cc1ccc([N+](=O)[O-])cc1N
+9294,Tetrasodium glutamate diacetate,51981-21-6,salt,VCVKIIDXVWEWSZ-YFKPBYRVSA-N,O=C(O)CC[C@@H](C(=O)O)N(CC(=O)O)CC(=O)O
+9388,Sodium bitartrate,526-94-3,salt,FEWJPZIEWOKRBE-JCYAYHJZSA-N,O=C(O)[C@H](O)[C@@H](O)C(=O)O
+9425,Sodium gluconate,527-07-1,salt,RGHNJXZEOKUKBD-SQOUGZDYSA-N,O=C(O)[C@H](O)[C@@H](O)[C@H](O)[C@H](O)CO
+9480,Benzidine sulfate,531-86-2,salt,HFACYLZERDEVSX-UHFFFAOYSA-N,Nc1ccc(-c2ccc(N)cc2)cc1
+9489,Sodium Benzoate,532-32-1,salt,WPYMKLBDIGXBTP-UHFFFAOYSA-N,O=C(O)c1ccccc1
+9494,Sodium ricinoleate,5323-95-5,salt,WBHHMMIMDMUBKC-QJWNTBNXSA-N,CCCCCC[C@@H](O)C/C=C\CCCCCCCC(=O)O
+9590,Sodium Salicylate,54-21-7,salt,YGSDEFSMJLZEOE-UHFFFAOYSA-N,O=C(O)c1ccccc1O
+9632,Sodium methacrylate,54193-36-1,salt,CERQOIWHTDAKMF-UHFFFAOYSA-N,C=C(C)C(=O)O
+9633,"Benzenamine, sulfate (2:1)",542-16-5,salt,PAYRUJLWNCNPSJ-UHFFFAOYSA-N,Nc1ccccc1
+9650,"Ethanamine, N,N-diethyl-, sulfate",54272-29-6,salt,ZMANZCXQSJIPKH-UHFFFAOYSA-N,CCN(CC)CC
+9669,Ammonium oleate,544-60-5,salt,ZQPPMHVWECSIRJ-KTKRTIGZSA-N,CCCCCCCC/C=C\CCCCCCCC(=O)O
+9710,Lithium acetate,546-89-4,salt,QTBSBXVTEAMEQO-UHFFFAOYSA-N,CC(=O)O
+9796,Lithium benzoate,553-54-8,salt,WPYMKLBDIGXBTP-UHFFFAOYSA-N,O=C(O)c1ccccc1
+10157,Potassium salicylate,578-36-9,salt,YGSDEFSMJLZEOE-UHFFFAOYSA-N,O=C(O)c1ccccc1O
+10176,Pyridoxine Hydrochloride,58-56-0,salt,LXNHXLLTXMVWPM-UHFFFAOYSA-N,Cc1ncc(CO)c(CO)c1O
+10203,Potassium benzoate,582-25-2,salt,WPYMKLBDIGXBTP-UHFFFAOYSA-N,O=C(O)c1ccccc1
+10314,Potassium Sorbate,590-00-1,salt,WSWCOQWTEOXDQX-MQQKCMAXSA-N,C/C=C/C=C/C(=O)O
+10317,Potassium formate,590-29-4,salt,BDAGIHXWWSANSR-UHFFFAOYSA-N,O=CO
+10371,Potassium stearate,593-29-3,salt,QIQXTHQIDYTFRH-UHFFFAOYSA-N,CCCCCCCCCCCCCCCCCC(=O)O
+10377,Trimethylamine hydrochloride,593-81-7,salt,GETQZCLCWQTVFV-UHFFFAOYSA-N,CN(C)C
+10378,Guanidine thiocyanate,593-84-0,salt,ZRALSGWEFCBTJO-UHFFFAOYSA-N,N=C(N)N
+10379,"Guanidine, carbonate",593-85-1,salt,ZRALSGWEFCBTJO-UHFFFAOYSA-N,N=C(N)N
+10392,Citric Acid Monohydrate,5949-29-1,hydrate,KRKNYBCHXYNGOX-UHFFFAOYSA-N,O=C(O)CC(O)(CC(=O)O)C(=O)O
+10403,Tetrapotassium ethylenediaminetetraacetate,5964-35-2,salt,KCXVZYZYPLLWCC-UHFFFAOYSA-N,O=C(O)CN(CCN(CC(=O)O)CC(=O)O)CC(=O)O
+10468,Sodium glycinate,6000-44-8,salt,DHMQDGOQFOQNFH-UHFFFAOYSA-N,NCC(=O)O
+10525,"1,6-Hexanediamine dihydrochloride",6055-52-3,salt,NAQMVNRVTILPCV-UHFFFAOYSA-N,NCCCCCCN
+10567,Phloroglucinol dihydrate,6099-90-7,hydrate,QCDYQQDYXPDABM-UHFFFAOYSA-N,Oc1cc(O)cc(O)c1
+10577,Lithium acetate dihydrate,6108-17-4,salt,QTBSBXVTEAMEQO-UHFFFAOYSA-N,CC(=O)O
+10609,"3,3'-Dimethylbenzidine dihydrochloride",612-82-8,salt,NUIURNJTPRWVAP-UHFFFAOYSA-N,Cc1cc(-c2ccc(N)c(C)c2)ccc1N
+10610,"3,3'-Dichlorobenzidine dihydrochloride",612-83-9,salt,HUWXDEQWWKGHRV-UHFFFAOYSA-N,Nc1ccc(-c2ccc(N)c(Cl)c2)cc1Cl
+10669,"Sodium, (2-biphenylyloxy)-, tetrahydrate",6152-33-6,salt,LLEMOWNGBBNAJR-UHFFFAOYSA-N,Oc1ccccc1-c1ccccc1
+10671,Oxalic acid dihydrate,6153-56-6,hydrate,MUBZPKHOEPUJKR-UHFFFAOYSA-N,O=C(O)C(=O)O
+10868,"Ammonium 2,3,3,3-tetrafluoro-2-(heptafluoropropoxy)propanoate",62037-80-3,salt,CSEBNABAWMZWIF-UHFFFAOYSA-N,O=C(O)C(F)(OC(F)(F)C(F)(F)C(F)(F)F)C(F)(F)F
+11080,Ammonium Acetate,631-61-8,salt,QTBSBXVTEAMEQO-UHFFFAOYSA-N,CC(=O)O
+11103,Basic violet 14,632-99-5,salt,YDCMWLQSPFTWCS-UHFFFAOYSA-N,CC1=CC(=C(c2ccc(N)cc2)c2ccc(N)cc2)C=CC1=N
+11179,o-Toluidine hydrochloride,636-21-5,salt,RNVCVTLRINQCPJ-UHFFFAOYSA-N,Cc1ccccc1N
+11227,Sodium erythorbate,6381-77-7,salt,CIWBSHSKHKDKBQ-DUZGATOHSA-N,O=C1O[C@H]([C@H](O)CO)C(O)=C1O
+11228,CID 44120005,6381-92-6,salt,KCXVZYZYPLLWCC-UHFFFAOYSA-N,O=C(O)CN(CCN(CC(=O)O)CC(=O)O)CC(=O)O
+11243,Edetate Sodium,64-02-8,salt,KCXVZYZYPLLWCC-UHFFFAOYSA-N,O=C(O)CN(CCN(CC(=O)O)CC(=O)O)CC(=O)O
+11684,Potassium 16-methylheptadecanoate,66469-15-6,salt,XDOFQFKRPWOURC-UHFFFAOYSA-N,CC(C)CCCCCCCCCCCCCCC(=O)O
+11888,Sodium Citrate,68-04-2,salt,KRKNYBCHXYNGOX-UHFFFAOYSA-N,O=C(O)CC(O)(CC(=O)O)C(=O)O
+12992,Sodium Lactate,72-17-3,salt,JVTAAEKCZFNVCJ-UHFFFAOYSA-N,CC(O)C(=O)O
+13021,"Glycine, N,N-bis(2-(bis(carboxymethyl)amino)ethyl)-, potassium salt (1:5)",7216-95-7,salt,QPCDCPDFJACHGM-UHFFFAOYSA-N,O=C(O)CN(CCN(CC(=O)O)CC(=O)O)CCN(CC(=O)O)CC(=O)O
+13190,Potassium 9-chlorohexadecafluoro-3-oxanonane-1-sulfonate,73606-19-6,salt,GGOUUEMCWBTDMT-UHFFFAOYSA-N,O=S(=O)(O)C(F)(F)C(F)(F)OC(F)(F)C(F)(F)C(F)(F)C(F)(F)C(F)(F)C(F)(F)Cl
+13208,Tetrapotassium ethylenediaminetetraacetate,7379-27-3,salt,KCXVZYZYPLLWCC-UHFFFAOYSA-N,O=C(O)CN(CCN(CC(=O)O)CC(=O)O)CC(=O)O
+13209,Monosodium ethylenediaminetetraacetate,7379-28-4,salt,KCXVZYZYPLLWCC-UHFFFAOYSA-N,O=C(O)CN(CCN(CC(=O)O)CC(=O)O)CC(=O)O
+13214,Lithium oleate,7384-22-7,salt,ZQPPMHVWECSIRJ-KTKRTIGZSA-N,CCCCCCCC/C=C\CCCCCCCC(=O)O
+13359,Sodium acrylate,7446-81-3,salt,NIXOWILDQLNWCW-UHFFFAOYSA-N,C=CC(=O)O
+13429,Sodium adipate,7486-38-6,salt,WNLRTRBMVRJNCN-UHFFFAOYSA-N,O=C(O)CCCCC(=O)O
+13437,Potassium ricinoleate,7492-30-0,salt,WBHHMMIMDMUBKC-QJWNTBNXSA-N,CCCCCC[C@@H](O)C/C=C\CCCCCCCC(=O)O
+13616,Lithium 12-hydroxystearate,7620-77-1,salt,ULQISTXYYBZJSJ-UHFFFAOYSA-N,CCCCCCC(O)CCCCCCCCCCC(=O)O
+13632,Ammonium citrate,7632-50-0,salt,KRKNYBCHXYNGOX-UHFFFAOYSA-N,O=C(O)CC(O)(CC(=O)O)C(=O)O
+13642,Adipate,764-65-8,ion,WNLRTRBMVRJNCN-UHFFFAOYSA-N,O=C(O)CCCCC(=O)O
+13676,"Glycine, N-methyl-N-(1-oxo-9-octadecenyl)-, potassium salt, (Z)-",76622-74-7,salt,DIOYAVUHUXAUPX-KHPPLWFESA-N,CCCCCCCC/C=C\CCCCCCCC(=O)N(C)CC(=O)O
+13788,Sodium sorbate,7757-81-5,salt,WSWCOQWTEOXDQX-MQQKCMAXSA-N,C/C=C/C=C/C(=O)O
+13844,Potassium pentachlorophenolate,7778-73-6,salt,IZUPBVBPLAPZRR-UHFFFAOYSA-N,Oc1c(Cl)c(Cl)c(Cl)c(Cl)c1Cl
+14324,Sodium Stearate,822-16-2,salt,QIQXTHQIDYTFRH-UHFFFAOYSA-N,CCCCCCCCCCCCCCCCCC(=O)O
+14598,Cyclohexyldimethylammonium dihydrogen phosphate,85099-25-8,salt,SVYKKECYCPFKGB-UHFFFAOYSA-N,CN(C)C1CCCCC1
+14759,Potassium dihydrogen citrate,866-83-1,salt,KRKNYBCHXYNGOX-UHFFFAOYSA-N,O=C(O)CC(O)(CC(=O)O)C(=O)O
+14760,Potassium Citrate,866-84-2,salt,KRKNYBCHXYNGOX-UHFFFAOYSA-N,O=C(O)CC(O)(CC(=O)O)C(=O)O
+14771,Potassium hydrogen tartrate,868-14-4,salt,FEWJPZIEWOKRBE-UHFFFAOYSA-N,O=C(O)C(O)C(O)C(=O)O
+15015,Sodium acrylate,9003-04-7,salt,NIXOWILDQLNWCW-UHFFFAOYSA-N,C=CC(=O)O
+15331,alpha-Tocopherol phosphate disodium salt,90940-45-7,salt,GVJHHUAWPYXKBD-IEOSBIPESA-N,Cc1c(C)c2c(c(C)c1O)CC[C@@](C)(CCC[C@H](C)CCC[C@H](C)CCCC(C)C)O2
+15636,"Potassium 3,5,5-trimethylhexanoate",93918-10-6,salt,OILUAKBAMVLXGF-UHFFFAOYSA-N,CC(CC(=O)O)CC(C)(C)C
+15809,"Ammonium 2,2,3-trifluoro-3-(1,1,2,2,3,3-hexafluoro-3-(trifluoromethoxy)propoxy)propanoate",958445-44-8,salt,AFDRCEOKCOUICI-UHFFFAOYSA-N,O=C(O)C(F)(F)C(F)OC(F)(F)C(F)(F)C(F)(F)OC(F)(F)F
+16185,"Sodium [1,1'-biphenyl]-2-olate",1322-21-0,salt,LLEMOWNGBBNAJR-UHFFFAOYSA-N,Oc1ccccc1-c1ccccc1
+17187,"Lithium (9Z,12Z)-octadeca-9,12-dienoate",,salt,OYHQOLUKZRVURQ-HZJYTTRNSA-N,CCCCC/C=C\C/C=C\CCCCCCCC(=O)O

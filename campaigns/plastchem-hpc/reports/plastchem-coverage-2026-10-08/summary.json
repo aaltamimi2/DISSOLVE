@@ -1,0 +1,91 @@
+{
+  "made_utc": "2026-10-08T16:14:37+00:00",
+  "inputs": {
+    "census": "inputs/census/plastchem_db_v1.0_full_database_subset.csv",
+    "census_sha256": "9b1b68e40504011798241502b19c74d2889aa9af0eb611d5f81e41d94c4a51a1",
+    "release": "promotion-v3",
+    "release_computed": 7176
+  },
+  "entries": 17932,
+  "buckets": {
+    "served": 7444,
+    "served as its parent": 200,
+    "to compute": 1983,
+    "should not": 1942,
+    "cannot": 6363
+  },
+  "reasons": {
+    "served: computed": 7444,
+    "served as its parent: parent of a salt": 187,
+    "served as its parent: parent of an ion": 10,
+    "served as its parent: parent of a hydrate": 3,
+    "to compute: S, P or Si": 1533,
+    "to compute: halogen": 276,
+    "to compute: CHNO": 174,
+    "should not: inorganic": 991,
+    "should not: metal": 667,
+    "should not: permanent ion": 117,
+    "should not: large and flexible": 87,
+    "should not: no parameters": 52,
+    "should not: radical": 18,
+    "should not: isotope-labelled": 10,
+    "cannot: no single structure": 3667,
+    "cannot: no structure": 2554,
+    "cannot: several molecules": 135,
+    "cannot: unparsable": 7
+  },
+  "simulable": 9627,
+  "served_share": 0.7732,
+  "served_with_parents_share": 0.794,
+  "entries_short_of_95_percent": 1502,
+  "structures_to_compute": 1887,
+  "structures_by_elements": {
+    "S, P or Si": 1456,
+    "halogen": 264,
+    "CHNO": 167
+  },
+  "structures_as_parents": 515,
+  "structures_above_700_g_mol": 334,
+  "structures_by_release_status": {
+    "not in the release": 1705,
+    "thermodynamics_pending": 116,
+    "failed": 57,
+    "running": 9
+  },
+  "orca_new_structures": 1705,
+  "orca_new_cpu_hours": 3217,
+  "orca_new_atoms_median": 40,
+  "orca_new_above_107_atoms": 77,
+  "cheapest_route_to_95_percent": {
+    "structures": 1409,
+    "entries": 1502,
+    "orca_cpu_hours": 876,
+    "note": "aliases need no calculation; structures ordered by ORCA CPU-hours per entry, thermodynamics-only structures (pending, running) first, failed ones at the fit's cost"
+  },
+  "criteria": {
+    "parameterized": [
+      "Br",
+      "C",
+      "Cl",
+      "F",
+      "H",
+      "I",
+      "N",
+      "O",
+      "P",
+      "S",
+      "Si"
+    ],
+    "salt_metals_allowed": [
+      "Cs",
+      "K",
+      "Li",
+      "Na",
+      "Rb"
+    ],
+    "large_flexible": {
+      "g_mol": 700.0,
+      "rotatable_bonds": 20
+    }
+  }
+}
