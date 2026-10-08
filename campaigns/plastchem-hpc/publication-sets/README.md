@@ -2,9 +2,9 @@
 
 The ORCA/openCOSMO surfaces (`.orcacosmo`) of every compound of Zhou et al., *Solvent-Mediated Contaminant Removal
 from Plastic Waste Using Thermodynamic Modeling*, Green Chem. 2026 (d5gc06059a), one per compound, as plain files for
-validation against the paper, with their openCOSMO-RS partition and miscibility results. The same surfaces appear in
-the campaign archives (`../opencosmo-outputs/` and `../orca-calculation-files/`, folder
-`contaminants/publication-sets/`) when those are rebuilt.
+validation against the paper, with their openCOSMO-RS partition and miscibility results. The same surfaces, byte for
+byte, are also in the campaign archives (`../opencosmo-outputs/` and `../orca-calculation-files/`, folder
+`contaminants/publication-sets/`); the partition and miscibility rows are only here.
 
 - `PFAS/`: 26 of the paper's 26 PFAS (ESI Table S7).
 - `BFR/`: 4 of its 4 brominated flame retardants (Case Study 1).

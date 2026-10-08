@@ -47,6 +47,20 @@ class ValidationTests(unittest.TestCase):
             bad=copy.deepcopy(r);bad[field]=0.
             with self.assertRaises(AssertionError):check(bad,100.,18.,'pin')
 
+    def test_unresolved_grid_rows_allow_absent_verdicts_but_never_promote(self):
+        for state in ['grid_or_tie_line_unresolved','grid_not_converged']:
+            row=dict(status=state,value_validated=False,
+                grid_checks=[dict(grid_intervals=n) for n in [1000,2000]])
+            original=copy.deepcopy(row)
+            check(row,100.,18.,'pin')
+            self.assertEqual(row,original)
+            explicit=dict(row,above_15_mol_percent=None,above_15_wt_percent=None)
+            check(explicit,100.,18.,'pin')
+            for field in ['above_15_mol_percent','above_15_wt_percent']:
+                for invalid in [True,False,0.,float('nan')]:
+                    with self.assertRaises(AssertionError):check(dict(row,**{field:invalid}),100.,18.,'pin')
+            with self.assertRaises(AssertionError):check(dict(row,value_validated=True),100.,18.,'pin')
+
     def test_original_polymer_reuse_complete_keys_and_formula(self):
         polymers=[str(i) for i in range(10)];solvents=['water','hexane']+[str(i) for i in range(30)]
         rows=[]

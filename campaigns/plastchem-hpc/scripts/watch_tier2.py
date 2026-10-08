@@ -1,11 +1,12 @@
 """Read-only scheduler monitoring, scp returns, local owner-policy verification. No submission capability."""
 import os
 os.environ['OMP_NUM_THREADS']='1';os.environ['OPENBLAS_NUM_THREADS']='1'
-import hashlib,json,re,subprocess,time
+import fcntl,hashlib,json,re,subprocess,time
 from pathlib import Path
 from euler_transport import run
 from identity_campaign import verify
 ROOT=Path(__file__).resolve().parents[1];P=ROOT/'state/tier2-v1';REMOTE='~/plastchem-euler/tier2-v1'
+collector_lock=(P/'collector.lock').open('a');fcntl.flock(collector_lock,fcntl.LOCK_EX|fcntl.LOCK_NB)
 DEST=Path('/mnt/r/plastchem-euler/tier2-v1/results');DEST.mkdir(parents=True,exist_ok=True)
 TERMINAL={'COMPLETED','FAILED','TIMEOUT','OUT_OF_MEMORY','CANCELLED','NODE_FAIL','PREEMPTED','BOOT_FAIL','DEADLINE'}
 models={}
@@ -41,7 +42,10 @@ while True:
                 if mol['array_index'] in selected:known[f"{array}_{mol['array_index']}"]=mol
         fresh=[]
         for task,mol in known.items():
-            key=mol['inchikey'];r=remote_records.get(key);acct=accounting.get(task)
+            key=mol['inchikey']
+            retry_registry=P/'active-retries.json'
+            if retry_registry.exists() and key in json.loads(retry_registry.read_text()).get('entries',{}):continue
+            r=remote_records.get(key);acct=accounting.get(task)
             terminal=acct and acct[3].split()[0] in TERMINAL
             if not r and not terminal:continue
             r=dict(r or {'input':mol,'inchikey':key,'scope':'tier2_campaign','group':mol['group'],'cpu_model':None,'node':acct[8] if acct else None,'dft_ran':False})
@@ -100,5 +104,6 @@ while True:
         if len(snap['groups'])==1 and not snap['squeue'].strip() and all(summary['counts'][s]==0 for s in ['running','not_yet_run','awaiting_verification','retry_pending']):
             print('TIER2_ALL_TARGETS_DISPOSED',flush=True);break
     except Exception as exc:print(json.dumps({'monitor_error':str(exc),'epoch':time.time()}),flush=True)
-    transport=json.loads((ROOT/'state/ssh-transport.json').read_text())
-    time.sleep(max(300,transport.get('retry_after_epoch',0)-time.time()))
+    # run() reads/enforces persistent backoff under the shared transport lock.
+    # Do not read its live state without that lock during the idle interval.
+    time.sleep(300)

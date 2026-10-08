@@ -48,7 +48,7 @@ def partition_row(r,ctx,activities,plan_sha):
         primary_partition_sha256=r['primary_partition_sha256'])
 
 
-def lle_row(r,ctx):
+def lle_row(r,ctx,solver_sha256=None):
     u=ctx['units'][r['unit']];solvent=ctx['solvents'][r['solvent']]
     valid=r['value_validated'];ties=r['tie_lines'];sig=r['signature']
     row={k:r.get(k,'') for k in LLE}
@@ -56,7 +56,7 @@ def lle_row(r,ctx):
         tie_lines_json=json.dumps(ties,separators=(',',':')),grid_checks_json=json.dumps(r['grid_checks'],separators=(',',':')),
         failure_mode='' if valid else r.get('failure_mode',r['status']),solute_surface_sha256=u['surface_sha256'],
         solvent_surface_sha256=solvent['surface_sha256'],parameterization='openCOSMO-RS 24a',
-        solver_sha256=sha(D.parent/'phase8-v1/phase8_lle.py'),
+        solver_sha256=solver_sha256 if solver_sha256 is not None else sha(D.parent/'phase8-v1/phase8_lle.py'),
         units='mole fractions: mol/mol; weight percentages: g per 100 g solution; grid differences: percentage points; chemical potentials and tangent distances: RT',
         sign_convention='Compositions are nonnegative; solubility is contaminant content in the solvent-rich phase. No signed transfer coefficient.',
         cpu_model=r['execution']['cpu_model'],job_id=r['execution']['job_id'],chunk_plan_sha256=sig['plan_sha256'],
@@ -76,6 +76,10 @@ def main():
     lock=(D/'release.lock').open('a');fcntl.flock(lock,fcntl.LOCK_EX|fcntl.LOCK_NB)
     collector=(D/'collect.lock').open('a');fcntl.flock(collector,fcntl.LOCK_EX|fcntl.LOCK_NB)
     registry=json.loads((D/'collection.json').read_text())
+    # The solver is immutable for this export. Hash once, then recheck the
+    # source and packaged copy before sealing instead of opening R: per row.
+    solver_path=D.parent/'phase8-v1/phase8_lle.py'
+    solver_digest=sha(solver_path)
     snapshot=hashlib.sha256(json.dumps(registry,sort_keys=True).encode()).hexdigest()
     work=D/'release-working-v1';work.mkdir(exist_ok=True)
     out=D.parent/'promotion-ext39-v1.preparing';out.mkdir(exist_ok=True)
@@ -90,7 +94,7 @@ def main():
                     pw.writerow(partition_row(r,ctx,activities,plan))
                     quality[r['inchikey']]['partition_predicted_rows']+=1;counts['partition_predicted']+=1
             elif '/lle/' in path:
-                lw.writerow(lle_row(value,ctx));counts['lle_'+value['status']]+=1
+                lw.writerow(lle_row(value,ctx,solver_digest));counts['lle_'+value['status']]+=1
                 quality[value['inchikey']]['lle_qualified_rows' if value['value_validated'] else 'lle_unresolved_rows']+=1
                 cpus[value['execution']['cpu_model']]+=1
         result=audit(require_complete=True,registry=registry,callback=consume)
@@ -147,6 +151,7 @@ def main():
                      'submit_phase10_tail_remote.py','launch_phase10_tail.py']:
             shutil.copyfile(R/'scripts'/name,code/name)
     shutil.copyfile(D.parent/'phase8-v1/phase8_lle.py',code/'phase8_lle.py')
+    assert sha(solver_path)==sha(code/'phase8_lle.py')==solver_digest,'Solver changed during export'
     shutil.copyfile(R/'reports/phase10-2026-09-24/VOLUME_REFERENCE_REVIEW.md',out/'VOLUME_REFERENCE_REVIEW.md')
     summary=dict(utc=datetime.datetime.now(datetime.timezone.utc).isoformat(),status='complete',frozen_contaminants=5830,
         solvents=39,polymers=10,partition_rows=np,partition_denominator=4547400,LLE_rows=nl,LLE_denominator=227370,

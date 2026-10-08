@@ -98,8 +98,8 @@ def verify(root=None):
     with tempfile.TemporaryDirectory(dir=B/'phase10-v1',prefix='delivery-verify-') as tmp:
         con=duckdb.connect();con.execute('SET threads=1');con.execute("SET memory_limit='256MB'")
         con.execute('SET temp_directory=?',[tmp])
-        con.execute('CREATE VIEW partition_rows AS SELECT * FROM read_parquet(?)',[str(root/'partition.parquet')])
-        con.execute('CREATE VIEW lle_rows AS SELECT * FROM read_parquet(?)',[str(root/'binary-lle.parquet')])
+        con.read_parquet(str(root/'partition.parquet')).create_view('partition_rows')
+        con.read_parquet(str(root/'binary-lle.parquet')).create_view('lle_rows')
         assert con.execute('SELECT count(*) FROM partition_rows').fetchone()[0]==4547400==summary['partition_rows']
         assert con.execute('SELECT count(*) FROM lle_rows').fetchone()[0]==227370==summary['LLE_rows']
         con.execute('CREATE TABLE cohort(ik VARCHAR,mw DOUBLE,source_sha VARCHAR)')
@@ -140,7 +140,7 @@ def verify(root=None):
             assert 'ValueError: '+e['exception_message'] in e['traceback'];failure_count+=1
         actual=dict(con.execute('SELECT status,count(*) FROM lle_rows GROUP BY status').fetchall());assert actual==audit['LLE_statuses']
         assert all(summary['counts']['lle_'+k]==v for k,v in actual.items())
-        con.execute('CREATE VIEW quality AS SELECT * FROM read_csv_auto(?)',[str(root/'extension-quality.csv')])
+        con.read_csv(str(root/'extension-quality.csv'),header=True).create_view('quality')
         assert con.execute('SELECT count(*),count(DISTINCT input_inchikey) FROM quality').fetchone()==(5830,5830)
         assert con.execute('''SELECT count(*) FROM quality q FULL JOIN (SELECT input_inchikey,count(*) total,sum(CASE WHEN value_validated THEN 1 ELSE 0 END) good FROM lle_rows GROUP BY input_inchikey) l USING(input_inchikey)
             WHERE q.input_inchikey IS NULL OR l.input_inchikey IS NULL OR q.partition_predicted_rows<>780 OR q.lle_qualified_rows<>l.good OR q.lle_unresolved_rows<>39-l.good OR q.all_requested_quantities_evaluated IS DISTINCT FROM true OR q.all_requested_quantities_qualified IS DISTINCT FROM (l.good=39)''').fetchone()[0]==0

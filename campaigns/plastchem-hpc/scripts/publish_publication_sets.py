@@ -290,9 +290,9 @@ def readme(rows, thermo_done=0, thermo_total=0, missing=()):
 
 The ORCA/openCOSMO surfaces (`.orcacosmo`) of every compound of Zhou et al., *Solvent-Mediated Contaminant Removal
 from Plastic Waste Using Thermodynamic Modeling*, Green Chem. 2026 (d5gc06059a), one per compound, as plain files for
-validation against the paper, with their openCOSMO-RS partition and miscibility results. The same surfaces appear in
-the campaign archives (`../opencosmo-outputs/` and `../orca-calculation-files/`, folder
-`contaminants/publication-sets/`) when those are rebuilt.
+validation against the paper, with their openCOSMO-RS partition and miscibility results. The same surfaces, byte for
+byte, are also in the campaign archives (`../opencosmo-outputs/` and `../orca-calculation-files/`, folder
+`contaminants/publication-sets/`); the partition and miscibility rows are only here.
 
 - `PFAS/`: {counts['PFAS'][0]} of the paper's {counts['PFAS'][1]} PFAS (ESI Table S7).
 - `BFR/`: {counts['BFR'][0]} of its {counts['BFR'][1]} brominated flame retardants (Case Study 1).
