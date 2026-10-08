@@ -1,0 +1,35 @@
+{
+ "input_inchikey": "LXIZRZRTWSDLKK-UHFFFAOYSA-N",
+ "perceived_inchikey": "LXIZRZRTWSDLKK-OKILXGFUSA-N",
+ "inchikey_after_optimization": "LXIZRZRTWSDLKK-OKILXGFUSA-N",
+ "identity_policy": "connectivity_first_block_with_computed_stereochemistry",
+ "identity_match_basis": "connectivity_first_block",
+ "identity_verified": true,
+ "connectivity_match": true,
+ "full_key_equal": false,
+ "perception_engines_agreeing_on_perceived_key": [
+  "rdkit_determine_bonds",
+  "openbabel_reference"
+ ],
+ "perception_engines_matching_connectivity": [
+  "rdkit_determine_bonds",
+  "openbabel_reference"
+ ],
+ "all_perception_engines_agree_on_full_key": true,
+ "perceived_keys_by_engine": {
+  "rdkit_determine_bonds": "LXIZRZRTWSDLKK-OKILXGFUSA-N",
+  "openbabel_reference": "LXIZRZRTWSDLKK-OKILXGFUSA-N"
+ },
+ "identity_observations": [
+  {
+   "method": "rdkit_determine_bonds",
+   "charge": 0,
+   "full_inchikey": "LXIZRZRTWSDLKK-OKILXGFUSA-N"
+  },
+  {
+   "method": "openbabel_reference",
+   "full_inchikey": "LXIZRZRTWSDLKK-OKILXGFUSA-N",
+   "warnings": "1 molecule converted"
+  }
+ ]
+}
