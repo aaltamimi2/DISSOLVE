@@ -77,7 +77,7 @@ export const QUICK_ACTIONS: QuickAction[] = [
   },
   {
     label: "Contaminant Removal",
-    blurb: "Leaching of 7,160 PlastChem additives by name, family or structure, washes and removal routes",
+    blurb: "Leaching of 7,176 plastic additives and contaminants by name, family or structure, washes and removal routes",
     icon: AlertTriangle,
     examples: [
       { text: "Which wash solvents remove DEHP from LDPE without dissolving it?" },
