@@ -32,7 +32,7 @@ export type DoctorCheck = { name: string; status: "pass" | "warn" | "fail" | "no
 export type Doctor = { ready: boolean; checks: DoctorCheck[] };
 /** What this deployment offers; a small host switches literature and live TEA off. */
 export type Features = { literature: boolean; tea: boolean };
-export type Health = { ok: boolean; release: string; ui_built: boolean; features: Features };
+export type Health = { ok: boolean; release: string; ui_built: boolean; features: Features; contaminants_computed?: number | null };
 /** A contaminant family a question can name instead of its members; `term` is how a question says it. */
 export type ContaminantFamily = {
   name: string;
