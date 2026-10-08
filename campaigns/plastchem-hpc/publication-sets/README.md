@@ -30,8 +30,8 @@ stereoisomer; this set holds gamma-HBCD, the main component of technical HBCD.
 
 openCOSMO-RS 24a at 298.15 K, solute at infinite dilution, with the same 32 solvents, 10 polymer conformer ensembles
 and workers as the PlastChem release: release compounds carry the release's own rows, and the A-12 structures were
-computed the same way on Euler (batches p00, p01, p02). Partition rows are in for 23 of the 38
-files here (waiting: PFTriDA, PFTetraDA, PFBS, PFPS, PFHxS, PFHS, PFOS, PFUnDS, PFTriDS, PFDS, PFDoDS, KClHxDFS, PFNS, NaDoDFNt, NH4PFNt).
+computed the same way on Euler (batches p00, p01, p02). Partition rows are in for 38 of the 38
+files here.
 
 - `THERMODYNAMICS_partition.tsv`: log10 P(solvent/polymer) per file, polymer (EVOH, nylon 6, nylon 6,6, PC, PE,
   PET, PP, PS, PVC, PVDF), solvent and convention; positive favours the solvent. `logP_concentration` is on the
