@@ -6,6 +6,7 @@ import {
   type ContaminantFamily,
   type Doctor,
   type Features,
+  type Paper,
   type Model,
   type SessionRow,
   type SessionState,
@@ -15,6 +16,7 @@ import {
 } from "./api";
 import { Composer, Header, MessageView, Sidebar, SignIn, Toast, Welcome, type ChatMessage } from "./components";
 import type { Example } from "./content";
+import { PapersPanel, shortCitation } from "./papers";
 import { TeaPanel, type TeaView } from "./tea";
 
 const uid = () => Math.random().toString(36).slice(2);
@@ -118,6 +120,7 @@ function Workspace({ user, onSignOut }: { user: string | null; onSignOut?: () =>
   const [families, setFamilies] = useState<ContaminantFamily[]>([]);
   const [tea, setTea] = useState<TeaView | null>(null);
   const [teaOpen, setTeaOpen] = useState(false);
+  const [papersOpen, setPapersOpen] = useState(false);
   const bottom = useRef<HTMLDivElement>(null);
   const composer = useRef<HTMLTextAreaElement>(null);
   const sessionRef = useRef<SessionState | null>(null);
@@ -146,6 +149,10 @@ function Workspace({ user, onSignOut }: { user: string | null; onSignOut?: () =>
   useEffect(() => {
     bottom.current?.scrollIntoView({ behavior: "smooth", block: "end" });
   }, [messages]);
+  // One panel beside the chat at a time: the TEA sheet takes the place of the papers when it opens.
+  useEffect(() => {
+    if (teaOpen) setPapersOpen(false);
+  }, [teaOpen]);
 
   const openSession = useCallback(
     async (id: string) => {
@@ -279,6 +286,26 @@ function Workspace({ user, onSignOut }: { user: string | null; onSignOut?: () =>
     if (String(current[key]) !== value) await run(example.needs);
   };
 
+  const openPapers = () => {
+    if (papersOpen) {
+      setPapersOpen(false);
+      return;
+    }
+    setTeaOpen(false);
+    setPapersOpen(true);
+    if (window.innerWidth < 1440) setSidebar(false); // the chat keeps room beside the panel
+  };
+
+  /** Puts a question about the paper in the composer, with the corpus offered to the agent if literature was off. */
+  const askAboutPaper = async (paper: Paper) => {
+    const named = paper.resolved && paper.title ? `“${paper.title}” (${shortCitation(paper)})` : "this corpus paper";
+    setInput(`What does the corpus paper ${named} report? Summarize what it did, its main results and its limits, citing its passages.`);
+    if (window.innerWidth < 1024) setPapersOpen(false);
+    composer.current?.focus();
+    const current = sessionRef.current ?? DEFAULTS;
+    if (current.literature === "off") await run("/literature corpus");
+  };
+
   const chooseModel = (alias: string) => {
     setPreferredModel(alias);
     remember("dissolve-model", alias);
@@ -362,6 +389,8 @@ function Workspace({ user, onSignOut }: { user: string | null; onSignOut?: () =>
         onTheme={() => setTheme(theme === "light" ? "dark" : "light")}
         onExport={exportChat}
         onNewChat={newChat}
+        onPapers={features.literature ? openPapers : undefined}
+        papersOpen={papersOpen}
         user={user}
         onSignOut={onSignOut}
       />
@@ -412,6 +441,7 @@ function Workspace({ user, onSignOut }: { user: string | null; onSignOut?: () =>
         {tea && teaOpen && state && (
           <TeaPanel sessionId={state.session_id} view={tea} onView={setTea} onClose={() => setTeaOpen(false)} notify={notify} />
         )}
+        {papersOpen && features.literature && <PapersPanel onClose={() => setPapersOpen(false)} onAsk={askAboutPaper} />}
       </div>
       {toast && <Toast text={toast.text} kind={toast.kind} />}
     </div>
