@@ -8,6 +8,8 @@ handler, and sessions are the CLI's session files, so a conversation can move be
 
     GET  /api/health  /api/doctor  /api/models  /api/commands  /api/sessions
     GET  /api/contaminant-families          the families a question can name instead of their members
+    GET  /api/literature/papers             the papers of the literature corpus, with their bibliographic records
+    GET  /api/literature/search?q=...       the papers whose text matches, each with its best matching passages
     GET  /api/structure.svg?smiles=...&size=small|large    an RDKit drawing, for answer tables with a SMILES column
     POST /api/sessions                      {model?, mode?} -> a new session
     GET  /api/sessions/{id}                 its modes and transcript
@@ -66,7 +68,7 @@ from pydantic import BaseModel
 from rich.console import Console
 from starlette.concurrency import run_in_threadpool
 
-from dissolve import RELEASE, cli, contaminants, web_accounts, web_admin, web_tea
+from dissolve import RELEASE, cli, contaminants, corpus_papers, web_accounts, web_admin, web_tea
 from dissolve.agent import ToolEvent
 
 STATIC = Path(__file__).with_name("ui")
@@ -694,6 +696,22 @@ def create_app(home: str | Path | None = None) -> FastAPI:
         if "families" not in family_cache:  # read once: the assets do not change while the server runs
             family_cache["families"] = contaminants.contaminant_families()
         return family_cache["families"]
+
+    @api.get("/api/literature/papers")
+    def literature_papers() -> dict[str, Any]:
+        if not offered["literature"]:
+            raise HTTPException(404, "Literature search is off on this deployment.")
+        return corpus_papers.load_papers()
+
+    @api.get("/api/literature/search")
+    def literature_search(q: str = "", limit: int = 20) -> dict[str, Any]:
+        """The served passage ranking, grouped by paper: the same ranking the agent's literature search reads."""
+        if not offered["literature"]:
+            raise HTTPException(404, "Literature search is off on this deployment.")
+        query = " ".join(q.split())[:300]
+        if not query:
+            raise HTTPException(422, "Type what to look for in the papers.")
+        return corpus_papers.search_papers(query, limit=max(1, min(int(limit), 30)))
 
     @api.get("/api/structure.svg", include_in_schema=False)
     def structure(smiles: str = "", size: str = "large") -> Response:
