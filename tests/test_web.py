@@ -77,8 +77,13 @@ def test_the_api_is_the_cli_surface(client):
 def test_the_family_picker_lists_what_each_family_screens(client):
     """The contaminant families a question can name, since nobody knows 5,830 names (owner, 2026-09-24). Each carries
     the term a question uses and the members the screens evaluate."""
+    from dissolve import contaminants
     families = {row["name"]: row for row in client.get("/api/contaminant-families").json()}
-    assert families["Bisphenols"]["term"] == "bisphenols" and families["Bisphenols"]["count"] == 24
+    # the computed members, from the family table and the release rather than a number that moves with each release
+    members = next(f for f in contaminants._family_table() if f["name"] == "Bisphenols")["members"]
+    computed = contaminants._plastchem().execute(
+        "SELECT count(*) FROM contaminants WHERE computed AND inchikey IN (SELECT unnest(?))", [members]).fetchone()[0]
+    assert families["Bisphenols"]["term"] == "bisphenols" and families["Bisphenols"]["count"] == computed > 0
     assert "Bisphenol A" in families["Bisphenols"]["members"]
     assert families["UV stabilizers"]["examples"] == ["UV-328", "Tinuvin P", "Octabenzone"]
     assert families["PFAS"]["source"] == "workbook"
