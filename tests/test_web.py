@@ -76,6 +76,28 @@ def test_the_api_is_the_cli_surface(client):
         "corpus, answered only when a model check confirms the passages")
 
 
+def test_the_paper_view_lists_the_corpus_papers_and_searches_their_text(client, monkeypatch):
+    """The literature corpus as papers to browse (owner, 2026-10-08: "similar functionality ... with the current
+    literature corpus"), and a search over their text grouped by paper, from the ranking the agent's search reads."""
+    from dissolve import research
+
+    listing = client.get("/api/literature/papers").json()
+    assert listing["count"] == listing["resolved"] == 61
+    paper = next(p for p in listing["papers"] if p["doi"] == "10.1016/j.wasman.2025.01.022")
+    assert paper["title"].startswith("A solvent-targeted recovery and precipitation scheme")
+    assert paper["authors"][0].startswith("Kevin") and paper["year"] == 2025 and paper["passages"] > 0
+    sha = paper["sha256"]
+    monkeypatch.setenv("DISSOLVE_PAIR_RERANK", "off")
+    monkeypatch.setattr(research, "_search_index", lambda index, query, top_k, mode, **kw: [
+        {"chunk_id": f"T5-{sha[:12]}-0021", "page": "5", "section": None, "excerpt": "60 % DMSO-40 % water (v/v)"}])
+    found = client.get("/api/literature/search", params={"q": "EVOH  DMSO water"}).json()
+    assert found["query"] == "EVOH DMSO water"
+    assert [hit["paper"]["sha256"] for hit in found["results"]] == [sha]
+    assert found["results"][0]["passages"][0] == {"chunk_id": f"T5-{sha[:12]}-0021", "rank": 1, "page": "5",
+                                                  "section": None, "excerpt": "60 % DMSO-40 % water (v/v)"}
+    assert client.get("/api/literature/search", params={"q": "   "}).status_code == 422
+
+
 def test_the_family_picker_lists_what_each_family_screens(client):
     """The contaminant families a question can name, since nobody knows 5,830 names (owner, 2026-09-24). Each carries
     the term a question uses and the members the screens evaluate."""
@@ -205,6 +227,8 @@ def test_a_small_host_switches_literature_and_tea_off(serve):
     assert http.get("/api/health").json()["features"] == {"literature": False, "tea": False}
     assert "/literature" not in [row["command"] for row in http.get("/api/commands").json()]
     session_id = http.post("/api/sessions", json={}).json()["session_id"]
+    assert http.get("/api/literature/papers").status_code == 404
+    assert http.get("/api/literature/search", params={"q": "EVOH"}).status_code == 404
     refused = _stream(http, session_id, "/literature corpus")[1]
     assert "Literature search is off on this deployment" in refused["text"]
     assert refused["state"]["literature"] == "off"

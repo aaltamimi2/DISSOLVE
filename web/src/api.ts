@@ -45,6 +45,37 @@ export type ContaminantFamily = {
   source: "plastchem" | "workbook";
 };
 
+/** A paper of the literature corpus. Its record comes from OpenAlex, confirmed against the paper's own text; an
+ * unresolved paper has only its passages and the reason. */
+export type Paper = {
+  document_id: string;
+  sha256: string;
+  passages: number;
+  pages: number | null;
+  resolved: boolean;
+  reason?: string;
+  title?: string;
+  authors?: string[];
+  author_count?: number;
+  year?: number | null;
+  date?: string | null;
+  venue?: string | null;
+  volume?: string | null;
+  issue?: string | null;
+  page_range?: string | null;
+  type?: string | null;
+  doi?: string | null;
+  openalex_id?: string | null;
+  cited_by_count?: number | null;
+  open_access_url?: string | null;
+  abstract?: string | null;
+};
+export type PaperList = { count: number; resolved: number; built_at: string | null; papers: Paper[] };
+export type PaperPassage = { chunk_id: string; rank: number; page: string | number | null; section: string | null; excerpt: string | null };
+/** A paper whose text matches a search, with its best passages in the order the literature search ranks them. */
+export type PaperHit = { paper: Paper; best_rank: number; passages: PaperPassage[] };
+export type PaperSearch = { query: string; depth: number; passages_ranked: number; results: PaperHit[] };
+
 /** A server with a database has accounts; `access_code` says whether sign-up asks for the site's code. */
 export type AuthConfig = { accounts: boolean; access_code: boolean; admin_reads?: boolean };
 export type Me = { username: string | null; created_at?: string };
@@ -211,6 +242,8 @@ export const api = {
   commands: () => json<Command[]>("/api/commands"),
   sessions: () => json<SessionRow[]>("/api/sessions"),
   contaminantFamilies: () => json<ContaminantFamily[]>("/api/contaminant-families"),
+  papers: () => json<PaperList>("/api/literature/papers"),
+  searchPapers: (query: string) => json<PaperSearch>(`/api/literature/search?q=${encodeURIComponent(query)}`),
   authConfig: () => json<AuthConfig>("/api/auth/config"),
   me: () => json<Me>("/api/auth/me"),
   login: (username: string, password: string) => json<Me>("/api/auth/login", post({ username, password })),
