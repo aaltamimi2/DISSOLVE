@@ -69,9 +69,11 @@ def test_the_api_is_the_cli_surface(client):
     assert [row["alias"] for row in client.get("/api/models").json()] == list(cli.MODELS)
     commands = {row["command"]: row for row in client.get("/api/commands").json()}
     assert "/contaminant" not in commands  # no contaminant setting in the web app (owner, 2026-10-05)
-    assert [o["value"] for o in commands["/literature"]["options"]] == ["off", "corpus", "scholarly"]
+    assert [o["value"] for o in commands["/literature"]["options"]] == ["off", "corpus", "strict", "scholarly"]
     assert [o["value"] for o in commands["/breadth"]["options"]][:5] == ["1", "3", "5", "10", "all"]
     assert commands["/literature"]["options"][1]["description"] == "local pinned index, offline"
+    assert commands["/literature"]["options"][2]["description"] == (
+        "corpus, answered only when a model check confirms the passages")
 
 
 def test_the_family_picker_lists_what_each_family_screens(client):
@@ -134,6 +136,7 @@ def test_slash_commands_run_through_the_cli_handler(client, monkeypatch):
     assert [e["event"] for e in events] == ["turn.started", "command.output"]
     assert events[1]["state"]["breadth"] == "3"
     assert _stream(client, session_id, "/literature corpus")[1]["state"]["literature"] == "corpus"
+    assert _stream(client, session_id, "/literature strict")[1]["state"]["literature"] == "strict"
     assert "has no effect in the web app" in _stream(client, session_id, "/harness")[1]["text"]  # CLI-only
     assert _stream(client, session_id, "/model nope")[1] == {"event": "error", "message": "Unknown model alias: nope"}
     assert client.get(f"/api/sessions/{session_id}").json()["breadth"] == "3"  # the CLI's session file
