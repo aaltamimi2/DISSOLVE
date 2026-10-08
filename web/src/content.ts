@@ -77,7 +77,8 @@ export const QUICK_ACTIONS: QuickAction[] = [
   },
   {
     label: "Contaminant Removal",
-    blurb: "Leaching of 7,176 plastic additives and contaminants by name, family or structure, washes and removal routes",
+    // {contaminants}: the served asset's computed count, from /api/health (dropped when the server gives none)
+    blurb: "Leaching of {contaminants} plastic additives and contaminants by name, family or structure, washes and removal routes",
     icon: AlertTriangle,
     examples: [
       { text: "Which wash solvents remove DEHP from LDPE without dissolving it?" },
@@ -164,11 +165,13 @@ const FAMILY_OF: Record<string, keyof typeof FAMILIES> = {
 export const family = (tool: string): Family => FAMILIES[FAMILY_OF[tool] ?? "results"];
 
 /** The cards and examples this deployment can answer. */
-export function offeredActions(features: { literature: boolean; tea: boolean }): QuickAction[] {
+export function offeredActions(features: { literature: boolean; tea: boolean }, contaminants?: number | null): QuickAction[] {
   const offered = (feature?: "literature" | "tea") => !feature || features[feature];
+  const count = contaminants ? contaminants.toLocaleString("en-US") : null;
   return QUICK_ACTIONS.filter((action) => offered(action.feature))
     .map((action) => ({
       ...action,
+      blurb: count ? action.blurb.replace("{contaminants}", count) : action.blurb.replace("{contaminants} ", ""),
       examples: action.examples.filter((e) => offered(e.feature ?? (e.needs?.startsWith("/literature") ? "literature" : undefined))),
     }))
     .filter((action) => action.examples.length > 0);
