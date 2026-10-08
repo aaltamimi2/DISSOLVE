@@ -16,6 +16,8 @@ anyone holding the same PDFs can confirm they reproduced it.
     python -m dissolve.corpus add PAPER.pdf ...          [--corpus DIR]
     python -m dissolve.corpus build PAPER.pdf ...        [--corpus DIR]
     python -m dissolve.corpus verify REFERENCE_DIR       [--corpus DIR]
+    python -m dissolve.corpus papers [--hint FILE ...] [--mailto EMAIL]  [--corpus DIR]
+                                     (titles, authors, DOIs: papers.json, see corpus_papers.py)
     python -m dissolve.corpus prefetch                   (download the pinned models once; ./dissolve runs it)
 """
 
@@ -193,6 +195,8 @@ def working_release(corpus: Path | None = None) -> Path:
         directory.mkdir(parents=True, exist_ok=True)
         for name in (RELEASE_INDEX, RELEASE_MANIFEST):
             shutil.copyfile(SHIPPED / name, directory / name)
+        if (SHIPPED / "papers.json").is_file():
+            shutil.copyfile(SHIPPED / "papers.json", directory / "papers.json")
     return directory
 
 
@@ -337,14 +341,22 @@ def _sha256(data: bytes) -> str:
 
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="python -m dissolve.corpus", description=__doc__.split("\n\n")[0])
-    parser.add_argument("command", choices=("add", "build", "verify", "prefetch"))
+    parser.add_argument("command", choices=("add", "build", "verify", "prefetch", "papers"))
     parser.add_argument("paths", nargs="*", type=Path)
     parser.add_argument("--corpus", type=Path, default=None, help="release directory (default: DISSOLVE_CORPUS_DIR)")
+    parser.add_argument("--hint", type=Path, action="append", default=[],
+                        help="papers: a CSV or JSON naming papers by SHA-256 with a title or DOI (repeatable)")
+    parser.add_argument("--mailto", default=None, help="papers: contact address for the Crossref/OpenAlex polite pools")
     args = parser.parse_args(argv)
-    if (args.command == "prefetch") != (not args.paths):
-        parser.error("prefetch takes no paths; add, build and verify need at least one")
+    if (args.command in ("prefetch", "papers")) != (not args.paths):
+        parser.error("prefetch and papers take no paths; add, build and verify need at least one")
     corpus = args.corpus or research._corpus_dir()
-    if args.command == "prefetch":
+    if args.command == "papers":
+        from . import corpus_papers
+        directory = args.corpus or corpus_papers.release_dir()
+        result = corpus_papers.build_papers(directory, hints=args.hint, mailto=args.mailto,
+                                            openalex_key=corpus_papers.openalex_key_from_file())
+    elif args.command == "prefetch":
         result = prefetch()
     elif args.command == "add":
         result = add(args.paths, corpus)

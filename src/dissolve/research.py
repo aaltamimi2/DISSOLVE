@@ -5174,6 +5174,52 @@ def _zero_hit_reason(index: Mapping[str, Any], query: str, *, gate: bool = True)
     return None
 
 
+_PAPER_RECORDS: dict[tuple[str, float], dict[str, Any]] = {}
+
+
+def _paper_records() -> dict[str, Any]:
+    """sha256 -> bibliographic record from papers.json of the served release, then of the shipped one (corpus_papers.py
+    writes them); read again only when a file changes."""
+    from .corpus_papers import PAPERS_FILE, SCHEMA
+
+    manifest = _declared_bge10_manifest_path()
+    merged: dict[str, Any] = {}
+    for directory in (_SHIPPED_CORPUS_DIR, manifest.parent if manifest is not None else None):
+        path = (directory / PAPERS_FILE) if directory is not None else None
+        if path is None or not path.is_file():
+            continue
+        key = (str(path), path.stat().st_mtime)
+        if key not in _PAPER_RECORDS:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+            _PAPER_RECORDS[key] = payload.get("papers") or {} if payload.get("schema") == SCHEMA else {}
+        merged.update(_PAPER_RECORDS[key])
+    return merged
+
+
+def _attach_paper_records(index: Mapping[str, Any], rows: list[dict[str, Any]]) -> None:
+    """Give each returned passage its paper's title, authors, year, venue and DOI where the index has none. After the
+    ranking, so nothing ranked changes; the passage text and its scores are untouched."""
+    if not rows:
+        return
+    records = _paper_records()
+    if not records:
+        return
+    wanted = {str(row.get("chunk_id")) for row in rows}
+    paper_of = {str(chunk["chunk_id"]): str(chunk.get("paper_sha256") or "")
+                for chunk in index.get("chunks") or [] if str(chunk.get("chunk_id")) in wanted}
+    for row in rows:
+        record = records.get(paper_of.get(str(row.get("chunk_id")), ""))
+        if not record or row.get("title"):
+            continue
+        authors = list(record.get("authors") or [])
+        lead = authors[0].split()[-1] if authors else None
+        row.update({
+            "title": record.get("title"), "year": record.get("year"), "venue": record.get("venue"),
+            "doi": record.get("doi"), "url": f"https://doi.org/{record['doi']}" if record.get("doi") else row.get("url"),
+            "authors": (f"{lead} et al." if len(authors) > 2 else " and ".join(a.split()[-1] for a in authors)) or None,
+        })
+
+
 # --- /literature strict: the paper's strict verifier ---------------------------------------------------------------
 #: A model call checks that the top 5 passages establish every element of the question, then the top 20; the search
 #: returns the first set it finds SUPPORTED, or no passages (fresh confirmation set: 97.2% of answerable questions
@@ -5311,6 +5357,7 @@ def search_literature_corpus(
                 tool, f"The strict check could not run: {type(error).__name__}: {error}",
                 error_code="strict_verification_failed", knowledgebase=index["knowledgebase"],
             )
+    _attach_paper_records(index, rows)
     top_score = rows[0]["final_score"] if rows else 0.0
     floor = _abstention_floor(index)
     served_floor = None if floor is None else round(float(floor), 6)
