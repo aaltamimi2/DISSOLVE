@@ -10,7 +10,7 @@ PFAS	TFPA	2,3,3,3-Tetrafluoro-2-(heptafluoropropoxy)propanoic acid	13252-13-6	ne
 PFAS	PFTriDA	Perfluorotridecanoic acid	72629-94-8	neutral	publication tier (A-12)	in	PFAS/Perfluorotridecanoic_acid.orcacosmo	08d4c4a973603064dfa1207594b9c098de4a2c5a8eec304f592e9df793da75b3
 PFAS	PFUnDA	Perfluoroundecanoic acid	2058-94-8	neutral	release (promotion-v2)	in	PFAS/Perfluoroundecanoic_acid.orcacosmo	7f69c51327bf4a381192657882e010add64935317d904b11a157840f9560090c
 PFAS	PFDoDA	Perfluorododecanoic acid	307-55-1	neutral	release (promotion-v2)	in	PFAS/Perfluorododecanoic_acid.orcacosmo	b471d58cef186c16115dc0acb768331875afcfd0e9e4cffe1d3e414c44852756
-PFAS	PFTetraDA	Perfluorotetradecanoic acid	376-06-7	neutral	publication tier (A-12)	running on Euler		
+PFAS	PFTetraDA	Perfluorotetradecanoic acid	376-06-7	neutral	publication tier (A-12)	in	PFAS/Perfluorotetradecanoic_acid.orcacosmo	696716fe97f573dd206018e3aba758868da926cafd7a458e5293534dad7e643a
 PFAS	PFBS	Perfluorobutanesulfonic acid	375-73-5	neutral	publication tier (A-12)	in	PFAS/Perfluorobutanesulfonic_acid.orcacosmo	603e191f5338af56fe0bfcc1631cfb38320e4d524e8d09c9f78bebefa5bdd6fc
 PFAS	PFPS	Perfluoropentanesulfonic acid	2706-91-4	neutral	publication tier (A-12)	in	PFAS/Perfluoropentanesulfonic_acid.orcacosmo	64444bfdc69bb0339cfe5cef2d0919221722173af3c557b008d879a166944d55
 PFAS	PFHxS	Perfluorohexanesulfonic acid	355-46-4	neutral	publication tier (A-12)	in	PFAS/Perfluorohexanesulfonic_acid.orcacosmo	c67a721da694d22ae5e4d91dc11a3dd296adddffec5b8540cfb31fe6725b0c1d
