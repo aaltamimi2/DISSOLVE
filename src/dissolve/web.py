@@ -150,6 +150,18 @@ def features() -> dict[str, bool]:
     return {"literature": "literature" not in off, "tea": "tea" not in off}
 
 
+@lru_cache(maxsize=1)
+def contaminants_computed() -> int | None:
+    """How many contaminants the served PlastChem asset computed (the welcome card's count, so it follows each release
+    without a frontend change); None when the asset is missing."""
+    try:
+        from . import contaminants
+
+        return int(contaminants._plastchem().execute("SELECT count(*) FROM contaminants WHERE computed").fetchone()[0])
+    except Exception:  # noqa: BLE001 - a missing or unreadable asset leaves the card without a number
+        return None
+
+
 def commands(offered: dict[str, bool] | None = None) -> list[dict[str, Any]]:
     """The CLI's slash commands; the mode options come from the CLI's own pickers."""
     rows = [
@@ -666,7 +678,8 @@ def create_app(home: str | Path | None = None) -> FastAPI:
 
     @api.get("/api/health")
     def health() -> dict[str, Any]:
-        return {"ok": True, "release": RELEASE, "ui_built": (STATIC / "index.html").is_file(), "features": offered}
+        return {"ok": True, "release": RELEASE, "ui_built": (STATIC / "index.html").is_file(), "features": offered,
+                "contaminants_computed": contaminants_computed()}
 
     @api.get("/api/doctor")
     def doctor(refresh: bool = False) -> dict[str, Any]:
