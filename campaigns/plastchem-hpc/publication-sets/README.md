@@ -6,7 +6,7 @@ validation against the paper, with their openCOSMO-RS partition and miscibility 
 the campaign archives (`../opencosmo-outputs/` and `../orca-calculation-files/`, folder
 `contaminants/publication-sets/`) when those are rebuilt.
 
-- `PFAS/`: 18 of the paper's 26 PFAS (ESI Table S7).
+- `PFAS/`: 20 of the paper's 26 PFAS (ESI Table S7).
 - `BFR/`: 4 of its 4 brominated flame retardants (Case Study 1).
 - `Phthalates/`: 8 of its 8 phthalates (ESI Table S5).
 - `<set>/orca-calculation-files/<name>/`: each surface's ORCA inputs, optimised geometry, run record and COSMO-step
@@ -30,8 +30,8 @@ stereoisomer; this set holds gamma-HBCD, the main component of technical HBCD.
 
 openCOSMO-RS 24a at 298.15 K, solute at infinite dilution, with the same 32 solvents, 10 polymer conformer ensembles
 and workers as the PlastChem release: release compounds carry the release's own rows, and the A-12 structures were
-computed the same way on Euler (batches p00, p01, p02). Partition rows are in for 23 of the 30
-files here (waiting: PFBS, PFPS, PFHxS, PFHS, PFOS, NaDoDFNt, NH4PFNt).
+computed the same way on Euler (batches p00, p01, p02). Partition rows are in for 23 of the 32
+files here (waiting: PFBS, PFPS, PFHxS, PFHS, PFOS, KClHxDFS, PFNS, NaDoDFNt, NH4PFNt).
 
 - `THERMODYNAMICS_partition.tsv`: log10 P(solvent/polymer) per file, polymer (EVOH, nylon 6, nylon 6,6, PC, PE,
   PET, PP, PS, PVC, PVDF), solvent and convention; positive favours the solvent. `logP_concentration` is on the
@@ -77,8 +77,8 @@ Identity: the optimised geometry's connectivity must match the input.
 | PFTriDS | Perfluorotridecanesulfonic acid | 791563-89-8 | publication tier (A-12) | running on Euler |
 | PFDS | Perfluorodecanesulfonic acid | 335-77-3 | publication tier (A-12) | running on Euler |
 | PFDoDS | Perfluorododecanesulfonic acid | 79780-39-5 | publication tier (A-12) | running on Euler |
-| KClHxDFS | Potassium 9-chlorohexadecafluoro-3-oxanonane-1-sulfonate | 73606-19-6 | publication tier (A-12) | running on Euler |
-| PFNS | Perfluorononanesulfonate | 474511-07-4 | publication tier (A-12) | running on Euler |
+| KClHxDFS | Potassium 9-chlorohexadecafluoro-3-oxanonane-1-sulfonate | 73606-19-6 | publication tier (A-12) | `PFAS/9-Chlorohexadecafluoro-3-oxanonane-1-sulfonic_acid_(KClHxDFS).orcacosmo` |
+| PFNS | Perfluorononanesulfonate | 474511-07-4 | publication tier (A-12) | `PFAS/Perfluorononanesulfonic_acid_(PFNS).orcacosmo` |
 | NaDoDFNt | Sodium dodecafluoro-3H-4,8-dioxanonanoate | 2250081-67-3 | publication tier (A-12) | `PFAS/Dodecafluoro-3H-4,8-dioxanonanoic_acid_(NaDoDFNt).orcacosmo` |
 | NH4TetraFPt | Ammonium 2,3,3,3-tetrafluoro-2-(heptafluoropropoxy)propanoate | 62037-80-3 | release (promotion-v2), the surface of TFPA | `PFAS/2,3,3,3-Tetrafluoro-2-(heptafluoropropoxy)propanoic_acid_(NH4TetraFPt).orcacosmo` |
 | NH4PFNt | Ammonium 4,8-dioxa-3H-perfluorononanoate | 958445-44-8 | publication tier (A-12) | `PFAS/4,8-Dioxa-3H-perfluorononanoic_acid_(NH4PFNt).orcacosmo` |
