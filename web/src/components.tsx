@@ -1,5 +1,6 @@
 import {
   AlertCircle,
+  BookOpen,
   Calculator,
   Check,
   CheckCircle2,
@@ -321,6 +322,9 @@ export function Header(props: {
   onTheme: () => void;
   onExport: () => void;
   onNewChat: () => void;
+  /** Opens the papers of the literature corpus; absent where literature search is switched off. */
+  onPapers?: () => void;
+  papersOpen?: boolean;
   user?: string | null;
   onSignOut?: () => void;
 }) {
@@ -360,6 +364,12 @@ export function Header(props: {
           <IconButton label={`Switch to ${props.theme === "light" ? "dark" : "light"} mode`} onClick={props.onTheme}>
             {props.theme === "light" ? <Moon size={17} /> : <Sun size={17} />}
           </IconButton>
+          {props.onPapers && (
+            <IconButton label="Browse the papers of the literature corpus" onClick={props.onPapers} active={props.papersOpen}>
+              <BookOpen size={17} />
+              <span className="hidden lg:inline">Papers</span>
+            </IconButton>
+          )}
           {props.canExport && (
             <IconButton label="Export this conversation as Markdown" onClick={props.onExport}>
               <Download size={17} />
