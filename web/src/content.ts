@@ -77,7 +77,7 @@ export const QUICK_ACTIONS: QuickAction[] = [
   },
   {
     label: "Contaminant Removal",
-    blurb: "Leaching of 5,830 PlastChem additives by name or family, washes and removal routes",
+    blurb: "Leaching of 7,160 PlastChem additives by name, family or structure, washes and removal routes",
     icon: AlertTriangle,
     examples: [
       { text: "Which wash solvents remove DEHP from LDPE without dissolving it?" },
@@ -151,6 +151,7 @@ const FAMILY_OF: Record<string, keyof typeof FAMILIES> = {
   compare_contaminant_removal_modes: "contaminants",
   screen_contaminant_partitioning: "contaminants",
   lookup_plastchem_contaminants: "contaminants",
+  find_plastchem_contaminants: "contaminants",
   search_scholarly_literature: "literature",
   search_patent_literature: "literature",
   ingest_literature_documents: "literature",
