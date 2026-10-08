@@ -1,0 +1,33 @@
+{
+ "input_inchikey": "QZHDEAJFRJCDMF-UHFFFAOYSA-N",
+ "perceived_inchikey": "QZHDEAJFRJCDMF-UHFFFAOYSA-N",
+ "inchikey_after_optimization": "QZHDEAJFRJCDMF-UHFFFAOYSA-N",
+ "identity_policy": "connectivity_first_block_with_computed_stereochemistry",
+ "identity_match_basis": "connectivity_first_block",
+ "identity_verified": true,
+ "connectivity_match": true,
+ "full_key_equal": true,
+ "perception_engines_agreeing_on_perceived_key": [
+  "rdkit_determine_bonds"
+ ],
+ "perception_engines_matching_connectivity": [
+  "rdkit_determine_bonds"
+ ],
+ "all_perception_engines_agree_on_full_key": false,
+ "perceived_keys_by_engine": {
+  "rdkit_determine_bonds": "QZHDEAJFRJCDMF-UHFFFAOYSA-N",
+  "openbabel_reference": "IZWVWOACUWOCMQ-UHFFFAOYSA-N"
+ },
+ "identity_observations": [
+  {
+   "method": "rdkit_determine_bonds",
+   "charge": 0,
+   "full_inchikey": "QZHDEAJFRJCDMF-UHFFFAOYSA-N"
+  },
+  {
+   "method": "openbabel_reference",
+   "full_inchikey": "IZWVWOACUWOCMQ-UHFFFAOYSA-N",
+   "warnings": "==============================\n*** Open Babel Warning  in InChI code\n  QZHDEAJFRJCDMF-UHFFFAOYSA-N optimised :Accepted unusual valence(s): O(1)\n1 molecule converted"
+  }
+ ]
+}

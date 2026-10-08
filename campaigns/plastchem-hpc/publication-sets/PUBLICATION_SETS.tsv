@@ -13,18 +13,18 @@ PFAS	PFDoDA	Perfluorododecanoic acid	307-55-1	neutral	release (promotion-v2)	in	
 PFAS	PFTetraDA	Perfluorotetradecanoic acid	376-06-7	neutral	publication tier (A-12)	running on Euler		
 PFAS	PFBS	Perfluorobutanesulfonic acid	375-73-5	neutral	publication tier (A-12)	in	PFAS/Perfluorobutanesulfonic_acid.orcacosmo	603e191f5338af56fe0bfcc1631cfb38320e4d524e8d09c9f78bebefa5bdd6fc
 PFAS	PFPS	Perfluoropentanesulfonic acid	2706-91-4	neutral	publication tier (A-12)	in	PFAS/Perfluoropentanesulfonic_acid.orcacosmo	64444bfdc69bb0339cfe5cef2d0919221722173af3c557b008d879a166944d55
-PFAS	PFHxS	Perfluorohexanesulfonic acid	355-46-4	neutral	publication tier (A-12)	running on Euler		
+PFAS	PFHxS	Perfluorohexanesulfonic acid	355-46-4	neutral	publication tier (A-12)	in	PFAS/Perfluorohexanesulfonic_acid.orcacosmo	c67a721da694d22ae5e4d91dc11a3dd296adddffec5b8540cfb31fe6725b0c1d
 PFAS	PFHS	Perfluoroheptanesulfonic acid	375-92-8	neutral	publication tier (A-12)	in	PFAS/Perfluoroheptanesulfonic_acid.orcacosmo	09e5ed63a393b0c74ab9c0b92773c88751deb6ad03d11ef37458809acbe5ec59
-PFAS	PFOS	Perfluorooctanesulfonic acid	1763-23-1	neutral	publication tier (A-12)	running on Euler		
+PFAS	PFOS	Perfluorooctanesulfonic acid	1763-23-1	neutral	publication tier (A-12)	in	PFAS/Perfluorooctanesulfonic_acid.orcacosmo	7cedbf3042732080356623da2a0f18a207897488485bb02a8c49c9f9751de29c
 PFAS	PFUnDS	Perfluoroundecanesulfonic acid	749786-16-1	neutral	publication tier (A-12)	running on Euler		
 PFAS	PFTriDS	Perfluorotridecanesulfonic acid	791563-89-8	neutral	publication tier (A-12)	running on Euler		
 PFAS	PFDS	Perfluorodecanesulfonic acid	335-77-3	neutral	publication tier (A-12)	running on Euler		
 PFAS	PFDoDS	Perfluorododecanesulfonic acid	79780-39-5	neutral	publication tier (A-12)	running on Euler		
 PFAS	KClHxDFS	Potassium 9-chlorohexadecafluoro-3-oxanonane-1-sulfonate	73606-19-6	neutral	publication tier (A-12)	running on Euler		
 PFAS	PFNS	Perfluorononanesulfonate	474511-07-4	neutral	publication tier (A-12)	running on Euler		
-PFAS	NaDoDFNt	Sodium dodecafluoro-3H-4,8-dioxanonanoate	2250081-67-3	neutral	publication tier (A-12)	running on Euler		
+PFAS	NaDoDFNt	Sodium dodecafluoro-3H-4,8-dioxanonanoate	2250081-67-3	neutral	publication tier (A-12)	in	PFAS/Dodecafluoro-3H-4,8-dioxanonanoic_acid_(NaDoDFNt).orcacosmo	9a266b261a382698402cdadaf317da7b3ac8b78824dae1c855eb5e860ad7c1eb
 PFAS	NH4TetraFPt	Ammonium 2,3,3,3-tetrafluoro-2-(heptafluoropropoxy)propanoate	62037-80-3	neutral	release (promotion-v2), the surface of TFPA	in	PFAS/2,3,3,3-Tetrafluoro-2-(heptafluoropropoxy)propanoic_acid_(NH4TetraFPt).orcacosmo	d18425479cee8f924ddb913f397758db1bfcff37fbaf3f76b5da7189c93da920
-PFAS	NH4PFNt	Ammonium 4,8-dioxa-3H-perfluorononanoate	958445-44-8	neutral	publication tier (A-12)	running on Euler		
+PFAS	NH4PFNt	Ammonium 4,8-dioxa-3H-perfluorononanoate	958445-44-8	neutral	publication tier (A-12)	in	PFAS/4,8-Dioxa-3H-perfluorononanoic_acid_(NH4PFNt).orcacosmo	9a266b261a382698402cdadaf317da7b3ac8b78824dae1c855eb5e860ad7c1eb
 BFR	Tri-PBDE	2,4,4'-Tribromodiphenyl ether (BDE-28)	41318-75-6	neutral	release (promotion-v2)	in	BFR/2,4-Dibromo-1-(4-bromophenoxy)benzene.orcacosmo	d80fc5a39a8810000a576f4692f155f20bd77bcb424c1c4ab2d6c70142371705
 BFR	HBCD	Hexabromocyclododecane (gamma-HBCD; the paper does not name the stereoisomer)	134237-52-8	neutral	release (promotion-v2)	in	BFR/gamma-Hexabromocyclododecane.orcacosmo	4bc6d6a599d187d5e871842d2b737bb51f1ae412f97b1a731eca971a9cfcd5c8
 BFR	DECA	Decabromodiphenyl ether (BDE-209)	1163-19-5	neutral	publication tier (A-12)	in	BFR/Decabromodiphenyl_ether_(BDE-209).orcacosmo	c8d4fab049c66adfdc898db06638f99848db5ecb96b393b45c0fbe41e654d711
