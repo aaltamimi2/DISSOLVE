@@ -3,6 +3,9 @@
 import { ArrowLeft, BookOpen, ExternalLink, FileSearch, Loader2, MessageSquareText, Search, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { api, type Paper, type PaperHit, type PaperList, type PaperSearch } from "./api";
+import { shortCitation } from "./citations";
+
+export { shortCitation };
 
 type Sort = "relevance" | "newest" | "oldest" | "cited" | "title";
 const SORT_LABEL: Record<Sort, string> = {
@@ -76,15 +79,35 @@ function byline(paper: Paper): string {
   return [names, paper.year, paper.venue].filter(Boolean).join(" · ");
 }
 
-/** "Sánchez-Rivera et al., 2025": how a question names a paper. */
-export function shortCitation(paper: Paper): string {
-  const authors = paper.authors ?? [];
-  const surname = (name: string) => name.trim().split(/\s+/).pop() ?? name;
-  const who = authors.length > 2 ? `${surname(authors[0])} et al.` : authors.map(surname).join(" and ");
-  return [who, paper.year].filter(Boolean).join(", ");
+let corpusPapers: Promise<Paper[]> | null = null;
+
+/** The corpus papers, fetched once for every answer that cites them; null until they arrive. */
+export function useCorpusPapers(needed: boolean): Paper[] | null {
+  const [papers, setPapers] = useState<Paper[] | null>(null);
+  useEffect(() => {
+    if (!needed) return;
+    let live = true;
+    corpusPapers ??= api
+      .papers()
+      .then((list) => list.papers)
+      .catch(() => {
+        corpusPapers = null; // a failed fetch is tried again by the next answer
+        return [];
+      });
+    void corpusPapers.then((list) => {
+      if (live) setPapers(list);
+    });
+    return () => {
+      live = false;
+    };
+  }, [needed]);
+  return papers;
 }
 
-export function PapersPanel({ onClose, onAsk }: { onClose: () => void; onAsk: (paper: Paper) => void }) {
+/** A paper to open on: the hash prefix a citation names, with a nonce so the same citation opens it again. */
+export type PaperFocus = { hex: string; nonce: number };
+
+export function PapersPanel({ onClose, onAsk, focus }: { onClose: () => void; onAsk: (paper: Paper) => void; focus?: PaperFocus | null }) {
   const [list, setList] = useState<PaperList | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState("");
@@ -98,6 +121,11 @@ export function PapersPanel({ onClose, onAsk }: { onClose: () => void; onAsk: (p
   useEffect(() => {
     api.papers().then(setList).catch((e: Error) => setError(e.message));
   }, []);
+
+  useEffect(() => {
+    const paper = focus ? list?.papers.find((p) => p.sha256.startsWith(focus.hex)) : undefined;
+    if (paper) setOpen({ paper });
+  }, [focus, list]);
 
   const years = useMemo(() => {
     const all = (list?.papers ?? []).map((p) => p.year).filter((y): y is number => typeof y === "number");

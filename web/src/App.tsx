@@ -16,7 +16,7 @@ import {
 } from "./api";
 import { Composer, Header, MessageView, Sidebar, SignIn, Toast, Welcome, type ChatMessage } from "./components";
 import type { Example } from "./content";
-import { PapersPanel, shortCitation } from "./papers";
+import { PapersPanel, shortCitation, type PaperFocus } from "./papers";
 import { TeaPanel, type TeaView } from "./tea";
 
 const uid = () => Math.random().toString(36).slice(2);
@@ -122,6 +122,7 @@ function Workspace({ user, onSignOut }: { user: string | null; onSignOut?: () =>
   const [tea, setTea] = useState<TeaView | null>(null);
   const [teaOpen, setTeaOpen] = useState(false);
   const [papersOpen, setPapersOpen] = useState(false);
+  const [paperFocus, setPaperFocus] = useState<PaperFocus | null>(null);
   const bottom = useRef<HTMLDivElement>(null);
   const composer = useRef<HTMLTextAreaElement>(null);
   const sessionRef = useRef<SessionState | null>(null);
@@ -297,6 +298,14 @@ function Workspace({ user, onSignOut }: { user: string | null; onSignOut?: () =>
     if (window.innerWidth < 1440) setSidebar(false); // the chat keeps room beside the panel
   };
 
+  /** A citation chip or source: the papers panel, open on the paper it names. */
+  const openCitedPaper = (hex: string) => {
+    setPaperFocus({ hex, nonce: Date.now() });
+    setTeaOpen(false);
+    setPapersOpen(true);
+    if (window.innerWidth < 1440) setSidebar(false);
+  };
+
   /** Puts a question about the paper in the composer, with the corpus offered to the agent if literature was off. */
   const askAboutPaper = async (paper: Paper) => {
     const named = paper.resolved && paper.title ? `“${paper.title}” (${shortCitation(paper)})` : "this corpus paper";
@@ -421,6 +430,7 @@ function Workspace({ user, onSignOut }: { user: string | null; onSignOut?: () =>
                     onCopy={copy}
                     onOpenTea={openTea}
                     onReport={m.role === "assistant" && !m.running && state ? (note) => report(index, note) : undefined}
+                    onCite={features.literature ? openCitedPaper : undefined}
                   />
                 ))}
                 <div ref={bottom} />
@@ -442,7 +452,7 @@ function Workspace({ user, onSignOut }: { user: string | null; onSignOut?: () =>
         {tea && teaOpen && state && (
           <TeaPanel sessionId={state.session_id} view={tea} onView={setTea} onClose={() => setTeaOpen(false)} notify={notify} />
         )}
-        {papersOpen && features.literature && <PapersPanel onClose={() => setPapersOpen(false)} onAsk={askAboutPaper} />}
+        {papersOpen && features.literature && <PapersPanel onClose={() => setPapersOpen(false)} onAsk={askAboutPaper} focus={paperFocus} />}
       </div>
       {toast && <Toast text={toast.text} kind={toast.kind} />}
     </div>
