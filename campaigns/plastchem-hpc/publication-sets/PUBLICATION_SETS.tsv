@@ -19,7 +19,7 @@ PFAS	PFOS	Perfluorooctanesulfonic acid	1763-23-1	neutral	publication tier (A-12)
 PFAS	PFUnDS	Perfluoroundecanesulfonic acid	749786-16-1	neutral	publication tier (A-12)	in	PFAS/Perfluoroundecanesulfonic_acid.orcacosmo	16a734133db06d6b82e0aa40dbda78e24326803a97e5024ff14c22e833e51c52
 PFAS	PFTriDS	Perfluorotridecanesulfonic acid	791563-89-8	neutral	publication tier (A-12)	running on Euler		
 PFAS	PFDS	Perfluorodecanesulfonic acid	335-77-3	neutral	publication tier (A-12)	in	PFAS/Perfluorodecanesulfonic_acid.orcacosmo	f67f48678fd935301399d4d62cf967b763714e5d09bb4abae046d95219d815db
-PFAS	PFDoDS	Perfluorododecanesulfonic acid	79780-39-5	neutral	publication tier (A-12)	running on Euler		
+PFAS	PFDoDS	Perfluorododecanesulfonic acid	79780-39-5	neutral	publication tier (A-12)	in	PFAS/Perfluorododecanesulfonic_acid.orcacosmo	c07da43aad7e0d607e4223c50fc5cb863f3acd01d015f3d6a0b3321710e2e531
 PFAS	KClHxDFS	Potassium 9-chlorohexadecafluoro-3-oxanonane-1-sulfonate	73606-19-6	neutral	publication tier (A-12)	in	PFAS/9-Chlorohexadecafluoro-3-oxanonane-1-sulfonic_acid_(KClHxDFS).orcacosmo	2aa6bef1b809a629056a24c081b27c16e08baa385597d811aba6d92ac3f51e69
 PFAS	PFNS	Perfluorononanesulfonate	474511-07-4	neutral	publication tier (A-12)	in	PFAS/Perfluorononanesulfonic_acid_(PFNS).orcacosmo	ad9ecead72954ba22c9d545c489459f52c7285616e9ac3bee67c8284d0cdaece
 PFAS	NaDoDFNt	Sodium dodecafluoro-3H-4,8-dioxanonanoate	2250081-67-3	neutral	publication tier (A-12)	in	PFAS/Dodecafluoro-3H-4,8-dioxanonanoic_acid_(NaDoDFNt).orcacosmo	9a266b261a382698402cdadaf317da7b3ac8b78824dae1c855eb5e860ad7c1eb
