@@ -199,6 +199,7 @@ def test_a2a4_coverage_star_is_max_over_sparse_gated():
 
 
 def test_a2a4_floor_refuses_before_encoder_in_all_three_modes(monkeypatch):
+    monkeypatch.setenv("DISSOLVE_LITERATURE_GATE", "on")  # the gate as the paper's served R3 applied it
     def boom(*_args, **_kwargs):
         raise AssertionError("A-2A4 floor must refuse before the encoder")
 
@@ -2471,6 +2472,7 @@ class TestBgeFusion:
         assert [row["sparse_score"] for row in rows] == [0.0, 0.0, 0.0]
 
     def test_gate_first_below_unchanged_floor(self, monkeypatch):
+        monkeypatch.setenv("DISSOLVE_LITERATURE_GATE", "on")  # the gate as the paper's served R3 applied it
         index = _index_bge_fusion(
             _three(texts=[NOMATCH_TEXT, NOMATCH_TEXT, NOMATCH_TEXT]),
             floor=UNCHANGED_FLOOR,
@@ -2547,6 +2549,7 @@ class TestBgeFusion:
         assert data["results"] == []
 
     def test_gate_first_when_floor_and_no_sparse_coincide(self, monkeypatch):
+        monkeypatch.setenv("DISSOLVE_LITERATURE_GATE", "on")  # the gate as the paper's served R3 applied it
         index = _index_bge_fusion(_three(), floor=UNCHANGED_FLOOR)
         _install_scores(monkeypatch, [0.9, 0.8, 0.7], [0.0, 0.0, 0.0])
         parsed = _public(monkeypatch, index)
@@ -2601,6 +2604,7 @@ class TestBgeFusion:
         assert counters[2][0] == [f"c{i:02d}" for i in range(20, -1, -1)]
 
     def test_gate_equality_is_not_abstention(self, monkeypatch):
+        monkeypatch.setenv("DISSOLVE_LITERATURE_GATE", "on")  # the gate as the paper's served R3 applied it
         equal = _index_bge_fusion(_three(), floor=1.0)
         rows, counters = _search(equal, monkeypatch, [0.3, 0.2, 0.1], [1.0, 1.0, 1.0])
         assert _ids(rows) == ["c0", "c1", "c2"]
@@ -2611,6 +2615,117 @@ class TestBgeFusion:
         )
         assert empty == []
         assert counters_strict[0] == []
+
+    # --- the served search without the gate, and /literature strict (owner, 2026-10-08) ---------------------------
+
+    def test_served_search_returns_passages_below_the_floor_with_the_answer_rule(self, monkeypatch):
+        """Below the floor the passages still come back, with the rule that makes the agent decline when they do not
+        answer. The gated tool (DISSOLVE_LITERATURE_GATE=on, the paper's R3) returns nothing for the same query."""
+        index = _index_bge_fusion(_three(texts=[NOMATCH_TEXT, NOMATCH_TEXT, NOMATCH_TEXT]), floor=UNCHANGED_FLOOR)
+        _install_scores(monkeypatch, [0.9, 0.8, 0.7], [1.0, 1.0, 1.0])
+        data = _public(monkeypatch, index)["data"]
+        assert data["result_count"] == 3 and "reason" not in data
+        assert data["coverage_star"] < UNCHANGED_FLOOR
+        assert data["answer_rule"] == research.ANSWER_RULE
+        assert data["literature_gate"] == "off"
+        monkeypatch.setenv("DISSOLVE_LITERATURE_GATE", "on")
+        gated = _public(monkeypatch, index)["data"]
+        assert gated["result_count"] == 0 and gated["reason"] == "abstained_below_floor"
+        assert gated["literature_gate"] == "on" and "answer_rule" not in gated
+
+    def test_no_shared_word_still_returns_nothing_without_the_gate(self, monkeypatch):
+        index = _index_bge_fusion(_three(), floor=UNCHANGED_FLOOR)
+        _install_scores(monkeypatch, [0.9, 0.8, 0.7], [0.0, 0.0, 0.0])
+        data = _public(monkeypatch, index)["data"]
+        assert data["result_count"] == 0 and data["reason"] == "no_sparse_match"
+
+    def test_the_inspect_tool_follows_the_served_gate(self, monkeypatch):
+        index = _index_bge_fusion(_three(texts=[NOMATCH_TEXT, NOMATCH_TEXT, NOMATCH_TEXT]), floor=UNCHANGED_FLOOR)
+        rows, _counters = _search(index, monkeypatch, [0.9, 0.8, 0.7], [1.0, 1.0, 1.0])
+        assert _ids(rows) == ["c0", "c1", "c2"]
+        monkeypatch.setenv("DISSOLVE_LITERATURE_GATE", "on")
+        gated, _counters = _search(index, monkeypatch, [0.9, 0.8, 0.7], [1.0, 1.0, 1.0])
+        assert gated == []
+
+    @staticmethod
+    def _elements(*ids_per_element):
+        return json.dumps({"elements": [{"element": f"e{n}", "passage_ids": list(ids)}
+                                        for n, ids in enumerate(ids_per_element)]})
+
+    def _strict(self, monkeypatch, replies, *, count=8, question="Which zympoly solvent dissolves it at 120 C?"):
+        index = _index_bge_fusion([_chunk_bge_fusion(f"s{n}", text=MATCH_TEXT) for n in range(count)],
+                                  floor=UNCHANGED_FLOOR)
+        _install_scores(monkeypatch, [0.9 - 0.01 * n for n in range(count)], [float(count - n) for n in range(count)])
+        monkeypatch.setattr(research, "_load_index", lambda kb: index)
+        prompts: list[str] = []
+
+        def verifier(prompt):
+            prompts.append(prompt)
+            reply = replies.pop(0)
+            if isinstance(reply, Exception):
+                raise reply
+            return reply
+
+        parsed = parse_tool_result(research.search_literature_corpus(
+            QUERY, knowledgebase=PRODUCT_KB, strict_question=question, strict_verifier=verifier,
+        ))
+        return parsed, prompts
+
+    def test_strict_returns_the_top_five_once_the_verifier_finds_them_sufficient(self, monkeypatch):
+        parsed, prompts = self._strict(monkeypatch, [self._elements(["P1"], ["P4"])])
+        data = parsed["data"]
+        assert data["result_count"] == 5 and _ids(data["results"]) == ["s0", "s1", "s2", "s3", "s4"]
+        assert data["verification"]["verdict"] == "SUPPORTED" and data["verification"]["depth_used"] == 5
+        assert len(prompts) == 1
+        assert "QUESTION:\nWhich zympoly solvent dissolves it at 120 C?" in prompts[0]  # the user's question
+        assert "[P5]" in prompts[0] and "[P6]" not in prompts[0]
+        assert data["answer_rule"] == research.ANSWER_RULE
+
+    def test_strict_widens_to_twenty_when_five_fall_short(self, monkeypatch):
+        parsed, prompts = self._strict(monkeypatch, [self._elements(["P1"], []), self._elements(["P2"], ["P7"])])
+        data = parsed["data"]
+        assert data["result_count"] == 8 and data["verification"]["depth_used"] == 20
+        assert [check["verdict"] for check in data["verification"]["checks"]] == ["PARTIAL", "SUPPORTED"]
+        assert "[P8]" in prompts[1]
+
+    def test_strict_returns_nothing_when_no_depth_is_sufficient(self, monkeypatch):
+        parsed, prompts = self._strict(monkeypatch, [self._elements([]), self._elements(["P2"], ["P9"])])
+        data = parsed["data"]
+        assert data["result_count"] == 0 and data["results"] == []
+        assert data["reason"] == "verified_insufficient" and data["message"] == research.STRICT_INSUFFICIENT
+        # P9 does not exist among 8 passages, so that element is unsupported and the set is only PARTIAL
+        assert [check["verdict"] for check in data["verification"]["checks"]] == ["UNSUPPORTED", "PARTIAL"]
+        assert len(prompts) == 2
+
+    def test_strict_asks_again_after_a_malformed_reply_and_then_counts_it_unsupported(self, monkeypatch):
+        replies = ["not json", '{"elements": "P1"}', "```json\n{}\n```", self._elements(["P3"])]
+        parsed, prompts = self._strict(monkeypatch, replies)
+        checks = parsed["data"]["verification"]["checks"]
+        assert checks[0] == {"depth": 5, "passages": 5, "verdict": "UNSUPPORTED", "calls": research.STRICT_ATTEMPTS}
+        assert checks[1]["verdict"] == "SUPPORTED" and checks[1]["calls"] == 1
+        assert len(prompts) == research.STRICT_ATTEMPTS + 1
+
+    def test_strict_checks_once_when_twenty_would_read_the_same_passages(self, monkeypatch):
+        parsed, prompts = self._strict(monkeypatch, [self._elements([])], count=4)
+        assert parsed["data"]["reason"] == "verified_insufficient" and len(prompts) == 1
+
+    def test_a_failed_strict_check_is_an_error_not_an_unsupported_answer(self, monkeypatch):
+        parsed, _prompts = self._strict(monkeypatch, [RuntimeError("provider down")])
+        assert parsed["data"]["success"] is False
+        assert parsed["data"]["error_code"] == "strict_verification_failed"
+
+    def test_strict_replaces_the_gate_even_where_the_gate_is_switched_on(self, monkeypatch):
+        monkeypatch.setenv("DISSOLVE_LITERATURE_GATE", "on")
+        parsed, prompts = self._strict(monkeypatch, [self._elements(["P2"])])
+        assert parsed["data"]["result_count"] == 5 and len(prompts) == 1
+
+    def test_strict_verdict_reads_only_listed_passage_ids(self):
+        assert research.strict_verdict([{"passage_ids": ["P1"]}, {"passage_ids": ["P2"]}], 5) == "SUPPORTED"
+        assert research.strict_verdict([{"passage_ids": ["P1"]}, {"passage_ids": []}], 5) == "PARTIAL"
+        assert research.strict_verdict([{"passage_ids": ["P6"]}], 5) == "UNSUPPORTED"
+        assert research.strict_verdict([{"passage_ids": ["passage 1"]}], 5) == "UNSUPPORTED"
+        for reply in (None, [], "P1", [{"passage_ids": "P1"}], [["P1"]]):
+            assert research.strict_verdict(reply, 5) is None
 
     def test_bge_recipe_library_is_fused_like_the_product(self, monkeypatch):
         product = _index_bge_fusion(_three(abstract=True))
@@ -3290,6 +3405,7 @@ class TestBgeReranker:
             research._pair_dir()
 
     def test_gate_and_non_bge_library_skip_pair(self, monkeypatch, tmp_path):
+        monkeypatch.setenv("DISSOLVE_LITERATURE_GATE", "on")  # the gate as the paper's served R3 applied it
         backend = PairBackend(logits_by_passage={MATCH_TEXT: 9.0})
         _install_backend(monkeypatch, tmp_path, backend)
         rrf_calls: list = []
@@ -4453,6 +4569,8 @@ class TestAcceptanceObserver:
         monkeypatch.delenv("DISSOLVE_BGE10_MANIFEST", raising=False)
         monkeypatch.delenv("DISSOLVE_BGE_ONNX_INT8", raising=False)
         monkeypatch.setenv("DISSOLVE_PAIR_RERANK", "off")
+        # The contract's served tool is the paper's R3, which applied the gate (DISSOLVE_LITERATURE_GATE=on).
+        monkeypatch.setenv("DISSOLVE_LITERATURE_GATE", "on")
         monkeypatch.setattr(research, "_research_root", lambda: tmp_path / "research-home")
         monkeypatch.setattr(research, "_committed_lexicon", lambda: [])
         monkeypatch.setattr(

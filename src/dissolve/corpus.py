@@ -2,8 +2,9 @@
 
 Recipe: Docling 2.121.0 canonical document -> T5 chunks (whole parser blocks packed up to 1,400
 characters, never split) -> BGE-base-en-v1.5 vectors at the pinned revision, one paper per batch.
-The literature tools serve a corpus with BM25 and dense z-score fusion, the abstention gate and
-the pinned bge-reranker-base pair rerank with reciprocal-rank fusion (the BGE10 configuration).
+The literature tools serve a corpus with BM25 and dense z-score fusion and the pinned
+bge-reranker-base pair rerank with reciprocal-rank fusion (the BGE10 configuration). Each release
+still records the abstention floor below, which the search applies only with DISSOLVE_LITERATURE_GATE=on.
 
 A release is a directory holding index.json.gz and manifest.json. The package ships the paper's
 release (61 papers, 3,035 chunks) in data/corpus. The working release is DISSOLVE_CORPUS_DIR
@@ -43,7 +44,8 @@ RELEASE_INDEX = "index.json.gz"
 RELEASE_MANIFEST = "manifest.json"
 SHIPPED = Path(__file__).resolve().parent / "data" / "corpus"
 #: The answer gate: 5th percentile of query_idf_coverage, calibrated 2026-09-09 against the
-#: private benchmark. Nobody can recalibrate it without that benchmark, so it ships as is.
+#: private benchmark. Nobody can recalibrate it without that benchmark, so it ships as is. The
+#: served search has not applied it since 2026-10-08 (research.literature_gate_on).
 ABSTENTION = {"statistic": "query_idf_coverage", "percentile": 5, "floor": 0.3698406656908355}
 #: The measured standing of the BGE10 configuration: better than MiniLM at every depth, and
 #: still below the pre-registered served floor (196 of 228 against 206 at k=5).

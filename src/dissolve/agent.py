@@ -10,6 +10,8 @@ import sys
 import time
 from collections.abc import Mapping as AbcMapping
 from collections.abc import Sequence as AbcSeq
+from contextlib import contextmanager
+from contextvars import ContextVar
 from dataclasses import dataclass
 from types import UnionType
 from urllib.parse import urlsplit
@@ -166,7 +168,7 @@ _ALWAYS_HANDLE_TOOLS = _PROCESS_ECONOMICS_HANDLE_TOOLS | frozenset({
 # coverage (how many members it screened, how many the release lacks and why) went missing from the answer, and so
 # did a safety ranking's order, ties and missing scores once the comparison grew past one page.
 _COMPACT_KEEP_LISTS = frozenset({"ranked_path_index", "stage1_shortlists", "family_coverage", "ranking"})
-_OMIT = frozenset({"temperature_step_c", "save_to_corpus"})
+_OMIT = frozenset({"temperature_step_c", "save_to_corpus", "strict_question", "strict_verifier"})
 # Closed keep-out. Not a /literature mode. Retrieval-then-ingest is a later
 # spec with an owner decision and a floor re-derive; it does not widen scholarly.
 LITERATURE_INGEST_TOOLS = frozenset({
@@ -186,6 +188,7 @@ LITERATURE_SCHOLARLY_TOOLS = LITERATURE_CORPUS_TOOLS | LITERATURE_NETWORK_TOOLS
 LITERATURE_MODE_SURFACE = {
     "off": frozenset(),
     "corpus": LITERATURE_CORPUS_TOOLS,
+    "strict": LITERATURE_CORPUS_TOOLS,  # the corpus, answered only from passages the strict verifier accepts
     "scholarly": LITERATURE_SCHOLARLY_TOOLS,
 }
 LITERATURE_AGENT_TOOLS = (
@@ -405,7 +408,7 @@ def _ptype(ann: Any) -> dict[str, Any]:
     return {bool: {"type": "boolean"}, int: {"type": "integer"}, float: {"type": "number"}, str: {"type": "string"}}.get(ann, {})
 
 def literature_agent_mode(session: Any = None) -> str:
-    """off | corpus | scholarly. Absent or junk is off. Not a registry filter."""
+    """off | corpus | strict | scholarly. Absent or junk is off. Not a registry filter."""
     if session is None:
         session = current_tool_session()
     if not isinstance(session, dict):
@@ -415,7 +418,7 @@ def literature_agent_mode(session: Any = None) -> str:
         token = str(stored.get("mode") or "").strip().casefold()
     else:
         token = str(stored or "").strip().casefold()
-    if token in {"corpus", "scholarly"}:
+    if token in {"corpus", "strict", "scholarly"}:
         return token
     return "off"
 
@@ -716,6 +719,14 @@ def dispatch(name: str, **kwargs: Any) -> dict[str, Any]:
         call_kwargs["include_pubchem"] = False
     if name in LITERATURE_NETWORK_TOOLS:
         call_kwargs["save_to_corpus"] = False
+    if name == "search_literature_corpus" and literature_agent_mode(record) == "strict":
+        turn = _TURN_MODEL.get()
+        if turn is None:
+            out = _refuse("strict_verification_unavailable",
+                          detail="/literature strict checks passages with the turn's model; no turn is running")
+            return _emit(name, kwargs, out, out)
+        call_kwargs["strict_question"] = turn.question
+        call_kwargs["strict_verifier"] = _strict_verifier(turn)
     if bind:
         try:
             with bind_handle_rows(record, bind):
@@ -1203,7 +1214,7 @@ def complete(messages, tools, *, model, api_base=None, api_key_env=None, tool_ch
         ant = [{"name": t["name"], "description": t.get("description") or "", "input_schema": t["parameters"]} for t in tools]
         choice = {"tool_choice": {"type": "none"}} if tool_choice == "none" else {}
         resp = anthropic.Anthropic(api_key=key, max_retries=_PROVIDER_RETRIES).messages.create(
-            model=ident, system=sys, messages=rest, tools=ant, max_tokens=8192, **choice)
+            model=ident, system=sys, messages=rest, **({"tools": ant, **choice} if ant else {}), max_tokens=8192)
         text = "".join(getattr(b, "text", "") for b in resp.content if getattr(b, "type", "") == "text")
         calls = [{"id": b.id, "name": b.name, "args": dict(b.input or {})}
                  for b in resp.content if getattr(b, "type", "") == "tool_use"]
@@ -1216,9 +1227,9 @@ def complete(messages, tools, *, model, api_base=None, api_key_env=None, tool_ch
         resp = genai.Client(api_key=key).models.generate_content(
             model=ident, contents=_gen_contents(messages),
             config=types.GenerateContentConfig(
-                system_instruction=sys, tools=[types.Tool(function_declarations=decls)],
+                system_instruction=sys, **({"tools": [types.Tool(function_declarations=decls)]} if decls else {}),
                 **({"tool_config": types.ToolConfig(function_calling_config=types.FunctionCallingConfig(mode="NONE"))}
-                   if tool_choice == "none" else {})))
+                   if tool_choice == "none" and decls else {})))
         calls = [{"id": getattr(c, "id", "") or "", "name": c.name, "args": dict(c.args or {})}
                  for c in (getattr(resp, "function_calls", None) or [])]
         return {"text": getattr(resp, "text", None) or "", "tool_calls": calls, "usage": _usage(kind, resp)}
@@ -1231,8 +1242,9 @@ def complete(messages, tools, *, model, api_base=None, api_key_env=None, tool_ch
         while True:
             try:
                 resp = client.chat.completions.create(
-                    model=ident, messages=_oai_msgs(messages), tools=oai, **({"extra_body": extra} if extra else {}),
-                    **({"tool_choice": "none"} if tool_choice == "none" else {}))
+                    model=ident, messages=_oai_msgs(messages), **({"tools": oai} if oai else {}),
+                    **({"extra_body": extra} if extra else {}),
+                    **({"tool_choice": "none"} if tool_choice == "none" and oai else {}))
                 break
             except RateLimitError as error:
                 wait = _rate_limit_wait_s(error)
@@ -1292,6 +1304,38 @@ def _tool_round_cap() -> int:
     return int(raw) if raw.isdigit() and int(raw) > 0 else _TOOL_ROUNDS
 
 
+@dataclass
+class _TurnModel:
+    """The running turn's model and question, for the one tool that calls a model itself (/literature strict)."""
+    model: str
+    api_base: str | None
+    api_key_env: str | None
+    question: str
+    usage: list
+
+
+_TURN_MODEL: ContextVar[_TurnModel | None] = ContextVar("dissolve_turn_model", default=None)
+
+
+@contextmanager
+def _turn_model(turn: _TurnModel):
+    token = _TURN_MODEL.set(turn)
+    try:
+        yield turn
+    finally:
+        _TURN_MODEL.reset(token)
+
+
+def _strict_verifier(turn: _TurnModel) -> Callable[[str], str]:
+    """One plain model call per check, on the turn's own model and key; its usage counts toward the turn's."""
+    def verify(prompt: str) -> str:
+        reply = complete([{"role": "user", "content": prompt}], [], model=turn.model, api_base=turn.api_base,
+                         api_key_env=turn.api_key_env)
+        turn.usage.append(reply.get("usage"))
+        return reply.get("text") or ""
+    return verify
+
+
 def run_turn(
     query: str, *, session: dict, model: str, messages: list | None = None,
     on_event: Callable[[ToolEvent], None] | None = None,
@@ -1309,7 +1353,7 @@ def run_turn(
     rounds = 0
     acc = []
     cap = _tool_round_cap()
-    with bind_tool_session(session) as bound:
+    with bind_tool_session(session) as bound, _turn_model(_TurnModel(model, api_base, api_key_env, query, acc)):
         tid = open_turn_record(bound)
         for _ in range(cap):
             try:

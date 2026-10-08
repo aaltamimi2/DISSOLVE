@@ -6715,6 +6715,7 @@ def test_parse_rejects_on_and_unknown():
     assert _parse_literature_slash([]) is None
     assert _parse_literature_slash(["off"]) == {"mode": "off"}
     assert _parse_literature_slash(["corpus"]) == {"mode": "corpus"}
+    assert _parse_literature_slash(["strict"]) == {"mode": "strict"}
     assert _parse_literature_slash(["scholarly"]) == {"mode": "scholarly"}
     with pytest.raises(ValueError, match="usage: /literature"):
         _parse_literature_slash(["on"])
@@ -6760,10 +6761,11 @@ def test_corpus_offers_exactly_two_local_tools_and_network_does_not_fire(monkeyp
 
 
 def test_scholarly_is_named_surface_not_registry_minus_ingest():
-    assert set(LITERATURE_MODE_SURFACE) == {"off", "corpus", "scholarly"}
+    assert set(LITERATURE_MODE_SURFACE) == {"off", "corpus", "strict", "scholarly"}
     assert "ingest" not in LITERATURE_MODE_SURFACE
     assert LITERATURE_MODE_SURFACE["off"] == frozenset()
     assert LITERATURE_MODE_SURFACE["corpus"] == LITERATURE_CORPUS_TOOLS
+    assert LITERATURE_MODE_SURFACE["strict"] == LITERATURE_CORPUS_TOOLS  # the corpus, with the strict verifier
     assert LITERATURE_MODE_SURFACE["scholarly"] == LITERATURE_SCHOLARLY_TOOLS
     assert LITERATURE_SCHOLARLY_TOOLS == LITERATURE_CORPUS_TOOLS | LITERATURE_NETWORK_TOOLS
     offered_across_modes = frozenset().union(*LITERATURE_MODE_SURFACE.values())
@@ -6814,9 +6816,98 @@ def test_dispatch_ingest_refuses_in_every_mode():
         assert graph["refusal"] == "literature_tools_not_offered"
 
 
+def test_strict_mode_offers_the_corpus_tools_and_hides_the_verifier_parameters():
+    session = {"literature_mode": {"mode": "strict"}}
+    assert literature_agent_mode(session) == "strict"
+    assert _literature_names(session) == set(LITERATURE_CORPUS_TOOLS)
+    search = {item["name"]: item for item in tool_schemas(session)}["search_literature_corpus"]
+    assert {"strict_question", "strict_verifier"}.isdisjoint(search["parameters"]["properties"])
+
+
+def test_strict_mode_hands_the_search_the_turns_question_and_model(monkeypatch):
+    """Under /literature strict the corpus search gets the user's question and a verifier on the turn's own model,
+    whose usage counts toward the turn."""
+    from dissolve.contracts import tool_success
+    from dissolve.session import bind_tool_session, new_session
+
+    seen = {}
+
+    def fake_search(**kwargs):
+        seen.update(kwargs)
+        return tool_success("search_literature_corpus", results=[], result_count=0)
+
+    monkeypatch.setitem(agent.BY_NAME, "search_literature_corpus",
+                        agent.BY_NAME["search_literature_corpus"]._replace(fn=fake_search))
+    record = new_session()
+    record["literature_mode"] = {"mode": "strict"}
+    usage: list = []
+    turn = agent._TurnModel("openai:m", "https://host/api", "KEY_ENV", "Which solvent dissolves EVOH at 120 C?", usage)
+    with bind_tool_session(record), agent._turn_model(turn):
+        dispatch("search_literature_corpus", query="EVOH solvent 120 C")
+    assert seen["query"] == "EVOH solvent 120 C"
+    assert seen["strict_question"] == "Which solvent dissolves EVOH at 120 C?"
+    calls = []
+    monkeypatch.setattr(agent, "complete", lambda messages, tools, **kw: (
+        calls.append((messages, tools, kw)) or {"text": "{}", "usage": {"total_tokens": 7}}))
+    assert seen["strict_verifier"]("check these passages") == "{}"
+    assert calls == [([{"role": "user", "content": "check these passages"}], [],
+                      {"model": "openai:m", "api_base": "https://host/api", "api_key_env": "KEY_ENV"})]
+    assert usage == [{"total_tokens": 7}]
+    assert agent._TURN_MODEL.get() is None  # the turn's model is not left behind
+
+
+def test_corpus_mode_passes_no_verifier(monkeypatch):
+    from dissolve.contracts import tool_success
+    from dissolve.session import bind_tool_session, new_session
+
+    seen = {}
+    monkeypatch.setitem(agent.BY_NAME, "search_literature_corpus", agent.BY_NAME["search_literature_corpus"]._replace(
+        fn=lambda **kwargs: seen.update(kwargs) or tool_success("search_literature_corpus", results=[])))
+    record = new_session()
+    record["literature_mode"] = {"mode": "corpus"}
+    with bind_tool_session(record), agent._turn_model(agent._TurnModel("openai:m", None, None, "q", [])):
+        dispatch("search_literature_corpus", query="EVOH")
+    assert "strict_verifier" not in seen and "strict_question" not in seen
+
+
+def test_strict_mode_refuses_outside_a_turn():
+    from dissolve.session import bind_tool_session, new_session
+
+    record = new_session()
+    record["literature_mode"] = {"mode": "strict"}
+    with bind_tool_session(record):
+        out = dispatch("search_literature_corpus", query="EVOH")
+    assert out["available"] is False and out["refusal"] == "strict_verification_unavailable"
+
+
+def test_a_call_without_tools_sends_no_tool_list(monkeypatch):
+    """The strict verifier calls the model with no tools; providers reject an empty tool list."""
+    import openai
+
+    captured = {}
+
+    class FakeCompletions:
+        def create(self, **kwargs):
+            captured.update(kwargs)
+            return SimpleNamespace(choices=[SimpleNamespace(message=SimpleNamespace(content="ok", tool_calls=None))],
+                                   usage=None)
+
+    class FakeOpenAI:
+        def __init__(self, **kwargs):
+            self.chat = SimpleNamespace(completions=FakeCompletions())
+
+    monkeypatch.setattr(openai, "OpenAI", FakeOpenAI)
+    reply = agent.complete([{"role": "user", "content": "x"}], [], model="openai:m", tool_choice="none")
+    assert reply["text"] == "ok"
+    assert "tools" not in captured and "tool_choice" not in captured
+
+
 def test_slash_sets_and_on_does_not_write(tmp_path, monkeypatch):
     monkeypatch.setattr("sys.stdin.isatty", lambda: False)
     app, buf = _app_literature_mode(tmp_path, monkeypatch)
+    assert app.handle_command("/literature strict") is False
+    assert app.session.get("literature_mode") == {"mode": "strict"}
+    assert "literature_mode=strict" in buf.getvalue()
     assert app.handle_command("/literature scholarly") is False
     assert app.session.get("literature_mode") == {"mode": "scholarly"}
     assert app.handle_command("/literature on") is False

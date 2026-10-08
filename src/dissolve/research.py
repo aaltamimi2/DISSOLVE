@@ -26,7 +26,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from html.parser import HTMLParser
 from pathlib import Path
-from typing import Any, Literal, Mapping, NoReturn, Optional, Sequence
+from typing import Any, Callable, Literal, Mapping, NoReturn, Optional, Sequence
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode, urlparse
 from urllib.request import Request, urlopen
@@ -1106,6 +1106,15 @@ _REFUSE_RULE_SPARSE_GATED = "sparse_gated"
 _PRODUCT_KNOWLEDGEBASE = "t5-indexed-unsealed"
 _ENV_BGE10_MANIFEST = "DISSOLVE_BGE10_MANIFEST"
 _ENV_CORPUS_DIR = "DISSOLVE_CORPUS_DIR"
+#: The served corpus search no longer applies the lexical answer gate (owner, 2026-10-08). On the paper's benchmark the
+#: gate refused 72 of 376 answerable questions and caught 5 of 50 unanswerable ones, while the answering model, told to
+#: answer only from the passages, declined 83 of 84 unsupported questions. The search returns the ranked passages with
+#: ANSWER_RULE and the agent declines; DISSOLVE_LITERATURE_GATE=on serves the gate again, as configuration R3 ran it.
+_ENV_LITERATURE_GATE = "DISSOLVE_LITERATURE_GATE"
+ANSWER_RULE = (
+    "Answer only from these passages. If they do not establish every element the question asks for, say that the "
+    "corpus passages do not support an answer, and do not answer from general knowledge."
+)
 #: The release the package ships: the paper's 61 papers, T5 chunks, BGE-base vectors.
 _SHIPPED_CORPUS_DIR = Path(__file__).resolve().parent / "data" / "corpus"
 _RELEASE_MANIFEST = "manifest.json"
@@ -5134,14 +5143,22 @@ def _search_index(
     w_dense: float | None = None,
     w_sparse: float | None = None,
     rerank_mode: str = "off",
+    apply_gate: bool | None = None,
 ) -> list[dict[str, Any]]:
+    """Ranked rows to ``top_k``; the lexical gate applies as served (off unless DISSOLVE_LITERATURE_GATE=on)."""
     ranking = _rank_candidates(
         index, query, mode, w_dense=w_dense, w_sparse=w_sparse, rerank_mode=rerank_mode,
+        apply_gate=literature_gate_on() if apply_gate is None else apply_gate,
     )
     return _ranked_search_rows(index, ranking.ranked, top_k, ranking.coverage_by_id, floor=ranking.floor)
 
 
-def _zero_hit_reason(index: Mapping[str, Any], query: str) -> str | None:
+def literature_gate_on() -> bool:
+    """True where DISSOLVE_LITERATURE_GATE=on: the search refuses below the floor, as the paper's served R3 did."""
+    return os.getenv(_ENV_LITERATURE_GATE, "").strip().casefold() in {"on", "1", "true", "yes"}
+
+
+def _zero_hit_reason(index: Mapping[str, Any], query: str, *, gate: bool = True) -> str | None:
     chunks = list(index.get("chunks") or [])
     if not chunks:
         return "empty_corpus"
@@ -5150,11 +5167,92 @@ def _zero_hit_reason(index: Mapping[str, Any], query: str) -> str | None:
     )
     _coverage_by_id, star = _coverage_from_sparse(query, chunks, sparse_raw)
     floor = _abstention_floor(index)
-    if floor is not None and star < floor:
+    if gate and floor is not None and star < floor:
         return "abstained_below_floor"
     if max(sparse_raw, default=0.0) <= 0:
         return "no_sparse_match"
     return None
+
+
+# --- /literature strict: the paper's strict verifier ---------------------------------------------------------------
+#: A model call checks that the top 5 passages establish every element of the question, then the top 20; the search
+#: returns the first set it finds SUPPORTED, or no passages (fresh confirmation set: 97.2% of answerable questions
+#: answered, every unanswerable one declined). Same prompt and rule as the paper's I4 verifier.
+STRICT_DEPTHS = (5, 20)
+STRICT_ATTEMPTS = 3
+STRICT_VERIFIER_PROMPT = (
+    "You check whether retrieved passages contain everything needed to answer a question, before any answer is "
+    "written.\n\n"
+    "1. List every element the question requests: each value, fact or relationship, for the material, property and "
+    "conditions the question names. Split compound requests into separate elements.\n"
+    "2. For each element, give the ids of the passages that state it for exactly that material and those conditions, "
+    "or an empty list if no passage does. A passage about the right material but a different property, condition or "
+    "value does not state the element. Topically similar text does not count.\n"
+    "Judge only from the passage text; use no outside knowledge and no tools.\n\n"
+    "Reply with only this JSON object: {{\"elements\": [{{\"element\": \"short phrase\", \"passage_ids\": [\"P2\"]}}]}}\n\n"
+    "QUESTION:\n{question}\n\nPASSAGES:\n{passages}\n"
+)
+STRICT_INSUFFICIENT = (
+    "The verifier found that the retrieved passages do not establish every requested element. Tell the user the "
+    "corpus does not support an answer."
+)
+
+
+def strict_verdict(elements: Any, count: int) -> str | None:
+    """SUPPORTED when every element cites one of P1..P<count>, UNSUPPORTED when none does, PARTIAL otherwise; None for
+    a reply that is not a list of elements with passage-id lists."""
+    if not isinstance(elements, list) or not elements:
+        return None
+    supported = []
+    for element in elements:
+        ids = element.get("passage_ids") if isinstance(element, dict) else None
+        if not isinstance(ids, list):
+            return None
+        supported.append(any(
+            isinstance(x, str) and x.startswith("P") and x[1:].isdigit() and 1 <= int(x[1:]) <= count for x in ids
+        ))
+    return "SUPPORTED" if all(supported) else "UNSUPPORTED" if not any(supported) else "PARTIAL"
+
+
+def _strict_check(index: Mapping[str, Any], rows: Sequence[Mapping[str, Any]], question: str,
+                  verifier: Callable[[str], str]) -> tuple[str, int]:
+    """(verdict, calls) for one passage set. A reply that is not the requested JSON is asked again, up to
+    STRICT_ATTEMPTS times, and then counts as UNSUPPORTED."""
+    full = {chunk["chunk_id"]: chunk for chunk in index.get("chunks") or []}
+    passages = "\n\n".join(
+        f"[P{n}] ({row.get('title') or '?'}, page {row.get('page')})\n"
+        f"{full.get(row['chunk_id'], {}).get('text') or row.get('excerpt') or ''}"
+        for n, row in enumerate(rows, 1)
+    )
+    prompt = STRICT_VERIFIER_PROMPT.format(question=question, passages=passages)
+    for attempt in range(1, STRICT_ATTEMPTS + 1):
+        reply = re.sub(r"^```(?:json)?\s*|\s*```$", "", str(verifier(prompt) or "").strip())
+        try:
+            data = json.loads(reply[reply.find("{"):reply.rfind("}") + 1])
+        except (ValueError, json.JSONDecodeError):
+            continue
+        verdict = strict_verdict(data.get("elements") if isinstance(data, dict) else None, len(rows))
+        if verdict is not None:
+            return verdict, attempt
+    return "UNSUPPORTED", STRICT_ATTEMPTS
+
+
+def _strictly_verified(index: Mapping[str, Any], ranked: list[dict[str, Any]], question: str,
+                       verifier: Callable[[str], str]) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    checks: list[dict[str, Any]] = []
+    for depth in STRICT_DEPTHS:
+        rows = ranked[:depth]
+        if not rows:
+            break
+        verdict, calls = _strict_check(index, rows, question, verifier)
+        checks.append({"depth": depth, "passages": len(rows), "verdict": verdict, "calls": calls})
+        if verdict == "SUPPORTED":
+            return rows, {"verification": {"rule": "strict", "verdict": verdict, "depth_used": depth, "checks": checks}}
+        if len(ranked) <= depth:  # a deeper check would read the same passages
+            break
+    verdict = checks[-1]["verdict"] if checks else "UNSUPPORTED"
+    return [], {"reason": "verified_insufficient", "message": STRICT_INSUFFICIENT,
+                "verification": {"rule": "strict", "verdict": verdict, "depth_used": None, "checks": checks}}
 
 
 def search_literature_corpus(
@@ -5162,8 +5260,14 @@ def search_literature_corpus(
     knowledgebase: str = _PRODUCT_KNOWLEDGEBASE,
     top_k: int = 5,
     retrieval_mode: Literal["sparse", "dense", "hybrid"] = "hybrid",
+    strict_question: str | None = None,
+    strict_verifier: Callable[[str], str] | None = None,
 ) -> str:
-    """Retrieve bounded, citable passages; the parent model authors the answer."""
+    """Retrieve bounded, citable passages; the parent model authors the answer.
+
+    ``strict_verifier`` (set by the agent under /literature strict, never by the model) is one model call per check:
+    the passages come back only once it finds that they establish every element of ``strict_question``.
+    """
     tool = "search_literature_corpus"
     if not str(query or "").strip():
         return tool_error(tool, "Corpus query cannot be empty.", error_code="empty_query")
@@ -5180,11 +5284,17 @@ def search_literature_corpus(
             knowledgebase=_slug(knowledgebase),
             reason="empty_corpus",
         )
+    gate = strict_verifier is None and literature_gate_on()
+    extra: dict[str, Any] = {}
     try:
         rerank_mode = "off"
         if mode == "hybrid" and _bge10_hybrid_fusion_enabled(index) and pair_rerank_enabled():
             rerank_mode = PAIR_RERANK_MODE
-        rows = _search_index(index, query, max(1, min(int(top_k), 20)), mode, rerank_mode=rerank_mode)
+        if strict_verifier is None:
+            rows = _search_index(index, query, max(1, min(int(top_k), 20)), mode, rerank_mode=rerank_mode,
+                                 apply_gate=gate)
+        else:
+            ranked = _search_index(index, query, max(STRICT_DEPTHS), mode, rerank_mode=rerank_mode, apply_gate=False)
     except (ValueError, RuntimeError) as error:
         if str(error) == "dense_index_unavailable":
             return tool_error(
@@ -5193,14 +5303,23 @@ def search_literature_corpus(
                 remediation="Reingest with build_dense_index=true or use sparse retrieval.",
             )
         return tool_error(tool, str(error), error_code="retrieval_failed")
+    if strict_verifier is not None:
+        try:
+            rows, extra = _strictly_verified(index, ranked, str(strict_question or query), strict_verifier)
+        except Exception as error:  # noqa: BLE001  the provider failed: say the check did not run, never "unsupported"
+            return tool_error(
+                tool, f"The strict check could not run: {type(error).__name__}: {error}",
+                error_code="strict_verification_failed", knowledgebase=index["knowledgebase"],
+            )
     top_score = rows[0]["final_score"] if rows else 0.0
     floor = _abstention_floor(index)
     served_floor = None if floor is None else round(float(floor), 6)
-    extra: dict[str, Any] = {}
-    if not rows:
-        refusal = _zero_hit_reason(index, query)
+    if not rows and "reason" not in extra:
+        refusal = _zero_hit_reason(index, query, gate=gate)
         if refusal:
             extra["reason"] = refusal
+    if not gate:
+        extra["answer_rule"] = ANSWER_RULE
     return tool_success(
         tool,
         display=_table(("Citation", "Score", "Source", "Section"), [
@@ -5215,6 +5334,7 @@ def search_literature_corpus(
         result_count=len(rows), results=rows, top_score=top_score,
         coverage_star=round(coverage_star(index, query), 6),
         floor=served_floor,
+        literature_gate="on" if gate else "off",
         low_retrieval_confidence=not rows or top_score < 0.15,
         evidence_scope="retrieved_corpus_passages",
         warnings=[
@@ -5243,7 +5363,8 @@ def observe_search_ranking(
     This is the acceptance observer of FINAL_RAG_EVALUATION_CONTRACT v3 §2. It resolves the index and the rerank mode
     exactly as the public tool does and then calls the one ranking function the tool calls, so it holds no ranking,
     no encoder and no threshold of its own. The gate is read, not applied: `ranked_chunk_ids` is the ranking before
-    the gate, and the served ranking is that same list when `gated` is false and empty when it is true.
+    the gate. With DISSOLVE_LITERATURE_GATE=on (the paper's served R3) the served ranking is that same list when
+    `gated` is false and empty when it is true; by default (since 2026-10-08) the tool serves the list either way.
 
     It returns identifiers, scores and digests. The query itself never appears in the result.
     """

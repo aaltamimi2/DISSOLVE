@@ -287,7 +287,7 @@ def _parse_contaminant_slash(tokens: Sequence[str]) -> dict[str, Any] | None:
     return None
 
 
-_LITERATURE_USAGE = "usage: /literature [off | corpus | scholarly]"
+_LITERATURE_USAGE = "usage: /literature [off | corpus | strict | scholarly]"
 
 
 def _format_literature_default(stored: dict[str, Any] | None, *, origin: str) -> str:
@@ -302,7 +302,7 @@ def _parse_literature_slash(tokens: Sequence[str]) -> dict[str, Any] | None:
     if len(tokens) != 1:
         raise ValueError(_LITERATURE_USAGE)
     token = str(tokens[0]).strip().casefold()
-    if token in {"off", "corpus", "scholarly"}:
+    if token in {"off", "corpus", "strict", "scholarly"}:
         return {"mode": token}
     raise ValueError(_LITERATURE_USAGE)
 
@@ -318,7 +318,8 @@ def _literature_picker_options(
     rows = (
         ("off", "1. off         no literature tools offered"),
         ("corpus", "2. corpus      local pinned index, offline"),
-        ("scholarly", "3. scholarly   corpus plus arXiv / Scholar / WoS / patents"),
+        ("strict", "3. strict      corpus, answered only when a model check confirms the passages"),
+        ("scholarly", "4. scholarly   corpus plus arXiv / Scholar / WoS / patents"),
     )
     options: list[tuple[str, str]] = []
     selected = 0
@@ -1901,7 +1902,7 @@ class CliApp:
         if stored is None:
             current = self.session.get("literature_mode")
             if isinstance(current, dict) and current.get("mode") in {
-                "off", "corpus", "scholarly",
+                "off", "corpus", "strict", "scholarly",
             }:
                 shown, origin = current, "session"
             else:
@@ -1933,7 +1934,7 @@ class CliApp:
             quiet=self.quiet,
             picker_fn=picker_fn,
         )
-        if chosen in {"off", "corpus", "scholarly"}:
+        if chosen in {"off", "corpus", "strict", "scholarly"}:
             return {"mode": chosen}
         return None
 
