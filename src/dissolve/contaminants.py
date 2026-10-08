@@ -2186,9 +2186,11 @@ def screen_contaminant_partitioning(
         return tool_error(tool, refusal.get("detail") or refusal["error_code"].replace("_", " "), **refusal)
     selection = contaminant_search.select(structure) if structure else None
     reason = None if structure is None or selection else contaminant_search.empty_because(structure)
+    note = contaminant_search.scope_note(structure) if structure else None
     structure_fields = {} if structure is None else {
         "structure_filter": contaminant_search.describe(structure), "structure_selected": len(selection or ()),
         **({"empty_because": reason} if reason else {}),
+        **({"scope_note": note} if note else {}),
     }
     product = thermo.resolve_polymer(polymer) or str(polymer).strip().upper()
     mapped = con.execute("SELECT campaign, conformers, shared_model FROM polymers WHERE product = ?",

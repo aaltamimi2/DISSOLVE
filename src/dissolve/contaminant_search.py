@@ -3,9 +3,11 @@ functional groups, and a molecular-weight range. Features come from each compoun
 release and kept in memory.
 
 The release holds compounds built from a fixed set of elements (C, H, N and O, and since the halogen tier of
-2026-10-06 also F, Cl, Br and I). A search for any other element (sulfur, phosphorus, silicon, boron) is valid and
-finds nothing, and the result names the elements the release does hold. The curated workbook's 26 PFAS, which store no
-structures, are reached as the PFAS family."""
+2026-10-06 also F, Cl, Br and I). Since promotion-v3 (2026-10-08) it also serves the compound sets of Zhou et al.,
+Green Chem. 2026, whose PFAS sulfonic acids bring sulfur: a sulfur search finds those and says that the campaign
+computed no other sulfur compound. A search for any other element (phosphorus, silicon, boron) is valid and finds
+nothing, and the result names the elements the release does hold. The curated workbook's 26 PFAS, which store no
+structures, are also reached as the PFAS family."""
 from __future__ import annotations
 
 import math
@@ -99,6 +101,28 @@ def _features(asset: str) -> dict[int, tuple[frozenset[str], frozenset[str], Opt
         elements, groups = structure_of(smiles) or (frozenset(), frozenset())
         out[int(cid)] = (elements, groups, float(weight) if weight is not None else None, bool(computed))
     return out
+
+
+@lru_cache(maxsize=2)
+def _tiers(asset: str) -> dict[int, str]:
+    """id -> the campaign tier that computed it (main, tier2, halogen, publication)."""
+    return {int(cid): str(tier) for cid, tier in screens._plastchem().execute("SELECT id, tier FROM contaminants").fetchall()}
+
+
+_PAPER_SETS = "the PFAS, brominated flame retardants and phthalates of Zhou et al., Green Chem. 2026"
+
+
+def paper_only_elements() -> list[str]:
+    """Elements that only the paper's compound sets bring into the release (sulfur: its PFAS sulfonic acids); the
+    campaign computed no other compound containing them."""
+    asset = _asset_key()
+    if not asset:
+        return []
+    tiers, paper, rest = _tiers(asset), set(), set()
+    for cid, (elements, _groups, _weight, computed) in _features(asset).items():
+        if computed:
+            (paper if tiers.get(cid) == "publication" else rest).update(elements)
+    return sorted(paper - rest, key=lambda e: (_ELEMENT_ORDER.index(e) if e in _ELEMENT_ORDER else 99, e))
 
 
 @lru_cache(maxsize=1)
@@ -258,6 +282,17 @@ def release_elements() -> list[str]:
     return sorted(present, key=lambda e: (_ELEMENT_ORDER.index(e) if e in _ELEMENT_ORDER else 99, e))
 
 
+def scope_note(filters: dict[str, Any]) -> Optional[str]:
+    """Said when a search asks for an element that only the paper's compound sets bring into the release (sulfur), so a
+    match is not read as the campaign covering compounds with that element."""
+    asked = set(filters["elements_all_of"]) | {e for options in filters["elements_any_of"] for e in options}
+    only_paper = [e for e in paper_only_elements() if e in asked]
+    if not only_paper:
+        return None
+    return (f"In the release only compounds from {_PAPER_SETS} contain {_spoken(only_paper, 'or')}; the campaign "
+            "computed no other PlastChem compound containing it.")
+
+
 def empty_because(filters: dict[str, Any]) -> Optional[str]:
     """Why a search asking for an element the release lacks finds nothing; None when every element asked for is in
     it (an empty result then needs no excuse)."""
@@ -310,12 +345,16 @@ def find_plastchem_contaminants(
                          "molecular_weight_g_mol": weight, "elements": sorted(elements_of),
                          "functional_groups": sorted(groups_of), "partition_data": computed})
     reason = None if rows else empty_because(filters)
+    note = scope_note(filters)
+    campaign = [e for e in release_elements() if e not in paper_only_elements()]
     return tool_success(
         tool, analysis_type="contaminant_structure_search", filters=filters, described=describe(filters),
         matches=rows, total=len(rows), with_partition_data=sum(row["partition_data"] for row in rows),
         within=named or None, unsupported_contaminants=unknown,
         **({"empty_because": reason} if reason else {}),
-        coverage=f"PlastChem compounds built from {_spoken(release_elements(), 'and')}; features from each SMILES with RDKit",
+        **({"scope_note": note} if note else {}),
+        coverage=(f"PlastChem compounds built from {_spoken(campaign, 'and')}, and {_PAPER_SETS}; "
+                  "features from each SMILES with RDKit"),
         functional_group_definitions={name: what for name, (_smarts, what) in FUNCTIONAL_GROUPS.items()
                                       if name in filters["functional_groups"]},
         method="Every filter must hold; molecular-weight bounds are inclusive. Functional groups are SMARTS "

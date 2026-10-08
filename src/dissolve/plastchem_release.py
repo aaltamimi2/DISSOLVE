@@ -127,6 +127,8 @@ def promote_opencosmo_release(
     by_cas = {cas: cid for cid, _, _, cas, _, _ in rows if cas}
     abbreviations = {(_key(abbr), by_cas[cas]) for abbr, cas in _ABBREVIATIONS.items() if cas in by_cas}
     aliases |= abbreviations
+    labels = _publication_labels(release, {inchikey: cid for cid, inchikey, *_ in rows}, aliases)
+    aliases |= labels
     con.execute("CREATE TABLE aliases (alias VARCHAR, id INTEGER)")
     con.executemany("INSERT INTO aliases VALUES (?, ?)", sorted(aliases))
     statuses = [manifest.get("status") for manifest in manifests]
@@ -142,6 +144,7 @@ def promote_opencosmo_release(
         "served_convention": _SERVED_CONVENTION, "miscibility_basis": _MISCIBLE_BASIS,
         "logp_temperature_c": "25.0", "parameterization": "openCOSMO-RS 24a",
         "abbreviations": str(len(abbreviations)), "elements": ",".join(elements),
+        "publication_labels": str(len(labels)),
     }
     con.execute("CREATE TABLE metadata (key VARCHAR, value VARCHAR)")
     con.executemany("INSERT INTO metadata VALUES (?, ?)", sorted(meta.items()))
@@ -152,6 +155,33 @@ def promote_opencosmo_release(
     con.close()
     tmp.replace(target)
     return {**counts, **meta, "asset": str(target)}
+
+
+def _publication_labels(release: Path, ids: dict[str, int], aliases: set[tuple[str, int]]) -> set[tuple[str, int]]:
+    """The labels and CAS numbers of a paper's compound sets (Zhou et al. 2026: "PFOS", "NaDoDFNt", "DECA"), from the
+    release's publication-labels.csv, each resolved to the structure the release serves for it; a salt the paper lists
+    is its parent acid. Rows the release does not offer (a label naming a class or a mixture) add nothing, and a label
+    that another entry already answers to is refused rather than made ambiguous."""
+    path = release / "publication-labels.csv"
+    if not path.is_file():
+        return set()
+    import csv
+
+    taken: dict[str, set[int]] = {}
+    for alias, cid in aliases:
+        taken.setdefault(alias, set()).add(cid)
+    out = set()
+    with path.open(newline="", encoding="utf-8") as handle:
+        for row in csv.DictReader(handle):
+            if row["offered"] != "yes":
+                continue
+            if row["input_inchikey"] not in ids:
+                raise ValueError(f"publication label {row['label']!r} names {row['input_inchikey']}, which the release lacks")
+            key, cid = _key(row["alias"]), ids[row["input_inchikey"]]
+            if taken.get(key, {cid}) != {cid}:
+                raise ValueError(f"publication label {row['alias']!r} would also name another contaminant")
+            out.add((key, cid))
+    return out
 
 
 _ELEMENT_ORDER = ("C", "H", "N", "O", "F", "Cl", "Br", "I", "S", "P", "Si", "B")
