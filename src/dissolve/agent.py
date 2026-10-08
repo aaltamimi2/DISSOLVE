@@ -1275,6 +1275,36 @@ def _ant_msgs(messages):
 
 class MissingProviderKey(Exception): pass
 
+# A reply the provider ended for any other reason than a finished turn (a token limit, a safety or recitation filter,
+# an error) arrives as a fragment, which the loop took for the answer: Gemini's safety filter ended 3 of 14 answers about
+# removing flame retardants after two or three words, each reported as an ordinary answer (2026-10-08).
+_FINISHED = {"stop", "end_turn", "stop_sequence", "tool_calls", "tool_use", "function_call", "finish_reason_unspecified"}
+_LENGTH_REASONS = {"length", "max_tokens"}
+_CUT_SHORT_RETRIES = 3
+_CUT_SHORT_ANSWER = ("The model's provider stopped this answer before it was finished ({reason}), {tries} times in a "
+                     "row, so no answer is shown rather than a fragment. The tool results are complete; ask again, or "
+                     "switch model with /model.")
+_LENGTH_LEAD = "_The answer was cut off at the model's output limit, so what follows is incomplete._\n\n"
+
+def _cut_short(reason) -> str | None:
+    """The provider's reason when it cut a reply short, lower-cased; None for a finished reply or no reason given."""
+    if reason is None:
+        return None
+    name = str(getattr(reason, "name", None) or reason).lower()
+    return None if not name or name in _FINISHED else name
+
+def _until_finished(call, acc):
+    """``call()``'s reply, asked again while a filter or a provider error cuts its final answer short (a token limit
+    is not asked again: it would end the same way)."""
+    reply = call()
+    for _ in range(_CUT_SHORT_RETRIES):
+        cut = reply.get("cut_short")
+        if reply.get("tool_calls") or not cut or cut in _LENGTH_REASONS:
+            return reply
+        acc.append(reply.get("usage"))
+        reply = call()
+    return reply
+
 def _usage(kind, resp):
     raw = getattr(resp, "usage_metadata" if kind == "google_genai" else "usage", None)
     if raw is None:
@@ -1365,7 +1395,8 @@ def complete(messages, tools, *, model, api_base=None, api_key_env=None, tool_ch
         text = "".join(getattr(b, "text", "") for b in resp.content if getattr(b, "type", "") == "text")
         calls = [{"id": b.id, "name": b.name, "args": dict(b.input or {})}
                  for b in resp.content if getattr(b, "type", "") == "tool_use"]
-        return {"text": text, "tool_calls": calls, "usage": _usage(kind, resp)}
+        return {"text": text, "tool_calls": calls, "usage": _usage(kind, resp),
+                "cut_short": _cut_short(getattr(resp, "stop_reason", None))}
     if kind == "google_genai":
         from google import genai
         from google.genai import types
@@ -1379,7 +1410,10 @@ def complete(messages, tools, *, model, api_base=None, api_key_env=None, tool_ch
                    if tool_choice == "none" and decls else {})))
         calls = [{"id": getattr(c, "id", "") or "", "name": c.name, "args": dict(c.args or {})}
                  for c in (getattr(resp, "function_calls", None) or [])]
-        return {"text": getattr(resp, "text", None) or "", "tool_calls": calls, "usage": _usage(kind, resp)}
+        candidates = getattr(resp, "candidates", None) or []
+        reason = getattr(candidates[0], "finish_reason", None) if candidates else None
+        return {"text": getattr(resp, "text", None) or "", "tool_calls": calls, "usage": _usage(kind, resp),
+                "cut_short": _cut_short(reason)}
     if kind == "openai":
         from openai import OpenAI, RateLimitError
         oai = [{"type": "function", "function": {"name": t["name"], "description": t.get("description") or "", "parameters": t["parameters"]}} for t in tools]
@@ -1406,7 +1440,8 @@ def complete(messages, tools, *, model, api_base=None, api_key_env=None, tool_ch
             except json.JSONDecodeError:
                 args = {}
             calls.append({"id": c.id, "name": c.function.name, "args": args})
-        return {"text": msg.content or "", "tool_calls": calls, "usage": _usage(kind, resp)}
+        return {"text": msg.content or "", "tool_calls": calls, "usage": _usage(kind, resp),
+                "cut_short": _cut_short(getattr(resp.choices[0], "finish_reason", None))}
 
 def _gen_contents(messages):
     from google.genai import types
@@ -1504,7 +1539,8 @@ def run_turn(
         tid = open_turn_record(bound)
         for _ in range(cap):
             try:
-                reply = complete(msgs, schemas, model=model, api_base=api_base, api_key_env=api_key_env)
+                reply = _until_finished(
+                    lambda: complete(msgs, schemas, model=model, api_base=api_base, api_key_env=api_key_env), acc)
             except MissingProviderKey as e:
                 return TurnResult(
                     answer=str(e), status="provider_error",
@@ -1524,10 +1560,14 @@ def run_turn(
             acc.append(reply.get("usage"))
             calls, text = reply.get("tool_calls") or [], reply.get("text") or ""
             if not calls:
-                text = _plain_math(_complete_tables(text))
+                cut = reply.get("cut_short")
+                if cut and cut not in _LENGTH_REASONS:
+                    text = _CUT_SHORT_ANSWER.format(reason=cut, tries=1 + _CUT_SHORT_RETRIES)
+                else:
+                    text = (_LENGTH_LEAD if cut else "") + _plain_math(_complete_tables(text))
                 msgs.append({"role": "assistant", "content": text})
                 return TurnResult(
-                    answer=text, status="ok", tool_trace=trace,
+                    answer=text, status="answer_cut_short" if cut else "ok", tool_trace=trace,
                     turn_record=tid, tool_rounds=rounds, usage=_fold_usage(acc),
                 )
             rounds += 1
@@ -1559,15 +1599,16 @@ def run_turn(
         # The round limit: one closing call with no tools, so what was retrieved still becomes an answer.
         closing = msgs + [{"role": "user", "content": _CLOSING_NOTE.format(rounds=cap)}]
         try:
-            reply = complete(closing, schemas, model=model, api_base=api_base, api_key_env=api_key_env,
-                             tool_choice="none")
+            reply = _until_finished(lambda: complete(closing, schemas, model=model, api_base=api_base,
+                                                     api_key_env=api_key_env, tool_choice="none"), acc)
         except Exception:  # noqa: BLE001  a failed closing call leaves the limit message, never a crash
             reply = None
         text = ((reply or {}).get("text") or "").strip()
         if reply is not None:
             acc.append(reply.get("usage"))
-        if text and not reply.get("tool_calls"):
-            text = _PARTIAL_LEAD.format(rounds=cap) + _plain_math(_complete_tables(text))
+        cut = (reply or {}).get("cut_short")
+        if text and not reply.get("tool_calls") and (not cut or cut in _LENGTH_REASONS):
+            text = _PARTIAL_LEAD.format(rounds=cap) + (_LENGTH_LEAD if cut else "") + _plain_math(_complete_tables(text))
             msgs.append({"role": "assistant", "content": text})
             return TurnResult(
                 answer=text, status="round_cap", tool_trace=trace, turn_record=tid,

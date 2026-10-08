@@ -2449,6 +2449,65 @@ def test_answers_write_math_as_plain_text():
         assert agent._plain_math(untouched) == untouched, untouched
 
 
+def _replies(monkeypatch, *replies):
+    """complete() answers with these replies in turn; returns the list of calls made."""
+    calls = []
+
+    def fake(messages, tools, **kwargs):
+        calls.append(kwargs)
+        return replies[min(len(calls), len(replies)) - 1]
+
+    monkeypatch.setattr(agent, "complete", fake)
+    return calls
+
+
+def test_an_answer_the_provider_cut_short_is_asked_again(monkeypatch):
+    """Gemini's safety filter ended 3 of 14 answers about removing flame retardants after two or three words
+    ("For recovering"), and each was shown as the whole answer (2026-10-08). A final answer cut short by a filter or a
+    provider error is asked for again."""
+    calls = _replies(monkeypatch, {"text": "For recovering", "tool_calls": [], "cut_short": "content_filter"},
+                     {"text": "Use 2-propanol at 120 °C.", "tool_calls": []})
+    result = run_turn("q", session=new_session(), model="openai:x")
+    assert (result.answer, result.status, len(calls)) == ("Use 2-propanol at 120 °C.", "ok", 2)
+
+
+def test_an_answer_cut_short_every_time_is_not_shown_as_an_answer(monkeypatch):
+    calls = _replies(monkeypatch, {"text": "To extract", "tool_calls": [], "cut_short": "safety"})
+    result = run_turn("q", session=new_session(), model="openai:x")
+    assert result.status == "answer_cut_short" and len(calls) == 1 + agent._CUT_SHORT_RETRIES
+    assert "To extract" not in result.answer and "stopped this answer before it was finished (safety)" in result.answer
+
+
+def test_an_answer_cut_at_the_output_limit_is_shown_marked_incomplete(monkeypatch):
+    """A token limit would end a second try the same way, so it is not asked again; the reader is told it is partial."""
+    calls = _replies(monkeypatch, {"text": "| A |\n| 1 |", "tool_calls": [], "cut_short": "length"})
+    result = run_turn("q", session=new_session(), model="openai:x")
+    assert result.status == "answer_cut_short" and len(calls) == 1
+    assert result.answer == agent._LENGTH_LEAD + "| A |\n|---|\n| 1 |"
+
+
+def test_complete_reports_why_a_provider_cut_a_reply_short(monkeypatch):
+    """Every provider says why it stopped; a finished turn (or no reason at all, as stand-in clients give) is not cut."""
+    import openai
+
+    def client(reason):
+        def create(**kwargs):
+            choice = SimpleNamespace(message=SimpleNamespace(content="x", tool_calls=None))
+            if reason is not None:
+                choice.finish_reason = reason
+            return SimpleNamespace(choices=[choice], usage=None)
+
+        return type("C", (), {"__init__": lambda self, **kw: setattr(self, "chat", SimpleNamespace(
+            completions=SimpleNamespace(create=create)))})
+
+    for reason, cut in (("stop", None), ("tool_calls", None), (None, None), ("content_filter", "content_filter"),
+                        ("length", "length"), ("error", "error")):
+        monkeypatch.setattr(openai, "OpenAI", client(reason))
+        assert agent.complete([{"role": "user", "content": "x"}], [], model="openai:m")["cut_short"] == cut, reason
+    assert agent._cut_short(SimpleNamespace(name="SAFETY")) == "safety"  # Google's FinishReason enum
+    assert agent._cut_short(SimpleNamespace(name="STOP")) is None and agent._cut_short("end_turn") is None
+
+
 def test_the_final_answer_is_written_without_tex(monkeypatch):
     """The model's answer passes through the math rewrite on its way out, as it does through the table repair."""
     monkeypatch.setattr(agent, "complete", lambda messages, tools, **kwargs: {
