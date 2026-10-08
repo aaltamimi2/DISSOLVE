@@ -5213,11 +5213,23 @@ def _attach_paper_records(index: Mapping[str, Any], rows: list[dict[str, Any]]) 
             continue
         authors = list(record.get("authors") or [])
         lead = authors[0].split()[-1] if authors else None
+        who = (f"{lead} et al." if len(authors) > 2 else " and ".join(a.split()[-1] for a in authors)) or None
         row.update({
             "title": record.get("title"), "year": record.get("year"), "venue": record.get("venue"),
             "doi": record.get("doi"), "url": f"https://doi.org/{record['doi']}" if record.get("doi") else row.get("url"),
-            "authors": (f"{lead} et al." if len(authors) > 2 else " and ".join(a.split()[-1] for a in authors)) or None,
+            "authors": who, "citation": _citation(who, record),
         })
+
+
+def _citation(who: str | None, record: Mapping[str, Any]) -> str:
+    """'Smith et al. (2021). Title. Venue 14(19), 4317–4329. https://doi.org/...': only the parts the record has."""
+    issue = f"({record['issue']})" if record.get("issue") else ""
+    where = " ".join(part for part in (record.get("venue"), f"{record.get('volume') or ''}{issue}") if part)
+    if record.get("page_range"):
+        where = f"{where}, {record['page_range']}" if where else str(record["page_range"])
+    parts = [f"{who} ({record['year']})" if who and record.get("year") else who or record.get("year"),
+             record.get("title"), where or None, f"https://doi.org/{record['doi']}" if record.get("doi") else None]
+    return ". ".join(str(part).rstrip(".") for part in parts if part) + "."
 
 
 # --- /literature strict: the paper's strict verifier ---------------------------------------------------------------

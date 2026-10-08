@@ -161,4 +161,27 @@ def test_search_results_carry_their_papers_after_ranking(monkeypatch):
     assert [row["chunk_id"] for row in rows] == ["c2", "c1"] and [row["final_score"] for row in rows] == [0.9, 0.5]
     assert rows[0]["title"] == ""  # no record for that paper: nothing is filled in
     assert rows[1] | {} == {"chunk_id": "c1", "title": "Paper A", "final_score": 0.5, "year": 2021, "venue": "Polymers",
-                            "doi": "10.1/a", "url": "https://doi.org/10.1/a", "authors": "Smith et al."}
+                            "doi": "10.1/a", "url": "https://doi.org/10.1/a", "authors": "Smith et al.",
+                            "citation": "Smith et al. (2021). Paper A. Polymers. https://doi.org/10.1/a."}
+
+
+def test_a_citation_carries_only_what_the_record_has():
+    """Volume, issue and pages come from the OpenAlex record, so an answer can cite them without supplying them."""
+    record = {"year": 2021, "title": "Reducing Antisolvent Use in the STRAP Process.", "venue": "ChemSusChem",
+              "volume": "14", "issue": "19", "page_range": "4317–4329", "doi": "10.1002/cssc.202101128"}
+    assert research._citation("Sánchez-Rivera et al.", record) == (
+        "Sánchez-Rivera et al. (2021). Reducing Antisolvent Use in the STRAP Process. ChemSusChem 14(19), 4317–4329. "
+        "https://doi.org/10.1002/cssc.202101128.")
+    assert research._citation(None, {"title": "Untitled venue paper", "doi": "10.1/x"}) == (
+        "Untitled venue paper. https://doi.org/10.1/x.")
+
+
+def test_the_page_count_of_the_list_is_not_the_bibliographic_page_range(tmp_path):
+    """A record's page range (4317–4329) must not replace how many pages of the paper the corpus covers."""
+    release = _write_release(tmp_path / "release", {SHA_A: [("first", "1"), ("second", "12")]})
+    (release / corpus_papers.PAPERS_FILE).write_text(json.dumps({
+        "schema": corpus_papers.SCHEMA, "papers": {SHA_A: {"title": "Paper A", "page_range": "4317–4329"}}}))
+    with gzip.open(release / "index.json.gz", "rt", encoding="utf-8") as handle:
+        index = json.load(handle)
+    row = corpus_papers.load_papers(index, release)["papers"][0]
+    assert (row["pages"], row["page_range"]) == (12, "4317–4329")

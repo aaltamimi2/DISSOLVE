@@ -45,7 +45,7 @@ _DOI = re.compile(r"\b(10\.\d{4,9}/[^\s\"<>|]+)", re.I)
 _SAFE_DOI = re.compile(r"^10\.\d{4,9}/[-._;()/:a-z0-9]+$")
 _SELECT = ",".join([
     "id", "doi", "title", "publication_year", "publication_date", "type", "cited_by_count", "authorships",
-    "primary_location", "best_oa_location", "abstract_inverted_index", "is_retracted",
+    "primary_location", "best_oa_location", "abstract_inverted_index", "is_retracted", "biblio",
 ])
 
 
@@ -231,11 +231,15 @@ def _record(work: Mapping[str, Any], retrieved_at: str, match: Mapping[str, Any]
     oa = work.get("best_oa_location") or {}
     authors = [str((a.get("author") or {}).get("display_name") or "").strip() for a in work.get("authorships") or []]
     authors = [name for name in authors if name]
+    biblio = work.get("biblio") or {}
+    first, last = biblio.get("first_page"), biblio.get("last_page")
     return {
         "title": re.sub(r"\s+", " ", str(work.get("title") or "")).strip(),
         "authors": authors[:20], "author_count": len(authors),
         "year": work.get("publication_year"), "date": work.get("publication_date"),
         "venue": source.get("display_name"), "type": work.get("type"),
+        "volume": biblio.get("volume"), "issue": biblio.get("issue"),
+        "page_range": f"{first}–{last}" if first and last and first != last else first or None,
         "doi": _clean_doi(str(work.get("doi") or "").replace("https://doi.org/", "")) or None,
         "openalex_id": str(work.get("id") or "").rsplit("/", 1)[-1] or None,
         "cited_by_count": work.get("cited_by_count"),
