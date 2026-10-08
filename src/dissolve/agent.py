@@ -8,11 +8,13 @@ import random
 import re
 import sys
 import time
+import unicodedata
 from collections.abc import Mapping as AbcMapping
 from collections.abc import Sequence as AbcSeq
 from contextlib import contextmanager
 from contextvars import ContextVar
 from dataclasses import dataclass
+from html.entities import html5 as _HTML5_ENTITIES
 from types import UnionType
 from urllib.parse import urlsplit
 from typing import (
@@ -949,6 +951,10 @@ a reviewer of the tools.
 - Never show field names, unit tokens, handle names, tool names,
   true/false flags or status codes. Say what they mean in words: a
   record marked unreviewed_raw is "not yet reviewed".
+- Write every formula, symbol and unit as plain text with Unicode
+  characters, the way a printed page shows it (R², ΔH_mix, 10⁻³ mol/L).
+  Never write LaTeX or $…$ math: the app and the terminal show it as
+  raw markup.
 - A number shown in a table is not repeated in the prose. Aim for the
   shortest answer that supports the decision: usually one table and
   under about 250 words, unless the user asks for detail.
@@ -1075,6 +1081,147 @@ def _complete_tables(text: str) -> str:
             out.append("|" + "---|" * (line.strip().strip("|").count("|") + 1))
             separated = True
     return "\n".join(out)
+
+# Neither the CLI's Markdown nor the web renderer typesets math, so TeX in an answer shows as raw markup (a literature
+# answer wrote "$P_{\text{vap}}$" and "$R^2$", 2026-10-08). _plain_math writes it as Unicode text. Symbol names resolve
+# through the HTML5 entity table, which shares TeX's names for Greek letters, operators, relations, arrows and sets;
+# _TEX_NAME_FIXES holds only the names it lacks or means differently (its cdot is ċ, its circ is ˆ).
+_TEX_NAME_FIXES = {"cdot": "·", "circ": "∘", "infty": "∞", "partial": "∂", "neq": "≠", "to": "→", "dots": "…",
+                   "ldots": "…", "cdots": "⋯", "degree": "°", "exists": "∃", "hat": "ˆ", "bar": "¯"}
+_TEX_SPACING = {",": " ", ":": " ", ";": " ", ">": " ", " ": " ", "!": "", "quad": " ", "qquad": " "}
+_TEX_SIZING = re.compile(r"left|right|middle|[Bb]igg?[lr]?|displaystyle|textstyle")
+_TEX_TOKEN = re.compile(r"\\([A-Za-z]+)|\\(.)|([{}^_])|(.)", re.S)
+_TEX_MARKUP = re.compile(r"[\\^_{}]")
+_CODE_SPANS = re.compile(r"(```[\s\S]*?(?:```|\Z)|`[^`\n]+`)")
+# $…$ follows Pandoc's rule (no space just inside either dollar, no digit or letter right after the closing one), so
+# amounts such as "$25.65M" or "$5 to $10" are never read as math.
+_MATH_SPAN = re.compile(r"\$\$(.+?)\$\$|\\\((.+?)\\\)|\\\[(.+?)\\\]|(?<![\\$\w])\$(?=[^\s$])([^$\n]+?)(?<=\S)\$(?![\w$])",
+                        re.S)
+
+def _tex_nodes(tokens: list, start: int = 0, nested: bool = False) -> tuple[list, int]:
+    """TeX tokens as nodes: ("group", nodes), ("script", "^" or "_"), ("command", name), ("escaped", char), ("char", c)."""
+    nodes, i = [], start
+    while i < len(tokens):
+        word, escaped, mark, char = tokens[i]
+        i += 1
+        if mark == "}":
+            if not nested:
+                raise ValueError("unbalanced braces")
+            return nodes, i
+        if mark == "{":
+            inner, i = _tex_nodes(tokens, i, nested=True)
+            nodes.append(("group", inner))
+        else:
+            nodes.append(("script", mark) if mark else ("command", word) if word else
+                         ("escaped", escaped) if escaped else ("char", char))
+    if nested:
+        raise ValueError("unbalanced braces")
+    return nodes, i
+
+def _script_char(char: str, kind: str) -> str | None:
+    """A character's SUPERSCRIPT or SUBSCRIPT form, found by its Unicode name ("DIGIT TWO" -> SUPERSCRIPT TWO). Letters
+    get none: their script forms are incomplete and many fonts lack them."""
+    if unicodedata.category(char).startswith("L"):
+        return None
+    name = unicodedata.name("−" if char == "-" else char, "")
+    for candidate in (name, name.split(" ")[-1], name.split(" ")[0]):
+        try:
+            return unicodedata.lookup(f"{kind} {candidate}")
+        except KeyError:
+            continue
+    return None
+
+def _tex_script(body: str, mark: str) -> str:
+    """^ or _ applied to text: Unicode script characters when every character has one (R², CO₂, 10⁻³), else the plain
+    notation (P_vap, MPa^(1/2)). A superscript circle is the degree sign and a superscript prime stays a prime."""
+    if mark == "^" and body in ("∘", "°"):
+        return "°"
+    if not body or (mark == "^" and set(body) <= {"′", "″", "‴"}):
+        return body
+    forms = [_script_char(char, "SUPERSCRIPT" if mark == "^" else "SUBSCRIPT") for char in body]
+    if all(forms):
+        return "".join(forms)
+    return mark + (body if all(char.isalnum() or char == "." for char in body) else f"({body})")
+
+def _tex_render(nodes: list) -> str:
+    out, i = [], 0
+
+    def argument() -> str:  # the next group, command or character, as text
+        nonlocal i
+        if i >= len(nodes):
+            raise ValueError("missing argument")
+        i += 1
+        return _tex_render(nodes[i - 1:i])
+
+    def operand(text: str) -> str:
+        return text if all(char.isalnum() or char == "." for char in text) else f"({text})"
+
+    while i < len(nodes):
+        kind, value = nodes[i]
+        i += 1
+        if kind == "char":
+            out.append(value)
+        elif kind == "escaped":
+            out.append(_TEX_SPACING.get(value, value))
+        elif kind == "group":
+            out.append(_tex_render(value))
+        elif kind == "script":
+            out.append(_tex_script(argument(), value))
+        elif value in ("frac", "dfrac", "tfrac"):
+            top, bottom = argument(), argument()
+            out.append(f"{operand(top)}/{operand(bottom)}")
+        elif value == "sqrt":
+            out.append("√" + operand(argument()))
+        elif value in _TEX_SPACING:
+            out.append(_TEX_SPACING[value])
+        elif _TEX_SIZING.fullmatch(value):
+            continue
+        elif (symbol := _TEX_NAME_FIXES.get(value) or _HTML5_ENTITIES.get(value + ";")) is not None:
+            category = unicodedata.category(symbol[0])
+            if category in ("Sk", "Lm") and i < len(nodes):  # an accent over its argument: \dot{m} is ṁ
+                base, name = argument(), unicodedata.name(symbol[0])
+                try:
+                    out.append(base + unicodedata.lookup("COMBINING " + name.removeprefix("MODIFIER LETTER ")
+                                                         .removeprefix("SMALL ")))
+                except KeyError:
+                    out.append(symbol + base)
+                continue
+            out.append(symbol)
+            # a space after a command only ends its name: \Delta G is ΔG, while "\leq 5" keeps its gap
+            if (category.startswith("L") and nodes[i:i + 1] == [("char", " ")] and i + 1 < len(nodes)
+                    and nodes[i + 1][0] == "char" and nodes[i + 1][1].isalnum()):
+                i += 1
+        elif i < len(nodes) and nodes[i][0] == "group":  # \text{…}, \mathrm{…}, \operatorname{…}: the content
+            out.append(argument())
+        else:  # \ln, \log, \exp, \max: the function's name
+            out.append(value)
+    return "".join(out)
+
+def _tex_text(source: str) -> str | None:
+    """TeX math as Unicode text, or None for what is not inline math (alignment, environments, line breaks) or does
+    not parse."""
+    if "&" in source or "\\\\" in source or "\\begin" in source:
+        return None
+    try:
+        nodes, _ = _tex_nodes(_TEX_TOKEN.findall(source))
+        return unicodedata.normalize("NFC", _tex_render(nodes).strip()) or None
+    except ValueError:
+        return None
+
+def _math_span_text(match: re.Match) -> str:
+    source = next(group for group in match.groups() if group is not None)
+    if not (_TEX_MARKUP.search(source) or re.fullmatch(r"[A-Za-z]{1,2}", source)):
+        return match.group(0)
+    return _tex_text(source) or match.group(0)
+
+def _plain_math(text: str) -> str:
+    """Write TeX math ($…$, $$…$$, \\(…\\), \\[…\\]) as Unicode text: $P_{\\text{vap}}$ is P_vap, $R^2$ is R², $\\Delta H$
+    is ΔH. A span counts as math only when it holds TeX markup (a command, ^, _ or braces) or is a lone symbol of one
+    or two letters. Code, and anything that does not convert cleanly, stays as written."""
+    parts = _CODE_SPANS.split(text)
+    for k in range(0, len(parts), 2):  # the odd parts are code
+        parts[k] = _MATH_SPAN.sub(_math_span_text, parts[k])
+    return "".join(parts)
 
 @dataclass(frozen=True)
 class ToolEvent:
@@ -1377,7 +1524,7 @@ def run_turn(
             acc.append(reply.get("usage"))
             calls, text = reply.get("tool_calls") or [], reply.get("text") or ""
             if not calls:
-                text = _complete_tables(text)
+                text = _plain_math(_complete_tables(text))
                 msgs.append({"role": "assistant", "content": text})
                 return TurnResult(
                     answer=text, status="ok", tool_trace=trace,
@@ -1420,7 +1567,7 @@ def run_turn(
         if reply is not None:
             acc.append(reply.get("usage"))
         if text and not reply.get("tool_calls"):
-            text = _PARTIAL_LEAD.format(rounds=cap) + _complete_tables(text)
+            text = _PARTIAL_LEAD.format(rounds=cap) + _plain_math(_complete_tables(text))
             msgs.append({"role": "assistant", "content": text})
             return TurnResult(
                 answer=text, status="round_cap", tool_trace=trace, turn_record=tid,

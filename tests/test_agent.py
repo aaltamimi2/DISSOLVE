@@ -2388,7 +2388,8 @@ def test_the_prompt_says_how_to_write_an_answer():
                  "Comparing alternatives", "as safe as its least safe solvent", "cross-check it with the\n  Hansen tools",
                  "Metrics. Explain each score", "G score:", "CHEM21 Safety, Health and Environment scores",
                  "RED is the Hansen distance", "any request for CHEM21",
-                 "Missing data never counts in an option's favour", "apply it to every solvent in\n  the route"):
+                 "Missing data never counts in an option's favour", "apply it to every solvent in\n  the route",
+                 "Never write LaTeX or $…$ math"):
         assert rule in prompt
 
 
@@ -2424,6 +2425,36 @@ def test_text_right_under_a_table_is_moved_out_of_it():
         "| Measure | Score |\n|---|---|\n| Safety | 4 |\n\nG score is the GSK score.")
     spaced = "| A |\n|---|\n| x |\n\nText"
     assert agent._complete_tables(spaced) == spaced
+
+
+def test_answers_write_math_as_plain_text():
+    """A literature answer (2026-10-08) wrote "$P_{\\text{vap}}$" and "$R^2$"; neither the CLI's Markdown nor the web
+    renderer typesets TeX, so people saw the raw markup. TeX spans become Unicode text, by general rules (names
+    through the HTML5 entity table, scripts through Unicode's SUPERSCRIPT/SUBSCRIPT characters), not a list of the
+    symbols seen so far."""
+    assert agent._plain_math(r"vapour pressure ($P_{\text{vap}}$) with $R^2$ of 0.98") == (
+        "vapour pressure (P_vap) with R² of 0.98")
+    for tex, plain in (
+        (r"$\Delta H_{\text{mix}}$", "ΔH_mix"), (r"$\chi_{12} \approx 0.5$", "χ₁₂ ≈ 0.5"), (r"$\delta_D$", "δ_D"),
+        (r"$10^{-3}$", "10⁻³"), (r"$25\,^\circ\text{C}$", "25 °C"), (r"$\text{MPa}^{1/2}$", "MPa^(1/2)"),
+        (r"$\frac{1}{2}$", "1/2"), (r"$\sqrt{2}$", "√2"), (r"$\log_{10} K \leq 3$", "log₁₀ K ≤ 3"),
+        (r"$2 \times 10^{4}$", "2 × 10⁴"), (r"$\dot{m}$", "ṁ"), (r"$\Delta G = \Delta H - T\Delta S$", "ΔG = ΔH - TΔS"),
+        (r"\(R^2\)", "R²"), (r"$$\mu\text{m}$$", "μm"), (r"$\Omega \rightarrow \infty$", "Ω → ∞"), (r"$x$", "x"),
+        (r"$\mathrm{CO_2}$", "CO₂"), (r"$\pm 0.3\%$", "± 0.3%"), (r"$\ln x$", "ln x"), (r"$\left( a \right)$", "( a )"),
+    ):
+        assert agent._plain_math(tex) == plain, tex
+    for untouched in ("It costs $25.65M a year.", "between $5 and $10", "$5–$10 per kg", "US$4 to US$6", "$5$",
+                      "`$R^2$` in code", "```\n$R^2$\n```", r"an escaped \$5", "set $HOME and $PATH",
+                      r"$\begin{aligned} a &= b \end{aligned}$", "$x_{$", r"[T5-01066e4fcba9-0038] \[T5-01066e4fcba9\]"):
+        assert agent._plain_math(untouched) == untouched, untouched
+
+
+def test_the_final_answer_is_written_without_tex(monkeypatch):
+    """The model's answer passes through the math rewrite on its way out, as it does through the table repair."""
+    monkeypatch.setattr(agent, "complete", lambda messages, tools, **kwargs: {
+        "text": "The fit is good ($R^2 = 0.98$).\n| Solvent | $\\delta_D$ |\n| Toluene | 18.0 |", "tool_calls": []})
+    assert run_turn("q", session=new_session(), model="openai:x").answer == (
+        "The fit is good (R² = 0.98).\n| Solvent | δ_D |\n|---|---|\n| Toluene | 18.0 |")
 
 
 def test_a_new_session_screens_the_common_solvents(tmp_path, monkeypatch):
