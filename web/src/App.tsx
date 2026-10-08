@@ -117,6 +117,7 @@ function Workspace({ user, onSignOut }: { user: string | null; onSignOut?: () =>
   const [toast, setToast] = useState<{ text: string; kind: "info" | "error" } | null>(null);
   const [preferredModel, setPreferredModel] = useState(() => remembered("dissolve-model") ?? "");
   const [features, setFeatures] = useState<Features>({ literature: true, tea: true });
+  const [contaminants, setContaminants] = useState<number | null>(null);
   const [families, setFamilies] = useState<ContaminantFamily[]>([]);
   const [tea, setTea] = useState<TeaView | null>(null);
   const [teaOpen, setTeaOpen] = useState(false);
@@ -193,7 +194,7 @@ function Workspace({ user, onSignOut }: { user: string | null; onSignOut?: () =>
   );
 
   useEffect(() => {
-    api.health().then((h) => setFeatures(h.features)).catch(() => undefined);
+    api.health().then((h) => { setFeatures(h.features); setContaminants(h.contaminants_computed ?? null); }).catch(() => undefined);
     api.models().then(setModels).catch(() => undefined);
     api.commands().then(setCommands).catch((e: Error) => notify(`The DISSOLVE server is unreachable: ${e.message}`, "error"));
     api.contaminantFamilies().then(setFamilies).catch(() => undefined);
@@ -410,7 +411,7 @@ function Workspace({ user, onSignOut }: { user: string | null; onSignOut?: () =>
         <main className="flex min-w-0 flex-1 flex-col">
           <div className="min-h-0 flex-1 overflow-y-auto">
             {messages.length === 0 ? (
-              <Welcome onPick={pick} features={features} />
+              <Welcome onPick={pick} features={features} contaminants={contaminants} />
             ) : (
               <div className="mx-auto w-full max-w-[860px] space-y-5 px-4 py-6">
                 {messages.map((m, index) => (

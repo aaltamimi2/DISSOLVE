@@ -213,6 +213,21 @@ def test_a_hosted_copy_asks_for_its_password(serve):
     assert http.get("/api/models", auth=("dissolve", "s3cret")).status_code == 200
 
 
+def test_the_contaminant_card_count_follows_the_served_release(client, monkeypatch, tmp_path):
+    """The welcome card pinned "Leaching of 7,176 plastic additives" in content.ts, so each release (promotion-v4
+    serves 7,397) needed a frontend commit to keep it exact (2026-10-08). /api/health carries the served asset's
+    computed count, which the card shows; with no asset the card drops the number rather than show a wrong one."""
+    from dissolve import contaminants
+
+    web.contaminants_computed.cache_clear()
+    served = contaminants._plastchem().execute("SELECT count(*) FROM contaminants WHERE computed").fetchone()[0]
+    assert client.get("/api/health").json()["contaminants_computed"] == served > 7176  # releases only add to v3's
+    monkeypatch.setenv("DISSOLVE_PLASTCHEM_ASSET", str(tmp_path / "missing.duckdb"))
+    web.contaminants_computed.cache_clear()
+    assert client.get("/api/health").json()["contaminants_computed"] is None
+    web.contaminants_computed.cache_clear()
+
+
 def test_a_browser_crash_reaches_the_server_log(serve, capfd):
     http = serve(DISSOLVE_WEB_PASSWORD="s3cret")
     report = {"message": "Failed to execute 'insertBefore' on 'Node'", "agent": "a test browser"}

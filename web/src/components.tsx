@@ -584,7 +584,7 @@ function QuickActionCard({ action, onPick }: { action: QuickAction; onPick: (exa
   );
 }
 
-export function Welcome({ onPick, features }: { onPick: (example: Example) => void; features: Features }) {
+export function Welcome({ onPick, features, contaminants }: { onPick: (example: Example) => void; features: Features; contaminants?: number | null }) {
   const topics = ["polymer solubility", "separation planning", "solvent safety", "contaminant removal"];
   if (features.tea) topics.push("techno-economics");
   if (features.literature) topics.push("the literature");
@@ -594,7 +594,7 @@ export function Welcome({ onPick, features }: { onPick: (example: Example) => vo
       <h2 className="mt-4 font-headline text-2xl font-semibold tracking-tight text-ink">DISSOLVE Agent</h2>
       <p className="mt-2 max-w-xl text-ink-2">Ask about {`${topics.slice(0, -1).join(", ")} and ${topics.at(-1)}`}.</p>
       <div className="mt-8 grid w-full grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        {offeredActions(features).map((action) => (
+        {offeredActions(features, contaminants).map((action) => (
           <QuickActionCard key={action.label} action={action} onPick={onPick} />
         ))}
       </div>
