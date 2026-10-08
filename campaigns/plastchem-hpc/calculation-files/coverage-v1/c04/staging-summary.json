@@ -1,0 +1,12 @@
+{
+  "group": "c04",
+  "utc": "2026-10-08T18:08:42Z",
+  "new_targets": 100,
+  "submission_tasks": 100,
+  "preparation_failures": 0,
+  "preparation_failure_keys": [],
+  "archive": "/home/aaltamimi2/plastchem-euler/state/coverage-v1/c04-staging.tar.gz",
+  "archive_bytes": 95177,
+  "archive_sha256": "c0343afbfc08f6306b1a03915d905b5f94dcab50dca190d4c2ae86477a825679",
+  "remote_verified": true
+}

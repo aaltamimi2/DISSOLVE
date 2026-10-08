@@ -1127,3 +1127,65 @@ full name etc) it must also use your same procedure for orca + opencosmo (i.e. l
     is guarded and must not overlap); never print the site password, tokens or the check account's password; nothing
     from COSMObase/COSMOtherm in git; D-ISO: isotope-labelled entries stay excluded; scp not rsync for R:; keep the
     Euler cap; never stop another session or watcher without the owner.
+
+A-13 NOTE (2026-10-08 16:55 UTC, coverage lane) — LAUNCH: HARVEST UNDER WAY, CHUNK c01 SUBMITTED, MILAN SATURATED
+Pinned inputs verified (work list 40b4ca4e..., parent aliases 5466119e..., census export 9b1b68e4...). Pipeline: copies of
+the halogen tier (build_coverage_chunk.py, prepare_coverage.py, stage_coverage.py, coverage.sbatch, coverage_runner.py,
+submit_coverage_remote.py, collect_coverage_remote.py, watch_coverage.py, summarize_coverage.py; the runner differs from
+halogen_runner.py only in its root, chunk name and recorded memory) and of newcontam_thermo.py (coverage_thermo.py:
+coverage-thermo-v1, jobs contam-coverage-{partition,lle}-tNN; it refuses worker code that differs from the A-11/A-12 pins,
+i.e. the working-tree supplement_partition_worker.py 2cd04d6e..., which every A-11/A-12 batch pinned, not HEAD's).
+1. Chunks: cNN = the NN-th run of 100 never-run work-list rows, in work-list order, so "the first 100 new rows" of item 5c
+   are exactly c01 (orders 1-107, 48-133 g/mol; the 7 other rows of 1-107 are harvest or item-5d rows). c01: 99 submitted
+   (array 78775, %56), 1 preparation failure, final (order 40, CCO[Si](=O)O: MMFF94 cannot type Si=O).
+2. Harvest (5a): h04 was sealed on Euler and is now collected (79 of the 116 thermodynamics_pending rows); retry round r01's
+   last structure converged (Octatriacontyl pentafluoropropionate, 39,702 s, euler142); of the 9 "running" rows 6 converged
+   and 3 are D-IDENT rejections (final). Batch t00 = the other 37 pending + those 6 (43; Genoa, arrays 78817/78818).
+3. Item 5d review of the 57 earlier-tier failures: retry-eligible after G1 are the 14 tier-2 rows interrupted by the USR1
+   time-limit warning (they ran under 8-24 h limits, not the 72 h their records name); final under the frozen recipe are 9
+   ETKDG "Bad Conformer Id" preparations (deterministic with seed 12345), 2 geometry non-convergences, 2 abnormal COSMO
+   terminations and 30 D-IDENT rejections.
+4. Milan CPU (euler142-145) is full until about 2026-10-10 01:00-17:00 CDT (another user's 3-day jobs, and this account's
+   dt2-swcg jobs on euler145); the scheduler puts c01's first start at 2026-10-10 03:33 CDT. A shorter walltime does not
+   change that (sbatch --test-only). euler141 is Milan-X (EPYC 7773X), outside milan&cpu; using it would mix CPU models
+   (A-2) and is the owner's decision. ORCA stays on milan&cpu.
+5. Release cadence: the harvest alone completes 122 structures, so promotion-v4 is cut from it (with the 200 parent
+   aliases) once t00 is collected; c01's structures are released only after G1 passes.
+
+A-13 NOTE (2026-10-08 17:10 UTC, orchestrator, OWNER-DECIDED) — USE WHATEVER COMPUTE THE ACCOUNT CAN GET
+Owner, on euler141 (Milan-X, EPYC 7773X) and the Milan saturation: "allow it, whatever compute we can get. just verify
+everything works properly. worse that can happen is we get preempted". This replaces "ORCA on Milan only" (A-2, A-9) for
+A-13 and the 64-job cap for capacity beyond the original Milan pool:
+1. ORCA may run on any CPU node type and partition the account can use (euler141 Milan-X, Genoa, any other partition,
+   preemptible ones included), each only after a reproduction check passes for that CPU type and partition: rerun at
+   least six structures already converged on Milan (spanning C/H/N/O, a halogen, S, P and Si, and at least one above
+   60 atoms) from their identical prepared input.xyz with the unchanged recipe. Pass: the same D-IDENT verdict, final
+   single-point energies within 1e-6 Eh, surfaces with the same segment count and area and volume within 1e-3
+   relative, and openCOSMO-RS logP (octanol-water and three panel solvents in one polymer) within 0.01. Record each
+   check in state/coverage-v1/cpu-checks/, keep the CPU model on every row, and let the runner admit only CPU models and
+   partitions that passed (an allow-list in the manifest); the recipe itself does not change.
+2. Preemption is not a failure: a task killed by preemption or by the scheduler is resubmitted unchanged through a
+   recorded retry round; it never counts against gate G1's failure rate.
+3. The 64-job cap is lifted for capacity beyond the Milan pool: take what the scheduler gives, in bounded arrays, never
+   holding, cancelling or competing by hand with other users' or this account's other projects' jobs.
+4. Thermodynamics as before (Genoa allowed); the same reproduction rule applies to any new node type for it.
+
+A-13 NOTE (2026-10-08 17:15 UTC, coverage lane) — GATE G1 PASSED; THE REST OF THE WORK LIST IS RELEASED
+Cohort: chunk c01, the first 100 new rows (orders 1-107; 3-24 atoms; 89 with S, P or Si), all run on AMD EPYC 7763
+(research, milan&cpu, array 78775). Report: reports/coverage-v1/G1/gate-g1.json (state/coverage-v1/gate-g1.json).
+1. Failure rate 1 of 100 (1%; limit 10%): order 40, ethyl silicate written CCO[Si](=O)O, which MMFF94 cannot type (final).
+   99 converged, all accepted by D-IDENT; no rejection, no scheduler kill.
+2. Cost: 7.60 CPU-h measured against 7.80 by the campaign fit (sum ratio 0.97; per-structure median 1.19, mean 1.59,
+   the mean inflated by the fixed per-run overhead of 3-atom molecules). Projection for the 1,705 never-run rows: 3,217
+   CPU-h by the fit, 5,113 scaled by the mean ratio (the conservative figure, gated: limit 6,000). The c01 refit
+   (exponent 0.76 over 3-24 atoms) is overhead-dominated and is not extrapolated.
+3. Octanol/water logP of the S, P and Si structures against CompTox explicit experimental LogKow (export by InChIKey,
+   then CAS; median of a structure's observations), computed as the CHNO parity was (activity + pair('octanol','water'),
+   concentration basis): n = 18 (S 16, P 1, Si 1), RMSE 0.35, bias +0.24, slope 1.04; S alone RMSE 0.32, bias +0.20;
+   dimethyl methylphosphonate +0.72; tetramethylsilane +0.35. CHNO campaign: RMSE 1.02, bias +0.55 (n = 1,179; CompTox
+   alone n = 622: 1.25, +0.75). Limits RMSE 1.53 (1.5 x 1.02), |bias| 1.0, applied to the set and to each element.
+   Thin evidence for P and Si (one measured value each); later chunks add more and are reported.
+Next: chunks of 100 new rows in work-list order; ORCA on milan&cpu (EPYC 7763), and on each further CPU type once its
+reproduction check (owner NOTE 17:10) passes. Walltime per chunk is set from the fit for its largest molecule (at least
+2 h, raised for the large ones, 72 h and above as the fit requires), a recorded resource choice: short limits backfill
+into the busy Milan pool; a task that reaches its limit is resubmitted with a longer one.

@@ -122,13 +122,22 @@ def promote_opencosmo_release(
     elements = _release_elements([smiles for (smiles,) in con.execute(
         "SELECT smiles FROM contaminants WHERE computed AND smiles IS NOT NULL").fetchall()])
     rows = con.execute("SELECT id, inchikey, name, cas, plastchem_id, perceived_inchikey FROM contaminants").fetchall()
+    # a row lists every PlastChem entry it serves, a salt served through its neutral parent too (A-13), and answers
+    # to each ID on its own
     aliases = {(_key(value), cid) for cid, inchikey, name, cas, pid, perceived in rows
-               for value in (name, cas, inchikey, perceived, pid and f"plastchem {pid}") if value}
+               for value in (name, cas, inchikey, perceived, *(f"plastchem {i}" for i in _ids(pid))) if value}
     by_cas = {cas: cid for cid, _, _, cas, _, _ in rows if cas}
     abbreviations = {(_key(abbr), by_cas[cas]) for abbr, cas in _ABBREVIATIONS.items() if cas in by_cas}
     aliases |= abbreviations
-    labels = _publication_labels(release, {inchikey: cid for cid, inchikey, *_ in rows}, aliases)
+    ids = {inchikey: cid for cid, inchikey, *_ in rows}
+    # a family keeps its name: a release alias that would also name one ("phthalate", a PlastChem ion entry served
+    # through phthalic acid) is withheld rather than made ambiguous
+    families = {_key(value) for spec in _FAMILY_SPECS for value in (spec["name"], spec["term"], *spec["aliases"])}
+    withheld: set[str] = set()
+    labels = _publication_labels(release, ids, aliases, families, withheld)
     aliases |= labels
+    parents = _parent_aliases(release, ids, aliases, families, withheld)
+    aliases |= parents
     con.execute("CREATE TABLE aliases (alias VARCHAR, id INTEGER)")
     con.executemany("INSERT INTO aliases VALUES (?, ?)", sorted(aliases))
     statuses = [manifest.get("status") for manifest in manifests]
@@ -144,7 +153,8 @@ def promote_opencosmo_release(
         "served_convention": _SERVED_CONVENTION, "miscibility_basis": _MISCIBLE_BASIS,
         "logp_temperature_c": "25.0", "parameterization": "openCOSMO-RS 24a",
         "abbreviations": str(len(abbreviations)), "elements": ",".join(elements),
-        "publication_labels": str(len(labels)),
+        "publication_labels": str(len(labels)), "parent_aliases": str(len(parents)),
+        "aliases_withheld_as_family_names": ", ".join(sorted(withheld)),
     }
     con.execute("CREATE TABLE metadata (key VARCHAR, value VARCHAR)")
     con.executemany("INSERT INTO metadata VALUES (?, ?)", sorted(meta.items()))
@@ -157,12 +167,17 @@ def promote_opencosmo_release(
     return {**counts, **meta, "asset": str(target)}
 
 
-def _publication_labels(release: Path, ids: dict[str, int], aliases: set[tuple[str, int]]) -> set[tuple[str, int]]:
-    """The labels and CAS numbers of a paper's compound sets (Zhou et al. 2026: "PFOS", "NaDoDFNt", "DECA"), from the
-    release's publication-labels.csv, each resolved to the structure the release serves for it; a salt the paper lists
-    is its parent acid. Rows the release does not offer (a label naming a class or a mixture) add nothing, and a label
-    that another entry already answers to is refused rather than made ambiguous."""
-    path = release / "publication-labels.csv"
+def _ids(value: str | None) -> list[str]:
+    """The PlastChem IDs of a release row ("221;4410" lists two entries)."""
+    return [part.strip() for part in str(value or "").replace(",", ";").split(";") if part.strip()]
+
+
+def _release_labels(path: Path, what: str, ids: dict[str, int], aliases: set[tuple[str, int]],
+                    families: set[str] = frozenset(), withheld: set[str] | None = None) -> set[tuple[str, int]]:
+    """Aliases a release carries in a table (columns alias, input_inchikey, offered; label optional), each resolved to
+    the structure the release serves for it. Rows the release does not offer add nothing; a row naming a structure the
+    release lacks, or an alias that another entry already answers to, is refused rather than made ambiguous; an alias
+    that is a contaminant family's name (`families`) is withheld and recorded in `withheld`."""
     if not path.is_file():
         return set()
     import csv
@@ -175,13 +190,34 @@ def _publication_labels(release: Path, ids: dict[str, int], aliases: set[tuple[s
         for row in csv.DictReader(handle):
             if row["offered"] != "yes":
                 continue
+            label = row.get("label") or row["alias"]
             if row["input_inchikey"] not in ids:
-                raise ValueError(f"publication label {row['label']!r} names {row['input_inchikey']}, which the release lacks")
+                raise ValueError(f"{what} {label!r} names {row['input_inchikey']}, which the release lacks")
             key, cid = _key(row["alias"]), ids[row["input_inchikey"]]
+            if key in families:
+                if withheld is not None:
+                    withheld.add(row["alias"])
+                continue
             if taken.get(key, {cid}) != {cid}:
-                raise ValueError(f"publication label {row['alias']!r} would also name another contaminant")
+                raise ValueError(f"{what} {row['alias']!r} would also name another contaminant")
             out.add((key, cid))
+            taken.setdefault(key, set()).add(cid)
     return out
+
+
+def _publication_labels(release: Path, ids: dict[str, int], aliases: set[tuple[str, int]],
+                        families: set[str] = frozenset(), withheld: set[str] | None = None) -> set[tuple[str, int]]:
+    """The labels and CAS numbers of a paper's compound sets (Zhou et al. 2026: "PFOS", "NaDoDFNt", "DECA"), from the
+    release's publication-labels.csv; a salt the paper lists is its parent acid. A label naming a class or a mixture is
+    listed but not offered."""
+    return _release_labels(release / "publication-labels.csv", "publication label", ids, aliases, families, withheld)
+
+
+def _parent_aliases(release: Path, ids: dict[str, int], aliases: set[tuple[str, int]],
+                    families: set[str] = frozenset(), withheld: set[str] | None = None) -> set[tuple[str, int]]:
+    """The names and CAS numbers of PlastChem entries served through their computed neutral parent (a salt, an ion, a
+    hydrate: "Potassium laurate" finds lauric acid), from the release's parent-aliases.csv (A-13)."""
+    return _release_labels(release / "parent-aliases.csv", "parent alias", ids, aliases, families, withheld)
 
 
 _ELEMENT_ORDER = ("C", "H", "N", "O", "F", "Cl", "Br", "I", "S", "P", "Si", "B")
@@ -256,7 +292,7 @@ _UV = ("benzotriazole_uva", "triazine_uva", "hydroxybenzophenone", "hals", "cyan
 
 # name, the term a question uses, aliases, what it holds, and how membership is decided: a PlastChem group ("group"),
 # or outside it a structure of which any matches ("or_any"), structures of which any ("any") or all ("all") must match
-# and none ("none") may, and a minimum carbon count.
+# and none ("none") may, elements the structure must contain ("elements"), and a minimum carbon count.
 _FAMILY_SPECS: tuple[dict[str, Any], ...] = (
     # PlastChem's orthophthalates group leaves out ortho-phthalate diesters such as bis(2-ethylbutyl) phthalate
     {"name": "Phthalates", "term": "phthalates", "group": "orthophthalates", "or_any": ("ortho_phthalate_diester",),
@@ -298,6 +334,18 @@ _FAMILY_SPECS: tuple[dict[str, Any], ...] = (
      "description": "salicylate esters", "examples": ("Methyl salicylate", "Homosalate", "2-Ethylhexyl salicylate")},
     {"name": "Parabens", "term": "parabens", "group": "parabens", "aliases": ("paraben", "4-hydroxybenzoates"),
      "description": "4-hydroxybenzoate esters", "examples": ("Methylparaben", "Propylparaben", "Butylparaben")},
+    # A-13 (2026-10-08): families of the coverage campaign's sulfur, phosphorus and silicon compounds, each added once
+    # three of its members were computed and named
+    # PlastChem flags salts by their counter-ion too (melamine phosphate): the structure served must hold the element
+    {"name": "Organophosphates", "term": "organophosphates", "group": "organophosphates", "elements": ("P",),
+     "aliases": ("organophosphate", "organophosphorus compounds", "phosphate esters", "organophosphate esters"),
+     "description": "phosphate, phosphonate and phosphinate esters and acids",
+     "examples": ("Dimethyl methylphosphonate", "Vinylphosphonic acid", "Ethyl dihydrogen phosphate")},
+    {"name": "Siloxanes and silanes", "term": "siloxanes and silanes", "group": "silanes_siloxanes_silicones",
+     "elements": ("Si",),
+     "aliases": ("siloxanes", "siloxane", "silanes", "silane", "organosilicon compounds", "organosilanes"),
+     "description": "silanes, siloxanes and silicone building blocks",
+     "examples": ("Tetramethylsilane", "Trimethylsilanol", "Dimethoxydimethylsilane")},
 )
 _ELEMENT_NAMES = {"F": "fluorine", "Cl": "chlorine", "Br": "bromine", "I": "iodine", "S": "sulfur", "P": "phosphorus",
                   "Si": "silicon", "B": "boron", "Se": "selenium"}
@@ -313,14 +361,17 @@ def _family_basis(spec: dict[str, Any]) -> str:
         parts.append("with a " + ", ".join(spec["all"]).replace("_", " ") + " core")
     if "none" in spec:
         parts.append("excluding " + ", ".join(spec["none"]).replace("_", " "))
+    if "elements" in spec:
+        parts.append("containing " + " and ".join(_ELEMENT_NAMES.get(e, e) for e in spec["elements"]))
     if "min_carbons" in spec:
         parts.append(f"at least {spec['min_carbons']} carbons")
     return "; ".join(parts)
 
 
 def _outside_reason(row: dict[str, Any], mol: Any, held: frozenset[str] = frozenset("CHNO")) -> str:
-    """Why a PlastChem entry of a family is not in the release (neutral molecules up to 700 g/mol built from the
-    elements in `held`)."""
+    """Why a PlastChem entry of a family is not in the release. Since the coverage campaign (A-13, 2026-10-08) computes
+    every simulable PlastChem structure, lightest first, a neutral closed-shell molecule built from the elements the
+    release holds (`held`) is not computed yet, unless it is above 700 g/mol and too flexible for one conformer."""
     if row["inorganic_compounds"] or row["organometallics"]:
         return "contains a metal"
     if row["UVCBs"] or row["polymers"] or row["mixtures"]:
@@ -339,15 +390,24 @@ def _outside_reason(row: dict[str, Any], mol: Any, held: frozenset[str] = frozen
         return "contains a metal"
     if named:
         return "contains " + " and ".join(named)
-    heavy = float(row.get("molecular_weight") or 0) > 700
-    return "heavier than 700 g/mol" if heavy else "not in the campaign's input list"
+    if any(atom.GetIsotope() for atom in mol.GetAtoms()):
+        return "isotope-labelled (excluded by owner decision)"
+    if any(atom.GetNumRadicalElectrons() for atom in mol.GetAtoms()):
+        return "a radical (open-shell)"
+    from rdkit.Chem import Descriptors, rdMolDescriptors
+
+    if Descriptors.MolWt(mol) > 700 and rdMolDescriptors.CalcNumRotatableBonds(mol) > 20:
+        return "larger than 700 g/mol and too flexible for one conformer"
+    return "not computed yet"
 
 
 def build_families(workbook: str | Path, out: str | Path | None = None, *, asset: str | Path | None = None,
                    specs: Sequence[dict[str, Any]] = _FAMILY_SPECS) -> dict:
     """Write data/plastchem_families.json from the PlastChem workbook: each family's members by InChIKey (the screens
-    evaluate those the asset computed) and, for the entries the asset lacks, their names and why. Refuses an alias
-    that names a contaminant or another family, and an example that does not resolve to one of the family's members."""
+    evaluate those the asset computed) and, for the entries the asset lacks, their names and why. An entry is a member
+    through the row that serves it: its own InChIKey, or a row whose plastchem_id lists it (a salt served through its
+    neutral parent, A-13), whose structure the patterns are then matched on. Refuses an alias that names a contaminant
+    or another family, and an example that does not resolve to one of the family's members."""
     import openpyxl
     from rdkit import Chem, RDLogger
 
@@ -358,6 +418,11 @@ def build_families(workbook: str | Path, out: str | Path | None = None, *, asset
     held = frozenset((dict(con.execute("SELECT key, value FROM metadata").fetchall()).get("elements") or "C,H,N,O").split(","))
     aliases = {alias: cid for alias, cid in con.execute("SELECT alias, id FROM aliases").fetchall()}
     ids = {key: cid for cid, key in con.execute("SELECT id, inchikey FROM contaminants").fetchall()}
+    by_id, smiles_of = {}, {}
+    for key, pid, smiles in con.execute("SELECT inchikey, plastchem_id, smiles FROM contaminants").fetchall():
+        smiles_of[key] = smiles
+        for entry_id in _ids(pid):
+            by_id.setdefault(entry_id, key)
     patterns = {name: Chem.MolFromSmarts(smarts) for name, smarts in _SMARTS.items()}
     sheet = openpyxl.load_workbook(workbook, read_only=True)["Full database"].iter_rows(values_only=True)
     next(sheet)  # section headers
@@ -371,31 +436,40 @@ def build_families(workbook: str | Path, out: str | Path | None = None, *, asset
                          ("inorganic_compounds", "organometallics", "UVCBs", "polymers", "mixtures")}}
         row["smiles"] = row.get("isomeric_smiles") or row.get("canonical_smiles") or ""
         mol = Chem.MolFromSmiles(row["smiles"]) if row["smiles"] and "." not in row["smiles"] else None
-        entries.append((row, mol))
+        entry_id = row.get("plastchem_ID")
+        entry_id = str(int(entry_id)) if isinstance(entry_id, (int, float)) else str(entry_id or "").split(".")[0]
+        own = row.get("inchikey") in released
+        served = row.get("inchikey") if own else by_id.get(entry_id)
+        # an entry served through another row (a salt through its parent) is matched on the structure served
+        structure = mol if own or not served or not smiles_of.get(served) else Chem.MolFromSmiles(smiles_of[served])
+        entries.append((row, mol, served, structure))
     folded = {}
     families = []
     for spec in specs:
         members, outside = set(), {}
-        for row, mol in entries:
-            if "group" in spec and row.get(spec["group"]) in (None, 0, "0") and not (
-                    mol is not None and any(mol.HasSubstructMatch(patterns[name]) for name in spec.get("or_any", ()))):
+        for row, mol, served, structure in entries:
+            if "group" in spec and row.get(spec["group"]) in (None, 0, "0") and not (structure is not None and any(
+                    structure.HasSubstructMatch(patterns[name]) for name in spec.get("or_any", ()))):
                 continue
-            if any(key in spec for key in ("any", "all", "none")) and mol is None:
+            if any(key in spec for key in ("any", "all", "none")) and structure is None:
                 continue
-            matches = lambda names: [mol.HasSubstructMatch(patterns[name]) for name in names]
+            matches = lambda names: [structure.HasSubstructMatch(patterns[name]) for name in names]
             if "any" in spec and not any(matches(spec["any"])):
                 continue
             if "all" in spec and not all(matches(spec["all"])):
                 continue
             if "none" in spec and any(matches(spec["none"])):
                 continue
-            if "min_carbons" in spec and (mol is None or sum(atom.GetSymbol() == "C" for atom in mol.GetAtoms())
+            if "min_carbons" in spec and (structure is None or sum(atom.GetSymbol() == "C" for atom in structure.GetAtoms())
                                           < spec["min_carbons"]):
                 continue
-            key = row.get("inchikey")
-            if key and key in released:
-                members.add(key)
+            if "elements" in spec and (structure is None or not set(spec["elements"]) <= {
+                    atom.GetSymbol() for atom in structure.GetAtoms()}):
+                continue
+            if served:
+                members.add(served)
             else:
+                key = row.get("inchikey")
                 name = str(row.get("pubchem_name") or row.get("cas") or row.get("plastchem_ID"))
                 outside.setdefault(name, {"name": name, "inchikey": key or None, "reason": _outside_reason(row, mol, held)})
         names = [spec["name"], spec["term"], *spec["aliases"]]

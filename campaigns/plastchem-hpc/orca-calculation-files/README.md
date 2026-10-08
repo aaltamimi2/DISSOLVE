@@ -32,9 +32,13 @@ publication sets, agent families, PlastChem groups, structure classes and no-fam
 
 ```sh
 cat orca-calculation-files.tar.xz.part* > orca-calculation-files.tar.xz
+cat orca-calculation-files-promotion-v4.tar.xz.part* > orca-calculation-files-promotion-v4.tar.xz
 sha256sum -c SHA256SUMS
 tar -xJf orca-calculation-files.tar.xz
+tar -xJf orca-calculation-files-promotion-v4.tar.xz
 ```
+
+The 2 sets unpack into the same `orca-calculation-files/` tree: the first holds the v2 archive (the CHNO campaign, the halogen tier and the publication sets), each later one the contaminants a release added (amendment A-13; parts are never rewritten).
 
 ## Rebuild
 

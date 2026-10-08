@@ -2,12 +2,12 @@
 functional groups, and a molecular-weight range. Features come from each compound's SMILES (RDKit), computed once per
 release and kept in memory.
 
-The release holds compounds built from a fixed set of elements (C, H, N and O, and since the halogen tier of
-2026-10-06 also F, Cl, Br and I). Since promotion-v3 (2026-10-08) it also serves the compound sets of Zhou et al.,
-Green Chem. 2026, whose PFAS sulfonic acids bring sulfur: a sulfur search finds those and says that the campaign
-computed no other sulfur compound. A search for any other element (phosphorus, silicon, boron) is valid and finds
-nothing, and the result names the elements the release does hold. The curated workbook's 26 PFAS, which store no
-structures, are also reached as the PFAS family."""
+The release holds compounds built from the elements its campaign tiers computed: C, H, N and O, F, Cl, Br and I since
+the halogen tier of 2026-10-06, and S, P and Si since the coverage campaign (A-13, promotion-v4, 2026-10-08); the
+compound sets of Zhou et al., Green Chem. 2026 came in with promotion-v3. When an element is held only by those paper
+sets, a search for it says so (the campaign computed no other compound with it). A search for an element no compound
+holds (boron, selenium) is valid and finds nothing, and the result names the elements the release does hold. The
+curated workbook's 26 PFAS, which store no structures, are also reached as the PFAS family."""
 from __future__ import annotations
 
 import math
@@ -105,7 +105,7 @@ def _features(asset: str) -> dict[int, tuple[frozenset[str], frozenset[str], Opt
 
 @lru_cache(maxsize=2)
 def _tiers(asset: str) -> dict[int, str]:
-    """id -> the campaign tier that computed it (main, tier2, halogen, publication)."""
+    """id -> the campaign tier that computed it (main, tier2, halogen, publication, coverage)."""
     return {int(cid): str(tier) for cid, tier in screens._plastchem().execute("SELECT id, tier FROM contaminants").fetchall()}
 
 

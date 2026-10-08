@@ -1,0 +1,12 @@
+{
+  "group": "c02",
+  "utc": "2026-10-08T17:15:45Z",
+  "new_targets": 100,
+  "submission_tasks": 100,
+  "preparation_failures": 0,
+  "preparation_failure_keys": [],
+  "archive": "/home/aaltamimi2/plastchem-euler/state/coverage-v1/c02-staging.tar.gz",
+  "archive_bytes": 82659,
+  "archive_sha256": "7129018d6231530e911600f08a42f072930dd96e818c850e692b78efcbcd6e77",
+  "remote_verified": true
+}

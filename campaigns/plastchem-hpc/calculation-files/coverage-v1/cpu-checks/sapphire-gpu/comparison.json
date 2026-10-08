@@ -1,0 +1,85 @@
+{
+  "utc": "2026-10-08T18:14:08+00:00",
+  "tag": "sapphire-gpu",
+  "overall": "incomplete",
+  "tolerance": {
+    "energy_hartree": 1e-06,
+    "area_relative": 0.001,
+    "volume_relative": 0.001,
+    "logp": 0.01
+  },
+  "reference_cpu_model": "AMD EPYC 7763 64-Core Processor",
+  "reference": "Milan runs of the same prepared inputs (research, milan&cpu)",
+  "logp_basis": "normalized convention, 298.15 K, x = 0; octanol/water and toluene, ethanol, acetone against pe",
+  "cpu_models": [],
+  "partitions": [],
+  "counts": {
+    "waiting": 8
+  },
+  "structures": [
+    {
+      "inchikey": "KBPLFHHGFOOTCA-UHFFFAOYSA-N",
+      "covers": "C/H/O: 1-octanol",
+      "atoms": 27,
+      "reference_tier": "campaign-v1",
+      "verdict": "waiting",
+      "why": "the candidate run has not finished"
+    },
+    {
+      "inchikey": "BJQHLKABXJIVAM-UHFFFAOYSA-N",
+      "covers": "C/H/O above 60 atoms: DEHP (66)",
+      "atoms": 66,
+      "reference_tier": "campaign-v1",
+      "verdict": "waiting",
+      "why": "the candidate run has not finished"
+    },
+    {
+      "inchikey": "GLUCALKKMFBJEB-UHFFFAOYSA-N",
+      "covers": "Br, Cl, N, O: 2-bromo-6-chloro-4-nitroaniline",
+      "atoms": 16,
+      "reference_tier": "halogen-v1",
+      "verdict": "waiting",
+      "why": "the candidate run has not finished"
+    },
+    {
+      "inchikey": "VSMDINRNYYEDRN-UHFFFAOYSA-N",
+      "covers": "I (def2 ECP): 4-iodophenol",
+      "atoms": 13,
+      "reference_tier": "halogen-v1",
+      "verdict": "waiting",
+      "why": "the candidate run has not finished"
+    },
+    {
+      "inchikey": "JGTNAGYHADQMCM-UHFFFAOYSA-N",
+      "covers": "S, F: perfluorobutanesulfonic acid",
+      "atoms": 18,
+      "reference_tier": "publication-v1",
+      "verdict": "waiting",
+      "why": "the candidate run has not finished"
+    },
+    {
+      "inchikey": "YTPLMLYBLZKORZ-UHFFFAOYSA-N",
+      "covers": "S, aromatic: thiophene",
+      "atoms": 9,
+      "reference_tier": "coverage-v1",
+      "verdict": "waiting",
+      "why": "the candidate run has not finished"
+    },
+    {
+      "inchikey": "VONWDASPFIQPDY-UHFFFAOYSA-N",
+      "covers": "P: dimethyl methylphosphonate",
+      "atoms": 16,
+      "reference_tier": "coverage-v1",
+      "verdict": "waiting",
+      "why": "the candidate run has not finished"
+    },
+    {
+      "inchikey": "JJQZDUKDJDQPMQ-UHFFFAOYSA-N",
+      "covers": "Si: dimethoxydimethylsilane",
+      "atoms": 19,
+      "reference_tier": "coverage-v1",
+      "verdict": "waiting",
+      "why": "the candidate run has not finished"
+    }
+  ]
+}

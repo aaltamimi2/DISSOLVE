@@ -1,0 +1,363 @@
+{
+  "utc": "2026-10-08T18:14:00+00:00",
+  "tag": "milan-gpu",
+  "overall": "incomplete",
+  "tolerance": {
+    "energy_hartree": 1e-06,
+    "area_relative": 0.001,
+    "volume_relative": 0.001,
+    "logp": 0.01
+  },
+  "reference_cpu_model": "AMD EPYC 7763 64-Core Processor",
+  "reference": "Milan runs of the same prepared inputs (research, milan&cpu)",
+  "logp_basis": "normalized convention, 298.15 K, x = 0; octanol/water and toluene, ethanol, acetone against pe",
+  "cpu_models": [
+    "AMD EPYC 7513 32-Core Processor"
+  ],
+  "partitions": [
+    "research"
+  ],
+  "counts": {
+    "pass": 7,
+    "waiting": 1
+  },
+  "structures": [
+    {
+      "inchikey": "KBPLFHHGFOOTCA-UHFFFAOYSA-N",
+      "covers": "C/H/O: 1-octanol",
+      "atoms": 27,
+      "reference_tier": "campaign-v1",
+      "reference_identity_verified": true,
+      "candidate_identity_verified": true,
+      "reference_perceived_inchikey": "KBPLFHHGFOOTCA-UHFFFAOYSA-N",
+      "candidate_perceived_inchikey": "KBPLFHHGFOOTCA-UHFFFAOYSA-N",
+      "candidate_cpu_model": "AMD EPYC 7513 32-Core Processor",
+      "candidate_node": "euler08.engr.wisc.edu",
+      "candidate_partition": "research",
+      "candidate_failure_mode": null,
+      "max_energy_difference_hartree": 0.0,
+      "opt_cycles": {
+        "reference": 6,
+        "candidate": 6
+      },
+      "segments": {
+        "reference": 1560,
+        "candidate": 1560
+      },
+      "area_relative_difference": 0.0,
+      "volume_relative_difference": 0.0,
+      "logp": {
+        "reference": {
+          "octanol_water": 4.153874928506872,
+          "toluene_pe": 0.35470833745415276,
+          "ethanol_pe": 1.0675782348972689,
+          "acetone_pe": 1.0976605485114062
+        },
+        "candidate": {
+          "octanol_water": 4.153874928506872,
+          "toluene_pe": 0.35470833745415276,
+          "ethanol_pe": 1.0675782348972689,
+          "acetone_pe": 1.0976605485114062
+        }
+      },
+      "max_logp_difference": 0.0,
+      "wall_seconds": {
+        "reference": 329.457487821579,
+        "candidate": 344.0973366200051
+      },
+      "surface_identical": true,
+      "verdict": "pass",
+      "failures": []
+    },
+    {
+      "inchikey": "BJQHLKABXJIVAM-UHFFFAOYSA-N",
+      "covers": "C/H/O above 60 atoms: DEHP (66)",
+      "atoms": 66,
+      "reference_tier": "campaign-v1",
+      "verdict": "waiting",
+      "why": "the candidate run has not finished"
+    },
+    {
+      "inchikey": "GLUCALKKMFBJEB-UHFFFAOYSA-N",
+      "covers": "Br, Cl, N, O: 2-bromo-6-chloro-4-nitroaniline",
+      "atoms": 16,
+      "reference_tier": "halogen-v1",
+      "reference_identity_verified": true,
+      "candidate_identity_verified": true,
+      "reference_perceived_inchikey": "GLUCALKKMFBJEB-UHFFFAOYSA-N",
+      "candidate_perceived_inchikey": "GLUCALKKMFBJEB-UHFFFAOYSA-N",
+      "candidate_cpu_model": "AMD EPYC 7513 32-Core Processor",
+      "candidate_node": "euler08.engr.wisc.edu",
+      "candidate_partition": "research",
+      "candidate_failure_mode": null,
+      "max_energy_difference_hartree": 0.0,
+      "opt_cycles": {
+        "reference": 11,
+        "candidate": 11
+      },
+      "segments": {
+        "reference": 1295,
+        "candidate": 1295
+      },
+      "area_relative_difference": 0.0,
+      "volume_relative_difference": 0.0,
+      "logp": {
+        "reference": {
+          "octanol_water": 3.9466565896932826,
+          "toluene_pe": 0.7299138670663782,
+          "ethanol_pe": 1.5439359642794084,
+          "acetone_pe": 2.3781941041334917
+        },
+        "candidate": {
+          "octanol_water": 3.9466565896932826,
+          "toluene_pe": 0.7299138670663782,
+          "ethanol_pe": 1.5439359642794084,
+          "acetone_pe": 2.3781941041334917
+        }
+      },
+      "max_logp_difference": 0.0,
+      "wall_seconds": {
+        "reference": 684.5718619250401,
+        "candidate": 591.2990394329827
+      },
+      "surface_identical": true,
+      "verdict": "pass",
+      "failures": []
+    },
+    {
+      "inchikey": "VSMDINRNYYEDRN-UHFFFAOYSA-N",
+      "covers": "I (def2 ECP): 4-iodophenol",
+      "atoms": 13,
+      "reference_tier": "halogen-v1",
+      "reference_identity_verified": true,
+      "candidate_identity_verified": true,
+      "reference_perceived_inchikey": "VSMDINRNYYEDRN-UHFFFAOYSA-N",
+      "candidate_perceived_inchikey": "VSMDINRNYYEDRN-UHFFFAOYSA-N",
+      "candidate_cpu_model": "AMD EPYC 7513 32-Core Processor",
+      "candidate_node": "euler08.engr.wisc.edu",
+      "candidate_partition": "research",
+      "candidate_failure_mode": null,
+      "max_energy_difference_hartree": 0.0,
+      "opt_cycles": {
+        "reference": 5,
+        "candidate": 5
+      },
+      "segments": {
+        "reference": 1065,
+        "candidate": 1065
+      },
+      "area_relative_difference": 0.0,
+      "volume_relative_difference": 0.0,
+      "logp": {
+        "reference": {
+          "octanol_water": 3.591300679666617,
+          "toluene_pe": 0.6154025280303976,
+          "ethanol_pe": 2.5951552625142407,
+          "acetone_pe": 3.358437949700302
+        },
+        "candidate": {
+          "octanol_water": 3.591300679666617,
+          "toluene_pe": 0.6154025280303976,
+          "ethanol_pe": 2.5951552625142407,
+          "acetone_pe": 3.358437949700302
+        }
+      },
+      "max_logp_difference": 0.0,
+      "wall_seconds": {
+        "reference": 308.17544212698704,
+        "candidate": 325.13708149601007
+      },
+      "surface_identical": true,
+      "verdict": "pass",
+      "failures": []
+    },
+    {
+      "inchikey": "JGTNAGYHADQMCM-UHFFFAOYSA-N",
+      "covers": "S, F: perfluorobutanesulfonic acid",
+      "atoms": 18,
+      "reference_tier": "publication-v1",
+      "reference_identity_verified": true,
+      "candidate_identity_verified": true,
+      "reference_perceived_inchikey": "JGTNAGYHADQMCM-UHFFFAOYSA-N",
+      "candidate_perceived_inchikey": "JGTNAGYHADQMCM-UHFFFAOYSA-N",
+      "candidate_cpu_model": "AMD EPYC 7513 32-Core Processor",
+      "candidate_node": "euler08.engr.wisc.edu",
+      "candidate_partition": "research",
+      "candidate_failure_mode": null,
+      "max_energy_difference_hartree": 0.0,
+      "opt_cycles": {
+        "reference": 10,
+        "candidate": 10
+      },
+      "segments": {
+        "reference": 1317,
+        "candidate": 1317
+      },
+      "area_relative_difference": 0.0,
+      "volume_relative_difference": 0.0,
+      "logp": {
+        "reference": {
+          "octanol_water": 5.946273484078266,
+          "toluene_pe": 0.59262708297867,
+          "ethanol_pe": 4.112185245831798,
+          "acetone_pe": 4.757673477440981
+        },
+        "candidate": {
+          "octanol_water": 5.946273484078266,
+          "toluene_pe": 0.59262708297867,
+          "ethanol_pe": 4.112185245831798,
+          "acetone_pe": 4.757673477440981
+        }
+      },
+      "max_logp_difference": 0.0,
+      "wall_seconds": {
+        "reference": 941.0849574739987,
+        "candidate": 710.9109034859575
+      },
+      "surface_identical": true,
+      "verdict": "pass",
+      "failures": []
+    },
+    {
+      "inchikey": "YTPLMLYBLZKORZ-UHFFFAOYSA-N",
+      "covers": "S, aromatic: thiophene",
+      "atoms": 9,
+      "reference_tier": "coverage-v1",
+      "reference_identity_verified": true,
+      "candidate_identity_verified": true,
+      "reference_perceived_inchikey": "YTPLMLYBLZKORZ-UHFFFAOYSA-N",
+      "candidate_perceived_inchikey": "YTPLMLYBLZKORZ-UHFFFAOYSA-N",
+      "candidate_cpu_model": "AMD EPYC 7513 32-Core Processor",
+      "candidate_node": "euler08.engr.wisc.edu",
+      "candidate_partition": "research",
+      "candidate_failure_mode": null,
+      "max_energy_difference_hartree": 0.0,
+      "opt_cycles": {
+        "reference": 5,
+        "candidate": 5
+      },
+      "segments": {
+        "reference": 785,
+        "candidate": 785
+      },
+      "area_relative_difference": 0.0,
+      "volume_relative_difference": 0.0,
+      "logp": {
+        "reference": {
+          "octanol_water": 2.8646397950749614,
+          "toluene_pe": 0.08887397832242167,
+          "ethanol_pe": -0.3273012041672936,
+          "acetone_pe": 0.14519746628335853
+        },
+        "candidate": {
+          "octanol_water": 2.8646397950749614,
+          "toluene_pe": 0.08887397832242167,
+          "ethanol_pe": -0.3273012041672936,
+          "acetone_pe": 0.14519746628335853
+        }
+      },
+      "max_logp_difference": 0.0,
+      "wall_seconds": {
+        "reference": 118.82005524300621,
+        "candidate": 149.13311622402398
+      },
+      "surface_identical": true,
+      "verdict": "pass",
+      "failures": []
+    },
+    {
+      "inchikey": "VONWDASPFIQPDY-UHFFFAOYSA-N",
+      "covers": "P: dimethyl methylphosphonate",
+      "atoms": 16,
+      "reference_tier": "coverage-v1",
+      "reference_identity_verified": true,
+      "candidate_identity_verified": true,
+      "reference_perceived_inchikey": "VONWDASPFIQPDY-UHFFFAOYSA-N",
+      "candidate_perceived_inchikey": "VONWDASPFIQPDY-UHFFFAOYSA-N",
+      "candidate_cpu_model": "AMD EPYC 7513 32-Core Processor",
+      "candidate_node": "euler08.engr.wisc.edu",
+      "candidate_partition": "research",
+      "candidate_failure_mode": null,
+      "max_energy_difference_hartree": 0.0,
+      "opt_cycles": {
+        "reference": 17,
+        "candidate": 17
+      },
+      "segments": {
+        "reference": 1106,
+        "candidate": 1106
+      },
+      "area_relative_difference": 0.0,
+      "volume_relative_difference": 0.0,
+      "logp": {
+        "reference": {
+          "octanol_water": 1.0861836114967995,
+          "toluene_pe": 0.6657001204572395,
+          "ethanol_pe": 1.240953501974351,
+          "acetone_pe": 0.9399594519599734
+        },
+        "candidate": {
+          "octanol_water": 1.0861836114967995,
+          "toluene_pe": 0.6657001204572395,
+          "ethanol_pe": 1.240953501974351,
+          "acetone_pe": 0.9399594519599734
+        }
+      },
+      "max_logp_difference": 0.0,
+      "wall_seconds": {
+        "reference": 423.50643250596477,
+        "candidate": 426.96317352799815
+      },
+      "surface_identical": true,
+      "verdict": "pass",
+      "failures": []
+    },
+    {
+      "inchikey": "JJQZDUKDJDQPMQ-UHFFFAOYSA-N",
+      "covers": "Si: dimethoxydimethylsilane",
+      "atoms": 19,
+      "reference_tier": "coverage-v1",
+      "reference_identity_verified": true,
+      "candidate_identity_verified": true,
+      "reference_perceived_inchikey": "JJQZDUKDJDQPMQ-UHFFFAOYSA-N",
+      "candidate_perceived_inchikey": "JJQZDUKDJDQPMQ-UHFFFAOYSA-N",
+      "candidate_cpu_model": "AMD EPYC 7513 32-Core Processor",
+      "candidate_node": "euler08.engr.wisc.edu",
+      "candidate_partition": "research",
+      "candidate_failure_mode": null,
+      "max_energy_difference_hartree": 0.0,
+      "opt_cycles": {
+        "reference": 14,
+        "candidate": 14
+      },
+      "segments": {
+        "reference": 1242,
+        "candidate": 1242
+      },
+      "area_relative_difference": 0.0,
+      "volume_relative_difference": 0.0,
+      "logp": {
+        "reference": {
+          "octanol_water": 3.4639032610582325,
+          "toluene_pe": 0.1930743459790066,
+          "ethanol_pe": -0.18952615947913584,
+          "acetone_pe": -0.007479137977278013
+        },
+        "candidate": {
+          "octanol_water": 3.4639032610582325,
+          "toluene_pe": 0.1930743459790066,
+          "ethanol_pe": -0.18952615947913584,
+          "acetone_pe": -0.007479137977278013
+        }
+      },
+      "max_logp_difference": 0.0,
+      "wall_seconds": {
+        "reference": 394.4295722300303,
+        "candidate": 385.6368879529764
+      },
+      "surface_identical": true,
+      "verdict": "pass",
+      "failures": []
+    }
+  ]
+}

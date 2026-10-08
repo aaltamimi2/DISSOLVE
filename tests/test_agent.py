@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import ast
+import collections
 import inspect
 import io
 import json
@@ -1032,7 +1033,11 @@ def test_a_family_screen_shows_the_model_what_the_family_lacks():
         (coverage,) = screen["data"]["family_coverage"]
         assert (coverage["screened"], coverage["not_computed"], coverage["outside_release"]) == (
             len(computed), len(set(family["members"]) - computed), len(family["outside_release"]))
-        assert coverage["outside_release_by_reason"]["contains phosphorus"] == 39  # phosphorus stays outside
+        # phosphorus is in the release since the coverage campaign (promotion-v4): the 39 phosphite and phosphonite
+        # antioxidants that were "contains phosphorus" are "not computed yet"; every reason is the family table's
+        reasons = coverage["outside_release_by_reason"]
+        assert "contains phosphorus" not in reasons and reasons["not computed yet"] > 0
+        assert reasons == dict(collections.Counter(item["reason"] for item in family["outside_release"]))
 
 
 def test_the_model_sees_a_log_ratio_past_six_as_its_bound_and_engines_keep_the_number():

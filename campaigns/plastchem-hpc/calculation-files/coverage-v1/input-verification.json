@@ -1,0 +1,21 @@
+{
+  "utc": "2026-10-08T16:36:06Z",
+  "checked": {
+    "inputs/plastchem_coverage_a13_worklist.csv": {
+      "expected": "40b4ca4ef3237e7947dfd77beab339a0acca5beb4fb732b135b0f8ce228683e2",
+      "got": "40b4ca4ef3237e7947dfd77beab339a0acca5beb4fb732b135b0f8ce228683e2",
+      "match": true
+    },
+    "inputs/plastchem_coverage_a13_parent_aliases.csv": {
+      "expected": "5466119e66c53f997912d23e4e562b0c8547b948f159a7cc15c25dda724a543c",
+      "got": "5466119e66c53f997912d23e4e562b0c8547b948f159a7cc15c25dda724a543c",
+      "match": true
+    },
+    "inputs/census/plastchem_db_v1.0_full_database_subset.csv": {
+      "expected": "9b1b68e40504011798241502b19c74d2889aa9af0eb611d5f81e41d94c4a51a1",
+      "got": "9b1b68e40504011798241502b19c74d2889aa9af0eb611d5f81e41d94c4a51a1",
+      "match": true
+    }
+  },
+  "all_match": true
+}

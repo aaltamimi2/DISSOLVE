@@ -4753,15 +4753,17 @@ def test_a_family_name_screens_every_computed_member():
     assert out["unsupported_contaminants"] == [] and out["evaluated"] == screened > 24  # 24 before the halogen tier
     assert {row["family"] for row in out["rows"]} == {"Bisphenols"}
     # tetrabromo- and tetrachlorobisphenol A were outside the CHNO release; the halogen tier (A-11) computed them.
-    # Bisphenol AF converged in ORCA but its LLE was unfinished at the frozen snapshot: a member, reported as pending.
-    assert {"Bisphenol A", "Tetrabromobisphenol A", "Tetrachlorobisphenol A"} <= {row["contaminant"] for row in out["rows"]}
-    (pending,) = [item for item in out["not_computed_contaminants"] if item["contaminant"] == "Bisphenol AF"]
-    assert pending["campaign_status"] == "thermodynamics_pending" and "frozen snapshot" in pending["reason"]
+    # Bisphenol AF converged in ORCA but its LLE was unfinished at the A-11 frozen snapshot (a pending member until
+    # promotion-v3); the coverage campaign's harvest finished it (A-13, promotion-v4), so it is screened now.
+    assert {"Bisphenol A", "Tetrabromobisphenol A", "Tetrachlorobisphenol A", "Bisphenol AF"} <= {
+        row["contaminant"] for row in out["rows"]}
+    assert not [item for item in out["not_computed_contaminants"] if item["contaminant"] == "Bisphenol AF"]
     (family,) = out["family_coverage"]
     assert (family["family"], family["screened"], family["not_computed"], family["outside_release"]) == (
         "Bisphenols", screened, not_computed, outside)
-    # bisphenol S, a thiobis-cresol, and the dibromo sulfonyl bisphenol, whose bromine is no longer a reason
-    assert family["outside_release_by_reason"]["contains sulfur"] == 3
+    # bisphenol S, a thiobis-cresol and the dibromo sulfonyl bisphenol were "contains sulfur" until the coverage
+    # campaign held sulfur (promotion-v4): they are "not computed yet", on its work list; bromine is no reason either
+    assert family["outside_release_by_reason"] == {"not computed yet": outside} and outside >= 3
     assert not any("fluorine" in example or "bromine" in example for example in family["outside_release_examples"])
     # the ways a question names a family are one family; a compound is still a compound
     same = [_data(contaminants.screen_contaminant_partitioning("PC", "ethanol", [name]))["evaluated"]
@@ -4818,7 +4820,8 @@ def test_contaminant_families_for_pickers():
     members, then PFAS, which only the workbook screens serve."""
     families = contaminants.contaminant_families()
     names = ["Phthalates", "Terephthalates", "Bisphenols", "Alkylphenols", "Antioxidants", "UV stabilizers",
-             "Benzophenones", "Aromatic amines", "Slip agents", "Salicylates", "Parabens"]
+             "Benzophenones", "Aromatic amines", "Slip agents", "Salicylates", "Parabens",
+             "Organophosphates", "Siloxanes and silanes"]  # the coverage campaign's families (A-13, promotion-v4)
     assert [(f["name"], f["count"], f["source"]) for f in families] == [
         *[(name, _family_counts(name)[0], "plastchem") for name in names], ("PFAS", 26, "workbook")]
     assert all(f["count"] == len(f["members"]) > 0 for f in families)
@@ -4900,8 +4903,160 @@ def test_family_builder_takes_a_matching_structure_outside_the_plastchem_group(t
     assert plastchem_release.build_families(workbook, out, asset=asset, specs=[spec]) == {"Phthalates": 2}
     (family,) = json.loads(out.read_text())["families"]
     assert [(item["name"], item["reason"]) for item in family["outside_release"]] == [
-        ("Heptyl undecyl phthalate", "not in the campaign's input list")]
+        ("Heptyl undecyl phthalate", "not computed yet")]  # in the coverage campaign's work list (A-13)
     assert family["basis"] == "PlastChem group orthophthalates, or outside it the structure ortho phthalate diester"
+
+
+def _reseal(rel, rows=None, files=None):
+    """Rewrite a test release's contaminant rows ({inchikey: {column: value}}) and extra files, then its manifest."""
+    import csv, gzip, hashlib
+    with gzip.open(rel / "contaminants.csv.gz", "rt", newline="") as handle:
+        reader = csv.DictReader(handle)
+        header, cohort = reader.fieldnames, list(reader)
+    for row in cohort:
+        row.update((rows or {}).get(row["input_inchikey"], {}))
+    with gzip.open(rel / "contaminants.csv.gz", "wt", newline="") as handle:
+        writer = csv.DictWriter(handle, fieldnames=header)
+        writer.writeheader()
+        writer.writerows(cohort)
+    for name, text in (files or {}).items():
+        (rel / name).write_text(text)
+    manifest = json.loads((rel / "manifest.json").read_text())
+    manifest["files"] = {path.name: {"sha256": hashlib.sha256(path.read_bytes()).hexdigest()}
+                         for path in rel.iterdir() if path.name != "manifest.json"}
+    (rel / "manifest.json").write_text(json.dumps(manifest))
+    return rel
+
+
+_PARENT_ALIASES = "plastchem_id,alias,kind,form,input_inchikey,offered,note\n"
+
+
+def test_a_salt_is_served_through_its_parent_by_name_cas_and_plastchem_id(tmp_path):
+    """A-13: a PlastChem salt, ion or hydrate whose neutral parent the campaign computed (potassium laurate and lauric
+    acid) is served through the parent's row. The release lists the entry in the parent's plastchem_id and carries its
+    name and CAS in parent-aliases.csv; each ID answers on its own, so "plastchem 4" still finds Deltaone once the row
+    also lists 44 (before, the joined "plastchem 4;44" was the only alias). The publication-label refusals hold."""
+    rel = _reseal(_plastchem_release(tmp_path), rows={"DDDD-D": {"plastchem_id": "4;44;45"}}, files={
+        "parent-aliases.csv": _PARENT_ALIASES + "44,Sodium deltaonate,name,salt,DDDD-D,yes,\n"
+                                                "44,444-44-4,cas,salt,DDDD-D,yes,\n"
+                                                "44,Betaamide,name,salt,DDDD-D,no,also names BBBB-B; not offered\n"
+                                                "45,Phthalate,name,ion,DDDD-D,yes,\n"})
+    asset = tmp_path / "asset.duckdb"
+    info = plastchem_release.promote_opencosmo_release(rel, asset)
+    # "Phthalate" (PlastChem's phthalate ion, served through its acid) is a family's name: withheld, so "phthalate"
+    # keeps meaning the Phthalates family (the family builder refuses an alias that names a contaminant)
+    assert info["parent_aliases"] == "2" and info["aliases_withheld_as_family_names"] == "Phthalate"
+    con = duckdb.connect(str(asset), read_only=True)
+    named = {alias: cid for alias, cid in con.execute("SELECT alias, id FROM aliases").fetchall()}
+    delta = con.execute("SELECT id FROM contaminants WHERE inchikey = 'DDDD-D'").fetchone()[0]
+    beta = con.execute("SELECT id FROM contaminants WHERE inchikey = 'BBBB-B'").fetchone()[0]
+    assert [named.get(alias) for alias in ("sodium deltaonate", "444-44-4", "plastchem 4", "plastchem 44")] == [delta] * 4
+    assert "plastchem 4;44;45" not in named and named["betaamide"] == beta  # the not-offered alias changed nothing
+    assert "phthalate" not in named and named["plastchem 45"] == delta
+    con.close()
+    for index, (text, message) in enumerate((("44,Betaamide,name,salt,DDDD-D,yes,\n", "would also name another contaminant"),
+                                             ("44,Sodium zetaate,name,salt,ZZZZ-Z,yes,\n", "which the release lacks"))):
+        root = tmp_path / f"refused{index}"
+        root.mkdir()
+        bad = _reseal(_plastchem_release(root), files={"parent-aliases.csv": _PARENT_ALIASES + text})
+        with pytest.raises(ValueError, match=message):
+            plastchem_release.promote_opencosmo_release(bad, root / "asset.duckdb")
+
+
+def test_a_salt_joins_its_parents_family_through_the_release(tmp_path):
+    """A-13 8b: the family builder took only an entry's own InChIKey and matched patterns only on single-fragment SMILES,
+    so a salt served through its parent joined no family. An entry now joins through the row whose plastchem_id lists
+    it, and the patterns are matched on that served structure: the sodium phenolate of a hindered phenol is an
+    antioxidant through its parent. Counterfactual: when the row does not list the salt, the salt joins nothing (its own
+    SMILES has two fragments, so no pattern can be matched on it) and the family's example no longer resolves."""
+    openpyxl = pytest.importorskip("openpyxl")
+    columns = ["plastchem_ID", "cas", "pubchem_name", "isomeric_smiles", "canonical_smiles", "inchikey",
+               "molecular_weight", "inorganic_compounds", "organometallics", "UVCBs", "polymers", "mixtures"]
+    book = openpyxl.Workbook()
+    sheet = book.active
+    sheet.title = "Full database"
+    sheet.append(["Identifiers"] + [None] * (len(columns) - 1))
+    sheet.append(columns)
+    sheet.append([44, "444-44-4", "Sodium deltaphenolate", "[Na+].CC1=CC(C(C)(C)C)=C([O-])C(C(C)(C)C)=C1", None,
+                  "SALT-S", 242, None, None, None, None, None])
+    workbook = tmp_path / "plastchem.xlsx"
+    book.save(workbook)
+    spec = {"name": "Antioxidants", "term": "antioxidants", "any": ("hindered_phenol",), "aliases": ("antioxidant",),
+            "description": "antioxidants", "examples": ("Deltaone",)}
+    bht = "CC1=CC(=C(C(=C1)C(C)(C)C)O)C(C)(C)C"
+    for listed, expected in (("4;44", {"Antioxidants": 1}), ("4", None)):
+        root = tmp_path / listed.replace(";", "_")
+        root.mkdir()
+        rel = _reseal(_plastchem_release(root), rows={"DDDD-D": {"plastchem_id": listed, "smiles": bht}})
+        asset = root / "asset.duckdb"
+        plastchem_release.promote_opencosmo_release(rel, asset)
+        out = root / "families.json"
+        if expected:
+            assert plastchem_release.build_families(workbook, out, asset=asset, specs=[spec]) == expected
+            (family,) = json.loads(out.read_text())["families"]
+            assert family["members"] == ["DDDD-D"] and family["outside_release"] == []
+        else:
+            with pytest.raises(ValueError, match="does not resolve to a family member"):
+                plastchem_release.build_families(workbook, out, asset=asset, specs=[spec])
+            assert plastchem_release.build_families(workbook, out, asset=asset, specs=[{**spec, "examples": ()}]) == {
+                "Antioxidants": 0}
+            (family,) = json.loads(out.read_text())["families"]
+            assert family["members"] == [] and family["outside_release"] == []
+
+
+def test_a_counter_ions_group_does_not_carry_its_family_to_the_parent(tmp_path):
+    """PlastChem flags melamine phosphate an organophosphate for its counter-ion. Served through its parent (A-13 8b),
+    the salt would have put melamine, urea and bisphenol A in the Organophosphates family; an element family requires
+    the served structure to hold its element. Counterfactual: without the requirement the parent joins."""
+    openpyxl = pytest.importorskip("openpyxl")
+    columns = ["plastchem_ID", "cas", "pubchem_name", "isomeric_smiles", "canonical_smiles", "inchikey",
+               "molecular_weight", "inorganic_compounds", "organometallics", "UVCBs", "polymers", "mixtures",
+               "organophosphates"]
+    book = openpyxl.Workbook()
+    sheet = book.active
+    sheet.title = "Full database"
+    sheet.append(["Identifiers"] + [None] * (len(columns) - 1))
+    sheet.append(columns)
+    sheet.append([44, "", "Melamine phosphate", "NC1=NC(N)=NC(N)=N1.OP(O)(O)=O", None, "SALT-S", 224, None, None, None,
+                  None, None, 1])
+    sheet.append([46, "", "Trimethyl phosphate", "COP(=O)(OC)OC", None, "PPPP-P", 140, None, None, None, None, None, 1])
+    workbook = tmp_path / "plastchem.xlsx"
+    book.save(workbook)
+    rel = _reseal(_plastchem_release(tmp_path), rows={"DDDD-D": {"plastchem_id": "4;44", "smiles": "NC1=NC(N)=NC(N)=N1"},
+                                                      "AAAA-A": {"plastchem_id": "1;46", "smiles": "COP(=O)(OC)OC"}})
+    asset = tmp_path / "asset.duckdb"
+    plastchem_release.promote_opencosmo_release(rel, asset)
+    spec = {"name": "Organophosphates", "term": "organophosphates", "group": "organophosphates", "elements": ("P",),
+            "aliases": ("organophosphate",), "description": "organophosphates", "examples": ("Alphaester",)}
+    out = tmp_path / "families.json"
+    assert plastchem_release.build_families(workbook, out, asset=asset, specs=[spec]) == {"Organophosphates": 1}
+    (family,) = json.loads(out.read_text())["families"]
+    assert family["members"] == ["AAAA-A"] and family["basis"] == "PlastChem group organophosphates; containing phosphorus"
+    without = {key: value for key, value in spec.items() if key != "elements"}
+    assert plastchem_release.build_families(workbook, out, asset=asset, specs=[without]) == {"Organophosphates": 2}
+
+
+def test_a_familys_missing_entries_say_why_by_the_coverage_campaigns_rules():
+    """A-13 computes every simulable PlastChem structure, lightest first, so "not in the campaign's input list" stopped
+    being true: a neutral closed-shell molecule of held elements is "not computed yet". A radical, an isotope-labelled
+    entry, a large flexible molecule and an element without openCOSMO-RS parameters are never computed, and say so."""
+    from rdkit import Chem
+
+    base = {"inorganic_compounds": False, "organometallics": False, "UVCBs": False, "polymers": False, "mixtures": False}
+    held = frozenset({"C", "H", "N", "O", "S", "P", "Si"})
+    cases = {
+        "CC1(C)CC(O)CC(C)(C)N1[O]": "a radical (open-shell)",  # Tempol, a nitroxide
+        "C" * 60: "larger than 700 g/mol and too flexible for one conformer",  # hexacontane, 843 g/mol, 57 rotors
+        "c1ccc2c(c1)c1ccccc1c1ccccc1c1ccccc1c1ccccc1c1ccccc1c1ccccc1c1ccccc21": "not computed yet",  # rigid, 913 g/mol
+        "[2H]C([2H])([2H])O": "isotope-labelled (excluded by owner decision)",
+        "OB(O)c1ccccc1": "contains boron",
+        "CCOP(=O)(OCC)OCC": "not computed yet",  # phosphorus is held since the coverage campaign
+    }
+    for smiles, reason in cases.items():
+        assert plastchem_release._outside_reason(dict(base, smiles=smiles), Chem.MolFromSmiles(smiles), held) == reason, smiles
+    # counterfactual: before phosphorus was held, the phosphate's reason was its element
+    assert plastchem_release._outside_reason(dict(base, smiles="CCOP(=O)(OCC)OCC"), Chem.MolFromSmiles("CCOP(=O)(OCC)OCC"),
+                                             frozenset("CHNO")) == "contains phosphorus"
 
 
 def test_the_phthalate_family_holds_the_releases_ortho_phthalate_diesters():

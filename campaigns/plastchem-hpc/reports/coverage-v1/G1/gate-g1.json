@@ -1,0 +1,398 @@
+{
+  "utc": "2026-10-08T17:14:15+00:00",
+  "gate": "G1",
+  "verdict": "pass",
+  "cohort": "chunk c01: the first 100 never-run work-list rows (orders 1-107)",
+  "outcomes": {
+    "converged": 99,
+    "failed": 1
+  },
+  "failures": [
+    {
+      "inchikey": "JDAIJCNBFIWLJJ-UHFFFAOYSA-N",
+      "name": "Silicic acid, ethyl ester",
+      "failure_mode": "mmff_parameters_unavailable",
+      "error": "No MMFF parameters; frozen recipe permits no force-field substitution"
+    }
+  ],
+  "checks": {
+    "failure_rate": {
+      "value": 0.01,
+      "limit": 0.1,
+      "passed": true
+    },
+    "projection": {
+      "value": 5112.65625927599,
+      "limit": 6000,
+      "passed": true
+    },
+    "logp_rmse": {
+      "value": 0.35348071420449567,
+      "limit": 1.533844626635528,
+      "passed": true
+    },
+    "logp_bias": {
+      "value": 0.2379355711577744,
+      "limit": 1.0,
+      "passed": true
+    },
+    "logp_rmse_S": {
+      "value": 0.31657644883123615,
+      "n": 16,
+      "limit": 1.533844626635528,
+      "passed": true
+    },
+    "logp_bias_S": {
+      "value": 0.2005652275758194,
+      "n": 16,
+      "limit": 1.0,
+      "passed": true
+    },
+    "logp_rmse_P": {
+      "value": 0.7226738520436994,
+      "n": 1,
+      "limit": 1.533844626635528,
+      "passed": true
+    },
+    "logp_bias_P": {
+      "value": 0.7226738520436994,
+      "n": 1,
+      "limit": 1.0,
+      "passed": true
+    },
+    "logp_rmse_Si": {
+      "value": 0.35112278758312954,
+      "n": 1,
+      "limit": 1.533844626635528,
+      "passed": true
+    },
+    "logp_bias_Si": {
+      "value": 0.35112278758312954,
+      "n": 1,
+      "limit": 1.0,
+      "passed": true
+    }
+  },
+  "cost": {
+    "by_cpu_model": {
+      "AMD EPYC 7763 64-Core Processor": {
+        "n": 99,
+        "log_wall_intercept": 3.559284028783332,
+        "exponent": 0.75816316676972,
+        "measured_over_fit_median": 1.1917414470874825,
+        "measured_over_fit_mean": 1.5894617913653342,
+        "measured_cpu_hours": 7.600924901516692,
+        "fit_cpu_hours": 7.803330706009454,
+        "atoms_range": [
+          3,
+          24
+        ]
+      }
+    },
+    "projection": {
+      "fit_cpu_hours": 3216.5958861359363,
+      "scaled_by_mean_measured_over_fit": 5112.65625927599,
+      "mean_measured_over_fit": 1.5894617913653342,
+      "note": "c01 spans 3-24 atoms; the whole list reaches several hundred, so the exponent refit on c01 alone is not extrapolated: the projection scales the campaign fit by c01's measured/fit ratio"
+    }
+  },
+  "octanol_water": {
+    "spsi": {
+      "n": 18,
+      "MAE": 0.2857911471035863,
+      "RMSE": 0.35348071420449567,
+      "bias": 0.2379355711577744,
+      "slope": 1.0421703413593997,
+      "intercept": 0.2131019256905727
+    },
+    "by_element": {
+      "S": {
+        "n": 16,
+        "MAE": 0.2544027505148577,
+        "RMSE": 0.31657644883123615,
+        "bias": 0.2005652275758194,
+        "slope": 1.0617676485134233,
+        "intercept": 0.1697972176600702
+      },
+      "P": {
+        "n": 1,
+        "MAE": 0.7226738520436994,
+        "RMSE": 0.7226738520436994,
+        "bias": 0.7226738520436994,
+        "slope": NaN,
+        "intercept": NaN
+      },
+      "Si": {
+        "n": 1,
+        "MAE": 0.35112278758312954,
+        "RMSE": 0.35112278758312954,
+        "bias": 0.35112278758312954,
+        "slope": NaN,
+        "intercept": NaN
+      }
+    },
+    "chno": {
+      "n1179_combined": {
+        "n": 1179,
+        "MAE": 0.6969126168275085,
+        "RMSE": 1.0225630844236853,
+        "bias": 0.5496622707548298,
+        "slope": 0.9495450304362559,
+        "intercept": 0.6738394827211347,
+        "source": "state/contaminant-overview-draft-20260917.json"
+      },
+      "n622_comptox_final1631": {
+        "n": 622,
+        "MAE": 0.8888911074873059,
+        "RMSE": 1.249065108010809,
+        "bias": 0.7534334171576113,
+        "slope": 0.8434786589151252,
+        "intercept": 1.3311758316003055,
+        "source": "state/validation-comptox-final1631-verified-20260917.json"
+      }
+    },
+    "structures_converged": 88,
+    "with_measured": 18,
+    "table": [
+      {
+        "inchikey": "YUKQRDCYNOVPGJ-UHFFFAOYSA-N",
+        "name": "Thioacetamide",
+        "elements": "CHNS",
+        "measured_logKow": -0.26,
+        "observations": 2,
+        "predicted_logKow": -0.200803481841342,
+        "residual": 0.05919651815865801,
+        "sources": [
+          "OPERA2.8",
+          "PhysPropNCCT"
+        ]
+      },
+      {
+        "inchikey": "QGJOPFRUJISHPQ-UHFFFAOYSA-N",
+        "name": "Carbon Disulfide",
+        "elements": "CS",
+        "measured_logKow": 1.94,
+        "observations": 2,
+        "predicted_logKow": 2.370068814576265,
+        "residual": 0.430068814576265,
+        "sources": [
+          "OPERA2.8",
+          "PhysPropNCCT"
+        ]
+      },
+      {
+        "inchikey": "UMGDCJDMYOKAJW-UHFFFAOYSA-N",
+        "name": "Thiourea",
+        "elements": "CHNS",
+        "measured_logKow": -1.05,
+        "observations": 3,
+        "predicted_logKow": -0.8900693527094898,
+        "residual": 0.1599306472905102,
+        "sources": [
+          "OPERA2.8",
+          "PhysPropNCCT",
+          "Yalkowsky et al. Chemosphere 2002, 48, 487\u2013509"
+        ]
+      },
+      {
+        "inchikey": "SUVIGLJNEAMWEG-UHFFFAOYSA-N",
+        "name": "1-Propanethiol",
+        "elements": "CHS",
+        "measured_logKow": 1.81,
+        "observations": 2,
+        "predicted_logKow": 1.9538932241962532,
+        "residual": 0.14389322419625317,
+        "sources": [
+          "OPERA2.8",
+          "PhysPropNCCT"
+        ]
+      },
+      {
+        "inchikey": "IAZDPXIOMUYVGZ-UHFFFAOYSA-N",
+        "name": "Dimethyl Sulfoxide",
+        "elements": "CHOS",
+        "measured_logKow": -1.35,
+        "observations": 2,
+        "predicted_logKow": -1.5414030471559752,
+        "residual": -0.19140304715597511,
+        "sources": [
+          "OPERA2.8",
+          "PhysPropNCCT"
+        ]
+      },
+      {
+        "inchikey": "YTPLMLYBLZKORZ-UHFFFAOYSA-N",
+        "name": "Thiophene",
+        "elements": "CHS",
+        "measured_logKow": 1.85,
+        "observations": 3,
+        "predicted_logKow": 1.9204567798277832,
+        "residual": 0.07045677982778309,
+        "sources": [
+          "OPERA2.8",
+          "PhysPropNCCT",
+          "Yalkowsky et al. Chemosphere 2002, 48, 487\u2013509"
+        ]
+      },
+      {
+        "inchikey": "HBNYJWAFDZLWRS-UHFFFAOYSA-N",
+        "name": "Ethyl isothiocyanate",
+        "elements": "CHNS",
+        "measured_logKow": 1.47,
+        "observations": 2,
+        "predicted_logKow": 2.274848174702834,
+        "residual": 0.804848174702834,
+        "sources": [
+          "OPERA2.8",
+          "PhysPropNCCT"
+        ]
+      },
+      {
+        "inchikey": "CZDYPVPMEAXLPK-UHFFFAOYSA-N",
+        "name": "Tetramethylsilane",
+        "elements": "CHSi",
+        "measured_logKow": 3.24,
+        "observations": 2,
+        "predicted_logKow": 3.5911227875831297,
+        "residual": 0.35112278758312954,
+        "sources": [
+          "OPERA2.8",
+          "PhysPropNCCT"
+        ]
+      },
+      {
+        "inchikey": "CWERGRDVMFNCDR-UHFFFAOYSA-N",
+        "name": "Thioglycolic acid",
+        "elements": "CHOS",
+        "measured_logKow": 0.09,
+        "observations": 2,
+        "predicted_logKow": 0.40457747813549627,
+        "residual": 0.3145774781354963,
+        "sources": [
+          "OPERA2.8",
+          "PhysPropNCCT"
+        ]
+      },
+      {
+        "inchikey": "HHVIBTZHLRERCL-UHFFFAOYSA-N",
+        "name": "Dimethyl sulfone",
+        "elements": "CHOS",
+        "measured_logKow": -1.41,
+        "observations": 2,
+        "predicted_logKow": -1.4693028477387216,
+        "residual": -0.05930284773872163,
+        "sources": [
+          "OPERA2.8",
+          "PhysPropNCCT"
+        ]
+      },
+      {
+        "inchikey": "PDQAZBWRQCGBEV-UHFFFAOYSA-N",
+        "name": "Ethylene thiourea",
+        "elements": "CHNS",
+        "measured_logKow": -0.66,
+        "observations": 3,
+        "predicted_logKow": -0.4406308837854461,
+        "residual": 0.2193691162145539,
+        "sources": [
+          "OPERA2.8",
+          "PhysPropNCCT",
+          "Yalkowsky et al. Chemosphere 2002, 48, 487\u2013509"
+        ]
+      },
+      {
+        "inchikey": "DKIDEFUBRARXTE-UHFFFAOYSA-N",
+        "name": "3-Mercaptopropionic acid",
+        "elements": "CHOS",
+        "measured_logKow": 0.43,
+        "observations": 2,
+        "predicted_logKow": 0.605887154265512,
+        "residual": 0.175887154265512,
+        "sources": [
+          "OPERA2.8",
+          "PhysPropNCCT"
+        ]
+      },
+      {
+        "inchikey": "RMVRSNDYEFQCLF-UHFFFAOYSA-N",
+        "name": "Thiophenol",
+        "elements": "CHS",
+        "measured_logKow": 2.52,
+        "observations": 2,
+        "predicted_logKow": 2.34000571138239,
+        "residual": -0.17999428861761002,
+        "sources": [
+          "OPERA2.8",
+          "PhysPropNCCT"
+        ]
+      },
+      {
+        "inchikey": "WHMDPDGBKYUEMW-UHFFFAOYSA-N",
+        "name": "2-Mercaptopyridine",
+        "elements": "CHNS",
+        "measured_logKow": -0.13,
+        "observations": 2,
+        "predicted_logKow": -0.004261553943801677,
+        "residual": 0.12573844605619833,
+        "sources": [
+          "OPERA2.8",
+          "PhysPropNCCT"
+        ]
+      },
+      {
+        "inchikey": "LIMQQADUEULBSO-UHFFFAOYSA-N",
+        "name": "Butyl isothiocyanate",
+        "elements": "CHNS",
+        "measured_logKow": 2.92,
+        "observations": 2,
+        "predicted_logKow": 3.403796869019434,
+        "residual": 0.4837968690194341,
+        "sources": [
+          "OPERA2.8",
+          "PhysPropNCCT"
+        ]
+      },
+      {
+        "inchikey": "HXJUTPCZVOIRIF-UHFFFAOYSA-N",
+        "name": "Sulfolane",
+        "elements": "CHOS",
+        "measured_logKow": -0.77,
+        "observations": 2,
+        "predicted_logKow": -0.483139175831909,
+        "residual": 0.286860824168091,
+        "sources": [
+          "OPERA2.8",
+          "PhysPropNCCT"
+        ]
+      },
+      {
+        "inchikey": "VONWDASPFIQPDY-UHFFFAOYSA-N",
+        "name": "Dimethyl methylphosphonate",
+        "elements": "CHOP",
+        "measured_logKow": -0.61,
+        "observations": 2,
+        "predicted_logKow": 0.1126738520436994,
+        "residual": 0.7226738520436994,
+        "sources": [
+          "OPERA2.8",
+          "PhysPropNCCT"
+        ]
+      },
+      {
+        "inchikey": "FLVIGYVXZHLUHP-UHFFFAOYSA-N",
+        "name": "N,N'-Diethylthiourea",
+        "elements": "CHNS",
+        "measured_logKow": 0.57,
+        "observations": 3,
+        "predicted_logKow": 0.9351197781138281,
+        "residual": 0.3651197781138281,
+        "sources": [
+          "OPERA2.8",
+          "PhysPropNCCT",
+          "Yalkowsky et al. Chemosphere 2002, 48, 487\u2013509"
+        ]
+      }
+    ],
+    "basis": "openCOSMO-RS 24a, 298.15 K, dilution ladder, log10 K concentration basis; water 18.07, octan-1-ol 158.528 cm3/mol; CompTox explicit experimental LogKow, median of a structure's observations"
+  }
+}

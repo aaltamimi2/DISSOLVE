@@ -49,8 +49,11 @@ def test_an_element_search_finds_what_the_smiles_text_holds_and_names_by_symbol_
     elements = {key: _elements_in(smiles) for key, (smiles, _) in release.items()}
     computed = {key for key, (_, done) in release.items() if done}
     held = set().union(*(elements[key] for key in computed)) | {"H"}
-    assert set(search.release_elements()) == held and not held & {"P", "Si", "B"}
-    assert search.paper_only_elements() == ["S"]  # sulfur came in only with the paper's PFAS (promotion-v3)
+    # phosphorus and silicon came in with the coverage campaign (A-13, promotion-v4); no compound holds boron
+    assert set(search.release_elements()) == held and {"S", "P", "Si"} <= held and "B" not in held
+    # the campaign computes sulfur compounds itself since promotion-v4 (in promotion-v3 sulfur came only from the
+    # paper's PFAS, and this was ["S"])
+    assert search.paper_only_elements() == []
     for symbol in sorted(held - {"C", "H"}):
         expected = {key for key, found in elements.items() if symbol in found}
         found = _data(search.find_plastchem_contaminants(elements=symbol))
@@ -66,20 +69,25 @@ def test_an_element_search_finds_what_the_smiles_text_holds_and_names_by_symbol_
 
 
 def test_a_search_for_an_element_the_release_lacks_is_valid_finds_nothing_and_says_why():
-    """Phosphorus is a real element no structure in the release contains (phosphorus, silicon and boron stay outside
-    it), so the answer is an explained empty result, not a refusal, and it names what the release holds. Sulfur came in
-    only with the paper's PFAS (promotion-v3): a sulfur search finds those and says the campaign computed no other."""
+    """Boron is a real element no structure in the release contains (openCOSMO-RS 24a has no boron parameters, so the
+    coverage campaign leaves it out), so the answer is an explained empty result, not a refusal, and it names what the
+    release holds. Phosphorus was this example until the coverage campaign computed phosphorus compounds (A-13,
+    promotion-v4); sulfur, which promotion-v3 held only through the paper's 11 PFAS, is the campaign's own too, so a
+    sulfur search finds both and needs no scope note."""
     held = search.release_elements()
-    assert {"C", "H", "N", "O", "S"} <= set(held) and "P" not in held
-    for asked in ("P", "phosphorus", ["p"]):
+    assert {"C", "H", "N", "O", "S", "P", "Si"} <= set(held) and "B" not in held
+    for asked in ("B", "boron", ["b"]):
         data = _data(search.find_plastchem_contaminants(elements=asked))
         assert data["success"] is True and data["total"] == 0 and data["matches"] == []
-        assert "contains P:" in data["empty_because"] and ", ".join(held[:-1]) + " and " + held[-1] in data["empty_because"]
-        assert "PFAS" not in data["empty_because"]  # no PFAS holds phosphorus
+        assert "contains B:" in data["empty_because"] and ", ".join(held[:-1]) + " and " + held[-1] in data["empty_because"]
+        assert "PFAS" not in data["empty_because"]  # no PFAS holds boron
+    release = _smiles()
+    with_s = {key for key, (smiles, _done) in release.items() if "S" in _elements_in(smiles)}
+    computed_s = {key for key in with_s if release[key][1]}
     sulfur = _data(search.find_plastchem_contaminants(elements="sulfur"))
-    assert sulfur["total"] == sulfur["with_partition_data"] == 11 and "empty_because" not in sulfur
-    assert "computed no other PlastChem compound" in sulfur["scope_note"]
-    assert _data(search.find_plastchem_contaminants(exclude_elements="P"))["total"] == len(_smiles())
+    assert (sulfur["total"], sulfur["with_partition_data"]) == (len(with_s), len(computed_s)) and len(computed_s) > 11
+    assert "empty_because" not in sulfur and "scope_note" not in sulfur
+    assert _data(search.find_plastchem_contaminants(exclude_elements="B"))["total"] == len(release)
     assert "empty_because" not in _data(search.find_plastchem_contaminants(elements="N", mw_max_g_mol=1.0))
 
 
@@ -213,16 +221,22 @@ def test_a_class_ranks_every_panel_solvent_in_one_call_within_the_limit():
 
 
 @pytest.mark.parametrize("solvent", ["ethanol", None])
-def test_a_screen_for_phosphorus_compounds_is_empty_and_explained(solvent):
-    data = _data(contaminants.screen_contaminant_partitioning("PVC", solvent=solvent, elements="P"))
+def test_a_screen_for_boron_compounds_is_empty_and_explained(solvent):
+    """Boron took phosphorus's place here when the coverage campaign computed phosphorus compounds (promotion-v4)."""
+    data = _data(contaminants.screen_contaminant_partitioning("PVC", solvent=solvent, elements="B"))
     assert data["success"] is True and data["evaluated"] == 0 and data["structure_selected"] == 0
-    assert "contains P:" in data["empty_because"] and "built from C, H, N" in data["empty_because"]
+    assert "contains B:" in data["empty_because"] and "built from C, H, N" in data["empty_because"]
 
 
-def test_a_screen_for_sulfur_compounds_reaches_the_paper_pfas_and_says_so():
-    data = _data(contaminants.screen_contaminant_partitioning("PVC", solvent="ethanol", elements="S"))
-    assert data["success"] is True and data["structure_selected"] == 11 and "empty_because" not in data
-    assert "computed no other PlastChem compound" in data["scope_note"]
+@pytest.mark.parametrize("element", ["S", "P", "Si"])
+def test_a_screen_for_sulfur_phosphorus_or_silicon_reaches_the_campaigns_compounds(element):
+    """The coverage campaign (A-13, promotion-v4) computes sulfur, phosphorus and silicon compounds: a screen by any of
+    them selects every computed compound holding it, with no scope note (in promotion-v3 a sulfur screen reached only
+    the paper's 11 PFAS and said so, and phosphorus and silicon found nothing)."""
+    computed = {key for key, (smiles, done) in _smiles().items() if done and element in _elements_in(smiles)}
+    data = _data(contaminants.screen_contaminant_partitioning("PVC", solvent="ethanol", elements=element))
+    assert data["success"] is True and data["structure_selected"] == len(computed) > 0 and "empty_because" not in data
+    assert "scope_note" not in data
 
 
 def test_a_bad_filter_on_the_screen_is_refused_by_the_screen():
@@ -239,10 +253,10 @@ def test_the_agent_can_call_the_search_and_page_a_large_class():
     assert "find_plastchem_contaminants" in agent.SYSTEM_PROMPT and "empty_because" in agent.SYSTEM_PROMPT
     with bind_tool_session(new_session()):
         paged = agent.dispatch("find_plastchem_contaminants", elements=["N"])
-        empty = agent.dispatch("find_plastchem_contaminants", elements=["P"])
+        empty = agent.dispatch("find_plastchem_contaminants", elements=["B"])
     assert paged["available"] is True and paged["total"] > paged["shown"] > 0 and paged["handle"]
     assert paged["source_basis"] == "plastchem_identity"
-    assert "contains P:" in json.dumps(empty)
+    assert "contains B:" in json.dumps(empty)
 
 
 def test_the_categories_a_picker_would_offer_count_compounds_with_partition_data():

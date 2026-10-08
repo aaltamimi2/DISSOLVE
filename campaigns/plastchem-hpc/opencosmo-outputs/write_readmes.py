@@ -35,7 +35,25 @@ tier_files = [row for row in contaminants if row["campaign_source"].startswith("
 released = [row for row in contaminants if not row["campaign_source"].startswith("publication-v1")]
 halogen = sum(row["campaign_source"].startswith("halogen-v1") for row in released)
 tier2_later = sum(row["campaign_source"].startswith("tier2-v1") for row in released)
-v1 = len(released) - halogen - tier2_later
+coverage = sum(row["campaign_source"].startswith("coverage-v1") for row in released)  # A-13, promotion-v4 onward
+v1 = len(released) - halogen - tier2_later - coverage
+
+
+def archive_sets(folder, stem):
+    """Every archive set a SHA256SUMS lists (the v2 base set, then one per release since A-13), in order."""
+    names = [line.split()[1] for line in (root / folder / "SHA256SUMS").read_text().splitlines() if line.strip()]
+    return [name for name in names if name.startswith(stem) and name.endswith(".tar.xz")]
+
+
+def reassemble(folder, stem):
+    sets = archive_sets(folder, stem)
+    lines = [f"cat {name}.part* > {name}" for name in sets] + ["sha256sum -c SHA256SUMS"]
+    lines += [f"tar -xJf {name}" for name in sets]
+    note = ("" if len(sets) == 1 else
+            f"\n\nThe {len(sets)} sets unpack into the same `{stem}/` tree: the first holds the v2 archive (the CHNO campaign, "
+            "the halogen tier and the publication sets), each later one the contaminants a release added (amendment A-13; "
+            "parts are never rewritten).")
+    return "```sh\n" + "\n".join(lines) + "\n```" + note
 polymers = sorted({row["name"].split("_")[0] for row in surfaces if row["category"] == "polymer conformer"})  # PETG's three connectivities are one polymer
 not_released = [row for row in runs if row["released_surface"] == "not in release"]
 by_stage = collections.Counter(row["run_folder"].split("/runs/")[0] for row in not_released)
@@ -136,10 +154,11 @@ should_rows = [
     ("isotope-labelled", "owner decision D-ISO: excluded, never mapped to the unlabelled compound"),
 ]
 coverage_lines = ["| Entries | Count | Rule |", "|---|---:|---|",
-                  f"| Served | {cov['buckets']['served']:,} | the release computed it (by PlastChem ID; by InChIKey only if "
-                  f"PlastChem does not flag it a UVCB, polymer or mixture) |",
+                  f"| Served | {cov['buckets']['served']:,} | the release computed it and lists its PlastChem ID (since "
+                  f"promotion-v4 also a salt, ion or hydrate, listed with its neutral parent), or its InChIKey if "
+                  f"PlastChem does not flag it a UVCB, polymer or mixture |",
                   f"| Served as its parent | {parents:,} | a salt, ion or hydrate whose neutral parent the release "
-                  f"computed: it needs only an alias |",
+                  f"computed but does not list it yet: it needs only an alias |",
                   f"| To compute | {cov['buckets']['to compute']:,} | simulable, not yet computed: "
                   f"{cov['structures_to_compute']:,} structures |",
                   f"| Should not be computed | {out['should not']:,} | below |",
@@ -150,21 +169,29 @@ coverage_lines += ["", "| Should not: outside openCOSMO-RS 24a or the recipe | E
 coverage_lines += [f"| {name} | {why.get('should not: ' + name, 0):,} | {text} |" for name, text in should_rows]
 by_status = cov["structures_by_release_status"]
 by_elements = cov["structures_by_elements"]
+unfinished = by_status.get("thermodynamics_pending", 0) + by_status.get("running", 0)
+# the release status of the structures still to compute, naming only the states some structure is in
+status_parts = [text for n, text in (
+    (by_status.get("thermodynamics_pending", 0), f"{by_status.get('thermodynamics_pending', 0):,} already have surfaces "
+                                                 "whose partition and miscibility were not finished when the release was frozen"),
+    (by_status.get("running", 0), f"{by_status.get('running', 0):,} were still running"),
+    (by_status.get("failed", 0), f"{by_status.get('failed', 0):,} failed")) if n]
+status_text = (", ".join(status_parts[:-1]) + " and " + status_parts[-1] if len(status_parts) > 1 else
+               "".join(status_parts) or "None has been run")
+status_text = status_text[0].upper() + status_text[1:]
 coverage_text = "\n\n".join(textwrap.fill(paragraph, 118) for paragraph in (
     f"That leaves {cov['simulable']:,} simulable entries. The release serves {cov['buckets']['served']:,} of them "
     f"({cov['served_share']:.1%}) and {parents:,} more through their parent ({cov['served_with_parents_share']:.1%} "
     f"together); 95% needs {cov['entries_short_of_95_percent']:,} more entries. The {cov['structures_to_compute']:,} "
-    f"structures still to compute are {by_elements.get('S, P or Si', 0):,} with sulfur, phosphorus or silicon (held "
-    f"back by every tier so far), {by_elements.get('halogen', 0):,} halogenated and {by_elements.get('CHNO', 0):,} of "
+    f"structures still to compute are {by_elements.get('S, P or Si', 0):,} with sulfur, phosphorus or silicon (no tier "
+    f"computed them before the coverage campaign), {by_elements.get('halogen', 0):,} halogenated and {by_elements.get('CHNO', 0):,} of "
     f"C, H, N and O only; {cov['structures_as_parents']:,} are the neutral parents of salts and "
     f"{cov['structures_above_700_g_mol']:,} are above 700 g/mol (rigid enough for one conformer). "
-    f"{by_status.get('thermodynamics_pending', 0)} already have surfaces whose partition and miscibility were not "
-    f"finished when the release was frozen, {by_status.get('running', 0)} were still running and "
-    f"{by_status.get('failed', 0)} failed; the other {new_orca:,} were never run: about "
+    f"{status_text}; the other {new_orca:,} were never run: about "
     f"{round(cov['orca_new_cpu_hours'], -2):,} CPU-hours of ORCA by the campaign's cost fit (median "
     f"{cov['orca_new_atoms_median']} atoms with hydrogens; {cov['orca_new_above_107_atoms']} above the 107 atoms the "
-    f"fit was made on). The cheapest {route['structures']:,} structures, the unfinished ones first, reach 95% for "
-    f"about {round(route['orca_cpu_hours'], -1):,} ORCA CPU-hours.",
+    f"fit was made on). The cheapest {route['structures']:,} structures{', the unfinished ones first,' if unfinished else ''} "
+    f"reach 95% for about {round(route['orca_cpu_hours'], -1):,} ORCA CPU-hours.",
     f"`{cov_dir}/PLASTCHEM_COVERAGE.tsv` has one row per PlastChem entry: its bucket and reason, and for the simulable "
     f"ones the molecule that would be computed (InChIKey, SMILES, g/mol, atoms with hydrogens) and the release "
     f"status; `summary.json` has the counts. Both are made by `../scripts/plastchem_coverage.py` from the census "
@@ -178,9 +205,11 @@ example = next(row for row in classified if row["inchikey"] == "BJQHLKABXJIVAM-U
 (root / "opencosmo-outputs/README.md").write_text(f"""# PlastChem openCOSMO outputs
 
 Every ORCA/openCOSMO surface (`.orcacosmo`) behind the partition and miscibility data DISSOLVE serves: the
-2026-09-12/24 CHNO campaign and the halogen tier of amendment A-11 (2026-10-06/07), {len(released):,} contaminants:
-{v1:,} from the promotion-v1 cohort, {tier2_later} tier-2 CHNO structures (500-700 g/mol) that converged after it and
-{halogen:,} from the halogen tier (C, H, N and O with F, Cl, Br or I, up to 700 g/mol). Also {len(tier_files)}
+2026-09-12/24 CHNO campaign, the halogen tier of amendment A-11 (2026-10-06/07) and the coverage campaign of amendment
+A-13 (2026-10-08 onward), {len(released):,} contaminants: {v1:,} from the promotion-v1 cohort, {tier2_later} tier-2 CHNO
+structures (500-700 g/mol) that converged after it, {halogen:,} from the halogen tier (C, H, N and O with F, Cl, Br or I,
+up to 700 g/mol) and {coverage:,} from the coverage campaign (the simulable PlastChem structures not yet served, lightest
+first, sulfur, phosphorus and silicon included). Also {len(tier_files)}
 surfaces computed for the paper's compounds (amendment A-12, see section 1), which the release has served since
 promotion-v3 (2026-10-08). How much of PlastChem this covers, and what cannot or should not be computed, is in
 [Coverage of PlastChem](#coverage-of-plastchem).
@@ -306,11 +335,7 @@ and not partitioning or miscibility.
 
 ## Reassemble
 
-```sh
-cat opencosmo-outputs.tar.xz.part* > opencosmo-outputs.tar.xz
-sha256sum -c SHA256SUMS
-tar -xJf opencosmo-outputs.tar.xz
-```
+{reassemble("opencosmo-outputs", "opencosmo-outputs")}
 """)
 
 (root / "orca-calculation-files/README.md").write_text(f"""# PlastChem ORCA calculation files
@@ -345,11 +370,7 @@ publication sets, agent families, PlastChem groups, structure classes and no-fam
 
 ## Reassemble
 
-```sh
-cat orca-calculation-files.tar.xz.part* > orca-calculation-files.tar.xz
-sha256sum -c SHA256SUMS
-tar -xJf orca-calculation-files.tar.xz
-```
+{reassemble("orca-calculation-files", "orca-calculation-files")}
 
 ## Rebuild
 

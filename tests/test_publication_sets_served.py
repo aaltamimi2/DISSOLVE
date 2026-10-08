@@ -94,12 +94,15 @@ def test_no_charged_pfas_is_served_in_any_form():
     assert meta["publication_labels"] == "47"
 
 
-def test_a_sulfur_search_finds_the_paper_pfas_and_says_nothing_else_was_computed():
+def test_a_sulfur_search_finds_the_paper_pfas_among_the_campaigns_sulfur_compounds():
+    """The paper's 11 PFAS sulfonic acids brought sulfur into the release (promotion-v3, when a sulfur search found
+    only them and said so); since promotion-v4 the coverage campaign computes sulfur compounds too."""
     found = parse_tool_result(contaminant_search.find_plastchem_contaminants(elements=["sulfur"]))["data"]
-    assert found["total"] == found["with_partition_data"] == 11
-    assert {m["inchikey"] for m in found["matches"]} <= set(PAPER["PFAS"].values())
-    assert "computed no other PlastChem compound" in found["scope_note"]
-    assert "Zhou et al." in found["coverage"]
+    con = screens._plastchem()
+    sulfonic = {key for key in PAPER["PFAS"].values()
+                if "S" in con.execute("SELECT smiles FROM contaminants WHERE inchikey = ?", [key]).fetchone()[0]}
+    assert len(sulfonic) == 11 and sulfonic <= {m["inchikey"] for m in found["matches"]}
+    assert found["total"] > 11 and "scope_note" not in found
     chlorine = parse_tool_result(contaminant_search.find_plastchem_contaminants(elements=["Cl"]))["data"]
     assert "scope_note" not in chlorine  # the campaign computed chlorine compounds itself
 
