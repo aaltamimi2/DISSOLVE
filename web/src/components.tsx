@@ -42,6 +42,8 @@ import {
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { rehypeStructures, STRUCTURE_URL } from "./structures";
+import { citeAnswer, citedHex, sourcesByPaper, type Cited } from "./citations";
+import { useCorpusPapers } from "./papers";
 import { api, type Command, type ContaminantFamily, type Doctor, type Features, type Model, type SessionRow, type SessionState, type TeaResult, type ToolCall } from "./api";
 import { family, MODE_CHIPS, offeredActions, type Example, type QuickAction } from "./content";
 import { TeaNotice } from "./tea";
@@ -726,7 +728,7 @@ function Structure({ src, smiles, name }: { src: string; smiles: string; name: s
   );
 }
 
-function Markdown({ text }: { text: string }) {
+function Markdown({ text, onCite }: { text: string; onCite?: (hex: string) => void }) {
   return (
     <div className="markdown-content">
       <ReactMarkdown
@@ -739,11 +741,26 @@ function Markdown({ text }: { text: string }) {
             ) : (
               <img src={src} alt={alt} title={title} {...rest} />
             ),
-          a: ({ node: _node, children, ...rest }) => (
-            <a {...rest} target="_blank" rel="noopener noreferrer">
-              {children}
-            </a>
-          ),
+          a: ({ node: _node, children, href, title, ...rest }) => {
+            const hex = citedHex(href);
+            if (hex === null) {
+              return (
+                <a href={href} title={title} {...rest} target="_blank" rel="noopener noreferrer">
+                  {children}
+                </a>
+              );
+            }
+            const chip = "cite-chip mx-px inline-flex h-[1.15rem] min-w-[1.15rem] -translate-y-px items-center justify-center rounded border border-line bg-muted px-1 font-headline text-[0.7rem] font-semibold leading-none text-ink";
+            return onCite ? (
+              <button type="button" title={title} aria-label={`Source ${String(children)}: ${title ?? ""}`} onClick={() => onCite(hex)} className={`${chip} hover:border-brand-soft hover:bg-surface`}>
+                {children}
+              </button>
+            ) : (
+              <span title={title} className={chip}>
+                {children}
+              </span>
+            );
+          },
           table: ({ node: _node, ...rest }) => (
             <div className="table-wrap">
               <table {...rest} />
@@ -753,6 +770,36 @@ function Markdown({ text }: { text: string }) {
       >
         {text}
       </ReactMarkdown>
+    </div>
+  );
+}
+
+/** The papers an answer cites, with the numbers of their chips; each opens its paper in the papers panel. */
+function SourceList({ sources, onCite }: { sources: Cited[]; onCite?: (hex: string) => void }) {
+  return (
+    <div className="mt-3 border-t border-line pt-2.5">
+      <h3 className="font-headline text-xs font-semibold text-ink-2">Sources</h3>
+      <ul className="mt-1 space-y-0.5">
+        {sourcesByPaper(sources).map((source) => {
+          const body = (
+            <>
+              <span className="font-semibold text-ink">{source.numbers.map((n) => `[${n}]`).join(" ")}</span> {source.label}
+              {source.paper?.title && <span> · {source.paper.title}</span>}
+            </>
+          );
+          return (
+            <li key={source.key} className="font-headline text-xs leading-snug text-ink-2">
+              {onCite ? (
+                <button type="button" onClick={() => onCite(source.hex)} className="text-left hover:text-ink hover:underline">
+                  {body}
+                </button>
+              ) : (
+                body
+              )}
+            </li>
+          );
+        })}
+      </ul>
     </div>
   );
 }
@@ -798,9 +845,13 @@ function ReportForm({ onSend, onClose }: { onSend: (note: string) => Promise<boo
   );
 }
 
-export function MessageView({ message, onCopy, onOpenTea, onReport }: { message: ChatMessage; onCopy: (text: string) => void; onOpenTea?: (result?: TeaResult) => void; onReport?: (note: string) => Promise<boolean> }) {
+export function MessageView({ message, onCopy, onOpenTea, onReport, onCite }: { message: ChatMessage; onCopy: (text: string) => void; onOpenTea?: (result?: TeaResult) => void; onReport?: (note: string) => Promise<boolean>; onCite?: (hex: string) => void }) {
   const [reporting, setReporting] = useState(false);
   const [reported, setReported] = useState(false);
+  // An answer's literature citations: numbered chips and a list of sources, drawn from the IDs the answer keeps.
+  const cites = message.role === "assistant" && !message.running && /T5-[0-9a-f]{12}/.test(message.text);
+  const papers = useCorpusPapers(cites);
+  const cited = useMemo(() => (cites ? citeAnswer(message.text, papers) : null), [cites, message.text, papers]);
   if (message.role === "user") {
     return (
       <div className="rise flex justify-end">
@@ -845,7 +896,10 @@ export function MessageView({ message, onCopy, onOpenTea, onReport }: { message:
               <span />
             </div>
           ) : (
-            <Markdown text={message.text} />
+            <>
+              <Markdown text={cited?.markdown ?? message.text} onCite={onCite} />
+              {cited && cited.sources.length > 0 && <SourceList sources={cited.sources} onCite={onCite} />}
+            </>
           )}
         </div>
         {!message.running && (
