@@ -6,7 +6,7 @@ validation against the paper, with their openCOSMO-RS partition and miscibility 
 the campaign archives (`../opencosmo-outputs/` and `../orca-calculation-files/`, folder
 `contaminants/publication-sets/`) when those are rebuilt.
 
-- `PFAS/`: 21 of the paper's 26 PFAS (ESI Table S7).
+- `PFAS/`: 23 of the paper's 26 PFAS (ESI Table S7).
 - `BFR/`: 4 of its 4 brominated flame retardants (Case Study 1).
 - `Phthalates/`: 8 of its 8 phthalates (ESI Table S5).
 - `<set>/orca-calculation-files/<name>/`: each surface's ORCA inputs, optimised geometry, run record and COSMO-step
@@ -30,8 +30,8 @@ stereoisomer; this set holds gamma-HBCD, the main component of technical HBCD.
 
 openCOSMO-RS 24a at 298.15 K, solute at infinite dilution, with the same 32 solvents, 10 polymer conformer ensembles
 and workers as the PlastChem release: release compounds carry the release's own rows, and the A-12 structures were
-computed the same way on Euler (batches p00, p01, p02). Partition rows are in for 23 of the 33
-files here (waiting: PFBS, PFPS, PFHxS, PFHS, PFOS, PFDS, KClHxDFS, PFNS, NaDoDFNt, NH4PFNt).
+computed the same way on Euler (batches p00, p01, p02). Partition rows are in for 23 of the 35
+files here (waiting: PFTriDA, PFBS, PFPS, PFHxS, PFHS, PFOS, PFUnDS, PFDS, KClHxDFS, PFNS, NaDoDFNt, NH4PFNt).
 
 - `THERMODYNAMICS_partition.tsv`: log10 P(solvent/polymer) per file, polymer (EVOH, nylon 6, nylon 6,6, PC, PE,
   PET, PP, PS, PVC, PVDF), solvent and convention; positive favours the solvent. `logP_concentration` is on the
@@ -64,7 +64,7 @@ Identity: the optimised geometry's connectivity must match the input.
 | PFNA | Perfluorononanoic acid | 375-95-1 | release (promotion-v2) | `PFAS/Perfluorononanoic_acid.orcacosmo` |
 | PFDA | Perfluorodecanoic acid | 335-76-2 | release (promotion-v2) | `PFAS/Perfluorodecanoic_acid.orcacosmo` |
 | TFPA | 2,3,3,3-Tetrafluoro-2-(heptafluoropropoxy)propanoic acid | 13252-13-6 | release (promotion-v2) | `PFAS/2,3,3,3-Tetrafluoro-2-(heptafluoropropoxy)propanoic_acid.orcacosmo` |
-| PFTriDA | Perfluorotridecanoic acid | 72629-94-8 | publication tier (A-12) | running on Euler |
+| PFTriDA | Perfluorotridecanoic acid | 72629-94-8 | publication tier (A-12) | `PFAS/Perfluorotridecanoic_acid.orcacosmo` |
 | PFUnDA | Perfluoroundecanoic acid | 2058-94-8 | release (promotion-v2) | `PFAS/Perfluoroundecanoic_acid.orcacosmo` |
 | PFDoDA | Perfluorododecanoic acid | 307-55-1 | release (promotion-v2) | `PFAS/Perfluorododecanoic_acid.orcacosmo` |
 | PFTetraDA | Perfluorotetradecanoic acid | 376-06-7 | publication tier (A-12) | running on Euler |
@@ -73,7 +73,7 @@ Identity: the optimised geometry's connectivity must match the input.
 | PFHxS | Perfluorohexanesulfonic acid | 355-46-4 | publication tier (A-12) | `PFAS/Perfluorohexanesulfonic_acid.orcacosmo` |
 | PFHS | Perfluoroheptanesulfonic acid | 375-92-8 | publication tier (A-12) | `PFAS/Perfluoroheptanesulfonic_acid.orcacosmo` |
 | PFOS | Perfluorooctanesulfonic acid | 1763-23-1 | publication tier (A-12) | `PFAS/Perfluorooctanesulfonic_acid.orcacosmo` |
-| PFUnDS | Perfluoroundecanesulfonic acid | 749786-16-1 | publication tier (A-12) | running on Euler |
+| PFUnDS | Perfluoroundecanesulfonic acid | 749786-16-1 | publication tier (A-12) | `PFAS/Perfluoroundecanesulfonic_acid.orcacosmo` |
 | PFTriDS | Perfluorotridecanesulfonic acid | 791563-89-8 | publication tier (A-12) | running on Euler |
 | PFDS | Perfluorodecanesulfonic acid | 335-77-3 | publication tier (A-12) | `PFAS/Perfluorodecanesulfonic_acid.orcacosmo` |
 | PFDoDS | Perfluorododecanesulfonic acid | 79780-39-5 | publication tier (A-12) | running on Euler |
