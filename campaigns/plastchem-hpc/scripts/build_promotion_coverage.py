@@ -75,10 +75,16 @@ def joined(ids):
 
 
 def final(record):
-    """A record that will not change: converged, or failed with a final failure mode."""
+    """A record that will not change: converged, or failed with a final failure mode. A run the scheduler killed for
+    memory or preempted is resubmitted (memory raised per row only after an out-of-memory kill, A-13), whatever ORCA's
+    own exit says, so it is not final; a second out-of-memory kill, in the 8G retry of the first, is (one such retry)."""
     status = record.get("status")
     if status == "converged":
         return True
+    state = str((record.get("slurm_accounting") or {}).get("state", ""))
+    earlier = str((((record.get("input") or {}).get("retry_of") or {}).get("slurm_accounting") or {}).get("state", ""))
+    if state.startswith("PREEMPTED") or (state.startswith("OUT_OF_MEMORY") and not earlier.startswith("OUT_OF_MEMORY")):
+        return False
     return status == "failed" and record.get("failure_mode") not in NOT_FINAL and not record.get("retry_required")
 
 
@@ -352,6 +358,9 @@ def build(number, dry_run=False):
             shutil.copyfile(root / batch / name, provenance / f"{batch}-{name}")
     for path in sorted(P.glob("c[0-9][0-9]/manifest.json")):
         if any(molecules[k]["chunk_manifest"] == path for k in added + added_failed):
+            shutil.copyfile(path, provenance / f"{path.parent.name}-manifest.json")
+    for path in sorted(P.glob("r[0-9][0-9]/manifest.json")):  # a retry round that ran an added structure
+        if any(coverage.get(k, {}).get("group") == path.parent.name for k in added + added_failed):
             shutil.copyfile(path, provenance / f"{path.parent.name}-manifest.json")
     for path in (WORKLIST, PARENT_ALIASES):
         shutil.copyfile(path, provenance / path.name)

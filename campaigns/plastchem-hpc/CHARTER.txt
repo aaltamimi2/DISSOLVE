@@ -1381,3 +1381,49 @@ A-13 NOTE (2026-10-09 13:43 UTC, coverage lane) — PER-TASK WALLTIMES: PENDING 
 3. A task that reaches its lowered limit fails as a time limit and is resubmitted with a longer one through a retry
    round, as the charter already provides; the runner's record keeps the manifest walltime, the log has the per-task
    limit. Later chunks get the same treatment right after submission.
+
+A-13 NOTE (2026-10-09 18:46 UTC, coverage lane) — RELEASE promotion-v9: 8,416 COMPUTED; 93.1% OF THE SIMULABLE ENTRIES
+1. /mnt/r/plastchem-euler/promotion-v9 (manifest e83687b2...; promotion-v8 47b20590... unchanged beneath it): 8,505
+   status rows, 8,416 computed (+157, batches t09 and t10): coverage c10 50, c11 71, c12 18, c14 9, c15 7 and 2 tier-2
+   structures the retry round r01 finished on Milan-X; EPYC 7763 78, 7513 59, 7272 18, 7773X 2. 13 more final failure
+   rows (D-IDENT rejections, mostly azo dye sulfonic acids; preparation failures ETKDG cannot embed). 949 parent
+   aliases.
+2. Coverage (anaconda RDKit 2023.09.2): 8,963 of 9,627 simulable entries (93.1%; v8 91.4%); 183 short of 95% (the
+   cheapest route: about 171 structures, 148 ORCA CPU-hours by the fit); 647 structures still to compute.
+3. Archives: set promotion-v9 (surfaces 15.0 MB, ORCA files 599 KB, 157 rows each) appended; no part rewritten.
+4. DISSOLVE e95219d1 on main. Full suite 2,284 passed, 3 skipped (expected), audit 0, home writes 0. Sync: main
+   e95219d1 | main-backup e95219d1 | main-cleanup-frontend 34fba7f9 = main + 39 frontend commits, behind main by 0.
+   Deploy ebf34e76 ACTIVE at 18:44 UTC, live contaminants_computed 8416. Live check NOT run to an answer: the hosted
+   site's model provider refused it (OpenRouter 402: the key's remaining credit affords about 10,000 tokens of the
+   65,536 requested), so no question gets an answer on the site until credits are added; the owner was notified. The
+   release itself is served (health and card count read 8,416).
+
+A-13 NOTE (2026-10-09 20:04 UTC, coverage lane) — OUT-OF-MEMORY KILLS ON MILAN-X; NO NEW WORK THERE
+1. Finding: 9 ORCA runs were killed by SLURM as OUT_OF_MEMORY at the 4G request, all on euler141 (AMD EPYC 7773X,
+   Milan-X): 9 of the 36 runs that finished there (25%), at 60-146 atoms, after 2-15 h. The ORCA processes peaked near
+   0.4 GB; the job's memory cgroup reached 4.19 GB, most likely the run folder's scratch files (on the network file
+   system) counted as page cache on that node. No other CPU type has an out-of-memory kill: 70-89-atom molecules
+   converge at 4G on the EPYC 7763 and 7513 nodes. The reproduction check (numerical identity) stands; this is a
+   resource behaviour of that node.
+2. Accounting: an out-of-memory (or preempted) run is retry-pending, not a final failure: summarize_coverage.py
+   (1a8a163) and build_promotion_coverage.py (fc173c1) no longer count or release it as failed.
+3. Plan: no further chunks go to Milan-X (the c16, c18 and r01 tasks already there run on). The out-of-memory rows get
+   a retry round on a non-Milan-X pool with the memory raised to 8G, the per-row raise A-13 allows after an
+   out-of-memory kill. The runner first needs round-specific run folders (coverage-v1/retries/rNN/runs/<key>, as the
+   release-set tools already expect), since it never reruns a folder that holds an earlier attempt; that round is
+   built once c16-c18 have run.
+
+A-13 NOTE (2026-10-09 21:19 UTC, coverage lane) — OUT-OF-MEMORY RETRY ROUND r02 SUBMITTED (8G, MILAN-GPU)
+1. Out-of-memory kills now number 16 (c16 13, r01 3), all on euler141 (Milan-X); no kill on any other node. The 11
+   pending c16 and c18 tasks there were routed to milan&gpu by constraint (routing-log.jsonl, d3626c5); running tasks
+   were left alone.
+2. Retry round r02 = those 16 rows, each from its own prepared geometry with the unchanged recipe, the memory raised
+   to 8G (the per-row raise after an out-of-memory kill), on milan&gpu (AMD EPYC 7513, admitted by the reproduction
+   check), array 81749, per-task walltimes 6-59 h (chunk 65 h). It runs in its own folders,
+   coverage-v1/retries/r02/{runs,returns}/<key>, so the first attempts stay as they were (d049857).
+3. Change of plan: the 20:04 NOTE said the round would be built once c16-c18 had run. It is built now, as soon as the
+   runner could hold it, so these 16 large structures do not wait days; an out-of-memory kill among the tasks still
+   running on Milan-X goes to a later round the same way. A structure gets one such retry: a second kill at 8G is
+   final.
+4. Accounting: a retried structure counts once, in the group whose attempt ran last (summary, release builder); the
+   retrieval ledger now records each entry's group (backup retrieved.before-groups-20261009T211807Z.json).

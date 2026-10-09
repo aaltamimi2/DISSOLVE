@@ -9,6 +9,8 @@ import collections,csv,json,datetime,math
 from pathlib import Path
 R=Path(__file__).resolve().parents[1];P=R/'state/coverage-v1'
 def fit_seconds(atoms):return math.exp(-0.687758)*atoms**2.305719*1.113048
+# an out-of-memory kill in the 8G retry of an earlier one is final: a structure gets one such retry (A-13)
+def second_oom(r):return str((r.get('slurm_accounting') or {}).get('state','')).startswith('OUT_OF_MEMORY') and str((((r.get('input') or {}).get('retry_of') or {}).get('slurm_accounting') or {}).get('state','')).startswith('OUT_OF_MEMORY')
 chunks={d.name:json.loads((d/'manifest.json').read_text()) for d in sorted(P.glob('[cr][0-9][0-9]')) if (d/'manifest.json').exists()}
 records={p.stem:json.loads(p.read_text()) for p in (P/'records').glob('*.json')}
 submitted={g for g in chunks if (P/g/'staging-summary.json').exists()}
@@ -24,7 +26,9 @@ for group,manifest in chunks.items():
   r=records.get(m['inchikey'],{});status=r.get('status','not_yet_run')
   category='converged' if status=='converged' else 'failed' if status=='failed' else 'awaiting_verification' if status=='converged_identity_pending' else 'not_yet_run' if status=='not_yet_run' else 'running'
   if category=='failed' and r.get('failure_mode')=='return_integrity_or_connectivity':category='rejected'  # D-IDENT: a result, not a failure
-  if r.get('execution_outcome')=='time_limit' or r.get('failure_mode') in ['slurm_timeout','walltime_censored','scheduler_signal_10','scheduler_signal_15','slurm_preempted'] or (r.get('status')=='failed' and str((r.get('slurm_accounting') or {}).get('state','')).startswith('PREEMPTED')):category='retry_pending'
+  # killed by the scheduler (time limit, preemption) or out of memory: resubmitted through a retry round (memory raised
+  # per row only after an out-of-memory kill, A-13), so neither a result nor a final failure
+  if r.get('execution_outcome')=='time_limit' or r.get('failure_mode') in ['slurm_timeout','walltime_censored','scheduler_signal_10','scheduler_signal_15','slurm_preempted'] or (r.get('status')=='failed' and str((r.get('slurm_accounting') or {}).get('state','')).startswith(('PREEMPTED','OUT_OF_MEMORY')) and not second_oom(r)):category='retry_pending'
   if category=='not_yet_run' and group not in submitted:category='not_staged'
   counts[category]+=1
   stages=r.get('stages',{});walls=[stages.get(s,{}).get('wall_seconds') for s in ['opt','cosmo']]

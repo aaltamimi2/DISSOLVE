@@ -9,14 +9,17 @@ assert re.fullmatch(r'[cr]\d\d',GROUP)
 MANIFEST=ROOT/GROUP/'manifest.json'
 manifest=json.loads(MANIFEST.read_text());index=int(os.environ['SLURM_ARRAY_TASK_ID']);mol=manifest['molecules'][index];key=mol['inchikey']
 wall_hours=int(manifest['walltime'].split(':')[0])
-work=ROOT/'runs'/key;work.mkdir(parents=True,exist_ok=True)
-record=work/'result.json';returned=ROOT/'returns'/key;returned.mkdir(parents=True,exist_ok=True)
+# a retry round of structures that ran here before (manifest retry_folders) keeps its own folders, never the first attempt's
+base=ROOT/'retries'/GROUP if manifest.get('retry_folders') else ROOT
+work=base/'runs'/key;work.mkdir(parents=True,exist_ok=True)
+record=work/'result.json';returned=base/'returns'/key;returned.mkdir(parents=True,exist_ok=True)
 # Never silently rerun completed work, failures, or interrupted attempts.
 with (work/'attempt.lock').open('x') as f:f.write(f"{os.environ['SLURM_ARRAY_JOB_ID']}_{index}\n")
 start=time.monotonic();cpuinfo=Path('/proc/cpuinfo').read_text()
 def cpu_field(name):
  match=re.search(r'^'+re.escape(name)+r'\s*:\s*(.+)',cpuinfo,re.M);return match.group(1) if match else None
 result={'scope':'coverage_campaign','group':GROUP,'identity_policy':manifest['policy'],'status':'starting','input':mol,'inchikey':key,'array_index':index,'job_id':os.environ['SLURM_JOB_ID'],'array_job_id':os.environ['SLURM_ARRAY_JOB_ID'],'array_task_id':index,'partition':os.environ['SLURM_JOB_PARTITION'],'node':socket.gethostname(),'cpu_model':cpu_field('model name'),'cpu_family':cpu_field('cpu family'),'cpu_model_number':cpu_field('model'),'cpu_generation_constraint':'milan','cpu_flags':cpu_field('flags').split(),'resources':{'cpus':1,'request_memory':manifest['mem'],'slurm_mem_per_node_mb':os.environ.get('SLURM_MEM_PER_NODE'),'maxcore_mb':1500,'request_walltime':manifest['walltime']},'started_utc':time.strftime('%Y-%m-%dT%H:%M:%SZ',time.gmtime()),'manifest_sha256':hashlib.sha256(MANIFEST.read_bytes()).hexdigest(),'runner_sha256':hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),'orca_version':'6.1.1','orca_git':'487d211c','stages':{},'dft_ran':False}
+result['returns_dir']=str(returned.relative_to(ROOT))
 proc=None
 class DiagnosticFailure(RuntimeError):pass
 def save():

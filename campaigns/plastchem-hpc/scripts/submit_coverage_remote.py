@@ -27,7 +27,7 @@ for i in indices:
     mol=m['molecules'][i];key=mol['inchikey'];prep=json.loads((root/'prepared'/key/'preparation.json').read_text())
     assert prep['status']=='prepared' and prep['input']['inchikey']==key
     assert hashlib.sha256((root/'prepared'/key/'input.xyz').read_bytes()).hexdigest()==prep['xyz_sha256']
-    assert not (root/'runs'/key/'attempt.lock').exists()
+    assert not ((root/'retries'/group if m.get('retry_folders') else root)/'runs'/key/'attempt.lock').exists()
 for line in (p/'staging.sha256').read_text().splitlines():
     sha,relative=line.split();assert hashlib.sha256((root/relative).read_bytes()).hexdigest()==sha,relative
 ranges=[];start=last=indices[0]

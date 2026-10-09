@@ -5,7 +5,15 @@ mmff_parameters_unavailable are final, and ValueError, geometry_nonconvergence a
 inspected (2026-10-08: deterministic embedding failures and SCF non-convergence) and are final too. The walltime is a
 recorded resource choice: these rows already ran 7-23 h and were cut.
 
-    ~/.venvs/cosmo-logp/bin/python scripts/build_coverage_retry.py r01 [--walltime 96:00:00]"""
+    ~/.venvs/cosmo-logp/bin/python scripts/build_coverage_retry.py r01 [--walltime 96:00:00]
+
+--oom (A-13, 2026-10-09): a round of the coverage runs SLURM killed OUT_OF_MEMORY (all on Milan-X so far), each from its own
+prepared geometry with the unchanged recipe and the memory raised to 8G, the per-row raise A-13 allows after an
+out-of-memory kill. The round keeps its own run folders (retry_folders: coverage-v1/retries/rNN/...), since the runner
+never reruns a folder that holds an earlier attempt; the walltime is the chunks' rule for its largest molecule and is
+lowered per task after submission (coverage_task_walltime.py).
+
+    ~/.venvs/cosmo-logp/bin/python scripts/build_coverage_retry.py r02 --oom"""
 import argparse
 import csv
 import hashlib
@@ -30,10 +38,13 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("round", help="rNN")
     parser.add_argument("--walltime", default="96:00:00")
+    parser.add_argument("--oom", action="store_true", help="the coverage runs killed OUT_OF_MEMORY, with 8G")
     args = parser.parse_args()
     assert re.fullmatch(r"r\d\d", args.round)
     out = P / args.round / "manifest.json"
     assert not out.exists(), f"{out} exists; a retry round is built once"
+    if args.oom:
+        return out_of_memory_round(args.round, out)
     assert sha(WORKLIST) == WORKLIST_SHA256
     done = {m["inchikey"] for path in P.glob("r[0-9][0-9]/manifest.json") for m in json.loads(path.read_text())["molecules"]}
     molecules = []
@@ -84,6 +95,43 @@ def main():
     out.write_text(json.dumps(manifest, indent=1) + "\n")
     print(json.dumps({"round": args.round, "molecules": len(molecules), "walltime": args.walltime,
                       "orders": [m["worklist_order"] for m in molecules], "manifest_sha256": sha(out)}))
+
+
+def out_of_memory_round(round_name, out):
+    import math
+    listed = {m["inchikey"] for path in P.glob("r[0-9][0-9]/manifest.json")
+              if json.loads(path.read_text()).get("retry_kind") == "out_of_memory"
+              for m in json.loads(path.read_text())["molecules"]}
+    molecules = []
+    for path in sorted((P / "records").glob("*.json")):
+        record = json.loads(path.read_text())
+        key = record.get("inchikey") or path.stem
+        if key in listed or not str((record.get("slurm_accounting") or {}).get("state", "")).startswith("OUT_OF_MEMORY"):
+            continue
+        prep = json.loads((P / "prepared" / key / "preparation.json").read_text())
+        assert prep["status"] == "prepared" and sha(P / "prepared" / key / "input.xyz") == prep["xyz_sha256"], key
+        molecules.append(dict(record["input"], group=round_name, array_index=len(molecules), retry_of=dict(
+            group=record.get("group"), failure_mode=record.get("failure_mode"), array_job_id=record.get("array_job_id"),
+            array_task_id=record.get("array_task_id"), node=record.get("node"), cpu_model=record.get("cpu_model"),
+            elapsed_seconds=record.get("elapsed_seconds"), slurm_accounting=record.get("slurm_accounting"),
+            record_sha256=sha(path))))
+    assert molecules, "no out-of-memory run to retry"
+    largest = max(m["atoms"] for m in molecules)
+    hours = min(384, max(3, math.ceil(6 * math.exp(-0.687758) * largest ** 2.305719 * 1.113048 / 3600)))
+    manifest = {
+        "campaign": "contam-coverage-milan-v1", "group": round_name, "name": f"contam-coverage-{round_name}",
+        "walltime": f"{hours}:00:00", "mem": "8G", "retry_folders": True, "retry_kind": "out_of_memory",
+        "policy": json.loads((P / "policy.json").read_text()),
+        "recipe": {"n_embed": 300, "seed": 12345, "prune_rms": 0.5, "max_mmff_iters": 2000, "dft_conformers": 1},
+        "input": {"path": str(WORKLIST.relative_to(ROOT)), "sha256": WORKLIST_SHA256},
+        "chunk_rule": "A-13: coverage runs killed OUT_OF_MEMORY at 4G, retried once from the same prepared geometry with "
+                      "8G and their own run folders",
+        "molecules": molecules,
+    }
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(json.dumps(manifest, indent=1) + "\n")
+    print(json.dumps({"round": round_name, "molecules": len(molecules), "walltime": manifest["walltime"], "mem": "8G",
+                      "from": sorted({m["retry_of"]["group"] for m in molecules}), "manifest_sha256": sha(out)}))
 
 
 if __name__ == "__main__":

@@ -44,12 +44,20 @@ while True:
             selected=set(snap.get('array_indices',{}).get(group,[m['array_index'] for m in models[group]]))
             for mol in models[group]:
                 if mol['array_index'] in selected:known[f"{array}_{mol['array_index']}"]=mol
+        # A retry round with its own run folders (manifest retry_folders, A-13) supersedes the earlier attempt of each
+        # structure it lists: the earlier group's task is no longer read, and the earlier attempt's record is not the
+        # retry's (until the retry writes its own, its task has nothing to report unless the scheduler ended it).
+        retry_groups={g for g in snap['groups'] if (P/g/'manifest.json').exists() and json.loads((P/g/'manifest.json').read_text()).get('retry_folders')}
+        superseded={m['inchikey']:g for g in retry_groups for m in models[g] if m['array_index'] in set(snap.get('array_indices',{}).get(g,[]))}
         fresh=[]
         for task,mol in known.items():
             key=mol['inchikey']
             retry_registry=P/'active-retries.json'
             if retry_registry.exists() and key in json.loads(retry_registry.read_text()).get('entries',{}):continue
+            if superseded.get(key,mol['group'])!=mol['group']:continue
             r=remote_records.get(key);acct=accounting.get(task)
+            if r and r.get('group')!=mol['group']:r=None
+            from_remote=r is not None
             terminal=acct and acct[3].split()[0] in TERMINAL
             if not r and not terminal:continue
             r=dict(r or {'input':mol,'inchikey':key,'scope':'coverage_campaign','group':mol['group'],'cpu_model':None,'node':acct[8] if acct else None,'dft_ran':False})
@@ -69,7 +77,7 @@ while True:
                 if batch and batch[7]:r['slurm_accounting']['maxrss_kib']=float(batch[7].rstrip('K'));r['slurm_accounting']['maxrss_source']='sacct batch step'
             # Already verified records keep their owner-policy assessment; accounting may improve later.
             local=P/'records'/f'{key}.json'
-            if key in ledger:
+            if key in ledger and ledger[key]['group']==mol['group']:  # this group's attempt was retrieved and verified
                 saved=json.loads(local.read_text())
                 if saved.get('retry_round'):continue  # coverage_retry.py owns retried records
                 if r.get('execution_outcome')=='time_limit' and saved.get('status')!='converged':
@@ -78,16 +86,22 @@ while True:
                     saved['slurm_accounting']=r.get('slurm_accounting');write(local,saved)
                 continue
             if r.get('status') in ['converged_identity_pending','failed']:
-                fresh.append((key,r,key in remote_records))
+                fresh.append((key,r,from_remote))
             else:write(local,r)
         if fresh:
             subprocess.run(['df','-h','/','/mnt/r'],check=True,stdout=subprocess.DEVNULL)
-            fetch=[key for key,r,exists in fresh if exists]
-            for start in range(0,len(fetch),50):  # bounded argument lists
-                result=run('scp',['-rq',*[f'euler:plastchem-euler/coverage-v1/returns/{key}' for key in fetch[start:start+50]],str(DEST)],capture_output=True,text=True)
-                if result.returncode:raise RuntimeError('scp failed: '+result.stderr[:500])
+            # a retry round's returns (retries/rNN/returns/<key>) land in their own local folder, never over the first attempt's
+            local_dir=lambda r:DEST/'retries'/r['group'] if r['group'] in retry_groups else DEST
+            by_dest={}
             for key,r,exists in fresh:
-                p=DEST/key;p.mkdir(exist_ok=True)
+                if exists:by_dest.setdefault(local_dir(r),[]).append((key,f"retries/{r['group']}/returns/{key}" if r['group'] in retry_groups else f'returns/{key}'))
+            for dest,items in by_dest.items():
+                dest.mkdir(parents=True,exist_ok=True)
+                for start in range(0,len(items),50):  # bounded argument lists
+                    result=run('scp',['-rq',*[f'euler:plastchem-euler/coverage-v1/{rel}' for _,rel in items[start:start+50]],str(dest)],capture_output=True,text=True)
+                    if result.returncode:raise RuntimeError('scp failed: '+result.stderr[:500])
+            for key,r,exists in fresh:
+                p=local_dir(r)/key;p.mkdir(parents=True,exist_ok=True)
                 if r.get('status')=='converged_identity_pending':
                     r['dft_status']='converged'
                     try:
@@ -100,7 +114,7 @@ while True:
                     except Exception as exc:r.update(status='failed',failure_mode='return_integrity_or_connectivity',error=str(exc),identity_verified=False)
                 write(p/'result.json',r)
                 r['returned_bytes']=sum(f.stat().st_size for f in p.iterdir() if f.is_file());write(P/'records'/f'{key}.json',r)
-                ledger[key]={'status':r['status'],'surface_sha256':r.get('surface_sha256'),'snapshot_utc':snap['utc']};write(ledger_path,ledger)
+                ledger[key]={'status':r['status'],'surface_sha256':r.get('surface_sha256'),'snapshot_utc':snap['utc'],'group':r.get('group')};write(ledger_path,ledger)
         subprocess.run([sys.executable,str(ROOT/'scripts/summarize_coverage.py')],check=True,stdout=subprocess.DEVNULL)
         summary=json.loads((P/'summary.json').read_text())
         brief={'utc':snap['utc'],'counts':summary['counts'],'array_ids':snap['groups'],'new_returns':len(fresh)}

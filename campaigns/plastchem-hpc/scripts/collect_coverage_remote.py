@@ -19,7 +19,8 @@ out={'epoch':now,'utc':time.strftime('%Y-%m-%dT%H:%M:%SZ',time.gmtime(now)),'gro
      'squeue':run(['squeue','-u','aaltamimi2','--name='+names,'-h','-o','%i|%j|%T|%M|%N|%R']),
      'sacct':'','changed_records':{},'array_indices':{g:json.loads((root/g/'submission-indices.json').read_text()) for g in groups}}
 if groups:out['sacct']=run(['sacct','-j',','.join(groups.values()),'--starttime=2026-10-08','--units=K','--format=JobID,JobName%40,Partition,State%32,ExitCode,ElapsedRaw,AllocCPUS,MaxRSS,NodeList,Start,End','-nP'])
-for p in (root/'runs').glob('*/result.json'):
+# a retry round's attempt (retries/rNN/runs/<key>) comes after the first and replaces it
+for p in [*sorted((root/'runs').glob('*/result.json')),*sorted((root/'retries').glob('*/runs/*/result.json'))]:
     if p.stat().st_mtime>=since-5:
         try:out['changed_records'][p.parent.name]=json.loads(p.read_text())
         except (OSError,json.JSONDecodeError) as exc:out.setdefault('read_errors',{})[str(p)]=str(exc)

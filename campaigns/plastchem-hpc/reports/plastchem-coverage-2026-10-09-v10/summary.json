@@ -1,0 +1,86 @@
+{
+  "made_utc": "2026-10-09T22:10:10+00:00",
+  "inputs": {
+    "census": "inputs/census/plastchem_db_v1.0_full_database_subset.csv",
+    "census_sha256": "9b1b68e40504011798241502b19c74d2889aa9af0eb611d5f81e41d94c4a51a1",
+    "release": "promotion-v10",
+    "release_computed": 8547
+  },
+  "entries": 17932,
+  "buckets": {
+    "served": 9098,
+    "served as its parent": 0,
+    "to compute": 529,
+    "should not": 1942,
+    "cannot": 6363
+  },
+  "reasons": {
+    "served: computed": 9098,
+    "to compute: S, P or Si": 351,
+    "to compute: CHNO": 92,
+    "to compute: halogen": 86,
+    "should not: inorganic": 991,
+    "should not: metal": 667,
+    "should not: permanent ion": 117,
+    "should not: large and flexible": 87,
+    "should not: no parameters": 52,
+    "should not: radical": 18,
+    "should not: isotope-labelled": 10,
+    "cannot: no single structure": 3667,
+    "cannot: no structure": 2554,
+    "cannot: several molecules": 135,
+    "cannot: unparsable": 7
+  },
+  "simulable": 9627,
+  "served_share": 0.9451,
+  "served_with_parents_share": 0.9451,
+  "entries_short_of_95_percent": 48,
+  "structures_to_compute": 516,
+  "structures_by_elements": {
+    "S, P or Si": 345,
+    "CHNO": 91,
+    "halogen": 80
+  },
+  "structures_as_parents": 236,
+  "structures_above_700_g_mol": 276,
+  "structures_by_release_status": {
+    "not in the release": 418,
+    "failed": 98
+  },
+  "orca_new_structures": 418,
+  "orca_new_cpu_hours": 2002,
+  "orca_new_atoms_median": 81,
+  "orca_new_above_107_atoms": 68,
+  "cheapest_route_to_95_percent": {
+    "structures": 44,
+    "entries": 48,
+    "orca_cpu_hours": 23,
+    "note": "aliases need no calculation; structures ordered by ORCA CPU-hours per entry, thermodynamics-only structures (pending, running) first, failed ones at the fit's cost"
+  },
+  "criteria": {
+    "parameterized": [
+      "Br",
+      "C",
+      "Cl",
+      "F",
+      "H",
+      "I",
+      "N",
+      "O",
+      "P",
+      "S",
+      "Si"
+    ],
+    "salt_metals_allowed": [
+      "Cs",
+      "K",
+      "Li",
+      "Na",
+      "Rb"
+    ],
+    "large_flexible": {
+      "g_mol": 700.0,
+      "rotatable_bonds": 20
+    }
+  }
+}

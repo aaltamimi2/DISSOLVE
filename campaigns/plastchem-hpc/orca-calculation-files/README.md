@@ -38,6 +38,7 @@ cat orca-calculation-files-promotion-v6.tar.xz.part* > orca-calculation-files-pr
 cat orca-calculation-files-promotion-v7.tar.xz.part* > orca-calculation-files-promotion-v7.tar.xz
 cat orca-calculation-files-promotion-v8.tar.xz.part* > orca-calculation-files-promotion-v8.tar.xz
 cat orca-calculation-files-promotion-v9.tar.xz.part* > orca-calculation-files-promotion-v9.tar.xz
+cat orca-calculation-files-promotion-v10.tar.xz.part* > orca-calculation-files-promotion-v10.tar.xz
 sha256sum -c SHA256SUMS
 tar -xJf orca-calculation-files.tar.xz
 tar -xJf orca-calculation-files-promotion-v4.tar.xz
@@ -46,9 +47,10 @@ tar -xJf orca-calculation-files-promotion-v6.tar.xz
 tar -xJf orca-calculation-files-promotion-v7.tar.xz
 tar -xJf orca-calculation-files-promotion-v8.tar.xz
 tar -xJf orca-calculation-files-promotion-v9.tar.xz
+tar -xJf orca-calculation-files-promotion-v10.tar.xz
 ```
 
-The 7 sets unpack into the same `orca-calculation-files/` tree: the first holds the v2 archive (the CHNO campaign, the halogen tier and the publication sets), each later one the contaminants a release added (amendment A-13; parts are never rewritten).
+The 8 sets unpack into the same `orca-calculation-files/` tree: the first holds the v2 archive (the CHNO campaign, the halogen tier and the publication sets), each later one the contaminants a release added (amendment A-13; parts are never rewritten).
 
 ## Rebuild
 

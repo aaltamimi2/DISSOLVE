@@ -62,7 +62,7 @@ for path in tracked("reports/coverage-v1"):
 S = LANE / "state/coverage-v1"
 C = DISSOLVE / "calculation-files/coverage-v1"
 for name in ("policy.json", "input-verification.json", "harvest.json", "summary.json", "gate-g1.json", "throttle-log.jsonl",
-             "walltime-log.jsonl"):
+             "walltime-log.jsonl", "routing-log.jsonl"):
     if (S / name).exists():
         put((S / name).read_bytes(), C / name)
 for folder in sorted(S.glob("[cr][0-9][0-9]")):
