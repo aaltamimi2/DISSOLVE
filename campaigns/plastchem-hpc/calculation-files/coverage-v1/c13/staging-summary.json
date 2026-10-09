@@ -1,0 +1,13 @@
+{
+  "group": "c13",
+  "utc": "2026-10-09T07:11:13Z",
+  "new_targets": 100,
+  "submission_tasks": 100,
+  "staged_in_another_group": {},
+  "preparation_failures": 0,
+  "preparation_failure_keys": [],
+  "archive": "/home/aaltamimi2/plastchem-euler/state/coverage-v1/c13-staging.tar.gz",
+  "archive_bytes": 181152,
+  "archive_sha256": "e9b206e90f0261e52d25efdee3160568224bc9d2f5c914b92547725792269f15",
+  "remote_verified": true
+}

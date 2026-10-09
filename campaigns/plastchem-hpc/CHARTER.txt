@@ -1333,3 +1333,20 @@ A-13 NOTE (2026-10-09 03:03 UTC, coverage lane) — RELEASE promotion-v6: 7,945 
    commits, behind main by 0. Deploy 1f0734ed ACTIVE at 03:02 UTC, live contaminants_computed 7945. Live check: "Which
    benzothiazoles leach from polypropylene into ethanol?" screened the family's 9 computed members
    (2-mercaptobenzothiazole logP 3.04) and named the 6 not computed yet.
+
+A-13 NOTE (2026-10-09 06:06 UTC, coverage lane) — RELEASE promotion-v7: 8,129 COMPUTED; 90.0% OF THE SIMULABLE ENTRIES
+1. /mnt/r/plastchem-euler/promotion-v7 (manifest d2a46af4...; promotion-v6 c93e6801... unchanged beneath it): 8,204
+   status rows, 8,129 computed (+184, batch t06): 82 coverage structures of c07, 44 of c08, 54 of c09 and 4 of c06 and
+   c10, on AMD EPYC 7763 (84), 7513 (46) and 7272 (54). 758 parent aliases; 29 abbreviations; 'Phthalate' withheld.
+2. Coverage (anaconda RDKit 2023.09.2): 8,660 of 9,627 simulable entries (90.0%; v6 88.0%); 486 short of 95% (the
+   cheapest route: about 456 structures, 530 ORCA CPU-hours by the fit); 934 structures still to compute
+   (reports/plastchem-coverage-2026-10-09-v07).
+3. Archives: set promotion-v7 (surfaces 13.3 MB, ORCA files 585 KB, 184 rows each, one name suffixed for a collision)
+   appended; no part rewritten; no credential marker.
+4. DISSOLVE cbe2a9ca on main. Full suite 2,284 passed, 3 skipped (the expected three), audit 0, home writes 0. Sync:
+   main cbe2a9ca | main-backup cbe2a9ca | main-cleanup-frontend 0207890b = main + 39 frontend commits, behind main by
+   0. Deploy 772f7b48 ACTIVE at 06:04 UTC, live contaminants_computed 8129. Live check: "Does
+   2,2'-dithiobisbenzothiazole (MBTS) leach from polyethylene into ethanol?" answered from the release (logP 0.13,
+   miscible).
+Next: t07 (96 structures, Genoa 80590/80591) for promotion-v8; ORCA c10 (milan&gpu), c11 (Milan), c12 (rome), r01
+(milan-x).

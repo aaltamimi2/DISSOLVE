@@ -4762,8 +4762,12 @@ def test_a_family_name_screens_every_computed_member():
     assert (family["family"], family["screened"], family["not_computed"], family["outside_release"]) == (
         "Bisphenols", screened, not_computed, outside)
     # bisphenol S, a thiobis-cresol and the dibromo sulfonyl bisphenol were "contains sulfur" until the coverage
-    # campaign held sulfur (promotion-v4): they are "not computed yet", on its work list; bromine is no reason either
-    assert family["outside_release_by_reason"] == {"not computed yet": outside} and outside >= 3
+    # campaign held sulfur (promotion-v4). The campaign computed the first two by promotion-v8, and they are screened;
+    # what is still outside is "not computed yet", on its work list (a count that falls as the campaign computes it);
+    # bromine is no reason either
+    assert {"4,4'-Sulfonyldiphenol", "4,4'-Thiobis(6-tert-butyl-m-cresol)"} <= {row["contaminant"] for row in out["rows"]}
+    assert set(family["outside_release_by_reason"]) <= {"not computed yet"}
+    assert sum(family["outside_release_by_reason"].values()) == outside
     assert not any("fluorine" in example or "bromine" in example for example in family["outside_release_examples"])
     # the ways a question names a family are one family; a compound is still a compound
     same = [_data(contaminants.screen_contaminant_partitioning("PC", "ethanol", [name]))["evaluated"]
