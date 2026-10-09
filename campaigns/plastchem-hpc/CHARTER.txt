@@ -1350,3 +1350,34 @@ A-13 NOTE (2026-10-09 06:06 UTC, coverage lane) — RELEASE promotion-v7: 8,129 
    miscible).
 Next: t07 (96 structures, Genoa 80590/80591) for promotion-v8; ORCA c10 (milan&gpu), c11 (Milan), c12 (rome), r01
 (milan-x).
+
+A-13 NOTE (2026-10-09 10:49 UTC, coverage lane) — RELEASE promotion-v8: 8,259 COMPUTED; 91.4% OF THE SIMULABLE ENTRIES
+1. /mnt/r/plastchem-euler/promotion-v8 (manifest 47b20590...; promotion-v7 d2a46af4... unchanged beneath it): 8,337
+   status rows, 8,259 computed (+130, batches t07 and t08: c07 18, c08 2, c09 46, c10 47, c11 9, c12 8; EPYC 7763 27,
+   7513 49, 7272 54); three more D-IDENT rejections are final failure rows. 832 parent aliases; 29 abbreviations.
+2. Coverage (anaconda RDKit 2023.09.2): 8,796 of 9,627 simulable entries (91.4%; v7 90.0%); 350 short of 95% (the
+   cheapest route: about 326 structures, 371 ORCA CPU-hours by the fit); 804 structures still to compute.
+3. Archives: set promotion-v8 (surfaces 11.2 MB, ORCA files 463 KB, 130 rows each) appended; no part rewritten.
+4. DISSOLVE 83956ec0 on main. The first v8 suite failed one test that pinned at least 3 bisphenols outside the release
+   (by v8 the campaign had computed bisphenol S and the thiobis-cresol, leaving 2); the test now checks those two are
+   screened and the rest is "not computed yet". Rerun: 2,284 passed, 3 skipped (expected), audit 0, home writes 0.
+   Sync: main 83956ec0 | main-backup 83956ec0 | main-cleanup-frontend 9f86ec2e = main + 39 frontend commits, behind
+   main by 0. Deploy bb79b468 ACTIVE at 10:48 UTC, live contaminants_computed 8259. Live check: "Does
+   decamethylcyclopentasiloxane (D5) leach from polypropylene into hexane?" answered from the release (PlastChem names
+   it Cyclomethicone 5; found by structure search; logP 0.563, leaches).
+5. Campaign: c13 (orders 1334-1465) on naples, c14 (orders 1466-1582; 99 staged, Buckminsterfullerene a final
+   preparation failure: ETKDG cannot embed C60 under the frozen recipe) on milan&gpu (80926).
+
+A-13 NOTE (2026-10-09 13:43 UTC, coverage lane) — PER-TASK WALLTIMES: PENDING TASKS ASK FOR WHAT THEIR OWN MOLECULE NEEDS
+1. Problem: a chunk is submitted with one --time, 6 x the campaign fit for its largest molecule, so c12-c15 asked for
+   38-77 h on every task although their per-molecule needs have medians of 14-21 h (72-84% need 24 h or less). On the
+   admitted pools (Rome 64, Naples 24 and Milan-GPU 160 cores idle at 13:40 UTC) the tasks waited on Priority:
+   requests that long cannot backfill.
+2. Change (a recorded resource choice, A-13; the recipe is untouched): scripts/coverage_task_walltime.py lowers each
+   PENDING task's time limit to the same rule applied to its own molecule (6 x the fit for its atoms, 3 h at least),
+   never above the chunk walltime and never raising one; running tasks are left alone. 349 tasks of c12-c15 lowered
+   (state/coverage-v1/walltime-log.jsonl). Within a minute the running tasks went from c12 0, c13 0, c14 15, c15 3 to
+   32, 12, 47 and 9.
+3. A task that reaches its lowered limit fails as a time limit and is resubmitted with a longer one through a retry
+   round, as the charter already provides; the runner's record keeps the manifest walltime, the log has the per-task
+   limit. Later chunks get the same treatment right after submission.

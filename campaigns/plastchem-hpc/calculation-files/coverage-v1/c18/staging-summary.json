@@ -1,0 +1,15 @@
+{
+  "group": "c18",
+  "utc": "2026-10-09T17:11:23Z",
+  "new_targets": 5,
+  "submission_tasks": 4,
+  "staged_in_another_group": {},
+  "preparation_failures": 1,
+  "preparation_failure_keys": [
+    "YAGPRJYCDKGWJR-UHFFFAOYSA-N"
+  ],
+  "archive": "/home/aaltamimi2/plastchem-euler/state/coverage-v1/c18-staging.tar.gz",
+  "archive_bytes": 17993,
+  "archive_sha256": "e78559f1d95c63a03366cfc35cae39d5766de4a460f852a01f7c3ff6e10a8241",
+  "remote_verified": true
+}

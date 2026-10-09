@@ -176,7 +176,8 @@ def stage(batch, source, limit, dry_run=False, only=None):
             "#!/bin/bash\n"
             f"#SBATCH --job-name=contam-coverage-{kind}-{batch}\n#SBATCH --partition=research\n#SBATCH --constraint=genoa&cpu\n"
             "#SBATCH --exclude=euler09,euler10\n#SBATCH --nodes=1\n#SBATCH --ntasks=1\n#SBATCH --cpus-per-task=1\n"
-            "#SBATCH --mem=4G\n#SBATCH --time=12:00:00\n#SBATCH --no-requeue\n"
+            # 6 h (A-13, 2026-10-09): plans take <= ~2 h, and 12 h requests waited on Priority while Genoa had idle cores
+            "#SBATCH --mem=4G\n#SBATCH --time=6:00:00\n#SBATCH --no-requeue\n"
             f"#SBATCH --output={REMOTE}/{batch}/logs/{kind}-%A_%a.out\n#SBATCH --error={REMOTE}/{batch}/logs/{kind}-%A_%a.err\n"
             "set -euo pipefail\nexport OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1\n"
             "export MALLOC_ARENA_MAX=1 MALLOC_TRIM_THRESHOLD_=65536\n"
