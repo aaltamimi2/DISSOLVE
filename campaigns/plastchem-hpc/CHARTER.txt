@@ -1189,3 +1189,79 @@ Next: chunks of 100 new rows in work-list order; ORCA on milan&cpu (EPYC 7763), 
 reproduction check (owner NOTE 17:10) passes. Walltime per chunk is set from the fit for its largest molecule (at least
 2 h, raised for the large ones, 72 h and above as the fit requires), a recorded resource choice: short limits backfill
 into the busy Milan pool; a task that reaches its limit is resubmitted with a longer one.
+
+A-13 NOTE (2026-10-08 20:16 UTC, coverage lane) — RELEASE promotion-v4: 7,397 COMPUTED; 81.8% OF THE SIMULABLE ENTRIES
+1. /mnt/r/plastchem-euler/promotion-v4 (manifest 16ea8c3e...; promotion-v3 100fd044... unchanged beneath it): 7,468
+   status rows, 7,397 computed (+221): 122 halogen-tier rows whose thermodynamics the harvest finished (batches h04
+   and t00: the 116 thermodynamics_pending rows and 6 of the 9 running ones; the other 3 are D-IDENT rejections, now
+   failed) and 99 from chunk c01 (batch t01; its preparation failure is a failed row). 4,734,080 partition and 473,408
+   LLE rows.
+2. Names and aliases (item 7b): parent-aliases.csv offers 457 rows (449 distinct alias and parent pairs), which
+   DISSOLVE serves as 448 aliases: "Phthalate" (PlastChem's phthalate ion, served through phthalic acid) is withheld
+   because it names the Phthalates family (asset metadata aliases_withheld_as_family_names). All 200 entries
+   promotion-v3 served only through their parent are listed. The v4 builder did not list the salts of two parents the
+   harvest newly computed (bisphenol AF, tetrabromophthalic acid; fixed in c7f4a3d), so those 2 entries come with
+   promotion-v5. (DISSOLVE bdee88b0's message says "198 of the 200"; 15ebeb54's message corrects it.)
+3. Families (item 8): a salt joins its parent's family through the release's PlastChem IDs; new Organophosphates (6
+   computed) and Siloxanes and silanes (17), which require P or Si (without that rule, a counter-ion's PlastChem group
+   put melamine, urea and bisphenol A among the organophosphates). Azo dyes (group azodyes) already had 30 computed
+   members and so qualified under item 8c; it was missed and comes with promotion-v5, requiring the azo structure
+   (PlastChem's group also holds benzidines). Benzothiazoles: none computed yet.
+4. Coverage (plastchem_coverage.py on the v4 asset, anaconda RDKit 2023.09.2, which reproduces the published triage):
+   7,877 served and 2 through their parent, 7,879 of 9,627 simulable entries (81.8%; promotion-v3 7,644, 79.4%); 1,267
+   entries short of 95%; 1,666 structures still to compute (reports/plastchem-coverage-2026-10-08-v04).
+5. Archives (item 7d): set promotion-v4, opencosmo-outputs-promotion-v4.tar.xz.part00 (e3416bf2..., 10.5 MB) and
+   orca-calculation-files-promotion-v4.tar.xz.part00 (ddb9ab02..., 539 KB), 221 rows each appended to MANIFEST,
+   CLASSIFICATION, RUNS and SHA256SUMS; no existing part rewritten; no credential or licence marker in either. The
+   READMEs' Reassemble sections unpack both sets.
+6. DISSOLVE: bdee88b0 (release, families, tests, archive set, campaign mirror) and 15ebeb54 on main; 8802a6a4 on
+   main-cleanup-frontend. Suites: main 2,275 and then 2,276 passed, 2 skipped; frontend 2,324 passed, 2 skipped; audit
+   0, home writes 0 each. The coverage sentence of every screen had read "Additives containing  or boron are outside
+   it" once S, P and Si were held (fixed in 15ebeb54). The welcome card now reads the computed count from /api/health
+   ("Leaching of 7,397 plastic additives ...", light and dark screenshots without page errors). Sync: main 15ebeb54 |
+   main-backup 15ebeb54 | main-cleanup-frontend 8802a6a4 = main + 38 frontend commits, behind main by 0. Deploy:
+   a1ac7803 ACTIVE at 20:15 UTC, live /api/health contaminants_computed 7397. Live check: "Does
+   dimethoxydimethylsilane leach from polyethylene into ethanol?" answered from the release (logP 0.24 ethanol over
+   PE, miscible).
+Next: promotion-v5 when batch t02 (280 structures of chunks c02-c04, Genoa) is collected, with the two salts and the
+Azo dyes family.
+
+A-13 NOTE (2026-10-08 20:48 UTC, coverage lane) — OWNER REQUEST: TRIPHENYL PHOSPHATE AHEAD OF ITS WORK-LIST ORDER
+Owner, relayed by the orchestrator: compute triphenyl phosphate (TPHP, XZZNDPSIHUTMOC-UHFFFAOYSA-N, PlastChem 1368, 38
+atoms; work-list order 854, chunk c08 index 92) ahead of its order with the same frozen recipe, carry it through
+thermodynamics and include it in the next promotion released; everything else keeps its order. Reason: a literature
+case on Anderson, Yu & Chen 2021 (PS/ABS e-waste dissolved in DCM, the triphenyl phosphate flame retardant removed
+with a methanol or ethylene glycol antisolvent).
+1. Group c00 (scripts/build_coverage_request.py): the structure's own prepared input (state/coverage-v1/prepared, made
+   with chunk c08: ETKDGv3 seed 12345, 139 conformers kept, the MMFF94 lowest; input.xyz 5cd5df53...), the same
+   runner, recipe, identity policy and 4G; walltime 5 h by the chunks' rule (6 x the fit for 38 atoms). Array 79708 on
+   milan&cpu (AMD EPYC 7763), submitted 20:47 UTC.
+2. Order: c00 sorts before every chunk, so coverage_throttle.py gives it its Milan slot first. The slot came from c07,
+   the last chunk in line (throttle 3 -> 2), and c07 stays at 1 until TPHP is running, because its older tasks would
+   otherwise start first (state/coverage-v1/throttle-log.jsonl). The cap stays 64.
+3. Counted and released once: stage_coverage.py stages a structure once (c08 will skip it, recorded as
+   staged_in_another_group); summarize_coverage.py and build_promotion_coverage.py take the group that ran a structure
+   two groups list.
+4. Release: promotion-v5 waits for TPHP's thermodynamics (its own batch as soon as its record is accepted) and carries
+   it with batches t02 and t03.
+
+A-13 NOTE (2026-10-08 21:44 UTC, coverage lane) — ORCA CPU TYPES ADMITTED: MILAN-X (EPYC 7773X), MILAN-GPU (EPYC 7513)
+Reproduction checks (owner NOTE 17:10 UTC; state/coverage-v1/cpu-checks/<tag>/comparison.json): the reference set of 8
+structures converged on the EPYC 7763 (octanol, DEHP with 66 atoms, 2-bromo-6-chloro-4-nitroaniline, 4-iodophenol,
+PFBS acid, thiophene, dimethyl methylphosphonate, dimethoxydimethylsilane: C, H, N, O, F, Cl, Br, I, S, P and Si)
+rerun from identical input.xyz with the unchanged recipe.
+1. Admitted (state/coverage-v1/cpu-checks/admitted.json; stage_coverage.py writes it into each manifest staged after
+   it, and the runner refuses any other CPU model or partition): AMD EPYC 7773X (euler141, research, constraint
+   milan-x) and AMD EPYC 7513 (research, constraint milan&gpu: euler05-08, euler08 probed; the runner checks every
+   node it lands on). 8 of 8 pass with every energy, segment count, area, volume and logP identical to the reference
+   (differences 0.0; DEHP took the reference's 62 optimization cycles).
+2. Not admitted: AMD EPYC 9634 (Genoa, genoa&cpu). 7 of 8 pass (within 2.6e-8 Eh), but DEHP took another optimization
+   path (50 cycles against 62) to a slightly different minimum: energy 1.06e-4 Eh, 3,663 segments against 3,648, area
+   +0.25%, octanol-water logP 10.890 against 10.911 (limit 0.01). Its AVX-512 arithmetic differs from the AVX2
+   reference and a flexible molecule amplifies that. Thermodynamics on Genoa are unaffected (their own reproduction,
+   to 1e-15).
+3. Pending: rome-gpu (EPYC 7272), naples-gpu (EPYC 7401) and skylake-cpu (Xeon Gold 5118) with DEHP still running;
+   genoa-gpu and sapphire-gpu queued.
+4. Use: chunk c08 (99 structures; triphenyl phosphate runs in c00) is staged with the new allow-list and submitted to
+   milan&gpu as a bounded array (79752, throttle 99; 6 started at once) while c07 (100) waits in the Milan pool behind
+   higher-priority jobs. The Milan-pool cap of 64 is unchanged; every row keeps its CPU model.

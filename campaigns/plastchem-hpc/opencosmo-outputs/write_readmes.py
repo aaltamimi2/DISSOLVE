@@ -93,10 +93,21 @@ for set_name, title in (("PFAS", "PFAS (ESI Table S7)"), ("BFR", "Brominated fla
 # Agent families
 fam_lines = ["| Folder | Files here | Family members computed | Family (DISSOLVE's definition) |", "|---|---:|---:|---|"]
 with_surface = {row["inchikey"] for row in classified}
+# a family defined after its members were archived files none of them: archived surfaces keep their folder (A-13)
+empty_families = []
 for family in sorted(families, key=lambda f: f["name"]):
     folder = "agent-families/" + family["name"].replace(" ", "_")
-    fam_lines.append(f"| `{folder.split('/')[1]}/` | {count(folder)} | {len(with_surface & set(family['members']))} | "
+    members_with_surface = len(with_surface & set(family["members"]))
+    if members_with_surface and not count(folder):
+        empty_families.append(family["name"])
+    fam_lines.append(f"| `{folder.split('/')[1]}/` | {count(folder)} | {members_with_surface} | "
                      f"{family['description']}; {family['basis']} |")
+
+empty_text = ("" if not empty_families else "\n\n" + textwrap.fill(
+    f"The {' and '.join(empty_families)} {'family' if len(empty_families) == 1 else 'families'} came after "
+    f"{'its' if len(empty_families) == 1 else 'their'} members were "
+    "archived: a contaminant keeps the folder of the set that first archived it (parts are never rewritten), so "
+    f"{'its folder is' if len(empty_families) == 1 else 'their folders are'} empty.", 118))
 
 # PlastChem groups
 group_lines = ["| Folder | Files | Shortest names in it |", "|---|---:|---|"]
@@ -181,8 +192,9 @@ status_text = (", ".join(status_parts[:-1]) + " and " + status_parts[-1] if len(
 status_text = status_text[0].upper() + status_text[1:]
 coverage_text = "\n\n".join(textwrap.fill(paragraph, 118) for paragraph in (
     f"That leaves {cov['simulable']:,} simulable entries. The release serves {cov['buckets']['served']:,} of them "
-    f"({cov['served_share']:.1%}) and {parents:,} more through their parent ({cov['served_with_parents_share']:.1%} "
-    f"together); 95% needs {cov['entries_short_of_95_percent']:,} more entries. The {cov['structures_to_compute']:,} "
+    f"({cov['served_share']:.1%})"
+    + (f" and {parents:,} more through their parent ({cov['served_with_parents_share']:.1%} together)" if parents else "")
+    + f"; 95% needs {cov['entries_short_of_95_percent']:,} more entries. The {cov['structures_to_compute']:,} "
     f"structures still to compute are {by_elements.get('S, P or Si', 0):,} with sulfur, phosphorus or silicon (no tier "
     f"computed them before the coverage campaign), {by_elements.get('halogen', 0):,} halogenated and {by_elements.get('CHNO', 0):,} of "
     f"C, H, N and O only; {cov['structures_as_parents']:,} are the neutral parents of salts and "
@@ -274,7 +286,7 @@ as plain files, with each one's ORCA calculation files and its openCOSMO-RS part
 ## 2. Agent families
 
 DISSOLVE's definitions, from `src/dissolve/data/plastchem_families.json`. "Family members computed" counts every
-member with a surface, including those filed in a publication set or a smaller family.
+member with a surface, including those filed in a publication set or a smaller family.{empty_text}
 
 {chr(10).join(fam_lines)}
 

@@ -146,11 +146,14 @@ def readable(name, ids, workbook):
     return next((workbook[i]["iupac_name"] for i in ids if i in workbook and workbook[i]["iupac_name"] not in ("", "nan")), name)
 
 
-def coverage_molecules():
-    """InChIKey -> chunk manifest molecule, over every chunk."""
+def coverage_molecules(records=None):
+    """InChIKey -> chunk manifest molecule, over every chunk. A structure two chunks list (c00 holds the owner's requests
+    ahead of the work-list order) takes the chunk that ran it, from its record, else the first that lists it."""
     out = {}
     for path in sorted(P.glob("c[0-9][0-9]/manifest.json")):
         for m in json.loads(path.read_text())["molecules"]:
+            if m["inchikey"] in out and (records or {}).get(m["inchikey"], {}).get("group") != path.parent.name:
+                continue
             out[m["inchikey"]] = dict(m, chunk_manifest=path)
     return out
 
@@ -181,7 +184,7 @@ def build(number, dry_run=False):
     # 1. what is new: halogen status rows of the parent and coverage records, each at its final outcome
     halogen = {p.stem: json.loads(p.read_text()) for p in (HALOGEN / "records").glob("*.json")}
     coverage = {p.stem: json.loads(p.read_text()) for p in (P / "records").glob("*.json")}
-    molecules = coverage_molecules()
+    molecules = coverage_molecules(coverage)
     status_rows = {}  # parent status rows that now have a final outcome
     for k, r in cohort.items():
         if r["campaign_status_at_snapshot"] == "converged":

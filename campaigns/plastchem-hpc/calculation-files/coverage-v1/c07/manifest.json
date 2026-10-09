@@ -2329,5 +2329,13 @@
    "families_existing": "",
    "families_proposed": ""
   }
+ ],
+ "admitted": [
+  {
+   "cpu_model": "AMD EPYC 7763 64-Core Processor",
+   "partition": "research",
+   "constraint": "milan&cpu",
+   "basis": "the campaign reference CPU (A-2)"
+  }
  ]
 }

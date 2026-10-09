@@ -1,6 +1,7 @@
 """A-13: a bounded staging archive for one chunk (copied from stage_halogen.py), uploaded to Euler and checked there file
 by file. Requires every preparation of the chunk disposed; a preparation failure becomes the molecule's final record
-(status failed, its failure mode, dft_ran false) and is not submitted.
+(status failed, its failure mode, dft_ran false) and is not submitted. A structure is staged once: one that another group
+has staged (c00, the owner's requests ahead of the work-list order) is not submitted again (staged_in_another_group).
 
     python3 scripts/stage_coverage.py c01"""
 import hashlib,json,re,sys,tarfile,time
@@ -16,7 +17,13 @@ admitted_path=P/'cpu-checks/admitted.json'
 m['admitted']=[{k:a[k] for k in ('cpu_model','partition','constraint','basis')} for a in json.loads(admitted_path.read_text())['admitted']] if admitted_path.exists() else [{'cpu_model':'AMD EPYC 7763 64-Core Processor','partition':'research','constraint':'milan&cpu','basis':'the campaign reference CPU (A-2)'}]
 (P/group/'manifest.json').write_text(json.dumps(m,indent=1)+'\n')
 (P/'records').mkdir(exist_ok=True)
+elsewhere={}
+for other in sorted(P.glob('[cr][0-9][0-9]')):
+    if other.name!=group and (other/'submission-indices.json').exists():
+        om=json.loads((other/'manifest.json').read_text())
+        for i in json.loads((other/'submission-indices.json').read_text()):elsewhere[om['molecules'][i]['inchikey']]=other.name
 for mol in m['molecules']:
+    if mol['inchikey'] in elsewhere:continue
     p=P/'prepared'/mol['inchikey']/'preparation.json'
     if not p.exists():raise SystemExit('Preparation still pending for '+mol['inchikey'])
     prep=json.loads(p.read_text())
@@ -43,5 +50,5 @@ check(run('ssh',['euler',f'mkdir -p ~/{REMOTE}/logs ~/{REMOTE}/runs ~/{REMOTE}/r
 check(run('scp',['-q',str(archive),f'euler:{REMOTE}/']),'scp')
 remote=check(run('ssh',['euler',f'cd ~/{REMOTE} && tar -xzf {archive.name} && sha256sum -c --quiet {group}/staging.sha256 && echo STAGED_OK'],capture_output=True,text=True),'extract/verify')
 assert 'STAGED_OK' in remote.stdout,remote.stdout[-400:]
-record={'group':group,'utc':time.strftime('%Y-%m-%dT%H:%M:%SZ',time.gmtime()),'new_targets':len(m['molecules']),'submission_tasks':len(indices),'preparation_failures':len(failures),'preparation_failure_keys':[r['inchikey'] for r in failures],'archive':str(archive),'archive_bytes':archive.stat().st_size,'archive_sha256':hashlib.sha256(archive.read_bytes()).hexdigest(),'remote_verified':True}
+record={'group':group,'utc':time.strftime('%Y-%m-%dT%H:%M:%SZ',time.gmtime()),'new_targets':len(m['molecules']),'submission_tasks':len(indices),'staged_in_another_group':{mol['inchikey']:elsewhere[mol['inchikey']] for mol in m['molecules'] if mol['inchikey'] in elsewhere},'preparation_failures':len(failures),'preparation_failure_keys':[r['inchikey'] for r in failures],'archive':str(archive),'archive_bytes':archive.stat().st_size,'archive_sha256':hashlib.sha256(archive.read_bytes()).hexdigest(),'remote_verified':True}
 (P/group/'staging-summary.json').write_text(json.dumps(record,indent=2)+'\n');print(json.dumps(record,indent=2))

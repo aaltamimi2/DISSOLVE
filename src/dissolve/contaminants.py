@@ -2176,7 +2176,7 @@ def screen_contaminant_partitioning(
     mw_min_g_mol: Optional[float] = None,
     mw_max_g_mol: Optional[float] = None,
 ) -> str:
-    """Screen PlastChem contaminants for leaching from one polymer: with one solvent, all of them, those named, whole families (phthalates, terephthalates, bisphenols, alkylphenols, antioxidants, UV stabilizers, benzophenones, aromatic amines, slip agents, salicylates, parabens, organophosphates, siloxanes and silanes), or a structural class by elements, functional groups or molecular weight; leave the solvent out (or list several) to rank every panel solvent for the named contaminants in one call."""
+    """Screen PlastChem contaminants for leaching from one polymer: with one solvent, all of them, those named, whole families (phthalates, terephthalates, bisphenols, alkylphenols, antioxidants, UV stabilizers, benzophenones, aromatic amines, slip agents, salicylates, parabens, organophosphates, siloxanes and silanes, azo dyes), or a structural class by elements, functional groups or molecular weight; leave the solvent out (or list several) to rank every panel solvent for the named contaminants in one call."""
     from . import contaminant_search  # imports this module; loaded here, not at import time
 
     tool = "screen_contaminant_partitioning"

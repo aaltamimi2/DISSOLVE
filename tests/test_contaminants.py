@@ -4821,12 +4821,28 @@ def test_contaminant_families_for_pickers():
     families = contaminants.contaminant_families()
     names = ["Phthalates", "Terephthalates", "Bisphenols", "Alkylphenols", "Antioxidants", "UV stabilizers",
              "Benzophenones", "Aromatic amines", "Slip agents", "Salicylates", "Parabens",
-             "Organophosphates", "Siloxanes and silanes"]  # the coverage campaign's families (A-13, promotion-v4)
+             "Organophosphates", "Siloxanes and silanes",  # the coverage campaign's families (A-13, promotion-v4)
+             "Azo dyes"]  # A-13 charter item 8c, promotion-v5
     assert [(f["name"], f["count"], f["source"]) for f in families] == [
         *[(name, _family_counts(name)[0], "plastchem") for name in names], ("PFAS", 26, "workbook")]
     assert all(f["count"] == len(f["members"]) > 0 for f in families)
     phthalates = families[0]
     assert "Bis(2-ethylhexyl) phthalate" in phthalates["members"] and phthalates["examples"] == ["DEHP", "DBP", "BBP"]
+
+
+def test_the_azo_dye_family_holds_azo_compounds_not_their_benzidine_precursors():
+    """PlastChem's azodyes group also holds 3,3'-dimethoxy- and 3,3'-dimethylbenzidine, the dyes' precursors, which
+    carry no azo linkage. The Azo dyes family (A-13 charter item 8c, promotion-v5) takes the group's azo compounds
+    only, and its basis says so in words ("with a azo core" before azo had its own phrase)."""
+    table = {f["name"]: f for f in contaminants._family_table()}
+    assert table["Azo dyes"]["basis"] == "PlastChem group azodyes; with an azo linkage (C-N=N-C)"
+    assert table["Benzophenones"]["basis"].endswith("with a benzophenone core")  # other structures read as before
+    names = {name for (name,) in contaminants._plastchem().execute(
+        "SELECT name FROM contaminants WHERE inchikey IN (SELECT unnest(?))", [table["Azo dyes"]["members"]]).fetchall()}
+    assert {"Sudan I", "Para Red", "Azobenzene"} <= names
+    assert not {"3,3'-Dimethoxybenzidine", "3,3'-Dimethylbenzidine"} & names
+    out = _data(contaminants.screen_contaminant_partitioning("PP", "ethanol", ["azo dyes"]))
+    assert out["evaluated"] == _family_counts("Azo dyes")[0] >= 27 and out["unsupported_contaminants"] == []
 
 
 def test_family_builder_refuses_ambiguous_names_and_says_why_members_are_missing(tmp_path, monkeypatch):
@@ -4929,6 +4945,34 @@ def _reseal(rel, rows=None, files=None):
 
 
 _PARENT_ALIASES = "plastchem_id,alias,kind,form,input_inchikey,offered,note\n"
+
+
+def test_a_joined_cas_field_answers_to_each_number_and_tbbpa_finds_it(tmp_path, monkeypatch):
+    """PlastChem joins several CAS numbers with ";" on 40 rows of the release (Tetrabromobisphenol A is
+    "25639-54-7;79-94-7"), and only the joined string was an alias: 79-94-7 and 66 other single numbers found nothing
+    (2026-10-08). Each number answers now, and an abbreviation maps by each number ("TBBPA", 79-94-7). An abbreviation
+    whose number two contaminants hold is refused rather than given to either."""
+    import gzip
+    asset = tmp_path / "asset.duckdb"
+    monkeypatch.setenv("DISSOLVE_PLASTCHEM_ASSET", str(asset))
+    rel = _plastchem_release(tmp_path)
+    text = gzip.decompress((rel / "contaminants.csv.gz").read_bytes()).decode()
+    (rel / "contaminants.csv.gz").write_bytes(gzip.compress(text.replace(",111-11-1,", ",25639-54-7;79-94-7,").encode()))
+    _reseal(rel)
+    info = plastchem_release.promote_opencosmo_release(rel, asset)
+    assert info["abbreviations"] == "1"  # TBBPA: the other abbreviations' numbers are not in this release
+    contaminants._LOCAL.__dict__.pop("plastchem", None)
+    out = _data(contaminants.lookup_plastchem_contaminants(["79-94-7", "25639-54-7", "25639-54-7;79-94-7", "TBBPA"]))
+    assert [row["contaminant"] for row in out["rows"]] == ["Alphaester"] and out["unsupported_contaminants"] == []
+    shared = tmp_path / "shared"
+    shared.mkdir()
+    rel = _plastchem_release(shared)
+    text = gzip.decompress((rel / "contaminants.csv.gz").read_bytes()).decode()
+    text = text.replace(",111-11-1,", ",25639-54-7;79-94-7,").replace(",Betaamide,N,,", ",Betaamide,N,79-94-7,")
+    (rel / "contaminants.csv.gz").write_bytes(gzip.compress(text.encode()))
+    _reseal(rel)
+    with pytest.raises(ValueError, match="names more than one contaminant: 79-94-7"):
+        plastchem_release.promote_opencosmo_release(rel, shared / "asset.duckdb")
 
 
 def test_a_salt_is_served_through_its_parent_by_name_cas_and_plastchem_id(tmp_path):

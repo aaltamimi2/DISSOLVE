@@ -2329,5 +2329,25 @@
    "families_existing": "",
    "families_proposed": "Organophosphates"
   }
+ ],
+ "admitted": [
+  {
+   "cpu_model": "AMD EPYC 7763 64-Core Processor",
+   "partition": "research",
+   "constraint": "milan&cpu",
+   "basis": "the campaign's reference CPU (A-2); no check needed"
+  },
+  {
+   "cpu_model": "AMD EPYC 7513 32-Core Processor",
+   "partition": "research",
+   "constraint": "milan&gpu",
+   "basis": "reproduction check milan-gpu passed 2026-10-08T21:39:55+00:00"
+  },
+  {
+   "cpu_model": "AMD EPYC 7773X 64-Core Processor",
+   "partition": "research",
+   "constraint": "milan-x",
+   "basis": "reproduction check milan-x passed 2026-10-08T21:36:57+00:00"
+  }
  ]
 }

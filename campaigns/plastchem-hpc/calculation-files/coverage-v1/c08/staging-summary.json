@@ -1,0 +1,15 @@
+{
+  "group": "c08",
+  "utc": "2026-10-08T21:41:29Z",
+  "new_targets": 100,
+  "submission_tasks": 99,
+  "staged_in_another_group": {
+    "XZZNDPSIHUTMOC-UHFFFAOYSA-N": "c00"
+  },
+  "preparation_failures": 0,
+  "preparation_failure_keys": [],
+  "archive": "/home/aaltamimi2/plastchem-euler/state/coverage-v1/c08-staging.tar.gz",
+  "archive_bytes": 119632,
+  "archive_sha256": "68fc70e7166b3e3788645c2dc78b2045d2c58762824cef70ab39a28d325f726b",
+  "remote_verified": true
+}

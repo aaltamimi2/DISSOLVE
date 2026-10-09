@@ -15,6 +15,7 @@ and checked against that asset:
 
 from __future__ import annotations
 
+import collections
 import gzip
 import hashlib
 import json
@@ -29,14 +30,18 @@ from .contaminants import _MISCIBLE_BASIS, _PLASTCHEM_ASSET, _PLASTCHEM_FAMILIES
 
 
 # Plastic additives are asked about by abbreviation ("does DEHP leach"), and PlastChem names them in full. Each
-# abbreviation maps by CAS number to the release's own entry (checked by name when this list was made, 2026-09-24);
-# an abbreviation whose CAS the release lacks adds nothing. Ambiguous ones (DOP, NP) are left out on purpose.
+# abbreviation maps by CAS number to the release's own entry (checked by name when this list was made, 2026-09-24;
+# the flame retardants from TBBPA on by CAS and name on 2026-10-08, promotion-v5); an abbreviation whose CAS the
+# release lacks adds nothing. Ambiguous ones (DOP, NP, TPP) are left out on purpose, and HBCDD too: its generic CAS
+# is one isomer's.
 _ABBREVIATIONS = {
     "DEHP": "117-81-7", "DBP": "84-74-2", "BBP": "85-68-7", "BBzP": "85-68-7", "DINP": "20548-62-3",
     "DIDP": "26761-40-0", "DEP": "84-66-2", "DMP": "131-11-3", "DIBP": "84-69-5", "DEHA": "103-23-1",
     "DEHT": "6422-86-2", "DOTP": "6422-86-2", "DINCH": "166412-78-8", "ATBC": "77-90-7", "TOTM": "3319-31-1",
     "BPA": "80-05-7", "BPF": "620-92-8", "BHT": "128-37-0", "Irganox 1076": "2082-79-3", "Tinuvin P": "2440-22-4",
     "Chimassorb 81": "1843-05-6", "TXIB": "6846-50-0",
+    "TBBPA": "79-94-7", "TBBPA-DBPE": "21850-44-2", "BDE-209": "1163-19-5", "decaBDE": "1163-19-5",
+    "BTBPE": "37853-59-1", "BADGE": "1675-54-3", "TPHP": "115-86-6",
 }
 
 
@@ -122,11 +127,20 @@ def promote_opencosmo_release(
     elements = _release_elements([smiles for (smiles,) in con.execute(
         "SELECT smiles FROM contaminants WHERE computed AND smiles IS NOT NULL").fetchall()])
     rows = con.execute("SELECT id, inchikey, name, cas, plastchem_id, perceived_inchikey FROM contaminants").fetchall()
-    # a row lists every PlastChem entry it serves, a salt served through its neutral parent too (A-13), and answers
-    # to each ID on its own
+    # a row lists every PlastChem entry it serves, a salt served through its neutral parent too (A-13); it answers to
+    # each ID on its own, and to its whole CAS field and each number in it: PlastChem joins several with ";"
+    # (Tetrabromobisphenol A is "25639-54-7;79-94-7", and 79-94-7 alone found nothing)
     aliases = {(_key(value), cid) for cid, inchikey, name, cas, pid, perceived in rows
-               for value in (name, cas, inchikey, perceived, *(f"plastchem {i}" for i in _ids(pid))) if value}
-    by_cas = {cas: cid for cid, _, _, cas, _, _ in rows if cas}
+               for value in (name, cas, *_cas_numbers(cas), inchikey, perceived, *(f"plastchem {i}" for i in _ids(pid)))
+               if value}
+    holders: dict[str, set[int]] = collections.defaultdict(set)
+    for cid, _, _, cas, _, _ in rows:
+        for number in _cas_numbers(cas):
+            holders[number].add(cid)
+    shared = sorted(cas for cas in set(_ABBREVIATIONS.values()) if len(holders.get(cas, ())) > 1)
+    if shared:
+        raise ValueError(f"an abbreviation's CAS number names more than one contaminant: {', '.join(shared)}")
+    by_cas = {number: next(iter(cids)) for number, cids in holders.items() if len(cids) == 1}
     abbreviations = {(_key(abbr), by_cas[cas]) for abbr, cas in _ABBREVIATIONS.items() if cas in by_cas}
     aliases |= abbreviations
     ids = {inchikey: cid for cid, inchikey, *_ in rows}
@@ -170,6 +184,11 @@ def promote_opencosmo_release(
 def _ids(value: str | None) -> list[str]:
     """The PlastChem IDs of a release row ("221;4410" lists two entries)."""
     return [part.strip() for part in str(value or "").replace(",", ";").split(";") if part.strip()]
+
+
+def _cas_numbers(value: str | None) -> list[str]:
+    """The CAS numbers of a release row ("25639-54-7;79-94-7" holds two)."""
+    return [part.strip() for part in str(value or "").split(";") if part.strip()]
 
 
 def _release_labels(path: Path, what: str, ids: dict[str, int], aliases: set[tuple[str, int]],
@@ -339,16 +358,26 @@ _FAMILY_SPECS: tuple[dict[str, Any], ...] = (
     # PlastChem flags salts by their counter-ion too (melamine phosphate): the structure served must hold the element
     {"name": "Organophosphates", "term": "organophosphates", "group": "organophosphates", "elements": ("P",),
      "aliases": ("organophosphate", "organophosphorus compounds", "phosphate esters", "organophosphate esters"),
-     "description": "phosphate, phosphonate and phosphinate esters and acids",
+     "description": "phosphate, phosphonate, phosphinate and phosphite esters and acids, phosphine oxides, phosphines "
+                    "and phosphoramides",
      "examples": ("Dimethyl methylphosphonate", "Vinylphosphonic acid", "Ethyl dihydrogen phosphate")},
     {"name": "Siloxanes and silanes", "term": "siloxanes and silanes", "group": "silanes_siloxanes_silicones",
      "elements": ("Si",),
      "aliases": ("siloxanes", "siloxane", "silanes", "silane", "organosilicon compounds", "organosilanes"),
      "description": "silanes, siloxanes and silicone building blocks",
      "examples": ("Tetramethylsilane", "Trimethylsilanol", "Dimethoxydimethylsilane")},
+    # PlastChem's azodyes group also holds benzidines (3,3'-dimethoxy- and 3,3'-dimethylbenzidine, the dyes'
+    # precursors): a member carries the azo linkage itself
+    {"name": "Azo dyes", "term": "azo dyes", "group": "azodyes", "all": ("azo",),
+     "aliases": ("azo dye", "azo colorants", "azo colourants", "azo pigments"),
+     "description": "azo dyes and pigments", "examples": ("Sudan I", "Para Red", "Sudan II")},
 )
 _ELEMENT_NAMES = {"F": "fluorine", "Cl": "chlorine", "Br": "bromine", "I": "iodine", "S": "sulfur", "P": "phosphorus",
                   "Si": "silicon", "B": "boron", "Se": "selenium"}
+
+
+#: how a family's required structures read ("with a benzophenone core"); a structure not listed reads "a <name> core"
+_STRUCTURE_PHRASES = {"azo": "an azo linkage (C-N=N-C)"}
 
 
 def _family_basis(spec: dict[str, Any]) -> str:
@@ -358,7 +387,8 @@ def _family_basis(spec: dict[str, Any]) -> str:
     if "any" in spec:
         parts.append("any of " + ", ".join(spec["any"]).replace("_", " "))
     if "all" in spec:
-        parts.append("with a " + ", ".join(spec["all"]).replace("_", " ") + " core")
+        parts.append("with " + " and ".join(_STRUCTURE_PHRASES.get(name, f"a {name.replace('_', ' ')} core")
+                                            for name in spec["all"]))
     if "none" in spec:
         parts.append("excluding " + ", ".join(spec["none"]).replace("_", " "))
     if "elements" in spec:

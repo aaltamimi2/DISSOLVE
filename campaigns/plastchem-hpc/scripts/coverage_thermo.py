@@ -11,7 +11,7 @@ Batches tNN live in /mnt/r/plastchem-euler/coverage-thermo-v1 and ~/plastchem-eu
 structure is staged once: every key in a newcontam-thermo-v1 or coverage-thermo-v1 batch, and every structure
 promotion-v1 serves, is excluded. The worker code staged must be byte-identical to the code the A-11/A-12 batches pinned.
 
-    python3 scripts/coverage_thermo.py stage BATCH {harvest|coverage} [--limit N] [--dry-run]
+    python3 scripts/coverage_thermo.py stage BATCH {harvest|coverage} [--limit N] [--keys KEY ...] [--dry-run]
     python3 scripts/coverage_thermo.py submit BATCH
     python3 scripts/coverage_thermo.py status BATCH
     python3 scripts/coverage_thermo.py collect BATCH [--partial]
@@ -101,7 +101,7 @@ def candidates(source):
     return out
 
 
-def stage(batch, source, limit, dry_run=False):
+def stage(batch, source, limit, dry_run=False, only=None):
     out = OUT / batch
     if out.exists() and not (out / "batch.json").exists():
         shutil.rmtree(out)  # an earlier staging that never finished uploading; nothing of it was submitted
@@ -112,6 +112,10 @@ def stage(batch, source, limit, dry_run=False):
     assert sha(B / "phase8-v1/phase8_lle.py") == LLE_SOLVER_SHA256
     base = json.loads(BASE_SPEC.read_text())
     units = candidates(source)
+    if only:  # named structures only: an owner request ahead of the work-list order (A-13 NOTE 2026-10-08 20:48 UTC)
+        missing = sorted(set(only) - set(units))
+        assert not missing, f"not accepted, or staged already: {missing}"
+        units = {key: units[key] for key in only}
     keys = sorted(units)[:limit] if limit else sorted(units)
     assert keys, "nothing to stage"
     if dry_run:
@@ -279,11 +283,12 @@ if __name__ == "__main__":
     parser.add_argument("batch")
     parser.add_argument("source", nargs="?", choices=["harvest", "coverage"])
     parser.add_argument("--limit", type=int)
+    parser.add_argument("--keys", nargs="+", help="stage: these accepted structures only")
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--partial", action="store_true", help="collect: take the compacted plans now")
     args = parser.parse_args()
     if args.action == "stage":
-        stage(args.batch, args.source, args.limit, dry_run=args.dry_run)
+        stage(args.batch, args.source, args.limit, dry_run=args.dry_run, only=args.keys)
     elif args.action == "submit":
         submit(args.batch)
     elif args.action == "status":
