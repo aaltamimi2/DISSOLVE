@@ -1,15 +1,15 @@
 {
-  "utc": "2026-10-09T01:44:29.972236+00:00",
+  "utc": "2026-10-09T05:14:03.248745+00:00",
   "counts": {
-    "converged": 694,
+    "converged": 916,
     "failed": 1,
     "rejected": 4,
     "running": 53,
     "awaiting_verification": 0,
     "retry_pending": 0,
-    "not_yet_run": 148,
-    "not_staged": 14,
-    "denominator": 914
+    "not_yet_run": 240,
+    "not_staged": 0,
+    "denominator": 1214
   },
   "chunks": {
     "c00": {
@@ -90,35 +90,68 @@
       "denominator": 100
     },
     "c07": {
-      "converged": 9,
+      "converged": 100,
       "failed": 0,
       "rejected": 0,
-      "running": 5,
+      "running": 0,
       "awaiting_verification": 0,
       "retry_pending": 0,
-      "not_yet_run": 86,
+      "not_yet_run": 0,
       "not_staged": 0,
       "denominator": 100
     },
     "c08": {
-      "converged": 72,
+      "converged": 98,
       "failed": 0,
       "rejected": 1,
-      "running": 16,
+      "running": 0,
       "awaiting_verification": 0,
       "retry_pending": 0,
-      "not_yet_run": 10,
+      "not_yet_run": 0,
       "not_staged": 0,
       "denominator": 99
     },
     "c09": {
-      "converged": 16,
+      "converged": 94,
       "failed": 0,
       "rejected": 0,
-      "running": 32,
+      "running": 6,
       "awaiting_verification": 0,
       "retry_pending": 0,
-      "not_yet_run": 52,
+      "not_yet_run": 0,
+      "not_staged": 0,
+      "denominator": 100
+    },
+    "c10": {
+      "converged": 25,
+      "failed": 0,
+      "rejected": 0,
+      "running": 16,
+      "awaiting_verification": 0,
+      "retry_pending": 0,
+      "not_yet_run": 59,
+      "not_staged": 0,
+      "denominator": 100
+    },
+    "c11": {
+      "converged": 1,
+      "failed": 0,
+      "rejected": 0,
+      "running": 9,
+      "awaiting_verification": 0,
+      "retry_pending": 0,
+      "not_yet_run": 90,
+      "not_staged": 0,
+      "denominator": 100
+    },
+    "c12": {
+      "converged": 1,
+      "failed": 0,
+      "rejected": 0,
+      "running": 14,
+      "awaiting_verification": 0,
+      "retry_pending": 0,
+      "not_yet_run": 85,
       "not_staged": 0,
       "denominator": 100
     },
@@ -126,11 +159,11 @@
       "converged": 0,
       "failed": 0,
       "rejected": 0,
-      "running": 0,
+      "running": 8,
       "awaiting_verification": 0,
       "retry_pending": 0,
-      "not_yet_run": 0,
-      "not_staged": 14,
+      "not_yet_run": 6,
+      "not_staged": 0,
       "denominator": 14
     }
   },
@@ -138,12 +171,13 @@
     "mmff_parameters_unavailable": 1,
     "return_integrity_or_connectivity": 4
   },
-  "measured_orca_hours": 214.41829722818215,
-  "measured_structures": 698,
-  "fit_hours_of_measured": 238.69308333333336,
+  "measured_orca_hours": 419.6378976277749,
+  "measured_structures": 920,
+  "fit_hours_of_measured": 453.3413611111112,
   "cpu_models": {
-    "AMD EPYC 7763 64-Core Processor": 614,
-    "AMD EPYC 7513 32-Core Processor": 89,
-    "AMD EPYC 7272 12-Core Processor": 48
+    "AMD EPYC 7763 64-Core Processor": 710,
+    "AMD EPYC 7513 32-Core Processor": 140,
+    "AMD EPYC 7272 12-Core Processor": 115,
+    "AMD EPYC 7773X 64-Core Processor": 8
   }
 }

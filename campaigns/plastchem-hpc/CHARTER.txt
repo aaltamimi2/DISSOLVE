@@ -1313,3 +1313,23 @@ A-13 NOTE (2026-10-09 01:42 UTC, coverage lane) — NAPLES (EPYC 7401) ADMITTED;
    way. Not admitted. The admitted ORCA pools are the AVX2 AMD types: EPYC 7763 (reference), 7773X, 7513, 7272 and
    7401. genoa-gpu and sapphire-gpu (both AVX-512) stay queued; they are expected to behave like Genoa and Skylake and
    are reported when they run.
+
+A-13 NOTE (2026-10-09 03:03 UTC, coverage lane) — RELEASE promotion-v6: 7,945 COMPUTED; BENZOTHIAZOLES FAMILY; 88.0%
+1. /mnt/r/plastchem-euler/promotion-v6 (manifest c93e6801...; promotion-v5 cb36fa2e... unchanged beneath it): 8,020
+   status rows, 7,945 computed (+153, batch t05): 8 coverage structures of chunk c05, 93 of c06 and 52 of c08, the
+   last the first computed on the admitted Milan-GPU nodes (AMD EPYC 7513). One D-IDENT rejection added (c08).
+2. Families: Benzothiazoles (charter item 8c: 10 named members of PlastChem's benzothiazole group are computed, past
+   the three the item asks for). A member carries the benzothiazole ring itself (aromatic or the 2(3H)-thione), so
+   1,2-benzisothiazole, an isomer, stays out: 9 computed. Organophosphates 70, Siloxanes and silanes 151, Azo dyes 28.
+   670 parent aliases; 29 abbreviations; 'Phthalate' withheld.
+3. Coverage (anaconda RDKit 2023.09.2): 8,467 of 9,627 simulable entries (88.0%; v5 86.3%); 679 short of 95% (the
+   cheapest route: about 640 structures, 680 ORCA CPU-hours by the fit); 1,118 structures still to compute
+   (reports/plastchem-coverage-2026-10-09-v06). The archive README's shares now come from the counts.
+4. Archives: set promotion-v6 (surfaces 9.7 MB, ORCA files 445 KB, 153 rows each) appended; no part rewritten; no
+   credential marker.
+5. DISSOLVE 9a869ae9 on main. Full suite 2,284 passed, 3 skipped, audit 0, home writes 0: the third skip is the TEA
+   group-meeting test, whose conda env the owner removed on purpose (too large, checked safe); suites read 3 skipped
+   from now on. Sync: main 9a869ae9 | main-backup 9a869ae9 | main-cleanup-frontend 57cd4925 = main + 39 frontend
+   commits, behind main by 0. Deploy 1f0734ed ACTIVE at 03:02 UTC, live contaminants_computed 7945. Live check: "Which
+   benzothiazoles leach from polypropylene into ethanol?" screened the family's 9 computed members
+   (2-mercaptobenzothiazole logP 3.04) and named the 6 not computed yet.

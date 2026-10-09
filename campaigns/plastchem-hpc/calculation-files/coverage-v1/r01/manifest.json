@@ -603,5 +603,37 @@
     "record_sha256": "ffc774004b1fa6774111d927553f467223af9b058140ae4490bf91dd9e6d0137"
    }
   }
+ ],
+ "admitted": [
+  {
+   "cpu_model": "AMD EPYC 7763 64-Core Processor",
+   "partition": "research",
+   "constraint": "milan&cpu",
+   "basis": "the campaign's reference CPU (A-2); no check needed"
+  },
+  {
+   "cpu_model": "AMD EPYC 7513 32-Core Processor",
+   "partition": "research",
+   "constraint": "milan&gpu",
+   "basis": "reproduction check milan-gpu passed 2026-10-08T21:39:55+00:00"
+  },
+  {
+   "cpu_model": "AMD EPYC 7773X 64-Core Processor",
+   "partition": "research",
+   "constraint": "milan-x",
+   "basis": "reproduction check milan-x passed 2026-10-08T21:36:57+00:00"
+  },
+  {
+   "cpu_model": "AMD EPYC 7401 24-Core Processor",
+   "partition": "research",
+   "constraint": "naples",
+   "basis": "reproduction check naples-gpu passed 2026-10-09T01:38:47+00:00"
+  },
+  {
+   "cpu_model": "AMD EPYC 7272 12-Core Processor",
+   "partition": "research",
+   "constraint": "rome",
+   "basis": "reproduction check rome-gpu passed 2026-10-09T00:45:45+00:00"
+  }
  ]
 }
