@@ -1,15 +1,15 @@
 {
-  "utc": "2026-10-08T22:11:32.802500+00:00",
+  "utc": "2026-10-09T01:44:29.972236+00:00",
   "counts": {
-    "converged": 588,
+    "converged": 694,
     "failed": 1,
-    "rejected": 3,
-    "running": 17,
+    "rejected": 4,
+    "running": 53,
     "awaiting_verification": 0,
     "retry_pending": 0,
-    "not_yet_run": 191,
+    "not_yet_run": 148,
     "not_staged": 14,
-    "denominator": 814
+    "denominator": 914
   },
   "chunks": {
     "c00": {
@@ -79,37 +79,48 @@
       "denominator": 100
     },
     "c06": {
-      "converged": 89,
+      "converged": 98,
       "failed": 0,
       "rejected": 2,
-      "running": 1,
+      "running": 0,
       "awaiting_verification": 0,
       "retry_pending": 0,
-      "not_yet_run": 8,
+      "not_yet_run": 0,
       "not_staged": 0,
       "denominator": 100
     },
     "c07": {
-      "converged": 0,
+      "converged": 9,
       "failed": 0,
       "rejected": 0,
-      "running": 0,
+      "running": 5,
       "awaiting_verification": 0,
       "retry_pending": 0,
-      "not_yet_run": 100,
+      "not_yet_run": 86,
       "not_staged": 0,
       "denominator": 100
     },
     "c08": {
-      "converged": 0,
+      "converged": 72,
       "failed": 0,
-      "rejected": 0,
+      "rejected": 1,
       "running": 16,
       "awaiting_verification": 0,
       "retry_pending": 0,
-      "not_yet_run": 83,
+      "not_yet_run": 10,
       "not_staged": 0,
       "denominator": 99
+    },
+    "c09": {
+      "converged": 16,
+      "failed": 0,
+      "rejected": 0,
+      "running": 32,
+      "awaiting_verification": 0,
+      "retry_pending": 0,
+      "not_yet_run": 52,
+      "not_staged": 0,
+      "denominator": 100
     },
     "r01": {
       "converged": 0,
@@ -125,13 +136,14 @@
   },
   "failures_by_mode": {
     "mmff_parameters_unavailable": 1,
-    "return_integrity_or_connectivity": 3
+    "return_integrity_or_connectivity": 4
   },
-  "measured_orca_hours": 141.61399224509333,
-  "measured_structures": 591,
-  "fit_hours_of_measured": 158.93352777777793,
+  "measured_orca_hours": 214.41829722818215,
+  "measured_structures": 698,
+  "fit_hours_of_measured": 238.69308333333336,
   "cpu_models": {
-    "AMD EPYC 7763 64-Core Processor": 592,
-    "AMD EPYC 7513 32-Core Processor": 16
+    "AMD EPYC 7763 64-Core Processor": 614,
+    "AMD EPYC 7513 32-Core Processor": 89,
+    "AMD EPYC 7272 12-Core Processor": 48
   }
 }

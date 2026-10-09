@@ -1265,3 +1265,51 @@ rerun from identical input.xyz with the unchanged recipe.
 4. Use: chunk c08 (99 structures; triphenyl phosphate runs in c00) is staged with the new allow-list and submitted to
    milan&gpu as a bounded array (79752, throttle 99; 6 started at once) while c07 (100) waits in the Milan pool behind
    higher-priority jobs. The Milan-pool cap of 64 is unchanged; every row keeps its CPU model.
+
+A-13 NOTE (2026-10-09 00:15 UTC, coverage lane) — RELEASE promotion-v5: 7,792 COMPUTED, TRIPHENYL PHOSPHATE LIVE; 86.3%
+1. /mnt/r/plastchem-euler/promotion-v5 (manifest cb36fa2e...; promotion-v4 16ea8c3e... unchanged beneath it): 7,866
+   status rows, 7,792 computed (+395): 280 coverage structures of chunks c02-c04 (batch t02), 114 of c04-c06 (t03),
+   and triphenyl phosphate (TPHP, PlastChem 1368; group c00, batch t04: 640 partition and 64 LLE rows), the owner's
+   request of 2026-10-08 20:47 UTC. Final failures added: 3 D-IDENT rejections (orders 463, 602, 611).
+2. Aliases: 610 parent aliases (every salt, ion or hydrate whose neutral parent is computed, the two v4 missed
+   included); the orchestrator's request (owner case Das et al. 2023, TBBPA in e-waste ABS), approved by the owner in
+   session: each number of a joined CAS field is an alias (65 joined rows, 139 numbers, none unresolved; 79-94-7 finds
+   Tetrabromobisphenol A), and the abbreviations TBBPA, TBBPA-DBPE, BDE-209, decaBDE, BTBPE, BADGE and TPHP (29
+   abbreviations in all); an abbreviation whose CAS two contaminants hold is refused. HBCDD and TPP are left out (a
+   generic CAS that is one isomer's; an ambiguous name).
+3. Families: Azo dyes (charter item 8c; 27 computed; PlastChem's azodyes group with the azo linkage itself, so its
+   benzidines stay out); Organophosphates 55 computed (TPHP among them), its description now naming the phosphites,
+   phosphine oxides, phosphines and phosphoramides PlastChem's group also holds; Siloxanes and silanes 111.
+   Benzothiazoles: not yet three computed members with names.
+4. Coverage (plastchem_coverage.py on the v5 asset, anaconda RDKit 2023.09.2): 8,306 of 9,627 simulable entries
+   (86.3%; promotion-v4 7,879, 81.8%), none any longer served only through an unlisted parent; 840 entries short of
+   95%; 1,271 structures still to compute (reports/plastchem-coverage-2026-10-08-v05).
+5. Archives: set promotion-v5, opencosmo-outputs-promotion-v5.tar.xz.part00 (1e6f0c3d..., 18.0 MB) and
+   orca-calculation-files-promotion-v5.tar.xz.part00 (cc6fc235..., 966 KB, 3,950 files), 395 rows each appended; no
+   existing part rewritten; no credential marker; TPHP filed under agent-families/Organophosphates.
+6. DISSOLVE: 07f4c5cf on main. Full suite 2,280 passed, 2 skipped, audit 0, home writes 0 (the first run, at 22:55
+   UTC, was stopped by Claude Code for low system memory and rerun at 23:54 on the owner's word). Sync: main 07f4c5cf
+   | main-backup 07f4c5cf | main-cleanup-frontend c5794a50 = main + 39 frontend commits, behind main by 0. Deploy:
+   e80bb921 ACTIVE at 00:14 UTC, live /api/health contaminants_computed 7792 (the card reads 7,792). Live check: "Does
+   triphenyl phosphate (TPHP) leach from polystyrene into methanol or into ethylene glycol, and which pulls more of it
+   out?" answered from the release by screen_contaminant_partitioning: logP(methanol/PS) -0.146 (K 0.71, miscible at
+   15 wt%), logP(ethylene glycol/PS) -0.795 (K 0.16, two liquid phases above 13 wt%).
+Next: c08 (milan&gpu) and c07 (Milan) continue; c09 is built and prepared next; CPU checks rome-gpu (DEHP done),
+naples-gpu and skylake-cpu are compared as they finish; promotion-v6 at the next 100 complete structures.
+
+A-13 NOTE (2026-10-09 00:46 UTC, coverage lane) — ORCA CPU TYPE ADMITTED: ROME (EPYC 7272)
+1. The reproduction check rome-gpu (euler17, research, constraint rome) passes 8 of 8: every energy, segment count,
+   area, volume and logP identical to the EPYC 7763 reference, DEHP included
+   (state/coverage-v1/cpu-checks/rome-gpu/comparison.json). AMD EPYC 7272 is in admitted.json from now on; chunks
+   staged after this read it into their manifests.
+2. Still running: naples-gpu (EPYC 7401) and skylake-cpu (Xeon Gold 5118, AVX-512), DEHP at 6 h; genoa-gpu and
+   sapphire-gpu queued. Admitted so far: EPYC 7763 (reference), 7773X, 7513, 7272; not admitted: EPYC 9634 (Genoa).
+
+A-13 NOTE (2026-10-09 01:42 UTC, coverage lane) — NAPLES (EPYC 7401) ADMITTED; SKYLAKE (XEON GOLD 5118) NOT
+1. naples-gpu (euler16, research): 8 of 8 identical to the EPYC 7763 reference, DEHP included; AMD EPYC 7401 is in
+   admitted.json from now on.
+2. skylake-cpu (euler157-158, research): 7 of 8 pass, DEHP fails with exactly Genoa's differences (energy 1.06e-4 Eh,
+   octanol-water logP 0.022): the two AVX-512 types agree with each other and differ from the AVX2 reference the same
+   way. Not admitted. The admitted ORCA pools are the AVX2 AMD types: EPYC 7763 (reference), 7773X, 7513, 7272 and
+   7401. genoa-gpu and sapphire-gpu (both AVX-512) stay queued; they are expected to behave like Genoa and Skylake and
+   are reported when they run.

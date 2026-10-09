@@ -192,8 +192,9 @@ status_text = (", ".join(status_parts[:-1]) + " and " + status_parts[-1] if len(
 status_text = status_text[0].upper() + status_text[1:]
 coverage_text = "\n\n".join(textwrap.fill(paragraph, 118) for paragraph in (
     f"That leaves {cov['simulable']:,} simulable entries. The release serves {cov['buckets']['served']:,} of them "
-    f"({cov['served_share']:.1%})"
-    + (f" and {parents:,} more through their parent ({cov['served_with_parents_share']:.1%} together)" if parents else "")
+    f"({cov['buckets']['served'] / cov['simulable']:.1%})"
+    + (f" and {parents:,} more through their parent ({(cov['buckets']['served'] + parents) / cov['simulable']:.1%} "
+       "together)" if parents else "")
     + f"; 95% needs {cov['entries_short_of_95_percent']:,} more entries. The {cov['structures_to_compute']:,} "
     f"structures still to compute are {by_elements.get('S, P or Si', 0):,} with sulfur, phosphorus or silicon (no tier "
     f"computed them before the coverage campaign), {by_elements.get('halogen', 0):,} halogenated and {by_elements.get('CHNO', 0):,} of "

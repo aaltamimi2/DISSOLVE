@@ -1,7 +1,7 @@
 {
-  "utc": "2026-10-08T18:14:08+00:00",
+  "utc": "2026-10-09T01:41:53+00:00",
   "tag": "skylake-cpu",
-  "overall": "incomplete",
+  "overall": "fail",
   "tolerance": {
     "energy_hartree": 1e-06,
     "area_relative": 0.001,
@@ -18,8 +18,8 @@
     "research"
   ],
   "counts": {
-    "pass": 7,
-    "waiting": 1
+    "fail": 1,
+    "pass": 7
   },
   "structures": [
     {
@@ -48,19 +48,19 @@
       "volume_relative_difference": 3.463052400869679e-09,
       "logp": {
         "reference": {
-          "octanol_water": 4.153874928506872,
-          "toluene_pe": 0.35470833745415276,
+          "octanol_water": 4.1538749285068715,
+          "toluene_pe": 0.3547083374541514,
           "ethanol_pe": 1.0675782348972689,
-          "acetone_pe": 1.0976605485114062
+          "acetone_pe": 1.0976605485114044
         },
         "candidate": {
-          "octanol_water": 4.153875394851264,
-          "toluene_pe": 0.3547081945411156,
-          "ethanol_pe": 1.0675779566447812,
-          "acetone_pe": 1.0976602358449659
+          "octanol_water": 4.153875394851267,
+          "toluene_pe": 0.3547081945411144,
+          "ethanol_pe": 1.0675779566447845,
+          "acetone_pe": 1.0976602358449676
         }
       },
-      "max_logp_difference": 4.6634439154757956e-07,
+      "max_logp_difference": 4.6634439510029324e-07,
       "wall_seconds": {
         "reference": 329.457487821579,
         "candidate": 677.4323664209805
@@ -74,8 +74,52 @@
       "covers": "C/H/O above 60 atoms: DEHP (66)",
       "atoms": 66,
       "reference_tier": "campaign-v1",
-      "verdict": "waiting",
-      "why": "the candidate run has not finished"
+      "reference_identity_verified": true,
+      "candidate_identity_verified": true,
+      "reference_perceived_inchikey": "BJQHLKABXJIVAM-BGYRXZFFSA-N",
+      "candidate_perceived_inchikey": "BJQHLKABXJIVAM-BGYRXZFFSA-N",
+      "candidate_cpu_model": "Intel(R) Xeon(R) Gold 5118 CPU @ 2.30GHz",
+      "candidate_node": "euler157.engr.wisc.edu",
+      "candidate_partition": "research",
+      "candidate_failure_mode": null,
+      "max_energy_difference_hartree": 0.00010592799594633107,
+      "opt_cycles": {
+        "reference": 62,
+        "candidate": 50
+      },
+      "segments": {
+        "reference": 3648,
+        "candidate": 3663
+      },
+      "area_relative_difference": 0.002488262573237413,
+      "volume_relative_difference": 0.000298375332787555,
+      "logp": {
+        "reference": {
+          "octanol_water": 10.911424229082845,
+          "toluene_pe": 0.9717358335596461,
+          "ethanol_pe": -0.5227861736056725,
+          "acetone_pe": 0.3271835236384803
+        },
+        "candidate": {
+          "octanol_water": 10.889525177337418,
+          "toluene_pe": 0.9767787789870301,
+          "ethanol_pe": -0.5238486752907406,
+          "acetone_pe": 0.3278382376123791
+        }
+      },
+      "max_logp_difference": 0.021899051745426945,
+      "wall_seconds": {
+        "reference": 17282.769501614384,
+        "candidate": 24611.807662604
+      },
+      "surface_identical": false,
+      "verdict": "fail",
+      "failures": [
+        "energy",
+        "segment count",
+        "area",
+        "logP"
+      ]
     },
     {
       "inchikey": "GLUCALKKMFBJEB-UHFFFAOYSA-N",
@@ -103,16 +147,16 @@
       "volume_relative_difference": 5.378990788814924e-10,
       "logp": {
         "reference": {
-          "octanol_water": 3.9466565896932826,
-          "toluene_pe": 0.7299138670663782,
-          "ethanol_pe": 1.5439359642794084,
-          "acetone_pe": 2.3781941041334917
+          "octanol_water": 3.946656589693281,
+          "toluene_pe": 0.7299138670663777,
+          "ethanol_pe": 1.5439359642794104,
+          "acetone_pe": 2.378194104133491
         },
         "candidate": {
-          "octanol_water": 3.946656090164696,
-          "toluene_pe": 0.7299140004977142,
-          "ethanol_pe": 1.5439366044885452,
-          "acetone_pe": 2.3781946204727054
+          "octanol_water": 3.9466560901646957,
+          "toluene_pe": 0.7299140004977132,
+          "ethanol_pe": 1.5439366044885472,
+          "acetone_pe": 2.3781946204727045
         }
       },
       "max_logp_difference": 6.40209136815173e-07,
@@ -150,19 +194,19 @@
       "volume_relative_difference": 6.433739956260559e-08,
       "logp": {
         "reference": {
-          "octanol_water": 3.591300679666617,
-          "toluene_pe": 0.6154025280303976,
-          "ethanol_pe": 2.5951552625142407,
-          "acetone_pe": 3.358437949700302
+          "octanol_water": 3.5913006796666154,
+          "toluene_pe": 0.6154025280303971,
+          "ethanol_pe": 2.595155262514241,
+          "acetone_pe": 3.358437949700301
         },
         "candidate": {
-          "octanol_water": 3.591300731420948,
-          "toluene_pe": 0.6154023320961337,
+          "octanol_water": 3.5913007314209473,
+          "toluene_pe": 0.6154023320961329,
           "ethanol_pe": 2.595154664166381,
-          "acetone_pe": 3.3584371857323547
+          "acetone_pe": 3.358437185732353
         }
       },
-      "max_logp_difference": 7.639679471260763e-07,
+      "max_logp_difference": 7.639679480142547e-07,
       "wall_seconds": {
         "reference": 308.17544212698704,
         "candidate": 451.5018623539945
@@ -197,16 +241,16 @@
       "volume_relative_difference": 1.4129057850169882e-09,
       "logp": {
         "reference": {
-          "octanol_water": 5.946273484078266,
-          "toluene_pe": 0.59262708297867,
-          "ethanol_pe": 4.112185245831798,
-          "acetone_pe": 4.757673477440981
+          "octanol_water": 5.946273484078263,
+          "toluene_pe": 0.5926270829786687,
+          "ethanol_pe": 4.1121852458318,
+          "acetone_pe": 4.757673477440979
         },
         "candidate": {
-          "octanol_water": 5.94627217214383,
-          "toluene_pe": 0.5926282744681473,
-          "ethanol_pe": 4.112193606163005,
-          "acetone_pe": 4.757681916687698
+          "octanol_water": 5.946272172143829,
+          "toluene_pe": 0.592628274468146,
+          "ethanol_pe": 4.1121936061630056,
+          "acetone_pe": 4.757681916687696
         }
       },
       "max_logp_difference": 8.439246717450999e-06,
@@ -244,16 +288,16 @@
       "volume_relative_difference": 0.0,
       "logp": {
         "reference": {
-          "octanol_water": 2.8646397950749614,
-          "toluene_pe": 0.08887397832242167,
-          "ethanol_pe": -0.3273012041672936,
-          "acetone_pe": 0.14519746628335853
+          "octanol_water": 2.864639795074961,
+          "toluene_pe": 0.088873978322421,
+          "ethanol_pe": -0.32730120416729175,
+          "acetone_pe": 0.1451974662833594
         },
         "candidate": {
-          "octanol_water": 2.8646397950749614,
-          "toluene_pe": 0.08887397832242167,
-          "ethanol_pe": -0.3273012041672936,
-          "acetone_pe": 0.14519746628335853
+          "octanol_water": 2.864639795074961,
+          "toluene_pe": 0.088873978322421,
+          "ethanol_pe": -0.32730120416729175,
+          "acetone_pe": 0.1451974662833594
         }
       },
       "max_logp_difference": 0.0,
@@ -291,16 +335,16 @@
       "volume_relative_difference": 3.39913081857884e-08,
       "logp": {
         "reference": {
-          "octanol_water": 1.0861836114967995,
-          "toluene_pe": 0.6657001204572395,
-          "ethanol_pe": 1.240953501974351,
-          "acetone_pe": 0.9399594519599734
+          "octanol_water": 1.086183611496798,
+          "toluene_pe": 0.6657001204572387,
+          "ethanol_pe": 1.2409535019743525,
+          "acetone_pe": 0.9399594519599727
         },
         "candidate": {
-          "octanol_water": 1.0861837978067674,
-          "toluene_pe": 0.6657000599480385,
-          "ethanol_pe": 1.2409531642159788,
-          "acetone_pe": 0.9399593415078538
+          "octanol_water": 1.086183797806768,
+          "toluene_pe": 0.665700059948038,
+          "ethanol_pe": 1.2409531642159803,
+          "acetone_pe": 0.9399593415078545
         }
       },
       "max_logp_difference": 3.377583721597688e-07,
@@ -338,16 +382,16 @@
       "volume_relative_difference": 0.0,
       "logp": {
         "reference": {
-          "octanol_water": 3.4639032610582325,
-          "toluene_pe": 0.1930743459790066,
-          "ethanol_pe": -0.18952615947913584,
-          "acetone_pe": -0.007479137977278013
+          "octanol_water": 3.4639032610582317,
+          "toluene_pe": 0.19307434597900594,
+          "ethanol_pe": -0.1895261594791346,
+          "acetone_pe": -0.007479137977278689
         },
         "candidate": {
-          "octanol_water": 3.4639032610582325,
-          "toluene_pe": 0.1930743459790066,
-          "ethanol_pe": -0.18952615947913584,
-          "acetone_pe": -0.007479137977278013
+          "octanol_water": 3.4639032610582317,
+          "toluene_pe": 0.19307434597900594,
+          "ethanol_pe": -0.1895261594791346,
+          "acetone_pe": -0.007479137977278689
         }
       },
       "max_logp_difference": 0.0,

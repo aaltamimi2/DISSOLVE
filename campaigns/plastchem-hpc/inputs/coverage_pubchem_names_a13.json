@@ -20,12 +20,26 @@
   "retrieved_utc": "2026-10-08T17:26:02Z",
   "title": "2,5-Diamino-1,4-benzenedithiol"
  },
+ "ANQQFIVHXBBRHV-UHFFFAOYSA-N": {
+  "cid": 91389,
+  "iupac": "6-[(4-aminophenyl)diazenyl]-5-hydroxynaphthalene-1-sulfonic acid",
+  "records": 1,
+  "retrieved_utc": "2026-10-09T00:46:06Z",
+  "title": "6-[2-(4-Aminophenyl)diazenyl]-5-hydroxy-1-naphthalenesulfonic acid"
+ },
  "AWYFNIZYMPNGAI-UHFFFAOYSA-N": {
   "cid": 8120,
   "iupac": "2-[bis(sulfanyl)methylideneamino]ethyliminomethanedithiol",
   "records": 2,
   "retrieved_utc": "2026-10-08T17:27:24Z",
   "title": null
+ },
+ "AZEROKRLLWBBAK-UHFFFAOYSA-N": {
+  "cid": 76387,
+  "iupac": "2-[2-[4-(2,4,4-trimethylpentan-2-yl)phenoxy]ethoxy]ethanesulfonic acid",
+  "records": 1,
+  "retrieved_utc": "2026-10-09T00:46:11Z",
+  "title": "2-[2-[4-(2,4,4-Trimethylpentan-2-yl)phenoxy]ethoxy]ethanesulfonic acid"
  },
  "BFAGCVQXFXZIDM-UHFFFAOYSA-N": {
   "cid": 80721,
@@ -48,12 +62,33 @@
   "retrieved_utc": "2026-10-08T17:27:25Z",
   "title": "7-Hydroxycoumarin-4-acetic acid"
  },
+ "BOWOHQHIYFGIPV-UHFFFAOYSA-N": {
+  "cid": 112199,
+  "iupac": "2-[2-[2-(2,4,4-trimethylpentyl)phenoxy]ethoxy]ethanesulfonic acid",
+  "records": 1,
+  "retrieved_utc": "2026-10-09T00:46:12Z",
+  "title": "2-[2-[2-(2,4,4-Trimethylpentyl)phenoxy]ethoxy]ethanesulfonic acid"
+ },
  "BRWAZZQVWBDAER-UHFFFAOYSA-N": {
   "cid": 136088700,
   "iupac": "cyclohexyl-hydroxyimino-oxidoazanium",
   "records": 1,
   "retrieved_utc": "2026-10-08T17:15:17Z",
   "title": "N-Nitroso N-Hydroxy Cyclohexanamine"
+ },
+ "CACRRXGTWZXOAU-UHFFFAOYSA-N": {
+  "cid": 83799,
+  "iupac": "octadecane-1-sulfonic acid",
+  "records": 1,
+  "retrieved_utc": "2026-10-09T00:46:03Z",
+  "title": "1-Octadecanesulfonic acid"
+ },
+ "CBCQTCPKFYFJEU-UHFFFAOYSA-N": {
+  "cid": 70207,
+  "iupac": "1,4-dioxo-1,4-dipentoxybutane-2-sulfonic acid",
+  "records": 1,
+  "retrieved_utc": "2026-10-09T00:46:04Z",
+  "title": "Dipentyl sulfosuccinate"
  },
  "CCTFAOUOYLVUFG-UHFFFAOYSA-N": {
   "cid": 1969,
@@ -83,6 +118,27 @@
   "retrieved_utc": "2026-10-08T17:26:03Z",
   "title": "L-Ascorbic Acid"
  },
+ "CJAXBZSIMAURNW-UHFFFAOYSA-N": {
+  "cid": 145865716,
+  "iupac": "2,2-difluoro-2-[[2,2,4,5-tetrafluoro-5-(trifluoromethoxy)-1,3-dioxolan-4-yl]oxy]acetic acid",
+  "records": 1,
+  "retrieved_utc": "2026-10-09T00:46:06Z",
+  "title": "Difluoro{[2,2,4,5-tetrafluoro-5-(trifluoromethoxy)-1,3-dioxolan-4-yl]oxy}acetic acid"
+ },
+ "CJWXGVNXFJTQFT-UHFFFAOYSA-N": {
+  "cid": 18336,
+  "iupac": "2-(2-dodecoxyethoxy)ethyl hydrogen sulfate",
+  "records": 1,
+  "retrieved_utc": "2026-10-09T00:46:10Z",
+  "title": "Laureth-2 sulfate"
+ },
+ "CLJDUFMUISGSEC-UHFFFAOYSA-N": {
+  "cid": 102796,
+  "iupac": "1,4-bis(4-methylpentan-2-yloxy)-1,4-dioxobutane-2-sulfonic acid",
+  "records": 1,
+  "retrieved_utc": "2026-10-09T01:44:40Z",
+  "title": "Sulfosuccinic acid di(1-methylisopentyl) ester"
+ },
  "CMGDVUCDZOBDNL-UHFFFAOYSA-N": {
   "cid": 122499,
   "iupac": "4-methyl-2H-benzotriazole",
@@ -104,6 +160,13 @@
   "retrieved_utc": "2026-10-08T18:48:29Z",
   "title": "2-Butyloctyl hydrogen sulfate"
  },
+ "DCYBHNIOTZBCFS-UHFFFAOYSA-N": {
+  "cid": 60996,
+  "iupac": "2-amino-5-[(4-sulfophenyl)diazenyl]benzenesulfonic acid",
+  "records": 1,
+  "retrieved_utc": "2026-10-09T00:46:10Z",
+  "title": "4-Aminoazobenzene-3,4'-disulfonic acid"
+ },
  "DETXZQGDWUJKMO-UHFFFAOYSA-N": {
   "cid": 6411,
   "iupac": "hydroxymethanesulfonic acid",
@@ -117,6 +180,20 @@
   "records": 1,
   "retrieved_utc": "2026-10-08T16:37:15Z",
   "title": "Piperidin-2-imine"
+ },
+ "DIAXRUOBYBLEJE-UHFFFAOYSA-N": {
+  "cid": 103305,
+  "iupac": "6-amino-4-hydroxy-5-[[2-(trifluoromethyl)phenyl]diazenyl]naphthalene-2-sulfonic acid",
+  "records": 1,
+  "retrieved_utc": "2026-10-09T01:44:58Z",
+  "title": "Acid Red 337 free acid"
+ },
+ "DIOYAVUHUXAUPX-ZHACJKMWSA-N": {
+  "cid": 5879967,
+  "iupac": "2-[methyl-[(E)-octadec-9-enoyl]amino]acetic acid",
+  "records": 1,
+  "retrieved_utc": "2026-10-09T00:46:09Z",
+  "title": "2-[methyl-[(E)-octadec-9-enoyl]amino]acetic acid"
  },
  "DISXFZWKRTZTRI-UHFFFAOYSA-N": {
   "cid": 134784,
@@ -132,12 +209,26 @@
   "retrieved_utc": "2026-10-08T18:50:07Z",
   "title": "3,6-dibutylnaphthalene-1-sulfonic Acid"
  },
+ "DTHMQQOATHKDNI-UHFFFAOYSA-N": {
+  "cid": 105386,
+  "iupac": "2-[2-hydroxyethyl(octadecyl)amino]acetic acid",
+  "records": 1,
+  "retrieved_utc": "2026-10-09T01:44:41Z",
+  "title": "2-[2-Hydroxyethyl(octadecyl)amino]acetic acid"
+ },
  "FAIPQCJQEAURIB-UHFFFAOYSA-N": {
   "cid": 70114,
   "iupac": "piperidine-1-carbodithioic acid",
   "records": 1,
   "retrieved_utc": "2026-10-08T17:15:23Z",
   "title": "1-Piperidinecarbodithioic acid"
+ },
+ "FEOSEXDRZIIBNX-UHFFFAOYSA-N": {
+  "cid": 163000,
+  "iupac": "3-(3-sulfophenyl)sulfonylbenzenesulfonic acid",
+  "records": 1,
+  "retrieved_utc": "2026-10-09T01:44:43Z",
+  "title": "Benzenesulfonic acid, 3,3'-sulfonylbis-, disodium salt"
  },
  "FJLUATLTXUNBOT-UHFFFAOYSA-N": {
   "cid": 8926,
@@ -167,6 +258,20 @@
   "retrieved_utc": "2026-10-08T18:47:37Z",
   "title": "N8,N8,3-Trimethyl-2,8-phenazinediamine"
  },
+ "GMBNNHLANOGOAU-UHFFFAOYSA-N": {
+  "cid": 78075,
+  "iupac": "1-amino-4-(cyclohexylamino)-9,10-dioxoanthracene-2-sulfonic acid",
+  "records": 1,
+  "retrieved_utc": "2026-10-09T01:44:51Z",
+  "title": "Acid Blue 62 free acid"
+ },
+ "GOGLOAZETACXSR-UHFFFAOYSA-N": {
+  "cid": 3020188,
+  "iupac": "2-(1,3-dioxoinden-2-yl)quinoline-6-sulfonic acid",
+  "records": 1,
+  "retrieved_utc": "2026-10-09T00:46:09Z",
+  "title": "2-(2,3-Dihydro-1,3-dioxo-1H-inden-2-yl)-6-quinolinesulfonic acid"
+ },
  "GROJOWHVXQYQGN-UHFFFAOYSA-N": {
   "cid": 8771,
   "iupac": "(7-ethyl-2-methylundecan-4-yl) hydrogen sulfate",
@@ -181,12 +286,47 @@
   "retrieved_utc": "2026-10-08T17:25:59Z",
   "title": "Benzyl Carbamimidothioate"
  },
+ "GXJQMKFJQFGQKV-KHPPLWFESA-N": {
+  "cid": 6857837,
+  "iupac": "2-[methyl-[(Z)-octadec-9-enoyl]amino]ethanesulfonic acid",
+  "records": 1,
+  "retrieved_utc": "2026-10-09T01:44:55Z",
+  "title": "N-Methyl-N-oleoyltaurine"
+ },
+ "GYVKLDBUSXDBPV-ZCXUNETKSA-N": {
+  "cid": 6912970,
+  "iupac": "(Z)-octadec-1-ene-1-sulfonic acid",
+  "records": 1,
+  "retrieved_utc": "2026-10-09T00:46:01Z",
+  "title": "(Z)-octadec-1-ene-1-sulfonic acid"
+ },
+ "HCLVXVIAGDXHTL-UHFFFAOYSA-N": {
+  "cid": 23501951,
+  "iupac": "4-(5-butyldodecan-5-yloxy)-3-hydroxy-4-oxobutanoic acid",
+  "records": 1,
+  "retrieved_utc": "2026-10-09T00:46:13Z",
+  "title": "Dibutyloctyl Malate"
+ },
+ "HDLFODOGTBJVKF-UHFFFAOYSA-N": {
+  "cid": 11567168,
+  "iupac": "2,2-difluoro-2-[1,1,2,2-tetrafluoro-2-(1,1,2,2,2-pentafluoroethoxy)ethoxy]acetic acid",
+  "records": 1,
+  "retrieved_utc": "2026-10-09T00:46:07Z",
+  "title": "Perfluoro-3,6-dioxaoctanoic acid"
+ },
  "HILAYQUKKYWPJW-UHFFFAOYSA-N": {
   "cid": 8204,
   "iupac": "2-dodecylguanidine",
   "records": 1,
   "retrieved_utc": "2026-10-08T17:27:28Z",
   "title": "Guanidine, dodecyl-"
+ },
+ "HLISQZROVKYKGC-UHFFFAOYSA-N": {
+  "cid": 92043249,
+  "iupac": "3,6,7-tri(propan-2-yl)naphthalene-2-sulfonic acid",
+  "records": 1,
+  "retrieved_utc": "2026-10-09T00:46:02Z",
+  "title": "3,6,7-Tri(2-propanyl)naphthalene-2-sulfonic acid"
  },
  "HSQFVBWFPBKHEB-UHFFFAOYSA-N": {
   "cid": 27582,
@@ -209,12 +349,26 @@
   "retrieved_utc": "2026-10-08T16:37:16Z",
   "title": null
  },
+ "ICRFXIKCXYDMJD-UHFFFAOYSA-N": {
+  "cid": 9902445,
+  "iupac": "N'-benzyl-N'-ethenyl-N-(3-trimethoxysilylpropyl)ethane-1,2-diamine",
+  "records": 1,
+  "retrieved_utc": "2026-10-09T00:46:05Z",
+  "title": "3-((2-(N-Vinylbenzylamino)ethyl)amino)propyltrimethoxysilane"
+ },
  "IETWCRRCPURZOC-UHFFFAOYSA-N": {
   "cid": 11037,
   "iupac": "4-[[4-(dimethylamino)phenyl]diazenyl]benzenesulfonic acid",
   "records": 2,
   "retrieved_utc": "2026-10-08T18:50:02Z",
   "title": "Benzenesulfonic acid, 4-(2-(4-(dimethylamino)phenyl)diazenyl)-"
+ },
+ "IGSYEZFZPOZFNC-DMAJVUHCSA-N": {
+  "cid": 91847812,
+  "iupac": "(2S,3S,4S,5S,6R)-6-[(2S,3S,4R,5S,6R)-2-carboxy-4,5,6-trihydroxyoxan-3-yl]oxy-3,4,5-trihydroxyoxane-2-carboxylic acid",
+  "records": 1,
+  "retrieved_utc": "2026-10-09T01:44:41Z",
+  "title": "GlyTouCan:G06440CO"
  },
  "IKNDGHRNXGEHTO-UHFFFAOYSA-N": {
   "cid": 62847,
@@ -237,12 +391,40 @@
   "retrieved_utc": "2026-10-08T17:26:01Z",
   "title": "N-Aminoethyl-2-aminoethanesulfonic acid"
  },
+ "IYHIFXGFKVJNBB-UHFFFAOYSA-N": {
+  "cid": 21239,
+  "iupac": "5-chloro-2-[(2-hydroxynaphthalen-1-yl)diazenyl]-4-methylbenzenesulfonic acid",
+  "records": 1,
+  "retrieved_utc": "2026-10-09T01:44:42Z",
+  "title": "2-Chloro-5-[(2-hydroxy-1-naphthyl)azo]toluene-4-sulphonic acid"
+ },
  "JIVZKJJQOZQXQB-UHFFFAOYSA-N": {
   "cid": 5504,
   "iupac": "2-benzyl-4,5-dihydro-1H-imidazole",
   "records": 1,
   "retrieved_utc": "2026-10-08T17:15:23Z",
   "title": "Tolazoline"
+ },
+ "JRLHFEXLBNGRJO-UHFFFAOYSA-N": {
+  "cid": 22137,
+  "iupac": "4-hydroxy-3-[(2-methoxyphenyl)diazenyl]naphthalene-1-sulfonic acid",
+  "records": 1,
+  "retrieved_utc": "2026-10-09T00:46:11Z",
+  "title": "4-Hydroxy-3-[(2-methoxyphenyl)diazenyl]naphthalene-1-sulfonic acid"
+ },
+ "JSAKRLDIZOGQTN-UHFFFAOYSA-N": {
+  "cid": 15454,
+  "iupac": "4-[(2-hydroxynaphthalen-1-yl)diazenyl]naphthalene-1-sulfonic acid",
+  "records": 1,
+  "retrieved_utc": "2026-10-09T01:44:43Z",
+  "title": "1-Naphthalenesulfonic acid, 4-[2-(2-hydroxy-1-naphthalenyl)diazenyl]-"
+ },
+ "JYNBEDVXQNFTOX-UHFFFAOYSA-N": {
+  "cid": 22139,
+  "iupac": "3-hydroxy-4-[(4-methyl-2-sulfophenyl)diazenyl]naphthalene-2-carboxylic acid",
+  "records": 1,
+  "retrieved_utc": "2026-10-09T01:44:45Z",
+  "title": "3-Hydroxy-4-((4-methyl-2-sulphophenyl)azo)-2-naphthoic acid"
  },
  "KDWGEPODFRBACT-UHFFFAOYSA-N": {
   "cid": 10966885,
@@ -265,12 +447,26 @@
   "retrieved_utc": "2026-10-08T16:37:13Z",
   "title": "N-Ethylguanidine"
  },
+ "KEYWXKLGZZGHMT-UHFFFAOYSA-N": {
+  "cid": 17731,
+  "iupac": "6-hydroxy-5-[(4-sulfophenyl)diazenyl]naphthalene-2-sulfonic acid",
+  "records": 1,
+  "retrieved_utc": "2026-10-09T01:44:56Z",
+  "title": "6-Hydroxy-5-(4-sulfophenylazo)-2-naphthalenesulfonic acid"
+ },
  "KFNGWPXYNSJXOP-UHFFFAOYSA-N": {
   "cid": 159157,
   "iupac": "3-(2-methylprop-2-enoyloxy)propane-1-sulfonic acid",
   "records": 1,
   "retrieved_utc": "2026-10-08T17:26:40Z",
   "title": "3-Sulfopropyl methacrylate"
+ },
+ "KGIBGHABTNQVJX-UHFFFAOYSA-N": {
+  "cid": 82166,
+  "iupac": "heptadecyl hydrogen sulfate",
+  "records": 1,
+  "retrieved_utc": "2026-10-09T00:46:04Z",
+  "title": "Heptadecyl sulfate"
  },
  "KGQIPOITYJJHSU-UHFFFAOYSA-N": {
   "cid": 21282403,
@@ -377,6 +573,13 @@
   "retrieved_utc": "2026-10-08T17:15:21Z",
   "title": "1-Ethyl-3-(3'-dimethylaminopropyl)carbodiimide"
  },
+ "LMPDTDULXWWGSC-UHFFFAOYSA-N": {
+  "cid": 14178488,
+  "iupac": "[2-ethylhexoxy(hydroxy)phosphoryl] 2-ethylhexyl hydrogen phosphate",
+  "records": 1,
+  "retrieved_utc": "2026-10-09T01:44:51Z",
+  "title": "[2-Ethylhexoxy(hydroxy)phosphoryl] 2-ethylhexyl hydrogen phosphate"
+ },
  "LOUPRKONTZGTKE-UHFFFAOYSA-N": {
   "cid": 1065,
   "iupac": "(5-ethenyl-1-azabicyclo[2.2.2]octan-2-yl)-(6-methoxyquinolin-4-yl)methanol",
@@ -412,6 +615,13 @@
   "retrieved_utc": "2026-10-08T17:26:04Z",
   "title": "4-Styrenesulfonic acid"
  },
+ "MBJAPGAZEWPEFB-UHFFFAOYSA-N": {
+  "cid": 8337,
+  "iupac": "5-amino-2-(4-amino-2-sulfophenyl)benzenesulfonic acid",
+  "records": 2,
+  "retrieved_utc": "2026-10-09T00:46:07Z",
+  "title": "2,2'-Benzidinedisulfonic acid"
+ },
  "MDYRPGPFZSQVQO-UHFFFAOYSA-N": {
   "cid": 56841916,
   "iupac": "3-butylnaphthalene-1-sulfonic acid",
@@ -433,6 +643,13 @@
   "retrieved_utc": "2026-10-08T18:48:36Z",
   "title": "2-Anthraquinonesulfonic acid"
  },
+ "MPVDXIMFBOLMNW-UHFFFAOYSA-N": {
+  "cid": 16016,
+  "iupac": "7-hydroxy-8-phenyldiazenylnaphthalene-1,3-disulfonic acid",
+  "records": 1,
+  "retrieved_utc": "2026-10-09T01:44:57Z",
+  "title": "1,3-Naphthalenedisulfonic acid, 7-hydroxy-8-(2-phenyldiazenyl)"
+ },
  "MQSDEYQNRWICCX-UHFFFAOYSA-N": {
   "cid": 18552320,
   "iupac": "1-octyl-2H-tetrazole-5-thione",
@@ -446,6 +663,13 @@
   "records": 1,
   "retrieved_utc": "2026-10-08T16:37:14Z",
   "title": "2-Methyl-2-butanol"
+ },
+ "MUFPRITXEIBEMS-UHFFFAOYSA-N": {
+  "cid": 18612,
+  "iupac": "4-[(4-amino-3-methylphenyl)-(4-imino-3-methylcyclohexa-2,5-dien-1-ylidene)methyl]-2-methylaniline",
+  "records": 1,
+  "retrieved_utc": "2026-10-09T00:45:58Z",
+  "title": "New fuchsin free base"
  },
  "MUQNAPSBHXFMHT-UHFFFAOYSA-N": {
   "cid": 81890,
@@ -461,12 +685,33 @@
   "retrieved_utc": "2026-10-08T16:37:19Z",
   "title": "Dimethyldithiocarbamic acid"
  },
+ "NGAYFLKUCNJGAU-UPHRSURJSA-N": {
+  "cid": 57488655,
+  "iupac": "2-[(Z)-4-oxo-4-(2-sulfoethoxy)but-2-enoyl]oxyethanesulfonic acid",
+  "records": 1,
+  "retrieved_utc": "2026-10-09T00:46:00Z",
+  "title": "Maleoyl diisethionic acid"
+ },
  "NGOZDSMNMIRDFP-UHFFFAOYSA-N": {
   "cid": 104234,
   "iupac": "2-[methyl(tetradecanoyl)amino]acetic acid",
   "records": 1,
   "retrieved_utc": "2026-10-08T18:50:01Z",
   "title": "Myristoyl Sarcosine"
+ },
+ "NISZMWZPLJGKCC-UHFFFAOYSA-N": {
+  "cid": 75447,
+  "iupac": "6-amino-2-(4-methylphenyl)-1,3-dioxobenzo[de]isoquinoline-5-sulfonic acid",
+  "records": 1,
+  "retrieved_utc": "2026-10-09T01:44:44Z",
+  "title": "6-Amino-2-(4-methylphenyl)-1,3-dioxo-2,3-dihydro-1H-benzo[de]isoquinoline-5-sulfonic acid"
+ },
+ "NMZURFAPYNEBQQ-UHFFFAOYSA-N": {
+  "cid": 82671,
+  "iupac": "bis(4-tert-butylphenyl) hydrogen phosphate",
+  "records": 1,
+  "retrieved_utc": "2026-10-09T00:46:14Z",
+  "title": "Phenol, 4-(1,1-dimethylethyl)-, 1,1'-(hydrogen phosphate)"
  },
  "NNARPPSIYMCXMB-UHFFFAOYSA-N": {
   "cid": 61070,
@@ -489,6 +734,13 @@
   "retrieved_utc": "2026-10-08T18:50:01Z",
   "title": "4-[3-(4-chlorophenyl)-4,5-dihydro-1H-pyrazol-1-yl]benzoic acid"
  },
+ "NOTIZSFOCIIJFB-UHFFFAOYSA-N": {
+  "cid": 13909116,
+  "iupac": "1,2,2,3,3,4,5,5,6,6-decafluoro-4-(trifluoromethyl)cyclohexane-1-sulfonic acid",
+  "records": 1,
+  "retrieved_utc": "2026-10-09T01:44:58Z",
+  "title": "Perfluoro methyl cyclohexane sulfonate"
+ },
  "NXTVQNIVUKXOIL-UHFFFAOYSA-N": {
   "cid": 31388,
   "iupac": "N-chloro-4-methylbenzenesulfonamide",
@@ -502,6 +754,13 @@
   "records": 1,
   "retrieved_utc": "2026-10-08T17:26:31Z",
   "title": "3-Sulfopropyl acrylate"
+ },
+ "OPBOOIFXQHPAPJ-UHFFFAOYSA-N": {
+  "cid": 22916,
+  "iupac": "1-amino-4-anilino-9,10-dioxoanthracene-2-sulfonic acid",
+  "records": 1,
+  "retrieved_utc": "2026-10-09T01:44:50Z",
+  "title": "1-Amino-9,10-dihydro-9,10-dioxo-4-(phenylamino)-2-anthracenesulfonic acid"
  },
  "PCERBVBQNKZCFS-UHFFFAOYSA-N": {
   "cid": 72684,
@@ -517,6 +776,13 @@
   "retrieved_utc": "2026-10-08T18:48:32Z",
   "title": "1-(Naphthalen-1-yl)-2-(pyrrolidin-1-yl)pentan-1-one"
  },
+ "PJYHHQWKRMLIKE-UHFFFAOYSA-N": {
+  "cid": 162420571,
+  "iupac": "2-[4-[4-(4-chlorophenyl)-4,5-dihydro-1H-pyrazol-3-yl]phenyl]sulfonyl-N,N-dimethylethanamine",
+  "records": 1,
+  "retrieved_utc": "2026-10-09T01:44:46Z",
+  "title": "2-[4-[4-(4-chlorophenyl)-4,5-dihydro-1H-pyrazol-3-yl]phenyl]sulfonyl-N,N-dimethylethanamine"
+ },
  "PKLPQOJFHFGVBS-UHFFFAOYSA-N": {
   "cid": 54678494,
   "iupac": "3-acetyl-4-hydroxy-6-methylpyran-2-one",
@@ -530,6 +796,13 @@
   "records": 1,
   "retrieved_utc": "2026-10-08T18:47:35Z",
   "title": "Iminodisuccinic acid"
+ },
+ "PURJGKXXWJKIQR-UHFFFAOYSA-N": {
+  "cid": 10656,
+  "iupac": "4-[(4-hydroxynaphthalen-1-yl)diazenyl]benzenesulfonic acid",
+  "records": 1,
+  "retrieved_utc": "2026-10-09T00:45:57Z",
+  "title": "Benzenesulfonic acid, 4-(2-(4-hydroxy-1-naphthalenyl)diazenyl)-"
  },
  "QDCPNGVVOWVKJG-UHFFFAOYSA-N": {
   "cid": 166693,
@@ -551,6 +824,13 @@
   "records": 1,
   "retrieved_utc": "2026-10-08T18:47:33Z",
   "title": "4-((4-Hydroxybutoxy)carbonyl)benzoic acid"
+ },
+ "QPSVFNQMURAADJ-UHFFFAOYSA-N": {
+  "cid": 90918,
+  "iupac": "1,4-dicyclohexyloxy-1,4-dioxobutane-2-sulfonic acid",
+  "records": 1,
+  "retrieved_utc": "2026-10-09T00:46:13Z",
+  "title": "Dicyclohexyl sulfosuccinate"
  },
  "QTDIEDOANJISNP-UHFFFAOYSA-N": {
   "cid": 24761,
@@ -587,6 +867,13 @@
   "retrieved_utc": "2026-10-08T18:50:08Z",
   "title": "2-(benzenesulfonyl)-N-diazobenzenesulfonamide"
  },
+ "RDUJRVXKAIVTDH-UHFFFAOYSA-N": {
+  "cid": 11315,
+  "iupac": "4-[(2-hydroxynaphthalen-1-yl)diazenyl]benzenesulfonic acid",
+  "records": 1,
+  "retrieved_utc": "2026-10-09T00:45:58Z",
+  "title": "4-((2-Hydroxy-1-naphthyl)azo)benzenesulphonic acid"
+ },
  "RJNYNDHYSJRRDW-UHFFFAOYSA-N": {
   "cid": 65069,
   "iupac": "4-(pyridin-2-yldiazenyl)benzene-1,3-diol",
@@ -608,6 +895,20 @@
   "retrieved_utc": "2026-10-08T17:26:32Z",
   "title": "2,7-Diaminofluorene"
  },
+ "SOJKLCSQJMPLCK-UHFFFAOYSA-N": {
+  "cid": 24674,
+  "iupac": "4-[[3-[(2,4-diamino-5-methylphenyl)diazenyl]-4-methylphenyl]diazenyl]-6-methylbenzene-1,3-diamine",
+  "records": 1,
+  "retrieved_utc": "2026-10-09T01:44:46Z",
+  "title": "Bismarck Brown R Base"
+ },
+ "SOSQXPIKTBUEKF-UHFFFAOYSA-N": {
+  "cid": 82160,
+  "iupac": "1,4-dihexoxy-1,4-dioxobutane-2-sulfonic acid",
+  "records": 1,
+  "retrieved_utc": "2026-10-09T01:44:40Z",
+  "title": "Di-n-hexyl sulfosuccinate"
+ },
  "SZRLKIKBPASKQH-UHFFFAOYSA-N": {
   "cid": 8685,
   "iupac": "dibutylcarbamodithioic acid",
@@ -622,6 +923,20 @@
   "retrieved_utc": "2026-10-08T18:48:29Z",
   "title": "Lauryl Phosphate"
  },
+ "TXGIGTRUEITPSC-UHFFFAOYSA-N": {
+  "cid": 20734543,
+  "iupac": "3,3,4,4,5,5,6,6,6-nonafluorohexane-1-sulfonic acid",
+  "records": 1,
+  "retrieved_utc": "2026-10-09T00:45:57Z",
+  "title": "4:2 Fluorotelomer sulfonic acid"
+ },
+ "UHGIMQLJWRAPLT-UHFFFAOYSA-N": {
+  "cid": 76290,
+  "iupac": "octadecyl dihydrogen phosphate",
+  "records": 1,
+  "retrieved_utc": "2026-10-09T00:46:08Z",
+  "title": "Monostearyl phosphate"
+ },
  "UIIIBRHUICCMAI-UHFFFAOYSA-N": {
   "cid": 17238,
   "iupac": "prop-2-ene-1-sulfonic acid",
@@ -629,12 +944,26 @@
   "retrieved_utc": "2026-10-08T16:37:23Z",
   "title": "Prop-2-ene-1-sulfonic acid"
  },
+ "UJJIPRCLIYLSHI-UHFFFAOYSA-N": {
+  "cid": 76892,
+  "iupac": "2-[2-amino-5-[4-amino-3-(carboxymethoxy)phenyl]phenoxy]acetic acid",
+  "records": 1,
+  "retrieved_utc": "2026-10-09T00:46:00Z",
+  "title": "O,O'-(4,4'-Diaminobiphenyl-3,3'-ylene)di(glycollic acid)"
+ },
  "UOJYYXATTMQQNA-UHFFFAOYSA-N": {
   "cid": 7919,
   "iupac": "propan-2-yloxymethanedithioic acid",
   "records": 1,
   "retrieved_utc": "2026-10-08T17:15:15Z",
   "title": "Proxan"
+ },
+ "UPZKDDJKJWYWHQ-UHFFFAOYSA-N": {
+  "cid": 65204,
+  "iupac": "2-(3-amino-6-iminoxanthen-9-yl)benzoic acid",
+  "records": 2,
+  "retrieved_utc": "2026-10-09T00:45:59Z",
+  "title": "xanthylium, 3,6-diamino-9-(2-carboxyphenyl)-, inner salt"
  },
  "URLJMZWTXZTZRR-UHFFFAOYSA-N": {
   "cid": 5248,
@@ -713,6 +1042,13 @@
   "retrieved_utc": "2026-10-08T17:26:05Z",
   "title": "3,4-Dimethylbenzene-1-sulfonic acid"
  },
+ "WYPOCAVDDXABIF-UHFFFAOYSA-N": {
+  "cid": 14151265,
+  "iupac": "didecyl hydrogen phosphite",
+  "records": 1,
+  "retrieved_utc": "2026-10-09T00:46:15Z",
+  "title": "Didecyl hydrogen phosphite"
+ },
  "XAULISWKJQTUOD-UHFFFAOYSA-N": {
   "cid": 70229,
   "iupac": "2-butoxyethyl hydrogen sulfate",
@@ -769,12 +1105,33 @@
   "retrieved_utc": "2026-10-08T18:48:35Z",
   "title": "1,5-Naphthalenedisulfonic acid"
  },
+ "XXQVCGHGQCAKKA-UHFFFAOYSA-N": {
+  "cid": 62538,
+  "iupac": "2-[(4-hydroxy-9,10-dioxoanthracen-1-yl)amino]-5-methylbenzenesulfonic acid",
+  "records": 1,
+  "retrieved_utc": "2026-10-09T01:44:57Z",
+  "title": "Benzenesulfonic acid, 2-[(9,10-dihydro-4-hydroxy-9,10-dioxo-1-anthracenyl)amino]-5-methyl-"
+ },
  "YBBJKCMMCRQZMA-UHFFFAOYSA-N": {
   "cid": 1570,
   "iupac": "1-hydroxypyridine-2-thione",
   "records": 1,
   "retrieved_utc": "2026-10-08T16:37:24Z",
   "title": "Pyrithione"
+ },
+ "YDTZBKFQBHMJTA-UHFFFAOYSA-N": {
+  "cid": 71362977,
+  "iupac": "6-[[3-(cyclohexen-1-ylmethyl)-7-oxabicyclo[4.1.0]heptan-3-yl]methoxy]-6-oxohexanoic acid",
+  "records": 1,
+  "retrieved_utc": "2026-10-09T00:46:08Z",
+  "title": "6-[[3-(Cyclohexen-1-ylmethyl)-7-oxabicyclo[4.1.0]heptan-3-yl]methoxy]-6-oxohexanoic acid"
+ },
+ "YHPJLZIPELSPBU-UHFFFAOYSA-N": {
+  "cid": 20626,
+  "iupac": "5-[(4-chlorophenyl)diazenyl]-6-hydroxynaphthalene-2-sulfonic acid",
+  "records": 1,
+  "retrieved_utc": "2026-10-09T00:46:15Z",
+  "title": "2-Naphthalenesulfonic acid, 5-(4-chlorophenylazo)-6-hydroxy-"
  },
  "YLDBBIBJAUAZLM-UHFFFAOYSA-N": {
   "cid": 79798,
@@ -818,6 +1175,13 @@
   "retrieved_utc": "2026-10-08T17:27:29Z",
   "title": "N-Ethyl-N-methyl-3-(pyrrolidin-3-YL)benzamide"
  },
+ "ZHGLTPQKDYQQHI-UHFFFAOYSA-N": {
+  "cid": 44151515,
+  "iupac": "4-dodecan-4-yloxy-1,4-dioxo-1-prop-2-enoxybutane-2-sulfonic acid",
+  "records": 1,
+  "retrieved_utc": "2026-10-09T01:44:56Z",
+  "title": "4-Dodecan-4-yloxy-1,4-dioxo-1-prop-2-enoxybutane-2-sulfonic acid"
+ },
  "ZOOODBUHSVUZEM-UHFFFAOYSA-N": {
   "cid": 8823,
   "iupac": "ethoxymethanedithioic acid",
@@ -831,5 +1195,12 @@
   "records": 1,
   "retrieved_utc": "2026-10-08T18:48:32Z",
   "title": "Bis(trifluoromethane)sulfonimide"
+ },
+ "ZZCGIOXIFVEBPK-UHFFFAOYSA-N": {
+  "cid": 90341,
+  "iupac": "3,5-bis(2-hydroxyethoxycarbonyl)benzenesulfonic acid",
+  "records": 1,
+  "retrieved_utc": "2026-10-09T00:46:01Z",
+  "title": "Bis(2-hydroxyethyl) 5-sulfoisophthalic acid"
  }
 }

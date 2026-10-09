@@ -4822,7 +4822,8 @@ def test_contaminant_families_for_pickers():
     names = ["Phthalates", "Terephthalates", "Bisphenols", "Alkylphenols", "Antioxidants", "UV stabilizers",
              "Benzophenones", "Aromatic amines", "Slip agents", "Salicylates", "Parabens",
              "Organophosphates", "Siloxanes and silanes",  # the coverage campaign's families (A-13, promotion-v4)
-             "Azo dyes"]  # A-13 charter item 8c, promotion-v5
+             "Azo dyes",  # A-13 charter item 8c, promotion-v5
+             "Benzothiazoles"]  # A-13 charter item 8c, promotion-v6
     assert [(f["name"], f["count"], f["source"]) for f in families] == [
         *[(name, _family_counts(name)[0], "plastchem") for name in names], ("PFAS", 26, "workbook")]
     assert all(f["count"] == len(f["members"]) > 0 for f in families)
@@ -4843,6 +4844,20 @@ def test_the_azo_dye_family_holds_azo_compounds_not_their_benzidine_precursors()
     assert not {"3,3'-Dimethoxybenzidine", "3,3'-Dimethylbenzidine"} & names
     out = _data(contaminants.screen_contaminant_partitioning("PP", "ethanol", ["azo dyes"]))
     assert out["evaluated"] == _family_counts("Azo dyes")[0] >= 27 and out["unsupported_contaminants"] == []
+
+
+def test_the_benzothiazole_family_holds_the_ring_not_its_benzisothiazole_isomer():
+    """PlastChem's benzothiazole group also holds 1,2-benzisothiazole, whose ring joins N and S directly. The
+    Benzothiazoles family (A-13 charter item 8c, promotion-v6) takes the group's compounds with the benzothiazole ring
+    itself, the 2(3H)-thione tautomers included (2-mercaptobenzothiazole)."""
+    table = {f["name"]: f for f in contaminants._family_table()}
+    assert table["Benzothiazoles"]["basis"] == "PlastChem group benzothiazole; with a benzothiazole core"
+    names = {name for (name,) in contaminants._plastchem().execute(
+        "SELECT name FROM contaminants WHERE inchikey IN (SELECT unnest(?))", [table["Benzothiazoles"]["members"]]).fetchall()}
+    assert {"Benzothiazole", "2-Mercaptobenzothiazole", "2(3H)-Benzothiazolethione, 3-methyl-"} <= names
+    assert "1,2-Benzisothiazole" not in names
+    out = _data(contaminants.screen_contaminant_partitioning("PP", "ethanol", ["benzothiazoles"]))
+    assert out["evaluated"] == _family_counts("Benzothiazoles")[0] >= 9 and out["unsupported_contaminants"] == []
 
 
 def test_family_builder_refuses_ambiguous_names_and_says_why_members_are_missing(tmp_path, monkeypatch):

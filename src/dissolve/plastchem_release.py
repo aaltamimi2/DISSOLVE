@@ -301,6 +301,8 @@ _SMARTS = {
     # phthalates: a benzene-1,2-dicarboxylate diester whose ring carries nothing else (not a trimellitate, a
     # tetrahalophthalate or a fused-ring dicarboxylate)
     "ortho_phthalate_diester": "[#6;!$(C=O)]OC(=O)[c;R1]1[c;R1](C(=O)O[#6;!$(C=O)])[cH;R1][cH;R1][cH;R1][cH;R1]1",
+    # a benzene ring fused to a thiazole (N-C-S) ring, aromatic or as the 2(3H)-thione; not 1,2-benzisothiazole
+    "benzothiazole": "c1ccc2c(c1)[#7]~[#6]~[#16]2",
 }
 _ANTIOXIDANT = ("hindered_phenol", "cycloalkyl_phenol", "diarylamine", "phenylenediamine", "dihydroquinoline",
                 "gallate", "chromanol", "benzofuranone", "phosphite", "thiodipropionate")
@@ -371,6 +373,11 @@ _FAMILY_SPECS: tuple[dict[str, Any], ...] = (
     {"name": "Azo dyes", "term": "azo dyes", "group": "azodyes", "all": ("azo",),
      "aliases": ("azo dye", "azo colorants", "azo colourants", "azo pigments"),
      "description": "azo dyes and pigments", "examples": ("Sudan I", "Para Red", "Sudan II")},
+    # PlastChem's benzothiazole group also holds 1,2-benzisothiazole, an isomer: a member carries the benzothiazole ring
+    {"name": "Benzothiazoles", "term": "benzothiazoles", "group": "benzothiazole", "all": ("benzothiazole",),
+     "aliases": ("benzothiazole derivatives", "benzothiazole accelerators"),
+     "description": "benzothiazole rubber accelerators and their relatives",
+     "examples": ("Benzothiazole", "2-Mercaptobenzothiazole", "2-(Methylthio)benzothiazole")},
 )
 _ELEMENT_NAMES = {"F": "fluorine", "Cl": "chlorine", "Br": "bromine", "I": "iodine", "S": "sulfur", "P": "phosphorus",
                   "Si": "silicon", "B": "boron", "Se": "selenium"}
