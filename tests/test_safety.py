@@ -343,7 +343,7 @@ def test_green_screen_chem21_metric_stamps_eligible_set():
 
 
 def test_schema_count_stays_26():
-    assert len(tool_schemas()) == 26  # lookup_plastchem_contaminants added 2026-09-25
+    assert len(tool_schemas()) == 28  # lookup_plastchem_contaminants 2026-09-25, optimize_waste_pathway 2026-10-03, tea_tornado 2026-10-07
     names = {item["name"] for item in tool_schemas()}
     assert "score_chem21_she" not in names
     assert "estimate_thermal_properties" not in names
@@ -628,7 +628,7 @@ def test_planner_chem21_alias_resolves_to_worst_not_a_third_objective():
 def test_agent_surface_names_worst_of_three_as_the_default_chem21_metric():
     from dissolve.agent import tool_schemas
     schemas = {t["name"]: t for t in tool_schemas()}
-    assert len(schemas) == 26
+    assert len(schemas) == 28  # optimize_waste_pathway added 2026-10-03, tea_tornado 2026-10-07
     for name in ("screen_green_solvent_candidates", "screen_route_solvent_substitutions"):
         enum = schemas[name]["parameters"]["properties"]["metric"].get("enum")
         assert enum == ["g_score", "chem21", "chem21_safety", "chem21_worst"], (name, enum)
@@ -695,8 +695,8 @@ def _empty_payload(_url: str) -> dict:
 
 def test_registry_keeps_cid_tool_after_thermal_estimator_retirement():
     names = {tool.name for tool in agent.REGISTRY}
-    assert len(agent.REGISTRY) == 31  # lookup_plastchem_contaminants added 2026-09-25
-    assert len(EXPECTED_REGISTRY_NAMES) == 31
+    assert len(agent.REGISTRY) == 33  # lookup_plastchem_contaminants 2026-09-25, optimize_waste_pathway 2026-10-03, tea_tornado 2026-10-07
+    assert len(EXPECTED_REGISTRY_NAMES) == 33
     assert names == EXPECTED_REGISTRY_NAMES
     assert "fetch_solvent_safety_by_cid" in names
     assert "estimate_thermal_properties" not in names
@@ -951,9 +951,9 @@ def test_doctor_adds_snapshot_pin_after_registry_only(tmp_path, monkeypatch):
     assert names[assets_at + 2] == "Tool registry"
     assert names[assets_at + 3] == "PubChem safety snapshot"
     by_name = {c["name"]: c for c in report["checks"]}
-    assert by_name["Scientific assets"]["checked"] == 6
-    assert by_name["Scientific assets"]["detail"] == "6 checksums verified"
-    assert by_name["Tool registry"]["detail"] == "31 registered names"
+    assert by_name["Scientific assets"]["checked"] == 5
+    assert by_name["Scientific assets"]["detail"] == "5 checksums verified"
+    assert by_name["Tool registry"]["detail"] == "33 registered names"
     snap = by_name["PubChem safety snapshot"]
     assert snap["status"] == "pass"
     assert snap["digest"] == _SNAPSHOT_SHA256

@@ -1152,14 +1152,9 @@ def test_route_substitution_bound_count_separate_from_displayed():
 def test_unwired_names_do_not_call_engine():
     with _bound():
         assert UNWIRED == frozenset()
-        for name in (
-            "evaluate_stored_route_tea_lca",
-            "optimize_stored_route",
-            "pareto_optimize_stored_route",
-        ):
-            retired = dispatch(name)
-            assert retired["available"] is False
-            assert retired["refusal"] == "unknown_tool"
+        retired = dispatch("evaluate_stored_route_tea_lca")
+        assert retired["available"] is False
+        assert retired["refusal"] == "unknown_tool"
 
 
 def test_include_pubchem_wrapper_default_false():
@@ -1224,8 +1219,6 @@ def test_schemas_handle_only_on_consumer_and_omit_injected():
     assert wrap["process_config"]["type"] == "object"
     assert "evaluate_tea_lca_scenarios" not in schemas
     assert "evaluate_stored_route_tea_lca" not in schemas
-    assert "optimize_stored_route" not in schemas
-    assert "pareto_optimize_stored_route" not in schemas
     rm = schemas["screen_polymer_separation"]["parameters"]["properties"]["ranking_mode"]
     assert "target_dissolution" in rm["enum"]
     mt = schemas["lookup_hansen_parameters"]["parameters"]["properties"]["material_type"]
@@ -2287,9 +2280,9 @@ def test_doctor_checks_key_assets_registry_duckdb(tmp_path, monkeypatch):
     assert "duckdb" in names
     by_name = {c["name"]: c for c in report["checks"]}
     assert by_name["Tool registry"]["status"] == "pass"
-    assert by_name["Tool registry"]["detail"] == "31 registered names"
+    assert by_name["Tool registry"]["detail"] == "33 registered names"
     assert by_name["Tool registry"]["registered"] == len(EXPECTED_REGISTRY_NAMES)
-    assert len(EXPECTED_REGISTRY_NAMES) == 31
+    assert len(EXPECTED_REGISTRY_NAMES) == 33
     assert "fetch_solvent_safety_by_cid" in EXPECTED_REGISTRY_NAMES
     assert "estimate_thermal_properties" not in EXPECTED_REGISTRY_NAMES
     assert "normalize_feed_composition" not in EXPECTED_REGISTRY_NAMES
@@ -5618,7 +5611,7 @@ def test_planner_routes_process_rows_locators_are_not_applicable(monkeypatch):
         assert data.get("source") == "planner_routes"
 
 
-def test_planner_routes_residual_kwargs_are_not_applicable(monkeypatch):
+def test_planner_routes_residual_kwargs_are_unknown_extras(monkeypatch):
     def forbidden(*args, **kwargs):
         raise AssertionError("planner_routes must not start BioSTEAM")
 
@@ -5659,9 +5652,8 @@ def test_planner_routes_residual_kwargs_are_not_applicable(monkeypatch):
     for kwargs, payload in zip(residual_kwargs, refused):
         data = payload.get("data") or {}
         assert payload.get("available") is False, kwargs
-        assert payload.get("refusal") == "not_applicable_in_source", kwargs
-        assert data.get("inapplicable_fields") == list(kwargs), kwargs
-        assert data.get("source") == "planner_routes"
+        assert payload.get("refusal") == "unknown_process_field", kwargs
+        assert data.get("extra_keys") == list(kwargs), kwargs
 
 
 def test_planner_routes_objective_on_pareto_is_not_applicable(monkeypatch):
@@ -6730,8 +6722,8 @@ def test_off_default_six_literature_tools_absent_from_agent_list():
     assert LITERATURE_AGENT_TOOLS.isdisjoint(offered_tool_names())
     assert "ingest_literature_documents" in agent.BY_NAME
     assert "ingest_literature_graph" in agent.BY_NAME
-    assert len(EXPECTED_REGISTRY_NAMES) == 31
-    assert len(agent.REGISTRY) == 31
+    assert len(EXPECTED_REGISTRY_NAMES) == 33
+    assert len(agent.REGISTRY) == 33
 
 
 def test_corpus_offers_exactly_two_local_tools_and_network_does_not_fire(monkeypatch, tmp_path):
@@ -7076,3 +7068,96 @@ def test_evaluate_mode_through_the_wrapper_still_refuses_a_sweep_parameter(monke
         mode="evaluate", process_config=_public_from_record(record), parameter="solvent_price",
     ))
     assert payload.get("error_code") == "not_applicable_in_mode"
+
+
+def test_gemini_replay_sends_the_responses_to_parallel_calls_in_one_turn():
+    """Gemini refuses a request whose tool responses do not match the calls of the model turn one for one."""
+    messages = [
+        {"role": "system", "content": "s"}, {"role": "user", "content": "q"},
+        {"role": "assistant", "content": "", "tool_calls": [{"id": "1", "name": "a", "args": {}},
+                                                              {"id": "2", "name": "b", "args": {}},
+                                                              {"id": "3", "name": "c", "args": {}}]},
+        {"role": "tool", "name": "a", "content": '{"x": 1}'}, {"role": "tool", "name": "b", "content": '{"x": 2}'},
+        {"role": "tool", "name": "c", "content": "not json"},
+        {"role": "assistant", "content": "", "tool_calls": [{"id": "4", "name": "a", "args": {}}]},
+        {"role": "tool", "name": "a", "content": '{"x": 4}'},
+        {"role": "assistant", "content": "done"}, {"role": "user", "content": "next"},
+    ]
+    from dissolve import agent as agent_module
+    turns = agent_module._gen_contents(messages)
+    assert [(t.role, len(t.parts)) for t in turns] == [
+        ("user", 1), ("model", 3), ("user", 3), ("model", 1), ("user", 1), ("model", 1), ("user", 1)]
+    assert [p.function_response.name for p in turns[2].parts] == ["a", "b", "c"]
+    assert turns[2].parts[2].function_response.response == {"result": "not json"}
+
+
+def test_gemini_replay_keeps_a_thought_signature_with_its_call():
+    import base64
+    from dissolve import agent as agent_module
+    sig = base64.b64encode(b"sig").decode("ascii")
+    turns = agent_module._gen_contents([
+        {"role": "user", "content": "q"},
+        {"role": "assistant", "content": "", "tool_calls": [{"id": "1", "name": "a", "args": {}, "thought_signature": sig}]},
+    ])
+    assert turns[1].parts[0].thought_signature == b"sig"
+
+
+def test_a_busy_vertex_model_is_retried_instead_of_failing_the_turn(monkeypatch):
+    """A 429 quota answer is a pause, not a provider error: the same request is repeated."""
+    import types as pytypes
+    from google import genai
+    from dissolve import agent as agent_module
+    attempts = []
+
+    class Busy(Exception):
+        code = 429
+
+    class Models:
+        def generate_content(self, **kwargs):
+            attempts.append(1)
+            if len(attempts) < 3:
+                raise Busy("429 RESOURCE_EXHAUSTED")
+            return pytypes.SimpleNamespace(candidates=[], text="ready", function_calls=[], usage_metadata=None)
+
+    monkeypatch.setattr(genai, "Client", lambda **kwargs: pytypes.SimpleNamespace(models=Models()))
+    monkeypatch.setattr(agent_module.time, "sleep", lambda s: None)
+    monkeypatch.setenv("GOOGLE_APPLICATION_CREDENTIALS", "/tmp/not-read.json")
+    monkeypatch.setenv("GOOGLE_CLOUD_PROJECT", "p")
+    reply = agent_module.complete([{"role": "system", "content": "s"}, {"role": "user", "content": "q"}], [],
+                                  model="vertex:gemini-3.8-flash", api_key_env="GOOGLE_APPLICATION_CREDENTIALS")
+    assert reply["text"] == "ready" and len(attempts) == 3
+
+    class Broken:
+        def generate_content(self, **kwargs):
+            raise ValueError("not a quota problem")
+    monkeypatch.setattr(genai, "Client", lambda **kwargs: pytypes.SimpleNamespace(models=Broken()))
+    with pytest.raises(ValueError):   # any other failure still surfaces at once
+        agent_module.complete([{"role": "user", "content": "q"}], [], model="vertex:gemini-3.8-flash",
+                              api_key_env="GOOGLE_APPLICATION_CREDENTIALS")
+
+
+def test_an_empty_model_reply_is_retried_with_a_nudge_and_then_answered(monkeypatch):
+    replies = iter([{"text": "", "tool_calls": []}, {"text": "  ", "tool_calls": []}, {"text": "the real answer", "tool_calls": []}])
+    seen = []
+
+    def fake_complete(messages, tools, **kwargs):
+        seen.append([m.get("content") for m in messages][-1])
+        return next(replies)
+
+    monkeypatch.setattr(agent, "complete", fake_complete)
+    result = run_turn("question", session=new_session(), model="openai:x")
+    assert result.status == "ok" and result.answer == "the real answer"
+    assert seen == ["question", agent.EMPTY_REPLY_NUDGE, agent.EMPTY_REPLY_NUDGE]  # each retry asks again, in words
+
+
+def test_a_model_that_stays_empty_gets_a_plain_message_not_a_blank_answer(monkeypatch):
+    calls = []
+    monkeypatch.setattr(agent, "complete", lambda messages, tools, **k: calls.append(1) or {"text": "", "tool_calls": []})
+    result = run_turn("question", session=new_session(), model="openai:x")
+    assert result.status == "provider_error" and "empty reply" in result.answer and result.answer.strip()
+    assert len(calls) == 3  # the first reply and two retries
+
+
+def test_the_agent_is_told_to_explain_downstream_choices_only_from_the_data():
+    assert "never invent a reason" in agent.SYSTEM_PROMPT and "capital of the hydrogen gasification routes" in agent.SYSTEM_PROMPT
+    assert "says it has opened only" not in agent.SYSTEM_PROMPT and "opened only when figure_opened is true" in agent.SYSTEM_PROMPT

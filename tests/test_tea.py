@@ -30,13 +30,11 @@ from dissolve import (
     thermodynamics,
 )
 from dissolve import tea_polymer_parameters as params
-from dissolve import tea_ranking as O
 from dissolve.agent import CONSUMERS, UNWIRED, dispatch, tool_schemas
 from dissolve.cli import EXPECTED_REGISTRY_NAMES, CliApp, doctor_report
 from dissolve.contracts import parse_tool_result
 from dissolve.session import (
     bind_tool_session,
-    current_tool_session,
     handle_rows,
     load_handle,
     new_session,
@@ -143,21 +141,13 @@ def test_evaluate_process_is_registered_lookup_engine_stays():
     assert "evaluate_stored_route_tea_lca" not in EXPECTED_REGISTRY_NAMES
     assert callable(tea.evaluate_stored_route_tea_lca)
     assert "evaluate_stored_route_tea_lca" not in UNWIRED
-    assert "optimize_stored_route" not in agent.BY_NAME
-    assert "optimize_stored_route" not in EXPECTED_REGISTRY_NAMES
-    assert callable(tea_ranking.optimize_stored_route)
-    assert "optimize_stored_route" not in UNWIRED
-    assert "pareto_optimize_stored_route" not in agent.BY_NAME
-    assert "pareto_optimize_stored_route" not in EXPECTED_REGISTRY_NAMES
-    assert callable(tea_ranking.pareto_optimize_stored_route)
-    assert "pareto_optimize_stored_route" not in UNWIRED
     assert UNWIRED == frozenset()
     assert "evaluate_process" not in UNWIRED
     assert "evaluate_process" in tea.PROCESS_CONFIRM_TOOLS
     assert "evaluate_tea_lca_scenarios" not in tea.PROCESS_CONFIRM_TOOLS
     assert "analyze_tea_sensitivity" not in tea.PROCESS_CONFIRM_TOOLS
-    assert len(EXPECTED_REGISTRY_NAMES) == 31
-    assert len(agent.REGISTRY) == 31
+    assert len(EXPECTED_REGISTRY_NAMES) == 33  # tea_tornado added 2026-10-07
+    assert len(agent.REGISTRY) == 33  # tea_tornado added 2026-10-07
     assert "fetch_solvent_safety_by_cid" in EXPECTED_REGISTRY_NAMES
     assert "estimate_thermal_properties" not in EXPECTED_REGISTRY_NAMES
     assert "estimate_thermal_properties" not in agent.BY_NAME
@@ -171,12 +161,6 @@ def test_evaluate_process_is_registered_lookup_engine_stays():
     retired_route = dispatch("evaluate_stored_route_tea_lca")
     assert retired_route.get("available") is False
     assert retired_route.get("refusal") == "unknown_tool"
-    retired_optimize = dispatch("optimize_stored_route")
-    assert retired_optimize.get("available") is False
-    assert retired_optimize.get("refusal") == "unknown_tool"
-    retired_pareto = dispatch("pareto_optimize_stored_route")
-    assert retired_pareto.get("available") is False
-    assert retired_pareto.get("refusal") == "unknown_tool"
 
 
 def test_schema_uses_two_typed_objects_not_top_level_polymer():
@@ -4889,7 +4873,7 @@ def test_registry_stays_two_public_tea_names():
     assert "rank_landscape" in names
     assert "plan_then_tea" not in names
     assert names.count("evaluate_process") == 1
-    assert len(agent.REGISTRY) == 31
+    assert len(agent.REGISTRY) == 33  # tea_tornado added 2026-10-07
     assert "fetch_solvent_safety_by_cid" in agent.BY_NAME
     assert "estimate_thermal_properties" not in agent.BY_NAME
     assert UNWIRED == frozenset()
@@ -7379,57 +7363,14 @@ def test_sheet_print_shows_standing_badge(tmp_path, monkeypatch):
     assert "msp_usd_per_kg" not in shown
 
 
-# --- from test_optimization_basis_gap.py: Feed-scale ranking gaps must be reachable and name complete design points.
+# --- from test_optimization_basis_gap.py: a feed-scale gap binds onto the session as last_tea.
 def _data_optimization_basis_gap(raw: str) -> dict:
     envelope = json.loads(raw)
     assert set(envelope) == {"display", "data"}
     return envelope["data"]
 
 
-def _plant_feed_scale_gap(session) -> None:
-    session["last_tea"] = {
-        "analysis_type": "tea_feed_scale_basis_gap",
-        "missing_basis_codes": ["probe"],
-        "requested_feed_mass_fractions": {"LDPE": 1.0},
-    }
-
-
-def _gap_payload() -> dict:
-    session = new_session()
-    _plant_feed_scale_gap(session)
-    with bind_tool_session(session):
-        return _data_optimization_basis_gap(O.pareto_optimize_stored_route(
-            x_metric="total_cost", y_metric="circularity",
-        ))
-
-
-def test_insufficient_feed_optimization_basis_is_unreachable_without_session():
-    assert current_tool_session() is None
-    data = _data_optimization_basis_gap(O.pareto_optimize_stored_route(
-        x_metric="total_cost", y_metric="circularity",
-    ))
-    assert data.get("error_code") == "invalid_pareto_basis"  # B09-R4: the code, not only "neither of two"
-
-
-def test_insufficient_feed_optimization_basis_is_reachable_from_last_tea():
-    data = _gap_payload()
-    assert data["error_code"] == "insufficient_feed_optimization_basis"
-    assert data["success"] is False
-
-
-def test_insufficient_feed_optimization_basis_names_complete_design_points():
-    data = _gap_payload()
-    points = data.get("proposed_design_points")
-    assert isinstance(points, list) and points
-    for item in points:
-        tea._scenario_config(dict(item), require_complete_twelve=True)
-    broken = dict(points[0])
-    broken.pop(sorted(broken)[0])
-    with pytest.raises(Exception):
-        tea._scenario_config(broken, require_complete_twelve=True)
-
-
-def test_evaluate_feed_scale_gap_binds_last_tea_for_the_next_optimizer():
+def test_evaluate_feed_scale_gap_binds_last_tea_on_the_session():
     session = new_session()
     with bind_tool_session(session) as bound:
         raw = tea.evaluate_stored_route_tea_lca(
@@ -7442,34 +7383,6 @@ def test_evaluate_feed_scale_gap_binds_last_tea_for_the_next_optimizer():
         assert planted["analysis_type"] == "tea_feed_scale_basis_gap"
         assert bound.last_tea["analysis_type"] == "tea_feed_scale_basis_gap"
         assert bound["last_tea"] is bound.last_tea
-        gap = _data_optimization_basis_gap(O.pareto_optimize_stored_route(
-            x_metric="total_cost", y_metric="circularity",
-        ))
-    assert gap["error_code"] == "insufficient_feed_optimization_basis"
-    assert gap.get("proposed_design_points")
-
-
-def test_insufficient_optimization_basis_is_reachable_from_candidate_gap():
-    session = new_session()
-    session["last_tea"] = {
-        "analysis_type": "candidate_lca_basis_gap",
-        "missing_basis_codes": ["probe"],
-        "missing_process_inputs": [],
-        "target_product": "LDPE",
-        "other_polymers": ["HDPE"],
-    }
-    session["last_screen_constraints"] = {"minimum_selectivity_points": 5.0}
-    session["last_candidates"] = [
-        {"solvent": "Toluene", "selectivity_pct": 12.0, "temperature_c": 80.0},
-    ]
-    session["last_safety"] = [
-        {"solvent": "Toluene", "boiling_point_c": 110.6},
-    ]
-    with bind_tool_session(session):
-        data = _data_optimization_basis_gap(O.pareto_optimize_stored_route(
-            x_metric="emissions", y_metric="selectivity",
-        ))
-    assert data["error_code"] == "insufficient_optimization_basis"
 
 
 def test_rank_landscape_does_not_advertise_epsilon():
@@ -7858,228 +7771,11 @@ def test_dispatch_ranks_the_evaluate_handle(monkeypatch):
     assert data["ingested_into_admitted_cache"] is False
 
 
-# --- from test_residual_route.py: rank_landscape source=residual_route from a mode=route handle. Never last_route.
-def _forbid_live_residual_route(monkeypatch):
-    def forbidden(*args, **kwargs):
-        raise AssertionError("residual_route must not start BioSTEAM")
-
-    monkeypatch.setattr(tea, "_live", forbidden)
-    monkeypatch.setattr(tea, "_record_for_pair", forbidden)
-    monkeypatch.setattr(tea.tea_worker, "run", forbidden)
-
-
-def _costed_route_handle(session, monkeypatch):
-    composition, route = _exact_planner_route()
-    _forbid_live_residual_route(monkeypatch)
-    plan = _store_planner_route_handle(session, composition, route)
-    payload = _data(tea.evaluate_process(
-        mode="route",
-        handle=plan,
-        processing_capacity_mt_per_yr=_ROUTE_CAPACITY,
-        energy_case=_ROUTE_ENERGY,
-        precipitation_temperature_c=_ROUTE_PRECIP,
-        engine_mode="auto",
-    ))
-    assert payload.get("success") is True
-    return store_handle(
-        session,
-        tool="evaluate_process",
-        source_basis="tea_cache_exact",
-        data=payload,
-    ), payload
-
-
-def test_residual_route_omitted_handle_is_unknown_handle(monkeypatch):
-    _forbid_live_residual_route(monkeypatch)
-    payload = _data(tea.rank_landscape(source="residual_route", operation="optimum"))
-    assert payload.get("error_code") == "unknown_handle"
-    assert payload.get("error_code") != "tool_not_wired"
-    assert payload.get("tool_name") == "rank_landscape"
-
-
-def test_residual_route_planner_handle_is_not_the_costed_route(monkeypatch):
-    composition, route = _exact_planner_route()
-    _forbid_live_residual_route(monkeypatch)
+# --- rank_landscape source=process_rows: dispatch and argument guards (the residual_route source is gone).
+def test_process_rows_pareto_dominance_serves_through_dispatch(monkeypatch):
+    _forbid_live_rank_evaluate_handle(monkeypatch)
     session = new_session()
     with bind_tool_session(session):
-        plan = _store_planner_route_handle(session, composition, route)
-        payload = _data(tea.rank_landscape(
-            source="residual_route",
-            operation="optimum",
-            handle=plan,
-        ))
-    assert payload.get("error_code") == "not_route_handle"
-    assert payload.get("error_code") != "tool_not_wired"
-
-
-def test_residual_route_mixed_polymer_grouping_is_not_applicable(monkeypatch):
-    session = new_session()
-    with bind_tool_session(session):
-        handle, _costed = _costed_route_handle(session, monkeypatch)
-        payload = _data(tea.rank_landscape(
-            source="residual_route",
-            operation="pareto_dominance",
-            handle=handle,
-            polymer_grouping="mixed_polymer",
-        ))
-    assert payload.get("error_code") == "not_applicable_in_source"
-    assert payload.get("inapplicable_fields") == ["polymer_grouping"]
-    assert payload.get("source") == "residual_route"
-
-
-def test_residual_route_sort_is_not_applicable(monkeypatch):
-    _forbid_live_residual_route(monkeypatch)
-    payload = _data(tea.rank_landscape(source="residual_route", operation="sort"))
-    assert payload.get("error_code") == "not_applicable_in_source"
-    assert payload.get("operation") == "sort"
-    assert payload.get("error_code") != "tool_not_wired"
-
-
-def test_residual_route_does_not_read_getattr_source_state(monkeypatch):
-    monkeypatch.setattr(
-        tea_ranking,
-        "_source_state",
-        lambda: (_ for _ in ()).throw(
-            AssertionError("residual_route must not getattr last_route")
-        ),
-    )
-    session = new_session()
-    with bind_tool_session(session):
-        handle, _costed = _costed_route_handle(session, monkeypatch)
-        assert session.get("last_route") is None
-        payload = _data(tea.rank_landscape(
-            source="residual_route",
-            operation="optimum",
-            handle=handle,
-        ))
-    assert payload.get("success") is True
-    assert payload.get("error_code") != "tool_not_wired"
-    assert payload.get("source") == "residual_route"
-    assert payload.get("operation") == "optimum"
-    assert payload.get("analysis_type") == "point_optimum"
-    assert payload.get("selected_point")
-    landscape = payload.get("landscape_points") or []
-    assert len(landscape) == payload.get("n_landscape_points")
-    assert payload.get("n_landscape_points") >= 2
-    assert payload.get("cheapest_point")
-    assert payload.get("solver")
-    for point in landscape:
-        assert point["safety_standing"]["status"] in {
-            "evaluated", "not_requested", "unavailable",
-        }
-    assert payload["selected_point"]["safety_standing"]["status"] in {
-        "evaluated", "not_requested", "unavailable",
-    }
-    assert payload["cheapest_point"]["safety_standing"]["status"] in {
-        "evaluated", "not_requested", "unavailable",
-    }
-
-
-def test_residual_route_pareto_returns_landscape_and_frontier(monkeypatch):
-    session = new_session()
-    with bind_tool_session(session):
-        handle, _costed = _costed_route_handle(session, monkeypatch)
-        payload = _data(tea.rank_landscape(
-            source="residual_route",
-            operation="pareto_dominance",
-            handle=handle,
-        ))
-    assert payload.get("success") is True
-    assert payload.get("error_code") != "tool_not_wired"
-    assert payload.get("source") == "residual_route"
-    assert payload.get("operation") == "pareto_dominance"
-    landscape = payload.get("landscape_points") or []
-    frontier = payload.get("frontier_points") or []
-    assert landscape
-    assert frontier
-    assert payload.get("n_landscape_points") == len(landscape)
-    assert payload.get("n_frontier_points") == len(frontier)
-    assert payload.get("n_frontier_points") <= payload.get("n_landscape_points")
-    assert payload.get("points") == frontier
-    assert payload.get("knee_status") in {
-        "endpoint_only_no_interior_knee",
-        "interior_tradeoff",
-        "not_calculated_no_comparable_designs",
-    }
-    assert payload.get("cheapest_point")
-    assert "frontier_tradeoff" in payload
-    n_land = payload["n_landscape_points"]
-    n_front = payload["n_frontier_points"]
-    assert payload.get("frontier_fraction") == n_front / n_land
-    assert payload.get("sparse_frontier") is (
-        n_front == 1 or payload.get("best_x_equals_best_y") is True
-    )
-    assert isinstance(payload.get("best_x_equals_best_y"), bool)
-    assert "cheapest_equals_lowest_y" not in payload
-    assert payload["best_x_point"]["total_cost"] == min(float(point["total_cost"]) for point in frontier)
-    assert payload.get("sparse_frontier") is not None
-    for point in landscape + frontier + [payload["cheapest_point"]]:
-        assert point["safety_standing"]["status"] in {
-            "evaluated", "not_requested", "unavailable",
-        }
-    assert all(
-        point["safety_standing"]["status"] == "not_requested"
-        for point in landscape
-    )
-    x_key = payload.get("x_metric") or "total_cost"
-    y_key = payload.get("y_metric") or "emissions"
-    spans = payload.get("axis_spans") or {}
-    assert set(spans) == {x_key, y_key}
-    costs = [float(point[x_key]) for point in landscape]
-    emissions = [float(point[y_key]) for point in landscape]
-    assert spans[x_key]["min"] == min(costs)
-    assert spans[x_key]["max"] == max(costs)
-    assert spans[y_key]["min"] == min(emissions)
-    assert spans[y_key]["max"] == max(emissions)
-    for axis, values in ((x_key, costs), (y_key, emissions)):
-        span = spans[axis]
-        assert span["min"] <= span["p05"] <= span["p95"] <= span["max"]
-        assert span == tea_ranking.axis_span(values)
-    slice0 = (payload.get("slices") or [{}])[0]
-    assert slice0.get("axis_spans") == spans
-    grouping = payload.get("grouping") or {}
-    assert "polymer_grouping" not in grouping
-    assert grouping.get("source_route_signature") == payload.get(
-        "source_route_signature",
-    )
-    assert grouping.get("feed_mass_fractions") == payload.get("feed_mass_fractions")
-    assert grouping.get("feed_mt_per_yr") == payload.get("feed_mt_per_yr")
-    assert slice0.get("grouping") == grouping
-    tradeoff = payload.get("frontier_tradeoff")
-    if payload.get("best_x_equals_best_y") or n_front < 2:
-        assert tradeoff is None
-    else:
-        assert tradeoff is not None
-        assert tradeoff["x_metric"] == x_key
-        assert tradeoff["y_metric"] == y_key
-        assert tradeoff["x_direction"] == "min"
-        assert tradeoff["y_direction"] == "min"
-        assert tradeoff["x_units"] == "USD/yr"
-        assert tradeoff["y_units"] == "t CO2e/yr"
-        assert "incremental_annual_cost_usd" not in tradeoff
-        cheapest_x = min(float(point[x_key]) for point in frontier)
-        best_y = min(float(point[y_key]) for point in frontier)
-        assert tradeoff["x_at_best_x"] == cheapest_x
-        assert tradeoff["y_at_best_y"] == best_y
-        assert tradeoff["delta_x"] == tradeoff["x_at_best_y"] - tradeoff["x_at_best_x"]
-        assert tradeoff["delta_y"] == tradeoff["y_at_best_y"] - tradeoff["y_at_best_x"]
-        assert slice0.get("frontier_tradeoff") == tradeoff
-
-
-def test_pareto_name_retired_both_successors_serve(monkeypatch):
-    session = new_session()
-    with bind_tool_session(session):
-        route_handle, _costed = _costed_route_handle(session, monkeypatch)
-        residual = dispatch(
-            "rank_landscape",
-            source="residual_route",
-            operation="pareto_dominance",
-            handle=route_handle,
-        )
-        assert residual.get("available") is True
-        assert residual["data"]["source"] == "residual_route"
-        assert residual["data"]["operation"] == "pareto_dominance"
-        assert residual["data"].get("n_frontier_points") >= 1
         c1 = _record_by_label("ldpe-route-c1")
         c2 = _record_by_label("ldpe-route-c2")
         batch = _data(tea.evaluate_process(
@@ -8107,42 +7803,10 @@ def test_pareto_name_retired_both_successors_serve(monkeypatch):
         assert process_rows["data"]["source"] == "process_rows"
         assert process_rows["data"]["operation"] == "pareto_dominance"
         assert process_rows["data"].get("n_frontier_points") >= 1
-        old = dispatch("pareto_optimize_stored_route")
-        assert old.get("available") is False
-        assert old.get("refusal") == "unknown_tool"
-    assert callable(tea_ranking.pareto_optimize_stored_route)
-    engine = _data(tea_ranking.pareto_optimize_stored_route())
-    assert engine.get("error_code") == "invalid_pareto_basis"
-    assert engine.get("tool_name") == "pareto_optimize_stored_route"
-
-
-def test_dispatch_residual_route_issues_handle(monkeypatch):
-    session = new_session()
-    with bind_tool_session(session):
-        handle, _costed = _costed_route_handle(session, monkeypatch)
-        out = dispatch(
-            "rank_landscape",
-            source="residual_route",
-            operation="optimum",
-            handle=handle,
-        )
-        assert out.get("available") is True
-        assert out.get("handle")
-        assert out.get("handle") != handle
-        stored = load_handle(session, out["handle"])
-        assert stored.get("tool") == "rank_landscape"
-        assert stored["exact"]["source"] == "residual_route"
-        old = dispatch("optimize_stored_route")
-        assert old.get("available") is False
-        assert old.get("refusal") == "unknown_tool"
-        assert callable(tea_ranking.optimize_stored_route)
-        engine = _data(tea_ranking.optimize_stored_route())
-        assert engine.get("error_code") == "invalid_optimization_basis"
-        assert engine.get("tool_name") == "optimize_stored_route"
 
 
 def test_objective_on_process_rows_is_not_applicable(monkeypatch):
-    _forbid_live_residual_route(monkeypatch)
+    _forbid_live(monkeypatch)
     payload = _data(tea.rank_landscape(
         source="process_rows",
         operation="pareto_dominance",
@@ -8151,81 +7815,6 @@ def test_objective_on_process_rows_is_not_applicable(monkeypatch):
     assert payload.get("error_code") == "not_applicable_in_source"
     assert payload.get("inapplicable_fields") == ["objective"]
     assert payload.get("source") == "process_rows"
-
-
-def test_residual_pareto_quality_matches_fraction_and_sparse_definition():
-    one = {"total_cost": 1.0, "emissions": 2.0}
-    two = {"total_cost": 3.0, "emissions": 1.0}
-    star = tea_ranking._residual_pareto_quality(
-        [one, two], [one], "total_cost", "emissions",
-    )
-    assert star["frontier_fraction"] == 0.5
-    assert star["sparse_frontier"] is True
-    assert star["best_x_equals_best_y"] is True
-    tradeoff = tea_ranking._residual_pareto_quality(
-        [one, two], [one, two], "total_cost", "emissions",
-    )
-    assert tradeoff["frontier_fraction"] == 1.0
-    assert tradeoff["best_x_equals_best_y"] is False
-    assert tradeoff["sparse_frontier"] is False
-    spans = star["axis_spans"]
-    assert spans["total_cost"]["min"] == 1.0
-    assert spans["total_cost"]["max"] == 3.0
-    assert spans["emissions"]["min"] == 1.0
-    assert spans["emissions"]["max"] == 2.0
-    singleton = tea_ranking._residual_pareto_quality(
-        [one], [one], "total_cost", "emissions",
-    )
-    cost_span = singleton["axis_spans"]["total_cost"]
-    assert cost_span["min"] == cost_span["p05"] == cost_span["p95"] == cost_span["max"] == 1.0
-    generic = tea_ranking._metric_generic_tradeoff(
-        [one, two], "total_cost", "emissions", best_x_equals_best_y=False,
-    )
-    assert generic is not None
-    assert generic["x_metric"] == "total_cost"
-    assert generic["y_metric"] == "emissions"
-    assert generic["x_at_best_x"] == 1.0
-    assert generic["y_at_best_x"] == 2.0
-    assert generic["x_at_best_y"] == 3.0
-    assert generic["y_at_best_y"] == 1.0
-    assert generic["delta_x"] == 2.0
-    assert generic["delta_y"] == -1.0
-    assert generic["x_ratio"] == 3.0
-    assert "incremental_annual_cost_usd" not in generic
-    assert tea_ranking._metric_generic_tradeoff(
-        [one], "total_cost", "emissions", best_x_equals_best_y=False,
-    ) is None
-    assert tea_ranking._metric_generic_tradeoff(
-        [one, two], "total_cost", "emissions", best_x_equals_best_y=True,
-    ) is None
-    # B05-R5: on a profit axis the x extreme is the highest profit, which is not the lowest total cost
-    rich = {"total_cost": 5.0, "profit": 9.0, "circularity": 0.2}
-    lean = {"total_cost": 1.0, "profit": 2.0, "circularity": 0.9}
-    profit = tea_ranking._residual_pareto_quality([rich, lean], [rich, lean], "profit", "circularity")
-    assert profit["best_x_equals_best_y"] is False
-    assert tea_ranking._axis_extreme([rich, lean], "profit", "max") is rich
-
-
-def test_residual_route_optimum_omits_frontier_fraction(monkeypatch):
-    session = new_session()
-    with bind_tool_session(session):
-        handle, _costed = _costed_route_handle(session, monkeypatch)
-        payload = _data(tea.rank_landscape(
-            source="residual_route",
-            operation="optimum",
-            handle=handle,
-        ))
-    assert payload.get("success") is True
-    assert "frontier_fraction" not in payload
-    assert "sparse_frontier" not in payload
-    assert "axis_spans" not in payload
-    assert "grouping" not in payload
-    landscape = payload.get("landscape_points") or []
-    assert landscape
-    assert all(
-        point["safety_standing"]["status"] == "not_requested"
-        for point in landscape
-    )
 
 
 # --- from test_contaminant_leftovers_cl4.py: CL-4: a wash is visible to TEA and is not silently free.
@@ -8317,16 +7906,6 @@ def test_wash_does_not_keyerror_or_count_as_polymer(monkeypatch):
     for item in consumed.get("steps") or []:
         if item.get("step_kind") == "wash":
             assert item.get("dissolved_polymer") not in {"wash", "Wash"}
-
-
-def test_formulation_wash_train_stays_unavailable(monkeypatch):
-    _forbid_live(monkeypatch)
-    payload = _data_contaminant_leftovers_cl4(tea.rank_landscape(
-        source="superstructure",
-        formulation="wash_train",
-    ))
-    assert payload["error_code"] == "process_model_wash_train_unavailable"
-    assert payload.get("formulation") == "wash_train"
 
 
 # --- from test_contaminant_leftovers_cl6.py: CL-6: the contaminant-step TEA routing table, as measured.
@@ -8442,15 +8021,6 @@ def test_strap_dissolution_is_ordinary_and_stamp_inert(monkeypatch):
     unset_msp = unset_cost["mass_weighted_recovered_msp_usd_per_kg"]
     strap_msp = strap_cost["mass_weighted_recovered_msp_usd_per_kg"]
     assert struct.pack(">d", float(strap_msp)) == struct.pack(">d", float(unset_msp))
-
-
-def test_wash_train_formulation_stays_unavailable(monkeypatch):
-    _forbid_live(monkeypatch)
-    payload = _data_contaminant_leftovers_cl6(tea.rank_landscape(
-        source="superstructure",
-        formulation="wash_train",
-    ))
-    assert payload["error_code"] == "process_model_wash_train_unavailable"
 
 
 # --- from test_contaminant_tea_counterfactual.py: CL-5: the STRAP stamp is inert to costing. Test-only if MSPs already match.
@@ -8633,8 +8203,6 @@ def test_operating_days_cannot_exceed_a_year():
     """B01-R8: 9000 operating days was accepted and scaled production as if the plant ran 25 years in one."""
     with pytest.raises(tea._ScenarioInputError, match="at most 366"):
         _review_config(operating_days=9000)
-    with pytest.raises(tea._ScenarioInputError, match="at most 366"):
-        tea._requested_operating_days({"operating_days": 400})
     assert _review_config(operating_days=365)["operating_days"] == 365.0
 
 
@@ -8735,24 +8303,6 @@ def test_a_batch_evaluate_names_the_fields_its_scenarios_disagree_on():
         raw, field_origin=origin, silently_defaulted=silent, field_origin_by_scenario=by_scenario,
     ))["data"]
     assert stamped["field_origin_by_scenario"]["solvent_loss_pct"] == ["default", "supplied"]
-
-
-def test_remnant_cells_that_disagree_each_find_their_own_row():
-    """B03-R4: every row was keyed at the first cell's held value, so cells at 90 and 110 C reported the 110 C cell
-    missing although its row existed."""
-    toluene = tea._public_solvent_token("Toluene")
-    cells = [
-        {"polymer": "LDPE", "solvent": toluene, "target_mass_percent": 55.0, "processing_capacity_mt_per_yr": 20000.0,
-         "dissolution_temperature_c": temperature}
-        for temperature in (90.0, 110.0)
-    ]
-    rows = [
-        {"target_polymer": "LDPE", "solvent": toluene, "target_mass_percent": 55.0,
-         "processing_capacity_mt_per_yr": 20000.0, "dissolution_temperature_c": temperature, "success": True}
-        for temperature in (90.0, 110.0)
-    ]
-    assert tea._unmatched_remnant_keys(cells, rows) == []
-    assert tea._unmatched_remnant_keys(cells, rows[:1]) == [cells[1]]
 
 
 def test_a_stage_with_part_of_its_chem21_scores_is_looked_up():

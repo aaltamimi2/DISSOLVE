@@ -1,0 +1,778 @@
+{
+ "feed": {
+  "HDPE": 0.4,
+  "LDPE": 0.25,
+  "PET": 0.2,
+  "EVOH": 0.15
+ },
+ "tonnes_per_year": 12000.0,
+ "runs": {
+  "optimum_dedicated": {
+   "tool_name": "optimize_waste_pathway",
+   "success": true,
+   "analysis_type": "waste_pathway_optimum",
+   "objective": "max_profit",
+   "selected": {
+    "pathway": "EVOH/Acetic Acid + we",
+    "washes": [
+     {
+      "wash": 1,
+      "polymer": "EVOH",
+      "solvent": "Acetic Acid",
+      "temperature_c": 105.0,
+      "capex_usd_per_yr": 3586856.698686171,
+      "opex_usd_per_yr": 795238.0758213516,
+      "gwp_t_co2e_per_yr": 937.1202276175495,
+      "energy_mj_per_yr": 8521506.822054397,
+      "recovered_fraction": 0.833928810960214
+     }
+    ],
+    "downstream": {
+     "key": "we",
+     "label": "Incineration with energy recovery",
+     "residual_t_per_yr": 10498.928140271615,
+     "distance_mile": 151.0
+    },
+    "profit_usd_per_yr": 8752773.940577386,
+    "emissions_t_co2e_per_yr": 26761.438763525042,
+    "circularity_index": 0.5304499498729034,
+    "circularity_scores": {
+     "energy": 0.5555282286945062,
+     "ghg": 0.08991794724775681,
+     "water": 0.5,
+     "waste": 0.9992365141910513,
+     "substitutability": 0.5075670592312024
+    },
+    "sales_usd_per_yr": 13313564.159229796,
+    "capex_usd_per_yr": 3586856.698686171,
+    "opex_usd_per_yr": 795238.0758213516,
+    "transport_usd_per_yr": 178695.44414488855
+   },
+   "selected_wash_screen": [
+    {
+     "polymer": "EVOH",
+     "solvent": "Acetic Acid",
+     "target_solubility_pct": 11.93394654,
+     "max_retained_pct": 0.88127698,
+     "limiting_retained_polymer": "LDPE",
+     "selectivity_pct": 11.052669560000002,
+     "boiling_point_margin_c": 12.900000000000006,
+     "target_left_dissolved_pct_after_cooling": 0.1227016,
+     "solvent_melting_point_c": 16.6,
+     "retained_pickup_upper_bound_pct_of_product": 28.747971609343413,
+     "recovery_source": "simulated"
+    }
+   ],
+   "ranked_candidates": [
+    {
+     "rank": 1,
+     "pathway": "EVOH/Acetic Acid + we",
+     "profit_usd_per_yr": 8752773.940577386,
+     "emissions_t_co2e_per_yr": 26761.438763525042,
+     "circularity_index": 0.5304499498729034
+    },
+    {
+     "rank": 2,
+     "pathway": "EVOH/Ethylene glycol + we",
+     "profit_usd_per_yr": 8550897.723660575,
+     "emissions_t_co2e_per_yr": 27196.351988857787,
+     "circularity_index": 0.5265735087730787
+    },
+    {
+     "rank": 3,
+     "pathway": "EVOH/Acetic Acid + lf",
+     "profit_usd_per_yr": 7619834.709949957,
+     "emissions_t_co2e_per_yr": 1844.8193170760192,
+     "circularity_index": 0.6869277385426231
+    },
+    {
+     "rank": 4,
+     "pathway": "EVOH/Ethylene glycol + lf",
+     "profit_usd_per_yr": 7417958.493033146,
+     "emissions_t_co2e_per_yr": 2279.7325424087653,
+     "circularity_index": 0.6674088764551273
+    },
+    {
+     "rank": 5,
+     "pathway": "EVOH/Acetic Acid + gas_h2",
+     "profit_usd_per_yr": 7367440.372468546,
+     "emissions_t_co2e_per_yr": 57929.29176570517,
+     "circularity_index": 0.39477766890728044
+    }
+   ],
+   "optima_by_objective": {
+    "max_profit": {
+     "pathway": "EVOH/Acetic Acid + we",
+     "washes": [
+      {
+       "wash": 1,
+       "polymer": "EVOH",
+       "solvent": "Acetic Acid",
+       "temperature_c": 105.0,
+       "capex_usd_per_yr": 3586856.698686171,
+       "opex_usd_per_yr": 795238.0758213516,
+       "gwp_t_co2e_per_yr": 937.1202276175495,
+       "energy_mj_per_yr": 8521506.822054397,
+       "recovered_fraction": 0.833928810960214
+      }
+     ],
+     "downstream": {
+      "key": "we",
+      "label": "Incineration with energy recovery",
+      "residual_t_per_yr": 10498.928140271615,
+      "distance_mile": 151.0
+     },
+     "profit_usd_per_yr": 8752773.940577386,
+     "emissions_t_co2e_per_yr": 26761.438763525042,
+     "circularity_index": 0.5304499498729034,
+     "circularity_scores": {
+      "energy": 0.5555282286945062,
+      "ghg": 0.08991794724775681,
+      "water": 0.5,
+      "waste": 0.9992365141910513,
+      "substitutability": 0.5075670592312024
+     },
+     "sales_usd_per_yr": 13313564.159229796,
+     "capex_usd_per_yr": 3586856.698686171,
+     "opex_usd_per_yr": 795238.0758213516,
+     "transport_usd_per_yr": 178695.44414488855
+    },
+    "min_emissions": {
+     "pathway": "no wash + lf",
+     "washes": [],
+     "downstream": {
+      "key": "lf",
+      "label": "Landfill",
+      "residual_t_per_yr": 12000.0,
+      "distance_mile": 9.2
+     },
+     "profit_usd_per_yr": -137879.88,
+     "emissions_t_co2e_per_yr": 1037.4762954820872,
+     "circularity_index": 0.6056917720021268,
+     "circularity_scores": {
+      "energy": 0.5637405414260972,
+      "ghg": 0.9647183185845363,
+      "water": 1.0,
+      "waste": 0.5,
+      "substitutability": 0.0
+     },
+     "sales_usd_per_yr": 0.0,
+     "capex_usd_per_yr": 0.0,
+     "opex_usd_per_yr": 94031.88,
+     "transport_usd_per_yr": 43848.0
+    },
+    "max_circularity": {
+     "pathway": "LDPE/Toluene > EVOH/Acetic Acid + lf",
+     "washes": [
+      {
+       "wash": 1,
+       "polymer": "LDPE",
+       "solvent": "Toluene",
+       "temperature_c": 100.0,
+       "capex_usd_per_yr": 5066623.869554608,
+       "opex_usd_per_yr": 996224.3447834013,
+       "gwp_t_co2e_per_yr": 1356.096897635679,
+       "energy_mj_per_yr": 14434904.909670869,
+       "recovered_fraction": 0.9120803411732029
+      },
+      {
+       "wash": 2,
+       "polymer": "EVOH",
+       "solvent": "Acetic Acid",
+       "temperature_c": 105.0,
+       "capex_usd_per_yr": 3600630.163809567,
+       "opex_usd_per_yr": 766046.7023756524,
+       "gwp_t_co2e_per_yr": 907.0452782275421,
+       "energy_mj_per_yr": 8673129.92298184,
+       "recovered_fraction": 0.882773546036037
+      }
+     ],
+     "downstream": {
+      "key": "lf",
+      "label": "Landfill",
+      "residual_t_per_yr": 7674.7665936155245,
+      "distance_mile": 9.2
+     },
+     "profit_usd_per_yr": 5499530.9498577155,
+     "emissions_t_co2e_per_yr": 2926.674543716047,
+     "circularity_index": 0.7068148510625142,
+     "circularity_scores": {
+      "energy": 0.4646402602550607,
+      "ghg": 0.9004719439780975,
+      "water": 0.8775179412459602,
+      "waste": 0.6783921784728439,
+      "substitutability": 0.6130519313606086
+     },
+     "sales_usd_per_yr": 16080449.02179392,
+     "capex_usd_per_yr": 8667254.033364175,
+     "opex_usd_per_yr": 1822410.4414389592,
+     "transport_usd_per_yr": 91253.59713307113
+    }
+   },
+   "solver": "scip",
+   "milp_agrees_with_enumeration": true,
+   "source_basis_note": "cosmo_rs_grid screen, then TEA/LCA process model per wash, then the pathway MILP",
+   "basis": "tea_live",
+   "feed": {
+    "tonnes_per_year": 12000.0,
+    "mass_fractions": {
+     "HDPE": 0.4,
+     "LDPE": 0.25,
+     "PET": 0.2,
+     "EVOH": 0.15
+    },
+    "labels_as_given": {
+     "HDPE": "HDPE",
+     "LDPE": "LDPE",
+     "PET": "PET",
+     "EVOH": "EVOH"
+    }
+   },
+   "downstream_distances_mile": {
+    "lf": 9.2,
+    "we": 151.0,
+    "py": 1034.0,
+    "gas_er": 0.0,
+    "gas_h2": 2036.0,
+    "gas_h2cc": 2036.0
+   },
+   "downstream_sites_in_words": "landfill 9.2 miles; incinerator 151 miles; pyrolysis plant 1034 miles; energy-recovery gasifier 0 miles; hydrogen gasifier 2036 miles; hydrogen gasifier with carbon capture 2036 miles",
+   "downstream_sites_origin": "the published study's sites (the default)",
+   "energy_case": "C1",
+   "wash_plant": {
+    "cost_basis": "plant dedicated to this feed"
+   },
+   "washes_costed": 15,
+   "stage_engine_modes": [
+    "live"
+   ],
+   "candidates_considered": 162,
+   "circularity_upper_bounds": {
+    "energy_mj": 90099622.10993338,
+    "ghg_t_co2e": 29405.523032339657,
+    "water_m3": 7547.4382167401545,
+    "waste_kg": 4946352.069870934,
+    "sales_low_usd": 0.0,
+    "sales_high_usd": 26230158.0
+   },
+   "circularity_bounds_origin": "1.5 times the mean over this call's pathways",
+   "thermodynamic_limits": {
+    "min_solubility_pct": 10.0,
+    "max_retained_pct": 3.0
+   },
+   "polymer_prices_usd_per_t": {
+    "HDPE": 1173.0,
+    "LDPE": 1173.0,
+    "PET": 1380.0,
+    "EVOH": 8100.0
+   },
+   "solvents_without_cost_records": "excluded: only solvents with a price and a life-cycle record are costed",
+   "solvent_pool": {
+    "scope": "all",
+    "costable_solvents_in_scope": 59,
+    "costable_solvents_outside_scope": []
+   },
+   "polymers_with_no_admissible_wash": [
+    "HDPE",
+    "PET"
+   ],
+   "washes_that_failed": [],
+   "warnings": [
+    "at the process model's solvent-to-polymer ratio a wash could take up a sizable share of the retained polymers (retained_pickup_upper_bound_pct_of_product): the screen does not establish purity"
+   ],
+   "assumptions": {
+    "annualized_capital": "wash total capital investment x capital recovery factor at the plant's own finance rate and term",
+    "recovered_mass": "the process model's own recovered share of the target polymer (97% when a result lacks it); polymer a wash does not recover stays in the waste stream and goes downstream with the residual",
+    "renewable_energy_share": "12% of each wash's energy, the published case study's grid mix",
+    "waste_to_disposal": "every kilogram of wash waste generated goes to disposal",
+    "emissions_boundary": "gate to gate: the washes' and the downstream technology's emissions, with no credit for recovered resin replacing virgin resin or for recovered energy, as in the published case study",
+    "circularity": "MICRON five-category index, equal weights; upper bounds are 1.5 times the candidate mean, and substitutability runs from zero to the sales of recovering every polymer in the feed",
+    "solvent_state": "a solvent whose melting point (PubChem) is above the process's cooling temperature is excluded; a solvent with no melting point on file is not checked",
+    "washes": "a wash dissolves one polymer; a wash qualifies only if the target reaches 10 wt% in the solvent, every polymer left in the stream stays at or below 3 wt%, and the target falls to 1 wt% or less once cooled to the process's precipitation temperature (and is dissolved above it)",
+    "purity": "the retention limit is a screening criterion: at the process model's solvent-to-polymer ratio it does not guarantee purity (see retained_pickup_upper_bound_pct_of_product); no product purity is predicted",
+    "resale": "after at least one wash, a residual that is a single priced polymer can be sold as that resin at the recovered-resin price with no further processing cost; an unwashed feed is never resold",
+    "transport": "$3.01 per tonne into every wash plus $0.07 per tonne-mile to each downstream site, as in the published case study"
+   },
+   "downstream_data_notes": "Downstream coefficients are recovered from the published case study's notebook outputs (GWP, energy, renewable energy) and from DISSOLVE's earlier optimization asset (waste, water, landfill and pyrolysis opex). The original workbook sheet is not available, so incineration and gasification opex are zero and pyrolysis earns no product revenue.",
+   "seconds": 168.4
+  },
+  "optimum_shared_20kt": {
+   "tool_name": "optimize_waste_pathway",
+   "success": true,
+   "analysis_type": "waste_pathway_optimum",
+   "objective": "max_profit",
+   "selected": {
+    "pathway": "EVOH/Acetic Acid + we",
+    "washes": [
+     {
+      "wash": 1,
+      "polymer": "EVOH",
+      "solvent": "Acetic Acid",
+      "temperature_c": 105.0,
+      "capex_usd_per_yr": 2910470.6489967625,
+      "opex_usd_per_yr": 633768.5518559783,
+      "gwp_t_co2e_per_yr": 930.1626371954638,
+      "energy_mj_per_yr": 8430901.795073627,
+      "recovered_fraction": 0.8339288113467693
+     }
+    ],
+    "downstream": {
+     "key": "we",
+     "label": "Incineration with energy recovery",
+     "residual_t_per_yr": 10498.928139575815,
+     "distance_mile": 151.0
+    },
+    "profit_usd_per_yr": 9590629.519801058,
+    "emissions_t_co2e_per_yr": 26754.48117139149,
+    "circularity_index": 0.5303387224683983,
+    "circularity_scores": {
+     "energy": 0.5556998250320395,
+     "ghg": 0.0891902507346789,
+     "water": 0.5,
+     "waste": 0.999236477132122,
+     "substitutability": 0.5075670594431508
+    },
+    "sales_usd_per_yr": 13313564.164789237,
+    "capex_usd_per_yr": 2910470.6489967625,
+    "opex_usd_per_yr": 633768.5518559783,
+    "transport_usd_per_yr": 178695.44413543958
+   },
+   "selected_wash_screen": [
+    {
+     "polymer": "EVOH",
+     "solvent": "Acetic Acid",
+     "target_solubility_pct": 11.93394654,
+     "max_retained_pct": 0.88127698,
+     "limiting_retained_polymer": "LDPE",
+     "selectivity_pct": 11.052669560000002,
+     "boiling_point_margin_c": 12.900000000000006,
+     "target_left_dissolved_pct_after_cooling": 0.1227016,
+     "solvent_melting_point_c": 16.6,
+     "retained_pickup_upper_bound_pct_of_product": 28.747971609343413,
+     "recovery_source": "simulated"
+    }
+   ],
+   "ranked_candidates": [
+    {
+     "rank": 1,
+     "pathway": "EVOH/Acetic Acid + we",
+     "profit_usd_per_yr": 9590629.519801058,
+     "emissions_t_co2e_per_yr": 26754.48117139149,
+     "circularity_index": 0.5303387224683983
+    },
+    {
+     "rank": 2,
+     "pathway": "EVOH/Ethylene glycol + we",
+     "profit_usd_per_yr": 9425202.065055892,
+     "emissions_t_co2e_per_yr": 27189.622042677627,
+     "circularity_index": 0.526450381286928
+    },
+    {
+     "rank": 3,
+     "pathway": "LDPE/Toluene > EVOH/Acetic Acid + we",
+     "profit_usd_per_yr": 8617313.167866796,
+     "emissions_t_co2e_per_yr": 21118.770074734166,
+     "circularity_index": 0.5791808065517519
+    },
+    {
+     "rank": 4,
+     "pathway": "LDPE/p-Xylene > EVOH/Acetic Acid + we",
+     "profit_usd_per_yr": 8549931.621775609,
+     "emissions_t_co2e_per_yr": 21234.420190091456,
+     "circularity_index": 0.5781355403160655
+    },
+    {
+     "rank": 5,
+     "pathway": "LDPE/Toluene > EVOH/Ethylene glycol + we",
+     "profit_usd_per_yr": 8486850.371049494,
+     "emissions_t_co2e_per_yr": 21491.51518829329,
+     "circularity_index": 0.5757973213025116
+    }
+   ],
+   "optima_by_objective": {
+    "max_profit": {
+     "pathway": "EVOH/Acetic Acid + we",
+     "washes": [
+      {
+       "wash": 1,
+       "polymer": "EVOH",
+       "solvent": "Acetic Acid",
+       "temperature_c": 105.0,
+       "capex_usd_per_yr": 2910470.6489967625,
+       "opex_usd_per_yr": 633768.5518559783,
+       "gwp_t_co2e_per_yr": 930.1626371954638,
+       "energy_mj_per_yr": 8430901.795073627,
+       "recovered_fraction": 0.8339288113467693
+      }
+     ],
+     "downstream": {
+      "key": "we",
+      "label": "Incineration with energy recovery",
+      "residual_t_per_yr": 10498.928139575815,
+      "distance_mile": 151.0
+     },
+     "profit_usd_per_yr": 9590629.519801058,
+     "emissions_t_co2e_per_yr": 26754.48117139149,
+     "circularity_index": 0.5303387224683983,
+     "circularity_scores": {
+      "energy": 0.5556998250320395,
+      "ghg": 0.0891902507346789,
+      "water": 0.5,
+      "waste": 0.999236477132122,
+      "substitutability": 0.5075670594431508
+     },
+     "sales_usd_per_yr": 13313564.164789237,
+     "capex_usd_per_yr": 2910470.6489967625,
+     "opex_usd_per_yr": 633768.5518559783,
+     "transport_usd_per_yr": 178695.44413543958
+    },
+    "min_emissions": {
+     "pathway": "no wash + lf",
+     "washes": [],
+     "downstream": {
+      "key": "lf",
+      "label": "Landfill",
+      "residual_t_per_yr": 12000.0,
+      "distance_mile": 9.2
+     },
+     "profit_usd_per_yr": -137879.88,
+     "emissions_t_co2e_per_yr": 1037.4762954820872,
+     "circularity_index": 0.6056515142857416,
+     "circularity_scores": {
+      "energy": 0.5635766463344544,
+      "ghg": 0.9646809250942537,
+      "water": 1.0,
+      "waste": 0.5,
+      "substitutability": 0.0
+     },
+     "sales_usd_per_yr": 0.0,
+     "capex_usd_per_yr": 0.0,
+     "opex_usd_per_yr": 94031.88,
+     "transport_usd_per_yr": 43848.0
+    },
+    "max_circularity": {
+     "pathway": "LDPE/Toluene > EVOH/Acetic Acid + lf",
+     "washes": [
+      {
+       "wash": 1,
+       "polymer": "LDPE",
+       "solvent": "Toluene",
+       "temperature_c": 100.0,
+       "capex_usd_per_yr": 4176837.2944592303,
+       "opex_usd_per_yr": 811531.8955232423,
+       "gwp_t_co2e_per_yr": 1344.7903980137871,
+       "energy_mj_per_yr": 14287666.333898839,
+       "recovered_fraction": 0.9120803411732031
+      },
+      {
+       "wash": 2,
+       "polymer": "EVOH",
+       "solvent": "Acetic Acid",
+       "temperature_c": 105.0,
+       "capex_usd_per_yr": 2613576.5773531883,
+       "opex_usd_per_yr": 537981.0850766076,
+       "gwp_t_co2e_per_yr": 896.2795398228152,
+       "energy_mj_per_yr": 8532933.395171108,
+       "recovered_fraction": 0.8827735462809784
+      }
+     ],
+     "downstream": {
+      "key": "lf",
+      "label": "Landfill",
+      "residual_t_per_yr": 7674.76659317463,
+      "distance_mile": 9.2
+     },
+     "profit_usd_per_yr": 7789129.181544988,
+     "emissions_t_co2e_per_yr": 2904.6023056513104,
+     "circularity_index": 0.7071893356737727,
+     "circularity_scores": {
+      "energy": 0.4656939485269084,
+      "ghg": 0.9011178695345207,
+      "water": 0.877690774972418,
+      "waste": 0.6783921538382571,
+      "substitutability": 0.6130519314967591
+     },
+     "sales_usd_per_yr": 16080449.025365166,
+     "capex_usd_per_yr": 6790413.871812418,
+     "opex_usd_per_yr": 1409652.3748763003,
+     "transport_usd_per_yr": 91253.59713146009
+    }
+   },
+   "solver": "scip",
+   "milp_agrees_with_enumeration": true,
+   "source_basis_note": "cosmo_rs_grid screen, then TEA/LCA process model per wash, then the pathway MILP",
+   "basis": "tea_live",
+   "feed": {
+    "tonnes_per_year": 12000.0,
+    "mass_fractions": {
+     "HDPE": 0.4,
+     "LDPE": 0.25,
+     "PET": 0.2,
+     "EVOH": 0.15
+    },
+    "labels_as_given": {
+     "HDPE": "HDPE",
+     "LDPE": "LDPE",
+     "PET": "PET",
+     "EVOH": "EVOH"
+    }
+   },
+   "downstream_distances_mile": {
+    "lf": 9.2,
+    "we": 151.0,
+    "py": 1034.0,
+    "gas_er": 0.0,
+    "gas_h2": 2036.0,
+    "gas_h2cc": 2036.0
+   },
+   "downstream_sites_in_words": "landfill 9.2 miles; incinerator 151 miles; pyrolysis plant 1034 miles; energy-recovery gasifier 0 miles; hydrogen gasifier 2036 miles; hydrogen gasifier with carbon capture 2036 miles",
+   "downstream_sites_origin": "the published study's sites (the default)",
+   "energy_case": "C1",
+   "wash_plant": {
+    "shared_capacity_mt_per_yr": 20000.0,
+    "cost_basis": "each wash pays its throughput share of the plant"
+   },
+   "washes_costed": 15,
+   "stage_engine_modes": [
+    "live"
+   ],
+   "candidates_considered": 162,
+   "circularity_upper_bounds": {
+    "energy_mj": 89694198.54684575,
+    "ghg_t_co2e": 29374.390417946484,
+    "water_m3": 7541.819894107083,
+    "waste_kg": 4946352.83862715,
+    "sales_low_usd": 0.0,
+    "sales_high_usd": 26230158.0
+   },
+   "circularity_bounds_origin": "1.5 times the mean over this call's pathways",
+   "thermodynamic_limits": {
+    "min_solubility_pct": 10.0,
+    "max_retained_pct": 3.0
+   },
+   "polymer_prices_usd_per_t": {
+    "HDPE": 1173.0,
+    "LDPE": 1173.0,
+    "PET": 1380.0,
+    "EVOH": 8100.0
+   },
+   "solvents_without_cost_records": "excluded: only solvents with a price and a life-cycle record are costed",
+   "solvent_pool": {
+    "scope": "all",
+    "costable_solvents_in_scope": 59,
+    "costable_solvents_outside_scope": []
+   },
+   "polymers_with_no_admissible_wash": [
+    "HDPE",
+    "PET"
+   ],
+   "washes_that_failed": [],
+   "warnings": [
+    "at the process model's solvent-to-polymer ratio a wash could take up a sizable share of the retained polymers (retained_pickup_upper_bound_pct_of_product): the screen does not establish purity"
+   ],
+   "assumptions": {
+    "annualized_capital": "wash total capital investment x capital recovery factor at the plant's own finance rate and term",
+    "recovered_mass": "the process model's own recovered share of the target polymer (97% when a result lacks it); polymer a wash does not recover stays in the waste stream and goes downstream with the residual",
+    "renewable_energy_share": "12% of each wash's energy, the published case study's grid mix",
+    "waste_to_disposal": "every kilogram of wash waste generated goes to disposal",
+    "emissions_boundary": "gate to gate: the washes' and the downstream technology's emissions, with no credit for recovered resin replacing virgin resin or for recovered energy, as in the published case study",
+    "circularity": "MICRON five-category index, equal weights; upper bounds are 1.5 times the candidate mean, and substitutability runs from zero to the sales of recovering every polymer in the feed",
+    "solvent_state": "a solvent whose melting point (PubChem) is above the process's cooling temperature is excluded; a solvent with no melting point on file is not checked",
+    "washes": "a wash dissolves one polymer; a wash qualifies only if the target reaches 10 wt% in the solvent, every polymer left in the stream stays at or below 3 wt%, and the target falls to 1 wt% or less once cooled to the process's precipitation temperature (and is dissolved above it)",
+    "purity": "the retention limit is a screening criterion: at the process model's solvent-to-polymer ratio it does not guarantee purity (see retained_pickup_upper_bound_pct_of_product); no product purity is predicted",
+    "resale": "after at least one wash, a residual that is a single priced polymer can be sold as that resin at the recovered-resin price with no further processing cost; an unwashed feed is never resold",
+    "transport": "$3.01 per tonne into every wash plus $0.07 per tonne-mile to each downstream site, as in the published case study"
+   },
+   "downstream_data_notes": "Downstream coefficients are recovered from the published case study's notebook outputs (GWP, energy, renewable energy) and from DISSOLVE's earlier optimization asset (waste, water, landfill and pyrolysis opex). The original workbook sheet is not available, so incineration and gasification opex are zero and pyrolysis earns no product revenue.",
+   "seconds": 169.4
+  },
+  "pareto_emissions_vs_profit": {
+   "tool_name": "optimize_waste_pathway",
+   "success": true,
+   "analysis_type": "waste_pathway_pareto",
+   "pareto": "emissions_vs_profit",
+   "frontier_points": [
+    {
+     "pathway": "no wash + lf",
+     "washes": [],
+     "downstream": {
+      "key": "lf",
+      "label": "Landfill",
+      "residual_t_per_yr": 12000.0,
+      "distance_mile": 9.2
+     },
+     "profit_usd_per_yr": -137879.88,
+     "emissions_t_co2e_per_yr": 1037.4762954820872,
+     "circularity_index": 0.6056917720021268,
+     "circularity_scores": {
+      "energy": 0.5637405414260972,
+      "ghg": 0.9647183185845363,
+      "water": 1.0,
+      "waste": 0.5,
+      "substitutability": 0.0
+     },
+     "sales_usd_per_yr": 0.0,
+     "capex_usd_per_yr": 0.0,
+     "opex_usd_per_yr": 94031.88,
+     "transport_usd_per_yr": 43848.0
+    },
+    {
+     "pathway": "EVOH/Acetic Acid + lf",
+     "washes": [
+      {
+       "wash": 1,
+       "polymer": "EVOH",
+       "solvent": "Acetic Acid",
+       "temperature_c": 105.0,
+       "capex_usd_per_yr": 3586856.698686171,
+       "opex_usd_per_yr": 795238.0758213516,
+       "gwp_t_co2e_per_yr": 937.1202276175495,
+       "energy_mj_per_yr": 8521506.822054397,
+       "recovered_fraction": 0.833928810960214
+      }
+     ],
+     "downstream": {
+      "key": "lf",
+      "label": "Landfill",
+      "residual_t_per_yr": 10498.928140271615,
+      "distance_mile": 9.2
+     },
+     "profit_usd_per_yr": 7619834.709949957,
+     "emissions_t_co2e_per_yr": 1844.8193170760192,
+     "circularity_index": 0.6869277385426231,
+     "circularity_scores": {
+      "energy": 0.5423172228382228,
+      "ghg": 0.937262829331513,
+      "water": 0.9296330674383494,
+      "waste": 0.5618873030038773,
+      "substitutability": 0.463538270101153
+     },
+     "sales_usd_per_yr": 12158682.06379992,
+     "capex_usd_per_yr": 3586856.698686171,
+     "opex_usd_per_yr": 877507.5717392386,
+     "transport_usd_per_yr": 74483.08342455249
+    },
+    {
+     "pathway": "EVOH/Acetic Acid + we",
+     "washes": [
+      {
+       "wash": 1,
+       "polymer": "EVOH",
+       "solvent": "Acetic Acid",
+       "temperature_c": 105.0,
+       "capex_usd_per_yr": 3586856.698686171,
+       "opex_usd_per_yr": 795238.0758213516,
+       "gwp_t_co2e_per_yr": 937.1202276175495,
+       "energy_mj_per_yr": 8521506.822054397,
+       "recovered_fraction": 0.833928810960214
+      }
+     ],
+     "downstream": {
+      "key": "we",
+      "label": "Incineration with energy recovery",
+      "residual_t_per_yr": 10498.928140271615,
+      "distance_mile": 151.0
+     },
+     "profit_usd_per_yr": 8752773.940577386,
+     "emissions_t_co2e_per_yr": 26761.438763525042,
+     "circularity_index": 0.5304499498729034,
+     "circularity_scores": {
+      "energy": 0.5555282286945062,
+      "ghg": 0.08991794724775681,
+      "water": 0.5,
+      "waste": 0.9992365141910513,
+      "substitutability": 0.5075670592312024
+     },
+     "sales_usd_per_yr": 13313564.159229796,
+     "capex_usd_per_yr": 3586856.698686171,
+     "opex_usd_per_yr": 795238.0758213516,
+     "transport_usd_per_yr": 178695.44414488855
+    }
+   ],
+   "epsilon_sweep_agrees_with_enumeration": true,
+   "epsilon_sweep_distinct_points": 3,
+   "source_basis_note": "cosmo_rs_grid screen, then TEA/LCA process model per wash, then the pathway MILP",
+   "basis": "tea_live",
+   "feed": {
+    "tonnes_per_year": 12000.0,
+    "mass_fractions": {
+     "HDPE": 0.4,
+     "LDPE": 0.25,
+     "PET": 0.2,
+     "EVOH": 0.15
+    },
+    "labels_as_given": {
+     "HDPE": "HDPE",
+     "LDPE": "LDPE",
+     "PET": "PET",
+     "EVOH": "EVOH"
+    }
+   },
+   "downstream_distances_mile": {
+    "lf": 9.2,
+    "we": 151.0,
+    "py": 1034.0,
+    "gas_er": 0.0,
+    "gas_h2": 2036.0,
+    "gas_h2cc": 2036.0
+   },
+   "downstream_sites_in_words": "landfill 9.2 miles; incinerator 151 miles; pyrolysis plant 1034 miles; energy-recovery gasifier 0 miles; hydrogen gasifier 2036 miles; hydrogen gasifier with carbon capture 2036 miles",
+   "downstream_sites_origin": "the published study's sites (the default)",
+   "energy_case": "C1",
+   "wash_plant": {
+    "cost_basis": "plant dedicated to this feed"
+   },
+   "washes_costed": 15,
+   "stage_engine_modes": [
+    "live"
+   ],
+   "candidates_considered": 162,
+   "circularity_upper_bounds": {
+    "energy_mj": 90099622.10993338,
+    "ghg_t_co2e": 29405.523032339657,
+    "water_m3": 7547.4382167401545,
+    "waste_kg": 4946352.069870934,
+    "sales_low_usd": 0.0,
+    "sales_high_usd": 26230158.0
+   },
+   "circularity_bounds_origin": "1.5 times the mean over this call's pathways",
+   "thermodynamic_limits": {
+    "min_solubility_pct": 10.0,
+    "max_retained_pct": 3.0
+   },
+   "polymer_prices_usd_per_t": {
+    "HDPE": 1173.0,
+    "LDPE": 1173.0,
+    "PET": 1380.0,
+    "EVOH": 8100.0
+   },
+   "solvents_without_cost_records": "excluded: only solvents with a price and a life-cycle record are costed",
+   "solvent_pool": {
+    "scope": "all",
+    "costable_solvents_in_scope": 59,
+    "costable_solvents_outside_scope": []
+   },
+   "polymers_with_no_admissible_wash": [
+    "HDPE",
+    "PET"
+   ],
+   "washes_that_failed": [],
+   "warnings": [],
+   "assumptions": {
+    "annualized_capital": "wash total capital investment x capital recovery factor at the plant's own finance rate and term",
+    "recovered_mass": "the process model's own recovered share of the target polymer (97% when a result lacks it); polymer a wash does not recover stays in the waste stream and goes downstream with the residual",
+    "renewable_energy_share": "12% of each wash's energy, the published case study's grid mix",
+    "waste_to_disposal": "every kilogram of wash waste generated goes to disposal",
+    "emissions_boundary": "gate to gate: the washes' and the downstream technology's emissions, with no credit for recovered resin replacing virgin resin or for recovered energy, as in the published case study",
+    "circularity": "MICRON five-category index, equal weights; upper bounds are 1.5 times the candidate mean, and substitutability runs from zero to the sales of recovering every polymer in the feed",
+    "solvent_state": "a solvent whose melting point (PubChem) is above the process's cooling temperature is excluded; a solvent with no melting point on file is not checked",
+    "washes": "a wash dissolves one polymer; a wash qualifies only if the target reaches 10 wt% in the solvent, every polymer left in the stream stays at or below 3 wt%, and the target falls to 1 wt% or less once cooled to the process's precipitation temperature (and is dissolved above it)",
+    "purity": "the retention limit is a screening criterion: at the process model's solvent-to-polymer ratio it does not guarantee purity (see retained_pickup_upper_bound_pct_of_product); no product purity is predicted",
+    "resale": "after at least one wash, a residual that is a single priced polymer can be sold as that resin at the recovered-resin price with no further processing cost; an unwashed feed is never resold",
+    "transport": "$3.01 per tonne into every wash plus $0.07 per tonne-mile to each downstream site, as in the published case study"
+   },
+   "downstream_data_notes": "Downstream coefficients are recovered from the published case study's notebook outputs (GWP, energy, renewable energy) and from DISSOLVE's earlier optimization asset (waste, water, landfill and pyrolysis opex). The original workbook sheet is not available, so incineration and gasification opex are zero and pyrolysis earns no product revenue.",
+   "seconds": 6.8
+  }
+ }
+}

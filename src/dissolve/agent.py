@@ -1,6 +1,7 @@
 """The agent: the flat tool registry, the one generic tool wrapper the model calls through, and the turn loop."""
 from __future__ import annotations
 
+import base64
 import inspect
 import json
 import os
@@ -52,7 +53,9 @@ from . import (
     safety,
     separation,
     tea,
+    tea_tornado,
     thermodynamics,
+    waste_pathway,
 )
 
 # --- registry: The flat tool registry. Every tool, one list, no routing.
@@ -113,6 +116,9 @@ REGISTRY: tuple[Tool, ...] = tuple([
     # --- TEA / LCA ---
     _t(tea.evaluate_process, "tea"),
     _t(tea.rank_landscape, "tea"),
+    # --- waste-management pathway: washes, downstream technology, profit, emissions, circularity ---
+    _t(waste_pathway.optimize_waste_pathway, "pathway"),
+    _t(tea_tornado.tea_tornado, "pathway"),  # TEA/LCA sensitivity of one wash; reports its TEA basis like the pathway tool
     # --- Hansen parameters, thermal properties, numeric analysis ---
     _t(analysis.lookup_hansen_parameters, "analysis"),
     _t(analysis.screen_hansen_compatibility, "analysis"),
@@ -197,8 +203,7 @@ _PAGE, _BYTE, _LIM = 20, 8192, 50
 _PAGE_BYTES = 24576
 _ENGINE_BASIS = {
     "thermodynamics": "cosmo_rs_grid", "separation": "cosmo_rs_grid",
-    "optimization": "optimization_workbook", "contaminants": "contaminant_workbook",
-    "research": "provider_metadata",
+    "contaminants": "contaminant_workbook", "research": "provider_metadata",
 }
 
 def _refuse(refusal: str, **extra: Any) -> dict[str, Any]:
@@ -363,6 +368,8 @@ def source_basis_for(name: str, data: dict[str, Any], kwargs: dict[str, Any]) ->
     ):
         return "cosmo_rs_grid"
     eng = BY_NAME[name].engine
+    if eng == "pathway":
+        return data.get("basis")  # the TEA basis of the washes the answer rests on: tea_live or tea_cache_exact
     if eng == "safety":
         if name == "fetch_solvent_safety_by_cid":
             return "pubchem_live"
@@ -812,7 +819,49 @@ themselves; name a token this prompt does not define as it is:
   each value with its polymer. When a solvent is not in the panel, the
   refusal names close panel solvents (o-xylene for xylene): use the
   closest and say which one you used.
-- Optimization figures are optimization_workbook.
+- optimize_waste_pathway answers how a mixed or multilayer feed should be processed: it screens solvents
+  for every wash the feed allows, costs each wash (stored records, or live BioSTEAM once confirm_live_tea is
+  true), and picks the wash sequence and the downstream technology (landfill, incineration, pyrolysis, three
+  gasification routes) by profit, emissions or the MICRON circularity index, or traces a trade-off (pareto).
+  Give it the feed's mass fractions and tonnes per year, exactly as the user stated them. Never invent or assume a feed:
+  if the user has not said which polymers, in what shares, and how many tonnes per year, ask; if the shares do not add
+  to 100%, ask which is wrong rather than fixing it; do not split a generic name like nylon or PE into grades. A question
+  about one solvent, a solubility, a price or a hazard is not a pathway question. Its basis is the TEA basis of its washes, so say
+  whether they were live simulations or stored records; when no wash was costed there is no TEA or LCA record
+  behind the answer, only the thermodynamic screen and the downstream-technology data recovered from the published
+  study, and you must say that and not cite stored TEA/LCA records. Revenue: read the result's downstream_technologies
+  table before stating what any technology earns (incineration and hydrogen gasification earn a small amount per
+  tonne; never say incineration earns nothing); for "should I burn it or recycle it" show the profit, emissions and circularity
+  of the destination the user named (incineration for "burn") from unwashed_feed_options, whatever its rank, beside the
+  best washed pathway; never describe a destination's result in words when its row is in the table. When the answer sells a washed residual as resin,
+  state its resale_dependence (profit at full, half and no resale price) and that the profit rests on the residual
+  being clean enough to sell. When the user asks to see, plot or draw a Pareto front or trade-off, call the tool with draw_plot true: it draws all three fronts (emissions vs profit, circularity vs profit, emissions vs circularity) with the numbered routes listed under each panel and opens the figure in the user's image viewer. Give the user figure_file and say it has opened only when figure_opened is true (otherwise say where the file is); the terminal cannot show it inline. If the result's figure_note says it could not be drawn, report that reason and do not claim a plot. A Pareto answer without draw_plot is still saved (figure_data_file), and the user can draw it with `python3 scripts/plot_pareto.py`. When the user asks what was done, how much work a result took, how many options were considered or why there are that many candidates, answer from the result's work_summary (the solvent pool, what each screen let through, the simulations run, reused or stored, the routes and candidates, the front sizes) and call the tool again with the same inputs and draw_summary true to draw it and open it (summary_figure_file); a repeat in the same session reuses the simulated washes, so it costs no new simulations. Say that the counts describe the work, not results. Explain why one downstream technology beats another only from the result's downstream_technologies and assumptions (revenue, operating cost, whether a capital cost is recorded, distance, emissions): never invent a reason, and say plainly when the recovered data leave out a cost, as they do for the capital of the hydrogen gasification routes. To compare solvents, or when asked whether the circularity differs by solvent, use wash_comparison and state that the MICRON index barely changes with the solvent (it scales by whole-pathway bounds); compare solvents on energy, emissions, cost, solvent make-up and hazard per kg of resin, and say a solvent's life-cycle factor is a class average when its source tier says so. Report every hazard warning (GHS Danger solvents, high heating risk) with the pathway;
+  the screen does not judge hazard, so offer avoid_danger_solvents when the user cares about safer solvents. When it refuses with
+  live_tea_cost_confirmation_required, tell the user how many simulations it needs and that each takes about 15
+  seconds, and call again with confirm_live_tea true only when the user has agreed to run them (in a one-shot
+  question with no user to ask, state that nothing was simulated). A user rarely knows the published study's
+  location scenarios A and B or what a dedicated plant is: describe options in plain words (distances in miles to
+  each downstream site, a plant just for this feed or one shared with other producers), pass the distances the user
+  gives as downstream_distances_mile, and say which defaults you assumed. To compare scenarios of the same feed (a shared
+  plant, another downstream location, a price), pass the first answer's circularity_upper_bounds to the later calls
+  so every index is on one scale. Circularity is a screening index and the
+  downstream-technology data are partly recovered; say both. Only solvents with a price and life-cycle record
+  are costed, so name any polymer the tool reports has no admissible wash as staying in the residual. Report
+  the pathway as washes in order (polymer, solvent, temperature) and the downstream technology.
+- tea_tornado answers which parameters move the TEA/LCA results of one polymer washed in one solvent (minimum selling price,
+  global warming potential, capital, operating cost, energy), as a tornado plot: it moves each chosen parameter low and high around
+  a base plant and simulates every point. Use it for "sensitivity", "tornado" or "which parameter matters most" about one wash;
+  use optimize_waste_pathway for a mixed feed and analyze_tea_sensitivity (evaluate_process in sensitivity mode) for one parameter
+  swept over many values. You choose the parameters unless the user names them, and the user's ranges win: pass ranges as
+  [low, high] in the parameter's units or relative_range for plus or minus a fraction. If the user gives neither, the tool uses its
+  default ranges and says so in its warnings, so tell the user which ranges were assumed and offer to change them. The base plant is
+  the user's target share, capacity and temperature when given, else the tool's defaults (60 wt% target, 20,000 t/yr, the solvent's
+  recorded temperature): say which. It needs two simulations per parameter (about 12 s each): when it refuses with
+  live_tea_cost_confirmation_required, tell the user the count and call again with confirm_live_tea true only once they agree. A
+  parameter with no measurable effect is a finding about this base plant (the warnings say so), not an error. Set draw_plot true
+  when the user asks to see it; the figure opens in their image viewer (figure_file) and you must not claim a plot if figure_note
+  says it could not be drawn. Report the largest drivers from the ranking with their swing in percent of the base, and say that one
+  parameter moves at a time and the result is one simulated plant, not a pathway's profit.
 - identity_registry is DISSOLVE's material identity registry;
   safety_local is its local safety store (safety cards and a cached
   PubChem snapshot); provider_metadata is a
@@ -1143,11 +1192,19 @@ def _rate_limit_wait_s(error: Exception) -> float:
 def complete(messages, tools, *, model, api_base=None, api_key_env=None):
     kind, _, ident = model.partition(":")
     ident = ident or model
-    if kind not in ("anthropic", "google_genai", "openai"):
+    if kind not in ("anthropic", "google_genai", "vertex", "openai"):
         raise ValueError(f"unknown model prefix: {kind!r}")
     key = (os.environ.get(api_key_env) or "").strip() if api_key_env else None
     if api_key_env and not key:
         raise MissingProviderKey(f"missing environment variable {api_key_env}")
+    # Vertex AI is Gemini through a Google Cloud project: the same SDK and wire format, but it authenticates with the
+    # service-account file that GOOGLE_APPLICATION_CREDENTIALS names (the SDK reads it), not with an API key.
+    vertex = kind == "vertex"
+    if vertex:
+        kind = "google_genai"
+        project = (os.environ.get("GOOGLE_CLOUD_PROJECT") or "").strip()
+        if not project:
+            raise MissingProviderKey("missing environment variable GOOGLE_CLOUD_PROJECT")
     if kind == "anthropic":
         import anthropic
         sys, rest = _ant_msgs(messages)
@@ -1163,11 +1220,35 @@ def complete(messages, tools, *, model, api_base=None, api_key_env=None):
         from google.genai import types
         decls = [types.FunctionDeclaration(name=t["name"], description=t.get("description") or "", parameters=t["parameters"]) for t in tools]
         sys = next((m.get("content") or "" for m in messages if m["role"] == "system"), "")
-        resp = genai.Client(api_key=key).models.generate_content(
-            model=ident, contents=_gen_contents(messages),
-            config=types.GenerateContentConfig(system_instruction=sys, tools=[types.Tool(function_declarations=decls)]))
-        calls = [{"id": getattr(c, "id", "") or "", "name": c.name, "args": dict(c.args or {})}
-                 for c in (getattr(resp, "function_calls", None) or [])]
+        client = (genai.Client(vertexai=True, project=project,
+                               location=(os.environ.get("GOOGLE_CLOUD_LOCATION") or "").strip() or "us-central1")
+                  if vertex else genai.Client(api_key=key))
+        deadline = time.monotonic() + _RATE_LIMIT_WAIT_S
+        pause = 4.0
+        while True:  # a busy model (quota 429, or 503) is retried with a growing pause, up to the same wait as the OpenAI path
+            try:
+                resp = client.models.generate_content(
+                    model=ident, contents=_gen_contents(messages),
+                    config=types.GenerateContentConfig(system_instruction=sys, tools=[types.Tool(function_declarations=decls)]))
+                break
+            except Exception as error:
+                busy = getattr(error, "code", None) in (429, 503) or "RESOURCE_EXHAUSTED" in str(error)
+                if not busy or time.monotonic() + pause > deadline:
+                    raise
+                time.sleep(pause + random.random())
+                pause = min(pause * 2, 30.0)
+        # Gemini 3 models return a thought signature with each function call and refuse the next request unless it
+        # comes back on the same call. It is bytes, so it is kept as base64 text and the saved session stays JSON.
+        parts = [p for cand in (getattr(resp, "candidates", None) or [])[:1]
+                 for p in (getattr(getattr(cand, "content", None), "parts", None) or [])
+                 if getattr(p, "function_call", None)]
+        calls = []
+        for part in parts:
+            call = {"id": getattr(part.function_call, "id", "") or "", "name": part.function_call.name,
+                    "args": dict(part.function_call.args or {})}
+            if getattr(part, "thought_signature", None):
+                call["thought_signature"] = base64.b64encode(part.thought_signature).decode("ascii")
+            calls.append(call)
         return {"text": getattr(resp, "text", None) or "", "tool_calls": calls, "usage": _usage(kind, resp)}
     if kind == "openai":
         from openai import OpenAI, RateLimitError
@@ -1198,15 +1279,21 @@ def complete(messages, tools, *, model, api_base=None, api_key_env=None):
 def _gen_contents(messages):
     from google.genai import types
     contents = []
+    responses = None  # the open user turn of tool responses, while consecutive tool messages keep adding to it
     for m in messages:
         if m["role"] == "system":
             continue
+        if m["role"] != "tool":
+            responses = None
         if m["role"] == "assistant":
             parts = []
             if m.get("content"):
                 parts.append(types.Part.from_text(text=m["content"]))
             for c in m.get("tool_calls") or []:
-                parts.append(types.Part.from_function_call(name=c["name"], args=c.get("args") or {}))
+                part = types.Part.from_function_call(name=c["name"], args=c.get("args") or {})
+                if c.get("thought_signature"):
+                    part.thought_signature = base64.b64decode(c["thought_signature"])
+                parts.append(part)
             if parts:
                 contents.append(types.Content(role="model", parts=parts))
         elif m["role"] == "tool":
@@ -1216,11 +1303,20 @@ def _gen_contents(messages):
                 resp = {"result": m.get("content") or ""}
             if not isinstance(resp, dict):
                 resp = {"result": resp}
-            contents.append(types.Content(role="user", parts=[
-                types.Part.from_function_response(name=m.get("name") or "", response=resp)]))
+            reply = types.Part.from_function_response(name=m.get("name") or "", response=resp)
+            # Parallel calls: Gemini wants every response to one model turn together, in a single user turn.
+            if responses is not None:
+                responses.parts.append(reply)
+            else:
+                responses = types.Content(role="user", parts=[reply])
+                contents.append(responses)
         else:
             contents.append(types.Content(role="user", parts=[types.Part.from_text(text=m.get("content") or "")]))
     return contents
+
+EMPTY_REPLY_NUDGE = ("Your last reply was empty. Answer the user's question above in words, using the tool results you already "
+                     "have; call a tool only if one is still needed.")
+
 
 def run_turn(
     query: str, *, session: dict, model: str, messages: list | None = None,
@@ -1237,6 +1333,7 @@ def run_turn(
         msgs.append({"role": "user", "content": query})
     trace: list[ToolEvent] = []
     rounds = 0
+    empty_replies = 0
     acc = []
     with bind_tool_session(session) as bound:
         tid = open_turn_record(bound)
@@ -1261,6 +1358,17 @@ def run_turn(
                 )
             acc.append(reply.get("usage"))
             calls, text = reply.get("tool_calls") or [], reply.get("text") or ""
+            if not calls and not text.strip():  # a model can return nothing at all (seen with Gemini): ask again, then say so
+                empty_replies += 1
+                if empty_replies > 2:
+                    return TurnResult(
+                        answer="The model returned an empty reply three times in a row, so there is no answer to show. "
+                               "Please ask the question again.",
+                        status="provider_error", tool_trace=trace, turn_record=tid, tool_rounds=rounds,
+                        usage=_fold_usage(acc),
+                    )
+                msgs.append({"role": "user", "content": EMPTY_REPLY_NUDGE})
+                continue
             if not calls:
                 text = _complete_tables(text)
                 msgs.append({"role": "assistant", "content": text})

@@ -1382,6 +1382,7 @@ def run(config: dict[str, Any]) -> dict[str, Any]:
             "cooling_duty_mj_per_kg": cooling,
             "total_energy_mj_per_kg": total_energy,
             "waste_generated_kg_yr": _safe(lambda: process.spent_activated_carbon.F_mass * process.tea.operating_hours),
+            "solvent_makeup_kg_yr": _safe(lambda: process.solvent.F_mass * process.tea.operating_hours),
             "waste_diverted_kg_yr": _safe(lambda: resin.F_mass * process.tea.operating_hours) if resin else None,
             "unit_operations": _safe(lambda: len(process.system.units)),
         },

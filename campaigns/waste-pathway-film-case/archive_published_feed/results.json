@@ -1,0 +1,4198 @@
+{
+ "feed": {
+  "tonnes_per_year": 8000.0,
+  "fractions": {
+   "LDPE": 0.6,
+   "PET": 0.2,
+   "NYLON6": 0.1,
+   "EVOH": 0.1
+  }
+ },
+ "plants": {
+  "dedicated": {
+   "seconds": 170.0,
+   "washes": [
+    {
+     "removed_before": [],
+     "polymer": "EVOH",
+     "solvent": "Ethylene glycol",
+     "temperature_c": 120.0,
+     "capex_usd_yr": 2509747.1841388517,
+     "opex_usd_yr": 615729.5718667475,
+     "gwp_t": 727.4095229892985,
+     "energy_mj": 4427905.32302644,
+     "engine_mode": "live",
+     "thermo": {
+      "target_solubility_pct": 10.60388466,
+      "max_retained_pct": 0.9373441,
+      "limiting_retained_polymer": "LDPE",
+      "selectivity_pct": 9.66654056,
+      "boiling_point_margin_c": 77.30000000000001,
+      "target_left_dissolved_pct_after_cooling": 0.00997257,
+      "retained_pickup_upper_bound_pct_of_product": 30.594232466296447
+     }
+    },
+    {
+     "removed_before": [],
+     "polymer": "LDPE",
+     "solvent": "Diphenyl ether",
+     "temperature_c": 115.0,
+     "capex_usd_yr": 6627219.96579677,
+     "opex_usd_yr": 1216915.8375775958,
+     "gwp_t": 2767.044095792419,
+     "energy_mj": 24342007.681428995,
+     "engine_mode": "live",
+     "thermo": {
+      "target_solubility_pct": 12.85175817,
+      "max_retained_pct": 1.08176461,
+      "limiting_retained_polymer": "PET",
+      "selectivity_pct": 11.76999356,
+      "boiling_point_margin_c": 143.0,
+      "target_left_dissolved_pct_after_cooling": 0.04014448,
+      "retained_pickup_upper_bound_pct_of_product": 35.35956296170371
+     }
+    },
+    {
+     "removed_before": [],
+     "polymer": "LDPE",
+     "solvent": "Toluene",
+     "temperature_c": 100.0,
+     "capex_usd_yr": 6804257.77889577,
+     "opex_usd_yr": 1206875.098814718,
+     "gwp_t": 2100.4556098692,
+     "energy_mj": 23579190.103689775,
+     "engine_mode": "live",
+     "thermo": {
+      "target_solubility_pct": 12.70218754,
+      "max_retained_pct": 1.44467128,
+      "limiting_retained_polymer": "PET",
+      "selectivity_pct": 11.257516260000001,
+      "boiling_point_margin_c": 10.599999999999994,
+      "target_left_dissolved_pct_after_cooling": 0.12912006,
+      "retained_pickup_upper_bound_pct_of_product": 47.39575085385939
+     }
+    },
+    {
+     "removed_before": [],
+     "polymer": "LDPE",
+     "solvent": "p-Xylene",
+     "temperature_c": 100.0,
+     "capex_usd_yr": 6850740.82903273,
+     "opex_usd_yr": 1218657.9085696295,
+     "gwp_t": 2224.2921491650045,
+     "energy_mj": 23804141.81753642,
+     "engine_mode": "live",
+     "thermo": {
+      "target_solubility_pct": 12.46217694,
+      "max_retained_pct": 0.64018588,
+      "limiting_retained_polymer": "PET",
+      "selectivity_pct": 11.82199106,
+      "boiling_point_margin_c": 38.30000000000001,
+      "target_left_dissolved_pct_after_cooling": 0.13834027,
+      "retained_pickup_upper_bound_pct_of_product": 20.83271153097577
+     }
+    },
+    {
+     "removed_before": [
+      "LDPE"
+     ],
+     "polymer": "EVOH",
+     "solvent": "Ethylene glycol",
+     "temperature_c": 120.0,
+     "capex_usd_yr": 2331364.157705691,
+     "opex_usd_yr": 540120.7291477972,
+     "gwp_t": 550.835764839042,
+     "energy_mj": 4265569.059944363,
+     "engine_mode": "live",
+     "thermo": {
+      "target_solubility_pct": 10.60388466,
+      "max_retained_pct": 0.36352085,
+      "limiting_retained_polymer": "NYLON6",
+      "selectivity_pct": 10.24036381,
+      "boiling_point_margin_c": 77.30000000000001,
+      "target_left_dissolved_pct_after_cooling": 0.00997257,
+      "retained_pickup_upper_bound_pct_of_product": 11.796724369366348
+     }
+    },
+    {
+     "removed_before": [
+      "LDPE"
+     ],
+     "polymer": "EVOH",
+     "solvent": "Propylene glycol",
+     "temperature_c": 120.0,
+     "capex_usd_yr": 2373785.887421758,
+     "opex_usd_yr": 545507.1543237204,
+     "gwp_t": 547.4167823667918,
+     "energy_mj": 4281787.683481706,
+     "engine_mode": "live",
+     "thermo": {
+      "target_solubility_pct": 12.43743039,
+      "max_retained_pct": 1.50382353,
+      "limiting_retained_polymer": "NYLON6",
+      "selectivity_pct": 10.93360686,
+      "boiling_point_margin_c": 67.6,
+      "target_left_dissolved_pct_after_cooling": 0.01343861,
+      "retained_pickup_upper_bound_pct_of_product": 49.36600507006463
+     }
+    },
+    {
+     "removed_before": [
+      "EVOH"
+     ],
+     "polymer": "LDPE",
+     "solvent": "Diphenyl ether",
+     "temperature_c": 115.0,
+     "capex_usd_yr": 6626071.974706521,
+     "opex_usd_yr": 1207521.883984101,
+     "gwp_t": 2742.4619164670457,
+     "energy_mj": 24368919.102825653,
+     "engine_mode": "live",
+     "thermo": {
+      "target_solubility_pct": 12.85175817,
+      "max_retained_pct": 1.08176461,
+      "limiting_retained_polymer": "PET",
+      "selectivity_pct": 11.76999356,
+      "boiling_point_margin_c": 143.0,
+      "target_left_dissolved_pct_after_cooling": 0.04014448,
+      "retained_pickup_upper_bound_pct_of_product": 35.35956296170371
+     }
+    },
+    {
+     "removed_before": [
+      "EVOH"
+     ],
+     "polymer": "LDPE",
+     "solvent": "Toluene",
+     "temperature_c": 100.0,
+     "capex_usd_yr": 6791347.4563167095,
+     "opex_usd_yr": 1197248.2437691018,
+     "gwp_t": 2101.138920177312,
+     "energy_mj": 23640156.20676381,
+     "engine_mode": "live",
+     "thermo": {
+      "target_solubility_pct": 12.70218754,
+      "max_retained_pct": 1.44467128,
+      "limiting_retained_polymer": "PET",
+      "selectivity_pct": 11.257516260000001,
+      "boiling_point_margin_c": 10.599999999999994,
+      "target_left_dissolved_pct_after_cooling": 0.12912006,
+      "retained_pickup_upper_bound_pct_of_product": 47.39575085385939
+     }
+    },
+    {
+     "removed_before": [
+      "EVOH"
+     ],
+     "polymer": "LDPE",
+     "solvent": "p-Xylene",
+     "temperature_c": 100.0,
+     "capex_usd_yr": 6856444.580589447,
+     "opex_usd_yr": 1211248.8775777959,
+     "gwp_t": 2220.5352206723896,
+     "energy_mj": 23858293.523724977,
+     "engine_mode": "live",
+     "thermo": {
+      "target_solubility_pct": 12.46217694,
+      "max_retained_pct": 0.64018588,
+      "limiting_retained_polymer": "PET",
+      "selectivity_pct": 11.82199106,
+      "boiling_point_margin_c": 38.30000000000001,
+      "target_left_dissolved_pct_after_cooling": 0.13834027,
+      "retained_pickup_upper_bound_pct_of_product": 20.83271153097577
+     }
+    }
+   ],
+   "polymers_with_no_admissible_wash": [
+    "NYLON6",
+    "PET"
+   ],
+   "locations": {
+    "A": {
+     "candidates": 70,
+     "optima": {
+      "max_profit": {
+       "pathway": "EVOH/Ethylene glycol + we",
+       "washes": [
+        {
+         "wash": 1,
+         "polymer": "EVOH",
+         "solvent": "Ethylene glycol",
+         "temperature_c": 120.0,
+         "capex_usd_per_yr": 2509747.1841388517,
+         "opex_usd_per_yr": 615729.5718667475,
+         "gwp_t_co2e_per_yr": 727.4095229892985,
+         "energy_mj_per_yr": 4427905.32302644,
+         "recovered_fraction": 0.7801995251059145
+        }
+       ],
+       "downstream": {
+        "key": "we",
+        "label": "Incineration with energy recovery",
+        "residual_t_per_yr": 7375.840379915268,
+        "distance_mile": 151.0
+       },
+       "profit_usd_per_yr": 2617314.6961121573,
+       "emissions_t_co2e_per_yr": 18869.83786387068,
+       "circularity_index": 0.4858840457893385,
+       "circularity_scores": {
+        "energy": 0.5649595342825273,
+        "ghg": 0.0,
+        "water": 0.5,
+        "waste": 0.9991784170001917,
+        "substitutability": 0.3652822776639736
+       },
+       "sales_usd_per_yr": 5867035.364477006,
+       "capex_usd_per_yr": 2509747.1841388517,
+       "opex_usd_per_yr": 615729.5718667475,
+       "transport_usd_per_yr": 124243.91235924934,
+       "solver": "scip",
+       "agrees_with_enumeration": true
+      },
+      "min_emissions": {
+       "pathway": "no wash + lf",
+       "washes": [],
+       "downstream": {
+        "key": "lf",
+        "label": "Landfill",
+        "residual_t_per_yr": 8000.0,
+        "distance_mile": 9.2
+       },
+       "profit_usd_per_yr": -91919.92,
+       "emissions_t_co2e_per_yr": 691.6508636547248,
+       "circularity_index": 0.6039537000533531,
+       "circularity_scores": {
+        "energy": 0.5636598453168823,
+        "ghg": 0.9561086549498838,
+        "water": 1.0,
+        "waste": 0.5,
+        "substitutability": 0.0
+       },
+       "sales_usd_per_yr": 0.0,
+       "capex_usd_per_yr": 0.0,
+       "opex_usd_per_yr": 62687.92,
+       "transport_usd_per_yr": 29232.0,
+       "solver": "scip",
+       "agrees_with_enumeration": true
+      },
+      "max_circularity": {
+       "pathway": "LDPE/Toluene > EVOH/Propylene glycol + lf",
+       "washes": [
+        {
+         "wash": 1,
+         "polymer": "LDPE",
+         "solvent": "Toluene",
+         "temperature_c": 100.0,
+         "capex_usd_per_yr": 6804257.77889577,
+         "opex_usd_per_yr": 1206875.098814718,
+         "gwp_t_co2e_per_yr": 2100.4556098692,
+         "energy_mj_per_yr": 23579190.103689775,
+         "recovered_fraction": 0.9804626826823988
+        },
+        {
+         "wash": 2,
+         "polymer": "EVOH",
+         "solvent": "Propylene glycol",
+         "temperature_c": 120.0,
+         "capex_usd_per_yr": 2373785.887421758,
+         "opex_usd_per_yr": 545507.1543237204,
+         "gwp_t_co2e_per_yr": 547.4167823667918,
+         "energy_mj_per_yr": 4281787.683481706,
+         "recovered_fraction": 0.9120803391938559
+        }
+       ],
+       "downstream": {
+        "key": "lf",
+        "label": "Landfill",
+        "residual_t_per_yr": 2564.114851769401,
+        "distance_mile": 9.2
+       },
+       "profit_usd_per_yr": 437078.1130895165,
+       "emissions_t_co2e_per_yr": 2869.5564237030185,
+       "circularity_index": 0.7095127215286188,
+       "circularity_scores": {
+        "energy": 0.35550727455670506,
+        "ghg": 0.8179013462543719,
+        "water": 0.8265245896657357,
+        "waste": 0.8359551265744231,
+        "substitutability": 0.7116752705918574
+       },
+       "sales_usd_per_yr": 11430677.686551165,
+       "capex_usd_per_yr": 9178043.666317528,
+       "opex_usd_per_yr": 1772474.6314757548,
+       "transport_usd_per_yr": 43081.27566836539,
+       "solver": "scip",
+       "agrees_with_enumeration": true
+      }
+     },
+     "pareto": {
+      "emissions_vs_profit": [
+       {
+        "pathway": "no wash + lf",
+        "washes": [],
+        "downstream": {
+         "key": "lf",
+         "label": "Landfill",
+         "residual_t_per_yr": 8000.0,
+         "distance_mile": 9.2
+        },
+        "profit_usd_per_yr": -91919.92,
+        "emissions_t_co2e_per_yr": 691.6508636547248,
+        "circularity_index": 0.6039537000533531,
+        "circularity_scores": {
+         "energy": 0.5636598453168823,
+         "ghg": 0.9561086549498838,
+         "water": 1.0,
+         "waste": 0.5,
+         "substitutability": 0.0
+        },
+        "sales_usd_per_yr": 0.0,
+        "capex_usd_per_yr": 0.0,
+        "opex_usd_per_yr": 62687.92,
+        "transport_usd_per_yr": 29232.0
+       },
+       {
+        "pathway": "EVOH/Ethylene glycol + lf",
+        "washes": [
+         {
+          "wash": 1,
+          "polymer": "EVOH",
+          "solvent": "Ethylene glycol",
+          "temperature_c": 120.0,
+          "capex_usd_per_yr": 2509747.1841388517,
+          "opex_usd_per_yr": 615729.5718667475,
+          "gwp_t_co2e_per_yr": 727.4095229892985,
+          "energy_mj_per_yr": 4427905.32302644,
+          "recovered_fraction": 0.7801995251059145
+         }
+        ],
+        "downstream": {
+         "key": "lf",
+         "label": "Landfill",
+         "residual_t_per_yr": 7375.840379915268,
+         "distance_mile": 9.2
+        },
+        "profit_usd_per_yr": 1821387.8344739045,
+        "emissions_t_co2e_per_yr": 1365.097819107772,
+        "circularity_index": 0.631726876741832,
+        "circularity_scores": {
+         "energy": 0.5495040487481214,
+         "ghg": 0.9133725083649566,
+         "water": 0.8426454421189018,
+         "waste": 0.5383443779384783,
+         "substitutability": 0.3147680065387018
+        },
+        "sales_usd_per_yr": 5055692.922686326,
+        "capex_usd_per_yr": 2509747.1841388517,
+        "opex_usd_per_yr": 673526.5833253597,
+        "transport_usd_per_yr": 51031.32074821039
+       },
+       {
+        "pathway": "EVOH/Ethylene glycol + we",
+        "washes": [
+         {
+          "wash": 1,
+          "polymer": "EVOH",
+          "solvent": "Ethylene glycol",
+          "temperature_c": 120.0,
+          "capex_usd_per_yr": 2509747.1841388517,
+          "opex_usd_per_yr": 615729.5718667475,
+          "gwp_t_co2e_per_yr": 727.4095229892985,
+          "energy_mj_per_yr": 4427905.32302644,
+          "recovered_fraction": 0.7801995251059145
+         }
+        ],
+        "downstream": {
+         "key": "we",
+         "label": "Incineration with energy recovery",
+         "residual_t_per_yr": 7375.840379915268,
+         "distance_mile": 151.0
+        },
+        "profit_usd_per_yr": 2617314.6961121573,
+        "emissions_t_co2e_per_yr": 18869.83786387068,
+        "circularity_index": 0.4858840457893385,
+        "circularity_scores": {
+         "energy": 0.5649595342825273,
+         "ghg": 0.0,
+         "water": 0.5,
+         "waste": 0.9991784170001917,
+         "substitutability": 0.3652822776639736
+        },
+        "sales_usd_per_yr": 5867035.364477006,
+        "capex_usd_per_yr": 2509747.1841388517,
+        "opex_usd_per_yr": 615729.5718667475,
+        "transport_usd_per_yr": 124243.91235924934
+       }
+      ],
+      "circularity_vs_profit": [
+       {
+        "pathway": "EVOH/Ethylene glycol + we",
+        "washes": [
+         {
+          "wash": 1,
+          "polymer": "EVOH",
+          "solvent": "Ethylene glycol",
+          "temperature_c": 120.0,
+          "capex_usd_per_yr": 2509747.1841388517,
+          "opex_usd_per_yr": 615729.5718667475,
+          "gwp_t_co2e_per_yr": 727.4095229892985,
+          "energy_mj_per_yr": 4427905.32302644,
+          "recovered_fraction": 0.7801995251059145
+         }
+        ],
+        "downstream": {
+         "key": "we",
+         "label": "Incineration with energy recovery",
+         "residual_t_per_yr": 7375.840379915268,
+         "distance_mile": 151.0
+        },
+        "profit_usd_per_yr": 2617314.6961121573,
+        "emissions_t_co2e_per_yr": 18869.83786387068,
+        "circularity_index": 0.4858840457893385,
+        "circularity_scores": {
+         "energy": 0.5649595342825273,
+         "ghg": 0.0,
+         "water": 0.5,
+         "waste": 0.9991784170001917,
+         "substitutability": 0.3652822776639736
+        },
+        "sales_usd_per_yr": 5867035.364477006,
+        "capex_usd_per_yr": 2509747.1841388517,
+        "opex_usd_per_yr": 615729.5718667475,
+        "transport_usd_per_yr": 124243.91235924934
+       },
+       {
+        "pathway": "EVOH/Ethylene glycol + lf",
+        "washes": [
+         {
+          "wash": 1,
+          "polymer": "EVOH",
+          "solvent": "Ethylene glycol",
+          "temperature_c": 120.0,
+          "capex_usd_per_yr": 2509747.1841388517,
+          "opex_usd_per_yr": 615729.5718667475,
+          "gwp_t_co2e_per_yr": 727.4095229892985,
+          "energy_mj_per_yr": 4427905.32302644,
+          "recovered_fraction": 0.7801995251059145
+         }
+        ],
+        "downstream": {
+         "key": "lf",
+         "label": "Landfill",
+         "residual_t_per_yr": 7375.840379915268,
+         "distance_mile": 9.2
+        },
+        "profit_usd_per_yr": 1821387.8344739045,
+        "emissions_t_co2e_per_yr": 1365.097819107772,
+        "circularity_index": 0.631726876741832,
+        "circularity_scores": {
+         "energy": 0.5495040487481214,
+         "ghg": 0.9133725083649566,
+         "water": 0.8426454421189018,
+         "waste": 0.5383443779384783,
+         "substitutability": 0.3147680065387018
+        },
+        "sales_usd_per_yr": 5055692.922686326,
+        "capex_usd_per_yr": 2509747.1841388517,
+        "opex_usd_per_yr": 673526.5833253597,
+        "transport_usd_per_yr": 51031.32074821039
+       },
+       {
+        "pathway": "LDPE/Diphenyl ether > EVOH/Ethylene glycol + lf",
+        "washes": [
+         {
+          "wash": 1,
+          "polymer": "LDPE",
+          "solvent": "Diphenyl ether",
+          "temperature_c": 115.0,
+          "capex_usd_per_yr": 6627219.96579677,
+          "opex_usd_per_yr": 1216915.8375775958,
+          "gwp_t_co2e_per_yr": 2767.044095792419,
+          "energy_mj_per_yr": 24342007.681428995,
+          "recovered_fraction": 0.9804626822517463
+         },
+         {
+          "wash": 2,
+          "polymer": "EVOH",
+          "solvent": "Ethylene glycol",
+          "temperature_c": 120.0,
+          "capex_usd_per_yr": 2331364.157705691,
+          "opex_usd_per_yr": 540120.7291477972,
+          "gwp_t_co2e_per_yr": 550.835764839042,
+          "energy_mj_per_yr": 4265569.059944363,
+          "recovered_fraction": 0.9120803391938559
+         }
+        ],
+        "downstream": {
+         "key": "lf",
+         "label": "Landfill",
+         "residual_t_per_yr": 2564.1148538365333,
+         "distance_mile": 9.2
+        },
+        "profit_usd_per_yr": 651883.3398691306,
+        "emissions_t_co2e_per_yr": 3539.563892277204,
+        "circularity_index": 0.6802833044139425,
+        "circularity_scores": {
+         "energy": 0.34808119528401193,
+         "ghg": 0.7753834654352065,
+         "water": 0.7297790606841332,
+         "waste": 0.8364975302254679,
+         "substitutability": 0.7116752704408924
+        },
+        "sales_usd_per_yr": 11430677.684126418,
+        "capex_usd_per_yr": 8958584.123502461,
+        "opex_usd_per_yr": 1777128.9450789075,
+        "transport_usd_per_yr": 43081.27567591869
+       },
+       {
+        "pathway": "LDPE/Diphenyl ether > EVOH/Propylene glycol + lf",
+        "washes": [
+         {
+          "wash": 1,
+          "polymer": "LDPE",
+          "solvent": "Diphenyl ether",
+          "temperature_c": 115.0,
+          "capex_usd_per_yr": 6627219.96579677,
+          "opex_usd_per_yr": 1216915.8375775958,
+          "gwp_t_co2e_per_yr": 2767.044095792419,
+          "energy_mj_per_yr": 24342007.681428995,
+          "recovered_fraction": 0.9804626822517463
+         },
+         {
+          "wash": 2,
+          "polymer": "EVOH",
+          "solvent": "Propylene glycol",
+          "temperature_c": 120.0,
+          "capex_usd_per_yr": 2373785.887421758,
+          "opex_usd_per_yr": 545507.1543237204,
+          "gwp_t_co2e_per_yr": 547.4167823667918,
+          "energy_mj_per_yr": 4281787.683481706,
+          "recovered_fraction": 0.9120803391938559
+         }
+        ],
+        "downstream": {
+         "key": "lf",
+         "label": "Landfill",
+         "residual_t_per_yr": 2564.1148538365333,
+         "distance_mile": 9.2
+        },
+        "profit_usd_per_yr": 604075.1849771412,
+        "emissions_t_co2e_per_yr": 3536.144909804954,
+        "circularity_index": 0.6814634590388615,
+        "circularity_scores": {
+         "energy": 0.3479198491898787,
+         "ghg": 0.7756004300155974,
+         "water": 0.735654814388829,
+         "waste": 0.8364669311591098,
+         "substitutability": 0.7116752704408924
+        },
+        "sales_usd_per_yr": 11430677.684126418,
+        "capex_usd_per_yr": 9001005.853218528,
+        "opex_usd_per_yr": 1782515.3702548307,
+        "transport_usd_per_yr": 43081.27567591869
+       },
+       {
+        "pathway": "LDPE/Toluene > EVOH/Ethylene glycol + lf",
+        "washes": [
+         {
+          "wash": 1,
+          "polymer": "LDPE",
+          "solvent": "Toluene",
+          "temperature_c": 100.0,
+          "capex_usd_per_yr": 6804257.77889577,
+          "opex_usd_per_yr": 1206875.098814718,
+          "gwp_t_co2e_per_yr": 2100.4556098692,
+          "energy_mj_per_yr": 23579190.103689775,
+          "recovered_fraction": 0.9804626826823988
+         },
+         {
+          "wash": 2,
+          "polymer": "EVOH",
+          "solvent": "Ethylene glycol",
+          "temperature_c": 120.0,
+          "capex_usd_per_yr": 2331364.157705691,
+          "opex_usd_per_yr": 540120.7291477972,
+          "gwp_t_co2e_per_yr": 550.835764839042,
+          "energy_mj_per_yr": 4265569.059944363,
+          "recovered_fraction": 0.9120803391938559
+         }
+        ],
+        "downstream": {
+         "key": "lf",
+         "label": "Landfill",
+         "residual_t_per_yr": 2564.114851769401,
+         "distance_mile": 9.2
+        },
+        "profit_usd_per_yr": 484886.26798150595,
+        "emissions_t_co2e_per_yr": 2872.9754061752687,
+        "circularity_index": 0.7083325560221687,
+        "circularity_scores": {
+         "energy": 0.3556685662431834,
+         "ghg": 0.817684381673981,
+         "water": 0.82064883596104,
+         "waste": 0.8359857256407812,
+         "substitutability": 0.7116752705918574
+        },
+        "sales_usd_per_yr": 11430677.686551165,
+        "capex_usd_per_yr": 9135621.936601462,
+        "opex_usd_per_yr": 1767088.2062998316,
+        "transport_usd_per_yr": 43081.27566836539
+       },
+       {
+        "pathway": "LDPE/Toluene > EVOH/Propylene glycol + lf",
+        "washes": [
+         {
+          "wash": 1,
+          "polymer": "LDPE",
+          "solvent": "Toluene",
+          "temperature_c": 100.0,
+          "capex_usd_per_yr": 6804257.77889577,
+          "opex_usd_per_yr": 1206875.098814718,
+          "gwp_t_co2e_per_yr": 2100.4556098692,
+          "energy_mj_per_yr": 23579190.103689775,
+          "recovered_fraction": 0.9804626826823988
+         },
+         {
+          "wash": 2,
+          "polymer": "EVOH",
+          "solvent": "Propylene glycol",
+          "temperature_c": 120.0,
+          "capex_usd_per_yr": 2373785.887421758,
+          "opex_usd_per_yr": 545507.1543237204,
+          "gwp_t_co2e_per_yr": 547.4167823667918,
+          "energy_mj_per_yr": 4281787.683481706,
+          "recovered_fraction": 0.9120803391938559
+         }
+        ],
+        "downstream": {
+         "key": "lf",
+         "label": "Landfill",
+         "residual_t_per_yr": 2564.114851769401,
+         "distance_mile": 9.2
+        },
+        "profit_usd_per_yr": 437078.1130895165,
+        "emissions_t_co2e_per_yr": 2869.5564237030185,
+        "circularity_index": 0.7095127215286188,
+        "circularity_scores": {
+         "energy": 0.35550727455670506,
+         "ghg": 0.8179013462543719,
+         "water": 0.8265245896657357,
+         "waste": 0.8359551265744231,
+         "substitutability": 0.7116752705918574
+        },
+        "sales_usd_per_yr": 11430677.686551165,
+        "capex_usd_per_yr": 9178043.666317528,
+        "opex_usd_per_yr": 1772474.6314757548,
+        "transport_usd_per_yr": 43081.27566836539
+       }
+      ],
+      "emissions_vs_circularity": [
+       {
+        "pathway": "no wash + lf",
+        "washes": [],
+        "downstream": {
+         "key": "lf",
+         "label": "Landfill",
+         "residual_t_per_yr": 8000.0,
+         "distance_mile": 9.2
+        },
+        "profit_usd_per_yr": -91919.92,
+        "emissions_t_co2e_per_yr": 691.6508636547248,
+        "circularity_index": 0.6039537000533531,
+        "circularity_scores": {
+         "energy": 0.5636598453168823,
+         "ghg": 0.9561086549498838,
+         "water": 1.0,
+         "waste": 0.5,
+         "substitutability": 0.0
+        },
+        "sales_usd_per_yr": 0.0,
+        "capex_usd_per_yr": 0.0,
+        "opex_usd_per_yr": 62687.92,
+        "transport_usd_per_yr": 29232.0
+       },
+       {
+        "pathway": "EVOH/Ethylene glycol + lf",
+        "washes": [
+         {
+          "wash": 1,
+          "polymer": "EVOH",
+          "solvent": "Ethylene glycol",
+          "temperature_c": 120.0,
+          "capex_usd_per_yr": 2509747.1841388517,
+          "opex_usd_per_yr": 615729.5718667475,
+          "gwp_t_co2e_per_yr": 727.4095229892985,
+          "energy_mj_per_yr": 4427905.32302644,
+          "recovered_fraction": 0.7801995251059145
+         }
+        ],
+        "downstream": {
+         "key": "lf",
+         "label": "Landfill",
+         "residual_t_per_yr": 7375.840379915268,
+         "distance_mile": 9.2
+        },
+        "profit_usd_per_yr": 1821387.8344739045,
+        "emissions_t_co2e_per_yr": 1365.097819107772,
+        "circularity_index": 0.631726876741832,
+        "circularity_scores": {
+         "energy": 0.5495040487481214,
+         "ghg": 0.9133725083649566,
+         "water": 0.8426454421189018,
+         "waste": 0.5383443779384783,
+         "substitutability": 0.3147680065387018
+        },
+        "sales_usd_per_yr": 5055692.922686326,
+        "capex_usd_per_yr": 2509747.1841388517,
+        "opex_usd_per_yr": 673526.5833253597,
+        "transport_usd_per_yr": 51031.32074821039
+       },
+       {
+        "pathway": "LDPE/Toluene + lf",
+        "washes": [
+         {
+          "wash": 1,
+          "polymer": "LDPE",
+          "solvent": "Toluene",
+          "temperature_c": 100.0,
+          "capex_usd_per_yr": 6804257.77889577,
+          "opex_usd_per_yr": 1206875.098814718,
+          "gwp_t_co2e_per_yr": 2100.4556098692,
+          "energy_mj_per_yr": 23579190.103689775,
+          "recovered_fraction": 0.9804626826823988
+         }
+        ],
+        "downstream": {
+         "key": "lf",
+         "label": "Landfill",
+         "residual_t_per_yr": 3293.7791231244855,
+         "distance_mile": 9.2
+        },
+        "profit_usd_per_yr": -2552661.2783224187,
+        "emissions_t_co2e_per_yr": 2385.223756768819,
+        "circularity_index": 0.6543518341088037,
+        "circularity_scores": {
+         "energy": 0.39412150593384165,
+         "ghg": 0.8486365239582256,
+         "water": 0.8944182099976576,
+         "waste": 0.7908823907984215,
+         "substitutability": 0.3437005398558715
+        },
+        "sales_usd_per_yr": 5520397.0885749785,
+        "capex_usd_per_yr": 6804257.77889577,
+        "opex_usd_per_yr": 1232685.1190857303,
+        "transport_usd_per_yr": 36115.46891589687
+       },
+       {
+        "pathway": "LDPE/Toluene > EVOH/Propylene glycol + lf",
+        "washes": [
+         {
+          "wash": 1,
+          "polymer": "LDPE",
+          "solvent": "Toluene",
+          "temperature_c": 100.0,
+          "capex_usd_per_yr": 6804257.77889577,
+          "opex_usd_per_yr": 1206875.098814718,
+          "gwp_t_co2e_per_yr": 2100.4556098692,
+          "energy_mj_per_yr": 23579190.103689775,
+          "recovered_fraction": 0.9804626826823988
+         },
+         {
+          "wash": 2,
+          "polymer": "EVOH",
+          "solvent": "Propylene glycol",
+          "temperature_c": 120.0,
+          "capex_usd_per_yr": 2373785.887421758,
+          "opex_usd_per_yr": 545507.1543237204,
+          "gwp_t_co2e_per_yr": 547.4167823667918,
+          "energy_mj_per_yr": 4281787.683481706,
+          "recovered_fraction": 0.9120803391938559
+         }
+        ],
+        "downstream": {
+         "key": "lf",
+         "label": "Landfill",
+         "residual_t_per_yr": 2564.114851769401,
+         "distance_mile": 9.2
+        },
+        "profit_usd_per_yr": 437078.1130895165,
+        "emissions_t_co2e_per_yr": 2869.5564237030185,
+        "circularity_index": 0.7095127215286188,
+        "circularity_scores": {
+         "energy": 0.35550727455670506,
+         "ghg": 0.8179013462543719,
+         "water": 0.8265245896657357,
+         "waste": 0.8359551265744231,
+         "substitutability": 0.7116752705918574
+        },
+        "sales_usd_per_yr": 11430677.686551165,
+        "capex_usd_per_yr": 9178043.666317528,
+        "opex_usd_per_yr": 1772474.6314757548,
+        "transport_usd_per_yr": 43081.27566836539
+       }
+      ]
+     },
+     "ldpe_price_sweep_max_profit": {
+      "1173.0": {
+       "pathway": "EVOH/Ethylene glycol + we",
+       "profit_usd_yr": 2617314.6961121573,
+       "emissions_t": 18869.83786387068,
+       "circularity": 0.4858840457893385
+      },
+      "1300.0": {
+       "pathway": "EVOH/Ethylene glycol + we",
+       "profit_usd_yr": 2617314.6961121573,
+       "emissions_t": 18869.83786387068,
+       "circularity": 0.4858840457893385
+      },
+      "1500.0": {
+       "pathway": "EVOH/Ethylene glycol + we",
+       "profit_usd_yr": 2617314.6961121573,
+       "emissions_t": 18869.83786387068,
+       "circularity": 0.4858840457893385
+      },
+      "1800.0": {
+       "pathway": "LDPE/Diphenyl ether > EVOH/Ethylene glycol + we",
+       "profit_usd_yr": 3879377.4366103387,
+       "emissions_t": 9624.85880776172,
+       "circularity": 0.6298103757005336
+      },
+      "2200.0": {
+       "pathway": "LDPE/Diphenyl ether > EVOH/Ethylene glycol + we",
+       "profit_usd_yr": 5761865.786533693,
+       "emissions_t": 9624.85880776172,
+       "circularity": 0.6472197622522338
+      }
+     }
+    },
+    "B": {
+     "candidates": 70,
+     "optima": {
+      "max_profit": {
+       "pathway": "EVOH/Ethylene glycol + gas_h2cc",
+       "washes": [
+        {
+         "wash": 1,
+         "polymer": "EVOH",
+         "solvent": "Ethylene glycol",
+         "temperature_c": 120.0,
+         "capex_usd_per_yr": 2509747.1841388517,
+         "opex_usd_per_yr": 615729.5718667475,
+         "gwp_t_co2e_per_yr": 727.4095229892985,
+         "energy_mj_per_yr": 4427905.32302644,
+         "recovered_fraction": 0.7801995251059145
+        }
+       ],
+       "downstream": {
+        "key": "gas_h2cc",
+        "label": "Gasification for hydrogen with carbon capture",
+        "residual_t_per_yr": 7375.840379915268,
+        "distance_mile": 76.1
+       },
+       "profit_usd_per_yr": 2655986.227224053,
+       "emissions_t_co2e_per_yr": 19578.803641188137,
+       "circularity_index": 0.349183853941362,
+       "circularity_scores": {
+        "energy": 0.03814338513186773,
+        "ghg": 0.0,
+        "water": 0.8426454421189018,
+        "waste": 0.49984816479206656,
+        "substitutability": 0.3652822776639736
+       },
+       "sales_usd_per_yr": 5867035.364477006,
+       "capex_usd_per_yr": 2509747.1841388517,
+       "opex_usd_per_yr": 615729.5718667475,
+       "transport_usd_per_yr": 85572.3812473536,
+       "solver": "scip",
+       "agrees_with_enumeration": true
+      },
+      "min_emissions": {
+       "pathway": "no wash + lf",
+       "washes": [],
+       "downstream": {
+        "key": "lf",
+        "label": "Landfill",
+        "residual_t_per_yr": 8000.0,
+        "distance_mile": 9.2
+       },
+       "profit_usd_per_yr": -91919.92,
+       "emissions_t_co2e_per_yr": 691.6508636547248,
+       "circularity_index": 0.6039537000533531,
+       "circularity_scores": {
+        "energy": 0.5636598453168823,
+        "ghg": 0.9561086549498838,
+        "water": 1.0,
+        "waste": 0.5,
+        "substitutability": 0.0
+       },
+       "sales_usd_per_yr": 0.0,
+       "capex_usd_per_yr": 0.0,
+       "opex_usd_per_yr": 62687.92,
+       "transport_usd_per_yr": 29232.0,
+       "solver": "scip",
+       "agrees_with_enumeration": true
+      },
+      "max_circularity": {
+       "pathway": "LDPE/Toluene > EVOH/Propylene glycol + lf",
+       "washes": [
+        {
+         "wash": 1,
+         "polymer": "LDPE",
+         "solvent": "Toluene",
+         "temperature_c": 100.0,
+         "capex_usd_per_yr": 6804257.77889577,
+         "opex_usd_per_yr": 1206875.098814718,
+         "gwp_t_co2e_per_yr": 2100.4556098692,
+         "energy_mj_per_yr": 23579190.103689775,
+         "recovered_fraction": 0.9804626826823988
+        },
+        {
+         "wash": 2,
+         "polymer": "EVOH",
+         "solvent": "Propylene glycol",
+         "temperature_c": 120.0,
+         "capex_usd_per_yr": 2373785.887421758,
+         "opex_usd_per_yr": 545507.1543237204,
+         "gwp_t_co2e_per_yr": 547.4167823667918,
+         "energy_mj_per_yr": 4281787.683481706,
+         "recovered_fraction": 0.9120803391938559
+        }
+       ],
+       "downstream": {
+        "key": "lf",
+        "label": "Landfill",
+        "residual_t_per_yr": 2564.114851769401,
+        "distance_mile": 9.2
+       },
+       "profit_usd_per_yr": 437078.1130895165,
+       "emissions_t_co2e_per_yr": 2869.5564237030185,
+       "circularity_index": 0.7095127215286188,
+       "circularity_scores": {
+        "energy": 0.35550727455670506,
+        "ghg": 0.8179013462543719,
+        "water": 0.8265245896657357,
+        "waste": 0.8359551265744231,
+        "substitutability": 0.7116752705918574
+       },
+       "sales_usd_per_yr": 11430677.686551165,
+       "capex_usd_per_yr": 9178043.666317528,
+       "opex_usd_per_yr": 1772474.6314757548,
+       "transport_usd_per_yr": 43081.27566836539,
+       "solver": "scip",
+       "agrees_with_enumeration": true
+      }
+     },
+     "pareto": {
+      "emissions_vs_profit": [
+       {
+        "pathway": "no wash + lf",
+        "washes": [],
+        "downstream": {
+         "key": "lf",
+         "label": "Landfill",
+         "residual_t_per_yr": 8000.0,
+         "distance_mile": 9.2
+        },
+        "profit_usd_per_yr": -91919.92,
+        "emissions_t_co2e_per_yr": 691.6508636547248,
+        "circularity_index": 0.6039537000533531,
+        "circularity_scores": {
+         "energy": 0.5636598453168823,
+         "ghg": 0.9561086549498838,
+         "water": 1.0,
+         "waste": 0.5,
+         "substitutability": 0.0
+        },
+        "sales_usd_per_yr": 0.0,
+        "capex_usd_per_yr": 0.0,
+        "opex_usd_per_yr": 62687.92,
+        "transport_usd_per_yr": 29232.0
+       },
+       {
+        "pathway": "EVOH/Ethylene glycol + lf",
+        "washes": [
+         {
+          "wash": 1,
+          "polymer": "EVOH",
+          "solvent": "Ethylene glycol",
+          "temperature_c": 120.0,
+          "capex_usd_per_yr": 2509747.1841388517,
+          "opex_usd_per_yr": 615729.5718667475,
+          "gwp_t_co2e_per_yr": 727.4095229892985,
+          "energy_mj_per_yr": 4427905.32302644,
+          "recovered_fraction": 0.7801995251059145
+         }
+        ],
+        "downstream": {
+         "key": "lf",
+         "label": "Landfill",
+         "residual_t_per_yr": 7375.840379915268,
+         "distance_mile": 9.2
+        },
+        "profit_usd_per_yr": 1821387.8344739045,
+        "emissions_t_co2e_per_yr": 1365.097819107772,
+        "circularity_index": 0.631726876741832,
+        "circularity_scores": {
+         "energy": 0.5495040487481214,
+         "ghg": 0.9133725083649566,
+         "water": 0.8426454421189018,
+         "waste": 0.5383443779384783,
+         "substitutability": 0.3147680065387018
+        },
+        "sales_usd_per_yr": 5055692.922686326,
+        "capex_usd_per_yr": 2509747.1841388517,
+        "opex_usd_per_yr": 673526.5833253597,
+        "transport_usd_per_yr": 51031.32074821039
+       },
+       {
+        "pathway": "EVOH/Ethylene glycol + we",
+        "washes": [
+         {
+          "wash": 1,
+          "polymer": "EVOH",
+          "solvent": "Ethylene glycol",
+          "temperature_c": 120.0,
+          "capex_usd_per_yr": 2509747.1841388517,
+          "opex_usd_per_yr": 615729.5718667475,
+          "gwp_t_co2e_per_yr": 727.4095229892985,
+          "energy_mj_per_yr": 4427905.32302644,
+          "recovered_fraction": 0.7801995251059145
+         }
+        ],
+        "downstream": {
+         "key": "we",
+         "label": "Incineration with energy recovery",
+         "residual_t_per_yr": 7375.840379915268,
+         "distance_mile": 151.0
+        },
+        "profit_usd_per_yr": 2617314.6961121573,
+        "emissions_t_co2e_per_yr": 18869.83786387068,
+        "circularity_index": 0.4858840457893385,
+        "circularity_scores": {
+         "energy": 0.5649595342825273,
+         "ghg": 0.0,
+         "water": 0.5,
+         "waste": 0.9991784170001917,
+         "substitutability": 0.3652822776639736
+        },
+        "sales_usd_per_yr": 5867035.364477006,
+        "capex_usd_per_yr": 2509747.1841388517,
+        "opex_usd_per_yr": 615729.5718667475,
+        "transport_usd_per_yr": 124243.91235924934
+       },
+       {
+        "pathway": "EVOH/Ethylene glycol + gas_h2cc",
+        "washes": [
+         {
+          "wash": 1,
+          "polymer": "EVOH",
+          "solvent": "Ethylene glycol",
+          "temperature_c": 120.0,
+          "capex_usd_per_yr": 2509747.1841388517,
+          "opex_usd_per_yr": 615729.5718667475,
+          "gwp_t_co2e_per_yr": 727.4095229892985,
+          "energy_mj_per_yr": 4427905.32302644,
+          "recovered_fraction": 0.7801995251059145
+         }
+        ],
+        "downstream": {
+         "key": "gas_h2cc",
+         "label": "Gasification for hydrogen with carbon capture",
+         "residual_t_per_yr": 7375.840379915268,
+         "distance_mile": 76.1
+        },
+        "profit_usd_per_yr": 2655986.227224053,
+        "emissions_t_co2e_per_yr": 19578.803641188137,
+        "circularity_index": 0.349183853941362,
+        "circularity_scores": {
+         "energy": 0.03814338513186773,
+         "ghg": 0.0,
+         "water": 0.8426454421189018,
+         "waste": 0.49984816479206656,
+         "substitutability": 0.3652822776639736
+        },
+        "sales_usd_per_yr": 5867035.364477006,
+        "capex_usd_per_yr": 2509747.1841388517,
+        "opex_usd_per_yr": 615729.5718667475,
+        "transport_usd_per_yr": 85572.3812473536
+       }
+      ],
+      "circularity_vs_profit": [
+       {
+        "pathway": "EVOH/Ethylene glycol + gas_h2cc",
+        "washes": [
+         {
+          "wash": 1,
+          "polymer": "EVOH",
+          "solvent": "Ethylene glycol",
+          "temperature_c": 120.0,
+          "capex_usd_per_yr": 2509747.1841388517,
+          "opex_usd_per_yr": 615729.5718667475,
+          "gwp_t_co2e_per_yr": 727.4095229892985,
+          "energy_mj_per_yr": 4427905.32302644,
+          "recovered_fraction": 0.7801995251059145
+         }
+        ],
+        "downstream": {
+         "key": "gas_h2cc",
+         "label": "Gasification for hydrogen with carbon capture",
+         "residual_t_per_yr": 7375.840379915268,
+         "distance_mile": 76.1
+        },
+        "profit_usd_per_yr": 2655986.227224053,
+        "emissions_t_co2e_per_yr": 19578.803641188137,
+        "circularity_index": 0.349183853941362,
+        "circularity_scores": {
+         "energy": 0.03814338513186773,
+         "ghg": 0.0,
+         "water": 0.8426454421189018,
+         "waste": 0.49984816479206656,
+         "substitutability": 0.3652822776639736
+        },
+        "sales_usd_per_yr": 5867035.364477006,
+        "capex_usd_per_yr": 2509747.1841388517,
+        "opex_usd_per_yr": 615729.5718667475,
+        "transport_usd_per_yr": 85572.3812473536
+       },
+       {
+        "pathway": "EVOH/Ethylene glycol + we",
+        "washes": [
+         {
+          "wash": 1,
+          "polymer": "EVOH",
+          "solvent": "Ethylene glycol",
+          "temperature_c": 120.0,
+          "capex_usd_per_yr": 2509747.1841388517,
+          "opex_usd_per_yr": 615729.5718667475,
+          "gwp_t_co2e_per_yr": 727.4095229892985,
+          "energy_mj_per_yr": 4427905.32302644,
+          "recovered_fraction": 0.7801995251059145
+         }
+        ],
+        "downstream": {
+         "key": "we",
+         "label": "Incineration with energy recovery",
+         "residual_t_per_yr": 7375.840379915268,
+         "distance_mile": 151.0
+        },
+        "profit_usd_per_yr": 2617314.6961121573,
+        "emissions_t_co2e_per_yr": 18869.83786387068,
+        "circularity_index": 0.4858840457893385,
+        "circularity_scores": {
+         "energy": 0.5649595342825273,
+         "ghg": 0.0,
+         "water": 0.5,
+         "waste": 0.9991784170001917,
+         "substitutability": 0.3652822776639736
+        },
+        "sales_usd_per_yr": 5867035.364477006,
+        "capex_usd_per_yr": 2509747.1841388517,
+        "opex_usd_per_yr": 615729.5718667475,
+        "transport_usd_per_yr": 124243.91235924934
+       },
+       {
+        "pathway": "EVOH/Ethylene glycol + lf",
+        "washes": [
+         {
+          "wash": 1,
+          "polymer": "EVOH",
+          "solvent": "Ethylene glycol",
+          "temperature_c": 120.0,
+          "capex_usd_per_yr": 2509747.1841388517,
+          "opex_usd_per_yr": 615729.5718667475,
+          "gwp_t_co2e_per_yr": 727.4095229892985,
+          "energy_mj_per_yr": 4427905.32302644,
+          "recovered_fraction": 0.7801995251059145
+         }
+        ],
+        "downstream": {
+         "key": "lf",
+         "label": "Landfill",
+         "residual_t_per_yr": 7375.840379915268,
+         "distance_mile": 9.2
+        },
+        "profit_usd_per_yr": 1821387.8344739045,
+        "emissions_t_co2e_per_yr": 1365.097819107772,
+        "circularity_index": 0.631726876741832,
+        "circularity_scores": {
+         "energy": 0.5495040487481214,
+         "ghg": 0.9133725083649566,
+         "water": 0.8426454421189018,
+         "waste": 0.5383443779384783,
+         "substitutability": 0.3147680065387018
+        },
+        "sales_usd_per_yr": 5055692.922686326,
+        "capex_usd_per_yr": 2509747.1841388517,
+        "opex_usd_per_yr": 673526.5833253597,
+        "transport_usd_per_yr": 51031.32074821039
+       },
+       {
+        "pathway": "LDPE/Diphenyl ether > EVOH/Ethylene glycol + lf",
+        "washes": [
+         {
+          "wash": 1,
+          "polymer": "LDPE",
+          "solvent": "Diphenyl ether",
+          "temperature_c": 115.0,
+          "capex_usd_per_yr": 6627219.96579677,
+          "opex_usd_per_yr": 1216915.8375775958,
+          "gwp_t_co2e_per_yr": 2767.044095792419,
+          "energy_mj_per_yr": 24342007.681428995,
+          "recovered_fraction": 0.9804626822517463
+         },
+         {
+          "wash": 2,
+          "polymer": "EVOH",
+          "solvent": "Ethylene glycol",
+          "temperature_c": 120.0,
+          "capex_usd_per_yr": 2331364.157705691,
+          "opex_usd_per_yr": 540120.7291477972,
+          "gwp_t_co2e_per_yr": 550.835764839042,
+          "energy_mj_per_yr": 4265569.059944363,
+          "recovered_fraction": 0.9120803391938559
+         }
+        ],
+        "downstream": {
+         "key": "lf",
+         "label": "Landfill",
+         "residual_t_per_yr": 2564.1148538365333,
+         "distance_mile": 9.2
+        },
+        "profit_usd_per_yr": 651883.3398691306,
+        "emissions_t_co2e_per_yr": 3539.563892277204,
+        "circularity_index": 0.6802833044139425,
+        "circularity_scores": {
+         "energy": 0.34808119528401193,
+         "ghg": 0.7753834654352065,
+         "water": 0.7297790606841332,
+         "waste": 0.8364975302254679,
+         "substitutability": 0.7116752704408924
+        },
+        "sales_usd_per_yr": 11430677.684126418,
+        "capex_usd_per_yr": 8958584.123502461,
+        "opex_usd_per_yr": 1777128.9450789075,
+        "transport_usd_per_yr": 43081.27567591869
+       },
+       {
+        "pathway": "LDPE/Diphenyl ether > EVOH/Propylene glycol + lf",
+        "washes": [
+         {
+          "wash": 1,
+          "polymer": "LDPE",
+          "solvent": "Diphenyl ether",
+          "temperature_c": 115.0,
+          "capex_usd_per_yr": 6627219.96579677,
+          "opex_usd_per_yr": 1216915.8375775958,
+          "gwp_t_co2e_per_yr": 2767.044095792419,
+          "energy_mj_per_yr": 24342007.681428995,
+          "recovered_fraction": 0.9804626822517463
+         },
+         {
+          "wash": 2,
+          "polymer": "EVOH",
+          "solvent": "Propylene glycol",
+          "temperature_c": 120.0,
+          "capex_usd_per_yr": 2373785.887421758,
+          "opex_usd_per_yr": 545507.1543237204,
+          "gwp_t_co2e_per_yr": 547.4167823667918,
+          "energy_mj_per_yr": 4281787.683481706,
+          "recovered_fraction": 0.9120803391938559
+         }
+        ],
+        "downstream": {
+         "key": "lf",
+         "label": "Landfill",
+         "residual_t_per_yr": 2564.1148538365333,
+         "distance_mile": 9.2
+        },
+        "profit_usd_per_yr": 604075.1849771412,
+        "emissions_t_co2e_per_yr": 3536.144909804954,
+        "circularity_index": 0.6814634590388615,
+        "circularity_scores": {
+         "energy": 0.3479198491898787,
+         "ghg": 0.7756004300155974,
+         "water": 0.735654814388829,
+         "waste": 0.8364669311591098,
+         "substitutability": 0.7116752704408924
+        },
+        "sales_usd_per_yr": 11430677.684126418,
+        "capex_usd_per_yr": 9001005.853218528,
+        "opex_usd_per_yr": 1782515.3702548307,
+        "transport_usd_per_yr": 43081.27567591869
+       },
+       {
+        "pathway": "LDPE/Toluene > EVOH/Ethylene glycol + lf",
+        "washes": [
+         {
+          "wash": 1,
+          "polymer": "LDPE",
+          "solvent": "Toluene",
+          "temperature_c": 100.0,
+          "capex_usd_per_yr": 6804257.77889577,
+          "opex_usd_per_yr": 1206875.098814718,
+          "gwp_t_co2e_per_yr": 2100.4556098692,
+          "energy_mj_per_yr": 23579190.103689775,
+          "recovered_fraction": 0.9804626826823988
+         },
+         {
+          "wash": 2,
+          "polymer": "EVOH",
+          "solvent": "Ethylene glycol",
+          "temperature_c": 120.0,
+          "capex_usd_per_yr": 2331364.157705691,
+          "opex_usd_per_yr": 540120.7291477972,
+          "gwp_t_co2e_per_yr": 550.835764839042,
+          "energy_mj_per_yr": 4265569.059944363,
+          "recovered_fraction": 0.9120803391938559
+         }
+        ],
+        "downstream": {
+         "key": "lf",
+         "label": "Landfill",
+         "residual_t_per_yr": 2564.114851769401,
+         "distance_mile": 9.2
+        },
+        "profit_usd_per_yr": 484886.26798150595,
+        "emissions_t_co2e_per_yr": 2872.9754061752687,
+        "circularity_index": 0.7083325560221687,
+        "circularity_scores": {
+         "energy": 0.3556685662431834,
+         "ghg": 0.817684381673981,
+         "water": 0.82064883596104,
+         "waste": 0.8359857256407812,
+         "substitutability": 0.7116752705918574
+        },
+        "sales_usd_per_yr": 11430677.686551165,
+        "capex_usd_per_yr": 9135621.936601462,
+        "opex_usd_per_yr": 1767088.2062998316,
+        "transport_usd_per_yr": 43081.27566836539
+       },
+       {
+        "pathway": "LDPE/Toluene > EVOH/Propylene glycol + lf",
+        "washes": [
+         {
+          "wash": 1,
+          "polymer": "LDPE",
+          "solvent": "Toluene",
+          "temperature_c": 100.0,
+          "capex_usd_per_yr": 6804257.77889577,
+          "opex_usd_per_yr": 1206875.098814718,
+          "gwp_t_co2e_per_yr": 2100.4556098692,
+          "energy_mj_per_yr": 23579190.103689775,
+          "recovered_fraction": 0.9804626826823988
+         },
+         {
+          "wash": 2,
+          "polymer": "EVOH",
+          "solvent": "Propylene glycol",
+          "temperature_c": 120.0,
+          "capex_usd_per_yr": 2373785.887421758,
+          "opex_usd_per_yr": 545507.1543237204,
+          "gwp_t_co2e_per_yr": 547.4167823667918,
+          "energy_mj_per_yr": 4281787.683481706,
+          "recovered_fraction": 0.9120803391938559
+         }
+        ],
+        "downstream": {
+         "key": "lf",
+         "label": "Landfill",
+         "residual_t_per_yr": 2564.114851769401,
+         "distance_mile": 9.2
+        },
+        "profit_usd_per_yr": 437078.1130895165,
+        "emissions_t_co2e_per_yr": 2869.5564237030185,
+        "circularity_index": 0.7095127215286188,
+        "circularity_scores": {
+         "energy": 0.35550727455670506,
+         "ghg": 0.8179013462543719,
+         "water": 0.8265245896657357,
+         "waste": 0.8359551265744231,
+         "substitutability": 0.7116752705918574
+        },
+        "sales_usd_per_yr": 11430677.686551165,
+        "capex_usd_per_yr": 9178043.666317528,
+        "opex_usd_per_yr": 1772474.6314757548,
+        "transport_usd_per_yr": 43081.27566836539
+       }
+      ],
+      "emissions_vs_circularity": [
+       {
+        "pathway": "no wash + lf",
+        "washes": [],
+        "downstream": {
+         "key": "lf",
+         "label": "Landfill",
+         "residual_t_per_yr": 8000.0,
+         "distance_mile": 9.2
+        },
+        "profit_usd_per_yr": -91919.92,
+        "emissions_t_co2e_per_yr": 691.6508636547248,
+        "circularity_index": 0.6039537000533531,
+        "circularity_scores": {
+         "energy": 0.5636598453168823,
+         "ghg": 0.9561086549498838,
+         "water": 1.0,
+         "waste": 0.5,
+         "substitutability": 0.0
+        },
+        "sales_usd_per_yr": 0.0,
+        "capex_usd_per_yr": 0.0,
+        "opex_usd_per_yr": 62687.92,
+        "transport_usd_per_yr": 29232.0
+       },
+       {
+        "pathway": "EVOH/Ethylene glycol + lf",
+        "washes": [
+         {
+          "wash": 1,
+          "polymer": "EVOH",
+          "solvent": "Ethylene glycol",
+          "temperature_c": 120.0,
+          "capex_usd_per_yr": 2509747.1841388517,
+          "opex_usd_per_yr": 615729.5718667475,
+          "gwp_t_co2e_per_yr": 727.4095229892985,
+          "energy_mj_per_yr": 4427905.32302644,
+          "recovered_fraction": 0.7801995251059145
+         }
+        ],
+        "downstream": {
+         "key": "lf",
+         "label": "Landfill",
+         "residual_t_per_yr": 7375.840379915268,
+         "distance_mile": 9.2
+        },
+        "profit_usd_per_yr": 1821387.8344739045,
+        "emissions_t_co2e_per_yr": 1365.097819107772,
+        "circularity_index": 0.631726876741832,
+        "circularity_scores": {
+         "energy": 0.5495040487481214,
+         "ghg": 0.9133725083649566,
+         "water": 0.8426454421189018,
+         "waste": 0.5383443779384783,
+         "substitutability": 0.3147680065387018
+        },
+        "sales_usd_per_yr": 5055692.922686326,
+        "capex_usd_per_yr": 2509747.1841388517,
+        "opex_usd_per_yr": 673526.5833253597,
+        "transport_usd_per_yr": 51031.32074821039
+       },
+       {
+        "pathway": "LDPE/Toluene + lf",
+        "washes": [
+         {
+          "wash": 1,
+          "polymer": "LDPE",
+          "solvent": "Toluene",
+          "temperature_c": 100.0,
+          "capex_usd_per_yr": 6804257.77889577,
+          "opex_usd_per_yr": 1206875.098814718,
+          "gwp_t_co2e_per_yr": 2100.4556098692,
+          "energy_mj_per_yr": 23579190.103689775,
+          "recovered_fraction": 0.9804626826823988
+         }
+        ],
+        "downstream": {
+         "key": "lf",
+         "label": "Landfill",
+         "residual_t_per_yr": 3293.7791231244855,
+         "distance_mile": 9.2
+        },
+        "profit_usd_per_yr": -2552661.2783224187,
+        "emissions_t_co2e_per_yr": 2385.223756768819,
+        "circularity_index": 0.6543518341088037,
+        "circularity_scores": {
+         "energy": 0.39412150593384165,
+         "ghg": 0.8486365239582256,
+         "water": 0.8944182099976576,
+         "waste": 0.7908823907984215,
+         "substitutability": 0.3437005398558715
+        },
+        "sales_usd_per_yr": 5520397.0885749785,
+        "capex_usd_per_yr": 6804257.77889577,
+        "opex_usd_per_yr": 1232685.1190857303,
+        "transport_usd_per_yr": 36115.46891589687
+       },
+       {
+        "pathway": "LDPE/Toluene > EVOH/Propylene glycol + lf",
+        "washes": [
+         {
+          "wash": 1,
+          "polymer": "LDPE",
+          "solvent": "Toluene",
+          "temperature_c": 100.0,
+          "capex_usd_per_yr": 6804257.77889577,
+          "opex_usd_per_yr": 1206875.098814718,
+          "gwp_t_co2e_per_yr": 2100.4556098692,
+          "energy_mj_per_yr": 23579190.103689775,
+          "recovered_fraction": 0.9804626826823988
+         },
+         {
+          "wash": 2,
+          "polymer": "EVOH",
+          "solvent": "Propylene glycol",
+          "temperature_c": 120.0,
+          "capex_usd_per_yr": 2373785.887421758,
+          "opex_usd_per_yr": 545507.1543237204,
+          "gwp_t_co2e_per_yr": 547.4167823667918,
+          "energy_mj_per_yr": 4281787.683481706,
+          "recovered_fraction": 0.9120803391938559
+         }
+        ],
+        "downstream": {
+         "key": "lf",
+         "label": "Landfill",
+         "residual_t_per_yr": 2564.114851769401,
+         "distance_mile": 9.2
+        },
+        "profit_usd_per_yr": 437078.1130895165,
+        "emissions_t_co2e_per_yr": 2869.5564237030185,
+        "circularity_index": 0.7095127215286188,
+        "circularity_scores": {
+         "energy": 0.35550727455670506,
+         "ghg": 0.8179013462543719,
+         "water": 0.8265245896657357,
+         "waste": 0.8359551265744231,
+         "substitutability": 0.7116752705918574
+        },
+        "sales_usd_per_yr": 11430677.686551165,
+        "capex_usd_per_yr": 9178043.666317528,
+        "opex_usd_per_yr": 1772474.6314757548,
+        "transport_usd_per_yr": 43081.27566836539
+       }
+      ]
+     },
+     "ldpe_price_sweep_max_profit": {
+      "1173.0": {
+       "pathway": "EVOH/Ethylene glycol + gas_h2cc",
+       "profit_usd_yr": 2655986.227224053,
+       "emissions_t": 19578.803641188137,
+       "circularity": 0.349183853941362
+      },
+      "1300.0": {
+       "pathway": "EVOH/Ethylene glycol + gas_h2cc",
+       "profit_usd_yr": 2655986.227224053,
+       "emissions_t": 19578.803641188137,
+       "circularity": 0.349183853941362
+      },
+      "1500.0": {
+       "pathway": "EVOH/Ethylene glycol + gas_h2cc",
+       "profit_usd_yr": 2655986.227224053,
+       "emissions_t": 19578.803641188137,
+       "circularity": 0.349183853941362
+      },
+      "1800.0": {
+       "pathway": "LDPE/Diphenyl ether > EVOH/Ethylene glycol + gas_h2cc",
+       "profit_usd_yr": 3892821.0907890038,
+       "emissions_t": 9871.321527512488,
+       "circularity": 0.524840305685015
+      },
+      "2200.0": {
+       "pathway": "LDPE/Diphenyl ether > EVOH/Ethylene glycol + gas_h2cc",
+       "profit_usd_yr": 5775309.440712358,
+       "emissions_t": 9871.321527512488,
+       "circularity": 0.5422496922367153
+      }
+     }
+    }
+   }
+  },
+  "shared_20kt": {
+   "seconds": 164.3,
+   "washes": [
+    {
+     "removed_before": [],
+     "polymer": "EVOH",
+     "solvent": "Ethylene glycol",
+     "temperature_c": 120.0,
+     "capex_usd_yr": 1706358.3919729379,
+     "opex_usd_yr": 398347.8838611501,
+     "gwp_t": 717.7690116531038,
+     "energy_mj": 4302362.0332086105,
+     "engine_mode": "live",
+     "thermo": {
+      "target_solubility_pct": 10.60388466,
+      "max_retained_pct": 0.9373441,
+      "limiting_retained_polymer": "LDPE",
+      "selectivity_pct": 9.66654056,
+      "boiling_point_margin_c": 77.30000000000001,
+      "target_left_dissolved_pct_after_cooling": 0.00997257,
+      "retained_pickup_upper_bound_pct_of_product": 30.594232466296447
+     }
+    },
+    {
+     "removed_before": [],
+     "polymer": "LDPE",
+     "solvent": "Diphenyl ether",
+     "temperature_c": 115.0,
+     "capex_usd_yr": 4812890.989937932,
+     "opex_usd_yr": 897795.3639403712,
+     "gwp_t": 2749.0850108715485,
+     "energy_mj": 24108135.99740152,
+     "engine_mode": "live",
+     "thermo": {
+      "target_solubility_pct": 12.85175817,
+      "max_retained_pct": 1.08176461,
+      "limiting_retained_polymer": "PET",
+      "selectivity_pct": 11.76999356,
+      "boiling_point_margin_c": 143.0,
+      "target_left_dissolved_pct_after_cooling": 0.04014448,
+      "retained_pickup_upper_bound_pct_of_product": 35.35956296170371
+     }
+    },
+    {
+     "removed_before": [],
+     "polymer": "LDPE",
+     "solvent": "Toluene",
+     "temperature_c": 100.0,
+     "capex_usd_yr": 4968949.77077544,
+     "opex_usd_yr": 878969.3290432715,
+     "gwp_t": 2081.809350600476,
+     "energy_mj": 23336369.712763015,
+     "engine_mode": "live",
+     "thermo": {
+      "target_solubility_pct": 12.70218754,
+      "max_retained_pct": 1.44467128,
+      "limiting_retained_polymer": "PET",
+      "selectivity_pct": 11.257516260000001,
+      "boiling_point_margin_c": 10.599999999999994,
+      "target_left_dissolved_pct_after_cooling": 0.12912006,
+      "retained_pickup_upper_bound_pct_of_product": 47.39575085385939
+     }
+    },
+    {
+     "removed_before": [],
+     "polymer": "LDPE",
+     "solvent": "p-Xylene",
+     "temperature_c": 100.0,
+     "capex_usd_yr": 5009837.377142831,
+     "opex_usd_yr": 891265.4422279053,
+     "gwp_t": 2205.6155045763853,
+     "energy_mj": 23560925.733935583,
+     "engine_mode": "live",
+     "thermo": {
+      "target_solubility_pct": 12.46217694,
+      "max_retained_pct": 0.64018588,
+      "limiting_retained_polymer": "PET",
+      "selectivity_pct": 11.82199106,
+      "boiling_point_margin_c": 38.30000000000001,
+      "target_left_dissolved_pct_after_cooling": 0.13834027,
+      "retained_pickup_upper_bound_pct_of_product": 20.83271153097577
+     }
+    },
+    {
+     "removed_before": [
+      "LDPE"
+     ],
+     "polymer": "EVOH",
+     "solvent": "Ethylene glycol",
+     "temperature_c": 120.0,
+     "capex_usd_yr": 1102891.445458469,
+     "opex_usd_yr": 223926.72647753076,
+     "gwp_t": 535.9839578522111,
+     "energy_mj": 4072161.817494532,
+     "engine_mode": "live",
+     "thermo": {
+      "target_solubility_pct": 10.60388466,
+      "max_retained_pct": 0.36352085,
+      "limiting_retained_polymer": "NYLON6",
+      "selectivity_pct": 10.24036381,
+      "boiling_point_margin_c": 77.30000000000001,
+      "target_left_dissolved_pct_after_cooling": 0.00997257,
+      "retained_pickup_upper_bound_pct_of_product": 11.796724369366348
+     }
+    },
+    {
+     "removed_before": [
+      "LDPE"
+     ],
+     "polymer": "EVOH",
+     "solvent": "Propylene glycol",
+     "temperature_c": 120.0,
+     "capex_usd_yr": 1122262.3834999313,
+     "opex_usd_yr": 226251.00190429098,
+     "gwp_t": 532.3179035783713,
+     "energy_mj": 4085162.9555104882,
+     "engine_mode": "live",
+     "thermo": {
+      "target_solubility_pct": 12.43743039,
+      "max_retained_pct": 1.50382353,
+      "limiting_retained_polymer": "NYLON6",
+      "selectivity_pct": 10.93360686,
+      "boiling_point_margin_c": 67.6,
+      "target_left_dissolved_pct_after_cooling": 0.01343861,
+      "retained_pickup_upper_bound_pct_of_product": 49.36600507006463
+     }
+    },
+    {
+     "removed_before": [
+      "EVOH"
+     ],
+     "polymer": "LDPE",
+     "solvent": "Diphenyl ether",
+     "temperature_c": 115.0,
+     "capex_usd_yr": 4638896.864883032,
+     "opex_usd_yr": 861531.3520769392,
+     "gwp_t": 2723.0292960988363,
+     "energy_mj": 24115858.344628446,
+     "engine_mode": "live",
+     "thermo": {
+      "target_solubility_pct": 12.85175817,
+      "max_retained_pct": 1.08176461,
+      "limiting_retained_polymer": "PET",
+      "selectivity_pct": 11.76999356,
+      "boiling_point_margin_c": 143.0,
+      "target_left_dissolved_pct_after_cooling": 0.04014448,
+      "retained_pickup_upper_bound_pct_of_product": 35.35956296170371
+     }
+    },
+    {
+     "removed_before": [
+      "EVOH"
+     ],
+     "polymer": "LDPE",
+     "solvent": "Toluene",
+     "temperature_c": 100.0,
+     "capex_usd_yr": 4798987.246604112,
+     "opex_usd_yr": 844201.500069354,
+     "gwp_t": 2080.95044551582,
+     "energy_mj": 23377252.35892606,
+     "engine_mode": "live",
+     "thermo": {
+      "target_solubility_pct": 12.70218754,
+      "max_retained_pct": 1.44467128,
+      "limiting_retained_polymer": "PET",
+      "selectivity_pct": 11.257516260000001,
+      "boiling_point_margin_c": 10.599999999999994,
+      "target_left_dissolved_pct_after_cooling": 0.12912006,
+      "retained_pickup_upper_bound_pct_of_product": 47.39575085385939
+     }
+    },
+    {
+     "removed_before": [
+      "EVOH"
+     ],
+     "polymer": "LDPE",
+     "solvent": "p-Xylene",
+     "temperature_c": 100.0,
+     "capex_usd_yr": 4837737.039796196,
+     "opex_usd_yr": 856075.6419114823,
+     "gwp_t": 2200.3137710328765,
+     "energy_mj": 23594960.259476304,
+     "engine_mode": "live",
+     "thermo": {
+      "target_solubility_pct": 12.46217694,
+      "max_retained_pct": 0.64018588,
+      "limiting_retained_polymer": "PET",
+      "selectivity_pct": 11.82199106,
+      "boiling_point_margin_c": 38.30000000000001,
+      "target_left_dissolved_pct_after_cooling": 0.13834027,
+      "retained_pickup_upper_bound_pct_of_product": 20.83271153097577
+     }
+    }
+   ],
+   "polymers_with_no_admissible_wash": [
+    "NYLON6",
+    "PET"
+   ],
+   "locations": {
+    "A": {
+     "candidates": 70,
+     "optima": {
+      "max_profit": {
+       "pathway": "LDPE/Diphenyl ether > EVOH/Ethylene glycol + we",
+       "washes": [
+        {
+         "wash": 1,
+         "polymer": "LDPE",
+         "solvent": "Diphenyl ether",
+         "temperature_c": 115.0,
+         "capex_usd_per_yr": 4812890.989937932,
+         "opex_usd_per_yr": 897795.3639403712,
+         "gwp_t_co2e_per_yr": 2749.0850108715485,
+         "energy_mj_per_yr": 24108135.99740152,
+         "recovered_fraction": 0.9804626826729934
+        },
+        {
+         "wash": 2,
+         "polymer": "EVOH",
+         "solvent": "Ethylene glycol",
+         "temperature_c": 120.0,
+         "capex_usd_per_yr": 1102891.445458469,
+         "opex_usd_per_yr": 223926.72647753076,
+         "gwp_t_co2e_per_yr": 535.9839578522111,
+         "energy_mj_per_yr": 4072161.817494532,
+         "recovered_fraction": 0.912080340808454
+        }
+       ],
+       "downstream": {
+        "key": "we",
+        "label": "Incineration with energy recovery",
+        "residual_t_per_yr": 2564.1148505228684,
+        "distance_mile": 151.0
+       },
+       "profit_usd_per_yr": 4606693.125033915,
+       "emissions_t_co2e_per_yr": 9592.047907703363,
+       "circularity_index": 0.5943367819735519,
+       "circularity_scores": {
+        "energy": 0.354447972120419,
+        "ghg": 0.3912999945816281,
+        "water": 0.5,
+        "waste": 0.9967000434299988,
+        "substitutability": 0.7292358997357132
+       },
+       "sales_usd_per_yr": 11712730.330518318,
+       "capex_usd_per_yr": 5915782.435396401,
+       "opex_usd_per_yr": 1121722.090417902,
+       "transport_usd_per_yr": 68532.67967010055,
+       "solver": "scip",
+       "agrees_with_enumeration": true
+      },
+      "min_emissions": {
+       "pathway": "no wash + lf",
+       "washes": [],
+       "downstream": {
+        "key": "lf",
+        "label": "Landfill",
+        "residual_t_per_yr": 8000.0,
+        "distance_mile": 9.2
+       },
+       "profit_usd_per_yr": -91919.92,
+       "emissions_t_co2e_per_yr": 691.6508636547248,
+       "circularity_index": 0.6039537000533531,
+       "circularity_scores": {
+        "energy": 0.5636598453168823,
+        "ghg": 0.9561086549498838,
+        "water": 1.0,
+        "waste": 0.5,
+        "substitutability": 0.0
+       },
+       "sales_usd_per_yr": 0.0,
+       "capex_usd_per_yr": 0.0,
+       "opex_usd_per_yr": 62687.92,
+       "transport_usd_per_yr": 29232.0,
+       "solver": "scip",
+       "agrees_with_enumeration": true
+      },
+      "max_circularity": {
+       "pathway": "LDPE/Toluene > EVOH/Propylene glycol + lf",
+       "washes": [
+        {
+         "wash": 1,
+         "polymer": "LDPE",
+         "solvent": "Toluene",
+         "temperature_c": 100.0,
+         "capex_usd_per_yr": 4968949.77077544,
+         "opex_usd_per_yr": 878969.3290432715,
+         "gwp_t_co2e_per_yr": 2081.809350600476,
+         "energy_mj_per_yr": 23336369.712763015,
+         "recovered_fraction": 0.9804626826823989
+        },
+        {
+         "wash": 2,
+         "polymer": "EVOH",
+         "solvent": "Propylene glycol",
+         "temperature_c": 120.0,
+         "capex_usd_per_yr": 1122262.3834999313,
+         "opex_usd_per_yr": 226251.00190429098,
+         "gwp_t_co2e_per_yr": 532.3179035783713,
+         "energy_mj_per_yr": 4085162.9555104882,
+         "recovered_fraction": 0.912080340808454
+        }
+       ],
+       "downstream": {
+        "key": "lf",
+        "label": "Landfill",
+        "residual_t_per_yr": 2564.114850477722,
+        "distance_mile": 9.2
+       },
+       "profit_usd_per_yr": 4171071.557799987,
+       "emissions_t_co2e_per_yr": 2835.8112855342006,
+       "circularity_index": 0.7109488356864949,
+       "circularity_scores": {
+        "energy": 0.3598770563025889,
+        "ghg": 0.8200427727759917,
+        "water": 0.8271940995463546,
+        "waste": 0.835954978564279,
+        "substitutability": 0.7116752712432598
+       },
+       "sales_usd_per_yr": 11430677.697013762,
+       "capex_usd_per_yr": 6091212.154275372,
+       "opex_usd_per_yr": 1125312.7092747574,
+       "transport_usd_per_yr": 43081.275663645596,
+       "solver": "scip",
+       "agrees_with_enumeration": true
+      }
+     },
+     "pareto": {
+      "emissions_vs_profit": [
+       {
+        "pathway": "no wash + lf",
+        "washes": [],
+        "downstream": {
+         "key": "lf",
+         "label": "Landfill",
+         "residual_t_per_yr": 8000.0,
+         "distance_mile": 9.2
+        },
+        "profit_usd_per_yr": -91919.92,
+        "emissions_t_co2e_per_yr": 691.6508636547248,
+        "circularity_index": 0.6039537000533531,
+        "circularity_scores": {
+         "energy": 0.5636598453168823,
+         "ghg": 0.9561086549498838,
+         "water": 1.0,
+         "waste": 0.5,
+         "substitutability": 0.0
+        },
+        "sales_usd_per_yr": 0.0,
+        "capex_usd_per_yr": 0.0,
+        "opex_usd_per_yr": 62687.92,
+        "transport_usd_per_yr": 29232.0
+       },
+       {
+        "pathway": "EVOH/Ethylene glycol + lf",
+        "washes": [
+         {
+          "wash": 1,
+          "polymer": "EVOH",
+          "solvent": "Ethylene glycol",
+          "temperature_c": 120.0,
+          "capex_usd_per_yr": 1706358.3919729379,
+          "opex_usd_per_yr": 398347.8838611501,
+          "gwp_t_co2e_per_yr": 717.7690116531038,
+          "energy_mj_per_yr": 4302362.0332086105,
+          "recovered_fraction": 0.7801995251059143
+         }
+        ],
+        "downstream": {
+         "key": "lf",
+         "label": "Landfill",
+         "residual_t_per_yr": 7375.840379915268,
+         "distance_mile": 9.2
+        },
+        "profit_usd_per_yr": 2842158.3146454142,
+        "emissions_t_co2e_per_yr": 1355.4573077715775,
+        "circularity_index": 0.6320710269330974,
+        "circularity_scores": {
+         "energy": 0.5504217547088076,
+         "ghg": 0.9139842838021773,
+         "water": 0.8428367116773218,
+         "waste": 0.5383443779384783,
+         "substitutability": 0.3147680065387017
+        },
+        "sales_usd_per_yr": 5055692.922686324,
+        "capex_usd_per_yr": 1706358.3919729379,
+        "opex_usd_per_yr": 456144.89531976235,
+        "transport_usd_per_yr": 51031.32074821039
+       },
+       {
+        "pathway": "LDPE/Toluene > EVOH/Propylene glycol + lf",
+        "washes": [
+         {
+          "wash": 1,
+          "polymer": "LDPE",
+          "solvent": "Toluene",
+          "temperature_c": 100.0,
+          "capex_usd_per_yr": 4968949.77077544,
+          "opex_usd_per_yr": 878969.3290432715,
+          "gwp_t_co2e_per_yr": 2081.809350600476,
+          "energy_mj_per_yr": 23336369.712763015,
+          "recovered_fraction": 0.9804626826823989
+         },
+         {
+          "wash": 2,
+          "polymer": "EVOH",
+          "solvent": "Propylene glycol",
+          "temperature_c": 120.0,
+          "capex_usd_per_yr": 1122262.3834999313,
+          "opex_usd_per_yr": 226251.00190429098,
+          "gwp_t_co2e_per_yr": 532.3179035783713,
+          "energy_mj_per_yr": 4085162.9555104882,
+          "recovered_fraction": 0.912080340808454
+         }
+        ],
+        "downstream": {
+         "key": "lf",
+         "label": "Landfill",
+         "residual_t_per_yr": 2564.114850477722,
+         "distance_mile": 9.2
+        },
+        "profit_usd_per_yr": 4171071.557799987,
+        "emissions_t_co2e_per_yr": 2835.8112855342006,
+        "circularity_index": 0.7109488356864949,
+        "circularity_scores": {
+         "energy": 0.3598770563025889,
+         "ghg": 0.8200427727759917,
+         "water": 0.8271940995463546,
+         "waste": 0.835954978564279,
+         "substitutability": 0.7116752712432598
+        },
+        "sales_usd_per_yr": 11430677.697013762,
+        "capex_usd_per_yr": 6091212.154275372,
+        "opex_usd_per_yr": 1125312.7092747574,
+        "transport_usd_per_yr": 43081.275663645596
+       },
+       {
+        "pathway": "LDPE/Toluene > EVOH/Ethylene glycol + lf",
+        "washes": [
+         {
+          "wash": 1,
+          "polymer": "LDPE",
+          "solvent": "Toluene",
+          "temperature_c": 100.0,
+          "capex_usd_per_yr": 4968949.77077544,
+          "opex_usd_per_yr": 878969.3290432715,
+          "gwp_t_co2e_per_yr": 2081.809350600476,
+          "energy_mj_per_yr": 23336369.712763015,
+          "recovered_fraction": 0.9804626826823989
+         },
+         {
+          "wash": 2,
+          "polymer": "EVOH",
+          "solvent": "Ethylene glycol",
+          "temperature_c": 120.0,
+          "capex_usd_per_yr": 1102891.445458469,
+          "opex_usd_per_yr": 223926.72647753076,
+          "gwp_t_co2e_per_yr": 535.9839578522111,
+          "energy_mj_per_yr": 4072161.817494532,
+          "recovered_fraction": 0.912080340808454
+         }
+        ],
+        "downstream": {
+         "key": "lf",
+         "label": "Landfill",
+         "residual_t_per_yr": 2564.114850477722,
+         "distance_mile": 9.2
+        },
+        "profit_usd_per_yr": 4192766.77126821,
+        "emissions_t_co2e_per_yr": 2839.4773398080397,
+        "circularity_index": 0.7097581500632026,
+        "circularity_scores": {
+         "energy": 0.36000632397054083,
+         "ghg": 0.8198101293115488,
+         "water": 0.8213134438904349,
+         "waste": 0.835985581900228,
+         "substitutability": 0.7116752712432598
+        },
+        "sales_usd_per_yr": 11430677.697013762,
+        "capex_usd_per_yr": 6071841.216233909,
+        "opex_usd_per_yr": 1122988.433847997,
+        "transport_usd_per_yr": 43081.275663645596
+       },
+       {
+        "pathway": "LDPE/Diphenyl ether > EVOH/Propylene glycol + lf",
+        "washes": [
+         {
+          "wash": 1,
+          "polymer": "LDPE",
+          "solvent": "Diphenyl ether",
+          "temperature_c": 115.0,
+          "capex_usd_per_yr": 4812890.989937932,
+          "opex_usd_per_yr": 897795.3639403712,
+          "gwp_t_co2e_per_yr": 2749.0850108715485,
+          "energy_mj_per_yr": 24108135.99740152,
+          "recovered_fraction": 0.9804626826729934
+         },
+         {
+          "wash": 2,
+          "polymer": "EVOH",
+          "solvent": "Propylene glycol",
+          "temperature_c": 120.0,
+          "capex_usd_per_yr": 1122262.3834999313,
+          "opex_usd_per_yr": 226251.00190429098,
+          "gwp_t_co2e_per_yr": 532.3179035783713,
+          "energy_mj_per_yr": 4085162.9555104882,
+          "recovered_fraction": 0.912080340808454
+         }
+        ],
+        "downstream": {
+         "key": "lf",
+         "label": "Landfill",
+         "residual_t_per_yr": 2564.1148505228684,
+         "distance_mile": 9.2
+        },
+        "profit_usd_per_yr": 4308304.303686918,
+        "emissions_t_co2e_per_yr": 3503.086945809176,
+        "circularity_index": 0.6828705659345033,
+        "circularity_scores": {
+         "energy": 0.3522021305966162,
+         "ghg": 0.7776982492776541,
+         "water": 0.7363106905783016,
+         "waste": 0.8364664879799819,
+         "substitutability": 0.7116752712399627
+        },
+        "sales_usd_per_yr": 11430677.696960803,
+        "capex_usd_per_yr": 5935153.373437864,
+        "opex_usd_per_yr": 1144138.744172211,
+        "transport_usd_per_yr": 43081.275663810564
+       },
+       {
+        "pathway": "LDPE/Diphenyl ether > EVOH/Ethylene glycol + lf",
+        "washes": [
+         {
+          "wash": 1,
+          "polymer": "LDPE",
+          "solvent": "Diphenyl ether",
+          "temperature_c": 115.0,
+          "capex_usd_per_yr": 4812890.989937932,
+          "opex_usd_per_yr": 897795.3639403712,
+          "gwp_t_co2e_per_yr": 2749.0850108715485,
+          "energy_mj_per_yr": 24108135.99740152,
+          "recovered_fraction": 0.9804626826729934
+         },
+         {
+          "wash": 2,
+          "polymer": "EVOH",
+          "solvent": "Ethylene glycol",
+          "temperature_c": 120.0,
+          "capex_usd_per_yr": 1102891.445458469,
+          "opex_usd_per_yr": 223926.72647753076,
+          "gwp_t_co2e_per_yr": 535.9839578522111,
+          "energy_mj_per_yr": 4072161.817494532,
+          "recovered_fraction": 0.912080340808454
+         }
+        ],
+        "downstream": {
+         "key": "lf",
+         "label": "Landfill",
+         "residual_t_per_yr": 2564.1148505228684,
+         "distance_mile": 9.2
+        },
+        "profit_usd_per_yr": 4329999.517155141,
+        "emissions_t_co2e_per_yr": 3506.7530000830156,
+        "circularity_index": 0.6816798895386175,
+        "circularity_scores": {
+         "energy": 0.352331444401601,
+         "ghg": 0.7774656058132112,
+         "water": 0.7304300349223819,
+         "waste": 0.8364970913159309,
+         "substitutability": 0.7116752712399627
+        },
+        "sales_usd_per_yr": 11430677.696960803,
+        "capex_usd_per_yr": 5915782.435396401,
+        "opex_usd_per_yr": 1141814.4687454507,
+        "transport_usd_per_yr": 43081.275663810564
+       },
+       {
+        "pathway": "LDPE/Toluene > EVOH/Propylene glycol + we",
+        "washes": [
+         {
+          "wash": 1,
+          "polymer": "LDPE",
+          "solvent": "Toluene",
+          "temperature_c": 100.0,
+          "capex_usd_per_yr": 4968949.77077544,
+          "opex_usd_per_yr": 878969.3290432715,
+          "gwp_t_co2e_per_yr": 2081.809350600476,
+          "energy_mj_per_yr": 23336369.712763015,
+          "recovered_fraction": 0.9804626826823989
+         },
+         {
+          "wash": 2,
+          "polymer": "EVOH",
+          "solvent": "Propylene glycol",
+          "temperature_c": 120.0,
+          "capex_usd_per_yr": 1122262.3834999313,
+          "opex_usd_per_yr": 226251.00190429098,
+          "gwp_t_co2e_per_yr": 532.3179035783713,
+          "energy_mj_per_yr": 4085162.9555104882,
+          "recovered_fraction": 0.912080340808454
+         }
+        ],
+        "downstream": {
+         "key": "we",
+         "label": "Incineration with energy recovery",
+         "residual_t_per_yr": 2564.114850477722,
+         "distance_mile": 151.0
+        },
+        "profit_usd_per_yr": 4447765.16567389,
+        "emissions_t_co2e_per_yr": 8921.106193047406,
+        "circularity_index": 0.6042592947187047,
+        "circularity_scores": {
+         "energy": 0.3620254816280876,
+         "ghg": 0.4338771615512077,
+         "water": 0.5,
+         "waste": 0.9961579306755264,
+         "substitutability": 0.7292358997387013
+        },
+        "sales_usd_per_yr": 11712730.330566311,
+        "capex_usd_per_yr": 6091212.154275372,
+        "opex_usd_per_yr": 1105220.3309475626,
+        "transport_usd_per_yr": 68532.67966948746
+       },
+       {
+        "pathway": "LDPE/Toluene > EVOH/Ethylene glycol + we",
+        "washes": [
+         {
+          "wash": 1,
+          "polymer": "LDPE",
+          "solvent": "Toluene",
+          "temperature_c": 100.0,
+          "capex_usd_per_yr": 4968949.77077544,
+          "opex_usd_per_yr": 878969.3290432715,
+          "gwp_t_co2e_per_yr": 2081.809350600476,
+          "energy_mj_per_yr": 23336369.712763015,
+          "recovered_fraction": 0.9804626826823989
+         },
+         {
+          "wash": 2,
+          "polymer": "EVOH",
+          "solvent": "Ethylene glycol",
+          "temperature_c": 120.0,
+          "capex_usd_per_yr": 1102891.445458469,
+          "opex_usd_per_yr": 223926.72647753076,
+          "gwp_t_co2e_per_yr": 535.9839578522111,
+          "energy_mj_per_yr": 4072161.817494532,
+          "recovered_fraction": 0.912080340808454
+         }
+        ],
+        "downstream": {
+         "key": "we",
+         "label": "Incineration with energy recovery",
+         "residual_t_per_yr": 2564.114850477722,
+         "distance_mile": 151.0
+        },
+        "profit_usd_per_yr": 4469460.379142112,
+        "emissions_t_co2e_per_yr": 8924.772247321245,
+        "circularity_index": 0.6042448524842515,
+        "circularity_scores": {
+         "energy": 0.3621553105843158,
+         "ghg": 0.43364451808676485,
+         "water": 0.5,
+         "waste": 0.9961885340114753,
+         "substitutability": 0.7292358997387013
+        },
+        "sales_usd_per_yr": 11712730.330566311,
+        "capex_usd_per_yr": 6071841.216233909,
+        "opex_usd_per_yr": 1102896.0555208023,
+        "transport_usd_per_yr": 68532.67966948746
+       },
+       {
+        "pathway": "LDPE/Diphenyl ether > EVOH/Propylene glycol + we",
+        "washes": [
+         {
+          "wash": 1,
+          "polymer": "LDPE",
+          "solvent": "Diphenyl ether",
+          "temperature_c": 115.0,
+          "capex_usd_per_yr": 4812890.989937932,
+          "opex_usd_per_yr": 897795.3639403712,
+          "gwp_t_co2e_per_yr": 2749.0850108715485,
+          "energy_mj_per_yr": 24108135.99740152,
+          "recovered_fraction": 0.9804626826729934
+         },
+         {
+          "wash": 2,
+          "polymer": "EVOH",
+          "solvent": "Propylene glycol",
+          "temperature_c": 120.0,
+          "capex_usd_per_yr": 1122262.3834999313,
+          "opex_usd_per_yr": 226251.00190429098,
+          "gwp_t_co2e_per_yr": 532.3179035783713,
+          "energy_mj_per_yr": 4085162.9555104882,
+          "recovered_fraction": 0.912080340808454
+         }
+        ],
+        "downstream": {
+         "key": "we",
+         "label": "Incineration with energy recovery",
+         "residual_t_per_yr": 2564.1148505228684,
+         "distance_mile": 151.0
+        },
+        "profit_usd_per_yr": 4584997.911565692,
+        "emissions_t_co2e_per_yr": 9588.381853429524,
+        "circularity_index": 0.5943512207961655,
+        "circularity_scores": {
+         "energy": 0.35431812610499347,
+         "ghg": 0.39153263804607097,
+         "water": 0.5,
+         "waste": 0.9966694400940499,
+         "substitutability": 0.7292358997357132
+        },
+        "sales_usd_per_yr": 11712730.330518318,
+        "capex_usd_per_yr": 5935153.373437864,
+        "opex_usd_per_yr": 1124046.3658446623,
+        "transport_usd_per_yr": 68532.67967010055
+       },
+       {
+        "pathway": "LDPE/Diphenyl ether > EVOH/Ethylene glycol + we",
+        "washes": [
+         {
+          "wash": 1,
+          "polymer": "LDPE",
+          "solvent": "Diphenyl ether",
+          "temperature_c": 115.0,
+          "capex_usd_per_yr": 4812890.989937932,
+          "opex_usd_per_yr": 897795.3639403712,
+          "gwp_t_co2e_per_yr": 2749.0850108715485,
+          "energy_mj_per_yr": 24108135.99740152,
+          "recovered_fraction": 0.9804626826729934
+         },
+         {
+          "wash": 2,
+          "polymer": "EVOH",
+          "solvent": "Ethylene glycol",
+          "temperature_c": 120.0,
+          "capex_usd_per_yr": 1102891.445458469,
+          "opex_usd_per_yr": 223926.72647753076,
+          "gwp_t_co2e_per_yr": 535.9839578522111,
+          "energy_mj_per_yr": 4072161.817494532,
+          "recovered_fraction": 0.912080340808454
+         }
+        ],
+        "downstream": {
+         "key": "we",
+         "label": "Incineration with energy recovery",
+         "residual_t_per_yr": 2564.1148505228684,
+         "distance_mile": 151.0
+        },
+        "profit_usd_per_yr": 4606693.125033915,
+        "emissions_t_co2e_per_yr": 9592.047907703363,
+        "circularity_index": 0.5943367819735519,
+        "circularity_scores": {
+         "energy": 0.354447972120419,
+         "ghg": 0.3912999945816281,
+         "water": 0.5,
+         "waste": 0.9967000434299988,
+         "substitutability": 0.7292358997357132
+        },
+        "sales_usd_per_yr": 11712730.330518318,
+        "capex_usd_per_yr": 5915782.435396401,
+        "opex_usd_per_yr": 1121722.090417902,
+        "transport_usd_per_yr": 68532.67967010055
+       }
+      ],
+      "circularity_vs_profit": [
+       {
+        "pathway": "LDPE/Diphenyl ether > EVOH/Ethylene glycol + we",
+        "washes": [
+         {
+          "wash": 1,
+          "polymer": "LDPE",
+          "solvent": "Diphenyl ether",
+          "temperature_c": 115.0,
+          "capex_usd_per_yr": 4812890.989937932,
+          "opex_usd_per_yr": 897795.3639403712,
+          "gwp_t_co2e_per_yr": 2749.0850108715485,
+          "energy_mj_per_yr": 24108135.99740152,
+          "recovered_fraction": 0.9804626826729934
+         },
+         {
+          "wash": 2,
+          "polymer": "EVOH",
+          "solvent": "Ethylene glycol",
+          "temperature_c": 120.0,
+          "capex_usd_per_yr": 1102891.445458469,
+          "opex_usd_per_yr": 223926.72647753076,
+          "gwp_t_co2e_per_yr": 535.9839578522111,
+          "energy_mj_per_yr": 4072161.817494532,
+          "recovered_fraction": 0.912080340808454
+         }
+        ],
+        "downstream": {
+         "key": "we",
+         "label": "Incineration with energy recovery",
+         "residual_t_per_yr": 2564.1148505228684,
+         "distance_mile": 151.0
+        },
+        "profit_usd_per_yr": 4606693.125033915,
+        "emissions_t_co2e_per_yr": 9592.047907703363,
+        "circularity_index": 0.5943367819735519,
+        "circularity_scores": {
+         "energy": 0.354447972120419,
+         "ghg": 0.3912999945816281,
+         "water": 0.5,
+         "waste": 0.9967000434299988,
+         "substitutability": 0.7292358997357132
+        },
+        "sales_usd_per_yr": 11712730.330518318,
+        "capex_usd_per_yr": 5915782.435396401,
+        "opex_usd_per_yr": 1121722.090417902,
+        "transport_usd_per_yr": 68532.67967010055
+       },
+       {
+        "pathway": "LDPE/Diphenyl ether > EVOH/Propylene glycol + we",
+        "washes": [
+         {
+          "wash": 1,
+          "polymer": "LDPE",
+          "solvent": "Diphenyl ether",
+          "temperature_c": 115.0,
+          "capex_usd_per_yr": 4812890.989937932,
+          "opex_usd_per_yr": 897795.3639403712,
+          "gwp_t_co2e_per_yr": 2749.0850108715485,
+          "energy_mj_per_yr": 24108135.99740152,
+          "recovered_fraction": 0.9804626826729934
+         },
+         {
+          "wash": 2,
+          "polymer": "EVOH",
+          "solvent": "Propylene glycol",
+          "temperature_c": 120.0,
+          "capex_usd_per_yr": 1122262.3834999313,
+          "opex_usd_per_yr": 226251.00190429098,
+          "gwp_t_co2e_per_yr": 532.3179035783713,
+          "energy_mj_per_yr": 4085162.9555104882,
+          "recovered_fraction": 0.912080340808454
+         }
+        ],
+        "downstream": {
+         "key": "we",
+         "label": "Incineration with energy recovery",
+         "residual_t_per_yr": 2564.1148505228684,
+         "distance_mile": 151.0
+        },
+        "profit_usd_per_yr": 4584997.911565692,
+        "emissions_t_co2e_per_yr": 9588.381853429524,
+        "circularity_index": 0.5943512207961655,
+        "circularity_scores": {
+         "energy": 0.35431812610499347,
+         "ghg": 0.39153263804607097,
+         "water": 0.5,
+         "waste": 0.9966694400940499,
+         "substitutability": 0.7292358997357132
+        },
+        "sales_usd_per_yr": 11712730.330518318,
+        "capex_usd_per_yr": 5935153.373437864,
+        "opex_usd_per_yr": 1124046.3658446623,
+        "transport_usd_per_yr": 68532.67967010055
+       },
+       {
+        "pathway": "LDPE/Toluene > EVOH/Ethylene glycol + we",
+        "washes": [
+         {
+          "wash": 1,
+          "polymer": "LDPE",
+          "solvent": "Toluene",
+          "temperature_c": 100.0,
+          "capex_usd_per_yr": 4968949.77077544,
+          "opex_usd_per_yr": 878969.3290432715,
+          "gwp_t_co2e_per_yr": 2081.809350600476,
+          "energy_mj_per_yr": 23336369.712763015,
+          "recovered_fraction": 0.9804626826823989
+         },
+         {
+          "wash": 2,
+          "polymer": "EVOH",
+          "solvent": "Ethylene glycol",
+          "temperature_c": 120.0,
+          "capex_usd_per_yr": 1102891.445458469,
+          "opex_usd_per_yr": 223926.72647753076,
+          "gwp_t_co2e_per_yr": 535.9839578522111,
+          "energy_mj_per_yr": 4072161.817494532,
+          "recovered_fraction": 0.912080340808454
+         }
+        ],
+        "downstream": {
+         "key": "we",
+         "label": "Incineration with energy recovery",
+         "residual_t_per_yr": 2564.114850477722,
+         "distance_mile": 151.0
+        },
+        "profit_usd_per_yr": 4469460.379142112,
+        "emissions_t_co2e_per_yr": 8924.772247321245,
+        "circularity_index": 0.6042448524842515,
+        "circularity_scores": {
+         "energy": 0.3621553105843158,
+         "ghg": 0.43364451808676485,
+         "water": 0.5,
+         "waste": 0.9961885340114753,
+         "substitutability": 0.7292358997387013
+        },
+        "sales_usd_per_yr": 11712730.330566311,
+        "capex_usd_per_yr": 6071841.216233909,
+        "opex_usd_per_yr": 1102896.0555208023,
+        "transport_usd_per_yr": 68532.67966948746
+       },
+       {
+        "pathway": "LDPE/Toluene > EVOH/Propylene glycol + we",
+        "washes": [
+         {
+          "wash": 1,
+          "polymer": "LDPE",
+          "solvent": "Toluene",
+          "temperature_c": 100.0,
+          "capex_usd_per_yr": 4968949.77077544,
+          "opex_usd_per_yr": 878969.3290432715,
+          "gwp_t_co2e_per_yr": 2081.809350600476,
+          "energy_mj_per_yr": 23336369.712763015,
+          "recovered_fraction": 0.9804626826823989
+         },
+         {
+          "wash": 2,
+          "polymer": "EVOH",
+          "solvent": "Propylene glycol",
+          "temperature_c": 120.0,
+          "capex_usd_per_yr": 1122262.3834999313,
+          "opex_usd_per_yr": 226251.00190429098,
+          "gwp_t_co2e_per_yr": 532.3179035783713,
+          "energy_mj_per_yr": 4085162.9555104882,
+          "recovered_fraction": 0.912080340808454
+         }
+        ],
+        "downstream": {
+         "key": "we",
+         "label": "Incineration with energy recovery",
+         "residual_t_per_yr": 2564.114850477722,
+         "distance_mile": 151.0
+        },
+        "profit_usd_per_yr": 4447765.16567389,
+        "emissions_t_co2e_per_yr": 8921.106193047406,
+        "circularity_index": 0.6042592947187047,
+        "circularity_scores": {
+         "energy": 0.3620254816280876,
+         "ghg": 0.4338771615512077,
+         "water": 0.5,
+         "waste": 0.9961579306755264,
+         "substitutability": 0.7292358997387013
+        },
+        "sales_usd_per_yr": 11712730.330566311,
+        "capex_usd_per_yr": 6091212.154275372,
+        "opex_usd_per_yr": 1105220.3309475626,
+        "transport_usd_per_yr": 68532.67966948746
+       },
+       {
+        "pathway": "LDPE/Diphenyl ether > EVOH/Ethylene glycol + lf",
+        "washes": [
+         {
+          "wash": 1,
+          "polymer": "LDPE",
+          "solvent": "Diphenyl ether",
+          "temperature_c": 115.0,
+          "capex_usd_per_yr": 4812890.989937932,
+          "opex_usd_per_yr": 897795.3639403712,
+          "gwp_t_co2e_per_yr": 2749.0850108715485,
+          "energy_mj_per_yr": 24108135.99740152,
+          "recovered_fraction": 0.9804626826729934
+         },
+         {
+          "wash": 2,
+          "polymer": "EVOH",
+          "solvent": "Ethylene glycol",
+          "temperature_c": 120.0,
+          "capex_usd_per_yr": 1102891.445458469,
+          "opex_usd_per_yr": 223926.72647753076,
+          "gwp_t_co2e_per_yr": 535.9839578522111,
+          "energy_mj_per_yr": 4072161.817494532,
+          "recovered_fraction": 0.912080340808454
+         }
+        ],
+        "downstream": {
+         "key": "lf",
+         "label": "Landfill",
+         "residual_t_per_yr": 2564.1148505228684,
+         "distance_mile": 9.2
+        },
+        "profit_usd_per_yr": 4329999.517155141,
+        "emissions_t_co2e_per_yr": 3506.7530000830156,
+        "circularity_index": 0.6816798895386175,
+        "circularity_scores": {
+         "energy": 0.352331444401601,
+         "ghg": 0.7774656058132112,
+         "water": 0.7304300349223819,
+         "waste": 0.8364970913159309,
+         "substitutability": 0.7116752712399627
+        },
+        "sales_usd_per_yr": 11430677.696960803,
+        "capex_usd_per_yr": 5915782.435396401,
+        "opex_usd_per_yr": 1141814.4687454507,
+        "transport_usd_per_yr": 43081.275663810564
+       },
+       {
+        "pathway": "LDPE/Diphenyl ether > EVOH/Propylene glycol + lf",
+        "washes": [
+         {
+          "wash": 1,
+          "polymer": "LDPE",
+          "solvent": "Diphenyl ether",
+          "temperature_c": 115.0,
+          "capex_usd_per_yr": 4812890.989937932,
+          "opex_usd_per_yr": 897795.3639403712,
+          "gwp_t_co2e_per_yr": 2749.0850108715485,
+          "energy_mj_per_yr": 24108135.99740152,
+          "recovered_fraction": 0.9804626826729934
+         },
+         {
+          "wash": 2,
+          "polymer": "EVOH",
+          "solvent": "Propylene glycol",
+          "temperature_c": 120.0,
+          "capex_usd_per_yr": 1122262.3834999313,
+          "opex_usd_per_yr": 226251.00190429098,
+          "gwp_t_co2e_per_yr": 532.3179035783713,
+          "energy_mj_per_yr": 4085162.9555104882,
+          "recovered_fraction": 0.912080340808454
+         }
+        ],
+        "downstream": {
+         "key": "lf",
+         "label": "Landfill",
+         "residual_t_per_yr": 2564.1148505228684,
+         "distance_mile": 9.2
+        },
+        "profit_usd_per_yr": 4308304.303686918,
+        "emissions_t_co2e_per_yr": 3503.086945809176,
+        "circularity_index": 0.6828705659345033,
+        "circularity_scores": {
+         "energy": 0.3522021305966162,
+         "ghg": 0.7776982492776541,
+         "water": 0.7363106905783016,
+         "waste": 0.8364664879799819,
+         "substitutability": 0.7116752712399627
+        },
+        "sales_usd_per_yr": 11430677.696960803,
+        "capex_usd_per_yr": 5935153.373437864,
+        "opex_usd_per_yr": 1144138.744172211,
+        "transport_usd_per_yr": 43081.275663810564
+       },
+       {
+        "pathway": "LDPE/Toluene > EVOH/Ethylene glycol + lf",
+        "washes": [
+         {
+          "wash": 1,
+          "polymer": "LDPE",
+          "solvent": "Toluene",
+          "temperature_c": 100.0,
+          "capex_usd_per_yr": 4968949.77077544,
+          "opex_usd_per_yr": 878969.3290432715,
+          "gwp_t_co2e_per_yr": 2081.809350600476,
+          "energy_mj_per_yr": 23336369.712763015,
+          "recovered_fraction": 0.9804626826823989
+         },
+         {
+          "wash": 2,
+          "polymer": "EVOH",
+          "solvent": "Ethylene glycol",
+          "temperature_c": 120.0,
+          "capex_usd_per_yr": 1102891.445458469,
+          "opex_usd_per_yr": 223926.72647753076,
+          "gwp_t_co2e_per_yr": 535.9839578522111,
+          "energy_mj_per_yr": 4072161.817494532,
+          "recovered_fraction": 0.912080340808454
+         }
+        ],
+        "downstream": {
+         "key": "lf",
+         "label": "Landfill",
+         "residual_t_per_yr": 2564.114850477722,
+         "distance_mile": 9.2
+        },
+        "profit_usd_per_yr": 4192766.77126821,
+        "emissions_t_co2e_per_yr": 2839.4773398080397,
+        "circularity_index": 0.7097581500632026,
+        "circularity_scores": {
+         "energy": 0.36000632397054083,
+         "ghg": 0.8198101293115488,
+         "water": 0.8213134438904349,
+         "waste": 0.835985581900228,
+         "substitutability": 0.7116752712432598
+        },
+        "sales_usd_per_yr": 11430677.697013762,
+        "capex_usd_per_yr": 6071841.216233909,
+        "opex_usd_per_yr": 1122988.433847997,
+        "transport_usd_per_yr": 43081.275663645596
+       },
+       {
+        "pathway": "LDPE/Toluene > EVOH/Propylene glycol + lf",
+        "washes": [
+         {
+          "wash": 1,
+          "polymer": "LDPE",
+          "solvent": "Toluene",
+          "temperature_c": 100.0,
+          "capex_usd_per_yr": 4968949.77077544,
+          "opex_usd_per_yr": 878969.3290432715,
+          "gwp_t_co2e_per_yr": 2081.809350600476,
+          "energy_mj_per_yr": 23336369.712763015,
+          "recovered_fraction": 0.9804626826823989
+         },
+         {
+          "wash": 2,
+          "polymer": "EVOH",
+          "solvent": "Propylene glycol",
+          "temperature_c": 120.0,
+          "capex_usd_per_yr": 1122262.3834999313,
+          "opex_usd_per_yr": 226251.00190429098,
+          "gwp_t_co2e_per_yr": 532.3179035783713,
+          "energy_mj_per_yr": 4085162.9555104882,
+          "recovered_fraction": 0.912080340808454
+         }
+        ],
+        "downstream": {
+         "key": "lf",
+         "label": "Landfill",
+         "residual_t_per_yr": 2564.114850477722,
+         "distance_mile": 9.2
+        },
+        "profit_usd_per_yr": 4171071.557799987,
+        "emissions_t_co2e_per_yr": 2835.8112855342006,
+        "circularity_index": 0.7109488356864949,
+        "circularity_scores": {
+         "energy": 0.3598770563025889,
+         "ghg": 0.8200427727759917,
+         "water": 0.8271940995463546,
+         "waste": 0.835954978564279,
+         "substitutability": 0.7116752712432598
+        },
+        "sales_usd_per_yr": 11430677.697013762,
+        "capex_usd_per_yr": 6091212.154275372,
+        "opex_usd_per_yr": 1125312.7092747574,
+        "transport_usd_per_yr": 43081.275663645596
+       }
+      ],
+      "emissions_vs_circularity": [
+       {
+        "pathway": "no wash + lf",
+        "washes": [],
+        "downstream": {
+         "key": "lf",
+         "label": "Landfill",
+         "residual_t_per_yr": 8000.0,
+         "distance_mile": 9.2
+        },
+        "profit_usd_per_yr": -91919.92,
+        "emissions_t_co2e_per_yr": 691.6508636547248,
+        "circularity_index": 0.6039537000533531,
+        "circularity_scores": {
+         "energy": 0.5636598453168823,
+         "ghg": 0.9561086549498838,
+         "water": 1.0,
+         "waste": 0.5,
+         "substitutability": 0.0
+        },
+        "sales_usd_per_yr": 0.0,
+        "capex_usd_per_yr": 0.0,
+        "opex_usd_per_yr": 62687.92,
+        "transport_usd_per_yr": 29232.0
+       },
+       {
+        "pathway": "EVOH/Ethylene glycol + lf",
+        "washes": [
+         {
+          "wash": 1,
+          "polymer": "EVOH",
+          "solvent": "Ethylene glycol",
+          "temperature_c": 120.0,
+          "capex_usd_per_yr": 1706358.3919729379,
+          "opex_usd_per_yr": 398347.8838611501,
+          "gwp_t_co2e_per_yr": 717.7690116531038,
+          "energy_mj_per_yr": 4302362.0332086105,
+          "recovered_fraction": 0.7801995251059143
+         }
+        ],
+        "downstream": {
+         "key": "lf",
+         "label": "Landfill",
+         "residual_t_per_yr": 7375.840379915268,
+         "distance_mile": 9.2
+        },
+        "profit_usd_per_yr": 2842158.3146454142,
+        "emissions_t_co2e_per_yr": 1355.4573077715775,
+        "circularity_index": 0.6320710269330974,
+        "circularity_scores": {
+         "energy": 0.5504217547088076,
+         "ghg": 0.9139842838021773,
+         "water": 0.8428367116773218,
+         "waste": 0.5383443779384783,
+         "substitutability": 0.3147680065387017
+        },
+        "sales_usd_per_yr": 5055692.922686324,
+        "capex_usd_per_yr": 1706358.3919729379,
+        "opex_usd_per_yr": 456144.89531976235,
+        "transport_usd_per_yr": 51031.32074821039
+       },
+       {
+        "pathway": "LDPE/Toluene + lf",
+        "washes": [
+         {
+          "wash": 1,
+          "polymer": "LDPE",
+          "solvent": "Toluene",
+          "temperature_c": 100.0,
+          "capex_usd_per_yr": 4968949.77077544,
+          "opex_usd_per_yr": 878969.3290432715,
+          "gwp_t_co2e_per_yr": 2081.809350600476,
+          "energy_mj_per_yr": 23336369.712763015,
+          "recovered_fraction": 0.9804626826823989
+         }
+        ],
+        "downstream": {
+         "key": "lf",
+         "label": "Landfill",
+         "residual_t_per_yr": 3293.7791231244855,
+         "distance_mile": 9.2
+        },
+        "profit_usd_per_yr": -389447.50043064216,
+        "emissions_t_co2e_per_yr": 2366.577497500095,
+        "circularity_index": 0.655143064838527,
+        "circularity_scores": {
+         "energy": 0.3965244447506953,
+         "ghg": 0.8498197934984861,
+         "water": 0.8947881552891608,
+         "waste": 0.7908823907984215,
+         "substitutability": 0.3437005398558715
+        },
+        "sales_usd_per_yr": 5520397.0885749785,
+        "capex_usd_per_yr": 4968949.77077544,
+        "opex_usd_per_yr": 904779.3493142837,
+        "transport_usd_per_yr": 36115.46891589687
+       },
+       {
+        "pathway": "LDPE/Toluene > EVOH/Propylene glycol + lf",
+        "washes": [
+         {
+          "wash": 1,
+          "polymer": "LDPE",
+          "solvent": "Toluene",
+          "temperature_c": 100.0,
+          "capex_usd_per_yr": 4968949.77077544,
+          "opex_usd_per_yr": 878969.3290432715,
+          "gwp_t_co2e_per_yr": 2081.809350600476,
+          "energy_mj_per_yr": 23336369.712763015,
+          "recovered_fraction": 0.9804626826823989
+         },
+         {
+          "wash": 2,
+          "polymer": "EVOH",
+          "solvent": "Propylene glycol",
+          "temperature_c": 120.0,
+          "capex_usd_per_yr": 1122262.3834999313,
+          "opex_usd_per_yr": 226251.00190429098,
+          "gwp_t_co2e_per_yr": 532.3179035783713,
+          "energy_mj_per_yr": 4085162.9555104882,
+          "recovered_fraction": 0.912080340808454
+         }
+        ],
+        "downstream": {
+         "key": "lf",
+         "label": "Landfill",
+         "residual_t_per_yr": 2564.114850477722,
+         "distance_mile": 9.2
+        },
+        "profit_usd_per_yr": 4171071.557799987,
+        "emissions_t_co2e_per_yr": 2835.8112855342006,
+        "circularity_index": 0.7109488356864949,
+        "circularity_scores": {
+         "energy": 0.3598770563025889,
+         "ghg": 0.8200427727759917,
+         "water": 0.8271940995463546,
+         "waste": 0.835954978564279,
+         "substitutability": 0.7116752712432598
+        },
+        "sales_usd_per_yr": 11430677.697013762,
+        "capex_usd_per_yr": 6091212.154275372,
+        "opex_usd_per_yr": 1125312.7092747574,
+        "transport_usd_per_yr": 43081.275663645596
+       }
+      ]
+     },
+     "ldpe_price_sweep_max_profit": {
+      "1173.0": {
+       "pathway": "LDPE/Diphenyl ether > EVOH/Ethylene glycol + we",
+       "profit_usd_yr": 4606693.125033915,
+       "emissions_t": 9592.047907703363,
+       "circularity": 0.5943367819735519
+      },
+      "1300.0": {
+       "pathway": "LDPE/Diphenyl ether > EVOH/Ethylene glycol + we",
+       "profit_usd_yr": 5204383.176391372,
+       "emissions_t": 9592.047907703363,
+       "circularity": 0.6017792318561225
+      },
+      "1500.0": {
+       "pathway": "LDPE/Diphenyl ether > EVOH/Ethylene glycol + we",
+       "profit_usd_yr": 6145627.351757446,
+       "emissions_t": 9592.047907703363,
+       "circularity": 0.6134996253719818
+      },
+      "1800.0": {
+       "pathway": "LDPE/Diphenyl ether > EVOH/Ethylene glycol + we",
+       "profit_usd_yr": 7557493.614806557,
+       "emissions_t": 9592.047907703363,
+       "circularity": 0.6310802156457708
+      },
+      "2200.0": {
+       "pathway": "LDPE/Diphenyl ether > EVOH/Ethylene glycol + we",
+       "profit_usd_yr": 9439981.965538705,
+       "emissions_t": 9592.047907703363,
+       "circularity": 0.6484896020264093
+      }
+     }
+    },
+    "B": {
+     "candidates": 70,
+     "optima": {
+      "max_profit": {
+       "pathway": "LDPE/Diphenyl ether > EVOH/Ethylene glycol + gas_h2cc",
+       "washes": [
+        {
+         "wash": 1,
+         "polymer": "LDPE",
+         "solvent": "Diphenyl ether",
+         "temperature_c": 115.0,
+         "capex_usd_per_yr": 4812890.989937932,
+         "opex_usd_per_yr": 897795.3639403712,
+         "gwp_t_co2e_per_yr": 2749.0850108715485,
+         "energy_mj_per_yr": 24108135.99740152,
+         "recovered_fraction": 0.9804626826729934
+        },
+        {
+         "wash": 2,
+         "polymer": "EVOH",
+         "solvent": "Ethylene glycol",
+         "temperature_c": 120.0,
+         "capex_usd_per_yr": 1102891.445458469,
+         "opex_usd_per_yr": 223926.72647753076,
+         "gwp_t_co2e_per_yr": 535.9839578522111,
+         "energy_mj_per_yr": 4072161.817494532,
+         "recovered_fraction": 0.912080340808454
+        }
+       ],
+       "downstream": {
+        "key": "gas_h2cc",
+        "label": "Gasification for hydrogen with carbon capture",
+        "residual_t_per_yr": 2564.1148505228684,
+        "distance_mile": 76.1
+       },
+       "profit_usd_per_yr": 4620136.779195206,
+       "emissions_t_co2e_per_yr": 9838.510627135622,
+       "circularity_index": 0.4894911472736385,
+       "circularity_scores": {
+        "energy": 0.1128704503284752,
+        "ghg": 0.3756597621622967,
+        "water": 0.7304300349223819,
+        "waste": 0.49925958921932556,
+        "substitutability": 0.7292358997357132
+       },
+       "sales_usd_per_yr": 11712730.330518318,
+       "capex_usd_per_yr": 5915782.435396401,
+       "opex_usd_per_yr": 1121722.090417902,
+       "transport_usd_per_yr": 55089.02550880915,
+       "solver": "scip",
+       "agrees_with_enumeration": true
+      },
+      "min_emissions": {
+       "pathway": "no wash + lf",
+       "washes": [],
+       "downstream": {
+        "key": "lf",
+        "label": "Landfill",
+        "residual_t_per_yr": 8000.0,
+        "distance_mile": 9.2
+       },
+       "profit_usd_per_yr": -91919.92,
+       "emissions_t_co2e_per_yr": 691.6508636547248,
+       "circularity_index": 0.6039537000533531,
+       "circularity_scores": {
+        "energy": 0.5636598453168823,
+        "ghg": 0.9561086549498838,
+        "water": 1.0,
+        "waste": 0.5,
+        "substitutability": 0.0
+       },
+       "sales_usd_per_yr": 0.0,
+       "capex_usd_per_yr": 0.0,
+       "opex_usd_per_yr": 62687.92,
+       "transport_usd_per_yr": 29232.0,
+       "solver": "scip",
+       "agrees_with_enumeration": true
+      },
+      "max_circularity": {
+       "pathway": "LDPE/Toluene > EVOH/Propylene glycol + lf",
+       "washes": [
+        {
+         "wash": 1,
+         "polymer": "LDPE",
+         "solvent": "Toluene",
+         "temperature_c": 100.0,
+         "capex_usd_per_yr": 4968949.77077544,
+         "opex_usd_per_yr": 878969.3290432715,
+         "gwp_t_co2e_per_yr": 2081.809350600476,
+         "energy_mj_per_yr": 23336369.712763015,
+         "recovered_fraction": 0.9804626826823989
+        },
+        {
+         "wash": 2,
+         "polymer": "EVOH",
+         "solvent": "Propylene glycol",
+         "temperature_c": 120.0,
+         "capex_usd_per_yr": 1122262.3834999313,
+         "opex_usd_per_yr": 226251.00190429098,
+         "gwp_t_co2e_per_yr": 532.3179035783713,
+         "energy_mj_per_yr": 4085162.9555104882,
+         "recovered_fraction": 0.912080340808454
+        }
+       ],
+       "downstream": {
+        "key": "lf",
+        "label": "Landfill",
+        "residual_t_per_yr": 2564.114850477722,
+        "distance_mile": 9.2
+       },
+       "profit_usd_per_yr": 4171071.557799987,
+       "emissions_t_co2e_per_yr": 2835.8112855342006,
+       "circularity_index": 0.7109488356864949,
+       "circularity_scores": {
+        "energy": 0.3598770563025889,
+        "ghg": 0.8200427727759917,
+        "water": 0.8271940995463546,
+        "waste": 0.835954978564279,
+        "substitutability": 0.7116752712432598
+       },
+       "sales_usd_per_yr": 11430677.697013762,
+       "capex_usd_per_yr": 6091212.154275372,
+       "opex_usd_per_yr": 1125312.7092747574,
+       "transport_usd_per_yr": 43081.275663645596,
+       "solver": "scip",
+       "agrees_with_enumeration": true
+      }
+     },
+     "pareto": {
+      "emissions_vs_profit": [
+       {
+        "pathway": "no wash + lf",
+        "washes": [],
+        "downstream": {
+         "key": "lf",
+         "label": "Landfill",
+         "residual_t_per_yr": 8000.0,
+         "distance_mile": 9.2
+        },
+        "profit_usd_per_yr": -91919.92,
+        "emissions_t_co2e_per_yr": 691.6508636547248,
+        "circularity_index": 0.6039537000533531,
+        "circularity_scores": {
+         "energy": 0.5636598453168823,
+         "ghg": 0.9561086549498838,
+         "water": 1.0,
+         "waste": 0.5,
+         "substitutability": 0.0
+        },
+        "sales_usd_per_yr": 0.0,
+        "capex_usd_per_yr": 0.0,
+        "opex_usd_per_yr": 62687.92,
+        "transport_usd_per_yr": 29232.0
+       },
+       {
+        "pathway": "EVOH/Ethylene glycol + lf",
+        "washes": [
+         {
+          "wash": 1,
+          "polymer": "EVOH",
+          "solvent": "Ethylene glycol",
+          "temperature_c": 120.0,
+          "capex_usd_per_yr": 1706358.3919729379,
+          "opex_usd_per_yr": 398347.8838611501,
+          "gwp_t_co2e_per_yr": 717.7690116531038,
+          "energy_mj_per_yr": 4302362.0332086105,
+          "recovered_fraction": 0.7801995251059143
+         }
+        ],
+        "downstream": {
+         "key": "lf",
+         "label": "Landfill",
+         "residual_t_per_yr": 7375.840379915268,
+         "distance_mile": 9.2
+        },
+        "profit_usd_per_yr": 2842158.3146454142,
+        "emissions_t_co2e_per_yr": 1355.4573077715775,
+        "circularity_index": 0.6320710269330974,
+        "circularity_scores": {
+         "energy": 0.5504217547088076,
+         "ghg": 0.9139842838021773,
+         "water": 0.8428367116773218,
+         "waste": 0.5383443779384783,
+         "substitutability": 0.3147680065387017
+        },
+        "sales_usd_per_yr": 5055692.922686324,
+        "capex_usd_per_yr": 1706358.3919729379,
+        "opex_usd_per_yr": 456144.89531976235,
+        "transport_usd_per_yr": 51031.32074821039
+       },
+       {
+        "pathway": "LDPE/Toluene > EVOH/Propylene glycol + lf",
+        "washes": [
+         {
+          "wash": 1,
+          "polymer": "LDPE",
+          "solvent": "Toluene",
+          "temperature_c": 100.0,
+          "capex_usd_per_yr": 4968949.77077544,
+          "opex_usd_per_yr": 878969.3290432715,
+          "gwp_t_co2e_per_yr": 2081.809350600476,
+          "energy_mj_per_yr": 23336369.712763015,
+          "recovered_fraction": 0.9804626826823989
+         },
+         {
+          "wash": 2,
+          "polymer": "EVOH",
+          "solvent": "Propylene glycol",
+          "temperature_c": 120.0,
+          "capex_usd_per_yr": 1122262.3834999313,
+          "opex_usd_per_yr": 226251.00190429098,
+          "gwp_t_co2e_per_yr": 532.3179035783713,
+          "energy_mj_per_yr": 4085162.9555104882,
+          "recovered_fraction": 0.912080340808454
+         }
+        ],
+        "downstream": {
+         "key": "lf",
+         "label": "Landfill",
+         "residual_t_per_yr": 2564.114850477722,
+         "distance_mile": 9.2
+        },
+        "profit_usd_per_yr": 4171071.557799987,
+        "emissions_t_co2e_per_yr": 2835.8112855342006,
+        "circularity_index": 0.7109488356864949,
+        "circularity_scores": {
+         "energy": 0.3598770563025889,
+         "ghg": 0.8200427727759917,
+         "water": 0.8271940995463546,
+         "waste": 0.835954978564279,
+         "substitutability": 0.7116752712432598
+        },
+        "sales_usd_per_yr": 11430677.697013762,
+        "capex_usd_per_yr": 6091212.154275372,
+        "opex_usd_per_yr": 1125312.7092747574,
+        "transport_usd_per_yr": 43081.275663645596
+       },
+       {
+        "pathway": "LDPE/Toluene > EVOH/Ethylene glycol + lf",
+        "washes": [
+         {
+          "wash": 1,
+          "polymer": "LDPE",
+          "solvent": "Toluene",
+          "temperature_c": 100.0,
+          "capex_usd_per_yr": 4968949.77077544,
+          "opex_usd_per_yr": 878969.3290432715,
+          "gwp_t_co2e_per_yr": 2081.809350600476,
+          "energy_mj_per_yr": 23336369.712763015,
+          "recovered_fraction": 0.9804626826823989
+         },
+         {
+          "wash": 2,
+          "polymer": "EVOH",
+          "solvent": "Ethylene glycol",
+          "temperature_c": 120.0,
+          "capex_usd_per_yr": 1102891.445458469,
+          "opex_usd_per_yr": 223926.72647753076,
+          "gwp_t_co2e_per_yr": 535.9839578522111,
+          "energy_mj_per_yr": 4072161.817494532,
+          "recovered_fraction": 0.912080340808454
+         }
+        ],
+        "downstream": {
+         "key": "lf",
+         "label": "Landfill",
+         "residual_t_per_yr": 2564.114850477722,
+         "distance_mile": 9.2
+        },
+        "profit_usd_per_yr": 4192766.77126821,
+        "emissions_t_co2e_per_yr": 2839.4773398080397,
+        "circularity_index": 0.7097581500632026,
+        "circularity_scores": {
+         "energy": 0.36000632397054083,
+         "ghg": 0.8198101293115488,
+         "water": 0.8213134438904349,
+         "waste": 0.835985581900228,
+         "substitutability": 0.7116752712432598
+        },
+        "sales_usd_per_yr": 11430677.697013762,
+        "capex_usd_per_yr": 6071841.216233909,
+        "opex_usd_per_yr": 1122988.433847997,
+        "transport_usd_per_yr": 43081.275663645596
+       },
+       {
+        "pathway": "LDPE/Diphenyl ether > EVOH/Propylene glycol + lf",
+        "washes": [
+         {
+          "wash": 1,
+          "polymer": "LDPE",
+          "solvent": "Diphenyl ether",
+          "temperature_c": 115.0,
+          "capex_usd_per_yr": 4812890.989937932,
+          "opex_usd_per_yr": 897795.3639403712,
+          "gwp_t_co2e_per_yr": 2749.0850108715485,
+          "energy_mj_per_yr": 24108135.99740152,
+          "recovered_fraction": 0.9804626826729934
+         },
+         {
+          "wash": 2,
+          "polymer": "EVOH",
+          "solvent": "Propylene glycol",
+          "temperature_c": 120.0,
+          "capex_usd_per_yr": 1122262.3834999313,
+          "opex_usd_per_yr": 226251.00190429098,
+          "gwp_t_co2e_per_yr": 532.3179035783713,
+          "energy_mj_per_yr": 4085162.9555104882,
+          "recovered_fraction": 0.912080340808454
+         }
+        ],
+        "downstream": {
+         "key": "lf",
+         "label": "Landfill",
+         "residual_t_per_yr": 2564.1148505228684,
+         "distance_mile": 9.2
+        },
+        "profit_usd_per_yr": 4308304.303686918,
+        "emissions_t_co2e_per_yr": 3503.086945809176,
+        "circularity_index": 0.6828705659345033,
+        "circularity_scores": {
+         "energy": 0.3522021305966162,
+         "ghg": 0.7776982492776541,
+         "water": 0.7363106905783016,
+         "waste": 0.8364664879799819,
+         "substitutability": 0.7116752712399627
+        },
+        "sales_usd_per_yr": 11430677.696960803,
+        "capex_usd_per_yr": 5935153.373437864,
+        "opex_usd_per_yr": 1144138.744172211,
+        "transport_usd_per_yr": 43081.275663810564
+       },
+       {
+        "pathway": "LDPE/Diphenyl ether > EVOH/Ethylene glycol + lf",
+        "washes": [
+         {
+          "wash": 1,
+          "polymer": "LDPE",
+          "solvent": "Diphenyl ether",
+          "temperature_c": 115.0,
+          "capex_usd_per_yr": 4812890.989937932,
+          "opex_usd_per_yr": 897795.3639403712,
+          "gwp_t_co2e_per_yr": 2749.0850108715485,
+          "energy_mj_per_yr": 24108135.99740152,
+          "recovered_fraction": 0.9804626826729934
+         },
+         {
+          "wash": 2,
+          "polymer": "EVOH",
+          "solvent": "Ethylene glycol",
+          "temperature_c": 120.0,
+          "capex_usd_per_yr": 1102891.445458469,
+          "opex_usd_per_yr": 223926.72647753076,
+          "gwp_t_co2e_per_yr": 535.9839578522111,
+          "energy_mj_per_yr": 4072161.817494532,
+          "recovered_fraction": 0.912080340808454
+         }
+        ],
+        "downstream": {
+         "key": "lf",
+         "label": "Landfill",
+         "residual_t_per_yr": 2564.1148505228684,
+         "distance_mile": 9.2
+        },
+        "profit_usd_per_yr": 4329999.517155141,
+        "emissions_t_co2e_per_yr": 3506.7530000830156,
+        "circularity_index": 0.6816798895386175,
+        "circularity_scores": {
+         "energy": 0.352331444401601,
+         "ghg": 0.7774656058132112,
+         "water": 0.7304300349223819,
+         "waste": 0.8364970913159309,
+         "substitutability": 0.7116752712399627
+        },
+        "sales_usd_per_yr": 11430677.696960803,
+        "capex_usd_per_yr": 5915782.435396401,
+        "opex_usd_per_yr": 1141814.4687454507,
+        "transport_usd_per_yr": 43081.275663810564
+       },
+       {
+        "pathway": "LDPE/Toluene > EVOH/Propylene glycol + we",
+        "washes": [
+         {
+          "wash": 1,
+          "polymer": "LDPE",
+          "solvent": "Toluene",
+          "temperature_c": 100.0,
+          "capex_usd_per_yr": 4968949.77077544,
+          "opex_usd_per_yr": 878969.3290432715,
+          "gwp_t_co2e_per_yr": 2081.809350600476,
+          "energy_mj_per_yr": 23336369.712763015,
+          "recovered_fraction": 0.9804626826823989
+         },
+         {
+          "wash": 2,
+          "polymer": "EVOH",
+          "solvent": "Propylene glycol",
+          "temperature_c": 120.0,
+          "capex_usd_per_yr": 1122262.3834999313,
+          "opex_usd_per_yr": 226251.00190429098,
+          "gwp_t_co2e_per_yr": 532.3179035783713,
+          "energy_mj_per_yr": 4085162.9555104882,
+          "recovered_fraction": 0.912080340808454
+         }
+        ],
+        "downstream": {
+         "key": "we",
+         "label": "Incineration with energy recovery",
+         "residual_t_per_yr": 2564.114850477722,
+         "distance_mile": 151.0
+        },
+        "profit_usd_per_yr": 4447765.16567389,
+        "emissions_t_co2e_per_yr": 8921.106193047406,
+        "circularity_index": 0.6042592947187047,
+        "circularity_scores": {
+         "energy": 0.3620254816280876,
+         "ghg": 0.4338771615512077,
+         "water": 0.5,
+         "waste": 0.9961579306755264,
+         "substitutability": 0.7292358997387013
+        },
+        "sales_usd_per_yr": 11712730.330566311,
+        "capex_usd_per_yr": 6091212.154275372,
+        "opex_usd_per_yr": 1105220.3309475626,
+        "transport_usd_per_yr": 68532.67966948746
+       },
+       {
+        "pathway": "LDPE/Toluene > EVOH/Ethylene glycol + we",
+        "washes": [
+         {
+          "wash": 1,
+          "polymer": "LDPE",
+          "solvent": "Toluene",
+          "temperature_c": 100.0,
+          "capex_usd_per_yr": 4968949.77077544,
+          "opex_usd_per_yr": 878969.3290432715,
+          "gwp_t_co2e_per_yr": 2081.809350600476,
+          "energy_mj_per_yr": 23336369.712763015,
+          "recovered_fraction": 0.9804626826823989
+         },
+         {
+          "wash": 2,
+          "polymer": "EVOH",
+          "solvent": "Ethylene glycol",
+          "temperature_c": 120.0,
+          "capex_usd_per_yr": 1102891.445458469,
+          "opex_usd_per_yr": 223926.72647753076,
+          "gwp_t_co2e_per_yr": 535.9839578522111,
+          "energy_mj_per_yr": 4072161.817494532,
+          "recovered_fraction": 0.912080340808454
+         }
+        ],
+        "downstream": {
+         "key": "we",
+         "label": "Incineration with energy recovery",
+         "residual_t_per_yr": 2564.114850477722,
+         "distance_mile": 151.0
+        },
+        "profit_usd_per_yr": 4469460.379142112,
+        "emissions_t_co2e_per_yr": 8924.772247321245,
+        "circularity_index": 0.6042448524842515,
+        "circularity_scores": {
+         "energy": 0.3621553105843158,
+         "ghg": 0.43364451808676485,
+         "water": 0.5,
+         "waste": 0.9961885340114753,
+         "substitutability": 0.7292358997387013
+        },
+        "sales_usd_per_yr": 11712730.330566311,
+        "capex_usd_per_yr": 6071841.216233909,
+        "opex_usd_per_yr": 1102896.0555208023,
+        "transport_usd_per_yr": 68532.67966948746
+       },
+       {
+        "pathway": "LDPE/Toluene > EVOH/Ethylene glycol + gas_h2cc",
+        "washes": [
+         {
+          "wash": 1,
+          "polymer": "LDPE",
+          "solvent": "Toluene",
+          "temperature_c": 100.0,
+          "capex_usd_per_yr": 4968949.77077544,
+          "opex_usd_per_yr": 878969.3290432715,
+          "gwp_t_co2e_per_yr": 2081.809350600476,
+          "energy_mj_per_yr": 23336369.712763015,
+          "recovered_fraction": 0.9804626826823989
+         },
+         {
+          "wash": 2,
+          "polymer": "EVOH",
+          "solvent": "Ethylene glycol",
+          "temperature_c": 120.0,
+          "capex_usd_per_yr": 1102891.445458469,
+          "opex_usd_per_yr": 223926.72647753076,
+          "gwp_t_co2e_per_yr": 535.9839578522111,
+          "energy_mj_per_yr": 4072161.817494532,
+          "recovered_fraction": 0.912080340808454
+         }
+        ],
+        "downstream": {
+         "key": "gas_h2cc",
+         "label": "Gasification for hydrogen with carbon capture",
+         "residual_t_per_yr": 2564.114850477722,
+         "distance_mile": 76.1
+        },
+        "profit_usd_per_yr": 4482904.033303167,
+        "emissions_t_co2e_per_yr": 9171.234966749164,
+        "circularity_index": 0.5176441666307163,
+        "circularity_scores": {
+         "energy": 0.12052429933591294,
+         "ghg": 0.41800428566770886,
+         "water": 0.8213134438904349,
+         "waste": 0.4991429045208231,
+         "substitutability": 0.7292358997387013
+        },
+        "sales_usd_per_yr": 11712730.330566311,
+        "capex_usd_per_yr": 6071841.216233909,
+        "opex_usd_per_yr": 1102896.0555208023,
+        "transport_usd_per_yr": 55089.025508432765
+       },
+       {
+        "pathway": "LDPE/Diphenyl ether > EVOH/Propylene glycol + we",
+        "washes": [
+         {
+          "wash": 1,
+          "polymer": "LDPE",
+          "solvent": "Diphenyl ether",
+          "temperature_c": 115.0,
+          "capex_usd_per_yr": 4812890.989937932,
+          "opex_usd_per_yr": 897795.3639403712,
+          "gwp_t_co2e_per_yr": 2749.0850108715485,
+          "energy_mj_per_yr": 24108135.99740152,
+          "recovered_fraction": 0.9804626826729934
+         },
+         {
+          "wash": 2,
+          "polymer": "EVOH",
+          "solvent": "Propylene glycol",
+          "temperature_c": 120.0,
+          "capex_usd_per_yr": 1122262.3834999313,
+          "opex_usd_per_yr": 226251.00190429098,
+          "gwp_t_co2e_per_yr": 532.3179035783713,
+          "energy_mj_per_yr": 4085162.9555104882,
+          "recovered_fraction": 0.912080340808454
+         }
+        ],
+        "downstream": {
+         "key": "we",
+         "label": "Incineration with energy recovery",
+         "residual_t_per_yr": 2564.1148505228684,
+         "distance_mile": 151.0
+        },
+        "profit_usd_per_yr": 4584997.911565692,
+        "emissions_t_co2e_per_yr": 9588.381853429524,
+        "circularity_index": 0.5943512207961655,
+        "circularity_scores": {
+         "energy": 0.35431812610499347,
+         "ghg": 0.39153263804607097,
+         "water": 0.5,
+         "waste": 0.9966694400940499,
+         "substitutability": 0.7292358997357132
+        },
+        "sales_usd_per_yr": 11712730.330518318,
+        "capex_usd_per_yr": 5935153.373437864,
+        "opex_usd_per_yr": 1124046.3658446623,
+        "transport_usd_per_yr": 68532.67967010055
+       },
+       {
+        "pathway": "LDPE/Diphenyl ether > EVOH/Ethylene glycol + we",
+        "washes": [
+         {
+          "wash": 1,
+          "polymer": "LDPE",
+          "solvent": "Diphenyl ether",
+          "temperature_c": 115.0,
+          "capex_usd_per_yr": 4812890.989937932,
+          "opex_usd_per_yr": 897795.3639403712,
+          "gwp_t_co2e_per_yr": 2749.0850108715485,
+          "energy_mj_per_yr": 24108135.99740152,
+          "recovered_fraction": 0.9804626826729934
+         },
+         {
+          "wash": 2,
+          "polymer": "EVOH",
+          "solvent": "Ethylene glycol",
+          "temperature_c": 120.0,
+          "capex_usd_per_yr": 1102891.445458469,
+          "opex_usd_per_yr": 223926.72647753076,
+          "gwp_t_co2e_per_yr": 535.9839578522111,
+          "energy_mj_per_yr": 4072161.817494532,
+          "recovered_fraction": 0.912080340808454
+         }
+        ],
+        "downstream": {
+         "key": "we",
+         "label": "Incineration with energy recovery",
+         "residual_t_per_yr": 2564.1148505228684,
+         "distance_mile": 151.0
+        },
+        "profit_usd_per_yr": 4606693.125033915,
+        "emissions_t_co2e_per_yr": 9592.047907703363,
+        "circularity_index": 0.5943367819735519,
+        "circularity_scores": {
+         "energy": 0.354447972120419,
+         "ghg": 0.3912999945816281,
+         "water": 0.5,
+         "waste": 0.9967000434299988,
+         "substitutability": 0.7292358997357132
+        },
+        "sales_usd_per_yr": 11712730.330518318,
+        "capex_usd_per_yr": 5915782.435396401,
+        "opex_usd_per_yr": 1121722.090417902,
+        "transport_usd_per_yr": 68532.67967010055
+       },
+       {
+        "pathway": "LDPE/Diphenyl ether > EVOH/Ethylene glycol + gas_h2cc",
+        "washes": [
+         {
+          "wash": 1,
+          "polymer": "LDPE",
+          "solvent": "Diphenyl ether",
+          "temperature_c": 115.0,
+          "capex_usd_per_yr": 4812890.989937932,
+          "opex_usd_per_yr": 897795.3639403712,
+          "gwp_t_co2e_per_yr": 2749.0850108715485,
+          "energy_mj_per_yr": 24108135.99740152,
+          "recovered_fraction": 0.9804626826729934
+         },
+         {
+          "wash": 2,
+          "polymer": "EVOH",
+          "solvent": "Ethylene glycol",
+          "temperature_c": 120.0,
+          "capex_usd_per_yr": 1102891.445458469,
+          "opex_usd_per_yr": 223926.72647753076,
+          "gwp_t_co2e_per_yr": 535.9839578522111,
+          "energy_mj_per_yr": 4072161.817494532,
+          "recovered_fraction": 0.912080340808454
+         }
+        ],
+        "downstream": {
+         "key": "gas_h2cc",
+         "label": "Gasification for hydrogen with carbon capture",
+         "residual_t_per_yr": 2564.1148505228684,
+         "distance_mile": 76.1
+        },
+        "profit_usd_per_yr": 4620136.779195206,
+        "emissions_t_co2e_per_yr": 9838.510627135622,
+        "circularity_index": 0.4894911472736385,
+        "circularity_scores": {
+         "energy": 0.1128704503284752,
+         "ghg": 0.3756597621622967,
+         "water": 0.7304300349223819,
+         "waste": 0.49925958921932556,
+         "substitutability": 0.7292358997357132
+        },
+        "sales_usd_per_yr": 11712730.330518318,
+        "capex_usd_per_yr": 5915782.435396401,
+        "opex_usd_per_yr": 1121722.090417902,
+        "transport_usd_per_yr": 55089.02550880915
+       }
+      ],
+      "circularity_vs_profit": [
+       {
+        "pathway": "LDPE/Diphenyl ether > EVOH/Ethylene glycol + gas_h2cc",
+        "washes": [
+         {
+          "wash": 1,
+          "polymer": "LDPE",
+          "solvent": "Diphenyl ether",
+          "temperature_c": 115.0,
+          "capex_usd_per_yr": 4812890.989937932,
+          "opex_usd_per_yr": 897795.3639403712,
+          "gwp_t_co2e_per_yr": 2749.0850108715485,
+          "energy_mj_per_yr": 24108135.99740152,
+          "recovered_fraction": 0.9804626826729934
+         },
+         {
+          "wash": 2,
+          "polymer": "EVOH",
+          "solvent": "Ethylene glycol",
+          "temperature_c": 120.0,
+          "capex_usd_per_yr": 1102891.445458469,
+          "opex_usd_per_yr": 223926.72647753076,
+          "gwp_t_co2e_per_yr": 535.9839578522111,
+          "energy_mj_per_yr": 4072161.817494532,
+          "recovered_fraction": 0.912080340808454
+         }
+        ],
+        "downstream": {
+         "key": "gas_h2cc",
+         "label": "Gasification for hydrogen with carbon capture",
+         "residual_t_per_yr": 2564.1148505228684,
+         "distance_mile": 76.1
+        },
+        "profit_usd_per_yr": 4620136.779195206,
+        "emissions_t_co2e_per_yr": 9838.510627135622,
+        "circularity_index": 0.4894911472736385,
+        "circularity_scores": {
+         "energy": 0.1128704503284752,
+         "ghg": 0.3756597621622967,
+         "water": 0.7304300349223819,
+         "waste": 0.49925958921932556,
+         "substitutability": 0.7292358997357132
+        },
+        "sales_usd_per_yr": 11712730.330518318,
+        "capex_usd_per_yr": 5915782.435396401,
+        "opex_usd_per_yr": 1121722.090417902,
+        "transport_usd_per_yr": 55089.02550880915
+       },
+       {
+        "pathway": "LDPE/Diphenyl ether > EVOH/Ethylene glycol + we",
+        "washes": [
+         {
+          "wash": 1,
+          "polymer": "LDPE",
+          "solvent": "Diphenyl ether",
+          "temperature_c": 115.0,
+          "capex_usd_per_yr": 4812890.989937932,
+          "opex_usd_per_yr": 897795.3639403712,
+          "gwp_t_co2e_per_yr": 2749.0850108715485,
+          "energy_mj_per_yr": 24108135.99740152,
+          "recovered_fraction": 0.9804626826729934
+         },
+         {
+          "wash": 2,
+          "polymer": "EVOH",
+          "solvent": "Ethylene glycol",
+          "temperature_c": 120.0,
+          "capex_usd_per_yr": 1102891.445458469,
+          "opex_usd_per_yr": 223926.72647753076,
+          "gwp_t_co2e_per_yr": 535.9839578522111,
+          "energy_mj_per_yr": 4072161.817494532,
+          "recovered_fraction": 0.912080340808454
+         }
+        ],
+        "downstream": {
+         "key": "we",
+         "label": "Incineration with energy recovery",
+         "residual_t_per_yr": 2564.1148505228684,
+         "distance_mile": 151.0
+        },
+        "profit_usd_per_yr": 4606693.125033915,
+        "emissions_t_co2e_per_yr": 9592.047907703363,
+        "circularity_index": 0.5943367819735519,
+        "circularity_scores": {
+         "energy": 0.354447972120419,
+         "ghg": 0.3912999945816281,
+         "water": 0.5,
+         "waste": 0.9967000434299988,
+         "substitutability": 0.7292358997357132
+        },
+        "sales_usd_per_yr": 11712730.330518318,
+        "capex_usd_per_yr": 5915782.435396401,
+        "opex_usd_per_yr": 1121722.090417902,
+        "transport_usd_per_yr": 68532.67967010055
+       },
+       {
+        "pathway": "LDPE/Diphenyl ether > EVOH/Propylene glycol + we",
+        "washes": [
+         {
+          "wash": 1,
+          "polymer": "LDPE",
+          "solvent": "Diphenyl ether",
+          "temperature_c": 115.0,
+          "capex_usd_per_yr": 4812890.989937932,
+          "opex_usd_per_yr": 897795.3639403712,
+          "gwp_t_co2e_per_yr": 2749.0850108715485,
+          "energy_mj_per_yr": 24108135.99740152,
+          "recovered_fraction": 0.9804626826729934
+         },
+         {
+          "wash": 2,
+          "polymer": "EVOH",
+          "solvent": "Propylene glycol",
+          "temperature_c": 120.0,
+          "capex_usd_per_yr": 1122262.3834999313,
+          "opex_usd_per_yr": 226251.00190429098,
+          "gwp_t_co2e_per_yr": 532.3179035783713,
+          "energy_mj_per_yr": 4085162.9555104882,
+          "recovered_fraction": 0.912080340808454
+         }
+        ],
+        "downstream": {
+         "key": "we",
+         "label": "Incineration with energy recovery",
+         "residual_t_per_yr": 2564.1148505228684,
+         "distance_mile": 151.0
+        },
+        "profit_usd_per_yr": 4584997.911565692,
+        "emissions_t_co2e_per_yr": 9588.381853429524,
+        "circularity_index": 0.5943512207961655,
+        "circularity_scores": {
+         "energy": 0.35431812610499347,
+         "ghg": 0.39153263804607097,
+         "water": 0.5,
+         "waste": 0.9966694400940499,
+         "substitutability": 0.7292358997357132
+        },
+        "sales_usd_per_yr": 11712730.330518318,
+        "capex_usd_per_yr": 5935153.373437864,
+        "opex_usd_per_yr": 1124046.3658446623,
+        "transport_usd_per_yr": 68532.67967010055
+       },
+       {
+        "pathway": "LDPE/Toluene > EVOH/Ethylene glycol + we",
+        "washes": [
+         {
+          "wash": 1,
+          "polymer": "LDPE",
+          "solvent": "Toluene",
+          "temperature_c": 100.0,
+          "capex_usd_per_yr": 4968949.77077544,
+          "opex_usd_per_yr": 878969.3290432715,
+          "gwp_t_co2e_per_yr": 2081.809350600476,
+          "energy_mj_per_yr": 23336369.712763015,
+          "recovered_fraction": 0.9804626826823989
+         },
+         {
+          "wash": 2,
+          "polymer": "EVOH",
+          "solvent": "Ethylene glycol",
+          "temperature_c": 120.0,
+          "capex_usd_per_yr": 1102891.445458469,
+          "opex_usd_per_yr": 223926.72647753076,
+          "gwp_t_co2e_per_yr": 535.9839578522111,
+          "energy_mj_per_yr": 4072161.817494532,
+          "recovered_fraction": 0.912080340808454
+         }
+        ],
+        "downstream": {
+         "key": "we",
+         "label": "Incineration with energy recovery",
+         "residual_t_per_yr": 2564.114850477722,
+         "distance_mile": 151.0
+        },
+        "profit_usd_per_yr": 4469460.379142112,
+        "emissions_t_co2e_per_yr": 8924.772247321245,
+        "circularity_index": 0.6042448524842515,
+        "circularity_scores": {
+         "energy": 0.3621553105843158,
+         "ghg": 0.43364451808676485,
+         "water": 0.5,
+         "waste": 0.9961885340114753,
+         "substitutability": 0.7292358997387013
+        },
+        "sales_usd_per_yr": 11712730.330566311,
+        "capex_usd_per_yr": 6071841.216233909,
+        "opex_usd_per_yr": 1102896.0555208023,
+        "transport_usd_per_yr": 68532.67966948746
+       },
+       {
+        "pathway": "LDPE/Toluene > EVOH/Propylene glycol + we",
+        "washes": [
+         {
+          "wash": 1,
+          "polymer": "LDPE",
+          "solvent": "Toluene",
+          "temperature_c": 100.0,
+          "capex_usd_per_yr": 4968949.77077544,
+          "opex_usd_per_yr": 878969.3290432715,
+          "gwp_t_co2e_per_yr": 2081.809350600476,
+          "energy_mj_per_yr": 23336369.712763015,
+          "recovered_fraction": 0.9804626826823989
+         },
+         {
+          "wash": 2,
+          "polymer": "EVOH",
+          "solvent": "Propylene glycol",
+          "temperature_c": 120.0,
+          "capex_usd_per_yr": 1122262.3834999313,
+          "opex_usd_per_yr": 226251.00190429098,
+          "gwp_t_co2e_per_yr": 532.3179035783713,
+          "energy_mj_per_yr": 4085162.9555104882,
+          "recovered_fraction": 0.912080340808454
+         }
+        ],
+        "downstream": {
+         "key": "we",
+         "label": "Incineration with energy recovery",
+         "residual_t_per_yr": 2564.114850477722,
+         "distance_mile": 151.0
+        },
+        "profit_usd_per_yr": 4447765.16567389,
+        "emissions_t_co2e_per_yr": 8921.106193047406,
+        "circularity_index": 0.6042592947187047,
+        "circularity_scores": {
+         "energy": 0.3620254816280876,
+         "ghg": 0.4338771615512077,
+         "water": 0.5,
+         "waste": 0.9961579306755264,
+         "substitutability": 0.7292358997387013
+        },
+        "sales_usd_per_yr": 11712730.330566311,
+        "capex_usd_per_yr": 6091212.154275372,
+        "opex_usd_per_yr": 1105220.3309475626,
+        "transport_usd_per_yr": 68532.67966948746
+       },
+       {
+        "pathway": "LDPE/Diphenyl ether > EVOH/Ethylene glycol + lf",
+        "washes": [
+         {
+          "wash": 1,
+          "polymer": "LDPE",
+          "solvent": "Diphenyl ether",
+          "temperature_c": 115.0,
+          "capex_usd_per_yr": 4812890.989937932,
+          "opex_usd_per_yr": 897795.3639403712,
+          "gwp_t_co2e_per_yr": 2749.0850108715485,
+          "energy_mj_per_yr": 24108135.99740152,
+          "recovered_fraction": 0.9804626826729934
+         },
+         {
+          "wash": 2,
+          "polymer": "EVOH",
+          "solvent": "Ethylene glycol",
+          "temperature_c": 120.0,
+          "capex_usd_per_yr": 1102891.445458469,
+          "opex_usd_per_yr": 223926.72647753076,
+          "gwp_t_co2e_per_yr": 535.9839578522111,
+          "energy_mj_per_yr": 4072161.817494532,
+          "recovered_fraction": 0.912080340808454
+         }
+        ],
+        "downstream": {
+         "key": "lf",
+         "label": "Landfill",
+         "residual_t_per_yr": 2564.1148505228684,
+         "distance_mile": 9.2
+        },
+        "profit_usd_per_yr": 4329999.517155141,
+        "emissions_t_co2e_per_yr": 3506.7530000830156,
+        "circularity_index": 0.6816798895386175,
+        "circularity_scores": {
+         "energy": 0.352331444401601,
+         "ghg": 0.7774656058132112,
+         "water": 0.7304300349223819,
+         "waste": 0.8364970913159309,
+         "substitutability": 0.7116752712399627
+        },
+        "sales_usd_per_yr": 11430677.696960803,
+        "capex_usd_per_yr": 5915782.435396401,
+        "opex_usd_per_yr": 1141814.4687454507,
+        "transport_usd_per_yr": 43081.275663810564
+       },
+       {
+        "pathway": "LDPE/Diphenyl ether > EVOH/Propylene glycol + lf",
+        "washes": [
+         {
+          "wash": 1,
+          "polymer": "LDPE",
+          "solvent": "Diphenyl ether",
+          "temperature_c": 115.0,
+          "capex_usd_per_yr": 4812890.989937932,
+          "opex_usd_per_yr": 897795.3639403712,
+          "gwp_t_co2e_per_yr": 2749.0850108715485,
+          "energy_mj_per_yr": 24108135.99740152,
+          "recovered_fraction": 0.9804626826729934
+         },
+         {
+          "wash": 2,
+          "polymer": "EVOH",
+          "solvent": "Propylene glycol",
+          "temperature_c": 120.0,
+          "capex_usd_per_yr": 1122262.3834999313,
+          "opex_usd_per_yr": 226251.00190429098,
+          "gwp_t_co2e_per_yr": 532.3179035783713,
+          "energy_mj_per_yr": 4085162.9555104882,
+          "recovered_fraction": 0.912080340808454
+         }
+        ],
+        "downstream": {
+         "key": "lf",
+         "label": "Landfill",
+         "residual_t_per_yr": 2564.1148505228684,
+         "distance_mile": 9.2
+        },
+        "profit_usd_per_yr": 4308304.303686918,
+        "emissions_t_co2e_per_yr": 3503.086945809176,
+        "circularity_index": 0.6828705659345033,
+        "circularity_scores": {
+         "energy": 0.3522021305966162,
+         "ghg": 0.7776982492776541,
+         "water": 0.7363106905783016,
+         "waste": 0.8364664879799819,
+         "substitutability": 0.7116752712399627
+        },
+        "sales_usd_per_yr": 11430677.696960803,
+        "capex_usd_per_yr": 5935153.373437864,
+        "opex_usd_per_yr": 1144138.744172211,
+        "transport_usd_per_yr": 43081.275663810564
+       },
+       {
+        "pathway": "LDPE/Toluene > EVOH/Ethylene glycol + lf",
+        "washes": [
+         {
+          "wash": 1,
+          "polymer": "LDPE",
+          "solvent": "Toluene",
+          "temperature_c": 100.0,
+          "capex_usd_per_yr": 4968949.77077544,
+          "opex_usd_per_yr": 878969.3290432715,
+          "gwp_t_co2e_per_yr": 2081.809350600476,
+          "energy_mj_per_yr": 23336369.712763015,
+          "recovered_fraction": 0.9804626826823989
+         },
+         {
+          "wash": 2,
+          "polymer": "EVOH",
+          "solvent": "Ethylene glycol",
+          "temperature_c": 120.0,
+          "capex_usd_per_yr": 1102891.445458469,
+          "opex_usd_per_yr": 223926.72647753076,
+          "gwp_t_co2e_per_yr": 535.9839578522111,
+          "energy_mj_per_yr": 4072161.817494532,
+          "recovered_fraction": 0.912080340808454
+         }
+        ],
+        "downstream": {
+         "key": "lf",
+         "label": "Landfill",
+         "residual_t_per_yr": 2564.114850477722,
+         "distance_mile": 9.2
+        },
+        "profit_usd_per_yr": 4192766.77126821,
+        "emissions_t_co2e_per_yr": 2839.4773398080397,
+        "circularity_index": 0.7097581500632026,
+        "circularity_scores": {
+         "energy": 0.36000632397054083,
+         "ghg": 0.8198101293115488,
+         "water": 0.8213134438904349,
+         "waste": 0.835985581900228,
+         "substitutability": 0.7116752712432598
+        },
+        "sales_usd_per_yr": 11430677.697013762,
+        "capex_usd_per_yr": 6071841.216233909,
+        "opex_usd_per_yr": 1122988.433847997,
+        "transport_usd_per_yr": 43081.275663645596
+       },
+       {
+        "pathway": "LDPE/Toluene > EVOH/Propylene glycol + lf",
+        "washes": [
+         {
+          "wash": 1,
+          "polymer": "LDPE",
+          "solvent": "Toluene",
+          "temperature_c": 100.0,
+          "capex_usd_per_yr": 4968949.77077544,
+          "opex_usd_per_yr": 878969.3290432715,
+          "gwp_t_co2e_per_yr": 2081.809350600476,
+          "energy_mj_per_yr": 23336369.712763015,
+          "recovered_fraction": 0.9804626826823989
+         },
+         {
+          "wash": 2,
+          "polymer": "EVOH",
+          "solvent": "Propylene glycol",
+          "temperature_c": 120.0,
+          "capex_usd_per_yr": 1122262.3834999313,
+          "opex_usd_per_yr": 226251.00190429098,
+          "gwp_t_co2e_per_yr": 532.3179035783713,
+          "energy_mj_per_yr": 4085162.9555104882,
+          "recovered_fraction": 0.912080340808454
+         }
+        ],
+        "downstream": {
+         "key": "lf",
+         "label": "Landfill",
+         "residual_t_per_yr": 2564.114850477722,
+         "distance_mile": 9.2
+        },
+        "profit_usd_per_yr": 4171071.557799987,
+        "emissions_t_co2e_per_yr": 2835.8112855342006,
+        "circularity_index": 0.7109488356864949,
+        "circularity_scores": {
+         "energy": 0.3598770563025889,
+         "ghg": 0.8200427727759917,
+         "water": 0.8271940995463546,
+         "waste": 0.835954978564279,
+         "substitutability": 0.7116752712432598
+        },
+        "sales_usd_per_yr": 11430677.697013762,
+        "capex_usd_per_yr": 6091212.154275372,
+        "opex_usd_per_yr": 1125312.7092747574,
+        "transport_usd_per_yr": 43081.275663645596
+       }
+      ],
+      "emissions_vs_circularity": [
+       {
+        "pathway": "no wash + lf",
+        "washes": [],
+        "downstream": {
+         "key": "lf",
+         "label": "Landfill",
+         "residual_t_per_yr": 8000.0,
+         "distance_mile": 9.2
+        },
+        "profit_usd_per_yr": -91919.92,
+        "emissions_t_co2e_per_yr": 691.6508636547248,
+        "circularity_index": 0.6039537000533531,
+        "circularity_scores": {
+         "energy": 0.5636598453168823,
+         "ghg": 0.9561086549498838,
+         "water": 1.0,
+         "waste": 0.5,
+         "substitutability": 0.0
+        },
+        "sales_usd_per_yr": 0.0,
+        "capex_usd_per_yr": 0.0,
+        "opex_usd_per_yr": 62687.92,
+        "transport_usd_per_yr": 29232.0
+       },
+       {
+        "pathway": "EVOH/Ethylene glycol + lf",
+        "washes": [
+         {
+          "wash": 1,
+          "polymer": "EVOH",
+          "solvent": "Ethylene glycol",
+          "temperature_c": 120.0,
+          "capex_usd_per_yr": 1706358.3919729379,
+          "opex_usd_per_yr": 398347.8838611501,
+          "gwp_t_co2e_per_yr": 717.7690116531038,
+          "energy_mj_per_yr": 4302362.0332086105,
+          "recovered_fraction": 0.7801995251059143
+         }
+        ],
+        "downstream": {
+         "key": "lf",
+         "label": "Landfill",
+         "residual_t_per_yr": 7375.840379915268,
+         "distance_mile": 9.2
+        },
+        "profit_usd_per_yr": 2842158.3146454142,
+        "emissions_t_co2e_per_yr": 1355.4573077715775,
+        "circularity_index": 0.6320710269330974,
+        "circularity_scores": {
+         "energy": 0.5504217547088076,
+         "ghg": 0.9139842838021773,
+         "water": 0.8428367116773218,
+         "waste": 0.5383443779384783,
+         "substitutability": 0.3147680065387017
+        },
+        "sales_usd_per_yr": 5055692.922686324,
+        "capex_usd_per_yr": 1706358.3919729379,
+        "opex_usd_per_yr": 456144.89531976235,
+        "transport_usd_per_yr": 51031.32074821039
+       },
+       {
+        "pathway": "LDPE/Toluene + lf",
+        "washes": [
+         {
+          "wash": 1,
+          "polymer": "LDPE",
+          "solvent": "Toluene",
+          "temperature_c": 100.0,
+          "capex_usd_per_yr": 4968949.77077544,
+          "opex_usd_per_yr": 878969.3290432715,
+          "gwp_t_co2e_per_yr": 2081.809350600476,
+          "energy_mj_per_yr": 23336369.712763015,
+          "recovered_fraction": 0.9804626826823989
+         }
+        ],
+        "downstream": {
+         "key": "lf",
+         "label": "Landfill",
+         "residual_t_per_yr": 3293.7791231244855,
+         "distance_mile": 9.2
+        },
+        "profit_usd_per_yr": -389447.50043064216,
+        "emissions_t_co2e_per_yr": 2366.577497500095,
+        "circularity_index": 0.655143064838527,
+        "circularity_scores": {
+         "energy": 0.3965244447506953,
+         "ghg": 0.8498197934984861,
+         "water": 0.8947881552891608,
+         "waste": 0.7908823907984215,
+         "substitutability": 0.3437005398558715
+        },
+        "sales_usd_per_yr": 5520397.0885749785,
+        "capex_usd_per_yr": 4968949.77077544,
+        "opex_usd_per_yr": 904779.3493142837,
+        "transport_usd_per_yr": 36115.46891589687
+       },
+       {
+        "pathway": "LDPE/Toluene > EVOH/Propylene glycol + lf",
+        "washes": [
+         {
+          "wash": 1,
+          "polymer": "LDPE",
+          "solvent": "Toluene",
+          "temperature_c": 100.0,
+          "capex_usd_per_yr": 4968949.77077544,
+          "opex_usd_per_yr": 878969.3290432715,
+          "gwp_t_co2e_per_yr": 2081.809350600476,
+          "energy_mj_per_yr": 23336369.712763015,
+          "recovered_fraction": 0.9804626826823989
+         },
+         {
+          "wash": 2,
+          "polymer": "EVOH",
+          "solvent": "Propylene glycol",
+          "temperature_c": 120.0,
+          "capex_usd_per_yr": 1122262.3834999313,
+          "opex_usd_per_yr": 226251.00190429098,
+          "gwp_t_co2e_per_yr": 532.3179035783713,
+          "energy_mj_per_yr": 4085162.9555104882,
+          "recovered_fraction": 0.912080340808454
+         }
+        ],
+        "downstream": {
+         "key": "lf",
+         "label": "Landfill",
+         "residual_t_per_yr": 2564.114850477722,
+         "distance_mile": 9.2
+        },
+        "profit_usd_per_yr": 4171071.557799987,
+        "emissions_t_co2e_per_yr": 2835.8112855342006,
+        "circularity_index": 0.7109488356864949,
+        "circularity_scores": {
+         "energy": 0.3598770563025889,
+         "ghg": 0.8200427727759917,
+         "water": 0.8271940995463546,
+         "waste": 0.835954978564279,
+         "substitutability": 0.7116752712432598
+        },
+        "sales_usd_per_yr": 11430677.697013762,
+        "capex_usd_per_yr": 6091212.154275372,
+        "opex_usd_per_yr": 1125312.7092747574,
+        "transport_usd_per_yr": 43081.275663645596
+       }
+      ]
+     },
+     "ldpe_price_sweep_max_profit": {
+      "1173.0": {
+       "pathway": "LDPE/Diphenyl ether > EVOH/Ethylene glycol + gas_h2cc",
+       "profit_usd_yr": 4620136.779195206,
+       "emissions_t": 9838.510627135622,
+       "circularity": 0.4894911472736385
+      },
+      "1300.0": {
+       "pathway": "LDPE/Diphenyl ether > EVOH/Ethylene glycol + gas_h2cc",
+       "profit_usd_yr": 5217826.830552664,
+       "emissions_t": 9838.510627135622,
+       "circularity": 0.4969335971562092
+      },
+      "1500.0": {
+       "pathway": "LDPE/Diphenyl ether > EVOH/Ethylene glycol + gas_h2cc",
+       "profit_usd_yr": 6159071.0059187375,
+       "emissions_t": 9838.510627135622,
+       "circularity": 0.5086539906720685
+      },
+      "1800.0": {
+       "pathway": "LDPE/Diphenyl ether > EVOH/Ethylene glycol + gas_h2cc",
+       "profit_usd_yr": 7570937.268967848,
+       "emissions_t": 9838.510627135622,
+       "circularity": 0.5262345809458575
+      },
+      "2200.0": {
+       "pathway": "LDPE/Diphenyl ether > EVOH/Ethylene glycol + gas_h2cc",
+       "profit_usd_yr": 9453425.619699996,
+       "emissions_t": 9838.510627135622,
+       "circularity": 0.5436439673264959
+      }
+     }
+    }
+   }
+  }
+ },
+ "circularity_upper_bounds": {
+  "energy_mj": 59933032.64496258,
+  "ghg_t": 15758.251720583696,
+  "water_m3": 4547.946197126943,
+  "waste_kg": 2364283.5432584714,
+  "sales_low_usd": 0.0,
+  "sales_high_usd": 16061648.0
+ }
+}

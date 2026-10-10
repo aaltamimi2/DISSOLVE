@@ -1,0 +1,416 @@
+{
+ "retrieved": "2026-10-05",
+ "solvents": {
+  "1,2-dichloroethane": {
+   "cid": 11.0,
+   "max_c": -35.3,
+   "melting_point_c": -35.6,
+   "min_c": -35.7,
+   "n_values": 7
+  },
+  "1,2-dimethoxyethane": {
+   "cid": 8071.0,
+   "max_c": -57.8,
+   "melting_point_c": -58.0,
+   "min_c": -71.0,
+   "n_values": 5
+  },
+  "1,4-dimethylbenzene": {
+   "cid": 7809.0,
+   "max_c": 13.3,
+   "melting_point_c": 13.3,
+   "min_c": 13.0,
+   "n_values": 4
+  },
+  "1-butanol": {
+   "cid": 263.0,
+   "max_c": -88.6,
+   "melting_point_c": -89.4,
+   "min_c": -90.0,
+   "n_values": 7
+  },
+  "2,3-dihydropyran": {
+   "cid": 8080.0,
+   "status": "fetch failed: HTTPError"
+  },
+  "2-propanol": {
+   "cid": 3776.0,
+   "max_c": -87.9,
+   "melting_point_c": -88.3,
+   "min_c": -90.0,
+   "n_values": 6
+  },
+  "aceticacid": {
+   "cid": 176.0,
+   "max_c": 16.7,
+   "melting_point_c": 16.6,
+   "min_c": 16.6,
+   "n_values": 7
+  },
+  "aceticanhydride": {
+   "cid": 7918.0,
+   "max_c": -72.8,
+   "melting_point_c": -73.0,
+   "min_c": -73.4,
+   "n_values": 7
+  },
+  "acetonitrile": {
+   "cid": 6342.0,
+   "max_c": -43.8,
+   "melting_point_c": -45.0,
+   "min_c": -46.0,
+   "n_values": 6
+  },
+  "acetylacetone": {
+   "cid": 31261.0,
+   "max_c": -23.0,
+   "melting_point_c": -23.1,
+   "min_c": -23.5,
+   "n_values": 6
+  },
+  "benzaldehyde": {
+   "cid": 240.0,
+   "max_c": -26.0,
+   "melting_point_c": -26.1,
+   "min_c": -57.1,
+   "n_values": 5
+  },
+  "benzene": {
+   "cid": 241.0,
+   "max_c": 6.0,
+   "melting_point_c": 5.5,
+   "min_c": 5.5,
+   "n_values": 7
+  },
+  "benzonitrile": {
+   "cid": 7505.0,
+   "max_c": -12.8,
+   "melting_point_c": -12.8,
+   "min_c": -12.8,
+   "n_values": 4
+  },
+  "butanone": {
+   "cid": 6569.0,
+   "max_c": -86.0,
+   "melting_point_c": -86.3,
+   "min_c": -86.7,
+   "n_values": 7
+  },
+  "camphene": {
+   "cid": 6616.0,
+   "max_c": 52.0,
+   "melting_point_c": 46.0,
+   "min_c": 4.0,
+   "n_values": 7
+  },
+  "ccl4": {
+   "cid": 5943.0,
+   "max_c": 28.6,
+   "melting_point_c": -22.8,
+   "min_c": -23.0,
+   "n_values": 7
+  },
+  "ch2cl2": {
+   "cid": 6344.0,
+   "max_c": -95.0,
+   "melting_point_c": -96.7,
+   "min_c": -97.2,
+   "n_values": 7
+  },
+  "chcl3": {
+   "cid": 6212.0,
+   "max_c": -63.2,
+   "melting_point_c": -63.4,
+   "min_c": -64.0,
+   "n_values": 7
+  },
+  "chlorobenzene": {
+   "cid": 7964.0,
+   "max_c": -45.0,
+   "melting_point_c": -45.2,
+   "min_c": -45.6,
+   "n_values": 7
+  },
+  "cs2": {
+   "cid": 6348.0,
+   "max_c": -110.6,
+   "melting_point_c": -111.7,
+   "min_c": -112.1,
+   "n_values": 7
+  },
+  "cyclohexane": {
+   "cid": 8078.0,
+   "max_c": 7.0,
+   "melting_point_c": 6.6,
+   "min_c": 6.5,
+   "n_values": 7
+  },
+  "cyclohexanol": {
+   "cid": 7966.0,
+   "max_c": 25.9,
+   "melting_point_c": 24.5,
+   "min_c": 22.8,
+   "n_values": 6
+  },
+  "diethyleneglycol": {
+   "cid": 8117.0,
+   "max_c": -6.5,
+   "melting_point_c": -10.2,
+   "min_c": -10.4,
+   "n_values": 4
+  },
+  "diethylether": {
+   "cid": 3283.0,
+   "max_c": -116.0,
+   "melting_point_c": -116.2,
+   "min_c": -123.3,
+   "n_values": 7
+  },
+  "diglyme": {
+   "cid": 8150.0,
+   "max_c": -67.8,
+   "melting_point_c": -68.0,
+   "min_c": -68.0,
+   "n_values": 4
+  },
+  "dimethylformamide": {
+   "cid": 6228.0,
+   "max_c": -60.3,
+   "melting_point_c": -61.0,
+   "min_c": -61.1,
+   "n_values": 7
+  },
+  "dimethylsulfoxide": {
+   "cid": 679.0,
+   "max_c": 18.5,
+   "melting_point_c": 18.5,
+   "min_c": 17.9,
+   "n_values": 5
+  },
+  "dioxane": {
+   "cid": 31275.0,
+   "max_c": 12.0,
+   "melting_point_c": 11.7,
+   "min_c": 11.7,
+   "n_values": 6
+  },
+  "dipentene": {
+   "cid": 22311.0,
+   "max_c": -40.0,
+   "melting_point_c": -40.0,
+   "min_c": -95.5,
+   "n_values": 3
+  },
+  "diphenylether": {
+   "cid": 7583.0,
+   "max_c": 38.0,
+   "melting_point_c": 27.8,
+   "min_c": 26.8,
+   "n_values": 6
+  },
+  "dodecane": {
+   "cid": 8182.0,
+   "max_c": -9.6,
+   "melting_point_c": -9.6,
+   "min_c": -9.6,
+   "n_values": 4
+  },
+  "ethanol": {
+   "cid": 702.0,
+   "max_c": -113.9,
+   "melting_point_c": -114.1,
+   "min_c": -114.1,
+   "n_values": 7
+  },
+  "ethylacetate": {
+   "cid": 8857.0,
+   "max_c": 47.2,
+   "melting_point_c": -83.6,
+   "min_c": -84.0,
+   "n_values": 7
+  },
+  "ethylacetoacetate": {
+   "cid": 8868.0,
+   "max_c": -45.0,
+   "melting_point_c": -45.0,
+   "min_c": -80.0,
+   "n_values": 4
+  },
+  "glycol": {
+   "cid": 174.0,
+   "max_c": 58.5,
+   "melting_point_c": 6.0,
+   "min_c": -13.0,
+   "n_values": 13
+  },
+  "h2o": {
+   "cid": 962.0,
+   "max_c": 0.0,
+   "melting_point_c": 0.0,
+   "min_c": 0.0,
+   "n_values": 3
+  },
+  "hexamethylphosphoramide": {
+   "cid": 12679.0,
+   "max_c": 7.2,
+   "melting_point_c": 6.1,
+   "min_c": 6.0,
+   "n_values": 6
+  },
+  "hexane": {
+   "cid": 8058.0,
+   "max_c": -93.5,
+   "melting_point_c": -95.0,
+   "min_c": -139.4,
+   "n_values": 7
+  },
+  "isophorone": {
+   "cid": 6544.0,
+   "max_c": -7.8,
+   "melting_point_c": -8.1,
+   "min_c": -8.3,
+   "n_values": 7
+  },
+  "isopropylamine": {
+   "cid": 6363.0,
+   "max_c": -95.1,
+   "melting_point_c": -101.1,
+   "min_c": -101.2,
+   "n_values": 6
+  },
+  "methanol": {
+   "cid": 887.0,
+   "max_c": -97.5,
+   "melting_point_c": -97.8,
+   "min_c": -98.0,
+   "n_values": 7
+  },
+  "methyl-t-butylether": {
+   "cid": 15413.0,
+   "max_c": -108.6,
+   "melting_point_c": -109.0,
+   "min_c": -109.0,
+   "n_values": 5
+  },
+  "methylacetate": {
+   "cid": 6584.0,
+   "max_c": -97.8,
+   "melting_point_c": -98.3,
+   "min_c": -98.7,
+   "n_values": 7
+  },
+  "n-heptane": {
+   "cid": 8900.0,
+   "max_c": -90.5,
+   "melting_point_c": -90.6,
+   "min_c": -91.6,
+   "n_values": 7
+  },
+  "n-methyl-2-pyrrolidinone": {
+   "cid": 13387.0,
+   "max_c": -22.8,
+   "melting_point_c": -23.1,
+   "min_c": -25.0,
+   "n_values": 5
+  },
+  "naphthalene": {
+   "cid": 931.0,
+   "max_c": 80.3,
+   "melting_point_c": 80.2,
+   "min_c": 80.0,
+   "n_values": 7
+  },
+  "nitromethane": {
+   "cid": 6375.0,
+   "max_c": -28.7,
+   "melting_point_c": -28.9,
+   "min_c": -29.0,
+   "n_values": 6
+  },
+  "propanol": {
+   "cid": 1031.0,
+   "max_c": -126.1,
+   "melting_point_c": -126.7,
+   "min_c": -127.0,
+   "n_values": 7
+  },
+  "propanone": {
+   "cid": 180.0,
+   "max_c": -93.9,
+   "melting_point_c": -94.9,
+   "min_c": -95.6,
+   "n_values": 7
+  },
+  "propylenecarbonate": {
+   "cid": 7924.0,
+   "max_c": -48.8,
+   "melting_point_c": -48.8,
+   "min_c": -48.8,
+   "n_values": 2
+  },
+  "propyleneglycol": {
+   "cid": 1030.0,
+   "max_c": -59.0,
+   "melting_point_c": -60.0,
+   "min_c": -60.0,
+   "n_values": 5
+  },
+  "pyridine": {
+   "cid": 1049.0,
+   "max_c": -41.6,
+   "melting_point_c": -42.0,
+   "min_c": -42.2,
+   "n_values": 7
+  },
+  "pyrrole": {
+   "cid": 8027.0,
+   "max_c": -23.4,
+   "melting_point_c": -23.4,
+   "min_c": -24.0,
+   "n_values": 3
+  },
+  "resorcinol": {
+   "cid": 5054.0,
+   "max_c": 111.0,
+   "melting_point_c": 110.0,
+   "min_c": 108.9,
+   "n_values": 7
+  },
+  "styrene": {
+   "cid": 7501.0,
+   "max_c": -30.6,
+   "melting_point_c": -30.6,
+   "min_c": -33.0,
+   "n_values": 7
+  },
+  "tert-butanol": {
+   "cid": 6386.0,
+   "max_c": 25.8,
+   "melting_point_c": 25.5,
+   "min_c": 25.0,
+   "n_values": 7
+  },
+  "thf": {
+   "cid": 8028.0,
+   "max_c": -108.3,
+   "melting_point_c": -108.4,
+   "min_c": -108.5,
+   "n_values": 7
+  },
+  "thp": {
+   "cid": 8894.0,
+   "max_c": -49.2,
+   "melting_point_c": -49.2,
+   "min_c": -49.2,
+   "n_values": 1
+  },
+  "toluene": {
+   "cid": 1140.0,
+   "max_c": -94.9,
+   "melting_point_c": -95.0,
+   "min_c": -95.0,
+   "n_values": 7
+  }
+ },
+ "source": "PubChem PUG-View, heading 'Melting Point', median of parsed Celsius values"
+}
