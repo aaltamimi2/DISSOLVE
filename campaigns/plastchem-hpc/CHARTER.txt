@@ -1470,3 +1470,52 @@ A-13 NOTE (2026-10-10 02:06 UTC, coverage lane) — OUT-OF-MEMORY RETRY ROUND r0
    8G: the figure includes file cache up to the job's limit (Milan-X completed runs median 3,778 MB against 1.3-1.8 GB
    on the other types; four 7513 runs reached the 4G cap and completed), which fits the cache explanation of the 20:04
    NOTE.
+
+A-13 NOTE (2026-10-10 04:09 UTC, coverage lane) — RELEASE promotion-v11: 8,647 COMPUTED; 95.6% OF THE SIMULABLE ENTRIES — THE 95% TARGET IS PASSED
+1. /mnt/r/plastchem-euler/promotion-v11 (manifest 1a7f9ef8...; promotion-v10 fd9c5f09... unchanged beneath it): 8,772
+   status rows, 8,647 computed (+100, batch t12): coverage c12 7, c13 13, c14 27, c15 32, c16 12, c17 7, c18 1 and r02
+   1 (the first out-of-memory retry released); EPYC 7763 39, 7513 31, 7401 13, 7773X 10, 7272 7. 17 more final failure
+   rows, all D-IDENT rejections (16 azo dyes and pigments, a triarylmethane dye), two of them the nitro tris-azo dyes
+   decided by the deferred verification. 1,158 parent aliases served (1,167 offered; the same 9 withheld).
+2. Coverage (anaconda RDKit 2023.09.2): 9,200 of 9,627 simulable entries (95.56%; v10 94.51%), past the 95% target of
+   9,146 entries. 416 structures remain on the work list (115 failed, 301 not in the release yet); per the charter the
+   campaign reports the crossing and continues down the list to its end.
+3. Archives: set promotion-v11 (surfaces 11.9 MB, ORCA files 437 KB, 100 rows each) appended; no part rewritten. The
+   README writer now states the target is passed (it would have read '95% needs 0 more entries' and 'the cheapest 0
+   structures'), and structures without a release row read 'not in the release yet', not 'never run' (df3d8c2).
+4. DISSOLVE db37dc61 on main. Full suite 2,284 passed, 3 skipped (expected), audit 0, home writes 0. Sync: main
+   db37dc61 | main-backup db37dc61 | main-cleanup-frontend 3c6e4639 = main + 39 frontend commits, behind main by 0.
+   Deploy d16744cb ACTIVE at 04:08 UTC, live contaminants_computed 8647. Live check ANSWERED (the OpenRouter credit
+   limit of 18:46 UTC is lifted): 'Does Acid fuchsine FB leach from polystyrene into ethanol?' -> identity lookup,
+   openCOSMO-RS 24a partition and the phase grid, status ok in 11 s: logP > 6 toward ethanol, polystyrene undissolved.
+
+A-13 NOTE (2026-10-10 05:28 UTC, coverage lane) — OWNER REQUEST: EXPLORATORY CONFORMER STUDY (NOT A RELEASE INPUT)
+1. Request (owner, 2026-10-10): measure the effect of conformational sampling on the openCOSMO-RS results at high
+   molecular weight, to decide above what MW conformers should be sampled. 31 computed contaminants of promotion-v11,
+   493-1,367 g/mol: in 50 g/mol bins down from the heaviest served, the 2 with the most rotatable bonds and the
+   heaviest rigid one (<= 4 rotatable bonds) per bin (the owner chose this over MW alone, which picks rigid
+   perhalogenated aromatics near the top). Selection: state/conformers-v1/selection.json,
+   exploratory/conformer-sampling/selection.csv.
+2. Conformers from the campaign's own minimization: the frozen ETKDGv3/MMFF94 ensemble (seed 12345, 300 embeddings,
+   prune 0.5) in energy order, a conformer kept when its skeleton RMSD to every kept one and to its mirror image is >=
+   0.5 A, up to 10: 219 conformers (flexible compounds 10 each; rigid ones mostly 1). k01 is the recipe's conformer
+   and its geometry equals the campaign's for all 31 (SHA-256), so rerunning it is a control on the released surface.
+3. Compute: each conformer through the unchanged ORCA recipe (conformer_runner.py, copied from coverage_runner.py) on
+   the admitted Rome and Naples nodes, array confstudy-k01 (never contam-*, so it does not count toward the Milan
+   cap), --nice=1000 so campaign tasks waiting for the same nodes start first, 4G, per-task walltimes by the campaign
+   rule; about 1,200 CPU-hours by the cost fit. Thermodynamics afterwards on Genoa with the pinned package
+   (conductor-reference chemical potentials per conformer, Boltzmann-weighted by COSMO energy, same solvents and
+   polymer ensembles).
+4. Outputs stay in exploratory/ and state/conformers-v1/; nothing enters a release, DISSOLVE or the work list.
+
+A-13 NOTE (2026-10-10 15:23 UTC, coverage lane) — AFTER THE REBOOT: t13, RETRY ROUNDS r04 (OUT OF MEMORY) AND r05 (TIME LIMIT)
+1. The workstation was down from about 07:00 to 14:06 UTC; the cluster work ran on. R: was remounted by the owner;
+   collection at 14:28 UTC: 1,484 converged. t13 (135 structures) submitted on Genoa (82681/82682).
+2. r04 (83074): one more OUT_OF_MEMORY row from euler141 (WNUUEQSIAHJIGU), 8G, milan&gpu, as r02/r03.
+3. r05 (83075): five rows that reached their per-task time limit (6 x the cost fit: c14 1, c15 1, c16 2, c17 1; 45-78
+   atoms; ended by the runner's signal guard after 7-22 h). build_coverage_retry.py --time-limit (b8cf494): same
+   prepared geometry and recipe, 4G, own run folders, one walltime of 24 x the fit for the round's largest molecule
+   (86 h), no per-task lowering, milan&gpu.
+4. Conformer study (exploratory): confstudy-k01 runs at nice 0 (1000 and 50 floored its priority at 1, since the
+   account's fairshare factor is 0); 46 running. Control: tritetracontane k01 rerun on Rome reproduces the released
+   surface byte for byte and its 640 released partition rows within 3e-6.

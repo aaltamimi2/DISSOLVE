@@ -1,0 +1,108 @@
+{
+ "campaign": "contam-coverage-milan-v1",
+ "group": "r04",
+ "name": "contam-coverage-r04",
+ "walltime": "39:00:00",
+ "mem": "8G",
+ "retry_folders": true,
+ "retry_kind": "out_of_memory",
+ "policy": {
+  "mode": "connectivity_first_block_with_computed_stereochemistry",
+  "authority": "Owner decision A-3 D-IDENT",
+  "charter_sha256": "39aa9d7e6e419291bb537616b080309bf55fe703d4b98710aab9e1e266c3bdab",
+  "require_stereo_layer_match": false,
+  "isotope_policy": "exclude; no parent mapping",
+  "campaign_concurrency_limit": 64,
+  "orca_share_of_cap": 56,
+  "thermodynamics_share_of_cap": 8,
+  "concurrency_authority": "Owner 2026-09-16: increase concurrency only; keep 4GB (D-CONC 64, shared by ORCA and thermodynamics)",
+  "tier_authority": "Amendment A-13 (coverage campaign, 2026-10-08)"
+ },
+ "recipe": {
+  "n_embed": 300,
+  "seed": 12345,
+  "prune_rms": 0.5,
+  "max_mmff_iters": 2000,
+  "dft_conformers": 1
+ },
+ "input": {
+  "path": "inputs/plastchem_coverage_a13_worklist.csv",
+  "sha256": "40b4ca4ef3237e7947dfd77beab339a0acca5beb4fb732b135b0f8ce228683e2"
+ },
+ "chunk_rule": "A-13: coverage runs killed OUT_OF_MEMORY at 4G, retried once from the same prepared geometry with 8G and their own run folders",
+ "molecules": [
+  {
+   "name": "4,4'-Bis((6-anilino-4-((2-hydroxyethyl)methylamino)-1,3,5-triazin-2-yl)amino)stilbene-2,2'-disulphonic acid",
+   "name_source": "PubChem CID 6433587 title",
+   "smiles": "CN(CCO)c1nc(Nc2ccccc2)nc(Nc2ccc(/C=C/c3ccc(Nc4nc(Nc5ccccc5)nc(N(C)CCO)n4)cc3S(=O)(=O)O)c(S(=O)(=O)O)c2)n1",
+   "plastchem_id": "2857",
+   "cas": "13863-31-5",
+   "inchikey": "WNUUEQSIAHJIGU-BUHFOSPRSA-N",
+   "molecular_weight_g_mol": "856.90",
+   "n_atoms_with_H": "100",
+   "array_index": 0,
+   "atoms": 100,
+   "group": "r04",
+   "tier": "coverage",
+   "worklist_order": 1768,
+   "kind": "S, P or Si",
+   "elements": "CHNOS",
+   "served_entries_direct": "",
+   "served_entries_as_parent": "2857",
+   "entry_names": "Tinopal 5BM",
+   "plastchem_groups": "",
+   "families_existing": "",
+   "families_proposed": "",
+   "retry_of": {
+    "group": "c16",
+    "failure_mode": "orca_nonzero_or_abnormal_termination",
+    "array_job_id": "81426",
+    "array_task_id": 85,
+    "node": "euler141.engr.wisc.edu",
+    "cpu_model": "AMD EPYC 7773X 64-Core Processor",
+    "elapsed_seconds": 26360.762351794983,
+    "slurm_accounting": {
+     "state": "OUT_OF_MEMORY",
+     "exit_code": "0:125",
+     "elapsed_seconds": 26362,
+     "node_list": "euler141",
+     "maxrss_kib": 4189204.0,
+     "maxrss_source": "sacct batch step"
+    },
+    "record_sha256": "5fd98cd3316bfaaa8677f70961f7eeea95214a2bf7261a7357e56cf56441e810"
+   }
+  }
+ ],
+ "admitted": [
+  {
+   "cpu_model": "AMD EPYC 7763 64-Core Processor",
+   "partition": "research",
+   "constraint": "milan&cpu",
+   "basis": "the campaign's reference CPU (A-2); no check needed"
+  },
+  {
+   "cpu_model": "AMD EPYC 7513 32-Core Processor",
+   "partition": "research",
+   "constraint": "milan&gpu",
+   "basis": "reproduction check milan-gpu passed 2026-10-08T21:39:55+00:00"
+  },
+  {
+   "cpu_model": "AMD EPYC 7773X 64-Core Processor",
+   "partition": "research",
+   "constraint": "milan-x",
+   "basis": "reproduction check milan-x passed 2026-10-08T21:36:57+00:00"
+  },
+  {
+   "cpu_model": "AMD EPYC 7401 24-Core Processor",
+   "partition": "research",
+   "constraint": "naples",
+   "basis": "reproduction check naples-gpu passed 2026-10-09T01:38:47+00:00"
+  },
+  {
+   "cpu_model": "AMD EPYC 7272 12-Core Processor",
+   "partition": "research",
+   "constraint": "rome",
+   "basis": "reproduction check rome-gpu passed 2026-10-09T00:45:45+00:00"
+  }
+ ]
+}
