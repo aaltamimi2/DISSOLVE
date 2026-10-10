@@ -13,7 +13,13 @@ out-of-memory kill. The round keeps its own run folders (retry_folders: coverage
 never reruns a folder that holds an earlier attempt; the walltime is the chunks' rule for its largest molecule and is
 lowered per task after submission (coverage_task_walltime.py).
 
-    ~/.venvs/cosmo-logp/bin/python scripts/build_coverage_retry.py r02 --oom"""
+    ~/.venvs/cosmo-logp/bin/python scripts/build_coverage_retry.py r02 --oom
+
+--time-limit (A-13, 2026-10-10): a round of the coverage runs that reached their per-task time limit (6 x the cost fit;
+the runner's guard or the scheduler's signal ended them), unchanged recipe and memory, own run folders, with four times
+the first limit (24 x the fit for the round's largest molecule). The per-task lowering is not applied to this round.
+
+    ~/.venvs/cosmo-logp/bin/python scripts/build_coverage_retry.py r05 --time-limit"""
 import argparse
 import csv
 import hashlib
@@ -39,12 +45,15 @@ def main():
     parser.add_argument("round", help="rNN")
     parser.add_argument("--walltime", default="96:00:00")
     parser.add_argument("--oom", action="store_true", help="the coverage runs killed OUT_OF_MEMORY, with 8G")
+    parser.add_argument("--time-limit", action="store_true", help="the coverage runs that reached their time limit, 4x longer")
     args = parser.parse_args()
     assert re.fullmatch(r"r\d\d", args.round)
     out = P / args.round / "manifest.json"
     assert not out.exists(), f"{out} exists; a retry round is built once"
     if args.oom:
         return out_of_memory_round(args.round, out)
+    if args.time_limit:
+        return out_of_memory_round(args.round, out, kind="time_limit")
     assert sha(WORKLIST) == WORKLIST_SHA256
     done = {m["inchikey"] for path in P.glob("r[0-9][0-9]/manifest.json") for m in json.loads(path.read_text())["molecules"]}
     molecules = []
@@ -97,16 +106,19 @@ def main():
                       "orders": [m["worklist_order"] for m in molecules], "manifest_sha256": sha(out)}))
 
 
-def out_of_memory_round(round_name, out):
+def out_of_memory_round(round_name, out, kind="out_of_memory"):
     import math
     listed = {m["inchikey"] for path in P.glob("r[0-9][0-9]/manifest.json")
-              if json.loads(path.read_text()).get("retry_kind") == "out_of_memory"
+              if json.loads(path.read_text()).get("retry_kind") == kind
               for m in json.loads(path.read_text())["molecules"]}
     molecules = []
     for path in sorted((P / "records").glob("*.json")):
         record = json.loads(path.read_text())
         key = record.get("inchikey") or path.stem
-        if key in listed or not str((record.get("slurm_accounting") or {}).get("state", "")).startswith("OUT_OF_MEMORY"):
+        oom = str((record.get("slurm_accounting") or {}).get("state", "")).startswith("OUT_OF_MEMORY")
+        timed = not oom and record.get("status") == "failed" and (record.get("execution_outcome") == "time_limit" or record.get(
+            "failure_mode") in ("slurm_timeout", "walltime_censored", "scheduler_signal_10"))
+        if key in listed or not (oom if kind == "out_of_memory" else timed):
             continue
         prep = json.loads((P / "prepared" / key / "preparation.json").read_text())
         assert prep["status"] == "prepared" and sha(P / "prepared" / key / "input.xyz") == prep["xyz_sha256"], key
@@ -115,22 +127,25 @@ def out_of_memory_round(round_name, out):
             array_task_id=record.get("array_task_id"), node=record.get("node"), cpu_model=record.get("cpu_model"),
             elapsed_seconds=record.get("elapsed_seconds"), slurm_accounting=record.get("slurm_accounting"),
             record_sha256=sha(path))))
-    assert molecules, "no out-of-memory run to retry"
+    assert molecules, f"no {kind} run to retry"
     largest = max(m["atoms"] for m in molecules)
-    hours = min(384, max(3, math.ceil(6 * math.exp(-0.687758) * largest ** 2.305719 * 1.113048 / 3600)))
+    factor = 6 if kind == "out_of_memory" else 24
+    hours = min(384, max(3 if kind == "out_of_memory" else 12, math.ceil(factor * math.exp(-0.687758) * largest ** 2.305719 * 1.113048 / 3600)))
     manifest = {
         "campaign": "contam-coverage-milan-v1", "group": round_name, "name": f"contam-coverage-{round_name}",
-        "walltime": f"{hours}:00:00", "mem": "8G", "retry_folders": True, "retry_kind": "out_of_memory",
+        "walltime": f"{hours}:00:00", "mem": "8G" if kind == "out_of_memory" else "4G", "retry_folders": True, "retry_kind": kind,
         "policy": json.loads((P / "policy.json").read_text()),
         "recipe": {"n_embed": 300, "seed": 12345, "prune_rms": 0.5, "max_mmff_iters": 2000, "dft_conformers": 1},
         "input": {"path": str(WORKLIST.relative_to(ROOT)), "sha256": WORKLIST_SHA256},
-        "chunk_rule": "A-13: coverage runs killed OUT_OF_MEMORY at 4G, retried once from the same prepared geometry with "
-                      "8G and their own run folders",
+        "chunk_rule": ("A-13: coverage runs killed OUT_OF_MEMORY at 4G, retried once from the same prepared geometry with "
+                       "8G and their own run folders") if kind == "out_of_memory" else
+                      ("A-13: coverage runs that reached their time limit (6 x the cost fit), retried once from the same "
+                       "prepared geometry with 24 x the fit and their own run folders"),
         "molecules": molecules,
     }
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(manifest, indent=1) + "\n")
-    print(json.dumps({"round": round_name, "molecules": len(molecules), "walltime": manifest["walltime"], "mem": "8G",
+    print(json.dumps({"round": round_name, "molecules": len(molecules), "walltime": manifest["walltime"], "mem": manifest["mem"], "kind": kind,
                       "from": sorted({m["retry_of"]["group"] for m in molecules}), "manifest_sha256": sha(out)}))
 
 

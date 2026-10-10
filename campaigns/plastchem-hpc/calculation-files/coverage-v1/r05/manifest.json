@@ -1,0 +1,272 @@
+{
+ "campaign": "contam-coverage-milan-v1",
+ "group": "r05",
+ "name": "contam-coverage-r05",
+ "walltime": "86:00:00",
+ "mem": "4G",
+ "retry_folders": true,
+ "retry_kind": "time_limit",
+ "policy": {
+  "mode": "connectivity_first_block_with_computed_stereochemistry",
+  "authority": "Owner decision A-3 D-IDENT",
+  "charter_sha256": "39aa9d7e6e419291bb537616b080309bf55fe703d4b98710aab9e1e266c3bdab",
+  "require_stereo_layer_match": false,
+  "isotope_policy": "exclude; no parent mapping",
+  "campaign_concurrency_limit": 64,
+  "orca_share_of_cap": 56,
+  "thermodynamics_share_of_cap": 8,
+  "concurrency_authority": "Owner 2026-09-16: increase concurrency only; keep 4GB (D-CONC 64, shared by ORCA and thermodynamics)",
+  "tier_authority": "Amendment A-13 (coverage campaign, 2026-10-08)"
+ },
+ "recipe": {
+  "n_embed": 300,
+  "seed": 12345,
+  "prune_rms": 0.5,
+  "max_mmff_iters": 2000,
+  "dft_conformers": 1
+ },
+ "input": {
+  "path": "inputs/plastchem_coverage_a13_worklist.csv",
+  "sha256": "40b4ca4ef3237e7947dfd77beab339a0acca5beb4fb732b135b0f8ce228683e2"
+ },
+ "chunk_rule": "A-13: coverage runs that reached their time limit (6 x the cost fit), retried once from the same prepared geometry with 24 x the fit and their own run folders",
+ "molecules": [
+  {
+   "name": "7-Amino-4-hydroxy-3-[[4-[4-[(1-hydroxy-4-sulfonaphthalen-2-yl)diazenyl]-3-methoxyphenyl]-2-methoxyphenyl]diazenyl]naphthalene-2-sulfonic acid",
+   "name_source": "PubChem CID 22954 title",
+   "smiles": "COc1cc(-c2ccc(N=Nc3c(S(=O)(=O)O)cc4cc(N)ccc4c3O)c(OC)c2)ccc1N=Nc1cc(S(=O)(=O)O)c2ccccc2c1O",
+   "plastchem_id": "1051;11375",
+   "cas": "110735-25-6;6449-35-0",
+   "inchikey": "DAUWYVUKZMSMCP-UHFFFAOYSA-N",
+   "molecular_weight_g_mol": "729.70",
+   "n_atoms_with_H": "78",
+   "array_index": 0,
+   "atoms": 78,
+   "group": "r05",
+   "tier": "coverage",
+   "worklist_order": 1617,
+   "kind": "S, P or Si",
+   "elements": "CHNOS",
+   "served_entries_direct": "",
+   "served_entries_as_parent": "1051;11375",
+   "entry_names": "C.I. Direct blue 151, disodium salt | C.I. Direct blue 151, disodium salt",
+   "plastchem_groups": "azodyes",
+   "families_existing": "",
+   "families_proposed": "Azo dyes",
+   "retry_of": {
+    "group": "c15",
+    "failure_mode": "scheduler_signal_10",
+    "array_job_id": "80999",
+    "array_task_id": 34,
+    "node": "euler143.engr.wisc.edu",
+    "cpu_model": "AMD EPYC 7763 64-Core Processor",
+    "elapsed_seconds": 79074.60342757899,
+    "slurm_accounting": {
+     "state": "FAILED",
+     "exit_code": "1:0",
+     "elapsed_seconds": 79076,
+     "node_list": "euler143",
+     "maxrss_kib": 3100948.0,
+     "maxrss_source": "sacct batch step"
+    },
+    "record_sha256": "9ed4393c5f994a6f10854776455b6d8cfa41ce053544fe2cc733651c221bc8be"
+   }
+  },
+  {
+   "name": "2-Naphthalenecarboxamide, N,N'-(2-chloro-1,4-phenylene)bis[4-[(2,5-dichlorophenyl)azo]-3-hydroxy-",
+   "name_source": "PlastChem (work list)",
+   "smiles": "O=C(Nc1ccc(NC(=O)c2cc3ccccc3c(N=Nc3cc(Cl)ccc3Cl)c2O)c(Cl)c1)c1cc2ccccc2c(N=Nc2cc(Cl)ccc2Cl)c1O",
+   "plastchem_id": "9447",
+   "cas": "5280-78-4",
+   "inchikey": "IJBLMBVNVKWXHY-UHFFFAOYSA-N",
+   "molecular_weight_g_mol": "828.90",
+   "n_atoms_with_H": "78",
+   "array_index": 1,
+   "atoms": 78,
+   "group": "r05",
+   "tier": "coverage",
+   "worklist_order": 1747,
+   "kind": "halogen",
+   "elements": "CHNOCl",
+   "served_entries_direct": "9447",
+   "served_entries_as_parent": "",
+   "entry_names": "2-Naphthalenecarboxamide, N,N'-(2-chloro-1,4-phenylene)bis[4-[(2,5-dichlorophenyl)azo]-3-hydroxy-",
+   "plastchem_groups": "",
+   "families_existing": "",
+   "families_proposed": "",
+   "retry_of": {
+    "group": "c16",
+    "failure_mode": "scheduler_signal_10",
+    "array_job_id": "81426",
+    "array_task_id": 64,
+    "node": "euler141.engr.wisc.edu",
+    "cpu_model": "AMD EPYC 7773X 64-Core Processor",
+    "elapsed_seconds": 79058.92950855201,
+    "slurm_accounting": {
+     "state": "FAILED",
+     "exit_code": "1:0",
+     "elapsed_seconds": 79060,
+     "node_list": "euler141",
+     "maxrss_kib": 4189068.0,
+     "maxrss_source": "sacct batch step"
+    },
+    "record_sha256": "12f14c0673829a91d1c8ce55bb1141faab7895a3227d0659876390ef03eedfc7"
+   }
+  },
+  {
+   "name": "Triacontachlorocyclopentadecane",
+   "name_source": "PlastChem (work list)",
+   "smiles": "ClC1(Cl)C(Cl)(Cl)C(Cl)(Cl)C(Cl)(Cl)C(Cl)(Cl)C(Cl)(Cl)C(Cl)(Cl)C(Cl)(Cl)C(Cl)(Cl)C(Cl)(Cl)C(Cl)(Cl)C(Cl)(Cl)C(Cl)(Cl)C(Cl)(Cl)C1(Cl)Cl",
+   "plastchem_id": "13178",
+   "cas": "7346-98-7",
+   "inchikey": "NLJYVSRAICBDSH-UHFFFAOYSA-N",
+   "molecular_weight_g_mol": "1243.80",
+   "n_atoms_with_H": "45",
+   "array_index": 2,
+   "atoms": 45,
+   "group": "r05",
+   "tier": "coverage",
+   "worklist_order": 1880,
+   "kind": "halogen",
+   "elements": "CCl",
+   "served_entries_direct": "13178",
+   "served_entries_as_parent": "",
+   "entry_names": "Triacontachlorocyclopentadecane",
+   "plastchem_groups": "",
+   "families_existing": "",
+   "families_proposed": "",
+   "retry_of": {
+    "group": "c17",
+    "failure_mode": "scheduler_signal_10",
+    "array_job_id": "81622",
+    "array_task_id": 97,
+    "node": "euler143.engr.wisc.edu",
+    "cpu_model": "AMD EPYC 7763 64-Core Processor",
+    "elapsed_seconds": 25052.999491619004,
+    "slurm_accounting": {
+     "state": "FAILED",
+     "exit_code": "1:0",
+     "elapsed_seconds": 25054,
+     "node_list": "euler143",
+     "maxrss_kib": 3904336.0,
+     "maxrss_source": "sacct batch step"
+    },
+    "record_sha256": "81e285b3d7d111d8a8994e3196853b08529d3716a91c4d9ea82db26f6fd97654"
+   }
+  },
+  {
+   "name": "N,N'-Phenylene-1,4-bis[4-[(2,5-dichlorophenyl)azo]-3-hydroxynaphthalene-2-carboxamide]",
+   "name_source": "PlastChem (work list)",
+   "smiles": "O=C(Nc1ccc(NC(=O)c2cc3ccccc3c(N=Nc3cc(Cl)ccc3Cl)c2O)cc1)c1cc2ccccc2c(N=Nc2cc(Cl)ccc2Cl)c1O",
+   "plastchem_id": "8140;12960",
+   "cas": "3905-19-9;71819-52-8",
+   "inchikey": "NQDGNYQKISTHLK-UHFFFAOYSA-N",
+   "molecular_weight_g_mol": "794.50",
+   "n_atoms_with_H": "78",
+   "array_index": 3,
+   "atoms": 78,
+   "group": "r05",
+   "tier": "coverage",
+   "worklist_order": 1694,
+   "kind": "halogen",
+   "elements": "CHNOCl",
+   "served_entries_direct": "8140;12960",
+   "served_entries_as_parent": "",
+   "entry_names": "N,N'-Phenylene-1,4-bis[4-[(2,5-dichlorophenyl)azo]-3-hydroxynaphthalene-2-carboxamide] | N,N'-Phenylene-1,4-bis[4-[(2,5-dichlorophenyl)azo]-3-hydroxynaphthalene-2-carboxamide]",
+   "plastchem_groups": "",
+   "families_existing": "",
+   "families_proposed": "",
+   "retry_of": {
+    "group": "c16",
+    "failure_mode": "scheduler_signal_10",
+    "array_job_id": "81426",
+    "array_task_id": 11,
+    "node": "euler141.engr.wisc.edu",
+    "cpu_model": "AMD EPYC 7773X 64-Core Processor",
+    "elapsed_seconds": 79051.25086494198,
+    "slurm_accounting": {
+     "state": "FAILED",
+     "exit_code": "1:0",
+     "elapsed_seconds": 79052,
+     "node_list": "euler141",
+     "maxrss_kib": 4189216.0,
+     "maxrss_source": "sacct batch step"
+    },
+    "record_sha256": "99525719abf81e1c8477b0b6ddb9189d8af5054cfbe9c8d465ba8eea6a9faa7d"
+   }
+  },
+  {
+   "name": "7,7'-(Carbonyldiimino)bis[4-hydroxy-3-(2-phenyldiazenyl)-2-naphthalenesulfonic acid]",
+   "name_source": "PubChem CID 77183 title",
+   "smiles": "O=C(Nc1ccc2c(O)c(N=Nc3ccccc3)c(S(=O)(=O)O)cc2c1)Nc1ccc2c(O)c(N=Nc3ccccc3)c(S(=O)(=O)O)cc2c1",
+   "plastchem_id": "7811",
+   "cas": "3626-36-6",
+   "inchikey": "XKNUVBQTZXGYHL-UHFFFAOYSA-N",
+   "molecular_weight_g_mol": "712.70",
+   "n_atoms_with_H": "74",
+   "array_index": 4,
+   "atoms": 74,
+   "group": "r05",
+   "tier": "coverage",
+   "worklist_order": 1569,
+   "kind": "S, P or Si",
+   "elements": "CHNOS",
+   "served_entries_direct": "",
+   "served_entries_as_parent": "7811",
+   "entry_names": "Direct Orange S",
+   "plastchem_groups": "azodyes",
+   "families_existing": "",
+   "families_proposed": "Azo dyes",
+   "retry_of": {
+    "group": "c14",
+    "failure_mode": "scheduler_signal_10",
+    "array_job_id": "80926",
+    "array_task_id": 86,
+    "node": "euler07.engr.wisc.edu",
+    "cpu_model": "AMD EPYC 7513 32-Core Processor",
+    "elapsed_seconds": 71861.234006538,
+    "slurm_accounting": {
+     "state": "FAILED",
+     "exit_code": "1:0",
+     "elapsed_seconds": 71862,
+     "node_list": "euler07",
+     "maxrss_kib": 4076528.0,
+     "maxrss_source": "sacct batch step"
+    },
+    "record_sha256": "5fdd74792f894168cd120d86185710c0900e720b0885da59d99f6eaae8946bdd"
+   }
+  }
+ ],
+ "admitted": [
+  {
+   "cpu_model": "AMD EPYC 7763 64-Core Processor",
+   "partition": "research",
+   "constraint": "milan&cpu",
+   "basis": "the campaign's reference CPU (A-2); no check needed"
+  },
+  {
+   "cpu_model": "AMD EPYC 7513 32-Core Processor",
+   "partition": "research",
+   "constraint": "milan&gpu",
+   "basis": "reproduction check milan-gpu passed 2026-10-08T21:39:55+00:00"
+  },
+  {
+   "cpu_model": "AMD EPYC 7773X 64-Core Processor",
+   "partition": "research",
+   "constraint": "milan-x",
+   "basis": "reproduction check milan-x passed 2026-10-08T21:36:57+00:00"
+  },
+  {
+   "cpu_model": "AMD EPYC 7401 24-Core Processor",
+   "partition": "research",
+   "constraint": "naples",
+   "basis": "reproduction check naples-gpu passed 2026-10-09T01:38:47+00:00"
+  },
+  {
+   "cpu_model": "AMD EPYC 7272 12-Core Processor",
+   "partition": "research",
+   "constraint": "rome",
+   "basis": "reproduction check rome-gpu passed 2026-10-09T00:45:45+00:00"
+  }
+ ]
+}

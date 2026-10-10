@@ -6,7 +6,10 @@ and never raising one. A task that reaches its limit is resubmitted with a longe
 A-13), as before. Running tasks are left alone. Every change is logged (UTC, chunk, array, task, atoms, from, to) in
 state/coverage-v1/walltime-log.jsonl; the runner's record keeps the manifest walltime, so the log is the provenance.
 
-    python3 scripts/coverage_task_walltime.py [--dry-run] CHUNK [CHUNK ...]"""
+    python3 scripts/coverage_task_walltime.py [--dry-run] [--tier conformers-v1] CHUNK [CHUNK ...]
+
+--tier (2026-10-10) applies the same rule to another tree with the same layout (the exploratory conformer study's
+conformers-v1); the default is the coverage campaign."""
 import json
 import math
 import sys
@@ -30,7 +33,14 @@ def hours(walltime):
 
 
 def main(argv):
+    global P, REMOTE
     dry = "--dry-run" in argv
+    if "--tier" in argv:
+        tier = argv[argv.index("--tier") + 1]
+        assert tier in ("coverage-v1", "conformers-v1"), tier
+        P = P.parent / tier
+        REMOTE = REMOTE.rsplit("/", 1)[0] + "/" + tier
+        argv = [a for i, a in enumerate(argv) if a != "--tier" and (i == 0 or argv[i - 1] != "--tier")]
     chunks = [a for a in argv if not a.startswith("--")]
     log = []
     for chunk in chunks:
