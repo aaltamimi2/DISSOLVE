@@ -9,9 +9,13 @@ import random
 import re
 import sys
 import time
+import unicodedata
 from collections.abc import Mapping as AbcMapping
 from collections.abc import Sequence as AbcSeq
+from contextlib import contextmanager
+from contextvars import ContextVar
 from dataclasses import dataclass
+from html.entities import html5 as _HTML5_ENTITIES
 from types import UnionType
 from urllib.parse import urlsplit
 from typing import (
@@ -48,6 +52,7 @@ from dissolve.thermodynamics import expand_polymer_identity, get_available_solve
 
 from . import (
     analysis,
+    contaminant_search,
     contaminants,
     research,
     safety,
@@ -131,6 +136,7 @@ REGISTRY: tuple[Tool, ...] = tuple([
     _t(contaminants.compare_contaminant_removal_modes, "contaminants"),
     _t(contaminants.screen_contaminant_partitioning, "contaminants"),
     _t(contaminants.lookup_plastchem_contaminants, "contaminants"),
+    _t(contaminant_search.find_plastchem_contaminants, "contaminants"),
     # --- retrieval-augmented literature ---
     _t(research.search_scholarly_literature, "research"),
     _t(research.search_patent_literature, "research"),
@@ -170,7 +176,7 @@ _ALWAYS_HANDLE_TOOLS = _PROCESS_ECONOMICS_HANDLE_TOOLS | frozenset({
 # coverage (how many members it screened, how many the release lacks and why) went missing from the answer, and so
 # did a safety ranking's order, ties and missing scores once the comparison grew past one page.
 _COMPACT_KEEP_LISTS = frozenset({"ranked_path_index", "stage1_shortlists", "family_coverage", "ranking"})
-_OMIT = frozenset({"temperature_step_c", "save_to_corpus"})
+_OMIT = frozenset({"temperature_step_c", "save_to_corpus", "strict_question", "strict_verifier"})
 # Closed keep-out. Not a /literature mode. Retrieval-then-ingest is a later
 # spec with an owner decision and a floor re-derive; it does not widen scholarly.
 LITERATURE_INGEST_TOOLS = frozenset({
@@ -190,6 +196,7 @@ LITERATURE_SCHOLARLY_TOOLS = LITERATURE_CORPUS_TOOLS | LITERATURE_NETWORK_TOOLS
 LITERATURE_MODE_SURFACE = {
     "off": frozenset(),
     "corpus": LITERATURE_CORPUS_TOOLS,
+    "strict": LITERATURE_CORPUS_TOOLS,  # the corpus, answered only from passages the strict verifier accepts
     "scholarly": LITERATURE_SCHOLARLY_TOOLS,
 }
 LITERATURE_AGENT_TOOLS = (
@@ -360,6 +367,8 @@ def source_basis_for(name: str, data: dict[str, Any], kwargs: dict[str, Any]) ->
         return "identity_registry"
     if name == "screen_contaminant_partitioning":
         return "opencosmo_24a"
+    if name == "find_plastchem_contaminants":  # identities and SMILES-derived features, not predictions
+        return "plastchem_identity"
     if name == "lookup_plastchem_contaminants":  # with a solvent it also gives openCOSMO-RS predictions
         return "opencosmo_24a" if kwargs.get("solvent") else "plastchem_identity"
     if (
@@ -408,7 +417,7 @@ def _ptype(ann: Any) -> dict[str, Any]:
     return {bool: {"type": "boolean"}, int: {"type": "integer"}, float: {"type": "number"}, str: {"type": "string"}}.get(ann, {})
 
 def literature_agent_mode(session: Any = None) -> str:
-    """off | corpus | scholarly. Absent or junk is off. Not a registry filter."""
+    """off | corpus | strict | scholarly. Absent or junk is off. Not a registry filter."""
     if session is None:
         session = current_tool_session()
     if not isinstance(session, dict):
@@ -418,7 +427,7 @@ def literature_agent_mode(session: Any = None) -> str:
         token = str(stored.get("mode") or "").strip().casefold()
     else:
         token = str(stored or "").strip().casefold()
-    if token in {"corpus", "scholarly"}:
+    if token in {"corpus", "strict", "scholarly"}:
         return token
     return "off"
 
@@ -609,6 +618,31 @@ def _issue_handle(record, tool, basis, data, payload, display=None):
         "total": len(rows), "shown": len(top), "top": top, "data": rest,
     }
 
+_ARGUMENT_ERROR = re.compile(
+    r"^(\w+)\(\) (?:missing \d+ required (?:positional |keyword-only )?arguments?: (.+)"
+    r"|got an unexpected keyword argument '(\w+)')$")
+
+
+def _argument_refusal(name: str, error: TypeError) -> dict[str, Any] | None:
+    """A call whose arguments do not fit the tool's own signature, said in words the model can act on. A Python
+    TypeError ("screen_contaminant_partitioning() missing 1 required positional argument: 'solvent'") cost the
+    bisphenol A question a round and told the model nothing it could fix (2026-10-05). Errors raised deeper inside a
+    tool name another function and stay tool_exception."""
+    tool, hit = BY_NAME.get(name), _ARGUMENT_ERROR.match(str(error))
+    if tool is None or hit is None or hit.group(1) != getattr(tool.fn, "__name__", None):
+        return None
+    params = inspect.signature(tool.fn).parameters
+    required = [key for key, param in params.items() if param.default is inspect.Parameter.empty
+                and param.kind in (param.POSITIONAL_OR_KEYWORD, param.KEYWORD_ONLY)]
+    if hit.group(3):
+        return _refuse("unexpected_argument", tool=name, unexpected=hit.group(3), accepted=list(params),
+                       detail=f"{name} takes no argument {hit.group(3)!r}; it accepts {', '.join(params)}.")
+    missing = re.findall(r"'(\w+)'", hit.group(2))
+    return _refuse("missing_argument", tool=name, missing=missing, required=required,
+                   detail=f"{name} needs {', '.join(missing)}; call it again with every required argument "
+                          f"({', '.join(required)}).")
+
+
 def _invoke(name, kwargs):
     try:
         return parse_tool_result(call(name, **kwargs)), None
@@ -616,7 +650,9 @@ def _invoke(name, kwargs):
         if name not in BY_NAME:
             return None, _refuse("unknown_tool", name=name)
         return None, _refuse("tool_exception", error=f"KeyError: {e}")
-    except (TypeError, ValueError) as e:
+    except TypeError as e:
+        return None, _argument_refusal(name, e) or _refuse("tool_exception", error=f"TypeError: {e}")
+    except ValueError as e:
         return None, _refuse("tool_exception", error=f"{type(e).__name__}: {e}")
     except Exception as e:
         return None, _refuse("tool_exception", error=f"{type(e).__name__}: {e}")
@@ -692,6 +728,14 @@ def dispatch(name: str, **kwargs: Any) -> dict[str, Any]:
         call_kwargs["include_pubchem"] = False
     if name in LITERATURE_NETWORK_TOOLS:
         call_kwargs["save_to_corpus"] = False
+    if name == "search_literature_corpus" and literature_agent_mode(record) == "strict":
+        turn = _TURN_MODEL.get()
+        if turn is None:
+            out = _refuse("strict_verification_unavailable",
+                          detail="/literature strict checks passages with the turn's model; no turn is running")
+            return _emit(name, kwargs, out, out)
+        call_kwargs["strict_question"] = turn.question
+        call_kwargs["strict_verifier"] = _strict_verifier(turn)
     if bind:
         try:
             with bind_handle_rows(record, bind):
@@ -797,6 +841,14 @@ themselves; name a token this prompt does not define as it is:
   Name a Hansen record by its material ("LDPE, two parameter sets"),
   never by its record label.
 - Contaminant screens are contaminant_workbook screening proxies.
+- When a separation question names a contaminant to remove, pass it as
+  contaminants to plan_multistage_separation. Report its
+  contaminant_removal as given: the applied route (strap, wash or none),
+  its status, the rule text, the other route's result, and any
+  unsupported names; say that removal is a screening result, not an
+  efficiency. Pass contaminant_route="wash" or "strap" only when the user
+  asks for that route; if it does not pass, say so and do not offer the
+  other as if it had been asked for.
 - PlastChem partitioning and miscibility (source_basis opencosmo_24a)
   are DISSOLVE's openCOSMO-RS 24a predictions for neutral species,
   logP at 25 °C. They were checked against the COSMOtherm workbook only
@@ -806,6 +858,14 @@ themselves; name a token this prompt does not define as it is:
   antioxidants and the others its description lists). For a family, say how
   many members it screened and how many the release lacks, and why. The
   workbook screens cover 26 PFAS and 8 phthalates.
+- To pick contaminants by structure (an element such as N, a functional
+  group such as ester or phenol, a molecular-weight range), use
+  find_plastchem_contaminants, or give the same filters to
+  screen_contaminant_partitioning to screen the class in one call. The
+  release is built from a fixed set of elements (its coverage says which);
+  a search for any other element finds nothing, and the result's
+  empty_because names the elements the release holds and, for F, S or Cl,
+  points to the workbook's 26 PFAS. Report that as given.
 - plastchem_identity is the PlastChem release's record of who a
   contaminant is (name, CAS number, InChIKey, SMILES, families), as
   PubChem gave it: identities, not predictions. Use
@@ -940,6 +1000,10 @@ a reviewer of the tools.
 - Never show field names, unit tokens, handle names, tool names,
   true/false flags or status codes. Say what they mean in words: a
   record marked unreviewed_raw is "not yet reviewed".
+- Write every formula, symbol and unit as plain text with Unicode
+  characters, the way a printed page shows it (R², ΔH_mix, 10⁻³ mol/L).
+  Never write LaTeX or $…$ math: the app and the terminal show it as
+  raw markup.
 - A number shown in a table is not repeated in the prose. Aim for the
   shortest answer that supports the decision: usually one table and
   under about 250 words, unless the user asks for detail.
@@ -1067,6 +1131,147 @@ def _complete_tables(text: str) -> str:
             separated = True
     return "\n".join(out)
 
+# Neither the CLI's Markdown nor the web renderer typesets math, so TeX in an answer shows as raw markup (a literature
+# answer wrote "$P_{\text{vap}}$" and "$R^2$", 2026-10-08). _plain_math writes it as Unicode text. Symbol names resolve
+# through the HTML5 entity table, which shares TeX's names for Greek letters, operators, relations, arrows and sets;
+# _TEX_NAME_FIXES holds only the names it lacks or means differently (its cdot is ċ, its circ is ˆ).
+_TEX_NAME_FIXES = {"cdot": "·", "circ": "∘", "infty": "∞", "partial": "∂", "neq": "≠", "to": "→", "dots": "…",
+                   "ldots": "…", "cdots": "⋯", "degree": "°", "exists": "∃", "hat": "ˆ", "bar": "¯"}
+_TEX_SPACING = {",": " ", ":": " ", ";": " ", ">": " ", " ": " ", "!": "", "quad": " ", "qquad": " "}
+_TEX_SIZING = re.compile(r"left|right|middle|[Bb]igg?[lr]?|displaystyle|textstyle")
+_TEX_TOKEN = re.compile(r"\\([A-Za-z]+)|\\(.)|([{}^_])|(.)", re.S)
+_TEX_MARKUP = re.compile(r"[\\^_{}]")
+_CODE_SPANS = re.compile(r"(```[\s\S]*?(?:```|\Z)|`[^`\n]+`)")
+# $…$ follows Pandoc's rule (no space just inside either dollar, no digit or letter right after the closing one), so
+# amounts such as "$25.65M" or "$5 to $10" are never read as math.
+_MATH_SPAN = re.compile(r"\$\$(.+?)\$\$|\\\((.+?)\\\)|\\\[(.+?)\\\]|(?<![\\$\w])\$(?=[^\s$])([^$\n]+?)(?<=\S)\$(?![\w$])",
+                        re.S)
+
+def _tex_nodes(tokens: list, start: int = 0, nested: bool = False) -> tuple[list, int]:
+    """TeX tokens as nodes: ("group", nodes), ("script", "^" or "_"), ("command", name), ("escaped", char), ("char", c)."""
+    nodes, i = [], start
+    while i < len(tokens):
+        word, escaped, mark, char = tokens[i]
+        i += 1
+        if mark == "}":
+            if not nested:
+                raise ValueError("unbalanced braces")
+            return nodes, i
+        if mark == "{":
+            inner, i = _tex_nodes(tokens, i, nested=True)
+            nodes.append(("group", inner))
+        else:
+            nodes.append(("script", mark) if mark else ("command", word) if word else
+                         ("escaped", escaped) if escaped else ("char", char))
+    if nested:
+        raise ValueError("unbalanced braces")
+    return nodes, i
+
+def _script_char(char: str, kind: str) -> str | None:
+    """A character's SUPERSCRIPT or SUBSCRIPT form, found by its Unicode name ("DIGIT TWO" -> SUPERSCRIPT TWO). Letters
+    get none: their script forms are incomplete and many fonts lack them."""
+    if unicodedata.category(char).startswith("L"):
+        return None
+    name = unicodedata.name("−" if char == "-" else char, "")
+    for candidate in (name, name.split(" ")[-1], name.split(" ")[0]):
+        try:
+            return unicodedata.lookup(f"{kind} {candidate}")
+        except KeyError:
+            continue
+    return None
+
+def _tex_script(body: str, mark: str) -> str:
+    """^ or _ applied to text: Unicode script characters when every character has one (R², CO₂, 10⁻³), else the plain
+    notation (P_vap, MPa^(1/2)). A superscript circle is the degree sign and a superscript prime stays a prime."""
+    if mark == "^" and body in ("∘", "°"):
+        return "°"
+    if not body or (mark == "^" and set(body) <= {"′", "″", "‴"}):
+        return body
+    forms = [_script_char(char, "SUPERSCRIPT" if mark == "^" else "SUBSCRIPT") for char in body]
+    if all(forms):
+        return "".join(forms)
+    return mark + (body if all(char.isalnum() or char == "." for char in body) else f"({body})")
+
+def _tex_render(nodes: list) -> str:
+    out, i = [], 0
+
+    def argument() -> str:  # the next group, command or character, as text
+        nonlocal i
+        if i >= len(nodes):
+            raise ValueError("missing argument")
+        i += 1
+        return _tex_render(nodes[i - 1:i])
+
+    def operand(text: str) -> str:
+        return text if all(char.isalnum() or char == "." for char in text) else f"({text})"
+
+    while i < len(nodes):
+        kind, value = nodes[i]
+        i += 1
+        if kind == "char":
+            out.append(value)
+        elif kind == "escaped":
+            out.append(_TEX_SPACING.get(value, value))
+        elif kind == "group":
+            out.append(_tex_render(value))
+        elif kind == "script":
+            out.append(_tex_script(argument(), value))
+        elif value in ("frac", "dfrac", "tfrac"):
+            top, bottom = argument(), argument()
+            out.append(f"{operand(top)}/{operand(bottom)}")
+        elif value == "sqrt":
+            out.append("√" + operand(argument()))
+        elif value in _TEX_SPACING:
+            out.append(_TEX_SPACING[value])
+        elif _TEX_SIZING.fullmatch(value):
+            continue
+        elif (symbol := _TEX_NAME_FIXES.get(value) or _HTML5_ENTITIES.get(value + ";")) is not None:
+            category = unicodedata.category(symbol[0])
+            if category in ("Sk", "Lm") and i < len(nodes):  # an accent over its argument: \dot{m} is ṁ
+                base, name = argument(), unicodedata.name(symbol[0])
+                try:
+                    out.append(base + unicodedata.lookup("COMBINING " + name.removeprefix("MODIFIER LETTER ")
+                                                         .removeprefix("SMALL ")))
+                except KeyError:
+                    out.append(symbol + base)
+                continue
+            out.append(symbol)
+            # a space after a command only ends its name: \Delta G is ΔG, while "\leq 5" keeps its gap
+            if (category.startswith("L") and nodes[i:i + 1] == [("char", " ")] and i + 1 < len(nodes)
+                    and nodes[i + 1][0] == "char" and nodes[i + 1][1].isalnum()):
+                i += 1
+        elif i < len(nodes) and nodes[i][0] == "group":  # \text{…}, \mathrm{…}, \operatorname{…}: the content
+            out.append(argument())
+        else:  # \ln, \log, \exp, \max: the function's name
+            out.append(value)
+    return "".join(out)
+
+def _tex_text(source: str) -> str | None:
+    """TeX math as Unicode text, or None for what is not inline math (alignment, environments, line breaks) or does
+    not parse."""
+    if "&" in source or "\\\\" in source or "\\begin" in source:
+        return None
+    try:
+        nodes, _ = _tex_nodes(_TEX_TOKEN.findall(source))
+        return unicodedata.normalize("NFC", _tex_render(nodes).strip()) or None
+    except ValueError:
+        return None
+
+def _math_span_text(match: re.Match) -> str:
+    source = next(group for group in match.groups() if group is not None)
+    if not (_TEX_MARKUP.search(source) or re.fullmatch(r"[A-Za-z]{1,2}", source)):
+        return match.group(0)
+    return _tex_text(source) or match.group(0)
+
+def _plain_math(text: str) -> str:
+    """Write TeX math ($…$, $$…$$, \\(…\\), \\[…\\]) as Unicode text: $P_{\\text{vap}}$ is P_vap, $R^2$ is R², $\\Delta H$
+    is ΔH. A span counts as math only when it holds TeX markup (a command, ^, _ or braces) or is a lone symbol of one
+    or two letters. Code, and anything that does not convert cleanly, stays as written."""
+    parts = _CODE_SPANS.split(text)
+    for k in range(0, len(parts), 2):  # the odd parts are code
+        parts[k] = _MATH_SPAN.sub(_math_span_text, parts[k])
+    return "".join(parts)
+
 @dataclass(frozen=True)
 class ToolEvent:
     name: str
@@ -1118,6 +1323,36 @@ def _ant_msgs(messages):
     return sys, rest
 
 class MissingProviderKey(Exception): pass
+
+# A reply the provider ended for any other reason than a finished turn (a token limit, a safety or recitation filter,
+# an error) arrives as a fragment, which the loop took for the answer: Gemini's safety filter ended 3 of 14 answers about
+# removing flame retardants after two or three words, each reported as an ordinary answer (2026-10-08).
+_FINISHED = {"stop", "end_turn", "stop_sequence", "tool_calls", "tool_use", "function_call", "finish_reason_unspecified"}
+_LENGTH_REASONS = {"length", "max_tokens"}
+_CUT_SHORT_RETRIES = 3
+_CUT_SHORT_ANSWER = ("The model's provider stopped this answer before it was finished ({reason}), {tries} times in a "
+                     "row, so no answer is shown rather than a fragment. The tool results are complete; ask again, or "
+                     "switch model with /model.")
+_LENGTH_LEAD = "_The answer was cut off at the model's output limit, so what follows is incomplete._\n\n"
+
+def _cut_short(reason) -> str | None:
+    """The provider's reason when it cut a reply short, lower-cased; None for a finished reply or no reason given."""
+    if reason is None:
+        return None
+    name = str(getattr(reason, "name", None) or reason).lower()
+    return None if not name or name in _FINISHED else name
+
+def _until_finished(call, acc):
+    """``call()``'s reply, asked again while a filter or a provider error cuts its final answer short (a token limit
+    is not asked again: it would end the same way)."""
+    reply = call()
+    for _ in range(_CUT_SHORT_RETRIES):
+        cut = reply.get("cut_short")
+        if reply.get("tool_calls") or not cut or cut in _LENGTH_REASONS:
+            return reply
+        acc.append(reply.get("usage"))
+        reply = call()
+    return reply
 
 def _usage(kind, resp):
     raw = getattr(resp, "usage_metadata" if kind == "google_genai" else "usage", None)
@@ -1189,7 +1424,9 @@ def _rate_limit_wait_s(error: Exception) -> float:
         pass
     return 5.0 + jitter
 
-def complete(messages, tools, *, model, api_base=None, api_key_env=None):
+def complete(messages, tools, *, model, api_base=None, api_key_env=None, tool_choice=None):
+    """One model call. tool_choice="none" keeps the tool definitions, which a history with tool calls needs, but
+    lets the model only write: the closing answer at the tool-round limit uses it."""
     kind, _, ident = model.partition(":")
     ident = ident or model
     if kind not in ("anthropic", "google_genai", "vertex", "openai"):
@@ -1209,12 +1446,14 @@ def complete(messages, tools, *, model, api_base=None, api_key_env=None):
         import anthropic
         sys, rest = _ant_msgs(messages)
         ant = [{"name": t["name"], "description": t.get("description") or "", "input_schema": t["parameters"]} for t in tools]
+        choice = {"tool_choice": {"type": "none"}} if tool_choice == "none" else {}
         resp = anthropic.Anthropic(api_key=key, max_retries=_PROVIDER_RETRIES).messages.create(
-            model=ident, system=sys, messages=rest, tools=ant, max_tokens=8192)
+            model=ident, system=sys, messages=rest, **({"tools": ant, **choice} if ant else {}), max_tokens=8192)
         text = "".join(getattr(b, "text", "") for b in resp.content if getattr(b, "type", "") == "text")
         calls = [{"id": b.id, "name": b.name, "args": dict(b.input or {})}
                  for b in resp.content if getattr(b, "type", "") == "tool_use"]
-        return {"text": text, "tool_calls": calls, "usage": _usage(kind, resp)}
+        return {"text": text, "tool_calls": calls, "usage": _usage(kind, resp),
+                "cut_short": _cut_short(getattr(resp, "stop_reason", None))}
     if kind == "google_genai":
         from google import genai
         from google.genai import types
@@ -1223,13 +1462,15 @@ def complete(messages, tools, *, model, api_base=None, api_key_env=None):
         client = (genai.Client(vertexai=True, project=project,
                                location=(os.environ.get("GOOGLE_CLOUD_LOCATION") or "").strip() or "us-central1")
                   if vertex else genai.Client(api_key=key))
+        config = types.GenerateContentConfig(
+            system_instruction=sys, **({"tools": [types.Tool(function_declarations=decls)]} if decls else {}),
+            **({"tool_config": types.ToolConfig(function_calling_config=types.FunctionCallingConfig(mode="NONE"))}
+               if tool_choice == "none" and decls else {}))
         deadline = time.monotonic() + _RATE_LIMIT_WAIT_S
         pause = 4.0
         while True:  # a busy model (quota 429, or 503) is retried with a growing pause, up to the same wait as the OpenAI path
             try:
-                resp = client.models.generate_content(
-                    model=ident, contents=_gen_contents(messages),
-                    config=types.GenerateContentConfig(system_instruction=sys, tools=[types.Tool(function_declarations=decls)]))
+                resp = client.models.generate_content(model=ident, contents=_gen_contents(messages), config=config)
                 break
             except Exception as error:
                 busy = getattr(error, "code", None) in (429, 503) or "RESOURCE_EXHAUSTED" in str(error)
@@ -1249,7 +1490,10 @@ def complete(messages, tools, *, model, api_base=None, api_key_env=None):
             if getattr(part, "thought_signature", None):
                 call["thought_signature"] = base64.b64encode(part.thought_signature).decode("ascii")
             calls.append(call)
-        return {"text": getattr(resp, "text", None) or "", "tool_calls": calls, "usage": _usage(kind, resp)}
+        candidates = getattr(resp, "candidates", None) or []
+        reason = getattr(candidates[0], "finish_reason", None) if candidates else None
+        return {"text": getattr(resp, "text", None) or "", "tool_calls": calls, "usage": _usage(kind, resp),
+                "cut_short": _cut_short(reason)}
     if kind == "openai":
         from openai import OpenAI, RateLimitError
         oai = [{"type": "function", "function": {"name": t["name"], "description": t.get("description") or "", "parameters": t["parameters"]}} for t in tools]
@@ -1259,7 +1503,9 @@ def complete(messages, tools, *, model, api_base=None, api_key_env=None):
         while True:
             try:
                 resp = client.chat.completions.create(
-                    model=ident, messages=_oai_msgs(messages), tools=oai, **({"extra_body": extra} if extra else {}))
+                    model=ident, messages=_oai_msgs(messages), **({"tools": oai} if oai else {}),
+                    **({"extra_body": extra} if extra else {}),
+                    **({"tool_choice": "none"} if tool_choice == "none" and oai else {}))
                 break
             except RateLimitError as error:
                 wait = _rate_limit_wait_s(error)
@@ -1274,7 +1520,8 @@ def complete(messages, tools, *, model, api_base=None, api_key_env=None):
             except json.JSONDecodeError:
                 args = {}
             calls.append({"id": c.id, "name": c.function.name, "args": args})
-        return {"text": msg.content or "", "tool_calls": calls, "usage": _usage(kind, resp)}
+        return {"text": msg.content or "", "tool_calls": calls, "usage": _usage(kind, resp),
+                "cut_short": _cut_short(getattr(resp.choices[0], "finish_reason", None))}
 
 def _gen_contents(messages):
     from google.genai import types
@@ -1314,6 +1561,54 @@ def _gen_contents(messages):
             contents.append(types.Content(role="user", parts=[types.Part.from_text(text=m.get("content") or "")]))
     return contents
 
+# The tool-round limit per question, and what happens at it. "Which solvents can be used to separate bisphenol A from
+# EVOH?" spent all 30 rounds on one-solvent lookups and ended with no answer, although its results already held one
+# (2026-10-05). At the limit the model now writes once more, without tools, from the results it has.
+_TOOL_ROUNDS = 30
+_CLOSING_NOTE = ("You have used all {rounds} tool rounds for this question and cannot call tools again. Answer now from "
+                 "the tool results above only: give what they establish, say plainly what you could not check, and "
+                 "do not invent values.")
+_PARTIAL_LEAD = "_Tool limit reached ({rounds} rounds): this answer uses only what was retrieved before it._\n\n"
+
+
+def _tool_round_cap() -> int:
+    """_TOOL_ROUNDS, or DISSOLVE_MAX_TOOL_ROUNDS when set to a positive whole number (tests and drills)."""
+    raw = (os.environ.get("DISSOLVE_MAX_TOOL_ROUNDS") or "").strip()
+    return int(raw) if raw.isdigit() and int(raw) > 0 else _TOOL_ROUNDS
+
+
+@dataclass
+class _TurnModel:
+    """The running turn's model and question, for the one tool that calls a model itself (/literature strict)."""
+    model: str
+    api_base: str | None
+    api_key_env: str | None
+    question: str
+    usage: list
+
+
+_TURN_MODEL: ContextVar[_TurnModel | None] = ContextVar("dissolve_turn_model", default=None)
+
+
+@contextmanager
+def _turn_model(turn: _TurnModel):
+    token = _TURN_MODEL.set(turn)
+    try:
+        yield turn
+    finally:
+        _TURN_MODEL.reset(token)
+
+
+def _strict_verifier(turn: _TurnModel) -> Callable[[str], str]:
+    """One plain model call per check, on the turn's own model and key; its usage counts toward the turn's."""
+    def verify(prompt: str) -> str:
+        reply = complete([{"role": "user", "content": prompt}], [], model=turn.model, api_base=turn.api_base,
+                         api_key_env=turn.api_key_env)
+        turn.usage.append(reply.get("usage"))
+        return reply.get("text") or ""
+    return verify
+
+
 EMPTY_REPLY_NUDGE = ("Your last reply was empty. Answer the user's question above in words, using the tool results you already "
                      "have; call a tool only if one is still needed.")
 
@@ -1335,11 +1630,13 @@ def run_turn(
     rounds = 0
     empty_replies = 0
     acc = []
-    with bind_tool_session(session) as bound:
+    cap = _tool_round_cap()
+    with bind_tool_session(session) as bound, _turn_model(_TurnModel(model, api_base, api_key_env, query, acc)):
         tid = open_turn_record(bound)
-        for _ in range(30):
+        for _ in range(cap):
             try:
-                reply = complete(msgs, schemas, model=model, api_base=api_base, api_key_env=api_key_env)
+                reply = _until_finished(
+                    lambda: complete(msgs, schemas, model=model, api_base=api_base, api_key_env=api_key_env), acc)
             except MissingProviderKey as e:
                 return TurnResult(
                     answer=str(e), status="provider_error",
@@ -1370,10 +1667,14 @@ def run_turn(
                 msgs.append({"role": "user", "content": EMPTY_REPLY_NUDGE})
                 continue
             if not calls:
-                text = _complete_tables(text)
+                cut = reply.get("cut_short")
+                if cut and cut not in _LENGTH_REASONS:
+                    text = _CUT_SHORT_ANSWER.format(reason=cut, tries=1 + _CUT_SHORT_RETRIES)
+                else:
+                    text = (_LENGTH_LEAD if cut else "") + _plain_math(_complete_tables(text))
                 msgs.append({"role": "assistant", "content": text})
                 return TurnResult(
-                    answer=text, status="ok", tool_trace=trace,
+                    answer=text, status="answer_cut_short" if cut else "ok", tool_trace=trace,
                     turn_record=tid, tool_rounds=rounds, usage=_fold_usage(acc),
                 )
             rounds += 1
@@ -1402,8 +1703,26 @@ def run_turn(
                     tool_trace=trace, turn_record=tid, tool_rounds=rounds,
                     usage=_fold_usage(acc),
                 )
+        # The round limit: one closing call with no tools, so what was retrieved still becomes an answer.
+        closing = msgs + [{"role": "user", "content": _CLOSING_NOTE.format(rounds=cap)}]
+        try:
+            reply = _until_finished(lambda: complete(closing, schemas, model=model, api_base=api_base,
+                                                     api_key_env=api_key_env, tool_choice="none"), acc)
+        except Exception:  # noqa: BLE001  a failed closing call leaves the limit message, never a crash
+            reply = None
+        text = ((reply or {}).get("text") or "").strip()
+        if reply is not None:
+            acc.append(reply.get("usage"))
+        cut = (reply or {}).get("cut_short")
+        if text and not reply.get("tool_calls") and (not cut or cut in _LENGTH_REASONS):
+            text = _PARTIAL_LEAD.format(rounds=cap) + (_LENGTH_LEAD if cut else "") + _plain_math(_complete_tables(text))
+            msgs.append({"role": "assistant", "content": text})
+            return TurnResult(
+                answer=text, status="round_cap", tool_trace=trace, turn_record=tid,
+                tool_rounds=rounds, usage=_fold_usage(acc),
+            )
         return TurnResult(
-            answer="round cap (30) reached; see the tool trace for what was retrieved. No guessed answer.",
+            answer=f"round cap ({cap}) reached; see the tool trace for what was retrieved. No guessed answer.",
             status="round_cap", tool_trace=trace, turn_record=tid,
             tool_rounds=rounds, usage=_fold_usage(acc),
         )

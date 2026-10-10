@@ -74,9 +74,14 @@ def main():
             return
         latest=D/'collection-status.json'
         before=sha(latest) if latest.exists() else None
+        pending=D/'collection-pending.json'
+        recovering=pending.exists()
         run('collect_phase10.py')
         # No artificial multi-minute idle while sealed returns remain. The
         # shared transport itself enforces connection backoff; no parallel pass.
+        # Recovery publishes the verified registry and removes its pending
+        # receipt, but intentionally does not refresh the shortcut status file.
+        if recovering and not pending.exists():continue
         if latest.exists() and sha(latest)!=before and json.loads(latest.read_text()).get('scan_more'):continue
         pause()
 

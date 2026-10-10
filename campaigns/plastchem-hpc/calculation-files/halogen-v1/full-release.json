@@ -1,0 +1,21 @@
+{
+  "utc": "2026-10-07T04:48:38Z",
+  "array_job_id": "75669",
+  "action": "scontrol release 75669 (all held tasks; finished pilot tasks report 'already finished'); array throttle 56 of the shared cap 64",
+  "gate": {
+    "pilot_converged": 21,
+    "halogens_converged": {
+      "Cl": 12,
+      "F": 6,
+      "I": 3,
+      "Br": 2
+    },
+    "dft_failures": 0,
+    "iodine_bromine_activity_check": "finite ln gamma in water, toluene, ethanol and a PE conformer",
+    "projection_cpu_hours": [
+      309.25096646033626,
+      574.8739566495007
+    ],
+    "threshold_cpu_hours": 3000
+  }
+}

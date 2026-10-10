@@ -42,6 +42,15 @@ _DEFAULT_DISSOLUTION_MIN = 10.0
 _DEFAULT_PRECIPITATION_THRESHOLD = 1.0
 _ATM_MARGIN = 1.0
 _MAX_T = 160.0
+# A wash runs at least this far below the solvent's recorded normal boiling point (owner decision D1, 2026-10-05). An
+# engineering margin for an open wash, not a safety clearance; STRAP windows keep _ATM_MARGIN. A chloroform wash had
+# been placed at 60 °C, 1.2 °C below its boiling point.
+_WASH_MARGIN_C = 10.0
+# CHEM21 bands a wash solvent may carry and still be chosen without the user naming it (owner decision D7). Hazardous and
+# unscored solvents stay visible in every screen but are never picked automatically. CHEM21 ranks screening priority;
+# it is not process-safety clearance.
+WASH_AUTO_BANDS = frozenset({"recommended", "problematic"})
+_BAND_ORDER = {"recommended": 0, "problematic": 1, "hazardous": 2}
 
 
 @dataclass(frozen=True)
@@ -567,6 +576,61 @@ def _grid_ceiling(maximum: Optional[float], strict: bool) -> Optional[float]:
     return 25.0 + 5.0 * (math.ceil((maximum - 25.0) / 5.0) - 1)
 
 
+def wash_conditions(solvent: str, maximum: Optional[float]) -> dict[str, Any]:
+    """Where a wash in this solvent runs: the hottest stored grid node at or below both the ceiling and the boiling
+    point minus _WASH_MARGIN_C, with the miscibility regime read at that node. A hot or room-temperature wash follows
+    the regime at the cap, as before; the node is then fixed first, so rounding down cannot keep a regime the node does
+    not have. An unknown boiling point or no admissible node is not checkable: nothing is assumed."""
+    boiling = thermo.get_boiling_point(solvent)
+    if boiling is None or not math.isfinite(float(boiling)):
+        return {"temperature_c": None, "regime": None, "boiling_point_c": None,
+                "boiling_margin_c": None, "unavailable": "boiling_margin_unverifiable"}
+    cap = min(_MAX_T if maximum is None else float(maximum), float(boiling) - _WASH_MARGIN_C)
+    wanted = cap if _regime(solvent, cap) == "t_higher" else min(cap, 25.0)
+    nodes = [node for node in thermo._grid_nodes() if node <= wanted]
+    if not nodes:
+        return {"temperature_c": None, "regime": None, "boiling_point_c": float(boiling),
+                "boiling_margin_c": None, "unavailable": "no_admissible_wash_grid_node"}
+    node = float(max(nodes))
+    return {"temperature_c": node, "regime": _regime(solvent, node), "boiling_point_c": float(boiling),
+            "boiling_margin_c": round(float(boiling) - node, 6), "unavailable": None}
+
+
+def wash_safety(solvent: str) -> dict[str, Any]:
+    """The solvent's stored CHEM21 band and sub-scores, and whether a wash may use it without being named (D7)."""
+    from . import safety  # safety reads thermodynamics; imported here so neither module imports the other at load
+
+    scores = safety.score_chem21_she(solvent)
+    band = scores.get("chem21_default_ranking")
+    subs = [scores.get(key) for key in ("chem21_safety_score", "chem21_health_score", "chem21_environment_score")]
+    known = [int(value) for value in subs if isinstance(value, (int, float)) and math.isfinite(float(value))]
+    return {
+        "chem21_band": band if band in _BAND_ORDER else None,
+        "chem21_scores": subs if len(known) == 3 else None,
+        "chem21_max_subscore": max(known) if len(known) == 3 else None,
+        "safety_eligible": band in WASH_AUTO_BANDS and len(known) == 3,
+    }
+
+
+def wash_order_key(row: Mapping[str, Any], position: int = 0) -> tuple:
+    """One total order for passing wash candidates, shared by the leaching screen, the comparison and the planner:
+    CHEM21 band, worst sub-score, wider boiling margin, earlier position, stronger partitioning, then the solvent and
+    temperature, so input order never decides a tie. Unknown band or scores sort last, never as zero."""
+    band = _BAND_ORDER.get(row.get("chem21_band"), len(_BAND_ORDER))
+    worst = row.get("chem21_max_subscore")
+    margin = row.get("boiling_margin_c")
+    logd = row.get("contaminant_logd_min")
+    return (
+        band,
+        worst if worst is not None else 99,
+        -margin if margin is not None else math.inf,
+        position,
+        -logd if logd is not None else math.inf,
+        _key(row.get("solvent")),
+        row.get("operating_temperature_c") if row.get("operating_temperature_c") is not None else math.inf,
+    )
+
+
 def _inherited_candidate_solvents(tool: str) -> list[str]:
     state = session.current_tool_session()
     prior = state.last_contaminant if state and state.last_contaminant else {}
@@ -930,8 +994,8 @@ def _inputs(
         elsewhere = _in_plastchem(unsupported or requested)
         return {}, tool_error(
             tool, "None of the requested contaminants are supported." + (
-                f" screen_contaminant_partitioning covers {', '.join(elsewhere)} (PlastChem; one polymer and one "
-                "solvent per call)." if elsewhere else ""),
+                f" screen_contaminant_partitioning covers {', '.join(elsewhere)} (PlastChem; one polymer per call; leave "
+                "the solvent out to rank every panel solvent)." if elsewhere else ""),
             error_code="unsupported_contaminants", target_polymer=target,
             other_polymers=others, unsupported_other_polymers=missing_others,
             requested_contaminants=requested,
@@ -964,6 +1028,9 @@ def _inputs(
 
 def _base_result(inputs: dict[str, Any], mode: str, rows: list[dict[str, Any]]) -> dict[str, Any]:
     rows.sort(key=_sort_key, reverse=True)
+    if mode == "leaching":  # passing washes in the one safety-first order (wash_order_key); the rest keep theirs after
+        passing = sorted((row for row in rows if row["passes"]), key=wash_order_key)
+        rows[:] = passing + [row for row in rows if not row["passes"]]
     result = {
         "analysis_type": "contaminant_screen_analysis",
         "mode": mode, "target_polymer": inputs["target"],
@@ -988,6 +1055,11 @@ def _base_result(inputs: dict[str, Any], mode: str, rows: list[dict[str, Any]]) 
         "contaminant_families": inputs["families"],
         "candidate_solvents": rows,
         "recommended_solvents": [row["solvent"] for row in rows if row["passes"]],
+        **({
+            "auto_eligible_solvents": [row["solvent"] for row in rows if row["passes"] and row.get("safety_eligible")],
+            "wash_order": "CHEM21 band, then worst sub-score, then wider boiling margin, then stronger partitioning",
+            "wash_margin_c": _WASH_MARGIN_C,
+        } if mode == "leaching" else {}),
         "best_result_is_weak": not any(row["passes"] for row in rows),
         "stage_count": len(rows),
         "family_record_count": len(rows) * len(inputs["families"]),
@@ -1004,17 +1076,63 @@ def _base_result(inputs: dict[str, Any], mode: str, rows: list[dict[str, Any]]) 
     return result
 
 
+_UNASSESSABLE_POLYMER = frozenset({"unsupported_pair", "unsupported_polymer"})
+_REJECTED_POLYMER = frozenset({"dissolving", "non_dissolving_above_swelling_window"})
+
+
+def _wash_verdict(
+    passes: bool, contaminants: Sequence[Mapping[str, Any]], target: Mapping[str, Any],
+    other_status: Mapping[str, Mapping[str, Any]], missing_others: Sequence[str],
+) -> tuple[str, Optional[str]]:
+    """pass, fail or not_checkable, with the first reason. Absent evidence (no miscibility or logD cell, no stored
+    polymer solubility, an unknown polymer) is not a failure of the solvent and never a pass."""
+    if passes:
+        return "pass", None
+    if missing_others:
+        return "not_checkable", "unsupported_other_polymer"
+    statuses = [target.get("status"), *(item.get("status") for item in other_status.values())]
+    if any(status in _UNASSESSABLE_POLYMER for status in statuses):
+        return "not_checkable", "no_stored_polymer_solubility"
+    if any(item.get("miscible") is None for item in contaminants):
+        return "not_checkable", "no_miscibility_evidence"
+    if any(item.get("logd") is None for item in contaminants):
+        return "not_checkable", "no_partition_evidence"
+    if target.get("status") in _REJECTED_POLYMER:
+        return "fail", "polymer_dissolves_or_swells"
+    if any(item.get("status") in _REJECTED_POLYMER for item in other_status.values()):
+        return "fail", "other_polymer_dissolves_or_swells"
+    if any(item.get("miscible") is False for item in contaminants):
+        return "fail", "contaminant_not_miscible"
+    return "fail", "contaminant_stays_in_polymer"
+
+
 def _leaching(inputs: dict[str, Any]) -> dict[str, Any]:
     candidates = inputs["solvents"] or _solvent_names(inputs["supported"])
     rows = []
     for solvent in list(dict.fromkeys(_key(item) for item in candidates)):
-        upper = _upper(solvent, inputs["maximum"])
-        regime = _regime(solvent, upper)
-        # The polymer's solubility exists only at grid nodes: a hot wash runs at the highest node at or below the
-        # boiling-point cap. At the cap itself (ethanol: 77.2 °C) the lookup found nothing and failed the wash as an
-        # "unsupported pair" although the miscibility and logD checks had passed (review finding A06-R1).
-        wanted = upper if regime == "t_higher" else min(upper, 25.0)
-        temperature = max((node for node in thermo._grid_nodes() if node <= wanted), default=wanted)
+        # The polymer's solubility exists only at grid nodes, so a wash runs at a node (review finding A06-R1), now at
+        # least _WASH_MARGIN_C below the boiling point, with the regime read at that node.
+        conditions = wash_conditions(solvent, inputs["maximum"])
+        safety_fields = wash_safety(solvent)
+        if conditions["unavailable"]:
+            rows.append({
+                "solvent": solvent, "passes": False, "verdict": "not_checkable", "reason": conditions["unavailable"],
+                "mode": "leaching", "operating_temperature_c": None,
+                "operating_temperature_basis": None,
+                "boiling_point_c": conditions["boiling_point_c"], "boiling_margin_c": None,
+                "contaminant_miscibility_pass": False, "contaminant_logd_pass": False,
+                "contaminant_logd_min": None, "contaminants": [], "target_polymer_status": None,
+                "target_polymer_solubility_wt_pct": None, "other_polymer_status": {},
+                "caveats": [
+                    "no recorded boiling point, so the wash margin cannot be checked"
+                    if conditions["unavailable"] == "boiling_margin_unverifiable" else
+                    f"no stored grid temperature lies {_WASH_MARGIN_C:g} °C or more below the boiling point and "
+                    "within the ceiling"
+                ],
+                **safety_fields,
+            })
+            continue
+        temperature, regime = conditions["temperature_c"], conditions["regime"]
         contaminants, minimum, miscible, positive = _contaminant_rows(
             solvent, inputs["supported"], regime,
             computed_by_pair=_index_computed_deltas(inputs.get("computed_deltas")),
@@ -1054,19 +1172,20 @@ def _leaching(inputs: dict[str, Any]) -> dict[str, Any]:
                 "polymer remains modeled below "
                 f"{inputs['swelling_min_wt_pct']:g} wt%; swelling evidence is weak"
             )
+        verdict, reason = _wash_verdict(passes, contaminants, target, other_status, inputs["missing_others"])
         rows.append({
-            "solvent": solvent, "passes": passes, "mode": "leaching",
+            "solvent": solvent, "passes": passes, "verdict": verdict, "reason": reason, "mode": "leaching",
             "operating_temperature_c": temperature,
             "operating_temperature_basis": (
-                "requested or capped temperature, a grid node" if temperature == wanted
-                else f"highest solubility-grid node at or below {wanted:g} °C (the boiling-point or requested cap)"
+                f"hottest stored grid node at or below the ceiling and {_WASH_MARGIN_C:g} °C below the boiling point"
             ),
-            "boiling_point_c": thermo.get_boiling_point(solvent),
+            "boiling_point_c": conditions["boiling_point_c"], "boiling_margin_c": conditions["boiling_margin_c"],
             "contaminant_miscibility_pass": miscible,
             "contaminant_logd_pass": positive, "contaminant_logd_min": minimum,
             "contaminants": contaminants, "target_polymer_status": target["status"],
             "target_polymer_solubility_wt_pct": target["solubility_wt_pct"],
             "other_polymer_status": other_status, "caveats": caveats,
+            **safety_fields,
         })
     result = _base_result(inputs, "leaching", rows)
     configured_defaults = (
@@ -1372,7 +1491,7 @@ def compare_contaminant_removal_modes(
     dissolution_min_wt_pct: Optional[float] = None,
     precipitation_threshold_wt_pct: Optional[float] = None,
 ) -> str:
-    """Compare modes under one validated active threshold basis."""
+    """Compare removing contaminants from one polymer by STRAP (dissolve and precipitate) or by a leaching wash: one row per route and solvent, and the route a stated rule picks."""
     tool = "compare_contaminant_removal_modes"
     inputs, error = _inputs(
         tool, target_polymer, contaminants, other_polymers, solvents,
@@ -1383,15 +1502,34 @@ def compare_contaminant_removal_modes(
     if error:
         return error
     leaching, strap = _leaching(inputs), _strap(inputs)
-    left, right = len(leaching["recommended_solvents"]), len(strap["recommended_solvents"])
-    mode = "leaching" if left > right else "strap_contaminant_removal" if right > left else "tie"
+    # One row per (route, solvent), passing rows first: STRAP in the screen's order, washes in the one safety-first
+    # order. The rows are the result's page; the two whole screens nested inside it made a payload the agent could not
+    # page or return (unaddressable_result, 2026-10-05).
+    strap_rows = [{
+        "route": "strap", "solvent": row["solvent"], "passes": bool(row["passes"]),
+        "verdict": "pass" if row["passes"] else "fail",
+        "reason": None if row["passes"] else (row.get("target_polymer_status") if row.get("target_polymer_status")
+                                              != "dissolving_then_precipitating" else "contaminant_check_failed"),
+        "temperature_c": row.get("operating_temperature_c"), "precipitation_c": row.get("precipitation_temperature_c"),
+        "contaminant_logd_min": row.get("contaminant_logd_min"), **wash_safety(row["solvent"]),
+    } for row in strap["candidate_solvents"]]
+    wash_rows = [{
+        "route": "wash", "solvent": row["solvent"], "passes": bool(row["passes"]), "verdict": row.get("verdict"),
+        "reason": row.get("reason"), "temperature_c": row.get("operating_temperature_c"),
+        "boiling_margin_c": row.get("boiling_margin_c"), "contaminant_logd_min": row.get("contaminant_logd_min"),
+        "chem21_band": row.get("chem21_band"), "chem21_max_subscore": row.get("chem21_max_subscore"),
+        "safety_eligible": row.get("safety_eligible"),
+    } for row in leaching["candidate_solvents"]]
+    rows = (
+        [row for row in strap_rows if row["passes"]] + [row for row in wash_rows if row["passes"]]
+        + [row for row in strap_rows if not row["passes"]] + [row for row in wash_rows if not row["passes"]]
+    )
+    eligible_wash = [row for row in wash_rows if row["passes"] and row.get("safety_eligible")]
+    route = "strap" if any(row["passes"] for row in strap_rows) else "wash" if eligible_wash else "none"
     summaries = {
-        item["mode"]: {
-            "passing_count": len(item["recommended_solvents"]),
-            "recommended_solvents": item["recommended_solvents"][:10],
-            "top_candidates": item["candidate_solvents"][:3],
-        }
-        for item in (leaching, strap)
+        "strap": {"passing_count": len(strap["recommended_solvents"]), "screened": len(strap_rows)},
+        "wash": {"passing_count": len(leaching["recommended_solvents"]), "auto_eligible_count": len(eligible_wash),
+                 "screened": len(wash_rows)},
     }
     return tool_success(
         tool, analysis_type="contaminant_screen_analysis",
@@ -1410,14 +1548,22 @@ def compare_contaminant_removal_modes(
         contaminant_catalog=_contaminant_catalog(inputs["supported"]),
         n_supported_contaminants=len(inputs["supported"]),
         unsupported_contaminants=inputs["unsupported"],
-        contaminant_families=inputs["families"], recommended_mode=mode,
+        contaminant_families=inputs["families"],
+        context="single_polymer_screen",
+        route=route,
+        rule=("For one polymer: STRAP when a screened solvent passes; otherwise the safest passing wash in a "
+              "recommended or problematic CHEM21 band; otherwise none. This screens solvents, not a separation plan: "
+              "plan_multistage_separation assesses a plan's own stages."),
         min_dissolution_solubility_wt_pct=inputs["dissolution_min_wt_pct"],
         **_served_threshold_fields(inputs),
         recommended_solvents={
-            "leaching": leaching["recommended_solvents"],
-            "strap_contaminant_removal": strap["recommended_solvents"],
+            "strap": strap["recommended_solvents"],
+            "wash": leaching["recommended_solvents"],
+            "wash_auto_eligible": [row["solvent"] for row in eligible_wash],
         },
-        mode_summaries=summaries, leaching=leaching, strap_contaminant_removal=strap,
+        route_summaries=summaries,
+        comparison_rows=rows,
+        row_count=len(rows),
         stage_count=(
             len(leaching["candidate_solvents"])
             + len(strap["candidate_solvents"])
@@ -1504,6 +1650,78 @@ def evaluate_contaminant_at_feed_state(
             requested=path,
         ))["data"]
     return parse_tool_result(raw)["data"]
+
+
+def strap_at_stage(
+    target_polymer: str,
+    solvent: str,
+    others: Sequence[str],
+    contaminants: Sequence[str],
+    dissolution_c: float,
+    *,
+    dissolution_min_wt_pct: float = _DEFAULT_DISSOLUTION_MIN,
+    precipitation_threshold_wt_pct: float = _DEFAULT_PRECIPITATION_THRESHOLD,
+) -> dict[str, Any]:
+    """STRAP removal judged at a separation stage's own dissolution temperature, never another one: the target
+    dissolves there, every other polymer present stays at or below the precipitation proxy there, the target
+    precipitates on cooling to a stored node below it, and every contaminant stays miscible, with positive logD, in
+    both the dissolution and the cooling regime. The standalone STRAP screen searches for its own best window;
+    stamping its winner on a stage run at another temperature described a process the plan does not run (audit CA01).
+    Verdicts: pass, fail, or not_checkable when evidence is absent (never a failure of the solvent)."""
+    out: dict[str, Any] = {
+        "polymer": str(target_polymer), "solvent": str(solvent), "dissolution_c": float(dissolution_c),
+        "precipitation_c": None, "verdict": "not_checkable", "reason": None,
+    }
+
+    def done(verdict: str, reason: Optional[str], **extra: Any) -> dict[str, Any]:
+        out.update(verdict=verdict, reason=reason, **extra)
+        return out
+
+    if not _solvent_in_workbook(solvent):
+        return done("not_checkable", "no_contaminant_data_for_solvent")
+    resolved = thermo.resolve_polymer(target_polymer)
+    if not resolved:
+        return done("not_checkable", "unknown_polymer")
+    boiling = thermo.get_boiling_point(solvent)
+    if boiling is not None and float(dissolution_c) > float(boiling) - _ATM_MARGIN:
+        return done("fail", "stage_above_boiling_margin")
+    value = thermo.get_solubility_result(resolved, solvent, float(dissolution_c)).get("solubility_pct")
+    if value is None:
+        return done("not_checkable", "no_stored_polymer_solubility")
+    if float(value) < dissolution_min_wt_pct:
+        return done("fail", "target_below_dissolution_proxy", target_solubility_wt_pct=float(value))
+    for polymer in others:
+        other = thermo.resolve_polymer(polymer)
+        other_value = (
+            thermo.get_solubility_result(other, solvent, float(dissolution_c)).get("solubility_pct") if other else None
+        )
+        if other_value is None:
+            return done("not_checkable", "no_stored_polymer_solubility")
+        if float(other_value) > precipitation_threshold_wt_pct:
+            return done("fail", "other_polymer_dissolves")
+    curve = thermo.get_solubility_curve(resolved, solvent, 25.0, float(dissolution_c), 5.0)
+    below = [
+        float(row["temperature"]) for row in curve
+        if float(row["temperature"]) < float(dissolution_c) and row.get("solubility") is not None
+        and float(row["solubility"]) < precipitation_threshold_wt_pct
+    ]
+    if not below:
+        return done("fail", "no_cooling_precipitation")
+    out["precipitation_c"] = max(below)
+    if _unspecified_only_basis(solvent, contaminants):
+        return done("not_checkable", "regime_basis_unspecified")
+    hot, _, _, _ = _contaminant_rows(solvent, contaminants, _regime(solvent, float(dissolution_c)))
+    cold, _, _, _ = _contaminant_rows(solvent, contaminants, _regime(solvent, out["precipitation_c"]))
+    rows = [*hot, *cold]
+    if any(item.get("miscible") is None for item in rows):
+        return done("not_checkable", "no_miscibility_evidence")
+    if any(item.get("logd") is None for item in hot):
+        return done("not_checkable", "no_partition_evidence")
+    if any(item.get("miscible") is False for item in rows):
+        return done("fail", "contaminant_not_miscible")
+    if not all(CONTAMINANT_LOGD_CRITERION.passes(item.get("logd")) for item in hot):
+        return done("fail", "contaminant_stays_in_polymer")
+    return done("pass", None, contaminant_logd_min=min(float(item["logd"]) for item in hot))
 
 
 # --- PlastChem, promoted from the openCOSMO-RS campaign. Every accepted PlastChem contaminant is partitioned between
@@ -1625,6 +1843,24 @@ def _plastchem() -> duckdb.DuckDBPyConnection | None:
     return connection
 
 
+def _plastchem_coverage(meta: dict[str, Any]) -> str:
+    """What the PlastChem release covers, from the elements the promotion recorded (C, H, N and O before the halogen
+    tier, which added F, Cl, Br and I; the coverage campaign added S, P and Si) and whether it lists salts with their
+    neutral parent (promotion-v4 onward)."""
+    elements = [e for e in (meta.get("elements") or "C,H,N,O").split(",") if e]
+    outside = [name for symbol, name in (("F", "fluorine"), ("Cl", "chlorine"), ("Br", "bromine"), ("I", "iodine"),
+                                         ("S", "sulfur"), ("P", "phosphorus"), ("Si", "silicon"), ("B", "boron"))
+               if symbol not in elements]
+    built = ", ".join(elements[:-1]) + " and " + elements[-1]
+    salts = (" A salt, ion or hydrate of a computed acid or base (sodium benzoate, say) is found as that neutral "
+             "parent, and its row is the parent's." if int(meta.get("parent_aliases") or 0) else "")
+    either = ", ".join(outside[:-1]) + " or " + outside[-1] if len(outside) > 1 else "".join(outside)
+    return ("PlastChem compounds built from " + built + ", found by name, CAS number, InChIKey, common abbreviation or "
+            "family (" + ", ".join(f["term"] for f in _family_table()) + ")." + salts
+            + (" Additives containing " + either + " are outside it." if outside else "")
+            + " The workbook screens cover 26 PFAS.")
+
+
 LOG_DISPLAY_BOUND = 6.0
 
 
@@ -1686,7 +1922,8 @@ def _plastchem_solvent(con: duckdb.DuckDBPyConnection, solvent: str, tool: str) 
     asked = words(_key(solvent))  # a word inside another counts: "xylenes" and "o-xylene", "propanol" and "isopropanol"
     close = [key for key in panel if any(a in w or w in a for a in asked for w in words(key))]
     detail = f" Close panel solvents: {', '.join(close)}." if close else ""
-    return None, tool_error(tool, f"{solvent} is not in the {len(panel)}-solvent panel.{detail}",
+    return None, tool_error(tool, f"{solvent} is not in the {len(panel)}-solvent panel.{detail} "
+                                  f"The panel: {', '.join(panel)}.",
                             error_code="solvent_not_in_panel", requested_solvent=solvent, panel_solvents=panel,
                             closest_panel_solvents=close)
 
@@ -1726,7 +1963,7 @@ def _resolve_plastchem(con: duckdb.DuckDBPyConnection, requested: Sequence[str]
 
 
 def lookup_plastchem_contaminants(contaminants: str | list[str], solvent: str | None = None) -> str:
-    """Look up PlastChem contaminants by name, CAS number, InChIKey, abbreviation or family (phthalates, antioxidants, ...): each one's name, CAS number, InChIKey, SMILES, molecular weight and families, and whether the openCOSMO-RS release computed it; with a solvent, also its miscibility with that solvent and its logP between the solvent and every polymer, no polymer needed."""
+    """Look up PlastChem contaminants by name, CAS number, InChIKey, abbreviation or family (phthalates, antioxidants, ...): each one's name, CAS number, InChIKey, SMILES, molecular weight and families, and whether the openCOSMO-RS release computed it; with a solvent, also its miscibility with that solvent and its logP between the solvent and every polymer, no polymer needed (to rank every solvent for one polymer at once, call screen_contaminant_partitioning without a solvent)."""
     tool = "lookup_plastchem_contaminants"
     con = _plastchem()
     if con is None:
@@ -1802,31 +2039,15 @@ def _add_solvent_data(con: duckdb.DuckDBPyConnection, solvent_key: str, rows: li
                              "logp_solvent_over_polymer": logp.get(row["inchikey"], {})}
 
 
-def screen_contaminant_partitioning(
-    polymer: str, solvent: str, contaminants: str | list[str] | None = None, temperature_c: float = 25.0,
-) -> str:
-    """Screen PlastChem contaminants for leaching from one polymer into one solvent: all 5,830, those named, or whole families (phthalates, terephthalates, bisphenols, alkylphenols, antioxidants, UV stabilizers, benzophenones, aromatic amines, slip agents, salicylates, parabens)."""
-    tool = "screen_contaminant_partitioning"
-    con = _plastchem()
-    if con is None:
-        return tool_error(tool, "The PlastChem contaminant release has not been promoted into DISSOLVE yet.",
-                          error_code="plastchem_data_unavailable")
-    product = thermo.resolve_polymer(polymer) or str(polymer).strip().upper()
-    mapped = con.execute("SELECT campaign, conformers, shared_model FROM polymers WHERE product = ?",
-                         [product]).fetchone()
-    if mapped is None:
-        known = [row[0] for row in con.execute("SELECT product FROM polymers ORDER BY 1").fetchall()]
-        return tool_error(tool, f"No PlastChem partitioning for {polymer}.", error_code="polymer_not_in_release",
-                          requested_polymer=polymer, available_polymers=known)
-    solvent_key, refusal = _plastchem_solvent(con, solvent, tool)
-    if refusal is not None:
-        return refusal
-    requested = _requested(contaminants)
-    if not requested or [_key(item) for item in requested] == ["all"]:
-        chosen = [row[0] for row in con.execute("SELECT id FROM contaminants WHERE computed").fetchall()]
-        families, unknown, ambiguous = [], [], {}
-    else:
-        chosen, families, unknown, ambiguous = _resolve_plastchem(con, requested)
+_VERDICT_ORDER = {"leaches": 0, "undetermined": 1, "not miscible": 2, "stays in polymer": 3, "polymer dissolves": 4}
+_SWEEP_LIMIT = 60  # contaminants per all-solvent screen: 60 x 32 solvents keeps the table readable
+
+
+def _partition_screen(con: duckdb.DuckDBPyConnection, product: str, campaign: str, solvent_key: str,
+                      chosen: Sequence[int], families: Sequence[Mapping[str, Any]], temperature_c: float,
+                      ) -> tuple[list[dict[str, Any]], list[dict[str, Any]], dict[str, Any], str, dict[str, Any]]:
+    """One polymer into one solvent: a row per computed contaminant, the ones the release did not compute, the polymer's
+    state in that solvent, the miscibility regime used and every regime's temperature."""
     regimes = dict(con.execute("SELECT regime, max(temperature_c) FROM lle WHERE solvent = ? GROUP BY 1",
                                [solvent_key]).fetchall())
     high = regimes.get("high")
@@ -1840,7 +2061,7 @@ def screen_contaminant_partitioning(
            LEFT JOIN partition p ON p.id = c.id AND p.solvent = ? AND p.polymer = ?
            LEFT JOIN lle l ON l.id = c.id AND l.solvent = ? AND l.regime = ?
            WHERE c.id IN (SELECT unnest(?))""",
-        [solvent_key, mapped[0], solvent_key, regime, sorted(set(chosen))],
+        [solvent_key, campaign, solvent_key, regime, sorted(set(chosen))],
     ).fetchall()
     for inchikey, name, cas, smiles, computed, status, reason, logp, logp_status, miscible, lle_status, wt in records:
         if not computed:
@@ -1859,8 +2080,150 @@ def screen_contaminant_partitioning(
         if families:
             names = [family["name"] for family in families if inchikey in family["members"]]
             rows[-1]["family"] = ", ".join(names) or None
-    order = {"leaches": 0, "undetermined": 1, "not miscible": 2, "stays in polymer": 3, "polymer dissolves": 4}
-    rows.sort(key=lambda row: (order[row["leaching_verdict"]], -(row["logp_solvent_over_polymer"] or -1e9)))
+    return rows, not_computed, state, regime, regimes
+
+
+def _sort_by_verdict(rows: list[dict[str, Any]]) -> None:
+    rows.sort(key=lambda row: (_VERDICT_ORDER[row["leaching_verdict"]], -(row["logp_solvent_over_polymer"] or -1e9)))
+
+
+def _partition_sweep(con: duckdb.DuckDBPyConnection, tool: str, product: str, mapped: Sequence[Any],
+                     solvents: list[str], contaminants: str | list[str] | None, temperature_c: float,
+                     *, selection: Optional[set[int]] = None, structure_fields: Optional[dict[str, Any]] = None) -> str:
+    """Every panel solvent, or the ones listed, for the named contaminants (or a structural class): which solvents
+    pull them out of the polymer. "Which solvents separate bisphenol A from EVOH?" took 20 one-solvent calls and hit
+    the 30-round limit with no answer (2026-10-05); this ranks the 32 panel solvents in one call."""
+    requested = _requested(contaminants)
+    every = not requested or [_key(item) for item in requested] == ["all"]
+    if every and selection is None:
+        return tool_error(tool, "Name the contaminants or a family to rank solvents for them; to screen every "
+                                "contaminant in the release, name one solvent.",
+                          error_code="contaminants_needed_to_rank_solvents", polymer=product)
+    if every:
+        chosen, families, unknown, ambiguous = sorted(selection), [], [], {}
+    else:
+        chosen, families, unknown, ambiguous = _resolve_plastchem(con, requested)
+        if selection is not None:
+            chosen, families = [cid for cid in chosen if cid in selection], []
+    panel = [row[0] for row in con.execute("SELECT DISTINCT solvent FROM partition ORDER BY 1").fetchall()]
+    keys, unsupported_solvents = [], []
+    if not solvents or any(_key(name) == "all" for name in solvents):
+        keys = panel
+    else:
+        for name in solvents:
+            key, refusal = _plastchem_solvent(con, name, tool)
+            if refusal is not None:
+                unsupported_solvents.append(name)
+            elif key not in keys:
+                keys.append(key)
+        if not keys:
+            return tool_error(tool, f"None of {', '.join(solvents)} is in the {len(panel)}-solvent panel: "
+                                    f"{', '.join(panel)}.",
+                              error_code="solvent_not_in_panel", requested_solvents=solvents, panel_solvents=panel)
+    if len(set(chosen)) > _SWEEP_LIMIT:
+        return tool_error(tool, f"{len(set(chosen))} contaminants are too many to rank every solvent for; name at most "
+                                f"{_SWEEP_LIMIT}, or name one solvent to screen them all.",
+                          error_code="too_many_contaminants_to_rank_solvents", contaminants_resolved=len(set(chosen)),
+                          limit=_SWEEP_LIMIT)
+    rows, not_computed, states = [], {}, {}
+    for key in keys:
+        part, missing, state, regime, _ = _partition_screen(con, product, mapped[0], key, chosen, families,
+                                                            temperature_c)
+        states[key] = {"status": state["status"], "solubility_wt_pct": state.get("solubility_wt_pct"),
+                       "miscibility_regime": regime}
+        rows.extend({"solvent": key, "polymer_state": state["status"], **row} for row in part)
+        not_computed.update((item["inchikey"], item) for item in missing)
+    _sort_by_verdict(rows)
+    leaching: dict[str, list[str]] = {}
+    for row in rows:
+        if row["leaching_verdict"] == "leaches":
+            leaching.setdefault(row["contaminant"], []).append(row["solvent"])
+    verdicts = {name: sum(row["leaching_verdict"] == name for row in rows) for name in _VERDICT_ORDER}
+    for row in rows:
+        row["logp_solvent_over_polymer"] = bounded_log(row["logp_solvent_over_polymer"])
+    named = sorted({row["contaminant"] for row in rows})
+    best = {name: hits[0] for name, hits in leaching.items()}
+    return tool_success(
+        tool,
+        display=(f"{len(keys)} solvents for {len(named)} PlastChem contaminant(s) in {product}: "
+                 f"{verdicts['leaches']} solvent-contaminant pairs leach"
+                 + (f"; best {', '.join(f'{name}: {key}' for name, key in best.items())}" if best else "") + "."),
+        mode="solvent_ranking", polymer=product,
+        polymer_model=f"{mapped[0]} oligomer ensemble ({mapped[1]} conformers)",
+        polymer_model_shared_with_other_materials=bool(mapped[2]),
+        temperature_c=temperature_c, logp_temperature_c=25.0, solvents_screened=len(keys),
+        contaminants_screened=named, evaluated=len(rows), verdict_counts=verdicts,
+        solvents_where_it_leaches=leaching,
+        polymer_dissolves_in=[key for key in keys if states[key]["status"] == "dissolving"],
+        polymer_state_by_solvent=states, polymer_state_basis="stored COSMO-RS polymer solubility grid (legacy)",
+        rows=rows, unsupported_contaminants=unknown, ambiguous_contaminants=ambiguous,
+        unsupported_solvents=unsupported_solvents, not_computed_contaminants=list(not_computed.values()),
+        **(structure_fields or {}),
+        method="Rows are ranked: solvents where the contaminant leaches first, highest logP(solvent/polymer) first. "
+               "Leaches when logP(solvent/polymer) > 0, the contaminant is miscible with the solvent at 15 wt%, and "
+               "the polymer does not dissolve; logP is for the neutral species at 25 °C and K = 10^logP. "
+               "solvents_where_it_leaches lists them in that order. polymer_dissolves_in lists solvents that "
+               "dissolve the polymer instead, the route for separating by dissolution and precipitation.",
+    )
+
+
+def screen_contaminant_partitioning(
+    polymer: str, solvent: str | list[str] | None = None, contaminants: str | list[str] | None = None,
+    temperature_c: float = 25.0,
+    elements: str | list[str] | None = None,
+    exclude_elements: str | list[str] | None = None,
+    functional_groups: str | list[str] | None = None,
+    mw_min_g_mol: Optional[float] = None,
+    mw_max_g_mol: Optional[float] = None,
+) -> str:
+    """Screen PlastChem contaminants for leaching from one polymer: with one solvent, all of them, those named, whole families (phthalates, terephthalates, bisphenols, alkylphenols, antioxidants, UV stabilizers, benzophenones, aromatic amines, slip agents, salicylates, parabens, organophosphates, siloxanes and silanes, azo dyes, benzothiazoles), or a structural class by elements, functional groups or molecular weight; leave the solvent out (or list several) to rank every panel solvent for the named contaminants in one call."""
+    from . import contaminant_search  # imports this module; loaded here, not at import time
+
+    tool = "screen_contaminant_partitioning"
+    con = _plastchem()
+    if con is None:
+        return tool_error(tool, "The PlastChem contaminant release has not been promoted into DISSOLVE yet.",
+                          error_code="plastchem_data_unavailable")
+    structure, refusal = contaminant_search.structure_filters(
+        elements, exclude_elements, functional_groups, mw_min_g_mol, mw_max_g_mol,
+    )
+    if refusal is not None:
+        return tool_error(tool, refusal.get("detail") or refusal["error_code"].replace("_", " "), **refusal)
+    selection = contaminant_search.select(structure) if structure else None
+    reason = None if structure is None or selection else contaminant_search.empty_because(structure)
+    note = contaminant_search.scope_note(structure) if structure else None
+    structure_fields = {} if structure is None else {
+        "structure_filter": contaminant_search.describe(structure), "structure_selected": len(selection or ()),
+        **({"empty_because": reason} if reason else {}),
+        **({"scope_note": note} if note else {}),
+    }
+    product = thermo.resolve_polymer(polymer) or str(polymer).strip().upper()
+    mapped = con.execute("SELECT campaign, conformers, shared_model FROM polymers WHERE product = ?",
+                         [product]).fetchone()
+    if mapped is None:
+        known = [row[0] for row in con.execute("SELECT product FROM polymers ORDER BY 1").fetchall()]
+        return tool_error(tool, f"No PlastChem partitioning for {polymer}.", error_code="polymer_not_in_release",
+                          requested_polymer=polymer, available_polymers=known)
+    solvents = _requested(solvent)
+    if not solvents or len(solvents) > 1 or _key(solvents[0]) == "all":
+        return _partition_sweep(con, tool, product, mapped, solvents, contaminants, temperature_c,
+                                selection=selection, structure_fields=structure_fields)
+    solvent_key, refusal = _plastchem_solvent(con, solvents[0], tool)
+    if refusal is not None:
+        return refusal
+    requested = _requested(contaminants)
+    if not requested or [_key(item) for item in requested] == ["all"]:
+        chosen = [row[0] for row in con.execute("SELECT id FROM contaminants WHERE computed").fetchall()]
+        families, unknown, ambiguous = [], [], {}
+    else:
+        chosen, families, unknown, ambiguous = _resolve_plastchem(con, requested)
+    if selection is not None:  # a structural class: only its members, within any names or families given
+        chosen = [cid for cid in chosen if cid in selection]
+        families = []  # a narrowed family's coverage would read as missing members; the filter describes the set
+    rows, not_computed, state, regime, regimes = _partition_screen(
+        con, product, mapped[0], solvent_key, chosen, families, temperature_c)
+    order = _VERDICT_ORDER
+    _sort_by_verdict(rows)
     verdicts = {name: sum(row["leaching_verdict"] == name for row in rows) for name in order}
     logps = [row["logp_solvent_over_polymer"] for row in rows]
     by_verdict = {name: _logp_range([row["logp_solvent_over_polymer"] for row in rows if row["leaching_verdict"] == name])
@@ -1886,10 +2249,8 @@ def screen_contaminant_partitioning(
         logp_range=_logp_range(logps), logp_range_by_verdict=by_verdict, near_even_count=near_even,
         rows=rows, unsupported_contaminants=unknown, ambiguous_contaminants=ambiguous,
         not_computed_contaminants=not_computed, **({"family_coverage": coverage} if coverage else {}),
-        coverage=("PlastChem compounds of carbon, hydrogen, nitrogen and oxygen, found by name, CAS number, InChIKey, "
-                  "common abbreviation or family (" + ", ".join(f["term"] for f in _family_table()) + "). "
-                  "Additives with halogens, sulfur, phosphorus, silicon or boron (PFAS, organophosphates, bisphenol S) "
-                  "are outside it; the workbook screens cover 26 PFAS."),
+        **structure_fields,
+        coverage=_plastchem_coverage(meta),
         method="Leaches when logP(solvent/polymer) > 0, the contaminant is miscible with the solvent at 15 wt%, "
                "and the polymer does not dissolve; logP is for the neutral species at 25 °C. logP is log10 of the "
                "solvent/polymer concentration ratio and K = 10^logP. near_even_count counts |logP| < 0.5 "

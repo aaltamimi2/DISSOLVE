@@ -18,13 +18,12 @@ import duckdb
 import pytest
 from rich.console import Console
 
-from dissolve import contaminants, plastchem_release, separation, tea, tea_ranking
+from dissolve import contaminant_removal, contaminants, plastchem_release, separation, tea, tea_ranking
 from dissolve import contaminants as C
 from dissolve import cosmo_logp as cl
 from dissolve import polymer_cosmo as pc
 from dissolve.cli import (
     CliApp,
-    _format_contaminant_default,
     _parse_contaminant_slash,
 )
 from dissolve.contracts import parse_tool_result
@@ -290,12 +289,9 @@ def test_lookup_is_the_table_and_the_parser_is_gone():
     assert refuse["unsupported_contaminants"] == [
         "2-ethylhexyl", "heptafluoropropoxy",
     ]
-    assert "contaminants" in inspect.signature(
-        separation.plan_multistage_separation,
-    ).parameters
-    assert "contaminant_mode" in inspect.signature(
-        separation.plan_multistage_separation,
-    ).parameters
+    parameters = inspect.signature(separation.plan_multistage_separation).parameters
+    assert "contaminants" in parameters and "contaminant_route" in parameters
+    assert "contaminant_mode" not in parameters  # no setting and no mode argument (owner, 2026-10-05)
     planner = Path(separation.__file__).read_text()
     assert "def plan_multistage_separation_with_contaminants" not in planner
 
@@ -383,120 +379,53 @@ def _app(tmp_path, monkeypatch, **kwargs):
     return app, buf
 
 
-def test_parse_and_format_skin():
-    assert _parse_contaminant_slash([]) is None
-    assert _parse_contaminant_slash(["off"]) == {"mode": "off"}
-    assert _parse_contaminant_slash(["leaching"]) == {"mode": "leaching"}
-    assert _parse_contaminant_slash(["strap"]) == {"mode": "strap"}
-    assert _parse_contaminant_slash(["swing"]) == {"mode": "strap"}
-    assert _parse_contaminant_slash(["compare"]) == {"compare": True}
+def test_only_logp_parses_every_other_token_gets_the_note():
+    """There is no contaminant setting (owner, 2026-10-05): every /contaminant token but logp gets the note (None)
+    and stores nothing; logp still parses its own arguments."""
+    for tokens in ([], ["off"], ["leaching"], ["strap"], ["swing"], ["compare"], ["bind"], ["banana"]):
+        assert _parse_contaminant_slash(tokens) is None
     try:
-        _parse_contaminant_slash(["bind"])
+        _parse_contaminant_slash(["logp"])
         raise AssertionError("expected ValueError")
     except ValueError as error:
-        assert "usage: /contaminant" in str(error)
-    assert _format_contaminant_default(None, origin="built-in") == (
-        "contaminant_mode=off  (built-in)"
-    )
-    assert _format_contaminant_default(
-        {"mode": "strap"}, origin="session",
-    ) == "contaminant_mode=strap  (session)"
+        assert "--smiles" in str(error) and "--file" in str(error)
 
 
-def test_session_set_and_clear(tmp_path, monkeypatch):
-    app, _buf = _app(tmp_path, monkeypatch)
-    assert app.handle_command("/contaminant leaching") is False
-    assert app.session.get("contaminant_mode") == {"mode": "leaching"}
-    assert app.handle_command("/contaminant swing") is False
-    assert app.session.get("contaminant_mode") == {"mode": "strap"}
-    assert app.handle_command("/clear") is False
+def test_old_setting_commands_print_the_note_and_store_nothing(tmp_path, monkeypatch):
+    from dissolve import cli
+
+    app, buf = _app(tmp_path, monkeypatch)
+    for text in ("/contaminant leaching", "/contaminant swing", "/contaminant strap", "/contaminant", "/contaminant compare",
+                 "/contaminant bind"):
+        assert app.handle_command(text) is False
     assert "contaminant_mode" not in app.session
+    assert buf.getvalue().count("Contaminant removal has no setting") == 6
     assert "handle_command" not in inspect.getsource(app.ask)
+    for gone in ("_contaminant_picker_options", "_format_contaminant_default", "_last_contaminant_screen"):
+        assert not hasattr(cli, gone)
+    assert not hasattr(CliApp, "_pick_contaminant_mode") and not hasattr(CliApp, "_run_contaminant_compare")
 
 
-def test_bare_non_tty_prints_status_and_does_not_write(tmp_path, monkeypatch):
-    monkeypatch.setattr("sys.stdin.isatty", lambda: False)
-    monkeypatch.setattr("sys.stdout.isatty", lambda: True)
-    app, buf = _app(tmp_path, monkeypatch)
-    assert app.handle_command("/contaminant") is False
-    assert "contaminant_mode" not in app.session
-    assert "contaminant_mode=off" in buf.getvalue()
-
-
-def test_bare_picker_sets_strap(tmp_path, monkeypatch):
-    from dissolve.cli import _contaminant_picker_options
-
-    options, selected = _contaminant_picker_options("off")
-    assert selected == 0
-    assert [key for key, _label in options] == ["off", "leaching", "strap"]
-    app, _buf = _app(tmp_path, monkeypatch)
-    app._handle_contaminant_command([], picker_fn=lambda **_k: "strap")
-    assert app.session.get("contaminant_mode") == {"mode": "strap"}
-    app._handle_contaminant_command([], picker_fn=lambda **_k: None)
-    assert app.session.get("contaminant_mode") == {"mode": "strap"}
-
-
-@pytest.mark.parametrize(
-    ('value', 'value_2'),
-    [
-        pytest.param('prior contaminant screen', '/contaminant compare', id='compare_without_prior_screen_prints_usage'),
-        pytest.param('usage: /contaminant', '/contaminant solvents', id='bad_token_does_not_write'),
-        pytest.param('invalid_smiles', '/contaminant logp --smiles not_a_smiles', id='logp_invalid_smiles_refuses_without_writing_mode'),
-    ],
-)
-def test_compare_without_prior_screen_prints_usage_cases(tmp_path, monkeypatch, value, value_2):
-    app, buf = _app(tmp_path, monkeypatch)
-    assert app.handle_command(value_2) is False
-    assert "contaminant_mode" not in app.session
-    assert value in buf.getvalue()
-
-
-def test_compare_does_not_persist_a_mode(tmp_path, monkeypatch):
-    app, buf = _app(tmp_path, monkeypatch)
-    app.session["last_contaminant"] = {
-        "target_polymer": "LDPE",
-        "contaminants": ["di-(2-ethylhexyl) phthalate (DEHP)"],
-        "other_polymers": ["EVOH"],
-        "solvents": ["toluene"],
-    }
-    assert app.handle_command("/contaminant compare") is False
-    assert "contaminant_mode" not in app.session
-    assert "recommended_mode" in buf.getvalue()
-
-
-def test_mode_key_does_not_change_planner_or_screens():
-    def run(mode: str | None) -> tuple[str, str, str, str]:
+def test_a_stored_contaminant_mode_changes_nothing():
+    """Chats saved before 2026-10-05 may still hold contaminant_mode, in any shape. Nothing reads it: plans with and
+    without contaminants and the screens come out the same whatever it holds."""
+    def run(mode):
         record = new_session()
         if mode is not None:
-            record["contaminant_mode"] = {"mode": mode}
+            record["contaminant_mode"] = mode
         with bind_tool_session(record):
-            plan = separation.plan_multistage_separation(["LDPE", "PP"])
-            leach = contaminants.screen_contaminant_leaching(
-                "LDPE", ["di-(2-ethylhexyl) phthalate (DEHP)"],
-                solvents=["toluene"],
+            return (
+                separation.plan_multistage_separation(["LDPE", "PP"]),
+                separation.plan_multistage_separation(["LDPE", "PET"], contaminants=["DEHP"]),
+                contaminants.screen_contaminant_leaching(
+                    "LDPE", ["di-(2-ethylhexyl) phthalate (DEHP)"], solvents=["toluene"],
+                ),
             )
-            strap = contaminants.screen_contaminant_strap_removal(
-                "LDPE", ["di-(2-ethylhexyl) phthalate (DEHP)"],
-                other_polymers=["EVOH"], solvents=["toluene"],
-            )
-            compare = contaminants.compare_contaminant_removal_modes(
-                "LDPE", ["di-(2-ethylhexyl) phthalate (DEHP)"],
-                other_polymers=["EVOH"], solvents=["toluene"],
-            )
-        return plan, leach, strap, compare
 
     unset = run(None)
-    assert unset == run("off") == run("leaching") == run("strap")
-    assert _data(unset[1])["success"] is True
-    assert "contaminants" in inspect.signature(
-        separation.plan_multistage_separation,
-    ).parameters
-    assert "bind_query_solvent_scope" not in inspect.getsource(
-        CliApp._handle_contaminant_command,
-    )
-    assert "bind_query_solvent_scope" not in inspect.getsource(
-        CliApp._run_contaminant_compare,
-    )
+    for mode in ({"mode": "off"}, {"mode": "leaching"}, {"mode": "strap"}, {"mode": "swing"}, {"mode": None}, "junk", 7):
+        assert run(mode) == unset
+    assert _data(unset[2])["success"] is True
 
 
 def test_logp_one_shot_parses_smiles_and_does_not_persist_a_mode(tmp_path, monkeypatch):
@@ -534,23 +463,14 @@ def test_logp_solvents_report_routes_and_refuse_a_cousin_substitute(tmp_path, mo
             raise AssertionError(line)
 
 
-def test_logp_is_not_a_persistent_mode_token():
+def test_logp_is_the_only_contaminant_command():
     try:
         _parse_contaminant_slash(["logp"])
         raise AssertionError("expected ValueError")
     except ValueError as error:
         assert "--smiles" in str(error)
         assert "--file" in str(error)
-    try:
-        _parse_contaminant_slash(["banana"])
-        raise AssertionError("expected ValueError")
-    except ValueError as error:
-        assert "usage: /contaminant" in str(error)
-        assert "--smiles" not in str(error)
-        assert "--file" not in str(error)
-        assert "--job" not in str(error)
-        assert "--solvent-dft" not in str(error)
-        assert "--literature-logp" not in str(error)
+    assert _parse_contaminant_slash(["banana"]) is None  # the note, not a usage error
 
 
 def test_logp_absolute_is_refused_and_does_not_persist(tmp_path, monkeypatch):
@@ -864,30 +784,29 @@ def _regimes(row: dict) -> list[str]:
 
 
 def test_argument_junk_refuses_even_without_contaminants():
-    payload = _plan(contaminant_mode="banana")
+    payload = _plan(contaminant_route="banana")
     assert payload["success"] is False
-    assert payload["error_code"] == "invalid_contaminant_mode"
-    assert payload["error_code"] != "unsupported_contaminants"
+    assert payload["error_code"] == "invalid_contaminant_route"
+    with pytest.raises(TypeError):  # the old argument is gone; the agent turns this into unexpected_argument
+        _plan(contaminant_mode="off")
 
 
-def test_argument_strap_or_leaching_without_contaminants_is_a_new_code():
-    strap = _plan(contaminant_mode="strap")
-    leach = _plan(contaminant_mode="leaching")
-    swing = _plan(contaminant_mode="swing")
-    for payload in (strap, leach, swing):
+def test_a_requested_route_needs_contaminants_and_old_tokens_are_not_mapped():
+    for route in ("strap", "wash"):
+        payload = _plan(contaminant_route=route)
         assert payload["success"] is False
-        assert payload["error_code"] == "contaminant_mode_without_contaminants"
-        assert payload["error_code"] != "unsupported_contaminants"
-        assert payload["error_code"] != "invalid_contaminant_mode"
-        assert payload.get("contaminant_mode_origin") == "argument"
+        assert payload["error_code"] == "contaminant_route_without_contaminants"
+    for token in ("leaching", "swing", "off"):  # never silently mapped onto a route
+        payload = _plan(contaminants=_DEHP, contaminant_route=token)
+        assert payload["success"] is False
+        assert payload["error_code"] == "invalid_contaminant_route"
 
 
-def test_argument_off_without_contaminants_is_ident_to_unset():
+def test_auto_without_contaminants_is_identical_to_unset():
     unset = _plan()
-    off = _plan(contaminant_mode="off")
     assert unset["success"] is True
-    assert off == unset
-    assert "wash" not in (off.get("best_sequence") or [])
+    assert _plan(contaminant_route="auto") == unset
+    assert "contaminant_removal" not in unset and "wash" not in (unset.get("best_sequence") or [])
 
 
 def test_session_mode_without_contaminants_stays_a_silent_noop():
@@ -903,31 +822,10 @@ def test_session_mode_without_contaminants_stays_a_silent_noop():
     assert unset == run("off") == run("leaching") == run("strap") == run("banana")
 
 
-def test_helper_distinguishes_argument_from_session():
-    mode, requested, origin = separation._planner_contaminant_mode(None, "strap")
-    assert origin == "argument"
-    assert mode == "without_contaminants"
-    assert requested == []
-    junk, _requested, junk_origin = separation._planner_contaminant_mode(
-        None, "banana",
-    )
-    assert junk == "invalid"
-    assert junk_origin == "argument"
-    record = new_session()
-    record["contaminant_mode"] = {"mode": "strap"}
-    with bind_tool_session(record):
-        session_mode, session_requested, session_origin = (
-            separation._planner_contaminant_mode(None, None)
-        )
-    assert session_origin == "session"
-    assert session_mode is None
-    assert session_requested == []
-
-
 def test_argument_junk_with_dehp_still_invalid():
-    payload = _plan(contaminants=_DEHP, contaminant_mode="banana")
+    payload = _plan(contaminants=_DEHP, contaminant_route="banana")
     assert payload["success"] is False
-    assert payload["error_code"] == "invalid_contaminant_mode"
+    assert payload["error_code"] == "invalid_contaminant_route"
 
 
 def test_accept_test_2_unchanged():
@@ -977,51 +875,40 @@ def _empty_screen(*_args, **_kwargs) -> dict:
     }
 
 
-def test_empty_recommended_omits_wash_and_publishes_reasons():
-    original = contaminants.evaluate_contaminant_at_feed_state
-    contaminants.evaluate_contaminant_at_feed_state = _empty_screen
-    try:
-        payload = separation._embed_leaching_route(
-            _ROUTE,
-            names=["LDPE", "PP"],
-            supported=[_DEHP],
-            solvents=["toluene"],
-            temperature_max_c=None,
-            strict_maximum=False,
-            step_c=5.0,
-        )
-    finally:
-        contaminants.evaluate_contaminant_at_feed_state = original
-    assert isinstance(payload, dict)
-    steps = list(payload.get("steps") or [])
-    considered = list(payload.get("positions_considered") or [])
+def test_no_passing_wash_inserts_nothing_and_says_why(monkeypatch):
+    monkeypatch.setattr(contaminants, "evaluate_contaminant_at_feed_state", _empty_screen)
+    steps, summary = contaminant_removal.assess(
+        _ROUTE, feed=["LDPE", "PP"], supported=[_DEHP], request={"supported": [_DEHP]}, requested_route="wash",
+        maximum=None, strict_maximum=False, step_c=5.0,
+    )
     assert all(item.get("step_kind") != "wash" for item in steps)
-    assert "wash" not in (payload.get("sequence") or [])
-    assert all(not str(item).startswith("wash") for item in (payload.get("sequence") or []))
-    assert len(considered) == 2
-    assert all(item.get("reason") for item in considered)
-    assert all(item.get("passing_count") == 0 for item in considered)
-    assert payload.get("chosen_wash_position") is None
-    assert not any(item.get("caveat") for item in steps)
+    assert (summary["applied_route"], summary["status"]) == ("none", "forced_route_unavailable")
+    assert summary["wash"]["chosen"] is None
+    assert (summary["wash"]["passing_pairs"], summary["wash"]["eligible_pairs"]) == (0, 0)
 
 
-def test_pass_case_still_inserts_wash_at_chosen_position():
-    payload = _data(separation.plan_multistage_separation(
-        _TRIPLE, contaminants=_DEHP, contaminant_mode="leaching",
-        top_k_routes=1, breadth=1,
-    ))
-    assert payload["success"] is True
-    steps = list(payload.get("steps") or [])
-    dissolutions = [item for item in steps if item.get("step_kind") == "dissolution"]
-    washes = [item for item in steps if item.get("step_kind") == "wash"]
-    considered = list(payload.get("positions_considered") or [])
-    assert len(washes) == 1
-    assert washes[0].get("passes") is True
-    assert washes[0].get("path") == "leaching"
-    assert len(considered) == len(dissolutions) + 1
-    assert payload.get("chosen_wash_position") in {item["index"] for item in considered}
-    assert all(item.get("reason") for item in considered)
-    assert "wash" in (payload.get("best_sequence") or [])
+def test_the_rule_places_one_safe_wash_where_it_reaches_every_product():
+    """LDPE/PET/EVOH with DEHP: the planner's stages dissolve at 25 °C (EVOH in triethylamine: no node to cool to, so
+    STRAP fails) and in HFIP (no DEHP data: not checkable). The rule therefore washes, before any dissolution, since a
+    later wash could not reach the products already recovered (D6), with a recommended or problematic solvent (D7) at
+    least 10 °C below its boiling point (D1)."""
+    for route in ("auto", "wash"):
+        payload = _data(separation.plan_multistage_separation(
+            _TRIPLE, contaminants=_DEHP, contaminant_route=route, top_k_routes=1, breadth=1,
+        ))
+        assert payload["success"] is True
+        removal = payload["contaminant_removal"]
+        assert (removal["applied_route"], removal["status"]) == ("wash", "applied_screen_pass")
+        assert removal["selected_by"] == ("rule" if route == "auto" else "user")
+        assert [(s["verdict"], s["reason"]) for s in removal["strap"]["stages"]] == [
+            ("fail", "no_cooling_precipitation"), ("not_checkable", "no_contaminant_data_for_solvent"),
+        ]
+        chosen = removal["wash"]["chosen"]
+        (wash,) = [item for item in payload["steps"] if item.get("step_kind") == "wash"]
+        assert (wash["path"], wash["solvent"], wash["position_index"]) == ("leaching", chosen["solvent"], 0)
+        assert payload["best_sequence"][0] == "wash"
+        assert chosen["chem21_band"] in {"recommended", "problematic"} and chosen["boiling_margin_c"] >= 10.0
+        assert removal["wash"]["excluded"]["prior_product_not_covered"] > 0
 
 
 # --- from test_contaminant_leftovers_cl3.py: CL-3: unspecified_not_a_strap_basis stays; name whether leaching exists.
@@ -1116,19 +1003,10 @@ def _ldpe_step(payload: dict, *, others: set[str] | None = None) -> dict:
 def test_no_parallel_planner():
     source = Path(separation.__file__).read_text()
     assert "def plan_multistage_separation_with_contaminants" not in source
-    assert "def plan_multistage_separation(" in source
-    assert "_embed_leaching_route" in inspect.getsource(
-        separation.plan_multistage_separation,
-    )
-    assert "_stamp_strap_route" in inspect.getsource(
-        separation.plan_multistage_separation,
-    )
-    assert "others_from_feed_state" in inspect.getsource(
-        separation._stamp_strap_route,
-    )
-    assert "others_from_feed_state" in inspect.getsource(
-        separation._embed_leaching_route,
-    )
+    assert "contaminant_removal.assess" in inspect.getsource(separation.plan_multistage_separation)
+    assert "strap_at_stage" in inspect.getsource(contaminant_removal.assess)
+    for gone in ("_embed_leaching_route", "_stamp_strap_route", "_stamp_strap_step", "_planner_contaminant_mode"):
+        assert not hasattr(separation, gone)
 
 
 def test_omitted_contaminants_are_inert_across_session_modes():
@@ -1150,180 +1028,91 @@ def test_omitted_contaminants_are_inert_across_session_modes():
         assert item.get("feed_state_at_step") is None
 
 
-def test_off_plus_contaminants_embeds_nothing_and_does_not_refuse():
-    payload = _plan_contaminant_planner_embed(
-        ["LDPE", "PP"],
-        contaminants=["not-a-real-contaminant", _DEHP],
-        contaminant_mode="off",
-    )
+def test_a_mixed_request_assesses_the_supported_subset_and_says_so():
+    payload = _plan_contaminant_planner_embed(["LDPE", "PP"], contaminants=["not-a-real-contaminant", _DEHP])
     assert payload["success"] is True
-    assert payload["contaminant_mode"] == "off"
-    assert all(not str(item).startswith("wash") for item in payload["best_sequence"])
-    assert "wash" not in (payload.get("solvent_mapping") or {})
-    assert "positions_considered" not in payload
-    assert "strap_evaluations" not in payload
-    for item in payload.get("steps") or []:
-        assert item.get("path") is None
-        assert item.get("feed_state_at_step") is None
+    removal = payload["contaminant_removal"]
+    assert removal["contaminants"]["assessed"] == [_DEHP]
+    assert removal["contaminants"]["unsupported_total"] == 1
+    assert removal["contaminants"]["coverage"] == "only the supported subset was assessed"
+    assert removal["whole_feed_cleanup_validated"] is False
+    assert removal["status"] in {"applied_screen_pass", "no_screen_pass", "not_checkable", "partial_plan"}
 
 
-def test_accept_test_2_through_planner_derived_others():
-    three = _data(separation.plan_multistage_separation(
-        _TRIPLE, contaminants=_DEHP, contaminant_mode="strap",
-        top_k_routes=5, breadth=1,
-    ))
-    two = _data(separation.plan_multistage_separation(
-        _PAIR, contaminants=_DEHP, contaminant_mode="strap",
-        top_k_routes=5, breadth=1,
-    ))
-    assert three["success"] is True
-    assert two["success"] is True
-    assert three["contaminant_mode"] == "strap"
-    assert "wash" not in (three.get("best_sequence") or [])
-    assert "wash" not in (two.get("best_sequence") or [])
-    assert all(
-        item.get("step_kind") != "wash"
-        for route in _published_routes(three)
-        for item in (route.get("steps") or [])
-    )
-    first_state = (three.get("steps") or [{}])[0].get("feed_state_at_step") or {}
-    assert first_state.get("inventory_model") == "none"
-    assert set(first_state.get("polymers") or []) == set(_TRIPLE)
-    ldpe_fail = _ldpe_step(three, others={"PET", "EVOH"})
-    ldpe_pass = _ldpe_step(two, others={"EVOH"})
-    assert ldpe_fail.get("path") == "strap"
-    assert ldpe_pass.get("path") == "strap"
-    assert ldpe_fail["feed_state_at_step"]["inventory_model"] == "none"
-    assert ldpe_pass["feed_state_at_step"]["inventory_model"] == "none"
-    fail_others = contaminants.others_from_feed_state(
-        ldpe_fail["feed_state_at_step"], "LDPE",
-    )
-    pass_others = contaminants.others_from_feed_state(
-        ldpe_pass["feed_state_at_step"], "LDPE",
-    )
-    assert set(fail_others) == {"PET", "EVOH"}
-    assert pass_others == ["EVOH"]
-    fail = contaminants.evaluate_contaminant_at_feed_state(
-        "strap", "LDPE", fail_others, [_DEHP], solvents=["toluene"],
-    )
-    passed = contaminants.evaluate_contaminant_at_feed_state(
-        "strap", "LDPE", pass_others, [_DEHP], solvents=["toluene"],
-    )
-    fail_row = _candidate_contaminant_planner_embed(fail, "toluene")
-    pass_row = _candidate_contaminant_planner_embed(passed, "toluene")
-    assert fail_row.get("passes") is False
-    assert pass_row.get("passes") is True
-    assert _regimes(pass_row) == ["rt", "rt"]
-    if str(ldpe_pass.get("solvent") or "").casefold() == "toluene":
-        assert ldpe_pass.get("passes") is True
-        assert _regimes(ldpe_pass) == ["rt", "rt"]
+def test_strap_is_judged_at_the_stage_temperature_with_the_polymers_present():
+    """LDPE in toluene at 105 °C: STRAP passes with EVOH beside it (0.17 wt%) and fails once PET is present too (1.97
+    wt%, above the 1 wt% proxy). The screen's own search for a better window may not stand in for the stage (CA01)."""
+    fail = contaminants.strap_at_stage("LDPE", "toluene", ["PET", "EVOH"], [_DEHP], 105.0)
+    ok = contaminants.strap_at_stage("LDPE", "toluene", ["EVOH"], [_DEHP], 105.0)
+    assert (fail["verdict"], fail["reason"]) == ("fail", "other_polymer_dissolves")
+    assert (ok["verdict"], ok["dissolution_c"], ok["precipitation_c"]) == ("pass", 105.0, 60.0)
+    plan = _data(separation.plan_multistage_separation(_TRIPLE, contaminants=_DEHP, top_k_routes=5, breadth=1))
+    stages = plan["contaminant_removal"]["strap"]["stages"]
+    dissolutions = [item for item in plan["steps"] if item.get("step_kind") != "wash"]
+    assert [s["temperature_c"] for s in stages] == [float(item["temperature_c"]) for item in dissolutions]
 
 
-def test_stamp_strap_route_flips_on_toluene_when_others_change():
-    fail_route = separation._stamp_strap_route(
-        {
-            "complete": True,
-            "final_residue": "EVOH",
-            "unresolved_polymers": [],
+def test_strap_applies_only_when_every_stage_passes_and_is_never_swapped():
+    def route():
+        return {
+            "complete": True, "final_residue": "EVOH", "unresolved_polymers": [],
             "steps": [{
-                "step_kind": "dissolution",
-                "dissolved_polymer": "LDPE",
-                "solvent": "toluene",
-                "temperature_c": 105.0,
-                "selectivity_pct": 80.0,
-                "target_solubility_pct": 20.0,
-                "off_target_solubilities_pct": {"PET": 0.5, "EVOH": 0.5},
+                "step_kind": "dissolution", "dissolved_polymer": "LDPE", "solvent": "toluene", "temperature_c": 105.0,
+                "selectivity_pct": 80.0, "target_solubility_pct": 20.0, "off_target_solubilities_pct": {"EVOH": 0.5},
             }],
-        },
-        names=_TRIPLE,
-        supported=[_DEHP],
-        temperature_max_c=None,
-        strict_maximum=False,
-    )
-    pass_route = separation._stamp_strap_route(
-        {
-            "complete": True,
-            "final_residue": "EVOH",
-            "unresolved_polymers": [],
-            "steps": [{
-                "step_kind": "dissolution",
-                "dissolved_polymer": "LDPE",
-                "solvent": "toluene",
-                "temperature_c": 105.0,
-                "selectivity_pct": 80.0,
-                "target_solubility_pct": 20.0,
-                "off_target_solubilities_pct": {"EVOH": 0.5},
-            }],
-        },
-        names=_PAIR,
-        supported=[_DEHP],
-        temperature_max_c=None,
-        strict_maximum=False,
-    )
-    fail_step = fail_route["steps"][0]
-    pass_step = pass_route["steps"][0]
-    assert fail_step["other_polymers"] == ["PET", "EVOH"]
-    assert pass_step["other_polymers"] == ["EVOH"]
-    assert fail_step["passes"] is False
-    assert pass_step["passes"] is True
-    assert _regimes(pass_step) == ["rt", "rt"]
-    assert "wash" not in fail_route["sequence"]
-    assert "wash" not in pass_route["sequence"]
-    assert all(
-        row.get("resolution_basis") == "cas_verified"
-        and row.get("identity_verified") is True
-        for row in (pass_step.get("contaminants") or [])
-    )
+        }
+
+    common = dict(supported=[_DEHP], request={"supported": [_DEHP]}, requested_route="strap", maximum=None,
+                  strict_maximum=False, step_c=5.0)
+    steps, ok = contaminant_removal.assess(route(), feed=_PAIR, **common)
+    assert ok["strap"]["all_stages_pass"] is True
+    assert (ok["applied_route"], ok["status"], ok["selected_by"]) == ("strap", "applied_screen_pass", "user")
+    assert (steps[0]["path"], steps[0]["precipitation_temperature_c"]) == ("strap", 60.0)
+    steps, failed = contaminant_removal.assess(route(), feed=_TRIPLE, **common)  # PET present: the stage fails
+    assert failed["strap"]["stages"][0]["verdict"] == "fail"
+    assert (failed["applied_route"], failed["status"]) == ("none", "forced_route_unavailable")
+    assert all(item.get("path") != "strap" and item.get("step_kind") != "wash" for item in steps)
 
 
-def test_owner_example_strap_stamps_each_dissolution_without_a_wash():
-    payload = _plan_contaminant_planner_embed(
-        _TRIPLE, contaminants="PFAS", contaminant_mode="strap",
-    )
+def test_owner_example_strap_reports_every_stage_and_applies_nothing_it_cannot_pass():
+    """The owner's PFAS example asking for STRAP: every dissolution stage is judged at its own temperature; when one
+    fails or cannot be checked, no stamp and no wash are applied, and the wash the rule could have used is still shown."""
+    payload = _plan_contaminant_planner_embed(_TRIPLE, contaminants="PFAS", contaminant_route="strap")
     assert payload["success"] is True
-    assert payload["contaminant_mode"] == "strap"
+    removal = payload["contaminant_removal"]
+    dissolutions = [item for item in payload["steps"] if item.get("dissolved_polymer")]
+    assert len(removal["strap"]["stages"]) == len(dissolutions) == 2
+    assert (removal["applied_route"], removal["status"]) == ("none", "forced_route_unavailable")
+    assert all(item.get("path") is None for item in payload["steps"])
     assert "wash" not in (payload.get("best_sequence") or [])
-    assert "positions_considered" not in payload
-    evaluations = payload.get("strap_evaluations") or []
-    dissolutions = [
-        item for item in (payload.get("steps") or [])
-        if item.get("dissolved_polymer")
-    ]
-    assert evaluations
-    assert len(evaluations) == len(dissolutions)
-    for item in dissolutions:
-        assert item.get("path") == "strap"
-        assert item["feed_state_at_step"]["inventory_model"] == "none"
-        others = contaminants.others_from_feed_state(
-            item["feed_state_at_step"], item["dissolved_polymer"],
-        )
-        assert item.get("other_polymers") == others
+    assert removal["wash"]["chosen"] is not None  # shown, not applied
+    assert removal["contaminants"]["assessed_total"] == 26 and len(removal["contaminants"]["assessed"]) == 8
     catalog = payload.get("contaminant_catalog") or []
     assert len(catalog) == 26
-    assert all(
-        row["resolution_basis"] == "catalog_declared"
-        and row["identity_verified"] is not True
-        for row in catalog
-    )
+    assert all(row["resolution_basis"] == "catalog_declared" and row["identity_verified"] is not True for row in catalog)
 
 
-def test_refusals_stay_constructed():
-    junk = _data(separation.plan_multistage_separation(
-        ["LDPE", "PP"], contaminants="not-a-real-contaminant",
-        contaminant_mode="leaching",
-    ))
-    assert junk["success"] is False
-    assert junk["error_code"] == "unsupported_contaminants"
-    family = _data(separation.plan_multistage_separation(
-        ["LDPE", "PP"], contaminants="BFR", contaminant_mode="leaching",
-    ))
-    assert family["success"] is False
-    assert family["error_code"] == "unsupported_contaminant_family"
+def test_unsupported_contaminants_never_cost_the_separation():
+    """An unsupported name or an uncovered family used to refuse the whole plan. With contaminants always assessed
+    that would block plain separation questions, so the plan stands and says what was not assessed."""
+    plain = _data(separation.plan_multistage_separation(["LDPE", "PP"]))
+    for named in ("not-a-real-contaminant", "BFR"):
+        payload = _data(separation.plan_multistage_separation(["LDPE", "PP"], contaminants=named))
+        assert payload["success"] is True
+        assert payload["best_sequence"] == plain["best_sequence"]
+        removal = payload["contaminant_removal"]
+        assert (removal["status"], removal["applied_route"]) == ("unsupported_request", "none")
+        assert removal["contaminants"]["assessed_total"] == 0
+    assert [row["name"] for row in payload["contaminant_removal"]["contaminants"]["unsupported"]] == ["BFR"]
+    junk = _data(separation.plan_multistage_separation(["LDPE", "PP"], contaminants="not-a-real-contaminant"))
+    (row,) = junk["contaminant_removal"]["contaminants"]["unsupported"]
+    assert row["name"] == "not-a-real-contaminant"
+    assert row["plastchem"] in {"not_found", "unavailable"}
     invalid = _data(separation.plan_multistage_separation(
-        ["LDPE", "PP"], contaminants=_DEHP, contaminant_mode="banana",
+        ["LDPE", "PP"], contaminants=_DEHP, contaminant_route="banana",
     ))
     assert invalid["success"] is False
-    assert invalid["error_code"] == "invalid_contaminant_mode"
+    assert invalid["error_code"] == "invalid_contaminant_route"
 
 
 def test_accept_test_2_on_evaluator_only():
@@ -1361,148 +1150,60 @@ def test_frozen_initial_feed_others_changes_the_toluene_evoh_result():
     assert _regimes(_candidate_contaminant_planner_embed(derived_screen, "toluene")) == ["rt", "rt"]
 
 
-def test_leaching_enumerates_positions_and_names_the_objective():
-    payload = _plan_contaminant_planner_embed(
-        _TRIPLE, contaminants=_DEHP, contaminant_mode="leaching",
-    )
+def test_a_wash_step_names_the_rule_and_carries_no_polymer():
+    payload = _plan_contaminant_planner_embed(_TRIPLE, contaminants=_DEHP, contaminant_route="wash")
     assert payload["success"] is True
-    assert payload["contaminant_mode"] == "leaching"
-    considered = payload.get("positions_considered") or []
-    dissolutions = [
-        item for item in (payload.get("steps") or [])
-        if item.get("step_kind") == "dissolution"
-    ]
-    assert len(considered) == len(dissolutions) + 1
-    assert len(considered) >= 2
-    assert payload.get("chosen_wash_position") in {item["index"] for item in considered}
-    winner = next(
-        item for item in considered
-        if item["index"] == payload["chosen_wash_position"]
-    )
-    assert set(winner) >= {"passing_count", "contaminant_logd_min", "index"}
-    washes = [
-        item for item in (payload.get("steps") or [])
-        if item.get("step_kind") == "wash"
-    ]
-    assert len(washes) == 1
-    wash = washes[0]
-    assert wash["path"] == "leaching"
-    assert wash["feed_state_at_step"]["inventory_model"] == "none"
-    assert "dissolved_polymer" not in wash
-    assert "wash" in (payload.get("best_sequence") or [])
-    assert "wash" not in (payload.get("solvent_mapping") or {})
+    removal = payload["contaminant_removal"]
+    assert removal["rule"]["id"] == contaminant_removal.RULE_ID and removal["rule"]["text"] == contaminant_removal.RULE_TEXT
+    assert removal["rule"]["wash_margin_c"] == 10.0
+    (wash,) = [item for item in payload["steps"] if item.get("step_kind") == "wash"]
+    assert wash["path"] == "leaching" and "dissolved_polymer" not in wash
+    assert wash["polymers_present"] == ["LDPE", "PET", "EVOH"]  # position 0: the whole feed
+    assert "wash" in (payload.get("best_sequence") or []) and "wash" not in (payload.get("solvent_mapping") or {})
     catalog = payload.get("contaminant_catalog") or []
-    assert catalog
-    assert all(row["resolution_basis"] == "cas_verified" for row in catalog)
-    assert all(row["identity_verified"] is True for row in catalog)
-    for item in considered:
-        assert item["feed_state_at_step"]["inventory_model"] == "none"
-        assert "passing_count" in item
-        assert "index" in item
+    assert catalog and all(row["resolution_basis"] == "cas_verified" and row["identity_verified"] is True
+                           for row in catalog)
 
 
-def test_owner_example_leaching_pfas_enumerates_positions():
-    payload = _plan_contaminant_planner_embed(
-        _TRIPLE, contaminants="PFAS", contaminant_mode="leaching",
-    )
+def test_owner_example_wash_for_pfas_reaches_the_whole_feed():
+    payload = _plan_contaminant_planner_embed(_TRIPLE, contaminants="PFAS", contaminant_route="wash")
     assert payload["success"] is True
-    considered = payload.get("positions_considered") or []
-    assert len(considered) >= 2
-    for item in considered:
-        assert item["feed_state_at_step"]["inventory_model"] == "none"
-    winner = next(
-        item for item in considered
-        if item["index"] == payload["chosen_wash_position"]
-    )
-    assert set(winner) >= {"passing_count", "contaminant_logd_min", "index"}
-    assert any(item.get("step_kind") == "wash" for item in payload["steps"])
+    removal = payload["contaminant_removal"]
+    assert (removal["applied_route"], removal["selected_by"]) == ("wash", "user")
+    assert removal["wash"]["chosen"]["position"] == 0
+    assert removal["wash"]["excluded"]["prior_product_not_covered"] > 0
+    assert payload["steps"][0]["step_kind"] == "wash"
+    assert len(json.dumps(removal, ensure_ascii=False).encode("utf-8")) <= contaminant_removal.SUMMARY_BYTES
     catalog = payload.get("contaminant_catalog") or []
     assert len(catalog) == 26
-    assert all(
-        row["resolution_basis"] == "catalog_declared"
-        and row["identity_verified"] is not True
-        for row in catalog
-    )
 
 
-def test_session_leaching_binds_only_when_contaminants_supplied():
-    record = new_session()
-    record["contaminant_mode"] = {"mode": "leaching"}
-    with bind_tool_session(record):
-        payload = _plan_contaminant_planner_embed(["LDPE", "PP"], contaminants=_DEHP)
-    assert payload["success"] is True
-    assert payload["contaminant_mode"] == "leaching"
-    assert payload.get("contaminant_mode_origin") == "session"
-    assert any(item.get("step_kind") == "wash" for item in payload["steps"])
-
-
-def test_wash_temperature_conflict_refuses_without_reordering():
-    adjacent = [
-        {
-            "step_kind": "wash",
-            "solvent": "toluene",
-            "temperature_c": 25.0,
-        },
-        {
-            "step_kind": "dissolution",
-            "dissolved_polymer": "LDPE",
-            "solvent": "toluene",
-            "temperature_c": 105.0,
-        },
-    ]
-    assert separation._wash_temperature_conflict(adjacent, 5.0) is True
-    assert separation._wash_temperature_conflict(
-        [
-            {**adjacent[0], "solvent": "acetone"},
-            adjacent[1],
-        ],
-        5.0,
-    ) is False
+def test_a_clashing_wash_is_excluded_and_never_refuses_the_plan(monkeypatch):
+    """A wash next to a dissolution in the same solvent must run within temperature_step_c of it. A clash used to
+    refuse the whole plan; now the pair is excluded, and with nothing else the plan stands with no removal."""
+    dissolution = {"step_kind": "dissolution", "dissolved_polymer": "LDPE", "solvent": "toluene", "temperature_c": 105.0}
+    assert contaminant_removal._clashes([dissolution], 0, "toluene", 25.0, 5.0) is True
+    assert contaminant_removal._clashes([dissolution], 0, "acetone", 25.0, 5.0) is False
+    assert contaminant_removal._clashes([dissolution], 1, "toluene", 105.0, 5.0) is False
 
     def fake_evaluate(*_args, **_kwargs):
-        return {
-            "success": True,
-            "recommended_solvents": ["toluene"],
-            "candidate_solvents": [{
-                "solvent": "toluene",
-                "passes": True,
-                "operating_temperature_c": 25.0,
-                "contaminant_logd_min": 0.81,
-            }],
-            "threshold_citation_status": "paper_sourced",
-        }
+        return {"success": True, "candidate_solvents": [{
+            "solvent": "toluene", "passes": True, "verdict": "pass", "operating_temperature_c": 25.0,
+            "boiling_margin_c": 85.6, "contaminant_logd_min": 0.81, "chem21_band": "problematic",
+            "chem21_max_subscore": 6, "safety_eligible": True,
+        }]}
 
-    original = contaminants.evaluate_contaminant_at_feed_state
-    contaminants.evaluate_contaminant_at_feed_state = fake_evaluate
-    try:
-        result = separation._embed_leaching_route(
-            {
-                "complete": True,
-                "final_residue": "PP",
-                "unresolved_polymers": [],
-                "steps": [{
-                    "step_kind": "dissolution",
-                    "dissolved_polymer": "LDPE",
-                    "solvent": "toluene",
-                    "temperature_c": 105.0,
-                    "selectivity_pct": 80.0,
-                    "target_solubility_pct": 20.0,
-                    "off_target_solubilities_pct": {"PP": 0.5},
-                }],
-            },
-            names=["LDPE", "PP"],
-            supported=[_DEHP],
-            solvents=["toluene"],
-            temperature_max_c=None,
-            strict_maximum=False,
-            step_c=5.0,
-        )
-    finally:
-        contaminants.evaluate_contaminant_at_feed_state = original
-    assert isinstance(result, str)
-    payload = _data(result)
-    assert payload["success"] is False
-    assert payload["error_code"] == "incompatible_wash_temperature"
+    monkeypatch.setattr(contaminants, "evaluate_contaminant_at_feed_state", fake_evaluate)
+    route = {"complete": True, "final_residue": "PP", "unresolved_polymers": [], "steps": [dict(dissolution)]}
+    steps, summary = contaminant_removal.assess(
+        route, feed=["LDPE", "PP"], supported=[_DEHP], request={"supported": [_DEHP]}, requested_route="auto",
+        maximum=None, strict_maximum=False, step_c=5.0,
+    )
+    assert summary["wash"]["excluded"]["adjacent_temperature_clash"] >= 1
+    assert summary["wash"]["chosen"] is None and summary["wash"]["eligible_pairs"] == 0
+    (stage,) = summary["strap"]["stages"]
+    assert summary["applied_route"] == ("strap" if stage["verdict"] == "pass" else "none")
+    assert all(item.get("step_kind") != "wash" for item in steps)
 
 
 # --- from test_contaminant_refusals.py: v1 hold-to 3 / v3 §6: distinct absence codes, including unspecified STRAP.
@@ -2095,10 +1796,10 @@ def test_leftover_cl1_banana_still_invalid_and_accept_test_2_unchanged():
 
     dehp = "di-(2-ethylhexyl) phthalate (DEHP)"
     junk = parse_tool_result(separation.plan_multistage_separation(
-        ["LDPE", "PP"], top_k_routes=1, breadth=1, contaminant_mode="banana",
+        ["LDPE", "PP"], top_k_routes=1, breadth=1, contaminant_route="banana",
     ))["data"]
     assert junk["success"] is False
-    assert junk["error_code"] == "invalid_contaminant_mode"
+    assert junk["error_code"] == "invalid_contaminant_route"
 
     fail = contaminants.evaluate_contaminant_at_feed_state(
         "strap", "LDPE", ["PET", "EVOH"], [dehp], solvents=["toluene"],
@@ -4964,7 +4665,8 @@ def test_plastchem_contaminants_are_found_by_common_abbreviation(tmp_path, monke
     contaminants._LOCAL.__dict__.pop("plastchem", None)
     out = _data(contaminants.screen_contaminant_partitioning("LDPE", "dodecane", ["DEHP", "dehp", "BPA"]))
     assert [row["contaminant"] for row in out["rows"]] == ["Alphaester"]  # DEHP twice is still one contaminant
-    assert out["unsupported_contaminants"] == ["BPA"] and "carbon, hydrogen, nitrogen and oxygen" in out["coverage"]
+    assert out["unsupported_contaminants"] == ["BPA"] and "built from C, H, N and O," in out["coverage"]
+    assert info["elements"] == "C,H,N,O" and "containing fluorine, chlorine" in out["coverage"]  # read from the asset
 
 
 def _reseal(rel):
@@ -5034,27 +4736,48 @@ def _plastchem_family_rows(family: str) -> dict[str, str]:
                             [members]).fetchall())
 
 
+def _family_counts(name):
+    """(computed members, members not computed, entries outside the release) of one PlastChem family: what a family
+    screen must report, from the family table and the asset rather than numbers that move with each release."""
+    family = next(f for f in contaminants._family_table() if f["name"] == name)
+    computed = {key for (key,) in contaminants._plastchem().execute(
+        "SELECT inchikey FROM contaminants WHERE computed AND inchikey IN (SELECT unnest(?))", [family["members"]]).fetchall()}
+    return len(computed), len(set(family["members"]) - computed), len(family["outside_release"])
+
+
 def test_a_family_name_screens_every_computed_member():
     """Nobody knows the names of 5,830 contaminants (owner, 2026-09-24): "bisphenols" was unsupported, so a user had
     to name each one. A family name now screens every member the release computed, and says what it lacks."""
     out = _data(contaminants.screen_contaminant_partitioning("PC", "ethanol", ["bisphenols"]))
-    assert out["unsupported_contaminants"] == [] and out["evaluated"] == 24
+    screened, not_computed, outside = _family_counts("Bisphenols")
+    assert out["unsupported_contaminants"] == [] and out["evaluated"] == screened > 24  # 24 before the halogen tier
     assert {row["family"] for row in out["rows"]} == {"Bisphenols"}
-    assert "Bisphenol A" in {row["contaminant"] for row in out["rows"]}
+    # tetrabromo- and tetrachlorobisphenol A were outside the CHNO release; the halogen tier (A-11) computed them.
+    # Bisphenol AF converged in ORCA but its LLE was unfinished at the A-11 frozen snapshot (a pending member until
+    # promotion-v3); the coverage campaign's harvest finished it (A-13, promotion-v4), so it is screened now.
+    assert {"Bisphenol A", "Tetrabromobisphenol A", "Tetrachlorobisphenol A", "Bisphenol AF"} <= {
+        row["contaminant"] for row in out["rows"]}
+    assert not [item for item in out["not_computed_contaminants"] if item["contaminant"] == "Bisphenol AF"]
     (family,) = out["family_coverage"]
     assert (family["family"], family["screened"], family["not_computed"], family["outside_release"]) == (
-        "Bisphenols", 24, 1, 9)
-    assert family["outside_release_by_reason"]["contains sulfur"] == 2  # bisphenol S among them
-    assert "Bisphenol AF (contains fluorine)" in family["outside_release_examples"]
+        "Bisphenols", screened, not_computed, outside)
+    # bisphenol S, a thiobis-cresol and the dibromo sulfonyl bisphenol were "contains sulfur" until the coverage
+    # campaign held sulfur (promotion-v4). The campaign computed the first two by promotion-v8, and they are screened;
+    # what is still outside is "not computed yet", on its work list (a count that falls as the campaign computes it);
+    # bromine is no reason either
+    assert {"4,4'-Sulfonyldiphenol", "4,4'-Thiobis(6-tert-butyl-m-cresol)"} <= {row["contaminant"] for row in out["rows"]}
+    assert set(family["outside_release_by_reason"]) <= {"not computed yet"}
+    assert sum(family["outside_release_by_reason"].values()) == outside
+    assert not any("fluorine" in example or "bromine" in example for example in family["outside_release_examples"])
     # the ways a question names a family are one family; a compound is still a compound
     same = [_data(contaminants.screen_contaminant_partitioning("PC", "ethanol", [name]))["evaluated"]
             for name in ("Phthalates", "the phthalate family", "ortho-phthalates", "all phthalates")]
-    assert same == [40, 40, 40, 40]
+    assert same == [_family_counts("Phthalates")[0]] * 4
     one = _data(contaminants.screen_contaminant_partitioning("PC", "ethanol", ["benzophenone"]))
     assert [row["contaminant"] for row in one["rows"]] == ["Benzophenone"] and "family_coverage" not in one
     # a family and a member named with it are screened once
     both = _data(contaminants.screen_contaminant_partitioning("PP", "ethanol", ["antioxidants", "BHT", "slip agents"]))
-    assert both["evaluated"] == 120 + 8
+    assert both["evaluated"] == _family_counts("Antioxidants")[0] + _family_counts("Slip agents")[0]
     assert [f["family"] for f in both["family_coverage"]] == ["Antioxidants", "Slip agents"]
     assert "family (phthalates, terephthalates, bisphenols" in both["coverage"]
 
@@ -5100,13 +4823,45 @@ def test_contaminant_families_for_pickers():
     """The web app's family picker lists what each family screens: the PlastChem families with their computed
     members, then PFAS, which only the workbook screens serve."""
     families = contaminants.contaminant_families()
+    names = ["Phthalates", "Terephthalates", "Bisphenols", "Alkylphenols", "Antioxidants", "UV stabilizers",
+             "Benzophenones", "Aromatic amines", "Slip agents", "Salicylates", "Parabens",
+             "Organophosphates", "Siloxanes and silanes",  # the coverage campaign's families (A-13, promotion-v4)
+             "Azo dyes",  # A-13 charter item 8c, promotion-v5
+             "Benzothiazoles"]  # A-13 charter item 8c, promotion-v6
     assert [(f["name"], f["count"], f["source"]) for f in families] == [
-        ("Phthalates", 40, "plastchem"), ("Terephthalates", 16, "plastchem"), ("Bisphenols", 24, "plastchem"),
-        ("Alkylphenols", 37, "plastchem"), ("Antioxidants", 120, "plastchem"), ("UV stabilizers", 74, "plastchem"),
-        ("Benzophenones", 21, "plastchem"), ("Aromatic amines", 17, "plastchem"), ("Slip agents", 8, "plastchem"),
-        ("Salicylates", 11, "plastchem"), ("Parabens", 7, "plastchem"), ("PFAS", 26, "workbook")]
+        *[(name, _family_counts(name)[0], "plastchem") for name in names], ("PFAS", 26, "workbook")]
+    assert all(f["count"] == len(f["members"]) > 0 for f in families)
     phthalates = families[0]
     assert "Bis(2-ethylhexyl) phthalate" in phthalates["members"] and phthalates["examples"] == ["DEHP", "DBP", "BBP"]
+
+
+def test_the_azo_dye_family_holds_azo_compounds_not_their_benzidine_precursors():
+    """PlastChem's azodyes group also holds 3,3'-dimethoxy- and 3,3'-dimethylbenzidine, the dyes' precursors, which
+    carry no azo linkage. The Azo dyes family (A-13 charter item 8c, promotion-v5) takes the group's azo compounds
+    only, and its basis says so in words ("with a azo core" before azo had its own phrase)."""
+    table = {f["name"]: f for f in contaminants._family_table()}
+    assert table["Azo dyes"]["basis"] == "PlastChem group azodyes; with an azo linkage (C-N=N-C)"
+    assert table["Benzophenones"]["basis"].endswith("with a benzophenone core")  # other structures read as before
+    names = {name for (name,) in contaminants._plastchem().execute(
+        "SELECT name FROM contaminants WHERE inchikey IN (SELECT unnest(?))", [table["Azo dyes"]["members"]]).fetchall()}
+    assert {"Sudan I", "Para Red", "Azobenzene"} <= names
+    assert not {"3,3'-Dimethoxybenzidine", "3,3'-Dimethylbenzidine"} & names
+    out = _data(contaminants.screen_contaminant_partitioning("PP", "ethanol", ["azo dyes"]))
+    assert out["evaluated"] == _family_counts("Azo dyes")[0] >= 27 and out["unsupported_contaminants"] == []
+
+
+def test_the_benzothiazole_family_holds_the_ring_not_its_benzisothiazole_isomer():
+    """PlastChem's benzothiazole group also holds 1,2-benzisothiazole, whose ring joins N and S directly. The
+    Benzothiazoles family (A-13 charter item 8c, promotion-v6) takes the group's compounds with the benzothiazole ring
+    itself, the 2(3H)-thione tautomers included (2-mercaptobenzothiazole)."""
+    table = {f["name"]: f for f in contaminants._family_table()}
+    assert table["Benzothiazoles"]["basis"] == "PlastChem group benzothiazole; with a benzothiazole core"
+    names = {name for (name,) in contaminants._plastchem().execute(
+        "SELECT name FROM contaminants WHERE inchikey IN (SELECT unnest(?))", [table["Benzothiazoles"]["members"]]).fetchall()}
+    assert {"Benzothiazole", "2-Mercaptobenzothiazole", "2(3H)-Benzothiazolethione, 3-methyl-"} <= names
+    assert "1,2-Benzisothiazole" not in names
+    out = _data(contaminants.screen_contaminant_partitioning("PP", "ethanol", ["benzothiazoles"]))
+    assert out["evaluated"] == _family_counts("Benzothiazoles")[0] >= 9 and out["unsupported_contaminants"] == []
 
 
 def test_family_builder_refuses_ambiguous_names_and_says_why_members_are_missing(tmp_path, monkeypatch):
@@ -5145,6 +4900,257 @@ def test_family_builder_refuses_ambiguous_names_and_says_why_members_are_missing
         plastchem_release.build_families(workbook, out, asset=asset, specs=[{**spec, "examples": ("Betaamide",)}])
 
 
+def test_family_builder_takes_a_matching_structure_outside_the_plastchem_group(tmp_path):
+    """PlastChem's orthophthalates group leaves out ortho-phthalate diesters such as bis(2-ethylbutyl) phthalate, so the
+    phthalate family missed 48 computed ones (2026-10-07). A family now also takes, outside its group, an entry whose
+    structure matches: Deltaone, a phthalate diester outside the group, joins; a tetrachlorophthalate and a trimellitate
+    stay out; a matching entry the release lacks is listed with its reason."""
+    openpyxl = pytest.importorskip("openpyxl")
+    asset = tmp_path / "asset.duckdb"
+    plastchem_release.promote_opencosmo_release(_plastchem_release(tmp_path), asset)
+    columns = ["plastchem_ID", "cas", "pubchem_name", "isomeric_smiles", "canonical_smiles", "inchikey",
+               "molecular_weight", "inorganic_compounds", "organometallics", "UVCBs", "polymers", "mixtures",
+               "orthophthalates"]
+    entries = [  # the release computes AAAA-A and DDDD-D
+        (1, "", "Alphaester", "CCCCOC(=O)c1ccccc1C(=O)O", None, "AAAA-A", 222, None, None, None, None, None, 1),
+        (4, "", "Deltaone", "CCC(CC)COC(=O)c1ccccc1C(=O)OCC(CC)CC", None, "DDDD-D", 334, None, None, None, None, None,
+         None),
+        (6, "", "Heptyl undecyl phthalate", "CCCCCCCCCCCOC(=O)c1ccccc1C(=O)OCCCCCCC", None, "PPPP-P", 418, None, None,
+         None, None, None, None),
+        (7, "", "Dipropyl tetrachlorophthalate", "CCCOC(=O)c1c(Cl)c(Cl)c(Cl)c(Cl)c1C(=O)OCCC", None, "TTTT-T", 388,
+         None, None, None, None, None, None),
+        (8, "", "Trimellitate diester", "CCCCC(CC)COC(=O)c1ccc(C(=O)O)cc1C(=O)OCC(CC)CCCC", None, "MMMM-M", 434, None,
+         None, None, None, None, None),
+    ]
+    book = openpyxl.Workbook()
+    sheet = book.active
+    sheet.title = "Full database"
+    sheet.append(["Identifiers"] + [None] * (len(columns) - 1))
+    sheet.append(columns)
+    for entry in entries:
+        sheet.append(list(entry))
+    workbook = tmp_path / "plastchem.xlsx"
+    book.save(workbook)
+    spec = {"name": "Phthalates", "term": "phthalates", "group": "orthophthalates",
+            "or_any": ("ortho_phthalate_diester",), "aliases": ("phthalate",), "description": "phthalates",
+            "examples": ("Deltaone",)}
+    out = tmp_path / "families.json"
+    assert plastchem_release.build_families(workbook, out, asset=asset, specs=[spec]) == {"Phthalates": 2}
+    (family,) = json.loads(out.read_text())["families"]
+    assert [(item["name"], item["reason"]) for item in family["outside_release"]] == [
+        ("Heptyl undecyl phthalate", "not computed yet")]  # in the coverage campaign's work list (A-13)
+    assert family["basis"] == "PlastChem group orthophthalates, or outside it the structure ortho phthalate diester"
+
+
+def _reseal(rel, rows=None, files=None):
+    """Rewrite a test release's contaminant rows ({inchikey: {column: value}}) and extra files, then its manifest."""
+    import csv, gzip, hashlib
+    with gzip.open(rel / "contaminants.csv.gz", "rt", newline="") as handle:
+        reader = csv.DictReader(handle)
+        header, cohort = reader.fieldnames, list(reader)
+    for row in cohort:
+        row.update((rows or {}).get(row["input_inchikey"], {}))
+    with gzip.open(rel / "contaminants.csv.gz", "wt", newline="") as handle:
+        writer = csv.DictWriter(handle, fieldnames=header)
+        writer.writeheader()
+        writer.writerows(cohort)
+    for name, text in (files or {}).items():
+        (rel / name).write_text(text)
+    manifest = json.loads((rel / "manifest.json").read_text())
+    manifest["files"] = {path.name: {"sha256": hashlib.sha256(path.read_bytes()).hexdigest()}
+                         for path in rel.iterdir() if path.name != "manifest.json"}
+    (rel / "manifest.json").write_text(json.dumps(manifest))
+    return rel
+
+
+_PARENT_ALIASES = "plastchem_id,alias,kind,form,input_inchikey,offered,note\n"
+
+
+def test_a_joined_cas_field_answers_to_each_number_and_tbbpa_finds_it(tmp_path, monkeypatch):
+    """PlastChem joins several CAS numbers with ";" on 40 rows of the release (Tetrabromobisphenol A is
+    "25639-54-7;79-94-7"), and only the joined string was an alias: 79-94-7 and 66 other single numbers found nothing
+    (2026-10-08). Each number answers now, and an abbreviation maps by each number ("TBBPA", 79-94-7). An abbreviation
+    whose number two contaminants hold is refused rather than given to either."""
+    import gzip
+    asset = tmp_path / "asset.duckdb"
+    monkeypatch.setenv("DISSOLVE_PLASTCHEM_ASSET", str(asset))
+    rel = _plastchem_release(tmp_path)
+    text = gzip.decompress((rel / "contaminants.csv.gz").read_bytes()).decode()
+    (rel / "contaminants.csv.gz").write_bytes(gzip.compress(text.replace(",111-11-1,", ",25639-54-7;79-94-7,").encode()))
+    _reseal(rel)
+    info = plastchem_release.promote_opencosmo_release(rel, asset)
+    assert info["abbreviations"] == "1"  # TBBPA: the other abbreviations' numbers are not in this release
+    contaminants._LOCAL.__dict__.pop("plastchem", None)
+    out = _data(contaminants.lookup_plastchem_contaminants(["79-94-7", "25639-54-7", "25639-54-7;79-94-7", "TBBPA"]))
+    assert [row["contaminant"] for row in out["rows"]] == ["Alphaester"] and out["unsupported_contaminants"] == []
+    shared = tmp_path / "shared"
+    shared.mkdir()
+    rel = _plastchem_release(shared)
+    text = gzip.decompress((rel / "contaminants.csv.gz").read_bytes()).decode()
+    text = text.replace(",111-11-1,", ",25639-54-7;79-94-7,").replace(",Betaamide,N,,", ",Betaamide,N,79-94-7,")
+    (rel / "contaminants.csv.gz").write_bytes(gzip.compress(text.encode()))
+    _reseal(rel)
+    with pytest.raises(ValueError, match="names more than one contaminant: 79-94-7"):
+        plastchem_release.promote_opencosmo_release(rel, shared / "asset.duckdb")
+
+
+def test_a_salt_is_served_through_its_parent_by_name_cas_and_plastchem_id(tmp_path):
+    """A-13: a PlastChem salt, ion or hydrate whose neutral parent the campaign computed (potassium laurate and lauric
+    acid) is served through the parent's row. The release lists the entry in the parent's plastchem_id and carries its
+    name and CAS in parent-aliases.csv; each ID answers on its own, so "plastchem 4" still finds Deltaone once the row
+    also lists 44 (before, the joined "plastchem 4;44" was the only alias). The publication-label refusals hold."""
+    rel = _reseal(_plastchem_release(tmp_path), rows={"DDDD-D": {"plastchem_id": "4;44;45"}}, files={
+        "parent-aliases.csv": _PARENT_ALIASES + "44,Sodium deltaonate,name,salt,DDDD-D,yes,\n"
+                                                "44,444-44-4,cas,salt,DDDD-D,yes,\n"
+                                                "44,Betaamide,name,salt,DDDD-D,no,also names BBBB-B; not offered\n"
+                                                "45,Phthalate,name,ion,DDDD-D,yes,\n"})
+    asset = tmp_path / "asset.duckdb"
+    info = plastchem_release.promote_opencosmo_release(rel, asset)
+    # "Phthalate" (PlastChem's phthalate ion, served through its acid) is a family's name: withheld, so "phthalate"
+    # keeps meaning the Phthalates family (the family builder refuses an alias that names a contaminant)
+    assert info["parent_aliases"] == "2" and info["aliases_withheld_as_family_names"] == "Phthalate"
+    con = duckdb.connect(str(asset), read_only=True)
+    named = {alias: cid for alias, cid in con.execute("SELECT alias, id FROM aliases").fetchall()}
+    delta = con.execute("SELECT id FROM contaminants WHERE inchikey = 'DDDD-D'").fetchone()[0]
+    beta = con.execute("SELECT id FROM contaminants WHERE inchikey = 'BBBB-B'").fetchone()[0]
+    assert [named.get(alias) for alias in ("sodium deltaonate", "444-44-4", "plastchem 4", "plastchem 44")] == [delta] * 4
+    assert "plastchem 4;44;45" not in named and named["betaamide"] == beta  # the not-offered alias changed nothing
+    assert "phthalate" not in named and named["plastchem 45"] == delta
+    con.close()
+    for index, (text, message) in enumerate((("44,Betaamide,name,salt,DDDD-D,yes,\n", "would also name another contaminant"),
+                                             ("44,Sodium zetaate,name,salt,ZZZZ-Z,yes,\n", "which the release lacks"))):
+        root = tmp_path / f"refused{index}"
+        root.mkdir()
+        bad = _reseal(_plastchem_release(root), files={"parent-aliases.csv": _PARENT_ALIASES + text})
+        with pytest.raises(ValueError, match=message):
+            plastchem_release.promote_opencosmo_release(bad, root / "asset.duckdb")
+
+
+def test_a_salt_joins_its_parents_family_through_the_release(tmp_path):
+    """A-13 8b: the family builder took only an entry's own InChIKey and matched patterns only on single-fragment SMILES,
+    so a salt served through its parent joined no family. An entry now joins through the row whose plastchem_id lists
+    it, and the patterns are matched on that served structure: the sodium phenolate of a hindered phenol is an
+    antioxidant through its parent. Counterfactual: when the row does not list the salt, the salt joins nothing (its own
+    SMILES has two fragments, so no pattern can be matched on it) and the family's example no longer resolves."""
+    openpyxl = pytest.importorskip("openpyxl")
+    columns = ["plastchem_ID", "cas", "pubchem_name", "isomeric_smiles", "canonical_smiles", "inchikey",
+               "molecular_weight", "inorganic_compounds", "organometallics", "UVCBs", "polymers", "mixtures"]
+    book = openpyxl.Workbook()
+    sheet = book.active
+    sheet.title = "Full database"
+    sheet.append(["Identifiers"] + [None] * (len(columns) - 1))
+    sheet.append(columns)
+    sheet.append([44, "444-44-4", "Sodium deltaphenolate", "[Na+].CC1=CC(C(C)(C)C)=C([O-])C(C(C)(C)C)=C1", None,
+                  "SALT-S", 242, None, None, None, None, None])
+    workbook = tmp_path / "plastchem.xlsx"
+    book.save(workbook)
+    spec = {"name": "Antioxidants", "term": "antioxidants", "any": ("hindered_phenol",), "aliases": ("antioxidant",),
+            "description": "antioxidants", "examples": ("Deltaone",)}
+    bht = "CC1=CC(=C(C(=C1)C(C)(C)C)O)C(C)(C)C"
+    for listed, expected in (("4;44", {"Antioxidants": 1}), ("4", None)):
+        root = tmp_path / listed.replace(";", "_")
+        root.mkdir()
+        rel = _reseal(_plastchem_release(root), rows={"DDDD-D": {"plastchem_id": listed, "smiles": bht}})
+        asset = root / "asset.duckdb"
+        plastchem_release.promote_opencosmo_release(rel, asset)
+        out = root / "families.json"
+        if expected:
+            assert plastchem_release.build_families(workbook, out, asset=asset, specs=[spec]) == expected
+            (family,) = json.loads(out.read_text())["families"]
+            assert family["members"] == ["DDDD-D"] and family["outside_release"] == []
+        else:
+            with pytest.raises(ValueError, match="does not resolve to a family member"):
+                plastchem_release.build_families(workbook, out, asset=asset, specs=[spec])
+            assert plastchem_release.build_families(workbook, out, asset=asset, specs=[{**spec, "examples": ()}]) == {
+                "Antioxidants": 0}
+            (family,) = json.loads(out.read_text())["families"]
+            assert family["members"] == [] and family["outside_release"] == []
+
+
+def test_a_counter_ions_group_does_not_carry_its_family_to_the_parent(tmp_path):
+    """PlastChem flags melamine phosphate an organophosphate for its counter-ion. Served through its parent (A-13 8b),
+    the salt would have put melamine, urea and bisphenol A in the Organophosphates family; an element family requires
+    the served structure to hold its element. Counterfactual: without the requirement the parent joins."""
+    openpyxl = pytest.importorskip("openpyxl")
+    columns = ["plastchem_ID", "cas", "pubchem_name", "isomeric_smiles", "canonical_smiles", "inchikey",
+               "molecular_weight", "inorganic_compounds", "organometallics", "UVCBs", "polymers", "mixtures",
+               "organophosphates"]
+    book = openpyxl.Workbook()
+    sheet = book.active
+    sheet.title = "Full database"
+    sheet.append(["Identifiers"] + [None] * (len(columns) - 1))
+    sheet.append(columns)
+    sheet.append([44, "", "Melamine phosphate", "NC1=NC(N)=NC(N)=N1.OP(O)(O)=O", None, "SALT-S", 224, None, None, None,
+                  None, None, 1])
+    sheet.append([46, "", "Trimethyl phosphate", "COP(=O)(OC)OC", None, "PPPP-P", 140, None, None, None, None, None, 1])
+    workbook = tmp_path / "plastchem.xlsx"
+    book.save(workbook)
+    rel = _reseal(_plastchem_release(tmp_path), rows={"DDDD-D": {"plastchem_id": "4;44", "smiles": "NC1=NC(N)=NC(N)=N1"},
+                                                      "AAAA-A": {"plastchem_id": "1;46", "smiles": "COP(=O)(OC)OC"}})
+    asset = tmp_path / "asset.duckdb"
+    plastchem_release.promote_opencosmo_release(rel, asset)
+    spec = {"name": "Organophosphates", "term": "organophosphates", "group": "organophosphates", "elements": ("P",),
+            "aliases": ("organophosphate",), "description": "organophosphates", "examples": ("Alphaester",)}
+    out = tmp_path / "families.json"
+    assert plastchem_release.build_families(workbook, out, asset=asset, specs=[spec]) == {"Organophosphates": 1}
+    (family,) = json.loads(out.read_text())["families"]
+    assert family["members"] == ["AAAA-A"] and family["basis"] == "PlastChem group organophosphates; containing phosphorus"
+    without = {key: value for key, value in spec.items() if key != "elements"}
+    assert plastchem_release.build_families(workbook, out, asset=asset, specs=[without]) == {"Organophosphates": 2}
+
+
+def test_a_familys_missing_entries_say_why_by_the_coverage_campaigns_rules():
+    """A-13 computes every simulable PlastChem structure, lightest first, so "not in the campaign's input list" stopped
+    being true: a neutral closed-shell molecule of held elements is "not computed yet". A radical, an isotope-labelled
+    entry, a large flexible molecule and an element without openCOSMO-RS parameters are never computed, and say so."""
+    from rdkit import Chem
+
+    base = {"inorganic_compounds": False, "organometallics": False, "UVCBs": False, "polymers": False, "mixtures": False}
+    held = frozenset({"C", "H", "N", "O", "S", "P", "Si"})
+    cases = {
+        "CC1(C)CC(O)CC(C)(C)N1[O]": "a radical (open-shell)",  # Tempol, a nitroxide
+        "C" * 60: "larger than 700 g/mol and too flexible for one conformer",  # hexacontane, 843 g/mol, 57 rotors
+        "c1ccc2c(c1)c1ccccc1c1ccccc1c1ccccc1c1ccccc1c1ccccc1c1ccccc1c1ccccc21": "not computed yet",  # rigid, 913 g/mol
+        "[2H]C([2H])([2H])O": "isotope-labelled (excluded by owner decision)",
+        "OB(O)c1ccccc1": "contains boron",
+        "CCOP(=O)(OCC)OCC": "not computed yet",  # phosphorus is held since the coverage campaign
+    }
+    for smiles, reason in cases.items():
+        assert plastchem_release._outside_reason(dict(base, smiles=smiles), Chem.MolFromSmiles(smiles), held) == reason, smiles
+    # counterfactual: before phosphorus was held, the phosphate's reason was its element
+    assert plastchem_release._outside_reason(dict(base, smiles="CCOP(=O)(OCC)OCC"), Chem.MolFromSmiles("CCOP(=O)(OCC)OCC"),
+                                             frozenset("CHNO")) == "contains phosphorus"
+
+
+def test_the_coverage_sentence_names_what_the_release_leaves_out_and_how_salts_are_found():
+    """promotion-v4 holds S, P and Si, which left boron alone outside the release, and every screen's coverage read
+    "Additives containing  or boron are outside it" (2026-10-08): the list was joined for two or more elements. One
+    element now reads alone and none drops the clause; a release that lists salts with their neutral parent says so,
+    and the served one finds sodium benzoate as benzoic acid."""
+    v4 = contaminants._plastchem_coverage({"elements": "C,H,N,O,F,Cl,Br,I,S,P,Si", "parent_aliases": "448"})
+    assert "Additives containing boron are outside it." in v4 and "containing  or" not in v4
+    assert "(sodium benzoate, say) is found as that neutral parent" in v4
+    v2 = contaminants._plastchem_coverage({"elements": "C,H,N,O,F,Cl,Br,I"})
+    assert "containing sulfur, phosphorus, silicon or boron are outside it." in v2 and "sodium benzoate" not in v2
+    every = contaminants._plastchem_coverage({"elements": "C,H,N,O,F,Cl,Br,I,S,P,Si,B"})
+    assert "outside" not in every and every.endswith(". The workbook screens cover 26 PFAS.")
+    out = _data(contaminants.screen_contaminant_partitioning("PP", "ethanol", ["sodium benzoate"]))
+    assert [row["contaminant"] for row in out["rows"]] == ["Benzoic Acid"] and out["unsupported_contaminants"] == []
+    assert "neutral parent" in out["coverage"] and "containing  or" not in out["coverage"]
+
+
+def test_the_phthalate_family_holds_the_releases_ortho_phthalate_diesters():
+    """The family the agent screens for "phthalates" takes the diesters PlastChem's group leaves out, and still not a
+    ring-halogenated phthalate, a trimellitate or a fused-ring diester."""
+    found = _data(contaminants.lookup_plastchem_contaminants("phthalates"))
+    names = {row["contaminant"] for row in found["rows"]}
+    assert {"Bis(2-ethylbutyl) phthalate", "Butyl cyclohexyl phthalate", "Bis(2-ethylhexyl) phthalate",
+            "Phthalic acid"} <= names
+    assert not names & {"Diallyl tetrabromophthalate", "1,2,4-Benzenetricarboxylic Acid 1,2-Bis(2-ethylhexyl) Ester",
+                        "Diisobutyl Perylenedicarboxylate"}
+    assert found["computed"] == _family_counts("Phthalates")[0] > 42  # PlastChem's group alone gave 42
+
+
 def test_screened_rows_and_lookups_carry_each_contaminants_smiles():
     """"What's the SMILES of each of these?" after a slip-agent screen came back "the system output does not include
     SMILES" (owner, 2026-09-25), though the release records one for every contaminant. Screen rows carry it now, and a
@@ -5158,10 +5164,11 @@ def test_screened_rows_and_lookups_carry_each_contaminants_smiles():
     assert bht["cas"] == "128-37-0" and bht["molecular_weight_g_mol"] == 220.35
     assert [f["family"] for f in found["family_coverage"]] == ["Slip agents"]
     assert all(row["smiles"] for row in found["rows"])
-    pending = _data(contaminants.lookup_plastchem_contaminants("terephthalates"))
-    assert (pending["found"], pending["computed"]) == (21, 16)  # trimellitates still in the held tier 2
-    tri = next(row for row in pending["rows"] if row["contaminant"] == "Tris(2-ethylhexyl) trimellitate")
-    assert tri["computed"] is False and tri["campaign_status"] == "not_yet_run" and tri["smiles"]
+    terephthalates = _data(contaminants.lookup_plastchem_contaminants("terephthalates"))
+    # the trimellitates waited in tier 2 (500-700 g/mol) until A-11 computed every tier-2 structure that converged
+    assert (terephthalates["found"], terephthalates["computed"]) == (21, 21)
+    tri = next(row for row in terephthalates["rows"] if row["contaminant"] == "Tris(2-ethylhexyl) trimellitate")
+    assert tri["computed"] is True and tri["campaign_status"] == "converged" and tri["smiles"]
     empty = _data(contaminants.lookup_plastchem_contaminants([]))
     assert empty["error_code"] == "no_contaminants_named"
     from dissolve import agent
@@ -5196,26 +5203,54 @@ def test_a_contaminant_in_one_solvent_needs_no_polymer():
     assert agent.source_basis_for("lookup_plastchem_contaminants", {}, {"solvent": "o-xylene"}) == "opencosmo_24a"
 
 
-def test_a_hot_wash_runs_at_a_grid_node_below_the_boiling_point():
-    """Ethanol's cap is 77.2 °C (1 °C below boiling), which is not a grid node: the LDPE lookup found nothing and the
-    wash failed as an unsupported pair although miscibility and logD passed (review finding A06-R1, live-checked).
-    The wash now runs at the highest node at or below the cap and says so."""
+def test_a_hot_wash_runs_at_a_grid_node_10_c_below_the_boiling_point():
+    """Ethanol boils at 78.2 °C. A wash first failed at the 1 °C cap (not a grid node: review finding A06-R1), then ran at
+    75 °C, 3 °C from boiling. It now runs at the hottest stored node at least 10 °C below boiling (owner D1)."""
     from dissolve import contaminants as screens
     from dissolve.contracts import parse_tool_result as parse
     data = parse(screens.screen_contaminant_leaching(
         target_polymer="LDPE", contaminants=["PFOA"], solvents=["ethanol"]))["data"]
     row = next(row for row in data["candidate_solvents"] if row["solvent"] == "ethanol")
-    assert row["operating_temperature_c"] == 75.0 and "77.2" in row["operating_temperature_basis"]
+    assert (row["operating_temperature_c"], row["boiling_margin_c"]) == (65.0, 13.2)
+    assert "10 °C below the boiling point" in row["operating_temperature_basis"]
     assert row["target_polymer_status"] != "unsupported_pair"
-    assert row["passes"] is True
+    assert row["passes"] is True and row["verdict"] == "pass"
 
 
-def test_a_wash_that_clashes_with_its_neighbour_gives_way_to_the_next_passing_solvent():
-    """Once a hot wash ran on a grid node, triethylamine passed at 85 °C and sat next to a 25 °C triethylamine
-    dissolution, so the whole plan was refused as an incompatible wash temperature. The next passing solvent that
-    does not clash is used, and the skipped one is named."""
-    payload = _plan_contaminant_planner_embed(_TRIPLE, contaminants="PFAS", contaminant_mode="leaching")
-    assert payload["success"] is True
-    wash = next(step for step in payload["steps"] if step.get("step_kind") == "wash")
-    assert wash["skipped_for_adjacent_temperature_clash"] == ["triethylamine"]
-    assert wash["solvent"] == wash["recommended_solvents"][1]
+def test_a_wash_that_clashes_with_its_neighbour_gives_way_to_the_next_compatible_pair():
+    """Triethylamine passes as a wash beside a 25 °C triethylamine dissolution at another temperature: that pair is
+    excluded and the next compatible pair in the one safety-first order is used, at any position."""
+    payload = _plan_contaminant_planner_embed(_TRIPLE, contaminants="PFAS", contaminant_route="wash")
+    removal = payload["contaminant_removal"]
+    assert removal["wash"]["excluded"]["adjacent_temperature_clash"] == 1
+    assert removal["wash"]["chosen"]["solvent"] != "triethylamine"
+    (wash,) = [item for item in payload["steps"] if item.get("step_kind") == "wash"]
+    assert wash["solvent"] == removal["wash"]["chosen"]["solvent"]
+
+
+def test_one_call_ranks_every_panel_solvent_for_named_contaminants():
+    """"Which solvents can be used to separate bisphenol A from EVOH?" took 20 one-solvent calls on the hosted site
+    and hit the 30-round limit with no answer (2026-10-05). Leaving the solvent out now ranks all 32 panel solvents in
+    one call, and every row equals the one-solvent screen's row for that solvent."""
+    out = _data(contaminants.screen_contaminant_partitioning("EVOH", contaminants=["bisphenol A"]))
+    assert out["mode"] == "solvent_ranking" and out["solvents_screened"] == 32 and out["evaluated"] == 32
+    ranked = out["solvents_where_it_leaches"]["Bisphenol A"]
+    assert ranked[0] == "dimethyl sulfoxide" and {"acetone", "ethanol", "methanol"} <= set(ranked)
+    assert out["polymer_dissolves_in"] == ["isopropylamine", "triethylamine"]
+    assert [row["leaching_verdict"] for row in out["rows"]][: len(ranked)] == ["leaches"] * len(ranked)
+    for row in out["rows"]:
+        one = _data(contaminants.screen_contaminant_partitioning("EVOH", row["solvent"], ["bisphenol A"]))["rows"][0]
+        assert {key: row[key] for key in one} == one, row["solvent"]
+    listed = _data(contaminants.screen_contaminant_partitioning("EVOH", ["ethanol", "1-butanol", "acetone"],
+                                                                "bisphenol A"))
+    assert listed["solvents_screened"] == 2 and listed["unsupported_solvents"] == ["1-butanol"]
+    assert _data(contaminants.screen_contaminant_partitioning("EVOH"))["error_code"] == \
+        "contaminants_needed_to_rank_solvents"
+    first_line = contaminants.screen_contaminant_partitioning.__doc__.splitlines()[0]
+    assert "leave the solvent out" in first_line  # the agent sees only this line
+
+
+def test_a_solvent_outside_the_panel_is_refused_with_the_whole_panel():
+    out = _data(contaminants.lookup_plastchem_contaminants(["bisphenol A"], "1-butanol"))
+    assert out["error_code"] == "solvent_not_in_panel" and len(out["panel_solvents"]) == 32
+    assert all(solvent in out["error"] for solvent in out["panel_solvents"])

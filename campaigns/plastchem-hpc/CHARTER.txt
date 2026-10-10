@@ -572,3 +572,901 @@ Four analyses beyond repeating A-6 per polymer.
 Also report, per polymer, how many conformers carry 90 percent of the Boltzmann weight and how many
 optimisation merges were recorded, and state whether ensemble size tracks route disagreement.
 Keep every conformer row; merges are recorded, never dropped.
+
+AMENDMENT A-8 (2026-09-23, orchestrator, OWNER-REQUESTED) — RECREATE THE CONTAMINANT WORKBOOK'S
+CALCULATIONS IN OPENCOSMO-RS FOR THE WHOLE PLASTCHEM SET, FINALIZE THE ROUTE COMPARISON, VALIDATE,
+AND DELIVER A PROMOTION RELEASE
+
+The owner, 2026-09-23: "Let's finalize the polymer-solvent log D calculation comparison for
+OpenCosmo versus CosmoRS. Then let's make sure that we have this available as a comparison for all
+5,000 contaminants from Plaschem that we used OpenCosmo for and that we have the corresponding
+OpenCosmo polymer-solvent log D for. Let's actually promote these OpenCosmo polymer values and make
+sure that we're able to query all 5,000 contaminants for selective separation (i.e., leaching and
+selective partitioning)." Scope decisions, also the owner's: every fully converged polymer; compute
+on Euler through this lane. On leaching: "if miscibility was done for the original
+polymer-contaminant-solvent set do it here as well in opencosmo. rule of thumb is to recreate every
+single one of their calculations on the smaller set for our larger set and serve that for all 5k
+contaminants. plus the extensive validation between opencosmo and cosmors". PFAS abbreviations are
+deferred until the full set is served.
+
+The orchestrator established that polymer-solvent logD with openCOSMO-RS exists today only for the
+four phthalate anchors (A-6, A-7). What exists for every converged contaminant is solvent/water
+partitioning (thermodynamics-v1). So this is new calculation from existing surfaces, not a data move.
+
+This amendment lifts A-5's prohibition on computing partition coefficients for the scope below; A-6
+and A-7 were bounded exceptions, this is the general one. Everything else holds: the frozen recipe,
+one CPU generation, failures are data and a missing molecule is never interpolated, never write any
+product duckdb or product code, scp never rsync, bulk output to /mnt/r/plastchem-euler/, report before
+raising concurrency above the D-CONC cap.
+
+Five phases. Report and stop at each gate.
+
+8.0 INVENTORY (no compute). Enumerate every quantity the workbook computed for its contaminant set.
+   Read the SI workbook (zhou_contamintant_removal_SI_Data.xlsx, sha256 e5640e45...) sheet by sheet
+   and column by column, the paper's methods (contaminant.pdf is tracked in the DISSOLVE repo), and,
+   read-only, the product's src/dissolve/data/contaminants.duckdb (logd, miscibility, contaminants,
+   metadata) together with what screen_contaminant_leaching and screen_contaminant_strap_removal read
+   in src/dissolve/contaminants.py (including the polymer solubility they take from the stored grid).
+   For each quantity give its definition, phases and reference state, temperatures, the COSMO-RS level
+   the authors used, its inputs, the sign and unit convention the product reads, and the exact
+   openCOSMO-RS 24a recipe you will use to recreate it. Miscibility is included. Name anything you
+   cannot recreate, and why.
+
+8.1 FINALIZE THE ROUTE COMPARISON. Re-run A-7 exactly as A-7 specifies, over every polymer that is
+   fully converged now. List them with conformer counts and name the ones still excluded. Same four
+   anchors, same 32 solvents, both conventions, the same four analyses. This is the finalized
+   openCOSMO-RS versus COSMO-RS polymer-solvent logD comparison.
+
+8.2 VALIDATE AGAINST THE WORKBOOK. For every inventoried quantity, compare openCOSMO-RS with the
+   workbook's COSMO-RS values on every overlapping (contaminant, solvent[, polymer]) it covers. The
+   eight phthalates are in the CHNO set. The 26 PFAS are not: propose, with its cost, whether to put
+   them through the frozen recipe for validation breadth, but do not run them without authorisation.
+   Report per quantity: n, MAE, RMSE, bias, slope and intercept, and the worst cases. For every
+   pass/fail criterion the headline is the confusion matrix of verdicts, because the verdict is what
+   the tools serve. Carry the DEHP water-pair discrepancy already found.
+
+8.3 SCALE. Recreate every inventoried quantity with openCOSMO-RS for every converged CHNO contaminant
+   (5,803; the accepted tier-2 structures named separately), across the product's 32-solvent panel
+   and every fully converged polymer, from existing surfaces with no new DFT. Calibrate cost on a batch
+   and report the estimate before the full array. A failure is a row with a status, never a gap filled
+   from a neighbour.
+
+8.4 PROMOTION RELEASE at /mnt/r/plastchem-euler/promotion-v1/, with a manifest and a SHA-256 for every
+   file:
+   - contaminants: one row per structure, with InChIKey (identity per D-IDENT), names as PlastChem
+     gives them, SMILES, CAS where PlastChem has it, group and tier, and campaign status;
+   - one table per recreated quantity, keyed by (InChIKey, product solvent_key[, polymer][,
+     temperature]), with value, units, sign convention, status, parameterisation "openCOSMO-RS 24a"
+     and the surface SHA-256s;
+   - an explicit mapping from campaign polymer names to product polymer keys, flagging any campaign
+     polymer that stands for more than one product polymer (pe for LDPE and HDPE);
+   - the validation tables, the finalized route comparison, and a README stating what each quantity is
+     and what it was validated against.
+   Use compressed Parquet or CSV and keep the whole release under about 200 MB. The orchestrator
+   promotes it into the product; you do not touch product code or data.
+
+A-8 GATE 8.0 CLEARED (2026-09-23, orchestrator) — PROCEED THROUGH 8.1 AND 8.2, THEN STOP; 8.3 HELD
+
+The Phase 8.0 inventory (reports/phase8-0-inventory, commit f276d51) is accepted as written.
+
+8.1 proceeds exactly as A-8 specifies.
+
+8.2 proceeds in two parts.
+- Neutral logP(solvent/polymer), inventory section 1: validate on all eight workbook phthalates
+  against Phthalates_log_D at 298.15 K with PVC as the reference polymer, as the paper defines it.
+  Report A-7's two conventions separately.
+- Miscibility, inventory section 3: implement the binary LLE workflow and validate it on the eight
+  phthalates at 298.15 K and at each literal workbook high temperature. Report the raw solubility and,
+  side by side, the verdicts at 15 mol% and at 15 wt%. Which basis applies is an open owner question.
+  Score agreement under BOTH readings of the ambiguous sheet layout: (i) columns D:K are room
+  temperature and L:S are high temperature for the eight compounds in order; (ii) the columns pair
+  each compound's room-temperature and high-temperature cells. List the 14 conflicting keys separately,
+  with both literal values and your computed value. Do not choose a reading and do not repair any
+  source row; the owner decides.
+
+Out of scope unless the owner widens it: PFAS (no neutral-PFAS proposal), and any new 24a polymer
+solubility. The existing S(T) grid stays the legacy source for the polymer side of leaching and STRAP;
+say so wherever it is used.
+
+HOLD 8.3 until the orchestrator clears it after reviewing 8.1 and 8.2. Report and stop after 8.2.
+
+A-8 GATE 8.2 CLEARED (2026-09-23, orchestrator) — RUN 8.3, THEN 8.4, THEN STOP
+
+The 8.1 and 8.2 reports (reports/phase8-2026-09-23, commit 0056517) are accepted.
+
+8.3 proceeds with this scope.
+- logP(solvent/polymer) at 298.15 K for every converged CHNO contaminant (5,803; the accepted tier-2
+  structures named separately) x the 32-solvent panel x the ten polymers fully converged at the 8.1
+  snapshot (EVOH, nylon6, nylon66, PC, PE, PET, PP, PS, PVC, PVDF). Carry BOTH conventions; 8.2
+  favours normalized (MAE 0.241 against 0.558), but the promoted convention is the owner's decision.
+  Polymers that converge later are added as separately keyed runs, never patched in.
+- Binary LLE for every contaminant x solvent at 298.15 K and at each solvent's literal workbook high
+  temperature, with the exact 8.2 solver and checks. Store the raw solubility (mole fraction and wt%),
+  both phase compositions and the status, so that the verdicts at either basis and under either
+  layout reading can be derived without recomputing. The verdict basis stays an owner decision.
+- Calibrate on a batch first and write the estimate into the status report. If the calibrated total
+  is at most 6,000 CPU-hours, continue into the full arrays within the D-CONC cap of 64 without
+  waiting. If it is higher, stop and report.
+- Every failure is a row with a status. Nothing is interpolated.
+
+8.4 follows 8.3 as A-8 specifies. Include both logP conventions, the raw LLE outputs, the 8.1 and 8.2
+reports, and the explicit campaign-to-product polymer mapping. Stop after the 8.4 release, with a
+report.
+
+A-8 NOTE (2026-09-23, owner via orchestrator) — RAISE THE 8.3 PRODUCTION THROTTLE
+
+Owner: "raise the throttle". Raise array 68234's ArrayTaskThrottle to use every slot under the shared
+D-CONC cap of 64 that the other arrays are not using now (currently 64 - 6 large-polymer = 58). When the
+tier-2 array or any other array starts, lower 68234 so the total stays at or under 64. Record each change
+(UTC, from, to, reason) in the 8.3 report. The cap itself is unchanged.
+
+A-8 NOTE (2026-09-23, owner via orchestrator) — HOLD THE 8.3 PRODUCTION QUEUE; THE WORKER IS BEING REDESIGNED
+
+The orchestrator measured the 8.3 worker. Each (contaminant, phase) pair builds a new openCOSMO engine,
+re-reads both surface files (~0.34 s each) and re-solves the same pure phase down a 1e-5 ... 1e-8 ladder.
+One solve per phase with every contaminant at x = 0 reproduces the ladder exactly: max |diff| 0.00000
+log10 on 20 PlastChem contaminants and 0.00001 on the four anchors x three solvents. The solve itself
+costs ~0.035 s per contaminant per phase; the time goes to re-parsing surfaces and to per-pair overhead.
+Owner: "good idea", with chunking.
+
+Now: `scontrol hold` the PENDING tasks of array 68234. Let the running tasks finish and keep their outputs
+as a comparison set. Do not cancel yet. Record the hold in the 8.3 report. The replacement design follows
+in the next amendment; wait for it.
+
+AMENDMENT A-9 (2026-09-23, orchestrator, OWNER-REQUESTED) — REDESIGN 8.3 AS CHUNKED BATCHES WITH
+CHECKPOINTS; SIDE TASK: AN OPENCOSMO SOLVENT LIBRARY
+
+The owner, on the redesign: "chunks of 1,000 contaminants. Check what the memory usage is for loading
+that many ... what we want to avoid is something that takes 1 to 2 hours and then fails due to memory
+issues after that much time investment ... chunk it ... get the same output, still balancing the time
+efficiency but not leading to loss of data after an upfront time investment."
+
+Orchestrator measurements (local i7-13700, surfaces read from R:, one engine, contaminants at x = 0):
+- Results are identical to the ladder: max |diff| 0.00000 log10 on 20 PlastChem contaminants, 0.00001
+  on the four anchors x three solvents.
+- Parsing costs ~0.34 s per surface from R: and ~1.25 MB of RSS per loaded molecule.
+- The solve grows with the SQUARE of the molecules in the engine. 100 contaminants: 3.0 s per phase
+  (3.3 s for a PE conformer), 0.7 GB peak. 300: 27.7 s (31.9 s), 1.1 GB peak.
+- Consequences: never load the whole set into one engine; solve in small sub-batches; parse each
+  surface once per job, not once per pair.
+
+A. NEW 8.3 WORKER (it replaces the held array 68234).
+   - A job owns a chunk of contaminants, ~1,000 as a start, and parses each contaminant and each phase
+     surface ONCE. Reuse the parsed molecules across engines; find the safest mechanism and prove it.
+   - logP: for each phase (32 solvents + 236 polymer conformers), solve sub-batches of about 50
+     contaminants at exactly x = 0, with no dilution ladder. Pick the sub-batch size from a measured
+     time and memory sweep on Euler.
+   - Checkpoint after every (chunk, phase): write that phase's rows with a digest before starting the
+     next. A restart resumes at the first missing phase, so any failure loses at most one phase of one
+     chunk. The same applies to LLE.
+   - LLE stays per (contaminant, solvent) and keeps the validated 8.2 solver and its acceptance checks.
+     Parse once per chunk, evaluate the composition grid in as few calculate() calls as the engine
+     allows, and add a cheap stability screen so that the full refinement runs only where the mixing
+     curve can split. A screened "single phase" must be proven equivalent to the full workflow on the
+     validation sets below.
+   - Measure memory and wall time on Euler for one chunk before production, and size chunks so that a
+     job stays well inside its memory request.
+   - GATE before production:
+     - the new worker reproduces every 8.2 logP value to within 0.005 and every 8.2 LLE verdict;
+     - it reproduces the logP values of all 27 calibration contaminants to within 0.005, and the LLE
+       verdicts of their 1,728 systems, exactly;
+     - report the projected total. If it is at most 500 CPU-hours, launch production within the D-CONC
+       cap without waiting; if higher, stop and report.
+   - Cancel the held array 68234 only after the gate passes. Keep its finished outputs as a comparison
+     set.
+
+B. SIDE TASK: AN OPENCOSMO SOLVENT LIBRARY (owner: "we should be able to have the full solvent library,
+   or at least the 69 common solvents, preferably in OpenCosmo ... If we have to rerun the DFT on those,
+   then so be it").
+   - Source, read-only and licensed: COSMObase-1901 BP-TZVP-COSMO at
+     /mnt/c/Users/aaltamimi2/AppData/Local/COSMOlogic/COSMOthermX19/COSMOtherm/COSMObase-1901/BP-TZVP-COSMO
+     (12,664 compounds; .cosmo conformers with .energy files). Never commit, publish or copy it outside
+     this lane's directories and its Euler home.
+   - Map the product's solvents to COSMObase, and record the mapping with evidence. The orchestrator
+     matched 68/69 of the common set (thermodynamics.COMMON_INTERP_KEYS) and 989/990 grid solvents by
+     name. The miss is 'gvl' (gamma-valerolactone): it is absent from COSMObase-1901, so build it from
+     structure.
+   - Route B (openCOSMO-RS 24a): the frozen ORCA recipe for each solvent, starting from the COSMObase
+     lowest-energy conformer, with one conformer and identity by InChIKey after optimisation, on Milan.
+     Do the 69 common solvents first, then the remaining grid solvents. Report the cost before starting
+     the remainder.
+   - Route A (openCOSMO default_turbomole) can read the COSMObase files directly with no DFT. Record it
+     as the comparison route.
+   - Once the 24a surfaces for the common solvents exist, propose extending the 8.3 grid from the
+     32-solvent panel to all 69 common solvents as separately keyed rows, with its cost. Do not run the
+     extension without clearance.
+   - Priority: A first. B may use slots under the shared cap that A leaves free.
+
+Report and stop at the A gate. B continues in the background and reports its first milestone: the 69
+mapped and the common-solvent DFT cost measured.
+
+A-9 NOTE (2026-09-23, owner via orchestrator) — LAUNCH ORDER AND STORAGE RULES
+
+Owner: "go ahead and launch both - the updated faster contaminant spec ... after that is launched queue
+the solvent side task. yeah cosmobase files stay local (definitely do not push those). resulting
+opencosmo solvents should be stored but added to gitignore".
+
+1. Part A is authorised through production. Keep the A-9 gate as the correctness check (reproduce 8.2
+   and the calibration set). Once the gate passes, launch production at once within the D-CONC cap. The
+   500 CPU-hour stop still applies. Record the UTC launch time in the report.
+2. Part B's Euler work (the solvent DFT) is submitted only AFTER A's production array is launched. B's
+   local read-only work (the solvent mapping, reading COSMObase) may start now.
+3. COSMObase never enters ANY git repository, including this workspace's local git. This workspace was
+   once imported into DISSOLVE as a snapshot. Keep COSMObase-derived copies in an untracked,
+   .gitignored directory (add the ignore rule before the first copy) and in the Euler home only.
+4. Keep the resulting openCOSMO solvent surfaces as data: bulk on /mnt/r/plastchem-euler/, never
+   committed. The orchestrator stages them into DISSOLVE under a gitignored path.
+
+A-9 CLARIFICATION (2026-09-23, orchestrator) — INFINITE DILUTION IS x = 0 FOR BOTH CONVENTIONS
+
+The partition gate report (reports/phase9-2026-09-23, partition-gate-failure.json) is accepted.
+- 17,733 of 17,792 comparisons pass. The 59 exceedances are all existing-convention water rows for
+  six very hydrophobic calibration contaminants, and they come from the historical code taking that
+  convention from the FIRST ladder sample (x = 1e-5). Diagnostic 68352 shows it: the cached multi-solute
+  x = 0 matches the ordinary binary x = 0 to 1.45e-6.
+- Decision: use exact x = 0 for BOTH conventions. That is the paper's infinite-dilution definition.
+- Record the 59 rows as a documented finite-dilution reference difference (0.005 to 0.012 log units),
+  not as reproduction passes. Keep them listed with both values.
+- Do not add an x = 1e-5 evaluation now. If the owner later wants the historical existing-convention
+  values, they are a separate, separately keyed pass.
+- The partition half of the gate is thereby satisfied. The LLE comparisons and the complete-chunk
+  timing still have to finish. Then launch per the A-9 NOTE and record the UTC launch time.
+
+A-9 NOTE (2026-09-23, owner via orchestrator) — GENOA MAY RUN THE PHASE-9 ACTIVITY CALCULATIONS
+
+Owner: "if these are usable then yes try them" (the Genoa CPU nodes, euler146-153).
+
+- Scope: phase-9 partition and LLE calculations only. They run no DFT and read the existing Milan-made
+  surfaces. The solvent-library DFT (part B) and every ORCA step stay on Milan, per the one-generation
+  rule.
+- Usability first: rerun one already-validated gate chunk on a Genoa node (genoa&cpu) with the same
+  environment. Require every logP and ln gamma to match the Milan result to within 1e-9, and every LLE
+  status and verdict to match exactly. Record both CPU models.
+- If it matches, let production use milan OR genoa CPU nodes (build the right Slurm constraint; update
+  any pending production tasks if the launcher has already submitted). Stay within the shared D-CONC cap
+  of 64, and record each chunk's CPU model in its provenance.
+- If it does not match, stay on Milan and report the differences.
+
+A-9 NOTE (2026-09-24 07:45 UTC, orchestrator) — A NON-CONVERGING LLE SYSTEM MUST NOT KILL A CHUNK
+
+Production chunk 31 (task 68503_31) failed after 26 min 56 s with exit 1:0. logs/production-68503_31.err ends in
+phase9_grid.binary_grid: ValueError('COSMOspace did not converge for binary grid'), raised from
+phase9_worker_cpu.calc_lle -> lle_result. Its partition is complete and 164 LLE systems are sealed. Failures are
+data: the validated solver records such systems as unresolved statuses, but the vectorized grid raises, so one system
+ends the whole job. Any running chunk that meets a non-converging system will fail the same way.
+
+1. Catch non-convergence per LLE system in the vectorized path and record it as a status row, like the validated
+   solver's unresolved statuses, with value_validated false and no numbers promoted. Do not change any converged
+   result. Prove that on the gate set (every 8.2 and calibration LLE verdict identical) before using it.
+2. Resubmit chunk 31 with the fixed worker; it resumes from its sealed checkpoints. Resubmit any other chunk that
+   fails this way the same way. Do not cancel running chunks: they keep their checkpoints, and a failure
+   resubmitted with the fixed worker resumes.
+3. Record the failure, the fix, its proof and each resubmission in the phase-9 report.
+4. Tail control (orchestrator, 07:40 UTC): after one hour every chunk had finished partitioning. LLE progress was
+   a median of 929/6,400; chunk 0002 had 380, the only running chunk under 700. A chunk projected to finish much
+   later than the rest (say, more than 1.5 x the median) should have its remaining contaminants split across
+   several jobs within the D-CONC cap, resuming from its sealed checkpoints, so that one chunk does not set the
+   release date. Keep coverage accounting exact: every contaminant is computed once and sealed once.
+
+A-10 (2026-09-24 13:25 UTC, orchestrator; owner decision) — SERVE THE FULL 5,830 FIRST; 39 NEW SOLVENTS AUTHORIZED
+
+Owner, 2026-09-24: "yeah add these new solvents now. but also ensure the contam lane serves the full 5830 with the
+current solvents and polymers."
+
+1. Priority 1: the complete release. Finish collection and seal the complete phase-9 release at
+   /mnt/r/plastchem-euler/promotion-v1/: the frozen 5,830 x the current 32-solvent panel x every converged polymer
+   ensemble (3,731,200 partition rows, 373,120 LLE status rows), in the format of release-preview-v1, manifest
+   status "complete". Nothing in item 2 may delay or change it. If the two compete for your attention, the transport
+   lock, R: I/O or cap slots, item 1 wins. Say in your report when it is sealed; the orchestrator promotes it into
+   DISSOLVE.
+2. Authorized: the "39 additions" option of reports/phase9-common-extension-proposal-2026-09-24, with binary LLE.
+   - Keep every panel surface and result unchanged. Add the 39 common-only identities with their A-9 surfaces.
+   - Compute: partition (both conventions, same columns as the panel rows) and room-temperature binary LLE with the
+     15 wt% verdict, for all 5,830 contaminants x every converged polymer ensemble, 298.15 K, solute x=0. There is no
+     high-temperature regime for these solvents.
+   - Cost gate: run your measured small batch first (varied interaction classes and size strata, including difficult
+     and unresolved contaminants). If it projects inside the proposal's engineering range for this option
+     (<= 510 CPU-h), launch the full array without further approval. If it projects above that, stop and report.
+   - Launch now: Milan (Genoa too if the gate cleared it), within the shared cap of 64, below item 1. Apply the A-9
+     NOTE rules (a non-converging system is a status row, never a dead chunk; split any straggler).
+   - Deliver a separate release in the promotion-v1 format at /mnt/r/plastchem-euler/promotion-ext39-v1/, with the
+     same contaminants.csv.gz cohort and polymer-product-map.csv as promotion-v1. product_solvent_key for each new
+     solvent is its lowercase common-solvent name from the A-9 inventory, and none may equal a panel key.
+     DISSOLVE serves the union of both releases.
+
+AMENDMENT A-11 (2026-10-06, orchestrator, OWNER-REQUESTED) — HALOGEN TIER, FINISH CHNO, HUMAN-READABLE NAMES
+
+Owner, 2026-10-06: "revisit our orca+opencosmo pipeline and add all contaminants with carbon, hydrogen, nitrogen and
+oxygen any other halogen (including chlorine) also rename on github the folder with all the orca/opencosmo files for
+contaminants with the actual human interpretable contaminant name. for now just do this all on the
+contaminant-always-on branch until everything is fully done so we dont interrupt the live deploy"
+
+1. Input (pinned, read-only): inputs/plastchem_organics_orca_opencosmo_halogen_mw700.csv
+   sha256 d527e3a32738cfc2c0b836ba93062f8d4e2a1380c3602d90582270b9c94f76b5
+   Built by scripts/build_halogen_inputs.py from inputs/census/plastchem_db_v1.0_full_database_subset.csv
+   (sha256 9b1b68e40504011798241502b19c74d2889aa9af0eb611d5f81e41d94c4a51a1, exported by
+   scripts/export_plastchem_workbook.py from plastchem_db_v1.0.xlsx df4ccad3...). The builder re-runs the census
+   funnel and refuses unless it reproduces every pinned census file exactly: 8,961/8,661 eligible, 8,065/7,792 at
+   MW <= 500, CHNO 6,064/5,833, heteroatoms 1,762/1,721, Si/B 239/238, and the 270 tier-2 InChIKeys. It did.
+   Scope: eligible structures with elements within {C, H, N, O, F, Cl, Br, I}, at least one halogen,
+   MW <= 700 g/mol (the CHNO tiers' limit; above 700 stays unauthorised, as for CHNO), no isotope label (D-ISO: the
+   one 36Cl entry is excluded), none in an existing tier. 1,250 unique structures (1,284 rows): 1,027 at
+   MW <= 500 and 223 at 500 < MW <= 700. Cl 593, Br 343, F 235, I 12, mixed 67 (28 contain iodine).
+   Atoms with H 4-125, median 23, five above 80. S, P, Si and B stay parked.
+2. Recipe: the frozen 24a recipe, unchanged (as A-4), identity by D-IDENT. def2 basis sets put an ECP on iodine.
+   The installed openCOSMORS24a class has no tau_53 (census notes 5a); tau enters only dG_solv, not the ln gamma that
+   partitioning and LLE use. Iodine results carry that note.
+3. Execution: its own array contam-halogen-v1: research, milan&cpu, euler09/10 excluded, 1 CPU, 4 GB, 72 h, inside
+   the shared cap of 64. Pilot first: 40 tasks spread over atom counts and every halogen, iodine included. Refit
+   the cost on the pilot, CPU model named. Release the rest without asking if the refit projects <= 3,000 CPU-h
+   (the CHNO size fit alone projects 492); above that, stop and report.
+4. Finish CHNO: the 219 tier-2 structures that converged after the promotion-v1 freeze get the same thermodynamics.
+5. Thermodynamics for every new accepted surface: the 32-solvent panel x the 10 converged polymer ensembles, both
+   conventions, and binary LLE, with the supplement workers whose reproduction matched promotion-v1 to 1e-15.
+6. Release promotion-v2 (the complete union) on R:. DISSOLVE takes it on branch contaminant-always-on only; nothing
+   reaches main or the live site until the owner says so.
+7. Names: rebuild the opencosmo-outputs and orca-calculation-files archives once, after the release, with each
+   contaminant's folder and surface named by its human-readable name; MANIFEST keeps the InChIKey.
+
+A-11 NOTE (2026-10-07 17:40 UTC, orchestrator) — THERMODYNAMICS ON GENOA
+Milan is saturated (other users plus our ORCA tail), and the h04 batch waited on priority. Per the A-9 note (owner:
+Genoa may run partition and LLE calculations, no DFT; Genoa's gate matched Milan to 1e-9 with identical verdicts),
+h04's pending tasks and every later thermodynamics batch run on genoa&cpu, inside the shared cap of 64. Each
+plan's CPU models are recorded in its compact header and on every release row. All ORCA stays on Milan.
+
+AMENDMENT A-12 (2026-10-07, orchestrator, OWNER-REQUESTED) — PUBLICATION SETS OF ZHOU ET AL. 2026, EXACTLY
+
+Owner, 2026-10-07: "make the numbers match exactly. i am pretty sure the salts didnt have the counter cation (just
+treated the PFAS as negatively charged)" (for a collaborator; the publication-set folders are for validation).
+
+1. Scope: the compounds of Zhou et al., Green Chem. 2026 (d5gc06059a), ESI: 26 PFAS (Table S7), 4 BFRs (Case Study
+   1: tri-PBDE, HBCD, DECA, TBBPA-dbP) and 8 phthalates (Table S5). The release already holds the 8 phthalates,
+   BDE-28 (the ESI's 2,4,4'-tribromodiphenyl ether) and gamma-HBCD (the paper does not name its HBCD stereoisomer;
+   gamma is the main component of technical HBCD). New here: 24 PFAS anions, DECA and TBBPA-dbP.
+2. PFAS species: each as its anion, no counter-cation, acids included. The paper's own values (d5gc06059a2_suppl.xlsx,
+   PFAS_log_D) show acids and salts were one species: ammonium GenX (25) equals TFPA (8) to 1e-8 and the two ADONA
+   salts (24, 26) are identical. So 26 PFAS are 24 distinct anions (8 = 25, 24 = 26). Structures from PubChem by CAS
+   (cache inputs/publication_pubchem_zhou2026.json), checked against PlastChem's connectivity where it has the
+   compound. Built by scripts/build_publication_inputs.py: manifest state/publication-v1/publication/manifest.json
+   sha256 1aeb2d9b6afcc3505b685b5b30cb51005cc36ea139b6fb7459391fd1bcedbd1b.
+3. Exceptions to the frozen scope, for these 26 structures only: net charge -1 (the ORCA input reads the charge from
+   the manifest; bond perception for D-IDENT is given the charge), sulfur (sulfonates), and MW above 700 g/mol
+   (PFTriDS 749, PFTetraDA 713, DECA 959, TBBPA-dbP 944). The method is otherwise the frozen recipe: ETKDGv3 seed
+   12345, 300 conformers, MMFF94, one conformer to DFT; ORCA 6.1.1 OPT BP86 def2-TZVP(-f) TightSCF, then
+   COSMORS(Water) (BP86/def2-TZVPD); D-IDENT on connectivity.
+4. Execution: its own array contam-publication-v1: research, milan&cpu, euler09/10 excluded, 1 CPU, 4 GB, 72 h,
+   inside the shared cap of 64.
+5. Surfaces only: these go into the archives' publication-sets folders. No thermodynamics and no release row (ions,
+   sulfur and the heavy BFRs are outside promotion-v2); DISSOLVE's PFAS values stay the paper's COSMOtherm workbook.
+   The release's 10 neutral PFAS acids stay in the release and leave the publication-sets folder.
+A-12 NOTE (2026-10-07 22:20 UTC, orchestrator) — HBCD IN THE BFR SET
+After submission, inputs/publication_sets_zhou2026.json changed only in its BFR HBCD entry (gamma-HBCD alone, by
+full InChIKey, instead of every 1,2,5,6,9,10 stereoisomer) and its matching note: the paper reports one HBCD value, so
+the set holds one HBCD file. The 26 submitted structures and their manifest are unchanged.
+A-12 NOTE (2026-10-07 23:30 UTC, orchestrator, OWNER-REQUESTED) — THERMODYNAMICS FOR THE PUBLICATION TIER
+Owner, 2026-10-07, on learning the A-12 runs had surfaces and ORCA's water dG_solv only: "finish this". So item 5's
+"no thermodynamics" is lifted for these 26 structures: partition (the 32-solvent panel x the 10 polymer ensembles,
+both conventions) with the A-11 supplement workers on Genoa, batches p00 (the first 19 verified) and p01 (the rest),
+through scripts/newcontam_thermo.py (source "publication"). Binary LLE only for the neutral structures (DECA,
+TBBPA-dbP): a bare anion with a solvent has no counter-ion. openCOSMORS24a has tau_16 (sulfur); it was parameterised
+on neutral molecules, so anion values are an extrapolation, as the paper's COSMOtherm anion values are. Still no
+release row: the results go to the publication-sets tables on the branch.
+A-12 NOTE (2026-10-08 01:30 UTC, orchestrator, OWNER-DECIDED) — PFAS SPECIES CORRECTED TO NEUTRAL ACIDS
+The paper's own PFAS values (d5gc06059a2_suppl.xlsx, PFAS_log_D, 32 solvents) follow our neutral acids (r 0.95-0.97,
+RMSE 0.6-0.9 for all ten PFAS acids the release has) and not the A-12 anions (|r| < 0.1; sulfonates and salts as
+anions at most 0.36). So the paper modelled every PFAS neutral and each salt as its parent acid; the anion premise was
+wrong. Owner chose "Neutral acids", and: "dont committ these anions". Done: 14 neutral acids the release lacks
+(PFTriDA, PFTetraDA, nine sulfonic acids, PFNS acid, F-53B acid, ADONA acid) built by build_publication_inputs.py
+--neutral (manifest state/publication-v1/neutral/manifest.json), submitted as contam-publication-n1 (job 77609), their
+thermodynamics batch p02 with LLE. NH4TetraFPt is TFPA's release surface under its own label. The 24 anion runs (job
+77437) and their partition rows (p00, p01) stay in campaign storage only; the branch's publication commits that held
+them were rewritten (old head 90e577e9 kept as a local tag and an R: bundle) to 8225ffbf and da1b1b47.
+
+AMENDMENT A-13 (2026-10-08, orchestrator, OWNER-REQUESTED) — COVERAGE CAMPAIGN: 95%+ OF THE SIMULABLE PLASTCHEM
+ENTRIES, LIGHTEST FIRST, RELEASED IN BATCHES TO THE LIVE APP
+
+Owner, 2026-10-08: "decide what we literally cant (no structure) or shouldnt simulate at all. then of the ones that
+can be simulated we want to hit 95% coverage", then: "hand the computation off to another opus 5.5 max effort session
+... inform it of the 95+% coverage goal. explain how we've done these calculations on euler etc. tell it to go from
+lowest to highest MW. anytime a contaminant finishes, tell it to push to github and redeploy the frontend so the
+number card on contaminant button updates and so that this contaminant count is accurate (you decide if it makes more
+sense to only push and redeploy in batches e.g., 5 or 10 finished). it may also need to update families so these new
+contaminants can be organized correctly ... it must follow your same structure for commiting the contaminants (i.e.
+full name etc) it must also use your same procedure for orca + opencosmo (i.e. low energy conformers)."
+
+0. Lane. A separate Claude Code session (Opus 5.5, max effort), tmux session claude-contam-coverage, working
+   directory ~/plastchem-euler, runs this amendment end to end and is called "the coverage lane" below. It owns:
+   arrays contam-coverage-* on Euler and ~/plastchem-euler/coverage-v1 there; state/coverage-v1 and
+   reports/coverage-v1 here; /mnt/r/plastchem-euler/coverage-thermo-v1 and promotion-v4 onward on R:; and, for the
+   campaign's duration, every DISSOLVE commit that carries a contaminant release (the asset, the families, the
+   campaign folder, the tests those touch, the frontend count). While state/coverage-v1/COMMIT_WINDOW exists the lane
+   is inside a commit-sync-deploy sequence and no other session commits to ~/dissolve-main-cleanup or
+   ~/dissolve-main-cleanup-frontend.
+
+1. What counts (the triage of 2026-10-08, scripts/plastchem_coverage.py; its docstring is the rule set; report in
+   reports/plastchem-coverage-2026-10-08 and in DISSOLVE campaigns/plastchem-hpc/reports/, README section "Coverage of
+   PlastChem" of opencosmo-outputs). Of 17,932 PlastChem v1.0 entries: cannot 6,363 (3,667 UVCB/polymer/mixture, equal
+   to PlastChem's published count; 2,554 without SMILES; 135 listing several molecules; 7 unparsable); should not
+   1,942 (991 inorganic, 667 metal, 117 permanent ions, 87 above 700 g/mol with > 20 rotatable bonds, 52 B/Ge/As/Se/
+   Sb/Te, 18 radicals, 10 isotope-labelled). Simulable 9,627 = served 7,444 + served through a computed neutral parent
+   200 + to compute 1,983 entries (1,887 structures). The owner quoted "Simulable 11,512": that was the orchestrator's
+   first pass, which counted the 1,070 UVCB/polymer/mixture entries that carry a monomer's SMILES, polyvalent-metal
+   soaps as their parent acids and esters written as their reactants. 9,627 is the corrected set; the lane does not
+   change the rules without the owner.
+   Goal: at least 95% of the simulable entries served, directly or through an alias to their computed neutral parent:
+   9,146 entries, 1,502 more than promotion-v3. Then continue down the list to its end unless the owner stops it.
+
+2. Inputs (pinned, read-only; built by scripts/build_coverage_worklist.py from the triage's PLASTCHEM_COVERAGE.tsv):
+   inputs/plastchem_coverage_a13_worklist.csv
+     sha256 40b4ca4ef3237e7947dfd77beab339a0acca5beb4fb732b135b0f8ce228683e2. 1,887 structures in the owner's order,
+     molecular weight ascending (48.1 to 1,598.4 g/mol), then atoms, then InChIKey. Per row: the neutral species to
+     compute (InChIKey, SMILES), g/mol, atoms with H, elements, kind (S, P or Si 1,456; halogen 264; CHNO 167), the
+     release status of structures promotion-v3 lists but has not computed (116 thermodynamics_pending, 9 running,
+     57 failed; 1,705 never run), the PlastChem entries it serves (served_entries_direct, served_entries_as_parent),
+     a name (505 rows need the neutral parent's PubChem name by InChIKey), PlastChem groups, and the families it
+     would join (families_existing by DISSOLVE's specs, families_proposed below).
+   inputs/plastchem_coverage_a13_parent_aliases.csv
+     sha256 5466119e66c53f997912d23e4e562b0c8547b948f159a7cc15c25dda724a543c. 200 entries whose neutral parent is
+     already computed: they need only an alias (name and CAS to the parent's row).
+   In this order, 95% is crossed at row 1,420 (623.5 g/mol) if every row converges, about 1,320 ORCA CPU-hours by the
+   campaign fit; the whole list is about 3,400.
+
+3. Recipe: the frozen 24a recipe, unchanged (A-4, A-11 item 2, A-12 item 3). RDKit ETKDGv3, random seed 12345, up to
+   300 conformers (pruneRmsThresh 0.5), MMFF94 minimisation (maxIters 2000), the lowest-MMFF-energy conformer to DFT
+   (one conformer; no force-field substitution: a molecule MMFF94 cannot type fails as mmff_parameters_unavailable).
+   ORCA 6.1.1, serial: "! OPT BP86 def2-TZVP(-f) TightSCF", %maxcore 1500, neutral singlet "* xyz 0 1"; then
+   "! COSMORS(Water)", whose solute step writes the .orcacosmo surface (BP86/def2-TZVPD). Identity by D-IDENT: the
+   optimised geometry's connectivity must match the input (no stereo requirement), recorded with the perceived key.
+   Thermodynamics: openCOSMO-RS 24a at 298.15 K, the 32-solvent panel x the 10 converged polymer ensembles (EVOH,
+   nylon 6, nylon 6,6, PC, PE, PET, PP, PS, PVC, PVDF), both conventions, and binary LLE (RT and high), with the
+   supplement workers whose reproduction matched promotion-v1 to 1e-15 (scripts/newcontam_thermo.py).
+   Templates, end to end: the halogen tier (build_halogen_inputs.py, prepare_halogen.py, stage_halogen.py,
+   halogen.sbatch, halogen_runner.py, submit_halogen_remote.py, watch_halogen.py, collect_halogen_remote.py,
+   halogen_retry.py, summarize_halogen.py) and the publication tier (build_publication_inputs.py, prepare_publication.py,
+   stage_publication.py, publication.sbatch, publication_runner.py, collect_publication.py). Copy them to coverage
+   versions; do not edit the frozen tiers' scripts.
+   S, P and Si enter the campaign's own tiers for the first time (S only through A-12's PFAS acids so far):
+   openCOSMORS24a has tau for S, P and Si, def2-TZVP covers them, MMFF94 types them. Any change of method (functional,
+   basis, conformer count, conformer choice, solvation, identity rule, charge) needs the owner. Resource changes for
+   large molecules (memory, walltime) are allowed and recorded per row.
+
+4. Execution on Euler (euler.engr.wisc.edu, ssh alias "euler", remote root /srv/home/aaltamimi2/plastchem-euler):
+   arrays contam-coverage-cNN in work-list order: --partition=research --constraint=milan&cpu
+   --exclude=euler09,euler10, 1 node, 1 task, 1 CPU, --mem=4G (raise only after an out-of-memory failure, by row),
+   --time=72:00:00, --signal=B:USR1@120, --no-requeue; the runner refuses a non-AMD-EPYC or non-AVX2 node. ORCA runs
+   on Milan only. Thermodynamics may run on genoa&cpu (A-9 note: Genoa matched Milan to 1e-9 with identical
+   verdicts). The campaign's shared cap is 64 running jobs (ORCA plus thermodynamics; newcontam_thermo.py throttles
+   thermodynamics to 8 so ORCA keeps 56). Other projects of the same account also use Euler (the titania UCST lane);
+   count only this campaign's jobs against 64, read squeue before every submission, and report if the scheduler's own
+   limits bind. Every ssh/scp goes through scripts/euler_transport.py (multiplexed, persistent backoff); end ad-hoc
+   remote commands with "; true" so an expected nonzero exit does not trip the backoff. Copies to R: use scp, never
+   rsync. Watchers still running from earlier phases (watch_phase83.py, watch_chunk_release.py,
+   watch_research_capacity.py, watch_halogen.py) are not stopped without the owner; watch_phase83.py rewrites
+   reports/phase83-2026-09-23/*.md, so never commit those two files.
+
+5. Order and first steps.
+   a. Harvest first (no ORCA needed): the 116 thermodynamics_pending and 9 running halogen rows of the A-11 freeze;
+      check their state on Euler and run their thermodynamics.
+   b. Then submit strictly in work-list order, lightest first, in chunks of about 100 rows.
+   c. Gate G1 after the first 100 new rows converge, before releasing the rest: failure rate (D-IDENT rejections are
+      results, not failures) at most 10%; cost per structure against the fit, refit with the CPU model named, and the
+      projection for the whole list at most 6,000 ORCA CPU-hours; octanol-water logP of the new S, P and Si structures
+      against measured values (the campaign's CompTox experimental set, as in the CHNO parity plots) with RMSE and bias
+      reported beside the CHNO campaign's. Stop and report to the owner if any of these fails, or if the S, P or Si
+      RMSE is above 1.5 times the CHNO value or its mean bias is above 1 log unit.
+   d. Failed rows of earlier tiers (57): retry once, unchanged recipe, only scheduler_signal_* and walltime_censored;
+      inspect ValueError and geometry_nonconvergence before any retry; return_integrity_or_connectivity (D-IDENT) and
+      mmff_parameters_unavailable are final results.
+
+6. Release cadence (orchestrator's decision on the owner's "5 or 10"): a release when at least 100 new contaminants
+   are complete (surface accepted, all 320 partition and 64 LLE rows), or when 24 hours have passed since the last
+   release and at least 10 are complete; also at the 95% crossing and at the end. Reason: every release re-commits
+   DISSOLVE's 46 MB asset, so releases of 10 would add about 190 copies of it to git history (gigabytes) and cost a
+   6-minute suite and a 3-5 minute deploy each; about 20 releases keep the count current within a day.
+
+7. Each release, in order:
+   a. Release promotion-vN on R: (v4 first; never overwrite one), cumulative: the previous release unchanged plus the
+      new complete structures, same schema and manifest (contaminants.csv.gz, partition.parquet, binary-lle.parquet,
+      polymer-product-map.csv, manifest.json with sha256 and status complete), tier "coverage". Generalise
+      build_promotion_v3.py rather than editing it. Each row's plastchem_id lists every PlastChem entry it serves
+      (direct and as parent).
+   b. Names, the A-11 rule: a contaminant's own name (its PlastChem/PubChem name; a neutral parent with no PlastChem
+      entry of its own takes PubChem's name for its InChIKey, cached under inputs/ like A-12's PubChem cache); a salt
+      or ion is named as its parent (tier_name in classify_contaminants.py), and the salts' names and CAS numbers
+      become aliases. Aliases: the 200 of the parent-alias input go in with the first release, later salts with their
+      parent. Generalise promote_opencosmo_release's publication-labels.csv reading so a release can carry these
+      aliases, with the same refusals (unknown InChIKey; an alias that would also name another contaminant) and tests.
+   c. DISSOLVE (load the dissolve-commit-sync skill first and follow it): python -m dissolve.plastchem_release
+      /mnt/r/plastchem-euler/promotion-vN; python -m dissolve.plastchem_release --families <the pinned workbook>
+      (~/dissolve-v12-builder-1/plastchem-contaminants/plastchem_db_v1.0.xlsx, sha256 df4ccad3...); the coverage
+      report again (campaigns/plastchem-hpc/scripts/plastchem_coverage.py ASSET reports/plastchem-coverage-DATE) and
+      the READMEs (opencosmo-outputs/write_readmes.py campaigns/plastchem-hpc).
+   d. Archives, the same structure (A-11 item 7; owner: "same structure ... full name"): every new contaminant's
+      surface and ORCA run folder named by contaminant_folder_names.py and filed by classify_contaminants.py
+      (publication set > agent family > PlastChem group > structure class > no-family), with MANIFEST.tsv,
+      CLASSIFICATION.tsv and SHA256SUMS rows and verify_orca_archive.py clean (never a licensed COSMObase/COSMOtherm
+      starting geometry). Each release is its own archive set (new .tar.xz parts named for the release, 95 MB split);
+      the existing parts are never rewritten. The READMEs' Reassemble sections say how to unpack every set.
+   e. Tests: update every test that pins release facts (counts; "sulfur finds 11"; "phosphorus is the element the
+      release lacks"; scope_note; family sizes) to the new truth, with a counterfactual wherever behaviour changes;
+      the full suite passes ("N passed, 2 skipped", audit 0, home writes 0).
+   f. Commit to main (explicit paths, no attribution trailers), ~/bin/dissolve-sync; then the card: the blurb in
+      ~/dissolve-main-cleanup-frontend/web/src/content.ts ("Leaching of 7,176 plastic additives and contaminants ...")
+      carries the asset's computed count; build, tests/test_web.py, commit, dissolve-sync; deploy_watch.sh until
+      ACTIVE; one livecheck.py question that names a contaminant of this release. Making the card read the count from
+      the server instead is allowed (Procedure B, screenshots) if it stays exact.
+   g. Mirror the campaign's new scripts, inputs and this charter into DISSOLVE campaigns/plastchem-hpc (as 03d54178).
+
+8. Families (orchestrator's guardrails; projections in the work list's two family columns).
+   a. Existing families gain members on rebuild: Antioxidants +71 (phosphites, thioesters), UV stabilizers +11,
+      Bisphenols +6 (BPS and thio-bisphenols), Alkylphenols +6, Phthalates +2, Aromatic amines +1, Benzophenones +1.
+   b. build_families matches only an entry's own InChIKey and evaluates SMARTS only on single-fragment SMILES, so a
+      salt served through its parent joins no family. Map entries to served rows by PlastChem ID (the release's
+      plastchem_id lists) and evaluate the SMARTS on the served structure; test it with a salt.
+   c. New families, PlastChem-group based like most existing ones: Organophosphates (group organophosphates; 220 of
+      the list), Siloxanes and silanes (silanes_siloxanes_silicones; 246), Benzothiazoles (benzothiazole; 17), Azo dyes
+      (azodyes; 51). Add each to _FAMILY_SPECS once three of its members are computed and named (they are its
+      examples; the builder refuses an example that is not a member and an alias that names a contaminant). The
+      archive's agent-families folders follow.
+   d. PFAS (group PFASs; 97 of the list, and every PFAS already served): owner decision first. A release PFAS family
+      would replace the workbook PFAS family in family questions (src/dissolve/contaminants.py, the families table
+      near line 1814), so "PFAS" questions would be answered from openCOSMO-RS rows instead of the paper's
+      COSMOtherm workbook.
+   e. The other 1,216 structures join no family; the archive files them by PlastChem group or structure class.
+
+9. Reporting and stops. state/coverage-v1/STATUS.json after every step (counts by stage: harvested, submitted,
+   running, converged, failed, rejected, thermodynamics done, released; coverage % of 9,627; ORCA CPU-hours used and
+   projected; last release, commits and deploy; next action; blockers). A dated A-13 NOTE in this charter for every
+   gate, decision and release. Stop and ask the owner in the session at: G1 failing, a projection above 6,000 ORCA
+   CPU-hours, any method change, any deletion of results or history, the PFAS family, the 95% crossing (report, then
+   continue), and the end.
+
+10. Rules that stand (owner and campaign): no attribution trailers in DISSOLVE commits; push only through
+    ~/bin/dissolve-sync, never force main or main-backup, never push ~/plastchem-euler; stage explicit paths only; no
+    bare git stash; no pkill -f; one heavy local job at a time (suite, release build, collection; a BioSTEAM TEA run
+    is guarded and must not overlap); never print the site password, tokens or the check account's password; nothing
+    from COSMObase/COSMOtherm in git; D-ISO: isotope-labelled entries stay excluded; scp not rsync for R:; keep the
+    Euler cap; never stop another session or watcher without the owner.
+
+A-13 NOTE (2026-10-08 16:55 UTC, coverage lane) — LAUNCH: HARVEST UNDER WAY, CHUNK c01 SUBMITTED, MILAN SATURATED
+Pinned inputs verified (work list 40b4ca4e..., parent aliases 5466119e..., census export 9b1b68e4...). Pipeline: copies of
+the halogen tier (build_coverage_chunk.py, prepare_coverage.py, stage_coverage.py, coverage.sbatch, coverage_runner.py,
+submit_coverage_remote.py, collect_coverage_remote.py, watch_coverage.py, summarize_coverage.py; the runner differs from
+halogen_runner.py only in its root, chunk name and recorded memory) and of newcontam_thermo.py (coverage_thermo.py:
+coverage-thermo-v1, jobs contam-coverage-{partition,lle}-tNN; it refuses worker code that differs from the A-11/A-12 pins,
+i.e. the working-tree supplement_partition_worker.py 2cd04d6e..., which every A-11/A-12 batch pinned, not HEAD's).
+1. Chunks: cNN = the NN-th run of 100 never-run work-list rows, in work-list order, so "the first 100 new rows" of item 5c
+   are exactly c01 (orders 1-107, 48-133 g/mol; the 7 other rows of 1-107 are harvest or item-5d rows). c01: 99 submitted
+   (array 78775, %56), 1 preparation failure, final (order 40, CCO[Si](=O)O: MMFF94 cannot type Si=O).
+2. Harvest (5a): h04 was sealed on Euler and is now collected (79 of the 116 thermodynamics_pending rows); retry round r01's
+   last structure converged (Octatriacontyl pentafluoropropionate, 39,702 s, euler142); of the 9 "running" rows 6 converged
+   and 3 are D-IDENT rejections (final). Batch t00 = the other 37 pending + those 6 (43; Genoa, arrays 78817/78818).
+3. Item 5d review of the 57 earlier-tier failures: retry-eligible after G1 are the 14 tier-2 rows interrupted by the USR1
+   time-limit warning (they ran under 8-24 h limits, not the 72 h their records name); final under the frozen recipe are 9
+   ETKDG "Bad Conformer Id" preparations (deterministic with seed 12345), 2 geometry non-convergences, 2 abnormal COSMO
+   terminations and 30 D-IDENT rejections.
+4. Milan CPU (euler142-145) is full until about 2026-10-10 01:00-17:00 CDT (another user's 3-day jobs, and this account's
+   dt2-swcg jobs on euler145); the scheduler puts c01's first start at 2026-10-10 03:33 CDT. A shorter walltime does not
+   change that (sbatch --test-only). euler141 is Milan-X (EPYC 7773X), outside milan&cpu; using it would mix CPU models
+   (A-2) and is the owner's decision. ORCA stays on milan&cpu.
+5. Release cadence: the harvest alone completes 122 structures, so promotion-v4 is cut from it (with the 200 parent
+   aliases) once t00 is collected; c01's structures are released only after G1 passes.
+
+A-13 NOTE (2026-10-08 17:10 UTC, orchestrator, OWNER-DECIDED) — USE WHATEVER COMPUTE THE ACCOUNT CAN GET
+Owner, on euler141 (Milan-X, EPYC 7773X) and the Milan saturation: "allow it, whatever compute we can get. just verify
+everything works properly. worse that can happen is we get preempted". This replaces "ORCA on Milan only" (A-2, A-9) for
+A-13 and the 64-job cap for capacity beyond the original Milan pool:
+1. ORCA may run on any CPU node type and partition the account can use (euler141 Milan-X, Genoa, any other partition,
+   preemptible ones included), each only after a reproduction check passes for that CPU type and partition: rerun at
+   least six structures already converged on Milan (spanning C/H/N/O, a halogen, S, P and Si, and at least one above
+   60 atoms) from their identical prepared input.xyz with the unchanged recipe. Pass: the same D-IDENT verdict, final
+   single-point energies within 1e-6 Eh, surfaces with the same segment count and area and volume within 1e-3
+   relative, and openCOSMO-RS logP (octanol-water and three panel solvents in one polymer) within 0.01. Record each
+   check in state/coverage-v1/cpu-checks/, keep the CPU model on every row, and let the runner admit only CPU models and
+   partitions that passed (an allow-list in the manifest); the recipe itself does not change.
+2. Preemption is not a failure: a task killed by preemption or by the scheduler is resubmitted unchanged through a
+   recorded retry round; it never counts against gate G1's failure rate.
+3. The 64-job cap is lifted for capacity beyond the Milan pool: take what the scheduler gives, in bounded arrays, never
+   holding, cancelling or competing by hand with other users' or this account's other projects' jobs.
+4. Thermodynamics as before (Genoa allowed); the same reproduction rule applies to any new node type for it.
+
+A-13 NOTE (2026-10-08 17:15 UTC, coverage lane) — GATE G1 PASSED; THE REST OF THE WORK LIST IS RELEASED
+Cohort: chunk c01, the first 100 new rows (orders 1-107; 3-24 atoms; 89 with S, P or Si), all run on AMD EPYC 7763
+(research, milan&cpu, array 78775). Report: reports/coverage-v1/G1/gate-g1.json (state/coverage-v1/gate-g1.json).
+1. Failure rate 1 of 100 (1%; limit 10%): order 40, ethyl silicate written CCO[Si](=O)O, which MMFF94 cannot type (final).
+   99 converged, all accepted by D-IDENT; no rejection, no scheduler kill.
+2. Cost: 7.60 CPU-h measured against 7.80 by the campaign fit (sum ratio 0.97; per-structure median 1.19, mean 1.59,
+   the mean inflated by the fixed per-run overhead of 3-atom molecules). Projection for the 1,705 never-run rows: 3,217
+   CPU-h by the fit, 5,113 scaled by the mean ratio (the conservative figure, gated: limit 6,000). The c01 refit
+   (exponent 0.76 over 3-24 atoms) is overhead-dominated and is not extrapolated.
+3. Octanol/water logP of the S, P and Si structures against CompTox explicit experimental LogKow (export by InChIKey,
+   then CAS; median of a structure's observations), computed as the CHNO parity was (activity + pair('octanol','water'),
+   concentration basis): n = 18 (S 16, P 1, Si 1), RMSE 0.35, bias +0.24, slope 1.04; S alone RMSE 0.32, bias +0.20;
+   dimethyl methylphosphonate +0.72; tetramethylsilane +0.35. CHNO campaign: RMSE 1.02, bias +0.55 (n = 1,179; CompTox
+   alone n = 622: 1.25, +0.75). Limits RMSE 1.53 (1.5 x 1.02), |bias| 1.0, applied to the set and to each element.
+   Thin evidence for P and Si (one measured value each); later chunks add more and are reported.
+Next: chunks of 100 new rows in work-list order; ORCA on milan&cpu (EPYC 7763), and on each further CPU type once its
+reproduction check (owner NOTE 17:10) passes. Walltime per chunk is set from the fit for its largest molecule (at least
+2 h, raised for the large ones, 72 h and above as the fit requires), a recorded resource choice: short limits backfill
+into the busy Milan pool; a task that reaches its limit is resubmitted with a longer one.
+
+A-13 NOTE (2026-10-08 20:16 UTC, coverage lane) — RELEASE promotion-v4: 7,397 COMPUTED; 81.8% OF THE SIMULABLE ENTRIES
+1. /mnt/r/plastchem-euler/promotion-v4 (manifest 16ea8c3e...; promotion-v3 100fd044... unchanged beneath it): 7,468
+   status rows, 7,397 computed (+221): 122 halogen-tier rows whose thermodynamics the harvest finished (batches h04
+   and t00: the 116 thermodynamics_pending rows and 6 of the 9 running ones; the other 3 are D-IDENT rejections, now
+   failed) and 99 from chunk c01 (batch t01; its preparation failure is a failed row). 4,734,080 partition and 473,408
+   LLE rows.
+2. Names and aliases (item 7b): parent-aliases.csv offers 457 rows (449 distinct alias and parent pairs), which
+   DISSOLVE serves as 448 aliases: "Phthalate" (PlastChem's phthalate ion, served through phthalic acid) is withheld
+   because it names the Phthalates family (asset metadata aliases_withheld_as_family_names). All 200 entries
+   promotion-v3 served only through their parent are listed. The v4 builder did not list the salts of two parents the
+   harvest newly computed (bisphenol AF, tetrabromophthalic acid; fixed in c7f4a3d), so those 2 entries come with
+   promotion-v5. (DISSOLVE bdee88b0's message says "198 of the 200"; 15ebeb54's message corrects it.)
+3. Families (item 8): a salt joins its parent's family through the release's PlastChem IDs; new Organophosphates (6
+   computed) and Siloxanes and silanes (17), which require P or Si (without that rule, a counter-ion's PlastChem group
+   put melamine, urea and bisphenol A among the organophosphates). Azo dyes (group azodyes) already had 30 computed
+   members and so qualified under item 8c; it was missed and comes with promotion-v5, requiring the azo structure
+   (PlastChem's group also holds benzidines). Benzothiazoles: none computed yet.
+4. Coverage (plastchem_coverage.py on the v4 asset, anaconda RDKit 2023.09.2, which reproduces the published triage):
+   7,877 served and 2 through their parent, 7,879 of 9,627 simulable entries (81.8%; promotion-v3 7,644, 79.4%); 1,267
+   entries short of 95%; 1,666 structures still to compute (reports/plastchem-coverage-2026-10-08-v04).
+5. Archives (item 7d): set promotion-v4, opencosmo-outputs-promotion-v4.tar.xz.part00 (e3416bf2..., 10.5 MB) and
+   orca-calculation-files-promotion-v4.tar.xz.part00 (ddb9ab02..., 539 KB), 221 rows each appended to MANIFEST,
+   CLASSIFICATION, RUNS and SHA256SUMS; no existing part rewritten; no credential or licence marker in either. The
+   READMEs' Reassemble sections unpack both sets.
+6. DISSOLVE: bdee88b0 (release, families, tests, archive set, campaign mirror) and 15ebeb54 on main; 8802a6a4 on
+   main-cleanup-frontend. Suites: main 2,275 and then 2,276 passed, 2 skipped; frontend 2,324 passed, 2 skipped; audit
+   0, home writes 0 each. The coverage sentence of every screen had read "Additives containing  or boron are outside
+   it" once S, P and Si were held (fixed in 15ebeb54). The welcome card now reads the computed count from /api/health
+   ("Leaching of 7,397 plastic additives ...", light and dark screenshots without page errors). Sync: main 15ebeb54 |
+   main-backup 15ebeb54 | main-cleanup-frontend 8802a6a4 = main + 38 frontend commits, behind main by 0. Deploy:
+   a1ac7803 ACTIVE at 20:15 UTC, live /api/health contaminants_computed 7397. Live check: "Does
+   dimethoxydimethylsilane leach from polyethylene into ethanol?" answered from the release (logP 0.24 ethanol over
+   PE, miscible).
+Next: promotion-v5 when batch t02 (280 structures of chunks c02-c04, Genoa) is collected, with the two salts and the
+Azo dyes family.
+
+A-13 NOTE (2026-10-08 20:48 UTC, coverage lane) — OWNER REQUEST: TRIPHENYL PHOSPHATE AHEAD OF ITS WORK-LIST ORDER
+Owner, relayed by the orchestrator: compute triphenyl phosphate (TPHP, XZZNDPSIHUTMOC-UHFFFAOYSA-N, PlastChem 1368, 38
+atoms; work-list order 854, chunk c08 index 92) ahead of its order with the same frozen recipe, carry it through
+thermodynamics and include it in the next promotion released; everything else keeps its order. Reason: a literature
+case on Anderson, Yu & Chen 2021 (PS/ABS e-waste dissolved in DCM, the triphenyl phosphate flame retardant removed
+with a methanol or ethylene glycol antisolvent).
+1. Group c00 (scripts/build_coverage_request.py): the structure's own prepared input (state/coverage-v1/prepared, made
+   with chunk c08: ETKDGv3 seed 12345, 139 conformers kept, the MMFF94 lowest; input.xyz 5cd5df53...), the same
+   runner, recipe, identity policy and 4G; walltime 5 h by the chunks' rule (6 x the fit for 38 atoms). Array 79708 on
+   milan&cpu (AMD EPYC 7763), submitted 20:47 UTC.
+2. Order: c00 sorts before every chunk, so coverage_throttle.py gives it its Milan slot first. The slot came from c07,
+   the last chunk in line (throttle 3 -> 2), and c07 stays at 1 until TPHP is running, because its older tasks would
+   otherwise start first (state/coverage-v1/throttle-log.jsonl). The cap stays 64.
+3. Counted and released once: stage_coverage.py stages a structure once (c08 will skip it, recorded as
+   staged_in_another_group); summarize_coverage.py and build_promotion_coverage.py take the group that ran a structure
+   two groups list.
+4. Release: promotion-v5 waits for TPHP's thermodynamics (its own batch as soon as its record is accepted) and carries
+   it with batches t02 and t03.
+
+A-13 NOTE (2026-10-08 21:44 UTC, coverage lane) — ORCA CPU TYPES ADMITTED: MILAN-X (EPYC 7773X), MILAN-GPU (EPYC 7513)
+Reproduction checks (owner NOTE 17:10 UTC; state/coverage-v1/cpu-checks/<tag>/comparison.json): the reference set of 8
+structures converged on the EPYC 7763 (octanol, DEHP with 66 atoms, 2-bromo-6-chloro-4-nitroaniline, 4-iodophenol,
+PFBS acid, thiophene, dimethyl methylphosphonate, dimethoxydimethylsilane: C, H, N, O, F, Cl, Br, I, S, P and Si)
+rerun from identical input.xyz with the unchanged recipe.
+1. Admitted (state/coverage-v1/cpu-checks/admitted.json; stage_coverage.py writes it into each manifest staged after
+   it, and the runner refuses any other CPU model or partition): AMD EPYC 7773X (euler141, research, constraint
+   milan-x) and AMD EPYC 7513 (research, constraint milan&gpu: euler05-08, euler08 probed; the runner checks every
+   node it lands on). 8 of 8 pass with every energy, segment count, area, volume and logP identical to the reference
+   (differences 0.0; DEHP took the reference's 62 optimization cycles).
+2. Not admitted: AMD EPYC 9634 (Genoa, genoa&cpu). 7 of 8 pass (within 2.6e-8 Eh), but DEHP took another optimization
+   path (50 cycles against 62) to a slightly different minimum: energy 1.06e-4 Eh, 3,663 segments against 3,648, area
+   +0.25%, octanol-water logP 10.890 against 10.911 (limit 0.01). Its AVX-512 arithmetic differs from the AVX2
+   reference and a flexible molecule amplifies that. Thermodynamics on Genoa are unaffected (their own reproduction,
+   to 1e-15).
+3. Pending: rome-gpu (EPYC 7272), naples-gpu (EPYC 7401) and skylake-cpu (Xeon Gold 5118) with DEHP still running;
+   genoa-gpu and sapphire-gpu queued.
+4. Use: chunk c08 (99 structures; triphenyl phosphate runs in c00) is staged with the new allow-list and submitted to
+   milan&gpu as a bounded array (79752, throttle 99; 6 started at once) while c07 (100) waits in the Milan pool behind
+   higher-priority jobs. The Milan-pool cap of 64 is unchanged; every row keeps its CPU model.
+
+A-13 NOTE (2026-10-09 00:15 UTC, coverage lane) — RELEASE promotion-v5: 7,792 COMPUTED, TRIPHENYL PHOSPHATE LIVE; 86.3%
+1. /mnt/r/plastchem-euler/promotion-v5 (manifest cb36fa2e...; promotion-v4 16ea8c3e... unchanged beneath it): 7,866
+   status rows, 7,792 computed (+395): 280 coverage structures of chunks c02-c04 (batch t02), 114 of c04-c06 (t03),
+   and triphenyl phosphate (TPHP, PlastChem 1368; group c00, batch t04: 640 partition and 64 LLE rows), the owner's
+   request of 2026-10-08 20:47 UTC. Final failures added: 3 D-IDENT rejections (orders 463, 602, 611).
+2. Aliases: 610 parent aliases (every salt, ion or hydrate whose neutral parent is computed, the two v4 missed
+   included); the orchestrator's request (owner case Das et al. 2023, TBBPA in e-waste ABS), approved by the owner in
+   session: each number of a joined CAS field is an alias (65 joined rows, 139 numbers, none unresolved; 79-94-7 finds
+   Tetrabromobisphenol A), and the abbreviations TBBPA, TBBPA-DBPE, BDE-209, decaBDE, BTBPE, BADGE and TPHP (29
+   abbreviations in all); an abbreviation whose CAS two contaminants hold is refused. HBCDD and TPP are left out (a
+   generic CAS that is one isomer's; an ambiguous name).
+3. Families: Azo dyes (charter item 8c; 27 computed; PlastChem's azodyes group with the azo linkage itself, so its
+   benzidines stay out); Organophosphates 55 computed (TPHP among them), its description now naming the phosphites,
+   phosphine oxides, phosphines and phosphoramides PlastChem's group also holds; Siloxanes and silanes 111.
+   Benzothiazoles: not yet three computed members with names.
+4. Coverage (plastchem_coverage.py on the v5 asset, anaconda RDKit 2023.09.2): 8,306 of 9,627 simulable entries
+   (86.3%; promotion-v4 7,879, 81.8%), none any longer served only through an unlisted parent; 840 entries short of
+   95%; 1,271 structures still to compute (reports/plastchem-coverage-2026-10-08-v05).
+5. Archives: set promotion-v5, opencosmo-outputs-promotion-v5.tar.xz.part00 (1e6f0c3d..., 18.0 MB) and
+   orca-calculation-files-promotion-v5.tar.xz.part00 (cc6fc235..., 966 KB, 3,950 files), 395 rows each appended; no
+   existing part rewritten; no credential marker; TPHP filed under agent-families/Organophosphates.
+6. DISSOLVE: 07f4c5cf on main. Full suite 2,280 passed, 2 skipped, audit 0, home writes 0 (the first run, at 22:55
+   UTC, was stopped by Claude Code for low system memory and rerun at 23:54 on the owner's word). Sync: main 07f4c5cf
+   | main-backup 07f4c5cf | main-cleanup-frontend c5794a50 = main + 39 frontend commits, behind main by 0. Deploy:
+   e80bb921 ACTIVE at 00:14 UTC, live /api/health contaminants_computed 7792 (the card reads 7,792). Live check: "Does
+   triphenyl phosphate (TPHP) leach from polystyrene into methanol or into ethylene glycol, and which pulls more of it
+   out?" answered from the release by screen_contaminant_partitioning: logP(methanol/PS) -0.146 (K 0.71, miscible at
+   15 wt%), logP(ethylene glycol/PS) -0.795 (K 0.16, two liquid phases above 13 wt%).
+Next: c08 (milan&gpu) and c07 (Milan) continue; c09 is built and prepared next; CPU checks rome-gpu (DEHP done),
+naples-gpu and skylake-cpu are compared as they finish; promotion-v6 at the next 100 complete structures.
+
+A-13 NOTE (2026-10-09 00:46 UTC, coverage lane) — ORCA CPU TYPE ADMITTED: ROME (EPYC 7272)
+1. The reproduction check rome-gpu (euler17, research, constraint rome) passes 8 of 8: every energy, segment count,
+   area, volume and logP identical to the EPYC 7763 reference, DEHP included
+   (state/coverage-v1/cpu-checks/rome-gpu/comparison.json). AMD EPYC 7272 is in admitted.json from now on; chunks
+   staged after this read it into their manifests.
+2. Still running: naples-gpu (EPYC 7401) and skylake-cpu (Xeon Gold 5118, AVX-512), DEHP at 6 h; genoa-gpu and
+   sapphire-gpu queued. Admitted so far: EPYC 7763 (reference), 7773X, 7513, 7272; not admitted: EPYC 9634 (Genoa).
+
+A-13 NOTE (2026-10-09 01:42 UTC, coverage lane) — NAPLES (EPYC 7401) ADMITTED; SKYLAKE (XEON GOLD 5118) NOT
+1. naples-gpu (euler16, research): 8 of 8 identical to the EPYC 7763 reference, DEHP included; AMD EPYC 7401 is in
+   admitted.json from now on.
+2. skylake-cpu (euler157-158, research): 7 of 8 pass, DEHP fails with exactly Genoa's differences (energy 1.06e-4 Eh,
+   octanol-water logP 0.022): the two AVX-512 types agree with each other and differ from the AVX2 reference the same
+   way. Not admitted. The admitted ORCA pools are the AVX2 AMD types: EPYC 7763 (reference), 7773X, 7513, 7272 and
+   7401. genoa-gpu and sapphire-gpu (both AVX-512) stay queued; they are expected to behave like Genoa and Skylake and
+   are reported when they run.
+
+A-13 NOTE (2026-10-09 03:03 UTC, coverage lane) — RELEASE promotion-v6: 7,945 COMPUTED; BENZOTHIAZOLES FAMILY; 88.0%
+1. /mnt/r/plastchem-euler/promotion-v6 (manifest c93e6801...; promotion-v5 cb36fa2e... unchanged beneath it): 8,020
+   status rows, 7,945 computed (+153, batch t05): 8 coverage structures of chunk c05, 93 of c06 and 52 of c08, the
+   last the first computed on the admitted Milan-GPU nodes (AMD EPYC 7513). One D-IDENT rejection added (c08).
+2. Families: Benzothiazoles (charter item 8c: 10 named members of PlastChem's benzothiazole group are computed, past
+   the three the item asks for). A member carries the benzothiazole ring itself (aromatic or the 2(3H)-thione), so
+   1,2-benzisothiazole, an isomer, stays out: 9 computed. Organophosphates 70, Siloxanes and silanes 151, Azo dyes 28.
+   670 parent aliases; 29 abbreviations; 'Phthalate' withheld.
+3. Coverage (anaconda RDKit 2023.09.2): 8,467 of 9,627 simulable entries (88.0%; v5 86.3%); 679 short of 95% (the
+   cheapest route: about 640 structures, 680 ORCA CPU-hours by the fit); 1,118 structures still to compute
+   (reports/plastchem-coverage-2026-10-09-v06). The archive README's shares now come from the counts.
+4. Archives: set promotion-v6 (surfaces 9.7 MB, ORCA files 445 KB, 153 rows each) appended; no part rewritten; no
+   credential marker.
+5. DISSOLVE 9a869ae9 on main. Full suite 2,284 passed, 3 skipped, audit 0, home writes 0: the third skip is the TEA
+   group-meeting test, whose conda env the owner removed on purpose (too large, checked safe); suites read 3 skipped
+   from now on. Sync: main 9a869ae9 | main-backup 9a869ae9 | main-cleanup-frontend 57cd4925 = main + 39 frontend
+   commits, behind main by 0. Deploy 1f0734ed ACTIVE at 03:02 UTC, live contaminants_computed 7945. Live check: "Which
+   benzothiazoles leach from polypropylene into ethanol?" screened the family's 9 computed members
+   (2-mercaptobenzothiazole logP 3.04) and named the 6 not computed yet.
+
+A-13 NOTE (2026-10-09 06:06 UTC, coverage lane) — RELEASE promotion-v7: 8,129 COMPUTED; 90.0% OF THE SIMULABLE ENTRIES
+1. /mnt/r/plastchem-euler/promotion-v7 (manifest d2a46af4...; promotion-v6 c93e6801... unchanged beneath it): 8,204
+   status rows, 8,129 computed (+184, batch t06): 82 coverage structures of c07, 44 of c08, 54 of c09 and 4 of c06 and
+   c10, on AMD EPYC 7763 (84), 7513 (46) and 7272 (54). 758 parent aliases; 29 abbreviations; 'Phthalate' withheld.
+2. Coverage (anaconda RDKit 2023.09.2): 8,660 of 9,627 simulable entries (90.0%; v6 88.0%); 486 short of 95% (the
+   cheapest route: about 456 structures, 530 ORCA CPU-hours by the fit); 934 structures still to compute
+   (reports/plastchem-coverage-2026-10-09-v07).
+3. Archives: set promotion-v7 (surfaces 13.3 MB, ORCA files 585 KB, 184 rows each, one name suffixed for a collision)
+   appended; no part rewritten; no credential marker.
+4. DISSOLVE cbe2a9ca on main. Full suite 2,284 passed, 3 skipped (the expected three), audit 0, home writes 0. Sync:
+   main cbe2a9ca | main-backup cbe2a9ca | main-cleanup-frontend 0207890b = main + 39 frontend commits, behind main by
+   0. Deploy 772f7b48 ACTIVE at 06:04 UTC, live contaminants_computed 8129. Live check: "Does
+   2,2'-dithiobisbenzothiazole (MBTS) leach from polyethylene into ethanol?" answered from the release (logP 0.13,
+   miscible).
+Next: t07 (96 structures, Genoa 80590/80591) for promotion-v8; ORCA c10 (milan&gpu), c11 (Milan), c12 (rome), r01
+(milan-x).
+
+A-13 NOTE (2026-10-09 10:49 UTC, coverage lane) — RELEASE promotion-v8: 8,259 COMPUTED; 91.4% OF THE SIMULABLE ENTRIES
+1. /mnt/r/plastchem-euler/promotion-v8 (manifest 47b20590...; promotion-v7 d2a46af4... unchanged beneath it): 8,337
+   status rows, 8,259 computed (+130, batches t07 and t08: c07 18, c08 2, c09 46, c10 47, c11 9, c12 8; EPYC 7763 27,
+   7513 49, 7272 54); three more D-IDENT rejections are final failure rows. 832 parent aliases; 29 abbreviations.
+2. Coverage (anaconda RDKit 2023.09.2): 8,796 of 9,627 simulable entries (91.4%; v7 90.0%); 350 short of 95% (the
+   cheapest route: about 326 structures, 371 ORCA CPU-hours by the fit); 804 structures still to compute.
+3. Archives: set promotion-v8 (surfaces 11.2 MB, ORCA files 463 KB, 130 rows each) appended; no part rewritten.
+4. DISSOLVE 83956ec0 on main. The first v8 suite failed one test that pinned at least 3 bisphenols outside the release
+   (by v8 the campaign had computed bisphenol S and the thiobis-cresol, leaving 2); the test now checks those two are
+   screened and the rest is "not computed yet". Rerun: 2,284 passed, 3 skipped (expected), audit 0, home writes 0.
+   Sync: main 83956ec0 | main-backup 83956ec0 | main-cleanup-frontend 9f86ec2e = main + 39 frontend commits, behind
+   main by 0. Deploy bb79b468 ACTIVE at 10:48 UTC, live contaminants_computed 8259. Live check: "Does
+   decamethylcyclopentasiloxane (D5) leach from polypropylene into hexane?" answered from the release (PlastChem names
+   it Cyclomethicone 5; found by structure search; logP 0.563, leaches).
+5. Campaign: c13 (orders 1334-1465) on naples, c14 (orders 1466-1582; 99 staged, Buckminsterfullerene a final
+   preparation failure: ETKDG cannot embed C60 under the frozen recipe) on milan&gpu (80926).
+
+A-13 NOTE (2026-10-09 13:43 UTC, coverage lane) — PER-TASK WALLTIMES: PENDING TASKS ASK FOR WHAT THEIR OWN MOLECULE NEEDS
+1. Problem: a chunk is submitted with one --time, 6 x the campaign fit for its largest molecule, so c12-c15 asked for
+   38-77 h on every task although their per-molecule needs have medians of 14-21 h (72-84% need 24 h or less). On the
+   admitted pools (Rome 64, Naples 24 and Milan-GPU 160 cores idle at 13:40 UTC) the tasks waited on Priority:
+   requests that long cannot backfill.
+2. Change (a recorded resource choice, A-13; the recipe is untouched): scripts/coverage_task_walltime.py lowers each
+   PENDING task's time limit to the same rule applied to its own molecule (6 x the fit for its atoms, 3 h at least),
+   never above the chunk walltime and never raising one; running tasks are left alone. 349 tasks of c12-c15 lowered
+   (state/coverage-v1/walltime-log.jsonl). Within a minute the running tasks went from c12 0, c13 0, c14 15, c15 3 to
+   32, 12, 47 and 9.
+3. A task that reaches its lowered limit fails as a time limit and is resubmitted with a longer one through a retry
+   round, as the charter already provides; the runner's record keeps the manifest walltime, the log has the per-task
+   limit. Later chunks get the same treatment right after submission.
+
+A-13 NOTE (2026-10-09 18:46 UTC, coverage lane) — RELEASE promotion-v9: 8,416 COMPUTED; 93.1% OF THE SIMULABLE ENTRIES
+1. /mnt/r/plastchem-euler/promotion-v9 (manifest e83687b2...; promotion-v8 47b20590... unchanged beneath it): 8,505
+   status rows, 8,416 computed (+157, batches t09 and t10): coverage c10 50, c11 71, c12 18, c14 9, c15 7 and 2 tier-2
+   structures the retry round r01 finished on Milan-X; EPYC 7763 78, 7513 59, 7272 18, 7773X 2. 13 more final failure
+   rows (D-IDENT rejections, mostly azo dye sulfonic acids; preparation failures ETKDG cannot embed). 949 parent
+   aliases.
+2. Coverage (anaconda RDKit 2023.09.2): 8,963 of 9,627 simulable entries (93.1%; v8 91.4%); 183 short of 95% (the
+   cheapest route: about 171 structures, 148 ORCA CPU-hours by the fit); 647 structures still to compute.
+3. Archives: set promotion-v9 (surfaces 15.0 MB, ORCA files 599 KB, 157 rows each) appended; no part rewritten.
+4. DISSOLVE e95219d1 on main. Full suite 2,284 passed, 3 skipped (expected), audit 0, home writes 0. Sync: main
+   e95219d1 | main-backup e95219d1 | main-cleanup-frontend 34fba7f9 = main + 39 frontend commits, behind main by 0.
+   Deploy ebf34e76 ACTIVE at 18:44 UTC, live contaminants_computed 8416. Live check NOT run to an answer: the hosted
+   site's model provider refused it (OpenRouter 402: the key's remaining credit affords about 10,000 tokens of the
+   65,536 requested), so no question gets an answer on the site until credits are added; the owner was notified. The
+   release itself is served (health and card count read 8,416).
+
+A-13 NOTE (2026-10-09 20:04 UTC, coverage lane) — OUT-OF-MEMORY KILLS ON MILAN-X; NO NEW WORK THERE
+1. Finding: 9 ORCA runs were killed by SLURM as OUT_OF_MEMORY at the 4G request, all on euler141 (AMD EPYC 7773X,
+   Milan-X): 9 of the 36 runs that finished there (25%), at 60-146 atoms, after 2-15 h. The ORCA processes peaked near
+   0.4 GB; the job's memory cgroup reached 4.19 GB, most likely the run folder's scratch files (on the network file
+   system) counted as page cache on that node. No other CPU type has an out-of-memory kill: 70-89-atom molecules
+   converge at 4G on the EPYC 7763 and 7513 nodes. The reproduction check (numerical identity) stands; this is a
+   resource behaviour of that node.
+2. Accounting: an out-of-memory (or preempted) run is retry-pending, not a final failure: summarize_coverage.py
+   (1a8a163) and build_promotion_coverage.py (fc173c1) no longer count or release it as failed.
+3. Plan: no further chunks go to Milan-X (the c16, c18 and r01 tasks already there run on). The out-of-memory rows get
+   a retry round on a non-Milan-X pool with the memory raised to 8G, the per-row raise A-13 allows after an
+   out-of-memory kill. The runner first needs round-specific run folders (coverage-v1/retries/rNN/runs/<key>, as the
+   release-set tools already expect), since it never reruns a folder that holds an earlier attempt; that round is
+   built once c16-c18 have run.
+
+A-13 NOTE (2026-10-09 21:19 UTC, coverage lane) — OUT-OF-MEMORY RETRY ROUND r02 SUBMITTED (8G, MILAN-GPU)
+1. Out-of-memory kills now number 16 (c16 13, r01 3), all on euler141 (Milan-X); no kill on any other node. The 11
+   pending c16 and c18 tasks there were routed to milan&gpu by constraint (routing-log.jsonl, d3626c5); running tasks
+   were left alone.
+2. Retry round r02 = those 16 rows, each from its own prepared geometry with the unchanged recipe, the memory raised
+   to 8G (the per-row raise after an out-of-memory kill), on milan&gpu (AMD EPYC 7513, admitted by the reproduction
+   check), array 81749, per-task walltimes 6-59 h (chunk 65 h). It runs in its own folders,
+   coverage-v1/retries/r02/{runs,returns}/<key>, so the first attempts stay as they were (d049857).
+3. Change of plan: the 20:04 NOTE said the round would be built once c16-c18 had run. It is built now, as soon as the
+   runner could hold it, so these 16 large structures do not wait days; an out-of-memory kill among the tasks still
+   running on Milan-X goes to a later round the same way. A structure gets one such retry: a second kill at 8G is
+   final.
+4. Accounting: a retried structure counts once, in the group whose attempt ran last (summary, release builder); the
+   retrieval ledger now records each entry's group (backup retrieved.before-groups-20261009T211807Z.json).
+
+A-13 NOTE (2026-10-09 22:27 UTC, coverage lane) — RELEASE promotion-v10: 8,547 COMPUTED; 94.5% OF THE SIMULABLE ENTRIES
+1. /mnt/r/plastchem-euler/promotion-v10 (manifest fd9c5f09...; promotion-v9 e83687b2... unchanged beneath it): 8,655
+   status rows, 8,547 computed (+131, batch t11): coverage c10 1, c11 12, c12 31, c13 12, c14 27, c15 27, c16 21; EPYC
+   7763 39, 7272 31, 7513 28, 7773X 21, 7401 12 (the first released from Naples). 19 more final failure rows: 12
+   D-IDENT rejections (mostly hydroxy-azo and sulfonated azo dyes and pigments; a triarylmethane dye) and 7 c17
+   preparation failures ETKDG cannot embed. 1,052 parent aliases served (1,061 offered; DISSOLVE withholds the same 9
+   as in v9, 958/949).
+2. Coverage (anaconda RDKit 2023.09.2): 9,098 of 9,627 simulable entries (94.51%; v9 93.1%); 48 short of 95% (the
+   cheapest route: about 44 structures, 23 ORCA CPU-hours by the fit); 516 structures still to compute. The 79
+   accepted structures waiting for thermodynamics serve 81 entries by the work list, so the release after t12 should
+   cross 95%.
+3. Archives: set promotion-v10 (surfaces 12.0 MB, ORCA files 468 KB, 131 rows each) appended; no part rewritten.
+4. DISSOLVE f3ceadcd on main. Full suite 2,284 passed, 3 skipped (expected), audit 0, home writes 0. Sync: main
+   f3ceadcd | main-backup f3ceadcd | main-cleanup-frontend c277c791 = main + 39 frontend commits, behind main by 0.
+   Deploy 9a9fd248 ACTIVE at 22:25 UTC, live contaminants_computed 8547. Live check (didecyl phenyl phosphite, PVC,
+   ethanol) NOT answered: OpenRouter 402 again (the key affords about 9,900 of the 65,536 tokens requested); the owner
+   was notified at 18:46 UTC. The release itself is served (health and card count read 8,547).
+
+A-13 NOTE (2026-10-09 22:46 UTC, coverage lane) — D-IDENT: RDKIT PERCEPTION TIME LIMIT; AN UNFINISHED PERCEPTION IS HELD, NOT REJECTED
+1. Finding: the collector stalled for 13 minutes in RDKit DetermineBonds on UTQVVBUYIUOANP (c16, 72 atoms, a tris-azo
+   dye with three nitro groups and two sulfonic acids); the perception had no time limit, so every pass would stall on
+   it.
+2. Change (fab01b8): the RDKit perception runs the same code in a child process limited to 600 s. A perception that
+   did not finish (time limit, or the child process died) is marked undecided. When no other engine matches, the
+   return is held as awaiting verification: not released, not rejected. verify_pending_identity.py then runs the same
+   perception without the short limit (12 h by default), and the record becomes converged or a D-IDENT rejection
+   exactly as the collector would have made it. An RDKit exception remains an observation as before; the decision rule
+   (connectivity first block, any engine) is unchanged. Check: 16 sampled records (12 random, 4 rejections) give
+   identical observations and verdicts.
+3. Why not let Open Babel decide alone: on this dye it reads DLOBOBHCAOYXFC (unusual N and O valences on the nitro
+   groups), and on some accepted structures only RDKit matches, so a timeout alone would have turned a slow perception
+   into a final failure row.
+
+A-13 NOTE (2026-10-10 02:06 UTC, coverage lane) — OUT-OF-MEMORY RETRY ROUND r03 SUBMITTED (9 ROWS, 8G, MILAN-GPU)
+1. Nine more runs were killed OUT_OF_MEMORY at 4G on euler141 (Milan-X) since r02 was built (c16 8, r01 1; 73-141
+   atoms). As the r02 NOTE set out, they form round r03 the same way: own run folders, the same prepared geometry and
+   recipe, 8G, milan&gpu (EPYC 7513), array 82080, per-task walltimes 19-63 h (85 h for the 141-atom row). 41 tasks
+   still run on euler141 (c16 33, r01 8); any later kill goes to a further round.
+2. r02's first return (MHIPPKXKESHCIO) converged on euler07 in its own folder. Its SLURM memory figure was 4,069 MB at
+   8G: the figure includes file cache up to the job's limit (Milan-X completed runs median 3,778 MB against 1.3-1.8 GB
+   on the other types; four 7513 runs reached the 4G cap and completed), which fits the cache explanation of the 20:04
+   NOTE.

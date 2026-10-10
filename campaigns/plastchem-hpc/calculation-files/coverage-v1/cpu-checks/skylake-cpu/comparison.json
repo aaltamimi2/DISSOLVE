@@ -1,0 +1,407 @@
+{
+  "utc": "2026-10-09T01:41:53+00:00",
+  "tag": "skylake-cpu",
+  "overall": "fail",
+  "tolerance": {
+    "energy_hartree": 1e-06,
+    "area_relative": 0.001,
+    "volume_relative": 0.001,
+    "logp": 0.01
+  },
+  "reference_cpu_model": "AMD EPYC 7763 64-Core Processor",
+  "reference": "Milan runs of the same prepared inputs (research, milan&cpu)",
+  "logp_basis": "normalized convention, 298.15 K, x = 0; octanol/water and toluene, ethanol, acetone against pe",
+  "cpu_models": [
+    "Intel(R) Xeon(R) Gold 5118 CPU @ 2.30GHz"
+  ],
+  "partitions": [
+    "research"
+  ],
+  "counts": {
+    "fail": 1,
+    "pass": 7
+  },
+  "structures": [
+    {
+      "inchikey": "KBPLFHHGFOOTCA-UHFFFAOYSA-N",
+      "covers": "C/H/O: 1-octanol",
+      "atoms": 27,
+      "reference_tier": "campaign-v1",
+      "reference_identity_verified": true,
+      "candidate_identity_verified": true,
+      "reference_perceived_inchikey": "KBPLFHHGFOOTCA-UHFFFAOYSA-N",
+      "candidate_perceived_inchikey": "KBPLFHHGFOOTCA-UHFFFAOYSA-N",
+      "candidate_cpu_model": "Intel(R) Xeon(R) Gold 5118 CPU @ 2.30GHz",
+      "candidate_node": "euler157.engr.wisc.edu",
+      "candidate_partition": "research",
+      "candidate_failure_mode": null,
+      "max_energy_difference_hartree": 4.787011675944086e-09,
+      "opt_cycles": {
+        "reference": 6,
+        "candidate": 6
+      },
+      "segments": {
+        "reference": 1560,
+        "candidate": 1560
+      },
+      "area_relative_difference": 4.978524558428481e-10,
+      "volume_relative_difference": 3.463052400869679e-09,
+      "logp": {
+        "reference": {
+          "octanol_water": 4.1538749285068715,
+          "toluene_pe": 0.3547083374541514,
+          "ethanol_pe": 1.0675782348972689,
+          "acetone_pe": 1.0976605485114044
+        },
+        "candidate": {
+          "octanol_water": 4.153875394851267,
+          "toluene_pe": 0.3547081945411144,
+          "ethanol_pe": 1.0675779566447845,
+          "acetone_pe": 1.0976602358449676
+        }
+      },
+      "max_logp_difference": 4.6634439510029324e-07,
+      "wall_seconds": {
+        "reference": 329.457487821579,
+        "candidate": 677.4323664209805
+      },
+      "surface_identical": false,
+      "verdict": "pass",
+      "failures": []
+    },
+    {
+      "inchikey": "BJQHLKABXJIVAM-UHFFFAOYSA-N",
+      "covers": "C/H/O above 60 atoms: DEHP (66)",
+      "atoms": 66,
+      "reference_tier": "campaign-v1",
+      "reference_identity_verified": true,
+      "candidate_identity_verified": true,
+      "reference_perceived_inchikey": "BJQHLKABXJIVAM-BGYRXZFFSA-N",
+      "candidate_perceived_inchikey": "BJQHLKABXJIVAM-BGYRXZFFSA-N",
+      "candidate_cpu_model": "Intel(R) Xeon(R) Gold 5118 CPU @ 2.30GHz",
+      "candidate_node": "euler157.engr.wisc.edu",
+      "candidate_partition": "research",
+      "candidate_failure_mode": null,
+      "max_energy_difference_hartree": 0.00010592799594633107,
+      "opt_cycles": {
+        "reference": 62,
+        "candidate": 50
+      },
+      "segments": {
+        "reference": 3648,
+        "candidate": 3663
+      },
+      "area_relative_difference": 0.002488262573237413,
+      "volume_relative_difference": 0.000298375332787555,
+      "logp": {
+        "reference": {
+          "octanol_water": 10.911424229082845,
+          "toluene_pe": 0.9717358335596461,
+          "ethanol_pe": -0.5227861736056725,
+          "acetone_pe": 0.3271835236384803
+        },
+        "candidate": {
+          "octanol_water": 10.889525177337418,
+          "toluene_pe": 0.9767787789870301,
+          "ethanol_pe": -0.5238486752907406,
+          "acetone_pe": 0.3278382376123791
+        }
+      },
+      "max_logp_difference": 0.021899051745426945,
+      "wall_seconds": {
+        "reference": 17282.769501614384,
+        "candidate": 24611.807662604
+      },
+      "surface_identical": false,
+      "verdict": "fail",
+      "failures": [
+        "energy",
+        "segment count",
+        "area",
+        "logP"
+      ]
+    },
+    {
+      "inchikey": "GLUCALKKMFBJEB-UHFFFAOYSA-N",
+      "covers": "Br, Cl, N, O: 2-bromo-6-chloro-4-nitroaniline",
+      "atoms": 16,
+      "reference_tier": "halogen-v1",
+      "reference_identity_verified": true,
+      "candidate_identity_verified": true,
+      "reference_perceived_inchikey": "GLUCALKKMFBJEB-UHFFFAOYSA-N",
+      "candidate_perceived_inchikey": "GLUCALKKMFBJEB-UHFFFAOYSA-N",
+      "candidate_cpu_model": "Intel(R) Xeon(R) Gold 5118 CPU @ 2.30GHz",
+      "candidate_node": "euler158.engr.wisc.edu",
+      "candidate_partition": "research",
+      "candidate_failure_mode": null,
+      "max_energy_difference_hartree": 6.491973181255162e-09,
+      "opt_cycles": {
+        "reference": 11,
+        "candidate": 11
+      },
+      "segments": {
+        "reference": 1295,
+        "candidate": 1295
+      },
+      "area_relative_difference": 2.7603514858864227e-09,
+      "volume_relative_difference": 5.378990788814924e-10,
+      "logp": {
+        "reference": {
+          "octanol_water": 3.946656589693281,
+          "toluene_pe": 0.7299138670663777,
+          "ethanol_pe": 1.5439359642794104,
+          "acetone_pe": 2.378194104133491
+        },
+        "candidate": {
+          "octanol_water": 3.9466560901646957,
+          "toluene_pe": 0.7299140004977132,
+          "ethanol_pe": 1.5439366044885472,
+          "acetone_pe": 2.3781946204727045
+        }
+      },
+      "max_logp_difference": 6.40209136815173e-07,
+      "wall_seconds": {
+        "reference": 684.5718619250401,
+        "candidate": 1001.3866162820195
+      },
+      "surface_identical": false,
+      "verdict": "pass",
+      "failures": []
+    },
+    {
+      "inchikey": "VSMDINRNYYEDRN-UHFFFAOYSA-N",
+      "covers": "I (def2 ECP): 4-iodophenol",
+      "atoms": 13,
+      "reference_tier": "halogen-v1",
+      "reference_identity_verified": true,
+      "candidate_identity_verified": true,
+      "reference_perceived_inchikey": "VSMDINRNYYEDRN-UHFFFAOYSA-N",
+      "candidate_perceived_inchikey": "VSMDINRNYYEDRN-UHFFFAOYSA-N",
+      "candidate_cpu_model": "Intel(R) Xeon(R) Gold 5118 CPU @ 2.30GHz",
+      "candidate_node": "euler158.engr.wisc.edu",
+      "candidate_partition": "research",
+      "candidate_failure_mode": null,
+      "max_energy_difference_hartree": 2.1799451133119874e-09,
+      "opt_cycles": {
+        "reference": 5,
+        "candidate": 5
+      },
+      "segments": {
+        "reference": 1065,
+        "candidate": 1065
+      },
+      "area_relative_difference": 8.334435730370519e-08,
+      "volume_relative_difference": 6.433739956260559e-08,
+      "logp": {
+        "reference": {
+          "octanol_water": 3.5913006796666154,
+          "toluene_pe": 0.6154025280303971,
+          "ethanol_pe": 2.595155262514241,
+          "acetone_pe": 3.358437949700301
+        },
+        "candidate": {
+          "octanol_water": 3.5913007314209473,
+          "toluene_pe": 0.6154023320961329,
+          "ethanol_pe": 2.595154664166381,
+          "acetone_pe": 3.358437185732353
+        }
+      },
+      "max_logp_difference": 7.639679480142547e-07,
+      "wall_seconds": {
+        "reference": 308.17544212698704,
+        "candidate": 451.5018623539945
+      },
+      "surface_identical": false,
+      "verdict": "pass",
+      "failures": []
+    },
+    {
+      "inchikey": "JGTNAGYHADQMCM-UHFFFAOYSA-N",
+      "covers": "S, F: perfluorobutanesulfonic acid",
+      "atoms": 18,
+      "reference_tier": "publication-v1",
+      "reference_identity_verified": true,
+      "candidate_identity_verified": true,
+      "reference_perceived_inchikey": "JGTNAGYHADQMCM-UHFFFAOYSA-N",
+      "candidate_perceived_inchikey": "JGTNAGYHADQMCM-UHFFFAOYSA-N",
+      "candidate_cpu_model": "Intel(R) Xeon(R) Gold 5118 CPU @ 2.30GHz",
+      "candidate_node": "euler158.engr.wisc.edu",
+      "candidate_partition": "research",
+      "candidate_failure_mode": null,
+      "max_energy_difference_hartree": 2.581691660452634e-08,
+      "opt_cycles": {
+        "reference": 10,
+        "candidate": 10
+      },
+      "segments": {
+        "reference": 1317,
+        "candidate": 1317
+      },
+      "area_relative_difference": 3.388615631305561e-09,
+      "volume_relative_difference": 1.4129057850169882e-09,
+      "logp": {
+        "reference": {
+          "octanol_water": 5.946273484078263,
+          "toluene_pe": 0.5926270829786687,
+          "ethanol_pe": 4.1121852458318,
+          "acetone_pe": 4.757673477440979
+        },
+        "candidate": {
+          "octanol_water": 5.946272172143829,
+          "toluene_pe": 0.592628274468146,
+          "ethanol_pe": 4.1121936061630056,
+          "acetone_pe": 4.757681916687696
+        }
+      },
+      "max_logp_difference": 8.439246717450999e-06,
+      "wall_seconds": {
+        "reference": 941.0849574739987,
+        "candidate": 1159.1912573750014
+      },
+      "surface_identical": false,
+      "verdict": "pass",
+      "failures": []
+    },
+    {
+      "inchikey": "YTPLMLYBLZKORZ-UHFFFAOYSA-N",
+      "covers": "S, aromatic: thiophene",
+      "atoms": 9,
+      "reference_tier": "coverage-v1",
+      "reference_identity_verified": true,
+      "candidate_identity_verified": true,
+      "reference_perceived_inchikey": "YTPLMLYBLZKORZ-UHFFFAOYSA-N",
+      "candidate_perceived_inchikey": "YTPLMLYBLZKORZ-UHFFFAOYSA-N",
+      "candidate_cpu_model": "Intel(R) Xeon(R) Gold 5118 CPU @ 2.30GHz",
+      "candidate_node": "euler158.engr.wisc.edu",
+      "candidate_partition": "research",
+      "candidate_failure_mode": null,
+      "max_energy_difference_hartree": 1.000444171950221e-10,
+      "opt_cycles": {
+        "reference": 5,
+        "candidate": 5
+      },
+      "segments": {
+        "reference": 785,
+        "candidate": 785
+      },
+      "area_relative_difference": 0.0,
+      "volume_relative_difference": 0.0,
+      "logp": {
+        "reference": {
+          "octanol_water": 2.864639795074961,
+          "toluene_pe": 0.088873978322421,
+          "ethanol_pe": -0.32730120416729175,
+          "acetone_pe": 0.1451974662833594
+        },
+        "candidate": {
+          "octanol_water": 2.864639795074961,
+          "toluene_pe": 0.088873978322421,
+          "ethanol_pe": -0.32730120416729175,
+          "acetone_pe": 0.1451974662833594
+        }
+      },
+      "max_logp_difference": 0.0,
+      "wall_seconds": {
+        "reference": 118.82005524300621,
+        "candidate": 174.94349171500653
+      },
+      "surface_identical": false,
+      "verdict": "pass",
+      "failures": []
+    },
+    {
+      "inchikey": "VONWDASPFIQPDY-UHFFFAOYSA-N",
+      "covers": "P: dimethyl methylphosphonate",
+      "atoms": 16,
+      "reference_tier": "coverage-v1",
+      "reference_identity_verified": true,
+      "candidate_identity_verified": true,
+      "reference_perceived_inchikey": "VONWDASPFIQPDY-UHFFFAOYSA-N",
+      "candidate_perceived_inchikey": "VONWDASPFIQPDY-UHFFFAOYSA-N",
+      "candidate_cpu_model": "Intel(R) Xeon(R) Gold 5118 CPU @ 2.30GHz",
+      "candidate_node": "euler158.engr.wisc.edu",
+      "candidate_partition": "research",
+      "candidate_failure_mode": null,
+      "max_energy_difference_hartree": 1.2679493011091836e-09,
+      "opt_cycles": {
+        "reference": 17,
+        "candidate": 17
+      },
+      "segments": {
+        "reference": 1106,
+        "candidate": 1106
+      },
+      "area_relative_difference": 5.460780043941389e-08,
+      "volume_relative_difference": 3.39913081857884e-08,
+      "logp": {
+        "reference": {
+          "octanol_water": 1.086183611496798,
+          "toluene_pe": 0.6657001204572387,
+          "ethanol_pe": 1.2409535019743525,
+          "acetone_pe": 0.9399594519599727
+        },
+        "candidate": {
+          "octanol_water": 1.086183797806768,
+          "toluene_pe": 0.665700059948038,
+          "ethanol_pe": 1.2409531642159803,
+          "acetone_pe": 0.9399593415078545
+        }
+      },
+      "max_logp_difference": 3.377583721597688e-07,
+      "wall_seconds": {
+        "reference": 423.50643250596477,
+        "candidate": 655.7619453879888
+      },
+      "surface_identical": false,
+      "verdict": "pass",
+      "failures": []
+    },
+    {
+      "inchikey": "JJQZDUKDJDQPMQ-UHFFFAOYSA-N",
+      "covers": "Si: dimethoxydimethylsilane",
+      "atoms": 19,
+      "reference_tier": "coverage-v1",
+      "reference_identity_verified": true,
+      "candidate_identity_verified": true,
+      "reference_perceived_inchikey": "JJQZDUKDJDQPMQ-UHFFFAOYSA-N",
+      "candidate_perceived_inchikey": "JJQZDUKDJDQPMQ-UHFFFAOYSA-N",
+      "candidate_cpu_model": "Intel(R) Xeon(R) Gold 5118 CPU @ 2.30GHz",
+      "candidate_node": "euler158.engr.wisc.edu",
+      "candidate_partition": "research",
+      "candidate_failure_mode": null,
+      "max_energy_difference_hartree": 2.6193447411060333e-10,
+      "opt_cycles": {
+        "reference": 14,
+        "candidate": 14
+      },
+      "segments": {
+        "reference": 1242,
+        "candidate": 1242
+      },
+      "area_relative_difference": 0.0,
+      "volume_relative_difference": 0.0,
+      "logp": {
+        "reference": {
+          "octanol_water": 3.4639032610582317,
+          "toluene_pe": 0.19307434597900594,
+          "ethanol_pe": -0.1895261594791346,
+          "acetone_pe": -0.007479137977278689
+        },
+        "candidate": {
+          "octanol_water": 3.4639032610582317,
+          "toluene_pe": 0.19307434597900594,
+          "ethanol_pe": -0.1895261594791346,
+          "acetone_pe": -0.007479137977278689
+        }
+      },
+      "max_logp_difference": 0.0,
+      "wall_seconds": {
+        "reference": 394.4295722300303,
+        "candidate": 613.5121825120004
+      },
+      "surface_identical": false,
+      "verdict": "pass",
+      "failures": []
+    }
+  ]
+}

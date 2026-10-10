@@ -1,0 +1,2086 @@
+{
+ "schema": "dissolve.corpus-papers.v1",
+ "built_at": "2026-10-08T06:24:47Z",
+ "release_gzip_sha256": "18f4da91a5830b77a69bd129a62c6fe941cf3f8a85d308900357f1786bfaad40",
+ "support_min": 0.92,
+ "sources": [
+  "crossref query.bibliographic and query.title",
+  "openalex works by DOI"
+ ],
+ "papers": {
+  "01066e4fcba90698c41c79a8107f60430b8ba04dd245c07409c02539c1c8c993": {
+   "title": "Reducing Antisolvent Use in the STRAP Process by Enabling a Temperature‐Controlled Polymer Dissolution and Precipitation for the Recycling of Multilayer Plastic Films",
+   "authors": [
+    "Kevin L. Sánchez‐Rivera",
+    "Panzheng Zhou",
+    "Min Soo Kim",
+    "Leonardo D. González Chávez",
+    "Steve Grey",
+    "Kevin Nelson",
+    "Shao‐Chun Wang",
+    "Ive Hermans",
+    "Ví­ctor M. Zavala",
+    "Reid C. Van Lehn",
+    "George W. Huber"
+   ],
+   "author_count": 11,
+   "year": 2021,
+   "date": "2021-08-10",
+   "venue": "ChemSusChem",
+   "type": "article",
+   "volume": "14",
+   "issue": "19",
+   "page_range": "4317–4329",
+   "doi": "10.1002/cssc.202101128",
+   "openalex_id": "W3193263319",
+   "cited_by_count": 107,
+   "open_access_url": null,
+   "abstract": "The recently reported processing strategy called solvent-targeted recovery and precipitation (STRAP) enables deconstruction of multilayer plastic packaging films into their constituent resins by selective dissolution. It uses a series of solvent washes that are guided by thermodynamic calculations of polymer solubility. In this work, the use of antisolvents in the STRAP process was reduced and solvent mixtures were considered to enable the temperature-controlled dissolution and precipitation of the target polymers in multilayer films. This was considered as a means to further improve the STRAP process and its estimated costs. Two STRAP approaches were compared based on different polymer precipitation techniques: precipitation by the addition of an antisolvent (STRAP-A) and precipitation by decreasing the solvent temperature (STRAP-B). Both approaches were able to separate the constituent polymers in a post-industrial film composed primarily of polyethylene (PE), ethylene vinyl alcohol (EVOH), and polyethylene terephthalate (PET) with near 100 % material efficiency. Technoeconomic analysis indicates that the minimum selling price (MSP) of the recycled resins with STRAP-B is 21.0 % lower than that achieved with STRAP-A. This provides evidence that thermally driven polymer precipitation is an option to reduce the use of antisolvents, making the STRAP process more economically and environmentally attractive. A third process, STRAP-C, was demonstrated with another post-industrial multilayer film of a different composition. The results demonstrate that this process can also recover polymers at similar costs to those of virgin resins, indicating that the STRAP technology is flexible and can remain economically competitive as the plastic feed complexity is increased.",
+   "is_retracted": false,
+   "source": "openalex",
+   "retrieved_at": "2026-10-08T06:23:14Z",
+   "match": {
+    "via": [
+     "crossref_bibliographic"
+    ],
+    "title_support": 0.997
+   }
+  },
+  "052060c0c96274526c793c1ce2412f618abee30d92a4f1a387b3cff73f0f6990": {
+   "title": "Study of the solubility and stability of polystyrene wastes in a dissolution recycling process",
+   "authors": [
+    "María Teresa García",
+    "Ignacio Gracia",
+    "Gema Duque",
+    "Antonio de Lucas",
+    "Juan Francisco Rodríguez"
+   ],
+   "author_count": 5,
+   "year": 2009,
+   "date": "2009-02-13",
+   "venue": "Waste Management",
+   "type": "article",
+   "volume": "29",
+   "issue": "6",
+   "page_range": "1814–1818",
+   "doi": "10.1016/j.wasman.2009.01.001",
+   "openalex_id": "W1966792374",
+   "cited_by_count": 223,
+   "open_access_url": null,
+   "abstract": null,
+   "is_retracted": false,
+   "source": "openalex",
+   "retrieved_at": "2026-10-08T06:23:15Z",
+   "match": {
+    "via": [
+     "crossref_bibliographic"
+    ],
+    "title_support": 1.0
+   }
+  },
+  "19177f94da00cc7180df8ccce33e0ea8c4041920cb0eddd4e01fe1aa05b109a5": {
+   "title": "Extraction of Pure Plastic Resins From PCR Plastic Waste by Solvent‐Targeted Recovery and Precipitation ( STRAP )",
+   "authors": [
+    "Zhuo Xu",
+    "Fei Long",
+    "Zach Wagner",
+    "Charles Granger",
+    "Euncheol Ra",
+    "Shiying Cai",
+    "George W. Huber",
+    "Ezra Bar‐Ziv"
+   ],
+   "author_count": 8,
+   "year": 2025,
+   "date": "2025-06-23",
+   "venue": "Journal of Advanced Manufacturing and Processing",
+   "type": "article",
+   "volume": "7",
+   "issue": "3",
+   "page_range": null,
+   "doi": "10.1002/amp2.70023",
+   "openalex_id": "W4411568568",
+   "cited_by_count": 5,
+   "open_access_url": "https://doi.org/10.1002/amp2.70023",
+   "abstract": "We have been developing a solvent‐based plastic recycling technology called STRAP. The technology is based on dissolving a targeted plastic resin in a specific solvent that does not dissolve other resins. We have demonstrated STRAP in thousands of bench scale experiments for a large variety of wastes. Recently we have demonstrated the technology for PCR, using mixed plastic wastes (MPWs), from a wet Material Recovery Facility (MRF). The process includes (1) infrared (IR) characterization to determine the plastic composition for accurate selection of the solvent to be used for the extraction of the pure resins. (2) Shredding to the right size and aspect ratio required for flowable and fast dissolvable process. (3) Mixing the MPW in the first solvent to dissolve the first resin. (4) Filtration of the solution plastic blend, to separate the nondissolved plastic from the solution. (5) Further filtration of the solution to remove micron‐sized particle of pigments and fibers. (6) Cooling for precipitation. (7) Filtration of pure resins. (8) Drying of a pure resin. (9) Extrusion of the resin to pellets. (10) Generating films or other products from the pure resin. Steps 1–10 can be considered as one‐cycle that extracted the first resin. (11) A second resin can be extracted with a respective solvent from the plastic that did not dissolve in the first cycle and following steps 1–10 described above. The process also includes characterization of interim and final products. The effort includes building a pilot system at 25 kg/h throughput. We will present specific results for various PCR.",
+   "is_retracted": false,
+   "source": "openalex",
+   "retrieved_at": "2026-10-08T06:23:14Z",
+   "match": {
+    "via": [
+     "crossref_bibliographic"
+    ],
+    "title_support": 1.0
+   }
+  },
+  "1a453523dbb09937d684a8fdf1bb17b2fee7f6cd3aff902ba8e88ab28cf3a8a4": {
+   "title": "Complementary roles for mechanical and solvent-based recycling in low-carbon, circular polypropylene",
+   "authors": [
+    "Sarah L. Nordahl",
+    "Nawa Raj Baral",
+    "Brett A. Helms",
+    "Corinne D. Scown"
+   ],
+   "author_count": 4,
+   "year": 2023,
+   "date": "2023-11-07",
+   "venue": "Proceedings of the National Academy of Sciences",
+   "type": "article",
+   "volume": "120",
+   "issue": "46",
+   "page_range": "e2306902120",
+   "doi": "10.1073/pnas.2306902120",
+   "openalex_id": "W4388451530",
+   "cited_by_count": 43,
+   "open_access_url": "https://doi.org/10.1073/pnas.2306902120",
+   "abstract": "Plastic recycling presents a vexing challenge. Mechanical recycling offers substantial greenhouse gas emissions savings relative to virgin plastic production but suffers from degraded aesthetic and mechanical properties. Polypropylene, one of the most widely used and lowest-cost plastics, features methyl pendants along the polymer backbone, rendering it particularly susceptible to declining properties, performance, and aesthetics across a succession of mechanical recycles. Advanced processes, such as solvent-assisted recycling, promise near-virgin quality outputs at a greater energy and emissions footprint. Mechanical and advanced recycling are often presented as competing options, but real-world plastic waste streams are likely to require preprocessing regardless of whether they are routed to an advanced process. This study quantifies the life-cycle greenhouse gas implications of multiple recycling strategies and proposes a system in which mechanical and solvent-assisted recycling can be leveraged together to boost recycling rates and satisfy demand for a wider range of product applications. Polypropylene can be recovered from mixed-plastic bales produced at material recovery facilities and processed through mechanical recycling, with a varying fraction sent for further upgrading via solvent-assisted recycling to produce material approved for food packaging and other higher-quality applications. The resulting mechanically recycled rigid polypropylene reduces life-cycle greenhouse gas emissions by 80% relative to the same quantity of virgin material, while the upgraded higher-quality material achieves GHG savings of 30%.",
+   "is_retracted": false,
+   "source": "openalex",
+   "retrieved_at": "2026-10-08T06:23:15Z",
+   "match": {
+    "via": [
+     "crossref_bibliographic",
+     "doi_in_text"
+    ],
+    "title_support": 1.0
+   }
+  },
+  "1af857ee2e8299d6d0a586216ead5109a9b4293505585edf76da3bca9772ad21": {
+   "title": "A solvent-targeted recovery and precipitation scheme for the recycling of up to ten polymers from post-industrial mixed plastic waste",
+   "authors": [
+    "Kevin L. Sánchez‐Rivera",
+    "Panzheng Zhou",
+    "Elizaveta Radkevich",
+    "Anisha Sharma",
+    "Ezra Bar‐Ziv",
+    "Reid C. Van Lehn",
+    "George W. Huber"
+   ],
+   "author_count": 7,
+   "year": 2025,
+   "date": "2025-01-21",
+   "venue": "Waste Management",
+   "type": "article",
+   "volume": "194",
+   "issue": null,
+   "page_range": "290–297",
+   "doi": "10.1016/j.wasman.2025.01.022",
+   "openalex_id": "W4406650530",
+   "cited_by_count": 30,
+   "open_access_url": null,
+   "abstract": null,
+   "is_retracted": false,
+   "source": "openalex",
+   "retrieved_at": "2026-10-08T06:23:39Z",
+   "match": {
+    "via": [
+     "crossref_hint_title",
+     "crossref_opening"
+    ],
+    "title_support": 1.0
+   }
+  },
+  "1ce7c584d77ae3f67d15e5d73c64dc9f1e4b9f155145ff114859d51bfca0dceb": {
+   "title": "Adsorption modeling for contaminant removal in plastic dissolution recycling: Investigating an amino ketone-based red dye",
+   "authors": [
+    "Michiel Van Melkebeke",
+    "Tobias De Somer",
+    "Tine Van Laere",
+    "Thien Nguyen Luu Minh",
+    "Hamed Mohamadzadeh Shirazi",
+    "Hilde Poelman",
+    "Kevin M. Van Geem",
+    "Steven De Meester"
+   ],
+   "author_count": 8,
+   "year": 2023,
+   "date": "2023-11-07",
+   "venue": "Separation and Purification Technology",
+   "type": "article",
+   "volume": "331",
+   "issue": null,
+   "page_range": "125559",
+   "doi": "10.1016/j.seppur.2023.125559",
+   "openalex_id": "W4388452125",
+   "cited_by_count": 21,
+   "open_access_url": "https://doi.org/10.1016/j.seppur.2023.125559",
+   "abstract": "The widespread inclusion of additives in plastics has posed a significant challenge to increasing global plastic recycling rates. This study explores the potential of adsorption in non-aqueous environment as a novel approach for plastic waste dissolution recycling. Activated charcoal was selected as the adsorbent for the removal of Solvent Red 135, a commonly used amino ketone-based dye, from polystyrene (PS) solutions. Three solvents, namely o-xylene, limonene, and butyl acetate, were investigated. Adsorption experiments were conducted at 293 K, and the results were analyzed using both classical and statistical physics models. The activated charcoal exhibited the highest single component adsorption capacity for the dye when butyl acetate was used as the solvent, while it showed negligible adsorption for PS in all three solvents. When dealing with mixtures of the dye and 1.0 wt% PS in butyl acetate, a removal efficiency of 99% was achieved at an adsorbent dose of 2.0 g L-1. However, when the PS concentration in the solvent increased to 10 wt%, the required adsorbent dose rose to 3.3 g L-1. Modeling results indicated that monolayer adsorption occurred via a multi-molecular adsorption mechanism, with an approximate adsorbed dye molecule count of 1.5 per adsorption site. The adsorption energy for all three solvents ranged between 0 and 40 kJ mol-1, indicating that the adsorption process is predominantly driven by physical forces and is an endothermic process. This study presents a foundational assessment of adsorption as an effective solvent-based technique for the removal of additives in plastic recycling.",
+   "is_retracted": false,
+   "source": "openalex",
+   "retrieved_at": "2026-10-08T06:23:15Z",
+   "match": {
+    "via": [
+     "crossref_bibliographic",
+     "hint_doi"
+    ],
+    "title_support": 1.0
+   }
+  },
+  "20eca020a76c82a57c6728802977f166a874bc2b452970d8fcc43a45990cde95": {
+   "title": "A Study on Recycled Polymers Recovered from Multilayer Plastic Packaging Films by Solvent‐Targeted Recovery and Precipitation (STRAP)",
+   "authors": [
+    "Victor Sanfins Cecon",
+    "Greg W. Curtzwiler",
+    "Keith  L. Vorst"
+   ],
+   "author_count": 3,
+   "year": 2022,
+   "date": "2022-08-14",
+   "venue": "Macromolecular Materials and Engineering",
+   "type": "article",
+   "volume": "307",
+   "issue": "11",
+   "page_range": null,
+   "doi": "10.1002/mame.202200346",
+   "openalex_id": "W4291305422",
+   "cited_by_count": 49,
+   "open_access_url": "https://doi.org/10.1002/mame.202200346",
+   "abstract": "Multilayer plastic film use increased in multiple packaging applications due to its versatility and overall increased performance over monolayer structures. However, the performance gains from multiple layers also make recycling difficult because they contain multiple polymers that can be immiscible and burdensome to traditional mechanical recycling operations. A possible solution is the solvent‐targeted recovery and precipitation (STRAP) process, but the effect on the retrieved polymer is still unknown. The STRAP process is applied to two different multilayer films and samples of recovered polymers are evaluated for physical, molecular, and thermal properties. Changes in the molecular weight are not significant, but differences in thermal properties are reported along with the coprecipitation of different polymers. Solvent retention in the polymer matrix from STRAP reduced the glass transition temperature of samples, but enhanced drying recovered it. Heavy metals, such as Cd, Cr, and Pb are not detected, indicating regulatory compliance for different applications.",
+   "is_retracted": false,
+   "source": "openalex",
+   "retrieved_at": "2026-10-08T06:23:14Z",
+   "match": {
+    "via": [
+     "doi_in_text"
+    ],
+    "title_support": 0.996
+   }
+  },
+  "2863199208c28e5408e37993e9e5e058a1861e05d74707b39ec0408107559c7f": {
+   "title": "Tuning solvent strength can fractionate PVC into ultra-low molecular weight material with low dispersity",
+   "authors": [
+    "Ali Al Alshaikh",
+    "Jaewoo Choi",
+    "Feranmi V. Olowookere",
+    "Caira McClairen",
+    "Owen G. Lubic",
+    "Pravin S. Shinde",
+    "Christoffer Heath Turner",
+    "Jason E. Bara"
+   ],
+   "author_count": 8,
+   "year": 2025,
+   "date": "2025-01-01",
+   "venue": "RSC Applied Polymers",
+   "type": "article",
+   "volume": "3",
+   "issue": "2",
+   "page_range": "336–346",
+   "doi": "10.1039/d4lp00313f",
+   "openalex_id": "W4407042979",
+   "cited_by_count": 6,
+   "open_access_url": "https://doi.org/10.1039/d4lp00313f",
+   "abstract": "The drive towards a circular economy in plastic materials has become a worldwide goal.",
+   "is_retracted": false,
+   "source": "openalex",
+   "retrieved_at": "2026-10-08T06:23:15Z",
+   "match": {
+    "via": [
+     "doi_in_text"
+    ],
+    "title_support": 1.0
+   }
+  },
+  "2fed3055fa15f3e1f30458efc3855042eacbf5dc227aa8cd99aeb2b06c9f44b9": {
+   "title": "A Novel Solvent‐Based Recycling Technology",
+   "authors": [
+    "Ezra Bar‐Ziv",
+    "Shreyas S. Kolapkar",
+    "George W. Huber",
+    "Reid C. Van Lehn"
+   ],
+   "author_count": 4,
+   "year": 2024,
+   "date": "2024-01-26",
+   "venue": null,
+   "type": "other",
+   "volume": null,
+   "issue": null,
+   "page_range": "477–494",
+   "doi": "10.1002/9781394214297.ch37",
+   "openalex_id": "W4391246945",
+   "cited_by_count": 5,
+   "open_access_url": "https://doi.org/10.1002/9781394214297.ch37",
+   "abstract": "We have developed a solvent-based technology for the extraction of single pure resins of food quality. The technology is called Solvent Targeted Recovery and Precipitation (STRAP). We have carried out numerous lab-scale experiments (in batches of 10-1000 g), with various plastic wastes, both post-industrial recycling and post-consumer recycling, including multi-layer flexible films. The key to the successful implementation of STRAP is the ability to pre-select solvents and temperatures to selectively dissolve a single polymer from all components in the mixture. The team has developed an extensive fundamental understanding of dissolution, enabling a successful operation. To aid in solvent selection, we developed a first-principles molecular modeling approach to rapidly predict temperature-dependent polymer solubilities. The technology is currently being scaled up to a 0.5 ton/day continuous Process Development Unit (PDU), which will be the basis for the next industrial scale. The technology requires relatively low temperatures (100-135°C) and equipment that is available in the chemical industry. We carried out extensive techno-economic and life-cycle assessments that showed (i) a STRAP system can be profitable as a stand-alone system at a 4,000 ton/y facility, with a great advantage of size, and (ii) due to the low process energy, the GHG emissions are reduced by over 90% in comparison to fossil-based polymer production. A line of the STRAP technology extracts a single polymer; to extract multiple polymers, multiple STRAP lines are required. Various methods can remove ink, pigments, or colorants, producing pure, colorless resins of food quality. The STRAP scheme depends on the source of the waste. It is to be noted that we successfully separated nine resins from arbitrarily mixed plastic wastes. Through our industrial partners, we showed that our extracted resins can be reused for their original film applications. The single most important economic factor is solvent recovery, at >99.9% of the solvent used, which is the solvent recovery system we are developing. Both lab scale and upscale results are presented and discussed.",
+   "is_retracted": false,
+   "source": "openalex",
+   "retrieved_at": "2026-10-08T06:23:39Z",
+   "match": {
+    "via": [
+     "crossref_hint_title"
+    ],
+    "title_support": 1.0
+   }
+  },
+  "353a6382238bc0da19e444daeb94cc1f9d79267a98d0010bab93ef41dedba2a1": {
+   "title": "COSMOSol: efficient solvent screening for polymer additives with open-source COSMO-SAC",
+   "authors": [
+    "Adam Bouz",
+    "Juraj Košek",
+    "Martin Klajmon"
+   ],
+   "author_count": 3,
+   "year": 2026,
+   "date": "2026-01-01",
+   "venue": "RSC Advances",
+   "type": "article",
+   "volume": "16",
+   "issue": "38",
+   "page_range": "42112–42134",
+   "doi": "10.1039/d6ra05129d",
+   "openalex_id": "W7169842862",
+   "cited_by_count": 0,
+   "open_access_url": "https://doi.org/10.1039/d6ra05129d",
+   "abstract": "Recycling polymers with solvents requires removing additives efficiently-yet for most of the hundreds of additives used industrially, the efficiency of various solvents to dissolve them is unknown, particularly due to the scarcity of experimental solubility data. This work proposes a systematic computational approach using the quantum mechanics-aided open-source COSMO-SAC model to screen solvents and requires only the fusion data of the additive as external input, or even no empirical input. To validate the method, we compiled solubility measurements for five representative additives across diverse solvent classes. Quantitatively, predictions typically fall within 0.5 log units of measured values (in mole fraction) and, more importantly, qualitatively correctly identify both the best and worst solvent types for each additive. Furthermore, we examined how different modeling choices affect predictions: for instance, values of fusion properties, molecular conformation and σ-profile of the additive, and dispersive interactions. When fusion data are unavailable, the infinite-dilution activity coefficient provides rankings comparable to those obtained from calculated equilibrium solubilities, particularly for poorly soluble additives. Minor limitations of the approach were observed in cases where solvents are structurally very similar-here, fine distinctions between them can be affected by interference from other effects or model simplifications. However, for choosing between different solvent classes-the decision that matters most in practice-the rankings prove robust. We additionally benchmarked COSMO-SAC against HANNA, a machine-learning activity-coefficient model: the two yield comparable solvent rankings. To facilitate reproducibility and extension of this work, we provide COSMOSol, a Python toolset containing all workflows and data. The method offers a practical, first-principles route to solvent screening-not only for polymer additives, but potentially for other compound classes where experimental data are lacking.",
+   "is_retracted": false,
+   "source": "openalex",
+   "retrieved_at": "2026-10-08T06:23:15Z",
+   "match": {
+    "via": [
+     "doi_in_text"
+    ],
+    "title_support": 0.964
+   }
+  },
+  "36bcbc00821a51efab14916c92857019ea1336902b3b3882ac4e3c36e0249701": {
+   "title": "Recycling of multilayer plastic packaging materials by solvent-targeted recovery and precipitation",
+   "authors": [
+    "Theodore W. Walker",
+    "Nathan Frelka",
+    "Zhizhang Shen",
+    "Alex K. Chew",
+    "Jesse Banick",
+    "Steven Grey",
+    "Min Soo Kim",
+    "James A. Dumesic",
+    "Reid C. Van Lehn",
+    "George W. Huber"
+   ],
+   "author_count": 10,
+   "year": 2020,
+   "date": "2020-11-20",
+   "venue": "Science Advances",
+   "type": "article",
+   "volume": "6",
+   "issue": "47",
+   "page_range": null,
+   "doi": "10.1126/sciadv.aba7599",
+   "openalex_id": "W3101225907",
+   "cited_by_count": 444,
+   "open_access_url": "https://doi.org/10.1126/sciadv.aba7599",
+   "abstract": "Many plastic packaging materials manufactured today are composites made of distinct polymer layers (i.e., multilayer films). Billions of pounds of these multilayer films are produced annually, but manufacturing inefficiencies result in large, corresponding postindustrial waste streams. Although relatively clean (as opposed to municipal wastes) and of near-constant composition, no commercially practiced technologies exist to fully deconstruct postindustrial multilayer film wastes into pure, recyclable polymers. Here, we demonstrate a unique strategy we call solvent-targeted recovery and precipitation (STRAP) to deconstruct multilayer films into their constituent resins using a series of solvent washes that are guided by thermodynamic calculations of polymer solubility. We show that the STRAP process is able to separate three representative polymers (polyethylene, ethylene vinyl alcohol, and polyethylene terephthalate) from a commercially available multilayer film with nearly 100% material efficiency, affording recyclable resins that are cost-competitive with the corresponding virgin materials.",
+   "is_retracted": false,
+   "source": "openalex",
+   "retrieved_at": "2026-10-08T06:23:15Z",
+   "match": {
+    "via": [
+     "crossref_bibliographic"
+    ],
+    "title_support": 1.0
+   }
+  },
+  "37ea532e1c9938f3df66b9f5a31e37c8ff65e4ef46044617fc3cb307bbfc22c4": {
+   "title": "Chemical Recycling of Mixed Plastics in Electronic Waste Using Solvent-Based Processing",
+   "authors": [
+    "L.C. Anderson",
+    "Evan Yu",
+    "Wan‐Ting Chen"
+   ],
+   "author_count": 3,
+   "year": 2021,
+   "date": "2021-12-29",
+   "venue": "Processes",
+   "type": "article",
+   "volume": "10",
+   "issue": "1",
+   "page_range": "66",
+   "doi": "10.3390/pr10010066",
+   "openalex_id": "W4200403070",
+   "cited_by_count": 52,
+   "open_access_url": "https://doi.org/10.3390/pr10010066",
+   "abstract": "Currently, less than 20% of electronic waste (E-waste) produced in the U.S. is recycled. To improve the recycling rate of E-waste, the study aimed to: (1) identify the major plastics found within electronic shredder residue (ESR), (2) design solvents and processing conditions capable of separating out 90% of the plastic in ESR, and (3) estimate the energy efficiency of the solvent-based process developed. Preliminary screening showed 25 wt.% of the ESR was composed of plastics, with two polymers dominating the sorted plastic fraction—polystyrene (PS, 40 wt.%) and acrylonitrile butadiene styrene (ABS, 25 wt.%). Subsequently, solvents and anti-solvents were screened using Hansen Solubility Parameter Theory for PS, ABS, and ESR dissolution. The pre-screening results showed dichloromethane (DCM) and tetrahydrofuran (THF) as the most effective solvents for PS and ABS, with methanol (MeOH) and ethylene glycol (EG) as the most effective anti-solvents. By optimizing the dissolution time and the solvents used, the highest polymer dissolution yield (99 wt.%) was achieved using DCM for 48 h. Both MeOH and EG precipitated 71 wt.% of the polymer fraction of ESR. EG removed more phosphorus containing flame retardants (94 wt.%) than MeOH (69 wt.%). Energy analysis indicated that the solvent-based processes could save 25–60% of the embodied energy for PS and ABS. Characterization showed that the solvent-based processing could preserve the high molecular weight fraction of the polymers while removing flame retardants at the same time. The results from this study prove the potential of solvent-based processing to produce secondary plastic materials from E-waste for cross-industry reuse.",
+   "is_retracted": false,
+   "source": "openalex",
+   "retrieved_at": "2026-10-08T06:23:16Z",
+   "match": {
+    "via": [
+     "crossref_bibliographic"
+    ],
+    "title_support": 1.0
+   }
+  },
+  "418a9d3480ed256dfdb7da6ff76f3b996bed3befc34d6b58504c89f873a4e49c": {
+   "title": "Progress in Solvent-Based Recycling of Polymers from Multilayer Packaging",
+   "authors": [
+    "Tianmiao Li",
+    "George V. Theodosopoulos",
+    "Christopher Lovell",
+    "Adamantini Loukodimou",
+    "Kranthi Kumar Maniam",
+    "Shiladitya Paul"
+   ],
+   "author_count": 6,
+   "year": 2024,
+   "date": "2024-06-12",
+   "venue": "Polymers",
+   "type": "article",
+   "volume": "16",
+   "issue": "12",
+   "page_range": "1670",
+   "doi": "10.3390/polym16121670",
+   "openalex_id": "W4399609103",
+   "cited_by_count": 49,
+   "open_access_url": "https://doi.org/10.3390/polym16121670",
+   "abstract": "Conversion of chemical feedstocks derived from fossil fuels to virgin polymer, manufacturing of plastics in coal-dependent economies, and increasing consumption of virgin polymers for plastics packaging contribute significantly to environmental issues and the challenges we face. Nowadays, promoting sustainable development has become the consensus of more and more countries. Among them, the recycling of multilayer packaging is a huge challenge. Due to the complexity of its structure and materials, as well as the limitations of existing recycling frameworks, currently, multilayer packaging cannot be commercially recycled thus resulting in a series of circular economy challenges. It is undeniable that multilayer packaging offers many positive effects on products and consumers, so banning the use of such packaging would be unwise and unrealistic. Developing the appropriate processes to recycle multilayer packaging is the most feasible strategy. In recent years, there have been some studies devoted to the recycling process of multilayer packaging. Many of the processes being developed involve the use of solvents. Based on the recycled products, we categorised these recycling processes as solvent-based recycling, including physical dissolution and chemical depolymerisation. In physical dissolution, there are mainly two approaches named delamination and selective dissolution-precipitation. Focusing on these processes, this paper reviews the solvents developed and used in the last 20 years for the recycling of polymers from multilayer packaging waste and gives a summary of their advantages and disadvantages in terms of cost, product quality, ease of processing, and environmental impact. Based on existing research, one could conclude that solvent-based recycling methods have the potential to be commercialised and become part of a standard recycling process for polymer-based multilayer packaging. The combined use of multiple solvent-based recycling processes could be a breakthrough in achieving unified recycling of multilayer packaging with different components.",
+   "is_retracted": false,
+   "source": "openalex",
+   "retrieved_at": "2026-10-08T06:23:39Z",
+   "match": {
+    "via": [
+     "crossref_opening"
+    ],
+    "title_support": 1.0
+   }
+  },
+  "41adbc635410b317d7d858cdcd11e7c31355c76b8c7eabc77eca1237187e6ee0": {
+   "title": "Sustainable approach to recycling of multilayer flexible packaging using switchable hydrophilicity solvents",
+   "authors": [
+    "Тамарі Мумладзе",
+    "Samy Yousef",
+    "Maksym Tatariants",
+    "Rita Kriūkienė",
+    "Vidas Makarevičius",
+    "Irena Lukošiūtė",
+    "Regita Bendikienė",
+    "Гінтарас Денафас"
+   ],
+   "author_count": 8,
+   "year": 2018,
+   "date": "2018-01-01",
+   "venue": "Green Chemistry",
+   "type": "article",
+   "volume": "20",
+   "issue": "15",
+   "page_range": "3604–3618",
+   "doi": "10.1039/c8gc01062e",
+   "openalex_id": "W2810397637",
+   "cited_by_count": 127,
+   "open_access_url": null,
+   "abstract": "Multilayer Flexible Packaging Waste (MFPW) represents the largest fraction of packaging waste and is mainly composed of multiple plastic films laminated with Al foil.",
+   "is_retracted": false,
+   "source": "openalex",
+   "retrieved_at": "2026-10-08T06:23:15Z",
+   "match": {
+    "via": [
+     "doi_in_text",
+     "hint_doi"
+    ],
+    "title_support": 1.0
+   }
+  },
+  "4ca1c8a271d1281d925b2cc074d247df1d0560ee98b4c655e4d338d21979611a": {
+   "title": "Solvent based dissolution–precipitation of waste polyethylene terephthalate: economic and environmental performance metrics",
+   "authors": [
+    "Utkarsh S. Chaudhari",
+    "Daniel G. Kulas",
+    "Alejandra Peralta",
+    "Tasmin Hossain",
+    "Anne T. Johnson",
+    "Damon S. Hartley",
+    "Robert M. Handler",
+    "Barbara K. Reck",
+    "Vicki S. Thompson",
+    "David Watkins",
+    "David R. Shonnard"
+   ],
+   "author_count": 11,
+   "year": 2023,
+   "date": "2023-01-01",
+   "venue": "RSC Sustainability",
+   "type": "article",
+   "volume": "1",
+   "issue": "7",
+   "page_range": "1849–1860",
+   "doi": "10.1039/d3su00231d",
+   "openalex_id": "W4386513277",
+   "cited_by_count": 40,
+   "open_access_url": "https://doi.org/10.1039/d3su00231d",
+   "abstract": "Evaluating six economic and two environmental performance metrics for recycling of waste PET via solvent-based dissolution–precipitation processes.",
+   "is_retracted": false,
+   "source": "openalex",
+   "retrieved_at": "2026-10-08T06:23:15Z",
+   "match": {
+    "via": [
+     "doi_in_text",
+     "hint_doi"
+    ],
+    "title_support": 1.0
+   }
+  },
+  "51539bd66a3be00436159b7cf52152eba3774132dac1446eab757807add012e6": {
+   "title": "Shear and extensional rheology of polyethylenes recycled using a solvent dissolution process",
+   "authors": [
+    "Guinevere Tillinghast",
+    "Kevin L. Sánchez‐Rivera",
+    "George W. Huber",
+    "Horst Henning Winter",
+    "Jonathan P. Rothstein"
+   ],
+   "author_count": 5,
+   "year": 2024,
+   "date": "2024-04-11",
+   "venue": "Rheologica Acta",
+   "type": "article",
+   "volume": "63",
+   "issue": "5",
+   "page_range": "345–360",
+   "doi": "10.1007/s00397-024-01446-y",
+   "openalex_id": "W4394724022",
+   "cited_by_count": 13,
+   "open_access_url": null,
+   "abstract": null,
+   "is_retracted": false,
+   "source": "openalex",
+   "retrieved_at": "2026-10-08T06:23:14Z",
+   "match": {
+    "via": [
+     "crossref_bibliographic"
+    ],
+    "title_support": 1.0
+   }
+  },
+  "59186c56dc962e521ced622103fe5adfce2168a85bfc189a33d08ec813220948": {
+   "title": "Increasing the Dissolution Rate of Polystyrene Waste in Solvent-Based Recycling",
+   "authors": [
+    "Rita Kol",
+    "Ruben Denolf",
+    "Gwendoline Bernaert",
+    "Dave Manhaeghe",
+    "Ezra Bar‐Ziv",
+    "George W. Huber",
+    "Norbert Nießner",
+    "Michiel Verswyvel",
+    "Angeliki A. Lemonidou",
+    "Dimitris S. Achilias",
+    "Steven De Meester"
+   ],
+   "author_count": 11,
+   "year": 2024,
+   "date": "2024-03-04",
+   "venue": "ACS Sustainable Chemistry & Engineering",
+   "type": "article",
+   "volume": "12",
+   "issue": "11",
+   "page_range": "4619–4630",
+   "doi": "10.1021/acssuschemeng.3c08154",
+   "openalex_id": "W4392380327",
+   "cited_by_count": 30,
+   "open_access_url": "https://doi.org/10.1021/acssuschemeng.3c08154",
+   "abstract": "Solvent-based recycling of plastic waste is a promising approach for cleaning polymer chains without breaking them. However, the time required to actually dissolve the polymer in a lab environment can take hours. Different factors play a role in polymer dissolution, including temperature, turbulence, and solvent properties. This work provides insights into bottlenecks and opportunities to increase the dissolution rate of polystyrene in solvents. The paper starts with a broad solvent screening in which the dissolution times are compared. Based on the experimental results, a multiple regression model is constructed, which shows that within several solvent properties, the viscosity of the solvent is the major contributor to the dissolution time, followed by the hydrogen, polar, and dispersion bonding (solubility) parameters. These results also indicate that cyclohexene, 2-pentanone, ethylbenzene, and methyl ethyl ketone are solvents that allow fast dissolution. Next, the dissolution kinetics of polystyrene in cyclohexene in a lab-scale reactor and a baffled reactor are investigated. The effects of temperature, particle size, impeller speed, and impeller type were studied. The results show that increased turbulence in a baffled reactor can decrease the dissolution time from 40 to 7 min compared to a lab-scale reactor, indicating the importance of a proper reactor design. The application of a first-order kinetic model confirms that dissolution in a baffled reactor is at least 5-fold faster than that in a lab-scale reactor. Finally, the dissolution kinetics of a real waste sample reveal that, in optimized conditions, full dissolution occurs after 5 min.",
+   "is_retracted": false,
+   "source": "openalex",
+   "retrieved_at": "2026-10-08T06:23:15Z",
+   "match": {
+    "via": [
+     "crossref_bibliographic"
+    ],
+    "title_support": 1.0
+   }
+  },
+  "65ce49e3c58ce0307672e4e6cbe0723c1c8c5a58cb9692888575db9ac78cfc89": {
+   "title": "Understanding the complexity of deinking plastic waste: An assessment of the efficiency of different treatments to remove ink resins from printed plastic film",
+   "authors": [
+    "Sibel Üǧdüler",
+    "Tine Van Laere",
+    "Tobias De Somer",
+    "Sergei Gusev",
+    "Kevin M. Van Geem",
+    "Andreas Kulawig",
+    "Ralf Leineweber",
+    "Marc Defoin",
+    "Hugues Van den Bergen",
+    "Dirk Bontinck",
+    "Steven De Meester"
+   ],
+   "author_count": 11,
+   "year": 2023,
+   "date": "2023-03-17",
+   "venue": "Journal of Hazardous Materials",
+   "type": "article",
+   "volume": "452",
+   "issue": null,
+   "page_range": "131239",
+   "doi": "10.1016/j.jhazmat.2023.131239",
+   "openalex_id": "W4327717847",
+   "cited_by_count": 33,
+   "open_access_url": "https://doi.org/10.1016/j.jhazmat.2023.131239",
+   "abstract": "Plastic packaging is usually heavily printed with inks to provide functional benefits. However, the presence of inks strongly impedes the closed-loop recycling of plastic films. Various media have already been studied for the deinking of plastic films, but there is little scientific insight into the effectiveness of different deinking techniques. Therefore, this study aims to obtain a systematic understanding by measuring the liquefaction and maximum solubility of 14 chemically different polymer resins in seven different media typically used in plastic deinking, such as acetone, ethyl acetate, sodium hydroxide solution, cetyltrimethylammonium bromide solution, formic acid, sulfuric acid, and N,N-dimethylcyclohexylamine. Our findings show that acid-based media are able to remove a broader range of polymer resins. Organic solvents are particularly effective against acrylics and related polymer resins. The deinking efficiency tests on pure resins are also confirmed by deinking four printed plastic films containing different classes of polymer resins. A basic cost and environmental impact analysis is given to evaluate scale-up potential of the deinking medium.",
+   "is_retracted": false,
+   "source": "openalex",
+   "retrieved_at": "2026-10-08T06:23:14Z",
+   "match": {
+    "via": [
+     "crossref_bibliographic",
+     "doi_in_text",
+     "hint_doi"
+    ],
+    "title_support": 1.0
+   }
+  },
+  "6d3877639e00c34c97b74d655488763b70bb3b63dc4faf733ab461bd2d8c8208": {
+   "title": "Investigating Polyethylene Solubility for Solvent-Based Recycling: Experiments and SAFT-γ Mie Predictions",
+   "authors": [
+    "Riccardo Standish",
+    "Jian Yin",
+    "Jakob Burger",
+    "George Jackson",
+    "Claire S. Adjiman",
+    "Mirjana Minceva",
+    "Amparo Galindo"
+   ],
+   "author_count": 7,
+   "year": 2026,
+   "date": "2026-06-08",
+   "venue": "Macromolecules",
+   "type": "article",
+   "volume": "59",
+   "issue": "12",
+   "page_range": "7011–7030",
+   "doi": "10.1021/acs.macromol.6c00489",
+   "openalex_id": "W7163882157",
+   "cited_by_count": 1,
+   "open_access_url": "https://doi.org/10.1021/acs.macromol.6c00489",
+   "abstract": "High Resolution Image Download MS PowerPoint Slide Solvent-based dissolution/precipitation plastic recycling processes are emerging as a promising alternative to mechanical recycling, enabling the selective dissolution of polymers from contaminated plastic waste streams. Identifying suitable solvents for such processes requires an accurate assessment of polymer solubility under practical conditions; this is currently possible for very few solvent/polymer combinations. Thermodynamic modeling using molecular-scale models such as the SAFT-γ Mie group-contribution (GC) approach can significantly reduce reliance on experiments that are often time-consuming and costly, and may be integrated into process design workflows. However, polymer solubility data remain scarce, and the modeling of polymer + solvent mixtures poses several challenges, including variations in polymer melting properties and polydispersity. In this study, we present an extensive set of solubility data for four polyethylene (PE) samples, differing in molecular weight, density, and melting properties, in ten solvents and at multiple temperatures, obtained using a polythermal method. We assess the performance of SAFT-γ Mie in predicting the solubility of PE in eight solvents. A very good overall agreement is observed for both solid–liquid and solid–liquid–liquid equilibria; these results confirm the transferability of previously published parameters to complex polymer systems. Experimental and modeling results indicate that the highest solubility at a given temperature is achieved using decalin, a bicyclic solvent, and the aromatic solvents toluene, p -xylene, and mesitylene. The solubility of PE in several bioderived solvents, such as limonene, p -cymene, and α-pinene, is found to be comparable to that in conventional aromatic solvents, suggesting their suitability as environmentally benign alternatives. Furthermore, our findings indicate that the polymer melting properties have a more significant influence on PE solubility than polymer molecular weight. In this work we provide critical data and model validation, paving the way for the future integration of the SAFT-γ Mie GC approach in computer-aided molecular and process design for solvent-based dissolution/precipitation plastic recycling.",
+   "is_retracted": false,
+   "source": "openalex",
+   "retrieved_at": "2026-10-08T06:23:15Z",
+   "match": {
+    "via": [
+     "crossref_bibliographic"
+    ],
+    "title_support": 1.0
+   }
+  },
+  "74a97bb76eb805256d49c3ce07b42cca2357415b634e8f1d70873d9c92c05462": {
+   "title": "Screening green solvents for multilayer plastic film recycling processes",
+   "authors": [
+    "Ugochukwu M. Ikegwu",
+    "Aurora del Carmen Munguía-López",
+    "Ví­ctor M. Zavala",
+    "Reid C. Van Lehn"
+   ],
+   "author_count": 4,
+   "year": 2025,
+   "date": "2025-04-21",
+   "venue": "Computers & Chemical Engineering",
+   "type": "article",
+   "volume": "199",
+   "issue": null,
+   "page_range": "109129",
+   "doi": "10.1016/j.compchemeng.2025.109129",
+   "openalex_id": "W4409627829",
+   "cited_by_count": 15,
+   "open_access_url": "https://doi.org/10.1016/j.compchemeng.2025.109129",
+   "abstract": null,
+   "is_retracted": false,
+   "source": "openalex",
+   "retrieved_at": "2026-10-08T06:23:14Z",
+   "match": {
+    "via": [
+     "crossref_bibliographic"
+    ],
+    "title_support": 1.0
+   }
+  },
+  "74ee0776b61134af747d8bcd09588236c8df0a0f0eb225b2cd717b74239ca4b0": {
+   "title": "Recycling of Single-Use Multilayer Plastics for Biomanufacturing with Solvent-Targeted Recovery and Precipitation",
+   "authors": [
+    "Tushar",
+    "Charles Granger",
+    "Ali Altamimi",
+    "Yoel Rene Cortes-Pena",
+    "Kevin Nelson",
+    "Xiaobo Dong",
+    "Karl Britt",
+    "Louis Barrows",
+    "Andrea Thurnheer",
+    "Styliani Avraamidou",
+    "Reid C. Van Lehn",
+    "George W. Huber"
+   ],
+   "author_count": 12,
+   "year": 2025,
+   "date": "2025-09-29",
+   "venue": "ACS Sustainable Chemistry & Engineering",
+   "type": "article",
+   "volume": "13",
+   "issue": "40",
+   "page_range": "16930–16945",
+   "doi": "10.1021/acssuschemeng.5c06479",
+   "openalex_id": "W4414619948",
+   "cited_by_count": 10,
+   "open_access_url": "https://doi.org/10.1021/acssuschemeng.5c06479",
+   "abstract": null,
+   "is_retracted": false,
+   "source": "openalex",
+   "retrieved_at": "2026-10-08T06:23:15Z",
+   "match": {
+    "via": [
+     "crossref_bibliographic"
+    ],
+    "title_support": 1.0
+   }
+  },
+  "7522bc974702c858bab9109b7e658219dd952571c3f909aa4efd51451e6d01c0": {
+   "title": "Polystyrene recycling processes by dissolution in ethyl acetate",
+   "authors": [
+    "Rafael Ferraz Cella",
+    "Guilherme Davi Mumbach",
+    "Karina Luzia Andrade",
+    "Patricia Oliveira",
+    "Cintia Marangoni",
+    "Ariovaldo Bolzan",
+    "Samuel Bernard",
+    "Ricardo Antônio Francisco Machado"
+   ],
+   "author_count": 8,
+   "year": 2018,
+   "date": "2018-01-18",
+   "venue": "Journal of Applied Polymer Science",
+   "type": "article",
+   "volume": "135",
+   "issue": "18",
+   "page_range": null,
+   "doi": "10.1002/app.46208",
+   "openalex_id": "W2789536482",
+   "cited_by_count": 56,
+   "open_access_url": null,
+   "abstract": "This study evaluated the thermal, morphological, chemical, and mechanical properties of virgin and recycled polystyrene. The recycling process was carried out by dissolution of polystyrene (extruded and crystal) in ethyl acetate, followed by two processes for solvent removal: vaporization by direct contact with water at 85 °C in a tubular evaporator and vaporization during the extrusion process. For the samples produced by solvent evaporation in the tubular evaporator, there was practically no degradation on polymer chain, neither reduction in glass transition temperature. For the samples produced by solvent evaporation during the extrusion, a polymer chain degradation was noted by reduction in molar weight and in glass transition temperature. The FTIR evaluation suggests that polymer oxidative degradation, in both samples, was more pronounced in the extruded sample. The removal of plasticizing additives could be evidenced by the glass transition temperature increase in the recycled samples produced in the tubular evaporator. © 2018 Wiley Periodicals, Inc. J. Appl. Polym. Sci. 2018, 135, 46208.",
+   "is_retracted": false,
+   "source": "openalex",
+   "retrieved_at": "2026-10-08T06:23:14Z",
+   "match": {
+    "via": [
+     "crossref_bibliographic",
+     "doi_in_text",
+     "hint_doi"
+    ],
+    "title_support": 1.0
+   }
+  },
+  "7b34d1a18d611190062d9487d58a929bb1db771e55eac0c43dbe073232e460bd": {
+   "title": "Techno-Economic and life cycle assessment of standalone Single-Stream material recovery facilities in the United states",
+   "authors": [
+    "Olumide O. Olafasakin",
+    "Jiaze Ma",
+    "Sabrina L. Bradshaw",
+    "Horacio A. Aguirre‐Villegas",
+    "Craig H. Benson",
+    "George W. Huber",
+    "Ví­ctor M. Zavala",
+    "Mark Mba Wright"
+   ],
+   "author_count": 8,
+   "year": 2023,
+   "date": "2023-05-22",
+   "venue": "Waste Management",
+   "type": "article",
+   "volume": "166",
+   "issue": null,
+   "page_range": "368–376",
+   "doi": "10.1016/j.wasman.2023.05.011",
+   "openalex_id": "W4377221187",
+   "cited_by_count": 37,
+   "open_access_url": "https://doi.org/10.1016/j.wasman.2023.05.011",
+   "abstract": null,
+   "is_retracted": false,
+   "source": "openalex",
+   "retrieved_at": "2026-10-08T06:23:15Z",
+   "match": {
+    "via": [
+     "crossref_bibliographic"
+    ],
+    "title_support": 1.0
+   }
+  },
+  "7cb2c525cbeceb26f331f6ca85e029a501363445056c6179a765f9f5aa2a1bc3": {
+   "title": "Cast Film Production with Polyethylene Recycled from a Post-Industrial Printed Multilayer Film by Solvent-Targeted Recovery and Precipitation",
+   "authors": [
+    "Kevin L. Sánchez‐Rivera",
+    "Charles Granger",
+    "Harrison Appiah",
+    "Kevin Nelson",
+    "Steve Grey",
+    "David J. Sun",
+    "John E. Estela‐García",
+    "Edward Chen",
+    "Zhuo Xu",
+    "Tim Andreas Osswald",
+    "Lih‐Sheng Turng",
+    "Armando Gabriel McDonald",
+    "Reid C. Van Lehn",
+    "Ezra Bar‐Ziv",
+    "George W. Huber"
+   ],
+   "author_count": 15,
+   "year": 2024,
+   "date": "2024-08-01",
+   "venue": "ACS Materials Letters",
+   "type": "article",
+   "volume": "6",
+   "issue": "9",
+   "page_range": "4042–4050",
+   "doi": "10.1021/acsmaterialslett.4c01048",
+   "openalex_id": "W4401215910",
+   "cited_by_count": 23,
+   "open_access_url": null,
+   "abstract": "The solvent-targeted recovery and precipitation (STRAP) process separates and recovers the constituent resins in multilayer plastic packaging films by selective polymer dissolution. In this work, three different experimental methods were considered to recover a polyethylene (PE) resin from a printed multilayer film by STRAP. The methods consisted of (1) a filter bag system, (2) a Soxhlet extraction, and (3) a jacketed dissolution vessel. Cast films were produced with the PE recovered from each method and were analyzed for color, mechanical properties, and number of impurities. High-quality recycled PE cast films can be produced by increasing the solvent to plastic ratio, including a filter pore size of 100 μm, and optimizing temperature control in STRAP. This study demonstrates that STRAP polymers can be recycled back into plastic films, enabling the potential circularity of these packaging materials.",
+   "is_retracted": false,
+   "source": "openalex",
+   "retrieved_at": "2026-10-08T06:23:15Z",
+   "match": {
+    "via": [
+     "crossref_bibliographic"
+    ],
+    "title_support": 1.0
+   }
+  },
+  "7ff3b598044588a222ede5286acae0e8236032740c64f006516e6cc5f204ed02": {
+   "title": "Analysing the potential of the selective dissolution of elastane from mixed fiber textile waste",
+   "authors": [
+    "Kim Phan",
+    "Sibel Üǧdüler",
+    "Lies Harinck",
+    "Ruben Denolf",
+    "Martijn Roosen",
+    "Galahad O’Rourke",
+    "Dirk E De Vos",
+    "Véronique Van Speybroeck",
+    "Karen De Clerck",
+    "Steven De Meester"
+   ],
+   "author_count": 10,
+   "year": 2023,
+   "date": "2023-02-05",
+   "venue": "Resources Conservation and Recycling",
+   "type": "article",
+   "volume": "191",
+   "issue": null,
+   "page_range": "106903",
+   "doi": "10.1016/j.resconrec.2023.106903",
+   "openalex_id": "W4319262636",
+   "cited_by_count": 76,
+   "open_access_url": "https://doi.org/10.1016/j.resconrec.2023.106903",
+   "abstract": "Textile products are composed of various blends of synthetic or natural polymers. Elastane increases the functionality during use phase, but impedes high quality recycling. This study investigates the selective chemical dissolution of elastane from blended textile. Hansen solubility parameters and COSMO-RS were applied for solvent screening. The most recommended biobased solvents were experimentally validated with polyester, polyamide, cotton, wool and elastane for which solubility limits were determined and hence, their selectivity towards elastane dissolution. A TGA-corrected gravimetric method was developed as quantification tool and showed that tetrahydrofurfuryl alcohol and ɣ-valerolactone have comparable elastane dissolution capabilities to classical solvents (5 mg elastane/g solvent). Polyester/elastane and polyamide/elastane blends were subjected to this process as case studies. The LCA study showed that this selective solvent-based dissolution process saves 60% CO2-eq./kg textile waste compared to incineration. This interdisciplinary work can set the benchmark for further developing and upscaling physical/dissolution recycling processes for blended textiles.",
+   "is_retracted": false,
+   "source": "openalex",
+   "retrieved_at": "2026-10-08T06:23:14Z",
+   "match": {
+    "via": [
+     "crossref_bibliographic",
+     "hint_doi"
+    ],
+    "title_support": 1.0
+   }
+  },
+  "816780158c8294124da62f79f704b5a197a8989598a5949f6f07cd345e21dc17": {
+   "title": "Towards a Better Understanding of Delamination of Multilayer Flexible Packaging Films by Carboxylic Acids",
+   "authors": [
+    "Sibel Üǧdüler",
+    "Tobias De Somer",
+    "Kevin M. Van Geem",
+    "Martijn Roosen",
+    "Andreas Kulawig",
+    "Ralf Leineweber",
+    "Steven De Meester"
+   ],
+   "author_count": 7,
+   "year": 2021,
+   "date": "2021-01-25",
+   "venue": "ChemSusChem",
+   "type": "article",
+   "volume": "14",
+   "issue": "19",
+   "page_range": "4198–4213",
+   "doi": "10.1002/cssc.202002877",
+   "openalex_id": "W3121673914",
+   "cited_by_count": 64,
+   "open_access_url": "https://doi.org/10.1002/cssc.202002877",
+   "abstract": "Recycling multilayer plastic packaging is challenging due to its intrinsic compositional heterogeneity. A promising route to increase recycling rates for these materials is delamination, which allows recycling the polymers separately. Yet, this process is not well understood on a fundamental level. This study aimed to obtain first principles‐based insights of the delamination mechanism of multilayer flexible packaging film (MFPF) with carboxylic acids. Delamination of MFPFs was described through a model based on Fick's first law of diffusion and first‐order dissolution kinetics of polyurethane adhesives. The model was experimentally tested on 5 different MFPFs at different temperatures (50–75 °C), formic acid concentrations (50–100 vol %), and solid/liquid (S/L) ratios (0.005, 0.025, and 0.12 g mL −1 ). Under the studied conditions the model proved to successfully estimate the delamination time of MFPF with the average Theil's Inequality Coefficient (TIC) value of 0.14. Essential for scaling‐up delamination processes is the possibility to use high S/L ratios as the solubility of the adhesive is rarely limiting.",
+   "is_retracted": false,
+   "source": "openalex",
+   "retrieved_at": "2026-10-08T06:23:14Z",
+   "match": {
+    "via": [
+     "crossref_bibliographic",
+     "hint_doi"
+    ],
+    "title_support": 1.0
+   }
+  },
+  "81a3270bb5e6c60b2865a276d0c9af1c0465fdf36905d690e414f0859125750d": {
+   "title": "Solvent blends for selective elastane dissolution and recovery from mixed polyamide fabrics",
+   "authors": [
+    "Lukas Vonbrül",
+    "Michael Cordin",
+    "Avinash Pradip Manian",
+    "Thomas Bechtold",
+    "Tung Pham"
+   ],
+   "author_count": 5,
+   "year": 2023,
+   "date": "2023-11-16",
+   "venue": "Resources Conservation and Recycling",
+   "type": "article",
+   "volume": "200",
+   "issue": null,
+   "page_range": "107302",
+   "doi": "10.1016/j.resconrec.2023.107302",
+   "openalex_id": "W4388725828",
+   "cited_by_count": 27,
+   "open_access_url": "https://doi.org/10.1016/j.resconrec.2023.107302",
+   "abstract": "The textile industry faces significant challenges in recycling of fibres from clothes due to the complex blends of natural and synthetic polymers that are used in their production. One of the challenges is the inclusion of elastane, that is added in textile constructions to provide stretch and comfort. It is generally present in small proportions, but even in such low amounts it interferes in recycling of the other polymer types in clothing. Thus, the elastane needs to be removed from textile blends to improve fibre recycling rates. The typical solvents for elastane, dimethylformamide (DMF) and dimethylacetamide (DMAc), are toxic and not environment friendly, which makes it difficult to handle them in large quantities. This study focuses on the selective separation of elastane from clothing by dissolution/precipitation method. It will be shown that elastane can be separated at room temperature, by mixing two solvents at a specific ratio.",
+   "is_retracted": false,
+   "source": "openalex",
+   "retrieved_at": "2026-10-08T06:23:15Z",
+   "match": {
+    "via": [
+     "crossref_bibliographic",
+     "hint_doi"
+    ],
+    "title_support": 1.0
+   }
+  },
+  "83c5f28b89223c77e2541529ee68bf2645ddd2b32851600f3e39573a5324ff34": {
+   "title": "Closed-Loop Recycling of Polymers Using Solvents",
+   "authors": [
+    "James R. Sherwood"
+   ],
+   "author_count": 1,
+   "year": 2019,
+   "date": "2019-05-10",
+   "venue": "Johnson Matthey Technology Review",
+   "type": "article",
+   "volume": "64",
+   "issue": "1",
+   "page_range": "4–15",
+   "doi": "10.1595/205651319x15574756736831",
+   "openalex_id": "W2944774918",
+   "cited_by_count": 123,
+   "open_access_url": "https://doi.org/10.1595/205651319x15574756736831",
+   "abstract": "Recycling of plastic is an established technology contributing to a circular economy. A sustainable society requires recycling to produce high quality feedstocks from all types of reusable waste. New recycling technologies will help to improve waste management practices, for instance dissolving plastic waste in a solvent to purify and maintain its material properties. In solution it is also possible to depolymerise polymers into monomers that can be used to remake virgin-grade material. In this review the advantages and disadvantages of three solvent-based recycling processes will be considered: separation of cotton and polyester (polyethylene terephthalate (PET)) textiles, chemical recycling of polylactic acid (PLA) and dissolution-precipitation of polyvinylchloride (PVC). The current state of the art and future prospects are discussed, including a brief overview of how solvents are being used to process other types of plastic waste.",
+   "is_retracted": false,
+   "source": "openalex",
+   "retrieved_at": "2026-10-08T06:23:15Z",
+   "match": {
+    "via": [
+     "crossref_bibliographic"
+    ],
+    "title_support": 1.0
+   }
+  },
+  "843ed3f5db02d55fecb20475bf4bed911d153f911bc69ec3914cc562e1fca038": {
+   "title": "Factors Affecting Solvent Retention due to Gel Formation during Dissolution-Based Plastic Recycling",
+   "authors": [
+    "Hedam Kim",
+    "Ali Altamimi",
+    "Whitney S. Loo",
+    "Reid C. Van Lehn",
+    "George W. Huber"
+   ],
+   "author_count": 5,
+   "year": 2026,
+   "date": "2026-05-02",
+   "venue": "ACS Sustainable Chemistry & Engineering",
+   "type": "article",
+   "volume": "14",
+   "issue": "19",
+   "page_range": "9093–9103",
+   "doi": "10.1021/acssuschemeng.5c13798",
+   "openalex_id": "W7160335986",
+   "cited_by_count": 1,
+   "open_access_url": "https://doi.org/10.1021/acssuschemeng.5c13798",
+   "abstract": "Solvent-targeted recovery and precipitation (STRAP) is a dissolution-based plastic recycling process that allows the selective recovery of polymers from mixed plastic waste, but removing the residual solvent from polymer gels remains a major challenge. In this study, we investigate factors affecting the residual solvent in gels during dissolution-based recycling. Experimental measurements show that the precipitation method, cooling rate, and extended filtration time do not have a significant effect on solvent retention. We investigated six variables (solvent vapor pressure, polymer molecular weight, initial polymer-to-solvent mass ratio, predicted solubility, the total Hansen solubility parameter, and the Flory-Huggins interaction parameter) that influence solvent retention. The six variables were used to build a support vector regression-based model to predict solvent retention and determine feature contribution for six polymers commonly used in recycling and nine solvents. Our analysis reveals that solvent vapor pressure is the most influential factor, followed by polymer molecular weight, while the Flory-Huggins interaction parameter has a weaker influence. The predictive framework established in this work provides a foundation for selecting polymer-solvent systems that minimize solvent retention in dissolution-based plastic recycling.",
+   "is_retracted": false,
+   "source": "openalex",
+   "retrieved_at": "2026-10-08T06:23:15Z",
+   "match": {
+    "via": [
+     "hint_doi"
+    ],
+    "title_support": 1.0
+   }
+  },
+  "878f2d11b5c32149caed37e2c20c31c7df971d023125f291c7bc9b20d8b4fac2": {
+   "title": "Removal of (Brominated) flame retardants in the dissolution recycling of polystyrene",
+   "authors": [
+    "Michiel Van Melkebeke",
+    "Rita Kol",
+    "Amin Shariatmadar Tehrani",
+    "Dave Manhaeghe",
+    "Emile Casiries",
+    "Tine Van Laere",
+    "Yufei Xie",
+    "Hamed Mohamadzadeh Shirazi",
+    "Norbert Nießner",
+    "Dirk Reichert",
+    "Hilde Poelman",
+    "Kevin M. Van Geem",
+    "Steven De Meester"
+   ],
+   "author_count": 13,
+   "year": 2025,
+   "date": "2025-06-20",
+   "venue": "Chemical Engineering Journal",
+   "type": "article",
+   "volume": "519",
+   "issue": null,
+   "page_range": "164504",
+   "doi": "10.1016/j.cej.2025.164504",
+   "openalex_id": "W4411488064",
+   "cited_by_count": 8,
+   "open_access_url": "https://doi.org/10.1016/j.cej.2025.164504",
+   "abstract": "End-use plastic applications can contain potentially harmful additives such as brominated flame retardants (FRs) that complicate their recycling process. Therefore, effective removal of such substances becomes essential to widen the applicability of the recycling process and increase the quality of the recyclate. To that end, this work proposes a combination of filtration and adsorption as purification technique in the dissolution recycling of polystyrene (PS). Five FRs were selected (i.e., HBCD, TBBPA, DBDPE, TPHP, and PolyFR) with two different solvents (i.e., n-butyl acetate and cyclohexene). Based on their solubility, determined both experimentally and through COSMO-RS modeling, the removal of the FRs was investigated by either filtration or adsorption. Results indicate a near complete removal of undissolved FRs via filtration (i.e., > 99 wt%), while for the dissolved FRs an optimal removal efficiency of 80 to 99 wt% is obtained via adsorption on different types of activated carbon. No significant changes are observed when comparing mixtures without PS to those with 5 wt% PS. However, the strong effect of solvent choice is highlighted, where cyclohexene outperforms n-butyl acetate with differences in removal efficiency as high as 50 wt%. Furthermore, the use of computational modeling tools such as Gaussian16 and COSMO-RS is demonstrated to gain insight into the physicochemical properties of the FRs, which can optimize the purification system, including solvent choice. Finally, applying the proposed treatment process to real-world plastic WEEE samples further proves the effectiveness of the purification, marking a significant step forward in the dissolution recycling of plastics. • New strategy to purify flame retardants (FRs) in the dissolution recycling of PS. • Computational modeling (COSMO-RS) to characterize the solubility behavior of FRs. • Combining filtration and adsorption to remove both undissolved and dissolved FRs. • Achieved removal efficiency of over 99% in filtration and 80%–99% in adsorption. • Successfully applied proposed purification process to real plastic waste samples.",
+   "is_retracted": false,
+   "source": "openalex",
+   "retrieved_at": "2026-10-08T06:23:14Z",
+   "match": {
+    "via": [
+     "crossref_bibliographic"
+    ],
+    "title_support": 1.0
+   }
+  },
+  "8a0fd85d9f6de7aab8fb8c4e7aca9282aa05d5cc0a26df26af359d6e951aaef1": {
+   "title": "Application of solvent-based dissolution for the recycling of polyvinylchloride flooring waste containing restricted phthalate plasticizers",
+   "authors": [
+    "Swetlana Wagner",
+    "Martin Schlummer"
+   ],
+   "author_count": 2,
+   "year": 2024,
+   "date": "2024-08-31",
+   "venue": "Resources Conservation and Recycling",
+   "type": "article",
+   "volume": "211",
+   "issue": null,
+   "page_range": "107889",
+   "doi": "10.1016/j.resconrec.2024.107889",
+   "openalex_id": "W4402081894",
+   "cited_by_count": 16,
+   "open_access_url": "https://www.sciencedirect.com/science/article/pii/S0921344924004828/pdf",
+   "abstract": "The applicability of a new recycling method for extracting contaminants from polymers, dissolution-based recycling, was tested on a polyvinylchloride equipped with diethylhexyl phthalate, benzylbutyl phthalate, di-isobutyl phthalate, di-n‑butyl phthalate, originating from post-consumer flooring waste. Due to European restrictions on these ortho-phthalate diester-based plasticizers, the mechanical recycling of plasticized polyvinylchloride is no longer feasible. In this study, we have shown that dissolution and consecutive purification of the polymer eliminate 99.9 % of diethylhexyl phthalate's initial concentration at the laboratory scale. The impact of different process parameters, e.g., temperature, agitation, and extraction kinetics, have been tested. The findings were transferred to a technical scale of 5 kg/d, using a multi-step extraction in counter-flow mode. An elimination of 99.4 % of diethylhexyl phthalate initial concentration has been achieved, which fulfills legal requirements. These promising results showed the technical feasibility and served as a preliminary stage for further up-scaling to technical readiness level 6.",
+   "is_retracted": false,
+   "source": "openalex",
+   "retrieved_at": "2026-10-08T06:23:15Z",
+   "match": {
+    "via": [
+     "crossref_bibliographic",
+     "hint_doi"
+    ],
+    "title_support": 1.0
+   }
+  },
+  "926ef3951d01f74441c96b9e05cc18946e66b9f5366b6b3a2950f4f3067f350e": {
+   "title": "Dissolution‐Precipitation of Plastic Waste: Current Position and Potential as Green Recycling Technique",
+   "authors": [
+    "Sofia C. Aparício",
+    "João Victor Mendes Resende",
+    "Bernardo Dias Ribeiro",
+    "Isabel  Maria Marrucho"
+   ],
+   "author_count": 4,
+   "year": 2025,
+   "date": "2025-03-06",
+   "venue": "ChemSusChem",
+   "type": "article",
+   "volume": "18",
+   "issue": "11",
+   "page_range": "e202500018",
+   "doi": "10.1002/cssc.202500018",
+   "openalex_id": "W4408245142",
+   "cited_by_count": 19,
+   "open_access_url": null,
+   "abstract": "Plastic waste management is a major global concern as the production of these materials continues to increase without proportional advancements in recycling technologies. Dissolution-precipitation is a promising emerging technology, offering a simple yet effective process to manage complex materials that often go unrecycled, while also recovering high-quality polymers. The success of this technology largely depends on the careful design and selection of solvents. This perspective discusses the most used methods used to screen and select these solvents prior to experimental tests, and provides an overview of the solvents tested in dissolution and precipitation steps of common polymers. Recent advances improved the accuracy and applicability of common and novel solvent screening methods, namely Hansen Solubility Parameters, COSMO-RS, and Machine Learning models. Additionally, the compilation of all solvents reported for dissolution-precipitation of common polymers clearly highlighted the scarcity of studies using alternative green solvents and the need to deeper understand the dissolution-precipitation processes as a whole. This should lead to the development of more sustainable circular polymer recycling processes, which should be regarding Life Cycle Analysis (LCA) and economic assessments.",
+   "is_retracted": false,
+   "source": "openalex",
+   "retrieved_at": "2026-10-08T06:23:14Z",
+   "match": {
+    "via": [
+     "crossref_bibliographic",
+     "hint_doi"
+    ],
+    "title_support": 1.0
+   }
+  },
+  "9338951bd4a51f704033a7272798bd4731044dc7c577fbb9528d984f293870d6": {
+   "title": "Scaling up dissolution-based recycling to eliminate brominated flame retardants from WEEE plastics",
+   "authors": [
+    "Swetlana Wagner",
+    "Laura Strobl",
+    "T Bielmeier",
+    "Martin Schlummer"
+   ],
+   "author_count": 4,
+   "year": 2025,
+   "date": "2025-08-29",
+   "venue": "Waste Management",
+   "type": "article",
+   "volume": "206",
+   "issue": null,
+   "page_range": "115076",
+   "doi": "10.1016/j.wasman.2025.115076",
+   "openalex_id": "W4413813335",
+   "cited_by_count": 4,
+   "open_access_url": "https://doi.org/10.1016/j.wasman.2025.115076",
+   "abstract": "The significant challenges of recycling plastics from electrical and electronic equipment waste (WEEE) comprise the mixture of different plastics and their content of brominated flame retardant (BFR). Current recycling techniques are insufficient in removing BFRs, leading to high rejects and incineration of valuable resources. In this study, it is shown that de-pollution by a dissolution-based recycling technique (DBR) is feasible with presorted flame-retarded (FR) acrylonitrile butadiene styrene (ABS-FR) and polystyrene (PS-FR) fractions from WEEE. This was demonstrated at a technical scale of five kg/d with shredded samples, originating from different European sources, characterized by a PS share of > 95 % and an ABS share of > 70 %, as well as bromine concentrations of 12,000 ppm and 33,000 ppm, respectively. Besides novel brominated flame retardants (NBFRs), tetrabromobisphenol A (TBBPA) and decabromodiphenyl ether (decaBDE) above legal thresholds have been detected. After successive extraction by dissolution-based recycling, restricted BFRs have been effectively eliminated to < 500 ppm, ensuring their legal compliance. This achievement underscores the regulatory compliance of the DBR process. The DBR process can be part of a cascade for the treatment of WEEE plastics that includes both spectroscopic pre-sorting and chemical recycling of the side streams. With the interconnection of existing techniques, a far-reaching circulation of EEE plastics is possible.",
+   "is_retracted": false,
+   "source": "openalex",
+   "retrieved_at": "2026-10-08T06:23:15Z",
+   "match": {
+    "via": [
+     "crossref_bibliographic"
+    ],
+    "title_support": 1.0
+   }
+  },
+  "95025e113ff5d17c8ba4720e4e9f70bebf97368ac715760fd74a3748ed5da04d": {
+   "title": "Dissolution/reprecipitation: A model process for PET bottle recycling",
+   "authors": [
+    "J. G. Poulakis",
+    "Constantine D. Papaspyrides"
+   ],
+   "author_count": 2,
+   "year": 2001,
+   "date": "2001-04-18",
+   "venue": "Journal of Applied Polymer Science",
+   "type": "article",
+   "volume": "81",
+   "issue": "1",
+   "page_range": "91–95",
+   "doi": "10.1002/app.1417",
+   "openalex_id": "W2115210236",
+   "cited_by_count": 65,
+   "open_access_url": "http://doi.org/10.1002/app.1417",
+   "abstract": "A dissolution/reprecipitation route was followed for the recycling of poly(ethylene terephthalate) (PET). Model experiments on virgin material, either in the form of pellets or blow‐molded bottles, are presented. The process proposed comprises dissolution of the plastic in an appropriate solvent, reprecipitation by using a nonsolvent, thorough washing of the material obtained, and drying. The solvent mixtures involved are separated by fractional distillation for further reuse. N‐Methyl‐2‐pyrrolidone (NMP)/n‐octane + n‐hexane proved to be a particularly effective solvent/nonsolvent system. Further investigation was focused on the effect of the sample history through successive recycling cycles. The recycled material was evaluated in terms of molecular weight, crystallinity, and grain‐size analysis, resulting in an excellent quality, competing with the virgin grade. © 2001 John Wiley & Sons, Inc. J Appl Polym Sci 81: 91–95, 2001",
+   "is_retracted": false,
+   "source": "openalex",
+   "retrieved_at": "2026-10-08T06:23:14Z",
+   "match": {
+    "via": [
+     "crossref_bibliographic",
+     "hint_doi"
+    ],
+    "title_support": 1.0
+   }
+  },
+  "9adf3fb563593960cf2155cc1c71781303acb0c17758312a8341a36684b12f19": {
+   "title": "Large-scale computational polymer solubility predictions and applications to dissolution-based plastic recycling",
+   "authors": [
+    "Panzheng Zhou",
+    "Jiuling Yu",
+    "Kevin L. Sánchez‐Rivera",
+    "George W. Huber",
+    "Reid C. Van Lehn"
+   ],
+   "author_count": 5,
+   "year": 2023,
+   "date": "2023-01-01",
+   "venue": "Green Chemistry",
+   "type": "article",
+   "volume": "25",
+   "issue": "11",
+   "page_range": "4402–4414",
+   "doi": "10.1039/d3gc00404j",
+   "openalex_id": "W4376455578",
+   "cited_by_count": 57,
+   "open_access_url": "https://www.osti.gov/biblio/1974308",
+   "abstract": "We demonstrate a joint computational and experimental approach to predict polymer solubilities at a large scale. This approach can facilitate solvent screening and process design for dissolution-based plastic recycling processes.",
+   "is_retracted": false,
+   "source": "openalex",
+   "retrieved_at": "2026-10-08T06:23:15Z",
+   "match": {
+    "via": [
+     "doi_in_text"
+    ],
+    "title_support": 1.0
+   }
+  },
+  "9ca4a93fc847f35cf0f8a6e0155040c0a5f6bc190e7e1f2e89d1f4d46ba09d59": {
+   "title": "Separation of Polycotton for Textile Recycling Using the DBU/DMSO/CO 2 Switchable Solvent System",
+   "authors": [
+    "Marcel Jungbluth",
+    "Sabine Beuermann"
+   ],
+   "author_count": 2,
+   "year": 2025,
+   "date": "2025-03-10",
+   "venue": "ACS Sustainable Chemistry & Engineering",
+   "type": "article",
+   "volume": "13",
+   "issue": "11",
+   "page_range": "4341–4348",
+   "doi": "10.1021/acssuschemeng.4c07633",
+   "openalex_id": "W4408274714",
+   "cited_by_count": 11,
+   "open_access_url": "https://doi.org/10.1021/acssuschemeng.4c07633",
+   "abstract": "High Resolution Image Download MS PowerPoint Slide Disposal of textile waste is a growing concern in terms of environmental pollution. Especially, blends of different fibers such as polycotton render recycling of textile wastes difficult, which contributes to low recycling rates in the textile industry. The separation of polycotton into polyester and cotton can enable the recycling of these blended textiles. The selective dissolution of cotton using a switchable solvent system consisting of 1,8–diazabicyclo [5.4.0]undec–7–ene (DBU), dimethyl sulfoxide (DMSO), and carbon dioxide is investigated. After the separation of cellulose from polyester, upon addition of ethanol, cotton precipitates, which allows for facile removal from the solvent system. Extraction at 40 °C and 5 bar CO 2 is feasible for full separation of the constituents of polycotton without degradation of the polyester component, as identified by thermal gravimetric analyses, infrared spectroscopy, size-exclusion chromatography, and scanning electron microscopy of the extracted textiles.",
+   "is_retracted": false,
+   "source": "openalex",
+   "retrieved_at": "2026-10-08T06:23:15Z",
+   "match": {
+    "via": [
+     "crossref_bibliographic"
+    ],
+    "title_support": 0.995
+   }
+  },
+  "9f085a889120cf331752755b258fb8be7c7b080a067427373a3a1fe8528b559a": {
+   "title": "Complete recycling of polymers and dyes from polyester/cotton blended textiles via cost-effective and destruction-minimized dissolution, swelling, precipitation, and separation",
+   "authors": [
+    "Bingnan Mu",
+    "Xiaoqing Yu",
+    "Yuanyi Shao",
+    "Lauren McBride",
+    "Hannah Hidalgo",
+    "Yiqi Yang"
+   ],
+   "author_count": 6,
+   "year": 2023,
+   "date": "2023-10-21",
+   "venue": "Resources Conservation and Recycling",
+   "type": "article",
+   "volume": "199",
+   "issue": null,
+   "page_range": "107275",
+   "doi": "10.1016/j.resconrec.2023.107275",
+   "openalex_id": "W4387864966",
+   "cited_by_count": 57,
+   "open_access_url": "https://doi.org/10.1016/j.resconrec.2023.107275",
+   "abstract": null,
+   "is_retracted": false,
+   "source": "openalex",
+   "retrieved_at": "2026-10-08T06:23:15Z",
+   "match": {
+    "via": [
+     "crossref_bibliographic"
+    ],
+    "title_support": 1.0
+   }
+  },
+  "a194d01270c7a5459470d90ceb3bc67bf04f383ee00a6ffe71d491113721fc2f": {
+   "title": "Selection of Conditions in PVB Polymer Dissolution Process for Laminated Glass Recycling Applications",
+   "authors": [
+    "Marek Królikowski",
+    "Piotr Żach",
+    "Maciej Kalestyński"
+   ],
+   "author_count": 3,
+   "year": 2022,
+   "date": "2022-11-24",
+   "venue": "Polymers",
+   "type": "article",
+   "volume": "14",
+   "issue": "23",
+   "page_range": "5119",
+   "doi": "10.3390/polym14235119",
+   "openalex_id": "W4310036582",
+   "cited_by_count": 16,
+   "open_access_url": "https://doi.org/10.3390/polym14235119",
+   "abstract": "Polyvinyl(butyral) (PVB) post-production waste collected from the windshields of end-of-life vehicles and post-consumer building laminated glass are valuable polymeric materials that can be reused. Every year, large amounts of PVB waste are still being buried in landfills owing to a lack of appropriate recycling techniques. Before reuse, PVB should be thoroughly cleaned of solid contaminants such as glass dust, fused heating wires, and other waste polymers, metals, and ceramics. This can be done by polymer dissolution and filtration. In this study, we propose the purification of PVB from contamination by dissolving the post-consumer polymeric materials into single and binary organic solvents. As part of the experimental work, measurements and optimization of the dissolution time of PVB were performed. PVB dissolves faster when a binary solvent (2-propanol + ethyl acetate) than pure 2-propanol is used. From the point of view of the practical application of PVB solutions, measurements of density and dynamic viscosity as a function of PVB concentration and temperature were performed. The PVB solutions obtained in this work can be widely used as glues for glass, ceramics, metal, impregnating, and insulating materials or as paint additives that are entirely transparent for visible light and to block UV rays.",
+   "is_retracted": false,
+   "source": "openalex",
+   "retrieved_at": "2026-10-08T06:23:16Z",
+   "match": {
+    "via": [
+     "crossref_bibliographic",
+     "doi_in_text",
+     "hint_doi"
+    ],
+    "title_support": 1.0
+   }
+  },
+  "a33f2fb6783b34784a2a013b224665a4af2fb5d9b5a6a384f76295bc3cd883a7": {
+   "title": "Quantifying the environmental benefits of a solvent-based separation process for multilayer plastic films",
+   "authors": [
+    "Aurora del Carmen Munguía-López",
+    "Dilara Göreke",
+    "Kevin L. Sánchez‐Rivera",
+    "Horacio A. Aguirre‐Villegas",
+    "Styliani Avraamidou",
+    "George W. Huber",
+    "Ví­ctor M. Zavala"
+   ],
+   "author_count": 7,
+   "year": 2023,
+   "date": "2023-01-01",
+   "venue": "Green Chemistry",
+   "type": "article",
+   "volume": "25",
+   "issue": "4",
+   "page_range": "1611–1625",
+   "doi": "10.1039/d2gc04262b",
+   "openalex_id": "W4319654314",
+   "cited_by_count": 58,
+   "open_access_url": "https://www.osti.gov/biblio/2418775",
+   "abstract": "The STRAP process can provide environmental benefits over the virgin film production process. We identified the polymers and process units that have the highest environmental impact.",
+   "is_retracted": false,
+   "source": "openalex",
+   "retrieved_at": "2026-10-08T06:23:15Z",
+   "match": {
+    "via": [
+     "doi_in_text"
+    ],
+    "title_support": 1.0
+   }
+  },
+  "a593ec0e693a97d7c27c54b85fd8b81f296df111b111097d2ec697d8a2572744": {
+   "title": "Mechanical Recycling versus Selective Dissolution Precipitation from Multilayer Polypropylene Barrier Films: Structure-Processing-Properties Relationships",
+   "authors": [
+    "Hermann Adam",
+    "Samira Nada",
+    "M Yousfi",
+    "Abderrahim Maazouz",
+    "Khalid Lamnawar"
+   ],
+   "author_count": 5,
+   "year": 2026,
+   "date": "2026-05-04",
+   "venue": "Industrial & Engineering Chemistry Research",
+   "type": "article",
+   "volume": "65",
+   "issue": "18",
+   "page_range": "9793–9807",
+   "doi": "10.1021/acs.iecr.6c00704",
+   "openalex_id": "W7160089917",
+   "cited_by_count": 0,
+   "open_access_url": null,
+   "abstract": "This study compares two types of methods used for the valorization of multilayer films, namely, mechanical recycling (MR) through thermomechanical reprocessing and the selective dissolution–precipitation (SDP) method, which lead to products of different nature. Both approaches were evaluated on a five-layer coextruded film composed of polypropylene (PP) (88 wt %) used as the outer layer, maleic anhydride-grafted polypropylene (PP- g -MA) (5 wt %) serving as the tie layer, and ethylene vinyl alcohol (EVOH) (7 wt %) used as the barrier layer. The comparison of the two processes was primarily based on their applicability. However, two additional criteria, namely, environmental impact and economic aspects, were also briefly addressed based on literature data. MR consisted of thermomechanical reprocessing applied over five cycles to the multilayer film by using a twin-screw extruder. The results show that MR is a promising route up to the third recycling cycle; beyond this point, the rheological and mechanical properties deteriorate. This degradation is attributed to the competition between different reaction mechanisms, namely, PP β-scission, EVOH cross-linking, and the esterification reaction generated by the interaction between EVOH and PP- g -MA. Nevertheless, according to the literature, the MR process presents a low environmental impact and a relatively affordable cost. In contrast, the SDP process consisted of a layer separation system based on the use of a solvent system. Although the SDP process successfully separated PP from EVOH, the thermal and rheological properties of the recovered materials were altered due to incomplete recovery or recovery of the interface/interphase material during dissolution, resulting from strong physicochemical interactions between the constituents (PP- g -MA/EVOH), as well as the use of solvents at elevated temperatures. Compared with MR, the SDP method is more energy-intensive and has a higher environmental impact, notably because it requires solvents and antisolvents, involving additional distillation steps for their separation. It is also more expensive due to the cost of solvents and antisolvents, as well as the equipment required for layer separation. Finally, in terms of processing time, layer separation by dissolution requires approximately 60 h, compared with 6 h for thermomechanical reprocessing.",
+   "is_retracted": false,
+   "source": "openalex",
+   "retrieved_at": "2026-10-08T06:23:15Z",
+   "match": {
+    "via": [
+     "crossref_bibliographic",
+     "hint_doi"
+    ],
+    "title_support": 1.0
+   }
+  },
+  "a8c9ec69cfccb8dc6330186bc546240377e5ab9d20a05e618607f7b7868af18a": {
+   "title": "Greening the physical recycling of HDPE: dissolution precipitation with natural solvents",
+   "authors": [
+    "Sofia C. Aparício",
+    "Pedro M. Castro",
+    "Bernardo Dias Ribeiro",
+    "Isabel  Maria Marrucho"
+   ],
+   "author_count": 4,
+   "year": 2024,
+   "date": "2024-01-01",
+   "venue": "Green Chemistry",
+   "type": "article",
+   "volume": "26",
+   "issue": "11",
+   "page_range": "6799–6811",
+   "doi": "10.1039/d3gc04134d",
+   "openalex_id": "W4396681976",
+   "cited_by_count": 16,
+   "open_access_url": null,
+   "abstract": "The selective dissolution of HDPE with a green solvent allows its simple and sustainable separation from other polymers, e.g. PET.",
+   "is_retracted": false,
+   "source": "openalex",
+   "retrieved_at": "2026-10-08T06:23:15Z",
+   "match": {
+    "via": [
+     "doi_in_text"
+    ],
+    "title_support": 1.0
+   }
+  },
+  "a922ed63f0fb8637cca522d042463b00649bb752f56f77d3057c0446601f51ab": {
+   "title": "Recycling of polypropylene by the dissolution/reprecipitation technique: I. A model study",
+   "authors": [
+    "J. G. Poulakis",
+    "Constantine D. Papaspyrides"
+   ],
+   "author_count": 2,
+   "year": 1997,
+   "date": "1997-06-01",
+   "venue": "Resources Conservation and Recycling",
+   "type": "article",
+   "volume": "20",
+   "issue": "1",
+   "page_range": "31–41",
+   "doi": "10.1016/s0921-3449(97)01196-8",
+   "openalex_id": "W2044427269",
+   "cited_by_count": 91,
+   "open_access_url": "http://doi.org/10.1016/S0921-3449(97)01196-8",
+   "abstract": null,
+   "is_retracted": false,
+   "source": "openalex",
+   "retrieved_at": "2026-10-08T06:23:15Z",
+   "match": {
+    "via": [
+     "crossref_bibliographic",
+     "hint_doi"
+    ],
+    "title_support": 1.0
+   }
+  },
+  "ad5e2a66839cbddfa6f1eb02b7dd50cce4091586870bbc843a3d36e8592f3848": {
+   "title": "Recycling of post-consumer multilayer Tetra Pak® packaging with the Selective Dissolution-Precipitation process",
+   "authors": [
+    "Ioulia Georgiopoulou",
+    "Georgia D. Pappa",
+    "Stamatina Vouyiouka",
+    "Kostis G. Magoulas"
+   ],
+   "author_count": 4,
+   "year": 2020,
+   "date": "2020-11-20",
+   "venue": "Resources Conservation and Recycling",
+   "type": "article",
+   "volume": "165",
+   "issue": null,
+   "page_range": "105268",
+   "doi": "10.1016/j.resconrec.2020.105268",
+   "openalex_id": "W3104052100",
+   "cited_by_count": 98,
+   "open_access_url": null,
+   "abstract": null,
+   "is_retracted": false,
+   "source": "openalex",
+   "retrieved_at": "2026-10-08T06:23:14Z",
+   "match": {
+    "via": [
+     "crossref_bibliographic",
+     "hint_doi"
+    ],
+    "title_support": 1.0
+   }
+  },
+  "adc4d29e159760cb0dc98a613d32dc4a147e795789c533e0c712c351429a3ec3": {
+   "title": "Reclaiming Polyethylene from Multilayer Plastic Packaging by Separating Oxygen Barrier Material Using Solvent-Based Selective Dissolution: Recycling Polyethylene for Property Characterization",
+   "authors": [
+    "Ke Zhan",
+    "T.A. Rahman",
+    "Daniel A. Meadows",
+    "Edward W. Davis",
+    "Virginia A. Davis",
+    "Bryan S. Beckingham",
+    "Ruiqing Miao",
+    "Thomas Elder",
+    "Brian K. Via",
+    "Yucheng Peng"
+   ],
+   "author_count": 10,
+   "year": 2026,
+   "date": "2026-01-19",
+   "venue": "ACS Sustainable Chemistry & Engineering",
+   "type": "article",
+   "volume": "14",
+   "issue": "4",
+   "page_range": "1858–1872",
+   "doi": "10.1021/acssuschemeng.5c08837",
+   "openalex_id": "W7124830850",
+   "cited_by_count": 3,
+   "open_access_url": null,
+   "abstract": "Direct mechanical recycling of multilayer plastic packaging (MPP) leads to downcycling, as the costly barrier layer loses economic value and often degrades the quality of the recycled blend. In this study, a five-layer MPP film consisting of low-density polyethylene (LDPE) structural layers, maleic anhydride-grafted linear LDPE (MA- g -LLDPE) tie layers, and an ethylene vinyl alcohol (EVOH) barrier layer was treated with formic acid to selectively extract the EVOH. The effects of the solvent concentration, temperature, sample size, and solvent-to-sample ratio on dissolution efficiency were evaluated, and optimal conditions were identified and scaled in a pilot setup. The polyolefins reclaimed after EVOH extraction were reprocessed into a blend through a conventional mechanical recycling process. Mechanical testing showed that the reclaimed polyolefin blend exhibited enhanced performance compared to the MPP film blend obtained via direct mechanical recycling and demonstrated properties comparable to those of virgin LDPE. Analysis of the chemical structure and rheological behavior revealed that chemical changes of the MA- g -LLDPE tie layer via hydrolysis and ring-opening reactions played a key role in affecting intermolecular interactions and consequently the mechanical performance of the reclaimed polyolefin blend. Moreover, the thermal properties of the reclaimed polyolefin blend remained largely consistent with those of the LDPE/MA- g -LLDPE blend without dissolution treatment. These findings demonstrate that solvent-based selective dissolution is a practical and scalable method for extracting EVOH and reclaiming polyolefins, enabling subsequent mechanical recycling with satisfactory results.",
+   "is_retracted": false,
+   "source": "openalex",
+   "retrieved_at": "2026-10-08T06:23:15Z",
+   "match": {
+    "via": [
+     "crossref_bibliographic",
+     "hint_doi"
+    ],
+    "title_support": 1.0
+   }
+  },
+  "b12980702b529bc03c068276720d4982db5a9a1882cc2fe167a9d581f6410b1b": {
+   "title": "Rapid polypropylene recovery using ionic liquid: Achieving 99% recycling efficiency with mechanistic insight from neutron scattering",
+   "authors": [
+    "Heider Salazar",
+    "C. N. Davids",
+    "Ioan-Alexandru Bărăgău",
+    "Zhen Lu",
+    "James Bowen",
+    "Kiem Giap Nguyen",
+    "Ian P. Silverwood",
+    "Suela Kellici"
+   ],
+   "author_count": 8,
+   "year": 2026,
+   "date": "2026-04-27",
+   "venue": "Chemical Engineering Journal",
+   "type": "article",
+   "volume": "538",
+   "issue": null,
+   "page_range": "176779",
+   "doi": "10.1016/j.cej.2026.176779",
+   "openalex_id": "W7155957026",
+   "cited_by_count": 2,
+   "open_access_url": "https://oro.open.ac.uk/102945/1/%5BA118%5D%20Salazar%2C%20Davids%2C%20Baragau%2C%20Lu%2C%20Bowen%2C%20Nguyen%2C%20Silverwood%2C%20Kellici%2C%202026%2C%20CEJ.pdf",
+   "abstract": null,
+   "is_retracted": false,
+   "source": "openalex",
+   "retrieved_at": "2026-10-08T06:23:14Z",
+   "match": {
+    "via": [
+     "crossref_bibliographic",
+     "doi_in_text"
+    ],
+    "title_support": 1.0
+   }
+  },
+  "b5fae2ac9bd67ea265d3c643a0897e2cd4078d2283f6f81df966e479bf8df8b3": {
+   "title": "Upcycling of cotton polyester blended textile waste to new man-made cellulose fibers",
+   "authors": [
+    "Simone Haslinger",
+    "Michael Hummel",
+    "Adina Anghelescu‐Hakala",
+    "Marjo Määttänen",
+    "Herbert Sixta"
+   ],
+   "author_count": 5,
+   "year": 2019,
+   "date": "2019-08-05",
+   "venue": "Waste Management",
+   "type": "article",
+   "volume": "97",
+   "issue": null,
+   "page_range": "88–96",
+   "doi": "10.1016/j.wasman.2019.07.040",
+   "openalex_id": "W2964494852",
+   "cited_by_count": 225,
+   "open_access_url": "https://doi.org/10.1016/j.wasman.2019.07.040",
+   "abstract": "The creation of a circular economy for cellulose based textile waste is supported by the development of an upcycling method for cotton polyester blended waste garments. We present a separation procedure for cotton and polyester using [DBNH] [OAc], a superbase based ionic liquid, which allows the selective dissolution of the cellulose component. After the removal of PET, the resulting solution could be employed to dry-jet wet spin textile grade cellulose fibers down to the microfiber range (0.75-2.95 dtex) with breaking tenacities (27-48 cN/tex) and elongations (7-9%) comparable to commercial Lyocell fibers made from high-purity dissolving pulp. The treatment time in [DBNH] [OAc] was found to reduce the tensile properties (<52%) and the molar mass distribution (<51%) of PET under certain processing conditions.",
+   "is_retracted": false,
+   "source": "openalex",
+   "retrieved_at": "2026-10-08T06:23:15Z",
+   "match": {
+    "via": [
+     "crossref_bibliographic"
+    ],
+    "title_support": 1.0
+   }
+  },
+  "c1c914e82f064dc27a0263716018a84978a7dd3b52f74335de2a1b72154ade4b": {
+   "title": "Maximizing polypropylene recovery from waste carpet feedstock: a solvent-driven pathway towards circular economy",
+   "authors": [
+    "Heider Salazar",
+    "Ioan-Alexandru Bărăgău",
+    "Zhen Lu",
+    "Luis A. Román‐Ramírez",
+    "Suela Kellici"
+   ],
+   "author_count": 5,
+   "year": 2024,
+   "date": "2024-01-01",
+   "venue": "RSC Sustainability",
+   "type": "article",
+   "volume": "2",
+   "issue": "5",
+   "page_range": "1367–1371",
+   "doi": "10.1039/d3su00270e",
+   "openalex_id": "W4393621669",
+   "cited_by_count": 4,
+   "open_access_url": "https://doi.org/10.1039/d3su00270e",
+   "abstract": "A novel approach for the efficient recovery of polypropylene from waste carpet feedstock utilising a solvent based method.",
+   "is_retracted": false,
+   "source": "openalex",
+   "retrieved_at": "2026-10-08T06:23:15Z",
+   "match": {
+    "via": [
+     "crossref_bibliographic",
+     "doi_in_text"
+    ],
+    "title_support": 1.0
+   }
+  },
+  "c9e6e17a1e213dde75f0e97c4d06c7c4bd4c8fd2ab433487206dbd793f9c006a": {
+   "title": "Recycling of a post-industrial printed multilayer plastic film containing polyurethane inks by solvent-targeted recovery and precipitation",
+   "authors": [
+    "Kevin L. Sánchez‐Rivera",
+    "Aurora del Carmen Munguía-López",
+    "Panzheng Zhou",
+    "Victor Sanfins Cecon",
+    "Jiuling Yu",
+    "Kevin Nelson",
+    "Daniel L. Miller",
+    "Steve Grey",
+    "Zhuo Xu",
+    "Ezra Bar‐Ziv",
+    "Keith  L. Vorst",
+    "Greg W. Curtzwiler",
+    "Reid C. Van Lehn",
+    "Ví­ctor M. Zavala",
+    "George W. Huber"
+   ],
+   "author_count": 15,
+   "year": 2023,
+   "date": "2023-06-15",
+   "venue": "Resources Conservation and Recycling",
+   "type": "article",
+   "volume": "197",
+   "issue": null,
+   "page_range": "107086",
+   "doi": "10.1016/j.resconrec.2023.107086",
+   "openalex_id": "W4380764659",
+   "cited_by_count": 64,
+   "open_access_url": "https://doi.org/10.1016/j.resconrec.2023.107086",
+   "abstract": null,
+   "is_retracted": false,
+   "source": "openalex",
+   "retrieved_at": "2026-10-08T06:23:15Z",
+   "match": {
+    "via": [
+     "crossref_bibliographic"
+    ],
+    "title_support": 1.0
+   }
+  },
+  "cecf918a2880b694a492f38665624168765cf32bdf1871375a1f78d21e42984d": {
+   "title": "Effect of dissolution-based recycling on the degradation and the mechanical properties of acrylonitrile–butadiene–styrene copolymer",
+   "authors": [
+    "Asier Aróstegui",
+    "Mariasun Sarrionandia",
+    "Jon Aurrekoetxea",
+    "Idoia Urrutibeascoa"
+   ],
+   "author_count": 4,
+   "year": 2006,
+   "date": "2006-06-22",
+   "venue": "Polymer Degradation and Stability",
+   "type": "article",
+   "volume": "91",
+   "issue": "11",
+   "page_range": "2768–2774",
+   "doi": "10.1016/j.polymdegradstab.2006.03.019",
+   "openalex_id": "W1977110896",
+   "cited_by_count": 94,
+   "open_access_url": null,
+   "abstract": null,
+   "is_retracted": false,
+   "source": "openalex",
+   "retrieved_at": "2026-10-08T06:23:14Z",
+   "match": {
+    "via": [
+     "hint_doi"
+    ],
+    "title_support": 1.0
+   }
+  },
+  "d5b10797b47dd825b40bbfde64b7f617b53c6a5b82d5fd23dead3b106ac21322": {
+   "title": "Optimal Design of Food Packaging Considering Waste Management Technologies to Achieve Circular Economy",
+   "authors": [
+    "Paola A. Munoz-Briones",
+    "Aurora del C. Mungu�a-L�pez",
+    "Kevin L. S�nchez-Rivera",
+    "Ví­ctor M. Zavala",
+    "George W. Huber",
+    "Styliani Avraamidou"
+   ],
+   "author_count": 6,
+   "year": 2024,
+   "date": "2024-07-09",
+   "venue": "Systems and Control Transactions",
+   "type": "conference-paper",
+   "volume": "3",
+   "issue": null,
+   "page_range": "820–828",
+   "doi": "10.69997/sct.154335",
+   "openalex_id": "W4401457844",
+   "cited_by_count": 5,
+   "open_access_url": "https://doi.org/10.69997/sct.154335",
+   "abstract": "Plastic packaging plays a fundamental role in the food industry, avoiding food waste and facilitating food access. The increasing plastic production and the lack of appropriate plastic waste management technologies represent a threat to the environmental and human welfare. Therefore, there is an urgent need to identify sustainable packaging solutions. Circular economy (CE) promotes reducing waste and increasing recycling practices to achieve sustainability. In this work, we propose a CE framework based on multi-objective optimization, considering both economic and environmental impacts, to identify optimal packaging designs and waste management technologies. Using mixed-integer linear programming (MILP), techno-economic analysis (TEA), and life cycle assessment (LCA), this work aims to build the first steps in packaging design, informing about the best packaging alternatives and the optimal technology or technologies to process packaging waste. For the economic analysis, we consider the minimum increase in price (MIP) when adding recycling to the cost of each packaging solution, while for the environmental analysis, the greenhouse gas emissions impact was considered. A case study on ground coffee packaging is used to illustrate the proposed framework. The results demonstrate that the multilayer bag option is the most convenient when considering both the chosen economic and environmental impacts.",
+   "is_retracted": false,
+   "source": "openalex",
+   "retrieved_at": "2026-10-08T06:23:16Z",
+   "match": {
+    "via": [
+     "crossref_bibliographic"
+    ],
+    "title_support": 1.0
+   }
+  },
+  "d5cf30703e2a7652ebb3330259fec49faf34584db32a401042967766913f6f55": {
+   "title": "Recycling of polymers from plastic packaging materials using the dissolution–reprecipitation technique",
+   "authors": [
+    "Dimitris S. Achilias",
+    "Anastasios Giannoulis",
+    "George Z. Papageorgiou"
+   ],
+   "author_count": 3,
+   "year": 2009,
+   "date": "2009-05-12",
+   "venue": "Polymer Bulletin",
+   "type": "article",
+   "volume": "63",
+   "issue": "3",
+   "page_range": "449–465",
+   "doi": "10.1007/s00289-009-0104-5",
+   "openalex_id": "W2172135244",
+   "cited_by_count": 179,
+   "open_access_url": null,
+   "abstract": null,
+   "is_retracted": false,
+   "source": "openalex",
+   "retrieved_at": "2026-10-08T06:23:14Z",
+   "match": {
+    "via": [
+     "crossref_bibliographic",
+     "hint_doi"
+    ],
+    "title_support": 1.0
+   }
+  },
+  "d87e383d86b3817af9772807dbdda66bd488b44c0ea42970197bab95a811a163": {
+   "title": "A new strategy for using textile waste as a sustainable source of recovered cotton",
+   "authors": [
+    "Samy Yousef",
+    "Maksym Tatariants",
+    "Martynas Tichonovas",
+    "Zahid Sarwar",
+    "Ilona Jonuškienė",
+    "Linas Kliučininkas"
+   ],
+   "author_count": 6,
+   "year": 2019,
+   "date": "2019-03-19",
+   "venue": "Resources Conservation and Recycling",
+   "type": "article",
+   "volume": "145",
+   "issue": null,
+   "page_range": "359–369",
+   "doi": "10.1016/j.resconrec.2019.02.031",
+   "openalex_id": "W2923902799",
+   "cited_by_count": 186,
+   "open_access_url": null,
+   "abstract": null,
+   "is_retracted": false,
+   "source": "openalex",
+   "retrieved_at": "2026-10-08T06:23:39Z",
+   "match": {
+    "via": [
+     "crossref_opening"
+    ],
+    "title_support": 1.0
+   }
+  },
+  "dbaf7981f56f98d77c1805d3126ab99fef362c5d785cf6d57dd5e16c9e8e3714": {
+   "title": "Polyester/Cotton-Blended Textile Waste Fiber Separation and Regeneration via a Green Chemistry Approach",
+   "authors": [
+    "Kaili Yang",
+    "Mengxin Wang",
+    "Xinru Wang",
+    "Jinyu Shan",
+    "Jie Zhang",
+    "Guangming Tian",
+    "Dong Gyu Yang",
+    "Jianhua Ma"
+   ],
+   "author_count": 8,
+   "year": 2024,
+   "date": "2024-03-01",
+   "venue": "ACS Sustainable Chemistry & Engineering",
+   "type": "article",
+   "volume": "12",
+   "issue": "11",
+   "page_range": "4530–4538",
+   "doi": "10.1021/acssuschemeng.3c07707",
+   "openalex_id": "W4392389095",
+   "cited_by_count": 60,
+   "open_access_url": null,
+   "abstract": "To effectively recycle polyester/cotton-blended textiles in discarded clothing and enhance resource utilization, this work employs a low eutectic solvent [deep eutectic solvent (DES)] based on metal salt hydrates for the efficient separation of polyester/cotton blends. The DES is synthesized in a specific proportion from triple components, zinc chloride, water, and phosphoric acid. This solvent can selectively dissolve the cotton fibers in mixed textiles without damaging the polyester fiber component. Experimental results from Fourier infrared spectroscopy, X-ray diffraction, and thermal performance analysis suggest that the DES can accomplish efficient separation of polyester fibers and cotton fiber components, with no significant damage to the polyester fiber structure postseparation. Upon separation, the two components can be processed for regeneration and reuse: the separated cellulose can be dissolved again and processed through wet spinning to produce cellulose fibers, while the separated polyester fibers can further undergo melt spinning. This work provides new insights into the green and efficient separation and regeneration of polyester/cotton-blended textiles, potentially enhancing the recycling rate of waste textiles and reducing environmental pollution.",
+   "is_retracted": false,
+   "source": "openalex",
+   "retrieved_at": "2026-10-08T06:23:15Z",
+   "match": {
+    "via": [
+     "crossref_bibliographic"
+    ],
+    "title_support": 1.0
+   }
+  },
+  "e87b2e2cef20b2c0325d9d9a849c63b22c834d427e08e5f7608de8c69d913c43": {
+   "title": "Computational Approach for Rapidly Predicting Temperature‐Dependent Polymer Solubilities Using Molecular‐Scale Models",
+   "authors": [
+    "Panzheng Zhou",
+    "Kevin L. Sánchez‐Rivera",
+    "George W. Huber",
+    "Reid C. Van Lehn"
+   ],
+   "author_count": 4,
+   "year": 2021,
+   "date": "2021-07-08",
+   "venue": "ChemSusChem",
+   "type": "article",
+   "volume": "14",
+   "issue": "19",
+   "page_range": "4307–4316",
+   "doi": "10.1002/cssc.202101137",
+   "openalex_id": "W3180219725",
+   "cited_by_count": 48,
+   "open_access_url": "https://www.osti.gov/biblio/1811329",
+   "abstract": "One promising approach to recycle multicomponent plastic waste (e. g., multilayer plastic films) is selective dissolution. Selective dissolution is a solvent-mediated process in which differences in polymer solubility in a carefully chosen solvent system are exploited to recover a target polymer. Here, a computational approach was developed that rapidly predicts temperature-dependent polymer solubilities to guide the design of solvent systems for solvent-mediated polymer recycling. Polymer conformations were obtained from molecular dynamics simulations by modeling the polymer as a short oligomer and then used as input to the conductor-like screening model for real solvents (COSMO-RS) for solubility predictions. Using polyethylene (PE) and ethylene vinyl alcohol (EVOH) as representative polymers, the effect of simulation parameters was systematically studied, and predicted solubilities were found to be in good agreement with experimental measurements. The applicability of the approach was demonstrated by identifying selective solvents for PE and EVOH dissolution from a library of 524 solvents.",
+   "is_retracted": false,
+   "source": "openalex",
+   "retrieved_at": "2026-10-08T06:23:14Z",
+   "match": {
+    "via": [
+     "crossref_bibliographic"
+    ],
+    "title_support": 0.96
+   }
+  },
+  "e8caefb00cbbd09f9174c36f3dcab5ed323dd829579494acff75b346e655642e": {
+   "title": "Centrifugal partition chromatography approach to separate additives from PVC resin to support recycling processes",
+   "authors": [
+    "Noemie Auchere",
+    "Alexandra Berlioz‐Barbier",
+    "Agnès Le Masle",
+    "Olivier Boyron",
+    "Alexandra Chaumonnot"
+   ],
+   "author_count": 5,
+   "year": 2025,
+   "date": "2025-09-02",
+   "venue": "Journal of Chromatography A",
+   "type": "article",
+   "volume": "1761",
+   "issue": null,
+   "page_range": "466337",
+   "doi": "10.1016/j.chroma.2025.466337",
+   "openalex_id": "W4413922870",
+   "cited_by_count": 0,
+   "open_access_url": "https://doi.org/10.1016/j.chroma.2025.466337",
+   "abstract": "Plastics are widely used materials composed of polymers and various additives to achieve specific properties. Their composition is often highly complex, particularly in post-consumer plastic waste. As mechanical recycling faces increasing limitations, chemistry-driven strategies are attracting growing interest to improve plastic recovery. Among these, dissolution recycling offers the possibility of selectively recovering pure polymers free from additives and contaminants. However, the absence of efficient methods to separate and analyze the different components of plastics remains a major bottleneck to evaluate recycling processes effiency. Here, we report the first application of Centrifugal Partition Chromatography (CPC) to address this challenge using polyvinyl chloride (PVC) as a model material. A biphasic solvent system based on heptane, dimethyl sulfoxide (DMSO), and 3-pentanone (DEK) (25/45/30 w/w/w) was developed, guided by Hansen solubility parameters. CPC enabled the separation of the polymer from organic additives and contaminants, as well as the fractionation of additives into distinct groups, facilitating their subsequent identification and potential quantification. Moreover, CPC allows the recovery of sufficient amounts of purified polymer, enabling detailed spectroscopic characterization to assess its structural integrity and purity. After fractionation, additives were identified by reverse phase liquid chromatography coupled with tandem high resolution mass spectrometry (RPLCHRMS/MS), while the recovered polymer was analyzed using nuclear magnetic resonance (NMR) and Fourier transform infrared spectroscopy (FTIR). Overall, these results demonstrate that CPC is a promising tool to fractionate complex plastic matrices, offering new opportunities for advanced material characterization and supporting the development of more efficient recycling processes.",
+   "is_retracted": false,
+   "source": "openalex",
+   "retrieved_at": "2026-10-08T06:23:14Z",
+   "match": {
+    "via": [
+     "crossref_bibliographic"
+    ],
+    "title_support": 1.0
+   }
+  },
+  "ea215dca125fb27055433e3cc87e95d24fa35342ec4995a24eb770f054d6efa9": {
+   "title": "Removal of undissolved substances in the dissolution-based recycling of polystyrene waste by applying filtration and centrifugation",
+   "authors": [
+    "Rita Kol",
+    "Elisabetta Carrieri",
+    "Sergei Gusev",
+    "Michiel Verswyvel",
+    "Norbert Nießner",
+    "Angeliki A. Lemonidou",
+    "Dimitris S. Achilias",
+    "Steven De Meester"
+   ],
+   "author_count": 8,
+   "year": 2023,
+   "date": "2023-07-28",
+   "venue": "Separation and Purification Technology",
+   "type": "article",
+   "volume": "325",
+   "issue": null,
+   "page_range": "124682",
+   "doi": "10.1016/j.seppur.2023.124682",
+   "openalex_id": "W4385336543",
+   "cited_by_count": 21,
+   "open_access_url": "https://doi.org/10.1016/j.seppur.2023.124682",
+   "abstract": "Polystyrene (PS) is a versatile polymer typically used in applications such as yogurt cups, packaging trays, disk cases and toys. To increase recycling rates of PS, dissolution recycling is being investigated, which involves the liquefication of the polymer in a suitable solvent, allowing deep cleaning of the polymer from impurities. Quite specific to PS is that polystyrene waste contains both general-purpose polystyrene and high-impact polystyrene (HIPS), which is composed of free PS and polystyrene-grafted polybutadiene particles. In this work the potential of filtration and centrifugation is analyzed with the aim of cleaning the polymer from both, insoluble PB-PS particles and pigments (TiO2, Cr/Sb/Ti oxide and carbon black). The dead-end lab scale filtration were performed at room temperature and at pressures between 1.5 – 30 bar. The pigments were successfully removed, yet, filtration of HIPS solutions results in low fluxes due to extreme membrane fouling caused by the PB-PS particles, which was confirmed by the application of pore-blockage filtration models. Alternatively, centrifugation at 14052 G-force has shown to be a promising alternative to separate the particles from HIPS, resulting in 100% turbidity reduction. Equally, the separation of pigments was successful, highlighting that TiO2 and Cr/Sb/Ti oxide have shorter sedimentation times compared to carbon black. Finally, the two separation processes are tested on a PS rigid packaging waste sample coming from a sorting line and the results show that centrifugation allows a high turbidity reduction and that a two-step separation process starting with centrifugation for PB-PS particles removal can facilitate further downstream cleaning.",
+   "is_retracted": false,
+   "source": "openalex",
+   "retrieved_at": "2026-10-08T06:23:15Z",
+   "match": {
+    "via": [
+     "crossref_bibliographic",
+     "hint_doi"
+    ],
+    "title_support": 1.0
+   }
+  },
+  "f2a550b9571edcd98fe7fe4809b1b382e7a611ff23bf1c830e8eb02c70c6b55c": {
+   "title": "Solvent-based recycling of PC and ABS from e-waste: Efficiency, economics, emissions reduction, and job opportunities",
+   "authors": [
+    "Han Gao",
+    "Xi-Ming Zeng",
+    "Hong‐Gang Ni"
+   ],
+   "author_count": 3,
+   "year": 2025,
+   "date": "2025-10-30",
+   "venue": "Journal of Environmental Management",
+   "type": "article",
+   "volume": "395",
+   "issue": null,
+   "page_range": "127803",
+   "doi": "10.1016/j.jenvman.2025.127803",
+   "openalex_id": "W4415695721",
+   "cited_by_count": 4,
+   "open_access_url": null,
+   "abstract": null,
+   "is_retracted": false,
+   "source": "openalex",
+   "retrieved_at": "2026-10-08T06:23:14Z",
+   "match": {
+    "via": [
+     "doi_in_text"
+    ],
+    "title_support": 1.0
+   }
+  },
+  "f6391f5518a092dae27ade7bcb74f5e96217c7776bbd7cbbc0a75fe9bbb617db": {
+   "title": "Pigment removal from reverse-printed laminated flexible films by solvent-targeted recovery and precipitation",
+   "authors": [
+    "Tianwei Yan",
+    "Charles Granger",
+    "Kevin L. Sánchez‐Rivera",
+    "Panzheng Zhou",
+    "Steven Grey",
+    "Kevin Nelson",
+    "Fei Long",
+    "Ezra Bar‐Ziv",
+    "Reid C. Van Lehn",
+    "Styliani Avraamidou",
+    "George W. Huber"
+   ],
+   "author_count": 11,
+   "year": 2025,
+   "date": "2025-03-14",
+   "venue": "Science Advances",
+   "type": "article",
+   "volume": "11",
+   "issue": "11",
+   "page_range": "eadt5841",
+   "doi": "10.1126/sciadv.adt5841",
+   "openalex_id": "W4408423702",
+   "cited_by_count": 14,
+   "open_access_url": "https://doi.org/10.1126/sciadv.adt5841",
+   "abstract": "The solvent-targeted recovery and precipitation (STRAP) process separates and recovers the constituent resins in multilayer plastic packaging films by selective polymer dissolution. In this work, the cause of coloring in the STRAP-recycled polyethylene (PE) resins from postindustrial printed films was identified as decomposed diarylide pigments. Two different approaches are needed to completely remove the dissolved colorants during the STRAP process including (i) adding an activated carbon (AC) adsorbent to the solvent after polymer dissolution and (ii) proper mechanical filtration of the polymer-solvent cake to remove as much solvent from the cake as possible. Colorless recycled PE can be produced by a combination of the proposed approaches (choosing the proper solvent, adding an AC adsorbent, and doing proper mechanical filtration) with minimal accumulation of colorants in the recycled STRAP solvents. This study demonstrated that high-quality STRAP low-density PE can be obtained from printed plastic films, enhancing the potential circularity of these packaging materials.",
+   "is_retracted": false,
+   "source": "openalex",
+   "retrieved_at": "2026-10-08T06:23:15Z",
+   "match": {
+    "via": [
+     "crossref_bibliographic"
+    ],
+    "title_support": 1.0
+   }
+  },
+  "f9c2a0fd7766695b3523870c381cf095ed0492b88cdd616b9a7e336fe0adbb6a": {
+   "title": "Challenges and opportunities of solvent-based additive extraction methods for plastic recycling",
+   "authors": [
+    "Sibel Üǧdüler",
+    "Kevin M. Van Geem",
+    "Martijn Roosen",
+    "Elisabeth I. P. Delbeke",
+    "Steven De Meester"
+   ],
+   "author_count": 5,
+   "year": 2020,
+   "date": "2020-01-21",
+   "venue": "Waste Management",
+   "type": "article",
+   "volume": "104",
+   "issue": null,
+   "page_range": "148–182",
+   "doi": "10.1016/j.wasman.2020.01.003",
+   "openalex_id": "W3000785959",
+   "cited_by_count": 294,
+   "open_access_url": null,
+   "abstract": null,
+   "is_retracted": false,
+   "source": "openalex",
+   "retrieved_at": "2026-10-08T06:23:15Z",
+   "match": {
+    "via": [
+     "crossref_bibliographic"
+    ],
+    "title_support": 1.0
+   }
+  },
+  "fce6de04e075a8f73300f49b345d84c05d949cadd5e056183b1d4bcee1b2a7ad": {
+   "title": "Understanding the Dissolution Kinetics of a DINCH Plasticized PVC: Experimental Design and Applied Modeling",
+   "authors": [
+    "Ruben Denolf",
+    "Jordy C. Doolaege",
+    "Elina Sel’murzayeva",
+    "Dave Manhaeghe",
+    "Tobias De Somer",
+    "Muhammad Naoval Haris",
+    "Nils Vermeeren",
+    "Rita Kol",
+    "Joël Hogie",
+    "Steven De Meester"
+   ],
+   "author_count": 10,
+   "year": 2025,
+   "date": "2025-07-09",
+   "venue": "ChemSusChem",
+   "type": "article",
+   "volume": "18",
+   "issue": "17",
+   "page_range": "e202401756",
+   "doi": "10.1002/cssc.202401756",
+   "openalex_id": "W4412124449",
+   "cited_by_count": 4,
+   "open_access_url": "https://doi.org/10.1002/cssc.202401756",
+   "abstract": "Polymer dissolution-precipitation recycling is a promising pathway to increase plastic recycling rates. One of the first steps in this process is the dissolution of the plastic, where it is important to understand and predict the dissolution kinetics, specifically for plastic waste. Therefore, the dissolution kinetics of a plasticized poly(vinyl chloride) sample (P-PVC), containing bis(7-methyloctyl) cyclohexane-1,2-dicarboxylate (DINCH), are analyzed in N-methyl-2-pyrrolidinone (NMP), cyclohexanone, methyl ethyl ketone (MEK), and 2-methyltetrahydrofuran (2-MeTHF). Additionally, the effects of the particle size (1090-2990 μm) and temperature (30-60 °C) are studied. As expected, lowering the particle size and increasing the temperature reduced the overall dissolution time. It is also found that the dissolution of the polymer and plasticizer occurred simultaneously, and that the fastest dissolution occurred in NMP, followed by cyclohexanone, MEK, and 2-MeTHF. Finally, both a chain disentanglement model and a first-order model with a diffusion-based rate coefficient are fitted to the experimental data to describe the dissolution behavior of the selected plastic waste. The first is found to be a slightly better description of the P-PVC dissolution profile in NMP, a known good solvent, while the latter is better at describing the dissolution in MEK and 2-MeTHF, the slowest analyzed solvents.",
+   "is_retracted": false,
+   "source": "openalex",
+   "retrieved_at": "2026-10-08T06:23:14Z",
+   "match": {
+    "via": [
+     "crossref_bibliographic",
+     "doi_in_text"
+    ],
+    "title_support": 1.0
+   }
+  },
+  "fe9931cbe75205ddcb3b07a4b48584eb41d42b6be30f87f46037d499569c6d49": {
+   "title": "Solvent-based plastic recycling technologies",
+   "authors": [
+    "Zhuo Xu",
+    "Kevin L. Sánchez‐Rivera",
+    "Charles Granger",
+    "Panzheng Zhou",
+    "Aurora del Carmen Munguía-López",
+    "Ugochukwu M. Ikegwu",
+    "Styliani Avraamidou",
+    "Ví­ctor M. Zavala",
+    "Reid C. Van Lehn",
+    "Ezra Bar‐Ziv",
+    "Steven De Meester",
+    "George W. Huber"
+   ],
+   "author_count": 12,
+   "year": 2025,
+   "date": "2025-07-22",
+   "venue": "Nature Chemical Engineering",
+   "type": "article",
+   "volume": "2",
+   "issue": "7",
+   "page_range": "407–423",
+   "doi": "10.1038/s44286-025-00247-1",
+   "openalex_id": "W4412552464",
+   "cited_by_count": 40,
+   "open_access_url": null,
+   "abstract": null,
+   "is_retracted": false,
+   "source": "openalex",
+   "retrieved_at": "2026-10-08T06:23:15Z",
+   "match": {
+    "via": [
+     "crossref_bibliographic",
+     "doi_in_text"
+    ],
+    "title_support": 1.0
+   }
+  }
+ },
+ "unresolved": {}
+}

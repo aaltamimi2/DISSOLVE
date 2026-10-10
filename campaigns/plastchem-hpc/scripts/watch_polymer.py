@@ -1,11 +1,12 @@
 """Read-only scheduler monitoring, scp returns, local owner-policy verification. No submission capability."""
 import os
 os.environ['OMP_NUM_THREADS']='1';os.environ['OPENBLAS_NUM_THREADS']='1'
-import hashlib,json,re,subprocess,time
+import fcntl,hashlib,json,re,subprocess,time
 from pathlib import Path
 from euler_transport import run
 from identity_campaign import verify
 ROOT=Path(__file__).resolve().parents[1];P=ROOT/'state/polymer-v1';REMOTE='~/plastchem-euler/polymer-v1'
+collector_lock=(P/'collector.lock').open('a');fcntl.flock(collector_lock,fcntl.LOCK_EX|fcntl.LOCK_NB)
 DEST=Path('/mnt/r/plastchem-euler/polymer-v1/results');DEST.mkdir(parents=True,exist_ok=True)
 TERMINAL={'COMPLETED','FAILED','TIMEOUT','OUT_OF_MEMORY','CANCELLED','NODE_FAIL','PREEMPTED','BOOT_FAIL','DEADLINE'}
 models={}
@@ -103,5 +104,6 @@ while True:
         if len(snap['groups'])==2 and not snap['squeue'].strip() and all(summary['counts'][s]==0 for s in ['running','not_yet_run','awaiting_verification','retry_pending']):
             print('POLYMER_ALL_TARGETS_DISPOSED',flush=True);break
     except Exception as exc:print(json.dumps({'monitor_error':str(exc),'epoch':time.time()}),flush=True)
-    transport=json.loads((ROOT/'state/ssh-transport.json').read_text())
-    time.sleep(max(300,transport.get('retry_after_epoch',0)-time.time()))
+    # run() reads/enforces persistent backoff under the shared transport lock.
+    # Do not read its live state without that lock during the idle interval.
+    time.sleep(300)

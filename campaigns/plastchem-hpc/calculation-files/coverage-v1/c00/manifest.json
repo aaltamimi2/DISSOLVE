@@ -1,0 +1,69 @@
+{
+ "campaign": "contam-coverage-milan-v1",
+ "group": "c00",
+ "name": "contam-coverage-c00",
+ "walltime": "5:00:00",
+ "mem": "4G",
+ "policy": {
+  "mode": "connectivity_first_block_with_computed_stereochemistry",
+  "authority": "Owner decision A-3 D-IDENT",
+  "charter_sha256": "39aa9d7e6e419291bb537616b080309bf55fe703d4b98710aab9e1e266c3bdab",
+  "require_stereo_layer_match": false,
+  "isotope_policy": "exclude; no parent mapping",
+  "campaign_concurrency_limit": 64,
+  "orca_share_of_cap": 56,
+  "thermodynamics_share_of_cap": 8,
+  "concurrency_authority": "Owner 2026-09-16: increase concurrency only; keep 4GB (D-CONC 64, shared by ORCA and thermodynamics)",
+  "tier_authority": "Amendment A-13 (coverage campaign, 2026-10-08)"
+ },
+ "recipe": {
+  "n_embed": 300,
+  "seed": 12345,
+  "prune_rms": 0.5,
+  "max_mmff_iters": 2000,
+  "dft_conformers": 1
+ },
+ "input": {
+  "path": "inputs/plastchem_coverage_a13_worklist.csv",
+  "sha256": "40b4ca4ef3237e7947dfd77beab339a0acca5beb4fb732b135b0f8ce228683e2"
+ },
+ "chunk_rule": "owner request ahead of the work-list order (owner, relayed by the orchestrator 2026-10-08: triphenyl phosphate for the literature case Anderson, Yu & Chen 2021 (PS/ABS e-waste in DCM, flame retardant removed by a methanol or ethylene glycol antisolvent)): order 854, c08 index 92",
+ "molecules": [
+  {
+   "name": "Triphenyl phosphate",
+   "name_source": "PlastChem (work list)",
+   "smiles": "O=P(Oc1ccccc1)(Oc1ccccc1)Oc1ccccc1",
+   "plastchem_id": "1368",
+   "cas": "115-86-6",
+   "inchikey": "XZZNDPSIHUTMOC-UHFFFAOYSA-N",
+   "molecular_weight_g_mol": "326.30",
+   "n_atoms_with_H": "38",
+   "array_index": 0,
+   "atoms": 38,
+   "group": "c00",
+   "tier": "coverage",
+   "worklist_order": 854,
+   "kind": "S, P or Si",
+   "elements": "CHOP",
+   "served_entries_direct": "1368",
+   "served_entries_as_parent": "",
+   "entry_names": "Triphenyl phosphate",
+   "plastchem_groups": "organophosphates",
+   "families_existing": "",
+   "families_proposed": "Organophosphates",
+   "requested": {
+    "reason": "owner, relayed by the orchestrator 2026-10-08: triphenyl phosphate for the literature case Anderson, Yu & Chen 2021 (PS/ABS e-waste in DCM, flame retardant removed by a methanol or ethylene glycol antisolvent)",
+    "utc": "2026-10-08T20:47:18Z",
+    "listed_by": "c08 index 92"
+   }
+  }
+ ],
+ "admitted": [
+  {
+   "cpu_model": "AMD EPYC 7763 64-Core Processor",
+   "partition": "research",
+   "constraint": "milan&cpu",
+   "basis": "the campaign reference CPU (A-2)"
+  }
+ ]
+}

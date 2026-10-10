@@ -1,0 +1,21 @@
+{
+  "group": "c17",
+  "utc": "2026-10-09T20:07:10Z",
+  "new_targets": 100,
+  "submission_tasks": 93,
+  "staged_in_another_group": {},
+  "preparation_failures": 7,
+  "preparation_failure_keys": [
+    "FIGVSQKKPIKBST-UHFFFAOYSA-N",
+    "PLTOWUBLEPQHQC-UHFFFAOYSA-N",
+    "YDRDTDKISFMAQR-SBGDMIGBSA-N",
+    "MPQNFNSSRBYRRH-UHFFFAOYSA-N",
+    "MQRCHVBRBGNZGJ-UHFFFAOYSA-N",
+    "CVSXFBFIOUYODT-UHFFFAOYSA-N",
+    "BGYHLZZASRKEJE-UHFFFAOYSA-N"
+  ],
+  "archive": "/home/aaltamimi2/plastchem-euler/state/coverage-v1/c17-staging.tar.gz",
+  "archive_bytes": 194715,
+  "archive_sha256": "2da843dbb25dc801628ab8ddda54b3c8cee5d6ebe2d6ed7ecb7c47f6e456b976",
+  "remote_verified": true
+}

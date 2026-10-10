@@ -1,0 +1,128 @@
+{
+  "utc": "2026-10-08T17:08:47Z",
+  "authority": "A-13 owner NOTE 2026-10-08 17:10 UTC",
+  "purpose": "which CPU each node type of the research partition is, before its reproduction check (1 CPU, 5 min, cpu_probe.sbatch)",
+  "access": {
+    "usable": [
+      "research (tier 200)",
+      "interactive (tier 100, the same nodes)",
+      "vanlehn (euler09-10, euler-vanlehn group: not used; this account's other projects run there)"
+    ],
+    "not_usable": "critical, anything, pdelab, pdelab-gpu, voyleslab, chrysoslab, grahamlab, sbel, lianglab, instruction: other groups",
+    "preemption": "every research node is also in a higher-tier lab partition (PreemptType partition_prio, PreemptMode REQUEUE); with --no-requeue a preempted task ends PREEMPTED and is resubmitted by a retry round"
+  },
+  "probes": [
+    {
+      "host": "euler155.engr.wisc.edu",
+      "partition": "research",
+      "job": "78912",
+      "constraint_tag": "genoa-cpu",
+      "cpu_model": "AMD EPYC 9634 84-Core Processor",
+      "cpu_family": "25",
+      "model_number": "17",
+      "avx2": true,
+      "avx512f": true,
+      "cores_visible": 336,
+      "mem_total_kib": 791601320,
+      "orca_version_output": "ORCA starts (it read \"--version\" as an input file name: the binary loads and runs on this CPU)"
+    },
+    {
+      "host": "euler145.engr.wisc.edu",
+      "partition": "research",
+      "job": "78918",
+      "constraint_tag": "milan-cpu",
+      "cpu_model": "AMD EPYC 7763 64-Core Processor",
+      "cpu_family": "25",
+      "model_number": "1",
+      "avx2": true,
+      "avx512f": false,
+      "cores_visible": 256,
+      "mem_total_kib": 527227632,
+      "orca_version_output": "ORCA starts (it read \"--version\" as an input file name: the binary loads and runs on this CPU)"
+    },
+    {
+      "host": "euler08.engr.wisc.edu",
+      "partition": "research",
+      "job": "78910",
+      "constraint_tag": "milan-gpu",
+      "cpu_model": "AMD EPYC 7513 32-Core Processor",
+      "cpu_family": "25",
+      "model_number": "1",
+      "avx2": true,
+      "avx512f": false,
+      "cores_visible": 128,
+      "mem_total_kib": 527659920,
+      "orca_version_output": "ORCA starts (it read \"--version\" as an input file name: the binary loads and runs on this CPU)"
+    },
+    {
+      "host": "euler141.engr.wisc.edu",
+      "partition": "research",
+      "job": "78911",
+      "constraint_tag": "milan-x",
+      "cpu_model": "AMD EPYC 7773X 64-Core Processor",
+      "cpu_family": "25",
+      "model_number": "1",
+      "avx2": true,
+      "avx512f": false,
+      "cores_visible": 256,
+      "mem_total_kib": 2112673384,
+      "orca_version_output": "ORCA starts (it read \"--version\" as an input file name: the binary loads and runs on this CPU)"
+    },
+    {
+      "host": "euler16.engr.wisc.edu",
+      "partition": "research",
+      "job": "78915",
+      "constraint_tag": "naples-gpu",
+      "cpu_model": "AMD EPYC 7401 24-Core Processor",
+      "cpu_family": "23",
+      "model_number": "1",
+      "avx2": true,
+      "avx512f": false,
+      "cores_visible": 96,
+      "mem_total_kib": 131345548,
+      "orca_version_output": "ORCA starts (it read \"--version\" as an input file name: the binary loads and runs on this CPU)"
+    },
+    {
+      "host": "euler17.engr.wisc.edu",
+      "partition": "research",
+      "job": "78914",
+      "constraint_tag": "rome-gpu",
+      "cpu_model": "AMD EPYC 7272 12-Core Processor",
+      "cpu_family": "23",
+      "model_number": "49",
+      "avx2": true,
+      "avx512f": false,
+      "cores_visible": 48,
+      "mem_total_kib": 263445476,
+      "orca_version_output": "ORCA starts (it read \"--version\" as an input file name: the binary loads and runs on this CPU)"
+    },
+    {
+      "host": "euler29.engr.wisc.edu",
+      "partition": "research",
+      "job": "78917",
+      "constraint_tag": "sapphire-gpu",
+      "cpu_model": "Intel(R) Xeon(R) Platinum 8462Y+",
+      "cpu_family": "6",
+      "model_number": "143",
+      "avx2": true,
+      "avx512f": true,
+      "cores_visible": 128,
+      "mem_total_kib": 2112943436,
+      "orca_version_output": "ORCA starts (it read \"--version\" as an input file name: the binary loads and runs on this CPU)"
+    },
+    {
+      "host": "euler157.engr.wisc.edu",
+      "partition": "research",
+      "job": "78916",
+      "constraint_tag": "skylake-cpu",
+      "cpu_model": "Intel(R) Xeon(R) Gold 5118 CPU @ 2.30GHz",
+      "cpu_family": "6",
+      "model_number": "85",
+      "avx2": true,
+      "avx512f": true,
+      "cores_visible": 24,
+      "mem_total_kib": 65154200,
+      "orca_version_output": "ORCA starts (it read \"--version\" as an input file name: the binary loads and runs on this CPU)"
+    }
+  ]
+}

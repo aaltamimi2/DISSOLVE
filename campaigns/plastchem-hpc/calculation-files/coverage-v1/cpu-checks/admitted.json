@@ -1,0 +1,40 @@
+{
+  "utc": "2026-10-09T01:42:05+00:00",
+  "authority": "A-13 owner NOTE 2026-10-08 17:10 UTC",
+  "admitted": [
+    {
+      "cpu_model": "AMD EPYC 7763 64-Core Processor",
+      "partition": "research",
+      "constraint": "milan&cpu",
+      "basis": "the campaign's reference CPU (A-2); no check needed"
+    },
+    {
+      "cpu_model": "AMD EPYC 7513 32-Core Processor",
+      "partition": "research",
+      "constraint": "milan&gpu",
+      "basis": "reproduction check milan-gpu passed 2026-10-08T21:39:55+00:00",
+      "comparison_sha256": "2a347cff6e403549c5cb1fdd40ef214f85daf919c799b4dbe464a9fc35c1afa2"
+    },
+    {
+      "cpu_model": "AMD EPYC 7773X 64-Core Processor",
+      "partition": "research",
+      "constraint": "milan-x",
+      "basis": "reproduction check milan-x passed 2026-10-08T21:36:57+00:00",
+      "comparison_sha256": "3f0cf776641507c103b5e4747f41b98399dd31de93470d377c9fd0887626e2d9"
+    },
+    {
+      "cpu_model": "AMD EPYC 7401 24-Core Processor",
+      "partition": "research",
+      "constraint": "naples",
+      "basis": "reproduction check naples-gpu passed 2026-10-09T01:38:47+00:00",
+      "comparison_sha256": "52b982aed8da7d0499e5142d73b4a532427ed02b218aba65503c3115ebe08908"
+    },
+    {
+      "cpu_model": "AMD EPYC 7272 12-Core Processor",
+      "partition": "research",
+      "constraint": "rome",
+      "basis": "reproduction check rome-gpu passed 2026-10-09T00:45:45+00:00",
+      "comparison_sha256": "deeb5da3c0964e6362d5af52a1f135ab04cd46535ab95cc842763c51109a589f"
+    }
+  ]
+}

@@ -37,6 +37,9 @@ def verify_capture(folder,assignment,receipt,pins,initial):
     return state
 
 def main():
+    import fcntl
+    lock=(D/'tail-terminal-collect.lock').open('a')
+    fcntl.flock(lock,fcntl.LOCK_EX|fcntl.LOCK_NB)
     receipts={int(p.name.split('tail')[1].split('-')[0]):json.loads(p.read_text())
               for p in D.glob('production-retry-tail*-submission.json')}
     assert receipts

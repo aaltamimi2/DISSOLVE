@@ -1,0 +1,207 @@
+{
+ "source": "Zhou, Ikegwu, Radkevich, Ra, Liburd, Huber, Zavala and Van Lehn, Solvent-Mediated Contaminant Removal from Plastic Waste Using Thermodynamic Modeling, Green Chem. 2026 (d5gc06059a). ESI: Table S7 (26 PFAS with CASRN), Table S5 (eight phthalates P1-P8), Tables S1-S4 and S8-S9 (four BFRs of Case Study 1).",
+ "matching": "The paper modelled every compound neutral, its PFAS as the parent acids (a salt as its acid: its values for NH4TetraFPt equal TFPA's, and its two ADONA salts are identical). A compound the publication tier computed (amendment A-12: the PFAS acids the release lacks, DECA and TBBPA-dbP; state/publication-v1) takes its surface from there. The others are matched in the PlastChem release by CAS number, and by InChIKey where given (fourth field): where PlastChem files a phthalate under another CAS, NH4TetraFPt (TFPA's acid) and HBCD, which the paper reports as one compound without naming the stereoisomer: gamma-HBCD, the main component of technical HBCD.",
+ "sets": {
+  "PFAS": [
+   [
+    "PFBA",
+    "Perfluorobutanoic acid",
+    "375-22-4"
+   ],
+   [
+    "PFPA",
+    "Perfluoropentanoic acid",
+    "2706-90-3"
+   ],
+   [
+    "PFHxA",
+    "Perfluorohexanoic acid",
+    "307-24-4"
+   ],
+   [
+    "PFHA",
+    "Perfluoroheptanoic acid",
+    "375-85-9"
+   ],
+   [
+    "PFOA",
+    "Perfluorooctanoic acid",
+    "335-67-1"
+   ],
+   [
+    "PFNA",
+    "Perfluorononanoic acid",
+    "375-95-1"
+   ],
+   [
+    "PFDA",
+    "Perfluorodecanoic acid",
+    "335-76-2"
+   ],
+   [
+    "TFPA",
+    "2,3,3,3-Tetrafluoro-2-(heptafluoropropoxy)propanoic acid",
+    "13252-13-6"
+   ],
+   [
+    "PFTriDA",
+    "Perfluorotridecanoic acid",
+    "72629-94-8"
+   ],
+   [
+    "PFUnDA",
+    "Perfluoroundecanoic acid",
+    "2058-94-8"
+   ],
+   [
+    "PFDoDA",
+    "Perfluorododecanoic acid",
+    "307-55-1"
+   ],
+   [
+    "PFTetraDA",
+    "Perfluorotetradecanoic acid",
+    "376-06-7"
+   ],
+   [
+    "PFBS",
+    "Perfluorobutanesulfonic acid",
+    "375-73-5"
+   ],
+   [
+    "PFPS",
+    "Perfluoropentanesulfonic acid",
+    "2706-91-4"
+   ],
+   [
+    "PFHxS",
+    "Perfluorohexanesulfonic acid",
+    "355-46-4"
+   ],
+   [
+    "PFHS",
+    "Perfluoroheptanesulfonic acid",
+    "375-92-8"
+   ],
+   [
+    "PFOS",
+    "Perfluorooctanesulfonic acid",
+    "1763-23-1"
+   ],
+   [
+    "PFUnDS",
+    "Perfluoroundecanesulfonic acid",
+    "749786-16-1"
+   ],
+   [
+    "PFTriDS",
+    "Perfluorotridecanesulfonic acid",
+    "791563-89-8"
+   ],
+   [
+    "PFDS",
+    "Perfluorodecanesulfonic acid",
+    "335-77-3"
+   ],
+   [
+    "PFDoDS",
+    "Perfluorododecanesulfonic acid",
+    "79780-39-5"
+   ],
+   [
+    "KClHxDFS",
+    "Potassium 9-chlorohexadecafluoro-3-oxanonane-1-sulfonate",
+    "73606-19-6"
+   ],
+   [
+    "PFNS",
+    "Perfluorononanesulfonate",
+    "474511-07-4"
+   ],
+   [
+    "NaDoDFNt",
+    "Sodium dodecafluoro-3H-4,8-dioxanonanoate",
+    "2250081-67-3"
+   ],
+   [
+    "NH4TetraFPt",
+    "Ammonium 2,3,3,3-tetrafluoro-2-(heptafluoropropoxy)propanoate",
+    "62037-80-3",
+    "CSEBNABAWMZWIF-UHFFFAOYSA-N"
+   ],
+   [
+    "NH4PFNt",
+    "Ammonium 4,8-dioxa-3H-perfluorononanoate",
+    "958445-44-8"
+   ]
+  ],
+  "Phthalates": [
+   [
+    "P1 BBP",
+    "Butyl benzyl phthalate",
+    "85-68-7"
+   ],
+   [
+    "P2 DBP",
+    "Di-n-butyl phthalate",
+    "84-74-2"
+   ],
+   [
+    "P3 DEHP",
+    "Di-(2-ethylhexyl) phthalate",
+    "117-81-7"
+   ],
+   [
+    "P4 DEP",
+    "Diethyl phthalate",
+    "84-66-2"
+   ],
+   [
+    "P5 DiDP",
+    "Di-isodecyl phthalate",
+    "26761-40-0;68515-49-1"
+   ],
+   [
+    "P6 DiNP",
+    "Di-isononyl phthalate",
+    "28553-12-0;68515-48-0",
+    "HBGGXOJOCNVPFY-UHFFFAOYSA-N"
+   ],
+   [
+    "P7 DnHP",
+    "Di-n-hexyl phthalate",
+    "84-75-3",
+    "KCXZNSGUUQJJTR-UHFFFAOYSA-N"
+   ],
+   [
+    "P8 DnOP",
+    "Di-n-octyl phthalate",
+    "117-84-0",
+    "MQIUGAXCHLFZKX-UHFFFAOYSA-N"
+   ]
+  ],
+  "BFR": [
+   [
+    "Tri-PBDE",
+    "2,4,4'-Tribromodiphenyl ether (BDE-28)",
+    "41318-75-6"
+   ],
+   [
+    "HBCD",
+    "Hexabromocyclododecane (gamma-HBCD; the paper does not name the stereoisomer)",
+    "134237-52-8",
+    "DEIGXXQKDWULML-MOCCIAMBSA-N"
+   ],
+   [
+    "DECA",
+    "Decabromodiphenyl ether (BDE-209)",
+    "1163-19-5"
+   ],
+   [
+    "TBBPA-dbp",
+    "Tetrabromobisphenol A bis(2,3-dibromopropyl ether)",
+    "21850-44-2"
+   ]
+  ]
+ }
+}

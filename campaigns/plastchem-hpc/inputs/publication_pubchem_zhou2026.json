@@ -1,0 +1,198 @@
+{
+ "1163-19-5": {
+  "charge": 0,
+  "cid": 14410,
+  "formula": "C12Br10O",
+  "retrieved_utc": "2026-10-07T21:51:51Z",
+  "smiles": "C1(=C(C(=C(C(=C1Br)Br)Br)Br)Br)OC2=C(C(=C(C(=C2Br)Br)Br)Br)Br"
+ },
+ "13252-13-6": {
+  "charge": 0,
+  "cid": 114481,
+  "formula": "C6HF11O3",
+  "retrieved_utc": "2026-10-07T21:51:40Z",
+  "smiles": "C(=O)(C(C(F)(F)F)(OC(C(C(F)(F)F)(F)F)(F)F)F)O"
+ },
+ "1763-23-1": {
+  "charge": 0,
+  "cid": 74483,
+  "formula": "C8HF17O3S",
+  "retrieved_utc": "2026-10-07T21:51:45Z",
+  "smiles": "C(C(C(C(C(F)(F)S(=O)(=O)O)(F)F)(F)F)(F)F)(C(C(C(F)(F)F)(F)F)(F)F)(F)F"
+ },
+ "2058-94-8": {
+  "charge": 0,
+  "cid": 77222,
+  "formula": "C11HF21O2",
+  "retrieved_utc": "2026-10-07T21:51:41Z",
+  "smiles": "C(=O)(C(C(C(C(C(C(C(C(C(C(F)(F)F)(F)F)(F)F)(F)F)(F)F)(F)F)(F)F)(F)F)(F)F)(F)F)O"
+ },
+ "21850-44-2": {
+  "charge": 0,
+  "cid": 62753,
+  "formula": "C21H20Br8O2",
+  "retrieved_utc": "2026-10-07T21:51:52Z",
+  "smiles": "CC(C)(C1=CC(=C(C(=C1)Br)OCC(CBr)Br)Br)C2=CC(=C(C(=C2)Br)OCC(CBr)Br)Br"
+ },
+ "2250081-67-3": {
+  "charge": 0,
+  "cid": 138394366,
+  "formula": "C7HF12NaO4",
+  "retrieved_utc": "2026-10-07T21:51:49Z",
+  "smiles": "C(C(C(=O)[O-])(F)F)(OC(C(C(OC(F)(F)F)(F)F)(F)F)(F)F)F.[Na+]"
+ },
+ "2706-90-3": {
+  "charge": 0,
+  "cid": 75921,
+  "formula": "C5HF9O2",
+  "retrieved_utc": "2026-10-07T21:51:37Z",
+  "smiles": "C(=O)(C(C(C(C(F)(F)F)(F)F)(F)F)(F)F)O"
+ },
+ "2706-91-4": {
+  "charge": 0,
+  "cid": 75922,
+  "formula": "C5HF11O3S",
+  "retrieved_utc": "2026-10-07T21:51:43Z",
+  "smiles": "C(C(C(F)(F)F)(F)F)(C(C(F)(F)S(=O)(=O)O)(F)F)(F)F"
+ },
+ "307-24-4": {
+  "charge": 0,
+  "cid": 67542,
+  "formula": "C6HF11O2",
+  "retrieved_utc": "2026-10-07T21:51:37Z",
+  "smiles": "C(=O)(C(C(C(C(C(F)(F)F)(F)F)(F)F)(F)F)(F)F)O"
+ },
+ "307-55-1": {
+  "charge": 0,
+  "cid": 67545,
+  "formula": "C12HF23O2",
+  "retrieved_utc": "2026-10-07T21:51:42Z",
+  "smiles": "C(=O)(C(C(C(C(C(C(C(C(C(C(C(F)(F)F)(F)F)(F)F)(F)F)(F)F)(F)F)(F)F)(F)F)(F)F)(F)F)(F)F)O"
+ },
+ "335-67-1": {
+  "charge": 0,
+  "cid": 9554,
+  "formula": "C8HF15O2",
+  "retrieved_utc": "2026-10-07T21:51:38Z",
+  "smiles": "C(=O)(C(C(C(C(C(C(C(F)(F)F)(F)F)(F)F)(F)F)(F)F)(F)F)(F)F)O"
+ },
+ "335-76-2": {
+  "charge": 0,
+  "cid": 9555,
+  "formula": "C10HF19O2",
+  "retrieved_utc": "2026-10-07T21:51:39Z",
+  "smiles": "C(=O)(C(C(C(C(C(C(C(C(C(F)(F)F)(F)F)(F)F)(F)F)(F)F)(F)F)(F)F)(F)F)(F)F)O"
+ },
+ "335-77-3": {
+  "charge": 0,
+  "cid": 67636,
+  "formula": "C10HF21O3S",
+  "retrieved_utc": "2026-10-07T21:51:47Z",
+  "smiles": "C(C(C(C(C(C(F)(F)S(=O)(=O)O)(F)F)(F)F)(F)F)(F)F)(C(C(C(C(F)(F)F)(F)F)(F)F)(F)F)(F)F"
+ },
+ "355-46-4": {
+  "charge": 0,
+  "cid": 67734,
+  "formula": "C6HF13O3S",
+  "retrieved_utc": "2026-10-07T21:51:44Z",
+  "smiles": "C(C(C(C(F)(F)S(=O)(=O)O)(F)F)(F)F)(C(C(F)(F)F)(F)F)(F)F"
+ },
+ "375-22-4": {
+  "charge": 0,
+  "cid": 9777,
+  "formula": "C4HF7O2",
+  "retrieved_utc": "2026-10-07T21:51:36Z",
+  "smiles": "C(=O)(C(C(C(F)(F)F)(F)F)(F)F)O"
+ },
+ "375-73-5": {
+  "charge": 0,
+  "cid": 67815,
+  "formula": "C4HF9O3S",
+  "retrieved_utc": "2026-10-07T21:51:43Z",
+  "smiles": "C(C(C(F)(F)S(=O)(=O)O)(F)F)(C(F)(F)F)(F)F"
+ },
+ "375-85-9": {
+  "charge": 0,
+  "cid": 67818,
+  "formula": "C7HF13O2",
+  "retrieved_utc": "2026-10-07T21:51:38Z",
+  "smiles": "C(=O)(C(C(C(C(C(C(F)(F)F)(F)F)(F)F)(F)F)(F)F)(F)F)O"
+ },
+ "375-92-8": {
+  "charge": 0,
+  "cid": 67820,
+  "formula": "C7HF15O3S",
+  "retrieved_utc": "2026-10-07T21:51:45Z",
+  "smiles": "C(C(C(C(F)(F)F)(F)F)(F)F)(C(C(C(F)(F)S(=O)(=O)O)(F)F)(F)F)(F)F"
+ },
+ "375-95-1": {
+  "charge": 0,
+  "cid": 67821,
+  "formula": "C9HF17O2",
+  "retrieved_utc": "2026-10-07T21:51:39Z",
+  "smiles": "C(=O)(C(C(C(C(C(C(C(C(F)(F)F)(F)F)(F)F)(F)F)(F)F)(F)F)(F)F)(F)F)O"
+ },
+ "376-06-7": {
+  "charge": 0,
+  "cid": 67822,
+  "formula": "C14HF27O2",
+  "retrieved_utc": "2026-10-07T21:51:42Z",
+  "smiles": "C(=O)(C(C(C(C(C(C(C(C(C(C(C(C(C(F)(F)F)(F)F)(F)F)(F)F)(F)F)(F)F)(F)F)(F)F)(F)F)(F)F)(F)F)(F)F)(F)F)O"
+ },
+ "474511-07-4": {
+  "charge": -1,
+  "cid": 21954437,
+  "formula": "C9F19O3S-",
+  "retrieved_utc": "2026-10-07T21:51:49Z",
+  "smiles": "C(C(C(C(C(F)(F)F)(F)F)(F)F)(F)F)(C(C(C(C(F)(F)S(=O)(=O)[O-])(F)F)(F)F)(F)F)(F)F"
+ },
+ "62037-80-3": {
+  "charge": 0,
+  "cid": 51342034,
+  "formula": "C6H4F11NO3",
+  "retrieved_utc": "2026-10-07T21:51:50Z",
+  "smiles": "C(=O)(C(C(F)(F)F)(OC(C(C(F)(F)F)(F)F)(F)F)F)[O-].[NH4+]"
+ },
+ "72629-94-8": {
+  "charge": 0,
+  "cid": 3018355,
+  "formula": "C13HF25O2",
+  "retrieved_utc": "2026-10-07T21:51:41Z",
+  "smiles": "C(=O)(C(C(C(C(C(C(C(C(C(C(C(C(F)(F)F)(F)F)(F)F)(F)F)(F)F)(F)F)(F)F)(F)F)(F)F)(F)F)(F)F)(F)F)O"
+ },
+ "73606-19-6": {
+  "charge": 0,
+  "cid": 25210512,
+  "formula": "C8ClF16KO4S",
+  "retrieved_utc": "2026-10-07T21:51:48Z",
+  "smiles": "C(C(C(C(F)(F)Cl)(F)F)(F)F)(C(C(OC(C(F)(F)S(=O)(=O)[O-])(F)F)(F)F)(F)F)(F)F.[K+]"
+ },
+ "749786-16-1": {
+  "charge": 0,
+  "cid": 22141518,
+  "formula": "C11HF23O3S",
+  "retrieved_utc": "2026-10-07T21:51:46Z",
+  "smiles": "C(C(C(C(C(C(F)(F)F)(F)F)(F)F)(F)F)(F)F)(C(C(C(C(C(F)(F)S(=O)(=O)O)(F)F)(F)F)(F)F)(F)F)(F)F"
+ },
+ "791563-89-8": {
+  "charge": 0,
+  "cid": 21964789,
+  "formula": "C13HF27O3S",
+  "retrieved_utc": "2026-10-07T21:51:46Z",
+  "smiles": "C(C(C(C(C(C(C(F)(F)F)(F)F)(F)F)(F)F)(F)F)(F)F)(C(C(C(C(C(C(F)(F)S(=O)(=O)O)(F)F)(F)F)(F)F)(F)F)(F)F)(F)F"
+ },
+ "79780-39-5": {
+  "charge": 0,
+  "cid": 3018866,
+  "formula": "C12HF25O3S",
+  "retrieved_utc": "2026-10-07T21:51:47Z",
+  "smiles": "C(C(C(C(C(C(C(F)(F)S(=O)(=O)O)(F)F)(F)F)(F)F)(F)F)(F)F)(C(C(C(C(C(F)(F)F)(F)F)(F)F)(F)F)(F)F)(F)F"
+ },
+ "958445-44-8": {
+  "charge": 0,
+  "cid": 87490983,
+  "formula": "C7H5F12NO4",
+  "retrieved_utc": "2026-10-07T21:51:50Z",
+  "smiles": "C(C(C(=O)[O-])(F)F)(OC(C(C(OC(F)(F)F)(F)F)(F)F)(F)F)F.[NH4+]"
+ }
+}

@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import ast
+import collections
 import inspect
 import io
 import json
@@ -1022,13 +1023,21 @@ def test_a_contaminant_class_fits_the_context_and_pages_whole_rows():
 def test_a_family_screen_shows_the_model_what_the_family_lacks():
     """"Which antioxidants leach from PP into ethanol" paged its 120 rows, and the compact view dropped the family's
     coverage: the answer never said 81 PlastChem antioxidants are outside the release (2026-09-24)."""
+    family = next(f for f in contaminants._family_table() if f["name"] == "Antioxidants")
+    computed = {key for (key,) in contaminants._plastchem().execute(
+        "SELECT inchikey FROM contaminants WHERE computed AND inchikey IN (SELECT unnest(?))", [family["members"]]).fetchall()}
     with _bound():
         screen = dispatch("screen_contaminant_partitioning", polymer="PP", solvent="ethanol",
                           contaminants=["antioxidants"])
-        assert screen["handle"] and screen["total"] == 120 and screen["shown"] < 120
+        assert screen["handle"] and screen["total"] == len(computed) > 120 and screen["shown"] < screen["total"]
         (coverage,) = screen["data"]["family_coverage"]
-        assert (coverage["screened"], coverage["not_computed"], coverage["outside_release"]) == (120, 18, 81)
-        assert coverage["outside_release_by_reason"]["contains phosphorus"] == 39
+        assert (coverage["screened"], coverage["not_computed"], coverage["outside_release"]) == (
+            len(computed), len(set(family["members"]) - computed), len(family["outside_release"]))
+        # phosphorus is in the release since the coverage campaign (promotion-v4): the 39 phosphite and phosphonite
+        # antioxidants that were "contains phosphorus" are "not computed yet"; every reason is the family table's
+        reasons = coverage["outside_release_by_reason"]
+        assert "contains phosphorus" not in reasons and reasons["not computed yet"] > 0
+        assert reasons == dict(collections.Counter(item["reason"] for item in family["outside_release"]))
 
 
 def test_the_model_sees_a_log_ratio_past_six_as_its_bound_and_engines_keep_the_number():
@@ -1047,22 +1056,20 @@ def test_the_model_sees_a_log_ratio_past_six_as_its_bound_and_engines_keep_the_n
         assert toluene["contaminants"][0]["logd"] == 0.81  # values inside the bound are unchanged
 
 
-def test_large_unrecognised_contaminant_comparison_named_refusal():
+def test_a_large_contaminant_comparison_pages_instead_of_being_refused():
+    """The comparison nested two whole screens and had no row list, so a large one was refused (unaddressable_result)
+    and the model saw nothing. Its route rows are now the page (2026-10-05)."""
     with _bound() as rec:
         out = dispatch(
             "compare_contaminant_removal_modes",
             target_polymer="LDPE", contaminants="PFAS",
         )
-        assert out["available"] is False
-        assert out["refusal"] == "unaddressable_result"
-        assert rec.get("handles") == {}
-        assert "handle" not in out
-        assert len(json.dumps(out)) < 8192
+        assert out.get("refusal") is None and out["available"] is True
+        assert out["handle"] in rec["handles"] and out["total"] > out["shown"] > 0
+        assert {row["route"] for row in handle_rows(load_handle(rec, out["handle"]))} <= {"strap", "wash"}
+        assert len(json.dumps(out)) < 2 * agent._PAGE_BYTES  # the bound every first page keeps
         archived = rec["turn_records"][rec["_turn"]][-1]
-        assert archived["handle"] is None
-        assert set(archived["exact"]) == {"display", "data"}
-        assert archived["exact"]["data"].get("success") is True
-        assert len(json.dumps(archived["exact"])) > 8192
+        assert archived["handle"] == out["handle"]
 
 
 def test_large_unrecognised_precipitation_fallback_named_refusal():
@@ -1326,15 +1333,16 @@ def test_turn_record_every_result_exact_ordered_durable():
             temperature_max_c=140.0, top_k=20,
         )
         refused = dispatch(
-            "compare_contaminant_removal_modes",
-            target_polymer="LDPE", contaminants="PFAS",
+            "screen_precipitation_order",
+            feed_polymers=["LDPE", "PP"], first_polymer="LDPE",
+            second_polymer="PP", min_ordering_window_c=999.0, top_k=5,
         )
         page = dispatch("result_read", handle=screen["handle"], offset=0, limit=5)
         empty = dispatch("result_read", handle="")
         rows = rec["turn_records"][tid]
         assert [r["tool"] for r in rows] == [
             "solubility_query", "screen_polymer_separation",
-            "compare_contaminant_removal_modes", "result_read", "result_read",
+            "screen_precipitation_order", "result_read", "result_read",
         ]
         assert rows[0]["handle"] is None
         assert set(rows[0]["exact"]) == {"display", "data"}
@@ -2280,9 +2288,9 @@ def test_doctor_checks_key_assets_registry_duckdb(tmp_path, monkeypatch):
     assert "duckdb" in names
     by_name = {c["name"]: c for c in report["checks"]}
     assert by_name["Tool registry"]["status"] == "pass"
-    assert by_name["Tool registry"]["detail"] == "33 registered names"
+    assert by_name["Tool registry"]["detail"] == "34 registered names"
     assert by_name["Tool registry"]["registered"] == len(EXPECTED_REGISTRY_NAMES)
-    assert len(EXPECTED_REGISTRY_NAMES) == 33
+    assert len(EXPECTED_REGISTRY_NAMES) == 34  # find_plastchem_contaminants 2026-10-05, tea_tornado 2026-10-07
     assert "fetch_solvent_safety_by_cid" in EXPECTED_REGISTRY_NAMES
     assert "estimate_thermal_properties" not in EXPECTED_REGISTRY_NAMES
     assert "normalize_feed_composition" not in EXPECTED_REGISTRY_NAMES
@@ -2373,7 +2381,8 @@ def test_the_prompt_says_how_to_write_an_answer():
                  "Comparing alternatives", "as safe as its least safe solvent", "cross-check it with the\n  Hansen tools",
                  "Metrics. Explain each score", "G score:", "CHEM21 Safety, Health and Environment scores",
                  "RED is the Hansen distance", "any request for CHEM21",
-                 "Missing data never counts in an option's favour", "apply it to every solvent in\n  the route"):
+                 "Missing data never counts in an option's favour", "apply it to every solvent in\n  the route",
+                 "Never write LaTeX or $…$ math"):
         assert rule in prompt
 
 
@@ -2409,6 +2418,95 @@ def test_text_right_under_a_table_is_moved_out_of_it():
         "| Measure | Score |\n|---|---|\n| Safety | 4 |\n\nG score is the GSK score.")
     spaced = "| A |\n|---|\n| x |\n\nText"
     assert agent._complete_tables(spaced) == spaced
+
+
+def test_answers_write_math_as_plain_text():
+    """A literature answer (2026-10-08) wrote "$P_{\\text{vap}}$" and "$R^2$"; neither the CLI's Markdown nor the web
+    renderer typesets TeX, so people saw the raw markup. TeX spans become Unicode text, by general rules (names
+    through the HTML5 entity table, scripts through Unicode's SUPERSCRIPT/SUBSCRIPT characters), not a list of the
+    symbols seen so far."""
+    assert agent._plain_math(r"vapour pressure ($P_{\text{vap}}$) with $R^2$ of 0.98") == (
+        "vapour pressure (P_vap) with R² of 0.98")
+    for tex, plain in (
+        (r"$\Delta H_{\text{mix}}$", "ΔH_mix"), (r"$\chi_{12} \approx 0.5$", "χ₁₂ ≈ 0.5"), (r"$\delta_D$", "δ_D"),
+        (r"$10^{-3}$", "10⁻³"), (r"$25\,^\circ\text{C}$", "25 °C"), (r"$\text{MPa}^{1/2}$", "MPa^(1/2)"),
+        (r"$\frac{1}{2}$", "1/2"), (r"$\sqrt{2}$", "√2"), (r"$\log_{10} K \leq 3$", "log₁₀ K ≤ 3"),
+        (r"$2 \times 10^{4}$", "2 × 10⁴"), (r"$\dot{m}$", "ṁ"), (r"$\Delta G = \Delta H - T\Delta S$", "ΔG = ΔH - TΔS"),
+        (r"\(R^2\)", "R²"), (r"$$\mu\text{m}$$", "μm"), (r"$\Omega \rightarrow \infty$", "Ω → ∞"), (r"$x$", "x"),
+        (r"$\mathrm{CO_2}$", "CO₂"), (r"$\pm 0.3\%$", "± 0.3%"), (r"$\ln x$", "ln x"), (r"$\left( a \right)$", "( a )"),
+    ):
+        assert agent._plain_math(tex) == plain, tex
+    for untouched in ("It costs $25.65M a year.", "between $5 and $10", "$5–$10 per kg", "US$4 to US$6", "$5$",
+                      "`$R^2$` in code", "```\n$R^2$\n```", r"an escaped \$5", "set $HOME and $PATH",
+                      r"$\begin{aligned} a &= b \end{aligned}$", "$x_{$", r"[T5-01066e4fcba9-0038] \[T5-01066e4fcba9\]"):
+        assert agent._plain_math(untouched) == untouched, untouched
+
+
+def _replies(monkeypatch, *replies):
+    """complete() answers with these replies in turn; returns the list of calls made."""
+    calls = []
+
+    def fake(messages, tools, **kwargs):
+        calls.append(kwargs)
+        return replies[min(len(calls), len(replies)) - 1]
+
+    monkeypatch.setattr(agent, "complete", fake)
+    return calls
+
+
+def test_an_answer_the_provider_cut_short_is_asked_again(monkeypatch):
+    """Gemini's safety filter ended 3 of 14 answers about removing flame retardants after two or three words
+    ("For recovering"), and each was shown as the whole answer (2026-10-08). A final answer cut short by a filter or a
+    provider error is asked for again."""
+    calls = _replies(monkeypatch, {"text": "For recovering", "tool_calls": [], "cut_short": "content_filter"},
+                     {"text": "Use 2-propanol at 120 °C.", "tool_calls": []})
+    result = run_turn("q", session=new_session(), model="openai:x")
+    assert (result.answer, result.status, len(calls)) == ("Use 2-propanol at 120 °C.", "ok", 2)
+
+
+def test_an_answer_cut_short_every_time_is_not_shown_as_an_answer(monkeypatch):
+    calls = _replies(monkeypatch, {"text": "To extract", "tool_calls": [], "cut_short": "safety"})
+    result = run_turn("q", session=new_session(), model="openai:x")
+    assert result.status == "answer_cut_short" and len(calls) == 1 + agent._CUT_SHORT_RETRIES
+    assert "To extract" not in result.answer and "stopped this answer before it was finished (safety)" in result.answer
+
+
+def test_an_answer_cut_at_the_output_limit_is_shown_marked_incomplete(monkeypatch):
+    """A token limit would end a second try the same way, so it is not asked again; the reader is told it is partial."""
+    calls = _replies(monkeypatch, {"text": "| A |\n| 1 |", "tool_calls": [], "cut_short": "length"})
+    result = run_turn("q", session=new_session(), model="openai:x")
+    assert result.status == "answer_cut_short" and len(calls) == 1
+    assert result.answer == agent._LENGTH_LEAD + "| A |\n|---|\n| 1 |"
+
+
+def test_complete_reports_why_a_provider_cut_a_reply_short(monkeypatch):
+    """Every provider says why it stopped; a finished turn (or no reason at all, as stand-in clients give) is not cut."""
+    import openai
+
+    def client(reason):
+        def create(**kwargs):
+            choice = SimpleNamespace(message=SimpleNamespace(content="x", tool_calls=None))
+            if reason is not None:
+                choice.finish_reason = reason
+            return SimpleNamespace(choices=[choice], usage=None)
+
+        return type("C", (), {"__init__": lambda self, **kw: setattr(self, "chat", SimpleNamespace(
+            completions=SimpleNamespace(create=create)))})
+
+    for reason, cut in (("stop", None), ("tool_calls", None), (None, None), ("content_filter", "content_filter"),
+                        ("length", "length"), ("error", "error")):
+        monkeypatch.setattr(openai, "OpenAI", client(reason))
+        assert agent.complete([{"role": "user", "content": "x"}], [], model="openai:m")["cut_short"] == cut, reason
+    assert agent._cut_short(SimpleNamespace(name="SAFETY")) == "safety"  # Google's FinishReason enum
+    assert agent._cut_short(SimpleNamespace(name="STOP")) is None and agent._cut_short("end_turn") is None
+
+
+def test_the_final_answer_is_written_without_tex(monkeypatch):
+    """The model's answer passes through the math rewrite on its way out, as it does through the table repair."""
+    monkeypatch.setattr(agent, "complete", lambda messages, tools, **kwargs: {
+        "text": "The fit is good ($R^2 = 0.98$).\n| Solvent | $\\delta_D$ |\n| Toluene | 18.0 |", "tool_calls": []})
+    assert run_turn("q", session=new_session(), model="openai:x").answer == (
+        "The fit is good (R² = 0.98).\n| Solvent | δ_D |\n|---|---|\n| Toluene | 18.0 |")
 
 
 def test_a_new_session_screens_the_common_solvents(tmp_path, monkeypatch):
@@ -6704,6 +6802,7 @@ def test_parse_rejects_on_and_unknown():
     assert _parse_literature_slash([]) is None
     assert _parse_literature_slash(["off"]) == {"mode": "off"}
     assert _parse_literature_slash(["corpus"]) == {"mode": "corpus"}
+    assert _parse_literature_slash(["strict"]) == {"mode": "strict"}
     assert _parse_literature_slash(["scholarly"]) == {"mode": "scholarly"}
     with pytest.raises(ValueError, match="usage: /literature"):
         _parse_literature_slash(["on"])
@@ -6722,8 +6821,8 @@ def test_off_default_six_literature_tools_absent_from_agent_list():
     assert LITERATURE_AGENT_TOOLS.isdisjoint(offered_tool_names())
     assert "ingest_literature_documents" in agent.BY_NAME
     assert "ingest_literature_graph" in agent.BY_NAME
-    assert len(EXPECTED_REGISTRY_NAMES) == 33
-    assert len(agent.REGISTRY) == 33
+    assert len(EXPECTED_REGISTRY_NAMES) == 34
+    assert len(agent.REGISTRY) == 34
 
 
 def test_corpus_offers_exactly_two_local_tools_and_network_does_not_fire(monkeypatch, tmp_path):
@@ -6749,10 +6848,11 @@ def test_corpus_offers_exactly_two_local_tools_and_network_does_not_fire(monkeyp
 
 
 def test_scholarly_is_named_surface_not_registry_minus_ingest():
-    assert set(LITERATURE_MODE_SURFACE) == {"off", "corpus", "scholarly"}
+    assert set(LITERATURE_MODE_SURFACE) == {"off", "corpus", "strict", "scholarly"}
     assert "ingest" not in LITERATURE_MODE_SURFACE
     assert LITERATURE_MODE_SURFACE["off"] == frozenset()
     assert LITERATURE_MODE_SURFACE["corpus"] == LITERATURE_CORPUS_TOOLS
+    assert LITERATURE_MODE_SURFACE["strict"] == LITERATURE_CORPUS_TOOLS  # the corpus, with the strict verifier
     assert LITERATURE_MODE_SURFACE["scholarly"] == LITERATURE_SCHOLARLY_TOOLS
     assert LITERATURE_SCHOLARLY_TOOLS == LITERATURE_CORPUS_TOOLS | LITERATURE_NETWORK_TOOLS
     offered_across_modes = frozenset().union(*LITERATURE_MODE_SURFACE.values())
@@ -6803,9 +6903,98 @@ def test_dispatch_ingest_refuses_in_every_mode():
         assert graph["refusal"] == "literature_tools_not_offered"
 
 
+def test_strict_mode_offers_the_corpus_tools_and_hides_the_verifier_parameters():
+    session = {"literature_mode": {"mode": "strict"}}
+    assert literature_agent_mode(session) == "strict"
+    assert _literature_names(session) == set(LITERATURE_CORPUS_TOOLS)
+    search = {item["name"]: item for item in tool_schemas(session)}["search_literature_corpus"]
+    assert {"strict_question", "strict_verifier"}.isdisjoint(search["parameters"]["properties"])
+
+
+def test_strict_mode_hands_the_search_the_turns_question_and_model(monkeypatch):
+    """Under /literature strict the corpus search gets the user's question and a verifier on the turn's own model,
+    whose usage counts toward the turn."""
+    from dissolve.contracts import tool_success
+    from dissolve.session import bind_tool_session, new_session
+
+    seen = {}
+
+    def fake_search(**kwargs):
+        seen.update(kwargs)
+        return tool_success("search_literature_corpus", results=[], result_count=0)
+
+    monkeypatch.setitem(agent.BY_NAME, "search_literature_corpus",
+                        agent.BY_NAME["search_literature_corpus"]._replace(fn=fake_search))
+    record = new_session()
+    record["literature_mode"] = {"mode": "strict"}
+    usage: list = []
+    turn = agent._TurnModel("openai:m", "https://host/api", "KEY_ENV", "Which solvent dissolves EVOH at 120 C?", usage)
+    with bind_tool_session(record), agent._turn_model(turn):
+        dispatch("search_literature_corpus", query="EVOH solvent 120 C")
+    assert seen["query"] == "EVOH solvent 120 C"
+    assert seen["strict_question"] == "Which solvent dissolves EVOH at 120 C?"
+    calls = []
+    monkeypatch.setattr(agent, "complete", lambda messages, tools, **kw: (
+        calls.append((messages, tools, kw)) or {"text": "{}", "usage": {"total_tokens": 7}}))
+    assert seen["strict_verifier"]("check these passages") == "{}"
+    assert calls == [([{"role": "user", "content": "check these passages"}], [],
+                      {"model": "openai:m", "api_base": "https://host/api", "api_key_env": "KEY_ENV"})]
+    assert usage == [{"total_tokens": 7}]
+    assert agent._TURN_MODEL.get() is None  # the turn's model is not left behind
+
+
+def test_corpus_mode_passes_no_verifier(monkeypatch):
+    from dissolve.contracts import tool_success
+    from dissolve.session import bind_tool_session, new_session
+
+    seen = {}
+    monkeypatch.setitem(agent.BY_NAME, "search_literature_corpus", agent.BY_NAME["search_literature_corpus"]._replace(
+        fn=lambda **kwargs: seen.update(kwargs) or tool_success("search_literature_corpus", results=[])))
+    record = new_session()
+    record["literature_mode"] = {"mode": "corpus"}
+    with bind_tool_session(record), agent._turn_model(agent._TurnModel("openai:m", None, None, "q", [])):
+        dispatch("search_literature_corpus", query="EVOH")
+    assert "strict_verifier" not in seen and "strict_question" not in seen
+
+
+def test_strict_mode_refuses_outside_a_turn():
+    from dissolve.session import bind_tool_session, new_session
+
+    record = new_session()
+    record["literature_mode"] = {"mode": "strict"}
+    with bind_tool_session(record):
+        out = dispatch("search_literature_corpus", query="EVOH")
+    assert out["available"] is False and out["refusal"] == "strict_verification_unavailable"
+
+
+def test_a_call_without_tools_sends_no_tool_list(monkeypatch):
+    """The strict verifier calls the model with no tools; providers reject an empty tool list."""
+    import openai
+
+    captured = {}
+
+    class FakeCompletions:
+        def create(self, **kwargs):
+            captured.update(kwargs)
+            return SimpleNamespace(choices=[SimpleNamespace(message=SimpleNamespace(content="ok", tool_calls=None))],
+                                   usage=None)
+
+    class FakeOpenAI:
+        def __init__(self, **kwargs):
+            self.chat = SimpleNamespace(completions=FakeCompletions())
+
+    monkeypatch.setattr(openai, "OpenAI", FakeOpenAI)
+    reply = agent.complete([{"role": "user", "content": "x"}], [], model="openai:m", tool_choice="none")
+    assert reply["text"] == "ok"
+    assert "tools" not in captured and "tool_choice" not in captured
+
+
 def test_slash_sets_and_on_does_not_write(tmp_path, monkeypatch):
     monkeypatch.setattr("sys.stdin.isatty", lambda: False)
     app, buf = _app_literature_mode(tmp_path, monkeypatch)
+    assert app.handle_command("/literature strict") is False
+    assert app.session.get("literature_mode") == {"mode": "strict"}
+    assert "literature_mode=strict" in buf.getvalue()
     assert app.handle_command("/literature scholarly") is False
     assert app.session.get("literature_mode") == {"mode": "scholarly"}
     assert app.handle_command("/literature on") is False
@@ -7068,6 +7257,63 @@ def test_evaluate_mode_through_the_wrapper_still_refuses_a_sweep_parameter(monke
         mode="evaluate", process_config=_public_from_record(record), parameter="solvent_price",
     ))
     assert payload.get("error_code") == "not_applicable_in_mode"
+
+
+def test_the_round_limit_ends_in_an_answer_from_what_was_retrieved(monkeypatch):
+    """"Which solvents can be used to separate bisphenol A from EVOH?" spent all 30 tool rounds and ended "round cap
+    (30) reached ... No guessed answer", although its results already held an answer (hosted site, 2026-10-05). At the
+    limit the model now writes once more, with tools switched off, from what it retrieved; the answer says so."""
+    seen = []
+
+    def fake_complete(messages, tools, **kwargs):
+        seen.append(kwargs.get("tool_choice"))
+        if kwargs.get("tool_choice") == "none":
+            assert tools and "cannot call tools again" in messages[-1]["content"]
+            return {"text": "Ethanol and acetone extract it; the other solvents were not checked.", "tool_calls": []}
+        return {"text": "", "tool_calls": [{"id": f"c{len(seen)}", "name": "no_such_tool", "args": {}}]}
+
+    monkeypatch.setattr(agent, "complete", fake_complete)
+    monkeypatch.setattr(agent, "compact_messages", lambda *args, **kwargs: None)
+    history: list = []
+    result = run_turn("Which solvents?", session=new_session(), model="openai:x", messages=history)
+    assert result.status == "round_cap" and result.tool_rounds == 30 and len(result.tool_trace) == 30
+    assert result.answer.startswith("_Tool limit reached (30 rounds)")
+    assert "Ethanol and acetone extract it" in result.answer
+    assert seen.count("none") == 1 and len(seen) == 31
+    assert history[-1] == {"role": "assistant", "content": result.answer}
+    assert not any("cannot call tools again" in str(message.get("content")) for message in history)
+
+
+def test_a_failed_closing_call_still_ends_with_the_limit_message(monkeypatch):
+    def fake_complete(messages, tools, **kwargs):
+        if kwargs.get("tool_choice") == "none":
+            raise RuntimeError("provider down")
+        return {"text": "", "tool_calls": [{"id": "c", "name": "no_such_tool", "args": {}}]}
+
+    monkeypatch.setenv("DISSOLVE_MAX_TOOL_ROUNDS", "3")
+    monkeypatch.setattr(agent, "complete", fake_complete)
+    monkeypatch.setattr(agent, "compact_messages", lambda *args, **kwargs: None)
+    result = run_turn("Which solvents?", session=new_session(), model="openai:x", messages=[])
+    assert (result.status, result.tool_rounds) == ("round_cap", 3)
+    assert result.answer == "round cap (3) reached; see the tool trace for what was retrieved. No guessed answer."
+
+
+def test_a_call_missing_an_argument_is_refused_in_words_the_model_can_act_on(monkeypatch):
+    """A TypeError from the tool's own signature ("screen_contaminant_partitioning() missing 1 required positional
+    argument: 'solvent'") reached the model as tool_exception and cost a round (2026-10-05). It now names what is
+    missing and what the tool needs; a TypeError raised inside a tool stays tool_exception."""
+    missing = dispatch("screen_contaminant_leaching", contaminants=["PFOA"])
+    assert missing["refusal"] == "missing_argument" and missing["missing"] == ["target_polymer"]
+    assert "target_polymer" in missing["detail"] and "contaminants" in missing["required"]
+    extra = dispatch("screen_contaminant_leaching", target_polymer="LDPE", contaminants=["PFOA"], colour="red")
+    assert extra["refusal"] == "unexpected_argument" and extra["unexpected"] == "colour"
+
+    def inner_failure(name, **kwargs):
+        raise TypeError("helper() missing 1 required positional argument: 'x'")
+
+    monkeypatch.setattr(agent, "call", inner_failure)
+    deep = dispatch("screen_contaminant_leaching", target_polymer="LDPE", contaminants=["PFOA"])
+    assert deep["refusal"] == "tool_exception"
 
 
 def test_gemini_replay_sends_the_responses_to_parallel_calls_in_one_turn():

@@ -1,0 +1,158 @@
+{
+  "utc": "2026-10-08T17:14:15+00:00",
+  "gate": "G1",
+  "verdict": "pass",
+  "cohort": "chunk c01: the first 100 never-run work-list rows (orders 1-107)",
+  "outcomes": {
+    "converged": 99,
+    "failed": 1
+  },
+  "failures": [
+    {
+      "inchikey": "JDAIJCNBFIWLJJ-UHFFFAOYSA-N",
+      "name": "Silicic acid, ethyl ester",
+      "failure_mode": "mmff_parameters_unavailable",
+      "error": "No MMFF parameters; frozen recipe permits no force-field substitution"
+    }
+  ],
+  "checks": {
+    "failure_rate": {
+      "value": 0.01,
+      "limit": 0.1,
+      "passed": true
+    },
+    "projection": {
+      "value": 5112.65625927599,
+      "limit": 6000,
+      "passed": true
+    },
+    "logp_rmse": {
+      "value": 0.35348071420449567,
+      "limit": 1.533844626635528,
+      "passed": true
+    },
+    "logp_bias": {
+      "value": 0.2379355711577744,
+      "limit": 1.0,
+      "passed": true
+    },
+    "logp_rmse_S": {
+      "value": 0.31657644883123615,
+      "n": 16,
+      "limit": 1.533844626635528,
+      "passed": true
+    },
+    "logp_bias_S": {
+      "value": 0.2005652275758194,
+      "n": 16,
+      "limit": 1.0,
+      "passed": true
+    },
+    "logp_rmse_P": {
+      "value": 0.7226738520436994,
+      "n": 1,
+      "limit": 1.533844626635528,
+      "passed": true
+    },
+    "logp_bias_P": {
+      "value": 0.7226738520436994,
+      "n": 1,
+      "limit": 1.0,
+      "passed": true
+    },
+    "logp_rmse_Si": {
+      "value": 0.35112278758312954,
+      "n": 1,
+      "limit": 1.533844626635528,
+      "passed": true
+    },
+    "logp_bias_Si": {
+      "value": 0.35112278758312954,
+      "n": 1,
+      "limit": 1.0,
+      "passed": true
+    }
+  },
+  "cost": {
+    "by_cpu_model": {
+      "AMD EPYC 7763 64-Core Processor": {
+        "n": 99,
+        "log_wall_intercept": 3.559284028783332,
+        "exponent": 0.75816316676972,
+        "measured_over_fit_median": 1.1917414470874825,
+        "measured_over_fit_mean": 1.5894617913653342,
+        "measured_cpu_hours": 7.600924901516692,
+        "fit_cpu_hours": 7.803330706009454,
+        "atoms_range": [
+          3,
+          24
+        ]
+      }
+    },
+    "projection": {
+      "fit_cpu_hours": 3216.5958861359363,
+      "scaled_by_mean_measured_over_fit": 5112.65625927599,
+      "mean_measured_over_fit": 1.5894617913653342,
+      "note": "c01 spans 3-24 atoms; the whole list reaches several hundred, so the exponent refit on c01 alone is not extrapolated: the projection scales the campaign fit by c01's measured/fit ratio"
+    }
+  },
+  "octanol_water": {
+    "spsi": {
+      "n": 18,
+      "MAE": 0.2857911471035863,
+      "RMSE": 0.35348071420449567,
+      "bias": 0.2379355711577744,
+      "slope": 1.0421703413593997,
+      "intercept": 0.2131019256905727
+    },
+    "by_element": {
+      "S": {
+        "n": 16,
+        "MAE": 0.2544027505148577,
+        "RMSE": 0.31657644883123615,
+        "bias": 0.2005652275758194,
+        "slope": 1.0617676485134233,
+        "intercept": 0.1697972176600702
+      },
+      "P": {
+        "n": 1,
+        "MAE": 0.7226738520436994,
+        "RMSE": 0.7226738520436994,
+        "bias": 0.7226738520436994,
+        "slope": NaN,
+        "intercept": NaN
+      },
+      "Si": {
+        "n": 1,
+        "MAE": 0.35112278758312954,
+        "RMSE": 0.35112278758312954,
+        "bias": 0.35112278758312954,
+        "slope": NaN,
+        "intercept": NaN
+      }
+    },
+    "chno": {
+      "n1179_combined": {
+        "n": 1179,
+        "MAE": 0.6969126168275085,
+        "RMSE": 1.0225630844236853,
+        "bias": 0.5496622707548298,
+        "slope": 0.9495450304362559,
+        "intercept": 0.6738394827211347,
+        "source": "state/contaminant-overview-draft-20260917.json"
+      },
+      "n622_comptox_final1631": {
+        "n": 622,
+        "MAE": 0.8888911074873059,
+        "RMSE": 1.249065108010809,
+        "bias": 0.7534334171576113,
+        "slope": 0.8434786589151252,
+        "intercept": 1.3311758316003055,
+        "source": "state/validation-comptox-final1631-verified-20260917.json"
+      }
+    },
+    "structures_converged": 88,
+    "with_measured": 18,
+    "basis": "openCOSMO-RS 24a, 298.15 K, dilution ladder, log10 K concentration basis; water 18.07, octan-1-ol 158.528 cm3/mol; CompTox explicit experimental LogKow, median of a structure's observations"
+  }
+}

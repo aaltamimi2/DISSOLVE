@@ -1,0 +1,36 @@
+{
+  "utc": "2026-10-07T19:06:10.037573+00:00",
+  "status": "complete",
+  "frozen_snapshot": true,
+  "structures_with_incomplete_rows_left_out": 79,
+  "parent_release": "promotion-v1",
+  "parent_manifest_sha256": "91b2ab133c17e5c66557c483ff84fbeca297682d5bd622a404ecba2746b23080",
+  "computed_contaminants": 7160,
+  "added_since_v1": 1330,
+  "added_tier2": 219,
+  "added_halogen": 1111,
+  "identity_status_rows": 7353,
+  "statuses": {
+    "halogen/converged": 1111,
+    "halogen/failed": 13,
+    "halogen/running": 9,
+    "halogen/thermodynamics_pending": 117,
+    "main/converged": 5803,
+    "main/excluded_isotope": 9,
+    "main/failed": 21,
+    "tier2/converged": 246,
+    "tier2/failed": 24
+  },
+  "partition_rows": 4582400,
+  "LLE_rows": 458240,
+  "batches": [
+    "b00",
+    "h01",
+    "h02",
+    "h03",
+    "h04"
+  ],
+  "pending_halogen": 8,
+  "converged_without_thermodynamics": 117,
+  "cohort_sha256": "057f703bd98055b837f02b83b837448978d646707f01312b7b80b322266e3652"
+}

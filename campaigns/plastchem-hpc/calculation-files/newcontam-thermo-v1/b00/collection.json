@@ -1,0 +1,10 @@
+{
+  "batch": "b00",
+  "partition_complete": 5,
+  "partition_plans": 5,
+  "lle_complete": 15,
+  "lle_plans": 15,
+  "queue": "",
+  "utc": "2026-10-07T07:53:28Z",
+  "archive_sha256": "a04db3af981d3bef573328b87c5f7ce9dc4f6e700bed67d511294fcbbf3c38b5"
+}

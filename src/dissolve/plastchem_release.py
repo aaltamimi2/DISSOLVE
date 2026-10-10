@@ -15,6 +15,7 @@ and checked against that asset:
 
 from __future__ import annotations
 
+import collections
 import gzip
 import hashlib
 import json
@@ -29,14 +30,18 @@ from .contaminants import _MISCIBLE_BASIS, _PLASTCHEM_ASSET, _PLASTCHEM_FAMILIES
 
 
 # Plastic additives are asked about by abbreviation ("does DEHP leach"), and PlastChem names them in full. Each
-# abbreviation maps by CAS number to the release's own entry (checked by name when this list was made, 2026-09-24);
-# an abbreviation whose CAS the release lacks adds nothing. Ambiguous ones (DOP, NP) are left out on purpose.
+# abbreviation maps by CAS number to the release's own entry (checked by name when this list was made, 2026-09-24;
+# the flame retardants from TBBPA on by CAS and name on 2026-10-08, promotion-v5); an abbreviation whose CAS the
+# release lacks adds nothing. Ambiguous ones (DOP, NP, TPP) are left out on purpose, and HBCDD too: its generic CAS
+# is one isomer's.
 _ABBREVIATIONS = {
     "DEHP": "117-81-7", "DBP": "84-74-2", "BBP": "85-68-7", "BBzP": "85-68-7", "DINP": "20548-62-3",
     "DIDP": "26761-40-0", "DEP": "84-66-2", "DMP": "131-11-3", "DIBP": "84-69-5", "DEHA": "103-23-1",
     "DEHT": "6422-86-2", "DOTP": "6422-86-2", "DINCH": "166412-78-8", "ATBC": "77-90-7", "TOTM": "3319-31-1",
     "BPA": "80-05-7", "BPF": "620-92-8", "BHT": "128-37-0", "Irganox 1076": "2082-79-3", "Tinuvin P": "2440-22-4",
     "Chimassorb 81": "1843-05-6", "TXIB": "6846-50-0",
+    "TBBPA": "79-94-7", "TBBPA-DBPE": "21850-44-2", "BDE-209": "1163-19-5", "decaBDE": "1163-19-5",
+    "BTBPE": "37853-59-1", "BADGE": "1675-54-3", "TPHP": "115-86-6",
 }
 
 
@@ -119,12 +124,34 @@ def promote_opencosmo_release(
            FROM read_csv_auto(?)""",
         [str(release / "polymer-product-map.csv")],
     )
+    elements = _release_elements([smiles for (smiles,) in con.execute(
+        "SELECT smiles FROM contaminants WHERE computed AND smiles IS NOT NULL").fetchall()])
     rows = con.execute("SELECT id, inchikey, name, cas, plastchem_id, perceived_inchikey FROM contaminants").fetchall()
+    # a row lists every PlastChem entry it serves, a salt served through its neutral parent too (A-13); it answers to
+    # each ID on its own, and to its whole CAS field and each number in it: PlastChem joins several with ";"
+    # (Tetrabromobisphenol A is "25639-54-7;79-94-7", and 79-94-7 alone found nothing)
     aliases = {(_key(value), cid) for cid, inchikey, name, cas, pid, perceived in rows
-               for value in (name, cas, inchikey, perceived, pid and f"plastchem {pid}") if value}
-    by_cas = {cas: cid for cid, _, _, cas, _, _ in rows if cas}
+               for value in (name, cas, *_cas_numbers(cas), inchikey, perceived, *(f"plastchem {i}" for i in _ids(pid)))
+               if value}
+    holders: dict[str, set[int]] = collections.defaultdict(set)
+    for cid, _, _, cas, _, _ in rows:
+        for number in _cas_numbers(cas):
+            holders[number].add(cid)
+    shared = sorted(cas for cas in set(_ABBREVIATIONS.values()) if len(holders.get(cas, ())) > 1)
+    if shared:
+        raise ValueError(f"an abbreviation's CAS number names more than one contaminant: {', '.join(shared)}")
+    by_cas = {number: next(iter(cids)) for number, cids in holders.items() if len(cids) == 1}
     abbreviations = {(_key(abbr), by_cas[cas]) for abbr, cas in _ABBREVIATIONS.items() if cas in by_cas}
     aliases |= abbreviations
+    ids = {inchikey: cid for cid, inchikey, *_ in rows}
+    # a family keeps its name: a release alias that would also name one ("phthalate", a PlastChem ion entry served
+    # through phthalic acid) is withheld rather than made ambiguous
+    families = {_key(value) for spec in _FAMILY_SPECS for value in (spec["name"], spec["term"], *spec["aliases"])}
+    withheld: set[str] = set()
+    labels = _publication_labels(release, ids, aliases, families, withheld)
+    aliases |= labels
+    parents = _parent_aliases(release, ids, aliases, families, withheld)
+    aliases |= parents
     con.execute("CREATE TABLE aliases (alias VARCHAR, id INTEGER)")
     con.executemany("INSERT INTO aliases VALUES (?, ?)", sorted(aliases))
     statuses = [manifest.get("status") for manifest in manifests]
@@ -139,7 +166,9 @@ def promote_opencosmo_release(
             for path, status in zip(releases, statuses)]),
         "served_convention": _SERVED_CONVENTION, "miscibility_basis": _MISCIBLE_BASIS,
         "logp_temperature_c": "25.0", "parameterization": "openCOSMO-RS 24a",
-        "abbreviations": str(len(abbreviations)),
+        "abbreviations": str(len(abbreviations)), "elements": ",".join(elements),
+        "publication_labels": str(len(labels)), "parent_aliases": str(len(parents)),
+        "aliases_withheld_as_family_names": ", ".join(sorted(withheld)),
     }
     con.execute("CREATE TABLE metadata (key VARCHAR, value VARCHAR)")
     con.executemany("INSERT INTO metadata VALUES (?, ?)", sorted(meta.items()))
@@ -152,7 +181,83 @@ def promote_opencosmo_release(
     return {**counts, **meta, "asset": str(target)}
 
 
-# --- Contaminant families. Nobody knows the names of 5,830 contaminants, so a user can ask for a family by a plain
+def _ids(value: str | None) -> list[str]:
+    """The PlastChem IDs of a release row ("221;4410" lists two entries)."""
+    return [part.strip() for part in str(value or "").replace(",", ";").split(";") if part.strip()]
+
+
+def _cas_numbers(value: str | None) -> list[str]:
+    """The CAS numbers of a release row ("25639-54-7;79-94-7" holds two)."""
+    return [part.strip() for part in str(value or "").split(";") if part.strip()]
+
+
+def _release_labels(path: Path, what: str, ids: dict[str, int], aliases: set[tuple[str, int]],
+                    families: set[str] = frozenset(), withheld: set[str] | None = None) -> set[tuple[str, int]]:
+    """Aliases a release carries in a table (columns alias, input_inchikey, offered; label optional), each resolved to
+    the structure the release serves for it. Rows the release does not offer add nothing; a row naming a structure the
+    release lacks, or an alias that another entry already answers to, is refused rather than made ambiguous; an alias
+    that is a contaminant family's name (`families`) is withheld and recorded in `withheld`."""
+    if not path.is_file():
+        return set()
+    import csv
+
+    taken: dict[str, set[int]] = {}
+    for alias, cid in aliases:
+        taken.setdefault(alias, set()).add(cid)
+    out = set()
+    with path.open(newline="", encoding="utf-8") as handle:
+        for row in csv.DictReader(handle):
+            if row["offered"] != "yes":
+                continue
+            label = row.get("label") or row["alias"]
+            if row["input_inchikey"] not in ids:
+                raise ValueError(f"{what} {label!r} names {row['input_inchikey']}, which the release lacks")
+            key, cid = _key(row["alias"]), ids[row["input_inchikey"]]
+            if key in families:
+                if withheld is not None:
+                    withheld.add(row["alias"])
+                continue
+            if taken.get(key, {cid}) != {cid}:
+                raise ValueError(f"{what} {row['alias']!r} would also name another contaminant")
+            out.add((key, cid))
+            taken.setdefault(key, set()).add(cid)
+    return out
+
+
+def _publication_labels(release: Path, ids: dict[str, int], aliases: set[tuple[str, int]],
+                        families: set[str] = frozenset(), withheld: set[str] | None = None) -> set[tuple[str, int]]:
+    """The labels and CAS numbers of a paper's compound sets (Zhou et al. 2026: "PFOS", "NaDoDFNt", "DECA"), from the
+    release's publication-labels.csv; a salt the paper lists is its parent acid. A label naming a class or a mixture is
+    listed but not offered."""
+    return _release_labels(release / "publication-labels.csv", "publication label", ids, aliases, families, withheld)
+
+
+def _parent_aliases(release: Path, ids: dict[str, int], aliases: set[tuple[str, int]],
+                    families: set[str] = frozenset(), withheld: set[str] | None = None) -> set[tuple[str, int]]:
+    """The names and CAS numbers of PlastChem entries served through their computed neutral parent (a salt, an ion, a
+    hydrate: "Potassium laurate" finds lauric acid), from the release's parent-aliases.csv (A-13)."""
+    return _release_labels(release / "parent-aliases.csv", "parent alias", ids, aliases, families, withheld)
+
+
+_ELEMENT_ORDER = ("C", "H", "N", "O", "F", "Cl", "Br", "I", "S", "P", "Si", "B")
+
+
+def _release_elements(smiles: Sequence[str]) -> list[str]:
+    """The elements the computed compounds are built from, C, H, N and O first."""
+    from rdkit import Chem, RDLogger
+
+    RDLogger.DisableLog("rdApp.*")
+    found: set[str] = set()
+    for text in smiles:
+        mol = Chem.MolFromSmiles(text)
+        if mol is not None:
+            found |= {atom.GetSymbol() for atom in mol.GetAtoms()}
+            if any(atom.GetTotalNumHs() for atom in mol.GetAtoms()):
+                found.add("H")
+    return sorted(found, key=lambda e: (_ELEMENT_ORDER.index(e) if e in _ELEMENT_ORDER else 99, e))
+
+
+# --- Contaminant families. Nobody knows the names of thousands of contaminants, so a user can ask for a family by a plain
 # name. Most families are PlastChem's own chemical groups (columns of the workbook's "Full database" sheet). Where the
 # plain name needs it, a structure narrows the group: slip agents are its fatty amides, not formamide. PlastChem has no
 # antioxidant or UV-stabilizer group, and its function labels are no substitute ("Antioxidant" also tags methanol and
@@ -193,6 +298,11 @@ _SMARTS = {
     "aryl_salicylate": "[OX2H]c1ccccc1C(=O)Oc1ccccc1",
     "benzylidene_malonate": "O=C(O[#6])C(=[CH]c1ccccc1)C(=O)O[#6]",
     "benzophenone": "c1ccccc1[CX3;!R](=O)c1ccccc1",
+    # phthalates: a benzene-1,2-dicarboxylate diester whose ring carries nothing else (not a trimellitate, a
+    # tetrahalophthalate or a fused-ring dicarboxylate)
+    "ortho_phthalate_diester": "[#6;!$(C=O)]OC(=O)[c;R1]1[c;R1](C(=O)O[#6;!$(C=O)])[cH;R1][cH;R1][cH;R1][cH;R1]1",
+    # a benzene ring fused to a thiazole (N-C-S) ring, aromatic or as the 2(3H)-thione; not 1,2-benzisothiazole
+    "benzothiazole": "c1ccc2c(c1)[#7]~[#6]~[#16]2",
 }
 _ANTIOXIDANT = ("hindered_phenol", "cycloalkyl_phenol", "diarylamine", "phenylenediamine", "dihydroquinoline",
                 "gallate", "chromanol", "benzofuranone", "phosphite", "thiodipropionate")
@@ -202,9 +312,11 @@ _UV = ("benzotriazole_uva", "triazine_uva", "hydroxybenzophenone", "hals", "cyan
        "aryl_salicylate", "benzylidene_malonate")
 
 # name, the term a question uses, aliases, what it holds, and how membership is decided: a PlastChem group ("group"),
-# structures of which any ("any") or all ("all") must match and none ("none") may, and a minimum carbon count.
+# or outside it a structure of which any matches ("or_any"), structures of which any ("any") or all ("all") must match
+# and none ("none") may, elements the structure must contain ("elements"), and a minimum carbon count.
 _FAMILY_SPECS: tuple[dict[str, Any], ...] = (
-    {"name": "Phthalates", "term": "phthalates", "group": "orthophthalates",
+    # PlastChem's orthophthalates group leaves out ortho-phthalate diesters such as bis(2-ethylbutyl) phthalate
+    {"name": "Phthalates", "term": "phthalates", "group": "orthophthalates", "or_any": ("ortho_phthalate_diester",),
      "aliases": ("phthalate", "phthalate esters", "phthalate plasticizers", "ortho-phthalates", "orthophthalates",
                  "o-phthalates"),
      "description": "ortho-phthalate plasticizers", "examples": ("DEHP", "DBP", "BBP")},
@@ -243,26 +355,60 @@ _FAMILY_SPECS: tuple[dict[str, Any], ...] = (
      "description": "salicylate esters", "examples": ("Methyl salicylate", "Homosalate", "2-Ethylhexyl salicylate")},
     {"name": "Parabens", "term": "parabens", "group": "parabens", "aliases": ("paraben", "4-hydroxybenzoates"),
      "description": "4-hydroxybenzoate esters", "examples": ("Methylparaben", "Propylparaben", "Butylparaben")},
+    # A-13 (2026-10-08): families of the coverage campaign's sulfur, phosphorus and silicon compounds, each added once
+    # three of its members were computed and named
+    # PlastChem flags salts by their counter-ion too (melamine phosphate): the structure served must hold the element
+    {"name": "Organophosphates", "term": "organophosphates", "group": "organophosphates", "elements": ("P",),
+     "aliases": ("organophosphate", "organophosphorus compounds", "phosphate esters", "organophosphate esters"),
+     "description": "phosphate, phosphonate, phosphinate and phosphite esters and acids, phosphine oxides, phosphines "
+                    "and phosphoramides",
+     "examples": ("Dimethyl methylphosphonate", "Vinylphosphonic acid", "Ethyl dihydrogen phosphate")},
+    {"name": "Siloxanes and silanes", "term": "siloxanes and silanes", "group": "silanes_siloxanes_silicones",
+     "elements": ("Si",),
+     "aliases": ("siloxanes", "siloxane", "silanes", "silane", "organosilicon compounds", "organosilanes"),
+     "description": "silanes, siloxanes and silicone building blocks",
+     "examples": ("Tetramethylsilane", "Trimethylsilanol", "Dimethoxydimethylsilane")},
+    # PlastChem's azodyes group also holds benzidines (3,3'-dimethoxy- and 3,3'-dimethylbenzidine, the dyes'
+    # precursors): a member carries the azo linkage itself
+    {"name": "Azo dyes", "term": "azo dyes", "group": "azodyes", "all": ("azo",),
+     "aliases": ("azo dye", "azo colorants", "azo colourants", "azo pigments"),
+     "description": "azo dyes and pigments", "examples": ("Sudan I", "Para Red", "Sudan II")},
+    # PlastChem's benzothiazole group also holds 1,2-benzisothiazole, an isomer: a member carries the benzothiazole ring
+    {"name": "Benzothiazoles", "term": "benzothiazoles", "group": "benzothiazole", "all": ("benzothiazole",),
+     "aliases": ("benzothiazole derivatives", "benzothiazole accelerators"),
+     "description": "benzothiazole rubber accelerators and their relatives",
+     "examples": ("Benzothiazole", "2-Mercaptobenzothiazole", "2-(Methylthio)benzothiazole")},
 )
 _ELEMENT_NAMES = {"F": "fluorine", "Cl": "chlorine", "Br": "bromine", "I": "iodine", "S": "sulfur", "P": "phosphorus",
                   "Si": "silicon", "B": "boron", "Se": "selenium"}
 
 
+#: how a family's required structures read ("with a benzophenone core"); a structure not listed reads "a <name> core"
+_STRUCTURE_PHRASES = {"azo": "an azo linkage (C-N=N-C)"}
+
+
 def _family_basis(spec: dict[str, Any]) -> str:
     parts = [f"PlastChem group {spec['group']}"] if "group" in spec else []
+    if "or_any" in spec:
+        parts[-1] += ", or outside it the structure " + " or ".join(spec["or_any"]).replace("_", " ")
     if "any" in spec:
         parts.append("any of " + ", ".join(spec["any"]).replace("_", " "))
     if "all" in spec:
-        parts.append("with a " + ", ".join(spec["all"]).replace("_", " ") + " core")
+        parts.append("with " + " and ".join(_STRUCTURE_PHRASES.get(name, f"a {name.replace('_', ' ')} core")
+                                            for name in spec["all"]))
     if "none" in spec:
         parts.append("excluding " + ", ".join(spec["none"]).replace("_", " "))
+    if "elements" in spec:
+        parts.append("containing " + " and ".join(_ELEMENT_NAMES.get(e, e) for e in spec["elements"]))
     if "min_carbons" in spec:
         parts.append(f"at least {spec['min_carbons']} carbons")
     return "; ".join(parts)
 
 
-def _outside_reason(row: dict[str, Any], mol: Any) -> str:
-    """Why a PlastChem entry of a family is not in the release (which holds neutral CHNO molecules up to 700 g/mol)."""
+def _outside_reason(row: dict[str, Any], mol: Any, held: frozenset[str] = frozenset("CHNO")) -> str:
+    """Why a PlastChem entry of a family is not in the release. Since the coverage campaign (A-13, 2026-10-08) computes
+    every simulable PlastChem structure, lightest first, a neutral closed-shell molecule built from the elements the
+    release holds (`held`) is not computed yet, unless it is above 700 g/mol and too flexible for one conformer."""
     if row["inorganic_compounds"] or row["organometallics"]:
         return "contains a metal"
     if row["UVCBs"] or row["polymers"] or row["mixtures"]:
@@ -275,21 +421,30 @@ def _outside_reason(row: dict[str, Any], mol: Any) -> str:
 
     if Chem.GetFormalCharge(mol) != 0:
         return "an ion"
-    elements = {atom.GetSymbol() for atom in mol.GetAtoms()} - {"C", "H", "N", "O"}
+    elements = {atom.GetSymbol() for atom in mol.GetAtoms()} - set(held)
     named = sorted(_ELEMENT_NAMES[e] for e in elements if e in _ELEMENT_NAMES)
     if len(named) < len(elements):
         return "contains a metal"
     if named:
         return "contains " + " and ".join(named)
-    heavy = float(row.get("molecular_weight") or 0) > 700
-    return "heavier than 700 g/mol" if heavy else "not in the campaign's input list"
+    if any(atom.GetIsotope() for atom in mol.GetAtoms()):
+        return "isotope-labelled (excluded by owner decision)"
+    if any(atom.GetNumRadicalElectrons() for atom in mol.GetAtoms()):
+        return "a radical (open-shell)"
+    from rdkit.Chem import Descriptors, rdMolDescriptors
+
+    if Descriptors.MolWt(mol) > 700 and rdMolDescriptors.CalcNumRotatableBonds(mol) > 20:
+        return "larger than 700 g/mol and too flexible for one conformer"
+    return "not computed yet"
 
 
 def build_families(workbook: str | Path, out: str | Path | None = None, *, asset: str | Path | None = None,
                    specs: Sequence[dict[str, Any]] = _FAMILY_SPECS) -> dict:
     """Write data/plastchem_families.json from the PlastChem workbook: each family's members by InChIKey (the screens
-    evaluate those the asset computed) and, for the entries the asset lacks, their names and why. Refuses an alias
-    that names a contaminant or another family, and an example that does not resolve to one of the family's members."""
+    evaluate those the asset computed) and, for the entries the asset lacks, their names and why. An entry is a member
+    through the row that serves it: its own InChIKey, or a row whose plastchem_id lists it (a salt served through its
+    neutral parent, A-13), whose structure the patterns are then matched on. Refuses an alias that names a contaminant
+    or another family, and an example that does not resolve to one of the family's members."""
     import openpyxl
     from rdkit import Chem, RDLogger
 
@@ -297,8 +452,14 @@ def build_families(workbook: str | Path, out: str | Path | None = None, *, asset
     workbook, target = Path(workbook), Path(out or _PLASTCHEM_FAMILIES)
     con = duckdb.connect(str(asset or _PLASTCHEM_ASSET), read_only=True)
     released = {key for (key,) in con.execute("SELECT inchikey FROM contaminants").fetchall()}
+    held = frozenset((dict(con.execute("SELECT key, value FROM metadata").fetchall()).get("elements") or "C,H,N,O").split(","))
     aliases = {alias: cid for alias, cid in con.execute("SELECT alias, id FROM aliases").fetchall()}
     ids = {key: cid for cid, key in con.execute("SELECT id, inchikey FROM contaminants").fetchall()}
+    by_id, smiles_of = {}, {}
+    for key, pid, smiles in con.execute("SELECT inchikey, plastchem_id, smiles FROM contaminants").fetchall():
+        smiles_of[key] = smiles
+        for entry_id in _ids(pid):
+            by_id.setdefault(entry_id, key)
     patterns = {name: Chem.MolFromSmarts(smarts) for name, smarts in _SMARTS.items()}
     sheet = openpyxl.load_workbook(workbook, read_only=True)["Full database"].iter_rows(values_only=True)
     next(sheet)  # section headers
@@ -312,32 +473,42 @@ def build_families(workbook: str | Path, out: str | Path | None = None, *, asset
                          ("inorganic_compounds", "organometallics", "UVCBs", "polymers", "mixtures")}}
         row["smiles"] = row.get("isomeric_smiles") or row.get("canonical_smiles") or ""
         mol = Chem.MolFromSmiles(row["smiles"]) if row["smiles"] and "." not in row["smiles"] else None
-        entries.append((row, mol))
+        entry_id = row.get("plastchem_ID")
+        entry_id = str(int(entry_id)) if isinstance(entry_id, (int, float)) else str(entry_id or "").split(".")[0]
+        own = row.get("inchikey") in released
+        served = row.get("inchikey") if own else by_id.get(entry_id)
+        # an entry served through another row (a salt through its parent) is matched on the structure served
+        structure = mol if own or not served or not smiles_of.get(served) else Chem.MolFromSmiles(smiles_of[served])
+        entries.append((row, mol, served, structure))
     folded = {}
     families = []
     for spec in specs:
         members, outside = set(), {}
-        for row, mol in entries:
-            if "group" in spec and row.get(spec["group"]) in (None, 0, "0"):
+        for row, mol, served, structure in entries:
+            if "group" in spec and row.get(spec["group"]) in (None, 0, "0") and not (structure is not None and any(
+                    structure.HasSubstructMatch(patterns[name]) for name in spec.get("or_any", ()))):
                 continue
-            if any(key in spec for key in ("any", "all", "none")) and mol is None:
+            if any(key in spec for key in ("any", "all", "none")) and structure is None:
                 continue
-            matches = lambda names: [mol.HasSubstructMatch(patterns[name]) for name in names]
+            matches = lambda names: [structure.HasSubstructMatch(patterns[name]) for name in names]
             if "any" in spec and not any(matches(spec["any"])):
                 continue
             if "all" in spec and not all(matches(spec["all"])):
                 continue
             if "none" in spec and any(matches(spec["none"])):
                 continue
-            if "min_carbons" in spec and (mol is None or sum(atom.GetSymbol() == "C" for atom in mol.GetAtoms())
+            if "min_carbons" in spec and (structure is None or sum(atom.GetSymbol() == "C" for atom in structure.GetAtoms())
                                           < spec["min_carbons"]):
                 continue
-            key = row.get("inchikey")
-            if key and key in released:
-                members.add(key)
+            if "elements" in spec and (structure is None or not set(spec["elements"]) <= {
+                    atom.GetSymbol() for atom in structure.GetAtoms()}):
+                continue
+            if served:
+                members.add(served)
             else:
+                key = row.get("inchikey")
                 name = str(row.get("pubchem_name") or row.get("cas") or row.get("plastchem_ID"))
-                outside.setdefault(name, {"name": name, "inchikey": key or None, "reason": _outside_reason(row, mol)})
+                outside.setdefault(name, {"name": name, "inchikey": key or None, "reason": _outside_reason(row, mol, held)})
         names = [spec["name"], spec["term"], *spec["aliases"]]
         for alias in map(_key, names):
             if alias in aliases:

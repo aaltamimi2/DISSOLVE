@@ -25,7 +25,10 @@ def check(value,solute_mass,solvent_mass,failure_policy_sha):
         return
     grids=value['grid_checks'];assert [g['grid_intervals'] for g in grids]==[1000,2000]
     if not valid:
-        assert value['above_15_mol_percent'] is None and value['above_15_wt_percent'] is None
+        # The frozen solver emits verdicts only for qualified outcomes. Its
+        # unresolved grid/tie-line rows omit these optional keys; either absent
+        # or explicit null is valid, but any boolean/numeric verdict is not.
+        assert value.get('above_15_mol_percent') is None and value.get('above_15_wt_percent') is None
         return
     assert all(g['status']==status for g in grids)
     for row in [*grids,value]:

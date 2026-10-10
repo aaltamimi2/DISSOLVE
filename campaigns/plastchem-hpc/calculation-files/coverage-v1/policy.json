@@ -1,0 +1,12 @@
+{
+  "mode": "connectivity_first_block_with_computed_stereochemistry",
+  "authority": "Owner decision A-3 D-IDENT",
+  "charter_sha256": "39aa9d7e6e419291bb537616b080309bf55fe703d4b98710aab9e1e266c3bdab",
+  "require_stereo_layer_match": false,
+  "isotope_policy": "exclude; no parent mapping",
+  "campaign_concurrency_limit": 64,
+  "orca_share_of_cap": 56,
+  "thermodynamics_share_of_cap": 8,
+  "concurrency_authority": "Owner 2026-09-16: increase concurrency only; keep 4GB (D-CONC 64, shared by ORCA and thermodynamics)",
+  "tier_authority": "Amendment A-13 (coverage campaign, 2026-10-08)"
+}

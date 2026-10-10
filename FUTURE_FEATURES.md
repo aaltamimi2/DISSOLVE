@@ -19,17 +19,17 @@ names suggest. A user who asks for "slip agents" gets 8 compounds and is told th
 | Family | In the family | Missing from it, although computed |
 |---|---|---|
 | Slip agents | 8 (group `aliphatic_primary_amides`, at least 12 carbons) | More plain fatty amides: pentadecanamide, hexadecenamide, linoleamide, cis-11-eicosenamide, tetracosanamide and 12-hydroxystearamide. Also 9-octadecenamide and 13-docosenamide, which are the oleamide and erucamide entries with the double bond unspecified or trans. Two-chain and bis-amides: N-erucylstearamide, N-octadec-9-enylhexadecanamide, N,N'-ethylenebismyristamide and N,N'-hexane-1,6-diyldistearamide |
-| Phthalates | 42 | The release has 89 computed ortho-phthalate esters. Missing include MEHP, monoethyl phthalate, monobenzyl phthalate and di-sec-butyl phthalate |
+| Phthalates | 92 since 15c5155a (2026-10-07: PlastChem's group plus every ortho-phthalate diester; 89 computed) | Still missing: the computed monoesters MEHP, monoethyl phthalate and monobenzyl phthalate |
 | Bisphenols | 25 | Bisphenol E (1,1-bis(4-hydroxyphenyl)ethane) and bisphenol C (2,2-bis(4-hydroxy-3-methylphenyl)propane) |
 | Parabens | 7 | Octylparaben (octyl 4-hydroxybenzoate) |
 | Aromatic amines | 17 | PlastChem's group is REACH Annex XVII's list of 22 restricted carcinogenic amines (17 computed, 5 outside the release). Aniline and p-toluidine are not members |
 
 - Antioxidants and UV stabilizers are defined by structure (SMARTS patterns in `plastchem_release._SMARTS`) and do not have this problem.
-- Some of the best-known slip agents are in PlastChem but were never computed, because they lie outside the campaign's calculation set (about 590 g/mol):
+- Some of the best-known slip agents are computed since promotion-v2 (the 500–700 g/mol tier, amendment A-11) but
+  are not members, because PlastChem's group holds primary amides only:
   - EBS, ethylene bis-stearamide (110-30-5);
   - stearyl erucamide (10094-45-8);
   - ethylene bis-oleamide (110-31-6).
-- A family answer should name these as not computed. Today it cannot, because the family does not list them.
 
 **Proposed fix (no new calculations).**
 - Membership becomes the PlastChem group plus a structural pattern for the family. For slip agents, that means every fatty amide: plain, two-chain and bis-amides. Surfactant ethanolamides, betaines and sarcosines are excluded.
@@ -60,10 +60,50 @@ real solid dissolves less. The log P values are not affected, because partitioni
 - Rebuild the families file after any re-promotion.
 - This adds mixed xylenes, p-xylene and 37 more solvents. Today "xylene" falls back to o-xylene, the only xylene in the 32-solvent panel.
 
-### Heavier and non-CHNO contaminants
+### Heavier and non-CHNO contaminants (updated 2026-10-07)
 
-- **Heavier structures:** 236 structures of 500–700 g/mol have not been run, projected at about 1,800 CPU-h and on hold. This set includes the EBS-class slip agents.
-- **Other elements:** about 1,960 PlastChem structures contain S, P, halogens, Si or B, including all PFAS, and are outside the openCOSMO campaign. PFAS questions go to the workbook screen.
+- **Done in promotion-v2 (branch `contaminant-always-on`):** the 500–700 g/mol CHNO tier and the halogen tier
+  (F, Cl, Br, I up to 700 g/mol), 7,160 computed in all.
+- **Left from that release:**
+  - 117 structures whose surfaces converged after the freeze and wait for thermodynamics;
+  - 9 still in ORCA at the freeze;
+  - 58 failed, among them 3 with no ETKDG geometry and 10 azo pigments rejected by the identity check.
+- **Still outside the campaign:**
+  - structures with S, P, Si or B;
+  - anything above 700 g/mol;
+  - ions and salts.
+  For the paper's publication sets, amendment A-12 computed the PFAS acids the release lacks (the sulfonic acids
+  among them), DECA and TBBPA-dbP, with partition and miscibility rows, outside the release
+  (`campaigns/plastchem-hpc/publication-sets/`). PFAS questions still go to the workbook screen.
+
+### Charge state: strong acids, zwitterions and strong bases are modelled neutral (added 2026-10-07)
+
+**Problem.** Every release compound is one neutral molecule, so acids keep their proton. Zhou et al. (Green Chem.
+2026) did the same for their PFAS: across 32 solvents the paper's values follow our neutral acids (r = 0.95–0.97),
+not the anions. Some release compounds, though, would be charged wherever ionization happens, as in aqueous washes.
+
+**Evidence.** The charge audit (`campaigns/plastchem-hpc/reports/charge-audit-2026-10-07/`: script, full table and
+write-up) flags 420 of the 7,160 computed compounds:
+- 40 fluorinated carboxylic acids with fluorine on the alpha carbon, pKa about 0–1. 10 are the paper's PFAS; the
+  other 30 are trifluoroacetic acid, 11H-perfluoroundecanoic acid and 28 branched PFOA isomers.
+- 9 amino acids and aminopolycarboxylates (zwitterions or polyanions in water).
+- 13 strong bases: guanidines such as DPG, amidines such as DBU, and imidazolines.
+- 4 diacids with a low first pKa (oxalic, maleic and others).
+- 3 polynitrophenols.
+- 351 ordinary carboxylic acids.
+
+DISSOLVE's data are organic solvent–polymer partitioning, where neutral is a defensible default, and the
+fluorinated acids are the clearest exception: strong acids that are anions in water and in protic solvents.
+
+**Proposed fix.**
+- Anion surfaces for the 40 fluorinated acids, beside the neutral ones, with the A-12 machinery. Amendment A-12
+  already computed 24 PFAS anions, with partition rows, before the paper's species was settled; they are kept on
+  Euler and R:, not in the repo.
+- A species convention per medium, decided with the collaborator: neutral for solvent–polymer data, and ionized or
+  pH-specific log D for aqueous washes.
+- Zwitterion tautomers for the amino acids if aqueous screens come.
+- Answers flag compounds that would be ionized in water.
+- Owner decision pending on all four.
 
 ## Solubility and separation
 

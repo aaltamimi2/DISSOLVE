@@ -1,0 +1,32 @@
+{
+  "utc": "2026-10-07T19:36:31.971112+00:00",
+  "counts": {
+    "converged": 1231,
+    "failed": 13,
+    "running": 5,
+    "awaiting_verification": 0,
+    "retry_pending": 1,
+    "not_yet_run": 0,
+    "denominator": 1250
+  },
+  "groups": {
+    "halogen": {
+      "converged": 1231,
+      "failed": 13,
+      "running": 5,
+      "awaiting_verification": 0,
+      "retry_pending": 1,
+      "not_yet_run": 0,
+      "denominator": 1250
+    }
+  },
+  "excluded_count": 0,
+  "pinned_unique": 1250,
+  "failures_by_mode": {
+    "return_integrity_or_connectivity": 10,
+    "ValueError": 3
+  },
+  "measured_orca_hours": 660.251229871334,
+  "projection_cpu_hours": 492,
+  "review_threshold_cpu_hours": 3000
+}

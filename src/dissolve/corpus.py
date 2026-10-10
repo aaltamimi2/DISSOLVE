@@ -2,11 +2,12 @@
 
 Recipe: Docling 2.121.0 canonical document -> T5 chunks (whole parser blocks packed up to 1,400
 characters, never split) -> BGE-base-en-v1.5 vectors at the pinned revision, one paper per batch.
-The literature tools serve a corpus with BM25 and dense z-score fusion, the abstention gate and
-the pinned bge-reranker-base pair rerank with reciprocal-rank fusion (the BGE10 configuration).
+The literature tools serve a corpus with BM25 and dense z-score fusion and the pinned
+bge-reranker-base pair rerank with reciprocal-rank fusion (the BGE10 configuration). Each release
+still records the abstention floor below, which the search applies only with DISSOLVE_LITERATURE_GATE=on.
 
 A release is a directory holding index.json.gz and manifest.json. The package ships the paper's
-release (39 papers, 1,841 chunks) in data/corpus. The working release is DISSOLVE_CORPUS_DIR
+release (61 papers, 3,035 chunks) in data/corpus. The working release is DISSOLVE_CORPUS_DIR
 (default ~/.dissolve/corpus); it starts as a copy of the shipped one, ``add`` grows it, and the
 agent's ingest tool runs the same code. ``build`` starts a release from your papers alone.
 ``verify`` compares a release with a reference chunk by chunk (paper, offsets, text hash), so
@@ -15,6 +16,8 @@ anyone holding the same PDFs can confirm they reproduced it.
     python -m dissolve.corpus add PAPER.pdf ...          [--corpus DIR]
     python -m dissolve.corpus build PAPER.pdf ...        [--corpus DIR]
     python -m dissolve.corpus verify REFERENCE_DIR       [--corpus DIR]
+    python -m dissolve.corpus papers [--hint FILE ...] [--mailto EMAIL]  [--corpus DIR]
+                                     (titles, authors, DOIs: papers.json, see corpus_papers.py)
     python -m dissolve.corpus prefetch                   (download the pinned models once; ./dissolve runs it)
 """
 
@@ -43,7 +46,8 @@ RELEASE_INDEX = "index.json.gz"
 RELEASE_MANIFEST = "manifest.json"
 SHIPPED = Path(__file__).resolve().parent / "data" / "corpus"
 #: The answer gate: 5th percentile of query_idf_coverage, calibrated 2026-09-09 against the
-#: private benchmark. Nobody can recalibrate it without that benchmark, so it ships as is.
+#: private benchmark. Nobody can recalibrate it without that benchmark, so it ships as is. The
+#: served search has not applied it since 2026-10-08 (research.literature_gate_on).
 ABSTENTION = {"statistic": "query_idf_coverage", "percentile": 5, "floor": 0.3698406656908355}
 #: The measured standing of the BGE10 configuration: better than MiniLM at every depth, and
 #: still below the pre-registered served floor (196 of 228 against 206 at k=5).
@@ -191,6 +195,8 @@ def working_release(corpus: Path | None = None) -> Path:
         directory.mkdir(parents=True, exist_ok=True)
         for name in (RELEASE_INDEX, RELEASE_MANIFEST):
             shutil.copyfile(SHIPPED / name, directory / name)
+        if (SHIPPED / "papers.json").is_file():
+            shutil.copyfile(SHIPPED / "papers.json", directory / "papers.json")
     return directory
 
 
@@ -335,14 +341,22 @@ def _sha256(data: bytes) -> str:
 
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="python -m dissolve.corpus", description=__doc__.split("\n\n")[0])
-    parser.add_argument("command", choices=("add", "build", "verify", "prefetch"))
+    parser.add_argument("command", choices=("add", "build", "verify", "prefetch", "papers"))
     parser.add_argument("paths", nargs="*", type=Path)
     parser.add_argument("--corpus", type=Path, default=None, help="release directory (default: DISSOLVE_CORPUS_DIR)")
+    parser.add_argument("--hint", type=Path, action="append", default=[],
+                        help="papers: a CSV or JSON naming papers by SHA-256 with a title or DOI (repeatable)")
+    parser.add_argument("--mailto", default=None, help="papers: contact address for the Crossref/OpenAlex polite pools")
     args = parser.parse_args(argv)
-    if (args.command == "prefetch") != (not args.paths):
-        parser.error("prefetch takes no paths; add, build and verify need at least one")
+    if (args.command in ("prefetch", "papers")) != (not args.paths):
+        parser.error("prefetch and papers take no paths; add, build and verify need at least one")
     corpus = args.corpus or research._corpus_dir()
-    if args.command == "prefetch":
+    if args.command == "papers":
+        from . import corpus_papers
+        directory = args.corpus or corpus_papers.release_dir()
+        result = corpus_papers.build_papers(directory, hints=args.hint, mailto=args.mailto,
+                                            openalex_key=corpus_papers.openalex_key_from_file())
+    elif args.command == "prefetch":
         result = prefetch()
     elif args.command == "add":
         result = add(args.paths, corpus)

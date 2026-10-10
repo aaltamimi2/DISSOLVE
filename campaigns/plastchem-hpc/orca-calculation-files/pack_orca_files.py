@@ -1,6 +1,7 @@
 """Pack each molecule's ORCA/openCOSMO calculation files, read straight from the campaign run folders, into one tar
 stream: orca-calculation-files/{contaminants,polymers,solvents}/..., with MANIFEST.tsv (every file) and RUNS.tsv (every
-run folder) inside. Runs on Euler from ~/opencosmo-export:
+run folder) inside. Runs on Euler from ~/opencosmo-export-v2 (A-11: contaminant folders carry their human-readable names, and the
+halogen tier and the later tier-2 runs are included):
 
     python3 pack_orca_files.py plan          # find every run folder, tie it to its released surface
     python3 pack_orca_files.py pack | xz ... # stream the tar
@@ -16,7 +17,8 @@ import collections, concurrent.futures as cf, hashlib, io, json, os, pathlib, re
 
 HOME = pathlib.Path.home()
 LANE = HOME / "plastchem-euler"
-EXP = HOME / "opencosmo-export"
+EXP = HOME / "opencosmo-export-v2"
+V1 = HOME / "opencosmo-export"
 PLAN = EXP / "orca-plan.json"
 OUTDIR = EXP / "orca-archive"
 ROOT = "orca-calculation-files"
@@ -25,6 +27,9 @@ STAGES = {  # stage -> category of its runs, in priority order when two runs gav
     "campaign-v1": "contaminants", "tier2-v1": "contaminants", "pilot-v1": "contaminants",
     "polymer-v1": "polymers", "solvent-library-v1": "solvents", "phase9-solvent-library-v1": "solvents",
     "diagnostics-a1": "contaminants",
+    "tier2-v1/time-limit-retry1": "contaminants", "tier2-v1/time-limit-retry2": "contaminants",
+    "halogen-v1": "contaminants", "halogen-v1/retries/r01": "contaminants",
+    "publication-v1": "contaminants",  # A-12: the paper's PFAS anions, DECA and TBBPA-dbP
 }
 MARKERS = (b"password", b"passwd", b"secret", b"api_key", b"apikey", b"token", b"begin rsa", b"begin openssh",
            b"@wisc.edu", b"@gmail")
@@ -70,6 +75,9 @@ def describe(run):
     except (FileNotFoundError, NotADirectoryError):
         names = []
     result = load(path / "result.json") if "result.json" in names else {}
+    status = str(result.get("status", ""))
+    if status == "starting" or status.startswith("running"):  # A-11: a live run (ORCA rewrites its files); not released
+        return None
     inp = result.get("input") if isinstance(result.get("input"), dict) else {}
     seeded = any(isinstance(v, str) and v.lower().endswith((".cosmo", ".mcos")) for v in inp.values())
     seeded = seeded or (not result and run.split("/")[0] in ("polymer-v1", "phase9-solvent-library-v1"))  # no record
@@ -109,9 +117,15 @@ def plan():
     by_sha = {}
     for hit in released:
         by_sha.setdefault(hit["sha"], []).append(hit)  # 26 contaminants reuse a solvent's surface
+    # run folders kept out of the archive on purpose, one campaign path per line (A-12: the anion runs, whose species
+    # is not the paper's and which the owner asked to keep out of the repo)
+    exclude = set((EXP / "exclude-runs.txt").read_text().split()) if (EXP / "exclude-runs.txt").exists() else set()
     runs = [f"{stage}/runs/{d.name}" for stage in STAGES for d in os.scandir(LANE / stage / "runs") if d.is_dir()]
+    log("run folders excluded on purpose:", sum(run in exclude for run in runs))
+    runs = [run for run in runs if run not in exclude]
     log("run folders:", len(runs))
-    described = list(POOL.map(describe, runs))
+    described = [d for d in POOL.map(describe, runs) if d is not None]
+    log("live run folders skipped:", len(runs) - len(described))
     order = list(STAGES)
     described.sort(key=lambda d: (order.index(d["stage"]), d["folder"]))
     used, entries = set(), []
@@ -124,7 +138,8 @@ def plan():
                 entries.append(dict(d, arcdir=arcdir, identity=hit["identity"], name=hit["name"],
                                     release_surface=hit["path"]))
         else:
-            entries.append(dict(d, arcdir=f"{STAGES[d['stage']]}/not-in-release/{d['stage']}/{d['folder']}",
+            # the run's own path, so a retried run and its earlier attempt never share a folder
+            entries.append(dict(d, arcdir=f"{STAGES[d['stage']]}/not-in-release/{d['run'].replace('/runs/', '/')}",
                                 identity=d["folder"], release_surface=""))
     entries = [d for d in entries if d["files"] or d["generated"]]
     entries.sort(key=lambda d: d["arcdir"])

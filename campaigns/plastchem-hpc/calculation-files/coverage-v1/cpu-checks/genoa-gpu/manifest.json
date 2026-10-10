@@ -1,0 +1,119 @@
+{
+  "campaign": "contam-coverage-cpu-check",
+  "group": "genoa-gpu",
+  "name": "contam-cpucheck-genoa-gpu",
+  "constraint": "genoa&gpu",
+  "partition": "research",
+  "walltime": "24:00:00",
+  "mem": "4G",
+  "policy": {
+    "mode": "connectivity_first_block_with_computed_stereochemistry",
+    "authority": "Owner decision A-3 D-IDENT",
+    "charter_sha256": "39aa9d7e6e419291bb537616b080309bf55fe703d4b98710aab9e1e266c3bdab",
+    "require_stereo_layer_match": false,
+    "isotope_policy": "exclude; no parent mapping",
+    "campaign_concurrency_limit": 64,
+    "orca_share_of_cap": 56,
+    "thermodynamics_share_of_cap": 8,
+    "concurrency_authority": "Owner 2026-09-16: increase concurrency only; keep 4GB (D-CONC 64, shared by ORCA and thermodynamics)",
+    "tier_authority": "Amendment A-13 (coverage campaign, 2026-10-08)"
+  },
+  "recipe": {
+    "n_embed": 300,
+    "seed": 12345,
+    "prune_rms": 0.5,
+    "max_mmff_iters": 2000,
+    "dft_conformers": 1
+  },
+  "authority": "A-13 owner NOTE 2026-10-08 17:10 UTC",
+  "molecules": [
+    {
+      "inchikey": "KBPLFHHGFOOTCA-UHFFFAOYSA-N",
+      "smiles": "CCCCCCCCO",
+      "name": "1-Octanol",
+      "atoms": 27,
+      "array_index": 0,
+      "group": "genoa-gpu",
+      "tier": "cpu-check",
+      "covers": "C/H/O: 1-octanol",
+      "reference_tier": "campaign-v1"
+    },
+    {
+      "inchikey": "BJQHLKABXJIVAM-UHFFFAOYSA-N",
+      "smiles": "CCCCC(CC)COC(=O)C1=CC=CC=C1C(=O)OCC(CC)CCCC",
+      "name": "Bis(2-ethylhexyl) phthalate",
+      "atoms": 66,
+      "array_index": 1,
+      "group": "genoa-gpu",
+      "tier": "cpu-check",
+      "covers": "C/H/O above 60 atoms: DEHP (66)",
+      "reference_tier": "campaign-v1"
+    },
+    {
+      "inchikey": "GLUCALKKMFBJEB-UHFFFAOYSA-N",
+      "smiles": "C1=C(C=C(C(=C1Cl)N)Br)[N+](=O)[O-]",
+      "name": "2-Bromo-6-chloro-4-nitroaniline",
+      "atoms": 16,
+      "array_index": 2,
+      "group": "genoa-gpu",
+      "tier": "cpu-check",
+      "covers": "Br, Cl, N, O: 2-bromo-6-chloro-4-nitroaniline",
+      "reference_tier": "halogen-v1"
+    },
+    {
+      "inchikey": "VSMDINRNYYEDRN-UHFFFAOYSA-N",
+      "smiles": "C1=CC(=CC=C1O)I",
+      "name": "4-Iodophenol",
+      "atoms": 13,
+      "array_index": 3,
+      "group": "genoa-gpu",
+      "tier": "cpu-check",
+      "covers": "I (def2 ECP): 4-iodophenol",
+      "reference_tier": "halogen-v1"
+    },
+    {
+      "inchikey": "JGTNAGYHADQMCM-UHFFFAOYSA-N",
+      "smiles": "O=S(=O)(O)C(F)(F)C(F)(F)C(F)(F)C(F)(F)F",
+      "name": "Perfluorobutanesulfonic acid",
+      "atoms": 18,
+      "array_index": 4,
+      "group": "genoa-gpu",
+      "tier": "cpu-check",
+      "covers": "S, F: perfluorobutanesulfonic acid",
+      "reference_tier": "publication-v1"
+    },
+    {
+      "inchikey": "YTPLMLYBLZKORZ-UHFFFAOYSA-N",
+      "smiles": "c1ccsc1",
+      "name": "Thiophene",
+      "atoms": 9,
+      "array_index": 5,
+      "group": "genoa-gpu",
+      "tier": "cpu-check",
+      "covers": "S, aromatic: thiophene",
+      "reference_tier": "coverage-v1"
+    },
+    {
+      "inchikey": "VONWDASPFIQPDY-UHFFFAOYSA-N",
+      "smiles": "COP(C)(=O)OC",
+      "name": "Dimethyl methylphosphonate",
+      "atoms": 16,
+      "array_index": 6,
+      "group": "genoa-gpu",
+      "tier": "cpu-check",
+      "covers": "P: dimethyl methylphosphonate",
+      "reference_tier": "coverage-v1"
+    },
+    {
+      "inchikey": "JJQZDUKDJDQPMQ-UHFFFAOYSA-N",
+      "smiles": "CO[Si](C)(C)OC",
+      "name": "Dimethoxydimethylsilane",
+      "atoms": 19,
+      "array_index": 7,
+      "group": "genoa-gpu",
+      "tier": "cpu-check",
+      "covers": "Si: dimethoxydimethylsilane",
+      "reference_tier": "coverage-v1"
+    }
+  ]
+}

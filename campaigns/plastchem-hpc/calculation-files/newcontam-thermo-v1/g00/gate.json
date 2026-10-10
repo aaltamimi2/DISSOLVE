@@ -1,0 +1,20 @@
+{
+  "keys": [
+    "BJQHLKABXJIVAM-UHFFFAOYSA-N",
+    "DOIRQSBPFJWKBE-UHFFFAOYSA-N",
+    "FLKPEMZONWLCSK-UHFFFAOYSA-N",
+    "IRIAEXORFWYRCZ-UHFFFAOYSA-N"
+  ],
+  "partition_rows_v1": 2560,
+  "partition_rows_new": 2560,
+  "partition_compared": 2560,
+  "max_partition_difference": 5.93805352089305e-06,
+  "lle_systems_v1": 256,
+  "lle_systems_new": 256,
+  "lle_mismatches": [],
+  "lle_mismatch_count": 0,
+  "lle_tolerance": 1e-09,
+  "partition_tolerance": 1e-05,
+  "partition_rows_above_1e_9": 2328,
+  "passed": true
+}

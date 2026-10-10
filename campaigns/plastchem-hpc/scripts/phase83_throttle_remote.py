@@ -14,7 +14,7 @@ if (a9/'production-submission.json').exists():
  if activation.exists():
   import hashlib
   selected=json.loads(activation.read_text())
-  assert selected['filename'] in ['phase9_throttle_remote_v2.py','phase9_throttle_remote_v3.py','phase9_throttle_remote_v4.py','phase9_throttle_remote_v5.py','phase9_throttle_remote_v6.py']
+  assert selected['filename'] in ['phase9_throttle_remote_v2.py','phase9_throttle_remote_v3.py','phase9_throttle_remote_v4.py','phase9_throttle_remote_v5.py','phase9_throttle_remote_v6.py','phase9_throttle_remote_v7.py','phase9_throttle_remote_v8.py','phase9_throttle_remote_v9.py','phase9_throttle_remote_v10.py']
   controller=a9/selected['filename']
   assert hashlib.sha256(controller.read_bytes()).hexdigest()==selected['sha256']
  exec(compile(controller.read_text(),str(controller),'exec'))

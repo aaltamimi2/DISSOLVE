@@ -1625,7 +1625,7 @@ def test_objective_registered_lower_is_better_and_alias_resolves():
     assert tea._PLANNER_SORT_OBJECTIVES[KEY] == "min"
     assert tea._PLANNER_OBJECTIVE_ALIASES["max_stage_specific_volume"] == KEY
     assert "max_stage_specific_volume" not in tea._PLANNER_SORT_OBJECTIVES   # alias, not a second key
-    assert len(tool_schemas()) == 28  # optimize_waste_pathway added 2026-10-03, tea_tornado 2026-10-07
+    assert len(tool_schemas()) == 29  # find_plastchem_contaminants 2026-10-05, optimize_waste_pathway 2026-10-03, tea_tornado 2026-10-07
 
 
 def test_table_loads_and_digest_is_checked_not_trusted(monkeypatch):
