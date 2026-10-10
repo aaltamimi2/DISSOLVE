@@ -109,8 +109,14 @@ while True:
                             assert hashlib.sha256((p/name).read_bytes()).hexdigest()==sha,name+' digest mismatch'
                         r.update(verify(p/'optimized.xyz',key,r['input']['smiles']))
                         r['identity_authority']=json.loads((P/'policy.json').read_text())
-                        if not r['identity_verified']:raise ValueError('No perception engine produced the required first-block match')
-                        r.update(status='converged',archive_path=str(p))
+                        if not r['identity_verified'] and any(o.get('undecided') for o in r['identity_observations']):
+                            # RDKit's perception did not finish (time limit, or its process died) and no other engine
+                            # matched: not decided, so not a rejection; held as awaiting verification (never released)
+                            # until verify_pending_identity.py runs the same perception without the limit
+                            r.update(identity_pending='rdkit_not_finished',archive_path=str(p))
+                        else:
+                            if not r['identity_verified']:raise ValueError('No perception engine produced the required first-block match')
+                            r.update(status='converged',archive_path=str(p))
                     except Exception as exc:r.update(status='failed',failure_mode='return_integrity_or_connectivity',error=str(exc),identity_verified=False)
                 write(p/'result.json',r)
                 r['returned_bytes']=sum(f.stat().st_size for f in p.iterdir() if f.is_file());write(P/'records'/f'{key}.json',r)

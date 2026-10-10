@@ -1,13 +1,13 @@
 {
-  "utc": "2026-10-09T22:04:02.327027+00:00",
+  "utc": "2026-10-10T03:04:38.681440+00:00",
   "counts": {
-    "converged": 1328,
+    "converged": 1386,
     "failed": 12,
-    "rejected": 28,
+    "rejected": 45,
     "running": 158,
     "awaiting_verification": 0,
-    "retry_pending": 13,
-    "not_yet_run": 180,
+    "retry_pending": 10,
+    "not_yet_run": 108,
     "not_staged": 0,
     "denominator": 1719
   },
@@ -145,21 +145,21 @@
       "denominator": 100
     },
     "c12": {
-      "converged": 64,
+      "converged": 67,
       "failed": 0,
       "rejected": 7,
-      "running": 1,
+      "running": 16,
       "awaiting_verification": 0,
       "retry_pending": 0,
-      "not_yet_run": 28,
+      "not_yet_run": 10,
       "not_staged": 0,
       "denominator": 100
     },
     "c13": {
       "converged": 25,
       "failed": 0,
-      "rejected": 3,
-      "running": 1,
+      "rejected": 4,
+      "running": 0,
       "awaiting_verification": 0,
       "retry_pending": 0,
       "not_yet_run": 71,
@@ -167,10 +167,10 @@
       "denominator": 100
     },
     "c14": {
-      "converged": 57,
+      "converged": 74,
       "failed": 1,
-      "rejected": 2,
-      "running": 40,
+      "rejected": 6,
+      "running": 19,
       "awaiting_verification": 0,
       "retry_pending": 0,
       "not_yet_run": 0,
@@ -178,10 +178,10 @@
       "denominator": 100
     },
     "c15": {
-      "converged": 58,
+      "converged": 70,
       "failed": 0,
-      "rejected": 4,
-      "running": 38,
+      "rejected": 13,
+      "running": 17,
       "awaiting_verification": 0,
       "retry_pending": 0,
       "not_yet_run": 0,
@@ -189,32 +189,32 @@
       "denominator": 100
     },
     "c16": {
-      "converged": 31,
+      "converged": 37,
       "failed": 2,
-      "rejected": 0,
-      "running": 51,
+      "rejected": 3,
+      "running": 37,
       "awaiting_verification": 0,
-      "retry_pending": 12,
+      "retry_pending": 9,
       "not_yet_run": 0,
       "not_staged": 0,
-      "denominator": 96
+      "denominator": 88
     },
     "c17": {
-      "converged": 4,
+      "converged": 21,
       "failed": 7,
       "rejected": 0,
-      "running": 8,
+      "running": 45,
       "awaiting_verification": 0,
       "retry_pending": 0,
-      "not_yet_run": 81,
+      "not_yet_run": 27,
       "not_staged": 0,
       "denominator": 100
     },
     "c18": {
-      "converged": 0,
+      "converged": 1,
       "failed": 1,
       "rejected": 0,
-      "running": 4,
+      "running": 3,
       "awaiting_verification": 0,
       "retry_pending": 0,
       "not_yet_run": 0,
@@ -225,39 +225,50 @@
       "converged": 2,
       "failed": 0,
       "rejected": 0,
-      "running": 9,
+      "running": 8,
       "awaiting_verification": 0,
       "retry_pending": 1,
       "not_yet_run": 0,
       "not_staged": 0,
-      "denominator": 12
+      "denominator": 11
     },
     "r02": {
-      "converged": 0,
+      "converged": 2,
       "failed": 0,
       "rejected": 0,
-      "running": 6,
+      "running": 13,
       "awaiting_verification": 0,
       "retry_pending": 0,
       "not_yet_run": 0,
       "not_staged": 0,
-      "denominator": 6
+      "denominator": 15
+    },
+    "r03": {
+      "converged": 0,
+      "failed": 0,
+      "rejected": 0,
+      "running": 0,
+      "awaiting_verification": 0,
+      "retry_pending": 0,
+      "not_yet_run": 0,
+      "not_staged": 0,
+      "denominator": 0
     }
   },
   "failures_by_mode": {
     "mmff_parameters_unavailable": 1,
-    "return_integrity_or_connectivity": 28,
+    "return_integrity_or_connectivity": 45,
     "ValueError": 11,
-    "orca_nonzero_or_abnormal_termination": 13
+    "orca_nonzero_or_abnormal_termination": 10
   },
-  "measured_orca_hours": 1573.8508384455063,
-  "measured_structures": 1356,
-  "fit_hours_of_measured": 1225.1477222222252,
+  "measured_orca_hours": 2066.434919862241,
+  "measured_structures": 1436,
+  "fit_hours_of_measured": 1497.9951944444513,
   "cpu_models": {
-    "AMD EPYC 7763 64-Core Processor": 912,
-    "AMD EPYC 7513 32-Core Processor": 315,
-    "AMD EPYC 7272 12-Core Processor": 172,
+    "AMD EPYC 7763 64-Core Processor": 966,
+    "AMD EPYC 7513 32-Core Processor": 324,
+    "AMD EPYC 7272 12-Core Processor": 190,
     "AMD EPYC 7401 24-Core Processor": 29,
-    "AMD EPYC 7773X 64-Core Processor": 99
+    "AMD EPYC 7773X 64-Core Processor": 90
   }
 }

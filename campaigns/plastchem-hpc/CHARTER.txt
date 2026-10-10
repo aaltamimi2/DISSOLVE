@@ -1427,3 +1427,46 @@ A-13 NOTE (2026-10-09 21:19 UTC, coverage lane) — OUT-OF-MEMORY RETRY ROUND r0
    final.
 4. Accounting: a retried structure counts once, in the group whose attempt ran last (summary, release builder); the
    retrieval ledger now records each entry's group (backup retrieved.before-groups-20261009T211807Z.json).
+
+A-13 NOTE (2026-10-09 22:27 UTC, coverage lane) — RELEASE promotion-v10: 8,547 COMPUTED; 94.5% OF THE SIMULABLE ENTRIES
+1. /mnt/r/plastchem-euler/promotion-v10 (manifest fd9c5f09...; promotion-v9 e83687b2... unchanged beneath it): 8,655
+   status rows, 8,547 computed (+131, batch t11): coverage c10 1, c11 12, c12 31, c13 12, c14 27, c15 27, c16 21; EPYC
+   7763 39, 7272 31, 7513 28, 7773X 21, 7401 12 (the first released from Naples). 19 more final failure rows: 12
+   D-IDENT rejections (mostly hydroxy-azo and sulfonated azo dyes and pigments; a triarylmethane dye) and 7 c17
+   preparation failures ETKDG cannot embed. 1,052 parent aliases served (1,061 offered; DISSOLVE withholds the same 9
+   as in v9, 958/949).
+2. Coverage (anaconda RDKit 2023.09.2): 9,098 of 9,627 simulable entries (94.51%; v9 93.1%); 48 short of 95% (the
+   cheapest route: about 44 structures, 23 ORCA CPU-hours by the fit); 516 structures still to compute. The 79
+   accepted structures waiting for thermodynamics serve 81 entries by the work list, so the release after t12 should
+   cross 95%.
+3. Archives: set promotion-v10 (surfaces 12.0 MB, ORCA files 468 KB, 131 rows each) appended; no part rewritten.
+4. DISSOLVE f3ceadcd on main. Full suite 2,284 passed, 3 skipped (expected), audit 0, home writes 0. Sync: main
+   f3ceadcd | main-backup f3ceadcd | main-cleanup-frontend c277c791 = main + 39 frontend commits, behind main by 0.
+   Deploy 9a9fd248 ACTIVE at 22:25 UTC, live contaminants_computed 8547. Live check (didecyl phenyl phosphite, PVC,
+   ethanol) NOT answered: OpenRouter 402 again (the key affords about 9,900 of the 65,536 tokens requested); the owner
+   was notified at 18:46 UTC. The release itself is served (health and card count read 8,547).
+
+A-13 NOTE (2026-10-09 22:46 UTC, coverage lane) — D-IDENT: RDKIT PERCEPTION TIME LIMIT; AN UNFINISHED PERCEPTION IS HELD, NOT REJECTED
+1. Finding: the collector stalled for 13 minutes in RDKit DetermineBonds on UTQVVBUYIUOANP (c16, 72 atoms, a tris-azo
+   dye with three nitro groups and two sulfonic acids); the perception had no time limit, so every pass would stall on
+   it.
+2. Change (fab01b8): the RDKit perception runs the same code in a child process limited to 600 s. A perception that
+   did not finish (time limit, or the child process died) is marked undecided. When no other engine matches, the
+   return is held as awaiting verification: not released, not rejected. verify_pending_identity.py then runs the same
+   perception without the short limit (12 h by default), and the record becomes converged or a D-IDENT rejection
+   exactly as the collector would have made it. An RDKit exception remains an observation as before; the decision rule
+   (connectivity first block, any engine) is unchanged. Check: 16 sampled records (12 random, 4 rejections) give
+   identical observations and verdicts.
+3. Why not let Open Babel decide alone: on this dye it reads DLOBOBHCAOYXFC (unusual N and O valences on the nitro
+   groups), and on some accepted structures only RDKit matches, so a timeout alone would have turned a slow perception
+   into a final failure row.
+
+A-13 NOTE (2026-10-10 02:06 UTC, coverage lane) — OUT-OF-MEMORY RETRY ROUND r03 SUBMITTED (9 ROWS, 8G, MILAN-GPU)
+1. Nine more runs were killed OUT_OF_MEMORY at 4G on euler141 (Milan-X) since r02 was built (c16 8, r01 1; 73-141
+   atoms). As the r02 NOTE set out, they form round r03 the same way: own run folders, the same prepared geometry and
+   recipe, 8G, milan&gpu (EPYC 7513), array 82080, per-task walltimes 19-63 h (85 h for the 141-atom row). 41 tasks
+   still run on euler141 (c16 33, r01 8); any later kill goes to a further round.
+2. r02's first return (MHIPPKXKESHCIO) converged on euler07 in its own folder. Its SLURM memory figure was 4,069 MB at
+   8G: the figure includes file cache up to the job's limit (Milan-X completed runs median 3,778 MB against 1.3-1.8 GB
+   on the other types; four 7513 runs reached the 4G cap and completed), which fits the cache explanation of the 20:04
+   NOTE.

@@ -3,7 +3,7 @@
   "workbook": "plastchem_db_v1.0.xlsx",
   "sha256": "df4ccad3b238b3b76d180db48892c9c17e7cd823cecb495e7888ea0690216984"
  },
- "checked_against_manifest_sha256": "fd9c5f09f749a97a7807c6e8127369ceea0474c96a70d6638275e1bd8462a7b5",
+ "checked_against_manifest_sha256": "1a7f9ef8e6b4339554f3a93aa5ac4e0bde8417a16bf7bdf405ed63ec14736325",
  "families": [
   {
    "name": "Phthalates",
@@ -332,6 +332,7 @@
    "members": [
     "AOOKHLGAVNECET-UHFFFAOYSA-N",
     "AZEROKRLLWBBAK-UHFFFAOYSA-N",
+    "AZSKHRTUXHLAHS-UHFFFAOYSA-N",
     "BFZOTKYPSZSDEV-UHFFFAOYSA-N",
     "BGLUSMSXKMBLFS-UHFFFAOYSA-N",
     "BLXVTZPGEOGTGG-UHFFFAOYSA-N",
@@ -482,11 +483,6 @@
      "name": "Tris(2,4-di-tert-butylphenyl) phosphite",
      "inchikey": "JKIJEFPNVSHHEI-UHFFFAOYSA-N",
      "reason": "not computed yet"
-    },
-    {
-     "name": "Tris(2,4-ditert-butylphenyl)phosphate",
-     "inchikey": "AZSKHRTUXHLAHS-UHFFFAOYSA-N",
-     "reason": "not computed yet"
     }
    ]
   },
@@ -538,6 +534,7 @@
     "FMUYQRFTLHAARI-UHFFFAOYSA-N",
     "FOUNRKRNEDRUPL-UHFFFAOYSA-N",
     "FSWDLYNGJBGFJH-UHFFFAOYSA-N",
+    "FURXDDVXYNEWJD-UHFFFAOYSA-N",
     "GACQLWFABDKVAX-UHFFFAOYSA-N",
     "GDGDLBOVIAWEAD-UHFFFAOYSA-N",
     "GJDRKHHGPHLVNI-UHFFFAOYSA-N",
@@ -819,11 +816,6 @@
     {
      "name": "Irganox 1035",
      "inchikey": "VFBJXXJYHWLXRM-UHFFFAOYSA-N",
-     "reason": "not computed yet"
-    },
-    {
-     "name": "Irganox 858",
-     "inchikey": "FURXDDVXYNEWJD-UHFFFAOYSA-N",
      "reason": "not computed yet"
     },
     {
@@ -1348,6 +1340,7 @@
     "ASLWPAWFJZFCKF-UHFFFAOYSA-N",
     "ASMQGLCHMVWBQR-UHFFFAOYSA-N",
     "AXRSHKZFNKUGQB-UHFFFAOYSA-N",
+    "AZSKHRTUXHLAHS-UHFFFAOYSA-N",
     "BDZBKCUKTQZUTL-UHFFFAOYSA-N",
     "BKHZQJRTFNFCTG-UHFFFAOYSA-N",
     "BNMJSBUIDQYHIN-UHFFFAOYSA-N",
@@ -1424,6 +1417,7 @@
     "MORLYCDUFHDZKO-UHFFFAOYSA-N",
     "NISNGFDWZYZNPT-UHFFFAOYSA-N",
     "NJGCRMAPOWGWMW-UHFFFAOYSA-N",
+    "NKHVPWOARFMIPG-UHFFFAOYSA-N",
     "NKYPKIVMIGIWOB-UHFFFAOYSA-N",
     "NMAKPIATXQEXBT-UHFFFAOYSA-N",
     "NMZURFAPYNEBQQ-UHFFFAOYSA-N",
@@ -1431,6 +1425,7 @@
     "NXBXJOWBDCQIHF-UHFFFAOYSA-N",
     "NYCZNDFWFCCTPA-UHFFFAOYSA-N",
     "OJUZRFGUKHQNJX-UHFFFAOYSA-N",
+    "OWICEWMBIBPFAH-UHFFFAOYSA-N",
     "OXDOANYFRLHSML-UHFFFAOYSA-N",
     "OXFUXNFMHFCELM-UHFFFAOYSA-N",
     "OZEIKKSJNYAJPR-UHFFFAOYSA-N",
@@ -1467,6 +1462,7 @@
     "ULGAVXUJJBOWOD-UHFFFAOYSA-N",
     "UQRSMZHDWDMLDH-UHFFFAOYSA-N",
     "UWZDFCRDAZFRFU-UHFFFAOYSA-N",
+    "VCEOZBZYQYAEMK-UHFFFAOYSA-N",
     "VCGVMOQWIMIGCQ-UHFFFAOYSA-N",
     "VDIFKDMFGPIVCQ-UHFFFAOYSA-N",
     "VFHVQBAGLAREND-UHFFFAOYSA-N",
@@ -1509,6 +1505,7 @@
     "YVTQGHMZUNKCTQ-UHFFFAOYSA-N",
     "YWDFOLFVOVCBIU-UHFFFAOYSA-N",
     "YYQRGCZGSFRBAM-UHFFFAOYSA-N",
+    "ZDYYWMSLMLTXDM-UHFFFAOYSA-N",
     "ZJXZSIYSNXKHEA-UHFFFAOYSA-N",
     "ZMDDERVSCYEKPQ-UHFFFAOYSA-N",
     "ZSZRUEAFVQITHH-UHFFFAOYSA-N",
@@ -1544,11 +1541,6 @@
     {
      "name": "2,4,8,10-Tetraoxa-3,9-diphosphaspiro(5.5)undecane, 3,9-bis(2,4,6-tris(1,1-dimethylethyl)phenoxy)-",
      "inchikey": "SHDUFLICMXOBPA-UHFFFAOYSA-N",
-     "reason": "not computed yet"
-    },
-    {
-     "name": "2-Ethylhexyl 10-ethyl-4-((2-((2-ethylhexyl)oxy)-2-oxoethyl)thio)-7-oxo-8-oxa-3,5-dithia-4-phosphatetradecanoate 4-oxide",
-     "inchikey": "VCEOZBZYQYAEMK-UHFFFAOYSA-N",
      "reason": "not computed yet"
     },
     {
@@ -1627,18 +1619,8 @@
      "reason": "a mixture or polymer, not one structure"
     },
     {
-     "name": "Bis(3,3,4,4,5,5,6,6,7,7,8,8,8-tridecafluoro-1-octanol) hydrogen phosphate",
-     "inchikey": "ZDYYWMSLMLTXDM-UHFFFAOYSA-N",
-     "reason": "not computed yet"
-    },
-    {
      "name": "Bis(3,3,4,4,5,5,6,6,7,7,8,8,9,9,10,10,10-heptadecafluorodecyl) hydrogen phosphate",
      "inchikey": "AFWOYEYXUDHGHF-UHFFFAOYSA-N",
-     "reason": "not computed yet"
-    },
-    {
-     "name": "Bis(tridecafluorohexyl)phosphinic acid",
-     "inchikey": "NKHVPWOARFMIPG-UHFFFAOYSA-N",
      "reason": "not computed yet"
     },
     {
@@ -1787,11 +1769,6 @@
      "reason": "not computed yet"
     },
     {
-     "name": "Resorcinol bis(diphenyl phosphate)",
-     "inchikey": "OWICEWMBIBPFAH-UHFFFAOYSA-N",
-     "reason": "not computed yet"
-    },
-    {
      "name": "Tetraisodecyl bisphenol A diphosphite",
      "inchikey": "NXWSPAKNTFSINP-UHFFFAOYSA-N",
      "reason": "larger than 700 g/mol and too flexible for one conformer"
@@ -1859,11 +1836,6 @@
     {
      "name": "Tris(2,4-di-tert-butylphenyl) phosphite",
      "inchikey": "JKIJEFPNVSHHEI-UHFFFAOYSA-N",
-     "reason": "not computed yet"
-    },
-    {
-     "name": "Tris(2,4-ditert-butylphenyl)phosphate",
-     "inchikey": "AZSKHRTUXHLAHS-UHFFFAOYSA-N",
      "reason": "not computed yet"
     },
     {
@@ -1963,6 +1935,7 @@
     "BOTDANWDWHJENH-UHFFFAOYSA-N",
     "BPSIOYPQMFLKFR-UHFFFAOYSA-N",
     "BVQYIDJXNYHKRK-UHFFFAOYSA-N",
+    "CDNNKGWZSNSADW-UHFFFAOYSA-N",
     "CDRKALGDLCSMSG-AATRIKPKSA-N",
     "CHEFFAKKAFRMHG-UHFFFAOYSA-N",
     "CPUDPFPXCZDNGI-UHFFFAOYSA-N",
@@ -2020,6 +1993,7 @@
     "INETXKGLHYNTHK-AQWWNALJSA-N",
     "INJVFBCDVXYHGQ-UHFFFAOYSA-N",
     "IOLWRXMELRWXQY-UHFFFAOYSA-N",
+    "ISXOGOLHEGHGQF-UHFFFAOYSA-N",
     "ITKVLPYNJQOCPW-UHFFFAOYSA-N",
     "IUMSDRXLFWAGNT-UHFFFAOYSA-N",
     "IYAYDWLKTPIEDC-UHFFFAOYSA-N",
@@ -2394,11 +2368,6 @@
      "reason": "a radical (open-shell)"
     },
     {
-     "name": "Cyclodecasiloxane, eicosamethyl-",
-     "inchikey": "CDNNKGWZSNSADW-UHFFFAOYSA-N",
-     "reason": "not computed yet"
-    },
-    {
      "name": "Dimethyl-[methyl-[3-(2,2,6,6-tetramethylpiperidin-4-yl)oxypropyl]-trimethylsilyloxysilyl]oxy-trimethylsilyloxysilane",
      "inchikey": "GBOJXOZBXODHLW-UHFFFAOYSA-N",
      "reason": "a mixture or polymer, not one structure"
@@ -2467,11 +2436,6 @@
      "name": "Octa(3-hydroxypropyl)octasilsesquioxane",
      "inchikey": "WEFXVTHAKNOQBD-UHFFFAOYSA-N",
      "reason": "larger than 700 g/mol and too flexible for one conformer"
-    },
-    {
-     "name": "Octadecamethylcyclononasiloxane",
-     "inchikey": "ISXOGOLHEGHGQF-UHFFFAOYSA-N",
-     "reason": "not computed yet"
     },
     {
      "name": "Octadecamethyloctasiloxane",
@@ -2620,6 +2584,7 @@
     "NLWPUNWFCUWCEU-UHFFFAOYSA-N",
     "NPGIHFRTRXVWOY-UHFFFAOYSA-N",
     "NRBKWAQSLYBVSG-UHFFFAOYSA-N",
+    "ORZCZCGENZIZPQ-UHFFFAOYSA-N",
     "PFRYFZZSECNQOL-UHFFFAOYSA-N",
     "PXOZAFXVEWKXED-UHFFFAOYSA-N",
     "PYPYDHUIORYEHW-UHFFFAOYSA-N",
@@ -2631,8 +2596,10 @@
     "RFKITWRHKUYMRJ-UHFFFAOYSA-N",
     "ROPYWXVRNREIQD-UHFFFAOYSA-N",
     "RTZYVAQWQXPIAC-UHFFFAOYSA-N",
+    "RXERRVKLABZRCU-UHFFFAOYSA-N",
     "SGXLDQRCIYZKPS-UHFFFAOYSA-N",
     "UQWIHFJXDRNUDP-UHFFFAOYSA-N",
+    "UTQVVBUYIUOANP-UHFFFAOYSA-N",
     "VGKYEIFFSOPYEW-UHFFFAOYSA-N",
     "VKWNTWQXVLKCSG-UHFFFAOYSA-N",
     "WFFKSTRPZWRBEW-UHFFFAOYSA-N",
@@ -2640,15 +2607,10 @@
     "YCUVUDODLRLVIC-UHFFFAOYSA-N",
     "YFVXLROHJBSEDW-UHFFFAOYSA-N",
     "YYYARFHFWYKNLF-UHFFFAOYSA-N",
-    "ZDPLQOJMGTWYIR-UHFFFAOYSA-N"
+    "ZDPLQOJMGTWYIR-UHFFFAOYSA-N",
+    "ZGWIHQVDQSMSDT-UHFFFAOYSA-N"
    ],
-   "outside_release": [
-    {
-     "name": "Benzenesulfonamide, 4-[(1-butyl-5-cyano-1,6-dihydro-2-hydroxy-4-methyl-6-oxo-3-pyridinyl)azo]-N-(2-ethylhexyl)-",
-     "inchikey": "ZGWIHQVDQSMSDT-UHFFFAOYSA-N",
-     "reason": "not computed yet"
-    }
-   ]
+   "outside_release": []
   },
   {
    "name": "Benzothiazoles",

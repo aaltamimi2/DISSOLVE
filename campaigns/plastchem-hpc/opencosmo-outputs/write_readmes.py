@@ -6,6 +6,7 @@ classifier and DISSOLVE's own structure search and families.
 import collections
 import csv
 import json
+import math
 import os
 import sys
 import textwrap
@@ -188,23 +189,31 @@ status_parts = [text for n, text in (
     (by_status.get("running", 0), f"{by_status.get('running', 0):,} were still running"),
     (by_status.get("failed", 0), f"{by_status.get('failed', 0):,} failed")) if n]
 status_text = (", ".join(status_parts[:-1]) + " and " + status_parts[-1] if len(status_parts) > 1 else
-               "".join(status_parts) or "None has been run")
-status_text = status_text[0].upper() + status_text[1:]
+               "".join(status_parts))
+# the release knows only what it holds: a structure without a row is not in the release yet (it may be running or
+# queued on the cluster), which is not the same as never run
+status_text = (status_text[0].upper() + status_text[1:] + f"; the other {new_orca:,} are not in the release yet"
+               if status_text else f"None of them is in the release yet")
+short = cov['entries_short_of_95_percent']
 coverage_text = "\n\n".join(textwrap.fill(paragraph, 118) for paragraph in (
     f"That leaves {cov['simulable']:,} simulable entries. The release serves {cov['buckets']['served']:,} of them "
     f"({cov['buckets']['served'] / cov['simulable']:.1%})"
     + (f" and {parents:,} more through their parent ({(cov['buckets']['served'] + parents) / cov['simulable']:.1%} "
        "together)" if parents else "")
-    + f"; 95% needs {cov['entries_short_of_95_percent']:,} more entries. The {cov['structures_to_compute']:,} "
+    + (f"; 95% needs {short:,} more entries. " if short else
+       f", past the campaign's 95% target ({math.ceil(0.95 * cov['simulable']):,} entries). ")
+    + f"The {cov['structures_to_compute']:,} "
     f"structures still to compute are {by_elements.get('S, P or Si', 0):,} with sulfur, phosphorus or silicon (no tier "
     f"computed them before the coverage campaign), {by_elements.get('halogen', 0):,} halogenated and {by_elements.get('CHNO', 0):,} of "
     f"C, H, N and O only; {cov['structures_as_parents']:,} are the neutral parents of salts and "
     f"{cov['structures_above_700_g_mol']:,} are above 700 g/mol (rigid enough for one conformer). "
-    f"{status_text}; the other {new_orca:,} were never run: about "
+    f"{status_text}: about "
     f"{round(cov['orca_new_cpu_hours'], -2):,} CPU-hours of ORCA by the campaign's cost fit (median "
     f"{cov['orca_new_atoms_median']} atoms with hydrogens; {cov['orca_new_above_107_atoms']} above the 107 atoms the "
-    f"fit was made on). The cheapest {route['structures']:,} structures{', the unfinished ones first,' if unfinished else ''} "
-    f"reach 95% for about {round(route['orca_cpu_hours'], -1):,} ORCA CPU-hours.",
+    f"fit was made on). "
+    + (f"The cheapest {route['structures']:,} structures{', the unfinished ones first,' if unfinished else ''} "
+       f"reach 95% for about {round(route['orca_cpu_hours'], -1):,} ORCA CPU-hours." if short else
+       "The campaign continues down its work list to the end."),
     f"`{cov_dir}/PLASTCHEM_COVERAGE.tsv` has one row per PlastChem entry: its bucket and reason, and for the simulable "
     f"ones the molecule that would be computed (InChIKey, SMILES, g/mol, atoms with hydrogens) and the release "
     f"status; `summary.json` has the counts. Both are made by `../scripts/plastchem_coverage.py` from the census "

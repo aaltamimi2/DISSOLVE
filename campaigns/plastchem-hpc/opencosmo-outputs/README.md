@@ -2,9 +2,9 @@
 
 Every ORCA/openCOSMO surface (`.orcacosmo`) behind the partition and miscibility data DISSOLVE serves: the
 2026-09-12/24 CHNO campaign, the halogen tier of amendment A-11 (2026-10-06/07) and the coverage campaign of amendment
-A-13 (2026-10-08 onward), 8,532 contaminants: 5,830 from the promotion-v1 cohort, 219 tier-2 CHNO
+A-13 (2026-10-08 onward), 8,632 contaminants: 5,830 from the promotion-v1 cohort, 219 tier-2 CHNO
 structures (500-700 g/mol) that converged after it, 1,234 from the halogen tier (C, H, N and O with F, Cl, Br or I,
-up to 700 g/mol) and 1,249 from the coverage campaign (the simulable PlastChem structures not yet served, lightest
+up to 700 g/mol) and 1,349 from the coverage campaign (the simulable PlastChem structures not yet served, lightest
 first, sulfur, phosphorus and silicon included). Also 17
 surfaces computed for the paper's compounds (amendment A-12, see section 1), which the release has served since
 promotion-v3 (2026-10-08). How much of PlastChem this covers, and what cannot or should not be computed, is in
@@ -21,12 +21,12 @@ promotion-v3 (2026-10-08). How much of PlastChem this covers, and what cannot or
      The other members of the same families are in the folders below (other phthalates in
      `agent-families/Phthalates/`, other PFAS in `plastchem-groups/PFASs/`, other PBDEs in
      `structure-classes/polybrominated_diphenyl_ethers/`).
-  2. `agent-families/` (886): the contaminant families DISSOLVE's agent uses when a question names
+  2. `agent-families/` (896): the contaminant families DISSOLVE's agent uses when a question names
      a family ("phthalates", "antioxidants"). A compound in two families is filed in the smaller one.
-  3. `plastchem-groups/` (1826): the structural groups of the PlastChem database (Wagner et al.
+  3. `plastchem-groups/` (1840): the structural groups of the PlastChem database (Wagner et al.
      2024, v1.0), for compounds in no agent family. A compound in several is filed in the most specific (PFAS,
      PBDEs, PCBs and dioxins first; alkanes and alkenes last).
-  4. `structure-classes/` (5563): the rest, by structure: the PBDE congeners, else the
+  4. `structure-classes/` (5639): the rest, by structure: the PBDE congeners, else the
      halogen a compound carries, else its first functional group in DISSOLVE's structure search (in the order of
      the table below), else aliphatic hydrocarbons.
   5. `no-family/` (236): none of the above: mostly organic peroxides, nitrosamines, hydrazines and
@@ -126,18 +126,18 @@ member with a surface, including those filed in a publication set or a smaller f
 
 | Folder | Files here | Family members computed | Family (DISSOLVE's definition) |
 |---|---:|---:|---|
-| `Alkylphenols/` | 40 | 40 | butyl-, octyl- and nonylphenols and their ethoxylates; PlastChem group alkylphenols |
-| `Antioxidants/` | 126 | 162 | hindered-phenol, aminic, phosphite and thioester antioxidants, gallates and tocopherols; any of hindered phenol, cycloalkyl phenol, diarylamine, phenylenediamine, dihydroquinoline, gallate, chromanol, benzofuranone, phosphite, thiodipropionate; excluding anthraquinone, ring aryl ketone, azo, nitro, nitroso, aryl acid, dimethylaminoaryl, benzotriazole uva, triazine uva |
+| `Alkylphenols/` | 41 | 41 | butyl-, octyl- and nonylphenols and their ethoxylates; PlastChem group alkylphenols |
+| `Antioxidants/` | 127 | 163 | hindered-phenol, aminic, phosphite and thioester antioxidants, gallates and tocopherols; any of hindered phenol, cycloalkyl phenol, diarylamine, phenylenediamine, dihydroquinoline, gallate, chromanol, benzofuranone, phosphite, thiodipropionate; excluding anthraquinone, ring aryl ketone, azo, nitro, nitroso, aryl acid, dimethylaminoaryl, benzotriazole uva, triazine uva |
 | `Aromatic_amines/` | 22 | 22 | primary aromatic amines; PlastChem group aromatic_amines |
-| `Azo_dyes/` | 20 | 47 | azo dyes and pigments; PlastChem group azodyes; with an azo linkage (C-N=N-C) |
+| `Azo_dyes/` | 22 | 49 | azo dyes and pigments; PlastChem group azodyes; with an azo linkage (C-N=N-C) |
 | `Benzophenones/` | 27 | 27 | benzophenone photoinitiators and UV absorbers; PlastChem group acetophenones_benzophenones; with a benzophenone core |
 | `Benzothiazoles/` | 9 | 15 | benzothiazole rubber accelerators and their relatives; PlastChem group benzothiazole; with a benzothiazole core |
 | `Bisphenols/` | 31 | 33 | bisphenol A and its analogues; PlastChem group bisphenols |
-| `Organophosphates/` | 170 | 175 | phosphate, phosphonate, phosphinate and phosphite esters and acids, phosphine oxides, phosphines and phosphoramides; PlastChem group organophosphates; containing phosphorus |
+| `Organophosphates/` | 174 | 180 | phosphate, phosphonate, phosphinate and phosphite esters and acids, phosphine oxides, phosphines and phosphoramides; PlastChem group organophosphates; containing phosphorus |
 | `Parabens/` | 7 | 7 | 4-hydroxybenzoate esters; PlastChem group parabens |
 | `Phthalates/` | 82 | 90 | ortho-phthalate plasticizers; PlastChem group orthophthalates, or outside it the structure ortho phthalate diester |
 | `Salicylates/` | 11 | 11 | salicylate esters; PlastChem group salicylate_esters |
-| `Siloxanes_and_silanes/` | 228 | 229 | silanes, siloxanes and silicone building blocks; PlastChem group silanes_siloxanes_silicones; containing silicon |
+| `Siloxanes_and_silanes/` | 230 | 231 | silanes, siloxanes and silicone building blocks; PlastChem group silanes_siloxanes_silicones; containing silicon |
 | `Slip_agents/` | 8 | 8 | fatty acid amides; PlastChem group aliphatic_primary_amides; at least 12 carbons |
 | `Terephthalates/` | 21 | 21 | terephthalate, isophthalate and trimellitate esters; PlastChem group isophthalates_terephthalates_trimellitates |
 | `UV_stabilizers/` | 84 | 98 | benzotriazole, triazine and benzophenone UV absorbers and hindered-amine light stabilizers; any of benzotriazole uva, triazine uva, hydroxybenzophenone, hals, cyanoacrylate, oxanilide, aryl salicylate, benzylidene malonate |
@@ -152,18 +152,18 @@ tetrachlorophthalates) are not in it; they are in the halogen folders of `struct
 Folder names are PlastChem's column names, and a group holds what PlastChem put in it: `alkenes` includes aromatic
 hydrocarbons such as pyrene, `aldehydes_simple` includes simple ketones such as camphor, and `PFASs` includes
 compounds with a single CF3 or CF2 group, such as bifenthrin. PlastChem's `PBDEs` column flags brominated
-biphenyls (5 computed here), not diphenyl ethers: PlastChem marks the PBDE congeners as
+biphenyls (6 computed here), not diphenyl ethers: PlastChem marks the PBDE congeners as
 grouped but sets none of its group columns for them, so they are in
-`structure-classes/polybrominated_diphenyl_ethers/` (204; the
+`structure-classes/polybrominated_diphenyl_ethers/` (207; the
 congener of the paper, BDE-28, is in `publication-sets/BFR/`).
 
 | Folder | Files | Shortest names in it |
 |---|---:|---|
-| `PFASs/` | 243 | Fipronil; Bifenthrin; Perflutren |
-| `PBDEs/` | 5 | 2-Bromobiphenyl; 3-Bromobiphenyl; 4,4'-Dibromobiphenyl |
+| `PFASs/` | 254 | Fipronil; Bifenthrin; Perflutren |
+| `PBDEs/` | 6 | 2-Bromobiphenyl; 3-Bromobiphenyl; Decabromobiphenyl |
 | `PCBs/` | 138 | 2-Chlorobiphenyl; 3-Chlorobiphenyl; 4-Chlorobiphenyl |
 | `polychlorinated_naphthalenes/` | 2 | 1-Chloronaphthalene; Octachloronaphthalene |
-| `PBDD_PBDF_PCDD_PCDF/` | 44 | 1-Bromodibenzofuran; 1,2-Dibromooxanthrene; 1-Bromodibenzo-p-dioxin |
+| `PBDD_PBDF_PCDD_PCDF/` | 46 | 1-Bromodibenzofuran; 1,2-Dibromooxanthrene; 1-Bromodibenzo-p-dioxin |
 | `DDT_DDE_DDD/` | 5 | O,P'-Dde; O,P'-Ddt; p,p'-DDD |
 | `chlorinated_paraffins/` | 1 | Cereclor |
 | `organophosphates/` | 1 | 2-[4-[4-(4-chlorophenyl)-4,5-dihydro-1H-pyrazol-3-yl]phenyl]sulfonyl-N,N-dimethylethanamine |
@@ -201,38 +201,38 @@ SMILES); the PBDE class is defined by formula in `classify_contaminants.py`.
 
 | Folder | Files | What it holds | Shortest names in it |
 |---|---:|---|---|
-| `polybrominated_diphenyl_ethers/` | 204 | PBDE congeners: C12H(10-n)Br(n)O, two benzene rings joined by an ether oxygen, with nothing but bromine on them | Tribromodiphenyl ether; Octabromodiphenyl ether; 1-Bromo-2-phenoxybenzene |
+| `polybrominated_diphenyl_ethers/` | 207 | PBDE congeners: C12H(10-n)Br(n)O, two benzene rings joined by an ether oxygen, with nothing but bromine on them | Tribromodiphenyl ether; Nonabromodiphenyl ether; Octabromodiphenyl ether |
 | `fluorinated/` | 46 | carries fluorine and no other halogen | Etoxazole; Fluorobenzene; Vinyl fluoride |
-| `chlorinated/` | 449 | carries chlorine and no other halogen | Mirex; Captan; Diuron |
-| `brominated/` | 148 | carries bromine and no other halogen | Bronopol; Bromoform; kappa-HBCD |
+| `chlorinated/` | 468 | carries chlorine and no other halogen | Mirex; Captan; Diuron |
+| `brominated/` | 155 | carries bromine and no other halogen | OctaInd; Bronopol; Bromoform |
 | `iodinated/` | 15 | carries iodine and no other halogen | Iodoform; Iodoethane; Erythrosine |
-| `several_halogens/` | 40 | carries two or more of F, Cl, Br and I | Cyfluthrin; Flufenoxuron; Tolylfluanid |
+| `several_halogens/` | 42 | carries two or more of F, Cl, Br and I | Cyfluthrin; Flufenoxuron; Tolylfluanid |
 | `isocyanate/` | 49 | N=C=O | Tosyl isocyanate; Methyl Isocyanate; Phenyl isocyanate |
 | `epoxide/` | 106 | three-membered C-O-C ring | Glycidol; Picrotoxinin; Resibufogenin |
 | `acrylate/` | 241 | acrylic or methacrylic ester or acid, CH2=C(H or CH3)-C(=O)O; not maleates, crotonates or cinnamates | Silux; Acrylic acid; Allyl acrylate |
 | `anhydride/` | 61 | C(=O)OC(=O) | Dicarbonic acid; Acetic Anhydride; Carbic anhydride |
-| `azo/` | 123 | C-N=N-C | Acid Red 57; Cloth Red B; Sudan Red B |
+| `azo/` | 158 | C-N=N-C | Acid Red 57; Cloth Red B; Sudan Red B |
 | `nitro/` | 57 | NO2 | Dinoseb; Parathion; Fenitrothion |
 | `nitrile/` | 89 | C#N | Ocrilate; Bucrilate; Enbucrilate |
-| `quinone/` | 67 | para-quinone ring | Juglone; Quinizarin; Indanthrene |
+| `quinone/` | 69 | para-quinone ring | Juglone; Quinizarin; Indanthrene |
 | `benzotriazole/` | 4 | benzotriazole ring (UV absorbers) | Stilbene naphthotriazole; 4-Methyl-1H-benzotriazole; 2,2'-[[(4-Methyl-1H-benzotriazol-1-YL)methyl]imino]bisethanol |
 | `benzophenone/` | 9 | two aryl rings on an open-chain C=O; not fluorenones or anthraquinones | Ethyl 2-benzoylbenzoate; Methyl 2-benzoylbenzoate; 2,4,5-Triethoxybenzophenone |
-| `imide/` | 62 | C(=O)NC(=O) | Adipimide; Allantoin; Phenytoin |
+| `imide/` | 63 | C(=O)NC(=O) | Adipimide; Allantoin; Phenytoin |
 | `urea_or_carbamate/` | 82 | N-C(=O)-N or N-C(=O)-O | Urea; Biotin; Fenuron |
 | `carbonate_ester/` | 15 | O-C(=O)-O | Diallyl carbonate; Diethyl carbonate; Dimethyl carbonate |
 | `lactone/` | 123 | cyclic ester (coumarins too), not a cyclic anhydride | Esculin; Coumarin; Glycolide |
 | `phthalate_ester/` | 2 | benzene-1,2-dicarboxylate diester | Diisobutyl Perylenedicarboxylate; 1,2,4-Benzenetricarboxylic Acid 1,2-Bis(2-ethylhexyl) Ester |
 | `hindered_phenol/` | 1 | phenol with tertiary alkyl at both ortho positions | 3,5-Di-tert-butyl-4-hydroxybenzoic acid |
 | `phenol/` | 195 | OH on an aromatic ring | Indigo; Phenol; Thymol |
-| `aromatic_amine/` | 169 | NH2 or NH on an aromatic ring | Ametryn; Aniline; Dapsone |
-| `amide/` | 224 | C(=O)N | Adipamide; Benzamide; Phenidone |
-| `amine/` | 304 | aliphatic amine | Deanol; Grotan; Metepa |
-| `carboxylic_acid/` | 241 | C(=O)OH | Felbinac; Meglutol; Icosapent |
+| `aromatic_amine/` | 171 | NH2 or NH on an aromatic ring | Ametryn; Aniline; Dapsone |
+| `amide/` | 226 | C(=O)N | Adipamide; Benzamide; Phenidone |
+| `amine/` | 305 | aliphatic amine | Deanol; Grotan; Metepa |
+| `carboxylic_acid/` | 242 | C(=O)OH | Felbinac; Meglutol; Icosapent |
 | `ester/` | 836 | carboxylic ester, C(=O)O-C, not an anhydride | Pentol; Texanol; Dilaurin |
 | `aldehyde/` | 130 | CH=O | Lyral; Neral; Citral |
 | `ketone/` | 228 | C-C(=O)-C | Benzil; Benzoin; Phorone |
 | `alcohol/` | 562 | aliphatic OH | Agar; Cedrol; Elemol |
-| `ether/` | 181 | C-O-C, not an ester | Proxan; Diglyme; Safrole |
+| `ether/` | 182 | C-O-C, not an ester | Proxan; Diglyme; Safrole |
 | `fused_aromatic_rings/` | 128 | two aromatic rings sharing a bond, as in naphthalene; not indane or biphenyl | Indole; Skatole; Acridine |
 | `aromatic_ring/` | 219 | six-membered aromatic ring | Fonofos; Auramine; Diazinon |
 | `long_alkyl_chain/` | 64 | seven or more CH2 in a row | Octhilinone; 9-Nonadecene; 1-Octanethiol |
@@ -249,9 +249,9 @@ and not partitioning or miscibility.
 
 | Entries | Count | Rule |
 |---|---:|---|
-| Served | 9,098 | the release computed it and lists its PlastChem ID (since promotion-v4 also a salt, ion or hydrate, listed with its neutral parent), or its InChIKey if PlastChem does not flag it a UVCB, polymer or mixture |
+| Served | 9,200 | the release computed it and lists its PlastChem ID (since promotion-v4 also a salt, ion or hydrate, listed with its neutral parent), or its InChIKey if PlastChem does not flag it a UVCB, polymer or mixture |
 | Served as its parent | 0 | a salt, ion or hydrate whose neutral parent the release computed but does not list it yet: it needs only an alias |
-| To compute | 529 | simulable, not yet computed: 516 structures |
+| To compute | 427 | simulable, not yet computed: 416 structures |
 | Should not be computed | 1,942 | below |
 | Cannot be computed | 6,363 | below |
 
@@ -272,17 +272,17 @@ and not partitioning or miscibility.
 | radical | 18 | open-shell as written: nitroxide stabilizers such as Tempol, and hydrosilanes whose SMILES lacks the hydrogen on silicon; the recipe computes closed-shell molecules |
 | isotope-labelled | 10 | owner decision D-ISO: excluded, never mapped to the unlabelled compound |
 
-That leaves 9,627 simulable entries. The release serves 9,098 of them (94.5%); 95% needs 48 more entries. The 516
-structures still to compute are 345 with sulfur, phosphorus or silicon (no tier computed them before the coverage
-campaign), 80 halogenated and 91 of C, H, N and O only; 236 are the neutral parents of salts and 276 are above 700
-g/mol (rigid enough for one conformer). 98 failed; the other 418 were never run: about 2,000 CPU-hours of ORCA by the
-campaign's cost fit (median 81 atoms with hydrogens; 68 above the 107 atoms the fit was made on). The cheapest 44
-structures reach 95% for about 20 ORCA CPU-hours.
+That leaves 9,627 simulable entries. The release serves 9,200 of them (95.6%), past the campaign's 95% target (9,146
+entries). The 416 structures still to compute are 279 with sulfur, phosphorus or silicon (no tier computed them before
+the coverage campaign), 50 halogenated and 87 of C, H, N and O only; 183 are the neutral parents of salts and 215 are
+above 700 g/mol (rigid enough for one conformer). 115 failed; the other 301 are not in the release yet: about 1,700
+CPU-hours of ORCA by the campaign's cost fit (median 86 atoms with hydrogens; 66 above the 107 atoms the fit was made
+on). The campaign continues down its work list to the end.
 
-`../reports/plastchem-coverage-2026-10-09-v10/PLASTCHEM_COVERAGE.tsv` has one row per PlastChem entry: its bucket and
+`../reports/plastchem-coverage-2026-10-10-v11/PLASTCHEM_COVERAGE.tsv` has one row per PlastChem entry: its bucket and
 reason, and for the simulable ones the molecule that would be computed (InChIKey, SMILES, g/mol, atoms with hydrogens)
 and the release status; `summary.json` has the counts. Both are made by `../scripts/plastchem_coverage.py` from the
-census export of the PlastChem workbook and the served release (promotion-v10).
+census export of the PlastChem workbook and the served release (promotion-v11).
 
 ## How they were made
 
@@ -312,6 +312,7 @@ cat opencosmo-outputs-promotion-v7.tar.xz.part* > opencosmo-outputs-promotion-v7
 cat opencosmo-outputs-promotion-v8.tar.xz.part* > opencosmo-outputs-promotion-v8.tar.xz
 cat opencosmo-outputs-promotion-v9.tar.xz.part* > opencosmo-outputs-promotion-v9.tar.xz
 cat opencosmo-outputs-promotion-v10.tar.xz.part* > opencosmo-outputs-promotion-v10.tar.xz
+cat opencosmo-outputs-promotion-v11.tar.xz.part* > opencosmo-outputs-promotion-v11.tar.xz
 sha256sum -c SHA256SUMS
 tar -xJf opencosmo-outputs.tar.xz
 tar -xJf opencosmo-outputs-promotion-v4.tar.xz
@@ -321,6 +322,7 @@ tar -xJf opencosmo-outputs-promotion-v7.tar.xz
 tar -xJf opencosmo-outputs-promotion-v8.tar.xz
 tar -xJf opencosmo-outputs-promotion-v9.tar.xz
 tar -xJf opencosmo-outputs-promotion-v10.tar.xz
+tar -xJf opencosmo-outputs-promotion-v11.tar.xz
 ```
 
-The 8 sets unpack into the same `opencosmo-outputs/` tree: the first holds the v2 archive (the CHNO campaign, the halogen tier and the publication sets), each later one the contaminants a release added (amendment A-13; parts are never rewritten).
+The 9 sets unpack into the same `opencosmo-outputs/` tree: the first holds the v2 archive (the CHNO campaign, the halogen tier and the publication sets), each later one the contaminants a release added (amendment A-13; parts are never rewritten).

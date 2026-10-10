@@ -559,3 +559,11 @@
 {"utc": "2026-10-09T21:19:28Z", "chunk": "r02", "array": "81749", "task": 13, "atoms": 96, "from_hours": 65, "to_hours": 35, "applied": true}
 {"utc": "2026-10-09T21:19:28Z", "chunk": "r02", "array": "81749", "task": 14, "atoms": 120, "from_hours": 65, "to_hours": 59, "applied": true}
 {"utc": "2026-10-09T21:19:28Z", "chunk": "r02", "array": "81749", "task": 15, "atoms": 86, "from_hours": 65, "to_hours": 27, "applied": true}
+{"utc": "2026-10-10T02:05:55Z", "chunk": "r03", "array": "82080", "task": 0, "atoms": 73, "from_hours": 85, "to_hours": 19, "applied": true}
+{"utc": "2026-10-10T02:05:55Z", "chunk": "r03", "array": "82080", "task": 1, "atoms": 82, "from_hours": 85, "to_hours": 25, "applied": true}
+{"utc": "2026-10-10T02:05:55Z", "chunk": "r03", "array": "82080", "task": 2, "atoms": 86, "from_hours": 85, "to_hours": 27, "applied": true}
+{"utc": "2026-10-10T02:05:55Z", "chunk": "r03", "array": "82080", "task": 3, "atoms": 124, "from_hours": 85, "to_hours": 63, "applied": true}
+{"utc": "2026-10-10T02:05:55Z", "chunk": "r03", "array": "82080", "task": 4, "atoms": 87, "from_hours": 85, "to_hours": 28, "applied": true}
+{"utc": "2026-10-10T02:05:55Z", "chunk": "r03", "array": "82080", "task": 5, "atoms": 86, "from_hours": 85, "to_hours": 27, "applied": true}
+{"utc": "2026-10-10T02:05:55Z", "chunk": "r03", "array": "82080", "task": 6, "atoms": 85, "from_hours": 85, "to_hours": 27, "applied": true}
+{"utc": "2026-10-10T02:05:55Z", "chunk": "r03", "array": "82080", "task": 7, "atoms": 82, "from_hours": 85, "to_hours": 25, "applied": true}
