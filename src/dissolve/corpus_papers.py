@@ -102,14 +102,18 @@ def load_papers(index: Mapping[str, Any] | None = None, directory: Path | None =
 
 def search_papers(query: str, *, limit: int = 20, per_paper: int = 3, depth: int = 50) -> dict[str, Any]:
     """Papers whose text matches ``query``: the served ranking over passages (as the literature tool ranks them, to
-    ``depth``), grouped by paper in the order of each paper's best passage, with up to ``per_paper`` passages each."""
+    ``depth``), grouped by paper in the order of each paper's best passage, with up to ``per_paper`` passages each.
+    With the RAG-90 engine selected that is the engine's own order, packed within ``depth`` x 1,400 characters."""
     if not str(query or "").strip():
         raise ValueError("empty_query")
     index = research._load_index(research._PRODUCT_KNOWLEDGEBASE)
-    mode, rerank = "hybrid", "off"
-    if research._bge10_hybrid_fusion_enabled(index) and research.pair_rerank_enabled():
-        rerank = research.PAIR_RERANK_MODE
-    rows = research._search_index(index, query, depth, mode, rerank_mode=rerank)
+    if research.literature_engine() == "rag90":
+        rows = research._rag90_rows(index, query, depth)
+    else:
+        mode, rerank = "hybrid", "off"
+        if research._bge10_hybrid_fusion_enabled(index) and research.pair_rerank_enabled():
+            rerank = research.PAIR_RERANK_MODE
+        rows = research._search_index(index, query, depth, mode, rerank_mode=rerank)
     by_sha = {str(chunk["chunk_id"]): str(chunk.get("paper_sha256") or "") for chunk in index.get("chunks") or []}
     papers = {row["sha256"]: row for row in load_papers(index)["papers"]}
     grouped: dict[str, dict[str, Any]] = {}

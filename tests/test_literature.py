@@ -1096,7 +1096,7 @@ def test_known_answer_every_shipped_chunk_reproduces_from_its_canonical_document
     for sha in {row["paper_sha256"] for row in shipped["chunks"]}:
         canonical = json.loads((canonical_dir / f"{sha}.v1.json").read_text(encoding="utf-8"))
         ours.update({row["chunk_id"]: corpus._public(row) for row in corpus.chunk_records(canonical, sha)})
-    assert len(theirs) == 3035
+    assert len(theirs) == 4432
     assert ours == theirs
 
 
@@ -4377,7 +4377,7 @@ class TestProfileRouting:
     def test_the_shipped_release_loads_and_validates(self, monkeypatch):
         monkeypatch.delenv("DISSOLVE_BGE10_MANIFEST", raising=False)
         index = research._load_index(PRODUCT_KB)
-        assert (len(index["documents"]), len(index["chunks"])) == (61, 3035)
+        assert (len(index["documents"]), len(index["chunks"])) == (89, 4432)
         assert research._bge10_recipe_identity(index)
         assert index["abstention"]["floor"] == corpus.ABSTENTION["floor"]
 

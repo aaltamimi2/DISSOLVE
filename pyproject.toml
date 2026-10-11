@@ -43,7 +43,9 @@ build-backend = "setuptools.build_meta"
 where = ["src"]
 
 [tool.setuptools.package-data]
-dissolve = ["data/*", "data/corpus/*", "data/campaign/*", "cosmo_workers/*.py"]
+dissolve = ["data/*", "data/corpus/*", "data/campaign/*", "cosmo_workers/*.py",
+    "data/rag90/*/*", "data/rag90/*/*/*", "data/rag90/*/*/*/*",
+    "data/rag90/*/*/*/*/*", "data/rag90/*/*/*/*/*/*"]
 
 [tool.uv]
 # Bash launcher: Linux and macOS (Windows through WSL).

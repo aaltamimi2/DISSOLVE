@@ -1115,7 +1115,7 @@ ANSWER_RULE = (
     "Answer only from these passages. If they do not establish every element the question asks for, say that the "
     "corpus passages do not support an answer, and do not answer from general knowledge."
 )
-#: The release the package ships: the paper's 61 papers, T5 chunks, BGE-base vectors.
+#: The release the package ships: 89 papers, 4,432 T5 chunks, BGE-base vectors.
 _SHIPPED_CORPUS_DIR = Path(__file__).resolve().parent / "data" / "corpus"
 _RELEASE_MANIFEST = "manifest.json"
 _BGE_MODEL_ID = "BAAI/bge-base-en-v1.5"
@@ -5158,6 +5158,34 @@ def literature_gate_on() -> bool:
     return os.getenv(_ENV_LITERATURE_GATE, "").strip().casefold() in {"on", "1", "true", "yes"}
 
 
+#: DISSOLVE_LITERATURE_ENGINE=rag90 serves the 89-paper Sol design (rag90-final-v1-r03-sol) for hybrid, non-strict searches
+#: of the corpus it was built on. Unset, the served hybrid ranking is unchanged.
+_ENV_LITERATURE_ENGINE = "DISSOLVE_LITERATURE_ENGINE"
+RAG90_ENGINE_ID = "rag90-final-v1-r03-sol"
+#: The benchmark compares designs at equal text, not equal passage counts: 1,400 characters per requested passage.
+RAG90_CHARS_PER_PASSAGE = 1_400
+
+
+def literature_engine() -> str:
+    """'rag90' where DISSOLVE_LITERATURE_ENGINE=rag90 selects the RAG-90 design; otherwise 'served'."""
+    return "rag90" if os.getenv(_ENV_LITERATURE_ENGINE, "").strip().casefold() == "rag90" else "served"
+
+
+def _rag90_rows(index: dict[str, Any], query: str, top_k: int) -> list[dict[str, Any]]:
+    """The RAG-90 design's packed passages, whole and in its order, within top_k x 1,400 characters of text.
+
+    It was built and frozen on the 89-paper corpus, so it refuses any other chunk set rather than rank a corpus it
+    has never seen."""
+    from . import rag90_search  # loads the frozen runtime only when the engine is selected
+
+    chunks = {str(chunk["chunk_id"]): chunk for chunk in index["chunks"]}
+    if frozenset(chunks) != rag90_search.chunk_ids():
+        raise RuntimeError("rag90_corpus_mismatch")
+    ids = rag90_search.search(query, int(top_k) * RAG90_CHARS_PER_PASSAGE)
+    ranked = [(round(1.0 / rank, 6), 0.0, 0.0, 0.0, chunks[chunk_id], 0.0) for rank, chunk_id in enumerate(ids, 1)]
+    return _ranked_search_rows(index, ranked, len(ranked))
+
+
 def _zero_hit_reason(index: Mapping[str, Any], query: str, *, gate: bool = True) -> str | None:
     chunks = list(index.get("chunks") or [])
     if not chunks:
@@ -5342,13 +5370,19 @@ def search_literature_corpus(
             knowledgebase=_slug(knowledgebase),
             reason="empty_corpus",
         )
-    gate = strict_verifier is None and literature_gate_on()
+    engine = "rag90" if mode == "hybrid" and strict_verifier is None and literature_engine() == "rag90" else "served"
+    gate = strict_verifier is None and literature_gate_on() and engine == "served"
     extra: dict[str, Any] = {}
+    if engine == "rag90":
+        extra["literature_engine"] = RAG90_ENGINE_ID
     try:
         rerank_mode = "off"
         if mode == "hybrid" and _bge10_hybrid_fusion_enabled(index) and pair_rerank_enabled():
             rerank_mode = PAIR_RERANK_MODE
-        if strict_verifier is None:
+        if engine == "rag90":
+            rerank_mode = "off"
+            rows = _rag90_rows(index, query, max(1, min(int(top_k), 20)))
+        elif strict_verifier is None:
             rows = _search_index(index, query, max(1, min(int(top_k), 20)), mode, rerank_mode=rerank_mode,
                                  apply_gate=gate)
         else:

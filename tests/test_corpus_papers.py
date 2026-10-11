@@ -152,6 +152,24 @@ def test_full_text_search_groups_passages_by_paper_in_order_of_their_best_passag
         corpus_papers.search_papers("  ")
 
 
+def test_with_the_rag90_engine_the_papers_panel_shows_the_engines_own_order(tmp_path, monkeypatch):
+    release = _write_release(tmp_path / "release", {SHA_A: [("a1", "1"), ("a2", "2")], SHA_B: [("b1", "2")]})
+    with gzip.open(release / "index.json.gz", "rt", encoding="utf-8") as handle:
+        index = json.load(handle)
+    monkeypatch.setattr(research, "_load_index", lambda kb: index)
+    monkeypatch.setattr(corpus_papers, "release_dir", lambda: release)
+    monkeypatch.setenv("DISSOLVE_LITERATURE_ENGINE", "rag90")
+    monkeypatch.setattr(research, "_search_index",
+                        lambda *a, **k: pytest.fail("the panel ranked with the served hybrid while rag90 serves"))
+    asked = []
+    order = [f"T5-{SHA_B[:12]}-0001", f"T5-{SHA_A[:12]}-0002"]
+    monkeypatch.setattr(research, "_rag90_rows", lambda index, query, top_k: asked.append(top_k) or [
+        {"chunk_id": cid, "page": "1", "section": None, "excerpt": cid} for cid in order])
+    found = corpus_papers.search_papers("anything")
+    assert [hit["paper"]["sha256"] for hit in found["results"]] == [SHA_B, SHA_A]
+    assert asked == [50] and found["passages_ranked"] == 2
+
+
 def test_search_results_carry_their_papers_after_ranking(monkeypatch):
     index = {"chunks": [{"chunk_id": "c1", "paper_sha256": SHA_A}, {"chunk_id": "c2", "paper_sha256": SHA_B}]}
     monkeypatch.setattr(research, "_paper_records", lambda: {SHA_A: {

@@ -1,0 +1,14 @@
+{
+  "schema": "rag90search.index.v1",
+  "mode": "r3",
+  "n": 4432,
+  "dim": 768,
+  "query_instruction": "Represent this sentence for searching relevant passages: ",
+  "onnx": "/home/aaltamimi2/dissolve-final-rag-models/official.int8.1.onnx",
+  "onnx_sha256": "520f3e21f4be0c8683013523608b22396648827e5d3e7b721149c9fdb8d8068d",
+  "tokenizer": "/home/aaltamimi2/.cache/huggingface/hub/models--BAAI--bge-base-en-v1.5/snapshots/a5beb1e3e68b9ab74eb54cfd186867f64f240e1a/tokenizer.json",
+  "tokenizer_sha256": "d241a60d5e8f04cc1b2b3e9ef7a4921b27bf526d9f6050ab90f9267a1f9e5c66",
+  "lexicon_sha256": "12821f43e6b6be0003ab83d4a7c0f671c63629f53ef529b1f9ce2351f79eafb8",
+  "vocab": 32345,
+  "postings": 555400
+}

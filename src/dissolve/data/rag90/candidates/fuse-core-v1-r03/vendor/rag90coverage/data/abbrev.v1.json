@@ -1,0 +1,263 @@
+{
+  "schema": "coverage.abbrev.v1",
+  "source": "served-r3-v1 passage text",
+  "min_count": 2,
+  "n": 51,
+  "entries": [
+    {
+      "abbr": "EVOH",
+      "expansion": "ethylene vinyl alcohol",
+      "count": 19
+    },
+    {
+      "abbr": "PET",
+      "expansion": "polyethylene terephthalate",
+      "count": 11
+    },
+    {
+      "abbr": "DSC",
+      "expansion": "Differential scanning calorimetry",
+      "count": 8
+    },
+    {
+      "abbr": "PVC",
+      "expansion": "polyvinyl chloride",
+      "count": 8
+    },
+    {
+      "abbr": "TGA",
+      "expansion": "Thermogravimetric analysis",
+      "count": 7
+    },
+    {
+      "abbr": "DMSO",
+      "expansion": "dimethyl sulfoxide",
+      "count": 5
+    },
+    {
+      "abbr": "STRAP",
+      "expansion": "Solvent-targeted recovery and precipitation",
+      "count": 5
+    },
+    {
+      "abbr": "DBP",
+      "expansion": "dibutyl phthalate",
+      "count": 4
+    },
+    {
+      "abbr": "LCA",
+      "expansion": "Life cycle assessment",
+      "count": 4
+    },
+    {
+      "abbr": "LCPE",
+      "expansion": "Laboratory for Circular Process Engineering",
+      "count": 4
+    },
+    {
+      "abbr": "MD",
+      "expansion": "molecular dynamics",
+      "count": 4
+    },
+    {
+      "abbr": "MEK",
+      "expansion": "methyl ethyl ketone",
+      "count": 4
+    },
+    {
+      "abbr": "SFE",
+      "expansion": "Supercritical fluid extraction",
+      "count": 4
+    },
+    {
+      "abbr": "YI",
+      "expansion": "yellowness index",
+      "count": 4
+    },
+    {
+      "abbr": "DMBA",
+      "expansion": "dimethylbutyric acid",
+      "count": 3
+    },
+    {
+      "abbr": "EG",
+      "expansion": "ethylene glycol",
+      "count": 3
+    },
+    {
+      "abbr": "EVA",
+      "expansion": "ethylene-vinyl acetate",
+      "count": 3
+    },
+    {
+      "abbr": "FTIR",
+      "expansion": "Fourier transformed infrared spectroscopy",
+      "count": 3
+    },
+    {
+      "abbr": "GPC",
+      "expansion": "Gel permeation chromatography",
+      "count": 3
+    },
+    {
+      "abbr": "HDPE",
+      "expansion": "high-density polyethylene",
+      "count": 3
+    },
+    {
+      "abbr": "MFR",
+      "expansion": "Melt flow rate",
+      "count": 3
+    },
+    {
+      "abbr": "SASA",
+      "expansion": "solvent-accessible surface area",
+      "count": 3
+    },
+    {
+      "abbr": "SEM",
+      "expansion": "Scanning Electron Microscopy",
+      "count": 3
+    },
+    {
+      "abbr": "ABS",
+      "expansion": "acrylonitrile butadiene styrene",
+      "count": 2
+    },
+    {
+      "abbr": "ASE",
+      "expansion": "accelerated solvent extraction",
+      "count": 2
+    },
+    {
+      "abbr": "ATR",
+      "expansion": "Attenuated total reflectance",
+      "count": 2
+    },
+    {
+      "abbr": "BBP",
+      "expansion": "benzylbutyl phthalate",
+      "count": 2
+    },
+    {
+      "abbr": "CPME",
+      "expansion": "cyclopentyl methyl ether",
+      "count": 2
+    },
+    {
+      "abbr": "DFT",
+      "expansion": "Density functional theory",
+      "count": 2
+    },
+    {
+      "abbr": "DGME",
+      "expansion": "diethylene glycol monobutyl ether",
+      "count": 2
+    },
+    {
+      "abbr": "DIBP",
+      "expansion": "diisobutyl phthalate",
+      "count": 2
+    },
+    {
+      "abbr": "DIHP",
+      "expansion": "di-isoheptyl phthalate",
+      "count": 2
+    },
+    {
+      "abbr": "DINP",
+      "expansion": "di-isononyl phthalate",
+      "count": 2
+    },
+    {
+      "abbr": "ECHA",
+      "expansion": "European Chemicals Agency",
+      "count": 2
+    },
+    {
+      "abbr": "HIPS",
+      "expansion": "high-impact polystyrene",
+      "count": 2
+    },
+    {
+      "abbr": "ISO",
+      "expansion": "International Organization for Standardization",
+      "count": 2
+    },
+    {
+      "abbr": "ISOPREP",
+      "expansion": "Ionic Solvent-based Recycling of Polypropylene Products",
+      "count": 2
+    },
+    {
+      "abbr": "ITU",
+      "expansion": "International Telecommunication Union",
+      "count": 2
+    },
+    {
+      "abbr": "LCT",
+      "expansion": "Laboratory for Chemical Technology",
+      "count": 2
+    },
+    {
+      "abbr": "LDPE",
+      "expansion": "low-density polyethylene",
+      "count": 2
+    },
+    {
+      "abbr": "MAE",
+      "expansion": "microwave assisted extraction",
+      "count": 2
+    },
+    {
+      "abbr": "MFI",
+      "expansion": "Melt flow index",
+      "count": 2
+    },
+    {
+      "abbr": "MMD",
+      "expansion": "molar mass distributions",
+      "count": 2
+    },
+    {
+      "abbr": "NMR",
+      "expansion": "Nuclear magnetic resonance",
+      "count": 2
+    },
+    {
+      "abbr": "NREL",
+      "expansion": "National Renewable Energy Laboratory",
+      "count": 2
+    },
+    {
+      "abbr": "PFR",
+      "expansion": "phosphorus-based flame retardant",
+      "count": 2
+    },
+    {
+      "abbr": "QENS",
+      "expansion": "Quasi-elastic neutron scattering",
+      "count": 2
+    },
+    {
+      "abbr": "SEC",
+      "expansion": "Size Exclusion Chromatography",
+      "count": 2
+    },
+    {
+      "abbr": "TEA",
+      "expansion": "Technoeconomic analysis",
+      "count": 2
+    },
+    {
+      "abbr": "THFA",
+      "expansion": "tetrahydrofurfuryl alcohol",
+      "count": 2
+    },
+    {
+      "abbr": "WASC",
+      "expansion": "Warwick Analytical Science Centre",
+      "count": 2
+    }
+  ]
+}
