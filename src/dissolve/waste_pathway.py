@@ -147,6 +147,8 @@ def _save_figure_data(problem: milp.PathwayProblem, common: dict[str, Any], sele
             "optima": {name: (c.label if c else None) for name, c in optima.items()},
             "selected": selected.label if selected else None,
             "work_summary": common.get("work_summary"),
+            "wash_comparison": common.get("wash_comparison"),
+            "warnings": common.get("warnings"),
         }
         directory = _results_dir()
         directory.mkdir(parents=True, exist_ok=True)
@@ -235,7 +237,8 @@ def _wash_screen(cand: milp.Candidate, table: data_layer.StageTable) -> list[dic
         if spec is not None:
             out.append({"polymer": stage.polymer, "solvent": stage.solvent, **spec.thermo,
                         "recovery_source": table.recovery_sources.get(key), "operating_temperature_c": stage.temperature_c, "solvent_indicators": table.indicators.get(key),
-                        "safety": data_layer.solvent_hazard(stage.solvent, stage.temperature_c)})
+                        "safety": data_layer.solvent_hazard(stage.solvent, stage.temperature_c),
+                        **table.qualifications.get(key, {})})
         removed = removed | {stage.polymer}
     return out
 
@@ -249,7 +252,7 @@ def _wash_comparison(table: data_layer.StageTable) -> list[dict[str, Any]]:
     for key, stage in table.stages.items():
         indicators = table.indicators.get(key) or {}
         rows.append({"polymer": stage.polymer, "solvent": stage.solvent, "temperature_c": stage.temperature_c,
-                     "stream_without": sorted(key[0]), **indicators,
+                     "stream_without": sorted(key[0]), **indicators, **table.qualifications.get(key, {}),
                      "safety": data_layer.solvent_hazard(stage.solvent, stage.temperature_c or 0.0)})
     return sorted(rows, key=lambda r: (r["polymer"], len(r["stream_without"]), r.get("gwp_kg_co2e_per_kg_resin") or 0.0))
 
@@ -395,6 +398,12 @@ def optimize_waste_pathway(
     basis = _basis(table)
     unpriced = data_layer.polymers_without_price(feed, economics)
     warnings: list[str] = list(solvent_notes)
+    coverage_warning = data_layer.partial_gwp_warning([
+        (f"{k[1]}/{k[2]} after {', '.join(sorted(k[0])) or 'no prior wash'}", row)
+        for k, row in table.qualifications.items()
+    ])
+    if coverage_warning:
+        warnings.append(coverage_warning)
     for polymer in sorted({f["polymer"] for f in table.failed if f.get("reason") != "thermodynamic_screen_failed"}):
         why = next(f["detail"] for f in table.failed if f["polymer"] == polymer and f.get("reason") != "thermodynamic_screen_failed")
         warnings.append(f"washes of {polymer} could not be simulated ({str(why)[:140]}); {polymer} is left in the residual")

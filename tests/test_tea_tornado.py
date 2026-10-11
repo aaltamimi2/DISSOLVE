@@ -280,3 +280,24 @@ def test_tornado_artifact_paths_are_immutable(toy, monkeypatch, tmp_path):
     a, b = tt._render(first["figure_data_file"]), tt._render(second["figure_data_file"])
     assert a["figure_file"] != b["figure_file"]
     assert args[0][0] == str(saved)
+
+
+def test_tornado_preserves_base_and_side_qualifications(monkeypatch):
+    q = {"lca_coverage": {"metric_coverage_status": {"gwp_kg_co2e_per_kg": "partial"},
+         "uncharacterized_active_contributors": [{"name": "makeup_water", "missing_metrics": ["gwp_kg_co2e_per_kg"]}]},
+         "can_cite_as_validated_process": False, "process_parameter_status": {"gwp": "provisional"},
+         "process_parameter_status_definitions": {"provisional": "test"}, "live_parameter_standing": {"committed_pair": None}}
+    monkeypatch.setattr(dl, "run_process_config", lambda cfg, **k: {**_toy_row(cfg), **q})
+    out = _call(parameters=["irr"])
+    assert {k: out["base"][k] for k in q} == q
+    assert out["run_qualifications"] == {"base": q, "irr:low": q, "irr:high": q}
+    warning = [w for w in out["warnings"] if "Partial GWP coverage" in w]
+    assert len(warning) == 1 and "base" in warning[0] and "irr:low" in warning[0] and "makeup_water" in warning[0]
+    saved = json.loads(Path(out["figure_data_file"]).read_text())
+    assert saved["run_qualifications"] == out["run_qualifications"]
+
+    monkeypatch.setattr(dl, "run_process_config", lambda cfg, **k: _toy_row(cfg))
+    plain = _call(parameters=["irr"])
+    assert plain["base"]["metrics"] == out["base"]["metrics"]
+    assert plain["sensitivity_rows"] == out["sensitivity_rows"]
+    assert plain["ranking"] == out["ranking"]

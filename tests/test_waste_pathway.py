@@ -894,3 +894,32 @@ def test_scenario_artifact_paths_are_immutable(monkeypatch, tmp_path):
     b = tool._render_figure(second["figure_data_file"])
     assert a["figure_file"] != b["figure_file"]
     assert paths[0][0] == saved
+
+
+def test_wash_qualifications_survive_table_and_outputs(monkeypatch):
+    from copy import deepcopy
+    q = {"lca_coverage": {"metric_coverage_status": {"gwp_kg_co2e_per_kg": "partial"},
+         "uncharacterized_active_contributors": [{"name": "activated_carbon", "missing_metrics": ["gwp_kg_co2e_per_kg"]}]},
+         "can_cite_as_validated_process": False, "process_parameter_status": {"gwp": "provisional"},
+         "process_parameter_status_definitions": {"provisional": "test"}, "live_parameter_standing": {"committed_pair": None}}
+    original = deepcopy(q)
+    monkeypatch.setattr(dl, "stage_options", lambda feed, removed, polymer, *a, **k:
+                        dl._Options([_spec()]) if not removed and polymer == "LDPE" else dl._Options())
+    monkeypatch.setattr(dl, "run_stage", lambda *a, **k: {**ROW, **q})
+    table = dl.build_stage_table(FEED, max_washes=1)
+    output = _call(monkeypatch, table)["data"]
+    assert table.qualifications[_spec().key] == original
+    assert {k: output["wash_comparison"][0][k] for k in original} == original
+    path = wp.Pathway((table.stages[_spec().key],))
+    candidate = wp.evaluate_candidate(path, dl.DOWNSTREAM_TECHNOLOGIES[0], FEED, dl.default_economics(FEED), wp.CircularityBounds(1, 1, 1, 1))
+    assert {k: tool._wash_screen(candidate, table)[0][k] for k in original} == original
+    warning = [w for w in output["warnings"] if "Partial GWP coverage" in w]
+    assert len(warning) == 1 and "LDPE/p-Xylene" in warning[0] and "activated_carbon" in warning[0]
+    plain = deepcopy(table)
+    plain.qualifications.clear()
+    unqualified = _call(monkeypatch, plain)["data"]
+    for key in ("selected", "ranked_candidates", "optima_by_objective", "circularity_upper_bounds"):
+        assert output[key] == unqualified[key]
+    q["lca_coverage"]["metric_coverage_status"].clear()
+    assert table.qualifications[_spec().key] == original
+    assert dl.partial_gwp_warning([("x", {"lca_coverage": {"metric_coverage_status": {"gwp_kg_co2e_per_kg": "available", "htc": "partial"}}})]) is None

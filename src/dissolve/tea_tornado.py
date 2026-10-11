@@ -237,6 +237,7 @@ def tea_tornado(
         return tool_error(tool, "the base wash returned no value for some requested metric", error_code="base_run_failed",
                           base_metrics=base_values)
     sens_rows = []
+    run_qualifications = {"base": data_layer.row_qualifications(rows[base_key])}
     for name, base_value, low, high in plan:
         sides: dict[str, dict[str, float | None] | None] = {}
         errors: dict[str, str] = {}
@@ -245,6 +246,7 @@ def tea_tornado(
             key = json.dumps(cfg, sort_keys=True, default=str)
             if key in rows:
                 sides[side] = _metric_values(rows[key], chosen_metrics)
+                run_qualifications[f"{name}:{side}"] = data_layer.row_qualifications(rows[key])
             else:
                 sides[side] = None
                 errors[side] = failures.get(key, "not run")
@@ -262,6 +264,9 @@ def tea_tornado(
         "Results describe one simulated wash plant, gate to gate, per kg of recovered polymer: they are not a pathway's profit and "
         "not a plant measurement.",
     ]
+    coverage_warning = data_layer.partial_gwp_warning(list(run_qualifications.items()))
+    if coverage_warning:
+        warnings.append(coverage_warning)
     if default_ranges:
         warnings.append("These parameters used the tool's default ranges, not ranges the user gave: " + ", ".join(default_ranges))
     flat = [r["label"] for r in sens_rows if (r["metrics"][primary]["swing_pct_of_base"] or 0.0) < 0.05
@@ -282,9 +287,9 @@ def tea_tornado(
         "assumed_by_default": [n for n, given in (("target_mass_percent", target_mass_percent),
                                                   ("processing_capacity_mt_per_yr", processing_capacity_mt_per_yr),
                                                   ("dissolution_temperature_c", dissolution_temperature_c)) if given is None],
-        "metrics": base_values,
+        "metrics": base_values, **run_qualifications["base"],
     }
-    saved = _save(polymer_id, solvent_name, base_echo, chosen_metrics, sens_rows, ranking, basis)
+    saved = _save(polymer_id, solvent_name, base_echo, chosen_metrics, sens_rows, ranking, basis, run_qualifications=run_qualifications, warnings=warnings)
     extra: dict[str, Any] = {"figure_data_file": saved}
     if draw_plot:
         extra.update(_render(saved))
@@ -293,18 +298,19 @@ def tea_tornado(
                        + ", ".join(top) + "." + (f" Plot: {extra['figure_file']}" if extra.get("figure_file") else "")),
         analysis_type="tea_tornado", basis=basis, base=base_echo, metrics=[{"metric": m, "label": METRICS[m][0], "unit": METRICS[m][1]}
                                                                            for m in chosen_metrics],
-        sensitivity_rows=sens_rows, ranking=ranking,
+        sensitivity_rows=sens_rows, ranking=ranking, run_qualifications=run_qualifications,
         simulations={"distinct_runs": len(configs), "live": live, "stored_or_reused": len(rows) - live, "failed": len(failures)},
         warnings=warnings, seconds=round(time.monotonic() - started, 1), **extra,
     )
 
 
 def _save(polymer: str, solvent: str, base: dict[str, Any], metrics: tuple[str, ...], rows: list[dict[str, Any]],
-          ranking: dict[str, list[str]], basis: str) -> str | None:
+          ranking: dict[str, list[str]], basis: str, *, run_qualifications: dict[str, Any] | None = None,
+          warnings: list[str] | None = None) -> str | None:
     payload = {"schema": SCHEMA, "created_utc": datetime.now(timezone.utc).isoformat(timespec="seconds"), "polymer": polymer,
                "solvent": solvent, "basis": basis, "base": base,
                "metrics": [{"metric": m, "label": METRICS[m][0], "unit": METRICS[m][1]} for m in metrics],
-               "rows": rows, "ranking": ranking}
+               "rows": rows, "ranking": ranking, "run_qualifications": run_qualifications, "warnings": warnings}
     try:
         directory = _results_dir()
         directory.mkdir(parents=True, exist_ok=True)

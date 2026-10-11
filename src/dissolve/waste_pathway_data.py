@@ -9,6 +9,7 @@ receives), so stages are keyed by the set of polymers already removed.
 
 from __future__ import annotations
 
+import copy
 import json
 import time
 from functools import lru_cache
@@ -131,12 +132,38 @@ class StageTable:
     match_status: dict[tuple[frozenset[str], str, str], str] = field(default_factory=dict)  # exact, surrogate, ...
     recovery_sources: dict[tuple[frozenset[str], str, str], str] = field(default_factory=dict)  # simulated or assumed
     indicators: dict[tuple[frozenset[str], str, str], dict[str, Any]] = field(default_factory=dict)  # per-kg solvent indicators
+    qualifications: dict[tuple[frozenset[str], str, str], dict[str, Any]] = field(default_factory=dict)
     screen_log: list[dict[str, Any]] = field(default_factory=list)  # what each screen did to the solvent pool
     session_reused: set = field(default_factory=set)  # washes whose row came from an earlier call in this session
     wall_seconds: dict[tuple[frozenset[str], str, str], float] = field(default_factory=dict)  # each wash's own run time
     pending: list[StageSpec] = field(default_factory=list)  # waiting for live-simulation confirmation
     failed: list[dict[str, Any]] = field(default_factory=list)
     no_option: list[dict[str, Any]] = field(default_factory=list)  # (stream, polymer) pairs with no admissible solvent
+
+
+QUALIFICATION_FIELDS = (
+    "lca_coverage", "process_parameter_status", "process_parameter_status_definitions",
+    "live_parameter_standing", "can_cite_as_validated_process",
+)
+
+
+def row_qualifications(row: Mapping[str, Any]) -> dict[str, Any]:
+    """Keep the engine's qualifications, including explicit False values."""
+    return {key: copy.deepcopy(row[key]) for key in QUALIFICATION_FIELDS if key in row}
+
+
+def partial_gwp_warning(rows: Sequence[tuple[str, Mapping[str, Any]]]) -> str | None:
+    affected = []
+    for label, row in rows:
+        coverage = row.get("lca_coverage") or {}
+        if (coverage.get("metric_coverage_status") or {}).get("gwp_kg_co2e_per_kg") != "partial":
+            continue
+        names = sorted({str(item.get("name") or "unnamed contributor")
+                        for item in coverage.get("uncharacterized_active_contributors") or []
+                        if "gwp_kg_co2e_per_kg" in (item.get("missing_metrics") or [])})
+        affected.append(f"{label} (uncharacterized: {', '.join(names) or 'not specified'})")
+    return ("Partial GWP coverage for " + "; ".join(affected) +
+            ". These emissions omit the uncharacterized contributors.") if affected else None
 
 
 def admitted_solvents(*, in_scope_only: bool = True) -> list[str]:
@@ -553,6 +580,7 @@ def build_stage_table(
                 table.stages[spec.key], table.recovery_sources[spec.key] = wash_stage_from_row(
                     spec, row, recovery_yield=recovery_yield, renewable_share=renewable_share)
                 table.specs[spec.key] = spec
+                table.qualifications[spec.key] = row_qualifications(row)
                 if row.get("session_reused"):
                     table.session_reused.add(spec.key)
                 table.wall_seconds[spec.key] = float(row.get("wall_seconds") or 0.0)
