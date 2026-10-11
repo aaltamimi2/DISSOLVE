@@ -82,7 +82,7 @@ def test_the_paper_view_lists_the_corpus_papers_and_searches_their_text(client, 
     from dissolve import research
 
     listing = client.get("/api/literature/papers").json()
-    assert listing["count"] == listing["resolved"] == 61
+    assert listing["count"] == listing["resolved"] == 89
     paper = next(p for p in listing["papers"] if p["doi"] == "10.1016/j.wasman.2025.01.022")
     assert paper["title"].startswith("A solvent-targeted recovery and precipitation scheme")
     assert paper["authors"][0].startswith("Kevin") and paper["year"] == 2025 and paper["passages"] > 0
