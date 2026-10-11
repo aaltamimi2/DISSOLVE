@@ -310,9 +310,10 @@ def _save(polymer: str, solvent: str, base: dict[str, Any], metrics: tuple[str, 
         directory.mkdir(parents=True, exist_ok=True)
         text = json.dumps(payload, indent=1, default=str)
         stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
-        (directory / f"tornado_{stamp}.json").write_text(text)
+        snapshot = directory / f"tornado_{stamp}.json"
+        snapshot.write_text(text)
         (directory / "latest_tornado.json").write_text(text)
-        return str(directory / "latest_tornado.json")
+        return str(snapshot)
     except (OSError, ValueError):
         return None
 

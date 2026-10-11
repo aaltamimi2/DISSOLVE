@@ -152,9 +152,10 @@ def _save_figure_data(problem: milp.PathwayProblem, common: dict[str, Any], sele
         directory.mkdir(parents=True, exist_ok=True)
         stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
         text = json.dumps(payload, indent=1, default=str)
-        (directory / f"pathways_{stamp}.json").write_text(text)
+        snapshot = directory / f"pathways_{stamp}.json"
+        snapshot.write_text(text)
         (directory / "latest.json").write_text(text)
-        return str(directory / "latest.json")
+        return str(snapshot)
     except (OSError, ValueError):
         return None
 

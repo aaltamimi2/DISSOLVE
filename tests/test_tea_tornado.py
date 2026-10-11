@@ -159,7 +159,9 @@ def test_stored_records_give_a_cache_basis(monkeypatch):
 def test_the_result_is_saved_for_the_figure(toy, tmp_path):
     out = _call(parameters=["irr", "dissolution_capacity"])
     saved = json.loads((tmp_path / "pathway_results" / "latest_tornado.json").read_text())
-    assert out["figure_data_file"] == str(tmp_path / "pathway_results" / "latest_tornado.json")
+    assert out["figure_data_file"] != str(tmp_path / "pathway_results" / "latest_tornado.json")
+    assert Path(out["figure_data_file"]).name.startswith("tornado_")
+    assert json.loads(Path(out["figure_data_file"]).read_text()) == saved
     assert saved["schema"] == plot.SCHEMA and [r["parameter"] for r in saved["rows"]] == ["irr", "dissolution_capacity"]
     assert "figure_file" not in out  # nothing is drawn unless asked
 
@@ -261,3 +263,20 @@ def test_the_tornado_is_drawn_from_the_command_line(tmp_path):
     done = subprocess.run([exe, str(script), str(saved), "--out", str(out)], capture_output=True, text=True)
     assert done.returncode == 0, done.stderr
     assert out.read_bytes()[:8] == b"\x89PNG\r\n\x1a\n" and (tmp_path / "t.md").exists()
+
+
+def test_tornado_artifact_paths_are_immutable(toy, monkeypatch, tmp_path):
+    first = _call(parameters=["irr"])
+    saved = Path(first["figure_data_file"])
+    before = saved.read_bytes()
+    second = _call(parameters=["irr"], processing_capacity_mt_per_yr=30000)
+    assert first["figure_data_file"] != second["figure_data_file"]
+    assert saved.read_bytes() == before
+    alias = json.loads((tmp_path / "pathway_results/latest_tornado.json").read_text())
+    assert alias["base"]["processing_capacity_mt_per_yr"] == 30000
+    args = []
+    monkeypatch.setattr(tt, "run_plot", lambda fn, module, argv: args.append(argv) or None)
+    monkeypatch.setattr(tt, "_open_file", lambda path: False)
+    a, b = tt._render(first["figure_data_file"]), tt._render(second["figure_data_file"])
+    assert a["figure_file"] != b["figure_file"]
+    assert args[0][0] == str(saved)

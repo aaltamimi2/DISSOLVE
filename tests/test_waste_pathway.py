@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+from pathlib import Path
 
 import pytest
 
@@ -656,7 +657,9 @@ def _saved(tmp_path):
 def test_every_answer_saves_all_candidates_and_the_three_exact_fronts(monkeypatch, tmp_path):
     out = _call(monkeypatch, _stub_table(), objective="max_profit", shared_plant_capacity_mt_per_yr=20000)["data"]
     saved = _saved(tmp_path)
-    assert out["figure_data_file"] == str(tmp_path / "pathway_results" / "latest.json")
+    assert out["figure_data_file"] != str(tmp_path / "pathway_results" / "latest.json")
+    assert Path(out["figure_data_file"]).name.startswith("pathways_")
+    assert json.loads(Path(out["figure_data_file"]).read_text()) == saved
     assert saved["schema"] == "dissolve.waste-pathway-figure-data.v1" and len(saved["candidates"]) == out["candidates_considered"]
     assert saved["selected"] == out["selected"]["pathway"]
     assert set(saved["fronts"]) == {"emissions_vs_profit", "circularity_vs_profit", "emissions_vs_circularity"}
@@ -872,3 +875,22 @@ def test_the_result_says_which_downstream_technologies_have_a_recorded_capital_c
     recorded = {r["key"]: r["capital_cost_recorded"] for r in data["downstream_technologies"]}
     assert recorded["gas_er"] is True and not any(recorded[k] for k in recorded if k != "gas_er")
     assert "hydrogen routes" in data["assumptions"]["downstream_capital"] and "favors" in data["assumptions"]["downstream_capital"]
+
+
+def test_scenario_artifact_paths_are_immutable(monkeypatch, tmp_path):
+    from pathlib import Path
+    first = _call(monkeypatch, _stub_table(), objective="max_profit")["data"]
+    saved = Path(first["figure_data_file"])
+    before = saved.read_bytes()
+    second = _call(monkeypatch, _stub_table(), objective="min_emissions")["data"]
+    assert first["figure_data_file"] != second["figure_data_file"]
+    assert saved.read_bytes() == before
+    assert _saved(tmp_path)["request"] == "objective=min_emissions"
+    paths = []
+    monkeypatch.setattr(tool, "_python_with_matplotlib", lambda: tool.sys.executable)
+    monkeypatch.setattr(tool.plotting, "write", lambda source, dest: paths.append((source, dest)))
+    monkeypatch.setattr(tool, "_open_file", lambda path: False)
+    a = tool._render_figure(first["figure_data_file"])
+    b = tool._render_figure(second["figure_data_file"])
+    assert a["figure_file"] != b["figure_file"]
+    assert paths[0][0] == saved
