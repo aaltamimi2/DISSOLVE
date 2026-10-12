@@ -20,6 +20,7 @@ import threading
 import time
 import unicodedata
 import zlib
+from array import array
 from collections import Counter
 from contextvars import ContextVar
 from dataclasses import dataclass, field
@@ -4173,7 +4174,7 @@ def _load_bge10_product_index() -> dict[str, Any]:
             "bge10_chunk_membership",
             "BGE serving chunk membership is incompatible.",
         )
-    _validate_dense_rows(
+    rows = _validate_dense_rows(
         recorded,
         dense.get("vectors"),
         dim=_BGE_DIM,
@@ -4181,6 +4182,8 @@ def _load_bge10_product_index() -> dict[str, Any]:
     )
     out = dict(payload)
     out["abstention"] = abstention
+    # The same doubles in 8 bytes each, not a Python float object each: about 80 MB less for the 89-paper release.
+    out["dense"] = dict(dense, vectors=[array("d", row) for row in rows])
     _SERVED_INDEX.clear()  # one served release at a time
     _SERVED_INDEX[served] = out
     return out

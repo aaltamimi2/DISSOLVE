@@ -11,10 +11,16 @@ hash-checked files, and the vendored package coverage is named rag90coverage (th
 and is purged from sys.modules on load). ensemble-v4's passages.jsonl is the same file as final-v1's, as it is in the
 frozen candidates. The served-equivalence check compares this module's lists with each frozen candidate's, question
 by question.
+
+The frozen rankers each open the same int8 encoder file. While this module loads or runs them, a second request for
+a file with the same session settings gets the session already open: one copy of the model in memory (about 160 MB
+less on the 89-paper engine) and, since a session holds no state between runs, the same lists.
 """
 
 from __future__ import annotations
 
+import contextlib
+import ctypes
 import importlib.util
 import json
 import os
@@ -29,6 +35,30 @@ RUNTIME_DESIGNS = {"rag90-final-v1": "rag90-final-v1-r03-sol", "ensemble-v4": "e
 _LOCK = threading.Lock()
 _MODULES: dict[str, object] = {}
 _CHUNK_IDS: frozenset[str] | None = None
+_SESSIONS: dict[tuple, object] = {}
+
+
+@contextlib.contextmanager
+def _shared_sessions():
+    """Inside the block, onnxruntime.InferenceSession(path, options, providers=...) returns one session per model file
+    and thread settings. Any other call shape gets a session of its own. Callers hold _LOCK."""
+    import onnxruntime
+
+    real = onnxruntime.InferenceSession
+
+    def shared(path, options=None, *args, providers=None, **kwargs):
+        if options is None or args or kwargs:
+            return real(path, options, *args, providers=providers, **kwargs)
+        key = (str(path), options.intra_op_num_threads, options.inter_op_num_threads, tuple(providers or ()))
+        if key not in _SESSIONS:
+            _SESSIONS[key] = real(path, options, providers=providers)
+        return _SESSIONS[key]
+
+    onnxruntime.InferenceSession = shared
+    try:
+        yield
+    finally:
+        onnxruntime.InferenceSession = real
 
 
 def chunk_ids() -> frozenset[str]:
@@ -60,8 +90,20 @@ def _module(design: str):
     return module
 
 
+def _release_freed_memory() -> None:
+    """Hand the C allocator's freed pages back to the system (glibc only; a no-op elsewhere). Loading the passages
+    and each search leave tens of MB freed but still resident, which the hosted site's TEA worker needs."""
+    try:
+        ctypes.CDLL("libc.so.6").malloc_trim(0)
+    except (OSError, AttributeError):
+        pass
+
+
 def search(query: str, budget_chars: int, design: str = DEFAULT_DESIGN) -> list[str]:
-    """Packed chunk ids for one query. Calls are serialised: the frozen code fills module-level caches lazily.
-    Each design loads its own encoder sessions, so a server should use one design."""
-    with _LOCK:
-        return list(_module(design).search(query, int(budget_chars)))
+    """Packed chunk ids for one query. Calls are serialised: the frozen code fills module-level caches lazily,
+    and opens its encoder sessions on first use."""
+    with _LOCK, _shared_sessions():
+        try:
+            return list(_module(design).search(query, int(budget_chars)))
+        finally:
+            _release_freed_memory()

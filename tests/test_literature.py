@@ -4461,6 +4461,21 @@ class TestProfileRouting:
         bge["index_path"].write_bytes(bge["index_path"].read_bytes() + b"\n")
         _assert_helper_refusal_profile_routing(PRODUCT_KB, QUERY, [bge["index_path"], bge["manifest_path"]])
 
+    def test_the_served_vectors_are_the_releases_doubles_held_compactly(self, _isolate, monkeypatch):
+        """The 89-paper release's vectors took about 110 MB as lists of Python floats. The served index holds the same
+        doubles as arrays; growing a release from it still writes plain lists."""
+        from array import array
+
+        bge = _seed_bge(_isolate)
+        monkeypatch.setenv("DISSOLVE_BGE10_MANIFEST", str(bge["manifest_path"]))
+        stored = json.loads(gzip.decompress(bge["index_path"].read_bytes()))["dense"]["vectors"]
+        loaded = research._load_index(PRODUCT_KB)
+        rows = loaded["dense"]["vectors"]
+        assert all(isinstance(row, array) and row.typecode == "d" for row in rows)
+        assert [list(row) for row in rows] == stored
+        grown = corpus.build_index([], PRODUCT_KB, previous=loaded, model=loaded["dense"]["model"])
+        assert json.loads(json.dumps(grown["dense"]["vectors"])) == stored
+
     def test_bge10_manifest_ordered_chunk_ids_accepted(self, _isolate, monkeypatch):
         bge = _seed_bge(_isolate)
         monkeypatch.setenv("DISSOLVE_BGE10_MANIFEST", str(bge["manifest_path"]))

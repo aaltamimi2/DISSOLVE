@@ -153,7 +153,7 @@ def build_index(
             new.append(row)
     chunks = list(old["chunks"]) + new
     shas = sorted(known | {sha for sha, _ in papers})
-    vectors = list((old.get("dense") or {}).get("vectors") or [])
+    vectors = [list(row) for row in (old.get("dense") or {}).get("vectors") or []]  # the served index holds arrays
     if new:
         returned, fresh = research._dense_vectors([research.chunk_sparse_corpus(row) for row in new], model)
         if returned != model:

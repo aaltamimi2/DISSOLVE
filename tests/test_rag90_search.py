@@ -105,3 +105,28 @@ def test_the_package_reproduces_the_frozen_candidates_lists(design, fixture):
         for budget in fixture["budgets"]:
             assert rag90_search.search(case["query"], budget, design=design) == case["lists"][str(budget)], (
                 case["query"], budget)
+
+
+def test_rankers_asking_for_the_same_encoder_file_share_one_session(monkeypatch):
+    onnxruntime = pytest.importorskip("onnxruntime")
+    opened = []
+
+    class Session:
+        def __init__(self, path, options=None, providers=None, **kwargs):
+            opened.append((path, kwargs))
+
+    monkeypatch.setattr(onnxruntime, "InferenceSession", Session)
+    monkeypatch.setattr(rag90_search, "_SESSIONS", {})
+    one, four = onnxruntime.SessionOptions(), onnxruntime.SessionOptions()
+    one.intra_op_num_threads = one.inter_op_num_threads = 1
+    four.intra_op_num_threads = 4
+    with rag90_search._shared_sessions():
+        first = onnxruntime.InferenceSession("encoder.onnx", one, providers=["CPUExecutionProvider"])
+        again = onnxruntime.InferenceSession("encoder.onnx", one, providers=["CPUExecutionProvider"])
+        other_file = onnxruntime.InferenceSession("reranker.onnx", one, providers=["CPUExecutionProvider"])
+        other_threads = onnxruntime.InferenceSession("encoder.onnx", four, providers=["CPUExecutionProvider"])
+        unusual = onnxruntime.InferenceSession("encoder.onnx", one, providers=["CPUExecutionProvider"], provider_options=[{}])
+    assert again is first
+    assert len({id(first), id(other_file), id(other_threads), id(unusual)}) == 4
+    assert [path for path, _ in opened] == ["encoder.onnx", "reranker.onnx", "encoder.onnx", "encoder.onnx"]
+    assert onnxruntime.InferenceSession is Session
