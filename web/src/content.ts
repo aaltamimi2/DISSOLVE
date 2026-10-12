@@ -142,6 +142,8 @@ const FAMILY_OF: Record<string, keyof typeof FAMILIES> = {
   fetch_solvent_safety_by_cid: "safety",
   evaluate_process: "tea",
   rank_landscape: "tea",
+  optimize_waste_pathway: "tea",
+  tea_tornado: "tea",
   lookup_hansen_parameters: "hansen",
   screen_hansen_compatibility: "hansen",
   lookup_glass_transition: "hansen",

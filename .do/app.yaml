@@ -33,6 +33,17 @@ services:
       - key: DISSOLVE_LITERATURE_ENGINE
         scope: RUN_TIME
         value: rag90
+      # The waste-pathway and tornado tools on the site: at most two live simulations per request (the site runs one at a
+      # time for everyone, about a minute each), and no figure files. A local install has neither limit.
+      - key: DISSOLVE_PATHWAY_MAX_LIVE_RUNS
+        scope: RUN_TIME
+        value: "2"
+      - key: DISSOLVE_PATHWAY_FIGURES
+        scope: RUN_TIME
+        value: "off"
+      - key: DISSOLVE_NO_OPEN
+        scope: RUN_TIME
+        value: "1"
       # The read-only admin view (web_admin.py); the owner's copy is in ~/.config/dissolve/admin_token (mode 600).
       - key: DISSOLVE_ADMIN_TOKEN
         type: SECRET
