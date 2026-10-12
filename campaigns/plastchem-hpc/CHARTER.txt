@@ -1519,3 +1519,17 @@ A-13 NOTE (2026-10-10 15:23 UTC, coverage lane) — AFTER THE REBOOT: t13, RETRY
 4. Conformer study (exploratory): confstudy-k01 runs at nice 0 (1000 and 50 floored its priority at 1, since the
    account's fairshare factor is 0); 46 running. Control: tritetracontane k01 rerun on Rome reproduces the released
    surface byte for byte and its 640 released partition rows within 3e-6.
+
+A-13 NOTE (2026-10-10 18:53 UTC, coverage lane) — RELEASE promotion-v12: 8,782 COMPUTED; 97.0% OF THE SIMULABLE ENTRIES
+1. /mnt/r/plastchem-euler/promotion-v12 (manifest 191b665f...; promotion-v11 1a7f9ef8... unchanged beneath it): 8,923
+   status rows, 8,782 computed (+135, batch t13): coverage c12 24, c13 14, c14 27, c15 13, c16 13, c17 30, r02 6, r03
+   3; 5 tier-2 failure rows now computed (r01); EPYC 7763 43, 7513 38, 7272 24, 7773X 16, 7401 14. 21 more final
+   failure rows, all D-IDENT rejections (mostly sulfonated and nitro azo dyes). 1,264 parent aliases served (1,273
+   offered).
+2. Coverage (anaconda RDKit 2023.09.2): 9,340 of 9,627 simulable entries (97.02%; v11 95.56%); 281 structures remain
+   (131 failed, 150 not in the release yet).
+3. Archives: set promotion-v12 (surfaces 20.0 MB, ORCA files 712 KB, 135 rows each) appended; no part rewritten.
+4. DISSOLVE 75b2377c on main. Full suite 2,284 passed, 3 skipped (expected), audit 0, home writes 0. Sync: main
+   75b2377c | main-backup 75b2377c | main-cleanup-frontend b1e30ac5 = main + 39 frontend commits, behind main by 0.
+   Deploy dcbfb6b6 ACTIVE at 18:52 UTC, live contaminants_computed 8782. Live check answered (Benzoazurin,
+   polypropylene, ethanol; status ok).

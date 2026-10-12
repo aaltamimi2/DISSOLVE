@@ -34,18 +34,18 @@ for d in sorted(root.glob("k[0-9][0-9]")):
         r = json.loads(s.read_text())
         if r.get("returncode") == 0:
             groups[d.name] = r["stdout"].strip().split(";")[0]
-records = {}
+records, read_errors = {}, {}
 for p in (root / "runs").glob("*/result.json"):
     try:
         records[p.parent.name] = json.loads(p.read_text())
-    except (OSError, json.JSONDecodeError):
-        pass
+    except (OSError, json.JSONDecodeError) as exc:
+        read_errors[p.parent.name] = str(exc)
 sacct = ""
 if groups:
     sacct = subprocess.run(["sacct", "-j", ",".join(groups.values()), "--starttime=2026-10-10", "--units=K",
                             "--format=JobID,State%32,ExitCode,ElapsedRaw,MaxRSS,NodeList", "-nP"],
                            capture_output=True, text=True).stdout
-print(json.dumps(dict(groups=groups, records=records, sacct=sacct)))
+print(json.dumps(dict(groups=groups, records=records, sacct=sacct, read_errors=read_errors)))
 '''
 
 
@@ -65,6 +65,8 @@ def main():
     if response.returncode:
         raise SystemExit(response.stderr[-500:])
     snap = json.loads(response.stdout)
+    if snap["read_errors"]:  # a record being written right now: say so, and retry it next pass (no ledger entry)
+        print(json.dumps(dict(unreadable_remote_records=snap["read_errors"])))
     accounting = {}
     for line in snap["sacct"].splitlines():
         f = line.split("|")

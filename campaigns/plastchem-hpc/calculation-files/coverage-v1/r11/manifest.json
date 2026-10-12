@@ -1,0 +1,272 @@
+{
+ "campaign": "contam-coverage-milan-v1",
+ "group": "r11",
+ "name": "contam-coverage-r11",
+ "walltime": "207:00:00",
+ "mem": "4G",
+ "retry_folders": true,
+ "retry_kind": "time_limit",
+ "policy": {
+  "mode": "connectivity_first_block_with_computed_stereochemistry",
+  "authority": "Owner decision A-3 D-IDENT",
+  "charter_sha256": "39aa9d7e6e419291bb537616b080309bf55fe703d4b98710aab9e1e266c3bdab",
+  "require_stereo_layer_match": false,
+  "isotope_policy": "exclude; no parent mapping",
+  "campaign_concurrency_limit": 64,
+  "orca_share_of_cap": 56,
+  "thermodynamics_share_of_cap": 8,
+  "concurrency_authority": "Owner 2026-09-16: increase concurrency only; keep 4GB (D-CONC 64, shared by ORCA and thermodynamics)",
+  "tier_authority": "Amendment A-13 (coverage campaign, 2026-10-08)"
+ },
+ "recipe": {
+  "n_embed": 300,
+  "seed": 12345,
+  "prune_rms": 0.5,
+  "max_mmff_iters": 2000,
+  "dft_conformers": 1
+ },
+ "input": {
+  "path": "inputs/plastchem_coverage_a13_worklist.csv",
+  "sha256": "40b4ca4ef3237e7947dfd77beab339a0acca5beb4fb732b135b0f8ce228683e2"
+ },
+ "chunk_rule": "A-13: coverage runs that reached their time limit (6 x the cost fit), retried once from the same prepared geometry with 24 x the fit and their own run folders",
+ "molecules": [
+  {
+   "name": "rel-2',2'''-[(1R,2R)-1,2-Cyclohexanediylbis(methyleneoxy)]bis[3-(9H-carbazol-9-yl)-5-methyl[1,1'-biphenyl]-2-ol",
+   "name_source": "PlastChem (work list)",
+   "smiles": "Cc1cc(-c2ccccc2OC[C@@H]2CCCC[C@H]2COc2ccccc2-c2cc(C)cc(-n3c4ccccc4c4ccccc43)c2O)c(O)c(-n2c3ccccc3c3ccccc32)c1",
+   "plastchem_id": "15393",
+   "cas": "911296-54-3",
+   "inchikey": "DMAGFMYFBVTRIA-ZAQUEYBZSA-N",
+   "molecular_weight_g_mol": "839.00",
+   "n_atoms_with_H": "114",
+   "array_index": 0,
+   "atoms": 114,
+   "group": "r11",
+   "tier": "coverage",
+   "worklist_order": 1753,
+   "kind": "CHNO",
+   "elements": "CHNO",
+   "served_entries_direct": "15393",
+   "served_entries_as_parent": "",
+   "entry_names": "rel-2',2'''-[(1R,2R)-1,2-Cyclohexanediylbis(methyleneoxy)]bis[3-(9H-carbazol-9-yl)-5-methyl[1,1'-biphenyl]-2-ol",
+   "plastchem_groups": "",
+   "families_existing": "",
+   "families_proposed": "",
+   "retry_of": {
+    "group": "c16",
+    "failure_mode": "scheduler_signal_10",
+    "array_job_id": "81426",
+    "array_task_id": 70,
+    "node": "euler141.engr.wisc.edu",
+    "cpu_model": "AMD EPYC 7773X 64-Core Processor",
+    "elapsed_seconds": 187067.34567134897,
+    "slurm_accounting": {
+     "state": "FAILED",
+     "exit_code": "1:0",
+     "elapsed_seconds": 187068,
+     "node_list": "euler141",
+     "maxrss_kib": 4188944.0,
+     "maxrss_source": "sacct batch step"
+    },
+    "record_sha256": "efb33466d059ec213e175ac8ecac564f23c02cc0c3df857c1ed417f3ab027e52"
+   }
+  },
+  {
+   "name": "Benzoic acid, 3,3'-[(2,5-dichloro-1,4-phenylene)bis[iminocarbonyl(2-hydroxy-3,1-naphthalenediyl)azo]]bis[4-methyl-, bis(1-methylethyl) ester",
+   "name_source": "PlastChem (work list)",
+   "smiles": "Cc1ccc(C(=O)OC(C)C)cc1N=Nc1c(O)c(C(=O)Nc2cc(Cl)c(NC(=O)c3cc4ccccc4c(N=Nc4cc(C(=O)OC(C)C)ccc4C)c3O)cc2Cl)cc2ccccc12",
+   "plastchem_id": "12934",
+   "cas": "71566-54-6",
+   "inchikey": "KTIRDZPYBSANLK-UHFFFAOYSA-N",
+   "molecular_weight_g_mol": "925.80",
+   "n_atoms_with_H": "108",
+   "array_index": 1,
+   "atoms": 108,
+   "group": "r11",
+   "tier": "coverage",
+   "worklist_order": 1815,
+   "kind": "halogen",
+   "elements": "CHNOCl",
+   "served_entries_direct": "12934",
+   "served_entries_as_parent": "",
+   "entry_names": "Benzoic acid, 3,3'-[(2,5-dichloro-1,4-phenylene)bis[iminocarbonyl(2-hydroxy-3,1-naphthalenediyl)azo]]bis[4-methyl-, bis(1-methylethyl) ester",
+   "plastchem_groups": "",
+   "families_existing": "",
+   "families_proposed": "",
+   "retry_of": {
+    "group": "c17",
+    "failure_mode": "scheduler_signal_10",
+    "array_job_id": "81622",
+    "array_task_id": 32,
+    "node": "euler142.engr.wisc.edu",
+    "cpu_model": "AMD EPYC 7763 64-Core Processor",
+    "elapsed_seconds": 165457.51217025204,
+    "slurm_accounting": {
+     "state": "FAILED",
+     "exit_code": "1:0",
+     "elapsed_seconds": 165459,
+     "node_list": "euler142",
+     "maxrss_kib": 4188044.0,
+     "maxrss_source": "sacct batch step"
+    },
+    "record_sha256": "7dd98d1d6d298973f7ccb0de8a6ca01a2f3f3b8b02a4c833fa283e07e04acc4f"
+   }
+  },
+  {
+   "name": "5-[[4-[4-[[8-[[7-[(2,4-Diaminophenyl)diazenyl]-1-hydroxy-3-sulfonaphthalen-2-yl]diazenyl]-1-hydroxy-3,6-disulfonaphthalen-2-yl]diazenyl]phenyl]phenyl]diazenyl]-2-hydroxybenzoic acid",
+   "name_source": "PubChem CID 136160633 title",
+   "smiles": "Nc1ccc(N=Nc2ccc3cc(S(=O)(=O)O)c(N=Nc4cc(S(=O)(=O)O)cc5cc(S(=O)(=O)O)c(N=Nc6ccc(-c7ccc(N=Nc8ccc(O)c(C(=O)O)c8)cc7)cc6)c(O)c45)c(O)c3c2)c(N)c1",
+   "plastchem_id": "11341",
+   "cas": "6428-43-9",
+   "inchikey": "MDVHWMJJDVGUQN-UHFFFAOYSA-N",
+   "molecular_weight_g_mol": "1033.00",
+   "n_atoms_with_H": "104",
+   "array_index": 2,
+   "atoms": 104,
+   "group": "r11",
+   "tier": "coverage",
+   "worklist_order": 1857,
+   "kind": "S, P or Si",
+   "elements": "CHNOS",
+   "served_entries_direct": "",
+   "served_entries_as_parent": "11341",
+   "entry_names": "C.I. Direct Brown 73",
+   "plastchem_groups": "",
+   "families_existing": "",
+   "families_proposed": "",
+   "retry_of": {
+    "group": "c17",
+    "failure_mode": "scheduler_signal_10",
+    "array_job_id": "81622",
+    "array_task_id": 74,
+    "node": "euler143.engr.wisc.edu",
+    "cpu_model": "AMD EPYC 7763 64-Core Processor",
+    "elapsed_seconds": 151075.35582753597,
+    "slurm_accounting": {
+     "state": "FAILED",
+     "exit_code": "1:0",
+     "elapsed_seconds": 151076,
+     "node_list": "euler143",
+     "maxrss_kib": 4181912.0,
+     "maxrss_source": "sacct batch step"
+    },
+    "record_sha256": "f1614c5a45a0a6de420eef8e504c6eeeee87df4c975e978f8c1fd19dd9a5a9d0"
+   }
+  },
+  {
+   "name": "5-[[4-[4-[[8-[[6-[(2,4-Diaminophenyl)diazenyl]-1-hydroxy-3-sulfonaphthalen-2-yl]diazenyl]-1-hydroxy-3,6-disulfonaphthalen-2-yl]diazenyl]phenyl]phenyl]diazenyl]-2-hydroxybenzoic acid",
+   "name_source": "PubChem CID 136033660 title",
+   "smiles": "Nc1ccc(N=Nc2ccc3c(O)c(N=Nc4cc(S(=O)(=O)O)cc5cc(S(=O)(=O)O)c(N=Nc6ccc(-c7ccc(N=Nc8ccc(O)c(C(=O)O)c8)cc7)cc6)c(O)c45)c(S(=O)(=O)O)cc3c2)c(N)c1",
+   "plastchem_id": "11340",
+   "cas": "6428-42-8",
+   "inchikey": "NTECSKIELZJUFU-UHFFFAOYSA-N",
+   "molecular_weight_g_mol": "1033.00",
+   "n_atoms_with_H": "104",
+   "array_index": 3,
+   "atoms": 104,
+   "group": "r11",
+   "tier": "coverage",
+   "worklist_order": 1858,
+   "kind": "S, P or Si",
+   "elements": "CHNOS",
+   "served_entries_direct": "",
+   "served_entries_as_parent": "11340",
+   "entry_names": "C.I. Direct Brown 70",
+   "plastchem_groups": "",
+   "families_existing": "",
+   "families_proposed": "",
+   "retry_of": {
+    "group": "c17",
+    "failure_mode": "scheduler_signal_10",
+    "array_job_id": "81622",
+    "array_task_id": 75,
+    "node": "euler143.engr.wisc.edu",
+    "cpu_model": "AMD EPYC 7763 64-Core Processor",
+    "elapsed_seconds": 151077.95025774394,
+    "slurm_accounting": {
+     "state": "FAILED",
+     "exit_code": "1:0",
+     "elapsed_seconds": 151079,
+     "node_list": "euler143",
+     "maxrss_kib": 4186956.0,
+     "maxrss_source": "sacct batch step"
+    },
+    "record_sha256": "c1dd9ed400a5baa7a7d14a748c5d390a766aa8a9f552a10b41d4c7aa38287614"
+   }
+  },
+  {
+   "name": "5-[[2,4-Dihydroxy-5-[[4-(4-nitro-2-sulfoanilino)phenyl]diazenyl]phenyl]diazenyl]-4-hydroxy-3-[[4-(4-nitro-2-sulfoanilino)phenyl]diazenyl]naphthalene-2,7-disulfonic acid",
+   "name_source": "PubChem CID 16130950 title",
+   "smiles": "O=[N+]([O-])c1ccc(Nc2ccc(N=Nc3cc(N=Nc4cc(S(=O)(=O)O)cc5cc(S(=O)(=O)O)c(N=Nc6ccc(Nc7ccc([N+](=O)[O-])cc7S(=O)(=O)O)cc6)c(O)c45)c(O)cc3O)cc2)c(S(=O)(=O)O)c1",
+   "plastchem_id": "12738",
+   "cas": "70210-34-3",
+   "inchikey": "UWTDBBXDZGVBKT-UHFFFAOYSA-N",
+   "molecular_weight_g_mol": "1081.00",
+   "n_atoms_with_H": "101",
+   "array_index": 4,
+   "atoms": 101,
+   "group": "r11",
+   "tier": "coverage",
+   "worklist_order": 1867,
+   "kind": "S, P or Si",
+   "elements": "CHNOS",
+   "served_entries_direct": "",
+   "served_entries_as_parent": "12738",
+   "entry_names": "2,7-Naphthalenedisulfonic acid, 5-(2-(2,4-dihydroxy-5-(2-(4-((4-nitro-2-sulfophenyl)amino)phenyl)diazenyl)phenyl)diazenyl)-4-hydroxy-3-(2-(4-((4-nitro-2-sulfophenyl)amino)phenyl)diazenyl)-, sodium salt (1:4)",
+   "plastchem_groups": "azodyes",
+   "families_existing": "",
+   "families_proposed": "Azo dyes",
+   "retry_of": {
+    "group": "c17",
+    "failure_mode": "scheduler_signal_10",
+    "array_job_id": "81622",
+    "array_task_id": 84,
+    "node": "euler143.engr.wisc.edu",
+    "cpu_model": "AMD EPYC 7763 64-Core Processor",
+    "elapsed_seconds": 143861.29772148002,
+    "slurm_accounting": {
+     "state": "FAILED",
+     "exit_code": "1:0",
+     "elapsed_seconds": 143862,
+     "node_list": "euler143",
+     "maxrss_kib": 4187916.0,
+     "maxrss_source": "sacct batch step"
+    },
+    "record_sha256": "6104bee7a390e80d385b43002f3f1a560769701e56ef9654979ed9b4e90167d4"
+   }
+  }
+ ],
+ "admitted": [
+  {
+   "cpu_model": "AMD EPYC 7763 64-Core Processor",
+   "partition": "research",
+   "constraint": "milan&cpu",
+   "basis": "the campaign's reference CPU (A-2); no check needed"
+  },
+  {
+   "cpu_model": "AMD EPYC 7513 32-Core Processor",
+   "partition": "research",
+   "constraint": "milan&gpu",
+   "basis": "reproduction check milan-gpu passed 2026-10-08T21:39:55+00:00"
+  },
+  {
+   "cpu_model": "AMD EPYC 7773X 64-Core Processor",
+   "partition": "research",
+   "constraint": "milan-x",
+   "basis": "reproduction check milan-x passed 2026-10-08T21:36:57+00:00"
+  },
+  {
+   "cpu_model": "AMD EPYC 7401 24-Core Processor",
+   "partition": "research",
+   "constraint": "naples",
+   "basis": "reproduction check naples-gpu passed 2026-10-09T01:38:47+00:00"
+  },
+  {
+   "cpu_model": "AMD EPYC 7272 12-Core Processor",
+   "partition": "research",
+   "constraint": "rome",
+   "basis": "reproduction check rome-gpu passed 2026-10-09T00:45:45+00:00"
+  }
+ ]
+}

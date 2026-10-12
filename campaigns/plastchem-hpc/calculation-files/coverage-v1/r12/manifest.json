@@ -1,0 +1,108 @@
+{
+ "campaign": "contam-coverage-milan-v1",
+ "group": "r12",
+ "name": "contam-coverage-r12",
+ "walltime": "228:00:00",
+ "mem": "4G",
+ "retry_folders": true,
+ "retry_kind": "time_limit",
+ "policy": {
+  "mode": "connectivity_first_block_with_computed_stereochemistry",
+  "authority": "Owner decision A-3 D-IDENT",
+  "charter_sha256": "39aa9d7e6e419291bb537616b080309bf55fe703d4b98710aab9e1e266c3bdab",
+  "require_stereo_layer_match": false,
+  "isotope_policy": "exclude; no parent mapping",
+  "campaign_concurrency_limit": 64,
+  "orca_share_of_cap": 56,
+  "thermodynamics_share_of_cap": 8,
+  "concurrency_authority": "Owner 2026-09-16: increase concurrency only; keep 4GB (D-CONC 64, shared by ORCA and thermodynamics)",
+  "tier_authority": "Amendment A-13 (coverage campaign, 2026-10-08)"
+ },
+ "recipe": {
+  "n_embed": 300,
+  "seed": 12345,
+  "prune_rms": 0.5,
+  "max_mmff_iters": 2000,
+  "dft_conformers": 1
+ },
+ "input": {
+  "path": "inputs/plastchem_coverage_a13_worklist.csv",
+  "sha256": "40b4ca4ef3237e7947dfd77beab339a0acca5beb4fb732b135b0f8ce228683e2"
+ },
+ "chunk_rule": "A-13: coverage runs that reached their time limit (6 x the cost fit), retried once from the same prepared geometry with 24 x the fit and their own run folders",
+ "molecules": [
+  {
+   "name": "3,9-Bis(2,4-dicumylphenoxy)-2,4,8,10-tetraoxa-3,9-diphosphaspiro[5.5]undecane",
+   "name_source": "PlastChem (work list)",
+   "smiles": "CC(C)(c1ccccc1)c1ccc(OP2OCC3(CO2)COP(Oc2ccc(C(C)(C)c4ccccc4)cc2C(C)(C)c2ccccc2)OC3)c(C(C)(C)c2ccccc2)c1",
+   "plastchem_id": "3466",
+   "cas": "154862-43-8",
+   "inchikey": "WBWXVCMXGYSMQA-UHFFFAOYSA-N",
+   "molecular_weight_g_mol": "853.00",
+   "n_atoms_with_H": "119",
+   "array_index": 0,
+   "atoms": 119,
+   "group": "r12",
+   "tier": "coverage",
+   "worklist_order": 1766,
+   "kind": "S, P or Si",
+   "elements": "CHOP",
+   "served_entries_direct": "3466",
+   "served_entries_as_parent": "",
+   "entry_names": "3,9-Bis(2,4-dicumylphenoxy)-2,4,8,10-tetraoxa-3,9-diphosphaspiro[5.5]undecane",
+   "plastchem_groups": "organophosphates",
+   "families_existing": "Antioxidants",
+   "families_proposed": "Organophosphates",
+   "retry_of": {
+    "group": "c16",
+    "failure_mode": "scheduler_signal_10",
+    "array_job_id": "81426",
+    "array_task_id": 83,
+    "node": "euler141.engr.wisc.edu",
+    "cpu_model": "AMD EPYC 7773X 64-Core Processor",
+    "elapsed_seconds": 205066.12034021103,
+    "slurm_accounting": {
+     "state": "FAILED",
+     "exit_code": "1:0",
+     "elapsed_seconds": 205067,
+     "node_list": "euler141",
+     "maxrss_kib": 4188544.0,
+     "maxrss_source": "sacct batch step"
+    },
+    "record_sha256": "3e1c95b4dcd3f4815bb26fc8d2b03d24db759db9c183fe82274a15a20c9e5312"
+   }
+  }
+ ],
+ "admitted": [
+  {
+   "cpu_model": "AMD EPYC 7763 64-Core Processor",
+   "partition": "research",
+   "constraint": "milan&cpu",
+   "basis": "the campaign's reference CPU (A-2); no check needed"
+  },
+  {
+   "cpu_model": "AMD EPYC 7513 32-Core Processor",
+   "partition": "research",
+   "constraint": "milan&gpu",
+   "basis": "reproduction check milan-gpu passed 2026-10-08T21:39:55+00:00"
+  },
+  {
+   "cpu_model": "AMD EPYC 7773X 64-Core Processor",
+   "partition": "research",
+   "constraint": "milan-x",
+   "basis": "reproduction check milan-x passed 2026-10-08T21:36:57+00:00"
+  },
+  {
+   "cpu_model": "AMD EPYC 7401 24-Core Processor",
+   "partition": "research",
+   "constraint": "naples",
+   "basis": "reproduction check naples-gpu passed 2026-10-09T01:38:47+00:00"
+  },
+  {
+   "cpu_model": "AMD EPYC 7272 12-Core Processor",
+   "partition": "research",
+   "constraint": "rome",
+   "basis": "reproduction check rome-gpu passed 2026-10-09T00:45:45+00:00"
+  }
+ ]
+}

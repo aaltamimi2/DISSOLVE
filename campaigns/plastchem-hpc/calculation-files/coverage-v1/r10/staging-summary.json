@@ -1,0 +1,13 @@
+{
+  "group": "r10",
+  "utc": "2026-10-12T02:19:28Z",
+  "new_targets": 12,
+  "submission_tasks": 12,
+  "staged_in_another_group": {},
+  "preparation_failures": 0,
+  "preparation_failure_keys": [],
+  "archive": "/home/aaltamimi2/plastchem-euler/state/coverage-v1/r10-staging.tar.gz",
+  "archive_bytes": 33294,
+  "archive_sha256": "b044e372d707e832fcc17e6f767a8cc8ee405455ac65f2a6a9b210d39831ee4c",
+  "remote_verified": true
+}

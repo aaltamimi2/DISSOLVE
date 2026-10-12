@@ -1,0 +1,13 @@
+{
+  "group": "r07",
+  "utc": "2026-10-11T01:39:01Z",
+  "new_targets": 8,
+  "submission_tasks": 8,
+  "staged_in_another_group": {},
+  "preparation_failures": 0,
+  "preparation_failure_keys": [],
+  "archive": "/home/aaltamimi2/plastchem-euler/state/coverage-v1/r07-staging.tar.gz",
+  "archive_bytes": 25053,
+  "archive_sha256": "c3ff5936bd47b483cb8169eba7f4379d933fb9630bd20023507974051afe3a83",
+  "remote_verified": true
+}

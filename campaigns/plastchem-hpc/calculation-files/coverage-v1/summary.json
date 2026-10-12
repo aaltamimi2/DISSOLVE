@@ -1,13 +1,13 @@
 {
-  "utc": "2026-10-10T17:13:16.517469+00:00",
+  "utc": "2026-10-12T04:41:26.152604+00:00",
   "counts": {
-    "converged": 1499,
-    "failed": 15,
-    "rejected": 65,
-    "running": 115,
-    "awaiting_verification": 1,
-    "retry_pending": 3,
-    "not_yet_run": 21,
+    "converged": 1605,
+    "failed": 3,
+    "rejected": 51,
+    "running": 59,
+    "awaiting_verification": 0,
+    "retry_pending": 1,
+    "not_yet_run": 0,
     "not_staged": 0,
     "denominator": 1719
   },
@@ -68,9 +68,9 @@
       "denominator": 100
     },
     "c05": {
-      "converged": 99,
+      "converged": 100,
       "failed": 0,
-      "rejected": 1,
+      "rejected": 0,
       "running": 0,
       "awaiting_verification": 0,
       "retry_pending": 0,
@@ -79,9 +79,9 @@
       "denominator": 100
     },
     "c06": {
-      "converged": 98,
+      "converged": 100,
       "failed": 0,
-      "rejected": 2,
+      "rejected": 0,
       "running": 0,
       "awaiting_verification": 0,
       "retry_pending": 0,
@@ -101,9 +101,9 @@
       "denominator": 100
     },
     "c08": {
-      "converged": 98,
+      "converged": 99,
       "failed": 0,
-      "rejected": 1,
+      "rejected": 0,
       "running": 0,
       "awaiting_verification": 0,
       "retry_pending": 0,
@@ -134,9 +134,9 @@
       "denominator": 100
     },
     "c11": {
-      "converged": 92,
+      "converged": 95,
       "failed": 0,
-      "rejected": 8,
+      "rejected": 5,
       "running": 0,
       "awaiting_verification": 0,
       "retry_pending": 0,
@@ -145,10 +145,10 @@
       "denominator": 100
     },
     "c12": {
-      "converged": 90,
+      "converged": 93,
       "failed": 0,
-      "rejected": 9,
-      "running": 1,
+      "rejected": 7,
+      "running": 0,
       "awaiting_verification": 0,
       "retry_pending": 0,
       "not_yet_run": 0,
@@ -156,106 +156,62 @@
       "denominator": 100
     },
     "c13": {
-      "converged": 45,
+      "converged": 91,
       "failed": 0,
-      "rejected": 4,
-      "running": 30,
+      "rejected": 7,
+      "running": 1,
       "awaiting_verification": 0,
       "retry_pending": 0,
-      "not_yet_run": 21,
+      "not_yet_run": 0,
       "not_staged": 0,
-      "denominator": 100
+      "denominator": 99
     },
     "c14": {
-      "converged": 90,
+      "converged": 91,
       "failed": 1,
-      "rejected": 6,
-      "running": 2,
-      "awaiting_verification": 0,
-      "retry_pending": 0,
-      "not_yet_run": 0,
-      "not_staged": 0,
-      "denominator": 99
-    },
-    "c15": {
-      "converged": 79,
-      "failed": 0,
-      "rejected": 17,
-      "running": 2,
-      "awaiting_verification": 0,
-      "retry_pending": 1,
-      "not_yet_run": 0,
-      "not_staged": 0,
-      "denominator": 99
-    },
-    "c16": {
-      "converged": 46,
-      "failed": 2,
-      "rejected": 10,
-      "running": 16,
-      "awaiting_verification": 0,
-      "retry_pending": 2,
-      "not_yet_run": 0,
-      "not_staged": 0,
-      "denominator": 76
-    },
-    "c17": {
-      "converged": 41,
-      "failed": 7,
-      "rejected": 3,
-      "running": 47,
-      "awaiting_verification": 1,
-      "retry_pending": 0,
-      "not_yet_run": 0,
-      "not_staged": 0,
-      "denominator": 99
-    },
-    "c18": {
-      "converged": 2,
-      "failed": 1,
-      "rejected": 0,
-      "running": 2,
-      "awaiting_verification": 0,
-      "retry_pending": 0,
-      "not_yet_run": 0,
-      "not_staged": 0,
-      "denominator": 5
-    },
-    "r01": {
-      "converged": 7,
-      "failed": 3,
-      "rejected": 0,
+      "rejected": 5,
       "running": 0,
       "awaiting_verification": 0,
       "retry_pending": 0,
       "not_yet_run": 0,
       "not_staged": 0,
-      "denominator": 10
+      "denominator": 97
     },
-    "r02": {
-      "converged": 9,
+    "c15": {
+      "converged": 83,
       "failed": 0,
-      "rejected": 2,
-      "running": 5,
+      "rejected": 15,
+      "running": 0,
       "awaiting_verification": 0,
       "retry_pending": 0,
       "not_yet_run": 0,
       "not_staged": 0,
-      "denominator": 16
+      "denominator": 98
     },
-    "r03": {
+    "c16": {
+      "converged": 54,
+      "failed": 0,
+      "rejected": 5,
+      "running": 2,
+      "awaiting_verification": 0,
+      "retry_pending": 1,
+      "not_yet_run": 0,
+      "not_staged": 0,
+      "denominator": 62
+    },
+    "c17": {
+      "converged": 59,
+      "failed": 1,
+      "rejected": 3,
+      "running": 7,
+      "awaiting_verification": 0,
+      "retry_pending": 0,
+      "not_yet_run": 0,
+      "not_staged": 0,
+      "denominator": 70
+    },
+    "c18": {
       "converged": 3,
-      "failed": 0,
-      "rejected": 2,
-      "running": 4,
-      "awaiting_verification": 0,
-      "retry_pending": 0,
-      "not_yet_run": 0,
-      "not_staged": 0,
-      "denominator": 9
-    },
-    "r04": {
-      "converged": 0,
       "failed": 0,
       "rejected": 0,
       "running": 1,
@@ -263,9 +219,119 @@
       "retry_pending": 0,
       "not_yet_run": 0,
       "not_staged": 0,
+      "denominator": 4
+    },
+    "r01": {
+      "converged": 7,
+      "failed": 0,
+      "rejected": 0,
+      "running": 0,
+      "awaiting_verification": 0,
+      "retry_pending": 0,
+      "not_yet_run": 0,
+      "not_staged": 0,
+      "denominator": 7
+    },
+    "r02": {
+      "converged": 14,
+      "failed": 0,
+      "rejected": 1,
+      "running": 1,
+      "awaiting_verification": 0,
+      "retry_pending": 0,
+      "not_yet_run": 0,
+      "not_staged": 0,
+      "denominator": 16
+    },
+    "r03": {
+      "converged": 6,
+      "failed": 0,
+      "rejected": 2,
+      "running": 0,
+      "awaiting_verification": 0,
+      "retry_pending": 0,
+      "not_yet_run": 0,
+      "not_staged": 0,
+      "denominator": 8
+    },
+    "r04": {
+      "converged": 1,
+      "failed": 0,
+      "rejected": 0,
+      "running": 0,
+      "awaiting_verification": 0,
+      "retry_pending": 0,
+      "not_yet_run": 0,
+      "not_staged": 0,
       "denominator": 1
     },
     "r05": {
+      "converged": 0,
+      "failed": 0,
+      "rejected": 1,
+      "running": 1,
+      "awaiting_verification": 0,
+      "retry_pending": 0,
+      "not_yet_run": 0,
+      "not_staged": 0,
+      "denominator": 2
+    },
+    "r06": {
+      "converged": 2,
+      "failed": 0,
+      "rejected": 0,
+      "running": 2,
+      "awaiting_verification": 0,
+      "retry_pending": 0,
+      "not_yet_run": 0,
+      "not_staged": 0,
+      "denominator": 4
+    },
+    "r07": {
+      "converged": 0,
+      "failed": 0,
+      "rejected": 0,
+      "running": 8,
+      "awaiting_verification": 0,
+      "retry_pending": 0,
+      "not_yet_run": 0,
+      "not_staged": 0,
+      "denominator": 8
+    },
+    "r08": {
+      "converged": 0,
+      "failed": 0,
+      "rejected": 0,
+      "running": 17,
+      "awaiting_verification": 0,
+      "retry_pending": 0,
+      "not_yet_run": 0,
+      "not_staged": 0,
+      "denominator": 17
+    },
+    "r09": {
+      "converged": 0,
+      "failed": 0,
+      "rejected": 0,
+      "running": 9,
+      "awaiting_verification": 0,
+      "retry_pending": 0,
+      "not_yet_run": 0,
+      "not_staged": 0,
+      "denominator": 9
+    },
+    "r10": {
+      "converged": 7,
+      "failed": 0,
+      "rejected": 0,
+      "running": 5,
+      "awaiting_verification": 0,
+      "retry_pending": 0,
+      "not_yet_run": 0,
+      "not_staged": 0,
+      "denominator": 12
+    },
+    "r11": {
       "converged": 0,
       "failed": 0,
       "rejected": 0,
@@ -279,19 +345,18 @@
   },
   "failures_by_mode": {
     "mmff_parameters_unavailable": 1,
-    "return_integrity_or_connectivity": 65,
-    "ValueError": 11,
-    "scheduler_signal_10": 3,
-    "orca_nonzero_or_abnormal_termination": 3
+    "return_integrity_or_connectivity": 51,
+    "ValueError": 2,
+    "scheduler_signal_10": 1
   },
-  "measured_orca_hours": 3484.5639287015683,
-  "measured_structures": 1568,
-  "fit_hours_of_measured": 2175.96011111112,
+  "measured_orca_hours": 4812.625065808055,
+  "measured_structures": 1656,
+  "fit_hours_of_measured": 2751.644833333344,
   "cpu_models": {
-    "AMD EPYC 7763 64-Core Processor": 991,
-    "AMD EPYC 7513 32-Core Processor": 339,
+    "AMD EPYC 7763 64-Core Processor": 967,
+    "AMD EPYC 7513 32-Core Processor": 387,
     "AMD EPYC 7272 12-Core Processor": 200,
-    "AMD EPYC 7401 24-Core Processor": 79,
-    "AMD EPYC 7773X 64-Core Processor": 77
+    "AMD EPYC 7401 24-Core Processor": 99,
+    "AMD EPYC 7773X 64-Core Processor": 63
   }
 }

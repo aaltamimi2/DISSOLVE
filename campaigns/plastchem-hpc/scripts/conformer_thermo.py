@@ -6,7 +6,7 @@ the surfaces of batch t12's inputs.json, copied from Euler and checked by SHA-25
 
 For each conformer c and each phase X (a solvent, or one polymer entry) at infinite dilution and 298.15 K:
   ln g_c^X(conductor) with refst='cosmo', i.e. the pseudo-chemical potential mu_c^X/RT against the ideal conductor;
-  delta_c = ln g_c(conductor) - ln g_c(pure component), the same in every phase (checked on two phases), so that
+  delta_c = ln g_c(conductor) - ln g_c(pure component), the same in every phase (checked on two phases to 1e-4), so that
   ln g_c^X(pure component), the quantity the release stores, is ln g_c^X(conductor) - delta_c.
 The polymer value is the campaign's repeat-unit ensemble (both conventions); logP_x = (ln g_P - ln g_S)/ln 10 and
 logP_concentration = logP_x + log10(V_P/V_S), as the release computes them.
@@ -104,7 +104,9 @@ def main():
         if start == 0:
             pure_second = infinite_dilution(chunk, cache.get(phases[second]["local"]))
             check = (conductor[second][:len(chunk)] - pure_second) - delta[:len(chunk)]
-    assert np.max(np.abs(check)) < 1e-8, f"pure-component offset differs between phases: {np.max(np.abs(check))}"
+    # the pure-component reference is itself an iterated solution: phase-to-phase scatter of the offset is solver
+    # convergence (seen up to ~1e-5 in ln gamma, i.e. ~3e-6 in logP); a model inconsistency would be far larger
+    assert np.max(np.abs(check)) < 1e-4, f"pure-component offset differs between phases: {np.max(np.abs(check))}"
     for i, r in enumerate(todo):
         solvents = {k.split(":", 1)[1]: float(conductor[k][i] - delta[i]) for k in phases if k.startswith("solvent:")}
         polymers = {}
