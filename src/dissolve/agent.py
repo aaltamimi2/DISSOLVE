@@ -57,7 +57,9 @@ from . import (
     safety,
     separation,
     tea,
+    tea_tornado,
     thermodynamics,
+    waste_pathway,
 )
 
 # --- registry: The flat tool registry. Every tool, one list, no routing.
@@ -118,6 +120,9 @@ REGISTRY: tuple[Tool, ...] = tuple([
     # --- TEA / LCA ---
     _t(tea.evaluate_process, "tea"),
     _t(tea.rank_landscape, "tea"),
+    # --- waste-management pathway: washes, downstream technology, profit, emissions, circularity ---
+    _t(waste_pathway.optimize_waste_pathway, "pathway"),
+    _t(tea_tornado.tea_tornado, "pathway"),  # TEA/LCA sensitivity of one wash; reports its TEA basis like the pathway tool
     # --- Hansen parameters, thermal properties, numeric analysis ---
     _t(analysis.lookup_hansen_parameters, "analysis"),
     _t(analysis.screen_hansen_compatibility, "analysis"),
@@ -204,8 +209,7 @@ _PAGE, _BYTE, _LIM = 20, 8192, 50
 _PAGE_BYTES = 24576
 _ENGINE_BASIS = {
     "thermodynamics": "cosmo_rs_grid", "separation": "cosmo_rs_grid",
-    "optimization": "optimization_workbook", "contaminants": "contaminant_workbook",
-    "research": "provider_metadata",
+    "contaminants": "contaminant_workbook", "research": "provider_metadata",
 }
 
 def _refuse(refusal: str, **extra: Any) -> dict[str, Any]:
@@ -372,6 +376,8 @@ def source_basis_for(name: str, data: dict[str, Any], kwargs: dict[str, Any]) ->
     ):
         return "cosmo_rs_grid"
     eng = BY_NAME[name].engine
+    if eng == "pathway":
+        return data.get("basis")  # the TEA basis of the washes the answer rests on: tea_live or tea_cache_exact
     if eng == "safety":
         if name == "fetch_solvent_safety_by_cid":
             return "pubchem_live"
@@ -872,7 +878,49 @@ themselves; name a token this prompt does not define as it is:
   each value with its polymer. When a solvent is not in the panel, the
   refusal names close panel solvents (o-xylene for xylene): use the
   closest and say which one you used.
-- Optimization figures are optimization_workbook.
+- optimize_waste_pathway answers how a mixed or multilayer feed should be processed: it screens solvents
+  for every wash the feed allows, costs each wash (stored records, or live BioSTEAM once confirm_live_tea is
+  true), and picks the wash sequence and the downstream technology (landfill, incineration, pyrolysis, three
+  gasification routes) by profit, emissions or the MICRON circularity index, or traces a trade-off (pareto).
+  Give it the feed's mass fractions and tonnes per year, exactly as the user stated them. Never invent or assume a feed:
+  if the user has not said which polymers, in what shares, and how many tonnes per year, ask; if the shares do not add
+  to 100%, ask which is wrong rather than fixing it; do not split a generic name like nylon or PE into grades. A question
+  about one solvent, a solubility, a price or a hazard is not a pathway question. Its basis is the TEA basis of its washes, so say
+  whether they were live simulations or stored records; when no wash was costed there is no TEA or LCA record
+  behind the answer, only the thermodynamic screen and the downstream-technology data recovered from the published
+  study, and you must say that and not cite stored TEA/LCA records. Revenue: read the result's downstream_technologies
+  table before stating what any technology earns (incineration and hydrogen gasification earn a small amount per
+  tonne; never say incineration earns nothing); for "should I burn it or recycle it" show the profit, emissions and circularity
+  of the destination the user named (incineration for "burn") from unwashed_feed_options, whatever its rank, beside the
+  best washed pathway; never describe a destination's result in words when its row is in the table. When the answer sells a washed residual as resin,
+  state its resale_dependence (profit at full, half and no resale price) and that the profit rests on the residual
+  being clean enough to sell. When the user asks to see, plot or draw a Pareto front or trade-off, call the tool with draw_plot true: it draws all three fronts (emissions vs profit, circularity vs profit, emissions vs circularity) with the numbered routes listed under each panel and opens the figure in the user's image viewer. Give the user figure_file and say it has opened only when figure_opened is true (otherwise say where the file is); the terminal cannot show it inline. If the result's figure_note says it could not be drawn, report that reason and do not claim a plot. A Pareto answer without draw_plot is still saved (figure_data_file), and the user can draw it with `python3 scripts/plot_pareto.py`. When the user asks what was done, how much work a result took, how many options were considered or why there are that many candidates, answer from the result's work_summary (the solvent pool, what each screen let through, the simulations run, reused or stored, the routes and candidates, the front sizes) and call the tool again with the same inputs and draw_summary true to draw it and open it (summary_figure_file); a repeat in the same session reuses the simulated washes, so it costs no new simulations. Say that the counts describe the work, not results. Explain why one downstream technology beats another only from the result's downstream_technologies and assumptions (revenue, operating cost, whether a capital cost is recorded, distance, emissions): never invent a reason, and say plainly when the recovered data leave out a cost, as they do for the capital of the hydrogen gasification routes. To compare solvents, or when asked whether the circularity differs by solvent, use wash_comparison and state that the MICRON index barely changes with the solvent (it scales by whole-pathway bounds); compare solvents on energy, emissions, cost, solvent make-up and hazard per kg of resin, and say a solvent's life-cycle factor is a class average when its source tier says so. Report every hazard warning (GHS Danger solvents, high heating risk) with the pathway;
+  the screen does not judge hazard, so offer avoid_danger_solvents when the user cares about safer solvents. When it refuses with
+  live_tea_cost_confirmation_required, tell the user how many simulations it needs and that each takes about 15
+  seconds, and call again with confirm_live_tea true only when the user has agreed to run them (in a one-shot
+  question with no user to ask, state that nothing was simulated). A user rarely knows the published study's
+  location scenarios A and B or what a dedicated plant is: describe options in plain words (distances in miles to
+  each downstream site, a plant just for this feed or one shared with other producers), pass the distances the user
+  gives as downstream_distances_mile, and say which defaults you assumed. To compare scenarios of the same feed (a shared
+  plant, another downstream location, a price), pass the first answer's circularity_upper_bounds to the later calls
+  so every index is on one scale. Circularity is a screening index and the
+  downstream-technology data are partly recovered; say both. Only solvents with a price and life-cycle record
+  are costed, so name any polymer the tool reports has no admissible wash as staying in the residual. Report
+  the pathway as washes in order (polymer, solvent, temperature) and the downstream technology.
+- tea_tornado answers which parameters move the TEA/LCA results of one polymer washed in one solvent (minimum selling price,
+  global warming potential, capital, operating cost, energy), as a tornado plot: it moves each chosen parameter low and high around
+  a base plant and simulates every point. Use it for "sensitivity", "tornado" or "which parameter matters most" about one wash;
+  use optimize_waste_pathway for a mixed feed and analyze_tea_sensitivity (evaluate_process in sensitivity mode) for one parameter
+  swept over many values. You choose the parameters unless the user names them, and the user's ranges win: pass ranges as
+  [low, high] in the parameter's units or relative_range for plus or minus a fraction. If the user gives neither, the tool uses its
+  default ranges and says so in its warnings, so tell the user which ranges were assumed and offer to change them. The base plant is
+  the user's target share, capacity and temperature when given, else the tool's defaults (60 wt% target, 20,000 t/yr, the solvent's
+  recorded temperature): say which. It needs two simulations per parameter (about 12 s each): when it refuses with
+  live_tea_cost_confirmation_required, tell the user the count and call again with confirm_live_tea true only once they agree. A
+  parameter with no measurable effect is a finding about this base plant (the warnings say so), not an error. Set draw_plot true
+  when the user asks to see it; the figure opens in their image viewer (figure_file) and you must not claim a plot if figure_note
+  says it could not be drawn. Report the largest drivers from the ranking with their swing in percent of the base, and say that one
+  parameter moves at a time and the result is one simulated plant, not a pathway's profit.
 - identity_registry is DISSOLVE's material identity registry;
   safety_local is its local safety store (safety cards and a cached
   PubChem snapshot); provider_metadata is a

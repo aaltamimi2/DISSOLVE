@@ -1,0 +1,566 @@
+{
+ "bad_fraction_sum": {
+  "success": false,
+  "error_code": "invalid_input",
+  "error": "feed fractions must sum to 1",
+  "crashed": false,
+  "seconds": 0.3
+ },
+ "unknown_polymer": {
+  "success": false,
+  "error_code": "invalid_input",
+  "error": "polymer 'unobtainium' is not in the thermodynamic grid",
+  "crashed": false,
+  "seconds": 0.0
+ },
+ "zero_tonnes": {
+  "success": false,
+  "error_code": "invalid_input",
+  "error": "feed_tonnes_per_year must be positive",
+  "crashed": false,
+  "seconds": 0.0
+ },
+ "negative_tonnes": {
+  "success": false,
+  "error_code": "invalid_input",
+  "error": "feed_tonnes_per_year must be positive",
+  "crashed": false,
+  "seconds": 0.0
+ },
+ "negative_fraction": {
+  "success": false,
+  "error_code": "invalid_input",
+  "error": "every feed fraction must be positive",
+  "crashed": false,
+  "seconds": 0.0
+ },
+ "empty_feed": {
+  "success": false,
+  "error_code": "invalid_input",
+  "error": "feed_mass_fractions must name each polymer and its mass fraction",
+  "crashed": false,
+  "seconds": 0.0
+ },
+ "string_numbers": {
+  "success": false,
+  "error_code": "live_tea_cost_confirmation_required",
+  "error": "6 wash(es) need a live BioSTEAM simulation (about 90 s in all). Run again with confirm_live_tea=true to simulate them.",
+  "pending_stages": 6,
+  "crashed": false,
+  "seconds": 2.2
+ },
+ "nonnumeric_fraction": {
+  "success": false,
+  "error_code": "invalid_input",
+  "error": "could not convert string to float: 'lots'",
+  "crashed": false,
+  "seconds": 0.0
+ },
+ "duplicate_labels": {
+  "success": false,
+  "error_code": "invalid_input",
+  "error": "'LDPE' and another label both resolve to LDPE",
+  "crashed": false,
+  "seconds": 0.0
+ },
+ "generic_name_polyethylene": {
+  "success": false,
+  "error_code": "live_tea_cost_confirmation_required",
+  "error": "6 wash(es) need a live BioSTEAM simulation (about 90 s in all). Run again with confirm_live_tea=true to simulate them.",
+  "pending_stages": 6,
+  "crashed": false,
+  "seconds": 1.5
+ },
+ "max_washes_zero_is_downstream_only": {
+  "success": true,
+  "error_code": null,
+  "error": "",
+  "analysis": "waste_pathway_optimum",
+  "basis": "cosmo_rs_grid",
+  "candidates": 5,
+  "washes_costed": 0,
+  "no_admissible_wash": [],
+  "failed_washes": [],
+  "warnings": [],
+  "selected": {
+   "pathway": "no wash + we",
+   "profit": 771360,
+   "emissions_t": 19677.7,
+   "circularity": 0.488
+  },
+  "circularity_in_0_1": true,
+  "milp_agrees": true,
+  "crashed": false,
+  "seconds": 0.3
+ },
+ "max_washes_nine": {
+  "success": false,
+  "error_code": "invalid_input",
+  "error": "max_washes must be 0 to 4 (0: no washing, only the downstream destination is chosen)",
+  "crashed": false,
+  "seconds": 0.0
+ },
+ "shared_plant_too_small": {
+  "success": false,
+  "error_code": "invalid_input",
+  "error": "a shared plant must be at least as large as the feed it washes (8000 t/yr)",
+  "crashed": false,
+  "seconds": 0.0
+ },
+ "price_for_absent_polymer": {
+  "success": false,
+  "error_code": "invalid_input",
+  "error": "a price was given for 'PVC', which is not a polymer in the feed",
+  "crashed": false,
+  "seconds": 0.0
+ },
+ "unknown_distance_site": {
+  "success": false,
+  "error_code": "invalid_input",
+  "error": "unknown downstream site 'airport'; use ['gas_er', 'gas_h2', 'gas_h2cc', 'gasification_energy', 'gasification_for_energy', 'gasification_for_hydrogen', 'gasification_hydrogen', 'gasification_hydrogen_cc', 'gasification_hydrogen_ccs', 'hydrog",
+  "crashed": false,
+  "seconds": 0.0
+ },
+ "no_confirmation_asked_for": {
+  "success": false,
+  "error_code": "live_tea_cost_confirmation_required",
+  "error": "6 wash(es) need a live BioSTEAM simulation (about 90 s in all). Run again with confirm_live_tea=true to simulate them.",
+  "pending_stages": 6,
+  "crashed": false,
+  "seconds": 1.6
+ },
+ "single_polymer_feed": {
+  "success": true,
+  "error_code": null,
+  "error": "",
+  "analysis": "waste_pathway_optimum",
+  "basis": "cosmo_rs_grid",
+  "candidates": 6,
+  "washes_costed": 0,
+  "no_admissible_wash": [],
+  "failed_washes": [],
+  "warnings": [
+   "the feed is a single polymer, so there is nothing to separate by washing; only its downstream destination is optimized"
+  ],
+  "selected": {
+   "pathway": "no wash + we",
+   "profit": 482100,
+   "emissions_t": 12298.5,
+   "circularity": 0.477
+  },
+  "circularity_in_0_1": true,
+  "milp_agrees": true,
+  "crashed": false,
+  "seconds": 0.1
+ },
+ "no_costable_solvent_named": {
+  "success": false,
+  "error_code": "no_costable_solvents",
+  "error": "none of the named solvents can be costed in the active solvent scope",
+  "crashed": false,
+  "seconds": 0.0
+ },
+ "binary_ldpe_evoh": {
+  "success": true,
+  "error_code": null,
+  "error": "",
+  "analysis": "waste_pathway_optimum",
+  "basis": "tea_live",
+  "candidates": 48,
+  "washes_costed": 6,
+  "no_admissible_wash": [],
+  "failed_washes": [],
+  "warnings": [
+   "the selected pathway sells the washed LDPE residual as resin (27% of its sales) with no further processing cost; its profit depends on that residual being clean enough to sell (see resale_dependence for the result at half the price and at none)",
+   "the selected washes use solvents with the GHS Danger signal word: Acetic Acid at 105 C. Pass avoid_danger_solvents=true to keep them out (the tool does not otherwise screen solvent hazard)",
+   "heating risk is high or critical at the operating temperature for Acetic Acid (above_flash_point, vapor_pressure_not_at_operating_temperature)",
+   "at the process model's solvent-to-polymer ratio a wash could take up a sizable share of the retained polymers (retained_pickup_upper_bound_pct_of_product): the screen does not establish purity"
+  ],
+  "selected": {
+   "pathway": "EVOH/Acetic Acid + resale",
+   "profit": 11618466,
+   "emissions_t": 730.1,
+   "circularity": 0.861
+  },
+  "circularity_in_0_1": true,
+  "milp_agrees": true,
+  "crashed": false,
+  "seconds": 59.9
+ },
+ "pet_rich": {
+  "success": true,
+  "error_code": null,
+  "error": "",
+  "analysis": "waste_pathway_optimum",
+  "basis": "tea_live",
+  "candidates": 30,
+  "washes_costed": 4,
+  "no_admissible_wash": [],
+  "failed_washes": [],
+  "warnings": [
+   "the selected pathway sells the washed PET residual as resin (75% of its sales) with no further processing cost; its profit depends on that residual being clean enough to sell (see resale_dependence for the result at half the price and at none)",
+   "heating risk is high or critical at the operating temperature for Diethylene Glycol (above_flash_point, autoignition_close_to_boiling_point, vapor_pressure_not_at_operating_temperature)",
+   "at the process model's solvent-to-polymer ratio a wash could take up a sizable share of the retained polymers (retained_pickup_upper_bound_pct_of_product): the screen does not establish purity"
+  ],
+  "selected": {
+   "pathway": "LDPE/Diethylene Glycol + resale",
+   "profit": 5168017,
+   "emissions_t": 1735.2,
+   "circularity": 0.843
+  },
+  "circularity_in_0_1": true,
+  "milp_agrees": true,
+  "crashed": false,
+  "seconds": 46.8
+ },
+ "polycarbonate_mix": {
+  "success": true,
+  "error_code": null,
+  "error": "",
+  "analysis": "waste_pathway_optimum",
+  "basis": "tea_live",
+  "candidates": 143,
+  "washes_costed": 12,
+  "no_admissible_wash": [
+   "PET"
+  ],
+  "failed_washes": [],
+  "warnings": [
+   "no price for PC: recovering them earns nothing, so no wash of them can pay; pass polymer_prices_usd_per_t to value them",
+   "the selected washes use solvents with the GHS Danger signal word: Acetic Acid at 105 C. Pass avoid_danger_solvents=true to keep them out (the tool does not otherwise screen solvent hazard)",
+   "heating risk is high or critical at the operating temperature for Acetic Acid (above_flash_point, vapor_pressure_not_at_operating_temperature)"
+  ],
+  "selected": {
+   "pathway": "EVOH/Acetic Acid + we",
+   "profit": 9646779,
+   "emissions_t": 11506.4,
+   "circularity": 0.569
+  },
+  "circularity_in_0_1": true,
+  "milp_agrees": true,
+  "crashed": false,
+  "seconds": 114.4
+ },
+ "hdpe_ldpe_only": {
+  "success": true,
+  "error_code": null,
+  "error": "",
+  "analysis": "waste_pathway_optimum",
+  "basis": "tea_live",
+  "candidates": 27,
+  "washes_costed": 3,
+  "no_admissible_wash": [
+   "HDPE"
+  ],
+  "failed_washes": [],
+  "warnings": [],
+  "selected": {
+   "pathway": "no wash + we",
+   "profit": 385680,
+   "emissions_t": 9838.8,
+   "circularity": 0.438
+  },
+  "circularity_in_0_1": true,
+  "milp_agrees": true,
+  "crashed": false,
+  "seconds": 37.7
+ },
+ "five_polymers_with_unsupported_ps": {
+  "success": true,
+  "error_code": null,
+  "error": "",
+  "analysis": "waste_pathway_optimum",
+  "basis": "tea_live",
+  "candidates": 45,
+  "washes_costed": 7,
+  "no_admissible_wash": [
+   "HDPE",
+   "PET"
+  ],
+  "failed_washes": [
+   "PS:No scenario could be evaluated. Failure reasons: PS maps to process-model ID PS, which is not in the package chemical outline. Refusing to let the generic factory PET-clone it.",
+   "PS:No scenario could be evaluated. Failure reasons: PS maps to process-model ID PS, which is not in the package chemical outline. Refusing to let the generic factory PET-clone it.",
+   "PS:No scenario could be evaluated. Failure reasons: PS maps to process-model ID PS, which is not in the package chemical outline. Refusing to let the generic factory PET-clone it.",
+   "PS:No scenario could be evaluated. Failure reasons: PS maps to process-model ID PS, which is not in the package chemical outline. Refusing to let the generic factory PET-clone it.",
+   "PS:No scenario could be evaluated. Failure reasons: PS maps to process-model ID PS, which is not in the package chemical outline. Refusing to let the generic factory PET-clone it.",
+   "PS:No scenario could be evaluated. Failure reasons: PS maps to process-model ID PS, which is not in the package chemical outline. Refusing to let the generic factory PET-clone it."
+  ],
+  "warnings": [
+   "washes of PS could not be simulated (No scenario could be evaluated. Failure reasons: PS maps to process-model ID PS, which is not in the package chemical outline. Refusing to l); PS is left in the residual",
+   "no price for PS: recovering them earns nothing, so no wash of them can pay; pass polymer_prices_usd_per_t to value them",
+   "the selected washes use solvents with the GHS Danger signal word: Acetic Acid at 105 C. Pass avoid_danger_solvents=true to keep them out (the tool does not otherwise screen solvent hazard)",
+   "heating risk is high or critical at the operating temperature for Acetic Acid (above_flash_point, vapor_pressure_not_at_operating_temperature)",
+   "at the process model's solvent-to-polymer ratio a wash could take up a sizable share of the retained polymers (retained_pickup_upper_bound_pct_of_product): the screen does not establish purity"
+  ],
+  "selected": {
+   "pathway": "EVOH/Acetic Acid + we",
+   "profit": 6987054,
+   "emissions_t": 22304.0,
+   "circularity": 0.547
+  },
+  "circularity_in_0_1": true,
+  "milp_agrees": true,
+  "crashed": false,
+  "seconds": 78.1
+ },
+ "percent_input_and_names": {
+  "success": true,
+  "error_code": null,
+  "error": "",
+  "analysis": "waste_pathway_optimum",
+  "basis": "tea_live",
+  "candidates": 70,
+  "washes_costed": 9,
+  "no_admissible_wash": [
+   "NYLON6",
+   "PET"
+  ],
+  "failed_washes": [],
+  "warnings": [
+   "heating risk is high or critical at the operating temperature for Ethylene glycol (above_flash_point, vapor_pressure_not_at_operating_temperature)",
+   "at the process model's solvent-to-polymer ratio a wash could take up a sizable share of the retained polymers (retained_pickup_upper_bound_pct_of_product): the screen does not establish purity"
+  ],
+  "selected": {
+   "pathway": "EVOH/Ethylene glycol + we",
+   "profit": 2617315,
+   "emissions_t": 18869.8,
+   "circularity": 0.486
+  },
+  "circularity_in_0_1": true,
+  "milp_agrees": true,
+  "crashed": false,
+  "seconds": 86.7
+ },
+ "tiny_feed": {
+  "success": true,
+  "error_code": null,
+  "error": "",
+  "analysis": "waste_pathway_optimum",
+  "basis": "tea_live",
+  "candidates": 48,
+  "washes_costed": 6,
+  "no_admissible_wash": [],
+  "failed_washes": [],
+  "warnings": [],
+  "selected": {
+   "pathway": "no wash + we",
+   "profit": 9642,
+   "emissions_t": 246.0,
+   "circularity": 0.427
+  },
+  "circularity_in_0_1": true,
+  "milp_agrees": true,
+  "crashed": false,
+  "seconds": 55.9
+ },
+ "huge_feed": {
+  "success": true,
+  "error_code": null,
+  "error": "",
+  "analysis": "waste_pathway_optimum",
+  "basis": "tea_live",
+  "candidates": 70,
+  "washes_costed": 9,
+  "no_admissible_wash": [
+   "NYLON6",
+   "PET"
+  ],
+  "failed_washes": [],
+  "warnings": [
+   "the selected washes use solvents with the GHS Danger signal word: Diphenyl ether at 115 C. Pass avoid_danger_solvents=true to keep them out (the tool does not otherwise screen solvent hazard)",
+   "heating risk is high or critical at the operating temperature for Diphenyl ether (above_flash_point, vapor_pressure_not_at_operating_temperature); Ethylene glycol (above_flash_point, vapor_pressure_not_at_operating_temperature)",
+   "at the process model's solvent-to-polymer ratio a wash could take up a sizable share of the retained polymers (retained_pickup_upper_bound_pct_of_product): the screen does not establish purity"
+  ],
+  "selected": {
+   "pathway": "LDPE/Diphenyl ether > EVOH/Ethylene glycol + we",
+   "profit": 193851621,
+   "emissions_t": 239351.3,
+   "circularity": 0.594
+  },
+  "circularity_in_0_1": true,
+  "milp_agrees": true,
+  "crashed": false,
+  "seconds": 86.2
+ },
+ "one_wash_only": {
+  "success": true,
+  "error_code": null,
+  "error": "",
+  "analysis": "waste_pathway_optimum",
+  "basis": "tea_live",
+  "candidates": 25,
+  "washes_costed": 4,
+  "no_admissible_wash": [
+   "NYLON6",
+   "PET"
+  ],
+  "failed_washes": [],
+  "warnings": [
+   "heating risk is high or critical at the operating temperature for Ethylene glycol (above_flash_point, vapor_pressure_not_at_operating_temperature)",
+   "at the process model's solvent-to-polymer ratio a wash could take up a sizable share of the retained polymers (retained_pickup_upper_bound_pct_of_product): the screen does not establish purity"
+  ],
+  "selected": {
+   "pathway": "EVOH/Ethylene glycol + we",
+   "profit": 2617315,
+   "emissions_t": 18869.8,
+   "circularity": 0.496
+  },
+  "circularity_in_0_1": true,
+  "milp_agrees": true,
+  "crashed": false,
+  "seconds": 2.1
+ },
+ "three_washes_allowed": {
+  "success": true,
+  "error_code": null,
+  "error": "",
+  "analysis": "waste_pathway_optimum",
+  "basis": "tea_live",
+  "candidates": 846,
+  "washes_costed": 26,
+  "no_admissible_wash": [
+   "HDPE",
+   "PET"
+  ],
+  "failed_washes": [],
+  "warnings": [
+   "the selected washes use solvents with the GHS Danger signal word: Acetic Acid at 105 C. Pass avoid_danger_solvents=true to keep them out (the tool does not otherwise screen solvent hazard)",
+   "heating risk is high or critical at the operating temperature for Acetic Acid (above_flash_point, vapor_pressure_not_at_operating_temperature)",
+   "at the process model's solvent-to-polymer ratio a wash could take up a sizable share of the retained polymers (retained_pickup_upper_bound_pct_of_product): the screen does not establish purity"
+  ],
+  "selected": {
+   "pathway": "EVOH/Acetic Acid + we",
+   "profit": 7972103,
+   "emissions_t": 17011.6,
+   "circularity": 0.528
+  },
+  "circularity_in_0_1": true,
+  "milp_agrees": true,
+  "crashed": false,
+  "seconds": 282.1
+ },
+ "energy_case_c2": {
+  "success": true,
+  "error_code": null,
+  "error": "",
+  "analysis": "waste_pathway_optimum",
+  "basis": "tea_live",
+  "candidates": 48,
+  "washes_costed": 6,
+  "no_admissible_wash": [],
+  "failed_washes": [],
+  "warnings": [
+   "the selected pathway sells the washed LDPE residual as resin (27% of its sales) with no further processing cost; its profit depends on that residual being clean enough to sell (see resale_dependence for the result at half the price and at none)",
+   "heating risk is high or critical at the operating temperature for Ethylene glycol (above_flash_point, vapor_pressure_not_at_operating_temperature)",
+   "at the process model's solvent-to-polymer ratio a wash could take up a sizable share of the retained polymers (retained_pickup_upper_bound_pct_of_product): the screen does not establish purity"
+  ],
+  "selected": {
+   "pathway": "EVOH/Ethylene glycol + resale",
+   "profit": 12517219,
+   "emissions_t": 1516.3,
+   "circularity": 0.813
+  },
+  "circularity_in_0_1": true,
+  "milp_agrees": true,
+  "crashed": false,
+  "seconds": 56.1
+ },
+ "restricted_solvents": {
+  "success": true,
+  "error_code": null,
+  "error": "",
+  "analysis": "waste_pathway_optimum",
+  "basis": "tea_live",
+  "candidates": 25,
+  "washes_costed": 4,
+  "no_admissible_wash": [
+   "NYLON6",
+   "PET"
+  ],
+  "failed_washes": [],
+  "warnings": [
+   "heating risk is high or critical at the operating temperature for Ethylene glycol (above_flash_point, vapor_pressure_not_at_operating_temperature)",
+   "at the process model's solvent-to-polymer ratio a wash could take up a sizable share of the retained polymers (retained_pickup_upper_bound_pct_of_product): the screen does not establish purity"
+  ],
+  "selected": {
+   "pathway": "EVOH/Ethylene glycol + we",
+   "profit": 2617315,
+   "emissions_t": 18869.8,
+   "circularity": 0.488
+  },
+  "circularity_in_0_1": true,
+  "milp_agrees": true,
+  "crashed": false,
+  "seconds": 3.8
+ },
+ "stricter_thermo_limits": {
+  "success": true,
+  "error_code": null,
+  "error": "",
+  "analysis": "waste_pathway_optimum",
+  "basis": "tea_live",
+  "candidates": 10,
+  "washes_costed": 1,
+  "no_admissible_wash": [
+   "EVOH",
+   "NYLON6",
+   "PET"
+  ],
+  "failed_washes": [],
+  "warnings": [],
+  "selected": {
+   "pathway": "no wash + we",
+   "profit": 771360,
+   "emissions_t": 19677.7,
+   "circularity": 0.449
+  },
+  "circularity_in_0_1": true,
+  "milp_agrees": true,
+  "crashed": false,
+  "seconds": 12.3
+ },
+ "price_override_unpriced_polymer": {
+  "success": true,
+  "error_code": null,
+  "error": "",
+  "analysis": "waste_pathway_optimum",
+  "basis": "tea_live",
+  "candidates": 143,
+  "washes_costed": 12,
+  "no_admissible_wash": [
+   "PET"
+  ],
+  "failed_washes": [],
+  "warnings": [
+   "the selected pathway sells the washed PET residual as resin (12% of its sales) with no further processing cost; its profit depends on that residual being clean enough to sell (see resale_dependence for the result at half the price and at none)",
+   "the selected washes use solvents with the GHS Danger signal word: Acetic Acid at 105 C. Pass avoid_danger_solvents=true to keep them out (the tool does not otherwise screen solvent hazard)",
+   "heating risk is high or critical at the operating temperature for Chlorobenzene (above_flash_point, vapor_pressure_not_at_operating_temperature); Acetic Acid (above_flash_point, vapor_pressure_not_at_operating_temperature)",
+   "at the process model's solvent-to-polymer ratio a wash could take up a sizable share of the retained polymers (retained_pickup_upper_bound_pct_of_product): the screen does not establish purity"
+  ],
+  "selected": {
+   "pathway": "PC/Chlorobenzene > EVOH/Acetic Acid + resale",
+   "profit": 13302233,
+   "emissions_t": 1904.3,
+   "circularity": 0.805
+  },
+  "circularity_in_0_1": true,
+  "milp_agrees": true,
+  "crashed": false,
+  "seconds": 4.1
+ },
+ "circularity_objective_pareto": {
+  "success": true,
+  "error_code": null,
+  "error": "",
+  "analysis": "waste_pathway_pareto",
+  "basis": "tea_live",
+  "candidates": 48,
+  "washes_costed": 6,
+  "no_admissible_wash": [],
+  "failed_washes": [],
+  "warnings": [],
+  "front_points": 1,
+  "crashed": false,
+  "seconds": 2.0
+ }
+}

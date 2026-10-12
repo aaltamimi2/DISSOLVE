@@ -719,6 +719,8 @@ EXPECTED_REGISTRY_NAMES: frozenset[str] = frozenset((
     "fetch_solvent_safety_by_cid",
     "evaluate_process",
     "rank_landscape",
+    "optimize_waste_pathway",
+    "tea_tornado",
     "lookup_hansen_parameters",
     "screen_hansen_compatibility",
     "lookup_glass_transition",
@@ -831,7 +833,6 @@ def doctor_report(
         contaminants,
         safety,
         tea,
-        tea_ranking,
         thermodynamics,
     )
     from dissolve.agent import BY_NAME, REGISTRY
@@ -867,7 +868,6 @@ def doctor_report(
         ("contaminants", contaminants._ASSET, contaminants._ASSET_SHA256),
         ("analysis", analysis._ASSET, analysis._ASSET_SHA256),
         ("tea", tea._ASSET, tea._ASSET_SHA256),
-        ("optimization", tea_ranking._ASSET, tea_ranking._ASSET_SHA256),
     ]
     bad_assets = []
     safety_digest = None

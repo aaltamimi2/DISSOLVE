@@ -1,0 +1,560 @@
+{
+ "model": "Gemini 3.1 Pro \u00b7 Vertex AI",
+ "prompts": {
+  "P01_per_day": {
+   "turns": [
+    {
+     "asked": "I have about 3 tonnes a day of LDPE/EVOH laminate scrap, roughly 70/30. Is it worth recycling it with solvents or should I just burn it?",
+     "status": "ok",
+     "seconds": 20.0,
+     "answer": "To compare solvent recycling against incineration for this stream, I need to evaluate the economics of the possible solvent washes for a 1,095 tonnes/year capacity (based on your 3 tonnes/day). \n\nEvaluating the specific washes for your LDPE/EVOH mixture requires running 6 live process simulations to cost the solvent separations. These simulations will take about 15 seconds each (roughly 90 seconds in total).\n\nWould you like me to run these simulations so we can compare the profit, emissions, and circularity of washing it versus sending it straight to incineration?"
+    },
+    {
+     "asked": "Yes, go ahead and run the simulations.",
+     "status": "ok",
+     "seconds": 83.0,
+     "answer": "Yes, it is highly profitable to recycle this stream using solvent washing compared to burning it. \n\nWashing out the EVOH and selling the remaining LDPE yields a profit of about $1.64 million per year, whereas sending the unwashed stream straight to an incinerator incurs a net cost (due to transport and processing).\n\nHere is how the top recycling option compares to sending the whole stream straight to an incinerator or landfill:\n\n| Pathway | Profit ($/yr) | Emissions (t CO\u2082e/yr) | Circularity Index |\n|---|---|---|---|\n| **Wash EVOH (Acetic Acid at 105 \u00b0C) + Sell LDPE** | $1,644,688 | 173 | 0.86 |\n| **Incinerator** (Unwashed feed, 151 miles) | -$2,347 | 100 | 0.22 |\n| **Landfill** (Unwashed feed, 9.2 miles) | -$12,582 | 95 | 0.60 |\n\nThe best recycling pathway extracts the EVOH (30% of the stream) using Acetic Acid at 105 \u00b0C. The remaining LDPE (70%) is left behind as a clean residual and sold directly as resin.\n\n**Important Caveats:**\n* **Resale Dependence:** About 27% of the recycling pathway's sales come from assuming the unwashed LDPE residual can be sold at full market price ($1,173/t). If the residual is too dirty to sell as resin and must be incinerated instead, the profit drops to $797,680/yr (still significantly better than burning the whole stream). Product purity is not strictly guaranteed by the screening limit.\n* **Solvent Hazards:** Acetic Acid at 105 \u00b0C carries a GHS Danger signal word and presents a high heating risk (it is above its flash point). If you want to avoid hazardous solvents, we can screen again with that restriction. \n* **Model Context:** The downstream transport distances assumed the published study's default defaults (151 miles for the incinerator). The circularity score is a screening index combining energy, emissions, waste, water, and substitutability.\n\nSource: Live TEA simulations for the wash economics, COSMO-RS grid for the thermodynamic screening, and published case-study LCA factors for the downstream technologies."
+    }
+   ],
+   "tool_calls": [
+    {
+     "tool": "optimize_waste_pathway",
+     "args": {
+      "feed_tonnes_per_year": 1095
+     },
+     "feed": {
+      "LDPE": 70,
+      "EVOH": 30
+     },
+     "result": {
+      "success": false,
+      "error_code": "live_tea_cost_confirmation_required",
+      "error": "6 wash(es) need a live BioSTEAM simulation (about 90 s in all). Run again with confirm_live_tea=true to simulate them.",
+      "pathway": null,
+      "profit": null,
+      "no_admissible_wash": null,
+      "failed_washes": [],
+      "warnings": null
+     }
+    },
+    {
+     "tool": "optimize_waste_pathway",
+     "args": {
+      "confirm_live_tea": true,
+      "feed_tonnes_per_year": 1095
+     },
+     "feed": {
+      "EVOH": 30,
+      "LDPE": 70
+     },
+     "result": {
+      "success": true,
+      "error_code": null,
+      "error": "",
+      "pathway": "EVOH/Acetic Acid + resale",
+      "profit": 1644687.6140597055,
+      "no_admissible_wash": [],
+      "failed_washes": [],
+      "warnings": [
+       "the selected pathway sells the washed LDPE residual as resin (27% of its sales) with no further processing cost; its profit depends on that residual being clean enough to sell (see resale_dependence for the result at half the price and at none)",
+       "the selected washes use solvents with the GHS Danger signal word: Acetic Acid at 105 C. Pass avoid_danger_solvents=true to keep them out (the tool does not otherwise screen solvent hazard)",
+       "heating risk is high or critical at the operating temperature for Acetic Acid (above_flash_point, vapor_pressure_not_at_operating_temperature)",
+       "at the process model's solvent-to-polymer ratio a wash could take up a sizable share of the retained polymers (retained_pickup_upper_bound_pct_of_product): the screen does not establish purity"
+      ]
+     }
+    }
+   ],
+   "prompt": "I have about 3 tonnes a day of LDPE/EVOH laminate scrap, roughly 70/30. Is it worth recycling it with solvents or should I just burn it?",
+   "expected": "converts 3 t/day to about 1,095 t/yr and states it; uses the pathway tool"
+  },
+  "P02_no_composition": {
+   "turns": [
+    {
+     "asked": "What's the best way to handle a mixed film waste?",
+     "status": "ok",
+     "seconds": 5.0,
+     "answer": "To find the best recycling or end-of-life pathway for your mixed film waste, I need a few more details about the stream. \n\nCould you please specify:\n1. **Which polymers** make up the mixed film (for example, LDPE, PET, EVOH)?\n2. **What percentage** of the total mass does each polymer represent?\n3. **How many tonnes per year** of this waste do you plan to process? \n\nOnce you provide the composition and the annual amount, I can evaluate the most profitable, lowest-emission, or most circular processing route."
+    }
+   ],
+   "tool_calls": [],
+   "prompt": "What's the best way to handle a mixed film waste?",
+   "expected": "asks for the composition and amount instead of inventing them; no pathway result"
+  },
+  "P03_solvent_question": {
+   "turns": [
+    {
+     "asked": "Which solvent dissolves LDPE most cheaply?",
+     "status": "ok",
+     "seconds": 42.1,
+     "answer": "While thousands of solvents are thermodynamically predicted to dissolve Low-Density Polyethylene (LDPE), dodecane is the only solvent with exact stored process economic records for this recovery. \n\nFor a plant processing 20,000 tonnes per year (dissolving LDPE at 145 \u00b0C and precipitating it at 25 \u00b0C), the minimum selling price of the recovered polymer depends on the energy configuration:\n\n| Energy Case | Solvent | Solvent Price ($/kg) | Minimum Selling Price ($/kg) | Total Capital Investment ($) |\n|---|---|---|---|---|\n| C1 (On-site CHP) | Dodecane | 4.08 | 1.26 | 87,100,000 |\n| C2 (Grid only) | Dodecane | 4.08 | 1.03 | 65,100,000 |\n| C3 (Grid + boiler) | Dodecane | 4.08 | 1.14 | 72,800,000 |\n\nTo evaluate other specific solvent candidates economically, please provide the solvent names along with their market prices so they can be costed through a live simulation.\n\nSource: tea_cache_exact."
+    }
+   ],
+   "tool_calls": [
+    {
+     "tool": "evaluate_process",
+     "args": {
+      "mode": "lookup",
+      "lookup_filter": {
+       "target_polymer": "LDPE"
+      }
+     },
+     "feed": null
+    },
+    {
+     "tool": "solubility_query",
+     "args": {
+      "polymers": [
+       "LDPE"
+      ]
+     },
+     "feed": null
+    },
+    {
+     "tool": "evaluate_process",
+     "args": {
+      "mode": "lookup",
+      "lookup_filter": {}
+     },
+     "feed": null
+    },
+    {
+     "tool": "lookup_material_database_membership",
+     "args": {
+      "material_names": [
+       "PE",
+       "polyethylene",
+       "LDPE"
+      ]
+     },
+     "feed": null
+    }
+   ],
+   "prompt": "Which solvent dissolves LDPE most cheaply?",
+   "expected": "does not use the pathway tool (a screening or cost question)"
+  },
+  "P04_unsupported_polymer": {
+   "turns": [
+    {
+     "asked": "We have 10,000 t/yr of 50% HDPE and 50% polypropylene. Maximize circularity.",
+     "status": "ok",
+     "seconds": 12.4,
+     "answer": "To find the pathway that maximizes circularity for this feed, I need to run 6 live process simulations for the solvent washes. Each simulation takes about 15 seconds, so this will take around 1.5 minutes in total. \n\nShall I go ahead and run those simulations?"
+    },
+    {
+     "asked": "Yes, go ahead and run the simulations.",
+     "status": "ok",
+     "seconds": 41.2,
+     "answer": "To maximize the circularity of this stream, the recommended pathway is to wash the HDPE with dimethyl sulfoxide at 135 \u00b0C, and send the residual to a landfill.\n\nHere are the top three pathways by circularity index:\n\n| Wash Sequence | Downstream | Circularity Index | Profit ($/yr) | Emissions (t CO\u2082e/yr) |\n|---|---|---|---|---|\n| HDPE with Dimethyl sulfoxide at 135 \u00b0C | Landfill | 0.769 | -2,390,000 | 3,070 |\n| HDPE with Propylene Carbonate at 140 \u00b0C | Landfill | 0.764 | -2,180,000 | 3,260 |\n| HDPE with Propylene glycol at 140 \u00b0C | Landfill | 0.754 | -2,690,000 | 3,370 |\n\nCircularity Index: The MICRON five-category index (0 to 1, higher is more circular).\n\nBy optimizing for emissions instead, you could achieve 865 t CO\u2082e/yr by sending the unwashed feed directly to landfill (profit -$115,000/yr). Optimizing for profit identifies sending the unwashed feed to incineration with energy recovery, yielding $964,000/yr but producing 24,600 t CO\u2082e/yr.\n\n*Note: The process model cannot currently simulate PP washes, so it remains in the residual. PP also lacks a default market price in this database, meaning recovering it would earn no revenue here. Circularity is a screening index and the downstream-technology data (distances assumed as 9.2 miles to landfill and 151 miles to incineration) are partly recovered.*\n\nSource: tea_live simulations of the washes, followed by the pathway MILP."
+    }
+   ],
+   "tool_calls": [
+    {
+     "tool": "optimize_waste_pathway",
+     "args": {
+      "feed_tonnes_per_year": 10000,
+      "objective": "max_circularity"
+     },
+     "feed": {
+      "PP": 50,
+      "HDPE": 50
+     },
+     "result": {
+      "success": false,
+      "error_code": "live_tea_cost_confirmation_required",
+      "error": "6 wash(es) need a live BioSTEAM simulation (about 90 s in all). Run again with confirm_live_tea=true to simulate them.",
+      "pathway": null,
+      "profit": null,
+      "no_admissible_wash": null,
+      "failed_washes": [],
+      "warnings": null
+     }
+    },
+    {
+     "tool": "optimize_waste_pathway",
+     "args": {
+      "feed_tonnes_per_year": 10000,
+      "confirm_live_tea": true,
+      "objective": "max_circularity"
+     },
+     "feed": {
+      "PP": 50,
+      "HDPE": 50
+     },
+     "result": {
+      "success": true,
+      "error_code": null,
+      "error": "",
+      "pathway": "HDPE/Dimethyl sulfoxide + lf",
+      "profit": -2390182.65584719,
+      "no_admissible_wash": [],
+      "failed_washes": [],
+      "warnings": [
+       "washes of PP could not be simulated (No scenario could be evaluated. Failure reasons: PP maps to process-model ID PP, which is not in the package chemical outline. Refusing to l); PP is left in the residual",
+       "no price for PP: recovering them earns nothing, so no wash of them can pay; pass polymer_prices_usd_per_t to value them",
+       "the selected pathway leaves pure PP, which has no price, so it cannot be valued as resin",
+       "at the process model's solvent-to-polymer ratio a wash could take up a sizable share of the retained polymers (retained_pickup_upper_bound_pct_of_product): the screen does not establish purity"
+      ]
+     }
+    }
+   ],
+   "prompt": "We have 10,000 t/yr of 50% HDPE and 50% polypropylene. Maximize circularity.",
+   "expected": "reports that PP cannot be simulated/washed here or that nothing separates HDPE from PP, instead of crashing or inventing"
+  },
+  "P05_own_distance_generic_name": {
+   "turns": [
+    {
+     "asked": "We process 20,000 tonnes per year of film that is 80% PE, 10% EVOH and 10% nylon. We care most about low emissions, and our nearest landfill is 40 miles away.",
+     "status": "ok",
+     "seconds": 12.1,
+     "answer": "To find the optimal waste processing pathway for your film, I need to know the specific grades of the polymers in your feed. \n\nCould you clarify:\n1. Is the PE specifically LDPE or HDPE?\n2. Is the nylon specifically Nylon 6 or Nylon 6,6? \n\nOnce I have those details, I can cost the solvent washes and downstream technologies to find the lowest-emission route."
+    }
+   ],
+   "tool_calls": [],
+   "prompt": "We process 20,000 tonnes per year of film that is 80% PE, 10% EVOH and 10% nylon. We care most about low emissions, and our nearest landfill is 40 miles away.",
+   "expected": "passes the landfill distance; says which PE grade it assumed"
+  },
+  "P06_price": {
+   "turns": [
+    {
+     "asked": "Our PET/PE laminate is 50/50 and we have 4,000 t/yr. Would washing it pay if recycled PET sells for 1,500 dollars a tonne?",
+     "status": "ok",
+     "seconds": 15.1,
+     "answer": "To find out if washing this 50/50 PET/PE laminate is profitable, the process evaluation tool needs to run live economic simulations for 4 possible wash configurations. Each simulation takes about 15 seconds (approximately 60 seconds in total). \n\nPlease let me know if you would like me to go ahead and run these live simulations."
+    },
+    {
+     "asked": "Yes, go ahead and run the simulations.",
+     "status": "ok",
+     "seconds": 58.6,
+     "answer": "Yes, washing this PET/PE laminate is profitable. The most profitable pathway washes out the PET using pyrrole, leaving the PE (assumed to be LDPE) behind as a clean residual to sell. \n\nThis process yields an estimated profit of about $646,000 per year, which strongly outperforms simply sending the unwashed feed to an incinerator (profit of ~$386,000/yr). \n\nHere are the top processing options, optimized for profit:\n\n| Pathway | Profit ($/yr) | Emissions (t CO\u2082e/yr) | MICRON Circularity |\n|---|---|---|---|\n| 1. Wash PET with pyrrole (110 \u00b0C) + sell LDPE residual | 646,000 | 909 | 0.84 |\n| 2. Wash LDPE with diethylene glycol (130 \u00b0C) + sell PET residual | 629,000 | 1,320 | 0.80 |\n| 3. Wash LDPE with propylene glycol (140 \u00b0C) + sell PET residual | 590,000 | 1,180 | 0.81 |\n| 4. Wash LDPE with dipentene (100 \u00b0C) + sell PET residual | 445,000 | 1,040 | 0.83 |\n| Unwashed feed sent to incinerator (151 miles) | 386,000 | 9,840 | 0.44 |\n\n*MICRON Circularity is a screening index (0 to 1, higher is better) measuring material retention and sustainability across five categories.*\n\n**Caveats to consider:**\n* **Resale Dependence:** Nearly half (45%) of the sales revenue from the top pathway relies on selling the unwashed LDPE residual at full resin prices. If the residual is too contaminated to sell as resin, the profitability vanishes, and sending the unwashed feed to an incinerator becomes the most profitable route. The screen applies a 3 wt% retention limit, which does not guarantee final product purity. \n* **Safety/Hazards:** Pyrrole carries a GHS \"Danger\" signal word and high heating risk (it is operated above its flash point). If you want to restrict the process to safer solvents, we can re-screen to avoid Danger-rated solvents. \n* **Downstream Locations:** Since no specific locations were provided, default distances were assumed (e.g., 151 miles for incineration, 0 miles for resale).\n\nSource: live TEA simulations for each wash, combined with downstream technology data recovered from literature. Solubilities are COSMO-RS predictions."
+    }
+   ],
+   "tool_calls": [
+    {
+     "tool": "optimize_waste_pathway",
+     "args": {
+      "polymer_prices_usd_per_t": {
+       "PET": 1500
+      },
+      "feed_tonnes_per_year": 4000
+     },
+     "feed": {
+      "PE": 50,
+      "PET": 50
+     },
+     "result": {
+      "success": false,
+      "error_code": "live_tea_cost_confirmation_required",
+      "error": "4 wash(es) need a live BioSTEAM simulation (about 60 s in all). Run again with confirm_live_tea=true to simulate them.",
+      "pathway": null,
+      "profit": null,
+      "no_admissible_wash": null,
+      "failed_washes": [],
+      "warnings": null
+     }
+    },
+    {
+     "tool": "optimize_waste_pathway",
+     "args": {
+      "polymer_prices_usd_per_t": {
+       "PET": 1500
+      },
+      "confirm_live_tea": true,
+      "feed_tonnes_per_year": 4000
+     },
+     "feed": {
+      "PE": 50,
+      "PET": 50
+     },
+     "result": {
+      "success": true,
+      "error_code": null,
+      "error": "",
+      "pathway": "PET/Pyrrole + resale",
+      "profit": 646102.360941248,
+      "no_admissible_wash": [],
+      "failed_washes": [],
+      "warnings": [
+       "read the polymer 'PE' as LDPE; name the grade (LDPE, HDPE, ...) if that is not what you meant",
+       "the selected pathway sells the washed LDPE residual as resin (45% of its sales) with no further processing cost; its profit depends on that residual being clean enough to sell (see resale_dependence for the result at half the price and at none)",
+       "the selected washes use solvents with the GHS Danger signal word: Pyrrole at 110 C. Pass avoid_danger_solvents=true to keep them out (the tool does not otherwise screen solvent hazard)",
+       "heating risk is high or critical at the operating temperature for Pyrrole (above_flash_point, vapor_pressure_not_at_operating_temperature)",
+       "at the process model's solvent-to-polymer ratio a wash could take up a sizable share of the retained polymers (retained_pickup_upper_bound_pct_of_product): the screen does not establish purity"
+      ]
+     }
+    }
+   ],
+   "prompt": "Our PET/PE laminate is 50/50 and we have 4,000 t/yr. Would washing it pay if recycled PET sells for 1,500 dollars a tonne?",
+   "expected": "uses the PET price; reports honestly if no wash is admissible"
+  },
+  "P07_single_polymer": {
+   "turns": [
+    {
+     "asked": "Compare pyrolysis and incineration for 6,000 tonnes a year of polystyrene packaging.",
+     "status": "ok",
+     "seconds": 28.6,
+     "answer": "Since the 6,000 tonnes-per-year stream is entirely polystyrene packaging, no solvent separation is needed. Comparing the whole feed sent to each downstream technology directly, incineration with energy recovery maximizes profit, while pyrolysis yields fewer greenhouse gas emissions and a higher circularity score.\n\n| Technology | Profit ($/yr) | Emissions (t CO2e/yr) | Circularity | Distance (miles) |\n|---|---|---|---|---|\n| Incineration with energy recovery | 579,000 | 14,800 | 0.466 | 151 |\n| Pyrolysis | -1,370,000 | 4,090 | 0.597 | 1,034 |\n\nCircularity: The MICRON screening index evaluates energy, emissions, substitutability, waste, and water (0 to 1, higher is more circular). \n\n*Note:* Default transport distances were assumed because none were provided. In the underlying recovered data, incineration with energy recovery earns $110 per tonne of waste and has no listed operating cost, while pyrolysis earns no product revenue, which accounts for its negative profit. Circularity is a screening index, and the downstream-technology metrics are partly recovered from the published case study's outputs.\n\nSource: Because no solvent washes were costed for this single-polymer feed, there are no TEA or LCA records behind the answer, only the downstream-technology data recovered from the published study."
+    }
+   ],
+   "tool_calls": [
+    {
+     "tool": "optimize_waste_pathway",
+     "args": {
+      "feed_tonnes_per_year": 6000
+     },
+     "feed": {
+      "polystyrene": 100
+     },
+     "result": {
+      "success": true,
+      "error_code": null,
+      "error": "",
+      "pathway": "no wash + we",
+      "profit": 578520.0,
+      "no_admissible_wash": [],
+      "failed_washes": [],
+      "warnings": [
+       "the feed is a single polymer, so there is nothing to separate by washing; only its downstream destination is optimized",
+       "no price for PS: recovering them earns nothing, so no wash of them can pay; pass polymer_prices_usd_per_t to value them"
+      ]
+     }
+    }
+   ],
+   "prompt": "Compare pyrolysis and incineration for 6,000 tonnes a year of polystyrene packaging.",
+   "expected": "treats it as a single-polymer feed (nothing to separate) and reports downstream options; no invented washing"
+  },
+  "P08_shared_plant_pareto": {
+   "turns": [
+    {
+     "asked": "Show me profit versus circularity for a 60/40 PE/EVOH film, 2,000 t/yr, if we share a 15,000 tonne per year recycling plant with others.",
+     "status": "ok",
+     "seconds": 31.2,
+     "answer": "Evaluating the profit versus circularity trade-off for your 2,000 t/yr 60/40 PE/EVOH film in a shared 15,000 t/yr plant requires 6 live BioSTEAM simulations to cost the potential solvent washes. Each simulation takes about 15 seconds, for a total of roughly 90 seconds. \n\nBecause I must have your agreement to run live simulations and cannot ask you in this one-shot format, nothing was simulated. \n\nIf we were to proceed, I would also ask for your downstream transport distances or assume the study defaults: 9.2 miles to landfill, 151 miles to incineration, 1,034 miles to pyrolysis, 2,036 miles to hydrogen gasification, and on-site (0 miles) for energy gasification."
+    },
+    {
+     "asked": "Yes, go ahead and run the simulations.",
+     "status": "ok",
+     "seconds": 65.2,
+     "answer": "The live BioSTEAM simulations are complete, and we have the trade-off between profit and circularity for your 2,000 t/yr 60/40 PE/EVOH stream, processed in a shared 15,000 t/yr facility. We assumed the study's default transport distances: 9.2 miles to landfill, 151 miles to incineration, 1,034 miles to pyrolysis, 2,036 miles to hydrogen gasification, and 0 miles for energy gasification.\n\nHere is the Pareto frontier between profit and circularity (the MICRON index):\n\n| Pathway | Profit ($/yr) | Circularity |\n|---|---|---|\n| **Maximum Profit:** Dissolve PE in Diphenyl ether (115 \u00b0C), sell residual as EVOH | 6,468,000 | 0.79 |\n| **Maximum Circularity:** Dissolve EVOH in Acetic acid (105 \u00b0C), sell residual as PE | 6,447,000 | 0.85 |\n\nBoth options perform very well because washing either polymer leaves a clean stream of the other, which can be resold as single-polymer resin without further processing costs. Washing EVOH first yields a higher circularity score primarily due to lower emissions (373 t CO\u2082e/yr vs 688 t CO\u2082e/yr) and energy use, though it earns slightly less profit due to differing recovered yields and resin prices. \n\nSource: DISSOLVE live BioSTEAM simulations (TEA/LCA) of COSMO-RS predicted washes, optimized by MILP. Circularity is a screening index and downstream-technology data are partly recovered. The retention limit is a screening criterion and does not guarantee purity. The generic 'PE' was evaluated as LDPE."
+    }
+   ],
+   "tool_calls": [
+    {
+     "tool": "optimize_waste_pathway",
+     "args": {
+      "pareto": "circularity_vs_profit",
+      "feed_tonnes_per_year": 2000,
+      "shared_plant_capacity_mt_per_yr": 15000
+     },
+     "feed": {
+      "EVOH": 40,
+      "PE": 60
+     },
+     "result": {
+      "success": false,
+      "error_code": "live_tea_cost_confirmation_required",
+      "error": "6 wash(es) need a live BioSTEAM simulation (about 90 s in all). Run again with confirm_live_tea=true to simulate them.",
+      "pathway": null,
+      "profit": null,
+      "no_admissible_wash": null,
+      "failed_washes": [],
+      "warnings": null
+     }
+    },
+    {
+     "tool": "optimize_waste_pathway",
+     "args": {
+      "feed_tonnes_per_year": 2000,
+      "confirm_live_tea": true,
+      "shared_plant_capacity_mt_per_yr": 15000,
+      "pareto": "circularity_vs_profit"
+     },
+     "feed": {
+      "PE": 60,
+      "EVOH": 40
+     },
+     "result": {
+      "success": true,
+      "error_code": null,
+      "error": "",
+      "pathway": null,
+      "profit": null,
+      "no_admissible_wash": [],
+      "failed_washes": [],
+      "warnings": [
+       "read the polymer 'PE' as LDPE; name the grade (LDPE, HDPE, ...) if that is not what you meant"
+      ]
+     }
+    }
+   ],
+   "prompt": "Show me profit versus circularity for a 60/40 PE/EVOH film, 2,000 t/yr, if we share a 15,000 tonne per year recycling plant with others.",
+   "expected": "shared capacity 15,000 and a circularity-profit front"
+  },
+  "P09_tiny_scale": {
+   "turns": [
+    {
+     "asked": "I run a small recycler with 500 tonnes per year of film scrap, 90% LDPE and 10% EVOH. Does solvent washing make sense at that scale?",
+     "status": "ok",
+     "seconds": 17.5,
+     "answer": "To evaluate whether solvent washing makes economic and environmental sense for your 500 tonnes per year of LDPE and EVOH, I need to cost the potential wash sequences (such as removing EVOH with acetic acid, or LDPE with toluene) at your specific scale. \n\nCurrently, I need to run 6 live plant simulations to cost these washes for your exact capacity. Each simulation takes about 15 seconds, so the complete analysis will take roughly 90 seconds. \n\nWould you like me to proceed with these live simulations?"
+    },
+    {
+     "asked": "Yes, go ahead and run the simulations.",
+     "status": "ok",
+     "seconds": 76.4,
+     "answer": "The simulations are complete. At your scale of 500 tonnes per year, solvent washing does not make economic sense for maximizing profit.\n\nThe most profitable path is to bypass washing entirely and send the whole stream to incineration with energy recovery.\n\nHere are the best pathways for each objective:\n\n| Objective | Wash Pathway | Downstream | Profit ($/yr) | Emissions (t CO\u2082e/yr) | Circularity |\n|---|---|---|---|---|---|\n| **Max Profit** | No wash | Incineration | 48,210 | 1,230 | 0.431 |\n| **Min Emissions** | No wash | Landfill | -5,745 | 43 | 0.604 |\n| **Max Circularity** | EVOH with Acetic Acid (105 \u00b0C) | Resell as LDPE | -53,577 | 45 | 0.875 |\n\n*Circularity: The MICRON five-category index, equal weights, 0 to 1, higher is more circular. This is a screening index.*\n\nThe circularity route (washing EVOH out with acetic acid and selling the residual as LDPE resin) yields the highest circularity and comparable low emissions to landfilling, but its high annual capital and operating costs relative to your 500-tonne volume push the annual profit negative. The profitable incineration route earns revenue from the energy recovered.\n\nSource: COSMO-RS grid thermodynamic screening, live BioSTEAM plant simulations dedicated to this 500 t/year feed, and downstream LCA data recovered from the published case study. Assumptions include 151 miles to the incinerator, 9.2 miles to the landfill, and the ability to resell unwashed but stripped LDPE as resin without further processing."
+    }
+   ],
+   "tool_calls": [
+    {
+     "tool": "optimize_waste_pathway",
+     "args": {
+      "feed_tonnes_per_year": 500
+     },
+     "feed": {
+      "EVOH": 10,
+      "LDPE": 90
+     },
+     "result": {
+      "success": false,
+      "error_code": "live_tea_cost_confirmation_required",
+      "error": "6 wash(es) need a live BioSTEAM simulation (about 90 s in all). Run again with confirm_live_tea=true to simulate them.",
+      "pathway": null,
+      "profit": null,
+      "no_admissible_wash": null,
+      "failed_washes": [],
+      "warnings": null
+     }
+    },
+    {
+     "tool": "optimize_waste_pathway",
+     "args": {
+      "confirm_live_tea": true,
+      "feed_tonnes_per_year": 500
+     },
+     "feed": {
+      "LDPE": 90,
+      "EVOH": 10
+     },
+     "result": {
+      "success": true,
+      "error_code": null,
+      "error": "",
+      "pathway": "no wash + we",
+      "profit": 48210.0,
+      "no_admissible_wash": [],
+      "failed_washes": [],
+      "warnings": []
+     }
+    }
+   ],
+   "prompt": "I run a small recycler with 500 tonnes per year of film scrap, 90% LDPE and 10% EVOH. Does solvent washing make sense at that scale?",
+   "expected": "answers from the tool at 500 t/yr and says what it found, including any scale caveat"
+  },
+  "P10_vague": {
+   "turns": [
+    {
+     "asked": "How green is solvent-based recycling for multilayer packaging?",
+     "status": "ok",
+     "seconds": 8.0,
+     "answer": "To evaluate the environmental impact\u2014such as greenhouse gas emissions and circularity\u2014of a solvent-based recycling process for multilayer packaging, I can run a lifecycle and economic optimization for your specific stream. \n\nHowever, I need a few details about your waste feed first. Please provide:\n1. **The polymers:** Which specific plastics make up the multilayer packaging (for example, LDPE, PET, EVOH, etc.)?\n2. **The composition:** What are the mass percentages of each polymer? (Please ensure they sum up to 100%).\n3. **The scale:** How many metric tonnes of this packaging do you plan to process per year?\n\nOnce you share these details, I can determine the best solvent wash sequence and calculate the process's emissions and circularity."
+    }
+   ],
+   "tool_calls": [],
+   "prompt": "How green is solvent-based recycling for multilayer packaging?",
+   "expected": "does not invent a feed or numbers; asks, or answers generally without a pathway result"
+  },
+  "P11_bad_percentages": {
+   "turns": [
+    {
+     "asked": "I have 8,000 tonnes of film: 60% LDPE and 50% EVOH. What should I do with it?",
+     "status": "ok",
+     "seconds": 4.2,
+     "answer": "The percentages you provided for the film (60% LDPE and 50% EVOH) add up to 110%. Could you clarify which of these shares is incorrect, or if there is another material in the mix, so I can accurately assess the best pathway for this feed?"
+    }
+   ],
+   "tool_calls": [],
+   "prompt": "I have 8,000 tonnes of film: 60% LDPE and 50% EVOH. What should I do with it?",
+   "expected": "notices the percentages sum to 110% and asks, instead of silently normalizing"
+  },
+  "P12_solvent_restriction": {
+   "turns": [
+    {
+     "asked": "For 8,000 t/yr of 60% LDPE, 20% PET, 10% nylon 6 and 10% EVOH, what maximizes profit if we may only use toluene and ethylene glycol?",
+     "status": "ok",
+     "seconds": 16.9,
+     "answer": "To determine the most profitable waste processing pathway for your feed using only toluene and ethylene glycol, the engine needs to evaluate 4 distinct solvent washes. This requires running 4 live BioSTEAM simulations (evaluating LDPE in toluene and EVOH in ethylene glycol at different stages in the separation sequence). \n\nSince each simulation takes about 15 seconds to complete, calculating the exact economics will take approximately 1 minute in total. As I need your approval to run live process models, nothing was simulated yet. Please confirm if you would like me to proceed with these simulations."
+    },
+    {
+     "asked": "Yes, go ahead and run the simulations.",
+     "status": "ok",
+     "seconds": 48.2,
+     "answer": "To maximize profit with your feed (8,000 t/yr of 60% LDPE, 20% PET, 10% nylon 6, and 10% EVOH) using only toluene and ethylene glycol, the optimal pathway is to wash the feed to recover EVOH, then send the residual to incineration with energy recovery.\n\nThis single-wash sequence generates an estimated profit of $2.62 million per year, but comes with relatively high emissions. \n\n| Step | Process | Profit ($/yr) | Emissions (t CO\u2082e/yr) | MICRON Circularity |\n|---|---|---|---|---|\n| 1 | EVOH recovery (Ethylene glycol, 120 \u00b0C) | | | |\n| 2 | Incineration with energy recovery | 2,617,000 | 18,870 | 0.488 |\n\n**Pathway Notes:**\n*   **Alternative Optima:** If you optimize for maximum circularity (0.714), the sequence changes to a two-step wash recovering LDPE (toluene, 100 \u00b0C) followed by EVOH (ethylene glycol, 120 \u00b0C), with the residual landfilled. This generates a lower profit of $485,000/yr and 2,870 t CO\u2082e/yr. Minimizing emissions simply landfills the unwashed feed.\n*   **Unrecovered Polymers:** Neither nylon 6 nor PET have an admissible wash in these two solvents under screening criteria, so they remain in the waste stream along with the unrecovered share of LDPE.\n*   **Assumptions:** Distances assumed were 151 miles for incineration and 9.2 miles for landfill (defaults). The plant is sized strictly for this feed alone. \n*   **Limits:** The sequence's retained limits guarantee that at most 3 wt% of off-target polymers dissolve, but because of the solvent-to-polymer ratio, this does not establish ultimate product purity. Downstream technology data are partly recovered. Circularity is a screening index.\n\nSource: live BioSTEAM simulations combined with pathway MILP optimization."
+    }
+   ],
+   "tool_calls": [
+    {
+     "tool": "optimize_waste_pathway",
+     "args": {
+      "feed_tonnes_per_year": 8000,
+      "objective": "max_profit",
+      "solvents": [
+       "toluene",
+       "ethylene glycol"
+      ]
+     },
+     "feed": {
+      "NYLON6": 10,
+      "EVOH": 10,
+      "PET": 20,
+      "LDPE": 60
+     },
+     "result": {
+      "success": false,
+      "error_code": "live_tea_cost_confirmation_required",
+      "error": "4 wash(es) need a live BioSTEAM simulation (about 60 s in all). Run again with confirm_live_tea=true to simulate them.",
+      "pathway": null,
+      "profit": null,
+      "no_admissible_wash": null,
+      "failed_washes": [],
+      "warnings": null
+     }
+    },
+    {
+     "tool": "optimize_waste_pathway",
+     "args": {
+      "confirm_live_tea": true,
+      "objective": "max_profit",
+      "solvents": [
+       "toluene",
+       "ethylene glycol"
+      ],
+      "feed_tonnes_per_year": 8000
+     },
+     "feed": {
+      "PET": 20,
+      "EVOH": 10,
+      "NYLON6": 10,
+      "LDPE": 60
+     },
+     "result": {
+      "success": true,
+      "error_code": null,
+      "error": "",
+      "pathway": "EVOH/Ethylene glycol + we",
+      "profit": 2617314.6961121573,
+      "no_admissible_wash": [
+       "NYLON6",
+       "PET"
+      ],
+      "failed_washes": [],
+      "warnings": [
+       "at the process model's solvent-to-polymer ratio a wash could take up a sizable share of the retained polymers (retained_pickup_upper_bound_pct_of_product): the screen does not establish purity"
+      ]
+     }
+    }
+   ],
+   "prompt": "For 8,000 t/yr of 60% LDPE, 20% PET, 10% nylon 6 and 10% EVOH, what maximizes profit if we may only use toluene and ethylene glycol?",
+   "expected": "passes the solvent restriction and answers within it"
+  }
+ }
+}

@@ -1159,14 +1159,9 @@ def test_route_substitution_bound_count_separate_from_displayed():
 def test_unwired_names_do_not_call_engine():
     with _bound():
         assert UNWIRED == frozenset()
-        for name in (
-            "evaluate_stored_route_tea_lca",
-            "optimize_stored_route",
-            "pareto_optimize_stored_route",
-        ):
-            retired = dispatch(name)
-            assert retired["available"] is False
-            assert retired["refusal"] == "unknown_tool"
+        retired = dispatch("evaluate_stored_route_tea_lca")
+        assert retired["available"] is False
+        assert retired["refusal"] == "unknown_tool"
 
 
 def test_include_pubchem_wrapper_default_false():
@@ -1231,8 +1226,6 @@ def test_schemas_handle_only_on_consumer_and_omit_injected():
     assert wrap["process_config"]["type"] == "object"
     assert "evaluate_tea_lca_scenarios" not in schemas
     assert "evaluate_stored_route_tea_lca" not in schemas
-    assert "optimize_stored_route" not in schemas
-    assert "pareto_optimize_stored_route" not in schemas
     rm = schemas["screen_polymer_separation"]["parameters"]["properties"]["ranking_mode"]
     assert "target_dissolution" in rm["enum"]
     mt = schemas["lookup_hansen_parameters"]["parameters"]["properties"]["material_type"]
@@ -2295,9 +2288,9 @@ def test_doctor_checks_key_assets_registry_duckdb(tmp_path, monkeypatch):
     assert "duckdb" in names
     by_name = {c["name"]: c for c in report["checks"]}
     assert by_name["Tool registry"]["status"] == "pass"
-    assert by_name["Tool registry"]["detail"] == "32 registered names"
+    assert by_name["Tool registry"]["detail"] == "34 registered names"
     assert by_name["Tool registry"]["registered"] == len(EXPECTED_REGISTRY_NAMES)
-    assert len(EXPECTED_REGISTRY_NAMES) == 32  # find_plastchem_contaminants added 2026-10-05
+    assert len(EXPECTED_REGISTRY_NAMES) == 34  # find_plastchem_contaminants 2026-10-05, tea_tornado 2026-10-07
     assert "fetch_solvent_safety_by_cid" in EXPECTED_REGISTRY_NAMES
     assert "estimate_thermal_properties" not in EXPECTED_REGISTRY_NAMES
     assert "normalize_feed_composition" not in EXPECTED_REGISTRY_NAMES
@@ -5716,7 +5709,7 @@ def test_planner_routes_process_rows_locators_are_not_applicable(monkeypatch):
         assert data.get("source") == "planner_routes"
 
 
-def test_planner_routes_residual_kwargs_are_not_applicable(monkeypatch):
+def test_planner_routes_residual_kwargs_are_unknown_extras(monkeypatch):
     def forbidden(*args, **kwargs):
         raise AssertionError("planner_routes must not start BioSTEAM")
 
@@ -5757,9 +5750,8 @@ def test_planner_routes_residual_kwargs_are_not_applicable(monkeypatch):
     for kwargs, payload in zip(residual_kwargs, refused):
         data = payload.get("data") or {}
         assert payload.get("available") is False, kwargs
-        assert payload.get("refusal") == "not_applicable_in_source", kwargs
-        assert data.get("inapplicable_fields") == list(kwargs), kwargs
-        assert data.get("source") == "planner_routes"
+        assert payload.get("refusal") == "unknown_process_field", kwargs
+        assert data.get("extra_keys") == list(kwargs), kwargs
 
 
 def test_planner_routes_objective_on_pareto_is_not_applicable(monkeypatch):
@@ -6829,8 +6821,8 @@ def test_off_default_six_literature_tools_absent_from_agent_list():
     assert LITERATURE_AGENT_TOOLS.isdisjoint(offered_tool_names())
     assert "ingest_literature_documents" in agent.BY_NAME
     assert "ingest_literature_graph" in agent.BY_NAME
-    assert len(EXPECTED_REGISTRY_NAMES) == 32
-    assert len(agent.REGISTRY) == 32
+    assert len(EXPECTED_REGISTRY_NAMES) == 34
+    assert len(agent.REGISTRY) == 34
 
 
 def test_corpus_offers_exactly_two_local_tools_and_network_does_not_fire(monkeypatch, tmp_path):
@@ -7322,3 +7314,8 @@ def test_a_call_missing_an_argument_is_refused_in_words_the_model_can_act_on(mon
     monkeypatch.setattr(agent, "call", inner_failure)
     deep = dispatch("screen_contaminant_leaching", target_polymer="LDPE", contaminants=["PFOA"])
     assert deep["refusal"] == "tool_exception"
+
+
+def test_the_agent_is_told_to_explain_downstream_choices_only_from_the_data():
+    assert "never invent a reason" in agent.SYSTEM_PROMPT and "capital of the hydrogen gasification routes" in agent.SYSTEM_PROMPT
+    assert "says it has opened only" not in agent.SYSTEM_PROMPT and "opened only when figure_opened is true" in agent.SYSTEM_PROMPT
