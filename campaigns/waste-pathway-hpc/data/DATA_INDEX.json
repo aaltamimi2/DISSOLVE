@@ -1,0 +1,126 @@
+{
+ "tables": {
+  "feed_scenarios.parquet": {
+   "rows": 21744,
+   "bytes": 1624437
+  },
+  "mc_candidates.parquet": {
+   "rows": 3230332,
+   "bytes": 55684223
+  },
+  "mc_scenarios.parquet": {
+   "rows": 2408,
+   "bytes": 246177
+  },
+  "oat_tornado.parquet": {
+   "rows": 102000,
+   "bytes": 2709710
+  },
+  "sobol_indices.parquet": {
+   "rows": 1530,
+   "bytes": 93512
+  },
+  "washes_feeds.parquet": {
+   "rows": 197952,
+   "bytes": 13375563
+  },
+  "washes_mc.parquet": {
+   "rows": 34314,
+   "bytes": 5044709
+  },
+  "washes_oat.parquet": {
+   "rows": 42024,
+   "bytes": 3090861
+  },
+  "washes_oatfix.parquet": {
+   "rows": 1224,
+   "bytes": 191920
+  },
+  "washes_sobol.parquet": {
+   "rows": 350208,
+   "bytes": 42567956
+  },
+  "washes_surface.parquet": {
+   "rows": 15504,
+   "bytes": 1856906
+  },
+  "feed_candidates/": {
+   "rows": 11550720,
+   "parts": 6,
+   "note": "one table in parts, row order of the original file; read with read_parquet('feed_candidates/*.parquet')"
+  }
+ },
+ "collector_index": {
+  "files": {
+   "washes_surface.parquet": {
+    "description": "every BioSTEAM run of block surface: cfg_* is the process configuration sent, the other columns are the engine's result row",
+    "rows": 15504,
+    "planned": 15504,
+    "missing": 0
+   },
+   "washes_oat.parquet": {
+    "description": "every BioSTEAM run of block oat: cfg_* is the process configuration sent, the other columns are the engine's result row",
+    "rows": 42024,
+    "planned": 42024,
+    "missing": 0
+   },
+   "washes_oatfix.parquet": {
+    "description": "every BioSTEAM run of block oatfix: cfg_* is the process configuration sent, the other columns are the engine's result row",
+    "rows": 1224,
+    "planned": 1224,
+    "missing": 0
+   },
+   "washes_sobol.parquet": {
+    "description": "every BioSTEAM run of block sobol: cfg_* is the process configuration sent, the other columns are the engine's result row",
+    "rows": 350208,
+    "planned": 350208,
+    "missing": 0
+   },
+   "oat_tornado.parquet": {
+    "description": "one row per base plant (node), parameter and metric: the metric at the base, at the parameter's low and high value, and the swing; operating_days high is the engine's bound of 366 days",
+    "rows": 102000
+   },
+   "sobol_indices.parquet": {
+    "description": "first-order (Saltelli 2010) and total (Jansen) indices per wash system, metric and factor, with 95% bootstrap intervals over the N base rows; n_used counts rows where A, B and AB_i all ran",
+    "rows": 1530
+   },
+   "washes_feeds.parquet": {
+    "description": "every BioSTEAM run made for the feeds scenarios (one per distinct wash per scenario)",
+    "rows": 197952
+   },
+   "feed_scenarios.parquet": {
+    "description": "one row per scenario and downstream location: the feed, the plant, the three optima (pathway, profit $/yr, emissions t CO2e/yr, circularity), front sizes and counts",
+    "rows": 21744,
+    "planned_scenarios": 10872,
+    "scenarios_done": 10872
+   },
+   "feed_candidates.parquet": {
+    "description": "every candidate pathway of every scenario and location, with its profit, emissions and circularity and whether it lies on each exact Pareto front",
+    "rows": 11550720
+   },
+   "washes_mc.parquet": {
+    "description": "every BioSTEAM run made for the mc scenarios (one per distinct wash per scenario)",
+    "rows": 34314
+   },
+   "mc_scenarios.parquet": {
+    "description": "one row per scenario and downstream location: the feed, the plant, the three optima (pathway, profit $/yr, emissions t CO2e/yr, circularity), front sizes and counts",
+    "rows": 2408,
+    "planned_scenarios": 1204,
+    "scenarios_done": 1204
+   },
+   "mc_candidates.parquet": {
+    "description": "every candidate pathway of every scenario and location, with its profit, emissions and circularity and whether it lies on each exact Pareto front",
+    "rows": 3230332
+   }
+  },
+  "metrics": [
+   "msp_usd_per_kg",
+   "gwp_kg_co2e_per_kg",
+   "tci_usd",
+   "aoc_usd_per_yr",
+   "total_energy_mj_per_kg"
+  ],
+  "source_commit": "b19301685cf5b7dea269c404a57ea9112b97e3d3",
+  "total_biosteam_runs": 641226
+ }
+}

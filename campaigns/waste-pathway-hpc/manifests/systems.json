@@ -1,0 +1,274 @@
+[
+ {
+  "polymer": "EVOH",
+  "solvent": "Ethylene glycol",
+  "count": 28,
+  "temperatures_c": [
+   120.0
+  ]
+ },
+ {
+  "polymer": "LDPE",
+  "solvent": "Toluene",
+  "count": 24,
+  "temperatures_c": [
+   100.0
+  ]
+ },
+ {
+  "polymer": "LDPE",
+  "solvent": "p-Xylene",
+  "count": 24,
+  "temperatures_c": [
+   100.0
+  ]
+ },
+ {
+  "polymer": "HDPE",
+  "solvent": "Diphenyl ether",
+  "count": 23,
+  "temperatures_c": [
+   125.0
+  ]
+ },
+ {
+  "polymer": "LDPE",
+  "solvent": "Dodecane",
+  "count": 21,
+  "temperatures_c": [
+   100.0
+  ]
+ },
+ {
+  "polymer": "EVOH",
+  "solvent": "Propylene glycol",
+  "count": 20,
+  "temperatures_c": [
+   120.0
+  ]
+ },
+ {
+  "polymer": "HDPE",
+  "solvent": "p-Xylene",
+  "count": 19,
+  "temperatures_c": [
+   115.0
+  ]
+ },
+ {
+  "polymer": "HDPE",
+  "solvent": "Dodecane",
+  "count": 19,
+  "temperatures_c": [
+   115.0
+  ]
+ },
+ {
+  "polymer": "PET",
+  "solvent": "N,N-Dimethylformamide",
+  "count": 15,
+  "temperatures_c": [
+   100.0
+  ]
+ },
+ {
+  "polymer": "LDPE",
+  "solvent": "Dipentene (Dl-Limonene)",
+  "count": 12,
+  "temperatures_c": [
+   100.0
+  ]
+ },
+ {
+  "polymer": "EVOH",
+  "solvent": "Acetic Acid",
+  "count": 12,
+  "temperatures_c": [
+   105.0
+  ]
+ },
+ {
+  "polymer": "EVOH",
+  "solvent": "N,N-Dimethylformamide",
+  "count": 12,
+  "temperatures_c": [
+   90.0
+  ]
+ },
+ {
+  "polymer": "LDPE",
+  "solvent": "Diphenyl ether",
+  "count": 10,
+  "temperatures_c": [
+   115.0
+  ]
+ },
+ {
+  "polymer": "LDPE",
+  "solvent": "Styrene",
+  "count": 9,
+  "temperatures_c": [
+   105.0
+  ]
+ },
+ {
+  "polymer": "PET",
+  "solvent": "Pyrrole",
+  "count": 8,
+  "temperatures_c": [
+   110.0
+  ]
+ },
+ {
+  "polymer": "HDPE",
+  "solvent": "Dipentene (Dl-Limonene)",
+  "count": 8,
+  "temperatures_c": [
+   115.0
+  ]
+ },
+ {
+  "polymer": "NYLON6",
+  "solvent": "Propylene glycol",
+  "count": 7,
+  "temperatures_c": [
+   160.0
+  ]
+ },
+ {
+  "polymer": "NYLON6",
+  "solvent": "Cyclohexanol",
+  "count": 7,
+  "temperatures_c": [
+   145.0
+  ]
+ },
+ {
+  "polymer": "LDPE",
+  "solvent": "2,4-Pentanedione",
+  "count": 4,
+  "temperatures_c": [
+   125.0
+  ]
+ },
+ {
+  "polymer": "LDPE",
+  "solvent": "Cyclohexanol",
+  "count": 4,
+  "temperatures_c": [
+   110.0
+  ]
+ },
+ {
+  "polymer": "HDPE",
+  "solvent": "Propylene glycol",
+  "count": 4,
+  "temperatures_c": [
+   140.0
+  ]
+ },
+ {
+  "polymer": "HDPE",
+  "solvent": "Diethylene Glycol",
+  "count": 4,
+  "temperatures_c": [
+   135.0
+  ]
+ },
+ {
+  "polymer": "HDPE",
+  "solvent": "Cyclohexanol",
+  "count": 4,
+  "temperatures_c": [
+   125.0
+  ]
+ },
+ {
+  "polymer": "HDPE",
+  "solvent": "Ethyl Aceto Acetate (Keto)",
+  "count": 4,
+  "temperatures_c": [
+   135.0
+  ]
+ },
+ {
+  "polymer": "EVOH",
+  "solvent": "Hexamethylphosphoramide",
+  "count": 4,
+  "temperatures_c": [
+   105.0
+  ]
+ },
+ {
+  "polymer": "EVOH",
+  "solvent": "Diethylene Glycol",
+  "count": 4,
+  "temperatures_c": [
+   120.0
+  ]
+ },
+ {
+  "polymer": "EVOH",
+  "solvent": "Propylene Carbonate",
+  "count": 4,
+  "temperatures_c": [
+   135.0
+  ]
+ },
+ {
+  "polymer": "EVOH",
+  "solvent": "Cyclohexanol",
+  "count": 4,
+  "temperatures_c": [
+   125.0
+  ]
+ },
+ {
+  "polymer": "LDPE",
+  "solvent": "Propylene glycol",
+  "count": 2,
+  "temperatures_c": [
+   140.0
+  ]
+ },
+ {
+  "polymer": "LDPE",
+  "solvent": "Diethylene Glycol",
+  "count": 2,
+  "temperatures_c": [
+   130.0
+  ]
+ },
+ {
+  "polymer": "LDPE",
+  "solvent": "Chlorobenzene",
+  "count": 2,
+  "temperatures_c": [
+   105.0
+  ]
+ },
+ {
+  "polymer": "EVOH",
+  "solvent": "N-Methyl-2-Pyrrolidone (NMP)",
+  "count": 2,
+  "temperatures_c": [
+   95.0
+  ]
+ },
+ {
+  "polymer": "HDPE",
+  "solvent": "Chlorobenzene",
+  "count": 2,
+  "temperatures_c": [
+   120.0
+  ]
+ },
+ {
+  "polymer": "HDPE",
+  "solvent": "Styrene",
+  "count": 2,
+  "temperatures_c": [
+   120.0
+  ]
+ }
+]

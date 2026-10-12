@@ -1,0 +1,200 @@
+data: /home/aaltamimi2/dissolve-tea-lca-results/campaigns/waste-pathway-hpc/data
+routes kept: downstream_key <> 'resale'
+
+## BioSTEAM runs by block (rows, successful)
+block | runs | ok
+feeds | 197952 | 194592
+mc | 34314 | 33110
+surface | 15504 | 14744
+oat | 42024 | 38784
+oatfix | 1224 | 1164
+sobol | 350208 | 350133
+
+## Feed scenarios
+scenarios | scenario_locations | families
+10872 | 21744 | 16
+
+## Distinct feed compositions
+count_star()
+906
+
+## Wash systems in the base surface
+systems | with_a_successful_run
+34 | 33
+
+## LDPE in Toluene, C1: minimum selling price and GWP at chosen plants
+target_share | capacity | msp_usd_per_kg | gwp_kg_co2e_per_kg
+5 | 1000 | 25.68 | 1.412
+5 | 2e+04 | 5.207 | 1.011
+5 | 2e+05 | 2.366 | 0.9791
+20 | 1000 | 7.501 | 0.6075
+20 | 2e+04 | 1.819 | 0.5176
+20 | 2e+05 | 0.8808 | 0.5099
+60 | 1000 | 3.68 | 0.4733
+60 | 2e+04 | 1.098 | 0.4424
+60 | 2e+05 | 0.6088 | 0.4391
+95 | 1000 | 2.864 | 0.4551
+95 | 2e+04 | 0.9264 | 0.4337
+95 | 2e+05 | 0.5432 | 0.4313
+
+## All systems at 60% share, 20,000 t/yr, C1: spread of the selling price
+systems | min(msp_usd_per_kg) | median(msp_usd_per_kg) | max(msp_usd_per_kg)
+32 | 1.017 | 1.095 | 1.207
+
+## Energy case at 60% share, 20,000 t/yr (medians over systems)
+cfg_energy_case | msp | gwp | systems
+C1 | 1.095 | 0.5396 | 32
+C2 | 0.8849 | 0.8818 | 33
+C3 | 0.9753 | 0.8682 | 32
+
+## Sobol total-order indices, LDPE in Toluene, msp_usd_per_kg
+factor | ST | ST_low | ST_high | S1 | range_low | range_high | n_used
+processing_capacity_mt_per_yr | 0.5319 | 0.4623 | 0.636 | 0.4367 | 2000 | 1e+05 | 1024
+target_mass_percent | 0.4677 | 0.4038 | 0.5395 | 0.3836 | 10 | 90 | 1024
+irr | 0.05553 | 0.04689 | 0.06367 | 0.04971 | 0.07 | 0.13 | 1024
+dissolution_capacity | 0.01727 | 0.01455 | 0.02005 | 0.01663 | 1.5 | 4.5 | 1024
+feedstock_price_usd_per_kg | 0.009253 | 0.007296 | 0.01148 | 0.005319 | 0 | 0.1 | 1024
+centrifuged_plastic_solvent_content_pct | 0.007009 | 0.00478 | 0.008911 | 9.816e-05 | 35 | 65 | 1024
+
+## Sobol total-order indices averaged over the systems, msp_usd_per_kg
+factor | mean_ST | min(ST) | max(ST) | systems
+processing_capacity_mt_per_yr | 0.527 | 0.5215 | 0.5329 | 18
+target_mass_percent | 0.4766 | 0.4677 | 0.4896 | 18
+irr | 0.05487 | 0.0529 | 0.0573 | 18
+dissolution_capacity | 0.0155 | 0.01144 | 0.01926 | 18
+feedstock_price_usd_per_kg | 0.008888 | 0.007955 | 0.009593 | 18
+
+## Sobol total-order indices, LDPE in Toluene, gwp_kg_co2e_per_kg
+factor | ST | ST_low | ST_high | S1 | range_low | range_high | n_used
+target_mass_percent | 0.8847 | 0.8064 | 0.9761 | 0.7762 | 10 | 90 | 1024
+feedstock_distance_km | 0.1958 | 0.1617 | 0.2365 | 0.09843 | 0 | 500 | 1024
+centrifuged_plastic_solvent_content_pct | 0.04365 | 0.03304 | 0.05731 | 0.00627 | 35 | 65 | 1024
+dissolution_capacity | 0.03396 | 0.02936 | 0.0387 | 0.03131 | 1.5 | 4.5 | 1024
+processing_capacity_mt_per_yr | 0.007355 | 0.005872 | 0.008687 | 0.007793 | 2000 | 1e+05 | 1024
+precipitation_temperature_c | 0.001149 | 0.0009712 | 0.001331 | 0.0009041 | 30 | 40 | 1024
+
+## Sobol total-order indices averaged over the systems, gwp_kg_co2e_per_kg
+factor | mean_ST | min(ST) | max(ST) | systems
+target_mass_percent | 0.9231 | 0.8847 | 0.9505 | 18
+feedstock_distance_km | 0.1187 | 0.07286 | 0.1958 | 18
+centrifuged_plastic_solvent_content_pct | 0.06076 | 0.04365 | 0.08079 | 18
+dissolution_capacity | 0.02229 | 0.009348 | 0.03396 | 18
+processing_capacity_mt_per_yr | 0.004391 | 0.002482 | 0.007355 | 18
+
+## One-at-a-time, LDPE in Toluene, 60% share, 20,000 t/yr, C1: solvent and transport parameters
+parameter | metric | base_value | low_value | high_value | metric_base | metric_at_low | metric_at_high
+dissolution_capacity | gwp_kg_co2e_per_kg | 3 | 1.5 | 4.5 | 0.4424 | 0.5064 | 0.4208
+feedstock_distance_km | gwp_kg_co2e_per_kg | 0 | 0 | 500 | 0.4424 | 0.4424 | 0.5129
+solvent_loss_pct | gwp_kg_co2e_per_kg | 0.01 | 0.01 | 1 | 0.4424 | 0.4424 | 0.4437
+solvent_price_usd_per_kg | gwp_kg_co2e_per_kg | 1.312 | 0.9184 | 1.706 | 0.4424 | 0.4424 | 0.4424
+dissolution_capacity | msp_usd_per_kg | 3 | 1.5 | 4.5 | 1.098 | 1.456 | 0.9704
+feedstock_distance_km | msp_usd_per_kg | 0 | 0 | 500 | 1.098 | 1.098 | 1.098
+solvent_loss_pct | msp_usd_per_kg | 0.01 | 0.01 | 1 | 1.098 | 1.098 | 1.101
+solvent_price_usd_per_kg | msp_usd_per_kg | 1.312 | 0.9184 | 1.706 | 1.098 | 1.098 | 1.098
+
+## Solvent make-up at the base and the high solvent-loss setting (the setting is divided by 100 twice: 0.01 -> 99.9999% recovery per pass)
+loss_setting | makeup_kg_per_yr | runs
+0.01 | 200 | 27
+1 | 2e+04 | 1
+
+## Profit-optimal route: number of washes (% of scenario-locations)
+p_washes | pct
+0 | 10.4
+1 | 36.1
+2 | 26.3
+3 | 27.2
+
+## Profit-optimal route: destination of the residual
+p_dest | n | pct
+we | 10872 | 50
+gas_h2 | 10872 | 50
+
+## Lowest-emissions route
+e_washes | e_dest | n
+0 | lf | 21744
+
+## Highest-circularity route
+c_washes | c_dest | pct
+3 | lf | 48.3
+2 | lf | 34.5
+1 | lf | 17
+0 | lf | 0.2
+
+## Medians per tonne of feed: best profit, its emissions; highest-circularity route's profit, emissions, share of best profit
+best_profit | its_emissions | circ_profit | circ_emissions | circ_share_of_profit | profitable
+1023 | 1.996 | 923.1 | 0.5292 | 0.9301 | 1
+
+## Feeds with and without EVOH: median best profit per tonne
+has_evoh | n | best_profit
+False | 5472 | 166.6
+True | 16272 | 1500
+
+## By plant: average washes in the profit-optimal route, median best profit per tonne
+plant | washes | best_profit
+ded20k | 1.651 | 1156
+ded50k | 2.286 | 1334
+ded5k | 0.8694 | 851.7
+shared20k | 2.011 | 1188
+
+## Residual restricted to landfill (no energy recovery)
+unrestricted | landfill_only | penalty | share_of_profit | profitable | washes | unrestricted_emissions | landfill_emissions
+1023 | 995 | 44.43 | 0.9596 | 0.9127 | 1.838 | 1.996 | 0.4983
+
+## Landfill only, by EVOH
+has_evoh | profit | profitable
+False | 138.5 | 0.6531
+True | 1450 | 1
+
+## Landfill only, by plant
+plant | profit | profitable
+ded20k | 1075 | 0.9308
+ded50k | 1296 | 0.9915
+ded5k | 762.8 | 0.7745
+shared20k | 1121 | 0.954
+
+## LDPE recovery required (feeds that contain LDPE)
+n | already_in_optimum | unrestricted | ldpe_required | profitable | median_penalty | mean_penalty | with_landfill_too | profitable_with_landfill_too
+16272 | 0.4535 | 877 | 762.8 | 0.8725 | 24.8 | 102.6 | 733.1 | 0.8481
+
+## LDPE required, where the optimum did not already recover it
+n | median_penalty | median_ldpe_share
+8893 | 144.7 | 0.2
+
+## LDPE required, by plant
+plant | already_in_optimum | profit | profitable | median_penalty
+ded20k | 0.3985 | 907.9 | 0.9275 | 36.08
+ded50k | 0.7942 | 1156 | 0.999 | 0
+ded5k | 0.03392 | 244 | 0.6131 | 306.7
+shared20k | 0.5873 | 995.6 | 0.9503 | 0
+
+## LDPE required, by EVOH
+has_evoh | profitable
+False | 0.6608
+True | 0.9561
+
+## Example film, base case, dedicated plant, location A: front of profit against emissions (324 candidates)
+route | profit_per_t | emissions_per_t | profit_musd_per_yr | emissions_kt_per_yr | circularity
+no wash + lf | -11.49 | 0.08646 | -0.09192 | 0.6917 | 0.6007
+EVOH/Ethylene glycol + lf | 227.7 | 0.1706 | 1.821 | 1.365 | 0.6274
+EVOH/Ethylene glycol + we | 327.2 | 2.359 | 2.617 | 18.87 | 0.4859
+
+## Example film, base case: best profit per tonne by plant
+plant | route | profit_per_t
+dedicated | EVOH/Ethylene glycol + we | 327.2
+shared20k | LDPE/Diphenyl ether > EVOH/Ethylene glycol > NYLON6/Propylene glycol + we | 678
+
+## Profit-optimal route in the 300 draws, by plant
+plant | route | draws
+dedicated | EVOH/Ethylene glycol + we | 291
+dedicated | no wash + we | 8
+dedicated | LDPE/Toluene > EVOH/Ethylene glycol + we | 1
+shared20k | LDPE/Diphenyl ether > EVOH/Ethylene glycol > NYLON6/Propylene glycol + we | 204
+shared20k | EVOH/Ethylene glycol + we | 55
+shared20k | LDPE/Diphenyl ether > EVOH/Ethylene glycol > NYLON6/Cyclohexanol + we | 32
+shared20k | LDPE/Diphenyl ether > EVOH/Ethylene glycol > PET/N,N-Dimethylformamide + we | 7
+shared20k | LDPE/Toluene > EVOH/Ethylene glycol > NYLON6/Cyclohexanol + we | 2
+
+## Extra profit from additional washes: best of 2-3 washes minus best of 0-1, per tonne of feed, 300 draws
+plant | draws | median_extra | p5 | p95 | draws_favouring_more_washes
+dedicated | 300 | -270 | -540.8 | -72.69 | 1
+shared20k | 300 | 140.9 | -110.4 | 345.2 | 245

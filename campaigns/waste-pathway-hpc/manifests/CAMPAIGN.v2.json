@@ -1,0 +1,1878 @@
+{
+ "seed": 20261011,
+ "blocks": {
+  "feeds": {
+   "rows": 10872,
+   "written": false,
+   "plants": [
+    "ded5k",
+    "ded20k",
+    "ded50k",
+    "shared20k"
+   ],
+   "energy_cases": [
+    "C1",
+    "C2",
+    "C3"
+   ],
+   "composition_step_pct": 10,
+   "families": 16,
+   "max_washes": 3,
+   "max_solvents_per_stage": 6,
+   "locations": [
+    "A",
+    "B"
+   ]
+  },
+  "mc": {
+   "rows": 1204,
+   "shards": 76,
+   "per_shard": 16,
+   "draws": 300,
+   "sampler": "Latin hypercube, the same draws for every feed and plant",
+   "parameter_ranges": {
+    "solvent_loss_pct": [
+     0.01,
+     1.0
+    ],
+    "dissolution_capacity": [
+     1.5,
+     4.5
+    ],
+    "precipitation_temperature_c": [
+     30.0,
+     40.0
+    ],
+    "feedstock_distance_km": [
+     0.0,
+     500.0
+    ],
+    "centrifuged_plastic_solvent_content_pct": [
+     35.0,
+     65.0
+    ],
+    "labor_cost_usd_per_employee_yr": [
+     96000.0,
+     144000.0
+    ],
+    "irr": [
+     0.06999999999999999,
+     0.13
+    ],
+    "operating_days": [
+     315.36,
+     366.0
+    ],
+    "feedstock_price_usd_per_kg": [
+     0.0,
+     0.1
+    ],
+    "natural_gas_price_usd_per_m3": [
+     0.11692686144369997,
+     0.21714988553829997
+    ],
+    "maintenance": [
+     0.020999999999999998,
+     0.039
+    ],
+    "contingency": [
+     0.30000000000000004,
+     0.5
+    ],
+    "income_tax": [
+     0.15999999999999998,
+     0.26
+    ]
+   },
+   "solvent_price_factor": [
+    0.7,
+    1.3
+   ],
+   "resin_price_factor": [
+    0.8,
+    1.2
+   ],
+   "feeds": {
+    "published": {
+     "fractions": {
+      "LDPE": 0.6,
+      "PET": 0.2,
+      "NYLON6": 0.1,
+      "EVOH": 0.1
+     },
+     "tonnes": 8000.0
+    },
+    "second": {
+     "fractions": {
+      "HDPE": 0.4,
+      "LDPE": 0.25,
+      "PET": 0.2,
+      "EVOH": 0.15
+     },
+     "tonnes": 12000.0
+    }
+   }
+  },
+  "surface": {
+   "rows": 15504,
+   "written": false,
+   "shares_pct": [
+    5,
+    10,
+    15,
+    20,
+    25,
+    30,
+    35,
+    40,
+    45,
+    50,
+    55,
+    60,
+    65,
+    70,
+    75,
+    80,
+    85,
+    90,
+    95
+   ],
+   "capacities_t_per_yr": [
+    1000.0,
+    2000.0,
+    5000.0,
+    10000.0,
+    20000.0,
+    50000.0,
+    100000.0,
+    200000.0
+   ],
+   "energy_cases": [
+    "C1",
+    "C2",
+    "C3"
+   ],
+   "systems": 34
+  },
+  "oat": {
+   "rows": 42024,
+   "written": false,
+   "parameters": [
+    "solvent_price_usd_per_kg",
+    "solvent_loss_pct",
+    "dissolution_capacity",
+    "processing_capacity_mt_per_yr",
+    "dissolution_temperature_c",
+    "precipitation_temperature_c",
+    "feedstock_distance_km",
+    "centrifuged_plastic_solvent_content_pct",
+    "target_mass_percent",
+    "labor_cost_usd_per_employee_yr",
+    "irr",
+    "operating_days",
+    "feedstock_price_usd_per_kg",
+    "natural_gas_price_usd_per_m3",
+    "maintenance",
+    "contingency",
+    "income_tax"
+   ],
+   "node_shares_pct": [
+    20,
+    40,
+    60,
+    80
+   ],
+   "node_capacities": [
+    5000,
+    20000,
+    80000
+   ],
+   "energy_cases": [
+    "C1",
+    "C2",
+    "C3"
+   ],
+   "ranges": "tea_tornado.default_range at each node's base value"
+  },
+  "oatfix": {
+   "rows": 1224,
+   "shards": 1,
+   "per_shard": 2500
+  },
+  "sobol": {
+   "systems": {
+    "EVOH|Ethylene glycol": {
+     "factors": [
+      "solvent_price_usd_per_kg",
+      "solvent_loss_pct",
+      "dissolution_capacity",
+      "processing_capacity_mt_per_yr",
+      "dissolution_temperature_c",
+      "precipitation_temperature_c",
+      "feedstock_distance_km",
+      "centrifuged_plastic_solvent_content_pct",
+      "target_mass_percent",
+      "labor_cost_usd_per_employee_yr",
+      "irr",
+      "operating_days",
+      "feedstock_price_usd_per_kg",
+      "natural_gas_price_usd_per_m3",
+      "maintenance",
+      "contingency",
+      "income_tax"
+     ],
+     "ranges": {
+      "solvent_price_usd_per_kg": [
+       0.39130000000000004,
+       0.7267000000000001
+      ],
+      "solvent_loss_pct": [
+       0.01,
+       1.0
+      ],
+      "dissolution_capacity": [
+       1.5,
+       4.5
+      ],
+      "processing_capacity_mt_per_yr": [
+       2000.0,
+       100000.0
+      ],
+      "dissolution_temperature_c": [
+       110.0,
+       130.0
+      ],
+      "precipitation_temperature_c": [
+       30.0,
+       40.0
+      ],
+      "feedstock_distance_km": [
+       0.0,
+       500.0
+      ],
+      "centrifuged_plastic_solvent_content_pct": [
+       35.0,
+       65.0
+      ],
+      "target_mass_percent": [
+       10.0,
+       90.0
+      ],
+      "labor_cost_usd_per_employee_yr": [
+       96000.0,
+       144000.0
+      ],
+      "irr": [
+       0.06999999999999999,
+       0.13
+      ],
+      "operating_days": [
+       315.36,
+       366.0
+      ],
+      "feedstock_price_usd_per_kg": [
+       0.0,
+       0.1
+      ],
+      "natural_gas_price_usd_per_m3": [
+       0.11692686144369997,
+       0.21714988553829997
+      ],
+      "maintenance": [
+       0.020999999999999998,
+       0.039
+      ],
+      "contingency": [
+       0.30000000000000004,
+       0.5
+      ],
+      "income_tax": [
+       0.15999999999999998,
+       0.26
+      ]
+     },
+     "N": 1024
+    },
+    "LDPE|Toluene": {
+     "factors": [
+      "solvent_price_usd_per_kg",
+      "solvent_loss_pct",
+      "dissolution_capacity",
+      "processing_capacity_mt_per_yr",
+      "dissolution_temperature_c",
+      "precipitation_temperature_c",
+      "feedstock_distance_km",
+      "centrifuged_plastic_solvent_content_pct",
+      "target_mass_percent",
+      "labor_cost_usd_per_employee_yr",
+      "irr",
+      "operating_days",
+      "feedstock_price_usd_per_kg",
+      "natural_gas_price_usd_per_m3",
+      "maintenance",
+      "contingency",
+      "income_tax"
+     ],
+     "ranges": {
+      "solvent_price_usd_per_kg": [
+       0.9184,
+       1.7056000000000002
+      ],
+      "solvent_loss_pct": [
+       0.01,
+       1.0
+      ],
+      "dissolution_capacity": [
+       1.5,
+       4.5
+      ],
+      "processing_capacity_mt_per_yr": [
+       2000.0,
+       100000.0
+      ],
+      "dissolution_temperature_c": [
+       90.0,
+       110.0
+      ],
+      "precipitation_temperature_c": [
+       30.0,
+       40.0
+      ],
+      "feedstock_distance_km": [
+       0.0,
+       500.0
+      ],
+      "centrifuged_plastic_solvent_content_pct": [
+       35.0,
+       65.0
+      ],
+      "target_mass_percent": [
+       10.0,
+       90.0
+      ],
+      "labor_cost_usd_per_employee_yr": [
+       96000.0,
+       144000.0
+      ],
+      "irr": [
+       0.06999999999999999,
+       0.13
+      ],
+      "operating_days": [
+       315.36,
+       366.0
+      ],
+      "feedstock_price_usd_per_kg": [
+       0.0,
+       0.1
+      ],
+      "natural_gas_price_usd_per_m3": [
+       0.11692686144369997,
+       0.21714988553829997
+      ],
+      "maintenance": [
+       0.020999999999999998,
+       0.039
+      ],
+      "contingency": [
+       0.30000000000000004,
+       0.5
+      ],
+      "income_tax": [
+       0.15999999999999998,
+       0.26
+      ]
+     },
+     "N": 1024
+    },
+    "LDPE|p-Xylene": {
+     "factors": [
+      "solvent_price_usd_per_kg",
+      "solvent_loss_pct",
+      "dissolution_capacity",
+      "processing_capacity_mt_per_yr",
+      "dissolution_temperature_c",
+      "precipitation_temperature_c",
+      "feedstock_distance_km",
+      "centrifuged_plastic_solvent_content_pct",
+      "target_mass_percent",
+      "labor_cost_usd_per_employee_yr",
+      "irr",
+      "operating_days",
+      "feedstock_price_usd_per_kg",
+      "natural_gas_price_usd_per_m3",
+      "maintenance",
+      "contingency",
+      "income_tax"
+     ],
+     "ranges": {
+      "solvent_price_usd_per_kg": [
+       0.7790999999999999,
+       1.4469
+      ],
+      "solvent_loss_pct": [
+       0.01,
+       1.0
+      ],
+      "dissolution_capacity": [
+       1.5,
+       4.5
+      ],
+      "processing_capacity_mt_per_yr": [
+       2000.0,
+       100000.0
+      ],
+      "dissolution_temperature_c": [
+       90.0,
+       110.0
+      ],
+      "precipitation_temperature_c": [
+       30.0,
+       40.0
+      ],
+      "feedstock_distance_km": [
+       0.0,
+       500.0
+      ],
+      "centrifuged_plastic_solvent_content_pct": [
+       35.0,
+       65.0
+      ],
+      "target_mass_percent": [
+       10.0,
+       90.0
+      ],
+      "labor_cost_usd_per_employee_yr": [
+       96000.0,
+       144000.0
+      ],
+      "irr": [
+       0.06999999999999999,
+       0.13
+      ],
+      "operating_days": [
+       315.36,
+       366.0
+      ],
+      "feedstock_price_usd_per_kg": [
+       0.0,
+       0.1
+      ],
+      "natural_gas_price_usd_per_m3": [
+       0.11692686144369997,
+       0.21714988553829997
+      ],
+      "maintenance": [
+       0.020999999999999998,
+       0.039
+      ],
+      "contingency": [
+       0.30000000000000004,
+       0.5
+      ],
+      "income_tax": [
+       0.15999999999999998,
+       0.26
+      ]
+     },
+     "N": 1024
+    },
+    "HDPE|Diphenyl ether": {
+     "factors": [
+      "solvent_price_usd_per_kg",
+      "solvent_loss_pct",
+      "dissolution_capacity",
+      "processing_capacity_mt_per_yr",
+      "dissolution_temperature_c",
+      "precipitation_temperature_c",
+      "feedstock_distance_km",
+      "centrifuged_plastic_solvent_content_pct",
+      "target_mass_percent",
+      "labor_cost_usd_per_employee_yr",
+      "irr",
+      "operating_days",
+      "feedstock_price_usd_per_kg",
+      "natural_gas_price_usd_per_m3",
+      "maintenance",
+      "contingency",
+      "income_tax"
+     ],
+     "ranges": {
+      "solvent_price_usd_per_kg": [
+       1.519,
+       2.821
+      ],
+      "solvent_loss_pct": [
+       0.01,
+       1.0
+      ],
+      "dissolution_capacity": [
+       1.5,
+       4.5
+      ],
+      "processing_capacity_mt_per_yr": [
+       2000.0,
+       100000.0
+      ],
+      "dissolution_temperature_c": [
+       115.0,
+       135.0
+      ],
+      "precipitation_temperature_c": [
+       30.0,
+       40.0
+      ],
+      "feedstock_distance_km": [
+       0.0,
+       500.0
+      ],
+      "centrifuged_plastic_solvent_content_pct": [
+       35.0,
+       65.0
+      ],
+      "target_mass_percent": [
+       10.0,
+       90.0
+      ],
+      "labor_cost_usd_per_employee_yr": [
+       96000.0,
+       144000.0
+      ],
+      "irr": [
+       0.06999999999999999,
+       0.13
+      ],
+      "operating_days": [
+       315.36,
+       366.0
+      ],
+      "feedstock_price_usd_per_kg": [
+       0.0,
+       0.1
+      ],
+      "natural_gas_price_usd_per_m3": [
+       0.11692686144369997,
+       0.21714988553829997
+      ],
+      "maintenance": [
+       0.020999999999999998,
+       0.039
+      ],
+      "contingency": [
+       0.30000000000000004,
+       0.5
+      ],
+      "income_tax": [
+       0.15999999999999998,
+       0.26
+      ]
+     },
+     "N": 1024
+    },
+    "LDPE|Dodecane": {
+     "factors": [
+      "solvent_price_usd_per_kg",
+      "solvent_loss_pct",
+      "dissolution_capacity",
+      "processing_capacity_mt_per_yr",
+      "dissolution_temperature_c",
+      "precipitation_temperature_c",
+      "feedstock_distance_km",
+      "centrifuged_plastic_solvent_content_pct",
+      "target_mass_percent",
+      "labor_cost_usd_per_employee_yr",
+      "irr",
+      "operating_days",
+      "feedstock_price_usd_per_kg",
+      "natural_gas_price_usd_per_m3",
+      "maintenance",
+      "contingency",
+      "income_tax"
+     ],
+     "ranges": {
+      "solvent_price_usd_per_kg": [
+       2.856,
+       5.304
+      ],
+      "solvent_loss_pct": [
+       0.01,
+       1.0
+      ],
+      "dissolution_capacity": [
+       1.5,
+       4.5
+      ],
+      "processing_capacity_mt_per_yr": [
+       2000.0,
+       100000.0
+      ],
+      "dissolution_temperature_c": [
+       90.0,
+       110.0
+      ],
+      "precipitation_temperature_c": [
+       30.0,
+       40.0
+      ],
+      "feedstock_distance_km": [
+       0.0,
+       500.0
+      ],
+      "centrifuged_plastic_solvent_content_pct": [
+       35.0,
+       65.0
+      ],
+      "target_mass_percent": [
+       10.0,
+       90.0
+      ],
+      "labor_cost_usd_per_employee_yr": [
+       96000.0,
+       144000.0
+      ],
+      "irr": [
+       0.06999999999999999,
+       0.13
+      ],
+      "operating_days": [
+       315.36,
+       366.0
+      ],
+      "feedstock_price_usd_per_kg": [
+       0.0,
+       0.1
+      ],
+      "natural_gas_price_usd_per_m3": [
+       0.11692686144369997,
+       0.21714988553829997
+      ],
+      "maintenance": [
+       0.020999999999999998,
+       0.039
+      ],
+      "contingency": [
+       0.30000000000000004,
+       0.5
+      ],
+      "income_tax": [
+       0.15999999999999998,
+       0.26
+      ]
+     },
+     "N": 1024
+    },
+    "EVOH|Propylene glycol": {
+     "factors": [
+      "solvent_price_usd_per_kg",
+      "solvent_loss_pct",
+      "dissolution_capacity",
+      "processing_capacity_mt_per_yr",
+      "dissolution_temperature_c",
+      "precipitation_temperature_c",
+      "feedstock_distance_km",
+      "centrifuged_plastic_solvent_content_pct",
+      "target_mass_percent",
+      "labor_cost_usd_per_employee_yr",
+      "irr",
+      "operating_days",
+      "feedstock_price_usd_per_kg",
+      "natural_gas_price_usd_per_m3",
+      "maintenance",
+      "contingency",
+      "income_tax"
+     ],
+     "ranges": {
+      "solvent_price_usd_per_kg": [
+       1.603,
+       2.9770000000000003
+      ],
+      "solvent_loss_pct": [
+       0.01,
+       1.0
+      ],
+      "dissolution_capacity": [
+       1.5,
+       4.5
+      ],
+      "processing_capacity_mt_per_yr": [
+       2000.0,
+       100000.0
+      ],
+      "dissolution_temperature_c": [
+       110.0,
+       130.0
+      ],
+      "precipitation_temperature_c": [
+       30.0,
+       40.0
+      ],
+      "feedstock_distance_km": [
+       0.0,
+       500.0
+      ],
+      "centrifuged_plastic_solvent_content_pct": [
+       35.0,
+       65.0
+      ],
+      "target_mass_percent": [
+       10.0,
+       90.0
+      ],
+      "labor_cost_usd_per_employee_yr": [
+       96000.0,
+       144000.0
+      ],
+      "irr": [
+       0.06999999999999999,
+       0.13
+      ],
+      "operating_days": [
+       315.36,
+       366.0
+      ],
+      "feedstock_price_usd_per_kg": [
+       0.0,
+       0.1
+      ],
+      "natural_gas_price_usd_per_m3": [
+       0.11692686144369997,
+       0.21714988553829997
+      ],
+      "maintenance": [
+       0.020999999999999998,
+       0.039
+      ],
+      "contingency": [
+       0.30000000000000004,
+       0.5
+      ],
+      "income_tax": [
+       0.15999999999999998,
+       0.26
+      ]
+     },
+     "N": 1024
+    },
+    "HDPE|p-Xylene": {
+     "factors": [
+      "solvent_price_usd_per_kg",
+      "solvent_loss_pct",
+      "dissolution_capacity",
+      "processing_capacity_mt_per_yr",
+      "dissolution_temperature_c",
+      "precipitation_temperature_c",
+      "feedstock_distance_km",
+      "centrifuged_plastic_solvent_content_pct",
+      "target_mass_percent",
+      "labor_cost_usd_per_employee_yr",
+      "irr",
+      "operating_days",
+      "feedstock_price_usd_per_kg",
+      "natural_gas_price_usd_per_m3",
+      "maintenance",
+      "contingency",
+      "income_tax"
+     ],
+     "ranges": {
+      "solvent_price_usd_per_kg": [
+       0.7790999999999999,
+       1.4469
+      ],
+      "solvent_loss_pct": [
+       0.01,
+       1.0
+      ],
+      "dissolution_capacity": [
+       1.5,
+       4.5
+      ],
+      "processing_capacity_mt_per_yr": [
+       2000.0,
+       100000.0
+      ],
+      "dissolution_temperature_c": [
+       105.0,
+       125.0
+      ],
+      "precipitation_temperature_c": [
+       30.0,
+       40.0
+      ],
+      "feedstock_distance_km": [
+       0.0,
+       500.0
+      ],
+      "centrifuged_plastic_solvent_content_pct": [
+       35.0,
+       65.0
+      ],
+      "target_mass_percent": [
+       10.0,
+       90.0
+      ],
+      "labor_cost_usd_per_employee_yr": [
+       96000.0,
+       144000.0
+      ],
+      "irr": [
+       0.06999999999999999,
+       0.13
+      ],
+      "operating_days": [
+       315.36,
+       366.0
+      ],
+      "feedstock_price_usd_per_kg": [
+       0.0,
+       0.1
+      ],
+      "natural_gas_price_usd_per_m3": [
+       0.11692686144369997,
+       0.21714988553829997
+      ],
+      "maintenance": [
+       0.020999999999999998,
+       0.039
+      ],
+      "contingency": [
+       0.30000000000000004,
+       0.5
+      ],
+      "income_tax": [
+       0.15999999999999998,
+       0.26
+      ]
+     },
+     "N": 1024
+    },
+    "HDPE|Dodecane": {
+     "factors": [
+      "solvent_price_usd_per_kg",
+      "solvent_loss_pct",
+      "dissolution_capacity",
+      "processing_capacity_mt_per_yr",
+      "dissolution_temperature_c",
+      "precipitation_temperature_c",
+      "feedstock_distance_km",
+      "centrifuged_plastic_solvent_content_pct",
+      "target_mass_percent",
+      "labor_cost_usd_per_employee_yr",
+      "irr",
+      "operating_days",
+      "feedstock_price_usd_per_kg",
+      "natural_gas_price_usd_per_m3",
+      "maintenance",
+      "contingency",
+      "income_tax"
+     ],
+     "ranges": {
+      "solvent_price_usd_per_kg": [
+       2.856,
+       5.304
+      ],
+      "solvent_loss_pct": [
+       0.01,
+       1.0
+      ],
+      "dissolution_capacity": [
+       1.5,
+       4.5
+      ],
+      "processing_capacity_mt_per_yr": [
+       2000.0,
+       100000.0
+      ],
+      "dissolution_temperature_c": [
+       105.0,
+       125.0
+      ],
+      "precipitation_temperature_c": [
+       30.0,
+       40.0
+      ],
+      "feedstock_distance_km": [
+       0.0,
+       500.0
+      ],
+      "centrifuged_plastic_solvent_content_pct": [
+       35.0,
+       65.0
+      ],
+      "target_mass_percent": [
+       10.0,
+       90.0
+      ],
+      "labor_cost_usd_per_employee_yr": [
+       96000.0,
+       144000.0
+      ],
+      "irr": [
+       0.06999999999999999,
+       0.13
+      ],
+      "operating_days": [
+       315.36,
+       366.0
+      ],
+      "feedstock_price_usd_per_kg": [
+       0.0,
+       0.1
+      ],
+      "natural_gas_price_usd_per_m3": [
+       0.11692686144369997,
+       0.21714988553829997
+      ],
+      "maintenance": [
+       0.020999999999999998,
+       0.039
+      ],
+      "contingency": [
+       0.30000000000000004,
+       0.5
+      ],
+      "income_tax": [
+       0.15999999999999998,
+       0.26
+      ]
+     },
+     "N": 1024
+    },
+    "PET|N,N-Dimethylformamide": {
+     "factors": [
+      "solvent_price_usd_per_kg",
+      "solvent_loss_pct",
+      "dissolution_capacity",
+      "processing_capacity_mt_per_yr",
+      "dissolution_temperature_c",
+      "precipitation_temperature_c",
+      "feedstock_distance_km",
+      "centrifuged_plastic_solvent_content_pct",
+      "target_mass_percent",
+      "labor_cost_usd_per_employee_yr",
+      "irr",
+      "operating_days",
+      "feedstock_price_usd_per_kg",
+      "natural_gas_price_usd_per_m3",
+      "maintenance",
+      "contingency",
+      "income_tax"
+     ],
+     "ranges": {
+      "solvent_price_usd_per_kg": [
+       1.7914329999999998,
+       3.326947
+      ],
+      "solvent_loss_pct": [
+       0.01,
+       1.0
+      ],
+      "dissolution_capacity": [
+       1.5,
+       4.5
+      ],
+      "processing_capacity_mt_per_yr": [
+       2000.0,
+       100000.0
+      ],
+      "dissolution_temperature_c": [
+       90.0,
+       110.0
+      ],
+      "precipitation_temperature_c": [
+       30.0,
+       40.0
+      ],
+      "feedstock_distance_km": [
+       0.0,
+       500.0
+      ],
+      "centrifuged_plastic_solvent_content_pct": [
+       35.0,
+       65.0
+      ],
+      "target_mass_percent": [
+       10.0,
+       90.0
+      ],
+      "labor_cost_usd_per_employee_yr": [
+       96000.0,
+       144000.0
+      ],
+      "irr": [
+       0.06999999999999999,
+       0.13
+      ],
+      "operating_days": [
+       315.36,
+       366.0
+      ],
+      "feedstock_price_usd_per_kg": [
+       0.0,
+       0.1
+      ],
+      "natural_gas_price_usd_per_m3": [
+       0.11692686144369997,
+       0.21714988553829997
+      ],
+      "maintenance": [
+       0.020999999999999998,
+       0.039
+      ],
+      "contingency": [
+       0.30000000000000004,
+       0.5
+      ],
+      "income_tax": [
+       0.15999999999999998,
+       0.26
+      ]
+     },
+     "N": 1024
+    },
+    "LDPE|Dipentene (Dl-Limonene)": {
+     "factors": [
+      "solvent_price_usd_per_kg",
+      "solvent_loss_pct",
+      "dissolution_capacity",
+      "processing_capacity_mt_per_yr",
+      "dissolution_temperature_c",
+      "precipitation_temperature_c",
+      "feedstock_distance_km",
+      "centrifuged_plastic_solvent_content_pct",
+      "target_mass_percent",
+      "labor_cost_usd_per_employee_yr",
+      "irr",
+      "operating_days",
+      "feedstock_price_usd_per_kg",
+      "natural_gas_price_usd_per_m3",
+      "maintenance",
+      "contingency",
+      "income_tax"
+     ],
+     "ranges": {
+      "solvent_price_usd_per_kg": [
+       1.54,
+       2.8600000000000003
+      ],
+      "solvent_loss_pct": [
+       0.01,
+       1.0
+      ],
+      "dissolution_capacity": [
+       1.5,
+       4.5
+      ],
+      "processing_capacity_mt_per_yr": [
+       2000.0,
+       100000.0
+      ],
+      "dissolution_temperature_c": [
+       90.0,
+       110.0
+      ],
+      "precipitation_temperature_c": [
+       30.0,
+       40.0
+      ],
+      "feedstock_distance_km": [
+       0.0,
+       500.0
+      ],
+      "centrifuged_plastic_solvent_content_pct": [
+       35.0,
+       65.0
+      ],
+      "target_mass_percent": [
+       10.0,
+       90.0
+      ],
+      "labor_cost_usd_per_employee_yr": [
+       96000.0,
+       144000.0
+      ],
+      "irr": [
+       0.06999999999999999,
+       0.13
+      ],
+      "operating_days": [
+       315.36,
+       366.0
+      ],
+      "feedstock_price_usd_per_kg": [
+       0.0,
+       0.1
+      ],
+      "natural_gas_price_usd_per_m3": [
+       0.11692686144369997,
+       0.21714988553829997
+      ],
+      "maintenance": [
+       0.020999999999999998,
+       0.039
+      ],
+      "contingency": [
+       0.30000000000000004,
+       0.5
+      ],
+      "income_tax": [
+       0.15999999999999998,
+       0.26
+      ]
+     },
+     "N": 1024
+    },
+    "EVOH|Acetic Acid": {
+     "factors": [
+      "solvent_price_usd_per_kg",
+      "solvent_loss_pct",
+      "dissolution_capacity",
+      "processing_capacity_mt_per_yr",
+      "dissolution_temperature_c",
+      "precipitation_temperature_c",
+      "feedstock_distance_km",
+      "centrifuged_plastic_solvent_content_pct",
+      "target_mass_percent",
+      "labor_cost_usd_per_employee_yr",
+      "irr",
+      "operating_days",
+      "feedstock_price_usd_per_kg",
+      "natural_gas_price_usd_per_m3",
+      "maintenance",
+      "contingency",
+      "income_tax"
+     ],
+     "ranges": {
+      "solvent_price_usd_per_kg": [
+       0.518,
+       0.962
+      ],
+      "solvent_loss_pct": [
+       0.01,
+       1.0
+      ],
+      "dissolution_capacity": [
+       1.5,
+       4.5
+      ],
+      "processing_capacity_mt_per_yr": [
+       2000.0,
+       100000.0
+      ],
+      "dissolution_temperature_c": [
+       95.0,
+       115.0
+      ],
+      "precipitation_temperature_c": [
+       30.0,
+       40.0
+      ],
+      "feedstock_distance_km": [
+       0.0,
+       500.0
+      ],
+      "centrifuged_plastic_solvent_content_pct": [
+       35.0,
+       65.0
+      ],
+      "target_mass_percent": [
+       10.0,
+       90.0
+      ],
+      "labor_cost_usd_per_employee_yr": [
+       96000.0,
+       144000.0
+      ],
+      "irr": [
+       0.06999999999999999,
+       0.13
+      ],
+      "operating_days": [
+       315.36,
+       366.0
+      ],
+      "feedstock_price_usd_per_kg": [
+       0.0,
+       0.1
+      ],
+      "natural_gas_price_usd_per_m3": [
+       0.11692686144369997,
+       0.21714988553829997
+      ],
+      "maintenance": [
+       0.020999999999999998,
+       0.039
+      ],
+      "contingency": [
+       0.30000000000000004,
+       0.5
+      ],
+      "income_tax": [
+       0.15999999999999998,
+       0.26
+      ]
+     },
+     "N": 1024
+    },
+    "EVOH|N,N-Dimethylformamide": {
+     "factors": [
+      "solvent_price_usd_per_kg",
+      "solvent_loss_pct",
+      "dissolution_capacity",
+      "processing_capacity_mt_per_yr",
+      "dissolution_temperature_c",
+      "precipitation_temperature_c",
+      "feedstock_distance_km",
+      "centrifuged_plastic_solvent_content_pct",
+      "target_mass_percent",
+      "labor_cost_usd_per_employee_yr",
+      "irr",
+      "operating_days",
+      "feedstock_price_usd_per_kg",
+      "natural_gas_price_usd_per_m3",
+      "maintenance",
+      "contingency",
+      "income_tax"
+     ],
+     "ranges": {
+      "solvent_price_usd_per_kg": [
+       1.7914329999999998,
+       3.326947
+      ],
+      "solvent_loss_pct": [
+       0.01,
+       1.0
+      ],
+      "dissolution_capacity": [
+       1.5,
+       4.5
+      ],
+      "processing_capacity_mt_per_yr": [
+       2000.0,
+       100000.0
+      ],
+      "dissolution_temperature_c": [
+       80.0,
+       100.0
+      ],
+      "precipitation_temperature_c": [
+       30.0,
+       40.0
+      ],
+      "feedstock_distance_km": [
+       0.0,
+       500.0
+      ],
+      "centrifuged_plastic_solvent_content_pct": [
+       35.0,
+       65.0
+      ],
+      "target_mass_percent": [
+       10.0,
+       90.0
+      ],
+      "labor_cost_usd_per_employee_yr": [
+       96000.0,
+       144000.0
+      ],
+      "irr": [
+       0.06999999999999999,
+       0.13
+      ],
+      "operating_days": [
+       315.36,
+       366.0
+      ],
+      "feedstock_price_usd_per_kg": [
+       0.0,
+       0.1
+      ],
+      "natural_gas_price_usd_per_m3": [
+       0.11692686144369997,
+       0.21714988553829997
+      ],
+      "maintenance": [
+       0.020999999999999998,
+       0.039
+      ],
+      "contingency": [
+       0.30000000000000004,
+       0.5
+      ],
+      "income_tax": [
+       0.15999999999999998,
+       0.26
+      ]
+     },
+     "N": 1024
+    },
+    "LDPE|Diphenyl ether": {
+     "factors": [
+      "solvent_price_usd_per_kg",
+      "solvent_loss_pct",
+      "dissolution_capacity",
+      "processing_capacity_mt_per_yr",
+      "dissolution_temperature_c",
+      "precipitation_temperature_c",
+      "feedstock_distance_km",
+      "centrifuged_plastic_solvent_content_pct",
+      "target_mass_percent",
+      "labor_cost_usd_per_employee_yr",
+      "irr",
+      "operating_days",
+      "feedstock_price_usd_per_kg",
+      "natural_gas_price_usd_per_m3",
+      "maintenance",
+      "contingency",
+      "income_tax"
+     ],
+     "ranges": {
+      "solvent_price_usd_per_kg": [
+       1.519,
+       2.821
+      ],
+      "solvent_loss_pct": [
+       0.01,
+       1.0
+      ],
+      "dissolution_capacity": [
+       1.5,
+       4.5
+      ],
+      "processing_capacity_mt_per_yr": [
+       2000.0,
+       100000.0
+      ],
+      "dissolution_temperature_c": [
+       105.0,
+       125.0
+      ],
+      "precipitation_temperature_c": [
+       30.0,
+       40.0
+      ],
+      "feedstock_distance_km": [
+       0.0,
+       500.0
+      ],
+      "centrifuged_plastic_solvent_content_pct": [
+       35.0,
+       65.0
+      ],
+      "target_mass_percent": [
+       10.0,
+       90.0
+      ],
+      "labor_cost_usd_per_employee_yr": [
+       96000.0,
+       144000.0
+      ],
+      "irr": [
+       0.06999999999999999,
+       0.13
+      ],
+      "operating_days": [
+       315.36,
+       366.0
+      ],
+      "feedstock_price_usd_per_kg": [
+       0.0,
+       0.1
+      ],
+      "natural_gas_price_usd_per_m3": [
+       0.11692686144369997,
+       0.21714988553829997
+      ],
+      "maintenance": [
+       0.020999999999999998,
+       0.039
+      ],
+      "contingency": [
+       0.30000000000000004,
+       0.5
+      ],
+      "income_tax": [
+       0.15999999999999998,
+       0.26
+      ]
+     },
+     "N": 1024
+    },
+    "LDPE|Styrene": {
+     "factors": [
+      "solvent_price_usd_per_kg",
+      "solvent_loss_pct",
+      "dissolution_capacity",
+      "processing_capacity_mt_per_yr",
+      "dissolution_temperature_c",
+      "precipitation_temperature_c",
+      "feedstock_distance_km",
+      "centrifuged_plastic_solvent_content_pct",
+      "target_mass_percent",
+      "labor_cost_usd_per_employee_yr",
+      "irr",
+      "operating_days",
+      "feedstock_price_usd_per_kg",
+      "natural_gas_price_usd_per_m3",
+      "maintenance",
+      "contingency",
+      "income_tax"
+     ],
+     "ranges": {
+      "solvent_price_usd_per_kg": [
+       0.8379,
+       1.5561
+      ],
+      "solvent_loss_pct": [
+       0.01,
+       1.0
+      ],
+      "dissolution_capacity": [
+       1.5,
+       4.5
+      ],
+      "processing_capacity_mt_per_yr": [
+       2000.0,
+       100000.0
+      ],
+      "dissolution_temperature_c": [
+       95.0,
+       115.0
+      ],
+      "precipitation_temperature_c": [
+       30.0,
+       40.0
+      ],
+      "feedstock_distance_km": [
+       0.0,
+       500.0
+      ],
+      "centrifuged_plastic_solvent_content_pct": [
+       35.0,
+       65.0
+      ],
+      "target_mass_percent": [
+       10.0,
+       90.0
+      ],
+      "labor_cost_usd_per_employee_yr": [
+       96000.0,
+       144000.0
+      ],
+      "irr": [
+       0.06999999999999999,
+       0.13
+      ],
+      "operating_days": [
+       315.36,
+       366.0
+      ],
+      "feedstock_price_usd_per_kg": [
+       0.0,
+       0.1
+      ],
+      "natural_gas_price_usd_per_m3": [
+       0.11692686144369997,
+       0.21714988553829997
+      ],
+      "maintenance": [
+       0.020999999999999998,
+       0.039
+      ],
+      "contingency": [
+       0.30000000000000004,
+       0.5
+      ],
+      "income_tax": [
+       0.15999999999999998,
+       0.26
+      ]
+     },
+     "N": 1024
+    },
+    "PET|Pyrrole": {
+     "factors": [
+      "solvent_price_usd_per_kg",
+      "solvent_loss_pct",
+      "dissolution_capacity",
+      "processing_capacity_mt_per_yr",
+      "dissolution_temperature_c",
+      "precipitation_temperature_c",
+      "feedstock_distance_km",
+      "centrifuged_plastic_solvent_content_pct",
+      "target_mass_percent",
+      "labor_cost_usd_per_employee_yr",
+      "irr",
+      "operating_days",
+      "feedstock_price_usd_per_kg",
+      "natural_gas_price_usd_per_m3",
+      "maintenance",
+      "contingency",
+      "income_tax"
+     ],
+     "ranges": {
+      "solvent_price_usd_per_kg": [
+       2.4499999999999997,
+       4.55
+      ],
+      "solvent_loss_pct": [
+       0.01,
+       1.0
+      ],
+      "dissolution_capacity": [
+       1.5,
+       4.5
+      ],
+      "processing_capacity_mt_per_yr": [
+       2000.0,
+       100000.0
+      ],
+      "dissolution_temperature_c": [
+       100.0,
+       120.0
+      ],
+      "precipitation_temperature_c": [
+       30.0,
+       40.0
+      ],
+      "feedstock_distance_km": [
+       0.0,
+       500.0
+      ],
+      "centrifuged_plastic_solvent_content_pct": [
+       35.0,
+       65.0
+      ],
+      "target_mass_percent": [
+       10.0,
+       90.0
+      ],
+      "labor_cost_usd_per_employee_yr": [
+       96000.0,
+       144000.0
+      ],
+      "irr": [
+       0.06999999999999999,
+       0.13
+      ],
+      "operating_days": [
+       315.36,
+       366.0
+      ],
+      "feedstock_price_usd_per_kg": [
+       0.0,
+       0.1
+      ],
+      "natural_gas_price_usd_per_m3": [
+       0.11692686144369997,
+       0.21714988553829997
+      ],
+      "maintenance": [
+       0.020999999999999998,
+       0.039
+      ],
+      "contingency": [
+       0.30000000000000004,
+       0.5
+      ],
+      "income_tax": [
+       0.15999999999999998,
+       0.26
+      ]
+     },
+     "N": 1024
+    },
+    "HDPE|Dipentene (Dl-Limonene)": {
+     "factors": [
+      "solvent_price_usd_per_kg",
+      "solvent_loss_pct",
+      "dissolution_capacity",
+      "processing_capacity_mt_per_yr",
+      "dissolution_temperature_c",
+      "precipitation_temperature_c",
+      "feedstock_distance_km",
+      "centrifuged_plastic_solvent_content_pct",
+      "target_mass_percent",
+      "labor_cost_usd_per_employee_yr",
+      "irr",
+      "operating_days",
+      "feedstock_price_usd_per_kg",
+      "natural_gas_price_usd_per_m3",
+      "maintenance",
+      "contingency",
+      "income_tax"
+     ],
+     "ranges": {
+      "solvent_price_usd_per_kg": [
+       1.54,
+       2.8600000000000003
+      ],
+      "solvent_loss_pct": [
+       0.01,
+       1.0
+      ],
+      "dissolution_capacity": [
+       1.5,
+       4.5
+      ],
+      "processing_capacity_mt_per_yr": [
+       2000.0,
+       100000.0
+      ],
+      "dissolution_temperature_c": [
+       105.0,
+       125.0
+      ],
+      "precipitation_temperature_c": [
+       30.0,
+       40.0
+      ],
+      "feedstock_distance_km": [
+       0.0,
+       500.0
+      ],
+      "centrifuged_plastic_solvent_content_pct": [
+       35.0,
+       65.0
+      ],
+      "target_mass_percent": [
+       10.0,
+       90.0
+      ],
+      "labor_cost_usd_per_employee_yr": [
+       96000.0,
+       144000.0
+      ],
+      "irr": [
+       0.06999999999999999,
+       0.13
+      ],
+      "operating_days": [
+       315.36,
+       366.0
+      ],
+      "feedstock_price_usd_per_kg": [
+       0.0,
+       0.1
+      ],
+      "natural_gas_price_usd_per_m3": [
+       0.11692686144369997,
+       0.21714988553829997
+      ],
+      "maintenance": [
+       0.020999999999999998,
+       0.039
+      ],
+      "contingency": [
+       0.30000000000000004,
+       0.5
+      ],
+      "income_tax": [
+       0.15999999999999998,
+       0.26
+      ]
+     },
+     "N": 1024
+    },
+    "NYLON6|Propylene glycol": {
+     "factors": [
+      "solvent_price_usd_per_kg",
+      "solvent_loss_pct",
+      "dissolution_capacity",
+      "processing_capacity_mt_per_yr",
+      "dissolution_temperature_c",
+      "precipitation_temperature_c",
+      "feedstock_distance_km",
+      "centrifuged_plastic_solvent_content_pct",
+      "target_mass_percent",
+      "labor_cost_usd_per_employee_yr",
+      "irr",
+      "operating_days",
+      "feedstock_price_usd_per_kg",
+      "natural_gas_price_usd_per_m3",
+      "maintenance",
+      "contingency",
+      "income_tax"
+     ],
+     "ranges": {
+      "solvent_price_usd_per_kg": [
+       1.603,
+       2.9770000000000003
+      ],
+      "solvent_loss_pct": [
+       0.01,
+       1.0
+      ],
+      "dissolution_capacity": [
+       1.5,
+       4.5
+      ],
+      "processing_capacity_mt_per_yr": [
+       2000.0,
+       100000.0
+      ],
+      "dissolution_temperature_c": [
+       150.0,
+       170.0
+      ],
+      "precipitation_temperature_c": [
+       30.0,
+       40.0
+      ],
+      "feedstock_distance_km": [
+       0.0,
+       500.0
+      ],
+      "centrifuged_plastic_solvent_content_pct": [
+       35.0,
+       65.0
+      ],
+      "target_mass_percent": [
+       10.0,
+       90.0
+      ],
+      "labor_cost_usd_per_employee_yr": [
+       96000.0,
+       144000.0
+      ],
+      "irr": [
+       0.06999999999999999,
+       0.13
+      ],
+      "operating_days": [
+       315.36,
+       366.0
+      ],
+      "feedstock_price_usd_per_kg": [
+       0.0,
+       0.1
+      ],
+      "natural_gas_price_usd_per_m3": [
+       0.11692686144369997,
+       0.21714988553829997
+      ],
+      "maintenance": [
+       0.020999999999999998,
+       0.039
+      ],
+      "contingency": [
+       0.30000000000000004,
+       0.5
+      ],
+      "income_tax": [
+       0.15999999999999998,
+       0.26
+      ]
+     },
+     "N": 1024
+    },
+    "NYLON6|Cyclohexanol": {
+     "factors": [
+      "solvent_price_usd_per_kg",
+      "solvent_loss_pct",
+      "dissolution_capacity",
+      "processing_capacity_mt_per_yr",
+      "dissolution_temperature_c",
+      "precipitation_temperature_c",
+      "feedstock_distance_km",
+      "centrifuged_plastic_solvent_content_pct",
+      "target_mass_percent",
+      "labor_cost_usd_per_employee_yr",
+      "irr",
+      "operating_days",
+      "feedstock_price_usd_per_kg",
+      "natural_gas_price_usd_per_m3",
+      "maintenance",
+      "contingency",
+      "income_tax"
+     ],
+     "ranges": {
+      "solvent_price_usd_per_kg": [
+       0.8049999999999999,
+       1.4949999999999999
+      ],
+      "solvent_loss_pct": [
+       0.01,
+       1.0
+      ],
+      "dissolution_capacity": [
+       1.5,
+       4.5
+      ],
+      "processing_capacity_mt_per_yr": [
+       2000.0,
+       100000.0
+      ],
+      "dissolution_temperature_c": [
+       135.0,
+       155.0
+      ],
+      "precipitation_temperature_c": [
+       30.0,
+       40.0
+      ],
+      "feedstock_distance_km": [
+       0.0,
+       500.0
+      ],
+      "centrifuged_plastic_solvent_content_pct": [
+       35.0,
+       65.0
+      ],
+      "target_mass_percent": [
+       10.0,
+       90.0
+      ],
+      "labor_cost_usd_per_employee_yr": [
+       96000.0,
+       144000.0
+      ],
+      "irr": [
+       0.06999999999999999,
+       0.13
+      ],
+      "operating_days": [
+       315.36,
+       366.0
+      ],
+      "feedstock_price_usd_per_kg": [
+       0.0,
+       0.1
+      ],
+      "natural_gas_price_usd_per_m3": [
+       0.11692686144369997,
+       0.21714988553829997
+      ],
+      "maintenance": [
+       0.020999999999999998,
+       0.039
+      ],
+      "contingency": [
+       0.30000000000000004,
+       0.5
+      ],
+      "income_tax": [
+       0.15999999999999998,
+       0.26
+      ]
+     },
+     "N": 1024
+    }
+   },
+   "rows": 350208,
+   "shards": 141,
+   "per_shard": 2500,
+   "design": "Saltelli: A, B and one AB_i per factor, scrambled Sobol points",
+   "energy_case": "C1",
+   "log_scaled": [
+    "processing_capacity_mt_per_yr"
+   ]
+  }
+ },
+ "surface_skipped": [],
+ "engine_bounds_applied": {
+  "operating_days": [
+   0.0,
+   366.0
+  ]
+ }
+}
