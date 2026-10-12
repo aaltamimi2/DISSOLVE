@@ -54,6 +54,17 @@ def _open_file(path: Path) -> bool:
 
 
 
+#: A deployment with no place for figure files (the hosted site) sets DISSOLVE_PATHWAY_FIGURES=off: the pathway and tornado
+#: tools then save no figure data and draw nothing, and say so. Everything else in their answers is unchanged.
+FIGURES_ENV = "DISSOLVE_PATHWAY_FIGURES"
+FIGURES_OFF_NOTE = ("figures are switched off on this deployment, so nothing was saved or drawn; a local DISSOLVE install "
+                    "draws them")
+
+
+def figures_switched_off() -> bool:
+    return (os.environ.get(FIGURES_ENV) or "").strip().casefold() in {"off", "0", "false", "no"}
+
+
 def _results_dir() -> Path:
     """The folder saved requests and their figures go to."""
     return Path(os.environ.get(RESULTS_DIR_ENV) or Path.home() / ".dissolve" / "pathway_results")

@@ -62,6 +62,32 @@ def test_it_refuses_input_it_cannot_run(toy):
     assert not toy  # nothing was simulated for a request that could not run
 
 
+def test_a_deployment_limit_refuses_a_tornado_that_needs_more_live_simulations(monkeypatch):
+    confirmed = []
+
+    def unconfirmed(cfg, *, confirm_live_tea):
+        if not confirm_live_tea:
+            raise dl.StageUnavailable("live_tea_cost_confirmation_required", "x")
+        confirmed.append(cfg)
+        return _toy_row(cfg)
+
+    monkeypatch.setattr(dl, "run_process_config", unconfirmed)
+    monkeypatch.setenv(dl.LIVE_RUN_LIMIT_ENV, "2")
+    out = _call(parameters=["irr"], confirm_live_tea=True)  # the base and irr low and high: three simulations
+    assert out["error_code"] == "live_tea_run_limit" and out["simulations_needed"] == 3 and out["simulations_allowed"] == 2
+    assert "at most 2 per request" in out["error"] and not confirmed
+    monkeypatch.setenv(dl.LIVE_RUN_LIMIT_ENV, "3")
+    assert _call(parameters=["irr"], confirm_live_tea=True)["success"] is True and len(confirmed) == 3
+
+
+def test_a_deployment_without_figures_saves_and_draws_no_tornado(toy, monkeypatch, tmp_path):
+    monkeypatch.setenv("DISSOLVE_PATHWAY_RESULTS_DIR", str(tmp_path))
+    monkeypatch.setenv("DISSOLVE_PATHWAY_FIGURES", "off")
+    out = _call(parameters=["irr"], draw_plot=True)
+    assert out["success"] is True and out["figure_data_file"] is None and out["figure_file"] is None
+    assert "switched off on this deployment" in out["figure_note"] and list(tmp_path.iterdir()) == []
+
+
 def test_a_parameter_with_no_default_range_runs_when_the_user_gives_one(toy):
     out = _call(parameters=["maintenance"], ranges={"maintenance": [0.02, 0.05]})
     assert out["success"] is True and out["sensitivity_rows"][0]["low_value"] == 0.02 and out["sensitivity_rows"][0]["high_value"] == 0.05

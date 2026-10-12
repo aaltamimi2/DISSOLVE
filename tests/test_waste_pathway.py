@@ -155,6 +155,67 @@ def test_the_tool_stops_and_asks_before_simulating(monkeypatch):
     assert "confirm_live_tea=true" in out["display"]
 
 
+def _pending_table(count):
+    table = dl.StageTable()
+    for solvent in ["Ethylene glycol", "Propylene glycol", "Acetic Acid"][:count]:
+        table.pending.append(_spec("EVOH", solvent, mass_in=8000.0, percent=10.0))
+    return table
+
+
+def test_a_deployment_limit_refuses_a_request_that_needs_more_live_simulations(monkeypatch):
+    """The hosted site runs one simulation at a time for everyone: a request over its limit must start none of them."""
+    builds = []
+
+    def build(*args, **kwargs):
+        builds.append(kwargs["confirm_live_tea"])
+        return _pending_table(3)
+
+    monkeypatch.setenv(dl.LIVE_RUN_LIMIT_ENV, "2")
+    monkeypatch.setattr(dl, "build_stage_table", build)
+    base = {"feed_mass_fractions": {"LDPE": 0.6, "PET": 0.2, "NYLON6": 0.1, "EVOH": 0.1}, "feed_tonnes_per_year": 8000}
+    for confirm in (None, True):
+        out = json.loads(tool.optimize_waste_pathway(**base, confirm_live_tea=confirm))["data"]
+        assert out["error_code"] == "live_tea_run_limit" and out["simulations_needed"] == 3 and out["simulations_allowed"] == 2
+        assert "at most 2 per request" in out["error"] and "local DISSOLVE install" in out["error"]
+    assert builds == [False, False]  # the washes were only counted, never simulated
+
+
+def test_within_the_deployment_limit_the_tool_asks_and_then_simulates(monkeypatch):
+    builds = []
+
+    def build(*args, **kwargs):
+        builds.append(kwargs["confirm_live_tea"])
+        return _stub_table() if kwargs["confirm_live_tea"] else _pending_table(2)
+
+    monkeypatch.setenv(dl.LIVE_RUN_LIMIT_ENV, "2")
+    monkeypatch.setattr(dl, "build_stage_table", build)
+    base = {"feed_mass_fractions": {"LDPE": 0.6, "PET": 0.2, "NYLON6": 0.1, "EVOH": 0.1}, "feed_tonnes_per_year": 8000}
+    asked = json.loads(tool.optimize_waste_pathway(**base))["data"]
+    assert asked["error_code"] == "live_tea_cost_confirmation_required"
+    done = json.loads(tool.optimize_waste_pathway(**base, confirm_live_tea=True))["data"]
+    assert done["success"] is True and builds == [False, False, True]
+
+
+def test_without_a_limit_nothing_changes(monkeypatch):
+    monkeypatch.delenv(dl.LIVE_RUN_LIMIT_ENV, raising=False)
+    assert dl.live_run_limit() is None
+    for value, expected in (("0", None), ("", None), ("two", None), ("2", 2)):
+        monkeypatch.setenv(dl.LIVE_RUN_LIMIT_ENV, value)
+        assert dl.live_run_limit() == expected
+
+
+def test_a_deployment_without_figures_saves_and_draws_nothing_and_says_so(monkeypatch, tmp_path):
+    monkeypatch.setenv("DISSOLVE_PATHWAY_RESULTS_DIR", str(tmp_path))
+    monkeypatch.setenv("DISSOLVE_PATHWAY_FIGURES", "off")
+    data = _call(monkeypatch, _stub_table(), draw_plot=True, draw_summary=True)["data"]
+    assert data["success"] is True and data["figure_data_file"] is None
+    assert data["figure_file"] is None and "switched off on this deployment" in data["figure_note"]
+    assert data["summary_figure_file"] is None and "switched off on this deployment" in data["summary_figure_note"]
+    assert list(tmp_path.iterdir()) == []
+    monkeypatch.delenv("DISSOLVE_PATHWAY_FIGURES")
+    assert _call(monkeypatch, _stub_table())["data"]["figure_data_file"]
+
+
 def test_the_tool_returns_the_optimum_with_its_basis_and_checks(monkeypatch):
     out = _call(monkeypatch, _stub_table(), objective="max_profit", shared_plant_capacity_mt_per_yr=20000)
     data = out["data"]

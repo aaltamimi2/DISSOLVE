@@ -21,7 +21,9 @@ from pathlib import Path
 from typing import Any, Literal, Optional
 
 from . import thermodynamics, waste_pathway_data as data_layer, waste_pathway_milp as milp, waste_pathway_plot as plotting
-from .figure_support import RESULTS_DIR_ENV, _matplotlib_here, _open_file, _python_with_matplotlib, _results_dir  # noqa: F401
+from .figure_support import (  # noqa: F401
+    FIGURES_OFF_NOTE, RESULTS_DIR_ENV, _matplotlib_here, _open_file, _python_with_matplotlib, _results_dir, figures_switched_off,
+)
 from .contracts import tool_error, tool_success
 
 _SECONDS_PER_LIVE_STAGE = 15  # measured: a full 8,000 t/yr STRAP simulation takes 13 to 25 s
@@ -133,6 +135,8 @@ def _save_figure_data(problem: milp.PathwayProblem, common: dict[str, Any], sele
                 "profit_usd_per_yr": c.profit_usd, "emissions_t_co2e_per_yr": c.emissions_t, "circularity_index": c.circularity}
 
     candidates = problem.candidates
+    if figures_switched_off():
+        return None
     try:
         optima = {name: milp.optimize(problem, name)["candidate"] for name in milp.OBJECTIVES}
         payload = {
@@ -197,6 +201,8 @@ def _work_summary(table: data_layer.StageTable, problem: milp.PathwayProblem, po
 def _render_figure(data_file: str | None, *, summary: bool = False) -> dict[str, Any]:
     """Draw the three fronts (or, with ``summary``, the work summary) of the saved request and open the figure for the user."""
     prefix = "summary_figure" if summary else "figure"
+    if figures_switched_off():
+        return {f"{prefix}_file": None, f"{prefix}_note": FIGURES_OFF_NOTE}
     if not data_file:
         return {f"{prefix}_file": None, f"{prefix}_note": "the results folder could not be written, so nothing was drawn"}
     source = Path(data_file)
@@ -368,14 +374,29 @@ def optimize_waste_pathway(
             return tool_error(tool, "circularity_upper_bounds needs positive energy_mj, ghg_t_co2e, water_m3 and waste_kg "
                                     f"({error})", error_code="invalid_input")
 
-    try:
-        table = data_layer.build_stage_table(
+    limit = data_layer.live_run_limit()
+
+    def stage_table(confirm: bool) -> data_layer.StageTable:
+        return data_layer.build_stage_table(
             feed, max_washes=int(max_washes), max_options=int(max_solvents_per_stage), solvents=pool,
-            confirm_live_tea=bool(confirm_live_tea), energy_case=energy_case,
+            confirm_live_tea=confirm, energy_case=energy_case,
             min_solubility_pct=float(min_solubility_pct), max_retained_pct=float(max_retained_pct),
             plant_capacity_t=float(shared_plant_capacity_mt_per_yr) if shared_plant_capacity_mt_per_yr else None,
             avoid_danger_solvents=bool(avoid_danger_solvents),
         )
+
+    try:
+        # under a live-run limit the washes are counted first, so a request over the limit starts no simulation at all
+        table = stage_table(bool(confirm_live_tea) and limit is None)
+        if limit is not None and len(table.pending) > limit:
+            return tool_error(
+                tool, data_layer.live_run_limit_message(
+                    len(table.pending), limit, "Narrow it: name one or two solvents (solvents), lower max_washes or "
+                    "max_solvents_per_stage, or ask about fewer polymers."),
+                error_code="live_tea_run_limit", simulations_needed=len(table.pending), simulations_allowed=limit,
+                pending_stages=_pending_payload(table), stages_costed=len(table.stages))
+        if limit is not None and confirm_live_tea and table.pending:
+            table = stage_table(True)
     except ValueError as error:
         return tool_error(tool, str(error), error_code="invalid_input")
     broken = [item for item in table.failed if item.get("reason") == "thermodynamic_screen_failed"]

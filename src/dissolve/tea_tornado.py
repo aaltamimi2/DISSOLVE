@@ -16,7 +16,7 @@ from typing import Any, Optional
 
 from . import tea, tea_tornado_plot as plotting, thermodynamics, waste_pathway_data as data_layer
 from .contracts import tool_error, tool_success
-from .figure_support import _open_file, _results_dir, run_plot
+from .figure_support import FIGURES_OFF_NOTE, _open_file, _results_dir, figures_switched_off, run_plot
 
 SCHEMA = plotting.SCHEMA
 _SECONDS_PER_LIVE_RUN = 12  # measured: a BioSTEAM wash simulation takes about 11 to 15 s
@@ -216,6 +216,13 @@ def tea_tornado(
                 pending.append((key, cfg))
             else:
                 failures[key] = f"{error.kind}: {error.detail}"
+    limit = data_layer.live_run_limit()
+    if limit is not None and len(pending) > limit:
+        return tool_error(
+            tool, data_layer.live_run_limit_message(
+                len(pending), limit, "A tornado needs one simulation of the base plant and up to two for each parameter."),
+            error_code="live_tea_run_limit", simulations_needed=len(pending), simulations_allowed=limit,
+            parameters_requested=names, base={"polymer": polymer_id, "solvent": solvent_name})
     if pending and not confirm_live_tea:
         seconds = len(pending) * _SECONDS_PER_LIVE_RUN
         return tool_error(
@@ -311,6 +318,8 @@ def _save(polymer: str, solvent: str, base: dict[str, Any], metrics: tuple[str, 
                "solvent": solvent, "basis": basis, "base": base,
                "metrics": [{"metric": m, "label": METRICS[m][0], "unit": METRICS[m][1]} for m in metrics],
                "rows": rows, "ranking": ranking, "run_qualifications": run_qualifications, "warnings": warnings}
+    if figures_switched_off():
+        return None
     try:
         directory = _results_dir()
         directory.mkdir(parents=True, exist_ok=True)
@@ -326,6 +335,8 @@ def _save(polymer: str, solvent: str, base: dict[str, Any], metrics: tuple[str, 
 
 def _render(data_file: str | None) -> dict[str, Any]:
     """Draw the tornado of the saved result, write its table, and open the figure for the user."""
+    if figures_switched_off():
+        return {"figure_file": None, "figure_note": FIGURES_OFF_NOTE}
     if not data_file:
         return {"figure_file": None, "figure_note": "the results folder could not be written, so nothing was drawn"}
     source = Path(data_file)

@@ -7225,6 +7225,19 @@ def test_where_tea_is_switched_off_its_tools_are_withheld_refused_and_the_prompt
     assert "TEA is switched off on this deployment" in cli._system_prompt("review")
 
 
+def test_where_tea_is_switched_off_the_pathway_and_tornado_tools_go_with_it(monkeypatch):
+    """Both tools cost washes with the live TEA engine, and the switch left them offered and callable."""
+    monkeypatch.delenv("DISSOLVE_WEB_DISABLE", raising=False)
+    assert {"optimize_waste_pathway", "tea_tornado"} <= agent.offered_tool_names(None)
+    monkeypatch.setenv("DISSOLVE_WEB_DISABLE", "tea")
+    offered = agent.offered_tool_names(None)
+    assert not {"optimize_waste_pathway", "tea_tornado", "evaluate_process"} & offered
+    assert not {"optimize_waste_pathway", "tea_tornado"} & {schema["name"] for schema in agent.tool_schemas()}
+    feed = {"feed_mass_fractions": {"LDPE": 0.6, "PET": 0.4}, "feed_tonnes_per_year": 8000}
+    assert dispatch("optimize_waste_pathway", **feed)["refusal"] == "tea_switched_off"
+    assert dispatch("tea_tornado", polymer="LDPE", solvent="Toluene")["refusal"] == "tea_switched_off"
+
+
 def test_a_plant_nobody_confirmed_says_so_and_a_sheet_confirmed_one_says_that(tmp_path, monkeypatch):
     """A02-R2: --once and the web app ran the model's plant values with no confirmation and no sign of it. The
     result now says whether a person confirmed the plant on the sheet, and the prompt says to disclose it."""

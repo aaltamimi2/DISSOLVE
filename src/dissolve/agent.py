@@ -442,10 +442,14 @@ def tea_switched_off() -> bool:
     return "tea" in {item.strip().casefold() for item in os.getenv("DISSOLVE_WEB_DISABLE", "").split(",")}
 
 
+#: Tools that cost a process with the live TEA engine: none is offered or run where the deployment switches TEA off.
+_TEA_BACKED_TOOLS = frozenset({"evaluate_process", "optimize_waste_pathway", "tea_tornado"})
+
+
 def _tea_call_switched_off(name: str, kwargs: dict[str, Any]) -> bool:
     if not tea_switched_off():
         return False
-    if name == "evaluate_process":
+    if name in _TEA_BACKED_TOOLS:
         return True
     return name == "rank_landscape" and str(kwargs.get("source") or "process_rows").strip().casefold() != "planner_routes"
 
@@ -460,7 +464,7 @@ def offered_tool_names(session: Any = None) -> frozenset[str]:
     names -= LITERATURE_AGENT_TOOLS
     names |= offered_literature_names(session)
     if tea_switched_off():
-        names.discard("evaluate_process")
+        names -= _TEA_BACKED_TOOLS
     return frozenset(names)
 
 

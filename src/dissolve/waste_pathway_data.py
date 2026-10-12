@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import copy
 import json
+import os
 import time
 from functools import lru_cache
 from pathlib import Path
@@ -67,6 +68,24 @@ LOCATION_SCENARIOS: dict[str, dict[str, float]] = {
 
 
 _STAGE_ROWS: dict[str, dict[str, Any]] = {}  # costed washes of this process, by their full process configuration
+
+
+#: A deployment can cap how many live BioSTEAM simulations one pathway or tornado request may start (the hosted site runs
+#: one simulation at a time for everyone, at about a minute each). Unset or 0 means no cap, as on a local install.
+LIVE_RUN_LIMIT_ENV = "DISSOLVE_PATHWAY_MAX_LIVE_RUNS"
+
+
+def live_run_limit() -> int | None:
+    try:
+        limit = int((os.environ.get(LIVE_RUN_LIMIT_ENV) or "").strip() or 0)
+    except ValueError:
+        return None
+    return limit if limit > 0 else None
+
+
+def live_run_limit_message(needed: int, limit: int, narrow: str) -> str:
+    return (f"this request needs {needed} live BioSTEAM simulations and this deployment runs at most {limit} per request. "
+            f"{narrow} A local DISSOLVE install has no such limit.")
 
 
 def clear_stage_rows() -> None:
