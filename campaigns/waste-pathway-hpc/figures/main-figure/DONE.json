@@ -1,0 +1,122 @@
+{
+  "status": "complete",
+  "completed_utc": "2026-10-12T16:43:09.343956+00:00",
+  "target": "Current hpc-pathway-main-v12; unchanged appearance/content",
+  "intended_repository_path": "campaigns/waste-pathway-hpc/figures/main-figure/",
+  "acceptance": {
+    "plotted_data": "All five CSVs byte-identical and exact-value equal",
+    "png": "Pixel-identical: 0 / 3487050 differing pixels",
+    "svg": "Text identical; 35 primitive-attribute differences documented, same rendered pixels",
+    "caption_files_byte_identical": {
+      "caption.txt": true,
+      "manuscript-caption.txt": true
+    },
+    "portable_run": true,
+    "write_confinement": "Linux Landlock ABI 3 enforces writes only below --out; /dev/null allowed as a nonpersistent device sink. Python write-path audit also passed.",
+    "updated_partitioned_tables": "Rendered successfully; verify exited 1 as expected for intentional data changes"
+  },
+  "commands_run": [
+    {
+      "cwd": "/home/aaltamimi2/dissolve-v12-audit/astra/figures",
+      "command": "python hpc-pathway-campaign/main-figure-repro/make_figure.py --data /home/aaltamimi2/dissolve-hpc-campaign/data --out /tmp/hpc-main-repro-final",
+      "exit_code": 0
+    },
+    {
+      "cwd": "/home/aaltamimi2/dissolve-v12-audit/astra/figures",
+      "command": "python hpc-pathway-campaign/main-figure-repro/verify.py --out /tmp/hpc-main-repro-final",
+      "exit_code": 0
+    },
+    {
+      "cwd": "/tmp/hpc-main-repro-handoff",
+      "command": "python -B /tmp/hpc-repro-confined-run.py make_figure.py --data /home/aaltamimi2/dissolve-hpc-campaign/data --out /tmp/hpc-main-repro-handoff-check",
+      "exit_code": 0
+    },
+    {
+      "cwd": "/tmp/hpc-main-repro-handoff",
+      "command": "python -B /tmp/hpc-repro-confined-run.py verify.py --out /tmp/hpc-main-repro-handoff-check",
+      "exit_code": 0
+    },
+    {
+      "cwd": "/home/aaltamimi2/dissolve-v12-audit/astra/figures",
+      "command": "python hpc-pathway-campaign/main-figure-repro/make_figure.py --data /tmp/hpc-main-repro-updated-data --out /tmp/hpc-main-repro-updated-out",
+      "exit_code": 0
+    },
+    {
+      "cwd": "/home/aaltamimi2/dissolve-v12-audit/astra/figures",
+      "command": "python hpc-pathway-campaign/main-figure-repro/verify.py --out /tmp/hpc-main-repro-updated-out",
+      "exit_code": 1,
+      "expected": true
+    }
+  ],
+  "non_data_driven_items": [
+    "Illustrative query, DAG labels and icon are bundled/settings, source-derived rather than runtime-derived.",
+    "Scientific assumptions (recovery, downstream-cost reconstruction, emissions boundary, shared capacity allocation) require author review after model changes.",
+    "Default known-route annotation offsets are tuned settings; new front members use automatic offsets and may require manual layout review.",
+    "Default captions are frozen only when extracted data and relevant settings match; changed data produce a regenerated caption and explicit review flag."
+  ],
+  "known_vector_differences": [
+    "6 numerically equivalent attribute spellings",
+    "28 schematic primitives have the former translate(0,-26) baked into their coordinates",
+    "White shared-label background right edge 267.554406 vs 267.93591015625 SVG units; white over white, no pixel difference",
+    "Generated IDs and metadata/PDF timestamps differ"
+  ],
+  "limitations": [
+    "strace tracing was blocked by ptrace restrictions; replaced by successful kernel Landlock write confinement.",
+    "Pixel identity verified in recorded Linux/native-library environment; other systems may rasterize differently."
+  ],
+  "prior_directories_intact": {
+    "main-figure-v1": {
+      "entries": 122,
+      "mismatches": []
+    },
+    "main-figure-v2": {
+      "entries": 392,
+      "mismatches": []
+    },
+    "first-pass-v1": {
+      "entries": 721,
+      "mismatches": []
+    }
+  },
+  "file_sha256": {
+    "README.txt": "83c8c37cbe03eb06bf710470956162262081ccf95a70363e491f8fb2b5861fcd",
+    "acceptance/baseline-verification.json": "8863c8ccc806d63c67dee2cd724b4016a4ebc523c48a9a7d98c2b26285a6ce62",
+    "acceptance/confined_run.py": "0b469bd75d1a98782bdd0a28ae25b1bd72b5faf18af950cb0e3d8877b4712648",
+    "acceptance/portable-verification.json": "8863c8ccc806d63c67dee2cd724b4016a4ebc523c48a9a7d98c2b26285a6ce62",
+    "acceptance/prior-directories-integrity.json": "4df8749bad1f80f9da9cd6897fedb9c22e5429982d8450110fa2a34457650977",
+    "acceptance/svg-geometry-differences.json": "9d0653490bb1899909ee80269030862dee644fb4827ad742ca0e0177015e36f1",
+    "acceptance/updated-input-test.json": "1d929a0d2135a3be0398a6af1632997527360e5443d3d322b8aa2be17c109c9e",
+    "acceptance/updated-partitioned-data-verification.json": "15f2679caf945c819ebdee64857786eda2e32ff496b9a78e7b34892d0e0c5917",
+    "acceptance/write-confinement-make_figure.json": "ad99917abff75bb6568f639444144c62fd25c11eb543ef0bc8e4800eca924306",
+    "acceptance/write-confinement-verify.json": "e67cd79683b7faf16cd328924044642564c71f7da437a032ca5d62fbdf6cbaee",
+    "assets/dag-source.json": "db73469c6df81c8fe51b26e75a913d322b5d245dddabeeb0c81e0c8f93f420be",
+    "assets/fonts/DejaVuSans-Bold.ttf": "aa2ebed70cf6a389400a49feeb976c785de411f387d0cff998472590760cc2b6",
+    "assets/fonts/DejaVuSans.ttf": "437a5ecec2ec177cba9284cbffc56055311347f3e9fe4f2b4b40323d0290a6db",
+    "assets/fonts/LICENSE.txt": "c67177807098edcacec9f10f724eb9f79d93fab5c9ad7422ca7e351a3376de97",
+    "assets/icon-tea-lca-plant.svg": "ae4ae4b9d9fdf68027ff04b3ff8935237122e75dddd9fe19fd4d1edd61fbb136",
+    "assets/reference-caption.txt": "192d5341eed4e37bdecf7e472b8650b0ac3567f5595cb821eeb30937ca5e9e8c",
+    "assets/reference-data-hashes.json": "b8709ed90a622d216d4bcd42dbe61a532a508606ddc3c580915fd4570a4e3a33",
+    "assets/reference-manuscript-caption.txt": "14a8ad9e96789efc2d189d61e3b16642a8168045a1a19b3987f5676731f4fc9f",
+    "assets/reference-settings.json": "119342d69cdeb940fafc978e56d1ee577e3e1063cf562d9ca4d6ecd537992c97",
+    "environment.json": "914e0b8bdf35eeaf8ece5cb92883eca341f81a0f77ed8accd98e259917ea0be0",
+    "make_figure.py": "731e16afb7d46303229fbf92089acd584f36bf6c6f5eb7e942a25d56b83fd1a1",
+    "queries/pathway-pareto.sql": "5fbc0ce2435b7c18541131d332ee8c758ec3e7882f1b2961c2bd36d6826b5838",
+    "queries/profit-advantage.sql": "d0f2972200867723f8346216e75b5a144b4ca39b53da13de0f312c8968a36449",
+    "queries/sobol-gwp.sql": "89c75724cb6ccae90eb9a7246005bb90f060a86d8361cba57f6ce66e806eeb42",
+    "queries/sobol-msp.sql": "31acc83c00c9523ccaa63ab843be24fd9c83f4f248a8a0887bc9c84714d357b1",
+    "queries/wash-cost-surface.sql": "d962c9f204b1fdaf5a4ff0d287b0b6362443334700be802df9b9a53fc58c1cc1",
+    "reference/hpc-pathway-main.caption.txt": "192d5341eed4e37bdecf7e472b8650b0ac3567f5595cb821eeb30937ca5e9e8c",
+    "reference/hpc-pathway-main.manuscript-caption.txt": "14a8ad9e96789efc2d189d61e3b16642a8168045a1a19b3987f5676731f4fc9f",
+    "reference/hpc-pathway-main.pdf": "c2d2de9af06336d4dd5ff516ebda55802b274f31df3dcb11448958cefd76dccd",
+    "reference/hpc-pathway-main.png": "714de50e8e99cd5d9a7356aee083c66d735e225602e4cfccf4cf572eddd1ba94",
+    "reference/hpc-pathway-main.svg": "c99b356e652b15bcb3691330ddca893bb7f568f4409f5a10b38504e9f005f4cb",
+    "reference/pathway-pareto.data.csv": "6cbb5c23e5e1c433bf3531a4be052d2555482a02ecdcbe195f8323702630eead",
+    "reference/profit-advantage.data.csv": "6533cb7a7606b46e297daf16fd776731bee19c468998b81c9fdbf24ecabb0e8e",
+    "reference/sobol-gwp.data.csv": "037d9b0ac612a698c362d277048336b3735a43689d4d40984ae07df898eb415a",
+    "reference/sobol-msp.data.csv": "cef3d02effeece62e2190b750fb7a2808260995f0d35a4b9186dbe297564602c",
+    "reference/wash-cost-surface.data.csv": "1821e84585f360182bdcda96ec0b418967a4b6190563de3c40a1642509770a2e",
+    "requirements.txt": "f0c25d0b30410ea17f6b2f1186db76bada65d52871c84f853c61ee5d157021f7",
+    "verify.py": "bf63f9fa9ed6f0e7ec71177e01bd3eba8225977e3025c5dcda9e183102e46a77"
+  },
+  "manifest_note": "DONE.json excludes itself from hashes to avoid circularity."
+}

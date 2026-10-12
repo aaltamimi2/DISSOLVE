@@ -1,0 +1,1 @@
+SELECT c.* FROM mc_candidates c JOIN mc_scenarios s USING(scenario_id,location) WHERE s.feed='published' AND s.plant='dedicated' AND s.draw IS NULL AND s.location='A' AND s.energy_case='C1' AND c.downstream_key <> 'resale' ORDER BY c.label;

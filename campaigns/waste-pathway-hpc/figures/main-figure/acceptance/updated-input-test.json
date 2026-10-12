@@ -1,0 +1,14 @@
+{
+  "test_only": true,
+  "source_tables_unchanged": true,
+  "storage": "Each table is a directory with two Parquet parts",
+  "changes": {
+    "surface": "MSP times 1.1; target shares below 10 removed",
+    "sobol": "ST and interval endpoints times 1.05",
+    "scenarios": "Published/location A; base plus draws <12",
+    "candidates": "Two-or-three-wash annual profits increased by USD 5,000,000"
+  },
+  "render_exit_code": 0,
+  "verify_exit_code": 1,
+  "caption_review_flag_created": true
+}

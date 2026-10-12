@@ -1,0 +1,1 @@
+SELECT id,ok,cfg_target_mass_percent AS share,cfg_processing_capacity_mt_per_yr AS capacity,msp_usd_per_kg AS value,lca_status,error FROM washes_surface WHERE cfg_target_polymer='LDPE' AND cfg_solvent='Toluene' AND cfg_energy_case='C1' ORDER BY capacity,share;

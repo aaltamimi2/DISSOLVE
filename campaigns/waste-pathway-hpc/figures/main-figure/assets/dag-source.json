@@ -1,0 +1,204 @@
+{
+  "data_commit": "b19301685cf5b7dea269c404a57ea9112b97e3d3",
+  "dag_source_checkout_head": "2cf82c6b4455a7aa32fbae20b125b0418633a638",
+  "source_file_hashes": {
+    "waste_pathway.py": "b430c2523cd60973d7b715b25eda9cef835f1b68fa5d07a1bf4575180f6bdc80",
+    "waste_pathway_milp.py": "bf8e61830260bf2ef965e5254adbe66a4e498abd5091cef1c9733ae1ee58774a",
+    "waste_pathway_data.py": "f41c9931fd9bac11b6a1cc11783562f6017e221a57c0e2e92d0c184406c76847",
+    "tea_tornado.py": "7925066dbbaaf3de896522119aab92a2838879ceb011ec0b7197aa623fcd8fa0",
+    "agent.py": "4c0ab498cb61a95b1695265982c16dcdd6ab170f3db1c0cbaff5a43cc7ab0b3c"
+  },
+  "dag_nodes": [
+    {
+      "id": "query",
+      "label": "Example query",
+      "kind": "illustrative user input",
+      "references": []
+    },
+    {
+      "id": "optimize_waste_pathway",
+      "label": "optimize_waste_pathway",
+      "kind": "agent tool",
+      "references": [
+        {
+          "file": "src/dissolve/agent.py",
+          "lines": [
+            124,
+            125
+          ],
+          "excerpt": "124:     _t(waste_pathway.optimize_waste_pathway, \"pathway\"),\n125:     _t(tea_tornado.tea_tornado, \"pathway\"),  # TEA/LCA sensitivity of one wash; reports its TEA basis like the pathway tool"
+        },
+        {
+          "file": "src/dissolve/waste_pathway.py",
+          "lines": [
+            287,
+            307
+          ],
+          "excerpt": "287: def optimize_waste_pathway(\n288:     feed_mass_fractions: dict[str, float],\n289:     feed_tonnes_per_year: float,\n290:     objective: Literal[\"max_profit\", \"min_emissions\", \"max_circularity\"] = \"max_profit\",\n291:     pareto: Optional[Literal[\"emissions_vs_profit\", \"circularity_vs_profit\", \"emissions_vs_circularity\"]] = None,\n292:     max_washes: int = 2,\n293:     max_solvents_per_stage: int = 3,\n294:     location_scenario: Literal[\"A\", \"B\"] = \"A\",\n295:     energy_case: Literal[\"C1\", \"C2\", \"C3\"] = \"C1\",\n296:     confirm_live_tea: Optional[bool] = None,\n297:     polymer_prices_usd_per_t: Optional[dict[str, float]] = None,\n298:     min_solubility_pct: float = data_layer.MIN_SOLUBILITY_PCT,\n299:     max_retained_pct: float = data_layer.MAX_RETAINED_PCT,\n300:     solvents: Optional[list[str]] = None,\n301:     shared_plant_capacity_mt_per_yr: Optional[float] = None,\n302:     circularity_upper_bounds: Optional[dict[str, float]] = None,\n303:     downstream_distances_mile: Optional[dict[str, float]] = None,\n304:     residual_resale_price_fraction: float = 1.0,\n305:     avoid_danger_solvents: bool = False,\n306:     draw_plot: bool = False,\n307:     draw_summary: bool = False,"
+        },
+        {
+          "file": "src/dissolve/agent.py",
+          "lines": [
+            885,
+            889
+          ],
+          "excerpt": "885: - optimize_waste_pathway answers how a mixed or multilayer feed should be processed: it screens solvents\n886:   for every wash the feed allows, costs each wash (stored records, or live BioSTEAM once confirm_live_tea is\n887:   true), and picks the wash sequence and the downstream technology (landfill, incineration, pyrolysis, three\n888:   gasification routes) by profit, emissions or the MICRON circularity index, or traces a trade-off (pareto).\n889:   Give it the feed's mass fractions and tonnes per year, exactly as the user stated them. Never invent or assume a feed:"
+        }
+      ]
+    },
+    {
+      "id": "screen",
+      "label": "Solubility screen",
+      "kind": "internal step",
+      "references": [
+        {
+          "file": "src/dissolve/waste_pathway.py",
+          "lines": [
+            379,
+            386
+          ],
+          "excerpt": "379:     def stage_table(confirm: bool) -> data_layer.StageTable:\n380:         return data_layer.build_stage_table(\n381:             feed, max_washes=int(max_washes), max_options=int(max_solvents_per_stage), solvents=pool,\n382:             confirm_live_tea=confirm, energy_case=energy_case,\n383:             min_solubility_pct=float(min_solubility_pct), max_retained_pct=float(max_retained_pct),\n384:             plant_capacity_t=float(shared_plant_capacity_mt_per_yr) if shared_plant_capacity_mt_per_yr else None,\n385:             avoid_danger_solvents=bool(avoid_danger_solvents),\n386:         )"
+        },
+        {
+          "file": "src/dissolve/waste_pathway_data.py",
+          "lines": [
+            374,
+            397
+          ],
+          "excerpt": "374:         payload = json.loads(thermodynamics.screen_polymer_separation(\n375:             feed_polymers=sorted(masses), target_polymers=[polymer], solvents=list(solvents),\n376:             temperature_min_c=temperature, temperature_max_c=temperature, strict_maximum=False,\n377:             ranking_mode=\"separation_gap\", require_atmospheric=True, top_k=max(len(solvents), 10),\n378:             min_solubility_pct=min_solubility_pct, max_retained_pct=max_retained_pct, feed_mass_fractions=fractions,\n379:         ))\n380:         screened = payload.get(\"data\") or {}\n381:         if not screened.get(\"success\"):\n382:             raise StageUnavailable(\"thermodynamic_screen_failed\", str(screened.get(\"error\") or \"the screen refused\"))\n383:         for item in screened.get(\"ranked_candidates\") or []:\n384:             margin = item.get(\"boiling_point_margin_c\")\n385:             target, retained = item.get(\"target_solubility_pct\"), item.get(\"max_off_target_solubility_pct\")\n386:             if target is None or retained is None or float(target) < min_solubility_pct or float(retained) > max_retained_pct:\n387:                 continue  # the screen's own retained_intact flag uses the engine's 1 wt% level, not the caller's limit\n388:             if margin is not None and float(margin) < boiling_margin_c:\n389:                 continue\n390:             hits.setdefault(str(item[\"solvent\"]), []).append({**item, \"temperature_c\": float(item[\"temperature_c\"])})\n391:         temperature += float(temperature_step_c)\n392:     left_dissolved: dict[str, float] = {}\n393:     if precipitation_temperature_c is not None and hits:\n394:         left_dissolved = precipitated_pct(polymer, sorted(hits), precipitation_temperature_c)\n395:         if not left_dissolved:\n396:             raise StageUnavailable(\"precipitation_temperature_not_on_grid\",\n397:                                    f\"no stored solubility for {polymer} at {precipitation_temperature_c:g} C\")"
+        }
+      ]
+    },
+    {
+      "id": "cost",
+      "label": "BioSTEAM TEA/LCA",
+      "kind": "internal step",
+      "references": [
+        {
+          "file": "src/dissolve/waste_pathway_data.py",
+          "lines": [
+            465,
+            485
+          ],
+          "excerpt": "465: def run_stage(spec: StageSpec, *, confirm_live_tea: bool, energy_case: str = \"C1\",\n466:               overrides: Mapping[str, Any] | None = None) -> dict[str, Any]:\n467:     \"\"\"Costed row for one wash, from the stored records or, once confirmed, a live simulation.\"\"\"\n468:     return run_process_config(process_config(spec, energy_case=energy_case, overrides=overrides),\n469:                               confirm_live_tea=confirm_live_tea)\n470: \n471: \n472: def run_process_config(config: Mapping[str, Any], *, confirm_live_tea: bool) -> dict[str, Any]:\n473:     \"\"\"Costed row for any complete process_config: this session's earlier run of it, a stored record, or (once confirmed) a\n474:     live simulation. Raises StageUnavailable when a live simulation would be needed and has not been confirmed.\"\"\"\n475:     key = json.dumps(config, sort_keys=True, default=str)\n476:     if key in _STAGE_ROWS:  # the same wash asked again in this session: no second simulation\n477:         return {**_STAGE_ROWS[key], \"session_reused\": True}\n478:     started = time.monotonic()\n479:     payload = json.loads(tea.evaluate_process(\n480:         mode=\"evaluate\", process_config=config, confirm_live_tea=bool(confirm_live_tea),\n481:     ))\n482:     elapsed = time.monotonic() - started\n483:     data = payload.get(\"data\") or {}\n484:     rows = data.get(\"comparison_rows\") or []\n485:     if rows and rows[0].get(\"success\"):"
+        },
+        {
+          "file": "src/dissolve/waste_pathway_data.py",
+          "lines": [
+            580,
+            595
+          ],
+          "excerpt": "580:                 continue\n581:             costed = False\n582:             for spec in specs:\n583:                 if spec.key in table.stages:\n584:                     costed = True\n585:                     continue\n586:                 try:\n587:                     if on_stage:\n588:                         on_stage(spec)\n589:                     row = run_stage(spec, confirm_live_tea=confirm_live_tea, energy_case=energy_case, overrides=overrides)\n590:                 except StageUnavailable as error:\n591:                     if error.kind == \"live_tea_cost_confirmation_required\":\n592:                         if spec.key not in {item.key for item in table.pending}:\n593:                             table.pending.append(spec)\n594:                         costed = True  # keep exploring so the caller sees every simulation the tree needs\n595:                     else:"
+        }
+      ]
+    },
+    {
+      "id": "enumerate",
+      "label": "Enumerate 0\u20133 washes + residual destination",
+      "kind": "internal step",
+      "references": [
+        {
+          "file": "src/dissolve/waste_pathway_data.py",
+          "lines": [
+            617,
+            632
+          ],
+          "excerpt": "617: def pathways_from_table(table: StageTable, feed: Feed, max_washes: int = 2) -> list[Pathway]:\n618:     \"\"\"Every wash sequence whose stages are all costed, including the empty sequence.\"\"\"\n619:     found = [Pathway()]\n620: \n621:     def extend(removed: frozenset[str], stages: tuple[WashStage, ...]) -> None:\n622:         if len(removed) >= max_washes:\n623:             return\n624:         for (before, polymer, _solvent), stage in table.stages.items():\n625:             if before != removed:\n626:                 continue\n627:             path = stages + (stage,)\n628:             found.append(Pathway(path))\n629:             extend(removed | {polymer}, path)\n630: \n631:     extend(frozenset(), ())\n632:     return found"
+        },
+        {
+          "file": "src/dissolve/waste_pathway_milp.py",
+          "lines": [
+            371,
+            381
+          ],
+          "excerpt": "371:     def build(\n372:         cls, pathways: Sequence[Pathway], technologies: Sequence[Technology], feed: Feed, economics: Economics,\n373:         bounds: CircularityBounds | None = None, weights: Mapping[str, float] = CATEGORY_WEIGHTS,\n374:     ) -> \"PathwayProblem\":\n375:         bounds = bounds or default_bounds(pathways, technologies, feed, economics)\n376:         technologies = list(technologies)\n377:         candidates = [\n378:             evaluate_candidate(pathway, tech, feed, economics, bounds, weights)\n379:             for pathway in pathways for tech in applicable_technologies(pathway, technologies, feed, economics)\n380:         ]\n381:         return cls(feed=feed, economics=economics, bounds=bounds, candidates=candidates)"
+        },
+        {
+          "file": "src/dissolve/waste_pathway_milp.py",
+          "lines": [
+            405,
+            421
+          ],
+          "excerpt": "405: \n406: def enumerate_optimum(\n407:     candidates: Sequence[Candidate], objective: str, limits: Mapping[str, tuple[str, float]] | None = None,\n408: ) -> Candidate | None:\n409:     \"\"\"Reference answer: scan every candidate. limits maps a metric to (\"<=\" or \">=\", bound).\n410: \n411:     Candidates within a relative 1e-9 of the best objective value tie, and the tie-break metrics choose among them.\n412:     \"\"\"\n413:     metric, maximize = OBJECTIVES[objective]\n414:     allowed = [c for c in candidates if _within(c, limits)]\n415:     if not allowed:\n416:         return None\n417:     best = max(c.metric(metric) if maximize else -c.metric(metric) for c in allowed)\n418:     tied = [c for c in allowed\n419:             if math.isclose(c.metric(metric), best if maximize else -best, rel_tol=1e-9, abs_tol=1e-6)]\n420:     return max(tied, key=lambda c: _rank_key(c, metric, maximize))\n421: "
+        }
+      ]
+    },
+    {
+      "id": "fronts",
+      "label": "Exact Pareto fronts",
+      "kind": "internal step",
+      "references": [
+        {
+          "file": "src/dissolve/waste_pathway.py",
+          "lines": [
+            476,
+            490
+          ],
+          "excerpt": "476:     if pareto:\n477:         primary, bounded = _PARETO_PAIRS[pareto]\n478:         exact = milp.pareto_front(problem.candidates, *{\"emissions_vs_profit\": (\"emissions\", \"profit\"),\n479:                                   \"circularity_vs_profit\": (\"circularity\", \"profit\"),\n480:                                   \"emissions_vs_circularity\": (\"emissions\", \"circularity\")}[pareto])\n481:         sweep = milp.epsilon_front(problem, primary=primary, bounded=bounded, steps=30)\n482:         common[\"figure_data_file\"] = _save_figure_data(problem, common, None, f\"pareto={pareto}\")\n483:         if draw_plot:\n484:             common.update(_render_figure(common[\"figure_data_file\"]))\n485:         if draw_summary:\n486:             common.update(_render_figure(common[\"figure_data_file\"], summary=True))\n487:         return tool_success(\n488:             tool, display=(f\"Pareto front ({pareto.replace('_', ' ')}): {len(exact)} non-dominated pathways.\"\n489:                        + (f\" Plot: {common['figure_file']}\" if common.get(\"figure_file\") else \"\")),\n490:             analysis_type=\"waste_pathway_pareto\", pareto=pareto,"
+        },
+        {
+          "file": "src/dissolve/waste_pathway_milp.py",
+          "lines": [
+            498,
+            514
+          ],
+          "excerpt": "498:     \"\"\"Non-dominated candidates for two metrics, ordered along x. Each metric keeps its own direction.\"\"\"\n499:     if x == y or x not in METRICS or y not in METRICS:\n500:         raise ValueError(f\"x and y must be two different metrics from {METRICS}\")\n501:     sign = {\"profit\": 1.0, \"circularity\": 1.0, \"emissions\": -1.0}  # larger is better after the sign\n502:     keyed = sorted(candidates, key=lambda c: (-sign[x] * c.metric(x), -sign[y] * c.metric(y)))\n503:     front: list[Candidate] = []\n504:     best_y: float | None = None\n505:     for cand in keyed:\n506:         value = sign[y] * cand.metric(y)\n507:         if best_y is None or value > best_y + 1e-9 * max(1.0, abs(best_y)):\n508:             front.append(cand)\n509:             best_y = value\n510:     return sorted(front, key=lambda c: c.metric(x))\n511: \n512: \n513: def epsilon_front(problem: PathwayProblem, primary: str, bounded: str, steps: int = 20) -> list[dict[str, Any]]:\n514:     \"\"\"Epsilon-constraint sweep: optimize the primary objective while the bounded metric is held to a moving limit."
+        }
+      ]
+    },
+    {
+      "id": "tea_tornado",
+      "label": "tea_tornado \u00b7 One-at-a-time wash sensitivity",
+      "kind": "agent tool",
+      "references": [
+        {
+          "file": "src/dissolve/agent.py",
+          "lines": [
+            914,
+            926
+          ],
+          "excerpt": "914: - tea_tornado answers which parameters move the TEA/LCA results of one polymer washed in one solvent (minimum selling price,\n915:   global warming potential, capital, operating cost, energy), as a tornado plot: it moves each chosen parameter low and high around\n916:   a base plant and simulates every point. Use it for \"sensitivity\", \"tornado\" or \"which parameter matters most\" about one wash;\n917:   use optimize_waste_pathway for a mixed feed and analyze_tea_sensitivity (evaluate_process in sensitivity mode) for one parameter\n918:   swept over many values. You choose the parameters unless the user names them, and the user's ranges win: pass ranges as\n919:   [low, high] in the parameter's units or relative_range for plus or minus a fraction. If the user gives neither, the tool uses its\n920:   default ranges and says so in its warnings, so tell the user which ranges were assumed and offer to change them. The base plant is\n921:   the user's target share, capacity and temperature when given, else the tool's defaults (60 wt% target, 20,000 t/yr, the solvent's\n922:   recorded temperature): say which. It needs two simulations per parameter (about 12 s each): when it refuses with\n923:   live_tea_cost_confirmation_required, tell the user the count and call again with confirm_live_tea true only once they agree. A\n924:   parameter with no measurable effect is a finding about this base plant (the warnings say so), not an error. Set draw_plot true\n925:   when the user asks to see it; the figure opens in their image viewer (figure_file) and you must not claim a plot if figure_note\n926:   says it could not be drawn. Report the largest drivers from the ranking with their swing in percent of the base, and say that one"
+        },
+        {
+          "file": "src/dissolve/tea_tornado.py",
+          "lines": [
+            120,
+            134
+          ],
+          "excerpt": "120: def tea_tornado(\n121:     polymer: str,\n122:     solvent: str,\n123:     parameters: Optional[list[str]] = None,\n124:     ranges: Optional[dict[str, list[float]]] = None,\n125:     relative_range: Optional[float] = None,\n126:     metrics: Optional[list[str]] = None,\n127:     target_mass_percent: Optional[float] = None,\n128:     processing_capacity_mt_per_yr: Optional[float] = None,\n129:     dissolution_temperature_c: Optional[float] = None,\n130:     energy_case: str = \"C1\",\n131:     process_overrides: Optional[dict[str, float]] = None,\n132:     confirm_live_tea: bool = False,\n133:     draw_plot: bool = False,\n134: ) -> str:"
+        },
+        {
+          "file": "src/dissolve/tea_tornado.py",
+          "lines": [
+            247,
+            270
+          ],
+          "excerpt": "247:     run_qualifications = {\"base\": data_layer.row_qualifications(rows[base_key])}\n248:     for name, base_value, low, high in plan:\n249:         sides: dict[str, dict[str, float | None] | None] = {}\n250:         errors: dict[str, str] = {}\n251:         for side, value in ((\"low\", low), (\"high\", high)):\n252:             cfg = base if value == base_value else {**base, name: value}\n253:             key = json.dumps(cfg, sort_keys=True, default=str)\n254:             if key in rows:\n255:                 sides[side] = _metric_values(rows[key], chosen_metrics)\n256:                 run_qualifications[f\"{name}:{side}\"] = data_layer.row_qualifications(rows[key])\n257:             else:\n258:                 sides[side] = None\n259:                 errors[side] = failures.get(key, \"not run\")\n260:         meta = PARAMETERS.get(name)\n261:         sens_rows.append(_sensitivity_row(name, meta.label if meta else name, meta.unit if meta else \"\", meta.group if meta else \"process\",\n262:                                           base_value, low, high, base_values, sides[\"low\"], sides[\"high\"], errors))\n263:     primary = chosen_metrics[0]\n264:     ranking = {m: [r[\"parameter\"] for r in sorted(sens_rows, key=lambda r: -(r[\"metrics\"][m][\"swing\"] or 0.0))] for m in chosen_metrics}\n265:     live = sum(1 for r in rows.values() if str(r.get(\"engine_mode\")) == \"live\")\n266:     basis = \"tea_live\" if live else \"tea_cache_exact\"\n267:     default_ranges = [n for n, *_ in plan if not (ranges or {}).get(n) and relative_range is None]\n268:     warnings = [\n269:         \"One parameter is moved at a time, so interactions between parameters are not shown, and the ranking depends on the ranges \"\n270:         \"chosen (the ranges used are in each row).\","
+        }
+      ]
+    },
+    {
+      "id": "outcome",
+      "label": "Trade-offs + sensitivity",
+      "kind": "conceptual combination of tool results",
+      "references": [
+        {
+          "file": "src/dissolve/waste_pathway.py",
+          "lines": [
+            476,
+            490
+          ],
+          "excerpt": "476:     if pareto:\n477:         primary, bounded = _PARETO_PAIRS[pareto]\n478:         exact = milp.pareto_front(problem.candidates, *{\"emissions_vs_profit\": (\"emissions\", \"profit\"),\n479:                                   \"circularity_vs_profit\": (\"circularity\", \"profit\"),\n480:                                   \"emissions_vs_circularity\": (\"emissions\", \"circularity\")}[pareto])\n481:         sweep = milp.epsilon_front(problem, primary=primary, bounded=bounded, steps=30)\n482:         common[\"figure_data_file\"] = _save_figure_data(problem, common, None, f\"pareto={pareto}\")\n483:         if draw_plot:\n484:             common.update(_render_figure(common[\"figure_data_file\"]))\n485:         if draw_summary:\n486:             common.update(_render_figure(common[\"figure_data_file\"], summary=True))\n487:         return tool_success(\n488:             tool, display=(f\"Pareto front ({pareto.replace('_', ' ')}): {len(exact)} non-dominated pathways.\"\n489:                        + (f\" Plot: {common['figure_file']}\" if common.get(\"figure_file\") else \"\")),\n490:             analysis_type=\"waste_pathway_pareto\", pareto=pareto,"
+        },
+        {
+          "file": "src/dissolve/tea_tornado.py",
+          "lines": [
+            301,
+            311
+          ],
+          "excerpt": "301:     if draw_plot:\n302:         extra.update(_render(saved))\n303:     return tool_success(\n304:         tool, display=(f\"Tornado for {polymer_id} washed in {solvent_name}: largest drivers of {METRICS[primary][0].lower()}: \"\n305:                        + \", \".join(top) + \".\" + (f\" Plot: {extra['figure_file']}\" if extra.get(\"figure_file\") else \"\")),\n306:         analysis_type=\"tea_tornado\", basis=basis, base=base_echo, metrics=[{\"metric\": m, \"label\": METRICS[m][0], \"unit\": METRICS[m][1]}\n307:                                                                            for m in chosen_metrics],\n308:         sensitivity_rows=sens_rows, ranking=ranking, run_qualifications=run_qualifications,\n309:         simulations={\"distinct_runs\": len(configs), \"live\": live, \"stored_or_reused\": len(rows) - live, \"failed\": len(failures)},\n310:         warnings=warnings, seconds=round(time.monotonic() - started, 1), **extra,\n311:     )"
+        }
+      ]
+    }
+  ]
+}

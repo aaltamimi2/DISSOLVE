@@ -1,0 +1,28 @@
+{
+  "python": "3.11.9 (main, Apr 19 2024, 16:48:06) [GCC 11.2.0]",
+  "platform": "Linux-6.6.87.2-microsoft-standard-WSL2-x86_64-with-glibc2.31",
+  "packages": {
+    "matplotlib": "3.10.8",
+    "numpy": "2.4.6",
+    "pandas": "3.0.5",
+    "duckdb": "1.4.3",
+    "lxml": "6.0.2",
+    "cairosvg": "2.8.2",
+    "Pillow": "12.1.0",
+    "PyMuPDF": "1.27.1",
+    "shapely": "2.1.2",
+    "cairocffi": "1.7.1"
+  },
+  "cairo": "1.18.0",
+  "matplotlib_freetype": "2.6.1",
+  "fonts": {
+    "DejaVuSans-Bold.ttf": {
+      "version": "Version 2.37",
+      "sha256": "aa2ebed70cf6a389400a49feeb976c785de411f387d0cff998472590760cc2b6"
+    },
+    "DejaVuSans.ttf": {
+      "version": "Version 2.37",
+      "sha256": "437a5ecec2ec177cba9284cbffc56055311347f3e9fe4f2b4b40323d0290a6db"
+    }
+  }
+}

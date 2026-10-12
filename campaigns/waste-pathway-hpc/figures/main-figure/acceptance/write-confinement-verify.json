@@ -1,0 +1,12 @@
+{
+  "landlock_abi": 3,
+  "kernel_write_confinement": true,
+  "allowed_write_tree": "/tmp/hpc-main-repro-handoff-check",
+  "python_write_paths": [
+    "/tmp/hpc-main-repro-handoff-check/pixel-difference.png",
+    "/tmp/hpc-main-repro-handoff-check/svg-geometry-differences.json",
+    "/tmp/hpc-main-repro-handoff-check/verification.json"
+  ],
+  "writes_outside_output": false,
+  "device_sink_exception": "/dev/null (Cairo library discovery subprocess)"
+}

@@ -1,0 +1,55 @@
+{
+  "data": {
+    "pathway-pareto.data.csv": {
+      "exact_values": true,
+      "byte_identical": true,
+      "rows": 324
+    },
+    "profit-advantage.data.csv": {
+      "exact_values": true,
+      "byte_identical": true,
+      "rows": 600
+    },
+    "sobol-gwp.data.csv": {
+      "exact_values": true,
+      "byte_identical": true,
+      "rows": 17
+    },
+    "sobol-msp.data.csv": {
+      "exact_values": true,
+      "byte_identical": true,
+      "rows": 17
+    },
+    "wash-cost-surface.data.csv": {
+      "exact_values": true,
+      "byte_identical": true,
+      "rows": 152
+    }
+  },
+  "reference": "Frozen hpc-pathway-main-v12",
+  "notes": [
+    "SVG primitive comparison ignores metadata, generated IDs and grouping. PNG comparison includes all pixels, so different grouping/clip transforms are not silently treated as visual equivalence. PDFs can differ in creation metadata. See README for known rendering differences."
+  ],
+  "svg": {
+    "text_content_equal": true,
+    "normalized_primitive_geometry_equal": false,
+    "reference_primitives": 1711,
+    "output_primitives": 1711,
+    "text_removed": [],
+    "text_added": [],
+    "different_paired_primitives": 35
+  },
+  "png": {
+    "pixel_identical": true,
+    "different_pixels": 0,
+    "total_pixels": 3487050,
+    "different_pixel_fraction": 0.0,
+    "max_channel_difference": 0,
+    "mean_absolute_channel_difference": 0.0
+  },
+  "captions": {
+    "caption.txt": true,
+    "manuscript-caption.txt": true
+  },
+  "data_pass": true
+}

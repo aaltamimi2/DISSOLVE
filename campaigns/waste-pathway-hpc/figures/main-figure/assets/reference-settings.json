@@ -1,0 +1,61 @@
+{
+  "POLYMER": "LDPE",
+  "SOLVENT": "Toluene",
+  "ENERGY_CASE": "C1",
+  "SOBOL_ENERGY_CASE": "C1",
+  "FEED": "published",
+  "LOCATION": "A",
+  "BASE_PLANT": "dedicated",
+  "PLANTS": [
+    [
+      "dedicated",
+      "8,000 t/year plant"
+    ],
+    [
+      "shared20k",
+      "Shared 20,000 t/year plant"
+    ]
+  ],
+  "FEED_DESCRIPTION": "60% LDPE, 20% PET, 10% nylon 6, 10% EVOH",
+  "EXCLUDE_RESALE": true,
+  "SIMPLE_WASHES": [
+    0,
+    1
+  ],
+  "MULTIPLE_WASHES": [
+    2,
+    3
+  ],
+  "PERCENTILES": [
+    0.05,
+    0.95
+  ],
+  "EMISSIONS_LIMIT_KT": 22,
+  "TOP_SOBOL_FACTORS": 4,
+  "QUERY": "My film waste is 60% LDPE, 20% PET, 10% nylon 6 and 10% EVOH, at 8,000 t/year. Compare up to three solvent washes and residual destinations for profit, emissions and circularity, using the published default distances. Compare a dedicated plant with a shared 20,000 t/year plant, and show cost sensitivity for LDPE in toluene.",
+  "DAG_LABELS": [
+    [
+      "Solubility",
+      "screen"
+    ],
+    [
+      "BioSTEAM",
+      "TEA/LCA"
+    ],
+    [
+      "Enumerate routes",
+      "0\u20133 washes",
+      "+ destination"
+    ],
+    [
+      "Exact Pareto",
+      "fronts"
+    ]
+  ],
+  "FORMULA": "\u0394P = P\u2098 \u2212 P\u209b",
+  "BASE_RECOVERY_PERCENT": 99.9999,
+  "RECOVERY_RANGE_PERCENT": [
+    99.99,
+    99.9999
+  ]
+}
