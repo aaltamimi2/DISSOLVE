@@ -149,6 +149,7 @@ const FAMILY_OF: Record<string, keyof typeof FAMILIES> = {
   lookup_glass_transition: "hansen",
   list_thermal_evidence: "hansen",
   analyze_numeric_samples: "statistics",
+  calculate: "statistics",
   screen_contaminant_leaching: "contaminants",
   screen_contaminant_strap_removal: "contaminants",
   compare_contaminant_removal_modes: "contaminants",
