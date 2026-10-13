@@ -1628,8 +1628,10 @@ def _gen_contents(messages):
 
 # The tool-round limit per question, and what happens at it. "Which solvents can be used to separate bisphenol A from
 # EVOH?" spent all 30 rounds on one-solvent lookups and ended with no answer, although its results already held one
-# (2026-10-05). At the limit the model now writes once more, without tools, from the results it has.
-_TOOL_ROUNDS = 30
+# (2026-10-05). At the limit the model now writes once more, without tools, from the results it has. Raised from 30
+# to 40 on 2026-10-13: a seven-tool question took one model 62 tool calls over all 30 rounds, and a case-study
+# question had needed 33.
+_TOOL_ROUNDS = 40
 _CLOSING_NOTE = ("You have used all {rounds} tool rounds for this question and cannot call tools again. Answer now from "
                  "the tool results above only: give what they establish, say plainly what you could not check, and "
                  "do not invent values.")

@@ -7275,7 +7275,8 @@ def test_evaluate_mode_through_the_wrapper_still_refuses_a_sweep_parameter(monke
 def test_the_round_limit_ends_in_an_answer_from_what_was_retrieved(monkeypatch):
     """"Which solvents can be used to separate bisphenol A from EVOH?" spent all 30 tool rounds and ended "round cap
     (30) reached ... No guessed answer", although its results already held an answer (hosted site, 2026-10-05). At the
-    limit the model now writes once more, with tools switched off, from what it retrieved; the answer says so."""
+    limit (40 rounds since 2026-10-13) the model now writes once more, with tools switched off, from what it retrieved;
+    the answer says so."""
     seen = []
 
     def fake_complete(messages, tools, **kwargs):
@@ -7289,10 +7290,10 @@ def test_the_round_limit_ends_in_an_answer_from_what_was_retrieved(monkeypatch):
     monkeypatch.setattr(agent, "compact_messages", lambda *args, **kwargs: None)
     history: list = []
     result = run_turn("Which solvents?", session=new_session(), model="openai:x", messages=history)
-    assert result.status == "round_cap" and result.tool_rounds == 30 and len(result.tool_trace) == 30
-    assert result.answer.startswith("_Tool limit reached (30 rounds)")
+    assert result.status == "round_cap" and result.tool_rounds == 40 and len(result.tool_trace) == 40
+    assert result.answer.startswith("_Tool limit reached (40 rounds)")
     assert "Ethanol and acetone extract it" in result.answer
-    assert seen.count("none") == 1 and len(seen) == 31
+    assert seen.count("none") == 1 and len(seen) == 41
     assert history[-1] == {"role": "assistant", "content": result.answer}
     assert not any("cannot call tools again" in str(message.get("content")) for message in history)
 
