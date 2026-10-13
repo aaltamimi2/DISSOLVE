@@ -585,6 +585,89 @@ def _ambiguous(kwargs: dict[str, Any], data: dict[str, Any]) -> dict[str, Any] |
                 )
     return None
 
+# One stored campaign row carries its plant's whole provenance, about 20 KB, so a single stored selling price cost the
+# model 5,400 tokens and the 60 PVC plants 240,000. The model sees one line per row; result_read returns a row whole.
+_CAMPAIGN_BASIS = "campaign_process_rows"
+_CAMPAIGN_LINE_FIELDS = (
+    "rank", "point_id", "is_frontier", "dissolution_temperature_c", "msp_usd_per_kg", "gwp_kg_co2e_per_kg",
+    "tci_usd", "aoc_usd_per_yr",
+)
+_CAMPAIGN_FEW_ROWS = 3
+_CAMPAIGN_FEW_FIELDS = (
+    "total_energy_mj_per_kg", "electricity_mj_per_kg", "heating_mj_per_kg", "cooling_mj_per_kg",
+    "etox_ctue_per_kg", "htc_ctuh_per_kg", "htnc_ctuh_per_kg", "water_consumed_m3_per_yr",
+    "waste_generated_kg_per_yr", "can_cite_as_validated_process",
+)
+_CAMPAIGN_VIEW_DROPS = frozenset({
+    "append_log_fingerprint", "campaign_definition_schema", "campaign_basis_projection",
+})
+
+def _campaign_line(index: int, row: dict[str, Any], fields: tuple[str, ...]) -> dict[str, Any]:
+    nested = row.get("comparison_row") if isinstance(row.get("comparison_row"), dict) else {}
+    def pick(*names: str) -> Any:
+        for source in (row, nested):
+            for name in names:
+                if source.get(name) is not None:
+                    return source[name]
+        return None
+    line = {
+        "row": index, "polymer": pick("target_polymer", "polymer"),
+        "solvent": pick("solvent_public_identity", "solvent"),
+    }
+    if pick("outcome") not in (None, "success"):
+        line["outcome"], line["error_type"] = pick("outcome"), pick("error_type")
+    for name in fields:
+        value = pick(name)
+        if value is not None:
+            line[name] = value
+    if fields is not _CAMPAIGN_LINE_FIELDS:  # a few rows: what the answer must say about the run's standing
+        standing = nested.get("live_parameter_standing") or (row.get("standing") or {}).get("live_parameter_standing")
+        if isinstance(standing, dict):
+            line["provisional_parameters"] = standing.get("provisional_parameters")
+            if standing.get("chemist_signoff_required"):
+                line["chemist_signoff_note"] = standing.get("chemist_signoff_note")
+        coverage = pick("lca_coverage")
+        if isinstance(coverage, dict):
+            line["lca_coverage"] = {
+                k: coverage[k] for k in ("status", "lca_metrics_status", "metric_coverage_status") if k in coverage
+            } or coverage
+        config = row.get("config_normalized_twelve")
+        if isinstance(config, dict) and config.get("solvent_price") is not None:
+            line["solvent_price_usd_per_kg"] = config["solvent_price"]
+    return line
+
+def _campaign_basis_view(basis: Any) -> Any:
+    roles = (basis or {}).get("field_role") if isinstance(basis, dict) else None
+    if not isinstance(roles, dict):
+        return basis
+    public = [k for k, v in roles.items() if isinstance(v, dict) and v.get("projection") == "fixed_fields"]
+    return {
+        "held": {k: roles[k].get("value") for k in public},
+        "varies_by_row": sorted(k for k, v in roles.items() if isinstance(v, dict) and v.get("role") != "held"),
+        "other_held_fields": sum(
+            isinstance(v, dict) and v.get("role") == "held" for v in roles.values()) - len(public),
+    }
+
+def _campaign_view(name: str, basis: str, data: dict[str, Any], rows: list[dict[str, Any]]) -> dict[str, Any]:
+    fields = _CAMPAIGN_LINE_FIELDS + (_CAMPAIGN_FEW_FIELDS if len(rows) <= _CAMPAIGN_FEW_ROWS else ())
+    top = _rows_that_fit([_campaign_line(n, row, fields) for n, row in enumerate(rows)])
+    rest: dict[str, Any] = {}
+    for key, value in data.items():
+        if key in _CAMPAIGN_VIEW_DROPS or (_is_rows(value) and key not in _COMPACT_KEEP_LISTS):
+            continue
+        if key == "campaign_basis":
+            value = _campaign_basis_view(value)
+        elif isinstance(value, dict) and {"msp_usd_per_kg", "solvent"} <= set(value):
+            value = _campaign_line(value.get("point_id", 0), value, _CAMPAIGN_LINE_FIELDS)
+            value.pop("row", None)
+        rest[key] = value
+    return {
+        "available": True, "source_basis": basis, "handle": name,
+        "total": len(rows), "shown": len(top), "top": top,
+        "row_view": "one line per stored plant; result_read(handle, offset=row, limit=1) returns that row whole",
+        "data": rest,
+    }
+
 def _issue_handle(record, tool, basis, data, payload, display=None):
     key = primary_row_key(data)
     n_rows = len(data[key]) if key else 0
@@ -611,6 +694,8 @@ def _issue_handle(record, tool, basis, data, payload, display=None):
             detail="result crossed a handle threshold with no primary row list",
             tool=tool,
         )
+    if basis == _CAMPAIGN_BASIS:
+        return _campaign_view(name, basis, data, handle_rows(load_handle(record, name)))
     if always and not over:
         return {**payload, "handle": name, "total": n_rows}
     rows = handle_rows(load_handle(record, name))
@@ -837,7 +922,10 @@ themselves; name a token this prompt does not define as it is:
 - Campaign process_rows (source_basis campaign_process_rows) are
   already-run rows consumed from a registered campaign at that
   campaign's held basis. They are not tea_cache_exact and not a live
-  BioSTEAM run of this call.
+  BioSTEAM run of this call. A refusal that lists registered_campaigns
+  is how you find one: call again with its campaign_fingerprint, and
+  state the held basis with any number you report from it. Its rows
+  come one line each; read a row whole only for a field its line lacks.
 - Hansen curated rows are qualitative_hansen_parameters, not
   solubilities, and qualitative_hansen_red_screen is a qualitative
   Hansen compatibility check. An HSP random-forest row is hsp_fallback.

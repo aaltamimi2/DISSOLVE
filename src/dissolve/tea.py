@@ -5808,6 +5808,13 @@ def _admitted_record_summary(record: dict[str, Any]) -> dict[str, Any]:
     return summary
 
 
+def _stored_campaign_hint(polymers: Optional[list[str]]) -> dict[str, Any]:
+    """Registered campaigns holding already-run plants for these polymers, for a lookup that found no cache record."""
+    from . import tea_ranking
+
+    return tea_ranking.campaign_discovery(polymers=polymers)
+
+
 def _lookup_campaign_process_records(
     tool: str,
     *,
@@ -5827,6 +5834,7 @@ def _lookup_campaign_process_records(
             tool,
             "source=campaign requires campaign_fingerprint",
             error_code="missing_campaign_fingerprint",
+            **tea_ranking.campaign_discovery(),
         )
     if process_config is not None and not isinstance(process_config, dict):
         return tool_error(
@@ -6210,6 +6218,7 @@ def lookup_admitted_process_records(
                 "The admitted cache contains no record for this exact "
                 "polymer, solvent, condition, and requested record group.",
             ],
+            **_stored_campaign_hint(polymers),
             provenance=_provenance(["cache"]),
         )
 
@@ -6667,7 +6676,7 @@ def evaluate_process(
     values: Optional[list[float]] = None,
     **kwargs: Any,
 ) -> str:
-    """Plant economics (TEA/LCA) by mode. lookup: stored records; lookup_filter takes target_polymer, solvent, energy_cases, sensitivity_axes (such as ["solvent_price"]) and record_form. evaluate: process_config (one plant) or process_configs (several) with the public fields target_polymer, solvent, target_mass_percent, processing_capacity_mt_per_yr, energy_case, dissolution_temperature_c, precipitation_temperature_c, solvent_price_usd_per_kg, solvent_loss_pct, feedstock_distance_km, dissolution_capacity and labor_cost_usd_per_employee_yr, all required (flowsheet switches and financial coefficients left out take the first-run defaults). sensitivity: process_config plus the top-level parameter (a field such as solvent_price) and optional values. route: costs a route from plan_multistage_separation, given the top-level handle and row_id (the route's rank), with optional top-level processing_capacity_mt_per_yr, energy_case and precipitation_temperature_c. confirm_live_tea=true runs live BioSTEAM when no stored record matches.
+    """Plant economics (TEA/LCA) by mode. lookup: stored records; lookup_filter takes target_polymer, solvent, energy_cases, sensitivity_axes (such as ["solvent_price"]) and record_form, or source="campaign" with campaign_fingerprint for a registered campaign of already-run plants (leave the fingerprint out to list campaigns). evaluate: process_config (one plant) or process_configs (several) with the public fields target_polymer, solvent, target_mass_percent, processing_capacity_mt_per_yr, energy_case, dissolution_temperature_c, precipitation_temperature_c, solvent_price_usd_per_kg, solvent_loss_pct, feedstock_distance_km, dissolution_capacity and labor_cost_usd_per_employee_yr, all required (flowsheet switches and financial coefficients left out take the first-run defaults). sensitivity: process_config plus the top-level parameter (a field such as solvent_price) and optional values. route: costs a route from plan_multistage_separation, given the top-level handle and row_id (the route's rank), with optional top-level processing_capacity_mt_per_yr, energy_case and precipitation_temperature_c. confirm_live_tea=true runs live BioSTEAM when no stored record matches.
 
     Closed mode: lookup, evaluate, sensitivity, route. lookup uses
     lookup_filter; evaluate uses process_config or process_configs,
@@ -7913,7 +7922,7 @@ def rank_landscape(
     screen_to_economics_order: Optional[ScreenToEconomicsOrder] = None,
     **unexpected: Any,
 ) -> str:
-    """Rank already-run process rows, or rerank a plan handle (source=planner_routes; objective max_stage_chem21 = CHEM21 worst of S/H/E, the default CHEM21 rerank; max_stage_chem21_safety = Safety sub-score only). Does not spawn BioSTEAM.
+    """Rank already-run process rows (a handle, or a registered campaign by campaign_fingerprint; leave both out to list campaigns), or rerank a plan handle (source=planner_routes; objective max_stage_chem21 = CHEM21 worst of S/H/E, the default CHEM21 rerank; max_stage_chem21_safety = Safety sub-score only). Does not spawn BioSTEAM.
 
     source=process_rows ranks a tool-1 handle (evaluate batch, admitted
     lookup, or sensitivity) at the configs those rows were run at, or locates a campaign

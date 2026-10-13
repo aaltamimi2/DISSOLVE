@@ -1,6 +1,7 @@
 """TEA ranking over stored evidence: registered campaigns and rank_landscape over their process rows."""
 from __future__ import annotations
 
+import functools
 import hashlib
 import json
 import math
@@ -555,6 +556,89 @@ def bind_registered_campaign(
     }
 
 
+_CAMPAIGN_NEXT_STEP = (
+    "Stored campaign rows are read by naming the campaign: call again with campaign_fingerprint set to one of "
+    "registered_campaigns (evaluate_process: inside lookup_filter with source='campaign'). Its rows were run at "
+    "held_basis, not at any other configuration."
+)
+
+
+#: The held fields a caller can ask for by name. A campaign also holds flowsheet switches and financial coefficients
+#: at their first-run defaults; a call that names one still gets the held-mismatch refusal with its value.
+_PUBLIC_HELD_FIELDS = frozenset({
+    "target_mass_percent", "processing_capacity_mt_per_yr", "energy_case", "dissolution_temperature_c",
+    "precipitation_temperature_c", "solvent_price_usd_per_kg", "solvent_loss_pct", "feedstock_distance_km",
+    "dissolution_capacity", "labor_cost_usd_per_employee_yr",
+})
+
+
+@functools.lru_cache(maxsize=8)
+def _campaign_coverage(path: str, mtime_ns: int) -> dict[str, Any]:
+    polymers: dict[str, int] = {}
+    successful = 0
+    with Path(path).open(encoding="utf-8") as handle:
+        for line in handle:
+            if not line.strip():
+                continue
+            row = json.loads(line)
+            polymer = str(row.get("polymer") or "").strip()
+            polymers[polymer] = polymers.get(polymer, 0) + 1
+            successful += row.get("outcome") == "success"
+    return {"rows": sum(polymers.values()), "successful": successful, "polymers": polymers}
+
+
+def describe_registered_campaigns(
+    registry_path: str | None = None, *, polymers: Sequence[str] | None = None,
+) -> list[dict[str, Any]]:
+    """What a caller needs to name a registered campaign: fingerprint, held basis and coverage. No file paths.
+
+    The fingerprint is still what consumes a campaign. This is how a caller that was not handed one finds it:
+    before it, the only place the shipped campaign's fingerprint could be read was the source.
+    """
+    try:
+        registry = load_campaign_registry(registry_path)
+    except CampaignConsumeError:
+        return []
+    wanted = {_key(item) for item in (polymers or []) if item}
+    out: list[dict[str, Any]] = []
+    for canonical, entry in sorted(dict(registry.get("entries") or {}).items()):
+        try:
+            bound = bind_registered_campaign(canonical, entry)
+            rows_path = Path(bound["process_rows_path"])
+            coverage = _campaign_coverage(str(rows_path), rows_path.stat().st_mtime_ns)
+        except (CampaignConsumeError, OSError, ValueError):
+            continue
+        if wanted and not wanted & {_key(name) for name in coverage["polymers"]}:
+            continue
+        roles = dict((bound["projected"].get("campaign_basis") or {}).get("field_role") or {})
+        out.append({
+            "campaign": bound["manifest"].get("campaign"),
+            "campaign_fingerprint": canonical,
+            "rows": coverage["rows"],
+            "successful_rows": coverage["successful"],
+            "rows_by_polymer": dict(coverage["polymers"]),
+            "held_basis": {
+                field: spec.get("value") for field, spec in roles.items()
+                if isinstance(spec, dict) and spec.get("role") == "held" and field in _PUBLIC_HELD_FIELDS
+            },
+            "varies_by_row": sorted(
+                field for field, spec in roles.items()
+                if isinstance(spec, dict) and spec.get("role") in {"varied", "derived"}
+            ),
+        })
+    return out
+
+
+def campaign_discovery(
+    registry_path: str | None = None, *, polymers: Sequence[str] | None = None,
+) -> dict[str, Any]:
+    """The fields a refusal carries so the caller can name a campaign on its next call; {} when none is registered."""
+    campaigns = describe_registered_campaigns(registry_path, polymers=polymers)
+    if not campaigns:
+        return {}
+    return {"registered_campaigns": campaigns, "next_step": _CAMPAIGN_NEXT_STEP}
+
+
 def publicize_requested_fields(requested: Mapping[str, Any] | None) -> dict[str, Any]:
     """Map worker and alias names onto public campaign_basis fields."""
     out: dict[str, Any] = {}
@@ -744,6 +828,7 @@ def prepare_registered_campaign(
         raise CampaignConsumeError(
             "source=campaign requires campaign_fingerprint",
             error_code="missing_campaign_fingerprint",
+            **campaign_discovery(registry_path),
         )
     registry = load_campaign_registry(registry_path)
     located = classify_campaign_fingerprint(fingerprint, registry)

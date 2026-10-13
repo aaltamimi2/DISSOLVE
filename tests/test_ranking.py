@@ -1816,3 +1816,103 @@ def test_evaluate_refuses_precipitation_format_drop_on_this_instance():
     with pytest.raises(tea._ScenarioInputError) as refused:
         tea._validated_flowsheet_switches({"precipitation_temperature_format": "drop"}, energy_case="C1")
     assert refused.value.error_code == "field_not_on_this_instance"
+
+
+# --- campaign discovery and the model's view of campaign rows. The sealed campaign's fingerprint was readable only
+# in the source: a lookup refused "requires campaign_fingerprint" and nothing said which one. And one stored row
+# reached the model whole (about 20 KB), so a single selling price cost 5,400 tokens.
+def _dispatch_campaign(name, **kwargs):
+    with bind_tool_session(new_session()):
+        return dispatch(name, **kwargs)
+
+
+def test_a_lookup_without_a_fingerprint_lists_the_registered_campaign():
+    out = _dispatch_campaign("evaluate_process", mode="lookup", lookup_filter={"source": "campaign"})
+    assert out["refusal"] == "missing_campaign_fingerprint"
+    (campaign,) = out["data"]["registered_campaigns"]
+    assert campaign["campaign_fingerprint"] == _CANONICAL
+    assert campaign["rows"] == 462 and campaign["rows_by_polymer"]["PVC"] == 60
+    assert campaign["held_basis"]["processing_capacity_mt_per_yr"] == 20000.0
+    assert campaign["held_basis"]["energy_case"] == "C1"
+    assert "campaign_fingerprint" in out["data"]["next_step"]
+    # no path of the machine that ran it, and the append-log digest (which does not consume) is not offered
+    text = json.dumps(out)
+    assert "/home/" not in text and _APPEND_LOG not in text
+
+
+def test_a_ranking_without_a_fingerprint_lists_the_registered_campaign():
+    out = _dispatch_campaign("rank_landscape", target_polymer="PVC")
+    assert out["refusal"] == "missing_campaign_fingerprint"
+    assert out["data"]["registered_campaigns"][0]["campaign_fingerprint"] == _CANONICAL
+
+
+def test_a_cache_gap_points_at_a_campaign_that_holds_the_polymer():
+    out = _dispatch_campaign(
+        "evaluate_process", mode="lookup", lookup_filter={"target_polymer": "PVC", "solvent": "acetone"},
+    )
+    assert out["refusal"] == "admitted_process_record_gap"
+    assert out["data"]["registered_campaigns"][0]["campaign_fingerprint"] == _CANONICAL
+
+
+def test_the_listed_fingerprint_reads_the_campaign_and_a_wrong_one_is_still_refused():
+    listed = _dispatch_campaign("evaluate_process", mode="lookup", lookup_filter={"source": "campaign"})
+    fingerprint = listed["data"]["registered_campaigns"][0]["campaign_fingerprint"]
+    found = _dispatch_campaign("evaluate_process", mode="lookup", lookup_filter={
+        "source": "campaign", "campaign_fingerprint": fingerprint, "target_polymer": "PVC", "solvent": "acetone",
+    })
+    assert found["available"] and found["source_basis"] == "campaign_process_rows"
+    wrong = _dispatch_campaign("evaluate_process", mode="lookup", lookup_filter={
+        "source": "campaign", "campaign_fingerprint": "0" * 64, "target_polymer": "PVC",
+    })
+    assert wrong["refusal"] == "campaign_not_registered"
+    alias = _dispatch_campaign("evaluate_process", mode="lookup", lookup_filter={
+        "source": "campaign", "campaign_fingerprint": _APPEND_LOG, "target_polymer": "PVC",
+    })
+    assert alias["refusal"] == "campaign_fingerprint_mismatch"
+
+
+def test_one_stored_plant_reaches_the_model_as_one_line_and_result_read_keeps_it_whole():
+    with bind_tool_session(new_session()):
+        out = dispatch("evaluate_process", mode="lookup", lookup_filter={
+            "source": "campaign", "campaign_fingerprint": _CANONICAL, "target_polymer": "PVC", "solvent": "acetone",
+        })
+        whole = dispatch("result_read", handle=out["handle"], offset=0, limit=1)
+    assert len(json.dumps(out)) < 4000  # was 21,764
+    (line,) = out["top"]
+    stored = next(
+        json.loads(text) for text in (_SEALED / "process_rows.jsonl").read_text(encoding="utf-8").splitlines()
+        if json.loads(text)["polymer"] == "PVC" and json.loads(text)["solvent_public_identity"] == "Acetone"
+    )
+    for field in ("msp_usd_per_kg", "gwp_kg_co2e_per_kg", "tci_usd", "aoc_usd_per_yr", "dissolution_temperature_c"):
+        assert line[field] == stored["comparison_row"][field]
+    assert out["data"]["campaign_basis"]["held"]["target_mass_percent"] == 55.0
+    assert out["data"]["campaign_fingerprint"] == _CANONICAL
+    assert whole["data"]["rows"][0]["comparison_row"]["live_provenance"]  # the stored row is untouched
+
+
+def test_every_plant_of_a_polymer_is_listed_in_one_reply_and_in_rank_order():
+    with bind_tool_session(new_session()):
+        listed = dispatch("evaluate_process", mode="lookup", lookup_filter={
+            "source": "campaign", "campaign_fingerprint": _CANONICAL, "target_polymer": "PVC",
+        })
+        ranked = dispatch(
+            "rank_landscape", campaign_fingerprint=_CANONICAL, target_polymer="PVC", operation="sort",
+        )
+    assert listed["total"] == listed["shown"] == 60  # was 2 of 60 in 27,908 characters
+    assert len(json.dumps(listed)) < 20000
+    assert ranked["total"] == ranked["shown"] == 54
+    prices = [line["msp_usd_per_kg"] for line in ranked["top"]]
+    assert prices == sorted(prices) and [line["rank"] for line in ranked["top"]] == list(range(1, 55))
+    failed = [line for line in listed["top"] if line.get("outcome") == "failure"]
+    assert len(failed) == 6 and all(line["error_type"] for line in failed)
+
+
+def test_a_single_plant_line_carries_its_standing_so_the_whole_row_is_not_needed():
+    out = _dispatch_campaign("evaluate_process", mode="lookup", lookup_filter={
+        "source": "campaign", "campaign_fingerprint": _CANONICAL, "target_polymer": "PVC", "solvent": "acetone",
+    })
+    (line,) = out["top"]
+    assert line["can_cite_as_validated_process"] is False
+    assert "process_steps" in line["provisional_parameters"] and line["chemist_signoff_note"]
+    assert line["lca_coverage"]["status"] == "partial"
+    assert line["solvent_price_usd_per_kg"] == 1.14
