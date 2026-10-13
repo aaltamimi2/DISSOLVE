@@ -5808,11 +5808,31 @@ def _admitted_record_summary(record: dict[str, Any]) -> dict[str, Any]:
     return summary
 
 
-def _stored_campaign_hint(polymers: Optional[list[str]]) -> dict[str, Any]:
-    """Registered campaigns holding already-run plants for these polymers, for a lookup that found no cache record."""
+def _stored_campaign_hint(polymers: Optional[list[str]], *, pointer: bool = False) -> dict[str, Any]:
+    """Registered campaigns holding already-run plants for these polymers.
+
+    A lookup that found no cache record carries them with the next step. A lookup that did find cache records
+    carries a pointer (pointer=True): the cache holds LDPE with dodecane only, and nothing in that answer said that
+    60 more LDPE plants are stored in a campaign.
+    """
     from . import tea_ranking
 
-    return tea_ranking.campaign_discovery(polymers=polymers)
+    found = tea_ranking.campaign_discovery(polymers=polymers)
+    if not pointer or not found:
+        return found
+    wanted = {tea_ranking._key(item) for item in (polymers or [])}
+    return {"more_stored_plants": {
+        "registered_campaigns": [{
+            "campaign": item["campaign"],
+            "campaign_fingerprint": item["campaign_fingerprint"],
+            "rows_by_polymer": {
+                name: count for name, count in item["rows_by_polymer"].items()
+                if not wanted or tea_ranking._key(name) in wanted
+            },
+            "held_basis": item["held_basis"],
+        } for item in found["registered_campaigns"]],
+        "next_step": found["next_step"],
+    }}
 
 
 def _lookup_campaign_process_records(
@@ -6299,6 +6319,7 @@ def lookup_admitted_process_records(
             "exact admitted BioSTEAM cache records; no interpolation, "
             "surrogate, or live execution"
         ),
+        **_stored_campaign_hint(polymers, pointer=True),
         energy_normalization_status="corrected_legacy_annual_hour_basis",
         energy_case_descriptions=dict(_ENERGY_CASES),
         exact_cache_basis_available=True,

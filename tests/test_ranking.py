@@ -1916,3 +1916,11 @@ def test_a_single_plant_line_carries_its_standing_so_the_whole_row_is_not_needed
     assert "process_steps" in line["provisional_parameters"] and line["chemist_signoff_note"]
     assert line["lca_coverage"]["status"] == "partial"
     assert line["solvent_price_usd_per_kg"] == 1.14
+
+
+def test_a_cache_hit_still_points_at_the_campaign_that_holds_more_plants_of_that_polymer():
+    out = _dispatch_campaign("evaluate_process", mode="lookup", lookup_filter={"target_polymer": "LDPE"})
+    assert out["available"] and out["source_basis"] == "tea_cache_exact"
+    (campaign,) = out["data"]["more_stored_plants"]["registered_campaigns"]
+    assert campaign["campaign_fingerprint"] == _CANONICAL
+    assert campaign["rows_by_polymer"] == {"LDPE": 60}
