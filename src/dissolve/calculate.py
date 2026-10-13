@@ -156,6 +156,8 @@ def calculate(
         if operation not in {**_ELEMENTWISE, **_REDUCE, **_FILTER, **_ROUND}:
             raise _Refuse("unknown_operation", f"Unknown operation {operation!r}.",
                           operations=[*_ELEMENTWISE, *_REDUCE, *_FILTER, *_ROUND])
+        # an empty list is "not given", as an empty text already is: some models write every unused argument so
+        a, b, labels = (None if isinstance(v, (list, tuple)) and not v else v for v in (a, b, labels))
         label_columns = [c.strip() for c in str(labels_from or "").split(",") if c.strip()]
         sources: dict[str, Any] = {}
         sides: dict[str, tuple[list[float], Optional[list[str]]]] = {}

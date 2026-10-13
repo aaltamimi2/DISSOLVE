@@ -759,6 +759,20 @@ def _emit(name, kwargs, out, exact, handle=None, display=None, source_basis=None
         append_reported(rec, out)
     return out
 
+def _without_empty_optionals(name: str, kwargs: dict[str, Any]) -> dict[str, Any]:
+    """The call without optional arguments sent empty ('', [], {}): an empty optional argument means "not given".
+
+    Some models fill in every argument of a call and write the ones they do not use as "" or [] (2026-10-13: 159 of
+    184 calculate calls of one model were refused for b=[] or a_from=""). Required arguments are left as sent, so a
+    tool still refuses an empty required one in its own words; so are 0 and false, which are values."""
+    tool = BY_NAME.get(name)
+    if tool is None:
+        return kwargs
+    optional = {p.name for p in inspect.signature(tool.fn).parameters.values() if p.default is not inspect.Parameter.empty}
+    return {key: value for key, value in kwargs.items()
+            if not (key in optional and (value in ("", [], {}) or (isinstance(value, str) and not value.strip())))}
+
+
 def dispatch(name: str, **kwargs: Any) -> dict[str, Any]:
     if name == "result_read":
         h = kwargs.get("handle")
@@ -784,6 +798,7 @@ def dispatch(name: str, **kwargs: Any) -> dict[str, Any]:
     if name not in BY_NAME:
         out = _refuse("unknown_tool", name=name)
         return _emit(name, kwargs, out, out)
+    kwargs = _without_empty_optionals(name, kwargs)
     if name in LITERATURE_AGENT_TOOLS and name not in offered_tool_names(current_tool_session()):
         out = _refuse(
             "literature_tools_not_offered",

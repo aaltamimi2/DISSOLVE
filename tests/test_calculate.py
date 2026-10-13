@@ -1,5 +1,6 @@
 """The calculate tool: arithmetic on tool values, a number or a whole stored column. Each test states the behaviour
 it protects; the stored-column tests run on a real solubility result, not a fixture."""
+import inspect
 import json
 
 import pytest
@@ -133,3 +134,32 @@ def test_stored_columns_are_paired_by_label_and_never_by_position():
         assert dispatch("calculate", operation="max", a_from=f"{handle}:no_such_column")["refusal"] == "unknown_column"
         assert dispatch("calculate", operation="max", a_from=f"{handle}:solubility_pct",
                         a_where=["polymer=PTFE"])["refusal"] == "no_rows_match"
+
+
+def test_an_empty_optional_argument_means_not_given():
+    """One model writes every argument of a call and leaves the unused ones empty; 159 of its 184 calculate calls
+    were refused for b=[] or a_from="" (2026-10-13). The first call below is one of them, as sent."""
+    with bind_tool_session(new_session()):
+        sent = dict(operation="round_down_to_step", a=[75.681328], b=[], labels=[], a_from="", b_from="",
+                    labels_from="", a_where=[], b_where=[], threshold=0, upper=0, step=5, decimals=0)
+        assert dispatch("calculate", **sent)["data"]["result"] == 75.0
+        assert json.loads(calculate(**sent))["data"]["result"] == 75.0     # and when the function is called directly
+        gap = dispatch("calculate", operation="difference", a=[95], b=[55], labels=[], a_from=" ", b_where=[])
+        assert gap["data"]["result"] == 40.0
+        # a required argument sent empty, and an input the operation does not take, are still refused
+        assert dispatch("calculate", operation="", a=[1.0])["refusal"] == "unknown_operation"
+        assert dispatch("calculate", operation="max", a=[], b=[])["refusal"] == "missing_input"
+        assert dispatch("calculate", operation="max", a=[1.0, 2.0], b=[3.0])["refusal"] == "unused_input"
+
+
+def test_dispatch_drops_empty_optional_arguments_for_every_tool():
+    kept = agent._without_empty_optionals("calculate", {"operation": "", "a": [], "b": {}, "a_from": "  ",
+                                                         "threshold": 0, "decimals": 0, "labels": ["x"]})
+    assert kept == {"operation": "", "threshold": 0, "decimals": 0, "labels": ["x"]}
+    for name, tool in agent.BY_NAME.items():
+        optional = [p.name for p in inspect.signature(tool.fn).parameters.values()
+                    if p.default is not inspect.Parameter.empty]
+        required = [p.name for p in inspect.signature(tool.fn).parameters.values()
+                    if p.default is inspect.Parameter.empty]
+        sent = {**{k: "" for k in optional}, **{k: "" for k in required}}
+        assert sorted(agent._without_empty_optionals(name, sent)) == sorted(required), name
