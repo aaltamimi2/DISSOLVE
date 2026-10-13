@@ -704,6 +704,7 @@ DEFAULT_MODEL = "openrouter-gemini-flash"
 # registry to this list, not to BY_NAME. Changing the surface is two
 # edits: agent.py (the registry) and this set.
 EXPECTED_REGISTRY_NAMES: frozenset[str] = frozenset((
+    "calculate",
     "solubility_query",
     "screen_polymer_separation",
     "screen_pairwise_solubility_overlap",

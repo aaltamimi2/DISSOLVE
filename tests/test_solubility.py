@@ -765,11 +765,11 @@ def test_a1_exactly_one_removal_by_identity_against_parent_30():
     assert (_PARENT_REGISTRY_NAMES - now) == frozenset({"estimate_thermal_properties"})
     assert (now - _PARENT_REGISTRY_NAMES) == frozenset({
         "screen_contaminant_partitioning", "lookup_plastchem_contaminants",
-        "optimize_waste_pathway", "tea_tornado", "find_plastchem_contaminants"})  # added 2026-09-24, 2026-09-25, 2026-10-03, 2026-10-05 and 2026-10-07
-    assert len(now) == 34
+        "optimize_waste_pathway", "tea_tornado", "find_plastchem_contaminants", "calculate"})  # added 2026-09-24, 2026-09-25, 2026-10-03, 2026-10-05, 2026-10-07 and 2026-10-13
+    assert len(now) == 35
     assert now == EXPECTED_REGISTRY_NAMES
-    assert len(agent.REGISTRY) == 34
-    assert len(tool_schemas()) == 29
+    assert len(agent.REGISTRY) == 35
+    assert len(tool_schemas()) == 30
     assert "fetch_solvent_safety_by_cid" in now
     assert "estimate_thermal_properties" not in now
     names = {item["name"] for item in tool_schemas()}

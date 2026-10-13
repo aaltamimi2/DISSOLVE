@@ -51,6 +51,7 @@ from dissolve.thermodynamics import expand_polymer_identity, get_available_solve
 
 from . import (
     analysis,
+    calculate as calculation,
     contaminant_search,
     contaminants,
     research,
@@ -129,6 +130,7 @@ REGISTRY: tuple[Tool, ...] = tuple([
     _t(analysis.lookup_glass_transition, "analysis"),
     _t(analysis.list_thermal_evidence, "analysis"),
     _t(analysis.analyze_numeric_samples, "analysis"),
+    _t(calculation.calculate, "analysis"),  # differences, ratios, counts and extremes of tool values
     # --- contaminant removal ---
     _t(contaminants.screen_contaminant_leaching, "contaminants"),
     _t(contaminants.screen_contaminant_strap_removal, "contaminants"),
@@ -170,6 +172,7 @@ _PROCESS_ECONOMICS_HANDLE_TOOLS = frozenset({
 })
 _ALWAYS_HANDLE_TOOLS = _PROCESS_ECONOMICS_HANDLE_TOOLS | frozenset({
     "plan_multistage_separation",
+    "calculate",  # a column of results is always addressable, so the next calculation can take it by handle
 })
 # Record lists a paged result keeps in the model's view; every other one waits for result_read. A family screen's
 # coverage (how many members it screened, how many the release lacks and why) went missing from the answer, and so
@@ -857,7 +860,7 @@ def dispatch(name: str, **kwargs: Any) -> dict[str, Any]:
 
 SYSTEM_PROMPT = """\
 You are DISSOLVE v12, a thermodynamic analysis agent. You have tools. You
-do not have a calculator.
+do no arithmetic yourself: the calculate tool does it.
 
 The architecture is a loop: you call a tool, you read the result, you
 call another tool or you answer. There is no plan to fill in, no
@@ -1017,7 +1020,8 @@ themselves; name a token this prompt does not define as it is:
   safety_local is its local safety store (safety cards and a cached
   PubChem snapshot); provider_metadata is a
   literature provider's record; analysis_asset is a stored analysis
-  dataset. Claim nothing more about them.
+  dataset; calculated_from_supplied_values is arithmetic the calculate
+  tool did on values you gave it. Claim nothing more about them.
 - Screening thresholds (1, 5, 10 wt%) are engine defaults, not process
   claims. If you mention them, say that.
 - When a tool result states bound inclusivity (bounds_are_inclusive),
@@ -1058,10 +1062,22 @@ Call them directly. There is no research sub-agent.
 
 Do not continue a refusal by calling the same tool with a spelling
 you invented. Do not interpolate. Do not average two grid nodes. Do
-not answer a temperature that is not a grid node. A difference
-between two tool results (a recovery window, a gap) is arithmetic
-you must not perform. If the user asks for one, give the two numbers
-and say you did not subtract them; otherwise say nothing about it.
+not answer a temperature that is not a grid node.
+
+Arithmetic on tool results is the calculate tool's work, never yours:
+a difference, ratio, sum, product, percent change, the smallest or
+largest of a column and where it occurs, how many values pass a
+threshold, rounding to a step. When the question needs one, call
+calculate and report its result; do not work it out yourself and do
+not leave it to the reader. First use a value a tool already returned
+(a margin, a gap, a count, a ratio): calculate is for what no result
+holds. For a whole range (every stored temperature, every solvent)
+whose result has a handle, give calculate the stored column (a_from,
+with a_where and labels_from) and do not retype it: retyped columns
+lose values and labels. Chain steps through the handle calculate
+returns, and take the largest or smallest with max or min, not by
+eye: a difference of two curves, then its max. calculate never interpolates, averages grid nodes or fits a
+line; analyze_numeric_samples fits a line.
 
 Writing the answer. The reader is an engineer deciding what to do, not
 a reviewer of the tools.

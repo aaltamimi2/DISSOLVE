@@ -148,8 +148,8 @@ def test_evaluate_process_is_registered_lookup_engine_stays():
     assert "evaluate_process" in tea.PROCESS_CONFIRM_TOOLS
     assert "evaluate_tea_lca_scenarios" not in tea.PROCESS_CONFIRM_TOOLS
     assert "analyze_tea_sensitivity" not in tea.PROCESS_CONFIRM_TOOLS
-    assert len(EXPECTED_REGISTRY_NAMES) == 34  # find_plastchem_contaminants 2026-10-05, tea_tornado 2026-10-07
-    assert len(agent.REGISTRY) == 34
+    assert len(EXPECTED_REGISTRY_NAMES) == 35  # find_plastchem_contaminants 2026-10-05, tea_tornado 2026-10-07
+    assert len(agent.REGISTRY) == 35
     assert "fetch_solvent_safety_by_cid" in EXPECTED_REGISTRY_NAMES
     assert "estimate_thermal_properties" not in EXPECTED_REGISTRY_NAMES
     assert "estimate_thermal_properties" not in agent.BY_NAME
@@ -4875,7 +4875,7 @@ def test_registry_stays_two_public_tea_names():
     assert "rank_landscape" in names
     assert "plan_then_tea" not in names
     assert names.count("evaluate_process") == 1
-    assert len(agent.REGISTRY) == 34  # find_plastchem_contaminants 2026-10-05, tea_tornado 2026-10-07
+    assert len(agent.REGISTRY) == 35  # find_plastchem_contaminants 2026-10-05, tea_tornado 2026-10-07
     assert "fetch_solvent_safety_by_cid" in agent.BY_NAME
     assert "estimate_thermal_properties" not in agent.BY_NAME
     assert UNWIRED == frozenset()
