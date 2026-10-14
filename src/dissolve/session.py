@@ -356,8 +356,11 @@ def estimated_tokens(messages: list) -> int:
 
 # Working windows well inside the provider's limit: Muse Spark 1.2 and 1.3 take 1,048,576 tokens
 # (dev.meta.ai/docs/models), and so does Gemini 3.8 Flash through OpenRouter. 256k is the owner's stopgap
-# until a single query needs fewer tokens.
-_FAMILY_WINDOWS = {"muse_spark": 256_000, "google/gemini": 256_000}
+# until a single query needs fewer tokens. GPT-6 Luna (1,050,000) and Claude Haiku 5.5 (1,000,000) through
+# OpenRouter joined on 2026-10-13: at the 128k fallback an eight-tool question (45 tool calls, an estimated
+# 160k tokens) ended in a compaction error instead of an answer.
+_FAMILY_WINDOWS = {"muse_spark": 256_000, "google/gemini": 256_000, "openai/gpt_6_luna": 256_000,
+                   "anthropic/claude_haiku_5.5": 256_000}
 
 
 def context_window(model: str) -> int:

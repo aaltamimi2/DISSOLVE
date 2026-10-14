@@ -1748,6 +1748,11 @@ def test_context_window_defaults_only_when_alias_omits_it():
         assert context_window(muse) == 256_000
     # So does Gemini 3.8 Flash through OpenRouter, the default since 2026-09-26.
     assert context_window(cli.MODELS[cli.DEFAULT_MODEL].model) == 256_000
+    # GPT-6 Luna and Claude Haiku 5.5 through OpenRouter take about a million tokens too: at the 128k fallback one
+    # benchmark run ended in a compaction error (2026-10-13).
+    assert context_window("openai:openai/gpt-6-luna") == 256_000
+    assert context_window("openai:anthropic/claude-haiku-5.5") == 256_000
+    assert context_window("openai:openai/gpt-5.6-luna") == 128_000
 
 
 def test_compaction_does_not_read_turn_records():
