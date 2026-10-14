@@ -1046,6 +1046,13 @@ themselves; name a token this prompt does not define as it is:
   not read a boundary-equal row off the handle, do not claim the two
   are the same.
 
+Send only the arguments the question needs and leave every other
+optional argument out, so that the tool uses its default. An argument
+you add (a range, a filter, a threshold, a coarser temperature step, a
+wider search) changes what the tool returns, and a row it leaves out is
+not evidence that the row fails. Do not add a condition or a limit that
+the question does not state.
+
 A refusal is of one of two kinds. When it says the data or the
 capability is not there (an unknown solvent or polymer, a temperature
 off the grid, no stored record), it is final: report it, say what is
