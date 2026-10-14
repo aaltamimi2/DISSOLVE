@@ -189,6 +189,9 @@ def test_a_value_sent_as_its_json_text_is_decoded_and_other_text_is_left_alone()
     assert agent._with_json_text_decoded("solubility_query", {"top_k": "many"}) == {"top_k": "many"}
     assert agent._with_json_text_decoded("screen_contaminant_leaching", {"strict_maximum": "true",
         "max_temperature_c": "100"}) == {"strict_maximum": True, "max_temperature_c": 100}
+    for text, value in (("True", True), ("False", False), (" FALSE ", False), ("false", False)):
+        assert agent._with_json_text_decoded("get_solvent_safety_card", {"include_pubchem": text}) == {
+            "include_pubchem": value}
     assert agent._with_json_text_decoded("screen_contaminant_leaching", {"strict_maximum": "yes"}) == {
         "strict_maximum": "yes"}
     with bind_tool_session(new_session()):

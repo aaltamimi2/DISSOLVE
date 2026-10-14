@@ -785,13 +785,13 @@ def _without_empty_optionals(name: str, kwargs: dict[str, Any]) -> dict[str, Any
 
 def _with_json_text_decoded(name: str, kwargs: dict[str, Any]) -> dict[str, Any]:
     """The call with a non-text argument that arrived as its JSON text decoded: '["PVC"]' becomes ["PVC"], '100'
-    becomes 100 and 'true' becomes True.
+    becomes 100, and 'true' or 'True' becomes True.
 
     Some models write structured and scalar arguments as strings holding their JSON (2026-10-14: one model sent every
     list, and some numbers and booleans, this way and was refused until the reply cap). Only an argument whose schema
     does not take a string is decoded, and only when the text parses to a kind of value the schema takes (a list, an
-    object, an integer, a number or a boolean); anything else is left as sent, so the tool still refuses it in its own
-    words."""
+    object, an integer, a number or a boolean; a boolean in any letter case, as 'False' sent as text would otherwise
+    read as on); anything else is left as sent, so the tool still refuses it in its own words."""
     if name not in BY_NAME:
         return kwargs
     props = tool_schema_for(name)["parameters"]["properties"]
@@ -805,6 +805,9 @@ def _with_json_text_decoded(name: str, kwargs: dict[str, Any]) -> dict[str, Any]
             t = part.get("type")
             kinds.update(t if isinstance(t, list) else [t] if t else [])
         if "string" in kinds or not kinds & {"array", "object", "integer", "number", "boolean"}:
+            continue
+        if "boolean" in kinds and value.strip().lower() in ("true", "false"):
+            out[key] = value.strip().lower() == "true"      # 'True' and 'False' too, as some models write them
             continue
         try:
             parsed = json.loads(value)
