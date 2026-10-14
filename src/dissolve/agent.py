@@ -494,6 +494,15 @@ def _schema_item(spec: Any) -> dict[str, Any]:
             props[n]["default"] = p.default
         if p.default is inspect.Parameter.empty:
             req.append(n)
+        else:
+            # an optional argument may be sent as null, which means "not given" (dropped before the tool runs)
+            prop = props[n]
+            if isinstance(prop.get("type"), str):
+                prop["type"] = [prop["type"], "null"]
+                if "enum" in prop:
+                    prop["enum"] = [*prop["enum"], None]
+            elif "anyOf" in prop:
+                prop["anyOf"] = [*prop["anyOf"], {"type": "null"}]
     if spec.name in CONSUMERS:
         props["handle"] = {"type": "string"}
     desc = prefix + spec.summary if spec.name in UNWIRED else spec.summary
@@ -770,7 +779,8 @@ def _without_empty_optionals(name: str, kwargs: dict[str, Any]) -> dict[str, Any
         return kwargs
     optional = {p.name for p in inspect.signature(tool.fn).parameters.values() if p.default is not inspect.Parameter.empty}
     return {key: value for key, value in kwargs.items()
-            if not (key in optional and (value in ("", [], {}) or (isinstance(value, str) and not value.strip())))}
+            if not (key in optional and (value is None or value in ("", [], {})
+                                         or (isinstance(value, str) and not value.strip())))}
 
 
 def dispatch(name: str, **kwargs: Any) -> dict[str, Any]:
@@ -1048,7 +1058,8 @@ themselves; name a token this prompt does not define as it is:
 
 Most tools take more optional arguments than a question needs. Write
 an optional argument only when a word of the question asks for it;
-otherwise leave it out and the tool uses its default. A value written
+otherwise leave it out or send it as null, and the tool uses its
+default. A value written
 just to fill the slot (0, 100, 10, false, an empty list, a range from 0
 to 100) is not neutral: it is a filter or a switch, and it changes or
 empties the result. A row that a filter leaves out is not evidence that
