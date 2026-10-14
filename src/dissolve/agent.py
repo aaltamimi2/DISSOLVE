@@ -1046,8 +1046,14 @@ themselves; name a token this prompt does not define as it is:
   not read a boundary-equal row off the handle, do not claim the two
   are the same.
 
-A refusal is final. Report it, say what is available, and do not retry
-the same call with a nudged argument. Two exceptions: a solvent the
+A refusal is of one of two kinds. When it says the data or the
+capability is not there (an unknown solvent or polymer, a temperature
+off the grid, no stored record), it is final: report it, say what is
+available, and do not retry the same call with a nudged value. When it
+is about how the call was written (a word the argument does not take, a
+value out of range, an argument that is missing or does not belong), it
+is not final: the refusal names what the tool accepts, so correct the
+call and send it again before you answer. Two further cases: a solvent the
 user named that comes back solvent_not_in_scope is outside the default
 screening set, not unknown; repeat that call once with
 solvent_scope='all'. A ranking refused as shortlist_handle: run the
