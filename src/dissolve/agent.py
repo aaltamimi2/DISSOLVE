@@ -783,6 +783,41 @@ def _without_empty_optionals(name: str, kwargs: dict[str, Any]) -> dict[str, Any
                                          or (isinstance(value, str) and not value.strip())))}
 
 
+def _with_json_text_decoded(name: str, kwargs: dict[str, Any]) -> dict[str, Any]:
+    """The call with a non-text argument that arrived as its JSON text decoded: '["PVC"]' becomes ["PVC"], '100'
+    becomes 100 and 'true' becomes True.
+
+    Some models write structured and scalar arguments as strings holding their JSON (2026-10-14: one model sent every
+    list, and some numbers and booleans, this way and was refused until the reply cap). Only an argument whose schema
+    does not take a string is decoded, and only when the text parses to a kind of value the schema takes (a list, an
+    object, an integer, a number or a boolean); anything else is left as sent, so the tool still refuses it in its own
+    words."""
+    if name not in BY_NAME:
+        return kwargs
+    props = tool_schema_for(name)["parameters"]["properties"]
+    out = dict(kwargs)
+    for key, value in kwargs.items():
+        if not isinstance(value, str) or key not in props:
+            continue
+        spec = props[key]
+        kinds: set[str] = set()
+        for part in spec.get("anyOf") or [spec]:
+            t = part.get("type")
+            kinds.update(t if isinstance(t, list) else [t] if t else [])
+        if "string" in kinds or not kinds & {"array", "object", "integer", "number", "boolean"}:
+            continue
+        try:
+            parsed = json.loads(value)
+        except ValueError:
+            continue
+        kind = ("boolean" if isinstance(parsed, bool) else "array" if isinstance(parsed, list)
+                else "object" if isinstance(parsed, dict) else "integer" if isinstance(parsed, int)
+                else "number" if isinstance(parsed, float) else None)
+        if kind in kinds or (kind == "integer" and "number" in kinds):
+            out[key] = parsed
+    return out
+
+
 def dispatch(name: str, **kwargs: Any) -> dict[str, Any]:
     if name == "result_read":
         h = kwargs.get("handle")
@@ -808,7 +843,7 @@ def dispatch(name: str, **kwargs: Any) -> dict[str, Any]:
     if name not in BY_NAME:
         out = _refuse("unknown_tool", name=name)
         return _emit(name, kwargs, out, out)
-    kwargs = _without_empty_optionals(name, kwargs)
+    kwargs = _without_empty_optionals(name, _with_json_text_decoded(name, kwargs))
     if name in LITERATURE_AGENT_TOOLS and name not in offered_tool_names(current_tool_session()):
         out = _refuse(
             "literature_tools_not_offered",

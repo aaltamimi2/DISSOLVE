@@ -163,3 +163,35 @@ def test_dispatch_drops_empty_optional_arguments_for_every_tool():
                     if p.default is inspect.Parameter.empty]
         sent = {**{k: "" for k in optional}, **{k: "" for k in required}}
         assert sorted(agent._without_empty_optionals(name, sent)) == sorted(required), name
+
+
+def test_a_value_sent_as_its_json_text_is_decoded_and_other_text_is_left_alone():
+    """One model writes every list argument as a string holding its JSON, e.g. polymers='["PVC"]' (2026-10-14);
+    the tool refused each call until the reply cap. The JSON text of a list or object is decoded only for an
+    argument that takes a list or an object and not a string; the counterfactual is the refusal without it."""
+    sent = {"polymers": '["PVC"]', "solvents": '["acetone"]', "temperatures": "[25, 30, 35]"}
+    assert agent._with_json_text_decoded("solubility_query", sent) == {
+        "polymers": ["PVC"], "solvents": ["acetone"], "temperatures": [25, 30, 35]}
+    # text that is not JSON, or is JSON of another kind, stays as sent and the tool refuses it as before
+    for value in ("PVC", '"PVC"', "{not json", '{"a": 1}'):
+        assert agent._with_json_text_decoded("solubility_query", {"polymers": value}) == {"polymers": value}
+    # an argument that takes a string is never decoded
+    for name, tool in agent.BY_NAME.items():
+        props = agent.tool_schema_for(name)["parameters"]["properties"]
+        for key, spec in props.items():
+            kinds = {t for part in spec.get("anyOf") or [spec]
+                     for t in (part.get("type") if isinstance(part.get("type"), list) else [part.get("type")])}
+            if "string" in kinds:
+                assert agent._with_json_text_decoded(name, {key: '["x"]'}) == {key: '["x"]'}, (name, key)
+    # numbers and booleans sent as text, as the same model sent them; a word that is not that kind stays as sent
+    assert agent._with_json_text_decoded("solubility_query", {"top_k": "100"}) == {"top_k": 100}
+    assert agent._with_json_text_decoded("solubility_query", {"top_k": "1.5"}) == {"top_k": "1.5"}
+    assert agent._with_json_text_decoded("solubility_query", {"top_k": "many"}) == {"top_k": "many"}
+    assert agent._with_json_text_decoded("screen_contaminant_leaching", {"strict_maximum": "true",
+        "max_temperature_c": "100"}) == {"strict_maximum": True, "max_temperature_c": 100}
+    assert agent._with_json_text_decoded("screen_contaminant_leaching", {"strict_maximum": "yes"}) == {
+        "strict_maximum": "yes"}
+    with bind_tool_session(new_session()):
+        assert dispatch("solubility_query", polymers='["PVC"]', top_k="5").get("refusal") is None
+        out = dispatch("calculate", operation="max", a="[1.0, 4.0, 2.0]")
+        assert out["data"]["result"] == 4.0
