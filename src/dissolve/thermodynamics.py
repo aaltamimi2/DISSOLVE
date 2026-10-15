@@ -2034,6 +2034,21 @@ def _atmospheric_filter_policy_name(
     return "default_keep_unknown_exclude_known_too_low"
 
 
+def pressure_basis(require_atmospheric: Optional[bool]) -> str:
+    """Say in words which pressure a result assumed. require_atmospheric is echoed as sent, and an echoed null (the
+    1 atm default) was read by agents as 'pressure allowed' (2026-10-15 benchmark: 4 of 6 failed answers to one
+    question said pressure was allowed while every condition above a boiling point had been excluded)."""
+    if require_atmospheric is False:
+        return ("Pressure allowed: conditions at or above a solvent's normal boiling point were kept "
+                "(liquid under pressure).")
+    if require_atmospheric is True:
+        return ("1 atm, strict: conditions at or above a solvent's normal boiling point were excluded, and so were "
+                "solvents without a recorded boiling point.")
+    return ("1 atm (the default): conditions at or above a solvent's normal boiling point were excluded; solvents "
+            "without a recorded boiling point were kept. To allow operation under pressure, send "
+            "require_atmospheric false.")
+
+
 def _screen_direction(
     target: str,
     retained: list[str],
@@ -2453,6 +2468,7 @@ def screen_polymer_separation(
     directions, combined, recommendations = [], [], {}
     qualifying_totals: dict[str, int] = {}
     intact_totals: dict[str, int] = {}
+    gap_warnings: list[str] = []
     screened_conditions = 0
     atmospheric_exclusions = _atmospheric_exclusion_counts()
     common_temperature_counts = (
@@ -2590,11 +2606,35 @@ def screen_polymer_separation(
             )},
         } if best else None)
         qualifying_totals[target] = sum(1 for item in complete_candidates if item.get(threshold_field))
+        # separation_gap ranks the gap whatever its sign, so its qualifying total mixes solvents that dissolve the
+        # target more than the others with solvents that dissolve another polymer more. Agents read that total as
+        # 'solvents that dissolve the target away' (2026-10-15 benchmark: the most common first cause of failure on
+        # one question, and it recurred elsewhere), so the split is reported and named in a warning.
+        gap_directions = None
+        if ranking_mode == "separation_gap":
+            qualifying = [item for item in complete_candidates if item.get(threshold_field)]
+            gap_directions = {
+                "target_more_soluble_than_all_others": sum(
+                    1 for item in qualifying
+                    if item.get("target_solubility_direction") == "target_higher_than_all_off_targets"),
+                "target_less_soluble_than_all_others": sum(
+                    1 for item in qualifying
+                    if item.get("target_solubility_direction") == "target_lower_than_all_off_targets"),
+                "mixed": sum(1 for item in qualifying if item.get("target_solubility_direction") == "mixed"),
+            }
+            unsigned_note = gap_directions["target_less_soluble_than_all_others"] + gap_directions["mixed"]
+            if unsigned_note:
+                gap_warnings.append(
+                    f"separation_gap counts a gap in either direction: of the {qualifying_totals[target]} qualifying "
+                    f"solvents for {target}, {gap_directions['target_more_soluble_than_all_others']} dissolve "
+                    f"{target} more than every other polymer and {unsigned_note} do not. To dissolve {target} away "
+                    "from the others, rank with target_dissolution (its selectivity is signed).")
         directions.append({
             "dissolved_polymer": target,
             "retained_polymers": retained,
             "predicted_viable": predicted_viable,
             "qualifying_total": qualifying_totals[target],
+            **({} if gap_directions is None else {"qualifying_by_gap_direction": gap_directions}),
             "shortlist_size": len(candidates),
             "best_candidate": best,
             "failure_reason": (
@@ -2661,6 +2701,7 @@ def screen_polymer_separation(
             ),
         ]
     )
+    warnings[:0] = gap_warnings
     if any(bool(candidate.get("is_clipped")) for candidate in combined):
         warnings.append(
             "A 100 wt% value marks the stored saturation ceiling; tied values "
@@ -2734,7 +2775,7 @@ def screen_polymer_separation(
         display=_table(
             (
                 "Rank", "Target", "Solvent", "T (C)", "Target wt%",
-                "Min gap" if ranking_mode == "separation_gap" else
+                "Gap, target minus closest other" if ranking_mode == "separation_gap" else
                 f"Meets {solubility_threshold:g} wt%"
                 if ranking_mode == "absolute_solubility" else
                 "Selectivity",
@@ -2744,6 +2785,8 @@ def screen_polymer_separation(
                 row["temperature_c"], f"{row['target_solubility_pct']:.6g}",
                 ("yes" if row["meets_solubility_threshold"] else "no")
                 if ranking_mode == "absolute_solubility"
+                else f"{row['signed_target_minus_limiting_off_target_pct']:+.6g}"
+                if ranking_mode == "separation_gap"
                 else f"{row['selectivity_pct']:.6g}",
             ) for row in combined),
         ),
@@ -2779,6 +2822,7 @@ def screen_polymer_separation(
         temperature_scope=scope,
         require_atmospheric=resolved_require_atmospheric,
         atmospheric_filter_policy=atmospheric_filter_policy,
+        pressure_basis=pressure_basis(resolved_require_atmospheric),
         selectivity_definition=(
             None if single or ranking_mode == "absolute_solubility" else
             "minimum absolute target/off-target modeled solution-concentration difference"
@@ -2834,7 +2878,8 @@ def screen_polymer_separation(
             if max_retained_pct is not None and not single and ranking_mode == "target_dissolution"
             else "selectivity >= 5 points (retained polymers may still dissolve; see retained_intact_total_by_target)"
             if not single and ranking_mode == "target_dissolution"
-            else "minimum gap >= 5 points" if ranking_mode == "separation_gap"
+            else "minimum gap >= 5 points in either direction (see qualifying_by_gap_direction)"
+            if ranking_mode == "separation_gap"
             else f"target >= {solubility_threshold:g} wt%"
         ),
         shortlist_per_target=candidate_limit,
@@ -2949,6 +2994,8 @@ def screen_pairwise_solubility_overlap(
         temperature_max_c=scope["temperature_max_c"],
         strict_maximum=bool(strict_maximum), temperature_step_c=float(temperature_step_c),
         temperature_dependent=True, require_atmospheric=require_atmospheric,
+        atmospheric_filter_policy=_atmospheric_filter_policy_name(require_atmospheric),
+        pressure_basis=pressure_basis(require_atmospheric),
         **atmospheric_exclusions,
         solubility_unit="wt_pct_solution_concentration", gap_unit="percentage_points",
         hansen_parameters_used=False,

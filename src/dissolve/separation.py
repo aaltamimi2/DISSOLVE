@@ -1605,7 +1605,7 @@ def screen_precipitation_order(
         **({} if max_first is None else {
             "max_first_precipitation_temperature_c": max_first,
         }),
-        require_atmospheric=require_atmospheric,
+        require_atmospheric=require_atmospheric, pressure_basis=thermo.pressure_basis(require_atmospheric),
         ordering_definition=(
             "On cooling, the polymer with the higher modeled capacity-threshold "
             "crossing is the first precipitation proxy."
@@ -2428,7 +2428,7 @@ def plan_multistage_separation(
             + f"{float(root_screen.get('temperature_min_c', lower)):g} and "
             + f"{float(root_screen.get('temperature_max_c', upper)):g} °C"
         ),
-        require_atmospheric=require_atmospheric,
+        require_atmospheric=require_atmospheric, pressure_basis=thermo.pressure_basis(require_atmospheric),
         **atmospheric_exclusions,
         min_target_solubility_pct=min_target,
         min_selectivity_pct=min_selectivity,

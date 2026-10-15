@@ -45,8 +45,10 @@ _GREEN_IDENT_QUERY = dict(
 
 # Re-pinned 2026-09-26: screens now count a solvent left out for a retained polymer without a stored value
 # (excluded_for_missing_retained_value); nothing else in the payload moved, and default and explicit still agree.
+# Re-pinned 2026-10-15 (explore branch): results that echo require_atmospheric now also carry pressure_basis;
+# nothing else moved (checked field by field against 8c6fddcc).
 _GREEN_IDENT_SHA256 = (
-    "b4729cac31888b1d4b1d55fa1b277091525d54b3a2c2c28908ff6bf3348973d9"
+    "a84783464466348b2e809b5b1d5d765a61427d5e3f339808b1f4420faea3406b"
 )
 
 
@@ -358,8 +360,9 @@ _SUBSTITUTION_IDENT_QUERY = dict(
 # Re-pinned 2026-09-25 for the v3 safety snapshot (the payload carries the corrected safety fields), and 2026-09-26
 # for the rebuilt snapshot and the new excluded_for_missing_retained_value count; the default and the explicit
 # g_score payloads are still identical, which is what this pins.
+# Re-pinned 2026-10-15 (explore branch) for pressure_basis, as above.
 _SUBSTITUTION_IDENT_SHA256 = (
-    "8bf886252be3a8504ecd0f956f6dfc290a7ae44e3ff18177cd05e7b14cc69a82"
+    "08fb9b8a02099ec2c9f20b6d22d3867e50e18a1d25c8083181f2795717a988ea"
 )
 
 
