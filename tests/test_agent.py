@@ -7338,3 +7338,20 @@ def test_a_call_missing_an_argument_is_refused_in_words_the_model_can_act_on(mon
 def test_the_agent_is_told_to_explain_downstream_choices_only_from_the_data():
     assert "never invent a reason" in agent.SYSTEM_PROMPT and "capital of the hydrogen gasification routes" in agent.SYSTEM_PROMPT
     assert "says it has opened only" not in agent.SYSTEM_PROMPT and "opened only when figure_opened is true" in agent.SYSTEM_PROMPT
+
+
+def test_a_reply_runs_each_identical_call_once_and_at_most_32_calls():
+    """One model's reply repeated one tool call 2,791 times (2026-10-14); all ran and the turn ended in a compaction
+    error. Identical calls in one reply now run once, at most 32 distinct calls run per reply, and the first result
+    says what was not run. A reply under the limit with no repeats is left exactly as it was."""
+    from dissolve import agent
+    burst = [{"id": f"c{i}", "name": "lookup_plastchem_contaminants",
+              "args": {"contaminants": ["Dibutyl Phthalate"], "solvent": "n,n-dimethylformamide"}} for i in range(2791)]
+    kept, note = agent._guarded_calls(burst)
+    assert [c["id"] for c in kept] == ["c0"] and "2790 call(s) identical" in note
+    many = [{"id": f"c{i}", "name": "solubility_query", "args": {"polymers": [f"P{i}"]}} for i in range(40)]
+    kept, note = agent._guarded_calls(many)
+    assert len(kept) == 32 and kept[-1]["id"] == "c31" and "8 call(s) beyond the limit of 32" in note
+    usual = [{"id": "a", "name": "solubility_query", "args": {"polymers": ["PVC"]}},
+             {"id": "b", "name": "solubility_query", "args": {"polymers": ["PS"]}}]
+    assert agent._guarded_calls(usual) == (usual, "")

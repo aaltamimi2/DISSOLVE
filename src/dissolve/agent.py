@@ -783,6 +783,35 @@ def _without_empty_optionals(name: str, kwargs: dict[str, Any]) -> dict[str, Any
                                          or (isinstance(value, str) and not value.strip())))}
 
 
+_MAX_CALLS_PER_REPLY = 32
+
+
+def _guarded_calls(calls: list[dict[str, Any]]) -> tuple[list[dict[str, Any]], str]:
+    """The tool calls of one reply that are run, and a note on the ones that are not.
+
+    A call identical to an earlier one in the same reply (same tool, same arguments) is not run again, and no more
+    than _MAX_CALLS_PER_REPLY distinct calls run per reply; the rest can be sent in the next reply. 2026-10-14: one
+    model's reply repeated one call 2,791 times; all ran, the chat grew past any window and the turn ended in a
+    compaction error. The note goes with the first result so the model knows what was not run."""
+    kept, seen, repeats = [], set(), 0
+    for call in calls:
+        key = (call.get("name"), json.dumps(call.get("args"), sort_keys=True, default=str))
+        if key in seen:
+            repeats += 1
+            continue
+        seen.add(key)
+        kept.append(call)
+    over = max(0, len(kept) - _MAX_CALLS_PER_REPLY)
+    kept = kept[:_MAX_CALLS_PER_REPLY]
+    parts = []
+    if repeats:
+        parts.append(f"{repeats} call(s) identical to an earlier call in this reply were not run again")
+    if over:
+        parts.append(f"{over} call(s) beyond the limit of {_MAX_CALLS_PER_REPLY} per reply were not run; "
+                     "send the ones still needed in your next reply")
+    return kept, "; ".join(parts)
+
+
 def _with_json_text_decoded(name: str, kwargs: dict[str, Any]) -> dict[str, Any]:
     """The call with a non-text argument that arrived as its JSON text decoded: '["PVC"]' becomes ["PVC"], '100'
     becomes 100, and 'true' or 'True' becomes True.
@@ -1810,8 +1839,9 @@ def run_turn(
                     turn_record=tid, tool_rounds=rounds, usage=_fold_usage(acc),
                 )
             rounds += 1
+            calls, guard_note = _guarded_calls(calls)
             msgs.append({"role": "assistant", "content": text, "tool_calls": calls})
-            for call in calls:
+            for n, call in enumerate(calls):
                 args = call.get("args") or {}
                 if isinstance(args, str):
                     try:
@@ -1823,9 +1853,10 @@ def run_turn(
                 trace.append(event)
                 if on_event:
                     on_event(event)
+                sent = {**result, "reply_note": guard_note} if guard_note and n == 0 and isinstance(result, dict) else result
                 msgs.append({
                     "role": "tool", "tool_call_id": call.get("id"),
-                    "name": call["name"], "content": json.dumps(result),
+                    "name": call["name"], "content": json.dumps(sent),
                 })
             try:
                 compact_messages(msgs, bound, window=context_window(model))
