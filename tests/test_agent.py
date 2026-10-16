@@ -1210,20 +1210,20 @@ def test_schemas_handle_only_on_consumer_and_omit_injected():
     assert "handle" not in schemas["solubility_query"]["parameters"]["properties"]
     assert "temperature_step_c" not in schemas["screen_polymer_separation"]["parameters"]["properties"]
     sq = schemas["solubility_query"]["parameters"]["properties"]
-    assert sq["polymers"]["type"] == "array"
-    assert sq["polymers"]["items"]["type"] == "string"
-    assert sq["temperatures"]["type"] == "array"
-    assert sq["require_atmospheric"]["type"] == "boolean"
-    assert sq["top_k"]["type"] == "integer"
-    assert sq["min_solubility_pct"]["type"] == "number"
+    assert _nonnull(sq["polymers"]) == "array"
+    assert _nonnull(sq["polymers"]["items"]) == "string"
+    assert _nonnull(sq["temperatures"]) == "array"
+    assert _nonnull(sq["require_atmospheric"]) == "boolean"
+    assert _nonnull(sq["top_k"]) == "integer"
+    assert _nonnull(sq["min_solubility_pct"]) == "number"
     assert sq["descending"]["default"] is True
     card = schemas["get_solvent_safety_card"]["parameters"]["properties"]
-    assert card["include_pubchem"]["type"] == "boolean"
+    assert _nonnull(card["include_pubchem"]) == "boolean"
     assert card["include_pubchem"]["default"] is False
     wrap = schemas["evaluate_process"]["parameters"]["properties"]
-    assert wrap["process_configs"]["type"] == "array"
-    assert wrap["process_configs"]["items"]["type"] == "object"
-    assert wrap["process_config"]["type"] == "object"
+    assert _nonnull(wrap["process_configs"]) == "array"
+    assert _nonnull(wrap["process_configs"]["items"]) == "object"
+    assert _nonnull(wrap["process_config"]) == "object"
     assert "evaluate_tea_lca_scenarios" not in schemas
     assert "evaluate_stored_route_tea_lca" not in schemas
     rm = schemas["screen_polymer_separation"]["parameters"]["properties"]["ranking_mode"]
@@ -1233,7 +1233,7 @@ def test_schemas_handle_only_on_consumer_and_omit_injected():
     assert "ingest_literature_graph" not in schemas
     assert "ingest_literature_documents" not in schemas
     paths = tool_schema_for("ingest_literature_graph")["parameters"]["properties"]["paths"]
-    assert paths["type"] == "array" and paths["items"]["type"] == "string"
+    assert paths["type"] == "array" and _nonnull(paths["items"]) == "string"
     empty = []
     for spec in tool_schemas():
         props = spec["parameters"]["properties"]
@@ -7122,7 +7122,7 @@ def test_every_tool_schema_declares_its_list_items():
     schemas = [agent.tool_schema_for(name) for name in sorted(agent.BY_NAME)] + agent.tool_schemas()
     assert {s["name"]: untyped(s["parameters"]) for s in schemas if untyped(s["parameters"])} == {}
     leaching = agent.tool_schema_for("screen_contaminant_leaching")["parameters"]["properties"]["computed_deltas"]
-    assert leaching == {"anyOf": [{"type": "array", "items": {"type": "object"}}, {"type": "object"}]}
+    assert leaching == {"anyOf": [{"type": "array", "items": {"type": "object"}}, {"type": "object"}, {"type": "null"}]}
 
 
 def test_openrouter_requests_go_only_to_hosts_that_keep_no_prompts_for_training(monkeypatch):
@@ -7355,3 +7355,36 @@ def test_a_reply_runs_each_identical_call_once_and_at_most_32_calls():
     usual = [{"id": "a", "name": "solubility_query", "args": {"polymers": ["PVC"]}},
              {"id": "b", "name": "solubility_query", "args": {"polymers": ["PS"]}}]
     assert agent._guarded_calls(usual) == (usual, "")
+
+
+def _nonnull(prop):
+    """An optional argument's schema also admits null since Exploratory 4 (null means not given): its type is
+    [T, "null"] and an enum ends with None. Pins compare the non-null part."""
+    if "enum" in prop and not isinstance(prop.get("type"), (str, list)):
+        return prop
+    t = prop.get("type")
+    if isinstance(t, list):
+        rest = [x for x in t if x != "null"]
+        t = rest[0] if len(rest) == 1 else rest
+    return t
+
+
+def _enum(prop):
+    return [x for x in prop.get("enum") or [] if x is not None]
+
+
+def test_optional_arguments_admit_null_and_null_means_not_given():
+    """Exploratory 4 (2026-10-14): some models write every argument and fill unused ones with null. Optional
+    arguments now admit null in the schema and dispatch drops a null before the tool runs; required arguments stay
+    non-null, so a missing required value is still refused in the tool's own words."""
+    schemas = {s["name"]: s for s in tool_schemas()}
+    sq = schemas["solubility_query"]["parameters"]
+    for name, prop in sq["properties"].items():
+        if name in (sq.get("required") or []):
+            assert "null" not in (prop.get("type") if isinstance(prop.get("type"), list) else [prop.get("type")])
+        elif isinstance(prop.get("type"), list):
+            assert prop["type"][-1] == "null"
+    objective = schemas["optimize_waste_pathway"]["parameters"]["properties"]["objective"]
+    assert objective["enum"][-1] is None
+    sent_null = dispatch("calculate", operation="difference", a=[189.0], b=[25.0], a_from=None, labels=None)
+    assert sent_null["available"] and sent_null["data"]["result"] == 164.0

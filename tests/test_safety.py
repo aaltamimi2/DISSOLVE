@@ -633,7 +633,7 @@ def test_agent_surface_names_worst_of_three_as_the_default_chem21_metric():
     schemas = {t["name"]: t for t in tool_schemas()}
     assert len(schemas) == 30  # find_plastchem_contaminants 2026-10-05, optimize_waste_pathway 2026-10-03, tea_tornado 2026-10-07
     for name in ("screen_green_solvent_candidates", "screen_route_solvent_substitutions"):
-        enum = schemas[name]["parameters"]["properties"]["metric"].get("enum")
+        enum = [x for x in schemas[name]["parameters"]["properties"]["metric"].get("enum") or [] if x is not None]
         assert enum == ["g_score", "chem21", "chem21_safety", "chem21_worst"], (name, enum)
         assert "worst of Safety/Health/Environment" in schemas[name]["description"]
     assert "max_stage_chem21 = CHEM21 worst" in schemas["rank_landscape"]["description"]

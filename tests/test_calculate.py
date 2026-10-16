@@ -72,8 +72,8 @@ def test_what_it_cannot_do_is_refused_with_a_reason(kwargs, code):
 def test_the_tool_is_offered_with_typed_lists_and_its_results_name_their_basis():
     schema = next(item for item in tool_schemas() if item["name"] == "calculate")
     props = schema["parameters"]["properties"]
-    assert props["a"] == {"type": "array", "items": {"type": "number"}}      # Gemini needs typed array items
-    assert props["a_where"] == {"type": "array", "items": {"type": "string"}}
+    assert props["a"] == {"type": ["array", "null"], "items": {"type": "number"}}  # Gemini needs typed array items
+    assert props["a_where"] == {"type": ["array", "null"], "items": {"type": "string"}}
     assert schema["parameters"]["required"] == ["operation"]
     out = dispatch("calculate", operation="difference", a=[189.0], b=[25.0])
     assert out["available"] and out["source_basis"] == "calculated_from_supplied_values"

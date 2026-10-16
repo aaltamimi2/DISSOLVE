@@ -262,7 +262,7 @@ def test_the_tool_is_registered_with_a_schema_and_a_declared_name():
     assert "optimize_waste_pathway" in agent.BY_NAME and "optimize_waste_pathway" in EXPECTED_REGISTRY_NAMES
     schema = next(s for s in agent.tool_schemas({}) if s["name"] == "optimize_waste_pathway")
     props = schema["parameters"]["properties"]
-    assert props["objective"]["enum"] == ["max_profit", "min_emissions", "max_circularity"]
+    assert [x for x in props["objective"]["enum"] if x is not None] == ["max_profit", "min_emissions", "max_circularity"]
     assert "confirm_live_tea" in props and "shared_plant_capacity_mt_per_yr" in props
     assert set(schema["parameters"]["required"]) == {"feed_mass_fractions", "feed_tonnes_per_year"}
 

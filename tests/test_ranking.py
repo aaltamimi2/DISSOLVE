@@ -815,8 +815,8 @@ def test_illegal_safety_status_is_not_copied(monkeypatch, tmp_path):
 def test_rank_landscape_surface_is_process_rows_and_planner_routes():
     """The residual-route optimizer and the superstructure data-gate are gone; the retired arguments are unknown."""
     schema = {item["name"]: item for item in tool_schemas()}["rank_landscape"]["parameters"]["properties"]
-    assert set(schema["source"]["enum"]) == {"process_rows", "planner_routes"}
-    assert set(schema["operation"]["enum"]) == {"sort", "pareto_dominance"}
+    assert set(_enum(schema["source"])) == {"process_rows", "planner_routes"}
+    assert set(_enum(schema["operation"])) == {"sort", "pareto_dominance"}
     for retired in (
         "formulation", "planner_solvent_map", "allowed_solvents", "feed_mass_fractions", "scenario",
         "recovery_yield", "polymer_market_values_usd_per_mt", "solver_name", "composition_slices",
@@ -1110,10 +1110,10 @@ def test_schema_exposes_the_closed_choice():
         required = schemas[name]["parameters"].get("required") or []
         assert "screen_to_economics_order" in props
         assert "screen_to_economics_order" not in required
-        assert props["screen_to_economics_order"]["type"] == "string"
-        assert props["screen_to_economics_order"]["enum"] == expected
+        assert _nonnull(props["screen_to_economics_order"]) == "string"
+        assert _enum(props["screen_to_economics_order"]) == expected
         assert "default" not in props["screen_to_economics_order"]
-        assert "pipeline" not in props["screen_to_economics_order"]["enum"]
+        assert "pipeline" not in _enum(props["screen_to_economics_order"])
         assert "exclude_safety_fail" not in props
     old = schemas["evaluate_process"]["parameters"]["properties"]
     assert "screen_to_economics_order" in old
@@ -1924,3 +1924,19 @@ def test_a_cache_hit_still_points_at_the_campaign_that_holds_more_plants_of_that
     (campaign,) = out["data"]["more_stored_plants"]["registered_campaigns"]
     assert campaign["campaign_fingerprint"] == _CANONICAL
     assert campaign["rows_by_polymer"] == {"LDPE": 60}
+
+
+def _nonnull(prop):
+    """An optional argument's schema also admits null since Exploratory 4 (null means not given): its type is
+    [T, "null"] and an enum ends with None. Pins compare the non-null part."""
+    if "enum" in prop and not isinstance(prop.get("type"), (str, list)):
+        return prop
+    t = prop.get("type")
+    if isinstance(t, list):
+        rest = [x for x in t if x != "null"]
+        t = rest[0] if len(rest) == 1 else rest
+    return t
+
+
+def _enum(prop):
+    return [x for x in prop.get("enum") or [] if x is not None]

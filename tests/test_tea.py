@@ -174,17 +174,17 @@ def test_schema_uses_two_typed_objects_not_top_level_polymer():
     assert "screening_shortlist" in props
     assert "held_process_basis" in props
     assert "confirm_live_tea" in props
-    assert props["lookup_filter"]["type"] == "object"
-    assert props["process_config"]["type"] == "object"
-    assert props["process_configs"]["type"] == "array"
-    assert props["process_configs"]["items"]["type"] == "object"
-    assert props["screening_shortlist"]["type"] == "object"
-    assert props["held_process_basis"]["type"] == "object"
-    assert props["confirm_live_tea"]["type"] == "boolean"
+    assert _nonnull(props["lookup_filter"]) == "object"
+    assert _nonnull(props["process_config"]) == "object"
+    assert _nonnull(props["process_configs"]) == "array"
+    assert _nonnull(props["process_configs"]["items"]) == "object"
+    assert _nonnull(props["screening_shortlist"]) == "object"
+    assert _nonnull(props["held_process_basis"]) == "object"
+    assert _nonnull(props["confirm_live_tea"]) == "boolean"
     assert "target_polymer" not in props
     assert "solvent" not in props
-    assert props["parameter"]["type"] == "string"  # sensitivity mode's swept field (the model never sent it unlisted)
-    assert props["values"]["type"] == "array"
+    assert _nonnull(props["parameter"]) == "string"  # sensitivity mode's swept field (the model never sent it unlisted)
+    assert _nonnull(props["values"]) == "array"
     assert "scenarios" not in props
     assert "feed_mass_fractions" not in props
     required = _schema("evaluate_process")["parameters"].get("required") or []
@@ -6590,8 +6590,8 @@ def test_evaluate_schema_names_handle_and_row_id():
     assert "handle" in params
     assert "row_id" in params
     wrap = schemas["evaluate_process"]["parameters"]["properties"]
-    assert wrap["process_config"]["type"] == "object"
-    assert wrap["process_configs"]["type"] == "array"
+    assert _nonnull(wrap["process_config"]) == "object"
+    assert _nonnull(wrap["process_configs"]) == "array"
     assert "handle" not in schemas["solubility_query"]["parameters"]["properties"]
 
 
@@ -7214,7 +7214,7 @@ def test_sensitivity_schema_names_handle_and_optional_scenario():
     assert "row_id" in params
     assert "scenario" in params
     wrap = schemas["evaluate_process"]["parameters"]["properties"]
-    assert wrap["process_config"]["type"] == "object"
+    assert _nonnull(wrap["process_config"]) == "object"
 
 
 # --- from test_sheet_standing_preview.py: Sheet standing preview must pass the resolved plastics root.
@@ -8581,3 +8581,19 @@ def test_a_route_stage_on_a_feed_of_only_its_polymer_is_refused_with_the_reason(
         engine_mode="live", confirm_live_tea=True,
     ))
     assert payload.get("success") is not True and "below 100" in json.dumps(payload)
+
+
+def _nonnull(prop):
+    """An optional argument's schema also admits null since Exploratory 4 (null means not given): its type is
+    [T, "null"] and an enum ends with None. Pins compare the non-null part."""
+    if "enum" in prop and not isinstance(prop.get("type"), (str, list)):
+        return prop
+    t = prop.get("type")
+    if isinstance(t, list):
+        rest = [x for x in t if x != "null"]
+        t = rest[0] if len(rest) == 1 else rest
+    return t
+
+
+def _enum(prop):
+    return [x for x in prop.get("enum") or [] if x is not None]
