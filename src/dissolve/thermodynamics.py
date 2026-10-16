@@ -2469,6 +2469,7 @@ def screen_polymer_separation(
     qualifying_totals: dict[str, int] = {}
     intact_totals: dict[str, int] = {}
     gap_warnings: list[str] = []
+    gap_direction_totals: dict[str, dict[str, int]] = {}
     screened_conditions = 0
     atmospheric_exclusions = _atmospheric_exclusion_counts()
     common_temperature_counts = (
@@ -2622,6 +2623,7 @@ def screen_polymer_separation(
                     if item.get("target_solubility_direction") == "target_lower_than_all_off_targets"),
                 "mixed": sum(1 for item in qualifying if item.get("target_solubility_direction") == "mixed"),
             }
+            gap_direction_totals[target] = gap_directions
             unsigned_note = gap_directions["target_less_soluble_than_all_others"] + gap_directions["mixed"]
             if unsigned_note:
                 gap_warnings.append(
@@ -2869,6 +2871,9 @@ def screen_polymer_separation(
                  f"{max(temperatures):g} °C"
         ),
         qualifying_total_by_target=qualifying_totals,
+        # The split sits beside the total: screened_directions is not in the compact view a large result is shown
+        # in, so a split kept only there never reached the agent (team 2, fix8 regrade, 2026-10-15).
+        **({"qualifying_by_gap_direction_by_target": gap_direction_totals} if gap_direction_totals else {}),
         # How many of the screened solvents reach the target level and keep every retained polymer intact (at or
         # below max_retained_pct, else 1 wt%); qualifying_total_by_target counts the screen's own rule.
         retained_intact_total_by_target=intact_totals or None,
@@ -2878,7 +2883,7 @@ def screen_polymer_separation(
             if max_retained_pct is not None and not single and ranking_mode == "target_dissolution"
             else "selectivity >= 5 points (retained polymers may still dissolve; see retained_intact_total_by_target)"
             if not single and ranking_mode == "target_dissolution"
-            else "minimum gap >= 5 points in either direction (see qualifying_by_gap_direction)"
+            else "minimum gap >= 5 points in either direction (see qualifying_by_gap_direction_by_target)"
             if ranking_mode == "separation_gap"
             else f"target >= {solubility_threshold:g} wt%"
         ),
