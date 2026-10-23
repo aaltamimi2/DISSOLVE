@@ -1,6 +1,7 @@
 """The agent: the flat tool registry, the one generic tool wrapper the model calls through, and the turn loop."""
 from __future__ import annotations
 
+import base64
 import inspect
 import json
 import os
@@ -1665,11 +1666,19 @@ def complete(messages, tools, *, model, api_base=None, api_key_env=None, tool_ch
     lets the model only write: the closing answer at the tool-round limit uses it."""
     kind, _, ident = model.partition(":")
     ident = ident or model
-    if kind not in ("anthropic", "google_genai", "openai"):
+    if kind not in ("anthropic", "google_genai", "vertex", "openai"):
         raise ValueError(f"unknown model prefix: {kind!r}")
     key = (os.environ.get(api_key_env) or "").strip() if api_key_env else None
     if api_key_env and not key:
         raise MissingProviderKey(f"missing environment variable {api_key_env}")
+    # Vertex AI is Gemini through a Google Cloud project: the same SDK and wire format, but it authenticates with the
+    # service-account file that GOOGLE_APPLICATION_CREDENTIALS names (the SDK reads it), not with an API key.
+    vertex = kind == "vertex"
+    if vertex:
+        kind = "google_genai"
+        project = (os.environ.get("GOOGLE_CLOUD_PROJECT") or "").strip()
+        if not project:
+            raise MissingProviderKey("missing environment variable GOOGLE_CLOUD_PROJECT")
     if kind == "anthropic":
         import anthropic
         sys, rest = _ant_msgs(messages)
@@ -1687,14 +1696,37 @@ def complete(messages, tools, *, model, api_base=None, api_key_env=None, tool_ch
         from google.genai import types
         decls = [types.FunctionDeclaration(name=t["name"], description=t.get("description") or "", parameters=t["parameters"]) for t in tools]
         sys = next((m.get("content") or "" for m in messages if m["role"] == "system"), "")
-        resp = genai.Client(api_key=key).models.generate_content(
-            model=ident, contents=_gen_contents(messages),
-            config=types.GenerateContentConfig(
-                system_instruction=sys, **({"tools": [types.Tool(function_declarations=decls)]} if decls else {}),
-                **({"tool_config": types.ToolConfig(function_calling_config=types.FunctionCallingConfig(mode="NONE"))}
-                   if tool_choice == "none" and decls else {})))
-        calls = [{"id": getattr(c, "id", "") or "", "name": c.name, "args": dict(c.args or {})}
-                 for c in (getattr(resp, "function_calls", None) or [])]
+        client = (genai.Client(vertexai=True, project=project,
+                               location=(os.environ.get("GOOGLE_CLOUD_LOCATION") or "").strip() or "us-central1")
+                  if vertex else genai.Client(api_key=key))
+        config = types.GenerateContentConfig(
+            system_instruction=sys, **({"tools": [types.Tool(function_declarations=decls)]} if decls else {}),
+            **({"tool_config": types.ToolConfig(function_calling_config=types.FunctionCallingConfig(mode="NONE"))}
+               if tool_choice == "none" and decls else {}))
+        deadline = time.monotonic() + _RATE_LIMIT_WAIT_S
+        pause = 4.0
+        while True:  # a busy model (quota 429, or 503) is retried with a growing pause, up to the same wait as the OpenAI path
+            try:
+                resp = client.models.generate_content(model=ident, contents=_gen_contents(messages), config=config)
+                break
+            except Exception as error:
+                busy = getattr(error, "code", None) in (429, 503) or "RESOURCE_EXHAUSTED" in str(error)
+                if not busy or time.monotonic() + pause > deadline:
+                    raise
+                time.sleep(pause + random.random())
+                pause = min(pause * 2, 30.0)
+        # Gemini 3 models return a thought signature with each function call and refuse the next request unless it
+        # comes back on the same call. It is bytes, so it is kept as base64 text and the saved session stays JSON.
+        parts = [p for cand in (getattr(resp, "candidates", None) or [])[:1]
+                 for p in (getattr(getattr(cand, "content", None), "parts", None) or [])
+                 if getattr(p, "function_call", None)]
+        calls = []
+        for part in parts:
+            call = {"id": getattr(part.function_call, "id", "") or "", "name": part.function_call.name,
+                    "args": dict(part.function_call.args or {})}
+            if getattr(part, "thought_signature", None):
+                call["thought_signature"] = base64.b64encode(part.thought_signature).decode("ascii")
+            calls.append(call)
         candidates = getattr(resp, "candidates", None) or []
         reason = getattr(candidates[0], "finish_reason", None) if candidates else None
         return {"text": getattr(resp, "text", None) or "", "tool_calls": calls, "usage": _usage(kind, resp),
@@ -1731,15 +1763,21 @@ def complete(messages, tools, *, model, api_base=None, api_key_env=None, tool_ch
 def _gen_contents(messages):
     from google.genai import types
     contents = []
+    responses = None  # the open user turn of tool responses, while consecutive tool messages keep adding to it
     for m in messages:
         if m["role"] == "system":
             continue
+        if m["role"] != "tool":
+            responses = None
         if m["role"] == "assistant":
             parts = []
             if m.get("content"):
                 parts.append(types.Part.from_text(text=m["content"]))
             for c in m.get("tool_calls") or []:
-                parts.append(types.Part.from_function_call(name=c["name"], args=c.get("args") or {}))
+                part = types.Part.from_function_call(name=c["name"], args=c.get("args") or {})
+                if c.get("thought_signature"):
+                    part.thought_signature = base64.b64decode(c["thought_signature"])
+                parts.append(part)
             if parts:
                 contents.append(types.Content(role="model", parts=parts))
         elif m["role"] == "tool":
@@ -1749,8 +1787,13 @@ def _gen_contents(messages):
                 resp = {"result": m.get("content") or ""}
             if not isinstance(resp, dict):
                 resp = {"result": resp}
-            contents.append(types.Content(role="user", parts=[
-                types.Part.from_function_response(name=m.get("name") or "", response=resp)]))
+            reply = types.Part.from_function_response(name=m.get("name") or "", response=resp)
+            # Parallel calls: Gemini wants every response to one model turn together, in a single user turn.
+            if responses is not None:
+                responses.parts.append(reply)
+            else:
+                responses = types.Content(role="user", parts=[reply])
+                contents.append(responses)
         else:
             contents.append(types.Content(role="user", parts=[types.Part.from_text(text=m.get("content") or "")]))
     return contents
@@ -1805,6 +1848,10 @@ def _strict_verifier(turn: _TurnModel) -> Callable[[str], str]:
     return verify
 
 
+EMPTY_REPLY_NUDGE = ("Your last reply was empty. Answer the user's question above in words, using the tool results you already "
+                     "have; call a tool only if one is still needed.")
+
+
 def run_turn(
     query: str, *, session: dict, model: str, messages: list | None = None,
     on_event: Callable[[ToolEvent], None] | None = None,
@@ -1820,6 +1867,7 @@ def run_turn(
         msgs.append({"role": "user", "content": query})
     trace: list[ToolEvent] = []
     rounds = 0
+    empty_replies = 0
     acc = []
     cap = _tool_round_cap()
     with bind_tool_session(session) as bound, _turn_model(_TurnModel(model, api_base, api_key_env, query, acc)):
@@ -1846,6 +1894,17 @@ def run_turn(
                 )
             acc.append(reply.get("usage"))
             calls, text = reply.get("tool_calls") or [], reply.get("text") or ""
+            if not calls and not text.strip():  # a model can return nothing at all (seen with Gemini): ask again, then say so
+                empty_replies += 1
+                if empty_replies > 2:
+                    return TurnResult(
+                        answer="The model returned an empty reply three times in a row, so there is no answer to show. "
+                               "Please ask the question again.",
+                        status="provider_error", tool_trace=trace, turn_record=tid, tool_rounds=rounds,
+                        usage=_fold_usage(acc),
+                    )
+                msgs.append({"role": "user", "content": EMPTY_REPLY_NUDGE})
+                continue
             if not calls:
                 cut = reply.get("cut_short")
                 if cut and cut not in _LENGTH_REASONS:

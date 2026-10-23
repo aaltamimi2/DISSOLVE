@@ -690,13 +690,21 @@ MODELS = {
         "Claude Sonnet 4.6", "anthropic:claude-sonnet-4-6", "ANTHROPIC_API_KEY",
         "General reasoning",
     ),
+    "vertex-gemini-flash": ModelSpec(
+        "Gemini 3.8 Flash · Vertex AI", "vertex:gemini-3.8-flash", "GOOGLE_APPLICATION_CREDENTIALS",
+        "Google Cloud project billing · service-account file",
+    ),
+    "vertex-gemini-pro": ModelSpec(
+        "Gemini 3.1 Pro · Vertex AI", "vertex:gemini-3.1-pro-preview", "GOOGLE_APPLICATION_CREDENTIALS",
+        "Highest detail · Google Cloud project billing",
+    ),
     "muse-spark": ModelSpec(
         "Meta Muse Spark 1.3", "openai:muse-spark-1.3", "META_MUSE_API_KEY",
         "Reasoning model · Meta API", "https://api.meta.ai/v1",
     ),
 }
 MODEL_ALIASES = {
-    "gemini": "gemini-flash", "claude": "claude-sonnet", "muse": "muse-spark", "openrouter": "openrouter-gemini-flash",
+    "gemini": "gemini-flash", "vertex": "vertex-gemini-flash", "vertex-pro": "vertex-gemini-pro", "claude": "claude-sonnet", "muse": "muse-spark", "openrouter": "openrouter-gemini-flash",
 }
 DEFAULT_MODEL = "openrouter-gemini-flash"
 

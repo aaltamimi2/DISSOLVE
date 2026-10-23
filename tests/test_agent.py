@@ -7424,3 +7424,93 @@ def test_optional_arguments_admit_null_and_null_means_not_given():
     assert objective["enum"][-1] is None
     sent_null = dispatch("calculate", operation="difference", a=[189.0], b=[25.0], a_from=None, labels=None)
     assert sent_null["available"] and sent_null["data"]["result"] == 164.0
+
+
+def test_gemini_replay_sends_the_responses_to_parallel_calls_in_one_turn():
+    """Gemini refuses a request whose tool responses do not match the calls of the model turn one for one."""
+    messages = [
+        {"role": "system", "content": "s"}, {"role": "user", "content": "q"},
+        {"role": "assistant", "content": "", "tool_calls": [{"id": "1", "name": "a", "args": {}},
+                                                              {"id": "2", "name": "b", "args": {}},
+                                                              {"id": "3", "name": "c", "args": {}}]},
+        {"role": "tool", "name": "a", "content": '{"x": 1}'}, {"role": "tool", "name": "b", "content": '{"x": 2}'},
+        {"role": "tool", "name": "c", "content": "not json"},
+        {"role": "assistant", "content": "", "tool_calls": [{"id": "4", "name": "a", "args": {}}]},
+        {"role": "tool", "name": "a", "content": '{"x": 4}'},
+        {"role": "assistant", "content": "done"}, {"role": "user", "content": "next"},
+    ]
+    from dissolve import agent as agent_module
+    turns = agent_module._gen_contents(messages)
+    assert [(t.role, len(t.parts)) for t in turns] == [
+        ("user", 1), ("model", 3), ("user", 3), ("model", 1), ("user", 1), ("model", 1), ("user", 1)]
+    assert [p.function_response.name for p in turns[2].parts] == ["a", "b", "c"]
+    assert turns[2].parts[2].function_response.response == {"result": "not json"}
+
+
+def test_gemini_replay_keeps_a_thought_signature_with_its_call():
+    import base64
+    from dissolve import agent as agent_module
+    sig = base64.b64encode(b"sig").decode("ascii")
+    turns = agent_module._gen_contents([
+        {"role": "user", "content": "q"},
+        {"role": "assistant", "content": "", "tool_calls": [{"id": "1", "name": "a", "args": {}, "thought_signature": sig}]},
+    ])
+    assert turns[1].parts[0].thought_signature == b"sig"
+
+
+def test_a_busy_vertex_model_is_retried_instead_of_failing_the_turn(monkeypatch):
+    """A 429 quota answer is a pause, not a provider error: the same request is repeated."""
+    import types as pytypes
+    from google import genai
+    from dissolve import agent as agent_module
+    attempts = []
+
+    class Busy(Exception):
+        code = 429
+
+    class Models:
+        def generate_content(self, **kwargs):
+            attempts.append(1)
+            if len(attempts) < 3:
+                raise Busy("429 RESOURCE_EXHAUSTED")
+            return pytypes.SimpleNamespace(candidates=[], text="ready", function_calls=[], usage_metadata=None)
+
+    monkeypatch.setattr(genai, "Client", lambda **kwargs: pytypes.SimpleNamespace(models=Models()))
+    monkeypatch.setattr(agent_module.time, "sleep", lambda s: None)
+    monkeypatch.setenv("GOOGLE_APPLICATION_CREDENTIALS", "/tmp/not-read.json")
+    monkeypatch.setenv("GOOGLE_CLOUD_PROJECT", "p")
+    reply = agent_module.complete([{"role": "system", "content": "s"}, {"role": "user", "content": "q"}], [],
+                                  model="vertex:gemini-3.8-flash", api_key_env="GOOGLE_APPLICATION_CREDENTIALS")
+    assert reply["text"] == "ready" and len(attempts) == 3
+
+    class Broken:
+        def generate_content(self, **kwargs):
+            raise ValueError("not a quota problem")
+    monkeypatch.setattr(genai, "Client", lambda **kwargs: pytypes.SimpleNamespace(models=Broken()))
+    with pytest.raises(ValueError):   # any other failure still surfaces at once
+        agent_module.complete([{"role": "user", "content": "q"}], [], model="vertex:gemini-3.8-flash",
+                              api_key_env="GOOGLE_APPLICATION_CREDENTIALS")
+
+
+def test_an_empty_model_reply_is_retried_with_a_nudge_and_then_answered(monkeypatch):
+    replies = iter([{"text": "", "tool_calls": []}, {"text": "  ", "tool_calls": []}, {"text": "the real answer", "tool_calls": []}])
+    seen = []
+
+    def fake_complete(messages, tools, **kwargs):
+        seen.append([m.get("content") for m in messages][-1])
+        return next(replies)
+
+    monkeypatch.setattr(agent, "complete", fake_complete)
+    result = run_turn("question", session=new_session(), model="openai:x")
+    assert result.status == "ok" and result.answer == "the real answer"
+    assert seen == ["question", agent.EMPTY_REPLY_NUDGE, agent.EMPTY_REPLY_NUDGE]  # each retry asks again, in words
+
+
+def test_a_model_that_stays_empty_gets_a_plain_message_not_a_blank_answer(monkeypatch):
+    calls = []
+    monkeypatch.setattr(agent, "complete", lambda messages, tools, **k: calls.append(1) or {"text": "", "tool_calls": []})
+    result = run_turn("question", session=new_session(), model="openai:x")
+    assert result.status == "provider_error" and "empty reply" in result.answer and result.answer.strip()
+    assert len(calls) == 3  # the first reply and two retries
+
+
