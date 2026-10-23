@@ -873,8 +873,8 @@ def test_the_result_carries_a_work_summary_with_counts_that_add_up(monkeypatch, 
     table.screen_log.append({"removed_before": [], "polymer": "EVOH", "pool": 59, "passed_solubility": 4, "passed": 2, "costed": 2})
     data = _call(monkeypatch, table, pareto="emissions_vs_profit")["data"]
     w = data["work_summary"]
-    assert w["simulations"] == {"washes_costed": 1, "live_simulations": 1, "simulated_in_this_call": 1, "stored_records": 0,
-                                "reused_from_earlier_call": 0, "failed": 0, "simulation_seconds": 0.0}
+    assert w["simulations"] == {"washes_costed": 1, "shredder_runs": 0, "live_simulations": 1, "simulated_in_this_call": 1,
+                                "stored_records": 0, "reused_from_earlier_call": 0, "failed": 0, "simulation_seconds": 0.0}
     assert w["candidates"]["total"] == data["candidates_considered"] == sum(w["candidates"]["by_destination"].values())
     assert w["routes"]["total"] == sum(w["routes"]["by_number_of_washes"].values())
     assert set(w["fronts"]) == {"emissions_vs_profit", "circularity_vs_profit", "emissions_vs_circularity"}
@@ -984,3 +984,235 @@ def test_wash_qualifications_survive_table_and_outputs(monkeypatch):
     q["lca_coverage"]["metric_coverage_status"].clear()
     assert table.qualifications[_spec().key] == original
     assert dl.partial_gwp_warning([("x", {"lca_coverage": {"metric_coverage_status": {"gwp_kg_co2e_per_kg": "available", "htc": "partial"}}})]) is None
+
+
+# --- shredding the film: a stand-alone shredder plant whose MSP is the first wash's feedstock price ---
+
+SHREDDER_ROW = {"msp_usd_per_kg": 0.19, "tci_usd": 3.1e6, "aoc_usd_per_yr": 1.07e6, "total_energy_mj_per_kg": 0.66,
+                "gwp_kg_co2e_per_kg": 0.19, "capacity_t_per_yr": 8000.0, "wall_seconds": 10.0, "engine_mode": "live"}
+
+
+def _worker_result(msp=0.192):
+    return {"success": True, "job": "shredder", "tea": {"msp_usd_per_kg": msp, "tci_usd": 3130073.0, "aoc_usd_per_yr": 1068992.0},
+            "operations": {"total_energy_mj_per_kg": 0.659, "annual_throughput_kg": 8_000_000.0, "electricity_mj_per_yr": 5_272_000.0},
+            "lca": {"gwp_kg_co2e_per_kg": 0.2003}}
+
+
+def test_the_shredder_is_a_stand_alone_job_with_its_own_crew_and_the_whole_throughput(monkeypatch):
+    dl.clear_shredder_rows()
+    seen = []
+    monkeypatch.setattr(dl.tea, "_live", lambda config, timeout: seen.append(config) or _worker_result())
+    row = dl.run_shredder(8000.0, confirm_live_tea=True)
+    config = seen[0]
+    assert config["_job"] == "shredder" and config["processing_capacity"] == 8000.0
+    assert config["labor_cost"] == dl.SHREDDER_LABOR_USD_PER_YR == 480_000 and config["solvent_price"] == 0.0
+    assert row["msp_usd_per_kg"] == 0.192 and row["tci_usd"] == 3130073.0 and row["total_energy_mj_per_kg"] == 0.659
+    # emissions: the shredder's electricity per kg times the governed grid factor, with the model's own figure kept beside it
+    assert row["grid_electricity_gwp_kg_co2e_per_mj"] == 0.197
+    assert row["gwp_kg_co2e_per_kg"] == pytest.approx(5_272_000.0 / 8_000_000.0 * 0.197) and row["gwp_model_kg_co2e_per_kg"] == 0.2003
+    dl.clear_shredder_rows()
+
+
+def test_a_shredder_run_is_repeated_from_the_session_and_needs_confirmation_otherwise(monkeypatch):
+    dl.clear_shredder_rows()
+    calls = []
+    monkeypatch.setattr(dl.tea, "_live", lambda config, timeout: calls.append(1) or _worker_result())
+    with pytest.raises(dl.StageUnavailable) as stop:
+        dl.run_shredder(8000.0, confirm_live_tea=False)
+    assert stop.value.kind == "live_tea_cost_confirmation_required" and not calls
+    first = dl.run_shredder(8000.0, confirm_live_tea=True)
+    again = dl.run_shredder(8000.0, confirm_live_tea=False)  # a repeat needs no new confirmation: nothing is simulated
+    assert len(calls) == 1 and again == {**first, "session_reused": True}
+    dl.run_shredder(12000.0, confirm_live_tea=True)
+    assert len(calls) == 2  # another capacity is another shredder
+    dl.clear_shredder_rows()
+
+
+def test_a_failed_shredder_run_is_reported_with_its_reason(monkeypatch):
+    dl.clear_shredder_rows()
+    monkeypatch.setattr(dl.tea, "_live", lambda config, timeout: {"success": False, "error_type": "shredder_run_failed", "error": "no MSP"})
+    with pytest.raises(dl.StageUnavailable) as stop:
+        dl.run_shredder(8000.0, confirm_live_tea=True)
+    assert stop.value.kind == "shredder_run_failed" and "no MSP" in stop.value.detail
+    dl.clear_shredder_rows()
+
+
+def _record_feedstock_prices(monkeypatch, shredder):
+    prices = {}
+    screens = {120.0: [_row("ethylene glycol", 12.0, 1.0), _row("toluene", 30.0, 2.0)]}
+    monkeypatch.setattr(dl.thermodynamics, "screen_polymer_separation", _screen_stub(screens))
+    monkeypatch.setattr(dl, "precipitated_pct", lambda polymer, solvents, temperature: {name: 0.1 for name in solvents})
+
+    def fake_run(config, *, confirm_live_tea):
+        prices[(config["target_polymer"], config["target_mass_percent"])] = config["feedstock_price_usd_per_kg"]
+        return dict(ROW, engine_mode="live", feedstock_price_usd_per_kg=config["feedstock_price_usd_per_kg"])
+
+    monkeypatch.setattr(dl, "run_process_config", fake_run)
+    monkeypatch.setattr(dl, "run_shredder", shredder)
+    return prices
+
+
+def test_a_first_wash_buys_its_feed_at_the_shredder_msp_and_a_later_wash_at_zero(monkeypatch):
+    prices = _record_feedstock_prices(monkeypatch, lambda capacity, **k: {**SHREDDER_ROW, "capacity_t_per_yr": capacity})
+    feed = wp.Feed(8000.0, {"LDPE": 0.5, "EVOH": 0.3, "PET": 0.2})  # three polymers, so a second wash exists
+    table = dl.build_stage_table(feed, max_washes=2, max_options=1, confirm_live_tea=True, include_shredder=True,
+                                 solvents=["ethylene glycol", "toluene"], temperature_min_c=120.0, temperature_max_c=120.0)
+    first = {k: v for k, v in table.feedstock_prices.items() if not k[0]}
+    later = {k: v for k, v in table.feedstock_prices.items() if k[0]}
+    assert first and later
+    assert set(first.values()) == {0.19} and set(later.values()) == {0.0}
+    assert table.shredder["capacity_t_per_yr"] == 8000.0 and table.simulations_needed == 0
+
+
+def test_the_shredder_is_sized_to_a_shared_plant(monkeypatch):
+    sizes = []
+    _record_feedstock_prices(monkeypatch, lambda capacity, **k: sizes.append(capacity) or SHREDDER_ROW)
+    feed = wp.Feed(8000.0, {"LDPE": 0.6, "EVOH": 0.4})
+    dl.build_stage_table(feed, max_washes=1, max_options=1, confirm_live_tea=True, include_shredder=True, plant_capacity_t=20000.0,
+                         solvents=["toluene"], temperature_min_c=120.0, temperature_max_c=120.0)
+    assert sizes == [20000.0]
+
+
+def test_without_the_shredder_every_wash_keeps_the_default_feedstock_price(monkeypatch):
+    called = []
+    prices = _record_feedstock_prices(monkeypatch, lambda *a, **k: called.append(1) or SHREDDER_ROW)
+    feed = wp.Feed(8000.0, {"LDPE": 0.6, "EVOH": 0.4})
+    table = dl.build_stage_table(feed, max_washes=2, max_options=1, confirm_live_tea=True, solvents=["ethylene glycol", "toluene"],
+                                 temperature_min_c=120.0, temperature_max_c=120.0)  # include_shredder defaults to False here
+    assert not called and table.shredder is None and set(prices.values()) == {0.01}
+
+
+def test_an_unconfirmed_shredder_counts_as_a_pending_simulation(monkeypatch):
+    def pending(capacity, **k):
+        raise dl.StageUnavailable("live_tea_cost_confirmation_required", "shredder")
+
+    _record_feedstock_prices(monkeypatch, pending)
+    feed = wp.Feed(8000.0, {"LDPE": 0.6, "EVOH": 0.4})
+    table = dl.build_stage_table(feed, max_washes=1, max_options=1, confirm_live_tea=False, include_shredder=True,
+                                 solvents=["toluene"], temperature_min_c=120.0, temperature_max_c=120.0)
+    assert table.shredder_pending and table.shredder is None and table.simulations_needed == len(table.pending) + 1
+
+
+def test_a_shredder_failure_falls_back_to_the_default_price_and_is_recorded(monkeypatch):
+    def broken(capacity, **k):
+        raise dl.StageUnavailable("shredder_run_failed", "no MSP")
+
+    prices = _record_feedstock_prices(monkeypatch, broken)
+    feed = wp.Feed(8000.0, {"LDPE": 0.6, "EVOH": 0.4})
+    table = dl.build_stage_table(feed, max_washes=1, max_options=1, confirm_live_tea=True, include_shredder=True,
+                                 solvents=["toluene"], temperature_min_c=120.0, temperature_max_c=120.0)
+    assert table.shredder_error == "shredder_run_failed: no MSP" and not table.shredder_pending
+    assert {v for (poly, pct), v in prices.items()} == {0.01}  # the default price, never a made-up shredder price
+
+
+def test_the_shredders_energy_and_emissions_are_added_once_for_the_whole_stream_shredded():
+    spec = _spec("LDPE", "p-Xylene", mass_in=8000.0, percent=60.0)
+    plain, _ = dl.wash_stage_from_row(spec, ROW)
+    shredded, _ = dl.wash_stage_from_row(spec, ROW, shredder=SHREDDER_ROW)
+    whole_stream_kg = 8000.0 * 1000.0
+    assert shredded.impacts.energy_mj - plain.impacts.energy_mj == pytest.approx(0.66 * whole_stream_kg)
+    assert shredded.impacts.gwp_t - plain.impacts.gwp_t == pytest.approx(0.19 * whole_stream_kg / 1000.0)
+    assert shredded.capex_usd_yr == plain.capex_usd_yr and shredded.opex_usd_yr == plain.opex_usd_yr  # its cost is in the feedstock price
+
+
+def test_the_result_reports_the_shredder_and_the_tool_passes_the_choice_on(monkeypatch):
+    table = _stub_table()
+    table.shredder = dict(SHREDDER_ROW)
+    seen = {}
+    monkeypatch.setattr(dl, "build_stage_table", lambda *a, **k: seen.update(k) or table)
+    out = json.loads(tool.optimize_waste_pathway(feed_mass_fractions={"LDPE": 0.6, "PET": 0.2, "NYLON6": 0.1, "EVOH": 0.1},
+                                                 feed_tonnes_per_year=8000))["data"]
+    assert seen["include_shredder"] is True  # on by default
+    block = out["shredder"]
+    assert block["included"] and block["costed"] and block["msp_usd_per_kg_shredded_film"] == 0.19
+    assert block["feedstock_price_first_wash_usd_per_kg"] == 0.19 and block["feedstock_price_later_washes_usd_per_kg"] == 0.0
+    assert out["work_summary"]["simulations"]["shredder_runs"] == 1
+    assert "shredding" in out["assumptions"]
+    off = json.loads(tool.optimize_waste_pathway(feed_mass_fractions={"LDPE": 0.6, "PET": 0.2, "NYLON6": 0.1, "EVOH": 0.1},
+                                                 feed_tonnes_per_year=8000, include_shredder=False))["data"]
+    assert seen["include_shredder"] is False and off["shredder"]["included"] is False
+
+
+def test_a_shredder_that_could_not_be_costed_is_a_warning_not_a_silent_default(monkeypatch):
+    table = _stub_table()
+    table.shredder_error = "shredder_run_failed: no MSP"
+    out = _call(monkeypatch, table)["data"]
+    assert out["shredder"] == {"included": True, "costed": False, "error": "shredder_run_failed: no MSP"}
+    assert any("shredder could not be costed" in w and "$0.01" in w for w in out["warnings"])
+
+
+def test_the_confirmation_request_counts_and_names_the_shredder(monkeypatch):
+    table = _stub_table(pending=True)
+    table.shredder_pending = True
+    out = _call(monkeypatch, table)["data"]
+    assert out["error_code"] == "live_tea_cost_confirmation_required" and out["simulations_needed"] == 2
+    assert "2 live BioSTEAM simulation(s)" in out["error"] and "shreds the film" in out["error"]
+    assert out["pending_stages"][0]["shredder"] is True
+
+
+def test_the_agent_is_told_what_shredding_does_to_the_numbers():
+    first = tool.optimize_waste_pathway.__doc__.split("\n\n")[0]
+    assert "include_shredder" in first and "later wash gets feed that is already bought" in first
+    assert "include_shredder" in agent.SYSTEM_PROMPT and "shredder" in agent.SYSTEM_PROMPT
+
+
+def _three_polymer_table(monkeypatch, **options):
+    configs = []
+    screens = {120.0: [_row("ethylene glycol", 12.0, 1.0)]}
+    monkeypatch.setattr(dl.thermodynamics, "screen_polymer_separation", _screen_stub(screens))
+    monkeypatch.setattr(dl, "precipitated_pct", lambda polymer, solvents, temperature: {name: 0.1 for name in solvents})
+    monkeypatch.setattr(dl, "run_process_config", lambda config, *, confirm_live_tea: configs.append(dict(config)) or dict(ROW, engine_mode="live"))
+    feed = wp.Feed(8000.0, {"LDPE": 0.5, "EVOH": 0.3, "PET": 0.2})
+    table = dl.build_stage_table(feed, max_washes=2, max_options=1, confirm_live_tea=True, solvents=["ethylene glycol"],
+                                 temperature_min_c=120.0, temperature_max_c=120.0, **options)
+    return table, configs
+
+
+def test_by_default_every_wash_keeps_the_published_labor_and_capital(monkeypatch):
+    table, configs = _three_polymer_table(monkeypatch)
+    assert {c["labor_cost_usd_per_employee_yr"] for c in configs} == {120000.0}
+    full_capital = ROW["tci_usd"] * dl.capital_recovery_factor(0.08, 10.0)
+    assert all(st.capex_usd_yr == pytest.approx(full_capital) for st in table.stages.values())  # first and later washes alike
+
+
+def test_a_later_wash_can_carry_only_part_of_the_labor_charge(monkeypatch):
+    table, configs = _three_polymer_table(monkeypatch, later_wash_labor_fraction=0.25)
+    first_wash_targets = {50.0, 30.0, 20.0}  # LDPE, EVOH and PET each as a share of the whole film
+    for config in configs:
+        expected = 120000.0 if config["target_mass_percent"] in first_wash_targets else 30000.0
+        assert config["labor_cost_usd_per_employee_yr"] == expected, config["target_mass_percent"]
+    assert {c["labor_cost_usd_per_employee_yr"] for c in configs} == {120000.0, 30000.0}
+    assert any(key[0] for key in table.stages)  # the table does contain later washes
+
+
+def test_a_later_wash_can_take_part_of_its_capital_as_shared(monkeypatch):
+    plain, _ = _three_polymer_table(monkeypatch)
+    shared, _ = _three_polymer_table(monkeypatch, later_wash_shared_capital_fraction=0.4)
+    for key in plain.stages:
+        ratio = shared.stages[key].capex_usd_yr / plain.stages[key].capex_usd_yr
+        assert ratio == pytest.approx(0.6 if key[0] else 1.0), key  # only a later wash is credited
+        assert shared.stages[key].opex_usd_yr == plain.stages[key].opex_usd_yr
+
+
+def test_the_sharing_options_must_be_fractions(monkeypatch):
+    for bad in ({"later_wash_labor_fraction": 1.5}, {"later_wash_shared_capital_fraction": -0.1}):
+        with pytest.raises(ValueError):
+            _three_polymer_table(monkeypatch, **bad)
+
+
+def test_the_result_states_whether_a_shared_site_was_assumed(monkeypatch):
+    default = _call(monkeypatch, _stub_table())["data"]
+    assert default["site_sharing"]["convention"].startswith("published") and "multi_wash_costs" in default["assumptions"]
+    seen = {}
+    monkeypatch.setattr(dl, "build_stage_table", lambda *a, **k: seen.update(k) or _stub_table())
+    out = json.loads(tool.optimize_waste_pathway(feed_mass_fractions={"LDPE": 0.6, "PET": 0.2, "NYLON6": 0.1, "EVOH": 0.1},
+                                                 feed_tonnes_per_year=8000, later_wash_labor_fraction=0.0,
+                                                 later_wash_shared_capital_fraction=0.35))["data"]
+    assert seen["later_wash_labor_fraction"] == 0.0 and seen["later_wash_shared_capital_fraction"] == 0.35
+    assert out["site_sharing"]["convention"].startswith("assumed") and out["site_sharing"]["later_wash_shared_capital_fraction"] == 0.35
+
+
+def test_the_agent_is_told_the_credit_is_an_assumption():
+    first = tool.optimize_waste_pathway.__doc__.split("\n\n")[0]
+    assert "later_wash_labor_fraction" in first and "conservative" in first
+    assert "later_wash_shared_capital_fraction" in agent.SYSTEM_PROMPT and "assumptions" in agent.SYSTEM_PROMPT

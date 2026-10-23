@@ -20,13 +20,13 @@ from dissolve.cli import MODELS, resolve_model
 HERE = Path(__file__).resolve().parent
 
 QUESTIONS = [
-    ("Q1", "We make about 8,000 tonnes a year of post-industrial multilayer film scrap: 60% LDPE, 20% PET, 10% nylon 6 "
-           "and 10% EVOH by mass. What is the best way to process it to make money, and how would the answer change if "
-           "we cared most about circularity? We would build a solvent-based recycling plant just for this scrap."),
+    ("Q1", "We collect about 12,000 tonnes a year of mixed post-consumer packaging scrap: 40% HDPE, 25% LDPE, 20% PET and 15% "
+           "EVOH by mass. What is the best way to process it to make money, and how would the answer change if we cared "
+           "most about circularity? We would build a solvent-based recycling plant just for this scrap."),
     ("Q1b", "Yes, go ahead and run whatever simulations you need."),
     ("Q2", "Show the trade-off between profit and emissions."),
     ("Q3", "What if we shared a 20,000 tonne per year recycling plant with other producers instead of building our own?"),
-    ("Q4", "In that shared plant, would recovering the LDPE pay if we could sell it for 1,300, 1,500 or 1,800 dollars "
+    ("Q4", "In that shared plant, would recovering the EVOH still pay if we could only sell it for 2,000, 4,000 or 6,000 dollars "
            "per tonne?"),
     ("Q5", "Our landfill is 9 miles away and the incinerator 150 miles, but there are pyrolysis and hydrogen "
            "gasification plants only 76 miles away, and an energy-recovery gasifier could sit on our site. Does the "

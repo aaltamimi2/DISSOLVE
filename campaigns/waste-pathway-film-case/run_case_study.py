@@ -41,11 +41,13 @@ def run(live: bool) -> dict:
     tables, paths = {}, {}
     for plant, capacity in PLANTS.items():
         started = time.monotonic()
-        table = dl.build_stage_table(FEED, max_washes=2, max_options=3, confirm_live_tea=live, plant_capacity_t=capacity)
-        if table.pending:
-            raise SystemExit(f"{len(table.pending)} washes still need simulating; rerun with --live")
+        # the film is shredded once by a stand-alone shredder plant whose price is the first wash's feedstock price (Process_modeling)
+        table = dl.build_stage_table(FEED, max_washes=2, max_options=3, confirm_live_tea=live, plant_capacity_t=capacity,
+                                     include_shredder=True)
+        if table.simulations_needed:
+            raise SystemExit(f"{table.simulations_needed} simulations (washes and the shredder) still needed; rerun with --live")
         tables[plant], paths[plant] = table, dl.pathways_from_table(table, FEED, 2)
-        out["plants"][plant] = {"seconds": round(time.monotonic() - started, 1)}
+        out["plants"][plant] = {"seconds": round(time.monotonic() - started, 1), "shredder": table.shredder}
     # One set of circularity upper bounds for every scenario, as in the published case study, so indices compare across
     # plants and locations: 1.5 times the mean over the pathways of both plants.
     economics = dl.default_economics(FEED)

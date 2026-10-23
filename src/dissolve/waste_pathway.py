@@ -63,6 +63,17 @@ _ASSUMPTIONS = {
                           "from 2,400 t); the two hydrogen routes, landfill, incineration and pyrolysis carry none in the recovered "
                           "data (capital_cost_recorded in downstream_technologies), which favors the hydrogen routes over energy "
                           "recovery gasification when they are compared",
+    "shredding": "the film is shredded once, by a stand-alone shredder plant sized to the plant's throughput (include_shredder, on by "
+                 "default): its minimum selling price is the first wash's feedstock price, a later wash gets feed that is already "
+                 "bought and shredded (price zero), and the shredder's own energy and emissions are added to the first wash; with "
+                 "include_shredder false every wash keeps the process model's default feedstock price of $0.01 per kg and no "
+                 "shredding is costed",
+    "multi_wash_costs": "each wash is simulated as a full stand-alone plant sized to its own stream and the pathway cost is the sum, as in "
+                        "the published study; a later wash therefore repeats the flat labor charge ($120,000 x 1.9 with burden per "
+                        "plant) and the utilities plant (boiler, cooling tower, chilled water: about 35% of a second wash's installed "
+                        "equipment in one measured pathway), which one site would share, so multi-wash profits are conservative; "
+                        "later_wash_labor_fraction and later_wash_shared_capital_fraction (both off by default) credit that sharing and "
+                        "are assumptions when set",
     "transport": "$3.01 per tonne into every wash plus $0.07 per tonne-mile to each downstream site, as in the published case study",
 }
 
@@ -188,9 +199,14 @@ def _work_summary(table: data_layer.StageTable, problem: milp.PathwayProblem, po
         "polymers_without_wash": sorted({item["polymer"] for item in table.no_option}),
         # live_simulations counts every live wash behind this answer; a repeat call reuses them, so reused_from_earlier_call and
         # simulation_seconds (each wash's own measured run time) keep the repeat from understating the work
-        "simulations": {"washes_costed": len(table.stages), "live_simulations": modes.count("live"), "simulated_in_this_call": live_now,
-                        "stored_records": modes.count("cache"), "reused_from_earlier_call": reused, "failed": len(table.failed),
-                        "simulation_seconds": round(sum(table.wall_seconds.get(k, 0.0) for k in table.stages if table.engine_modes[k] == "live"), 1)},
+        "simulations": {"washes_costed": len(table.stages), "shredder_runs": int(table.shredder is not None),
+                        "live_simulations": modes.count("live") + int(table.shredder is not None),
+                        "simulated_in_this_call": live_now + int(bool(table.shredder) and not table.shredder.get("session_reused")),
+                        "stored_records": modes.count("cache"),
+                        "reused_from_earlier_call": reused + int(bool(table.shredder) and bool(table.shredder.get("session_reused"))),
+                        "failed": len(table.failed),
+                        "simulation_seconds": round(sum(table.wall_seconds.get(k, 0.0) for k in table.stages if table.engine_modes[k] == "live")
+                                                    + float((table.shredder or {}).get("wall_seconds") or 0.0), 1)},
         "routes": {"total": len(routes), "by_number_of_washes": {str(k): v for k, v in sorted(by_washes.items())}},
         "candidates": {"total": len(problem.candidates), "by_destination": dict(sorted(by_destination.items()))},
         "fronts": {name: len(milp.pareto_front(problem.candidates, *pair)) for name, pair in _FRONT_PAIRS.items()},
@@ -274,14 +290,31 @@ def _basis(table: data_layer.StageTable) -> str:
     return "tea_live" if "live" in modes else "tea_cache_exact"
 
 
+def _shredder_block(table: data_layer.StageTable, included: bool) -> dict[str, Any]:
+    """What shredding the film cost, and the feedstock price each wash was run at."""
+    if not included:
+        return {"included": False, "feedstock_price_usd_per_kg": "the process model's default for every wash"}
+    row = table.shredder
+    if row is None:
+        return {"included": True, "costed": False, "error": table.shredder_error}
+    return {"included": True, "costed": True, "capacity_mt_per_yr": row["capacity_t_per_yr"],
+            "msp_usd_per_kg_shredded_film": row["msp_usd_per_kg"], "capital_usd": row["tci_usd"],
+            "operating_cost_usd_per_yr": row["aoc_usd_per_yr"], "energy_mj_per_kg": row.get("total_energy_mj_per_kg"),
+            "gwp_kg_co2e_per_kg": row.get("gwp_kg_co2e_per_kg"),
+            "feedstock_price_first_wash_usd_per_kg": row["msp_usd_per_kg"], "feedstock_price_later_washes_usd_per_kg": 0.0}
+
+
 def _pending_payload(table: data_layer.StageTable) -> list[dict[str, Any]]:
-    return [
+    items = [
         {"removed_before": sorted(s.removed_before), "polymer": s.polymer, "solvent": s.solvent,
          "dissolution_temperature_c": s.temperature_c, "processing_capacity_mt_per_yr": round(s.plant_capacity_t or s.mass_in_t, 3),
          "stream_mass_mt_per_yr": round(s.mass_in_t, 3),
          "target_mass_percent": round(s.target_mass_percent, 3)}
         for s in table.pending
     ]
+    if table.shredder_pending:
+        items.insert(0, {"removed_before": [], "polymer": "the whole film", "solvent": "(shredding, no solvent)", "shredder": True})
+    return items
 
 
 def optimize_waste_pathway(
@@ -303,10 +336,13 @@ def optimize_waste_pathway(
     downstream_distances_mile: Optional[dict[str, float]] = None,
     residual_resale_price_fraction: float = 1.0,
     avoid_danger_solvents: bool = False,
+    include_shredder: bool = True,
+    later_wash_labor_fraction: float = 1.0,
+    later_wash_shared_capital_fraction: float = 0.0,
     draw_plot: bool = False,
     draw_summary: bool = False,
 ) -> str:
-    """Choose the solvent-wash sequence and downstream technology for a mixed plastic feed by profit, emissions or circularity. Call it only when the user has given the feed: the polymers, their mass fractions or percentages, and the amount per year. Never assume or invent a feed, a composition or a tonnage, and never split a generic name such as nylon or PE into grades yourself; if something is missing or unclear, ask. If the percentages do not add up to 100, ask which one is wrong instead of correcting it. Do not use it for a question about one solvent, a solubility, a solvent's price, safety or hazard, or the economics of one specified process: the screening, safety and process tools answer those. Use it when the user asks how a mixed or multilayer plastic stream should be processed: which polymers to recover by solvent washes, with which solvents, and where the rest should go (landfill, incineration, pyrolysis, three gasification routes, or selling a clean single-polymer residual as resin). feed_mass_fractions maps polymer names to fractions (or percentages summing to 100) and feed_tonnes_per_year is the annual amount (convert per-day or per-month amounts and say so). objective picks one answer and every result also carries the other two optima; pareto instead traces the trade-off between two metrics. Each wash is costed from stored records or a live BioSTEAM simulation; live simulations take about 15 seconds each and run only when confirm_live_tea is true, otherwise the tool lists how many it still needs and stops. Only solvents with a price and a life-cycle record can be costed; solvents limits the pool to the named ones, in any common spelling. A wash qualifies only if the target reaches min_solubility_pct in the solvent, every polymer left in the stream stays at or below max_retained_pct, and the target falls out of solution on cooling. Washes cap at max_washes per sequence and max_solvents_per_stage solvents are costed per polymer and stream. shared_plant_capacity_mt_per_yr sizes the wash plant for a larger shared facility (at least the feed) and charges the feed only its throughput share; omit it for a plant just for this feed. downstream_distances_mile gives miles from the plant to each downstream site (landfill, incineration, pyrolysis, gasification_energy, gasification_hydrogen, gasification_hydrogen_ccs); ones not given keep the published study's defaults (landfill 9.2, incineration 151, pyrolysis 1,034, hydrogen gasification 2,036, energy gasification on site); location_scenario B moves pyrolysis and hydrogen gasification to 76.1 miles. Ask the user for their distances or say which you assumed, in miles, not by scenario letter. polymer_prices_usd_per_t overrides recovered-resin prices (a polymer without a price earns nothing: the result warns). Revenue comes only from recovered resin and the downstream_technologies table in the result (incineration and hydrogen gasification earn a small amount per tonne, landfill and pyrolysis earn nothing): never say a technology earns nothing without checking that table, and answer a burn-or-recycle question from unwashed_feed_options (the feed sent whole to each destination) next to the washed pathways. residual_resale_price_fraction (default 1.0) sets the price of the washed residual sold as resin relative to recovered resin; when the answer sells it, the result carries resale_dependence (profit at full, half and no resale price), so say how much of the profit rests on that assumption. The thermodynamic screen does not judge solvent hazard, but each selected wash carries safety data and the result warns about GHS Danger solvents and high heating risk: report those warnings, and set avoid_danger_solvents to true when the user wants safer solvents. The circularity index barely changes with the solvent (about 0.01 between solvents for one resin), so to compare solvents or answer which solvent is best for a resin use wash_comparison, which gives each costed wash's energy, emissions, cost, solvent make-up, boiling margin, solvent life-cycle factor and hazard per kg of recovered resin, and say that the index does not separate them. Every result is also saved with all its candidate pathways and the three exact fronts (figure_data_file). Set draw_plot to true when the user asks to see, plot or draw the trade-off or Pareto front: the tool then draws emissions against profit, circularity against profit and emissions against circularity, with the numbered routes listed under each panel, and opens the figure in the user's image viewer (figure_file; the terminal cannot show it inline, so give the user the path and say it has opened, or if figure_note says it could not be drawn, say why). Every result carries work_summary (the solvent pool, what each screen let through, the simulations run or reused, the routes and candidates built, the front sizes): when the user asks what was done, how much work it took, how many options were considered or why there are that many candidates, answer from it and set draw_summary to true to draw it as a figure and open it (summary_figure_file; repeating a request in the same session costs no new simulations). circularity_upper_bounds takes the bounds an earlier answer reported, to compare scenarios of one feed on one scale. A prediction is not a plant result: circularity is a screening index, the retention limit does not guarantee purity, and the downstream-technology data are partly recovered; read the warnings in the result and report them."""
+    """Choose the solvent-wash sequence and downstream technology for a mixed plastic feed by profit, emissions or circularity. Call it only when the user has given the feed: the polymers, their mass fractions or percentages, and the amount per year. Never assume or invent a feed, a composition or a tonnage, and never split a generic name such as nylon or PE into grades yourself; if something is missing or unclear, ask. If the percentages do not add up to 100, ask which one is wrong instead of correcting it. Do not use it for a question about one solvent, a solubility, a solvent's price, safety or hazard, or the economics of one specified process: the screening, safety and process tools answer those. Use it when the user asks how a mixed or multilayer plastic stream should be processed: which polymers to recover by solvent washes, with which solvents, and where the rest should go (landfill, incineration, pyrolysis, three gasification routes, or selling a clean single-polymer residual as resin). feed_mass_fractions maps polymer names to fractions (or percentages summing to 100) and feed_tonnes_per_year is the annual amount (convert per-day or per-month amounts and say so). objective picks one answer and every result also carries the other two optima; pareto instead traces the trade-off between two metrics. Each wash is costed from stored records or a live BioSTEAM simulation; live simulations take about 15 seconds each and run only when confirm_live_tea is true, otherwise the tool lists how many it still needs and stops. Only solvents with a price and a life-cycle record can be costed; solvents limits the pool to the named ones, in any common spelling. A wash qualifies only if the target reaches min_solubility_pct in the solvent, every polymer left in the stream stays at or below max_retained_pct, and the target falls out of solution on cooling. Washes cap at max_washes per sequence and max_solvents_per_stage solvents are costed per polymer and stream. shared_plant_capacity_mt_per_yr sizes the wash plant for a larger shared facility (at least the feed) and charges the feed only its throughput share; omit it for a plant just for this feed. downstream_distances_mile gives miles from the plant to each downstream site (landfill, incineration, pyrolysis, gasification_energy, gasification_hydrogen, gasification_hydrogen_ccs); ones not given keep the published study's defaults (landfill 9.2, incineration 151, pyrolysis 1,034, hydrogen gasification 2,036, energy gasification on site); location_scenario B moves pyrolysis and hydrogen gasification to 76.1 miles. Ask the user for their distances or say which you assumed, in miles, not by scenario letter. polymer_prices_usd_per_t overrides recovered-resin prices (a polymer without a price earns nothing: the result warns). Revenue comes only from recovered resin and the downstream_technologies table in the result (incineration and hydrogen gasification earn a small amount per tonne, landfill and pyrolysis earn nothing): never say a technology earns nothing without checking that table, and answer a burn-or-recycle question from unwashed_feed_options (the feed sent whole to each destination) next to the washed pathways. residual_resale_price_fraction (default 1.0) sets the price of the washed residual sold as resin relative to recovered resin; when the answer sells it, the result carries resale_dependence (profit at full, half and no resale price), so say how much of the profit rests on that assumption. The thermodynamic screen does not judge solvent hazard, but each selected wash carries safety data and the result warns about GHS Danger solvents and high heating risk: report those warnings, and set avoid_danger_solvents to true when the user wants safer solvents. The circularity index barely changes with the solvent (about 0.01 between solvents for one resin), so to compare solvents or answer which solvent is best for a resin use wash_comparison, which gives each costed wash's energy, emissions, cost, solvent make-up, boiling margin, solvent life-cycle factor and hazard per kg of recovered resin, and say that the index does not separate them. Every result is also saved with all its candidate pathways and the three exact fronts (figure_data_file). Set draw_plot to true when the user asks to see, plot or draw the trade-off or Pareto front: the tool then draws emissions against profit, circularity against profit and emissions against circularity, with the numbered routes listed under each panel, and opens the figure in the user's image viewer (figure_file; the terminal cannot show it inline, so give the user the path and say it has opened, or if figure_note says it could not be drawn, say why). Every result carries work_summary (the solvent pool, what each screen let through, the simulations run or reused, the routes and candidates built, the front sizes): when the user asks what was done, how much work it took, how many options were considered or why there are that many candidates, answer from it and set draw_summary to true to draw it as a figure and open it (summary_figure_file; repeating a request in the same session costs no new simulations). later_wash_labor_fraction (default 1, the published convention) and later_wash_shared_capital_fraction (default 0) are assumptions that credit a later wash for the labor crew and utilities plant it would share with the first wash on one site; say so when you set them, and that by default multi-wash costs are conservative because every wash is costed as a full stand-alone plant. include_shredder (default true) costs shredding the film once, with a stand-alone shredder plant: its price per kg becomes the first wash's feedstock price, a later wash gets feed that is already bought (price zero), and the result's shredder block reports it, so say that shredding is included (it adds roughly $0.2 per kg of film to every pathway that washes) or, when false, that it is not. circularity_upper_bounds takes the bounds an earlier answer reported, to compare scenarios of one feed on one scale. A prediction is not a plant result: circularity is a screening index, the retention limit does not guarantee purity, and the downstream-technology data are partly recovered; read the warnings in the result and report them."""
     tool = "optimize_waste_pathway"
     started = time.monotonic()
     try:
@@ -382,20 +418,22 @@ def optimize_waste_pathway(
             confirm_live_tea=confirm, energy_case=energy_case,
             min_solubility_pct=float(min_solubility_pct), max_retained_pct=float(max_retained_pct),
             plant_capacity_t=float(shared_plant_capacity_mt_per_yr) if shared_plant_capacity_mt_per_yr else None,
-            avoid_danger_solvents=bool(avoid_danger_solvents),
+            avoid_danger_solvents=bool(avoid_danger_solvents), include_shredder=bool(include_shredder),
+            later_wash_labor_fraction=float(later_wash_labor_fraction),
+            later_wash_shared_capital_fraction=float(later_wash_shared_capital_fraction),
         )
 
     try:
         # under a live-run limit the washes are counted first, so a request over the limit starts no simulation at all
         table = stage_table(bool(confirm_live_tea) and limit is None)
-        if limit is not None and len(table.pending) > limit:
+        if limit is not None and table.simulations_needed > limit:
             return tool_error(
                 tool, data_layer.live_run_limit_message(
-                    len(table.pending), limit, "Narrow it: name one or two solvents (solvents), lower max_washes or "
+                    table.simulations_needed, limit, "Narrow it: name one or two solvents (solvents), lower max_washes or "
                     "max_solvents_per_stage, or ask about fewer polymers."),
-                error_code="live_tea_run_limit", simulations_needed=len(table.pending), simulations_allowed=limit,
+                error_code="live_tea_run_limit", simulations_needed=table.simulations_needed, simulations_allowed=limit,
                 pending_stages=_pending_payload(table), stages_costed=len(table.stages))
-        if limit is not None and confirm_live_tea and table.pending:
+        if limit is not None and confirm_live_tea and table.simulations_needed:
             table = stage_table(True)
     except ValueError as error:
         return tool_error(tool, str(error), error_code="invalid_input")
@@ -403,13 +441,15 @@ def optimize_waste_pathway(
     if broken:
         return tool_error(tool, f"the thermodynamic screen failed: {broken[0]['detail']}",
                           error_code="thermodynamic_screen_failed", detail=broken[:3])
-    if table.pending:
+    if table.simulations_needed:
+        shredder_note = " (one of them shreds the film)" if table.shredder_pending else ""
         return tool_error(
             tool,
-            f"{len(table.pending)} wash(es) need a live BioSTEAM simulation (about "
-            f"{_SECONDS_PER_LIVE_STAGE * len(table.pending)} s in all). Run again with confirm_live_tea=true to simulate them.",
+            f"{table.simulations_needed} live BioSTEAM simulation(s) are needed{shredder_note} (about "
+            f"{_SECONDS_PER_LIVE_STAGE * table.simulations_needed} s in all). Run again with confirm_live_tea=true to simulate them.",
             error_code="live_tea_cost_confirmation_required",
             pending_stages=_pending_payload(table), stages_costed=len(table.stages),
+            simulations_needed=table.simulations_needed,
         )
 
     paths = data_layer.pathways_from_table(table, feed, int(max_washes))
@@ -436,6 +476,9 @@ def optimize_waste_pathway(
     if len(fractions) == 1:
         warnings.append("the feed is a single polymer, so there is nothing to separate by washing; only its downstream "
                         "destination is optimized")
+    if include_shredder and table.shredder_error:
+        warnings.append(f"the shredder could not be costed ({table.shredder_error}): the first wash used the process model's default "
+                        "feedstock price of $0.01 per kg, so shredding is missing from every pathway that washes")
     if unpriced:
         warnings.append(f"no price for {', '.join(unpriced)}: recovering them earns nothing, so no wash of them can pay; "
                         "pass polymer_prices_usd_per_t to value them")
@@ -455,6 +498,12 @@ def optimize_waste_pathway(
                         "cost_basis": "each wash pays its throughput share of the plant"}
                        if shared_plant_capacity_mt_per_yr else {"cost_basis": "plant dedicated to this feed"}),
         "washes_costed": len(table.stages), "stage_engine_modes": modes,
+        "shredder": _shredder_block(table, include_shredder),
+        "site_sharing": {"later_wash_labor_fraction": float(later_wash_labor_fraction),
+                         "later_wash_shared_capital_fraction": float(later_wash_shared_capital_fraction),
+                         "convention": ("published: every wash is a full stand-alone plant"
+                                        if float(later_wash_labor_fraction) == 1.0 and float(later_wash_shared_capital_fraction) == 0.0
+                                        else "assumed: a later wash shares part of the first wash's site (set by the caller)")},
         "wash_comparison": _wash_comparison(table),
         "work_summary": _work_summary(table, problem, pool, started),
         "candidates_considered": len(problem.candidates),

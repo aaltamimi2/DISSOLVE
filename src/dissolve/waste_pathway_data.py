@@ -156,8 +156,17 @@ class StageTable:
     session_reused: set = field(default_factory=set)  # washes whose row came from an earlier call in this session
     wall_seconds: dict[tuple[frozenset[str], str, str], float] = field(default_factory=dict)  # each wash's own run time
     pending: list[StageSpec] = field(default_factory=list)  # waiting for live-simulation confirmation
+    shredder: dict[str, Any] | None = None  # the stand-alone shredder plant's costed row, when shredding is included
+    shredder_pending: bool = False  # the shredder needs a live simulation that has not been confirmed
+    shredder_error: str | None = None  # why the shredder could not be costed
+    feedstock_prices: dict[tuple[frozenset[str], str, str], float] = field(default_factory=dict)  # USD/kg each wash was run at
     failed: list[dict[str, Any]] = field(default_factory=list)
     no_option: list[dict[str, Any]] = field(default_factory=list)  # (stream, polymer) pairs with no admissible solvent
+
+    @property
+    def simulations_needed(self) -> int:
+        """Live simulations still to run: the pending washes and, when shredding is included, the shredder."""
+        return len(self.pending) + int(self.shredder_pending)
 
 
 QUALIFICATION_FIELDS = (
@@ -494,6 +503,56 @@ def run_process_config(config: Mapping[str, Any], *, confirm_live_tea: bool) -> 
     raise StageUnavailable(error, str(data.get("message") or (rows[0].get("error") if rows else "") or error))
 
 
+# The film is shredded before the first wash. The group's Process_modeling notebook costs that as a stand-alone shredder plant
+# (the shredder only, with its own crew) whose minimum selling price becomes the first wash's feedstock price; a later wash
+# receives feed that was already bought and shredded, so its feedstock price is zero.
+SHREDDER_LABOR_USD_PER_YR = 8 * 60_000  # the shredder plant's total labor, as in that notebook (the washes use 2 x 60,000)
+_SHREDDER_ROWS: dict[str, dict[str, Any]] = {}
+
+
+def clear_shredder_rows() -> None:
+    _SHREDDER_ROWS.clear()
+
+
+def run_shredder(capacity_t: float, *, confirm_live_tea: bool, energy_case: str = "C1",
+                 overrides: Mapping[str, Any] | None = None) -> dict[str, Any]:
+    """Cost of shredding ``capacity_t`` tonnes a year of film: MSP, capital, operating cost, energy and emissions per kg.
+
+    One live simulation of the shredder alone, repeated from this session's earlier run when the capacity and the TEA
+    settings are the same. Raises StageUnavailable when a live simulation would be needed and has not been confirmed.
+    """
+    spec = StageSpec(frozenset(), "LDPE", "Toluene", 110.0, float(capacity_t), 60.0)  # the shredder processes the whole feed
+    public = process_config(spec, energy_case=energy_case, overrides={
+        "labor_cost_usd_per_employee_yr": SHREDDER_LABOR_USD_PER_YR, "solvent_price_usd_per_kg": 0.0,
+        **dict(overrides or {})})
+    internal = tea._scenario_config(public, require_complete_twelve=True)
+    internal["_job"] = "shredder"
+    key = json.dumps(internal, sort_keys=True, default=str)
+    if key in _SHREDDER_ROWS:
+        return {**_SHREDDER_ROWS[key], "session_reused": True}
+    if not confirm_live_tea:
+        raise StageUnavailable("live_tea_cost_confirmation_required", "shredder")
+    started = time.monotonic()
+    result = tea._live(internal, 180)
+    if not result.get("success"):
+        raise StageUnavailable(str(result.get("error_type") or "shredder_run_failed"), str(result.get("error") or "the shredder failed"))
+    operations = result.get("operations") or {}
+    throughput_kg, electricity_mj = operations.get("annual_throughput_kg"), operations.get("electricity_mj_per_yr")
+    # The shredder runs on grid electricity whatever the wash plant's energy case, so its emissions are its electricity times the
+    # project's governed grid factor. The process model's own per-kg figure for a shredder-only plant is kept beside it.
+    grid_gwp_per_mj = float(tea.lca_factor_payload()["shared"]["grid_electricity"]["values"][0])
+    gwp = electricity_mj / throughput_kg * grid_gwp_per_mj if throughput_kg and electricity_mj is not None else None
+    row = {"msp_usd_per_kg": float(result["tea"]["msp_usd_per_kg"]), "tci_usd": float(result["tea"]["tci_usd"]),
+           "aoc_usd_per_yr": float(result["tea"]["aoc_usd_per_yr"]),
+           "total_energy_mj_per_kg": operations.get("total_energy_mj_per_kg"),
+           "gwp_kg_co2e_per_kg": gwp, "gwp_model_kg_co2e_per_kg": (result.get("lca") or {}).get("gwp_kg_co2e_per_kg"),
+           "grid_electricity_gwp_kg_co2e_per_mj": grid_gwp_per_mj,
+           "annual_throughput_kg": throughput_kg, "electricity_mj_per_yr": electricity_mj,
+           "capacity_t_per_yr": float(capacity_t), "wall_seconds": time.monotonic() - started, "engine_mode": "live"}
+    _SHREDDER_ROWS[key] = row
+    return dict(row)
+
+
 def capital_recovery_factor(interest: float, years: float) -> float:
     if years <= 0:
         raise ValueError("years must be positive")
@@ -505,14 +564,20 @@ def capital_recovery_factor(interest: float, years: float) -> float:
 
 def wash_stage_from_row(
     spec: StageSpec, row: Mapping[str, Any], *, recovery_yield: float = RECOVERY_YIELD,
-    renewable_share: float = RENEWABLE_ENERGY_SHARE,
+    renewable_share: float = RENEWABLE_ENERGY_SHARE, shredder: Mapping[str, Any] | None = None,
+    shared_capital_fraction: float = 0.0,
 ) -> tuple[WashStage, str]:
     """Annual capex, opex and impacts of one simulated wash, and where its recovery came from.
+
+    ``shredder`` is the shredder plant's row for a first wash: the cost of shredding is already in that wash's feedstock price,
+    and the shredder's own energy and emissions per kg of film are added here for the whole stream it shreds.
 
     Capital is the total capital investment annualized at the plant's own finance rate and term. The recovered share of the
     target polymer is the simulation's own annual resin output over the target mass the plant receives (``simulated``);
     when the row lacks it or it is implausible, the assumed yield is used (``assumed``). Per-kilogram energy and
-    emissions scale by the resin this wash recovers from the feed's stream.
+    emissions scale by the resin this wash recovers from the feed's stream. ``shared_capital_fraction`` is the share of a later
+    wash's capital taken as already provided by the first wash's site (its boiler, cooling tower and the like): 0 keeps the
+    published study's convention that every wash is a full stand-alone plant.
     """
     plant_target_kg = (spec.plant_capacity_t or spec.mass_in_t) * spec.target_mass_percent / 100.0 * 1000.0
     simulated_kg = row.get("waste_diverted_kg_per_yr")  # the process model's annual resin output
@@ -523,6 +588,9 @@ def wash_stage_from_row(
         fraction, source = recovery_yield, "assumed"
     product_kg = spec.mass_in_t * spec.target_mass_percent / 100.0 * fraction * 1000.0
     energy = float(row["total_energy_mj_per_kg"]) * product_kg
+    shredded_kg = spec.mass_in_t * 1000.0 if shredder else 0.0
+    energy += float((shredder or {}).get("total_energy_mj_per_kg") or 0.0) * shredded_kg
+    shredder_gwp_t = float((shredder or {}).get("gwp_kg_co2e_per_kg") or 0.0) * shredded_kg / 1000.0
     waste_kg = float(row.get("waste_generated_kg_per_yr") or 0.0)
     interest = row.get("finance_interest")
     years = row.get("finance_years")
@@ -530,14 +598,15 @@ def wash_stage_from_row(
     share = spec.share  # annual plant totals (cost, water, waste) are split by throughput; per-kilogram results are not
     return WashStage(
         polymer=spec.polymer, solvent=spec.solvent,
-        capex_usd_yr=float(row["tci_usd"]) * crf * share, opex_usd_yr=float(row["aoc_usd_per_yr"]) * share,
+        capex_usd_yr=float(row["tci_usd"]) * crf * share * (1.0 - shared_capital_fraction),
+        opex_usd_yr=float(row["aoc_usd_per_yr"]) * share,
         temperature_c=spec.temperature_c, recovered_fraction=fraction,
         impacts=Impacts(
             energy_mj=energy, renewable_mj=renewable_share * energy,
             water_withdrawn_m3=float(row.get("water_consumed_m3_per_yr") or 0.0) * share,
             water_recycled_m3=float(row.get("water_circulated_m3_per_yr") or 0.0) * share,
             waste_kg=waste_kg * share, disposal_t=waste_kg * share / 1000.0,
-            gwp_t=float(row["gwp_kg_co2e_per_kg"]) * product_kg / 1000.0,
+            gwp_t=float(row["gwp_kg_co2e_per_kg"]) * product_kg / 1000.0 + shredder_gwp_t,
         ),
     ), source
 
@@ -547,14 +616,54 @@ def build_stage_table(
     confirm_live_tea: bool = False, energy_case: str = "C1", overrides: Mapping[str, Any] | None = None,
     recovery_yield: float = RECOVERY_YIELD, renewable_share: float = RENEWABLE_ENERGY_SHARE,
     on_stage: Callable[[StageSpec], None] | None = None, plant_capacity_t: float | None = None,
-    max_precipitated_pct: float = MAX_PRECIPITATED_PCT, avoid_danger_solvents: bool = False, **thermo_limits: float,
+    max_precipitated_pct: float = MAX_PRECIPITATED_PCT, avoid_danger_solvents: bool = False, include_shredder: bool = False,
+    later_wash_labor_fraction: float = 1.0, later_wash_shared_capital_fraction: float = 0.0, **thermo_limits: float,
 ) -> StageTable:
-    """Screen and cost every wash a sequence of up to ``max_washes`` could contain."""
+    """Screen and cost every wash a sequence of up to ``max_washes`` could contain.
+
+    With ``include_shredder`` the film is shredded once, by a stand-alone shredder plant sized to the plant's throughput: its
+    minimum selling price is the first wash's feedstock price, and a later wash gets feed that is already bought (price zero).
+    Without it every wash keeps the process model's default feedstock price.
+
+    Every wash is simulated as a full stand-alone plant, so a later wash repeats the flat labor charge and the utilities plant
+    that one site would share. ``later_wash_labor_fraction`` scales the labor of every later wash (1 keeps the published
+    convention, 0 lets the first wash's crew run them all) and ``later_wash_shared_capital_fraction`` takes that share of a
+    later wash's capital as already provided; both default to the published convention and are assumptions when changed.
+    """
+    if not 0.0 <= later_wash_labor_fraction <= 1.0 or not 0.0 <= later_wash_shared_capital_fraction <= 1.0:
+        raise ValueError("later_wash_labor_fraction and later_wash_shared_capital_fraction must be between 0 and 1")
     if plant_capacity_t is not None and plant_capacity_t < feed.tonnes_per_year:
         raise ValueError(f"a shared plant must be at least as large as the feed it washes ({feed.tonnes_per_year:g} t/yr)")
     pool = list(solvents) if solvents is not None else admitted_solvents()
     cooling_c = float((overrides or {}).get("precipitation_temperature_c", default_precipitation_temperature_c(energy_case)))
     table = StageTable()
+    shredder_price: float | None = None
+    if include_shredder:
+        try:
+            table.shredder = run_shredder(plant_capacity_t or feed.tonnes_per_year, confirm_live_tea=confirm_live_tea,
+                                          energy_case=energy_case, overrides=overrides)
+            shredder_price = table.shredder["msp_usd_per_kg"]
+        except StageUnavailable as error:
+            if error.kind == "live_tea_cost_confirmation_required":
+                table.shredder_pending = True
+            else:
+                table.shredder_error = f"{error.kind}: {error.detail}"
+
+    base_labor = float((overrides or {}).get("labor_cost_usd_per_employee_yr",
+                                              tea.first_run_sheet_defaults(energy_case=energy_case)["labor_cost_usd_per_employee_yr"]))
+
+    def stage_overrides(spec: StageSpec) -> Mapping[str, Any] | None:
+        """One wash's own settings: its feedstock price (the shredder's MSP for a first wash, zero for a later one) and, for a
+        later wash, the share of the flat labor charge it carries."""
+        chosen = dict(overrides or {})
+        if include_shredder:
+            if spec.removed_before:
+                chosen["feedstock_price_usd_per_kg"] = 0.0
+            elif shredder_price is not None:  # pending or failed: the default price, stated by the caller
+                chosen["feedstock_price_usd_per_kg"] = shredder_price
+        if spec.removed_before and later_wash_labor_fraction != 1.0:
+            chosen["labor_cost_usd_per_employee_yr"] = base_labor * later_wash_labor_fraction
+        return chosen or None
 
     def explore(removed: frozenset[str]) -> None:
         if len(removed) >= max_washes:
@@ -586,7 +695,7 @@ def build_stage_table(
                 try:
                     if on_stage:
                         on_stage(spec)
-                    row = run_stage(spec, confirm_live_tea=confirm_live_tea, energy_case=energy_case, overrides=overrides)
+                    row = run_stage(spec, confirm_live_tea=confirm_live_tea, energy_case=energy_case, overrides=stage_overrides(spec))
                 except StageUnavailable as error:
                     if error.kind == "live_tea_cost_confirmation_required":
                         if spec.key not in {item.key for item in table.pending}:
@@ -597,7 +706,10 @@ def build_stage_table(
                                              "removed_before": sorted(removed), "reason": error.kind, "detail": error.detail})
                     continue
                 table.stages[spec.key], table.recovery_sources[spec.key] = wash_stage_from_row(
-                    spec, row, recovery_yield=recovery_yield, renewable_share=renewable_share)
+                    spec, row, recovery_yield=recovery_yield, renewable_share=renewable_share,
+                    shredder=table.shredder if not spec.removed_before else None,
+                    shared_capital_fraction=later_wash_shared_capital_fraction if spec.removed_before else 0.0)
+                table.feedstock_prices[spec.key] = float(row.get("feedstock_price_usd_per_kg") or 0.0)
                 table.specs[spec.key] = spec
                 table.qualifications[spec.key] = row_qualifications(row)
                 if row.get("session_reused"):
