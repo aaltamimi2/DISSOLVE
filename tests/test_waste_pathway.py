@@ -1156,19 +1156,22 @@ def test_the_agent_is_told_what_shredding_does_to_the_numbers():
     assert "include_shredder" in agent.SYSTEM_PROMPT and "shredder" in agent.SYSTEM_PROMPT
 
 
-def _three_polymer_table(monkeypatch, **options):
+SITE_ROW = dict(ROW, facilities_installed_usd=2_000_000.0, installed_equipment_usd=6_000_000.0)  # utilities: one third of the equipment
+
+
+def _three_polymer_table(monkeypatch, row=SITE_ROW, **options):
     configs = []
     screens = {120.0: [_row("ethylene glycol", 12.0, 1.0)]}
     monkeypatch.setattr(dl.thermodynamics, "screen_polymer_separation", _screen_stub(screens))
     monkeypatch.setattr(dl, "precipitated_pct", lambda polymer, solvents, temperature: {name: 0.1 for name in solvents})
-    monkeypatch.setattr(dl, "run_process_config", lambda config, *, confirm_live_tea: configs.append(dict(config)) or dict(ROW, engine_mode="live"))
+    monkeypatch.setattr(dl, "run_process_config", lambda config, *, confirm_live_tea: configs.append(dict(config)) or dict(row, engine_mode="live"))
     feed = wp.Feed(8000.0, {"LDPE": 0.5, "EVOH": 0.3, "PET": 0.2})
     table = dl.build_stage_table(feed, max_washes=2, max_options=1, confirm_live_tea=True, solvents=["ethylene glycol"],
                                  temperature_min_c=120.0, temperature_max_c=120.0, **options)
     return table, configs
 
 
-def test_by_default_every_wash_keeps_the_published_labor_and_capital(monkeypatch):
+def test_the_data_layer_keeps_the_published_labor_and_capital_unless_asked(monkeypatch):
     table, configs = _three_polymer_table(monkeypatch)
     assert {c["labor_cost_usd_per_employee_yr"] for c in configs} == {120000.0}
     full_capital = ROW["tci_usd"] * dl.capital_recovery_factor(0.08, 10.0)
@@ -1185,34 +1188,59 @@ def test_a_later_wash_can_carry_only_part_of_the_labor_charge(monkeypatch):
     assert any(key[0] for key in table.stages)  # the table does contain later washes
 
 
-def test_a_later_wash_can_take_part_of_its_capital_as_shared(monkeypatch):
+def test_a_later_wash_is_credited_with_the_utilities_share_the_simulation_reports(monkeypatch):
     plain, _ = _three_polymer_table(monkeypatch)
-    shared, _ = _three_polymer_table(monkeypatch, later_wash_shared_capital_fraction=0.4)
+    full, _ = _three_polymer_table(monkeypatch, later_wash_shared_facilities_fraction=1.0)
+    half, _ = _three_polymer_table(monkeypatch, later_wash_shared_facilities_fraction=0.5)
     for key in plain.stages:
-        ratio = shared.stages[key].capex_usd_yr / plain.stages[key].capex_usd_yr
-        assert ratio == pytest.approx(0.6 if key[0] else 1.0), key  # only a later wash is credited
-        assert shared.stages[key].opex_usd_yr == plain.stages[key].opex_usd_yr
+        later = bool(key[0])
+        assert full.stages[key].capex_usd_yr / plain.stages[key].capex_usd_yr == pytest.approx(2 / 3 if later else 1.0), key
+        assert half.stages[key].capex_usd_yr / plain.stages[key].capex_usd_yr == pytest.approx(5 / 6 if later else 1.0), key
+        assert full.stages[key].opex_usd_yr == plain.stages[key].opex_usd_yr  # the credit is on capital only
+    assert all(v == pytest.approx(1 / 3) for k, v in full.facilities_share.items())
+
+
+def test_a_row_without_the_utilities_measurement_gets_no_credit_and_says_so(monkeypatch):
+    table, _ = _three_polymer_table(monkeypatch, row=ROW, later_wash_shared_facilities_fraction=1.0)
+    full_capital = ROW["tci_usd"] * dl.capital_recovery_factor(0.08, 10.0)
+    assert all(st.capex_usd_yr == pytest.approx(full_capital) for st in table.stages.values())
+    assert all(v is None for v in table.facilities_share.values())
+    assert dl.facilities_share_of(ROW) == 0.0 and dl.facilities_share_of(SITE_ROW) == pytest.approx(1 / 3)
 
 
 def test_the_sharing_options_must_be_fractions(monkeypatch):
-    for bad in ({"later_wash_labor_fraction": 1.5}, {"later_wash_shared_capital_fraction": -0.1}):
+    for bad in ({"later_wash_labor_fraction": 1.5}, {"later_wash_shared_facilities_fraction": -0.1}):
         with pytest.raises(ValueError):
             _three_polymer_table(monkeypatch, **bad)
 
 
-def test_the_result_states_whether_a_shared_site_was_assumed(monkeypatch):
-    default = _call(monkeypatch, _stub_table())["data"]
-    assert default["site_sharing"]["convention"].startswith("published") and "multi_wash_costs" in default["assumptions"]
+def test_the_tool_shares_the_site_by_default_and_the_published_convention_is_one_call_away(monkeypatch):
     seen = {}
-    monkeypatch.setattr(dl, "build_stage_table", lambda *a, **k: seen.update(k) or _stub_table())
-    out = json.loads(tool.optimize_waste_pathway(feed_mass_fractions={"LDPE": 0.6, "PET": 0.2, "NYLON6": 0.1, "EVOH": 0.1},
-                                                 feed_tonnes_per_year=8000, later_wash_labor_fraction=0.0,
-                                                 later_wash_shared_capital_fraction=0.35))["data"]
-    assert seen["later_wash_labor_fraction"] == 0.0 and seen["later_wash_shared_capital_fraction"] == 0.35
-    assert out["site_sharing"]["convention"].startswith("assumed") and out["site_sharing"]["later_wash_shared_capital_fraction"] == 0.35
+    table = _stub_table()
+    table.facilities_share[(frozenset({"LDPE"}), "EVOH", "Ethylene glycol")] = 0.35
+    monkeypatch.setattr(dl, "build_stage_table", lambda *a, **k: seen.update(k) or table)
+    feed = {"feed_mass_fractions": {"LDPE": 0.6, "PET": 0.2, "NYLON6": 0.1, "EVOH": 0.1}, "feed_tonnes_per_year": 8000}
+    default = json.loads(tool.optimize_waste_pathway(**feed))["data"]
+    assert seen["later_wash_labor_fraction"] == 0.0 and seen["later_wash_shared_facilities_fraction"] == 1.0
+    block = default["site_sharing"]
+    assert block["convention"].startswith("shared site") and list(block["facilities_share_of_later_washes"].values()) == [0.35]
+    assert "upper bound" in default["assumptions"]["multi_wash_costs"]
+    published = json.loads(tool.optimize_waste_pathway(**feed, later_wash_labor_fraction=1.0,
+                                                       later_wash_shared_facilities_fraction=0.0))["data"]
+    assert seen["later_wash_labor_fraction"] == 1.0 and seen["later_wash_shared_facilities_fraction"] == 0.0
+    assert published["site_sharing"]["convention"].startswith("published")
 
 
-def test_the_agent_is_told_the_credit_is_an_assumption():
+def test_a_credit_that_could_not_be_measured_is_a_warning(monkeypatch):
+    table = _stub_table()
+    table.facilities_share[(frozenset({"LDPE"}), "EVOH", "Ethylene glycol")] = None
+    out = _call(monkeypatch, table)["data"]
+    assert any("no utilities share was reported" in w and "EVOH/Ethylene glycol" in w for w in out["warnings"])
+    assert not any("no utilities share" in w for w in _call(monkeypatch, table, later_wash_shared_facilities_fraction=0.0)["data"]["warnings"])
+
+
+def test_the_agent_is_told_the_shared_site_is_an_assumption_and_an_upper_bound():
     first = tool.optimize_waste_pathway.__doc__.split("\n\n")[0]
-    assert "later_wash_labor_fraction" in first and "conservative" in first
-    assert "later_wash_shared_capital_fraction" in agent.SYSTEM_PROMPT and "assumptions" in agent.SYSTEM_PROMPT
+    assert "later_wash_labor_fraction" in first and "later_wash_shared_facilities_fraction" in first and "upper bound" in first
+    assert "published convention" in first and "conservative" in first
+    assert "later_wash_shared_facilities_fraction" in agent.SYSTEM_PROMPT and "upper bound on the saving" in agent.SYSTEM_PROMPT

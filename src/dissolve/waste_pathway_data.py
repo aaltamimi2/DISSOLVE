@@ -160,6 +160,7 @@ class StageTable:
     shredder_pending: bool = False  # the shredder needs a live simulation that has not been confirmed
     shredder_error: str | None = None  # why the shredder could not be costed
     feedstock_prices: dict[tuple[frozenset[str], str, str], float] = field(default_factory=dict)  # USD/kg each wash was run at
+    facilities_share: dict[tuple[frozenset[str], str, str], float | None] = field(default_factory=dict)  # utilities plant's share of installed equipment
     failed: list[dict[str, Any]] = field(default_factory=list)
     no_option: list[dict[str, Any]] = field(default_factory=list)  # (stream, polymer) pairs with no admissible solvent
 
@@ -562,10 +563,16 @@ def capital_recovery_factor(interest: float, years: float) -> float:
     return interest * growth / (growth - 1.0)
 
 
+def facilities_share_of(row: Mapping[str, Any]) -> float:
+    """The utilities plant's share of a wash's installed equipment, as the simulation reports it (0 when the row lacks it)."""
+    facilities, installed = row.get("facilities_installed_usd"), row.get("installed_equipment_usd")
+    return float(facilities) / float(installed) if facilities is not None and installed else 0.0
+
+
 def wash_stage_from_row(
     spec: StageSpec, row: Mapping[str, Any], *, recovery_yield: float = RECOVERY_YIELD,
     renewable_share: float = RENEWABLE_ENERGY_SHARE, shredder: Mapping[str, Any] | None = None,
-    shared_capital_fraction: float = 0.0,
+    shared_facilities_fraction: float = 0.0,
 ) -> tuple[WashStage, str]:
     """Annual capex, opex and impacts of one simulated wash, and where its recovery came from.
 
@@ -575,9 +582,10 @@ def wash_stage_from_row(
     Capital is the total capital investment annualized at the plant's own finance rate and term. The recovered share of the
     target polymer is the simulation's own annual resin output over the target mass the plant receives (``simulated``);
     when the row lacks it or it is implausible, the assumed yield is used (``assumed``). Per-kilogram energy and
-    emissions scale by the resin this wash recovers from the feed's stream. ``shared_capital_fraction`` is the share of a later
-    wash's capital taken as already provided by the first wash's site (its boiler, cooling tower and the like): 0 keeps the
-    published study's convention that every wash is a full stand-alone plant.
+    emissions scale by the resin this wash recovers from the feed's stream. ``shared_facilities_fraction`` is the share of a later
+    wash's utilities plant (boiler and turbogenerator, cooling tower, chilled water) taken as already provided by the first wash's
+    site: the wash's capital is reduced by that fraction of the utilities' measured share of its installed equipment (the
+    simulation reports it). 0 keeps the published study's convention that every wash is a full stand-alone plant.
     """
     plant_target_kg = (spec.plant_capacity_t or spec.mass_in_t) * spec.target_mass_percent / 100.0 * 1000.0
     simulated_kg = row.get("waste_diverted_kg_per_yr")  # the process model's annual resin output
@@ -598,7 +606,7 @@ def wash_stage_from_row(
     share = spec.share  # annual plant totals (cost, water, waste) are split by throughput; per-kilogram results are not
     return WashStage(
         polymer=spec.polymer, solvent=spec.solvent,
-        capex_usd_yr=float(row["tci_usd"]) * crf * share * (1.0 - shared_capital_fraction),
+        capex_usd_yr=float(row["tci_usd"]) * crf * share * (1.0 - shared_facilities_fraction * facilities_share_of(row)),
         opex_usd_yr=float(row["aoc_usd_per_yr"]) * share,
         temperature_c=spec.temperature_c, recovered_fraction=fraction,
         impacts=Impacts(
@@ -617,7 +625,7 @@ def build_stage_table(
     recovery_yield: float = RECOVERY_YIELD, renewable_share: float = RENEWABLE_ENERGY_SHARE,
     on_stage: Callable[[StageSpec], None] | None = None, plant_capacity_t: float | None = None,
     max_precipitated_pct: float = MAX_PRECIPITATED_PCT, avoid_danger_solvents: bool = False, include_shredder: bool = False,
-    later_wash_labor_fraction: float = 1.0, later_wash_shared_capital_fraction: float = 0.0, **thermo_limits: float,
+    later_wash_labor_fraction: float = 1.0, later_wash_shared_facilities_fraction: float = 0.0, **thermo_limits: float,
 ) -> StageTable:
     """Screen and cost every wash a sequence of up to ``max_washes`` could contain.
 
@@ -627,11 +635,12 @@ def build_stage_table(
 
     Every wash is simulated as a full stand-alone plant, so a later wash repeats the flat labor charge and the utilities plant
     that one site would share. ``later_wash_labor_fraction`` scales the labor of every later wash (1 keeps the published
-    convention, 0 lets the first wash's crew run them all) and ``later_wash_shared_capital_fraction`` takes that share of a
-    later wash's capital as already provided; both default to the published convention and are assumptions when changed.
+    convention, 0 lets the first wash's crew run them all) and ``later_wash_shared_facilities_fraction`` takes that share of a
+    later wash's utilities plant as already provided by the first wash's site (credited at the share of the wash's installed
+    equipment that the simulation reports for it); both default here to the published convention and are assumptions when changed.
     """
-    if not 0.0 <= later_wash_labor_fraction <= 1.0 or not 0.0 <= later_wash_shared_capital_fraction <= 1.0:
-        raise ValueError("later_wash_labor_fraction and later_wash_shared_capital_fraction must be between 0 and 1")
+    if not 0.0 <= later_wash_labor_fraction <= 1.0 or not 0.0 <= later_wash_shared_facilities_fraction <= 1.0:
+        raise ValueError("later_wash_labor_fraction and later_wash_shared_facilities_fraction must be between 0 and 1")
     if plant_capacity_t is not None and plant_capacity_t < feed.tonnes_per_year:
         raise ValueError(f"a shared plant must be at least as large as the feed it washes ({feed.tonnes_per_year:g} t/yr)")
     pool = list(solvents) if solvents is not None else admitted_solvents()
@@ -708,8 +717,9 @@ def build_stage_table(
                 table.stages[spec.key], table.recovery_sources[spec.key] = wash_stage_from_row(
                     spec, row, recovery_yield=recovery_yield, renewable_share=renewable_share,
                     shredder=table.shredder if not spec.removed_before else None,
-                    shared_capital_fraction=later_wash_shared_capital_fraction if spec.removed_before else 0.0)
+                    shared_facilities_fraction=later_wash_shared_facilities_fraction if spec.removed_before else 0.0)
                 table.feedstock_prices[spec.key] = float(row.get("feedstock_price_usd_per_kg") or 0.0)
+                table.facilities_share[spec.key] = facilities_share_of(row) or None
                 table.specs[spec.key] = spec
                 table.qualifications[spec.key] = row_qualifications(row)
                 if row.get("session_reused"):

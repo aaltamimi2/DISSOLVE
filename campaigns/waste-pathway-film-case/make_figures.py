@@ -72,32 +72,54 @@ def front(ax, results, key, xkey, ykey, xscale=1.0, yscale=1e6):
     return numbered
 
 
+ROUTE_IDS: dict[str, str] = {}  # pathway label -> R1, R2, ... in order of first appearance, shared by both front panels
+ROUTE_ROWS: dict[str, dict] = {}
+
+
+def route_id(row: dict) -> str:
+    label = row["pathway"]
+    if label not in ROUTE_IDS:
+        ROUTE_IDS[label] = f"R{len(ROUTE_IDS) + 1}"
+        ROUTE_ROWS[label] = row
+    return ROUTE_IDS[label]
+
+
 def number_points(ax, numbered, results, xkey, ykey, xscale=1.0, yscale=1e6):
-    """Label each front point with its number (D for the dedicated plant, S for the shared one), merging coincident points."""
+    """Label each front point with the ID of its route (the same route has the same ID in every panel and plant), merging points
+    that sit on top of each other."""
     ax.figure.canvas.draw()
-    placed: list[tuple[float, float, list[str], str]] = []
+    placed: list[tuple[float, float, list[str]]] = []
     for plant, items in numbered.items():
-        tag = "D" if plant == "dedicated" else "S"
-        color = PLANT_STYLE[plant][0]
-        for i, p in items:
+        for _, p in items:
+            name = route_id(p)
             pixel = ax.transData.transform((p[xkey] * xscale, p[ykey] / yscale))
             for entry in placed:
-                if abs(entry[0] - pixel[0]) < 14 and abs(entry[1] - pixel[1]) < 12:
-                    entry[2].append(f"{tag}{i}")
+                if abs(entry[0] - pixel[0]) < 38 and abs(entry[1] - pixel[1]) < 16:
+                    if name not in entry[2]:
+                        entry[2].append(name)
                     break
             else:
-                placed.append((pixel[0], pixel[1], [f"{tag}{i}"], color))
-    for k, (px, py, names, color) in enumerate(placed):
+                placed.append((pixel[0], pixel[1], [name]))
+    boxes: list[tuple[float, float, float, float]] = []  # label rectangles in pixels, so labels can step aside from each other
+    dpi_scale = ax.figure.dpi / 72.0
+    for px, py, names in placed:
+        text = ", ".join(names)
+        width, height = 4.6 * len(text) * dpi_scale, 9.0 * dpi_scale
+        for dy in (7, -12, 20, -25, 33, -38, 46):  # points above or below the marker, the first that is free
+            left, bottom = px + 6 * dpi_scale, py + dy * dpi_scale
+            box = (left, bottom, left + width, bottom + height)
+            if not any(box[0] < b[2] and b[0] < box[2] and box[1] < b[3] and b[1] < box[3] for b in boxes):
+                break
+        boxes.append(box)
         x, y = ax.transData.inverted().transform((px, py))
-        ax.annotate(", ".join(names), (x, y), xytext=(6, 6 if k % 2 == 0 else -11), textcoords="offset points", fontsize=7,
-                    color=INK, zorder=6)
+        ax.annotate(text, (x, y), xytext=(6, dy), textcoords="offset points", fontsize=7, color=INK, zorder=6)
 
 
 def main() -> None:
     results = json.loads((HERE / "results.json").read_text())
     labels = plant_labels(results)
     fig = plt.figure(figsize=(7.6, 8.1), facecolor=SURFACE)
-    grid = fig.add_gridspec(3, 2, height_ratios=[1.0, 1.0, 0.30], hspace=0.62, wspace=0.34, left=0.085, right=0.985, top=0.965, bottom=0.02)
+    grid = fig.add_gridspec(3, 2, height_ratios=[1.0, 1.0, 0.36], hspace=0.62, wspace=0.34, left=0.085, right=0.985, top=0.965, bottom=0.02)
     axA, axB, axC, axD = (fig.add_subplot(grid[0, 0]), fig.add_subplot(grid[0, 1]), fig.add_subplot(grid[1, 0]), fig.add_subplot(grid[1, 1]))
     keyax = fig.add_subplot(grid[2, :])
     keyax.axis("off")
@@ -135,7 +157,7 @@ def main() -> None:
         first = next((i for i, flag in enumerate(washes) if flag), None)
         if first is not None and first > 0:
             axC.annotate(f"{polymer} wash enters", (prices[first], ys[first]),
-                         xytext=(-30, 34) if plant == "dedicated" else (-6, 40), textcoords="offset points",
+                         xytext=(-30, 34) if plant == "dedicated" else (30, -16), textcoords="offset points",
                          ha="center" if plant == "dedicated" else "left",
                          fontsize=7, color=INK, arrowprops=dict(arrowstyle="-", color=MUTED, lw=0.7))
     axC.set_xlabel(f"{polymer} resin price ($ per tonne)", fontsize=8, color=INK2)
@@ -168,13 +190,17 @@ def main() -> None:
     axD.tick_params(length=0)
     axD.set_title("D  MICRON scores (shared plant)", loc="left", fontsize=9, color=INK, fontweight="bold", pad=30)
 
-    # Key: the numbered routes of the two plants' profit-emissions fronts, so no point depends on a label inside the panel
+    # Key: every route that appears on a front, once, so no point depends on a label inside a panel
+    entries = [f"{rid} {short(ROUTE_ROWS[label])}" for label, rid in ROUTE_IDS.items()]
+    half = (len(entries) + 1) // 2
+    width = max(len(e) for e in entries) + 2
     lines = []
-    for plant, tag in (("dedicated", "D"), ("shared_20kt", "S")):
-        lines.append(f"{labels[plant]}: profit-emissions front")
-        lines.extend(textwrap.wrap("   ".join(f"{tag}{i} {short(p)}" for i, p in numA[plant]), 118, subsequent_indent="    "))
-    keyax.text(0.0, 1.0, "\n".join(lines), transform=keyax.transAxes, ha="left", va="top", fontsize=6.6, color=INK2,
-               family="monospace", linespacing=1.35)
+    for i in range(half):
+        left = entries[i]
+        right = entries[i + half] if i + half < len(entries) else ""
+        lines.append(f"{left:<{width}}{right}")
+    keyax.text(0.0, 1.0, "Routes on the fronts (blue: plant for this feed only; orange: shared plant)\n" + "\n".join(lines),
+               transform=keyax.transAxes, ha="left", va="top", fontsize=6.0, color=INK2, family="monospace", linespacing=1.35)
     out = HERE / "figures"
     out.mkdir(exist_ok=True)
     fig.savefig(out / "waste_pathway_case.png", dpi=300, facecolor=SURFACE)

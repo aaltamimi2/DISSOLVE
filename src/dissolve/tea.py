@@ -5528,6 +5528,8 @@ def _comparison_row(label: str, result: dict[str, Any]) -> dict[str, Any]:
         "waste_generated_kg_per_yr": operations.get("waste_generated_kg_yr"),
         "solvent_makeup_kg_per_yr": operations.get("solvent_makeup_kg_yr"),
         "waste_diverted_kg_per_yr": operations.get("waste_diverted_kg_yr"),
+        "facilities_installed_usd": operations.get("facilities_installed_usd"),
+        "installed_equipment_usd": operations.get("installed_equipment_usd"),
         "unit_operations": operations.get("unit_operations"),
         "energy_normalization_status": (result.get("energy_normalization") or {}).get("status"),
         "equipment_count": len((result.get("process_details") or {}).get("equipment") or []),

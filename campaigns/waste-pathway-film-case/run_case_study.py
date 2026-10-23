@@ -36,14 +36,20 @@ def _row(cand: wp.Candidate) -> dict:
     return json.loads(json.dumps(tool._candidate_row(cand)))
 
 
-def run(live: bool) -> dict:
-    out: dict = {"sweep_polymer": SWEEP_POLYMER, "feed": {"tonnes_per_year": FEED.tonnes_per_year, "fractions": dict(FEED.fractions)}, "plants": {}}
+# The two ways to cost a pathway with several washes: a later wash shares the first wash's site (no extra labor crew, no second
+# utilities plant) or, as in the published study, every wash is a full stand-alone plant.
+SITES = {"shared": {"later_wash_labor_fraction": 0.0, "later_wash_shared_facilities_fraction": 1.0},
+         "standalone": {"later_wash_labor_fraction": 1.0, "later_wash_shared_facilities_fraction": 0.0}}
+
+
+def run(live: bool, site: str = "shared") -> dict:
+    out: dict = {"site": site, "site_sharing": SITES[site], "sweep_polymer": SWEEP_POLYMER, "feed": {"tonnes_per_year": FEED.tonnes_per_year, "fractions": dict(FEED.fractions)}, "plants": {}}
     tables, paths = {}, {}
     for plant, capacity in PLANTS.items():
         started = time.monotonic()
         # the film is shredded once by a stand-alone shredder plant whose price is the first wash's feedstock price (Process_modeling)
         table = dl.build_stage_table(FEED, max_washes=2, max_options=3, confirm_live_tea=live, plant_capacity_t=capacity,
-                                     include_shredder=True)
+                                     include_shredder=True, **SITES[site])
         if table.simulations_needed:
             raise SystemExit(f"{table.simulations_needed} simulations (washes and the shredder) still needed; rerun with --live")
         tables[plant], paths[plant] = table, dl.pathways_from_table(table, FEED, 2)
@@ -92,9 +98,11 @@ def run(live: bool) -> dict:
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--live", action="store_true", help="simulate washes that are not in the TEA cache")
+    parser.add_argument("--site", choices=sorted(SITES), default="shared",
+                        help="shared: a later wash shares the first wash's site (results.json); standalone: every wash is a full plant (results_standalone.json)")
     args = parser.parse_args()
-    result = run(args.live)
-    (HERE / "results.json").write_text(json.dumps(result, indent=1))
+    result = run(args.live, args.site)
+    (HERE / ("results.json" if args.site == "shared" else "results_standalone.json")).write_text(json.dumps(result, indent=1))
     for plant, block in result["plants"].items():
         for location, entry in block["locations"].items():
             best = entry["optima"]["max_profit"]

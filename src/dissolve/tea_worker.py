@@ -1166,6 +1166,9 @@ def _unsupported_target_result(
     }
 
 
+_FACILITY_UNIT_TYPES = frozenset({"BoilerTurbogenerator", "Boiler", "CoolingTower", "ChilledWaterPackage"})
+
+
 def _shredder_result(process: Any, config: dict[str, Any], energy_case: str, provenance: Any, started: float) -> dict[str, Any]:
     """Cost, energy and emissions of the stand-alone shredder plant, per kg of shredded film."""
     hours = process.tea.operating_hours
@@ -1430,6 +1433,11 @@ def run(config: dict[str, Any]) -> dict[str, Any]:
             "solvent_makeup_kg_yr": _safe(lambda: process.solvent.F_mass * process.tea.operating_hours),
             "waste_diverted_kg_yr": _safe(lambda: resin.F_mass * process.tea.operating_hours) if resin else None,
             "unit_operations": _safe(lambda: len(process.system.units)),
+            # the utilities plant (boiler and turbogenerator, cooling tower, chilled water) and all installed equipment, so a later
+            # wash on the same site can be credited with the utilities it would share
+            "facilities_installed_usd": sum(float(e.get("installed_cost_usd") or 0.0) for e in equipment
+                                            if e["unit_type"] in _FACILITY_UNIT_TYPES),
+            "installed_equipment_usd": sum(float(e.get("installed_cost_usd") or 0.0) for e in equipment),
         },
         "process_details": {
             "feed_mass_flow_kg_per_hr": feed_mass,

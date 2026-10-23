@@ -44,10 +44,10 @@
  "string_numbers": {
   "success": false,
   "error_code": "live_tea_cost_confirmation_required",
-  "error": "6 wash(es) need a live BioSTEAM simulation (about 90 s in all). Run again with confirm_live_tea=true to simulate them.",
-  "pending_stages": 6,
+  "error": "7 live BioSTEAM simulation(s) are needed (one of them shreds the film) (about 105 s in all). Run again with confirm_live_tea=true to simulate them.",
+  "pending_stages": 7,
   "crashed": false,
-  "seconds": 2.2
+  "seconds": 2.7
  },
  "nonnumeric_fraction": {
   "success": false,
@@ -66,32 +66,18 @@
  "generic_name_polyethylene": {
   "success": false,
   "error_code": "live_tea_cost_confirmation_required",
-  "error": "6 wash(es) need a live BioSTEAM simulation (about 90 s in all). Run again with confirm_live_tea=true to simulate them.",
-  "pending_stages": 6,
+  "error": "7 live BioSTEAM simulation(s) are needed (one of them shreds the film) (about 105 s in all). Run again with confirm_live_tea=true to simulate them.",
+  "pending_stages": 7,
   "crashed": false,
-  "seconds": 1.5
+  "seconds": 1.7
  },
  "max_washes_zero_is_downstream_only": {
-  "success": true,
-  "error_code": null,
-  "error": "",
-  "analysis": "waste_pathway_optimum",
-  "basis": "cosmo_rs_grid",
-  "candidates": 5,
-  "washes_costed": 0,
-  "no_admissible_wash": [],
-  "failed_washes": [],
-  "warnings": [],
-  "selected": {
-   "pathway": "no wash + we",
-   "profit": 771360,
-   "emissions_t": 19677.7,
-   "circularity": 0.488
-  },
-  "circularity_in_0_1": true,
-  "milp_agrees": true,
+  "success": false,
+  "error_code": "live_tea_cost_confirmation_required",
+  "error": "1 live BioSTEAM simulation(s) are needed (one of them shreds the film) (about 15 s in all). Run again with confirm_live_tea=true to simulate them.",
+  "pending_stages": 1,
   "crashed": false,
-  "seconds": 0.3
+  "seconds": 0.0
  },
  "max_washes_nine": {
   "success": false,
@@ -124,10 +110,10 @@
  "no_confirmation_asked_for": {
   "success": false,
   "error_code": "live_tea_cost_confirmation_required",
-  "error": "6 wash(es) need a live BioSTEAM simulation (about 90 s in all). Run again with confirm_live_tea=true to simulate them.",
-  "pending_stages": 6,
+  "error": "7 live BioSTEAM simulation(s) are needed (one of them shreds the film) (about 105 s in all). Run again with confirm_live_tea=true to simulate them.",
+  "pending_stages": 7,
   "crashed": false,
-  "seconds": 1.6
+  "seconds": 2.2
  },
  "single_polymer_feed": {
   "success": true,
@@ -151,7 +137,7 @@
   "circularity_in_0_1": true,
   "milp_agrees": true,
   "crashed": false,
-  "seconds": 0.1
+  "seconds": 10.4
  },
  "no_costable_solvent_named": {
   "success": false,
@@ -171,6 +157,7 @@
   "no_admissible_wash": [],
   "failed_washes": [],
   "warnings": [
+   "Partial GWP coverage for EVOH/Acetic Acid after no prior wash (uncharacterized: activated_carbon, air, boiler_chemicals, cooling_tower_chemicals, cooling_tower_makeup_water, makeup_water); EVOH/Ethylene glycol after no prior wash (uncharacterized: activated_carbon, air, boiler_chemicals, cooling_tower_chemicals, cooling_tower_makeup_water, makeup_water); EVOH/N,N-Dimethylformamide after no prior wash (uncharacterized: activated_carbon, air, boiler_chemicals, cooling_tower_chemicals, cooling_tower_makeup_water, makeup_water); LDPE/Toluene after no prior wash (uncharacterized: activated_carbon, air, boiler_chemicals, cooling_tower_chemicals, cooling_tower_makeup_water, makeup_water); LDPE/Diphenyl ether after no prior wash (uncharacterized: activated_carbon, air, boiler_chemicals, cooling_tower_chemicals, cooling_tower_makeup_water, makeup_water); LDPE/p-Xylene after no prior wash (uncharacterized: activated_carbon, air, boiler_chemicals, cooling_tower_chemicals, cooling_tower_makeup_water, makeup_water). These emissions omit the uncharacterized contributors.",
    "the selected pathway sells the washed LDPE residual as resin (27% of its sales) with no further processing cost; its profit depends on that residual being clean enough to sell (see resale_dependence for the result at half the price and at none)",
    "the selected washes use solvents with the GHS Danger signal word: Acetic Acid at 105 C. Pass avoid_danger_solvents=true to keep them out (the tool does not otherwise screen solvent hazard)",
    "heating risk is high or critical at the operating temperature for Acetic Acid (above_flash_point, vapor_pressure_not_at_operating_temperature)",
@@ -178,14 +165,14 @@
   ],
   "selected": {
    "pathway": "EVOH/Acetic Acid + resale",
-   "profit": 11618466,
-   "emissions_t": 730.1,
-   "circularity": 0.861
+   "profit": 10317696,
+   "emissions_t": 1379.0,
+   "circularity": 0.842
   },
   "circularity_in_0_1": true,
   "milp_agrees": true,
   "crashed": false,
-  "seconds": 59.9
+  "seconds": 56.6
  },
  "pet_rich": {
   "success": true,
@@ -198,20 +185,21 @@
   "no_admissible_wash": [],
   "failed_washes": [],
   "warnings": [
+   "Partial GWP coverage for LDPE/Propylene glycol after no prior wash (uncharacterized: activated_carbon, air, boiler_chemicals, cooling_tower_chemicals, cooling_tower_makeup_water, makeup_water); LDPE/Diethylene Glycol after no prior wash (uncharacterized: activated_carbon, air, boiler_chemicals, cooling_tower_chemicals, cooling_tower_makeup_water, makeup_water); LDPE/Dipentene (Dl-Limonene) after no prior wash (uncharacterized: activated_carbon, air, boiler_chemicals, cooling_tower_chemicals, cooling_tower_makeup_water, makeup_water); PET/Pyrrole after no prior wash (uncharacterized: activated_carbon, air, boiler_chemicals, cooling_tower_chemicals, cooling_tower_makeup_water, makeup_water). These emissions omit the uncharacterized contributors.",
    "the selected pathway sells the washed PET residual as resin (75% of its sales) with no further processing cost; its profit depends on that residual being clean enough to sell (see resale_dependence for the result at half the price and at none)",
    "heating risk is high or critical at the operating temperature for Diethylene Glycol (above_flash_point, autoignition_close_to_boiling_point, vapor_pressure_not_at_operating_temperature)",
    "at the process model's solvent-to-polymer ratio a wash could take up a sizable share of the retained polymers (retained_pickup_upper_bound_pct_of_product): the screen does not establish purity"
   ],
   "selected": {
    "pathway": "LDPE/Diethylene Glycol + resale",
-   "profit": 5168017,
-   "emissions_t": 1735.2,
-   "circularity": 0.843
+   "profit": 3758975,
+   "emissions_t": 2773.4,
+   "circularity": 0.826
   },
   "circularity_in_0_1": true,
   "milp_agrees": true,
   "crashed": false,
-  "seconds": 46.8
+  "seconds": 54.9
  },
  "polycarbonate_mix": {
   "success": true,
@@ -226,20 +214,21 @@
   ],
   "failed_washes": [],
   "warnings": [
+   "Partial GWP coverage for EVOH/Propylene glycol after no prior wash (uncharacterized: activated_carbon, air, boiler_chemicals, cooling_tower_chemicals, cooling_tower_makeup_water, makeup_water); EVOH/Diethylene Glycol after no prior wash (uncharacterized: activated_carbon, air, boiler_chemicals, cooling_tower_chemicals, cooling_tower_makeup_water, makeup_water); EVOH/Acetic Acid after no prior wash (uncharacterized: activated_carbon, air, boiler_chemicals, cooling_tower_chemicals, cooling_tower_makeup_water, makeup_water); PC/p-Xylene after EVOH (uncharacterized: activated_carbon, air, boiler_chemicals, cooling_tower_chemicals, cooling_tower_makeup_water, makeup_water); PC/Isophorone after EVOH (uncharacterized: activated_carbon, air, boiler_chemicals, cooling_tower_chemicals, cooling_tower_makeup_water, makeup_water); PC/Toluene after EVOH (uncharacterized: activated_carbon, air, boiler_chemicals, cooling_tower_chemicals, cooling_tower_makeup_water, makeup_water); PC/p-Xylene after no prior wash (uncharacterized: activated_carbon, air, boiler_chemicals, cooling_tower_chemicals, cooling_tower_makeup_water, makeup_water); PC/Toluene after no prior wash (uncharacterized: activated_carbon, air, boiler_chemicals, cooling_tower_chemicals, cooling_tower_makeup_water, makeup_water); PC/Chlorobenzene after no prior wash (uncharacterized: activated_carbon, air, boiler_chemicals, cooling_tower_chemicals, cooling_tower_makeup_water, makeup_water); EVOH/Propylene glycol after PC (uncharacterized: activated_carbon, air, boiler_chemicals, cooling_tower_chemicals, cooling_tower_makeup_water, makeup_water); EVOH/Diethylene Glycol after PC (uncharacterized: activated_carbon, air, boiler_chemicals, cooling_tower_chemicals, cooling_tower_makeup_water, makeup_water); EVOH/Acetic Acid after PC (uncharacterized: activated_carbon, air, boiler_chemicals, cooling_tower_chemicals, cooling_tower_makeup_water, makeup_water). These emissions omit the uncharacterized contributors.",
    "no price for PC: recovering them earns nothing, so no wash of them can pay; pass polymer_prices_usd_per_t to value them",
    "the selected washes use solvents with the GHS Danger signal word: Acetic Acid at 105 C. Pass avoid_danger_solvents=true to keep them out (the tool does not otherwise screen solvent hazard)",
    "heating risk is high or critical at the operating temperature for Acetic Acid (above_flash_point, vapor_pressure_not_at_operating_temperature)"
   ],
   "selected": {
    "pathway": "EVOH/Acetic Acid + we",
-   "profit": 9646779,
-   "emissions_t": 11506.4,
-   "circularity": 0.569
+   "profit": 8307367,
+   "emissions_t": 12285.0,
+   "circularity": 0.563
   },
   "circularity_in_0_1": true,
   "milp_agrees": true,
   "crashed": false,
-  "seconds": 114.4
+  "seconds": 116.9
  },
  "hdpe_ldpe_only": {
   "success": true,
@@ -253,7 +242,9 @@
    "HDPE"
   ],
   "failed_washes": [],
-  "warnings": [],
+  "warnings": [
+   "Partial GWP coverage for LDPE/Toluene after no prior wash (uncharacterized: activated_carbon, air, boiler_chemicals, cooling_tower_chemicals, cooling_tower_makeup_water, makeup_water); LDPE/p-Xylene after no prior wash (uncharacterized: activated_carbon, air, boiler_chemicals, cooling_tower_chemicals, cooling_tower_makeup_water, makeup_water); LDPE/Dipentene (Dl-Limonene) after no prior wash (uncharacterized: activated_carbon, air, boiler_chemicals, cooling_tower_chemicals, cooling_tower_makeup_water, makeup_water). These emissions omit the uncharacterized contributors."
+  ],
   "selected": {
    "pathway": "no wash + we",
    "profit": 385680,
@@ -263,7 +254,7 @@
   "circularity_in_0_1": true,
   "milp_agrees": true,
   "crashed": false,
-  "seconds": 37.7
+  "seconds": 43.9
  },
  "five_polymers_with_unsupported_ps": {
   "success": true,
@@ -286,6 +277,7 @@
    "PS:No scenario could be evaluated. Failure reasons: PS maps to process-model ID PS, which is not in the package chemical outline. Refusing to let the generic factory PET-clone it."
   ],
   "warnings": [
+   "Partial GWP coverage for EVOH/Acetic Acid after no prior wash (uncharacterized: activated_carbon, air, boiler_chemicals, cooling_tower_chemicals, cooling_tower_makeup_water, makeup_water); EVOH/Ethylene glycol after no prior wash (uncharacterized: activated_carbon, air, boiler_chemicals, cooling_tower_chemicals, cooling_tower_makeup_water, makeup_water); LDPE/Dodecane after EVOH (uncharacterized: activated_carbon, air, boiler_chemicals, cooling_tower_chemicals, cooling_tower_makeup_water, makeup_water); LDPE/Dodecane after no prior wash (uncharacterized: activated_carbon, air, boiler_chemicals, cooling_tower_chemicals, cooling_tower_makeup_water, makeup_water); EVOH/Acetic Acid after LDPE (uncharacterized: activated_carbon, air, boiler_chemicals, cooling_tower_chemicals, cooling_tower_makeup_water, makeup_water); EVOH/Propylene glycol after LDPE (uncharacterized: activated_carbon, air, boiler_chemicals, cooling_tower_chemicals, cooling_tower_makeup_water, makeup_water); EVOH/Ethylene glycol after LDPE (uncharacterized: activated_carbon, air, boiler_chemicals, cooling_tower_chemicals, cooling_tower_makeup_water, makeup_water). These emissions omit the uncharacterized contributors.",
    "washes of PS could not be simulated (No scenario could be evaluated. Failure reasons: PS maps to process-model ID PS, which is not in the package chemical outline. Refusing to l); PS is left in the residual",
    "no price for PS: recovering them earns nothing, so no wash of them can pay; pass polymer_prices_usd_per_t to value them",
    "the selected washes use solvents with the GHS Danger signal word: Acetic Acid at 105 C. Pass avoid_danger_solvents=true to keep them out (the tool does not otherwise screen solvent hazard)",
@@ -294,14 +286,14 @@
   ],
   "selected": {
    "pathway": "EVOH/Acetic Acid + we",
-   "profit": 6987054,
-   "emissions_t": 22304.0,
-   "circularity": 0.547
+   "profit": 5515591,
+   "emissions_t": 23601.7,
+   "circularity": 0.541
   },
   "circularity_in_0_1": true,
   "milp_agrees": true,
   "crashed": false,
-  "seconds": 78.1
+  "seconds": 82.5
  },
  "percent_input_and_names": {
   "success": true,
@@ -317,19 +309,20 @@
   ],
   "failed_washes": [],
   "warnings": [
+   "Partial GWP coverage for EVOH/Ethylene glycol after no prior wash (uncharacterized: activated_carbon, air, boiler_chemicals, cooling_tower_chemicals, cooling_tower_makeup_water, makeup_water); LDPE/p-Xylene after EVOH (uncharacterized: activated_carbon, air, boiler_chemicals, cooling_tower_chemicals, cooling_tower_makeup_water, makeup_water); LDPE/Diphenyl ether after EVOH (uncharacterized: activated_carbon, air, boiler_chemicals, cooling_tower_chemicals, cooling_tower_makeup_water, makeup_water); LDPE/Toluene after EVOH (uncharacterized: activated_carbon, air, boiler_chemicals, cooling_tower_chemicals, cooling_tower_makeup_water, makeup_water); LDPE/p-Xylene after no prior wash (uncharacterized: activated_carbon, air, boiler_chemicals, cooling_tower_chemicals, cooling_tower_makeup_water, makeup_water); LDPE/Diphenyl ether after no prior wash (uncharacterized: activated_carbon, air, boiler_chemicals, cooling_tower_chemicals, cooling_tower_makeup_water, makeup_water); LDPE/Toluene after no prior wash (uncharacterized: activated_carbon, air, boiler_chemicals, cooling_tower_chemicals, cooling_tower_makeup_water, makeup_water); EVOH/Propylene glycol after LDPE (uncharacterized: activated_carbon, air, boiler_chemicals, cooling_tower_chemicals, cooling_tower_makeup_water, makeup_water); EVOH/Ethylene glycol after LDPE (uncharacterized: activated_carbon, air, boiler_chemicals, cooling_tower_chemicals, cooling_tower_makeup_water, makeup_water). These emissions omit the uncharacterized contributors.",
    "heating risk is high or critical at the operating temperature for Ethylene glycol (above_flash_point, vapor_pressure_not_at_operating_temperature)",
    "at the process model's solvent-to-polymer ratio a wash could take up a sizable share of the retained polymers (retained_pickup_upper_bound_pct_of_product): the screen does not establish purity"
   ],
   "selected": {
    "pathway": "EVOH/Ethylene glycol + we",
-   "profit": 2617315,
-   "emissions_t": 18869.8,
-   "circularity": 0.486
+   "profit": 1208273,
+   "emissions_t": 19908.0,
+   "circularity": 0.479
   },
   "circularity_in_0_1": true,
   "milp_agrees": true,
   "crashed": false,
-  "seconds": 86.7
+  "seconds": 78.4
  },
  "tiny_feed": {
   "success": true,
@@ -341,17 +334,19 @@
   "washes_costed": 6,
   "no_admissible_wash": [],
   "failed_washes": [],
-  "warnings": [],
+  "warnings": [
+   "Partial GWP coverage for EVOH/Acetic Acid after no prior wash (uncharacterized: activated_carbon, air, boiler_chemicals, cooling_tower_chemicals, cooling_tower_makeup_water, makeup_water); EVOH/Ethylene glycol after no prior wash (uncharacterized: activated_carbon, air, boiler_chemicals, cooling_tower_chemicals, cooling_tower_makeup_water, makeup_water); EVOH/N,N-Dimethylformamide after no prior wash (uncharacterized: activated_carbon, air, boiler_chemicals, cooling_tower_chemicals, cooling_tower_makeup_water, makeup_water); LDPE/Toluene after no prior wash (uncharacterized: activated_carbon, air, boiler_chemicals, cooling_tower_chemicals, cooling_tower_makeup_water, makeup_water); LDPE/Diphenyl ether after no prior wash (uncharacterized: activated_carbon, air, boiler_chemicals, cooling_tower_chemicals, cooling_tower_makeup_water, makeup_water); LDPE/p-Xylene after no prior wash (uncharacterized: activated_carbon, air, boiler_chemicals, cooling_tower_chemicals, cooling_tower_makeup_water, makeup_water). These emissions omit the uncharacterized contributors."
+  ],
   "selected": {
    "pathway": "no wash + we",
    "profit": 9642,
    "emissions_t": 246.0,
-   "circularity": 0.427
+   "circularity": 0.428
   },
   "circularity_in_0_1": true,
   "milp_agrees": true,
   "crashed": false,
-  "seconds": 55.9
+  "seconds": 54.2
  },
  "huge_feed": {
   "success": true,
@@ -367,20 +362,21 @@
   ],
   "failed_washes": [],
   "warnings": [
+   "Partial GWP coverage for EVOH/Ethylene glycol after no prior wash (uncharacterized: activated_carbon, air, boiler_chemicals, cooling_tower_chemicals, cooling_tower_makeup_water, makeup_water); LDPE/p-Xylene after EVOH (uncharacterized: activated_carbon, air, boiler_chemicals, cooling_tower_chemicals, cooling_tower_makeup_water, makeup_water); LDPE/Diphenyl ether after EVOH (uncharacterized: activated_carbon, air, boiler_chemicals, cooling_tower_chemicals, cooling_tower_makeup_water, makeup_water); LDPE/Toluene after EVOH (uncharacterized: activated_carbon, air, boiler_chemicals, cooling_tower_chemicals, cooling_tower_makeup_water, makeup_water); LDPE/p-Xylene after no prior wash (uncharacterized: activated_carbon, air, boiler_chemicals, cooling_tower_chemicals, cooling_tower_makeup_water, makeup_water); LDPE/Diphenyl ether after no prior wash (uncharacterized: activated_carbon, air, boiler_chemicals, cooling_tower_chemicals, cooling_tower_makeup_water, makeup_water); LDPE/Toluene after no prior wash (uncharacterized: activated_carbon, air, boiler_chemicals, cooling_tower_chemicals, cooling_tower_makeup_water, makeup_water); EVOH/Propylene glycol after LDPE (uncharacterized: activated_carbon, air, boiler_chemicals, cooling_tower_chemicals, cooling_tower_makeup_water, makeup_water); EVOH/Ethylene glycol after LDPE (uncharacterized: activated_carbon, air, boiler_chemicals, cooling_tower_chemicals, cooling_tower_makeup_water, makeup_water). These emissions omit the uncharacterized contributors.",
    "the selected washes use solvents with the GHS Danger signal word: Diphenyl ether at 115 C. Pass avoid_danger_solvents=true to keep them out (the tool does not otherwise screen solvent hazard)",
    "heating risk is high or critical at the operating temperature for Diphenyl ether (above_flash_point, vapor_pressure_not_at_operating_temperature); Ethylene glycol (above_flash_point, vapor_pressure_not_at_operating_temperature)",
    "at the process model's solvent-to-polymer ratio a wash could take up a sizable share of the retained polymers (retained_pickup_upper_bound_pct_of_product): the screen does not establish purity"
   ],
   "selected": {
    "pathway": "LDPE/Diphenyl ether > EVOH/Ethylene glycol + we",
-   "profit": 193851621,
-   "emissions_t": 239351.3,
-   "circularity": 0.594
+   "profit": 196537841,
+   "emissions_t": 265305.7,
+   "circularity": 0.589
   },
   "circularity_in_0_1": true,
   "milp_agrees": true,
   "crashed": false,
-  "seconds": 86.2
+  "seconds": 79.8
  },
  "one_wash_only": {
   "success": true,
@@ -396,19 +392,20 @@
   ],
   "failed_washes": [],
   "warnings": [
+   "Partial GWP coverage for EVOH/Ethylene glycol after no prior wash (uncharacterized: activated_carbon, air, boiler_chemicals, cooling_tower_chemicals, cooling_tower_makeup_water, makeup_water); LDPE/p-Xylene after no prior wash (uncharacterized: activated_carbon, air, boiler_chemicals, cooling_tower_chemicals, cooling_tower_makeup_water, makeup_water); LDPE/Diphenyl ether after no prior wash (uncharacterized: activated_carbon, air, boiler_chemicals, cooling_tower_chemicals, cooling_tower_makeup_water, makeup_water); LDPE/Toluene after no prior wash (uncharacterized: activated_carbon, air, boiler_chemicals, cooling_tower_chemicals, cooling_tower_makeup_water, makeup_water). These emissions omit the uncharacterized contributors.",
    "heating risk is high or critical at the operating temperature for Ethylene glycol (above_flash_point, vapor_pressure_not_at_operating_temperature)",
    "at the process model's solvent-to-polymer ratio a wash could take up a sizable share of the retained polymers (retained_pickup_upper_bound_pct_of_product): the screen does not establish purity"
   ],
   "selected": {
    "pathway": "EVOH/Ethylene glycol + we",
-   "profit": 2617315,
-   "emissions_t": 18869.8,
-   "circularity": 0.496
+   "profit": 1208273,
+   "emissions_t": 19908.0,
+   "circularity": 0.49
   },
   "circularity_in_0_1": true,
   "milp_agrees": true,
   "crashed": false,
-  "seconds": 2.1
+  "seconds": 1.8
  },
  "three_washes_allowed": {
   "success": true,
@@ -424,20 +421,22 @@
   ],
   "failed_washes": [],
   "warnings": [
-   "the selected washes use solvents with the GHS Danger signal word: Acetic Acid at 105 C. Pass avoid_danger_solvents=true to keep them out (the tool does not otherwise screen solvent hazard)",
-   "heating risk is high or critical at the operating temperature for Acetic Acid (above_flash_point, vapor_pressure_not_at_operating_temperature)",
+   "Partial GWP coverage for EVOH/Acetic Acid after no prior wash (uncharacterized: activated_carbon, air, boiler_chemicals, cooling_tower_chemicals, cooling_tower_makeup_water, makeup_water); EVOH/Ethylene glycol after no prior wash (uncharacterized: activated_carbon, air, boiler_chemicals, cooling_tower_chemicals, cooling_tower_makeup_water, makeup_water); LDPE/Toluene after EVOH (uncharacterized: activated_carbon, air, boiler_chemicals, cooling_tower_chemicals, cooling_tower_makeup_water, makeup_water); LDPE/p-Xylene after EVOH (uncharacterized: activated_carbon, air, boiler_chemicals, cooling_tower_chemicals, cooling_tower_makeup_water, makeup_water); LDPE/Dipentene (Dl-Limonene) after EVOH (uncharacterized: activated_carbon, air, boiler_chemicals, cooling_tower_chemicals, cooling_tower_makeup_water, makeup_water); HDPE/Propylene glycol after EVOH, LDPE (uncharacterized: activated_carbon, air, boiler_chemicals, cooling_tower_chemicals, cooling_tower_makeup_water, makeup_water); HDPE/Diethylene Glycol after EVOH, LDPE (uncharacterized: activated_carbon, air, boiler_chemicals, cooling_tower_chemicals, cooling_tower_makeup_water, makeup_water); HDPE/Cyclohexanol after EVOH, LDPE (uncharacterized: activated_carbon, air, boiler_chemicals, cooling_tower_chemicals, cooling_tower_makeup_water, makeup_water); PET/Pyrrole after EVOH, LDPE (uncharacterized: activated_carbon, air, boiler_chemicals, cooling_tower_chemicals, cooling_tower_makeup_water, makeup_water); PET/N,N-Dimethylformamide after EVOH, LDPE (uncharacterized: activated_carbon, air, boiler_chemicals, cooling_tower_chemicals, cooling_tower_makeup_water, makeup_water); PET/Pyrrole after EVOH (uncharacterized: activated_carbon, air, boiler_chemicals, cooling_tower_chemicals, cooling_tower_makeup_water, makeup_water); LDPE/Toluene after EVOH, PET (uncharacterized: activated_carbon, air, boiler_chemicals, cooling_tower_chemicals, cooling_tower_makeup_water, makeup_water); LDPE/p-Xylene after EVOH, PET (uncharacterized: activated_carbon, air, boiler_chemicals, cooling_tower_chemicals, cooling_tower_makeup_water, makeup_water); LDPE/Dipentene (Dl-Limonene) after EVOH, PET (uncharacterized: activated_carbon, air, boiler_chemicals, cooling_tower_chemicals, cooling_tower_makeup_water, makeup_water); LDPE/Toluene after no prior wash (uncharacterized: activated_carbon, air, boiler_chemicals, cooling_tower_chemicals, cooling_tower_makeup_water, makeup_water); LDPE/p-Xylene after no prior wash (uncharacterized: activated_carbon, air, boiler_chemicals, cooling_tower_chemicals, cooling_tower_makeup_water, makeup_water); LDPE/Dipentene (Dl-Limonene) after no prior wash (uncharacterized: activated_carbon, air, boiler_chemicals, cooling_tower_chemicals, cooling_tower_makeup_water, makeup_water); EVOH/Acetic Acid after LDPE (uncharacterized: activated_carbon, air, boiler_chemicals, cooling_tower_chemicals, cooling_tower_makeup_water, makeup_water); EVOH/Propylene glycol after LDPE (uncharacterized: activated_carbon, air, boiler_chemicals, cooling_tower_chemicals, cooling_tower_makeup_water, makeup_water); EVOH/Ethylene glycol after LDPE (uncharacterized: activated_carbon, air, boiler_chemicals, cooling_tower_chemicals, cooling_tower_makeup_water, makeup_water); HDPE/Diphenyl ether after LDPE (uncharacterized: activated_carbon, air, boiler_chemicals, cooling_tower_chemicals, cooling_tower_makeup_water, makeup_water); HDPE/Dipentene (Dl-Limonene) after LDPE (uncharacterized: activated_carbon, air, boiler_chemicals, cooling_tower_chemicals, cooling_tower_makeup_water, makeup_water); HDPE/Dodecane after LDPE (uncharacterized: activated_carbon, air, boiler_chemicals, cooling_tower_chemicals, cooling_tower_makeup_water, makeup_water); EVOH/Propylene glycol after HDPE, LDPE (uncharacterized: activated_carbon, air, boiler_chemicals, cooling_tower_chemicals, cooling_tower_makeup_water, makeup_water); EVOH/Diethylene Glycol after HDPE, LDPE (uncharacterized: activated_carbon, air, boiler_chemicals, cooling_tower_chemicals, cooling_tower_makeup_water, makeup_water); EVOH/Acetic Acid after HDPE, LDPE (uncharacterized: activated_carbon, air, boiler_chemicals, cooling_tower_chemicals, cooling_tower_makeup_water, makeup_water). These emissions omit the uncharacterized contributors.",
+   "the selected pathway sells the washed PET residual as resin (13% of its sales) with no further processing cost; its profit depends on that residual being clean enough to sell (see resale_dependence for the result at half the price and at none)",
+   "the selected washes use solvents with the GHS Danger signal word: Toluene at 100 C; Diphenyl ether at 125 C. Pass avoid_danger_solvents=true to keep them out (the tool does not otherwise screen solvent hazard)",
+   "heating risk is high or critical at the operating temperature for Toluene (above_flash_point, vapor_pressure_not_at_operating_temperature); Diphenyl ether (above_flash_point, vapor_pressure_not_at_operating_temperature)",
    "at the process model's solvent-to-polymer ratio a wash could take up a sizable share of the retained polymers (retained_pickup_upper_bound_pct_of_product): the screen does not establish purity"
   ],
   "selected": {
-   "pathway": "EVOH/Acetic Acid + we",
-   "profit": 7972103,
-   "emissions_t": 17011.6,
-   "circularity": 0.528
+   "pathway": "LDPE/Toluene > HDPE/Diphenyl ether > EVOH/Diethylene Glycol + resale",
+   "profit": 7444554,
+   "emissions_t": 4530.6,
+   "circularity": 0.74
   },
   "circularity_in_0_1": true,
   "milp_agrees": true,
   "crashed": false,
-  "seconds": 282.1
+  "seconds": 243.2
  },
  "energy_case_c2": {
   "success": true,
@@ -450,20 +449,21 @@
   "no_admissible_wash": [],
   "failed_washes": [],
   "warnings": [
+   "Partial GWP coverage for EVOH/Acetic Acid after no prior wash (uncharacterized: activated_carbon, cooling_tower_chemicals, cooling_tower_makeup_water); EVOH/Ethylene glycol after no prior wash (uncharacterized: activated_carbon, cooling_tower_chemicals, cooling_tower_makeup_water); EVOH/N,N-Dimethylformamide after no prior wash (uncharacterized: activated_carbon, cooling_tower_chemicals, cooling_tower_makeup_water); LDPE/Toluene after no prior wash (uncharacterized: activated_carbon, cooling_tower_chemicals, cooling_tower_makeup_water); LDPE/Diphenyl ether after no prior wash (uncharacterized: activated_carbon, cooling_tower_chemicals, cooling_tower_makeup_water); LDPE/p-Xylene after no prior wash (uncharacterized: activated_carbon, cooling_tower_chemicals, cooling_tower_makeup_water). These emissions omit the uncharacterized contributors.",
    "the selected pathway sells the washed LDPE residual as resin (27% of its sales) with no further processing cost; its profit depends on that residual being clean enough to sell (see resale_dependence for the result at half the price and at none)",
    "heating risk is high or critical at the operating temperature for Ethylene glycol (above_flash_point, vapor_pressure_not_at_operating_temperature)",
    "at the process model's solvent-to-polymer ratio a wash could take up a sizable share of the retained polymers (retained_pickup_upper_bound_pct_of_product): the screen does not establish purity"
   ],
   "selected": {
    "pathway": "EVOH/Ethylene glycol + resale",
-   "profit": 12517219,
-   "emissions_t": 1516.3,
-   "circularity": 0.813
+   "profit": 11216449,
+   "emissions_t": 2165.2,
+   "circularity": 0.798
   },
   "circularity_in_0_1": true,
   "milp_agrees": true,
   "crashed": false,
-  "seconds": 56.1
+  "seconds": 54.0
  },
  "restricted_solvents": {
   "success": true,
@@ -479,19 +479,20 @@
   ],
   "failed_washes": [],
   "warnings": [
+   "Partial GWP coverage for EVOH/Ethylene glycol after no prior wash (uncharacterized: activated_carbon, air, boiler_chemicals, cooling_tower_chemicals, cooling_tower_makeup_water, makeup_water); LDPE/Toluene after EVOH (uncharacterized: activated_carbon, air, boiler_chemicals, cooling_tower_chemicals, cooling_tower_makeup_water, makeup_water); LDPE/Toluene after no prior wash (uncharacterized: activated_carbon, air, boiler_chemicals, cooling_tower_chemicals, cooling_tower_makeup_water, makeup_water); EVOH/Ethylene glycol after LDPE (uncharacterized: activated_carbon, air, boiler_chemicals, cooling_tower_chemicals, cooling_tower_makeup_water, makeup_water). These emissions omit the uncharacterized contributors.",
    "heating risk is high or critical at the operating temperature for Ethylene glycol (above_flash_point, vapor_pressure_not_at_operating_temperature)",
    "at the process model's solvent-to-polymer ratio a wash could take up a sizable share of the retained polymers (retained_pickup_upper_bound_pct_of_product): the screen does not establish purity"
   ],
   "selected": {
    "pathway": "EVOH/Ethylene glycol + we",
-   "profit": 2617315,
-   "emissions_t": 18869.8,
-   "circularity": 0.488
+   "profit": 1208273,
+   "emissions_t": 19908.0,
+   "circularity": 0.483
   },
   "circularity_in_0_1": true,
   "milp_agrees": true,
   "crashed": false,
-  "seconds": 3.8
+  "seconds": 3.2
  },
  "stricter_thermo_limits": {
   "success": true,
@@ -507,17 +508,19 @@
    "PET"
   ],
   "failed_washes": [],
-  "warnings": [],
+  "warnings": [
+   "Partial GWP coverage for LDPE/Dodecane after no prior wash (uncharacterized: activated_carbon, air, boiler_chemicals, cooling_tower_chemicals, cooling_tower_makeup_water, makeup_water). These emissions omit the uncharacterized contributors."
+  ],
   "selected": {
    "pathway": "no wash + we",
    "profit": 771360,
    "emissions_t": 19677.7,
-   "circularity": 0.449
+   "circularity": 0.456
   },
   "circularity_in_0_1": true,
   "milp_agrees": true,
   "crashed": false,
-  "seconds": 12.3
+  "seconds": 10.3
  },
  "price_override_unpriced_polymer": {
   "success": true,
@@ -532,21 +535,21 @@
   ],
   "failed_washes": [],
   "warnings": [
+   "Partial GWP coverage for EVOH/Propylene glycol after no prior wash (uncharacterized: activated_carbon, air, boiler_chemicals, cooling_tower_chemicals, cooling_tower_makeup_water, makeup_water); EVOH/Diethylene Glycol after no prior wash (uncharacterized: activated_carbon, air, boiler_chemicals, cooling_tower_chemicals, cooling_tower_makeup_water, makeup_water); EVOH/Acetic Acid after no prior wash (uncharacterized: activated_carbon, air, boiler_chemicals, cooling_tower_chemicals, cooling_tower_makeup_water, makeup_water); PC/p-Xylene after EVOH (uncharacterized: activated_carbon, air, boiler_chemicals, cooling_tower_chemicals, cooling_tower_makeup_water, makeup_water); PC/Isophorone after EVOH (uncharacterized: activated_carbon, air, boiler_chemicals, cooling_tower_chemicals, cooling_tower_makeup_water, makeup_water); PC/Toluene after EVOH (uncharacterized: activated_carbon, air, boiler_chemicals, cooling_tower_chemicals, cooling_tower_makeup_water, makeup_water); PC/p-Xylene after no prior wash (uncharacterized: activated_carbon, air, boiler_chemicals, cooling_tower_chemicals, cooling_tower_makeup_water, makeup_water); PC/Toluene after no prior wash (uncharacterized: activated_carbon, air, boiler_chemicals, cooling_tower_chemicals, cooling_tower_makeup_water, makeup_water); PC/Chlorobenzene after no prior wash (uncharacterized: activated_carbon, air, boiler_chemicals, cooling_tower_chemicals, cooling_tower_makeup_water, makeup_water); EVOH/Propylene glycol after PC (uncharacterized: activated_carbon, air, boiler_chemicals, cooling_tower_chemicals, cooling_tower_makeup_water, makeup_water); EVOH/Diethylene Glycol after PC (uncharacterized: activated_carbon, air, boiler_chemicals, cooling_tower_chemicals, cooling_tower_makeup_water, makeup_water); EVOH/Acetic Acid after PC (uncharacterized: activated_carbon, air, boiler_chemicals, cooling_tower_chemicals, cooling_tower_makeup_water, makeup_water). These emissions omit the uncharacterized contributors.",
    "the selected pathway sells the washed PET residual as resin (12% of its sales) with no further processing cost; its profit depends on that residual being clean enough to sell (see resale_dependence for the result at half the price and at none)",
-   "the selected washes use solvents with the GHS Danger signal word: Acetic Acid at 105 C. Pass avoid_danger_solvents=true to keep them out (the tool does not otherwise screen solvent hazard)",
-   "heating risk is high or critical at the operating temperature for Chlorobenzene (above_flash_point, vapor_pressure_not_at_operating_temperature); Acetic Acid (above_flash_point, vapor_pressure_not_at_operating_temperature)",
+   "heating risk is high or critical at the operating temperature for Chlorobenzene (above_flash_point, vapor_pressure_not_at_operating_temperature)",
    "at the process model's solvent-to-polymer ratio a wash could take up a sizable share of the retained polymers (retained_pickup_upper_bound_pct_of_product): the screen does not establish purity"
   ],
   "selected": {
-   "pathway": "PC/Chlorobenzene > EVOH/Acetic Acid + resale",
-   "profit": 13302233,
-   "emissions_t": 1904.3,
-   "circularity": 0.805
+   "pathway": "PC/Chlorobenzene > EVOH/Diethylene Glycol + resale",
+   "profit": 13417218,
+   "emissions_t": 3051.5,
+   "circularity": 0.77
   },
   "circularity_in_0_1": true,
   "milp_agrees": true,
   "crashed": false,
-  "seconds": 4.1
+  "seconds": 3.5
  },
  "circularity_objective_pareto": {
   "success": true,
@@ -558,9 +561,11 @@
   "washes_costed": 6,
   "no_admissible_wash": [],
   "failed_washes": [],
-  "warnings": [],
+  "warnings": [
+   "Partial GWP coverage for EVOH/Acetic Acid after no prior wash (uncharacterized: activated_carbon, air, boiler_chemicals, cooling_tower_chemicals, cooling_tower_makeup_water, makeup_water); EVOH/Ethylene glycol after no prior wash (uncharacterized: activated_carbon, air, boiler_chemicals, cooling_tower_chemicals, cooling_tower_makeup_water, makeup_water); EVOH/N,N-Dimethylformamide after no prior wash (uncharacterized: activated_carbon, air, boiler_chemicals, cooling_tower_chemicals, cooling_tower_makeup_water, makeup_water); LDPE/Toluene after no prior wash (uncharacterized: activated_carbon, air, boiler_chemicals, cooling_tower_chemicals, cooling_tower_makeup_water, makeup_water); LDPE/Diphenyl ether after no prior wash (uncharacterized: activated_carbon, air, boiler_chemicals, cooling_tower_chemicals, cooling_tower_makeup_water, makeup_water); LDPE/p-Xylene after no prior wash (uncharacterized: activated_carbon, air, boiler_chemicals, cooling_tower_chemicals, cooling_tower_makeup_water, makeup_water). These emissions omit the uncharacterized contributors."
+  ],
   "front_points": 1,
   "crashed": false,
-  "seconds": 2.0
+  "seconds": 1.8
  }
 }

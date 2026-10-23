@@ -6,16 +6,16 @@
    "id": "Q1",
    "question": "We collect about 12,000 tonnes a year of mixed post-consumer packaging scrap: 40% HDPE, 25% LDPE, 20% PET and 15% EVOH by mass. What is the best way to process it to make money, and how would the answer change if we cared most about circularity? We would build a solvent-based recycling plant just for this scrap.",
    "status": "ok",
-   "seconds": 21.5,
+   "seconds": 53.8,
    "tool_calls": [
     {
      "tool": "optimize_waste_pathway",
      "args": {
       "objective": "max_profit",
       "feed_mass_fractions": {
-       "EVOH": 0.15,
-       "PET": 0.2,
        "LDPE": 0.25,
+       "PET": 0.2,
+       "EVOH": 0.15,
        "HDPE": 0.4
       },
       "feed_tonnes_per_year": 12000
@@ -32,26 +32,26 @@
      }
     }
    ],
-   "answer": "To evaluate the optimal solvent-wash sequence and downstream disposal routes for your 12,000 t/yr feed (40% HDPE, 25% LDPE, 20% PET, 15% EVOH) by profit and circularity, **16 live BioSTEAM simulations** are required (1 film-shredding stage and 15 candidate solvent-wash stages). \n\nEach simulation takes approximately 15 seconds, for a total run time of about 240 seconds (4 minutes).\n\n### Assumed Baseline Conditions\n- **Plant basis:** Dedicated facility sized specifically for your 12,000 tonnes/year throughput.\n- **Feed preparation:** Mechanical shredding included prior to solvent extraction.\n- **Default downstream transport distances:**\n  - Landfill: 9.2 miles\n  - Incineration: 151 miles\n  - Pyrolysis: 1,034 miles\n  - Hydrogen gasification: 2,036 miles\n  - Energy gasification: on site (0 miles)\n\nPlease confirm if you would like to proceed with running the 16 live simulations, or let me know if you wish to adjust any transport distances or solvent constraints beforehand."
+   "answer": "To evaluate the optimal solvent-wash sequence and downstream disposal options for your 12,000 t/yr feed (40% HDPE, 25% LDPE, 20% PET, 15% EVOH), **16 live BioSTEAM simulations** are required (one for initial film shredding, plus 15 stage-specific solvent wash simulations across candidate solvents for EVOH, LDPE, HDPE, and PET). \n\nEach live simulation takes approximately 15 seconds (about 240 seconds in total). Please confirm if you would like to proceed with running these simulations.\n\n### Baseline Modeling Assumptions\nOnce confirmed, the analysis will apply the following parameters:\n- **Plant basis:** A dedicated plant sized specifically for your 12,000 tonnes/year scrap feed.\n- **Pretreatment:** Film shredding is included prior to washing.\n- **Downstream transport distances:** Default values of 9.2 miles to landfill, 151 miles to municipal solid waste incineration, 1,034 miles to pyrolysis, 2,036 miles to hydrogen gasification, and on-site for energy gasification (let me know if you would like to specify custom distances).\n- **Multi-stage integration:** Later wash stages share the initial wash\u2019s labor crew and utilities infrastructure.\n\nPlease confirm whether to run the live techno-economic and life-cycle simulations.\n\nSource: DISSOLVE waste pathway optimization engine."
   },
   {
    "id": "Q1b",
    "question": "Yes, go ahead and run whatever simulations you need.",
    "status": "ok",
-   "seconds": 203.3,
+   "seconds": 244.5,
    "tool_calls": [
     {
      "tool": "optimize_waste_pathway",
      "args": {
+      "feed_mass_fractions": {
+       "LDPE": 0.25,
+       "PET": 0.2,
+       "HDPE": 0.4,
+       "EVOH": 0.15
+      },
       "feed_tonnes_per_year": 12000,
       "confirm_live_tea": true,
-      "objective": "max_profit",
-      "feed_mass_fractions": {
-       "HDPE": 0.4,
-       "PET": 0.2,
-       "EVOH": 0.15,
-       "LDPE": 0.25
-      }
+      "objective": "max_profit"
      },
      "result": {
       "success": true,
@@ -68,7 +68,7 @@
      "tool": "calculate",
      "args": {
       "b": [
-       4060787.68
+       5445089.32
       ],
       "operation": "difference",
       "a": [
@@ -79,36 +79,36 @@
     {
      "tool": "calculate",
      "args": {
-      "b": [
-       0.527
-      ],
       "a": [
-       0.693
+       28318.71
+      ],
+      "b": [
+       4483.94
       ],
       "operation": "difference"
      }
     }
    ],
-   "answer": "To maximize profit, the optimal process performs a single solvent wash to extract **EVOH using acetic acid at 105 \u00b0C**, sending the remaining scrap (HDPE, LDPE, and PET) to **incineration with energy recovery**, earning **$7,220,000 per year**. If you prioritize circularity, the process adds an initial wash to recover **LDPE using toluene at 100 \u00b0C** prior to EVOH recovery, sending the unrecovered residual (HDPE and PET) to **landfill**, which increases the circularity index from 0.527 to 0.693 while reducing annual profit by $3,160,000 to **$4,060,000 per year**.\n\n### Optimal Pathway Comparison\n\n| Objective | Wash Sequence | Downstream Technology | Annual Profit ($/yr) | Annual Emissions (t CO\u2082e/yr) | Circularity Index |\n|---|---|---|---|---|---|\n| **Max Profit** | EVOH (Acetic acid, 105 \u00b0C) | Incineration with energy recovery | 7,220,000 | 28,300 | 0.527 |\n| **Max Circularity** | 1. LDPE (Toluene, 100 \u00b0C)<br>2. EVOH (Acetic acid, 105 \u00b0C) | Landfill | 4,060,000 | 4,480 | 0.693 |\n\n*Note: Circularity Index is the MICRON 5-category index scaled from 0 to 1, where higher is more circular.*\n\n---\n\n### Process Details and Trade-offs\n\n1. **Max Profit Pathway (`EVOH/Acetic Acid + Incineration`):**\n   - **Wash 1:** Recovers 83.4% of the EVOH (1,500 t/yr recovered resin). Because recovered EVOH commands a high market price ($8,100/t), recovering it alone yields $13,300,000/yr in gross sales.\n   - **Downstream:** The remaining 10,500 t/yr of scrap is trucked 151 miles to incineration with energy recovery, which earns $110 per tonne of residual ($1,150,000/yr in downstream revenue).\n   - **Costs:** Annual capital charges are $3,590,000/yr, operating costs are $2,320,000/yr, and transport costs are $179,000/yr. Mechanical film shredding is included in the first stage at $0.137 per kg of feed film.\n\n2. **Max Circularity Pathway (`LDPE/Toluene > EVOH/Acetic Acid + Landfill`):**\n   - **Wash 1:** Dissolves and recovers 91.2% of the LDPE (2,740 t/yr recovered resin at $1,173/t).\n   - **Wash 2:** Dissolves and recovers 88.3% of the EVOH (1,590 t/yr recovered resin at $8,100/t).\n   - **Downstream:** The 7,670 t/yr residual is landfilled 9.2 miles away. Total sales rise to $16,100,000/yr, and gate-to-gate greenhouse gas emissions drop substantially (from 28,300 to 4,480 t CO\u2082e/yr) by avoiding the fossil carbon release of incinerating polyolefins.\n   - **Why Profit Drops:** A second stand-alone wash plant increases total annualized capital charges to $8,670,000/yr and operating costs to $3,260,000/yr. Furthermore, landfilling generates no downstream revenue, reducing net annual profit to $4,060,000. Under the standard convention, each wash is costed as an independent stand-alone facility (repeating flat labor charges and utility setups); sharing labor or utility equipment on a single site would improve this multi-wash margin.\n\n3. **Polymers Without an Admissible Wash:**\n   - Neither **HDPE** nor **PET** qualified for an admissible solvent wash under the thermodynamic screening criteria (requiring at least 10 wt% target polymer solubility, at most 3 wt% retention of all other polymers in the stream, and target precipitation below 1 wt% upon cooling). Consequently, both remain in the residual stream in all pathways.\n\n4. **Safety and Hazard Considerations:**\n   - Acetic acid is classified with the **GHS Danger** signal word, and operating at 105 \u00b0C is above its flash point (presenting a high heating risk). Toluene is also a flammable solvent. If you wish to avoid hazardous solvents, the screen can be rerun with a hazard constraint (`avoid_danger_solvents`).\n\n---\n\nSource: Live BioSTEAM techno-economic and life-cycle simulations (tea_live) based on COSMO-RS thermodynamic solubility predictions (cosmo_rs_grid), screening downstream-technology data, and local safety records (safety_local). Profit and circularity differences were evaluated using the calculate tool (calculated_from_supplied_values)."
+   "answer": "To maximize profit, the optimal route is a **single solvent wash to recover EVOH using acetic acid at 105 \u00b0C, sending the remaining residual stream to incineration with energy recovery**, earning **$7,224,031/yr**. \n\nIf circularity is prioritized instead, the optimum shifts to a **two-stage wash sequence recovering LDPE with toluene at 100 \u00b0C, then EVOH with acetic acid at 105 \u00b0C, sending the residual to landfill**. This raises the circularity index from 0.527 to 0.693 and cuts emissions by 23,835 t CO\u2082e/yr, but reduces profit by $1,778,941/yr due to the additional capital and operating costs of the second wash stage.\n\n### Pathway Comparison\n\n| Objective | Wash Sequence | Downstream Destination | Annual Profit (USD/yr) | Annual Emissions (t CO\u2082e/yr) | Circularity Index | Annualized Capital (USD/yr) | Operating Cost (USD/yr) |\n|---|---|---|---|---|---|---|---|\n| **Max Profit** | EVOH (Acetic Acid, 105 \u00b0C) | Incineration with energy recovery | 7,224,031 | 28,319 | 0.527 | 3,586,857 | 2,323,981 |\n| **Max Circularity** | 1. LDPE (Toluene, 100 \u00b0C)<br>2. EVOH (Acetic Acid, 105 \u00b0C) | Landfill | 5,445,089 | 4,484 | 0.693 | 7,510,952 | 3,033,154 |\n| *Min Emissions* | *No wash* | *Landfill* | *-137,880* | *1,037* | *0.607* | *0* | *94,032* |\n\n*Circularity Index: The MICRON composite index evaluates energy, greenhouse gas emissions, resin substitutability, waste, and water on a 0 to 1 scale (higher is more circular).*\n\n---\n\n### Process Performance & Key Drivers\n\n1. **Why EVOH Drives Profitability:**\n   - EVOH commands a high market price ($8,100/t) compared to PE ($1,173/t) and PET ($1,380/t). Recovering 83.4% of the feed's EVOH in the profit-optimal route generates $12.16M in resin revenue alone.\n   - Incineration of the 10,499 t/yr residual earns an additional $110/t in energy recovery credits ($1.15M/yr), outperforming landfill financially despite incurring significant fossil CO\u2082 combustion emissions (28,319 t CO\u2082e/yr total plant emissions).\n\n2. **Why Circularity Shifts the Route:**\n   - The circularity index favors higher resin substitutability (recovering 91.2% of the LDPE and 88.3% of the EVOH) and penalizes incineration greenhouse gas emissions heavily.\n   - Landfilling the mixed 7,675 t/yr HDPE/PET residual yields vastly lower gate-to-gate emissions (4,484 t CO\u2082e/yr total) than incinerating it.\n   - From the raw feed, neither HDPE nor PET met the thermodynamic screening criteria (\u226510 wt% target dissolution with \u22643 wt% retention of all co-polymers) for selective direct dissolution, leaving them in the residual.\n\n### Modeling Assumptions & Caveats\n- **Plant Sizing & Shredding:** Costed as a dedicated facility processing 12,000 t/yr. Mechanical film shredding is included prior to washing (adding $0.137/kg film to the first wash feedstock basis).\n- **Multi-Wash Site Sharing:** The second wash in the circular route is modeled assuming shared site utilities and labor (0% incremental labor crew and 100% shared utility plant credit), which represents an upper bound on savings; independent stand-alone wash plants would be more conservative.\n- **Transport Distances:** Assumed baseline default distances of 9.2 miles to landfill, 151 miles to incineration, 1,034 miles to pyrolysis, and 2,036 miles to hydrogen gasification.\n- **Safety Warning:** Acetic acid at 105 \u00b0C carries the GHS *Danger* signal word and operates above its flash point (39 \u00b0C), posing high thermal risk. The screen can be rerun with `avoid_danger_solvents=True` to require milder solvent candidates (such as ethylene glycol).\n- **Data Fidelity:** Downstream technology operating and capital parameters are partly recovered from published literature, and the thermodynamic retention thresholds are screening boundaries rather than guaranteed resin purities.\n\nSource: Live BioSTEAM techno-economic and life-cycle simulations with COSMO-RS thermodynamic screening."
   },
   {
    "id": "Q2",
    "question": "Show the trade-off between profit and emissions.",
    "status": "ok",
-   "seconds": 61.4,
+   "seconds": 45.8,
    "tool_calls": [
     {
      "tool": "optimize_waste_pathway",
      "args": {
+      "confirm_live_tea": true,
       "feed_tonnes_per_year": 12000,
       "pareto": "emissions_vs_profit",
       "draw_plot": true,
-      "confirm_live_tea": true,
       "feed_mass_fractions": {
-       "PET": 0.2,
        "LDPE": 0.25,
-       "EVOH": 0.15,
-       "HDPE": 0.4
+       "HDPE": 0.4,
+       "PET": 0.2,
+       "EVOH": 0.15
       }
      },
      "result": {
@@ -126,11 +126,11 @@
      "tool": "calculate",
      "args": {
       "operation": "difference",
-      "a": [
-       7224030.67
-      ],
       "b": [
        6091091.44
+      ],
+      "a": [
+       7224030.67
       ]
      }
     },
@@ -145,137 +145,107 @@
        28318.71
       ]
      }
-    },
-    {
-     "tool": "calculate",
-     "args": {
-      "a": [
-       24916.62
-      ],
-      "operation": "ratio",
-      "b": [
-       1132939.23
-      ]
-     }
-    },
-    {
-     "tool": "calculate",
-     "args": {
-      "a": [
-       1132939.23
-      ],
-      "operation": "ratio",
-      "b": [
-       24916.62
-      ]
-     }
     }
    ],
-   "answer": "The trade-off between profit and greenhouse gas emissions forms a three-point Pareto front, where moving from low-emission landfilling to incineration yields an additional $1,130,000 per year in profit but incurs an extra 24,900 tonnes of CO\u2082e per year.\n\n### Profit vs. Emissions Pareto Front\n\n| Pathway | Solvent Wash Stages | Downstream Technology | Annual Profit ($/yr) | Annual Emissions (t CO\u2082e/yr) | Circularity Index |\n|---|---|---|---|---|---|\n| **Minimum Emissions** | None (unwashed feed) | Landfill (9.2 miles) | -138,000 | 1,040 | 0.607 |\n| **Intermediate Compromise** | EVOH (Acetic acid, 105 \u00b0C) | Landfill (9.2 miles) | 6,090,000 | 3,400 | 0.672 |\n| **Maximum Profit** | EVOH (Acetic acid, 105 \u00b0C) | Incineration with energy recovery (151 miles) | 7,220,000 | 28,300 | 0.527 |\n\n*Note: Circularity Index is the MICRON 5-category index scaled from 0 to 1, where higher is more circular.*\n\n---\n\n### Trade-off Analysis\n\n1. **Unwashed Feed to Landfill (Baseline Minimum Emissions):**\n   - Incurs no plant capital cost, resulting in minimal emissions (1,040 t CO\u2082e/yr, primarily from landfill operations and 9.2 miles of local hauling).\n   - Generates no revenue and incurs transport and tipping fees, operating at a net loss of **-$138,000 per year**.\n\n2. **EVOH Wash + Landfill (Low-Carbon Recycling):**\n   - Recovers 83.4% of the high-value EVOH resin ($12,200,000/yr in resin sales).\n   - Keeps emissions low at **3,400 t CO\u2082e/yr** because the polyolefin and PET residual (10,500 t/yr) is sequestered in a landfill rather than combusted.\n   - Captures over 84% of the maximum possible profit (**$6,090,000 per year**) while avoiding 88% of the emissions generated by incineration.\n\n3. **EVOH Wash + Incineration with Energy Recovery (Maximum Profit):**\n   - Boosts annual profit to **$7,220,000 per year** because incineration pays $110 per tonne of residual fuel ($1,150,000/yr in gross downstream revenue).\n   - However, gate-to-gate emissions surge to **28,300 t CO\u2082e/yr** due to the direct oxidation of fossil-derived plastics (HDPE, LDPE, and PET).\n   - Switching from landfill to incineration generates approximately **$45.50 of added profit per additional tonne of CO\u2082e emitted**.\n\n### Plot Generation\nThe full multi-objective trade-off plot (covering emissions vs. profit, circularity vs. profit, and emissions vs. circularity) has been saved to:\n`/private/tmp/claude-501/-Users-parthbrahmbhatt-Library-CloudStorage-OneDrive-UW-Madison-Project/88ec4a6d-e445-4492-9756-a0394c93f52d/scratchpad/agent_flash/pathways_20261023T195401271306Z_fronts.png`\n\n*(The image viewer was not launched automatically in this environment, but the file is available at that path for viewing.)*\n\n---\n\nSource: Live BioSTEAM techno-economic and life-cycle simulations (tea_live) based on COSMO-RS thermodynamic solubility predictions (cosmo_rs_grid) and screening downstream-technology data. Differences and ratios were evaluated using the calculate tool (calculated_from_supplied_values). Mechanical shredding is included in all washed pathways at a cost of $0.137/kg of film."
+   "answer": "The Pareto front traces six non-dominated pathways balancing annual profit against greenhouse gas emissions. The primary driver of the trade-off is the fate of the unrecovered residual stream: sending residual plastic to incineration with energy recovery boosts revenue by $110/t but increases greenhouse gas emissions nearly eight-fold relative to landfilling.\n\nThe trade-off plots have been generated and saved to:\n`/private/tmp/claude-501/-Users-parthbrahmbhatt-Library-CloudStorage-OneDrive-UW-Madison-Project/88ec4a6d-e445-4492-9756-a0394c93f52d/scratchpad/ag2/pathways_20261023T205038184492Z_fronts.png`\n\n---\n\n### Emissions vs. Profit Pareto Front\n\n| Pathway | Washes | Downstream Destination | Annual Profit (USD/yr) | Gate-to-Gate Emissions (t CO\u2082e/yr) | Circularity Index |\n|---|---|---|---|---|---|\n| **1. Baseline Landfill** | None | Landfill (9.2 miles) | -137,880 | 1,037 | 0.607 |\n| **2. Low-Emission Recycle** | EVOH (Acetic Acid, 105 \u00b0C) | Landfill (9.2 miles) | 6,091,091 | 3,402 | 0.672 |\n| **3. Dual Wash (Toluene/Acetic)** | 1. LDPE (Toluene, 100 \u00b0C)<br>2. EVOH (Acetic Acid, 105 \u00b0C) | Incineration (151 miles) | 6,273,273 | 22,698 | 0.574 |\n| **4. Dual Wash (Toluene/Glycol)** | 1. LDPE (Toluene, 100 \u00b0C)<br>2. EVOH (Ethylene glycol, 120 \u00b0C) | Incineration (151 miles) | 6,308,623 | 23,070 | 0.571 |\n| **5. Dual Wash (Acetic/Pyrrole)** | 1. EVOH (Acetic Acid, 105 \u00b0C)<br>2. PET (Pyrrole, 110 \u00b0C) | Incineration (151 miles) | 6,389,632 | 24,127 | 0.562 |\n| **6. Maximum Profit** | EVOH (Acetic Acid, 105 \u00b0C) | Incineration (151 miles) | 7,224,031 | 28,319 | 0.527 |\n\n*Circularity Index: MICRON 5-category index (0 to 1, higher is more circular).*\n\n---\n\n### Key Trade-Off Insights\n\n1. **The Incineration Pivot (Pathway 2 vs. Pathway 6):**\n   - For a single EVOH wash, shifting the 10,499 t/yr residual from landfill to incineration increases profit by **$1,132,939/yr** via electricity/steam revenue.\n   - However, this adds **24,917 t CO\u2082e/yr** in combustion emissions, demonstrating that over 87% of the plant's maximum-profit emissions originate from downstream combustion rather than the solvent dissolution process.\n2. **Intermediate Multi-Wash Options (Pathways 3\u20135):**\n   - Adding a second stage (LDPE or PET recovery) before incineration diverts polymer mass away from combustion into circular resin, reducing incineration emissions from 28,319 down to ~22,700\u201324,100 t CO\u2082e/yr.\n   - However, the additional capital investment and operating burden of a second wash plant temper annual profit ($6.27M\u2013$6.39M/yr compared to $7.22M/yr for single-stage EVOH recovery).\n3. **The Cleanest Route with High Return:**\n   - **Pathway 2** (EVOH recovery + landfilling residual HDPE/LDPE/PET) captures over 84% of maximum available profit ($6,091,091/yr) while maintaining low emissions (3,402 t CO\u2082e/yr) and achieving the highest circularity on the Pareto front (0.672).\n\nSource: Live BioSTEAM techno-economic and life-cycle simulations with COSMO-RS thermodynamic screening."
   },
   {
    "id": "Q3",
    "question": "What if we shared a 20,000 tonne per year recycling plant with other producers instead of building our own?",
    "status": "ok",
-   "seconds": 42.3,
+   "seconds": 197.8,
    "tool_calls": [
     {
      "tool": "optimize_waste_pathway",
      "args": {
+      "objective": "max_profit",
+      "shared_plant_capacity_mt_per_yr": 20000,
       "feed_mass_fractions": {
-       "EVOH": 0.15,
+       "HDPE": 0.4,
        "LDPE": 0.25,
        "PET": 0.2,
-       "HDPE": 0.4
+       "EVOH": 0.15
       },
-      "shared_plant_capacity_mt_per_yr": 20000,
-      "objective": "max_profit",
       "feed_tonnes_per_year": 12000,
-      "circularity_upper_bounds": {
-       "ghg_t_co2e": 31669.3278867396,
-       "waste_kg": 4946352.06987093,
-       "sales_low_usd": 0,
-       "water_m3": 7547.43821674015,
-       "energy_mj": 101591017.309933,
-       "sales_high_usd": 26230158
-      },
-      "confirm_live_tea": false
-     },
-     "result": {
-      "success": false,
-      "error_code": "live_tea_cost_confirmation_required",
-      "pathway": null,
-      "profit_usd_per_yr": null,
-      "emissions_t_co2e_per_yr": null,
-      "circularity_index": null,
-      "basis": null,
-      "pending_stages": 16
-     }
-    }
-   ],
-   "answer": "Sizing the recycling facility as a **20,000 tonnes per year shared plant** (where your 12,000 t/yr feed pays only its proportional throughput share of capital and fixed operating costs) requires **16 new live BioSTEAM simulations** (1 shared shredder stage and 15 solvent-wash stages re-sized to 20,000 t/yr capacity).\n\nEach simulation takes approximately 15 seconds, for a total run time of about 240 seconds (4 minutes).\n\nPlease confirm if you would like me to proceed with running these simulations to evaluate the economics and circularity of the shared-plant scenario."
-  },
-  {
-   "id": "Q4",
-   "question": "In that shared plant, would recovering the EVOH still pay if we could only sell it for 2,000, 4,000 or 6,000 dollars per tonne?",
-   "status": "ok",
-   "seconds": 939.4,
-   "tool_calls": [
-    {
-     "tool": "optimize_waste_pathway",
-     "args": {
-      "objective": "max_profit",
-      "feed_mass_fractions": {
-       "PET": 0.2,
-       "EVOH": 0.15,
-       "HDPE": 0.4,
-       "LDPE": 0.25
-      },
-      "circularity_upper_bounds": {
-       "ghg_t_co2e": 31669.3278867396,
-       "waste_kg": 4946352.06987093,
-       "energy_mj": 101591017.309933,
-       "sales_low_usd": 0,
-       "water_m3": 7547.43821674015,
-       "sales_high_usd": 26230158
-      },
       "confirm_live_tea": true,
-      "feed_tonnes_per_year": 12000,
-      "shared_plant_capacity_mt_per_yr": 20000
+      "circularity_upper_bounds": {
+       "ghg_t_co2e": 31669.3278867396,
+       "sales_low_usd": 0,
+       "water_m3": 7547.43821674015,
+       "waste_kg": 4946352.06987093,
+       "energy_mj": 101591017.309933,
+       "sales_high_usd": 26230158
+      }
      },
      "result": {
       "success": true,
       "error_code": null,
-      "pathway": "EVOH/Acetic Acid + we",
-      "profit_usd_per_yr": 8555219.639365476,
-      "emissions_t_co2e_per_yr": 28311.74820499149,
-      "circularity_index": 0.5268743656437308,
+      "pathway": "LDPE/Toluene > EVOH/Ethylene glycol + we",
+      "profit_usd_per_yr": 8630336.028331537,
+      "emissions_t_co2e_per_yr": 23048.782221893296,
+      "circularity_index": 0.5715133600489737,
       "basis": "tea_live",
       "pending_stages": 0
      }
     },
     {
+     "tool": "calculate",
+     "args": {
+      "a": [
+       8630336.03
+      ],
+      "b": [
+       7224030.67
+      ],
+      "operation": "difference"
+     }
+    },
+    {
+     "tool": "calculate",
+     "args": {
+      "b": [
+       5445089.32
+      ],
+      "operation": "difference",
+      "a": [
+       7782463.58
+      ]
+     }
+    }
+   ],
+   "answer": "Sharing a 20,000 t/yr facility and paying only your 12,000 t/yr throughput share fundamentally improves the economics through economies of scale:\n\n1. **The profit-optimal strategy shifts from one wash to two washes:** Because the capital and operating charges per kilogram decrease (for example, shredded film cost drops from $0.137/kg to $0.0963/kg), **recovering LDPE alongside EVOH becomes profitable**.\n2. **Annual profit increases by $1,406,305/yr** under the profit objective, while **cutting emissions by 5,270 t CO\u2082e/yr** (because recovering LDPE diverts 2,736 t/yr of plastic from downstream incineration).\n3. **If prioritizing circularity**, the optimal route remains the two-stage wash (LDPE then EVOH) to landfill, but its annual profit jumps by **$2,337,374/yr** (from $5.45M to $7.78M/yr).\n\n---\n\n### Dedicated (12,000 t/yr) vs. Shared (20,000 t/yr) Facility Comparison\n\n| Metric / Objective | Dedicated Plant (12,000 t/yr) | Shared Plant (20,000 t/yr, 60% Share) | Impact of Sharing |\n|---|---|---|---|\n| **Max Profit Pathway** | **EVOH (Acetic Acid, 105 \u00b0C)**<br>+ Incineration | **1. LDPE (Toluene, 100 \u00b0C)**<br>**2. EVOH (Ethylene glycol, 120 \u00b0C)**<br>+ Incineration | Adds LDPE recycling; swaps Acetic Acid for Ethylene glycol |\n| \u2014 Annual Profit (USD/yr) | 7,224,031 | 8,630,336 | **+$1,406,305/yr (+19.5%)** |\n| \u2014 Annual Emissions (t CO\u2082e/yr) | 28,319 | 23,049 | **-5,270 t CO\u2082e/yr (-18.6%)** |\n| \u2014 Circularity Index | 0.527 | 0.572 | **+0.045** |\n| \u2014 Total Sales (USD/yr) | 13,313,564 | 16,924,673 | +$3,611,109/yr |\n| \u2014 Annualized Capital (USD/yr) | 3,586,857 | 5,903,641 | +$2,316,784/yr (2 washes vs 1) |\n| \u2014 Operating Cost (USD/yr) | 2,323,981 | 2,223,263 | -$100,718/yr |\n| **Max Circularity Pathway** | **1. LDPE (Toluene, 100 \u00b0C)**<br>**2. EVOH (Acetic Acid, 105 \u00b0C)**<br>+ Landfill | **1. LDPE (Toluene, 100 \u00b0C)**<br>**2. EVOH (Acetic Acid, 105 \u00b0C)**<br>+ Landfill | Sequence unchanged |\n| \u2014 Annual Profit (USD/yr) | 5,445,089 | 7,782,464 | **+$2,337,374/yr (+42.9%)** |\n| \u2014 Annual Emissions (t CO\u2082e/yr) | 4,484 | 4,462 | -22 t CO\u2082e/yr |\n| \u2014 Circularity Index | 0.693 | 0.694 | Consistent on identical bounds |\n\n*Circularity Index: Evaluated on the baseline's MICRON upper bounds (0 to 1 scale, higher is more circular).*\n\n---\n\n### Key Takeaways\n\n- **Scale Unlocks Multi-Polymer Recovery:** In a small, dedicated facility (12,000 t/yr), recovering LDPE does not generate enough margin to justify the capital burden of a second dissolution train. At 20,000 t/yr, unit capital costs drop sufficiently that LDPE recovery becomes value-accretive.\n- **Safer EVOH Solvent in Profit Optimum:** The shared plant selects **ethylene glycol** at 120 \u00b0C over acetic acid for EVOH in the max-profit route. Ethylene glycol avoids the GHS *Danger* signal word and severe acetic acid volatility/odor issues, achieving virtually identical economics ($8,630,336/yr vs. $8,610,648/yr for acetic acid).\n- **Synergy of Circularity and Profit:** In a shared plant, pursuing maximum circularity yields **$7,782,464/yr**\u2014which is more profit than the dedicated plant achieved even when optimizing purely for profit ($7,224,031/yr), while eliminating over 18,500 t CO\u2082e/yr in emissions.\n\nSource: Live BioSTEAM techno-economic and life-cycle simulations with COSMO-RS thermodynamic screening."
+  },
+  {
+   "id": "Q4",
+   "question": "In that shared plant, would recovering the EVOH still pay if we could only sell it for 2,000, 4,000 or 6,000 dollars per tonne?",
+   "status": "ok",
+   "seconds": 199.6,
+   "tool_calls": [
+    {
      "tool": "optimize_waste_pathway",
      "args": {
+      "confirm_live_tea": true,
+      "feed_tonnes_per_year": 12000,
       "feed_mass_fractions": {
        "EVOH": 0.15,
-       "PET": 0.2,
        "HDPE": 0.4,
+       "PET": 0.2,
        "LDPE": 0.25
       },
-      "polymer_prices_usd_per_t": {
-       "EVOH": 2000
-      },
-      "feed_tonnes_per_year": 12000,
-      "confirm_live_tea": true,
       "objective": "max_profit",
+      "polymer_prices_usd_per_t": {
+       "HDPE": 1173,
+       "EVOH": 2000,
+       "LDPE": 1173,
+       "PET": 1380
+      },
       "circularity_upper_bounds": {
-       "waste_kg": 4946352.06987093,
        "energy_mj": 101591017.309933,
-       "water_m3": 7547.43821674015,
        "ghg_t_co2e": 31669.3278867396,
+       "sales_high_usd": 26230158,
        "sales_low_usd": 0,
-       "sales_high_usd": 26230158
+       "water_m3": 7547.43821674015,
+       "waste_kg": 4946352.06987093
       },
       "shared_plant_capacity_mt_per_yr": 20000
      },
@@ -293,33 +263,36 @@
     {
      "tool": "optimize_waste_pathway",
      "args": {
-      "confirm_live_tea": true,
-      "feed_tonnes_per_year": 12000,
-      "shared_plant_capacity_mt_per_yr": 20000,
-      "polymer_prices_usd_per_t": {
-       "EVOH": 4000
-      },
       "feed_mass_fractions": {
-       "EVOH": 0.15,
-       "LDPE": 0.25,
+       "PET": 0.2,
        "HDPE": 0.4,
-       "PET": 0.2
+       "EVOH": 0.15,
+       "LDPE": 0.25
       },
-      "objective": "max_profit",
       "circularity_upper_bounds": {
-       "water_m3": 7547.43821674015,
-       "waste_kg": 4946352.06987093,
        "energy_mj": 101591017.309933,
        "sales_high_usd": 26230158,
        "sales_low_usd": 0,
-       "ghg_t_co2e": 31669.3278867396
-      }
+       "water_m3": 7547.43821674015,
+       "ghg_t_co2e": 31669.3278867396,
+       "waste_kg": 4946352.06987093
+      },
+      "polymer_prices_usd_per_t": {
+       "LDPE": 1173,
+       "PET": 1380,
+       "HDPE": 1173,
+       "EVOH": 4000
+      },
+      "feed_tonnes_per_year": 12000,
+      "objective": "max_profit",
+      "shared_plant_capacity_mt_per_yr": 20000,
+      "confirm_live_tea": true
      },
      "result": {
       "success": true,
       "error_code": null,
       "pathway": "EVOH/Acetic Acid + we",
-      "profit_usd_per_yr": 2400825.0116263162,
+      "profit_usd_per_yr": 2400825.011626317,
       "emissions_t_co2e_per_yr": 28311.74820499149,
       "circularity_index": 0.4799482691426029,
       "basis": "tea_live",
@@ -329,27 +302,30 @@
     {
      "tool": "optimize_waste_pathway",
      "args": {
-      "confirm_live_tea": true,
-      "polymer_prices_usd_per_t": {
-       "EVOH": 6000
-      },
       "objective": "max_profit",
       "shared_plant_capacity_mt_per_yr": 20000,
+      "feed_tonnes_per_year": 12000,
+      "circularity_upper_bounds": {
+       "sales_low_usd": 0,
+       "energy_mj": 101591017.309933,
+       "sales_high_usd": 26230158,
+       "water_m3": 7547.43821674015,
+       "ghg_t_co2e": 31669.3278867396,
+       "waste_kg": 4946352.06987093
+      },
+      "polymer_prices_usd_per_t": {
+       "EVOH": 6000,
+       "PET": 1380,
+       "HDPE": 1173,
+       "LDPE": 1173
+      },
       "feed_mass_fractions": {
        "HDPE": 0.4,
        "EVOH": 0.15,
-       "LDPE": 0.25,
-       "PET": 0.2
+       "PET": 0.2,
+       "LDPE": 0.25
       },
-      "feed_tonnes_per_year": 12000,
-      "circularity_upper_bounds": {
-       "sales_high_usd": 26230158,
-       "water_m3": 7547.43821674015,
-       "sales_low_usd": 0,
-       "waste_kg": 4946352.06987093,
-       "energy_mj": 101591017.309933,
-       "ghg_t_co2e": 31669.3278867396
-      }
+      "confirm_live_tea": true
      },
      "result": {
       "success": true,
@@ -365,118 +341,141 @@
     {
      "tool": "calculate",
      "args": {
-      "a": [
+      "b": [
        1157040
       ],
       "operation": "difference",
-      "b": [
-       -601318.71
+      "a": [
+       2400825.01
       ]
      }
     },
     {
      "tool": "calculate",
      "args": {
-      "a": [
-       1758358.71
-      ],
-      "operation": "ratio",
       "b": [
-       1501.07
-      ]
-     }
-    },
-    {
-     "tool": "calculate",
-     "args": {
-      "a": [
-       2000
+       1157040
       ],
-      "b": [
-       1171.4
-      ],
-      "operation": "sum"
-     }
-    },
-    {
-     "tool": "calculate",
-     "args": {
-      "operation": "ratio",
-      "b": [
-       1501.07
-      ],
-      "a": [
-       601318.71
-      ]
-     }
-    },
-    {
-     "tool": "calculate",
-     "args": {
-      "operation": "sum",
-      "b": [
-       400.6
-      ],
-      "a": [
-       2000
-      ]
-     }
-    },
-    {
-     "tool": "calculate",
-     "args": {
       "operation": "difference",
+      "a": [
+       5402968.73
+      ]
+     }
+    },
+    {
+     "tool": "calculate",
+     "args": {
+      "operation": "ratio",
       "b": [
-       7224030.67
+       1501.07
       ],
       "a": [
-       8555219.64
+       1243785.01
+      ]
+     }
+    },
+    {
+     "tool": "calculate",
+     "args": {
+      "b": [
+       828.6
+      ],
+      "operation": "difference",
+      "a": [
+       4000
       ]
      }
     }
    ],
-   "answer": "In the 20,000 tonne per year shared facility, recovering EVOH **pays at $4,000 and $6,000 per tonne**, but **fails to pay at $2,000 per tonne**, where running the wash loses money and is outperformed by sending the unwashed scrap directly to incineration.\n\nThe wash operation breaks even on a stand-alone basis at approximately **$2,400 per tonne**, and it surpasses the profit of direct incineration ($1,160,000 per year) at an EVOH market price above **$3,170 per tonne**.\n\n---\n\n### Economic Comparison Across EVOH Resale Prices\n\n| EVOH Resale Price ($/t) | Best Overall Pathway | Wash Sequence | Downstream Destination | Annual Profit ($/yr) | EVOH Wash Only Profit ($/yr) | Circularity Index |\n|---|---|---|---|---|---|---|\n| **$2,000 / t** | Unwashed feed to Incineration | None | Incineration with energy recovery | **1,160,000** | -601,000 | 0.443 |\n| **$4,000 / t** | EVOH recovery + Incineration | EVOH (Acetic acid, 105 \u00b0C) | Incineration with energy recovery | **2,400,000** | 2,400,000 | 0.480 |\n| **$6,000 / t** | EVOH recovery + Incineration | EVOH (Acetic acid, 105 \u00b0C) | Incineration with energy recovery | **5,400,000** | 5,400,000 | 0.503 |\n| *$8,100 / t (Baseline)* | EVOH recovery + Incineration | EVOH (Acetic acid, 105 \u00b0C) | Incineration with energy recovery | **8,560,000** | 8,560,000 | 0.527 |\n\n*Legend: Circularity Index is the MICRON 5-category index (0 to 1, higher is more circular), evaluated on the shared-plant scale.*\n\n---\n\n### Price Sensitivity and Facility Sharing Insights\n\n1. **At $2,000 per tonne:**\n   - Generating 1,500 t/yr of recovered EVOH yields only $3,000,000/yr in resin revenue, which is insufficient to cover the EVOH wash plant's annualized capital charges ($2,910,000/yr) and operating expenses ($1,670,000/yr). \n   - The EVOH wash operates at an annual net loss of **-$601,000/yr**. \n   - The most profitable strategy is to bypass solvent washing entirely and send the whole mixed stream to incineration with energy recovery, capturing $110/t in energy recovery revenue for a net profit of **$1,160,000/yr**.\n\n2. **At $4,000 per tonne:**\n   - Resin revenues rise to $6,000,000/yr. The EVOH wash becomes profitable, generating a net annual profit of **$2,400,000/yr**.\n   - This delivers **$1,240,000/yr more profit** than incinerating the unwashed feed.\n\n3. **At $6,000 per tonne:**\n   - Net profit reaches **$5,400,000/yr**, exceeding unwashed feed incineration by **$4,250,000/yr**.\n\n4. **Advantage of the Shared 20,000 t/yr Facility:**\n   - Sizing the equipment to 20,000 t/yr and charging your 12,000 t/yr stream its proportional throughput share dilutes fixed costs. For example, the stand-alone shredding cost drops from $0.137/kg to $0.096/kg.\n   - At the baseline price of $8,100/t, sharing the facility increases annual profit from **$7,220,000/yr** (dedicated plant) to **$8,560,000/yr**, a net gain of **$1,330,000 per year**.\n\n---\n\nSource: Live BioSTEAM techno-economic simulations (tea_live) based on COSMO-RS thermodynamic predictions (cosmo_rs_grid) and screening downstream-technology data. Differences, ratios, and breakeven prices were calculated using the calculate tool (calculated_from_supplied_values). Mechanical shredding is included in all washed pathways."
+   "answer": "In the shared 20,000 t/yr facility, recovering EVOH **pays at $4,000/t and $6,000/t, but does not pay at $2,000/t**.\n\nTo beat simply sending the entire unwashed scrap stream to incineration with energy recovery (which earns **$1,157,040/yr** with zero capital investment), recovered EVOH must sell for at least **$3,171/t**.\n\n---\n\n### Economic Comparison Across EVOH Price Points\n\n| EVOH Selling Price (USD/t) | Best Pathway | Annual Profit (USD/yr) | Annual Emissions (t CO\u2082e/yr) | Annualized Capital (USD/yr) | Does EVOH Recovery Pay? |\n|---|---|---|---|---|---|\n| **$2,000 / t** | **No wash** + Incineration *(EVOH wash: -$601,319)* | **1,157,040** | 29,517 | 0 | **No.** Washing EVOH loses $601,319/yr; direct incineration earns $1.16M/yr. |\n| **$4,000 / t** | **EVOH (Acetic Acid, 105 \u00b0C)** + Incineration | **2,400,825** | 28,312 | 2,910,471 | **Yes.** Beats unwashed disposal by **$1,243,785/yr**. |\n| **$6,000 / t** | **EVOH (Acetic Acid, 105 \u00b0C)** + Incineration | **5,402,969** | 28,312 | 2,910,471 | **Yes.** Beats unwashed disposal by **$4,245,929/yr**. |\n| *Baseline ($8,100 / t)* | *LDPE (Toluene) > EVOH (Ethylene glycol) + Incin.* | *8,630,336* | *23,049* | *5,903,641* | *Yes. High EVOH margins also justify adding LDPE recovery.* |\n\n---\n\n### Key Financial Insights\n\n1. **At $2,000/t (Destroys Value):**\n   - The revenue from recovering 1,501 t/yr of EVOH ($3.00M/yr) is insufficient to overcome the annual capital recovery charge ($2.91M/yr), operating costs ($1.67M/yr), and shredder allocation ($1.16M/yr).\n   - Attempting EVOH recovery results in a net loss of **-$601,319/yr**. The plant should instead bypass solvent washing entirely and send the feed to incineration with energy recovery.\n\n2. **At $4,000/t (Profitable, but Single Wash Only):**\n   - Recovering EVOH nets **$2,400,825/yr**, generating **$1,243,785/yr** in additional profit above direct incineration.\n   - However, at this price level, the optimal design drops the second wash stage (LDPE), because EVOH margins are no longer large enough to cross-subsidize the added complexity of multi-stage separation.\n\n3. **At $6,000/t (Strong Return):**\n   - EVOH recovery yields **$5,402,969/yr**, outperforming direct incineration by **$4,245,929/yr**.\n   - Dual-stage recovery (LDPE then EVOH) generates $5,293,452/yr, remaining slightly below the single EVOH wash because commodity LDPE margins ($1,173/t resin price) remain tight.\n\n4. **Breakeven Thresholds:**\n   - **Absolute Breakeven ($2,401/t):** EVOH price required for the wash plant to reach $0/yr net profit.\n   - **Opportunity Cost Breakeven ($3,171/t):** EVOH price required for solvent recycling to match the $1,157,040/yr profit from direct incineration with energy recovery.\n\nSource: Live BioSTEAM techno-economic and life-cycle simulations with COSMO-RS thermodynamic screening."
   },
   {
    "id": "Q5",
    "question": "Our landfill is 9 miles away and the incinerator 150 miles, but there are pyrolysis and hydrogen gasification plants only 76 miles away, and an energy-recovery gasifier could sit on our site. Does the best pathway change?",
    "status": "ok",
-   "seconds": 50.4,
+   "seconds": 59.3,
    "tool_calls": [
     {
      "tool": "optimize_waste_pathway",
      "args": {
       "feed_mass_fractions": {
-       "HDPE": 0.4,
        "LDPE": 0.25,
        "EVOH": 0.15,
+       "HDPE": 0.4,
        "PET": 0.2
       },
-      "objective": "max_profit",
       "circularity_upper_bounds": {
-       "waste_kg": 4946352.06987093,
        "sales_low_usd": 0,
+       "ghg_t_co2e": 31669.3278867396,
+       "water_m3": 7547.43821674015,
+       "energy_mj": 101591017.309933,
+       "sales_high_usd": 26230158,
+       "waste_kg": 4946352.06987093
+      },
+      "confirm_live_tea": true,
+      "feed_tonnes_per_year": 12000,
+      "shared_plant_capacity_mt_per_yr": 20000,
+      "objective": "max_profit",
+      "downstream_distances_mile": {
+       "pyrolysis": 76,
+       "incineration": 150,
+       "gasification_hydrogen": 76,
+       "gas_er": 0,
+       "gasification_hydrogen_ccs": 76,
+       "gasification_energy": 0,
+       "landfill": 9,
+       "py": 76,
+       "gas_h2cc": 76,
+       "we": 150,
+       "lf": 9,
+       "gas_h2": 76
+      }
+     },
+     "result": {
+      "success": true,
+      "error_code": null,
+      "pathway": "LDPE/Toluene > EVOH/Ethylene glycol + gas_h2cc",
+      "profit_usd_per_yr": 8670628.552945703,
+      "emissions_t_co2e_per_yr": 23786.48078682924,
+      "circularity_index": 0.4500489020109578,
+      "basis": "tea_live",
+      "pending_stages": 0
+     }
+    },
+    {
+     "tool": "optimize_waste_pathway",
+     "args": {
+      "feed_tonnes_per_year": 12000,
+      "objective": "max_profit",
+      "feed_mass_fractions": {
+       "HDPE": 0.4,
+       "PET": 0.2,
+       "LDPE": 0.25,
+       "EVOH": 0.15
+      },
+      "confirm_live_tea": true,
+      "circularity_upper_bounds": {
+       "sales_high_usd": 26230158,
+       "waste_kg": 4946352.06987093,
        "energy_mj": 101591017.309933,
        "water_m3": 7547.43821674015,
        "ghg_t_co2e": 31669.3278867396,
-       "sales_high_usd": 26230158
+       "sales_low_usd": 0
       },
-      "feed_tonnes_per_year": 12000,
       "downstream_distances_mile": {
-       "we": 150,
        "gasification_hydrogen_ccs": 76,
-       "pyrolysis": 76,
-       "lf": 9,
        "gas_er": 0,
-       "gasification_energy": 0,
-       "gas_h2cc": 76,
+       "we": 150,
+       "incineration": 150,
        "py": 76,
-       "gas_h2": 76,
        "landfill": 9,
-       "gasification_hydrogen": 76,
-       "incineration": 150
-      },
-      "confirm_live_tea": true
+       "pyrolysis": 76,
+       "gasification_energy": 0,
+       "lf": 9,
+       "gas_h2cc": 76,
+       "gas_h2": 76,
+       "gasification_hydrogen": 76
+      }
      },
      "result": {
       "success": true,
@@ -490,66 +489,19 @@
      }
     },
     {
-     "tool": "optimize_waste_pathway",
-     "args": {
-      "downstream_distances_mile": {
-       "pyrolysis": 76,
-       "landfill": 9,
-       "py": 76,
-       "lf": 9,
-       "gasification_hydrogen": 76,
-       "incineration": 150,
-       "gas_h2cc": 76,
-       "we": 150,
-       "gas_er": 0,
-       "gas_h2": 76,
-       "gasification_energy": 0,
-       "gasification_hydrogen_ccs": 76
-      },
-      "feed_mass_fractions": {
-       "HDPE": 0.4,
-       "PET": 0.2,
-       "EVOH": 0.15,
-       "LDPE": 0.25
-      },
-      "circularity_upper_bounds": {
-       "ghg_t_co2e": 31669.3278867396,
-       "energy_mj": 101591017.309933,
-       "sales_high_usd": 26230158,
-       "waste_kg": 4946352.06987093,
-       "sales_low_usd": 0,
-       "water_m3": 7547.43821674015
-      },
-      "confirm_live_tea": true,
-      "shared_plant_capacity_mt_per_yr": 20000,
-      "feed_tonnes_per_year": 12000,
-      "objective": "max_profit"
-     },
-     "result": {
-      "success": true,
-      "error_code": null,
-      "pathway": "EVOH/Acetic Acid + gas_h2cc",
-      "profit_usd_per_yr": 8610339.012098247,
-      "emissions_t_co2e_per_yr": 29320.90517776752,
-      "circularity_index": 0.4100457370685276,
-      "basis": "tea_live",
-      "pending_stages": 0
-     }
-    },
-    {
      "tool": "calculate",
      "args": {
       "b": [
-       7224765.59
+       8630873.26
       ],
-      "operation": "difference",
       "a": [
-       7279150.04
-      ]
+       8670628.55
+      ],
+      "operation": "difference"
      }
     }
    ],
-   "answer": "Yes, the optimal destination for the unrecovered residual **changes from incineration to hydrogen gasification**. \n\nBecause the hydrogen gasification plant is located only 76 miles away (compared to 150 miles for the incinerator), trucking costs are cut nearly in half, increasing overall net profit by **$54,400 per year**. The optimal solvent-wash stage remains the same: extracting **EVOH using acetic acid at 105 \u00b0C**.\n\n---\n\n### Pathway Comparison with Local Distances\n\n*Evaluated with distances: Landfill 9 miles, Incinerator 150 miles, Pyrolysis 76 miles, Hydrogen Gasifier 76 miles, Energy-Recovery Gasifier on site (0 miles).*\n\n| Facility Configuration | Optimal Pathway | Downstream Destination | Annual Profit ($/yr) | Annual Emissions (t CO\u2082e/yr) | Circularity Index |\n|---|---|---|---|---|---|\n| **Dedicated Plant** (12,000 t/yr) | EVOH (Acetic acid, 105 \u00b0C) | **Gasification for H\u2082 with CC** (76 miles) | **7,280,000** | 29,300 | 0.410 |\n| *Dedicated (Prior Default)* | *EVOH (Acetic acid, 105 \u00b0C)* | *Incineration with energy recovery (150 miles)* | *7,220,000* | *28,300* | *0.527* |\n| **Shared Plant** (20,000 t/yr) | EVOH (Acetic acid, 105 \u00b0C) | **Gasification for H\u2082 with CC** (76 miles) | **8,610,000** | 29,300 | 0.410 |\n| *Shared (Prior Default)* | *EVOH (Acetic acid, 105 \u00b0C)* | *Incineration with energy recovery (150 miles)* | *8,560,000* | *28,300* | *0.527* |\n\n*Legend: Circularity Index is the MICRON 5-category index (0 to 1, higher is more circular). Hydrogen gasification with carbon capture is denoted as \"H\u2082 with CC\".*\n\n---\n\n### Why the Downstream Technologies Rank This Way\n\n1. **Hydrogen Gasification Beats Incineration:**\n   - Both incineration with energy recovery and hydrogen gasification earn **$110 per tonne** of incoming residual fuel in the recovered model dataset.\n   - However, hauling 10,500 t/yr of residual 76 miles costs $5.32 per tonne ($55,900/yr), whereas hauling 150 miles costs $10.50 per tonne ($110,200/yr). Moving to the closer hydrogen facility saves $54,400 per year in freight.\n   - Hydrogen gasification with carbon capture (`gas_h2cc`) and without (`gas_h2`) yield identical profit ($7,280,000/yr dedicated; $8,610,000/yr shared), but carbon capture cuts downstream emissions roughly in half (from 59,500 to 29,300 t CO\u2082e/yr).\n\n2. **Why On-Site Energy-Recovery Gasification Does Not Win:**\n   - Gasification for energy recovery pays a higher gross revenue ($147.98 per tonne) and has zero freight miles.\n   - However, in the recovered literature data, gasification for energy recovery is the **only** downstream route with a recorded capital cost (scaled to residual throughput). The hydrogen gasification, incineration, and landfill records carry no recorded capital cost in the underlying study, which artificially favors hydrogen gasification over an on-site energy-recovery gasifier.\n\n3. **Why Pyrolysis Does Not Compete:**\n   - In the recovered study dataset, pyrolysis earns $0 per tonne for incoming plastic and incurs transport costs, making it uncompetitive against downstream technologies that pay $110 per tonne.\n\n---\n\nSource: Live BioSTEAM simulations (tea_live) based on COSMO-RS thermodynamic predictions (cosmo_rs_grid) and screening downstream-technology data. Differences in profit and freight were evaluated using the calculate tool (calculated_from_supplied_values). Mechanical shredding is included in all washed pathways. Acetic acid carries the GHS Danger signal word and operates above its flash point at 105 \u00b0C."
+   "answer": "Yes, the optimal downstream destination **shifts from incineration to gasification for hydrogen** (with carbon capture), though **the polymer wash sequence remains identical**. \n\nIn the shared plant, the sequence remains **LDPE (Toluene, 100 \u00b0C) then EVOH (Ethylene glycol, 120 \u00b0C)**; in a dedicated plant, it remains **EVOH (Acetic Acid, 105 \u00b0C)**.\n\n---\n\n### Economic & Process Comparison Under Your Local Distances\n\n*(Assumed distances: Landfill 9 miles, Incineration 150 miles, Pyrolysis 76 miles, Hydrogen Gasification 76 miles, On-site Energy Gasification 0 miles)*\n\n| Plant Configuration | Best Downstream Destination | Optimal Wash Sequence | Annual Profit (USD/yr) | Gate-to-Gate Emissions (t CO\u2082e/yr) | Circularity Index |\n|---|---|---|---|---|---|\n| **Shared Plant (20,000 t/yr)** | **Hydrogen Gasification w/ CC (76 mi)** | 1. LDPE (Toluene, 100 \u00b0C)<br>2. EVOH (Ethylene glycol, 120 \u00b0C) | **8,670,629** | 23,786 | 0.450 |\n| *\u2014 vs. Incineration (150 mi)* | *Incineration with energy recovery* | *Same 2-stage wash* | *8,630,873* | *23,049* | *0.572* |\n| **Dedicated Plant (12,000 t/yr)** | **Hydrogen Gasification w/ CC (76 mi)** | EVOH (Acetic Acid, 105 \u00b0C) | **7,279,150** | 29,328 | 0.410 |\n| *\u2014 vs. Incineration (150 mi)* | *Incineration with energy recovery* | *Same single wash* | *7,224,766* | *28,319* | *0.527* |\n\n*CC = Carbon Capture. Circularity Index: MICRON 5-category index on a 0 to 1 scale.*\n\n---\n\n### Why the Ranking Shifts (and Why to Treat it with Caution)\n\n1. **Why Hydrogen Gasification Wins Financially (+$39,755 to +$54,384/yr):**\n   - **Identical Revenue:** In the underlying model data, both municipal incineration and hydrogen gasification pay a credit of **$110 per tonne** of residual plastic.\n   - **Shorter Haul:** Trucking the unrecovered plastic 76 miles to the gasifier costs less than hauling it 150 miles to the incinerator (saving $0.07/tonne-mile over 74 miles).\n   - **Critical Data Caveat:** In the literature dataset, **hydrogen gasification carries no recorded capital cost and no operating cost**, whereas an on-site energy-recovery gasifier carries a capital cost scaled to throughput. This omission artificially advantages off-site hydrogen gasification. In practice, gate fees or tolling charges at a commercial gasifier would easily erase this modest $40,000/yr transport savings.\n\n2. **Why On-Site Energy Gasification Loses:**\n   - While on-site energy gasification earns more gross revenue ($147.98/t residual vs. $110/t) and requires zero road transport, it requires financing and building an on-site thermal reactor. The annualized capital cost of that reactor outweighs the revenue advantage.\n\n3. **Why Pyrolysis Loses:**\n   - In the model dataset, the mixed residual sent to pyrolysis earns **$0/t** product revenue, while costing $3.01/t to load plus $0.07/tonne-mile to transport. It cannot compete with destinations that pay for feedstock.\n\n4. **Environmental & Circularity Impact:**\n   - If circularity or carbon footprint matters to your stakeholders, **incineration or landfill is superior to hydrogen gasification**:\n     - Incineration achieves a circularity index of **0.572** vs. **0.450** for hydrogen gasification with carbon capture (or 0.408 without carbon capture).\n     - If circularity is maximized as the primary objective, the destination remains **landfill (9 miles)** at a circularity score of **0.694** ($7,782,571/yr profit).\n\nSource: Live BioSTEAM techno-economic and life-cycle simulations with COSMO-RS thermodynamic screening."
   }
  ]
 }

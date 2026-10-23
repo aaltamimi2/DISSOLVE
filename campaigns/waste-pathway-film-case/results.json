@@ -1,4 +1,9 @@
 {
+ "site": "shared",
+ "site_sharing": {
+  "later_wash_labor_fraction": 0.0,
+  "later_wash_shared_facilities_fraction": 1.0
+ },
  "sweep_polymer": "EVOH",
  "feed": {
   "tonnes_per_year": 12000.0,
@@ -11,7 +16,7 @@
  },
  "plants": {
   "dedicated": {
-   "seconds": 156.3,
+   "seconds": 155.8,
    "shredder": {
     "msp_usd_per_kg": 0.1373952728067227,
     "tci_usd": 3862809.3717337674,
@@ -23,7 +28,7 @@
     "annual_throughput_kg": 12000000.0,
     "electricity_mj_per_yr": 7904908.8,
     "capacity_t_per_yr": 12000.0,
-    "wall_seconds": 9.158697875216603,
+    "wall_seconds": 8.737005583941936,
     "engine_mode": "live"
    },
    "washes": [
@@ -32,8 +37,8 @@
      "polymer": "EVOH",
      "solvent": "Acetic Acid",
      "temperature_c": 105.0,
-     "capex_usd_yr": 3586856.6986861704,
-     "opex_usd_yr": 2323981.349502024,
+     "capex_usd_yr": 3586856.69868617,
+     "opex_usd_yr": 2323981.3495020233,
      "gwp_t": 2494.387261217549,
      "energy_mj": 16426415.622054398,
      "engine_mode": "live",
@@ -53,7 +58,7 @@
      "polymer": "EVOH",
      "solvent": "Ethylene glycol",
      "temperature_c": 120.0,
-     "capex_usd_yr": 3750955.027068465,
+     "capex_usd_yr": 3750955.0270684655,
      "opex_usd_yr": 2361759.2380365394,
      "gwp_t": 2929.300486550296,
      "energy_mj": 17173445.41353152,
@@ -76,8 +81,8 @@
      "temperature_c": 100.0,
      "capex_usd_yr": 5314161.798040542,
      "opex_usd_yr": 2570177.3135057227,
-     "gwp_t": 3224.287374707581,
-     "energy_mj": 22958457.516099535,
+     "gwp_t": 3224.28737470758,
+     "energy_mj": 22958457.51609953,
      "engine_mode": "live",
      "thermo": {
       "target_solubility_pct": 12.21045532,
@@ -95,10 +100,10 @@
      "polymer": "LDPE",
      "solvent": "Toluene",
      "temperature_c": 100.0,
-     "capex_usd_yr": 5066623.869554608,
+     "capex_usd_yr": 5066623.869554606,
      "opex_usd_yr": 2524967.6184640736,
      "gwp_t": 2913.363931235679,
-     "energy_mj": 22339813.709670868,
+     "energy_mj": 22339813.70967087,
      "engine_mode": "live",
      "thermo": {
       "target_solubility_pct": 12.70218754,
@@ -119,7 +124,7 @@
      "capex_usd_yr": 5118696.024223044,
      "opex_usd_yr": 2536510.178891668,
      "gwp_t": 3029.0279115566564,
-     "energy_mj": 22533828.401263308,
+     "energy_mj": 22533828.40126331,
      "engine_mode": "live",
      "thermo": {
       "target_solubility_pct": 12.46217694,
@@ -139,8 +144,8 @@
      "polymer": "EVOH",
      "solvent": "Acetic Acid",
      "temperature_c": 105.0,
-     "capex_usd_yr": 3600630.1638095905,
-     "opex_usd_yr": 676046.702375659,
+     "capex_usd_yr": 2444328.5241411584,
+     "opex_usd_yr": 448046.7023756589,
      "gwp_t": 907.0452782275479,
      "energy_mj": 8673129.922981841,
      "engine_mode": "live",
@@ -162,8 +167,8 @@
      "polymer": "EVOH",
      "solvent": "Ethylene glycol",
      "temperature_c": 120.0,
-     "capex_usd_yr": 3737217.6053991276,
-     "opex_usd_yr": 707533.9320256287,
+     "capex_usd_yr": 2377491.186819429,
+     "opex_usd_yr": 479533.93202562886,
      "gwp_t": 1279.3904219069966,
      "energy_mj": 9312641.060422257,
      "engine_mode": "live",
@@ -185,8 +190,8 @@
      "polymer": "EVOH",
      "solvent": "Propylene glycol",
      "temperature_c": 120.0,
-     "capex_usd_yr": 3791614.762102824,
-     "opex_usd_yr": 714176.9082114241,
+     "capex_usd_yr": 2435116.4530649385,
+     "opex_usd_yr": 486176.90821142413,
      "gwp_t": 1269.8538295620467,
      "energy_mj": 9343937.248376723,
      "engine_mode": "live",
@@ -208,8 +213,8 @@
      "polymer": "HDPE",
      "solvent": "Dipentene (Dl-Limonene)",
      "temperature_c": 115.0,
-     "capex_usd_yr": 7144919.631826554,
-     "opex_usd_yr": 1188217.3728167498,
+     "capex_usd_yr": 5013995.226267569,
+     "opex_usd_yr": 960217.3728167498,
      "gwp_t": 2465.2111855646845,
      "energy_mj": 24337727.98021964,
      "engine_mode": "live",
@@ -231,8 +236,8 @@
      "polymer": "HDPE",
      "solvent": "Diphenyl ether",
      "temperature_c": 125.0,
-     "capex_usd_yr": 6664419.4974507,
-     "opex_usd_yr": 1143463.0414512435,
+     "capex_usd_yr": 4422250.439620847,
+     "opex_usd_yr": 915463.0414512436,
      "gwp_t": 2801.286969247328,
      "energy_mj": 24332641.603876088,
      "engine_mode": "live",
@@ -254,10 +259,10 @@
      "polymer": "HDPE",
      "solvent": "Dodecane",
      "temperature_c": 115.0,
-     "capex_usd_yr": 7417858.74824683,
-     "opex_usd_yr": 1243844.0480543494,
+     "capex_usd_yr": 5125974.294505047,
+     "opex_usd_yr": 1015844.0480543495,
      "gwp_t": 2871.1003673782725,
-     "energy_mj": 25186890.19082965,
+     "energy_mj": 25186890.190829646,
      "engine_mode": "live",
      "thermo": {
       "target_solubility_pct": 10.28029475,
@@ -277,8 +282,8 @@
      "polymer": "LDPE",
      "solvent": "Dipentene (Dl-Limonene)",
      "temperature_c": 100.0,
-     "capex_usd_yr": 5298635.526728212,
-     "opex_usd_yr": 917850.6083437603,
+     "capex_usd_yr": 3657850.695707929,
+     "opex_usd_yr": 689850.6083437603,
      "gwp_t": 1630.6344955076177,
      "energy_mj": 15121816.022172904,
      "engine_mode": "live",
@@ -300,10 +305,10 @@
      "polymer": "LDPE",
      "solvent": "Toluene",
      "temperature_c": 100.0,
-     "capex_usd_yr": 5059223.64433603,
-     "opex_usd_yr": 874755.5377233382,
+     "capex_usd_yr": 3561932.083322564,
+     "opex_usd_yr": 646755.537723338,
      "gwp_t": 1341.9060295404418,
-     "energy_mj": 14533278.79254833,
+     "energy_mj": 14533278.792548329,
      "engine_mode": "live",
      "thermo": {
       "target_solubility_pct": 12.70218754,
@@ -323,8 +328,8 @@
      "polymer": "LDPE",
      "solvent": "p-Xylene",
      "temperature_c": 100.0,
-     "capex_usd_yr": 5127885.968133975,
-     "opex_usd_yr": 888063.5377255618,
+     "capex_usd_yr": 3576997.1623767843,
+     "opex_usd_yr": 660063.5377255616,
      "gwp_t": 1448.830774218907,
      "energy_mj": 14715594.744114317,
      "engine_mode": "live",
@@ -346,8 +351,8 @@
      "polymer": "PET",
      "solvent": "Pyrrole",
      "temperature_c": 110.0,
-     "capex_usd_yr": 4387643.794153893,
-     "opex_usd_yr": 783076.2286152511,
+     "capex_usd_yr": 3035797.6928842734,
+     "opex_usd_yr": 555076.2286152511,
      "gwp_t": 1149.0311793903365,
      "energy_mj": 11679447.68954516,
      "engine_mode": "live",
@@ -379,8 +384,8 @@
          "polymer": "EVOH",
          "solvent": "Acetic Acid",
          "temperature_c": 105.0,
-         "capex_usd_per_yr": 3586856.6986861704,
-         "opex_usd_per_yr": 2323981.349502024,
+         "capex_usd_per_yr": 3586856.69868617,
+         "opex_usd_per_yr": 2323981.3495020233,
          "gwp_t_co2e_per_yr": 2494.387261217549,
          "energy_mj_per_yr": 16426415.622054398,
          "recovered_fraction": 0.833928810960214
@@ -392,7 +397,7 @@
         "residual_t_per_yr": 10498.928140271615,
         "distance_mile": 151.0
        },
-       "profit_usd_per_yr": 7224030.666896713,
+       "profit_usd_per_yr": 7224030.666896715,
        "emissions_t_co2e_per_yr": 28318.70579712504,
        "circularity_index": 0.5265898179211904,
        "circularity_scores": {
@@ -403,8 +408,8 @@
         "substitutability": 0.5075670592312024
        },
        "sales_usd_per_yr": 13313564.159229796,
-       "capex_usd_per_yr": 3586856.6986861704,
-       "opex_usd_per_yr": 2323981.349502024,
+       "capex_usd_per_yr": 3586856.69868617,
+       "opex_usd_per_yr": 2323981.3495020233,
        "transport_usd_per_yr": 178695.44414488855,
        "solver": "scip",
        "agrees_with_enumeration": true
@@ -443,10 +448,10 @@
          "polymer": "LDPE",
          "solvent": "Toluene",
          "temperature_c": 100.0,
-         "capex_usd_per_yr": 5066623.869554608,
+         "capex_usd_per_yr": 5066623.869554606,
          "opex_usd_per_yr": 2524967.6184640736,
          "gwp_t_co2e_per_yr": 2913.363931235679,
-         "energy_mj_per_yr": 22339813.709670868,
+         "energy_mj_per_yr": 22339813.70967087,
          "recovered_fraction": 0.9120803411732029
         },
         {
@@ -454,8 +459,8 @@
          "polymer": "EVOH",
          "solvent": "Acetic Acid",
          "temperature_c": 105.0,
-         "capex_usd_per_yr": 3600630.1638095905,
-         "opex_usd_per_yr": 676046.702375659,
+         "capex_usd_per_yr": 2444328.5241411584,
+         "opex_usd_per_yr": 448046.7023756589,
          "gwp_t_co2e_per_yr": 907.0452782275479,
          "energy_mj_per_yr": 8673129.922981841,
          "recovered_fraction": 0.8827735460360372
@@ -467,7 +472,7 @@
         "residual_t_per_yr": 7674.7665936155245,
         "distance_mile": 9.2
        },
-       "profit_usd_per_yr": 4060787.676177014,
+       "profit_usd_per_yr": 5445089.315845449,
        "emissions_t_co2e_per_yr": 4483.941577316053,
        "circularity_index": 0.693255384914749,
        "circularity_scores": {
@@ -478,8 +483,8 @@
         "substitutability": 0.6130519313606088
        },
        "sales_usd_per_yr": 16080449.021793922,
-       "capex_usd_per_yr": 8667254.0333642,
-       "opex_usd_per_yr": 3261153.715119638,
+       "capex_usd_per_yr": 7510952.393695764,
+       "opex_usd_per_yr": 3033153.7151196375,
        "transport_usd_per_yr": 91253.59713307113,
        "solver": "scip",
        "agrees_with_enumeration": true
@@ -519,8 +524,8 @@
           "polymer": "EVOH",
           "solvent": "Acetic Acid",
           "temperature_c": 105.0,
-          "capex_usd_per_yr": 3586856.6986861704,
-          "opex_usd_per_yr": 2323981.349502024,
+          "capex_usd_per_yr": 3586856.69868617,
+          "opex_usd_per_yr": 2323981.3495020233,
           "gwp_t_co2e_per_yr": 2494.387261217549,
           "energy_mj_per_yr": 16426415.622054398,
           "recovered_fraction": 0.833928810960214
@@ -532,7 +537,7 @@
          "residual_t_per_yr": 10498.928140271615,
          "distance_mile": 9.2
         },
-        "profit_usd_per_yr": 6091091.436269287,
+        "profit_usd_per_yr": 6091091.436269288,
         "emissions_t_co2e_per_yr": 3402.086350676019,
         "circularity_index": 0.6718725531403917,
         "circularity_scores": {
@@ -543,9 +548,150 @@
          "substitutability": 0.463538270101153
         },
         "sales_usd_per_yr": 12158682.06379992,
-        "capex_usd_per_yr": 3586856.6986861704,
-        "opex_usd_per_yr": 2406250.8454199107,
+        "capex_usd_per_yr": 3586856.69868617,
+        "opex_usd_per_yr": 2406250.8454199103,
         "transport_usd_per_yr": 74483.08342455249
+       },
+       {
+        "pathway": "LDPE/Toluene > EVOH/Acetic Acid + we",
+        "washes": [
+         {
+          "wash": 1,
+          "polymer": "LDPE",
+          "solvent": "Toluene",
+          "temperature_c": 100.0,
+          "capex_usd_per_yr": 5066623.869554606,
+          "opex_usd_per_yr": 2524967.6184640736,
+          "gwp_t_co2e_per_yr": 2913.363931235679,
+          "energy_mj_per_yr": 22339813.70967087,
+          "recovered_fraction": 0.9120803411732029
+         },
+         {
+          "wash": 2,
+          "polymer": "EVOH",
+          "solvent": "Acetic Acid",
+          "temperature_c": 105.0,
+          "capex_usd_per_yr": 2444328.5241411584,
+          "opex_usd_per_yr": 448046.7023756589,
+          "gwp_t_co2e_per_yr": 907.0452782275479,
+          "energy_mj_per_yr": 8673129.922981841,
+          "recovered_fraction": 0.8827735460360372
+         }
+        ],
+        "downstream": {
+         "key": "we",
+         "label": "Incineration with energy recovery",
+         "residual_t_per_yr": 7674.7665936155245,
+         "distance_mile": 151.0
+        },
+        "profit_usd_per_yr": 6273273.302214834,
+        "emissions_t_co2e_per_yr": 22698.109347445265,
+        "circularity_index": 0.5739893770635838,
+        "circularity_scores": {
+         "energy": 0.44368778819304444,
+         "ghg": 0.2829253707997086,
+         "water": 0.5,
+         "waste": 0.9980965399120438,
+         "substitutability": 0.6452371864131214
+        },
+        "sales_usd_per_yr": 16924673.34709163,
+        "capex_usd_per_yr": 7510952.393695764,
+        "opex_usd_per_yr": 2973014.3208397324,
+        "transport_usd_per_yr": 167433.33034129883
+       },
+       {
+        "pathway": "LDPE/Toluene > EVOH/Ethylene glycol + we",
+        "washes": [
+         {
+          "wash": 1,
+          "polymer": "LDPE",
+          "solvent": "Toluene",
+          "temperature_c": 100.0,
+          "capex_usd_per_yr": 5066623.869554606,
+          "opex_usd_per_yr": 2524967.6184640736,
+          "gwp_t_co2e_per_yr": 2913.363931235679,
+          "energy_mj_per_yr": 22339813.70967087,
+          "recovered_fraction": 0.9120803411732029
+         },
+         {
+          "wash": 2,
+          "polymer": "EVOH",
+          "solvent": "Ethylene glycol",
+          "temperature_c": 120.0,
+          "capex_usd_per_yr": 2377491.186819429,
+          "opex_usd_per_yr": 479533.93202562886,
+          "gwp_t_co2e_per_yr": 1279.3904219069966,
+          "energy_mj_per_yr": 9312641.060422257,
+          "recovered_fraction": 0.8827735460360372
+         }
+        ],
+        "downstream": {
+         "key": "we",
+         "label": "Incineration with energy recovery",
+         "residual_t_per_yr": 7674.7665936155245,
+         "distance_mile": 151.0
+        },
+        "profit_usd_per_yr": 6308623.409886593,
+        "emissions_t_co2e_per_yr": 23070.454491124714,
+        "circularity_index": 0.5708920170024314,
+        "circularity_scores": {
+         "energy": 0.43993607951369784,
+         "ghg": 0.27116230931509555,
+         "water": 0.5,
+         "waste": 0.9981245097702419,
+         "substitutability": 0.6452371864131214
+        },
+        "sales_usd_per_yr": 16924673.34709163,
+        "capex_usd_per_yr": 7444115.056374036,
+        "opex_usd_per_yr": 3004501.5504897023,
+        "transport_usd_per_yr": 167433.33034129883
+       },
+       {
+        "pathway": "EVOH/Acetic Acid > PET/Pyrrole + we",
+        "washes": [
+         {
+          "wash": 1,
+          "polymer": "EVOH",
+          "solvent": "Acetic Acid",
+          "temperature_c": 105.0,
+          "capex_usd_per_yr": 3586856.69868617,
+          "opex_usd_per_yr": 2323981.3495020233,
+          "gwp_t_co2e_per_yr": 2494.387261217549,
+          "energy_mj_per_yr": 16426415.622054398,
+          "recovered_fraction": 0.833928810960214
+         },
+         {
+          "wash": 2,
+          "polymer": "PET",
+          "solvent": "Pyrrole",
+          "temperature_c": 110.0,
+          "capex_usd_per_yr": 3035797.6928842734,
+          "opex_usd_per_yr": 555076.2286152511,
+          "gwp_t_co2e_per_yr": 1149.0311793903365,
+          "energy_mj_per_yr": 11679447.68954516,
+          "recovered_fraction": 0.9047536558603526
+         }
+        ],
+        "downstream": {
+         "key": "we",
+         "label": "Incineration with energy recovery",
+         "residual_t_per_yr": 8327.519366206769,
+         "distance_mile": 151.0
+        },
+        "profit_usd_per_yr": 6389631.619611345,
+        "emissions_t_co2e_per_yr": 24126.701100860337,
+        "circularity_index": 0.5615588319221625,
+        "circularity_scores": {
+         "energy": 0.45896197250482684,
+         "ghg": 0.23779355448065442,
+         "water": 0.5,
+         "waste": 0.9983372793855927,
+         "substitutability": 0.6127013532397384
+        },
+        "sales_usd_per_yr": 16071253.302292151,
+        "capex_usd_per_yr": 6622654.391570443,
+        "opex_usd_per_yr": 2879057.5781172747,
+        "transport_usd_per_yr": 179909.71299308792
        },
        {
         "pathway": "EVOH/Acetic Acid + we",
@@ -555,8 +701,8 @@
           "polymer": "EVOH",
           "solvent": "Acetic Acid",
           "temperature_c": 105.0,
-          "capex_usd_per_yr": 3586856.6986861704,
-          "opex_usd_per_yr": 2323981.349502024,
+          "capex_usd_per_yr": 3586856.69868617,
+          "opex_usd_per_yr": 2323981.3495020233,
           "gwp_t_co2e_per_yr": 2494.387261217549,
           "energy_mj_per_yr": 16426415.622054398,
           "recovered_fraction": 0.833928810960214
@@ -568,7 +714,7 @@
          "residual_t_per_yr": 10498.928140271615,
          "distance_mile": 151.0
         },
-        "profit_usd_per_yr": 7224030.666896713,
+        "profit_usd_per_yr": 7224030.666896715,
         "emissions_t_co2e_per_yr": 28318.70579712504,
         "circularity_index": 0.5265898179211904,
         "circularity_scores": {
@@ -579,8 +725,8 @@
          "substitutability": 0.5075670592312024
         },
         "sales_usd_per_yr": 13313564.159229796,
-        "capex_usd_per_yr": 3586856.6986861704,
-        "opex_usd_per_yr": 2323981.349502024,
+        "capex_usd_per_yr": 3586856.69868617,
+        "opex_usd_per_yr": 2323981.3495020233,
         "transport_usd_per_yr": 178695.44414488855
        }
       ],
@@ -593,8 +739,8 @@
           "polymer": "EVOH",
           "solvent": "Acetic Acid",
           "temperature_c": 105.0,
-          "capex_usd_per_yr": 3586856.6986861704,
-          "opex_usd_per_yr": 2323981.349502024,
+          "capex_usd_per_yr": 3586856.69868617,
+          "opex_usd_per_yr": 2323981.3495020233,
           "gwp_t_co2e_per_yr": 2494.387261217549,
           "energy_mj_per_yr": 16426415.622054398,
           "recovered_fraction": 0.833928810960214
@@ -606,7 +752,7 @@
          "residual_t_per_yr": 10498.928140271615,
          "distance_mile": 151.0
         },
-        "profit_usd_per_yr": 7224030.666896713,
+        "profit_usd_per_yr": 7224030.666896715,
         "emissions_t_co2e_per_yr": 28318.70579712504,
         "circularity_index": 0.5265898179211904,
         "circularity_scores": {
@@ -617,9 +763,150 @@
          "substitutability": 0.5075670592312024
         },
         "sales_usd_per_yr": 13313564.159229796,
-        "capex_usd_per_yr": 3586856.6986861704,
-        "opex_usd_per_yr": 2323981.349502024,
+        "capex_usd_per_yr": 3586856.69868617,
+        "opex_usd_per_yr": 2323981.3495020233,
         "transport_usd_per_yr": 178695.44414488855
+       },
+       {
+        "pathway": "EVOH/Acetic Acid > PET/Pyrrole + we",
+        "washes": [
+         {
+          "wash": 1,
+          "polymer": "EVOH",
+          "solvent": "Acetic Acid",
+          "temperature_c": 105.0,
+          "capex_usd_per_yr": 3586856.69868617,
+          "opex_usd_per_yr": 2323981.3495020233,
+          "gwp_t_co2e_per_yr": 2494.387261217549,
+          "energy_mj_per_yr": 16426415.622054398,
+          "recovered_fraction": 0.833928810960214
+         },
+         {
+          "wash": 2,
+          "polymer": "PET",
+          "solvent": "Pyrrole",
+          "temperature_c": 110.0,
+          "capex_usd_per_yr": 3035797.6928842734,
+          "opex_usd_per_yr": 555076.2286152511,
+          "gwp_t_co2e_per_yr": 1149.0311793903365,
+          "energy_mj_per_yr": 11679447.68954516,
+          "recovered_fraction": 0.9047536558603526
+         }
+        ],
+        "downstream": {
+         "key": "we",
+         "label": "Incineration with energy recovery",
+         "residual_t_per_yr": 8327.519366206769,
+         "distance_mile": 151.0
+        },
+        "profit_usd_per_yr": 6389631.619611345,
+        "emissions_t_co2e_per_yr": 24126.701100860337,
+        "circularity_index": 0.5615588319221625,
+        "circularity_scores": {
+         "energy": 0.45896197250482684,
+         "ghg": 0.23779355448065442,
+         "water": 0.5,
+         "waste": 0.9983372793855927,
+         "substitutability": 0.6127013532397384
+        },
+        "sales_usd_per_yr": 16071253.302292151,
+        "capex_usd_per_yr": 6622654.391570443,
+        "opex_usd_per_yr": 2879057.5781172747,
+        "transport_usd_per_yr": 179909.71299308792
+       },
+       {
+        "pathway": "LDPE/Toluene > EVOH/Ethylene glycol + we",
+        "washes": [
+         {
+          "wash": 1,
+          "polymer": "LDPE",
+          "solvent": "Toluene",
+          "temperature_c": 100.0,
+          "capex_usd_per_yr": 5066623.869554606,
+          "opex_usd_per_yr": 2524967.6184640736,
+          "gwp_t_co2e_per_yr": 2913.363931235679,
+          "energy_mj_per_yr": 22339813.70967087,
+          "recovered_fraction": 0.9120803411732029
+         },
+         {
+          "wash": 2,
+          "polymer": "EVOH",
+          "solvent": "Ethylene glycol",
+          "temperature_c": 120.0,
+          "capex_usd_per_yr": 2377491.186819429,
+          "opex_usd_per_yr": 479533.93202562886,
+          "gwp_t_co2e_per_yr": 1279.3904219069966,
+          "energy_mj_per_yr": 9312641.060422257,
+          "recovered_fraction": 0.8827735460360372
+         }
+        ],
+        "downstream": {
+         "key": "we",
+         "label": "Incineration with energy recovery",
+         "residual_t_per_yr": 7674.7665936155245,
+         "distance_mile": 151.0
+        },
+        "profit_usd_per_yr": 6308623.409886593,
+        "emissions_t_co2e_per_yr": 23070.454491124714,
+        "circularity_index": 0.5708920170024314,
+        "circularity_scores": {
+         "energy": 0.43993607951369784,
+         "ghg": 0.27116230931509555,
+         "water": 0.5,
+         "waste": 0.9981245097702419,
+         "substitutability": 0.6452371864131214
+        },
+        "sales_usd_per_yr": 16924673.34709163,
+        "capex_usd_per_yr": 7444115.056374036,
+        "opex_usd_per_yr": 3004501.5504897023,
+        "transport_usd_per_yr": 167433.33034129883
+       },
+       {
+        "pathway": "LDPE/Toluene > EVOH/Acetic Acid + we",
+        "washes": [
+         {
+          "wash": 1,
+          "polymer": "LDPE",
+          "solvent": "Toluene",
+          "temperature_c": 100.0,
+          "capex_usd_per_yr": 5066623.869554606,
+          "opex_usd_per_yr": 2524967.6184640736,
+          "gwp_t_co2e_per_yr": 2913.363931235679,
+          "energy_mj_per_yr": 22339813.70967087,
+          "recovered_fraction": 0.9120803411732029
+         },
+         {
+          "wash": 2,
+          "polymer": "EVOH",
+          "solvent": "Acetic Acid",
+          "temperature_c": 105.0,
+          "capex_usd_per_yr": 2444328.5241411584,
+          "opex_usd_per_yr": 448046.7023756589,
+          "gwp_t_co2e_per_yr": 907.0452782275479,
+          "energy_mj_per_yr": 8673129.922981841,
+          "recovered_fraction": 0.8827735460360372
+         }
+        ],
+        "downstream": {
+         "key": "we",
+         "label": "Incineration with energy recovery",
+         "residual_t_per_yr": 7674.7665936155245,
+         "distance_mile": 151.0
+        },
+        "profit_usd_per_yr": 6273273.302214834,
+        "emissions_t_co2e_per_yr": 22698.109347445265,
+        "circularity_index": 0.5739893770635838,
+        "circularity_scores": {
+         "energy": 0.44368778819304444,
+         "ghg": 0.2829253707997086,
+         "water": 0.5,
+         "waste": 0.9980965399120438,
+         "substitutability": 0.6452371864131214
+        },
+        "sales_usd_per_yr": 16924673.34709163,
+        "capex_usd_per_yr": 7510952.393695764,
+        "opex_usd_per_yr": 2973014.3208397324,
+        "transport_usd_per_yr": 167433.33034129883
        },
        {
         "pathway": "EVOH/Acetic Acid + lf",
@@ -629,8 +916,8 @@
           "polymer": "EVOH",
           "solvent": "Acetic Acid",
           "temperature_c": 105.0,
-          "capex_usd_per_yr": 3586856.6986861704,
-          "opex_usd_per_yr": 2323981.349502024,
+          "capex_usd_per_yr": 3586856.69868617,
+          "opex_usd_per_yr": 2323981.3495020233,
           "gwp_t_co2e_per_yr": 2494.387261217549,
           "energy_mj_per_yr": 16426415.622054398,
           "recovered_fraction": 0.833928810960214
@@ -642,7 +929,7 @@
          "residual_t_per_yr": 10498.928140271615,
          "distance_mile": 9.2
         },
-        "profit_usd_per_yr": 6091091.436269287,
+        "profit_usd_per_yr": 6091091.436269288,
         "emissions_t_co2e_per_yr": 3402.086350676019,
         "circularity_index": 0.6718725531403917,
         "circularity_scores": {
@@ -653,9 +940,56 @@
          "substitutability": 0.463538270101153
         },
         "sales_usd_per_yr": 12158682.06379992,
-        "capex_usd_per_yr": 3586856.6986861704,
-        "opex_usd_per_yr": 2406250.8454199107,
+        "capex_usd_per_yr": 3586856.69868617,
+        "opex_usd_per_yr": 2406250.8454199103,
         "transport_usd_per_yr": 74483.08342455249
+       },
+       {
+        "pathway": "EVOH/Acetic Acid > PET/Pyrrole + lf",
+        "washes": [
+         {
+          "wash": 1,
+          "polymer": "EVOH",
+          "solvent": "Acetic Acid",
+          "temperature_c": 105.0,
+          "capex_usd_per_yr": 3586856.69868617,
+          "opex_usd_per_yr": 2323981.3495020233,
+          "gwp_t_co2e_per_yr": 2494.387261217549,
+          "energy_mj_per_yr": 16426415.622054398,
+          "recovered_fraction": 0.833928810960214
+         },
+         {
+          "wash": 2,
+          "polymer": "PET",
+          "solvent": "Pyrrole",
+          "temperature_c": 110.0,
+          "capex_usd_per_yr": 3035797.6928842734,
+          "opex_usd_per_yr": 555076.2286152511,
+          "gwp_t_co2e_per_yr": 1149.0311793903365,
+          "energy_mj_per_yr": 11679447.68954516,
+          "recovered_fraction": 0.9047536558603526
+         }
+        ],
+        "downstream": {
+         "key": "lf",
+         "label": "Landfill",
+         "residual_t_per_yr": 8327.519366206769,
+         "distance_mile": 9.2
+        },
+        "profit_usd_per_yr": 5491009.088079167,
+        "emissions_t_co2e_per_yr": 4363.38543582518,
+        "circularity_index": 0.6796141350751104,
+        "circularity_scores": {
+         "energy": 0.45362455648925337,
+         "ghg": 0.862152704194085,
+         "water": 0.8530732464489552,
+         "waste": 0.6514414841800735,
+         "substitutability": 0.5777786840631843
+        },
+        "sales_usd_per_yr": 15155226.172009407,
+        "capex_usd_per_yr": 6622654.391570443,
+        "opex_usd_per_yr": 2944311.9365956774,
+        "transport_usd_per_yr": 97250.75576411953
        },
        {
         "pathway": "LDPE/Toluene > EVOH/Acetic Acid + lf",
@@ -665,10 +999,10 @@
           "polymer": "LDPE",
           "solvent": "Toluene",
           "temperature_c": 100.0,
-          "capex_usd_per_yr": 5066623.869554608,
+          "capex_usd_per_yr": 5066623.869554606,
           "opex_usd_per_yr": 2524967.6184640736,
           "gwp_t_co2e_per_yr": 2913.363931235679,
-          "energy_mj_per_yr": 22339813.709670868,
+          "energy_mj_per_yr": 22339813.70967087,
           "recovered_fraction": 0.9120803411732029
          },
          {
@@ -676,8 +1010,8 @@
           "polymer": "EVOH",
           "solvent": "Acetic Acid",
           "temperature_c": 105.0,
-          "capex_usd_per_yr": 3600630.1638095905,
-          "opex_usd_per_yr": 676046.702375659,
+          "capex_usd_per_yr": 2444328.5241411584,
+          "opex_usd_per_yr": 448046.7023756589,
           "gwp_t_co2e_per_yr": 907.0452782275479,
           "energy_mj_per_yr": 8673129.922981841,
           "recovered_fraction": 0.8827735460360372
@@ -689,7 +1023,7 @@
          "residual_t_per_yr": 7674.7665936155245,
          "distance_mile": 9.2
         },
-        "profit_usd_per_yr": 4060787.676177014,
+        "profit_usd_per_yr": 5445089.315845449,
         "emissions_t_co2e_per_yr": 4483.941577316053,
         "circularity_index": 0.693255384914749,
         "circularity_scores": {
@@ -700,8 +1034,8 @@
          "substitutability": 0.6130519313606088
         },
         "sales_usd_per_yr": 16080449.021793922,
-        "capex_usd_per_yr": 8667254.0333642,
-        "opex_usd_per_yr": 3261153.715119638,
+        "capex_usd_per_yr": 7510952.393695764,
+        "opex_usd_per_yr": 3033153.7151196375,
         "transport_usd_per_yr": 91253.59713307113
        }
       ],
@@ -738,8 +1072,8 @@
           "polymer": "EVOH",
           "solvent": "Acetic Acid",
           "temperature_c": 105.0,
-          "capex_usd_per_yr": 3586856.6986861704,
-          "opex_usd_per_yr": 2323981.349502024,
+          "capex_usd_per_yr": 3586856.69868617,
+          "opex_usd_per_yr": 2323981.3495020233,
           "gwp_t_co2e_per_yr": 2494.387261217549,
           "energy_mj_per_yr": 16426415.622054398,
           "recovered_fraction": 0.833928810960214
@@ -751,7 +1085,7 @@
          "residual_t_per_yr": 10498.928140271615,
          "distance_mile": 9.2
         },
-        "profit_usd_per_yr": 6091091.436269287,
+        "profit_usd_per_yr": 6091091.436269288,
         "emissions_t_co2e_per_yr": 3402.086350676019,
         "circularity_index": 0.6718725531403917,
         "circularity_scores": {
@@ -762,8 +1096,8 @@
          "substitutability": 0.463538270101153
         },
         "sales_usd_per_yr": 12158682.06379992,
-        "capex_usd_per_yr": 3586856.6986861704,
-        "opex_usd_per_yr": 2406250.8454199107,
+        "capex_usd_per_yr": 3586856.69868617,
+        "opex_usd_per_yr": 2406250.8454199103,
         "transport_usd_per_yr": 74483.08342455249
        },
        {
@@ -774,8 +1108,8 @@
           "polymer": "EVOH",
           "solvent": "Acetic Acid",
           "temperature_c": 105.0,
-          "capex_usd_per_yr": 3586856.6986861704,
-          "opex_usd_per_yr": 2323981.349502024,
+          "capex_usd_per_yr": 3586856.69868617,
+          "opex_usd_per_yr": 2323981.3495020233,
           "gwp_t_co2e_per_yr": 2494.387261217549,
           "energy_mj_per_yr": 16426415.622054398,
           "recovered_fraction": 0.833928810960214
@@ -785,8 +1119,8 @@
           "polymer": "PET",
           "solvent": "Pyrrole",
           "temperature_c": 110.0,
-          "capex_usd_per_yr": 4387643.794153893,
-          "opex_usd_per_yr": 783076.2286152511,
+          "capex_usd_per_yr": 3035797.6928842734,
+          "opex_usd_per_yr": 555076.2286152511,
           "gwp_t_co2e_per_yr": 1149.0311793903365,
           "energy_mj_per_yr": 11679447.68954516,
           "recovered_fraction": 0.9047536558603526
@@ -798,7 +1132,7 @@
          "residual_t_per_yr": 8327.519366206769,
          "distance_mile": 9.2
         },
-        "profit_usd_per_yr": 3911162.986809546,
+        "profit_usd_per_yr": 5491009.088079167,
         "emissions_t_co2e_per_yr": 4363.38543582518,
         "circularity_index": 0.6796141350751104,
         "circularity_scores": {
@@ -809,8 +1143,8 @@
          "substitutability": 0.5777786840631843
         },
         "sales_usd_per_yr": 15155226.172009407,
-        "capex_usd_per_yr": 7974500.492840064,
-        "opex_usd_per_yr": 3172311.9365956774,
+        "capex_usd_per_yr": 6622654.391570443,
+        "opex_usd_per_yr": 2944311.9365956774,
         "transport_usd_per_yr": 97250.75576411953
        },
        {
@@ -821,10 +1155,10 @@
           "polymer": "LDPE",
           "solvent": "Toluene",
           "temperature_c": 100.0,
-          "capex_usd_per_yr": 5066623.869554608,
+          "capex_usd_per_yr": 5066623.869554606,
           "opex_usd_per_yr": 2524967.6184640736,
           "gwp_t_co2e_per_yr": 2913.363931235679,
-          "energy_mj_per_yr": 22339813.709670868,
+          "energy_mj_per_yr": 22339813.70967087,
           "recovered_fraction": 0.9120803411732029
          },
          {
@@ -832,8 +1166,8 @@
           "polymer": "EVOH",
           "solvent": "Acetic Acid",
           "temperature_c": 105.0,
-          "capex_usd_per_yr": 3600630.1638095905,
-          "opex_usd_per_yr": 676046.702375659,
+          "capex_usd_per_yr": 2444328.5241411584,
+          "opex_usd_per_yr": 448046.7023756589,
           "gwp_t_co2e_per_yr": 907.0452782275479,
           "energy_mj_per_yr": 8673129.922981841,
           "recovered_fraction": 0.8827735460360372
@@ -845,7 +1179,7 @@
          "residual_t_per_yr": 7674.7665936155245,
          "distance_mile": 9.2
         },
-        "profit_usd_per_yr": 4060787.676177014,
+        "profit_usd_per_yr": 5445089.315845449,
         "emissions_t_co2e_per_yr": 4483.941577316053,
         "circularity_index": 0.693255384914749,
         "circularity_scores": {
@@ -856,8 +1190,8 @@
          "substitutability": 0.6130519313606088
         },
         "sales_usd_per_yr": 16080449.021793922,
-        "capex_usd_per_yr": 8667254.0333642,
-        "opex_usd_per_yr": 3261153.715119638,
+        "capex_usd_per_yr": 7510952.393695764,
+        "opex_usd_per_yr": 3033153.7151196375,
         "transport_usd_per_yr": 91253.59713307113
        }
       ]
@@ -877,19 +1211,19 @@
       },
       "6000.0": {
        "pathway": "EVOH/Acetic Acid + we",
-       "profit_usd_yr": 4071779.761467104,
+       "profit_usd_yr": 4071779.7614671057,
        "emissions_t": 28318.70579712504,
        "circularity": 0.5025545002122417
       },
       "8100.0": {
        "pathway": "EVOH/Acetic Acid + we",
-       "profit_usd_yr": 7224030.666896713,
+       "profit_usd_yr": 7224030.666896715,
        "emissions_t": 28318.70579712504,
        "circularity": 0.5265898179211904
       },
       "10000.0": {
        "pathway": "EVOH/Acetic Acid + we",
-       "profit_usd_yr": 10076067.200380648,
+       "profit_usd_yr": 10076067.20038065,
        "emissions_t": 28318.70579712504,
        "circularity": 0.5483360577530964
       }
@@ -906,8 +1240,8 @@
          "polymer": "EVOH",
          "solvent": "Acetic Acid",
          "temperature_c": 105.0,
-         "capex_usd_per_yr": 3586856.6986861704,
-         "opex_usd_per_yr": 2323981.349502024,
+         "capex_usd_per_yr": 3586856.69868617,
+         "opex_usd_per_yr": 2323981.3495020233,
          "gwp_t_co2e_per_yr": 2494.387261217549,
          "energy_mj_per_yr": 16426415.622054398,
          "recovered_fraction": 0.833928810960214
@@ -919,7 +1253,7 @@
         "residual_t_per_yr": 10498.928140271615,
         "distance_mile": 76.1
        },
-       "profit_usd_per_yr": 7279076.547136158,
+       "profit_usd_per_yr": 7279076.54713616,
        "emissions_t_co2e_per_yr": 29327.86276996795,
        "circularity_index": 0.40989022809945824,
        "circularity_scores": {
@@ -930,8 +1264,8 @@
         "substitutability": 0.5075670592312024
        },
        "sales_usd_per_yr": 13313564.159229796,
-       "capex_usd_per_yr": 3586856.6986861704,
-       "opex_usd_per_yr": 2323981.349502024,
+       "capex_usd_per_yr": 3586856.69868617,
+       "opex_usd_per_yr": 2323981.3495020233,
        "transport_usd_per_yr": 123649.56390544445,
        "solver": "scip",
        "agrees_with_enumeration": true
@@ -970,10 +1304,10 @@
          "polymer": "LDPE",
          "solvent": "Toluene",
          "temperature_c": 100.0,
-         "capex_usd_per_yr": 5066623.869554608,
+         "capex_usd_per_yr": 5066623.869554606,
          "opex_usd_per_yr": 2524967.6184640736,
          "gwp_t_co2e_per_yr": 2913.363931235679,
-         "energy_mj_per_yr": 22339813.709670868,
+         "energy_mj_per_yr": 22339813.70967087,
          "recovered_fraction": 0.9120803411732029
         },
         {
@@ -981,8 +1315,8 @@
          "polymer": "EVOH",
          "solvent": "Acetic Acid",
          "temperature_c": 105.0,
-         "capex_usd_per_yr": 3600630.1638095905,
-         "opex_usd_per_yr": 676046.702375659,
+         "capex_usd_per_yr": 2444328.5241411584,
+         "opex_usd_per_yr": 448046.7023756589,
          "gwp_t_co2e_per_yr": 907.0452782275479,
          "energy_mj_per_yr": 8673129.922981841,
          "recovered_fraction": 0.8827735460360372
@@ -994,7 +1328,7 @@
         "residual_t_per_yr": 7674.7665936155245,
         "distance_mile": 9.2
        },
-       "profit_usd_per_yr": 4060787.676177014,
+       "profit_usd_per_yr": 5445089.315845449,
        "emissions_t_co2e_per_yr": 4483.941577316053,
        "circularity_index": 0.693255384914749,
        "circularity_scores": {
@@ -1005,8 +1339,8 @@
         "substitutability": 0.6130519313606088
        },
        "sales_usd_per_yr": 16080449.021793922,
-       "capex_usd_per_yr": 8667254.0333642,
-       "opex_usd_per_yr": 3261153.715119638,
+       "capex_usd_per_yr": 7510952.393695764,
+       "opex_usd_per_yr": 3033153.7151196375,
        "transport_usd_per_yr": 91253.59713307113,
        "solver": "scip",
        "agrees_with_enumeration": true
@@ -1046,8 +1380,8 @@
           "polymer": "EVOH",
           "solvent": "Acetic Acid",
           "temperature_c": 105.0,
-          "capex_usd_per_yr": 3586856.6986861704,
-          "opex_usd_per_yr": 2323981.349502024,
+          "capex_usd_per_yr": 3586856.69868617,
+          "opex_usd_per_yr": 2323981.3495020233,
           "gwp_t_co2e_per_yr": 2494.387261217549,
           "energy_mj_per_yr": 16426415.622054398,
           "recovered_fraction": 0.833928810960214
@@ -1059,7 +1393,7 @@
          "residual_t_per_yr": 10498.928140271615,
          "distance_mile": 9.2
         },
-        "profit_usd_per_yr": 6091091.436269287,
+        "profit_usd_per_yr": 6091091.436269288,
         "emissions_t_co2e_per_yr": 3402.086350676019,
         "circularity_index": 0.6718725531403917,
         "circularity_scores": {
@@ -1070,9 +1404,291 @@
          "substitutability": 0.463538270101153
         },
         "sales_usd_per_yr": 12158682.06379992,
-        "capex_usd_per_yr": 3586856.6986861704,
-        "opex_usd_per_yr": 2406250.8454199107,
+        "capex_usd_per_yr": 3586856.69868617,
+        "opex_usd_per_yr": 2406250.8454199103,
         "transport_usd_per_yr": 74483.08342455249
+       },
+       {
+        "pathway": "LDPE/Toluene > EVOH/Acetic Acid + we",
+        "washes": [
+         {
+          "wash": 1,
+          "polymer": "LDPE",
+          "solvent": "Toluene",
+          "temperature_c": 100.0,
+          "capex_usd_per_yr": 5066623.869554606,
+          "opex_usd_per_yr": 2524967.6184640736,
+          "gwp_t_co2e_per_yr": 2913.363931235679,
+          "energy_mj_per_yr": 22339813.70967087,
+          "recovered_fraction": 0.9120803411732029
+         },
+         {
+          "wash": 2,
+          "polymer": "EVOH",
+          "solvent": "Acetic Acid",
+          "temperature_c": 105.0,
+          "capex_usd_per_yr": 2444328.5241411584,
+          "opex_usd_per_yr": 448046.7023756589,
+          "gwp_t_co2e_per_yr": 907.0452782275479,
+          "energy_mj_per_yr": 8673129.922981841,
+          "recovered_fraction": 0.8827735460360372
+         }
+        ],
+        "downstream": {
+         "key": "we",
+         "label": "Incineration with energy recovery",
+         "residual_t_per_yr": 7674.7665936155245,
+         "distance_mile": 151.0
+        },
+        "profit_usd_per_yr": 6273273.302214834,
+        "emissions_t_co2e_per_yr": 22698.109347445265,
+        "circularity_index": 0.5739893770635838,
+        "circularity_scores": {
+         "energy": 0.44368778819304444,
+         "ghg": 0.2829253707997086,
+         "water": 0.5,
+         "waste": 0.9980965399120438,
+         "substitutability": 0.6452371864131214
+        },
+        "sales_usd_per_yr": 16924673.34709163,
+        "capex_usd_per_yr": 7510952.393695764,
+        "opex_usd_per_yr": 2973014.3208397324,
+        "transport_usd_per_yr": 167433.33034129883
+       },
+       {
+        "pathway": "LDPE/Toluene > EVOH/Ethylene glycol + we",
+        "washes": [
+         {
+          "wash": 1,
+          "polymer": "LDPE",
+          "solvent": "Toluene",
+          "temperature_c": 100.0,
+          "capex_usd_per_yr": 5066623.869554606,
+          "opex_usd_per_yr": 2524967.6184640736,
+          "gwp_t_co2e_per_yr": 2913.363931235679,
+          "energy_mj_per_yr": 22339813.70967087,
+          "recovered_fraction": 0.9120803411732029
+         },
+         {
+          "wash": 2,
+          "polymer": "EVOH",
+          "solvent": "Ethylene glycol",
+          "temperature_c": 120.0,
+          "capex_usd_per_yr": 2377491.186819429,
+          "opex_usd_per_yr": 479533.93202562886,
+          "gwp_t_co2e_per_yr": 1279.3904219069966,
+          "energy_mj_per_yr": 9312641.060422257,
+          "recovered_fraction": 0.8827735460360372
+         }
+        ],
+        "downstream": {
+         "key": "we",
+         "label": "Incineration with energy recovery",
+         "residual_t_per_yr": 7674.7665936155245,
+         "distance_mile": 151.0
+        },
+        "profit_usd_per_yr": 6308623.409886593,
+        "emissions_t_co2e_per_yr": 23070.454491124714,
+        "circularity_index": 0.5708920170024314,
+        "circularity_scores": {
+         "energy": 0.43993607951369784,
+         "ghg": 0.27116230931509555,
+         "water": 0.5,
+         "waste": 0.9981245097702419,
+         "substitutability": 0.6452371864131214
+        },
+        "sales_usd_per_yr": 16924673.34709163,
+        "capex_usd_per_yr": 7444115.056374036,
+        "opex_usd_per_yr": 3004501.5504897023,
+        "transport_usd_per_yr": 167433.33034129883
+       },
+       {
+        "pathway": "LDPE/Toluene > EVOH/Acetic Acid + gas_h2cc",
+        "washes": [
+         {
+          "wash": 1,
+          "polymer": "LDPE",
+          "solvent": "Toluene",
+          "temperature_c": 100.0,
+          "capex_usd_per_yr": 5066623.869554606,
+          "opex_usd_per_yr": 2524967.6184640736,
+          "gwp_t_co2e_per_yr": 2913.363931235679,
+          "energy_mj_per_yr": 22339813.70967087,
+          "recovered_fraction": 0.9120803411732029
+         },
+         {
+          "wash": 2,
+          "polymer": "EVOH",
+          "solvent": "Acetic Acid",
+          "temperature_c": 105.0,
+          "capex_usd_per_yr": 2444328.5241411584,
+          "opex_usd_per_yr": 448046.7023756589,
+          "gwp_t_co2e_per_yr": 907.0452782275479,
+          "energy_mj_per_yr": 8673129.922981841,
+          "recovered_fraction": 0.8827735460360372
+         }
+        ],
+        "downstream": {
+         "key": "gas_h2cc",
+         "label": "Gasification for hydrogen with carbon capture",
+         "residual_t_per_yr": 7674.7665936155245,
+         "distance_mile": 76.1
+        },
+        "profit_usd_per_yr": 6313512.10346516,
+        "emissions_t_co2e_per_yr": 23435.80791242359,
+        "circularity_index": 0.46448285688972146,
+        "circularity_scores": {
+         "energy": 0.04061757595271366,
+         "ghg": 0.2596201290790824,
+         "water": 0.8774723363714336,
+         "waste": 0.4994670566322559,
+         "substitutability": 0.6452371864131214
+        },
+        "sales_usd_per_yr": 16924673.34709163,
+        "capex_usd_per_yr": 7510952.393695764,
+        "opex_usd_per_yr": 2973014.3208397324,
+        "transport_usd_per_yr": 127194.52909097262
+       },
+       {
+        "pathway": "LDPE/Toluene > EVOH/Ethylene glycol + gas_h2cc",
+        "washes": [
+         {
+          "wash": 1,
+          "polymer": "LDPE",
+          "solvent": "Toluene",
+          "temperature_c": 100.0,
+          "capex_usd_per_yr": 5066623.869554606,
+          "opex_usd_per_yr": 2524967.6184640736,
+          "gwp_t_co2e_per_yr": 2913.363931235679,
+          "energy_mj_per_yr": 22339813.70967087,
+          "recovered_fraction": 0.9120803411732029
+         },
+         {
+          "wash": 2,
+          "polymer": "EVOH",
+          "solvent": "Ethylene glycol",
+          "temperature_c": 120.0,
+          "capex_usd_per_yr": 2377491.186819429,
+          "opex_usd_per_yr": 479533.93202562886,
+          "gwp_t_co2e_per_yr": 1279.3904219069966,
+          "energy_mj_per_yr": 9312641.060422257,
+          "recovered_fraction": 0.8827735460360372
+         }
+        ],
+        "downstream": {
+         "key": "gas_h2cc",
+         "label": "Gasification for hydrogen with carbon capture",
+         "residual_t_per_yr": 7674.7665936155245,
+         "distance_mile": 76.1
+        },
+        "profit_usd_per_yr": 6348862.211136919,
+        "emissions_t_co2e_per_yr": 23808.153056103038,
+        "circularity_index": 0.44977647903082757,
+        "circularity_scores": {
+         "energy": 0.040662185156037124,
+         "ghg": 0.24785706759446924,
+         "water": 0.8156507354317031,
+         "waste": 0.49947522055880683,
+         "substitutability": 0.6452371864131214
+        },
+        "sales_usd_per_yr": 16924673.34709163,
+        "capex_usd_per_yr": 7444115.056374036,
+        "opex_usd_per_yr": 3004501.5504897023,
+        "transport_usd_per_yr": 127194.52909097262
+       },
+       {
+        "pathway": "EVOH/Acetic Acid > PET/Pyrrole + we",
+        "washes": [
+         {
+          "wash": 1,
+          "polymer": "EVOH",
+          "solvent": "Acetic Acid",
+          "temperature_c": 105.0,
+          "capex_usd_per_yr": 3586856.69868617,
+          "opex_usd_per_yr": 2323981.3495020233,
+          "gwp_t_co2e_per_yr": 2494.387261217549,
+          "energy_mj_per_yr": 16426415.622054398,
+          "recovered_fraction": 0.833928810960214
+         },
+         {
+          "wash": 2,
+          "polymer": "PET",
+          "solvent": "Pyrrole",
+          "temperature_c": 110.0,
+          "capex_usd_per_yr": 3035797.6928842734,
+          "opex_usd_per_yr": 555076.2286152511,
+          "gwp_t_co2e_per_yr": 1149.0311793903365,
+          "energy_mj_per_yr": 11679447.68954516,
+          "recovered_fraction": 0.9047536558603526
+         }
+        ],
+        "downstream": {
+         "key": "we",
+         "label": "Incineration with energy recovery",
+         "residual_t_per_yr": 8327.519366206769,
+         "distance_mile": 151.0
+        },
+        "profit_usd_per_yr": 6389631.619611345,
+        "emissions_t_co2e_per_yr": 24126.701100860337,
+        "circularity_index": 0.5615588319221625,
+        "circularity_scores": {
+         "energy": 0.45896197250482684,
+         "ghg": 0.23779355448065442,
+         "water": 0.5,
+         "waste": 0.9983372793855927,
+         "substitutability": 0.6127013532397384
+        },
+        "sales_usd_per_yr": 16071253.302292151,
+        "capex_usd_per_yr": 6622654.391570443,
+        "opex_usd_per_yr": 2879057.5781172747,
+        "transport_usd_per_yr": 179909.71299308792
+       },
+       {
+        "pathway": "EVOH/Acetic Acid > PET/Pyrrole + gas_h2cc",
+        "washes": [
+         {
+          "wash": 1,
+          "polymer": "EVOH",
+          "solvent": "Acetic Acid",
+          "temperature_c": 105.0,
+          "capex_usd_per_yr": 3586856.69868617,
+          "opex_usd_per_yr": 2323981.3495020233,
+          "gwp_t_co2e_per_yr": 2494.387261217549,
+          "energy_mj_per_yr": 16426415.622054398,
+          "recovered_fraction": 0.833928810960214
+         },
+         {
+          "wash": 2,
+          "polymer": "PET",
+          "solvent": "Pyrrole",
+          "temperature_c": 110.0,
+          "capex_usd_per_yr": 3035797.6928842734,
+          "opex_usd_per_yr": 555076.2286152511,
+          "gwp_t_co2e_per_yr": 1149.0311793903365,
+          "energy_mj_per_yr": 11679447.68954516,
+          "recovered_fraction": 0.9047536558603526
+         }
+        ],
+        "downstream": {
+         "key": "gas_h2cc",
+         "label": "Gasification for hydrogen with carbon capture",
+         "residual_t_per_yr": 8327.519366206769,
+         "distance_mile": 76.1
+        },
+        "profit_usd_per_yr": 6433292.8036483675,
+        "emissions_t_co2e_per_yr": 24927.14226234013,
+        "circularity_index": 0.4436121295392721,
+        "circularity_scores": {
+         "energy": 0.04024063785068044,
+         "ghg": 0.21250615982241272,
+         "water": 0.8530732464489552,
+         "waste": 0.4995392503345736,
+         "substitutability": 0.6127013532397384
+        },
+        "sales_usd_per_yr": 16071253.302292151,
+        "capex_usd_per_yr": 6622654.391570443,
+        "opex_usd_per_yr": 2879057.5781172747,
+        "transport_usd_per_yr": 136248.52895606583
        },
        {
         "pathway": "EVOH/Acetic Acid + we",
@@ -1082,8 +1698,8 @@
           "polymer": "EVOH",
           "solvent": "Acetic Acid",
           "temperature_c": 105.0,
-          "capex_usd_per_yr": 3586856.6986861704,
-          "opex_usd_per_yr": 2323981.349502024,
+          "capex_usd_per_yr": 3586856.69868617,
+          "opex_usd_per_yr": 2323981.3495020233,
           "gwp_t_co2e_per_yr": 2494.387261217549,
           "energy_mj_per_yr": 16426415.622054398,
           "recovered_fraction": 0.833928810960214
@@ -1095,7 +1711,7 @@
          "residual_t_per_yr": 10498.928140271615,
          "distance_mile": 151.0
         },
-        "profit_usd_per_yr": 7224030.666896713,
+        "profit_usd_per_yr": 7224030.666896715,
         "emissions_t_co2e_per_yr": 28318.70579712504,
         "circularity_index": 0.5265898179211904,
         "circularity_scores": {
@@ -1106,8 +1722,8 @@
          "substitutability": 0.5075670592312024
         },
         "sales_usd_per_yr": 13313564.159229796,
-        "capex_usd_per_yr": 3586856.6986861704,
-        "opex_usd_per_yr": 2323981.349502024,
+        "capex_usd_per_yr": 3586856.69868617,
+        "opex_usd_per_yr": 2323981.3495020233,
         "transport_usd_per_yr": 178695.44414488855
        },
        {
@@ -1118,8 +1734,8 @@
           "polymer": "EVOH",
           "solvent": "Acetic Acid",
           "temperature_c": 105.0,
-          "capex_usd_per_yr": 3586856.6986861704,
-          "opex_usd_per_yr": 2323981.349502024,
+          "capex_usd_per_yr": 3586856.69868617,
+          "opex_usd_per_yr": 2323981.3495020233,
           "gwp_t_co2e_per_yr": 2494.387261217549,
           "energy_mj_per_yr": 16426415.622054398,
           "recovered_fraction": 0.833928810960214
@@ -1131,7 +1747,7 @@
          "residual_t_per_yr": 10498.928140271615,
          "distance_mile": 76.1
         },
-        "profit_usd_per_yr": 7279076.547136158,
+        "profit_usd_per_yr": 7279076.54713616,
         "emissions_t_co2e_per_yr": 29327.86276996795,
         "circularity_index": 0.40989022809945824,
         "circularity_scores": {
@@ -1142,8 +1758,8 @@
          "substitutability": 0.5075670592312024
         },
         "sales_usd_per_yr": 13313564.159229796,
-        "capex_usd_per_yr": 3586856.6986861704,
-        "opex_usd_per_yr": 2323981.349502024,
+        "capex_usd_per_yr": 3586856.69868617,
+        "opex_usd_per_yr": 2323981.3495020233,
         "transport_usd_per_yr": 123649.56390544445
        }
       ],
@@ -1156,8 +1772,8 @@
           "polymer": "EVOH",
           "solvent": "Acetic Acid",
           "temperature_c": 105.0,
-          "capex_usd_per_yr": 3586856.6986861704,
-          "opex_usd_per_yr": 2323981.349502024,
+          "capex_usd_per_yr": 3586856.69868617,
+          "opex_usd_per_yr": 2323981.3495020233,
           "gwp_t_co2e_per_yr": 2494.387261217549,
           "energy_mj_per_yr": 16426415.622054398,
           "recovered_fraction": 0.833928810960214
@@ -1169,7 +1785,7 @@
          "residual_t_per_yr": 10498.928140271615,
          "distance_mile": 76.1
         },
-        "profit_usd_per_yr": 7279076.547136158,
+        "profit_usd_per_yr": 7279076.54713616,
         "emissions_t_co2e_per_yr": 29327.86276996795,
         "circularity_index": 0.40989022809945824,
         "circularity_scores": {
@@ -1180,8 +1796,8 @@
          "substitutability": 0.5075670592312024
         },
         "sales_usd_per_yr": 13313564.159229796,
-        "capex_usd_per_yr": 3586856.6986861704,
-        "opex_usd_per_yr": 2323981.349502024,
+        "capex_usd_per_yr": 3586856.69868617,
+        "opex_usd_per_yr": 2323981.3495020233,
         "transport_usd_per_yr": 123649.56390544445
        },
        {
@@ -1192,8 +1808,8 @@
           "polymer": "EVOH",
           "solvent": "Acetic Acid",
           "temperature_c": 105.0,
-          "capex_usd_per_yr": 3586856.6986861704,
-          "opex_usd_per_yr": 2323981.349502024,
+          "capex_usd_per_yr": 3586856.69868617,
+          "opex_usd_per_yr": 2323981.3495020233,
           "gwp_t_co2e_per_yr": 2494.387261217549,
           "energy_mj_per_yr": 16426415.622054398,
           "recovered_fraction": 0.833928810960214
@@ -1205,7 +1821,7 @@
          "residual_t_per_yr": 10498.928140271615,
          "distance_mile": 151.0
         },
-        "profit_usd_per_yr": 7224030.666896713,
+        "profit_usd_per_yr": 7224030.666896715,
         "emissions_t_co2e_per_yr": 28318.70579712504,
         "circularity_index": 0.5265898179211904,
         "circularity_scores": {
@@ -1216,9 +1832,150 @@
          "substitutability": 0.5075670592312024
         },
         "sales_usd_per_yr": 13313564.159229796,
-        "capex_usd_per_yr": 3586856.6986861704,
-        "opex_usd_per_yr": 2323981.349502024,
+        "capex_usd_per_yr": 3586856.69868617,
+        "opex_usd_per_yr": 2323981.3495020233,
         "transport_usd_per_yr": 178695.44414488855
+       },
+       {
+        "pathway": "EVOH/Acetic Acid > PET/Pyrrole + we",
+        "washes": [
+         {
+          "wash": 1,
+          "polymer": "EVOH",
+          "solvent": "Acetic Acid",
+          "temperature_c": 105.0,
+          "capex_usd_per_yr": 3586856.69868617,
+          "opex_usd_per_yr": 2323981.3495020233,
+          "gwp_t_co2e_per_yr": 2494.387261217549,
+          "energy_mj_per_yr": 16426415.622054398,
+          "recovered_fraction": 0.833928810960214
+         },
+         {
+          "wash": 2,
+          "polymer": "PET",
+          "solvent": "Pyrrole",
+          "temperature_c": 110.0,
+          "capex_usd_per_yr": 3035797.6928842734,
+          "opex_usd_per_yr": 555076.2286152511,
+          "gwp_t_co2e_per_yr": 1149.0311793903365,
+          "energy_mj_per_yr": 11679447.68954516,
+          "recovered_fraction": 0.9047536558603526
+         }
+        ],
+        "downstream": {
+         "key": "we",
+         "label": "Incineration with energy recovery",
+         "residual_t_per_yr": 8327.519366206769,
+         "distance_mile": 151.0
+        },
+        "profit_usd_per_yr": 6389631.619611345,
+        "emissions_t_co2e_per_yr": 24126.701100860337,
+        "circularity_index": 0.5615588319221625,
+        "circularity_scores": {
+         "energy": 0.45896197250482684,
+         "ghg": 0.23779355448065442,
+         "water": 0.5,
+         "waste": 0.9983372793855927,
+         "substitutability": 0.6127013532397384
+        },
+        "sales_usd_per_yr": 16071253.302292151,
+        "capex_usd_per_yr": 6622654.391570443,
+        "opex_usd_per_yr": 2879057.5781172747,
+        "transport_usd_per_yr": 179909.71299308792
+       },
+       {
+        "pathway": "LDPE/Toluene > EVOH/Ethylene glycol + we",
+        "washes": [
+         {
+          "wash": 1,
+          "polymer": "LDPE",
+          "solvent": "Toluene",
+          "temperature_c": 100.0,
+          "capex_usd_per_yr": 5066623.869554606,
+          "opex_usd_per_yr": 2524967.6184640736,
+          "gwp_t_co2e_per_yr": 2913.363931235679,
+          "energy_mj_per_yr": 22339813.70967087,
+          "recovered_fraction": 0.9120803411732029
+         },
+         {
+          "wash": 2,
+          "polymer": "EVOH",
+          "solvent": "Ethylene glycol",
+          "temperature_c": 120.0,
+          "capex_usd_per_yr": 2377491.186819429,
+          "opex_usd_per_yr": 479533.93202562886,
+          "gwp_t_co2e_per_yr": 1279.3904219069966,
+          "energy_mj_per_yr": 9312641.060422257,
+          "recovered_fraction": 0.8827735460360372
+         }
+        ],
+        "downstream": {
+         "key": "we",
+         "label": "Incineration with energy recovery",
+         "residual_t_per_yr": 7674.7665936155245,
+         "distance_mile": 151.0
+        },
+        "profit_usd_per_yr": 6308623.409886593,
+        "emissions_t_co2e_per_yr": 23070.454491124714,
+        "circularity_index": 0.5708920170024314,
+        "circularity_scores": {
+         "energy": 0.43993607951369784,
+         "ghg": 0.27116230931509555,
+         "water": 0.5,
+         "waste": 0.9981245097702419,
+         "substitutability": 0.6452371864131214
+        },
+        "sales_usd_per_yr": 16924673.34709163,
+        "capex_usd_per_yr": 7444115.056374036,
+        "opex_usd_per_yr": 3004501.5504897023,
+        "transport_usd_per_yr": 167433.33034129883
+       },
+       {
+        "pathway": "LDPE/Toluene > EVOH/Acetic Acid + we",
+        "washes": [
+         {
+          "wash": 1,
+          "polymer": "LDPE",
+          "solvent": "Toluene",
+          "temperature_c": 100.0,
+          "capex_usd_per_yr": 5066623.869554606,
+          "opex_usd_per_yr": 2524967.6184640736,
+          "gwp_t_co2e_per_yr": 2913.363931235679,
+          "energy_mj_per_yr": 22339813.70967087,
+          "recovered_fraction": 0.9120803411732029
+         },
+         {
+          "wash": 2,
+          "polymer": "EVOH",
+          "solvent": "Acetic Acid",
+          "temperature_c": 105.0,
+          "capex_usd_per_yr": 2444328.5241411584,
+          "opex_usd_per_yr": 448046.7023756589,
+          "gwp_t_co2e_per_yr": 907.0452782275479,
+          "energy_mj_per_yr": 8673129.922981841,
+          "recovered_fraction": 0.8827735460360372
+         }
+        ],
+        "downstream": {
+         "key": "we",
+         "label": "Incineration with energy recovery",
+         "residual_t_per_yr": 7674.7665936155245,
+         "distance_mile": 151.0
+        },
+        "profit_usd_per_yr": 6273273.302214834,
+        "emissions_t_co2e_per_yr": 22698.109347445265,
+        "circularity_index": 0.5739893770635838,
+        "circularity_scores": {
+         "energy": 0.44368778819304444,
+         "ghg": 0.2829253707997086,
+         "water": 0.5,
+         "waste": 0.9980965399120438,
+         "substitutability": 0.6452371864131214
+        },
+        "sales_usd_per_yr": 16924673.34709163,
+        "capex_usd_per_yr": 7510952.393695764,
+        "opex_usd_per_yr": 2973014.3208397324,
+        "transport_usd_per_yr": 167433.33034129883
        },
        {
         "pathway": "EVOH/Acetic Acid + lf",
@@ -1228,8 +1985,8 @@
           "polymer": "EVOH",
           "solvent": "Acetic Acid",
           "temperature_c": 105.0,
-          "capex_usd_per_yr": 3586856.6986861704,
-          "opex_usd_per_yr": 2323981.349502024,
+          "capex_usd_per_yr": 3586856.69868617,
+          "opex_usd_per_yr": 2323981.3495020233,
           "gwp_t_co2e_per_yr": 2494.387261217549,
           "energy_mj_per_yr": 16426415.622054398,
           "recovered_fraction": 0.833928810960214
@@ -1241,7 +1998,7 @@
          "residual_t_per_yr": 10498.928140271615,
          "distance_mile": 9.2
         },
-        "profit_usd_per_yr": 6091091.436269287,
+        "profit_usd_per_yr": 6091091.436269288,
         "emissions_t_co2e_per_yr": 3402.086350676019,
         "circularity_index": 0.6718725531403917,
         "circularity_scores": {
@@ -1252,9 +2009,56 @@
          "substitutability": 0.463538270101153
         },
         "sales_usd_per_yr": 12158682.06379992,
-        "capex_usd_per_yr": 3586856.6986861704,
-        "opex_usd_per_yr": 2406250.8454199107,
+        "capex_usd_per_yr": 3586856.69868617,
+        "opex_usd_per_yr": 2406250.8454199103,
         "transport_usd_per_yr": 74483.08342455249
+       },
+       {
+        "pathway": "EVOH/Acetic Acid > PET/Pyrrole + lf",
+        "washes": [
+         {
+          "wash": 1,
+          "polymer": "EVOH",
+          "solvent": "Acetic Acid",
+          "temperature_c": 105.0,
+          "capex_usd_per_yr": 3586856.69868617,
+          "opex_usd_per_yr": 2323981.3495020233,
+          "gwp_t_co2e_per_yr": 2494.387261217549,
+          "energy_mj_per_yr": 16426415.622054398,
+          "recovered_fraction": 0.833928810960214
+         },
+         {
+          "wash": 2,
+          "polymer": "PET",
+          "solvent": "Pyrrole",
+          "temperature_c": 110.0,
+          "capex_usd_per_yr": 3035797.6928842734,
+          "opex_usd_per_yr": 555076.2286152511,
+          "gwp_t_co2e_per_yr": 1149.0311793903365,
+          "energy_mj_per_yr": 11679447.68954516,
+          "recovered_fraction": 0.9047536558603526
+         }
+        ],
+        "downstream": {
+         "key": "lf",
+         "label": "Landfill",
+         "residual_t_per_yr": 8327.519366206769,
+         "distance_mile": 9.2
+        },
+        "profit_usd_per_yr": 5491009.088079167,
+        "emissions_t_co2e_per_yr": 4363.38543582518,
+        "circularity_index": 0.6796141350751104,
+        "circularity_scores": {
+         "energy": 0.45362455648925337,
+         "ghg": 0.862152704194085,
+         "water": 0.8530732464489552,
+         "waste": 0.6514414841800735,
+         "substitutability": 0.5777786840631843
+        },
+        "sales_usd_per_yr": 15155226.172009407,
+        "capex_usd_per_yr": 6622654.391570443,
+        "opex_usd_per_yr": 2944311.9365956774,
+        "transport_usd_per_yr": 97250.75576411953
        },
        {
         "pathway": "LDPE/Toluene > EVOH/Acetic Acid + lf",
@@ -1264,10 +2068,10 @@
           "polymer": "LDPE",
           "solvent": "Toluene",
           "temperature_c": 100.0,
-          "capex_usd_per_yr": 5066623.869554608,
+          "capex_usd_per_yr": 5066623.869554606,
           "opex_usd_per_yr": 2524967.6184640736,
           "gwp_t_co2e_per_yr": 2913.363931235679,
-          "energy_mj_per_yr": 22339813.709670868,
+          "energy_mj_per_yr": 22339813.70967087,
           "recovered_fraction": 0.9120803411732029
          },
          {
@@ -1275,8 +2079,8 @@
           "polymer": "EVOH",
           "solvent": "Acetic Acid",
           "temperature_c": 105.0,
-          "capex_usd_per_yr": 3600630.1638095905,
-          "opex_usd_per_yr": 676046.702375659,
+          "capex_usd_per_yr": 2444328.5241411584,
+          "opex_usd_per_yr": 448046.7023756589,
           "gwp_t_co2e_per_yr": 907.0452782275479,
           "energy_mj_per_yr": 8673129.922981841,
           "recovered_fraction": 0.8827735460360372
@@ -1288,7 +2092,7 @@
          "residual_t_per_yr": 7674.7665936155245,
          "distance_mile": 9.2
         },
-        "profit_usd_per_yr": 4060787.676177014,
+        "profit_usd_per_yr": 5445089.315845449,
         "emissions_t_co2e_per_yr": 4483.941577316053,
         "circularity_index": 0.693255384914749,
         "circularity_scores": {
@@ -1299,8 +2103,8 @@
          "substitutability": 0.6130519313606088
         },
         "sales_usd_per_yr": 16080449.021793922,
-        "capex_usd_per_yr": 8667254.0333642,
-        "opex_usd_per_yr": 3261153.715119638,
+        "capex_usd_per_yr": 7510952.393695764,
+        "opex_usd_per_yr": 3033153.7151196375,
         "transport_usd_per_yr": 91253.59713307113
        }
       ],
@@ -1337,8 +2141,8 @@
           "polymer": "EVOH",
           "solvent": "Acetic Acid",
           "temperature_c": 105.0,
-          "capex_usd_per_yr": 3586856.6986861704,
-          "opex_usd_per_yr": 2323981.349502024,
+          "capex_usd_per_yr": 3586856.69868617,
+          "opex_usd_per_yr": 2323981.3495020233,
           "gwp_t_co2e_per_yr": 2494.387261217549,
           "energy_mj_per_yr": 16426415.622054398,
           "recovered_fraction": 0.833928810960214
@@ -1350,7 +2154,7 @@
          "residual_t_per_yr": 10498.928140271615,
          "distance_mile": 9.2
         },
-        "profit_usd_per_yr": 6091091.436269287,
+        "profit_usd_per_yr": 6091091.436269288,
         "emissions_t_co2e_per_yr": 3402.086350676019,
         "circularity_index": 0.6718725531403917,
         "circularity_scores": {
@@ -1361,8 +2165,8 @@
          "substitutability": 0.463538270101153
         },
         "sales_usd_per_yr": 12158682.06379992,
-        "capex_usd_per_yr": 3586856.6986861704,
-        "opex_usd_per_yr": 2406250.8454199107,
+        "capex_usd_per_yr": 3586856.69868617,
+        "opex_usd_per_yr": 2406250.8454199103,
         "transport_usd_per_yr": 74483.08342455249
        },
        {
@@ -1373,8 +2177,8 @@
           "polymer": "EVOH",
           "solvent": "Acetic Acid",
           "temperature_c": 105.0,
-          "capex_usd_per_yr": 3586856.6986861704,
-          "opex_usd_per_yr": 2323981.349502024,
+          "capex_usd_per_yr": 3586856.69868617,
+          "opex_usd_per_yr": 2323981.3495020233,
           "gwp_t_co2e_per_yr": 2494.387261217549,
           "energy_mj_per_yr": 16426415.622054398,
           "recovered_fraction": 0.833928810960214
@@ -1384,8 +2188,8 @@
           "polymer": "PET",
           "solvent": "Pyrrole",
           "temperature_c": 110.0,
-          "capex_usd_per_yr": 4387643.794153893,
-          "opex_usd_per_yr": 783076.2286152511,
+          "capex_usd_per_yr": 3035797.6928842734,
+          "opex_usd_per_yr": 555076.2286152511,
           "gwp_t_co2e_per_yr": 1149.0311793903365,
           "energy_mj_per_yr": 11679447.68954516,
           "recovered_fraction": 0.9047536558603526
@@ -1397,7 +2201,7 @@
          "residual_t_per_yr": 8327.519366206769,
          "distance_mile": 9.2
         },
-        "profit_usd_per_yr": 3911162.986809546,
+        "profit_usd_per_yr": 5491009.088079167,
         "emissions_t_co2e_per_yr": 4363.38543582518,
         "circularity_index": 0.6796141350751104,
         "circularity_scores": {
@@ -1408,8 +2212,8 @@
          "substitutability": 0.5777786840631843
         },
         "sales_usd_per_yr": 15155226.172009407,
-        "capex_usd_per_yr": 7974500.492840064,
-        "opex_usd_per_yr": 3172311.9365956774,
+        "capex_usd_per_yr": 6622654.391570443,
+        "opex_usd_per_yr": 2944311.9365956774,
         "transport_usd_per_yr": 97250.75576411953
        },
        {
@@ -1420,10 +2224,10 @@
           "polymer": "LDPE",
           "solvent": "Toluene",
           "temperature_c": 100.0,
-          "capex_usd_per_yr": 5066623.869554608,
+          "capex_usd_per_yr": 5066623.869554606,
           "opex_usd_per_yr": 2524967.6184640736,
           "gwp_t_co2e_per_yr": 2913.363931235679,
-          "energy_mj_per_yr": 22339813.709670868,
+          "energy_mj_per_yr": 22339813.70967087,
           "recovered_fraction": 0.9120803411732029
          },
          {
@@ -1431,8 +2235,8 @@
           "polymer": "EVOH",
           "solvent": "Acetic Acid",
           "temperature_c": 105.0,
-          "capex_usd_per_yr": 3600630.1638095905,
-          "opex_usd_per_yr": 676046.702375659,
+          "capex_usd_per_yr": 2444328.5241411584,
+          "opex_usd_per_yr": 448046.7023756589,
           "gwp_t_co2e_per_yr": 907.0452782275479,
           "energy_mj_per_yr": 8673129.922981841,
           "recovered_fraction": 0.8827735460360372
@@ -1444,7 +2248,7 @@
          "residual_t_per_yr": 7674.7665936155245,
          "distance_mile": 9.2
         },
-        "profit_usd_per_yr": 4060787.676177014,
+        "profit_usd_per_yr": 5445089.315845449,
         "emissions_t_co2e_per_yr": 4483.941577316053,
         "circularity_index": 0.693255384914749,
         "circularity_scores": {
@@ -1455,8 +2259,8 @@
          "substitutability": 0.6130519313606088
         },
         "sales_usd_per_yr": 16080449.021793922,
-        "capex_usd_per_yr": 8667254.0333642,
-        "opex_usd_per_yr": 3261153.715119638,
+        "capex_usd_per_yr": 7510952.393695764,
+        "opex_usd_per_yr": 3033153.7151196375,
         "transport_usd_per_yr": 91253.59713307113
        }
       ]
@@ -1476,19 +2280,19 @@
       },
       "6000.0": {
        "pathway": "EVOH/Acetic Acid + gas_h2cc",
-       "profit_usd_yr": 4126825.641706548,
+       "profit_usd_yr": 4126825.64170655,
        "emissions_t": 29327.86276996795,
        "circularity": 0.38585491039050956
       },
       "8100.0": {
        "pathway": "EVOH/Acetic Acid + gas_h2cc",
-       "profit_usd_yr": 7279076.547136158,
+       "profit_usd_yr": 7279076.54713616,
        "emissions_t": 29327.86276996795,
        "circularity": 0.40989022809945824
       },
       "10000.0": {
        "pathway": "EVOH/Acetic Acid + gas_h2cc",
-       "profit_usd_yr": 10131113.080620091,
+       "profit_usd_yr": 10131113.080620093,
        "emissions_t": 29327.86276996795,
        "circularity": 0.43163646793136423
       }
@@ -1497,7 +2301,7 @@
    }
   },
   "shared_20kt": {
-   "seconds": 152.8,
+   "seconds": 150.5,
    "shredder": {
     "msp_usd_per_kg": 0.09628415670296515,
     "tci_usd": 5040529.296719659,
@@ -1509,7 +2313,7 @@
     "annual_throughput_kg": 20000000.0,
     "electricity_mj_per_yr": 13174847.999999998,
     "capacity_t_per_yr": 20000.0,
-    "wall_seconds": 7.831830500159413,
+    "wall_seconds": 7.59555345820263,
     "engine_mode": "live"
    },
    "washes": [
@@ -1518,7 +2322,7 @@
      "polymer": "EVOH",
      "solvent": "Acetic Acid",
      "temperature_c": 105.0,
-     "capex_usd_yr": 2910470.648996763,
+     "capex_usd_yr": 2910470.6489967625,
      "opex_usd_yr": 1669178.43229156,
      "gwp_t": 2487.4296707954636,
      "energy_mj": 16335810.595073625,
@@ -1539,10 +2343,10 @@
      "polymer": "EVOH",
      "solvent": "Ethylene glycol",
      "temperature_c": 120.0,
-     "capex_usd_yr": 3039401.0698210145,
+     "capex_usd_yr": 3039401.069821014,
      "opex_usd_yr": 1705675.4662124743,
-     "gwp_t": 2922.5705420815975,
-     "energy_mj": 17085804.89891899,
+     "gwp_t": 2922.5705420815984,
+     "energy_mj": 17085804.898918986,
      "engine_mode": "live",
      "thermo": {
       "target_solubility_pct": 10.60388466,
@@ -1561,7 +2365,7 @@
      "solvent": "Dipentene (Dl-Limonene)",
      "temperature_c": 100.0,
      "capex_usd_yr": 4388320.319021575,
-     "opex_usd_yr": 1889598.0624662677,
+     "opex_usd_yr": 1889598.062466268,
      "gwp_t": 3212.8369107212293,
      "energy_mj": 22809344.16840946,
      "engine_mode": "live",
@@ -1583,8 +2387,8 @@
      "temperature_c": 100.0,
      "capex_usd_yr": 4176837.2944592303,
      "opex_usd_yr": 1846941.775958824,
-     "gwp_t": 2902.0574316137863,
-     "energy_mj": 22192575.133898832,
+     "gwp_t": 2902.0574316137872,
+     "energy_mj": 22192575.13389884,
      "engine_mode": "live",
      "thermo": {
       "target_solubility_pct": 12.70218754,
@@ -1602,8 +2406,8 @@
      "polymer": "LDPE",
      "solvent": "p-Xylene",
      "temperature_c": 100.0,
-     "capex_usd_yr": 4231530.168792262,
-     "opex_usd_yr": 1859630.4465389359,
+     "capex_usd_yr": 4231530.168792264,
+     "opex_usd_yr": 1859630.4465389366,
      "gwp_t": 3017.707544279542,
      "energy_mj": 22386409.234338146,
      "engine_mode": "live",
@@ -1625,8 +2429,8 @@
      "polymer": "EVOH",
      "solvent": "Acetic Acid",
      "temperature_c": 105.0,
-     "capex_usd_yr": 2613576.5773531892,
-     "opex_usd_yr": 447981.08507660765,
+     "capex_usd_yr": 1777432.301790511,
+     "opex_usd_yr": 345381.0850766076,
      "gwp_t": 896.2795398228151,
      "energy_mj": 8532933.395171108,
      "engine_mode": "live",
@@ -1648,8 +2452,8 @@
      "polymer": "EVOH",
      "solvent": "Ethylene glycol",
      "temperature_c": 120.0,
-     "capex_usd_yr": 2713098.8329795436,
-     "opex_usd_yr": 478921.6262675574,
+     "capex_usd_yr": 1726803.2952619141,
+     "opex_usd_yr": 376321.6262675574,
      "gwp_t": 1269.024653381939,
      "energy_mj": 9177653.12886838,
      "engine_mode": "live",
@@ -1671,8 +2475,8 @@
      "polymer": "EVOH",
      "solvent": "Propylene glycol",
      "temperature_c": 120.0,
-     "capex_usd_yr": 2754480.466936656,
-     "opex_usd_yr": 483786.4418220647,
+     "capex_usd_yr": 1770859.7500880335,
+     "opex_usd_yr": 381186.4418220647,
      "gwp_t": 1258.9728482952607,
      "energy_mj": 9202239.97332075,
      "engine_mode": "live",
@@ -1694,10 +2498,10 @@
      "polymer": "HDPE",
      "solvent": "Dipentene (Dl-Limonene)",
      "temperature_c": 115.0,
-     "capex_usd_yr": 5430762.055214319,
-     "opex_usd_yr": 885564.7785648638,
-     "gwp_t": 2448.000141894242,
-     "energy_mj": 24113597.64335086,
+     "capex_usd_yr": 3882157.1016699583,
+     "opex_usd_yr": 782964.778564864,
+     "gwp_t": 2448.0001418942425,
+     "energy_mj": 24113597.643350855,
      "engine_mode": "live",
      "thermo": {
       "target_solubility_pct": 11.44084928,
@@ -1717,10 +2521,10 @@
      "polymer": "HDPE",
      "solvent": "Diphenyl ether",
      "temperature_c": 125.0,
-     "capex_usd_yr": 5031554.916898318,
-     "opex_usd_yr": 853794.4821630646,
-     "gwp_t": 2784.998407925286,
-     "energy_mj": 24120524.26676129,
+     "capex_usd_yr": 3400532.371570437,
+     "opex_usd_yr": 751194.4821630644,
+     "gwp_t": 2784.998407925285,
+     "energy_mj": 24120524.266761295,
      "engine_mode": "live",
      "thermo": {
       "target_solubility_pct": 13.61399019,
@@ -1740,8 +2544,8 @@
      "polymer": "HDPE",
      "solvent": "Dodecane",
      "temperature_c": 115.0,
-     "capex_usd_yr": 5657761.593837371,
-     "opex_usd_yr": 938565.2137876383,
+     "capex_usd_yr": 3990211.544898129,
+     "opex_usd_yr": 835965.2137876381,
      "gwp_t": 2853.664594298662,
      "energy_mj": 24959833.32099718,
      "engine_mode": "live",
@@ -1763,8 +2567,8 @@
      "polymer": "LDPE",
      "solvent": "Dipentene (Dl-Limonene)",
      "temperature_c": 100.0,
-     "capex_usd_yr": 4144286.0879736366,
-     "opex_usd_yr": 686808.8881709424,
+     "capex_usd_yr": 2893429.6758410134,
+     "opex_usd_yr": 570528.8881709424,
      "gwp_t": 1616.716812840095,
      "energy_mj": 14940573.387914425,
      "engine_mode": "live",
@@ -1786,8 +2590,8 @@
      "polymer": "LDPE",
      "solvent": "Toluene",
      "temperature_c": 100.0,
-     "capex_usd_yr": 3946956.4223922924,
-     "opex_usd_yr": 646618.7782861961,
+     "capex_usd_yr": 2807217.039926359,
+     "opex_usd_yr": 530338.778286196,
      "gwp_t": 1328.174947381568,
      "energy_mj": 14354466.158356244,
      "engine_mode": "live",
@@ -1809,8 +2613,8 @@
      "polymer": "LDPE",
      "solvent": "p-Xylene",
      "temperature_c": 100.0,
-     "capex_usd_yr": 3984241.2554315804,
-     "opex_usd_yr": 656788.7307229093,
+     "capex_usd_yr": 2803222.0079407897,
+     "opex_usd_yr": 540508.7307229092,
      "gwp_t": 1435.0821977710723,
      "energy_mj": 14536554.291102795,
      "engine_mode": "live",
@@ -1832,10 +2636,10 @@
      "polymer": "PET",
      "solvent": "Pyrrole",
      "temperature_c": 110.0,
-     "capex_usd_yr": 3384131.3542657737,
-     "opex_usd_yr": 566480.7905191686,
+     "capex_usd_yr": 2355878.3156272145,
+     "opex_usd_yr": 450200.79051916854,
      "gwp_t": 1136.068840390785,
-     "energy_mj": 11510645.991867606,
+     "energy_mj": 11510645.991867604,
      "engine_mode": "live",
      "thermo": {
       "target_solubility_pct": 11.28231511,
@@ -1858,40 +2662,51 @@
      "candidates": 162,
      "optima": {
       "max_profit": {
-       "pathway": "EVOH/Acetic Acid + we",
+       "pathway": "LDPE/Toluene > EVOH/Ethylene glycol + we",
        "washes": [
         {
          "wash": 1,
+         "polymer": "LDPE",
+         "solvent": "Toluene",
+         "temperature_c": 100.0,
+         "capex_usd_per_yr": 4176837.2944592303,
+         "opex_usd_per_yr": 1846941.775958824,
+         "gwp_t_co2e_per_yr": 2902.0574316137872,
+         "energy_mj_per_yr": 22192575.13389884,
+         "recovered_fraction": 0.9120803411732029
+        },
+        {
+         "wash": 2,
          "polymer": "EVOH",
-         "solvent": "Acetic Acid",
-         "temperature_c": 105.0,
-         "capex_usd_per_yr": 2910470.648996763,
-         "opex_usd_per_yr": 1669178.43229156,
-         "gwp_t_co2e_per_yr": 2487.4296707954636,
-         "energy_mj_per_yr": 16335810.595073625,
-         "recovered_fraction": 0.8339288113467693
+         "solvent": "Ethylene glycol",
+         "temperature_c": 120.0,
+         "capex_usd_per_yr": 1726803.2952619141,
+         "opex_usd_per_yr": 376321.6262675574,
+         "gwp_t_co2e_per_yr": 1269.024653381939,
+         "energy_mj_per_yr": 9177653.12886838,
+         "recovered_fraction": 0.8827735462809783
         }
        ],
        "downstream": {
         "key": "we",
         "label": "Incineration with energy recovery",
-        "residual_t_per_yr": 10498.928139575815,
+        "residual_t_per_yr": 7674.7665931746305,
         "distance_mile": 151.0
        },
-       "profit_usd_per_yr": 8555219.639365476,
-       "emissions_t_co2e_per_yr": 28311.74820499149,
-       "circularity_index": 0.5267374908442929,
+       "profit_usd_per_yr": 8630336.028331537,
+       "emissions_t_co2e_per_yr": 23048.782221893296,
+       "circularity_index": 0.5713601132172968,
        "circularity_scores": {
-        "energy": 0.5213036261933963,
-        "ghg": 0.10558029149721704,
+        "energy": 0.44159191828153027,
+        "ghg": 0.2718469757859968,
         "water": 0.5,
-        "waste": 0.9992364770877001,
-        "substitutability": 0.5075670594431508
+        "waste": 0.9981244854715343,
+        "substitutability": 0.6452371865474227
        },
-       "sales_usd_per_yr": 13313564.164789237,
-       "capex_usd_per_yr": 2910470.648996763,
-       "opex_usd_per_yr": 1669178.43229156,
-       "transport_usd_per_yr": 178695.44413543958,
+       "sales_usd_per_yr": 16924673.350614373,
+       "capex_usd_per_yr": 5903640.589721144,
+       "opex_usd_per_yr": 2223263.4022263815,
+       "transport_usd_per_yr": 167433.33033531148,
        "solver": "scip",
        "agrees_with_enumeration": true
       },
@@ -1931,8 +2746,8 @@
          "temperature_c": 100.0,
          "capex_usd_per_yr": 4176837.2944592303,
          "opex_usd_per_yr": 1846941.775958824,
-         "gwp_t_co2e_per_yr": 2902.0574316137863,
-         "energy_mj_per_yr": 22192575.133898832,
+         "gwp_t_co2e_per_yr": 2902.0574316137872,
+         "energy_mj_per_yr": 22192575.13389884,
          "recovered_fraction": 0.9120803411732029
         },
         {
@@ -1940,8 +2755,8 @@
          "polymer": "EVOH",
          "solvent": "Acetic Acid",
          "temperature_c": 105.0,
-         "capex_usd_per_yr": 2613576.5773531892,
-         "opex_usd_per_yr": 447981.08507660765,
+         "capex_usd_per_yr": 1777432.301790511,
+         "opex_usd_per_yr": 345381.0850766076,
          "gwp_t_co2e_per_yr": 896.2795398228151,
          "energy_mj_per_yr": 8532933.395171108,
          "recovered_fraction": 0.8827735462809783
@@ -1953,19 +2768,19 @@
         "residual_t_per_yr": 7674.7665931746305,
         "distance_mile": 9.2
        },
-       "profit_usd_per_yr": 6843719.301109402,
-       "emissions_t_co2e_per_yr": 4461.86933925131,
+       "profit_usd_per_yr": 7782463.57667208,
+       "emissions_t_co2e_per_yr": 4461.8693392513105,
        "circularity_index": 0.6937796920466793,
        "circularity_scores": {
-        "energy": 0.4406766412529889,
-        "ghg": 0.8590414182516971,
+        "energy": 0.4406766412529888,
+        "ghg": 0.859041418251697,
         "water": 0.8777363154941691,
         "waste": 0.6783921537377823,
         "substitutability": 0.613051931496759
        },
        "sales_usd_per_yr": 16080449.025365165,
-       "capex_usd_per_yr": 6790413.87181242,
-       "opex_usd_per_yr": 2355062.255311882,
+       "capex_usd_per_yr": 5954269.5962497415,
+       "opex_usd_per_yr": 2252462.255311882,
        "transport_usd_per_yr": 91253.5971314601,
        "solver": "scip",
        "agrees_with_enumeration": true
@@ -2005,7 +2820,7 @@
           "polymer": "EVOH",
           "solvent": "Acetic Acid",
           "temperature_c": 105.0,
-          "capex_usd_per_yr": 2910470.648996763,
+          "capex_usd_per_yr": 2910470.6489967625,
           "opex_usd_per_yr": 1669178.43229156,
           "gwp_t_co2e_per_yr": 2487.4296707954636,
           "energy_mj_per_yr": 16335810.595073625,
@@ -2029,213 +2844,56 @@
          "substitutability": 0.4635382703160193
         },
         "sales_usd_per_yr": 12158682.069435896,
-        "capex_usd_per_yr": 2910470.648996763,
+        "capex_usd_per_yr": 2910470.6489967625,
         "opex_usd_per_yr": 1751447.9282039949,
         "transport_usd_per_yr": 74483.08342201004
        },
        {
-        "pathway": "LDPE/Toluene > EVOH/Acetic Acid + we",
+        "pathway": "EVOH/Acetic Acid > PET/Pyrrole + lf",
         "washes": [
          {
           "wash": 1,
-          "polymer": "LDPE",
-          "solvent": "Toluene",
-          "temperature_c": 100.0,
-          "capex_usd_per_yr": 4176837.2944592303,
-          "opex_usd_per_yr": 1846941.775958824,
-          "gwp_t_co2e_per_yr": 2902.0574316137863,
-          "energy_mj_per_yr": 22192575.133898832,
-          "recovered_fraction": 0.9120803411732029
+          "polymer": "EVOH",
+          "solvent": "Acetic Acid",
+          "temperature_c": 105.0,
+          "capex_usd_per_yr": 2910470.6489967625,
+          "opex_usd_per_yr": 1669178.43229156,
+          "gwp_t_co2e_per_yr": 2487.4296707954636,
+          "energy_mj_per_yr": 16335810.595073625,
+          "recovered_fraction": 0.8339288113467693
          },
          {
           "wash": 2,
-          "polymer": "EVOH",
-          "solvent": "Acetic Acid",
-          "temperature_c": 105.0,
-          "capex_usd_per_yr": 2613576.5773531892,
-          "opex_usd_per_yr": 447981.08507660765,
-          "gwp_t_co2e_per_yr": 896.2795398228151,
-          "energy_mj_per_yr": 8532933.395171108,
-          "recovered_fraction": 0.8827735462809783
-         }
-        ],
-        "downstream": {
-         "key": "we",
-         "label": "Incineration with energy recovery",
-         "residual_t_per_yr": 7674.7665931746305,
-         "distance_mile": 151.0
-        },
-        "profit_usd_per_yr": 7671903.287431209,
-        "emissions_t_co2e_per_yr": 22676.03710833417,
-        "circularity_index": 0.574466001087224,
-        "circularity_scores": {
-         "energy": 0.44537363078271863,
-         "ghg": 0.2836226730478357,
-         "water": 0.5,
-         "waste": 0.9980965150581427,
-         "substitutability": 0.6452371865474227
-        },
-        "sales_usd_per_yr": 16924673.350614373,
-        "capex_usd_per_yr": 6790413.87181242,
-        "opex_usd_per_yr": 2294922.8610354317,
-        "transport_usd_per_yr": 167433.33033531148
-       },
-       {
-        "pathway": "EVOH/Acetic Acid + we",
-        "washes": [
-         {
-          "wash": 1,
-          "polymer": "EVOH",
-          "solvent": "Acetic Acid",
-          "temperature_c": 105.0,
-          "capex_usd_per_yr": 2910470.648996763,
-          "opex_usd_per_yr": 1669178.43229156,
-          "gwp_t_co2e_per_yr": 2487.4296707954636,
-          "energy_mj_per_yr": 16335810.595073625,
-          "recovered_fraction": 0.8339288113467693
-         }
-        ],
-        "downstream": {
-         "key": "we",
-         "label": "Incineration with energy recovery",
-         "residual_t_per_yr": 10498.928139575815,
-         "distance_mile": 151.0
-        },
-        "profit_usd_per_yr": 8555219.639365476,
-        "emissions_t_co2e_per_yr": 28311.74820499149,
-        "circularity_index": 0.5267374908442929,
-        "circularity_scores": {
-         "energy": 0.5213036261933963,
-         "ghg": 0.10558029149721704,
-         "water": 0.5,
-         "waste": 0.9992364770877001,
-         "substitutability": 0.5075670594431508
-        },
-        "sales_usd_per_yr": 13313564.164789237,
-        "capex_usd_per_yr": 2910470.648996763,
-        "opex_usd_per_yr": 1669178.43229156,
-        "transport_usd_per_yr": 178695.44413543958
-       }
-      ],
-      "circularity_vs_profit": [
-       {
-        "pathway": "EVOH/Acetic Acid + we",
-        "washes": [
-         {
-          "wash": 1,
-          "polymer": "EVOH",
-          "solvent": "Acetic Acid",
-          "temperature_c": 105.0,
-          "capex_usd_per_yr": 2910470.648996763,
-          "opex_usd_per_yr": 1669178.43229156,
-          "gwp_t_co2e_per_yr": 2487.4296707954636,
-          "energy_mj_per_yr": 16335810.595073625,
-          "recovered_fraction": 0.8339288113467693
-         }
-        ],
-        "downstream": {
-         "key": "we",
-         "label": "Incineration with energy recovery",
-         "residual_t_per_yr": 10498.928139575815,
-         "distance_mile": 151.0
-        },
-        "profit_usd_per_yr": 8555219.639365476,
-        "emissions_t_co2e_per_yr": 28311.74820499149,
-        "circularity_index": 0.5267374908442929,
-        "circularity_scores": {
-         "energy": 0.5213036261933963,
-         "ghg": 0.10558029149721704,
-         "water": 0.5,
-         "waste": 0.9992364770877001,
-         "substitutability": 0.5075670594431508
-        },
-        "sales_usd_per_yr": 13313564.164789237,
-        "capex_usd_per_yr": 2910470.648996763,
-        "opex_usd_per_yr": 1669178.43229156,
-        "transport_usd_per_yr": 178695.44413543958
-       },
-       {
-        "pathway": "LDPE/Toluene > EVOH/Acetic Acid + we",
-        "washes": [
-         {
-          "wash": 1,
-          "polymer": "LDPE",
-          "solvent": "Toluene",
-          "temperature_c": 100.0,
-          "capex_usd_per_yr": 4176837.2944592303,
-          "opex_usd_per_yr": 1846941.775958824,
-          "gwp_t_co2e_per_yr": 2902.0574316137863,
-          "energy_mj_per_yr": 22192575.133898832,
-          "recovered_fraction": 0.9120803411732029
-         },
-         {
-          "wash": 2,
-          "polymer": "EVOH",
-          "solvent": "Acetic Acid",
-          "temperature_c": 105.0,
-          "capex_usd_per_yr": 2613576.5773531892,
-          "opex_usd_per_yr": 447981.08507660765,
-          "gwp_t_co2e_per_yr": 896.2795398228151,
-          "energy_mj_per_yr": 8532933.395171108,
-          "recovered_fraction": 0.8827735462809783
-         }
-        ],
-        "downstream": {
-         "key": "we",
-         "label": "Incineration with energy recovery",
-         "residual_t_per_yr": 7674.7665931746305,
-         "distance_mile": 151.0
-        },
-        "profit_usd_per_yr": 7671903.287431209,
-        "emissions_t_co2e_per_yr": 22676.03710833417,
-        "circularity_index": 0.574466001087224,
-        "circularity_scores": {
-         "energy": 0.44537363078271863,
-         "ghg": 0.2836226730478357,
-         "water": 0.5,
-         "waste": 0.9980965150581427,
-         "substitutability": 0.6452371865474227
-        },
-        "sales_usd_per_yr": 16924673.350614373,
-        "capex_usd_per_yr": 6790413.87181242,
-        "opex_usd_per_yr": 2294922.8610354317,
-        "transport_usd_per_yr": 167433.33033531148
-       },
-       {
-        "pathway": "EVOH/Acetic Acid + lf",
-        "washes": [
-         {
-          "wash": 1,
-          "polymer": "EVOH",
-          "solvent": "Acetic Acid",
-          "temperature_c": 105.0,
-          "capex_usd_per_yr": 2910470.648996763,
-          "opex_usd_per_yr": 1669178.43229156,
-          "gwp_t_co2e_per_yr": 2487.4296707954636,
-          "energy_mj_per_yr": 16335810.595073625,
-          "recovered_fraction": 0.8339288113467693
+          "polymer": "PET",
+          "solvent": "Pyrrole",
+          "temperature_c": 110.0,
+          "capex_usd_per_yr": 2355878.3156272145,
+          "opex_usd_per_yr": 450200.79051916854,
+          "gwp_t_co2e_per_yr": 1136.068840390785,
+          "energy_mj_per_yr": 11510645.991867604,
+          "recovered_fraction": 0.9047536561644673
          }
         ],
         "downstream": {
          "key": "lf",
          "label": "Landfill",
-         "residual_t_per_yr": 10498.928139575815,
+         "residual_t_per_yr": 8327.519364781094,
          "distance_mile": 9.2
         },
-        "profit_usd_per_yr": 7422280.408813129,
-        "emissions_t_co2e_per_yr": 3395.128760193777,
-        "circularity_index": 0.6720311182174885,
+        "profit_usd_per_yr": 7606992.8769917665,
+        "emissions_t_co2e_per_yr": 4343.465506280285,
+        "circularity_index": 0.6800853213893714,
         "circularity_scores": {
-         "energy": 0.5122982798313152,
-         "ghg": 0.8927416966965482,
-         "water": 0.9296900783222961,
-         "waste": 0.5618872659212635,
-         "substitutability": 0.4635382703160193
+         "energy": 0.45511302504894385,
+         "ghg": 0.8627820110616065,
+         "water": 0.8533114844304683,
+         "waste": 0.6514414020893877,
+         "substitutability": 0.5777786843164503
         },
-        "sales_usd_per_yr": 12158682.069435896,
-        "capex_usd_per_yr": 2910470.648996763,
-        "opex_usd_per_yr": 1751447.9282039949,
-        "transport_usd_per_yr": 74483.08342201004
+        "sales_usd_per_yr": 15155226.178652612,
+        "capex_usd_per_yr": 5266348.9646239765,
+        "opex_usd_per_yr": 2184633.5812779595,
+        "transport_usd_per_yr": 97250.75575891012
        },
        {
         "pathway": "LDPE/Toluene > EVOH/Acetic Acid + lf",
@@ -2247,8 +2905,8 @@
           "temperature_c": 100.0,
           "capex_usd_per_yr": 4176837.2944592303,
           "opex_usd_per_yr": 1846941.775958824,
-          "gwp_t_co2e_per_yr": 2902.0574316137863,
-          "energy_mj_per_yr": 22192575.133898832,
+          "gwp_t_co2e_per_yr": 2902.0574316137872,
+          "energy_mj_per_yr": 22192575.13389884,
           "recovered_fraction": 0.9120803411732029
          },
          {
@@ -2256,8 +2914,8 @@
           "polymer": "EVOH",
           "solvent": "Acetic Acid",
           "temperature_c": 105.0,
-          "capex_usd_per_yr": 2613576.5773531892,
-          "opex_usd_per_yr": 447981.08507660765,
+          "capex_usd_per_yr": 1777432.301790511,
+          "opex_usd_per_yr": 345381.0850766076,
           "gwp_t_co2e_per_yr": 896.2795398228151,
           "energy_mj_per_yr": 8532933.395171108,
           "recovered_fraction": 0.8827735462809783
@@ -2269,19 +2927,350 @@
          "residual_t_per_yr": 7674.7665931746305,
          "distance_mile": 9.2
         },
-        "profit_usd_per_yr": 6843719.301109402,
-        "emissions_t_co2e_per_yr": 4461.86933925131,
+        "profit_usd_per_yr": 7782463.57667208,
+        "emissions_t_co2e_per_yr": 4461.8693392513105,
         "circularity_index": 0.6937796920466793,
         "circularity_scores": {
-         "energy": 0.4406766412529889,
-         "ghg": 0.8590414182516971,
+         "energy": 0.4406766412529888,
+         "ghg": 0.859041418251697,
          "water": 0.8777363154941691,
          "waste": 0.6783921537377823,
          "substitutability": 0.613051931496759
         },
         "sales_usd_per_yr": 16080449.025365165,
-        "capex_usd_per_yr": 6790413.87181242,
-        "opex_usd_per_yr": 2355062.255311882,
+        "capex_usd_per_yr": 5954269.5962497415,
+        "opex_usd_per_yr": 2252462.255311882,
+        "transport_usd_per_yr": 91253.5971314601
+       },
+       {
+        "pathway": "LDPE/Toluene > EVOH/Ethylene glycol + lf",
+        "washes": [
+         {
+          "wash": 1,
+          "polymer": "LDPE",
+          "solvent": "Toluene",
+          "temperature_c": 100.0,
+          "capex_usd_per_yr": 4176837.2944592303,
+          "opex_usd_per_yr": 1846941.775958824,
+          "gwp_t_co2e_per_yr": 2902.0574316137872,
+          "energy_mj_per_yr": 22192575.13389884,
+          "recovered_fraction": 0.9120803411732029
+         },
+         {
+          "wash": 2,
+          "polymer": "EVOH",
+          "solvent": "Ethylene glycol",
+          "temperature_c": 120.0,
+          "capex_usd_per_yr": 1726803.2952619141,
+          "opex_usd_per_yr": 376321.6262675574,
+          "gwp_t_co2e_per_yr": 1269.024653381939,
+          "energy_mj_per_yr": 9177653.12886838,
+          "recovered_fraction": 0.8827735462809783
+         }
+        ],
+        "downstream": {
+         "key": "lf",
+         "label": "Landfill",
+         "residual_t_per_yr": 7674.7665931746305,
+         "distance_mile": 9.2
+        },
+        "profit_usd_per_yr": 7802152.042009727,
+        "emissions_t_co2e_per_yr": 4834.614452810434,
+        "circularity_index": 0.6783198781342586,
+        "circularity_scores": {
+         "energy": 0.4369516830315985,
+         "ghg": 0.8472657209898582,
+         "water": 0.8159099310019037,
+         "waste": 0.678420124151174,
+         "substitutability": 0.613051931496759
+        },
+        "sales_usd_per_yr": 16080449.025365165,
+        "capex_usd_per_yr": 5903640.589721144,
+        "opex_usd_per_yr": 2283402.796502832,
+        "transport_usd_per_yr": 91253.5971314601
+       },
+       {
+        "pathway": "LDPE/Toluene > EVOH/Acetic Acid + we",
+        "washes": [
+         {
+          "wash": 1,
+          "polymer": "LDPE",
+          "solvent": "Toluene",
+          "temperature_c": 100.0,
+          "capex_usd_per_yr": 4176837.2944592303,
+          "opex_usd_per_yr": 1846941.775958824,
+          "gwp_t_co2e_per_yr": 2902.0574316137872,
+          "energy_mj_per_yr": 22192575.13389884,
+          "recovered_fraction": 0.9120803411732029
+         },
+         {
+          "wash": 2,
+          "polymer": "EVOH",
+          "solvent": "Acetic Acid",
+          "temperature_c": 105.0,
+          "capex_usd_per_yr": 1777432.301790511,
+          "opex_usd_per_yr": 345381.0850766076,
+          "gwp_t_co2e_per_yr": 896.2795398228151,
+          "energy_mj_per_yr": 8532933.395171108,
+          "recovered_fraction": 0.8827735462809783
+         }
+        ],
+        "downstream": {
+         "key": "we",
+         "label": "Incineration with energy recovery",
+         "residual_t_per_yr": 7674.7665931746305,
+         "distance_mile": 151.0
+        },
+        "profit_usd_per_yr": 8610647.562993888,
+        "emissions_t_co2e_per_yr": 22676.03710833417,
+        "circularity_index": 0.574466001087224,
+        "circularity_scores": {
+         "energy": 0.4453736307827185,
+         "ghg": 0.2836226730478357,
+         "water": 0.5,
+         "waste": 0.9980965150581427,
+         "substitutability": 0.6452371865474227
+        },
+        "sales_usd_per_yr": 16924673.350614373,
+        "capex_usd_per_yr": 5954269.5962497415,
+        "opex_usd_per_yr": 2192322.8610354317,
+        "transport_usd_per_yr": 167433.33033531148
+       },
+       {
+        "pathway": "LDPE/Toluene > EVOH/Ethylene glycol + we",
+        "washes": [
+         {
+          "wash": 1,
+          "polymer": "LDPE",
+          "solvent": "Toluene",
+          "temperature_c": 100.0,
+          "capex_usd_per_yr": 4176837.2944592303,
+          "opex_usd_per_yr": 1846941.775958824,
+          "gwp_t_co2e_per_yr": 2902.0574316137872,
+          "energy_mj_per_yr": 22192575.13389884,
+          "recovered_fraction": 0.9120803411732029
+         },
+         {
+          "wash": 2,
+          "polymer": "EVOH",
+          "solvent": "Ethylene glycol",
+          "temperature_c": 120.0,
+          "capex_usd_per_yr": 1726803.2952619141,
+          "opex_usd_per_yr": 376321.6262675574,
+          "gwp_t_co2e_per_yr": 1269.024653381939,
+          "energy_mj_per_yr": 9177653.12886838,
+          "recovered_fraction": 0.8827735462809783
+         }
+        ],
+        "downstream": {
+         "key": "we",
+         "label": "Incineration with energy recovery",
+         "residual_t_per_yr": 7674.7665931746305,
+         "distance_mile": 151.0
+        },
+        "profit_usd_per_yr": 8630336.028331537,
+        "emissions_t_co2e_per_yr": 23048.782221893296,
+        "circularity_index": 0.5713601132172968,
+        "circularity_scores": {
+         "energy": 0.44159191828153027,
+         "ghg": 0.2718469757859968,
+         "water": 0.5,
+         "waste": 0.9981244854715343,
+         "substitutability": 0.6452371865474227
+        },
+        "sales_usd_per_yr": 16924673.350614373,
+        "capex_usd_per_yr": 5903640.589721144,
+        "opex_usd_per_yr": 2223263.4022263815,
+        "transport_usd_per_yr": 167433.33033531148
+       }
+      ],
+      "circularity_vs_profit": [
+       {
+        "pathway": "LDPE/Toluene > EVOH/Ethylene glycol + we",
+        "washes": [
+         {
+          "wash": 1,
+          "polymer": "LDPE",
+          "solvent": "Toluene",
+          "temperature_c": 100.0,
+          "capex_usd_per_yr": 4176837.2944592303,
+          "opex_usd_per_yr": 1846941.775958824,
+          "gwp_t_co2e_per_yr": 2902.0574316137872,
+          "energy_mj_per_yr": 22192575.13389884,
+          "recovered_fraction": 0.9120803411732029
+         },
+         {
+          "wash": 2,
+          "polymer": "EVOH",
+          "solvent": "Ethylene glycol",
+          "temperature_c": 120.0,
+          "capex_usd_per_yr": 1726803.2952619141,
+          "opex_usd_per_yr": 376321.6262675574,
+          "gwp_t_co2e_per_yr": 1269.024653381939,
+          "energy_mj_per_yr": 9177653.12886838,
+          "recovered_fraction": 0.8827735462809783
+         }
+        ],
+        "downstream": {
+         "key": "we",
+         "label": "Incineration with energy recovery",
+         "residual_t_per_yr": 7674.7665931746305,
+         "distance_mile": 151.0
+        },
+        "profit_usd_per_yr": 8630336.028331537,
+        "emissions_t_co2e_per_yr": 23048.782221893296,
+        "circularity_index": 0.5713601132172968,
+        "circularity_scores": {
+         "energy": 0.44159191828153027,
+         "ghg": 0.2718469757859968,
+         "water": 0.5,
+         "waste": 0.9981244854715343,
+         "substitutability": 0.6452371865474227
+        },
+        "sales_usd_per_yr": 16924673.350614373,
+        "capex_usd_per_yr": 5903640.589721144,
+        "opex_usd_per_yr": 2223263.4022263815,
+        "transport_usd_per_yr": 167433.33033531148
+       },
+       {
+        "pathway": "LDPE/Toluene > EVOH/Acetic Acid + we",
+        "washes": [
+         {
+          "wash": 1,
+          "polymer": "LDPE",
+          "solvent": "Toluene",
+          "temperature_c": 100.0,
+          "capex_usd_per_yr": 4176837.2944592303,
+          "opex_usd_per_yr": 1846941.775958824,
+          "gwp_t_co2e_per_yr": 2902.0574316137872,
+          "energy_mj_per_yr": 22192575.13389884,
+          "recovered_fraction": 0.9120803411732029
+         },
+         {
+          "wash": 2,
+          "polymer": "EVOH",
+          "solvent": "Acetic Acid",
+          "temperature_c": 105.0,
+          "capex_usd_per_yr": 1777432.301790511,
+          "opex_usd_per_yr": 345381.0850766076,
+          "gwp_t_co2e_per_yr": 896.2795398228151,
+          "energy_mj_per_yr": 8532933.395171108,
+          "recovered_fraction": 0.8827735462809783
+         }
+        ],
+        "downstream": {
+         "key": "we",
+         "label": "Incineration with energy recovery",
+         "residual_t_per_yr": 7674.7665931746305,
+         "distance_mile": 151.0
+        },
+        "profit_usd_per_yr": 8610647.562993888,
+        "emissions_t_co2e_per_yr": 22676.03710833417,
+        "circularity_index": 0.574466001087224,
+        "circularity_scores": {
+         "energy": 0.4453736307827185,
+         "ghg": 0.2836226730478357,
+         "water": 0.5,
+         "waste": 0.9980965150581427,
+         "substitutability": 0.6452371865474227
+        },
+        "sales_usd_per_yr": 16924673.350614373,
+        "capex_usd_per_yr": 5954269.5962497415,
+        "opex_usd_per_yr": 2192322.8610354317,
+        "transport_usd_per_yr": 167433.33033531148
+       },
+       {
+        "pathway": "LDPE/Toluene > EVOH/Ethylene glycol + lf",
+        "washes": [
+         {
+          "wash": 1,
+          "polymer": "LDPE",
+          "solvent": "Toluene",
+          "temperature_c": 100.0,
+          "capex_usd_per_yr": 4176837.2944592303,
+          "opex_usd_per_yr": 1846941.775958824,
+          "gwp_t_co2e_per_yr": 2902.0574316137872,
+          "energy_mj_per_yr": 22192575.13389884,
+          "recovered_fraction": 0.9120803411732029
+         },
+         {
+          "wash": 2,
+          "polymer": "EVOH",
+          "solvent": "Ethylene glycol",
+          "temperature_c": 120.0,
+          "capex_usd_per_yr": 1726803.2952619141,
+          "opex_usd_per_yr": 376321.6262675574,
+          "gwp_t_co2e_per_yr": 1269.024653381939,
+          "energy_mj_per_yr": 9177653.12886838,
+          "recovered_fraction": 0.8827735462809783
+         }
+        ],
+        "downstream": {
+         "key": "lf",
+         "label": "Landfill",
+         "residual_t_per_yr": 7674.7665931746305,
+         "distance_mile": 9.2
+        },
+        "profit_usd_per_yr": 7802152.042009727,
+        "emissions_t_co2e_per_yr": 4834.614452810434,
+        "circularity_index": 0.6783198781342586,
+        "circularity_scores": {
+         "energy": 0.4369516830315985,
+         "ghg": 0.8472657209898582,
+         "water": 0.8159099310019037,
+         "waste": 0.678420124151174,
+         "substitutability": 0.613051931496759
+        },
+        "sales_usd_per_yr": 16080449.025365165,
+        "capex_usd_per_yr": 5903640.589721144,
+        "opex_usd_per_yr": 2283402.796502832,
+        "transport_usd_per_yr": 91253.5971314601
+       },
+       {
+        "pathway": "LDPE/Toluene > EVOH/Acetic Acid + lf",
+        "washes": [
+         {
+          "wash": 1,
+          "polymer": "LDPE",
+          "solvent": "Toluene",
+          "temperature_c": 100.0,
+          "capex_usd_per_yr": 4176837.2944592303,
+          "opex_usd_per_yr": 1846941.775958824,
+          "gwp_t_co2e_per_yr": 2902.0574316137872,
+          "energy_mj_per_yr": 22192575.13389884,
+          "recovered_fraction": 0.9120803411732029
+         },
+         {
+          "wash": 2,
+          "polymer": "EVOH",
+          "solvent": "Acetic Acid",
+          "temperature_c": 105.0,
+          "capex_usd_per_yr": 1777432.301790511,
+          "opex_usd_per_yr": 345381.0850766076,
+          "gwp_t_co2e_per_yr": 896.2795398228151,
+          "energy_mj_per_yr": 8532933.395171108,
+          "recovered_fraction": 0.8827735462809783
+         }
+        ],
+        "downstream": {
+         "key": "lf",
+         "label": "Landfill",
+         "residual_t_per_yr": 7674.7665931746305,
+         "distance_mile": 9.2
+        },
+        "profit_usd_per_yr": 7782463.57667208,
+        "emissions_t_co2e_per_yr": 4461.8693392513105,
+        "circularity_index": 0.6937796920466793,
+        "circularity_scores": {
+         "energy": 0.4406766412529888,
+         "ghg": 0.859041418251697,
+         "water": 0.8777363154941691,
+         "waste": 0.6783921537377823,
+         "substitutability": 0.613051931496759
+        },
+        "sales_usd_per_yr": 16080449.025365165,
+        "capex_usd_per_yr": 5954269.5962497415,
+        "opex_usd_per_yr": 2252462.255311882,
         "transport_usd_per_yr": 91253.5971314601
        }
       ],
@@ -2318,7 +3307,7 @@
           "polymer": "EVOH",
           "solvent": "Acetic Acid",
           "temperature_c": 105.0,
-          "capex_usd_per_yr": 2910470.648996763,
+          "capex_usd_per_yr": 2910470.6489967625,
           "opex_usd_per_yr": 1669178.43229156,
           "gwp_t_co2e_per_yr": 2487.4296707954636,
           "energy_mj_per_yr": 16335810.595073625,
@@ -2342,7 +3331,7 @@
          "substitutability": 0.4635382703160193
         },
         "sales_usd_per_yr": 12158682.069435896,
-        "capex_usd_per_yr": 2910470.648996763,
+        "capex_usd_per_yr": 2910470.6489967625,
         "opex_usd_per_yr": 1751447.9282039949,
         "transport_usd_per_yr": 74483.08342201004
        },
@@ -2354,7 +3343,7 @@
           "polymer": "EVOH",
           "solvent": "Acetic Acid",
           "temperature_c": 105.0,
-          "capex_usd_per_yr": 2910470.648996763,
+          "capex_usd_per_yr": 2910470.6489967625,
           "opex_usd_per_yr": 1669178.43229156,
           "gwp_t_co2e_per_yr": 2487.4296707954636,
           "energy_mj_per_yr": 16335810.595073625,
@@ -2365,10 +3354,10 @@
           "polymer": "PET",
           "solvent": "Pyrrole",
           "temperature_c": 110.0,
-          "capex_usd_per_yr": 3384131.3542657737,
-          "opex_usd_per_yr": 566480.7905191686,
+          "capex_usd_per_yr": 2355878.3156272145,
+          "opex_usd_per_yr": 450200.79051916854,
           "gwp_t_co2e_per_yr": 1136.068840390785,
-          "energy_mj_per_yr": 11510645.991867606,
+          "energy_mj_per_yr": 11510645.991867604,
           "recovered_fraction": 0.9047536561644673
          }
         ],
@@ -2378,7 +3367,7 @@
          "residual_t_per_yr": 8327.519364781094,
          "distance_mile": 9.2
         },
-        "profit_usd_per_yr": 6462459.838353206,
+        "profit_usd_per_yr": 7606992.8769917665,
         "emissions_t_co2e_per_yr": 4343.465506280285,
         "circularity_index": 0.6800853213893714,
         "circularity_scores": {
@@ -2389,8 +3378,8 @@
          "substitutability": 0.5777786843164503
         },
         "sales_usd_per_yr": 15155226.178652612,
-        "capex_usd_per_yr": 6294602.003262537,
-        "opex_usd_per_yr": 2300913.5812779595,
+        "capex_usd_per_yr": 5266348.9646239765,
+        "opex_usd_per_yr": 2184633.5812779595,
         "transport_usd_per_yr": 97250.75575891012
        },
        {
@@ -2403,8 +3392,8 @@
           "temperature_c": 100.0,
           "capex_usd_per_yr": 4176837.2944592303,
           "opex_usd_per_yr": 1846941.775958824,
-          "gwp_t_co2e_per_yr": 2902.0574316137863,
-          "energy_mj_per_yr": 22192575.133898832,
+          "gwp_t_co2e_per_yr": 2902.0574316137872,
+          "energy_mj_per_yr": 22192575.13389884,
           "recovered_fraction": 0.9120803411732029
          },
          {
@@ -2412,8 +3401,8 @@
           "polymer": "EVOH",
           "solvent": "Acetic Acid",
           "temperature_c": 105.0,
-          "capex_usd_per_yr": 2613576.5773531892,
-          "opex_usd_per_yr": 447981.08507660765,
+          "capex_usd_per_yr": 1777432.301790511,
+          "opex_usd_per_yr": 345381.0850766076,
           "gwp_t_co2e_per_yr": 896.2795398228151,
           "energy_mj_per_yr": 8532933.395171108,
           "recovered_fraction": 0.8827735462809783
@@ -2425,19 +3414,19 @@
          "residual_t_per_yr": 7674.7665931746305,
          "distance_mile": 9.2
         },
-        "profit_usd_per_yr": 6843719.301109402,
-        "emissions_t_co2e_per_yr": 4461.86933925131,
+        "profit_usd_per_yr": 7782463.57667208,
+        "emissions_t_co2e_per_yr": 4461.8693392513105,
         "circularity_index": 0.6937796920466793,
         "circularity_scores": {
-         "energy": 0.4406766412529889,
-         "ghg": 0.8590414182516971,
+         "energy": 0.4406766412529888,
+         "ghg": 0.859041418251697,
          "water": 0.8777363154941691,
          "waste": 0.6783921537377823,
          "substitutability": 0.613051931496759
         },
         "sales_usd_per_yr": 16080449.025365165,
-        "capex_usd_per_yr": 6790413.87181242,
-        "opex_usd_per_yr": 2355062.255311882,
+        "capex_usd_per_yr": 5954269.5962497415,
+        "opex_usd_per_yr": 2252462.255311882,
         "transport_usd_per_yr": 91253.5971314601
        }
       ]
@@ -2451,7 +3440,7 @@
       },
       "4000.0": {
        "pathway": "EVOH/Acetic Acid + we",
-       "profit_usd_yr": 2400825.0116263162,
+       "profit_usd_yr": 2400825.011626317,
        "emissions_t": 28311.74820499149,
        "circularity": 0.479811394343165
       },
@@ -2462,16 +3451,16 @@
        "circularity": 0.502702173124203
       },
       "8100.0": {
-       "pathway": "EVOH/Acetic Acid + we",
-       "profit_usd_yr": 8555219.639365476,
-       "emissions_t": 28311.74820499149,
-       "circularity": 0.5267374908442929
+       "pathway": "LDPE/Toluene > EVOH/Ethylene glycol + we",
+       "profit_usd_yr": 8630336.028331537,
+       "emissions_t": 23048.782221893296,
+       "circularity": 0.5713601132172968
       },
       "10000.0": {
-       "pathway": "EVOH/Acetic Acid + we",
-       "profit_usd_yr": 11407256.174171425,
-       "emissions_t": 28311.74820499149,
-       "circularity": 0.548483730686279
+       "pathway": "LDPE/Toluene > EVOH/Ethylene glycol + we",
+       "profit_usd_yr": 11649421.556612484,
+       "emissions_t": 23048.782221893296,
+       "circularity": 0.5943800700797828
       }
      }
     },
@@ -2479,40 +3468,51 @@
      "candidates": 162,
      "optima": {
       "max_profit": {
-       "pathway": "EVOH/Acetic Acid + gas_h2cc",
+       "pathway": "LDPE/Toluene > EVOH/Ethylene glycol + gas_h2cc",
        "washes": [
         {
          "wash": 1,
+         "polymer": "LDPE",
+         "solvent": "Toluene",
+         "temperature_c": 100.0,
+         "capex_usd_per_yr": 4176837.2944592303,
+         "opex_usd_per_yr": 1846941.775958824,
+         "gwp_t_co2e_per_yr": 2902.0574316137872,
+         "energy_mj_per_yr": 22192575.13389884,
+         "recovered_fraction": 0.9120803411732029
+        },
+        {
+         "wash": 2,
          "polymer": "EVOH",
-         "solvent": "Acetic Acid",
-         "temperature_c": 105.0,
-         "capex_usd_per_yr": 2910470.648996763,
-         "opex_usd_per_yr": 1669178.43229156,
-         "gwp_t_co2e_per_yr": 2487.4296707954636,
-         "energy_mj_per_yr": 16335810.595073625,
-         "recovered_fraction": 0.8339288113467693
+         "solvent": "Ethylene glycol",
+         "temperature_c": 120.0,
+         "capex_usd_per_yr": 1726803.2952619141,
+         "opex_usd_per_yr": 376321.6262675574,
+         "gwp_t_co2e_per_yr": 1269.024653381939,
+         "energy_mj_per_yr": 9177653.12886838,
+         "recovered_fraction": 0.8827735462809783
         }
        ],
        "downstream": {
         "key": "gas_h2cc",
         "label": "Gasification for hydrogen with carbon capture",
-        "residual_t_per_yr": 10498.928139575815,
+        "residual_t_per_yr": 7674.7665931746305,
         "distance_mile": 76.1
        },
-       "profit_usd_per_yr": 8610265.51960127,
-       "emissions_t_co2e_per_yr": 29320.90517776752,
-       "circularity_index": 0.4099494429485698,
+       "profit_usd_per_yr": 8670574.82957955,
+       "emissions_t_co2e_per_yr": 23786.48078682924,
+       "circularity_index": 0.44996132602425787,
        "circularity_scores": {
-        "energy": 0.03898277530231041,
-        "ghg": 0.07369918408948894,
-        "water": 0.9296900783222961,
-        "waste": 0.49980811758560256,
-        "substitutability": 0.5075670594431508
+        "energy": 0.040642565038827905,
+        "ghg": 0.24854173406670943,
+        "water": 0.8159099310019037,
+        "waste": 0.4994752134664255,
+        "substitutability": 0.6452371865474227
        },
-       "sales_usd_per_yr": 13313564.164789237,
-       "capex_usd_per_yr": 2910470.648996763,
-       "opex_usd_per_yr": 1669178.43229156,
-       "transport_usd_per_yr": 123649.56389964357,
+       "sales_usd_per_yr": 16924673.350614373,
+       "capex_usd_per_yr": 5903640.589721144,
+       "opex_usd_per_yr": 2223263.4022263815,
+       "transport_usd_per_yr": 127194.52908729689,
        "solver": "scip",
        "agrees_with_enumeration": true
       },
@@ -2552,8 +3552,8 @@
          "temperature_c": 100.0,
          "capex_usd_per_yr": 4176837.2944592303,
          "opex_usd_per_yr": 1846941.775958824,
-         "gwp_t_co2e_per_yr": 2902.0574316137863,
-         "energy_mj_per_yr": 22192575.133898832,
+         "gwp_t_co2e_per_yr": 2902.0574316137872,
+         "energy_mj_per_yr": 22192575.13389884,
          "recovered_fraction": 0.9120803411732029
         },
         {
@@ -2561,8 +3561,8 @@
          "polymer": "EVOH",
          "solvent": "Acetic Acid",
          "temperature_c": 105.0,
-         "capex_usd_per_yr": 2613576.5773531892,
-         "opex_usd_per_yr": 447981.08507660765,
+         "capex_usd_per_yr": 1777432.301790511,
+         "opex_usd_per_yr": 345381.0850766076,
          "gwp_t_co2e_per_yr": 896.2795398228151,
          "energy_mj_per_yr": 8532933.395171108,
          "recovered_fraction": 0.8827735462809783
@@ -2574,19 +3574,19 @@
         "residual_t_per_yr": 7674.7665931746305,
         "distance_mile": 9.2
        },
-       "profit_usd_per_yr": 6843719.301109402,
-       "emissions_t_co2e_per_yr": 4461.86933925131,
+       "profit_usd_per_yr": 7782463.57667208,
+       "emissions_t_co2e_per_yr": 4461.8693392513105,
        "circularity_index": 0.6937796920466793,
        "circularity_scores": {
-        "energy": 0.4406766412529889,
-        "ghg": 0.8590414182516971,
+        "energy": 0.4406766412529888,
+        "ghg": 0.859041418251697,
         "water": 0.8777363154941691,
         "waste": 0.6783921537377823,
         "substitutability": 0.613051931496759
        },
        "sales_usd_per_yr": 16080449.025365165,
-       "capex_usd_per_yr": 6790413.87181242,
-       "opex_usd_per_yr": 2355062.255311882,
+       "capex_usd_per_yr": 5954269.5962497415,
+       "opex_usd_per_yr": 2252462.255311882,
        "transport_usd_per_yr": 91253.5971314601,
        "solver": "scip",
        "agrees_with_enumeration": true
@@ -2626,7 +3626,7 @@
           "polymer": "EVOH",
           "solvent": "Acetic Acid",
           "temperature_c": 105.0,
-          "capex_usd_per_yr": 2910470.648996763,
+          "capex_usd_per_yr": 2910470.6489967625,
           "opex_usd_per_yr": 1669178.43229156,
           "gwp_t_co2e_per_yr": 2487.4296707954636,
           "energy_mj_per_yr": 16335810.595073625,
@@ -2650,9 +3650,150 @@
          "substitutability": 0.4635382703160193
         },
         "sales_usd_per_yr": 12158682.069435896,
-        "capex_usd_per_yr": 2910470.648996763,
+        "capex_usd_per_yr": 2910470.6489967625,
         "opex_usd_per_yr": 1751447.9282039949,
         "transport_usd_per_yr": 74483.08342201004
+       },
+       {
+        "pathway": "EVOH/Acetic Acid > PET/Pyrrole + lf",
+        "washes": [
+         {
+          "wash": 1,
+          "polymer": "EVOH",
+          "solvent": "Acetic Acid",
+          "temperature_c": 105.0,
+          "capex_usd_per_yr": 2910470.6489967625,
+          "opex_usd_per_yr": 1669178.43229156,
+          "gwp_t_co2e_per_yr": 2487.4296707954636,
+          "energy_mj_per_yr": 16335810.595073625,
+          "recovered_fraction": 0.8339288113467693
+         },
+         {
+          "wash": 2,
+          "polymer": "PET",
+          "solvent": "Pyrrole",
+          "temperature_c": 110.0,
+          "capex_usd_per_yr": 2355878.3156272145,
+          "opex_usd_per_yr": 450200.79051916854,
+          "gwp_t_co2e_per_yr": 1136.068840390785,
+          "energy_mj_per_yr": 11510645.991867604,
+          "recovered_fraction": 0.9047536561644673
+         }
+        ],
+        "downstream": {
+         "key": "lf",
+         "label": "Landfill",
+         "residual_t_per_yr": 8327.519364781094,
+         "distance_mile": 9.2
+        },
+        "profit_usd_per_yr": 7606992.8769917665,
+        "emissions_t_co2e_per_yr": 4343.465506280285,
+        "circularity_index": 0.6800853213893714,
+        "circularity_scores": {
+         "energy": 0.45511302504894385,
+         "ghg": 0.8627820110616065,
+         "water": 0.8533114844304683,
+         "waste": 0.6514414020893877,
+         "substitutability": 0.5777786843164503
+        },
+        "sales_usd_per_yr": 15155226.178652612,
+        "capex_usd_per_yr": 5266348.9646239765,
+        "opex_usd_per_yr": 2184633.5812779595,
+        "transport_usd_per_yr": 97250.75575891012
+       },
+       {
+        "pathway": "LDPE/Toluene > EVOH/Acetic Acid + lf",
+        "washes": [
+         {
+          "wash": 1,
+          "polymer": "LDPE",
+          "solvent": "Toluene",
+          "temperature_c": 100.0,
+          "capex_usd_per_yr": 4176837.2944592303,
+          "opex_usd_per_yr": 1846941.775958824,
+          "gwp_t_co2e_per_yr": 2902.0574316137872,
+          "energy_mj_per_yr": 22192575.13389884,
+          "recovered_fraction": 0.9120803411732029
+         },
+         {
+          "wash": 2,
+          "polymer": "EVOH",
+          "solvent": "Acetic Acid",
+          "temperature_c": 105.0,
+          "capex_usd_per_yr": 1777432.301790511,
+          "opex_usd_per_yr": 345381.0850766076,
+          "gwp_t_co2e_per_yr": 896.2795398228151,
+          "energy_mj_per_yr": 8532933.395171108,
+          "recovered_fraction": 0.8827735462809783
+         }
+        ],
+        "downstream": {
+         "key": "lf",
+         "label": "Landfill",
+         "residual_t_per_yr": 7674.7665931746305,
+         "distance_mile": 9.2
+        },
+        "profit_usd_per_yr": 7782463.57667208,
+        "emissions_t_co2e_per_yr": 4461.8693392513105,
+        "circularity_index": 0.6937796920466793,
+        "circularity_scores": {
+         "energy": 0.4406766412529888,
+         "ghg": 0.859041418251697,
+         "water": 0.8777363154941691,
+         "waste": 0.6783921537377823,
+         "substitutability": 0.613051931496759
+        },
+        "sales_usd_per_yr": 16080449.025365165,
+        "capex_usd_per_yr": 5954269.5962497415,
+        "opex_usd_per_yr": 2252462.255311882,
+        "transport_usd_per_yr": 91253.5971314601
+       },
+       {
+        "pathway": "LDPE/Toluene > EVOH/Ethylene glycol + lf",
+        "washes": [
+         {
+          "wash": 1,
+          "polymer": "LDPE",
+          "solvent": "Toluene",
+          "temperature_c": 100.0,
+          "capex_usd_per_yr": 4176837.2944592303,
+          "opex_usd_per_yr": 1846941.775958824,
+          "gwp_t_co2e_per_yr": 2902.0574316137872,
+          "energy_mj_per_yr": 22192575.13389884,
+          "recovered_fraction": 0.9120803411732029
+         },
+         {
+          "wash": 2,
+          "polymer": "EVOH",
+          "solvent": "Ethylene glycol",
+          "temperature_c": 120.0,
+          "capex_usd_per_yr": 1726803.2952619141,
+          "opex_usd_per_yr": 376321.6262675574,
+          "gwp_t_co2e_per_yr": 1269.024653381939,
+          "energy_mj_per_yr": 9177653.12886838,
+          "recovered_fraction": 0.8827735462809783
+         }
+        ],
+        "downstream": {
+         "key": "lf",
+         "label": "Landfill",
+         "residual_t_per_yr": 7674.7665931746305,
+         "distance_mile": 9.2
+        },
+        "profit_usd_per_yr": 7802152.042009727,
+        "emissions_t_co2e_per_yr": 4834.614452810434,
+        "circularity_index": 0.6783198781342586,
+        "circularity_scores": {
+         "energy": 0.4369516830315985,
+         "ghg": 0.8472657209898582,
+         "water": 0.8159099310019037,
+         "waste": 0.678420124151174,
+         "substitutability": 0.613051931496759
+        },
+        "sales_usd_per_yr": 16080449.025365165,
+        "capex_usd_per_yr": 5903640.589721144,
+        "opex_usd_per_yr": 2283402.796502832,
+        "transport_usd_per_yr": 91253.5971314601
        },
        {
         "pathway": "LDPE/Toluene > EVOH/Acetic Acid + we",
@@ -2664,8 +3805,8 @@
           "temperature_c": 100.0,
           "capex_usd_per_yr": 4176837.2944592303,
           "opex_usd_per_yr": 1846941.775958824,
-          "gwp_t_co2e_per_yr": 2902.0574316137863,
-          "energy_mj_per_yr": 22192575.133898832,
+          "gwp_t_co2e_per_yr": 2902.0574316137872,
+          "energy_mj_per_yr": 22192575.13389884,
           "recovered_fraction": 0.9120803411732029
          },
          {
@@ -2673,8 +3814,8 @@
           "polymer": "EVOH",
           "solvent": "Acetic Acid",
           "temperature_c": 105.0,
-          "capex_usd_per_yr": 2613576.5773531892,
-          "opex_usd_per_yr": 447981.08507660765,
+          "capex_usd_per_yr": 1777432.301790511,
+          "opex_usd_per_yr": 345381.0850766076,
           "gwp_t_co2e_per_yr": 896.2795398228151,
           "energy_mj_per_yr": 8532933.395171108,
           "recovered_fraction": 0.8827735462809783
@@ -2686,19 +3827,66 @@
          "residual_t_per_yr": 7674.7665931746305,
          "distance_mile": 151.0
         },
-        "profit_usd_per_yr": 7671903.287431209,
+        "profit_usd_per_yr": 8610647.562993888,
         "emissions_t_co2e_per_yr": 22676.03710833417,
         "circularity_index": 0.574466001087224,
         "circularity_scores": {
-         "energy": 0.44537363078271863,
+         "energy": 0.4453736307827185,
          "ghg": 0.2836226730478357,
          "water": 0.5,
          "waste": 0.9980965150581427,
          "substitutability": 0.6452371865474227
         },
         "sales_usd_per_yr": 16924673.350614373,
-        "capex_usd_per_yr": 6790413.87181242,
-        "opex_usd_per_yr": 2294922.8610354317,
+        "capex_usd_per_yr": 5954269.5962497415,
+        "opex_usd_per_yr": 2192322.8610354317,
+        "transport_usd_per_yr": 167433.33033531148
+       },
+       {
+        "pathway": "LDPE/Toluene > EVOH/Ethylene glycol + we",
+        "washes": [
+         {
+          "wash": 1,
+          "polymer": "LDPE",
+          "solvent": "Toluene",
+          "temperature_c": 100.0,
+          "capex_usd_per_yr": 4176837.2944592303,
+          "opex_usd_per_yr": 1846941.775958824,
+          "gwp_t_co2e_per_yr": 2902.0574316137872,
+          "energy_mj_per_yr": 22192575.13389884,
+          "recovered_fraction": 0.9120803411732029
+         },
+         {
+          "wash": 2,
+          "polymer": "EVOH",
+          "solvent": "Ethylene glycol",
+          "temperature_c": 120.0,
+          "capex_usd_per_yr": 1726803.2952619141,
+          "opex_usd_per_yr": 376321.6262675574,
+          "gwp_t_co2e_per_yr": 1269.024653381939,
+          "energy_mj_per_yr": 9177653.12886838,
+          "recovered_fraction": 0.8827735462809783
+         }
+        ],
+        "downstream": {
+         "key": "we",
+         "label": "Incineration with energy recovery",
+         "residual_t_per_yr": 7674.7665931746305,
+         "distance_mile": 151.0
+        },
+        "profit_usd_per_yr": 8630336.028331537,
+        "emissions_t_co2e_per_yr": 23048.782221893296,
+        "circularity_index": 0.5713601132172968,
+        "circularity_scores": {
+         "energy": 0.44159191828153027,
+         "ghg": 0.2718469757859968,
+         "water": 0.5,
+         "waste": 0.9981244854715343,
+         "substitutability": 0.6452371865474227
+        },
+        "sales_usd_per_yr": 16924673.350614373,
+        "capex_usd_per_yr": 5903640.589721144,
+        "opex_usd_per_yr": 2223263.4022263815,
         "transport_usd_per_yr": 167433.33033531148
        },
        {
@@ -2711,8 +3899,8 @@
           "temperature_c": 100.0,
           "capex_usd_per_yr": 4176837.2944592303,
           "opex_usd_per_yr": 1846941.775958824,
-          "gwp_t_co2e_per_yr": 2902.0574316137863,
-          "energy_mj_per_yr": 22192575.133898832,
+          "gwp_t_co2e_per_yr": 2902.0574316137872,
+          "energy_mj_per_yr": 22192575.13389884,
           "recovered_fraction": 0.9120803411732029
          },
          {
@@ -2720,8 +3908,8 @@
           "polymer": "EVOH",
           "solvent": "Acetic Acid",
           "temperature_c": 105.0,
-          "capex_usd_per_yr": 2613576.5773531892,
-          "opex_usd_per_yr": 447981.08507660765,
+          "capex_usd_per_yr": 1777432.301790511,
+          "opex_usd_per_yr": 345381.0850766076,
           "gwp_t_co2e_per_yr": 896.2795398228151,
           "energy_mj_per_yr": 8532933.395171108,
           "recovered_fraction": 0.8827735462809783
@@ -2733,166 +3921,210 @@
          "residual_t_per_yr": 7674.7665931746305,
          "distance_mile": 76.1
         },
-        "profit_usd_per_yr": 7712142.088679224,
+        "profit_usd_per_yr": 8650886.364241902,
         "emissions_t_co2e_per_yr": 23413.735673270116,
         "circularity_index": 0.4646710662914471,
         "circularity_scores": {
-         "energy": 0.04059734870927243,
+         "energy": 0.040597348709272424,
          "ghg": 0.26031743132854823,
          "water": 0.8777363154941691,
          "waste": 0.49946704937782294,
          "substitutability": 0.6452371865474227
         },
         "sales_usd_per_yr": 16924673.350614373,
-        "capex_usd_per_yr": 6790413.87181242,
-        "opex_usd_per_yr": 2294922.8610354317,
+        "capex_usd_per_yr": 5954269.5962497415,
+        "opex_usd_per_yr": 2192322.8610354317,
         "transport_usd_per_yr": 127194.52908729689
        },
        {
-        "pathway": "EVOH/Acetic Acid + we",
+        "pathway": "LDPE/Toluene > EVOH/Ethylene glycol + gas_h2cc",
         "washes": [
          {
           "wash": 1,
-          "polymer": "EVOH",
-          "solvent": "Acetic Acid",
-          "temperature_c": 105.0,
-          "capex_usd_per_yr": 2910470.648996763,
-          "opex_usd_per_yr": 1669178.43229156,
-          "gwp_t_co2e_per_yr": 2487.4296707954636,
-          "energy_mj_per_yr": 16335810.595073625,
-          "recovered_fraction": 0.8339288113467693
-         }
-        ],
-        "downstream": {
-         "key": "we",
-         "label": "Incineration with energy recovery",
-         "residual_t_per_yr": 10498.928139575815,
-         "distance_mile": 151.0
-        },
-        "profit_usd_per_yr": 8555219.639365476,
-        "emissions_t_co2e_per_yr": 28311.74820499149,
-        "circularity_index": 0.5267374908442929,
-        "circularity_scores": {
-         "energy": 0.5213036261933963,
-         "ghg": 0.10558029149721704,
-         "water": 0.5,
-         "waste": 0.9992364770877001,
-         "substitutability": 0.5075670594431508
-        },
-        "sales_usd_per_yr": 13313564.164789237,
-        "capex_usd_per_yr": 2910470.648996763,
-        "opex_usd_per_yr": 1669178.43229156,
-        "transport_usd_per_yr": 178695.44413543958
-       },
-       {
-        "pathway": "EVOH/Acetic Acid + gas_h2cc",
-        "washes": [
+          "polymer": "LDPE",
+          "solvent": "Toluene",
+          "temperature_c": 100.0,
+          "capex_usd_per_yr": 4176837.2944592303,
+          "opex_usd_per_yr": 1846941.775958824,
+          "gwp_t_co2e_per_yr": 2902.0574316137872,
+          "energy_mj_per_yr": 22192575.13389884,
+          "recovered_fraction": 0.9120803411732029
+         },
          {
-          "wash": 1,
+          "wash": 2,
           "polymer": "EVOH",
-          "solvent": "Acetic Acid",
-          "temperature_c": 105.0,
-          "capex_usd_per_yr": 2910470.648996763,
-          "opex_usd_per_yr": 1669178.43229156,
-          "gwp_t_co2e_per_yr": 2487.4296707954636,
-          "energy_mj_per_yr": 16335810.595073625,
-          "recovered_fraction": 0.8339288113467693
+          "solvent": "Ethylene glycol",
+          "temperature_c": 120.0,
+          "capex_usd_per_yr": 1726803.2952619141,
+          "opex_usd_per_yr": 376321.6262675574,
+          "gwp_t_co2e_per_yr": 1269.024653381939,
+          "energy_mj_per_yr": 9177653.12886838,
+          "recovered_fraction": 0.8827735462809783
          }
         ],
         "downstream": {
          "key": "gas_h2cc",
          "label": "Gasification for hydrogen with carbon capture",
-         "residual_t_per_yr": 10498.928139575815,
+         "residual_t_per_yr": 7674.7665931746305,
          "distance_mile": 76.1
         },
-        "profit_usd_per_yr": 8610265.51960127,
-        "emissions_t_co2e_per_yr": 29320.90517776752,
-        "circularity_index": 0.4099494429485698,
+        "profit_usd_per_yr": 8670574.82957955,
+        "emissions_t_co2e_per_yr": 23786.48078682924,
+        "circularity_index": 0.44996132602425787,
         "circularity_scores": {
-         "energy": 0.03898277530231041,
-         "ghg": 0.07369918408948894,
-         "water": 0.9296900783222961,
-         "waste": 0.49980811758560256,
-         "substitutability": 0.5075670594431508
+         "energy": 0.040642565038827905,
+         "ghg": 0.24854173406670943,
+         "water": 0.8159099310019037,
+         "waste": 0.4994752134664255,
+         "substitutability": 0.6452371865474227
         },
-        "sales_usd_per_yr": 13313564.164789237,
-        "capex_usd_per_yr": 2910470.648996763,
-        "opex_usd_per_yr": 1669178.43229156,
-        "transport_usd_per_yr": 123649.56389964357
+        "sales_usd_per_yr": 16924673.350614373,
+        "capex_usd_per_yr": 5903640.589721144,
+        "opex_usd_per_yr": 2223263.4022263815,
+        "transport_usd_per_yr": 127194.52908729689
        }
       ],
       "circularity_vs_profit": [
        {
-        "pathway": "EVOH/Acetic Acid + gas_h2cc",
+        "pathway": "LDPE/Toluene > EVOH/Ethylene glycol + gas_h2cc",
         "washes": [
          {
           "wash": 1,
+          "polymer": "LDPE",
+          "solvent": "Toluene",
+          "temperature_c": 100.0,
+          "capex_usd_per_yr": 4176837.2944592303,
+          "opex_usd_per_yr": 1846941.775958824,
+          "gwp_t_co2e_per_yr": 2902.0574316137872,
+          "energy_mj_per_yr": 22192575.13389884,
+          "recovered_fraction": 0.9120803411732029
+         },
+         {
+          "wash": 2,
           "polymer": "EVOH",
-          "solvent": "Acetic Acid",
-          "temperature_c": 105.0,
-          "capex_usd_per_yr": 2910470.648996763,
-          "opex_usd_per_yr": 1669178.43229156,
-          "gwp_t_co2e_per_yr": 2487.4296707954636,
-          "energy_mj_per_yr": 16335810.595073625,
-          "recovered_fraction": 0.8339288113467693
+          "solvent": "Ethylene glycol",
+          "temperature_c": 120.0,
+          "capex_usd_per_yr": 1726803.2952619141,
+          "opex_usd_per_yr": 376321.6262675574,
+          "gwp_t_co2e_per_yr": 1269.024653381939,
+          "energy_mj_per_yr": 9177653.12886838,
+          "recovered_fraction": 0.8827735462809783
          }
         ],
         "downstream": {
          "key": "gas_h2cc",
          "label": "Gasification for hydrogen with carbon capture",
-         "residual_t_per_yr": 10498.928139575815,
+         "residual_t_per_yr": 7674.7665931746305,
          "distance_mile": 76.1
         },
-        "profit_usd_per_yr": 8610265.51960127,
-        "emissions_t_co2e_per_yr": 29320.90517776752,
-        "circularity_index": 0.4099494429485698,
+        "profit_usd_per_yr": 8670574.82957955,
+        "emissions_t_co2e_per_yr": 23786.48078682924,
+        "circularity_index": 0.44996132602425787,
         "circularity_scores": {
-         "energy": 0.03898277530231041,
-         "ghg": 0.07369918408948894,
-         "water": 0.9296900783222961,
-         "waste": 0.49980811758560256,
-         "substitutability": 0.5075670594431508
+         "energy": 0.040642565038827905,
+         "ghg": 0.24854173406670943,
+         "water": 0.8159099310019037,
+         "waste": 0.4994752134664255,
+         "substitutability": 0.6452371865474227
         },
-        "sales_usd_per_yr": 13313564.164789237,
-        "capex_usd_per_yr": 2910470.648996763,
-        "opex_usd_per_yr": 1669178.43229156,
-        "transport_usd_per_yr": 123649.56389964357
+        "sales_usd_per_yr": 16924673.350614373,
+        "capex_usd_per_yr": 5903640.589721144,
+        "opex_usd_per_yr": 2223263.4022263815,
+        "transport_usd_per_yr": 127194.52908729689
        },
        {
-        "pathway": "EVOH/Acetic Acid + we",
+        "pathway": "LDPE/Toluene > EVOH/Acetic Acid + gas_h2cc",
         "washes": [
          {
           "wash": 1,
+          "polymer": "LDPE",
+          "solvent": "Toluene",
+          "temperature_c": 100.0,
+          "capex_usd_per_yr": 4176837.2944592303,
+          "opex_usd_per_yr": 1846941.775958824,
+          "gwp_t_co2e_per_yr": 2902.0574316137872,
+          "energy_mj_per_yr": 22192575.13389884,
+          "recovered_fraction": 0.9120803411732029
+         },
+         {
+          "wash": 2,
           "polymer": "EVOH",
           "solvent": "Acetic Acid",
           "temperature_c": 105.0,
-          "capex_usd_per_yr": 2910470.648996763,
-          "opex_usd_per_yr": 1669178.43229156,
-          "gwp_t_co2e_per_yr": 2487.4296707954636,
-          "energy_mj_per_yr": 16335810.595073625,
-          "recovered_fraction": 0.8339288113467693
+          "capex_usd_per_yr": 1777432.301790511,
+          "opex_usd_per_yr": 345381.0850766076,
+          "gwp_t_co2e_per_yr": 896.2795398228151,
+          "energy_mj_per_yr": 8532933.395171108,
+          "recovered_fraction": 0.8827735462809783
+         }
+        ],
+        "downstream": {
+         "key": "gas_h2cc",
+         "label": "Gasification for hydrogen with carbon capture",
+         "residual_t_per_yr": 7674.7665931746305,
+         "distance_mile": 76.1
+        },
+        "profit_usd_per_yr": 8650886.364241902,
+        "emissions_t_co2e_per_yr": 23413.735673270116,
+        "circularity_index": 0.4646710662914471,
+        "circularity_scores": {
+         "energy": 0.040597348709272424,
+         "ghg": 0.26031743132854823,
+         "water": 0.8777363154941691,
+         "waste": 0.49946704937782294,
+         "substitutability": 0.6452371865474227
+        },
+        "sales_usd_per_yr": 16924673.350614373,
+        "capex_usd_per_yr": 5954269.5962497415,
+        "opex_usd_per_yr": 2192322.8610354317,
+        "transport_usd_per_yr": 127194.52908729689
+       },
+       {
+        "pathway": "LDPE/Toluene > EVOH/Ethylene glycol + we",
+        "washes": [
+         {
+          "wash": 1,
+          "polymer": "LDPE",
+          "solvent": "Toluene",
+          "temperature_c": 100.0,
+          "capex_usd_per_yr": 4176837.2944592303,
+          "opex_usd_per_yr": 1846941.775958824,
+          "gwp_t_co2e_per_yr": 2902.0574316137872,
+          "energy_mj_per_yr": 22192575.13389884,
+          "recovered_fraction": 0.9120803411732029
+         },
+         {
+          "wash": 2,
+          "polymer": "EVOH",
+          "solvent": "Ethylene glycol",
+          "temperature_c": 120.0,
+          "capex_usd_per_yr": 1726803.2952619141,
+          "opex_usd_per_yr": 376321.6262675574,
+          "gwp_t_co2e_per_yr": 1269.024653381939,
+          "energy_mj_per_yr": 9177653.12886838,
+          "recovered_fraction": 0.8827735462809783
          }
         ],
         "downstream": {
          "key": "we",
          "label": "Incineration with energy recovery",
-         "residual_t_per_yr": 10498.928139575815,
+         "residual_t_per_yr": 7674.7665931746305,
          "distance_mile": 151.0
         },
-        "profit_usd_per_yr": 8555219.639365476,
-        "emissions_t_co2e_per_yr": 28311.74820499149,
-        "circularity_index": 0.5267374908442929,
+        "profit_usd_per_yr": 8630336.028331537,
+        "emissions_t_co2e_per_yr": 23048.782221893296,
+        "circularity_index": 0.5713601132172968,
         "circularity_scores": {
-         "energy": 0.5213036261933963,
-         "ghg": 0.10558029149721704,
+         "energy": 0.44159191828153027,
+         "ghg": 0.2718469757859968,
          "water": 0.5,
-         "waste": 0.9992364770877001,
-         "substitutability": 0.5075670594431508
+         "waste": 0.9981244854715343,
+         "substitutability": 0.6452371865474227
         },
-        "sales_usd_per_yr": 13313564.164789237,
-        "capex_usd_per_yr": 2910470.648996763,
-        "opex_usd_per_yr": 1669178.43229156,
-        "transport_usd_per_yr": 178695.44413543958
+        "sales_usd_per_yr": 16924673.350614373,
+        "capex_usd_per_yr": 5903640.589721144,
+        "opex_usd_per_yr": 2223263.4022263815,
+        "transport_usd_per_yr": 167433.33033531148
        },
        {
         "pathway": "LDPE/Toluene > EVOH/Acetic Acid + we",
@@ -2904,8 +4136,8 @@
           "temperature_c": 100.0,
           "capex_usd_per_yr": 4176837.2944592303,
           "opex_usd_per_yr": 1846941.775958824,
-          "gwp_t_co2e_per_yr": 2902.0574316137863,
-          "energy_mj_per_yr": 22192575.133898832,
+          "gwp_t_co2e_per_yr": 2902.0574316137872,
+          "energy_mj_per_yr": 22192575.13389884,
           "recovered_fraction": 0.9120803411732029
          },
          {
@@ -2913,8 +4145,8 @@
           "polymer": "EVOH",
           "solvent": "Acetic Acid",
           "temperature_c": 105.0,
-          "capex_usd_per_yr": 2613576.5773531892,
-          "opex_usd_per_yr": 447981.08507660765,
+          "capex_usd_per_yr": 1777432.301790511,
+          "opex_usd_per_yr": 345381.0850766076,
           "gwp_t_co2e_per_yr": 896.2795398228151,
           "energy_mj_per_yr": 8532933.395171108,
           "recovered_fraction": 0.8827735462809783
@@ -2926,56 +4158,67 @@
          "residual_t_per_yr": 7674.7665931746305,
          "distance_mile": 151.0
         },
-        "profit_usd_per_yr": 7671903.287431209,
+        "profit_usd_per_yr": 8610647.562993888,
         "emissions_t_co2e_per_yr": 22676.03710833417,
         "circularity_index": 0.574466001087224,
         "circularity_scores": {
-         "energy": 0.44537363078271863,
+         "energy": 0.4453736307827185,
          "ghg": 0.2836226730478357,
          "water": 0.5,
          "waste": 0.9980965150581427,
          "substitutability": 0.6452371865474227
         },
         "sales_usd_per_yr": 16924673.350614373,
-        "capex_usd_per_yr": 6790413.87181242,
-        "opex_usd_per_yr": 2294922.8610354317,
+        "capex_usd_per_yr": 5954269.5962497415,
+        "opex_usd_per_yr": 2192322.8610354317,
         "transport_usd_per_yr": 167433.33033531148
        },
        {
-        "pathway": "EVOH/Acetic Acid + lf",
+        "pathway": "LDPE/Toluene > EVOH/Ethylene glycol + lf",
         "washes": [
          {
           "wash": 1,
+          "polymer": "LDPE",
+          "solvent": "Toluene",
+          "temperature_c": 100.0,
+          "capex_usd_per_yr": 4176837.2944592303,
+          "opex_usd_per_yr": 1846941.775958824,
+          "gwp_t_co2e_per_yr": 2902.0574316137872,
+          "energy_mj_per_yr": 22192575.13389884,
+          "recovered_fraction": 0.9120803411732029
+         },
+         {
+          "wash": 2,
           "polymer": "EVOH",
-          "solvent": "Acetic Acid",
-          "temperature_c": 105.0,
-          "capex_usd_per_yr": 2910470.648996763,
-          "opex_usd_per_yr": 1669178.43229156,
-          "gwp_t_co2e_per_yr": 2487.4296707954636,
-          "energy_mj_per_yr": 16335810.595073625,
-          "recovered_fraction": 0.8339288113467693
+          "solvent": "Ethylene glycol",
+          "temperature_c": 120.0,
+          "capex_usd_per_yr": 1726803.2952619141,
+          "opex_usd_per_yr": 376321.6262675574,
+          "gwp_t_co2e_per_yr": 1269.024653381939,
+          "energy_mj_per_yr": 9177653.12886838,
+          "recovered_fraction": 0.8827735462809783
          }
         ],
         "downstream": {
          "key": "lf",
          "label": "Landfill",
-         "residual_t_per_yr": 10498.928139575815,
+         "residual_t_per_yr": 7674.7665931746305,
          "distance_mile": 9.2
         },
-        "profit_usd_per_yr": 7422280.408813129,
-        "emissions_t_co2e_per_yr": 3395.128760193777,
-        "circularity_index": 0.6720311182174885,
+        "profit_usd_per_yr": 7802152.042009727,
+        "emissions_t_co2e_per_yr": 4834.614452810434,
+        "circularity_index": 0.6783198781342586,
         "circularity_scores": {
-         "energy": 0.5122982798313152,
-         "ghg": 0.8927416966965482,
-         "water": 0.9296900783222961,
-         "waste": 0.5618872659212635,
-         "substitutability": 0.4635382703160193
+         "energy": 0.4369516830315985,
+         "ghg": 0.8472657209898582,
+         "water": 0.8159099310019037,
+         "waste": 0.678420124151174,
+         "substitutability": 0.613051931496759
         },
-        "sales_usd_per_yr": 12158682.069435896,
-        "capex_usd_per_yr": 2910470.648996763,
-        "opex_usd_per_yr": 1751447.9282039949,
-        "transport_usd_per_yr": 74483.08342201004
+        "sales_usd_per_yr": 16080449.025365165,
+        "capex_usd_per_yr": 5903640.589721144,
+        "opex_usd_per_yr": 2283402.796502832,
+        "transport_usd_per_yr": 91253.5971314601
        },
        {
         "pathway": "LDPE/Toluene > EVOH/Acetic Acid + lf",
@@ -2987,8 +4230,8 @@
           "temperature_c": 100.0,
           "capex_usd_per_yr": 4176837.2944592303,
           "opex_usd_per_yr": 1846941.775958824,
-          "gwp_t_co2e_per_yr": 2902.0574316137863,
-          "energy_mj_per_yr": 22192575.133898832,
+          "gwp_t_co2e_per_yr": 2902.0574316137872,
+          "energy_mj_per_yr": 22192575.13389884,
           "recovered_fraction": 0.9120803411732029
          },
          {
@@ -2996,8 +4239,8 @@
           "polymer": "EVOH",
           "solvent": "Acetic Acid",
           "temperature_c": 105.0,
-          "capex_usd_per_yr": 2613576.5773531892,
-          "opex_usd_per_yr": 447981.08507660765,
+          "capex_usd_per_yr": 1777432.301790511,
+          "opex_usd_per_yr": 345381.0850766076,
           "gwp_t_co2e_per_yr": 896.2795398228151,
           "energy_mj_per_yr": 8532933.395171108,
           "recovered_fraction": 0.8827735462809783
@@ -3009,19 +4252,19 @@
          "residual_t_per_yr": 7674.7665931746305,
          "distance_mile": 9.2
         },
-        "profit_usd_per_yr": 6843719.301109402,
-        "emissions_t_co2e_per_yr": 4461.86933925131,
+        "profit_usd_per_yr": 7782463.57667208,
+        "emissions_t_co2e_per_yr": 4461.8693392513105,
         "circularity_index": 0.6937796920466793,
         "circularity_scores": {
-         "energy": 0.4406766412529889,
-         "ghg": 0.8590414182516971,
+         "energy": 0.4406766412529888,
+         "ghg": 0.859041418251697,
          "water": 0.8777363154941691,
          "waste": 0.6783921537377823,
          "substitutability": 0.613051931496759
         },
         "sales_usd_per_yr": 16080449.025365165,
-        "capex_usd_per_yr": 6790413.87181242,
-        "opex_usd_per_yr": 2355062.255311882,
+        "capex_usd_per_yr": 5954269.5962497415,
+        "opex_usd_per_yr": 2252462.255311882,
         "transport_usd_per_yr": 91253.5971314601
        }
       ],
@@ -3058,7 +4301,7 @@
           "polymer": "EVOH",
           "solvent": "Acetic Acid",
           "temperature_c": 105.0,
-          "capex_usd_per_yr": 2910470.648996763,
+          "capex_usd_per_yr": 2910470.6489967625,
           "opex_usd_per_yr": 1669178.43229156,
           "gwp_t_co2e_per_yr": 2487.4296707954636,
           "energy_mj_per_yr": 16335810.595073625,
@@ -3082,7 +4325,7 @@
          "substitutability": 0.4635382703160193
         },
         "sales_usd_per_yr": 12158682.069435896,
-        "capex_usd_per_yr": 2910470.648996763,
+        "capex_usd_per_yr": 2910470.6489967625,
         "opex_usd_per_yr": 1751447.9282039949,
         "transport_usd_per_yr": 74483.08342201004
        },
@@ -3094,7 +4337,7 @@
           "polymer": "EVOH",
           "solvent": "Acetic Acid",
           "temperature_c": 105.0,
-          "capex_usd_per_yr": 2910470.648996763,
+          "capex_usd_per_yr": 2910470.6489967625,
           "opex_usd_per_yr": 1669178.43229156,
           "gwp_t_co2e_per_yr": 2487.4296707954636,
           "energy_mj_per_yr": 16335810.595073625,
@@ -3105,10 +4348,10 @@
           "polymer": "PET",
           "solvent": "Pyrrole",
           "temperature_c": 110.0,
-          "capex_usd_per_yr": 3384131.3542657737,
-          "opex_usd_per_yr": 566480.7905191686,
+          "capex_usd_per_yr": 2355878.3156272145,
+          "opex_usd_per_yr": 450200.79051916854,
           "gwp_t_co2e_per_yr": 1136.068840390785,
-          "energy_mj_per_yr": 11510645.991867606,
+          "energy_mj_per_yr": 11510645.991867604,
           "recovered_fraction": 0.9047536561644673
          }
         ],
@@ -3118,7 +4361,7 @@
          "residual_t_per_yr": 8327.519364781094,
          "distance_mile": 9.2
         },
-        "profit_usd_per_yr": 6462459.838353206,
+        "profit_usd_per_yr": 7606992.8769917665,
         "emissions_t_co2e_per_yr": 4343.465506280285,
         "circularity_index": 0.6800853213893714,
         "circularity_scores": {
@@ -3129,8 +4372,8 @@
          "substitutability": 0.5777786843164503
         },
         "sales_usd_per_yr": 15155226.178652612,
-        "capex_usd_per_yr": 6294602.003262537,
-        "opex_usd_per_yr": 2300913.5812779595,
+        "capex_usd_per_yr": 5266348.9646239765,
+        "opex_usd_per_yr": 2184633.5812779595,
         "transport_usd_per_yr": 97250.75575891012
        },
        {
@@ -3143,8 +4386,8 @@
           "temperature_c": 100.0,
           "capex_usd_per_yr": 4176837.2944592303,
           "opex_usd_per_yr": 1846941.775958824,
-          "gwp_t_co2e_per_yr": 2902.0574316137863,
-          "energy_mj_per_yr": 22192575.133898832,
+          "gwp_t_co2e_per_yr": 2902.0574316137872,
+          "energy_mj_per_yr": 22192575.13389884,
           "recovered_fraction": 0.9120803411732029
          },
          {
@@ -3152,8 +4395,8 @@
           "polymer": "EVOH",
           "solvent": "Acetic Acid",
           "temperature_c": 105.0,
-          "capex_usd_per_yr": 2613576.5773531892,
-          "opex_usd_per_yr": 447981.08507660765,
+          "capex_usd_per_yr": 1777432.301790511,
+          "opex_usd_per_yr": 345381.0850766076,
           "gwp_t_co2e_per_yr": 896.2795398228151,
           "energy_mj_per_yr": 8532933.395171108,
           "recovered_fraction": 0.8827735462809783
@@ -3165,19 +4408,19 @@
          "residual_t_per_yr": 7674.7665931746305,
          "distance_mile": 9.2
         },
-        "profit_usd_per_yr": 6843719.301109402,
-        "emissions_t_co2e_per_yr": 4461.86933925131,
+        "profit_usd_per_yr": 7782463.57667208,
+        "emissions_t_co2e_per_yr": 4461.8693392513105,
         "circularity_index": 0.6937796920466793,
         "circularity_scores": {
-         "energy": 0.4406766412529889,
-         "ghg": 0.8590414182516971,
+         "energy": 0.4406766412529888,
+         "ghg": 0.859041418251697,
          "water": 0.8777363154941691,
          "waste": 0.6783921537377823,
          "substitutability": 0.613051931496759
         },
         "sales_usd_per_yr": 16080449.025365165,
-        "capex_usd_per_yr": 6790413.87181242,
-        "opex_usd_per_yr": 2355062.255311882,
+        "capex_usd_per_yr": 5954269.5962497415,
+        "opex_usd_per_yr": 2252462.255311882,
         "transport_usd_per_yr": 91253.5971314601
        }
       ]
@@ -3191,7 +4434,7 @@
       },
       "4000.0": {
        "pathway": "EVOH/Acetic Acid + gas_h2cc",
-       "profit_usd_yr": 2455870.891862112,
+       "profit_usd_yr": 2455870.891862113,
        "emissions_t": 29320.90517776752,
        "circularity": 0.3630233464474419
       },
@@ -3202,16 +4445,16 @@
        "circularity": 0.38591412522847984
       },
       "8100.0": {
-       "pathway": "EVOH/Acetic Acid + gas_h2cc",
-       "profit_usd_yr": 8610265.51960127,
-       "emissions_t": 29320.90517776752,
-       "circularity": 0.4099494429485698
+       "pathway": "LDPE/Toluene > EVOH/Ethylene glycol + gas_h2cc",
+       "profit_usd_yr": 8670574.82957955,
+       "emissions_t": 23786.48078682924,
+       "circularity": 0.44996132602425787
       },
       "10000.0": {
-       "pathway": "EVOH/Acetic Acid + gas_h2cc",
-       "profit_usd_yr": 11462302.05440722,
-       "emissions_t": 29320.90517776752,
-       "circularity": 0.43169568279055587
+       "pathway": "LDPE/Toluene > EVOH/Ethylene glycol + gas_h2cc",
+       "profit_usd_yr": 11689660.357860498,
+       "emissions_t": 23786.48078682924,
+       "circularity": 0.4729812828867438
       }
      }
     }
