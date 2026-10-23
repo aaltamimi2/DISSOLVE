@@ -24,12 +24,17 @@ def _data(raw: str) -> dict:
 
 def test_plans_naming_no_contaminant_are_byte_identical_to_before():
     """Every plain separation question must come out exactly as before the change: 24 frozen payloads (four feeds, two
-    solvent scopes, three argument sets) captured at main a9dfda16."""
+    solvent scopes, three argument sets) captured at main a9dfda16. The payloads predate the retained limit
+    (max_retained_pct, default 3 wt%), so they are compared with the limit off and without the two fields it adds."""
     cases = json.loads(FIXTURE.read_text())["cases"]
     assert len(cases) == 24
     for case in cases:
         with thermo.bind_query_solvent_scope(case["scope"]):
-            raw = separation.plan_multistage_separation(list(case["feed"]), **case["kwargs"])
+            raw = separation.plan_multistage_separation(list(case["feed"]), max_retained_pct=None, **case["kwargs"])
+        payload = json.loads(raw)
+        assert payload["data"].pop("max_retained_pct") is None
+        assert "<=" not in payload["data"].pop("stage_rule").split("points")[-1]
+        raw = json.dumps(payload, ensure_ascii=False, indent=2, allow_nan=False)
         assert hashlib.sha256(raw.encode("utf-8")).hexdigest() == case["sha256"], case["feed"]
 
 

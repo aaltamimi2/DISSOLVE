@@ -5385,12 +5385,14 @@ def test_ldpe_split_window_keeps_span_relationship():
         branch_rule="window",
         selectivity_window_pct=1.8,
         top_k_routes=50,
+        max_retained_pct=None,  # the window mechanics under the gap rule alone
     )
     wide = _plan(
         feed_polymers=_TRIPLE,
         branch_rule="window",
         selectivity_window_pct=2.0,
         top_k_routes=50,
+        max_retained_pct=None,
     )
     assert tight.get("success") is True and wide.get("success") is True
     assert tight.get("subset_screens_evaluated") == wide.get("subset_screens_evaluated") == 4
@@ -5404,8 +5406,9 @@ def test_ldpe_split_window_keeps_span_relationship():
 
 
 def test_four_polymer_screens_independent_of_beam():
-    narrow = _plan(feed_polymers=_QUAD, top_k_routes=5)
-    wide = _plan(feed_polymers=_QUAD, top_k_routes=50)
+    # the beam mechanics under the gap rule alone (under the 3 wt% retained limit fewer stages qualify, so fewer subsets are reached)
+    narrow = _plan(feed_polymers=_QUAD, top_k_routes=5, max_retained_pct=None)
+    wide = _plan(feed_polymers=_QUAD, top_k_routes=50, max_retained_pct=None)
     assert narrow.get("subset_screens_evaluated") == 11
     assert wide.get("subset_screens_evaluated") == 11
     assert len(wide.get("top_k_sequences") or []) > 10

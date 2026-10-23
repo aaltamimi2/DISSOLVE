@@ -1902,14 +1902,20 @@ def _resolve_planner_search(
 
 
 def _candidate_viable(
-    candidate: Any, min_target: float, min_selectivity: float,
+    candidate: Any, min_target: float, min_selectivity: float, max_retained: float | None = None,
 ) -> bool:
+    """A stage the planner may take: the target dissolves enough, the gap is wide enough and, under a retained
+    limit, no polymer left behind dissolves above it (a missing value fails the limit)."""
     if not isinstance(candidate, dict):
         return False
     try:
         target_value = float(candidate.get("target_solubility_pct") or 0.0)
         selectivity = float(candidate.get("selectivity_pct") or 0.0)
+        retained = candidate.get("max_off_target_solubility_pct")
+        retained = None if retained is None else float(retained)
     except (TypeError, ValueError):
+        return False
+    if max_retained is not None and (retained is None or retained > max_retained):
         return False
     return target_value >= min_target and selectivity >= min_selectivity
 
@@ -1943,6 +1949,7 @@ def _select_split_branches(
     selector: dict[str, Any],
     min_target: float,
     min_selectivity: float,
+    max_retained: float | None = None,
 ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     token = selector.get("stage_branch_token")
     rule = selector["branch_rule"]
@@ -1954,7 +1961,7 @@ def _select_split_branches(
         }
         candidate = directions.get(target)
         kept = (
-            [candidate] if _candidate_viable(candidate, min_target, min_selectivity)
+            [candidate] if _candidate_viable(candidate, min_target, min_selectivity, max_retained)
             else []
         )
         return kept, {
@@ -1965,7 +1972,7 @@ def _select_split_branches(
         }
     viable = [
         item for item in _ranked_for_target(screen_data, target)
-        if _candidate_viable(item, min_target, min_selectivity)
+        if _candidate_viable(item, min_target, min_selectivity, max_retained)
     ]
     truncated = False
     if rule == "window":
@@ -2127,6 +2134,7 @@ def plan_multistage_separation(
     require_atmospheric: Optional[bool] = None,
     min_target_solubility_pct: float = 5.0,
     min_selectivity_pct: float = 5.0,
+    max_retained_pct: Optional[float] = 3.0,
     top_k_routes: Optional[int] = None,
     feed_mass_fractions: Optional[dict[str, float]] = None,
     breadth: Optional[int | Literal["all"]] = None,
@@ -2142,6 +2150,11 @@ def plan_multistage_separation(
     dissolution stage's own temperature and washes at every position, then STRAP when every stage passes, else the
     safest eligible wash, else no removal. contaminant_route="strap" or "wash" asks for that route; if it does not pass,
     the result says so and nothing else is applied. The separation itself never changes for removal.
+
+    ``max_retained_pct`` (default 3 wt%) is the no-co-dissolution limit: a stage qualifies only when every polymer
+    left behind dissolves at or below it, and among those the widest gap ranks first. A query may set another limit
+    (1 wt%, 5 wt%, ...). From Python, None turns the limit off (the gap rule alone, under which a retained polymer can
+    dissolve well above 3 wt%); the agent's null means "not given" and keeps the default.
 
     The tri-state atmospheric policy is passed unchanged to every subset
     screen: ``None`` keeps unknown BP and excludes known-too-low conditions,
@@ -2182,6 +2195,8 @@ def plan_multistage_separation(
         "min_target_solubility_pct": min_target_solubility_pct,
         "min_selectivity_pct": min_selectivity_pct,
     }
+    if max_retained_pct is not None:
+        numeric["max_retained_pct"] = max_retained_pct
     if temperature_min_c is not None:
         numeric["temperature_min_c"] = temperature_min_c
     if temperature_max_c is not None:
@@ -2205,6 +2220,10 @@ def plan_multistage_separation(
     step_c = numeric["temperature_step_c"]
     min_target = numeric["min_target_solubility_pct"]
     min_selectivity = numeric["min_selectivity_pct"]
+    max_retained = numeric.get("max_retained_pct")
+    if max_retained is not None and max_retained < 0:
+        return tool_error(tool, "max_retained_pct must be a finite wt% of at least 0.",
+                          error_code="invalid_max_retained_pct")
     lower, upper = numeric.get("temperature_min_c"), numeric.get("temperature_max_c")
     if step_c <= 0 or min_target < 0 or min_selectivity < 0:
         return tool_error(tool, "Temperature step must be positive and thresholds nonnegative.", error_code="invalid_route_parameters")
@@ -2273,6 +2292,7 @@ def plan_multistage_separation(
                 strict_maximum=bool(strict_maximum),
                 temperature_step_c=step_c,
                 require_atmospheric=require_atmospheric,
+                max_retained_pct=max_retained,
             )
             if selector["need_wide_shortlist"] and selector["screen_top_k"] is not None:
                 kwargs["top_k"] = int(selector["screen_top_k"])
@@ -2323,6 +2343,7 @@ def plan_multistage_separation(
                 selector=selector,
                 min_target=min_target,
                 min_selectivity=min_selectivity,
+                max_retained=max_retained,
             )
             if subset == root_subset and branches:
                 items = []
@@ -2432,6 +2453,11 @@ def plan_multistage_separation(
         **atmospheric_exclusions,
         min_target_solubility_pct=min_target,
         min_selectivity_pct=min_selectivity,
+        max_retained_pct=max_retained,
+        stage_rule=(
+            f"each stage: target >= {min_target:g} wt%, gap >= {min_selectivity:g} points"
+            + ("" if max_retained is None else f", every polymer left behind <= {max_retained:g} wt%")
+        ),
         solubility_unit="wt_pct_solution_concentration",
         selectivity_unit="percentage_points",
         breadth_origin=selector["breadth_origin"],

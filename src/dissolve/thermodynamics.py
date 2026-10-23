@@ -2199,11 +2199,13 @@ def _screen_direction(
                 common_temperature_candidates[temperature].append(candidate)
             key = candidate["solvent"].casefold()
             existing = best_by_solvent.get(key)
+            # A solvent's best temperature is one that meets the screen's rule if any does: under a retained limit
+            # the widest gap can be at a temperature where a retained polymer dissolves past it.
             candidate_priority = (
-                candidate["ranking_score"], candidate["target_solubility_pct"],
+                _meets_screen(candidate), candidate["ranking_score"], candidate["target_solubility_pct"],
             )
             existing_priority = (
-                existing["ranking_score"], existing["target_solubility_pct"],
+                _meets_screen(existing), existing["ranking_score"], existing["target_solubility_pct"],
             ) if existing is not None else None
             if existing_priority is None or candidate_priority > existing_priority:
                 best_by_solvent[key] = candidate

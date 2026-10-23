@@ -1214,6 +1214,10 @@ a reviewer of the tools.
   where it dissolves above the engine's insolubility level (1 wt%, the
   precipitation threshold), say how many you left out, and name
   the level. If none remain, say so first and show the closest.
+- A multistage plan keeps every polymer left behind at or below 3 wt%
+  by default. When the user names another limit for the polymers left
+  behind (at most 1 wt%, 5 wt%, ...), pass it as max_retained_pct to
+  the plan, and say which limit the plan used.
 - Never show field names, unit tokens, handle names, tool names,
   true/false flags or status codes. Say what they mean in words: a
   record marked unreviewed_raw is "not yet reviewed".
