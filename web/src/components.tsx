@@ -337,13 +337,22 @@ export function Header(props: {
           <IconButton label="Toggle conversations and system panel" onClick={props.onToggleSidebar}>
             <PanelLeft size={18} />
           </IconButton>
-          <BrandMark size={38} />
-          <div className="min-w-0 leading-tight">
-            <h1 className="whitespace-nowrap font-headline text-lg font-semibold tracking-tight text-ink">
-              DISSOLVE<span className="hidden sm:inline"> Agent</span>
-            </h1>
-            <p className="hidden truncate font-headline text-xs text-ink-3 sm:block">Advanced polymer separation engineering</p>
-          </div>
+          {/* the logo and name go home, the welcome screen, as New does */}
+          <button
+            type="button"
+            onClick={props.onNewChat}
+            title="Home"
+            aria-label="DISSOLVE Agent: go to the home screen"
+            className="flex min-w-0 cursor-pointer items-center gap-3 rounded-lg text-left outline-none focus-visible:ring-2 focus-visible:ring-brand-soft"
+          >
+            <BrandMark size={38} />
+            <div className="min-w-0 leading-tight">
+              <h1 className="whitespace-nowrap font-headline text-lg font-semibold tracking-tight text-ink">
+                DISSOLVE<span className="hidden sm:inline"> Agent</span>
+              </h1>
+              <p className="hidden truncate font-headline text-xs text-ink-3 sm:block">Advanced polymer separation engineering</p>
+            </div>
+          </button>
         </div>
         <div className="flex items-center gap-2">
           <StatusBadge doctor={props.doctor} onClick={props.onShowSystem} />
