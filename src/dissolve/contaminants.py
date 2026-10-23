@@ -1959,8 +1959,8 @@ def _boiling_refusal(tool: str, solvent: str, boiling: Optional[float], temperat
 def _temperature_fields(release: tuple[Path, dict[str, str]], temperature_c: int, solvent: str | None,
                         not_at: Sequence[Mapping[str, Any]], require_atmospheric: Optional[bool]) -> dict[str, Any]:
     """What an answer above 25 °C states besides the rows: the release behind the values, the pressure assumed, the
-    contaminants the release does not cover yet (named rather than given a 25 °C value), and for one solvent its
-    boiling point, with a note when the values are for the liquid under pressure."""
+    contaminants the release lacks (named rather than given a 25 °C value; from the final release, with the reason),
+    and for one solvent its boiling point, with a note when the values are for the liquid under pressure."""
     meta = release[1]
     fields: dict[str, Any] = {
         "logp_temperature_release": {
@@ -1977,9 +1977,20 @@ def _temperature_fields(release: tuple[Path, dict[str, str]], temperature_c: int
         "not_at_temperature_count": len(not_at),
         "not_at_temperature_contaminants": list(not_at)[:_NOT_AT_LISTED],
     }
+    final = meta.get("status") == "final"
+    if not_at and final:
+        # a final cut lacks only the served contaminants outside the run's structure set (the packer holds it to its
+        # served_not_in_run list): they have their 25 °C value and no other. The cause comes first, in plain words:
+        # "not in the structure set the run computed" came back from the model as "lacks high-temperature parameters"
+        fields["not_at_temperature_reason"] = (
+            "computed at 25 °C only: the temperature run computed " + (meta.get("structure_set") or "a structure set")
+            + f", which does not include {'it' if len(not_at) == 1 else 'them'}.")
     if len(not_at) > _NOT_AT_LISTED:
-        fields["not_at_temperature_note"] = (f"{len(not_at):,} of the contaminants asked about are not in temperature "
-                                             f"release {meta.get('release')} yet; the first {_NOT_AT_LISTED} are named.")
+        fields["not_at_temperature_note"] = (
+            f"{len(not_at):,} of the contaminants asked about are "
+            + (f"computed at 25 °C only (not in temperature release {meta.get('release')}, the final one)" if final
+               else f"not in temperature release {meta.get('release')} yet")
+            + f"; the first {_NOT_AT_LISTED} are named.")
     if solvent is not None:
         boiling = _boiling_points(release).get(solvent)
         fields["solvent_normal_boiling_point_c"] = boiling
@@ -1988,6 +1999,15 @@ def _temperature_fields(release: tuple[Path, dict[str, str]], temperature_c: int
             fields["boiling_point_note"] = (f"{solvent} boils at {boiling:g} °C at 1 atm; at {temperature_c} °C the "
                                             "logP holds for the liquid solvent under pressure.")
     return fields
+
+
+def _not_in_extension(release: tuple[Path, dict[str, str]], count: int) -> str:
+    """How a display line ends for the contaminants an answer above 25 °C has no value for: not in the extension yet
+    while the release is partial; once it is final, computed at 25 °C only, since the final cut lacks for good what the
+    run never had (Acid fuchsine FB: served, but outside the v14 structure set the run computed)."""
+    verb = "is" if count == 1 else "are"
+    return (f"{verb} computed at 25 °C only." if release[1].get("status") == "final"
+            else f"{verb} not in the temperature extension yet.")
 
 
 def _require_atmospheric_refusal(tool: str, require_atmospheric: Any) -> str | None:
@@ -2175,7 +2195,8 @@ def lookup_plastchem_contaminants(contaminants: str | list[str], solvent: str | 
         display=f"{len(rows)} PlastChem contaminants found, {len(done)} computed"
                 + (f"; in {solvent_key}" + (f" at {logp_t} °C" if release is not None else "") + "."
                    if solvent_key else ".")
-                + (f" {solvent_fields['not_at_temperature_count']} are not in the temperature extension yet."
+                + (f" {solvent_fields['not_at_temperature_count']} "
+                   + _not_in_extension(release, solvent_fields["not_at_temperature_count"])
                    if solvent_fields.get("not_at_temperature_count") else ""),
         rows=rows, found=len(rows), computed=len(done), unsupported_contaminants=unknown,
         ambiguous_contaminants=ambiguous, **({"family_coverage": coverage} if coverage else {}), **solvent_fields,
@@ -2381,7 +2402,8 @@ def _partition_sweep(con: duckdb.DuckDBPyConnection, tool: str, product: str, ma
                  f"{verdicts['leaches']} solvent-contaminant pairs leach"
                  + (f"; best {', '.join(f'{name}: {key}' for name, key in best.items())}" if best else "") + "."
                  + (f" {len(excluded)} solvents boiling at or below {logp_t} °C left out." if excluded else "")
-                 + (f" {len(not_at)} more contaminants are not in the temperature extension yet." if not_at else "")),
+                 + (f" {len(not_at)} more contaminant{'' if len(not_at) == 1 else 's'} "
+                    + _not_in_extension(release, len(not_at)) if not_at else "")),
         mode="solvent_ranking", polymer=product,
         polymer_model=f"{mapped[0]} oligomer ensemble ({mapped[1]} conformers)",
         polymer_model_shared_with_other_materials=bool(mapped[2]),
@@ -2492,7 +2514,7 @@ def screen_contaminant_partitioning(
         tool,
         display=(f"{len(rows)} PlastChem contaminants{asked}, {product} into {solvent_key}"
                  + (f" at {logp_t} °C" if release is not None else "") + f": {verdicts['leaches']} leach."
-                 + (f" {len(not_at)} more are not in the temperature extension yet." if not_at else "")),
+                 + (f" {len(not_at)} more " + _not_in_extension(release, len(not_at)) if not_at else "")),
         polymer=product, polymer_model=f"{mapped[0]} oligomer ensemble ({mapped[1]} conformers)",
         polymer_model_shared_with_other_materials=bool(mapped[2]),
         solvent=solvent_key, temperature_c=temperature_c, logp_temperature_c=float(logp_t), **temperature_fields,

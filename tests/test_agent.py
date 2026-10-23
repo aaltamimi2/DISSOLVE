@@ -1326,7 +1326,9 @@ def test_system_prompt_gives_the_logp_temperature_grid_and_what_an_answer_above_
     prompt = " ".join(agent.SYSTEM_PROMPT.split())
     assert "(25 to 160 °C in 5 °C steps, never interpolated: for 37 °C the refusal names 35 and 40 °C" in prompt
     assert ("is counted in not_at_temperature_count (named in not_at_temperature_contaminants): say how many, and "
-            "never give its 25 °C value as the hot one") in prompt
+            "never give its 25 °C value as the hot one. While the release is partial they are not computed yet; once "
+            "it is final they are computed at 25 °C only: say so, with the cause not_at_temperature_reason gives and no "
+            "other.") in prompt
     assert "Name the temperature release the values come from" in prompt
     rule = ("ask the first screen for options that stay liquid there at 1 atm (require_atmospheric) unless the user "
             "mentions pressure, so you screen once. Contaminant screens and lookups above 25 °C leave out a solvent "

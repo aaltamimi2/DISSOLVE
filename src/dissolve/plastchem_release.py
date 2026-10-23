@@ -243,6 +243,15 @@ def promote_temperature_release(
         [full]).fetchone()[0]
     if short:
         raise ValueError(f"{short} contaminants in {release.name} lack part of the {grid}-cell grid")
+    # answers above 25 °C call what a final cut lacks "computed at 25 °C only", outside the run's structure set; so the
+    # cut must name all of it (served_not_in_run), and a partial cut may name only contaminants it lacks
+    declared = set(json.loads(meta.get("served_not_in_run") or "[]"))
+    lacking = {key for (key,) in con.execute(
+        """SELECT inchikey FROM s.contaminants WHERE computed
+           AND id NOT IN (SELECT DISTINCT id FROM r.partition_by_temperature)""").fetchall()}
+    if not declared <= lacking or (meta.get("status") == "final" and declared != lacking):
+        raise ValueError(f"{release.name} ({meta.get('status')}) names {len(declared)} served contaminants as outside the "
+                         f"run but lacks {len(lacking)}")
     boiling = dict(con.execute("SELECT solvent, normal_boiling_point_c FROM r.solvents").fetchall())
     if set(boiling) != solvents:
         raise ValueError(f"{release.name}'s solvents table does not list its {len(solvents)} solvents")

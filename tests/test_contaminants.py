@@ -4682,10 +4682,11 @@ def _reseal(rel):
     (rel / "manifest.json").write_text(json.dumps(manifest))
 
 
-def _temperature_cut(root, asset, *, skip=(), name="partition_by_temperature.duckdb"):
+def _temperature_cut(root, asset, *, skip=(), name="partition_by_temperature.duckdb", final=False, declared=None):
     """A cut of the temperature extension for a test asset, in the delivery schema: each served logP plus 0.02 per 5 °C
     step, and at 25 °C 0.07 off the served value, so an answer at 25 °C read from the cut instead of the served table
-    would show. Toluene boils at 110.6 °C, dodecane at 216.3 °C. `skip` leaves contaminants out (a partial cut)."""
+    would show. Toluene boils at 110.6 °C, dodecane at 216.3 °C. `skip` leaves contaminants out (a partial cut, or with
+    `final` the run's last cut, which names them as outside the run's structure set unless `declared` says otherwise)."""
     served = duckdb.connect(str(asset), read_only=True)
     cells = served.execute("""SELECT p.id, c.inchikey, p.solvent, p.polymer, p.logp FROM partition p
                               JOIN contaminants c USING (id) WHERE c.computed""").fetchall()
@@ -4700,9 +4701,13 @@ def _temperature_cut(root, asset, *, skip=(), name="partition_by_temperature.duc
         for cid, key, solvent, polymer, logp in cells if key not in skip for t in range(25, 165, 5)])
     con.execute("CREATE TABLE solvents (solvent VARCHAR, normal_boiling_point_c DOUBLE, molar_volume_cm3_mol DOUBLE)")
     con.executemany("INSERT INTO solvents VALUES (?, ?, ?)", [(s, b, 100.0) for s, b in boiling.items()])
-    meta = {"release": "1", "status": "partial", "chunks_complete": "1", "chunks_total": "2",
+    meta = {"release": "4" if final else "1", "status": "final" if final else "partial",
+            "chunks_complete": "2" if final else "1", "chunks_total": "2",
             "contaminants": str(len({cid for cid, key, *_ in cells if key not in skip})),
             "served_db_sha256": hashlib.sha256(asset.read_bytes()).hexdigest()}
+    if final or declared is not None:
+        meta.update(served_not_in_run=json.dumps(sorted(skip if declared is None else declared)),
+                    structure_set="the test set (all but Deltaone)")
     con.execute("CREATE TABLE metadata (key VARCHAR, value VARCHAR)")
     con.executemany("INSERT INTO metadata VALUES (?, ?)", sorted(meta.items()))
     con.close()
@@ -4801,8 +4806,9 @@ def test_a_contaminant_the_temperature_extension_lacks_is_named_and_a_boiling_so
     hot = _data(screen("LDPE", "toluene", temperature_c=120, require_atmospheric=False))
     assert sorted(row["contaminant"] for row in hot["rows"]) == ["Alphaester", "Betaamide", "Gammaol"]
     assert hot["not_at_temperature_contaminants"] == [{"contaminant": "Deltaone", "inchikey": "DDDD-D"}]
-    assert hot["not_at_temperature_count"] == 1 and "1 more are not in the temperature extension" in json.dumps(
-        screen("LDPE", "toluene", temperature_c=120, require_atmospheric=False))
+    assert hot["not_at_temperature_count"] == 1 and json.loads(screen(
+        "LDPE", "toluene", temperature_c=120, require_atmospheric=False))["display"].endswith(
+        " leach. 1 more is not in the temperature extension yet.")
     assert hot["at_or_above_solvent_boiling_point"] is True and "toluene boils at 110.6 °C" in hot["boiling_point_note"]
     assert hot["pressure_basis"].startswith("Pressure allowed")
     below = _data(screen("LDPE", "toluene", temperature_c=110))  # the grid point under the boiling point
@@ -4838,6 +4844,45 @@ def test_contaminants_the_temperature_extension_lacks_are_all_counted_and_the_fi
                                                         "release 2 yet")
     few = contaminants._temperature_fields(release, 60, None, missing[:3], None)
     assert few["not_at_temperature_count"] == 3 and "not_at_temperature_note" not in few
+
+
+def test_the_final_temperature_release_says_what_it_lacks_is_computed_at_25_c_only_and_why(tmp_path, monkeypatch):
+    """The run's final cut (2026-10-23) still lacks one served contaminant, Acid fuchsine FB, outside the v14 structure
+    set the run computed: "not in the temperature extension yet" would promise a value that never comes. A final cut
+    must name what it lacks (served_not_in_run) and the set it computed; its answers then call those contaminants
+    computed at 25 °C only and say why, while a partial cut's keep "yet". One contaminant reads "is"."""
+    asset = tmp_path / "asset.duckdb"
+    monkeypatch.setenv("DISSOLVE_PLASTCHEM_ASSET", str(asset))
+    plastchem_release.promote_opencosmo_release(_plastchem_release(tmp_path), asset)
+    packed = tmp_path / "temperature.parquet"
+    for cut in (_temperature_cut(tmp_path, asset, skip={"DDDD-D"}, final=True, declared=(), name="silent.duckdb"),
+                _temperature_cut(tmp_path, asset, skip={"DDDD-D"}, declared={"AAAA-A"}, name="held.duckdb")):
+        with pytest.raises(ValueError, match="served contaminants as outside the run but lacks 1"):
+            plastchem_release.promote_temperature_release(cut, packed, served=asset)
+    plastchem_release.promote_temperature_release(_temperature_cut(tmp_path, asset, skip={"DDDD-D"}, final=True), packed,
+                                                  served=asset)
+    monkeypatch.setenv("DISSOLVE_PLASTCHEM_TEMPERATURE_ASSET", str(packed))
+    contaminants._LOCAL.__dict__.pop("plastchem", None)
+    screen, lookup = contaminants.screen_contaminant_partitioning, contaminants.lookup_plastchem_contaminants
+    reason = ("computed at 25 °C only: the temperature run computed the test set (all but Deltaone), which does not "
+              "include it.")
+    one = json.loads(screen("LDPE", "dodecane", temperature_c=60))
+    assert one["data"]["logp_temperature_release"]["status"] == "final"
+    assert one["data"]["not_at_temperature_reason"] == reason
+    assert one["display"].endswith(" 1 more is computed at 25 °C only.")
+    ranked = json.loads(screen("LDPE", None, ["Alphaester", "Deltaone"], temperature_c=60))
+    assert ranked["display"].endswith(" 1 more contaminant is computed at 25 °C only.")
+    looked = json.loads(lookup(["Alphaester", "Deltaone"], "dodecane", temperature_c=60))
+    assert looked["display"].endswith(" 1 is computed at 25 °C only.")
+    assert (ranked["data"]["not_at_temperature_reason"], looked["data"]["not_at_temperature_reason"]) == (reason, reason)
+    assert not any(" yet" in out["display"] for out in (one, ranked, looked))
+    missing = [{"contaminant": f"C{i:02d}", "inchikey": f"K{i:02d}"} for i in range(60)]
+    final = (Path("unused.parquet"), {"release": "4", "status": "final", "contaminants": "8868"})
+    assert contaminants._temperature_fields(final, 60, None, missing, None)["not_at_temperature_note"] == (
+        "60 of the contaminants asked about are computed at 25 °C only (not in temperature release 4, the final one); "
+        "the first 50 are named.")
+    partial = (Path("unused.parquet"), {"release": "3", "status": "partial", "contaminants": "6675"})
+    assert "not_at_temperature_reason" not in contaminants._temperature_fields(partial, 60, None, missing, None)
 
 
 def test_ethanol_is_left_out_at_120_c_by_default_and_dmso_is_not():
