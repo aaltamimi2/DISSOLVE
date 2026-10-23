@@ -3,11 +3,13 @@
     python3 campaigns/waste-pathway-film-case/make_figures.py
 
 Needs matplotlib (the agent's .venv does not include it; any Python with matplotlib will do). Writes
-figures/waste_pathway_case.png and .pdf next to this file.
+figures/waste_pathway_case.png and .pdf next to this file. Nothing here is specific to one feed: the labels, the price sweep and the
+numbered routes all come from results.json.
 """
 from __future__ import annotations
 
 import json
+import textwrap
 from pathlib import Path
 
 import matplotlib
@@ -22,19 +24,20 @@ LOCATION = "A"
 # Validated categorical slots 1 and 2 (light surface): blue for the plant dedicated to the feed, orange for the shared
 # plant. Color follows the plant in every panel that compares plants; the heat map uses the blue sequential ramp only.
 INK, INK2, MUTED, GRID, SURFACE = "#0b0b0b", "#52514e", "#8a8985", "#e4e3df", "#fcfcfb"
-PLANT = {"dedicated": ("#2a78d6", "o", "-", "Dedicated 8 kt/yr plant"),
-         "shared_20kt": ("#eb6834", "s", "--", "Shared 20 kt/yr plant")}
+PLANT_STYLE = {"dedicated": ("#2a78d6", "o", "-"), "shared_20kt": ("#eb6834", "s", "--")}
 RAMP = ["#cde2fb", "#b7d3f6", "#9ec5f4", "#86b6ef", "#6da7ec", "#5598e7", "#3987e5", "#2a78d6", "#256abf", "#1c5cab",
         "#184f95", "#104281", "#0d366b"]
 TECH = {"lf": "landfill", "we": "incineration", "gas_er": "gasification (energy)", "gas_h2": "gasification (H2)",
-        "gas_h2cc": "gasification (H2+CC)", "py": "pyrolysis"}
+        "gas_h2cc": "gasification (H2+CC)", "py": "pyrolysis", "resale": "sold as resin"}
 SOLVENT = {"Dimethyl sulfoxide": "DMSO", "Ethylene glycol": "EG", "Propylene glycol": "PG", "p-Xylene": "xylene",
-           "Diphenyl ether": "DPE", "Toluene": "toluene", "Dodecane": "dodecane"}
+           "Diphenyl ether": "DPE", "Toluene": "toluene", "Dodecane": "dodecane", "Acetic Acid": "acetic acid",
+           "Diethylene Glycol": "DEG", "Dipentene (Dl-Limonene)": "limonene"}
 
 
 def short(row: dict) -> str:
-    washes = " + ".join(f"{w['polymer']} ({SOLVENT.get(w['solvent'], w['solvent'])})" for w in row["washes"])
-    return f"{washes + ' → ' if washes else ''}{TECH[row['downstream']['key']]}"
+    washes = " › ".join(f"{w['polymer']} ({SOLVENT.get(w['solvent'], w['solvent'].lower())})" for w in row["washes"])
+    destination = TECH.get(row["downstream"]["key"], row["downstream"]["label"])
+    return f"{washes} → {destination}" if washes else f"no wash → {destination}"
 
 
 def style(ax):
@@ -49,68 +52,95 @@ def style(ax):
     ax.set_axisbelow(True)
 
 
-def front(ax, results, key, xkey, ykey, xscale=1.0, yscale=1e6, label_points=()):
-    for plant, (color, marker, ls, _) in PLANT.items():
+def plant_labels(results: dict) -> dict[str, str]:
+    tonnes = results["feed"]["tonnes_per_year"] / 1000.0
+    return {"dedicated": f"Plant for this feed only ({tonnes:g} kt/yr)", "shared_20kt": "Shared 20 kt/yr plant"}
+
+
+def front(ax, results, key, xkey, ykey, xscale=1.0, yscale=1e6):
+    """Draw both plants' fronts; return {plant: [(number, row)]} with the numbers merged where points coincide."""
+    fig = ax.figure
+    fig.canvas.draw()
+    numbered: dict[str, list] = {}
+    for plant, (color, marker, ls) in PLANT_STYLE.items():
         pts = results["plants"][plant]["locations"][LOCATION]["pareto"][key]
         xs = [p[xkey] * xscale for p in pts]
         ys = [p[ykey] / yscale for p in pts]
         ax.plot(xs, ys, color=color, linestyle=ls, linewidth=1.6, marker=marker, markersize=6, markerfacecolor=color,
                 markeredgecolor=SURFACE, markeredgewidth=1.2, zorder=3)
-    return ax
+        numbered[plant] = [(i, p) for i, p in enumerate(pts, 1)]
+    return numbered
+
+
+def number_points(ax, numbered, results, xkey, ykey, xscale=1.0, yscale=1e6):
+    """Label each front point with its number (D for the dedicated plant, S for the shared one), merging coincident points."""
+    ax.figure.canvas.draw()
+    placed: list[tuple[float, float, list[str], str]] = []
+    for plant, items in numbered.items():
+        tag = "D" if plant == "dedicated" else "S"
+        color = PLANT_STYLE[plant][0]
+        for i, p in items:
+            pixel = ax.transData.transform((p[xkey] * xscale, p[ykey] / yscale))
+            for entry in placed:
+                if abs(entry[0] - pixel[0]) < 14 and abs(entry[1] - pixel[1]) < 12:
+                    entry[2].append(f"{tag}{i}")
+                    break
+            else:
+                placed.append((pixel[0], pixel[1], [f"{tag}{i}"], color))
+    for k, (px, py, names, color) in enumerate(placed):
+        x, y = ax.transData.inverted().transform((px, py))
+        ax.annotate(", ".join(names), (x, y), xytext=(6, 6 if k % 2 == 0 else -11), textcoords="offset points", fontsize=7,
+                    color=INK, zorder=6)
 
 
 def main() -> None:
     results = json.loads((HERE / "results.json").read_text())
-    fig, axes = plt.subplots(2, 2, figsize=(7.4, 6.6), facecolor=SURFACE)
-    (axA, axB), (axC, axD) = axes
-    for ax in axes.flat:
+    labels = plant_labels(results)
+    fig = plt.figure(figsize=(7.6, 8.1), facecolor=SURFACE)
+    grid = fig.add_gridspec(3, 2, height_ratios=[1.0, 1.0, 0.30], hspace=0.62, wspace=0.34, left=0.085, right=0.985, top=0.965, bottom=0.02)
+    axA, axB, axC, axD = (fig.add_subplot(grid[0, 0]), fig.add_subplot(grid[0, 1]), fig.add_subplot(grid[1, 0]), fig.add_subplot(grid[1, 1]))
+    keyax = fig.add_subplot(grid[2, :])
+    keyax.axis("off")
+    for ax in (axA, axB, axC):
         style(ax)
 
     # A: profit against emissions
-    front(axA, results, "emissions_vs_profit", "emissions_t_co2e_per_yr", "profit_usd_per_yr")
+    numA = front(axA, results, "emissions_vs_profit", "emissions_t_co2e_per_yr", "profit_usd_per_yr")
     axA.set_xscale("log")
     axA.set_xlabel("Emissions (t CO$_2$e per year, log scale)", fontsize=8, color=INK2)
     axA.set_ylabel("Profit ($ million per year)", fontsize=8, color=INK2)
-    ded = results["plants"]["dedicated"]["locations"][LOCATION]["pareto"]["emissions_vs_profit"]
-    sh = results["plants"]["shared_20kt"]["locations"][LOCATION]["pareto"]["emissions_vs_profit"]
-    def tag(ax, row, text_xy, ha="left"):
-        ax.annotate(short(row), (row["emissions_t_co2e_per_yr"], row["profit_usd_per_yr"] / 1e6), xytext=text_xy,
-                    textcoords="axes fraction", fontsize=7, color=INK, ha=ha, va="center",
-                    arrowprops=dict(arrowstyle="-", color=MUTED, lw=0.7, shrinkA=2, shrinkB=4))
-
-    tag(axA, ded[0], (0.14, 0.10))                 # landfill, where both fronts start
-    tag(axA, ded[1], (0.33, 0.40))                 # EVOH wash, dedicated plant
-    tag(axA, sh[2], (0.05, 0.90))                  # LDPE and EVOH washes, shared plant
-    tag(axA, ded[-1], (0.97, 0.53), ha="right")    # the most profitable pathway, dedicated plant
-    axA.set_ylim(-0.5, 6.0)
-    axA.set_xlim(560, 26000)
     axA.set_title("A  Profit against emissions", loc="left", fontsize=9, color=INK, fontweight="bold")
+    number_points(axA, numA, results, "emissions_t_co2e_per_yr", "profit_usd_per_yr")
 
     # B: profit against circularity
-    front(axB, results, "circularity_vs_profit", "circularity_index", "profit_usd_per_yr")
+    numB = front(axB, results, "circularity_vs_profit", "circularity_index", "profit_usd_per_yr")
     axB.set_xlabel("MICRON circularity index (0–1)", fontsize=8, color=INK2)
     axB.set_ylabel("Profit ($ million per year)", fontsize=8, color=INK2)
     axB.set_title("B  Profit against circularity", loc="left", fontsize=9, color=INK, fontweight="bold")
-    handles = [Line2D([0], [0], color=c, linestyle=ls, marker=m, markersize=6, linewidth=1.6, label=lab,
-                      markeredgecolor=SURFACE) for (c, m, ls, lab) in PLANT.values()]
-    axB.legend(handles=handles, loc="lower left", fontsize=7, frameon=False, labelcolor=INK2)
+    number_points(axB, numB, results, "circularity_index", "profit_usd_per_yr")
+    handles = [Line2D([0], [0], color=c, linestyle=ls, marker=m, markersize=6, linewidth=1.6, label=labels[plant],
+                      markeredgecolor=SURFACE) for plant, (c, m, ls) in PLANT_STYLE.items()]
+    axB.legend(handles=handles, loc="lower left", fontsize=6.6, frameon=False, labelcolor=INK2)
 
-    # C: LDPE resin price sweep
-    prices = sorted(float(p) for p in results["plants"]["dedicated"]["locations"][LOCATION]["ldpe_price_sweep_max_profit"])
-    for plant, (color, marker, ls, label) in PLANT.items():
-        sweep = results["plants"][plant]["locations"][LOCATION]["ldpe_price_sweep_max_profit"]
+    # C: resin price sweep
+    polymer = results.get("sweep_polymer", "EVOH")
+    sweep0 = results["plants"]["dedicated"]["locations"][LOCATION]["price_sweep_max_profit"]
+    prices = sorted(float(p) for p in sweep0)
+    for plant, (color, marker, ls) in PLANT_STYLE.items():
+        sweep = results["plants"][plant]["locations"][LOCATION]["price_sweep_max_profit"]
         ys = [sweep[str(p)]["profit_usd_yr"] / 1e6 for p in prices]
-        axC.plot(prices, ys, color=color, linestyle=ls, linewidth=1.6, marker=marker, markersize=6,
-                 markeredgecolor=SURFACE, markeredgewidth=1.2, zorder=3)
-        washes_ldpe = [sweep[str(p)]["pathway"].startswith("LDPE") for p in prices]
-        first = next((i for i, flag in enumerate(washes_ldpe) if flag), None)
-        if first is not None:
-            axC.annotate("LDPE wash enters", (prices[first], ys[first]),
-                         xytext=(-30, 34) if plant == "dedicated" else (34, -30), textcoords="offset points",
-                         ha="center", fontsize=7, color=INK, arrowprops=dict(arrowstyle="-", color=MUTED, lw=0.7))
-    axC.set_xlabel("LDPE resin price ($ per tonne)", fontsize=8, color=INK2)
+        axC.plot(prices, ys, color=color, linestyle=ls, linewidth=1.6, marker=marker, markersize=6, markeredgecolor=SURFACE,
+                 markeredgewidth=1.2, zorder=3)
+        washes = [sweep[str(p)]["pathway"].startswith(polymer) or f"{polymer}/" in sweep[str(p)]["pathway"] for p in prices]
+        first = next((i for i, flag in enumerate(washes) if flag), None)
+        if first is not None and first > 0:
+            axC.annotate(f"{polymer} wash enters", (prices[first], ys[first]),
+                         xytext=(-30, 34) if plant == "dedicated" else (-6, 40), textcoords="offset points",
+                         ha="center" if plant == "dedicated" else "left",
+                         fontsize=7, color=INK, arrowprops=dict(arrowstyle="-", color=MUTED, lw=0.7))
+    axC.set_xlabel(f"{polymer} resin price ($ per tonne)", fontsize=8, color=INK2)
     axC.set_ylabel("Profit, best pathway ($ million per year)", fontsize=8, color=INK2)
-    axC.set_title("C  When the LDPE wash pays", loc="left", fontsize=9, color=INK, fontweight="bold")
+    axC.set_title(f"C  When the {polymer} wash pays", loc="left", fontsize=9, color=INK, fontweight="bold")
 
     # D: circularity category scores of the three optima (shared plant, one sequential ramp, values printed)
     optima = results["plants"]["shared_20kt"]["locations"][LOCATION]["optima"]
@@ -138,7 +168,13 @@ def main() -> None:
     axD.tick_params(length=0)
     axD.set_title("D  MICRON scores (shared plant)", loc="left", fontsize=9, color=INK, fontweight="bold", pad=30)
 
-    fig.tight_layout(h_pad=2.2, w_pad=2.0)
+    # Key: the numbered routes of the two plants' profit-emissions fronts, so no point depends on a label inside the panel
+    lines = []
+    for plant, tag in (("dedicated", "D"), ("shared_20kt", "S")):
+        lines.append(f"{labels[plant]}: profit-emissions front")
+        lines.extend(textwrap.wrap("   ".join(f"{tag}{i} {short(p)}" for i, p in numA[plant]), 118, subsequent_indent="    "))
+    keyax.text(0.0, 1.0, "\n".join(lines), transform=keyax.transAxes, ha="left", va="top", fontsize=6.6, color=INK2,
+               family="monospace", linespacing=1.35)
     out = HERE / "figures"
     out.mkdir(exist_ok=True)
     fig.savefig(out / "waste_pathway_case.png", dpi=300, facecolor=SURFACE)
