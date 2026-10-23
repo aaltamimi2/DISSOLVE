@@ -7514,3 +7514,32 @@ def test_a_model_that_stays_empty_gets_a_plain_message_not_a_blank_answer(monkey
     assert len(calls) == 3  # the first reply and two retries
 
 
+
+
+def test_gemini_schema_turns_null_admitting_types_into_nullable_ones():
+    original = {"type": "object", "properties": {
+        "a": {"type": ["array", "null"], "items": {"type": ["string", "null"]}},
+        "b": {"type": ["number", "null"], "description": "kept"},
+        "c": {"type": "string", "enum": ["x", "y", None]},
+        "d": {"type": "boolean"}}}
+    snapshot = json.loads(json.dumps(original))
+    out = agent._gemini_schema(original)
+    props = out["properties"]
+    assert props["a"] == {"type": "array", "items": {"type": "string", "nullable": True}, "nullable": True}
+    assert props["b"] == {"type": "number", "description": "kept", "nullable": True}
+    assert props["c"] == {"type": "string", "enum": ["x", "y"], "nullable": True}
+    assert props["d"] == {"type": "boolean"}  # a plain type is left alone
+    assert original == snapshot  # the tool's own schema is not changed
+
+
+def test_every_tool_builds_as_a_gemini_declaration():
+    """Gemini rejects a type given as a list and an enum holding null, which the tools' schemas use for optional arguments."""
+    from google.genai import types
+    failures = {}
+    for tool in agent.tool_schemas():
+        try:
+            types.FunctionDeclaration(name=tool["name"], description=tool.get("description") or "",
+                                      parameters=agent._gemini_schema(tool["parameters"]))
+        except Exception as error:
+            failures[tool["name"]] = str(error)[:160]
+    assert not failures, failures

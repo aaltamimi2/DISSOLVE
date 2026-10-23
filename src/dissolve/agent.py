@@ -1694,7 +1694,8 @@ def complete(messages, tools, *, model, api_base=None, api_key_env=None, tool_ch
     if kind == "google_genai":
         from google import genai
         from google.genai import types
-        decls = [types.FunctionDeclaration(name=t["name"], description=t.get("description") or "", parameters=t["parameters"]) for t in tools]
+        decls = [types.FunctionDeclaration(name=t["name"], description=t.get("description") or "", parameters=_gemini_schema(t["parameters"]))
+                 for t in tools]
         sys = next((m.get("content") or "" for m in messages if m["role"] == "system"), "")
         client = (genai.Client(vertexai=True, project=project,
                                location=(os.environ.get("GOOGLE_CLOUD_LOCATION") or "").strip() or "us-central1")
@@ -1759,6 +1760,30 @@ def complete(messages, tools, *, model, api_base=None, api_key_env=None, tool_ch
             calls.append({"id": c.id, "name": c.function.name, "args": args})
         return {"text": msg.content or "", "tool_calls": calls, "usage": _usage(kind, resp),
                 "cut_short": _cut_short(getattr(resp.choices[0], "finish_reason", None))}
+
+def _gemini_schema(schema: Any) -> Any:
+    """A tool's JSON schema in the form Gemini accepts.
+
+    The schemas admit null for an optional argument by giving its type as a list such as ["array", "null"] and by listing null among
+    an enum's values; Gemini takes one type, string-only enums and a separate ``nullable`` flag, so those become the type or the
+    string values with ``nullable`` set.
+    """
+    if isinstance(schema, list):
+        return [_gemini_schema(item) for item in schema]
+    if not isinstance(schema, dict):
+        return schema
+    out = {key: _gemini_schema(value) for key, value in schema.items()}
+    kind = out.get("type")
+    if isinstance(kind, list):
+        kinds = [k for k in kind if k != "null"]
+        out["type"] = kinds[0] if kinds else "null"
+        if "null" in kind and kinds:
+            out["nullable"] = True
+    if isinstance(out.get("enum"), list) and None in out["enum"]:  # Gemini enums hold strings only; null is the nullable flag
+        out["enum"] = [value for value in out["enum"] if value is not None]
+        out["nullable"] = True
+    return out
+
 
 def _gen_contents(messages):
     from google.genai import types
