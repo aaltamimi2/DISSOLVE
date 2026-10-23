@@ -4801,6 +4801,8 @@ def test_a_contaminant_the_temperature_extension_lacks_is_named_and_a_boiling_so
     hot = _data(screen("LDPE", "toluene", temperature_c=120, require_atmospheric=False))
     assert sorted(row["contaminant"] for row in hot["rows"]) == ["Alphaester", "Betaamide", "Gammaol"]
     assert hot["not_at_temperature_contaminants"] == [{"contaminant": "Deltaone", "inchikey": "DDDD-D"}]
+    assert hot["not_at_temperature_count"] == 1 and "1 more are not in the temperature extension" in json.dumps(
+        screen("LDPE", "toluene", temperature_c=120, require_atmospheric=False))
     assert hot["at_or_above_solvent_boiling_point"] is True and "toluene boils at 110.6 °C" in hot["boiling_point_note"]
     assert hot["pressure_basis"].startswith("Pressure allowed")
     below = _data(screen("LDPE", "toluene", temperature_c=110))  # the grid point under the boiling point
@@ -4819,9 +4821,23 @@ def test_a_contaminant_the_temperature_extension_lacks_is_named_and_a_boiling_so
     assert {row["contaminant"]: row["in_solvent"]["logp_solvent_over_polymer"] for row in looked["rows"]} == {
         "Alphaester": {"HDPE/LDPE": 1.18, "PP": 1.18}, "Deltaone": None}
     assert looked["not_at_temperature_contaminants"] == [{"contaminant": "Deltaone", "inchikey": "DDDD-D"}]
+    assert (looked["not_at_temperature_count"], ranked["not_at_temperature_count"]) == (1, 1)
     assert _data(screen("LDPE", "dodecane", temperature_c=120))["at_or_above_solvent_boiling_point"] is False
     assert _data(screen("LDPE", "toluene", temperature_c=120, require_atmospheric="no"))["error_code"] == (
         "invalid_require_atmospheric")
+
+
+def test_contaminants_the_temperature_extension_lacks_are_all_counted_and_the_first_50_named():
+    """A full screen of release 2 lacked 3,490 contaminants, about 400 KB of names the agent never saw: all are counted,
+    the first 50 named, and a note says how many more."""
+    release = (Path("unused.parquet"), {"release": "2", "status": "partial", "contaminants": "5379"})
+    missing = [{"contaminant": f"C{i:02d}", "inchikey": f"K{i:02d}"} for i in range(60)]
+    fields = contaminants._temperature_fields(release, 60, None, missing, None)
+    assert fields["not_at_temperature_count"] == 60 and fields["not_at_temperature_contaminants"] == missing[:50]
+    assert fields["not_at_temperature_note"].startswith("60 of the contaminants asked about are not in temperature "
+                                                        "release 2 yet")
+    few = contaminants._temperature_fields(release, 60, None, missing[:3], None)
+    assert few["not_at_temperature_count"] == 3 and "not_at_temperature_note" not in few
 
 
 def test_ethanol_is_left_out_at_120_c_by_default_and_dmso_is_not():

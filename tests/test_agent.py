@@ -1325,7 +1325,8 @@ def test_system_prompt_gives_the_logp_temperature_grid_and_what_an_answer_above_
     below the temperature are left out unless the user mentions pressure (owner), beside the solubility screens' rule."""
     prompt = " ".join(agent.SYSTEM_PROMPT.split())
     assert "(25 to 160 °C in 5 °C steps, never interpolated: for 37 °C the refusal names 35 and 40 °C" in prompt
-    assert "never give its 25 °C value as the hot one" in prompt
+    assert ("is counted in not_at_temperature_count (named in not_at_temperature_contaminants): say how many, and "
+            "never give its 25 °C value as the hot one") in prompt
     assert "Name the temperature release the values come from" in prompt
     rule = ("ask the first screen for options that stay liquid there at 1 atm (require_atmospheric) unless the user "
             "mentions pressure, so you screen once. Contaminant screens and lookups above 25 °C leave out a solvent "
@@ -1335,6 +1336,20 @@ def test_system_prompt_gives_the_logp_temperature_grid_and_what_an_answer_above_
             "point and the highest grid temperature below it, and offer the values under pressure.")
     assert rule in prompt
     assert "above_solvent_boiling_point" not in prompt
+
+
+def test_a_full_contaminant_screen_above_25_c_tells_the_agent_how_many_the_temperature_extension_lacks():
+    """"Which contaminants leach from LDPE into DMSO at 100 °C?" was answered for 5,379 contaminants without a word on
+    the 3,490 that release 2 lacks (2026-10-23): the screen is large enough to pass by handle, and the compact view drops
+    lists of rows, so the names never reached the agent, nor how many. The count is a scalar and stays."""
+    with bind_tool_session(new_session()) as rec:
+        open_turn_record(rec)
+        out = dispatch("screen_contaminant_partitioning", polymer="LDPE", solvent="dimethyl sulfoxide",
+                       temperature_c=100)
+    assert out["handle"] and out["total"] == out["data"]["evaluated"]  # the compact view
+    served = contaminants._plastchem().execute("SELECT count(*) FROM contaminants WHERE computed").fetchone()[0]
+    assert out["data"]["evaluated"] + out["data"]["not_at_temperature_count"] == served
+    assert out["data"]["logp_temperature_release"]["status"] in {"partial", "final"}
 
 
 def test_turn_record_every_result_exact_ordered_durable():

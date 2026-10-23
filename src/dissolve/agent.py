@@ -1047,8 +1047,9 @@ themselves; name a token this prompt does not define as it is:
   logP at 25 °C, or at the temperature_c you pass (25 to 160 °C in 5 °C
   steps, never interpolated: for 37 °C the refusal names 35 and 40 °C;
   use one and say which). Above 25 °C a contaminant the temperature
-  extension does not hold yet is listed in not_at_temperature_contaminants:
-  say so, and never give its 25 °C value as the hot one. Name the
+  extension does not hold yet is counted in not_at_temperature_count
+  (named in not_at_temperature_contaminants): say how many, and never
+  give its 25 °C value as the hot one. Name the
   temperature release the values come from (logp_temperature_release:
   its number, and that it is partial while the run continues). They
   were checked against the COSMOtherm workbook only for PVC with eight

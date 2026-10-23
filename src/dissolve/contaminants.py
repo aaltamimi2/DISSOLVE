@@ -1735,6 +1735,7 @@ _PLASTCHEM_FAMILIES = Path(str(files("dissolve").joinpath("data/plastchem_famili
 # in 5 °C steps, packed by plastchem_release.promote_temperature_release. 25 °C is still read from the asset above.
 _PLASTCHEM_TEMPERATURE_ASSET = Path(str(files("dissolve").joinpath("data/plastchem_partition_by_temperature.parquet")))
 _LOGP_GRID_C = tuple(range(25, 165, 5))
+_NOT_AT_LISTED = 50  # contaminants named when the temperature extension lacks more; all are counted
 _SERVED_CONVENTION = "normalized"  # owner, 2026-09-23 ("may revisit"); the existing convention is stored beside it
 _MISCIBLE_BASIS = "15 wt%"  # the paper's cutoff; the owner set its basis to wt% (2026-09-23)
 _PLASTCHEM_THRESHOLDS = {
@@ -1971,8 +1972,14 @@ def _temperature_fields(release: tuple[Path, dict[str, str]], temperature_c: int
                      "ensembles; logP stored to 0.01",
         },
         **_pressure_fields(require_atmospheric),
-        "not_at_temperature_contaminants": list(not_at),
+        # the count is a scalar, so it stays in the compact view the agent sees of a large screen, which drops lists
+        # of rows: the 3,490 names of a full screen of release 2 never reached it, nor did how many there were
+        "not_at_temperature_count": len(not_at),
+        "not_at_temperature_contaminants": list(not_at)[:_NOT_AT_LISTED],
     }
+    if len(not_at) > _NOT_AT_LISTED:
+        fields["not_at_temperature_note"] = (f"{len(not_at):,} of the contaminants asked about are not in temperature "
+                                             f"release {meta.get('release')} yet; the first {_NOT_AT_LISTED} are named.")
     if solvent is not None:
         boiling = _boiling_points(release).get(solvent)
         fields["solvent_normal_boiling_point_c"] = boiling
@@ -2167,7 +2174,9 @@ def lookup_plastchem_contaminants(contaminants: str | list[str], solvent: str | 
         tool,
         display=f"{len(rows)} PlastChem contaminants found, {len(done)} computed"
                 + (f"; in {solvent_key}" + (f" at {logp_t} °C" if release is not None else "") + "."
-                   if solvent_key else "."),
+                   if solvent_key else ".")
+                + (f" {solvent_fields['not_at_temperature_count']} are not in the temperature extension yet."
+                   if solvent_fields.get("not_at_temperature_count") else ""),
         rows=rows, found=len(rows), computed=len(done), unsupported_contaminants=unknown,
         ambiguous_contaminants=ambiguous, **({"family_coverage": coverage} if coverage else {}), **solvent_fields,
         identity_basis="PubChem's names, CAS numbers, InChIKeys and SMILES as the PlastChem release records them; "
@@ -2371,7 +2380,8 @@ def _partition_sweep(con: duckdb.DuckDBPyConnection, tool: str, product: str, ma
                  + (f" at {logp_t} °C" if release is not None else "") + ": "
                  f"{verdicts['leaches']} solvent-contaminant pairs leach"
                  + (f"; best {', '.join(f'{name}: {key}' for name, key in best.items())}" if best else "") + "."
-                 + (f" {len(excluded)} solvents boiling at or below {logp_t} °C left out." if excluded else "")),
+                 + (f" {len(excluded)} solvents boiling at or below {logp_t} °C left out." if excluded else "")
+                 + (f" {len(not_at)} more contaminants are not in the temperature extension yet." if not_at else "")),
         mode="solvent_ranking", polymer=product,
         polymer_model=f"{mapped[0]} oligomer ensemble ({mapped[1]} conformers)",
         polymer_model_shared_with_other_materials=bool(mapped[2]),
