@@ -1731,6 +1731,10 @@ def strap_at_stage(
 
 _PLASTCHEM_ASSET = Path(str(files("dissolve").joinpath("data/plastchem_opencosmo.duckdb")))
 _PLASTCHEM_FAMILIES = Path(str(files("dissolve").joinpath("data/plastchem_families.json")))
+# The temperature extension (A-13, 2026-10-23): the same partition, same surfaces and polymer ensembles, at 25-160 °C
+# in 5 °C steps, packed by plastchem_release.promote_temperature_release. 25 °C is still read from the asset above.
+_PLASTCHEM_TEMPERATURE_ASSET = Path(str(files("dissolve").joinpath("data/plastchem_partition_by_temperature.parquet")))
+_LOGP_GRID_C = tuple(range(25, 165, 5))
 _SERVED_CONVENTION = "normalized"  # owner, 2026-09-23 ("may revisit"); the existing convention is stored beside it
 _MISCIBLE_BASIS = "15 wt%"  # the paper's cutoff; the owner set its basis to wt% (2026-09-23)
 _PLASTCHEM_THRESHOLDS = {
@@ -1841,6 +1845,149 @@ def _plastchem() -> duckdb.DuckDBPyConnection | None:
     connection = duckdb.connect(str(path), read_only=True)
     _LOCAL.plastchem = (path, connection)
     return connection
+
+
+def _logp_temperature(tool: str, temperature_c: Any) -> tuple[int | None, str | None]:
+    """The grid temperature logP is served at, or a refusal. logP is tabulated at 25-160 °C in 5 °C steps and is never
+    interpolated: 37 °C names 35 and 40 °C, 20 °C names 25 °C, so the answer says which temperature it used."""
+    value = _finite(temperature_c)
+    if value is None:
+        return None, tool_error(tool, "Temperature must be a finite number of °C.", error_code="invalid_temperature")
+    if value in _LOGP_GRID_C:
+        return int(value), None
+    nearest = [t for t in (max((t for t in _LOGP_GRID_C if t < value), default=None),
+                           min((t for t in _LOGP_GRID_C if t > value), default=None)) if t is not None]
+    return None, tool_error(
+        tool, f"logP is tabulated at 25-160 °C in 5 °C steps and is not interpolated; {value:g} °C is not on that grid. "
+              f"Nearest: {' and '.join(f'{t} °C' for t in nearest)}.",
+        error_code="temperature_not_on_logp_grid", requested_temperature_c=value, nearest_grid_temperatures_c=nearest,
+        logp_grid_c="25-160 °C in 5 °C steps")
+
+
+@lru_cache(maxsize=4)
+def _file_sha256(path: str, mtime_ns: int, size: int) -> str:
+    import hashlib
+
+    digest = hashlib.sha256()
+    with open(path, "rb") as handle:
+        for block in iter(lambda: handle.read(1 << 22), b""):
+            digest.update(block)
+    return digest.hexdigest()
+
+
+def _temperature_release(tool: str) -> tuple[tuple[Path, dict[str, str]] | None, str | None]:
+    """The packed temperature extension and its metadata, or a refusal: none is packed, or it was packed against
+    another release than the asset served (its contaminants and its 25 °C check refer to that one).
+    DISSOLVE_PLASTCHEM_TEMPERATURE_ASSET points elsewhere (tests, a staged release)."""
+    path = Path(os.environ.get("DISSOLVE_PLASTCHEM_TEMPERATURE_ASSET") or _PLASTCHEM_TEMPERATURE_ASSET)
+    served = Path(os.environ.get("DISSOLVE_PLASTCHEM_ASSET") or _PLASTCHEM_ASSET)
+    if not path.is_file():
+        return None, tool_error(tool, "logP above 25 °C is not in DISSOLVE; only 25 °C is served.",
+                                error_code="logp_temperature_unavailable")
+    meta = {key.decode(): value.decode() for key, value in duckdb.connect().execute(
+        "SELECT key, value FROM parquet_kv_metadata(?)", [str(path)]).fetchall()}
+    stat = served.stat()
+    if meta.get("served_db_sha256") != _file_sha256(str(served), stat.st_mtime_ns, stat.st_size):
+        return None, tool_error(tool, "The temperature extension was packed against another PlastChem release than "
+                                      "the one served; it has to be packed again before logP above 25 °C is served.",
+                                error_code="logp_temperature_release_mismatch")
+    return (path, meta), None
+
+
+def _logp_at(con: duckdb.DuckDBPyConnection, release: tuple[Path, dict[str, str]], temperature_c: int,
+             keys: Sequence[str], solvent: str | None = None, polymer: str | None = None,
+             ) -> dict[tuple[str, str, str], float]:
+    """logP(solvent/polymer) at one grid temperature, (InChIKey, solvent, polymer) -> value, the stored hundredths back in
+    log units. Up to 500 contaminants are named in the query and the file is sorted by InChIKey, so only their row groups
+    are read; more read the whole cell."""
+    wanted = set(keys)
+    if not wanted:
+        return {}
+    sql = "SELECT inchikey, solvent, polymer, logp_x100 FROM read_parquet(?) WHERE temperature_c = ?"
+    params: list[Any] = [str(release[0]), temperature_c]
+    for column, value in (("solvent", solvent), ("polymer", polymer)):
+        if value is not None:
+            sql += f" AND {column} = ?"
+            params.append(value)
+    if len(wanted) <= 500:
+        sql += f" AND inchikey IN ({', '.join('?' * len(wanted))})"
+        params += sorted(wanted)
+    return {(key, s, p): x / 100 for key, s, p, x in con.execute(sql, params).fetchall() if key in wanted}
+
+
+def _boiling_points(release: tuple[Path, dict[str, str]]) -> dict[str, float]:
+    """The panel solvents' normal boiling points (°C) the cut was flagged with: the paper workbook's, which the served
+    miscibility's high-temperature regime also uses."""
+    return json.loads(release[1].get("solvent_boiling_points_c") or "{}")
+
+
+def _pressure_fields(require_atmospheric: Optional[bool]) -> dict[str, Any]:
+    """The pressure an answer above 25 °C assumed, in the solubility screens' words and policy names."""
+    return {"require_atmospheric": require_atmospheric,
+            "atmospheric_filter_policy": thermo._atmospheric_filter_policy_name(require_atmospheric),
+            "pressure_basis": thermo.pressure_basis(require_atmospheric)}
+
+
+def _boiling_refusal(tool: str, solvent: str, boiling: Optional[float], temperature_c: int,
+                     require_atmospheric: Optional[bool]) -> str | None:
+    """A one-solvent answer above 25 °C in a solvent the solubility screens would leave out at 1 atm: one boiling at or
+    below the temperature, or (require_atmospheric true) one without a recorded boiling point. The refusal gives the
+    boiling point, the highest grid temperature below it, and require_atmospheric false for the liquid under pressure
+    (owner, 2026-10-23: rows past the boiling point only when the user asks)."""
+    reason = thermo._atmospheric_exclusion_reason(boiling, temperature_c)
+    if not thermo._atmospheric_exclusion_applies(reason, require_atmospheric):
+        return None
+    # no pressure_basis here: its "send require_atmospheric false" hint had the agent resend the call on its own
+    policy = {"require_atmospheric": require_atmospheric,
+              "atmospheric_filter_policy": thermo._atmospheric_filter_policy_name(require_atmospheric)}
+    if boiling is None:
+        return tool_error(tool, f"{solvent} has no recorded boiling point, so require_atmospheric true leaves it out; "
+                                "leave require_atmospheric unset to keep it.",
+                          error_code="solvent_boiling_point_unknown", solvent=solvent, temperature_c=temperature_c,
+                          **policy)
+    below = max((t for t in _LOGP_GRID_C if t < boiling), default=None)
+    return tool_error(
+        tool, f"{solvent} boils at {boiling:g} °C at 1 atm, at or below {temperature_c} °C, so it is not a liquid there "
+              "at 1 atm. " + (f"The highest grid temperature below its boiling point is {below} °C. " if below else "")
+              + "Values for the liquid under pressure (require_atmospheric false) are given only when the user "
+                "mentions pressure or asks for them.",
+        error_code="solvent_boils_below_temperature", solvent=solvent, solvent_normal_boiling_point_c=boiling,
+        temperature_c=temperature_c, highest_grid_temperature_below_boiling_point_c=below, **policy)
+
+
+def _temperature_fields(release: tuple[Path, dict[str, str]], temperature_c: int, solvent: str | None,
+                        not_at: Sequence[Mapping[str, Any]], require_atmospheric: Optional[bool]) -> dict[str, Any]:
+    """What an answer above 25 °C states besides the rows: the release behind the values, the pressure assumed, the
+    contaminants the release does not cover yet (named rather than given a 25 °C value), and for one solvent its
+    boiling point, with a note when the values are for the liquid under pressure."""
+    meta = release[1]
+    fields: dict[str, Any] = {
+        "logp_temperature_release": {
+            "release": meta.get("release"), "status": meta.get("status"),
+            "contaminants": int(meta.get("contaminants") or 0),
+            "chunks_complete": meta.get("chunks_complete"), "chunks_total": meta.get("chunks_total"),
+            "release_sha256": meta.get("release_sha256"),
+            "basis": "openCOSMO-RS 24a at the stated temperature with the 25 °C surfaces, conformers and polymer "
+                     "ensembles; logP stored to 0.01",
+        },
+        **_pressure_fields(require_atmospheric),
+        "not_at_temperature_contaminants": list(not_at),
+    }
+    if solvent is not None:
+        boiling = _boiling_points(release).get(solvent)
+        fields["solvent_normal_boiling_point_c"] = boiling
+        fields["at_or_above_solvent_boiling_point"] = None if boiling is None else temperature_c >= boiling
+        if boiling is not None and temperature_c >= boiling:
+            fields["boiling_point_note"] = (f"{solvent} boils at {boiling:g} °C at 1 atm; at {temperature_c} °C the "
+                                            "logP holds for the liquid solvent under pressure.")
+    return fields
+
+
+def _require_atmospheric_refusal(tool: str, require_atmospheric: Any) -> str | None:
+    if require_atmospheric is None or isinstance(require_atmospheric, bool):
+        return None
+    return tool_error(tool, "require_atmospheric must be true or false.", error_code="invalid_require_atmospheric",
+                      supplied_value=require_atmospheric)
 
 
 def _plastchem_coverage(meta: dict[str, Any]) -> str:
@@ -1962,8 +2109,9 @@ def _resolve_plastchem(con: duckdb.DuckDBPyConnection, requested: Sequence[str]
     return chosen, families, unknown, ambiguous
 
 
-def lookup_plastchem_contaminants(contaminants: str | list[str], solvent: str | None = None) -> str:
-    """Look up PlastChem contaminants by name, CAS number, InChIKey, abbreviation or family (phthalates, antioxidants, ...): each one's name, CAS number, InChIKey, SMILES, molecular weight and families, and whether the openCOSMO-RS release computed it; with a solvent, also its miscibility with that solvent and its logP between the solvent and every polymer, no polymer needed (to rank every solvent for one polymer at once, call screen_contaminant_partitioning without a solvent)."""
+def lookup_plastchem_contaminants(contaminants: str | list[str], solvent: str | None = None,
+                                  temperature_c: float = 25.0, require_atmospheric: Optional[bool] = None) -> str:
+    """Look up PlastChem contaminants by name, CAS number, InChIKey, abbreviation or family (phthalates, antioxidants, ...): each one's name, CAS number, InChIKey, SMILES, molecular weight and families, and whether the openCOSMO-RS release computed it; with a solvent, also its miscibility with that solvent and its logP between the solvent and every polymer at temperature_c (25-160 °C in 5 °C steps, default 25; a solvent that boils at or below it is refused unless require_atmospheric is false, for the liquid under pressure), no polymer needed (to rank every solvent for one polymer at once, call screen_contaminant_partitioning without a solvent)."""
     tool = "lookup_plastchem_contaminants"
     con = _plastchem()
     if con is None:
@@ -1972,9 +2120,20 @@ def lookup_plastchem_contaminants(contaminants: str | list[str], solvent: str | 
     requested = _requested(contaminants)
     if not requested:
         return tool_error(tool, "Name at least one contaminant or family.", error_code="no_contaminants_named")
-    solvent_key = None
+    refusal = _require_atmospheric_refusal(tool, require_atmospheric)
+    if refusal is not None:
+        return refusal
+    solvent_key, logp_t, release = None, 25, None
     if solvent:
         solvent_key, refusal = _plastchem_solvent(con, solvent, tool)
+        if refusal is not None:
+            return refusal
+        logp_t, refusal = _logp_temperature(tool, temperature_c)
+        if refusal is None and logp_t != 25:
+            release, refusal = _temperature_release(tool)
+        if refusal is None and release is not None:
+            refusal = _boiling_refusal(tool, solvent_key, _boiling_points(release).get(solvent_key), logp_t,
+                                       require_atmospheric)
         if refusal is not None:
             return refusal
     chosen, families, unknown, ambiguous = _resolve_plastchem(con, requested)
@@ -1993,18 +2152,22 @@ def lookup_plastchem_contaminants(contaminants: str | list[str], solvent: str | 
     coverage = [_family_coverage(family, done, pending) for family in families]
     solvent_fields: dict[str, Any] = {}
     if solvent_key is not None:
-        _add_solvent_data(con, solvent_key, done)
+        not_at = _add_solvent_data(con, solvent_key, done, release, logp_t)
         solvent_fields = {
             "solvent": solvent_key,
             "solvent_method": "miscibility: the contaminant and the solvent alone, one liquid phase at 15 wt% or not, at "
                               "25 °C and at the solvent's high temperature, with the solubility in wt% where two phases "
                               "form. logP: log10 of the solvent/polymer concentration ratio for the neutral species at "
-                              "25 °C, positive favouring the solvent, one per polymer model; past ±6 the bound.",
+                              f"{logp_t} °C, positive favouring the solvent, one per polymer model; past ±6 the bound.",
         }
+        if release is not None:
+            solvent_fields.update(logp_temperature_c=float(logp_t),
+                                  **_temperature_fields(release, logp_t, solvent_key, not_at, require_atmospheric))
     return tool_success(
         tool,
         display=f"{len(rows)} PlastChem contaminants found, {len(done)} computed"
-                + (f"; in {solvent_key}." if solvent_key else "."),
+                + (f"; in {solvent_key}" + (f" at {logp_t} °C" if release is not None else "") + "."
+                   if solvent_key else "."),
         rows=rows, found=len(rows), computed=len(done), unsupported_contaminants=unknown,
         ambiguous_contaminants=ambiguous, **({"family_coverage": coverage} if coverage else {}), **solvent_fields,
         identity_basis="PubChem's names, CAS numbers, InChIKeys and SMILES as the PlastChem release records them; "
@@ -2012,19 +2175,29 @@ def lookup_plastchem_contaminants(contaminants: str | list[str], solvent: str | 
     )
 
 
-def _add_solvent_data(con: duckdb.DuckDBPyConnection, solvent_key: str, rows: list[dict[str, Any]]) -> None:
+def _add_solvent_data(con: duckdb.DuckDBPyConnection, solvent_key: str, rows: list[dict[str, Any]],
+                      release: tuple[Path, dict[str, str]] | None = None, temperature_c: int = 25,
+                      ) -> list[dict[str, Any]]:
     """Give each computed row its miscibility with one solvent and its logP between that solvent and every polymer
-    model. LDPE and HDPE share one polyethylene model, so they share a column."""
+    model, at 25 °C from the served table or at another grid temperature from the temperature extension (a row that
+    has none there gets no logP and is returned, named). LDPE and HDPE share one polyethylene model, so they share a
+    column."""
     labels: dict[str, list[str]] = {}
     for product, campaign in con.execute("SELECT product, campaign FROM polymers ORDER BY product").fetchall():
         labels.setdefault(campaign, []).append(product)
     label = {campaign: "/".join(products) for campaign, products in labels.items()}
     keys = [row["inchikey"] for row in rows]
     logp: dict[str, dict[str, Any]] = {}
-    for key, polymer, value in con.execute(
+    if release is None:
+        values = con.execute(
             """SELECT c.inchikey, p.polymer, p.logp FROM partition p JOIN contaminants c ON c.id = p.id
                WHERE p.solvent = ? AND c.inchikey IN (SELECT unnest(?)) ORDER BY p.polymer""",
-            [solvent_key, keys]).fetchall():
+            [solvent_key, keys]).fetchall()
+    else:
+        values = sorted(((key, polymer, value) for (key, _, polymer), value in
+                         _logp_at(con, release, temperature_c, keys, solvent=solvent_key).items()),
+                        key=lambda item: item[1])
+    for key, polymer, value in values:
         logp.setdefault(key, {})[label.get(polymer, polymer)] = bounded_log(value)
     miscibility: dict[str, list[dict[str, Any]]] = {}
     for key, regime, temperature, status, miscible, weight in con.execute(
@@ -2036,7 +2209,9 @@ def _add_solvent_data(con: duckdb.DuckDBPyConnection, solvent_key: str, rows: li
             "solubility_wt_pct": weight if status == "two_liquid_phases" else None, "state": status})
     for row in rows:
         row["in_solvent"] = {"miscibility": miscibility.get(row["inchikey"], []),
-                             "logp_solvent_over_polymer": logp.get(row["inchikey"], {})}
+                             "logp_solvent_over_polymer": logp.get(row["inchikey"], {} if release is None else None)}
+    return [{"contaminant": row["contaminant"], "inchikey": row["inchikey"]}
+            for row in rows if release is not None and row["inchikey"] not in logp]
 
 
 _VERDICT_ORDER = {"leaches": 0, "undetermined": 1, "not miscible": 2, "stays in polymer": 3, "polymer dissolves": 4}
@@ -2045,9 +2220,12 @@ _SWEEP_LIMIT = 60  # contaminants per all-solvent screen: 60 x 32 solvents keeps
 
 def _partition_screen(con: duckdb.DuckDBPyConnection, product: str, campaign: str, solvent_key: str,
                       chosen: Sequence[int], families: Sequence[Mapping[str, Any]], temperature_c: float,
-                      ) -> tuple[list[dict[str, Any]], list[dict[str, Any]], dict[str, Any], str, dict[str, Any]]:
+                      release: tuple[Path, dict[str, str]] | None = None,
+                      ) -> tuple[list[dict[str, Any]], list[dict[str, Any]], dict[str, Any], str, dict[str, Any],
+                                 list[dict[str, Any]]]:
     """One polymer into one solvent: a row per computed contaminant, the ones the release did not compute, the polymer's
-    state in that solvent, the miscibility regime used and every regime's temperature."""
+    state in that solvent, the miscibility regime used, every regime's temperature, and, above 25 °C, the computed
+    contaminants the temperature extension does not hold (they get no row: a 25 °C logP is not stood in for them)."""
     regimes = dict(con.execute("SELECT regime, max(temperature_c) FROM lle WHERE solvent = ? GROUP BY 1",
                                [solvent_key]).fetchall())
     high = regimes.get("high")
@@ -2063,11 +2241,20 @@ def _partition_screen(con: duckdb.DuckDBPyConnection, product: str, campaign: st
            WHERE c.id IN (SELECT unnest(?))""",
         [solvent_key, campaign, solvent_key, regime, sorted(set(chosen))],
     ).fetchall()
+    at, not_at = None, []
+    if release is not None:
+        at = _logp_at(con, release, int(temperature_c), [record[0] for record in records if record[4]],
+                      solvent=solvent_key, polymer=campaign)
     for inchikey, name, cas, smiles, computed, status, reason, logp, logp_status, miscible, lle_status, wt in records:
         if not computed:
             not_computed.append({"contaminant": name, "inchikey": inchikey, "campaign_status": status,
                                  "reason": reason})
             continue
+        if at is not None:
+            logp = at.get((inchikey, solvent_key, campaign))
+            if logp is None:
+                not_at.append({"contaminant": name, "inchikey": inchikey})
+                continue
         rows.append({
             "contaminant": name, "inchikey": inchikey, "cas": cas, "smiles": smiles,
             "logp_solvent_over_polymer": logp, "partition_coefficient_k": _partition_coefficient(logp),
@@ -2080,7 +2267,7 @@ def _partition_screen(con: duckdb.DuckDBPyConnection, product: str, campaign: st
         if families:
             names = [family["name"] for family in families if inchikey in family["members"]]
             rows[-1]["family"] = ", ".join(names) or None
-    return rows, not_computed, state, regime, regimes
+    return rows, not_computed, state, regime, regimes, sorted(not_at, key=lambda item: item["contaminant"].lower())
 
 
 def _sort_by_verdict(rows: list[dict[str, Any]]) -> None:
@@ -2089,10 +2276,13 @@ def _sort_by_verdict(rows: list[dict[str, Any]]) -> None:
 
 def _partition_sweep(con: duckdb.DuckDBPyConnection, tool: str, product: str, mapped: Sequence[Any],
                      solvents: list[str], contaminants: str | list[str] | None, temperature_c: float,
-                     *, selection: Optional[set[int]] = None, structure_fields: Optional[dict[str, Any]] = None) -> str:
+                     *, selection: Optional[set[int]] = None, structure_fields: Optional[dict[str, Any]] = None,
+                     release: tuple[Path, dict[str, str]] | None = None,
+                     require_atmospheric: Optional[bool] = None) -> str:
     """Every panel solvent, or the ones listed, for the named contaminants (or a structural class): which solvents
     pull them out of the polymer. "Which solvents separate bisphenol A from EVOH?" took 20 one-solvent calls and hit
-    the 30-round limit with no answer (2026-10-05); this ranks the 32 panel solvents in one call."""
+    the 30-round limit with no answer (2026-10-05); this ranks the 32 panel solvents in one call. Above 25 °C a solvent
+    the solubility screens would leave out at 1 atm is left out here too, and listed with its boiling point."""
     requested = _requested(contaminants)
     every = not requested or [_key(item) for item in requested] == ["all"]
     if every and selection is None:
@@ -2125,14 +2315,27 @@ def _partition_sweep(con: duckdb.DuckDBPyConnection, tool: str, product: str, ma
                                 f"{_SWEEP_LIMIT}, or name one solvent to screen them all.",
                           error_code="too_many_contaminants_to_rank_solvents", contaminants_resolved=len(set(chosen)),
                           limit=_SWEEP_LIMIT)
-    rows, not_computed, states = [], {}, {}
+    rows, not_computed, states, not_at = [], {}, {}, {}
+    boiling = _boiling_points(release) if release is not None else {}
+    screened, excluded, excluded_unknown = [], [], []
     for key in keys:
-        part, missing, state, regime, _ = _partition_screen(con, product, mapped[0], key, chosen, families,
-                                                            temperature_c)
+        if release is not None and thermo._atmospheric_exclusion_applies(
+                thermo._atmospheric_exclusion_reason(boiling.get(key), temperature_c), require_atmospheric):
+            if boiling.get(key) is None:
+                excluded_unknown.append(key)
+            else:
+                excluded.append({"solvent": key, "normal_boiling_point_c": boiling[key]})
+            continue
+        screened.append(key)
+        part, missing, state, regime, _, absent = _partition_screen(con, product, mapped[0], key, chosen, families,
+                                                                    temperature_c, release)
         states[key] = {"status": state["status"], "solubility_wt_pct": state.get("solubility_wt_pct"),
                        "miscibility_regime": regime}
-        rows.extend({"solvent": key, "polymer_state": state["status"], **row} for row in part)
+        extra = {} if release is None else {
+            "at_or_above_solvent_boiling_point": None if boiling.get(key) is None else temperature_c >= boiling[key]}
+        rows.extend({"solvent": key, "polymer_state": state["status"], **row, **extra} for row in part)
         not_computed.update((item["inchikey"], item) for item in missing)
+        not_at.update((item["inchikey"], item) for item in absent)
     _sort_by_verdict(rows)
     leaching: dict[str, list[str]] = {}
     for row in rows:
@@ -2143,25 +2346,47 @@ def _partition_sweep(con: duckdb.DuckDBPyConnection, tool: str, product: str, ma
         row["logp_solvent_over_polymer"] = bounded_log(row["logp_solvent_over_polymer"])
     named = sorted({row["contaminant"] for row in rows})
     best = {name: hits[0] for name, hits in leaching.items()}
+    logp_t = 25 if release is None else int(temperature_c)
+    temperature_fields: dict[str, Any] = {}
+    if release is not None:
+        hot = {key: boiling[key] for key in screened if boiling.get(key) is not None and logp_t >= boiling[key]}
+        notes = [f"{len(excluded)} of the solvents boil at or below {logp_t} °C at 1 atm and are left out "
+                 "(solvents_excluded_for_boiling_point); require_atmospheric false includes them, for the liquid "
+                 "under pressure, when the user mentions pressure or asks for them."] if excluded else []
+        notes += [f"{len(excluded_unknown)} solvents without a recorded boiling point are left out by "
+                  "require_atmospheric true."] if excluded_unknown else []
+        notes += ["Rows with at_or_above_solvent_boiling_point true hold for the liquid solvent under pressure."
+                  ] if hot else []
+        temperature_fields = {
+            **_temperature_fields(release, logp_t, None, sorted(not_at.values(), key=lambda item: item["contaminant"].lower()),
+                                  require_atmospheric),
+            "solvents_excluded_for_boiling_point": excluded,
+            **({"solvents_excluded_for_missing_boiling_point": excluded_unknown} if excluded_unknown else {}),
+            "solvents_at_or_above_boiling_point": hot,
+            **({"boiling_point_note": " ".join(notes)} if notes else {}),
+        }
     return tool_success(
         tool,
-        display=(f"{len(keys)} solvents for {len(named)} PlastChem contaminant(s) in {product}: "
+        display=(f"{len(screened)} solvents for {len(named)} PlastChem contaminant(s) in {product}"
+                 + (f" at {logp_t} °C" if release is not None else "") + ": "
                  f"{verdicts['leaches']} solvent-contaminant pairs leach"
-                 + (f"; best {', '.join(f'{name}: {key}' for name, key in best.items())}" if best else "") + "."),
+                 + (f"; best {', '.join(f'{name}: {key}' for name, key in best.items())}" if best else "") + "."
+                 + (f" {len(excluded)} solvents boiling at or below {logp_t} °C left out." if excluded else "")),
         mode="solvent_ranking", polymer=product,
         polymer_model=f"{mapped[0]} oligomer ensemble ({mapped[1]} conformers)",
         polymer_model_shared_with_other_materials=bool(mapped[2]),
-        temperature_c=temperature_c, logp_temperature_c=25.0, solvents_screened=len(keys),
+        temperature_c=temperature_c, logp_temperature_c=float(logp_t), solvents_screened=len(screened),
         contaminants_screened=named, evaluated=len(rows), verdict_counts=verdicts,
         solvents_where_it_leaches=leaching,
-        polymer_dissolves_in=[key for key in keys if states[key]["status"] == "dissolving"],
+        polymer_dissolves_in=[key for key in screened if states[key]["status"] == "dissolving"],
         polymer_state_by_solvent=states, polymer_state_basis="stored COSMO-RS polymer solubility grid (legacy)",
         rows=rows, unsupported_contaminants=unknown, ambiguous_contaminants=ambiguous,
         unsupported_solvents=unsupported_solvents, not_computed_contaminants=list(not_computed.values()),
+        **temperature_fields,
         **(structure_fields or {}),
         method="Rows are ranked: solvents where the contaminant leaches first, highest logP(solvent/polymer) first. "
                "Leaches when logP(solvent/polymer) > 0, the contaminant is miscible with the solvent at 15 wt%, and "
-               "the polymer does not dissolve; logP is for the neutral species at 25 °C and K = 10^logP. "
+               f"the polymer does not dissolve; logP is for the neutral species at {logp_t} °C and K = 10^logP. "
                "solvents_where_it_leaches lists them in that order. polymer_dissolves_in lists solvents that "
                "dissolve the polymer instead, the route for separating by dissolution and precipitation.",
     )
@@ -2175,8 +2400,9 @@ def screen_contaminant_partitioning(
     functional_groups: str | list[str] | None = None,
     mw_min_g_mol: Optional[float] = None,
     mw_max_g_mol: Optional[float] = None,
+    require_atmospheric: Optional[bool] = None,
 ) -> str:
-    """Screen PlastChem contaminants for leaching from one polymer: with one solvent, all of them, those named, whole families (phthalates, terephthalates, bisphenols, alkylphenols, antioxidants, UV stabilizers, benzophenones, aromatic amines, slip agents, salicylates, parabens, organophosphates, siloxanes and silanes, azo dyes, benzothiazoles), or a structural class by elements, functional groups or molecular weight; leave the solvent out (or list several) to rank every panel solvent for the named contaminants in one call."""
+    """Screen PlastChem contaminants for leaching from one polymer: with one solvent, all of them, those named, whole families (phthalates, terephthalates, bisphenols, alkylphenols, antioxidants, UV stabilizers, benzophenones, aromatic amines, slip agents, salicylates, parabens, organophosphates, siloxanes and silanes, azo dyes, benzothiazoles), or a structural class by elements, functional groups or molecular weight; leave the solvent out (or list several) to rank every panel solvent for the named contaminants in one call; temperature_c (25-160 °C in 5 °C steps, default 25) sets the temperature of the logP, the miscibility regime and the polymer state, and above 25 °C solvents that boil at or below it are left out unless require_atmospheric is false (the liquid under pressure)."""
     from . import contaminant_search  # imports this module; loaded here, not at import time
 
     tool = "screen_contaminant_partitioning"
@@ -2184,6 +2410,15 @@ def screen_contaminant_partitioning(
     if con is None:
         return tool_error(tool, "The PlastChem contaminant release has not been promoted into DISSOLVE yet.",
                           error_code="plastchem_data_unavailable")
+    refusal = _require_atmospheric_refusal(tool, require_atmospheric)
+    if refusal is not None:
+        return refusal
+    logp_t, refusal = _logp_temperature(tool, temperature_c)
+    release = None
+    if refusal is None and logp_t != 25:  # 25 °C stays on the served table, so those answers do not change
+        release, refusal = _temperature_release(tool)
+    if refusal is not None:
+        return refusal
     structure, refusal = contaminant_search.structure_filters(
         elements, exclude_elements, functional_groups, mw_min_g_mol, mw_max_g_mol,
     )
@@ -2207,8 +2442,12 @@ def screen_contaminant_partitioning(
     solvents = _requested(solvent)
     if not solvents or len(solvents) > 1 or _key(solvents[0]) == "all":
         return _partition_sweep(con, tool, product, mapped, solvents, contaminants, temperature_c,
-                                selection=selection, structure_fields=structure_fields)
+                                selection=selection, structure_fields=structure_fields, release=release,
+                                require_atmospheric=require_atmospheric)
     solvent_key, refusal = _plastchem_solvent(con, solvents[0], tool)
+    if refusal is None and release is not None:
+        refusal = _boiling_refusal(tool, solvent_key, _boiling_points(release).get(solvent_key), logp_t,
+                                   require_atmospheric)
     if refusal is not None:
         return refusal
     requested = _requested(contaminants)
@@ -2220,8 +2459,8 @@ def screen_contaminant_partitioning(
     if selection is not None:  # a structural class: only its members, within any names or families given
         chosen = [cid for cid in chosen if cid in selection]
         families = []  # a narrowed family's coverage would read as missing members; the filter describes the set
-    rows, not_computed, state, regime, regimes = _partition_screen(
-        con, product, mapped[0], solvent_key, chosen, families, temperature_c)
+    rows, not_computed, state, regime, regimes, not_at = _partition_screen(
+        con, product, mapped[0], solvent_key, chosen, families, temperature_c, release)
     order = _VERDICT_ORDER
     _sort_by_verdict(rows)
     verdicts = {name: sum(row["leaching_verdict"] == name for row in rows) for name in order}
@@ -2234,13 +2473,19 @@ def screen_contaminant_partitioning(
     meta = dict(con.execute("SELECT key, value FROM metadata").fetchall())
     asked = f" ({', '.join(family['term'] for family in families)})" if families else ""
     coverage = [_family_coverage(family, rows, not_computed) for family in families]
+    temperature_fields: dict[str, Any] = {}
+    if release is not None:
+        temperature_fields = _temperature_fields(release, logp_t, solvent_key, not_at, require_atmospheric)
+        for item, family in zip(coverage, families):  # members held back above 25 °C are counted, not lost
+            item["not_at_temperature"] = sum(entry["inchikey"] in family["members"] for entry in not_at)
     return tool_success(
         tool,
-        display=(f"{len(rows)} PlastChem contaminants{asked}, {product} into {solvent_key}: "
-                 f"{verdicts['leaches']} leach."),
+        display=(f"{len(rows)} PlastChem contaminants{asked}, {product} into {solvent_key}"
+                 + (f" at {logp_t} °C" if release is not None else "") + f": {verdicts['leaches']} leach."
+                 + (f" {len(not_at)} more are not in the temperature extension yet." if not_at else "")),
         polymer=product, polymer_model=f"{mapped[0]} oligomer ensemble ({mapped[1]} conformers)",
         polymer_model_shared_with_other_materials=bool(mapped[2]),
-        solvent=solvent_key, temperature_c=temperature_c, logp_temperature_c=25.0,
+        solvent=solvent_key, temperature_c=temperature_c, logp_temperature_c=float(logp_t), **temperature_fields,
         miscibility_regime=regime, miscibility_temperature_c=regimes.get(regime), miscibility_basis=_MISCIBLE_BASIS,
         polymer_state=state, polymer_state_basis="stored COSMO-RS polymer solubility grid (legacy)",
         served_convention=meta.get("served_convention"), release_status=meta.get("release_status"),
@@ -2252,7 +2497,7 @@ def screen_contaminant_partitioning(
         **structure_fields,
         coverage=_plastchem_coverage(meta),
         method="Leaches when logP(solvent/polymer) > 0, the contaminant is miscible with the solvent at 15 wt%, "
-               "and the polymer does not dissolve; logP is for the neutral species at 25 °C. logP is log10 of the "
+               f"and the polymer does not dissolve; logP is for the neutral species at {logp_t} °C. logP is log10 of the "
                "solvent/polymer concentration ratio and K = 10^logP. near_even_count counts |logP| < 0.5 "
                "(K 0.3-3), a nearly even split whatever the verdict. Past ±6 values are shown as bounds: "
                "effectively all in one phase.",

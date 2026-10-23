@@ -1319,6 +1319,24 @@ def test_system_prompt_gives_a_partition_its_size_and_claims_only_the_validation
     assert "validated against the COSMOtherm workbook" not in prompt
 
 
+def test_system_prompt_gives_the_logp_temperature_grid_and_what_an_answer_above_25_c_must_say():
+    """The 25-160 °C extension reached the partition tools (2026-10-23): the prompt names the grid and that it is never
+    interpolated, forbids a 25 °C value in place of a missing hot one, and names the release. Solvents that boil at or
+    below the temperature are left out unless the user mentions pressure (owner), beside the solubility screens' rule."""
+    prompt = " ".join(agent.SYSTEM_PROMPT.split())
+    assert "(25 to 160 °C in 5 °C steps, never interpolated: for 37 °C the refusal names 35 and 40 °C" in prompt
+    assert "never give its 25 °C value as the hot one" in prompt
+    assert "Name the temperature release the values come from" in prompt
+    rule = ("ask the first screen for options that stay liquid there at 1 atm (require_atmospheric) unless the user "
+            "mentions pressure, so you screen once. Contaminant screens and lookups above 25 °C leave out a solvent "
+            "that boils at or below the temperature unless the user mentions pressure or asks for it: then pass "
+            "require_atmospheric false and say the values hold for the liquid under pressure. Say which solvents "
+            "were left out. Never send require_atmospheric false on your own after such a refusal: give the boiling "
+            "point and the highest grid temperature below it, and offer the values under pressure.")
+    assert rule in prompt
+    assert "above_solvent_boiling_point" not in prompt
+
+
 def test_turn_record_every_result_exact_ordered_durable():
     session = new_session()
     with bind_tool_session(session) as rec:

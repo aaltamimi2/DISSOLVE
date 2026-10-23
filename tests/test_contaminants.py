@@ -4622,8 +4622,12 @@ def test_plastchem_screen_serves_one_polymer_one_solvent(tmp_path, monkeypatch):
     as_json = _data(contaminants.screen_contaminant_partitioning("LDPE", "dodecane", '["Alphaester", "1,6-nope"]'))
     assert [row["contaminant"] for row in as_json["rows"]] == ["Alphaester"]
     assert as_json["unsupported_contaminants"] == ["1,6-nope"]  # a comma inside a name is not a separator
+    packed = tmp_path / "temperature.parquet"  # logP at 120 °C comes from the temperature extension (2026-10-23)
+    plastchem_release.promote_temperature_release(_temperature_cut(tmp_path, asset), packed, served=asset)
+    monkeypatch.setenv("DISSOLVE_PLASTCHEM_TEMPERATURE_ASSET", str(packed))
     hot = _data(contaminants.screen_contaminant_partitioning("LDPE", "dodecane", ["Alphaester"], temperature_c=120.0))
     assert hot["miscibility_regime"] == "high" and hot["rows"][0]["leaching_verdict"] == "polymer dissolves"
+    assert hot["logp_temperature_c"] == 120.0 and hot["rows"][0]["logp_solvent_over_polymer"] == 1.18
     assert _data(contaminants.screen_contaminant_partitioning("LDPE", "anisole"))["error_code"] == "solvent_not_in_panel"
     assert _data(contaminants.screen_contaminant_partitioning("PET", "dodecane"))["error_code"] == "polymer_not_in_release"
 
@@ -4676,6 +4680,182 @@ def _reseal(rel):
     manifest["files"] = {path.name: {"sha256": hashlib.sha256(path.read_bytes()).hexdigest()}
                          for path in rel.iterdir() if path.name != "manifest.json"}
     (rel / "manifest.json").write_text(json.dumps(manifest))
+
+
+def _temperature_cut(root, asset, *, skip=(), name="partition_by_temperature.duckdb"):
+    """A cut of the temperature extension for a test asset, in the delivery schema: each served logP plus 0.02 per 5 °C
+    step, and at 25 °C 0.07 off the served value, so an answer at 25 °C read from the cut instead of the served table
+    would show. Toluene boils at 110.6 °C, dodecane at 216.3 °C. `skip` leaves contaminants out (a partial cut)."""
+    served = duckdb.connect(str(asset), read_only=True)
+    cells = served.execute("""SELECT p.id, c.inchikey, p.solvent, p.polymer, p.logp FROM partition p
+                              JOIN contaminants c USING (id) WHERE c.computed""").fetchall()
+    served.close()
+    boiling = {"dodecane": 216.3, "toluene": 110.6}
+    path = root / name
+    con = duckdb.connect(str(path))
+    con.execute("CREATE TABLE partition_by_temperature (id INTEGER, solvent VARCHAR, polymer VARCHAR, "
+                "temperature_c SMALLINT, logp_x100 SMALLINT, above_boiling_point BOOLEAN)")
+    con.executemany("INSERT INTO partition_by_temperature VALUES (?, ?, ?, ?, ?, ?)", [
+        (cid, solvent, polymer, t, round(logp * 100) + (7 if t == 25 else 2 * (t - 25) // 5), t > boiling[solvent])
+        for cid, key, solvent, polymer, logp in cells if key not in skip for t in range(25, 165, 5)])
+    con.execute("CREATE TABLE solvents (solvent VARCHAR, normal_boiling_point_c DOUBLE, molar_volume_cm3_mol DOUBLE)")
+    con.executemany("INSERT INTO solvents VALUES (?, ?, ?)", [(s, b, 100.0) for s, b in boiling.items()])
+    meta = {"release": "1", "status": "partial", "chunks_complete": "1", "chunks_total": "2",
+            "contaminants": str(len({cid for cid, key, *_ in cells if key not in skip})),
+            "served_db_sha256": hashlib.sha256(asset.read_bytes()).hexdigest()}
+    con.execute("CREATE TABLE metadata (key VARCHAR, value VARCHAR)")
+    con.executemany("INSERT INTO metadata VALUES (?, ?)", sorted(meta.items()))
+    con.close()
+    return path
+
+
+def test_temperature_extension_is_packed_only_whole_and_against_the_release_it_was_cut_from(tmp_path):
+    """The temperature extension (25-160 °C, 2026-10-23) arrives as cuts of 141 MB and more; the asset packs one into a
+    zstd Parquet keyed by InChIKey, and refuses a cut made against another served release or one missing a cell."""
+    asset = tmp_path / "asset.duckdb"
+    plastchem_release.promote_opencosmo_release(_plastchem_release(tmp_path), asset)
+    cut = _temperature_cut(tmp_path, asset)
+    out = tmp_path / "temperature.parquet"
+    info = plastchem_release.promote_temperature_release(cut, out, served=asset)
+    assert (info["rows"], info["contaminants"], info["status"]) == (4 * 2 * 2 * 28, 4, "partial")
+    con = duckdb.connect()
+    meta = {k.decode(): v.decode() for k, v in con.execute(
+        "SELECT key, value FROM parquet_kv_metadata(?)", [str(out)]).fetchall()}
+    assert json.loads(meta["solvent_boiling_points_c"]) == {"dodecane": 216.3, "toluene": 110.6}
+    assert meta["release_sha256"] == hashlib.sha256(cut.read_bytes()).hexdigest()
+    keys = [key for (key,) in con.execute("SELECT inchikey FROM read_parquet(?)", [str(out)]).fetchall()]
+    assert keys == sorted(keys)  # a few contaminants read a few row groups
+    other = tmp_path / "other"
+    other.mkdir()
+    plastchem_release.promote_opencosmo_release(_plastchem_release(other, logp={"AAAA-A": 1.0}), other / "asset.duckdb")
+    with pytest.raises(ValueError, match="was cut against served asset"):
+        plastchem_release.promote_temperature_release(cut, tmp_path / "x.parquet", served=other / "asset.duckdb")
+    edit = duckdb.connect(str(cut))  # one cell moved to another temperature: the row count still matches
+    edit.execute("UPDATE partition_by_temperature SET temperature_c = 65 WHERE id = 1 AND solvent = 'toluene' "
+                 "AND polymer = 'pp' AND temperature_c = 60")
+    edit.close()
+    with pytest.raises(ValueError, match="1 contaminants in partition_by_temperature.duckdb lack part of the 112-cell"):
+        plastchem_release.promote_temperature_release(cut, tmp_path / "x.parquet", served=asset)
+    assert not (tmp_path / "x.parquet").exists() and not (tmp_path / "x.tmp").exists()
+
+
+def test_plastchem_screen_reads_logp_at_the_requested_temperature_and_25_c_from_the_served_table(tmp_path, monkeypatch):
+    """The owner asked for the 25-160 °C logP in the same tools (2026-10-23). 25 °C answers stay byte-identical: they
+    never read the extension, whose 25 °C values here are 0.07 off. Another grid temperature reads it; a temperature
+    off the 5 °C grid is refused with its neighbours, never interpolated."""
+    asset = tmp_path / "asset.duckdb"
+    monkeypatch.setenv("DISSOLVE_PLASTCHEM_ASSET", str(asset))
+    monkeypatch.setenv("DISSOLVE_PLASTCHEM_TEMPERATURE_ASSET", str(tmp_path / "absent.parquet"))
+    plastchem_release.promote_opencosmo_release(_plastchem_release(tmp_path), asset)
+    contaminants._LOCAL.__dict__.pop("plastchem", None)
+    screen, lookup = contaminants.screen_contaminant_partitioning, contaminants.lookup_plastchem_contaminants
+    before = (screen("LDPE", "toluene"), screen("PP", None, ["Alphaester", "Gammaol"]), lookup(["Alphaester"], "toluene"))
+    assert _data(screen("LDPE", "toluene", temperature_c=60))["error_code"] == "logp_temperature_unavailable"
+    packed = tmp_path / "temperature.parquet"
+    plastchem_release.promote_temperature_release(_temperature_cut(tmp_path, asset), packed, served=asset)
+    monkeypatch.setenv("DISSOLVE_PLASTCHEM_TEMPERATURE_ASSET", str(packed))
+    assert (screen("LDPE", "toluene", temperature_c=25.0), screen("PP", None, ["Alphaester", "Gammaol"]),
+            lookup(["Alphaester"], "toluene", temperature_c=25.0)) == before
+    hot = _data(screen("LDPE", "toluene", temperature_c=60))
+    assert {row["contaminant"]: row["logp_solvent_over_polymer"] for row in hot["rows"]} == {
+        "Alphaester": 0.94, "Betaamide": -0.16, "Gammaol": 0.64, "Deltaone": 0.54}
+    assert (hot["logp_temperature_c"], hot["at_or_above_solvent_boiling_point"],
+            hot["not_at_temperature_contaminants"]) == (60.0, False, [])
+    assert "neutral species at 60 °C" in hot["method"] and hot["logp_temperature_release"]["status"] == "partial"
+    looked = _data(lookup(["Alphaester"], "toluene", temperature_c=60))
+    assert looked["rows"][0]["in_solvent"]["logp_solvent_over_polymer"] == {"HDPE/LDPE": 0.94, "PP": 0.94}
+    for value, nearest in ((37, [35, 40]), (20, [25]), (170, [160])):
+        refused = _data(screen("LDPE", "toluene", temperature_c=value))
+        assert refused["error_code"] == "temperature_not_on_logp_grid"
+        assert refused["nearest_grid_temperatures_c"] == nearest
+    assert _data(lookup(["Alphaester"], "toluene", temperature_c=37.5))["error_code"] == "temperature_not_on_logp_grid"
+    assert _data(screen("LDPE", "toluene", temperature_c=math.nan))["error_code"] == "invalid_temperature"
+    other = tmp_path / "other"  # packed against another served release: refused, not read with the wrong ids
+    other.mkdir()
+    plastchem_release.promote_opencosmo_release(_plastchem_release(other, logp={"AAAA-A": 1.0}), other / "asset.duckdb")
+    monkeypatch.setenv("DISSOLVE_PLASTCHEM_ASSET", str(other / "asset.duckdb"))
+    contaminants._LOCAL.__dict__.pop("plastchem", None)
+    assert _data(screen("LDPE", "toluene", temperature_c=60))["error_code"] == "logp_temperature_release_mismatch"
+
+
+def test_a_contaminant_the_temperature_extension_lacks_is_named_and_a_boiling_solvent_is_left_out(tmp_path, monkeypatch):
+    """A partial cut covers some contaminants: above 25 °C the others are listed, with no row and no 25 °C value in
+    their place. A solvent that boils at or below the temperature is left out unless asked for, as the solubility
+    screens do (owner, 2026-10-23): one solvent is refused with its boiling point and the highest grid temperature
+    below it; a ranking drops it and lists it; require_atmospheric false gives the values for the liquid under
+    pressure, flagged. Toluene boils at 110.6 °C here, dodecane at 216.3 °C."""
+    asset = tmp_path / "asset.duckdb"
+    monkeypatch.setenv("DISSOLVE_PLASTCHEM_ASSET", str(asset))
+    plastchem_release.promote_opencosmo_release(_plastchem_release(tmp_path), asset)
+    packed = tmp_path / "temperature.parquet"
+    plastchem_release.promote_temperature_release(_temperature_cut(tmp_path, asset, skip={"DDDD-D"}), packed, served=asset)
+    monkeypatch.setenv("DISSOLVE_PLASTCHEM_TEMPERATURE_ASSET", str(packed))
+    contaminants._LOCAL.__dict__.pop("plastchem", None)
+    screen, lookup = contaminants.screen_contaminant_partitioning, contaminants.lookup_plastchem_contaminants
+    refused = _data(screen("LDPE", "toluene", temperature_c=120))
+    assert refused["error_code"] == "solvent_boils_below_temperature"
+    assert (refused["solvent_normal_boiling_point_c"], refused["highest_grid_temperature_below_boiling_point_c"]) == (
+        110.6, 110)
+    assert refused["require_atmospheric"] is None and "require_atmospheric false" in refused["error"]
+    assert _data(lookup(["Alphaester"], "toluene", temperature_c=120))["error_code"] == "solvent_boils_below_temperature"
+    hot = _data(screen("LDPE", "toluene", temperature_c=120, require_atmospheric=False))
+    assert sorted(row["contaminant"] for row in hot["rows"]) == ["Alphaester", "Betaamide", "Gammaol"]
+    assert hot["not_at_temperature_contaminants"] == [{"contaminant": "Deltaone", "inchikey": "DDDD-D"}]
+    assert hot["at_or_above_solvent_boiling_point"] is True and "toluene boils at 110.6 °C" in hot["boiling_point_note"]
+    assert hot["pressure_basis"].startswith("Pressure allowed")
+    below = _data(screen("LDPE", "toluene", temperature_c=110))  # the grid point under the boiling point
+    assert below["at_or_above_solvent_boiling_point"] is False and below["pressure_basis"].startswith("1 atm")
+    ranked = _data(screen("LDPE", None, ["Alphaester", "Deltaone"], temperature_c=120))
+    assert ranked["solvents_excluded_for_boiling_point"] == [{"solvent": "toluene", "normal_boiling_point_c": 110.6}]
+    assert {row["solvent"] for row in ranked["rows"]} == {"dodecane"} and ranked["solvents_screened"] == 1
+    assert "require_atmospheric false includes them" in ranked["boiling_point_note"]
+    assert ranked["not_at_temperature_contaminants"] == [{"contaminant": "Deltaone", "inchikey": "DDDD-D"}]
+    pressed = _data(screen("LDPE", None, ["Alphaester", "Deltaone"], temperature_c=120, require_atmospheric=False))
+    assert {(row["solvent"], row["at_or_above_solvent_boiling_point"]) for row in pressed["rows"]} == {
+        ("dodecane", False), ("toluene", True)}
+    assert pressed["solvents_excluded_for_boiling_point"] == [] and pressed["solvents_at_or_above_boiling_point"] == {
+        "toluene": 110.6}
+    looked = _data(lookup(["Alphaester", "Deltaone"], "toluene", temperature_c=120, require_atmospheric=False))
+    assert {row["contaminant"]: row["in_solvent"]["logp_solvent_over_polymer"] for row in looked["rows"]} == {
+        "Alphaester": {"HDPE/LDPE": 1.18, "PP": 1.18}, "Deltaone": None}
+    assert looked["not_at_temperature_contaminants"] == [{"contaminant": "Deltaone", "inchikey": "DDDD-D"}]
+    assert _data(screen("LDPE", "dodecane", temperature_c=120))["at_or_above_solvent_boiling_point"] is False
+    assert _data(screen("LDPE", "toluene", temperature_c=120, require_atmospheric="no"))["error_code"] == (
+        "invalid_require_atmospheric")
+
+
+def test_ethanol_is_left_out_at_120_c_by_default_and_dmso_is_not():
+    """On the shipped assets: ethanol (78.2 °C) leaves a 120 °C ranking for bisphenol A and comes back with
+    require_atmospheric false; one-solvent ethanol at 120 °C is refused with 75 °C as the highest grid point below its
+    boiling point; DMSO (189 °C) at 120 °C is answered as before."""
+    screen = contaminants.screen_contaminant_partitioning
+    ranked = _data(screen("LDPE", None, ["bisphenol A"], temperature_c=120))
+    left_out = {item["solvent"]: item["normal_boiling_point_c"] for item in ranked["solvents_excluded_for_boiling_point"]}
+    assert left_out["ethanol"] == 78.2 and "ethanol" not in {row["solvent"] for row in ranked["rows"]}
+    assert ranked["solvents_screened"] + len(left_out) == 32
+    pressed = _data(screen("LDPE", None, ["bisphenol A"], temperature_c=120, require_atmospheric=False))
+    assert pressed["solvents_screened"] == 32 and "ethanol" in {row["solvent"] for row in pressed["rows"]}
+    refused = _data(screen("LDPE", "ethanol", ["bisphenol A"], temperature_c=120))
+    assert refused["error_code"] == "solvent_boils_below_temperature"
+    assert refused["highest_grid_temperature_below_boiling_point_c"] == 75
+    dmso = _data(screen("PET", "dimethyl sulfoxide", ["bisphenol A"], temperature_c=120))
+    assert dmso["at_or_above_solvent_boiling_point"] is False and len(dmso["rows"]) == 1
+
+
+def test_the_shipped_temperature_extension_belongs_to_the_served_release():
+    """The packed extension names the served asset it was cut against; a new served release needs a new cut packed
+    with it (the screens refuse a mismatch). Its 25 °C values agree with the served table to the stored 0.01."""
+    meta = {k.decode(): v.decode() for k, v in duckdb.connect().execute(
+        "SELECT key, value FROM parquet_kv_metadata(?)", [str(contaminants._PLASTCHEM_TEMPERATURE_ASSET)]).fetchall()}
+    assert meta["served_db_sha256"] == hashlib.sha256(contaminants._PLASTCHEM_ASSET.read_bytes()).hexdigest()
+    assert json.loads(meta["logp_grid_c"]) == list(contaminants._LOGP_GRID_C)
+    con = duckdb.connect()
+    con.execute(f"ATTACH '{contaminants._PLASTCHEM_ASSET}' AS s (READ_ONLY)")
+    worst, cells = con.execute(
+        """SELECT max(abs(t.logp_x100 / 100.0 - p.logp)), count(*) FROM read_parquet(?) t
+           JOIN s.partition p ON p.id = t.id AND p.polymer = t.polymer AND p.solvent = t.solvent
+           WHERE t.temperature_c = 25""", [str(contaminants._PLASTCHEM_TEMPERATURE_ASSET)]).fetchone()
+    assert cells == int(meta["contaminants"]) * 320 and worst < 0.0051
 
 
 def test_plastchem_extension_release_adds_solvents_for_the_same_contaminants(tmp_path, monkeypatch):

@@ -11,6 +11,11 @@ The contaminant families a user can search by ("phthalates", "antioxidants") are
 and checked against that asset:
 
     python -m dissolve.plastchem_release --families plastchem_db_v1.0.xlsx   (writes data/plastchem_families.json)
+
+The temperature extension (logP at 25-160 °C, A-13, 2026-10-23) is packed from a release cut against that asset:
+
+    python -m dissolve.plastchem_release --temperature /mnt/r/plastchem-euler/releases/temperature/partition_by_temperature.duckdb
+    (writes data/plastchem_partition_by_temperature.parquet)
 """
 
 from __future__ import annotations
@@ -26,7 +31,10 @@ from typing import Any
 
 import duckdb
 
-from .contaminants import _MISCIBLE_BASIS, _PLASTCHEM_ASSET, _PLASTCHEM_FAMILIES, _SERVED_CONVENTION, _key
+from .contaminants import (
+    _LOGP_GRID_C, _MISCIBLE_BASIS, _PLASTCHEM_ASSET, _PLASTCHEM_FAMILIES, _PLASTCHEM_TEMPERATURE_ASSET,
+    _SERVED_CONVENTION, _key,
+)
 
 
 # Plastic additives are asked about by abbreviation ("does DEHP leach"), and PlastChem names them in full. Each
@@ -179,6 +187,92 @@ def promote_opencosmo_release(
     con.close()
     tmp.replace(target)
     return {**counts, **meta, "asset": str(target)}
+
+
+def promote_temperature_release(
+    release: str | Path, out: str | Path | None = None, *, served: str | Path | None = None,
+) -> dict[str, Any]:
+    """Pack a cut of the temperature extension (partition_by_temperature.duckdb: logP x 100 at 25-160 °C) into the
+    asset the screens read. The cut must name the served asset it was made against (its served_db_sha256), only
+    contaminants that asset computed, the grid's 28 temperatures, and every solvent and polymer for each contaminant.
+    The integers are copied unchanged, keyed by InChIKey and sorted by it so a few contaminants read a few row groups,
+    and zstd-compressed: release 2 went from 141 MB of DuckDB to 21 MB. The copy is checked against the cut, row for
+    row, before it replaces the asset."""
+    import tempfile
+
+    release = Path(release)
+    served, target = Path(served or _PLASTCHEM_ASSET), Path(out or _PLASTCHEM_TEMPERATURE_ASSET)
+    spill = tempfile.TemporaryDirectory(prefix="plastchem-temperature-")
+    con = duckdb.connect()
+    # sorting 48 M rows under DuckDB's default limit (80% of RAM) was killed on a 16 GB machine; a cap spills instead
+    con.execute("SET memory_limit = '3GB'")
+    con.execute("SET threads = 8")
+    con.execute(f"SET temp_directory = '{spill.name}'")
+    con.execute(f"ATTACH '{release}' AS r (READ_ONLY)")
+    con.execute(f"ATTACH '{served}' AS s (READ_ONLY)")
+    meta = dict(con.execute("SELECT key, value FROM r.metadata").fetchall())
+    served_sha = hashlib.sha256(served.read_bytes()).hexdigest()
+    if meta.get("served_db_sha256") != served_sha:
+        raise ValueError(f"{release.name} was cut against served asset {meta.get('served_db_sha256')}, not "
+                         f"{served.name} ({served_sha})")
+    temperatures = sorted(t for (t,) in con.execute(
+        "SELECT DISTINCT temperature_c FROM r.partition_by_temperature").fetchall())
+    if tuple(temperatures) != _LOGP_GRID_C:
+        raise ValueError(f"{release.name} has temperatures {temperatures}, not 25-160 °C in 5 °C steps")
+    strays = con.execute(
+        """SELECT count(DISTINCT id) FROM r.partition_by_temperature
+           WHERE id NOT IN (SELECT id FROM s.contaminants WHERE computed)""").fetchone()[0]
+    if strays:
+        raise ValueError(f"{release.name} has {strays} contaminants the served asset did not compute")
+    polymers = {p for (p,) in con.execute("SELECT DISTINCT polymer FROM r.partition_by_temperature").fetchall()}
+    solvents = {s for (s,) in con.execute("SELECT DISTINCT solvent FROM r.partition_by_temperature").fetchall()}
+    unknown = sorted(polymers - {p for (p,) in con.execute("SELECT campaign FROM s.polymers").fetchall()}) + sorted(
+        solvents - {s for (s,) in con.execute("SELECT DISTINCT solvent FROM s.partition").fetchall()})
+    if unknown:
+        raise ValueError(f"{release.name} names polymers or solvents the served asset lacks: {', '.join(unknown)}")
+    grid = len(polymers) * len(solvents) * len(temperatures)
+    # every contaminant has each (polymer, solvent, temperature) once: its row count and the sum of its cells' hashes
+    # equal the full grid's (a distinct count per contaminant ran out of memory on 48 M rows)
+    full = con.execute(
+        """SELECT sum(hash(p, s, t)::HUGEINT) FROM (SELECT DISTINCT polymer AS p FROM r.partition_by_temperature),
+               (SELECT DISTINCT solvent AS s FROM r.partition_by_temperature),
+               (SELECT DISTINCT temperature_c AS t FROM r.partition_by_temperature)""").fetchone()[0]
+    short = con.execute(
+        f"""SELECT count(*) FROM (SELECT id, count(*) AS n, sum(hash(polymer, solvent, temperature_c)::HUGEINT) AS h
+                                 FROM r.partition_by_temperature GROUP BY id) WHERE n <> {grid} OR h <> ?""",
+        [full]).fetchone()[0]
+    if short:
+        raise ValueError(f"{short} contaminants in {release.name} lack part of the {grid}-cell grid")
+    boiling = dict(con.execute("SELECT solvent, normal_boiling_point_c FROM r.solvents").fetchall())
+    if set(boiling) != solvents:
+        raise ValueError(f"{release.name}'s solvents table does not list its {len(solvents)} solvents")
+    info = {**meta, "release_file": release.name, "release_sha256": hashlib.sha256(release.read_bytes()).hexdigest(),
+            "solvent_boiling_points_c": json.dumps(boiling, sort_keys=True), "logp_grid_c": json.dumps(temperatures)}
+    kv = ", ".join(f"'{key}': '{str(value).replace(chr(39), chr(39) * 2)}'" for key, value in sorted(info.items()))
+    tmp = target.with_suffix(".tmp")
+    tmp.unlink(missing_ok=True)
+    digest = "count(*), bit_xor(hash(id, polymer, solvent, temperature_c, logp_x100, above_boiling_point)), " \
+             "sum(hash(id, polymer, solvent, temperature_c, logp_x100, above_boiling_point)::HUGEINT)"
+    try:
+        con.execute(
+            f"""COPY (SELECT c.inchikey, p.id, p.polymer, p.solvent, p.temperature_c, p.logp_x100, p.above_boiling_point
+                      FROM r.partition_by_temperature p JOIN s.contaminants c USING (id)
+                      ORDER BY c.inchikey, p.polymer, p.solvent, p.temperature_c)
+                TO '{tmp}' (FORMAT parquet, COMPRESSION zstd, COMPRESSION_LEVEL 19, ROW_GROUP_SIZE 1048576,
+                            KV_METADATA {{{kv}}})""")
+        packed = con.execute(f"SELECT {digest} FROM read_parquet('{tmp}')").fetchone()
+        if packed != con.execute(f"SELECT {digest} FROM r.partition_by_temperature").fetchone():
+            raise ValueError(f"the packed copy of {release.name} differs from it")
+    except BaseException:
+        tmp.unlink(missing_ok=True)
+        raise
+    finally:
+        con.close()
+        spill.cleanup()
+    tmp.replace(target)
+    return {"asset": str(target), "rows": packed[0], "contaminants": int(meta["contaminants"]),
+            "release": meta.get("release"), "status": meta.get("status"), "bytes": target.stat().st_size,
+            "release_sha256": info["release_sha256"], "served_db_sha256": served_sha}
 
 
 def _ids(value: str | None) -> list[str]:
@@ -538,6 +632,9 @@ if __name__ == "__main__":
     args = sys.argv[1:]
     if args[:1] == ["--families"]:
         print(json.dumps(build_families(args[1]), indent=2))
+        sys.exit(0)
+    if args[:1] == ["--temperature"]:
+        print(json.dumps(promote_temperature_release(args[1]), indent=2))
         sys.exit(0)
     print(json.dumps(promote_opencosmo_release(
         args[0], allow_preview="--preview" in args,
