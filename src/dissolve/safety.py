@@ -2805,6 +2805,7 @@ def _route_substitutions_chem21(
     stages: list[dict[str, Any]],
     remaining: list[str],
     source_families: list[str],
+    max_retained_pct: Optional[float] = 3.0,
 ) -> str:
     """CHEM21 metric path for route substitutions. v5 §4.2. Not used on the default IDENT path."""
     from .thermodynamics import _screen_direction
@@ -2830,7 +2831,7 @@ def _route_substitutions_chem21(
     worst = max(finite, key=lambda item: float(item["chem21_metric_value"]))
     candidates, screened, atmospheric_exclusions, _ = _screen_direction(
         worst["dissolved_polymer"], worst["retained_polymers"], temperatures,
-        require_atmospheric, 12,
+        require_atmospheric, 12, max_retained_pct=max_retained_pct,
     )
     current_key = str(worst["solvent_data_key"])
     minimum_selectivity = float(worst["selectivity_pct"]) * retention
@@ -2949,7 +2950,7 @@ def _route_substitutions_chem21(
         polymers=polymers, temperature_min_c=lower, temperature_max_c=upper,
         evaluated_temperature_max_c=max(temperatures), strict_maximum=strict_maximum,
         require_atmospheric=require_atmospheric, pressure_basis=thermo.pressure_basis(require_atmospheric),
-        min_selectivity_retention_fraction=retention,
+        min_selectivity_retention_fraction=retention, max_retained_pct=max_retained_pct,
         minimum_comparable_selectivity_points=minimum_selectivity,
         route_stage_assessments=scored_stages, worst_stage=worst,
         worst_stage_basis={
@@ -2970,7 +2971,10 @@ def _route_substitutions_chem21(
         selection_basis=(
             f"strictly lower {label} among {atmospheric_candidate_scope} "
             f"candidates retaining at least {retention:.0%} of the current "
-            "modeled selectivity"
+            "modeled selectivity" + (
+                f" and leaving every other polymer at the stage at or below {max_retained_pct:g} wt%"
+                if max_retained_pct is not None else ""
+            )
         ),
         provenance={"source_families": list(dict.fromkeys(source_families))},
         artifact={"kind": "route_solvent_substitution", "format": "text", "title": "Route solvent substitution"},
@@ -2995,8 +2999,9 @@ def screen_route_solvent_substitutions(
     include_pubchem: bool = True,
     metric: Optional[Literal["g_score", "chem21", "chem21_safety", "chem21_worst"]] = None,
     maximum_chem21_score: Optional[float] = None,
+    max_retained_pct: Optional[float] = 3.0,
 ) -> str:
-    """Screen a whole route and replace its worst solvent without hard-coded candidates; metric g_score (default) or chem21 = CHEM21 worst of Safety/Health/Environment, the default CHEM21 metric.
+    """Screen a whole route and replace its worst solvent without hard-coded candidates; metric g_score (default) or chem21 = CHEM21 worst of Safety/Health/Environment, the default CHEM21 metric; a replacement keeps every other polymer at that stage at or below max_retained_pct (default 3 wt%, as in the planner).
 
     ``require_atmospheric=None`` keeps missing boiling-point data while
     excluding known-too-low conditions; ``True`` excludes both and ``False``
@@ -3025,6 +3030,16 @@ def screen_route_solvent_substitutions(
         return tool_error(tool, "Bounds and retention fraction must be finite and ordered.", error_code="invalid_numeric_input")
     if not 0.0 < retention <= 1.0:
         return tool_error(tool, "Retention fraction must be in (0, 1].", error_code="invalid_retention_fraction")
+    # The same limit as the planner's: a replacement solvent may leave every other polymer at this stage at most this
+    # dissolved, so a substitution never breaks the rule the route it changes was planned under.
+    if max_retained_pct is not None:
+        try:
+            max_retained_pct = float(max_retained_pct)
+        except (TypeError, ValueError):
+            max_retained_pct = math.nan
+        if not math.isfinite(max_retained_pct) or max_retained_pct < 0:
+            return tool_error(tool, "max_retained_pct must be a finite wt% of at least 0.",
+                              error_code="invalid_max_retained_pct")
     metric_token = None if metric is None else str(metric).strip()
     if metric_token == "":
         metric_token = None
@@ -3067,8 +3082,9 @@ def screen_route_solvent_substitutions(
     for index, supplied in enumerate(route_steps, 1):
         if not isinstance(supplied, dict):
             return tool_error(tool, "Every route step must be an object.", error_code="invalid_route_step")
+        # The planner's route_steps name the polymer under "dissolves", so a plan's steps can be passed here unchanged.
         target_label = str(
-            supplied.get("dissolved_polymer") or supplied.get("polymer") or ""
+            supplied.get("dissolved_polymer") or supplied.get("polymer") or supplied.get("dissolves") or ""
         )
         ambiguity = _polymer_ambiguity_error(
             tool, target_label, f"route_steps[{index - 1}].dissolved_polymer",
@@ -3079,7 +3095,16 @@ def screen_route_solvent_substitutions(
         solvent_key = thermo.resolve_solvent(str(supplied.get("solvent") or ""))
         operating = _number(supplied.get("temperature_c"))
         if target not in remaining or solvent_key is None or operating is None:
-            return tool_error(tool, f"Invalid route step {index}.", error_code="invalid_route_step")
+            problems = [
+                *(["dissolved_polymer (the polymer this stage dissolves) is missing"] if not target_label else
+                  [f"{target_label} is not left in the stream at this stage"] if target not in remaining else []),
+                *(["solvent is missing or not recognised"] if solvent_key is None else []),
+                *(["temperature_c is missing"] if operating is None else []),
+            ]
+            return tool_error(
+                tool, f"Invalid route step {index}: {'; '.join(problems)}. Each step needs dissolved_polymer, solvent "
+                "and temperature_c, as in a plan's route_steps.", error_code="invalid_route_step",
+            )
         retained = [polymer for polymer in remaining if polymer != target]
         target_row = _pair_result(target, solvent_key, operating)
         off_target_rows = [_pair_result(polymer, solvent_key, operating) for polymer in retained]
@@ -3127,11 +3152,12 @@ def screen_route_solvent_substitutions(
             stages=stages,
             remaining=remaining,
             source_families=source_families,
+            max_retained_pct=max_retained_pct,
         )
     worst = max(stages, key=lambda item: _safety_priority(item["safety"]))
     candidates, screened, atmospheric_exclusions, _ = _screen_direction(
         worst["dissolved_polymer"], worst["retained_polymers"], temperatures,
-        require_atmospheric, 12,
+        require_atmospheric, 12, max_retained_pct=max_retained_pct,
     )
     current_key = str(worst["solvent_data_key"])
     minimum_selectivity = float(worst["selectivity_pct"]) * retention
@@ -3219,7 +3245,7 @@ def screen_route_solvent_substitutions(
         polymers=polymers, temperature_min_c=lower, temperature_max_c=upper,
         evaluated_temperature_max_c=max(temperatures), strict_maximum=bool(strict_maximum),
         require_atmospheric=require_atmospheric, pressure_basis=thermo.pressure_basis(require_atmospheric),
-        min_selectivity_retention_fraction=retention,
+        min_selectivity_retention_fraction=retention, max_retained_pct=max_retained_pct,
         minimum_comparable_selectivity_points=minimum_selectivity,
         route_stage_assessments=stages, worst_stage=worst,
         worst_stage_basis={
@@ -3243,7 +3269,10 @@ def screen_route_solvent_substitutions(
         selection_basis=(
             f"higher sourced G-score among {atmospheric_candidate_scope} "
             f"candidates retaining at least {retention:.0%} of the current "
-            "modeled selectivity"
+            "modeled selectivity" + (
+                f" and leaving every other polymer at the stage at or below {max_retained_pct:g} wt%"
+                if max_retained_pct is not None else ""
+            )
         ),
         provenance={"source_families": list(dict.fromkeys(source_families))},
         artifact={"kind": "route_solvent_substitution", "format": "text", "title": "Route solvent substitution"},

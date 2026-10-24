@@ -359,10 +359,12 @@ _SUBSTITUTION_IDENT_QUERY = dict(
 
 # Re-pinned 2026-09-25 for the v3 safety snapshot (the payload carries the corrected safety fields), and 2026-09-26
 # for the rebuilt snapshot and the new excluded_for_missing_retained_value count; the default and the explicit
-# g_score payloads are still identical, which is what this pins.
+# g_score payloads are still identical, which is what this pins. Re-pinned 2026-10-24 for the retained-polymer limit
+# (max_retained_pct, default 3 wt%): this query's candidates and recommendation are unchanged; the payload gains the
+# limit and its words in selection_basis, and with max_retained_pct=None it hashes to the previous pin.
 # Re-pinned 2026-10-15 (explore branch) for pressure_basis, as above.
 _SUBSTITUTION_IDENT_SHA256 = (
-    "08fb9b8a02099ec2c9f20b6d22d3867e50e18a1d25c8083181f2795717a988ea"
+    "c5ebc1ddc1a4b9caef5b8d1087e3209197a53bf54c7e01d074930f418cb79a6f"
 )
 
 
@@ -1864,3 +1866,43 @@ def test_ranked_routes_carry_each_step_temperature_and_the_capped_flag():
         ("EVOH", 25.0), ("LDPE", 145.0)]
     assert point["depends_on_clipped_value"] is True
     assert separation._ranked_path_index([route])[0]["depends_on_clipped_value"] is True
+
+
+def test_a_route_ranking_s_steps_can_be_passed_to_the_substitution_screen_unchanged():
+    # rank_landscape and the planner list a route's steps as route_steps with the polymer under "dissolves"; an agent
+    # passing them on to the substitution screen was refused with "Invalid route step 1." and no reason (twice in two
+    # live runs of the Figure 7 query), so the substitution never ran.
+    route = {"steps": [
+        {"dissolved_polymer": "PS", "solvent": "2,3-Dihydropyran", "temperature_c": 85.0},
+        {"dissolved_polymer": "HDPE", "solvent": "Octane", "temperature_c": 120.0},
+    ]}
+    steps = separation.route_step_summary(route)["route_steps"]
+    assert steps[0]["dissolves"] == "PS" and "dissolved_polymer" not in steps[0]
+    query = dict(feed_polymers=["PS", "HDPE", "PET"], temperature_max_c=120, metric="chem21", include_pubchem=False)
+    passed_on = parse_tool_result(safety.screen_route_solvent_substitutions(route_steps=steps, **query))
+    named = parse_tool_result(safety.screen_route_solvent_substitutions(route_steps=route["steps"], **query))
+    assert passed_on["data"]["success"] is True
+    assert passed_on["data"]["recommended_route"] == named["data"]["recommended_route"]
+
+    bad = parse_tool_result(safety.screen_route_solvent_substitutions(
+        route_steps=[{"stage": "PS", "solvent": "2,3-Dihydropyran", "temperature_c": 85.0}], **query))
+    assert bad["data"]["error_code"] == "invalid_route_step"
+    assert "dissolved_polymer" in bad["data"]["error"] and "missing" in bad["data"]["error"]
+
+
+def test_a_substitution_keeps_the_planner_s_retained_polymer_limit():
+    # A route planned with every polymer left behind at or below 3 wt% (THF 60 C, octane 120 C for PS/HDPE/PET) was
+    # given replacements that broke that limit: cyclopentanone at 115 C left HDPE 8.1 wt% dissolved (CHEM21) and
+    # n-butyl acetate at 110 C left it 5.1 wt% (G-score). The screen now applies the planner's limit by default.
+    steps = [{"dissolved_polymer": "PS", "solvent": "Tetrahydrofuran (THF)", "temperature_c": 60.0},
+             {"dissolved_polymer": "HDPE", "solvent": "Octane", "temperature_c": 120.0}]
+    query = dict(feed_polymers=["PS", "HDPE", "PET"], route_steps=steps, temperature_max_c=120, include_pubchem=False)
+    for metric in ("chem21", "g_score"):
+        data = parse_tool_result(safety.screen_route_solvent_substitutions(metric=metric, **query))["data"]
+        assert data["max_retained_pct"] == 3.0
+        assert data["candidate_substitutions"]
+        assert all(c["max_off_target_solubility_pct"] <= 3.0 for c in data["candidate_substitutions"])
+        loose = parse_tool_result(safety.screen_route_solvent_substitutions(metric=metric, max_retained_pct=None, **query))["data"]
+        assert any(c["max_off_target_solubility_pct"] > 3.0 for c in loose["candidate_substitutions"])
+    bad = parse_tool_result(safety.screen_route_solvent_substitutions(max_retained_pct=-1, **query))["data"]
+    assert bad["error_code"] == "invalid_max_retained_pct"
