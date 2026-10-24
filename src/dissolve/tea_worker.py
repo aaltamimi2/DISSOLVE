@@ -953,14 +953,22 @@ def _create_and_simulate_process(
         )
         process = process_class(scenario=scenario)
         try:
-            process.T1.disconnect(join_ends=True)
-            process.U1.disconnect(join_ends=True)
-            process.system.update_configuration(
-                units=[
-                    unit for unit in process.system.units
-                    if unit not in (process.T1, process.U1)
-                ]
-            )
+            if config.get("_job") == "shredder":
+                # A stand-alone shredder plant (the film is shredded, then sold at this plant's MSP to the first wash): only the
+                # shredder U1 is kept, with no utilities plant and no emissions stream, as in the group's Process_modeling notebook.
+                process.system.update_configuration(units=[process.U1])
+                process.emissions.empty()
+                process.tea.OSBL_units = []
+                process.tea.boiler_turbogenerator = None
+            else:
+                process.T1.disconnect(join_ends=True)
+                process.U1.disconnect(join_ends=True)
+                process.system.update_configuration(
+                    units=[
+                        unit for unit in process.system.units
+                        if unit not in (process.T1, process.U1)
+                    ]
+                )
         except Exception as error:
             raise _FlowsheetEditError(
                 f"could not remove units T1 and U1 from the flowsheet: {type(error).__name__}: {error}"
@@ -1078,13 +1086,16 @@ def _create_and_simulate_process(
                 )
             )
         phase = "characterization_factor_application"
-        _set_characterization_factors(
-            process,
-            dict(config.get("lca_cfs") or {}),
-            bool(energy["facilities"]),
-            dict(config.get("_lca_factor_bases") or {}),
-            dict(config.get("_lca_solvent_transport_offsets") or {}),
-        )
+        if config.get("_job") != "shredder":
+            # The shredder plant keeps the model's own electricity factor, as in the group's shredder script: it is a separate
+            # plant on the grid, so its emissions do not depend on the wash plant's energy case.
+            _set_characterization_factors(
+                process,
+                dict(config.get("lca_cfs") or {}),
+                bool(energy["facilities"]),
+                dict(config.get("_lca_factor_bases") or {}),
+                dict(config.get("_lca_solvent_transport_offsets") or {}),
+            )
         phase = "process_simulation"
         process.system.simulate()
     except _FlowsheetEditError:
@@ -1152,6 +1163,34 @@ def _unsupported_target_result(
         "package_chemical_present": admission.package_chemical_present,
         "package_oligomer_present": admission.package_oligomer_present,
         "parameter_surface": "dissolve.tea_polymer_parameters",
+    }
+
+
+def _shredder_result(process: Any, config: dict[str, Any], energy_case: str, provenance: Any, started: float) -> dict[str, Any]:
+    """Cost, energy and emissions of the stand-alone shredder plant, per kg of shredded film."""
+    hours = process.tea.operating_hours
+    shredded = process.s2  # the shredder's output stream, which the first wash buys
+    annual_kg = shredded.F_mass * hours
+    msp, msp_exc, msp_ctx = _served_tea_value(lambda: process.tea.solve_price(shredded))
+    tci, _, _ = _served_tea_value(lambda: process.tea.TCI)
+    aoc, _, _ = _served_tea_value(lambda: process.tea.AOC)
+    # BioSTEAM's system totals are already per year, as in the wash results below
+    electricity_mj = _safe(lambda: process.system.get_electricity_consumption() * 3.6)
+    heating_mj = _safe(lambda: process.system.get_heating_duty() * 0.001) or 0.0
+    cooling_mj = _safe(lambda: process.system.get_cooling_duty() * 0.001) or 0.0
+    energy_mj = None if electricity_mj is None else electricity_mj + heating_mj + cooling_mj
+    gwp = _safe(lambda: process.GWP())
+    if msp is None or tci is None or aoc is None:
+        return {"success": False, "job": "shredder", "error": f"the shredder plant returned no {'MSP' if msp is None else 'cost'}: {msp_exc}: {msp_ctx}",
+                "error_type": "shredder_run_failed", "live_provenance": provenance}
+    return {
+        "success": True, "job": "shredder", "energy_case": energy_case,
+        "tea": {"msp_usd_per_kg": msp, "tci_usd": tci, "aoc_usd_per_yr": aoc},
+        "operations": {"annual_throughput_kg": annual_kg, "total_energy_mj_per_kg": None if energy_mj is None else energy_mj / annual_kg,
+                       "operating_days": process.tea.operating_days, "electricity_mj_per_yr": electricity_mj,
+                       "heating_mj_per_yr": heating_mj, "cooling_mj_per_yr": cooling_mj},
+        "lca": {"gwp_kg_co2e_per_kg": gwp},
+        "live_provenance": provenance, "seconds": round(time.monotonic() - started, 2),
     }
 
 
@@ -1275,6 +1314,8 @@ def run(config: dict[str, Any]) -> dict[str, Any]:
             "energy_case": energy_case,
             "live_provenance": provenance,
         }
+    if config.get("_job") == "shredder":
+        return _shredder_result(process, config, energy_case, provenance, started)
     lca_cfs = dict(config.get("lca_cfs") or {})
     # Preserve the cache-comparable order on the admitted live stack.
     # BioSTEAM's lazy properties make the last bits order-sensitive: impact

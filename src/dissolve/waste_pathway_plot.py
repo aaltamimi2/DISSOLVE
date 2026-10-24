@@ -210,7 +210,7 @@ def summary_rows(data: dict[str, Any]) -> list[tuple[str, int, str, str]]:
          "solvent options for a polymer in a stream, over every wash the feed allows"),
         ("Costed (best 3 per polymer and stream)", sum(x["costed"] for x in screens), str(sum(x["costed"] for x in screens)),
          "each one needs its own process simulation"),
-        ("BioSTEAM process runs", sims["washes_costed"], str(sims["washes_costed"]),
+        ("BioSTEAM process runs", sims["washes_costed"] + sims.get("shredder_runs", 0), str(sims["washes_costed"] + sims.get("shredder_runs", 0)),
          f"{sims['live_simulations']} live simulations ({sims['simulated_in_this_call']} run in this call, "
          f"{sims['reused_from_earlier_call']} reused from an earlier call), {sims['stored_records']} from stored records, "
          f"{sims['failed']} failed"),
