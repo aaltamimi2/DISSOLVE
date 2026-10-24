@@ -27,7 +27,9 @@ from rdkit import Chem  # noqa: E402
 from rdkit.Chem import AllChem, rdMolAlign  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[1]
-STATE = ROOT / "state/conformers-v1"
+# CONFORMER_STUDY names another study's state folder (conformers-htc-v1: the 236 flexible amides and perfluoroalkyl
+# compounds run on CHTC, owner request 2026-10-12)
+STATE = ROOT / "state" / os.environ.get("CONFORMER_STUDY", "conformers-v1")
 TIERS = ["coverage-v1", "halogen-v1", "tier2-v1", "campaign-v1", "publication-v1"]
 
 

@@ -48,7 +48,9 @@ while True:
         # structure it lists: the earlier group's task is no longer read, and the earlier attempt's record is not the
         # retry's (until the retry writes its own, its task has nothing to report unless the scheduler ended it).
         retry_groups={g for g in snap['groups'] if (P/g/'manifest.json').exists() and json.loads((P/g/'manifest.json').read_text()).get('retry_folders')}
-        superseded={m['inchikey']:g for g in retry_groups for m in models[g] if m['array_index'] in set(snap.get('array_indices',{}).get(g,[]))}
+        # the latest round wins when a structure is in several (rounds are numbered in the order they were built; 2026-10-12:
+        # the set's arbitrary order had let an earlier round reclaim structures a later round had already returned)
+        superseded={m['inchikey']:g for g in sorted(retry_groups) for m in models[g] if m['array_index'] in set(snap.get('array_indices',{}).get(g,[]))}
         fresh=[]
         for task,mol in known.items():
             key=mol['inchikey']
@@ -80,6 +82,7 @@ while True:
             if key in ledger and ledger[key]['group']==mol['group']:  # this group's attempt was retrieved and verified
                 saved=json.loads(local.read_text())
                 if saved.get('retry_round'):continue  # coverage_retry.py owns retried records
+                if saved.get('failure_mode')=='owner_cancelled':continue  # set aside on the owner's word (cancelled-2026-10-12.json)
                 if r.get('execution_outcome')=='time_limit' and saved.get('status')!='converged':
                     saved.update(execution_outcome='time_limit',retry_required=True,failure_mode=r.get('failure_mode'),original_failure_mode=r.get('original_failure_mode'),slurm_accounting=r.get('slurm_accounting'));write(local,saved)
                 if r.get('slurm_accounting')!=saved.get('slurm_accounting'):
@@ -115,7 +118,7 @@ while True:
                             # until verify_pending_identity.py runs the same perception without the limit
                             r.update(identity_pending='rdkit_not_finished',archive_path=str(p))
                         else:
-                            if not r['identity_verified']:raise ValueError('No perception engine produced the required first-block match')
+                            if not r['identity_verified']:raise ValueError(r['identity_rejection'])
                             r.update(status='converged',archive_path=str(p))
                     except Exception as exc:r.update(status='failed',failure_mode='return_integrity_or_connectivity',error=str(exc),identity_verified=False)
                 write(p/'result.json',r)

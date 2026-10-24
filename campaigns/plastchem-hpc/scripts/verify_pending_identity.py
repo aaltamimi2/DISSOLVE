@@ -56,7 +56,7 @@ def main():
                 r.update(identity_pending="rdkit_not_finished")  # still undecided: stays held
             else:
                 r.update(status="failed", failure_mode="return_integrity_or_connectivity", identity_verified=False,
-                         error="No perception engine produced the required first-block match")
+                         error=r["identity_rejection"])
             write(folder / "result.json", r)
             write(P / "records" / f"{key}.json", r)
             ledger = json.loads((P / "retrieved.json").read_text())

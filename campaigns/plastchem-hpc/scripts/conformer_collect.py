@@ -116,7 +116,7 @@ def main():
                     r.update(identity_pending="rdkit_not_finished", archive_path=str(folder))  # held, not rejected
                 elif not r["identity_verified"]:
                     r.update(status="failed", failure_mode="return_integrity_or_connectivity", archive_path=str(folder),
-                             error="No perception engine produced the parent's first-block match")
+                             error=r["identity_rejection"])
                 else:
                     r.update(status="converged", archive_path=str(folder))
             except Exception as exc:

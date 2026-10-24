@@ -55,21 +55,37 @@ try:
   inp=work/f'{stage}.inp';inp.write_text(deck);(returned/inp.name).write_bytes(inp.read_bytes())
   begun=time.monotonic();deadline=(wall_hours*3600-180)-(begun-start)
   if deadline<=0:fail('walltime_censored','Per-job elapsed guard exhausted')
-  with (work/f'{stage}.out').open('w') as out:
-   proc=subprocess.Popen([os.environ['ORCA_BIN'],inp.name],cwd=work,stdout=out,stderr=subprocess.STDOUT,start_new_session=True)
-   result['dft_ran']=True;save()
-   try:code=proc.wait(timeout=deadline)
-   except subprocess.TimeoutExpired:
-    os.killpg(proc.pid,signal.SIGTERM)
-    try:proc.wait(timeout=20)
-    except subprocess.TimeoutExpired:os.killpg(proc.pid,signal.SIGKILL);proc.wait()
-    fail('walltime_censored','Reached elapsed guard before requested walltime; time is right-censored')
+  # A-13 (owner 2026-10-12), a cosmo_restart round: the earlier attempt's optimization converged and its COSMO stage
+  # stopped at ORCA's 125-iteration SCF limit. The optimization is not repeated: its input must be byte-identical to
+  # the earlier one, its output is copied and parsed as usual, and the two unconverged orbital files of the earlier
+  # COSMO stage are placed here, where ORCA's AutoStart reads them as the starting guess of the identical cosmo.inp.
+  restart=mol.get('cosmo_restart')
+  if restart:
+   source=ROOT/restart['run_folder'];earlier=json.loads((source/'result.json').read_text())
+   if hashlib.sha256(inp.read_bytes()).hexdigest()!=earlier['stages'][stage]['input_sha256']:fail('restart_input_mismatch',f'{stage}.inp differs from the earlier attempt')
+  if restart and stage=='opt':
+   (work/'opt.out').write_bytes((source/'opt.out').read_bytes());code=earlier['stages']['opt']['exit_code']
+   guesses={}
+   for name in ['cosmo.solute_vac.gbw','cosmo.solute_cpcm.gbw']:
+    data=(source/name).read_bytes();(work/name).write_bytes(data);guesses[name]=hashlib.sha256(data).hexdigest()
+   result['cosmo_restart']={'from_run_folder':restart['run_folder'],'earlier_group':earlier.get('group'),'earlier_job':f"{earlier.get('array_job_id')}_{earlier.get('array_task_id')}",'earlier_failure':earlier.get('error'),'starting_orbitals_sha256':guesses,'optimization':'reused (identical input, output copied)'}
+  else:
+   with (work/f'{stage}.out').open('w') as out:
+    proc=subprocess.Popen([os.environ['ORCA_BIN'],inp.name],cwd=work,stdout=out,stderr=subprocess.STDOUT,start_new_session=True)
+    result['dft_ran']=True;save()
+    try:code=proc.wait(timeout=deadline)
+    except subprocess.TimeoutExpired:
+     os.killpg(proc.pid,signal.SIGTERM)
+     try:proc.wait(timeout=20)
+     except subprocess.TimeoutExpired:os.killpg(proc.pid,signal.SIGKILL);proc.wait()
+     fail('walltime_censored','Reached elapsed guard before requested walltime; time is right-censored')
   output=(work/f'{stage}.out').read_text(errors='replace')
-  result['stages'][stage]={'exit_code':code,'wall_seconds':time.monotonic()-begun,'input_sha256':hashlib.sha256(inp.read_bytes()).hexdigest(),'exact_input':deck,'final_energies_hartree':re.findall(r'FINAL SINGLE POINT ENERGY\s+(-?\d+\.\d+)',output),'orca_total_run_time_lines':re.findall(r'^TOTAL RUN TIME:.*$',output,re.M),'geometry_cycles':len(re.findall(r'GEOMETRY OPTIMIZATION CYCLE',output))}
+  result['stages'][stage]={'reused_from_earlier_attempt':bool(restart and stage=='opt'),'exit_code':code,'wall_seconds':time.monotonic()-begun,'input_sha256':hashlib.sha256(inp.read_bytes()).hexdigest(),'exact_input':deck,'final_energies_hartree':re.findall(r'FINAL SINGLE POINT ENERGY\s+(-?\d+\.\d+)',output),'orca_total_run_time_lines':re.findall(r'^TOTAL RUN TIME:.*$',output,re.M),'geometry_cycles':len(re.findall(r'GEOMETRY OPTIMIZATION CYCLE',output))}
+  if restart and stage=='opt':result['stages']['opt'].update(wall_seconds=earlier['stages']['opt']['wall_seconds'],wall_seconds_note='of the earlier attempt, whose output is reused')
   save()
   if code!=0 or 'ORCA TERMINATED NORMALLY' not in output:
    lower=output.lower()
-   mode='scf_nonconvergence' if any(s in lower for s in ['scf not converged','scf did not converge','scf convergence failure']) else 'orca_nonzero_or_abnormal_termination'
+   mode='scf_nonconvergence' if any(s in lower for s in ['scf not converged','scf did not converge','scf convergence failure','the scf has not converged']) else 'orca_nonzero_or_abnormal_termination'
    fail(mode,f'{stage} exit={code}; see {work/stage}.out')
   if 'Program Version 6.1.1' not in output or '487d211c' not in output:fail('orca_version_mismatch',stage)
   if stage=='opt':

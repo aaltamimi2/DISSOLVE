@@ -194,7 +194,8 @@ def promote_temperature_release(
 ) -> dict[str, Any]:
     """Pack a cut of the temperature extension (partition_by_temperature.duckdb: logP x 100 at 25-160 °C) into the
     asset the screens read. The cut must name the served asset it was made against (its served_db_sha256), only
-    contaminants that asset computed, the grid's 28 temperatures, and every solvent and polymer for each contaminant.
+    contaminants that asset computed (once final, every one), the grid's 28 temperatures, and every solvent and polymer
+    for each contaminant.
     The integers are copied unchanged, keyed by InChIKey and sorted by it so a few contaminants read a few row groups,
     and zstd-compressed: release 2 went from 141 MB of DuckDB to 21 MB. The copy is checked against the cut, row for
     row, before it replaces the asset."""
@@ -243,13 +244,17 @@ def promote_temperature_release(
         [full]).fetchone()[0]
     if short:
         raise ValueError(f"{short} contaminants in {release.name} lack part of the {grid}-cell grid")
-    # answers above 25 °C call what a final cut lacks "computed at 25 °C only", outside the run's structure set; so the
-    # cut must name all of it (served_not_in_run), and a partial cut may name only contaminants it lacks
+    # every contaminant served has logP at 25-160 °C once the run is final (owner, 2026-10-24: "every contaminant
+    # released should have 25-160C"): a final cut holds exactly the contaminants the served asset computed, so it lacks
+    # none and names none as outside the run (served_not_in_run); a partial cut may name only contaminants it lacks
     declared = set(json.loads(meta.get("served_not_in_run") or "[]"))
     lacking = {key for (key,) in con.execute(
         """SELECT inchikey FROM s.contaminants WHERE computed
            AND id NOT IN (SELECT DISTINCT id FROM r.partition_by_temperature)""").fetchall()}
-    if not declared <= lacking or (meta.get("status") == "final" and declared != lacking):
+    if meta.get("status") == "final" and (lacking or declared):
+        raise ValueError(f"{release.name} is final but lacks {len(lacking)} of the contaminants the served asset "
+                         f"computed and names {len(declared)} as outside the run; a final cut has every one")
+    if not declared <= lacking:
         raise ValueError(f"{release.name} ({meta.get('status')}) names {len(declared)} served contaminants as outside the "
                          f"run but lacks {len(lacking)}")
     boiling = dict(con.execute("SELECT solvent, normal_boiling_point_c FROM r.solvents").fetchall())

@@ -1,0 +1,12 @@
+{
+  "batch": "t16",
+  "partition_complete": 1,
+  "partition_plans": 1,
+  "lle_complete": 1,
+  "lle_plans": 1,
+  "compacted": 2,
+  "queue": "",
+  "utc": "2026-10-15T16:15:29Z",
+  "archive_sha256": "e7c8a0744f8da468d63d2fc343c83031cb0a7313be062a68249f5ee0d7d436a5",
+  "compact_files": 2
+}

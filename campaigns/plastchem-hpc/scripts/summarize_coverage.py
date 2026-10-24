@@ -21,7 +21,7 @@ counted_in={k:(records.get(k,{}).get('group') if records.get(k,{}).get('group') 
 rows=[];by_chunk={}
 for group,manifest in chunks.items():
  mine=[m for m in manifest['molecules'] if counted_in[m['inchikey']]==group]
- counts=dict(converged=0,failed=0,rejected=0,running=0,awaiting_verification=0,retry_pending=0,not_yet_run=0,not_staged=0,denominator=len(mine))
+ counts=dict(converged=0,failed=0,rejected=0,running=0,awaiting_verification=0,retry_pending=0,cancelled=0,not_yet_run=0,not_staged=0,denominator=len(mine))
  for m in mine:
   r=records.get(m['inchikey'],{});status=r.get('status','not_yet_run')
   category='converged' if status=='converged' else 'failed' if status=='failed' else 'awaiting_verification' if status=='converged_identity_pending' else 'not_yet_run' if status=='not_yet_run' else 'running'
@@ -29,6 +29,8 @@ for group,manifest in chunks.items():
   # killed by the scheduler (time limit, preemption) or out of memory: resubmitted through a retry round (memory raised
   # per row only after an out-of-memory kill, A-13), so neither a result nor a final failure
   if r.get('execution_outcome')=='time_limit' or r.get('failure_mode') in ['slurm_timeout','walltime_censored','scheduler_signal_10','scheduler_signal_15','slurm_preempted'] or (r.get('status')=='failed' and str((r.get('slurm_accounting') or {}).get('state','')).startswith(('PREEMPTED','OUT_OF_MEMORY')) and not second_oom(r)):category='retry_pending'
+  # cancelled on the owner's word (2026-10-12, state/coverage-v1/cancelled-2026-10-12.json): not retried, not a final failure
+  if r.get('failure_mode')=='owner_cancelled':category='cancelled'
   if category=='not_yet_run' and group not in submitted:category='not_staged'
   counts[category]+=1
   stages=r.get('stages',{});walls=[stages.get(s,{}).get('wall_seconds') for s in ['opt','cosmo']]

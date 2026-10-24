@@ -1,12 +1,13 @@
 {
-  "utc": "2026-10-12T04:41:26.152604+00:00",
+  "utc": "2026-10-13T17:44:49.144244+00:00",
   "counts": {
     "converged": 1605,
     "failed": 3,
-    "rejected": 51,
-    "running": 59,
+    "rejected": 53,
+    "running": 0,
     "awaiting_verification": 0,
-    "retry_pending": 1,
+    "retry_pending": 0,
+    "cancelled": 58,
     "not_yet_run": 0,
     "not_staged": 0,
     "denominator": 1719
@@ -19,6 +20,7 @@
       "running": 0,
       "awaiting_verification": 0,
       "retry_pending": 0,
+      "cancelled": 0,
       "not_yet_run": 0,
       "not_staged": 0,
       "denominator": 1
@@ -30,6 +32,7 @@
       "running": 0,
       "awaiting_verification": 0,
       "retry_pending": 0,
+      "cancelled": 0,
       "not_yet_run": 0,
       "not_staged": 0,
       "denominator": 100
@@ -41,6 +44,7 @@
       "running": 0,
       "awaiting_verification": 0,
       "retry_pending": 0,
+      "cancelled": 0,
       "not_yet_run": 0,
       "not_staged": 0,
       "denominator": 100
@@ -52,6 +56,7 @@
       "running": 0,
       "awaiting_verification": 0,
       "retry_pending": 0,
+      "cancelled": 0,
       "not_yet_run": 0,
       "not_staged": 0,
       "denominator": 100
@@ -63,6 +68,7 @@
       "running": 0,
       "awaiting_verification": 0,
       "retry_pending": 0,
+      "cancelled": 0,
       "not_yet_run": 0,
       "not_staged": 0,
       "denominator": 100
@@ -74,6 +80,7 @@
       "running": 0,
       "awaiting_verification": 0,
       "retry_pending": 0,
+      "cancelled": 0,
       "not_yet_run": 0,
       "not_staged": 0,
       "denominator": 100
@@ -85,6 +92,7 @@
       "running": 0,
       "awaiting_verification": 0,
       "retry_pending": 0,
+      "cancelled": 0,
       "not_yet_run": 0,
       "not_staged": 0,
       "denominator": 100
@@ -96,6 +104,7 @@
       "running": 0,
       "awaiting_verification": 0,
       "retry_pending": 0,
+      "cancelled": 0,
       "not_yet_run": 0,
       "not_staged": 0,
       "denominator": 100
@@ -107,6 +116,7 @@
       "running": 0,
       "awaiting_verification": 0,
       "retry_pending": 0,
+      "cancelled": 0,
       "not_yet_run": 0,
       "not_staged": 0,
       "denominator": 99
@@ -118,6 +128,7 @@
       "running": 0,
       "awaiting_verification": 0,
       "retry_pending": 0,
+      "cancelled": 0,
       "not_yet_run": 0,
       "not_staged": 0,
       "denominator": 100
@@ -129,6 +140,7 @@
       "running": 0,
       "awaiting_verification": 0,
       "retry_pending": 0,
+      "cancelled": 0,
       "not_yet_run": 0,
       "not_staged": 0,
       "denominator": 100
@@ -140,17 +152,19 @@
       "running": 0,
       "awaiting_verification": 0,
       "retry_pending": 0,
+      "cancelled": 0,
       "not_yet_run": 0,
       "not_staged": 0,
       "denominator": 100
     },
     "c12": {
-      "converged": 93,
+      "converged": 92,
       "failed": 0,
-      "rejected": 7,
+      "rejected": 8,
       "running": 0,
       "awaiting_verification": 0,
       "retry_pending": 0,
+      "cancelled": 0,
       "not_yet_run": 0,
       "not_staged": 0,
       "denominator": 100
@@ -159,9 +173,10 @@
       "converged": 91,
       "failed": 0,
       "rejected": 7,
-      "running": 1,
+      "running": 0,
       "awaiting_verification": 0,
       "retry_pending": 0,
+      "cancelled": 1,
       "not_yet_run": 0,
       "not_staged": 0,
       "denominator": 99
@@ -173,6 +188,7 @@
       "running": 0,
       "awaiting_verification": 0,
       "retry_pending": 0,
+      "cancelled": 0,
       "not_yet_run": 0,
       "not_staged": 0,
       "denominator": 97
@@ -184,6 +200,7 @@
       "running": 0,
       "awaiting_verification": 0,
       "retry_pending": 0,
+      "cancelled": 0,
       "not_yet_run": 0,
       "not_staged": 0,
       "denominator": 98
@@ -192,20 +209,22 @@
       "converged": 54,
       "failed": 0,
       "rejected": 5,
-      "running": 2,
+      "running": 0,
       "awaiting_verification": 0,
-      "retry_pending": 1,
+      "retry_pending": 0,
+      "cancelled": 2,
       "not_yet_run": 0,
       "not_staged": 0,
-      "denominator": 62
+      "denominator": 61
     },
     "c17": {
       "converged": 59,
       "failed": 1,
       "rejected": 3,
-      "running": 7,
+      "running": 0,
       "awaiting_verification": 0,
       "retry_pending": 0,
+      "cancelled": 7,
       "not_yet_run": 0,
       "not_staged": 0,
       "denominator": 70
@@ -214,9 +233,10 @@
       "converged": 3,
       "failed": 0,
       "rejected": 0,
-      "running": 1,
+      "running": 0,
       "awaiting_verification": 0,
       "retry_pending": 0,
+      "cancelled": 1,
       "not_yet_run": 0,
       "not_staged": 0,
       "denominator": 4
@@ -228,6 +248,7 @@
       "running": 0,
       "awaiting_verification": 0,
       "retry_pending": 0,
+      "cancelled": 0,
       "not_yet_run": 0,
       "not_staged": 0,
       "denominator": 7
@@ -236,9 +257,10 @@
       "converged": 14,
       "failed": 0,
       "rejected": 1,
-      "running": 1,
+      "running": 0,
       "awaiting_verification": 0,
       "retry_pending": 0,
+      "cancelled": 1,
       "not_yet_run": 0,
       "not_staged": 0,
       "denominator": 16
@@ -250,6 +272,7 @@
       "running": 0,
       "awaiting_verification": 0,
       "retry_pending": 0,
+      "cancelled": 0,
       "not_yet_run": 0,
       "not_staged": 0,
       "denominator": 8
@@ -261,6 +284,7 @@
       "running": 0,
       "awaiting_verification": 0,
       "retry_pending": 0,
+      "cancelled": 0,
       "not_yet_run": 0,
       "not_staged": 0,
       "denominator": 1
@@ -269,9 +293,10 @@
       "converged": 0,
       "failed": 0,
       "rejected": 1,
-      "running": 1,
+      "running": 0,
       "awaiting_verification": 0,
       "retry_pending": 0,
+      "cancelled": 1,
       "not_yet_run": 0,
       "not_staged": 0,
       "denominator": 2
@@ -280,9 +305,10 @@
       "converged": 2,
       "failed": 0,
       "rejected": 0,
-      "running": 2,
+      "running": 0,
       "awaiting_verification": 0,
       "retry_pending": 0,
+      "cancelled": 2,
       "not_yet_run": 0,
       "not_staged": 0,
       "denominator": 4
@@ -290,10 +316,11 @@
     "r07": {
       "converged": 0,
       "failed": 0,
-      "rejected": 0,
-      "running": 8,
+      "rejected": 1,
+      "running": 0,
       "awaiting_verification": 0,
       "retry_pending": 0,
+      "cancelled": 7,
       "not_yet_run": 0,
       "not_staged": 0,
       "denominator": 8
@@ -302,9 +329,10 @@
       "converged": 0,
       "failed": 0,
       "rejected": 0,
-      "running": 17,
+      "running": 0,
       "awaiting_verification": 0,
       "retry_pending": 0,
+      "cancelled": 17,
       "not_yet_run": 0,
       "not_staged": 0,
       "denominator": 17
@@ -313,20 +341,22 @@
       "converged": 0,
       "failed": 0,
       "rejected": 0,
-      "running": 9,
+      "running": 0,
       "awaiting_verification": 0,
       "retry_pending": 0,
+      "cancelled": 9,
       "not_yet_run": 0,
       "not_staged": 0,
       "denominator": 9
     },
     "r10": {
-      "converged": 7,
+      "converged": 8,
       "failed": 0,
       "rejected": 0,
-      "running": 5,
+      "running": 0,
       "awaiting_verification": 0,
       "retry_pending": 0,
+      "cancelled": 4,
       "not_yet_run": 0,
       "not_staged": 0,
       "denominator": 12
@@ -335,28 +365,40 @@
       "converged": 0,
       "failed": 0,
       "rejected": 0,
-      "running": 5,
+      "running": 0,
       "awaiting_verification": 0,
       "retry_pending": 0,
+      "cancelled": 5,
       "not_yet_run": 0,
       "not_staged": 0,
       "denominator": 5
+    },
+    "r12": {
+      "converged": 0,
+      "failed": 0,
+      "rejected": 0,
+      "running": 0,
+      "awaiting_verification": 0,
+      "retry_pending": 0,
+      "cancelled": 1,
+      "not_yet_run": 0,
+      "not_staged": 0,
+      "denominator": 1
     }
   },
   "failures_by_mode": {
     "mmff_parameters_unavailable": 1,
-    "return_integrity_or_connectivity": 51,
-    "ValueError": 2,
-    "scheduler_signal_10": 1
+    "return_integrity_or_connectivity": 53,
+    "ValueError": 2
   },
-  "measured_orca_hours": 4812.625065808055,
-  "measured_structures": 1656,
-  "fit_hours_of_measured": 2751.644833333344,
+  "measured_orca_hours": 4849.881797249393,
+  "measured_structures": 1658,
+  "fit_hours_of_measured": 2758.4561944444554,
   "cpu_models": {
     "AMD EPYC 7763 64-Core Processor": 967,
-    "AMD EPYC 7513 32-Core Processor": 387,
+    "AMD EPYC 7513 32-Core Processor": 388,
     "AMD EPYC 7272 12-Core Processor": 200,
     "AMD EPYC 7401 24-Core Processor": 99,
-    "AMD EPYC 7773X 64-Core Processor": 63
+    "AMD EPYC 7773X 64-Core Processor": 62
   }
 }

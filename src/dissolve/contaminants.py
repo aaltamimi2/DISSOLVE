@@ -1979,8 +1979,8 @@ def _temperature_fields(release: tuple[Path, dict[str, str]], temperature_c: int
     }
     final = meta.get("status") == "final"
     if not_at and final:
-        # a final cut lacks only the served contaminants outside the run's structure set (the packer holds it to its
-        # served_not_in_run list): they have their 25 °C value and no other. The cause comes first, in plain words:
+        # what a final cut lacks is outside the run's structure set: 25 °C value and no other (release 4 lacked Acid
+        # fuchsine FB; since v14 the packer refuses a final cut that lacks any). The cause comes first, in plain words:
         # "not in the structure set the run computed" came back from the model as "lacks high-temperature parameters"
         fields["not_at_temperature_reason"] = (
             "computed at 25 °C only: the temperature run computed " + (meta.get("structure_set") or "a structure set")
@@ -2004,7 +2004,8 @@ def _temperature_fields(release: tuple[Path, dict[str, str]], temperature_c: int
 def _not_in_extension(release: tuple[Path, dict[str, str]], count: int) -> str:
     """How a display line ends for the contaminants an answer above 25 °C has no value for: not in the extension yet
     while the release is partial; once it is final, computed at 25 °C only, since the final cut lacks for good what the
-    run never had (Acid fuchsine FB: served, but outside the v14 structure set the run computed)."""
+    run never had (release 4: Acid fuchsine FB, served by promotion-v13 but outside the v14 structure set the run
+    computed; since v14 the packer refuses a final cut that lacks any)."""
     verb = "is" if count == 1 else "are"
     return (f"{verb} computed at 25 °C only." if release[1].get("status") == "final"
             else f"{verb} not in the temperature extension yet.")

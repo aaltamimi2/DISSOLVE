@@ -10,6 +10,9 @@ What a release adds to its parent:
 - coverage-tier structures (tier "coverage", group "coverage-A13") that are complete, and those that ended in a final
   failure (preparation failures, D-IDENT rejections and the like) as failed status rows; a structure still in ORCA,
   waiting for a retry, or without all its rows waits for a later release;
+- a structure the parent served whose coverage record withdrew its acceptance (identity_withdrawn, the D-IDENT hydrogen
+  check of the A-13 NOTE of 2026-10-13: Acid fuchsine FB) becomes a failure row, and its partition and LLE rows are
+  removed from the tables;
 - parent aliases (item 7b): each PlastChem entry served through its computed neutral parent (a salt, an ion, a hydrate)
   gets its name and CAS as aliases of the parent's row in parent-aliases.csv, checked here against the refusals
   promote_opencosmo_release applies (an unknown InChIKey; an alias that would also name another contaminant: such an
@@ -56,7 +59,8 @@ CENSUS = R / "inputs/census/plastchem_db_v1.0_full_database_subset.csv"
 CENSUS_SHA256 = "9b1b68e40504011798241502b19c74d2889aa9af0eb611d5f81e41d94c4a51a1"
 COVERAGE_TSV = R / "reports/plastchem-coverage-2026-10-08/PLASTCHEM_COVERAGE.tsv"
 #: failure modes that are not final: the structure is retried (A-13 5d) and waits for a later release
-NOT_FINAL = {"slurm_timeout", "walltime_censored", "scheduler_signal_10", "scheduler_signal_15", "slurm_preempted"}
+NOT_FINAL = {"slurm_timeout", "walltime_censored", "scheduler_signal_10", "scheduler_signal_15", "slurm_preempted",
+             "owner_cancelled"}  # cancelled 2026-10-12 on the owner's word: may be revisited, so no failure row
 PLACEHOLDER = re.compile(r"^(\d{2,7}-\d{2}-\d|CID \d+|EINECS \d{3}-\d{3}-\d)$", re.IGNORECASE)
 ALIAS_FIELDS = ["plastchem_id", "alias", "kind", "form", "input_inchikey", "offered", "note"]
 
@@ -202,6 +206,17 @@ def build(number, dry_run=False):
             status_rows[k] = halogen[k]
     new_rows = {k: r for k, r in coverage.items() if k not in cohort and k in molecules and final(r)}
     assert not set(status_rows) & set(new_rows)
+    # a served structure whose acceptance was withdrawn (A-13 NOTE 2026-10-13, the hydrogen check) is a failure row
+    # here, and its partition and LLE rows leave the tables
+    withdrawn = sorted(k for k in served_parent if coverage.get(k, {}).get("identity_withdrawn")
+                       and coverage[k]["status"] == "failed")
+    for key in withdrawn:
+        record = coverage[key]
+        assert record["surface_sha256"] == cohort[key]["surface_sha256"], f"{key}: withdrawn record is another surface"
+        cohort[key].update(_identity_fields(record, "failed"), exclusion_reason="",
+                           **{f: "" for f in ("partition_predicted_rows", "partition_failed_rows", "lle_qualified_rows",
+                                              "lle_unresolved_or_failed_rows", "all_requested_quantities_evaluated",
+                                              "all_requested_quantities_qualified")})
     converged = sorted(k for k, r in {**status_rows, **new_rows}.items() if r["status"] == "converged")
     staged = batch_of_keys()
     part, lle, batches = rows_for([k for k in converged if k in staged])
@@ -248,6 +263,8 @@ def build(number, dry_run=False):
     # 3. parent aliases: the parent release's, the 200 pinned ones (first release), and the salts of new structures
     served = {k for k, r in cohort.items() if r["campaign_status_at_snapshot"] == "converged"}
     previous = list(csv.DictReader((parent_dir / "parent-aliases.csv").open())) if (parent_dir / "parent-aliases.csv").exists() else []
+    aliases_withdrawn = [r for r in previous if r["input_inchikey"] in withdrawn]  # a withdrawn parent serves no salt
+    previous = [r for r in previous if r["input_inchikey"] not in withdrawn]
     entries = {}  # plastchem_id -> (parent inchikey, name, cas, form)
     for r in previous:
         entries.setdefault(r["plastchem_id"], (r["input_inchikey"], None, None, r["form"]))
@@ -285,7 +302,9 @@ def build(number, dry_run=False):
                 taken[key_of(value)].add(key)
     statuses = collections.Counter((r["tier"], r["campaign_status_at_snapshot"]) for r in cohort.values())
     report = dict(release=target.name, parent=parent_dir.name, completed_status_rows=len(completed),
-                  newly_failed_status_rows=len(newly_failed), added_coverage=len(added), added_coverage_failed=len(added_failed),
+                  newly_failed_status_rows=len(newly_failed), withdrawn=withdrawn,
+                  parent_aliases_withdrawn=len(aliases_withdrawn), added_coverage=len(added),
+                  added_coverage_failed=len(added_failed),
                   converged_waiting_for_rows=len(waiting), new_partition_rows=len(part), new_lle_rows=len(lle),
                   batches=sorted(batches), parent_aliases=len(alias_rows),
                   parent_aliases_offered=sum(r["offered"] == "yes" for r in alias_rows),
@@ -306,6 +325,7 @@ def build(number, dry_run=False):
     con.execute("SET threads=2")
     con.execute("SET memory_limit='1GB'")
     con.execute("SET temp_directory=?", [str(work / "tmp")])
+    removed_rows = {}
     for name, rows in (("partition.parquet", part), ("binary-lle.parquet", lle)):
         cols = [(c, t) for c, t, *_ in con.execute("DESCRIBE SELECT * FROM read_parquet(?)", [str(parent_dir / name)]).fetchall()]
         rows_file = work / f"{name}.jsonl"
@@ -320,7 +340,9 @@ def build(number, dry_run=False):
         assert con.execute("SELECT count(*) FROM fresh").fetchone()[0] == len(rows)
         local_out = work / name
         assert "'" not in str(parent_dir / name) + str(local_out)
-        con.execute(f"COPY (SELECT * FROM read_parquet('{parent_dir / name}') UNION ALL SELECT * FROM fresh) "
+        con.execute("CREATE OR REPLACE TABLE withdrawn AS SELECT unnest(?::VARCHAR[]) AS input_inchikey", [withdrawn])
+        con.execute(f"COPY (SELECT * FROM read_parquet('{parent_dir / name}') WHERE input_inchikey NOT IN "
+                    f"(SELECT input_inchikey FROM withdrawn) UNION ALL SELECT * FROM fresh) "
                     f"TO '{local_out}' (FORMAT parquet, COMPRESSION zstd)")
         shutil.copyfile(local_out, target / name)
     for name, key in zip(("partition.parquet", "binary-lle.parquet"),
@@ -334,7 +356,11 @@ def build(number, dry_run=False):
         assert charged == 0, f"{name}: a charged structure's rows"
         parent_rows = con.execute("SELECT count(*) FROM read_parquet(?)", [str(parent_dir / name)]).fetchone()[0]
         new_count = con.execute("SELECT count(*) FROM read_parquet(?)", [str(target / name)]).fetchone()[0]
-        assert new_count == parent_rows + (len(part) if name == "partition.parquet" else len(lle))
+        gone = con.execute("SELECT count(*) FROM read_parquet(?) WHERE input_inchikey IN (SELECT input_inchikey FROM withdrawn)",
+                           [str(parent_dir / name)]).fetchone()[0]
+        assert gone == len(withdrawn) * (640 if name == "partition.parquet" else 64)
+        removed_rows[name] = gone
+        assert new_count == parent_rows - gone + (len(part) if name == "partition.parquet" else len(lle))
     con.close()
     shutil.rmtree(work)
     text = io.StringIO()
@@ -370,14 +396,16 @@ def build(number, dry_run=False):
                    computed_contaminants=len(served), added_since_parent=len(whole),
                    added_halogen_status_rows_completed=len(completed), added_coverage=len(added),
                    status_rows_now_failed=len(newly_failed), coverage_failed_status_rows=len(added_failed),
+                   withdrawn=withdrawn, withdrawn_count=len(withdrawn), parent_aliases_withdrawn=len(aliases_withdrawn),
                    converged_waiting_for_rows=len(waiting), identity_status_rows=len(cohort),
                    statuses={f"{t}/{s}": n for (t, s), n in sorted(statuses.items())},
-                   partition_rows=parent_summary["partition_rows"] + len(part), LLE_rows=parent_summary["LLE_rows"] + len(lle),
+                   partition_rows=parent_summary["partition_rows"] - removed_rows["partition.parquet"] + len(part),
+                   LLE_rows=parent_summary["LLE_rows"] - removed_rows["binary-lle.parquet"] + len(lle),
                    batches=sorted(batches), parent_aliases=len(alias_rows),
                    parent_aliases_offered=sum(r["offered"] == "yes" for r in alias_rows),
                    publication_labels=parent_summary.get("publication_labels"),
                    cohort_sha256=hashlib.sha256(raw).hexdigest())
-    assert summary["computed_contaminants"] == parent_summary["computed_contaminants"] + len(whole)
+    assert summary["computed_contaminants"] == parent_summary["computed_contaminants"] + len(whole) - len(withdrawn)
     (target / "summary.json").write_text(json.dumps(summary, indent=2) + "\n")
     (target / "README.md").write_text(README.format(name=target.name, **summary))
     files = {str(p.relative_to(target)): dict(bytes=p.stat().st_size, sha256=sha(p))
@@ -399,7 +427,9 @@ same schema.
 - Computed contaminants: {computed_contaminants} ({added_since_parent} added: {added_halogen_status_rows_completed} halogen
   structures of the A-11 freeze whose partition and miscibility rows are now complete, and {added_coverage} structures of
   the coverage tier). {status_rows_now_failed} status rows of the parent ended in a final failure and say so;
-  {coverage_failed_status_rows} coverage structures failed for good and are status rows.
+  {coverage_failed_status_rows} coverage structures failed for good and are status rows. {withdrawn_count} structures the
+  parent served had their acceptance withdrawn by D-IDENT (the hydrogen check, A-13 NOTE 2026-10-13) and are failure rows,
+  their partition and LLE rows removed, with the {parent_aliases_withdrawn} parent aliases they carried: {withdrawn}.
 - Recipe, unchanged: RDKit ETKDGv3 (seed 12345, up to 300 conformers), MMFF94, the lowest-energy conformer to ORCA 6.1.1
   BP86/def2-TZVP(-f) optimisation and BP86/def2-TZVPD COSMORS(Water) on AMD EPYC 7763; identity by D-IDENT;
   openCOSMO-RS 24a at 298.15 K and solute x = 0 against the 32 panel solvents and the 10 polymer ensembles, both

@@ -15,6 +15,7 @@ heaviest first; colour = COSMO energy above the compound's lowest conformer; rin
 import csv
 import json
 import math
+import os
 from pathlib import Path
 
 import numpy as np
@@ -22,8 +23,9 @@ from rdkit import Chem
 from rdkit.Chem import rdFreeSASA
 
 ROOT = Path(__file__).resolve().parents[1]
-P = ROOT / "state/conformers-v1"
-OUT = ROOT / "exploratory/conformer-sampling"
+STUDY = os.environ.get("CONFORMER_STUDY", "conformers-v1")  # conformers-htc-v1: the CHTC study of 236 compounds
+P = ROOT / "state" / STUDY
+OUT = ROOT / "exploratory" / ("conformer-sampling" if STUDY == "conformers-v1" else "conformer-htc")
 HARTREE_KCAL = 627.5094740631
 PT = Chem.GetPeriodicTable()
 
@@ -78,8 +80,9 @@ def main():
             writer = csv.DictWriter(handle, fieldnames=list(rows[0]))
             writer.writeheader()
             writer.writerows(rows)
-    figure(selection, by)
-    print(json.dumps(dict(conformers=len(rows), compounds=len(by))))
+    if STUDY == "conformers-v1":  # one panel per compound: drawn for the 31-compound study only
+        figure(selection, by)
+    print(json.dumps(dict(conformers=len(rows), compounds=len(by), figure=STUDY == "conformers-v1")))
 
 
 def figure(selection, by):

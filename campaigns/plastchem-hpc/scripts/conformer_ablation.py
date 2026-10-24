@@ -24,14 +24,17 @@ convergence.png, single_conformer_vs_shape.png, release_vs_ensemble_by_mw.png.
 import csv
 import json
 import math
+import os
 from collections import defaultdict
 from pathlib import Path
 
 import numpy as np
 
 ROOT = Path(__file__).resolve().parents[1]
-P = ROOT / "state/conformers-v1"
-OUT = ROOT / "exploratory/conformer-ablation"
+STUDY = os.environ.get("CONFORMER_STUDY", "conformers-v1")  # conformers-htc-v1: the CHTC study of 236 compounds
+P = ROOT / "state" / STUDY
+OUT = ROOT / "exploratory" / ("conformer-ablation" if STUDY == "conformers-v1" else "conformer-htc")
+SHAPE = ROOT / "exploratory" / ("conformer-sampling" if STUDY == "conformers-v1" else "conformer-htc") / "conformer_descriptors.csv"
 SPEC = Path("/mnt/r/plastchem-euler/coverage-thermo-v1/t12/inputs.json")
 RT_KCAL = 0.0019872041 * 298.15
 HARTREE_KCAL = 627.5094740631
@@ -49,7 +52,7 @@ def main():
     solvents = list(spec["solvents"])
     vs = {s: spec["solvents"][s][CONVENTION + "_volume_cm3_mol"] for s in solvents}
     selection = {c["inchikey"]: c for c in json.loads((P / "selection.json").read_text())["compounds"]}
-    shape = {r["conformer"]: r for r in csv.DictReader((ROOT / "exploratory/conformer-sampling/conformer_descriptors.csv").open())}
+    shape = {r["conformer"]: r for r in csv.DictReader(SHAPE.open())}
     by = defaultdict(list)
     for path in sorted((P / "thermo").glob("*.json")):
         t = json.loads(path.read_text())
@@ -122,7 +125,8 @@ def main():
             w.writerows(rows)
     for name in ("convergence.png", "single_conformer_vs_shape.png", "release_vs_ensemble_by_mw.png"):
         (OUT / name).unlink(missing_ok=True)
-    figures(curves, rows_single, rows_summary, selection)
+    if STUDY == "conformers-v1":  # per-compound figures: the 31-compound study only (conformer_htc_summary.py draws the other)
+        figures(curves, rows_single, rows_summary, selection)
     print(json.dumps(dict(compounds=len(by), conformers=sum(len(v) for v in by.values()),
                           complete=[r["name"][:30] for r in rows_summary if r["conformers_converged"] == r["conformers_kept"]])))
 

@@ -1533,3 +1533,227 @@ A-13 NOTE (2026-10-10 18:53 UTC, coverage lane) — RELEASE promotion-v12: 8,782
    75b2377c | main-backup 75b2377c | main-cleanup-frontend b1e30ac5 = main + 39 frontend commits, behind main by 0.
    Deploy dcbfb6b6 ACTIVE at 18:52 UTC, live contaminants_computed 8782. Live check answered (Benzoazurin,
    polypropylene, ethanol; status ok).
+
+A-13 NOTE (2026-10-12 03:08 UTC, coverage lane) — OWNER DECISION ON THE FAILED ROWS: FIX WHERE JUSTIFIABLE, OTHERWISE DROP
+Owner, 2026-10-12, on the 108 rows not in a release (17 time limits, 18 recipe-limited, 73 D-IDENT rejections): "lets
+be relatively conservative"; the time limits: fix; the recipe-limited: "fix these if the fix is justifiable otherwise
+accept them as failed"; the rejections: "if justifiable, fix, otherwise drop". What was judged justifiable, each
+checked on the data first, nothing committed or released yet (owner: wait until this work is done):
+1. D-IDENT rejections (74 at the time): each optimized geometry's bonded graph (all atoms with hydrogens) compared
+   with the input's. 48 have a hydrogen on another atom (hydroxy-azo dyes optimized to the hydrazone form, N-H
+   1.03-1.05 A; both engines usually agree on the other key) and 2 a changed skeleton: these stay rejected, the
+   identity rule is not widened to tautomers. 24 are bonded exactly as the input: RDKit could not assign bond ORDERS
+   (22; sulfonated nitro and azo dyes, triarylmethane dyes) or the engines chose another valence structure (2).
+   scripts/template_identity.py adds a third observation, input_bond_orders_on_perceived_connectivity: RDKit
+   DetermineConnectivity and Open Babel connectivity must each be isomorphic to the input graph, every hydrogen must
+   have exactly one heavy atom within 1.40 A, the input's bond orders are laid on the coordinates and the key of that
+   molecule (stereo from 3D) is the perceived key, first block equal to the input's. apply_template_identity.py: 23
+   accepted (identity_exception in each record, the earlier rejection kept), 1 kept rejected (Acid Green 50, a
+   hydrogen 1.12/1.34 A between two oxygens), 50 unchanged. Control: 298 of 300 accepted structures pass the new
+   observation and none gets another first block; the 2 that do not are cases where it is stricter. No geometry or
+   surface changed. Run after every collection pass.
+2. COSMO-stage failures (12 by now: large vat, anthraquinone and azo dyes, Sumilizer GP, a diphosphite; 67-115 atoms):
+   all are "the SCF has not converged" at ORCA's 125-iteration limit in the diffuse def2-TZVPD basis (smallest overlap
+   eigenvalue 1e-8 to 1e-7; energies within 1e-5 Eh over the last 100 iterations). COSMORS(Water) does not pass SCF
+   settings to the calculations it writes (tested with water: MaxIter 500 in cosmo.inp leaves 125), so no input change
+   is possible. Round r10 (84240, build_coverage_retry.py --cosmo-restart; runner change in coverage_runner.py): the
+   byte-identical cosmo.inp rerun once in its own folder with the stopped stage's two orbital files, which ORCA
+   AutoStart reads as the guess; the optimization is reused (identical input, output copied). Test first
+   (coverage-v1/tests/scf-restart-MVIFQPPFCHUSIH): both SCFs converged in 2 cycles by ORCA's unchanged criteria at the
+   energy the stopped run was oscillating around. 6 of 12 converged and accepted by D-IDENT within the hour; 6
+   running. A second SCF failure is final.
+3. Embedding failures (11, "Bad Conformer Id": ETKDGv3 embedded no conformer; 129-235 atoms and the two fullerenes):
+   round r09 (84276, --embedding) prepares them with useRandomCoords=True and otherwise the frozen recipe (seed 12345,
+   300 embeddings, prune 0.5, MMFF94, lowest to DFT); only the DFT's starting coordinates differ; recorded in each
+   preparation.json, the failed frozen preparation kept beside it. 9 prepared (300 embedded, 299-300 MMFF-converged);
+   C60 and its cyclopropa-fullerene embed nothing either and stay final failures. Walltime 274 h, lowered per task.
+4. Not fixed, final: ethyl silicate written CCO[Si](=O)O (no MMFF94 parameters; a force-field substitution was judged
+   not justifiable for one row whose SMILES is itself doubtful); the two fullerenes; the 51 rejections of item 1.
+5. Time limits: r08 (83925, 17 rows, 157 h) running; r11 (84285) for 5 more first time limits (c16 1, c17 4; 207 h,
+   milan&gpu).
+6. Collector defect found and fixed (watch_coverage.py): a structure listed in two retry rounds was assigned to one of
+   them in arbitrary order, and one pass replaced five converged r10 records by a scheduler-failure stub of r05/r06.
+   The latest round now wins; the five records were collected again and the five overwritten archive copies of the
+   earlier attempts restored from Euler. A scan of all records found no earlier case.
+7. Thermodynamics: t14 collected (87 structures); t15 (27: the 23 of item 1 and 4 others; 84236/84237) running.
+   promotion-v13 is held on the owner's instruction until this work is done.
+
+A-13 NOTE (2026-10-12 05:34 UTC, coverage lane) — RELEASE promotion-v13: 8,869 COMPUTED; 97.9% OF THE SIMULABLE ENTRIES. OWNER: TAIL JOBS CANCELLED
+1. Owner 2026-10-12 (direct): "yeah commit most recent release. expect most everything else to take longer".
+   /mnt/r/plastchem-euler/promotion-v13 (manifest cfbabf03...; promotion-v12 191b665f... unchanged beneath it): 9,014
+   status rows, 8,869 computed (+87, batch t14): coverage c12 3, c13 49, c15 2, c16 3, c17 18, c18 2, r02 3, r03 1,
+   r04 1, r06 1; 4 tier-2 failure rows now computed (r02 3, r03 1); EPYC 7401 49, 7763 20, 7513 12, 7773X 3, 7272 3. 8
+   more final failure rows, all D-IDENT rejections. 1,342 parent aliases served. None of the 23 structures accepted by
+   the bonded-graph identity observation is in v13; they are in batch t15 (v14).
+2. Coverage (anaconda RDKit 2023.09.2): 9,429 of 9,627 simulable entries (97.94%; v12 97.02%); 194 structures remain
+   (135 failed, 59 not in the release).
+3. Archives: set promotion-v13 (surfaces 14.2 MB, ORCA files 499 KB, 87 rows each) appended; no part rewritten.
+4. DISSOLVE 12bc6501 on main. Full suite 2,294 passed, 5 skipped (the expected three and two rag90 encoder tests that
+   need DISSOLVE_BGE_ONNX_INT8, unset in this run; the same result as the builder's run at cb56aefb), audit 0, home
+   writes 0. Sync: main 12bc6501 | main-backup 12bc6501 | main-cleanup-frontend e66fd3d5 = main + 41 frontend commits,
+   behind main by 0. Deploy 3dc5cf40 ACTIVE at 05:24 UTC, live contaminants_computed 8869. Live check answered
+   (Alizarine Blue BL, polypropylene, ethanol; status ok). CORRECTION to the commit message of 12bc6501: it says the
+   campaign record gains the owner-decision scripts and note; the mirror copies only committed lane files, and those
+   were committed (14bbf13) after the mirror ran, so they reach DISSOLVE with the next release's mirror. The retry
+   manifests r06-r12 and the t14 receipts are in 12bc6501.
+5. Owner 2026-10-12 (direct): "euler has gotten congested. lets cancel jobs we think will take multiple days. work we
+   are confident about can keep going but we are getting to a point of diminishing returns on some of the larger
+   structures (but make note of it in case we want to revisit later)". A read of every running job (05:25 UTC) showed
+   what the time-limit rows really are: the optimization finishes, then the vacuum SCF of the COSMO step (def2-TZVPD,
+   smallest overlap eigenvalue 1e-8 to 1e-7) oscillates at an error near 1e-3 to ORCA's 125-iteration cap, and the
+   CPCM SCF does the same. 25 of the 33 rows of r05-r08, r11 and r12 that reached the COSMO step in an earlier attempt
+   show it there; every retry that reached it again repeated it (same geometry, same SCF), so a longer time limit only
+   repeats the failure. 52 jobs were cancelled at 05:30 UTC (scancel by task id; only contam-coverage jobs): 15 whose
+   vacuum SCF had already failed in this attempt, 18 repeating an attempt whose vacuum SCF failed, 5 repeating an
+   attempt cut in the oscillating SCF, 4 first attempts past 60 SCF iterations and oscillating (114-136 atoms, 12-18 h
+   into the step), 1 optimization unconverged after 48 h (169 atoms), and the 9 embedding rows of r09 (129-235 atoms,
+   never computed, optimizations just started). One more c17 row reached its limit the same way and was not
+   resubmitted. Per row (name, atoms, stage, reason, run folder): state/coverage-v1/cancelled-2026-10-12.json. The 53
+   records carry failure_mode owner_cancelled with the scheduler's record kept; they are counted as 'cancelled', are
+   not picked up by retry rounds and are not written as failure rows in a release (NOT_FINAL), so they stay on the
+   work list.
+6. Kept running: BEIOEBMXPVYLRY (c17, 166 atoms, vacuum SCF at iteration 35), NGXJTOMGAJYYDH (r07, earlier cut was in
+   the optimization), the five r10 COSMO restarts (hours, a second SCF failure is final), batch t15 and conformer
+   tetratetracontane k07.
+7. To revisit: the run folders stay on Euler. Rows with a finished optimization can restart the COSMO step from the
+   kept orbitals (--cosmo-restart; 7 of 12 converged so in r10). A cure for the oscillation itself (SCF settings,
+   basis linear-dependency threshold) is a change of method and needs the owner.
+
+A-13 NOTE (2026-10-13 17:45 UTC, coverage lane) — OWNER DECISION: D-IDENT GAINS A HYDROGEN CHECK; ACID FUCHSINE FB IS WITHDRAWN
+Owner, 2026-10-13 (direct): "drop acid fuchsine, keep the three bridged, add the hydrogen check".
+1. What was found. Five conformers of a trisazo sulfonic acid dye (NLWJOLRIRSJRKQ, exploratory conformer study on
+   CHTC) were rejected by D-IDENT; in each the hydroxy hydrogen had crossed to the azo nitrogen (O-H 1.63-1.67 A,
+   N-H 1.05 A: the hydrazone). The owner asked whether the same had happened anywhere else. An audit that does not use
+   InChI (bonds of the input against bonds from interatomic distances, atom by atom; run by a subagent at the owner's
+   request, read-only) covered all 8,869 computed structures served in promotion-v13, each tied to its released
+   surface by digest, and all 2,588 conformer geometries: no bond broken or formed anywhere; one released structure
+   with a moved hydrogen, Acid fuchsine FB (FKDGKTNDRAXENR-UHFFFAOYSA-N, CAS 3244-88-0, group c12, in v13): a sulfonic
+   acid hydrogen on the imine nitrogen (O-H 1.782 A, N-H 1.036 A), the zwitterion. D-IDENT had accepted it because
+   standard InChI treats that hydrogen as mobile and the first block does not change (RDKit matched; Open Babel
+   perceived another first block).
+2. The rule (scripts/hydrogen_identity.py, in identity_campaign.decide): a structure is verified only when the
+   first-block rule is met AND every hydrogen of the optimized geometry has, as its nearest heavy atom, the heavy atom
+   it is bonded to in the input (atoms taken in the input order, element sequence checked; no distance threshold). The
+   reason is recorded as identity_rejection and as the record's error. It applies to every collection from now on
+   (coverage, held perceptions, both conformer collectors).
+3. Kept, by the owner: DJFRYVBMXYGMAV, BTWMAWYAYFSBNC and UTFSODSDSZXJSJ (released), whose hydrogen sits in a short
+   O-H...O bridge but nearer its own oxygen (1.131/1.291, 1.107/1.357, 1.104/1.362 A). The rule passes them.
+4. Applied to the coverage records (scripts/apply_hydrogen_identity.py, digests checked again): 1,606 accepted
+   structures examined, 1,605 keep their status and carry the observation, Acid fuchsine FB becomes a D-IDENT
+   rejection with the earlier acceptance kept (identity_withdrawn). The 23 structures accepted by the bonded-graph
+   observation pass. The same rule run over all 8,869 released geometries flags only Acid fuchsine FB; the sealed
+   records of the earlier tiers (campaign, halogen, publication) are not rewritten.
+5. Acid fuchsine FB stays served by promotion-v13 until the next release, where it is a failure row. No release was
+   made by this NOTE.
+A-13 NOTE (2026-10-23 05:27 UTC, coverage lane) — OWNER GO: TEMPERATURE EXTENSION OF THE PARTITION ACTIVITIES, 25-160 C
+Relayed by DISSOLVE-BUILDER on 2026-10-22 and confirmed by the owner in this lane's session ("Pilot, then full job").
+It reopens thermodynamics only; contaminants stay closed for DFT. Nothing changes in DISSOLVE or in any release.
+1. Scope: the 8,903 computed v14 structures (v14 not built: v13 converged, minus FKDGKTNDRAXENR, plus 35 coverage
+   structures), the served panel's 32 solvents and the 236 conformers of its 10 polymers, 25-160 C in 5 C steps,
+   exact zero mole fraction, pure-component reference, openCOSMO-RS 24a through the pinned
+   phase9_profiles.infinite_dilution (0113145c) given the temperature. No method change: surfaces, conformers,
+   solvation and identity are the served ones. Subbatch 10 solutes per engine call (the coverage batches used 50;
+   ln gamma moves by ~1e-6). The phase profiles were parsed once on Genoa (inputs/phase-profiles.pkl 95da62f1;
+   campaign.json e10a5d94).
+2. Run: ~/plastchem-euler/temperature-v1 on Euler, staging and archive /mnt/r/plastchem-euler/temperature-v1. 179
+   chunks (pilot p00 + c000-c177, 50 structures each, balanced by size), one append-only JSONL per chunk, resumable.
+   scripts/temperature_controller.py runs every 15 minutes from scrontab (job name tempctl-controller) and keeps the
+   account at or under 64 jobs; its ledger.jsonl records every attempt. Remove the scrontab entry when the run ends.
+3. Pilot p00 (50 structures across size): 25 C against promotion-v13, 16,000 pairs, max |dlogP| 3.3e-5 (median
+   2.6e-8, 2 cells round differently at 0.01); job 99347 cancelled at block 138, resubmitted by the controller
+   (99351), resumed at 138, byte-identical to the uninterrupted copy (99348); 0.0114 CPU-s per evaluation, about
+   1.2 CPU-h per chunk, about 210 CPU-h in all.
+4. Full run started 05:26 UTC: 55 chunks running (99356-99410), 123 waiting for slots.
+5. Releases: cumulative partition_by_temperature.duckdb (id, solvent, polymer, temperature_c, logp_x100,
+   above_boiling_point; normalized convention, concentration basis), to /mnt/r/plastchem-euler/releases/temperature/
+   and releases/temperature/ (outside git), after the first wave, then every 90 completed slot-hours, and at 100%.
+   DISSOLVE-BUILDER hosts and wires them under COMMIT_WINDOW coordination.
+6. Correction (2026-10-23 06:42 UTC): the pilot's timing came from a nearly empty node. With 56 chunks running the
+   rate is 6.19 M evaluations/h (ledger, 06:00-06:30 UTC): a chunk takes 2.1-6.5 h (median 3.5 h; the spread
+   follows CPU placement on the SMT-shared Genoa nodes, not chunk content), 0.83-0.93 CPU-s per block, and 30-40%
+   of each block's wall time goes to writing its JSONL line and log line to the CephFS home. In all about 690
+   slot-hours (about 340 CPU-h), not 210 CPU-h; all chunks complete at about 21:00 UTC (20:10-22:25). Releases at
+   about 25, 50 and 75% of the slot-hours in complete chunks (release_every_cpu_hours 170 in both copies of
+   controller-config.json) and at 100%; the first at about 09:50 UTC. Disk: 1.8 KB per line, about 2.5 GB more
+   on Euler against 233 GB left in the account's 5 TiB CephFS quota (95.8% used before this run).
+7. 2026-10-23 08:18 UTC: pilot p00 is complete; its whole resumed file (7,504 lines, 13,592,057 B, sha256
+   4d2a2d87...) is byte-identical to the uninterrupted copy (item 3 had compared the first 302 lines). At the 08:15
+   pass 25.5% of evaluations were done, 11 chunks complete, none quarantined. Open for the owner: the controller
+   counts every job on the account against 64 (item 2), and a 138-task DeepTICA array held the account at 149-239
+   jobs from 07:15 UTC, so no chunk past the first wave started; counting only this campaign's jobs (the A-13
+   launch text) is ready as one config line (controller be50512, count_prefixes) and waits for the owner's word.
+8. 2026-10-23 10:00 UTC: release 1 (partial) cut at 09:59 UTC from the 54 chunks complete at the 09:45 pass (176.7
+   slot-hours): 2,643 contaminants (12 more in those chunks are v14-only, without a served id, and withheld),
+   23,681,280 rows, 70,004,736 B, sha256 7802d372..., identical in both release folders. 25 C against the served
+   plastchem_opencosmo.duckdb (307f3fab...): 845,760 cells, max |dlogP| 4.06e-5; 32 cells round to a different
+   0.01, all on the half-step boundary (max |logp_x100/100 - served| 0.0050072). No NULLs, no duplicate keys.
+   Path, sha256, count and the check went to DISSOLVE-BUILDER. Earlier, at 08:30 UTC, a higher-priority partition
+   preempted six chunks on euler149 (c027-c032, research is preempt/partition_prio) after 2:59:41. The controller
+   submits --no-requeue, so Slurm ended them as PREEMPTED and the controller resubmitted each as attempt 2, which
+   resumed from its saved blocks. At the 09:45 pass 37.4% of evaluations were done, none quarantined; the account
+   had fallen to 54-61 jobs, so the controller refilled it to 64.
+9. 2026-10-23 11:18 UTC: 50.7% of evaluations at the 11:15 pass (33.87 M of 66.81 M), 61 chunks complete, none
+   quarantined; milestone sent to DISSOLVE-BUILDER. 12 preemptions so far, all resumed as attempt 2 (euler149: 6 at
+   08:30; euler148: 5 at 09:30, 1 at 11:15). Throughput 5.84 M evaluations/h over 09:15-11:15 with about 50 slots
+   (other projects hold 12 jobs under the account-wide 64); all chunks complete at about 18:00-19:30 UTC, earlier
+   than item 6's 21:00. Release 2 at 346.7 slot-hours in complete chunks (198.3 now), about 13:30 UTC.
+10. 2026-10-23 14:24 UTC: 75.2% of evaluations at the 14:00 pass, 109 chunks complete, none quarantined. Release 2
+   (partial) cut at 14:23 UTC from those 109 chunks (352.6 slot-hours): 5,379 contaminants (24 v14-only withheld),
+   48,195,840 rows, 140,783,616 B, sha256 d272495a..., replacing release 1 in both release folders. 25 C against
+   the served database: 1,721,280 cells, max |dlogP| 4.06e-5, 70 cells on the half-step boundary round
+   differently. Sent to DISSOLVE-BUILDER with the 75% milestone. The run totals about 580 slot-hours (3.24 per
+   complete chunk), not 690, so a third +170 step would fall at about 90%. Release 3 is therefore cut by hand
+   (release --force) at about 75% of the slot-hours (about 435), around 16:00 UTC, as item 6 intends; then the
+   final release at 100%.
+11. 2026-10-23 15:51 UTC: the owner asked in this session to integrate the releases into the live agent and test
+   them in the same tool. DISSOLVE main 868c16e2 (reviewed by DISSOLVE-BUILDER, who monitors it for the owner):
+   screen_contaminant_partitioning and lookup_plastchem_contaminants read logP at 30-160 °C from
+   data/plastchem_partition_by_temperature.parquet (a cut packed losslessly by plastchem_release
+   .promote_temperature_release: release 2 was 141 MB of DuckDB, 21 MB packed; the full run will be about 35 MB),
+   while 25 °C stays on the served table (10 real calls byte-identical before and after). Off-grid temperatures
+   are refused with the neighbouring grid points; contaminants the cut lacks are named, never given 25 °C values.
+   The owner's boiling-point rule (relayed by DISSOLVE-BUILDER): above 25 °C a solvent boiling at or below the
+   temperature is left out unless the user mentions pressure (require_atmospheric, as the solubility screens).
+   Synced (main 868c16e2, frontend 742fc3e1) and live at 15:33 UTC (deployment 5bc177d7); live checks passed at
+   25 °C, DMSO 120 °C and ethanol 120 °C with and without pressure; site memory steady at about 16.6% after a full
+   screen. One gap (a full screen did not say how many contaminants the cut lacks) gets a follow-up commit that
+   also ships release 3. Release 3 (partial) cut at 15:49 UTC by hand from the 135 chunks complete at the 15:30
+   pass (428.5 slot-hours): 6,675 contaminants (28 v14-only withheld), 59,808,000 rows, 173,551,616 B, sha256
+   f36bd65a..., 25 °C max |dlogP| 4.06e-5 with 86 boundary cells.
+12. 2026-10-23 16:10 UTC: follow-up DISSOLVE main 1962e571 (reviewed by DISSOLVE-BUILDER): answers above 25 °C carry
+   not_at_temperature_count (a full screen passes by handle, and the compact view the agent sees drops lists of
+   rows, so the 3,490 names release 2 lacked never reached it) and name the first 50; the asset is release 3
+   (26 MB). Suite 1673 passed, 5 skipped. Synced (main 1962e571, frontend d09f94e0), live 16:09 UTC (deployment
+   9720cb50); the live full screen (LDPE into DMSO at 100 °C) now says 2,194 contaminants are not in release 3
+   yet. COMMIT_WINDOW removed 16:10 UTC. The final release goes to the same path in one more commit, same gate.
+13. 2026-10-23 19:37 UTC: the run is complete. All 179 chunks were complete at the 18:45 UTC pass (66,808,112
+   evaluations, 0 quarantined; 12 preemptions in all, each resumed from its saved blocks; 578.1 slot-hours). The
+   scrontab entry was the account's only one; it was removed at 18:46 UTC and its text is kept in scratch. The run's
+   ledger, controller state, logs, control files and profiles are archived at /mnt/r/plastchem-euler/temperature-v1/
+   run-records/temperature-v1-run-records.tar.gz (25,501,016 B, sha256 312787ec..., checked after the copy; the
+   Euler copy of the tarball was removed, the run folder stays on Euler). All 179 result files are in
+   /mnt/r/plastchem-euler/temperature-v1/results, each checked against its complete.json sha256. Release 4 (final)
+   was cut at 19:08 UTC: 8,868 contaminants (35 v14-only withheld), 79,457,280 rows, 229,388,288 B, sha256
+   41371357..., identical in both release folders. Checked independently: 8,960 cells per id, no NULLs or duplicate
+   cells. 25 C against the served database: 2,837,760 cells, max |dlogP| 4.06e-5, 124 cells on the half-step
+   boundary. It holds every served computed contaminant but one, Acid fuchsine FB (FKDGKTNDRAXENR-UHFFFAOYSA-N,
+   served id 1625). That contaminant is outside the v14 structure set the run computed (withdrawn, A-13 NOTE
+   2026-10-13), so it stays computed at 25 C only. The release names it (served_not_in_run) and the set
+   (structure_set; plastchem-euler bbb8674, local).
+14. 2026-10-23 19:37 UTC: DISSOLVE main 4814a9e8, reviewed by DISSOLVE-BUILDER, in one commit at the owner's wish
+   (no intermediate pushes). It serves release 4 at data/plastchem_partition_by_temperature.parquet (35 MB).
+   promote_temperature_release holds a final cut to naming exactly the served contaminants it lacks. Once the release
+   is final, answers say those are "computed at 25 C only", with not_at_temperature_reason, cause first. The first
+   wording, "not in the structure set the temperature run computed", came back from the model in a full screen as
+   "lacks high-temperature parameters". Suite 1674 passed, 5 skipped, audit 0, home writes 0. Synced: main 4814a9e8 |
+   main-backup 4814a9e8 | main-cleanup-frontend cc86bdae = main + 43 frontend commits, behind main by 0. Deploy
+   3a15ebd9 ACTIVE 19:34 UTC; health {"ok":true, ..., "contaminants_computed":8869}. From 19:34:35
+   to about 19:36:30, /api/health returned a 404 from the edge (no app origin) while the app answered other paths;
+   it cleared by itself. Live checks: Acid fuchsine FB at 60 C reads "computed at 25 C only (the temperature run
+   computed the v14 structure set, which does not include it; temperature release 4, status final)", with the 25 C
+   values given as such. The full screen (LDPE into DMSO at 100 C) reads "6,457 of the 8,868 evaluated ... 1
+   contaminant ... was absent from the temperature-extended structure set (computed at 25 C only)". COMMIT_WINDOW
+   removed 19:37 UTC. On the owner's request through DISSOLVE-BUILDER, a read-only SI data package (17,932 entries
+   -> 8,903 structures) is at reports/si-structure-funnel-2026-10-23 (local commit 88616ee). Still open for the
+   owner: v14 (when it is served, the 35 withheld structures need a new cut and repack) and the cap rule for the next
+   campaign.

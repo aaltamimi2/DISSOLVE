@@ -32,7 +32,7 @@ PLACEHOLDER = re.compile(r"^(\d{2,7}-\d{2}-\d|CID \d+|EINECS \d{3}-\d{3}-\d)$", 
 def candidates(key, digest):
     """Where a surface may be under ~/plastchem-euler on Euler: the coverage tier, its retry rounds, the halogen tier and
     its retries (A-11), then the earlier tiers (as make_contaminants_tsv.py lists them)."""
-    stages = ["coverage-v1", *[f"coverage-v1/retries/r{n:02d}" for n in range(1, 10)], "halogen-v1",
+    stages = ["coverage-v1", *[f"coverage-v1/retries/r{n:02d}" for n in range(1, 13)], "halogen-v1",
               *[f"halogen-v1/retries/r{n:02d}" for n in range(1, 10)], "tier2-v1", "tier2-v1/time-limit-retry1",
               "tier2-v1/time-limit-retry2"]
     out = [f"phase83-v1/surfaces/{digest}.orcacosmo"]

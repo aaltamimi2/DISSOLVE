@@ -4846,43 +4846,58 @@ def test_contaminants_the_temperature_extension_lacks_are_all_counted_and_the_fi
     assert few["not_at_temperature_count"] == 3 and "not_at_temperature_note" not in few
 
 
-def test_the_final_temperature_release_says_what_it_lacks_is_computed_at_25_c_only_and_why(tmp_path, monkeypatch):
-    """The run's final cut (2026-10-23) still lacks one served contaminant, Acid fuchsine FB, outside the v14 structure
-    set the run computed: "not in the temperature extension yet" would promise a value that never comes. A final cut
-    must name what it lacks (served_not_in_run) and the set it computed; its answers then call those contaminants
-    computed at 25 °C only and say why, while a partial cut's keep "yet". One contaminant reads "is"."""
+def test_a_final_temperature_cut_holds_every_contaminant_the_served_asset_computed(tmp_path, monkeypatch):
+    """Every contaminant released has logP at 25-160 °C (owner, 2026-10-24: "every contaminant released should have
+    25-160C"). Release 4, the run's final cut, lacked one served contaminant, Acid fuchsine FB (withdrawn in v14), and
+    named it; since v14 the packer refuses a final cut that lacks a served contaminant, named or not, or that names one
+    as outside the run, while a partial cut may lack some and name only those. The whole final cut packs, and its
+    answers above 25 °C lack nothing."""
     asset = tmp_path / "asset.duckdb"
     monkeypatch.setenv("DISSOLVE_PLASTCHEM_ASSET", str(asset))
     plastchem_release.promote_opencosmo_release(_plastchem_release(tmp_path), asset)
     packed = tmp_path / "temperature.parquet"
-    for cut in (_temperature_cut(tmp_path, asset, skip={"DDDD-D"}, final=True, declared=(), name="silent.duckdb"),
-                _temperature_cut(tmp_path, asset, skip={"DDDD-D"}, declared={"AAAA-A"}, name="held.duckdb")):
-        with pytest.raises(ValueError, match="served contaminants as outside the run but lacks 1"):
+    for cut, lacks, names in ((_temperature_cut(tmp_path, asset, skip={"DDDD-D"}, final=True, name="named.duckdb"), 1, 1),
+                              (_temperature_cut(tmp_path, asset, skip={"DDDD-D"}, final=True, declared=(),
+                                                name="silent.duckdb"), 1, 0),
+                              (_temperature_cut(tmp_path, asset, final=True, declared={"DDDD-D"}, name="whole.duckdb"), 0, 1)):
+        with pytest.raises(ValueError, match=f"is final but lacks {lacks} of the contaminants the served asset computed "
+                                             f"and names {names} as outside the run"):
             plastchem_release.promote_temperature_release(cut, packed, served=asset)
-    plastchem_release.promote_temperature_release(_temperature_cut(tmp_path, asset, skip={"DDDD-D"}, final=True), packed,
-                                                  served=asset)
+    with pytest.raises(ValueError, match=r"held.duckdb \(partial\) names 1 served contaminants as outside the run but "
+                                         "lacks 1"):
+        plastchem_release.promote_temperature_release(
+            _temperature_cut(tmp_path, asset, skip={"DDDD-D"}, declared={"AAAA-A"}, name="held.duckdb"), packed, served=asset)
+    assert not packed.exists()
+    partial = plastchem_release.promote_temperature_release(
+        _temperature_cut(tmp_path, asset, skip={"DDDD-D"}, declared={"DDDD-D"}, name="partial.duckdb"), packed, served=asset)
+    final = plastchem_release.promote_temperature_release(_temperature_cut(tmp_path, asset, final=True), packed, served=asset)
+    assert [(info["status"], info["contaminants"]) for info in (partial, final)] == [("partial", 3), ("final", 4)]
     monkeypatch.setenv("DISSOLVE_PLASTCHEM_TEMPERATURE_ASSET", str(packed))
     contaminants._LOCAL.__dict__.pop("plastchem", None)
-    screen, lookup = contaminants.screen_contaminant_partitioning, contaminants.lookup_plastchem_contaminants
-    reason = ("computed at 25 °C only: the temperature run computed the test set (all but Deltaone), which does not "
-              "include it.")
-    one = json.loads(screen("LDPE", "dodecane", temperature_c=60))
-    assert one["data"]["logp_temperature_release"]["status"] == "final"
-    assert one["data"]["not_at_temperature_reason"] == reason
-    assert one["display"].endswith(" 1 more is computed at 25 °C only.")
-    ranked = json.loads(screen("LDPE", None, ["Alphaester", "Deltaone"], temperature_c=60))
-    assert ranked["display"].endswith(" 1 more contaminant is computed at 25 °C only.")
-    looked = json.loads(lookup(["Alphaester", "Deltaone"], "dodecane", temperature_c=60))
-    assert looked["display"].endswith(" 1 is computed at 25 °C only.")
-    assert (ranked["data"]["not_at_temperature_reason"], looked["data"]["not_at_temperature_reason"]) == (reason, reason)
-    assert not any(" yet" in out["display"] for out in (one, ranked, looked))
+    ranked = json.loads(contaminants.screen_contaminant_partitioning("LDPE", None, ["Alphaester", "Deltaone"],
+                                                                     temperature_c=60))
+    assert ranked["data"]["logp_temperature_release"]["status"] == "final"
+    assert ranked["data"]["not_at_temperature_count"] == 0 and "not_at_temperature_reason" not in ranked["data"]
+    assert {row["contaminant"] for row in ranked["data"]["rows"]} == {"Alphaester", "Deltaone"}
+    assert "25 °C only" not in ranked["display"] and " yet" not in ranked["display"]
+
+
+def test_answers_call_what_a_final_cut_lacks_computed_at_25_c_only_and_say_why():
+    """Release 4 lacked Acid fuchsine FB, outside the v14 structure set the run computed: "not in the temperature
+    extension yet" would have promised a value that never comes. What a final cut lacks is called computed at 25 °C
+    only, with the set the run computed as the cause; a partial cut's keep "yet". One contaminant reads "is"."""
+    final = (Path("unused.parquet"), {"release": "4", "status": "final", "contaminants": "8868",
+                                      "structure_set": "the test set (all but Deltaone)"})
     missing = [{"contaminant": f"C{i:02d}", "inchikey": f"K{i:02d}"} for i in range(60)]
-    final = (Path("unused.parquet"), {"release": "4", "status": "final", "contaminants": "8868"})
+    assert contaminants._temperature_fields(final, 60, None, missing[:1], None)["not_at_temperature_reason"] == (
+        "computed at 25 °C only: the temperature run computed the test set (all but Deltaone), which does not include it.")
     assert contaminants._temperature_fields(final, 60, None, missing, None)["not_at_temperature_note"] == (
         "60 of the contaminants asked about are computed at 25 °C only (not in temperature release 4, the final one); "
         "the first 50 are named.")
     partial = (Path("unused.parquet"), {"release": "3", "status": "partial", "contaminants": "6675"})
     assert "not_at_temperature_reason" not in contaminants._temperature_fields(partial, 60, None, missing, None)
+    assert [contaminants._not_in_extension(release, n) for release, n in ((final, 1), (final, 2), (partial, 1))] == [
+        "is computed at 25 °C only.", "are computed at 25 °C only.", "is not in the temperature extension yet."]
 
 
 def test_ethanol_is_left_out_at_120_c_by_default_and_dmso_is_not():
@@ -4917,6 +4932,22 @@ def test_the_shipped_temperature_extension_belongs_to_the_served_release():
            JOIN s.partition p ON p.id = t.id AND p.polymer = t.polymer AND p.solvent = t.solvent
            WHERE t.temperature_c = 25""", [str(contaminants._PLASTCHEM_TEMPERATURE_ASSET)]).fetchone()
     assert cells == int(meta["contaminants"]) * 320 and worst < 0.0051
+
+
+def test_every_contaminant_the_served_asset_computed_ships_with_logp_at_25_to_160_c():
+    """Owner, 2026-10-24: "every contaminant released should have 25-160C". The shipped extension is a final cut that
+    holds each contaminant the served asset computed, and no other, at every temperature, solvent and polymer."""
+    path = str(contaminants._PLASTCHEM_TEMPERATURE_ASSET)
+    con = duckdb.connect()
+    meta = {k.decode(): v.decode() for k, v in con.execute(
+        "SELECT key, value FROM parquet_kv_metadata(?)", [path]).fetchall()}
+    assert meta["status"] == "final" and json.loads(meta["served_not_in_run"]) == []
+    con.execute(f"ATTACH '{contaminants._PLASTCHEM_ASSET}' AS s (READ_ONLY)")
+    computed = {i for (i,) in con.execute("SELECT id FROM s.contaminants WHERE computed").fetchall()}
+    shipped = {i for (i,) in con.execute("SELECT DISTINCT id FROM read_parquet(?)", [path]).fetchall()}
+    rows = con.execute("SELECT count(*) FROM read_parquet(?)", [path]).fetchone()[0]
+    assert shipped == computed and int(meta["contaminants"]) == len(computed)
+    assert rows == len(computed) * len(contaminants._LOGP_GRID_C) * 32 * 10
 
 
 def test_plastchem_extension_release_adds_solvents_for_the_same_contaminants(tmp_path, monkeypatch):
