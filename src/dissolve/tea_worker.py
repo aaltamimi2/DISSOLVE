@@ -1050,6 +1050,10 @@ def _create_and_simulate_process(
             config["precipitation_temperature_c"] + 273.15
         )
         process.set_dissolution_capacity(config.get("dissolution_capacity", 3))
+        # The hourly flow follows the processing capacity and the operating days together. The process is built before the
+        # operating days are set, so the capacity is applied again here; otherwise a plant with other than the default
+        # operating days would process a different annual tonnage than the one asked for.
+        process.set_processing_capacity(float(config["processing_capacity"]))
         process.set_IRR(float(config.get("irr", _IRR_DEFAULT)))
         process.set_feedstock_price(float(
             config.get("feedstock_price_usd_per_kg", _FEEDSTOCK_PRICE_USD_PER_KG)

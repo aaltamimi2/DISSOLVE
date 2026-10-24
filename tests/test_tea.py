@@ -8417,6 +8417,52 @@ def test_a_failed_unit_removal_stops_the_run_by_name(monkeypatch):
         )
 
 
+def test_a_plant_with_other_operating_days_still_processes_the_tonnage_asked_for(monkeypatch):
+    """The process model sizes the hourly feed from the processing capacity at its own 350.4 operating days when it is
+    built. The worker set other operating days afterwards and never applied the capacity again, so a plant asked for
+    8,000 t/yr at 328.5 days processed 7,500 t/yr (the hourly feed times fewer hours), and the operating days changed
+    the plant's size instead of only its hours. The capacity is now applied again after the operating days."""
+
+    class Unit:
+        def disconnect(self, **kwargs):
+            pass
+
+    class Tea:
+        operating_days = 350.4
+
+        @property
+        def operating_hours(self):
+            return 24 * self.operating_days
+
+    class Process:
+        class Scenario:
+            def __init__(self, **kwargs):
+                self.__dict__.update(kwargs)
+
+        def __init__(self, scenario):
+            self.scenario, self.T1, self.U1, self.tea = scenario, Unit(), Unit(), Tea()
+            self.system = SimpleNamespace(units=[], update_configuration=lambda units: None, simulate=lambda: None)
+            self.set_processing_capacity(scenario.processing_capacity)  # the model's own sizing, at construction
+
+        def set_processing_capacity(self, capacity_t):
+            self.feed_kg_per_h = capacity_t * 1000 / self.tea.operating_hours
+
+        def __getattr__(self, name):
+            if name.startswith("set_"):
+                return lambda *args, **kwargs: None
+            raise AttributeError(name)
+
+    monkeypatch.setattr(tea_worker, "_prepare_engine_solvent", lambda package, config: ("Toluene", {}))
+    monkeypatch.setattr(tea_worker, "_set_characterization_factors", lambda *args: None)
+    for days in (328.5, 350.4, 366.0):
+        process, _ = tea_worker._create_and_simulate_process(
+            None, Process, {"target_plastic_percent": 60.0, "processing_capacity": 8000.0, "operating_days": days,
+                            "solvent_price": 1.0, "dissolution_temperature_c": 110.0, "precipitation_temperature_c": 35.0},
+            target="PE", energy={"facilities": True, "turbogenerator": True},
+        )
+        assert process.feed_kg_per_h * process.tea.operating_hours / 1000 == pytest.approx(8000.0), days
+
+
 def test_worker_switches_read_true_and_false_strings_and_refuse_others():
     """B06-R5: bool("false") is True, so a string switch that reached the worker sold the leftover plastic."""
     assert tea_worker._coerce_switch("false", "sell_leftover_plastic") is False
