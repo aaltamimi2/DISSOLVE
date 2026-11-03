@@ -4,6 +4,7 @@ from __future__ import annotations
 import hashlib
 import inspect
 import json
+import re
 from pathlib import Path
 
 import pytest
@@ -786,9 +787,28 @@ def test_a2_function_still_imports_and_computes_hdpe():
     assert abs(tm_c - 131) < 2
 
 
+def test_tg_lookup_reports_measured_values_only():
+    """Every one of the 7,736 Tg rows carries a measured value, yet each row also carried a stored model estimate
+    (predicted_tg_k, prediction_std_k), and the reply carried that model's metadata. No tool ever used the estimate,
+    and a reader could take it for an unattributed model DISSOLVE runs. The snapshot, the lookup and the thermal
+    inventory now hold measured values only."""
+    payload = analysis.asset_payload()["tg"]
+    assert "model_info" not in payload
+    assert all("Tg_K_predicted" not in e and "Tg_std" not in e and e["Tg_K"] is not None for e in payload["entries"])
+    data = parse_tool_result(analysis.lookup_glass_transition("HDPE"))["data"]
+    assert data["matches"] and "model_info" not in data and "runtime_model_loaded" not in data
+    for row in data["matches"]:
+        assert row["evidence_class"] == "measured_snapshot"
+        assert not {"predicted_tg_k", "prediction_std_k", "measured_tg_k"} & set(row)
+    inventory = parse_tool_result(analysis.list_thermal_evidence())["data"]["rows"]
+    estimate = parse_tool_result(analysis.estimate_thermal_properties(_HDPE_PSMILES))
+    for text in (json.dumps(data), json.dumps(inventory), json.dumps(estimate)):
+        assert not {"prediction", "weights", "residual"} & set(re.findall(r"[a-z]+", text.lower()))
+
+
 def test_a3_inventory_stops_advertising_and_keeps_tg_7736():
     rows = parse_tool_result(analysis.list_thermal_evidence())["data"]["rows"]
-    assert len(rows) >= 4
+    assert len(rows) >= 3
     assert not any(
         "Van Krevelen" in str(row.get("capability")) and row.get("available") is True
         for row in rows

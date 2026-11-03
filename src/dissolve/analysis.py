@@ -17,7 +17,7 @@ from .contracts import tool_error, tool_success
 from .thermodynamics import _polymer_ambiguity_error
 
 _ASSET = Path(__file__).with_name("data") / "analysis.json.gz"
-_ASSET_SHA256 = "6fa37a21e4ff492654172883ca3a941f7820b704f899ad86839d1fe9e17ee9a0"
+_ASSET_SHA256 = "048c25f98d477354b14aed52744c8424d207f714a2eb17f28a044f6408e737eb"
 _HSP_ML_STEM = "corrected_Random_Forest_20251231_212903"
 _HSP_ML_ASSETS = {
     f"{_HSP_ML_STEM}_model.pkl": "25b4331e2fb0bb3b6e6657b7705e61ccb4a23849fe4c282998c2e5f636d5cb6a",
@@ -1207,16 +1207,13 @@ def lookup_glass_transition(polymer_query: str, top_k: int = 5) -> str:
     matches = []
     for score, _, match, entry in candidates[:limit]:
         measured = entry.get("Tg_K")
-        predicted = entry.get("Tg_K_predicted")
-        selected = measured if measured is not None else predicted
+        if measured is None:
+            continue
         matches.append({
             "psmiles": entry["psmiles"], "names": entry.get("names") or [],
-            "tags": entry.get("tags") or [], "tg_k": selected,
-            "tg_c": None if selected is None else float(selected) - 273.15,
-            "measured_tg_k": measured, "predicted_tg_k": predicted,
-            "prediction_std_k": entry.get("Tg_std"), "source": entry.get("source"),
-            "evidence_class": "measured_snapshot" if measured is not None else "precomputed_model_prediction",
-            "match_type": match, "match_score": score,
+            "tags": entry.get("tags") or [], "tg_k": measured,
+            "tg_c": float(measured) - 273.15, "source": entry.get("source"),
+            "evidence_class": "measured_snapshot", "match_type": match, "match_score": score,
         })
     if not matches:
         return tool_error(
@@ -1231,10 +1228,9 @@ def lookup_glass_transition(polymer_query: str, top_k: int = 5) -> str:
               f"{row['tg_c']:.6g}", row["evidence_class"], row["source"] or "—") for row in matches],
         ),
         analysis_type="tg_lookup", polymer_query=query, matches=matches,
-        snapshot_entries=len(entries), model_info=asset_payload()["tg"].get("model_info"),
-        runtime_model_loaded=False, provenance=asset_payload()["provenance"],
+        snapshot_entries=len(entries), provenance=asset_payload()["provenance"],
         warnings=[
-            "Each row is labeled measured snapshot or precomputed model prediction; no thermal model weights are loaded at runtime.",
+            "Each row is a measured Tg from the checksummed snapshot.",
             "A snapshot lookup is not a fitted polymer-solvent thermodynamic record.",
         ],
     )
@@ -1353,7 +1349,6 @@ def estimate_thermal_properties(
         provenance={**asset_payload()["provenance"], "method_source": "Properties of Polymers, 4th ed."},
         warnings=[
             "These are group-contribution estimates and approximate solubility inputs, not experimental values or fitted polymer-solvent records.",
-            "No polyBERT thermal weights are present or loaded; no ML residual correction was applied.",
             "Coverage and missing contribution groups must be considered before use.",
         ],
     )
@@ -1363,7 +1358,7 @@ def list_thermal_evidence() -> str:
     """Describe exactly which thermal evidence modes are and are not deployed."""
     payload = asset_payload()
     rows = [
-        {"capability": "Tg snapshot lookup", "available": True, "basis": f"{len(payload['tg']['entries'])} precomputed rows"},
+        {"capability": "Tg snapshot lookup", "available": True, "basis": f"{len(payload['tg']['entries'])} measured rows"},
         {
             "capability": "Van Krevelen group contribution",
             "available": False,
@@ -1372,7 +1367,6 @@ def list_thermal_evidence() -> str:
                 "not offered to the agent"
             ),
         },
-        {"capability": "polyBERT residual inference", "available": False, "basis": "weights absent at v10 baseline"},
         {"capability": "dynamic fitted solubility records", "available": False, "basis": "refused: ideal-SLE promotion is not fitted evidence"},
     ]
     return tool_success(
