@@ -26,6 +26,24 @@ services:
       - key: DISSOLVE_SIGNUP_CODES
         type: SECRET
         scope: RUN_TIME
+      # One list per group of people, retired on its own: the CBE 562 class and the AIChE conference (2026-11-10).
+      - key: DISSOLVE_SIGNUP_CODES_CLASS
+        type: SECRET
+        scope: RUN_TIME
+      - key: DISSOLVE_SIGNUP_CODES_AICHE
+        type: SECRET
+        scope: RUN_TIME
+      # For now the site offers DeepSeek V4.1 Flash only, /literature off or corpus, and review mode (owner, 2026-11-10).
+      # Remove an entry to offer every choice again.
+      - key: DISSOLVE_WEB_MODELS
+        scope: RUN_TIME
+        value: openrouter-deepseek-flash
+      - key: DISSOLVE_WEB_LITERATURE
+        scope: RUN_TIME
+        value: off,corpus
+      - key: DISSOLVE_WEB_MODES
+        scope: RUN_TIME
+        value: review
       - key: DATABASE_URL
         scope: RUN_TIME
         value: ${db.DATABASE_URL}
