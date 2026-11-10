@@ -33,9 +33,13 @@ the CLI's process sheet shows, with ranges, checked before anything runs.
 With DATABASE_URL set, people have accounts (web_accounts.py): each signs up with a username and a password, sees
 only their own chats, and keeps them across redeploys, because accounts and chats live in that database and not in
 the container. Sign-up asks for DISSOLVE_SIGNUP_CODE (by default DISSOLVE_WEB_PASSWORD), or any comma-separated code
-in DISSOLVE_SIGNUP_CODES, so that a stranger who finds the site cannot spend its model credits. Case, spaces and
-hyphens in a code do not count, so a short code can be typed from a slide. Without a database, DISSOLVE_WEB_PASSWORD
-makes the whole site ask for one shared password and sessions are files, as a local `dissolve web` keeps them.
+in DISSOLVE_SIGNUP_CODES or in a named list DISSOLVE_SIGNUP_CODES_<NAME> (one per class or event), so that a stranger
+who finds the site cannot spend its model credits. Case, spaces and hyphens in a code do not count, so a short code can
+be typed from a slide. Without a database, DISSOLVE_WEB_PASSWORD makes the whole site ask for one shared password and
+sessions are files, as a local `dissolve web` keeps them.
+
+DISSOLVE_WEB_MODELS (comma-separated aliases) limits the models a site offers. Where it offers one, the model menu and
+/model are gone, and a chat asked for or stored on another model runs on the site's.
 
 On a small instance DISSOLVE_WEB_DISABLE=literature,tea: the literature models alone need 1.8 GB and a live TEA run
 0.9 GB more, so a 1 GB host offers everything else. The hosted image serves both on 2 GB (see its Dockerfile), with
@@ -125,10 +129,29 @@ def _code_key(code: str) -> str:
 
 def _signup_codes() -> list[str]:
     """Every code sign-up accepts: DISSOLVE_SIGNUP_CODE (by default DISSOLVE_WEB_PASSWORD), plus each comma-separated
-    entry of DISSOLVE_SIGNUP_CODES, short codes for people who type them in, say from a slide after scanning a QR code."""
+    entry of DISSOLVE_SIGNUP_CODES and of every DISSOLVE_SIGNUP_CODES_<NAME>: short codes for people who type them in,
+    say from a slide after scanning a QR code. One named list per group of people (a class, a conference) lets each be
+    retired on its own without touching the codes already handed out."""
     codes = [os.getenv("DISSOLVE_SIGNUP_CODE", os.getenv("DISSOLVE_WEB_PASSWORD", ""))]
-    codes += os.getenv("DISSOLVE_SIGNUP_CODES", "").split(",")
+    for name in sorted(os.environ):
+        if name == "DISSOLVE_SIGNUP_CODES" or name.startswith("DISSOLVE_SIGNUP_CODES_"):
+            codes += os.environ[name].split(",")
     return [key for key in map(_code_key, codes) if key]
+
+
+def offered_models() -> list[str]:
+    """The model aliases this deployment offers: DISSOLVE_WEB_MODELS, comma-separated, or every model when it is unset.
+    An entry that is not a model stops the server, so a typo cannot open the site on a model nobody chose."""
+    offered: list[str] = []
+    for name in (item.strip() for item in os.getenv("DISSOLVE_WEB_MODELS", "").split(",")):
+        if name and (alias := cli.resolve_model(name)[0]) not in offered:
+            offered.append(alias)
+    return offered or list(cli.MODELS)
+
+
+def site_model(offered: list[str]) -> str:
+    """The model a new chat starts on: the CLI's default when this site offers it, else the first one it offers."""
+    return cli.DEFAULT_MODEL if cli.DEFAULT_MODEL in offered else offered[0]
 
 
 def _code_accepted(typed: Optional[str], codes: list[str]) -> bool:
@@ -162,8 +185,10 @@ def contaminants_computed() -> int | None:
         return None
 
 
-def commands(offered: dict[str, bool] | None = None) -> list[dict[str, Any]]:
-    """The CLI's slash commands; the mode options come from the CLI's own pickers."""
+def commands(offered: dict[str, bool] | None = None, models: list[str] | None = None) -> list[dict[str, Any]]:
+    """The CLI's slash commands; the mode options come from the CLI's own pickers. /model lists the models this site
+    offers, and is left out where it offers only one."""
+    models = models or list(cli.MODELS)
     rows = [
         {"command": "/literature", "state": "literature", "summary": "Which literature tools the agent may use",
          "options": _options(cli._literature_picker_options("")[0])},
@@ -175,7 +200,8 @@ def commands(offered: dict[str, bool] | None = None) -> list[dict[str, Any]]:
         {"command": "/mode", "state": "mode", "summary": "How the agent treats unstated process assumptions",
          "options": [{"value": key, "description": line} for key, line in cli._MODE_LINE.items()]},
         {"command": "/model", "state": "model", "summary": "The language model that drives the agent",
-         "options": [{"value": alias, "description": f"{spec.label} · {spec.usage}"} for alias, spec in cli.MODELS.items()]},
+         "options": [{"value": alias, "description": f"{cli.MODELS[alias].label} · {cli.MODELS[alias].usage}"}
+                     for alias in models]},
         {"command": "/context", "summary": "Polymers, temperatures and result handles in play", "options": []},
         {"command": "/cost", "summary": "Tool rounds, tool calls and token usage of the last turn", "options": []},
         {"command": "/safety", "summary": "How the published hazard scores were built", "options": []},
@@ -185,7 +211,7 @@ def commands(offered: dict[str, bool] | None = None) -> list[dict[str, Any]]:
     ]
     offered = offered or features()
     return [row for row in rows if (row["command"] != "/literature" or offered["literature"])
-            and (row["command"] != "/process" or offered["tea"])]
+            and (row["command"] != "/process" or offered["tea"]) and (row["command"] != "/model" or len(models) > 1)]
 
 
 def _state(app: cli.CliApp) -> dict[str, Any]:
@@ -221,9 +247,12 @@ class Sessions:
     """One CliApp per session, as the CLI would hold it; a lock keeps one turn per session at a time. With a database
     each session belongs to one account, and another account's session is "no such session"."""
 
-    def __init__(self, home: str | Path | None = None, db: web_accounts.Database | None = None):
+    def __init__(self, home: str | Path | None = None, db: web_accounts.Database | None = None,
+                 models: list[str] | None = None):
         self.home = home
         self.db = db
+        self.models = models or list(cli.MODELS)  # the models this site offers
+        self.model = site_model(self.models)
         self.apps: dict[str, cli.CliApp] = {}
         self.locks: dict[str, threading.Lock] = {}
         self.panels: dict[str, web_tea.Panel] = {}
@@ -257,12 +286,14 @@ class Sessions:
             self._make_room()
             console = Console(file=io.StringIO(), width=100, color_system=None, highlight=False, soft_wrap=True)
             try:
-                self.apps[session_id] = cli.CliApp(
+                self.apps[session_id] = app = cli.CliApp(
                     session_id=session_id, model_alias=model, mode=mode, store_root=self.home,
                     console=console, quiet=True, require_key=False, store=store,
                 )
             except ValueError as error:
                 raise HTTPException(400, str(error)) from error
+            if app.model_alias not in self.models:  # asked for, or stored on, a model this site does not offer
+                app.model_alias, app.model_spec = cli.resolve_model(self.model)
             self.locks[session_id] = threading.Lock()
             self.panels.setdefault(session_id, web_tea.Panel())
             self.owners[session_id] = owner
@@ -466,8 +497,19 @@ def transcript(app: cli.CliApp) -> list[dict[str, Any]]:
     return out
 
 
+def _offered_switch(rest: list[str], models: list[str]) -> bool:
+    """Whether "/model <rest>" switches to a model this site offers (a bare /model, list or current only reports)."""
+    if not rest:
+        return False
+    try:
+        return cli.resolve_model(rest[0].casefold())[0] in models
+    except ValueError:
+        return False
+
+
 def _run(app: cli.CliApp, text: str, events: "queue.Queue[dict[str, Any] | None]", offered: dict[str, bool],
-         panel: web_tea.Panel | None = None, idle: Callable[[], ContextManager[None]] | None = None) -> None:
+         panel: web_tea.Panel | None = None, idle: Callable[[], ContextManager[None]] | None = None,
+         models: list[str] | None = None) -> None:
     started = time.monotonic()
     events.put({"event": "turn.started", "session_id": app.store.session_id, "text": text})
     try:
@@ -478,6 +520,9 @@ def _run(app: cli.CliApp, text: str, events: "queue.Queue[dict[str, Any] | None]
                 output = web_tea.process_sheet(web_tea.Turn(panel, app, events.put, idle=idle or nullcontext))
             elif command in _CLI_ONLY:
                 output = _CLI_ONLY[command] or f"{command} has no effect in the web app."
+            elif command == "/model" and models and len(models) < len(cli.MODELS) and not _offered_switch(rest, models):
+                labels = ", ".join(cli.MODELS[alias].label for alias in models)
+                output = f"This site runs {labels}; the model cannot be changed here."
             elif command == "/literature" and not offered["literature"] and rest and rest[0].casefold() != "off":
                 output = ("Literature search is off on this deployment: its models need more memory than this server "
                           "has. Run DISSOLVE locally (./dissolve web) to use it.")
@@ -566,7 +611,7 @@ def create_app(home: str | Path | None = None) -> FastAPI:
     database = os.getenv("DATABASE_URL", "").strip()
     db = web_accounts.Database(database) if database else None
     accounts = web_accounts.Accounts(db) if db is not None else None
-    sessions = api.state.sessions = Sessions(home, db)
+    sessions = api.state.sessions = Sessions(home, db, offered_models())
     doctor_cache: dict[str, Any] = {}
     family_cache: dict[str, Any] = {}
     failures: dict[tuple[str, str], list[float]] = {}
@@ -697,12 +742,12 @@ def create_app(home: str | Path | None = None) -> FastAPI:
     @api.get("/api/models")
     def models() -> list[dict[str, Any]]:
         return [{"alias": alias, "label": spec.label, "usage": spec.usage, "key": spec.env_var,
-                 "ready": bool((os.getenv(spec.env_var) or "").strip()), "default": alias == cli.DEFAULT_MODEL}
-                for alias, spec in cli.MODELS.items()]
+                 "ready": bool((os.getenv(spec.env_var) or "").strip()), "default": alias == sessions.model}
+                for alias, spec in ((alias, cli.MODELS[alias]) for alias in sessions.models)]
 
     @api.get("/api/commands")
     def command_list() -> list[dict[str, Any]]:
-        return commands(offered)
+        return commands(offered, sessions.models)
 
     @api.get("/api/contaminant-families")
     def contaminant_families() -> list[dict[str, Any]]:
@@ -780,7 +825,7 @@ def create_app(home: str | Path | None = None) -> FastAPI:
             try:
                 slots.take(sink.put)
                 try:
-                    _run(app, text, sink, offered, panel, lambda: slots.idle(sink.put))
+                    _run(app, text, sink, offered, panel, lambda: slots.idle(sink.put), sessions.models)
                 finally:
                     slots.give()
             finally:

@@ -356,22 +356,35 @@ export function Header(props: {
         </div>
         <div className="flex items-center gap-2">
           <StatusBadge doctor={props.doctor} onClick={props.onShowSystem} />
-          <label className="hidden md:block">
-            <span className="sr-only">Model</span>
-            <select
-              value={props.model}
-              onChange={(e) => props.onModel(e.target.value)}
-              className="h-9 cursor-pointer rounded-lg border border-line bg-muted px-2.5 text-sm text-ink"
-              title="The language model that drives the agent"
-            >
-              {props.models.map((m) => (
-                <option key={m.alias} value={m.alias} disabled={!m.ready}>
-                  {m.label}
-                  {m.ready ? "" : " (no key)"}
-                </option>
-              ))}
-            </select>
-          </label>
+          {props.models.length > 1 ? (
+            <label className="hidden md:block">
+              <span className="sr-only">Model</span>
+              <select
+                value={props.model}
+                onChange={(e) => props.onModel(e.target.value)}
+                className="h-9 cursor-pointer rounded-lg border border-line bg-muted px-2.5 text-sm text-ink"
+                title="The language model that drives the agent"
+              >
+                {props.models.map((m) => (
+                  <option key={m.alias} value={m.alias} disabled={!m.ready}>
+                    {m.label}
+                    {m.ready ? "" : " (no key)"}
+                  </option>
+                ))}
+              </select>
+            </label>
+          ) : (
+            props.models.length === 1 && (
+              // A site that offers one model (DISSOLVE_WEB_MODELS) names it instead of offering a menu.
+              <span
+                className="hidden text-sm text-ink-2 md:block"
+                style={{ fontFamily: "var(--font-headline)" }}
+                title="The language model that drives the agent"
+              >
+                {props.models[0].label}
+              </span>
+            )
+          )}
           <IconButton label={`Switch to ${props.theme === "light" ? "dark" : "light"} mode`} onClick={props.onTheme}>
             {props.theme === "light" ? <Moon size={17} /> : <Sun size={17} />}
           </IconButton>

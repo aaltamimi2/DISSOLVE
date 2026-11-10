@@ -135,7 +135,7 @@ def test_a_turn_streams_its_tool_calls_then_the_answer(client, monkeypatch):
         {"text": "Toluene: δD 18.0, δP 1.4, δH 2.0 MPa½.", "tool_calls": []},
     ])
     state = client.post("/api/sessions", json={}).json()
-    assert (state["model"], state["mode"], state["literature"]) == ("openrouter-gemini-flash", "review", "off")
+    assert (state["model"], state["mode"], state["literature"]) == ("openrouter-deepseek-flash", "review", "off")
     assert "contaminant" not in state
     events = _stream(client, state["session_id"], "Hansen parameters of toluene?")
     assert [e["event"] for e in events] == ["turn.started", "tool", "turn.completed"]
@@ -329,6 +329,47 @@ def test_sign_up_also_takes_a_short_code_typed_any_way(serve, tmp_path):
     assert status(" Labtalk 2026 ", "Phone") == 200
     assert status("labtalk2025", "Wrong") == 403
     assert status("", "Empty") == 403
+
+
+def test_named_code_lists_each_open_sign_up_beside_the_old_codes(serve, tmp_path):
+    """A class and a conference each get a short code in a list of their own (owner, 2026-11-10: CBE562 for CBE 562,
+    AICHE2026 for AIChE), so either can be retired without touching the other or the codes already handed out."""
+    http = serve(DATABASE_URL=f"sqlite:///{tmp_path / 'web.sqlite3'}", DISSOLVE_WEB_PASSWORD="s3cret",
+                 DISSOLVE_SIGNUP_CODES="labtalk2026", DISSOLVE_SIGNUP_CODES_CLASS="CBE562",
+                 DISSOLVE_SIGNUP_CODES_AICHE="AICHE2026")
+
+    def status(code, name):
+        body = {"username": name, "password": "correct horse", "access_code": code}
+        return http.post("/api/auth/signup", json=body).status_code
+
+    assert status("s3cret", "Old") == 200
+    assert status("labtalk2026", "Talk") == 200
+    assert status("cbe562", "Student") == 200
+    assert status("AIChE 2026", "Attendee") == 200
+    assert status("CBE561", "Wrong") == 403
+
+
+def test_a_site_that_offers_one_model_keeps_every_chat_on_it(serve):
+    """The live site runs DeepSeek only for now (owner, 2026-11-10). DISSOLVE_WEB_MODELS lists what a site offers:
+    with one model the menu and /model are gone, a chat asked for or stored on another model runs on the site's, and
+    /model cannot switch away from it."""
+    before = serve()  # a site offering every model, where a chat starts on Gemini and is saved
+    stored = before.post("/api/sessions", json={"model": "openrouter-gemini-flash"}).json()
+    assert stored["model"] == "openrouter-gemini-flash"
+    saved = [e for e in _stream(before, stored["session_id"], "/breadth 3") if e["event"] == "command.output"]
+    assert saved[0]["state"]["breadth"] == "3"
+
+    http = serve(DISSOLVE_WEB_MODELS="deepseek")
+    assert [(m["alias"], m["default"]) for m in http.get("/api/models").json()] == [("openrouter-deepseek-flash", True)]
+    assert "/model" not in {row["command"] for row in http.get("/api/commands").json()}
+    asked = http.post("/api/sessions", json={"model": "openrouter-gemini-flash"}).json()
+    assert asked["model"] == "openrouter-deepseek-flash"
+    assert http.get(f"/api/sessions/{stored['session_id']}").json()["model"] == "openrouter-deepseek-flash"
+    refused = [e for e in _stream(http, stored["session_id"], "/model openrouter-gemini-flash")
+               if e["event"] == "command.output"][0]
+    assert refused["text"] == "This site runs DeepSeek V4.1 Flash · OpenRouter; the model cannot be changed here."
+    assert refused["state"]["model"] == "openrouter-deepseek-flash"
+    assert http.post("/api/sessions", json={"model": "not-a-model"}).status_code == 400
 
 
 def test_each_account_sees_only_its_chats_and_they_outlive_a_redeploy(serve, tmp_path, monkeypatch):
