@@ -2300,6 +2300,16 @@ def test_resolve_model_aliases_and_default():
     gemini = resolve_model("openrouter-gemini-flash")[1]
     assert (gemini.model, gemini.env_var, gemini.base_url) == ("openai:google/gemini-3.8-flash", "OPENROUTER_API_KEY",
                                                               "https://openrouter.ai/api/v1")
+
+
+def test_luna_is_registered_through_openrouter_as_benchmarked():
+    """The site offers GPT-6 Luna only since 2026-11-10 (DISSOLVE_WEB_MODELS), and the web app refuses a name the
+    registry does not know, so the entry carries the benchmark arm's model id, key and base URL."""
+    alias, spec = resolve_model("luna")
+    assert alias == "openrouter-gpt-luna"
+    assert (spec.model, spec.env_var, spec.base_url) == ("openai:openai/gpt-6-luna", "OPENROUTER_API_KEY",
+                                                         "https://openrouter.ai/api/v1")
+    assert resolve_model("openrouter-gpt-luna")[1] is spec
     with pytest.raises(ValueError, match="Unknown model alias"):
         resolve_model("not-a-model")
 

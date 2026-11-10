@@ -677,6 +677,13 @@ MODELS = {
         "DeepSeek V4.1 Flash · OpenRouter", "openai:deepseek/deepseek-v4.1-flash", "OPENROUTER_API_KEY",
         "Default · via OpenRouter", OPENROUTER_BASE_URL,
     ),
+    # The site's only model since 2026-11-10 (owner): GPT-6 Luna passed 180 of 194 benchmark runs at $0.55-0.62 per 100
+    # questions, DeepSeek's cost, and in two runs of the CBE 562 design question it kept to the chat's common-solvent
+    # list where DeepSeek had widened to all solvents on its own. Same id, key and base URL as the benchmark arm.
+    "openrouter-gpt-luna": ModelSpec(
+        "GPT-6 Luna · OpenRouter", "openai:openai/gpt-6-luna", "OPENROUTER_API_KEY",
+        "Via OpenRouter", OPENROUTER_BASE_URL,
+    ),
     "openrouter-gemini-flash": ModelSpec(
         "Gemini 3.8 Flash · OpenRouter", "openai:google/gemini-3.8-flash", "OPENROUTER_API_KEY",
         "Via OpenRouter", OPENROUTER_BASE_URL,
@@ -704,7 +711,7 @@ MODELS = {
 }
 MODEL_ALIASES = {
     "gemini": "gemini-flash", "claude": "claude-sonnet", "muse": "muse-spark", "openrouter": "openrouter-deepseek-flash",
-    "deepseek": "openrouter-deepseek-flash",
+    "deepseek": "openrouter-deepseek-flash", "luna": "openrouter-gpt-luna",
 }
 DEFAULT_MODEL = "openrouter-deepseek-flash"
 
