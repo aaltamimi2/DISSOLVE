@@ -1781,8 +1781,10 @@ def test_context_window_defaults_only_when_alias_omits_it():
     # Muse Spark takes 1,048,576 tokens; 256k is the working window the owner chose for now.
     for muse in ("openai:muse-spark-1.3", "openai:muse-spark-1.2", "openai:muse-spark-1.3-contributor"):
         assert context_window(muse) == 256_000
-    # So does Gemini 3.8 Flash through OpenRouter, the default since 2026-09-26.
-    assert context_window(cli.MODELS[cli.DEFAULT_MODEL].model) == 256_000
+    # So does Gemini 3.8 Flash through OpenRouter, the default from 2026-09-26 to 2026-11-10.
+    assert context_window(cli.MODELS["openrouter-gemini-flash"].model) == 256_000
+    # DeepSeek V4.1 Flash, the default since 2026-11-10, keeps the 128k fallback it was benchmarked at.
+    assert context_window(cli.MODELS[cli.DEFAULT_MODEL].model) == 128_000
     # GPT-6 Luna and Claude Haiku 5.5 through OpenRouter take about a million tokens too: at the 128k fallback one
     # benchmark run ended in a compaction error (2026-10-13).
     assert context_window("openai:openai/gpt-6-luna") == 256_000
@@ -2286,12 +2288,18 @@ def test_resolve_model_aliases_and_default():
     assert spec.model == "openai:muse-spark-1.3"
     assert spec.env_var == "META_MUSE_API_KEY"
     assert spec.base_url == "https://api.meta.ai/v1"
-    # Meta blocked the project's Muse key on 2026-09-26; the default moved to Gemini through OpenRouter.
+    # Meta blocked the project's Muse key on 2026-09-26; the default moved to Gemini through OpenRouter, and on
+    # 2026-11-10 to DeepSeek V4.1 Flash through OpenRouter (near-top accuracy in the agent benchmark at about a
+    # fifteenth of Gemini's cost).
     alias, spec = resolve_model("openrouter")
-    assert alias == cli.DEFAULT_MODEL == "openrouter-gemini-flash"
-    assert spec.model == "openai:google/gemini-3.8-flash"
+    assert alias == cli.DEFAULT_MODEL == "openrouter-deepseek-flash"
+    assert spec.model == "openai:deepseek/deepseek-v4.1-flash"
     assert spec.env_var == "OPENROUTER_API_KEY"
     assert spec.base_url == "https://openrouter.ai/api/v1"
+    assert resolve_model("deepseek")[0] == cli.DEFAULT_MODEL
+    gemini = resolve_model("openrouter-gemini-flash")[1]
+    assert (gemini.model, gemini.env_var, gemini.base_url) == ("openai:google/gemini-3.8-flash", "OPENROUTER_API_KEY",
+                                                              "https://openrouter.ai/api/v1")
     with pytest.raises(ValueError, match="Unknown model alias"):
         resolve_model("not-a-model")
 
@@ -2372,7 +2380,7 @@ def test_persist_roundtrip_messages_and_handle(tmp_path, monkeypatch):
     assert payload["schema_version"] == 2
     assert payload["release"] == "dissolve-v12-0.1"
     assert payload["metadata"]["mode"] == "review"
-    assert payload["metadata"]["model"] == "openrouter-gemini-flash"
+    assert payload["metadata"]["model"] == "openrouter-deepseek-flash"
     assert any(m.get("role") == "user" and m.get("content") == "screen LDPE" for m in payload["messages"])
     stored = payload["session"]["handles"]["calm-blue-cat"]
     assert stored["tool"] == "screen_polymer_separation"
@@ -2944,7 +2952,7 @@ def test_oneshot_resolves_through_cli_table(monkeypatch, tmp_path):
         agent._main()
     assert exc.value.code == 0
     assert seen["query"] == "hello"
-    assert seen["model"] == "openai:google/gemini-3.8-flash"
+    assert seen["model"] == "openai:deepseek/deepseek-v4.1-flash"
     assert seen["api_base"] == "https://openrouter.ai/api/v1"
     assert seen["api_key_env"] == "OPENROUTER_API_KEY"
 
@@ -7189,7 +7197,7 @@ def test_openrouter_requests_go_only_to_hosts_that_keep_no_prompts_for_training(
     muse = cli.MODELS["muse-spark"]
     agent.complete(hi, [], model=muse.model, api_base=muse.base_url, api_key_env=muse.env_var)
     assert sent[0]["extra_body"] == {"provider": {"data_collection": "deny"}}
-    assert sent[0]["model"] == "google/gemini-3.8-flash"
+    assert sent[0]["model"] == "deepseek/deepseek-v4.1-flash"
     assert "extra_body" not in sent[1]
 
 

@@ -669,10 +669,17 @@ class ModelSpec:
 
 OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 
+# The default since 2026-11-10: in the 97-question agent benchmark DeepSeek V4.1 Flash passed 187 of 194 runs (Claude
+# Haiku 5.5 188, Gemini 3.8 Flash 186) at $0.54-0.56 per 100 questions (Haiku $1.7-1.8, Gemini $8.1-8.3). It keeps the
+# 128k fallback window it was benchmarked at.
 MODELS = {
+    "openrouter-deepseek-flash": ModelSpec(
+        "DeepSeek V4.1 Flash · OpenRouter", "openai:deepseek/deepseek-v4.1-flash", "OPENROUTER_API_KEY",
+        "Default · via OpenRouter", OPENROUTER_BASE_URL,
+    ),
     "openrouter-gemini-flash": ModelSpec(
         "Gemini 3.8 Flash · OpenRouter", "openai:google/gemini-3.8-flash", "OPENROUTER_API_KEY",
-        "Default · via OpenRouter", OPENROUTER_BASE_URL,
+        "Via OpenRouter", OPENROUTER_BASE_URL,
     ),
     "gemini-flash": ModelSpec(
         "Gemini 3.5 Flash", "google_genai:gemini-3.5-flash", "GOOGLE_API_KEY",
@@ -696,9 +703,10 @@ MODELS = {
     ),
 }
 MODEL_ALIASES = {
-    "gemini": "gemini-flash", "claude": "claude-sonnet", "muse": "muse-spark", "openrouter": "openrouter-gemini-flash",
+    "gemini": "gemini-flash", "claude": "claude-sonnet", "muse": "muse-spark", "openrouter": "openrouter-deepseek-flash",
+    "deepseek": "openrouter-deepseek-flash",
 }
-DEFAULT_MODEL = "openrouter-gemini-flash"
+DEFAULT_MODEL = "openrouter-deepseek-flash"
 
 # Declared post-consolidation public roster. Doctor compares the live
 # registry to this list, not to BY_NAME. Changing the surface is two
