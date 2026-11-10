@@ -33,11 +33,11 @@ services:
       - key: DISSOLVE_SIGNUP_CODES_AICHE
         type: SECRET
         scope: RUN_TIME
-      # For now the site offers DeepSeek V4.1 Flash only, /literature off or corpus, and review mode (owner, 2026-11-10).
-      # Remove an entry to offer every choice again.
+      # For now the site offers GPT-6 Luna only (DeepSeek V4.1 Flash earlier on 2026-11-10), /literature off or corpus,
+      # and review mode (owner, 2026-11-10). Remove an entry to offer every choice again.
       - key: DISSOLVE_WEB_MODELS
         scope: RUN_TIME
-        value: openrouter-deepseek-flash
+        value: openrouter-gpt-luna
       - key: DISSOLVE_WEB_LITERATURE
         scope: RUN_TIME
         value: off,corpus
