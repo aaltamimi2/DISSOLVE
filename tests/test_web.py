@@ -372,6 +372,36 @@ def test_a_site_that_offers_one_model_keeps_every_chat_on_it(serve):
     assert http.post("/api/sessions", json={"model": "not-a-model"}).status_code == 400
 
 
+def test_a_site_can_offer_the_corpus_only_and_review_mode_only(serve):
+    """For now the live site offers /literature off or corpus (no strict, no scholarly) and review mode only (owner,
+    2026-11-10). The chips and the menu show only those, a chat stored on strict or in auto mode moves to the corpus
+    and to review, and neither command switches away."""
+    before = serve()  # a site offering everything, where a chat is saved on strict search in auto mode
+    stored = before.post("/api/sessions", json={"mode": "auto"}).json()
+    assert stored["mode"] == "auto"
+    saved = [e for e in _stream(before, stored["session_id"], "/literature strict") if e["event"] == "command.output"]
+    assert saved[0]["state"]["literature"] == "strict"
+
+    http = serve(DISSOLVE_WEB_LITERATURE="off,corpus", DISSOLVE_WEB_MODES="review")
+    commands = {row["command"]: row for row in http.get("/api/commands").json()}
+    assert [o["value"] for o in commands["/literature"]["options"]] == ["off", "corpus"]
+    assert "/mode" not in commands
+    state = http.get(f"/api/sessions/{stored['session_id']}").json()
+    assert (state["mode"], state["literature"]) == ("review", "corpus")
+
+    def output(text):
+        return [e for e in _stream(http, stored["session_id"], text) if e["event"] == "command.output"][0]
+
+    refused = output("/literature scholarly")
+    assert refused["text"] == "This site offers /literature off or corpus."
+    assert refused["state"]["literature"] == "corpus"
+    refused = output("/mode auto")
+    assert refused["text"] == "This site runs in review mode; the mode cannot be changed here."
+    assert refused["state"]["mode"] == "review"
+    assert output("/literature off")["state"]["literature"] == "off"
+    assert http.post("/api/sessions", json={"mode": "auto"}).json()["mode"] == "review"
+
+
 def test_each_account_sees_only_its_chats_and_they_outlive_a_redeploy(serve, tmp_path, monkeypatch):
     """Chats were files in the container, and every redeploy replaced the container (owner, 2026-09-24). They are
     now rows in the database, each owned by one account; a new server on the same database finds them."""

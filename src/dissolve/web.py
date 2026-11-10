@@ -39,7 +39,9 @@ be typed from a slide. Without a database, DISSOLVE_WEB_PASSWORD makes the whole
 sessions are files, as a local `dissolve web` keeps them.
 
 DISSOLVE_WEB_MODELS (comma-separated aliases) limits the models a site offers. Where it offers one, the model menu and
-/model are gone, and a chat asked for or stored on another model runs on the site's.
+/model are gone, and a chat asked for or stored on another model runs on the site's. DISSOLVE_WEB_LITERATURE (off,
+corpus, strict, scholarly) and DISSOLVE_WEB_MODES (review, auto) limit /literature and /mode the same way; a chat
+stored on a choice the site no longer offers moves to the corpus and to the site's mode.
 
 On a small instance DISSOLVE_WEB_DISABLE=literature,tea: the literature models alone need 1.8 GB and a live TEA run
 0.9 GB more, so a 1 GB host offers everything else. The hosted image serves both on 2 GB (see its Dockerfile), with
@@ -64,7 +66,7 @@ import uuid
 from contextlib import contextmanager, nullcontext
 from functools import lru_cache
 from pathlib import Path
-from typing import Any, Callable, ContextManager, Iterator, Optional
+from typing import Any, Callable, ContextManager, Iterator, Optional, Sequence
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response, StreamingResponse
@@ -149,6 +151,28 @@ def offered_models() -> list[str]:
     return offered or list(cli.MODELS)
 
 
+LITERATURE_MODES = ("off", "corpus", "strict", "scholarly")  # the CLI's /literature choices, in its order
+
+
+def _offered(name: str, choices: Sequence[str]) -> list[str]:
+    """The choices a site offers: the comma-separated env entry `name`, kept in the CLI's order, or every choice when
+    it is unset. An entry that is not a choice stops the server."""
+    wanted = {item.strip().casefold() for item in os.getenv(name, "").split(",") if item.strip()}
+    if unknown := wanted - set(choices):
+        raise ValueError(f"{name} takes {', '.join(choices)}, not {', '.join(sorted(unknown))}")
+    return [choice for choice in choices if choice in wanted] or list(choices)
+
+
+def offered_literature() -> list[str]:
+    """DISSOLVE_WEB_LITERATURE: the /literature choices this site offers (off, corpus, strict, scholarly)."""
+    return _offered("DISSOLVE_WEB_LITERATURE", LITERATURE_MODES)
+
+
+def offered_modes() -> list[str]:
+    """DISSOLVE_WEB_MODES: the interaction modes this site offers (review, auto); the first is a new chat's."""
+    return _offered("DISSOLVE_WEB_MODES", tuple(cli._MODE_LINE))
+
+
 def site_model(offered: list[str]) -> str:
     """The model a new chat starts on: the CLI's default when this site offers it, else the first one it offers."""
     return cli.DEFAULT_MODEL if cli.DEFAULT_MODEL in offered else offered[0]
@@ -185,20 +209,23 @@ def contaminants_computed() -> int | None:
         return None
 
 
-def commands(offered: dict[str, bool] | None = None, models: list[str] | None = None) -> list[dict[str, Any]]:
-    """The CLI's slash commands; the mode options come from the CLI's own pickers. /model lists the models this site
-    offers, and is left out where it offers only one."""
+def commands(offered: dict[str, bool] | None = None, models: list[str] | None = None,
+             literature: list[str] | None = None, modes: list[str] | None = None) -> list[dict[str, Any]]:
+    """The CLI's slash commands; the mode options come from the CLI's own pickers. /model, /literature and /mode list
+    only what this site offers, and /model and /mode are left out where it offers only one."""
     models = models or list(cli.MODELS)
+    literature = literature or list(LITERATURE_MODES)
+    modes = modes or list(cli._MODE_LINE)
     rows = [
         {"command": "/literature", "state": "literature", "summary": "Which literature tools the agent may use",
-         "options": _options(cli._literature_picker_options("")[0])},
+         "options": [row for row in _options(cli._literature_picker_options("")[0]) if row["value"] in literature]},
         {"command": "/solvents", "state": "solvents", "summary": "Which solvents screens draw from",
          "options": _options(cli._solvents_picker_options("")[0])},
         {"command": "/breadth", "state": "breadth", "summary": "Solvent candidates kept per separation stage",
          "options": _options(cli._breadth_picker_options(None)[0])
          + [{"value": "window 5", "description": "every candidate within 5% selectivity of the best"}]},
         {"command": "/mode", "state": "mode", "summary": "How the agent treats unstated process assumptions",
-         "options": [{"value": key, "description": line} for key, line in cli._MODE_LINE.items()]},
+         "options": [{"value": key, "description": cli._MODE_LINE[key]} for key in modes]},
         {"command": "/model", "state": "model", "summary": "The language model that drives the agent",
          "options": [{"value": alias, "description": f"{cli.MODELS[alias].label} · {cli.MODELS[alias].usage}"}
                      for alias in models]},
@@ -211,7 +238,8 @@ def commands(offered: dict[str, bool] | None = None, models: list[str] | None = 
     ]
     offered = offered or features()
     return [row for row in rows if (row["command"] != "/literature" or offered["literature"])
-            and (row["command"] != "/process" or offered["tea"]) and (row["command"] != "/model" or len(models) > 1)]
+            and (row["command"] != "/process" or offered["tea"]) and (row["command"] != "/model" or len(models) > 1)
+            and (row["command"] != "/mode" or len(modes) > 1)]
 
 
 def _state(app: cli.CliApp) -> dict[str, Any]:
@@ -248,11 +276,14 @@ class Sessions:
     each session belongs to one account, and another account's session is "no such session"."""
 
     def __init__(self, home: str | Path | None = None, db: web_accounts.Database | None = None,
-                 models: list[str] | None = None):
+                 models: list[str] | None = None, literature: list[str] | None = None,
+                 modes: list[str] | None = None):
         self.home = home
         self.db = db
         self.models = models or list(cli.MODELS)  # the models this site offers
         self.model = site_model(self.models)
+        self.literature = literature or list(LITERATURE_MODES)  # the /literature choices it offers
+        self.modes = modes or list(cli._MODE_LINE)  # and the modes; the first is a new chat's when it offers one
         self.apps: dict[str, cli.CliApp] = {}
         self.locks: dict[str, threading.Lock] = {}
         self.panels: dict[str, web_tea.Panel] = {}
@@ -294,6 +325,12 @@ class Sessions:
                 raise HTTPException(400, str(error)) from error
             if app.model_alias not in self.models:  # asked for, or stored on, a model this site does not offer
                 app.model_alias, app.model_spec = cli.resolve_model(self.model)
+            if app.mode not in self.modes:  # likewise a mode
+                app.mode = self.modes[0]
+                app._apply_mode_prompt()
+            searching = (app.session.get("literature_mode") or {}).get("mode") or "off"
+            if searching not in self.literature:  # and a literature choice: the corpus when offered
+                app.handle_command("/literature " + ("corpus" if "corpus" in self.literature else self.literature[0]))
             self.locks[session_id] = threading.Lock()
             self.panels.setdefault(session_id, web_tea.Panel())
             self.owners[session_id] = owner
@@ -509,7 +546,7 @@ def _offered_switch(rest: list[str], models: list[str]) -> bool:
 
 def _run(app: cli.CliApp, text: str, events: "queue.Queue[dict[str, Any] | None]", offered: dict[str, bool],
          panel: web_tea.Panel | None = None, idle: Callable[[], ContextManager[None]] | None = None,
-         models: list[str] | None = None) -> None:
+         site: "Sessions | None" = None) -> None:
     started = time.monotonic()
     events.put({"event": "turn.started", "session_id": app.store.session_id, "text": text})
     try:
@@ -520,9 +557,16 @@ def _run(app: cli.CliApp, text: str, events: "queue.Queue[dict[str, Any] | None]
                 output = web_tea.process_sheet(web_tea.Turn(panel, app, events.put, idle=idle or nullcontext))
             elif command in _CLI_ONLY:
                 output = _CLI_ONLY[command] or f"{command} has no effect in the web app."
-            elif command == "/model" and models and len(models) < len(cli.MODELS) and not _offered_switch(rest, models):
-                labels = ", ".join(cli.MODELS[alias].label for alias in models)
+            elif (command == "/model" and site is not None and len(site.models) < len(cli.MODELS)
+                  and not _offered_switch(rest, site.models)):
+                labels = ", ".join(cli.MODELS[alias].label for alias in site.models)
                 output = f"This site runs {labels}; the model cannot be changed here."
+            elif (command == "/literature" and site is not None and offered["literature"] and rest
+                  and rest[0].casefold() not in site.literature):
+                output = "This site offers /literature " + " or ".join(site.literature) + "."
+            elif (command == "/mode" and site is not None and rest
+                  and rest[0].casefold() not in {*site.modes, "list", "current"}):
+                output = f"This site runs in {' or '.join(site.modes)} mode; the mode cannot be changed here."
             elif command == "/literature" and not offered["literature"] and rest and rest[0].casefold() != "off":
                 output = ("Literature search is off on this deployment: its models need more memory than this server "
                           "has. Run DISSOLVE locally (./dissolve web) to use it.")
@@ -611,7 +655,7 @@ def create_app(home: str | Path | None = None) -> FastAPI:
     database = os.getenv("DATABASE_URL", "").strip()
     db = web_accounts.Database(database) if database else None
     accounts = web_accounts.Accounts(db) if db is not None else None
-    sessions = api.state.sessions = Sessions(home, db, offered_models())
+    sessions = api.state.sessions = Sessions(home, db, offered_models(), offered_literature(), offered_modes())
     doctor_cache: dict[str, Any] = {}
     family_cache: dict[str, Any] = {}
     failures: dict[tuple[str, str], list[float]] = {}
@@ -747,7 +791,7 @@ def create_app(home: str | Path | None = None) -> FastAPI:
 
     @api.get("/api/commands")
     def command_list() -> list[dict[str, Any]]:
-        return commands(offered, sessions.models)
+        return commands(offered, sessions.models, sessions.literature, sessions.modes)
 
     @api.get("/api/contaminant-families")
     def contaminant_families() -> list[dict[str, Any]]:
@@ -825,7 +869,7 @@ def create_app(home: str | Path | None = None) -> FastAPI:
             try:
                 slots.take(sink.put)
                 try:
-                    _run(app, text, sink, offered, panel, lambda: slots.idle(sink.put), sessions.models)
+                    _run(app, text, sink, offered, panel, lambda: slots.idle(sink.put), sessions)
                 finally:
                     slots.give()
             finally:
