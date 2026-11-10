@@ -15,11 +15,9 @@ import {
   LogOut,
   MessageSquarePlus,
   Trash2,
-  Moon,
   PanelLeft,
   RefreshCw,
   Send,
-  Sun,
   TerminalSquare,
   X,
   XCircle,
@@ -121,21 +119,6 @@ export function SignIn({ accessCode, adminReads, onSignedIn }: { accessCode: boo
   const [code, setCode] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [theme, setTheme] = useState<"light" | "dark">(() => {
-    try {
-      return localStorage.getItem("dissolve-theme") === "dark" ? "dark" : "light";
-    } catch {
-      return "light";
-    }
-  });
-  useEffect(() => {
-    document.documentElement.dataset.theme = theme;
-    try {
-      localStorage.setItem("dissolve-theme", theme);
-    } catch {
-      /* private mode: the theme simply does not persist */
-    }
-  }, [theme]);
   const submit = async (e: FormEvent) => {
     e.preventDefault();
     if (mode === "up" && password !== confirm) {
@@ -159,16 +142,11 @@ export function SignIn({ accessCode, adminReads, onSignedIn }: { accessCode: boo
   };
   return (
     <div className="relative flex min-h-dvh items-center justify-center bg-canvas px-4 py-10 text-ink">
-      <div className="absolute right-4 top-4">
-        <IconButton label={`Switch to ${theme === "light" ? "dark" : "light"} mode`} onClick={() => setTheme(theme === "light" ? "dark" : "light")}>
-          {theme === "light" ? <Moon size={17} /> : <Sun size={17} />}
-        </IconButton>
-      </div>
       <main className="rise w-full max-w-sm">
         <div className="flex flex-col items-center text-center">
           <BrandMark size={76} />
           <h1 className="mt-4 font-headline text-2xl font-semibold tracking-tight text-ink">DISSOLVE Agent</h1>
-          <p className="mt-1 font-headline text-sm text-ink-2">Advanced polymer separation engineering</p>
+          <p className="mt-1 font-headline text-sm text-ink-2">Dissolution-based Plastics Recycling</p>
         </div>
         <form onSubmit={submit} className="mt-7 overflow-hidden rounded-2xl border border-line bg-surface shadow-soft">
           <div className="h-1 bg-brand" aria-hidden />
@@ -316,12 +294,10 @@ export function Header(props: {
   doctor: Doctor | null;
   models: Model[];
   model: string;
-  theme: "light" | "dark";
   canExport: boolean;
   onToggleSidebar: () => void;
   onShowSystem: () => void;
   onModel: (alias: string) => void;
-  onTheme: () => void;
   onExport: () => void;
   onNewChat: () => void;
   /** Opens the papers of the literature corpus; absent where literature search is switched off. */
@@ -350,7 +326,7 @@ export function Header(props: {
               <h1 className="whitespace-nowrap font-headline text-lg font-semibold tracking-tight text-ink">
                 DISSOLVE<span className="hidden sm:inline"> Agent</span>
               </h1>
-              <p className="hidden truncate font-headline text-xs text-ink-3 sm:block">Advanced polymer separation engineering</p>
+              <p className="hidden truncate font-headline text-xs text-ink-3 sm:block">Dissolution-based Plastics Recycling</p>
             </div>
           </button>
         </div>
@@ -385,9 +361,6 @@ export function Header(props: {
               </span>
             )
           )}
-          <IconButton label={`Switch to ${props.theme === "light" ? "dark" : "light"} mode`} onClick={props.onTheme}>
-            {props.theme === "light" ? <Moon size={17} /> : <Sun size={17} />}
-          </IconButton>
           {props.onPapers && (
             <IconButton label="Browse the papers of the literature corpus" onClick={props.onPapers} active={props.papersOpen}>
               <BookOpen size={17} />
@@ -1387,9 +1360,11 @@ export function Composer(props: {
             {props.busy ? <Loader2 size={17} className="animate-spin" /> : <Send size={17} />}
           </button>
         </div>
-        <p className="mt-1.5 hidden text-center font-headline text-xs text-ink-2 sm:block" aria-hidden>
-          {items.some((item) => item.family) ? "Tab completes the family · Enter sends" : "Enter to send · Shift+Enter for a new line · / for commands"}
-        </p>
+        {items.some((item) => item.family) && (
+          <p className="mt-1.5 hidden text-center font-headline text-xs text-ink-2 sm:block" aria-hidden>
+            Tab completes the family · Enter sends
+          </p>
+        )}
       </div>
     </div>
   );

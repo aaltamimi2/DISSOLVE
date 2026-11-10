@@ -103,7 +103,6 @@ export default function App() {
 
 function Workspace({ user, onSignOut }: { user: string | null; onSignOut?: () => void }) {
   const lastSession = user ? `dissolve-session:${user.toLowerCase()}` : "dissolve-session";
-  const [theme, setTheme] = useState<"light" | "dark">(() => (remembered("dissolve-theme") === "dark" ? "dark" : "light"));
   const [sidebar, setSidebar] = useState(() => (remembered("dissolve-sidebar") ?? (window.innerWidth >= 1024 ? "open" : "closed")) === "open");
   const [tab, setTab] = useState<"conversations" | "system">("conversations");
   const [doctor, setDoctor] = useState<Doctor | null>(null);
@@ -140,10 +139,6 @@ function Workspace({ user, onSignOut }: { user: string | null; onSignOut?: () =>
     api.doctor(refresh).then(setDoctor).catch((e: Error) => notify(`dissolve doctor failed: ${e.message}`, "error"));
   }, [notify]);
 
-  useEffect(() => {
-    document.documentElement.dataset.theme = theme;
-    remember("dissolve-theme", theme);
-  }, [theme]);
   // Effects return nothing: React calls a returned value as the cleanup, and newer Chrome's scrollIntoView returns a Promise.
   useEffect(() => {
     remember("dissolve-sidebar", sidebar ? "open" : "closed");
@@ -388,7 +383,6 @@ function Workspace({ user, onSignOut }: { user: string | null; onSignOut?: () =>
         doctor={doctor}
         models={models}
         model={state?.model || preferredModel || defaultModel}
-        theme={theme}
         canExport={messages.length > 0}
         onToggleSidebar={() => setSidebar(!sidebar)}
         onShowSystem={() => {
@@ -396,7 +390,6 @@ function Workspace({ user, onSignOut }: { user: string | null; onSignOut?: () =>
           setSidebar(true);
         }}
         onModel={chooseModel}
-        onTheme={() => setTheme(theme === "light" ? "dark" : "light")}
         onExport={exportChat}
         onNewChat={newChat}
         onPapers={features.literature ? openPapers : undefined}

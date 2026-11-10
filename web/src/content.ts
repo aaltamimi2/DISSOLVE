@@ -90,14 +90,13 @@ export const QUICK_ACTIONS: QuickAction[] = [
   },
   {
     label: "Research + RAG",
-    blurb: "The pinned literature corpus, papers and patents",
+    blurb: "The pinned literature corpus of 89 papers",
     icon: BookOpen,
     feature: "literature",
     examples: [
       { text: "What does the literature corpus report about selective dissolution of EVOH from multilayer films?", needs: "/literature corpus" },
       { text: "Search the corpus for dissolution temperatures of LDPE in xylene.", needs: "/literature corpus" },
       { text: "Summarize published solvent systems for separating PET from PE, with citations.", needs: "/literature corpus" },
-      { text: "Find recent papers and patents on solvent-targeted recovery of multilayer packaging.", needs: "/literature scholarly" },
     ],
   },
   {
