@@ -24,7 +24,7 @@ from pathlib import Path
 from types import MappingProxyType
 from typing import Any, Callable, Iterable, Literal, Mapping, Optional, Sequence
 
-from . import tea_polymer_parameters, tea_worker
+from . import tea_polymer_parameters, tea_sweep_store, tea_worker
 from . import thermodynamics as thermo
 from .contracts import parse_tool_result, tool_error, tool_success
 from .session import candidate_evidence, current_tool_session, handle_rows, load_handle
@@ -4890,7 +4890,10 @@ def _would_start_live_child(config: dict[str, Any], engine_mode: str) -> bool:
     mode = str(engine_mode or "auto").strip().casefold()
     if mode == "live" or "lca_cfs" in config:
         return True
-    return mode == "auto" and (stored_results_off() or _cache_index().get(_config_key(config)) is None)
+    if mode != "auto" or stored_results_off():
+        return mode == "auto"
+    key = _config_key(config)
+    return _cache_index().get(key) is None and _sweep_lookup(key, decode=False) is None
 
 
 def _unconfirmed_live_tea_error(
@@ -4934,14 +4937,49 @@ def _unconfirmed_live_tea_error(
     )
 
 
+@lru_cache(maxsize=1)
+def _sweep_engine_fingerprint() -> dict[str, Any] | None:
+    """The running engine's fingerprint, from its files (no worker is started): what the sweep store's manifest
+    must match before any stored grid plant is served."""
+    plastics = tea_polymer_parameters.resolve_plastics_path()
+    if plastics is None:
+        return None
+    model, model_error = _live_process_model_provenance(str(plastics))
+    worker, worker_error = _tea_worker_source_provenance()
+    cited, cited_error = _live_cited_package_provenance(str(plastics))
+    if model_error or worker_error or cited_error:
+        return None
+    try:
+        pins = _expected_live_runtime_versions()
+    except RuntimeError:
+        return None
+    return tea_sweep_store.engine_fingerprint({**model, **worker, **cited, "expected_runtime_versions": pins})
+
+
+def _sweep_lookup(key: str, *, decode: bool = True) -> dict[str, Any] | None:
+    """A plant from the Euler core grid (tea_sweep_store), when one is configured and its engine is this one."""
+    store = tea_sweep_store.store()
+    if store is None:
+        return None
+    return store.lookup(key, _sweep_engine_fingerprint(), decode=decode)
+
+
 def _cached_result(config: dict[str, Any]) -> dict[str, Any] | None:
     """The stored live result for exactly this configuration, or None (an lca_cfs override is never stored, and a
-    deployment with stored results off serves none)."""
-    if stored_results_off():
+    deployment with stored results off serves none). The 24 shipped plants come first, then the core grid."""
+    if stored_results_off() or "lca_cfs" in config:
         return None
-    record = _cache_index().get(_config_key(config))
-    if not record or "lca_cfs" in config:
-        return None
+    key = _config_key(config)
+    record = _cache_index().get(key)
+    if not record:
+        stored = _sweep_lookup(key)
+        if stored is None:
+            return None
+        stored.update({
+            "engine_mode": "cache", "cache_match_status": "exact",
+            "cache_record_label": f"core-grid:{tea_sweep_store.partition_id(key)}", "config": config,
+        })
+        return _coerce_nonfinite_served_tea(stored)
     result = copy.deepcopy(record["result"])
     operations = result.get("operations") or {}
     if _record_energy_is_legacy(record):
