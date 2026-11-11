@@ -44,6 +44,17 @@ services:
       - key: DISSOLVE_WEB_MODES
         scope: RUN_TIME
         value: review
+      # The Euler core grid's stored TEA/LCA plants (tea_sweep_store, owner 2026-11-11): a private Spaces folder read
+      # with a read-only key; the image caps the local copy at 300 MB (Dockerfile).
+      - key: DISSOLVE_TEA_SWEEP_URL
+        scope: RUN_TIME
+        value: https://dissolve-tea-sweep-6c9685.nyc3.digitaloceanspaces.com/core-grid-v1/
+      - key: DISSOLVE_TEA_SWEEP_ACCESS_KEY
+        type: SECRET
+        scope: RUN_TIME
+      - key: DISSOLVE_TEA_SWEEP_SECRET_KEY
+        type: SECRET
+        scope: RUN_TIME
       - key: DATABASE_URL
         scope: RUN_TIME
         value: ${db.DATABASE_URL}

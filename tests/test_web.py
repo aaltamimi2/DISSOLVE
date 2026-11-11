@@ -522,6 +522,25 @@ def _tea_turn(http, session_id, text, answer):
     return events
 
 
+def test_the_panel_prefers_a_stored_plant_even_when_the_model_asks_for_a_live_run(client, monkeypatch):
+    """The site serves the Euler core grid's stored plants (owner, 2026-11-11). A stored result equals the live run of
+    the same engine, so the model's engine_mode live only made people wait; every panel plant goes out in auto, and
+    the check counts plants the same way."""
+    _model(monkeypatch, [{"mode": "evaluate", "process_config": _plant(), "engine_mode": "live"}])
+    runs = _engine(monkeypatch)
+    modes = []
+    monkeypatch.setattr(tea, "_would_start_live_child", lambda config, mode: modes.append(mode) or True)
+    session_id = client.post("/api/sessions", json={}).json()["session_id"]
+
+    def answer(http, sheet):
+        http.post(f"/api/sessions/{session_id}/tea-sheet/check", json={"sheet_id": sheet["id"], "values": {}})
+        http.post(f"/api/sessions/{session_id}/tea-sheet", json={"sheet_id": sheet["id"], "action": "run"})
+
+    _tea_turn(client, session_id, "What does LDPE recovery in dodecane cost? Run it live.", answer)
+    assert runs and [run["call"]["engine_mode"] for run in runs] == ["auto"]
+    assert modes and set(modes) == {"auto"}
+
+
 def test_a_plant_tea_waits_for_the_panel_and_runs_what_the_person_confirmed(client, monkeypatch):
     """The web app ran the model's plant values unseen and unconfirmed, with no way to sweep (owner, 2026-09-26). In
     a review-mode chat the panel now shows every field the CLI's sheet shows; the person edits a field and turns

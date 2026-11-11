@@ -75,10 +75,14 @@ USER dissolve
 # Live TEA reproduces the stored results exactly in this image, and numba's cache is filled, so the site's first run
 # compiles nothing.
 RUN python /opt/check_live_tea.py
-# Every TEA number on the site is a live run, never a stored result (owner, 2026-09-30), and the panel's time estimate
-# is the site's: a live plant takes about 65 s in its sandbox.
+# A TEA number on the site is a live run or a stored result of this same engine (owner, 2026-11-11; until then every
+# number was live, 2026-09-30): the 24 shipped plants and the Euler core grid (tea_sweep_store). The grid's files come
+# from the private Spaces folder named by DISSOLVE_TEA_SWEEP_URL (with its read-only key) the first time a question
+# needs one, and /opt/tea-cache/sweep never holds more than 300 MB of them. The panel's time estimate is the site's: a
+# live plant takes about 65 s in its sandbox.
 ENV HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 DISSOLVE_PAIR_RERANK=off \
     DISSOLVE_BGE_ONNX_INT8=/opt/models/bge-base.int8.onnx DISSOLVE_MAX_TURNS=8 DISSOLVE_DUCKDB_MEMORY_LIMIT=256MB \
-    DISSOLVE_TEA_STORED_RESULTS=off DISSOLVE_TEA_SECONDS_PER_PLANT=65
+    DISSOLVE_TEA_STORED_RESULTS=on DISSOLVE_TEA_SECONDS_PER_PLANT=65 \
+    DISSOLVE_TEA_SWEEP_DIR=/opt/tea-cache/sweep DISSOLVE_TEA_SWEEP_MAX_MB=300 DISSOLVE_TEA_SWEEP_REGION=nyc3
 EXPOSE 8080
 CMD ["dissolve", "web", "--host", "0.0.0.0", "--port", "8080"]

@@ -592,7 +592,11 @@ def expand(sheet: Mapping[str, Any], values: Mapping[str, Any] | None, ranges: M
 
 
 def _engine_mode(kwargs: Mapping[str, Any]) -> str:
-    return str(kwargs.get("engine_mode") or "auto").strip().casefold()
+    """The panel always prefers a stored plant (owner, 2026-11-11). A stored result is the live result of this same
+    engine (tea_sweep_store checks the engine's fingerprint), so a model's request for engine_mode live only made
+    people wait about a minute per plant for the same numbers. The check's count of stored plants uses the same mode."""
+    del kwargs
+    return "auto"
 
 
 def check(sheet: Mapping[str, Any], plants: list[tuple[str, dict]], kwargs: Mapping[str, Any]) -> dict[str, Any]:
@@ -940,6 +944,7 @@ def _call(sheet: Mapping[str, Any], kwargs: Mapping[str, Any], label: str, plant
     else:
         call = {"mode": "evaluate", "process_config": {**plant, "label": label}, "confirm_live_tea": True,
                 **{key: kwargs[key] for key in _PLANT_SCALARS if key in kwargs}}
+    call["engine_mode"] = _engine_mode(kwargs)
     try:
         envelope = json.loads(tea.evaluate_process(**call))
         data = envelope.get("data") if isinstance(envelope, dict) else None
